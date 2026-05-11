@@ -80,8 +80,8 @@ body {
   max-width: calc(100vh * 16 / 9);
   max-height: calc(100vw * 9 / 16);
   display: grid;
-  /* HUD | battlefield (cards) | log strip | ATB queue + Fight | action tiles */
-  grid-template-rows: 40px minmax(0, 1fr) 22px 46px minmax(96px, 30%);
+  /* HUD | battlefield (figures) | log strip | ATB queue + Fight | action tiles */
+  grid-template-rows: 38px minmax(0, 1.6fr) 22px 50px minmax(110px, 1fr);
   grid-template-columns: 1fr;
   background:
     radial-gradient(ellipse 60% 80% at 22% 50%, #2a1c12 0%, transparent 55%),
@@ -323,13 +323,215 @@ body {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   grid-template-rows: 1fr;
-  gap: 8px;
+  gap: 6px;
   min-height: 0;
   position: relative; z-index: 2;
+  /* stone ground line under the figures */
 }
-/* cards fill their column fully */
-#party-half > .card,
-#enemy-half > .card { height: 100%; min-height: 0; }
+#party-half::after, #enemy-half::after {
+  content: '';
+  position: absolute;
+  left: 6%; right: 6%;
+  bottom: 36px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold-deep) 20%, var(--gold-dim) 50%, var(--gold-deep) 80%, transparent);
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+/* ============ FIGURE — standing character on the battlefield (no card frame) ============ */
+.figure {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0; min-height: 0;
+  padding: 6px 4px 4px;
+  cursor: pointer;
+}
+.figure.empty { opacity: 0.15; }
+.figure.downed { opacity: 0.4; filter: grayscale(1) brightness(0.65); }
+
+.figure-portrait {
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: 230px;
+  min-height: 0;
+  position: relative;
+  filter: drop-shadow(0 6px 8px rgba(0,0,0,0.65));
+  display: flex; align-items: flex-end; justify-content: center;
+}
+.figure-portrait svg {
+  width: 100%; height: 100%;
+  display: block;
+  /* soft elliptical mask so the portrait fades into the stage instead of looking like a colored box */
+  -webkit-mask-image: radial-gradient(ellipse 78% 88% at 50% 48%, #000 55%, transparent 100%);
+          mask-image: radial-gradient(ellipse 78% 88% at 50% 48%, #000 55%, transparent 100%);
+  transform-origin: 50% 100%;
+  animation: idle-breathe 5.4s ease-in-out infinite;
+}
+#enemy-half .figure-portrait svg { animation-name: idle-breathe-mirror; transform: scaleX(-1); }
+
+/* soft ground shadow ellipse under each figure */
+.figure-shadow {
+  width: 70%;
+  max-width: 160px;
+  height: 7px;
+  margin: -2px auto 6px;
+  background: radial-gradient(ellipse, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.25) 50%, transparent 75%);
+  pointer-events: none;
+  flex-shrink: 0;
+}
+.figure.downed .figure-shadow { opacity: 0.4; }
+
+.figure-info {
+  width: 100%;
+  max-width: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+.figure-name {
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink);
+  font-weight: bold;
+  text-shadow: 0 1px 0 var(--shadow), 0 0 6px rgba(0,0,0,0.7);
+}
+.figure-name.home { color: var(--gold-bright); text-shadow: 0 0 8px rgba(240,212,136,0.5), 0 1px 0 var(--shadow); }
+
+/* HP bar reuses .hp-bar / .hp-fill / .hp-text from below — keep it the same look but constrained to the info width */
+.figure-hp {
+  width: 100%;
+  height: 9px;
+  position: relative;
+  background: linear-gradient(180deg, #050200 0%, #1a0e08 100%);
+  border: 1px solid var(--gold-deep);
+  border-radius: 2px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.7), 0 0 6px rgba(0,0,0,0.5);
+}
+.figure-hp .hp-fill {
+  height: 100%;
+  background: linear-gradient(180deg, var(--hp) 0%, #4a8a2c 50%, #2a5818 100%);
+  transition: width 0.4s ease-out;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.18);
+}
+.figure-hp .hp-fill.low {
+  background: linear-gradient(180deg, var(--hp-low) 0%, #8a2418 50%, #501a10 100%);
+  animation: hp-pulse 1.2s ease-in-out infinite;
+}
+.figure-hp .hp-text {
+  position: absolute; inset: 0;
+  text-align: center;
+  font-size: 9px; line-height: 9px;
+  color: var(--ink);
+  text-shadow: 0 1px 1px var(--shadow), 0 0 4px rgba(0,0,0,0.85);
+  font-variant-numeric: tabular-nums;
+  font-weight: bold;
+  letter-spacing: 0.04em;
+}
+
+/* chain bar (enemies) sits under the HP */
+.figure .chain-bar {
+  width: 100%;
+  height: 4px;
+  margin-top: 1px;
+}
+
+/* status chips float top-right of figure */
+.figure-statuses {
+  position: absolute;
+  top: 4px; right: 4px;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
+  z-index: 4;
+  pointer-events: none;
+  max-width: 40%;
+}
+
+/* ============ INTENT BUBBLE — floats above enemy figure ============ */
+.intent-bubble {
+  position: absolute;
+  top: 8px; left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, var(--blood-bright) 0%, var(--blood) 70%, var(--blood-deep) 100%);
+  color: var(--ink);
+  font-size: 10px; font-weight: bold;
+  padding: 3px 8px;
+  border-radius: 12px;
+  border: 1px solid var(--gold-deep);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  display: flex; align-items: center; gap: 5px;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.7), 0 0 12px rgba(212,69,69,0.4), inset 0 1px 0 rgba(255,200,200,0.3);
+  text-shadow: 0 1px 0 var(--shadow);
+  z-index: 5;
+  white-space: nowrap;
+}
+.intent-bubble .intent-icon { font-size: 11px; filter: drop-shadow(0 1px 0 var(--shadow)); }
+.intent-bubble .intent-target {
+  background: var(--shadow);
+  color: var(--gold-bright);
+  padding: 0 5px;
+  border-radius: 8px;
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  border: 1px solid var(--gold-deep);
+}
+.intent-bubble.intent-aoe    { background: linear-gradient(180deg, var(--aoe) 0%, #8a3878 70%, #4a1838 100%); box-shadow: 0 3px 10px rgba(0,0,0,0.7), 0 0 12px rgba(192,96,160,0.4), inset 0 1px 0 rgba(255,200,240,0.3); }
+.intent-bubble.intent-debuff { background: linear-gradient(180deg, var(--debuff) 0%, #5a3a80 70%, #2a1840 100%); box-shadow: 0 3px 10px rgba(0,0,0,0.7), 0 0 12px rgba(154,120,192,0.4), inset 0 1px 0 rgba(220,200,255,0.3); }
+
+/* threat indicator on party figures — pulsing blood glow under the portrait */
+.figure.targeted-by-enemy {
+  animation: figure-threat 1.6s ease-in-out infinite;
+}
+@keyframes figure-threat {
+  0%, 100% { filter: drop-shadow(0 6px 8px rgba(0,0,0,0.65)); }
+  50%      { filter: drop-shadow(0 6px 8px rgba(0,0,0,0.65)) drop-shadow(0 0 12px rgba(212,69,69,0.6)); }
+}
+
+/* hit shake on the portrait */
+.figure.hit-flash .figure-portrait { animation: portrait-shake 0.4s ease-out; }
+.figure.heal-flash { animation: card-heal-glow 0.7s ease-out; }
+
+/* preview / target marker */
+.figure.target-marker {
+  filter: drop-shadow(0 0 18px var(--gold-bright));
+}
+.figure.target-marker::before {
+  content: '✦';
+  position: absolute;
+  top: -2px; left: 50%;
+  transform: translateX(-50%);
+  color: var(--gold-bright);
+  font-size: 18px;
+  text-shadow: 0 0 12px var(--gold-bright);
+  z-index: 10;
+  animation: target-pulse 0.6s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+/* downed character SVG breathing off */
+.figure.downed .figure-portrait svg { animation: none; }
+.figure.staggered .figure-portrait svg { animation-duration: 1.2s; }
+.figure.hit-flash .figure-portrait svg { animation: none; }
+
+/* staggered enemy: orange aura instead of red */
+.figure.staggered {
+  animation: stagger-aura 1.2s ease-in-out infinite;
+}
+@keyframes stagger-aura {
+  0%, 100% { filter: drop-shadow(0 6px 8px rgba(0,0,0,0.65)) drop-shadow(0 0 8px rgba(255,128,48,0.4)); }
+  50%      { filter: drop-shadow(0 6px 8px rgba(0,0,0,0.65)) drop-shadow(0 0 18px rgba(255,128,48,0.8)); }
+}
+
+/* adjacency chips stay above/below the figure portrait, similar to before */
+.figure .adj-chip.top    { top: 2px; }
+.figure .adj-chip.bottom { top: 50%; }  /* below portrait, just above info */
 
 /* ============ CARD — ornate gold frame, parchment fill ============ */
 .card {
@@ -495,12 +697,12 @@ body {
   will-change: transform;
 }
 /* stagger the breath so the three party / three enemy cards don't sync up */
-#party-half > .card:nth-child(1) .card-portrait svg { animation-duration: 5.8s; animation-delay: -0.2s; }
-#party-half > .card:nth-child(2) .card-portrait svg { animation-duration: 5.2s; animation-delay: -1.4s; }
-#party-half > .card:nth-child(3) .card-portrait svg { animation-duration: 5.6s; animation-delay: -2.6s; }
-#enemy-half > .card:nth-child(1) .card-portrait svg { animation-duration: 6.2s; animation-delay: -0.8s; animation-timing-function: ease-in-out; }
-#enemy-half > .card:nth-child(2) .card-portrait svg { animation-duration: 5.0s; animation-delay: -1.9s; animation-timing-function: ease-in-out; }
-#enemy-half > .card:nth-child(3) .card-portrait svg { animation-duration: 5.8s; animation-delay: -3.1s; animation-timing-function: ease-in-out; }
+#party-half > .figure:nth-child(1) .figure-portrait svg { animation-duration: 5.8s; animation-delay: -0.2s; }
+#party-half > .figure:nth-child(2) .figure-portrait svg { animation-duration: 5.2s; animation-delay: -1.4s; }
+#party-half > .figure:nth-child(3) .figure-portrait svg { animation-duration: 5.6s; animation-delay: -2.6s; }
+#enemy-half > .figure:nth-child(1) .figure-portrait svg { animation-duration: 6.2s; animation-delay: -0.8s; animation-timing-function: ease-in-out; }
+#enemy-half > .figure:nth-child(2) .figure-portrait svg { animation-duration: 5.0s; animation-delay: -1.9s; animation-timing-function: ease-in-out; }
+#enemy-half > .figure:nth-child(3) .figure-portrait svg { animation-duration: 5.8s; animation-delay: -3.1s; animation-timing-function: ease-in-out; }
 /* enemy portraits are mirrored — preserve the flip while breathing */
 #enemy-half .card-portrait svg { animation-name: idle-breathe-mirror; }
 @keyframes idle-breathe {
@@ -891,30 +1093,51 @@ body {
 }
 .char-col.downed { opacity: 0.4; pointer-events: none; }
 .char-col-header {
-  font-size: 9px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-  text-align: center;
+  display: flex; align-items: center; gap: 8px;
+  padding: 3px 6px;
   background:
-    linear-gradient(180deg, rgba(200,164,100,0.1) 0%, rgba(0,0,0,0.35) 100%);
+    linear-gradient(180deg, rgba(200,164,100,0.1) 0%, rgba(0,0,0,0.45) 100%);
   border: 1px solid var(--gold-deep);
-  border-radius: 2px;
-  padding: 1px 4px;
-  display: flex; justify-content: center; align-items: baseline; gap: 6px;
+  border-radius: 3px;
   position: relative;
   box-shadow: inset 0 1px 0 rgba(232,220,196,0.06);
+  min-height: 0;
 }
 .char-col-header.home-color {
-  color: var(--gold);
   border-color: var(--gold-dim);
   background:
-    linear-gradient(180deg, rgba(200,164,100,0.18) 0%, rgba(0,0,0,0.35) 100%);
+    linear-gradient(180deg, rgba(200,164,100,0.2) 0%, rgba(0,0,0,0.45) 100%);
   box-shadow: inset 0 1px 0 rgba(240,212,136,0.15), 0 0 6px rgba(200,164,100,0.15);
 }
-.char-col-header .cch-name { font-weight: bold; color: var(--ink); font-size: 10px; letter-spacing: 0.08em; }
-.char-col-header.home-color .cch-name { color: var(--gold-bright); text-shadow: 0 0 5px rgba(240,212,136,0.4); }
-.char-col-header .cch-slot { font-size: 8px; color: var(--ink-faint); font-style: italic; }
+.char-col-header .cch-avatar {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--gold-dim);
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--parchment-deep);
+  box-shadow: inset 0 0 4px rgba(0,0,0,0.7);
+}
+.char-col-header .cch-avatar svg {
+  width: 110%; height: 110%; display: block;
+  transform: translate(-5%, -2%);
+}
+.char-col-header.home-color .cch-avatar { border-color: var(--gold-bright); box-shadow: inset 0 0 4px rgba(0,0,0,0.7), 0 0 6px rgba(240,212,136,0.4); }
+.char-col-header .cch-text {
+  display: flex; flex-direction: column;
+  min-width: 0;
+  line-height: 1.1;
+}
+.char-col-header .cch-name {
+  font-weight: bold; color: var(--ink);
+  font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+  text-shadow: 0 1px 0 var(--shadow);
+}
+.char-col-header.home-color .cch-name { color: var(--gold-bright); text-shadow: 0 0 5px rgba(240,212,136,0.4), 0 1px 0 var(--shadow); }
+.char-col-header .cch-slot {
+  font-size: 8px; color: var(--ink-faint); font-style: italic;
+  letter-spacing: 0.16em; text-transform: uppercase;
+}
 
 #ts-area { display: flex; min-height: 0; min-width: 0; }
 #ts-area .tile.team-special { width: 100%; height: 100%; min-height: 0; }
@@ -1003,12 +1226,13 @@ body {
   background:
     radial-gradient(ellipse at 50% 30%, #f06060 0%, var(--blood-bright) 40%, var(--blood) 75%, var(--blood-deep) 100%);
   border: 1px solid var(--gold);
-  color: var(--ink);
-  padding: 0 30px;
+  color: var(--gold-pale);
+  padding: 0 22px;
   border-radius: 3px;
   cursor: pointer;
   font-family: inherit;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  display: flex; flex-direction: row; align-items: center; justify-content: center;
+  gap: 10px;
   transition: all 0.18s;
   position: relative;
   box-shadow:
@@ -1017,6 +1241,16 @@ body {
     inset 0 1px 0 rgba(255,200,200,0.3),
     inset 0 -1px 0 rgba(0,0,0,0.4);
   overflow: visible;
+}
+.fight-btn .fight-icon {
+  width: 22px; height: 22px;
+  filter: drop-shadow(0 1px 0 var(--shadow)) drop-shadow(0 0 6px rgba(0,0,0,0.5));
+  flex-shrink: 0;
+}
+.fight-btn .fight-text {
+  display: flex; flex-direction: column;
+  align-items: flex-start; gap: 1px;
+  text-align: left;
 }
 .fight-btn::before, .fight-btn::after {
   content: '';
@@ -1057,14 +1291,16 @@ body {
   animation: none;
 }
 .fight-btn .fight-label {
-  font-size: 15px; font-weight: bold; letter-spacing: 0.3em;
+  font-size: 16px; font-weight: bold; letter-spacing: 0.28em;
   text-transform: uppercase;
   text-shadow: 0 1px 0 var(--shadow), 0 0 8px rgba(0,0,0,0.5);
+  line-height: 1;
 }
 .fight-btn .fight-sub {
-  font-size: 8px; letter-spacing: 0.2em; opacity: 0.85;
+  font-size: 8px; letter-spacing: 0.22em; opacity: 0.85;
   text-transform: uppercase;
   text-shadow: 0 1px 0 var(--shadow);
+  color: var(--ink);
 }
 
 /* ============ TS-AREA (right side of control bar) ============ */
