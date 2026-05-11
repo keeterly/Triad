@@ -18,6 +18,12 @@ Plus a **Team Special** that consumes the full ATB bar and 3 Resolve. Its effect
 
 Because actions resolve in order against live state, queuing **Move → Attack** uses the character's *new* position for the attack. Variable ATB costs force real trade-offs: 3 cheap attacks vs 1 special + 1 attack vs the full ultimate. Characters are extreme specialists: one *home* slot is devastating, others fall off. Enemies telegraph the **slot** they target so positioning is the puzzle.
 
+### Reach
+
+Every damaging action has a **reach** — the enemy slots it can hit. Cassia and front-shoved abilities are melee (front only). Branwen's mid-row shots are **mortar-style** (mid/back, skipping the front line). Her back-row attacks reach the whole field. If an action's reach is empty (e.g., front enemy already dead and you queued a melee strike), it fizzles.
+
+**Hold any action tile (~220ms)** to preview the highlight on enemies it would hit. Release to dismiss the preview. A short tap queues the action as before.
+
 ## Stagger loop
 
 Each enemy has a chain gauge under their HP. Damage builds it (Vulnerable hits build x2). At full, the enemy is **Staggered** — skips their next action and takes +50% damage. That's your burst window.
