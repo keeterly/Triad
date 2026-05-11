@@ -1539,6 +1539,7 @@ const $$ = (sel) => document.querySelectorAll(sel);
 function render() {
   renderHUD();
   renderBattlefield();
+  renderTiles();
   renderQueue();
   renderTeamSpecial();
   renderFightButton();
@@ -1593,7 +1594,28 @@ function renderBattlefield() {
     });
   });
 
-  // tile-rendering inputs (shared across all party stacks)
+  // PARTY: three cards in display order (back / mid / front)
+  const partyHalf = $('#party-half'); partyHalf.innerHTML = '';
+  PARTY_DISPLAY_ORDER.forEach(slot => {
+    const c = charBySlot(state, slot);
+    partyHalf.appendChild(makePartyCard(c, slot, threatened.has(slot), adjMap));
+  });
+
+  // ENEMY: three cards in display order (front / mid / back)
+  const enemyHalf = $('#enemy-half'); enemyHalf.innerHTML = '';
+  ENEMY_DISPLAY_ORDER.forEach(slot => {
+    const e = enemyBySlot(state, slot);
+    enemyHalf.appendChild(makeEnemyCard(e, slot));
+  });
+}
+
+// Bottom action row — one column per party character, rendered in
+// PARTY_DISPLAY_ORDER so each column sits beneath its matching card above.
+function renderTiles() {
+  const grid = $('#tile-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+
   const sim = simulateSlotsThrough(state, state.queue.length);
   const teamLocked = state.queue.some(q => q.kind === 'team');
   const tileCounts = {};
@@ -1602,44 +1624,29 @@ function renderBattlefield() {
     tileCounts[key] = (tileCounts[key] || 0) + 1;
   });
 
-  // PARTY HALF — one stack per slot (card + 3 tiles). Stacks render in
-  // display order, so when a character swaps slots, their column reorders.
-  const partyHalf = $('#party-half'); partyHalf.innerHTML = '';
   PARTY_DISPLAY_ORDER.forEach(slot => {
-    const c = charBySlot(state, slot);
-    partyHalf.appendChild(makePartyStack(c, slot, threatened.has(slot), adjMap, sim, tileCounts, teamLocked));
-  });
+    const charId = state.party.slots[slot];
+    const col = document.createElement('div');
+    col.className = 'char-col';
+    if (!charId) { col.classList.add('empty'); grid.appendChild(col); return; }
 
-  // ENEMY HALF — three enemy cards (no tiles)
-  const enemyHalf = $('#enemy-half'); enemyHalf.innerHTML = '';
-  ENEMY_DISPLAY_ORDER.forEach(slot => {
-    const e = enemyBySlot(state, slot);
-    enemyHalf.appendChild(makeEnemyCard(e, slot));
-  });
-}
+    const c = state.party.chars[charId];
+    const def = CHARS[charId];
+    const simSlot = slotOfCharSim(sim, charId) || slot;
+    if (c.downed) col.classList.add('downed');
 
-function makePartyStack(c, slot, threatened, adjMap, sim, tileCounts, teamLocked) {
-  const stack = document.createElement('div');
-  stack.className = 'party-stack';
-  if (!c) {
-    stack.classList.add('empty');
-    stack.appendChild(makePartyCard(null, slot, false, adjMap));
-    for (let i = 0; i < 3; i++) {
-      const shell = document.createElement('div');
-      shell.className = 'tile-shell';
-      stack.appendChild(shell);
-    }
-    return stack;
-  }
-  if (c.downed) stack.classList.add('downed');
-  stack.appendChild(makePartyCard(c, slot, threatened, adjMap));
-  // 3 action tiles beneath the card — derived from the character's simulated slot
-  const charId = c.id;
-  const simSlot = slotOfCharSim(sim, charId) || slot;
-  stack.appendChild(makeTile('attack', charId, null, tileCounts, teamLocked));
-  stack.appendChild(makeTile('special', charId, null, tileCounts, teamLocked));
-  stack.appendChild(makeMoveOrBraceTile(charId, simSlot, tileCounts, teamLocked));
-  return stack;
+    const header = document.createElement('div');
+    header.className = 'char-col-header';
+    if (simSlot === def.home) header.classList.add('home-color');
+    header.innerHTML = `<span class="cch-name">${def.name}</span><span class="cch-slot">${SLOT_LABELS[simSlot] || '—'}${simSlot === def.home ? ' · home' : ''}</span>`;
+    col.appendChild(header);
+
+    col.appendChild(makeTile('attack', charId, null, tileCounts, teamLocked));
+    col.appendChild(makeTile('special', charId, null, tileCounts, teamLocked));
+    col.appendChild(makeMoveOrBraceTile(charId, simSlot, tileCounts, teamLocked));
+
+    grid.appendChild(col);
+  });
 }
 
 function cornerBrackets() {
@@ -2025,11 +2032,11 @@ function renderFightButton() {
 
 function renderMessages() {
   const bar = $('#message-bar');
-  bar.innerHTML = state.messages.slice(-10).map(m => {
-    const isStrong = m.startsWith('<span class="msg-strong">');
-    return `<div class="msg-line ${isStrong ? 'msg-strong' : ''}">${m.replace(/<span class="msg-strong">|<\/span>/g,'')}</div>`;
-  }).join('');
-  bar.scrollTop = bar.scrollHeight;
+  // single-line ticker: show only the most recent message
+  const latest = state.messages[state.messages.length - 1];
+  if (!latest) { bar.innerHTML = ''; return; }
+  const isStrong = latest.startsWith('<span class="msg-strong">');
+  bar.innerHTML = `<div class="msg-line ${isStrong ? 'msg-strong' : ''}">${latest.replace(/<span class="msg-strong">|<\/span>/g,'')}</div>`;
 }
 
 function log(html) { state.messages.push(html); }
