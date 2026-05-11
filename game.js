@@ -1639,10 +1639,7 @@ function renderTiles() {
     header.className = 'char-col-header';
     if (simSlot === def.home) header.classList.add('home-color');
     header.title = `${def.name} — ${SLOT_LABELS[simSlot] || '—'}${simSlot === def.home ? ' · home' : ''}`;
-    header.innerHTML = `
-      <div class="cch-avatar">${PORTRAITS[charId] || ''}</div>
-      <div class="cch-name">${def.name}</div>
-    `;
+    header.innerHTML = `<div class="cch-avatar">${PORTRAITS[charId] || ''}</div>`;
     col.appendChild(header);
 
     col.appendChild(makeTile('attack', charId, null, tileCounts, teamLocked));
@@ -2018,12 +2015,11 @@ function makeTeamSpecialTile(teamLocked) {
   if (teamLocked) t.classList.add('queued');
 
   const formationLabel = `${CHARS[state.party.slots.front]?.name?.[0] || '·'}-${CHARS[state.party.slots.mid]?.name?.[0] || '·'}-${CHARS[state.party.slots.back]?.name?.[0] || '·'}`;
+  t.title = `${ts.name} · formation ${formationLabel} · ${ts.short}`;
   t.innerHTML = `
-    <span class="ts-label">Team Special</span>
     <span class="ts-name">${ts.name}</span>
-    <span class="ts-form">formation ${formationLabel}</span>
-    <span class="ts-desc">${ts.short}</span>
     <span class="ts-cost"><span class="tile-atb">${TEAM_SPECIAL_ATB}</span><span class="tile-cost">${TEAM_SPECIAL_COST}♦</span></span>
+    <span class="ts-desc">${ts.short}</span>
   `;
   bindTileHold(t, {
     onQueue: () => queueTeamSpecial(),
