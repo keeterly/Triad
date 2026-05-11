@@ -1714,6 +1714,12 @@ function intentIconGlyph(kind) {
   return '⚔';
 }
 
+// Pull the primary numeric value out of an intent tag — e.g. "ATK 6" → "6", "WEAK 2" → "2"
+function intentPrimaryNum(tag) {
+  const m = (tag || '').match(/\d+/);
+  return m ? m[0] : '';
+}
+
 function makeEnemyCard(e, slot) {
   const fig = document.createElement('div');
   fig.className = 'figure enemy-figure';
@@ -1739,14 +1745,15 @@ function makeEnemyCard(e, slot) {
     : ts === 'pierce' ? 'M+B>'
     : (ts || '').slice(0,1).toUpperCase();
   const icon = intentIconGlyph(intent.kind);
+  const num = intentPrimaryNum(intent.tag);
 
   const staggerBanner = e.staggered ? `<div class="staggered-banner">STAGGERED</div>` : '';
-  // Intent floats ABOVE the figure as a damage-call bubble (like the reference's "⚔ 14" hover-glyphs).
+  // Minimal intent: just kind icon + the primary number. Targeting is conveyed by
+  // the .targeted-by-enemy glow on the party figures it threatens.
   const intentBubble = e.staggered ? '' : `
-    <div class="intent-bubble ${intentClass}">
+    <div class="intent-bubble ${intentClass}" title="${intent.name}: ${intent.tag} → ${targetTag}">
       <span class="intent-icon">${icon}</span>
-      <span class="intent-tag">${intent.tag}</span>
-      <span class="intent-target">${targetTag}</span>
+      ${num ? `<span class="intent-num">${num}</span>` : ''}
     </div>`;
 
   fig.innerHTML = `
@@ -1769,15 +1776,18 @@ function makeEnemyCard(e, slot) {
 
 function renderStatuses(ent) {
   const c = [];
-  if (ent.armor > 0)     c.push(`<span class="status-chip status-armor">⛨${ent.armor}</span>`);
-  if (ent.bleed > 0)     c.push(`<span class="status-chip status-bleed">bleed ${ent.bleed}</span>`);
-  if (ent.taunt)         c.push(`<span class="status-chip status-taunt">taunt</span>`);
-  if (ent.weak > 0)      c.push(`<span class="status-chip status-weak">weak ${ent.weak}</span>`);
-  if (ent.vuln > 0)      c.push(`<span class="status-chip status-vuln">vuln ${ent.vuln}</span>`);
-  if (ent.retaliate > 0) c.push(`<span class="status-chip status-retal">retaliate ${ent.retaliate}</span>`);
+  const chip = (cls, icon, num, title) =>
+    `<span class="status-chip ${cls}" title="${title}"><span class="status-icon">${icon}</span>${num != null ? `<span class="status-num">${num}</span>` : ''}</span>`;
+  if (ent.armor > 0)     c.push(chip('status-armor', '⛨', ent.armor,    `Armor ${ent.armor}`));
+  if (ent.bleed > 0)     c.push(chip('status-bleed', '✤', ent.bleed,    `Bleed ${ent.bleed}`));
+  if (ent.taunt)         c.push(chip('status-taunt', '⌖', null,         'Taunt'));
+  if (ent.weak > 0)      c.push(chip('status-weak',  '↓', ent.weak,     `Weak ${ent.weak}`));
+  if (ent.vuln > 0)      c.push(chip('status-vuln',  '⊕', ent.vuln,     `Vulnerable ${ent.vuln}`));
+  if (ent.retaliate > 0) c.push(chip('status-retal', '↻', ent.retaliate,`Retaliate ${ent.retaliate}`));
   if (ent.pendingEffects) ent.pendingEffects.forEach(e => {
-    const label = e.kind === 'attackBonus' ? `+${e.amt} atk` : e.kind === 'healBonus' ? `+${e.amt} heal` : `+${e.amt}`;
-    c.push(`<span class="status-chip status-pending">${label}</span>`);
+    if (e.kind === 'attackBonus')      c.push(chip('status-pending', '⚔', `+${e.amt}`, `Next attack +${e.amt}`));
+    else if (e.kind === 'healBonus')   c.push(chip('status-pending', '✚', `+${e.amt}`, `Next heal +${e.amt}`));
+    else                                c.push(chip('status-pending', '✦', `+${e.amt}`, `Pending +${e.amt}`));
   });
   return c.join('');
 }
