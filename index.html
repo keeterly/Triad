@@ -48,19 +48,24 @@
       <div class="hud-block hud-title">TRIAD<span class="hud-sub">— prototype v0.3 —</span></div>
     </header>
 
-    <!-- ROW 1: BATTLEFIELD — party cards left, enemy cards right -->
+    <!-- ROW 2: ATB queue (slim, above battlefield) -->
+    <section id="atb-row">
+      <div id="queue-strip"></div>
+      <button id="btn-clear" class="control-btn" aria-label="Clear queue" title="Clear queue">✕</button>
+    </section>
+
+    <!-- ROW 3: BATTLEFIELD — party figures left, enemy figures right -->
     <section id="battlefield">
       <div id="party-half" aria-label="Party"></div>
       <div id="enemy-half" aria-label="Enemies"></div>
     </section>
 
-    <!-- ROW 2: MESSAGE LOG STRIP -->
+    <!-- ROW 4: MESSAGE LOG STRIP -->
     <div id="message-bar" aria-live="polite"></div>
 
-    <!-- ROW 3: ATB QUEUE + FIGHT -->
-    <section id="queue-row">
-      <div id="queue-strip"></div>
-      <button id="btn-clear" class="control-btn"><span class="ctrl-label">Clear</span></button>
+    <!-- ROW 5: ACTION TILES + FIGHT + TEAM SPECIAL -->
+    <section id="action-row">
+      <div id="tile-grid"></div>
       <button id="btn-fight" class="fight-btn" disabled>
         <svg class="fight-icon" viewBox="0 0 24 24" aria-hidden="true">
           <path d="M 4 4 L 20 20 M 20 4 L 4 20" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" fill="none"/>
@@ -73,11 +78,6 @@
           <span class="fight-sub">commit turn</span>
         </span>
       </button>
-    </section>
-
-    <!-- ROW 4: ACTION TILES — one column per character (in slot display order) + team special -->
-    <section id="action-row">
-      <div id="tile-grid"></div>
       <div id="ts-area"></div>
     </section>
 
