@@ -91,9 +91,9 @@ body {
   max-width: calc(100dvh * 16 / 9);
   max-height: calc(100vw * 9 / 16);
   display: grid;
-  /* HUD | ATB strip | battlefield | log strip | action tiles+Fight+TS
-     Battlefield gets the lion's share so figures read cinematic. */
-  grid-template-rows: 36px 26px minmax(0, 1fr) 20px 122px;
+  /* HUD | ATB strip | battlefield (everything left over) | log | action tiles
+     Fixed rows trimmed hard so figures get the largest share of the stage. */
+  grid-template-rows: 30px 22px minmax(0, 1fr) 14px 102px;
   grid-template-columns: 1fr;
   background:
     radial-gradient(ellipse 60% 80% at 22% 50%, #2a1c12 0%, transparent 55%),
@@ -302,8 +302,8 @@ body {
   display: grid;
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr;
-  gap: 10px;
-  padding: 8px 10px;
+  gap: 6px;
+  padding: 4px 8px 2px;
   position: relative; z-index: 2;
   min-height: 0;
   overflow: hidden;
@@ -339,7 +339,7 @@ body {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   grid-template-rows: 1fr;
-  gap: 6px;
+  gap: 2px;
   min-height: 0;
   position: relative; z-index: 2;
   /* stone ground line under the figures */
@@ -363,7 +363,7 @@ body {
   align-items: center;
   justify-content: flex-end;
   min-width: 0; min-height: 0;
-  padding: 6px 4px 4px;
+  padding: 2px 2px 4px;
   cursor: pointer;
 }
 .figure.empty { visibility: hidden; }
@@ -395,8 +395,8 @@ body {
 .figure-shadow {
   width: 78%;
   max-width: 180px;
-  height: 9px;
-  margin: -2px auto 6px;
+  height: 6px;
+  margin: -2px auto 2px;
   background:
     radial-gradient(ellipse, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.3) 50%, transparent 80%);
   pointer-events: none;
@@ -411,12 +411,12 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
+  gap: 1px;
   flex-shrink: 0;
 }
 .figure-name {
-  font-size: 11px;
-  letter-spacing: 0.22em;
+  font-size: 10px;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--ink);
   font-weight: bold;
@@ -427,7 +427,7 @@ body {
 /* HP bar reuses .hp-bar / .hp-fill / .hp-text from below — keep it the same look but constrained to the info width */
 .figure-hp {
   width: 100%;
-  height: 9px;
+  height: 7px;
   position: relative;
   background: linear-gradient(180deg, #050200 0%, #1a0e08 100%);
   border: 1px solid var(--gold-deep);
@@ -448,7 +448,7 @@ body {
 .figure-hp .hp-text {
   position: absolute; inset: 0;
   text-align: center;
-  font-size: 9px; line-height: 9px;
+  font-size: 8px; line-height: 7px;
   color: var(--ink);
   text-shadow: 0 1px 1px var(--shadow), 0 0 4px rgba(0,0,0,0.85);
   font-variant-numeric: tabular-nums;
@@ -563,11 +563,12 @@ body {
   align-items: center;
   justify-content: center;
   gap: 4px;
-  margin-bottom: 2px;
+  margin-bottom: 1px;
   z-index: 5;
   flex-shrink: 0;
   width: 100%;
-  min-height: 14px;
+  min-height: 12px;
+  height: 12px;
 }
 
 /* ============ CARD — ornate gold frame, parchment fill ============ */
