@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#0d0a08" />
-  <title>Triad — Prototype v0.1</title>
+  <title>Triad — Prototype v0.3</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -18,6 +18,13 @@
   </div>
 
   <main id="stage">
+
+    <div class="fog" aria-hidden="true"></div>
+    <div class="ember-layer" aria-hidden="true">
+      <span class="ember"></span><span class="ember"></span><span class="ember"></span>
+      <span class="ember"></span><span class="ember"></span><span class="ember"></span>
+      <span class="ember"></span><span class="ember"></span>
+    </div>
 
     <header id="hud">
       <div class="hud-block">
@@ -33,7 +40,7 @@
         <span class="hud-value" id="encounter-pill">1/3</span>
         <span class="hud-sub" id="encounter-name"></span>
       </div>
-      <div class="hud-block hud-title">TRIAD<span class="hud-sub">— prototype v0.1 —</span></div>
+      <div class="hud-block hud-title">TRIAD<span class="hud-sub">— prototype v0.3 —</span></div>
     </header>
 
     <section id="arena">
