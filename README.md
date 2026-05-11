@@ -30,6 +30,33 @@ open index.html
 
 No build step. Vanilla HTML/CSS/JS. Landscape orientation required (a rotate-prompt shows in portrait).
 
+## Live build
+
+Hosted via GitHub Pages — auto-rebuilds on every push to `main`.
+**Play it:** https://keeterly.github.io/Triad/
+
+## Iteration workflow
+
+1. Edit files in `C:\Users\keete\Desktop\Triad\Triad-v0.1\` and reload `index.html` to test locally.
+2. When ready to push:
+   ```
+   git add .
+   git commit -m "what changed"
+   git push
+   ```
+3. GitHub Pages rebuilds in ~30–60s. Reload the live URL on phone or desktop to see it.
+
+### Versioning (per-branch snapshots)
+
+Each major version gets a branch as an immutable snapshot. Active dev happens on `main`.
+
+```
+# when shipping v0.1
+git checkout -b v0.1
+git push -u origin v0.1
+git checkout main   # continue work on main for v0.2
+```
+
 ## Files
 
 - `index.html` — page structure
