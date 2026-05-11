@@ -389,6 +389,121 @@ const PORTRAITS = {
   <path d="M 78 88 L 82 84 L 74 86" fill="#c8a464"/>
   <rect width="100" height="130" fill="url(#gr-shadow)" opacity="0.5"/>
 </svg>`,
+  korin: `
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <radialGradient id="ko-bg" cx="55%" cy="35%" r="85%">
+      <stop offset="0" stop-color="#7a2818"/><stop offset="0.5" stop-color="#3a1410"/><stop offset="1" stop-color="#0a0408"/>
+    </radialGradient>
+    <linearGradient id="ko-skin" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0" stop-color="#b87850"/><stop offset="0.5" stop-color="#7a4830"/><stop offset="1" stop-color="#2a1408"/>
+    </linearGradient>
+    <linearGradient id="ko-shadow" x1="0%" x2="100%">
+      <stop offset="0" stop-color="#050200" stop-opacity="0.7"/><stop offset="0.55" stop-color="#050200" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="100" height="130" fill="url(#ko-bg)"/>
+  <ellipse cx="55" cy="118" rx="50" ry="12" fill="#180a04" opacity="0.85"/>
+  <path d="M 4 130 L 8 88 Q 26 68 50 66 Q 74 68 92 88 L 96 130 Z" fill="#5a2814" stroke="#0a0402" stroke-width="0.8"/>
+  <path d="M 28 88 Q 50 82 72 88 L 70 130 L 30 130 Z" fill="url(#ko-skin)" stroke="#1a0a04" stroke-width="0.6"/>
+  <line x1="40" y1="98" x2="48" y2="108" stroke="#8b2828" stroke-width="0.5"/>
+  <line x1="50" y1="100" x2="58" y2="112" stroke="#8b2828" stroke-width="0.5"/>
+  <line x1="44" y1="106" x2="52" y2="116" stroke="#8b2828" stroke-width="0.4"/>
+  <ellipse cx="50" cy="56" rx="20" ry="22" fill="url(#ko-skin)" stroke="#1a0a04" stroke-width="0.8"/>
+  <path d="M 26 50 Q 30 26 50 24 Q 70 26 74 50 Q 70 38 60 36 Q 50 32 40 36 Q 30 38 26 50" fill="#1a0a04"/>
+  <path d="M 30 48 L 28 40 L 32 44 M 70 48 L 72 40 L 68 44" fill="#3a1810"/>
+  <ellipse cx="42" cy="56" rx="3" ry="4" fill="#0a0402"/>
+  <ellipse cx="58" cy="56" rx="3" ry="4" fill="#0a0402"/>
+  <circle cx="42" cy="56" r="1.6" fill="#ff6020"/>
+  <circle cx="58" cy="56" r="1.6" fill="#ff6020"/>
+  <circle cx="42" cy="56" r="0.5" fill="#fff8e0"/>
+  <circle cx="58" cy="56" r="0.5" fill="#fff8e0"/>
+  <path d="M 38 70 Q 50 78 62 70 L 62 72 Q 50 80 38 72 Z" fill="#1a0408"/>
+  <path d="M 40 72 L 42 76 L 44 72 M 56 72 L 58 76 L 60 72" fill="#e8dcc4"/>
+  <path d="M 76 28 L 78 80 L 88 88 L 92 28 Z" fill="#48382a" stroke="#1a1008" stroke-width="0.8"/>
+  <path d="M 76 28 L 92 28 L 96 14 L 86 10 L 74 14 Z" fill="#7a6850" stroke="#3a2818" stroke-width="0.8"/>
+  <path d="M 80 22 L 92 22 M 78 16 L 90 16" stroke="#1a1008" stroke-width="0.4"/>
+  <line x1="76" y1="50" x2="92" y2="50" stroke="#a82828" stroke-width="0.4" opacity="0.5"/>
+  <rect width="100" height="130" fill="url(#ko-shadow)" opacity="0.55"/>
+</svg>`,
+  ash: `
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <radialGradient id="ash-bg" cx="50%" cy="35%" r="85%">
+      <stop offset="0" stop-color="#503870"/><stop offset="0.5" stop-color="#1a1428"/><stop offset="1" stop-color="#080610"/>
+    </radialGradient>
+    <radialGradient id="ash-aura" cx="50%" cy="40%" r="50%">
+      <stop offset="0" stop-color="#a080f0" stop-opacity="0.45"/><stop offset="0.6" stop-color="#a080f0" stop-opacity="0.1"/><stop offset="1" stop-color="#a080f0" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="ash-robe" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0" stop-color="#3a2858"/><stop offset="0.5" stop-color="#1a1230"/><stop offset="1" stop-color="#080610"/>
+    </linearGradient>
+    <linearGradient id="ash-shadow" x1="100%" x2="0%">
+      <stop offset="0" stop-color="#080610" stop-opacity="0.7"/><stop offset="0.55" stop-color="#080610" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="100" height="130" fill="url(#ash-bg)"/>
+  <rect x="0" y="0" width="100" height="100" fill="url(#ash-aura)"/>
+  <ellipse cx="50" cy="118" rx="48" ry="12" fill="#080610" opacity="0.85"/>
+  <path d="M 50 22 Q 24 24 24 56 L 22 130 L 78 130 L 76 56 Q 76 22 50 22 Z" fill="url(#ash-robe)" stroke="#080610" stroke-width="0.8"/>
+  <path d="M 50 22 Q 24 24 24 56 L 22 130 L 50 130 Z" fill="#080610" opacity="0.4"/>
+  <path d="M 30 28 L 50 14 L 70 28 L 64 36 L 50 26 L 36 36 Z" fill="#1a1230" stroke="#080610" stroke-width="0.5"/>
+  <ellipse cx="50" cy="58" rx="14" ry="20" fill="#080610"/>
+  <ellipse cx="50" cy="56" rx="12" ry="18" fill="#1a1228"/>
+  <circle cx="44" cy="56" r="1.6" fill="#c0a0ff"/>
+  <circle cx="56" cy="56" r="1.6" fill="#c0a0ff"/>
+  <circle cx="44" cy="56" r="0.6" fill="#ffffff"/>
+  <circle cx="56" cy="56" r="0.6" fill="#ffffff"/>
+  <path d="M 44 64 Q 50 66 56 64" stroke="#3a2858" stroke-width="0.4" fill="none"/>
+  <path d="M 80 16 L 82 100 L 84 100 L 82 16 Z" fill="#5a4830" stroke="#1a1008" stroke-width="0.4"/>
+  <ellipse cx="83" cy="14" rx="6" ry="8" fill="none" stroke="#c8a464" stroke-width="1"/>
+  <ellipse cx="83" cy="14" rx="3" ry="4" fill="#a080f0" opacity="0.85"/>
+  <circle cx="83" cy="14" r="1.6" fill="#fff0ff"/>
+  <path d="M 83 6 L 85 12 L 81 12 Z M 83 22 L 85 16 L 81 16 Z" fill="#c8a464"/>
+  <path d="M 14 50 Q 18 46 16 54 Z" fill="#a080f0" opacity="0.7"/>
+  <path d="M 16 78 Q 20 74 18 82 Z" fill="#a080f0" opacity="0.5"/>
+  <path d="M 12 100 Q 16 96 14 104 Z" fill="#a080f0" opacity="0.4"/>
+  <rect width="100" height="130" fill="url(#ash-shadow)" opacity="0.5"/>
+</svg>`,
+  mira: `
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <radialGradient id="mi-bg" cx="50%" cy="40%" r="85%">
+      <stop offset="0" stop-color="#3a2848"/><stop offset="0.5" stop-color="#180a18"/><stop offset="1" stop-color="#050308"/>
+    </radialGradient>
+    <linearGradient id="mi-cloak" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0" stop-color="#2a1838"/><stop offset="0.5" stop-color="#150818"/><stop offset="1" stop-color="#050308"/>
+    </linearGradient>
+    <linearGradient id="mi-blade" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0" stop-color="#e0e0e8"/><stop offset="0.5" stop-color="#a0a0a8"/><stop offset="1" stop-color="#404048"/>
+    </linearGradient>
+    <linearGradient id="mi-shadow" x1="100%" x2="0%">
+      <stop offset="0" stop-color="#050308" stop-opacity="0.7"/><stop offset="0.55" stop-color="#050308" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="100" height="130" fill="url(#mi-bg)"/>
+  <ellipse cx="50" cy="118" rx="48" ry="12" fill="#080408" opacity="0.85"/>
+  <path d="M 50 22 Q 22 24 22 56 L 18 130 L 82 130 L 78 56 Q 78 22 50 22 Z" fill="url(#mi-cloak)" stroke="#050308" stroke-width="0.8"/>
+  <path d="M 50 22 Q 22 24 22 56 L 18 130 L 50 130 Z" fill="#050308" opacity="0.4"/>
+  <path d="M 22 30 Q 28 22 50 18 Q 72 22 78 30 L 76 50 Q 70 38 50 36 Q 30 38 24 50 Z" fill="#0a0508" stroke="#050308" stroke-width="0.5"/>
+  <path d="M 30 32 Q 34 26 42 24 Q 32 28 28 38 Z" fill="#1a0a18" opacity="0.7"/>
+  <ellipse cx="50" cy="58" rx="14" ry="18" fill="#050308"/>
+  <ellipse cx="50" cy="56" rx="12" ry="16" fill="#0a0510"/>
+  <circle cx="44" cy="56" r="1.4" fill="#80f080"/>
+  <circle cx="56" cy="56" r="1.4" fill="#80f080"/>
+  <circle cx="44" cy="56" r="0.5" fill="#ffffff"/>
+  <circle cx="56" cy="56" r="0.5" fill="#ffffff"/>
+  <path d="M 38 50 L 62 50" stroke="#1a0a08" stroke-width="2.5" opacity="0.7"/>
+  <path d="M 38 50 L 62 50" stroke="#48283a" stroke-width="1.2" opacity="0.85"/>
+  <path d="M 14 80 L 14 110 L 18 110 L 18 80 L 22 78 L 22 76 L 10 76 L 10 78 Z" fill="url(#mi-blade)" stroke="#1a1018" stroke-width="0.4"/>
+  <path d="M 14 80 L 18 80 L 16 72 Z" fill="#c0c0c8"/>
+  <rect x="13" y="72" width="6" height="3" fill="#3a2018"/>
+  <path d="M 86 80 L 86 110 L 82 110 L 82 80 L 78 78 L 78 76 L 90 76 L 90 78 Z" fill="url(#mi-blade)" stroke="#1a1018" stroke-width="0.4"/>
+  <path d="M 86 80 L 82 80 L 84 72 Z" fill="#c0c0c8"/>
+  <rect x="81" y="72" width="6" height="3" fill="#3a2018"/>
+  <path d="M 26 100 L 22 110 M 30 102 L 28 112" stroke="#48283a" stroke-width="0.5" opacity="0.6"/>
+  <rect width="100" height="130" fill="url(#mi-shadow)" opacity="0.5"/>
+</svg>`,
 };
 
 // ============================================================================
@@ -527,6 +642,104 @@ const CHARS = {
       },
     },
   },
+  korin: {
+    id: 'korin',
+    name: 'Korin',
+    title: 'Bloodbound Reaver',
+    maxHp: 22,
+    home: 'front',
+    passive: { name: 'Bloodlust', desc: '+2 dmg per 30% missing HP' },
+    techs: {
+      front: {
+        basic: { name: 'Reckless Strike', desc: '7 dmg + 1 self-dmg',
+          reach: ['front'], pattern: 'front-most',
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 7); applySelfDmg(s, 'korin', 1); } },
+        sig:   { name: 'Berserker Cleave', desc: '11 dmg + bleed 2 + 2 self-dmg',
+          reach: ['front'], pattern: 'front-most',
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 11); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 2); } applySelfDmg(s, 'korin', 2); } },
+      },
+      mid: {
+        basic: { name: 'Wild Swing', desc: '4 dmg all',
+          reach: ['front','mid','back'], pattern: 'all',
+          fn: (s, t) => t.forEach(e => applyDmgToEnemy(s, e, 4)) },
+        sig:   { name: 'Bloodfury', desc: '6 dmg all + bleed 1 all',
+          reach: ['front','mid','back'], pattern: 'all',
+          fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 6)); t.forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 1); }); } },
+      },
+      back: {
+        basic: { name: 'Roar', desc: '+2 retaliate', fn: (s) => { const c = s.party.chars.korin; if (c && !c.downed) c.retaliate += 2; } },
+        sig:   { name: 'Battle Trance', desc: '+4 retaliate, +3 armor', fn: (s) => { const c = s.party.chars.korin; if (c && !c.downed) { c.retaliate += 4; c.armor += 3; } } },
+      },
+    },
+  },
+  ash: {
+    id: 'ash',
+    name: 'Ash',
+    title: 'Veil-Touched Mage',
+    maxHp: 16,
+    home: 'mid',
+    passive: { name: 'Arcane Focus', desc: 'First attack each turn deals +2' },
+    techs: {
+      front: {
+        basic: { name: 'Spark', desc: '3 dmg + retreat',
+          reach: ['front'], pattern: 'front-most',
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 3); retreat(s, 'ash'); } },
+        sig:   { name: 'Inferno Burst', desc: '5 dmg + 2 vuln + retreat',
+          reach: ['front'], pattern: 'front-most',
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 5); if (!t[0].dead) t[0].vuln += 2; } retreat(s, 'ash'); } },
+      },
+      mid: {
+        basic: { name: 'Fireball', desc: '6 dmg + 1 vuln',
+          reach: ['mid','back'], pattern: 'lowest',
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 6); if (!t[0].dead) t[0].vuln += 1; } } },
+        sig:   { name: 'Pyroclasm', desc: '9 dmg + 2 vuln',
+          reach: ['mid','back'], pattern: 'lowest',
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 9); if (!t[0].dead) t[0].vuln += 2; } } },
+      },
+      back: {
+        basic: { name: 'Arcane Bolts', desc: '3 dmg all',
+          reach: ['front','mid','back'], pattern: 'all',
+          fn: (s, t) => t.forEach(e => applyDmgToEnemy(s, e, 3)) },
+        sig:   { name: 'Lightning Storm', desc: '5 dmg all + 1 vuln all',
+          reach: ['front','mid','back'], pattern: 'all',
+          fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 5)); t.forEach(e => { if (!e.dead) e.vuln += 1; }); } },
+      },
+    },
+  },
+  mira: {
+    id: 'mira',
+    name: 'Mira',
+    title: 'Shadow Reaver',
+    maxHp: 18,
+    home: 'back',
+    passive: { name: 'Eviscerate', desc: '+3 dmg vs bleeding enemies' },
+    techs: {
+      front: {
+        basic: { name: 'Backstab', desc: '6 dmg + bleed 1 + retreat',
+          reach: ['front'], pattern: 'front-most',
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 6); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 1); } retreat(s, 'mira'); } },
+        sig:   { name: 'Vanish Strike', desc: '9 dmg + bleed 2 + retreat full',
+          reach: ['front'], pattern: 'front-most',
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 9); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 2); } retreatFull(s, 'mira'); } },
+      },
+      mid: {
+        basic: { name: 'Shadow Knife', desc: '4 dmg lowest + bleed 1',
+          reach: ['mid','back'], pattern: 'lowest',
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 4); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 1); } } },
+        sig:   { name: 'Twin Daggers', desc: '5 dmg lowest twice + bleed 2',
+          reach: ['mid','back'], pattern: 'lowest',
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 5); if (!t[0].dead) applyDmgToEnemy(s, t[0], 5); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 2); } } },
+      },
+      back: {
+        basic: { name: 'Poison Cloud', desc: '2 dmg all + bleed 1 all',
+          reach: ['front','mid','back'], pattern: 'all',
+          fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 2)); t.forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 1); }); } },
+        sig:   { name: 'Shadow Storm', desc: '4 dmg all + bleed 2 all',
+          reach: ['front','mid','back'], pattern: 'all',
+          fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 4)); t.forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 2); }); } },
+      },
+    },
+  },
 };
 
 // ============================================================================
@@ -616,6 +829,10 @@ const RUN_LAYOUT = [
 
 const RESOLVE_CARRY_CAP = 3;
 
+// Pool of characters the player can encounter mid-run.
+// Default starting party is the first three; the rest are recruitable between fights.
+const ROSTER = ['cassia', 'elin', 'branwen', 'korin', 'ash', 'mira'];
+
 // ============================================================================
 // ADJACENCY — pair synergies between adjacent positions (F-M and M-B)
 // Each pair stores two synergies: one for the front-mid line, one for mid-back.
@@ -677,6 +894,106 @@ const ADJ = {
         const before = b.hp;
         b.hp = Math.min(b.maxHp, b.hp + 1);
         if (b.hp > before) spawnPopupId('branwen', '+1', 'heal', 'party');
+      },
+    },
+  },
+  // ===== synergies introduced with Korin / Ash / Mira =====
+  'cassia+korin': {
+    fm: {
+      name: 'Iron Bond', type: 'bond',
+      onArmorGrant(s, granterId) {
+        if (granterId !== 'cassia') return;
+        const k = s.party.chars.korin;
+        if (!k || k.downed) return;
+        k.retaliate += 1;
+        spawnPopupId('korin', '+1↻', 'armor', 'party');
+      },
+    },
+    mb: {
+      name: 'Bloodguard', type: 'bond',
+      onPartyDamaged(s, charId) {
+        if (charId !== 'cassia') return;
+        const k = s.party.chars.korin;
+        if (!k || k.downed) return;
+        if (k.pendingEffects.some(e => e.source === 'bloodguard')) return;
+        k.pendingEffects.push({ kind: 'attackBonus', amt: 2, source: 'bloodguard' });
+        spawnPopupId('korin', '+2 atk', 'armor', 'party');
+      },
+    },
+  },
+  'branwen+korin': {
+    fm: {
+      name: 'Wild Hunt', type: 'bond',
+      onAttack(s, attackerId) {
+        if (attackerId !== 'korin') return;
+        const b = s.party.chars.branwen;
+        if (!b || b.downed) return;
+        if (b.pendingEffects.some(e => e.source === 'wild-hunt')) return;
+        b.pendingEffects.push({ kind: 'attackBonus', amt: 2, source: 'wild-hunt' });
+        spawnPopupId('branwen', '+2 atk', 'armor', 'party');
+      },
+    },
+    mb: {
+      name: 'Crimson Echo', type: 'bond',
+      onAttack(s, attackerId) {
+        if (attackerId !== 'branwen') return;
+        const k = s.party.chars.korin;
+        if (!k || k.downed) return;
+        if (k.pendingEffects.some(e => e.source === 'crimson-echo')) return;
+        k.pendingEffects.push({ kind: 'attackBonus', amt: 2, source: 'crimson-echo' });
+        spawnPopupId('korin', '+2 atk', 'armor', 'party');
+      },
+    },
+  },
+  'ash+elin': {
+    fm: {
+      name: 'Veiled Flame', type: 'bond',
+      onAttack(s, attackerId) {
+        if (attackerId !== 'ash') return;
+        const el = s.party.chars.elin;
+        if (!el || el.downed) return;
+        const before = el.hp;
+        el.hp = Math.min(el.maxHp, el.hp + 1);
+        if (el.hp > before) spawnPopupId('elin', '+1', 'heal', 'party');
+      },
+    },
+    mb: {
+      name: 'Sanctuary Fire', type: 'bond',
+      onHeal(s, healerId, targetId) {
+        if (healerId !== 'elin' || targetId === 'ash') return;
+        const a = s.party.chars.ash;
+        if (!a || a.downed) return;
+        if (a.pendingEffects.some(e => e.source === 'sanctuary-fire')) return;
+        a.pendingEffects.push({ kind: 'attackBonus', amt: 2, source: 'sanctuary-fire' });
+        spawnPopupId('ash', '+2 atk', 'heal', 'party');
+      },
+    },
+  },
+  'branwen+mira': {
+    fm: {
+      name: 'Sisters of Shadow', type: 'bond',
+      onAttack(s, attackerId, e) {
+        if (attackerId !== 'branwen' && attackerId !== 'mira') return;
+        if (!e || e.dead || e.bleed === 0) return;
+        const otherId = attackerId === 'branwen' ? 'mira' : 'branwen';
+        const o = s.party.chars[otherId];
+        if (!o || o.downed) return;
+        if (o.pendingEffects.some(eff => eff.source === 'sisters-shadow')) return;
+        o.pendingEffects.push({ kind: 'attackBonus', amt: 2, source: 'sisters-shadow' });
+        spawnPopupId(otherId, '+2 atk', 'armor', 'party');
+      },
+    },
+    mb: {
+      name: 'Twin Blades', type: 'bond',
+      onAttack(s, attackerId, e) {
+        if (attackerId !== 'branwen' && attackerId !== 'mira') return;
+        if (!e || e.dead || e.bleed === 0) return;
+        const otherId = attackerId === 'branwen' ? 'mira' : 'branwen';
+        const o = s.party.chars[otherId];
+        if (!o || o.downed) return;
+        if (o.pendingEffects.some(eff => eff.source === 'twin-blades')) return;
+        o.pendingEffects.push({ kind: 'attackBonus', amt: 2, source: 'twin-blades' });
+        spawnPopupId(otherId, '+2 atk', 'armor', 'party');
       },
     },
   },
@@ -838,7 +1155,26 @@ function applyDmgToEnemy(s, e, baseAmt) {
   });
   // Branwen Bleed Hunter passive
   if (s.currentActorId === 'branwen' && e.bleed > 0) amt += 2;
-  // pending one-shot attack bonuses (Banner Fire)
+  // Mira Eviscerate passive — bigger crit on bleeding enemies
+  if (s.currentActorId === 'mira' && e.bleed > 0) amt += 3;
+  // Korin Bloodlust passive — scaling damage based on missing HP %
+  if (s.currentActorId === 'korin') {
+    const k = s.party.chars.korin;
+    if (k) {
+      const missingPct = (k.maxHp - k.hp) / k.maxHp;
+      if (missingPct >= 0.6) amt += 4;
+      else if (missingPct >= 0.3) amt += 2;
+    }
+  }
+  // Ash Arcane Focus passive — first attack each turn deals +2
+  if (s.currentActorId === 'ash') {
+    const a = s.party.chars.ash;
+    if (a && !a.firstAttackUsed) {
+      amt += 2;
+      a.firstAttackUsed = true;
+    }
+  }
+  // pending one-shot attack bonuses (Banner Fire, Wild Hunt, etc.)
   amt += consumePendingBonus(s, s.currentActorId, 'attackBonus');
   amt += s.outgoingDmgMod;
 
@@ -1150,7 +1486,7 @@ function startTurn(s) {
   s.executing = false;
   s.queue = [];
   // clear single-turn buffs that survived the enemy phase
-  aliveParty(s).forEach(c => { c.taunt = false; c.retaliate = 0; });
+  aliveParty(s).forEach(c => { c.taunt = false; c.retaliate = 0; c.firstAttackUsed = false; });
   log(`<span class="msg-strong">— Turn ${s.turn} —</span>`);
 
   // bleed tick
@@ -1623,9 +1959,9 @@ function checkEnd(s) {
       showOverlay('Victory', 'All three sins are unbound. Your reach holds the dawn.');
     } else {
       s.run.slotIdx += 1;
-      const nextSlot = RUN_LAYOUT[s.run.slotIdx];
-      // brief delay so the kill animations land before the choice appears
-      setTimeout(() => showPathChoice(nextSlot), 480);
+      // Between fights: offer a recruit if any unrecruited characters remain.
+      // Recruit overlay leads into the path-choice overlay (or skips straight to it).
+      setTimeout(() => offerRecruitOrPath(), 480);
     }
     return true;
   }
@@ -2219,7 +2555,16 @@ function bindUI() {
   $('#btn-fight').addEventListener('click', () => onFight());
   $('#btn-clear').addEventListener('click', () => clearQueue());
   // queue-slot click handlers are attached inside renderQueue (items are dynamic)
-  $('#overlay-btn').addEventListener('click', () => { hideOverlay(); init(); });
+  // overlay-btn handler is reassigned by overlay flows (recruit/swap) so we use
+  // .onclick rather than addEventListener to keep a single replaceable handler.
+  $('#overlay-btn').onclick = () => { hideOverlay(); init(); };
+}
+
+function resetOverlayBtn() {
+  const btn = $('#overlay-btn');
+  if (!btn) return;
+  btn.textContent = 'Restart';
+  btn.onclick = () => { hideOverlay(); init(); };
 }
 
 function showOverlay(title, body) {
@@ -2227,8 +2572,8 @@ function showOverlay(title, body) {
   $('#overlay-body').textContent = body;
   const choices = $('#overlay-choices');
   if (choices) { choices.innerHTML = ''; choices.classList.add('hidden'); }
-  const btn = $('#overlay-btn');
-  if (btn) btn.classList.remove('hidden');
+  resetOverlayBtn();
+  $('#overlay-btn').classList.remove('hidden');
   $('#overlay').classList.remove('hidden');
 }
 
@@ -2257,11 +2602,114 @@ function showPathChoice(slotConfig) {
     choices.appendChild(card);
   });
   choices.classList.remove('hidden');
+  resetOverlayBtn();
   $('#overlay-btn').classList.add('hidden');
   $('#overlay').classList.remove('hidden');
 }
 
 function hideOverlay() { $('#overlay').classList.add('hidden'); }
+
+// ============================================================================
+// RECRUIT — between-fight character draft
+// ============================================================================
+
+// Decide whether to show recruit, then proceed to path-choice.
+function offerRecruitOrPath() {
+  const pickable = ROSTER.filter(id => !state.party.chars[id]);
+  if (pickable.length === 0) {
+    showPathChoice(RUN_LAYOUT[state.run.slotIdx]);
+    return;
+  }
+  // Pick 2 random candidates from the pool of unrecruited characters
+  const shuffled = pickable.slice().sort(() => Math.random() - 0.5);
+  const candidates = shuffled.slice(0, Math.min(2, shuffled.length));
+  showRecruitOverlay(candidates);
+}
+
+function showRecruitOverlay(candidates) {
+  $('#overlay-title').textContent = 'A new ally appears';
+  $('#overlay-body').textContent = 'Add them to your party — or pass and continue.';
+  const choices = $('#overlay-choices');
+  choices.innerHTML = '';
+  candidates.forEach(charId => {
+    const def = CHARS[charId];
+    const card = document.createElement('button');
+    card.className = 'encounter-choice recruit-choice';
+    card.innerHTML = `
+      <div class="enc-name">${def.name}</div>
+      <div class="recruit-portrait">${PORTRAITS[charId] || ''}</div>
+      <div class="recruit-meta">
+        <div class="recruit-title">${def.title || ''}</div>
+        <div class="recruit-stats">
+          <span class="recruit-stat">HP ${def.maxHp}</span>
+          <span class="recruit-stat">Home ${SLOT_LABELS[def.home]}</span>
+        </div>
+        <div class="recruit-passive"><b>${def.passive?.name || ''}</b> · ${def.passive?.desc || ''}</div>
+      </div>
+    `;
+    card.addEventListener('click', () => showSwapOverlay(charId));
+    choices.appendChild(card);
+  });
+  // Skip button — uses existing overlay-btn slot, relabeled
+  const btn = $('#overlay-btn');
+  btn.textContent = 'Pass';
+  btn.classList.remove('hidden');
+  btn.onclick = () => {
+    hideOverlay();
+    resetOverlayBtn();
+    showPathChoice(RUN_LAYOUT[state.run.slotIdx]);
+  };
+  choices.classList.remove('hidden');
+  $('#overlay').classList.remove('hidden');
+}
+
+function showSwapOverlay(recruitId) {
+  const def = CHARS[recruitId];
+  $('#overlay-title').textContent = `Recruit ${def.name}`;
+  $('#overlay-body').textContent = 'Choose who steps aside.';
+  const choices = $('#overlay-choices');
+  choices.innerHTML = '';
+  // List current party (downed members allowed — recruit replaces them too)
+  Object.keys(state.party.chars).forEach(currentId => {
+    const cd = CHARS[currentId];
+    const cs = state.party.chars[currentId];
+    const slot = slotOfChar(state, currentId);
+    const card = document.createElement('button');
+    card.className = 'encounter-choice swap-choice';
+    if (cs.downed) card.classList.add('swap-downed');
+    card.innerHTML = `
+      <div class="enc-name">${cd.name}${cs.downed ? ' · downed' : ''}</div>
+      <div class="recruit-portrait">${PORTRAITS[currentId] || ''}</div>
+      <div class="recruit-meta">
+        <div class="recruit-title">${cd.title || ''}</div>
+        <div class="recruit-stats">
+          <span class="recruit-stat">HP ${cs.hp}/${cd.maxHp}</span>
+          <span class="recruit-stat">${SLOT_LABELS[slot] || '—'}</span>
+        </div>
+      </div>
+    `;
+    card.addEventListener('click', () => commitRecruit(currentId, recruitId));
+    choices.appendChild(card);
+  });
+  const btn = $('#overlay-btn');
+  btn.textContent = '← Back';
+  btn.onclick = () => {
+    resetOverlayBtn();
+    offerRecruitOrPath();
+  };
+}
+
+function commitRecruit(removeId, recruitId) {
+  const slot = slotOfChar(state, removeId);
+  if (!slot) return;
+  delete state.party.chars[removeId];
+  state.party.chars[recruitId] = newCharState(recruitId);
+  state.party.slots[slot] = recruitId;
+  log(`<b>${CHARS[recruitId].name}</b> joins the party.`);
+  hideOverlay();
+  resetOverlayBtn();
+  showPathChoice(RUN_LAYOUT[state.run.slotIdx]);
+}
 
 // ============================================================================
 // BOOT
