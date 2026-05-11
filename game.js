@@ -1846,7 +1846,7 @@ function makeTile(kind, charId, dir, tileCounts, teamLocked) {
   const reachLabel = previewReachLabel(kind, charId, dir);
 
   const costBadges = [];
-  if (atbCost > 0)     costBadges.push(`<span class="tile-atb">${atbCost} ATB</span>`);
+  if (atbCost > 0)     costBadges.push(`<span class="tile-atb">${atbCost}</span>`);
   if (resolveCost > 0) costBadges.push(`<span class="tile-cost">${resolveCost}♦</span>`);
 
   t.innerHTML = `
@@ -2010,7 +2010,7 @@ function makeTeamSpecialTile(teamLocked) {
     <span class="ts-name">${ts.name}</span>
     <span class="ts-form">formation ${formationLabel}</span>
     <span class="ts-desc">${ts.short}</span>
-    <span class="ts-cost">${TEAM_SPECIAL_ATB} ATB · ${TEAM_SPECIAL_COST}♦</span>
+    <span class="ts-cost"><span class="tile-atb">${TEAM_SPECIAL_ATB}</span><span class="tile-cost">${TEAM_SPECIAL_COST}♦</span></span>
   `;
   bindTileHold(t, {
     onQueue: () => queueTeamSpecial(),

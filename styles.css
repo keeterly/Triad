@@ -1086,7 +1086,8 @@ body {
     linear-gradient(180deg, #14100a 0%, #0a0807 100%);
   border-top: 1px solid var(--gold-deep);
   min-height: 0;
-  overflow: hidden;
+  /* visible so the hold-to-reveal tooltip can escape upward */
+  overflow: visible;
 }
 #action-row::before {
   content: '';
@@ -1355,7 +1356,7 @@ body {
   text-align: left;
   transition: all 0.14s;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   min-height: 0;
   gap: 1px;
   box-shadow:
@@ -1394,11 +1395,40 @@ body {
   letter-spacing: 0.04em;
   text-shadow: 0 1px 0 var(--shadow);
 }
+/* description hidden by default — revealed as a hover/hold tooltip above the tile */
 .tile .tile-desc {
-  font-size: 9px; color: var(--ink-dim);
-  line-height: 1.2;
+  display: none;
+  position: absolute;
+  left: 50%; bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+  min-width: 120px;
+  max-width: 220px;
+  padding: 6px 10px;
+  background:
+    linear-gradient(180deg, #2a1c12 0%, #14100a 100%);
+  border: 1px solid var(--gold-dim);
+  border-radius: 3px;
+  font-size: 10px; color: var(--ink);
+  line-height: 1.35;
   font-style: italic;
+  white-space: normal;
+  text-align: center;
+  z-index: 50;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.75);
+  pointer-events: none;
 }
+.tile .tile-desc::after {
+  /* little arrow pointing down to the tile */
+  content: '';
+  position: absolute;
+  bottom: -5px; left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+  width: 8px; height: 8px;
+  background: linear-gradient(135deg, transparent 50%, #14100a 50%);
+  border-right: 1px solid var(--gold-dim);
+  border-bottom: 1px solid var(--gold-dim);
+}
+.tile.previewing .tile-desc { display: block; }
 .tile .tile-badges {
   position: absolute; top: 2px; right: 3px;
   display: flex; gap: 3px;
@@ -1407,23 +1437,42 @@ body {
   line-height: 1;
   z-index: 2;
 }
+/* ATB cost pip — rounded square with the number (no "ATB" text) */
 .tile .tile-atb {
-  color: var(--ink);
-  background: linear-gradient(180deg, #3a2818 0%, #1a0e08 100%);
-  padding: 2px 5px;
-  border-radius: 2px;
-  border: 1px solid var(--gold-deep);
-  box-shadow: inset 0 1px 0 rgba(232,220,196,0.12);
+  color: var(--gold-pale);
+  background:
+    linear-gradient(180deg, #4a2818 0%, #2a1408 70%, #150804 100%);
+  min-width: 16px; height: 16px;
+  padding: 0 4px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 3px;
+  border: 1px solid var(--gold);
+  box-shadow:
+    inset 0 1px 0 rgba(255,200,160,0.25),
+    0 1px 3px rgba(0,0,0,0.6),
+    0 0 6px rgba(212,69,69,0.25);
+  font-size: 11px; font-weight: bold;
+  text-shadow: 0 1px 0 var(--shadow);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
 }
+/* Resolve diamond pip — gold variant */
 .tile .tile-cost {
   color: var(--gold-bright);
   background:
-    radial-gradient(circle at 30% 25%, rgba(240,212,136,0.3) 0%, rgba(200,164,100,0.15) 50%, var(--shadow) 100%);
-  padding: 2px 5px;
-  border-radius: 2px;
+    radial-gradient(circle at 35% 30%, rgba(255,240,184,0.35) 0%, rgba(200,164,100,0.2) 60%, var(--shadow) 100%);
+  min-width: 16px; height: 16px;
+  padding: 0 4px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 3px;
   border: 1px solid var(--gold);
   text-shadow: 0 0 4px var(--gold-bright);
-  box-shadow: 0 0 4px rgba(240,212,136,0.25);
+  box-shadow:
+    inset 0 1px 0 rgba(255,248,224,0.3),
+    0 1px 3px rgba(0,0,0,0.6),
+    0 0 6px rgba(240,212,136,0.35);
+  font-size: 10px; font-weight: bold;
+  letter-spacing: 0;
 }
 .tile .tile-reach {
   position: absolute; bottom: 2px; right: 4px;
@@ -1508,14 +1557,33 @@ body {
 .tile.team-special .ts-form {
   font-size: 9px; color: var(--gold-dim); font-style: italic; letter-spacing: 0.06em;
 }
+/* description hidden by default — revealed on hold */
 .tile.team-special .ts-desc {
-  font-size: 9px; color: var(--ink-dim); line-height: 1.25; margin-top: 2px;
-  font-style: italic;
+  display: none;
+  position: absolute;
+  left: 50%; bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+  min-width: 160px;
+  max-width: 240px;
+  padding: 6px 10px;
+  background:
+    linear-gradient(180deg, #2a1c12 0%, #14100a 100%);
+  border: 1px solid var(--blood-bright);
+  border-radius: 3px;
+  font-size: 10px; color: var(--ink);
+  line-height: 1.35; font-style: italic;
+  white-space: normal; text-align: center;
+  z-index: 50;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.75), 0 0 12px rgba(212,69,69,0.3);
+  pointer-events: none;
 }
+.tile.team-special.previewing .ts-desc { display: block; }
 .tile.team-special .ts-cost {
-  font-size: 10px; color: var(--gold-bright); letter-spacing: 0.06em; margin-top: 2px;
-  font-weight: bold;
+  display: inline-flex; gap: 5px; align-items: center;
+  margin-top: 3px;
 }
+.tile.team-special .ts-cost .tile-atb,
+.tile.team-special .ts-cost .tile-cost { min-width: 18px; height: 18px; font-size: 11px; }
 .tile.team-special:disabled { opacity: 0.45; }
 
 .tile.queued {
