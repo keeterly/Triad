@@ -695,6 +695,7 @@ function newState() {
     queue: [],         // array of { kind, charId?, dir?, label, desc, atb, resolveCost } — sum(atb) ≤ ATB_MAX
     executing: false,  // true while queue is resolving
     over: false,       // input lock — true during end-of-fight/run overlays
+    movePicker: null,  // charId of the party member currently picking a move direction (transient UI state)
     outgoingDmgMod: 0,
     ignoreArmor: false,
     currentActorId: null, // who is acting right now (for passives + adjacency hooks)
@@ -1149,6 +1150,7 @@ function startTurn(s) {
   s.messages = [];
   s.executing = false;
   s.queue = [];
+  s.movePicker = null;
   // clear single-turn buffs that survived the enemy phase
   aliveParty(s).forEach(c => { c.taunt = false; c.retaliate = 0; });
   log(`<span class="msg-strong">— Turn ${s.turn} —</span>`);
@@ -1285,7 +1287,55 @@ function clearQueue() {
   const s = state;
   if (s.executing || s.over) return;
   s.queue = [];
+  s.movePicker = null;
   render();
+}
+
+// ============================================================================
+// MOVE PICKER — drag-drop-style repositioning, no dedicated tile
+// ============================================================================
+
+// Tap a party figure to enter move-picker mode: directional arrows appear over the
+// figure, tap an arrow to queue the move. Tapping the same figure again or anywhere
+// outside cancels.
+function togglePartyMovePicker(charId) {
+  const s = state;
+  if (s.executing || s.over) return;
+  const c = s.party.chars[charId];
+  if (!c || c.downed) return;
+  // Toggle off if same figure
+  if (s.movePicker === charId) {
+    s.movePicker = null;
+    render();
+    return;
+  }
+  // If a move is already queued for this character, remove it first then enter picker
+  const queuedIdx = s.queue.findIndex(q => q.kind === 'move' && q.charId === charId);
+  if (queuedIdx >= 0) s.queue.splice(queuedIdx, 1);
+  s.movePicker = charId;
+  render();
+}
+
+function pickMoveDir(charId, dir) {
+  const s = state;
+  const slot = slotOfChar(s, charId);
+  if (!slot) { s.movePicker = null; return; }
+  const idx = SLOTS.indexOf(slot);
+  const ti = idx + dir;
+  if (ti < 0 || ti > 2) { s.movePicker = null; render(); return; }
+  const target = SLOTS[ti];
+  const otherId = s.party.slots[target];
+  const otherName = otherId ? CHARS[otherId].name : '—';
+  s.movePicker = null;
+  queueAdd({
+    kind: 'move',
+    charId,
+    dir,
+    label: `→ ${SLOT_LABELS[target]}`,
+    desc: `swap with ${otherName}`,
+    atb: ACTION_ATB.move,
+    resolveCost: 0,
+  });
 }
 
 function queueTeamSpecial() {
@@ -1641,7 +1691,7 @@ function renderTiles() {
 
     col.appendChild(makeTile('attack', charId, null, tileCounts, teamLocked));
     col.appendChild(makeTile('special', charId, null, tileCounts, teamLocked));
-    col.appendChild(makeMoveOrBraceTile(charId, simSlot, tileCounts, teamLocked));
+    // Move action is handled by tap-the-figure drag-drop on the battlefield, not a tile.
 
     grid.appendChild(col);
   });
@@ -1681,6 +1731,22 @@ function makePartyCard(c, slot, threatened, adjMap) {
   const def = CHARS[c.id];
   const isHome = def.home === slot;
   const hpPct = (c.hp / c.maxHp) * 100;
+
+  // is this figure currently picking a move? show directional arrows over the figure.
+  // dir +1 (toward back in slot order) = visual LEFT (back is leftmost in display order)
+  // dir -1 (toward front in slot order) = visual RIGHT
+  const isPickingMove = state.movePicker === c.id;
+  const slotIdx = SLOTS.indexOf(slot);
+  const canMoveBack  = isPickingMove && slotIdx + 1 < SLOTS.length;
+  const canMoveFront = isPickingMove && slotIdx - 1 >= 0;
+
+  // a move queued for this character → show the planned-direction arrow as a persistent overlay
+  const queuedMove = state.queue.find(q => q.kind === 'move' && q.charId === c.id);
+  const queuedMoveGlyph = queuedMove ? (queuedMove.dir > 0 ? '◀' : '▶') : '';
+
+  if (isPickingMove) fig.classList.add('picking-move');
+  if (queuedMove) fig.classList.add('has-queued-move');
+
   fig.innerHTML = `
     ${synStack}
     <div class="figure-statuses">${renderStatuses(c)}</div>
@@ -1693,7 +1759,24 @@ function makePartyCard(c, slot, threatened, adjMap) {
       </div>
       <div class="figure-name${isHome ? ' home' : ''}">${def.name}</div>
     </div>
+    ${canMoveBack  ? `<button class="move-arrow move-arrow-left"  data-dir="1"  aria-label="Move toward back">◀</button>`  : ''}
+    ${canMoveFront ? `<button class="move-arrow move-arrow-right" data-dir="-1" aria-label="Move toward front">▶</button>` : ''}
+    ${queuedMove ? `<div class="figure-queued-move">${queuedMoveGlyph}</div>` : ''}
   `;
+
+  // figure click → enter / cancel move-picker mode
+  fig.addEventListener('click', (e) => {
+    const arrow = e.target.closest('.move-arrow');
+    if (arrow) {
+      e.stopPropagation();
+      pickMoveDir(c.id, parseInt(arrow.dataset.dir, 10));
+      return;
+    }
+    if (state.executing || state.over) return;
+    e.stopPropagation();
+    togglePartyMovePicker(c.id);
+  });
+
   return fig;
 }
 
@@ -2094,6 +2177,14 @@ function bindUI() {
   $('#btn-clear').addEventListener('click', () => clearQueue());
   // queue-slot click handlers are attached inside renderQueue (items are dynamic)
   $('#overlay-btn').addEventListener('click', () => { hideOverlay(); init(); });
+  // click-away cancels the move-picker mode. Clicks inside an active figure or arrow
+  // bubble through their own stopPropagation so they won't reach this handler.
+  document.addEventListener('click', () => {
+    if (state && state.movePicker) {
+      state.movePicker = null;
+      render();
+    }
+  });
 }
 
 function showOverlay(title, body) {

@@ -383,6 +383,78 @@ body {
 }
 .figure-name.home { color: var(--gold-bright); text-shadow: 0 0 8px rgba(240,212,136,0.5), 0 1px 0 var(--shadow); }
 
+/* ============ MOVE PICKER (tap a figure → direction arrows) ============ */
+.figure.party-figure { cursor: pointer; }
+.figure.picking-move {
+  filter: drop-shadow(0 0 18px var(--gold-bright));
+}
+.move-arrow {
+  position: absolute;
+  top: 38%;
+  width: 40px; height: 40px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid var(--gold-bright);
+  background: radial-gradient(circle at 50% 35%, #2a1c12 0%, #14100a 80%);
+  color: var(--gold-bright);
+  font-size: 22px;
+  line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  z-index: 10;
+  box-shadow:
+    0 0 14px rgba(240,212,136,0.6),
+    0 2px 6px rgba(0,0,0,0.7),
+    inset 0 1px 0 rgba(255,240,184,0.25);
+  transform: translateY(-50%);
+  animation: move-arrow-pulse 1.4s ease-in-out infinite;
+  font-family: inherit;
+}
+.move-arrow-left  { left: -16px; }
+.move-arrow-right { right: -16px; }
+.move-arrow:hover {
+  background: radial-gradient(circle at 50% 35%, var(--gold-bright) 0%, var(--gold) 80%);
+  color: var(--bg-0);
+}
+.move-arrow:active { transform: translateY(-49%); filter: brightness(0.92); }
+@keyframes move-arrow-pulse {
+  0%, 100% {
+    transform: translateY(-50%) scale(1);
+    box-shadow: 0 0 12px rgba(240,212,136,0.55), 0 2px 6px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,240,184,0.2);
+  }
+  50% {
+    transform: translateY(-50%) scale(1.08);
+    box-shadow: 0 0 22px rgba(240,212,136,0.85), 0 2px 6px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,240,184,0.3);
+  }
+}
+
+/* persistent direction indicator on a figure once a move is queued */
+.figure-queued-move {
+  position: absolute;
+  top: 8%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 35%, var(--gold-bright) 0%, var(--gold) 70%, #6a4818 100%);
+  color: var(--bg-0);
+  font-size: 15px; font-weight: bold;
+  line-height: 26px;
+  text-align: center;
+  z-index: 9;
+  box-shadow:
+    0 0 12px var(--gold-bright),
+    0 2px 6px rgba(0,0,0,0.7),
+    inset 0 1px 0 rgba(255,248,224,0.55);
+  pointer-events: none;
+  animation: queued-move-pulse 1.8s ease-in-out infinite;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.25);
+}
+@keyframes queued-move-pulse {
+  0%, 100% { opacity: 0.92; }
+  50%      { opacity: 1; }
+}
+
 /* HP bar reuses .hp-bar / .hp-fill / .hp-text from below — keep it the same look but constrained to the info width */
 .figure-hp {
   width: 85%;
@@ -1078,8 +1150,8 @@ body {
 }
 .char-col {
   display: grid;
-  grid-template-rows: 1fr 1fr 1fr;
-  gap: 4px;
+  grid-template-rows: 1fr 1fr;
+  gap: 5px;
   min-height: 0;
   min-width: 0;
   height: 100%;
