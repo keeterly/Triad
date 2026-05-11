@@ -52,32 +52,17 @@
     </section>
 
     <footer id="action-panel">
-      <div id="action-row">
-        <button class="action-btn" data-action="X">
-          <span class="btn-slot">Front · X</span>
-          <span class="btn-name">—</span>
-          <span class="btn-desc"></span>
-          <span class="btn-sig"><span class="sig-bolt">★</span> Hold · <b class="sig-name">—</b> <i class="sig-desc"></i></span>
-          <span class="hold-fill"></span>
-        </button>
-        <button class="action-btn" data-action="Y">
-          <span class="btn-slot">Mid · Y</span>
-          <span class="btn-name">—</span>
-          <span class="btn-desc"></span>
-          <span class="btn-sig"><span class="sig-bolt">★</span> Hold · <b class="sig-name">—</b> <i class="sig-desc"></i></span>
-          <span class="hold-fill"></span>
-        </button>
-        <button class="action-btn" data-action="Z">
-          <span class="btn-slot">Back · Z</span>
-          <span class="btn-name">—</span>
-          <span class="btn-desc"></span>
-          <span class="btn-sig"><span class="sig-bolt">★</span> Hold · <b class="sig-name">—</b> <i class="sig-desc"></i></span>
-          <span class="hold-fill"></span>
-        </button>
+      <div id="queue-row">
+        <div id="queue-strip">
+          <div class="queue-slot" data-qslot="0"><span class="qs-idx">1</span><span class="qs-name">—</span><span class="qs-desc"></span></div>
+          <div class="queue-slot" data-qslot="1"><span class="qs-idx">2</span><span class="qs-name">—</span><span class="qs-desc"></span></div>
+          <div class="queue-slot" data-qslot="2"><span class="qs-idx">3</span><span class="qs-name">—</span><span class="qs-desc"></span></div>
+        </div>
+        <button id="btn-clear" class="control-btn"><span class="ctrl-label">Clear</span></button>
+        <button id="btn-fight" class="fight-btn" disabled><span class="fight-label">Fight</span><span class="fight-sub">commit turn</span></button>
       </div>
-      <div id="control-row">
-        <button id="btn-move" class="control-btn"><span class="ctrl-ico">↻</span><span class="ctrl-label">Move</span><span class="ctrl-sub">swap two · skip attack</span></button>
-        <button id="btn-defend" class="control-btn"><span class="ctrl-ico">⛨</span><span class="ctrl-label">Defend</span><span class="ctrl-sub">+armor · +resolve</span></button>
+      <div id="tile-grid">
+        <!-- character tile columns + team special injected here -->
       </div>
     </footer>
 

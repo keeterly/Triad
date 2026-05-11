@@ -1,9 +1,11 @@
-// Triad — prototype v0.1 (landscape rebuild)
-// Each turn the player chooses ONE of: X/Y/Z (techs of Front/Mid/Back occupants),
-// Move (swap two members, no attack), Defend (+armor & resolve, no attack).
-// Signatures cost Resolve and lock that slot for one turn → rotation pressure.
-// Characters are extreme specialists: one home slot dominates, others fall off.
-// Enemies telegraph the slot they target so positioning is the puzzle.
+// Triad — prototype v0.2 (queue rebuild)
+// Each turn the player builds a 3-slot action queue, then commits with Fight.
+// Per character: Attack (free), Special (1 Resolve), Move (step ←/→ to adjacent).
+// Team Special fills the queue and costs 3 Resolve — effect varies by formation.
+// Actions resolve top-to-bottom against live state, so moves mid-queue change
+// what later actions do (a character's contextual tech reflects their slot at
+// the moment the action fires). Enemies still telegraph slots — positioning
+// is the puzzle, the queue is the brush.
 
 // ============================================================================
 // SVG PORTRAITS
@@ -110,12 +112,16 @@ const SLOT_LABELS = { front: 'Front', mid: 'Mid', back: 'Back' };
 // visual display orders so the rows face each other (party right-edge = Front, enemy left-edge = Front)
 const PARTY_DISPLAY_ORDER = ['back', 'mid', 'front'];
 const ENEMY_DISPLAY_ORDER = ['front', 'mid', 'back'];
-const SIG_COST = 3;
+
+// queue / costs
+const QUEUE_SLOTS = 3;
+const SPECIAL_COST = 1;       // individual character special
+const TEAM_SPECIAL_COST = 3;  // formation-based ultimate (fills queue)
+const BRACE_ARMOR = 2;        // free per-character armor tile
+
 const RESOLVE_MAX = 5;
 const RESOLVE_DRIP = 1;
 const KILL_RESOLVE = 2;
-const DEFEND_ARMOR = 3;
-const DEFEND_RESOLVE = 1;
 
 // stagger / chain
 const STAGGER_THRESHOLD = 30;
@@ -259,8 +265,8 @@ function newState() {
   return {
     turn: 1,
     resolve: 0,
-    moveArmed: false,
-    moveSelection: null,
+    queue: [],         // array of { kind, charId?, dir?, label, desc } — max QUEUE_SLOTS
+    executing: false,  // true while queue is resolving
     over: false,
     outgoingDmgMod: 0,
     ignoreArmor: false,
@@ -273,8 +279,6 @@ function newState() {
         elin:    newCharState('elin'),
         branwen: newCharState('branwen'),
       },
-      lockedSlot: null,
-      pendingLock: null,
     },
 
     enemies: {
@@ -599,10 +603,11 @@ function getAdjacencyPairs(s) {
 
 function startTurn(s) {
   s.messages = [];
+  s.executing = false;
+  s.queue = [];
+  // clear single-turn buffs that survived the enemy phase
+  aliveParty(s).forEach(c => { c.taunt = false; c.retaliate = 0; });
   log(`<span class="msg-strong">— Turn ${s.turn} —</span>`);
-
-  s.party.lockedSlot = s.party.pendingLock;
-  s.party.pendingLock = null;
 
   // bleed tick
   aliveParty(s).forEach(c => {
@@ -634,64 +639,276 @@ function startTurn(s) {
   render();
 }
 
-function playerAct(actionKey, wantSig) {
-  if (state.over) return;
-  const slot = { X: 'front', Y: 'mid', Z: 'back' }[actionKey];
-  if (!slot) return;
-  if (state.party.lockedSlot === slot) { flashMsg(`${SLOT_LABELS[slot].toUpperCase()} is locked — rotate to refresh.`); return; }
-  const charId = state.party.slots[slot];
-  const c = state.party.chars[charId];
-  if (!c || c.downed) { flashMsg(`That slot is empty.`); return; }
+// ============================================================================
+// QUEUE — build a 3-action plan, then commit it
+// ============================================================================
 
-  const techDef = CHARS[charId].techs[slot];
-  const useSig = !!wantSig && state.resolve >= SIG_COST;
-  const variant = useSig ? techDef.sig : techDef.basic;
-
-  log(`<b>${CHARS[charId].name}</b> uses <b>${variant.name}</b>${useSig ? ' ★' : ''}.`);
-
-  state.currentActorId = charId;
-  state.outgoingDmgMod = c.weak > 0 ? -2 : 0;
-  try { variant.fn(state); }
-  finally {
-    state.outgoingDmgMod = 0;
-    state.ignoreArmor = false;
-    state.currentActorId = null;
+// Simulate party slot positions after applying queue items up to (but not
+// including) index `upto`. Moves are the only thing that changes positions
+// mid-queue. Used for tile previews and for resolving "contextual" actions.
+function simulateSlotsThrough(s, upto) {
+  const sim = { ...s.party.slots };
+  for (let i = 0; i < upto && i < s.queue.length; i++) {
+    const item = s.queue[i];
+    if (item.kind !== 'move') continue;
+    const cur = Object.keys(sim).find(sl => sim[sl] === item.charId);
+    if (!cur) continue;
+    const idx = SLOTS.indexOf(cur);
+    const ti = idx + item.dir;
+    if (ti < 0 || ti > 2) continue;
+    const target = SLOTS[ti];
+    const swap = sim[target];
+    sim[cur] = swap;
+    sim[target] = item.charId;
   }
-  if (c.weak > 0) c.weak = Math.max(0, c.weak - 1);
+  return sim;
+}
 
-  if (useSig) {
-    state.resolve -= SIG_COST;
-    state.party.pendingLock = slot;
-    log(`${SLOT_LABELS[slot].toUpperCase()} locked next turn.`);
+function slotOfCharSim(sim, id) { return SLOTS.find(sl => sim[sl] === id); }
+
+// What action would clicking this tile QUEUE right now?
+// Returns { label, desc, cost, valid, kind } based on simulated post-queue state.
+function previewTile(kind, charId, dir) {
+  const s = state;
+  const c = s.party.chars[charId];
+  if (!c || c.downed) return { valid: false };
+  const sim = simulateSlotsThrough(s, s.queue.length);
+  const slot = slotOfCharSim(sim, charId);
+  if (!slot) return { valid: false };
+
+  if (kind === 'attack') {
+    const tech = CHARS[charId].techs[slot].basic;
+    return { kind, valid: true, label: tech.name, desc: tech.desc, cost: 0, slot };
   }
-
-  endPlayerTurn();
+  if (kind === 'special') {
+    const tech = CHARS[charId].techs[slot].sig;
+    return { kind, valid: true, label: tech.name, desc: tech.desc, cost: SPECIAL_COST, slot };
+  }
+  if (kind === 'move') {
+    const idx = SLOTS.indexOf(slot);
+    const ti = idx + dir;
+    if (ti < 0 || ti > 2) return { kind, valid: false, label: 'Move', desc: 'no room', slot };
+    const target = SLOTS[ti];
+    const otherId = sim[target];
+    const otherName = otherId ? CHARS[otherId].name : '—';
+    return { kind, valid: true, label: `→ ${SLOT_LABELS[target]}`, desc: `swap w/ ${otherName}`, cost: 0, slot, target };
+  }
+  if (kind === 'brace') {
+    return { kind, valid: true, label: 'Brace', desc: `+${BRACE_ARMOR} armor`, cost: 0, slot };
+  }
+  return { valid: false };
 }
 
-function playerMove(slotA, slotB) {
+function queueRemainingResolve() {
+  return state.queue.reduce((sum, it) => sum + (it.cost || 0), 0);
+}
+function queueAvailableResolve() {
+  return state.resolve - queueRemainingResolve();
+}
+
+function queueAdd(item) {
   const s = state;
-  const t = s.party.slots[slotA]; s.party.slots[slotA] = s.party.slots[slotB]; s.party.slots[slotB] = t;
-  log(`Party rotates.`);
-  s.moveArmed = false; s.moveSelection = null;
-  endPlayerTurn();
-}
-
-function playerDefend() {
-  partyArmor(state, DEFEND_ARMOR);
-  gainResolve(state, DEFEND_RESOLVE);
-  log(`Party braces (+${DEFEND_ARMOR} armor, +${DEFEND_RESOLVE} Resolve).`);
-  endPlayerTurn();
-}
-
-function endPlayerTurn() {
-  const s = state;
-  aliveParty(s).forEach(c => { c.taunt = false; c.retaliate = 0; });
-
-  if (checkEnd(s)) { render(); return; }
-
-  // ENEMY TURN — animated slightly: render first, then resolve after a beat
+  if (s.executing || s.over) return;
+  if (s.queue.length >= QUEUE_SLOTS) { flashMsg('Queue full — press Fight or Clear.'); return; }
+  // resolve cost check (against unreserved resolve)
+  if ((item.cost || 0) > queueAvailableResolve()) {
+    flashMsg(`Not enough Resolve (need ${item.cost}).`);
+    return;
+  }
+  s.queue.push(item);
   render();
-  setTimeout(() => resolveEnemyTurn(s), 450);
+}
+
+function queueRemoveAt(idx) {
+  const s = state;
+  if (s.executing || s.over) return;
+  if (idx < 0 || idx >= s.queue.length) return;
+  // if removing a team-special, clear the whole queue (it occupied multiple slots)
+  if (s.queue[idx].kind === 'team') { clearQueue(); return; }
+  s.queue.splice(idx, 1);
+  render();
+}
+
+function clearQueue() {
+  const s = state;
+  if (s.executing || s.over) return;
+  s.queue = [];
+  render();
+}
+
+function queueTeamSpecial() {
+  const s = state;
+  if (s.executing || s.over) return;
+  if (s.resolve < TEAM_SPECIAL_COST) { flashMsg('Not enough Resolve.'); return; }
+  const ts = getTeamSpecial(s);
+  // team special consumes the whole queue
+  s.queue = [
+    { kind: 'team', label: ts.name, desc: ts.short, cost: TEAM_SPECIAL_COST, tsId: ts.id },
+    { kind: 'team', label: '   ⋯', desc: '', cost: 0, tsId: ts.id, slave: true },
+    { kind: 'team', label: '   ⋯', desc: '', cost: 0, tsId: ts.id, slave: true },
+  ];
+  render();
+}
+
+// ============================================================================
+// FIGHT — resolve queue, then enemies
+// ============================================================================
+
+function onFight() {
+  const s = state;
+  if (s.over || s.executing) return;
+  if (s.queue.length === 0) { flashMsg('Queue at least one action.'); return; }
+  s.executing = true;
+  // pay resolve up front
+  s.resolve -= queueRemainingResolve();
+  render();
+  resolveQueueStep(0);
+}
+
+function resolveQueueStep(i) {
+  const s = state;
+  if (s.over) { s.executing = false; render(); return; }
+  if (i >= s.queue.length) {
+    // queue done — leave taunt/retaliate up for the incoming enemy phase
+    s.queue = [];
+    if (checkEnd(s)) { s.executing = false; render(); return; }
+    render();
+    setTimeout(() => resolveEnemyTurn(s), 320);
+    return;
+  }
+  const item = s.queue[i];
+  executeQueueItem(s, item);
+  if (checkEnd(s)) { s.executing = false; render(); return; }
+  render();
+  setTimeout(() => resolveQueueStep(i + 1), 380);
+}
+
+function executeQueueItem(s, item) {
+  if (item.slave) return; // team-special filler slot
+  if (item.kind === 'team') { execTeamSpecial(s, item.tsId); return; }
+
+  const c = item.charId ? s.party.chars[item.charId] : null;
+  if (item.charId && (!c || c.downed)) {
+    log(`<i>${CHARS[item.charId].name} cannot act.</i>`);
+    return;
+  }
+
+  if (item.kind === 'attack' || item.kind === 'special') {
+    const slot = slotOfChar(s, item.charId);
+    if (!slot) return;
+    const techDef = CHARS[item.charId].techs[slot];
+    const variant = item.kind === 'special' ? techDef.sig : techDef.basic;
+    log(`<b>${CHARS[item.charId].name}</b> uses <b>${variant.name}</b>${item.kind === 'special' ? ' ★' : ''}.`);
+    s.currentActorId = item.charId;
+    s.outgoingDmgMod = c.weak > 0 ? -2 : 0;
+    try { variant.fn(s); }
+    finally { s.outgoingDmgMod = 0; s.ignoreArmor = false; s.currentActorId = null; }
+    if (c.weak > 0) c.weak = Math.max(0, c.weak - 1);
+    return;
+  }
+
+  if (item.kind === 'move') {
+    const slot = slotOfChar(s, item.charId);
+    if (!slot) return;
+    const idx = SLOTS.indexOf(slot);
+    const ti = idx + item.dir;
+    if (ti < 0 || ti > 2) { log(`<i>${CHARS[item.charId].name} can't move that way.</i>`); return; }
+    const target = SLOTS[ti];
+    const other = s.party.slots[target];
+    s.party.slots[slot] = other;
+    s.party.slots[target] = item.charId;
+    log(`<b>${CHARS[item.charId].name}</b> steps to ${SLOT_LABELS[target]}.`);
+    return;
+  }
+
+  if (item.kind === 'brace') {
+    c.armor += BRACE_ARMOR;
+    spawnPopupId(item.charId, `+${BRACE_ARMOR}⛨`, 'armor', 'party');
+    log(`<b>${CHARS[item.charId].name}</b> braces (+${BRACE_ARMOR} armor).`);
+    return;
+  }
+}
+
+// ============================================================================
+// TEAM SPECIALS — formation-dependent ultimates
+// Keyed by `front:mid:back` character ids. Each one fills the queue and costs
+// TEAM_SPECIAL_COST Resolve. Unknown formations fall back to "Triad Strike".
+// ============================================================================
+
+const TEAM_SPECIALS = {
+  // home: Cassia front, Elin mid, Branwen back
+  'cassia:elin:branwen': {
+    id: 'sacred', name: 'Sacred Triad',
+    short: 'AoE 5 · heal 5 · cleanse · armor',
+    fn: (s) => {
+      dmgAllEnemies(s, 5);
+      aliveParty(s).forEach(c => {
+        const before = c.hp; c.hp = Math.min(c.maxHp, c.hp + 5);
+        if (c.hp > before) spawnPopupId(c.id, `+${c.hp - before}`, 'heal', 'party');
+        c.bleed = 0; c.weak = 0; c.armor += 2;
+      });
+    },
+  },
+  // full reverse: Branwen front, Elin mid, Cassia back
+  'branwen:elin:cassia': {
+    id: 'lastreach', name: 'Last Reach',
+    short: 'Pierce 10 · bleed 2 all · Cassia retaliate',
+    fn: (s) => {
+      s.ignoreArmor = true; dmgEnemyAt(s, 0, 10); s.ignoreArmor = false;
+      aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 2));
+      const cas = s.party.chars.cassia;
+      if (cas && !cas.downed) { cas.armor += 3; cas.retaliate = 3; cas.taunt = true; }
+    },
+  },
+  // Cassia + Branwen swapped, Elin home: Branwen front, Cassia mid, Elin back
+  'branwen:cassia:elin': {
+    id: 'wedge', name: "Hunter's Wedge",
+    short: 'Volley 6 all · Cassia advances · armor',
+    fn: (s) => {
+      dmgAllEnemies(s, 6);
+      aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 1));
+      // pop Cassia forward into the front (swap with whoever's there)
+      const cur = slotOfChar(s, 'cassia');
+      if (cur && cur !== 'front') {
+        const f = s.party.slots.front;
+        s.party.slots[cur] = f; s.party.slots.front = 'cassia';
+        log(`<b>Cassia</b> surges to Front.`);
+      }
+      aliveParty(s).forEach(c => c.armor += 2);
+    },
+  },
+};
+
+const TEAM_SPECIAL_DEFAULT = {
+  id: 'strike', name: 'Triad Strike',
+  short: 'AoE 4 · heal 3 lowest · +1 Resolve',
+  fn: (s) => {
+    dmgAllEnemies(s, 4);
+    healLowest(s, 3);
+    gainResolve(s, 1);
+  },
+};
+
+function formationKey(s) {
+  return `${s.party.slots.front}:${s.party.slots.mid}:${s.party.slots.back}`;
+}
+
+function getTeamSpecial(s) {
+  return TEAM_SPECIALS[formationKey(s)] || TEAM_SPECIAL_DEFAULT;
+}
+
+function execTeamSpecial(s, tsId) {
+  // find the matching def — may not be the current-formation one if formation
+  // shifted between queueing and execution (rare with team-special since it
+  // consumes the queue, but defensive)
+  let ts = getTeamSpecial(s);
+  if (ts.id !== tsId) {
+    ts = Object.values(TEAM_SPECIALS).find(t => t.id === tsId) || TEAM_SPECIAL_DEFAULT;
+  }
+  log(`<span class="msg-strong">★ ${ts.name} ★</span>`);
+  s.currentActorId = null;
+  try { ts.fn(s); }
+  finally { s.outgoingDmgMod = 0; s.ignoreArmor = false; s.currentActorId = null; }
 }
 
 function resolveEnemyTurn(s) {
@@ -744,8 +961,9 @@ const $$ = (sel) => document.querySelectorAll(sel);
 function render() {
   renderHUD();
   renderColumns();
-  renderActions();
-  renderControls();
+  renderQueue();
+  renderTileGrid();
+  renderFightButton();
   renderMessages();
 }
 
@@ -809,9 +1027,7 @@ function makePartyCard(c, slot, threatened, adjMap) {
   if (c.downed) card.classList.add('downed');
   if (adjMap[c.id] === 'bond') card.classList.add('adjacent-bond');
   if (adjMap[c.id] === 'friction') card.classList.add('adjacent-friction');
-  if (state.moveArmed && state.moveSelection === slot) card.classList.add('selected');
   if (threatened && !c.downed) card.classList.add('targeted-by-enemy');
-  if (state.party.lockedSlot === slot) card.classList.add('locked-slot');
 
   const def = CHARS[c.id];
   const isHome = def.home === slot;
@@ -830,7 +1046,6 @@ function makePartyCard(c, slot, threatened, adjMap) {
       </div>
     </div>
   `;
-  card.addEventListener('click', () => onPartyCardClick(slot));
   return card;
 }
 
@@ -888,48 +1103,149 @@ function renderStatuses(ent) {
   return c.join('');
 }
 
-function renderActions() {
-  const map = [['X','front'], ['Y','mid'], ['Z','back']];
-  document.querySelectorAll('.action-btn').forEach(btn => {
-    const action = btn.dataset.action;
-    const slot = map.find(m => m[0] === action)[1];
-    const charId = state.party.slots[slot];
-    const c = state.party.chars[charId];
-    const locked = state.party.lockedSlot === slot;
-    const empty = !c || c.downed;
-    const nameEl = btn.querySelector('.btn-name');
-    const descEl = btn.querySelector('.btn-desc');
-    const slotEl = btn.querySelector('.btn-slot');
-    const sigNameEl = btn.querySelector('.sig-name');
-    const sigDescEl = btn.querySelector('.sig-desc');
-
-    slotEl.textContent = `${SLOT_LABELS[slot]} · ${action}`;
-    if (empty || locked) {
-      btn.disabled = true;
-      btn.classList.remove('sig-ready', 'holding', 'held-sig');
-      nameEl.textContent = locked ? 'Locked' : '—';
-      descEl.textContent = locked ? 'rotate to refresh' : '';
-      if (sigNameEl) sigNameEl.textContent = '—';
-      if (sigDescEl) sigDescEl.textContent = '';
+// queue strip: show each queue slot's filled action or empty placeholder
+function renderQueue() {
+  const slots = document.querySelectorAll('#queue-strip .queue-slot');
+  slots.forEach((el, idx) => {
+    const item = state.queue[idx];
+    el.classList.remove('filled', 'kind-attack', 'kind-special', 'kind-move', 'kind-brace', 'kind-team');
+    const nameEl = el.querySelector('.qs-name');
+    const descEl = el.querySelector('.qs-desc');
+    if (!item) {
+      nameEl.textContent = '—';
+      descEl.textContent = '';
+      el.title = 'empty';
       return;
     }
-    btn.disabled = state.moveArmed;
-    const def = CHARS[charId].techs[slot];
-    nameEl.textContent = def.basic.name;
-    descEl.textContent = def.basic.desc;
-    if (sigNameEl) sigNameEl.textContent = def.sig.name;
-    if (sigDescEl) sigDescEl.textContent = ' — ' + def.sig.desc;
-    btn.classList.toggle('sig-ready', state.resolve >= SIG_COST && !state.moveArmed);
+    el.classList.add('filled', `kind-${item.kind}`);
+    const who = item.charId ? CHARS[item.charId].name : '';
+    nameEl.textContent = who ? `${who} · ${item.label}` : item.label;
+    descEl.textContent = item.desc || '';
+    el.title = 'tap to remove';
   });
 }
 
-function renderControls() {
-  const moveBtn = $('#btn-move');
-  const defBtn  = $('#btn-defend');
-  moveBtn.disabled = false;
-  moveBtn.classList.toggle('armed', state.moveArmed);
-  moveBtn.querySelector('.ctrl-label').textContent = state.moveArmed ? 'Cancel' : 'Move';
-  defBtn.disabled = state.moveArmed;
+// the 3 character columns + team special column
+function renderTileGrid() {
+  const grid = $('#tile-grid');
+  grid.innerHTML = '';
+
+  const sim = simulateSlotsThrough(state, state.queue.length);
+  const teamLocked = state.queue.some(q => q.kind === 'team');
+
+  // count how many times each tile is already queued (for badges)
+  const tileCounts = {};
+  state.queue.forEach(q => {
+    const key = `${q.kind}:${q.charId || ''}:${q.dir ?? ''}`;
+    tileCounts[key] = (tileCounts[key] || 0) + 1;
+  });
+
+  // one column per character (in their home order so columns don't shuffle)
+  ['cassia', 'elin', 'branwen'].forEach(charId => {
+    const c = state.party.chars[charId];
+    const def = CHARS[charId];
+    const slot = slotOfCharSim(sim, charId);
+    const col = document.createElement('div');
+    col.className = 'char-col';
+    if (c.downed) col.classList.add('downed');
+
+    const header = document.createElement('div');
+    header.className = 'char-col-header';
+    if (slot === def.home) header.classList.add('home-color');
+    header.innerHTML = `<span class="cch-name">${def.name}</span><span class="cch-slot">${SLOT_LABELS[slot] || '—'}${slot === def.home ? ' · home' : ''}</span>`;
+    col.appendChild(header);
+
+    // 3 tiles: Attack, Special, Move/Brace
+    col.appendChild(makeTile('attack', charId, null, tileCounts, teamLocked));
+    col.appendChild(makeTile('special', charId, null, tileCounts, teamLocked));
+    col.appendChild(makeMoveOrBraceTile(charId, slot, tileCounts, teamLocked));
+
+    grid.appendChild(col);
+  });
+
+  // team special column
+  grid.appendChild(makeTeamSpecialTile(teamLocked));
+}
+
+function makeTile(kind, charId, dir, tileCounts, teamLocked) {
+  const preview = previewTile(kind, charId, dir);
+  const c = state.party.chars[charId];
+  const t = document.createElement('button');
+  t.className = `tile kind-${kind}`;
+  t.disabled = !preview.valid || c.downed || state.executing || state.over || teamLocked || state.queue.length >= QUEUE_SLOTS
+    || (preview.cost || 0) > queueAvailableResolve();
+  t.dataset.kind = kind;
+  t.dataset.charId = charId;
+  if (dir !== null && dir !== undefined) t.dataset.dir = dir;
+
+  const key = `${kind}:${charId}:${dir ?? ''}`;
+  if (tileCounts[key]) { t.classList.add('queued'); t.dataset.qCount = `×${tileCounts[key]}`; }
+
+  const costStr = preview.cost ? `${preview.cost}♦` : '';
+  t.innerHTML = `
+    ${costStr ? `<span class="tile-cost">${costStr}</span>` : ''}
+    <span class="tile-name">${preview.label || '—'}</span>
+    <span class="tile-desc">${preview.desc || ''}</span>
+  `;
+  t.addEventListener('click', () => {
+    queueAdd({
+      kind, charId,
+      dir: dir,
+      label: preview.label,
+      desc: preview.desc,
+      cost: preview.cost || 0,
+    });
+  });
+  return t;
+}
+
+function makeMoveOrBraceTile(charId, slot, tileCounts, teamLocked) {
+  const idx = SLOTS.indexOf(slot);
+  // Mid character has two move directions — render a split-tile.
+  if (idx === 1) {
+    const wrap = document.createElement('div');
+    wrap.className = 'tile-pair';
+    wrap.style.display = 'grid';
+    wrap.style.gridTemplateColumns = '1fr 1fr';
+    wrap.style.gap = '3px';
+    wrap.style.minHeight = '0';
+    wrap.appendChild(makeTile('move', charId, -1, tileCounts, teamLocked));
+    wrap.appendChild(makeTile('move', charId, +1, tileCounts, teamLocked));
+    return wrap;
+  }
+  // Front (idx 0): only +1 (toward back). Back (idx 2): only -1 (toward front).
+  // Show move tile if movement is valid in some direction; otherwise show Brace.
+  const dir = idx === 0 ? +1 : -1;
+  // mid sim says you can move; for front/back, also valid. Just render move tile.
+  return makeTile('move', charId, dir, tileCounts, teamLocked);
+}
+
+function makeTeamSpecialTile(teamLocked) {
+  const ts = getTeamSpecial(state);
+  const t = document.createElement('button');
+  t.className = 'tile team-special';
+  const canAfford = state.resolve >= TEAM_SPECIAL_COST;
+  const queueEmpty = state.queue.length === 0;
+  t.disabled = !canAfford || !queueEmpty || state.executing || state.over;
+  if (canAfford && queueEmpty) t.classList.add('ready');
+  if (teamLocked) t.classList.add('queued');
+
+  const formationLabel = `${CHARS[state.party.slots.front]?.name?.[0] || '·'}-${CHARS[state.party.slots.mid]?.name?.[0] || '·'}-${CHARS[state.party.slots.back]?.name?.[0] || '·'}`;
+  t.innerHTML = `
+    <span class="ts-label">Team Special</span>
+    <span class="ts-name">${ts.name}</span>
+    <span class="ts-form">formation ${formationLabel}</span>
+    <span class="ts-desc">${ts.short}</span>
+    <span class="ts-cost">${TEAM_SPECIAL_COST}♦ · fills queue</span>
+  `;
+  t.addEventListener('click', () => queueTeamSpecial());
+  return t;
+}
+
+function renderFightButton() {
+  const btn = $('#btn-fight');
+  const canFight = state.queue.length > 0 && !state.executing && !state.over;
+  btn.disabled = !canFight;
 }
 
 function renderMessages() {
@@ -985,67 +1301,12 @@ function flashCardId(id, type, side) {
 // INPUT
 // ============================================================================
 
-function onPartyCardClick(slot) {
-  if (!state.moveArmed) return;
-  const c = charBySlot(state, slot); if (!c || c.downed) return;
-  if (state.moveSelection === null) { state.moveSelection = slot; render(); return; }
-  if (state.moveSelection === slot) { state.moveSelection = null; render(); return; }
-  playerMove(state.moveSelection, slot);
-}
-
 function bindUI() {
-  const HOLD_MS = 450;
-  const holdState = { btn: null, timer: null, fired: false };
-
-  function startHold(btn) {
-    if (btn.disabled || state.over) return;
-    holdState.btn = btn;
-    holdState.fired = false;
-    btn.classList.add('holding');
-    if (btn.classList.contains('sig-ready')) {
-      holdState.timer = setTimeout(() => {
-        if (holdState.btn === btn) {
-          holdState.fired = true;
-          btn.classList.remove('holding');
-          btn.classList.add('held-sig');
-          setTimeout(() => btn.classList.remove('held-sig'), 220);
-          playerAct(btn.dataset.action, true);
-        }
-      }, HOLD_MS);
-    }
-  }
-  function endHold(btn) {
-    if (holdState.btn !== btn) return;
-    if (holdState.timer) { clearTimeout(holdState.timer); holdState.timer = null; }
-    btn.classList.remove('holding');
-    const wasFired = holdState.fired;
-    holdState.btn = null;
-    holdState.fired = false;
-    if (!wasFired) playerAct(btn.dataset.action, false);
-  }
-  function cancelHold(btn) {
-    if (holdState.btn !== btn) return;
-    if (holdState.timer) { clearTimeout(holdState.timer); holdState.timer = null; }
-    btn.classList.remove('holding');
-    holdState.btn = null;
-    holdState.fired = false;
-  }
-
-  $$('.action-btn').forEach(btn => {
-    btn.addEventListener('pointerdown',  (e) => { e.preventDefault(); startHold(btn); });
-    btn.addEventListener('pointerup',    () => endHold(btn));
-    btn.addEventListener('pointerleave', () => cancelHold(btn));
-    btn.addEventListener('pointercancel',() => cancelHold(btn));
-    btn.addEventListener('contextmenu',  (e) => e.preventDefault()); // suppress long-press menu on touch
+  $('#btn-fight').addEventListener('click', () => onFight());
+  $('#btn-clear').addEventListener('click', () => clearQueue());
+  document.querySelectorAll('#queue-strip .queue-slot').forEach((el, idx) => {
+    el.addEventListener('click', () => queueRemoveAt(idx));
   });
-
-  $('#btn-move').addEventListener('click', () => {
-    state.moveArmed = !state.moveArmed;
-    state.moveSelection = null;
-    if (state.moveArmed) flashMsg('Tap two party members to swap (consumes turn).');
-    render();
-  });
-  $('#btn-defend').addEventListener('click', () => playerDefend());
   $('#overlay-btn').addEventListener('click', () => { hideOverlay(); init(); });
 }
 
