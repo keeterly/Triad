@@ -4,19 +4,19 @@ Dark-fantasy roguelite RPG prototype. Mobile landscape, single-fight combat sand
 
 ## Core mechanic
 
-Three party members occupy three slots — **Front · Mid · Back**. Each turn you build a **3-slot action queue** and commit it with **Fight**. Queued actions resolve top-to-bottom against the live battlefield, then enemies act.
+Three party members occupy three slots — **Front · Mid · Back**. Each turn you spend a **3-point ATB budget** on a queue of actions, then commit with **Fight**. Queued actions resolve top-to-bottom against the live battlefield, then enemies act.
 
 Per character (tiles are contextual to that character's slot):
 
-- **Attack** — free. Basic technique for the character's current slot.
-- **Special** — costs **1 Resolve**. Signature technique for the current slot.
-- **Move ←/→** — free. Step one slot toward Front or Back, swapping with whoever's there. Front character can only retreat; Back can only advance; Mid picks a direction.
+| Action | ATB | Resolve | Effect |
+|---|---|---|---|
+| **Attack** | 1 | — | Basic technique for the character's current slot |
+| **Special** | 2 | 1 | Signature technique for the current slot |
+| **Move ←/→** | 1 | — | Step one slot toward Front or Back, swapping with whoever's there |
 
-Plus:
+Plus a **Team Special** that consumes the full ATB bar and 3 Resolve. Its effect depends on formation: home order (Cassia/Elin/Branwen) → *Sacred Triad*; full reverse → *Last Reach*; Cassia-mid-Branwen-front → *Hunter's Wedge*; other formations → *Triad Strike*.
 
-- **Team Special** — costs **3 Resolve**, fills the whole queue. The effect changes with formation: home order (Cassia/Elin/Branwen) unlocks **Sacred Triad**; full reverse unlocks **Last Reach**; other combinations get **Triad Strike** or named alternates.
-
-Because actions resolve in order against live state, queuing **Move → Attack** uses the character's *new* position for the attack. The same character can fill all three queue slots — burst potential if you give up positional flexibility. Characters are extreme specialists: one *home* slot is devastating, others fall off. Enemies telegraph the **slot** they target so positioning is the puzzle.
+Because actions resolve in order against live state, queuing **Move → Attack** uses the character's *new* position for the attack. Variable ATB costs force real trade-offs: 3 cheap attacks vs 1 special + 1 attack vs the full ultimate. Characters are extreme specialists: one *home* slot is devastating, others fall off. Enemies telegraph the **slot** they target so positioning is the puzzle.
 
 ## Stagger loop
 
