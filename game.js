@@ -1638,12 +1638,10 @@ function renderTiles() {
     const header = document.createElement('div');
     header.className = 'char-col-header';
     if (simSlot === def.home) header.classList.add('home-color');
+    header.title = `${def.name} — ${SLOT_LABELS[simSlot] || '—'}${simSlot === def.home ? ' · home' : ''}`;
     header.innerHTML = `
       <div class="cch-avatar">${PORTRAITS[charId] || ''}</div>
-      <div class="cch-text">
-        <div class="cch-name">${def.name}</div>
-        <div class="cch-slot">${SLOT_LABELS[simSlot] || '—'}${simSlot === def.home ? ' · home' : ''}</div>
-      </div>
+      <div class="cch-name">${def.name}</div>
     `;
     col.appendChild(header);
 
