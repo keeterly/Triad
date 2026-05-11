@@ -1547,16 +1547,19 @@ function render() {
 }
 
 function renderHUD() {
-  $('#turn-num').textContent = state.turn;
   const pips = $('#resolve-pips'); pips.innerHTML = '';
+  // pips fill from left:
+  //   bright  = available to spend on further actions
+  //   reserved (half-grey) = already slotted to be spent when you press Fight
+  //   empty   = unfilled
+  const reserved = queueReservedResolve();
+  const available = state.resolve - reserved;
   for (let i = 0; i < RESOLVE_MAX; i++) {
     const p = document.createElement('div');
-    p.className = 'pip' + (i < state.resolve ? ' filled' : '');
+    if (i < available) p.className = 'pip filled';
+    else if (i < state.resolve) p.className = 'pip filled reserved';
+    else p.className = 'pip';
     pips.appendChild(p);
-  }
-  const pill = $('#encounter-pill');
-  if (pill && state.run) {
-    pill.textContent = `${state.run.slotIdx + 1}/${RUN_LAYOUT.length}`;
   }
   const encName = $('#encounter-name');
   if (encName && state.run && state.run.currentEncId) {
