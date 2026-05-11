@@ -1803,6 +1803,7 @@ function renderQueue() {
     el.innerHTML = `
       <span class="qs-cost">${item.atb}</span>
       <span class="qs-avatar">${portraitSvg}${teamGlyph}</span>
+      <span class="qs-name">${item.label || ''}</span>
     `;
     // hover tooltip — keep the label/desc accessible via title even though it's not visible
     el.title = `${item.label}${item.desc ? ' — ' + item.desc : ''} (tap to remove)`;

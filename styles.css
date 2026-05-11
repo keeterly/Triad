@@ -1163,22 +1163,47 @@ body {
 .queue-slot {
   background:
     linear-gradient(180deg, #0a0604 0%, #050302 100%);
-  border-radius: 2px;
+  border-radius: 3px;
   position: relative;
-  display: flex; align-items: center; justify-content: center;
-  padding: 0 8px;
-  font-size: 10px;
+  display: flex; align-items: center; justify-content: flex-start;
+  gap: 8px;
+  padding: 0 10px 0 8px;
+  font-size: 11px;
   color: var(--ink-faint);
   overflow: hidden;
   cursor: pointer;
-  transition: box-shadow 0.15s, background 0.15s;
+  transition: box-shadow 0.15s, background 0.15s, transform 0.1s;
   min-width: 0;
   box-shadow: inset 0 1px 2px rgba(0,0,0,0.7);
 }
+.queue-slot.filled:hover { transform: translateY(-1px); }
+
+/* cost pip: rounded square matching the tile cost-pip style */
+.queue-slot .qs-cost {
+  position: static;
+  transform: none;
+  min-width: 18px; height: 18px;
+  padding: 0 4px;
+  color: var(--gold-pale);
+  background:
+    linear-gradient(180deg, #4a2818 0%, #2a1408 70%, #150804 100%);
+  border: 1px solid var(--gold);
+  border-radius: 3px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: bold;
+  letter-spacing: 0;
+  text-shadow: 0 1px 0 var(--shadow);
+  font-variant-numeric: tabular-nums;
+  box-shadow:
+    inset 0 1px 0 rgba(255,200,160,0.25),
+    0 1px 3px rgba(0,0,0,0.6);
+  flex-shrink: 0;
+}
+
 /* circular portrait avatar inside a queued action */
 .queue-slot .qs-avatar {
   display: flex; align-items: center; justify-content: center;
-  width: 30px; height: 30px;
+  width: 28px; height: 28px;
   border-radius: 50%;
   overflow: hidden;
   border: 1px solid var(--gold-dim);
@@ -1198,19 +1223,40 @@ body {
   color: var(--blood-bright);
   filter: drop-shadow(0 0 4px rgba(212,69,69,0.5));
 }
+
+/* action name to the right of the avatar */
+.queue-slot .qs-name {
+  font-weight: bold;
+  color: var(--gold-pale);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1 1 auto;
+  text-shadow: 0 1px 0 var(--shadow);
+}
 /* an item spans (atb cost) grid columns so the strip never resizes other items */
 .queue-slot[data-atb="1"] { grid-column: span 1; }
 .queue-slot[data-atb="2"] { grid-column: span 2; }
 .queue-slot[data-atb="3"] { grid-column: span 3; }
 .queue-slot.placeholder {
-  background: transparent;
-  border: 1px dashed var(--gold-deep);
-  padding: 0 6px;
+  background: linear-gradient(180deg, rgba(15,10,6,0.7) 0%, rgba(5,3,2,0.7) 100%);
+  border: 1px solid rgba(106,85,48,0.25);
+  padding: 0;
   justify-content: center;
   cursor: default;
-  box-shadow: none;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.5);
 }
-.queue-slot.placeholder .qs-name { color: var(--ink-faint); font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; }
+.queue-slot.placeholder .qs-name {
+  color: var(--ink-faint);
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  opacity: 0.35;
+  flex: 0 0 auto;
+}
 .queue-slot .qs-cost {
   position: absolute; left: 5px; top: 50%;
   transform: translateY(-50%);
