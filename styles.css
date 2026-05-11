@@ -5,43 +5,52 @@
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
 :root {
-  /* parchment-on-pitch palette */
-  --bg-0: #0a0807;
-  --bg-1: #15110d;
-  --bg-2: #1f1812;
-  --bg-3: #2a2017;
-  --bg-frame: #1a130d;
+  /* parchment-on-pitch palette — refined for premium RPG feel.
+     Darks pick up a faint blue undertone (deepens the void); gold is more
+     saturated; blood is richer / more cinematic. */
+  --bg-0: #08080c;          /* deep void with subtle cool cast */
+  --bg-1: #14110e;
+  --bg-2: #1e1a14;
+  --bg-3: #28221a;
+  --bg-frame: #1a140e;
   --parchment: #2a1f14;
-  --parchment-deep: #170f08;
-  --ink: #e8dcc4;
-  --ink-dim: #8a7d68;
+  --parchment-deep: #150e08;
+  --ink: #ece1ca;           /* slightly more luminous */
+  --ink-dim: #8e8068;
   --ink-faint: #5a5044;
-  --gold: #c8a464;
-  --gold-bright: #f0d488;
-  --gold-pale: #f8e8b8;
-  --gold-dim: #6a5530;
-  --gold-deep: #3a2810;
-  --blood: #8b2e2e;
-  --blood-bright: #d44545;
-  --blood-deep: #4a1414;
-  --frost: #5a8ab0;
-  --frost-bright: #9cd0e8;
-  --shadow: #050302;
 
-  /* status colors */
-  --hp: #7ab048;
-  --hp-low: #c44030;
-  --resolve: #f0c860;
-  --armor: #9caad0;
-  --bleed: #c43838;
-  --taunt: #d48484;
-  --weak: #a888c0;
+  /* gold — more saturated, more refined yellow-gold */
+  --gold: #d4a858;
+  --gold-bright: #f4d878;
+  --gold-pale: #fae8a8;
+  --gold-dim: #6e5530;
+  --gold-deep: #3e2810;
+
+  /* blood — deeper and more cinematic */
+  --blood: #9a2828;
+  --blood-bright: #e04848;
+  --blood-deep: #46100f;
+
+  /* frost — cool steel */
+  --frost: #5286b4;
+  --frost-bright: #98cdea;
+
+  --shadow: #050308;        /* faint blue-black */
+
+  /* status colors — slightly more saturated for icon-centric glyphs */
+  --hp: #6ea448;
+  --hp-low: #d04028;
+  --resolve: #f4d068;
+  --armor: #8ea4c8;
+  --bleed: #c83838;
+  --taunt: #d88080;
+  --weak: #a888c8;
   --heal: #98d878;
-  --chain: #e8a040;
-  --chain-full: #ffd060;
-  --stagger: #ff8030;
-  --aoe: #c060a0;
-  --debuff: #9a78c0;
+  --chain: #ea9c38;
+  --chain-full: #ffd058;
+  --stagger: #ff7028;
+  --aoe: #c8508a;
+  --debuff: #8e74c0;
 
   --card-radius: 3px;
 }
@@ -347,7 +356,9 @@ body {
   max-width: 230px;
   min-height: 0;
   position: relative;
-  filter: drop-shadow(0 6px 8px rgba(0,0,0,0.65));
+  filter:
+    drop-shadow(0 8px 10px rgba(0,0,0,0.75))
+    drop-shadow(0 2px 4px rgba(0,0,0,0.6));
   display: flex; align-items: flex-end; justify-content: center;
 }
 .figure-portrait svg {
@@ -363,13 +374,15 @@ body {
 
 /* soft ground shadow ellipse under each figure */
 .figure-shadow {
-  width: 70%;
-  max-width: 160px;
-  height: 7px;
+  width: 78%;
+  max-width: 180px;
+  height: 9px;
   margin: -2px auto 6px;
-  background: radial-gradient(ellipse, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.25) 50%, transparent 75%);
+  background:
+    radial-gradient(ellipse, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.3) 50%, transparent 80%);
   pointer-events: none;
   flex-shrink: 0;
+  filter: blur(0.5px);
 }
 .figure.downed .figure-shadow { opacity: 0.4; }
 
@@ -1082,7 +1095,7 @@ body {
   position: relative; z-index: 2;
   background: transparent;
   min-height: 0;
-  align-items: center;
+  align-items: stretch;
   /* visible so the hold-to-reveal tooltip can escape upward */
   overflow: visible;
 }
@@ -1092,6 +1105,7 @@ body {
   gap: 5px;
   min-height: 0;
   min-width: 0;
+  height: 100%;
 }
 .char-col {
   display: grid;
@@ -1099,6 +1113,7 @@ body {
   gap: 3px;
   min-height: 0;
   min-width: 0;
+  height: 100%;
 }
 .char-col.downed { opacity: 0.4; pointer-events: none; }
 /* tiny avatar + name, no box around it. Slot position is conveyed by the column
