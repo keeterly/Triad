@@ -1638,7 +1638,13 @@ function renderTiles() {
     const header = document.createElement('div');
     header.className = 'char-col-header';
     if (simSlot === def.home) header.classList.add('home-color');
-    header.innerHTML = `<span class="cch-name">${def.name}</span><span class="cch-slot">${SLOT_LABELS[simSlot] || '—'}${simSlot === def.home ? ' · home' : ''}</span>`;
+    header.innerHTML = `
+      <div class="cch-avatar">${PORTRAITS[charId] || ''}</div>
+      <div class="cch-text">
+        <div class="cch-name">${def.name}</div>
+        <div class="cch-slot">${SLOT_LABELS[simSlot] || '—'}${simSlot === def.home ? ' · home' : ''}</div>
+      </div>
+    `;
     col.appendChild(header);
 
     col.appendChild(makeTile('attack', charId, null, tileCounts, teamLocked));
@@ -1654,23 +1660,21 @@ function cornerBrackets() {
 }
 
 function makePartyCard(c, slot, threatened, adjMap) {
-  const card = document.createElement('div');
-  card.className = 'card party-card';
-  card.dataset.slot = slot;
+  const fig = document.createElement('div');
+  fig.className = 'figure party-figure';
+  fig.dataset.slot = slot;
   if (!c) {
-    card.classList.add('empty');
-    card.innerHTML = `<div class="slot-banner">${slot}</div><div class="card-portrait"></div><div class="card-bottom"><div class="card-name">—</div></div>`;
-    return card;
+    fig.classList.add('empty');
+    fig.innerHTML = `<div class="figure-portrait"></div><div class="figure-shadow"></div><div class="figure-info"><div class="figure-name">—</div></div>`;
+    return fig;
   }
-  card.dataset.id = c.id;
-  if (c.downed) card.classList.add('downed');
+  fig.dataset.id = c.id;
+  if (c.downed) fig.classList.add('downed');
   const adj = adjMap[c.id];
-  if (adj?.type === 'bond') card.classList.add('adjacent-bond');
-  if (adj?.type === 'friction') card.classList.add('adjacent-friction');
-  if (threatened && !c.downed) card.classList.add('targeted-by-enemy');
+  if (adj?.type === 'bond') fig.classList.add('adjacent-bond');
+  if (adj?.type === 'friction') fig.classList.add('adjacent-friction');
+  if (threatened && !c.downed) fig.classList.add('targeted-by-enemy');
 
-  // chips face the neighbor: front's top edge faces mid, back's bottom edge
-  // faces mid, mid carries both. fm = front<->mid line, mb = mid<->back line.
   let topChip = '', bottomChip = '';
   if (!c.downed && adj) {
     if (slot === 'front' && adj.fm) topChip = chipHtml(adj.fm, 'top');
@@ -1684,24 +1688,21 @@ function makePartyCard(c, slot, threatened, adjMap) {
   const def = CHARS[c.id];
   const isHome = def.home === slot;
   const hpPct = (c.hp / c.maxHp) * 100;
-  card.innerHTML = `
-    ${cornerBrackets()}
+  fig.innerHTML = `
     ${topChip}
-    <div class="slot-banner ${isHome ? 'home' : ''}">${slot}${isHome ? ' · home' : ''}</div>
-    <div class="card-portrait">
-      ${PORTRAITS[c.id] || ''}
-      <div class="card-statuses">${renderStatuses(c)}</div>
-    </div>
-    <div class="card-bottom">
-      <div class="card-name">${def.name}</div>
-      <div class="hp-bar">
+    ${bottomChip}
+    <div class="figure-statuses">${renderStatuses(c)}</div>
+    <div class="figure-portrait">${PORTRAITS[c.id] || ''}</div>
+    <div class="figure-shadow"></div>
+    <div class="figure-info">
+      <div class="figure-hp">
         <div class="hp-fill ${hpPct < 35 ? 'low' : ''}" style="width:${hpPct}%"></div>
         <div class="hp-text">${c.hp}/${c.maxHp}</div>
       </div>
+      <div class="figure-name${isHome ? ' home' : ''}">${def.name}</div>
     </div>
-    ${bottomChip}
   `;
-  return card;
+  return fig;
 }
 
 function chipHtml(syn, edge) {
@@ -1715,16 +1716,16 @@ function intentIconGlyph(kind) {
 }
 
 function makeEnemyCard(e, slot) {
-  const card = document.createElement('div');
-  card.className = 'card enemy-card';
-  card.dataset.slot = slot;
+  const fig = document.createElement('div');
+  fig.className = 'figure enemy-figure';
+  fig.dataset.slot = slot;
   if (!e || e.dead) {
-    card.classList.add('empty');
-    card.innerHTML = `<div class="slot-banner">${slot}</div><div class="card-portrait"></div><div class="card-bottom"><div class="card-name">—</div></div>`;
-    return card;
+    fig.classList.add('empty');
+    fig.innerHTML = `<div class="figure-portrait"></div><div class="figure-shadow"></div><div class="figure-info"><div class="figure-name">—</div></div>`;
+    return fig;
   }
-  card.dataset.id = e.id;
-  if (e.staggered) card.classList.add('staggered');
+  fig.dataset.id = e.id;
+  if (e.staggered) fig.classList.add('staggered');
 
   const def = ENEMIES[e.id];
   const intent = def.intents[e.intentIdx % def.intents.length];
@@ -1741,31 +1742,30 @@ function makeEnemyCard(e, slot) {
   const icon = intentIconGlyph(intent.kind);
 
   const staggerBanner = e.staggered ? `<div class="staggered-banner">STAGGERED</div>` : '';
-  const intentRibbon = e.staggered ? '' : `
-    <div class="intent ${intentClass}">
+  // Intent floats ABOVE the figure as a damage-call bubble (like the reference's "⚔ 14" hover-glyphs).
+  const intentBubble = e.staggered ? '' : `
+    <div class="intent-bubble ${intentClass}">
       <span class="intent-icon">${icon}</span>
       <span class="intent-tag">${intent.tag}</span>
       <span class="intent-target">${targetTag}</span>
     </div>`;
 
-  card.innerHTML = `
-    ${cornerBrackets()}
-    ${intentRibbon}
+  fig.innerHTML = `
+    ${intentBubble}
     ${staggerBanner}
-    <div class="card-portrait">
-      ${PORTRAITS[e.id] || ''}
-      <div class="card-statuses">${renderStatuses(e)}</div>
-    </div>
-    <div class="card-bottom">
-      <div class="card-name">${def.name}</div>
-      <div class="hp-bar">
+    <div class="figure-statuses">${renderStatuses(e)}</div>
+    <div class="figure-portrait">${PORTRAITS[e.id] || ''}</div>
+    <div class="figure-shadow"></div>
+    <div class="figure-info">
+      <div class="figure-hp">
         <div class="hp-fill ${hpPct < 35 ? 'low' : ''}" style="width:${hpPct}%"></div>
         <div class="hp-text">${e.hp}/${e.maxHp}</div>
       </div>
+      <div class="figure-name">${def.name}</div>
       <div class="chain-bar"><div class="chain-fill" style="width:${chainPct}%"></div></div>
     </div>
   `;
-  return card;
+  return fig;
 }
 
 function renderStatuses(ent) {
@@ -2049,8 +2049,8 @@ function flashMsg(text) { log(`<i>${text}</i>`); renderMessages(); }
 function spawnPopupId(id, text, type, side) {
   // resolve side automatically if not given
   let cardEl;
-  if (side) cardEl = document.querySelector(`#${side === 'enemy' ? 'enemy' : 'party'}-col .card[data-id="${id}"]`);
-  if (!cardEl) cardEl = document.querySelector(`.card[data-id="${id}"]`);
+  if (side) cardEl = document.querySelector(`#${side === 'enemy' ? 'enemy' : 'party'}-half [data-id="${id}"]`);
+  if (!cardEl) cardEl = document.querySelector(`#battlefield [data-id="${id}"]`);
   if (!cardEl) return;
   spawnPopup(cardEl, text, type);
 }
@@ -2072,8 +2072,8 @@ function spawnPopup(cardEl, text, type='dmg') {
 
 function flashCardId(id, type, side) {
   let cardEl;
-  if (side) cardEl = document.querySelector(`#${side === 'enemy' ? 'enemy' : 'party'}-col .card[data-id="${id}"]`);
-  if (!cardEl) cardEl = document.querySelector(`.card[data-id="${id}"]`);
+  if (side) cardEl = document.querySelector(`#${side === 'enemy' ? 'enemy' : 'party'}-half [data-id="${id}"]`);
+  if (!cardEl) cardEl = document.querySelector(`#battlefield [data-id="${id}"]`);
   if (!cardEl) return;
   cardEl.classList.add(`${type}-flash`);
   setTimeout(() => cardEl.classList.remove(`${type}-flash`), 600);
