@@ -140,6 +140,11 @@ const STAGGER_DURATION = 1;   // skipped enemy turns
 // passive applies always; home slot is where they shine
 // ============================================================================
 
+// Each damaging tech declares:
+//   reach   — array of enemy slots it can hit (e.g. ['front'], ['mid','back'], or all 3)
+//   pattern — 'front-most' | 'lowest' | 'all'   (how to pick within the reach)
+// Techs that don't target enemies omit both fields; their fn signature is (s).
+// Damaging techs receive a pre-resolved targets array: fn(s, targets).
 const CHARS = {
   cassia: {
     id: 'cassia',
@@ -150,12 +155,20 @@ const CHARS = {
     passive: { name: 'Steadfast', desc: '−1 dmg taken in Front' },
     techs: {
       front: {
-        basic: { name: 'Greatsword Cleave', desc: '8 dmg + vuln', fn: (s) => { dmgEnemyAt(s, 0, 8); applyVulnEnemy(s, 0, 1); } },
-        sig:   { name: 'Sunder',            desc: '14 dmg + strip armor + 2 vuln', fn: (s) => { dmgEnemyAt(s, 0, 14); stripArmor(s, 0); applyVulnEnemy(s, 0, 2); } },
+        basic: { name: 'Greatsword Cleave', desc: '8 dmg + vuln',
+          reach: ['front'], pattern: 'front-most',
+          fn: (s, t) => { if (!t[0]) return; applyDmgToEnemy(s, t[0], 8); if (!t[0].dead) t[0].vuln += 1; } },
+        sig:   { name: 'Sunder', desc: '14 dmg + strip armor + 2 vuln',
+          reach: ['front'], pattern: 'front-most',
+          fn: (s, t) => { if (!t[0]) return; applyDmgToEnemy(s, t[0], 14); if (!t[0].dead) { t[0].armor = 0; t[0].vuln += 2; } } },
       },
       mid: {
-        basic: { name: 'Vanguard',      desc: '5 dmg + advance to Front', fn: (s) => { dmgEnemyAt(s, 0, 5); advance(s, 'cassia'); } },
-        sig:   { name: 'Heroic Charge', desc: '9 dmg + advance + 3 armor', fn: (s) => { dmgEnemyAt(s, 0, 9); advance(s, 'cassia'); addArmor(s, 'cassia', 3); } },
+        basic: { name: 'Vanguard', desc: '5 dmg front + advance',
+          reach: ['front'], pattern: 'front-most',
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 5); advance(s, 'cassia'); } },
+        sig:   { name: 'Heroic Charge', desc: '9 dmg front + advance + 3 armor',
+          reach: ['front'], pattern: 'front-most',
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 9); advance(s, 'cassia'); addArmor(s, 'cassia', 3); } },
       },
       back: {
         basic: { name: 'Banner', desc: '+2 armor party', fn: (s) => partyArmor(s, 2) },
@@ -172,8 +185,12 @@ const CHARS = {
     passive: { name: 'Mercy', desc: 'Heals self 1 when healing an ally' },
     techs: {
       front: {
-        basic: { name: 'Phase Step', desc: '3 dmg + retreat to Mid', fn: (s) => { dmgEnemyAt(s, 0, 3); retreat(s, 'elin'); } },
-        sig:   { name: 'Veil Step',  desc: '6 dmg + retreat + 2 armor', fn: (s) => { dmgEnemyAt(s, 0, 6); retreat(s, 'elin'); addArmor(s, 'elin', 2); } },
+        basic: { name: 'Phase Step', desc: '3 dmg + retreat to Mid',
+          reach: ['front'], pattern: 'front-most',
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 3); retreat(s, 'elin'); } },
+        sig:   { name: 'Veil Step', desc: '6 dmg + retreat + 2 armor',
+          reach: ['front'], pattern: 'front-most',
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 6); retreat(s, 'elin'); addArmor(s, 'elin', 2); } },
       },
       mid: {
         basic: { name: 'Mend',         desc: 'Heal 6 lowest + cleanse', fn: (s) => { healLowest(s, 6); cleanseLowest(s); } },
@@ -194,16 +211,31 @@ const CHARS = {
     passive: { name: 'Bleed Hunter', desc: '+2 dmg to bleeding enemies' },
     techs: {
       front: {
-        basic: { name: 'Backstep Shot', desc: '4 dmg + bleed 1 + retreat to Back', fn: (s) => { dmgEnemyAt(s, 0, 4); bleedEnemyAt(s, 0, 1); retreatFull(s, 'branwen'); } },
-        sig:   { name: 'Vanish Shot',   desc: '7 dmg + bleed 2 + retreat + 1 vuln', fn: (s) => { dmgEnemyAt(s, 0, 7); bleedEnemyAt(s, 0, 2); retreatFull(s, 'branwen'); applyVulnEnemy(s, 0, 1); } },
+        // close-range when shoved to Front: melee shots
+        basic: { name: 'Backstep Shot', desc: '4 dmg + bleed 1 + retreat',
+          reach: ['front'], pattern: 'front-most',
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 4); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 1); } retreatFull(s, 'branwen'); } },
+        sig:   { name: 'Vanish Shot', desc: '7 dmg + bleed 2 + retreat + 1 vuln',
+          reach: ['front'], pattern: 'front-most',
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 7); if (!t[0].dead) { t[0].bleed = Math.max(t[0].bleed, 2); t[0].vuln += 1; } } retreatFull(s, 'branwen'); } },
       },
       mid: {
-        basic: { name: 'Trick Shot', desc: '5 dmg lowest-HP enemy', fn: (s) => dmgEnemyLowest(s, 5) },
-        sig:   { name: 'Pierce',     desc: '8 dmg lowest + ignore armor', fn: (s) => { s.ignoreArmor = true; dmgEnemyLowest(s, 8); s.ignoreArmor = false; } },
+        // mortar-lob: skips the front line, snipes mid/back
+        basic: { name: 'Trick Shot', desc: '5 dmg lowest mid/back',
+          reach: ['mid','back'], pattern: 'lowest',
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 5); } },
+        sig:   { name: 'Pierce', desc: '8 dmg lowest mid/back + ignore armor',
+          reach: ['mid','back'], pattern: 'lowest',
+          fn: (s, t) => { if (!t[0]) return; s.ignoreArmor = true; applyDmgToEnemy(s, t[0], 8); s.ignoreArmor = false; } },
       },
       back: {
-        basic: { name: 'Volley',      desc: '4 dmg + bleed 1 all', fn: (s) => { dmgAllEnemies(s, 4); aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 1)); } },
-        sig:   { name: 'Arrow Storm', desc: '7 dmg + bleed 2 all', fn: (s) => { dmgAllEnemies(s, 7); aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 2)); } },
+        // archer's sweet spot: full-field reach
+        basic: { name: 'Volley', desc: '4 dmg + bleed 1 all',
+          reach: ['front','mid','back'], pattern: 'all',
+          fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 4)); t.forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 1); }); } },
+        sig:   { name: 'Arrow Storm', desc: '7 dmg + bleed 2 all',
+          reach: ['front','mid','back'], pattern: 'all',
+          fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 7)); t.forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 2); }); } },
       },
     },
   },
@@ -332,6 +364,30 @@ function firstAliveEnemyFrom(s, startIdx) {
   for (let i = startIdx; i < 3; i++) { const e = enemyBySlot(s, SLOTS[i]); if (e && !e.dead) return e; }
   for (let i = startIdx - 1; i >= 0; i--) { const e = enemyBySlot(s, SLOTS[i]); if (e && !e.dead) return e; }
   return null;
+}
+
+// reach-aware target resolution. `reach` is an array of enemy slot names.
+function enemiesInReach(s, reach) {
+  if (!reach) return [];
+  return SLOTS.filter(sl => reach.includes(sl))
+    .map(sl => enemyBySlot(s, sl))
+    .filter(e => e && !e.dead);
+}
+function frontMostInReach(s, reach) {
+  const live = enemiesInReach(s, reach);
+  return live.length ? live[0] : null;
+}
+function lowestInReach(s, reach) {
+  const live = enemiesInReach(s, reach);
+  if (!live.length) return null;
+  return [...live].sort((a, b) => a.hp - b.hp)[0];
+}
+function resolveTargets(s, def) {
+  if (!def || !def.reach) return null;
+  if (def.pattern === 'all') return enemiesInReach(s, def.reach);
+  if (def.pattern === 'lowest') { const e = lowestInReach(s, def.reach); return e ? [e] : []; }
+  const e = frontMostInReach(s, def.reach);
+  return e ? [e] : [];
 }
 
 // ============================================================================
@@ -817,7 +873,18 @@ function executeQueueItem(s, item) {
     log(`<b>${CHARS[item.charId].name}</b> uses <b>${variant.name}</b>${item.kind === 'special' ? ' ★' : ''}.`);
     s.currentActorId = item.charId;
     s.outgoingDmgMod = c.weak > 0 ? -2 : 0;
-    try { variant.fn(s); }
+    try {
+      if (variant.reach) {
+        const targets = resolveTargets(s, variant);
+        if (targets.length === 0) {
+          log(`<i>No target in reach — ${variant.name} fizzles.</i>`);
+        } else {
+          variant.fn(s, targets);
+        }
+      } else {
+        variant.fn(s);
+      }
+    }
     finally { s.outgoingDmgMod = 0; s.ignoreArmor = false; s.currentActorId = null; }
     if (c.weak > 0) c.weak = Math.max(0, c.weak - 1);
     return;
@@ -851,11 +918,14 @@ function executeQueueItem(s, item) {
 // TEAM_SPECIAL_COST Resolve. Unknown formations fall back to "Triad Strike".
 // ============================================================================
 
+// Team Specials carry the same reach/pattern metadata as techs so previews can
+// highlight what they'll hit.
 const TEAM_SPECIALS = {
   // home: Cassia front, Elin mid, Branwen back
   'cassia:elin:branwen': {
     id: 'sacred', name: 'Sacred Triad',
     short: 'AoE 5 · heal 5 · cleanse · armor',
+    reach: ['front','mid','back'], pattern: 'all',
     fn: (s) => {
       dmgAllEnemies(s, 5);
       aliveParty(s).forEach(c => {
@@ -868,7 +938,8 @@ const TEAM_SPECIALS = {
   // full reverse: Branwen front, Elin mid, Cassia back
   'branwen:elin:cassia': {
     id: 'lastreach', name: 'Last Reach',
-    short: 'Pierce 10 · bleed 2 all · Cassia retaliate',
+    short: 'Pierce 10 + bleed all · Cassia retaliate',
+    reach: ['front','mid','back'], pattern: 'all',
     fn: (s) => {
       s.ignoreArmor = true; dmgEnemyAt(s, 0, 10); s.ignoreArmor = false;
       aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 2));
@@ -880,10 +951,10 @@ const TEAM_SPECIALS = {
   'branwen:cassia:elin': {
     id: 'wedge', name: "Hunter's Wedge",
     short: 'Volley 6 all · Cassia advances · armor',
+    reach: ['front','mid','back'], pattern: 'all',
     fn: (s) => {
       dmgAllEnemies(s, 6);
       aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 1));
-      // pop Cassia forward into the front (swap with whoever's there)
       const cur = slotOfChar(s, 'cassia');
       if (cur && cur !== 'front') {
         const f = s.party.slots.front;
@@ -898,6 +969,7 @@ const TEAM_SPECIALS = {
 const TEAM_SPECIAL_DEFAULT = {
   id: 'strike', name: 'Triad Strike',
   short: 'AoE 4 · heal 3 lowest · +1 Resolve',
+  reach: ['front','mid','back'], pattern: 'all',
   fn: (s) => {
     dmgAllEnemies(s, 4);
     healLowest(s, 3);
@@ -1209,6 +1281,9 @@ function makeTile(kind, charId, dir, tileCounts, teamLocked) {
   const key = `${kind}:${charId}:${dir ?? ''}`;
   if (tileCounts[key]) { t.classList.add('queued'); t.dataset.qCount = `×${tileCounts[key]}`; }
 
+  // reach badge (static info — different from the live hold-preview)
+  const reachLabel = previewReachLabel(kind, charId, dir);
+
   const costBadges = [];
   if (atbCost > 0)     costBadges.push(`<span class="tile-atb">${atbCost} ATB</span>`);
   if (resolveCost > 0) costBadges.push(`<span class="tile-cost">${resolveCost}♦</span>`);
@@ -1217,18 +1292,123 @@ function makeTile(kind, charId, dir, tileCounts, teamLocked) {
     <span class="tile-badges">${costBadges.join('')}</span>
     <span class="tile-name">${preview.label || '—'}</span>
     <span class="tile-desc">${preview.desc || ''}</span>
+    ${reachLabel ? `<span class="tile-reach">${reachLabel}</span>` : ''}
   `;
-  t.addEventListener('click', () => {
-    queueAdd({
+
+  bindTileHold(t, {
+    onQueue: () => queueAdd({
       kind, charId,
       dir: dir,
       label: preview.label,
       desc: preview.desc,
       atb: atbCost,
       resolveCost: resolveCost,
-    });
+    }),
+    onPreview: () => previewTargetsForTile(kind, charId, dir),
   });
   return t;
+}
+
+// reach-label shown statically on damaging tiles ("F" / "MB" / "FMB" / "low")
+function previewReachLabel(kind, charId, dir) {
+  if (kind !== 'attack' && kind !== 'special') return '';
+  const sim = simulateSlotsThrough(state, state.queue.length);
+  const slot = slotOfCharSim(sim, charId);
+  if (!slot) return '';
+  const tech = CHARS[charId].techs[slot];
+  const variant = kind === 'special' ? tech.sig : tech.basic;
+  if (!variant || !variant.reach) return '';
+  const letters = variant.reach.map(r => r[0].toUpperCase()).join('');
+  if (variant.pattern === 'all')    return `hit ${letters}`;
+  if (variant.pattern === 'lowest') return `low ${letters}`;
+  return letters;
+}
+
+// returns the set of enemy slot names that would be hit if the tile fired now
+function previewTargetsForTile(kind, charId, dir) {
+  if (kind === 'attack' || kind === 'special') {
+    const sim = simulateSlotsThrough(state, state.queue.length);
+    const slot = slotOfCharSim(sim, charId);
+    if (!slot) return { enemySlots: [], partySlots: [] };
+    const tech = CHARS[charId].techs[slot];
+    const variant = kind === 'special' ? tech.sig : tech.basic;
+    const targets = resolveTargets(state, variant) || [];
+    const enemySlots = targets.map(e => SLOTS.find(sl => state.enemies.slots[sl] === e.id)).filter(Boolean);
+    return { enemySlots, partySlots: [] };
+  }
+  if (kind === 'move') {
+    const sim = simulateSlotsThrough(state, state.queue.length);
+    const slot = slotOfCharSim(sim, charId);
+    if (!slot) return { enemySlots: [], partySlots: [] };
+    const idx = SLOTS.indexOf(slot);
+    const ti = idx + dir;
+    if (ti < 0 || ti > 2) return { enemySlots: [], partySlots: [] };
+    return { enemySlots: [], partySlots: [SLOTS[ti]] };
+  }
+  return { enemySlots: [], partySlots: [] };
+}
+
+// shared hold-detection. ~220ms hold enters preview mode (no queue on release);
+// shorter pointerup = queue immediately.
+function bindTileHold(tile, handlers) {
+  const HOLD_MS = 220;
+  let timer = null;
+  let previewing = false;
+  let active = false;
+
+  const start = (e) => {
+    if (tile.disabled || state.over || state.executing) return;
+    e.preventDefault();
+    active = true;
+    previewing = false;
+    timer = setTimeout(() => {
+      if (!active) return;
+      previewing = true;
+      tile.classList.add('previewing');
+      applyPreviewHighlight(handlers.onPreview());
+    }, HOLD_MS);
+  };
+  const endTap = () => {
+    if (!active) return;
+    if (timer) { clearTimeout(timer); timer = null; }
+    if (previewing) {
+      clearPreviewHighlight();
+      tile.classList.remove('previewing');
+    } else {
+      handlers.onQueue();
+    }
+    active = false; previewing = false;
+  };
+  const cancel = () => {
+    if (!active) return;
+    if (timer) { clearTimeout(timer); timer = null; }
+    if (previewing) {
+      clearPreviewHighlight();
+      tile.classList.remove('previewing');
+    }
+    active = false; previewing = false;
+  };
+
+  tile.addEventListener('pointerdown',  start);
+  tile.addEventListener('pointerup',    endTap);
+  tile.addEventListener('pointerleave', cancel);
+  tile.addEventListener('pointercancel', cancel);
+  tile.addEventListener('contextmenu',  (e) => e.preventDefault());
+}
+
+function applyPreviewHighlight({ enemySlots, partySlots }) {
+  clearPreviewHighlight();
+  (enemySlots || []).forEach(sl => {
+    const el = document.querySelector(`#enemy-col .card[data-slot="${sl}"]`);
+    if (el) el.classList.add('target-marker');
+  });
+  (partySlots || []).forEach(sl => {
+    const el = document.querySelector(`#party-col .card[data-slot="${sl}"]`);
+    if (el) el.classList.add('target-marker');
+  });
+}
+function clearPreviewHighlight() {
+  document.querySelectorAll('.target-marker').forEach(el => el.classList.remove('target-marker'));
 }
 
 function makeMoveOrBraceTile(charId, slot, tileCounts, teamLocked) {
@@ -1270,7 +1450,14 @@ function makeTeamSpecialTile(teamLocked) {
     <span class="ts-desc">${ts.short}</span>
     <span class="ts-cost">${TEAM_SPECIAL_ATB} ATB · ${TEAM_SPECIAL_COST}♦</span>
   `;
-  t.addEventListener('click', () => queueTeamSpecial());
+  bindTileHold(t, {
+    onQueue: () => queueTeamSpecial(),
+    onPreview: () => {
+      const targets = resolveTargets(state, ts) || [];
+      const enemySlots = targets.map(e => SLOTS.find(sl => state.enemies.slots[sl] === e.id)).filter(Boolean);
+      return { enemySlots, partySlots: [] };
+    },
+  });
   return t;
 }
 
