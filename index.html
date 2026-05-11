@@ -43,35 +43,28 @@
       <div class="hud-block hud-title">TRIAD<span class="hud-sub">— prototype v0.3 —</span></div>
     </header>
 
-    <section id="arena">
-
-      <!-- LEFT: party column -->
-      <div id="party-col" class="combatant-col" aria-label="Party">
-        <!-- party cards injected -->
+    <!-- BATTLEFIELD: party stacks on left, enemy cards on right -->
+    <section id="battlefield">
+      <div id="party-half" aria-label="Party">
+        <!-- 3 party stacks (card + 3 tiles) injected, ordered by slot -->
       </div>
-
-      <!-- CENTER: log -->
-      <div id="center-col">
-        <div id="incoming-banner" class="hidden"></div>
-        <div id="message-bar" aria-live="polite"></div>
+      <div id="enemy-half" aria-label="Enemies">
+        <!-- 3 enemy cards injected -->
       </div>
-
-      <!-- RIGHT: enemy column -->
-      <div id="enemy-col" class="combatant-col" aria-label="Enemies">
-        <!-- enemy cards injected -->
-      </div>
-
     </section>
 
-    <footer id="action-panel">
-      <div id="queue-row">
-        <div id="queue-strip"><!-- queue items injected by renderQueue --></div>
+    <!-- BOTTOM CONTROLS: log | queue+clear+fight | team special -->
+    <footer id="control-bar">
+      <div id="message-bar" aria-live="polite"></div>
+      <div id="queue-area">
+        <div id="queue-strip"><!-- queue items injected --></div>
         <button id="btn-clear" class="control-btn"><span class="ctrl-label">Clear</span></button>
-        <button id="btn-fight" class="fight-btn" disabled><span class="fight-label">Fight</span><span class="fight-sub">commit turn</span></button>
+        <button id="btn-fight" class="fight-btn" disabled>
+          <span class="fight-label">Fight</span>
+          <span class="fight-sub">commit turn</span>
+        </button>
       </div>
-      <div id="tile-grid">
-        <!-- character tile columns + team special injected here -->
-      </div>
+      <div id="ts-area"><!-- team special tile injected --></div>
     </footer>
 
     <div id="popup-layer"></div>
