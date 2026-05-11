@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0d0a08" />
+  <title>Triad — Prototype v0.1</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- shown if device is in portrait — prompts rotate -->
+  <div id="rotate-prompt">
+    <div class="rotate-inner">
+      <div class="rotate-icon">⟳</div>
+      <div class="rotate-text">Rotate device<br/><span>landscape only</span></div>
+    </div>
+  </div>
+
+  <main id="stage">
+
+    <header id="hud">
+      <div class="hud-block">
+        <span class="hud-label">Turn</span>
+        <span class="hud-value" id="turn-num">1</span>
+      </div>
+      <div class="hud-block hud-resolve">
+        <span class="hud-label">Resolve</span>
+        <div id="resolve-pips"></div>
+      </div>
+      <div class="hud-block hud-title">TRIAD<span class="hud-sub">— prototype v0.1 —</span></div>
+    </header>
+
+    <section id="arena">
+
+      <!-- LEFT: party column -->
+      <div id="party-col" class="combatant-col" aria-label="Party">
+        <!-- party cards injected -->
+      </div>
+
+      <!-- CENTER: log -->
+      <div id="center-col">
+        <div id="incoming-banner" class="hidden"></div>
+        <div id="message-bar" aria-live="polite"></div>
+      </div>
+
+      <!-- RIGHT: enemy column -->
+      <div id="enemy-col" class="combatant-col" aria-label="Enemies">
+        <!-- enemy cards injected -->
+      </div>
+
+    </section>
+
+    <footer id="action-panel">
+      <div id="action-row">
+        <button class="action-btn" data-action="X">
+          <span class="btn-slot">Front · X</span>
+          <span class="btn-name">—</span>
+          <span class="btn-desc"></span>
+          <span class="btn-sig"><span class="sig-bolt">★</span> Hold · <b class="sig-name">—</b> <i class="sig-desc"></i></span>
+          <span class="hold-fill"></span>
+        </button>
+        <button class="action-btn" data-action="Y">
+          <span class="btn-slot">Mid · Y</span>
+          <span class="btn-name">—</span>
+          <span class="btn-desc"></span>
+          <span class="btn-sig"><span class="sig-bolt">★</span> Hold · <b class="sig-name">—</b> <i class="sig-desc"></i></span>
+          <span class="hold-fill"></span>
+        </button>
+        <button class="action-btn" data-action="Z">
+          <span class="btn-slot">Back · Z</span>
+          <span class="btn-name">—</span>
+          <span class="btn-desc"></span>
+          <span class="btn-sig"><span class="sig-bolt">★</span> Hold · <b class="sig-name">—</b> <i class="sig-desc"></i></span>
+          <span class="hold-fill"></span>
+        </button>
+      </div>
+      <div id="control-row">
+        <button id="btn-move" class="control-btn"><span class="ctrl-ico">↻</span><span class="ctrl-label">Move</span><span class="ctrl-sub">swap two · skip attack</span></button>
+        <button id="btn-defend" class="control-btn"><span class="ctrl-ico">⛨</span><span class="ctrl-label">Defend</span><span class="ctrl-sub">+armor · +resolve</span></button>
+      </div>
+    </footer>
+
+    <div id="popup-layer"></div>
+
+    <div id="overlay" class="hidden">
+      <div id="overlay-content">
+        <h2 id="overlay-title">—</h2>
+        <p id="overlay-body">—</p>
+        <button id="overlay-btn">Restart</button>
+      </div>
+    </div>
+
+  </main>
+
+  <script src="game.js"></script>
+</body>
+</html>
