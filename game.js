@@ -834,6 +834,146 @@ const RESOLVE_CARRY_CAP = 3;
 const ROSTER = ['cassia', 'elin', 'branwen', 'korin', 'ash', 'mira'];
 
 // ============================================================================
+// TECH UPGRADES — alternate variants for specific techs, picked between fights.
+// Each upgrade replaces the base tech (CHARS[id].techs[slot][kind]) once applied.
+// Resolution happens via getTech(s, charId, slot, kind).
+// ============================================================================
+
+const UPGRADES = {
+  'cassia.front.basic.sweeping': {
+    id: 'cassia.front.basic.sweeping', charId: 'cassia', slot: 'front', kind: 'basic',
+    name: 'Sweeping Cleave', desc: '5 dmg front+mid + 1 vuln each',
+    reach: ['front','mid'], pattern: 'all',
+    fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 5)); t.forEach(e => { if (!e.dead) e.vuln += 1; }); },
+  },
+  'cassia.front.sig.devastate': {
+    id: 'cassia.front.sig.devastate', charId: 'cassia', slot: 'front', kind: 'sig',
+    name: 'Devastate', desc: '18 dmg + strip armor · 3 self-dmg',
+    reach: ['front'], pattern: 'front-most',
+    fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 18); if (!t[0].dead) t[0].armor = 0; } applySelfDmg(s, 'cassia', 3); },
+  },
+  'elin.mid.basic.channeled': {
+    id: 'elin.mid.basic.channeled', charId: 'elin', slot: 'mid', kind: 'basic',
+    name: 'Channeled Mend', desc: 'Heal 4 to all + cleanse',
+    fn: (s) => {
+      const bonus = consumePendingBonus(s, s.currentActorId, 'healBonus');
+      aliveParty(s).forEach(c => {
+        const before = c.hp; c.hp = Math.min(c.maxHp, c.hp + 4 + bonus);
+        const got = c.hp - before;
+        if (got > 0) {
+          spawnPopupId(c.id, `+${got}`, 'heal', 'party');
+          fireAdjacencyHook(s, 'onHeal', s.currentActorId, c.id, got);
+        }
+        c.bleed = 0; c.weak = 0;
+      });
+    },
+  },
+  'elin.back.sig.battlesanctuary': {
+    id: 'elin.back.sig.battlesanctuary', charId: 'elin', slot: 'back', kind: 'sig',
+    name: 'Battle Sanctuary', desc: '+3 armor + 1 retaliate to party',
+    fn: (s) => {
+      aliveParty(s).forEach(c => {
+        c.armor += 3;
+        c.retaliate += 1;
+        spawnPopupId(c.id, '+3⛨', 'armor', 'party');
+        fireAdjacencyHook(s, 'onArmorGrant', s.currentActorId, c.id, 3);
+      });
+    },
+  },
+  'branwen.back.basic.bloody': {
+    id: 'branwen.back.basic.bloody', charId: 'branwen', slot: 'back', kind: 'basic',
+    name: 'Bloody Volley', desc: '5 dmg + bleed 2 all',
+    reach: ['front','mid','back'], pattern: 'all',
+    fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 5)); t.forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 2); }); },
+  },
+  'branwen.mid.sig.crippling': {
+    id: 'branwen.mid.sig.crippling', charId: 'branwen', slot: 'mid', kind: 'sig',
+    name: 'Crippling Pierce', desc: '9 dmg ignore armor + 2 vuln',
+    reach: ['mid','back'], pattern: 'lowest',
+    fn: (s, t) => { if (!t[0]) return; s.ignoreArmor = true; applyDmgToEnemy(s, t[0], 9); s.ignoreArmor = false; if (!t[0].dead) t[0].vuln += 2; },
+  },
+  'korin.front.basic.vampiric': {
+    id: 'korin.front.basic.vampiric', charId: 'korin', slot: 'front', kind: 'basic',
+    name: 'Vampiric Strike', desc: '6 dmg + heal 2 self',
+    reach: ['front'], pattern: 'front-most',
+    fn: (s, t) => {
+      if (t[0]) applyDmgToEnemy(s, t[0], 6);
+      const c = s.party.chars.korin;
+      if (c && !c.downed) {
+        const before = c.hp; c.hp = Math.min(c.maxHp, c.hp + 2);
+        if (c.hp > before) spawnPopupId('korin', `+${c.hp - before}`, 'heal', 'party');
+      }
+    },
+  },
+  'korin.mid.sig.warstorm': {
+    id: 'korin.mid.sig.warstorm', charId: 'korin', slot: 'mid', kind: 'sig',
+    name: 'War Storm', desc: '8 dmg all + bleed 2 all',
+    reach: ['front','mid','back'], pattern: 'all',
+    fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 8)); t.forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 2); }); },
+  },
+  'ash.mid.basic.frostball': {
+    id: 'ash.mid.basic.frostball', charId: 'ash', slot: 'mid', kind: 'basic',
+    name: 'Frostball', desc: '5 dmg + chain 4',
+    reach: ['mid','back'], pattern: 'lowest',
+    fn: (s, t) => {
+      if (!t[0]) return;
+      applyDmgToEnemy(s, t[0], 5);
+      if (!t[0].dead && !t[0].staggered) {
+        t[0].chain = Math.min(STAGGER_THRESHOLD, t[0].chain + 4);
+        if (t[0].chain >= STAGGER_THRESHOLD) triggerStagger(s, t[0]);
+      }
+    },
+  },
+  'ash.back.sig.arcstorm': {
+    id: 'ash.back.sig.arcstorm', charId: 'ash', slot: 'back', kind: 'sig',
+    name: 'Arc Storm', desc: '7 dmg all + 2 vuln all',
+    reach: ['front','mid','back'], pattern: 'all',
+    fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 7)); t.forEach(e => { if (!e.dead) e.vuln += 2; }); },
+  },
+  'mira.back.basic.toxic': {
+    id: 'mira.back.basic.toxic', charId: 'mira', slot: 'back', kind: 'basic',
+    name: 'Toxic Cloud', desc: '3 dmg all + bleed 2 all',
+    reach: ['front','mid','back'], pattern: 'all',
+    fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 3)); t.forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 2); }); },
+  },
+  'mira.mid.sig.spinning': {
+    id: 'mira.mid.sig.spinning', charId: 'mira', slot: 'mid', kind: 'sig',
+    name: 'Spinning Blades', desc: '4 dmg all + bleed 2 to lowest',
+    reach: ['mid','back'], pattern: 'all',
+    fn: (s, t) => {
+      t.forEach(e => applyDmgToEnemy(s, e, 4));
+      if (t.length) {
+        const lowest = [...t].sort((a,b) => a.hp - b.hp)[0];
+        if (lowest && !lowest.dead) lowest.bleed = Math.max(lowest.bleed, 2);
+      }
+    },
+  },
+};
+
+// Resolve a tech reference. If the character has an upgrade applied for this
+// (slot, kind), return the upgrade definition; otherwise the base tech.
+function getTech(s, charId, slot, kind) {
+  if (!charId || !slot || !kind) return null;
+  const c = s && s.party && s.party.chars && s.party.chars[charId];
+  if (c && c.upgrades) {
+    const upId = c.upgrades[`${slot}.${kind}`];
+    if (upId && UPGRADES[upId]) return UPGRADES[upId];
+  }
+  return CHARS[charId]?.techs?.[slot]?.[kind] || null;
+}
+
+// Build the list of upgrades the player can be offered right now: charId must be
+// in the current party, and that tech slot must not already be upgraded.
+function availableUpgrades(s) {
+  const partyIds = new Set(Object.keys(s.party.chars));
+  return Object.values(UPGRADES).filter(u => {
+    if (!partyIds.has(u.charId)) return false;
+    const c = s.party.chars[u.charId];
+    return !(c.upgrades && c.upgrades[`${u.slot}.${u.kind}`]);
+  });
+}
+
+// ============================================================================
 // ADJACENCY — pair synergies between adjacent positions (F-M and M-B)
 // Each pair stores two synergies: one for the front-mid line, one for mid-back.
 // Same pair produces a different bond depending on which adjacency line it occupies.
@@ -1088,6 +1228,7 @@ function newCharState(id) {
     armor: 0, bleed: 0, weak: 0, taunt: false, retaliate: 0, vuln: 0,
     downed: false,
     pendingEffects: [], // { kind: 'attackBonus'|'healBonus', amt, source } — consumed on use
+    upgrades: {},       // map of `${slot}.${kind}` → upgrade id (persists across fights within a run)
   };
 }
 function newEnemyState(id) {
@@ -1559,11 +1700,11 @@ function previewTile(kind, charId, dir) {
   const atb = ACTION_ATB[kind] || 0;
 
   if (kind === 'attack') {
-    const tech = CHARS[charId].techs[slot].basic;
+    const tech = getTech(s, charId, slot, 'basic');
     return { kind, valid: true, label: tech.name, desc: tech.desc, atb, resolveCost: 0, slot };
   }
   if (kind === 'special') {
-    const tech = CHARS[charId].techs[slot].sig;
+    const tech = getTech(s, charId, slot, 'sig');
     return { kind, valid: true, label: tech.name, desc: tech.desc, atb, resolveCost: SPECIAL_COST, slot };
   }
   if (kind === 'move') {
@@ -1793,8 +1934,8 @@ function executeQueueItem(s, item) {
   if (item.kind === 'attack' || item.kind === 'special') {
     const slot = slotOfChar(s, item.charId);
     if (!slot) return;
-    const techDef = CHARS[item.charId].techs[slot];
-    const variant = item.kind === 'special' ? techDef.sig : techDef.basic;
+    const variant = getTech(s, item.charId, slot, item.kind === 'special' ? 'sig' : 'basic');
+    if (!variant) return;
     log(`<b>${CHARS[item.charId].name}</b> uses <b>${variant.name}</b>${item.kind === 'special' ? ' ★' : ''}.`);
     s.currentActorId = item.charId;
     s.outgoingDmgMod = c.weak > 0 ? -2 : 0;
@@ -2347,8 +2488,7 @@ function previewReachLabel(kind, charId, dir) {
   const sim = simulateSlotsThrough(state, state.queue.length);
   const slot = slotOfCharSim(sim, charId);
   if (!slot) return '';
-  const tech = CHARS[charId].techs[slot];
-  const variant = kind === 'special' ? tech.sig : tech.basic;
+  const variant = getTech(state, charId, slot, kind === 'special' ? 'sig' : 'basic');
   if (!variant || !variant.reach) return '';
   const letters = variant.reach.map(r => r[0].toUpperCase()).join('');
   if (variant.pattern === 'all')    return `hit ${letters}`;
@@ -2362,8 +2502,7 @@ function previewTargetsForTile(kind, charId, dir) {
     const sim = simulateSlotsThrough(state, state.queue.length);
     const slot = slotOfCharSim(sim, charId);
     if (!slot) return { enemySlots: [], partySlots: [] };
-    const tech = CHARS[charId].techs[slot];
-    const variant = kind === 'special' ? tech.sig : tech.basic;
+    const variant = getTech(state, charId, slot, kind === 'special' ? 'sig' : 'basic');
     const targets = resolveTargets(state, variant) || [];
     const enemySlots = targets.map(e => SLOTS.find(sl => state.enemies.slots[sl] === e.id)).filter(Boolean);
     return { enemySlots, partySlots: [] };
@@ -2613,17 +2752,79 @@ function hideOverlay() { $('#overlay').classList.add('hidden'); }
 // RECRUIT — between-fight character draft
 // ============================================================================
 
-// Decide whether to show recruit, then proceed to path-choice.
+// Decide whether to show recruit, then proceed to upgrade-or-path.
 function offerRecruitOrPath() {
   const pickable = ROSTER.filter(id => !state.party.chars[id]);
   if (pickable.length === 0) {
-    showPathChoice(RUN_LAYOUT[state.run.slotIdx]);
+    offerUpgradeOrPath();
     return;
   }
   // Pick 2 random candidates from the pool of unrecruited characters
   const shuffled = pickable.slice().sort(() => Math.random() - 0.5);
   const candidates = shuffled.slice(0, Math.min(2, shuffled.length));
   showRecruitOverlay(candidates);
+}
+
+// After recruit (or skip): offer a tech upgrade if any are available.
+function offerUpgradeOrPath() {
+  const pool = availableUpgrades(state);
+  if (pool.length === 0) {
+    showPathChoice(RUN_LAYOUT[state.run.slotIdx]);
+    return;
+  }
+  const shuffled = pool.slice().sort(() => Math.random() - 0.5);
+  const offers = shuffled.slice(0, Math.min(2, shuffled.length));
+  showUpgradeOverlay(offers);
+}
+
+function showUpgradeOverlay(offers) {
+  $('#overlay-title').textContent = 'Hone your edge';
+  $('#overlay-body').textContent = 'Pick an upgrade — or pass.';
+  const choices = $('#overlay-choices');
+  choices.innerHTML = '';
+  offers.forEach(up => {
+    const char = CHARS[up.charId];
+    const baseTech = char.techs[up.slot][up.kind];
+    const card = document.createElement('button');
+    card.className = 'encounter-choice upgrade-choice';
+    card.innerHTML = `
+      <div class="enc-name">${up.name}</div>
+      <div class="upgrade-row">
+        <div class="upgrade-avatar">${PORTRAITS[up.charId] || ''}</div>
+        <div class="upgrade-meta">
+          <div class="upgrade-char">${char.name} · ${SLOT_LABELS[up.slot]} · ${up.kind === 'sig' ? 'Special' : 'Attack'}</div>
+          <div class="upgrade-from">${baseTech.name}<span class="upgrade-from-desc">${baseTech.desc}</span></div>
+          <div class="upgrade-arrow">↓</div>
+          <div class="upgrade-to"><b>${up.name}</b><span class="upgrade-to-desc">${up.desc}</span></div>
+        </div>
+      </div>
+    `;
+    card.addEventListener('click', () => commitUpgrade(up.id));
+    choices.appendChild(card);
+  });
+  const btn = $('#overlay-btn');
+  btn.textContent = 'Pass';
+  btn.onclick = () => {
+    hideOverlay();
+    resetOverlayBtn();
+    showPathChoice(RUN_LAYOUT[state.run.slotIdx]);
+  };
+  btn.classList.remove('hidden');
+  choices.classList.remove('hidden');
+  $('#overlay').classList.remove('hidden');
+}
+
+function commitUpgrade(upgradeId) {
+  const up = UPGRADES[upgradeId];
+  if (!up) return;
+  const c = state.party.chars[up.charId];
+  if (!c) return;
+  if (!c.upgrades) c.upgrades = {};
+  c.upgrades[`${up.slot}.${up.kind}`] = upgradeId;
+  log(`<b>${CHARS[up.charId].name}</b> learns <b>${up.name}</b>.`);
+  hideOverlay();
+  resetOverlayBtn();
+  showPathChoice(RUN_LAYOUT[state.run.slotIdx]);
 }
 
 function showRecruitOverlay(candidates) {
@@ -2657,7 +2858,7 @@ function showRecruitOverlay(candidates) {
   btn.onclick = () => {
     hideOverlay();
     resetOverlayBtn();
-    showPathChoice(RUN_LAYOUT[state.run.slotIdx]);
+    offerUpgradeOrPath();
   };
   choices.classList.remove('hidden');
   $('#overlay').classList.remove('hidden');
@@ -2708,7 +2909,7 @@ function commitRecruit(removeId, recruitId) {
   log(`<b>${CHARS[recruitId].name}</b> joins the party.`);
   hideOverlay();
   resetOverlayBtn();
-  showPathChoice(RUN_LAYOUT[state.run.slotIdx]);
+  offerUpgradeOrPath();
 }
 
 // ============================================================================
