@@ -1670,14 +1670,15 @@ function makePartyCard(c, slot, threatened, adjMap) {
   if (adj?.type === 'friction') fig.classList.add('adjacent-friction');
   if (threatened && !c.downed) fig.classList.add('targeted-by-enemy');
 
-  // collect all active adjacency synergies for this character — stacked at the top
+  // collect all active adjacency synergies — render as small icon glyphs at the top.
+  // bond = gold ✦, friction = red ✕. Full name lives on the title attribute.
   const synergies = [];
   if (!c.downed && adj) {
     if (adj.fm) synergies.push(adj.fm);
     if (adj.mb) synergies.push(adj.mb);
   }
   const synStack = synergies.length
-    ? `<div class="figure-adj">${synergies.map(s => `<span class="adj-chip ${s.type}">${s.name}</span>`).join('')}</div>`
+    ? `<div class="figure-adj">${synergies.map(s => `<span class="adj-chip ${s.type}" title="${s.name}">${s.type === 'friction' ? '✕' : '✦'}</span>`).join('')}</div>`
     : '';
 
   const def = CHARS[c.id];
