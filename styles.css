@@ -80,13 +80,11 @@ body {
   max-width: calc(100vh * 16 / 9);
   max-height: calc(100vw * 9 / 16);
   display: grid;
-  grid-template-rows: 44px 1fr 150px;
+  /* HUD | battlefield (cards) | log strip | ATB queue + Fight | action tiles */
+  grid-template-rows: 40px minmax(0, 1fr) 22px 46px minmax(96px, 30%);
+  grid-template-columns: 1fr;
   background:
-    /* faint arcane circle behind the message log */
-    radial-gradient(ellipse 30% 22% at 50% 58%, rgba(200,164,100,0.06) 0%, transparent 100%),
-    /* left wash */
     radial-gradient(ellipse 60% 80% at 22% 50%, #2a1c12 0%, transparent 55%),
-    /* right wash */
     radial-gradient(ellipse 60% 80% at 78% 50%, #221813 0%, transparent 55%),
     var(--bg-0);
   position: relative;
@@ -318,22 +316,9 @@ body {
   min-height: 0;
   position: relative; z-index: 2;
 }
-
-/* PARTY STACK — card on top, three action tiles below — moves with the character */
-.party-stack {
-  display: grid;
-  grid-template-rows: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
-  gap: 5px;
-  min-height: 0;
-  min-width: 0;
-}
-.party-stack.empty .tile-shell { visibility: hidden; }
-
-/* ENEMY CARDS — fill their column height fully */
-#enemy-half .card { height: 100%; }
-
-/* the .card inside a party-stack also fills its row */
-.party-stack > .card { min-height: 0; }
+/* cards fill their column fully */
+#party-half > .card,
+#enemy-half > .card { height: 100%; min-height: 0; }
 
 /* ============ CARD — ornate gold frame, parchment fill ============ */
 .card {
@@ -499,14 +484,11 @@ body {
   will-change: transform;
 }
 /* stagger the breath so the three party / three enemy cards don't sync up */
-#party-half .party-stack:nth-child(1) .card-portrait svg { animation-duration: 5.8s; animation-delay: -0.2s; }
-#party-half .party-stack:nth-child(2) .card-portrait svg { animation-duration: 5.2s; animation-delay: -1.4s; }
-#party-half .party-stack:nth-child(3) .card-portrait svg { animation-duration: 5.6s; animation-delay: -2.6s; }
-#enemy-half > div:nth-child(1) .card-portrait svg,
+#party-half > .card:nth-child(1) .card-portrait svg { animation-duration: 5.8s; animation-delay: -0.2s; }
+#party-half > .card:nth-child(2) .card-portrait svg { animation-duration: 5.2s; animation-delay: -1.4s; }
+#party-half > .card:nth-child(3) .card-portrait svg { animation-duration: 5.6s; animation-delay: -2.6s; }
 #enemy-half > .card:nth-child(1) .card-portrait svg { animation-duration: 6.2s; animation-delay: -0.8s; animation-timing-function: ease-in-out; }
-#enemy-half > div:nth-child(2) .card-portrait svg,
 #enemy-half > .card:nth-child(2) .card-portrait svg { animation-duration: 5.0s; animation-delay: -1.9s; animation-timing-function: ease-in-out; }
-#enemy-half > div:nth-child(3) .card-portrait svg,
 #enemy-half > .card:nth-child(3) .card-portrait svg { animation-duration: 5.8s; animation-delay: -3.1s; animation-timing-function: ease-in-out; }
 /* enemy portraits are mirrored — preserve the flip while breathing */
 #enemy-half .card-portrait svg { animation-name: idle-breathe-mirror; }
@@ -758,49 +740,6 @@ body {
 .adj-chip.bond     { color: #c8f0a0; border-color: var(--hp); box-shadow: 0 0 6px rgba(122,176,72,0.35), 0 1px 3px rgba(0,0,0,0.7); }
 .adj-chip.friction { color: #ff9080; border-color: var(--blood-bright); box-shadow: 0 0 6px rgba(212,69,69,0.35), 0 1px 3px rgba(0,0,0,0.7); }
 
-/* ============ CENTER COL: log strip ============ */
-#message-bar {
-  background:
-    linear-gradient(180deg, #18120b 0%, #0a0807 100%);
-  border: 1px solid var(--gold-dim);
-  border-radius: var(--card-radius);
-  padding: 4px 14px;
-  font-size: 10px; line-height: 1.4;
-  color: var(--ink-dim); font-style: italic;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--gold-dim) transparent;
-  box-shadow:
-    inset 0 1px 4px rgba(0,0,0,0.7),
-    0 0 12px rgba(200,164,100,0.06);
-  position: relative;
-  min-height: 0; min-width: 0;
-  display: flex; flex-direction: column; justify-content: flex-end;
-}
-#message-bar::before, #message-bar::after {
-  content: '';
-  position: absolute;
-  width: 16px; height: 1px;
-  background: var(--gold);
-  opacity: 0.5;
-  top: 50%; transform: translateY(-50%);
-}
-#message-bar::before { left: -16px; }
-#message-bar::after  { right: -16px; }
-#message-bar::-webkit-scrollbar { width: 4px; }
-#message-bar::-webkit-scrollbar-thumb { background: var(--gold-dim); border-radius: 2px; }
-#message-bar .msg-line { margin-bottom: 1px; }
-#message-bar .msg-line b { color: var(--ink); font-style: normal; font-weight: bold; }
-#message-bar .msg-line.msg-strong {
-  color: var(--gold-bright); font-style: normal; text-align: center;
-  letter-spacing: 0.2em; font-size: 10px;
-  margin: 3px 0;
-  border-top: 1px solid var(--gold-dim); border-bottom: 1px solid var(--gold-dim);
-  padding: 2px 0;
-  text-transform: uppercase;
-  text-shadow: 0 0 6px rgba(240,212,136,0.4);
-}
-
 #incoming-banner { display: none; }
 
 /* ============ POPUP LAYER ============ */
@@ -839,34 +778,52 @@ body {
   100% { transform: translate(-50%, -60px) scale(0.9); opacity: 0; }
 }
 
-/* ============ CONTROL BAR — log | queue+clear+fight | team-special ============ */
-#control-bar {
+/* ============ MESSAGE LOG STRIP (row 3) ============ */
+#message-bar {
   background:
-    linear-gradient(180deg, #1c150d 0%, #14100a 100%);
-  border-top: 1px solid var(--gold-dim);
-  display: grid;
-  grid-template-columns: minmax(180px, 1fr) auto 220px;
-  gap: 10px;
-  padding: 8px 12px;
-  position: relative; z-index: 2;
-  box-shadow: 0 -1px 0 var(--shadow), 0 -2px 16px rgba(0,0,0,0.6) inset;
-  align-items: stretch;
-  min-height: 0;
+    linear-gradient(180deg, #18120b 0%, #0a0807 100%);
+  border-top: 1px solid var(--gold-deep);
+  border-bottom: 1px solid var(--gold-deep);
+  padding: 3px 18px;
+  font-size: 10px; line-height: 1.4;
+  color: var(--ink-dim); font-style: italic;
   overflow: hidden;
+  position: relative; z-index: 2;
+  display: flex; align-items: center; justify-content: center;
+  white-space: nowrap;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.6);
+  min-height: 0;
 }
-#control-bar::before {
+#message-bar::before, #message-bar::after {
   content: '';
-  position: absolute; left: 0; right: 0; top: 0;
+  position: absolute;
+  top: 50%; transform: translateY(-50%);
   height: 1px;
-  background: linear-gradient(90deg, transparent, var(--gold) 30%, var(--gold-bright) 50%, var(--gold) 70%, transparent);
-  opacity: 0.7;
+  background: linear-gradient(90deg, transparent, var(--gold-dim) 50%, transparent);
+  opacity: 0.6;
+}
+#message-bar::before { left: 0; right: 65%; }
+#message-bar::after  { right: 0; left: 65%; }
+#message-bar .msg-line {
+  display: inline; margin: 0 6px;
+}
+#message-bar .msg-line:not(:last-child) { display: none; }
+#message-bar .msg-line b { color: var(--ink); font-style: normal; font-weight: bold; }
+#message-bar .msg-line.msg-strong {
+  color: var(--gold-bright); font-style: normal;
+  letter-spacing: 0.18em; text-transform: uppercase;
+  text-shadow: 0 0 6px rgba(240,212,136,0.4);
 }
 
-/* queue area: queue-strip + clear + fight */
-#queue-area {
+/* ============ QUEUE ROW (row 4): ATB queue + clear + fight ============ */
+#queue-row {
   display: grid;
-  grid-template-columns: minmax(220px, 380px) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 8px;
+  padding: 5px 12px 5px;
+  position: relative; z-index: 2;
+  background:
+    linear-gradient(180deg, #1c150d 0%, #14100a 100%);
   align-items: stretch;
   min-height: 0;
 }
@@ -874,9 +831,82 @@ body {
   display: grid;
   /* fixed three cells, one per ATB point — items span by their atb cost so nothing shifts */
   grid-template-columns: 1fr 1fr 1fr;
-  gap: 4px;
+  gap: 5px;
+  min-width: 0;
+  position: relative;
+}
+#queue-strip::before {
+  content: 'ATB';
+  position: absolute;
+  left: -2px; top: 50%; transform: translate(-100%, -50%);
+  font-size: 9px; letter-spacing: 0.18em; color: var(--ink-faint);
+  text-transform: uppercase; font-style: italic;
+  padding-right: 8px;
+}
+
+/* ============ ACTION ROW (row 5): tile-grid + team-special ============ */
+#action-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 8px;
+  padding: 4px 12px 8px;
+  position: relative; z-index: 2;
+  background:
+    linear-gradient(180deg, #14100a 0%, #0a0807 100%);
+  border-top: 1px solid var(--gold-deep);
+  min-height: 0;
+  overflow: hidden;
+}
+#action-row::before {
+  content: '';
+  position: absolute; left: 0; right: 0; top: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold) 30%, var(--gold-bright) 50%, var(--gold) 70%, transparent);
+  opacity: 0.65;
+}
+#tile-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px;
+  min-height: 0;
   min-width: 0;
 }
+.char-col {
+  display: grid;
+  grid-template-rows: auto 1fr 1fr 1fr;
+  gap: 3px;
+  min-height: 0;
+  min-width: 0;
+}
+.char-col.downed { opacity: 0.4; pointer-events: none; }
+.char-col-header {
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  text-align: center;
+  background:
+    linear-gradient(180deg, rgba(200,164,100,0.1) 0%, rgba(0,0,0,0.35) 100%);
+  border: 1px solid var(--gold-deep);
+  border-radius: 2px;
+  padding: 1px 4px;
+  display: flex; justify-content: center; align-items: baseline; gap: 6px;
+  position: relative;
+  box-shadow: inset 0 1px 0 rgba(232,220,196,0.06);
+}
+.char-col-header.home-color {
+  color: var(--gold);
+  border-color: var(--gold-dim);
+  background:
+    linear-gradient(180deg, rgba(200,164,100,0.18) 0%, rgba(0,0,0,0.35) 100%);
+  box-shadow: inset 0 1px 0 rgba(240,212,136,0.15), 0 0 6px rgba(200,164,100,0.15);
+}
+.char-col-header .cch-name { font-weight: bold; color: var(--ink); font-size: 10px; letter-spacing: 0.08em; }
+.char-col-header.home-color .cch-name { color: var(--gold-bright); text-shadow: 0 0 5px rgba(240,212,136,0.4); }
+.char-col-header .cch-slot { font-size: 8px; color: var(--ink-faint); font-style: italic; }
+
+#ts-area { display: flex; min-height: 0; min-width: 0; }
+#ts-area .tile.team-special { width: 100%; height: 100%; min-height: 0; }
 .queue-slot {
   background:
     linear-gradient(180deg, #0a0604 0%, #050302 100%);
@@ -1044,11 +1074,6 @@ body {
 }
 .tile-pair > .tile { min-height: 0; }
 
-/* tiles inside party stacks fill their grid row */
-.party-stack > .tile,
-.party-stack > .tile-pair { min-height: 0; }
-.party-stack.downed > .tile,
-.party-stack.downed > .tile-pair { opacity: 0.35; pointer-events: none; }
 
 /* tile — mini parchment card */
 .tile {
