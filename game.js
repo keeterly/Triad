@@ -1675,22 +1675,21 @@ function makePartyCard(c, slot, threatened, adjMap) {
   if (adj?.type === 'friction') fig.classList.add('adjacent-friction');
   if (threatened && !c.downed) fig.classList.add('targeted-by-enemy');
 
-  let topChip = '', bottomChip = '';
+  // collect all active adjacency synergies for this character — stacked at the top
+  const synergies = [];
   if (!c.downed && adj) {
-    if (slot === 'front' && adj.fm) topChip = chipHtml(adj.fm, 'top');
-    else if (slot === 'back' && adj.mb) bottomChip = chipHtml(adj.mb, 'bottom');
-    else if (slot === 'mid') {
-      if (adj.mb) topChip = chipHtml(adj.mb, 'top');
-      if (adj.fm) bottomChip = chipHtml(adj.fm, 'bottom');
-    }
+    if (adj.fm) synergies.push(adj.fm);
+    if (adj.mb) synergies.push(adj.mb);
   }
+  const synStack = synergies.length
+    ? `<div class="figure-adj">${synergies.map(s => `<span class="adj-chip ${s.type}">${s.name}</span>`).join('')}</div>`
+    : '';
 
   const def = CHARS[c.id];
   const isHome = def.home === slot;
   const hpPct = (c.hp / c.maxHp) * 100;
   fig.innerHTML = `
-    ${topChip}
-    ${bottomChip}
+    ${synStack}
     <div class="figure-statuses">${renderStatuses(c)}</div>
     <div class="figure-portrait">${PORTRAITS[c.id] || ''}</div>
     <div class="figure-shadow"></div>
