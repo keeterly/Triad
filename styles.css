@@ -769,3 +769,55 @@ body {
   letter-spacing: 0.15em; text-transform: uppercase;
   border-radius: 3px; cursor: pointer;
 }
+#overlay-btn.hidden { display: none; }
+
+/* path-choice overlay — two encounter cards side-by-side */
+#overlay-content:has(#overlay-choices:not(.hidden)) { max-width: 540px; padding: 20px 24px; }
+#overlay-choices {
+  display: flex; gap: 14px; justify-content: center;
+  margin-top: 8px; margin-bottom: 6px;
+}
+#overlay-choices.hidden { display: none; }
+.encounter-choice {
+  background: var(--bg-2);
+  border: 1px solid var(--gold-dim);
+  border-radius: var(--card-radius);
+  padding: 12px 14px;
+  cursor: pointer;
+  color: var(--ink);
+  font-family: inherit;
+  min-width: 180px;
+  transition: border-color 0.15s, transform 0.1s, box-shadow 0.15s;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.encounter-choice:hover {
+  border-color: var(--gold-bright);
+  transform: translateY(-2px);
+  box-shadow: 0 0 18px rgba(200,164,100,0.25);
+}
+.encounter-choice .enc-name {
+  font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--gold); text-align: center;
+}
+.encounter-choice .enc-row {
+  display: flex; gap: 4px; justify-content: center;
+}
+.encounter-choice .enc-icon {
+  width: 44px; height: 58px; overflow: hidden;
+  border-radius: 2px; border: 1px solid var(--gold-dim);
+  position: relative;
+}
+.encounter-choice .enc-icon svg { width: 100%; height: 100%; display: block; }
+.encounter-choice .enc-icon-slot {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  font-size: 7px; text-align: center; letter-spacing: 0.1em; text-transform: uppercase;
+  background: rgba(0,0,0,0.65); color: var(--ink-dim);
+  padding: 1px 0;
+}
+
+/* HUD encounter pill */
+.hud-encounter { gap: 6px; }
+.hud-encounter .hud-sub {
+  font-size: 10px; letter-spacing: 0.08em; color: var(--ink-dim);
+  font-style: italic; text-transform: none; margin-left: 2px;
+}

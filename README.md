@@ -1,6 +1,6 @@
 # Triad
 
-Dark-fantasy roguelite RPG prototype. Mobile landscape, single-fight combat sandbox. ATB-style action queue + stagger.
+Dark-fantasy roguelite RPG prototype. Mobile landscape. ATB-style action queue + stagger, played as a 3-fight gauntlet with branching encounter choice and persistent damage between fights.
 
 ## Core mechanic
 
@@ -39,6 +39,18 @@ Pending one-shot bonuses (next-attack/next-heal) show as gold chips on the recei
 ## Stagger loop
 
 Each enemy has a chain gauge under their HP. Damage builds it (Vulnerable hits build x2). At full, the enemy is **Staggered** — skips their next action and takes +50% damage. That's your burst window.
+
+## Run structure — three reaches
+
+A run is three fights, called **reaches**. After each win you pick one of two encounters for the next reach, so a run is 2×2×2 = 8 possible paths. Things that persist between fights: **HP** (including downed status — a fallen character stays down for the run), **Resolve** (capped at 3 between fights so you can't bank it forever), and **pending one-shot bonuses** like Spirit Arrow's +2 heal. Things that reset: armor, statuses (bleed/weak/vuln/taunt/retaliate), the queue, the turn counter, and the enemy roster. Wipe at any point ends the run.
+
+### New enemies introduced in later reaches
+
+| Enemy | Target tag | What it punishes |
+|---|---|---|
+| **Line Caster** *(Sin of Voices)* | `F+M` / `M+B` | Hits a *pair* of adjacent slots at once. Tight bond formations get caught in the crossfire — split the line, eat the AoE, or armor through. |
+| **Sniper** *(Sin of Distance)* | `M+B>` | Pierces past Front to hit Mid and Back. Squishy supports in the back row can't hide. Closer it sits, the more it hurts. |
+| **Grappler** *(Sin of Grasp)* | `M` (pull) | Hooks your Mid character into Front and disrupts adjacency lines. Either pre-empt the pull or accept the formation shift. |
 
 ## Run locally
 
@@ -83,4 +95,4 @@ git checkout main   # continue work on main for v0.2
 
 ## Status
 
-Prototype v0.2. Single fight only — no map, no run, no recruitment yet. Mechanics sandbox for the queue-build + stagger loop.
+Prototype v0.3. Three-fight run with branching encounter choice; HP/Resolve persist between fights. Six hand-built encounters, six enemy types. No recruitment, no map screen yet — pacing is "fight → pick → fight → pick → fight".

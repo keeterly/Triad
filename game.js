@@ -101,6 +101,63 @@ const PORTRAITS = {
   <ellipse cx="50" cy="78" rx="6" ry="9" fill="#050810"/>
   <path d="M 30 90 L 30 105 L 35 100 L 40 110 L 45 102 L 50 112 L 55 102 L 60 110 L 65 100 L 70 105 L 70 90 Z" fill="#2a3a4a" opacity="0.7"/>
 </svg>`,
+  lineCaster: `
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs><radialGradient id="pc-linecaster" cx="50%" cy="35%" r="80%">
+    <stop offset="0" stop-color="#482848"/><stop offset="1" stop-color="#0a0510"/></radialGradient></defs>
+  <rect width="100" height="130" fill="url(#pc-linecaster)"/>
+  <path d="M 50 18 Q 20 22 22 60 L 22 105 L 30 105 Q 32 60 50 56 Q 68 60 70 105 L 78 105 L 78 60 Q 80 22 50 18 Z" fill="#2a1838" stroke="#0a0510" stroke-width="1"/>
+  <path d="M 32 30 L 50 16 L 68 30" fill="#1a0a28" stroke="#0a0510" stroke-width="0.8"/>
+  <ellipse cx="50" cy="60" rx="14" ry="18" fill="#0a0510"/>
+  <path d="M 38 58 Q 50 50 62 58" stroke="#c46080" stroke-width="0.6" fill="none" opacity="0.8"/>
+  <path d="M 38 64 Q 50 56 62 64" stroke="#c46080" stroke-width="0.5" fill="none" opacity="0.6"/>
+  <path d="M 38 70 Q 50 62 62 70" stroke="#c46080" stroke-width="0.4" fill="none" opacity="0.4"/>
+  <circle cx="44" cy="62" r="1.4" fill="#f0a0c0"/>
+  <circle cx="56" cy="62" r="1.4" fill="#f0a0c0"/>
+  <path d="M 18 50 L 22 46 L 20 54 Z" fill="#c46080" opacity="0.7"/>
+  <path d="M 82 50 L 78 46 L 80 54 Z" fill="#c46080" opacity="0.7"/>
+  <path d="M 14 80 L 18 76 L 16 84 Z" fill="#c46080" opacity="0.5"/>
+  <path d="M 86 80 L 82 76 L 84 84 Z" fill="#c46080" opacity="0.5"/>
+  <path d="M 22 103 L 78 103 L 86 130 L 14 130 Z" fill="#1a0a28" stroke="#0a0510" stroke-width="1"/>
+</svg>`,
+  sniper: `
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs><radialGradient id="pc-sniper" cx="50%" cy="40%" r="80%">
+    <stop offset="0" stop-color="#3a3a28"/><stop offset="1" stop-color="#0a0805"/></radialGradient></defs>
+  <rect width="100" height="130" fill="url(#pc-sniper)"/>
+  <path d="M 14 26 Q 10 65 14 104" fill="none" stroke="#5a4830" stroke-width="2"/>
+  <line x1="14" y1="26" x2="14" y2="104" stroke="#2a2010" stroke-width="0.5"/>
+  <line x1="14" y1="64" x2="46" y2="66" stroke="#e8dcc4" stroke-width="0.6" opacity="0.9"/>
+  <polygon points="44,63 50,66 44,69" fill="#e8dcc4"/>
+  <path d="M 50 24 Q 28 28 30 58 L 28 105 L 36 105 Q 38 58 50 54 Q 62 58 64 105 L 72 105 L 70 58 Q 72 28 50 24 Z" fill="#4a3820" stroke="#1a1008" stroke-width="1"/>
+  <path d="M 30 36 L 48 24 L 66 36 L 60 42 L 50 36 L 40 42 Z" fill="#1a1008" stroke="#0a0804" stroke-width="0.5"/>
+  <ellipse cx="50" cy="54" rx="12" ry="14" fill="#0a0804"/>
+  <rect x="40" y="50" width="20" height="2" fill="#2a1808"/>
+  <circle cx="46" cy="55" r="1" fill="#c44040"/>
+  <circle cx="54" cy="55" r="1" fill="#c44040"/>
+  <path d="M 64 68 L 78 60 L 82 64 L 68 72" fill="#3a2818" stroke="#1a1008" stroke-width="0.6"/>
+  <path d="M 30 103 L 70 103 L 78 130 L 22 130 Z" fill="#2a2010" stroke="#1a1008" stroke-width="1"/>
+</svg>`,
+  grappler: `
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs><radialGradient id="pc-grappler" cx="50%" cy="40%" r="80%">
+    <stop offset="0" stop-color="#3a2418"/><stop offset="1" stop-color="#0a0604"/></radialGradient></defs>
+  <rect width="100" height="130" fill="url(#pc-grappler)"/>
+  <path d="M 50 22 Q 18 26 20 58 L 18 105 L 30 105 Q 32 58 50 54 Q 68 58 70 105 L 82 105 L 80 58 Q 82 26 50 22 Z" fill="#5a3820" stroke="#1a0e08" stroke-width="1"/>
+  <ellipse cx="50" cy="58" rx="18" ry="22" fill="#1a0a04"/>
+  <ellipse cx="43" cy="56" rx="3.5" ry="5" fill="#050200"/>
+  <ellipse cx="57" cy="56" rx="3.5" ry="5" fill="#050200"/>
+  <circle cx="43" cy="57" r="1.4" fill="#f0a040"/>
+  <circle cx="57" cy="57" r="1.4" fill="#f0a040"/>
+  <path d="M 40 76 Q 50 84 60 76 L 60 78 Q 50 86 40 78 Z" fill="#0a0504"/>
+  <path d="M 80 28 L 84 50 L 86 72 L 88 92" stroke="#8a7048" stroke-width="1.2" fill="none"/>
+  <circle cx="83" cy="40" r="2" fill="none" stroke="#8a7048" stroke-width="0.8"/>
+  <circle cx="85" cy="60" r="2" fill="none" stroke="#8a7048" stroke-width="0.8"/>
+  <circle cx="87" cy="82" r="2" fill="none" stroke="#8a7048" stroke-width="0.8"/>
+  <path d="M 88 92 Q 94 96 92 104 Q 86 108 82 102 Q 80 98 84 96" fill="none" stroke="#c8a464" stroke-width="1.6"/>
+  <path d="M 84 96 L 78 92" stroke="#c8a464" stroke-width="1.2"/>
+  <path d="M 20 103 L 80 103 L 88 130 L 12 130 Z" fill="#2a1810" stroke="#1a0e08" stroke-width="1"/>
+</svg>`,
 };
 
 // ============================================================================
@@ -270,7 +327,63 @@ const ENEMIES = {
       { name: 'Drain',         tag: 'ATK 3 low', targetSlot: '?',    kind: 'atk', fn: (s) => dmgLowestParty(s, 3) },
     ],
   },
+  lineCaster: {
+    id: 'lineCaster', name: 'Line Caster', title: 'Sin of Voices', maxHp: 12,
+    intents: [
+      { name: 'Verse of Faces',   tag: 'ATK 3 F+M', targetSlot: 'fm',  kind: 'aoe', fn: (s) => dmgLinePair(s, 'fm', 3) },
+      { name: 'Discord',          tag: 'ATK 4 + vuln', targetSlot: 'mid', kind: 'atk', fn: (s) => { dmgPartyAt(s, 'mid', 4); applyVulnParty(s, 'mid', 1); } },
+      { name: 'Verse of Shadows', tag: 'ATK 3 M+B', targetSlot: 'mb',  kind: 'aoe', fn: (s) => dmgLinePair(s, 'mb', 3) },
+    ],
+  },
+  sniper: {
+    id: 'sniper', name: 'Sniper', title: 'Sin of Distance', maxHp: 11,
+    intents: [
+      { name: 'Aimed Shot',       tag: 'ATK 6',        targetSlot: 'back',   kind: 'atk',    fn: (s) => dmgPartyAt(s, 'back', 6) },
+      { name: 'Pierce',           tag: 'ATK 3 M+B',    targetSlot: 'pierce', kind: 'aoe',    fn: (s) => dmgPierce(s, 3) },
+      { name: 'Crack the Shield', tag: 'ATK 2 + strip', targetSlot: 'back',   kind: 'debuff', fn: (s) => {
+        const c = charBySlot(s, 'back');
+        if (c && !c.downed && c.armor > 0) { c.armor = 0; log(`<b>${CHARS[c.id].name}</b>'s armor shatters.`); }
+        dmgPartyAt(s, 'back', 2);
+      } },
+    ],
+  },
+  grappler: {
+    id: 'grappler', name: 'Grappler', title: 'Sin of Grasp', maxHp: 15,
+    intents: [
+      { name: 'Hook',  tag: 'ATK 3 + pull', targetSlot: 'mid',   kind: 'atk', fn: (s) => { dmgPartyAt(s, 'mid', 3); enemyShove(s, 'mid', 'front'); } },
+      { name: 'Crush', tag: 'ATK 7',        targetSlot: 'front', kind: 'atk', fn: (s) => dmgPartyAt(s, 'front', 7) },
+      { name: 'Bind',  tag: 'WEAK 1 + bind', targetSlot: 'front', kind: 'debuff', fn: (s) => {
+        const c = charBySlot(s, 'front');
+        if (c && !c.downed) {
+          if (c.taunt) { c.taunt = false; log(`<b>${CHARS[c.id].name}</b>'s taunt is broken.`); }
+          c.weak += 1;
+          log(`<b>${CHARS[c.id].name}</b> gains Weak.`);
+        }
+      } },
+    ],
+  },
 };
+
+// ============================================================================
+// ENCOUNTERS & RUN LAYOUT — 3-fight gauntlet with branching path choice
+// ============================================================================
+
+const ENCOUNTERS = {
+  e1: { id: 'e1', name: 'Bone & Bile',    slots: { front: 'ghoul',      mid: 'cultist',    back: 'wraith'  } },
+  e2: { id: 'e2', name: "Veil's Edge",    slots: { front: 'wraith',     mid: 'cultist',    back: 'ghoul'   } },
+  e3: { id: 'e3', name: 'Line of Echoes', slots: { front: 'cultist',    mid: 'lineCaster', back: 'wraith'  } },
+  e4: { id: 'e4', name: 'Bowless Hunt',   slots: { front: 'ghoul',      mid: 'cultist',    back: 'sniper'  } },
+  e5: { id: 'e5', name: 'Sundered Bond',  slots: { front: 'lineCaster', mid: 'grappler',   back: 'wraith'  } },
+  e6: { id: 'e6', name: 'Quartered Sin',  slots: { front: 'cultist',    mid: 'lineCaster', back: 'sniper'  } },
+};
+
+const RUN_LAYOUT = [
+  { slot: 0, label: 'First Reach',  options: ['e1', 'e2'] },
+  { slot: 1, label: 'Second Reach', options: ['e3', 'e4'] },
+  { slot: 2, label: 'Final Reach',  options: ['e5', 'e6'] },
+];
+
+const RESOLVE_CARRY_CAP = 3;
 
 // ============================================================================
 // ADJACENCY — pair synergies between adjacent positions (F-M and M-B)
@@ -350,10 +463,17 @@ function newState() {
     resolve: 0,
     queue: [],         // array of { kind, charId?, dir?, label, desc, atb, resolveCost } — sum(atb) ≤ ATB_MAX
     executing: false,  // true while queue is resolving
-    over: false,
+    over: false,       // input lock — true during end-of-fight/run overlays
     outgoingDmgMod: 0,
     ignoreArmor: false,
     currentActorId: null, // who is acting right now (for passives + adjacency hooks)
+
+    // run-level progress (persists across fights within a run)
+    run: {
+      slotIdx: 0,            // 0,1,2 — which RUN_LAYOUT entry we're on
+      currentEncId: null,    // id of the active encounter, or null before first start
+      completed: [],         // encIds of cleared fights, in order
+    },
 
     party: {
       slots: { front: 'cassia', mid: 'elin', back: 'branwen' },
@@ -364,17 +484,53 @@ function newState() {
       },
     },
 
-    enemies: {
-      slots: { front: 'ghoul', mid: 'cultist', back: 'wraith' },
-      chars: {
-        ghoul:   newEnemyState('ghoul'),
-        cultist: newEnemyState('cultist'),
-        wraith:  newEnemyState('wraith'),
-      },
-    },
+    // populated by startEncounter — first slot config is loaded at init()
+    enemies: { slots: {}, chars: {} },
 
     messages: [],
   };
+}
+
+// Begin (or restart on a new slot) a fight. Resets per-fight state but preserves
+// run-level state: HP, downed status, pendingEffects, run.slotIdx, run.completed.
+// Resolve is preserved up to RESOLVE_CARRY_CAP between fights (not capped on the very first fight).
+function startEncounter(encId) {
+  const enc = ENCOUNTERS[encId];
+  if (!enc) return;
+  const isFirstFight = !state.run.currentEncId;
+
+  // reset per-fight party statuses; keep hp, downed, pendingEffects
+  Object.values(state.party.chars).forEach(c => {
+    c.armor = 0;
+    c.bleed = 0;
+    c.weak = 0;
+    c.vuln = 0;
+    c.taunt = false;
+    c.retaliate = 0;
+  });
+
+  // rebuild enemies fresh from the encounter definition
+  state.enemies.slots = { ...enc.slots };
+  state.enemies.chars = {};
+  SLOTS.forEach(sl => {
+    const id = enc.slots[sl];
+    if (id) state.enemies.chars[id] = newEnemyState(id);
+  });
+
+  state.queue = [];
+  state.turn = 1;
+  state.executing = false;
+  state.over = false;
+  state.outgoingDmgMod = 0;
+  state.ignoreArmor = false;
+  state.currentActorId = null;
+  state.run.currentEncId = encId;
+
+  if (!isFirstFight) {
+    state.resolve = Math.min(RESOLVE_CARRY_CAP, state.resolve);
+  }
+
+  startTurn(state);
 }
 
 function newCharState(id) {
@@ -653,6 +809,21 @@ function dmgLowestParty(s, amt) {
   applyDmgToParty(s, alive[0], amt);
 }
 function dmgAllParty(s, amt) { aliveParty(s).forEach(c => applyDmgToParty(s, c, amt)); }
+// Line Caster: hit both slots in a Front-Mid or Mid-Back line. AoE-style — bypasses taunt redirect.
+function dmgLinePair(s, line, amt) {
+  const slots = line === 'fm' ? ['front', 'mid'] : ['mid', 'back'];
+  slots.forEach(slot => {
+    const c = charBySlot(s, slot);
+    if (c && !c.downed) applyDmgToParty(s, c, amt);
+  });
+}
+// Sniper Pierce: ignores front, hits mid and back. AoE-style.
+function dmgPierce(s, amt) {
+  ['mid', 'back'].forEach(slot => {
+    const c = charBySlot(s, slot);
+    if (c && !c.downed) applyDmgToParty(s, c, amt);
+  });
+}
 function weakSlot(s, slot, amt) {
   const c = charBySlot(s, slot);
   if (c && !c.downed) { c.weak += amt; log(`<b>${CHARS[c.id].name}</b> gains Weak.`); }
@@ -1107,7 +1278,16 @@ function checkEnd(s) {
   if (s.over) return true;
   if (aliveEnemies(s).length === 0) {
     s.over = true;
-    showOverlay('Victory', 'The sins are unbound — for a moment. Rest before the next reach.');
+    s.run.completed.push(s.run.currentEncId);
+    const isFinal = s.run.slotIdx >= RUN_LAYOUT.length - 1;
+    if (isFinal) {
+      showOverlay('Victory', 'All three sins are unbound. Your reach holds the dawn.');
+    } else {
+      s.run.slotIdx += 1;
+      const nextSlot = RUN_LAYOUT[s.run.slotIdx];
+      // brief delay so the kill animations land before the choice appears
+      setTimeout(() => showPathChoice(nextSlot), 480);
+    }
     return true;
   }
   if (aliveParty(s).length === 0) {
@@ -1142,6 +1322,15 @@ function renderHUD() {
     p.className = 'pip' + (i < state.resolve ? ' filled' : '');
     pips.appendChild(p);
   }
+  const pill = $('#encounter-pill');
+  if (pill && state.run) {
+    pill.textContent = `${state.run.slotIdx + 1}/${RUN_LAYOUT.length}`;
+  }
+  const encName = $('#encounter-name');
+  if (encName && state.run && state.run.currentEncId) {
+    const enc = ENCOUNTERS[state.run.currentEncId];
+    encName.textContent = enc ? enc.name : '';
+  }
 }
 
 function flashResolve() {
@@ -1156,8 +1345,11 @@ function renderColumns() {
   const threatened = new Set();
   aliveEnemies(state).forEach(e => {
     const intent = ENEMIES[e.id].intents[e.intentIdx % ENEMIES[e.id].intents.length];
-    if (intent.targetSlot === 'all') SLOTS.forEach(s => threatened.add(s));
-    else if (intent.targetSlot && intent.targetSlot !== '?') threatened.add(intent.targetSlot);
+    const ts = intent.targetSlot;
+    if (ts === 'all') SLOTS.forEach(s => threatened.add(s));
+    else if (ts === 'fm') { threatened.add('front'); threatened.add('mid'); }
+    else if (ts === 'mb' || ts === 'pierce') { threatened.add('mid'); threatened.add('back'); }
+    else if (ts && ts !== '?') threatened.add(ts);
   });
 
   // adjacency map for visual borders + chip labels.
@@ -1256,9 +1448,13 @@ function makeEnemyCard(e, slot) {
   const hpPct = (e.hp / e.maxHp) * 100;
   const chainPct = (e.chain / STAGGER_THRESHOLD) * 100;
   const intentClass = intent.kind === 'aoe' ? 'intent-aoe' : (intent.kind === 'debuff' ? 'intent-debuff' : '');
-  const targetTag = intent.targetSlot === 'all' ? 'ALL'
-    : intent.targetSlot === '?' ? 'LOW'
-    : (intent.targetSlot || '').slice(0,1).toUpperCase();
+  const ts = intent.targetSlot;
+  const targetTag = ts === 'all' ? 'ALL'
+    : ts === '?' ? 'LOW'
+    : ts === 'fm' ? 'F+M'
+    : ts === 'mb' ? 'M+B'
+    : ts === 'pierce' ? 'M+B>'
+    : (ts || '').slice(0,1).toUpperCase();
 
   const staggerBanner = e.staggered ? `<div class="staggered-banner">STAGGERED</div>` : '';
 
@@ -1636,8 +1832,42 @@ function bindUI() {
 function showOverlay(title, body) {
   $('#overlay-title').textContent = title;
   $('#overlay-body').textContent = body;
+  const choices = $('#overlay-choices');
+  if (choices) { choices.innerHTML = ''; choices.classList.add('hidden'); }
+  const btn = $('#overlay-btn');
+  if (btn) btn.classList.remove('hidden');
   $('#overlay').classList.remove('hidden');
 }
+
+function showPathChoice(slotConfig) {
+  $('#overlay-title').textContent = slotConfig.label;
+  $('#overlay-body').textContent = 'Choose your next reach.';
+  const choices = $('#overlay-choices');
+  choices.innerHTML = '';
+  slotConfig.options.forEach(encId => {
+    const enc = ENCOUNTERS[encId];
+    const card = document.createElement('button');
+    card.className = 'encounter-choice';
+    const enemyIcons = SLOTS.map(sl => {
+      const eid = enc.slots[sl];
+      const def = ENEMIES[eid];
+      return `<div class="enc-icon" title="${def?.name || ''}">${PORTRAITS[eid] || ''}<div class="enc-icon-slot">${SLOT_LABELS[sl]}</div></div>`;
+    }).join('');
+    card.innerHTML = `
+      <div class="enc-name">${enc.name}</div>
+      <div class="enc-row">${enemyIcons}</div>
+    `;
+    card.addEventListener('click', () => {
+      hideOverlay();
+      startEncounter(encId);
+    });
+    choices.appendChild(card);
+  });
+  choices.classList.remove('hidden');
+  $('#overlay-btn').classList.add('hidden');
+  $('#overlay').classList.remove('hidden');
+}
+
 function hideOverlay() { $('#overlay').classList.add('hidden'); }
 
 // ============================================================================
@@ -1646,7 +1876,8 @@ function hideOverlay() { $('#overlay').classList.add('hidden'); }
 
 function init() {
   state = newState();
-  startTurn(state);
+  // start at the first option of the first slot; player branches between fights
+  startEncounter(RUN_LAYOUT[0].options[0]);
 }
 
 document.addEventListener('DOMContentLoaded', () => { bindUI(); init(); });
