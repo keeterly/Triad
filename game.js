@@ -14,92 +14,380 @@
 const PORTRAITS = {
   cassia: `
 <svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
-  <defs><radialGradient id="pc-cassia" cx="50%" cy="35%" r="80%">
-    <stop offset="0" stop-color="#5a3820"/><stop offset="1" stop-color="#1a0e08"/></radialGradient></defs>
-  <rect width="100" height="130" fill="url(#pc-cassia)"/>
-  <path d="M 50 28 Q 32 30 30 50 L 30 78 Q 35 95 50 98 Q 65 95 70 78 L 70 50 Q 68 30 50 28 Z" fill="#9a7838" stroke="#3a2410" stroke-width="1.5"/>
-  <rect x="34" y="58" width="32" height="4" fill="#0a0805"/>
-  <path d="M 47 28 L 50 18 L 53 28 Z" fill="#c8a464" stroke="#5a3820" stroke-width="0.5"/>
-  <rect x="49" y="62" width="2" height="14" fill="#3a2410"/>
-  <path d="M 28 95 Q 50 105 72 95 L 72 130 L 28 130 Z" fill="#5a3820" stroke="#2a1808" stroke-width="1"/>
-  <path d="M 40 105 L 60 105 L 58 122 L 42 122 Z" fill="#7a5828" opacity="0.6"/>
+  <defs>
+    <radialGradient id="cassia-bg" cx="65%" cy="35%" r="85%">
+      <stop offset="0" stop-color="#8a5430"/><stop offset="0.5" stop-color="#3a2014"/><stop offset="1" stop-color="#080403"/>
+    </radialGradient>
+    <linearGradient id="cassia-gold" x1="20%" y1="0%" x2="85%" y2="100%">
+      <stop offset="0" stop-color="#f0d488"/><stop offset="0.45" stop-color="#a87838"/><stop offset="1" stop-color="#2a1808"/>
+    </linearGradient>
+    <linearGradient id="cassia-shadow" x1="0%" x2="100%">
+      <stop offset="0" stop-color="#050200" stop-opacity="0.75"/><stop offset="0.55" stop-color="#050200" stop-opacity="0"/><stop offset="1" stop-color="#050200" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="100" height="130" fill="url(#cassia-bg)"/>
+  <ellipse cx="55" cy="115" rx="48" ry="14" fill="#180a04" opacity="0.85"/>
+  <path d="M 8 130 L 14 96 Q 30 78 50 76 Q 70 78 86 96 L 92 130 Z" fill="#3a1f10" stroke="#0a0402" stroke-width="0.8"/>
+  <path d="M 20 110 Q 30 92 50 88 Q 70 92 80 110 L 78 130 L 22 130 Z" fill="#5a2818" opacity="0.7"/>
+  <path d="M 30 92 Q 50 84 70 92 L 68 130 L 32 130 Z" fill="url(#cassia-gold)" stroke="#1a0e04" stroke-width="0.6"/>
+  <path d="M 30 92 L 36 130 L 32 130 Z" fill="#0a0402" opacity="0.5"/>
+  <path d="M 46 100 Q 50 96 54 100 L 54 116 Q 50 120 46 116 Z" fill="#6a2818" stroke="#2a0e04" stroke-width="0.5"/>
+  <line x1="50" y1="100" x2="50" y2="116" stroke="#a04030" stroke-width="0.4"/>
+  <path d="M 47 103 Q 50 105 53 103 Q 50 107 47 103" fill="#a87838"/>
+  <path d="M 12 96 Q 18 84 30 82 L 32 94 Q 22 96 14 104 Z" fill="url(#cassia-gold)" stroke="#0a0402" stroke-width="0.6"/>
+  <path d="M 88 96 Q 82 84 70 82 L 68 94 Q 78 96 86 104 Z" fill="url(#cassia-gold)" stroke="#0a0402" stroke-width="0.6"/>
+  <path d="M 12 96 Q 18 88 24 86 L 22 94 Q 16 100 14 102 Z" fill="#1a0e04" opacity="0.5"/>
+  <rect x="42" y="70" width="16" height="10" fill="#1a0e04"/>
+  <rect x="44" y="72" width="12" height="2" fill="#3a2010" opacity="0.7"/>
+  <path d="M 34 28 Q 34 16 50 14 Q 66 16 66 28 L 68 60 Q 66 76 50 78 Q 34 76 32 60 Z" fill="url(#cassia-gold)" stroke="#0a0402" stroke-width="0.8"/>
+  <path d="M 34 28 Q 34 16 50 14 L 50 78 Q 34 76 32 60 Z" fill="#0a0402" opacity="0.4"/>
+  <rect x="34" y="44" width="32" height="4" fill="#050200"/>
+  <rect x="34" y="48" width="32" height="1.2" fill="#1a0a04" opacity="0.7"/>
+  <rect x="48" y="44" width="4" height="24" fill="#050200"/>
+  <path d="M 38 26 Q 50 22 62 26" stroke="#f0d488" stroke-width="0.5" fill="none" opacity="0.8"/>
+  <path d="M 38 32 Q 50 28 62 32" stroke="#a87838" stroke-width="0.3" fill="none" opacity="0.5"/>
+  <path d="M 64 26 Q 67 36 68 60 Q 67 70 60 76" stroke="#f0d488" stroke-width="0.7" fill="none" opacity="0.55"/>
+  <path d="M 47 14 L 50 2 L 53 14 Z" fill="#f0d488" stroke="#2a1808" stroke-width="0.5"/>
+  <path d="M 50 2 Q 56 6 58 14 Q 53 11 50 14" fill="#8b2e2e"/>
+  <path d="M 50 2 Q 60 4 64 10 Q 58 8 53 14" fill="#a83838" opacity="0.7"/>
+  <rect width="100" height="130" fill="url(#cassia-shadow)" opacity="0.55"/>
 </svg>`,
   elin: `
 <svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
-  <defs><radialGradient id="pc-elin" cx="50%" cy="35%" r="75%">
-    <stop offset="0" stop-color="#3a4a6a"/><stop offset="1" stop-color="#0a1018"/></radialGradient></defs>
-  <rect width="100" height="130" fill="url(#pc-elin)"/>
-  <circle cx="50" cy="42" r="24" fill="none" stroke="#e8dcc4" stroke-width="0.8" opacity="0.4"/>
-  <circle cx="50" cy="42" r="16" fill="none" stroke="#f0e8c0" stroke-width="0.5" opacity="0.5"/>
-  <path d="M 50 25 Q 25 25 25 50 L 25 90 L 30 90 Q 32 50 50 48 Q 68 50 70 90 L 75 90 L 75 50 Q 75 25 50 25 Z" fill="#3a3848" stroke="#1a1828" stroke-width="1"/>
-  <ellipse cx="50" cy="62" rx="14" ry="18" fill="#0a0a14"/>
-  <circle cx="44" cy="60" r="1.3" fill="#e8dcc4"/>
-  <circle cx="56" cy="60" r="1.3" fill="#e8dcc4"/>
-  <path d="M 25 88 L 75 88 L 80 130 L 20 130 Z" fill="#28283a" stroke="#1a1a28" stroke-width="1"/>
-  <path d="M 47 102 L 53 102 L 53 110 L 57 110 L 57 113 L 53 113 L 53 122 L 47 122 L 47 113 L 43 113 L 43 110 L 47 110 Z" fill="#e8dcc4" opacity="0.7"/>
+  <defs>
+    <radialGradient id="elin-bg" cx="50%" cy="30%" r="85%">
+      <stop offset="0" stop-color="#506a90"/><stop offset="0.5" stop-color="#1a2538"/><stop offset="1" stop-color="#050810"/>
+    </radialGradient>
+    <radialGradient id="elin-halo" cx="50%" cy="40%" r="35%">
+      <stop offset="0" stop-color="#f0e0a0" stop-opacity="0.4"/><stop offset="0.5" stop-color="#88a8d0" stop-opacity="0.15"/><stop offset="1" stop-color="#88a8d0" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="elin-robe" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0" stop-color="#3a4868"/><stop offset="0.5" stop-color="#222a3a"/><stop offset="1" stop-color="#0a0e1a"/>
+    </linearGradient>
+    <linearGradient id="elin-shadow" x1="100%" x2="0%">
+      <stop offset="0" stop-color="#050810" stop-opacity="0.7"/><stop offset="0.55" stop-color="#050810" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="100" height="130" fill="url(#elin-bg)"/>
+  <rect x="0" y="0" width="100" height="80" fill="url(#elin-halo)"/>
+  <circle cx="50" cy="42" r="28" fill="none" stroke="#e8dcc4" stroke-width="0.6" opacity="0.35"/>
+  <circle cx="50" cy="42" r="20" fill="none" stroke="#f0e8c0" stroke-width="0.4" opacity="0.4"/>
+  <circle cx="50" cy="42" r="13" fill="none" stroke="#f0e0a0" stroke-width="0.3" opacity="0.5"/>
+  <ellipse cx="55" cy="115" rx="48" ry="14" fill="#080a14" opacity="0.85"/>
+  <path d="M 50 22 Q 22 22 22 56 L 20 130 L 80 130 L 78 56 Q 78 22 50 22 Z" fill="url(#elin-robe)" stroke="#080a14" stroke-width="0.8"/>
+  <path d="M 50 22 Q 22 22 22 56 L 20 130 L 50 130 Z" fill="#0a0e1a" opacity="0.35"/>
+  <path d="M 30 50 Q 32 54 30 88 Q 28 110 26 130 L 22 130 L 22 56 Q 24 50 30 50 Z" fill="#4a587a" opacity="0.45"/>
+  <path d="M 50 22 Q 30 22 30 38 Q 32 28 50 28 Q 68 28 70 38 Q 70 22 50 22" fill="#1a2438"/>
+  <ellipse cx="50" cy="56" rx="16" ry="22" fill="#050810"/>
+  <ellipse cx="50" cy="50" rx="14" ry="20" fill="#0a0e18"/>
+  <circle cx="44" cy="56" r="1.4" fill="#e8dcc4"/>
+  <circle cx="56" cy="56" r="1.4" fill="#e8dcc4"/>
+  <circle cx="44" cy="56" r="0.6" fill="#f0e8c0" opacity="0.9"/>
+  <circle cx="56" cy="56" r="0.6" fill="#f0e8c0" opacity="0.9"/>
+  <path d="M 44 64 Q 50 66 56 64" stroke="#3a4868" stroke-width="0.4" fill="none"/>
+  <path d="M 46 100 L 54 100 L 54 110 L 60 110 L 60 114 L 54 114 L 54 126 L 46 126 L 46 114 L 40 114 L 40 110 L 46 110 Z" fill="#e8dcc4" opacity="0.55"/>
+  <path d="M 46 100 L 54 100 L 54 110 L 60 110 L 60 114 L 54 114 L 54 126 L 46 126 L 46 114 L 40 114 L 40 110 L 46 110 Z" fill="none" stroke="#f0e0a0" stroke-width="0.3" opacity="0.7"/>
+  <rect width="100" height="130" fill="url(#elin-shadow)" opacity="0.45"/>
 </svg>`,
   branwen: `
 <svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
-  <defs><radialGradient id="pc-branwen" cx="50%" cy="40%" r="80%">
-    <stop offset="0" stop-color="#384828"/><stop offset="1" stop-color="#0a1408"/></radialGradient></defs>
-  <rect width="100" height="130" fill="url(#pc-branwen)"/>
-  <path d="M 20 30 Q 14 65 20 100" fill="none" stroke="#5a3820" stroke-width="2.5"/>
-  <path d="M 20 30 L 20 100" stroke="#3a2410" stroke-width="0.8"/>
-  <path d="M 50 28 Q 28 30 30 55 L 28 90 L 34 90 Q 36 55 50 52 Q 64 55 66 90 L 72 90 L 70 55 Q 72 30 50 28 Z" fill="#3a4828" stroke="#1a2410" stroke-width="1"/>
-  <ellipse cx="50" cy="62" rx="13" ry="16" fill="#1a1408"/>
-  <circle cx="45" cy="60" r="1" fill="#c8a464"/>
-  <circle cx="55" cy="60" r="1" fill="#c8a464"/>
-  <path d="M 52 64 L 56 70" stroke="#c44040" stroke-width="0.6"/>
-  <path d="M 28 88 L 72 88 L 78 130 L 22 130 Z" fill="#2a3818" stroke="#1a2410" stroke-width="1"/>
-  <rect x="25" y="100" width="50" height="3" fill="#5a3820"/>
-  <line x1="80" y1="30" x2="86" y2="100" stroke="#7a5828" stroke-width="1"/>
-  <polygon points="78,28 84,28 81,22" fill="#c8a464"/>
+  <defs>
+    <radialGradient id="branwen-bg" cx="45%" cy="35%" r="85%">
+      <stop offset="0" stop-color="#506838"/><stop offset="0.5" stop-color="#1c2614"/><stop offset="1" stop-color="#060a04"/>
+    </radialGradient>
+    <linearGradient id="branwen-cloak" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0" stop-color="#4a5828"/><stop offset="0.5" stop-color="#283010"/><stop offset="1" stop-color="#0a1004"/>
+    </linearGradient>
+    <linearGradient id="branwen-shadow" x1="100%" x2="0%">
+      <stop offset="0" stop-color="#060a04" stop-opacity="0.7"/><stop offset="0.55" stop-color="#060a04" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="100" height="130" fill="url(#branwen-bg)"/>
+  <path d="M 10 60 Q 14 52 18 60 Q 22 52 26 60" stroke="#3a4820" stroke-width="0.5" fill="none" opacity="0.6"/>
+  <path d="M 74 50 Q 78 42 82 50 Q 86 42 90 50" stroke="#3a4820" stroke-width="0.4" fill="none" opacity="0.5"/>
+  <ellipse cx="55" cy="115" rx="48" ry="14" fill="#0a0a04" opacity="0.85"/>
+  <path d="M 50 22 Q 26 24 26 50 L 22 130 L 78 130 L 74 50 Q 74 22 50 22 Z" fill="url(#branwen-cloak)" stroke="#0a0a04" stroke-width="0.8"/>
+  <path d="M 50 22 Q 26 24 26 50 L 22 130 L 50 130 Z" fill="#0a1004" opacity="0.4"/>
+  <path d="M 28 28 Q 28 18 50 16 Q 72 18 72 28 L 74 50 Q 60 38 50 38 Q 40 38 26 50 Z" fill="#1a200a" stroke="#080804" stroke-width="0.5"/>
+  <path d="M 30 30 Q 32 22 38 20 Q 28 22 28 32 Z" fill="#3a4820" opacity="0.6"/>
+  <path d="M 70 30 Q 68 22 62 20 Q 72 22 72 32 Z" fill="#080804"/>
+  <ellipse cx="50" cy="60" rx="14" ry="18" fill="#1a0e08"/>
+  <ellipse cx="50" cy="55" rx="13" ry="17" fill="#382818"/>
+  <path d="M 38 52 Q 50 50 62 52" stroke="#2a1808" stroke-width="0.5" fill="none"/>
+  <circle cx="45" cy="58" r="1.2" fill="#f0d488"/>
+  <circle cx="55" cy="58" r="1.2" fill="#f0d488"/>
+  <path d="M 38 50 L 62 50" stroke="#8b2e2e" stroke-width="2.5" opacity="0.6"/>
+  <path d="M 38 50 L 62 50" stroke="#c44040" stroke-width="1.5" opacity="0.9"/>
+  <path d="M 46 64 Q 50 66 54 64" stroke="#1a1004" stroke-width="0.4" fill="none"/>
+  <rect x="48" y="64" width="1.5" height="6" fill="#c44040" opacity="0.5"/>
+  <path d="M 78 18 Q 70 60 84 110" stroke="#3a2810" stroke-width="2.5" fill="none"/>
+  <path d="M 78 18 Q 70 60 84 110" stroke="#5a3820" stroke-width="0.8" fill="none"/>
+  <line x1="78" y1="18" x2="86" y2="110" stroke="#1a0e08" stroke-width="0.4"/>
+  <polygon points="76,16 80,16 78,8" fill="#f0d488" stroke="#3a2010" stroke-width="0.3"/>
+  <line x1="22" y1="60" x2="26" y2="100" stroke="#5a3820" stroke-width="1.2"/>
+  <rect x="20" y="95" width="6" height="14" fill="#3a2810" stroke="#0a0402" stroke-width="0.3"/>
+  <line x1="22" y1="98" x2="24" y2="98" stroke="#a87838" stroke-width="0.4"/>
+  <line x1="22" y1="102" x2="24" y2="102" stroke="#a87838" stroke-width="0.4"/>
+  <line x1="22" y1="106" x2="24" y2="106" stroke="#a87838" stroke-width="0.4"/>
+  <rect width="100" height="130" fill="url(#branwen-shadow)" opacity="0.5"/>
 </svg>`,
   ghoul: `
 <svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
-  <defs><radialGradient id="pc-ghoul" cx="50%" cy="40%" r="80%">
-    <stop offset="0" stop-color="#4a3a30"/><stop offset="1" stop-color="#0a0805"/></radialGradient></defs>
-  <rect width="100" height="130" fill="url(#pc-ghoul)"/>
-  <ellipse cx="50" cy="62" rx="28" ry="35" fill="#6a5a48" stroke="#2a1808" stroke-width="1"/>
-  <ellipse cx="40" cy="57" rx="4" ry="5" fill="#0a0805"/>
-  <ellipse cx="60" cy="57" rx="4" ry="5" fill="#0a0805"/>
-  <circle cx="40" cy="58" r="1.4" fill="#c44040"/>
-  <circle cx="60" cy="58" r="1.4" fill="#c44040"/>
-  <path d="M 35 80 Q 50 95 65 80 L 65 82 Q 50 92 35 82 Z" fill="#1a0808"/>
-  <polygon points="37,80 39,88 41,80" fill="#e8dcc4"/>
-  <polygon points="44,80 46,90 48,80" fill="#e8dcc4"/>
-  <polygon points="52,80 54,90 56,80" fill="#e8dcc4"/>
-  <polygon points="59,80 61,88 63,80" fill="#e8dcc4"/>
-  <path d="M 20 97 Q 30 88 40 92 L 40 130 L 18 130 Z" fill="#4a3828"/>
-  <path d="M 80 97 Q 70 88 60 92 L 60 130 L 82 130 Z" fill="#4a3828"/>
-  <path d="M 40 92 L 60 92 L 64 130 L 36 130 Z" fill="#2a1810"/>
+  <defs>
+    <radialGradient id="ghoul-bg" cx="40%" cy="40%" r="85%">
+      <stop offset="0" stop-color="#6a4a30"/><stop offset="0.5" stop-color="#241810"/><stop offset="1" stop-color="#070302"/>
+    </radialGradient>
+    <radialGradient id="ghoul-skin" cx="40%" cy="35%" r="80%">
+      <stop offset="0" stop-color="#9c8868"/><stop offset="0.6" stop-color="#5a4838"/><stop offset="1" stop-color="#1a1208"/>
+    </radialGradient>
+    <linearGradient id="ghoul-shadow" x1="0%" x2="100%">
+      <stop offset="0" stop-color="#050200" stop-opacity="0"/><stop offset="0.55" stop-color="#050200" stop-opacity="0"/><stop offset="1" stop-color="#050200" stop-opacity="0.7"/>
+    </linearGradient>
+  </defs>
+  <rect width="100" height="130" fill="url(#ghoul-bg)"/>
+  <path d="M 0 100 Q 30 88 50 92 Q 70 96 100 102 L 100 130 L 0 130 Z" fill="#1a0e08" opacity="0.7"/>
+  <path d="M 20 130 Q 24 100 30 92 L 70 92 Q 76 100 80 130 Z" fill="#3a2818" stroke="#0a0604" stroke-width="0.6"/>
+  <path d="M 30 92 L 28 124 L 70 124 L 72 92 Z" fill="#1a1008" opacity="0.6"/>
+  <path d="M 25 95 L 22 130 L 18 130 Z M 75 95 L 78 130 L 82 130 Z" fill="#5a3a20" opacity="0.4"/>
+  <ellipse cx="50" cy="60" rx="32" ry="38" fill="url(#ghoul-skin)" stroke="#1a0e08" stroke-width="0.8"/>
+  <path d="M 18 60 Q 16 80 22 92 Q 26 78 28 60 Z" fill="#1a0e08" opacity="0.45"/>
+  <path d="M 50 24 Q 36 26 32 36 Q 40 30 50 30 Q 60 30 68 36 Q 64 26 50 24" fill="#0a0604"/>
+  <ellipse cx="50" cy="56" rx="22" ry="6" fill="#1a0e08" opacity="0.5"/>
+  <ellipse cx="38" cy="56" rx="6" ry="7" fill="#0a0402"/>
+  <ellipse cx="62" cy="56" rx="6" ry="7" fill="#0a0402"/>
+  <circle cx="38" cy="56" r="2.4" fill="#c44040"/>
+  <circle cx="62" cy="56" r="2.4" fill="#c44040"/>
+  <circle cx="38" cy="56" r="0.8" fill="#f0a0a0"/>
+  <circle cx="62" cy="56" r="0.8" fill="#f0a0a0"/>
+  <ellipse cx="38" cy="56" r="3.4" fill="none" stroke="#8b2e2e" stroke-width="0.4" opacity="0.6"/>
+  <ellipse cx="62" cy="56" r="3.4" fill="none" stroke="#8b2e2e" stroke-width="0.4" opacity="0.6"/>
+  <path d="M 32 78 Q 50 96 68 78 Q 66 84 50 92 Q 34 84 32 78" fill="#0a0402"/>
+  <path d="M 34 80 L 36 90 L 38 80 Z M 42 80 L 44 92 L 46 80 Z M 50 80 L 52 92 L 54 80 Z M 56 80 L 58 92 L 60 80 Z M 62 80 L 64 90 L 66 80 Z" fill="#e8dcc4"/>
+  <path d="M 36 82 L 38 84 L 40 82 Z M 60 82 L 62 84 L 64 82 Z" fill="#e8dcc4"/>
+  <line x1="44" y1="40" x2="48" y2="46" stroke="#1a0a04" stroke-width="0.6"/>
+  <line x1="56" y1="42" x2="54" y2="48" stroke="#1a0a04" stroke-width="0.5"/>
+  <line x1="40" y1="68" x2="44" y2="74" stroke="#1a0a04" stroke-width="0.5"/>
+  <line x1="60" y1="68" x2="56" y2="74" stroke="#1a0a04" stroke-width="0.5"/>
+  <rect width="100" height="130" fill="url(#ghoul-shadow)" opacity="0.55"/>
 </svg>`,
   cultist: `
 <svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
-  <defs><radialGradient id="pc-cultist" cx="50%" cy="30%" r="80%">
-    <stop offset="0" stop-color="#3a2848"/><stop offset="1" stop-color="#0a0a14"/></radialGradient></defs>
-  <rect width="100" height="130" fill="url(#pc-cultist)"/>
-  <path d="M 50 18 L 24 95 L 76 95 Z" fill="#1a1018" stroke="#0a050a" stroke-width="1"/>
-  <ellipse cx="50" cy="64" rx="14" ry="18" fill="#0a0508"/>
-  <ellipse cx="50" cy="60" rx="3" ry="5" fill="#c44040" opacity="0.9"/>
-  <circle cx="50" cy="60" r="1.5" fill="#f0e0a0"/>
-  <path d="M 24 93 L 76 93 L 84 130 L 16 130 Z" fill="#241828" stroke="#1a1018" stroke-width="1"/>
-  <rect x="35" y="108" width="30" height="2" fill="#4a3a20"/>
+  <defs>
+    <radialGradient id="cultist-bg" cx="50%" cy="30%" r="85%">
+      <stop offset="0" stop-color="#5a3870"/><stop offset="0.5" stop-color="#1a1028"/><stop offset="1" stop-color="#050208"/>
+    </radialGradient>
+    <radialGradient id="cultist-eye" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#f0a0a0"/><stop offset="0.4" stop-color="#c44040"/><stop offset="1" stop-color="#3a0810"/>
+    </radialGradient>
+    <linearGradient id="cultist-robe" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0" stop-color="#28182a"/><stop offset="0.4" stop-color="#180a18"/><stop offset="1" stop-color="#0a0508"/>
+    </linearGradient>
+    <linearGradient id="cultist-shadow" x1="100%" x2="0%">
+      <stop offset="0" stop-color="#050208" stop-opacity="0.7"/><stop offset="0.55" stop-color="#050208" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="100" height="130" fill="url(#cultist-bg)"/>
+  <path d="M 20 130 Q 24 100 28 88 L 50 56 L 72 88 Q 76 100 80 130 Z" fill="url(#cultist-robe)" stroke="#050208" stroke-width="0.8"/>
+  <path d="M 50 18 L 22 95 L 78 95 Z" fill="#1a0a20" stroke="#050208" stroke-width="0.8"/>
+  <path d="M 50 18 L 22 95 L 50 95 Z" fill="#0a0510" opacity="0.5"/>
+  <path d="M 50 18 L 60 50 L 50 56 Z" fill="#3a1840" opacity="0.6"/>
+  <ellipse cx="50" cy="60" rx="14" ry="22" fill="#050208"/>
+  <ellipse cx="50" cy="56" rx="12" ry="20" fill="#0a040a"/>
+  <ellipse cx="50" cy="40" rx="3" ry="4" fill="url(#cultist-eye)"/>
+  <circle cx="50" cy="40" r="1.2" fill="#f0e8c0"/>
+  <circle cx="50" cy="40" r="0.5" fill="#0a0402"/>
+  <ellipse cx="50" cy="40" rx="5" ry="6" fill="none" stroke="#c44040" stroke-width="0.4" opacity="0.5"/>
+  <ellipse cx="50" cy="40" rx="7" ry="9" fill="none" stroke="#8b2e2e" stroke-width="0.3" opacity="0.3"/>
+  <circle cx="44" cy="62" r="0.6" fill="#c44040" opacity="0.5"/>
+  <circle cx="56" cy="62" r="0.6" fill="#c44040" opacity="0.5"/>
+  <path d="M 32 78 L 50 72 L 68 78" stroke="#6a3870" stroke-width="0.4" fill="none" opacity="0.5"/>
+  <path d="M 38 88 L 50 84 L 62 88" stroke="#6a3870" stroke-width="0.3" fill="none" opacity="0.4"/>
+  <path d="M 50 96 L 47 102 L 53 102 Z" fill="#c44040" opacity="0.6"/>
+  <line x1="50" y1="102" x2="50" y2="106" stroke="#c44040" stroke-width="0.5" opacity="0.5"/>
+  <path d="M 36 110 L 64 110" stroke="#3a2010" stroke-width="0.6" opacity="0.4"/>
+  <path d="M 32 120 L 68 120" stroke="#3a2010" stroke-width="0.5" opacity="0.3"/>
+  <path d="M 22 92 Q 30 86 36 92 Q 30 96 22 92" fill="#1a0a18" opacity="0.6"/>
+  <rect width="100" height="130" fill="url(#cultist-shadow)" opacity="0.5"/>
 </svg>`,
   wraith: `
 <svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
-  <defs><radialGradient id="pc-wraith" cx="50%" cy="40%" r="80%">
-    <stop offset="0" stop-color="#2a3a4a"/><stop offset="1" stop-color="#050810"/></radialGradient></defs>
-  <rect width="100" height="130" fill="url(#pc-wraith)"/>
-  <path d="M 15 115 Q 25 108 35 115 Q 45 108 55 115 Q 65 108 75 115 Q 85 108 85 115" stroke="#8ab0c8" stroke-width="0.4" fill="none" opacity="0.4"/>
-  <ellipse cx="50" cy="58" rx="22" ry="32" fill="#3a4a5a" opacity="0.6"/>
-  <ellipse cx="50" cy="58" rx="18" ry="28" fill="#4a5a6a" opacity="0.6"/>
-  <ellipse cx="42" cy="55" rx="3.5" ry="6" fill="#050810"/>
-  <ellipse cx="58" cy="55" rx="3.5" ry="6" fill="#050810"/>
-  <circle cx="42" cy="56" r="1.2" fill="#8ac8e8"/>
-  <circle cx="58" cy="56" r="1.2" fill="#8ac8e8"/>
-  <ellipse cx="50" cy="78" rx="6" ry="9" fill="#050810"/>
-  <path d="M 30 90 L 30 105 L 35 100 L 40 110 L 45 102 L 50 112 L 55 102 L 60 110 L 65 100 L 70 105 L 70 90 Z" fill="#2a3a4a" opacity="0.7"/>
+  <defs>
+    <radialGradient id="wraith-bg" cx="50%" cy="40%" r="90%">
+      <stop offset="0" stop-color="#3a5878"/><stop offset="0.5" stop-color="#0a1828"/><stop offset="1" stop-color="#020610"/>
+    </radialGradient>
+    <radialGradient id="wraith-body" cx="50%" cy="40%" r="60%">
+      <stop offset="0" stop-color="#8ab8d0" stop-opacity="0.8"/><stop offset="0.6" stop-color="#3a5878" stop-opacity="0.55"/><stop offset="1" stop-color="#0a1828" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="wraith-shadow" x1="100%" x2="0%">
+      <stop offset="0" stop-color="#020610" stop-opacity="0.6"/><stop offset="0.55" stop-color="#020610" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="100" height="130" fill="url(#wraith-bg)"/>
+  <path d="M 8 118 Q 22 110 36 118 Q 50 110 64 118 Q 78 110 92 118" stroke="#8ab0c8" stroke-width="0.6" fill="none" opacity="0.45"/>
+  <path d="M 4 124 Q 22 118 40 124 Q 60 118 80 124 Q 92 120 96 124" stroke="#5a8aa8" stroke-width="0.4" fill="none" opacity="0.35"/>
+  <ellipse cx="50" cy="62" rx="32" ry="44" fill="url(#wraith-body)"/>
+  <ellipse cx="50" cy="60" rx="24" ry="36" fill="#3a5878" opacity="0.55"/>
+  <ellipse cx="50" cy="60" rx="18" ry="30" fill="#506a88" opacity="0.45"/>
+  <path d="M 30 24 Q 38 16 50 22 Q 62 16 70 24 Q 58 32 50 32 Q 42 32 30 24" fill="#88aac8" opacity="0.55"/>
+  <ellipse cx="40" cy="56" rx="4" ry="8" fill="#020610"/>
+  <ellipse cx="60" cy="56" rx="4" ry="8" fill="#020610"/>
+  <circle cx="40" cy="56" r="2.2" fill="#9cd0e8"/>
+  <circle cx="60" cy="56" r="2.2" fill="#9cd0e8"/>
+  <circle cx="40" cy="56" r="0.8" fill="#e0f0f8"/>
+  <circle cx="60" cy="56" r="0.8" fill="#e0f0f8"/>
+  <ellipse cx="40" cy="56" rx="3.5" ry="6" fill="none" stroke="#5a8ac8" stroke-width="0.3" opacity="0.6"/>
+  <ellipse cx="60" cy="56" rx="3.5" ry="6" fill="none" stroke="#5a8ac8" stroke-width="0.3" opacity="0.6"/>
+  <path d="M 44 38 Q 48 36 46 30" stroke="#5a8aa8" stroke-width="0.3" fill="none" opacity="0.5"/>
+  <path d="M 56 38 Q 52 36 54 30" stroke="#5a8aa8" stroke-width="0.3" fill="none" opacity="0.5"/>
+  <ellipse cx="50" cy="80" rx="8" ry="12" fill="#020610"/>
+  <ellipse cx="50" cy="78" rx="5" ry="9" fill="#0a1828"/>
+  <path d="M 24 92 L 22 110 L 26 104 L 30 116 L 34 106 L 38 118 L 42 108 L 46 120 L 50 110 L 54 120 L 58 108 L 62 118 L 66 106 L 70 116 L 74 104 L 78 110 L 76 92 Z" fill="#1a2838" opacity="0.7"/>
+  <path d="M 24 92 L 22 110 L 26 104 L 30 116 L 34 106 L 38 118 L 42 108 L 46 120 L 50 110 L 54 120 L 58 108 L 62 118 L 66 106 L 70 116 L 74 104 L 78 110 L 76 92 Z" fill="#3a5878" opacity="0.4"/>
+  <path d="M 16 50 Q 14 70 18 90 Q 12 78 14 60 Q 10 56 16 50" fill="#3a5878" opacity="0.4"/>
+  <path d="M 84 50 Q 86 70 82 90 Q 88 78 86 60 Q 90 56 84 50" fill="#3a5878" opacity="0.4"/>
+  <rect width="100" height="130" fill="url(#wraith-shadow)" opacity="0.5"/>
+</svg>`,
+  lineCaster: `
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <radialGradient id="lc-bg" cx="50%" cy="40%" r="85%">
+      <stop offset="0" stop-color="#683868"/><stop offset="0.5" stop-color="#1a0a28"/><stop offset="1" stop-color="#080208"/>
+    </radialGradient>
+    <radialGradient id="lc-aura" cx="50%" cy="45%" r="45%">
+      <stop offset="0" stop-color="#f0a0c0" stop-opacity="0.4"/><stop offset="0.5" stop-color="#c460a0" stop-opacity="0.18"/><stop offset="1" stop-color="#c460a0" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="lc-robe" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0" stop-color="#3a1848"/><stop offset="0.5" stop-color="#1a0828"/><stop offset="1" stop-color="#0a0410"/>
+    </linearGradient>
+    <linearGradient id="lc-shadow" x1="0%" x2="100%">
+      <stop offset="0" stop-color="#080208" stop-opacity="0.55"/><stop offset="0.5" stop-color="#080208" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="100" height="130" fill="url(#lc-bg)"/>
+  <rect x="0" y="0" width="100" height="100" fill="url(#lc-aura)"/>
+  <circle cx="50" cy="58" r="34" fill="none" stroke="#c460a0" stroke-width="0.4" opacity="0.5"/>
+  <circle cx="50" cy="58" r="28" fill="none" stroke="#c460a0" stroke-width="0.3" opacity="0.4"/>
+  <path d="M 24 58 L 76 58" stroke="#c460a0" stroke-width="0.3" opacity="0.3" stroke-dasharray="2 2"/>
+  <path d="M 50 22 Q 22 26 22 60 L 18 130 L 82 130 L 78 60 Q 78 26 50 22 Z" fill="url(#lc-robe)" stroke="#080208" stroke-width="0.8"/>
+  <path d="M 50 22 Q 22 26 22 60 L 18 130 L 50 130 Z" fill="#0a0410" opacity="0.4"/>
+  <path d="M 32 28 L 50 14 L 68 28 L 64 36 L 50 24 L 36 36 Z" fill="#1a0824" stroke="#080208" stroke-width="0.5"/>
+  <path d="M 50 14 L 50 22 M 42 22 L 58 22" stroke="#c460a0" stroke-width="0.3" opacity="0.7"/>
+  <ellipse cx="50" cy="62" rx="14" ry="20" fill="#080208"/>
+  <ellipse cx="50" cy="60" rx="12" ry="18" fill="#150828"/>
+  <path d="M 38 56 Q 50 50 62 56" stroke="#f0a0c0" stroke-width="0.6" fill="none"/>
+  <path d="M 38 62 Q 50 56 62 62" stroke="#e080a0" stroke-width="0.5" fill="none" opacity="0.75"/>
+  <path d="M 38 68 Q 50 62 62 68" stroke="#c460a0" stroke-width="0.4" fill="none" opacity="0.55"/>
+  <path d="M 38 74 Q 50 68 62 74" stroke="#a04088" stroke-width="0.3" fill="none" opacity="0.4"/>
+  <circle cx="44" cy="64" r="1.6" fill="#f0c0d8"/>
+  <circle cx="56" cy="64" r="1.6" fill="#f0c0d8"/>
+  <circle cx="44" cy="64" r="0.6" fill="#fff8e8"/>
+  <circle cx="56" cy="64" r="0.6" fill="#fff8e8"/>
+  <path d="M 14 44 L 18 40 L 16 48 Z" fill="#c460a0" opacity="0.85"/>
+  <circle cx="16" cy="44" r="3" fill="none" stroke="#c460a0" stroke-width="0.3" opacity="0.5"/>
+  <path d="M 86 44 L 82 40 L 84 48 Z" fill="#c460a0" opacity="0.85"/>
+  <circle cx="84" cy="44" r="3" fill="none" stroke="#c460a0" stroke-width="0.3" opacity="0.5"/>
+  <path d="M 10 78 L 14 74 L 12 82 Z" fill="#c460a0" opacity="0.6"/>
+  <path d="M 90 78 L 86 74 L 88 82 Z" fill="#c460a0" opacity="0.6"/>
+  <path d="M 6 100 L 10 96 L 8 104 Z" fill="#c460a0" opacity="0.4"/>
+  <path d="M 94 100 L 90 96 L 92 104 Z" fill="#c460a0" opacity="0.4"/>
+  <path d="M 26 104 Q 50 100 74 104 L 70 130 L 30 130 Z" fill="#1a0828" opacity="0.6"/>
+  <rect width="100" height="130" fill="url(#lc-shadow)" opacity="0.45"/>
+</svg>`,
+  sniper: `
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <radialGradient id="sn-bg" cx="60%" cy="40%" r="85%">
+      <stop offset="0" stop-color="#587038"/><stop offset="0.5" stop-color="#1c2410"/><stop offset="1" stop-color="#070a04"/>
+    </radialGradient>
+    <linearGradient id="sn-cloak" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0" stop-color="#3a4828"/><stop offset="0.5" stop-color="#1c2410"/><stop offset="1" stop-color="#080a04"/>
+    </linearGradient>
+    <linearGradient id="sn-shadow" x1="100%" x2="0%">
+      <stop offset="0" stop-color="#070a04" stop-opacity="0.65"/><stop offset="0.55" stop-color="#070a04" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="100" height="130" fill="url(#sn-bg)"/>
+  <ellipse cx="55" cy="118" rx="48" ry="12" fill="#080804" opacity="0.8"/>
+  <path d="M 50 24 Q 24 26 26 56 L 22 130 L 78 130 L 74 56 Q 76 24 50 24 Z" fill="url(#sn-cloak)" stroke="#080a04" stroke-width="0.8"/>
+  <path d="M 50 24 Q 24 26 26 56 L 22 130 L 50 130 Z" fill="#080a04" opacity="0.4"/>
+  <path d="M 28 30 Q 28 20 50 18 Q 72 20 72 30 L 74 56 Q 64 44 50 44 Q 36 44 26 56 Z" fill="#1a200a" stroke="#050802" stroke-width="0.5"/>
+  <path d="M 28 30 Q 32 22 42 22 Q 34 26 30 36 Z" fill="#080a04"/>
+  <ellipse cx="50" cy="60" rx="14" ry="16" fill="#050802"/>
+  <ellipse cx="50" cy="58" rx="13" ry="15" fill="#1a1808"/>
+  <rect x="40" y="52" width="20" height="5" fill="#0a0502"/>
+  <rect x="40" y="52" width="20" height="1" fill="#3a2810" opacity="0.7"/>
+  <circle cx="46" cy="55" r="1.2" fill="#c44040"/>
+  <circle cx="54" cy="55" r="1.2" fill="#c44040"/>
+  <circle cx="46" cy="55" r="0.4" fill="#f0a0a0"/>
+  <circle cx="54" cy="55" r="0.4" fill="#f0a0a0"/>
+  <path d="M 38 66 L 62 66" stroke="#1a1004" stroke-width="0.5"/>
+  <path d="M 40 70 L 60 70" stroke="#1a1004" stroke-width="0.4" opacity="0.7"/>
+  <path d="M 10 26 Q 6 65 12 104" fill="none" stroke="#5a4830" stroke-width="2.2"/>
+  <path d="M 10 26 Q 6 65 12 104" fill="none" stroke="#3a2818" stroke-width="0.6"/>
+  <line x1="10" y1="26" x2="14" y2="104" stroke="#1a0e08" stroke-width="0.4"/>
+  <path d="M 10 64 L 50 66" stroke="#e8dcc4" stroke-width="0.7" opacity="0.85"/>
+  <path d="M 10 26 L 46 60" stroke="#e8dcc4" stroke-width="0.4" opacity="0.6"/>
+  <path d="M 12 104 L 46 70" stroke="#e8dcc4" stroke-width="0.4" opacity="0.6"/>
+  <polygon points="46,62 54,66 46,70 50,66" fill="#1a0e08" stroke="#3a2818" stroke-width="0.3"/>
+  <polygon points="54,65 60,66 54,67" fill="#e8dcc4"/>
+  <path d="M 78 80 L 88 76 L 84 84 Z" fill="#3a2818" stroke="#1a0e08" stroke-width="0.4"/>
+  <line x1="78" y1="80" x2="74" y2="74" stroke="#3a2818" stroke-width="0.6"/>
+  <line x1="80" y1="76" x2="78" y2="68" stroke="#5a3820" stroke-width="0.5"/>
+  <line x1="82" y1="78" x2="84" y2="70" stroke="#5a3820" stroke-width="0.5"/>
+  <rect width="100" height="130" fill="url(#sn-shadow)" opacity="0.5"/>
+</svg>`,
+  grappler: `
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <radialGradient id="gr-bg" cx="40%" cy="40%" r="85%">
+      <stop offset="0" stop-color="#7a4828"/><stop offset="0.5" stop-color="#241408"/><stop offset="1" stop-color="#080402"/>
+    </radialGradient>
+    <linearGradient id="gr-skin" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0" stop-color="#a87858"/><stop offset="0.5" stop-color="#5a3a28"/><stop offset="1" stop-color="#1a0e08"/>
+    </linearGradient>
+    <linearGradient id="gr-iron" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0" stop-color="#5a4838"/><stop offset="0.5" stop-color="#2a1f10"/><stop offset="1" stop-color="#0a0604"/>
+    </linearGradient>
+    <linearGradient id="gr-shadow" x1="0%" x2="100%">
+      <stop offset="0" stop-color="#050200" stop-opacity="0"/><stop offset="0.55" stop-color="#050200" stop-opacity="0"/><stop offset="1" stop-color="#050200" stop-opacity="0.65"/>
+    </linearGradient>
+  </defs>
+  <rect width="100" height="130" fill="url(#gr-bg)"/>
+  <ellipse cx="50" cy="118" rx="50" ry="12" fill="#080402" opacity="0.85"/>
+  <path d="M 8 130 L 12 92 Q 24 76 50 74 Q 76 76 88 92 L 92 130 Z" fill="url(#gr-skin)" stroke="#0a0604" stroke-width="0.8"/>
+  <path d="M 8 130 L 12 92 Q 24 76 50 74 L 50 130 Z" fill="#1a0e08" opacity="0.3"/>
+  <path d="M 30 90 Q 50 84 70 90 L 68 130 L 32 130 Z" fill="url(#gr-iron)" stroke="#0a0604" stroke-width="0.6"/>
+  <path d="M 30 90 L 36 130 L 32 130 Z" fill="#0a0604" opacity="0.4"/>
+  <rect x="46" y="92" width="8" height="36" fill="#1a0e04"/>
+  <rect x="44" y="100" width="12" height="3" fill="#3a2410"/>
+  <rect x="44" y="116" width="12" height="3" fill="#3a2410"/>
+  <path d="M 8 92 Q 14 80 26 82 L 30 92 Q 18 96 12 104 Z" fill="url(#gr-iron)" stroke="#0a0604" stroke-width="0.6"/>
+  <path d="M 92 92 Q 86 80 74 82 L 70 92 Q 82 96 88 104 Z" fill="url(#gr-iron)" stroke="#0a0604" stroke-width="0.6"/>
+  <ellipse cx="50" cy="56" rx="22" ry="26" fill="url(#gr-skin)" stroke="#0a0604" stroke-width="0.6"/>
+  <path d="M 28 56 Q 28 36 50 32 Q 60 36 64 50 Q 50 44 36 50 Q 30 54 28 56" fill="#1a0e08" opacity="0.6"/>
+  <path d="M 32 40 Q 38 34 50 32 Q 62 34 68 40 L 66 44 Q 60 38 50 38 Q 40 38 34 44 Z" fill="#080402" stroke="#0a0604" stroke-width="0.4"/>
+  <rect x="32" y="42" width="36" height="4" fill="#0a0604"/>
+  <ellipse cx="40" cy="52" rx="4" ry="6" fill="#080402"/>
+  <ellipse cx="60" cy="52" rx="4" ry="6" fill="#080402"/>
+  <circle cx="40" cy="52" r="1.6" fill="#f0a040"/>
+  <circle cx="60" cy="52" r="1.6" fill="#f0a040"/>
+  <circle cx="40" cy="52" r="0.6" fill="#fff8c0"/>
+  <circle cx="60" cy="52" r="0.6" fill="#fff8c0"/>
+  <path d="M 36 72 Q 50 80 64 72 L 62 76 Q 50 84 38 76 Z" fill="#080402"/>
+  <path d="M 38 73 L 40 78 L 42 73 M 50 73 L 52 79 L 54 73 M 58 73 L 60 78 L 62 73" fill="#3a2410"/>
+  <line x1="32" y1="64" x2="36" y2="68" stroke="#1a0a04" stroke-width="0.5"/>
+  <line x1="68" y1="64" x2="64" y2="68" stroke="#1a0a04" stroke-width="0.5"/>
+  <line x1="34" y1="50" x2="38" y2="48" stroke="#080402" stroke-width="0.4"/>
+  <line x1="66" y1="50" x2="62" y2="48" stroke="#080402" stroke-width="0.4"/>
+  <circle cx="84" cy="36" r="2.4" fill="none" stroke="#8a7048" stroke-width="0.8"/>
+  <circle cx="86" cy="48" r="2.4" fill="none" stroke="#8a7048" stroke-width="0.8"/>
+  <circle cx="88" cy="60" r="2.4" fill="none" stroke="#8a7048" stroke-width="0.8"/>
+  <circle cx="90" cy="72" r="2.4" fill="none" stroke="#a8845a" stroke-width="0.8"/>
+  <circle cx="92" cy="84" r="2.4" fill="none" stroke="#a8845a" stroke-width="0.8"/>
+  <path d="M 92 84 Q 98 90 96 100 Q 90 106 84 100 Q 80 96 86 94" fill="none" stroke="#c8a464" stroke-width="1.8"/>
+  <path d="M 86 94 L 78 88" stroke="#c8a464" stroke-width="1.4"/>
+  <path d="M 78 88 L 82 84 L 74 86" fill="#c8a464"/>
+  <rect width="100" height="130" fill="url(#gr-shadow)" opacity="0.5"/>
 </svg>`,
 };
 
@@ -270,26 +558,126 @@ const ENEMIES = {
       { name: 'Drain',         tag: 'ATK 3 low', targetSlot: '?',    kind: 'atk', fn: (s) => dmgLowestParty(s, 3) },
     ],
   },
+  lineCaster: {
+    id: 'lineCaster', name: 'Line Caster', title: 'Sin of Voices', maxHp: 12,
+    intents: [
+      { name: 'Verse of Faces',   tag: 'ATK 3 F+M', targetSlot: 'fm',  kind: 'aoe', fn: (s) => dmgLinePair(s, 'fm', 3) },
+      { name: 'Discord',          tag: 'ATK 4 + vuln', targetSlot: 'mid', kind: 'atk', fn: (s) => { dmgPartyAt(s, 'mid', 4); applyVulnParty(s, 'mid', 1); } },
+      { name: 'Verse of Shadows', tag: 'ATK 3 M+B', targetSlot: 'mb',  kind: 'aoe', fn: (s) => dmgLinePair(s, 'mb', 3) },
+    ],
+  },
+  sniper: {
+    id: 'sniper', name: 'Sniper', title: 'Sin of Distance', maxHp: 11,
+    intents: [
+      { name: 'Aimed Shot',       tag: 'ATK 6',        targetSlot: 'back',   kind: 'atk',    fn: (s) => dmgPartyAt(s, 'back', 6) },
+      { name: 'Pierce',           tag: 'ATK 3 M+B',    targetSlot: 'pierce', kind: 'aoe',    fn: (s) => dmgPierce(s, 3) },
+      { name: 'Crack the Shield', tag: 'ATK 2 + strip', targetSlot: 'back',   kind: 'debuff', fn: (s) => {
+        const c = charBySlot(s, 'back');
+        if (c && !c.downed && c.armor > 0) { c.armor = 0; log(`<b>${CHARS[c.id].name}</b>'s armor shatters.`); }
+        dmgPartyAt(s, 'back', 2);
+      } },
+    ],
+  },
+  grappler: {
+    id: 'grappler', name: 'Grappler', title: 'Sin of Grasp', maxHp: 15,
+    intents: [
+      { name: 'Hook',  tag: 'ATK 3 + pull', targetSlot: 'mid',   kind: 'atk', fn: (s) => { dmgPartyAt(s, 'mid', 3); enemyShove(s, 'mid', 'front'); } },
+      { name: 'Crush', tag: 'ATK 7',        targetSlot: 'front', kind: 'atk', fn: (s) => dmgPartyAt(s, 'front', 7) },
+      { name: 'Bind',  tag: 'WEAK 1 + bind', targetSlot: 'front', kind: 'debuff', fn: (s) => {
+        const c = charBySlot(s, 'front');
+        if (c && !c.downed) {
+          if (c.taunt) { c.taunt = false; log(`<b>${CHARS[c.id].name}</b>'s taunt is broken.`); }
+          c.weak += 1;
+          log(`<b>${CHARS[c.id].name}</b> gains Weak.`);
+        }
+      } },
+    ],
+  },
 };
 
 // ============================================================================
+// ENCOUNTERS & RUN LAYOUT — 3-fight gauntlet with branching path choice
+// ============================================================================
+
+const ENCOUNTERS = {
+  e1: { id: 'e1', name: 'Bone & Bile',    slots: { front: 'ghoul',      mid: 'cultist',    back: 'wraith'  } },
+  e2: { id: 'e2', name: "Veil's Edge",    slots: { front: 'wraith',     mid: 'cultist',    back: 'ghoul'   } },
+  e3: { id: 'e3', name: 'Line of Echoes', slots: { front: 'cultist',    mid: 'lineCaster', back: 'wraith'  } },
+  e4: { id: 'e4', name: 'Bowless Hunt',   slots: { front: 'ghoul',      mid: 'cultist',    back: 'sniper'  } },
+  e5: { id: 'e5', name: 'Sundered Bond',  slots: { front: 'lineCaster', mid: 'grappler',   back: 'wraith'  } },
+  e6: { id: 'e6', name: 'Quartered Sin',  slots: { front: 'cultist',    mid: 'lineCaster', back: 'sniper'  } },
+};
+
+const RUN_LAYOUT = [
+  { slot: 0, label: 'First Reach',  options: ['e1', 'e2'] },
+  { slot: 1, label: 'Second Reach', options: ['e3', 'e4'] },
+  { slot: 2, label: 'Final Reach',  options: ['e5', 'e6'] },
+];
+
+const RESOLVE_CARRY_CAP = 3;
+
+// ============================================================================
 // ADJACENCY — pair synergies between adjacent positions (F-M and M-B)
+// Each pair stores two synergies: one for the front-mid line, one for mid-back.
+// Same pair produces a different bond depending on which adjacency line it occupies.
 // ============================================================================
 
 const ADJ = {
   'cassia+elin': {
-    name: "Sister's Watch", type: 'bond',
-    onPartyHit(s, id) { if (id === 'cassia') gainResolve(s, 1); },
+    fm: {
+      name: "Sister's Watch", type: 'bond',
+      onPartyDamaged(s, charId) { if (charId === 'cassia') gainResolve(s, 1); },
+    },
+    mb: {
+      name: 'Veiled Vow', type: 'bond',
+      onHeal(s, healerId) {
+        if (healerId !== 'elin') return;
+        const c = s.party.chars.cassia;
+        if (!c || c.downed) return;
+        c.armor += 1;
+        spawnPopupId('cassia', '+1⛨', 'armor', 'party');
+      },
+    },
   },
   'branwen+cassia': {
-    name: 'Old Rivalry', type: 'friction',
-    dmgMod: -2, // applied to Branwen's outgoing damage
+    fm: {
+      name: 'Old Rivalry', type: 'friction',
+      dmgMod: -2, dmgModFor: 'branwen', // -2 to Branwen's outgoing damage; see applyDmgToEnemy
+    },
+    mb: {
+      name: 'Banner Fire', type: 'bond',
+      onArmorGrant(s, granterId) {
+        if (granterId !== 'cassia') return;
+        const b = s.party.chars.branwen;
+        if (!b || b.downed) return;
+        if (b.pendingEffects.some(e => e.source === 'banner-fire')) return;
+        b.pendingEffects.push({ kind: 'attackBonus', amt: 2, source: 'banner-fire' });
+        spawnPopupId('branwen', '+2 atk', 'armor', 'party');
+      },
+    },
   },
   'branwen+elin': {
-    name: "Mercy's Gift", type: 'bond',
-    onElinHeal(s) {
-      const b = s.party.chars.branwen;
-      if (b && !b.downed) { b.hp = Math.min(b.maxHp, b.hp + 1); spawnPopupId('branwen', '+1', 'heal'); }
+    fm: {
+      name: 'Spirit Arrow', type: 'bond',
+      onAttack(s, attackerId) {
+        if (attackerId !== 'branwen') return;
+        const e = s.party.chars.elin;
+        if (!e || e.downed) return;
+        if (e.pendingEffects.some(eff => eff.source === 'spirit-arrow')) return;
+        e.pendingEffects.push({ kind: 'healBonus', amt: 2, source: 'spirit-arrow' });
+        spawnPopupId('elin', '+2 heal', 'heal', 'party');
+      },
+    },
+    mb: {
+      name: "Mercy's Gift", type: 'bond',
+      onHeal(s, healerId, targetId) {
+        if (healerId !== 'elin' || targetId === 'branwen') return;
+        const b = s.party.chars.branwen;
+        if (!b || b.downed) return;
+        const before = b.hp;
+        b.hp = Math.min(b.maxHp, b.hp + 1);
+        if (b.hp > before) spawnPopupId('branwen', '+1', 'heal', 'party');
+      },
     },
   },
 };
@@ -306,10 +694,17 @@ function newState() {
     resolve: 0,
     queue: [],         // array of { kind, charId?, dir?, label, desc, atb, resolveCost } — sum(atb) ≤ ATB_MAX
     executing: false,  // true while queue is resolving
-    over: false,
+    over: false,       // input lock — true during end-of-fight/run overlays
     outgoingDmgMod: 0,
     ignoreArmor: false,
     currentActorId: null, // who is acting right now (for passives + adjacency hooks)
+
+    // run-level progress (persists across fights within a run)
+    run: {
+      slotIdx: 0,            // 0,1,2 — which RUN_LAYOUT entry we're on
+      currentEncId: null,    // id of the active encounter, or null before first start
+      completed: [],         // encIds of cleared fights, in order
+    },
 
     party: {
       slots: { front: 'cassia', mid: 'elin', back: 'branwen' },
@@ -320,17 +715,53 @@ function newState() {
       },
     },
 
-    enemies: {
-      slots: { front: 'ghoul', mid: 'cultist', back: 'wraith' },
-      chars: {
-        ghoul:   newEnemyState('ghoul'),
-        cultist: newEnemyState('cultist'),
-        wraith:  newEnemyState('wraith'),
-      },
-    },
+    // populated by startEncounter — first slot config is loaded at init()
+    enemies: { slots: {}, chars: {} },
 
     messages: [],
   };
+}
+
+// Begin (or restart on a new slot) a fight. Resets per-fight state but preserves
+// run-level state: HP, downed status, pendingEffects, run.slotIdx, run.completed.
+// Resolve is preserved up to RESOLVE_CARRY_CAP between fights (not capped on the very first fight).
+function startEncounter(encId) {
+  const enc = ENCOUNTERS[encId];
+  if (!enc) return;
+  const isFirstFight = !state.run.currentEncId;
+
+  // reset per-fight party statuses; keep hp, downed, pendingEffects
+  Object.values(state.party.chars).forEach(c => {
+    c.armor = 0;
+    c.bleed = 0;
+    c.weak = 0;
+    c.vuln = 0;
+    c.taunt = false;
+    c.retaliate = 0;
+  });
+
+  // rebuild enemies fresh from the encounter definition
+  state.enemies.slots = { ...enc.slots };
+  state.enemies.chars = {};
+  SLOTS.forEach(sl => {
+    const id = enc.slots[sl];
+    if (id) state.enemies.chars[id] = newEnemyState(id);
+  });
+
+  state.queue = [];
+  state.turn = 1;
+  state.executing = false;
+  state.over = false;
+  state.outgoingDmgMod = 0;
+  state.ignoreArmor = false;
+  state.currentActorId = null;
+  state.run.currentEncId = encId;
+
+  if (!isFirstFight) {
+    state.resolve = Math.min(RESOLVE_CARRY_CAP, state.resolve);
+  }
+
+  startTurn(state);
 }
 
 function newCharState(id) {
@@ -339,6 +770,7 @@ function newCharState(id) {
     id, hp: def.maxHp, maxHp: def.maxHp,
     armor: 0, bleed: 0, weak: 0, taunt: false, retaliate: 0, vuln: 0,
     downed: false,
+    pendingEffects: [], // { kind: 'attackBonus'|'healBonus', amt, source } — consumed on use
   };
 }
 function newEnemyState(id) {
@@ -398,11 +830,16 @@ function applyDmgToEnemy(s, e, baseAmt) {
   if (!e || e.dead) return;
   let amt = baseAmt;
 
-  // current actor mods (weak self, branwen friction, branwen bleed-hunter)
-  if (s.currentActorId === 'branwen') {
-    if (isAdjacent(s, 'branwen', 'cassia')) amt -= 2; // Old Rivalry friction
-    if (e.bleed > 0) amt += 2;                         // Bleed Hunter passive
-  }
+  // adjacency dmgMod (e.g. Old Rivalry friction on Branwen in FM line)
+  getAdjacencyPairs(s).forEach(p => {
+    if (typeof p.synergy.dmgMod === 'number' && p.synergy.dmgModFor === s.currentActorId) {
+      amt += p.synergy.dmgMod;
+    }
+  });
+  // Branwen Bleed Hunter passive
+  if (s.currentActorId === 'branwen' && e.bleed > 0) amt += 2;
+  // pending one-shot attack bonuses (Banner Fire)
+  amt += consumePendingBonus(s, s.currentActorId, 'attackBonus');
   amt += s.outgoingDmgMod;
 
   // vulnerable adds +2 per stack consumed (1 stack per hit)
@@ -440,6 +877,7 @@ function applyDmgToEnemy(s, e, baseAmt) {
   spawnPopupId(e.id, `-${toHp}`, popupType, 'enemy');
   flashCardId(e.id, 'hit', 'enemy');
   log(`<b>${ENEMIES[e.id].name}</b> takes ${toHp} damage${e.staggered ? ' (stagger!)' : ''}.`);
+  if (s.currentActorId && toHp > 0) fireAdjacencyHook(s, 'onAttack', s.currentActorId, e, toHp);
   if (e.hp === 0) killEnemy(s, e);
 }
 
@@ -473,8 +911,7 @@ function applyDmgToParty(s, c, amt) {
   flashCardId(c.id, 'hit', 'party');
   log(`<b>${CHARS[c.id].name}</b> takes ${toHp} damage.`);
 
-  // Adjacency: Sister's Watch — Elin gains Resolve when Cassia is hit
-  getAdjacencyPairs(s).forEach(p => { if (p.synergy.onPartyHit) p.synergy.onPartyHit(s, c.id); });
+  fireAdjacencyHook(s, 'onPartyDamaged', c.id, toHp);
 
   // Retaliate
   if (c.retaliate > 0 && toHp > 0) {
@@ -485,6 +922,7 @@ function applyDmgToParty(s, c, amt) {
 
   if (c.hp === 0) {
     c.downed = true;
+    c.pendingEffects = [];
     log(`<b>${CHARS[c.id].name}</b> falls.`);
   }
 }
@@ -496,7 +934,7 @@ function applySelfDmg(s, charId, amt) {
   spawnPopupId(charId, `-${amt}`, 'dmg', 'party');
   flashCardId(charId, 'hit', 'party');
   log(`<b>${CHARS[charId].name}</b> takes ${amt} self damage.`);
-  if (c.hp === 0) { c.downed = true; log(`<b>${CHARS[charId].name}</b> falls.`); }
+  if (c.hp === 0) { c.downed = true; c.pendingEffects = []; log(`<b>${CHARS[charId].name}</b> falls.`); }
 }
 
 // ============================================================================
@@ -527,32 +965,52 @@ function applyVulnEnemy(s, idx, stacks) {
   if (e) e.vuln += stacks;
 }
 
-function addArmor(s, id, amt) { const c = s.party.chars[id]; if (c && !c.downed) c.armor += amt; }
-function partyArmor(s, amt) { aliveParty(s).forEach(c => { c.armor += amt; spawnPopupId(c.id, `+${amt}⛨`, 'armor', 'party'); }); }
+function addArmor(s, id, amt) {
+  const c = s.party.chars[id];
+  if (!c || c.downed) return;
+  c.armor += amt;
+  fireAdjacencyHook(s, 'onArmorGrant', s.currentActorId, id, amt);
+}
+function partyArmor(s, amt) {
+  aliveParty(s).forEach(c => {
+    c.armor += amt;
+    spawnPopupId(c.id, `+${amt}⛨`, 'armor', 'party');
+    fireAdjacencyHook(s, 'onArmorGrant', s.currentActorId, c.id, amt);
+  });
+}
 function partyHeal(s, amt) {
+  const bonus = consumePendingBonus(s, s.currentActorId, 'healBonus');
+  const total = amt + bonus;
   aliveParty(s).forEach(c => {
     const before = c.hp;
-    c.hp = Math.min(c.maxHp, c.hp + amt);
+    c.hp = Math.min(c.maxHp, c.hp + total);
     const got = c.hp - before;
-    if (got > 0) spawnPopupId(c.id, `+${got}`, 'heal', 'party');
+    if (got > 0) {
+      spawnPopupId(c.id, `+${got}`, 'heal', 'party');
+      fireAdjacencyHook(s, 'onHeal', s.currentActorId, c.id, got);
+    }
   });
-  triggerElinHeal(s);
 }
 function healLowest(s, amt) {
   const alive = aliveParty(s); if (alive.length === 0) return null;
   alive.sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp));
   const c = alive[0];
+  const bonus = consumePendingBonus(s, s.currentActorId, 'healBonus');
+  const total = amt + bonus;
   const before = c.hp;
-  c.hp = Math.min(c.maxHp, c.hp + amt);
+  c.hp = Math.min(c.maxHp, c.hp + total);
   const got = c.hp - before;
-  if (got > 0) { spawnPopupId(c.id, `+${got}`, 'heal', 'party'); flashCardId(c.id, 'heal', 'party'); }
+  if (got > 0) {
+    spawnPopupId(c.id, `+${got}`, 'heal', 'party');
+    flashCardId(c.id, 'heal', 'party');
+    fireAdjacencyHook(s, 'onHeal', s.currentActorId, c.id, got);
+  }
   // Elin passive: heal self 1 when healing an ally
   if (s.currentActorId === 'elin' && c.id !== 'elin') {
     const e = s.party.chars.elin;
     const eb = e.hp; e.hp = Math.min(e.maxHp, e.hp + 1);
     if (e.hp - eb > 0) spawnPopupId('elin', '+1', 'heal', 'party');
   }
-  triggerElinHeal(s);
   return c;
 }
 function cleanseLowest(s) {
@@ -565,11 +1023,6 @@ function gainResolve(s, amt) {
   const before = s.resolve;
   s.resolve = Math.min(RESOLVE_MAX, s.resolve + amt);
   if (s.resolve > before) flashResolve();
-}
-
-function triggerElinHeal(s) {
-  if (s.currentActorId !== 'elin') return;
-  getAdjacencyPairs(s).forEach(p => { if (p.synergy.onElinHeal) p.synergy.onElinHeal(s); });
 }
 
 // Enemy → party effects (slot-targeted)
@@ -587,6 +1040,21 @@ function dmgLowestParty(s, amt) {
   applyDmgToParty(s, alive[0], amt);
 }
 function dmgAllParty(s, amt) { aliveParty(s).forEach(c => applyDmgToParty(s, c, amt)); }
+// Line Caster: hit both slots in a Front-Mid or Mid-Back line. AoE-style — bypasses taunt redirect.
+function dmgLinePair(s, line, amt) {
+  const slots = line === 'fm' ? ['front', 'mid'] : ['mid', 'back'];
+  slots.forEach(slot => {
+    const c = charBySlot(s, slot);
+    if (c && !c.downed) applyDmgToParty(s, c, amt);
+  });
+}
+// Sniper Pierce: ignores front, hits mid and back. AoE-style.
+function dmgPierce(s, amt) {
+  ['mid', 'back'].forEach(slot => {
+    const c = charBySlot(s, slot);
+    if (c && !c.downed) applyDmgToParty(s, c, amt);
+  });
+}
 function weakSlot(s, slot, amt) {
   const c = charBySlot(s, slot);
   if (c && !c.downed) { c.weak += amt; log(`<b>${CHARS[c.id].name}</b> gains Weak.`); }
@@ -641,23 +1109,36 @@ function enemyShove(s, fromSlot, toSlot) {
 // ADJACENCY
 // ============================================================================
 
-function isAdjacent(s, idA, idB) {
-  const a = slotOfChar(s, idA), b = slotOfChar(s, idB);
-  if (!a || !b) return false;
-  const pairs = [['front','mid'], ['mid','back']];
-  return pairs.some(p => (p[0]===a && p[1]===b) || (p[0]===b && p[1]===a));
-}
 function adjKey(a, b) { return [a, b].sort().join('+'); }
 function getAdjacencyPairs(s) {
   const pairs = [];
-  [['front','mid'], ['mid','back']].forEach(([sa, sb]) => {
+  [['front','mid','fm'], ['mid','back','mb']].forEach(([sa, sb, line]) => {
     const a = s.party.slots[sa], b = s.party.slots[sb];
     if (!a || !b) return;
     if (s.party.chars[a].downed || s.party.chars[b].downed) return;
-    const k = adjKey(a, b);
-    if (ADJ[k]) pairs.push({ ids: [a, b], synergy: ADJ[k], key: k });
+    const entry = ADJ[adjKey(a, b)];
+    const synergy = entry && entry[line];
+    if (!synergy) return;
+    pairs.push({ ids: [a, b], line, synergy, key: `${adjKey(a, b)}@${line}` });
   });
   return pairs;
+}
+function fireAdjacencyHook(s, hookName, ...args) {
+  getAdjacencyPairs(s).forEach(p => {
+    const fn = p.synergy[hookName];
+    if (typeof fn === 'function') fn(s, ...args);
+  });
+}
+function consumePendingBonus(s, charId, kind) {
+  if (!charId) return 0;
+  const c = s.party.chars[charId];
+  if (!c) return 0;
+  let total = 0;
+  c.pendingEffects = c.pendingEffects.filter(e => {
+    if (e.kind === kind) { total += e.amt; return false; }
+    return true;
+  });
+  return total;
 }
 
 // ============================================================================
@@ -680,7 +1161,7 @@ function startTurn(s) {
       spawnPopupId(c.id, `-${dmg}`, 'dmg', 'party');
       flashCardId(c.id, 'hit', 'party');
       log(`<b>${CHARS[c.id].name}</b> bleeds (${dmg}).`);
-      if (c.hp === 0) { c.downed = true; log(`<b>${CHARS[c.id].name}</b> falls.`); }
+      if (c.hp === 0) { c.downed = true; c.pendingEffects = []; log(`<b>${CHARS[c.id].name}</b> falls.`); }
     }
   });
   aliveEnemies(s).forEach(e => {
@@ -1028,7 +1509,16 @@ function checkEnd(s) {
   if (s.over) return true;
   if (aliveEnemies(s).length === 0) {
     s.over = true;
-    showOverlay('Victory', 'The sins are unbound — for a moment. Rest before the next reach.');
+    s.run.completed.push(s.run.currentEncId);
+    const isFinal = s.run.slotIdx >= RUN_LAYOUT.length - 1;
+    if (isFinal) {
+      showOverlay('Victory', 'All three sins are unbound. Your reach holds the dawn.');
+    } else {
+      s.run.slotIdx += 1;
+      const nextSlot = RUN_LAYOUT[s.run.slotIdx];
+      // brief delay so the kill animations land before the choice appears
+      setTimeout(() => showPathChoice(nextSlot), 480);
+    }
     return true;
   }
   if (aliveParty(s).length === 0) {
@@ -1063,6 +1553,15 @@ function renderHUD() {
     p.className = 'pip' + (i < state.resolve ? ' filled' : '');
     pips.appendChild(p);
   }
+  const pill = $('#encounter-pill');
+  if (pill && state.run) {
+    pill.textContent = `${state.run.slotIdx + 1}/${RUN_LAYOUT.length}`;
+  }
+  const encName = $('#encounter-name');
+  if (encName && state.run && state.run.currentEncId) {
+    const enc = ENCOUNTERS[state.run.currentEncId];
+    encName.textContent = enc ? enc.name : '';
+  }
 }
 
 function flashResolve() {
@@ -1077,15 +1576,22 @@ function renderColumns() {
   const threatened = new Set();
   aliveEnemies(state).forEach(e => {
     const intent = ENEMIES[e.id].intents[e.intentIdx % ENEMIES[e.id].intents.length];
-    if (intent.targetSlot === 'all') SLOTS.forEach(s => threatened.add(s));
-    else if (intent.targetSlot && intent.targetSlot !== '?') threatened.add(intent.targetSlot);
+    const ts = intent.targetSlot;
+    if (ts === 'all') SLOTS.forEach(s => threatened.add(s));
+    else if (ts === 'fm') { threatened.add('front'); threatened.add('mid'); }
+    else if (ts === 'mb' || ts === 'pierce') { threatened.add('mid'); threatened.add('back'); }
+    else if (ts && ts !== '?') threatened.add(ts);
   });
 
-  // adjacency map for visual borders
+  // adjacency map for visual borders + chip labels.
+  // Each char id maps to { fm?, mb?, type } — fm/mb hold the synergy that runs
+  // along that line; `type` is the dominant flavor (friction wins for the border).
   const adjMap = {};
   getAdjacencyPairs(state).forEach(p => {
     p.ids.forEach(id => {
-      if (!adjMap[id] || p.synergy.type === 'friction') adjMap[id] = p.synergy.type;
+      if (!adjMap[id]) adjMap[id] = {};
+      adjMap[id][p.line] = { name: p.synergy.name, type: p.synergy.type };
+      if (!adjMap[id].type || p.synergy.type === 'friction') adjMap[id].type = p.synergy.type;
     });
   });
 
@@ -1102,6 +1608,10 @@ function renderColumns() {
   });
 }
 
+function cornerBrackets() {
+  return '<i class="cnr cnr-tl"></i><i class="cnr cnr-tr"></i><i class="cnr cnr-bl"></i><i class="cnr cnr-br"></i>';
+}
+
 function makePartyCard(c, slot, threatened, adjMap) {
   const card = document.createElement('div');
   card.className = 'card party-card';
@@ -1113,14 +1623,29 @@ function makePartyCard(c, slot, threatened, adjMap) {
   }
   card.dataset.id = c.id;
   if (c.downed) card.classList.add('downed');
-  if (adjMap[c.id] === 'bond') card.classList.add('adjacent-bond');
-  if (adjMap[c.id] === 'friction') card.classList.add('adjacent-friction');
+  const adj = adjMap[c.id];
+  if (adj?.type === 'bond') card.classList.add('adjacent-bond');
+  if (adj?.type === 'friction') card.classList.add('adjacent-friction');
   if (threatened && !c.downed) card.classList.add('targeted-by-enemy');
+
+  // chips face the neighbor: front's top edge faces mid, back's bottom edge
+  // faces mid, mid carries both. fm = front<->mid line, mb = mid<->back line.
+  let topChip = '', bottomChip = '';
+  if (!c.downed && adj) {
+    if (slot === 'front' && adj.fm) topChip = chipHtml(adj.fm, 'top');
+    else if (slot === 'back' && adj.mb) bottomChip = chipHtml(adj.mb, 'bottom');
+    else if (slot === 'mid') {
+      if (adj.mb) topChip = chipHtml(adj.mb, 'top');
+      if (adj.fm) bottomChip = chipHtml(adj.fm, 'bottom');
+    }
+  }
 
   const def = CHARS[c.id];
   const isHome = def.home === slot;
   const hpPct = (c.hp / c.maxHp) * 100;
   card.innerHTML = `
+    ${cornerBrackets()}
+    ${topChip}
     <div class="slot-banner ${isHome ? 'home' : ''}">${slot}${isHome ? ' · home' : ''}</div>
     <div class="card-portrait">
       ${PORTRAITS[c.id] || ''}
@@ -1133,8 +1658,19 @@ function makePartyCard(c, slot, threatened, adjMap) {
         <div class="hp-text">${c.hp}/${c.maxHp}</div>
       </div>
     </div>
+    ${bottomChip}
   `;
   return card;
+}
+
+function chipHtml(syn, edge) {
+  return `<div class="adj-chip ${edge} ${syn.type}">${syn.name}</div>`;
+}
+
+function intentIconGlyph(kind) {
+  if (kind === 'aoe')    return '✷';
+  if (kind === 'debuff') return '☽';
+  return '⚔';
 }
 
 function makeEnemyCard(e, slot) {
@@ -1154,16 +1690,27 @@ function makeEnemyCard(e, slot) {
   const hpPct = (e.hp / e.maxHp) * 100;
   const chainPct = (e.chain / STAGGER_THRESHOLD) * 100;
   const intentClass = intent.kind === 'aoe' ? 'intent-aoe' : (intent.kind === 'debuff' ? 'intent-debuff' : '');
-  const targetTag = intent.targetSlot === 'all' ? 'ALL'
-    : intent.targetSlot === '?' ? 'LOW'
-    : (intent.targetSlot || '').slice(0,1).toUpperCase();
+  const ts = intent.targetSlot;
+  const targetTag = ts === 'all' ? 'ALL'
+    : ts === '?' ? 'LOW'
+    : ts === 'fm' ? 'F+M'
+    : ts === 'mb' ? 'M+B'
+    : ts === 'pierce' ? 'M+B>'
+    : (ts || '').slice(0,1).toUpperCase();
+  const icon = intentIconGlyph(intent.kind);
 
   const staggerBanner = e.staggered ? `<div class="staggered-banner">STAGGERED</div>` : '';
+  const intentRibbon = e.staggered ? '' : `
+    <div class="intent ${intentClass}">
+      <span class="intent-icon">${icon}</span>
+      <span class="intent-tag">${intent.tag}</span>
+      <span class="intent-target">${targetTag}</span>
+    </div>`;
 
   card.innerHTML = `
-    ${e.staggered ? '' : `<div class="intent ${intentClass}"><span>${intent.tag}</span><span class="intent-target">${targetTag}</span></div>`}
+    ${cornerBrackets()}
+    ${intentRibbon}
     ${staggerBanner}
-    <div class="slot-banner">${slot}</div>
     <div class="card-portrait">
       ${PORTRAITS[e.id] || ''}
       <div class="card-statuses">${renderStatuses(e)}</div>
@@ -1188,6 +1735,10 @@ function renderStatuses(ent) {
   if (ent.weak > 0)      c.push(`<span class="status-chip status-weak">weak ${ent.weak}</span>`);
   if (ent.vuln > 0)      c.push(`<span class="status-chip status-vuln">vuln ${ent.vuln}</span>`);
   if (ent.retaliate > 0) c.push(`<span class="status-chip status-retal">retaliate ${ent.retaliate}</span>`);
+  if (ent.pendingEffects) ent.pendingEffects.forEach(e => {
+    const label = e.kind === 'attackBonus' ? `+${e.amt} atk` : e.kind === 'healBonus' ? `+${e.amt} heal` : `+${e.amt}`;
+    c.push(`<span class="status-chip status-pending">${label}</span>`);
+  });
   return c.join('');
 }
 
@@ -1279,7 +1830,8 @@ function makeTile(kind, charId, dir, tileCounts, teamLocked) {
   if (dir !== null && dir !== undefined) t.dataset.dir = dir;
 
   const key = `${kind}:${charId}:${dir ?? ''}`;
-  if (tileCounts[key]) { t.classList.add('queued'); t.dataset.qCount = `×${tileCounts[key]}`; }
+  const qCount = tileCounts[key];
+  if (qCount) t.classList.add('queued');
 
   // reach badge (static info — different from the live hold-preview)
   const reachLabel = previewReachLabel(kind, charId, dir);
@@ -1293,6 +1845,7 @@ function makeTile(kind, charId, dir, tileCounts, teamLocked) {
     <span class="tile-name">${preview.label || '—'}</span>
     <span class="tile-desc">${preview.desc || ''}</span>
     ${reachLabel ? `<span class="tile-reach">${reachLabel}</span>` : ''}
+    ${qCount ? `<span class="q-count">×${qCount}</span>` : ''}
   `;
 
   bindTileHold(t, {
@@ -1530,8 +2083,42 @@ function bindUI() {
 function showOverlay(title, body) {
   $('#overlay-title').textContent = title;
   $('#overlay-body').textContent = body;
+  const choices = $('#overlay-choices');
+  if (choices) { choices.innerHTML = ''; choices.classList.add('hidden'); }
+  const btn = $('#overlay-btn');
+  if (btn) btn.classList.remove('hidden');
   $('#overlay').classList.remove('hidden');
 }
+
+function showPathChoice(slotConfig) {
+  $('#overlay-title').textContent = slotConfig.label;
+  $('#overlay-body').textContent = 'Choose your next reach.';
+  const choices = $('#overlay-choices');
+  choices.innerHTML = '';
+  slotConfig.options.forEach(encId => {
+    const enc = ENCOUNTERS[encId];
+    const card = document.createElement('button');
+    card.className = 'encounter-choice';
+    const enemyIcons = SLOTS.map(sl => {
+      const eid = enc.slots[sl];
+      const def = ENEMIES[eid];
+      return `<div class="enc-icon" title="${def?.name || ''}">${PORTRAITS[eid] || ''}<div class="enc-icon-slot">${SLOT_LABELS[sl]}</div></div>`;
+    }).join('');
+    card.innerHTML = `
+      <div class="enc-name">${enc.name}</div>
+      <div class="enc-row">${enemyIcons}</div>
+    `;
+    card.addEventListener('click', () => {
+      hideOverlay();
+      startEncounter(encId);
+    });
+    choices.appendChild(card);
+  });
+  choices.classList.remove('hidden');
+  $('#overlay-btn').classList.add('hidden');
+  $('#overlay').classList.remove('hidden');
+}
+
 function hideOverlay() { $('#overlay').classList.add('hidden'); }
 
 // ============================================================================
@@ -1540,7 +2127,8 @@ function hideOverlay() { $('#overlay').classList.add('hidden'); }
 
 function init() {
   state = newState();
-  startTurn(state);
+  // start at the first option of the first slot; player branches between fights
+  startEncounter(RUN_LAYOUT[0].options[0]);
 }
 
 document.addEventListener('DOMContentLoaded', () => { bindUI(); init(); });
