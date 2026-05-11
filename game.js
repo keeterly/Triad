@@ -1,11 +1,11 @@
-// Triad — prototype v0.2 (queue rebuild)
-// Each turn the player builds a 3-slot action queue, then commits with Fight.
-// Per character: Attack (free), Special (1 Resolve), Move (step ←/→ to adjacent).
-// Team Special fills the queue and costs 3 Resolve — effect varies by formation.
-// Actions resolve top-to-bottom against live state, so moves mid-queue change
-// what later actions do (a character's contextual tech reflects their slot at
-// the moment the action fires). Enemies still telegraph slots — positioning
-// is the puzzle, the queue is the brush.
+// Triad — prototype v0.2 (queue rebuild + variable ATB)
+// Each turn the player spends a 3-point ATB budget on a queue of actions,
+// then commits with Fight. Costs: Attack 1 ATB, Special 2 ATB + 1 Resolve,
+// Move 1 ATB. Team Special consumes full ATB + 3 Resolve and varies by
+// formation. Actions resolve top-to-bottom against live state, so moves
+// mid-queue change what later actions do (a character's contextual tech
+// reflects their slot at the moment the action fires). Enemies still
+// telegraph slots — positioning is the puzzle, the queue is the brush.
 
 // ============================================================================
 // SVG PORTRAITS
@@ -114,10 +114,17 @@ const PARTY_DISPLAY_ORDER = ['back', 'mid', 'front'];
 const ENEMY_DISPLAY_ORDER = ['front', 'mid', 'back'];
 
 // queue / costs
-const QUEUE_SLOTS = 3;
-const SPECIAL_COST = 1;       // individual character special
-const TEAM_SPECIAL_COST = 3;  // formation-based ultimate (fills queue)
-const BRACE_ARMOR = 2;        // free per-character armor tile
+const ATB_MAX = 3;            // total action-cost budget per turn
+const ACTION_ATB = {
+  attack:  1,                 // basic
+  special: 2,                 // signature — slower to wind up
+  move:    1,                 // step ←/→
+  brace:   1,                 // armor up
+};
+const TEAM_SPECIAL_ATB = ATB_MAX;
+const SPECIAL_COST = 1;       // Resolve cost of an individual special
+const TEAM_SPECIAL_COST = 3;  // Resolve cost of a team special
+const BRACE_ARMOR = 2;
 
 const RESOLVE_MAX = 5;
 const RESOLVE_DRIP = 1;
@@ -265,7 +272,7 @@ function newState() {
   return {
     turn: 1,
     resolve: 0,
-    queue: [],         // array of { kind, charId?, dir?, label, desc } — max QUEUE_SLOTS
+    queue: [],         // array of { kind, charId?, dir?, label, desc, atb, resolveCost } — sum(atb) ≤ ATB_MAX
     executing: false,  // true while queue is resolving
     over: false,
     outgoingDmgMod: 0,
@@ -667,7 +674,7 @@ function simulateSlotsThrough(s, upto) {
 function slotOfCharSim(sim, id) { return SLOTS.find(sl => sim[sl] === id); }
 
 // What action would clicking this tile QUEUE right now?
-// Returns { label, desc, cost, valid, kind } based on simulated post-queue state.
+// Returns { label, desc, atb, resolveCost, valid, kind } based on simulated post-queue state.
 function previewTile(kind, charId, dir) {
   const s = state;
   const c = s.party.chars[charId];
@@ -676,43 +683,53 @@ function previewTile(kind, charId, dir) {
   const slot = slotOfCharSim(sim, charId);
   if (!slot) return { valid: false };
 
+  const atb = ACTION_ATB[kind] || 0;
+
   if (kind === 'attack') {
     const tech = CHARS[charId].techs[slot].basic;
-    return { kind, valid: true, label: tech.name, desc: tech.desc, cost: 0, slot };
+    return { kind, valid: true, label: tech.name, desc: tech.desc, atb, resolveCost: 0, slot };
   }
   if (kind === 'special') {
     const tech = CHARS[charId].techs[slot].sig;
-    return { kind, valid: true, label: tech.name, desc: tech.desc, cost: SPECIAL_COST, slot };
+    return { kind, valid: true, label: tech.name, desc: tech.desc, atb, resolveCost: SPECIAL_COST, slot };
   }
   if (kind === 'move') {
     const idx = SLOTS.indexOf(slot);
     const ti = idx + dir;
-    if (ti < 0 || ti > 2) return { kind, valid: false, label: 'Move', desc: 'no room', slot };
+    if (ti < 0 || ti > 2) return { kind, valid: false, label: 'Move', desc: 'no room', atb, slot };
     const target = SLOTS[ti];
     const otherId = sim[target];
     const otherName = otherId ? CHARS[otherId].name : '—';
-    return { kind, valid: true, label: `→ ${SLOT_LABELS[target]}`, desc: `swap w/ ${otherName}`, cost: 0, slot, target };
+    return { kind, valid: true, label: `→ ${SLOT_LABELS[target]}`, desc: `swap w/ ${otherName}`, atb, resolveCost: 0, slot, target };
   }
   if (kind === 'brace') {
-    return { kind, valid: true, label: 'Brace', desc: `+${BRACE_ARMOR} armor`, cost: 0, slot };
+    return { kind, valid: true, label: 'Brace', desc: `+${BRACE_ARMOR} armor`, atb, resolveCost: 0, slot };
   }
   return { valid: false };
 }
 
-function queueRemainingResolve() {
-  return state.queue.reduce((sum, it) => sum + (it.cost || 0), 0);
+function queueAtbUsed() {
+  return state.queue.reduce((sum, it) => sum + (it.atb || 0), 0);
+}
+function queueAtbAvailable() {
+  return ATB_MAX - queueAtbUsed();
+}
+function queueReservedResolve() {
+  return state.queue.reduce((sum, it) => sum + (it.resolveCost || 0), 0);
 }
 function queueAvailableResolve() {
-  return state.resolve - queueRemainingResolve();
+  return state.resolve - queueReservedResolve();
 }
 
 function queueAdd(item) {
   const s = state;
   if (s.executing || s.over) return;
-  if (s.queue.length >= QUEUE_SLOTS) { flashMsg('Queue full — press Fight or Clear.'); return; }
-  // resolve cost check (against unreserved resolve)
-  if ((item.cost || 0) > queueAvailableResolve()) {
-    flashMsg(`Not enough Resolve (need ${item.cost}).`);
+  if ((item.atb || 0) > queueAtbAvailable()) {
+    flashMsg(`Not enough ATB (need ${item.atb}).`);
+    return;
+  }
+  if ((item.resolveCost || 0) > queueAvailableResolve()) {
+    flashMsg(`Not enough Resolve (need ${item.resolveCost}).`);
     return;
   }
   s.queue.push(item);
@@ -723,8 +740,6 @@ function queueRemoveAt(idx) {
   const s = state;
   if (s.executing || s.over) return;
   if (idx < 0 || idx >= s.queue.length) return;
-  // if removing a team-special, clear the whole queue (it occupied multiple slots)
-  if (s.queue[idx].kind === 'team') { clearQueue(); return; }
   s.queue.splice(idx, 1);
   render();
 }
@@ -740,13 +755,16 @@ function queueTeamSpecial() {
   const s = state;
   if (s.executing || s.over) return;
   if (s.resolve < TEAM_SPECIAL_COST) { flashMsg('Not enough Resolve.'); return; }
+  if (s.queue.length > 0) { flashMsg('Team Special needs an empty queue.'); return; }
   const ts = getTeamSpecial(s);
-  // team special consumes the whole queue
-  s.queue = [
-    { kind: 'team', label: ts.name, desc: ts.short, cost: TEAM_SPECIAL_COST, tsId: ts.id },
-    { kind: 'team', label: '   ⋯', desc: '', cost: 0, tsId: ts.id, slave: true },
-    { kind: 'team', label: '   ⋯', desc: '', cost: 0, tsId: ts.id, slave: true },
-  ];
+  s.queue = [{
+    kind: 'team',
+    label: ts.name,
+    desc: ts.short,
+    atb: TEAM_SPECIAL_ATB,
+    resolveCost: TEAM_SPECIAL_COST,
+    tsId: ts.id,
+  }];
   render();
 }
 
@@ -759,8 +777,7 @@ function onFight() {
   if (s.over || s.executing) return;
   if (s.queue.length === 0) { flashMsg('Queue at least one action.'); return; }
   s.executing = true;
-  // pay resolve up front
-  s.resolve -= queueRemainingResolve();
+  s.resolve -= queueReservedResolve();
   render();
   resolveQueueStep(0);
 }
@@ -784,7 +801,6 @@ function resolveQueueStep(i) {
 }
 
 function executeQueueItem(s, item) {
-  if (item.slave) return; // team-special filler slot
   if (item.kind === 'team') { execTeamSpecial(s, item.tsId); return; }
 
   const c = item.charId ? s.party.chars[item.charId] : null;
@@ -1103,26 +1119,35 @@ function renderStatuses(ent) {
   return c.join('');
 }
 
-// queue strip: show each queue slot's filled action or empty placeholder
+// queue strip — variable-width bar. Each queued item takes flex-grow proportional
+// to its ATB cost. Remaining ATB is shown as a dimmed placeholder taking the leftover.
 function renderQueue() {
-  const slots = document.querySelectorAll('#queue-strip .queue-slot');
-  slots.forEach((el, idx) => {
-    const item = state.queue[idx];
-    el.classList.remove('filled', 'kind-attack', 'kind-special', 'kind-move', 'kind-brace', 'kind-team');
-    const nameEl = el.querySelector('.qs-name');
-    const descEl = el.querySelector('.qs-desc');
-    if (!item) {
-      nameEl.textContent = '—';
-      descEl.textContent = '';
-      el.title = 'empty';
-      return;
-    }
-    el.classList.add('filled', `kind-${item.kind}`);
+  const strip = $('#queue-strip');
+  strip.innerHTML = '';
+  let used = 0;
+  state.queue.forEach((item, idx) => {
+    const el = document.createElement('div');
+    el.className = `queue-slot filled kind-${item.kind}`;
+    el.style.flex = `${item.atb} ${item.atb} 0`;
     const who = item.charId ? CHARS[item.charId].name : '';
-    nameEl.textContent = who ? `${who} · ${item.label}` : item.label;
-    descEl.textContent = item.desc || '';
+    el.innerHTML = `
+      <span class="qs-cost">${item.atb}</span>
+      <span class="qs-name">${who ? `${who} · ${item.label}` : item.label}</span>
+      <span class="qs-desc">${item.desc || ''}</span>
+    `;
     el.title = 'tap to remove';
+    el.addEventListener('click', () => queueRemoveAt(idx));
+    strip.appendChild(el);
+    used += item.atb || 0;
   });
+  const remaining = ATB_MAX - used;
+  if (remaining > 0) {
+    const ph = document.createElement('div');
+    ph.className = 'queue-slot placeholder';
+    ph.style.flex = `${remaining} ${remaining} 0`;
+    ph.innerHTML = `<span class="qs-name">${remaining} ATB</span>`;
+    strip.appendChild(ph);
+  }
 }
 
 // the 3 character columns + team special column
@@ -1172,8 +1197,11 @@ function makeTile(kind, charId, dir, tileCounts, teamLocked) {
   const c = state.party.chars[charId];
   const t = document.createElement('button');
   t.className = `tile kind-${kind}`;
-  t.disabled = !preview.valid || c.downed || state.executing || state.over || teamLocked || state.queue.length >= QUEUE_SLOTS
-    || (preview.cost || 0) > queueAvailableResolve();
+  const atbCost = preview.atb || 0;
+  const resolveCost = preview.resolveCost || 0;
+  t.disabled = !preview.valid || c.downed || state.executing || state.over || teamLocked
+    || atbCost > queueAtbAvailable()
+    || resolveCost > queueAvailableResolve();
   t.dataset.kind = kind;
   t.dataset.charId = charId;
   if (dir !== null && dir !== undefined) t.dataset.dir = dir;
@@ -1181,9 +1209,12 @@ function makeTile(kind, charId, dir, tileCounts, teamLocked) {
   const key = `${kind}:${charId}:${dir ?? ''}`;
   if (tileCounts[key]) { t.classList.add('queued'); t.dataset.qCount = `×${tileCounts[key]}`; }
 
-  const costStr = preview.cost ? `${preview.cost}♦` : '';
+  const costBadges = [];
+  if (atbCost > 0)     costBadges.push(`<span class="tile-atb">${atbCost} ATB</span>`);
+  if (resolveCost > 0) costBadges.push(`<span class="tile-cost">${resolveCost}♦</span>`);
+
   t.innerHTML = `
-    ${costStr ? `<span class="tile-cost">${costStr}</span>` : ''}
+    <span class="tile-badges">${costBadges.join('')}</span>
     <span class="tile-name">${preview.label || '—'}</span>
     <span class="tile-desc">${preview.desc || ''}</span>
   `;
@@ -1193,7 +1224,8 @@ function makeTile(kind, charId, dir, tileCounts, teamLocked) {
       dir: dir,
       label: preview.label,
       desc: preview.desc,
-      cost: preview.cost || 0,
+      atb: atbCost,
+      resolveCost: resolveCost,
     });
   });
   return t;
@@ -1236,7 +1268,7 @@ function makeTeamSpecialTile(teamLocked) {
     <span class="ts-name">${ts.name}</span>
     <span class="ts-form">formation ${formationLabel}</span>
     <span class="ts-desc">${ts.short}</span>
-    <span class="ts-cost">${TEAM_SPECIAL_COST}♦ · fills queue</span>
+    <span class="ts-cost">${TEAM_SPECIAL_ATB} ATB · ${TEAM_SPECIAL_COST}♦</span>
   `;
   t.addEventListener('click', () => queueTeamSpecial());
   return t;
@@ -1304,9 +1336,7 @@ function flashCardId(id, type, side) {
 function bindUI() {
   $('#btn-fight').addEventListener('click', () => onFight());
   $('#btn-clear').addEventListener('click', () => clearQueue());
-  document.querySelectorAll('#queue-strip .queue-slot').forEach((el, idx) => {
-    el.addEventListener('click', () => queueRemoveAt(idx));
-  });
+  // queue-slot click handlers are attached inside renderQueue (items are dynamic)
   $('#overlay-btn').addEventListener('click', () => { hideOverlay(); init(); });
 }
 
