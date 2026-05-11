@@ -19,11 +19,16 @@
 
   <main id="stage">
 
-    <div class="fog" aria-hidden="true"></div>
-    <div class="ember-layer" aria-hidden="true">
-      <span class="ember"></span><span class="ember"></span><span class="ember"></span>
-      <span class="ember"></span><span class="ember"></span><span class="ember"></span>
-      <span class="ember"></span><span class="ember"></span>
+    <!-- ambient overlays wrapped in a single absolutely-positioned layer so they
+         don't claim grid rows in #stage (browser had been auto-placing them as
+         grid items despite position:absolute, squashing the real rows) -->
+    <div class="bg-effects" aria-hidden="true">
+      <div class="fog"></div>
+      <div class="ember-layer">
+        <span class="ember"></span><span class="ember"></span><span class="ember"></span>
+        <span class="ember"></span><span class="ember"></span><span class="ember"></span>
+        <span class="ember"></span><span class="ember"></span>
+      </div>
     </div>
 
     <header id="hud">
