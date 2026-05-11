@@ -1637,13 +1637,7 @@ function renderTiles() {
     const def = CHARS[charId];
     const simSlot = slotOfCharSim(sim, charId) || slot;
     if (c.downed) col.classList.add('downed');
-
-    const header = document.createElement('div');
-    header.className = 'char-col-header';
-    if (simSlot === def.home) header.classList.add('home-color');
-    header.title = `${def.name} — ${SLOT_LABELS[simSlot] || '—'}${simSlot === def.home ? ' · home' : ''}`;
-    header.innerHTML = `<div class="cch-avatar">${PORTRAITS[charId] || ''}</div>`;
-    col.appendChild(header);
+    col.title = `${def.name} — ${SLOT_LABELS[simSlot] || '—'}${simSlot === def.home ? ' · home' : ''}`;
 
     col.appendChild(makeTile('attack', charId, null, tileCounts, teamLocked));
     col.appendChild(makeTile('special', charId, null, tileCounts, teamLocked));
