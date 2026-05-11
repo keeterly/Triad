@@ -1154,12 +1154,13 @@ body {
 }
 #queue-strip {
   display: grid;
-  /* fixed three cells, one per ATB point — items span by their atb cost so nothing shifts */
+  /* cell count derived from data-atb-max so Crown of Quickening can give 4 cells */
   grid-template-columns: 1fr 1fr 1fr;
   gap: 6px;
   min-width: 0;
   height: 24px;
 }
+#queue-strip[data-atb-max="4"] { grid-template-columns: 1fr 1fr 1fr 1fr; }
 
 /* ============ ACTION ROW (row 5): tile-grid + team-special ============ */
 #action-row {
@@ -1956,4 +1957,65 @@ body {
   font-size: 10px;
   color: var(--ink);
   font-style: italic;
+}
+
+/* ============ SIGIL CARDS ============ */
+.sigil-choice {
+  width: 200px;
+  padding: 14px 14px 12px;
+  align-items: center;
+}
+.sigil-choice .enc-name {
+  color: var(--gold-bright);
+  text-shadow: 0 0 8px rgba(240,212,136,0.55), 0 1px 0 var(--shadow);
+}
+.sigil-glyph {
+  font-size: 36px;
+  color: var(--gold-bright);
+  line-height: 1;
+  text-shadow:
+    0 0 16px rgba(240,212,136,0.65),
+    0 0 30px rgba(240,212,136,0.3),
+    0 2px 0 var(--shadow);
+  padding: 8px 0 6px;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.6));
+}
+.sigil-desc {
+  font-size: 11px;
+  color: var(--ink);
+  line-height: 1.4;
+  font-style: italic;
+  text-align: center;
+}
+
+/* ============ ELITE ENCOUNTER MARKER ============ */
+.encounter-choice.encounter-elite {
+  border-color: var(--blood-bright);
+  box-shadow:
+    inset 0 1px 0 rgba(255,200,200,0.18),
+    0 4px 16px rgba(0,0,0,0.6),
+    0 0 18px rgba(212,69,69,0.35);
+}
+.encounter-choice.encounter-elite::before,
+.encounter-choice.encounter-elite::after { border-color: var(--blood-bright); }
+.encounter-choice.encounter-elite:hover {
+  border-color: var(--blood-bright);
+  filter: brightness(1.15);
+  box-shadow:
+    inset 0 1px 0 rgba(255,200,200,0.3),
+    0 8px 28px rgba(212,69,69,0.45),
+    0 0 28px rgba(212,69,69,0.55);
+}
+.encounter-choice .enc-badge {
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--blood-bright);
+  background: linear-gradient(180deg, rgba(212,69,69,0.25), rgba(70,16,15,0.25));
+  border: 1px solid var(--blood-bright);
+  border-radius: 10px;
+  padding: 2px 8px;
+  align-self: center;
+  text-shadow: 0 1px 0 var(--shadow);
+  text-align: center;
 }
