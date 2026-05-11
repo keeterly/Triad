@@ -24,6 +24,18 @@ Every damaging action has a **reach** — the enemy slots it can hit. Cassia and
 
 **Hold any action tile (~220ms)** to preview the highlight on enemies it would hit. Release to dismiss the preview. A short tap queues the action as before.
 
+## Adjacency synergies
+
+Each pair of characters in adjacent slots has a named synergy — and a *different* synergy depending on whether the pair is on the **Front-Mid** line or the **Mid-Back** line. The synergy name appears as a small chip on the facing edge of each card; green = bond, red = friction.
+
+| Pair | Front-Mid | Mid-Back |
+|---|---|---|
+| Cassia + Elin    | **Sister's Watch** — Cassia hit → Elin +1 Resolve | **Veiled Vow** — Elin heals anyone → Cassia +1 armor |
+| Branwen + Cassia | **Old Rivalry** (friction) — Branwen's outgoing damage −2 | **Banner Fire** — Cassia grants armor → Branwen's next attack +2 dmg |
+| Branwen + Elin   | **Spirit Arrow** — Branwen attacks → Elin's next heal +2 | **Mercy's Gift** — Elin heals → Branwen +1 HP |
+
+Pending one-shot bonuses (next-attack/next-heal) show as gold chips on the receiver's card and consume on use.
+
 ## Stagger loop
 
 Each enemy has a chain gauge under their HP. Damage builds it (Vulnerable hits build x2). At full, the enemy is **Staggered** — skips their next action and takes +50% damage. That's your burst window.

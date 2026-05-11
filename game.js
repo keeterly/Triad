@@ -274,22 +274,66 @@ const ENEMIES = {
 
 // ============================================================================
 // ADJACENCY — pair synergies between adjacent positions (F-M and M-B)
+// Each pair stores two synergies: one for the front-mid line, one for mid-back.
+// Same pair produces a different bond depending on which adjacency line it occupies.
 // ============================================================================
 
 const ADJ = {
   'cassia+elin': {
-    name: "Sister's Watch", type: 'bond',
-    onPartyHit(s, id) { if (id === 'cassia') gainResolve(s, 1); },
+    fm: {
+      name: "Sister's Watch", type: 'bond',
+      onPartyDamaged(s, charId) { if (charId === 'cassia') gainResolve(s, 1); },
+    },
+    mb: {
+      name: 'Veiled Vow', type: 'bond',
+      onHeal(s, healerId) {
+        if (healerId !== 'elin') return;
+        const c = s.party.chars.cassia;
+        if (!c || c.downed) return;
+        c.armor += 1;
+        spawnPopupId('cassia', '+1⛨', 'armor', 'party');
+      },
+    },
   },
   'branwen+cassia': {
-    name: 'Old Rivalry', type: 'friction',
-    dmgMod: -2, // applied to Branwen's outgoing damage
+    fm: {
+      name: 'Old Rivalry', type: 'friction',
+      dmgMod: -2, dmgModFor: 'branwen', // -2 to Branwen's outgoing damage; see applyDmgToEnemy
+    },
+    mb: {
+      name: 'Banner Fire', type: 'bond',
+      onArmorGrant(s, granterId) {
+        if (granterId !== 'cassia') return;
+        const b = s.party.chars.branwen;
+        if (!b || b.downed) return;
+        if (b.pendingEffects.some(e => e.source === 'banner-fire')) return;
+        b.pendingEffects.push({ kind: 'attackBonus', amt: 2, source: 'banner-fire' });
+        spawnPopupId('branwen', '+2 atk', 'armor', 'party');
+      },
+    },
   },
   'branwen+elin': {
-    name: "Mercy's Gift", type: 'bond',
-    onElinHeal(s) {
-      const b = s.party.chars.branwen;
-      if (b && !b.downed) { b.hp = Math.min(b.maxHp, b.hp + 1); spawnPopupId('branwen', '+1', 'heal'); }
+    fm: {
+      name: 'Spirit Arrow', type: 'bond',
+      onAttack(s, attackerId) {
+        if (attackerId !== 'branwen') return;
+        const e = s.party.chars.elin;
+        if (!e || e.downed) return;
+        if (e.pendingEffects.some(eff => eff.source === 'spirit-arrow')) return;
+        e.pendingEffects.push({ kind: 'healBonus', amt: 2, source: 'spirit-arrow' });
+        spawnPopupId('elin', '+2 heal', 'heal', 'party');
+      },
+    },
+    mb: {
+      name: "Mercy's Gift", type: 'bond',
+      onHeal(s, healerId, targetId) {
+        if (healerId !== 'elin' || targetId === 'branwen') return;
+        const b = s.party.chars.branwen;
+        if (!b || b.downed) return;
+        const before = b.hp;
+        b.hp = Math.min(b.maxHp, b.hp + 1);
+        if (b.hp > before) spawnPopupId('branwen', '+1', 'heal', 'party');
+      },
     },
   },
 };
@@ -339,6 +383,7 @@ function newCharState(id) {
     id, hp: def.maxHp, maxHp: def.maxHp,
     armor: 0, bleed: 0, weak: 0, taunt: false, retaliate: 0, vuln: 0,
     downed: false,
+    pendingEffects: [], // { kind: 'attackBonus'|'healBonus', amt, source } — consumed on use
   };
 }
 function newEnemyState(id) {
@@ -398,11 +443,16 @@ function applyDmgToEnemy(s, e, baseAmt) {
   if (!e || e.dead) return;
   let amt = baseAmt;
 
-  // current actor mods (weak self, branwen friction, branwen bleed-hunter)
-  if (s.currentActorId === 'branwen') {
-    if (isAdjacent(s, 'branwen', 'cassia')) amt -= 2; // Old Rivalry friction
-    if (e.bleed > 0) amt += 2;                         // Bleed Hunter passive
-  }
+  // adjacency dmgMod (e.g. Old Rivalry friction on Branwen in FM line)
+  getAdjacencyPairs(s).forEach(p => {
+    if (typeof p.synergy.dmgMod === 'number' && p.synergy.dmgModFor === s.currentActorId) {
+      amt += p.synergy.dmgMod;
+    }
+  });
+  // Branwen Bleed Hunter passive
+  if (s.currentActorId === 'branwen' && e.bleed > 0) amt += 2;
+  // pending one-shot attack bonuses (Banner Fire)
+  amt += consumePendingBonus(s, s.currentActorId, 'attackBonus');
   amt += s.outgoingDmgMod;
 
   // vulnerable adds +2 per stack consumed (1 stack per hit)
@@ -440,6 +490,7 @@ function applyDmgToEnemy(s, e, baseAmt) {
   spawnPopupId(e.id, `-${toHp}`, popupType, 'enemy');
   flashCardId(e.id, 'hit', 'enemy');
   log(`<b>${ENEMIES[e.id].name}</b> takes ${toHp} damage${e.staggered ? ' (stagger!)' : ''}.`);
+  if (s.currentActorId && toHp > 0) fireAdjacencyHook(s, 'onAttack', s.currentActorId, e, toHp);
   if (e.hp === 0) killEnemy(s, e);
 }
 
@@ -473,8 +524,7 @@ function applyDmgToParty(s, c, amt) {
   flashCardId(c.id, 'hit', 'party');
   log(`<b>${CHARS[c.id].name}</b> takes ${toHp} damage.`);
 
-  // Adjacency: Sister's Watch — Elin gains Resolve when Cassia is hit
-  getAdjacencyPairs(s).forEach(p => { if (p.synergy.onPartyHit) p.synergy.onPartyHit(s, c.id); });
+  fireAdjacencyHook(s, 'onPartyDamaged', c.id, toHp);
 
   // Retaliate
   if (c.retaliate > 0 && toHp > 0) {
@@ -485,6 +535,7 @@ function applyDmgToParty(s, c, amt) {
 
   if (c.hp === 0) {
     c.downed = true;
+    c.pendingEffects = [];
     log(`<b>${CHARS[c.id].name}</b> falls.`);
   }
 }
@@ -496,7 +547,7 @@ function applySelfDmg(s, charId, amt) {
   spawnPopupId(charId, `-${amt}`, 'dmg', 'party');
   flashCardId(charId, 'hit', 'party');
   log(`<b>${CHARS[charId].name}</b> takes ${amt} self damage.`);
-  if (c.hp === 0) { c.downed = true; log(`<b>${CHARS[charId].name}</b> falls.`); }
+  if (c.hp === 0) { c.downed = true; c.pendingEffects = []; log(`<b>${CHARS[charId].name}</b> falls.`); }
 }
 
 // ============================================================================
@@ -527,32 +578,52 @@ function applyVulnEnemy(s, idx, stacks) {
   if (e) e.vuln += stacks;
 }
 
-function addArmor(s, id, amt) { const c = s.party.chars[id]; if (c && !c.downed) c.armor += amt; }
-function partyArmor(s, amt) { aliveParty(s).forEach(c => { c.armor += amt; spawnPopupId(c.id, `+${amt}⛨`, 'armor', 'party'); }); }
+function addArmor(s, id, amt) {
+  const c = s.party.chars[id];
+  if (!c || c.downed) return;
+  c.armor += amt;
+  fireAdjacencyHook(s, 'onArmorGrant', s.currentActorId, id, amt);
+}
+function partyArmor(s, amt) {
+  aliveParty(s).forEach(c => {
+    c.armor += amt;
+    spawnPopupId(c.id, `+${amt}⛨`, 'armor', 'party');
+    fireAdjacencyHook(s, 'onArmorGrant', s.currentActorId, c.id, amt);
+  });
+}
 function partyHeal(s, amt) {
+  const bonus = consumePendingBonus(s, s.currentActorId, 'healBonus');
+  const total = amt + bonus;
   aliveParty(s).forEach(c => {
     const before = c.hp;
-    c.hp = Math.min(c.maxHp, c.hp + amt);
+    c.hp = Math.min(c.maxHp, c.hp + total);
     const got = c.hp - before;
-    if (got > 0) spawnPopupId(c.id, `+${got}`, 'heal', 'party');
+    if (got > 0) {
+      spawnPopupId(c.id, `+${got}`, 'heal', 'party');
+      fireAdjacencyHook(s, 'onHeal', s.currentActorId, c.id, got);
+    }
   });
-  triggerElinHeal(s);
 }
 function healLowest(s, amt) {
   const alive = aliveParty(s); if (alive.length === 0) return null;
   alive.sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp));
   const c = alive[0];
+  const bonus = consumePendingBonus(s, s.currentActorId, 'healBonus');
+  const total = amt + bonus;
   const before = c.hp;
-  c.hp = Math.min(c.maxHp, c.hp + amt);
+  c.hp = Math.min(c.maxHp, c.hp + total);
   const got = c.hp - before;
-  if (got > 0) { spawnPopupId(c.id, `+${got}`, 'heal', 'party'); flashCardId(c.id, 'heal', 'party'); }
+  if (got > 0) {
+    spawnPopupId(c.id, `+${got}`, 'heal', 'party');
+    flashCardId(c.id, 'heal', 'party');
+    fireAdjacencyHook(s, 'onHeal', s.currentActorId, c.id, got);
+  }
   // Elin passive: heal self 1 when healing an ally
   if (s.currentActorId === 'elin' && c.id !== 'elin') {
     const e = s.party.chars.elin;
     const eb = e.hp; e.hp = Math.min(e.maxHp, e.hp + 1);
     if (e.hp - eb > 0) spawnPopupId('elin', '+1', 'heal', 'party');
   }
-  triggerElinHeal(s);
   return c;
 }
 function cleanseLowest(s) {
@@ -565,11 +636,6 @@ function gainResolve(s, amt) {
   const before = s.resolve;
   s.resolve = Math.min(RESOLVE_MAX, s.resolve + amt);
   if (s.resolve > before) flashResolve();
-}
-
-function triggerElinHeal(s) {
-  if (s.currentActorId !== 'elin') return;
-  getAdjacencyPairs(s).forEach(p => { if (p.synergy.onElinHeal) p.synergy.onElinHeal(s); });
 }
 
 // Enemy → party effects (slot-targeted)
@@ -641,23 +707,36 @@ function enemyShove(s, fromSlot, toSlot) {
 // ADJACENCY
 // ============================================================================
 
-function isAdjacent(s, idA, idB) {
-  const a = slotOfChar(s, idA), b = slotOfChar(s, idB);
-  if (!a || !b) return false;
-  const pairs = [['front','mid'], ['mid','back']];
-  return pairs.some(p => (p[0]===a && p[1]===b) || (p[0]===b && p[1]===a));
-}
 function adjKey(a, b) { return [a, b].sort().join('+'); }
 function getAdjacencyPairs(s) {
   const pairs = [];
-  [['front','mid'], ['mid','back']].forEach(([sa, sb]) => {
+  [['front','mid','fm'], ['mid','back','mb']].forEach(([sa, sb, line]) => {
     const a = s.party.slots[sa], b = s.party.slots[sb];
     if (!a || !b) return;
     if (s.party.chars[a].downed || s.party.chars[b].downed) return;
-    const k = adjKey(a, b);
-    if (ADJ[k]) pairs.push({ ids: [a, b], synergy: ADJ[k], key: k });
+    const entry = ADJ[adjKey(a, b)];
+    const synergy = entry && entry[line];
+    if (!synergy) return;
+    pairs.push({ ids: [a, b], line, synergy, key: `${adjKey(a, b)}@${line}` });
   });
   return pairs;
+}
+function fireAdjacencyHook(s, hookName, ...args) {
+  getAdjacencyPairs(s).forEach(p => {
+    const fn = p.synergy[hookName];
+    if (typeof fn === 'function') fn(s, ...args);
+  });
+}
+function consumePendingBonus(s, charId, kind) {
+  if (!charId) return 0;
+  const c = s.party.chars[charId];
+  if (!c) return 0;
+  let total = 0;
+  c.pendingEffects = c.pendingEffects.filter(e => {
+    if (e.kind === kind) { total += e.amt; return false; }
+    return true;
+  });
+  return total;
 }
 
 // ============================================================================
@@ -680,7 +759,7 @@ function startTurn(s) {
       spawnPopupId(c.id, `-${dmg}`, 'dmg', 'party');
       flashCardId(c.id, 'hit', 'party');
       log(`<b>${CHARS[c.id].name}</b> bleeds (${dmg}).`);
-      if (c.hp === 0) { c.downed = true; log(`<b>${CHARS[c.id].name}</b> falls.`); }
+      if (c.hp === 0) { c.downed = true; c.pendingEffects = []; log(`<b>${CHARS[c.id].name}</b> falls.`); }
     }
   });
   aliveEnemies(s).forEach(e => {
@@ -1081,11 +1160,15 @@ function renderColumns() {
     else if (intent.targetSlot && intent.targetSlot !== '?') threatened.add(intent.targetSlot);
   });
 
-  // adjacency map for visual borders
+  // adjacency map for visual borders + chip labels.
+  // Each char id maps to { fm?, mb?, type } — fm/mb hold the synergy that runs
+  // along that line; `type` is the dominant flavor (friction wins for the border).
   const adjMap = {};
   getAdjacencyPairs(state).forEach(p => {
     p.ids.forEach(id => {
-      if (!adjMap[id] || p.synergy.type === 'friction') adjMap[id] = p.synergy.type;
+      if (!adjMap[id]) adjMap[id] = {};
+      adjMap[id][p.line] = { name: p.synergy.name, type: p.synergy.type };
+      if (!adjMap[id].type || p.synergy.type === 'friction') adjMap[id].type = p.synergy.type;
     });
   });
 
@@ -1113,14 +1196,28 @@ function makePartyCard(c, slot, threatened, adjMap) {
   }
   card.dataset.id = c.id;
   if (c.downed) card.classList.add('downed');
-  if (adjMap[c.id] === 'bond') card.classList.add('adjacent-bond');
-  if (adjMap[c.id] === 'friction') card.classList.add('adjacent-friction');
+  const adj = adjMap[c.id];
+  if (adj?.type === 'bond') card.classList.add('adjacent-bond');
+  if (adj?.type === 'friction') card.classList.add('adjacent-friction');
   if (threatened && !c.downed) card.classList.add('targeted-by-enemy');
+
+  // chips face the neighbor: front's top edge faces mid, back's bottom edge
+  // faces mid, mid carries both. fm = front<->mid line, mb = mid<->back line.
+  let topChip = '', bottomChip = '';
+  if (!c.downed && adj) {
+    if (slot === 'front' && adj.fm) topChip = chipHtml(adj.fm, 'top');
+    else if (slot === 'back' && adj.mb) bottomChip = chipHtml(adj.mb, 'bottom');
+    else if (slot === 'mid') {
+      if (adj.mb) topChip = chipHtml(adj.mb, 'top');
+      if (adj.fm) bottomChip = chipHtml(adj.fm, 'bottom');
+    }
+  }
 
   const def = CHARS[c.id];
   const isHome = def.home === slot;
   const hpPct = (c.hp / c.maxHp) * 100;
   card.innerHTML = `
+    ${topChip}
     <div class="slot-banner ${isHome ? 'home' : ''}">${slot}${isHome ? ' · home' : ''}</div>
     <div class="card-portrait">
       ${PORTRAITS[c.id] || ''}
@@ -1133,8 +1230,13 @@ function makePartyCard(c, slot, threatened, adjMap) {
         <div class="hp-text">${c.hp}/${c.maxHp}</div>
       </div>
     </div>
+    ${bottomChip}
   `;
   return card;
+}
+
+function chipHtml(syn, edge) {
+  return `<div class="adj-chip ${edge} ${syn.type}">${syn.name}</div>`;
 }
 
 function makeEnemyCard(e, slot) {
@@ -1188,6 +1290,10 @@ function renderStatuses(ent) {
   if (ent.weak > 0)      c.push(`<span class="status-chip status-weak">weak ${ent.weak}</span>`);
   if (ent.vuln > 0)      c.push(`<span class="status-chip status-vuln">vuln ${ent.vuln}</span>`);
   if (ent.retaliate > 0) c.push(`<span class="status-chip status-retal">retaliate ${ent.retaliate}</span>`);
+  if (ent.pendingEffects) ent.pendingEffects.forEach(e => {
+    const label = e.kind === 'attackBonus' ? `+${e.amt} atk` : e.kind === 'healBonus' ? `+${e.amt} heal` : `+${e.amt}`;
+    c.push(`<span class="status-chip status-pending">${label}</span>`);
+  });
   return c.join('');
 }
 
