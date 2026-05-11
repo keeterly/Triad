@@ -1795,13 +1795,17 @@ function renderQueue() {
     const el = document.createElement('div');
     el.className = `queue-slot filled kind-${item.kind}`;
     el.dataset.atb = String(item.atb || 1);
-    const who = item.charId ? CHARS[item.charId].name : '';
+    const portraitSvg = item.charId ? (PORTRAITS[item.charId] || '') : '';
+    // team-special shows a crossed-swords glyph instead of a single character portrait
+    const teamGlyph = item.kind === 'team'
+      ? '<svg class="qs-team" viewBox="0 0 24 24" aria-hidden="true"><path d="M 4 4 L 20 20 M 20 4 L 4 20" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" fill="none"/></svg>'
+      : '';
     el.innerHTML = `
       <span class="qs-cost">${item.atb}</span>
-      <span class="qs-name">${who ? `${who} · ${item.label}` : item.label}</span>
-      <span class="qs-desc">${item.desc || ''}</span>
+      <span class="qs-avatar">${portraitSvg}${teamGlyph}</span>
     `;
-    el.title = 'tap to remove';
+    // hover tooltip — keep the label/desc accessible via title even though it's not visible
+    el.title = `${item.label}${item.desc ? ' — ' + item.desc : ''} (tap to remove)`;
     el.addEventListener('click', () => queueRemoveAt(idx));
     strip.appendChild(el);
     used += item.atb || 0;

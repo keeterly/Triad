@@ -1165,8 +1165,8 @@ body {
     linear-gradient(180deg, #0a0604 0%, #050302 100%);
   border-radius: 2px;
   position: relative;
-  display: flex; align-items: center;
-  padding: 0 8px 0 24px;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0 8px;
   font-size: 10px;
   color: var(--ink-faint);
   overflow: hidden;
@@ -1174,6 +1174,29 @@ body {
   transition: box-shadow 0.15s, background 0.15s;
   min-width: 0;
   box-shadow: inset 0 1px 2px rgba(0,0,0,0.7);
+}
+/* circular portrait avatar inside a queued action */
+.queue-slot .qs-avatar {
+  display: flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 1px solid var(--gold-dim);
+  background: var(--parchment-deep);
+  flex-shrink: 0;
+  box-shadow: inset 0 0 4px rgba(0,0,0,0.7);
+}
+.queue-slot .qs-avatar svg {
+  width: 130%; height: 130%;
+  display: block;
+  transform: translate(-5%, -8%);
+}
+/* team-special crossed-swords glyph (when there's no character) */
+.queue-slot .qs-avatar .qs-team {
+  width: 60%; height: 60%;
+  transform: none;
+  color: var(--blood-bright);
+  filter: drop-shadow(0 0 4px rgba(212,69,69,0.5));
 }
 /* an item spans (atb cost) grid columns so the strip never resizes other items */
 .queue-slot[data-atb="1"] { grid-column: span 1; }
@@ -1399,31 +1422,35 @@ body {
 .tile .tile-desc {
   display: none;
   position: absolute;
-  left: 50%; bottom: calc(100% + 6px);
+  left: 50%; bottom: calc(100% + 10px);
   transform: translateX(-50%);
-  min-width: 120px;
-  max-width: 220px;
-  padding: 6px 10px;
+  min-width: 200px;
+  max-width: 320px;
+  padding: 12px 18px;
   background:
     linear-gradient(180deg, #2a1c12 0%, #14100a 100%);
   border: 1px solid var(--gold-dim);
-  border-radius: 3px;
-  font-size: 10px; color: var(--ink);
-  line-height: 1.35;
+  border-radius: 4px;
+  font-size: 14px; color: var(--ink);
+  line-height: 1.45;
   font-style: italic;
   white-space: normal;
   text-align: center;
   z-index: 50;
-  box-shadow: 0 6px 18px rgba(0,0,0,0.75);
+  box-shadow:
+    0 10px 30px rgba(0,0,0,0.85),
+    0 0 24px rgba(200,164,100,0.18),
+    inset 0 1px 0 rgba(232,220,196,0.08);
   pointer-events: none;
+  letter-spacing: 0.02em;
 }
 .tile .tile-desc::after {
-  /* little arrow pointing down to the tile */
+  /* arrow pointing down to the tile */
   content: '';
   position: absolute;
-  bottom: -5px; left: 50%;
+  bottom: -6px; left: 50%;
   transform: translateX(-50%) rotate(45deg);
-  width: 8px; height: 8px;
+  width: 10px; height: 10px;
   background: linear-gradient(135deg, transparent 50%, #14100a 50%);
   border-right: 1px solid var(--gold-dim);
   border-bottom: 1px solid var(--gold-dim);
@@ -1561,20 +1588,23 @@ body {
 .tile.team-special .ts-desc {
   display: none;
   position: absolute;
-  left: 50%; bottom: calc(100% + 6px);
+  left: 50%; bottom: calc(100% + 10px);
   transform: translateX(-50%);
-  min-width: 160px;
-  max-width: 240px;
-  padding: 6px 10px;
+  min-width: 220px;
+  max-width: 340px;
+  padding: 12px 18px;
   background:
     linear-gradient(180deg, #2a1c12 0%, #14100a 100%);
   border: 1px solid var(--blood-bright);
-  border-radius: 3px;
-  font-size: 10px; color: var(--ink);
-  line-height: 1.35; font-style: italic;
+  border-radius: 4px;
+  font-size: 14px; color: var(--ink);
+  line-height: 1.45; font-style: italic;
   white-space: normal; text-align: center;
   z-index: 50;
-  box-shadow: 0 6px 18px rgba(0,0,0,0.75), 0 0 12px rgba(212,69,69,0.3);
+  box-shadow:
+    0 10px 30px rgba(0,0,0,0.85),
+    0 0 24px rgba(212,69,69,0.35),
+    inset 0 1px 0 rgba(255,200,200,0.08);
   pointer-events: none;
 }
 .tile.team-special.previewing .ts-desc { display: block; }
