@@ -1886,3 +1886,74 @@ body {
 .swap-choice .enc-name { color: var(--ink); }
 .swap-downed { opacity: 0.5; filter: grayscale(0.6); }
 .swap-downed .enc-name { color: var(--ink-faint); }
+
+/* ============ UPGRADE CARDS ============ */
+.upgrade-choice {
+  width: 240px;
+  padding: 14px 14px 12px;
+  align-items: stretch;
+}
+.upgrade-choice .enc-name {
+  color: var(--gold-bright);
+  text-shadow: 0 0 8px rgba(240,212,136,0.55), 0 1px 0 var(--shadow);
+}
+.upgrade-row {
+  display: flex; gap: 10px; align-items: flex-start;
+}
+.upgrade-avatar {
+  width: 44px; height: 60px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--parchment-deep);
+  border: 1px solid var(--gold-deep);
+  box-shadow: inset 0 0 6px rgba(0,0,0,0.6);
+  flex-shrink: 0;
+}
+.upgrade-avatar svg {
+  width: 100%; height: 100%; display: block;
+  -webkit-mask-image: radial-gradient(ellipse 95% 110% at 50% 52%, #000 78%, transparent 100%);
+          mask-image: radial-gradient(ellipse 95% 110% at 50% 52%, #000 78%, transparent 100%);
+}
+.upgrade-meta {
+  display: flex; flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+  text-align: left;
+}
+.upgrade-char {
+  font-size: 9px; letter-spacing: 0.14em;
+  color: var(--gold);
+  text-transform: uppercase;
+}
+.upgrade-from, .upgrade-to {
+  display: flex; flex-direction: column;
+  font-size: 10px;
+  line-height: 1.3;
+  color: var(--ink-dim);
+}
+.upgrade-from {
+  font-style: italic;
+}
+.upgrade-from-desc {
+  font-size: 9px;
+  color: var(--ink-faint);
+  font-style: italic;
+}
+.upgrade-arrow {
+  color: var(--gold-bright);
+  font-size: 12px;
+  text-shadow: 0 0 6px rgba(240,212,136,0.55);
+  text-align: center;
+  line-height: 1;
+}
+.upgrade-to b {
+  font-weight: bold;
+  color: var(--gold-bright);
+  text-shadow: 0 0 6px rgba(240,212,136,0.45), 0 1px 0 var(--shadow);
+}
+.upgrade-to-desc {
+  font-size: 10px;
+  color: var(--ink);
+  font-style: italic;
+}
