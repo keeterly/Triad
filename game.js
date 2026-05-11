@@ -695,7 +695,6 @@ function newState() {
     queue: [],         // array of { kind, charId?, dir?, label, desc, atb, resolveCost } — sum(atb) ≤ ATB_MAX
     executing: false,  // true while queue is resolving
     over: false,       // input lock — true during end-of-fight/run overlays
-    movePicker: null,  // charId of the party member currently picking a move direction (transient UI state)
     outgoingDmgMod: 0,
     ignoreArmor: false,
     currentActorId: null, // who is acting right now (for passives + adjacency hooks)
@@ -1150,7 +1149,6 @@ function startTurn(s) {
   s.messages = [];
   s.executing = false;
   s.queue = [];
-  s.movePicker = null;
   // clear single-turn buffs that survived the enemy phase
   aliveParty(s).forEach(c => { c.taunt = false; c.retaliate = 0; });
   log(`<span class="msg-strong">— Turn ${s.turn} —</span>`);
@@ -1287,46 +1285,27 @@ function clearQueue() {
   const s = state;
   if (s.executing || s.over) return;
   s.queue = [];
-  s.movePicker = null;
   render();
 }
 
 // ============================================================================
-// MOVE PICKER — drag-drop-style repositioning, no dedicated tile
+// MOVE PICKER — press-and-hold a party figure, drag toward an arrow to queue a move.
+// Bound on each figure via bindFigureHold(); the actual commit goes through pickMoveDir.
 // ============================================================================
-
-// Tap a party figure to enter move-picker mode: directional arrows appear over the
-// figure, tap an arrow to queue the move. Tapping the same figure again or anywhere
-// outside cancels.
-function togglePartyMovePicker(charId) {
-  const s = state;
-  if (s.executing || s.over) return;
-  const c = s.party.chars[charId];
-  if (!c || c.downed) return;
-  // Toggle off if same figure
-  if (s.movePicker === charId) {
-    s.movePicker = null;
-    render();
-    return;
-  }
-  // If a move is already queued for this character, remove it first then enter picker
-  const queuedIdx = s.queue.findIndex(q => q.kind === 'move' && q.charId === charId);
-  if (queuedIdx >= 0) s.queue.splice(queuedIdx, 1);
-  s.movePicker = charId;
-  render();
-}
 
 function pickMoveDir(charId, dir) {
   const s = state;
   const slot = slotOfChar(s, charId);
-  if (!slot) { s.movePicker = null; return; }
+  if (!slot) return;
   const idx = SLOTS.indexOf(slot);
   const ti = idx + dir;
-  if (ti < 0 || ti > 2) { s.movePicker = null; render(); return; }
+  if (ti < 0 || ti > 2) return;
   const target = SLOTS[ti];
   const otherId = s.party.slots[target];
   const otherName = otherId ? CHARS[otherId].name : '—';
-  s.movePicker = null;
+  // If a move is already queued for this character, swap direction by removing the old one first.
+  const queuedIdx = s.queue.findIndex(q => q.kind === 'move' && q.charId === charId);
+  if (queuedIdx >= 0) s.queue.splice(queuedIdx, 1);
   queueAdd({
     kind: 'move',
     charId,
@@ -1336,6 +1315,85 @@ function pickMoveDir(charId, dir) {
     atb: ACTION_ATB.move,
     resolveCost: 0,
   });
+}
+
+// Press-and-hold on a figure: reveals the figure's name (and, for party figures,
+// directional move arrows). Drag the finger onto an arrow and release → commit move.
+// Release elsewhere → cancel (no state change).
+function bindFigureHold(fig, charId, isParty) {
+  const HOLD_MS = 200;
+  let timer = null;
+  let active = false;
+  let holding = false;
+  let aimArrow = null;
+
+  const removeAim = () => {
+    if (aimArrow) {
+      aimArrow.classList.remove('aim');
+      aimArrow = null;
+    }
+  };
+  const cleanup = () => {
+    if (timer) { clearTimeout(timer); timer = null; }
+    removeAim();
+    fig.classList.remove('inspecting');
+    active = false;
+    holding = false;
+  };
+  const isUsable = () => {
+    if (state.executing || state.over) return false;
+    if (isParty) {
+      const c = state.party.chars[charId];
+      return !!c && !c.downed;
+    } else {
+      const e = state.enemies.chars[charId];
+      return !!e && !e.dead;
+    }
+  };
+
+  const start = (e) => {
+    if (!isUsable()) return;
+    active = true;
+    holding = false;
+    // clear any other figure that may have been left in inspecting state
+    document.querySelectorAll('.figure.inspecting').forEach(f => { if (f !== fig) f.classList.remove('inspecting'); });
+    try { fig.setPointerCapture(e.pointerId); } catch (_) {}
+    timer = setTimeout(() => {
+      if (!active) return;
+      holding = true;
+      fig.classList.add('inspecting');
+    }, HOLD_MS);
+    e.preventDefault();
+  };
+
+  const move = (e) => {
+    if (!holding) return;
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const arrow = (el && el.closest) ? el.closest('.move-arrow') : null;
+    if (arrow === aimArrow) return;
+    removeAim();
+    if (arrow && fig.contains(arrow)) {
+      aimArrow = arrow;
+      aimArrow.classList.add('aim');
+    }
+  };
+
+  const end = () => {
+    if (holding && aimArrow && isParty) {
+      const dir = parseInt(aimArrow.dataset.dir, 10);
+      cleanup();
+      pickMoveDir(charId, dir);
+      return;
+    }
+    cleanup();
+  };
+
+  fig.addEventListener('pointerdown', start);
+  fig.addEventListener('pointermove', move);
+  fig.addEventListener('pointerup', end);
+  fig.addEventListener('pointercancel', cleanup);
+  fig.addEventListener('lostpointercapture', cleanup);
+  fig.addEventListener('contextmenu', (e) => e.preventDefault());
 }
 
 function queueTeamSpecial() {
@@ -1732,19 +1790,15 @@ function makePartyCard(c, slot, threatened, adjMap) {
   const isHome = def.home === slot;
   const hpPct = (c.hp / c.maxHp) * 100;
 
-  // is this figure currently picking a move? show directional arrows over the figure.
-  // dir +1 (toward back in slot order) = visual LEFT (back is leftmost in display order)
-  // dir -1 (toward front in slot order) = visual RIGHT
-  const isPickingMove = state.movePicker === c.id;
+  // movement arrows: dir +1 (toward back in slot order) renders on the LEFT (because
+  // PARTY_DISPLAY_ORDER puts back on the left); dir -1 (toward front) renders on the RIGHT.
   const slotIdx = SLOTS.indexOf(slot);
-  const canMoveBack  = isPickingMove && slotIdx + 1 < SLOTS.length;
-  const canMoveFront = isPickingMove && slotIdx - 1 >= 0;
+  const canMoveBack  = slotIdx + 1 < SLOTS.length;
+  const canMoveFront = slotIdx - 1 >= 0;
 
   // a move queued for this character → show the planned-direction arrow as a persistent overlay
   const queuedMove = state.queue.find(q => q.kind === 'move' && q.charId === c.id);
   const queuedMoveGlyph = queuedMove ? (queuedMove.dir > 0 ? '◀' : '▶') : '';
-
-  if (isPickingMove) fig.classList.add('picking-move');
   if (queuedMove) fig.classList.add('has-queued-move');
 
   fig.innerHTML = `
@@ -1764,19 +1818,7 @@ function makePartyCard(c, slot, threatened, adjMap) {
     ${queuedMove ? `<div class="figure-queued-move">${queuedMoveGlyph}</div>` : ''}
   `;
 
-  // figure click → enter / cancel move-picker mode
-  fig.addEventListener('click', (e) => {
-    const arrow = e.target.closest('.move-arrow');
-    if (arrow) {
-      e.stopPropagation();
-      pickMoveDir(c.id, parseInt(arrow.dataset.dir, 10));
-      return;
-    }
-    if (state.executing || state.over) return;
-    e.stopPropagation();
-    togglePartyMovePicker(c.id);
-  });
-
+  bindFigureHold(fig, c.id, true);
   return fig;
 }
 
@@ -1847,6 +1889,7 @@ function makeEnemyCard(e, slot) {
       <div class="chain-bar"><div class="chain-fill" style="width:${chainPct}%"></div></div>
     </div>
   `;
+  bindFigureHold(fig, e.id, false);
   return fig;
 }
 
@@ -2177,14 +2220,6 @@ function bindUI() {
   $('#btn-clear').addEventListener('click', () => clearQueue());
   // queue-slot click handlers are attached inside renderQueue (items are dynamic)
   $('#overlay-btn').addEventListener('click', () => { hideOverlay(); init(); });
-  // click-away cancels the move-picker mode. Clicks inside an active figure or arrow
-  // bubble through their own stopPropagation so they won't reach this handler.
-  document.addEventListener('click', () => {
-    if (state && state.movePicker) {
-      state.movePicker = null;
-      render();
-    }
-  });
 }
 
 function showOverlay(title, body) {
