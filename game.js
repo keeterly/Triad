@@ -813,18 +813,22 @@ const ENEMIES = {
 // ============================================================================
 
 const ENCOUNTERS = {
-  e1: { id: 'e1', name: 'Bone & Bile',    slots: { front: 'ghoul',      mid: 'cultist',    back: 'wraith'  } },
-  e2: { id: 'e2', name: "Veil's Edge",    slots: { front: 'wraith',     mid: 'cultist',    back: 'ghoul'   } },
-  e3: { id: 'e3', name: 'Line of Echoes', slots: { front: 'cultist',    mid: 'lineCaster', back: 'wraith'  } },
-  e4: { id: 'e4', name: 'Bowless Hunt',   slots: { front: 'ghoul',      mid: 'cultist',    back: 'sniper'  } },
-  e5: { id: 'e5', name: 'Sundered Bond',  slots: { front: 'lineCaster', mid: 'grappler',   back: 'wraith'  } },
-  e6: { id: 'e6', name: 'Quartered Sin',  slots: { front: 'cultist',    mid: 'lineCaster', back: 'sniper'  } },
+  // standard encounters
+  e1: { id: 'e1', name: 'Bone & Bile',     slots: { front: 'ghoul',      mid: 'cultist',    back: 'wraith'   } },
+  e2: { id: 'e2', name: "Veil's Edge",     slots: { front: 'wraith',     mid: 'cultist',    back: 'ghoul'    } },
+  e3: { id: 'e3', name: 'Line of Echoes',  slots: { front: 'cultist',    mid: 'lineCaster', back: 'wraith'   } },
+  e4: { id: 'e4', name: 'Bowless Hunt',    slots: { front: 'ghoul',      mid: 'cultist',    back: 'sniper'   } },
+  e5: { id: 'e5', name: 'Sundered Bond',   slots: { front: 'lineCaster', mid: 'grappler',   back: 'wraith'   } },
+  e6: { id: 'e6', name: 'Quartered Sin',   slots: { front: 'cultist',    mid: 'lineCaster', back: 'sniper'   } },
+  // elite encounters — harder fights that guarantee a Sigil reward on victory
+  ee1: { id: 'ee1', name: 'Sins Triumphant', elite: true, slots: { front: 'grappler',  mid: 'lineCaster', back: 'sniper'  } },
+  ee2: { id: 'ee2', name: 'Court of Wraiths', elite: true, slots: { front: 'grappler', mid: 'wraith', back: 'lineCaster' } },
 };
 
 const RUN_LAYOUT = [
   { slot: 0, label: 'First Reach',  options: ['e1', 'e2'] },
-  { slot: 1, label: 'Second Reach', options: ['e3', 'e4'] },
-  { slot: 2, label: 'Final Reach',  options: ['e5', 'e6'] },
+  { slot: 1, label: 'Second Reach', options: ['e3', 'ee1'] }, // normal vs elite
+  { slot: 2, label: 'Final Reach',  options: ['e6', 'ee2'] }, // normal vs elite
 ];
 
 const RESOLVE_CARRY_CAP = 3;
@@ -971,6 +975,44 @@ function availableUpgrades(s) {
     const c = s.party.chars[u.charId];
     return !(c.upgrades && c.upgrades[`${u.slot}.${u.kind}`]);
   });
+}
+
+// ============================================================================
+// SIGILS — run-wide modifiers. Picked between fights; persist until run resets.
+// Each sigil has effect hooks that the game logic checks via hasSigil(s, id).
+// ============================================================================
+
+const SIGILS = {
+  quickening: { id: 'quickening', name: 'Crown of Quickening', icon: '⚡', desc: '+1 ATB per turn (4 total instead of 3).' },
+  pact:       { id: 'pact',       name: 'Sigil of the Pact',   icon: '✦', desc: 'Gain +1 Resolve per turn for each active bond between party members.' },
+  wrath:      { id: 'wrath',      name: 'Ember of Wrath',      icon: '✕', desc: 'Vulnerable enemies take an extra +2 damage from all attacks.' },
+  mending:    { id: 'mending',    name: 'Sigil of Mending',    icon: '✚', desc: 'At the end of your turn, your lowest-HP ally heals 2.' },
+  bloodborne: { id: 'bloodborne', name: 'Bloodborne Sigil',    icon: '✤', desc: 'Bleed ticks deal +1 each turn.' },
+  steel:      { id: 'steel',      name: 'Sigil of Steel',      icon: '⛨', desc: 'Start every fight with +2 armor on each party member.' },
+  echo:       { id: 'echo',       name: 'Echo Sigil',          icon: '⚔', desc: 'Team Special costs 1 less Resolve.' },
+  patience:   { id: 'patience',   name: 'Crown of Patience',   icon: '◆', desc: 'Start every fight with at least 2 Resolve.' },
+  reaver:     { id: 'reaver',     name: 'Sigil of the Reaver', icon: '☠', desc: 'Killing an enemy grants +1 additional Resolve.' },
+};
+
+function hasSigil(s, id) {
+  return !!(s && s.run && s.run.sigils && s.run.sigils.includes(id));
+}
+
+function getAtbMax(s) {
+  let max = ATB_MAX;
+  if (hasSigil(s, 'quickening')) max += 1;
+  return max;
+}
+
+function getTeamSpecialCost(s) {
+  let cost = TEAM_SPECIAL_COST;
+  if (hasSigil(s, 'echo')) cost = Math.max(1, cost - 1);
+  return cost;
+}
+
+function availableSigils(s) {
+  const owned = new Set((s.run && s.run.sigils) || []);
+  return Object.values(SIGILS).filter(sg => !owned.has(sg.id));
 }
 
 // ============================================================================
@@ -1161,6 +1203,8 @@ function newState() {
       slotIdx: 0,            // 0,1,2 — which RUN_LAYOUT entry we're on
       currentEncId: null,    // id of the active encounter, or null before first start
       completed: [],         // encIds of cleared fights, in order
+      sigils: [],            // ids of acquired sigils (run-wide modifiers)
+      lastVictoryElite: false, // did the most recent victory come from an elite encounter? (gates sigil reward size)
     },
 
     party: {
@@ -1216,6 +1260,12 @@ function startEncounter(encId) {
 
   if (!isFirstFight) {
     state.resolve = Math.min(RESOLVE_CARRY_CAP, state.resolve);
+  }
+  // Crown of Patience — start every fight with at least 2 Resolve
+  if (hasSigil(state, 'patience')) state.resolve = Math.max(state.resolve, 2);
+  // Sigil of Steel — start each fight with +2 armor on each party member
+  if (hasSigil(state, 'steel')) {
+    Object.values(state.party.chars).forEach(c => { if (!c.downed) c.armor += 2; });
   }
 
   startTurn(state);
@@ -1319,9 +1369,12 @@ function applyDmgToEnemy(s, e, baseAmt) {
   amt += consumePendingBonus(s, s.currentActorId, 'attackBonus');
   amt += s.outgoingDmgMod;
 
-  // vulnerable adds +2 per stack consumed (1 stack per hit)
+  // vulnerable adds +2 per stack consumed (1 stack per hit); Ember of Wrath sigil adds +2 more
   let vulnConsumed = 0;
-  if (e.vuln > 0 && amt > 0) { amt += 2; vulnConsumed = 1; }
+  if (e.vuln > 0 && amt > 0) {
+    amt += 2 + (hasSigil(s, 'wrath') ? 2 : 0);
+    vulnConsumed = 1;
+  }
 
   // staggered = +50% damage taken
   if (e.staggered && amt > 0) amt = Math.floor(amt * STAGGER_DMG_MULT);
@@ -1369,7 +1422,7 @@ function triggerStagger(s, e) {
 function killEnemy(s, e) {
   e.dead = true;
   log(`<b>${ENEMIES[e.id].name}</b> falls.`);
-  gainResolve(s, KILL_RESOLVE);
+  gainResolve(s, KILL_RESOLVE + (hasSigil(s, 'reaver') ? 1 : 0));
 }
 
 function applyDmgToParty(s, c, amt) {
@@ -1630,20 +1683,20 @@ function startTurn(s) {
   aliveParty(s).forEach(c => { c.taunt = false; c.retaliate = 0; c.firstAttackUsed = false; });
   log(`<span class="msg-strong">— Turn ${s.turn} —</span>`);
 
-  // bleed tick
+  // bleed tick — base 2 per turn, +1 if Bloodborne Sigil owned
+  const bleedTick = 2 + (hasSigil(s, 'bloodborne') ? 1 : 0);
   aliveParty(s).forEach(c => {
     if (c.bleed > 0) {
-      const dmg = 2;
-      c.hp = Math.max(0, c.hp - dmg); c.bleed -= 1;
-      spawnPopupId(c.id, `-${dmg}`, 'dmg', 'party');
+      c.hp = Math.max(0, c.hp - bleedTick); c.bleed -= 1;
+      spawnPopupId(c.id, `-${bleedTick}`, 'dmg', 'party');
       flashCardId(c.id, 'hit', 'party');
-      log(`<b>${CHARS[c.id].name}</b> bleeds (${dmg}).`);
+      log(`<b>${CHARS[c.id].name}</b> bleeds (${bleedTick}).`);
       if (c.hp === 0) { c.downed = true; c.pendingEffects = []; log(`<b>${CHARS[c.id].name}</b> falls.`); }
     }
   });
   aliveEnemies(s).forEach(e => {
     if (e.bleed > 0) {
-      const dmg = Math.max(0, 2 - (s.ignoreArmor ? 0 : e.armor));
+      const dmg = Math.max(0, bleedTick - (s.ignoreArmor ? 0 : e.armor));
       e.hp = Math.max(0, e.hp - dmg); e.bleed -= 1;
       if (dmg > 0) { spawnPopupId(e.id, `-${dmg}`, 'dmg', 'enemy'); flashCardId(e.id, 'hit', 'enemy'); }
       log(`<b>${ENEMIES[e.id].name}</b> bleeds (${dmg}).`);
@@ -1652,6 +1705,14 @@ function startTurn(s) {
   });
 
   gainResolve(s, RESOLVE_DRIP);
+  // Sigil of the Pact — +1 Resolve per active bond
+  if (hasSigil(s, 'pact')) {
+    const bondCount = getAdjacencyPairs(s).filter(p => p.synergy.type === 'bond').length;
+    if (bondCount > 0) {
+      gainResolve(s, bondCount);
+      log(`<i>Sigil of the Pact stirs — +${bondCount} Resolve.</i>`);
+    }
+  }
 
   // queue intents — ensure each living enemy has a valid intent index
   aliveEnemies(s).forEach(e => { e.intentIdx = e.intentIdx % ENEMIES[e.id].intents.length; });
@@ -1726,7 +1787,7 @@ function queueAtbUsed() {
   return state.queue.reduce((sum, it) => sum + (it.atb || 0), 0);
 }
 function queueAtbAvailable() {
-  return ATB_MAX - queueAtbUsed();
+  return getAtbMax(state) - queueAtbUsed();
 }
 function queueReservedResolve() {
   return state.queue.reduce((sum, it) => sum + (it.resolveCost || 0), 0);
@@ -1876,15 +1937,16 @@ function bindFigureHold(fig, charId, isParty) {
 function queueTeamSpecial() {
   const s = state;
   if (s.executing || s.over) return;
-  if (s.resolve < TEAM_SPECIAL_COST) { flashMsg('Not enough Resolve.'); return; }
+  const tsCost = getTeamSpecialCost(s);
+  if (s.resolve < tsCost) { flashMsg('Not enough Resolve.'); return; }
   if (s.queue.length > 0) { flashMsg('Team Special needs an empty queue.'); return; }
   const ts = getTeamSpecial(s);
   s.queue = [{
     kind: 'team',
     label: ts.name,
     desc: ts.short,
-    atb: TEAM_SPECIAL_ATB,
-    resolveCost: TEAM_SPECIAL_COST,
+    atb: getAtbMax(s),
+    resolveCost: tsCost,
     tsId: ts.id,
   }];
   render();
@@ -1910,6 +1972,19 @@ function resolveQueueStep(i) {
   if (i >= s.queue.length) {
     // queue done — leave taunt/retaliate up for the incoming enemy phase
     s.queue = [];
+    // Sigil of Mending — at end of player phase, lowest-HP ally heals 2
+    if (hasSigil(s, 'mending')) {
+      const alive = aliveParty(s).slice().sort((a,b) => (a.hp/a.maxHp) - (b.hp/b.maxHp));
+      const c = alive[0];
+      if (c) {
+        const before = c.hp;
+        c.hp = Math.min(c.maxHp, c.hp + 2);
+        if (c.hp > before) {
+          spawnPopupId(c.id, `+${c.hp - before}`, 'heal', 'party');
+          log(`<i>Sigil of Mending soothes <b>${CHARS[c.id].name}</b>.</i>`);
+        }
+      }
+    }
     if (checkEnd(s)) { s.executing = false; render(); return; }
     render();
     setTimeout(() => resolveEnemyTurn(s), 320);
@@ -2095,6 +2170,8 @@ function checkEnd(s) {
   if (aliveEnemies(s).length === 0) {
     s.over = true;
     s.run.completed.push(s.run.currentEncId);
+    const completedEnc = ENCOUNTERS[s.run.currentEncId];
+    s.run.lastVictoryElite = !!(completedEnc && completedEnc.elite);
     const isFinal = s.run.slotIdx >= RUN_LAYOUT.length - 1;
     if (isFinal) {
       showOverlay('Victory', 'All three sins are unbound. Your reach holds the dawn.');
@@ -2393,9 +2470,10 @@ function renderStatuses(ent) {
 function renderQueue() {
   const strip = $('#queue-strip');
   strip.innerHTML = '';
-  // Queue strip is a 3-column grid where each item spans (atb) columns via [data-atb].
-  // The remaining ATB shows as individual 1-cell placeholders so the strip never
-  // resizes existing items when a new action is queued.
+  // Queue strip is a grid of getAtbMax(state) columns; items span by their atb cost.
+  // dataset.atbMax drives CSS so the strip can be 3- or 4-wide (Crown of Quickening).
+  const atbMax = getAtbMax(state);
+  strip.dataset.atbMax = String(atbMax);
   let used = 0;
   state.queue.forEach((item, idx) => {
     const el = document.createElement('div');
@@ -2417,7 +2495,7 @@ function renderQueue() {
     strip.appendChild(el);
     used += item.atb || 0;
   });
-  const remaining = ATB_MAX - used;
+  const remaining = getAtbMax(state) - used;
   for (let i = 0; i < remaining; i++) {
     const ph = document.createElement('div');
     ph.className = 'queue-slot placeholder';
@@ -2570,11 +2648,11 @@ function bindTileHold(tile, handlers) {
 function applyPreviewHighlight({ enemySlots, partySlots }) {
   clearPreviewHighlight();
   (enemySlots || []).forEach(sl => {
-    const el = document.querySelector(`#enemy-half .card[data-slot="${sl}"]`);
+    const el = document.querySelector(`#enemy-half .figure[data-slot="${sl}"]`);
     if (el) el.classList.add('target-marker');
   });
   (partySlots || []).forEach(sl => {
-    const el = document.querySelector(`#party-half .card[data-slot="${sl}"]`);
+    const el = document.querySelector(`#party-half .figure[data-slot="${sl}"]`);
     if (el) el.classList.add('target-marker');
   });
 }
@@ -2607,7 +2685,9 @@ function makeTeamSpecialTile(teamLocked) {
   const ts = getTeamSpecial(state);
   const t = document.createElement('button');
   t.className = 'tile team-special';
-  const canAfford = state.resolve >= TEAM_SPECIAL_COST;
+  const tsCost = getTeamSpecialCost(state);
+  const tsAtb = getAtbMax(state);
+  const canAfford = state.resolve >= tsCost;
   const queueEmpty = state.queue.length === 0;
   t.disabled = !canAfford || !queueEmpty || state.executing || state.over;
   if (canAfford && queueEmpty) t.classList.add('ready');
@@ -2617,7 +2697,7 @@ function makeTeamSpecialTile(teamLocked) {
   t.title = `${ts.name} · formation ${formationLabel} · ${ts.short}`;
   t.innerHTML = `
     <span class="ts-name">${ts.name}</span>
-    <span class="ts-cost"><span class="tile-atb">${TEAM_SPECIAL_ATB}</span><span class="tile-cost">${TEAM_SPECIAL_COST}♦</span></span>
+    <span class="ts-cost"><span class="tile-atb">${tsAtb}</span><span class="tile-cost">${tsCost}♦</span></span>
     <span class="ts-desc">${ts.short}</span>
   `;
   bindTileHold(t, {
@@ -2725,12 +2805,14 @@ function showPathChoice(slotConfig) {
     const enc = ENCOUNTERS[encId];
     const card = document.createElement('button');
     card.className = 'encounter-choice';
+    if (enc.elite) card.classList.add('encounter-elite');
     const enemyIcons = SLOTS.map(sl => {
       const eid = enc.slots[sl];
       const def = ENEMIES[eid];
       return `<div class="enc-icon" title="${def?.name || ''}">${PORTRAITS[eid] || ''}<div class="enc-icon-slot">${SLOT_LABELS[sl]}</div></div>`;
     }).join('');
     card.innerHTML = `
+      ${enc.elite ? '<div class="enc-badge">☠ Elite · Sigil reward</div>' : ''}
       <div class="enc-name">${enc.name}</div>
       <div class="enc-row">${enemyIcons}</div>
     `;
@@ -2769,12 +2851,62 @@ function offerRecruitOrPath() {
 function offerUpgradeOrPath() {
   const pool = availableUpgrades(state);
   if (pool.length === 0) {
-    showPathChoice(RUN_LAYOUT[state.run.slotIdx]);
+    offerSigilOrPath();
     return;
   }
   const shuffled = pool.slice().sort(() => Math.random() - 0.5);
   const offers = shuffled.slice(0, Math.min(2, shuffled.length));
   showUpgradeOverlay(offers);
+}
+
+// Sigil offer step. Elites guarantee 3 cards (more agency); normals offer 2.
+function offerSigilOrPath() {
+  const pool = availableSigils(state);
+  if (pool.length === 0) {
+    showPathChoice(RUN_LAYOUT[state.run.slotIdx]);
+    return;
+  }
+  const count = state.run.lastVictoryElite ? 3 : 2;
+  const shuffled = pool.slice().sort(() => Math.random() - 0.5);
+  const offers = shuffled.slice(0, Math.min(count, shuffled.length));
+  showSigilOverlay(offers);
+}
+
+function showSigilOverlay(offers) {
+  $('#overlay-title').textContent = state.run.lastVictoryElite ? 'An elite sigil offers itself' : 'A sigil flickers into reach';
+  $('#overlay-body').textContent = 'Add one to your run, or pass.';
+  const choices = $('#overlay-choices');
+  choices.innerHTML = '';
+  offers.forEach(sg => {
+    const card = document.createElement('button');
+    card.className = 'encounter-choice sigil-choice';
+    card.innerHTML = `
+      <div class="enc-name">${sg.name}</div>
+      <div class="sigil-glyph">${sg.icon}</div>
+      <div class="sigil-desc">${sg.desc}</div>
+    `;
+    card.addEventListener('click', () => commitSigil(sg.id));
+    choices.appendChild(card);
+  });
+  const btn = $('#overlay-btn');
+  btn.textContent = 'Pass';
+  btn.onclick = () => {
+    hideOverlay();
+    resetOverlayBtn();
+    showPathChoice(RUN_LAYOUT[state.run.slotIdx]);
+  };
+  btn.classList.remove('hidden');
+  choices.classList.remove('hidden');
+  $('#overlay').classList.remove('hidden');
+}
+
+function commitSigil(sigilId) {
+  if (!SIGILS[sigilId]) return;
+  if (!state.run.sigils.includes(sigilId)) state.run.sigils.push(sigilId);
+  log(`<i>You bind the <b>${SIGILS[sigilId].name}</b>.</i>`);
+  hideOverlay();
+  resetOverlayBtn();
+  showPathChoice(RUN_LAYOUT[state.run.slotIdx]);
 }
 
 function showUpgradeOverlay(offers) {
@@ -2807,7 +2939,7 @@ function showUpgradeOverlay(offers) {
   btn.onclick = () => {
     hideOverlay();
     resetOverlayBtn();
-    showPathChoice(RUN_LAYOUT[state.run.slotIdx]);
+    offerSigilOrPath();
   };
   btn.classList.remove('hidden');
   choices.classList.remove('hidden');
@@ -2824,7 +2956,7 @@ function commitUpgrade(upgradeId) {
   log(`<b>${CHARS[up.charId].name}</b> learns <b>${up.name}</b>.`);
   hideOverlay();
   resetOverlayBtn();
-  showPathChoice(RUN_LAYOUT[state.run.slotIdx]);
+  offerSigilOrPath();
 }
 
 function showRecruitOverlay(candidates) {
