@@ -76,8 +76,10 @@ body {
 /* ============ STAGE — battlefield backdrop ============ */
 #stage {
   width: 100vw;
+  /* fallback for older Safari; dvh accounts for toolbar so the top doesn't clip */
   height: 100vh;
-  max-width: calc(100vh * 16 / 9);
+  height: 100dvh;
+  max-width: calc(100dvh * 16 / 9);
   max-height: calc(100vw * 9 / 16);
   display: grid;
   /* HUD | ATB strip | battlefield | log strip | action tiles+Fight+TS */
@@ -89,6 +91,9 @@ body {
     var(--bg-0);
   position: relative;
   overflow: hidden;
+  padding-top: env(safe-area-inset-top, 0);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  box-sizing: border-box;
 }
 /* heavy vignette */
 #stage::before {
@@ -333,7 +338,7 @@ body {
   padding: 6px 4px 4px;
   cursor: pointer;
 }
-.figure.empty { opacity: 0.15; }
+.figure.empty { visibility: hidden; }
 .figure.downed { opacity: 0.4; filter: grayscale(1) brightness(0.65); }
 
 .figure-portrait {
@@ -1071,7 +1076,7 @@ body {
 /* ============ ACTION ROW (row 5): tile-grid + team-special ============ */
 #action-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 96px 54px;
+  grid-template-columns: minmax(0, 1fr) 120px 54px;
   gap: 8px;
   padding: 4px 14px 10px;
   position: relative; z-index: 2;
@@ -1552,9 +1557,9 @@ body {
 }
 .tile.team-special .ts-name {
   font-size: 11px; font-weight: bold; color: var(--blood-bright);
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   text-shadow: 0 0 6px rgba(212,69,69,0.5), 0 1px 0 var(--shadow);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap;
   max-width: 100%;
 }
 /* description hidden by default — revealed on hold */
