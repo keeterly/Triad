@@ -4972,15 +4972,32 @@ function spawnReaction(id, emoji, side) {
 // Sequential popup pacing: damage / heal numbers fired in rapid succession
 // (multi-hit attacks, AoE) used to land at the same instant on the same
 // pixel and looked like one number.  Stagger them so each pops in turn.
+// Also dedupe — if the same text was just spawned on the same target
+// (e.g., a synergy that fires once per ally hit, applied 3x to the same
+// character), suppress the repeats within a short window.
 let _popupNextDue = 0;
 const POPUP_STAGGER_MS = 130;
+const POPUP_DEDUP_MS = 900;
+const _popupRecent = new Map(); // key: `${id}|${text}` -> last fire timestamp
 function spawnPopup(cardEl, text, type='dmg') {
   const layer = $('#popup-layer');
   const stage = $('#stage');
   if (!cardEl || !layer || !stage) return;
+  // Dedup window — same target + same exact text fires at most once per
+  // POPUP_DEDUP_MS.  Damage numbers won't ever collide (they include the
+  // hit value), but status / synergy name spam will.
+  const dedupKey = `${cardEl.dataset.id || ''}|${text}`;
+  const now = performance.now();
+  const last = _popupRecent.get(dedupKey);
+  if (last && (now - last) < POPUP_DEDUP_MS) return;
+  _popupRecent.set(dedupKey, now);
+  // Keep the dedup map from growing unbounded — sweep expired entries.
+  if (_popupRecent.size > 64) {
+    for (const [k, t] of _popupRecent) if ((now - t) > POPUP_DEDUP_MS) _popupRecent.delete(k);
+  }
+
   const r = cardEl.getBoundingClientRect();
   const s = stage.getBoundingClientRect();
-  const now = performance.now();
   const due = Math.max(_popupNextDue, now);
   _popupNextDue = due + POPUP_STAGGER_MS;
   const delay = due - now;
