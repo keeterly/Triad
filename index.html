@@ -18,6 +18,7 @@
   </div>
 
   <button id="mute-btn" type="button" title="Mute audio" aria-label="Mute audio">♪</button>
+  <button id="info-btn" type="button" title="Run info" aria-label="Show run info">ⓘ</button>
 
   <!-- Full-bleed title screen.  Drawn outside #stage so it covers the whole
        viewport without inheriting the game grid.  Shown/hidden via .hidden. -->
@@ -50,6 +51,22 @@
         <nav class="ts-menu" id="ts-menu"></nav>
         <p class="ts-meta" id="ts-meta"></p>
       </footer>
+    </div>
+  </div>
+
+  <!-- Boss intro / death overlay.  Hidden by default; populated and shown
+       briefly when a boss encounter starts or ends.  Outside #stage so it
+       can cover everything. -->
+  <div id="boss-intro" class="hidden" aria-hidden="true">
+    <div class="bi-bg"></div>
+    <div class="bi-content">
+      <div class="bi-title-row">
+        <span class="bi-rule"></span>
+        <span class="bi-eyebrow" id="bi-eyebrow">SIN OF THE DAWN</span>
+        <span class="bi-rule"></span>
+      </div>
+      <div class="bi-name" id="bi-name">THE WAKELING</div>
+      <div class="bi-tag" id="bi-tag">It does not flinch.</div>
     </div>
   </div>
 

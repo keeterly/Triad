@@ -565,6 +565,65 @@ const PORTRAITS = {
   <circle cx="32" cy="76" r="2.2" fill="#8a6a32"/>
   <circle cx="68" cy="76" r="2.2" fill="#8a6a32"/>
 </svg>`,
+  husk: `
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <path d="M30 130 L26 70 Q50 56 74 70 L70 130 Z" fill="#2a2628" stroke="#0a070a" stroke-width="0.6"/>
+  <path d="M38 130 L40 86 L60 86 L62 130 Z" fill="#16131a"/>
+  <ellipse cx="50" cy="56" rx="14" ry="14" fill="#3a3438"/>
+  <ellipse cx="50" cy="56" rx="11" ry="11" fill="#0e0c10"/>
+  <!-- two pinprick eyes -->
+  <circle cx="44" cy="56" r="1.2" fill="#dcd0c0"/>
+  <circle cx="56" cy="56" r="1.2" fill="#dcd0c0"/>
+  <!-- bound jaw rope -->
+  <rect x="42" y="64" width="16" height="2" fill="#4a3a2a"/>
+  <!-- broad shoulders -->
+  <ellipse cx="50" cy="74" rx="26" ry="6" fill="#1c181e"/>
+</svg>`,
+  pyremaw: `
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <radialGradient id="pm-mouth" cx="50%" cy="65%" r="55%">
+      <stop offset="0%" stop-color="#ffd070"/>
+      <stop offset="55%" stop-color="#e84a18"/>
+      <stop offset="100%" stop-color="#1c0606"/>
+    </radialGradient>
+  </defs>
+  <path d="M26 130 L24 64 Q50 48 76 64 L74 130 Z" fill="#1a0e0a"/>
+  <ellipse cx="50" cy="76" rx="22" ry="22" fill="#150806"/>
+  <ellipse cx="50" cy="80" rx="16" ry="14" fill="url(#pm-mouth)"/>
+  <!-- teeth -->
+  <path d="M38 76 L42 86 L46 76 L50 86 L54 76 L58 86 L62 76 Z" fill="#f0e8d8"/>
+  <!-- glowing eyes -->
+  <circle cx="42" cy="66" r="2.4" fill="#ffae5c"/>
+  <circle cx="58" cy="66" r="2.4" fill="#ffae5c"/>
+</svg>`,
+  echocaster: `
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <path d="M30 130 L20 76 Q50 60 80 76 L70 130 Z" fill="#1a1828" stroke="#080612" stroke-width="0.5"/>
+  <!-- floating shards above the figure -->
+  <polygon points="50,46 54,54 50,60 46,54" fill="#7a8ac0" opacity="0.9"/>
+  <polygon points="38,52 42,58 38,62 34,58" fill="#5a6aa0" opacity="0.7"/>
+  <polygon points="62,52 66,58 62,62 58,58" fill="#5a6aa0" opacity="0.7"/>
+  <!-- hooded head -->
+  <ellipse cx="50" cy="74" rx="14" ry="14" fill="#241e30"/>
+  <ellipse cx="50" cy="74" rx="11" ry="11" fill="#0e0c18"/>
+  <!-- glowing eye line -->
+  <rect x="42" y="74" width="16" height="1.6" fill="#9aa8d8"/>
+  <!-- robe drape -->
+  <path d="M30 100 Q50 92 70 100 L66 130 L34 130 Z" fill="#100e1a"/>
+</svg>`,
+  ashling: `
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <path d="M40 130 L36 78 Q50 70 64 78 L60 130 Z" fill="#2a2018"/>
+  <ellipse cx="50" cy="72" rx="10" ry="10" fill="#1a1410"/>
+  <circle cx="46" cy="72" r="1.2" fill="#ffa050"/>
+  <circle cx="54" cy="72" r="1.2" fill="#ffa050"/>
+  <!-- trailing ash -->
+  <circle cx="34" cy="100" r="1.4" fill="#a09080" opacity="0.6"/>
+  <circle cx="66" cy="104" r="1"   fill="#a09080" opacity="0.5"/>
+  <circle cx="42" cy="110" r="0.8" fill="#a09080" opacity="0.45"/>
+  <circle cx="58" cy="118" r="1.1" fill="#a09080" opacity="0.4"/>
+</svg>`,
 };
 
 // ============================================================================
@@ -915,6 +974,41 @@ const ENEMIES = {
       } },
     ],
   },
+  // ---- Additional enemy types for run-to-run variety ----
+  husk: {
+    id: 'husk', name: 'Hollow Husk', title: 'Sin of Stillness', maxHp: 22,
+    weakness: 'physical', resistance: 'arcane',
+    intents: [
+      { name: 'Resolute Stand', tag: '+3⛨ self',    targetSlot: '?',     kind: 'armor',  fn: (s) => { const me = Object.values(s.enemies.chars).find(en => en.id === 'husk' && !en.dead); if (me) me.armor += 3; } },
+      { name: 'Crashing Fist',  tag: 'ATK 7',       targetSlot: 'front', kind: 'atk', dmg: 7, fn: (s) => dmgPartyAt(s, 'front', 7) },
+      { name: 'Hollow Sigh',    tag: 'WEAK all',    targetSlot: 'all',   kind: 'debuff', fn: (s) => aliveParty(s).forEach(c => { c.weak += 1; }) },
+    ],
+  },
+  pyremaw: {
+    id: 'pyremaw', name: 'Pyre Maw', title: 'Sin of Cinders', maxHp: 16,
+    weakness: 'stealth', resistance: 'holy',
+    intents: [
+      { name: 'Ember Bite',  tag: 'ATK 5 + bleed', targetSlot: 'mid',  kind: 'atk',    dmg: 5, fn: (s) => { dmgPartyAt(s, 'mid', 5); bleedPartyAt(s, 'mid', 2); } },
+      { name: 'Cinder Wave', tag: 'ATK 2 all + bleed', targetSlot: 'all', kind: 'aoe', dmg: 2, fn: (s) => { dmgAllParty(s, 2); aliveParty(s).forEach(c => { c.bleed = Math.max(c.bleed, 1); }); } },
+    ],
+  },
+  echocaster: {
+    id: 'echocaster', name: 'Echo Caster', title: 'Sin of Recall', maxHp: 14,
+    weakness: 'physical', resistance: 'stealth',
+    intents: [
+      { name: 'Repeat',       tag: 'ATK 3 + repeats', targetSlot: 'fm',  kind: 'debuff', dmg: 3, fn: (s) => { dmgPartyAt(s, 'front', 3); dmgPartyAt(s, 'mid', 3); } },
+      { name: 'Mirror Shard', tag: 'ATK 4 + vuln',    targetSlot: 'back', kind: 'debuff', dmg: 4, fn: (s) => { dmgPartyAt(s, 'back', 4); applyVulnParty(s, 'back', 1); } },
+      { name: 'Hush',         tag: 'WEAK lowest',     targetSlot: '?',   kind: 'debuff', fn: (s) => { const t = aliveParty(s).slice().sort((a,b) => a.hp - b.hp)[0]; if (t) t.weak += 2; } },
+    ],
+  },
+  ashling: {
+    id: 'ashling', name: 'Ashling', title: 'Sin of Drifting', maxHp: 10,
+    weakness: 'holy', resistance: 'physical',
+    intents: [
+      { name: 'Cinder Skip',  tag: 'ATK 3 + bleed', targetSlot: 'front', kind: 'atk', dmg: 3, fn: (s) => { dmgPartyAt(s, 'front', 3); bleedPartyAt(s, 'front', 1); } },
+      { name: 'Trail of Ash', tag: 'bleed 1 all',   targetSlot: 'all',   kind: 'debuff', fn: (s) => aliveParty(s).forEach(c => { c.bleed = Math.max(c.bleed, 1); }) },
+    ],
+  },
   wakeling: {
     id: 'wakeling', name: 'The Wakeling', title: 'Sin of the Dawn', maxHp: 60, boss: true,
     weakness: ['arcane', 'stealth'], resistance: 'physical',
@@ -954,8 +1048,8 @@ const ENCOUNTERS = {
 // ============================================================================
 
 // Pools for procedural encounter generation
-const COMBAT_ENEMY_POOL = ['ghoul', 'cultist', 'wraith', 'lineCaster', 'sniper'];
-const ELITE_ENEMY_POOL  = ['grappler', 'sniper', 'lineCaster', 'wraith', 'cultist'];
+const COMBAT_ENEMY_POOL = ['ghoul', 'cultist', 'wraith', 'lineCaster', 'sniper', 'husk', 'pyremaw', 'echocaster', 'ashling'];
+const ELITE_ENEMY_POOL  = ['grappler', 'sniper', 'lineCaster', 'wraith', 'cultist', 'husk', 'echocaster'];
 
 // Flavor name pools — combat encounters draw a name from here at gen time so
 // the map has variety even when the underlying enemy mix is similar.
@@ -2786,6 +2880,9 @@ function startEncounter(encSpec) {
   if (!encSpec || !encSpec.slots) return;
   const isFirstFight = !state.run.currentEnc;
   applyBiomeBackground();
+  // Boss flag drives full-width visual + dramatic HP bar
+  if (encSpec.boss) document.body.classList.add('boss-fight');
+  else              document.body.classList.remove('boss-fight');
 
   // reset per-fight party statuses; keep hp, downed, pendingEffects
   Object.values(state.party.chars).forEach(c => {
@@ -3187,6 +3284,12 @@ function killEnemy(s, e) {
   log(`<b>${ENEMIES[e.id].name}</b> falls.`);
   Audio.kill();
   shakeScreen(2);
+  // Boss death is climactic — slow time + screen flash, hold the moment
+  // before the run-summary cascade fires.
+  if (ENEMIES[e.id] && ENEMIES[e.id].boss) {
+    shakeScreen(3);
+    playBossDeath();
+  }
   gainResolve(s, KILL_RESOLVE + (hasSigil(s, 'reaver') ? 1 : 0));
   if (s.fightStats) {
     s.fightStats.kills += 1;
@@ -4167,11 +4270,13 @@ function checkEnd(s) {
       bossCtx.phase = 'bossDefeated';
       const bossMatches = matchVignettes(s, bossCtx);
       const continueToSummary = () => showVictorySummary(completedEnc, () => showRunSummary('boss'));
+      // Hold for the slo-mo death effect before the run-summary cascade.
+      const BOSS_DEATH_HOLD = 1600;
       if (bossMatches.length) {
         const pick = bossMatches[Math.floor(Math.random() * bossMatches.length)];
-        setTimeout(() => showVignette(pick, bossCtx, continueToSummary), 480);
+        setTimeout(() => showVignette(pick, bossCtx, continueToSummary), BOSS_DEATH_HOLD);
       } else {
-        setTimeout(continueToSummary, 480);
+        setTimeout(continueToSummary, BOSS_DEATH_HOLD);
       }
     } else {
       // Snapshot fight context for vignette triggers (firedSynergies, minHp etc.)
@@ -4443,6 +4548,19 @@ function makePartyCard(c, slot, threatened, adjMap, incoming) {
   // .targeted-by-enemy class; lethal hits glow brighter via .targeted-lethal.
   // Some uncertainty preserved — players see WHO is threatened, not the
   // precise number.
+  // Quirk dots — small icons under the name showing earned affinities.
+  // Positive = gold ✦; Negative = blood ✦; each tap reveals the name/desc
+  // via the existing chip-tooltip pattern.
+  const quirks = c.quirks || { positive: [], negative: [] };
+  const quirkDots = [
+    ...quirks.positive.map(qid => ({ qid, polarity: 'positive' })),
+    ...quirks.negative.map(qid => ({ qid, polarity: 'negative' })),
+  ].map(({ qid, polarity }) => {
+    const q = QUIRKS[qid];
+    if (!q) return '';
+    return `<span class="fig-quirk fig-quirk-${polarity}" title="${q.name} — ${q.desc}" data-tip="${q.name} — ${q.desc}">✦</span>`;
+  }).join('');
+
   fig.innerHTML = `
     ${synStack}
     <div class="figure-portrait">
@@ -4456,6 +4574,7 @@ function makePartyCard(c, slot, threatened, adjMap, incoming) {
     <div class="figure-shadow"></div>
     <div class="figure-info">
       <div class="figure-name${isHome ? ' home' : ''}">${def.name}</div>
+      ${quirkDots ? `<div class="fig-quirks">${quirkDots}</div>` : ''}
     </div>
     ${canMoveBack  ? `<button class="move-arrow move-arrow-left"  data-dir="1"  aria-label="Move toward back">◀</button>`  : ''}
     ${canMoveFront ? `<button class="move-arrow move-arrow-right" data-dir="-1" aria-label="Move toward front">▶</button>` : ''}
@@ -5176,6 +5295,44 @@ function hideNodeTooltip() {
   document.removeEventListener('pointerdown', _ttDismissHandler, true);
 }
 
+// Boss intro: name reveal with darken + fade.  Calls `then` after ~1.4s.
+// Used for entering The Wakeling fight.
+function showBossIntro(opts, then) {
+  const root = document.getElementById('boss-intro');
+  if (!root) { if (then) then(); return; }
+  const ey = document.getElementById('bi-eyebrow');
+  const nm = document.getElementById('bi-name');
+  const tg = document.getElementById('bi-tag');
+  if (ey) ey.textContent = opts?.eyebrow || 'SIN OF THE DAWN';
+  if (nm) nm.textContent = opts?.name    || 'THE WAKELING';
+  if (tg) tg.textContent = opts?.tag     || 'It does not flinch.';
+  root.classList.remove('hidden');
+  root.classList.add('intro');
+  Audio.kill(); // low ominous stinger reused
+  setTimeout(() => {
+    root.classList.add('out');
+    setTimeout(() => {
+      root.classList.add('hidden');
+      root.classList.remove('intro', 'out');
+      if (then) then();
+    }, 500);
+  }, 1300);
+}
+
+// Boss death slow-mo: dim the screen, slow CSS animations, brief flash.
+// Called from killEnemy when a boss falls.  Calls `then` after the
+// effect completes (so the run-summary cascade still fires).
+function playBossDeath(then) {
+  const stage = $('#stage');
+  if (stage) stage.classList.add('boss-slowmo');
+  document.body.classList.add('boss-killed');
+  setTimeout(() => {
+    if (stage) stage.classList.remove('boss-slowmo');
+    document.body.classList.remove('boss-killed');
+    if (then) then();
+  }, 1400);
+}
+
 function applyBiomeBackground() {
   const layer = document.getElementById('biome-layer');
   if (!layer) return;
@@ -5326,6 +5483,77 @@ function bindUI() {
   $('#overlay-btn').onclick = () => { hideOverlay(); init(); };
   bindChipExplainers();
   bindMuteButton();
+  bindInfoButton();
+}
+
+function bindInfoButton() {
+  const btn = document.getElementById('info-btn');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    if (!state || !state.party || !state.party.chars) return;
+    Audio.ui();
+    showRunInfoPanel();
+  });
+}
+
+// In-combat info pull-out — surfaces the moment-to-moment build state:
+// each hero's quirks, the bound sigils, the active biome.  Dismisses on
+// any tap inside or via the Close button.
+function showRunInfoPanel() {
+  const titleEl = $('#overlay-title');
+  const bodyEl  = $('#overlay-body');
+  const choicesEl = $('#overlay-choices');
+  titleEl.textContent = 'Run state';
+  bodyEl.classList.remove('victory-summary-body', 'welcome-body', 'run-summary-body', 'title-screen-body', 'vignette-body');
+  const mod = getRunModifier(state);
+  const sigilIds = (state.run && state.run.sigils) || [];
+  const sigilBlock = sigilIds.length
+    ? `<div class="info-sigils">${sigilIds.map(id => {
+        const sg = SIGILS[id]; if (!sg) return '';
+        return `<span class="sigil-chip cat-${sg.category}" title="${sg.name} — ${sg.desc}" data-tip="${sg.name} — ${sg.desc}">${sg.icon || '◆'} ${sg.name}</span>`;
+      }).join('')}</div>`
+    : `<div class="info-empty">No sigils bound yet.</div>`;
+  const heroBlocks = Object.keys(state.party.chars).map(id => {
+    const c = state.party.chars[id];
+    const def = CHARS[id];
+    if (!c || !def) return '';
+    const pos = (c.quirks && c.quirks.positive) || [];
+    const neg = (c.quirks && c.quirks.negative) || [];
+    const chips = [...pos.map(qid => ({ qid, pol: 'positive' })),
+                   ...neg.map(qid => ({ qid, pol: 'negative' }))]
+      .map(({ qid, pol }) => {
+        const q = QUIRKS[qid]; if (!q) return '';
+        return `<span class="hero-quirk hero-quirk-${pol}" title="${q.name} — ${q.desc}" data-tip="${q.name} — ${q.desc}">${q.name}</span>`;
+      }).join('');
+    return `
+      <div class="info-hero ${c.downed ? 'info-hero-downed' : ''}">
+        <div class="info-hero-portrait">${PORTRAITS[id] || ''}</div>
+        <div class="info-hero-body">
+          <div class="info-hero-name">${def.name}${c.downed ? ' · downed' : ''}</div>
+          <div class="info-hero-hp">HP ${c.hp} / ${c.maxHp}</div>
+          ${chips ? `<div class="info-hero-quirks">${chips}</div>` : `<div class="info-hero-quirks info-hero-quirks-empty">No affinities yet.</div>`}
+        </div>
+      </div>`;
+  }).join('');
+  bodyEl.innerHTML = `
+    ${mod ? `<div class="info-biome"><span class="info-label">Biome</span><span class="info-biome-name">${mod.name}</span><span class="info-biome-desc">${mod.desc}</span></div>` : ''}
+    <div class="info-section">
+      <div class="info-label">Sigils</div>
+      ${sigilBlock}
+    </div>
+    <div class="info-section">
+      <div class="info-label">Heroes</div>
+      <div class="info-heroes">${heroBlocks}</div>
+    </div>
+  `;
+  choicesEl.innerHTML = '';
+  choicesEl.classList.add('hidden');
+  resetOverlayBtn();
+  const btn = $('#overlay-btn');
+  btn.textContent = 'Close';
+  btn.onclick = () => { hideOverlay(); };
+  btn.classList.remove('hidden');
+  $('#overlay').classList.remove('hidden');
 }
 
 function bindMuteButton() {
@@ -5388,7 +5616,7 @@ function showTutorialToast(html, onDismiss) {
 // to surface its explanation. Capture-phase so the figure's setPointerCapture
 // (pickup gesture) doesn't swallow the tap.
 function bindChipExplainers() {
-  const CHIP_SEL = '.status-chip, .affinity-chip, .adj-chip, .incoming-chip, .sigil-chip, .hero-quirk, .run-mod-chip';
+  const CHIP_SEL = '.status-chip, .affinity-chip, .adj-chip, .incoming-chip, .sigil-chip, .hero-quirk, .run-mod-chip, .fig-quirk';
   document.addEventListener('pointerdown', (e) => {
     const chip = e.target.closest(CHIP_SEL);
     if (chip && chip.getAttribute('title')) {
@@ -5523,12 +5751,14 @@ function renderMap() {
         if (node.type === 'rest')        return showRestOverlay();
         if (node.type === 'event')       return showEventOverlay(node.eventId);
         if (node.type === 'boss') {
+          const startBoss = () => showBossIntro({}, () => startEncounter(node.enc));
           const ctx = captureFightContext(state); ctx.phase = 'bossPrep';
           const matches = matchVignettes(state, ctx);
           if (matches.length) {
             const pick = matches[Math.floor(Math.random() * matches.length)];
-            return showVignette(pick, ctx, () => startEncounter(node.enc));
+            return showVignette(pick, ctx, startBoss);
           }
+          return startBoss();
         }
         startEncounter(node.enc);
       };
@@ -6563,14 +6793,17 @@ function showSettingsScreen() {
         _tutCursor = 0;
         flashSettings('Tutorial will replay next run.');
       } else if (action === 'clearsave') {
-        clearSave();
-        flashSettings('Active run cleared.');
-        // Refresh the title screen so Continue updates
-        setTimeout(() => { hideOverlay(); showTitleScreen(); }, 600);
+        confirmDestructive('Clear the active run?', 'This deletes your in-progress save.', () => {
+          clearSave();
+          flashSettings('Active run cleared.');
+          setTimeout(() => { hideOverlay(); showTitleScreen(); }, 600);
+        });
       } else if (action === 'resetprogress') {
-        try { localStorage.removeItem(UNLOCKED_KEY); } catch (_) {}
-        flashSettings('Meta progression reset.');
-        setTimeout(() => { hideOverlay(); showTitleScreen(); }, 600);
+        confirmDestructive('Reset meta progression?', 'All starter unlocks earned across runs will be wiped.', () => {
+          try { localStorage.removeItem(UNLOCKED_KEY); } catch (_) {}
+          flashSettings('Meta progression reset.');
+          setTimeout(() => { hideOverlay(); showTitleScreen(); }, 600);
+        });
       }
     });
   });
@@ -6586,6 +6819,28 @@ function showSettingsScreen() {
   btn.classList.remove('hidden');
   $('#overlay').classList.remove('hidden');
 }
+// Two-button confirm modal for destructive actions.  Builds a small
+// element on top of everything else; the user must explicitly confirm.
+function confirmDestructive(title, body, onConfirm) {
+  const old = document.getElementById('confirm-modal');
+  if (old) old.remove();
+  const m = document.createElement('div');
+  m.id = 'confirm-modal';
+  m.innerHTML = `
+    <div class="cm-card">
+      <div class="cm-title">${title}</div>
+      <div class="cm-body">${body}</div>
+      <div class="cm-actions">
+        <button type="button" class="cm-cancel">Cancel</button>
+        <button type="button" class="cm-confirm">Confirm</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(m);
+  m.querySelector('.cm-cancel').addEventListener('click', () => { Audio.ui(); m.remove(); });
+  m.querySelector('.cm-confirm').addEventListener('click', () => { Audio.ui(); m.remove(); onConfirm(); });
+}
+
 function flashSettings(msg) {
   const note = document.createElement('div');
   note.className = 'settings-flash';
