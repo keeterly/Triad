@@ -1035,6 +1035,150 @@ function _grantRandomSigil(s) {
   log(`<i>You bind the <b>${sg.name}</b>.</i>`);
 }
 
+// ============================================================================
+// VIGNETTES — light-novel beats triggered by what just happened in a fight.
+// Each vignette declares conditions (bond/friction fired, biome, low HP, who
+// is alive) and renders as a portrait + dialogue + 1-2 choices that mutate
+// run state.  See showVignette() for rendering; offerVignetteOrPath() picks
+// one (if any match) between the victory summary and the recruit/upgrade flow.
+// ============================================================================
+const VIGNETTES = {
+  // Mira watches Elin's back — Sister's Watch is the FM bond between them.
+  sister_watch: {
+    id: 'sister_watch',
+    when: { bondFired: "Sister's Watch", requires: ['mira', 'elin'] },
+    title: 'A glance, returning',
+    speaker: 'mira',
+    lines: [
+      { who: 'mira', text: 'You watched my back. Again.' },
+      { who: 'elin', text: 'You always look ahead. Someone has to look behind.' },
+    ],
+    choices: [
+      { label: 'Deepen the vow', tag: 'Elin gains Vow Unbroken',
+        resolve: (s) => { grantQuirk(s, 'elin', 'vow_unbroken'); log(`<b>Elin</b> gains <i>Vow Unbroken</i>.`); } },
+      { label: 'Say nothing',    tag: 'no change', resolve: () => {} },
+    ],
+  },
+  // Cassia + Korin's Iron Bond — two front-liners after a hard fight.
+  iron_bond: {
+    id: 'iron_bond',
+    when: { bondFired: 'Iron Bond', requires: ['cassia', 'korin'] },
+    title: 'Shoulders, side by side',
+    speaker: 'cassia',
+    lines: [
+      { who: 'cassia', text: "You took the blow that was meant for me." },
+      { who: 'korin',  text: "You'll take the next one for me. That's the bond." },
+    ],
+    choices: [
+      { label: 'Carry the banner', tag: 'Cassia gains Banner Bearer',
+        resolve: (s) => { grantQuirk(s, 'cassia', 'banner_bearer'); log(`<b>Cassia</b> gains <i>Banner Bearer</i>.`); } },
+      { label: 'Clean the blade',  tag: 'Heal both to full',
+        resolve: (s) => { ['cassia','korin'].forEach(id => { const c = s.party.chars[id]; if (c && !c.downed) c.hp = c.maxHp; }); log('Cassia and Korin recover fully.'); } },
+    ],
+  },
+  // Branwen + Cassia friction — Old Rivalry's residue.
+  old_rivalry: {
+    id: 'old_rivalry',
+    when: { frictionFired: 'Old Rivalry', requires: ['branwen', 'cassia'] },
+    title: 'A line, redrawn',
+    speaker: 'branwen',
+    lines: [
+      { who: 'branwen', text: "If you'd held your line, the cultist wouldn't have reached me." },
+      { who: 'cassia',  text: "If you'd loosed faster, he wouldn't have." },
+    ],
+    choices: [
+      { label: 'Speak it through', tag: 'Branwen gains Bleed Stalker',
+        resolve: (s) => { grantQuirk(s, 'branwen', 'bleed_stalker'); log(`<b>Branwen</b> gains <i>Bleed Stalker</i>.`); } },
+      { label: 'Walk it off',      tag: 'Cassia gains +3 max HP for the run',
+        resolve: (s) => { const c = s.party.chars.cassia; if (c) { c.maxHp += 3; c.hp += 3; } log(`<b>Cassia</b> hardens — +3 max HP.`); } },
+    ],
+  },
+  // Burning Sky biome — works regardless of party comp.
+  burning_sky_reflection: {
+    id: 'burning_sky_reflection',
+    when: { whileBiome: 'burning' },
+    title: 'The ash rises',
+    speaker: null, // narration-only beat
+    lines: [
+      { who: null, text: 'The ash did not fall today. It rose.' },
+      { who: null, text: 'Somewhere, a village burned a long time ago. The sky remembers.' },
+    ],
+    choices: [
+      { label: 'Press on', tag: '+2 Resolve at the start of the next fight',
+        resolve: (s) => { s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 2; log('You carry the unease forward.'); } },
+      { label: 'Make a small offering', tag: 'Heal lowest hero to full',
+        resolve: (s) => { const alive = Object.values(s.party.chars).filter(c => !c.downed); alive.sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp); if (alive[0]) { alive[0].hp = alive[0].maxHp; log(`<b>${CHARS[alive[0].id].name}</b> is restored.`); } } },
+    ],
+  },
+  // Bone Tide biome — bleed-themed, plays differently if Branwen or Mira is present.
+  bone_tide_reflection: {
+    id: 'bone_tide_reflection',
+    when: { whileBiome: 'bonetide' },
+    title: 'The tide does not recede',
+    speaker: 'branwen', // prefers Branwen if present
+    speakerFallback: 'mira',
+    lines: [
+      { who: 'branwen', altWho: 'mira', text: 'The blood reaches further every fight.' },
+      { who: null, text: 'The land does not wash itself clean.' },
+    ],
+    choices: [
+      { label: 'Sharpen the blade', tag: 'Bleeders deal +1 with bleed (gain Bloodborne Sigil)',
+        resolve: (s) => { if (!hasSigil(s, 'bloodborne')) { s.run.sigils.push('bloodborne'); log('You bind <b>Bloodborne Sigil</b>.'); } } },
+      { label: 'Wash the wound',   tag: 'Heal all party 3',
+        resolve: (s) => { aliveParty(s).forEach(c => { c.hp = Math.min(c.maxHp, c.hp + 3); }); log('The party staunches.'); } },
+    ],
+  },
+  // Hero near death — triggers if any hero ended a fight at <= 4 HP.
+  near_death: {
+    id: 'near_death',
+    when: { someoneAtOrBelow: 4 },
+    title: 'A breath, drawn slow',
+    speakerFromLowestHp: true,
+    lines: [
+      { who: '_lowest', text: 'I was closer than I should have been.' },
+      { who: null,      text: 'You can almost hear them count the heartbeats they almost lost.' },
+    ],
+    choices: [
+      { label: 'Bind the wound', tag: 'That hero gains +4 max HP for the run',
+        resolve: (s) => { const id = _lowestHpAliveId(s); const c = id && s.party.chars[id]; if (c) { c.maxHp += 4; c.hp += 4; log(`<b>${CHARS[id].name}</b>'s frame hardens — +4 max HP.`); } } },
+      { label: 'Walk it off',    tag: 'That hero gains Resilient (+1 dmg, +1 healing)',
+        resolve: (s) => { const id = _lowestHpAliveId(s); if (id) { grantQuirk(s, id, 'precise'); grantQuirk(s, id, 'gentle'); log(`<b>${CHARS[id].name}</b> steadies.`); } } },
+    ],
+  },
+};
+
+function _lowestHpAliveId(s) {
+  const alive = Object.values(s.party.chars).filter(c => !c.downed);
+  if (!alive.length) return null;
+  alive.sort((a, b) => a.hp - b.hp);
+  return alive[0].id;
+}
+
+function captureFightContext(s) {
+  return {
+    firedSynergies: Array.from(s.firedSynergies || []),
+    minHp: { ...((s.fightStats && s.fightStats.minHp) || {}) },
+    party: Object.keys(s.party.chars),
+    alive: Object.values(s.party.chars).filter(c => !c.downed).map(c => c.id),
+    biome: s.run && s.run.modifier,
+  };
+}
+
+function matchVignettes(s, ctx) {
+  return Object.values(VIGNETTES).filter(v => {
+    const w = v.when || {};
+    if (w.requires && !w.requires.every(id => ctx.alive.includes(id))) return false;
+    if (w.bondFired && !ctx.firedSynergies.includes(w.bondFired)) return false;
+    if (w.frictionFired && !ctx.firedSynergies.includes(w.frictionFired)) return false;
+    if (w.whileBiome && ctx.biome !== w.whileBiome) return false;
+    if (typeof w.someoneAtOrBelow === 'number') {
+      const hit = Object.entries(ctx.minHp).some(([id, hp]) => hp <= w.someoneAtOrBelow && ctx.alive.includes(id));
+      if (!hit) return false;
+    }
+    return true;
+  });
+}
+
 // Generate the run's map graph.  Layout (5 levels):
 //   L1: 2-3 combat (entries)
 //   L2: 2-3 combat
@@ -2302,6 +2446,11 @@ function applyDmgToParty(s, c, amt) {
 
   if (s.fightStats && toHp > 0) {
     s.fightStats.damageTaken[c.id] = (s.fightStats.damageTaken[c.id] || 0) + toHp;
+    // Track each character's lowest HP this fight (for vignette triggers)
+    s.fightStats.minHp = s.fightStats.minHp || {};
+    if (s.fightStats.minHp[c.id] === undefined || c.hp < s.fightStats.minHp[c.id]) {
+      s.fightStats.minHp[c.id] = c.hp;
+    }
   }
   fireAdjacencyHook(s, 'onPartyDamaged', c.id, toHp);
 
@@ -3156,8 +3305,11 @@ function checkEnd(s) {
       // Boss kill ends the run with a victory summary
       setTimeout(() => showVictorySummary(completedEnc, () => showRunSummary('boss')), 480);
     } else {
-      // Between fights: recap, recruit offer (if any), then upgrade/sigil/map
-      setTimeout(() => showVictorySummary(completedEnc, () => offerRecruitOrPath()), 480);
+      // Snapshot fight context for vignette triggers (firedSynergies, minHp etc.)
+      // BEFORE the next encounter resets them.
+      const fightCtx = captureFightContext(s);
+      // Between fights: recap -> maybe a vignette -> recruit -> upgrade -> sigil -> map
+      setTimeout(() => showVictorySummary(completedEnc, () => offerVignetteOrPath(fightCtx)), 480);
     }
     return true;
   }
@@ -4130,6 +4282,89 @@ function renderMap() {
   requestAnimationFrame(() => drawMapConnectors(choices));
 }
 
+// Render a vignette as a light-novel beat: portrait + dialogue lines + 2-3
+// choices.  When the chosen resolver finishes, call `done()` to continue the
+// post-fight cascade (recruit/upgrade/sigil/map).
+function showVignette(v, ctx, done) {
+  const titleEl = $('#overlay-title');
+  const bodyEl  = $('#overlay-body');
+  const choicesEl = $('#overlay-choices');
+
+  // Pick the actual speaker for portrait + line resolution
+  let speakerId = v.speaker;
+  if (v.speakerFromLowestHp) speakerId = _lowestHpAliveId(state);
+  if (speakerId && !state.party.chars[speakerId] && v.speakerFallback) speakerId = v.speakerFallback;
+  if (speakerId && !state.party.chars[speakerId]) {
+    // last-ditch: any alive party member
+    speakerId = ctx.alive[0] || null;
+  }
+
+  titleEl.textContent = v.title || 'A moment';
+  bodyEl.classList.remove('victory-summary-body', 'welcome-body', 'run-summary-body');
+  bodyEl.innerHTML = '';
+
+  const stage = document.createElement('div');
+  stage.className = 'vignette-stage';
+
+  // Portrait column
+  const portWrap = document.createElement('div');
+  portWrap.className = 'vignette-portrait';
+  if (speakerId && PORTRAITS[speakerId]) portWrap.innerHTML = PORTRAITS[speakerId];
+  else portWrap.classList.add('empty');
+  stage.appendChild(portWrap);
+
+  // Dialogue stack
+  const dlg = document.createElement('div');
+  dlg.className = 'vignette-dialogue';
+  v.lines.forEach(line => {
+    const row = document.createElement('div');
+    row.className = 'vignette-line';
+    // Resolve who: literal id, or '_lowest' / 'altWho' fallback when the
+    // primary speaker isn't on the team.
+    let whoId = line.who;
+    if (whoId === '_lowest') whoId = _lowestHpAliveId(state);
+    if (whoId && !state.party.chars[whoId] && line.altWho && state.party.chars[line.altWho]) whoId = line.altWho;
+    if (whoId && !state.party.chars[whoId]) whoId = null;
+    if (whoId) {
+      const name = CHARS[whoId]?.name || whoId;
+      row.innerHTML = `<span class="vignette-who">${name}</span><span class="vignette-text">${line.text}</span>`;
+      if (whoId === speakerId) row.classList.add('speaker');
+    } else {
+      row.classList.add('narration');
+      row.innerHTML = `<span class="vignette-text">${line.text}</span>`;
+    }
+    dlg.appendChild(row);
+  });
+  stage.appendChild(dlg);
+
+  bodyEl.appendChild(stage);
+
+  // Choices
+  choicesEl.innerHTML = '';
+  choicesEl.classList.remove('path-map', 'party-inspect');
+  choicesEl.classList.add('event-choices', 'vignette-choices');
+  v.choices.forEach(ch => {
+    const card = document.createElement('button');
+    card.className = 'encounter-choice event-choice vignette-choice';
+    card.innerHTML = `
+      <div class="enc-name">${ch.label}</div>
+      <div class="sigil-desc">${ch.tag || ''}</div>
+    `;
+    card.addEventListener('click', () => {
+      ch.resolve(state);
+      hideOverlay();
+      choicesEl.classList.remove('event-choices', 'vignette-choices');
+      if (typeof done === 'function') done();
+    });
+    choicesEl.appendChild(card);
+  });
+
+  choicesEl.classList.remove('hidden');
+  resetOverlayBtn();
+  $('#overlay-btn').classList.add('hidden');
+  $('#overlay').classList.remove('hidden');
+}
+
 // Resolve a non-combat node visit: mark complete, run any post-completion
 // flow (recruit/upgrade/sigil/path), exactly like the post-fight cascade.
 function _completeNonCombatNode() {
@@ -4487,6 +4722,20 @@ function showVictorySummary(completedEnc, onContinue) {
     if (typeof onContinue === 'function') onContinue();
   };
   $('#overlay').classList.remove('hidden');
+}
+
+// Between-fight chain entry: roll a vignette (if any triggers fire), then
+// flow into the recruit/upgrade/sigil/map cascade.  ~55% chance of a beat
+// when at least one vignette matches, so the player isn't bombarded.
+function offerVignetteOrPath(fightCtx) {
+  const matches = matchVignettes(state, fightCtx);
+  const roll = Math.random();
+  if (matches.length && roll < 0.55) {
+    const pick = matches[Math.floor(Math.random() * matches.length)];
+    showVignette(pick, fightCtx, () => offerRecruitOrPath());
+    return;
+  }
+  offerRecruitOrPath();
 }
 
 function offerRecruitOrPath() {
