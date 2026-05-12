@@ -3934,10 +3934,15 @@ function resolveQueueStep(i) {
     return;
   }
   const item = s.queue[i];
-  executeQueueItem(s, item);
-  if (checkEnd(s)) { s.executing = false; render(); return; }
-  render();
-  setTimeout(() => resolveQueueStep(i + 1), 380);
+  // Telegraph the acting hero before the hit fires so the eye can find
+  // them; then run the action; then pause before the next step.
+  if (item.charId) flashCardId(item.charId, 'hit', 'party');
+  setTimeout(() => {
+    executeQueueItem(s, item);
+    if (checkEnd(s)) { s.executing = false; render(); return; }
+    render();
+    setTimeout(() => resolveQueueStep(i + 1), 720);
+  }, 200);
 }
 
 function executeQueueItem(s, item) {
@@ -4083,29 +4088,56 @@ function execTeamSpecial(s, tsId) {
   finally { s.outgoingDmgMod = 0; s.ignoreArmor = false; s.currentActorId = null; }
 }
 
+// Resolve the enemy phase one enemy at a time so each action's popups +
+// log line are visible before the next fires.  Previously this was a
+// synchronous for-loop and everything blasted at once.
 function resolveEnemyTurn(s) {
-  for (const e of aliveEnemies(s)) {
-    if (s.over) break;
-    if (e.staggered) {
-      log(`<b>${ENEMIES[e.id].name}</b> is staggered — cannot act.`);
-      e.staggerTurns -= 1;
-      if (e.staggerTurns <= 0) {
-        e.staggered = false;
-        e.chain = 0;
-        log(`<b>${ENEMIES[e.id].name}</b> recovers.`);
-      }
-      continue;
-    }
-    const def = ENEMIES[e.id];
-    const intent = def.intents[e.intentIdx % def.intents.length];
-    log(`<b>${def.name}</b> uses <b>${intent.name}</b>.`);
-    intent.fn(s);
-    if (checkEnd(s)) break;
-    e.intentIdx = (e.intentIdx + 1) % def.intents.length;
-  }
+  // Snapshot the acting order so mid-resolution kills don't skip enemies
+  // or accidentally re-process newly-spawned ones.
+  s._enemyTurnOrder = aliveEnemies(s).map(e => e.id);
+  resolveEnemyStep(s, 0);
+}
+function resolveEnemyStep(s, i) {
   if (s.over) { render(); return; }
-  s.turn += 1;
-  startTurn(s);
+  const order = s._enemyTurnOrder || [];
+  if (i >= order.length) {
+    delete s._enemyTurnOrder;
+    if (s.over) { render(); return; }
+    s.turn += 1;
+    startTurn(s);
+    return;
+  }
+  // Refetch by id — enemies in arrays may have shifted, and some may have
+  // died between steps from bleed/retaliate effects.
+  const eid = order[i];
+  const e = Object.values(s.enemies.chars).find(en => en.id === eid && !en.dead);
+  if (!e) { resolveEnemyStep(s, i + 1); return; }
+
+  if (e.staggered) {
+    log(`<b>${ENEMIES[e.id].name}</b> is staggered — cannot act.`);
+    e.staggerTurns -= 1;
+    if (e.staggerTurns <= 0) {
+      e.staggered = false;
+      e.chain = 0;
+      log(`<b>${ENEMIES[e.id].name}</b> recovers.`);
+    }
+    render();
+    setTimeout(() => resolveEnemyStep(s, i + 1), 420);
+    return;
+  }
+
+  const def = ENEMIES[e.id];
+  const intent = def.intents[e.intentIdx % def.intents.length];
+  log(`<b>${def.name}</b> uses <b>${intent.name}</b>.`);
+  // Telegraph: briefly highlight the acting enemy card before the hit lands.
+  flashCardId(e.id, 'hit', 'enemy');
+  setTimeout(() => {
+    intent.fn(s);
+    if (checkEnd(s)) { render(); return; }
+    e.intentIdx = (e.intentIdx + 1) % def.intents.length;
+    render();
+    setTimeout(() => resolveEnemyStep(s, i + 1), 700);
+  }, 240);
 }
 
 function checkEnd(s) {
@@ -4937,22 +4969,35 @@ function spawnReaction(id, emoji, side) {
   setTimeout(() => el.remove(), 1100);
 }
 
+// Sequential popup pacing: damage / heal numbers fired in rapid succession
+// (multi-hit attacks, AoE) used to land at the same instant on the same
+// pixel and looked like one number.  Stagger them so each pops in turn.
+let _popupNextDue = 0;
+const POPUP_STAGGER_MS = 130;
 function spawnPopup(cardEl, text, type='dmg') {
   const layer = $('#popup-layer');
   const stage = $('#stage');
   if (!cardEl || !layer || !stage) return;
   const r = cardEl.getBoundingClientRect();
   const s = stage.getBoundingClientRect();
-  const el = document.createElement('div');
-  el.className = `popup ${type}`;
-  el.textContent = text;
-  el.style.left = (r.left + r.width / 2 - s.left) + 'px';
-  // Start the popup at ~22% down the figure (near the head), not the very
-  // top edge of the cell. With the popup-rise keyframe lifting -60px, that
-  // gives the float enough headroom that it doesn't clip the stage top.
-  el.style.top  = (r.top - s.top + Math.max(36, r.height * 0.22)) + 'px';
-  layer.appendChild(el);
-  setTimeout(() => el.remove(), 950);
+  const now = performance.now();
+  const due = Math.max(_popupNextDue, now);
+  _popupNextDue = due + POPUP_STAGGER_MS;
+  const delay = due - now;
+  // Snapshot positions NOW so a card that moves/dies during the delay
+  // doesn't drag the popup off-screen.
+  const left = (r.left + r.width / 2 - s.left);
+  const top  = (r.top - s.top + Math.max(36, r.height * 0.22));
+  const fire = () => {
+    const el = document.createElement('div');
+    el.className = `popup ${type}`;
+    el.textContent = text;
+    el.style.left = left + 'px';
+    el.style.top  = top + 'px';
+    layer.appendChild(el);
+    setTimeout(() => el.remove(), 950);
+  };
+  if (delay <= 0) fire(); else setTimeout(fire, delay);
 }
 
 function flashCardId(id, type, side) {
