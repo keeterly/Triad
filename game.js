@@ -862,7 +862,7 @@ const ENEMIES = {
   },
   wakeling: {
     id: 'wakeling', name: 'The Wakeling', title: 'Sin of the Dawn', maxHp: 46, boss: true,
-    weakness: 'arcane', resistance: 'physical',
+    weakness: ['arcane', 'stealth'], resistance: 'physical',
     intents: [
       { name: 'Sundering Strike', tag: 'ATK 8',         targetSlot: 'front', kind: 'atk',    fn: (s) => dmgPartyAt(s, 'front', 8) },
       { name: 'Cyclone',          tag: 'ATK 3 all',     targetSlot: 'all',   kind: 'aoe',    fn: (s) => dmgAllParty(s, 3) },
@@ -884,9 +884,10 @@ const ENCOUNTERS = {
   e4: { id: 'e4', name: 'Bowless Hunt',    slots: { front: 'ghoul',      mid: 'cultist',    back: 'sniper'   } },
   e5: { id: 'e5', name: 'Sundered Bond',   slots: { front: 'lineCaster', mid: 'grappler',   back: 'wraith'   } },
   e6: { id: 'e6', name: 'Quartered Sin',   slots: { front: 'cultist',    mid: 'lineCaster', back: 'sniper'   } },
-  // elite encounters — harder fights that guarantee a Sigil reward on victory
-  ee1: { id: 'ee1', name: 'Sins Triumphant', elite: true, slots: { front: 'grappler',  mid: 'lineCaster', back: 'sniper'  } },
-  ee2: { id: 'ee2', name: 'Court of Wraiths', elite: true, slots: { front: 'grappler', mid: 'wraith', back: 'lineCaster' } },
+  // elite encounters — harder fights that guarantee a Sigil reward on victory.
+  // sigilCategory previews to the player what kind of sigil pool the win will draw from.
+  ee1: { id: 'ee1', name: 'Sins Triumphant', elite: true, sigilCategory: 'combat',   slots: { front: 'grappler',  mid: 'lineCaster', back: 'sniper'  } },
+  ee2: { id: 'ee2', name: 'Court of Wraiths', elite: true, sigilCategory: 'resource', slots: { front: 'grappler', mid: 'wraith', back: 'lineCaster' } },
   // boss encounter — single massive enemy, run-ending fight
   boss: { id: 'boss', name: 'The Wakeling', boss: true, slots: { front: 'wakeling' } },
 };
@@ -948,6 +949,25 @@ const UPGRADES = {
         spawnPopupId(c.id, '+3⛨', 'armor', 'party');
         fireAdjacencyHook(s, 'onArmorGrant', s.currentActorId, c.id, 3);
       });
+    },
+  },
+  // Holy damage options — give Elin offensive presence so the holy school can carry weakness exploitation
+  'elin.mid.basic.searing': {
+    id: 'elin.mid.basic.searing', charId: 'elin', slot: 'mid', kind: 'basic',
+    name: 'Searing Light', desc: '4 holy dmg front + heal 1 lowest',
+    reach: ['front'], pattern: 'front-most',
+    fn: (s, t) => {
+      if (t[0]) applyDmgToEnemy(s, t[0], 4);
+      healLowest(s, 1);
+    },
+  },
+  'elin.back.sig.verdict': {
+    id: 'elin.back.sig.verdict', charId: 'elin', slot: 'back', kind: 'sig',
+    name: "Dawn's Verdict", desc: '5 holy dmg all + 1 vuln all',
+    reach: ['front','mid','back'], pattern: 'all',
+    fn: (s, t) => {
+      t.forEach(e => applyDmgToEnemy(s, e, 5));
+      t.forEach(e => { if (!e.dead) e.vuln += 1; });
     },
   },
   'branwen.back.basic.bloody': {
@@ -1048,16 +1068,20 @@ function availableUpgrades(s) {
 // Each sigil has effect hooks that the game logic checks via hasSigil(s, id).
 // ============================================================================
 
+// Sigils carry a category so elite encounters can preview the reward family.
+//   combat   — offensive sharpening (more damage / status leverage)
+//   defense  — staying alive (armor, healing)
+//   resource — economy (ATB, Resolve, Team Special cost)
 const SIGILS = {
-  quickening: { id: 'quickening', name: 'Crown of Quickening', icon: '⚡', desc: '+1 ATB per turn (4 total instead of 3).' },
-  pact:       { id: 'pact',       name: 'Sigil of the Pact',   icon: '✦', desc: 'Gain +1 Resolve per turn for each active bond between party members.' },
-  wrath:      { id: 'wrath',      name: 'Ember of Wrath',      icon: '✕', desc: 'Vulnerable enemies take an extra +2 damage from all attacks.' },
-  mending:    { id: 'mending',    name: 'Sigil of Mending',    icon: '✚', desc: 'At the end of your turn, your lowest-HP ally heals 2.' },
-  bloodborne: { id: 'bloodborne', name: 'Bloodborne Sigil',    icon: '✤', desc: 'Bleed ticks deal +1 each turn.' },
-  steel:      { id: 'steel',      name: 'Sigil of Steel',      icon: '⛨', desc: 'Start every fight with +2 armor on each party member.' },
-  echo:       { id: 'echo',       name: 'Echo Sigil',          icon: '⚔', desc: 'Team Special costs 1 less Resolve.' },
-  patience:   { id: 'patience',   name: 'Crown of Patience',   icon: '◆', desc: 'Start every fight with at least 2 Resolve.' },
-  reaver:     { id: 'reaver',     name: 'Sigil of the Reaver', icon: '☠', desc: 'Killing an enemy grants +1 additional Resolve.' },
+  quickening: { id: 'quickening', name: 'Crown of Quickening', icon: '⚡', category: 'resource', desc: '+1 ATB per turn (4 total instead of 3).' },
+  pact:       { id: 'pact',       name: 'Sigil of the Pact',   icon: '✦', category: 'resource', desc: 'Gain +1 Resolve per turn for each active bond between party members.' },
+  wrath:      { id: 'wrath',      name: 'Ember of Wrath',      icon: '✕', category: 'combat',   desc: 'Vulnerable enemies take an extra +2 damage from all attacks.' },
+  mending:    { id: 'mending',    name: 'Sigil of Mending',    icon: '✚', category: 'defense',  desc: 'At the end of your turn, your lowest-HP ally heals 2.' },
+  bloodborne: { id: 'bloodborne', name: 'Bloodborne Sigil',    icon: '✤', category: 'combat',   desc: 'Bleed ticks deal +1 each turn.' },
+  steel:      { id: 'steel',      name: 'Sigil of Steel',      icon: '⛨', category: 'defense',  desc: 'Start every fight with +2 armor on each party member.' },
+  echo:       { id: 'echo',       name: 'Echo Sigil',          icon: '⚔', category: 'resource', desc: 'Team Special costs 1 less Resolve.' },
+  patience:   { id: 'patience',   name: 'Crown of Patience',   icon: '◆', category: 'resource', desc: 'Start every fight with at least 2 Resolve.' },
+  reaver:     { id: 'reaver',     name: 'Sigil of the Reaver', icon: '☠', category: 'combat',   desc: 'Killing an enemy grants +1 additional Resolve.' },
 };
 
 function hasSigil(s, id) {
@@ -1445,17 +1469,20 @@ function applyDmgToEnemy(s, e, baseAmt) {
     vulnConsumed = 1;
   }
 
-  // School weakness / resistance — actor's school vs enemy's weak/resist
+  // School weakness / resistance — actor's school vs enemy's weak/resist (may be arrays)
   let schoolBadge = null;
   const actorDef = s.currentActorId ? CHARS[s.currentActorId] : null;
   if (actorDef && actorDef.school && amt > 0) {
     const enemyDef = ENEMIES[e.id];
-    if (enemyDef && enemyDef.weakness === actorDef.school) {
+    const asArr = x => Array.isArray(x) ? x : (x ? [x] : []);
+    const weaks = asArr(enemyDef && enemyDef.weakness);
+    const resists = asArr(enemyDef && enemyDef.resistance);
+    if (weaks.includes(actorDef.school)) {
       amt = Math.round(amt * 1.5);
       schoolBadge = 'WEAK!';
       // press-turn loop: weakness hit banks +1 ATB for next turn (capped at +2)
       s.pendingBonusAtb = Math.min(2, (s.pendingBonusAtb || 0) + 1);
-    } else if (enemyDef && enemyDef.resistance === actorDef.school) {
+    } else if (resists.includes(actorDef.school)) {
       amt = Math.max(1, Math.floor(amt * 0.5));
       schoolBadge = 'RESIST';
     }
@@ -2324,6 +2351,14 @@ function renderHUD() {
     const enc = ENCOUNTERS[state.run.currentEncId];
     encName.textContent = enc ? enc.name : '';
   }
+  // glanceable resolve readout in the HUD line (no interaction, just a count)
+  const hudNum = $('#hud-resolve-num');
+  if (hudNum) hudNum.textContent = String(state.resolve);
+  const hudResolve = $('#hud-resolve');
+  if (hudResolve) {
+    if (reserved > 0) hudResolve.classList.add('has-reserved');
+    else hudResolve.classList.remove('has-reserved');
+  }
 }
 
 function flashResolve() {
@@ -2524,11 +2559,19 @@ function makeEnemyCard(e, slot) {
       ${num ? `<span class="intent-num">${num}</span>` : ''}
     </div>`;
 
-  // Weak / Resist affinity chips — surfaces the targeting puzzle without text overload
-  const schoolGlyph = { physical: '⚔', holy: '✚', arcane: '✦', stealth: '☽', ranged: '➤' };
+  // Weak / Resist affinity chips — short 3-letter school codes so the targeting
+  // puzzle is legible at a glance (was 13px glyphs which players missed).
+  const schoolCode = { physical: 'PHY', holy: 'HLY', arcane: 'ARC', stealth: 'STL', ranged: 'RNG' };
+  const asArr = x => Array.isArray(x) ? x : (x ? [x] : []);
+  const weakSchools = asArr(def.weakness);
+  const resistSchools = asArr(def.resistance);
   const affChips = [];
-  if (def.weakness)   affChips.push(`<span class="affinity-chip weak"   title="Weak to ${def.weakness} (×1.5)">${schoolGlyph[def.weakness] || '?'}</span>`);
-  if (def.resistance) affChips.push(`<span class="affinity-chip resist" title="Resists ${def.resistance} (×0.5)">${schoolGlyph[def.resistance] || '?'}</span>`);
+  weakSchools.forEach(w => {
+    affChips.push(`<span class="affinity-chip weak" title="Weak to ${w} — takes 50% more damage from ${w} attacks"><span class="aff-tag">W</span><span class="aff-school">${schoolCode[w] || '?'}</span></span>`);
+  });
+  resistSchools.forEach(r => {
+    affChips.push(`<span class="affinity-chip resist" title="Resists ${r} — takes 50% less damage from ${r} attacks"><span class="aff-tag">R</span><span class="aff-school">${schoolCode[r] || '?'}</span></span>`);
+  });
   const affRow = affChips.length ? `<div class="affinity-row">${affChips.join('')}</div>` : '';
 
   fig.innerHTML = `
@@ -2555,15 +2598,15 @@ function renderStatuses(ent) {
   const c = [];
   const chip = (cls, icon, num, title) =>
     `<span class="status-chip ${cls}" title="${title}"><span class="status-icon">${icon}</span>${num != null ? `<span class="status-num">${num}</span>` : ''}</span>`;
-  if (ent.armor > 0)     c.push(chip('status-armor', '⛨', ent.armor,    `Armor ${ent.armor}`));
-  if (ent.bleed > 0)     c.push(chip('status-bleed', '✤', ent.bleed,    `Bleed ${ent.bleed}`));
-  if (ent.taunt)         c.push(chip('status-taunt', '⌖', null,         'Taunt'));
-  if (ent.weak > 0)      c.push(chip('status-weak',  '↓', ent.weak,     `Weak ${ent.weak}`));
-  if (ent.vuln > 0)      c.push(chip('status-vuln',  '⊕', ent.vuln,     `Vulnerable ${ent.vuln}`));
-  if (ent.retaliate > 0) c.push(chip('status-retal', '↻', ent.retaliate,`Retaliate ${ent.retaliate}`));
+  if (ent.armor > 0)     c.push(chip('status-armor', '⛨', ent.armor,    `Armor ${ent.armor} — absorbs ${ent.armor} damage before HP. Wears off as it absorbs.`));
+  if (ent.bleed > 0)     c.push(chip('status-bleed', '✤', ent.bleed,    `Bleed ${ent.bleed} — takes 2 damage at the start of each turn (3 with Bloodborne Sigil), then the stack decreases by 1.`));
+  if (ent.taunt)         c.push(chip('status-taunt', '⌖', null,         'Taunt — enemies single-target attacks redirect to this character instead of the original slot.'));
+  if (ent.weak > 0)      c.push(chip('status-weak',  '↓', ent.weak,     `Weak ${ent.weak} — this character's outgoing damage is reduced by 2 for the next ${ent.weak} attack(s).`));
+  if (ent.vuln > 0)      c.push(chip('status-vuln',  '⊕', ent.vuln,     `Vulnerable ${ent.vuln} — next ${ent.vuln} incoming attacks deal +2 damage (+4 with Ember of Wrath Sigil) and consume one stack.`));
+  if (ent.retaliate > 0) c.push(chip('status-retal', '↻', ent.retaliate,`Retaliate ${ent.retaliate} — when hit, counter-attack the front-most enemy for ${ent.retaliate} damage.`));
   if (ent.pendingEffects) ent.pendingEffects.forEach(e => {
-    if (e.kind === 'attackBonus')      c.push(chip('status-pending', '⚔', `+${e.amt}`, `Next attack +${e.amt}`));
-    else if (e.kind === 'healBonus')   c.push(chip('status-pending', '✚', `+${e.amt}`, `Next heal +${e.amt}`));
+    if (e.kind === 'attackBonus')      c.push(chip('status-pending', '⚔', `+${e.amt}`, `Next attack +${e.amt} damage (one-shot, consumed on use).`));
+    else if (e.kind === 'healBonus')   c.push(chip('status-pending', '✚', `+${e.amt}`, `Next heal +${e.amt} (one-shot, consumed on use).`));
     else                                c.push(chip('status-pending', '✦', `+${e.amt}`, `Pending +${e.amt}`));
   });
   return c.join('');
@@ -2919,8 +2962,9 @@ function showPathChoice(slotConfig) {
       const def = ENEMIES[eid];
       return `<div class="enc-icon" title="${def?.name || ''}">${PORTRAITS[eid] || ''}<div class="enc-icon-slot">${SLOT_LABELS[sl]}</div></div>`;
     }).join('');
+    const catLabel = enc.elite && enc.sigilCategory ? ` · ${enc.sigilCategory.charAt(0).toUpperCase() + enc.sigilCategory.slice(1)} Sigil` : (enc.elite ? ' · Sigil reward' : '');
     card.innerHTML = `
-      ${enc.elite ? '<div class="enc-badge">☠ Elite · Sigil reward</div>' : ''}
+      ${enc.elite ? `<div class="enc-badge">☠ Elite${catLabel}</div>` : ''}
       <div class="enc-name">${enc.name}</div>
       <div class="enc-row">${enemyIcons}</div>
     `;
@@ -2969,10 +3013,19 @@ function offerUpgradeOrPath() {
 
 // Sigil offer step. Elites guarantee 3 cards (more agency); normals offer 2.
 function offerSigilOrPath() {
-  const pool = availableSigils(state);
+  let pool = availableSigils(state);
   if (pool.length === 0) {
     showPathChoice(RUN_LAYOUT[state.run.slotIdx]);
     return;
+  }
+  // If the last victory was an elite that declared a sigil category, weight the pool
+  // toward that category (fall back to full pool if exhausted).
+  const lastEncId = state.run.completed[state.run.completed.length - 1];
+  const lastEnc = lastEncId && ENCOUNTERS[lastEncId];
+  const targetCategory = (lastEnc && lastEnc.elite) ? lastEnc.sigilCategory : null;
+  if (targetCategory) {
+    const filtered = pool.filter(s => s.category === targetCategory);
+    if (filtered.length > 0) pool = filtered;
   }
   const count = state.run.lastVictoryElite ? 3 : 2;
   const shuffled = pool.slice().sort(() => Math.random() - 0.5);
