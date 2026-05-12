@@ -5497,14 +5497,13 @@ function bindInfoButton() {
 }
 
 // In-combat info pull-out — surfaces the moment-to-moment build state:
-// each hero's quirks, the bound sigils, the active biome.  Dismisses on
-// any tap inside or via the Close button.
+// each hero's quirks, the bound sigils, the active biome.  Owns its own
+// DOM (#info-panel) so it doesn't conflict with the main #overlay system.
 function showRunInfoPanel() {
-  const titleEl = $('#overlay-title');
-  const bodyEl  = $('#overlay-body');
-  const choicesEl = $('#overlay-choices');
-  titleEl.textContent = 'Run state';
-  bodyEl.classList.remove('victory-summary-body', 'welcome-body', 'run-summary-body', 'title-screen-body', 'vignette-body');
+  const panel = document.getElementById('info-panel');
+  if (!panel) return;
+  const body = document.getElementById('info-panel-body');
+  if (!body || !state || !state.party) return;
   const mod = getRunModifier(state);
   const sigilIds = (state.run && state.run.sigils) || [];
   const sigilBlock = sigilIds.length
@@ -5535,7 +5534,7 @@ function showRunInfoPanel() {
         </div>
       </div>`;
   }).join('');
-  bodyEl.innerHTML = `
+  body.innerHTML = `
     ${mod ? `<div class="info-biome"><span class="info-label">Biome</span><span class="info-biome-name">${mod.name}</span><span class="info-biome-desc">${mod.desc}</span></div>` : ''}
     <div class="info-section">
       <div class="info-label">Sigils</div>
@@ -5546,14 +5545,16 @@ function showRunInfoPanel() {
       <div class="info-heroes">${heroBlocks}</div>
     </div>
   `;
-  choicesEl.innerHTML = '';
-  choicesEl.classList.add('hidden');
-  resetOverlayBtn();
-  const btn = $('#overlay-btn');
-  btn.textContent = 'Close';
-  btn.onclick = () => { hideOverlay(); };
-  btn.classList.remove('hidden');
-  $('#overlay').classList.remove('hidden');
+  panel.classList.remove('hidden');
+  panel.setAttribute('aria-hidden', 'false');
+  const closeBtn = document.getElementById('info-close');
+  if (closeBtn) closeBtn.onclick = () => hideRunInfoPanel();
+}
+function hideRunInfoPanel() {
+  const panel = document.getElementById('info-panel');
+  if (!panel) return;
+  panel.classList.add('hidden');
+  panel.setAttribute('aria-hidden', 'true');
 }
 
 function bindMuteButton() {
@@ -5832,16 +5833,23 @@ function showVignette(v, ctx, done) {
   dlg.className = 'vignette-dialogue';
   v.lines.forEach(line => {
     const row = document.createElement('div');
-    row.className = 'vignette-line';
     let whoId = resolveWho(line.who);
     if (whoId && !state.party.chars[whoId] && line.altWho && state.party.chars[line.altWho]) whoId = line.altWho;
     if (whoId && !state.party.chars[whoId]) whoId = null;
     if (whoId) {
+      // Spoken dialogue: chat bubble with a name tag.  Bubbles alternate
+      // side based on the speaker so multi-speaker exchanges read as a
+      // conversation.
       const name = CHARS[whoId]?.name || whoId;
-      row.innerHTML = `<span class="vignette-who">${name}</span><span class="vignette-text">${line.text}</span>`;
-      if (whoId === speakerId) row.classList.add('speaker');
+      const isSpeaker = whoId === speakerId;
+      row.className = `vignette-line vignette-bubble${isSpeaker ? ' from-speaker' : ' from-other'}`;
+      row.innerHTML = `
+        <span class="vignette-who">${name}</span>
+        <span class="vignette-text">${line.text}</span>
+      `;
     } else {
-      row.classList.add('narration');
+      // Narration / inner thought: italic, centered, no bubble.
+      row.className = 'vignette-line vignette-thought';
       row.innerHTML = `<span class="vignette-text">${line.text}</span>`;
     }
     dlg.appendChild(row);
