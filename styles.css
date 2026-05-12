@@ -2304,6 +2304,164 @@ body {
   max-width: min(760px, 96vw);
   padding: 22px 26px 20px;
 }
+/* Party-inspect overlay is wider — three hero columns of dense info */
+#overlay-content:has(#overlay-choices.party-inspect:not(.hidden)) {
+  max-width: min(900px, 96vw);
+  padding: 18px 20px 16px;
+}
+
+/* ============ PARTY INSPECT — between-fights view of each hero ============ */
+#overlay-choices.party-inspect {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+  margin-top: 6px;
+  text-align: left;
+}
+.hero-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 10px 8px;
+  border: 1px solid rgba(212,200,168,0.28);
+  background: rgba(18,18,20,0.78);
+  min-width: 0;
+  border-radius: 0;
+}
+.hero-portrait {
+  width: 100%;
+  height: 78px;
+  display: flex; align-items: flex-end; justify-content: center;
+  overflow: hidden;
+  position: relative;
+  -webkit-mask-image: radial-gradient(ellipse 95% 110% at 50% 65%, #000 80%, transparent 100%);
+          mask-image: radial-gradient(ellipse 95% 110% at 50% 65%, #000 80%, transparent 100%);
+}
+.hero-portrait svg { width: 100%; height: 100%; display: block; }
+.hero-head { text-align: center; line-height: 1.1; }
+.hero-name {
+  color: var(--gold-bright);
+  font-size: 13px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+.hero-title {
+  color: var(--ink-dim);
+  font-size: 10px;
+  font-style: italic;
+  letter-spacing: 0.04em;
+  margin-top: 2px;
+}
+.hero-meta {
+  display: flex; gap: 5px; justify-content: center; align-items: center;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-family: ui-monospace, 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+  flex-wrap: wrap;
+}
+.hero-school {
+  padding: 1px 5px;
+  border: 1px solid var(--ink-faint);
+  color: var(--ink);
+  font-weight: 700;
+}
+.hero-school.school-physical { color: var(--ink);          border-color: var(--ink-faint); }
+.hero-school.school-holy     { color: var(--gold-bright);  border-color: var(--gold); }
+.hero-school.school-arcane   { color: var(--debuff);       border-color: var(--debuff); }
+.hero-school.school-ranged   { color: var(--armor);        border-color: var(--armor); }
+.hero-school.school-stealth  { color: var(--weak);         border-color: var(--weak); }
+.hero-stat {
+  color: var(--ink-dim);
+  padding: 1px 3px;
+}
+.hero-home-tag { color: var(--ink); }
+.hero-passive {
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: var(--ink);
+  font-style: italic;
+  padding: 4px 6px;
+  background: rgba(0,0,0,0.35);
+  border-left: 2px solid var(--gold-dim);
+}
+.hero-passive b { font-style: normal; color: var(--gold-bright); letter-spacing: 0.08em; text-transform: uppercase; font-size: 9.5px; }
+.hero-techs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 2px;
+}
+.hero-tech-section {
+  border-top: 1px solid rgba(212,200,168,0.12);
+  padding-top: 4px;
+}
+.hero-tech-section.home .hero-tech-pos { color: var(--gold-bright); }
+.hero-tech-pos {
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin-bottom: 3px;
+  font-weight: 700;
+}
+.hero-tech-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  padding: 2px 0;
+}
+.hero-tech-kind {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  border: 1px solid var(--ink-faint);
+  color: var(--ink);
+  background: rgba(0,0,0,0.4);
+  letter-spacing: 0;
+}
+.hero-tech-kind.sig {
+  border-color: var(--gold-bright);
+  color: var(--gold-bright);
+}
+.hero-tech-body { flex: 1; min-width: 0; }
+.hero-tech-name {
+  font-size: 11px;
+  color: var(--ink);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.hero-tech-row.sig .hero-tech-name { color: var(--gold-bright); }
+.hero-tech-desc {
+  font-size: 9.5px;
+  color: var(--ink-dim);
+  line-height: 1.3;
+  margin-top: 1px;
+  font-style: italic;
+}
+
+/* Landscape phones — collapse 3 columns to 2-then-1 if width is too tight */
+@media (max-height: 520px) {
+  .hero-card { padding: 6px 7px 6px; gap: 4px; }
+  .hero-portrait { height: 56px; }
+  .hero-name { font-size: 11px; letter-spacing: 0.12em; }
+  .hero-title { font-size: 9px; }
+  .hero-passive { font-size: 9.5px; padding: 3px 5px; }
+  .hero-passive b { font-size: 8.5px; }
+  .hero-tech-pos { font-size: 8px; margin-bottom: 2px; }
+  .hero-tech-name { font-size: 10px; }
+  .hero-tech-desc { font-size: 9px; }
+  .hero-tech-kind { width: 12px; height: 12px; font-size: 8px; }
+  #overlay-content:has(#overlay-choices.party-inspect:not(.hidden)) {
+    padding: 10px 12px 8px;
+    max-height: 96vh;
+  }
+  #overlay-choices.party-inspect { gap: 6px; margin-top: 4px; }
+}
 #overlay-choices {
   display: flex; gap: 18px; justify-content: center;
   margin-top: 10px; margin-bottom: 8px;
