@@ -94,7 +94,7 @@ body {
   /* HUD (resolve readout) | ATB strip | battlefield (1fr) | action+commit
      Cinematic pass: HUD + ATB + action chrome trimmed so the battlefield
      row dominates the frame. */
-  grid-template-rows: 13px 0 minmax(0, 1fr) 88px;
+  grid-template-rows: 13px 18px minmax(0, 1fr) 88px;
   grid-template-columns: 1fr;
   background:
     radial-gradient(ellipse 60% 80% at 22% 50%, #2a1c12 0%, transparent 55%),
@@ -188,16 +188,12 @@ body {
   100% { transform: translate(-4px, -100vh) scale(0.6); opacity: 0; }
 }
 
-/* ============ HUD — just the encounter name, faint at the top ============ */
+/* ============ HUD — hidden. Resolve already reads from the pip jewels
+   beside the Fight crest, so the tiny ◆ N/3 readout at top center is
+   redundant. Header element is kept (game.js still writes into it) but
+   not painted. ============ */
 #hud {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 10px;
-  background: transparent;
-  position: relative; z-index: 3;
-  white-space: nowrap;
-  overflow: hidden;
+  display: none;
 }
 /* ============ RESOLVE PIPS — small jewels next to the Fight crest ============ */
 #resolve-pips {
@@ -1258,10 +1254,16 @@ body {
   100% { transform: translate(-50%, -60px) scale(0.9); opacity: 0; }
 }
 
-/* ============ ATB ROW (row 2): hidden — queue state lives on the action tiles
-   themselves (per-tile count badges), so the top icon strip was redundant. ============ */
+/* ============ ATB ROW (row 2): slim queue strip above battlefield ============ */
 #atb-row {
-  display: none;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 24px;
+  gap: 8px;
+  padding: 2px 12px;
+  position: relative; z-index: 2;
+  background: transparent;
+  align-items: center;
+  min-height: 0;
 }
 #atb-row::before {
   content: 'ATB';
