@@ -94,7 +94,7 @@ body {
   /* HUD (resolve readout) | ATB strip | battlefield (1fr) | action+commit
      Cinematic pass: HUD + ATB + action chrome trimmed so the battlefield
      row dominates the frame. */
-  grid-template-rows: 0 18px minmax(0, 1fr) 88px;
+  grid-template-rows: 0 18px minmax(0, 1fr) 76px;
   grid-template-columns: 1fr;
   background:
     radial-gradient(ellipse 60% 80% at 22% 50%, #2a1c12 0%, transparent 55%),
@@ -247,8 +247,11 @@ body {
   display: grid;
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr;
-  gap: 2px;
-  padding: 0 4px;
+  /* No gap between halves — the center sigil + glow line do the job of
+     dividing party from enemies, and tighter halves let the figures
+     fill more of the frame instead of crowding the outer edges. */
+  gap: 0;
+  padding: 0 2px;
   position: relative; z-index: 2;
   min-height: 0;
   overflow: hidden;
@@ -317,7 +320,7 @@ body {
 .figure-portrait {
   flex: 1 1 auto;
   width: 100%;
-  max-width: 360px;
+  max-width: 420px;
   min-height: 0;
   position: relative;
   filter:
@@ -328,9 +331,11 @@ body {
 .figure-portrait svg {
   width: 100%; height: 100%;
   display: block;
-  /* soft mask: only fade the corners so the full figure stays visible */
-  -webkit-mask-image: radial-gradient(ellipse 95% 110% at 50% 52%, #000 78%, transparent 100%);
-          mask-image: radial-gradient(ellipse 95% 110% at 50% 52%, #000 78%, transparent 100%);
+  /* mask: push focal point lower + extend visible radius so the figure
+     occupies more of its allotted vertical space and there's less black
+     fade between the visible figure and the info chips below it. */
+  -webkit-mask-image: radial-gradient(ellipse 98% 118% at 50% 60%, #000 84%, transparent 100%);
+          mask-image: radial-gradient(ellipse 98% 118% at 50% 60%, #000 84%, transparent 100%);
   transform-origin: 50% 100%;
   animation: idle-breathe 5.4s ease-in-out infinite;
 }
@@ -359,6 +364,9 @@ body {
   gap: 0;
   flex-shrink: 0;
   position: relative;
+  /* tuck the info row up under the portrait's faded edge so HP bar +
+     affinity chips read as part of the figure, not floating below it */
+  margin-top: -12px;
 }
 /* Name hidden by default — floats below the figure when the figure is being held
    ("inspected"). Absolute-positioned so it doesn't reserve layout space. */
