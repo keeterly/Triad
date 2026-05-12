@@ -635,13 +635,42 @@ body {
   box-shadow: none;
 }
 
-/* threat indicator on party figures — pulsing blood glow under the portrait */
+/* Threat telegraph — party figures targeted by enemy intents glow red.
+   No exact damage number; the glow communicates "this one is in trouble"
+   while preserving some uncertainty about how bad the hit will be.
+   .targeted-lethal pulses brighter + faster for hits that would KO. */
 .figure.targeted-by-enemy {
-  animation: figure-threat 1.6s ease-in-out infinite;
+  animation: figure-threat 1.4s ease-in-out infinite;
+}
+.figure.targeted-by-enemy.targeted-lethal {
+  animation: figure-threat-lethal 0.7s ease-in-out infinite;
 }
 @keyframes figure-threat {
-  0%, 100% { filter: drop-shadow(0 6px 8px rgba(0,0,0,0.65)); }
-  50%      { filter: drop-shadow(0 6px 8px rgba(0,0,0,0.65)) drop-shadow(0 0 12px rgba(212,69,69,0.6)); }
+  0%, 100% {
+    filter:
+      drop-shadow(0 6px 8px rgba(0,0,0,0.65))
+      drop-shadow(0 0 10px rgba(212,69,69,0.45));
+  }
+  50%      {
+    filter:
+      drop-shadow(0 6px 8px rgba(0,0,0,0.65))
+      drop-shadow(0 0 20px rgba(212,69,69,0.85))
+      drop-shadow(0 0 32px rgba(212,69,69,0.4));
+  }
+}
+@keyframes figure-threat-lethal {
+  0%, 100% {
+    filter:
+      drop-shadow(0 6px 8px rgba(0,0,0,0.65))
+      drop-shadow(0 0 14px rgba(255,80,80,0.75))
+      drop-shadow(0 0 26px rgba(212,69,69,0.5));
+  }
+  50%      {
+    filter:
+      drop-shadow(0 6px 8px rgba(0,0,0,0.65))
+      drop-shadow(0 0 26px rgba(255,80,80,1))
+      drop-shadow(0 0 44px rgba(212,69,69,0.7));
+  }
 }
 
 /* predicted incoming damage chip — top-left of party figure, opposite figure-statuses */
