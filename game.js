@@ -1039,6 +1039,148 @@ const UPGRADES = {
       }
     },
   },
+
+  // === Cassia — fills mid + back slot variants ===
+  'cassia.mid.basic.bearer': {
+    id: 'cassia.mid.basic.bearer', charId: 'cassia', slot: 'mid', kind: 'basic',
+    name: 'Standard Bearer', desc: '4 dmg front + 2 armor party', dmg: 4,
+    reach: ['front'], pattern: 'front-most',
+    fn: (s, t) => {
+      if (t[0]) applyDmgToEnemy(s, t[0], 4);
+      partyArmor(s, 2);
+    },
+  },
+  'cassia.mid.sig.crusader': {
+    id: 'cassia.mid.sig.crusader', charId: 'cassia', slot: 'mid', kind: 'sig',
+    name: "Crusader's Charge", desc: '7 dmg + advance + 2 retaliate party', dmg: 7,
+    reach: ['front'], pattern: 'front-most',
+    fn: (s, t) => {
+      if (t[0]) applyDmgToEnemy(s, t[0], 7);
+      advance(s, 'cassia');
+      aliveParty(s).forEach(c => { c.retaliate += 2; });
+    },
+  },
+  'cassia.back.basic.iron': {
+    id: 'cassia.back.basic.iron', charId: 'cassia', slot: 'back', kind: 'basic',
+    name: 'Iron Banner', desc: '+3 armor party · +1 retaliate party',
+    fn: (s) => {
+      aliveParty(s).forEach(c => {
+        c.armor += 3;
+        c.retaliate += 1;
+        spawnPopupId(c.id, '+3⛨', 'armor', 'party');
+        fireAdjacencyHook(s, 'onArmorGrant', s.currentActorId, c.id, 3);
+      });
+    },
+  },
+  'cassia.back.sig.hymn': {
+    id: 'cassia.back.sig.hymn', charId: 'cassia', slot: 'back', kind: 'sig',
+    name: 'Hymn of Glory', desc: 'Heal 6 party · cleanse · +2 Resolve', heal: 6, healTarget: 'all',
+    fn: (s) => {
+      partyHeal(s, 6);
+      aliveParty(s).forEach(c => { c.bleed = 0; c.weak = 0; });
+      gainResolve(s, 2);
+    },
+  },
+
+  // === Elin — fills front sig, mid sig, back basic ===
+  'elin.front.sig.radiant': {
+    id: 'elin.front.sig.radiant', charId: 'elin', slot: 'front', kind: 'sig',
+    name: 'Radiant Veil', desc: '8 holy dmg + retreat + cleanse self', dmg: 8,
+    reach: ['front'], pattern: 'front-most',
+    fn: (s, t) => {
+      if (t[0]) applyDmgToEnemy(s, t[0], 8);
+      retreat(s, 'elin');
+      const e = s.party.chars.elin;
+      if (e && !e.downed) { e.bleed = 0; e.weak = 0; }
+    },
+  },
+  'elin.mid.sig.aegis': {
+    id: 'elin.mid.sig.aegis', charId: 'elin', slot: 'mid', kind: 'sig',
+    name: 'Aegis Bond', desc: 'Heal 8 party · +1 armor party', heal: 8, healTarget: 'all',
+    fn: (s) => {
+      partyHeal(s, 8);
+      aliveParty(s).forEach(c => {
+        c.armor += 1;
+        fireAdjacencyHook(s, 'onArmorGrant', s.currentActorId, c.id, 1);
+      });
+    },
+  },
+  'elin.back.basic.chant': {
+    id: 'elin.back.basic.chant', charId: 'elin', slot: 'back', kind: 'basic',
+    name: 'Pious Chant', desc: '+1 Resolve · cleanse party',
+    fn: (s) => {
+      gainResolve(s, 1);
+      aliveParty(s).forEach(c => { c.bleed = 0; c.weak = 0; });
+    },
+  },
+
+  // === Branwen — fills front basic, back sig ===
+  'branwen.front.basic.quickdraw': {
+    id: 'branwen.front.basic.quickdraw', charId: 'branwen', slot: 'front', kind: 'basic',
+    name: 'Quickdraw', desc: '5 dmg + bleed 2 (no retreat)', dmg: 5,
+    reach: ['front'], pattern: 'front-most',
+    fn: (s, t) => {
+      if (t[0]) { applyDmgToEnemy(s, t[0], 5); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 2); }
+    },
+  },
+  'branwen.back.sig.hunters': {
+    id: 'branwen.back.sig.hunters', charId: 'branwen', slot: 'back', kind: 'sig',
+    name: "Hunter's Mark", desc: '11 dmg lowest + 3 vuln · ignore armor', dmg: 11,
+    reach: ['front','mid','back'], pattern: 'lowest',
+    fn: (s, t) => {
+      if (!t[0]) return;
+      s.ignoreArmor = true;
+      applyDmgToEnemy(s, t[0], 11);
+      s.ignoreArmor = false;
+      if (!t[0].dead) t[0].vuln += 3;
+    },
+  },
+
+  // === Korin — fills front sig, back sig ===
+  'korin.front.sig.embrace': {
+    id: 'korin.front.sig.embrace', charId: 'korin', slot: 'front', kind: 'sig',
+    name: 'Death Embrace', desc: '14 dmg + 4 self-dmg + heal 3 self', dmg: 14,
+    reach: ['front'], pattern: 'front-most', heal: 3, healTarget: 'self',
+    fn: (s, t) => {
+      if (t[0]) applyDmgToEnemy(s, t[0], 14);
+      applySelfDmg(s, 'korin', 4);
+      const k = s.party.chars.korin;
+      if (k && !k.downed) {
+        const before = k.hp; k.hp = Math.min(k.maxHp, k.hp + 3);
+        const got = k.hp - before;
+        if (got > 0) {
+          spawnPopupId('korin', `+${got}`, 'heal', 'party');
+          if (s.fightStats && s.currentActorId) {
+            s.fightStats.healingDone[s.currentActorId] = (s.fightStats.healingDone[s.currentActorId] || 0) + got;
+          }
+        }
+      }
+    },
+  },
+  'korin.back.sig.eternal': {
+    id: 'korin.back.sig.eternal', charId: 'korin', slot: 'back', kind: 'sig',
+    name: 'Eternal Trance', desc: '+5 retaliate party · +4 armor party',
+    fn: (s) => {
+      aliveParty(s).forEach(c => {
+        c.retaliate += 5;
+        c.armor += 4;
+        spawnPopupId(c.id, '+4⛨', 'armor', 'party');
+        fireAdjacencyHook(s, 'onArmorGrant', s.currentActorId, c.id, 4);
+      });
+    },
+  },
+
+  // === Mira — fills front sig ===
+  'mira.front.sig.cyclone': {
+    id: 'mira.front.sig.cyclone', charId: 'mira', slot: 'front', kind: 'sig',
+    name: 'Blood Cyclone', desc: '6 dmg all + bleed 1 all + retreat full', dmg: 6,
+    reach: ['front','mid','back'], pattern: 'all',
+    fn: (s, t) => {
+      t.forEach(e => applyDmgToEnemy(s, e, 6));
+      t.forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 1); });
+      retreatFull(s, 'mira');
+    },
+  },
 };
 
 // Resolve a tech reference. If the character has an upgrade applied for this
