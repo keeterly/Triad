@@ -4435,21 +4435,15 @@ button.path-node:not(:disabled):hover .pn-icon {
 }
 
 /* ===========================================================================
-   FULL-BLEED OVERLAYS — when the overlay holds a path map / vignette /
-   run-summary / starter-chooser, let the content fill the entire viewport
-   instead of floating in a card.  The dimming layer remains, but the card
-   chrome falls away.
+   FULL-BLEED OVERLAYS — class-based (works on older Safari without :has).
+   #overlay.overlay-full strips the card chrome so content fills the
+   viewport.  Specific scenes layer on .overlay-path / .overlay-vignette /
+   .overlay-runsummary for size + spacing tweaks.
    =========================================================================== */
-#overlay:has(#overlay-choices.path-map:not(.hidden)),
-#overlay:has(#overlay-choices.vignette-choices:not(.hidden)),
-#overlay:has(#overlay-choices.starter-choices:not(.hidden)),
-#overlay:has(#overlay-body.run-summary-body) {
+#overlay.overlay-full {
   background: radial-gradient(ellipse at center, rgba(8,4,4,0.86) 0%, rgba(0,0,0,0.96) 70%) !important;
 }
-#overlay:has(#overlay-choices.path-map:not(.hidden)) #overlay-content,
-#overlay:has(#overlay-choices.vignette-choices:not(.hidden)) #overlay-content,
-#overlay:has(#overlay-choices.starter-choices:not(.hidden)) #overlay-content,
-#overlay:has(#overlay-body.run-summary-body) #overlay-content {
+#overlay.overlay-full #overlay-content {
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
@@ -4457,11 +4451,11 @@ button.path-node:not(:disabled):hover .pn-icon {
   width: 100%;
   padding: 18px 22px 18px !important;
 }
-#overlay:has(#overlay-choices.vignette-choices:not(.hidden)) #overlay-content {
+#overlay.overlay-vignette #overlay-content {
   max-width: min(1100px, 100vw) !important;
   padding: 8px 18px 14px !important;
 }
-#overlay:has(#overlay-choices.vignette-choices:not(.hidden)) #overlay-title {
+#overlay.overlay-vignette #overlay-title {
   border-bottom: none !important;
   font-size: 16px;
   letter-spacing: 0.32em;
@@ -4469,71 +4463,139 @@ button.path-node:not(:disabled):hover .pn-icon {
   color: var(--ink-dim);
   margin-bottom: 4px;
 }
-#overlay:has(#overlay-choices.vignette-choices:not(.hidden)) #overlay-title::after { display: none !important; }
+#overlay.overlay-vignette #overlay-title::after { display: none !important; }
+#overlay.overlay-full::before, #overlay.overlay-full::after { display: none !important; }
 
 /* ===========================================================================
-   VIGNETTE BUBBLES — speech and thought treatments
+   VIGNETTE — VN-style two-actor stage.
+   Bubble rail at the top (left-aligned for left speaker, right-aligned for
+   right speaker, centered + italic for thoughts).  Portrait row at the
+   bottom (1 or 2 portraits standing on the floor).  Bubbles never overlap
+   the figures.
    =========================================================================== */
-.vignette-stage {
-  /* When the overlay is full-bleed, give the stage room to be cinematic. */
-  max-height: 64vh !important;
+.vn-stage {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  width: 100%;
+  max-height: 64vh;
+  min-height: 320px;
+  gap: 8px;
+  padding: 0;
+  position: relative;
+  overflow: hidden;
 }
-.vignette-dialogue {
-  padding: 20px 24px 24px !important;
-  gap: 10px !important;
-}
-/* Speech bubble: rounded card with a name tag and the line.  Width auto so
-   short lines feel snappy. */
-.vignette-line.vignette-bubble {
-  display: inline-flex;
+
+/* Dialogue rail: flex column.  Each line aligns L/R/center based on who's
+   speaking; no line ever sits in the bottom area where portraits live. */
+.vn-dialogue {
+  display: flex;
   flex-direction: column;
-  align-self: flex-start;
-  max-width: 78%;
+  gap: 8px;
+  padding: 6px 18px 8px;
+  align-items: stretch;
+  justify-content: flex-end;
+  overflow-y: auto;
+}
+.vn-line {
+  max-width: 56%;
   padding: 8px 14px 10px;
-  background: linear-gradient(180deg,
-                              rgba(36,28,22,0.92) 0%,
-                              rgba(12,10,10,0.94) 100%);
-  border-radius: 14px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--ink);
+  background: linear-gradient(180deg, rgba(36,28,22,0.92) 0%, rgba(12,10,10,0.94) 100%);
   box-shadow:
     0 8px 22px rgba(0,0,0,0.7),
     inset 0 1px 0 rgba(232,220,196,0.06);
-  position: relative;
 }
-.vignette-line.vignette-bubble.from-other  { align-self: flex-end; border-radius: 14px 14px 4px 14px; }
-.vignette-line.vignette-bubble.from-speaker{ align-self: flex-start; border-radius: 14px 14px 14px 4px; }
-.vignette-line.vignette-bubble .vignette-who {
+.vn-line .vn-who {
   display: block;
   font-size: 9px;
   letter-spacing: 0.28em;
   text-transform: uppercase;
-  color: var(--gold-pale);
   margin-bottom: 4px;
+  color: var(--gold-pale);
 }
-.vignette-line.vignette-bubble.from-other .vignette-who { text-align: right; color: var(--frost-bright); }
-.vignette-line.vignette-bubble .vignette-text {
-  font-size: 13.5px;
-  line-height: 1.55;
-  font-style: normal;
-  letter-spacing: 0.02em;
-  color: var(--ink);
-}
-/* Thought / narration: italic floating text, centered, no bubble */
-.vignette-line.vignette-thought {
+.vn-line .vn-text {
   display: block;
-  align-self: center;
-  text-align: center;
-  max-width: 80%;
-  padding: 4px 12px;
-  background: transparent;
-  border: none;
-  box-shadow: none;
+  letter-spacing: 0.02em;
 }
-.vignette-line.vignette-thought .vignette-text {
-  font-size: 12.5px;
+.vn-line.bubble.left  {
+  align-self: flex-start;
+  border-radius: 14px 14px 14px 4px;
+}
+.vn-line.bubble.right {
+  align-self: flex-end;
+  border-radius: 14px 14px 4px 14px;
+}
+.vn-line.bubble.right .vn-who { color: var(--frost-bright); text-align: right; }
+.vn-line.thought {
+  align-self: center;
+  max-width: 78%;
+  padding: 4px 10px;
+  background: transparent;
+  box-shadow: none;
+  text-align: center;
   font-style: italic;
-  letter-spacing: 0.06em;
   color: var(--ink-dim);
   text-shadow: 0 2px 4px rgba(0,0,0,0.85);
+  font-size: 12.5px;
+  letter-spacing: 0.06em;
+}
+
+/* Portrait row at the bottom.  One portrait centered for solo scenes,
+   two side-by-side for conversations. */
+.vn-portraits {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: end;
+  justify-items: center;
+  height: clamp(180px, 36vh, 280px);
+  padding-bottom: 4px;
+  position: relative;
+}
+.vn-stage.one-actor .vn-portraits {
+  grid-template-columns: 1fr;
+}
+.vn-portrait {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  position: relative;
+}
+.vn-portrait svg {
+  height: 100%;
+  width: auto;
+  max-width: 90%;
+  display: block;
+  filter: drop-shadow(0 8px 24px rgba(0,0,0,0.7));
+}
+.vn-portrait.vn-portrait-right svg { transform: scaleX(-1); }
+/* Soft floor-glow under each portrait so they don't float */
+.vn-portrait::before {
+  content: '';
+  position: absolute;
+  left: 50%; bottom: -2px;
+  width: 70%; height: 18px;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse 60% 100% at 50% 50%,
+                              rgba(0,0,0,0.7) 0%,
+                              transparent 75%);
+  pointer-events: none;
+}
+
+@media (max-height: 480px) {
+  .vn-stage { max-height: 56vh; min-height: 240px; }
+  .vn-portraits { height: clamp(140px, 32vh, 220px); }
+  .vn-line { font-size: 12px; padding: 6px 12px 8px; }
+  .vn-line .vn-who { font-size: 8.5px; }
+  .vn-line.thought { font-size: 11px; }
+}
+@media (max-height: 380px) {
+  .vn-stage { min-height: 200px; }
+  .vn-portraits { height: clamp(120px, 30vh, 180px); }
+  .vn-line { font-size: 11.5px; }
 }
 
 /* ===========================================================================
@@ -4835,7 +4897,18 @@ body.boss-killed::before {
 .info-sigils {
   display: flex;
   flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.info-sigils .sigil-chip {
+  display: inline-flex;
+  align-items: center;
   gap: 4px;
+  white-space: nowrap;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  padding: 3px 10px;
+  background: rgba(28,22,18,0.55);
 }
 .info-empty {
   font-size: 10.5px;
