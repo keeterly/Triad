@@ -5826,14 +5826,15 @@ function showRunSummary(outcome) {
   `;
   $('#overlay-choices').classList.add('hidden');
   const btn = $('#overlay-btn');
-  btn.textContent = 'Restart';
+  btn.textContent = 'Return to Title';
   btn.classList.remove('hidden');
   btn.onclick = () => {
     body.classList.remove('victory-summary-body', 'run-summary-body');
     body.innerHTML = '';
     hideOverlay();
     resetOverlayBtn();
-    init();
+    clearSave();
+    showTitleScreen();
   };
   $('#overlay').classList.remove('hidden');
 }
@@ -6215,6 +6216,8 @@ function fireRecruitVignette(recruitId) {
 // ============================================================================
 
 function init() {
+  // Make sure the full-bleed title isn't lingering behind the game.
+  hideTitleScreen();
   // Show the starter chooser if the player has more than one solo-viable
   // hero unlocked.  Otherwise auto-pick (Kai by default).
   const pool = getUnlockedStarters().filter(id => SOLO_VIABLE.has(id));
@@ -6312,62 +6315,66 @@ function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch (_) {} }
 // TITLE SCREEN — KIZUNA | Resonance
 // New Game / Continue / Credits
 // ============================================================================
+// Full-bleed JRPG-style title screen.  Lives in its own #title-screen
+// container outside the standard #overlay, so it gets the whole viewport
+// and isn't constrained by the modal card.  A hero silhouette stands in
+// the abyss while drifting motes rise behind them.
 function showTitleScreen() {
-  $('#overlay-title').textContent = 'KIZUNA';
-  const body = $('#overlay-body');
-  body.classList.add('welcome-body', 'title-screen-body');
-  const unlockedCount = getUnlockedStarters().length;
-  const totalCount = ROSTER.length;
-  body.innerHTML = `
-    <p class="title-subtitle">Resonance</p>
-    <p class="title-flavor">You wake at the bottom of the abyss.<br>You do not remember how far down it goes.<br>You begin to climb.</p>
-    <p class="title-unlocked">Starters unlocked · <b>${unlockedCount}</b> / ${totalCount}</p>
-  `;
-  const choicesEl = $('#overlay-choices');
-  choicesEl.innerHTML = '';
-  choicesEl.classList.remove('path-map', 'party-inspect', 'event-choices', 'vignette-choices');
-  choicesEl.classList.add('title-choices');
+  // Ensure the in-game overlay isn't competing
+  hideOverlay();
+  const root = document.getElementById('title-screen');
+  if (!root) return;
 
-  const mkBtn = (label, sub, onClick, disabled) => {
+  // Hero figure — show the player's most recently unlocked starter so the
+  // meta-progression is visible at the title screen.  Default: Kai.
+  const unlocked = getUnlockedStarters().filter(id => SOLO_VIABLE.has(id));
+  const heroId = unlocked.length ? unlocked[unlocked.length - 1] : 'kai';
+  const heroEl = document.getElementById('ts-hero');
+  if (heroEl) heroEl.innerHTML = PORTRAITS[heroId] || '';
+
+  // Menu
+  const menuEl = document.getElementById('ts-menu');
+  menuEl.innerHTML = '';
+  const mkBtn = (label, onClick, disabled) => {
     const b = document.createElement('button');
-    b.className = 'encounter-choice title-choice' + (disabled ? ' disabled' : '');
-    b.innerHTML = `<div class="enc-name">${label}</div><div class="sigil-desc">${sub}</div>`;
-    if (!disabled) b.addEventListener('click', onClick);
+    b.type = 'button';
+    b.className = 'ts-menu-btn' + (disabled ? ' disabled' : '');
+    b.textContent = label;
+    if (!disabled) b.addEventListener('click', () => { Audio.ui(); onClick(); });
     return b;
   };
-  choicesEl.appendChild(mkBtn('New Game', 'Roll a fresh run', () => {
+  menuEl.appendChild(mkBtn('New Game', () => {
     clearSave();
-    body.classList.remove('welcome-body', 'title-screen-body');
-    body.innerHTML = '';
-    choicesEl.classList.remove('title-choices');
-    hideOverlay();
+    hideTitleScreen();
     init();
   }));
   const canContinue = hasSave();
-  choicesEl.appendChild(mkBtn('Continue',
-    canContinue ? 'Resume the last run' : 'No save found',
-    () => {
-      const loaded = loadStateOrNull();
-      if (!loaded) { showTitleScreen(); return; }
-      state = loaded;
-      body.classList.remove('welcome-body', 'title-screen-body');
-      body.innerHTML = '';
-      choicesEl.classList.remove('title-choices');
-      hideOverlay();
-      // After load, redirect to the map so the player can pick their next node.
-      // If the player was mid-fight, the map will still show their current node
-      // as in-progress; combat state isn't restored mid-turn for simplicity.
-      renderMap();
-    },
-    !canContinue));
-  choicesEl.appendChild(mkBtn('Credits', 'About this game', () => showCreditsScreen()));
+  menuEl.appendChild(mkBtn('Continue', () => {
+    const loaded = loadStateOrNull();
+    if (!loaded) { showTitleScreen(); return; }
+    state = loaded;
+    hideTitleScreen();
+    renderMap();
+  }, !canContinue));
+  menuEl.appendChild(mkBtn('Credits', () => showCreditsScreen()));
 
-  choicesEl.classList.remove('hidden');
-  resetOverlayBtn();
-  $('#overlay-btn').classList.add('hidden');
-  $('#overlay').classList.remove('hidden');
+  // Unlocks badge
+  const metaEl = document.getElementById('ts-meta');
+  metaEl.innerHTML = `Starters unlocked · <b>${unlocked.length || 1}</b> / ${ROSTER.length}`;
+
+  root.classList.remove('hidden');
+  root.setAttribute('aria-hidden', 'false');
 }
 
+function hideTitleScreen() {
+  const root = document.getElementById('title-screen');
+  if (!root) return;
+  root.classList.add('hidden');
+  root.setAttribute('aria-hidden', 'true');
+}
+
+// Credits — kept as an overlay since it's a "back" screen on top of the
+// title.  The title screen stays visible behind the dimmed overlay.
 function showCreditsScreen() {
   $('#overlay-title').textContent = 'Credits';
   const body = $('#overlay-body');
@@ -6388,7 +6395,7 @@ function showCreditsScreen() {
   resetOverlayBtn();
   const btn = $('#overlay-btn');
   btn.textContent = 'Back';
-  btn.onclick = () => showTitleScreen();
+  btn.onclick = () => { hideOverlay(); /* title screen still visible behind */ };
   btn.classList.remove('hidden');
   $('#overlay').classList.remove('hidden');
 }

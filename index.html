@@ -19,6 +19,29 @@
 
   <button id="mute-btn" type="button" title="Mute audio" aria-label="Mute audio">♪</button>
 
+  <!-- Full-bleed title screen.  Drawn outside #stage so it covers the whole
+       viewport without inheriting the game grid.  Shown/hidden via .hidden. -->
+  <div id="title-screen" class="hidden" aria-hidden="true">
+    <div class="ts-bg"></div>
+    <div class="ts-particles" aria-hidden="true">
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+    </div>
+    <div class="ts-content">
+      <header class="ts-header">
+        <h1 class="ts-title">KIZUNA</h1>
+        <p class="ts-subtitle">Resonance</p>
+      </header>
+
+      <div class="ts-hero" id="ts-hero"></div>
+
+      <footer class="ts-footer">
+        <nav class="ts-menu" id="ts-menu"></nav>
+        <p class="ts-meta" id="ts-meta"></p>
+      </footer>
+    </div>
+  </div>
+
   <main id="stage">
 
     <!-- ambient overlays wrapped in a single absolutely-positioned layer so they
