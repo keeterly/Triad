@@ -4322,13 +4322,17 @@ function renderBattlefield() {
 
   // adjacency map for visual borders + chip labels.
   const adjMap = {};
-  getAdjacencyPairs(state).forEach(p => {
+  const pairs = getAdjacencyPairs(state);
+  pairs.forEach(p => {
     p.ids.forEach(id => {
       if (!adjMap[id]) adjMap[id] = {};
       adjMap[id][p.line] = { name: p.synergy.name, type: p.synergy.type };
       if (!adjMap[id].type || p.synergy.type === 'friction') adjMap[id].type = p.synergy.type;
     });
   });
+  // Active edges keyed by line ('fm' or 'mb') for the visual connector.
+  const edgeByLine = {};
+  pairs.forEach(p => { edgeByLine[p.line] = p.synergy; });
 
   // PARTY: three cards in display order (back / mid / front)
   const partyHalf = $('#party-half'); partyHalf.innerHTML = '';
@@ -4336,6 +4340,19 @@ function renderBattlefield() {
     const c = charBySlot(state, slot);
     const incoming = c ? incomingByChar[c.id] : null;
     partyHalf.appendChild(makePartyCard(c, slot, threatened.has(slot), adjMap, incoming));
+  });
+  // Bond / friction edges — small connector dots between adjacent cards.
+  // Display order is back / mid / front, so the MB pair sits between
+  // columns 1-2 and the FM pair between columns 2-3.
+  ['mb', 'fm'].forEach(line => {
+    const syn = edgeByLine[line];
+    if (!syn) return;
+    const edge = document.createElement('div');
+    const kind = syn.type === 'friction' ? 'friction' : 'bond';
+    edge.className = `adj-edge adj-edge-${line} adj-edge-${kind}`;
+    edge.title = syn.name;
+    edge.innerHTML = `<span class="adj-edge-glyph">${kind === 'friction' ? '✕' : '◆'}</span>`;
+    partyHalf.appendChild(edge);
   });
 
   // ENEMY: three cards in display order (front / mid / back)
@@ -4491,12 +4508,29 @@ function makeEnemyCard(e, slot) {
     : (ts || '').slice(0,1).toUpperCase();
   const icon = intentIconGlyph(intent.kind);
   const num = intentPrimaryNum(intent.tag);
+  // Threat tier — colorizes the intent bubble so the player can see at a
+  // glance whether this enemy's next move would kill someone (lethal),
+  // hurt badly (heavy >= 40% maxHp), or chip (mild).
+  let threat = 'mild';
+  if (typeof intent.dmg === 'number' && intent.dmg > 0) {
+    const targets = intentTargetCharIds(state, intent);
+    let maxRatio = 0, lethal = false;
+    targets.forEach(id => {
+      const c = state.party.chars[id];
+      if (!c || c.downed) return;
+      const pred = previewIncomingDmg(state, c, intent.dmg, { armor: c.armor, vuln: c.vuln, stripArmor: !!intent.stripArmor });
+      const toHp = pred.toHp || 0;
+      if (toHp >= c.hp) lethal = true;
+      maxRatio = Math.max(maxRatio, toHp / c.maxHp);
+    });
+    threat = lethal ? 'lethal' : maxRatio >= 0.4 ? 'heavy' : 'mild';
+  }
 
   const staggerBanner = e.staggered ? `<div class="staggered-banner">STAGGERED</div>` : '';
   // Minimal intent: just kind icon + the primary number. Targeting is conveyed by
   // the .targeted-by-enemy glow on the party figures it threatens.
   const intentBubble = e.staggered ? '' : `
-    <div class="intent-bubble ${intentClass}" title="${intent.name}: ${intent.tag} → ${targetTag}">
+    <div class="intent-bubble ${intentClass} threat-${threat}" title="${intent.name}: ${intent.tag} → ${targetTag}">
       <span class="intent-icon">${icon}</span>
       ${num ? `<span class="intent-num">${num}</span>` : ''}
     </div>`;
@@ -5904,19 +5938,30 @@ function showRunSummary(outcome) {
     ? `<div class="vs-syn"><span class="vs-syn-label">Bonds witnessed</span> ${rs.synergies.map(n => `<span class="vs-syn-chip">${n}</span>`).join('')}</div>`
     : '';
 
-  let title, flavor;
-  if (outcome === 'boss') { title = 'The Wakeling Falls'; flavor = 'The Sin of Dawn is unmade. The triad endures, and the world breathes again.'; }
-  else if (outcome === 'victory') { title = 'Victory'; flavor = 'The reaches are quiet. For a moment, the sins rest.'; }
-  else { title = 'Defeat'; flavor = 'Your order is dust. The sins walk on.'; }
+  let title, flavor, outcomeClass;
+  if (outcome === 'boss') { title = 'The Wakeling Falls'; flavor = 'The Sin of Dawn is unmade.  The triad endures, and the world breathes again.'; outcomeClass = 'rs-boss'; }
+  else if (outcome === 'victory') { title = 'Victory'; flavor = 'The reaches are quiet.  For a moment, the sins rest.'; outcomeClass = 'rs-victory'; }
+  else { title = 'Defeat'; flavor = 'The reach takes you back.  Your story is told elsewhere now.'; outcomeClass = 'rs-defeat'; }
+
+  // Newly-unlocked starters this run (compared to before the run)
+  const unlockedAfter = getUnlockedStarters();
+  const unlockedNew = unlockedAfter.filter(id => id !== 'kai').slice(-3); // recent unlocks
 
   $('#overlay-title').textContent = title;
   const body = $('#overlay-body');
   body.classList.add('victory-summary-body', 'run-summary-body');
   body.innerHTML = `
-    <div class="vs-flavor">${flavor}</div>
-    <div class="vs-subtitle">${rs.reaches} ${rs.reaches === 1 ? 'reach' : 'reaches'} cleared · ${rs.turns} ${rs.turns === 1 ? 'turn' : 'turns'} · ${rs.kills} ${rs.kills === 1 ? 'kill' : 'kills'}</div>
-    <div class="vs-rows">${charRows}</div>
-    ${synList}
+    <div class="rs-card ${outcomeClass}">
+      <div class="rs-flavor">${flavor}</div>
+      <div class="rs-stats">
+        <span class="rs-stat"><b>${rs.reaches}</b> <em>${rs.reaches === 1 ? 'reach' : 'reaches'}</em></span>
+        <span class="rs-stat"><b>${rs.turns}</b> <em>${rs.turns === 1 ? 'turn' : 'turns'}</em></span>
+        <span class="rs-stat"><b>${rs.kills}</b> <em>${rs.kills === 1 ? 'kill' : 'kills'}</em></span>
+      </div>
+      <div class="rs-rows">${charRows}</div>
+      ${synList}
+      ${unlockedNew.length ? `<div class="rs-unlocks"><span class="rs-unlocks-label">Companions remembered</span>${unlockedNew.map(id => `<span class="rs-unlocks-chip">${CHARS[id]?.name || id}</span>`).join('')}</div>` : ''}
+    </div>
   `;
   $('#overlay-choices').classList.add('hidden');
   const btn = $('#overlay-btn');
@@ -6451,6 +6496,7 @@ function showTitleScreen() {
     renderMap();
   }, !canContinue));
   menuEl.appendChild(mkBtn('Credits', () => showCreditsScreen()));
+  menuEl.appendChild(mkBtn('Settings', () => showSettingsScreen()));
 
   // Unlocks badge
   const metaEl = document.getElementById('ts-meta');
@@ -6465,6 +6511,87 @@ function hideTitleScreen() {
   if (!root) return;
   root.classList.add('hidden');
   root.setAttribute('aria-hidden', 'true');
+}
+
+// Settings — small overlay over the title with toggles for audio,
+// tutorial, save reset, and meta-unlock reset.
+function showSettingsScreen() {
+  $('#overlay-title').textContent = 'Settings';
+  const body = $('#overlay-body');
+  body.classList.remove('welcome-body', 'title-screen-body', 'victory-summary-body', 'run-summary-body');
+  body.innerHTML = `
+    <div class="settings-grid">
+      <button type="button" class="settings-row" data-action="mute">
+        <span class="settings-label">Audio</span>
+        <span class="settings-value" id="settings-mute-val"></span>
+      </button>
+      <button type="button" class="settings-row" data-action="tutorial">
+        <span class="settings-label">First-run tutorial</span>
+        <span class="settings-value">Show again on next run</span>
+      </button>
+      <button type="button" class="settings-row settings-danger" data-action="clearsave">
+        <span class="settings-label">Active run</span>
+        <span class="settings-value">Clear save</span>
+      </button>
+      <button type="button" class="settings-row settings-danger" data-action="resetprogress">
+        <span class="settings-label">Meta progression</span>
+        <span class="settings-value">Reset all unlocks</span>
+      </button>
+    </div>
+  `;
+  const syncMute = () => {
+    const el = document.getElementById('settings-mute-val');
+    if (el) el.textContent = Audio.isMuted() ? 'Muted' : 'On';
+  };
+  syncMute();
+  body.querySelectorAll('.settings-row').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const action = btn.dataset.action;
+      Audio.ui();
+      if (action === 'mute') {
+        Audio.ensure();
+        Audio.toggleMute();
+        // Sync the floating #mute-btn icon too
+        const m = document.getElementById('mute-btn');
+        if (m) {
+          if (Audio.isMuted()) { m.classList.add('muted'); m.textContent = '♪̸'; m.title = 'Unmute'; }
+          else                  { m.classList.remove('muted'); m.textContent = '♪'; m.title = 'Mute'; }
+        }
+        syncMute();
+      } else if (action === 'tutorial') {
+        try { localStorage.removeItem('kizuna.tutorialSeen'); } catch (_) {}
+        _tutCursor = 0;
+        flashSettings('Tutorial will replay next run.');
+      } else if (action === 'clearsave') {
+        clearSave();
+        flashSettings('Active run cleared.');
+        // Refresh the title screen so Continue updates
+        setTimeout(() => { hideOverlay(); showTitleScreen(); }, 600);
+      } else if (action === 'resetprogress') {
+        try { localStorage.removeItem(UNLOCKED_KEY); } catch (_) {}
+        flashSettings('Meta progression reset.');
+        setTimeout(() => { hideOverlay(); showTitleScreen(); }, 600);
+      }
+    });
+  });
+
+  const choicesEl = $('#overlay-choices');
+  choicesEl.innerHTML = '';
+  choicesEl.classList.remove('title-choices');
+  choicesEl.classList.add('hidden');
+  resetOverlayBtn();
+  const btn = $('#overlay-btn');
+  btn.textContent = 'Back';
+  btn.onclick = () => { hideOverlay(); };
+  btn.classList.remove('hidden');
+  $('#overlay').classList.remove('hidden');
+}
+function flashSettings(msg) {
+  const note = document.createElement('div');
+  note.className = 'settings-flash';
+  note.textContent = msg;
+  document.body.appendChild(note);
+  setTimeout(() => note.remove(), 1100);
 }
 
 // Credits — kept as an overlay since it's a "back" screen on top of the
