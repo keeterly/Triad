@@ -2770,6 +2770,28 @@ function renderHUD() {
     if (reserved > 0) hudResolve.classList.add('has-reserved');
     else hudResolve.classList.remove('has-reserved');
   }
+  renderSigilTray();
+}
+
+// Slay-the-Spire-style persistent sigil tray.  One chip per acquired sigil,
+// colored by category (combat/defense/resource); tap to surface the
+// name + description via the shared chip-tooltip pattern.
+function renderSigilTray() {
+  const tray = document.getElementById('sigil-tray');
+  if (!tray) return;
+  const owned = (state.run && state.run.sigils) || [];
+  if (!owned.length) {
+    tray.innerHTML = '';
+    tray.classList.add('empty');
+    return;
+  }
+  tray.classList.remove('empty');
+  tray.innerHTML = owned.map(id => {
+    const s = SIGILS[id];
+    if (!s) return '';
+    const titleText = `${s.name} — ${s.desc}`;
+    return `<button type="button" class="sigil-chip cat-${s.category}" data-sigil="${s.id}" title="${titleText}" aria-label="${s.name}"><span class="sigil-chip-icon">${s.icon}</span></button>`;
+  }).join('');
 }
 
 function flashResolve() {
@@ -3485,7 +3507,7 @@ function bindUI() {
 // to surface its explanation. Capture-phase so the figure's setPointerCapture
 // (pickup gesture) doesn't swallow the tap.
 function bindChipExplainers() {
-  const CHIP_SEL = '.status-chip, .affinity-chip, .adj-chip, .incoming-chip';
+  const CHIP_SEL = '.status-chip, .affinity-chip, .adj-chip, .incoming-chip, .sigil-chip';
   document.addEventListener('pointerdown', (e) => {
     const chip = e.target.closest(CHIP_SEL);
     if (chip && chip.getAttribute('title')) {
