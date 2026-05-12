@@ -2854,6 +2854,8 @@ function startEncounter(encSpec) {
   }
 
   startTurn(state);
+  // First-encounter tutorial kicks in after the battlefield has rendered.
+  if (isFirstFight && !tutorialSeen()) setTimeout(maybeShowTutorial, 600);
 }
 
 function newCharState(id) {
@@ -3179,12 +3181,16 @@ function applyDmgToEnemy(s, e, baseAmt) {
     setTimeout(() => spawnPopupId(e.id, schoolBadge, schoolBadge === 'WEAK!' ? 'crit' : 'miss', 'enemy'), 80);
   }
   flashCardId(e.id, 'hit', 'enemy');
+  // Game feel: shake the struck card; screen shake on big hits; SFX
+  shakeCardId(e.id, 'enemy', toHp);
+  if (toHp >= 6) shakeScreen(toHp >= 10 ? 3 : 2);
+  Audio.hit(Math.min(2, 0.6 + toHp / 8));
   log(`<b>${ENEMIES[e.id].name}</b> takes ${toHp} damage${e.staggered ? ' (stagger!)' : ''}${schoolBadge ? ` — ${schoolBadge.toLowerCase()}` : ''}.`);
   if (s.currentActorId && toHp > 0) fireAdjacencyHook(s, 'onAttack', s.currentActorId, e, toHp);
   if (s.fightStats && s.currentActorId && toHp > 0) {
     s.fightStats.damageDealt[s.currentActorId] = (s.fightStats.damageDealt[s.currentActorId] || 0) + toHp;
   }
-  if (e.hp === 0) killEnemy(s, e);
+  if (e.hp === 0) { hitPause(120); killEnemy(s, e); }
 }
 
 function triggerStagger(s, e) {
@@ -3198,6 +3204,8 @@ function triggerStagger(s, e) {
 function killEnemy(s, e) {
   e.dead = true;
   log(`<b>${ENEMIES[e.id].name}</b> falls.`);
+  Audio.kill();
+  shakeScreen(2);
   gainResolve(s, KILL_RESOLVE + (hasSigil(s, 'reaver') ? 1 : 0));
   if (s.fightStats) {
     s.fightStats.kills += 1;
@@ -3240,6 +3248,9 @@ function applyDmgToParty(s, c, amt) {
 
   spawnPopupId(c.id, `-${toHp}`, 'dmg', 'party');
   flashCardId(c.id, 'hit', 'party');
+  shakeCardId(c.id, 'party', toHp);
+  if (toHp >= 5) shakeScreen(toHp >= 9 ? 3 : 2);
+  Audio.hit(Math.min(2, 0.6 + toHp / 8));
   log(`<b>${CHARS[c.id].name}</b> takes ${toHp} damage.`);
 
   if (s.fightStats && toHp > 0) {
@@ -3340,6 +3351,7 @@ function partyHeal(s, amt) {
     const got = c.hp - before;
     if (got > 0) {
       spawnPopupId(c.id, `+${got}`, 'heal', 'party');
+      Audio.heal();
       fireAdjacencyHook(s, 'onHeal', s.currentActorId, c.id, got);
       if (s.fightStats && s.currentActorId) {
         s.fightStats.healingDone[s.currentActorId] = (s.fightStats.healingDone[s.currentActorId] || 0) + got;
@@ -3384,6 +3396,7 @@ function healLowest(s, amt) {
   const got = c.hp - before;
   if (got > 0) {
     spawnPopupId(c.id, `+${got}`, 'heal', 'party');
+    Audio.heal();
     flashCardId(c.id, 'heal', 'party');
     fireAdjacencyHook(s, 'onHeal', s.currentActorId, c.id, got);
     if (s.fightStats && s.currentActorId) {
@@ -3735,6 +3748,7 @@ function queueAdd(item) {
     }
   }
   s.queue.push(item);
+  Audio.queue();
   render();
 }
 
@@ -3903,6 +3917,7 @@ function onFight() {
   const s = state;
   if (s.over || s.executing) return;
   if (s.queue.length === 0) { flashMsg('Queue at least one action.'); return; }
+  Audio.attack();
   s.executing = true;
   s.resolve -= queueReservedResolve();
   render();
@@ -3941,7 +3956,7 @@ function resolveQueueStep(i) {
     executeQueueItem(s, item);
     if (checkEnd(s)) { s.executing = false; render(); return; }
     render();
-    setTimeout(() => resolveQueueStep(i + 1), 720);
+    setTimeout(() => resolveQueueStep(i + 1), 720 + consumeHitPause());
   }, 200);
 }
 
@@ -4136,7 +4151,7 @@ function resolveEnemyStep(s, i) {
     if (checkEnd(s)) { render(); return; }
     e.intentIdx = (e.intentIdx + 1) % def.intents.length;
     render();
-    setTimeout(() => resolveEnemyStep(s, i + 1), 700);
+    setTimeout(() => resolveEnemyStep(s, i + 1), 700 + consumeHitPause());
   }, 240);
 }
 
@@ -5028,6 +5043,134 @@ function flashCardId(id, type, side) {
 }
 
 // ============================================================================
+// GAME FEEL — shake / flash / hit-pause / move ghost trail
+// ============================================================================
+
+// Per-card hit shake; remove + re-add the class so the animation restarts
+// even on rapid successive hits.
+function shakeCardId(id, side, intensity) {
+  if (__simulating) return;
+  let cardEl;
+  if (side) cardEl = document.querySelector(`#${side === 'enemy' ? 'enemy' : 'party'}-half [data-id="${id}"]`);
+  if (!cardEl) cardEl = document.querySelector(`#battlefield [data-id="${id}"]`);
+  if (!cardEl) return;
+  const cls = intensity >= 6 ? 'hit-shake-hard' : 'hit-shake';
+  cardEl.classList.remove(cls);
+  // Force a reflow so the animation restarts when the class is re-added.
+  void cardEl.offsetWidth;
+  cardEl.classList.add(cls);
+  setTimeout(() => cardEl.classList.remove(cls), 320);
+}
+
+// Whole-stage shake on big hits / kills.  intensity 1-3 scales magnitude.
+function shakeScreen(intensity) {
+  if (__simulating) return;
+  const stage = $('#stage');
+  if (!stage) return;
+  const cls = intensity >= 3 ? 'stage-shake-hard' : intensity >= 2 ? 'stage-shake' : 'stage-shake-soft';
+  stage.classList.remove('stage-shake-soft', 'stage-shake', 'stage-shake-hard');
+  void stage.offsetWidth;
+  stage.classList.add(cls);
+  setTimeout(() => stage.classList.remove(cls), 360);
+}
+
+// Hit-pause — briefly freeze the resolution clock for a beat after a lethal
+// or massive hit so the moment lands.  Resolution loops respect this by
+// adding `_hitPauseMs` to their next-step timeout.
+let _hitPauseMs = 0;
+function hitPause(ms) { _hitPauseMs = Math.max(_hitPauseMs, ms || 80); }
+function consumeHitPause() {
+  const v = _hitPauseMs;
+  _hitPauseMs = 0;
+  return v;
+}
+
+// ============================================================================
+// AUDIO — Web Audio API synth-only sfx so we don't ship any sample files.
+// Lazily creates an AudioContext on the first user gesture so mobile browsers
+// don't block playback.  Toggleable via Audio.toggleMute().
+// ============================================================================
+const Audio = (() => {
+  let ctx = null;
+  let masterGain = null;
+  let muted = false;
+  try { muted = localStorage.getItem('kizuna.muted') === '1'; } catch (_) {}
+
+  function ensure() {
+    if (ctx) return ctx;
+    try {
+      const Ctor = window.AudioContext || window.webkitAudioContext;
+      if (!Ctor) return null;
+      ctx = new Ctor();
+      masterGain = ctx.createGain();
+      masterGain.gain.value = muted ? 0 : 0.5;
+      masterGain.connect(ctx.destination);
+    } catch (_) { ctx = null; }
+    return ctx;
+  }
+  function isMuted() { return muted; }
+  function toggleMute() {
+    muted = !muted;
+    try { localStorage.setItem('kizuna.muted', muted ? '1' : '0'); } catch (_) {}
+    if (masterGain) masterGain.gain.value = muted ? 0 : 0.5;
+    return muted;
+  }
+  function _tone({ freq=440, type='sine', dur=0.12, attack=0.005, decay=0.08, gain=0.2, sweep=0 }) {
+    const c = ensure();
+    if (!c || muted) return;
+    const osc = c.createOscillator();
+    const env = c.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, c.currentTime);
+    if (sweep) osc.frequency.exponentialRampToValueAtTime(Math.max(40, freq + sweep), c.currentTime + dur);
+    env.gain.setValueAtTime(0, c.currentTime);
+    env.gain.linearRampToValueAtTime(gain, c.currentTime + attack);
+    env.gain.exponentialRampToValueAtTime(0.001, c.currentTime + attack + decay);
+    osc.connect(env);
+    env.connect(masterGain);
+    osc.start();
+    osc.stop(c.currentTime + dur + 0.05);
+  }
+  function _noise({ dur=0.08, gain=0.15, hp=200, lp=4000 }) {
+    const c = ensure();
+    if (!c || muted) return;
+    const buf = c.createBuffer(1, Math.floor(c.sampleRate * dur), c.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1);
+    const src = c.createBufferSource(); src.buffer = buf;
+    const hpF = c.createBiquadFilter(); hpF.type = 'highpass'; hpF.frequency.value = hp;
+    const lpF = c.createBiquadFilter(); lpF.type = 'lowpass';  lpF.frequency.value = lp;
+    const env = c.createGain();
+    env.gain.setValueAtTime(0, c.currentTime);
+    env.gain.linearRampToValueAtTime(gain, c.currentTime + 0.005);
+    env.gain.exponentialRampToValueAtTime(0.001, c.currentTime + dur);
+    src.connect(hpF); hpF.connect(lpF); lpF.connect(env); env.connect(masterGain);
+    src.start();
+    src.stop(c.currentTime + dur + 0.02);
+  }
+  return {
+    isMuted, toggleMute, ensure,
+    attack() { _noise({ dur: 0.09, gain: 0.10, hp: 800, lp: 6000 }); },
+    hit(intensity = 1) {
+      // A short low thump + a slap of noise
+      _tone({ freq: 90 + Math.random()*10, type: 'sine', dur: 0.14, gain: 0.22 * Math.min(1.4, intensity * 0.6), sweep: -30 });
+      _noise({ dur: 0.05 + 0.02*intensity, gain: 0.08 * intensity, hp: 600, lp: 3500 });
+    },
+    heal() {
+      _tone({ freq: 660, type: 'triangle', dur: 0.18, gain: 0.12, sweep: 200 });
+      setTimeout(() => _tone({ freq: 990, type: 'triangle', dur: 0.14, gain: 0.10, sweep: 100 }), 80);
+    },
+    kill() {
+      _tone({ freq: 220, type: 'sawtooth', dur: 0.22, gain: 0.18, sweep: -120 });
+      _noise({ dur: 0.18, gain: 0.10, hp: 200, lp: 1800 });
+    },
+    armor() { _tone({ freq: 380, type: 'square', dur: 0.10, gain: 0.10, sweep: 80 }); },
+    queue() { _tone({ freq: 720, type: 'triangle', dur: 0.05, gain: 0.06 }); },
+    ui()    { _tone({ freq: 540, type: 'sine',     dur: 0.06, gain: 0.05 }); },
+  };
+})();
+
+// ============================================================================
 // INPUT
 // ============================================================================
 
@@ -5039,6 +5182,63 @@ function bindUI() {
   // .onclick rather than addEventListener to keep a single replaceable handler.
   $('#overlay-btn').onclick = () => { hideOverlay(); init(); };
   bindChipExplainers();
+  bindMuteButton();
+}
+
+function bindMuteButton() {
+  const btn = $('#mute-btn');
+  if (!btn) return;
+  const sync = () => {
+    if (Audio.isMuted()) { btn.classList.add('muted'); btn.textContent = '♪̸'; btn.title = 'Unmute'; }
+    else                  { btn.classList.remove('muted'); btn.textContent = '♪';  btn.title = 'Mute'; }
+  };
+  sync();
+  btn.addEventListener('click', () => {
+    Audio.ensure(); // first click initializes the context (mobile policy)
+    Audio.toggleMute();
+    sync();
+  });
+}
+
+// ============================================================================
+// TUTORIAL — three short hints, shown during the first-ever encounter so
+// solo Kai players learn the loop.  Each hint is keyed by id so dismissing
+// one doesn't dismiss the others, but the whole set is gated by a single
+// localStorage flag so returning players don't see them again.
+// ============================================================================
+const TUTORIAL_HINTS = [
+  { id: 'tap',     text: '<b>Tap</b> an action below to queue it.  Each action costs ATB.' },
+  { id: 'hold',    text: '<b>Hold</b> an action to see its reach and predicted damage.' },
+  { id: 'commit',  text: 'Spend your ATB, then tap <b>Play ▶</b> to commit the turn.' },
+  { id: 'enemies', text: 'Enemies show their <b>intent</b> above their card.  Plan around it.' },
+];
+function tutorialSeen() {
+  try { return localStorage.getItem('kizuna.tutorialSeen') === '1'; } catch (_) { return false; }
+}
+function markTutorialSeen() {
+  try { localStorage.setItem('kizuna.tutorialSeen', '1'); } catch (_) {}
+}
+let _tutCursor = 0;
+function maybeShowTutorial() {
+  if (tutorialSeen() || _tutCursor >= TUTORIAL_HINTS.length) return;
+  const hint = TUTORIAL_HINTS[_tutCursor];
+  showTutorialToast(hint.text, () => {
+    _tutCursor += 1;
+    if (_tutCursor >= TUTORIAL_HINTS.length) markTutorialSeen();
+    setTimeout(maybeShowTutorial, 220);
+  });
+}
+function showTutorialToast(html, onDismiss) {
+  const old = document.getElementById('tutorial-toast');
+  if (old) old.remove();
+  const el = document.createElement('div');
+  el.id = 'tutorial-toast';
+  el.innerHTML = `<span class="tut-text">${html}</span><br><button type="button" class="tut-ok">Got it</button>`;
+  el.querySelector('.tut-ok').addEventListener('click', () => {
+    el.remove();
+    if (typeof onDismiss === 'function') onDismiss();
+  });
+  document.body.appendChild(el);
 }
 
 // Mobile-friendly chip tooltips: tap any status/affinity/synergy/incoming chip
@@ -6116,9 +6316,12 @@ function showTitleScreen() {
   $('#overlay-title').textContent = 'KIZUNA';
   const body = $('#overlay-body');
   body.classList.add('welcome-body', 'title-screen-body');
+  const unlockedCount = getUnlockedStarters().length;
+  const totalCount = ROSTER.length;
   body.innerHTML = `
     <p class="title-subtitle">Resonance</p>
     <p class="title-flavor">You wake at the bottom of the abyss.<br>You do not remember how far down it goes.<br>You begin to climb.</p>
+    <p class="title-unlocked">Starters unlocked · <b>${unlockedCount}</b> / ${totalCount}</p>
   `;
   const choicesEl = $('#overlay-choices');
   choicesEl.innerHTML = '';
