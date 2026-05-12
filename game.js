@@ -504,6 +504,48 @@ const PORTRAITS = {
   <path d="M 26 100 L 22 110 M 30 102 L 28 112" stroke="#48283a" stroke-width="0.5" opacity="0.6"/>
   <rect width="100" height="130" fill="url(#mi-shadow)" opacity="0.5"/>
 </svg>`,
+  wakeling: `
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <radialGradient id="wk-bg" cx="50%" cy="35%" r="95%">
+      <stop offset="0" stop-color="#6a1820"/><stop offset="0.5" stop-color="#1a0810"/><stop offset="1" stop-color="#040208"/>
+    </radialGradient>
+    <radialGradient id="wk-aura" cx="50%" cy="35%" r="55%">
+      <stop offset="0" stop-color="#ff4030" stop-opacity="0.5"/><stop offset="0.5" stop-color="#c01818" stop-opacity="0.18"/><stop offset="1" stop-color="#c01818" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="wk-cloak" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0" stop-color="#3a1014"/><stop offset="0.5" stop-color="#180408"/><stop offset="1" stop-color="#020004"/>
+    </linearGradient>
+    <linearGradient id="wk-shadow" x1="0%" x2="100%">
+      <stop offset="0" stop-color="#020004" stop-opacity="0.6"/><stop offset="0.55" stop-color="#020004" stop-opacity="0"/><stop offset="1" stop-color="#020004" stop-opacity="0.6"/>
+    </linearGradient>
+  </defs>
+  <rect width="100" height="130" fill="url(#wk-bg)"/>
+  <rect x="0" y="0" width="100" height="100" fill="url(#wk-aura)"/>
+  <ellipse cx="50" cy="120" rx="52" ry="10" fill="#040208" opacity="0.9"/>
+  <path d="M 4 130 L 8 70 Q 24 36 50 30 Q 76 36 92 70 L 96 130 Z" fill="url(#wk-cloak)" stroke="#020004" stroke-width="0.8"/>
+  <path d="M 4 130 L 8 70 Q 24 36 50 30 L 50 130 Z" fill="#020004" opacity="0.4"/>
+  <path d="M 20 50 L 6 28 L 16 36 L 24 24 L 28 38 Z" fill="#3a1014" stroke="#1a0408" stroke-width="0.5"/>
+  <path d="M 80 50 L 94 28 L 84 36 L 76 24 L 72 38 Z" fill="#3a1014" stroke="#1a0408" stroke-width="0.5"/>
+  <path d="M 24 26 Q 36 14 50 12 Q 64 14 76 26 L 70 44 Q 60 32 50 32 Q 40 32 30 44 Z" fill="#1a0408" stroke="#020004" stroke-width="0.5"/>
+  <ellipse cx="50" cy="62" rx="18" ry="24" fill="#020004"/>
+  <ellipse cx="50" cy="58" rx="14" ry="20" fill="#0a0408"/>
+  <ellipse cx="42" cy="56" rx="4" ry="6" fill="#020004"/>
+  <ellipse cx="58" cy="56" rx="4" ry="6" fill="#020004"/>
+  <circle cx="42" cy="56" r="2.2" fill="#ff2020"/>
+  <circle cx="58" cy="56" r="2.2" fill="#ff2020"/>
+  <circle cx="42" cy="56" r="0.8" fill="#ffd0d0"/>
+  <circle cx="58" cy="56" r="0.8" fill="#ffd0d0"/>
+  <path d="M 38 76 Q 50 84 62 76 L 64 78 Q 50 88 36 78 Z" fill="#020004"/>
+  <path d="M 36 76 L 40 86 L 42 76 M 44 76 L 46 88 L 48 76 M 52 76 L 54 88 L 56 76 M 58 76 L 60 86 L 64 76" fill="#c8b0b0"/>
+  <path d="M 34 50 Q 50 44 66 50 Q 60 40 50 38 Q 40 40 34 50" fill="#240810"/>
+  <path d="M 6 60 Q 4 100 12 130 L 20 130 Q 14 95 18 60" fill="#2a0810" stroke="#0a0408" stroke-width="0.4"/>
+  <path d="M 94 60 Q 96 100 88 130 L 80 130 Q 86 95 82 60" fill="#2a0810" stroke="#0a0408" stroke-width="0.4"/>
+  <path d="M 22 28 L 50 12 L 78 28 L 50 4 Z" fill="#2a0810" stroke="#0a0408" stroke-width="0.5"/>
+  <circle cx="50" cy="20" r="2" fill="#ff4040"/>
+  <circle cx="50" cy="20" r="0.8" fill="#ffd0d0"/>
+  <rect width="100" height="130" fill="url(#wk-shadow)" opacity="0.5"/>
+</svg>`,
 };
 
 // ============================================================================
@@ -530,8 +572,8 @@ const TEAM_SPECIAL_COST = 3;  // Resolve cost of a team special
 const BRACE_ARMOR = 2;
 
 const RESOLVE_MAX = 5;
-const RESOLVE_DRIP = 1;
-const KILL_RESOLVE = 2;
+const RESOLVE_DRIP = 1;     // Resolve regenerated automatically each turn
+const KILL_RESOLVE = 1;     // Resolve gained per enemy killed (tuned down so Team Special is a real save-up)
 
 // stagger / chain
 const STAGGER_THRESHOLD = 30;
@@ -553,6 +595,7 @@ const CHARS = {
     id: 'cassia',
     name: 'Cassia',
     title: 'Disgraced Knight',
+    school: 'physical',
     maxHp: 26,
     home: 'front',
     passive: { name: 'Steadfast', desc: '−1 dmg taken in Front' },
@@ -583,6 +626,7 @@ const CHARS = {
     id: 'elin',
     name: 'Elin',
     title: 'Sister of the Veil',
+    school: 'holy',
     maxHp: 19,
     home: 'mid',
     passive: { name: 'Mercy', desc: 'Heals self 1 when healing an ally' },
@@ -609,6 +653,7 @@ const CHARS = {
     id: 'branwen',
     name: 'Branwen',
     title: 'Outlaw Archer',
+    school: 'ranged',
     maxHp: 17,
     home: 'back',
     passive: { name: 'Bleed Hunter', desc: '+2 dmg to bleeding enemies' },
@@ -646,6 +691,7 @@ const CHARS = {
     id: 'korin',
     name: 'Korin',
     title: 'Bloodbound Reaver',
+    school: 'physical',
     maxHp: 22,
     home: 'front',
     passive: { name: 'Bloodlust', desc: '+2 dmg per 30% missing HP' },
@@ -676,6 +722,7 @@ const CHARS = {
     id: 'ash',
     name: 'Ash',
     title: 'Veil-Touched Mage',
+    school: 'arcane',
     maxHp: 16,
     home: 'mid',
     passive: { name: 'Arcane Focus', desc: 'First attack each turn deals +2' },
@@ -710,6 +757,7 @@ const CHARS = {
     id: 'mira',
     name: 'Mira',
     title: 'Shadow Reaver',
+    school: 'stealth',
     maxHp: 18,
     home: 'back',
     passive: { name: 'Eviscerate', desc: '+3 dmg vs bleeding enemies' },
@@ -749,6 +797,7 @@ const CHARS = {
 const ENEMIES = {
   ghoul: {
     id: 'ghoul', name: 'Ghoul', title: 'Sin of Hunger', maxHp: 14,
+    weakness: 'holy', resistance: 'physical',
     intents: [
       { name: 'Bite',    tag: 'ATK 6',          targetSlot: 'front', kind: 'atk', fn: (s) => dmgPartyAt(s, 'front', 6) },
       { name: 'Charge',  tag: 'ATK 4 + shove',  targetSlot: 'front', kind: 'atk', fn: (s) => { dmgPartyAt(s, 'front', 4); enemyShove(s, 'front', 'back'); } },
@@ -757,6 +806,7 @@ const ENEMIES = {
   },
   cultist: {
     id: 'cultist', name: 'Cultist', title: 'Sin of Whispers', maxHp: 10,
+    weakness: 'physical', resistance: 'arcane',
     intents: [
       { name: 'Curse',     tag: 'WEAK 2',         targetSlot: 'front', kind: 'debuff', fn: (s) => weakSlot(s, 'front', 2) },
       { name: 'Hex',       tag: 'ATK 2 + weak',   targetSlot: 'front', kind: 'atk',    fn: (s) => { dmgPartyAt(s, 'front', 2); weakSlot(s, 'front', 1); } },
@@ -765,6 +815,7 @@ const ENEMIES = {
   },
   wraith: {
     id: 'wraith', name: 'Wraith', title: 'Sin of Sorrow', maxHp: 9,
+    weakness: 'arcane', resistance: 'physical',
     intents: [
       { name: 'Spectral Bolt', tag: 'ATK 5',     targetSlot: 'back', kind: 'atk', fn: (s) => dmgPartyAt(s, 'back', 5) },
       { name: 'Wail',          tag: 'ATK 2 all', targetSlot: 'all',  kind: 'aoe', fn: (s) => dmgAllParty(s, 2) },
@@ -773,6 +824,7 @@ const ENEMIES = {
   },
   lineCaster: {
     id: 'lineCaster', name: 'Line Caster', title: 'Sin of Voices', maxHp: 12,
+    weakness: 'physical', resistance: 'arcane',
     intents: [
       { name: 'Verse of Faces',   tag: 'ATK 3 F+M', targetSlot: 'fm',  kind: 'aoe', fn: (s) => dmgLinePair(s, 'fm', 3) },
       { name: 'Discord',          tag: 'ATK 4 + vuln', targetSlot: 'mid', kind: 'atk', fn: (s) => { dmgPartyAt(s, 'mid', 4); applyVulnParty(s, 'mid', 1); } },
@@ -781,6 +833,7 @@ const ENEMIES = {
   },
   sniper: {
     id: 'sniper', name: 'Sniper', title: 'Sin of Distance', maxHp: 11,
+    weakness: 'stealth', resistance: 'ranged',
     intents: [
       { name: 'Aimed Shot',       tag: 'ATK 6',        targetSlot: 'back',   kind: 'atk',    fn: (s) => dmgPartyAt(s, 'back', 6) },
       { name: 'Pierce',           tag: 'ATK 3 M+B',    targetSlot: 'pierce', kind: 'aoe',    fn: (s) => dmgPierce(s, 3) },
@@ -793,6 +846,7 @@ const ENEMIES = {
   },
   grappler: {
     id: 'grappler', name: 'Grappler', title: 'Sin of Grasp', maxHp: 15,
+    weakness: 'ranged', resistance: 'physical',
     intents: [
       { name: 'Hook',  tag: 'ATK 3 + pull', targetSlot: 'mid',   kind: 'atk', fn: (s) => { dmgPartyAt(s, 'mid', 3); enemyShove(s, 'mid', 'front'); } },
       { name: 'Crush', tag: 'ATK 7',        targetSlot: 'front', kind: 'atk', fn: (s) => dmgPartyAt(s, 'front', 7) },
@@ -804,6 +858,16 @@ const ENEMIES = {
           log(`<b>${CHARS[c.id].name}</b> gains Weak.`);
         }
       } },
+    ],
+  },
+  wakeling: {
+    id: 'wakeling', name: 'The Wakeling', title: 'Sin of the Dawn', maxHp: 46, boss: true,
+    weakness: 'arcane', resistance: 'physical',
+    intents: [
+      { name: 'Sundering Strike', tag: 'ATK 8',         targetSlot: 'front', kind: 'atk',    fn: (s) => dmgPartyAt(s, 'front', 8) },
+      { name: 'Cyclone',          tag: 'ATK 3 all',     targetSlot: 'all',   kind: 'aoe',    fn: (s) => dmgAllParty(s, 3) },
+      { name: 'Final Sin',        tag: 'ATK 5 + bleed', targetSlot: 'mid',   kind: 'atk',    fn: (s) => { dmgPartyAt(s, 'mid', 5); bleedPartyAt(s, 'mid', 2); } },
+      { name: 'Hollow Reach',     tag: 'ATK 4 + vuln',  targetSlot: 'back',  kind: 'debuff', fn: (s) => { dmgPartyAt(s, 'back', 4); applyVulnParty(s, 'back', 2); } },
     ],
   },
 };
@@ -823,12 +887,14 @@ const ENCOUNTERS = {
   // elite encounters — harder fights that guarantee a Sigil reward on victory
   ee1: { id: 'ee1', name: 'Sins Triumphant', elite: true, slots: { front: 'grappler',  mid: 'lineCaster', back: 'sniper'  } },
   ee2: { id: 'ee2', name: 'Court of Wraiths', elite: true, slots: { front: 'grappler', mid: 'wraith', back: 'lineCaster' } },
+  // boss encounter — single massive enemy, run-ending fight
+  boss: { id: 'boss', name: 'The Wakeling', boss: true, slots: { front: 'wakeling' } },
 };
 
 const RUN_LAYOUT = [
   { slot: 0, label: 'First Reach',  options: ['e1', 'e2'] },
-  { slot: 1, label: 'Second Reach', options: ['e3', 'ee1'] }, // normal vs elite
-  { slot: 2, label: 'Final Reach',  options: ['e6', 'ee2'] }, // normal vs elite
+  { slot: 1, label: 'Second Reach', options: ['e3', 'ee1'] },   // normal vs elite
+  { slot: 2, label: 'Final Reach',  options: ['ee2', 'boss'] }, // elite vs boss — both end the run
 ];
 
 const RESOLVE_CARRY_CAP = 3;
@@ -1376,6 +1442,20 @@ function applyDmgToEnemy(s, e, baseAmt) {
     vulnConsumed = 1;
   }
 
+  // School weakness / resistance — actor's school vs enemy's weak/resist
+  let schoolBadge = null;
+  const actorDef = s.currentActorId ? CHARS[s.currentActorId] : null;
+  if (actorDef && actorDef.school && amt > 0) {
+    const enemyDef = ENEMIES[e.id];
+    if (enemyDef && enemyDef.weakness === actorDef.school) {
+      amt = Math.round(amt * 1.5);
+      schoolBadge = 'WEAK!';
+    } else if (enemyDef && enemyDef.resistance === actorDef.school) {
+      amt = Math.max(1, Math.floor(amt * 0.5));
+      schoolBadge = 'RESIST';
+    }
+  }
+
   // staggered = +50% damage taken
   if (e.staggered && amt > 0) amt = Math.floor(amt * STAGGER_DMG_MULT);
 
@@ -1403,10 +1483,13 @@ function applyDmgToEnemy(s, e, baseAmt) {
     if (e.chain >= STAGGER_THRESHOLD) triggerStagger(s, e);
   }
 
-  const popupType = e.staggered ? 'crit' : 'dmg';
+  const popupType = e.staggered ? 'crit' : (schoolBadge === 'WEAK!' ? 'crit' : 'dmg');
   spawnPopupId(e.id, `-${toHp}`, popupType, 'enemy');
+  if (schoolBadge) {
+    setTimeout(() => spawnPopupId(e.id, schoolBadge, schoolBadge === 'WEAK!' ? 'crit' : 'miss', 'enemy'), 80);
+  }
   flashCardId(e.id, 'hit', 'enemy');
-  log(`<b>${ENEMIES[e.id].name}</b> takes ${toHp} damage${e.staggered ? ' (stagger!)' : ''}.`);
+  log(`<b>${ENEMIES[e.id].name}</b> takes ${toHp} damage${e.staggered ? ' (stagger!)' : ''}${schoolBadge ? ` — ${schoolBadge.toLowerCase()}` : ''}.`);
   if (s.currentActorId && toHp > 0) fireAdjacencyHook(s, 'onAttack', s.currentActorId, e, toHp);
   if (e.hp === 0) killEnemy(s, e);
 }
@@ -2174,7 +2257,11 @@ function checkEnd(s) {
     s.run.lastVictoryElite = !!(completedEnc && completedEnc.elite);
     const isFinal = s.run.slotIdx >= RUN_LAYOUT.length - 1;
     if (isFinal) {
-      showOverlay('Victory', 'All three sins are unbound. Your reach holds the dawn.');
+      if (completedEnc && completedEnc.boss) {
+        showOverlay('The Wakeling Falls', 'The Sin of Dawn is unmade. The triad endures, and the world breathes again.');
+      } else {
+        showOverlay('Victory', 'The reaches are quiet. For a moment, the sins rest.');
+      }
     } else {
       s.run.slotIdx += 1;
       // Between fights: offer a recruit if any unrecruited characters remain.
@@ -2428,6 +2515,13 @@ function makeEnemyCard(e, slot) {
       ${num ? `<span class="intent-num">${num}</span>` : ''}
     </div>`;
 
+  // Weak / Resist affinity chips — surfaces the targeting puzzle without text overload
+  const schoolGlyph = { physical: '⚔', holy: '✚', arcane: '✦', stealth: '☽', ranged: '➤' };
+  const affChips = [];
+  if (def.weakness)   affChips.push(`<span class="affinity-chip weak"   title="Weak to ${def.weakness} (×1.5)">${schoolGlyph[def.weakness] || '?'}</span>`);
+  if (def.resistance) affChips.push(`<span class="affinity-chip resist" title="Resists ${def.resistance} (×0.5)">${schoolGlyph[def.resistance] || '?'}</span>`);
+  const affRow = affChips.length ? `<div class="affinity-row">${affChips.join('')}</div>` : '';
+
   fig.innerHTML = `
     ${intentBubble}
     ${staggerBanner}
@@ -2435,6 +2529,7 @@ function makeEnemyCard(e, slot) {
     <div class="figure-portrait">${PORTRAITS[e.id] || ''}</div>
     <div class="figure-shadow"></div>
     <div class="figure-info">
+      ${affRow}
       <div class="figure-hp">
         <div class="hp-fill ${hpPct < 35 ? 'low' : ''}" style="width:${hpPct}%"></div>
         <div class="hp-text">${e.hp}/${e.maxHp}</div>
