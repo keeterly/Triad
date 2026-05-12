@@ -493,15 +493,16 @@ body {
 }
 
 /* HP bar reuses .hp-bar / .hp-fill / .hp-text from below — keep it the same look but constrained to the info width */
-/* Minimal HP readout above the figure's head.
+/* Minimal HP readout, anchored just above the figure's head.
+   .figure-hp is rendered INSIDE .figure-portrait so absolute positioning is
+   relative to the portrait box.  The portrait mask centers visible content
+   around 60% from top — the head edge fades in at roughly 8–10% — so
+   top: 8% places the bar just above the visible head.
    Layout:  [ ===---- ] 5/8
-   - bracket marks flank the bar
-   - "current/total" tabular-nums sits to the right
-   - single solid bar (no ticks, no outline)
-   - same top offset for party and enemies; intent bubble stacks below */
+*/
 .figure-hp {
   position: absolute;
-  top: 4px;
+  top: 8%;
   left: 50%;
   transform: translateX(-50%);
   width: 44px;
@@ -511,6 +512,7 @@ body {
   border-radius: 0;
   overflow: visible;
   z-index: 6;
+  pointer-events: none;
 }
 .figure-hp::before,
 .figure-hp::after {
@@ -591,12 +593,13 @@ body {
 }
 
 /* ============ INTENT BUBBLE — minimal floating glyph above enemy figure ============ */
-/* Intent bubble — stacked below the HP bar so the overhead row reads
-   top-down as:  HP bar   then   intent.  Stays minimal-flat to match
-   the rest of the NieR chrome. */
+/* Intent bubble — rendered inside .figure-portrait so it anchors to the
+   portrait box and sits just below the HP bar (which is at top: 8%).
+   Stays minimal-flat to match the rest of the NieR chrome. */
 .intent-bubble {
   position: absolute;
-  top: 16px; left: 50%;
+  top: calc(8% + 12px);
+  left: 50%;
   transform: translateX(-50%);
   color: var(--ink);
   display: inline-flex; align-items: center; gap: 3px;
