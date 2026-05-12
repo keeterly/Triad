@@ -97,7 +97,7 @@ body {
   /* HUD (resolve readout) | ATB strip | battlefield (1fr) | action+commit
      Cinematic pass: HUD + ATB + action chrome trimmed so the battlefield
      row dominates the frame. */
-  grid-template-rows: 0 18px minmax(0, 1fr) 76px;
+  grid-template-rows: 22px 18px minmax(0, 1fr) 76px;
   grid-template-columns: 1fr;
   /* NieR flatter backdrop — neutral graphite radial pools instead of warm
      parchment browns, so the chrome (cream-on-black) reads as the dominant
@@ -194,20 +194,71 @@ body {
   100% { transform: translate(-4px, -100vh) scale(0.6); opacity: 0; }
 }
 
-/* ============ HUD — empty placeholder. Resolve reads from the pip jewels
-   beside the Fight crest, so the inner ◆ N/3 readout has been removed from
-   index.html.  We KEEP the (empty) <header id="hud"> element so the grid
-   auto-placement of the remaining sections (#atb-row, #battlefield,
-   #action-row) stays anchored to rows 2/3/4. Using `display: none` here
-   collapses the element out of grid placement entirely, which would
-   shift every other section up by one row. ============ */
+/* ============ HUD — persistent sigil tray (Slay-the-Spire-style).
+   Lives on grid row 1 (22px).  Single horizontal strip of chips, each
+   colored by sigil category, tap-to-inspect via the shared chip-tooltip. */
 #hud {
-  height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 8px;
+  position: relative;
+  z-index: 3;
   overflow: hidden;
-  padding: 0;
-  margin: 0;
-  pointer-events: none;
 }
+#sigil-tray {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: nowrap;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding: 1px 2px;
+}
+#sigil-tray::-webkit-scrollbar { display: none; }
+#sigil-tray.empty { display: none; }
+
+.sigil-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid rgba(212,200,168,0.45);
+  background: rgba(18,18,20,0.85);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 0;
+  flex-shrink: 0;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.5);
+  transition: border-color 0.15s, background 0.15s, transform 0.1s;
+}
+.sigil-chip:hover,
+.sigil-chip:active {
+  background: rgba(28,28,30,0.95);
+  border-color: var(--gold-bright);
+  transform: translateY(-1px);
+}
+.sigil-chip-icon {
+  display: block;
+  line-height: 1;
+  font-size: 11px;
+  text-shadow: 0 1px 0 var(--shadow);
+}
+/* Category coloring — border + icon tint */
+.sigil-chip.cat-combat   { border-color: rgba(212,69,69,0.55); }
+.sigil-chip.cat-combat   .sigil-chip-icon { color: var(--blood-bright); }
+.sigil-chip.cat-defense  { border-color: rgba(136,152,168,0.55); }
+.sigil-chip.cat-defense  .sigil-chip-icon { color: var(--armor); }
+.sigil-chip.cat-resource { border-color: rgba(212,200,168,0.55); }
+.sigil-chip.cat-resource .sigil-chip-icon { color: var(--gold-bright); }
 /* ============ RESOLVE PIPS — small jewels next to the Fight crest ============ */
 #resolve-pips {
   display: flex; gap: 3px; align-items: center; justify-content: center;
