@@ -1955,6 +1955,7 @@ function fireAdjacencyHook(s, hookName, ...args) {
 // Spawn the synergy's effect popup, and on its first fire each fight,
 // also spawn the synergy NAME so the player learns what the chip means.
 function fireSynergyFeedback(s, name, receiverId, effectText, effectType) {
+  if (__simulating) return;
   spawnPopupId(receiverId, effectText, effectType, 'party');
   if (!s || !s.firedSynergies) return;
   if (s.firedSynergies.has(name)) return;
@@ -2058,11 +2059,12 @@ function slotOfCharSim(sim, id) { return SLOTS.find(sl => sim[sl] === id); }
 // What action would clicking this tile QUEUE right now?
 // Returns { label, desc, atb, resolveCost, valid, kind } based on simulated post-queue state.
 function previewTile(kind, charId, dir) {
-  const s = state;
+  // Use the queue-aware snapshot so tile names match the slot the character
+  // will actually occupy when this action would fire.
+  const s = getPreviewState();
   const c = s.party.chars[charId];
   if (!c || c.downed) return { valid: false };
-  const sim = simulateSlotsThrough(s, s.queue.length);
-  const slot = slotOfCharSim(sim, charId);
+  const slot = slotOfChar(s, charId);
   if (!slot) return { valid: false };
 
   const atb = ACTION_ATB[kind] || 0;
@@ -2080,7 +2082,7 @@ function previewTile(kind, charId, dir) {
     const ti = idx + dir;
     if (ti < 0 || ti > 2) return { kind, valid: false, label: 'Move', desc: 'no room', atb, slot };
     const target = SLOTS[ti];
-    const otherId = sim[target];
+    const otherId = s.party.slots[target];
     const otherName = otherId ? CHARS[otherId].name : '—';
     return { kind, valid: true, label: `→ ${SLOT_LABELS[target]}`, desc: `swap w/ ${otherName}`, atb, resolveCost: 0, slot, target };
   }
@@ -2936,13 +2938,14 @@ function makeTile(kind, charId, dir, tileCounts, teamLocked) {
   return t;
 }
 
-// reach-label shown statically on damaging tiles ("F" / "MB" / "FMB" / "low")
+// reach-label shown statically on damaging tiles ("F" / "MB" / "FMB" / "low").
+// Uses the queue-aware snapshot so a queued Move shifts the slot's reach.
 function previewReachLabel(kind, charId, dir) {
   if (kind !== 'attack' && kind !== 'special') return '';
-  const sim = simulateSlotsThrough(state, state.queue.length);
-  const slot = slotOfCharSim(sim, charId);
+  const s = getPreviewState();
+  const slot = slotOfChar(s, charId);
   if (!slot) return '';
-  const variant = getTech(state, charId, slot, kind === 'special' ? 'sig' : 'basic');
+  const variant = getTech(s, charId, slot, kind === 'special' ? 'sig' : 'basic');
   if (!variant || !variant.reach) return '';
   const letters = variant.reach.map(r => r[0].toUpperCase()).join('');
   if (variant.pattern === 'all')    return `hit ${letters}`;
@@ -2950,35 +2953,59 @@ function previewReachLabel(kind, charId, dir) {
   return letters;
 }
 
+// Dry-run the entire current queue on a deep clone of state, suppressing
+// DOM side-effects. Returns the post-queue clone. Callers should treat the
+// clone as the "what does the world look like right before this held action
+// would fire?" snapshot for queue-aware damage/heal previews.
+function getPreviewState() {
+  if (!state.queue || state.queue.length === 0) return state;
+  let clone;
+  try { clone = structuredClone(state); }
+  catch (_) { return state; }  // fall back to live state if structuredClone unsupported
+  const real = state;
+  state = clone;
+  __simulating = true;
+  try {
+    clone.queue.forEach(item => {
+      try { executeQueueItem(clone, item); } catch (_) {}
+    });
+    clone.queue = [];
+  } finally {
+    state = real;
+    __simulating = false;
+  }
+  return clone;
+}
+
 // returns the set of enemy slot names that would be hit if the tile fired now,
 // plus a per-target damage prediction (dmg + WEAK!/RESIST/STG badge) for damaging tiles.
+// Reads from a queue-aware snapshot so chains like Cleave→Sunder reflect compounded vuln.
 function previewTargetsForTile(kind, charId, dir) {
+  const s = getPreviewState();
   if (kind === 'attack' || kind === 'special') {
-    const sim = simulateSlotsThrough(state, state.queue.length);
-    const slot = slotOfCharSim(sim, charId);
+    const slot = slotOfChar(s, charId);
     if (!slot) return { enemySlots: [], partySlots: [], enemyHits: [], partyHeals: [] };
-    const variant = getTech(state, charId, slot, kind === 'special' ? 'sig' : 'basic');
-    const targets = resolveTargets(state, variant) || [];
+    const variant = getTech(s, charId, slot, kind === 'special' ? 'sig' : 'basic');
+    const targets = resolveTargets(s, variant) || [];
     const enemyHits = targets.map(e => {
-      const sl = SLOTS.find(sl => state.enemies.slots[sl] === e.id);
+      const sl = SLOTS.find(sl => s.enemies.slots[sl] === e.id);
       if (!sl) return null;
       if (typeof variant.dmg !== 'number') return { slot: sl };
-      const r = previewMultiHit(state, e, variant.dmg, charId, variant.hits || 1);
+      const r = previewMultiHit(s, e, variant.dmg, charId, variant.hits || 1);
       const kill = !e.dead && r.dmg >= e.hp;
       return { slot: sl, dmg: r.dmg, badge: r.badge, kill };
     }).filter(Boolean);
     const enemySlots = enemyHits.map(h => h.slot);
-    const partyHeals = resolveHealTargets(state, variant, charId).map(c => {
-      const sl = slotOfChar(state, c.id);
+    const partyHeals = resolveHealTargets(s, variant, charId).map(c => {
+      const sl = slotOfChar(s, c.id);
       if (!sl) return null;
-      return { slot: sl, heal: previewHeal(state, c, variant.heal, charId) };
+      return { slot: sl, heal: previewHeal(s, c, variant.heal, charId) };
     }).filter(Boolean);
     const partySlots = partyHeals.map(h => h.slot);
     return { enemySlots, partySlots, enemyHits, partyHeals };
   }
   if (kind === 'move') {
-    const sim = simulateSlotsThrough(state, state.queue.length);
-    const slot = slotOfCharSim(sim, charId);
+    const slot = slotOfChar(s, charId);
     if (!slot) return { enemySlots: [], partySlots: [], enemyHits: [] };
     const idx = SLOTS.indexOf(slot);
     const ti = idx + dir;
@@ -3122,20 +3149,21 @@ function makeTeamSpecialTile(teamLocked) {
   bindTileHold(t, {
     onQueue: () => queueTeamSpecial(),
     onPreview: () => {
-      const targets = resolveTargets(state, ts) || [];
+      const s = getPreviewState();
+      const targets = resolveTargets(s, ts) || [];
       const enemyHits = targets.map(e => {
-        const sl = SLOTS.find(sl => state.enemies.slots[sl] === e.id);
+        const sl = SLOTS.find(sl => s.enemies.slots[sl] === e.id);
         if (!sl) return null;
         if (typeof ts.dmg !== 'number') return { slot: sl };
-        const per = previewDamage(state, e, ts.dmg, null);
+        const per = previewDamage(s, e, ts.dmg, null);
         const kill = !e.dead && per.toHp >= e.hp;
         return { slot: sl, dmg: per.toHp, badge: per.badge, kill };
       }).filter(Boolean);
       const enemySlots = enemyHits.map(h => h.slot);
-      const partyHeals = resolveHealTargets(state, ts, null).map(c => {
-        const sl = slotOfChar(state, c.id);
+      const partyHeals = resolveHealTargets(s, ts, null).map(c => {
+        const sl = slotOfChar(s, c.id);
         if (!sl) return null;
-        return { slot: sl, heal: previewHeal(state, c, ts.heal, null) };
+        return { slot: sl, heal: previewHeal(s, c, ts.heal, null) };
       }).filter(Boolean);
       const partySlots = partyHeals.map(h => h.slot);
       return { enemySlots, partySlots, enemyHits, partyHeals };
@@ -3166,7 +3194,12 @@ function flashMsg(text) { log(`<i>${text}</i>`); renderMessages(); }
 // POPUPS + FLASHES — visual juice
 // ============================================================================
 
+// Global flag set during dry-run simulation (queue-aware previews) so
+// DOM-mutating helpers (popups, flashes) no-op without touching the page.
+let __simulating = false;
+
 function spawnPopupId(id, text, type, side) {
+  if (__simulating) return;
   // resolve side automatically if not given
   let cardEl;
   if (side) cardEl = document.querySelector(`#${side === 'enemy' ? 'enemy' : 'party'}-half [data-id="${id}"]`);
@@ -3191,6 +3224,7 @@ function spawnPopup(cardEl, text, type='dmg') {
 }
 
 function flashCardId(id, type, side) {
+  if (__simulating) return;
   let cardEl;
   if (side) cardEl = document.querySelector(`#${side === 'enemy' ? 'enemy' : 'party'}-half [data-id="${id}"]`);
   if (!cardEl) cardEl = document.querySelector(`#battlefield [data-id="${id}"]`);
