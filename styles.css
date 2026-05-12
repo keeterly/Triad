@@ -710,6 +710,27 @@ body {
   font-size: 12px;
   letter-spacing: -1px;
 }
+
+/* dashed gold path line from source figure to destination, with a small
+   arrowhead at the destination end. SVG overlay sits inside #party-half. */
+.move-path-svg { overflow: visible; }
+.move-path-line {
+  stroke: var(--gold-bright);
+  stroke-width: 2;
+  stroke-dasharray: 5 4;
+  stroke-linecap: round;
+  opacity: 0.85;
+  filter: drop-shadow(0 0 4px rgba(240,212,136,0.6));
+  animation: move-path-dash 0.8s linear infinite;
+}
+.move-path-arrow {
+  fill: var(--gold-bright);
+  filter: drop-shadow(0 0 4px rgba(240,212,136,0.6));
+  opacity: 0.9;
+}
+@keyframes move-path-dash {
+  to { stroke-dashoffset: -18; }
+}
 .target-dmg-label .dmg-num { font-size: 19px; }
 .target-dmg-label .dmg-badge {
   font-size: 9px;
