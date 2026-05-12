@@ -602,18 +602,18 @@ const CHARS = {
     passive: { name: 'Steadfast', desc: '−1 dmg taken in Front' },
     techs: {
       front: {
-        basic: { name: 'Greatsword Cleave', desc: '8 dmg + vuln',
+        basic: { name: 'Greatsword Cleave', desc: '8 dmg + vuln', dmg: 8,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (!t[0]) return; applyDmgToEnemy(s, t[0], 8); if (!t[0].dead) t[0].vuln += 1; } },
-        sig:   { name: 'Sunder', desc: '14 dmg + strip armor + 2 vuln',
+        sig:   { name: 'Sunder', desc: '14 dmg + strip armor + 2 vuln', dmg: 14,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (!t[0]) return; applyDmgToEnemy(s, t[0], 14); if (!t[0].dead) { t[0].armor = 0; t[0].vuln += 2; } } },
       },
       mid: {
-        basic: { name: 'Vanguard', desc: '5 dmg front + advance',
+        basic: { name: 'Vanguard', desc: '5 dmg front + advance', dmg: 5,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 5); advance(s, 'cassia'); } },
-        sig:   { name: 'Heroic Charge', desc: '9 dmg front + advance + 3 armor',
+        sig:   { name: 'Heroic Charge', desc: '9 dmg front + advance + 3 armor', dmg: 9,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 9); advance(s, 'cassia'); addArmor(s, 'cassia', 3); } },
       },
@@ -633,10 +633,10 @@ const CHARS = {
     passive: { name: 'Mercy', desc: 'Heals self 1 when healing an ally' },
     techs: {
       front: {
-        basic: { name: 'Phase Step', desc: '3 dmg + retreat to Mid',
+        basic: { name: 'Phase Step', desc: '3 dmg + retreat to Mid', dmg: 3,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 3); retreat(s, 'elin'); } },
-        sig:   { name: 'Veil Step', desc: '6 dmg + retreat + 2 armor',
+        sig:   { name: 'Veil Step', desc: '6 dmg + retreat + 2 armor', dmg: 6,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 6); retreat(s, 'elin'); addArmor(s, 'elin', 2); } },
       },
@@ -661,28 +661,28 @@ const CHARS = {
     techs: {
       front: {
         // close-range when shoved to Front: melee shots
-        basic: { name: 'Backstep Shot', desc: '4 dmg + bleed 1 + retreat',
+        basic: { name: 'Backstep Shot', desc: '4 dmg + bleed 1 + retreat', dmg: 4,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 4); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 1); } retreatFull(s, 'branwen'); } },
-        sig:   { name: 'Vanish Shot', desc: '7 dmg + bleed 2 + retreat + 1 vuln',
+        sig:   { name: 'Vanish Shot', desc: '7 dmg + bleed 2 + retreat + 1 vuln', dmg: 7,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 7); if (!t[0].dead) { t[0].bleed = Math.max(t[0].bleed, 2); t[0].vuln += 1; } } retreatFull(s, 'branwen'); } },
       },
       mid: {
         // mortar-lob: skips the front line, snipes mid/back
-        basic: { name: 'Trick Shot', desc: '5 dmg lowest mid/back',
+        basic: { name: 'Trick Shot', desc: '5 dmg lowest mid/back', dmg: 5,
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 5); } },
-        sig:   { name: 'Pierce', desc: '8 dmg lowest mid/back + ignore armor',
+        sig:   { name: 'Pierce', desc: '8 dmg lowest mid/back + ignore armor', dmg: 8,
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => { if (!t[0]) return; s.ignoreArmor = true; applyDmgToEnemy(s, t[0], 8); s.ignoreArmor = false; } },
       },
       back: {
         // archer's sweet spot: full-field reach
-        basic: { name: 'Volley', desc: '4 dmg + bleed 1 all',
+        basic: { name: 'Volley', desc: '4 dmg + bleed 1 all', dmg: 4,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 4)); t.forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 1); }); } },
-        sig:   { name: 'Arrow Storm', desc: '7 dmg + bleed 2 all',
+        sig:   { name: 'Arrow Storm', desc: '7 dmg + bleed 2 all', dmg: 7,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 7)); t.forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 2); }); } },
       },
@@ -698,18 +698,18 @@ const CHARS = {
     passive: { name: 'Bloodlust', desc: '+2 dmg per 30% missing HP' },
     techs: {
       front: {
-        basic: { name: 'Reckless Strike', desc: '7 dmg + 1 self-dmg',
+        basic: { name: 'Reckless Strike', desc: '7 dmg + 1 self-dmg', dmg: 7,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 7); applySelfDmg(s, 'korin', 1); } },
-        sig:   { name: 'Berserker Cleave', desc: '11 dmg + bleed 2 + 2 self-dmg',
+        sig:   { name: 'Berserker Cleave', desc: '11 dmg + bleed 2 + 2 self-dmg', dmg: 11,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 11); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 2); } applySelfDmg(s, 'korin', 2); } },
       },
       mid: {
-        basic: { name: 'Wild Swing', desc: '4 dmg all',
+        basic: { name: 'Wild Swing', desc: '4 dmg all', dmg: 4,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => t.forEach(e => applyDmgToEnemy(s, e, 4)) },
-        sig:   { name: 'Bloodfury', desc: '6 dmg all + bleed 1 all',
+        sig:   { name: 'Bloodfury', desc: '6 dmg all + bleed 1 all', dmg: 6,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 6)); t.forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 1); }); } },
       },
@@ -729,26 +729,26 @@ const CHARS = {
     passive: { name: 'Arcane Focus', desc: 'First attack each turn deals +2' },
     techs: {
       front: {
-        basic: { name: 'Spark', desc: '3 dmg + retreat',
+        basic: { name: 'Spark', desc: '3 dmg + retreat', dmg: 3,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 3); retreat(s, 'ash'); } },
-        sig:   { name: 'Inferno Burst', desc: '5 dmg + 2 vuln + retreat',
+        sig:   { name: 'Inferno Burst', desc: '5 dmg + 2 vuln + retreat', dmg: 5,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 5); if (!t[0].dead) t[0].vuln += 2; } retreat(s, 'ash'); } },
       },
       mid: {
-        basic: { name: 'Fireball', desc: '6 dmg + 1 vuln',
+        basic: { name: 'Fireball', desc: '6 dmg + 1 vuln', dmg: 6,
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 6); if (!t[0].dead) t[0].vuln += 1; } } },
-        sig:   { name: 'Pyroclasm', desc: '9 dmg + 2 vuln',
+        sig:   { name: 'Pyroclasm', desc: '9 dmg + 2 vuln', dmg: 9,
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 9); if (!t[0].dead) t[0].vuln += 2; } } },
       },
       back: {
-        basic: { name: 'Arcane Bolts', desc: '3 dmg all',
+        basic: { name: 'Arcane Bolts', desc: '3 dmg all', dmg: 3,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => t.forEach(e => applyDmgToEnemy(s, e, 3)) },
-        sig:   { name: 'Lightning Storm', desc: '5 dmg all + 1 vuln all',
+        sig:   { name: 'Lightning Storm', desc: '5 dmg all + 1 vuln all', dmg: 5,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 5)); t.forEach(e => { if (!e.dead) e.vuln += 1; }); } },
       },
@@ -764,26 +764,26 @@ const CHARS = {
     passive: { name: 'Eviscerate', desc: '+3 dmg vs bleeding enemies' },
     techs: {
       front: {
-        basic: { name: 'Backstab', desc: '6 dmg + bleed 1 + retreat',
+        basic: { name: 'Backstab', desc: '6 dmg + bleed 1 + retreat', dmg: 6,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 6); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 1); } retreat(s, 'mira'); } },
-        sig:   { name: 'Vanish Strike', desc: '9 dmg + bleed 2 + retreat full',
+        sig:   { name: 'Vanish Strike', desc: '9 dmg + bleed 2 + retreat full', dmg: 9,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 9); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 2); } retreatFull(s, 'mira'); } },
       },
       mid: {
-        basic: { name: 'Shadow Knife', desc: '4 dmg lowest + bleed 1',
+        basic: { name: 'Shadow Knife', desc: '4 dmg lowest + bleed 1', dmg: 4,
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 4); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 1); } } },
-        sig:   { name: 'Twin Daggers', desc: '5 dmg lowest twice + bleed 2',
+        sig:   { name: 'Twin Daggers', desc: '5 dmg lowest twice + bleed 2', dmg: 5, hits: 2,
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 5); if (!t[0].dead) applyDmgToEnemy(s, t[0], 5); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 2); } } },
       },
       back: {
-        basic: { name: 'Poison Cloud', desc: '2 dmg all + bleed 1 all',
+        basic: { name: 'Poison Cloud', desc: '2 dmg all + bleed 1 all', dmg: 2,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 2)); t.forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 1); }); } },
-        sig:   { name: 'Shadow Storm', desc: '4 dmg all + bleed 2 all',
+        sig:   { name: 'Shadow Storm', desc: '4 dmg all + bleed 2 all', dmg: 4,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 4)); t.forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 2); }); } },
       },
@@ -914,13 +914,13 @@ const ROSTER = ['cassia', 'elin', 'branwen', 'korin', 'ash', 'mira'];
 const UPGRADES = {
   'cassia.front.basic.sweeping': {
     id: 'cassia.front.basic.sweeping', charId: 'cassia', slot: 'front', kind: 'basic',
-    name: 'Sweeping Cleave', desc: '5 dmg front+mid + 1 vuln each',
+    name: 'Sweeping Cleave', desc: '5 dmg front+mid + 1 vuln each', dmg: 5,
     reach: ['front','mid'], pattern: 'all',
     fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 5)); t.forEach(e => { if (!e.dead) e.vuln += 1; }); },
   },
   'cassia.front.sig.devastate': {
     id: 'cassia.front.sig.devastate', charId: 'cassia', slot: 'front', kind: 'sig',
-    name: 'Devastate', desc: '18 dmg + strip armor · 3 self-dmg',
+    name: 'Devastate', desc: '18 dmg + strip armor · 3 self-dmg', dmg: 18,
     reach: ['front'], pattern: 'front-most',
     fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 18); if (!t[0].dead) t[0].armor = 0; } applySelfDmg(s, 'cassia', 3); },
   },
@@ -955,7 +955,7 @@ const UPGRADES = {
   // Holy damage options — give Elin offensive presence so the holy school can carry weakness exploitation
   'elin.mid.basic.searing': {
     id: 'elin.mid.basic.searing', charId: 'elin', slot: 'mid', kind: 'basic',
-    name: 'Searing Light', desc: '4 holy dmg front + heal 1 lowest',
+    name: 'Searing Light', desc: '4 holy dmg front + heal 1 lowest', dmg: 4,
     reach: ['front'], pattern: 'front-most',
     fn: (s, t) => {
       if (t[0]) applyDmgToEnemy(s, t[0], 4);
@@ -964,7 +964,7 @@ const UPGRADES = {
   },
   'elin.back.sig.verdict': {
     id: 'elin.back.sig.verdict', charId: 'elin', slot: 'back', kind: 'sig',
-    name: "Dawn's Verdict", desc: '5 holy dmg all + 1 vuln all',
+    name: "Dawn's Verdict", desc: '5 holy dmg all + 1 vuln all', dmg: 5,
     reach: ['front','mid','back'], pattern: 'all',
     fn: (s, t) => {
       t.forEach(e => applyDmgToEnemy(s, e, 5));
@@ -973,19 +973,19 @@ const UPGRADES = {
   },
   'branwen.back.basic.bloody': {
     id: 'branwen.back.basic.bloody', charId: 'branwen', slot: 'back', kind: 'basic',
-    name: 'Bloody Volley', desc: '5 dmg + bleed 2 all',
+    name: 'Bloody Volley', desc: '5 dmg + bleed 2 all', dmg: 5,
     reach: ['front','mid','back'], pattern: 'all',
     fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 5)); t.forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 2); }); },
   },
   'branwen.mid.sig.crippling': {
     id: 'branwen.mid.sig.crippling', charId: 'branwen', slot: 'mid', kind: 'sig',
-    name: 'Crippling Pierce', desc: '9 dmg ignore armor + 2 vuln',
+    name: 'Crippling Pierce', desc: '9 dmg ignore armor + 2 vuln', dmg: 9,
     reach: ['mid','back'], pattern: 'lowest',
     fn: (s, t) => { if (!t[0]) return; s.ignoreArmor = true; applyDmgToEnemy(s, t[0], 9); s.ignoreArmor = false; if (!t[0].dead) t[0].vuln += 2; },
   },
   'korin.front.basic.vampiric': {
     id: 'korin.front.basic.vampiric', charId: 'korin', slot: 'front', kind: 'basic',
-    name: 'Vampiric Strike', desc: '6 dmg + heal 2 self',
+    name: 'Vampiric Strike', desc: '6 dmg + heal 2 self', dmg: 6,
     reach: ['front'], pattern: 'front-most',
     fn: (s, t) => {
       if (t[0]) applyDmgToEnemy(s, t[0], 6);
@@ -998,13 +998,13 @@ const UPGRADES = {
   },
   'korin.mid.sig.warstorm': {
     id: 'korin.mid.sig.warstorm', charId: 'korin', slot: 'mid', kind: 'sig',
-    name: 'War Storm', desc: '8 dmg all + bleed 2 all',
+    name: 'War Storm', desc: '8 dmg all + bleed 2 all', dmg: 8,
     reach: ['front','mid','back'], pattern: 'all',
     fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 8)); t.forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 2); }); },
   },
   'ash.mid.basic.frostball': {
     id: 'ash.mid.basic.frostball', charId: 'ash', slot: 'mid', kind: 'basic',
-    name: 'Frostball', desc: '5 dmg + chain 4',
+    name: 'Frostball', desc: '5 dmg + chain 4', dmg: 5,
     reach: ['mid','back'], pattern: 'lowest',
     fn: (s, t) => {
       if (!t[0]) return;
@@ -1017,19 +1017,19 @@ const UPGRADES = {
   },
   'ash.back.sig.arcstorm': {
     id: 'ash.back.sig.arcstorm', charId: 'ash', slot: 'back', kind: 'sig',
-    name: 'Arc Storm', desc: '7 dmg all + 2 vuln all',
+    name: 'Arc Storm', desc: '7 dmg all + 2 vuln all', dmg: 7,
     reach: ['front','mid','back'], pattern: 'all',
     fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 7)); t.forEach(e => { if (!e.dead) e.vuln += 2; }); },
   },
   'mira.back.basic.toxic': {
     id: 'mira.back.basic.toxic', charId: 'mira', slot: 'back', kind: 'basic',
-    name: 'Toxic Cloud', desc: '3 dmg all + bleed 2 all',
+    name: 'Toxic Cloud', desc: '3 dmg all + bleed 2 all', dmg: 3,
     reach: ['front','mid','back'], pattern: 'all',
     fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 3)); t.forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 2); }); },
   },
   'mira.mid.sig.spinning': {
     id: 'mira.mid.sig.spinning', charId: 'mira', slot: 'mid', kind: 'sig',
-    name: 'Spinning Blades', desc: '4 dmg all + bleed 2 to lowest',
+    name: 'Spinning Blades', desc: '4 dmg all + bleed 2 to lowest', dmg: 4,
     reach: ['mid','back'], pattern: 'all',
     fn: (s, t) => {
       t.forEach(e => applyDmgToEnemy(s, e, 4));
@@ -1427,6 +1427,70 @@ function resolveTargets(s, def) {
 // ============================================================================
 // DAMAGE / HEAL — apply with popups + flashes
 // ============================================================================
+
+// Pure prediction — mirrors applyDmgToEnemy's modifier stack but never mutates state.
+// Returns { amt, toHp, badge } where badge is 'WEAK!' | 'RESIST' | 'STG' | null.
+// Assumes the action fires now (vuln/armor/pendings are read as-is from current state).
+function previewDamage(s, e, baseAmt, actorId) {
+  if (!e || e.dead || !(baseAmt > 0)) return { amt: 0, toHp: 0, badge: null };
+  let amt = baseAmt;
+
+  getAdjacencyPairs(s).forEach(p => {
+    if (typeof p.synergy.dmgMod === 'number' && p.synergy.dmgModFor === actorId) {
+      amt += p.synergy.dmgMod;
+    }
+  });
+  if (actorId === 'branwen' && e.bleed > 0) amt += 2;
+  if (actorId === 'mira' && e.bleed > 0) amt += 3;
+  if (actorId === 'korin') {
+    const k = s.party.chars.korin;
+    if (k) {
+      const missingPct = (k.maxHp - k.hp) / k.maxHp;
+      if (missingPct >= 0.6) amt += 4;
+      else if (missingPct >= 0.3) amt += 2;
+    }
+  }
+  if (actorId === 'ash') {
+    const a = s.party.chars.ash;
+    if (a && !a.firstAttackUsed) amt += 2;
+  }
+  const actor = actorId && s.party.chars[actorId];
+  if (actor && Array.isArray(actor.pendingEffects)) {
+    actor.pendingEffects.forEach(eff => { if (eff.kind === 'attackBonus') amt += eff.amt; });
+  }
+  amt += (s.outgoingDmgMod || 0);
+
+  if (e.vuln > 0 && amt > 0) amt += 2 + (hasSigil(s, 'wrath') ? 2 : 0);
+
+  let badge = null;
+  const actorDef = actorId ? CHARS[actorId] : null;
+  if (actorDef && actorDef.school && amt > 0) {
+    const enemyDef = ENEMIES[e.id];
+    const asArr = x => Array.isArray(x) ? x : (x ? [x] : []);
+    const weaks = asArr(enemyDef && enemyDef.weakness);
+    const resists = asArr(enemyDef && enemyDef.resistance);
+    if (weaks.includes(actorDef.school)) {
+      amt = Math.round(amt * 1.5);
+      badge = 'WEAK!';
+    } else if (resists.includes(actorDef.school)) {
+      amt = Math.max(1, Math.floor(amt * 0.5));
+      badge = 'RESIST';
+    }
+  }
+
+  if (e.staggered && amt > 0) {
+    amt = Math.floor(amt * STAGGER_DMG_MULT);
+    if (!badge) badge = 'STG';
+  }
+
+  amt = Math.max(0, amt);
+  let toHp = amt;
+  if (!s.ignoreArmor) {
+    const absorbed = Math.min(e.armor, amt);
+    toHp = Math.max(0, amt - absorbed);
+  }
+  return { amt, toHp, badge };
+}
 
 function applyDmgToEnemy(s, e, baseAmt) {
   if (!e || e.dead) return;
@@ -2193,7 +2257,7 @@ const TEAM_SPECIALS = {
   // home: Cassia front, Elin mid, Branwen back
   'cassia:elin:branwen': {
     id: 'sacred', name: 'Sacred Triad',
-    short: 'AoE 5 · heal 5 · cleanse · armor',
+    short: 'AoE 5 · heal 5 · cleanse · armor', dmg: 5,
     reach: ['front','mid','back'], pattern: 'all',
     fn: (s) => {
       dmgAllEnemies(s, 5);
@@ -2207,7 +2271,7 @@ const TEAM_SPECIALS = {
   // full reverse: Branwen front, Elin mid, Cassia back
   'branwen:elin:cassia': {
     id: 'lastreach', name: 'Last Reach',
-    short: 'Pierce 10 + bleed all · Cassia retaliate',
+    short: 'Pierce 10 + bleed all · Cassia retaliate', dmg: 10,
     reach: ['front','mid','back'], pattern: 'all',
     fn: (s) => {
       s.ignoreArmor = true; dmgEnemyAt(s, 0, 10); s.ignoreArmor = false;
@@ -2219,7 +2283,7 @@ const TEAM_SPECIALS = {
   // Cassia + Branwen swapped, Elin home: Branwen front, Cassia mid, Elin back
   'branwen:cassia:elin': {
     id: 'wedge', name: "Hunter's Wedge",
-    short: 'Volley 6 all · Cassia advances · armor',
+    short: 'Volley 6 all · Cassia advances · armor', dmg: 6,
     reach: ['front','mid','back'], pattern: 'all',
     fn: (s) => {
       dmgAllEnemies(s, 6);
@@ -2237,7 +2301,7 @@ const TEAM_SPECIALS = {
 
 const TEAM_SPECIAL_DEFAULT = {
   id: 'strike', name: 'Triad Strike',
-  short: 'AoE 4 · heal 3 lowest · +1 Resolve',
+  short: 'AoE 4 · heal 3 lowest · +1 Resolve', dmg: 4,
   reach: ['front','mid','back'], pattern: 'all',
   fn: (s) => {
     dmgAllEnemies(s, 4);
@@ -2738,27 +2802,36 @@ function previewReachLabel(kind, charId, dir) {
   return letters;
 }
 
-// returns the set of enemy slot names that would be hit if the tile fired now
+// returns the set of enemy slot names that would be hit if the tile fired now,
+// plus a per-target damage prediction (dmg + WEAK!/RESIST/STG badge) for damaging tiles.
 function previewTargetsForTile(kind, charId, dir) {
   if (kind === 'attack' || kind === 'special') {
     const sim = simulateSlotsThrough(state, state.queue.length);
     const slot = slotOfCharSim(sim, charId);
-    if (!slot) return { enemySlots: [], partySlots: [] };
+    if (!slot) return { enemySlots: [], partySlots: [], enemyHits: [] };
     const variant = getTech(state, charId, slot, kind === 'special' ? 'sig' : 'basic');
     const targets = resolveTargets(state, variant) || [];
-    const enemySlots = targets.map(e => SLOTS.find(sl => state.enemies.slots[sl] === e.id)).filter(Boolean);
-    return { enemySlots, partySlots: [] };
+    const enemyHits = targets.map(e => {
+      const sl = SLOTS.find(sl => state.enemies.slots[sl] === e.id);
+      if (!sl) return null;
+      if (typeof variant.dmg !== 'number') return { slot: sl };
+      const hits = variant.hits || 1;
+      const per = previewDamage(state, e, variant.dmg, charId);
+      return { slot: sl, dmg: per.toHp * hits, badge: per.badge };
+    }).filter(Boolean);
+    const enemySlots = enemyHits.map(h => h.slot);
+    return { enemySlots, partySlots: [], enemyHits };
   }
   if (kind === 'move') {
     const sim = simulateSlotsThrough(state, state.queue.length);
     const slot = slotOfCharSim(sim, charId);
-    if (!slot) return { enemySlots: [], partySlots: [] };
+    if (!slot) return { enemySlots: [], partySlots: [], enemyHits: [] };
     const idx = SLOTS.indexOf(slot);
     const ti = idx + dir;
-    if (ti < 0 || ti > 2) return { enemySlots: [], partySlots: [] };
-    return { enemySlots: [], partySlots: [SLOTS[ti]] };
+    if (ti < 0 || ti > 2) return { enemySlots: [], partySlots: [], enemyHits: [] };
+    return { enemySlots: [], partySlots: [SLOTS[ti]], enemyHits: [] };
   }
-  return { enemySlots: [], partySlots: [] };
+  return { enemySlots: [], partySlots: [], enemyHits: [] };
 }
 
 // shared hold-detection. ~220ms hold enters preview mode (no queue on release);
@@ -2809,11 +2882,26 @@ function bindTileHold(tile, handlers) {
   tile.addEventListener('contextmenu',  (e) => e.preventDefault());
 }
 
-function applyPreviewHighlight({ enemySlots, partySlots }) {
+function applyPreviewHighlight({ enemySlots, partySlots, enemyHits }) {
   clearPreviewHighlight();
+  const hitBySlot = {};
+  (enemyHits || []).forEach(h => { if (h && h.slot) hitBySlot[h.slot] = h; });
   (enemySlots || []).forEach(sl => {
     const el = document.querySelector(`#enemy-half .figure[data-slot="${sl}"]`);
-    if (el) el.classList.add('target-marker');
+    if (!el) return;
+    el.classList.add('target-marker');
+    const hit = hitBySlot[sl];
+    if (hit && typeof hit.dmg === 'number') {
+      const label = document.createElement('div');
+      label.className = 'target-dmg-label';
+      if (hit.badge === 'WEAK!') label.classList.add('weak');
+      else if (hit.badge === 'RESIST') label.classList.add('resist');
+      else if (hit.badge === 'STG') label.classList.add('stagger');
+      label.innerHTML = hit.badge
+        ? `<span class="dmg-num">${hit.dmg}</span><span class="dmg-badge">${hit.badge}</span>`
+        : `<span class="dmg-num">${hit.dmg}</span>`;
+      el.appendChild(label);
+    }
   });
   (partySlots || []).forEach(sl => {
     const el = document.querySelector(`#party-half .figure[data-slot="${sl}"]`);
@@ -2822,6 +2910,7 @@ function applyPreviewHighlight({ enemySlots, partySlots }) {
 }
 function clearPreviewHighlight() {
   document.querySelectorAll('.target-marker').forEach(el => el.classList.remove('target-marker'));
+  document.querySelectorAll('.target-dmg-label').forEach(el => el.remove());
 }
 
 function makeMoveOrBraceTile(charId, slot, tileCounts, teamLocked) {
@@ -2868,8 +2957,15 @@ function makeTeamSpecialTile(teamLocked) {
     onQueue: () => queueTeamSpecial(),
     onPreview: () => {
       const targets = resolveTargets(state, ts) || [];
-      const enemySlots = targets.map(e => SLOTS.find(sl => state.enemies.slots[sl] === e.id)).filter(Boolean);
-      return { enemySlots, partySlots: [] };
+      const enemyHits = targets.map(e => {
+        const sl = SLOTS.find(sl => state.enemies.slots[sl] === e.id);
+        if (!sl) return null;
+        if (typeof ts.dmg !== 'number') return { slot: sl };
+        const per = previewDamage(state, e, ts.dmg, null);
+        return { slot: sl, dmg: per.toHp, badge: per.badge };
+      }).filter(Boolean);
+      const enemySlots = enemyHits.map(h => h.slot);
+      return { enemySlots, partySlots: [], enemyHits };
     },
   });
   return t;
@@ -3228,4 +3324,42 @@ function init() {
   startEncounter(RUN_LAYOUT[0].options[0]);
 }
 
-document.addEventListener('DOMContentLoaded', () => { bindUI(); init(); });
+// First-run welcome — gates init() until the player taps Begin.
+// Keyed off localStorage so it only shows once per device.
+function showWelcomeOverlay(onBegin) {
+  $('#overlay-title').textContent = 'Triad';
+  const body = $('#overlay-body');
+  body.classList.add('welcome-body');
+  body.innerHTML = `
+    <p class="welcome-lede">Three heroes. Three slots. A 3-point budget per turn.</p>
+    <ul class="welcome-list">
+      <li><span class="welcome-key">Tap</span> an action to queue it. Spend your ATB, then play to commit.</li>
+      <li><span class="welcome-key">Hold</span> an action to see its reach and predicted damage.</li>
+      <li><span class="welcome-key">Hold</span> a hero to pick them up — drag onto an arrow to move slots.</li>
+      <li>Win three reaches. HP and Resolve carry between fights.</li>
+    </ul>
+  `;
+  const btn = $('#overlay-btn');
+  btn.textContent = 'Begin';
+  btn.classList.remove('hidden');
+  btn.onclick = () => {
+    try { localStorage.setItem('triad.welcomed', '1'); } catch (_) {}
+    body.classList.remove('welcome-body');
+    body.innerHTML = '';
+    hideOverlay();
+    resetOverlayBtn();
+    onBegin();
+  };
+  $('#overlay-choices').classList.add('hidden');
+  $('#overlay').classList.remove('hidden');
+}
+
+function bootGame() {
+  bindUI();
+  let welcomed = false;
+  try { welcomed = !!localStorage.getItem('triad.welcomed'); } catch (_) {}
+  if (welcomed) { init(); return; }
+  showWelcomeOverlay(init);
+}
+
+document.addEventListener('DOMContentLoaded', bootGame);
