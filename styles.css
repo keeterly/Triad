@@ -2301,8 +2301,8 @@ body {
   padding: 24px 28px;
 }
 #overlay-content:has(#overlay-choices.path-map:not(.hidden)) {
-  max-width: min(760px, 96vw);
-  padding: 22px 26px 20px;
+  max-width: min(820px, 96vw);
+  padding: 20px 22px 16px;
 }
 /* Party-inspect overlay is wider — three hero columns of dense info */
 #overlay-content:has(#overlay-choices.party-inspect:not(.hidden)) {
@@ -2468,13 +2468,14 @@ body {
 }
 #overlay-choices.hidden { display: none; }
 
-/* ===== branching map: 3 columns × 2 rows ===== */
+/* ===== branching map: 5 level columns, variable nodes per column ===== */
 #overlay-choices.path-map {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 14px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
   margin-top: 6px;
   position: relative;
+  align-items: stretch;
 }
 .path-col { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .path-col-head {
@@ -2486,8 +2487,9 @@ body {
   opacity: 0.75;
 }
 .path-col-slots {
-  display: grid;
-  grid-template-rows: 1fr 1fr;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   gap: 10px;
   flex: 1;
 }
@@ -2574,6 +2576,74 @@ button.path-node { cursor: pointer; }
   opacity: 0.55;
   filter: grayscale(0.25);
   border-color: rgba(200,164,100,0.18);
+}
+
+/* ====== Map redesign — branching node states + type variants ====== */
+.path-node {
+  position: relative;
+  z-index: 2;          /* sits above the SVG connector layer (z:0) */
+}
+.path-type-glyph {
+  font-size: 16px;
+  line-height: 1;
+  color: var(--gold);
+  margin-bottom: 1px;
+  text-shadow: 0 0 6px rgba(240,212,136,0.45);
+}
+.path-node.node-elite .path-type-glyph { color: var(--gold-bright); text-shadow: 0 0 8px rgba(240,212,136,0.7); }
+.path-node.node-boss  .path-type-glyph { color: var(--blood-bright); text-shadow: 0 0 8px rgba(212,69,69,0.7); font-size: 18px; }
+
+.path-node.node-reachable {
+  border-color: var(--gold-bright);
+  box-shadow: 0 0 12px rgba(240,212,136,0.45), inset 0 0 0 1px rgba(240,212,136,0.18);
+  animation: path-current-pulse 1.4s ease-in-out infinite alternate;
+}
+.path-node.node-reachable:hover { transform: translateY(-1px); filter: brightness(1.12); }
+.path-node.node-completed {
+  border-color: var(--gold);
+  opacity: 0.85;
+  background: linear-gradient(180deg, #25190d 0%, #18100a 100%);
+  animation: none;
+}
+.path-node.node-locked {
+  opacity: 0.42;
+  filter: grayscale(0.4);
+  border-color: rgba(200,164,100,0.16);
+  animation: none;
+}
+.path-node.node-elite { border-color: rgba(255,185,104,0.55); }
+.path-node.node-boss  { border-color: rgba(255,120,104,0.65); }
+
+/* SVG connector layer drawn behind nodes */
+#overlay-choices.path-map { position: relative; }
+.map-connectors { overflow: visible; }
+.map-connector {
+  stroke: rgba(200,164,100,0.25);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 5;
+  fill: none;
+}
+.map-connector.completed {
+  stroke: var(--gold-bright);
+  stroke-width: 2;
+  stroke-dasharray: none;
+  opacity: 0.9;
+  filter: drop-shadow(0 0 4px rgba(240,212,136,0.5));
+}
+.map-connector.reachable {
+  stroke: var(--gold-bright);
+  stroke-width: 2;
+  stroke-dasharray: 5 3;
+  opacity: 0.85;
+  animation: map-connector-flow 1.6s linear infinite;
+}
+.map-connector.locked {
+  stroke: rgba(200,164,100,0.18);
+  stroke-width: 1;
+  stroke-dasharray: 3 6;
+}
+@keyframes map-connector-flow {
+  to { stroke-dashoffset: -16; }
 }
 
 @media (max-width: 720px) {

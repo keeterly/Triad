@@ -893,11 +893,51 @@ const ENCOUNTERS = {
   boss: { id: 'boss', name: 'The Wakeling', boss: true, slots: { front: 'wakeling' } },
 };
 
-const RUN_LAYOUT = [
-  { slot: 0, label: 'First Reach',  options: ['e1', 'e2'] },
-  { slot: 1, label: 'Second Reach', options: ['e3', 'ee1'] },   // normal vs elite
-  { slot: 2, label: 'Final Reach',  options: ['ee2', 'boss'] }, // elite vs boss — both end the run
-];
+// ============================================================================
+// MAP — Slay-the-Spire-style branching graph.
+// Five levels deep; some nodes share encounters with their neighbors but
+// connections form a real graph the player navigates choice-by-choice.
+// Visual layout: levels render as columns (left → right); within a column,
+// nodes stack vertically by `col`.  The renderer draws SVG lines between
+// connected nodes (node.next).
+// ============================================================================
+const MAP_NODES = {
+  // Level 1 — entry (player picks any of these to start)
+  a1: { id: 'a1', level: 1, col: 0, type: 'combat', encId: 'e1', next: ['b1', 'b2'] },
+  a2: { id: 'a2', level: 1, col: 1, type: 'combat', encId: 'e2', next: ['b2', 'b3'] },
+  // Level 2 — combat
+  b1: { id: 'b1', level: 2, col: 0, type: 'combat', encId: 'e3', next: ['c1'] },
+  b2: { id: 'b2', level: 2, col: 1, type: 'combat', encId: 'e4', next: ['c1', 'c2'] },
+  b3: { id: 'b3', level: 2, col: 2, type: 'combat', encId: 'e5', next: ['c2'] },
+  // Level 3 — elite or combat (player choice: harder fight w/ sigil vs safer)
+  c1: { id: 'c1', level: 3, col: 0, type: 'elite',  encId: 'ee1', next: ['d1'] },
+  c2: { id: 'c2', level: 3, col: 1, type: 'combat', encId: 'e6',  next: ['d1'] },
+  // Level 4 — elite gate (sigil reward before boss)
+  d1: { id: 'd1', level: 4, col: 0, type: 'elite',  encId: 'ee2', next: ['boss'] },
+  // Level 5 — boss
+  boss: { id: 'boss', level: 5, col: 0, type: 'boss', encId: 'boss', next: [] },
+};
+const MAP_ENTRY_NODES = ['a1', 'a2'];
+const MAP_MAX_LEVEL = 5;
+
+function mapNodeStatus(s, nodeId) {
+  if (!s || !s.run) return 'locked';
+  if ((s.run.completedNodes || []).includes(nodeId)) return 'completed';
+  if (isMapNodeReachable(s, nodeId)) return 'reachable';
+  return 'locked';
+}
+function isMapNodeReachable(s, nodeId) {
+  if (!s || !s.run) return false;
+  const completed = s.run.completedNodes || [];
+  if (!completed.length) return MAP_ENTRY_NODES.includes(nodeId);
+  const last = MAP_NODES[completed[completed.length - 1]];
+  return !!(last && last.next.includes(nodeId));
+}
+function mapEdges() {
+  const edges = [];
+  Object.values(MAP_NODES).forEach(n => n.next.forEach(nx => edges.push({ from: n.id, to: nx })));
+  return edges;
+}
 
 const RESOLVE_CARRY_CAP = 3;
 
@@ -1456,9 +1496,9 @@ function newState() {
 
     // run-level progress (persists across fights within a run)
     run: {
-      slotIdx: 0,            // 0,1,2 — which RUN_LAYOUT entry we're on
+      currentNodeId: null,   // id of the node player is currently fighting (or null between fights)
+      completedNodes: [],    // ids of cleared MAP_NODES, in completion order
       currentEncId: null,    // id of the active encounter, or null before first start
-      completed: [],         // encIds of cleared fights, in order
       sigils: [],            // ids of acquired sigils (run-wide modifiers)
       lastVictoryElite: false, // did the most recent victory come from an elite encounter? (gates sigil reward size)
       stats: { damageDealt: {}, damageTaken: {}, healingDone: {}, kills: 0, synergies: [], turns: 0, reaches: 0 },
@@ -2705,18 +2745,19 @@ function checkEnd(s) {
   if (s.over) return true;
   if (aliveEnemies(s).length === 0) {
     s.over = true;
-    s.run.completed.push(s.run.currentEncId);
+    // Mark the current MAP_NODE as completed; the next reachable nodes
+    // will be whatever this node's `next` lists.
+    if (s.run.currentNodeId) s.run.completedNodes.push(s.run.currentNodeId);
     if (s.fightStats) s.fightStats.turns = s.turn;
     const completedEnc = ENCOUNTERS[s.run.currentEncId];
-    s.run.lastVictoryElite = !!(completedEnc && completedEnc.elite);
-    const isFinal = s.run.slotIdx >= RUN_LAYOUT.length - 1;
-    if (isFinal) {
-      // Final-fight wins still get the per-fight recap, then the run summary
-      const outcome = (completedEnc && completedEnc.boss) ? 'boss' : 'victory';
-      setTimeout(() => showVictorySummary(completedEnc, () => showRunSummary(outcome)), 480);
+    const completedNode = s.run.currentNodeId ? MAP_NODES[s.run.currentNodeId] : null;
+    s.run.lastVictoryElite = !!(completedNode && completedNode.type === 'elite');
+    const isBoss = !!(completedNode && completedNode.type === 'boss');
+    if (isBoss) {
+      // Boss kill ends the run with a victory summary
+      setTimeout(() => showVictorySummary(completedEnc, () => showRunSummary('boss')), 480);
     } else {
-      s.run.slotIdx += 1;
-      // Between fights: recap, recruit offer (if any), then upgrade/sigil/path
+      // Between fights: recap, recruit offer (if any), then upgrade/sigil/map
       setTimeout(() => showVictorySummary(completedEnc, () => offerRecruitOrPath()), 480);
     }
     return true;
@@ -3577,73 +3618,134 @@ function showOverlay(title, body) {
 // sees what awaits behind every choice. Completed nodes mark the path
 // they walked; the current-tier nodes are clickable; future nodes are
 // visible but not interactive.
-function showPathChoice(slotConfig) {
-  const curSlot = slotConfig.slot;
+// showPathChoice() retained as a thin alias so existing callers still work
+// after the map redesign.  All the rendering now lives in renderMap().
+function showPathChoice() { renderMap(); }
+
+function renderMap() {
   $('#overlay-title').textContent = 'The Path';
-  $('#overlay-body').textContent = `Choose your ${slotConfig.label.toLowerCase()}.`;
+  $('#overlay-body').textContent = (state.run.completedNodes || []).length === 0
+    ? 'Pick your entry point.'
+    : 'Choose the next stretch.';
   const choices = $('#overlay-choices');
   choices.innerHTML = '';
   choices.classList.add('path-map');
-  // grid: each column is one reach; each row is one option
-  RUN_LAYOUT.forEach((cfg, colIdx) => {
+  choices.classList.remove('party-inspect');
+
+  // Group nodes by level
+  const byLevel = {};
+  for (let lvl = 1; lvl <= MAP_MAX_LEVEL; lvl++) byLevel[lvl] = [];
+  Object.values(MAP_NODES).forEach(n => { byLevel[n.level].push(n); });
+  // Sort each level by col so vertical order in the column is stable
+  Object.values(byLevel).forEach(arr => arr.sort((a, b) => a.col - b.col));
+
+  for (let lvl = 1; lvl <= MAP_MAX_LEVEL; lvl++) {
     const col = document.createElement('div');
     col.className = 'path-col';
     const head = document.createElement('div');
     head.className = 'path-col-head';
-    head.textContent = cfg.label;
+    head.textContent = lvl === MAP_MAX_LEVEL ? 'Final' : `Stretch ${lvl}`;
     col.appendChild(head);
     const slotsWrap = document.createElement('div');
     slotsWrap.className = 'path-col-slots';
-    cfg.options.forEach((encId, rowIdx) => {
-      const enc = ENCOUNTERS[encId];
-      const isCompleted = state.run.completed[colIdx] === encId;
-      const isCurrent = colIdx === curSlot;
-      const node = document.createElement(isCurrent ? 'button' : 'div');
-      node.className = 'path-node';
-      node.dataset.row = rowIdx;
-      node.dataset.col = colIdx;
-      if (enc.elite) node.classList.add('path-elite');
-      if (enc.boss)  node.classList.add('path-boss');
-      if (isCompleted) node.classList.add('path-completed');
-      else if (isCurrent) node.classList.add('path-current');
-      else if (colIdx < curSlot) node.classList.add('path-skipped');
-      else node.classList.add('path-locked');
+    byLevel[lvl].forEach(node => {
+      const status = mapNodeStatus(state, node.id);
+      const enc = ENCOUNTERS[node.encId];
+      const isClickable = status === 'reachable';
+      const el = document.createElement(isClickable ? 'button' : 'div');
+      el.className = `path-node node-${node.type} node-${status}`;
+      el.dataset.nodeId = node.id;
+      // Type glyph: ⚔ combat, ★ elite, ☠ boss
+      const typeGlyph = node.type === 'elite' ? '★' : node.type === 'boss' ? '☠' : '⚔';
+      const sigilCat = node.type === 'elite' && enc && enc.sigilCategory ? enc.sigilCategory : null;
+      const tagLine = node.type === 'boss' ? '<span class="path-tag path-boss-tag">Boss</span>'
+        : node.type === 'elite' ? `<span class="path-tag path-elite-tag">Elite${sigilCat ? ` · ${sigilCat[0].toUpperCase() + sigilCat.slice(1)}` : ''}</span>`
+        : '';
       const enemyIcons = SLOTS.map(sl => {
-        const eid = enc.slots && enc.slots[sl];
+        const eid = enc && enc.slots ? enc.slots[sl] : null;
         if (!eid) return '';
         const def = ENEMIES[eid];
         return `<div class="path-enemy" title="${def?.name || ''}">${PORTRAITS[eid] || ''}</div>`;
       }).join('');
-      const sigilCat = enc.elite && enc.sigilCategory ? enc.sigilCategory : null;
-      const tagLine = enc.boss ? '<span class="path-tag path-boss-tag">Boss</span>'
-        : enc.elite ? `<span class="path-tag path-elite-tag">Elite${sigilCat ? ` · ${sigilCat[0].toUpperCase() + sigilCat.slice(1)} Sigil` : ''}</span>`
-        : '';
-      node.innerHTML = `
-        ${isCompleted ? '<span class="path-check">✓</span>' : ''}
-        <div class="path-name">${enc.name}</div>
+      el.innerHTML = `
+        ${status === 'completed' ? '<span class="path-check">✓</span>' : ''}
+        <div class="path-type-glyph" aria-hidden="true">${typeGlyph}</div>
+        <div class="path-name">${enc?.name || node.type}</div>
         ${tagLine}
         <div class="path-enemies">${enemyIcons}</div>
       `;
-      if (isCurrent) {
-        node.addEventListener('click', () => {
+      if (isClickable) {
+        el.addEventListener('click', () => {
           hideOverlay();
           choices.classList.remove('path-map');
-          startEncounter(encId);
+          state.run.currentNodeId = node.id;
+          startEncounter(node.encId);
         });
       }
-      slotsWrap.appendChild(node);
+      slotsWrap.appendChild(el);
     });
     col.appendChild(slotsWrap);
     choices.appendChild(col);
-  });
+  }
+
   choices.classList.remove('hidden');
   resetOverlayBtn();
-  // Reuse the overlay's main button to surface the party-inspect screen.
   const btn = $('#overlay-btn');
   btn.textContent = 'Heroes';
   btn.onclick = showPartyInspect;
   btn.classList.remove('hidden');
   $('#overlay').classList.remove('hidden');
+
+  // Defer connector lines to next frame so layout positions are settled
+  requestAnimationFrame(() => drawMapConnectors(choices));
+}
+
+function drawMapConnectors(choices) {
+  // remove any previous overlay
+  const prev = choices.querySelector('.map-connectors');
+  if (prev) prev.remove();
+
+  const cRect = choices.getBoundingClientRect();
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('class', 'map-connectors');
+  svg.style.position = 'absolute';
+  svg.style.left = '0';
+  svg.style.top = '0';
+  svg.style.width = cRect.width + 'px';
+  svg.style.height = cRect.height + 'px';
+  svg.style.pointerEvents = 'none';
+  svg.style.zIndex = '0';
+
+  mapEdges().forEach(({ from, to }) => {
+    const aEl = choices.querySelector(`[data-node-id="${from}"]`);
+    const bEl = choices.querySelector(`[data-node-id="${to}"]`);
+    if (!aEl || !bEl) return;
+    const aR = aEl.getBoundingClientRect();
+    const bR = bEl.getBoundingClientRect();
+    const x1 = aR.right - cRect.left;
+    const y1 = aR.top + aR.height / 2 - cRect.top;
+    const x2 = bR.left - cRect.left;
+    const y2 = bR.top + bR.height / 2 - cRect.top;
+    const line = document.createElementNS(svgNS, 'line');
+    line.setAttribute('x1', x1);
+    line.setAttribute('y1', y1);
+    line.setAttribute('x2', x2);
+    line.setAttribute('y2', y2);
+    let cls = 'map-connector';
+    const completed = (state.run.completedNodes || []).includes(from);
+    if (completed && (state.run.completedNodes || []).includes(to)) {
+      cls += ' completed';
+    } else if (completed && isMapNodeReachable(state, to)) {
+      cls += ' reachable';
+    } else {
+      cls += ' locked';
+    }
+    line.setAttribute('class', cls);
+    svg.appendChild(line);
+  });
+
+  choices.appendChild(svg);
 }
 
 // ============================================================================
@@ -3708,7 +3810,7 @@ function showPartyInspect() {
   btn.textContent = 'Back';
   btn.onclick = () => {
     choices.classList.remove('party-inspect');
-    showPathChoice(RUN_LAYOUT[state.run.slotIdx]);
+    renderMap();
   };
   btn.classList.remove('hidden');
   $('#overlay').classList.remove('hidden');
@@ -3883,14 +3985,15 @@ function offerUpgradeOrPath() {
 function offerSigilOrPath() {
   let pool = availableSigils(state);
   if (pool.length === 0) {
-    showPathChoice(RUN_LAYOUT[state.run.slotIdx]);
+    renderMap();
     return;
   }
   // If the last victory was an elite that declared a sigil category, weight the pool
   // toward that category (fall back to full pool if exhausted).
-  const lastEncId = state.run.completed[state.run.completed.length - 1];
-  const lastEnc = lastEncId && ENCOUNTERS[lastEncId];
-  const targetCategory = (lastEnc && lastEnc.elite) ? lastEnc.sigilCategory : null;
+  const lastNodeId = state.run.completedNodes[state.run.completedNodes.length - 1];
+  const lastNode = lastNodeId && MAP_NODES[lastNodeId];
+  const lastEnc = lastNode && ENCOUNTERS[lastNode.encId];
+  const targetCategory = (lastNode && lastNode.type === 'elite' && lastEnc) ? lastEnc.sigilCategory : null;
   if (targetCategory) {
     const filtered = pool.filter(s => s.category === targetCategory);
     if (filtered.length > 0) pool = filtered;
@@ -3922,7 +4025,7 @@ function showSigilOverlay(offers) {
   btn.onclick = () => {
     hideOverlay();
     resetOverlayBtn();
-    showPathChoice(RUN_LAYOUT[state.run.slotIdx]);
+    renderMap();
   };
   btn.classList.remove('hidden');
   choices.classList.remove('hidden');
@@ -3935,7 +4038,7 @@ function commitSigil(sigilId) {
   log(`<i>You bind the <b>${SIGILS[sigilId].name}</b>.</i>`);
   hideOverlay();
   resetOverlayBtn();
-  showPathChoice(RUN_LAYOUT[state.run.slotIdx]);
+  renderMap();
 }
 
 function showUpgradeOverlay(offers) {
@@ -4079,8 +4182,9 @@ function commitRecruit(removeId, recruitId) {
 
 function init() {
   state = newState();
-  // start at the first option of the first slot; player branches between fights
-  startEncounter(RUN_LAYOUT[0].options[0]);
+  // Open onto the map so the player picks their entry node (Slay-the-Spire style).
+  // renderMap() handles "no completed nodes yet" → entry nodes become reachable.
+  renderMap();
 }
 
 // First-run welcome — gates init() until the player taps Begin.
