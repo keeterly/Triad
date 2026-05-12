@@ -502,7 +502,7 @@ body {
 */
 .figure-hp {
   position: absolute;
-  top: 22px;
+  top: 27px;
   left: 50%;
   transform: translateX(-50%);
   width: 44px;
@@ -583,10 +583,12 @@ body {
 }
 
 /* Status chips — horizontal row centered above the HP bar, inside the
-   portrait so they anchor near the figure's head, not the cell top. */
+   portrait so they anchor near the figure's head, not the cell top.
+   Offsets sit so the stack OVERLAPS the head a little rather than floating
+   in empty space above it (z-index layers them above the portrait SVG). */
 .figure-statuses {
   position: absolute;
-  top: 4px;
+  top: 9px;
   left: 50%;
   transform: translateX(-50%);
   display: flex; flex-direction: row;
@@ -604,7 +606,7 @@ body {
    Stays minimal-flat to match the rest of the NieR chrome. */
 .intent-bubble {
   position: absolute;
-  top: 34px;
+  top: 39px;
   left: 50%;
   transform: translateX(-50%);
   color: var(--ink);
