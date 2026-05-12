@@ -606,6 +606,59 @@ body {
   pointer-events: none;
 }
 
+/* predicted-damage label on the targeted enemy figure */
+.target-dmg-label {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 3px 8px;
+  background: rgba(8, 4, 2, 0.88);
+  border: 1.5px solid var(--gold-bright);
+  border-radius: 5px;
+  box-shadow: 0 0 12px rgba(240,212,136,0.55), 0 2px 6px rgba(0,0,0,0.6);
+  color: var(--gold-bright);
+  font-weight: 800;
+  font-size: 18px;
+  line-height: 1;
+  letter-spacing: 0.3px;
+  text-shadow: 0 1px 0 var(--shadow), 0 0 6px rgba(240,212,136,0.5);
+  z-index: 12;
+  pointer-events: none;
+  white-space: nowrap;
+  animation: target-pulse 0.7s ease-in-out infinite alternate;
+}
+.target-dmg-label .dmg-num { font-size: 19px; }
+.target-dmg-label .dmg-badge {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  background: rgba(240,212,136,0.18);
+}
+.target-dmg-label.weak {
+  border-color: #ffce5a;
+  color: #ffe89a;
+  box-shadow: 0 0 14px rgba(255,206,90,0.7), 0 2px 6px rgba(0,0,0,0.6);
+}
+.target-dmg-label.weak .dmg-badge { background: rgba(255,206,90,0.28); color: #fff3b8; }
+.target-dmg-label.resist {
+  border-color: #6e7a8c;
+  color: #c8d2dc;
+  box-shadow: 0 0 10px rgba(110,122,140,0.5), 0 2px 6px rgba(0,0,0,0.6);
+  text-shadow: 0 1px 0 var(--shadow);
+}
+.target-dmg-label.resist .dmg-badge { background: rgba(110,122,140,0.32); color: #d6dde6; }
+.target-dmg-label.stagger {
+  border-color: #ff8a3a;
+  color: #ffd0a0;
+  box-shadow: 0 0 12px rgba(255,138,58,0.6), 0 2px 6px rgba(0,0,0,0.6);
+}
+.target-dmg-label.stagger .dmg-badge { background: rgba(255,138,58,0.3); color: #ffe6c8; }
+
 /* downed character SVG breathing off */
 .figure.downed .figure-portrait svg { animation: none; }
 .figure.staggered .figure-portrait svg { animation-duration: 1.2s; }
@@ -1754,6 +1807,52 @@ body {
 #overlay-btn:hover { transform: translateY(-1px); filter: brightness(1.1); box-shadow: 0 6px 16px rgba(200,164,100,0.4), inset 0 1px 0 rgba(255,248,224,0.7); }
 #overlay-btn:active { transform: translateY(1px); }
 #overlay-btn.hidden { display: none; }
+
+/* first-run welcome — overrides the default italic flavor body */
+#overlay-body.welcome-body {
+  font-style: normal;
+  text-align: left;
+  margin-bottom: 20px;
+}
+.welcome-lede {
+  color: var(--gold-pale);
+  font-style: italic;
+  text-align: center;
+  margin: 0 0 14px;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+}
+.welcome-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.welcome-list li {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ink);
+  padding-left: 14px;
+  position: relative;
+}
+.welcome-list li::before {
+  content: '◆';
+  position: absolute;
+  left: 0; top: 1px;
+  color: var(--gold);
+  font-size: 9px;
+}
+.welcome-key {
+  display: inline-block;
+  color: var(--gold-bright);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 11px;
+  margin-right: 4px;
+}
 
 /* path-choice overlay */
 #overlay-content:has(#overlay-choices:not(.hidden)) {
