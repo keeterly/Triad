@@ -3329,15 +3329,16 @@ function applyPreviewHighlight({ enemySlots, partySlots, enemyHits, partyHeals, 
       el.appendChild(label);
     }
   });
-  // Move destination — distinct gold ring + directional glyph on the destination slot,
-  // plus a dashed-gold path line from source to destination so the journey reads.
+  // Move destination — soft gold halo on the destination figure + a directional
+  // tag below it. Source figure dims so the journey reads as "from here → to there".
   (moveSlots || []).forEach(({ from, to }) => {
     const dest = document.querySelector(`#party-half .figure[data-slot="${to}"]`);
     if (dest) {
-      dest.classList.add('target-marker', 'move-dest');
+      dest.classList.add('move-dest');
       const fromIdx = SLOTS.indexOf(from);
       const toIdx = SLOTS.indexOf(to);
-      const glyph = toIdx > fromIdx ? '◀◀' : '▶▶';  // back-display has back on left, so toIdx > fromIdx = visually moving left
+      // back-display has back on left, so toIdx > fromIdx = visually moving left
+      const glyph = toIdx > fromIdx ? '◀◀' : '▶▶';
       const tag = document.createElement('div');
       tag.className = 'target-move-tag';
       tag.innerHTML = `<span class="move-glyph">${glyph}</span><span class="move-text">${SLOT_LABELS[to] || ''}</span>`;
@@ -3345,52 +3346,13 @@ function applyPreviewHighlight({ enemySlots, partySlots, enemyHits, partyHeals, 
     }
     const src = document.querySelector(`#party-half .figure[data-slot="${from}"]`);
     if (src) src.classList.add('move-src');
-    // Path line — horizontal dashed gold span between figure centers, rendered as
-    // an SVG overlay in #party-half so it can sit above the figures' shadows but
-    // below the labels.
-    if (src && dest) {
-      const parent = src.parentElement; // #party-half
-      if (parent) {
-        const pRect = parent.getBoundingClientRect();
-        const sRect = src.getBoundingClientRect();
-        const dRect = dest.getBoundingClientRect();
-        const x1 = sRect.left + sRect.width / 2 - pRect.left;
-        const x2 = dRect.left + dRect.width / 2 - pRect.left;
-        const y  = sRect.top + sRect.height * 0.62 - pRect.top;
-        const ns = 'http://www.w3.org/2000/svg';
-        const svg = document.createElementNS(ns, 'svg');
-        svg.setAttribute('class', 'move-path-svg');
-        svg.style.position = 'absolute';
-        svg.style.left = '0'; svg.style.top = '0';
-        svg.style.width = pRect.width + 'px';
-        svg.style.height = pRect.height + 'px';
-        svg.style.pointerEvents = 'none';
-        svg.style.zIndex = '6';
-        const line = document.createElementNS(ns, 'line');
-        line.setAttribute('x1', x1); line.setAttribute('y1', y);
-        line.setAttribute('x2', x2); line.setAttribute('y2', y);
-        line.setAttribute('class', 'move-path-line');
-        svg.appendChild(line);
-        // Direction arrowhead at destination end
-        const arrowSize = 5;
-        const arrowX = x2 + (x2 > x1 ? -arrowSize : arrowSize);
-        const tri = document.createElementNS(ns, 'polygon');
-        const points = x2 > x1
-          ? `${x2},${y} ${arrowX},${y - arrowSize} ${arrowX},${y + arrowSize}`
-          : `${x2},${y} ${arrowX},${y - arrowSize} ${arrowX},${y + arrowSize}`;
-        tri.setAttribute('points', points);
-        tri.setAttribute('class', 'move-path-arrow');
-        svg.appendChild(tri);
-        parent.appendChild(svg);
-      }
-    }
   });
 }
 function clearPreviewHighlight() {
   document.querySelectorAll('.target-marker').forEach(el => el.classList.remove('target-marker'));
   document.querySelectorAll('.move-dest').forEach(el => el.classList.remove('move-dest'));
   document.querySelectorAll('.move-src').forEach(el => el.classList.remove('move-src'));
-  document.querySelectorAll('.target-dmg-label, .target-heal-label, .target-move-tag, .move-path-svg').forEach(el => el.remove());
+  document.querySelectorAll('.target-dmg-label, .target-heal-label, .target-move-tag').forEach(el => el.remove());
 }
 
 function makeMoveOrBraceTile(charId, slot, tileCounts, teamLocked) {

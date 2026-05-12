@@ -94,7 +94,7 @@ body {
   /* HUD (resolve readout) | ATB strip | battlefield (1fr) | action+commit
      Cinematic pass: HUD + ATB + action chrome trimmed so the battlefield
      row dominates the frame. */
-  grid-template-rows: 13px 18px minmax(0, 1fr) 88px;
+  grid-template-rows: 13px 0 minmax(0, 1fr) 88px;
   grid-template-columns: 1fr;
   background:
     radial-gradient(ellipse 60% 80% at 22% 50%, #2a1c12 0%, transparent 55%),
@@ -666,24 +666,21 @@ body {
   text-shadow: 0 1px 0 var(--shadow), 0 0 6px rgba(152,216,120,0.55);
 }
 
-/* move destination preview — distinct gold ring + directional badge */
+/* move destination preview — soft gold halo on the destination figure +
+   the ▶▶ FRONT directional tag below it carry the read.  No dashed bracket,
+   no path line — those fought the figure rather than complementing it. */
 .figure.move-dest {
   filter: drop-shadow(0 0 14px var(--gold-bright)) drop-shadow(0 0 22px rgba(240,212,136,0.45));
+  animation: move-dest-pulse 0.9s ease-in-out infinite alternate;
 }
-.figure.move-dest::before {
-  content: '';
-  position: absolute;
-  inset: 4px 4px 18px 4px;
-  border: 2px dashed var(--gold-bright);
-  border-radius: 8px;
-  opacity: 0.7;
-  animation: target-pulse 0.7s ease-in-out infinite alternate;
-  pointer-events: none;
-  z-index: 4;
+@keyframes move-dest-pulse {
+  from { filter: drop-shadow(0 0 10px var(--gold-bright)) drop-shadow(0 0 18px rgba(240,212,136,0.35)); }
+  to   { filter: drop-shadow(0 0 18px var(--gold-bright)) drop-shadow(0 0 28px rgba(240,212,136,0.55)); }
 }
 .figure.move-src {
-  filter: drop-shadow(0 0 8px rgba(240,212,136,0.35));
-  opacity: 0.85;
+  opacity: 0.62;
+  filter: saturate(0.7);
+  transition: opacity 0.15s ease, filter 0.15s ease;
 }
 .target-move-tag {
   position: absolute;
@@ -711,26 +708,6 @@ body {
   letter-spacing: -1px;
 }
 
-/* dashed gold path line from source figure to destination, with a small
-   arrowhead at the destination end. SVG overlay sits inside #party-half. */
-.move-path-svg { overflow: visible; }
-.move-path-line {
-  stroke: var(--gold-bright);
-  stroke-width: 2;
-  stroke-dasharray: 5 4;
-  stroke-linecap: round;
-  opacity: 0.85;
-  filter: drop-shadow(0 0 4px rgba(240,212,136,0.6));
-  animation: move-path-dash 0.8s linear infinite;
-}
-.move-path-arrow {
-  fill: var(--gold-bright);
-  filter: drop-shadow(0 0 4px rgba(240,212,136,0.6));
-  opacity: 0.9;
-}
-@keyframes move-path-dash {
-  to { stroke-dashoffset: -18; }
-}
 .target-dmg-label .dmg-num { font-size: 19px; }
 .target-dmg-label .dmg-badge {
   font-size: 9px;
@@ -1281,16 +1258,10 @@ body {
   100% { transform: translate(-50%, -60px) scale(0.9); opacity: 0; }
 }
 
-/* ============ ATB ROW (row 2): slim queue strip above battlefield ============ */
+/* ============ ATB ROW (row 2): hidden — queue state lives on the action tiles
+   themselves (per-tile count badges), so the top icon strip was redundant. ============ */
 #atb-row {
-  display: grid;
-  grid-template-columns: 38px minmax(0, 1fr) 24px;
-  gap: 8px;
-  padding: 2px 12px;
-  position: relative; z-index: 2;
-  background: transparent;
-  align-items: center;
-  min-height: 0;
+  display: none;
 }
 #atb-row::before {
   content: 'ATB';
