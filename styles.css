@@ -3593,3 +3593,63 @@ button.path-node:not(:disabled):hover {
 .welcome-list li, .vs-row, .upgrade-row {
   border-bottom: 1px solid rgba(212,200,168,0.06);
 }
+
+/* ===========================================================================
+   MOBILE FIT — compress overlay/title/path/vignette content so a landscape
+   phone never has to scroll vertically to see all options.
+   =========================================================================== */
+@media (max-height: 480px) {
+  /* Reclaim vertical space in the universal overlay frame. */
+  #overlay-content { padding: 14px 22px 12px !important; max-height: 100dvh !important; }
+  #overlay-title   { font-size: 18px; margin-bottom: 4px !important; padding-bottom: 4px !important; }
+
+  /* Title screen */
+  .title-subtitle  { font-size: 13px; margin: -4px 0 10px !important; }
+  .title-flavor    { font-size: 11.5px; line-height: 1.45; margin-top: 2px !important; }
+  #overlay-choices.title-choices { gap: 6px !important; margin-top: 4px !important; }
+  .title-choice    { padding: 6px 10px !important; }
+  .title-choice .enc-name { font-size: 11.5px; }
+  .title-choice .sigil-desc { font-size: 9.5px; margin-top: 1px; }
+
+  /* Vignette stage */
+  .vignette-stage   { grid-template-columns: 64px 1fr !important; gap: 8px !important; margin: 0 0 6px !important; }
+  .vignette-portrait{ width: 64px !important; height: 84px !important; }
+  .vignette-line    { font-size: 11px !important; line-height: 1.35 !important; gap: 5px !important; }
+  .vignette-who     { font-size: 8.5px !important; min-width: 42px !important; }
+  .vignette-line.narration { padding-left: 48px !important; }
+  .vignette-choice  { padding: 5px 10px !important; }
+  .vignette-choice .enc-name { font-size: 11.5px; }
+  .vignette-choice .sigil-desc { font-size: 9.5px; }
+
+  /* Path map nodes */
+  #overlay-content:has(#overlay-choices.path-map:not(.hidden)) {
+    padding: 10px 14px 10px !important;
+  }
+  .path-node { padding: 4px 6px 4px !important; gap: 2px !important; font-size: 9.5px !important; }
+  .path-name { font-size: 9.5px !important; letter-spacing: 0.06em !important; }
+  .path-cost, .path-rest-flavor, .path-event-tag, .path-boss-tag { font-size: 8.5px !important; }
+  .path-icon { width: 16px !important; height: 16px !important; font-size: 12px !important; }
+  .path-enemies { gap: 2px !important; }
+  .path-enemy-icon { width: 14px !important; height: 14px !important; }
+
+  /* Recruit / upgrade / sigil choice rows shrink too. */
+  .encounter-choice { padding: 6px 10px !important; }
+  .encounter-choice .enc-name { font-size: 11.5px !important; }
+  .encounter-choice .sigil-desc { font-size: 9.5px !important; }
+
+  /* Victory / run summary rows */
+  .vs-row { padding: 3px 0 !important; font-size: 10.5px !important; }
+  .vs-flavor { font-size: 11px !important; margin-bottom: 6px !important; }
+  .vs-subtitle { font-size: 10px !important; margin-bottom: 6px !important; }
+}
+
+/* Even tighter for very short viewports (small phones in landscape). */
+@media (max-height: 400px) {
+  #overlay-content { padding: 8px 16px 8px !important; }
+  #overlay-title   { font-size: 16px !important; margin-bottom: 2px !important; }
+  .title-flavor    { font-size: 10.5px !important; line-height: 1.35 !important; }
+  .vignette-portrait { width: 54px !important; height: 70px !important; }
+  .vignette-line     { font-size: 10px !important; line-height: 1.3 !important; }
+  .path-node         { padding: 3px 5px 3px !important; }
+  .path-name         { font-size: 9px !important; }
+}
