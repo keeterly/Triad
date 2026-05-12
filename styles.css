@@ -1154,13 +1154,35 @@ body {
 }
 #queue-strip {
   display: grid;
-  /* cell count derived from data-atb-max so Crown of Quickening can give 4 cells */
+  /* cell count derived from data-atb-max so Crown of Quickening and weakness-bonus
+     can grow the strip to 4 or 5 cells */
   grid-template-columns: 1fr 1fr 1fr;
   gap: 6px;
   min-width: 0;
   height: 24px;
 }
 #queue-strip[data-atb-max="4"] { grid-template-columns: 1fr 1fr 1fr 1fr; }
+#queue-strip[data-atb-max="5"] { grid-template-columns: 1fr 1fr 1fr 1fr 1fr; }
+
+/* bonus ATB cells (earned via weakness exploitation last turn) glow gold */
+.queue-slot.placeholder.bonus {
+  background: linear-gradient(180deg, rgba(74,40,24,0.7) 0%, rgba(40,20,8,0.7) 100%);
+  border: 1px solid var(--gold-bright);
+  box-shadow: 0 0 8px rgba(240,212,136,0.45), inset 0 0 6px rgba(240,212,136,0.15);
+  animation: bonus-pulse 1.8s ease-in-out infinite;
+}
+.queue-slot.placeholder.bonus .qs-name {
+  color: var(--gold-bright);
+  text-shadow: 0 0 4px rgba(240,212,136,0.6);
+  opacity: 1;
+  font-size: 14px;
+  font-weight: bold;
+  font-style: normal;
+}
+@keyframes bonus-pulse {
+  0%, 100% { box-shadow: 0 0 6px rgba(240,212,136,0.35), inset 0 0 4px rgba(240,212,136,0.1); }
+  50%      { box-shadow: 0 0 12px rgba(240,212,136,0.6), inset 0 0 8px rgba(240,212,136,0.25); }
+}
 
 /* ============ ACTION ROW (row 5): tile-grid + team-special ============ */
 #action-row {

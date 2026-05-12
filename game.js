@@ -1067,6 +1067,7 @@ function hasSigil(s, id) {
 function getAtbMax(s) {
   let max = ATB_MAX;
   if (hasSigil(s, 'quickening')) max += 1;
+  if (s && s.bonusAtb) max += s.bonusAtb;
   return max;
 }
 
@@ -1260,6 +1261,8 @@ function newState() {
     queue: [],         // array of { kind, charId?, dir?, label, desc, atb, resolveCost } — sum(atb) ≤ ATB_MAX
     executing: false,  // true while queue is resolving
     over: false,       // input lock — true during end-of-fight/run overlays
+    bonusAtb: 0,       // bonus ATB granted THIS turn from previous turn's weakness exploitation
+    pendingBonusAtb: 0,// accumulating during this turn's resolution; applied on next startTurn
     outgoingDmgMod: 0,
     ignoreArmor: false,
     currentActorId: null, // who is acting right now (for passives + adjacency hooks)
@@ -1450,6 +1453,8 @@ function applyDmgToEnemy(s, e, baseAmt) {
     if (enemyDef && enemyDef.weakness === actorDef.school) {
       amt = Math.round(amt * 1.5);
       schoolBadge = 'WEAK!';
+      // press-turn loop: weakness hit banks +1 ATB for next turn (capped at +2)
+      s.pendingBonusAtb = Math.min(2, (s.pendingBonusAtb || 0) + 1);
     } else if (enemyDef && enemyDef.resistance === actorDef.school) {
       amt = Math.max(1, Math.floor(amt * 0.5));
       schoolBadge = 'RESIST';
@@ -1762,9 +1767,13 @@ function startTurn(s) {
   s.messages = [];
   s.executing = false;
   s.queue = [];
+  // Press-turn echo: weakness hits last turn give us +1 ATB this turn.
+  s.bonusAtb = Math.min(2, s.pendingBonusAtb || 0);
+  s.pendingBonusAtb = 0;
   // clear single-turn buffs that survived the enemy phase
   aliveParty(s).forEach(c => { c.taunt = false; c.retaliate = 0; c.firstAttackUsed = false; });
   log(`<span class="msg-strong">— Turn ${s.turn} —</span>`);
+  if (s.bonusAtb > 0) log(`<i>Weakness exploited — +${s.bonusAtb} ATB this turn.</i>`);
 
   // bleed tick — base 2 per turn, +1 if Bloodborne Sigil owned
   const bleedTick = 2 + (hasSigil(s, 'bloodborne') ? 1 : 0);
@@ -2590,12 +2599,16 @@ function renderQueue() {
     strip.appendChild(el);
     used += item.atb || 0;
   });
-  const remaining = getAtbMax(state) - used;
+  const remaining = atbMax - used;
+  const bonus = state.bonusAtb || 0;
   for (let i = 0; i < remaining; i++) {
     const ph = document.createElement('div');
     ph.className = 'queue-slot placeholder';
+    // mark the trailing N cells as "bonus" when bonus ATB is active
+    const cellIdx = used + i;
+    if (bonus && cellIdx >= (atbMax - bonus)) ph.classList.add('bonus');
     ph.dataset.atb = '1';
-    ph.innerHTML = `<span class="qs-name">·</span>`;
+    ph.innerHTML = `<span class="qs-name">${ph.classList.contains('bonus') ? '+' : '·'}</span>`;
     strip.appendChild(ph);
   }
 }
