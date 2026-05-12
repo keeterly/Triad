@@ -1330,6 +1330,209 @@ const VIGNETTES = {
       { label: 'Endure', tag: 'no change', resolve: () => {} },
     ],
   },
+
+  // ---- Additional bond beats for previously-uncovered pairs ----
+
+  veiled_vow: {
+    id: 'veiled_vow',
+    when: { bondFired: 'Veiled Vow', requires: ['mira', 'cassia'] },
+    title: 'A vow, drawn in shadow',
+    speaker: 'mira',
+    lines: [
+      { who: 'mira',   text: 'You stood while I cut.  Twice.' },
+      { who: 'cassia', text: 'Standing is what I have.' },
+      { who: 'mira',   text: 'Standing is more than most have.' },
+    ],
+    choices: [
+      { label: 'Veil the blade', tag: "Mira gains Razor's Edge",
+        resolve: (s) => { grantQuirk(s, 'mira', 'razor_edge'); log(`<b>Mira</b> gains <i>Razor's Edge</i>.`); } },
+      { label: 'Steady the line', tag: 'Cassia gains Banner Bearer',
+        resolve: (s) => { grantQuirk(s, 'cassia', 'banner_bearer'); log(`<b>Cassia</b> gains <i>Banner Bearer</i>.`); } },
+    ],
+  },
+
+  bloodguard: {
+    id: 'bloodguard',
+    when: { bondFired: 'Bloodguard', requires: ['cassia', 'korin'] },
+    title: 'A wall, not a hero',
+    speaker: 'korin',
+    lines: [
+      { who: 'korin',  text: "You bled twice for me back there." },
+      { who: 'cassia', text: "Only twice." },
+      { who: 'korin',  text: "I owe you a third." },
+    ],
+    choices: [
+      { label: 'Carry the wall', tag: 'Korin gains Warhardened',
+        resolve: (s) => { grantQuirk(s, 'korin', 'warhardened'); log(`<b>Korin</b> gains <i>Warhardened</i>.`); } },
+      { label: 'Keep the banner', tag: 'Cassia gains Banner Bearer',
+        resolve: (s) => { grantQuirk(s, 'cassia', 'banner_bearer'); log(`<b>Cassia</b> gains <i>Banner Bearer</i>.`); } },
+    ],
+  },
+
+  wild_hunt: {
+    id: 'wild_hunt',
+    when: { bondFired: 'Wild Hunt', requires: ['branwen', 'korin'] },
+    title: 'Hounds, both of you',
+    speaker: 'korin',
+    lines: [
+      { who: 'korin',   text: 'You loose, I close.  We took two of them between heartbeats.' },
+      { who: 'branwen', text: "It's good hunting." },
+      { who: 'korin',   text: "It's good hunting." },
+    ],
+    choices: [
+      { label: 'Run them together', tag: 'Korin gains Warhardened',
+        resolve: (s) => { grantQuirk(s, 'korin', 'warhardened'); log(`<b>Korin</b> gains <i>Warhardened</i>.`); } },
+      { label: 'Trust the arrow',   tag: 'Branwen gains Bleed Stalker',
+        resolve: (s) => { grantQuirk(s, 'branwen', 'bleed_stalker'); log(`<b>Branwen</b> gains <i>Bleed Stalker</i>.`); } },
+    ],
+  },
+
+  sisters_of_shadow: {
+    id: 'sisters_of_shadow',
+    when: { bondFired: 'Sisters of Shadow', requires: ['branwen', 'mira'] },
+    title: 'Sisters, not in name',
+    speaker: 'branwen',
+    lines: [
+      { who: 'branwen', text: 'I marked one bleeding.  You found the rest of them bleeding too.' },
+      { who: 'mira',    text: 'Wounds rhyme.' },
+      { who: 'branwen', text: '...what?' },
+      { who: 'mira',    text: 'Nothing.  Hold the line.' },
+    ],
+    choices: [
+      { label: 'Mark the next quiver', tag: 'Branwen gains Bleed Stalker',
+        resolve: (s) => { grantQuirk(s, 'branwen', 'bleed_stalker'); log(`<b>Branwen</b> gains <i>Bleed Stalker</i>.`); } },
+      { label: 'Whet the blade', tag: "Mira gains Razor's Edge",
+        resolve: (s) => { grantQuirk(s, 'mira', 'razor_edge'); log(`<b>Mira</b> gains <i>Razor's Edge</i>.`); } },
+    ],
+  },
+
+  sanctuary_fire: {
+    id: 'sanctuary_fire',
+    when: { bondFired: 'Sanctuary Fire', requires: ['ash', 'elin'] },
+    title: 'A flame that asks for nothing',
+    speaker: 'elin',
+    lines: [
+      { who: 'elin', text: 'When I mended them, you struck cleaner.  I noticed.' },
+      { who: 'ash',  text: 'I noticed you noticing.' },
+      { who: 'elin', text: '...this is awkward.' },
+      { who: 'ash',  text: 'Good awkward.' },
+    ],
+    choices: [
+      { label: 'Keep the flame', tag: 'Ash gains Veil Walker',
+        resolve: (s) => { grantQuirk(s, 'ash', 'veil_walker'); log(`<b>Ash</b> gains <i>Veil Walker</i>.`); } },
+      { label: 'Keep the vow',   tag: 'Elin gains Vow Unbroken',
+        resolve: (s) => { grantQuirk(s, 'elin', 'vow_unbroken'); log(`<b>Elin</b> gains <i>Vow Unbroken</i>.`); } },
+    ],
+  },
+
+  // ---- Tone / humor scenes ----
+
+  humor_after_near_death: {
+    id: 'humor_after_near_death',
+    when: { someoneAtOrBelow: 3, requires: ['korin'] },
+    title: 'A bad joke, well-timed',
+    speaker: 'korin',
+    lines: [
+      { who: '_lowest', text: 'I should not have laughed at the last one.' },
+      { who: 'korin',   text: 'You should have laughed harder.  Dying things hate that.' },
+      { who: null,      text: 'A small cracked smile finds its way around the table.' },
+    ],
+    choices: [
+      { label: "Laugh now, while we can", tag: '+1 Resolve at the start of the next fight (vignette-locked)',
+        resolve: (s) => { s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1; log('The party steadies.'); } },
+      { label: 'Roll your eyes', tag: 'Heal lowest-HP hero to full',
+        resolve: (s) => { const id = _lowestHpAliveId(s); const c = id && s.party.chars[id]; if (c) { c.hp = c.maxHp; log(`<b>${CHARS[id].name}</b> is restored.`); } } },
+    ],
+  },
+
+  veiled_hour_narration: {
+    id: 'veiled_hour_narration',
+    when: { whileBiome: 'veiled' },
+    title: 'The veil thins',
+    lines: [
+      { who: null, text: 'A grey wind crosses the reach, and every shadow leans the wrong way.' },
+      { who: null, text: 'Whatever you fight here was already half-undone before you arrived.' },
+    ],
+    choices: [
+      { label: 'Step softly', tag: '+2 Resolve next fight',
+        resolve: (s) => { s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 2; log('You move with the veil.'); } },
+      { label: 'Drop the veil', tag: 'Gain Ember of Wrath (sigil)',
+        resolve: (s) => { if (!hasSigil(s, 'wrath')) { s.run.sigils.push('wrath'); log('You bind <b>Ember of Wrath</b>.'); } } },
+    ],
+  },
+
+  fortified_bones_reflection: {
+    id: 'fortified_bones_reflection',
+    when: { whileBiome: 'fortified' },
+    title: 'Bones, kept dressed',
+    lines: [
+      { who: null, text: 'Their armor is older than the names they were buried under.' },
+      { who: null, text: 'Nothing comes off clean here.  But everything comes off eventually.' },
+    ],
+    choices: [
+      { label: 'Sharpen the wedge', tag: 'Gain Sigil of the Reaver',
+        resolve: (s) => { if (!hasSigil(s, 'reaver')) { s.run.sigils.push('reaver'); log('You bind <b>Sigil of the Reaver</b>.'); } } },
+      { label: 'Settle in', tag: 'Heal party 4',
+        resolve: (s) => { aliveParty(s).forEach(c => { c.hp = Math.min(c.maxHp, c.hp + 4); }); log('You catch your breath.'); } },
+    ],
+  },
+
+  hunger_reflection: {
+    id: 'hunger_reflection',
+    when: { whileBiome: 'hunger' },
+    title: 'Something eats from the air',
+    speakerFromFirstAlive: true,
+    lines: [
+      { who: null,    text: 'The front of the line tastes wrong on every hit — like the reach is hungry.' },
+      { who: '_first', text: "We keep the front rested.  We rotate." },
+      { who: null,    text: "It is not a strategy.  It is a survival." },
+    ],
+    choices: [
+      { label: 'Feed the back', tag: 'Heal back-row hero to full',
+        resolve: (s) => { const id = s.party.slots.back; const c = id && s.party.chars[id]; if (c && !c.downed) { c.hp = c.maxHp; log(`<b>${CHARS[id].name}</b> is restored.`); } } },
+      { label: 'Brace the front', tag: 'Front-row hero gains +3 armor',
+        resolve: (s) => { const id = s.party.slots.front; const c = id && s.party.chars[id]; if (c && !c.downed) { c.armor += 3; log(`<b>${CHARS[id].name}</b> +3 armor.`); } } },
+    ],
+  },
+
+  // ---- Run-bracket beats ----
+
+  run_defeat: {
+    id: 'run_defeat',
+    when: { runDefeat: true },
+    oneShot: true,
+    title: 'The reach takes you back',
+    speakerFromFirstAlive: true,
+    lines: [
+      { who: null, text: 'The wind moves over the line of you, and the reach does not flinch.' },
+      { who: null, text: "Someone, somewhere, hears the story you didn't finish telling." },
+      { who: '_first', text: '...we try again.' },
+    ],
+    choices: [
+      // Both choices simply close into the run-summary screen — the scene is
+      // about catharsis, not bonuses.
+      { label: 'We try again', tag: 'continue to run summary', resolve: () => {} },
+      { label: 'Walk into the next reach in silence', tag: 'continue to run summary', resolve: () => {} },
+    ],
+  },
+
+  wakeling_slain: {
+    id: 'wakeling_slain',
+    when: { bossDefeated: true },
+    oneShot: true,
+    title: 'The Wakeling falls',
+    speakerFromFirstAlive: true,
+    lines: [
+      { who: null, text: 'It does not scream.' },
+      { who: null, text: 'When the great body unmakes itself, the reach drinks the noise and does not give it back.' },
+      { who: '_first', text: 'It is done.' },
+      { who: '_last',  text: 'Until the next one wakes.' },
+    ],
+    choices: [
+      { label: 'Walk home', tag: 'continue to run summary', resolve: () => {} },
+      { label: 'Stay until the sky steadies', tag: 'continue to run summary', resolve: () => {} },
+    ],
+  },
 };
 
 function _lowestHpAliveId(s) {
@@ -1359,10 +1562,14 @@ function matchVignettes(s, ctx) {
     const w = v.when || {};
     // One-shot vignettes only play once per run
     if (v.oneShot && fired.includes(v.id)) return false;
-    // Special triggers — bypass the "requires alive" check sometimes
-    if (w.runStart) return ctx.phase === 'runStart';
-    if (w.bossPrep) return ctx.phase === 'bossPrep';
-    if (ctx.phase === 'runStart' || ctx.phase === 'bossPrep') return false;
+    // Special phase triggers — bypass other conditions; only fire when the
+    // matching phase is active.
+    if (w.runStart)      return ctx.phase === 'runStart';
+    if (w.bossPrep)      return ctx.phase === 'bossPrep';
+    if (w.runDefeat)     return ctx.phase === 'runDefeat';
+    if (w.bossDefeated)  return ctx.phase === 'bossDefeated';
+    if (ctx.phase === 'runStart' || ctx.phase === 'bossPrep'
+        || ctx.phase === 'runDefeat' || ctx.phase === 'bossDefeated') return false;
     if (w.requires && !w.requires.every(id => ctx.alive.includes(id))) return false;
     if (w.bondFired && !ctx.firedSynergies.includes(w.bondFired)) return false;
     if (w.frictionFired && !ctx.firedSynergies.includes(w.frictionFired)) return false;
@@ -3535,8 +3742,17 @@ function checkEnd(s) {
     // Affinity progression — roll a quirk grant before the post-fight UI fires
     awardQuirkAfterWin(s, completedNode);
     if (isBoss) {
-      // Boss kill ends the run with a victory summary
-      setTimeout(() => showVictorySummary(completedEnc, () => showRunSummary('boss')), 480);
+      // Boss kill — try a "Wakeling slain" vignette before the run summary.
+      const bossCtx = captureFightContext(s);
+      bossCtx.phase = 'bossDefeated';
+      const bossMatches = matchVignettes(s, bossCtx);
+      const continueToSummary = () => showVictorySummary(completedEnc, () => showRunSummary('boss'));
+      if (bossMatches.length) {
+        const pick = bossMatches[Math.floor(Math.random() * bossMatches.length)];
+        setTimeout(() => showVignette(pick, bossCtx, continueToSummary), 480);
+      } else {
+        setTimeout(continueToSummary, 480);
+      }
     } else {
       // Snapshot fight context for vignette triggers (firedSynergies, minHp etc.)
       // BEFORE the next encounter resets them.
@@ -3548,6 +3764,17 @@ function checkEnd(s) {
   }
   if (aliveParty(s).length === 0) {
     s.over = true;
+    // Try a run-defeat vignette before the run-summary screen.  If none match
+    // (or it's already fired), fall straight through.
+    const defeatCtx = captureFightContext(s);
+    defeatCtx.phase = 'runDefeat';
+    defeatCtx.alive = Object.keys(s.party.chars); // ctx.alive normally excludes downed; runDefeat needs everyone for speaker resolution
+    const defeatMatches = matchVignettes(s, defeatCtx);
+    if (defeatMatches.length) {
+      const pick = defeatMatches[Math.floor(Math.random() * defeatMatches.length)];
+      setTimeout(() => showVignette(pick, defeatCtx, () => showRunSummary('defeat')), 480);
+      return true;
+    }
     setTimeout(() => showRunSummary('defeat'), 480);
     return true;
   }
