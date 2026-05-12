@@ -2019,3 +2019,36 @@ body {
   text-shadow: 0 1px 0 var(--shadow);
   text-align: center;
 }
+
+/* ============ ENEMY AFFINITY CHIPS (weakness / resistance) ============ */
+.affinity-row {
+  display: flex;
+  gap: 3px;
+  justify-content: center;
+  margin-bottom: 1px;
+  flex-shrink: 0;
+}
+.affinity-chip {
+  display: inline-flex;
+  align-items: center; justify-content: center;
+  width: 13px; height: 13px;
+  border-radius: 50%;
+  font-size: 9px;
+  line-height: 1;
+  border: 1px solid;
+  font-weight: bold;
+  cursor: help;
+  text-shadow: 0 1px 0 var(--shadow);
+}
+.affinity-chip.weak {
+  color: var(--blood-bright);
+  border-color: var(--blood-bright);
+  background: rgba(212,69,69,0.15);
+  box-shadow: 0 0 4px rgba(212,69,69,0.45);
+}
+.affinity-chip.resist {
+  color: var(--armor);
+  border-color: var(--armor);
+  background: rgba(156,170,208,0.12);
+  opacity: 0.85;
+}
