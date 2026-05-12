@@ -3263,6 +3263,8 @@ function applyDmgToEnemy(s, e, baseAmt) {
   shakeCardId(e.id, 'enemy', toHp);
   if (toHp >= 6) shakeScreen(toHp >= 10 ? 3 : 2);
   Audio.hit(Math.min(2, 0.6 + toHp / 8));
+  // Attacker lunges toward the target for a beat
+  if (s.currentActorId) lungeCardId(s.currentActorId, 'party');
   log(`<b>${ENEMIES[e.id].name}</b> takes ${toHp} damage${e.staggered ? ' (stagger!)' : ''}${schoolBadge ? ` — ${schoolBadge.toLowerCase()}` : ''}.`);
   if (s.currentActorId && toHp > 0) fireAdjacencyHook(s, 'onAttack', s.currentActorId, e, toHp);
   if (s.fightStats && s.currentActorId && toHp > 0) {
@@ -3588,6 +3590,25 @@ function swapWith(s, charId, targetSlot) {
   s.party.slots[fromSlot] = other;
   s.party.slots[targetSlot] = charId;
   log(`<b>${CHARS[charId].name}</b> moves to ${SLOT_LABELS[targetSlot]}.`);
+  // Slide-in animation on the next render: queue the moved id(s) so
+  // makePartyCard tags them with .figure-sliding.
+  if (!__simulating) {
+    pendingSlideIds.add(charId);
+    if (other) pendingSlideIds.add(other);
+  }
+}
+// Set of hero ids that need a slide-in animation on the next render.
+// makePartyCard reads + clears entries when it renders.
+const pendingSlideIds = new Set();
+// Lunge-on-attack: triggered from applyDmgToEnemy via lungeCardId helper.
+function lungeCardId(id, side) {
+  if (__simulating) return;
+  const cardEl = document.querySelector(`#${side === 'enemy' ? 'enemy' : 'party'}-half [data-id="${id}"]`);
+  if (!cardEl) return;
+  cardEl.classList.remove('lunging');
+  void cardEl.offsetWidth;
+  cardEl.classList.add('lunging');
+  setTimeout(() => cardEl.classList.remove('lunging'), 360);
 }
 function advance(s, charId) {
   const slot = slotOfChar(s, charId);
@@ -4403,18 +4424,23 @@ function checkEnd(s) {
   }
   if (aliveParty(s).length === 0) {
     s.over = true;
+    // Defeat spectacle — mirror of the boss-kill moment.  Party silhouettes
+    // dim, screen desaturates, a quiet flash fades in.  Then the vignette
+    // (if any) plays; then the run summary.
+    playDefeatIntro();
+    const HOLD = 1700;
     // Try a run-defeat vignette before the run-summary screen.  If none match
     // (or it's already fired), fall straight through.
     const defeatCtx = captureFightContext(s);
     defeatCtx.phase = 'runDefeat';
-    defeatCtx.alive = Object.keys(s.party.chars); // ctx.alive normally excludes downed; runDefeat needs everyone for speaker resolution
+    defeatCtx.alive = Object.keys(s.party.chars);
     const defeatMatches = matchVignettes(s, defeatCtx);
     if (defeatMatches.length) {
       const pick = defeatMatches[Math.floor(Math.random() * defeatMatches.length)];
-      setTimeout(() => showVignette(pick, defeatCtx, () => showRunSummary('defeat')), 480);
+      setTimeout(() => showVignette(pick, defeatCtx, () => showRunSummary('defeat')), HOLD);
       return true;
     }
-    setTimeout(() => showRunSummary('defeat'), 480);
+    setTimeout(() => showRunSummary('defeat'), HOLD);
     return true;
   }
   return false;
@@ -4624,6 +4650,11 @@ function cornerBrackets() {
 function makePartyCard(c, slot, threatened, adjMap, incoming) {
   const fig = document.createElement('div');
   fig.className = 'figure party-figure';
+  // Slide-in tag if this hero just moved this turn
+  if (c && pendingSlideIds.has(c.id)) {
+    fig.classList.add('figure-sliding');
+    pendingSlideIds.delete(c.id);
+  }
   fig.dataset.slot = slot;
   if (!c) {
     fig.classList.add('empty');
@@ -5431,6 +5462,23 @@ function showBossIntro(opts, then) {
       if (then) then();
     }, 500);
   }, 1300);
+}
+
+// Defeat moment: mirrors the boss-kill spectacle in reverse — the stage
+// desaturates and dims, a slow blood-tinted flash washes across the
+// screen, and a brief "FALLEN" title is hinted before the run summary
+// cascade fires.  Called from checkEnd when the party wipes.
+function playDefeatIntro() {
+  if (__simulating) return;
+  document.body.classList.add('party-fallen');
+  Audio.kill();
+  setTimeout(() => {
+    // Linger the desaturate; the body class is removed when the player
+    // dismisses the run summary back to the title.
+    shakeScreen(2);
+  }, 320);
+  // Quietly clear the class when returning to title later — wired into
+  // hideOverlay so the next screen starts clean.
 }
 
 // Boss death slow-mo: dim the screen, slow CSS animations, brief flash.
@@ -6298,7 +6346,9 @@ function showPartyInspect() {
 function hideOverlay() {
   const ov = $('#overlay');
   ov.classList.add('hidden');
-  ov.classList.remove('overlay-full', 'overlay-path', 'overlay-vignette', 'overlay-runsummary');
+  ov.classList.remove('overlay-full', 'overlay-path', 'overlay-vignette',
+                      'overlay-runsummary', 'overlay-rest',
+                      'overlay-recruit', 'overlay-upgrade', 'overlay-sigil');
   const ch = $('#overlay-choices');
   if (ch) ch.classList.remove('path-map');
 }
@@ -6372,6 +6422,7 @@ function showRunSummary(outcome) {
   btn.onclick = () => {
     body.classList.remove('victory-summary-body', 'run-summary-body');
     body.innerHTML = '';
+    document.body.classList.remove('party-fallen', 'boss-killed');
     hideOverlay();
     resetOverlayBtn();
     clearSave();
@@ -6511,6 +6562,8 @@ function offerSigilFromNode(onDone) {
 
 function showSigilOverlay(offers, onDone) {
   const continueAfter = onDone || (() => renderMap());
+  $('#overlay').classList.remove('overlay-path', 'overlay-vignette', 'overlay-runsummary', 'overlay-rest', 'overlay-recruit', 'overlay-upgrade');
+  $('#overlay').classList.add('overlay-full', 'overlay-sigil');
   $('#overlay-title').textContent = 'A sigil flickers into reach';
   $('#overlay-body').textContent = 'Add one to your run, or pass.';
   const choices = $('#overlay-choices');
@@ -6549,6 +6602,8 @@ function commitSigil(sigilId, onDone) {
 
 function showUpgradeOverlay(offers, onDone) {
   const continueAfter = onDone || (() => renderMap());
+  $('#overlay').classList.remove('overlay-path', 'overlay-vignette', 'overlay-runsummary', 'overlay-rest', 'overlay-recruit', 'overlay-sigil');
+  $('#overlay').classList.add('overlay-full', 'overlay-upgrade');
   $('#overlay-title').textContent = 'Hone your edge';
   $('#overlay-body').textContent = 'Pick an upgrade — or pass.';
   const choices = $('#overlay-choices');
@@ -6615,6 +6670,8 @@ function findEmptySlotForRecruit(recruitId) {
 }
 
 function showRecruitOverlay(candidates) {
+  $('#overlay').classList.remove('overlay-path', 'overlay-vignette', 'overlay-runsummary', 'overlay-rest', 'overlay-upgrade', 'overlay-sigil');
+  $('#overlay').classList.add('overlay-full', 'overlay-recruit');
   $('#overlay-title').textContent = 'A new ally appears';
   $('#overlay-body').textContent = 'Walk together, or walk on alone.';
   const choices = $('#overlay-choices');
