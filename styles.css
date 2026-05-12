@@ -3429,3 +3429,167 @@ button.path-node { cursor: pointer; }
   color: var(--gold);
   text-shadow: 0 0 4px rgba(200,164,100,0.3);
 }
+
+/* ===========================================================================
+   FANTASY MINIMALISM PASS — Code Vein / FFXVI inspiration
+   Softens the prior heavy-border / corner-bracket look in favor of shapes
+   drawn out of the dark by gradients, subtle inset glow, and typography.
+   Kept as an additive block so the underlying styles are still legible and
+   trivially revertable if anything reads worse than the original.
+   =========================================================================== */
+
+/* Battle cards — drop the framed look in favor of a soft inset glow.
+   The figures inside (portraits + HP bars) carry their own weight. */
+.card {
+  background: linear-gradient(180deg, rgba(24,18,16,0.55) 0%, rgba(10,8,8,0.65) 100%);
+  border: 1px solid transparent;
+  box-shadow:
+    0 6px 18px rgba(0,0,0,0.55),
+    inset 0 0 24px rgba(0,0,0,0.55),
+    inset 0 1px 0 rgba(232,220,196,0.04);
+}
+/* The corner brackets were the loudest piece of the old look — hide them
+   so cards read as silhouettes against the void instead. */
+.card .cnr { display: none; }
+.card.targeted-lethal, .card.target-marker, .card.targeted-by-enemy {
+  /* keep targeting state, but express it through a soft glow rather than
+     brighter brackets */
+  box-shadow:
+    0 6px 18px rgba(0,0,0,0.55),
+    inset 0 0 24px rgba(0,0,0,0.45),
+    0 0 22px rgba(200,80,80,0.25);
+}
+
+/* Tile actions — the bordered tile-row was the densest band of lines.
+   Use a faint background tint + bottom-only hairline for separation; let
+   the gold come in on hover/queued only. */
+.tile {
+  background: linear-gradient(180deg, rgba(20,18,18,0.35) 0%, rgba(10,8,8,0.55) 100%);
+  border: 1px solid transparent;
+  border-bottom: 1px solid rgba(212,200,168,0.06);
+  box-shadow: none;
+}
+.tile:not(:disabled):hover {
+  background: linear-gradient(180deg, rgba(40,28,18,0.55) 0%, rgba(18,12,8,0.65) 100%);
+  border-color: transparent;
+  border-bottom-color: rgba(240,212,136,0.35);
+  box-shadow: 0 0 14px rgba(200,164,100,0.15) inset;
+}
+.tile.queued {
+  background: linear-gradient(180deg, rgba(58,40,24,0.7) 0%, rgba(22,14,8,0.75) 100%);
+  border-color: transparent;
+  border-bottom-color: var(--gold-bright);
+  box-shadow: 0 0 18px rgba(232,220,196,0.18) inset;
+}
+
+/* Overlay choice cards — sigils, recruits, upgrades, vignette choices,
+   events.  Drop the framed look; let the heading + tag carry hierarchy. */
+.encounter-choice {
+  background: linear-gradient(180deg, rgba(20,18,16,0.65) 0%, rgba(10,8,8,0.75) 100%);
+  border: 1px solid transparent;
+  box-shadow: inset 0 0 24px rgba(0,0,0,0.4);
+  transition: background 0.18s, box-shadow 0.18s, transform 0.06s;
+}
+.encounter-choice:not(:disabled):hover {
+  background: linear-gradient(180deg, rgba(46,30,20,0.75) 0%, rgba(16,10,8,0.85) 100%);
+  box-shadow: inset 0 0 28px rgba(0,0,0,0.3), 0 0 18px rgba(232,220,196,0.12);
+}
+
+/* Status pills — let the COLOR carry identity; drop the bordered chip. */
+.status-pill, .status-armor, .status-bleed, .status-taunt, .status-weak,
+.status-retal, .status-vuln {
+  border: none !important;
+  background: rgba(0,0,0,0.45);
+  padding: 0 4px;
+  letter-spacing: 0.12em;
+  text-shadow: 0 0 6px currentColor;
+}
+
+/* Sigil chips (run header) — soften the chip outline; rely on the icon. */
+.sigil-chip {
+  border-color: transparent !important;
+  background: rgba(20,18,16,0.55);
+  box-shadow: inset 0 0 12px rgba(0,0,0,0.35);
+}
+
+/* Overlay panel — the central modal.  Pull the heavy 1.5px gold frame
+   into a soft outer glow so the panel reads as light drawn out of the
+   dark, not a placard stamped onto it. */
+#overlay-content {
+  border: 1px solid transparent !important;
+  background: radial-gradient(ellipse 120% 100% at 50% 0%,
+                              rgba(36,28,22,0.92) 0%,
+                              rgba(12,10,10,0.97) 70%) !important;
+  box-shadow:
+    0 16px 60px rgba(0,0,0,0.8),
+    inset 0 1px 0 rgba(232,220,196,0.06),
+    0 0 40px rgba(200,164,100,0.08) !important;
+}
+/* Title separator: a soft fading line instead of a hard rule. */
+#overlay-title::after {
+  background: linear-gradient(90deg,
+                              transparent 0%,
+                              rgba(232,220,196,0.25) 50%,
+                              transparent 100%) !important;
+  height: 1px !important;
+  box-shadow: none !important;
+}
+/* Hide the small corner brackets on the overlay frame. */
+#overlay-content::before, #overlay-content::after { display: none !important; }
+
+/* Map nodes — bordered rectangles → silhouettes with soft halos.
+   Reachable nodes glow gently; completed nodes recede into the dark. */
+.path-node {
+  border: 1px solid transparent !important;
+  box-shadow: 0 0 0 1px rgba(212,200,168,0.06), 0 0 14px rgba(0,0,0,0.5);
+  background: linear-gradient(180deg, rgba(28,22,18,0.65) 0%, rgba(10,8,8,0.85) 100%) !important;
+}
+button.path-node:not(:disabled) {
+  box-shadow: 0 0 0 1px rgba(232,220,196,0.16), 0 0 18px rgba(232,220,196,0.14);
+}
+button.path-node:not(:disabled):hover {
+  box-shadow: 0 0 0 1px rgba(232,220,196,0.35), 0 0 26px rgba(232,220,196,0.28);
+}
+.path-node.path-current {
+  border: 1px solid transparent !important;
+  box-shadow: 0 0 0 1px rgba(232,220,196,0.45), 0 0 28px rgba(232,220,196,0.35) !important;
+}
+.path-node.path-completed {
+  box-shadow: 0 0 0 1px rgba(120,108,84,0.16) !important;
+}
+
+/* HUD seams — replace the 1px hairline with a soft gradient fade. */
+#hud-bar, #hud {
+  border-bottom: none !important;
+  box-shadow: 0 8px 16px -8px rgba(0,0,0,0.6);
+  background: linear-gradient(180deg, rgba(10,8,8,0.9) 0%, rgba(10,8,8,0.6) 100%);
+}
+
+/* Action input row — the "bottom bar" that holds the tile grid.  Soften
+   the top boundary so it doesn't feel like a stamp. */
+#tile-grid {
+  background: linear-gradient(0deg, rgba(10,8,8,0.85) 0%, rgba(10,8,8,0) 100%);
+}
+
+/* Title screen / password gate — already minimal, but pull the gate's
+   panel border out so the title floats. */
+.password-card {
+  border: 1px solid transparent;
+  background: radial-gradient(ellipse 100% 80% at 50% 0%,
+                              rgba(32,24,22,0.95) 0%,
+                              rgba(10,8,8,0.95) 80%);
+  box-shadow: 0 14px 40px rgba(0,0,0,0.75), inset 0 1px 0 rgba(232,220,196,0.06);
+}
+
+/* Vignette dialog stage — drop the framed portrait, hold the gaze on
+   the speaker against the void. */
+.vignette-portrait {
+  border: none !important;
+  background: linear-gradient(180deg, rgba(28,22,38,0.45) 0%, rgba(8,6,8,0.7) 100%);
+  box-shadow: inset 0 0 24px rgba(0,0,0,0.6);
+}
+
+/* Subtler hairlines wherever a hard 1px line was carrying a section break. */
+.welcome-list li, .vs-row, .upgrade-row {
+  border-bottom: 1px solid rgba(212,200,168,0.06);
+}
