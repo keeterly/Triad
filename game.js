@@ -560,7 +560,7 @@ const ENEMY_DISPLAY_ORDER = ['front', 'mid', 'back'];
 
 // queue / costs
 const ATB_MAX = 3;            // total action-cost budget per turn
-const ACTIONS_PER_CHAR = 2;   // each character can queue at most N actions per turn
+const ACTIONS_PER_CHAR = 1;   // each character can queue at most N actions per turn
 const ACTION_ATB = {
   attack:  1,                 // basic
   special: 2,                 // signature — slower to wind up
@@ -568,11 +568,11 @@ const ACTION_ATB = {
   brace:   1,                 // armor up
 };
 const TEAM_SPECIAL_ATB = ATB_MAX;
-const SPECIAL_COST = 1;       // Resolve cost of an individual special
+const SPECIAL_COST = 2;       // Resolve cost of an individual special
 const TEAM_SPECIAL_COST = 3;  // Resolve cost of a team special
 const BRACE_ARMOR = 2;
 
-const RESOLVE_MAX = 5;
+const RESOLVE_MAX = 3;
 const RESOLVE_DRIP = 1;     // Resolve regenerated automatically each turn
 const KILL_RESOLVE = 1;     // Resolve gained per enemy killed (tuned down so Team Special is a real save-up)
 
@@ -797,7 +797,7 @@ const CHARS = {
 
 const ENEMIES = {
   ghoul: {
-    id: 'ghoul', name: 'Ghoul', title: 'Sin of Hunger', maxHp: 14,
+    id: 'ghoul', name: 'Ghoul', title: 'Sin of Hunger', maxHp: 18,
     weakness: 'holy', resistance: 'physical',
     intents: [
       { name: 'Bite',    tag: 'ATK 6',          targetSlot: 'front', kind: 'atk', dmg: 6, fn: (s) => dmgPartyAt(s, 'front', 6) },
@@ -806,7 +806,7 @@ const ENEMIES = {
     ],
   },
   cultist: {
-    id: 'cultist', name: 'Cultist', title: 'Sin of Whispers', maxHp: 10,
+    id: 'cultist', name: 'Cultist', title: 'Sin of Whispers', maxHp: 13,
     weakness: 'physical', resistance: 'arcane',
     intents: [
       { name: 'Curse',     tag: 'WEAK 2',         targetSlot: 'front', kind: 'debuff', fn: (s) => weakSlot(s, 'front', 2) },
@@ -815,7 +815,7 @@ const ENEMIES = {
     ],
   },
   wraith: {
-    id: 'wraith', name: 'Wraith', title: 'Sin of Sorrow', maxHp: 9,
+    id: 'wraith', name: 'Wraith', title: 'Sin of Sorrow', maxHp: 12,
     weakness: 'arcane', resistance: 'physical',
     intents: [
       { name: 'Spectral Bolt', tag: 'ATK 5',     targetSlot: 'back', kind: 'atk', dmg: 5, fn: (s) => dmgPartyAt(s, 'back', 5) },
@@ -824,7 +824,7 @@ const ENEMIES = {
     ],
   },
   lineCaster: {
-    id: 'lineCaster', name: 'Line Caster', title: 'Sin of Voices', maxHp: 12,
+    id: 'lineCaster', name: 'Line Caster', title: 'Sin of Voices', maxHp: 16,
     weakness: 'physical', resistance: 'arcane',
     intents: [
       { name: 'Verse of Faces',   tag: 'ATK 3 F+M', targetSlot: 'fm',  kind: 'aoe', dmg: 3, fn: (s) => dmgLinePair(s, 'fm', 3) },
@@ -833,7 +833,7 @@ const ENEMIES = {
     ],
   },
   sniper: {
-    id: 'sniper', name: 'Sniper', title: 'Sin of Distance', maxHp: 11,
+    id: 'sniper', name: 'Sniper', title: 'Sin of Distance', maxHp: 14,
     weakness: 'stealth', resistance: 'ranged',
     intents: [
       { name: 'Aimed Shot',       tag: 'ATK 6',        targetSlot: 'back',   kind: 'atk',    dmg: 6, fn: (s) => dmgPartyAt(s, 'back', 6) },
@@ -846,7 +846,7 @@ const ENEMIES = {
     ],
   },
   grappler: {
-    id: 'grappler', name: 'Grappler', title: 'Sin of Grasp', maxHp: 15,
+    id: 'grappler', name: 'Grappler', title: 'Sin of Grasp', maxHp: 20,
     weakness: 'ranged', resistance: 'physical',
     intents: [
       { name: 'Hook',  tag: 'ATK 3 + pull', targetSlot: 'mid',   kind: 'atk', dmg: 3, fn: (s) => { dmgPartyAt(s, 'mid', 3); enemyShove(s, 'mid', 'front'); } },
@@ -862,7 +862,7 @@ const ENEMIES = {
     ],
   },
   wakeling: {
-    id: 'wakeling', name: 'The Wakeling', title: 'Sin of the Dawn', maxHp: 46, boss: true,
+    id: 'wakeling', name: 'The Wakeling', title: 'Sin of the Dawn', maxHp: 60, boss: true,
     weakness: ['arcane', 'stealth'], resistance: 'physical',
     intents: [
       { name: 'Sundering Strike', tag: 'ATK 8',         targetSlot: 'front', kind: 'atk',    dmg: 8, fn: (s) => dmgPartyAt(s, 'front', 8) },
@@ -1800,8 +1800,8 @@ function applyDmgToEnemy(s, e, baseAmt) {
     if (weaks.includes(actorDef.school)) {
       amt = Math.round(amt * 1.5);
       schoolBadge = 'WEAK!';
-      // press-turn loop: weakness hit banks +1 ATB for next turn (capped at +2)
-      s.pendingBonusAtb = Math.min(2, (s.pendingBonusAtb || 0) + 1);
+      // press-turn loop: weakness hit banks +1 ATB for next turn (capped at +1)
+      s.pendingBonusAtb = Math.min(1, (s.pendingBonusAtb || 0) + 1);
     } else if (resists.includes(actorDef.school)) {
       amt = Math.max(1, Math.floor(amt * 0.5));
       schoolBadge = 'RESIST';
@@ -2180,7 +2180,7 @@ function startTurn(s) {
   s.executing = false;
   s.queue = [];
   // Press-turn echo: weakness hits last turn give us +1 ATB this turn.
-  s.bonusAtb = Math.min(2, s.pendingBonusAtb || 0);
+  s.bonusAtb = Math.min(1, s.pendingBonusAtb || 0);
   s.pendingBonusAtb = 0;
   // clear single-turn buffs that survived the enemy phase
   aliveParty(s).forEach(c => { c.taunt = false; c.retaliate = 0; c.firstAttackUsed = false; });
@@ -2740,6 +2740,8 @@ function renderHUD() {
   // glanceable resolve readout in the HUD line (no interaction, just a count)
   const hudNum = $('#hud-resolve-num');
   if (hudNum) hudNum.textContent = String(state.resolve);
+  const hudMax = $('#hud-resolve-max');
+  if (hudMax) hudMax.textContent = `/${RESOLVE_MAX}`;
   const hudResolve = $('#hud-resolve');
   if (hudResolve) {
     if (reserved > 0) hudResolve.classList.add('has-reserved');
