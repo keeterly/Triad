@@ -1533,6 +1533,164 @@ const VIGNETTES = {
       { label: 'Stay until the sky steadies', tag: 'continue to run summary', resolve: () => {} },
     ],
   },
+
+  // ---- Friction beats (new pairs) ----
+
+  hollow_vow: {
+    id: 'hollow_vow',
+    when: { frictionFired: 'Hollow Vow', requires: ['cassia', 'mira'] },
+    title: 'Two ways to keep a vow',
+    speaker: 'cassia',
+    lines: [
+      { who: 'cassia', text: 'I do not enjoy killing in the dark.' },
+      { who: 'mira',   text: 'I do not enjoy killing in the light.' },
+      { who: 'cassia', text: '...then we have a problem.' },
+      { who: 'mira',   text: 'Yes.  Theirs.' },
+    ],
+    choices: [
+      { label: 'Bear the vow', tag: 'Cassia gains Banner Bearer',
+        resolve: (s) => { grantQuirk(s, 'cassia', 'banner_bearer'); log(`<b>Cassia</b> gains <i>Banner Bearer</i>.`); } },
+      { label: 'Swallow the disagreement', tag: 'no change', resolve: () => {} },
+    ],
+  },
+
+  crossed_oaths: {
+    id: 'crossed_oaths',
+    when: { frictionFired: 'Crossed Oaths', requires: ['korin', 'mira'] },
+    title: 'A paladin and a thief',
+    speaker: 'korin',
+    lines: [
+      { who: 'korin', text: 'You bowed before you stabbed.  That was not a courtesy.' },
+      { who: 'mira',  text: 'It was a habit.  The body kept moving.' },
+      { who: 'korin', text: 'The body always keeps moving.' },
+    ],
+    choices: [
+      { label: 'Trade no more words', tag: 'Korin gains Warhardened',
+        resolve: (s) => { grantQuirk(s, 'korin', 'warhardened'); log(`<b>Korin</b> gains <i>Warhardened</i>.`); } },
+      { label: 'Let it sit',          tag: 'no change', resolve: () => {} },
+    ],
+  },
+
+  tangled_sight: {
+    id: 'tangled_sight',
+    when: { frictionFired: 'Tangled Sight', requires: ['ash', 'branwen'] },
+    title: 'A shared line',
+    speaker: 'branwen',
+    lines: [
+      { who: 'branwen', text: "I had the shot.  You crossed it." },
+      { who: 'ash',     text: "I had the shot.  You crossed it." },
+      { who: null,      text: 'Both of them lower their weapons by half a degree.  Neither apologizes.' },
+    ],
+    choices: [
+      { label: 'Walk the line', tag: 'Ash gains Veil Walker',
+        resolve: (s) => { grantQuirk(s, 'ash', 'veil_walker'); log(`<b>Ash</b> gains <i>Veil Walker</i>.`); } },
+      { label: 'Mark the target', tag: 'Branwen gains Bleed Stalker',
+        resolve: (s) => { grantQuirk(s, 'branwen', 'bleed_stalker'); log(`<b>Branwen</b> gains <i>Bleed Stalker</i>.`); } },
+    ],
+  },
+
+  // ---- Hero death lines (a hero was downed this fight) ----
+  // Post-fight, the survivors react.  Speaker = first alive hero.
+  hero_downed: {
+    id: 'hero_downed',
+    when: { heroDowned: true },
+    title: 'A space where someone was',
+    speakerFromFirstAlive: true,
+    lines: [
+      { who: '_first', text: 'They went down where I was supposed to be.' },
+      { who: null,     text: 'The survivors set their dead-weight friend upright and check the breath.' },
+      { who: '_first', text: '...they will rise for the next reach.' },
+    ],
+    choices: [
+      { label: 'Carry them forward', tag: 'Downed heroes are restored to 1 HP for the next fight',
+        resolve: (s) => { Object.values(s.party.chars).forEach(c => { if (c.downed) { c.downed = false; c.hp = 1; } }); log('The fallen are lifted.'); } },
+      { label: 'Bind in silence',    tag: 'Restore to 25% HP and lock the lesson (gain Sigil of Mending if available)',
+        resolve: (s) => {
+          Object.values(s.party.chars).forEach(c => { if (c.downed) { c.downed = false; c.hp = Math.max(1, Math.ceil(c.maxHp * 0.25)); } });
+          if (!hasSigil(s, 'mending')) { s.run.sigils.push('mending'); log('You bind <b>Sigil of Mending</b>.'); }
+          log('The fallen are lifted.');
+        }
+      },
+    ],
+  },
+
+  // ---- Recruit intros: one per recruitable hero (oneShot per run) ----
+  recruit_cassia: {
+    id: 'recruit_cassia', when: { recruited: 'cassia' }, oneShot: true,
+    title: 'Cassia, at the gate',
+    speaker: 'cassia',
+    lines: [
+      { who: 'cassia',  text: 'I have lost what is worth keeping. I have left to spend.' },
+      { who: '_first',  text: 'Then keep up.' },
+    ],
+    choices: [
+      { label: 'Welcome her', tag: 'Cassia heals to full', resolve: (s) => { const c = s.party.chars.cassia; if (c) c.hp = c.maxHp; } },
+    ],
+  },
+  recruit_elin: {
+    id: 'recruit_elin', when: { recruited: 'elin' }, oneShot: true,
+    title: 'Elin, behind the veil',
+    speaker: 'elin',
+    lines: [
+      { who: 'elin',    text: 'Mercy still has weight.  I will carry it.' },
+      { who: '_first',  text: 'Carry it close.  The reach is greedy.' },
+    ],
+    choices: [
+      { label: 'Welcome her', tag: 'Elin heals to full', resolve: (s) => { const c = s.party.chars.elin; if (c) c.hp = c.maxHp; } },
+    ],
+  },
+  recruit_branwen: {
+    id: 'recruit_branwen', when: { recruited: 'branwen' }, oneShot: true,
+    title: 'Branwen, counting arrows',
+    speaker: 'branwen',
+    lines: [
+      { who: 'branwen', text: 'I name every arrow before I loose it.' },
+      { who: '_first',  text: 'Name the one you save for the Wakeling.' },
+      { who: 'branwen', text: 'I have.' },
+    ],
+    choices: [
+      { label: 'Welcome her', tag: 'Branwen heals to full', resolve: (s) => { const c = s.party.chars.branwen; if (c) c.hp = c.maxHp; } },
+    ],
+  },
+  recruit_korin: {
+    id: 'recruit_korin', when: { recruited: 'korin' }, oneShot: true,
+    title: 'Korin, with the wall',
+    speaker: 'korin',
+    lines: [
+      { who: 'korin',  text: 'I do not run.  If that is a problem, say it now.' },
+      { who: '_first', text: 'Stay in front.  We will manage.' },
+      { who: 'korin',  text: 'Good.' },
+    ],
+    choices: [
+      { label: 'Welcome him', tag: 'Korin heals to full', resolve: (s) => { const c = s.party.chars.korin; if (c) c.hp = c.maxHp; } },
+    ],
+  },
+  recruit_ash: {
+    id: 'recruit_ash', when: { recruited: 'ash' }, oneShot: true,
+    title: 'Ash, half in the dark',
+    speaker: 'ash',
+    lines: [
+      { who: 'ash',    text: 'I do not promise to be seen.' },
+      { who: '_first', text: 'Be useful.  The seen part is optional.' },
+      { who: 'ash',    text: 'Then we will get along.' },
+    ],
+    choices: [
+      { label: 'Welcome them', tag: 'Ash heals to full', resolve: (s) => { const c = s.party.chars.ash; if (c) c.hp = c.maxHp; } },
+    ],
+  },
+  recruit_mira: {
+    id: 'recruit_mira', when: { recruited: 'mira' }, oneShot: true,
+    title: 'Mira, blade already drawn',
+    speaker: 'mira',
+    lines: [
+      { who: 'mira',   text: 'I prefer to finish before they notice.' },
+      { who: '_first', text: 'Then finish.  We will follow up.' },
+      { who: 'mira',   text: 'Try to keep up.' },
+    ],
+    choices: [
+      { label: 'Welcome her', tag: 'Mira heals to full', resolve: (s) => { const c = s.party.chars.mira; if (c) c.hp = c.maxHp; } },
+    ],
+  },
 };
 
 function _lowestHpAliveId(s) {
@@ -1548,6 +1706,7 @@ function captureFightContext(s, nodeType) {
     firedSynergies: Array.from(s.firedSynergies || []),
     minHp: { ...((s.fightStats && s.fightStats.minHp) || {}) },
     killsBy: { ...((s.fightStats && s.fightStats.killsBy) || {}) },
+    downedThisFight: [...((s.fightStats && s.fightStats.downed) || [])],
     party: Object.keys(s.party.chars),
     alive: Object.values(s.party.chars).filter(c => !c.downed).map(c => c.id),
     biome: s.run && s.run.modifier,
@@ -1570,6 +1729,13 @@ function matchVignettes(s, ctx) {
     if (w.bossDefeated)  return ctx.phase === 'bossDefeated';
     if (ctx.phase === 'runStart' || ctx.phase === 'bossPrep'
         || ctx.phase === 'runDefeat' || ctx.phase === 'bossDefeated') return false;
+    // Recruit phase: only `recruited` vignettes can play; everything else waits
+    if (ctx.phase === 'recruit') {
+      if (!w.recruited) return false;
+      if (typeof w.recruited === 'string' && ctx.recruitedId !== w.recruited) return false;
+      return true;
+    }
+    if (w.recruited) return false; // recruit-vignettes never fire outside the recruit phase
     if (w.requires && !w.requires.every(id => ctx.alive.includes(id))) return false;
     if (w.bondFired && !ctx.firedSynergies.includes(w.bondFired)) return false;
     if (w.frictionFired && !ctx.firedSynergies.includes(w.frictionFired)) return false;
@@ -1587,6 +1753,15 @@ function matchVignettes(s, ctx) {
     if (w.actorKilledAtLeast) {
       const { charId, n } = w.actorKilledAtLeast;
       if ((ctx.killsBy[charId] || 0) < n) return false;
+    }
+    if (w.heroDowned) {
+      const list = (ctx.downedThisFight || []);
+      if (!list.length) return false;
+      if (typeof w.heroDowned === 'string' && !list.includes(w.heroDowned)) return false;
+    }
+    if (w.recruited) {
+      if (!ctx.recruitedId) return false;
+      if (typeof w.recruited === 'string' && ctx.recruitedId !== w.recruited) return false;
     }
     return true;
   });
@@ -2373,6 +2548,34 @@ const ADJ = {
       },
     },
   },
+  // --- Friction pairs ---
+  // Cassia + Mira — knight vs shadow: their styles cut against each other.
+  'cassia+mira': {
+    fm: {
+      name: 'Hollow Vow', type: 'friction',
+      // Cassia attacking from front while Mira is mid loses 1 dmg.
+      dmgMod: -1, dmgModFor: 'cassia',
+    },
+    mb: {
+      name: 'Stained Banner', type: 'friction',
+      // Mira attacking from mid while Cassia is back loses 1 dmg.
+      dmgMod: -1, dmgModFor: 'mira',
+    },
+  },
+  // Korin + Mira — paladin vs cutpurse: oil and water.
+  'korin+mira': {
+    fm: {
+      name: 'Crossed Oaths', type: 'friction',
+      dmgMod: -1, dmgModFor: 'korin',
+    },
+  },
+  // Ash + Branwen — both range styles; they crowd each other.
+  'ash+branwen': {
+    mb: {
+      name: 'Tangled Sight', type: 'friction',
+      dmgMod: -1, dmgModFor: 'branwen',
+    },
+  },
 };
 
 // ============================================================================
@@ -2906,7 +3109,7 @@ function applySelfDmg(s, charId, amt) {
   spawnPopupId(charId, `-${amt}`, 'dmg', 'party');
   flashCardId(charId, 'hit', 'party');
   log(`<b>${CHARS[charId].name}</b> takes ${amt} self damage.`);
-  if (c.hp === 0) { c.downed = true; c.pendingEffects = []; log(`<b>${CHARS[charId].name}</b> falls.`); }
+  if (c.hp === 0) { c.downed = true; c.pendingEffects = []; if (s.fightStats) { s.fightStats.downed = s.fightStats.downed || []; if (!s.fightStats.downed.includes(charId)) s.fightStats.downed.push(charId); } log(`<b>${CHARS[charId].name}</b> falls.`); }
 }
 
 // ============================================================================
@@ -3214,7 +3417,7 @@ function startTurn(s) {
     aliveParty(s).forEach(c => {
       c.hp = Math.max(0, c.hp - 1);
       spawnPopupId(c.id, '-1', 'dmg', 'party');
-      if (c.hp === 0) { c.downed = true; c.pendingEffects = []; log(`<b>${CHARS[c.id].name}</b> falls.`); }
+      if (c.hp === 0) { c.downed = true; c.pendingEffects = []; if (s.fightStats) { s.fightStats.downed = s.fightStats.downed || []; if (!s.fightStats.downed.includes(c.id)) s.fightStats.downed.push(c.id); } log(`<b>${CHARS[c.id].name}</b> falls.`); }
     });
     aliveEnemies(s).forEach(e => {
       e.hp = Math.max(0, e.hp - 1);
@@ -3228,7 +3431,7 @@ function startTurn(s) {
       spawnPopupId(c.id, `-${bleedTick}`, 'dmg', 'party');
       flashCardId(c.id, 'hit', 'party');
       log(`<b>${CHARS[c.id].name}</b> bleeds (${bleedTick}).`);
-      if (c.hp === 0) { c.downed = true; c.pendingEffects = []; log(`<b>${CHARS[c.id].name}</b> falls.`); }
+      if (c.hp === 0) { c.downed = true; c.pendingEffects = []; if (s.fightStats) { s.fightStats.downed = s.fightStats.downed || []; if (!s.fightStats.downed.includes(c.id)) s.fightStats.downed.push(c.id); } log(`<b>${CHARS[c.id].name}</b> falls.`); }
     }
   });
   aliveEnemies(s).forEach(e => {
@@ -3795,6 +3998,8 @@ function render() {
   renderQueue();
   renderTeamSpecial();
   renderFightButton();
+  // Persist after every UI tick so a refresh resumes near-exactly.
+  if (!__simulating) saveState();
 }
 
 function renderHUD() {
@@ -5458,6 +5663,18 @@ function commitRecruit(removeId, recruitId) {
   log(`<b>${CHARS[recruitId].name}</b> joins the party.`);
   hideOverlay();
   resetOverlayBtn();
+  // Try a recruit-intro vignette before the upgrade flow.  Builds ctx with
+  // recruitedId so vignettes can match on `recruited: <id>` or just `recruited: true`.
+  const ctx = captureFightContext(state);
+  ctx.phase = 'recruit';
+  ctx.recruitedId = recruitId;
+  ctx.alive = Object.values(state.party.chars).filter(c => !c.downed).map(c => c.id);
+  const matches = matchVignettes(state, ctx);
+  if (matches.length) {
+    const pick = matches[Math.floor(Math.random() * matches.length)];
+    showVignette(pick, ctx, () => offerUpgradeOrPath());
+    return;
+  }
   offerUpgradeOrPath();
 }
 
@@ -5480,42 +5697,169 @@ function init() {
   renderMap();
 }
 
-// First-run welcome — gates init() until the player taps Begin.
-// Keyed off localStorage so it only shows once per device.
-function showWelcomeOverlay(onBegin) {
-  $('#overlay-title').textContent = 'Triad';
+// ============================================================================
+// SAVE / LOAD — basic localStorage snapshot of the active run state.
+// Sets are serialized to arrays and rehydrated on load.
+// ============================================================================
+const SAVE_KEY = 'kizuna.save';
+
+function saveState() {
+  if (!state || state.over) { try { localStorage.removeItem(SAVE_KEY); } catch (_) {} return; }
+  try {
+    const snap = { ...state };
+    // Sets / runtime caches don't survive JSON
+    snap.firedSynergies = Array.from(state.firedSynergies || []);
+    delete snap.__simulating;
+    localStorage.setItem(SAVE_KEY, JSON.stringify(snap));
+  } catch (_) {}
+}
+function hasSave() {
+  try { return !!localStorage.getItem(SAVE_KEY); } catch (_) { return false; }
+}
+function loadStateOrNull() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return null;
+    const snap = JSON.parse(raw);
+    snap.firedSynergies = new Set(snap.firedSynergies || []);
+    return snap;
+  } catch (_) { return null; }
+}
+function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch (_) {} }
+
+// ============================================================================
+// TITLE SCREEN — KIZUNA | Resonance
+// New Game / Continue / Credits
+// ============================================================================
+function showTitleScreen() {
+  $('#overlay-title').textContent = 'KIZUNA';
   const body = $('#overlay-body');
-  body.classList.add('welcome-body');
+  body.classList.add('welcome-body', 'title-screen-body');
   body.innerHTML = `
-    <p class="welcome-lede">Three heroes. Three slots. A 3-point budget per turn.</p>
-    <ul class="welcome-list">
-      <li><span class="welcome-key">Tap</span> an action to queue it. Spend your ATB, then play to commit.</li>
-      <li><span class="welcome-key">Hold</span> an action to see its reach and predicted damage.</li>
-      <li><span class="welcome-key">Hold</span> a hero to pick them up — drag onto an arrow to move slots.</li>
-      <li>Win three reaches. HP and Resolve carry between fights.</li>
-    </ul>
+    <p class="title-subtitle">Resonance</p>
+    <p class="title-flavor">Three heroes.  Three reaches.  A bond, or a fracture.</p>
   `;
-  const btn = $('#overlay-btn');
-  btn.textContent = 'Begin';
-  btn.classList.remove('hidden');
-  btn.onclick = () => {
-    try { localStorage.setItem('triad.welcomed', '1'); } catch (_) {}
-    body.classList.remove('welcome-body');
-    body.innerHTML = '';
-    hideOverlay();
-    resetOverlayBtn();
-    onBegin();
+  const choicesEl = $('#overlay-choices');
+  choicesEl.innerHTML = '';
+  choicesEl.classList.remove('path-map', 'party-inspect', 'event-choices', 'vignette-choices');
+  choicesEl.classList.add('title-choices');
+
+  const mkBtn = (label, sub, onClick, disabled) => {
+    const b = document.createElement('button');
+    b.className = 'encounter-choice title-choice' + (disabled ? ' disabled' : '');
+    b.innerHTML = `<div class="enc-name">${label}</div><div class="sigil-desc">${sub}</div>`;
+    if (!disabled) b.addEventListener('click', onClick);
+    return b;
   };
-  $('#overlay-choices').classList.add('hidden');
+  choicesEl.appendChild(mkBtn('New Game', 'Roll a fresh run', () => {
+    clearSave();
+    body.classList.remove('welcome-body', 'title-screen-body');
+    body.innerHTML = '';
+    choicesEl.classList.remove('title-choices');
+    hideOverlay();
+    init();
+  }));
+  const canContinue = hasSave();
+  choicesEl.appendChild(mkBtn('Continue',
+    canContinue ? 'Resume the last run' : 'No save found',
+    () => {
+      const loaded = loadStateOrNull();
+      if (!loaded) { showTitleScreen(); return; }
+      state = loaded;
+      body.classList.remove('welcome-body', 'title-screen-body');
+      body.innerHTML = '';
+      choicesEl.classList.remove('title-choices');
+      hideOverlay();
+      // After load, redirect to the map so the player can pick their next node.
+      // If the player was mid-fight, the map will still show their current node
+      // as in-progress; combat state isn't restored mid-turn for simplicity.
+      renderMap();
+    },
+    !canContinue));
+  choicesEl.appendChild(mkBtn('Credits', 'About this game', () => showCreditsScreen()));
+
+  choicesEl.classList.remove('hidden');
+  resetOverlayBtn();
+  $('#overlay-btn').classList.add('hidden');
   $('#overlay').classList.remove('hidden');
 }
 
+function showCreditsScreen() {
+  $('#overlay-title').textContent = 'Credits';
+  const body = $('#overlay-body');
+  body.classList.remove('welcome-body', 'title-screen-body');
+  body.innerHTML = `
+    <p class="title-flavor">
+      <b>KIZUNA | Resonance</b><br>
+      A 3-position tactical roguelite.<br><br>
+      Bonds and frictions ripple through the team.<br>
+      The reach remembers what you did, and what you didn't.
+    </p>
+  `;
+  const choicesEl = $('#overlay-choices');
+  choicesEl.innerHTML = '';
+  choicesEl.classList.remove('title-choices');
+  choicesEl.classList.add('hidden');
+  resetOverlayBtn();
+  const btn = $('#overlay-btn');
+  btn.textContent = 'Back';
+  btn.onclick = () => showTitleScreen();
+  btn.classList.remove('hidden');
+  $('#overlay').classList.remove('hidden');
+}
+
+// ============================================================================
+// PASSWORD GATE — soft (frontend-only) lock so the page isn't openly browsable.
+// Token cached in localStorage once entered correctly.
+// ============================================================================
+const PASSWORD_KEY = 'kizuna.unlocked';
+const PASSWORD     = 'keeter';
+function isUnlocked() {
+  try { return localStorage.getItem(PASSWORD_KEY) === '1'; } catch (_) { return false; }
+}
+function showPasswordGate(onUnlock) {
+  // Build the gate as a full-screen overlay separate from #overlay (so it
+  // can't be dismissed by other game flows).
+  const gate = document.createElement('div');
+  gate.id = 'password-gate';
+  gate.innerHTML = `
+    <div class="password-card">
+      <div class="password-title">KIZUNA</div>
+      <div class="password-subtitle">Resonance</div>
+      <input type="password" id="password-input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="…">
+      <button type="button" id="password-submit">Enter</button>
+      <div id="password-error"></div>
+    </div>
+  `;
+  document.body.appendChild(gate);
+  const input = gate.querySelector('#password-input');
+  const submit = gate.querySelector('#password-submit');
+  const err = gate.querySelector('#password-error');
+  const tryUnlock = () => {
+    if ((input.value || '').toLowerCase() === PASSWORD) {
+      try { localStorage.setItem(PASSWORD_KEY, '1'); } catch (_) {}
+      gate.remove();
+      onUnlock();
+    } else {
+      err.textContent = 'incorrect';
+      input.value = '';
+      input.focus();
+    }
+  };
+  submit.addEventListener('click', tryUnlock);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') tryUnlock(); });
+  setTimeout(() => input.focus(), 50);
+}
+
 function bootGame() {
+  // Password gate first — if locked, nothing else runs.
+  if (!isUnlocked()) {
+    showPasswordGate(() => bootGame());
+    return;
+  }
   bindUI();
-  let welcomed = false;
-  try { welcomed = !!localStorage.getItem('triad.welcomed'); } catch (_) {}
-  if (welcomed) { init(); return; }
-  showWelcomeOverlay(init);
+  // Title screen on every load.  "Continue" is enabled iff a save exists.
+  showTitleScreen();
 }
 
 document.addEventListener('DOMContentLoaded', bootGame);
