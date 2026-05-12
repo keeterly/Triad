@@ -894,31 +894,145 @@ const ENCOUNTERS = {
 };
 
 // ============================================================================
-// MAP — Slay-the-Spire-style branching graph.
-// Five levels deep; some nodes share encounters with their neighbors but
-// connections form a real graph the player navigates choice-by-choice.
-// Visual layout: levels render as columns (left → right); within a column,
-// nodes stack vertically by `col`.  The renderer draws SVG lines between
-// connected nodes (node.next).
+// MAP — Slay-the-Spire-style branching graph, freshly generated per run.
+// MAP_NODES is no longer a static constant; state.run.map carries the generated
+// graph for the current run.  See generateMap() below for the procedural rules.
 // ============================================================================
-const MAP_NODES = {
-  // Level 1 — entry (player picks any of these to start)
-  a1: { id: 'a1', level: 1, col: 0, type: 'combat', encId: 'e1', next: ['b1', 'b2'] },
-  a2: { id: 'a2', level: 1, col: 1, type: 'combat', encId: 'e2', next: ['b2', 'b3'] },
-  // Level 2 — combat
-  b1: { id: 'b1', level: 2, col: 0, type: 'combat', encId: 'e3', next: ['c1'] },
-  b2: { id: 'b2', level: 2, col: 1, type: 'combat', encId: 'e4', next: ['c1', 'c2'] },
-  b3: { id: 'b3', level: 2, col: 2, type: 'combat', encId: 'e5', next: ['c2'] },
-  // Level 3 — elite or combat (player choice: harder fight w/ sigil vs safer)
-  c1: { id: 'c1', level: 3, col: 0, type: 'elite',  encId: 'ee1', next: ['d1'] },
-  c2: { id: 'c2', level: 3, col: 1, type: 'combat', encId: 'e6',  next: ['d1'] },
-  // Level 4 — elite gate (sigil reward before boss)
-  d1: { id: 'd1', level: 4, col: 0, type: 'elite',  encId: 'ee2', next: ['boss'] },
-  // Level 5 — boss
-  boss: { id: 'boss', level: 5, col: 0, type: 'boss', encId: 'boss', next: [] },
-};
-const MAP_ENTRY_NODES = ['a1', 'a2'];
-const MAP_MAX_LEVEL = 5;
+
+// Pools for procedural encounter generation
+const COMBAT_ENEMY_POOL = ['ghoul', 'cultist', 'wraith', 'lineCaster', 'sniper'];
+const ELITE_ENEMY_POOL  = ['grappler', 'sniper', 'lineCaster', 'wraith', 'cultist'];
+
+// Flavor name pools — combat encounters draw a name from here at gen time so
+// the map has variety even when the underlying enemy mix is similar.
+const COMBAT_NAMES = [
+  'Bone & Bile', "Veil's Edge", 'Line of Echoes', 'Bowless Hunt',
+  'Sundered Bond', 'Quartered Sin', 'Hollow Vigil', 'Cracked Reliquary',
+  "Whisper's End", 'Pale Procession', 'Brackish Hour', 'Mourner\'s Pass',
+];
+const ELITE_NAMES = [
+  'Sins Triumphant', 'Court of Wraiths', 'Reaving Vow',
+  'The Hooded Three', 'Hollow Ascendant',
+];
+
+function _pickRandom(arr)  { return arr[Math.floor(Math.random() * arr.length)]; }
+function _shuffle(arr)     { return arr.slice().sort(() => Math.random() - 0.5); }
+function _consumeName(pool, used) {
+  // Pick a name that isn't already used; if pool exhausted, allow repeats.
+  const fresh = pool.filter(n => !used.has(n));
+  const pick = fresh.length ? _pickRandom(fresh) : _pickRandom(pool);
+  used.add(pick);
+  return pick;
+}
+
+// Generate a combat encounter spec.  Always at least 1 enemy in Front.
+function genCombatEncounter(level, names) {
+  const count = level <= 1 ? 2 : (Math.random() < 0.45 ? 2 : 3);
+  const enemies = _shuffle(COMBAT_ENEMY_POOL).slice(0, count);
+  const slotNames = _shuffle(['front', 'mid', 'back']);
+  // Guarantee Front: rotate so 'front' is first slot in the shuffled order
+  const frontIdx = slotNames.indexOf('front');
+  if (frontIdx > 0) [slotNames[0], slotNames[frontIdx]] = [slotNames[frontIdx], slotNames[0]];
+  const slots = {};
+  enemies.forEach((eid, i) => { slots[slotNames[i]] = eid; });
+  return { name: _consumeName(COMBAT_NAMES, names), slots };
+}
+
+function genEliteEncounter(level, names) {
+  const enemies = _shuffle(ELITE_ENEMY_POOL).slice(0, 3);
+  const slots = { front: enemies[0], mid: enemies[1], back: enemies[2] };
+  const sigilCategory = _pickRandom(['combat', 'defense', 'resource']);
+  return {
+    name: _consumeName(ELITE_NAMES, names),
+    slots,
+    elite: true,
+    sigilCategory,
+  };
+}
+
+function genBossEncounter() {
+  return { name: 'The Wakeling', slots: { front: 'wakeling' }, boss: true };
+}
+
+// Generate the run's map graph.  Layout (5 levels):
+//   L1: 2-3 combat (entries)
+//   L2: 2-3 combat
+//   L3: 2 nodes — usually 1 elite + 1 combat
+//   L4: 1 elite gate
+//   L5: boss
+// Each non-boss node links to 1-2 random next-level nodes; we then
+// guarantee every next-level node is reachable from at least one parent.
+function generateMap() {
+  const numLevels = 5;
+  const usedNames = new Set();
+  const levels = [];
+  const nodes = {};
+  let idCounter = 0;
+
+  for (let lvl = 1; lvl <= numLevels; lvl++) {
+    let countAndTypes; // array of types for the level
+    if (lvl === numLevels) {
+      countAndTypes = ['boss'];
+    } else if (lvl === numLevels - 1) {
+      countAndTypes = ['elite']; // gate before boss
+    } else if (lvl === 1) {
+      const c = 2 + Math.floor(Math.random() * 2);   // 2-3
+      countAndTypes = Array(c).fill('combat');
+    } else if (lvl === 3) {
+      // Mid: usually 1 elite + 1 combat (player chooses risk vs safety)
+      countAndTypes = Math.random() < 0.5 ? ['elite', 'combat'] : ['combat', 'elite'];
+    } else {
+      const c = 2 + Math.floor(Math.random() * 2);   // 2-3
+      countAndTypes = Array(c).fill('combat');
+    }
+
+    const ids = [];
+    countAndTypes.forEach((type, i) => {
+      const id = `n${idCounter++}`;
+      let enc;
+      if (type === 'boss')        enc = genBossEncounter();
+      else if (type === 'elite')  enc = genEliteEncounter(lvl, usedNames);
+      else                        enc = genCombatEncounter(lvl, usedNames);
+      nodes[id] = { id, level: lvl, col: i, type, enc, next: [] };
+      ids.push(id);
+    });
+    levels.push(ids);
+  }
+
+  // Wire connections.  Each node prefers next-level neighbors close to its
+  // own column, then we patch coverage so every next-level node has at least
+  // one parent.
+  for (let lvl = 0; lvl < levels.length - 1; lvl++) {
+    const cur = levels[lvl];
+    const nxt = levels[lvl + 1];
+    cur.forEach((id, i) => {
+      const node = nodes[id];
+      const candidates = nxt.slice().sort((a, b) => {
+        const ia = nxt.indexOf(a), ib = nxt.indexOf(b);
+        return Math.abs(ia - i) - Math.abs(ib - i);
+      });
+      // 1-2 connections; 50/50 unless only one candidate
+      const want = Math.min(candidates.length, 1 + (Math.random() < 0.55 ? 1 : 0));
+      node.next = candidates.slice(0, want);
+    });
+    const reached = new Set();
+    cur.forEach(id => nodes[id].next.forEach(nx => reached.add(nx)));
+    nxt.forEach(id => {
+      if (!reached.has(id)) {
+        const picker = cur[Math.floor(Math.random() * cur.length)];
+        if (!nodes[picker].next.includes(id)) nodes[picker].next.push(id);
+      }
+    });
+  }
+
+  return { nodes, entries: levels[0], maxLevel: numLevels };
+}
+
+// Helpers that used to read from constant MAP_NODES — now go through state.run.map.
+function _runMap()              { return (state && state.run && state.run.map) || null; }
+function getMapNode(id)         { return (_runMap()?.nodes || {})[id]; }
+function mapEntryNodes()        { return _runMap()?.entries || []; }
+function mapMaxLevel()          { return _runMap()?.maxLevel || 0; }
 
 function mapNodeStatus(s, nodeId) {
   if (!s || !s.run) return 'locked';
@@ -927,15 +1041,17 @@ function mapNodeStatus(s, nodeId) {
   return 'locked';
 }
 function isMapNodeReachable(s, nodeId) {
-  if (!s || !s.run) return false;
+  if (!s || !s.run || !s.run.map) return false;
   const completed = s.run.completedNodes || [];
-  if (!completed.length) return MAP_ENTRY_NODES.includes(nodeId);
-  const last = MAP_NODES[completed[completed.length - 1]];
+  if (!completed.length) return s.run.map.entries.includes(nodeId);
+  const last = s.run.map.nodes[completed[completed.length - 1]];
   return !!(last && last.next.includes(nodeId));
 }
 function mapEdges() {
+  const map = _runMap();
+  if (!map) return [];
   const edges = [];
-  Object.values(MAP_NODES).forEach(n => n.next.forEach(nx => edges.push({ from: n.id, to: nx })));
+  Object.values(map.nodes).forEach(n => n.next.forEach(nx => edges.push({ from: n.id, to: nx })));
   return edges;
 }
 
@@ -1576,6 +1692,19 @@ const ADJ = {
 let state;
 
 function newState() {
+  // Roll a random starting team: one hero per home position so the player
+  // always has a Front / Mid / Back lineup at run start.  With 2 chars per
+  // home that's 8 possible starting comps — combined with the procedural
+  // map this delivers most of the rerun freshness.
+  const byHome = {
+    front: ROSTER.filter(id => CHARS[id].home === 'front'),
+    mid:   ROSTER.filter(id => CHARS[id].home === 'mid'),
+    back:  ROSTER.filter(id => CHARS[id].home === 'back'),
+  };
+  const startFront = _pickRandom(byHome.front);
+  const startMid   = _pickRandom(byHome.mid);
+  const startBack  = _pickRandom(byHome.back);
+
   return {
     turn: 1,
     resolve: 0,
@@ -1591,23 +1720,24 @@ function newState() {
     // run-level progress (persists across fights within a run)
     run: {
       currentNodeId: null,   // id of the node player is currently fighting (or null between fights)
-      completedNodes: [],    // ids of cleared MAP_NODES, in completion order
-      currentEncId: null,    // id of the active encounter, or null before first start
+      completedNodes: [],    // ids of cleared map nodes, in completion order
+      currentEnc: null,      // spec of the active encounter (set by startEncounter)
       sigils: [],            // ids of acquired sigils (run-wide modifiers)
       lastVictoryElite: false, // did the most recent victory come from an elite encounter? (gates sigil reward size)
+      map: generateMap(),    // freshly generated branching graph for this run
       stats: { damageDealt: {}, damageTaken: {}, healingDone: {}, kills: 0, synergies: [], turns: 0, reaches: 0 },
     },
 
     party: {
-      slots: { front: 'cassia', mid: 'elin', back: 'branwen' },
+      slots: { front: startFront, mid: startMid, back: startBack },
       chars: {
-        cassia:  newCharState('cassia'),
-        elin:    newCharState('elin'),
-        branwen: newCharState('branwen'),
+        [startFront]: newCharState(startFront),
+        [startMid]:   newCharState(startMid),
+        [startBack]:  newCharState(startBack),
       },
     },
 
-    // populated by startEncounter — first slot config is loaded at init()
+    // populated by startEncounter — set when the player picks an entry node
     enemies: { slots: {}, chars: {} },
 
     messages: [],
@@ -1617,10 +1747,12 @@ function newState() {
 // Begin (or restart on a new slot) a fight. Resets per-fight state but preserves
 // run-level state: HP, downed status, pendingEffects, run.slotIdx, run.completed.
 // Resolve is preserved up to RESOLVE_CARRY_CAP between fights (not capped on the very first fight).
-function startEncounter(encId) {
-  const enc = ENCOUNTERS[encId];
-  if (!enc) return;
-  const isFirstFight = !state.run.currentEncId;
+// Takes an encounter SPEC ({ name, slots, elite?, sigilCategory?, boss? }).
+// Map nodes carry their own freshly-generated spec; the boss enc is also
+// a spec (built by genBossEncounter).
+function startEncounter(encSpec) {
+  if (!encSpec || !encSpec.slots) return;
+  const isFirstFight = !state.run.currentEnc;
 
   // reset per-fight party statuses; keep hp, downed, pendingEffects
   Object.values(state.party.chars).forEach(c => {
@@ -1632,11 +1764,11 @@ function startEncounter(encId) {
     c.retaliate = 0;
   });
 
-  // rebuild enemies fresh from the encounter definition
-  state.enemies.slots = { ...enc.slots };
+  // rebuild enemies fresh from the encounter spec
+  state.enemies.slots = { ...encSpec.slots };
   state.enemies.chars = {};
   SLOTS.forEach(sl => {
-    const id = enc.slots[sl];
+    const id = encSpec.slots[sl];
     if (id) state.enemies.chars[id] = newEnemyState(id);
   });
 
@@ -1649,7 +1781,7 @@ function startEncounter(encId) {
   state.currentActorId = null;
   state.firedSynergies = new Set();
   state.fightStats = { damageDealt: {}, damageTaken: {}, healingDone: {}, kills: 0, synergies: [], turns: 0 };
-  state.run.currentEncId = encId;
+  state.run.currentEnc = encSpec;
 
   if (!isFirstFight) {
     const cap = RESOLVE_CARRY_CAP + (hasSigil(state, 'memory') ? 1 : 0);
@@ -2865,8 +2997,8 @@ function checkEnd(s) {
     // will be whatever this node's `next` lists.
     if (s.run.currentNodeId) s.run.completedNodes.push(s.run.currentNodeId);
     if (s.fightStats) s.fightStats.turns = s.turn;
-    const completedEnc = ENCOUNTERS[s.run.currentEncId];
-    const completedNode = s.run.currentNodeId ? MAP_NODES[s.run.currentNodeId] : null;
+    const completedEnc = s.run.currentEnc;
+    const completedNode = s.run.currentNodeId ? getMapNode(s.run.currentNodeId) : null;
     s.run.lastVictoryElite = !!(completedNode && completedNode.type === 'elite');
     const isBoss = !!(completedNode && completedNode.type === 'boss');
     // Affinity progression — roll a quirk grant before the post-fight UI fires
@@ -3750,25 +3882,27 @@ function renderMap() {
   choices.classList.add('path-map');
   choices.classList.remove('party-inspect');
 
-  // Group nodes by level
+  // Group nodes by level from this run's generated map
+  const map = state.run.map;
+  if (!map) { choices.innerHTML = '<div class="path-empty">No map yet.</div>'; return; }
   const byLevel = {};
-  for (let lvl = 1; lvl <= MAP_MAX_LEVEL; lvl++) byLevel[lvl] = [];
-  Object.values(MAP_NODES).forEach(n => { byLevel[n.level].push(n); });
+  for (let lvl = 1; lvl <= map.maxLevel; lvl++) byLevel[lvl] = [];
+  Object.values(map.nodes).forEach(n => { byLevel[n.level].push(n); });
   // Sort each level by col so vertical order in the column is stable
   Object.values(byLevel).forEach(arr => arr.sort((a, b) => a.col - b.col));
 
-  for (let lvl = 1; lvl <= MAP_MAX_LEVEL; lvl++) {
+  for (let lvl = 1; lvl <= map.maxLevel; lvl++) {
     const col = document.createElement('div');
     col.className = 'path-col';
     const head = document.createElement('div');
     head.className = 'path-col-head';
-    head.textContent = lvl === MAP_MAX_LEVEL ? 'Final' : `Stretch ${lvl}`;
+    head.textContent = lvl === map.maxLevel ? 'Final' : `Stretch ${lvl}`;
     col.appendChild(head);
     const slotsWrap = document.createElement('div');
     slotsWrap.className = 'path-col-slots';
     byLevel[lvl].forEach(node => {
       const status = mapNodeStatus(state, node.id);
-      const enc = ENCOUNTERS[node.encId];
+      const enc = node.enc;
       const isClickable = status === 'reachable';
       const el = document.createElement(isClickable ? 'button' : 'div');
       el.className = `path-node node-${node.type} node-${status}`;
@@ -3797,7 +3931,7 @@ function renderMap() {
           hideOverlay();
           choices.classList.remove('path-map');
           state.run.currentNodeId = node.id;
-          startEncounter(node.encId);
+          startEncounter(node.enc);
         });
       }
       slotsWrap.appendChild(el);
@@ -4124,8 +4258,8 @@ function offerSigilOrPath() {
   // If the last victory was an elite that declared a sigil category, weight the pool
   // toward that category (fall back to full pool if exhausted).
   const lastNodeId = state.run.completedNodes[state.run.completedNodes.length - 1];
-  const lastNode = lastNodeId && MAP_NODES[lastNodeId];
-  const lastEnc = lastNode && ENCOUNTERS[lastNode.encId];
+  const lastNode = lastNodeId && getMapNode(lastNodeId);
+  const lastEnc = lastNode && lastNode.enc;
   const targetCategory = (lastNode && lastNode.type === 'elite' && lastEnc) ? lastEnc.sigilCategory : null;
   if (targetCategory) {
     const filtered = pool.filter(s => s.category === targetCategory);
