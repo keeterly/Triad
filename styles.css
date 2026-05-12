@@ -4435,6 +4435,361 @@ button.path-node:not(:disabled):hover .pn-icon {
 }
 
 /* ===========================================================================
+   BOSS FIGHT — body.boss-fight collapses the 3 enemy slots into a single
+   imposing figure with a dramatic full-width HP bar.
+   =========================================================================== */
+body.boss-fight #enemy-half {
+  display: flex !important;
+  align-items: flex-end;
+  justify-content: center;
+}
+body.boss-fight #enemy-half .figure {
+  flex: 0 0 auto;
+  width: 92%;
+  max-width: 540px;
+  height: 100%;
+}
+body.boss-fight #enemy-half .figure.empty { display: none; }
+body.boss-fight #enemy-half .figure-portrait { max-width: none; }
+body.boss-fight #enemy-half .figure-portrait svg {
+  transform: scale(1.18);
+  transform-origin: 50% 80%;
+  filter: drop-shadow(0 8px 24px rgba(0,0,0,0.7))
+          drop-shadow(0 0 30px rgba(220,80,80,0.18));
+}
+body.boss-fight #enemy-half .figure-hp {
+  height: 8px !important;
+  border-radius: 0;
+  background: rgba(40,12,12,0.6);
+  margin-top: 6px;
+  position: relative;
+}
+body.boss-fight #enemy-half .figure-hp::before,
+body.boss-fight #enemy-half .figure-hp::after { display: none !important; }
+body.boss-fight #enemy-half .figure-hp .hp-fill {
+  background: linear-gradient(180deg, #c83838 0%, #6a1010 100%);
+  box-shadow: 0 0 16px rgba(220,60,60,0.55), inset 0 1px 0 rgba(255,200,180,0.18);
+}
+body.boss-fight #enemy-half .figure-hp .hp-text {
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  text-shadow: 0 0 8px rgba(0,0,0,0.9), 0 2px 0 rgba(0,0,0,0.8);
+  top: -22px;
+}
+body.boss-fight #enemy-half .figure-name {
+  font-size: 14px;
+  letter-spacing: 0.36em;
+  text-transform: uppercase;
+  color: var(--blood-bright);
+  text-shadow: 0 0 12px rgba(220,80,80,0.4);
+}
+
+/* Boss intro overlay — full screen darken + name reveal. */
+#boss-intro {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+#boss-intro.hidden { display: none !important; }
+#boss-intro .bi-bg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 50%,
+                    rgba(40,8,8,0.85) 0%,
+                    rgba(0,0,0,0.98) 80%);
+  animation: bi-bg-in 0.35s ease-out forwards;
+}
+#boss-intro.out .bi-bg { animation: bi-bg-out 0.5s ease-out forwards; }
+@keyframes bi-bg-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes bi-bg-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+#boss-intro .bi-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  animation: bi-content-in 0.55s cubic-bezier(.18,.89,.32,1) forwards;
+}
+#boss-intro.out .bi-content { animation: bi-content-out 0.4s ease-out forwards; }
+@keyframes bi-content-in {
+  0%   { opacity: 0; transform: translateY(8px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+@keyframes bi-content-out {
+  0%   { opacity: 1; transform: translateY(0); filter: blur(0); }
+  100% { opacity: 0; transform: translateY(-4px); filter: blur(2px); }
+}
+.bi-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.bi-rule {
+  width: 80px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--blood-bright) 50%, transparent);
+}
+.bi-eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.5em;
+  color: var(--blood-bright);
+  text-shadow: 0 0 12px rgba(220,80,80,0.5);
+}
+.bi-name {
+  font-size: 38px;
+  letter-spacing: 0.44em;
+  color: var(--ink);
+  text-shadow:
+    0 0 24px rgba(220,80,80,0.6),
+    0 0 4px rgba(255,255,255,0.18),
+    0 3px 0 rgba(0,0,0,0.8);
+  font-weight: 400;
+}
+.bi-tag {
+  font-size: 12px;
+  font-style: italic;
+  letter-spacing: 0.06em;
+  color: var(--ink-dim);
+}
+
+/* Boss slow-motion death — drops the page into a tinted, slow-motion
+   freeze; CSS animations slow + colours desaturate, then snap back. */
+#stage.boss-slowmo .figure-portrait svg { animation-duration: 12s !important; }
+body.boss-killed #stage {
+  filter: saturate(0.4) brightness(0.65);
+  transition: filter 0.6s ease-out;
+}
+body.boss-killed::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 350;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center,
+                              rgba(255,240,200,0.6) 0%,
+                              rgba(255,180,140,0.2) 30%,
+                              rgba(0,0,0,0) 70%);
+  animation: boss-flash 1.4s ease-out forwards;
+}
+@keyframes boss-flash {
+  0%   { opacity: 0; }
+  10%  { opacity: 1; }
+  50%  { opacity: 0.6; }
+  100% { opacity: 0; }
+}
+
+/* ===========================================================================
+   QUIRK DOTS — small affinity glyphs under each party hero's name.
+   =========================================================================== */
+.fig-quirks {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  margin-top: 2px;
+}
+.fig-quirk {
+  font-size: 10px;
+  line-height: 1;
+  cursor: help;
+  user-select: none;
+}
+.fig-quirk-positive { color: var(--gold-pale); text-shadow: 0 0 8px rgba(240,224,182,0.55); }
+.fig-quirk-negative { color: var(--blood-bright); text-shadow: 0 0 8px rgba(220,80,80,0.45); }
+
+/* ===========================================================================
+   IN-COMBAT INFO BUTTON + PANEL
+   =========================================================================== */
+#info-btn {
+  position: fixed;
+  top: 8px; right: 44px;  /* sit to the left of #mute-btn */
+  z-index: 200;
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(10,8,8,0.6);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.18s, background 0.18s;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0;
+}
+#info-btn:hover { opacity: 1; background: rgba(28,22,18,0.85); }
+
+#overlay-body .info-biome {
+  display: flex; flex-wrap: wrap; align-items: baseline;
+  gap: 6px 12px;
+  margin: 2px 0 8px;
+  padding: 8px 12px;
+  background: linear-gradient(180deg, rgba(28,22,16,0.55) 0%, rgba(8,6,6,0.7) 100%);
+}
+.info-biome .info-label { color: var(--ink-dim); }
+.info-biome-name {
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gold-pale);
+}
+.info-biome-desc {
+  flex: 1 1 100%;
+  font-size: 10.5px;
+  font-style: italic;
+  color: var(--ink);
+  opacity: 0.85;
+}
+.info-section {
+  margin: 8px 0;
+}
+.info-label {
+  font-size: 9.5px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  display: block;
+  margin-bottom: 4px;
+}
+.info-sigils {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.info-empty {
+  font-size: 10.5px;
+  font-style: italic;
+  color: var(--ink-faint);
+}
+.info-heroes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.info-hero {
+  display: grid;
+  grid-template-columns: 50px 1fr;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 8px;
+  background: linear-gradient(180deg, rgba(20,18,14,0.45) 0%, rgba(8,6,6,0.65) 100%);
+}
+.info-hero.info-hero-downed { opacity: 0.5; }
+.info-hero-portrait {
+  width: 50px; height: 70px;
+  display: flex; align-items: flex-end; justify-content: center;
+  overflow: hidden;
+}
+.info-hero-portrait svg { width: 100%; height: 100%; }
+.info-hero-name {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gold-pale);
+}
+.info-hero-hp {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+  margin-top: 2px;
+}
+.info-hero-quirks {
+  margin-top: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.info-hero-quirks-empty {
+  font-size: 9.5px;
+  font-style: italic;
+  color: var(--ink-faint);
+}
+
+/* ===========================================================================
+   CONFIRM MODAL
+   =========================================================================== */
+#confirm-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  background: radial-gradient(ellipse at center, rgba(15,8,4,0.85) 0%, rgba(0,0,0,0.96) 70%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: cm-bg-in 0.2s ease-out;
+}
+@keyframes cm-bg-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+#confirm-modal .cm-card {
+  max-width: 360px;
+  padding: 18px 22px 16px;
+  background: radial-gradient(ellipse 120% 100% at 50% 0%,
+                              rgba(36,28,22,0.97) 0%,
+                              rgba(12,10,10,0.98) 70%);
+  box-shadow:
+    0 16px 60px rgba(0,0,0,0.85),
+    inset 0 1px 0 rgba(232,220,196,0.06),
+    0 0 30px rgba(220,80,80,0.12);
+  text-align: center;
+  animation: cm-card-in 0.28s cubic-bezier(.18,.89,.32,1);
+}
+@keyframes cm-card-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.cm-title {
+  font-size: 14px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gold-pale);
+  margin-bottom: 8px;
+}
+.cm-body {
+  font-size: 11.5px;
+  font-style: italic;
+  color: var(--ink);
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+.cm-actions {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+}
+.cm-actions button {
+  background: transparent;
+  border: none;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  padding: 6px 16px;
+  cursor: pointer;
+  transition: color 0.16s, text-shadow 0.16s;
+}
+.cm-actions .cm-cancel:hover { color: var(--gold-pale); text-shadow: 0 0 10px rgba(240,224,182,0.35); }
+.cm-actions .cm-confirm {
+  color: var(--blood-bright);
+}
+.cm-actions .cm-confirm:hover { text-shadow: 0 0 12px rgba(220,80,80,0.6); }
+
+/* ===========================================================================
    COMBAT READABILITY — intent threat coloring + bond/friction edges
    =========================================================================== */
 
