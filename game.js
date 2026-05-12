@@ -3312,6 +3312,27 @@ function killEnemy(s, e) {
   }
   // Pact of Vigor — refund 1 ATB this turn (carried via bonusAtb until startTurn resets)
   if (hasSigil(s, 'vigor')) s.bonusAtb = (s.bonusAtb || 0) + 1;
+  // Slide remaining enemies forward so a kill never strands an attacker
+  // who can't reach the back slot.  Quiet rearrangement — no log line.
+  enemyAdvanceFill(s);
+}
+
+// If the front slot is empty, the next enemy back shuffles into it.  This
+// guarantees front-reach attacks always have something to hit so long as
+// any enemy is alive — closes a reachability hole where a back-only
+// survivor could leave a solo attacker stuck.
+function enemyAdvanceFill(s) {
+  const slots = s.enemies && s.enemies.slots;
+  if (!slots) return;
+  const isLive = (id) => id && s.enemies.chars[id] && !s.enemies.chars[id].dead;
+  // Helper that shifts the next live id forward when a slot is empty.
+  if (!isLive(slots.front)) {
+    if (isLive(slots.mid))       { slots.front = slots.mid; slots.mid = null; }
+    else if (isLive(slots.back)) { slots.front = slots.back; slots.back = null; }
+  }
+  if (!isLive(slots.mid)) {
+    if (isLive(slots.back)) { slots.mid = slots.back; slots.back = null; }
+  }
 }
 
 function applyDmgToParty(s, c, amt) {
@@ -4119,11 +4140,15 @@ function executeQueueItem(s, item) {
 
 // Team Specials carry the same reach/pattern metadata as techs so previews can
 // highlight what they'll hit.
+// TEAM_SPECIALS is keyed by the SORTED TRIO of hero ids (joined by '+'), so
+// any formation of the same three heroes triggers the same special.
+// Build the key with teamSpecialKey(s).  Authoring is much simpler this way:
+// one entry per unique trio composition (35 possible from a 7-hero ROSTER).
 const TEAM_SPECIALS = {
-  // home: Cassia front, Elin mid, Branwen back
-  'cassia:elin:branwen': {
+  // ---- Trios with the original three ----
+  'branwen+cassia+elin': {
     id: 'sacred', name: 'Sacred Triad',
-    short: 'AoE 5 · heal 5 · cleanse · armor', dmg: 5, heal: 5, healTarget: 'all',
+    short: 'AoE 5 · heal 5 · cleanse · armor', dmg: 5,
     reach: ['front','mid','back'], pattern: 'all',
     fn: (s) => {
       dmgAllEnemies(s, 5);
@@ -4134,68 +4159,93 @@ const TEAM_SPECIALS = {
       });
     },
   },
-  // Korin/Kai/Mira — front-line + rogue trio
-  'korin:kai:mira': {
+  // ---- Kai-led trios ----
+  'cassia+elin+kai': {
+    id: 'mendedsteel', name: 'Mended Steel',
+    short: 'AoE 5 · heal 4 all · party +2⛨', dmg: 5,
+    reach: ['front','mid','back'], pattern: 'all',
+    fn: (s) => { dmgAllEnemies(s, 5); aliveParty(s).forEach(c => { const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 4); if (c.hp > b) spawnPopupId(c.id, `+${c.hp - b}`, 'heal', 'party'); c.armor += 2; }); },
+  },
+  'branwen+cassia+kai': {
+    id: 'sharpenedshield', name: 'Sharpened Shield',
+    short: 'AoE 6 · party +3⛨ · bleed all', dmg: 6,
+    reach: ['front','mid','back'], pattern: 'all',
+    fn: (s) => { dmgAllEnemies(s, 6); aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 1)); aliveParty(s).forEach(c => { c.armor += 3; }); },
+  },
+  'branwen+ash+kai': {
+    id: 'quietvolley', name: 'Quiet Volley',
+    short: 'AoE 5 · bleed all · party stealth (+1 dmg next turn)', dmg: 5,
+    reach: ['front','mid','back'], pattern: 'all',
+    fn: (s) => { dmgAllEnemies(s, 5); aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 2)); aliveParty(s).forEach(c => c.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'quietvolley' })); },
+  },
+  'ash+kai+mira': {
+    id: 'shadowtriad', name: 'Shadow Triad',
+    short: 'AoE 4 · bleed 2 all · stealth +2 dmg next turn', dmg: 4,
+    reach: ['front','mid','back'], pattern: 'all',
+    fn: (s) => { dmgAllEnemies(s, 4); aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 2)); aliveParty(s).forEach(c => c.pendingEffects.push({ kind: 'attackBonus', amt: 2, source: 'shadowtriad' })); },
+  },
+  'cassia+kai+korin': {
+    id: 'breakwall', name: 'Breakwall',
+    short: 'AoE 6 · taunt · +4⛨ front', dmg: 6,
+    reach: ['front','mid','back'], pattern: 'all',
+    fn: (s) => { dmgAllEnemies(s, 6); const fId = s.party.slots.front; const f = fId && s.party.chars[fId]; if (f) { f.armor += 4; f.taunt = true; f.retaliate = 2; } },
+  },
+  'kai+korin+mira': {
     id: 'twilightrush', name: 'Twilight Rush',
     short: 'AoE 6 · bleed all · +1 Resolve', dmg: 6,
     reach: ['front','mid','back'], pattern: 'all',
-    fn: (s) => {
-      dmgAllEnemies(s, 6);
-      aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 2));
-      gainResolve(s, 1);
-    },
+    fn: (s) => { dmgAllEnemies(s, 6); aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 2)); gainResolve(s, 1); },
   },
-  // Korin/Cassia/Branwen — wall + archer
-  'korin:cassia:branwen': {
+  // ---- Cassia-led trios ----
+  'branwen+cassia+korin': {
     id: 'wallflight', name: 'Wall & Flight',
-    short: 'AoE 5 · party +3⛨ · Korin taunt', dmg: 5,
+    short: 'AoE 5 · party +3⛨ · Korin taunt + retaliate', dmg: 5,
     reach: ['front','mid','back'], pattern: 'all',
-    fn: (s) => {
-      dmgAllEnemies(s, 5);
-      aliveParty(s).forEach(c => { c.armor += 3; });
-      const k = s.party.chars.korin;
-      if (k && !k.downed) { k.taunt = true; k.retaliate = 2; }
-    },
+    fn: (s) => { dmgAllEnemies(s, 5); aliveParty(s).forEach(c => { c.armor += 3; }); const k = s.party.chars.korin; if (k && !k.downed) { k.taunt = true; k.retaliate = 2; } },
   },
-  // Ash/Elin/Mira — veiled trio
-  'ash:elin:mira': {
+  'cassia+elin+korin': {
+    id: 'oathbearers', name: 'Oath Bearers',
+    short: 'AoE 4 · heal 5 all · party +3⛨ · cleanse', dmg: 4,
+    reach: ['front','mid','back'], pattern: 'all',
+    fn: (s) => { dmgAllEnemies(s, 4); aliveParty(s).forEach(c => { const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 5); if (c.hp > b) spawnPopupId(c.id, `+${c.hp - b}`, 'heal', 'party'); c.armor += 3; c.bleed = 0; c.weak = 0; }); },
+  },
+  'cassia+elin+mira': {
+    id: 'bannerknife', name: 'Banner & Knife',
+    short: 'AoE 4 · bleed all · heal 4 lowest', dmg: 4,
+    reach: ['front','mid','back'], pattern: 'all',
+    fn: (s) => { dmgAllEnemies(s, 4); aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 1)); healLowest(s, 4); },
+  },
+  // ---- Elin-led trios ----
+  'branwen+elin+korin': {
+    id: 'shieldedshafts', name: 'Shielded Shafts',
+    short: 'AoE 5 + bleed 2 · heal 4 all', dmg: 5,
+    reach: ['front','mid','back'], pattern: 'all',
+    fn: (s) => { dmgAllEnemies(s, 5); aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 2)); aliveParty(s).forEach(c => { const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 4); if (c.hp > b) spawnPopupId(c.id, `+${c.hp - b}`, 'heal', 'party'); }); },
+  },
+  'ash+elin+mira': {
     id: 'veilrend', name: 'Veil Rend',
-    short: 'AoE 5 · bleed all · heal lowest 6', dmg: 5,
+    short: 'AoE 5 · bleed all · heal 6 lowest', dmg: 5,
     reach: ['front','mid','back'], pattern: 'all',
-    fn: (s) => {
-      dmgAllEnemies(s, 5);
-      aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 2));
-      healLowest(s, 6);
-    },
+    fn: (s) => { dmgAllEnemies(s, 5); aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 2)); healLowest(s, 6); },
   },
-  // full reverse: Branwen front, Elin mid, Cassia back
-  'branwen:elin:cassia': {
-    id: 'lastreach', name: 'Last Reach',
-    short: 'Pierce 10 + bleed all · Cassia retaliate', dmg: 10,
+  'elin+korin+mira': {
+    id: 'mercysedge', name: "Mercy's Edge",
+    short: 'AoE 5 · bleed all · heal 3 all', dmg: 5,
     reach: ['front','mid','back'], pattern: 'all',
-    fn: (s) => {
-      s.ignoreArmor = true; dmgEnemyAt(s, 0, 10); s.ignoreArmor = false;
-      aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 2));
-      const cas = s.party.chars.cassia;
-      if (cas && !cas.downed) { cas.armor += 3; cas.retaliate = 3; cas.taunt = true; }
-    },
+    fn: (s) => { dmgAllEnemies(s, 5); aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 1)); aliveParty(s).forEach(c => { const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 3); if (c.hp > b) spawnPopupId(c.id, `+${c.hp - b}`, 'heal', 'party'); }); },
   },
-  // Cassia + Branwen swapped, Elin home: Branwen front, Cassia mid, Elin back
-  'branwen:cassia:elin': {
-    id: 'wedge', name: "Hunter's Wedge",
-    short: 'Volley 6 all · Cassia advances · armor', dmg: 6,
+  // ---- Range-heavy / Stealth-heavy ----
+  'ash+branwen+korin': {
+    id: 'silentvanguard', name: 'Silent Vanguard',
+    short: 'Pierce 8 front · AoE 3 mid/back · party +2⛨', dmg: 8,
     reach: ['front','mid','back'], pattern: 'all',
-    fn: (s) => {
-      dmgAllEnemies(s, 6);
-      aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 1));
-      const cur = slotOfChar(s, 'cassia');
-      if (cur && cur !== 'front') {
-        const f = s.party.slots.front;
-        s.party.slots[cur] = f; s.party.slots.front = 'cassia';
-        log(`<b>Cassia</b> surges to Front.`);
-      }
-      aliveParty(s).forEach(c => c.armor += 2);
-    },
+    fn: (s) => { s.ignoreArmor = true; dmgEnemyAt(s, 0, 8); s.ignoreArmor = false; const frontId = s.enemies.slots.front; const back = aliveEnemies(s).filter(e => e.id !== frontId); back.forEach(e => applyDmgToEnemy(s, e, 3)); aliveParty(s).forEach(c => c.armor += 2); },
+  },
+  'branwen+mira+ash': {
+    id: 'darkflight', name: 'Dark Flight',
+    short: 'AoE 5 · bleed 2 all · party +1 dmg next turn', dmg: 5,
+    reach: ['front','mid','back'], pattern: 'all',
+    fn: (s) => { dmgAllEnemies(s, 5); aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 2)); aliveParty(s).forEach(c => c.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'darkflight' })); },
   },
 };
 
@@ -4216,7 +4266,17 @@ function formationKey(s) {
 }
 
 function getTeamSpecial(s) {
-  return TEAM_SPECIALS[formationKey(s)] || TEAM_SPECIAL_DEFAULT;
+  return TEAM_SPECIALS[teamSpecialKey(s)] || TEAM_SPECIAL_DEFAULT;
+}
+function teamSpecialKey(s) {
+  // Sorted ids of the three slot occupants, so any formation of the same
+  // trio hits the same team special.
+  return ['front','mid','back']
+    .map(sl => s.party.slots[sl])
+    .filter(Boolean)
+    .slice()
+    .sort()
+    .join('+');
 }
 
 function execTeamSpecial(s, tsId) {
