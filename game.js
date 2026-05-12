@@ -2781,6 +2781,7 @@ function newState(forcedStarter) {
 function startEncounter(encSpec) {
   if (!encSpec || !encSpec.slots) return;
   const isFirstFight = !state.run.currentEnc;
+  applyBiomeBackground();
 
   // reset per-fight party statuses; keep hp, downed, pendingEffects
   Object.values(state.party.chars).forEach(c => {
@@ -5015,6 +5016,117 @@ function flashCardId(id, type, side) {
   setTimeout(() => cardEl.classList.remove(`${type}-flash`), 600);
 }
 
+// Paint the active biome layer.  Reads state.run.modifier and applies one
+// of the biome-* classes; null modifier wipes the layer.  Safe to call
+// repeatedly (idempotent).
+// Press-and-hold detection for map nodes.  Holding for 350ms surfaces a
+// tooltip with the node's details and SUPPRESSES the tap (so the player
+// doesn't accidentally commit while browsing the path).  A short tap
+// triggers onCommit() if the node is reachable.
+function bindNodeHoldOrTap(el, node, onCommit) {
+  const HOLD_MS = 350;
+  let timer = null;
+  let triggered = false;
+  let downPos = null;
+  el.addEventListener('pointerdown', (e) => {
+    triggered = false;
+    downPos = { x: e.clientX, y: e.clientY };
+    timer = setTimeout(() => {
+      triggered = true;
+      showNodeTooltip(el, node);
+      timer = null;
+    }, HOLD_MS);
+  });
+  const cancelTimer = () => { if (timer) { clearTimeout(timer); timer = null; } };
+  el.addEventListener('pointerup', (e) => {
+    cancelTimer();
+    if (triggered) { e.preventDefault(); e.stopPropagation(); return; }
+    if (typeof onCommit === 'function') onCommit();
+  });
+  el.addEventListener('pointerleave', () => { cancelTimer(); });
+  el.addEventListener('pointercancel', () => { cancelTimer(); });
+  // If the pointer drags more than ~10px, treat it as a scroll, not a tap.
+  el.addEventListener('pointermove', (e) => {
+    if (!downPos) return;
+    const dx = e.clientX - downPos.x, dy = e.clientY - downPos.y;
+    if (dx*dx + dy*dy > 100) { cancelTimer(); }
+  });
+}
+
+// Anchor a floating tooltip near the held node with name, type, enemies,
+// and reward hints.  Dismissed when the user taps elsewhere or scrolls.
+function showNodeTooltip(anchorEl, node) {
+  hideNodeTooltip();
+  const tt = document.createElement('div');
+  tt.id = 'node-tooltip';
+  const enc = node.enc;
+  const status = mapNodeStatus(state, node.id);
+  const typeLabel = ({
+    elite:  'Elite',
+    boss:   'Boss',
+    combat: 'Combat',
+    rest:   'Rest',
+    event:  'Event',
+  })[node.type] || node.type;
+  const sigilCat = node.type === 'elite' && enc && enc.sigilCategory ? enc.sigilCategory : null;
+  const name = node.type === 'rest'  ? 'Hollow Rest'
+             : node.type === 'event' ? (EVENTS[node.eventId]?.name || 'Strange Encounter')
+             : (enc?.name || node.type);
+  const enemyChips = (node.type === 'rest' || node.type === 'event')
+    ? ''
+    : SLOTS.map(sl => {
+        const eid = enc && enc.slots ? enc.slots[sl] : null;
+        if (!eid) return '';
+        const def = ENEMIES[eid];
+        return `<span class="nt-enemy">${def?.name || eid}</span>`;
+      }).join('');
+  const rewardLine = node.type === 'rest'
+    ? 'Heal · Hone an upgrade · Or bind a sigil — choose one.'
+    : node.type === 'event' ? 'Choice with consequences.'
+    : node.type === 'boss' ? 'The Wakeling.  No escape but through.'
+    : node.type === 'elite' ? `Tech upgrade.${sigilCat ? ` Themed: ${sigilCat}.` : ''}`
+    : 'Affinity progression.';
+  tt.innerHTML = `
+    <div class="nt-name">${name}</div>
+    <div class="nt-type">${typeLabel}${status !== 'reachable' ? ` · ${status}` : ''}</div>
+    ${enemyChips ? `<div class="nt-enemies">${enemyChips}</div>` : ''}
+    <div class="nt-reward">${rewardLine}</div>
+  `;
+  document.body.appendChild(tt);
+  const r = anchorEl.getBoundingClientRect();
+  const ttRect = tt.getBoundingClientRect();
+  // Try to place above the node; flip below if it'd clip the top.
+  let top  = r.top - ttRect.height - 10;
+  if (top < 8) top = r.bottom + 10;
+  let left = r.left + r.width / 2 - ttRect.width / 2;
+  left = Math.max(8, Math.min(left, window.innerWidth - ttRect.width - 8));
+  tt.style.top  = top + 'px';
+  tt.style.left = left + 'px';
+  // Auto-dismiss on the next outside tap or after 6 seconds.
+  setTimeout(hideNodeTooltip, 6000);
+  setTimeout(() => {
+    document.addEventListener('pointerdown', _ttDismissHandler, true);
+  }, 0);
+}
+function _ttDismissHandler(e) {
+  const tt = document.getElementById('node-tooltip');
+  if (tt && !tt.contains(e.target)) hideNodeTooltip();
+}
+function hideNodeTooltip() {
+  const tt = document.getElementById('node-tooltip');
+  if (tt) tt.remove();
+  document.removeEventListener('pointerdown', _ttDismissHandler, true);
+}
+
+function applyBiomeBackground() {
+  const layer = document.getElementById('biome-layer');
+  if (!layer) return;
+  const biomes = ['burning','bonetide','withered','veiled','fortified','hunger'];
+  biomes.forEach(b => layer.classList.remove(`biome-${b}`));
+  const mod = state && state.run && state.run.modifier;
+  if (mod) layer.classList.add(`biome-${mod}`);
+}
+
 // ============================================================================
 // GAME FEEL — shake / flash / hit-pause / move ghost trail
 // ============================================================================
@@ -5293,6 +5405,7 @@ function showOverlay(title, body) {
 function showPathChoice() { renderMap(); }
 
 function renderMap() {
+  applyBiomeBackground();
   $('#overlay-title').textContent = 'The Path';
   $('#overlay-body').textContent = (state.run.completedNodes || []).length === 0
     ? 'Pick your entry point.'
@@ -5327,7 +5440,6 @@ function renderMap() {
       const el = document.createElement(isClickable ? 'button' : 'div');
       el.className = `path-node node-${node.type} node-${status}`;
       el.dataset.nodeId = node.id;
-      // Type glyph
       const typeGlyph = ({
         elite:  '★',
         boss:   '☠',
@@ -5335,49 +5447,34 @@ function renderMap() {
         rest:   '⌂',
         event:  '?',
       })[node.type] || '⚔';
-      const sigilCat = node.type === 'elite' && enc && enc.sigilCategory ? enc.sigilCategory : null;
-      const tagLine = node.type === 'boss' ? '<span class="path-tag path-boss-tag">Boss</span>'
-        : node.type === 'elite' ? `<span class="path-tag path-elite-tag">Elite${sigilCat ? ` · ${sigilCat[0].toUpperCase() + sigilCat.slice(1)}` : ''}</span>`
-        : node.type === 'rest'  ? '<span class="path-tag path-rest-tag">Rest</span>'
-        : node.type === 'event' ? '<span class="path-tag path-event-tag">Event</span>'
-        : '';
-      const enemyIcons = (node.type === 'rest' || node.type === 'event')
-        ? ''
-        : SLOTS.map(sl => {
-            const eid = enc && enc.slots ? enc.slots[sl] : null;
-            if (!eid) return '';
-            const def = ENEMIES[eid];
-            return `<div class="path-enemy" title="${def?.name || ''}">${PORTRAITS[eid] || ''}</div>`;
-          }).join('');
-      const nodeName = node.type === 'rest'  ? 'Hollow Rest'
-                     : node.type === 'event' ? (EVENTS[node.eventId]?.name || 'Strange Encounter')
-                     : (enc?.name || node.type);
+      // Compact icon-node markup: a single glyph in a glowing dot.  Pulse
+      // ring renders only on reachable nodes (CSS-side selector).
       el.innerHTML = `
-        ${status === 'completed' ? '<span class="path-check">✓</span>' : ''}
-        <div class="path-type-glyph" aria-hidden="true">${typeGlyph}</div>
-        <div class="path-name">${nodeName}</div>
-        ${tagLine}
-        <div class="path-enemies">${enemyIcons}</div>
+        <span class="pn-pulse" aria-hidden="true"></span>
+        <span class="pn-icon">${typeGlyph}</span>
+        ${status === 'completed' ? '<span class="pn-check" aria-hidden="true">✓</span>' : ''}
       `;
-      if (isClickable) {
-        el.addEventListener('click', () => {
-          hideOverlay();
-          choices.classList.remove('path-map');
-          state.run.currentNodeId = node.id;
-          if (node.type === 'rest')        return showRestOverlay();
-          if (node.type === 'event')       return showEventOverlay(node.eventId);
-          if (node.type === 'boss') {
-            // Boss-prep vignette gets one chance before the fight begins
-            const ctx = captureFightContext(state); ctx.phase = 'bossPrep';
-            const matches = matchVignettes(state, ctx);
-            if (matches.length) {
-              const pick = matches[Math.floor(Math.random() * matches.length)];
-              return showVignette(pick, ctx, () => startEncounter(node.enc));
-            }
+
+      // Press-and-hold reveals a tooltip with the node's details; quick tap
+      // navigates.  pointerdown starts a timer, pointerup before the timer
+      // fires the click handler, pointerup after suppresses the click.
+      const onCommit = () => {
+        hideOverlay();
+        choices.classList.remove('path-map');
+        state.run.currentNodeId = node.id;
+        if (node.type === 'rest')        return showRestOverlay();
+        if (node.type === 'event')       return showEventOverlay(node.eventId);
+        if (node.type === 'boss') {
+          const ctx = captureFightContext(state); ctx.phase = 'bossPrep';
+          const matches = matchVignettes(state, ctx);
+          if (matches.length) {
+            const pick = matches[Math.floor(Math.random() * matches.length)];
+            return showVignette(pick, ctx, () => startEncounter(node.enc));
           }
-          startEncounter(node.enc);
-        });
-      }
+        }
+        startEncounter(node.enc);
+      };
+      bindNodeHoldOrTap(el, node, isClickable ? onCommit : null);
       slotsWrap.appendChild(el);
     });
     col.appendChild(slotsWrap);

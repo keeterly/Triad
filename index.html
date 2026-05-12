@@ -55,6 +55,11 @@
 
   <main id="stage">
 
+    <!-- Biome-driven ambient layer.  Class is set via JS to biome-burning,
+         biome-bonetide, biome-withered, biome-veiled, biome-fortified, or
+         biome-hunger.  Each variant paints its own gradient + particle field. -->
+    <div id="biome-layer" class="biome-layer" aria-hidden="true"></div>
+
     <!-- ambient overlays wrapped in a single absolutely-positioned layer so they
          don't claim grid rows in #stage (browser had been auto-placing them as
          grid items despite position:absolute, squashing the real rows) -->
