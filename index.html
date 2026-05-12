@@ -54,6 +54,19 @@
     </div>
   </div>
 
+  <!-- Run-state info panel.  Owns its own root so it doesn't conflict with
+       the main #overlay (which holds map / vignette / recruit content).  -->
+  <div id="info-panel" class="hidden" aria-hidden="true">
+    <div class="ip-bg"></div>
+    <div class="ip-card">
+      <header class="ip-header">
+        <h2 class="ip-title">Run state</h2>
+        <button type="button" class="ip-close" id="info-close" aria-label="Close">×</button>
+      </header>
+      <div class="ip-body" id="info-panel-body"></div>
+    </div>
+  </div>
+
   <!-- Boss intro / death overlay.  Hidden by default; populated and shown
        briefly when a boss encounter starts or ends.  Outside #stage so it
        can cover everything. -->
