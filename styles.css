@@ -1843,6 +1843,16 @@ body {
 }
 .tile:active:not(:disabled) { transform: translateY(1px); filter: brightness(1.15); }
 .tile:disabled { opacity: 0.3; cursor: not-allowed; }
+/* Tile is technically clickable but the action would land on an empty
+   reach — fade it so the eye lands on real options first. */
+.tile.no-effect:not(:disabled) {
+  opacity: 0.5;
+  filter: saturate(0.6);
+}
+.tile.no-effect:not(:disabled):hover {
+  opacity: 0.85;
+  filter: saturate(0.85);
+}
 .tile .tile-name {
   font-size: 10px; font-weight: bold; color: var(--gold-bright);
   line-height: 1.1;

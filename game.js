@@ -3652,6 +3652,18 @@ function slotOfCharSim(sim, id) { return SLOTS.find(sl => sim[sl] === id); }
 
 // What action would clicking this tile QUEUE right now?
 // Returns { label, desc, atb, resolveCost, valid, kind } based on simulated post-queue state.
+// A reach-targeted tech has "no effect" if there's no alive enemy in any of
+// its reach slots.  Party-targeted techs (no `reach`) always have an effect.
+function techWouldMiss(s, tech) {
+  if (!tech || !tech.reach || !Array.isArray(tech.reach)) return false;
+  return !tech.reach.some(reachSlot => {
+    const eid = s.enemies && s.enemies.slots && s.enemies.slots[reachSlot];
+    if (!eid) return false;
+    const e = s.enemies.chars && s.enemies.chars[eid];
+    return e && !e.dead;
+  });
+}
+
 function previewTile(kind, charId, dir) {
   // Use the queue-aware snapshot so tile names match the slot the character
   // will actually occupy when this action would fire.
@@ -3665,11 +3677,11 @@ function previewTile(kind, charId, dir) {
 
   if (kind === 'attack') {
     const tech = getTech(s, charId, slot, 'basic');
-    return { kind, valid: true, label: tech.name, desc: tech.desc, atb, resolveCost: 0, slot };
+    return { kind, valid: true, label: tech.name, desc: tech.desc, atb, resolveCost: 0, slot, noEffect: techWouldMiss(s, tech) };
   }
   if (kind === 'special') {
     const tech = getTech(s, charId, slot, 'sig');
-    return { kind, valid: true, label: tech.name, desc: tech.desc, atb, resolveCost: getSpecialCost(s), slot };
+    return { kind, valid: true, label: tech.name, desc: tech.desc, atb, resolveCost: getSpecialCost(s), slot, noEffect: techWouldMiss(s, tech) };
   }
   if (kind === 'move') {
     const idx = SLOTS.indexOf(slot);
@@ -4554,6 +4566,9 @@ function makeTile(kind, charId, dir, tileCounts, teamLocked) {
     || resolveCost > queueAvailableResolve()
     || atCharCap;
   if (atCharCap && !c.downed) t.classList.add('char-capped');
+  // De-emphasize when the action would land but produce no effect (e.g. an
+  // attack whose reach holds only empty slots).  Still clickable.
+  if (preview.noEffect && !t.disabled) t.classList.add('no-effect');
   t.dataset.kind = kind;
   t.dataset.charId = charId;
   if (dir !== null && dir !== undefined) t.dataset.dir = dir;
@@ -5247,6 +5262,8 @@ function _completeNonCombatNode() {
 
 // REST overlay — heals the alive party for half their missing HP and returns
 // to the map.  No choice; tap Continue.
+// Rest node — pick ONE thing to do here.  Heal sits next to upgrade and
+// sigil so the choice is a real one and not just "tap Continue".
 function showRestOverlay() {
   $('#overlay-title').textContent = 'Hollow Rest';
   const body = $('#overlay-body');
@@ -5254,33 +5271,61 @@ function showRestOverlay() {
   body.innerHTML = '';
   const flavor = document.createElement('p');
   flavor.className = 'event-flavor';
-  flavor.textContent = 'You set down your weight.  Breath returns.';
+  flavor.textContent = 'You set down your weight.  Breath returns.  But you can only do one of these things before the climb resumes.';
   body.appendChild(flavor);
-  // Apply heal
-  const lines = [];
-  aliveParty(state).forEach(c => {
-    const missing = c.maxHp - c.hp;
-    const heal = Math.ceil(missing * 0.5);
-    if (heal > 0) {
-      c.hp = Math.min(c.maxHp, c.hp + heal);
-      lines.push(`<b>${CHARS[c.id].name}</b> +${heal} HP`);
-    }
-  });
-  if (lines.length) {
-    const list = document.createElement('div');
-    list.className = 'rest-heals';
-    list.innerHTML = lines.join('<br>');
-    body.appendChild(list);
-  }
+
   const choices = $('#overlay-choices');
   choices.innerHTML = '';
-  choices.classList.remove('path-map', 'party-inspect', 'event-choices');
-  choices.classList.add('hidden');
+  choices.classList.remove('path-map', 'party-inspect');
+  choices.classList.add('event-choices');
+
+  const mkChoice = (label, tag, fn) => {
+    const card = document.createElement('button');
+    card.className = 'encounter-choice event-choice';
+    card.innerHTML = `<div class="enc-name">${label}</div><div class="sigil-desc">${tag}</div>`;
+    card.addEventListener('click', fn);
+    choices.appendChild(card);
+  };
+
+  // 1. Rest — heal half of all missing HP across the party.
+  mkChoice('Rest', 'Heal each ally half of missing HP', () => {
+    const lines = [];
+    aliveParty(state).forEach(c => {
+      const missing = c.maxHp - c.hp;
+      const heal = Math.ceil(missing * 0.5);
+      if (heal > 0) { c.hp = Math.min(c.maxHp, c.hp + heal); lines.push(`<b>${CHARS[c.id].name}</b> +${heal} HP`); }
+    });
+    if (lines.length) log(lines.join(' · '));
+    hideOverlay();
+    choices.classList.remove('event-choices');
+    _completeNonCombatNode();
+  });
+
+  // 2. Hone — upgrade one tech.  Only shown if any upgrades remain.
+  const upPool = availableUpgrades(state);
+  if (upPool.length > 0) {
+    mkChoice('Hone the edge', 'Choose a tech upgrade', () => {
+      hideOverlay();
+      choices.classList.remove('event-choices');
+      const shuffled = upPool.slice().sort(() => Math.random() - 0.5);
+      const offers = shuffled.slice(0, Math.min(2, shuffled.length));
+      showUpgradeOverlay(offers, () => _completeNonCombatNode());
+    });
+  }
+
+  // 3. Sigil — bind one new sigil.  Only shown if any remain unbound.
+  const sgPool = availableSigils(state);
+  if (sgPool.length > 0) {
+    mkChoice('Reach for a sigil', 'Bind a run-wide power', () => {
+      hideOverlay();
+      choices.classList.remove('event-choices');
+      offerSigilFromNode(() => _completeNonCombatNode());
+    });
+  }
+
   resetOverlayBtn();
-  const btn = $('#overlay-btn');
-  btn.textContent = 'Continue';
-  btn.onclick = () => { hideOverlay(); _completeNonCombatNode(); };
-  btn.classList.remove('hidden');
+  $('#overlay-btn').classList.add('hidden');
+  choices.classList.remove('hidden');
   $('#overlay').classList.remove('hidden');
 }
 
@@ -5609,55 +5654,52 @@ function offerVignetteOrPath(fightCtx) {
   offerRecruitOrPath();
 }
 
+// Post-fight cascade — designed to be SHORT after normal combat so each click
+// feels earned.  Order:
+//   1. Recruit only if there's an OPEN SLOT (party-not-full forces the meet-
+//      a-companion beat).  Full-party swap is moved to events.
+//   2. Upgrade only after elite or boss kills.
+//   3. Sigils are NO LONGER offered after combat — they live on rest nodes
+//      and events.
+// Effect: a typical combat win is one overlay (vignette, sometimes) plus
+// a recruit when applicable.
 function offerRecruitOrPath() {
+  const hasOpenSlot = ['front','mid','back'].some(sl => !state.party.slots[sl]);
+  if (!hasOpenSlot) { offerUpgradeOrPath(); return; }
   const pickable = ROSTER.filter(id => !state.party.chars[id]);
-  if (pickable.length === 0) {
-    offerUpgradeOrPath();
-    return;
-  }
-  // Pick 2 random candidates from the pool of unrecruited characters
+  if (pickable.length === 0) { offerUpgradeOrPath(); return; }
   const shuffled = pickable.slice().sort(() => Math.random() - 0.5);
   const candidates = shuffled.slice(0, Math.min(2, shuffled.length));
   showRecruitOverlay(candidates);
 }
 
-// After recruit (or skip): offer a tech upgrade if any are available.
 function offerUpgradeOrPath() {
+  // Only elite kills + boss kills hand out upgrades from combat.  Everywhere
+  // else, upgrades come from rest nodes and events.
+  const lastNodeId = state.run.completedNodes[state.run.completedNodes.length - 1];
+  const lastNode = lastNodeId && getMapNode(lastNodeId);
+  const eligible = lastNode && (lastNode.type === 'elite' || lastNode.type === 'boss');
+  if (!eligible) { renderMap(); return; }
   const pool = availableUpgrades(state);
-  if (pool.length === 0) {
-    offerSigilOrPath();
-    return;
-  }
+  if (pool.length === 0) { renderMap(); return; }
   const shuffled = pool.slice().sort(() => Math.random() - 0.5);
   const offers = shuffled.slice(0, Math.min(2, shuffled.length));
   showUpgradeOverlay(offers);
 }
 
-// Sigil offer step. Elites guarantee 3 cards (more agency); normals offer 2.
-function offerSigilOrPath() {
+// Direct sigil offer — invoked from rest nodes and events, not from combat.
+function offerSigilFromNode(onDone) {
   let pool = availableSigils(state);
-  if (pool.length === 0) {
-    renderMap();
-    return;
-  }
-  // If the last victory was an elite that declared a sigil category, weight the pool
-  // toward that category (fall back to full pool if exhausted).
-  const lastNodeId = state.run.completedNodes[state.run.completedNodes.length - 1];
-  const lastNode = lastNodeId && getMapNode(lastNodeId);
-  const lastEnc = lastNode && lastNode.enc;
-  const targetCategory = (lastNode && lastNode.type === 'elite' && lastEnc) ? lastEnc.sigilCategory : null;
-  if (targetCategory) {
-    const filtered = pool.filter(s => s.category === targetCategory);
-    if (filtered.length > 0) pool = filtered;
-  }
-  const count = state.run.lastVictoryElite ? 3 : 2;
+  if (pool.length === 0) { onDone && onDone(); return; }
+  const count = 3;
   const shuffled = pool.slice().sort(() => Math.random() - 0.5);
   const offers = shuffled.slice(0, Math.min(count, shuffled.length));
-  showSigilOverlay(offers);
+  showSigilOverlay(offers, onDone);
 }
 
-function showSigilOverlay(offers) {
-  $('#overlay-title').textContent = state.run.lastVictoryElite ? 'An elite sigil offers itself' : 'A sigil flickers into reach';
+function showSigilOverlay(offers, onDone) {
+  const continueAfter = onDone || (() => renderMap());
+  $('#overlay-title').textContent = 'A sigil flickers into reach';
   $('#overlay-body').textContent = 'Add one to your run, or pass.';
   const choices = $('#overlay-choices');
   choices.innerHTML = '';
@@ -5669,7 +5711,7 @@ function showSigilOverlay(offers) {
       <div class="sigil-glyph">${sg.icon}</div>
       <div class="sigil-desc">${sg.desc}</div>
     `;
-    card.addEventListener('click', () => commitSigil(sg.id));
+    card.addEventListener('click', () => commitSigil(sg.id, continueAfter));
     choices.appendChild(card);
   });
   const btn = $('#overlay-btn');
@@ -5677,23 +5719,24 @@ function showSigilOverlay(offers) {
   btn.onclick = () => {
     hideOverlay();
     resetOverlayBtn();
-    renderMap();
+    continueAfter();
   };
   btn.classList.remove('hidden');
   choices.classList.remove('hidden');
   $('#overlay').classList.remove('hidden');
 }
 
-function commitSigil(sigilId) {
+function commitSigil(sigilId, onDone) {
   if (!SIGILS[sigilId]) return;
   if (!state.run.sigils.includes(sigilId)) state.run.sigils.push(sigilId);
   log(`<i>You bind the <b>${SIGILS[sigilId].name}</b>.</i>`);
   hideOverlay();
   resetOverlayBtn();
-  renderMap();
+  if (typeof onDone === 'function') onDone(); else renderMap();
 }
 
-function showUpgradeOverlay(offers) {
+function showUpgradeOverlay(offers, onDone) {
+  const continueAfter = onDone || (() => renderMap());
   $('#overlay-title').textContent = 'Hone your edge';
   $('#overlay-body').textContent = 'Pick an upgrade — or pass.';
   const choices = $('#overlay-choices');
@@ -5715,7 +5758,7 @@ function showUpgradeOverlay(offers) {
         </div>
       </div>
     `;
-    card.addEventListener('click', () => commitUpgrade(up.id));
+    card.addEventListener('click', () => commitUpgrade(up.id, continueAfter));
     choices.appendChild(card);
   });
   const btn = $('#overlay-btn');
@@ -5723,14 +5766,14 @@ function showUpgradeOverlay(offers) {
   btn.onclick = () => {
     hideOverlay();
     resetOverlayBtn();
-    offerSigilOrPath();
+    continueAfter();
   };
   btn.classList.remove('hidden');
   choices.classList.remove('hidden');
   $('#overlay').classList.remove('hidden');
 }
 
-function commitUpgrade(upgradeId) {
+function commitUpgrade(upgradeId, onDone) {
   const up = UPGRADES[upgradeId];
   if (!up) return;
   const c = state.party.chars[up.charId];
@@ -5740,7 +5783,15 @@ function commitUpgrade(upgradeId) {
   log(`<b>${CHARS[up.charId].name}</b> learns <b>${up.name}</b>.`);
   hideOverlay();
   resetOverlayBtn();
-  offerSigilOrPath();
+  if (typeof onDone === 'function') onDone(); else renderMap();
+}
+
+// Pick an empty slot for an incoming recruit — prefer their home, otherwise
+// any open slot.  Returns null if the party is full.
+function findEmptySlotForRecruit(recruitId) {
+  const home = CHARS[recruitId].home;
+  if (!state.party.slots[home]) return home;
+  return ['front','mid','back'].find(sl => !state.party.slots[sl]) || null;
 }
 
 // Pick an empty slot for an incoming recruit — prefer their home, otherwise
