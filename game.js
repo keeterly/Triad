@@ -579,7 +579,7 @@ const ENEMY_DISPLAY_ORDER = ['front', 'mid', 'back'];
 
 // queue / costs
 const ATB_MAX = 3;            // total action-cost budget per turn
-const ACTIONS_PER_CHAR = 1;   // each character can queue at most N actions per turn
+const ACTIONS_PER_CHAR = 3;   // each character can queue up to N distinct actions per turn (no duplicates)
 const ACTION_ATB = {
   attack:  1,                 // basic
   special: 2,                 // signature — slower to wind up
@@ -816,9 +816,9 @@ const CHARS = {
     name: 'Kai',
     title: 'Awakened in the Abyss',
     school: 'physical',
-    maxHp: 22,
+    maxHp: 28,
     home: 'mid',
-    passive: { name: 'Adept', desc: 'Heals 1 on kill' },
+    passive: { name: 'Adept', desc: 'Heals 2 on kill.  Alone in the abyss: +2 dmg.' },
     techs: {
       front: {
         basic: { name: 'Slash', desc: '7 dmg front', dmg: 7,
@@ -980,8 +980,12 @@ function _consumeName(pool, used) {
 }
 
 // Generate a combat encounter spec.  Always at least 1 enemy in Front.
+// Level-1 encounters lean lighter so the solo opener is survivable; the
+// player typically picks up companions by mid-run.
 function genCombatEncounter(level, names) {
-  const count = level <= 1 ? 2 : (Math.random() < 0.45 ? 2 : 3);
+  const count = level <= 1 ? (Math.random() < 0.6 ? 1 : 2)
+              : level === 2 ? (Math.random() < 0.5 ? 2 : 3)
+              : (Math.random() < 0.45 ? 2 : 3);
   const enemies = _shuffle(COMBAT_ENEMY_POOL).slice(0, count);
   const slotNames = _shuffle(['front', 'mid', 'back']);
   // Guarantee Front: rotate so 'front' is first slot in the shuffled order
@@ -2913,6 +2917,7 @@ function previewDamage(s, e, baseAmt, actorId) {
   });
   // Affinity quirks
   amt += getQuirkDmgMod(s, actorId);
+  if (actorId === 'kai' && Object.keys(s.party.chars).length === 1) amt += 2;
   if (actorId === 'branwen' && e.bleed > 0) amt += 2;
   if (actorId === 'mira' && e.bleed > 0) amt += 3;
   if (actorId === 'korin') {
@@ -3067,6 +3072,8 @@ function applyDmgToEnemy(s, e, baseAmt) {
   });
   // Affinity quirks — run-wide per-character damage modifier
   amt += getQuirkDmgMod(s, s.currentActorId);
+  // Kai's Lone Walker — +2 dmg when alone in the abyss (solo party)
+  if (s.currentActorId === 'kai' && Object.keys(s.party.chars).length === 1) amt += 2;
   // Branwen Bleed Hunter passive
   if (s.currentActorId === 'branwen' && e.bleed > 0) amt += 2;
   // Mira Eviscerate passive — bigger crit on bleeding enemies
@@ -3189,10 +3196,10 @@ function killEnemy(s, e) {
       s.fightStats.killsBy[s.currentActorId] = (s.fightStats.killsBy[s.currentActorId] || 0) + 1;
     }
   }
-  // Kai's Adept — heal 1 on kill
+  // Kai's Adept — heal 2 on kill (was 1; bumped to make solo runs survivable)
   if (s.currentActorId === 'kai') {
     const k = s.party.chars.kai;
-    if (k && !k.downed) k.hp = Math.min(k.maxHp, k.hp + 1);
+    if (k && !k.downed) k.hp = Math.min(k.maxHp, k.hp + 2);
   }
   // Emoji reaction over the actor for the kill
   if (s.currentActorId) spawnReaction(s.currentActorId, '💀', 'party');
@@ -3713,11 +3720,22 @@ function queueAdd(item) {
     flashMsg(`Not enough Resolve (need ${item.resolveCost}).`);
     return;
   }
-  // Cap each character at ACTIONS_PER_CHAR actions per turn (team special excluded — no charId)
+  // Cap each character at ACTIONS_PER_CHAR distinct actions per turn (team
+  // special excluded — no charId).  Also reject duplicates: each exact
+  // (kind, dir) tuple may only be queued once per character per turn, so
+  // a character can attack + special + move, but not attack twice.
   if (item.charId) {
     const charActions = s.queue.filter(q => q.charId === item.charId).length;
     if (charActions >= ACTIONS_PER_CHAR) {
-      flashMsg(`${CHARS[item.charId].name} has already acted ${ACTIONS_PER_CHAR} times this turn.`);
+      flashMsg(`${CHARS[item.charId].name} has already done ${ACTIONS_PER_CHAR} things this turn.`);
+      return;
+    }
+    // Move is one per turn regardless of direction (you can't shuffle
+     // forward and back to teleport).  Attack / special / brace dedup on
+     // their kind alone since they have no dir.
+    const dup = s.queue.some(q => q.charId === item.charId && q.kind === item.kind);
+    if (dup) {
+      flashMsg(`${CHARS[item.charId].name} already used ${item.kind} this turn.`);
       return;
     }
   }
@@ -4586,11 +4604,17 @@ function makeTile(kind, charId, dir, tileCounts, teamLocked) {
   const resolveCost = preview.resolveCost || 0;
   const charActionsQueued = state.queue.filter(q => q.charId === charId).length;
   const atCharCap = charActionsQueued >= ACTIONS_PER_CHAR;
+  // Each action KIND (attack/special/move/brace) may only be queued once
+  // per character per turn — moves dedup on kind only so a char can't
+  // shuffle forward + backward to bypass the rule.
+  const alreadyQueuedThisAction = state.queue.some(q => q.charId === charId && q.kind === kind);
   t.disabled = !preview.valid || c.downed || state.executing || state.over || teamLocked
     || atbCost > queueAtbAvailable()
     || resolveCost > queueAvailableResolve()
-    || atCharCap;
+    || atCharCap
+    || alreadyQueuedThisAction;
   if (atCharCap && !c.downed) t.classList.add('char-capped');
+  if (alreadyQueuedThisAction && !c.downed) t.classList.add('action-used');
   // De-emphasize when the action would land but produce no effect (e.g. an
   // attack whose reach holds only empty slots).  Still clickable.
   if (preview.noEffect && !t.disabled) t.classList.add('no-effect');
