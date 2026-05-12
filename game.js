@@ -954,6 +954,87 @@ function genBossEncounter() {
   return { name: 'The Wakeling', slots: { front: 'wakeling' }, boss: true };
 }
 
+// ----- Non-combat map node content -----
+
+// EVENTS — single-screen choice prompts that resolve without a fight.
+// Each event has flavor + 2 choices.  Choice resolvers mutate state directly
+// (heal/dmg/quirk/sigil grants).  Player picks one, then returns to the map.
+const EVENTS = {
+  bone_altar: {
+    id: 'bone_altar',
+    name: 'Bone Altar',
+    flavor: 'A bone altar coughs grey ash into the wind. It hungers.',
+    choices: [
+      { label: 'Bleed for a boon', tag: '−5 HP, gain a positive affinity',
+        resolve: (s) => { _hurtRandomAlive(s, 5); _rollEventQuirk(s, 'positive'); } },
+      { label: 'Walk on', tag: 'no change', resolve: () => {} },
+    ],
+  },
+  hollow_reliquary: {
+    id: 'hollow_reliquary',
+    name: 'Hollow Reliquary',
+    flavor: 'A reliquary stands open. Something inside is ready to be claimed.',
+    choices: [
+      { label: 'Take the offering', tag: 'gain a random sigil',
+        resolve: (s) => _grantRandomSigil(s) },
+      { label: 'Seal it shut', tag: 'no change', resolve: () => {} },
+    ],
+  },
+  wraiths_whisper: {
+    id: 'wraiths_whisper',
+    name: "Wraith's Whisper",
+    flavor: 'A wraith whispers — promises wrapped in ash.',
+    choices: [
+      { label: 'Listen', tag: '+positive AND +negative affinity',
+        resolve: (s) => { _rollEventQuirk(s, 'positive'); _rollEventQuirk(s, 'negative'); } },
+      { label: 'Refuse', tag: 'no change', resolve: () => {} },
+    ],
+  },
+  veiled_well: {
+    id: 'veiled_well',
+    name: 'Veiled Well',
+    flavor: 'A well of cold water under a veil of woven hair.',
+    choices: [
+      { label: 'Drink', tag: 'heal party 6',
+        resolve: (s) => { aliveParty(s).forEach(c => { const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 6); }); } },
+      { label: 'Walk on', tag: 'no change', resolve: () => {} },
+    ],
+  },
+};
+
+function _hurtRandomAlive(s, amt) {
+  const alive = Object.values(s.party.chars).filter(c => !c.downed);
+  if (!alive.length) return;
+  const c = alive[Math.floor(Math.random() * alive.length)];
+  c.hp = Math.max(1, c.hp - amt);
+  log(`<b>${CHARS[c.id].name}</b> sheds blood — ${amt} HP.`);
+}
+function _rollEventQuirk(s, polarity) {
+  const ids = Object.values(s.party.chars).map(c => c.id);
+  if (!ids.length) return;
+  const targetId = ids[Math.floor(Math.random() * ids.length)];
+  const c = s.party.chars[targetId];
+  if (!c) return;
+  const taken = new Set([...c.quirks.positive, ...c.quirks.negative]);
+  const pool = Object.values(QUIRKS).filter(q =>
+    (polarity === 'positive') === !!q.positive
+    && !taken.has(q.id)
+    && (!q.heroId || q.heroId === targetId));
+  if (!pool.length) return;
+  if (c.quirks[polarity].length >= QUIRK_CAP) return;
+  const q = pool[Math.floor(Math.random() * pool.length)];
+  grantQuirk(s, targetId, q.id);
+  const verb = polarity === 'positive' ? 'gains' : 'is afflicted with';
+  log(`<i><b>${CHARS[targetId].name}</b> ${verb} <b>${q.name}</b>.</i>`);
+}
+function _grantRandomSigil(s) {
+  const pool = availableSigils(s);
+  if (!pool.length) return;
+  const sg = pool[Math.floor(Math.random() * pool.length)];
+  s.run.sigils.push(sg.id);
+  log(`<i>You bind the <b>${sg.name}</b>.</i>`);
+}
+
 // Generate the run's map graph.  Layout (5 levels):
 //   L1: 2-3 combat (entries)
 //   L2: 2-3 combat
@@ -968,32 +1049,40 @@ function generateMap() {
   const levels = [];
   const nodes = {};
   let idCounter = 0;
+  const eventPool = _shuffle(Object.keys(EVENTS));
 
   for (let lvl = 1; lvl <= numLevels; lvl++) {
     let countAndTypes; // array of types for the level
     if (lvl === numLevels) {
       countAndTypes = ['boss'];
     } else if (lvl === numLevels - 1) {
-      countAndTypes = ['elite']; // gate before boss
+      // Gate level: 1 elite + 1 rest (player heals OR risks more reward)
+      countAndTypes = Math.random() < 0.5 ? ['elite', 'rest'] : ['rest', 'elite'];
     } else if (lvl === 1) {
       const c = 2 + Math.floor(Math.random() * 2);   // 2-3
       countAndTypes = Array(c).fill('combat');
+    } else if (lvl === 2) {
+      // L2: 2 combat + 1 event (variety)
+      countAndTypes = _shuffle(['combat', 'combat', 'event']);
     } else if (lvl === 3) {
-      // Mid: usually 1 elite + 1 combat (player chooses risk vs safety)
-      countAndTypes = Math.random() < 0.5 ? ['elite', 'combat'] : ['combat', 'elite'];
+      // L3: elite + combat + (event or rest) — three-way choice
+      const extra = Math.random() < 0.5 ? 'event' : 'rest';
+      countAndTypes = _shuffle(['elite', 'combat', extra]);
     } else {
-      const c = 2 + Math.floor(Math.random() * 2);   // 2-3
+      const c = 2 + Math.floor(Math.random() * 2);
       countAndTypes = Array(c).fill('combat');
     }
 
     const ids = [];
     countAndTypes.forEach((type, i) => {
       const id = `n${idCounter++}`;
-      let enc;
-      if (type === 'boss')        enc = genBossEncounter();
-      else if (type === 'elite')  enc = genEliteEncounter(lvl, usedNames);
-      else                        enc = genCombatEncounter(lvl, usedNames);
-      nodes[id] = { id, level: lvl, col: i, type, enc, next: [] };
+      const node = { id, level: lvl, col: i, type, next: [] };
+      if (type === 'boss')        node.enc = genBossEncounter();
+      else if (type === 'elite')  node.enc = genEliteEncounter(lvl, usedNames);
+      else if (type === 'combat') node.enc = genCombatEncounter(lvl, usedNames);
+      else if (type === 'event')  node.eventId = eventPool[(i + lvl) % eventPool.length];
+      // rest nodes need no extra data
+      nodes[id] = node;
       ids.push(id);
     });
     levels.push(ids);
@@ -1399,6 +1488,29 @@ function hasSigil(s, id) {
 }
 
 // ============================================================================
+// RUN MODIFIERS — biome / weather rolled once per run; one passive effect
+// that twists every fight.  Surfaces in the HUD next to the sigil tray.
+// ============================================================================
+const RUN_MODIFIERS = {
+  veiled:    { id: 'veiled',    name: 'Veiled Hour',     desc: 'Enemies start each fight with 1 Vuln.' },
+  bonetide:  { id: 'bonetide',  name: 'Bone Tide',       desc: 'Bleed ticks deal +1 damage.' },
+  withered:  { id: 'withered',  name: 'Withered Land',   desc: 'All healing is reduced by 1 (min 0).' },
+  burning:   { id: 'burning',   name: 'Burning Sky',     desc: 'All combatants lose 1 HP at the start of each turn.' },
+  fortified: { id: 'fortified', name: 'Fortified Bones', desc: 'Enemies start each fight with +2 armor.' },
+  hunger:    { id: 'hunger',    name: 'Hollow Hunger',   desc: 'Party Front position takes +1 damage taken.' },
+};
+function rollRunModifier() {
+  const pool = Object.values(RUN_MODIFIERS);
+  return pool[Math.floor(Math.random() * pool.length)].id;
+}
+function hasRunModifier(s, id) {
+  return !!(s && s.run && s.run.modifier === id);
+}
+function getRunModifier(s) {
+  return s && s.run && s.run.modifier ? RUN_MODIFIERS[s.run.modifier] : null;
+}
+
+// ============================================================================
 // QUIRKS — Darkest-Dungeon-style affinity modifiers, per character, run-wide.
 // Earned from victories; surface in the inspect menu.  Effects stack additively
 // and apply at the resolver level (damage / heal / armor).
@@ -1416,6 +1528,16 @@ const QUIRKS = {
   brittle:   { id: 'brittle',   name: 'Brittle',     positive: false, desc: '−1 armor whenever armor is gained.',   armorMod: -1 },
   clumsy:    { id: 'clumsy',    name: 'Clumsy',      positive: false, desc: '−1 to all healing dealt or received.', healMod: -1 },
   cursed:    { id: 'cursed',    name: 'Cursed',      positive: false, desc: '−1 damage AND −1 healing.',            dmgMod: -1, healMod: -1 },
+
+  // Hero-specific positive quirks — only roll on the named hero.  Themed
+  // to each character's identity so the inspect view feels like a
+  // build-arc, not a generic stat sheet.
+  banner_bearer: { id: 'banner_bearer', heroId: 'cassia',  name: "Banner Bearer", positive: true, desc: '+1 armor whenever armor is granted (Cassia).',   armorMod: 1 },
+  vow_unbroken:  { id: 'vow_unbroken',  heroId: 'elin',    name: 'Vow Unbroken',  positive: true, desc: '+1 healing dealt and received (Elin).',          healMod:  1 },
+  bleed_stalker: { id: 'bleed_stalker', heroId: 'branwen', name: 'Bleed Stalker', positive: true, desc: '+1 damage on attacks (Branwen).',                dmgMod:   1 },
+  warhardened:   { id: 'warhardened',   heroId: 'korin',   name: 'Warhardened',   positive: true, desc: '+2 damage on attacks (Korin).',                  dmgMod:   2 },
+  veil_walker:   { id: 'veil_walker',   heroId: 'ash',     name: 'Veil Walker',   positive: true, desc: '+1 damage and +1 armor gained (Ash).',           dmgMod: 1, armorMod: 1 },
+  razor_edge:    { id: 'razor_edge',    heroId: 'mira',    name: "Razor's Edge",  positive: true, desc: '+2 damage on attacks (Mira).',                   dmgMod:   2 },
 };
 
 // Read all quirks a character currently has (positive ∪ negative).
@@ -1438,6 +1560,8 @@ function grantQuirk(s, charId, quirkId) {
   const c = s && s.party && s.party.chars[charId];
   const q = QUIRKS[quirkId];
   if (!c || !q || !c.quirks) return null;
+  // Hero-locked quirks refuse anyone but their named owner
+  if (q.heroId && q.heroId !== charId) return null;
   const side = q.positive ? 'positive' : 'negative';
   if (c.quirks[side].length >= QUIRK_CAP) return null;
   if (c.quirks.positive.includes(quirkId) || c.quirks.negative.includes(quirkId)) return null;
@@ -1482,7 +1606,9 @@ function awardQuirkAfterWin(s, completedNode) {
     if (c.quirks[polarity].length >= QUIRK_CAP) continue;
     const taken = new Set([...c.quirks.positive, ...c.quirks.negative]);
     const pool = Object.values(QUIRKS).filter(q =>
-      (polarity === 'positive') === !!q.positive && !taken.has(q.id));
+      (polarity === 'positive') === !!q.positive
+      && !taken.has(q.id)
+      && (!q.heroId || q.heroId === targetId));
     if (!pool.length) continue;
     const q = pool[Math.floor(Math.random() * pool.length)];
     grantQuirk(s, targetId, q.id);
@@ -1725,6 +1851,7 @@ function newState() {
       sigils: [],            // ids of acquired sigils (run-wide modifiers)
       lastVictoryElite: false, // did the most recent victory come from an elite encounter? (gates sigil reward size)
       map: generateMap(),    // freshly generated branching graph for this run
+      modifier: rollRunModifier(), // biome modifier — passive effect for the whole run
       stats: { damageDealt: {}, damageTaken: {}, healingDone: {}, kills: 0, synergies: [], turns: 0, reaches: 0 },
     },
 
@@ -1782,6 +1909,10 @@ function startEncounter(encSpec) {
   state.firedSynergies = new Set();
   state.fightStats = { damageDealt: {}, damageTaken: {}, healingDone: {}, kills: 0, synergies: [], turns: 0 };
   state.run.currentEnc = encSpec;
+
+  // Apply biome modifier seasoning to fresh enemies
+  if (hasRunModifier(state, 'veiled'))    Object.values(state.enemies.chars).forEach(e => { e.vuln += 1; });
+  if (hasRunModifier(state, 'fortified')) Object.values(state.enemies.chars).forEach(e => { e.armor += 2; });
 
   if (!isFirstFight) {
     const cap = RESOLVE_CARRY_CAP + (hasSigil(state, 'memory') ? 1 : 0);
@@ -2153,6 +2284,8 @@ function applyDmgToParty(s, c, amt) {
   if (!c || c.downed) return;
   // Cassia "Steadfast" — -1 dmg when in Front
   if (c.id === 'cassia' && slotOfChar(s, 'cassia') === 'front') amt = Math.max(0, amt - 1);
+  // Run modifier — "Hunger" twists Front-position damage taken upward
+  if (hasRunModifier(s, 'hunger') && slotOfChar(s, c.id) === 'front') amt += 1;
   // Vulnerable on party
   if (c.vuln > 0 && amt > 0) { amt += 2; c.vuln = Math.max(0, c.vuln - 1); }
 
@@ -2248,7 +2381,8 @@ function partyHeal(s, amt) {
   // own healMod stacks on top inside the loop so positive/negative quirks
   // on the receiver also matter.
   const casterMod = getQuirkHealMod(s, s.currentActorId);
-  const total = amt + bonus + casterMod;
+  const witherMod = hasRunModifier(s, 'withered') ? -1 : 0;
+  const total = amt + bonus + casterMod + witherMod;
   aliveParty(s).forEach(c => {
     const recvMod = getQuirkHealMod(s, c.id);
     const heal = Math.max(0, total + recvMod);
@@ -2294,7 +2428,8 @@ function healLowest(s, amt) {
   // Caster + receiver quirk mods stack on the heal amount.
   const casterMod = getQuirkHealMod(s, s.currentActorId);
   const recvMod   = getQuirkHealMod(s, c.id);
-  const total = Math.max(0, amt + bonus + casterMod + recvMod);
+  const witherMod = hasRunModifier(s, 'withered') ? -1 : 0;
+  const total = Math.max(0, amt + bonus + casterMod + recvMod + witherMod);
   const before = c.hp;
   c.hp = Math.min(c.maxHp, c.hp + total);
   const got = c.hp - before;
@@ -2482,8 +2617,22 @@ function startTurn(s) {
   log(`<span class="msg-strong">— Turn ${s.turn} —</span>`);
   if (s.bonusAtb > 0) log(`<i>Weakness exploited — +${s.bonusAtb} ATB this turn.</i>`);
 
-  // bleed tick — base 2 per turn, +1 if Bloodborne Sigil owned
-  const bleedTick = 2 + (hasSigil(s, 'bloodborne') ? 1 : 0);
+  // bleed tick — base 2 per turn, +1 if Bloodborne Sigil owned, +1 if Bone Tide modifier
+  const bleedTick = 2 + (hasSigil(s, 'bloodborne') ? 1 : 0) + (hasRunModifier(s, 'bonetide') ? 1 : 0);
+
+  // Run modifier — "Burning Sky" pings every combatant for 1 HP at turn start.
+  if (hasRunModifier(s, 'burning')) {
+    aliveParty(s).forEach(c => {
+      c.hp = Math.max(0, c.hp - 1);
+      spawnPopupId(c.id, '-1', 'dmg', 'party');
+      if (c.hp === 0) { c.downed = true; c.pendingEffects = []; log(`<b>${CHARS[c.id].name}</b> falls.`); }
+    });
+    aliveEnemies(s).forEach(e => {
+      e.hp = Math.max(0, e.hp - 1);
+      spawnPopupId(e.id, '-1', 'dmg', 'enemy');
+      if (e.hp === 0) killEnemy(s, e);
+    });
+  }
   aliveParty(s).forEach(c => {
     if (c.bleed > 0) {
       c.hp = Math.max(0, c.hp - bleedTick); c.bleed -= 1;
@@ -3062,6 +3211,20 @@ function renderHUD() {
     else hudResolve.classList.remove('has-reserved');
   }
   renderSigilTray();
+  renderRunModifier();
+}
+
+// Run modifier badge — shows the biome rolled at run start.  Tap to inspect.
+function renderRunModifier() {
+  const el = document.getElementById('run-modifier');
+  if (!el) return;
+  const mod = getRunModifier(state);
+  if (!mod) { el.innerHTML = ''; el.classList.add('empty'); return; }
+  el.classList.remove('empty');
+  el.innerHTML = `<button type="button" class="run-mod-chip" title="${mod.name} — ${mod.desc}" aria-label="${mod.name}">
+    <span class="run-mod-icon">◈</span>
+    <span class="run-mod-name">${mod.name}</span>
+  </button>`;
 }
 
 // Slay-the-Spire-style persistent sigil tray.  One chip per acquired sigil,
@@ -3798,7 +3961,7 @@ function bindUI() {
 // to surface its explanation. Capture-phase so the figure's setPointerCapture
 // (pickup gesture) doesn't swallow the tap.
 function bindChipExplainers() {
-  const CHIP_SEL = '.status-chip, .affinity-chip, .adj-chip, .incoming-chip, .sigil-chip, .hero-quirk';
+  const CHIP_SEL = '.status-chip, .affinity-chip, .adj-chip, .incoming-chip, .sigil-chip, .hero-quirk, .run-mod-chip';
   document.addEventListener('pointerdown', (e) => {
     const chip = e.target.closest(CHIP_SEL);
     if (chip && chip.getAttribute('title')) {
@@ -3907,22 +4070,35 @@ function renderMap() {
       const el = document.createElement(isClickable ? 'button' : 'div');
       el.className = `path-node node-${node.type} node-${status}`;
       el.dataset.nodeId = node.id;
-      // Type glyph: ⚔ combat, ★ elite, ☠ boss
-      const typeGlyph = node.type === 'elite' ? '★' : node.type === 'boss' ? '☠' : '⚔';
+      // Type glyph
+      const typeGlyph = ({
+        elite:  '★',
+        boss:   '☠',
+        combat: '⚔',
+        rest:   '⌂',
+        event:  '?',
+      })[node.type] || '⚔';
       const sigilCat = node.type === 'elite' && enc && enc.sigilCategory ? enc.sigilCategory : null;
       const tagLine = node.type === 'boss' ? '<span class="path-tag path-boss-tag">Boss</span>'
         : node.type === 'elite' ? `<span class="path-tag path-elite-tag">Elite${sigilCat ? ` · ${sigilCat[0].toUpperCase() + sigilCat.slice(1)}` : ''}</span>`
+        : node.type === 'rest'  ? '<span class="path-tag path-rest-tag">Rest</span>'
+        : node.type === 'event' ? '<span class="path-tag path-event-tag">Event</span>'
         : '';
-      const enemyIcons = SLOTS.map(sl => {
-        const eid = enc && enc.slots ? enc.slots[sl] : null;
-        if (!eid) return '';
-        const def = ENEMIES[eid];
-        return `<div class="path-enemy" title="${def?.name || ''}">${PORTRAITS[eid] || ''}</div>`;
-      }).join('');
+      const enemyIcons = (node.type === 'rest' || node.type === 'event')
+        ? ''
+        : SLOTS.map(sl => {
+            const eid = enc && enc.slots ? enc.slots[sl] : null;
+            if (!eid) return '';
+            const def = ENEMIES[eid];
+            return `<div class="path-enemy" title="${def?.name || ''}">${PORTRAITS[eid] || ''}</div>`;
+          }).join('');
+      const nodeName = node.type === 'rest'  ? 'Hollow Rest'
+                     : node.type === 'event' ? (EVENTS[node.eventId]?.name || 'Strange Encounter')
+                     : (enc?.name || node.type);
       el.innerHTML = `
         ${status === 'completed' ? '<span class="path-check">✓</span>' : ''}
         <div class="path-type-glyph" aria-hidden="true">${typeGlyph}</div>
-        <div class="path-name">${enc?.name || node.type}</div>
+        <div class="path-name">${nodeName}</div>
         ${tagLine}
         <div class="path-enemies">${enemyIcons}</div>
       `;
@@ -3931,7 +4107,9 @@ function renderMap() {
           hideOverlay();
           choices.classList.remove('path-map');
           state.run.currentNodeId = node.id;
-          startEncounter(node.enc);
+          if (node.type === 'rest')        showRestOverlay();
+          else if (node.type === 'event')  showEventOverlay(node.eventId);
+          else                             startEncounter(node.enc);
         });
       }
       slotsWrap.appendChild(el);
@@ -3950,6 +4128,93 @@ function renderMap() {
 
   // Defer connector lines to next frame so layout positions are settled
   requestAnimationFrame(() => drawMapConnectors(choices));
+}
+
+// Resolve a non-combat node visit: mark complete, run any post-completion
+// flow (recruit/upgrade/sigil/path), exactly like the post-fight cascade.
+function _completeNonCombatNode() {
+  if (state.run.currentNodeId) state.run.completedNodes.push(state.run.currentNodeId);
+  state.run.lastVictoryElite = false;
+  // Skip recruit/upgrade/sigil offers from non-combat nodes; just return to map.
+  renderMap();
+}
+
+// REST overlay — heals the alive party for half their missing HP and returns
+// to the map.  No choice; tap Continue.
+function showRestOverlay() {
+  $('#overlay-title').textContent = 'Hollow Rest';
+  const body = $('#overlay-body');
+  body.classList.remove('victory-summary-body', 'welcome-body', 'run-summary-body');
+  body.innerHTML = '';
+  const flavor = document.createElement('p');
+  flavor.className = 'event-flavor';
+  flavor.textContent = 'You set down your weight.  Breath returns.';
+  body.appendChild(flavor);
+  // Apply heal
+  const lines = [];
+  aliveParty(state).forEach(c => {
+    const missing = c.maxHp - c.hp;
+    const heal = Math.ceil(missing * 0.5);
+    if (heal > 0) {
+      c.hp = Math.min(c.maxHp, c.hp + heal);
+      lines.push(`<b>${CHARS[c.id].name}</b> +${heal} HP`);
+    }
+  });
+  if (lines.length) {
+    const list = document.createElement('div');
+    list.className = 'rest-heals';
+    list.innerHTML = lines.join('<br>');
+    body.appendChild(list);
+  }
+  const choices = $('#overlay-choices');
+  choices.innerHTML = '';
+  choices.classList.remove('path-map', 'party-inspect', 'event-choices');
+  choices.classList.add('hidden');
+  resetOverlayBtn();
+  const btn = $('#overlay-btn');
+  btn.textContent = 'Continue';
+  btn.onclick = () => { hideOverlay(); _completeNonCombatNode(); };
+  btn.classList.remove('hidden');
+  $('#overlay').classList.remove('hidden');
+}
+
+// EVENT overlay — show flavor + a list of choice buttons.  Each choice's
+// resolver mutates state, then we mark the node complete and return to map.
+function showEventOverlay(eventId) {
+  const ev = EVENTS[eventId];
+  if (!ev) { _completeNonCombatNode(); return; }
+  $('#overlay-title').textContent = ev.name;
+  const body = $('#overlay-body');
+  body.classList.remove('victory-summary-body', 'welcome-body', 'run-summary-body');
+  body.innerHTML = '';
+  const flavor = document.createElement('p');
+  flavor.className = 'event-flavor';
+  flavor.textContent = ev.flavor;
+  body.appendChild(flavor);
+
+  const choices = $('#overlay-choices');
+  choices.innerHTML = '';
+  choices.classList.remove('path-map', 'party-inspect');
+  choices.classList.add('event-choices');
+  ev.choices.forEach(ch => {
+    const card = document.createElement('button');
+    card.className = 'encounter-choice event-choice';
+    card.innerHTML = `
+      <div class="enc-name">${ch.label}</div>
+      <div class="sigil-desc">${ch.tag || ''}</div>
+    `;
+    card.addEventListener('click', () => {
+      ch.resolve(state);
+      hideOverlay();
+      choices.classList.remove('event-choices');
+      _completeNonCombatNode();
+    });
+    choices.appendChild(card);
+  });
+  choices.classList.remove('hidden');
+  resetOverlayBtn();
+  $('#overlay-btn').classList.add('hidden');
+  $('#overlay').classList.remove('hidden');
 }
 
 function drawMapConnectors(choices) {
