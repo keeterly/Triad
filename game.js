@@ -4134,6 +4134,40 @@ const TEAM_SPECIALS = {
       });
     },
   },
+  // Korin/Kai/Mira — front-line + rogue trio
+  'korin:kai:mira': {
+    id: 'twilightrush', name: 'Twilight Rush',
+    short: 'AoE 6 · bleed all · +1 Resolve', dmg: 6,
+    reach: ['front','mid','back'], pattern: 'all',
+    fn: (s) => {
+      dmgAllEnemies(s, 6);
+      aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 2));
+      gainResolve(s, 1);
+    },
+  },
+  // Korin/Cassia/Branwen — wall + archer
+  'korin:cassia:branwen': {
+    id: 'wallflight', name: 'Wall & Flight',
+    short: 'AoE 5 · party +3⛨ · Korin taunt', dmg: 5,
+    reach: ['front','mid','back'], pattern: 'all',
+    fn: (s) => {
+      dmgAllEnemies(s, 5);
+      aliveParty(s).forEach(c => { c.armor += 3; });
+      const k = s.party.chars.korin;
+      if (k && !k.downed) { k.taunt = true; k.retaliate = 2; }
+    },
+  },
+  // Ash/Elin/Mira — veiled trio
+  'ash:elin:mira': {
+    id: 'veilrend', name: 'Veil Rend',
+    short: 'AoE 5 · bleed all · heal lowest 6', dmg: 5,
+    reach: ['front','mid','back'], pattern: 'all',
+    fn: (s) => {
+      dmgAllEnemies(s, 5);
+      aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 2));
+      healLowest(s, 6);
+    },
+  },
   // full reverse: Branwen front, Elin mid, Cassia back
   'branwen:elin:cassia': {
     id: 'lastreach', name: 'Last Reach',
@@ -4167,11 +4201,12 @@ const TEAM_SPECIALS = {
 
 const TEAM_SPECIAL_DEFAULT = {
   id: 'strike', name: 'Triad Strike',
-  short: 'AoE 4 · heal 3 lowest · +1 Resolve', dmg: 4, heal: 3, healTarget: 'lowest',
+  short: 'AoE 5 · heal 3 lowest · cleanse · +1 Resolve', dmg: 5, heal: 3, healTarget: 'lowest',
   reach: ['front','mid','back'], pattern: 'all',
   fn: (s) => {
-    dmgAllEnemies(s, 4);
+    dmgAllEnemies(s, 5);
     healLowest(s, 3);
+    aliveParty(s).forEach(c => { c.bleed = 0; c.weak = 0; });
     gainResolve(s, 1);
   },
 };
@@ -4193,9 +4228,28 @@ function execTeamSpecial(s, tsId) {
     ts = Object.values(TEAM_SPECIALS).find(t => t.id === tsId) || TEAM_SPECIAL_DEFAULT;
   }
   log(`<span class="msg-strong">★ ${ts.name} ★</span>`);
+  // Dramatic VFX: title banner, screen tint, all-party flash, hard shake.
+  if (!__simulating) {
+    showTeamSpecialBanner(ts.name);
+    aliveParty(s).forEach(c => flashCardId(c.id, 'hit', 'party'));
+    shakeScreen(3);
+    Audio.attack(); Audio.kill();
+  }
   s.currentActorId = null;
   try { ts.fn(s); }
   finally { s.outgoingDmgMod = 0; s.ignoreArmor = false; s.currentActorId = null; }
+}
+
+// Team-special banner — large name-reveal across the stage that fades
+// quickly so it doesn't slow combat down.
+function showTeamSpecialBanner(name) {
+  const old = document.getElementById('ts-banner');
+  if (old) old.remove();
+  const b = document.createElement('div');
+  b.id = 'ts-banner';
+  b.innerHTML = `<span class="tsb-flank">★</span><span class="tsb-name">${name}</span><span class="tsb-flank">★</span>`;
+  document.body.appendChild(b);
+  setTimeout(() => b.remove(), 1400);
 }
 
 // Resolve the enemy phase one enemy at a time so each action's popups +
@@ -5923,11 +5977,36 @@ function _completeNonCombatNode() {
 // sigil so the choice is a real one and not just "tap Continue".
 function showRestOverlay() {
   $('#overlay-title').textContent = 'Hollow Rest';
+  $('#overlay').classList.remove('overlay-path', 'overlay-vignette', 'overlay-runsummary');
+  $('#overlay').classList.add('overlay-full', 'overlay-rest');
   const body = $('#overlay-body');
   body.classList.remove('victory-summary-body', 'welcome-body', 'run-summary-body');
   body.innerHTML = '';
+
+  // Campfire scene: party portraits arranged around a fire.  Reuses the
+  // title screen's flame CSS for the central fire.
+  const sceneIds = Object.keys(state.party.chars).filter(id => !state.party.chars[id].downed);
+  const scene = document.createElement('div');
+  scene.className = 'rest-scene';
+  // Split heroes roughly evenly left/right of the fire so the composition reads.
+  const left  = sceneIds.slice(0, Math.ceil(sceneIds.length / 2));
+  const right = sceneIds.slice(Math.ceil(sceneIds.length / 2));
+  const mkHero = (id, side) => `<div class="rest-hero rest-hero-${side}">${PORTRAITS[id] || ''}</div>`;
+  scene.innerHTML = `
+    <div class="rest-row rest-row-left">${left.map(id => mkHero(id, 'left')).join('')}</div>
+    <div class="rest-fire" aria-hidden="true">
+      <div class="ts-sparks"><span></span><span></span><span></span><span></span></div>
+      <div class="ts-flame"></div>
+      <div class="ts-flame f2"></div>
+      <div class="ts-flame f3"></div>
+      <div class="ts-fire-logs"></div>
+    </div>
+    <div class="rest-row rest-row-right">${right.map(id => mkHero(id, 'right')).join('')}</div>
+  `;
+  body.appendChild(scene);
+
   const flavor = document.createElement('p');
-  flavor.className = 'event-flavor';
+  flavor.className = 'event-flavor rest-flavor';
   flavor.textContent = 'You set down your weight.  Breath returns.  But you can only do one of these things before the climb resumes.';
   body.appendChild(flavor);
 
