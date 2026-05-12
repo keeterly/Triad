@@ -5693,6 +5693,9 @@ function showPathChoice() { renderMap(); }
 
 function renderMap() {
   applyBiomeBackground();
+  // Path map is a full-bleed scene — clear any prior frame class then mark.
+  $('#overlay').classList.remove('overlay-vignette', 'overlay-runsummary');
+  $('#overlay').classList.add('overlay-full', 'overlay-path');
   $('#overlay-title').textContent = 'The Path';
   $('#overlay-body').textContent = (state.run.completedNodes || []).length === 0
     ? 'Pick your entry point.'
@@ -5814,47 +5817,65 @@ function showVignette(v, ctx, done) {
   bodyEl.classList.remove('victory-summary-body', 'welcome-body', 'run-summary-body');
   bodyEl.classList.add('vignette-body');
   bodyEl.innerHTML = '';
+  // Full-bleed cinematic frame for the vignette overlay
+  $('#overlay').classList.remove('overlay-path', 'overlay-runsummary');
+  $('#overlay').classList.add('overlay-full', 'overlay-vignette');
 
-  // Cinematic stage — portrait dominates, dialogue floats over the bottom
-  // half of the imagery.  Choices live in a slim text-link strip at the
-  // very bottom of the overlay.
-  const stage = document.createElement('div');
-  stage.className = 'vignette-stage';
-
-  const portWrap = document.createElement('div');
-  portWrap.className = 'vignette-portrait';
-  if (speakerId && PORTRAITS[speakerId]) portWrap.innerHTML = PORTRAITS[speakerId];
-  else portWrap.classList.add('empty');
-  stage.appendChild(portWrap);
-
-  // Dialogue overlay — sits visually atop the lower portion of the portrait
-  // so the imagery reads as the dominant element.
-  const dlg = document.createElement('div');
-  dlg.className = 'vignette-dialogue';
+  // Pre-scan lines to find unique speakers.  First two unique speakers
+  // become the left/right portraits in the VN layout.  speakerId always
+  // gets the left side so the player has a consistent anchor.
+  const uniq = [];
   v.lines.forEach(line => {
-    const row = document.createElement('div');
+    let id = resolveWho(line.who);
+    if (id && !state.party.chars[id] && line.altWho && state.party.chars[line.altWho]) id = line.altWho;
+    if (id && !state.party.chars[id]) id = null;
+    if (id && !uniq.includes(id)) uniq.push(id);
+  });
+  const leftId  = speakerId && uniq.includes(speakerId) ? speakerId
+                : uniq[0] || speakerId || null;
+  const rightId = uniq.find(id => id !== leftId) || null;
+
+  // VN stage: dialogue rail at top, portraits standing at the bottom.
+  const stage = document.createElement('div');
+  stage.className = `vignette-stage vn-stage ${rightId ? 'two-actors' : 'one-actor'}`;
+
+  // Dialogue rail
+  const dlg = document.createElement('div');
+  dlg.className = 'vn-dialogue';
+  v.lines.forEach(line => {
     let whoId = resolveWho(line.who);
     if (whoId && !state.party.chars[whoId] && line.altWho && state.party.chars[line.altWho]) whoId = line.altWho;
     if (whoId && !state.party.chars[whoId]) whoId = null;
+    const row = document.createElement('div');
     if (whoId) {
-      // Spoken dialogue: chat bubble with a name tag.  Bubbles alternate
-      // side based on the speaker so multi-speaker exchanges read as a
-      // conversation.
+      const side = whoId === rightId ? 'right' : 'left';
       const name = CHARS[whoId]?.name || whoId;
-      const isSpeaker = whoId === speakerId;
-      row.className = `vignette-line vignette-bubble${isSpeaker ? ' from-speaker' : ' from-other'}`;
+      row.className = `vn-line bubble ${side}`;
       row.innerHTML = `
-        <span class="vignette-who">${name}</span>
-        <span class="vignette-text">${line.text}</span>
+        <span class="vn-who">${name}</span>
+        <span class="vn-text">${line.text}</span>
       `;
     } else {
-      // Narration / inner thought: italic, centered, no bubble.
-      row.className = 'vignette-line vignette-thought';
-      row.innerHTML = `<span class="vignette-text">${line.text}</span>`;
+      row.className = 'vn-line thought';
+      row.innerHTML = `<span class="vn-text">${line.text}</span>`;
     }
     dlg.appendChild(row);
   });
   stage.appendChild(dlg);
+
+  // Portrait row — one or two figures standing at the bottom.
+  const portraitRow = document.createElement('div');
+  portraitRow.className = 'vn-portraits';
+  const mkPortrait = (id, side) => {
+    const wrap = document.createElement('div');
+    wrap.className = `vn-portrait vn-portrait-${side}`;
+    if (id && PORTRAITS[id]) wrap.innerHTML = PORTRAITS[id];
+    else wrap.classList.add('empty');
+    return wrap;
+  };
+  portraitRow.appendChild(mkPortrait(leftId, 'left'));
+  if (rightId) portraitRow.appendChild(mkPortrait(rightId, 'right'));
+  stage.appendChild(portraitRow);
 
   bodyEl.appendChild(stage);
 
@@ -6136,7 +6157,9 @@ function showPartyInspect() {
 }
 
 function hideOverlay() {
-  $('#overlay').classList.add('hidden');
+  const ov = $('#overlay');
+  ov.classList.add('hidden');
+  ov.classList.remove('overlay-full', 'overlay-path', 'overlay-vignette', 'overlay-runsummary');
   const ch = $('#overlay-choices');
   if (ch) ch.classList.remove('path-map');
 }
@@ -6186,6 +6209,8 @@ function showRunSummary(outcome) {
   const unlockedNew = unlockedAfter.filter(id => id !== 'kai').slice(-3); // recent unlocks
 
   $('#overlay-title').textContent = title;
+  $('#overlay').classList.remove('overlay-path', 'overlay-vignette');
+  $('#overlay').classList.add('overlay-full', 'overlay-runsummary');
   const body = $('#overlay-body');
   body.classList.add('victory-summary-body', 'run-summary-body');
   body.innerHTML = `
