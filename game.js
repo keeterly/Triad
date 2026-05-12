@@ -610,10 +610,10 @@ const CHARS = {
           fn: (s, t) => { if (!t[0]) return; applyDmgToEnemy(s, t[0], 14); if (!t[0].dead) { t[0].armor = 0; t[0].vuln += 2; } } },
       },
       mid: {
-        basic: { name: 'Vanguard', desc: '5 dmg front + advance', dmg: 5,
+        basic: { name: 'Vanguard', desc: '5 dmg front + advance', dmg: 5, move: 'advance',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 5); advance(s, 'cassia'); } },
-        sig:   { name: 'Heroic Charge', desc: '9 dmg front + advance + 3 armor', dmg: 9,
+        sig:   { name: 'Heroic Charge', desc: '9 dmg front + advance + 3 armor', dmg: 9, move: 'advance',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 9); advance(s, 'cassia'); addArmor(s, 'cassia', 3); } },
       },
@@ -633,10 +633,10 @@ const CHARS = {
     passive: { name: 'Mercy', desc: 'Heals self 1 when healing an ally' },
     techs: {
       front: {
-        basic: { name: 'Phase Step', desc: '3 dmg + retreat to Mid', dmg: 3,
+        basic: { name: 'Phase Step', desc: '3 dmg + retreat to Mid', dmg: 3, move: 'retreat',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 3); retreat(s, 'elin'); } },
-        sig:   { name: 'Veil Step', desc: '6 dmg + retreat + 2 armor', dmg: 6,
+        sig:   { name: 'Veil Step', desc: '6 dmg + retreat + 2 armor', dmg: 6, move: 'retreat',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 6); retreat(s, 'elin'); addArmor(s, 'elin', 2); } },
       },
@@ -661,10 +661,10 @@ const CHARS = {
     techs: {
       front: {
         // close-range when shoved to Front: melee shots
-        basic: { name: 'Backstep Shot', desc: '4 dmg + bleed 1 + retreat', dmg: 4,
+        basic: { name: 'Backstep Shot', desc: '4 dmg + bleed 1 + retreat', dmg: 4, move: 'retreatFull',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 4); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 1); } retreatFull(s, 'branwen'); } },
-        sig:   { name: 'Vanish Shot', desc: '7 dmg + bleed 2 + retreat + 1 vuln', dmg: 7,
+        sig:   { name: 'Vanish Shot', desc: '7 dmg + bleed 2 + retreat + 1 vuln', dmg: 7, move: 'retreatFull',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 7); if (!t[0].dead) { t[0].bleed = Math.max(t[0].bleed, 2); t[0].vuln += 1; } } retreatFull(s, 'branwen'); } },
       },
@@ -729,10 +729,10 @@ const CHARS = {
     passive: { name: 'Arcane Focus', desc: 'First attack each turn deals +2' },
     techs: {
       front: {
-        basic: { name: 'Spark', desc: '3 dmg + retreat', dmg: 3,
+        basic: { name: 'Spark', desc: '3 dmg + retreat', dmg: 3, move: 'retreat',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 3); retreat(s, 'ash'); } },
-        sig:   { name: 'Inferno Burst', desc: '5 dmg + 2 vuln + retreat', dmg: 5,
+        sig:   { name: 'Inferno Burst', desc: '5 dmg + 2 vuln + retreat', dmg: 5, move: 'retreat',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 5); if (!t[0].dead) t[0].vuln += 2; } retreat(s, 'ash'); } },
       },
@@ -764,10 +764,10 @@ const CHARS = {
     passive: { name: 'Eviscerate', desc: '+3 dmg vs bleeding enemies' },
     techs: {
       front: {
-        basic: { name: 'Backstab', desc: '6 dmg + bleed 1 + retreat', dmg: 6,
+        basic: { name: 'Backstab', desc: '6 dmg + bleed 1 + retreat', dmg: 6, move: 'retreat',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 6); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 1); } retreat(s, 'mira'); } },
-        sig:   { name: 'Vanish Strike', desc: '9 dmg + bleed 2 + retreat full', dmg: 9,
+        sig:   { name: 'Vanish Strike', desc: '9 dmg + bleed 2 + retreat full', dmg: 9, move: 'retreatFull',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 9); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 2); } retreatFull(s, 'mira'); } },
       },
@@ -1045,6 +1045,7 @@ const UPGRADES = {
     id: 'cassia.mid.basic.bearer', charId: 'cassia', slot: 'mid', kind: 'basic',
     name: 'Standard Bearer', desc: '4 dmg front + 2 armor party', dmg: 4,
     reach: ['front'], pattern: 'front-most',
+    // note: no advance — Standard Bearer holds her ground
     fn: (s, t) => {
       if (t[0]) applyDmgToEnemy(s, t[0], 4);
       partyArmor(s, 2);
@@ -1052,7 +1053,7 @@ const UPGRADES = {
   },
   'cassia.mid.sig.crusader': {
     id: 'cassia.mid.sig.crusader', charId: 'cassia', slot: 'mid', kind: 'sig',
-    name: "Crusader's Charge", desc: '7 dmg + advance + 2 retaliate party', dmg: 7,
+    name: "Crusader's Charge", desc: '7 dmg + advance + 2 retaliate party', dmg: 7, move: 'advance',
     reach: ['front'], pattern: 'front-most',
     fn: (s, t) => {
       if (t[0]) applyDmgToEnemy(s, t[0], 7);
@@ -1085,7 +1086,7 @@ const UPGRADES = {
   // === Elin — fills front sig, mid sig, back basic ===
   'elin.front.sig.radiant': {
     id: 'elin.front.sig.radiant', charId: 'elin', slot: 'front', kind: 'sig',
-    name: 'Radiant Veil', desc: '8 holy dmg + retreat + cleanse self', dmg: 8,
+    name: 'Radiant Veil', desc: '8 holy dmg + retreat + cleanse self', dmg: 8, move: 'retreat',
     reach: ['front'], pattern: 'front-most',
     fn: (s, t) => {
       if (t[0]) applyDmgToEnemy(s, t[0], 8);
@@ -1173,7 +1174,7 @@ const UPGRADES = {
   // === Mira — fills front sig ===
   'mira.front.sig.cyclone': {
     id: 'mira.front.sig.cyclone', charId: 'mira', slot: 'front', kind: 'sig',
-    name: 'Blood Cyclone', desc: '6 dmg all + bleed 1 all + retreat full', dmg: 6,
+    name: 'Blood Cyclone', desc: '6 dmg all + bleed 1 all + retreat full', dmg: 6, move: 'retreatFull',
     reach: ['front','mid','back'], pattern: 'all',
     fn: (s, t) => {
       t.forEach(e => applyDmgToEnemy(s, e, 6));
@@ -2368,15 +2369,20 @@ function pickMoveDir(charId, dir) {
   });
 }
 
-// Press-and-hold on a figure: reveals the figure's name (and, for party figures,
-// directional move arrows). Drag the finger onto an arrow and release → commit move.
-// Release elsewhere → cancel (no state change).
+// Press a figure and drag toward an arrow to queue a move. Drag activates
+// immediately on the first few pixels of motion — no hold delay — so the
+// gesture feels like a direct click-and-drag. A still press (no motion) for
+// ~200ms still enters "inspecting" mode so the figure's name is revealed.
+// Release with the pointer aimed at an arrow commits the move; release
+// elsewhere is a no-op.
 function bindFigureHold(fig, charId, isParty) {
   const HOLD_MS = 200;
+  const DRAG_THRESHOLD = 6;    // px of motion that triggers immediate drag mode
   let timer = null;
   let active = false;
   let holding = false;
   let aimArrow = null;
+  let startX = 0, startY = 0;
 
   const removeAim = () => {
     if (aimArrow) {
@@ -2402,23 +2408,34 @@ function bindFigureHold(fig, charId, isParty) {
     }
   };
 
+  const enterHold = () => {
+    if (holding) return;
+    holding = true;
+    // close other inspecting figures so only one is open at a time
+    document.querySelectorAll('.figure.inspecting').forEach(f => { if (f !== fig) f.classList.remove('inspecting'); });
+    fig.classList.add('inspecting');
+  };
+
   const start = (e) => {
     if (!isUsable()) return;
     active = true;
     holding = false;
-    // clear any other figure that may have been left in inspecting state
-    document.querySelectorAll('.figure.inspecting').forEach(f => { if (f !== fig) f.classList.remove('inspecting'); });
+    startX = e.clientX; startY = e.clientY;
     try { fig.setPointerCapture(e.pointerId); } catch (_) {}
-    timer = setTimeout(() => {
-      if (!active) return;
-      holding = true;
-      fig.classList.add('inspecting');
-    }, HOLD_MS);
+    // still-press timer reveals the inspecting state (name) without requiring motion
+    timer = setTimeout(() => { if (active) enterHold(); }, HOLD_MS);
     e.preventDefault();
   };
 
   const move = (e) => {
-    if (!holding) return;
+    if (!active) return;
+    // first sign of motion → enter drag mode immediately (don't wait for the timer)
+    if (!holding) {
+      const dx = Math.abs(e.clientX - startX);
+      const dy = Math.abs(e.clientY - startY);
+      if (dx + dy < DRAG_THRESHOLD) return;
+      enterHold();
+    }
     const el = document.elementFromPoint(e.clientX, e.clientY);
     const arrow = (el && el.closest) ? el.closest('.move-arrow') : null;
     if (arrow === aimArrow) return;
@@ -3169,14 +3186,26 @@ function getPreviewState() {
   return clone;
 }
 
+// Where does the actor end up if a movement-tagged tech fires from `fromSlot`?
+function moveDestSlotFor(fromSlot, moveType) {
+  if (!fromSlot || !moveType) return null;
+  const idx = SLOTS.indexOf(fromSlot);
+  if (idx < 0) return null;
+  if (moveType === 'advance')     return idx > 0 ? SLOTS[idx - 1] : fromSlot;
+  if (moveType === 'retreat')     return idx < 2 ? SLOTS[idx + 1] : fromSlot;
+  if (moveType === 'retreatFull') return SLOTS[2];
+  return null;
+}
+
 // returns the set of enemy slot names that would be hit if the tile fired now,
-// plus a per-target damage prediction (dmg + WEAK!/RESIST/STG badge) for damaging tiles.
+// plus a per-target damage prediction (dmg + WEAK!/RESIST/STG badge) for damaging tiles,
+// plus a move destination if the tech repositions the actor.
 // Reads from a queue-aware snapshot so chains like Cleave→Sunder reflect compounded vuln.
 function previewTargetsForTile(kind, charId, dir) {
   const s = getPreviewState();
   if (kind === 'attack' || kind === 'special') {
     const slot = slotOfChar(s, charId);
-    if (!slot) return { enemySlots: [], partySlots: [], enemyHits: [], partyHeals: [] };
+    if (!slot) return { enemySlots: [], partySlots: [], enemyHits: [], partyHeals: [], moveSlots: [] };
     const variant = getTech(s, charId, slot, kind === 'special' ? 'sig' : 'basic');
     const targets = resolveTargets(s, variant) || [];
     const enemyHits = targets.map(e => {
@@ -3194,17 +3223,22 @@ function previewTargetsForTile(kind, charId, dir) {
       return { slot: sl, heal: previewHeal(s, c, variant.heal, charId) };
     }).filter(Boolean);
     const partySlots = partyHeals.map(h => h.slot);
-    return { enemySlots, partySlots, enemyHits, partyHeals };
+    const moveSlots = [];
+    if (variant.move) {
+      const dest = moveDestSlotFor(slot, variant.move);
+      if (dest && dest !== slot) moveSlots.push({ from: slot, to: dest });
+    }
+    return { enemySlots, partySlots, enemyHits, partyHeals, moveSlots };
   }
   if (kind === 'move') {
     const slot = slotOfChar(s, charId);
-    if (!slot) return { enemySlots: [], partySlots: [], enemyHits: [] };
+    if (!slot) return { enemySlots: [], partySlots: [], enemyHits: [], moveSlots: [] };
     const idx = SLOTS.indexOf(slot);
     const ti = idx + dir;
-    if (ti < 0 || ti > 2) return { enemySlots: [], partySlots: [], enemyHits: [] };
-    return { enemySlots: [], partySlots: [SLOTS[ti]], enemyHits: [] };
+    if (ti < 0 || ti > 2) return { enemySlots: [], partySlots: [], enemyHits: [], moveSlots: [] };
+    return { enemySlots: [], partySlots: [SLOTS[ti]], enemyHits: [], moveSlots: [{ from: slot, to: SLOTS[ti] }] };
   }
-  return { enemySlots: [], partySlots: [], enemyHits: [] };
+  return { enemySlots: [], partySlots: [], enemyHits: [], moveSlots: [] };
 }
 
 // shared hold-detection. ~220ms hold enters preview mode (no queue on release);
@@ -3255,7 +3289,7 @@ function bindTileHold(tile, handlers) {
   tile.addEventListener('contextmenu',  (e) => e.preventDefault());
 }
 
-function applyPreviewHighlight({ enemySlots, partySlots, enemyHits, partyHeals }) {
+function applyPreviewHighlight({ enemySlots, partySlots, enemyHits, partyHeals, moveSlots }) {
   clearPreviewHighlight();
   const hitBySlot = {};
   (enemyHits || []).forEach(h => { if (h && h.slot) hitBySlot[h.slot] = h; });
@@ -3280,7 +3314,10 @@ function applyPreviewHighlight({ enemySlots, partySlots, enemyHits, partyHeals }
   });
   const healBySlot = {};
   (partyHeals || []).forEach(h => { if (h && h.slot) healBySlot[h.slot] = h; });
+  // Don't double-mark a slot if it's both a heal target AND a move destination
+  const moveDestSet = new Set((moveSlots || []).map(m => m.to));
   (partySlots || []).forEach(sl => {
+    if (moveDestSet.has(sl)) return; // move dest is rendered below with a distinct marker
     const el = document.querySelector(`#party-half .figure[data-slot="${sl}"]`);
     if (!el) return;
     el.classList.add('target-marker');
@@ -3292,10 +3329,29 @@ function applyPreviewHighlight({ enemySlots, partySlots, enemyHits, partyHeals }
       el.appendChild(label);
     }
   });
+  // Move destination — distinct gold ring + directional glyph on the destination slot
+  (moveSlots || []).forEach(({ from, to }) => {
+    const dest = document.querySelector(`#party-half .figure[data-slot="${to}"]`);
+    if (dest) {
+      dest.classList.add('target-marker', 'move-dest');
+      const fromIdx = SLOTS.indexOf(from);
+      const toIdx = SLOTS.indexOf(to);
+      const glyph = toIdx > fromIdx ? '◀◀' : '▶▶';  // back-display has back on left, so toIdx > fromIdx = visually moving left
+      const tag = document.createElement('div');
+      tag.className = 'target-move-tag';
+      tag.innerHTML = `<span class="move-glyph">${glyph}</span><span class="move-text">${SLOT_LABELS[to] || ''}</span>`;
+      dest.appendChild(tag);
+    }
+    // also tag the actor's current slot with a "departing" hint
+    const src = document.querySelector(`#party-half .figure[data-slot="${from}"]`);
+    if (src) src.classList.add('move-src');
+  });
 }
 function clearPreviewHighlight() {
   document.querySelectorAll('.target-marker').forEach(el => el.classList.remove('target-marker'));
-  document.querySelectorAll('.target-dmg-label, .target-heal-label').forEach(el => el.remove());
+  document.querySelectorAll('.move-dest').forEach(el => el.classList.remove('move-dest'));
+  document.querySelectorAll('.move-src').forEach(el => el.classList.remove('move-src'));
+  document.querySelectorAll('.target-dmg-label, .target-heal-label, .target-move-tag').forEach(el => el.remove());
 }
 
 function makeMoveOrBraceTile(charId, slot, tileCounts, teamLocked) {
