@@ -1381,14 +1381,26 @@ body {
   text-shadow: 0 0 14px var(--stagger), 0 2px 0 var(--shadow);
   letter-spacing: 0.2em;
 }
-.popup.synergy {
-  color: var(--gold-bright);
-  font-size: 11px;
+.popup.synergy,
+.popup.bond,
+.popup.friction {
+  font-size: 12px;
   font-weight: 700;
   font-style: italic;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
+}
+.popup.synergy {
+  color: var(--gold-bright);
   text-shadow: 0 1px 0 var(--shadow), 0 0 10px rgba(240,212,136,0.7);
+}
+.popup.bond {
+  color: var(--heal);
+  text-shadow: 0 1px 0 var(--shadow), 0 0 10px rgba(152,216,120,0.7);
+}
+.popup.friction {
+  color: var(--blood-bright);
+  text-shadow: 0 1px 0 var(--shadow), 0 0 10px rgba(212,69,69,0.7);
 }
 @keyframes popup-rise {
   0%   { transform: translate(-50%, 0)    scale(0.6); opacity: 0; }

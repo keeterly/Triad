@@ -2149,16 +2149,22 @@ function fireAdjacencyHook(s, hookName, ...args) {
   });
 }
 
-// Spawn the synergy's effect popup, and on its first fire each fight,
-// also spawn the synergy NAME so the player learns what the chip means.
+// Spawn the synergy's effect popup, then EVERY trigger also flashes the
+// synergy NAME above the receiver in bond (green) or friction (red) color.
+// First-fire-per-fight is still tracked separately for the post-fight stats.
 function fireSynergyFeedback(s, name, receiverId, effectText, effectType) {
   if (__simulating) return;
   spawnPopupId(receiverId, effectText, effectType, 'party');
-  if (!s || !s.firedSynergies) return;
-  if (s.firedSynergies.has(name)) return;
-  s.firedSynergies.add(name);
-  if (s.fightStats) s.fightStats.synergies.push(name);
-  setTimeout(() => spawnPopupId(receiverId, name, 'synergy', 'party'), 180);
+  if (!s) return;
+  // Track first fires for the run/fight summary
+  if (s.firedSynergies && !s.firedSynergies.has(name)) {
+    s.firedSynergies.add(name);
+    if (s.fightStats) s.fightStats.synergies.push(name);
+  }
+  // Look up bond/friction type from the active adjacency pair
+  const pair = getAdjacencyPairs(s).find(p => p.synergy.name === name);
+  const popupClass = pair ? pair.synergy.type : 'synergy';
+  setTimeout(() => spawnPopupId(receiverId, name, popupClass, 'party'), 180);
 }
 function consumePendingBonus(s, charId, kind) {
   if (!charId) return 0;
@@ -2886,16 +2892,10 @@ function makePartyCard(c, slot, threatened, adjMap, incoming) {
   if (threatened && !c.downed) fig.classList.add('targeted-by-enemy');
   if (incoming && incoming.lethal && !c.downed) fig.classList.add('targeted-lethal');
 
-  // collect all active adjacency synergies — render as small icon glyphs at the top.
-  // bond = gold ✦, friction = red ✕. Full name lives on the title attribute.
-  const synergies = [];
-  if (!c.downed && adj) {
-    if (adj.fm) synergies.push(adj.fm);
-    if (adj.mb) synergies.push(adj.mb);
-  }
-  const synStack = synergies.length
-    ? `<div class="figure-adj">${synergies.map(s => `<span class="adj-chip ${s.type}" title="${s.name}">${s.type === 'friction' ? '✕' : '✦'}</span>`).join('')}</div>`
-    : '';
+  // Persistent adjacency glyphs above the head are hidden — bonds/frictions
+  // surface only as transient popups when they actually trigger
+  // (see fireSynergyFeedback).
+  const synStack = '';
 
   const def = CHARS[c.id];
   const isHome = def.home === slot;
