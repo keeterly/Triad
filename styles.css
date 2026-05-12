@@ -2026,6 +2026,18 @@ body {
   padding: 26px 30px 22px;
 }
 
+/* run-summary variant — adds an italic flavor line above the subtitle */
+.vs-flavor {
+  font-style: italic;
+  text-align: center;
+  color: var(--ink);
+  font-size: 12.5px;
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+  margin: 0 0 12px;
+  padding: 0 4px;
+}
+
 /* path-choice overlay */
 #overlay-content:has(#overlay-choices:not(.hidden)) {
   max-width: 580px;

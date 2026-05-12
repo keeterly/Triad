@@ -1303,6 +1303,7 @@ function newState() {
       completed: [],         // encIds of cleared fights, in order
       sigils: [],            // ids of acquired sigils (run-wide modifiers)
       lastVictoryElite: false, // did the most recent victory come from an elite encounter? (gates sigil reward size)
+      stats: { damageDealt: {}, damageTaken: {}, healingDone: {}, kills: 0, synergies: [], turns: 0, reaches: 0 },
     },
 
     party: {
@@ -2489,14 +2490,9 @@ function checkEnd(s) {
     s.run.lastVictoryElite = !!(completedEnc && completedEnc.elite);
     const isFinal = s.run.slotIdx >= RUN_LAYOUT.length - 1;
     if (isFinal) {
-      // Final-fight wins still get a recap, then the closing overlay
-      setTimeout(() => showVictorySummary(completedEnc, () => {
-        if (completedEnc && completedEnc.boss) {
-          showOverlay('The Wakeling Falls', 'The Sin of Dawn is unmade. The triad endures, and the world breathes again.');
-        } else {
-          showOverlay('Victory', 'The reaches are quiet. For a moment, the sins rest.');
-        }
-      }), 480);
+      // Final-fight wins still get the per-fight recap, then the run summary
+      const outcome = (completedEnc && completedEnc.boss) ? 'boss' : 'victory';
+      setTimeout(() => showVictorySummary(completedEnc, () => showRunSummary(outcome)), 480);
     } else {
       s.run.slotIdx += 1;
       // Between fights: recap, recruit offer (if any), then upgrade/sigil/path
@@ -2506,7 +2502,7 @@ function checkEnd(s) {
   }
   if (aliveParty(s).length === 0) {
     s.over = true;
-    showOverlay('Defeat', 'Your order is dust. The sins walk on.');
+    setTimeout(() => showRunSummary('defeat'), 480);
     return true;
   }
   return false;
@@ -3273,9 +3269,81 @@ function hideOverlay() { $('#overlay').classList.add('hidden'); }
 // ============================================================================
 
 // Decide whether to show recruit, then proceed to upgrade-or-path.
+// Run-ending summary (victory, boss win, or defeat). Shows accumulated run
+// totals across every reach and replaces the plain flavor overlay.
+function showRunSummary(outcome) {
+  // On defeat, the active fight's stats haven't been folded into run totals yet
+  if (outcome === 'defeat' && state.fightStats) accumulateRunStats(state.fightStats);
+  const rs = state.run.stats || { damageDealt: {}, damageTaken: {}, healingDone: {}, kills: 0, synergies: [], turns: 0, reaches: 0 };
+  const partyIds = Object.keys(state.party.chars);
+
+  const charRows = partyIds.map(id => {
+    const def = CHARS[id];
+    const c = state.party.chars[id];
+    const dealt = rs.damageDealt[id] || 0;
+    const healed = rs.healingDone[id] || 0;
+    const taken = rs.damageTaken[id] || 0;
+    return `
+      <div class="vs-row ${c.downed ? 'vs-downed' : ''}">
+        <span class="vs-name">${def.name}${c.downed ? ' · downed' : ''}</span>
+        <span class="vs-stats">
+          ${dealt > 0 ? `<span class="vs-stat vs-dealt"><b>${dealt}</b> dealt</span>` : ''}
+          ${healed > 0 ? `<span class="vs-stat vs-healed"><b>${healed}</b> healed</span>` : ''}
+          ${taken > 0 ? `<span class="vs-stat vs-taken"><b>${taken}</b> taken</span>` : ''}
+          ${dealt === 0 && healed === 0 && taken === 0 ? '<span class="vs-stat vs-quiet">—</span>' : ''}
+        </span>
+      </div>`;
+  }).join('');
+
+  const synList = rs.synergies.length
+    ? `<div class="vs-syn"><span class="vs-syn-label">Bonds witnessed</span> ${rs.synergies.map(n => `<span class="vs-syn-chip">${n}</span>`).join('')}</div>`
+    : '';
+
+  let title, flavor;
+  if (outcome === 'boss') { title = 'The Wakeling Falls'; flavor = 'The Sin of Dawn is unmade. The triad endures, and the world breathes again.'; }
+  else if (outcome === 'victory') { title = 'Victory'; flavor = 'The reaches are quiet. For a moment, the sins rest.'; }
+  else { title = 'Defeat'; flavor = 'Your order is dust. The sins walk on.'; }
+
+  $('#overlay-title').textContent = title;
+  const body = $('#overlay-body');
+  body.classList.add('victory-summary-body', 'run-summary-body');
+  body.innerHTML = `
+    <div class="vs-flavor">${flavor}</div>
+    <div class="vs-subtitle">${rs.reaches} ${rs.reaches === 1 ? 'reach' : 'reaches'} cleared · ${rs.turns} ${rs.turns === 1 ? 'turn' : 'turns'} · ${rs.kills} ${rs.kills === 1 ? 'kill' : 'kills'}</div>
+    <div class="vs-rows">${charRows}</div>
+    ${synList}
+  `;
+  $('#overlay-choices').classList.add('hidden');
+  const btn = $('#overlay-btn');
+  btn.textContent = 'Restart';
+  btn.classList.remove('hidden');
+  btn.onclick = () => {
+    body.classList.remove('victory-summary-body', 'run-summary-body');
+    body.innerHTML = '';
+    hideOverlay();
+    resetOverlayBtn();
+    init();
+  };
+  $('#overlay').classList.remove('hidden');
+}
+
+// Roll a finished fight's stats into the running run totals.
+function accumulateRunStats(fs) {
+  const rs = state.run.stats;
+  if (!rs || !fs) return;
+  Object.keys(fs.damageDealt).forEach(id => { rs.damageDealt[id] = (rs.damageDealt[id] || 0) + fs.damageDealt[id]; });
+  Object.keys(fs.damageTaken).forEach(id => { rs.damageTaken[id] = (rs.damageTaken[id] || 0) + fs.damageTaken[id]; });
+  Object.keys(fs.healingDone).forEach(id => { rs.healingDone[id] = (rs.healingDone[id] || 0) + fs.healingDone[id]; });
+  rs.kills += fs.kills;
+  rs.turns += fs.turns;
+  rs.reaches += 1;
+  fs.synergies.forEach(name => { if (!rs.synergies.includes(name)) rs.synergies.push(name); });
+}
+
 // Post-fight recap: show damage / healing / kills / synergies, then continue.
 function showVictorySummary(completedEnc, onContinue) {
   const fs = state.fightStats || { damageDealt: {}, damageTaken: {}, healingDone: {}, kills: 0, synergies: [], turns: state.turn };
+  accumulateRunStats(fs);
   const partyIds = Object.keys(state.party.chars);
 
   const charRows = partyIds.map(id => {
