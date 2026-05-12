@@ -2739,8 +2739,12 @@ function unlockStarter(id) {
   try { localStorage.setItem(UNLOCKED_KEY, JSON.stringify(cur)); } catch (_) {}
   return true; // signal "newly unlocked"
 }
+// Heroes whose kit can carry a solo run.  Healers and party-buff specialists
+// (Elin) can be RECRUITED but never roll as the solo starter — without a
+// front-liner to keep alive, their kit has nothing to do.
+const SOLO_VIABLE = new Set(['kai', 'cassia', 'korin', 'branwen', 'mira', 'ash']);
 function _pickStarter() {
-  const pool = getUnlockedStarters();
+  const pool = getUnlockedStarters().filter(id => SOLO_VIABLE.has(id));
   return pool.length ? pool[Math.floor(Math.random() * pool.length)] : 'kai';
 }
 // Called whenever a recruit successfully joins — walking with someone
