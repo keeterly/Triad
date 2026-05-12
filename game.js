@@ -546,6 +546,52 @@ const PORTRAITS = {
   <circle cx="50" cy="20" r="0.8" fill="#ffd0d0"/>
   <rect width="100" height="130" fill="url(#wk-shadow)" opacity="0.5"/>
 </svg>`,
+  kai: `
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <radialGradient id="kai-bg" cx="50%" cy="30%" r="85%">
+      <stop offset="0%" stop-color="#3a3a3e"/>
+      <stop offset="100%" stop-color="#0c0a10"/>
+    </radialGradient>
+    <linearGradient id="kai-cloak" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#2d2228"/>
+      <stop offset="100%" stop-color="#15101a"/>
+    </linearGradient>
+    <linearGradient id="kai-blade" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#dfe5ea"/>
+      <stop offset="100%" stop-color="#8a93a0"/>
+    </linearGradient>
+  </defs>
+  <rect width="100" height="130" fill="url(#kai-bg)"/>
+  <!-- cloak / shoulders -->
+  <path d="M16 130 L24 70 Q50 58 76 70 L84 130 Z" fill="url(#kai-cloak)" stroke="#0a070d" stroke-width="0.6"/>
+  <!-- tunic open at the chest -->
+  <path d="M38 78 L50 90 L62 78 L62 130 L38 130 Z" fill="#1a1418" stroke="#0a070d" stroke-width="0.5"/>
+  <!-- belt / sash -->
+  <rect x="36" y="100" width="28" height="4" fill="#7a4a2a"/>
+  <!-- neck -->
+  <path d="M44 60 L44 72 L56 72 L56 60 Z" fill="#d8c1a8"/>
+  <!-- head -->
+  <ellipse cx="50" cy="48" rx="14" ry="16" fill="#e3c8ad"/>
+  <!-- hair -->
+  <path d="M36 42 Q40 30 50 30 Q60 30 64 42 Q60 36 50 36 Q40 36 36 42 Z" fill="#2a1a14"/>
+  <path d="M36 42 Q35 50 38 56" fill="none" stroke="#2a1a14" stroke-width="2"/>
+  <path d="M64 42 Q65 50 62 56" fill="none" stroke="#2a1a14" stroke-width="2"/>
+  <!-- scar across left cheek -->
+  <path d="M42 50 L46 56" stroke="#a85050" stroke-width="0.7" fill="none"/>
+  <!-- eyes -->
+  <ellipse cx="44" cy="48" rx="1.2" ry="1.4" fill="#1a1014"/>
+  <ellipse cx="56" cy="48" rx="1.2" ry="1.4" fill="#1a1014"/>
+  <!-- subtle smirk -->
+  <path d="M46 56 Q50 58 54 56" stroke="#7a3838" stroke-width="0.6" fill="none"/>
+  <!-- one-hand sword on hip (resting) -->
+  <rect x="64" y="92" width="2.4" height="32" fill="url(#kai-blade)"/>
+  <rect x="62" y="90" width="6" height="3" fill="#3a2418"/>
+  <rect x="64.5" y="88" width="1.5" height="6" fill="#8a6a32"/>
+  <!-- shoulder buckle -->
+  <circle cx="32" cy="76" r="2.2" fill="#8a6a32"/>
+  <circle cx="68" cy="76" r="2.2" fill="#8a6a32"/>
+</svg>`,
 };
 
 // ============================================================================
@@ -786,6 +832,41 @@ const CHARS = {
         sig:   { name: 'Shadow Storm', desc: '4 dmg all + bleed 2 all', dmg: 4,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 4)); t.forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 2); }); } },
+      },
+    },
+  },
+  // Kai — the solo starter.  Rogue swordsman, one-hand sword; jack-of-
+  // all-trades kit so the player has a playable solo run regardless of
+  // which slot they're in.
+  kai: {
+    id: 'kai',
+    name: 'Kai',
+    title: 'Awakened in the Abyss',
+    school: 'physical',
+    maxHp: 22,
+    home: 'mid',
+    passive: { name: 'Adept', desc: 'Heals 1 on kill' },
+    techs: {
+      front: {
+        basic: { name: 'Slash', desc: '7 dmg front', dmg: 7,
+          reach: ['front'], pattern: 'front-most',
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 7); } },
+        sig:   { name: 'Riposte', desc: '11 dmg front + 2 armor', dmg: 11,
+          reach: ['front'], pattern: 'front-most',
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 11); addArmor(s, 'kai', 2); } },
+      },
+      mid: {
+        basic: { name: 'Quick Cut', desc: '5 dmg lowest + bleed 1', dmg: 5,
+          reach: ['front','mid'], pattern: 'lowest',
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 5); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 1); } } },
+        sig:   { name: 'Crossblade', desc: '4 dmg twice (lowest)', dmg: 4, hits: 2,
+          reach: ['front','mid'], pattern: 'lowest',
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 4); if (!t[0].dead) applyDmgToEnemy(s, t[0], 4); } } },
+      },
+      back: {
+        basic: { name: 'Whetstone', desc: '+1 atk next turn (self)',
+          fn: (s) => { const c = s.party.chars.kai; if (c) c.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'whetstone' }); } },
+        sig:   { name: 'Patch Up',  desc: 'Heal 5 self', fn: (s) => { const c = s.party.chars.kai; if (c) { c.hp = Math.min(c.maxHp, c.hp + 5); } } },
       },
     },
   },
@@ -1152,17 +1233,18 @@ const VIGNETTES = {
     id: 'run_start',
     when: { runStart: true },
     oneShot: true,
-    title: 'Before the first reach',
+    title: 'You wake at the bottom',
     speakerFromFirstAlive: true,
     lines: [
-      { who: '_first',  text: 'The reaches do not care who walks them.' },
-      { who: null,      text: 'You came here for a reason.  Speak it aloud, and the world will pretend to listen.' },
-      { who: '_first',  text: 'I came to end the Wakeling.' },
+      { who: null,     text: 'The first thing you understand is that there is a ceiling.  Very high up.' },
+      { who: null,     text: 'The second thing you understand is that you are alone.' },
+      { who: '_first', text: '...up, then.' },
     ],
     choices: [
-      { label: 'Swear it', tag: '+1 Resolve at the start of the first fight (vignette-locked)',
-        resolve: (s) => { s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1; log('You make the oath aloud.'); } },
-      { label: 'Walk on, silent', tag: 'no change', resolve: () => {} },
+      { label: 'Begin the climb', tag: '+1 Resolve at the start of the first fight',
+        resolve: (s) => { s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1; log('You stand.'); } },
+      { label: 'Rest a moment',   tag: '+3 HP for the climb (vignette-locked)',
+        resolve: (s) => { const id = Object.keys(s.party.chars)[0]; const c = s.party.chars[id]; if (c) { c.maxHp += 3; c.hp += 3; log(`<b>${CHARS[id].name}</b> gathers themselves — +3 HP.`); } } },
     ],
   },
 
@@ -1691,6 +1773,56 @@ const VIGNETTES = {
       { label: 'Welcome her', tag: 'Mira heals to full', resolve: (s) => { const c = s.party.chars.mira; if (c) c.hp = c.maxHp; } },
     ],
   },
+  recruit_kai: {
+    id: 'recruit_kai', when: { recruited: 'kai' }, oneShot: true,
+    title: 'Kai, on his feet again',
+    speaker: 'kai',
+    lines: [
+      { who: 'kai',    text: 'I have done this stretch alone too long.' },
+      { who: '_first', text: 'Walk it together, then.' },
+    ],
+    choices: [
+      { label: 'Welcome him', tag: 'Kai heals to full', resolve: (s) => { const c = s.party.chars.kai; if (c) c.hp = c.maxHp; } },
+    ],
+  },
+
+  // ---- "An enemy wanted to live" — post-fight vignettes that flavor the
+  // existing recruit offer as a survivor asking to walk with you. Mechanic
+  // is purely narrative: granting Resolve / heal, not adding new heroes.
+  enemy_survivor: {
+    id: 'enemy_survivor',
+    when: { firstClearOf: 'combat' },
+    oneShot: true,
+    title: 'One of them rises',
+    speakerFromFirstAlive: true,
+    lines: [
+      { who: null, text: 'A wounded shape lifts both hands in the dust.  Not surrender — a request.' },
+      { who: '_first', text: 'You walked with them.  Why would you walk with us?' },
+      { who: null, text: 'The reply is too quiet to write down.' },
+    ],
+    choices: [
+      { label: 'Spare them',  tag: 'Heal the party 4 and gain 1 Resolve next fight',
+        resolve: (s) => { aliveParty(s).forEach(c => { c.hp = Math.min(c.maxHp, c.hp + 4); }); s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1; log('A bandage finds its way around the survivor.'); } },
+      { label: 'Walk on',     tag: 'no change', resolve: () => {} },
+    ],
+  },
+  enemy_survivor_elite: {
+    id: 'enemy_survivor_elite',
+    when: { firstClearOf: 'elite' },
+    oneShot: true,
+    title: "A sin that won't lie down",
+    speakerFromFirstAlive: true,
+    lines: [
+      { who: null, text: 'You had named them a Sin.  In the dust, they look like a person again.' },
+      { who: '_first', text: 'I do not know if mercy belongs here.' },
+      { who: null, text: 'But you kneel anyway, and offer water.' },
+    ],
+    choices: [
+      { label: 'Bind their wounds', tag: 'Heal all party to full and gain 2 Resolve next fight',
+        resolve: (s) => { aliveParty(s).forEach(c => { c.hp = c.maxHp; }); s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 2; log('A small kindness in a cruel place.'); } },
+      { label: 'Walk on',           tag: 'no change', resolve: () => {} },
+    ],
+  },
 };
 
 function _lowestHpAliveId(s) {
@@ -1887,7 +2019,7 @@ const RESOLVE_CARRY_CAP = 3;
 
 // Pool of characters the player can encounter mid-run.
 // Default starting party is the first three; the rest are recruitable between fights.
-const ROSTER = ['cassia', 'elin', 'branwen', 'korin', 'ash', 'mira'];
+const ROSTER = ['kai', 'cassia', 'elin', 'branwen', 'korin', 'ash', 'mira'];
 
 // ============================================================================
 // TECH UPGRADES — alternate variants for specific techs, picked between fights.
@@ -2584,19 +2716,44 @@ const ADJ = {
 
 let state;
 
+// Meta-progression: heroes the player has walked with become available as
+// future starters.  Kai is the default starter (the one who awakens in
+// the Abyss).  Everyone else is unlocked by recruiting them in a run.
+const UNLOCKED_KEY = 'kizuna.unlockedStarters';
+const DEFAULT_STARTERS = ['kai'];
+function getUnlockedStarters() {
+  try {
+    const raw = localStorage.getItem(UNLOCKED_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr) && arr.length) return arr.filter(id => ROSTER.includes(id));
+    }
+  } catch (_) {}
+  return DEFAULT_STARTERS.slice();
+}
+function unlockStarter(id) {
+  if (!ROSTER.includes(id)) return false;
+  const cur = getUnlockedStarters();
+  if (cur.includes(id)) return false;
+  cur.push(id);
+  try { localStorage.setItem(UNLOCKED_KEY, JSON.stringify(cur)); } catch (_) {}
+  return true; // signal "newly unlocked"
+}
+function _pickStarter() {
+  const pool = getUnlockedStarters();
+  return pool.length ? pool[Math.floor(Math.random() * pool.length)] : 'kai';
+}
+// Called whenever a recruit successfully joins — walking with someone
+// unlocks them as a future starter.  Returns true if this is the first
+// time they've been unlocked.
+function rememberRecruited(id) { return unlockStarter(id); }
+
 function newState() {
-  // Roll a random starting team: one hero per home position so the player
-  // always has a Front / Mid / Back lineup at run start.  With 2 chars per
-  // home that's 8 possible starting comps — combined with the procedural
-  // map this delivers most of the rerun freshness.
-  const byHome = {
-    front: ROSTER.filter(id => CHARS[id].home === 'front'),
-    mid:   ROSTER.filter(id => CHARS[id].home === 'mid'),
-    back:  ROSTER.filter(id => CHARS[id].home === 'back'),
-  };
-  const startFront = _pickRandom(byHome.front);
-  const startMid   = _pickRandom(byHome.mid);
-  const startBack  = _pickRandom(byHome.back);
+  // Solo start — the player awakens at the bottom of the Abyss with one
+  // hero.  Companions are met along the way and asked into the party.
+  // Unlocked starter pool is meta-progression: heroes the player has
+  // walked with in past runs become available as starters.
+  const startSolo = _pickStarter();
 
   return {
     turn: 1,
@@ -2622,14 +2779,14 @@ function newState() {
       stats: { damageDealt: {}, damageTaken: {}, healingDone: {}, kills: 0, synergies: [], turns: 0, reaches: 0 },
     },
 
-    party: {
-      slots: { front: startFront, mid: startMid, back: startBack },
-      chars: {
-        [startFront]: newCharState(startFront),
-        [startMid]:   newCharState(startMid),
-        [startBack]:  newCharState(startBack),
-      },
-    },
+    // Solo start: starter goes in their HOME slot; the other two slots are empty.
+    // Companions met along the path fill the remaining slots.
+    party: (() => {
+      const home = CHARS[startSolo].home;
+      const slots = { front: null, mid: null, back: null };
+      slots[home] = startSolo;
+      return { slots, chars: { [startSolo]: newCharState(startSolo) } };
+    })(),
 
     // populated by startEncounter — set when the player picks an entry node
     enemies: { slots: {}, chars: {} },
@@ -3045,6 +3202,11 @@ function killEnemy(s, e) {
       s.fightStats.killsBy = s.fightStats.killsBy || {};
       s.fightStats.killsBy[s.currentActorId] = (s.fightStats.killsBy[s.currentActorId] || 0) + 1;
     }
+  }
+  // Kai's Adept — heal 1 on kill
+  if (s.currentActorId === 'kai') {
+    const k = s.party.chars.kai;
+    if (k && !k.downed) k.hp = Math.min(k.maxHp, k.hp + 1);
   }
   // Emoji reaction over the actor for the kill
   if (s.currentActorId) spawnReaction(s.currentActorId, '💀', 'party');
@@ -5581,9 +5743,17 @@ function commitUpgrade(upgradeId) {
   offerSigilOrPath();
 }
 
+// Pick an empty slot for an incoming recruit — prefer their home, otherwise
+// any open slot.  Returns null if the party is full.
+function findEmptySlotForRecruit(recruitId) {
+  const home = CHARS[recruitId].home;
+  if (!state.party.slots[home]) return home;
+  return ['front','mid','back'].find(sl => !state.party.slots[sl]) || null;
+}
+
 function showRecruitOverlay(candidates) {
   $('#overlay-title').textContent = 'A new ally appears';
-  $('#overlay-body').textContent = 'Add them to your party — or pass and continue.';
+  $('#overlay-body').textContent = 'Walk together, or walk on alone.';
   const choices = $('#overlay-choices');
   choices.innerHTML = '';
   candidates.forEach(charId => {
@@ -5602,12 +5772,17 @@ function showRecruitOverlay(candidates) {
         <div class="recruit-passive"><b>${def.passive?.name || ''}</b> · ${def.passive?.desc || ''}</div>
       </div>
     `;
-    card.addEventListener('click', () => showSwapOverlay(charId));
+    card.addEventListener('click', () => {
+      // If a slot is open, drop in directly; otherwise prompt for the swap.
+      const openSlot = findEmptySlotForRecruit(charId);
+      if (openSlot) commitRecruit(openSlot, charId);
+      else          showSwapOverlay(charId);
+    });
     choices.appendChild(card);
   });
-  // Skip button — uses existing overlay-btn slot, relabeled
+  // "Walk on" decline — same as old "Pass" but in keeping with the abyss flavor.
   const btn = $('#overlay-btn');
-  btn.textContent = 'Pass';
+  btn.textContent = 'Walk on';
   btn.classList.remove('hidden');
   btn.onclick = () => {
     hideOverlay();
@@ -5621,10 +5796,11 @@ function showRecruitOverlay(candidates) {
 function showSwapOverlay(recruitId) {
   const def = CHARS[recruitId];
   $('#overlay-title').textContent = `Recruit ${def.name}`;
-  $('#overlay-body').textContent = 'Choose who steps aside.';
+  $('#overlay-body').textContent = 'Your party is full.  Choose who walks the other way — or refuse and continue alone.';
   const choices = $('#overlay-choices');
   choices.innerHTML = '';
-  // List current party (downed members allowed — recruit replaces them too)
+  // Each current party member is a swap candidate (downed too — recruits
+  // replace them too).
   Object.keys(state.party.chars).forEach(currentId => {
     const cd = CHARS[currentId];
     const cs = state.party.chars[currentId];
@@ -5646,6 +5822,23 @@ function showSwapOverlay(recruitId) {
     card.addEventListener('click', () => commitRecruit(currentId, recruitId));
     choices.appendChild(card);
   });
+  // Refuse — recruit walks away, party continues with the upgrade flow.
+  const refuse = document.createElement('button');
+  refuse.className = 'encounter-choice swap-choice swap-refuse';
+  refuse.innerHTML = `
+    <div class="enc-name">Refuse</div>
+    <div class="recruit-meta">
+      <div class="recruit-title">${def.name} walks on alone.</div>
+    </div>
+  `;
+  refuse.addEventListener('click', () => {
+    log(`<b>${def.name}</b> walks on alone.`);
+    hideOverlay();
+    resetOverlayBtn();
+    offerUpgradeOrPath();
+  });
+  choices.appendChild(refuse);
+
   const btn = $('#overlay-btn');
   btn.textContent = '← Back';
   btn.onclick = () => {
@@ -5655,16 +5848,34 @@ function showSwapOverlay(recruitId) {
 }
 
 function commitRecruit(removeId, recruitId) {
+  // Empty-slot path: removeId is one of 'front'|'mid'|'back' (a slot name)
+  // and the recruit drops in without ejecting anyone.
+  if (!removeId || ['front','mid','back'].includes(removeId)) {
+    const slot = removeId || CHARS[recruitId].home;
+    state.party.chars[recruitId] = newCharState(recruitId);
+    state.party.slots[slot] = recruitId;
+    if (rememberRecruited(recruitId)) log(`<i>${CHARS[recruitId].name} is now available as a starter for future runs.</i>`);
+    log(`<b>${CHARS[recruitId].name}</b> joins the party.`);
+    hideOverlay();
+    resetOverlayBtn();
+    fireRecruitVignette(recruitId);
+    return;
+  }
+  // Swap path: removeId is a hero id to eject.
   const slot = slotOfChar(state, removeId);
   if (!slot) return;
   delete state.party.chars[removeId];
   state.party.chars[recruitId] = newCharState(recruitId);
   state.party.slots[slot] = recruitId;
-  log(`<b>${CHARS[recruitId].name}</b> joins the party.`);
+  if (rememberRecruited(recruitId)) log(`<i>${CHARS[recruitId].name} is now available as a starter for future runs.</i>`);
   hideOverlay();
   resetOverlayBtn();
-  // Try a recruit-intro vignette before the upgrade flow.  Builds ctx with
-  // recruitedId so vignettes can match on `recruited: <id>` or just `recruited: true`.
+  fireRecruitVignette(recruitId);
+}
+
+// Shared between the swap and empty-slot recruit paths: try a recruit-intro
+// vignette before the upgrade flow.
+function fireRecruitVignette(recruitId) {
   const ctx = captureFightContext(state);
   ctx.phase = 'recruit';
   ctx.recruitedId = recruitId;
@@ -5737,7 +5948,7 @@ function showTitleScreen() {
   body.classList.add('welcome-body', 'title-screen-body');
   body.innerHTML = `
     <p class="title-subtitle">Resonance</p>
-    <p class="title-flavor">Three heroes.  Three reaches.  A bond, or a fracture.</p>
+    <p class="title-flavor">You wake at the bottom of the abyss.<br>You do not remember how far down it goes.<br>You begin to climb.</p>
   `;
   const choicesEl = $('#overlay-choices');
   choicesEl.innerHTML = '';
@@ -5792,7 +6003,8 @@ function showCreditsScreen() {
     <p class="title-flavor">
       <b>KIZUNA | Resonance</b><br>
       A 3-position tactical roguelite.<br><br>
-      Bonds and frictions ripple through the team.<br>
+      You wake alone in the abyss and begin to climb.<br>
+      Bonds and frictions ripple through whoever walks with you.<br>
       The reach remembers what you did, and what you didn't.
     </p>
   `;
