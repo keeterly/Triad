@@ -502,7 +502,7 @@ body {
 */
 .figure-hp {
   position: absolute;
-  top: 8%;
+  top: 22px;
   left: 50%;
   transform: translateX(-50%);
   width: 44px;
@@ -582,14 +582,20 @@ body {
   overflow: hidden;
 }
 
-/* status chips float top-right of figure */
+/* Status chips — horizontal row centered above the HP bar, inside the
+   portrait so they anchor near the figure's head, not the cell top. */
 .figure-statuses {
   position: absolute;
-  top: 4px; right: 4px;
-  display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
-  z-index: 4;
+  top: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex; flex-direction: row;
+  justify-content: center; align-items: center;
+  gap: 3px;
+  z-index: 7;
   pointer-events: none;
-  max-width: 40%;
+  max-width: 96%;
+  flex-wrap: wrap;
 }
 
 /* ============ INTENT BUBBLE — minimal floating glyph above enemy figure ============ */
@@ -598,7 +604,7 @@ body {
    Stays minimal-flat to match the rest of the NieR chrome. */
 .intent-bubble {
   position: absolute;
-  top: calc(8% + 12px);
+  top: 34px;
   left: 50%;
   transform: translateX(-50%);
   color: var(--ink);
