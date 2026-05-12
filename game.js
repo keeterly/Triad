@@ -1355,6 +1355,7 @@ function startEncounter(encId) {
   state.ignoreArmor = false;
   state.currentActorId = null;
   state.firedSynergies = new Set();
+  state.fightStats = { damageDealt: {}, damageTaken: {}, healingDone: {}, kills: 0, synergies: [], turns: 0 };
   state.run.currentEncId = encId;
 
   if (!isFirstFight) {
@@ -1681,6 +1682,9 @@ function applyDmgToEnemy(s, e, baseAmt) {
   flashCardId(e.id, 'hit', 'enemy');
   log(`<b>${ENEMIES[e.id].name}</b> takes ${toHp} damage${e.staggered ? ' (stagger!)' : ''}${schoolBadge ? ` — ${schoolBadge.toLowerCase()}` : ''}.`);
   if (s.currentActorId && toHp > 0) fireAdjacencyHook(s, 'onAttack', s.currentActorId, e, toHp);
+  if (s.fightStats && s.currentActorId && toHp > 0) {
+    s.fightStats.damageDealt[s.currentActorId] = (s.fightStats.damageDealt[s.currentActorId] || 0) + toHp;
+  }
   if (e.hp === 0) killEnemy(s, e);
 }
 
@@ -1696,6 +1700,7 @@ function killEnemy(s, e) {
   e.dead = true;
   log(`<b>${ENEMIES[e.id].name}</b> falls.`);
   gainResolve(s, KILL_RESOLVE + (hasSigil(s, 'reaver') ? 1 : 0));
+  if (s.fightStats) s.fightStats.kills += 1;
 }
 
 function applyDmgToParty(s, c, amt) {
@@ -1714,6 +1719,9 @@ function applyDmgToParty(s, c, amt) {
   flashCardId(c.id, 'hit', 'party');
   log(`<b>${CHARS[c.id].name}</b> takes ${toHp} damage.`);
 
+  if (s.fightStats && toHp > 0) {
+    s.fightStats.damageTaken[c.id] = (s.fightStats.damageTaken[c.id] || 0) + toHp;
+  }
   fireAdjacencyHook(s, 'onPartyDamaged', c.id, toHp);
 
   // Retaliate
@@ -1791,6 +1799,9 @@ function partyHeal(s, amt) {
     if (got > 0) {
       spawnPopupId(c.id, `+${got}`, 'heal', 'party');
       fireAdjacencyHook(s, 'onHeal', s.currentActorId, c.id, got);
+      if (s.fightStats && s.currentActorId) {
+        s.fightStats.healingDone[s.currentActorId] = (s.fightStats.healingDone[s.currentActorId] || 0) + got;
+      }
     }
   });
 }
@@ -1807,12 +1818,19 @@ function healLowest(s, amt) {
     spawnPopupId(c.id, `+${got}`, 'heal', 'party');
     flashCardId(c.id, 'heal', 'party');
     fireAdjacencyHook(s, 'onHeal', s.currentActorId, c.id, got);
+    if (s.fightStats && s.currentActorId) {
+      s.fightStats.healingDone[s.currentActorId] = (s.fightStats.healingDone[s.currentActorId] || 0) + got;
+    }
   }
   // Elin passive: heal self 1 when healing an ally
   if (s.currentActorId === 'elin' && c.id !== 'elin') {
     const e = s.party.chars.elin;
     const eb = e.hp; e.hp = Math.min(e.maxHp, e.hp + 1);
-    if (e.hp - eb > 0) spawnPopupId('elin', '+1', 'heal', 'party');
+    const got2 = e.hp - eb;
+    if (got2 > 0) {
+      spawnPopupId('elin', `+${got2}`, 'heal', 'party');
+      if (s.fightStats) s.fightStats.healingDone.elin = (s.fightStats.healingDone.elin || 0) + got2;
+    }
   }
   return c;
 }
@@ -1940,6 +1958,7 @@ function fireSynergyFeedback(s, name, receiverId, effectText, effectType) {
   if (!s || !s.firedSynergies) return;
   if (s.firedSynergies.has(name)) return;
   s.firedSynergies.add(name);
+  if (s.fightStats) s.fightStats.synergies.push(name);
   setTimeout(() => spawnPopupId(receiverId, name, 'synergy', 'party'), 180);
 }
 function consumePendingBonus(s, charId, kind) {
@@ -2465,20 +2484,23 @@ function checkEnd(s) {
   if (aliveEnemies(s).length === 0) {
     s.over = true;
     s.run.completed.push(s.run.currentEncId);
+    if (s.fightStats) s.fightStats.turns = s.turn;
     const completedEnc = ENCOUNTERS[s.run.currentEncId];
     s.run.lastVictoryElite = !!(completedEnc && completedEnc.elite);
     const isFinal = s.run.slotIdx >= RUN_LAYOUT.length - 1;
     if (isFinal) {
-      if (completedEnc && completedEnc.boss) {
-        showOverlay('The Wakeling Falls', 'The Sin of Dawn is unmade. The triad endures, and the world breathes again.');
-      } else {
-        showOverlay('Victory', 'The reaches are quiet. For a moment, the sins rest.');
-      }
+      // Final-fight wins still get a recap, then the closing overlay
+      setTimeout(() => showVictorySummary(completedEnc, () => {
+        if (completedEnc && completedEnc.boss) {
+          showOverlay('The Wakeling Falls', 'The Sin of Dawn is unmade. The triad endures, and the world breathes again.');
+        } else {
+          showOverlay('Victory', 'The reaches are quiet. For a moment, the sins rest.');
+        }
+      }), 480);
     } else {
       s.run.slotIdx += 1;
-      // Between fights: offer a recruit if any unrecruited characters remain.
-      // Recruit overlay leads into the path-choice overlay (or skips straight to it).
-      setTimeout(() => offerRecruitOrPath(), 480);
+      // Between fights: recap, recruit offer (if any), then upgrade/sigil/path
+      setTimeout(() => showVictorySummary(completedEnc, () => offerRecruitOrPath()), 480);
     }
     return true;
   }
@@ -3251,6 +3273,64 @@ function hideOverlay() { $('#overlay').classList.add('hidden'); }
 // ============================================================================
 
 // Decide whether to show recruit, then proceed to upgrade-or-path.
+// Post-fight recap: show damage / healing / kills / synergies, then continue.
+function showVictorySummary(completedEnc, onContinue) {
+  const fs = state.fightStats || { damageDealt: {}, damageTaken: {}, healingDone: {}, kills: 0, synergies: [], turns: state.turn };
+  const partyIds = Object.keys(state.party.chars);
+
+  const charRows = partyIds.map(id => {
+    const def = CHARS[id];
+    const c = state.party.chars[id];
+    const dealt = fs.damageDealt[id] || 0;
+    const healed = fs.healingDone[id] || 0;
+    const taken = fs.damageTaken[id] || 0;
+    const downed = c.downed;
+    return `
+      <div class="vs-row ${downed ? 'vs-downed' : ''}">
+        <span class="vs-name">${def.name}${downed ? ' · downed' : ''}</span>
+        <span class="vs-stats">
+          ${dealt > 0 ? `<span class="vs-stat vs-dealt"><b>${dealt}</b> dealt</span>` : ''}
+          ${healed > 0 ? `<span class="vs-stat vs-healed"><b>${healed}</b> healed</span>` : ''}
+          ${taken > 0 ? `<span class="vs-stat vs-taken"><b>${taken}</b> taken</span>` : ''}
+          ${dealt === 0 && healed === 0 && taken === 0 ? '<span class="vs-stat vs-quiet">—</span>' : ''}
+        </span>
+      </div>`;
+  }).join('');
+
+  const synList = fs.synergies.length
+    ? `<div class="vs-syn"><span class="vs-syn-label">Bonds fired</span> ${fs.synergies.map(n => `<span class="vs-syn-chip">${n}</span>`).join('')}</div>`
+    : '';
+
+  const encName = completedEnc?.name || 'The Reach';
+  const isBoss = !!(completedEnc && completedEnc.boss);
+  const isElite = !!(completedEnc && completedEnc.elite);
+  const subtitle = isBoss ? 'Boss reach cleared' : (isElite ? 'Elite reach cleared' : 'Reach cleared');
+
+  $('#overlay-title').textContent = encName;
+  const body = $('#overlay-body');
+  body.classList.add('victory-summary-body');
+  body.innerHTML = `
+    <div class="vs-subtitle">${subtitle} · turn ${fs.turns}</div>
+    <div class="vs-meta">
+      <span class="vs-meta-stat"><b>${fs.kills}</b> ${fs.kills === 1 ? 'kill' : 'kills'}</span>
+    </div>
+    <div class="vs-rows">${charRows}</div>
+    ${synList}
+  `;
+  $('#overlay-choices').classList.add('hidden');
+  const btn = $('#overlay-btn');
+  btn.textContent = 'Continue';
+  btn.classList.remove('hidden');
+  btn.onclick = () => {
+    body.classList.remove('victory-summary-body');
+    body.innerHTML = '';
+    hideOverlay();
+    resetOverlayBtn();
+    if (typeof onContinue === 'function') onContinue();
+  };
+  $('#overlay').classList.remove('hidden');
+}
+
 function offerRecruitOrPath() {
   const pickable = ROSTER.filter(id => !state.party.chars[id]);
   if (pickable.length === 0) {
