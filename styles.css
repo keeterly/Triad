@@ -1853,6 +1853,20 @@ body {
   opacity: 0.85;
   filter: saturate(0.85);
 }
+/* Tile is disabled because the same action kind is already queued for
+   that character this turn.  Shown lightly dimmed with a faint check mark. */
+.tile.action-used {
+  opacity: 0.55;
+  position: relative;
+}
+.tile.action-used::after {
+  content: '✓';
+  position: absolute;
+  top: 4px; right: 6px;
+  font-size: 10px;
+  color: var(--gold-pale);
+  opacity: 0.7;
+}
 .tile .tile-name {
   font-size: 10px; font-weight: bold; color: var(--gold-bright);
   line-height: 1.1;
