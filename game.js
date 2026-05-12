@@ -1117,7 +1117,11 @@ const ADJ = {
   'cassia+elin': {
     fm: {
       name: "Sister's Watch", type: 'bond',
-      onPartyDamaged(s, charId) { if (charId === 'cassia') gainResolve(s, 1); },
+      onPartyDamaged(s, charId) {
+        if (charId !== 'cassia') return;
+        gainResolve(s, 1);
+        fireSynergyFeedback(s, "Sister's Watch", 'elin', '+1♦', 'heal');
+      },
     },
     mb: {
       name: 'Veiled Vow', type: 'bond',
@@ -1126,7 +1130,7 @@ const ADJ = {
         const c = s.party.chars.cassia;
         if (!c || c.downed) return;
         c.armor += 1;
-        spawnPopupId('cassia', '+1⛨', 'armor', 'party');
+        fireSynergyFeedback(s, 'Veiled Vow', 'cassia', '+1⛨', 'armor');
       },
     },
   },
@@ -1143,7 +1147,7 @@ const ADJ = {
         if (!b || b.downed) return;
         if (b.pendingEffects.some(e => e.source === 'banner-fire')) return;
         b.pendingEffects.push({ kind: 'attackBonus', amt: 2, source: 'banner-fire' });
-        spawnPopupId('branwen', '+2 atk', 'armor', 'party');
+        fireSynergyFeedback(s, 'Banner Fire', 'branwen', '+2 atk', 'armor');
       },
     },
   },
@@ -1156,7 +1160,7 @@ const ADJ = {
         if (!e || e.downed) return;
         if (e.pendingEffects.some(eff => eff.source === 'spirit-arrow')) return;
         e.pendingEffects.push({ kind: 'healBonus', amt: 2, source: 'spirit-arrow' });
-        spawnPopupId('elin', '+2 heal', 'heal', 'party');
+        fireSynergyFeedback(s, 'Spirit Arrow', 'elin', '+2 heal', 'heal');
       },
     },
     mb: {
@@ -1167,7 +1171,7 @@ const ADJ = {
         if (!b || b.downed) return;
         const before = b.hp;
         b.hp = Math.min(b.maxHp, b.hp + 1);
-        if (b.hp > before) spawnPopupId('branwen', '+1', 'heal', 'party');
+        if (b.hp > before) fireSynergyFeedback(s, "Mercy's Gift", 'branwen', '+1', 'heal');
       },
     },
   },
@@ -1180,7 +1184,7 @@ const ADJ = {
         const k = s.party.chars.korin;
         if (!k || k.downed) return;
         k.retaliate += 1;
-        spawnPopupId('korin', '+1↻', 'armor', 'party');
+        fireSynergyFeedback(s, 'Iron Bond', 'korin', '+1↻', 'armor');
       },
     },
     mb: {
@@ -1191,7 +1195,7 @@ const ADJ = {
         if (!k || k.downed) return;
         if (k.pendingEffects.some(e => e.source === 'bloodguard')) return;
         k.pendingEffects.push({ kind: 'attackBonus', amt: 2, source: 'bloodguard' });
-        spawnPopupId('korin', '+2 atk', 'armor', 'party');
+        fireSynergyFeedback(s, 'Bloodguard', 'korin', '+2 atk', 'armor');
       },
     },
   },
@@ -1204,7 +1208,7 @@ const ADJ = {
         if (!b || b.downed) return;
         if (b.pendingEffects.some(e => e.source === 'wild-hunt')) return;
         b.pendingEffects.push({ kind: 'attackBonus', amt: 2, source: 'wild-hunt' });
-        spawnPopupId('branwen', '+2 atk', 'armor', 'party');
+        fireSynergyFeedback(s, 'Wild Hunt', 'branwen', '+2 atk', 'armor');
       },
     },
     mb: {
@@ -1215,7 +1219,7 @@ const ADJ = {
         if (!k || k.downed) return;
         if (k.pendingEffects.some(e => e.source === 'crimson-echo')) return;
         k.pendingEffects.push({ kind: 'attackBonus', amt: 2, source: 'crimson-echo' });
-        spawnPopupId('korin', '+2 atk', 'armor', 'party');
+        fireSynergyFeedback(s, 'Crimson Echo', 'korin', '+2 atk', 'armor');
       },
     },
   },
@@ -1228,7 +1232,7 @@ const ADJ = {
         if (!el || el.downed) return;
         const before = el.hp;
         el.hp = Math.min(el.maxHp, el.hp + 1);
-        if (el.hp > before) spawnPopupId('elin', '+1', 'heal', 'party');
+        if (el.hp > before) fireSynergyFeedback(s, 'Veiled Flame', 'elin', '+1', 'heal');
       },
     },
     mb: {
@@ -1239,7 +1243,7 @@ const ADJ = {
         if (!a || a.downed) return;
         if (a.pendingEffects.some(e => e.source === 'sanctuary-fire')) return;
         a.pendingEffects.push({ kind: 'attackBonus', amt: 2, source: 'sanctuary-fire' });
-        spawnPopupId('ash', '+2 atk', 'heal', 'party');
+        fireSynergyFeedback(s, 'Sanctuary Fire', 'ash', '+2 atk', 'heal');
       },
     },
   },
@@ -1254,7 +1258,7 @@ const ADJ = {
         if (!o || o.downed) return;
         if (o.pendingEffects.some(eff => eff.source === 'sisters-shadow')) return;
         o.pendingEffects.push({ kind: 'attackBonus', amt: 2, source: 'sisters-shadow' });
-        spawnPopupId(otherId, '+2 atk', 'armor', 'party');
+        fireSynergyFeedback(s, 'Sisters of Shadow', otherId, '+2 atk', 'armor');
       },
     },
     mb: {
@@ -1267,7 +1271,7 @@ const ADJ = {
         if (!o || o.downed) return;
         if (o.pendingEffects.some(eff => eff.source === 'twin-blades')) return;
         o.pendingEffects.push({ kind: 'attackBonus', amt: 2, source: 'twin-blades' });
-        spawnPopupId(otherId, '+2 atk', 'armor', 'party');
+        fireSynergyFeedback(s, 'Twin Blades', otherId, '+2 atk', 'armor');
       },
     },
   },
@@ -1350,6 +1354,7 @@ function startEncounter(encId) {
   state.outgoingDmgMod = 0;
   state.ignoreArmor = false;
   state.currentActorId = null;
+  state.firedSynergies = new Set();
   state.run.currentEncId = encId;
 
   if (!isFirstFight) {
@@ -1889,6 +1894,16 @@ function fireAdjacencyHook(s, hookName, ...args) {
     const fn = p.synergy[hookName];
     if (typeof fn === 'function') fn(s, ...args);
   });
+}
+
+// Spawn the synergy's effect popup, and on its first fire each fight,
+// also spawn the synergy NAME so the player learns what the chip means.
+function fireSynergyFeedback(s, name, receiverId, effectText, effectType) {
+  spawnPopupId(receiverId, effectText, effectType, 'party');
+  if (!s || !s.firedSynergies) return;
+  if (s.firedSynergies.has(name)) return;
+  s.firedSynergies.add(name);
+  setTimeout(() => spawnPopupId(receiverId, name, 'synergy', 'party'), 180);
 }
 function consumePendingBonus(s, charId, kind) {
   if (!charId) return 0;
@@ -2867,7 +2882,8 @@ function previewTargetsForTile(kind, charId, dir) {
       if (!sl) return null;
       if (typeof variant.dmg !== 'number') return { slot: sl };
       const r = previewMultiHit(state, e, variant.dmg, charId, variant.hits || 1);
-      return { slot: sl, dmg: r.dmg, badge: r.badge };
+      const kill = !e.dead && r.dmg >= e.hp;
+      return { slot: sl, dmg: r.dmg, badge: r.badge, kill };
     }).filter(Boolean);
     const enemySlots = enemyHits.map(h => h.slot);
     const partyHeals = resolveHealTargets(state, variant, charId).map(c => {
@@ -2950,11 +2966,13 @@ function applyPreviewHighlight({ enemySlots, partySlots, enemyHits, partyHeals }
     if (hit && typeof hit.dmg === 'number') {
       const label = document.createElement('div');
       label.className = 'target-dmg-label';
-      if (hit.badge === 'WEAK!') label.classList.add('weak');
+      if (hit.kill) label.classList.add('kill');
+      else if (hit.badge === 'WEAK!') label.classList.add('weak');
       else if (hit.badge === 'RESIST') label.classList.add('resist');
       else if (hit.badge === 'STG') label.classList.add('stagger');
-      label.innerHTML = hit.badge
-        ? `<span class="dmg-num">${hit.dmg}</span><span class="dmg-badge">${hit.badge}</span>`
+      const badgeText = hit.kill ? 'KO' : hit.badge;
+      label.innerHTML = badgeText
+        ? `<span class="dmg-num">${hit.dmg}</span><span class="dmg-badge">${badgeText}</span>`
         : `<span class="dmg-num">${hit.dmg}</span>`;
       el.appendChild(label);
     }
@@ -3028,7 +3046,8 @@ function makeTeamSpecialTile(teamLocked) {
         if (!sl) return null;
         if (typeof ts.dmg !== 'number') return { slot: sl };
         const per = previewDamage(state, e, ts.dmg, null);
-        return { slot: sl, dmg: per.toHp, badge: per.badge };
+        const kill = !e.dead && per.toHp >= e.hp;
+        return { slot: sl, dmg: per.toHp, badge: per.badge, kill };
       }).filter(Boolean);
       const enemySlots = enemyHits.map(h => h.slot);
       const partyHeals = resolveHealTargets(state, ts, null).map(c => {
