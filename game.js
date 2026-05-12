@@ -1225,6 +1225,16 @@ const SIGILS = {
   echo:       { id: 'echo',       name: 'Echo Sigil',          icon: '⚔', category: 'resource', desc: 'Team Special costs 1 less Resolve.' },
   patience:   { id: 'patience',   name: 'Crown of Patience',   icon: '◆', category: 'resource', desc: 'Start every fight with at least 2 Resolve.' },
   reaver:     { id: 'reaver',     name: 'Sigil of the Reaver', icon: '☠', category: 'combat',   desc: 'Killing an enemy grants +1 additional Resolve.' },
+  // === new pool ===
+  hunt:       { id: 'hunt',       name: 'Mark of the Hunt',    icon: '➤', category: 'combat',   desc: 'Staggered enemies take +3 damage from every attack.' },
+  cinders:    { id: 'cinders',    name: 'Pact of Cinders',     icon: '🜂', category: 'combat',   desc: 'Killing an enemy applies bleed 1 to all remaining enemies.' },
+  doom:       { id: 'doom',       name: 'Brand of Doom',       icon: '⊕', category: 'combat',   desc: "Vulnerable stacks aren't consumed by attacks." },
+  aegis:      { id: 'aegis',      name: 'Sigil of Aegis',      icon: '◈', category: 'defense',  desc: 'Each incoming hit deals 1 less HP damage after armor.' },
+  mercy:      { id: 'mercy',      name: 'Crown of Mercy',      icon: '✚', category: 'defense',  desc: 'When any ally heals, every other ally heals +1.' },
+  vigil:      { id: 'vigil',      name: 'Vow of Vigil',        icon: '↻', category: 'defense',  desc: 'Retaliate strikes deal +2 damage.' },
+  stillness:  { id: 'stillness',  name: 'Mantra of Stillness', icon: '★', category: 'resource', desc: 'Specials cost 0 Resolve (down from 1).' },
+  memory:     { id: 'memory',     name: 'Coin of Memory',      icon: '◆', category: 'resource', desc: 'Carry up to 4 Resolve between fights (instead of 3).' },
+  vigor:      { id: 'vigor',      name: 'Pact of Vigor',       icon: '⚡', category: 'resource', desc: 'Killing an enemy refunds 1 ATB this turn.' },
 };
 
 function hasSigil(s, id) {
@@ -1242,6 +1252,11 @@ function getTeamSpecialCost(s) {
   let cost = TEAM_SPECIAL_COST;
   if (hasSigil(s, 'echo')) cost = Math.max(1, cost - 1);
   return cost;
+}
+
+function getSpecialCost(s) {
+  // Mantra of Stillness drops Specials to 0 Resolve
+  return hasSigil(s, 'stillness') ? 0 : SPECIAL_COST;
 }
 
 function availableSigils(s) {
@@ -1502,7 +1517,8 @@ function startEncounter(encId) {
   state.run.currentEncId = encId;
 
   if (!isFirstFight) {
-    state.resolve = Math.min(RESOLVE_CARRY_CAP, state.resolve);
+    const cap = RESOLVE_CARRY_CAP + (hasSigil(state, 'memory') ? 1 : 0);
+    state.resolve = Math.min(cap, state.resolve);
   }
   // Crown of Patience — start every fight with at least 2 Resolve
   if (hasSigil(state, 'patience')) state.resolve = Math.max(state.resolve, 2);
@@ -1629,6 +1645,7 @@ function previewDamage(s, e, baseAmt, actorId) {
 
   if (e.staggered && amt > 0) {
     amt = Math.floor(amt * STAGGER_DMG_MULT);
+    if (hasSigil(s, 'hunt')) amt += 3;
     if (!badge) badge = 'STG';
   }
 
@@ -1672,9 +1689,9 @@ function resolveHealTargets(s, variant, healerId) {
 }
 
 // Pure prediction for incoming damage to a party member from an enemy intent.
-// Mirrors applyDmgToParty's modifier stack (Cassia Steadfast, vuln, armor)
-// without mutating state. opts.armor / opts.vuln override current state so the
-// caller can simulate sequential hits within a turn.
+// Mirrors applyDmgToParty's modifier stack (Cassia Steadfast, vuln, armor,
+// Sigil of Aegis) without mutating state. opts.armor / opts.vuln override
+// current state so the caller can simulate sequential hits within a turn.
 function previewIncomingDmg(s, c, baseAmt, opts) {
   if (!c || c.downed || !(baseAmt > 0)) return { amt: 0, toHp: 0 };
   let amt = baseAmt;
@@ -1684,7 +1701,8 @@ function previewIncomingDmg(s, c, baseAmt, opts) {
   const baseArmor = (opts && typeof opts.armor === 'number') ? opts.armor : c.armor;
   const effArmor = (opts && opts.stripArmor) ? 0 : baseArmor;
   const absorbed = Math.min(effArmor, amt);
-  const toHp = Math.max(0, amt - absorbed);
+  let toHp = Math.max(0, amt - absorbed);
+  if (hasSigil(s, 'aegis') && toHp > 0) toHp = Math.max(0, toHp - 1);
   return { amt, toHp };
 }
 
@@ -1790,8 +1808,11 @@ function applyDmgToEnemy(s, e, baseAmt) {
     }
   }
 
-  // staggered = +50% damage taken
-  if (e.staggered && amt > 0) amt = Math.floor(amt * STAGGER_DMG_MULT);
+  // staggered = +50% damage taken, plus +3 flat from Mark of the Hunt sigil
+  if (e.staggered && amt > 0) {
+    amt = Math.floor(amt * STAGGER_DMG_MULT);
+    if (hasSigil(s, 'hunt')) amt += 3;
+  }
 
   amt = Math.max(0, amt);
   if (amt === 0) {
@@ -1807,7 +1828,8 @@ function applyDmgToEnemy(s, e, baseAmt) {
     toHp = amt - absorbed;
   }
   e.hp = Math.max(0, e.hp - toHp);
-  if (vulnConsumed) e.vuln = Math.max(0, e.vuln - 1);
+  // Brand of Doom — vuln stacks aren't consumed by attacks
+  if (vulnConsumed && !hasSigil(s, 'doom')) e.vuln = Math.max(0, e.vuln - 1);
 
   // chain build-up (skipped if already staggered or no HP damage)
   if (!e.staggered && toHp > 0) {
@@ -1844,6 +1866,12 @@ function killEnemy(s, e) {
   log(`<b>${ENEMIES[e.id].name}</b> falls.`);
   gainResolve(s, KILL_RESOLVE + (hasSigil(s, 'reaver') ? 1 : 0));
   if (s.fightStats) s.fightStats.kills += 1;
+  // Pact of Cinders — every surviving enemy starts bleeding
+  if (hasSigil(s, 'cinders')) {
+    aliveEnemies(s).forEach(en => { if (en !== e && !en.dead) en.bleed = Math.max(en.bleed, 1); });
+  }
+  // Pact of Vigor — refund 1 ATB this turn (carried via bonusAtb until startTurn resets)
+  if (hasSigil(s, 'vigor')) s.bonusAtb = (s.bonusAtb || 0) + 1;
 }
 
 function applyDmgToParty(s, c, amt) {
@@ -1855,7 +1883,9 @@ function applyDmgToParty(s, c, amt) {
 
   const absorbed = Math.min(c.armor, amt);
   c.armor = Math.max(0, c.armor - amt);
-  const toHp = amt - absorbed;
+  let toHp = amt - absorbed;
+  // Sigil of Aegis — each incoming hit deals 1 less HP after armor
+  if (hasSigil(s, 'aegis') && toHp > 0) toHp = Math.max(0, toHp - 1);
   c.hp = Math.max(0, c.hp - toHp);
 
   spawnPopupId(c.id, `-${toHp}`, 'dmg', 'party');
@@ -1867,11 +1897,11 @@ function applyDmgToParty(s, c, amt) {
   }
   fireAdjacencyHook(s, 'onPartyDamaged', c.id, toHp);
 
-  // Retaliate
+  // Retaliate (Vow of Vigil sigil adds +2 to each retaliate strike)
   if (c.retaliate > 0 && toHp > 0) {
     log(`<b>${CHARS[c.id].name}</b> retaliates!`);
     const target = firstAliveEnemyFrom(s, 0);
-    if (target) applyDmgToEnemy(s, target, c.retaliate);
+    if (target) applyDmgToEnemy(s, target, c.retaliate + (hasSigil(s, 'vigil') ? 2 : 0));
   }
 
   if (c.hp === 0) {
@@ -1945,8 +1975,30 @@ function partyHeal(s, amt) {
       if (s.fightStats && s.currentActorId) {
         s.fightStats.healingDone[s.currentActorId] = (s.fightStats.healingDone[s.currentActorId] || 0) + got;
       }
+      mercyTickle(s, c.id, got);
     }
   });
+}
+
+// Crown of Mercy — every other alive ally heals +1 when an ally lands a heal.
+// Guarded against re-entry so the bonus heal doesn't itself re-trigger.
+function mercyTickle(s, healedId, got) {
+  if (!hasSigil(s, 'mercy') || !got || s.__mercyActive) return;
+  s.__mercyActive = true;
+  try {
+    aliveParty(s).forEach(o => {
+      if (o.id === healedId) return;
+      const before = o.hp;
+      o.hp = Math.min(o.maxHp, o.hp + 1);
+      const inc = o.hp - before;
+      if (inc > 0) {
+        spawnPopupId(o.id, `+${inc}`, 'heal', 'party');
+        if (s.fightStats && s.currentActorId) {
+          s.fightStats.healingDone[s.currentActorId] = (s.fightStats.healingDone[s.currentActorId] || 0) + inc;
+        }
+      }
+    });
+  } finally { s.__mercyActive = false; }
 }
 function healLowest(s, amt) {
   const alive = aliveParty(s); if (alive.length === 0) return null;
@@ -1964,6 +2016,7 @@ function healLowest(s, amt) {
     if (s.fightStats && s.currentActorId) {
       s.fightStats.healingDone[s.currentActorId] = (s.fightStats.healingDone[s.currentActorId] || 0) + got;
     }
+    mercyTickle(s, c.id, got);
   }
   // Elin passive: heal self 1 when healing an ally
   if (s.currentActorId === 'elin' && c.id !== 'elin') {
@@ -1973,6 +2026,7 @@ function healLowest(s, amt) {
     if (got2 > 0) {
       spawnPopupId('elin', `+${got2}`, 'heal', 'party');
       if (s.fightStats) s.fightStats.healingDone.elin = (s.fightStats.healingDone.elin || 0) + got2;
+      mercyTickle(s, 'elin', got2);
     }
   }
   return c;
@@ -2217,7 +2271,7 @@ function previewTile(kind, charId, dir) {
   }
   if (kind === 'special') {
     const tech = getTech(s, charId, slot, 'sig');
-    return { kind, valid: true, label: tech.name, desc: tech.desc, atb, resolveCost: SPECIAL_COST, slot };
+    return { kind, valid: true, label: tech.name, desc: tech.desc, atb, resolveCost: getSpecialCost(s), slot };
   }
   if (kind === 'move') {
     const idx = SLOTS.indexOf(slot);
