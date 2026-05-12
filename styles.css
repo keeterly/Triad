@@ -2734,6 +2734,15 @@ button.path-node { cursor: pointer; }
 }
 .event-choice .enc-name { letter-spacing: 0.12em; }
 
+/* Recruit "Refuse" / decline option — visually subtler so the real heroes
+   stay primary in the layout. */
+.swap-refuse {
+  opacity: 0.85;
+  font-style: italic;
+}
+.swap-refuse:hover { opacity: 1; }
+.swap-refuse .enc-name { letter-spacing: 0.18em; color: var(--ink-dim); }
+
 /* ============ TITLE SCREEN — KIZUNA | Resonance ============ */
 #overlay-body.title-screen-body {
   font-style: normal;
