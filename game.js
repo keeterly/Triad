@@ -1145,6 +1145,191 @@ const VIGNETTES = {
         resolve: (s) => { const id = _lowestHpAliveId(s); if (id) { grantQuirk(s, id, 'precise'); grantQuirk(s, id, 'gentle'); log(`<b>${CHARS[id].name}</b> steadies.`); } } },
     ],
   },
+
+  // ---- One-shot run-bracket beats ----
+
+  run_start: {
+    id: 'run_start',
+    when: { runStart: true },
+    oneShot: true,
+    title: 'Before the first reach',
+    speakerFromFirstAlive: true,
+    lines: [
+      { who: '_first',  text: 'The reaches do not care who walks them.' },
+      { who: null,      text: 'You came here for a reason.  Speak it aloud, and the world will pretend to listen.' },
+      { who: '_first',  text: 'I came to end the Wakeling.' },
+    ],
+    choices: [
+      { label: 'Swear it', tag: '+1 Resolve at the start of the first fight (vignette-locked)',
+        resolve: (s) => { s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1; log('You make the oath aloud.'); } },
+      { label: 'Walk on, silent', tag: 'no change', resolve: () => {} },
+    ],
+  },
+
+  boss_prep: {
+    id: 'boss_prep',
+    when: { bossPrep: true },
+    oneShot: true,
+    title: 'The Wakeling waits',
+    speakerFromLowestHp: true,
+    lines: [
+      { who: null,     text: 'The air closes over the reach like a hand.' },
+      { who: '_first', text: 'It knows we came.' },
+      { who: '_last',  text: 'Let it.' },
+    ],
+    choices: [
+      { label: 'Brace as one', tag: 'Heal all party 6 + +2 armor each',
+        resolve: (s) => { aliveParty(s).forEach(c => { c.hp = Math.min(c.maxHp, c.hp + 6); c.armor += 2; }); log('The party braces.'); } },
+      { label: 'Sharpen one blade', tag: 'Lowest-HP hero gains Brutal (+2 dmg)',
+        resolve: (s) => { const id = _lowestHpAliveId(s); if (id) { grantQuirk(s, id, 'brutal'); log(`<b>${CHARS[id].name}</b> gains <i>Brutal</i>.`); } } },
+    ],
+  },
+
+  // ---- New trigger-type vignettes ----
+
+  first_elite_clear: {
+    id: 'first_elite_clear',
+    when: { firstClearOf: 'elite' },
+    oneShot: true,
+    title: 'After the first true reach',
+    speakerFromFirstAlive: true,
+    lines: [
+      { who: '_first', text: "They called that one a sin worth its own name." },
+      { who: null,    text: "It dies the same as the rest." },
+      { who: '_first', text: "Not the same.  Cleaner." },
+    ],
+    choices: [
+      { label: 'Hoard the relic',      tag: 'Gain a random sigil',
+        resolve: (s) => _grantRandomSigil(s) },
+      { label: 'Share the marrow', tag: 'Heal every alive hero to full',
+        resolve: (s) => { aliveParty(s).forEach(c => { c.hp = c.maxHp; }); log('The party is restored.'); } },
+    ],
+  },
+
+  reaper_emerges: {
+    id: 'reaper_emerges',
+    when: { actorKilledAtLeast: { charId: 'mira',    n: 2 } },
+    oneShot: true,
+    title: 'Quiet in the work',
+    speaker: 'mira',
+    lines: [
+      { who: 'mira', text: 'Two of them, and neither saw me.' },
+      { who: null,   text: 'She wipes the blade on a sleeve that was never clean to begin with.' },
+    ],
+    choices: [
+      { label: 'Sharpen the edge', tag: "Mira gains Razor's Edge",
+        resolve: (s) => { grantQuirk(s, 'mira', 'razor_edge'); log(`<b>Mira</b> gains <i>Razor's Edge</i>.`); } },
+      { label: 'Walk on', tag: 'no change', resolve: () => {} },
+    ],
+  },
+
+  bow_warmed: {
+    id: 'bow_warmed',
+    when: { actorKilledAtLeast: { charId: 'branwen', n: 3 } },
+    oneShot: true,
+    title: 'Counting arrows',
+    speaker: 'branwen',
+    lines: [
+      { who: 'branwen', text: 'Three.  I lost three arrows.  Got three back.' },
+      { who: null,      text: 'There is satisfaction in the math.' },
+    ],
+    choices: [
+      { label: 'Trust the bow', tag: 'Branwen gains Bleed Stalker',
+        resolve: (s) => { grantQuirk(s, 'branwen', 'bleed_stalker'); log(`<b>Branwen</b> gains <i>Bleed Stalker</i>.`); } },
+      { label: 'Mend the fletching', tag: 'Branwen heals to full',
+        resolve: (s) => { const c = s.party.chars.branwen; if (c) { c.hp = c.maxHp; log('<b>Branwen</b> is restored.'); } } },
+    ],
+  },
+
+  // ---- Additional bond/friction beats ----
+
+  banner_fire: {
+    id: 'banner_fire',
+    when: { bondFired: 'Banner Fire', requires: ['branwen', 'cassia'] },
+    title: 'A banner, not a name',
+    speaker: 'branwen',
+    lines: [
+      { who: 'branwen', text: 'You raised the banner.  I shot under it.' },
+      { who: 'cassia',  text: 'A banner is just where the arrows know to go.' },
+      { who: 'branwen', text: 'I noticed.' },
+    ],
+    choices: [
+      { label: 'Raise it higher', tag: 'Cassia gains Banner Bearer',
+        resolve: (s) => { grantQuirk(s, 'cassia', 'banner_bearer'); log(`<b>Cassia</b> gains <i>Banner Bearer</i>.`); } },
+      { label: 'Loose another',   tag: 'Branwen gains Bleed Stalker',
+        resolve: (s) => { grantQuirk(s, 'branwen', 'bleed_stalker'); log(`<b>Branwen</b> gains <i>Bleed Stalker</i>.`); } },
+    ],
+  },
+
+  spirit_arrow: {
+    id: 'spirit_arrow',
+    when: { bondFired: 'Spirit Arrow', requires: ['elin', 'branwen'] },
+    title: 'Two prayers, one shaft',
+    speaker: 'elin',
+    lines: [
+      { who: 'elin',    text: 'I named the arrow before you loosed it.' },
+      { who: 'branwen', text: 'I felt that.  The fletching warmed.' },
+      { who: 'elin',    text: 'Good.' },
+    ],
+    choices: [
+      { label: 'Pray over the next quiver', tag: 'Branwen gains Precise (+1 dmg)',
+        resolve: (s) => { grantQuirk(s, 'branwen', 'precise'); log(`<b>Branwen</b> gains <i>Precise</i>.`); } },
+      { label: 'Pray over the wounded',     tag: 'Elin gains Vow Unbroken (+1 heal)',
+        resolve: (s) => { grantQuirk(s, 'elin', 'vow_unbroken'); log(`<b>Elin</b> gains <i>Vow Unbroken</i>.`); } },
+    ],
+  },
+
+  veiled_flame: {
+    id: 'veiled_flame',
+    when: { bondFired: 'Veiled Flame', requires: ['ash', 'elin'] },
+    title: 'Flame, behind the veil',
+    speaker: 'ash',
+    lines: [
+      { who: 'ash',  text: 'Every time I strike, you breathe.' },
+      { who: 'elin', text: 'Every time I breathe, you strike harder.' },
+    ],
+    choices: [
+      { label: 'Walk under the veil', tag: 'Ash gains Veil Walker',
+        resolve: (s) => { grantQuirk(s, 'ash', 'veil_walker'); log(`<b>Ash</b> gains <i>Veil Walker</i>.`); } },
+      { label: 'Mend in the dark',    tag: 'Heal Ash + Elin to full',
+        resolve: (s) => { ['ash','elin'].forEach(id => { const c = s.party.chars[id]; if (c) c.hp = c.maxHp; }); log('Ash and Elin recover.'); } },
+    ],
+  },
+
+  twin_blades: {
+    id: 'twin_blades',
+    when: { bondFired: 'Twin Blades', requires: ['branwen', 'mira'] },
+    title: 'Two blades, one bleed',
+    speaker: 'mira',
+    lines: [
+      { who: 'mira',    text: 'They bleed before they fall.' },
+      { who: 'branwen', text: 'They fall because they bleed.' },
+      { who: 'mira',    text: 'Same thing.' },
+      { who: 'branwen', text: 'Not the same thing.' },
+    ],
+    choices: [
+      { label: 'Keep the edge', tag: "Mira gains Razor's Edge",
+        resolve: (s) => { grantQuirk(s, 'mira', 'razor_edge'); log(`<b>Mira</b> gains <i>Razor's Edge</i>.`); } },
+      { label: 'Keep the eye',  tag: 'Branwen gains Bleed Stalker',
+        resolve: (s) => { grantQuirk(s, 'branwen', 'bleed_stalker'); log(`<b>Branwen</b> gains <i>Bleed Stalker</i>.`); } },
+    ],
+  },
+
+  // Withered biome reflection — narration-only beat unique to that biome.
+  withered_reflection: {
+    id: 'withered_reflection',
+    when: { whileBiome: 'withered' },
+    title: 'The land does not return what it takes',
+    lines: [
+      { who: null, text: 'The dressings come away dry.' },
+      { who: null, text: "Even mercy here is rationed." },
+    ],
+    choices: [
+      { label: 'Hoard a memory', tag: 'Gain Coin of Memory (sigil)',
+        resolve: (s) => { if (!hasSigil(s, 'memory')) { s.run.sigils.push('memory'); log('You bind <b>Coin of Memory</b>.'); } } },
+      { label: 'Endure', tag: 'no change', resolve: () => {} },
+    ],
+  },
 };
 
 function _lowestHpAliveId(s) {
@@ -1154,19 +1339,30 @@ function _lowestHpAliveId(s) {
   return alive[0].id;
 }
 
-function captureFightContext(s) {
+function captureFightContext(s, nodeType) {
+  const completedNode = s.run.currentNodeId ? getMapNode(s.run.currentNodeId) : null;
   return {
     firedSynergies: Array.from(s.firedSynergies || []),
     minHp: { ...((s.fightStats && s.fightStats.minHp) || {}) },
+    killsBy: { ...((s.fightStats && s.fightStats.killsBy) || {}) },
     party: Object.keys(s.party.chars),
     alive: Object.values(s.party.chars).filter(c => !c.downed).map(c => c.id),
     biome: s.run && s.run.modifier,
+    nodeType: nodeType || (completedNode && completedNode.type) || null,
+    completedTypes: (s.run.completedNodes || []).map(id => getMapNode(id)?.type).filter(Boolean),
   };
 }
 
 function matchVignettes(s, ctx) {
+  const fired = (s.run && s.run.firedVignettes) || [];
   return Object.values(VIGNETTES).filter(v => {
     const w = v.when || {};
+    // One-shot vignettes only play once per run
+    if (v.oneShot && fired.includes(v.id)) return false;
+    // Special triggers — bypass the "requires alive" check sometimes
+    if (w.runStart) return ctx.phase === 'runStart';
+    if (w.bossPrep) return ctx.phase === 'bossPrep';
+    if (ctx.phase === 'runStart' || ctx.phase === 'bossPrep') return false;
     if (w.requires && !w.requires.every(id => ctx.alive.includes(id))) return false;
     if (w.bondFired && !ctx.firedSynergies.includes(w.bondFired)) return false;
     if (w.frictionFired && !ctx.firedSynergies.includes(w.frictionFired)) return false;
@@ -1175,8 +1371,25 @@ function matchVignettes(s, ctx) {
       const hit = Object.entries(ctx.minHp).some(([id, hp]) => hp <= w.someoneAtOrBelow && ctx.alive.includes(id));
       if (!hit) return false;
     }
+    if (w.firstClearOf) {
+      // True iff the just-completed node matches AND no earlier completed node was that type
+      if (ctx.nodeType !== w.firstClearOf) return false;
+      const earlier = ctx.completedTypes.slice(0, -1);
+      if (earlier.includes(w.firstClearOf)) return false;
+    }
+    if (w.actorKilledAtLeast) {
+      const { charId, n } = w.actorKilledAtLeast;
+      if ((ctx.killsBy[charId] || 0) < n) return false;
+    }
     return true;
   });
+}
+
+// Mark a vignette as fired for this run (one-shot housekeeping).
+function markVignetteFired(id) {
+  if (!state.run) return;
+  state.run.firedVignettes = state.run.firedVignettes || [];
+  if (!state.run.firedVignettes.includes(id)) state.run.firedVignettes.push(id);
 }
 
 // Generate the run's map graph.  Layout (5 levels):
@@ -2415,7 +2628,16 @@ function killEnemy(s, e) {
   e.dead = true;
   log(`<b>${ENEMIES[e.id].name}</b> falls.`);
   gainResolve(s, KILL_RESOLVE + (hasSigil(s, 'reaver') ? 1 : 0));
-  if (s.fightStats) s.fightStats.kills += 1;
+  if (s.fightStats) {
+    s.fightStats.kills += 1;
+    // Per-actor kill tally for vignette triggers (who got the killing blow)
+    if (s.currentActorId) {
+      s.fightStats.killsBy = s.fightStats.killsBy || {};
+      s.fightStats.killsBy[s.currentActorId] = (s.fightStats.killsBy[s.currentActorId] || 0) + 1;
+    }
+  }
+  // Emoji reaction over the actor for the kill
+  if (s.currentActorId) spawnReaction(s.currentActorId, '💀', 'party');
   // Pact of Cinders — every surviving enemy starts bleeding
   if (hasSigil(s, 'cinders')) {
     aliveEnemies(s).forEach(en => { if (en !== e && !en.dead) en.bleed = Math.max(en.bleed, 1); });
@@ -2452,6 +2674,8 @@ function applyDmgToParty(s, c, amt) {
       s.fightStats.minHp[c.id] = c.hp;
     }
   }
+  // Near-death emoji reaction — once per character per drop into the danger zone
+  if (toHp > 0 && c.hp > 0 && c.hp <= 4) spawnReaction(c.id, '😵', 'party');
   fireAdjacencyHook(s, 'onPartyDamaged', c.id, toHp);
 
   // Retaliate (Vow of Vigil sigil adds +2 to each retaliate strike)
@@ -2673,18 +2897,18 @@ function swapWith(s, charId, targetSlot) {
 }
 function advance(s, charId) {
   const slot = slotOfChar(s, charId);
-  if (slot === 'mid')  swapWith(s, charId, 'front');
-  else if (slot === 'back') swapWith(s, charId, 'mid');
+  if (slot === 'mid')  { swapWith(s, charId, 'front'); spawnReaction(charId, '💨', 'party'); }
+  else if (slot === 'back') { swapWith(s, charId, 'mid'); spawnReaction(charId, '💨', 'party'); }
 }
 function retreat(s, charId) {
   const slot = slotOfChar(s, charId);
-  if (slot === 'front') swapWith(s, charId, 'mid');
-  else if (slot === 'mid')  swapWith(s, charId, 'back');
+  if (slot === 'front') { swapWith(s, charId, 'mid'); spawnReaction(charId, '🌀', 'party'); }
+  else if (slot === 'mid') { swapWith(s, charId, 'back'); spawnReaction(charId, '🌀', 'party'); }
 }
 function retreatFull(s, charId) {
   const slot = slotOfChar(s, charId);
-  if (slot === 'front') swapWith(s, charId, 'back');
-  else if (slot === 'mid')  swapWith(s, charId, 'back');
+  if (slot === 'front') { swapWith(s, charId, 'back'); spawnReaction(charId, '🌀', 'party'); }
+  else if (slot === 'mid') { swapWith(s, charId, 'back'); spawnReaction(charId, '🌀', 'party'); }
 }
 // enemy effect: shove the player in fromSlot to toSlot, swapping with whoever's there
 function enemyShove(s, fromSlot, toSlot) {
@@ -2737,6 +2961,15 @@ function fireSynergyFeedback(s, name, receiverId, effectText, effectType) {
   const pair = getAdjacencyPairs(s).find(p => p.synergy.name === name);
   const popupClass = pair ? pair.synergy.type : 'synergy';
   setTimeout(() => spawnPopupId(receiverId, name, popupClass, 'party'), 180);
+  // Manga-style emoji reaction: bonds get sparkles, frictions get an angry mark.
+  // Fires on both members of the pair when discoverable, otherwise just receiver.
+  const emoji = pair && pair.synergy.type === 'friction' ? '💢' : '✨';
+  spawnReaction(receiverId, emoji, 'party');
+  if (pair && Array.isArray(pair.ids)) {
+    pair.ids.forEach(other => {
+      if (other !== receiverId) setTimeout(() => spawnReaction(other, emoji, 'party'), 120);
+    });
+  }
 }
 function consumePendingBonus(s, charId, kind) {
   if (!charId) return 0;
@@ -4067,6 +4300,30 @@ function spawnPopupId(id, text, type, side) {
   spawnPopup(cardEl, text, type);
 }
 
+// Tiny floating emoji reaction over a character — used for bond/friction
+// triggers, kills, and other manga-style beats.  Looks similar to a popup
+// but its own CSS class so we can style it bigger / fluffier.
+function spawnReaction(id, emoji, side) {
+  if (__simulating) return;
+  let cardEl;
+  if (side) cardEl = document.querySelector(`#${side === 'enemy' ? 'enemy' : 'party'}-half [data-id="${id}"]`);
+  if (!cardEl) cardEl = document.querySelector(`#battlefield [data-id="${id}"]`);
+  if (!cardEl) return;
+  const layer = $('#popup-layer');
+  const stage = $('#stage');
+  if (!layer || !stage) return;
+  const r = cardEl.getBoundingClientRect();
+  const s = stage.getBoundingClientRect();
+  const el = document.createElement('div');
+  el.className = 'reaction-bubble';
+  el.textContent = emoji;
+  el.style.left = (r.left + r.width / 2 - s.left) + 'px';
+  // Start near the head — same logic as spawnPopup
+  el.style.top  = (r.top - s.top + Math.max(28, r.height * 0.18)) + 'px';
+  layer.appendChild(el);
+  setTimeout(() => el.remove(), 1100);
+}
+
 function spawnPopup(cardEl, text, type='dmg') {
   const layer = $('#popup-layer');
   const stage = $('#stage');
@@ -4259,9 +4516,18 @@ function renderMap() {
           hideOverlay();
           choices.classList.remove('path-map');
           state.run.currentNodeId = node.id;
-          if (node.type === 'rest')        showRestOverlay();
-          else if (node.type === 'event')  showEventOverlay(node.eventId);
-          else                             startEncounter(node.enc);
+          if (node.type === 'rest')        return showRestOverlay();
+          if (node.type === 'event')       return showEventOverlay(node.eventId);
+          if (node.type === 'boss') {
+            // Boss-prep vignette gets one chance before the fight begins
+            const ctx = captureFightContext(state); ctx.phase = 'bossPrep';
+            const matches = matchVignettes(state, ctx);
+            if (matches.length) {
+              const pick = matches[Math.floor(Math.random() * matches.length)];
+              return showVignette(pick, ctx, () => startEncounter(node.enc));
+            }
+          }
+          startEncounter(node.enc);
         });
       }
       slotsWrap.appendChild(el);
@@ -4290,14 +4556,25 @@ function showVignette(v, ctx, done) {
   const bodyEl  = $('#overlay-body');
   const choicesEl = $('#overlay-choices');
 
-  // Pick the actual speaker for portrait + line resolution
+  // Pick the actual speaker for portrait + line resolution.  Several
+  // wildcards are supported so vignettes don't need to hard-code IDs.
+  const aliveIds = (ctx && ctx.alive && ctx.alive.length)
+    ? ctx.alive
+    : Object.values(state.party.chars).filter(c => !c.downed).map(c => c.id);
   let speakerId = v.speaker;
-  if (v.speakerFromLowestHp) speakerId = _lowestHpAliveId(state);
+  if (v.speakerFromLowestHp)    speakerId = _lowestHpAliveId(state);
+  if (v.speakerFromFirstAlive)  speakerId = aliveIds[0];
   if (speakerId && !state.party.chars[speakerId] && v.speakerFallback) speakerId = v.speakerFallback;
   if (speakerId && !state.party.chars[speakerId]) {
-    // last-ditch: any alive party member
-    speakerId = ctx.alive[0] || null;
+    speakerId = aliveIds[0] || null;
   }
+  // Resolve helper for line.who wildcards
+  const resolveWho = (who) => {
+    if (who === '_lowest') return _lowestHpAliveId(state);
+    if (who === '_first')  return aliveIds[0] || null;
+    if (who === '_last')   return aliveIds[aliveIds.length - 1] || null;
+    return who;
+  };
 
   titleEl.textContent = v.title || 'A moment';
   bodyEl.classList.remove('victory-summary-body', 'welcome-body', 'run-summary-body');
@@ -4319,10 +4596,9 @@ function showVignette(v, ctx, done) {
   v.lines.forEach(line => {
     const row = document.createElement('div');
     row.className = 'vignette-line';
-    // Resolve who: literal id, or '_lowest' / 'altWho' fallback when the
-    // primary speaker isn't on the team.
-    let whoId = line.who;
-    if (whoId === '_lowest') whoId = _lowestHpAliveId(state);
+    // Resolve who: literal id, wildcard (_lowest / _first / _last), or
+    // altWho fallback if the named speaker isn't on the team.
+    let whoId = resolveWho(line.who);
     if (whoId && !state.party.chars[whoId] && line.altWho && state.party.chars[line.altWho]) whoId = line.altWho;
     if (whoId && !state.party.chars[whoId]) whoId = null;
     if (whoId) {
@@ -4352,6 +4628,7 @@ function showVignette(v, ctx, done) {
     `;
     card.addEventListener('click', () => {
       ch.resolve(state);
+      if (v.oneShot) markVignetteFired(v.id);
       hideOverlay();
       choicesEl.classList.remove('event-choices', 'vignette-choices');
       if (typeof done === 'function') done();
@@ -4963,8 +5240,16 @@ function commitRecruit(removeId, recruitId) {
 
 function init() {
   state = newState();
-  // Open onto the map so the player picks their entry node (Slay-the-Spire style).
-  // renderMap() handles "no completed nodes yet" → entry nodes become reachable.
+  // Try the run-start cold-open vignette before the map opens.  If none
+  // match (or it's already fired), fall straight through to the map.
+  const ctx = captureFightContext(state);
+  ctx.phase = 'runStart';
+  const matches = matchVignettes(state, ctx);
+  if (matches.length) {
+    const pick = matches[Math.floor(Math.random() * matches.length)];
+    showVignette(pick, ctx, () => renderMap());
+    return;
+  }
   renderMap();
 }
 
