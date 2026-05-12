@@ -3210,6 +3210,60 @@ function bindUI() {
   // overlay-btn handler is reassigned by overlay flows (recruit/swap) so we use
   // .onclick rather than addEventListener to keep a single replaceable handler.
   $('#overlay-btn').onclick = () => { hideOverlay(); init(); };
+  bindChipExplainers();
+}
+
+// Mobile-friendly chip tooltips: tap any status/affinity/synergy/incoming chip
+// to surface its explanation. Capture-phase so the figure's setPointerCapture
+// (pickup gesture) doesn't swallow the tap.
+function bindChipExplainers() {
+  const CHIP_SEL = '.status-chip, .affinity-chip, .adj-chip, .incoming-chip';
+  document.addEventListener('pointerdown', (e) => {
+    const chip = e.target.closest(CHIP_SEL);
+    if (chip && chip.getAttribute('title')) {
+      e.stopPropagation();
+      e.preventDefault();
+      const text = chip.getAttribute('title');
+      showChipTooltip(chip, text);
+    } else if (!e.target.closest('#chip-tooltip')) {
+      hideChipTooltip();
+    }
+  }, true);
+}
+
+let chipTooltipTimer = null;
+function showChipTooltip(anchor, text) {
+  let tip = document.getElementById('chip-tooltip');
+  if (!tip) {
+    tip = document.createElement('div');
+    tip.id = 'chip-tooltip';
+    document.body.appendChild(tip);
+  }
+  tip.textContent = text;
+  tip.classList.add('visible');
+  // Position above the chip, centered, clamped to viewport
+  const r = anchor.getBoundingClientRect();
+  // Ensure layout is current before measuring tip
+  tip.style.left = '0px'; tip.style.top = '0px';
+  const tr = tip.getBoundingClientRect();
+  let left = r.left + r.width / 2 - tr.width / 2;
+  left = Math.max(8, Math.min(window.innerWidth - tr.width - 8, left));
+  let top = r.top - tr.height - 8;
+  let arrowDown = true;
+  if (top < 8) { top = r.bottom + 8; arrowDown = false; }
+  tip.classList.toggle('arrow-up', !arrowDown);
+  tip.classList.toggle('arrow-down', arrowDown);
+  tip.style.left = `${left}px`;
+  tip.style.top = `${top}px`;
+  // Auto-dismiss
+  if (chipTooltipTimer) clearTimeout(chipTooltipTimer);
+  chipTooltipTimer = setTimeout(hideChipTooltip, 4000);
+}
+function hideChipTooltip() {
+  const tip = document.getElementById('chip-tooltip');
+  if (!tip) return;
+  tip.classList.remove('visible');
+  if (chipTooltipTimer) { clearTimeout(chipTooltipTimer); chipTooltipTimer = null; }
 }
 
 function resetOverlayBtn() {
