@@ -2752,12 +2752,12 @@ function _pickStarter() {
 // time they've been unlocked.
 function rememberRecruited(id) { return unlockStarter(id); }
 
-function newState() {
+function newState(forcedStarter) {
   // Solo start — the player awakens at the bottom of the Abyss with one
   // hero.  Companions are met along the way and asked into the party.
   // Unlocked starter pool is meta-progression: heroes the player has
   // walked with in past runs become available as starters.
-  const startSolo = _pickStarter();
+  const startSolo = (forcedStarter && CHARS[forcedStarter]) ? forcedStarter : _pickStarter();
 
   return {
     turn: 1,
@@ -5236,26 +5236,28 @@ function showVignette(v, ctx, done) {
 
   titleEl.textContent = v.title || 'A moment';
   bodyEl.classList.remove('victory-summary-body', 'welcome-body', 'run-summary-body');
+  bodyEl.classList.add('vignette-body');
   bodyEl.innerHTML = '';
 
+  // Cinematic stage — portrait dominates, dialogue floats over the bottom
+  // half of the imagery.  Choices live in a slim text-link strip at the
+  // very bottom of the overlay.
   const stage = document.createElement('div');
   stage.className = 'vignette-stage';
 
-  // Portrait column
   const portWrap = document.createElement('div');
   portWrap.className = 'vignette-portrait';
   if (speakerId && PORTRAITS[speakerId]) portWrap.innerHTML = PORTRAITS[speakerId];
   else portWrap.classList.add('empty');
   stage.appendChild(portWrap);
 
-  // Dialogue stack
+  // Dialogue overlay — sits visually atop the lower portion of the portrait
+  // so the imagery reads as the dominant element.
   const dlg = document.createElement('div');
   dlg.className = 'vignette-dialogue';
   v.lines.forEach(line => {
     const row = document.createElement('div');
     row.className = 'vignette-line';
-    // Resolve who: literal id, wildcard (_lowest / _first / _last), or
-    // altWho fallback if the named speaker isn't on the team.
     let whoId = resolveWho(line.who);
     if (whoId && !state.party.chars[whoId] && line.altWho && state.party.chars[line.altWho]) whoId = line.altWho;
     if (whoId && !state.party.chars[whoId]) whoId = null;
@@ -5273,22 +5275,24 @@ function showVignette(v, ctx, done) {
 
   bodyEl.appendChild(stage);
 
-  // Choices
+  // Choices — slim, single row of text-link buttons.  Each is one chip:
+  // an action label with a small tag chip.
   choicesEl.innerHTML = '';
-  choicesEl.classList.remove('path-map', 'party-inspect');
-  choicesEl.classList.add('event-choices', 'vignette-choices');
+  choicesEl.classList.remove('path-map', 'party-inspect', 'event-choices');
+  choicesEl.classList.add('vignette-choices');
   v.choices.forEach(ch => {
     const card = document.createElement('button');
-    card.className = 'encounter-choice event-choice vignette-choice';
+    card.className = 'vignette-choice';
     card.innerHTML = `
-      <div class="enc-name">${ch.label}</div>
-      <div class="sigil-desc">${ch.tag || ''}</div>
+      <span class="vc-label">${ch.label}</span>
+      ${ch.tag ? `<span class="vc-tag">${ch.tag}</span>` : ''}
     `;
     card.addEventListener('click', () => {
       ch.resolve(state);
       if (v.oneShot) markVignetteFired(v.id);
       hideOverlay();
-      choicesEl.classList.remove('event-choices', 'vignette-choices');
+      bodyEl.classList.remove('vignette-body');
+      choicesEl.classList.remove('vignette-choices');
       if (typeof done === 'function') done();
     });
     choicesEl.appendChild(card);
@@ -5994,18 +5998,67 @@ function fireRecruitVignette(recruitId) {
 // ============================================================================
 
 function init() {
-  state = newState();
-  // Try the run-start cold-open vignette before the map opens.  If none
-  // match (or it's already fired), fall straight through to the map.
-  const ctx = captureFightContext(state);
-  ctx.phase = 'runStart';
-  const matches = matchVignettes(state, ctx);
-  if (matches.length) {
-    const pick = matches[Math.floor(Math.random() * matches.length)];
-    showVignette(pick, ctx, () => renderMap());
+  // Show the starter chooser if the player has more than one solo-viable
+  // hero unlocked.  Otherwise auto-pick (Kai by default).
+  const pool = getUnlockedStarters().filter(id => SOLO_VIABLE.has(id));
+  const proceed = (starterId) => {
+    state = newState(starterId);
+    const ctx = captureFightContext(state);
+    ctx.phase = 'runStart';
+    const matches = matchVignettes(state, ctx);
+    if (matches.length) {
+      const pick = matches[Math.floor(Math.random() * matches.length)];
+      showVignette(pick, ctx, () => renderMap());
+      return;
+    }
+    renderMap();
+  };
+  if (pool.length <= 1) {
+    proceed(pool[0] || 'kai');
     return;
   }
-  renderMap();
+  showStarterChooser(pool, proceed);
+}
+
+// Pick a starter from the unlocked solo-viable pool.  Visually a slim grid
+// of portrait cards; click to begin the climb with that hero.
+function showStarterChooser(pool, onPick) {
+  $('#overlay-title').textContent = 'Who wakes here?';
+  const body = $('#overlay-body');
+  body.classList.remove('victory-summary-body', 'welcome-body', 'run-summary-body', 'title-screen-body');
+  body.innerHTML = `<p class="title-flavor">You can only carry one breath at the bottom.  Choose who draws it.</p>`;
+  const choices = $('#overlay-choices');
+  choices.innerHTML = '';
+  choices.classList.remove('path-map', 'party-inspect', 'event-choices', 'title-choices', 'vignette-choices');
+  choices.classList.add('starter-choices');
+  pool.forEach(id => {
+    const def = CHARS[id];
+    const card = document.createElement('button');
+    card.className = 'encounter-choice starter-choice recruit-choice';
+    card.innerHTML = `
+      <div class="enc-name">${def.name}</div>
+      <div class="recruit-portrait">${PORTRAITS[id] || ''}</div>
+      <div class="recruit-meta">
+        <div class="recruit-title">${def.title || ''}</div>
+        <div class="recruit-stats">
+          <span class="recruit-stat">HP ${def.maxHp}</span>
+          <span class="recruit-stat">Home ${SLOT_LABELS[def.home]}</span>
+        </div>
+        <div class="recruit-passive"><b>${def.passive?.name || ''}</b> · ${def.passive?.desc || ''}</div>
+      </div>
+    `;
+    card.addEventListener('click', () => {
+      hideOverlay();
+      choices.classList.remove('starter-choices');
+      resetOverlayBtn();
+      onPick(id);
+    });
+    choices.appendChild(card);
+  });
+  resetOverlayBtn();
+  $('#overlay-btn').classList.add('hidden');
+  choices.classList.remove('hidden');
+  $('#overlay').classList.remove('hidden');
 }
 
 // ============================================================================
