@@ -3844,3 +3844,223 @@ button.path-node:not(:disabled):hover {
   margin: 4px 0 8px;
 }
 .title-unlocked b { color: var(--gold-pale); }
+
+/* ===========================================================================
+   FULL-BLEED TITLE SCREEN — JRPG / Slay-the-Spire style splash.
+   Drawn outside #stage so it covers the entire viewport.  A hero silhouette
+   stands in a dark abyss with floating ambient particles; title text floats
+   at the top, menu links rest at the bottom.
+   =========================================================================== */
+#title-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  overflow: hidden;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  animation: ts-fade-in 0.6s ease-out;
+}
+#title-screen.hidden { display: none !important; }
+@keyframes ts-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+/* Background: a deep void with a faint glow at the player's feet so the
+   hero figure has somewhere to land. */
+.ts-bg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 60% 30% at 50% 88%,
+                    rgba(80,52,40,0.20) 0%,
+                    rgba(20,12,12,0.0) 75%),
+    radial-gradient(ellipse 100% 80% at 50% 50%,
+                    rgba(28,20,24,0.92) 0%,
+                    rgba(6,4,6,1) 80%),
+    #050405;
+}
+/* A second pass: subtle vertical streaks (the air of the abyss). */
+.ts-bg::after {
+  content: '';
+  position: absolute; inset: 0;
+  background:
+    repeating-linear-gradient(180deg,
+      transparent 0px,
+      transparent 28px,
+      rgba(232,220,196,0.012) 28px,
+      rgba(232,220,196,0.012) 29px);
+  mix-blend-mode: screen;
+  pointer-events: none;
+}
+/* Drifting motes of light (ash, embers). */
+.ts-particles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+.ts-particles span {
+  position: absolute;
+  width: 2px; height: 2px;
+  background: rgba(232,220,196,0.6);
+  border-radius: 50%;
+  box-shadow: 0 0 6px rgba(232,220,196,0.55);
+  animation: ts-mote 14s linear infinite;
+  opacity: 0;
+}
+.ts-particles span:nth-child(1)  { left: 12%; animation-delay:  0s; animation-duration: 12s; }
+.ts-particles span:nth-child(2)  { left: 24%; animation-delay:  3s; animation-duration: 16s; }
+.ts-particles span:nth-child(3)  { left: 38%; animation-delay:  6s; animation-duration: 13s; }
+.ts-particles span:nth-child(4)  { left: 46%; animation-delay:  9s; animation-duration: 18s; }
+.ts-particles span:nth-child(5)  { left: 54%; animation-delay:  1s; animation-duration: 15s; }
+.ts-particles span:nth-child(6)  { left: 62%; animation-delay:  4s; animation-duration: 14s; }
+.ts-particles span:nth-child(7)  { left: 70%; animation-delay:  7s; animation-duration: 17s; }
+.ts-particles span:nth-child(8)  { left: 78%; animation-delay: 10s; animation-duration: 12s; }
+.ts-particles span:nth-child(9)  { left: 86%; animation-delay:  2s; animation-duration: 16s; }
+.ts-particles span:nth-child(10) { left: 92%; animation-delay:  5s; animation-duration: 13s; }
+@keyframes ts-mote {
+  0%   { transform: translateY(110vh) scale(0.8); opacity: 0; }
+  10%  { opacity: 0.75; }
+  90%  { opacity: 0.55; }
+  100% { transform: translateY(-10vh)  scale(1.0); opacity: 0; }
+}
+
+/* Layout column — everything else stacks here, centered horizontally. */
+.ts-content {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  align-items: stretch;
+  width: 100%;
+  max-width: 880px;
+  padding: 22px 16px;
+}
+/* Title at the top — medium-weight cap, not huge. */
+.ts-header {
+  text-align: center;
+}
+.ts-title {
+  font-size: 38px;
+  letter-spacing: 0.42em;
+  margin: 0;
+  color: var(--gold-pale);
+  font-weight: 400;
+  text-shadow:
+    0 0 22px rgba(240,224,182,0.4),
+    0 0 4px  rgba(240,224,182,0.6),
+    0 2px 0  rgba(0,0,0,0.8);
+}
+.ts-subtitle {
+  margin: 4px 0 0;
+  font-size: 13px;
+  letter-spacing: 0.46em;
+  text-transform: uppercase;
+  color: var(--gold);
+  opacity: 0.85;
+}
+
+/* Hero — silhouette standing in the abyss.  The SVG portrait scales
+   to the available middle row, anchored to the bottom so the feet
+   meet the floor-glow. */
+.ts-hero {
+  position: relative;
+  align-self: end;
+  justify-self: center;
+  width: 100%;
+  max-width: 320px;
+  height: 100%;
+  /* Subtle floor-glow under the figure */
+}
+.ts-hero::before {
+  content: '';
+  position: absolute;
+  left: 50%; bottom: -2px;
+  width: 200px; height: 36px;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse 60% 100% at 50% 50%,
+                              rgba(240,224,182,0.18) 0%,
+                              rgba(240,224,182,0) 75%);
+  pointer-events: none;
+}
+.ts-hero svg {
+  display: block;
+  height: 100%;
+  width: auto;
+  max-width: 100%;
+  margin: 0 auto;
+  filter: drop-shadow(0 8px 28px rgba(0,0,0,0.85));
+  animation: ts-hero-breath 4.6s ease-in-out infinite;
+}
+@keyframes ts-hero-breath {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-3px); }
+}
+
+/* Footer — slim menu links + a small unlocks line. */
+.ts-footer {
+  text-align: center;
+}
+.ts-menu {
+  display: flex;
+  justify-content: center;
+  gap: 28px;
+  flex-wrap: wrap;
+}
+.ts-menu-btn {
+  background: transparent;
+  border: none;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 11.5px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 6px 4px;
+  position: relative;
+  transition: color 0.18s, text-shadow 0.18s;
+}
+.ts-menu-btn:hover:not(.disabled) {
+  color: var(--gold-pale);
+  text-shadow: 0 0 12px rgba(240,224,182,0.45);
+}
+.ts-menu-btn::after {
+  content: '';
+  position: absolute;
+  left: 50%; bottom: 0;
+  transform: translateX(-50%);
+  width: 0; height: 1px;
+  background: var(--gold-pale);
+  transition: width 0.2s;
+}
+.ts-menu-btn:hover:not(.disabled)::after { width: 100%; }
+.ts-menu-btn.disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.ts-meta {
+  margin: 10px 0 0;
+  font-size: 9.5px;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.ts-meta b { color: var(--gold-pale); }
+
+/* Mobile fit */
+@media (max-height: 480px) {
+  .ts-content  { padding: 12px 12px; }
+  .ts-title    { font-size: 28px; letter-spacing: 0.38em; }
+  .ts-subtitle { font-size: 11px; letter-spacing: 0.42em; }
+  .ts-hero     { max-width: 220px; }
+  .ts-menu-btn { font-size: 10.5px; letter-spacing: 0.26em; padding: 4px 2px; }
+  .ts-menu     { gap: 18px; }
+  .ts-meta     { font-size: 9px; letter-spacing: 0.22em; margin-top: 6px; }
+}
+@media (max-height: 380px) {
+  .ts-title    { font-size: 22px; letter-spacing: 0.32em; }
+  .ts-subtitle { font-size: 10px; }
+  .ts-hero     { max-width: 170px; }
+}
