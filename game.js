@@ -2149,16 +2149,22 @@ function fireAdjacencyHook(s, hookName, ...args) {
   });
 }
 
-// Spawn the synergy's effect popup, and on its first fire each fight,
-// also spawn the synergy NAME so the player learns what the chip means.
+// Spawn the synergy's effect popup, then EVERY trigger also flashes the
+// synergy NAME above the receiver in bond (green) or friction (red) color.
+// First-fire-per-fight is still tracked separately for the post-fight stats.
 function fireSynergyFeedback(s, name, receiverId, effectText, effectType) {
   if (__simulating) return;
   spawnPopupId(receiverId, effectText, effectType, 'party');
-  if (!s || !s.firedSynergies) return;
-  if (s.firedSynergies.has(name)) return;
-  s.firedSynergies.add(name);
-  if (s.fightStats) s.fightStats.synergies.push(name);
-  setTimeout(() => spawnPopupId(receiverId, name, 'synergy', 'party'), 180);
+  if (!s) return;
+  // Track first fires for the run/fight summary
+  if (s.firedSynergies && !s.firedSynergies.has(name)) {
+    s.firedSynergies.add(name);
+    if (s.fightStats) s.fightStats.synergies.push(name);
+  }
+  // Look up bond/friction type from the active adjacency pair
+  const pair = getAdjacencyPairs(s).find(p => p.synergy.name === name);
+  const popupClass = pair ? pair.synergy.type : 'synergy';
+  setTimeout(() => spawnPopupId(receiverId, name, popupClass, 'party'), 180);
 }
 function consumePendingBonus(s, charId, kind) {
   if (!charId) return 0;
@@ -2884,17 +2890,12 @@ function makePartyCard(c, slot, threatened, adjMap, incoming) {
   if (adj?.type === 'bond') fig.classList.add('adjacent-bond');
   if (adj?.type === 'friction') fig.classList.add('adjacent-friction');
   if (threatened && !c.downed) fig.classList.add('targeted-by-enemy');
+  if (incoming && incoming.lethal && !c.downed) fig.classList.add('targeted-lethal');
 
-  // collect all active adjacency synergies — render as small icon glyphs at the top.
-  // bond = gold ✦, friction = red ✕. Full name lives on the title attribute.
-  const synergies = [];
-  if (!c.downed && adj) {
-    if (adj.fm) synergies.push(adj.fm);
-    if (adj.mb) synergies.push(adj.mb);
-  }
-  const synStack = synergies.length
-    ? `<div class="figure-adj">${synergies.map(s => `<span class="adj-chip ${s.type}" title="${s.name}">${s.type === 'friction' ? '✕' : '✦'}</span>`).join('')}</div>`
-    : '';
+  // Persistent adjacency glyphs above the head are hidden — bonds/frictions
+  // surface only as transient popups when they actually trigger
+  // (see fireSynergyFeedback).
+  const synStack = '';
 
   const def = CHARS[c.id];
   const isHome = def.home === slot;
@@ -2911,15 +2912,12 @@ function makePartyCard(c, slot, threatened, adjMap, incoming) {
   const queuedMoveGlyph = queuedMove ? (queuedMove.dir > 0 ? '◀' : '▶') : '';
   if (queuedMove) fig.classList.add('has-queued-move');
 
-  // incoming-damage chip — predicted HP loss this turn from all unstaggered enemies
-  // targeting this character. Red on normal hits, pulsing brighter when lethal.
-  const incomingChip = (incoming && incoming.total > 0 && !c.downed)
-    ? `<div class="incoming-chip ${incoming.lethal ? 'lethal' : ''}" title="${incoming.lethal ? 'LETHAL — ' : ''}Predicted incoming damage this turn">−${incoming.total}${incoming.lethal ? '<span class="incoming-ko">KO</span>' : ''}</div>`
-    : '';
-
+  // Telegraph (no exact-damage chip): targeted figures glow red via the
+  // .targeted-by-enemy class; lethal hits glow brighter via .targeted-lethal.
+  // Some uncertainty preserved — players see WHO is threatened, not the
+  // precise number.
   fig.innerHTML = `
     ${synStack}
-    ${incomingChip}
     <div class="figure-statuses">${renderStatuses(c)}</div>
     <div class="figure-portrait">
       ${PORTRAITS[c.id] || ''}
@@ -2993,20 +2991,8 @@ function makeEnemyCard(e, slot) {
       ${num ? `<span class="intent-num">${num}</span>` : ''}
     </div>`;
 
-  // Weak / Resist affinity chips — short 3-letter school codes so the targeting
-  // puzzle is legible at a glance (was 13px glyphs which players missed).
-  const schoolCode = { physical: 'PHY', holy: 'HLY', arcane: 'ARC', stealth: 'STL', ranged: 'RNG' };
-  const asArr = x => Array.isArray(x) ? x : (x ? [x] : []);
-  const weakSchools = asArr(def.weakness);
-  const resistSchools = asArr(def.resistance);
-  const affChips = [];
-  weakSchools.forEach(w => {
-    affChips.push(`<span class="affinity-chip weak" title="Weak to ${w} — takes 50% more damage from ${w} attacks"><span class="aff-tag">W</span><span class="aff-school">${schoolCode[w] || '?'}</span></span>`);
-  });
-  resistSchools.forEach(r => {
-    affChips.push(`<span class="affinity-chip resist" title="Resists ${r} — takes 50% less damage from ${r} attacks"><span class="aff-tag">R</span><span class="aff-school">${schoolCode[r] || '?'}</span></span>`);
-  });
-  const affRow = affChips.length ? `<div class="affinity-row">${affChips.join('')}</div>` : '';
+  // (Affinity row removed — W/R schools no longer surfaced on the figure.
+  // Weakness / resistance still affect damage; they're just not telegraphed.)
 
   fig.innerHTML = `
     ${staggerBanner}
@@ -3021,7 +3007,6 @@ function makeEnemyCard(e, slot) {
     </div>
     <div class="figure-shadow"></div>
     <div class="figure-info">
-      ${affRow}
       <div class="figure-name">${def.name}</div>
       <div class="chain-bar"><div class="chain-fill" style="width:${chainPct}%"></div></div>
     </div>
