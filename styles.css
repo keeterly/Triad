@@ -188,12 +188,19 @@ body {
   100% { transform: translate(-4px, -100vh) scale(0.6); opacity: 0; }
 }
 
-/* ============ HUD — hidden. Resolve already reads from the pip jewels
-   beside the Fight crest, so the tiny ◆ N/3 readout at top center is
-   redundant. Header element is kept (game.js still writes into it) but
-   not painted. ============ */
+/* ============ HUD — empty placeholder. Resolve reads from the pip jewels
+   beside the Fight crest, so the inner ◆ N/3 readout has been removed from
+   index.html.  We KEEP the (empty) <header id="hud"> element so the grid
+   auto-placement of the remaining sections (#atb-row, #battlefield,
+   #action-row) stays anchored to rows 2/3/4. Using `display: none` here
+   collapses the element out of grid placement entirely, which would
+   shift every other section up by one row. ============ */
 #hud {
-  display: none;
+  height: 0;
+  overflow: hidden;
+  padding: 0;
+  margin: 0;
+  pointer-events: none;
 }
 /* ============ RESOLVE PIPS — small jewels next to the Fight crest ============ */
 #resolve-pips {
