@@ -2921,13 +2921,15 @@ function makePartyCard(c, slot, threatened, adjMap, incoming) {
     ${synStack}
     ${incomingChip}
     <div class="figure-statuses">${renderStatuses(c)}</div>
-    <div class="figure-portrait">${PORTRAITS[c.id] || ''}</div>
-    <div class="figure-shadow"></div>
-    <div class="figure-info">
+    <div class="figure-portrait">
+      ${PORTRAITS[c.id] || ''}
       <div class="figure-hp">
         <div class="hp-fill ${hpPct < 35 ? 'low' : ''}" style="width:${hpPct}%"></div>
         <div class="hp-text">${c.hp}/${c.maxHp}</div>
       </div>
+    </div>
+    <div class="figure-shadow"></div>
+    <div class="figure-info">
       <div class="figure-name${isHome ? ' home' : ''}">${def.name}</div>
     </div>
     ${canMoveBack  ? `<button class="move-arrow move-arrow-left"  data-dir="1"  aria-label="Move toward back">◀</button>`  : ''}
@@ -3007,17 +3009,19 @@ function makeEnemyCard(e, slot) {
   const affRow = affChips.length ? `<div class="affinity-row">${affChips.join('')}</div>` : '';
 
   fig.innerHTML = `
-    ${intentBubble}
     ${staggerBanner}
     <div class="figure-statuses">${renderStatuses(e)}</div>
-    <div class="figure-portrait">${PORTRAITS[e.id] || ''}</div>
-    <div class="figure-shadow"></div>
-    <div class="figure-info">
-      ${affRow}
+    <div class="figure-portrait">
+      ${PORTRAITS[e.id] || ''}
       <div class="figure-hp">
         <div class="hp-fill ${hpPct < 35 ? 'low' : ''}" style="width:${hpPct}%"></div>
         <div class="hp-text">${e.hp}/${e.maxHp}</div>
       </div>
+      ${intentBubble}
+    </div>
+    <div class="figure-shadow"></div>
+    <div class="figure-info">
+      ${affRow}
       <div class="figure-name">${def.name}</div>
       <div class="chain-bar"><div class="chain-fill" style="width:${chainPct}%"></div></div>
     </div>
