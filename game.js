@@ -800,9 +800,9 @@ const ENEMIES = {
     id: 'ghoul', name: 'Ghoul', title: 'Sin of Hunger', maxHp: 14,
     weakness: 'holy', resistance: 'physical',
     intents: [
-      { name: 'Bite',    tag: 'ATK 6',          targetSlot: 'front', kind: 'atk', fn: (s) => dmgPartyAt(s, 'front', 6) },
-      { name: 'Charge',  tag: 'ATK 4 + shove',  targetSlot: 'front', kind: 'atk', fn: (s) => { dmgPartyAt(s, 'front', 4); enemyShove(s, 'front', 'back'); } },
-      { name: 'Frenzy',  tag: 'ATK 3 + bleed',  targetSlot: 'front', kind: 'atk', fn: (s) => { dmgPartyAt(s, 'front', 3); bleedPartyAt(s, 'front', 2); } },
+      { name: 'Bite',    tag: 'ATK 6',          targetSlot: 'front', kind: 'atk', dmg: 6, fn: (s) => dmgPartyAt(s, 'front', 6) },
+      { name: 'Charge',  tag: 'ATK 4 + shove',  targetSlot: 'front', kind: 'atk', dmg: 4, fn: (s) => { dmgPartyAt(s, 'front', 4); enemyShove(s, 'front', 'back'); } },
+      { name: 'Frenzy',  tag: 'ATK 3 + bleed',  targetSlot: 'front', kind: 'atk', dmg: 3, fn: (s) => { dmgPartyAt(s, 'front', 3); bleedPartyAt(s, 'front', 2); } },
     ],
   },
   cultist: {
@@ -810,35 +810,35 @@ const ENEMIES = {
     weakness: 'physical', resistance: 'arcane',
     intents: [
       { name: 'Curse',     tag: 'WEAK 2',         targetSlot: 'front', kind: 'debuff', fn: (s) => weakSlot(s, 'front', 2) },
-      { name: 'Hex',       tag: 'ATK 2 + weak',   targetSlot: 'front', kind: 'atk',    fn: (s) => { dmgPartyAt(s, 'front', 2); weakSlot(s, 'front', 1); } },
-      { name: 'Doom Mark', tag: 'ATK 2 + vuln',   targetSlot: 'back',  kind: 'debuff', fn: (s) => { dmgPartyAt(s, 'back', 2); applyVulnParty(s, 'back', 1); } },
+      { name: 'Hex',       tag: 'ATK 2 + weak',   targetSlot: 'front', kind: 'atk',    dmg: 2, fn: (s) => { dmgPartyAt(s, 'front', 2); weakSlot(s, 'front', 1); } },
+      { name: 'Doom Mark', tag: 'ATK 2 + vuln',   targetSlot: 'back',  kind: 'debuff', dmg: 2, fn: (s) => { dmgPartyAt(s, 'back', 2); applyVulnParty(s, 'back', 1); } },
     ],
   },
   wraith: {
     id: 'wraith', name: 'Wraith', title: 'Sin of Sorrow', maxHp: 9,
     weakness: 'arcane', resistance: 'physical',
     intents: [
-      { name: 'Spectral Bolt', tag: 'ATK 5',     targetSlot: 'back', kind: 'atk', fn: (s) => dmgPartyAt(s, 'back', 5) },
-      { name: 'Wail',          tag: 'ATK 2 all', targetSlot: 'all',  kind: 'aoe', fn: (s) => dmgAllParty(s, 2) },
-      { name: 'Drain',         tag: 'ATK 3 low', targetSlot: '?',    kind: 'atk', fn: (s) => dmgLowestParty(s, 3) },
+      { name: 'Spectral Bolt', tag: 'ATK 5',     targetSlot: 'back', kind: 'atk', dmg: 5, fn: (s) => dmgPartyAt(s, 'back', 5) },
+      { name: 'Wail',          tag: 'ATK 2 all', targetSlot: 'all',  kind: 'aoe', dmg: 2, fn: (s) => dmgAllParty(s, 2) },
+      { name: 'Drain',         tag: 'ATK 3 low', targetSlot: '?',    kind: 'atk', dmg: 3, fn: (s) => dmgLowestParty(s, 3) },
     ],
   },
   lineCaster: {
     id: 'lineCaster', name: 'Line Caster', title: 'Sin of Voices', maxHp: 12,
     weakness: 'physical', resistance: 'arcane',
     intents: [
-      { name: 'Verse of Faces',   tag: 'ATK 3 F+M', targetSlot: 'fm',  kind: 'aoe', fn: (s) => dmgLinePair(s, 'fm', 3) },
-      { name: 'Discord',          tag: 'ATK 4 + vuln', targetSlot: 'mid', kind: 'atk', fn: (s) => { dmgPartyAt(s, 'mid', 4); applyVulnParty(s, 'mid', 1); } },
-      { name: 'Verse of Shadows', tag: 'ATK 3 M+B', targetSlot: 'mb',  kind: 'aoe', fn: (s) => dmgLinePair(s, 'mb', 3) },
+      { name: 'Verse of Faces',   tag: 'ATK 3 F+M', targetSlot: 'fm',  kind: 'aoe', dmg: 3, fn: (s) => dmgLinePair(s, 'fm', 3) },
+      { name: 'Discord',          tag: 'ATK 4 + vuln', targetSlot: 'mid', kind: 'atk', dmg: 4, fn: (s) => { dmgPartyAt(s, 'mid', 4); applyVulnParty(s, 'mid', 1); } },
+      { name: 'Verse of Shadows', tag: 'ATK 3 M+B', targetSlot: 'mb',  kind: 'aoe', dmg: 3, fn: (s) => dmgLinePair(s, 'mb', 3) },
     ],
   },
   sniper: {
     id: 'sniper', name: 'Sniper', title: 'Sin of Distance', maxHp: 11,
     weakness: 'stealth', resistance: 'ranged',
     intents: [
-      { name: 'Aimed Shot',       tag: 'ATK 6',        targetSlot: 'back',   kind: 'atk',    fn: (s) => dmgPartyAt(s, 'back', 6) },
-      { name: 'Pierce',           tag: 'ATK 3 M+B',    targetSlot: 'pierce', kind: 'aoe',    fn: (s) => dmgPierce(s, 3) },
-      { name: 'Crack the Shield', tag: 'ATK 2 + strip', targetSlot: 'back',   kind: 'debuff', fn: (s) => {
+      { name: 'Aimed Shot',       tag: 'ATK 6',        targetSlot: 'back',   kind: 'atk',    dmg: 6, fn: (s) => dmgPartyAt(s, 'back', 6) },
+      { name: 'Pierce',           tag: 'ATK 3 M+B',    targetSlot: 'pierce', kind: 'aoe',    dmg: 3, fn: (s) => dmgPierce(s, 3) },
+      { name: 'Crack the Shield', tag: 'ATK 2 + strip', targetSlot: 'back',   kind: 'debuff', dmg: 2, stripArmor: true, fn: (s) => {
         const c = charBySlot(s, 'back');
         if (c && !c.downed && c.armor > 0) { c.armor = 0; log(`<b>${CHARS[c.id].name}</b>'s armor shatters.`); }
         dmgPartyAt(s, 'back', 2);
@@ -849,8 +849,8 @@ const ENEMIES = {
     id: 'grappler', name: 'Grappler', title: 'Sin of Grasp', maxHp: 15,
     weakness: 'ranged', resistance: 'physical',
     intents: [
-      { name: 'Hook',  tag: 'ATK 3 + pull', targetSlot: 'mid',   kind: 'atk', fn: (s) => { dmgPartyAt(s, 'mid', 3); enemyShove(s, 'mid', 'front'); } },
-      { name: 'Crush', tag: 'ATK 7',        targetSlot: 'front', kind: 'atk', fn: (s) => dmgPartyAt(s, 'front', 7) },
+      { name: 'Hook',  tag: 'ATK 3 + pull', targetSlot: 'mid',   kind: 'atk', dmg: 3, fn: (s) => { dmgPartyAt(s, 'mid', 3); enemyShove(s, 'mid', 'front'); } },
+      { name: 'Crush', tag: 'ATK 7',        targetSlot: 'front', kind: 'atk', dmg: 7, fn: (s) => dmgPartyAt(s, 'front', 7) },
       { name: 'Bind',  tag: 'WEAK 1 + bind', targetSlot: 'front', kind: 'debuff', fn: (s) => {
         const c = charBySlot(s, 'front');
         if (c && !c.downed) {
@@ -865,10 +865,10 @@ const ENEMIES = {
     id: 'wakeling', name: 'The Wakeling', title: 'Sin of the Dawn', maxHp: 46, boss: true,
     weakness: ['arcane', 'stealth'], resistance: 'physical',
     intents: [
-      { name: 'Sundering Strike', tag: 'ATK 8',         targetSlot: 'front', kind: 'atk',    fn: (s) => dmgPartyAt(s, 'front', 8) },
-      { name: 'Cyclone',          tag: 'ATK 3 all',     targetSlot: 'all',   kind: 'aoe',    fn: (s) => dmgAllParty(s, 3) },
-      { name: 'Final Sin',        tag: 'ATK 5 + bleed', targetSlot: 'mid',   kind: 'atk',    fn: (s) => { dmgPartyAt(s, 'mid', 5); bleedPartyAt(s, 'mid', 2); } },
-      { name: 'Hollow Reach',     tag: 'ATK 4 + vuln',  targetSlot: 'back',  kind: 'debuff', fn: (s) => { dmgPartyAt(s, 'back', 4); applyVulnParty(s, 'back', 2); } },
+      { name: 'Sundering Strike', tag: 'ATK 8',         targetSlot: 'front', kind: 'atk',    dmg: 8, fn: (s) => dmgPartyAt(s, 'front', 8) },
+      { name: 'Cyclone',          tag: 'ATK 3 all',     targetSlot: 'all',   kind: 'aoe',    dmg: 3, fn: (s) => dmgAllParty(s, 3) },
+      { name: 'Final Sin',        tag: 'ATK 5 + bleed', targetSlot: 'mid',   kind: 'atk',    dmg: 5, fn: (s) => { dmgPartyAt(s, 'mid', 5); bleedPartyAt(s, 'mid', 2); } },
+      { name: 'Hollow Reach',     tag: 'ATK 4 + vuln',  targetSlot: 'back',  kind: 'debuff', dmg: 4, fn: (s) => { dmgPartyAt(s, 'back', 4); applyVulnParty(s, 'back', 2); } },
     ],
   },
 };
@@ -1525,6 +1525,43 @@ function resolveHealTargets(s, variant, healerId) {
   }
   // default 'lowest'
   return [alive.slice().sort((a,b) => (a.hp/a.maxHp) - (b.hp/b.maxHp))[0]];
+}
+
+// Pure prediction for incoming damage to a party member from an enemy intent.
+// Mirrors applyDmgToParty's modifier stack (Cassia Steadfast, vuln, armor)
+// without mutating state. opts.armor / opts.vuln override current state so the
+// caller can simulate sequential hits within a turn.
+function previewIncomingDmg(s, c, baseAmt, opts) {
+  if (!c || c.downed || !(baseAmt > 0)) return { amt: 0, toHp: 0 };
+  let amt = baseAmt;
+  if (c.id === 'cassia' && slotOfChar(s, 'cassia') === 'front') amt = Math.max(0, amt - 1);
+  const vuln = (opts && typeof opts.vuln === 'number') ? opts.vuln : c.vuln;
+  if (vuln > 0 && amt > 0) amt += 2;
+  const baseArmor = (opts && typeof opts.armor === 'number') ? opts.armor : c.armor;
+  const effArmor = (opts && opts.stripArmor) ? 0 : baseArmor;
+  const absorbed = Math.min(effArmor, amt);
+  const toHp = Math.max(0, amt - absorbed);
+  return { amt, toHp };
+}
+
+// Which party char IDs does this intent target right now?
+function intentTargetCharIds(s, intent) {
+  const ts = intent.targetSlot;
+  const ids = [];
+  if (ts === 'all') {
+    aliveParty(s).forEach(c => ids.push(c.id));
+  } else if (ts === 'fm') {
+    ['front','mid'].forEach(sl => { const c = charBySlot(s, sl); if (c && !c.downed) ids.push(c.id); });
+  } else if (ts === 'mb' || ts === 'pierce') {
+    ['mid','back'].forEach(sl => { const c = charBySlot(s, sl); if (c && !c.downed) ids.push(c.id); });
+  } else if (ts === '?') {
+    const alive = aliveParty(s).slice().sort((a,b) => (a.hp/a.maxHp) - (b.hp/b.maxHp));
+    if (alive[0]) ids.push(alive[0].id);
+  } else if (ts === 'front' || ts === 'mid' || ts === 'back') {
+    const c = charBySlot(s, ts);
+    if (c && !c.downed) ids.push(c.id);
+  }
+  return ids;
 }
 
 // Multi-hit-aware wrapper around previewDamage. Twin Daggers etc. land the
@@ -2508,15 +2545,34 @@ function flashResolve() {
 }
 
 function renderBattlefield() {
-  // determine which player slots are targeted by enemy intents
+  // For each unstaggered enemy this turn, project its intent: which party
+  // slots are threatened, and per-character predicted HP loss with armor/vuln
+  // depleting across sequential hits.
   const threatened = new Set();
+  const incomingByChar = {};
+  const sim = {};  // charId -> { armor, vuln } working copy
   aliveEnemies(state).forEach(e => {
+    if (e.staggered) return;
     const intent = ENEMIES[e.id].intents[e.intentIdx % ENEMIES[e.id].intents.length];
     const ts = intent.targetSlot;
     if (ts === 'all') SLOTS.forEach(s => threatened.add(s));
     else if (ts === 'fm') { threatened.add('front'); threatened.add('mid'); }
     else if (ts === 'mb' || ts === 'pierce') { threatened.add('mid'); threatened.add('back'); }
     else if (ts && ts !== '?') threatened.add(ts);
+    // '?'-targeting also lights up the actual lowest-HP figure
+    if (ts === '?') intentTargetCharIds(state, intent).forEach(id => { const sl = slotOfChar(state, id); if (sl) threatened.add(sl); });
+    if (typeof intent.dmg !== 'number') return;
+    intentTargetCharIds(state, intent).forEach(charId => {
+      const c = state.party.chars[charId];
+      if (!c || c.downed) return;
+      if (!sim[charId]) sim[charId] = { armor: c.armor, vuln: c.vuln };
+      const r = previewIncomingDmg(state, c, intent.dmg, { armor: sim[charId].armor, vuln: sim[charId].vuln, stripArmor: !!intent.stripArmor });
+      if (r.amt > 0 && sim[charId].vuln > 0) sim[charId].vuln -= 1;
+      sim[charId].armor = intent.stripArmor ? 0 : Math.max(0, sim[charId].armor - r.amt);
+      if (!incomingByChar[charId]) incomingByChar[charId] = { total: 0, lethal: false };
+      incomingByChar[charId].total += r.toHp;
+      if (incomingByChar[charId].total >= c.hp) incomingByChar[charId].lethal = true;
+    });
   });
 
   // adjacency map for visual borders + chip labels.
@@ -2533,7 +2589,8 @@ function renderBattlefield() {
   const partyHalf = $('#party-half'); partyHalf.innerHTML = '';
   PARTY_DISPLAY_ORDER.forEach(slot => {
     const c = charBySlot(state, slot);
-    partyHalf.appendChild(makePartyCard(c, slot, threatened.has(slot), adjMap));
+    const incoming = c ? incomingByChar[c.id] : null;
+    partyHalf.appendChild(makePartyCard(c, slot, threatened.has(slot), adjMap, incoming));
   });
 
   // ENEMY: three cards in display order (front / mid / back)
@@ -2583,7 +2640,7 @@ function cornerBrackets() {
   return '<i class="cnr cnr-tl"></i><i class="cnr cnr-tr"></i><i class="cnr cnr-bl"></i><i class="cnr cnr-br"></i>';
 }
 
-function makePartyCard(c, slot, threatened, adjMap) {
+function makePartyCard(c, slot, threatened, adjMap, incoming) {
   const fig = document.createElement('div');
   fig.className = 'figure party-figure';
   fig.dataset.slot = slot;
@@ -2625,8 +2682,15 @@ function makePartyCard(c, slot, threatened, adjMap) {
   const queuedMoveGlyph = queuedMove ? (queuedMove.dir > 0 ? '◀' : '▶') : '';
   if (queuedMove) fig.classList.add('has-queued-move');
 
+  // incoming-damage chip — predicted HP loss this turn from all unstaggered enemies
+  // targeting this character. Red on normal hits, pulsing brighter when lethal.
+  const incomingChip = (incoming && incoming.total > 0 && !c.downed)
+    ? `<div class="incoming-chip ${incoming.lethal ? 'lethal' : ''}" title="${incoming.lethal ? 'LETHAL — ' : ''}Predicted incoming damage this turn">−${incoming.total}${incoming.lethal ? '<span class="incoming-ko">KO</span>' : ''}</div>`
+    : '';
+
   fig.innerHTML = `
     ${synStack}
+    ${incomingChip}
     <div class="figure-statuses">${renderStatuses(c)}</div>
     <div class="figure-portrait">${PORTRAITS[c.id] || ''}</div>
     <div class="figure-shadow"></div>
