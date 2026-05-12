@@ -1928,6 +1928,104 @@ body {
   margin-right: 4px;
 }
 
+/* post-fight victory summary — overrides the default italic flavor body */
+#overlay-body.victory-summary-body {
+  font-style: normal;
+  text-align: left;
+  margin-bottom: 18px;
+  min-width: 320px;
+}
+.vs-subtitle {
+  color: var(--gold-pale);
+  font-style: italic;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-align: center;
+  margin-bottom: 10px;
+}
+.vs-meta {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  margin-bottom: 14px;
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+.vs-meta-stat b { color: var(--gold-bright); font-weight: 700; }
+.vs-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 4px;
+}
+.vs-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 10px;
+  background: rgba(20,12,6,0.55);
+  border: 1px solid rgba(200,164,100,0.15);
+  border-radius: 3px;
+}
+.vs-row.vs-downed {
+  opacity: 0.55;
+  border-color: rgba(212,69,69,0.35);
+}
+.vs-name {
+  color: var(--gold-pale);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.vs-stats {
+  display: flex;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--ink-dim);
+}
+.vs-stat b { font-weight: 700; font-variant-numeric: tabular-nums; }
+.vs-dealt b { color: var(--blood-bright); }
+.vs-healed b { color: var(--heal); }
+.vs-taken b { color: #c8a878; }
+.vs-quiet { color: var(--ink-dim); opacity: 0.6; }
+.vs-syn {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(200,164,100,0.18);
+  text-align: center;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--ink-dim);
+}
+.vs-syn-label {
+  display: block;
+  color: var(--gold-pale);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 10px;
+  margin-bottom: 4px;
+}
+.vs-syn-chip {
+  display: inline-block;
+  margin: 2px 3px;
+  padding: 2px 7px;
+  border: 1px solid var(--gold-dim);
+  border-radius: 9px;
+  font-size: 10px;
+  color: var(--gold-bright);
+  letter-spacing: 0.06em;
+  background: rgba(40,28,16,0.6);
+}
+
+/* widen overlay-content while summary is showing */
+#overlay-content:has(#overlay-body.victory-summary-body) {
+  max-width: 460px;
+  padding: 26px 30px 22px;
+}
+
 /* path-choice overlay */
 #overlay-content:has(#overlay-choices:not(.hidden)) {
   max-width: 580px;
