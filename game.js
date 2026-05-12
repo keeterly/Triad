@@ -2720,7 +2720,6 @@ function render() {
   renderQueue();
   renderTeamSpecial();
   renderFightButton();
-  renderMessages();
 }
 
 function renderHUD() {
@@ -2737,11 +2736,6 @@ function renderHUD() {
     else if (i < state.resolve) p.className = 'pip filled reserved';
     else p.className = 'pip';
     pips.appendChild(p);
-  }
-  const encName = $('#encounter-name');
-  if (encName && state.run && state.run.currentEncId) {
-    const enc = ENCOUNTERS[state.run.currentEncId];
-    encName.textContent = enc ? enc.name : '';
   }
   // glanceable resolve readout in the HUD line (no interaction, just a count)
   const hudNum = $('#hud-resolve-num');
@@ -3374,17 +3368,10 @@ function renderFightButton() {
   btn.disabled = !canFight;
 }
 
-function renderMessages() {
-  const bar = $('#message-bar');
-  // single-line ticker: show only the most recent message
-  const latest = state.messages[state.messages.length - 1];
-  if (!latest) { bar.innerHTML = ''; return; }
-  const isStrong = latest.startsWith('<span class="msg-strong">');
-  bar.innerHTML = `<div class="msg-line ${isStrong ? 'msg-strong' : ''}">${latest.replace(/<span class="msg-strong">|<\/span>/g,'')}</div>`;
-}
-
-function log(html) { state.messages.push(html); }
-function flashMsg(text) { log(`<i>${text}</i>`); renderMessages(); }
+// Message log was retired — popups + chips carry per-action info now.
+// log() is kept as a no-op so existing engine call sites stay quiet.
+function log(_html) { /* intentionally empty */ }
+function flashMsg(_text) { /* intentionally empty */ }
 
 // ============================================================================
 // POPUPS + FLASHES — visual juice
@@ -3513,32 +3500,68 @@ function showOverlay(title, body) {
   $('#overlay').classList.remove('hidden');
 }
 
+// Branching map between fights — renders the whole 3×2 tree so the player
+// sees what awaits behind every choice. Completed nodes mark the path
+// they walked; the current-tier nodes are clickable; future nodes are
+// visible but not interactive.
 function showPathChoice(slotConfig) {
-  $('#overlay-title').textContent = slotConfig.label;
-  $('#overlay-body').textContent = 'Choose your next reach.';
+  const curSlot = slotConfig.slot;
+  $('#overlay-title').textContent = 'The Path';
+  $('#overlay-body').textContent = `Choose your ${slotConfig.label.toLowerCase()}.`;
   const choices = $('#overlay-choices');
   choices.innerHTML = '';
-  slotConfig.options.forEach(encId => {
-    const enc = ENCOUNTERS[encId];
-    const card = document.createElement('button');
-    card.className = 'encounter-choice';
-    if (enc.elite) card.classList.add('encounter-elite');
-    const enemyIcons = SLOTS.map(sl => {
-      const eid = enc.slots[sl];
-      const def = ENEMIES[eid];
-      return `<div class="enc-icon" title="${def?.name || ''}">${PORTRAITS[eid] || ''}<div class="enc-icon-slot">${SLOT_LABELS[sl]}</div></div>`;
-    }).join('');
-    const catLabel = enc.elite && enc.sigilCategory ? ` · ${enc.sigilCategory.charAt(0).toUpperCase() + enc.sigilCategory.slice(1)} Sigil` : (enc.elite ? ' · Sigil reward' : '');
-    card.innerHTML = `
-      ${enc.elite ? `<div class="enc-badge">☠ Elite${catLabel}</div>` : ''}
-      <div class="enc-name">${enc.name}</div>
-      <div class="enc-row">${enemyIcons}</div>
-    `;
-    card.addEventListener('click', () => {
-      hideOverlay();
-      startEncounter(encId);
+  choices.classList.add('path-map');
+  // grid: each column is one reach; each row is one option
+  RUN_LAYOUT.forEach((cfg, colIdx) => {
+    const col = document.createElement('div');
+    col.className = 'path-col';
+    const head = document.createElement('div');
+    head.className = 'path-col-head';
+    head.textContent = cfg.label;
+    col.appendChild(head);
+    const slotsWrap = document.createElement('div');
+    slotsWrap.className = 'path-col-slots';
+    cfg.options.forEach((encId, rowIdx) => {
+      const enc = ENCOUNTERS[encId];
+      const isCompleted = state.run.completed[colIdx] === encId;
+      const isCurrent = colIdx === curSlot;
+      const node = document.createElement(isCurrent ? 'button' : 'div');
+      node.className = 'path-node';
+      node.dataset.row = rowIdx;
+      node.dataset.col = colIdx;
+      if (enc.elite) node.classList.add('path-elite');
+      if (enc.boss)  node.classList.add('path-boss');
+      if (isCompleted) node.classList.add('path-completed');
+      else if (isCurrent) node.classList.add('path-current');
+      else if (colIdx < curSlot) node.classList.add('path-skipped');
+      else node.classList.add('path-locked');
+      const enemyIcons = SLOTS.map(sl => {
+        const eid = enc.slots && enc.slots[sl];
+        if (!eid) return '';
+        const def = ENEMIES[eid];
+        return `<div class="path-enemy" title="${def?.name || ''}">${PORTRAITS[eid] || ''}</div>`;
+      }).join('');
+      const sigilCat = enc.elite && enc.sigilCategory ? enc.sigilCategory : null;
+      const tagLine = enc.boss ? '<span class="path-tag path-boss-tag">Boss</span>'
+        : enc.elite ? `<span class="path-tag path-elite-tag">Elite${sigilCat ? ` · ${sigilCat[0].toUpperCase() + sigilCat.slice(1)} Sigil` : ''}</span>`
+        : '';
+      node.innerHTML = `
+        ${isCompleted ? '<span class="path-check">✓</span>' : ''}
+        <div class="path-name">${enc.name}</div>
+        ${tagLine}
+        <div class="path-enemies">${enemyIcons}</div>
+      `;
+      if (isCurrent) {
+        node.addEventListener('click', () => {
+          hideOverlay();
+          choices.classList.remove('path-map');
+          startEncounter(encId);
+        });
+      }
+      slotsWrap.appendChild(node);
     });
-    choices.appendChild(card);
+    col.appendChild(slotsWrap);
+    choices.appendChild(col);
   });
   choices.classList.remove('hidden');
   resetOverlayBtn();
@@ -3546,7 +3569,11 @@ function showPathChoice(slotConfig) {
   $('#overlay').classList.remove('hidden');
 }
 
-function hideOverlay() { $('#overlay').classList.add('hidden'); }
+function hideOverlay() {
+  $('#overlay').classList.add('hidden');
+  const ch = $('#overlay-choices');
+  if (ch) ch.classList.remove('path-map');
+}
 
 // ============================================================================
 // RECRUIT — between-fight character draft
