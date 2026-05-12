@@ -493,25 +493,38 @@ body {
 }
 
 /* HP bar reuses .hp-bar / .hp-fill / .hp-text from below — keep it the same look but constrained to the info width */
-/* NieR-style HP readout, minimal version:
-   - Absolute-positioned above the figure's head
-   - Single solid bar (no tick marks, no outline frame)
-   - Tiny tabular-nums "5/8" readout to the right of the bar */
+/* Minimal HP readout above the figure's head.
+   Layout:  [ ===---- ] 5/8
+   - bracket marks flank the bar
+   - "current/total" tabular-nums sits to the right
+   - single solid bar (no ticks, no outline)
+   - same top offset for party and enemies; intent bubble stacks below */
 .figure-hp {
   position: absolute;
   top: 4px;
   left: 50%;
   transform: translateX(-50%);
-  width: 46px;
+  width: 44px;
   height: 3px;
   background: rgba(10,10,12,0.72);
   border: none;
   border-radius: 0;
   overflow: visible;
-  z-index: 5;
+  z-index: 6;
 }
-/* On enemy figures, drop below the intent bubble so the two don't stack */
-#enemy-half .figure-hp { top: 20px; }
+.figure-hp::before,
+.figure-hp::after {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: ui-monospace, 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 10px;
+  line-height: 1;
+  color: var(--ink-dim);
+  pointer-events: none;
+}
+.figure-hp::before { content: '['; right: calc(100% + 2px); }
+.figure-hp::after  { content: ']'; left:  calc(100% + 2px); }
 .figure-hp .hp-fill {
   height: 100%;
   background: var(--ink);
@@ -524,11 +537,11 @@ body {
   background: var(--hp-low);
   animation: hp-pulse 1.2s ease-in-out infinite;
 }
-/* HP numeric "5/8" — sits inline to the right of the bar.  Overrides the
-   visually-hidden clip rules from .figure-hp .hp-text further up. */
+/* HP numeric "5/8" — current/total, pushed past the right bracket.
+   Overrides the visually-hidden clip rules earlier in the file. */
 .figure-hp .hp-text {
   position: absolute;
-  left: calc(100% + 5px);
+  left: calc(100% + 8px);
   top: 50%;
   transform: translateY(-50%);
   width: auto;
@@ -536,13 +549,13 @@ body {
   clip: auto;
   overflow: visible;
   white-space: nowrap;
-  font-size: 8px;
+  font-size: 9px;
   line-height: 1;
-  color: var(--ink-dim);
+  color: var(--ink);
   font-variant-numeric: tabular-nums;
   font-weight: 600;
   letter-spacing: 0.02em;
-  text-shadow: 0 1px 0 var(--shadow);
+  text-shadow: 0 1px 0 var(--shadow), 0 0 3px rgba(0,0,0,0.7);
   pointer-events: none;
 }
 /* HP number is now revealed on the parent figure's title attribute only — keep
@@ -578,19 +591,20 @@ body {
 }
 
 /* ============ INTENT BUBBLE — minimal floating glyph above enemy figure ============ */
+/* Intent bubble — stacked below the HP bar so the overhead row reads
+   top-down as:  HP bar   then   intent.  Stays minimal-flat to match
+   the rest of the NieR chrome. */
 .intent-bubble {
   position: absolute;
-  top: 2px; left: 50%;
+  top: 16px; left: 50%;
   transform: translateX(-50%);
   color: var(--ink);
-  display: inline-flex; align-items: center; gap: 2px;
-  padding: 1px 5px 1px 4px;
-  border-radius: 8px;
-  background: linear-gradient(180deg, rgba(212,69,69,0.95) 0%, rgba(139,46,46,0.95) 70%, rgba(74,20,20,0.95) 100%);
-  border: 1px solid rgba(255,200,200,0.3);
-  box-shadow:
-    0 2px 6px rgba(0,0,0,0.65),
-    0 0 8px rgba(212,69,69,0.4);
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 1px 5px;
+  border-radius: 0;
+  background: rgba(18,10,10,0.92);
+  border: 1px solid var(--blood-bright);
+  box-shadow: none;
   text-shadow: 0 1px 0 var(--shadow);
   z-index: 5;
   white-space: nowrap;
@@ -606,14 +620,16 @@ body {
   text-shadow: 0 1px 0 var(--shadow), 0 0 4px rgba(0,0,0,0.4);
 }
 .intent-bubble.intent-aoe {
-  background: linear-gradient(180deg, rgba(192,96,160,0.95) 0%, rgba(138,56,120,0.95) 70%, rgba(74,24,56,0.95) 100%);
-  border-color: rgba(255,200,240,0.35);
-  box-shadow: 0 2px 6px rgba(0,0,0,0.65), 0 0 8px rgba(192,96,160,0.45);
+  background: rgba(18,10,16,0.92);
+  border-color: var(--aoe);
+  color: var(--aoe);
+  box-shadow: none;
 }
 .intent-bubble.intent-debuff {
-  background: linear-gradient(180deg, rgba(154,120,192,0.95) 0%, rgba(90,58,128,0.95) 70%, rgba(42,24,64,0.95) 100%);
-  border-color: rgba(220,200,255,0.35);
-  box-shadow: 0 2px 6px rgba(0,0,0,0.65), 0 0 8px rgba(154,120,192,0.45);
+  background: rgba(14,10,18,0.92);
+  border-color: var(--debuff);
+  color: var(--debuff);
+  box-shadow: none;
 }
 
 /* threat indicator on party figures — pulsing blood glow under the portrait */
