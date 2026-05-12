@@ -310,9 +310,8 @@ body {
 }
 
 /* ============ FIGURE — standing character on the battlefield (no card frame) ============
-   NieR corner-bracket frame is drawn via eight layered linear-gradients so each
-   cell gets four L-shaped reticle marks without any extra DOM.  Brackets are
-   muted by default and brighten on hold/target. */
+   No corner brackets — they made the battlefield feel busy. Selection state
+   reads from the portrait halo / scale / dim from elsewhere. */
 .figure {
   position: relative;
   display: flex;
@@ -320,30 +319,8 @@ body {
   align-items: center;
   justify-content: flex-end;
   min-width: 0; min-height: 0;
-  padding: 4px 4px 1px;
+  padding: 0 0 1px;
   cursor: pointer;
-  --bracket-color: rgba(212,200,168,0.32);
-  --bracket-len: 14px;
-  background:
-    /* top-left:  horizontal arm + vertical arm */
-    linear-gradient(var(--bracket-color),var(--bracket-color)) left 4px top 4px / var(--bracket-len) 1px no-repeat,
-    linear-gradient(var(--bracket-color),var(--bracket-color)) left 4px top 4px / 1px var(--bracket-len) no-repeat,
-    /* top-right */
-    linear-gradient(var(--bracket-color),var(--bracket-color)) right 4px top 4px / var(--bracket-len) 1px no-repeat,
-    linear-gradient(var(--bracket-color),var(--bracket-color)) right 4px top 4px / 1px var(--bracket-len) no-repeat,
-    /* bottom-left */
-    linear-gradient(var(--bracket-color),var(--bracket-color)) left 4px bottom 4px / var(--bracket-len) 1px no-repeat,
-    linear-gradient(var(--bracket-color),var(--bracket-color)) left 4px bottom 4px / 1px var(--bracket-len) no-repeat,
-    /* bottom-right */
-    linear-gradient(var(--bracket-color),var(--bracket-color)) right 4px bottom 4px / var(--bracket-len) 1px no-repeat,
-    linear-gradient(var(--bracket-color),var(--bracket-color)) right 4px bottom 4px / 1px var(--bracket-len) no-repeat;
-}
-.figure:hover,
-.figure.inspecting,
-.figure.target-marker,
-.figure.move-src,
-.figure.move-dest {
-  --bracket-color: var(--gold-bright);
 }
 .figure.empty { visibility: hidden; }
 .figure.downed { opacity: 0.4; filter: grayscale(1) brightness(0.65); }
@@ -1943,7 +1920,14 @@ body {
   padding: 32px 40px;
   border-radius: var(--card-radius);
   text-align: center;
-  max-width: 380px;
+  /* Mobile-fit: never wider than the viewport, never taller than it.
+     overflow-y so long content (path map, victory rows) scrolls in place
+     instead of clipping out of view. */
+  max-width: min(380px, 94vw);
+  max-height: 92vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
   box-shadow:
     0 0 60px rgba(200,164,100,0.22),
     0 0 0 1px rgba(200,164,100,0.15) inset,
@@ -2136,9 +2120,9 @@ body {
   background: rgba(40,28,16,0.6);
 }
 
-/* widen overlay-content while summary is showing */
+/* widen overlay-content while summary is showing — capped to viewport */
 #overlay-content:has(#overlay-body.victory-summary-body) {
-  max-width: 460px;
+  max-width: min(460px, 94vw);
   padding: 26px 30px 22px;
 }
 
@@ -2206,13 +2190,13 @@ body {
   padding: 0 4px;
 }
 
-/* path-choice overlay */
+/* path-choice overlay — viewport-capped */
 #overlay-content:has(#overlay-choices:not(.hidden)) {
-  max-width: 580px;
+  max-width: min(580px, 94vw);
   padding: 24px 28px;
 }
 #overlay-content:has(#overlay-choices.path-map:not(.hidden)) {
-  max-width: 760px;
+  max-width: min(760px, 96vw);
   padding: 22px 26px 20px;
 }
 #overlay-choices {
@@ -2337,6 +2321,97 @@ button.path-node { cursor: pointer; }
     max-width: 92vw;
     padding: 16px 14px 14px;
   }
+}
+
+/* Landscape phones — viewport is short (~350–460px tall). Compact every
+   overlay variant so welcome / summary / map / sigil pickers fit without
+   clipping or scrolling. Triggers at <= 520px viewport height. */
+@media (max-height: 520px) {
+  /* base overlay shell */
+  #overlay-content {
+    padding: 14px 22px;
+    max-height: 96vh;
+  }
+  #overlay-content::before, #overlay-content::after {
+    font-size: 14px; top: 4px;
+  }
+  #overlay-title {
+    font-size: 20px;
+    margin-bottom: 8px;
+    letter-spacing: 0.14em;
+  }
+  #overlay-title::after { margin: 4px auto 0; }
+  #overlay-body {
+    font-size: 12px;
+    margin-bottom: 12px;
+    line-height: 1.45;
+  }
+  #overlay-btn {
+    padding: 8px 22px;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+  }
+
+  /* welcome */
+  .welcome-lede { font-size: 12px; margin-bottom: 8px; }
+  .welcome-list { gap: 5px; }
+  .welcome-list li { font-size: 11.5px; line-height: 1.35; }
+  .welcome-key { font-size: 10px; }
+
+  /* victory / run summary */
+  #overlay-content:has(#overlay-body.victory-summary-body) {
+    padding: 14px 18px 12px;
+    max-height: 96vh;
+  }
+  .vs-subtitle { font-size: 10px; margin-bottom: 6px; }
+  .vs-meta { font-size: 11px; gap: 10px; margin-bottom: 8px; }
+  .vs-rows { gap: 4px; }
+  .vs-row { padding: 4px 8px; }
+  .vs-name { font-size: 11px; }
+  .vs-stats { font-size: 10px; gap: 8px; }
+  .vs-syn { margin-top: 8px; padding-top: 6px; font-size: 10px; }
+  .vs-syn-label { font-size: 9px; margin-bottom: 2px; }
+  .vs-syn-chip { font-size: 9.5px; padding: 1px 5px; }
+  .vs-flavor { font-size: 11px; margin-bottom: 8px; }
+
+  /* path / encounter choice overlays */
+  #overlay-content:has(#overlay-choices:not(.hidden)) {
+    padding: 14px 18px 12px;
+    max-height: 96vh;
+  }
+  #overlay-content:has(#overlay-choices.path-map:not(.hidden)) {
+    padding: 12px 16px 10px;
+    max-width: 96vw;
+  }
+  #overlay-choices { gap: 10px; margin-top: 6px; margin-bottom: 4px; flex-wrap: wrap; }
+  #overlay-choices.path-map { gap: 8px; flex-wrap: nowrap; }
+  .path-col-head { font-size: 8.5px; letter-spacing: 0.18em; }
+  .path-col-slots { gap: 6px; }
+  .path-node { padding: 6px 6px 5px; font-size: 10px; }
+  .path-name { font-size: 10px; letter-spacing: 0.06em; }
+  .path-tag { font-size: 8px; }
+  .path-enemy { width: 18px; height: 18px; }
+
+  /* encounter / sigil pick cards — shrink to fit */
+  .encounter-choice {
+    min-width: 0;
+    padding: 8px 10px;
+    gap: 6px;
+  }
+  .encounter-choice .enc-name {
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    padding-bottom: 4px;
+  }
+  .encounter-choice .enc-icon { width: 30px; height: 30px; }
+  .sigil-choice {
+    width: auto;
+    min-width: 0;
+    flex: 1 1 0;
+    padding: 8px 10px 8px;
+  }
+  .sigil-glyph { font-size: 26px; padding: 4px 0 2px; }
+  .sigil-desc { font-size: 10px; line-height: 1.3; }
 }
 .encounter-choice {
   background:
