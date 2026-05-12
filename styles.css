@@ -606,11 +606,12 @@ body {
   pointer-events: none;
 }
 
-/* predicted-damage label on the targeted enemy figure */
-.target-dmg-label {
+/* predicted damage/heal label — sits below the portrait so the figure stays visible */
+.target-dmg-label,
+.target-heal-label {
   position: absolute;
-  top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
+  bottom: 24px; left: 50%;
+  transform: translateX(-50%);
   display: flex;
   align-items: baseline;
   gap: 4px;
@@ -629,6 +630,12 @@ body {
   pointer-events: none;
   white-space: nowrap;
   animation: target-pulse 0.7s ease-in-out infinite alternate;
+}
+.target-heal-label {
+  border-color: var(--heal);
+  color: var(--heal);
+  box-shadow: 0 0 12px rgba(152,216,120,0.55), 0 2px 6px rgba(0,0,0,0.6);
+  text-shadow: 0 1px 0 var(--shadow), 0 0 6px rgba(152,216,120,0.55);
 }
 .target-dmg-label .dmg-num { font-size: 19px; }
 .target-dmg-label .dmg-badge {

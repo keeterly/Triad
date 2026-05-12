@@ -641,11 +641,11 @@ const CHARS = {
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 6); retreat(s, 'elin'); addArmor(s, 'elin', 2); } },
       },
       mid: {
-        basic: { name: 'Mend',         desc: 'Heal 6 lowest + cleanse', fn: (s) => { healLowest(s, 6); cleanseLowest(s); } },
-        sig:   { name: 'Greater Mend', desc: 'Heal 12 lowest + cleanse + 2 armor', fn: (s) => { const c = healLowest(s, 12); cleanseLowest(s); if (c) c.armor += 2; } },
+        basic: { name: 'Mend',         desc: 'Heal 6 lowest + cleanse', heal: 6, healTarget: 'lowest', fn: (s) => { healLowest(s, 6); cleanseLowest(s); } },
+        sig:   { name: 'Greater Mend', desc: 'Heal 12 lowest + cleanse + 2 armor', heal: 12, healTarget: 'lowest', fn: (s) => { const c = healLowest(s, 12); cleanseLowest(s); if (c) c.armor += 2; } },
       },
       back: {
-        basic: { name: 'Prayer',    desc: '+2 Resolve, heal 3 lowest', fn: (s) => { gainResolve(s, 2); healLowest(s, 3); } },
+        basic: { name: 'Prayer',    desc: '+2 Resolve, heal 3 lowest', heal: 3, healTarget: 'lowest', fn: (s) => { gainResolve(s, 2); healLowest(s, 3); } },
         sig:   { name: 'Sanctuary', desc: '+4 armor to party', fn: (s) => partyArmor(s, 4) },
       },
     },
@@ -926,7 +926,7 @@ const UPGRADES = {
   },
   'elin.mid.basic.channeled': {
     id: 'elin.mid.basic.channeled', charId: 'elin', slot: 'mid', kind: 'basic',
-    name: 'Channeled Mend', desc: 'Heal 4 to all + cleanse',
+    name: 'Channeled Mend', desc: 'Heal 4 to all + cleanse', heal: 4, healTarget: 'all',
     fn: (s) => {
       const bonus = consumePendingBonus(s, s.currentActorId, 'healBonus');
       aliveParty(s).forEach(c => {
@@ -955,7 +955,7 @@ const UPGRADES = {
   // Holy damage options — give Elin offensive presence so the holy school can carry weakness exploitation
   'elin.mid.basic.searing': {
     id: 'elin.mid.basic.searing', charId: 'elin', slot: 'mid', kind: 'basic',
-    name: 'Searing Light', desc: '4 holy dmg front + heal 1 lowest', dmg: 4,
+    name: 'Searing Light', desc: '4 holy dmg front + heal 1 lowest', dmg: 4, heal: 1, healTarget: 'lowest',
     reach: ['front'], pattern: 'front-most',
     fn: (s, t) => {
       if (t[0]) applyDmgToEnemy(s, t[0], 4);
@@ -985,7 +985,7 @@ const UPGRADES = {
   },
   'korin.front.basic.vampiric': {
     id: 'korin.front.basic.vampiric', charId: 'korin', slot: 'front', kind: 'basic',
-    name: 'Vampiric Strike', desc: '6 dmg + heal 2 self', dmg: 6,
+    name: 'Vampiric Strike', desc: '6 dmg + heal 2 self', dmg: 6, heal: 2, healTarget: 'self',
     reach: ['front'], pattern: 'front-most',
     fn: (s, t) => {
       if (t[0]) applyDmgToEnemy(s, t[0], 6);
@@ -1490,6 +1490,57 @@ function previewDamage(s, e, baseAmt, actorId) {
     toHp = Math.max(0, amt - absorbed);
   }
   return { amt, toHp, badge };
+}
+
+// Pure prediction for healing — mirrors healLowest/partyHeal without mutating.
+// Returns the actual HP gain (clamped to maxHp). Reads any pending healBonus
+// without consuming it.
+function previewHeal(s, c, baseAmt, healerId) {
+  if (!c || c.downed || !(baseAmt > 0)) return 0;
+  let bonus = 0;
+  const actor = healerId && s.party.chars[healerId];
+  if (actor && Array.isArray(actor.pendingEffects)) {
+    actor.pendingEffects.forEach(eff => { if (eff.kind === 'healBonus') bonus += eff.amt; });
+  }
+  const total = baseAmt + bonus;
+  return Math.min(c.maxHp - c.hp, total);
+}
+
+// Resolve the heal targets for a variant given its healTarget pattern.
+// Returns an array of party char states (alive only). 'lowest' returns one.
+function resolveHealTargets(s, variant, healerId) {
+  if (!variant || !variant.heal) return [];
+  const alive = aliveParty(s);
+  if (alive.length === 0) return [];
+  if (variant.healTarget === 'all')    return alive;
+  if (variant.healTarget === 'self') {
+    if (!healerId) return [];
+    const me = s.party.chars[healerId];
+    return me && !me.downed ? [me] : [];
+  }
+  // default 'lowest'
+  return [alive.slice().sort((a,b) => (a.hp/a.maxHp) - (b.hp/b.maxHp))[0]];
+}
+
+// Multi-hit-aware wrapper around previewDamage. Twin Daggers etc. land the
+// same baseAmt multiple times, but armor only absorbs once and vuln only
+// procs once per hit — so a naive (toHp * hits) overstates damage on armored
+// targets and understates it after vuln consumption. Simulate a working copy.
+function previewMultiHit(s, e, baseAmt, actorId, hits) {
+  hits = hits || 1;
+  let totalHp = 0;
+  let badge = null;
+  let simArmor = e.armor;
+  let simVuln = e.vuln;
+  for (let i = 0; i < hits; i++) {
+    const sim = Object.assign({}, e, { armor: simArmor, vuln: simVuln });
+    const r = previewDamage(s, sim, baseAmt, actorId);
+    totalHp += r.toHp;
+    if (r.badge && !badge) badge = r.badge;
+    if (simVuln > 0 && r.amt > 0) simVuln -= 1;
+    if (!s.ignoreArmor) simArmor = Math.max(0, simArmor - r.amt);
+  }
+  return { dmg: totalHp, badge };
 }
 
 function applyDmgToEnemy(s, e, baseAmt) {
@@ -2257,7 +2308,7 @@ const TEAM_SPECIALS = {
   // home: Cassia front, Elin mid, Branwen back
   'cassia:elin:branwen': {
     id: 'sacred', name: 'Sacred Triad',
-    short: 'AoE 5 · heal 5 · cleanse · armor', dmg: 5,
+    short: 'AoE 5 · heal 5 · cleanse · armor', dmg: 5, heal: 5, healTarget: 'all',
     reach: ['front','mid','back'], pattern: 'all',
     fn: (s) => {
       dmgAllEnemies(s, 5);
@@ -2301,7 +2352,7 @@ const TEAM_SPECIALS = {
 
 const TEAM_SPECIAL_DEFAULT = {
   id: 'strike', name: 'Triad Strike',
-  short: 'AoE 4 · heal 3 lowest · +1 Resolve', dmg: 4,
+  short: 'AoE 4 · heal 3 lowest · +1 Resolve', dmg: 4, heal: 3, healTarget: 'lowest',
   reach: ['front','mid','back'], pattern: 'all',
   fn: (s) => {
     dmgAllEnemies(s, 4);
@@ -2808,19 +2859,24 @@ function previewTargetsForTile(kind, charId, dir) {
   if (kind === 'attack' || kind === 'special') {
     const sim = simulateSlotsThrough(state, state.queue.length);
     const slot = slotOfCharSim(sim, charId);
-    if (!slot) return { enemySlots: [], partySlots: [], enemyHits: [] };
+    if (!slot) return { enemySlots: [], partySlots: [], enemyHits: [], partyHeals: [] };
     const variant = getTech(state, charId, slot, kind === 'special' ? 'sig' : 'basic');
     const targets = resolveTargets(state, variant) || [];
     const enemyHits = targets.map(e => {
       const sl = SLOTS.find(sl => state.enemies.slots[sl] === e.id);
       if (!sl) return null;
       if (typeof variant.dmg !== 'number') return { slot: sl };
-      const hits = variant.hits || 1;
-      const per = previewDamage(state, e, variant.dmg, charId);
-      return { slot: sl, dmg: per.toHp * hits, badge: per.badge };
+      const r = previewMultiHit(state, e, variant.dmg, charId, variant.hits || 1);
+      return { slot: sl, dmg: r.dmg, badge: r.badge };
     }).filter(Boolean);
     const enemySlots = enemyHits.map(h => h.slot);
-    return { enemySlots, partySlots: [], enemyHits };
+    const partyHeals = resolveHealTargets(state, variant, charId).map(c => {
+      const sl = slotOfChar(state, c.id);
+      if (!sl) return null;
+      return { slot: sl, heal: previewHeal(state, c, variant.heal, charId) };
+    }).filter(Boolean);
+    const partySlots = partyHeals.map(h => h.slot);
+    return { enemySlots, partySlots, enemyHits, partyHeals };
   }
   if (kind === 'move') {
     const sim = simulateSlotsThrough(state, state.queue.length);
@@ -2882,7 +2938,7 @@ function bindTileHold(tile, handlers) {
   tile.addEventListener('contextmenu',  (e) => e.preventDefault());
 }
 
-function applyPreviewHighlight({ enemySlots, partySlots, enemyHits }) {
+function applyPreviewHighlight({ enemySlots, partySlots, enemyHits, partyHeals }) {
   clearPreviewHighlight();
   const hitBySlot = {};
   (enemyHits || []).forEach(h => { if (h && h.slot) hitBySlot[h.slot] = h; });
@@ -2903,14 +2959,24 @@ function applyPreviewHighlight({ enemySlots, partySlots, enemyHits }) {
       el.appendChild(label);
     }
   });
+  const healBySlot = {};
+  (partyHeals || []).forEach(h => { if (h && h.slot) healBySlot[h.slot] = h; });
   (partySlots || []).forEach(sl => {
     const el = document.querySelector(`#party-half .figure[data-slot="${sl}"]`);
-    if (el) el.classList.add('target-marker');
+    if (!el) return;
+    el.classList.add('target-marker');
+    const heal = healBySlot[sl];
+    if (heal && typeof heal.heal === 'number') {
+      const label = document.createElement('div');
+      label.className = 'target-heal-label';
+      label.innerHTML = `<span class="dmg-num">+${heal.heal}</span>`;
+      el.appendChild(label);
+    }
   });
 }
 function clearPreviewHighlight() {
   document.querySelectorAll('.target-marker').forEach(el => el.classList.remove('target-marker'));
-  document.querySelectorAll('.target-dmg-label').forEach(el => el.remove());
+  document.querySelectorAll('.target-dmg-label, .target-heal-label').forEach(el => el.remove());
 }
 
 function makeMoveOrBraceTile(charId, slot, tileCounts, teamLocked) {
@@ -2965,7 +3031,13 @@ function makeTeamSpecialTile(teamLocked) {
         return { slot: sl, dmg: per.toHp, badge: per.badge };
       }).filter(Boolean);
       const enemySlots = enemyHits.map(h => h.slot);
-      return { enemySlots, partySlots: [], enemyHits };
+      const partyHeals = resolveHealTargets(state, ts, null).map(c => {
+        const sl = slotOfChar(state, c.id);
+        if (!sl) return null;
+        return { slot: sl, heal: previewHeal(state, c, ts.heal, null) };
+      }).filter(Boolean);
+      const partySlots = partyHeals.map(h => h.slot);
+      return { enemySlots, partySlots, enemyHits, partyHeals };
     },
   });
   return t;
