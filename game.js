@@ -1282,6 +1282,100 @@ function hasSigil(s, id) {
   return !!(s && s.run && s.run.sigils && s.run.sigils.includes(id));
 }
 
+// ============================================================================
+// QUIRKS — Darkest-Dungeon-style affinity modifiers, per character, run-wide.
+// Earned from victories; surface in the inspect menu.  Effects stack additively
+// and apply at the resolver level (damage / heal / armor).
+// ============================================================================
+const QUIRK_CAP = 5;
+const QUIRKS = {
+  // Positive (green)
+  precise:   { id: 'precise',   name: 'Precise',     positive: true,  desc: '+1 damage on attacks.',                dmgMod:  1 },
+  brutal:    { id: 'brutal',    name: 'Brutal',      positive: true,  desc: '+2 damage on attacks.',                dmgMod:  2 },
+  bulwark:   { id: 'bulwark',   name: 'Bulwark',     positive: true,  desc: '+1 armor whenever armor is gained.',   armorMod: 1 },
+  gentle:    { id: 'gentle',    name: 'Gentle Hand', positive: true,  desc: '+1 to all healing dealt or received.', healMod:  1 },
+  // Negative (red)
+  weakened:  { id: 'weakened',  name: 'Weakened',    positive: false, desc: '−1 damage on attacks.',                dmgMod: -1 },
+  shaken:    { id: 'shaken',    name: 'Shaken',      positive: false, desc: '−2 damage on attacks.',                dmgMod: -2 },
+  brittle:   { id: 'brittle',   name: 'Brittle',     positive: false, desc: '−1 armor whenever armor is gained.',   armorMod: -1 },
+  clumsy:    { id: 'clumsy',    name: 'Clumsy',      positive: false, desc: '−1 to all healing dealt or received.', healMod: -1 },
+  cursed:    { id: 'cursed',    name: 'Cursed',      positive: false, desc: '−1 damage AND −1 healing.',            dmgMod: -1, healMod: -1 },
+};
+
+// Read all quirks a character currently has (positive ∪ negative).
+function getCharQuirks(s, charId) {
+  const c = s && s.party && s.party.chars[charId];
+  if (!c || !c.quirks) return [];
+  return [...c.quirks.positive, ...c.quirks.negative]
+    .map(id => QUIRKS[id])
+    .filter(Boolean);
+}
+
+// Stat-mod accessors used by the combat resolver.
+function getQuirkDmgMod(s, charId)   { return getCharQuirks(s, charId).reduce((a, q) => a + (q.dmgMod   || 0), 0); }
+function getQuirkHealMod(s, charId)  { return getCharQuirks(s, charId).reduce((a, q) => a + (q.healMod  || 0), 0); }
+function getQuirkArmorMod(s, charId) { return getCharQuirks(s, charId).reduce((a, q) => a + (q.armorMod || 0), 0); }
+
+// Grant a new quirk to a character.  Skips if already at cap or already owned.
+// Returns the granted quirk def, or null if no grant happened.
+function grantQuirk(s, charId, quirkId) {
+  const c = s && s.party && s.party.chars[charId];
+  const q = QUIRKS[quirkId];
+  if (!c || !q || !c.quirks) return null;
+  const side = q.positive ? 'positive' : 'negative';
+  if (c.quirks[side].length >= QUIRK_CAP) return null;
+  if (c.quirks.positive.includes(quirkId) || c.quirks.negative.includes(quirkId)) return null;
+  c.quirks[side].push(quirkId);
+  return q;
+}
+
+// Pick a random quirk of a given polarity (positive | negative | any).
+function randomQuirk(polarity) {
+  const pool = Object.values(QUIRKS).filter(q =>
+    polarity === 'positive' ? q.positive
+      : polarity === 'negative' ? !q.positive
+      : true);
+  if (!pool.length) return null;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+// Award a quirk to a random alive party member after a victory.
+//   - Elite wins:   100% chance, positive quirk
+//   - Normal wins:  40% positive, 25% negative, 35% nothing
+//   - Boss wins:    skipped (run-end)
+// Skips characters at cap or who already own the rolled quirk; logs the
+// grant so the player sees what happened.
+function awardQuirkAfterWin(s, completedNode) {
+  if (!completedNode || completedNode.type === 'boss') return;
+  const aliveIds = Object.values(s.party.chars).filter(c => !c.downed).map(c => c.id);
+  if (!aliveIds.length) return;
+  let polarity = null;
+  if (completedNode.type === 'elite') {
+    polarity = 'positive';
+  } else {
+    const roll = Math.random();
+    if (roll < 0.40) polarity = 'positive';
+    else if (roll < 0.65) polarity = 'negative';
+  }
+  if (!polarity) return;
+  // Try up to 3 random characters before giving up (handles caps + duplicates)
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const targetId = aliveIds[Math.floor(Math.random() * aliveIds.length)];
+    const c = s.party.chars[targetId];
+    if (!c || !c.quirks) continue;
+    if (c.quirks[polarity].length >= QUIRK_CAP) continue;
+    const taken = new Set([...c.quirks.positive, ...c.quirks.negative]);
+    const pool = Object.values(QUIRKS).filter(q =>
+      (polarity === 'positive') === !!q.positive && !taken.has(q.id));
+    if (!pool.length) continue;
+    const q = pool[Math.floor(Math.random() * pool.length)];
+    grantQuirk(s, targetId, q.id);
+    const verb = polarity === 'positive' ? 'gains' : 'is afflicted with';
+    log(`<i><b>${CHARS[targetId].name}</b> ${verb} <b>${q.name}</b> — ${q.desc}</i>`);
+    return;
+  }
+}
+
 function getAtbMax(s) {
   let max = ATB_MAX;
   if (hasSigil(s, 'quickening')) max += 1;
@@ -1579,6 +1673,10 @@ function newCharState(id) {
     downed: false,
     pendingEffects: [], // { kind: 'attackBonus'|'healBonus', amt, source } — consumed on use
     upgrades: {},       // map of `${slot}.${kind}` → upgrade id (persists across fights within a run)
+    // Darkest-Dungeon-style affinity quirks — persistent run-wide modifiers.
+    // Earned from victories; positive quirks buff combat output, negative
+    // quirks penalize.  Capped at QUIRK_CAP per side.
+    quirks: { positive: [], negative: [] },
   };
 }
 function newEnemyState(id) {
@@ -1646,6 +1744,8 @@ function previewDamage(s, e, baseAmt, actorId) {
       amt += p.synergy.dmgMod;
     }
   });
+  // Affinity quirks
+  amt += getQuirkDmgMod(s, actorId);
   if (actorId === 'branwen' && e.bleed > 0) amt += 2;
   if (actorId === 'mira' && e.bleed > 0) amt += 3;
   if (actorId === 'korin') {
@@ -1798,6 +1898,8 @@ function applyDmgToEnemy(s, e, baseAmt) {
       amt += p.synergy.dmgMod;
     }
   });
+  // Affinity quirks — run-wide per-character damage modifier
+  amt += getQuirkDmgMod(s, s.currentActorId);
   // Branwen Bleed Hunter passive
   if (s.currentActorId === 'branwen' && e.bleed > 0) amt += 2;
   // Mira Eviscerate passive — bigger crit on bleeding enemies
@@ -1993,22 +2095,33 @@ function applyVulnEnemy(s, idx, stacks) {
 function addArmor(s, id, amt) {
   const c = s.party.chars[id];
   if (!c || c.downed) return;
-  c.armor += amt;
-  fireAdjacencyHook(s, 'onArmorGrant', s.currentActorId, id, amt);
+  // Receiver's quirk shifts armor gained (Bulwark / Brittle).
+  const recvMod = getQuirkArmorMod(s, id);
+  const granted = Math.max(0, amt + recvMod);
+  c.armor += granted;
+  fireAdjacencyHook(s, 'onArmorGrant', s.currentActorId, id, granted);
 }
 function partyArmor(s, amt) {
   aliveParty(s).forEach(c => {
-    c.armor += amt;
-    spawnPopupId(c.id, `+${amt}⛨`, 'armor', 'party');
-    fireAdjacencyHook(s, 'onArmorGrant', s.currentActorId, c.id, amt);
+    const recvMod = getQuirkArmorMod(s, c.id);
+    const granted = Math.max(0, amt + recvMod);
+    c.armor += granted;
+    spawnPopupId(c.id, `+${granted}⛨`, 'armor', 'party');
+    fireAdjacencyHook(s, 'onArmorGrant', s.currentActorId, c.id, granted);
   });
 }
 function partyHeal(s, amt) {
   const bonus = consumePendingBonus(s, s.currentActorId, 'healBonus');
-  const total = amt + bonus;
+  // Caster's "gentle hand" / "clumsy" quirks shift heals dealt; receiver's
+  // own healMod stacks on top inside the loop so positive/negative quirks
+  // on the receiver also matter.
+  const casterMod = getQuirkHealMod(s, s.currentActorId);
+  const total = amt + bonus + casterMod;
   aliveParty(s).forEach(c => {
+    const recvMod = getQuirkHealMod(s, c.id);
+    const heal = Math.max(0, total + recvMod);
     const before = c.hp;
-    c.hp = Math.min(c.maxHp, c.hp + total);
+    c.hp = Math.min(c.maxHp, c.hp + heal);
     const got = c.hp - before;
     if (got > 0) {
       spawnPopupId(c.id, `+${got}`, 'heal', 'party');
@@ -2046,7 +2159,10 @@ function healLowest(s, amt) {
   alive.sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp));
   const c = alive[0];
   const bonus = consumePendingBonus(s, s.currentActorId, 'healBonus');
-  const total = amt + bonus;
+  // Caster + receiver quirk mods stack on the heal amount.
+  const casterMod = getQuirkHealMod(s, s.currentActorId);
+  const recvMod   = getQuirkHealMod(s, c.id);
+  const total = Math.max(0, amt + bonus + casterMod + recvMod);
   const before = c.hp;
   c.hp = Math.min(c.maxHp, c.hp + total);
   const got = c.hp - before;
@@ -2753,6 +2869,8 @@ function checkEnd(s) {
     const completedNode = s.run.currentNodeId ? MAP_NODES[s.run.currentNodeId] : null;
     s.run.lastVictoryElite = !!(completedNode && completedNode.type === 'elite');
     const isBoss = !!(completedNode && completedNode.type === 'boss');
+    // Affinity progression — roll a quirk grant before the post-fight UI fires
+    awardQuirkAfterWin(s, completedNode);
     if (isBoss) {
       // Boss kill ends the run with a victory summary
       setTimeout(() => showVictorySummary(completedEnc, () => showRunSummary('boss')), 480);
@@ -3548,7 +3666,7 @@ function bindUI() {
 // to surface its explanation. Capture-phase so the figure's setPointerCapture
 // (pickup gesture) doesn't swallow the tap.
 function bindChipExplainers() {
-  const CHIP_SEL = '.status-chip, .affinity-chip, .adj-chip, .incoming-chip, .sigil-chip';
+  const CHIP_SEL = '.status-chip, .affinity-chip, .adj-chip, .incoming-chip, .sigil-chip, .hero-quirk';
   document.addEventListener('pointerdown', (e) => {
     const chip = e.target.closest(CHIP_SEL);
     if (chip && chip.getAttribute('title')) {
@@ -3783,6 +3901,20 @@ function showPartyInspect() {
     };
 
     const schoolTag = (def.school || '').slice(0, 3).toUpperCase();
+    // Affinity quirk chips (positive in green, negative in red).
+    const pos = (c.quirks && c.quirks.positive) || [];
+    const neg = (c.quirks && c.quirks.negative) || [];
+    const quirkChip = (qid, polarity) => {
+      const q = QUIRKS[qid];
+      if (!q) return '';
+      return `<span class="hero-quirk hero-quirk-${polarity}" title="${q.name} — ${q.desc}">${q.name}</span>`;
+    };
+    const quirksBlock = (pos.length || neg.length)
+      ? `<div class="hero-quirks">
+           ${pos.map(qid => quirkChip(qid, 'positive')).join('')}
+           ${neg.map(qid => quirkChip(qid, 'negative')).join('')}
+         </div>`
+      : `<div class="hero-quirks hero-quirks-empty">No affinities yet</div>`;
     card.innerHTML = `
       <div class="hero-portrait" aria-hidden="true">${PORTRAITS[id] || ''}</div>
       <div class="hero-head">
@@ -3795,6 +3927,7 @@ function showPartyInspect() {
         <span class="hero-stat hero-home-tag">⌂ ${def.home || ''}</span>
       </div>
       ${def.passive ? `<div class="hero-passive"><b>${def.passive.name}</b> — ${def.passive.desc}</div>` : ''}
+      ${quirksBlock}
       <div class="hero-techs">
         ${techSection('front')}
         ${techSection('mid')}

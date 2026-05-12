@@ -2387,6 +2387,45 @@ body {
   border-left: 2px solid var(--gold-dim);
 }
 .hero-passive b { font-style: normal; color: var(--gold-bright); letter-spacing: 0.08em; text-transform: uppercase; font-size: 9.5px; }
+
+/* Affinity quirks — bracketed chips, green = positive, red = negative.
+   Tap a chip to see name + description via the shared chip-tooltip. */
+.hero-quirks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 5px;
+  padding: 2px 0 1px;
+  margin: 1px 0;
+}
+.hero-quirks-empty {
+  color: var(--ink-faint);
+  font-size: 9px;
+  font-style: italic;
+  letter-spacing: 0.1em;
+  padding: 2px 0;
+}
+.hero-quirk {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 5px;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 700;
+  border: 1px solid;
+  background: rgba(8,8,10,0.55);
+  white-space: nowrap;
+  cursor: help;
+  line-height: 1.4;
+}
+.hero-quirk-positive {
+  color: var(--heal);
+  border-color: rgba(168,192,152,0.55);
+}
+.hero-quirk-negative {
+  color: var(--blood-bright);
+  border-color: rgba(200,56,56,0.55);
+}
 .hero-techs {
   display: flex;
   flex-direction: column;
