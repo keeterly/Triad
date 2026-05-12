@@ -3638,7 +3638,79 @@ function showPathChoice(slotConfig) {
   });
   choices.classList.remove('hidden');
   resetOverlayBtn();
-  $('#overlay-btn').classList.add('hidden');
+  // Reuse the overlay's main button to surface the party-inspect screen.
+  const btn = $('#overlay-btn');
+  btn.textContent = 'Heroes';
+  btn.onclick = showPartyInspect;
+  btn.classList.remove('hidden');
+  $('#overlay').classList.remove('hidden');
+}
+
+// ============================================================================
+// PARTY INSPECT — between-fights view of each hero's moves and identity.
+// Lays the groundwork for affinity progression later (positive/negative
+// affinity quirks per character, etc.).
+// ============================================================================
+function showPartyInspect() {
+  const titleEl = $('#overlay-title');
+  const bodyEl = $('#overlay-body');
+  const choices = $('#overlay-choices');
+  titleEl.textContent = 'Heroes';
+  bodyEl.innerHTML = '';
+  bodyEl.classList.remove('victory-summary-body', 'welcome-body', 'run-summary-body');
+  choices.innerHTML = '';
+  choices.classList.remove('path-map');
+  choices.classList.add('party-inspect');
+
+  const charIds = Object.keys(state.party.chars || {});
+  charIds.forEach(id => {
+    const c = state.party.chars[id];
+    const def = CHARS[id];
+    if (!c || !def) return;
+    const card = document.createElement('div');
+    card.className = 'hero-card';
+
+    const techSection = (pos) => {
+      const basic = getTech(state, id, pos, 'basic');
+      const sig   = getTech(state, id, pos, 'sig');
+      const rows = [];
+      if (basic) rows.push(`<div class="hero-tech-row"><span class="hero-tech-kind">A</span><div class="hero-tech-body"><div class="hero-tech-name">${basic.name}</div><div class="hero-tech-desc">${basic.desc || ''}</div></div></div>`);
+      if (sig)   rows.push(`<div class="hero-tech-row sig"><span class="hero-tech-kind sig">S</span><div class="hero-tech-body"><div class="hero-tech-name">${sig.name}</div><div class="hero-tech-desc">${sig.desc || ''}</div></div></div>`);
+      const isHome = def.home === pos;
+      return `<div class="hero-tech-section${isHome ? ' home' : ''}"><div class="hero-tech-pos">${pos}${isHome ? ' ◀ home' : ''}</div>${rows.join('')}</div>`;
+    };
+
+    const schoolTag = (def.school || '').slice(0, 3).toUpperCase();
+    card.innerHTML = `
+      <div class="hero-portrait" aria-hidden="true">${PORTRAITS[id] || ''}</div>
+      <div class="hero-head">
+        <div class="hero-name">${def.name}</div>
+        <div class="hero-title">${def.title || ''}</div>
+      </div>
+      <div class="hero-meta">
+        <span class="hero-school school-${def.school}">${schoolTag}</span>
+        <span class="hero-stat">${def.maxHp} HP</span>
+        <span class="hero-stat hero-home-tag">⌂ ${def.home || ''}</span>
+      </div>
+      ${def.passive ? `<div class="hero-passive"><b>${def.passive.name}</b> — ${def.passive.desc}</div>` : ''}
+      <div class="hero-techs">
+        ${techSection('front')}
+        ${techSection('mid')}
+        ${techSection('back')}
+      </div>
+    `;
+    choices.appendChild(card);
+  });
+
+  choices.classList.remove('hidden');
+  resetOverlayBtn();
+  const btn = $('#overlay-btn');
+  btn.textContent = 'Back';
+  btn.onclick = () => {
+    choices.classList.remove('party-inspect');
+    showPathChoice(RUN_LAYOUT[state.run.slotIdx]);
+  };
+  btn.classList.remove('hidden');
   $('#overlay').classList.remove('hidden');
 }
 
