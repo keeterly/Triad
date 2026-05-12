@@ -25,7 +25,6 @@ const PORTRAITS = {
       <stop offset="0" stop-color="#050200" stop-opacity="0.75"/><stop offset="0.55" stop-color="#050200" stop-opacity="0"/><stop offset="1" stop-color="#050200" stop-opacity="0"/>
     </linearGradient>
   </defs>
-  <rect width="100" height="130" fill="url(#cassia-bg)"/>
   <ellipse cx="55" cy="115" rx="48" ry="14" fill="#180a04" opacity="0.85"/>
   <path d="M 8 130 L 14 96 Q 30 78 50 76 Q 70 78 86 96 L 92 130 Z" fill="#3a1f10" stroke="#0a0402" stroke-width="0.8"/>
   <path d="M 20 110 Q 30 92 50 88 Q 70 92 80 110 L 78 130 L 22 130 Z" fill="#5a2818" opacity="0.7"/>
@@ -50,7 +49,6 @@ const PORTRAITS = {
   <path d="M 47 14 L 50 2 L 53 14 Z" fill="#f0d488" stroke="#2a1808" stroke-width="0.5"/>
   <path d="M 50 2 Q 56 6 58 14 Q 53 11 50 14" fill="#8b2e2e"/>
   <path d="M 50 2 Q 60 4 64 10 Q 58 8 53 14" fill="#a83838" opacity="0.7"/>
-  <rect width="100" height="130" fill="url(#cassia-shadow)" opacity="0.55"/>
 </svg>`,
   elin: `
 <svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
@@ -68,7 +66,6 @@ const PORTRAITS = {
       <stop offset="0" stop-color="#050810" stop-opacity="0.7"/><stop offset="0.55" stop-color="#050810" stop-opacity="0"/>
     </linearGradient>
   </defs>
-  <rect width="100" height="130" fill="url(#elin-bg)"/>
   <rect x="0" y="0" width="100" height="80" fill="url(#elin-halo)"/>
   <circle cx="50" cy="42" r="28" fill="none" stroke="#e8dcc4" stroke-width="0.6" opacity="0.35"/>
   <circle cx="50" cy="42" r="20" fill="none" stroke="#f0e8c0" stroke-width="0.4" opacity="0.4"/>
@@ -87,7 +84,6 @@ const PORTRAITS = {
   <path d="M 44 64 Q 50 66 56 64" stroke="#3a4868" stroke-width="0.4" fill="none"/>
   <path d="M 46 100 L 54 100 L 54 110 L 60 110 L 60 114 L 54 114 L 54 126 L 46 126 L 46 114 L 40 114 L 40 110 L 46 110 Z" fill="#e8dcc4" opacity="0.55"/>
   <path d="M 46 100 L 54 100 L 54 110 L 60 110 L 60 114 L 54 114 L 54 126 L 46 126 L 46 114 L 40 114 L 40 110 L 46 110 Z" fill="none" stroke="#f0e0a0" stroke-width="0.3" opacity="0.7"/>
-  <rect width="100" height="130" fill="url(#elin-shadow)" opacity="0.45"/>
 </svg>`,
   branwen: `
 <svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
@@ -102,7 +98,6 @@ const PORTRAITS = {
       <stop offset="0" stop-color="#060a04" stop-opacity="0.7"/><stop offset="0.55" stop-color="#060a04" stop-opacity="0"/>
     </linearGradient>
   </defs>
-  <rect width="100" height="130" fill="url(#branwen-bg)"/>
   <path d="M 10 60 Q 14 52 18 60 Q 22 52 26 60" stroke="#3a4820" stroke-width="0.5" fill="none" opacity="0.6"/>
   <path d="M 74 50 Q 78 42 82 50 Q 86 42 90 50" stroke="#3a4820" stroke-width="0.4" fill="none" opacity="0.5"/>
   <ellipse cx="55" cy="115" rx="48" ry="14" fill="#0a0a04" opacity="0.85"/>
@@ -129,7 +124,6 @@ const PORTRAITS = {
   <line x1="22" y1="98" x2="24" y2="98" stroke="#a87838" stroke-width="0.4"/>
   <line x1="22" y1="102" x2="24" y2="102" stroke="#a87838" stroke-width="0.4"/>
   <line x1="22" y1="106" x2="24" y2="106" stroke="#a87838" stroke-width="0.4"/>
-  <rect width="100" height="130" fill="url(#branwen-shadow)" opacity="0.5"/>
 </svg>`,
   ghoul: `
 <svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
@@ -144,7 +138,6 @@ const PORTRAITS = {
       <stop offset="0" stop-color="#050200" stop-opacity="0"/><stop offset="0.55" stop-color="#050200" stop-opacity="0"/><stop offset="1" stop-color="#050200" stop-opacity="0.7"/>
     </linearGradient>
   </defs>
-  <rect width="100" height="130" fill="url(#ghoul-bg)"/>
   <path d="M 0 100 Q 30 88 50 92 Q 70 96 100 102 L 100 130 L 0 130 Z" fill="#1a0e08" opacity="0.7"/>
   <path d="M 20 130 Q 24 100 30 92 L 70 92 Q 76 100 80 130 Z" fill="#3a2818" stroke="#0a0604" stroke-width="0.6"/>
   <path d="M 30 92 L 28 124 L 70 124 L 72 92 Z" fill="#1a1008" opacity="0.6"/>
@@ -168,7 +161,6 @@ const PORTRAITS = {
   <line x1="56" y1="42" x2="54" y2="48" stroke="#1a0a04" stroke-width="0.5"/>
   <line x1="40" y1="68" x2="44" y2="74" stroke="#1a0a04" stroke-width="0.5"/>
   <line x1="60" y1="68" x2="56" y2="74" stroke="#1a0a04" stroke-width="0.5"/>
-  <rect width="100" height="130" fill="url(#ghoul-shadow)" opacity="0.55"/>
 </svg>`,
   cultist: `
 <svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
@@ -186,7 +178,6 @@ const PORTRAITS = {
       <stop offset="0" stop-color="#050208" stop-opacity="0.7"/><stop offset="0.55" stop-color="#050208" stop-opacity="0"/>
     </linearGradient>
   </defs>
-  <rect width="100" height="130" fill="url(#cultist-bg)"/>
   <path d="M 20 130 Q 24 100 28 88 L 50 56 L 72 88 Q 76 100 80 130 Z" fill="url(#cultist-robe)" stroke="#050208" stroke-width="0.8"/>
   <path d="M 50 18 L 22 95 L 78 95 Z" fill="#1a0a20" stroke="#050208" stroke-width="0.8"/>
   <path d="M 50 18 L 22 95 L 50 95 Z" fill="#0a0510" opacity="0.5"/>
@@ -207,7 +198,6 @@ const PORTRAITS = {
   <path d="M 36 110 L 64 110" stroke="#3a2010" stroke-width="0.6" opacity="0.4"/>
   <path d="M 32 120 L 68 120" stroke="#3a2010" stroke-width="0.5" opacity="0.3"/>
   <path d="M 22 92 Q 30 86 36 92 Q 30 96 22 92" fill="#1a0a18" opacity="0.6"/>
-  <rect width="100" height="130" fill="url(#cultist-shadow)" opacity="0.5"/>
 </svg>`,
   wraith: `
 <svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
@@ -222,7 +212,6 @@ const PORTRAITS = {
       <stop offset="0" stop-color="#020610" stop-opacity="0.6"/><stop offset="0.55" stop-color="#020610" stop-opacity="0"/>
     </linearGradient>
   </defs>
-  <rect width="100" height="130" fill="url(#wraith-bg)"/>
   <path d="M 8 118 Q 22 110 36 118 Q 50 110 64 118 Q 78 110 92 118" stroke="#8ab0c8" stroke-width="0.6" fill="none" opacity="0.45"/>
   <path d="M 4 124 Q 22 118 40 124 Q 60 118 80 124 Q 92 120 96 124" stroke="#5a8aa8" stroke-width="0.4" fill="none" opacity="0.35"/>
   <ellipse cx="50" cy="62" rx="32" ry="44" fill="url(#wraith-body)"/>
@@ -245,7 +234,6 @@ const PORTRAITS = {
   <path d="M 24 92 L 22 110 L 26 104 L 30 116 L 34 106 L 38 118 L 42 108 L 46 120 L 50 110 L 54 120 L 58 108 L 62 118 L 66 106 L 70 116 L 74 104 L 78 110 L 76 92 Z" fill="#3a5878" opacity="0.4"/>
   <path d="M 16 50 Q 14 70 18 90 Q 12 78 14 60 Q 10 56 16 50" fill="#3a5878" opacity="0.4"/>
   <path d="M 84 50 Q 86 70 82 90 Q 88 78 86 60 Q 90 56 84 50" fill="#3a5878" opacity="0.4"/>
-  <rect width="100" height="130" fill="url(#wraith-shadow)" opacity="0.5"/>
 </svg>`,
   lineCaster: `
 <svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
@@ -263,7 +251,6 @@ const PORTRAITS = {
       <stop offset="0" stop-color="#080208" stop-opacity="0.55"/><stop offset="0.5" stop-color="#080208" stop-opacity="0"/>
     </linearGradient>
   </defs>
-  <rect width="100" height="130" fill="url(#lc-bg)"/>
   <rect x="0" y="0" width="100" height="100" fill="url(#lc-aura)"/>
   <circle cx="50" cy="58" r="34" fill="none" stroke="#c460a0" stroke-width="0.4" opacity="0.5"/>
   <circle cx="50" cy="58" r="28" fill="none" stroke="#c460a0" stroke-width="0.3" opacity="0.4"/>
@@ -291,7 +278,6 @@ const PORTRAITS = {
   <path d="M 6 100 L 10 96 L 8 104 Z" fill="#c460a0" opacity="0.4"/>
   <path d="M 94 100 L 90 96 L 92 104 Z" fill="#c460a0" opacity="0.4"/>
   <path d="M 26 104 Q 50 100 74 104 L 70 130 L 30 130 Z" fill="#1a0828" opacity="0.6"/>
-  <rect width="100" height="130" fill="url(#lc-shadow)" opacity="0.45"/>
 </svg>`,
   sniper: `
 <svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
@@ -306,7 +292,6 @@ const PORTRAITS = {
       <stop offset="0" stop-color="#070a04" stop-opacity="0.65"/><stop offset="0.55" stop-color="#070a04" stop-opacity="0"/>
     </linearGradient>
   </defs>
-  <rect width="100" height="130" fill="url(#sn-bg)"/>
   <ellipse cx="55" cy="118" rx="48" ry="12" fill="#080804" opacity="0.8"/>
   <path d="M 50 24 Q 24 26 26 56 L 22 130 L 78 130 L 74 56 Q 76 24 50 24 Z" fill="url(#sn-cloak)" stroke="#080a04" stroke-width="0.8"/>
   <path d="M 50 24 Q 24 26 26 56 L 22 130 L 50 130 Z" fill="#080a04" opacity="0.4"/>
@@ -334,7 +319,6 @@ const PORTRAITS = {
   <line x1="78" y1="80" x2="74" y2="74" stroke="#3a2818" stroke-width="0.6"/>
   <line x1="80" y1="76" x2="78" y2="68" stroke="#5a3820" stroke-width="0.5"/>
   <line x1="82" y1="78" x2="84" y2="70" stroke="#5a3820" stroke-width="0.5"/>
-  <rect width="100" height="130" fill="url(#sn-shadow)" opacity="0.5"/>
 </svg>`,
   grappler: `
 <svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
@@ -352,7 +336,6 @@ const PORTRAITS = {
       <stop offset="0" stop-color="#050200" stop-opacity="0"/><stop offset="0.55" stop-color="#050200" stop-opacity="0"/><stop offset="1" stop-color="#050200" stop-opacity="0.65"/>
     </linearGradient>
   </defs>
-  <rect width="100" height="130" fill="url(#gr-bg)"/>
   <ellipse cx="50" cy="118" rx="50" ry="12" fill="#080402" opacity="0.85"/>
   <path d="M 8 130 L 12 92 Q 24 76 50 74 Q 76 76 88 92 L 92 130 Z" fill="url(#gr-skin)" stroke="#0a0604" stroke-width="0.8"/>
   <path d="M 8 130 L 12 92 Q 24 76 50 74 L 50 130 Z" fill="#1a0e08" opacity="0.3"/>
@@ -387,7 +370,6 @@ const PORTRAITS = {
   <path d="M 92 84 Q 98 90 96 100 Q 90 106 84 100 Q 80 96 86 94" fill="none" stroke="#c8a464" stroke-width="1.8"/>
   <path d="M 86 94 L 78 88" stroke="#c8a464" stroke-width="1.4"/>
   <path d="M 78 88 L 82 84 L 74 86" fill="#c8a464"/>
-  <rect width="100" height="130" fill="url(#gr-shadow)" opacity="0.5"/>
 </svg>`,
   korin: `
 <svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
@@ -402,7 +384,6 @@ const PORTRAITS = {
       <stop offset="0" stop-color="#050200" stop-opacity="0.7"/><stop offset="0.55" stop-color="#050200" stop-opacity="0"/>
     </linearGradient>
   </defs>
-  <rect width="100" height="130" fill="url(#ko-bg)"/>
   <ellipse cx="55" cy="118" rx="50" ry="12" fill="#180a04" opacity="0.85"/>
   <path d="M 4 130 L 8 88 Q 26 68 50 66 Q 74 68 92 88 L 96 130 Z" fill="#5a2814" stroke="#0a0402" stroke-width="0.8"/>
   <path d="M 28 88 Q 50 82 72 88 L 70 130 L 30 130 Z" fill="url(#ko-skin)" stroke="#1a0a04" stroke-width="0.6"/>
@@ -424,7 +405,6 @@ const PORTRAITS = {
   <path d="M 76 28 L 92 28 L 96 14 L 86 10 L 74 14 Z" fill="#7a6850" stroke="#3a2818" stroke-width="0.8"/>
   <path d="M 80 22 L 92 22 M 78 16 L 90 16" stroke="#1a1008" stroke-width="0.4"/>
   <line x1="76" y1="50" x2="92" y2="50" stroke="#a82828" stroke-width="0.4" opacity="0.5"/>
-  <rect width="100" height="130" fill="url(#ko-shadow)" opacity="0.55"/>
 </svg>`,
   ash: `
 <svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
@@ -442,7 +422,6 @@ const PORTRAITS = {
       <stop offset="0" stop-color="#080610" stop-opacity="0.7"/><stop offset="0.55" stop-color="#080610" stop-opacity="0"/>
     </linearGradient>
   </defs>
-  <rect width="100" height="130" fill="url(#ash-bg)"/>
   <rect x="0" y="0" width="100" height="100" fill="url(#ash-aura)"/>
   <ellipse cx="50" cy="118" rx="48" ry="12" fill="#080610" opacity="0.85"/>
   <path d="M 50 22 Q 24 24 24 56 L 22 130 L 78 130 L 76 56 Q 76 22 50 22 Z" fill="url(#ash-robe)" stroke="#080610" stroke-width="0.8"/>
@@ -463,7 +442,6 @@ const PORTRAITS = {
   <path d="M 14 50 Q 18 46 16 54 Z" fill="#a080f0" opacity="0.7"/>
   <path d="M 16 78 Q 20 74 18 82 Z" fill="#a080f0" opacity="0.5"/>
   <path d="M 12 100 Q 16 96 14 104 Z" fill="#a080f0" opacity="0.4"/>
-  <rect width="100" height="130" fill="url(#ash-shadow)" opacity="0.5"/>
 </svg>`,
   mira: `
 <svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
@@ -481,7 +459,6 @@ const PORTRAITS = {
       <stop offset="0" stop-color="#050308" stop-opacity="0.7"/><stop offset="0.55" stop-color="#050308" stop-opacity="0"/>
     </linearGradient>
   </defs>
-  <rect width="100" height="130" fill="url(#mi-bg)"/>
   <ellipse cx="50" cy="118" rx="48" ry="12" fill="#080408" opacity="0.85"/>
   <path d="M 50 22 Q 22 24 22 56 L 18 130 L 82 130 L 78 56 Q 78 22 50 22 Z" fill="url(#mi-cloak)" stroke="#050308" stroke-width="0.8"/>
   <path d="M 50 22 Q 22 24 22 56 L 18 130 L 50 130 Z" fill="#050308" opacity="0.4"/>
@@ -502,7 +479,6 @@ const PORTRAITS = {
   <path d="M 86 80 L 82 80 L 84 72 Z" fill="#c0c0c8"/>
   <rect x="81" y="72" width="6" height="3" fill="#3a2018"/>
   <path d="M 26 100 L 22 110 M 30 102 L 28 112" stroke="#48283a" stroke-width="0.5" opacity="0.6"/>
-  <rect width="100" height="130" fill="url(#mi-shadow)" opacity="0.5"/>
 </svg>`,
   wakeling: `
 <svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
@@ -520,7 +496,6 @@ const PORTRAITS = {
       <stop offset="0" stop-color="#020004" stop-opacity="0.6"/><stop offset="0.55" stop-color="#020004" stop-opacity="0"/><stop offset="1" stop-color="#020004" stop-opacity="0.6"/>
     </linearGradient>
   </defs>
-  <rect width="100" height="130" fill="url(#wk-bg)"/>
   <rect x="0" y="0" width="100" height="100" fill="url(#wk-aura)"/>
   <ellipse cx="50" cy="120" rx="52" ry="10" fill="#040208" opacity="0.9"/>
   <path d="M 4 130 L 8 70 Q 24 36 50 30 Q 76 36 92 70 L 96 130 Z" fill="url(#wk-cloak)" stroke="#020004" stroke-width="0.8"/>
@@ -544,7 +519,6 @@ const PORTRAITS = {
   <path d="M 22 28 L 50 12 L 78 28 L 50 4 Z" fill="#2a0810" stroke="#0a0408" stroke-width="0.5"/>
   <circle cx="50" cy="20" r="2" fill="#ff4040"/>
   <circle cx="50" cy="20" r="0.8" fill="#ffd0d0"/>
-  <rect width="100" height="130" fill="url(#wk-shadow)" opacity="0.5"/>
 </svg>`,
   kai: `
 <svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
@@ -562,7 +536,6 @@ const PORTRAITS = {
       <stop offset="100%" stop-color="#8a93a0"/>
     </linearGradient>
   </defs>
-  <rect width="100" height="130" fill="url(#kai-bg)"/>
   <!-- cloak / shoulders -->
   <path d="M16 130 L24 70 Q50 58 76 70 L84 130 Z" fill="url(#kai-cloak)" stroke="#0a070d" stroke-width="0.6"/>
   <!-- tunic open at the chest -->
