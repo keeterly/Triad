@@ -2918,9 +2918,9 @@ function makePartyCard(c, slot, threatened, adjMap, incoming) {
   // precise number.
   fig.innerHTML = `
     ${synStack}
-    <div class="figure-statuses">${renderStatuses(c)}</div>
     <div class="figure-portrait">
       ${PORTRAITS[c.id] || ''}
+      <div class="figure-statuses">${renderStatuses(c)}</div>
       <div class="figure-hp">
         <div class="hp-fill ${hpPct < 35 ? 'low' : ''}" style="width:${hpPct}%"></div>
         <div class="hp-text">${c.hp}/${c.maxHp}</div>
@@ -2996,9 +2996,9 @@ function makeEnemyCard(e, slot) {
 
   fig.innerHTML = `
     ${staggerBanner}
-    <div class="figure-statuses">${renderStatuses(e)}</div>
     <div class="figure-portrait">
       ${PORTRAITS[e.id] || ''}
+      <div class="figure-statuses">${renderStatuses(e)}</div>
       <div class="figure-hp">
         <div class="hp-fill ${hpPct < 35 ? 'low' : ''}" style="width:${hpPct}%"></div>
         <div class="hp-text">${e.hp}/${e.maxHp}</div>
@@ -3449,7 +3449,10 @@ function spawnPopup(cardEl, text, type='dmg') {
   el.className = `popup ${type}`;
   el.textContent = text;
   el.style.left = (r.left + r.width / 2 - s.left) + 'px';
-  el.style.top  = (r.top - s.top + 8) + 'px';
+  // Start the popup at ~22% down the figure (near the head), not the very
+  // top edge of the cell. With the popup-rise keyframe lifting -60px, that
+  // gives the float enough headroom that it doesn't clip the stage top.
+  el.style.top  = (r.top - s.top + Math.max(36, r.height * 0.22)) + 'px';
   layer.appendChild(el);
   setTimeout(() => el.remove(), 950);
 }
