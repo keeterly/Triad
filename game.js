@@ -560,6 +560,7 @@ const ENEMY_DISPLAY_ORDER = ['front', 'mid', 'back'];
 
 // queue / costs
 const ATB_MAX = 3;            // total action-cost budget per turn
+const ACTIONS_PER_CHAR = 2;   // each character can queue at most N actions per turn
 const ACTION_ATB = {
   attack:  1,                 // basic
   special: 2,                 // signature — slower to wind up
@@ -1926,6 +1927,14 @@ function queueAdd(item) {
     flashMsg(`Not enough Resolve (need ${item.resolveCost}).`);
     return;
   }
+  // Cap each character at ACTIONS_PER_CHAR actions per turn (team special excluded — no charId)
+  if (item.charId) {
+    const charActions = s.queue.filter(q => q.charId === item.charId).length;
+    if (charActions >= ACTIONS_PER_CHAR) {
+      flashMsg(`${CHARS[item.charId].name} has already acted ${ACTIONS_PER_CHAR} times this turn.`);
+      return;
+    }
+  }
   s.queue.push(item);
   render();
 }
@@ -2671,9 +2680,13 @@ function makeTile(kind, charId, dir, tileCounts, teamLocked) {
   t.className = `tile kind-${kind}`;
   const atbCost = preview.atb || 0;
   const resolveCost = preview.resolveCost || 0;
+  const charActionsQueued = state.queue.filter(q => q.charId === charId).length;
+  const atCharCap = charActionsQueued >= ACTIONS_PER_CHAR;
   t.disabled = !preview.valid || c.downed || state.executing || state.over || teamLocked
     || atbCost > queueAtbAvailable()
-    || resolveCost > queueAvailableResolve();
+    || resolveCost > queueAvailableResolve()
+    || atCharCap;
+  if (atCharCap && !c.downed) t.classList.add('char-capped');
   t.dataset.kind = kind;
   t.dataset.charId = charId;
   if (dir !== null && dir !== undefined) t.dataset.dir = dir;
