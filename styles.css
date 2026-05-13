@@ -292,6 +292,17 @@ body {
 .sigil-chip.cat-defense  .sigil-chip-icon { color: var(--armor); }
 .sigil-chip.cat-resource { border-color: rgba(212,200,168,0.55); }
 .sigil-chip.cat-resource .sigil-chip-icon { color: var(--gold-bright); }
+/* Squad-bond chips — earned through party composition.  Cool-blue accent
+   (matches the sig-tier Resonance palette) so the player can tell them
+   apart from bound sigils at a glance. */
+.sigil-chip.sigil-chip-squad {
+  border-color: rgba(170,200,255,0.55);
+  background: linear-gradient(180deg, rgba(28,36,68,0.6) 0%, rgba(10,14,28,0.7) 100%);
+}
+.sigil-chip.sigil-chip-squad .sigil-chip-icon {
+  color: #cfe1ff;
+  text-shadow: 0 0 6px rgba(170,200,255,0.55);
+}
 /* ============ RESOLVE PIPS — small jewels next to the Fight crest ============ */
 #resolve-pips {
   display: flex; gap: 3px; align-items: center; justify-content: center;
@@ -5862,6 +5873,17 @@ button.path-node:not(:disabled):hover {
   padding-bottom: 4px;
   border-bottom: 1px solid rgba(212,200,168,0.12);
 }
+.sigils-panel .sp-title-squad {
+  color: #cfe1ff;
+  border-bottom-color: rgba(170,200,255,0.18);
+  margin-top: 8px;
+}
+.sigils-panel .sp-row-squad {
+  border-left: 2px solid rgba(170,200,255,0.65);
+  background: rgba(20,28,46,0.55);
+}
+.sigils-panel .sp-row-squad .sp-icon { color: #cfe1ff; }
+.sigils-panel .sp-row-squad .sp-name { color: #cfe1ff; }
 .sigils-panel .sp-rows {
   display: flex;
   flex-direction: column;

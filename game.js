@@ -3037,6 +3037,50 @@ const SIGILS = {
   vowiron:    { id: 'vowiron',    name: 'Vow of Iron',         icon: '⌖', category: 'defense',  desc: 'The Front slot starts each fight with Taunt for the first turn.' },
 };
 
+// ============================================================================
+// SQUAD SIGILS — composition-based passive bonuses that activate
+// automatically when specific heroes walk together.  Not part of the
+// random sigil pool; they're discovered by playing certain party comps.
+// ============================================================================
+const SQUAD_SIGILS = {
+  mercyDoubled: {
+    id: 'mercyDoubled', name: 'Mercy Doubled', icon: '✚',
+    requires: ['cassia', 'elin'],
+    desc: 'Party heals deal +1 HP.',
+  },
+  crimsonPact: {
+    id: 'crimsonPact', name: 'Crimson Pact', icon: '✤',
+    requires: ['branwen', 'mira'],
+    desc: 'Your bleed ticks deal +1 damage.',
+  },
+  ironWall: {
+    id: 'ironWall', name: 'Iron Wall', icon: '⛨',
+    requires: ['cassia', 'korin'],
+    desc: 'Front slot starts each fight with +2 extra armor.',
+  },
+  shadowVeil: {
+    id: 'shadowVeil', name: 'Shadow Veil', icon: '◐',
+    requires: ['mira', 'ash'],
+    desc: 'First attack each turn deals +1 (stacks with Arcane Focus).',
+  },
+  oldEdge: {
+    id: 'oldEdge', name: 'Old Edge', icon: '★',
+    requires: ['kai', 'cassia', 'elin'],
+    desc: '+1 Resolve drip per turn.',
+  },
+};
+
+function activeSquadSigils(s) {
+  if (!s || !s.party || !s.party.chars) return [];
+  const partyIds = new Set(Object.keys(s.party.chars).filter(id => s.party.chars[id] && !s.party.chars[id].downed));
+  return Object.values(SQUAD_SIGILS).filter(sq =>
+    sq.requires.every(id => partyIds.has(id))
+  );
+}
+function hasSquadSigil(s, id) {
+  return activeSquadSigils(s).some(sq => sq.id === id);
+}
+
 function hasSigil(s, id) {
   return !!(s && s.run && s.run.sigils && s.run.sigils.includes(id));
 }
@@ -3945,6 +3989,13 @@ function startEncounter(encSpec) {
   if (hasSigil(state, 'steel')) {
     Object.values(state.party.chars).forEach(c => { if (!c.downed) c.armor += 2; });
   }
+  // Squad Sigil — Iron Wall (Cassia + Korin together) — front slot wakes
+  // each fight with +2 extra armor on top of any other source.
+  if (hasSquadSigil(state, 'ironWall')) {
+    const frontId = state.party.slots.front;
+    const front = frontId && state.party.chars[frontId];
+    if (front && !front.downed) front.armor += 2;
+  }
   // Vow of Iron — front slot wakes the fight with Taunt for turn 1.  The
   // startTurn cleanup runs AFTER this, so we set the taunt to survive the
   // first cycle by deferring via a flag and re-applying inside startTurn.
@@ -4220,6 +4271,16 @@ function applyDmgToEnemy(s, e, baseAmt) {
       amt += 2;
       a.firstAttackUsed = true;
       spawnPassivePopup('ash', 'ARCANE FOCUS');
+    }
+  }
+  // Squad Sigil — Shadow Veil (Mira + Ash together) — every party member's
+  // first attack each turn deals +1 (stacks with Ash's Arcane Focus on her
+  // own opener).  Per-character: each hero's first hit gets the bonus.
+  if (hasSquadSigil(s, 'shadowVeil') && s.currentActorId) {
+    const c = s.party.chars[s.currentActorId];
+    if (c && !c.shadowVeilUsed) {
+      amt += 1;
+      c.shadowVeilUsed = true;
     }
   }
   // pending one-shot attack bonuses (Banner Fire, Wild Hunt, etc.)
@@ -4518,7 +4579,10 @@ function partyHeal(s, amt) {
   // on the receiver also matter.
   const casterMod = getQuirkHealMod(s, s.currentActorId);
   const witherMod = hasRunModifier(s, 'withered') ? -1 : 0;
-  const total = amt + bonus + casterMod + witherMod;
+  // Squad Sigil — Mercy Doubled (Cassia + Elin together) bumps every
+  // party heal by +1.
+  const squadHeal = hasSquadSigil(s, 'mercyDoubled') ? 1 : 0;
+  const total = amt + bonus + casterMod + witherMod + squadHeal;
   aliveParty(s).forEach(c => {
     const recvMod = getQuirkHealMod(s, c.id);
     const heal = Math.max(0, total + recvMod);
@@ -4566,7 +4630,8 @@ function healLowest(s, amt) {
   const casterMod = getQuirkHealMod(s, s.currentActorId);
   const recvMod   = getQuirkHealMod(s, c.id);
   const witherMod = hasRunModifier(s, 'withered') ? -1 : 0;
-  const total = Math.max(0, amt + bonus + casterMod + recvMod + witherMod);
+  const squadHeal = hasSquadSigil(s, 'mercyDoubled') ? 1 : 0;
+  const total = Math.max(0, amt + bonus + casterMod + recvMod + witherMod + squadHeal);
   const before = c.hp;
   c.hp = Math.min(c.maxHp, c.hp + total);
   const got = c.hp - before;
@@ -4819,7 +4884,7 @@ function startTurn(s) {
   s.bonusAtb = Math.min(1, s.pendingBonusAtb || 0);
   s.pendingBonusAtb = 0;
   // clear single-turn buffs that survived the enemy phase
-  aliveParty(s).forEach(c => { c.taunt = false; c.retaliate = 0; c.firstAttackUsed = false; c.bleedKillUsed = false; });
+  aliveParty(s).forEach(c => { c.taunt = false; c.retaliate = 0; c.firstAttackUsed = false; c.bleedKillUsed = false; c.shadowVeilUsed = false; });
   // Vow of Iron — front slot wakes turn 1 with Taunt.  Applied AFTER the
   // taunt-clear so it survives this single turn; the next startTurn clears
   // it normally.  The _vowIronPending flag was set in initEncounter so
@@ -4838,6 +4903,9 @@ function startTurn(s) {
 
   // bleed tick — base 2 per turn, +1 if Bloodborne Sigil owned, +1 if Bone Tide modifier
   const bleedTick = 2 + (hasSigil(s, 'bloodborne') ? 1 : 0) + (hasRunModifier(s, 'bonetide') ? 1 : 0);
+  // Squad Sigil — Crimson Pact (Branwen + Mira together) bumps the bleed
+  // YOUR party deals to enemies by +1.  Doesn't affect bleed taken.
+  const enemyBleedTick = bleedTick + (hasSquadSigil(s, 'crimsonPact') ? 1 : 0);
 
   // Run modifier — "Burning Sky" pings every combatant for 1 HP at turn start.
   if (hasRunModifier(s, 'burning')) {
@@ -4863,7 +4931,7 @@ function startTurn(s) {
   });
   aliveEnemies(s).forEach(e => {
     if (e.bleed > 0) {
-      const dmg = Math.max(0, bleedTick - (s.ignoreArmor ? 0 : e.armor));
+      const dmg = Math.max(0, enemyBleedTick - (s.ignoreArmor ? 0 : e.armor));
       e.hp = Math.max(0, e.hp - dmg); e.bleed -= 1;
       if (dmg > 0) { spawnPopupId(e.id, `-${dmg}`, 'dmg', 'enemy'); flashCardId(e.id, 'hit', 'enemy'); }
       log(`<b>${ENEMIES[e.id].name}</b> bleeds (${dmg}).`);
@@ -4880,6 +4948,8 @@ function startTurn(s) {
       log(`<i>Sigil of the Pact stirs — +${bondCount} Resolve.</i>`);
     }
   }
+  // Squad Sigil — Old Edge (Kai + Cassia + Elin together) — extra Resolve drip
+  if (hasSquadSigil(s, 'oldEdge')) gainResolve(s, 1);
 
   // queue intents — ensure each living enemy has a valid intent index
   aliveEnemies(s).forEach(e => { e.intentIdx = e.intentIdx % ENEMIES[e.id].intents.length; });
@@ -5518,19 +5588,26 @@ function renderSigilTray() {
   const tray = document.getElementById('sigil-tray');
   if (!tray) return;
   const owned = (state.run && state.run.sigils) || [];
-  if (!owned.length) {
+  const squad = activeSquadSigils(state);
+  if (!owned.length && !squad.length) {
     tray.innerHTML = '';
     tray.classList.add('empty');
     hideActiveSigilsPanel();
     return;
   }
   tray.classList.remove('empty');
-  tray.innerHTML = owned.map(id => {
+  const ownedChips = owned.map(id => {
     const s = SIGILS[id];
     if (!s) return '';
     const titleText = `${s.name} — ${s.desc}`;
     return `<button type="button" class="sigil-chip cat-${s.category}" data-sigil="${s.id}" title="${titleText}" aria-label="${s.name}"><span class="sigil-chip-icon">${s.icon}</span></button>`;
   }).join('');
+  // Squad bond chips — distinct styling so the player can tell they were
+  // earned through party composition, not bound from a node.
+  const squadChips = squad.map(sq =>
+    `<button type="button" class="sigil-chip sigil-chip-squad" data-squad="${sq.id}" title="${sq.name} — ${sq.desc}" aria-label="${sq.name}"><span class="sigil-chip-icon">${sq.icon}</span></button>`
+  ).join('');
+  tray.innerHTML = ownedChips + squadChips;
   // Bind tap-to-reveal AFTER each render — innerHTML reset wipes prior bindings.
   Array.from(tray.querySelectorAll('.sigil-chip')).forEach(chip => {
     chip.addEventListener('click', (e) => {
@@ -5546,26 +5623,40 @@ function renderSigilTray() {
 function showActiveSigilsPanel(anchorEl) {
   hideActiveSigilsPanel();
   const owned = (state.run && state.run.sigils) || [];
-  if (!owned.length) return;
+  const squad = activeSquadSigils(state);
+  if (!owned.length && !squad.length) return;
   const panel = document.createElement('div');
   panel.id = 'active-sigils-panel';
   panel.className = 'sigils-panel';
+  const ownedRows = owned.map(id => {
+    const s = SIGILS[id];
+    if (!s) return '';
+    return `
+      <div class="sp-row cat-${s.category}">
+        <span class="sp-icon">${s.icon}</span>
+        <div class="sp-meta">
+          <div class="sp-name">${s.name}</div>
+          <div class="sp-desc">${s.desc}</div>
+        </div>
+      </div>`;
+  }).join('');
+  const squadRows = squad.map(sq => `
+    <div class="sp-row sp-row-squad">
+      <span class="sp-icon">${sq.icon}</span>
+      <div class="sp-meta">
+        <div class="sp-name">${sq.name}</div>
+        <div class="sp-desc">${sq.desc}</div>
+      </div>
+    </div>`).join('');
   panel.innerHTML = `
-    <div class="sp-title">Bound Sigils</div>
-    <div class="sp-rows">
-      ${owned.map(id => {
-        const s = SIGILS[id];
-        if (!s) return '';
-        return `
-          <div class="sp-row cat-${s.category}">
-            <span class="sp-icon">${s.icon}</span>
-            <div class="sp-meta">
-              <div class="sp-name">${s.name}</div>
-              <div class="sp-desc">${s.desc}</div>
-            </div>
-          </div>`;
-      }).join('')}
-    </div>
+    ${owned.length ? `
+      <div class="sp-title">Bound Sigils</div>
+      <div class="sp-rows">${ownedRows}</div>
+    ` : ''}
+    ${squad.length ? `
+      <div class="sp-title sp-title-squad">Squad Bonds</div>
+      <div class="sp-rows">${squadRows}</div>
+    ` : ''}
   `;
   document.body.appendChild(panel);
   // Position below the tray (or wherever it makes sense given viewport).
