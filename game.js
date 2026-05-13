@@ -7733,8 +7733,8 @@ function showPartyInspect() {
     const c = state.party.chars[id];
     const def = CHARS[id];
     if (!c || !def) return;
-    const card = document.createElement('div');
-    card.className = 'hero-card';
+    const row = document.createElement('div');
+    row.className = 'hero-row' + (c.downed ? ' hero-row-downed' : '');
 
     const techSection = (pos) => {
       const basic = getTech(state, id, pos, 'basic');
@@ -7743,11 +7743,11 @@ function showPartyInspect() {
       if (basic) rows.push(`<div class="hero-tech-row"><span class="hero-tech-kind">A</span><div class="hero-tech-body"><div class="hero-tech-name">${basic.name}</div><div class="hero-tech-desc">${basic.desc || ''}</div></div></div>`);
       if (sig)   rows.push(`<div class="hero-tech-row sig"><span class="hero-tech-kind sig">S</span><div class="hero-tech-body"><div class="hero-tech-name">${sig.name}</div><div class="hero-tech-desc">${sig.desc || ''}</div></div></div>`);
       const isHome = def.home === pos;
-      return `<div class="hero-tech-section${isHome ? ' home' : ''}"><div class="hero-tech-pos">${pos}${isHome ? ' ◀ home' : ''}</div>${rows.join('')}</div>`;
+      return `<div class="hero-tech-section${isHome ? ' home' : ''}"><div class="hero-tech-pos">${pos.toUpperCase()}${isHome ? ' ◆ home' : ''}</div>${rows.join('')}</div>`;
     };
 
     const schoolTag = (def.school || '').slice(0, 3).toUpperCase();
-    // Affinity quirk chips (positive in green, negative in red).
+    const slotNow = slotOfChar(state, id) || def.home;
     const pos = (c.quirks && c.quirks.positive) || [];
     const neg = (c.quirks && c.quirks.negative) || [];
     const quirkChip = (qid, polarity) => {
@@ -7761,26 +7761,48 @@ function showPartyInspect() {
            ${neg.map(qid => quirkChip(qid, 'negative')).join('')}
          </div>`
       : `<div class="hero-quirks hero-quirks-empty">No affinities yet</div>`;
-    card.innerHTML = `
-      <div class="hero-portrait" aria-hidden="true">${PORTRAITS[id] || ''}</div>
-      <div class="hero-head">
-        <div class="hero-name">${def.name}</div>
-        <div class="hero-title">${def.title || ''}</div>
-      </div>
-      <div class="hero-meta">
-        <span class="hero-school school-${def.school}">${schoolTag}</span>
-        <span class="hero-stat">${def.maxHp} HP</span>
-        <span class="hero-stat hero-home-tag">⌂ ${def.home || ''}</span>
-      </div>
-      ${def.passive ? `<div class="hero-passive"><b>${def.passive.name}</b> — ${def.passive.desc}</div>` : ''}
-      ${quirksBlock}
-      <div class="hero-techs">
-        ${techSection('front')}
-        ${techSection('mid')}
-        ${techSection('back')}
+
+    row.innerHTML = `
+      <button type="button" class="hero-row-head" aria-expanded="false">
+        <div class="hero-row-portrait" aria-hidden="true">${PORTRAITS[id] || ''}</div>
+        <div class="hero-row-meta">
+          <span class="hero-row-name">${def.name}${c.downed ? ' · downed' : ''}</span>
+          <span class="hero-row-stats">
+            <span class="hr-stat hr-hp">${c.hp}/${c.maxHp}</span>
+            <span class="hr-stat hr-school school-${def.school}">${schoolTag}</span>
+            <span class="hr-stat hr-slot">${(SLOT_LABELS[slotNow] || slotNow || '').toUpperCase()}${slotNow === def.home ? ' ◆' : ''}</span>
+          </span>
+        </div>
+        <span class="hero-row-chev" aria-hidden="true">›</span>
+      </button>
+      <div class="hero-row-body" hidden>
+        ${def.passive ? `<div class="hero-passive"><b>${def.passive.name}</b> — ${def.passive.desc}</div>` : ''}
+        ${quirksBlock}
+        <div class="hero-techs">
+          ${techSection('front')}
+          ${techSection('mid')}
+          ${techSection('back')}
+        </div>
       </div>
     `;
-    choices.appendChild(card);
+    const head = row.querySelector('.hero-row-head');
+    const rbody = row.querySelector('.hero-row-body');
+    head.addEventListener('click', () => {
+      const open = !row.classList.contains('hero-row-open');
+      choices.querySelectorAll('.hero-row.hero-row-open').forEach(r => {
+        if (r === row) return;
+        r.classList.remove('hero-row-open');
+        const b = r.querySelector('.hero-row-body');
+        const h = r.querySelector('.hero-row-head');
+        if (b) b.hidden = true;
+        if (h) h.setAttribute('aria-expanded', 'false');
+      });
+      row.classList.toggle('hero-row-open', open);
+      rbody.hidden = !open;
+      head.setAttribute('aria-expanded', open ? 'true' : 'false');
+      Audio.ui();
+    });
+    choices.appendChild(row);
   });
 
   choices.classList.remove('hidden');
