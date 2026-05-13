@@ -4886,11 +4886,11 @@ function resolveEnemyTurn(s) {
   resolveEnemyStep(s, 0);
 }
 function resolveEnemyStep(s, i) {
-  if (s.over) { render(); return; }
+  if (s.over) { s.executing = false; render(); return; }
   const order = s._enemyTurnOrder || [];
   if (i >= order.length) {
     delete s._enemyTurnOrder;
-    if (s.over) { render(); return; }
+    if (s.over) { s.executing = false; render(); return; }
     s.turn += 1;
     startTurn(s);
     return;
@@ -4921,7 +4921,7 @@ function resolveEnemyStep(s, i) {
   flashCardId(e.id, 'hit', 'enemy');
   setTimeout(() => {
     intent.fn(s);
-    if (checkEnd(s)) { render(); return; }
+    if (checkEnd(s)) { s.executing = false; render(); return; }
     e.intentIdx = (e.intentIdx + 1) % def.intents.length;
     render();
     setTimeout(() => resolveEnemyStep(s, i + 1), 700 + consumeHitPause());
@@ -7509,10 +7509,15 @@ const RECRUIT_GREETINGS = {
 function showRecruitOverlay(candidates) {
   $('#overlay').classList.remove('overlay-path', 'overlay-vignette', 'overlay-runsummary', 'overlay-rest', 'overlay-upgrade', 'overlay-sigil');
   $('#overlay').classList.add('overlay-full', 'overlay-cinematic', 'overlay-recruit');
-  $('#overlay-title').textContent = 'A new ally appears';
+  // Title is the eyebrow line beneath; hide the regular overlay-title so
+  // the chat bubbles have headroom above the silhouettes.
+  $('#overlay-title').textContent = '';
   const body = $('#overlay-body');
   body.classList.remove('victory-summary-body', 'welcome-body', 'run-summary-body');
-  body.innerHTML = `<p class="starter-flavor">Walk together, or walk on alone.</p>`;
+  body.innerHTML = `
+    <p class="starter-eyebrow">A new ally appears</p>
+    <p class="starter-flavor">Walk together, or walk on alone.</p>
+  `;
   const choices = $('#overlay-choices');
   choices.innerHTML = '';
   choices.classList.remove('path-map', 'party-inspect', 'event-choices', 'title-choices', 'vignette-choices');
