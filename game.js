@@ -7734,24 +7734,34 @@ function showPartyInspect() {
     return;
   }
 
-  // Master-detail layout — list of party members on the left, detail panel
-  // for the selected hero on the right.  Tapping a row switches focus and
-  // greys the non-focused rows so the eye lands on the right pane.
+  // FFT-style party menu — horizontal roster strip at the top, then a
+  // single detail panel below.  Tapping a strip avatar promotes that
+  // hero to focus; the rest grey.  Detail shows a large portrait, name +
+  // title banner, structured stat chips, passive, affinities, and a
+  // three-column ability grid (FRONT / MID / BACK) with the home slot
+  // marked.
   const layout = document.createElement('div');
-  layout.className = 'hero-inspect-layout';
-  layout.innerHTML = `<div class="hero-list"></div><div class="hero-detail"></div>`;
+  layout.className = 'hero-inspect-party';
+  layout.innerHTML = `<div class="hip-strip"></div><div class="hip-detail"></div>`;
   choices.appendChild(layout);
-  const listEl = layout.querySelector('.hero-list');
-  const detailEl = layout.querySelector('.hero-detail');
+  const stripEl  = layout.querySelector('.hip-strip');
+  const detailEl = layout.querySelector('.hip-detail');
 
+  const techRow = (kind, tech) => {
+    if (!tech) return '';
+    const label = kind === 'sig' ? 'S' : 'A';
+    return `<div class="hip-tech-row${kind === 'sig' ? ' sig' : ''}"><span class="hip-tech-kind${kind === 'sig' ? ' sig' : ''}">${label}</span><div class="hip-tech-body"><div class="hip-tech-name">${tech.name}</div><div class="hip-tech-desc">${tech.desc || ''}</div></div></div>`;
+  };
   const techSection = (id, def, pos) => {
     const basic = getTech(state, id, pos, 'basic');
     const sig   = getTech(state, id, pos, 'sig');
-    const rows = [];
-    if (basic) rows.push(`<div class="hero-tech-row"><span class="hero-tech-kind">A</span><div class="hero-tech-body"><div class="hero-tech-name">${basic.name}</div><div class="hero-tech-desc">${basic.desc || ''}</div></div></div>`);
-    if (sig)   rows.push(`<div class="hero-tech-row sig"><span class="hero-tech-kind sig">S</span><div class="hero-tech-body"><div class="hero-tech-name">${sig.name}</div><div class="hero-tech-desc">${sig.desc || ''}</div></div></div>`);
     const isHome = def.home === pos;
-    return `<div class="hero-tech-section${isHome ? ' home' : ''}"><div class="hero-tech-pos">${pos.toUpperCase()}${isHome ? ' ◆ home' : ''}</div>${rows.join('')}</div>`;
+    return `
+      <div class="hip-tech-col${isHome ? ' home' : ''}">
+        <div class="hip-tech-pos">${pos.toUpperCase()}${isHome ? ' <span class="hip-home-mark">◆</span>' : ''}</div>
+        ${techRow('basic', basic)}
+        ${techRow('sig', sig)}
+      </div>`;
   };
 
   const renderDetail = (id) => {
@@ -7767,37 +7777,47 @@ function showPartyInspect() {
       if (!q) return '';
       return `<span class="hero-quirk hero-quirk-${polarity}" title="${q.name} — ${q.desc}">${q.name}</span>`;
     };
-    const quirksBlock = (pos.length || neg.length)
-      ? `<div class="hero-quirks">${pos.map(qid => quirkChip(qid, 'positive')).join('')}${neg.map(qid => quirkChip(qid, 'negative')).join('')}</div>`
-      : `<div class="hero-quirks hero-quirks-empty">No affinities yet</div>`;
+    const affinities = (pos.length || neg.length)
+      ? `${pos.map(qid => quirkChip(qid, 'positive')).join('')}${neg.map(qid => quirkChip(qid, 'negative')).join('')}`
+      : `<span class="hero-quirks-empty">No affinities yet.</span>`;
     detailEl.innerHTML = `
-      <div class="hero-detail-head">
-        <div class="hero-detail-portrait" aria-hidden="true">${PORTRAITS[id] || ''}</div>
-        <div class="hero-detail-meta">
-          <div class="hero-detail-name">${def.name}${c.downed ? ' · downed' : ''}</div>
-          <div class="hero-detail-title">${def.title || ''}</div>
-          <div class="hero-detail-stats">
-            <span class="hr-stat hr-hp">${c.hp}/${c.maxHp}</span>
-            <span class="hr-stat hr-school school-${def.school}">${schoolTag}</span>
-            <span class="hr-stat hr-slot">${(SLOT_LABELS[slotNow] || slotNow || '').toUpperCase()}${slotNow === def.home ? ' ◆' : ''}</span>
+      <div class="hip-banner">
+        <div class="hip-banner-portrait" aria-hidden="true">${PORTRAITS[id] || ''}</div>
+        <div class="hip-banner-meta">
+          <div class="hip-banner-name">${def.name}${c.downed ? ' · downed' : ''}</div>
+          <div class="hip-banner-title">${def.title || ''}</div>
+          <div class="hip-banner-stats">
+            <span class="hip-stat hip-stat-hp"><span class="hip-stat-label">HP</span><span class="hip-stat-val">${c.hp}/${c.maxHp}</span></span>
+            <span class="hip-stat hip-stat-school school-${def.school}"><span class="hip-stat-label">CLS</span><span class="hip-stat-val">${schoolTag}</span></span>
+            <span class="hip-stat hip-stat-slot"><span class="hip-stat-label">POS</span><span class="hip-stat-val">${(SLOT_LABELS[slotNow] || slotNow || '').toUpperCase()}${slotNow === def.home ? ' ◆' : ''}</span></span>
           </div>
         </div>
       </div>
-      ${def.passive ? `<div class="hero-passive"><b>${def.passive.name}</b> — ${def.passive.desc}</div>` : ''}
-      ${quirksBlock}
-      <div class="hero-techs">
-        ${techSection(id, def, 'front')}
-        ${techSection(id, def, 'mid')}
-        ${techSection(id, def, 'back')}
+      ${def.passive ? `
+        <div class="hip-section">
+          <div class="hip-section-label">Passive</div>
+          <div class="hip-passive"><b>${def.passive.name}</b><span> — ${def.passive.desc}</span></div>
+        </div>` : ''}
+      <div class="hip-section">
+        <div class="hip-section-label">Affinities</div>
+        <div class="hip-affinities">${affinities}</div>
+      </div>
+      <div class="hip-section">
+        <div class="hip-section-label">Abilities</div>
+        <div class="hip-tech-grid">
+          ${techSection(id, def, 'front')}
+          ${techSection(id, def, 'mid')}
+          ${techSection(id, def, 'back')}
+        </div>
       </div>
     `;
   };
 
   const setFocus = (focusId) => {
-    listEl.querySelectorAll('.hero-list-row').forEach(r => {
-      const on = r.dataset.heroId === focusId;
-      r.classList.toggle('hero-list-row-focused', on);
-      r.setAttribute('aria-selected', on ? 'true' : 'false');
+    stripEl.querySelectorAll('.hip-avatar').forEach(a => {
+      const on = a.dataset.heroId === focusId;
+      a.classList.toggle('hip-avatar-focused', on);
+      a.setAttribute('aria-selected', on ? 'true' : 'false');
     });
     renderDetail(focusId);
   };
@@ -7807,25 +7827,19 @@ function showPartyInspect() {
     const def = CHARS[id];
     if (!c || !def) return;
     const slotNow = slotOfChar(state, id) || def.home;
-    const schoolTag = (def.school || '').slice(0, 3).toUpperCase();
-    const row = document.createElement('button');
-    row.type = 'button';
-    row.className = 'hero-list-row' + (c.downed ? ' hero-list-row-downed' : '');
-    row.dataset.heroId = id;
-    row.setAttribute('role', 'option');
-    row.innerHTML = `
-      <div class="hero-row-portrait" aria-hidden="true">${PORTRAITS[id] || ''}</div>
-      <div class="hero-row-meta">
-        <span class="hero-row-name">${def.name}${c.downed ? ' · downed' : ''}</span>
-        <span class="hero-row-stats">
-          <span class="hr-stat hr-hp">${c.hp}/${c.maxHp}</span>
-          <span class="hr-stat hr-school school-${def.school}">${schoolTag}</span>
-          <span class="hr-stat hr-slot">${(SLOT_LABELS[slotNow] || slotNow || '').toUpperCase()}${slotNow === def.home ? ' ◆' : ''}</span>
-        </span>
-      </div>
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'hip-avatar' + (c.downed ? ' hip-avatar-downed' : '');
+    btn.dataset.heroId = id;
+    btn.setAttribute('role', 'option');
+    btn.setAttribute('aria-label', def.name);
+    btn.innerHTML = `
+      <div class="hip-avatar-portrait" aria-hidden="true">${PORTRAITS[id] || ''}</div>
+      <div class="hip-avatar-name">${def.name}</div>
+      <div class="hip-avatar-slot">${(SLOT_LABELS[slotNow] || slotNow || '').toUpperCase()}</div>
     `;
-    row.addEventListener('click', () => { Audio.ui(); setFocus(id); });
-    listEl.appendChild(row);
+    btn.addEventListener('click', () => { Audio.ui(); setFocus(id); });
+    stripEl.appendChild(btn);
     if (idx === 0) setFocus(id);
   });
 
