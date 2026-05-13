@@ -2827,6 +2827,9 @@ function availableUpgrades(s) {
   return Object.values(UPGRADES).filter(u => {
     if (!partyIds.has(u.charId)) return false;
     const c = s.party.chars[u.charId];
+    // Downed heroes can't learn new techs — they're out of the fight and
+    // shouldn't be growing while sidelined.
+    if (c.downed) return false;
     return !(c.upgrades && c.upgrades[`${u.slot}.${u.kind}`]);
   });
 }
@@ -6830,11 +6833,16 @@ function showVignette(v, ctx, done) {
   const aliveIds = (ctx && ctx.alive && ctx.alive.length)
     ? ctx.alive
     : Object.values(state.party.chars).filter(c => !c.downed).map(c => c.id);
+  // "Guests" — hero IDs that should render even though they're not yet in
+  // state.party.chars.  Used by the recruit-vignette flow so the incoming
+  // hero appears on stage before the player commits to accepting them.
+  const guests = (ctx && Array.isArray(ctx.guests)) ? ctx.guests : [];
+  const isOnStage = (id) => !!(id && (state.party.chars[id] || guests.includes(id)));
   let speakerId = v.speaker;
   if (v.speakerFromLowestHp)    speakerId = _lowestHpAliveId(state);
   if (v.speakerFromFirstAlive)  speakerId = aliveIds[0];
-  if (speakerId && !state.party.chars[speakerId] && v.speakerFallback) speakerId = v.speakerFallback;
-  if (speakerId && !state.party.chars[speakerId]) {
+  if (speakerId && !isOnStage(speakerId) && v.speakerFallback) speakerId = v.speakerFallback;
+  if (speakerId && !isOnStage(speakerId)) {
     speakerId = aliveIds[0] || null;
   }
   // Resolve helper for line.who wildcards
@@ -6865,8 +6873,8 @@ function showVignette(v, ctx, done) {
     typeof line.if !== 'function' || !!line.if(state, ctx));
   visibleLines.forEach(line => {
     let id = resolveWho(line.who);
-    if (id && !state.party.chars[id] && line.altWho && state.party.chars[line.altWho]) id = line.altWho;
-    if (id && !state.party.chars[id]) id = null;
+    if (id && !isOnStage(id) && line.altWho && isOnStage(line.altWho)) id = line.altWho;
+    if (id && !isOnStage(id)) id = null;
     if (id && !uniq.includes(id)) uniq.push(id);
   });
   const leftId  = speakerId && uniq.includes(speakerId) ? speakerId
@@ -6882,8 +6890,8 @@ function showVignette(v, ctx, done) {
   dlg.className = 'vn-dialogue';
   visibleLines.forEach(line => {
     let whoId = resolveWho(line.who);
-    if (whoId && !state.party.chars[whoId] && line.altWho && state.party.chars[line.altWho]) whoId = line.altWho;
-    if (whoId && !state.party.chars[whoId]) whoId = null;
+    if (whoId && !isOnStage(whoId) && line.altWho && isOnStage(line.altWho)) whoId = line.altWho;
+    if (whoId && !isOnStage(whoId)) whoId = null;
     const row = document.createElement('div');
     if (whoId) {
       const side = whoId === rightId ? 'right' : 'left';
@@ -7582,6 +7590,9 @@ function commitUpgrade(upgradeId, onDone) {
   if (!up) return;
   const c = state.party.chars[up.charId];
   if (!c) return;
+  // Defensive guard — downed heroes don't learn techs.  availableUpgrades
+  // already filters them out, but a stale offer could still land here.
+  if (c.downed) return;
   if (!c.upgrades) c.upgrades = {};
   c.upgrades[`${up.slot}.${up.kind}`] = upgradeId;
   log(`<b>${CHARS[up.charId].name}</b> learns <b>${up.name}</b>.`);
@@ -7657,6 +7668,9 @@ function showRecruitVignette(heroId) {
     ],
   };
   const ctx = captureFightContext(state);
+  // Mark the incoming hero as a "guest" so showVignette renders their
+  // portrait + named lines even though they aren't in state.party.chars yet.
+  ctx.guests = [heroId];
   showVignette(vig, ctx, () => offerUpgradeOrPath());
 }
 
