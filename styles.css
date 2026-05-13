@@ -3361,50 +3361,58 @@ body.party-critical::after {
 }
 /* Party-inspect overlay is wider — three hero columns of dense info */
 #overlay-content:has(#overlay-choices.party-inspect:not(.hidden)) {
-  max-width: min(560px, 96vw);
+  max-width: min(880px, 96vw);
   padding: 14px 16px 14px;
 }
 
 /* ============ PARTY INSPECT — between-fights view of each hero ============
-   Same collapsible-row pattern as the title-screen Heroes codex: each
-   party member is a slim row showing the at-a-glance read (portrait,
-   name, HP, school, slot).  Tapping the row expands to passive,
-   affinities, and the per-slot moveset.  Single-expand. */
+   Master-detail layout.  Left column is a vertical list of party members
+   with at-a-glance stats (HP, school, slot).  Right column is the detail
+   pane for the focused hero (passive, affinities, full moveset).  Tapping
+   a row switches focus and greys the non-focused rows. */
 #overlay-choices.party-inspect {
+  display: block;
+  margin-top: 6px;
+  text-align: left;
+}
+.hero-inspect-layout {
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) 1fr;
+  gap: 14px;
+  max-height: 70vh;
+}
+.hero-list {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  margin-top: 6px;
-  text-align: left;
-  max-height: 70vh;
   overflow-y: auto;
+  padding-right: 2px;
 }
-.hero-row {
-  background: linear-gradient(180deg, rgba(22,18,18,0.5) 0%, rgba(8,6,8,0.7) 100%);
-  border-left: 2px solid rgba(212,200,168,0.18);
-  transition: border-left-color 0.18s, background 0.18s;
-}
-.hero-row.hero-row-downed { opacity: 0.55; filter: grayscale(0.6); }
-.hero-row.hero-row-open {
-  border-left-color: var(--gold-bright);
-  background: linear-gradient(180deg, rgba(28,22,18,0.7) 0%, rgba(10,8,8,0.85) 100%);
-}
-.hero-row-head {
-  width: 100%;
+.hero-list-row {
   display: grid;
-  grid-template-columns: 36px 1fr auto;
+  grid-template-columns: 36px 1fr;
   gap: 10px;
   align-items: center;
   padding: 6px 10px;
-  background: transparent;
+  background: linear-gradient(180deg, rgba(22,18,18,0.4) 0%, rgba(8,6,8,0.55) 100%);
   border: none;
+  border-left: 2px solid rgba(212,200,168,0.18);
   color: inherit;
   font-family: inherit;
   text-align: left;
   cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.18s ease, border-left-color 0.18s ease, background 0.18s ease;
 }
-.hero-row-head:hover { background: rgba(32,24,20,0.4); }
-.hero-row-portrait {
+.hero-list-row:hover { opacity: 0.85; }
+.hero-list-row.hero-list-row-focused {
+  opacity: 1;
+  border-left-color: var(--gold-bright);
+  background: linear-gradient(180deg, rgba(28,22,18,0.7) 0%, rgba(10,8,8,0.85) 100%);
+  filter: none;
+}
+.hero-list-row-downed { filter: grayscale(0.6); }
+.hero-list-row .hero-row-portrait {
   width: 32px; height: 32px;
   display: flex; align-items: center; justify-content: center;
   border-radius: 50%;
@@ -3414,28 +3422,78 @@ body.party-critical::after {
   box-shadow: inset 0 0 3px rgba(0,0,0,0.7);
   flex-shrink: 0;
 }
-.hero-row-portrait svg {
+.hero-list-row .hero-row-portrait svg {
   width: 130%; height: 130%; display: block;
   transform: translate(-5%, -8%);
 }
-.hero-row-meta {
+.hero-list-row .hero-row-meta {
   display: flex;
   flex-direction: column;
   min-width: 0;
   gap: 3px;
 }
-.hero-row-name {
+.hero-list-row .hero-row-name {
   font-size: 11px;
   letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--gold-pale);
 }
-.hero-row-stats {
+.hero-list-row .hero-row-stats {
   display: flex;
   flex-wrap: wrap;
   gap: 4px 8px;
   align-items: center;
 }
+
+.hero-detail {
+  overflow-y: auto;
+  padding: 4px 4px 6px 6px;
+  border-left: 1px solid rgba(212,200,168,0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.hero-detail-head {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  gap: 12px;
+  align-items: center;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(212,200,168,0.12);
+}
+.hero-detail-portrait {
+  width: 56px; height: 56px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 1px solid var(--gold-dim);
+  background: var(--parchment-deep);
+  box-shadow: inset 0 0 5px rgba(0,0,0,0.7);
+}
+.hero-detail-portrait svg {
+  width: 130%; height: 130%; display: block;
+  transform: translate(-5%, -8%);
+}
+.hero-detail-meta { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.hero-detail-name {
+  font-size: 14px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--gold-pale);
+  text-shadow: 0 0 8px rgba(240,212,136,0.35), 0 1px 0 rgba(0,0,0,0.85);
+}
+.hero-detail-title {
+  font-size: 10px;
+  font-style: italic;
+  color: var(--ink-dim);
+}
+.hero-detail-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin-top: 2px;
+}
+/* Shared at-a-glance chips used by both the list row and detail head. */
 .hr-stat {
   font-size: 8.5px;
   letter-spacing: 0.18em;
@@ -3451,31 +3509,6 @@ body.party-critical::after {
 .hr-stat.hr-school.school-ranged   { color: var(--armor);       border: 1px solid var(--armor);      background: transparent; }
 .hr-stat.hr-school.school-stealth  { color: var(--weak);        border: 1px solid var(--weak);       background: transparent; }
 .hr-stat.hr-slot { color: var(--gold); }
-.hero-row-chev {
-  font-size: 22px;
-  font-weight: 200;
-  line-height: 1;
-  color: var(--ink-dim);
-  transition: transform 0.18s ease, color 0.18s ease;
-  margin-right: 2px;
-}
-.hero-row.hero-row-open .hero-row-chev {
-  transform: rotate(90deg);
-  color: var(--gold-bright);
-  filter: drop-shadow(0 0 6px rgba(240,212,136,0.55));
-}
-.hero-row-body {
-  padding: 4px 14px 12px 56px;
-  border-top: 1px solid rgba(212,200,168,0.08);
-  animation: hero-row-body-in 0.18s ease-out;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-@keyframes hero-row-body-in {
-  from { opacity: 0; transform: translateY(-2px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
   height: 78px;
   display: flex; align-items: flex-end; justify-content: center;
   overflow: hidden;
@@ -3631,23 +3664,26 @@ body.party-critical::after {
 
 /* Landscape phones — collapse 3 columns to 2-then-1 if width is too tight */
 @media (max-height: 520px) {
-  .hero-row-head { grid-template-columns: 28px 1fr auto; gap: 8px; padding: 4px 8px; }
-  .hero-row-portrait { width: 26px; height: 26px; }
-  .hero-row-name { font-size: 10px; letter-spacing: 0.16em; }
+  #overlay-content:has(#overlay-choices.party-inspect:not(.hidden)) {
+    padding: 10px 12px 8px;
+    max-height: 96vh;
+  }
+  .hero-inspect-layout { grid-template-columns: minmax(150px, 200px) 1fr; gap: 10px; max-height: 78vh; }
+  .hero-list { gap: 3px; }
+  .hero-list-row { grid-template-columns: 28px 1fr; gap: 8px; padding: 4px 8px; }
+  .hero-list-row .hero-row-portrait { width: 26px; height: 26px; }
+  .hero-list-row .hero-row-name { font-size: 10px; letter-spacing: 0.16em; }
   .hr-stat { font-size: 7.5px; padding: 0 4px; }
-  .hero-row-body { padding: 4px 10px 8px 44px; gap: 6px; }
-  .hero-row-chev { font-size: 18px; }
+  .hero-detail-head { grid-template-columns: 44px 1fr; gap: 10px; padding-bottom: 4px; }
+  .hero-detail-portrait { width: 44px; height: 44px; }
+  .hero-detail-name { font-size: 12px; letter-spacing: 0.2em; }
+  .hero-detail-title { font-size: 9px; }
   .hero-passive { font-size: 9.5px; padding: 3px 5px; }
   .hero-passive b { font-size: 8.5px; }
   .hero-tech-pos { font-size: 8px; margin-bottom: 2px; }
   .hero-tech-name { font-size: 10px; }
   .hero-tech-desc { font-size: 9px; }
   .hero-tech-kind { width: 12px; height: 12px; font-size: 8px; }
-  #overlay-content:has(#overlay-choices.party-inspect:not(.hidden)) {
-    padding: 10px 12px 8px;
-    max-height: 96vh;
-  }
-  #overlay-choices.party-inspect { gap: 3px; margin-top: 4px; max-height: 78vh; }
 }
 #overlay-choices {
   display: flex; gap: 18px; justify-content: center;
