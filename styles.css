@@ -5080,6 +5080,33 @@ button.path-node:not(:disabled):hover {
   background: rgba(80,30,20,0.65);
 }
 
+/* Sig-tier combos — built from queued specials, not basics.  Cooler hue +
+   tighter glow so they read as a separate, rarer class of resonance. */
+.resonance-chip.resonance-sig {
+  background: linear-gradient(180deg,
+                              rgba(40,60,120,0.92) 0%,
+                              rgba(10,16,32,0.96) 100%);
+  box-shadow:
+    0 0 16px rgba(140,180,255,0.35),
+    inset 0 1px 0 rgba(200,220,255,0.18);
+}
+.resonance-chip.resonance-sig::after { border-top-color: rgba(10,16,32,0.96); }
+.resonance-chip.resonance-sig .rc-label {
+  color: #cfe1ff;
+  text-shadow: 0 0 14px rgba(170,200,255,0.7);
+  letter-spacing: 0.14em;
+}
+.resonance-chip.resonance-sig .rc-tier {
+  color: #cfe1ff;
+  background: rgba(30,46,90,0.7);
+  letter-spacing: 0.22em;
+}
+.resonance-chip.resonance-sig:hover {
+  box-shadow:
+    0 0 22px rgba(170,200,255,0.55),
+    inset 0 1px 0 rgba(220,232,255,0.28);
+}
+
 /* Keep the team-special tile styling as legacy fallback for any leftover
    references, but the live UI uses .resonance-chip now. */
 .tile.team-special {

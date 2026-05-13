@@ -3211,13 +3211,103 @@ const COMBOS = {
       aliveParty(s).forEach(c => { c.armor += 5; c.bleed = 0; c.weak = 0; });
     },
   },
+
+  // ---- Sig-tier ----
+  // Combos built from queued SPECIALS (kind: 'sig').  Gated naturally by
+  // Resolve cost — specials don't queue without economy — so these are
+  // slower, rarer, and showier than attack-tier resonance.
+  hallowed_cleave: {
+    id: 'hallowed_cleave', name: 'Hallowed Cleave', tier: 'duo', sigTier: true,
+    desc: 'Sunder + Greater Mend — strip front armor · party heal 8 + cleanse · +2⛨ all',
+    requires: [
+      { heroId: 'cassia', kind: 'sig' },
+      { heroId: 'elin',   kind: 'sig' },
+    ],
+    fn: (s) => {
+      const front = enemyBySlot(s, 'front');
+      if (front && !front.dead) { front.armor = 0; applyDmgToEnemy(s, front, 6); front.vuln = Math.max(front.vuln, 2); }
+      aliveParty(s).forEach(c => {
+        const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 8);
+        if (c.hp > b) spawnPopupId(c.id, `+${c.hp - b}`, 'heal', 'party');
+        c.armor += 2; c.bleed = 0; c.weak = 0;
+      });
+    },
+  },
+  phantom_crescent: {
+    id: 'phantom_crescent', name: 'Phantom Crescent', tier: 'duo', sigTier: true,
+    desc: 'Vanish Strike + Twin Daggers — 5 dmg ×3 on lowest (ignore armor) · bleed 3 all',
+    requires: [
+      { heroId: 'mira', kind: 'sig' },
+      { heroId: 'ash',  kind: 'sig' },
+    ],
+    fn: (s) => {
+      const t = aliveEnemies(s).slice().sort((a, b) => a.hp - b.hp)[0];
+      if (t) {
+        const wasIgnore = s.ignoreArmor;
+        s.ignoreArmor = true;
+        for (let i = 0; i < 3; i++) { if (t && !t.dead) applyDmgToEnemy(s, t, 5); }
+        s.ignoreArmor = wasIgnore;
+      }
+      aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 3));
+    },
+  },
+  stormwall: {
+    id: 'stormwall', name: 'Stormwall', tier: 'duo', sigTier: true,
+    desc: 'Battle Trance + Sunder — 8 dmg front + strip · Korin taunt + retal 4 · party +4⛨',
+    requires: [
+      { heroId: 'korin',  kind: 'sig' },
+      { heroId: 'cassia', kind: 'sig' },
+    ],
+    fn: (s) => {
+      const front = enemyBySlot(s, 'front');
+      if (front && !front.dead) { front.armor = 0; applyDmgToEnemy(s, front, 8); front.vuln = Math.max(front.vuln, 2); }
+      const k = s.party.chars.korin;
+      if (k && !k.downed) { k.taunt = true; k.retaliate += 4; }
+      aliveParty(s).forEach(c => { c.armor += 4; });
+    },
+  },
+  wakeling_volley: {
+    id: 'wakeling_volley', name: 'Wakeling Volley', tier: 'duo', sigTier: true,
+    desc: 'Arrow Storm + Riposte — 7 dmg all + bleed 3 all · +1 Resolve banked',
+    requires: [
+      { heroId: 'branwen', kind: 'sig' },
+      { heroId: 'kai',     kind: 'sig' },
+    ],
+    fn: (s) => {
+      dmgAllEnemies(s, 7);
+      aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 3));
+      gainResolve(s, 1);
+    },
+  },
+  sacred_wakening: {
+    id: 'sacred_wakening', name: 'Sacred Wakening', tier: 'triple', sigTier: true,
+    desc: '10 AoE + cleanse · party to full HP · +2 Resolve banked',
+    requires: [
+      { heroId: 'cassia',  kind: 'sig' },
+      { heroId: 'elin',    kind: 'sig' },
+      { heroId: 'branwen', kind: 'sig' },
+    ],
+    fn: (s) => {
+      dmgAllEnemies(s, 10);
+      aliveParty(s).forEach(c => {
+        const b = c.hp; c.hp = c.maxHp;
+        if (c.hp > b) spawnPopupId(c.id, `+${c.hp - b}`, 'heal', 'party');
+        c.bleed = 0; c.weak = 0;
+      });
+      gainResolve(s, 2);
+    },
+  },
 };
 
 // Find which combos can be assembled from the current queue.  Returns each
 // matching combo together with the queue indices that satisfy each role
 // (so commitCombo can splice them out).
 function matchingCombos(queue) {
+  const spent = (state && state.usedCombos) || new Set();
   return Object.values(COMBOS).map(combo => {
+    // Resonance is once-per-encounter — a fired combo is locked out for the
+    // rest of the fight, even if the queue could assemble it again.
+    if (spent.has(combo.id)) return null;
     const used = new Set();
     const indices = [];
     const ok = combo.requires.every(req => {
@@ -3255,6 +3345,10 @@ function commitCombo(comboId) {
     atb: atbTotal,
     resolveCost: resolveTotal,
   });
+  // Lock the combo for the rest of the encounter — first echo lands, no
+  // second echo.  Forces variety across turns.
+  if (!s.usedCombos) s.usedCombos = new Set();
+  s.usedCombos.add(comboId);
   Audio.ui();
   render();
 }
@@ -3614,6 +3708,11 @@ function startEncounter(encSpec) {
   state.ignoreArmor = false;
   state.currentActorId = null;
   state.firedSynergies = new Set();
+  // Each Resonance can fire at most once per encounter — keeps the moment
+  // special and forces players to mix combos across turns instead of
+  // spamming the same chain.  Reset every encounter, persisted across the
+  // save snapshot.
+  state.usedCombos = new Set();
   state.fightStats = { damageDealt: {}, damageTaken: {}, healingDone: {}, kills: 0, synergies: [], turns: 0 };
   state.run.currentEnc = encSpec;
 
@@ -5539,10 +5638,13 @@ function renderTeamSpecial() {
   matches.forEach(({ combo }) => {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = `resonance-chip resonance-${combo.tier}`;
+    btn.className = `resonance-chip resonance-${combo.tier}${combo.sigTier ? ' resonance-sig' : ''}`;
+    const tierLabel = combo.sigTier
+      ? (combo.tier === 'triple' ? 'SIG TRIPLE' : 'SIG DUO')
+      : (combo.tier === 'triple' ? 'TRIPLE' : 'DUO');
     btn.innerHTML = `
       <span class="rc-label">${combo.name}</span>
-      <span class="rc-tier">${combo.tier === 'triple' ? 'TRIPLE' : 'DUO'}</span>
+      <span class="rc-tier">${tierLabel}</span>
       <span class="rc-desc">${combo.desc}</span>
     `;
     btn.title = `Resonance · ${combo.name}: ${combo.desc}`;
@@ -7910,6 +8012,7 @@ function saveState() {
     const snap = { ...state };
     // Sets / runtime caches don't survive JSON
     snap.firedSynergies = Array.from(state.firedSynergies || []);
+    snap.usedCombos     = Array.from(state.usedCombos || []);
     delete snap.__simulating;
     localStorage.setItem(SAVE_KEY, JSON.stringify(snap));
   } catch (_) {}
@@ -7923,6 +8026,7 @@ function loadStateOrNull() {
     if (!raw) return null;
     const snap = JSON.parse(raw);
     snap.firedSynergies = new Set(snap.firedSynergies || []);
+    snap.usedCombos     = new Set(snap.usedCombos || []);
     return snap;
   } catch (_) { return null; }
 }
