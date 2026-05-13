@@ -7312,7 +7312,10 @@ function showVictorySummary(completedEnc, onContinue) {
     <div class="vs-rows">${charRows}</div>
     ${synList}
   `;
-  $('#overlay-choices').classList.add('hidden');
+  const choices = $('#overlay-choices');
+  choices.classList.remove('path-map', 'party-inspect', 'event-choices', 'vignette-choices', 'starter-choices');
+  choices.innerHTML = '';
+  choices.classList.add('hidden');
   const btn = $('#overlay-btn');
   btn.textContent = 'Continue';
   btn.classList.remove('hidden');
