@@ -5817,3 +5817,108 @@ body.boss-killed::before {
   .ts-subtitle { font-size: 10px; }
   .ts-hero     { max-width: 170px; }
 }
+
+/* ===========================================================================
+   MOBILE FIT — comprehensive sweep to make sure every overlay holds
+   inside a landscape phone (~430px tall) without internal scroll.
+   Builds on the earlier per-overlay rules; these are the last-line
+   overrides that win on tiny viewports.
+   =========================================================================== */
+@media (max-height: 480px) {
+  /* Use the dynamic viewport so URL-bar collapse gives back real estate. */
+  #overlay-content,
+  #info-panel .ip-card,
+  #confirm-modal .cm-card {
+    max-height: 100dvh !important;
+    padding: 10px 14px 10px !important;
+  }
+
+  /* Rest scene — shrink the campfire + heroes so the 3 choice buttons fit. */
+  .rest-scene  { min-height: 110px !important; margin: 2px 0 6px !important; gap: 8px !important; }
+  .rest-hero   { width: 52px !important; height: 90px !important; }
+  .rest-fire   { width: 56px !important; height: 90px !important; }
+  .rest-fire .ts-flame    { width: 22px !important; height: 36px !important; bottom: 8px !important; }
+  .rest-fire .ts-flame.f2 { width: 16px !important; height: 26px !important; bottom: 12px !important; }
+  .rest-fire .ts-flame.f3 { width: 10px !important; height: 18px !important; bottom: 16px !important; }
+  .rest-fire .ts-fire-logs { width: 42px !important; bottom: 4px !important; }
+  .rest-flavor { font-size: 11px !important; margin: 4px 0 6px !important; }
+
+  /* Run summary — collapse the rs-card into compact rows. */
+  .rs-card { gap: 6px !important; padding: 2px 4px 0 !important; }
+  .rs-flavor { font-size: 11px !important; line-height: 1.4 !important; }
+  .rs-stats { padding: 3px 0 !important; gap: 12px !important; }
+  .rs-stat b { font-size: 14px !important; }
+  .rs-stat em { font-size: 8.5px !important; letter-spacing: 0.18em !important; }
+  .rs-rows .vs-row { padding: 2px 4px !important; font-size: 10.5px !important; }
+  .rs-rows .vs-name { font-size: 9.5px !important; letter-spacing: 0.1em !important; }
+  .rs-unlocks-chip { font-size: 9.5px !important; padding: 1px 6px !important; }
+
+  /* Info panel — heroes and sigils tighten so 3+ heroes still fit. */
+  #info-panel .ip-card { padding: 10px 14px 12px !important; }
+  .ip-title { font-size: 12px !important; letter-spacing: 0.22em !important; }
+  .info-biome { margin: 0 0 6px !important; padding: 4px 8px !important; }
+  .info-biome-name { font-size: 11px !important; }
+  .info-biome-desc { font-size: 9.5px !important; }
+  .info-section { margin: 4px 0 !important; }
+  .info-label { font-size: 8.5px !important; }
+  .info-hero { padding: 3px 6px !important; grid-template-columns: 38px 1fr !important; gap: 8px !important; }
+  .info-hero-portrait { width: 38px !important; height: 50px !important; }
+  .info-hero-name { font-size: 10px !important; letter-spacing: 0.14em !important; }
+  .info-hero-hp { font-size: 9.5px !important; }
+  .info-hero-quirks { gap: 2px !important; }
+  .info-hero-quirks .hero-quirk { font-size: 9px !important; padding: 1px 4px !important; }
+
+  /* Recruit + Upgrade + Sigil overlay choices — slim cards stacked. */
+  #overlay.overlay-recruit #overlay-choices,
+  #overlay.overlay-upgrade #overlay-choices,
+  #overlay.overlay-sigil   #overlay-choices {
+    gap: 4px !important;
+  }
+  #overlay.overlay-recruit .encounter-choice,
+  #overlay.overlay-upgrade .encounter-choice,
+  #overlay.overlay-sigil   .encounter-choice {
+    padding: 4px 8px !important;
+  }
+  .recruit-choice .recruit-portrait { height: 50px !important; }
+  .recruit-choice .recruit-portrait svg { max-height: 50px !important; }
+  .recruit-choice .enc-name { font-size: 11px !important; }
+  .recruit-choice .recruit-title { font-size: 9.5px !important; }
+  .recruit-choice .recruit-stats { gap: 4px !important; font-size: 9.5px !important; }
+  .recruit-choice .recruit-passive { font-size: 9.5px !important; }
+  .upgrade-choice .upgrade-row { gap: 6px !important; }
+  .upgrade-choice .upgrade-avatar { width: 40px !important; }
+  .upgrade-choice .upgrade-char,
+  .upgrade-choice .upgrade-from,
+  .upgrade-choice .upgrade-to { font-size: 10px !important; }
+  .sigil-choice .enc-name { font-size: 11px !important; }
+  .sigil-choice .sigil-desc { font-size: 9.5px !important; }
+  .sigil-choice .sigil-glyph { font-size: 16px !important; }
+
+  /* Resonance Rail — slimmer chips when combat is tight. */
+  .resonance-chip { padding: 4px 8px !important; }
+  .rc-label { font-size: 10.5px !important; letter-spacing: 0.14em !important; }
+  .rc-desc { font-size: 9px !important; }
+  .rc-tier { font-size: 8px !important; padding: 1px 4px !important; }
+
+  /* Boss intro slightly shorter so the reveal beat doesn't overflow. */
+  .bi-name { font-size: 28px !important; letter-spacing: 0.34em !important; }
+  .bi-eyebrow { font-size: 9.5px !important; letter-spacing: 0.4em !important; }
+  .bi-tag { font-size: 10.5px !important; }
+}
+
+@media (max-height: 380px) {
+  /* Extra-tight phones in landscape: deeper compression on the same panels. */
+  #overlay-content,
+  #info-panel .ip-card,
+  #confirm-modal .cm-card {
+    padding: 6px 12px 6px !important;
+  }
+  .rest-scene  { min-height: 90px !important; }
+  .rest-hero   { width: 44px !important; height: 76px !important; }
+  .rest-fire   { width: 48px !important; height: 76px !important; }
+  .rest-flavor { font-size: 10.5px !important; margin: 2px 0 4px !important; }
+  .rs-stat b { font-size: 13px !important; }
+  .info-hero { grid-template-columns: 32px 1fr !important; }
+  .info-hero-portrait { width: 32px !important; height: 42px !important; }
+  .bi-name { font-size: 22px !important; }
+}
