@@ -3384,64 +3384,122 @@ body.party-critical::after {
   max-height: 60vh;
 }
 
-/* ---- top strip ---- */
+/* ---- top lineup ---- standing silhouettes side by side, same vocabulary
+   as the recruit chooser / rest scene.  Tapping promotes to focus; the
+   rest dim.  A faint floor hairline ties them to the same ground. */
 .hip-strip {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 6px 4px 10px;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 16px;
+  padding: 6px 4px 14px;
   border-bottom: 1px solid rgba(212,200,168,0.18);
+  position: relative;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+}
+.hip-strip::after {
+  /* warm floor line beneath the lineup */
+  content: '';
+  position: absolute;
+  left: 8%; right: 8%;
+  bottom: 12px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(232,220,196,0.2) 50%, transparent 100%);
+  pointer-events: none;
 }
 .hip-avatar {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 140px;
+  height: clamp(160px, 30vh, 240px);
+  background: transparent;
+  border: none;
+  padding: 0 4px 4px;
+  cursor: pointer;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
-  padding: 4px 6px 5px;
-  background: linear-gradient(180deg, rgba(22,18,18,0.4) 0%, rgba(8,6,8,0.55) 100%);
-  border: none;
-  border-bottom: 2px solid rgba(212,200,168,0.18);
-  color: inherit;
-  font-family: inherit;
-  cursor: pointer;
+  justify-content: flex-end;
+  position: relative;
   opacity: 0.5;
-  transition: opacity 0.18s ease, border-bottom-color 0.18s ease, background 0.18s ease, transform 0.16s ease;
-  min-width: 64px;
+  filter: brightness(0.85);
+  transition: opacity 0.18s ease, filter 0.18s ease, transform 0.16s ease;
 }
-.hip-avatar:hover { opacity: 0.85; }
+.hip-avatar:hover { opacity: 0.85; filter: brightness(1); transform: translateY(-2px); }
 .hip-avatar.hip-avatar-focused {
   opacity: 1;
-  border-bottom-color: var(--gold-bright);
-  background: linear-gradient(180deg, rgba(28,22,18,0.7) 0%, rgba(10,8,8,0.85) 100%);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgba(240,212,136,0.18);
+  filter: brightness(1.08);
+  transform: translateY(-3px);
 }
-.hip-avatar-downed { filter: grayscale(0.6); }
+.hip-avatar.hip-avatar-focused::before {
+  /* focus glow underfoot — same gold halo language as the move-dest */
+  content: '';
+  position: absolute;
+  left: 50%; bottom: 6px;
+  transform: translateX(-50%);
+  width: 70%; height: 12px;
+  background: radial-gradient(ellipse 60% 100% at 50% 50%,
+              var(--gold-bright) 0%,
+              rgba(240,212,136,0.45) 30%,
+              transparent 70%);
+  pointer-events: none;
+  animation: hip-focus-pulse 1.4s ease-in-out infinite alternate;
+}
+@keyframes hip-focus-pulse {
+  from { opacity: 0.7;  transform: translateX(-50%) scaleX(0.9); }
+  to   { opacity: 1;    transform: translateX(-50%) scaleX(1.05); }
+}
+.hip-avatar-downed { filter: grayscale(0.7) brightness(0.5); }
+.hip-avatar.hip-avatar-downed.hip-avatar-focused { filter: grayscale(0.4) brightness(0.8); }
 .hip-avatar-portrait {
-  width: 38px; height: 38px;
-  display: flex; align-items: center; justify-content: center;
-  border-radius: 50%;
+  flex: 1 1 auto;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  position: relative;
   overflow: hidden;
-  border: 1px solid var(--gold-dim);
-  background: var(--parchment-deep);
-  box-shadow: inset 0 0 4px rgba(0,0,0,0.7);
+  -webkit-mask-image: radial-gradient(ellipse 80% 100% at 50% 50%, #000 60%, transparent 100%);
+          mask-image: radial-gradient(ellipse 80% 100% at 50% 50%, #000 60%, transparent 100%);
+  /* override the circular crop / border from the previous look */
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.hip-avatar-portrait::after {
+  content: '';
+  position: absolute;
+  left: 50%; bottom: 0;
+  transform: translateX(-50%);
+  width: 70%; height: 10px;
+  background: radial-gradient(ellipse 60% 100% at 50% 50%,
+                              rgba(0,0,0,0.65) 0%, transparent 80%);
+  pointer-events: none;
 }
 .hip-avatar-portrait svg {
-  width: 130%; height: 130%; display: block;
-  transform: translate(-5%, -8%);
+  height: 100%;
+  width: auto;
+  max-width: 92%;
+  display: block;
+  transform: none;
+  filter: drop-shadow(0 6px 14px rgba(0,0,0,0.7));
 }
 .hip-avatar-name {
-  font-size: 9px;
-  letter-spacing: 0.16em;
+  font-size: 10.5px;
+  letter-spacing: 0.28em;
   text-transform: uppercase;
   color: var(--gold-pale);
+  margin-top: 4px;
   white-space: nowrap;
 }
 .hip-avatar-slot {
-  font-size: 7.5px;
-  letter-spacing: 0.2em;
+  font-size: 8px;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--ink-dim);
+  margin-top: 2px;
 }
 .hip-avatar.hip-avatar-focused .hip-avatar-slot { color: var(--gold); }
 
@@ -3814,11 +3872,10 @@ body.party-critical::after {
     max-height: 96vh;
   }
   .hero-inspect-party { max-height: 56vh; gap: 6px; }
-  .hip-strip { gap: 5px; padding: 3px 2px 6px; }
-  .hip-avatar { min-width: 56px; padding: 3px 4px 4px; gap: 2px; }
-  .hip-avatar-portrait { width: 30px; height: 30px; }
-  .hip-avatar-name { font-size: 8px; letter-spacing: 0.12em; }
-  .hip-avatar-slot { font-size: 6.5px; }
+  .hip-strip { gap: 10px; padding: 2px 2px 10px; }
+  .hip-avatar { max-width: 110px; height: clamp(120px, 24vh, 170px); padding: 0 2px 2px; }
+  .hip-avatar-name { font-size: 9.5px; letter-spacing: 0.22em; margin-top: 3px; }
+  .hip-avatar-slot { font-size: 7px; letter-spacing: 0.18em; }
   .hip-detail { gap: 8px; }
   .hip-banner { grid-template-columns: 62px 1fr; gap: 12px; padding: 2px 2px 8px; }
   .hip-banner-portrait { width: 60px; height: 60px; }
