@@ -7162,7 +7162,11 @@ function hideOverlay() {
                       'overlay-recruit', 'overlay-upgrade', 'overlay-sigil',
                       'overlay-starter', 'overlay-dismissable');
   const ch = $('#overlay-choices');
-  if (ch) ch.classList.remove('path-map');
+  if (ch) {
+    ch.classList.remove('path-map', 'party-inspect', 'event-choices',
+                        'vignette-choices', 'starter-choices', 'title-choices');
+    ch.innerHTML = '';
+  }
 }
 
 // ============================================================================
