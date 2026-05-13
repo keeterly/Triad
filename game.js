@@ -2074,6 +2074,105 @@ const VIGNETTES = {
       { label: 'Walk on',           tag: 'no change', resolve: () => {} },
     ],
   },
+
+  // =================== LAYER 2 — THE VEIL OF NAMES =====================
+  // Each is gated by whileLayer: 2 so they only surface on the second climb.
+
+  layer2_arrival: {
+    id: 'layer2_arrival',
+    when: { runStart: true, whileLayer: 2 },
+    oneShot: true,
+    title: 'You climb into the veil',
+    speakerFromFirstAlive: true,
+    lines: [
+      { who: null,     text: "The light here is not light.  It is what light remembers." },
+      { who: null,     text: "Names you have not said in years drift past you on the wind." },
+      { who: '_first', text: "I heard mine just now." },
+      { who: null,     text: "Something heard it too.  It is older than the abyss." },
+    ],
+    choices: [
+      { label: 'Climb anyway', tag: '+1 Resolve at the start of the first fight',
+        resolve: (s) => { s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1; log('You press on into the veil.'); } },
+      { label: 'Listen first', tag: 'Lowest-HP hero gains +4 max HP',
+        resolve: (s) => { const id = _lowestHpAliveId(s); const c = id && s.party.chars[id]; if (c) { c.maxHp += 4; c.hp += 4; log(`<b>${CHARS[id].name}</b> hears something true. +4 max HP.`); } } },
+    ],
+  },
+
+  layer2_name_whisper: {
+    id: 'layer2_name_whisper',
+    when: { whileLayer: 2, someoneAtOrBelow: 6 },
+    title: 'A name, whispered close',
+    speakerFromLowestHp: true,
+    lines: [
+      { who: null,     text: "Something speaks the name they were given, before any of this." },
+      { who: '_lowest', text: "...do not.  Do not say it again." },
+      { who: null,     text: "The whisper does not stop.  But the bleeding does, a little." },
+    ],
+    choices: [
+      { label: 'Refuse the name', tag: 'Heal lowest-HP hero to full · Resolve +1 next fight',
+        resolve: (s) => { const id = _lowestHpAliveId(s); const c = id && s.party.chars[id]; if (c) c.hp = c.maxHp; s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1; } },
+      { label: 'Answer it',       tag: 'Lowest-HP hero gains Brutal (+2 dmg)',
+        resolve: (s) => { const id = _lowestHpAliveId(s); if (id) grantQuirk(s, id, 'brutal'); } },
+    ],
+  },
+
+  layer2_mourner_dust: {
+    id: 'layer2_mourner_dust',
+    when: { whileLayer: 2, firstClearOf: 'combat' },
+    oneShot: true,
+    title: 'The mourner becomes dust',
+    speakerFromFirstAlive: true,
+    lines: [
+      { who: null,     text: "Her grief flakes off her shape like ash off a beam." },
+      { who: '_first', text: "I think she was someone." },
+      { who: null,     text: "She was.  She walked the floors above and was given a name.  Then she was given one too many." },
+    ],
+    choices: [
+      { label: 'Carry the silence', tag: 'Party heals 3 + cleanse',
+        resolve: (s) => { aliveParty(s).forEach(c => { const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 3); if (c.hp > b) spawnPopupId(c.id, `+${c.hp - b}`, 'heal', 'party'); c.bleed = 0; c.weak = 0; }); } },
+      { label: 'Bury her name',     tag: 'Gain a random sigil',
+        resolve: (s) => _grantRandomSigil(s) },
+    ],
+  },
+
+  layer2_listener_prep: {
+    id: 'layer2_listener_prep',
+    when: { bossPrep: true, whileLayer: 2 },
+    oneShot: true,
+    title: 'The Listener waits',
+    speakerFromFirstAlive: true,
+    lines: [
+      { who: null,     text: "The air is dense with names.  Every step you take is a name being said somewhere." },
+      { who: '_first', text: "Don't say its name back.  Don't say anyone's name." },
+      { who: '_last',  text: "Then how do we win?" },
+      { who: '_first', text: "Quietly." },
+    ],
+    choices: [
+      { label: 'Move in silence', tag: 'Party +3⛨ + cleanse',
+        resolve: (s) => { aliveParty(s).forEach(c => { c.armor += 3; c.bleed = 0; c.weak = 0; }); } },
+      { label: 'Whet a blade',    tag: 'Lowest-HP hero gains Brutal (+2 dmg)',
+        resolve: (s) => { const id = _lowestHpAliveId(s); if (id) grantQuirk(s, id, 'brutal'); } },
+    ],
+  },
+
+  layer2_listener_falls: {
+    id: 'layer2_listener_falls',
+    when: { bossDefeated: true, whileLayer: 2 },
+    oneShot: true,
+    title: 'The Listener is unheard',
+    speakerFromFirstAlive: true,
+    lines: [
+      { who: null,     text: "The eyes close, one by one, like windows being shut against weather." },
+      { who: null,     text: "The chime falls without a sound." },
+      { who: '_first', text: "...did the names go with her?" },
+      { who: null,     text: "Most of them.  A few wait for the next floor." },
+      { who: '_last',  text: "Then we keep climbing." },
+    ],
+    choices: [
+      { label: 'Climb on',          tag: 'continue to run summary', resolve: () => {} },
+      { label: 'Bury the chime',    tag: 'continue to run summary', resolve: () => {} },
+    ],
+  },
 };
 
 function _lowestHpAliveId(s) {
@@ -2094,6 +2193,7 @@ function captureFightContext(s, nodeType) {
     party: Object.keys(s.party.chars),
     alive: Object.values(s.party.chars).filter(c => !c.downed).map(c => c.id),
     biome: s.run && s.run.modifier,
+    layer: (s.run && s.run.layer) || 1,
     nodeType: nodeType || (completedNode && completedNode.type) || null,
     completedTypes: (s.run.completedNodes || []).map(id => getMapNode(id)?.type).filter(Boolean),
   };
@@ -2135,6 +2235,7 @@ function matchVignettes(s, ctx) {
       if ((ctx.synergyCounts[fn] || 0) < fnNeeded) return false;
     }
     if (w.whileBiome && ctx.biome !== w.whileBiome) return false;
+    if (w.whileLayer && ctx.layer !== w.whileLayer) return false;
     if (typeof w.someoneAtOrBelow === 'number') {
       const hit = Object.entries(ctx.minHp).some(([id, hp]) => hp <= w.someoneAtOrBelow && ctx.alive.includes(id));
       if (!hit) return false;
@@ -3727,7 +3828,7 @@ function killEnemy(s, e) {
   }
   // Emoji reaction over the actor for the kill
   if (s.currentActorId) spawnReaction(s.currentActorId, '💀', 'party');
-  spawnKillSparks(e.id, 'enemy');
+  spawnKillSparks(e.id, 'enemy', s.currentActorId && CHARS[s.currentActorId] && CHARS[s.currentActorId].school);
   // Pact of Cinders — every surviving enemy starts bleeding
   if (hasSigil(s, 'cinders')) {
     aliveEnemies(s).forEach(en => { if (en !== e && !en.dead) en.bleed = Math.max(en.bleed, 1); });
@@ -3953,7 +4054,30 @@ function taunt(s, id) { const c = s.party.chars[id]; if (c && !c.downed) c.taunt
 function gainResolve(s, amt) {
   const before = s.resolve;
   s.resolve = Math.min(RESOLVE_MAX, s.resolve + amt);
-  if (s.resolve > before) flashResolve();
+  const gained = s.resolve - before;
+  if (gained > 0) {
+    flashResolve();
+    floatResolveGain(gained);
+  }
+}
+
+// Small floating "+N" near the Resolve pips when the player charges up.
+function floatResolveGain(n) {
+  if (__simulating) return;
+  const anchor = document.getElementById('hud-resolve') || document.getElementById('resolve-pips');
+  if (!anchor) return;
+  const layer = $('#popup-layer');
+  const stage = $('#stage');
+  if (!layer || !stage) return;
+  const r = anchor.getBoundingClientRect();
+  const s = stage.getBoundingClientRect();
+  const el = document.createElement('div');
+  el.className = 'popup heal resolve-pop';
+  el.textContent = `+${n}♦`;
+  el.style.left = (r.left + r.width / 2 - s.left) + 'px';
+  el.style.top  = (r.top - s.top - 4) + 'px';
+  layer.appendChild(el);
+  setTimeout(() => el.remove(), 900);
 }
 
 // Enemy → party effects (slot-targeted)
@@ -5534,7 +5658,16 @@ function spawnPopupId(id, text, type, side) {
 // but its own CSS class so we can style it bigger / fluffier.
 // Kill confetti — 8 small sparks fly outward from the dying card and
 // fade.  Called from killEnemy for that "this one is gone" beat.
-function spawnKillSparks(id, side) {
+// Optional `actorSchool` tints the sparks per the killer's school so
+// each character's kills feel slightly different.
+const SPARK_TINT = {
+  physical: 'rgba(255,220,160,0.95)',
+  stealth:  'rgba(160,200,255,0.95)',
+  ranged:   'rgba(220,190,140,0.95)',
+  arcane:   'rgba(200,160,240,0.95)',
+  holy:     'rgba(255,240,180,0.95)',
+};
+function spawnKillSparks(id, side, actorSchool) {
   if (__simulating) return;
   let cardEl;
   if (side) cardEl = document.querySelector(`#${side === 'enemy' ? 'enemy' : 'party'}-half [data-id="${id}"]`);
@@ -5547,11 +5680,13 @@ function spawnKillSparks(id, side) {
   const s = stage.getBoundingClientRect();
   const cx = r.left + r.width / 2 - s.left;
   const cy = r.top  + r.height * 0.5 - s.top;
+  const tint = SPARK_TINT[actorSchool] || SPARK_TINT.physical;
   for (let i = 0; i < 8; i++) {
     const el = document.createElement('div');
     el.className = 'kill-spark';
     const ang = (Math.PI * 2 * i / 8) + (Math.random() - 0.5) * 0.5;
     const dist = 40 + Math.random() * 28;
+    el.style.background = tint;
     el.style.left = cx + 'px';
     el.style.top  = cy + 'px';
     el.style.setProperty('--dx', Math.cos(ang) * dist + 'px');
