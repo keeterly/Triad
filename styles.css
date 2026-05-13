@@ -1675,6 +1675,167 @@ body {
 }
 
 /* ===========================================================================
+   STARTER CHOOSER — horizontal lineup of standing silhouettes.
+   Short tap selects; press-and-hold reveals a floating detail card.
+   =========================================================================== */
+#overlay.overlay-starter #overlay-content {
+  max-width: min(1000px, 96vw) !important;
+  padding: 12px 18px 14px !important;
+}
+#overlay.overlay-starter #overlay-title {
+  border-bottom: none !important;
+  font-size: 16px;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin-bottom: 4px;
+}
+#overlay.overlay-starter #overlay-title::after { display: none !important; }
+.starter-flavor {
+  text-align: center;
+  font-size: 12px;
+  font-style: italic;
+  letter-spacing: 0.04em;
+  color: var(--ink-dim);
+  margin: 0 0 10px;
+}
+#overlay-choices.starter-choices {
+  display: block !important;
+}
+.starter-lineup {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 14px;
+  flex-wrap: nowrap;
+  padding: 6px 0 10px;
+  position: relative;
+}
+.starter-lineup::after {
+  /* Soft warm floor line under the row */
+  content: '';
+  position: absolute;
+  left: 6%; right: 6%;
+  bottom: 4px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(232,220,196,0.18) 50%, transparent 100%);
+  pointer-events: none;
+}
+.starter-fig {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 160px;
+  height: clamp(180px, 36vh, 280px);
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  position: relative;
+  transition: filter 0.18s, transform 0.12s;
+}
+.starter-fig:hover { filter: brightness(1.16); transform: translateY(-2px); }
+.starter-fig:active { transform: translateY(0); }
+.starter-portrait {
+  flex: 1 1 auto;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  -webkit-mask-image: radial-gradient(ellipse 80% 100% at 50% 50%, #000 60%, transparent 100%);
+          mask-image: radial-gradient(ellipse 80% 100% at 50% 50%, #000 60%, transparent 100%);
+}
+.starter-portrait::after {
+  content: '';
+  position: absolute;
+  left: 50%; bottom: 0;
+  transform: translateX(-50%);
+  width: 70%; height: 12px;
+  background: radial-gradient(ellipse 60% 100% at 50% 50%,
+                              rgba(0,0,0,0.7) 0%, transparent 80%);
+  pointer-events: none;
+}
+.starter-portrait svg {
+  height: 100%;
+  width: auto;
+  max-width: 90%;
+  display: block;
+  filter: drop-shadow(0 6px 16px rgba(0,0,0,0.7));
+}
+.starter-name {
+  font-size: 11px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--gold-pale);
+  margin-top: 4px;
+}
+
+#starter-tooltip {
+  position: fixed;
+  z-index: 320;
+  max-width: 280px;
+  padding: 10px 14px 9px;
+  background: radial-gradient(ellipse 120% 100% at 50% 0%,
+                              rgba(36,28,22,0.97) 0%,
+                              rgba(12,10,10,0.98) 70%);
+  color: var(--ink);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+  box-shadow: 0 12px 36px rgba(0,0,0,0.75),
+              inset 0 1px 0 rgba(232,220,196,0.06),
+              0 0 24px rgba(200,164,100,0.14);
+  animation: st-tip-in 0.18s ease-out;
+}
+@keyframes st-tip-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+#starter-tooltip .st-name {
+  font-size: 13px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gold-pale);
+  margin-bottom: 2px;
+}
+#starter-tooltip .st-title {
+  font-size: 10px;
+  font-style: italic;
+  color: var(--ink-dim);
+  margin-bottom: 6px;
+}
+#starter-tooltip .st-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin-bottom: 6px;
+}
+#starter-tooltip .st-stat {
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  background: rgba(0,0,0,0.45);
+  color: var(--gold);
+}
+#starter-tooltip .st-passive {
+  font-size: 10.5px;
+  font-style: italic;
+  color: var(--ink);
+}
+
+@media (max-height: 480px) {
+  .starter-fig { max-width: 120px; height: clamp(140px, 32vh, 220px); }
+  .starter-name { font-size: 9.5px; letter-spacing: 0.24em; }
+  .starter-flavor { font-size: 10.5px; }
+}
+
+/* ===========================================================================
    COMBO DISCOVERABILITY — queue items that participate in an available
    Resonance pulse gold in sync with the bubble overhead.
    =========================================================================== */
