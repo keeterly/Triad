@@ -702,6 +702,81 @@ const PORTRAITS = {
   <text x="62" y="116" font-size="5" fill="#5a4830" opacity="0.55">listen</text>
   <text x="22" y="118" font-size="5" fill="#5a4830" opacity="0.45">listen</text>
 </svg>`,
+  // ===== LAYER 3 BOSS — THE TWIN =====
+  // Two mirrored halves that share a frame.  Cool silver/glass palette with
+  // pale eyes; the inner seam splits the silhouette down the centerline.
+  twin: `
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <linearGradient id="twin-body" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#3a4858"/>
+      <stop offset="60%" stop-color="#181c26"/>
+      <stop offset="100%" stop-color="#06080c"/>
+    </linearGradient>
+    <radialGradient id="twin-eye" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#eaf2ff"/>
+      <stop offset="55%" stop-color="#7a8fb0"/>
+      <stop offset="100%" stop-color="#10141c"/>
+    </radialGradient>
+  </defs>
+  <!-- mirror silhouette: two arches joined at the center -->
+  <path d="M6 130 L4 60 Q22 40 50 50 Q78 40 96 60 L94 130 Z" fill="url(#twin-body)" stroke="#04060a" stroke-width="0.8"/>
+  <!-- glass seam down the middle -->
+  <line x1="50" y1="50" x2="50" y2="128" stroke="#c8d6ec" stroke-width="0.7" opacity="0.55"/>
+  <line x1="50" y1="50" x2="50" y2="128" stroke="#eaf2ff" stroke-width="0.25" opacity="0.85"/>
+  <!-- twin eyes, mirrored on either side of the seam -->
+  <ellipse cx="32" cy="74" rx="5" ry="6" fill="url(#twin-eye)"/>
+  <ellipse cx="68" cy="74" rx="5" ry="6" fill="url(#twin-eye)"/>
+  <circle cx="32" cy="74" r="1.4" fill="#0a0c12"/>
+  <circle cx="68" cy="74" r="1.4" fill="#0a0c12"/>
+  <!-- two crowns of glass shards, one above each head -->
+  <polygon points="22,38 26,30 30,40" fill="#c8d6ec" opacity="0.7"/>
+  <polygon points="32,42 36,32 40,42" fill="#a0b4cc" opacity="0.6"/>
+  <polygon points="60,42 64,32 68,42" fill="#a0b4cc" opacity="0.6"/>
+  <polygon points="70,38 74,30 78,40" fill="#c8d6ec" opacity="0.7"/>
+  <!-- mirror-cuts crossing the body, faint -->
+  <line x1="20" y1="90"  x2="40" y2="98"  stroke="#c8d6ec" stroke-width="0.4" opacity="0.4"/>
+  <line x1="80" y1="90"  x2="60" y2="98"  stroke="#c8d6ec" stroke-width="0.4" opacity="0.4"/>
+  <line x1="24" y1="108" x2="44" y2="118" stroke="#c8d6ec" stroke-width="0.3" opacity="0.3"/>
+  <line x1="76" y1="108" x2="56" y2="118" stroke="#c8d6ec" stroke-width="0.3" opacity="0.3"/>
+</svg>`,
+  // ===== LAYER 4 BOSS — THE DROWNED CHOIR =====
+  // A weighty hooded silhouette filled with many silent mouths.  Deep blue
+  // palette with cold cyan accents; water-line glints flow across the body.
+  drownedchoir: `
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <radialGradient id="dc-body" cx="50%" cy="40%" r="80%">
+      <stop offset="0%" stop-color="#1a2a3e"/>
+      <stop offset="60%" stop-color="#0a1422"/>
+      <stop offset="100%" stop-color="#020610"/>
+    </radialGradient>
+    <radialGradient id="dc-mouth" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#7ed0e2"/>
+      <stop offset="60%" stop-color="#1a4a6a"/>
+      <stop offset="100%" stop-color="#04101a"/>
+    </radialGradient>
+  </defs>
+  <!-- heavy hooded silhouette -->
+  <path d="M10 130 L6 76 Q14 40 50 38 Q86 40 94 76 L90 130 Z" fill="url(#dc-body)" stroke="#020408" stroke-width="0.8"/>
+  <!-- hood opening -->
+  <path d="M28 78 Q50 68 72 78 Q70 90 50 92 Q30 90 28 78 Z" fill="#04080e"/>
+  <!-- many singing mouths inside the hood -->
+  <ellipse cx="38" cy="80" rx="2" ry="3" fill="url(#dc-mouth)"/>
+  <ellipse cx="50" cy="78" rx="2.4" ry="3.6" fill="url(#dc-mouth)"/>
+  <ellipse cx="62" cy="80" rx="2" ry="3" fill="url(#dc-mouth)"/>
+  <ellipse cx="44" cy="86" rx="1.4" ry="2.2" fill="url(#dc-mouth)"/>
+  <ellipse cx="56" cy="86" rx="1.4" ry="2.2" fill="url(#dc-mouth)"/>
+  <!-- water-line glints across the robe -->
+  <path d="M14 100 Q30 96 50 100 Q70 104 86 100" stroke="#3a6890" stroke-width="0.5" fill="none" opacity="0.6"/>
+  <path d="M16 112 Q32 108 50 112 Q68 116 84 112" stroke="#3a6890" stroke-width="0.5" fill="none" opacity="0.5"/>
+  <path d="M18 122 Q34 119 50 122 Q66 125 82 122" stroke="#3a6890" stroke-width="0.4" fill="none" opacity="0.4"/>
+  <!-- droplets falling from the hem -->
+  <ellipse cx="22" cy="128" rx="0.8" ry="1.2" fill="#7ed0e2" opacity="0.7"/>
+  <ellipse cx="78" cy="128" rx="0.8" ry="1.2" fill="#7ed0e2" opacity="0.7"/>
+  <ellipse cx="42" cy="128" rx="0.6" ry="1" fill="#7ed0e2" opacity="0.55"/>
+  <ellipse cx="58" cy="128" rx="0.6" ry="1" fill="#7ed0e2" opacity="0.55"/>
+</svg>`,
 };
 
 // ============================================================================
@@ -1142,6 +1217,46 @@ const ENEMIES = {
       { name: 'Final Word',         tag: 'ATK 6 mid + weak', targetSlot: 'mid', kind: 'atk', dmg: 6, fn: (s) => { dmgPartyAt(s, 'mid', 6); const c = charBySlot(s, 'mid'); if (c) c.weak += 1; } },
     ],
   },
+  // ============================== LAYER 3 — THE SPIRE OF GLASS ===============
+  // Mirror / pride boss.  Reflects what the party brings: stacks retaliate on
+  // itself, mirrors damage taken into armor, marks the wounded for a twin
+  // strike.  Glass shards as flavor.
+  twin: {
+    id: 'twin', name: 'The Twin', title: 'Sin of Mirrors', maxHp: 92, boss: true,
+    weakness: ['holy', 'physical'], resistance: 'arcane',
+    intents: [
+      { name: 'Mirror Cut',         tag: 'ATK 8 front + retal',   targetSlot: 'front', kind: 'atk',
+        dmg: 8, fn: (s) => { dmgPartyAt(s, 'front', 8); const me = Object.values(s.enemies.chars).find(en => en.id === 'twin' && !en.dead); if (me) me.retaliate = (me.retaliate || 0) + 3; } },
+      { name: "Pride's Reflection", tag: 'heal 6 + 3 armor self', targetSlot: '?',     kind: 'armor',
+        fn: (s) => { const me = Object.values(s.enemies.chars).find(en => en.id === 'twin' && !en.dead); if (me) { me.hp = Math.min(me.maxHp, me.hp + 6); spawnPopupId('twin', '+6', 'heal', 'enemy'); me.armor = (me.armor || 0) + 3; } } },
+      { name: 'Glass Shards',       tag: 'ATK 3 all + bleed 1 all', targetSlot: 'all', kind: 'aoe',
+        dmg: 3, fn: (s) => { dmgAllParty(s, 3); aliveParty(s).forEach(c => { c.bleed = Math.max(c.bleed, 1); }); } },
+      { name: "Twin's Mark",        tag: '+vuln 2 + weak 1 front',  targetSlot: 'front', kind: 'debuff',
+        fn: (s) => { applyVulnParty(s, 'front', 2); const c = charBySlot(s, 'front'); if (c) c.weak += 1; } },
+      { name: 'Shattering Stroke',  tag: 'ATK 7 mid + strip armor', targetSlot: 'mid',   kind: 'atk',
+        dmg: 7, fn: (s) => { const c = charBySlot(s, 'mid'); if (c) c.armor = 0; dmgPartyAt(s, 'mid', 7); } },
+    ],
+  },
+  // ============================== LAYER 4 — THE FLOODLIT HALL ================
+  // Drowning / weight boss.  Sings vuln + weak across the party, then sings
+  // again.  Big single-target verse on the lowest HP hero.  Self-heals by
+  // burying its own pact (bleeds the choir into life).
+  drownedchoir: {
+    id: 'drownedchoir', name: 'The Drowned Choir', title: 'Sin of Hearing-Under', maxHp: 110, boss: true,
+    weakness: ['arcane'], resistance: ['physical', 'holy'],
+    intents: [
+      { name: 'Hymn of Weight',     tag: 'ATK 5 all + vuln 1 all', targetSlot: 'all', kind: 'aoe',
+        dmg: 5, fn: (s) => { dmgAllParty(s, 5); aliveParty(s).forEach(c => { c.vuln += 1; }); } },
+      { name: 'Drowning Verse',     tag: 'ATK 9 lowest + weak 2',  targetSlot: '?',   kind: 'atk',
+        dmg: 9, fn: (s) => { dmgLowestParty(s, 9); const a = aliveParty(s).slice().sort((x, y) => x.hp - y.hp)[0]; if (a) a.weak += 2; } },
+      { name: 'Choir Crescendo',    tag: 'ATK 4 all twice',         targetSlot: 'all', kind: 'aoe',
+        dmg: 4, fn: (s) => { dmgAllParty(s, 4); dmgAllParty(s, 4); } },
+      { name: 'Buried Pact',        tag: 'heal 10 self + bleed all',targetSlot: '?',   kind: 'armor',
+        fn: (s) => { const me = Object.values(s.enemies.chars).find(en => en.id === 'drownedchoir' && !en.dead); if (me) { me.hp = Math.min(me.maxHp, me.hp + 10); spawnPopupId('drownedchoir', '+10', 'heal', 'enemy'); } aliveParty(s).forEach(c => { c.bleed = Math.max(c.bleed, 2); }); } },
+      { name: 'Final Verse',        tag: 'ATK 7 front + bleed 2',   targetSlot: 'front', kind: 'atk',
+        dmg: 7, fn: (s) => { dmgPartyAt(s, 'front', 7); bleedPartyAt(s, 'front', 2); } },
+    ],
+  },
 };
 
 // ============================================================================
@@ -1195,6 +1310,31 @@ const LAYER_CONTENT = {
     bossSubtitle: 'SIN OF HEARING',
     bossTag: 'It knows every name.',
     hpBonus: 2, intentDmgBonus: 1,
+  },
+  3: {
+    // Layer 3 — The Spire of Glass.  Mirror / pride enemies leaning on
+    // retaliate + armor reflection.  Echoknight (returns strokes), drone
+    // (repeats), wraith (slippery) carry the theme from layer 2; cultist +
+    // mourner round out the combat pool.
+    combat: ['echoknight', 'drone', 'wraith', 'cultist', 'mourner', 'lineCaster'],
+    elite:  ['echoknight', 'grappler', 'mourner', 'lineCaster'],
+    boss:   'twin',
+    bossName: 'The Twin',
+    bossSubtitle: 'SIN OF MIRRORS',
+    bossTag: 'It learns what you bring.',
+    hpBonus: 4, intentDmgBonus: 1,
+  },
+  4: {
+    // Layer 4 — The Floodlit Hall.  Drowning / weight enemies.  Grappler
+    // (holds you), lineCaster (long verse), mourner (sorrow), drone
+    // (refrain) all carry the choir theme — the boss sings on top of them.
+    combat: ['grappler', 'lineCaster', 'mourner', 'drone', 'cultist', 'wraith'],
+    elite:  ['grappler', 'lineCaster', 'echoknight', 'mourner'],
+    boss:   'drownedchoir',
+    bossName: 'The Drowned Choir',
+    bossSubtitle: 'SIN OF HEARING-UNDER',
+    bossTag: 'It sings the weight onto you.',
+    hpBonus: 6, intentDmgBonus: 2,
   },
 };
 function getLayerContent(s) {
