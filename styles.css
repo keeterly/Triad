@@ -1848,14 +1848,24 @@ body {
 
 /* Recruit overlay — chat-bubble vignette layout reusing the lineup.
    Bubbles float above each silhouette with their intro line. */
+.starter-eyebrow {
+  text-align: center;
+  margin: 0 0 4px;
+  font-size: 11px;
+  letter-spacing: 0.36em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
 .recruit-fig .recruit-bubble {
   position: absolute;
-  bottom: calc(100% - 20px);
-  max-width: 230px;
+  /* Sit just over the head/shoulders of the silhouette rather than
+     floating off into the title region. */
+  bottom: calc(100% - 56px);
+  max-width: 220px;
   padding: 6px 12px 8px;
   background: linear-gradient(180deg,
-                              rgba(36,28,22,0.92) 0%,
-                              rgba(12,10,10,0.94) 100%);
+                              rgba(36,28,22,0.94) 0%,
+                              rgba(12,10,10,0.96) 100%);
   border-radius: 14px 14px 14px 4px;
   box-shadow:
     0 8px 22px rgba(0,0,0,0.7),
@@ -2847,7 +2857,9 @@ body.party-critical::after {
   background:
     radial-gradient(ellipse at center, rgba(15,8,4,0.85) 0%, rgba(5,3,2,0.96) 70%);
   display: flex; align-items: center; justify-content: center;
-  z-index: 100;
+  /* Bumped above #title-screen (z-index 150) so Credits / Settings
+     overlays opened from the title actually appear in front. */
+  z-index: 260;
   animation: overlay-fade 0.3s ease-out;
 }
 @keyframes overlay-fade {
