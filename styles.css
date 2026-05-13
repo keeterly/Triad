@@ -1483,6 +1483,71 @@ body {
   color: var(--blood-bright);
   text-shadow: 0 1px 0 var(--shadow), 0 0 10px rgba(212,69,69,0.7);
 }
+/* ===========================================================================
+   COMBO DISCOVERABILITY — queue items that participate in an available
+   Resonance pulse gold in sync with the bubble overhead.
+   =========================================================================== */
+.queue-slot.filled.combo-matched {
+  position: relative;
+  animation: queue-combo-pulse 2.4s ease-in-out infinite;
+}
+.queue-slot.filled.combo-matched::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: 0 0 14px rgba(240,212,136,0.45),
+              inset 0 0 12px rgba(240,212,136,0.28);
+  border-radius: inherit;
+}
+@keyframes queue-combo-pulse {
+  0%, 100% { filter: brightness(1)    saturate(1); }
+  50%      { filter: brightness(1.18) saturate(1.15); }
+}
+
+/* ===========================================================================
+   KILL CONFETTI — small spark burst on the killing blow.  Each spark is
+   positioned at the dying card center; --dx/--dy drive the outward fly.
+   =========================================================================== */
+.kill-spark {
+  position: absolute;
+  width: 3px; height: 3px;
+  background: rgba(255,220,160,0.95);
+  border-radius: 50%;
+  box-shadow: 0 0 6px rgba(255,200,120,0.8), 0 0 14px rgba(220,80,60,0.4);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  animation: kill-spark 0.68s cubic-bezier(.18,.89,.32,1) forwards;
+  z-index: 40;
+}
+@keyframes kill-spark {
+  0%   { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  100% { transform: translate(calc(-50% + var(--dx, 30px)),
+                              calc(-50% + var(--dy, -30px))) scale(0.4); opacity: 0; }
+}
+
+/* ===========================================================================
+   PARTY CRITICAL — when any alive hero is at <= 3 HP, paint a faint red
+   edge vignette so the danger is felt in peripheral vision.
+   =========================================================================== */
+body.party-critical::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 90;
+  background:
+    radial-gradient(ellipse 90% 70% at 50% 50%,
+                    rgba(180,40,40,0) 55%,
+                    rgba(180,40,40,0.22) 85%,
+                    rgba(180,40,40,0.42) 100%);
+  animation: party-critical-pulse 1.8s ease-in-out infinite;
+}
+@keyframes party-critical-pulse {
+  0%, 100% { opacity: 0.65; }
+  50%      { opacity: 1; }
+}
+
 /* Manga-style emoji reaction over a character — used for bond / friction /
    kill moments.  Distinct from .popup so it can be larger and have its
    own bounce arc. */

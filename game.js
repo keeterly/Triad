@@ -1206,6 +1206,9 @@ const VIGNETTES = {
       { who: 'elin', text: "Someone has to look behind.  You only look ahead." },
       { who: 'mira', text: "Because the front is where the killing is." },
       { who: 'elin', text: "And behind is where the bleeding is." },
+      // Reactive — Branwen, half-listening, can't help herself
+      { who: 'branwen', text: "(She does watch your back.  I noticed.)",
+        if: (s) => s.party.chars.branwen && !s.party.chars.branwen.downed },
       { who: null,   text: "They stand in the dust without quite meeting each other's eyes." },
     ],
     choices: [
@@ -1225,6 +1228,12 @@ const VIGNETTES = {
       { who: 'korin',  text: "And you took the one before that, meant for me." },
       { who: 'cassia', text: "...we'll run out of blows to trade eventually." },
       { who: 'korin',  text: "Then we run out together.  That's the bond." },
+      // Reactive — Mira, watching from the dark
+      { who: 'mira',  text: "(I am not standing close to either of you.)",
+        if: (s) => s.party.chars.mira && !s.party.chars.mira.downed },
+      // Reactive — Elin, deadpan
+      { who: 'elin',  text: "(I'll need bandages.  A lot of bandages.)",
+        if: (s) => s.party.chars.elin && !s.party.chars.elin.downed },
       { who: null,    text: "Cassia laughs, soft and tired, and Korin's mouth does almost the same thing." },
     ],
     choices: [
@@ -3556,6 +3565,7 @@ function killEnemy(s, e) {
   }
   // Emoji reaction over the actor for the kill
   if (s.currentActorId) spawnReaction(s.currentActorId, '💀', 'party');
+  spawnKillSparks(e.id, 'enemy');
   // Pact of Cinders — every surviving enemy starts bleeding
   if (hasSigil(s, 'cinders')) {
     aliveEnemies(s).forEach(en => { if (en !== e && !en.dead) en.bleed = Math.max(en.bleed, 1); });
@@ -4550,6 +4560,12 @@ function render() {
   renderQueue();
   renderTeamSpecial();
   renderFightButton();
+  // Critical-HP screen vignette: when any alive hero is at <=3 HP, body
+  // gets .party-critical so a faint red edge glow pulses around the
+  // viewport.  Cleared otherwise.
+  const anyCritical = state && state.party && Object.values(state.party.chars)
+    .some(c => c && !c.downed && c.hp > 0 && c.hp <= 3);
+  document.body.classList.toggle('party-critical', !!anyCritical);
   // Persist after every UI tick so a refresh resumes near-exactly.
   if (!__simulating) saveState();
 }
@@ -4940,10 +4956,17 @@ function renderQueue() {
   // dataset.atbMax drives CSS so the strip can be 3- or 4-wide (Crown of Quickening).
   const atbMax = getAtbMax(state);
   strip.dataset.atbMax = String(atbMax);
+  // Combo-eligibility highlight: pull the union of matched-item indices
+  // across every available combo so the queue can glow them gold.
+  const matchedIdx = new Set();
+  if (!state.executing && !state.over) {
+    matchingCombos(state.queue).forEach(({ indices }) => indices.forEach(i => matchedIdx.add(i)));
+  }
   let used = 0;
   state.queue.forEach((item, idx) => {
     const el = document.createElement('div');
     el.className = `queue-slot filled kind-${item.kind}`;
+    if (matchedIdx.has(idx)) el.classList.add('combo-matched');
     el.dataset.atb = String(item.atb || 1);
     const portraitSvg = item.charId ? (PORTRAITS[item.charId] || '') : '';
     // combo items (Resonance) get a glyph stack instead of a single portrait
@@ -5328,6 +5351,35 @@ function spawnPopupId(id, text, type, side) {
 // Tiny floating emoji reaction over a character — used for bond/friction
 // triggers, kills, and other manga-style beats.  Looks similar to a popup
 // but its own CSS class so we can style it bigger / fluffier.
+// Kill confetti — 8 small sparks fly outward from the dying card and
+// fade.  Called from killEnemy for that "this one is gone" beat.
+function spawnKillSparks(id, side) {
+  if (__simulating) return;
+  let cardEl;
+  if (side) cardEl = document.querySelector(`#${side === 'enemy' ? 'enemy' : 'party'}-half [data-id="${id}"]`);
+  if (!cardEl) cardEl = document.querySelector(`#battlefield [data-id="${id}"]`);
+  if (!cardEl) return;
+  const layer = $('#popup-layer');
+  const stage = $('#stage');
+  if (!layer || !stage) return;
+  const r = cardEl.getBoundingClientRect();
+  const s = stage.getBoundingClientRect();
+  const cx = r.left + r.width / 2 - s.left;
+  const cy = r.top  + r.height * 0.5 - s.top;
+  for (let i = 0; i < 8; i++) {
+    const el = document.createElement('div');
+    el.className = 'kill-spark';
+    const ang = (Math.PI * 2 * i / 8) + (Math.random() - 0.5) * 0.5;
+    const dist = 40 + Math.random() * 28;
+    el.style.left = cx + 'px';
+    el.style.top  = cy + 'px';
+    el.style.setProperty('--dx', Math.cos(ang) * dist + 'px');
+    el.style.setProperty('--dy', Math.sin(ang) * dist + 'px');
+    layer.appendChild(el);
+    setTimeout(() => el.remove(), 700);
+  }
+}
+
 function spawnReaction(id, emoji, side) {
   if (__simulating) return;
   let cardEl;
@@ -6056,7 +6108,13 @@ function showVignette(v, ctx, done) {
   // become the left/right portraits in the VN layout.  speakerId always
   // gets the left side so the player has a consistent anchor.
   const uniq = [];
-  v.lines.forEach(line => {
+  // Reactive lines: each entry can declare an optional `if(s, ctx)` predicate
+  // that must return truthy for the line to render.  Lets vignettes layer in
+  // commentary based on who's alive, current biome, or HP state without
+  // authoring a new vignette per permutation.
+  const visibleLines = v.lines.filter(line =>
+    typeof line.if !== 'function' || !!line.if(state, ctx));
+  visibleLines.forEach(line => {
     let id = resolveWho(line.who);
     if (id && !state.party.chars[id] && line.altWho && state.party.chars[line.altWho]) id = line.altWho;
     if (id && !state.party.chars[id]) id = null;
@@ -6073,7 +6131,7 @@ function showVignette(v, ctx, done) {
   // Dialogue rail
   const dlg = document.createElement('div');
   dlg.className = 'vn-dialogue';
-  v.lines.forEach(line => {
+  visibleLines.forEach(line => {
     let whoId = resolveWho(line.who);
     if (whoId && !state.party.chars[whoId] && line.altWho && state.party.chars[line.altWho]) whoId = line.altWho;
     if (whoId && !state.party.chars[whoId]) whoId = null;
