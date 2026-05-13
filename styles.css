@@ -687,44 +687,60 @@ body {
 /* ============ INTENT BUBBLE — minimal floating glyph above enemy figure ============ */
 /* Intent bubble — rendered inside .figure-portrait so it anchors to the
    portrait box and sits just below the HP bar (which is at top: 8%).
-   Stays minimal-flat to match the rest of the NieR chrome. */
+   Floats as glyph + number with drop-shadow legibility — no plate, no
+   border, just the symbols against the battlefield.  Threat color comes
+   from the glyph + number themselves. */
 .intent-bubble {
   position: absolute;
-  top: 39px;
+  top: 36px;
   left: 50%;
   transform: translateX(-50%);
-  color: var(--ink);
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 2px 7px;
-  border-radius: 0;
-  background: rgba(18,10,10,0.92);
-  border: 1px solid var(--blood-bright);
+  color: var(--blood-bright);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  background: transparent;
+  border: none;
   box-shadow: none;
-  text-shadow: 0 1px 0 var(--shadow);
   z-index: 5;
   white-space: nowrap;
+  pointer-events: none;
 }
 .intent-bubble .intent-icon {
-  font-size: 11px; line-height: 1;
-  filter: drop-shadow(0 1px 0 var(--shadow));
+  font-size: 16px;
+  line-height: 1;
+  color: var(--blood-bright);
+  filter:
+    drop-shadow(0 1px 0 rgba(0,0,0,0.95))
+    drop-shadow(0 0 3px rgba(0,0,0,0.85))
+    drop-shadow(0 0 8px rgba(220,80,80,0.45));
 }
 .intent-bubble .intent-num {
-  font-size: 13px; font-weight: bold; line-height: 1;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0;
-  text-shadow: 0 1px 0 var(--shadow), 0 0 4px rgba(0,0,0,0.4);
+  color: #f1d9c4;
+  text-shadow:
+    0 1px 0 rgba(0,0,0,0.95),
+    0 0 4px rgba(0,0,0,0.85),
+    0 0 10px rgba(220,80,80,0.35);
 }
-.intent-bubble.intent-aoe {
-  background: rgba(18,10,16,0.92);
-  border-color: var(--aoe);
+.intent-bubble.intent-aoe .intent-icon {
   color: var(--aoe);
-  box-shadow: none;
+  filter:
+    drop-shadow(0 1px 0 rgba(0,0,0,0.95))
+    drop-shadow(0 0 3px rgba(0,0,0,0.85))
+    drop-shadow(0 0 8px rgba(180,120,220,0.5));
 }
-.intent-bubble.intent-debuff {
-  background: rgba(14,10,18,0.92);
-  border-color: var(--debuff);
+.intent-bubble.intent-debuff .intent-icon {
   color: var(--debuff);
-  box-shadow: none;
+  filter:
+    drop-shadow(0 1px 0 rgba(0,0,0,0.95))
+    drop-shadow(0 0 3px rgba(0,0,0,0.85))
+    drop-shadow(0 0 8px rgba(120,140,200,0.5));
 }
 
 /* Threat telegraph — party figures targeted by enemy intents glow red.
@@ -6403,15 +6419,39 @@ body.boss-killed::before {
 
 /* Intent bubble: threat tier colorizes the number so the player can plan
    in a glance.  Lethal = red glow, heavy = amber, mild = ink-dim. */
-.intent-bubble.threat-mild .intent-num   { color: var(--ink-dim); }
-.intent-bubble.threat-heavy .intent-num  { color: #ffb86b; text-shadow: 0 0 8px rgba(255,160,80,0.5); }
-.intent-bubble.threat-lethal .intent-num { color: var(--blood-bright); text-shadow: 0 0 10px rgba(220,80,80,0.7); font-weight: 800; }
+.intent-bubble.threat-mild .intent-num {
+  color: #d6cab0;
+  text-shadow:
+    0 1px 0 rgba(0,0,0,0.95),
+    0 0 4px rgba(0,0,0,0.85);
+}
+.intent-bubble.threat-heavy .intent-num {
+  color: #ffb86b;
+  text-shadow:
+    0 1px 0 rgba(0,0,0,0.95),
+    0 0 4px rgba(0,0,0,0.85),
+    0 0 10px rgba(255,160,80,0.55);
+}
+.intent-bubble.threat-lethal .intent-num {
+  color: var(--blood-bright);
+  font-weight: 800;
+  text-shadow:
+    0 1px 0 rgba(0,0,0,0.95),
+    0 0 4px rgba(0,0,0,0.85),
+    0 0 12px rgba(220,80,80,0.8);
+}
 .intent-bubble.threat-lethal {
   animation: intent-lethal-pulse 1.6s ease-in-out infinite;
 }
+.intent-bubble.threat-lethal .intent-icon {
+  filter:
+    drop-shadow(0 1px 0 rgba(0,0,0,0.95))
+    drop-shadow(0 0 3px rgba(0,0,0,0.85))
+    drop-shadow(0 0 10px rgba(220,80,80,0.7));
+}
 @keyframes intent-lethal-pulse {
-  0%, 100% { filter: drop-shadow(0 0 0   rgba(220,80,80,0)); }
-  50%      { filter: drop-shadow(0 0 6px rgba(220,80,80,0.45)); }
+  0%, 100% { transform: translateX(-50%) scale(1);    filter: drop-shadow(0 0 0   rgba(220,80,80,0)); }
+  50%      { transform: translateX(-50%) scale(1.06); filter: drop-shadow(0 0 8px rgba(220,80,80,0.55)); }
 }
 
 /* Bond / friction edge — small connector dot between two adjacent hero
