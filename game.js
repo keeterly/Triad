@@ -7387,43 +7387,112 @@ function init() {
 
 // Pick a starter from the unlocked solo-viable pool.  Visually a slim grid
 // of portrait cards; click to begin the climb with that hero.
+// Starter chooser — horizontal lineup of standing silhouettes against the
+// void.  Short tap selects.  Press-and-hold reveals a floating detail
+// card (HP / home slot / passive) — same pattern as the path map's
+// node-tooltip.
 function showStarterChooser(pool, onPick) {
+  $('#overlay').classList.remove('overlay-path', 'overlay-vignette', 'overlay-runsummary', 'overlay-rest', 'overlay-recruit', 'overlay-upgrade', 'overlay-sigil');
+  $('#overlay').classList.add('overlay-full', 'overlay-starter');
   $('#overlay-title').textContent = 'Who wakes here?';
   const body = $('#overlay-body');
   body.classList.remove('victory-summary-body', 'welcome-body', 'run-summary-body', 'title-screen-body');
-  body.innerHTML = `<p class="title-flavor">You can only carry one breath at the bottom.  Choose who draws it.</p>`;
+  body.innerHTML = `<p class="starter-flavor">You can only carry one breath at the bottom.  Choose who draws it.</p>`;
   const choices = $('#overlay-choices');
   choices.innerHTML = '';
   choices.classList.remove('path-map', 'party-inspect', 'event-choices', 'title-choices', 'vignette-choices');
   choices.classList.add('starter-choices');
-  pool.forEach(id => {
+
+  // Render the lineup as a single flexible row of standing silhouettes.
+  const lineup = document.createElement('div');
+  lineup.className = 'starter-lineup';
+  pool.forEach((id, idx) => {
     const def = CHARS[id];
-    const card = document.createElement('button');
-    card.className = 'encounter-choice starter-choice recruit-choice';
-    card.innerHTML = `
-      <div class="enc-name">${def.name}</div>
-      <div class="recruit-portrait">${PORTRAITS[id] || ''}</div>
-      <div class="recruit-meta">
-        <div class="recruit-title">${def.title || ''}</div>
-        <div class="recruit-stats">
-          <span class="recruit-stat">HP ${def.maxHp}</span>
-          <span class="recruit-stat">Home ${SLOT_LABELS[def.home]}</span>
-        </div>
-        <div class="recruit-passive"><b>${def.passive?.name || ''}</b> · ${def.passive?.desc || ''}</div>
-      </div>
+    const fig = document.createElement('button');
+    fig.type = 'button';
+    fig.className = 'starter-fig';
+    fig.dataset.id = id;
+    fig.innerHTML = `
+      <div class="starter-portrait">${PORTRAITS[id] || ''}</div>
+      <div class="starter-name">${def.name}</div>
     `;
-    card.addEventListener('click', () => {
+    bindStarterHoldOrTap(fig, def, () => {
       hideOverlay();
       choices.classList.remove('starter-choices');
       resetOverlayBtn();
       onPick(id);
     });
-    choices.appendChild(card);
+    lineup.appendChild(fig);
   });
+  choices.appendChild(lineup);
+
   resetOverlayBtn();
   $('#overlay-btn').classList.add('hidden');
   choices.classList.remove('hidden');
   $('#overlay').classList.remove('hidden');
+}
+
+// Tap-or-hold detection for the starter lineup, mirroring the map nodes'
+// bindNodeHoldOrTap.  Hold reveals a detail tooltip; short tap selects.
+function bindStarterHoldOrTap(el, def, onPick) {
+  const HOLD_MS = 350;
+  let timer = null;
+  let triggered = false;
+  let downPos = null;
+  el.addEventListener('pointerdown', (e) => {
+    triggered = false;
+    downPos = { x: e.clientX, y: e.clientY };
+    timer = setTimeout(() => { triggered = true; showStarterTooltip(el, def); timer = null; }, HOLD_MS);
+  });
+  const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
+  el.addEventListener('pointerup', (e) => {
+    cancel();
+    if (triggered) { e.preventDefault(); e.stopPropagation(); return; }
+    onPick();
+  });
+  el.addEventListener('pointerleave', cancel);
+  el.addEventListener('pointercancel', cancel);
+  el.addEventListener('pointermove', (e) => {
+    if (!downPos) return;
+    const dx = e.clientX - downPos.x, dy = e.clientY - downPos.y;
+    if (dx*dx + dy*dy > 100) cancel();
+  });
+}
+
+function showStarterTooltip(anchorEl, def) {
+  hideStarterTooltip();
+  const tt = document.createElement('div');
+  tt.id = 'starter-tooltip';
+  tt.innerHTML = `
+    <div class="st-name">${def.name}</div>
+    <div class="st-title">${def.title || ''}</div>
+    <div class="st-stats">
+      <span class="st-stat">HP ${def.maxHp}</span>
+      <span class="st-stat">Home ${SLOT_LABELS[def.home] || '—'}</span>
+      <span class="st-stat">${(def.school || '').toUpperCase()}</span>
+    </div>
+    <div class="st-passive"><b>${def.passive?.name || ''}</b> — ${def.passive?.desc || ''}</div>
+  `;
+  document.body.appendChild(tt);
+  const r = anchorEl.getBoundingClientRect();
+  const ttRect = tt.getBoundingClientRect();
+  let top  = r.top - ttRect.height - 10;
+  if (top < 8) top = r.bottom + 10;
+  let left = r.left + r.width / 2 - ttRect.width / 2;
+  left = Math.max(8, Math.min(left, window.innerWidth - ttRect.width - 8));
+  tt.style.top = top + 'px';
+  tt.style.left = left + 'px';
+  setTimeout(hideStarterTooltip, 6000);
+  setTimeout(() => document.addEventListener('pointerdown', _stDismissHandler, true), 0);
+}
+function _stDismissHandler(e) {
+  const tt = document.getElementById('starter-tooltip');
+  if (tt && !tt.contains(e.target)) hideStarterTooltip();
+}
+function hideStarterTooltip() {
+  const tt = document.getElementById('starter-tooltip');
+  if (tt) tt.remove();
+  document.removeEventListener('pointerdown', _stDismissHandler, true);
 }
 
 // ============================================================================
