@@ -5129,6 +5129,76 @@ button.path-node:not(:disabled):hover {
   background: linear-gradient(180deg, rgba(60,30,22,0.6) 0%, rgba(20,10,8,0.7) 100%);
 }
 
+/* Active sigils panel — floats below the sigil tray when the player taps
+   a chip.  Lists every bound sigil with icon + name + description so
+   they can answer "what do I have right now?" with a single tap. */
+.sigils-panel {
+  position: fixed;
+  z-index: 600;
+  width: min(320px, 92vw);
+  background: rgba(14,12,10,0.97);
+  border: 1px solid rgba(212,200,168,0.32);
+  box-shadow: 0 12px 32px rgba(0,0,0,0.72), 0 0 18px rgba(232,220,196,0.08);
+  padding: 8px 10px 10px;
+  animation: sigils-panel-in 0.16s ease-out forwards;
+}
+.sigils-panel .sp-title {
+  font-size: 9.5px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--gold-pale);
+  text-align: center;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(212,200,168,0.12);
+}
+.sigils-panel .sp-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-height: 56vh;
+  overflow-y: auto;
+}
+.sigils-panel .sp-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 5px 6px;
+  background: rgba(28,22,18,0.55);
+  border-left: 2px solid rgba(212,200,168,0.35);
+}
+.sigils-panel .sp-row.cat-combat   { border-left-color: rgba(212,69,69,0.7); }
+.sigils-panel .sp-row.cat-defense  { border-left-color: rgba(136,152,168,0.7); }
+.sigils-panel .sp-row.cat-resource { border-left-color: rgba(232,220,150,0.7); }
+.sigils-panel .sp-icon {
+  font-size: 18px;
+  line-height: 1;
+  color: var(--gold-pale);
+  width: 22px;
+  text-align: center;
+  margin-top: 1px;
+}
+.sigils-panel .sp-row.cat-combat   .sp-icon { color: var(--blood-bright); }
+.sigils-panel .sp-row.cat-defense  .sp-icon { color: var(--armor); }
+.sigils-panel .sp-row.cat-resource .sp-icon { color: var(--gold-bright); }
+.sigils-panel .sp-meta { flex: 1; min-width: 0; }
+.sigils-panel .sp-name {
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold-pale);
+  margin-bottom: 2px;
+}
+.sigils-panel .sp-desc {
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--ink);
+}
+@keyframes sigils-panel-in {
+  from { opacity: 0; transform: translateY(-3px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 /* Status tooltip — floating panel that appears on press-and-hold of a
    status chip.  Position is computed at show-time. */
 .status-tooltip {
