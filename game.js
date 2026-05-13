@@ -1316,7 +1316,7 @@ const EVENTS = {
     choices: [
       { label: 'Take the stone',  tag: '−3 HP each · gain a random sigil',
         resolve: (s) => { aliveParty(s).forEach(c => { c.hp = Math.max(1, c.hp - 3); }); _grantRandomSigil(s); } },
-      { label: 'Press their hand', tag: 'lowest-HP hero heals to full · +1 Resolve next fight',
+      { label: 'Press their hand', tag: 'Heal lowest to full · +1 Resolve next fight',
         resolve: (s) => { const id = _lowestHpAliveId(s); const c = id && s.party.chars[id]; if (c) c.hp = c.maxHp; s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1; } },
       { label: 'Walk past',       tag: 'no change', resolve: () => {} },
     ],
@@ -1340,7 +1340,7 @@ const EVENTS = {
     choices: [
       { label: 'Forgive them',     tag: 'heal party 4 · +2⛨ each',
         resolve: (s) => { aliveParty(s).forEach(c => { const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 4); if (c.hp > b) spawnPopupId(c.id, `+${c.hp - b}`, 'heal', 'party'); c.armor += 2; }); } },
-      { label: 'Take the armor',   tag: 'front-row hero gains Warhardened (+2 dmg)',
+      { label: 'Take the armor',   tag: 'Front gains Warhardened',
         resolve: (s) => { const fId = s.party.slots.front; if (fId) grantQuirk(s, fId, 'warhardened'); } },
       { label: 'Leave them be',    tag: 'no change', resolve: () => {} },
     ],
@@ -1361,7 +1361,7 @@ const EVENTS = {
     name: "A Child's Mask",
     flavor: 'A wooden mask sits at the edge of a chasm.  Painted to look surprised.  Around its eyes, the wood is wet.',
     choices: [
-      { label: 'Wear it briefly', tag: 'gain a random sigil · gain a negative affinity',
+      { label: 'Wear it briefly', tag: 'Random sigil · negative affinity',
         resolve: (s) => { _grantRandomSigil(s); _rollEventQuirk(s, 'negative'); } },
       { label: 'Bury it',         tag: 'party +1 Resolve next fight · cleanse',
         resolve: (s) => { aliveParty(s).forEach(c => { c.bleed = 0; c.weak = 0; }); s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1; } },
@@ -1506,7 +1506,7 @@ const VIGNETTES = {
       { who: null, text: 'Somewhere, a village burned a long time ago. The sky remembers.' },
     ],
     choices: [
-      { label: 'Press on', tag: '+2 Resolve at the start of the next fight',
+      { label: 'Press on', tag: '+2 Resolve next fight',
         resolve: (s) => { s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 2; log('You carry the unease forward.'); } },
       { label: 'Make a small offering', tag: 'Heal lowest hero to full',
         resolve: (s) => { const alive = Object.values(s.party.chars).filter(c => !c.downed); alive.sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp); if (alive[0]) { alive[0].hp = alive[0].maxHp; log(`<b>${CHARS[alive[0].id].name}</b> is restored.`); } } },
@@ -1524,7 +1524,7 @@ const VIGNETTES = {
       { who: null, text: 'The land does not wash itself clean.' },
     ],
     choices: [
-      { label: 'Sharpen the blade', tag: 'Bleeders deal +1 with bleed (gain Bloodborne Sigil)',
+      { label: 'Sharpen the blade', tag: 'Bind Bloodborne Sigil',
         resolve: (s) => { if (!hasSigil(s, 'bloodborne')) { s.run.sigils.push('bloodborne'); log('You bind <b>Bloodborne Sigil</b>.'); } } },
       { label: 'Wash the wound',   tag: 'Heal all party 3',
         resolve: (s) => { aliveParty(s).forEach(c => { c.hp = Math.min(c.maxHp, c.hp + 3); }); log('The party staunches.'); } },
@@ -1543,7 +1543,7 @@ const VIGNETTES = {
     choices: [
       { label: 'Bind the wound', tag: 'That hero gains +4 max HP for the run',
         resolve: (s) => { const id = _lowestHpAliveId(s); const c = id && s.party.chars[id]; if (c) { c.maxHp += 4; c.hp += 4; log(`<b>${CHARS[id].name}</b>'s frame hardens — +4 max HP.`); } } },
-      { label: 'Walk it off',    tag: 'That hero gains Resilient (+1 dmg, +1 healing)',
+      { label: 'Walk it off',    tag: 'Hero gains Resilient',
         resolve: (s) => { const id = _lowestHpAliveId(s); if (id) { grantQuirk(s, id, 'precise'); grantQuirk(s, id, 'gentle'); log(`<b>${CHARS[id].name}</b> steadies.`); } } },
     ],
   },
@@ -1562,9 +1562,9 @@ const VIGNETTES = {
       { who: '_first', text: '...up, then.' },
     ],
     choices: [
-      { label: 'Begin the climb', tag: '+1 Resolve at the start of the first fight',
+      { label: 'Begin the climb', tag: '+1 Resolve next fight',
         resolve: (s) => { s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1; log('You stand.'); } },
-      { label: 'Rest a moment',   tag: '+3 HP for the climb (vignette-locked)',
+      { label: 'Rest a moment',   tag: '+3 HP for the climb ',
         resolve: (s) => { const id = Object.keys(s.party.chars)[0]; const c = s.party.chars[id]; if (c) { c.maxHp += 3; c.hp += 3; log(`<b>${CHARS[id].name}</b> gathers themselves — +3 HP.`); } } },
     ],
   },
@@ -1841,9 +1841,9 @@ const VIGNETTES = {
       { who: null,      text: 'A small cracked smile finds its way around the table.' },
     ],
     choices: [
-      { label: "Laugh now, while we can", tag: '+1 Resolve at the start of the next fight (vignette-locked)',
+      { label: "Laugh now, while we can", tag: '+1 Resolve next fight ',
         resolve: (s) => { s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1; log('The party steadies.'); } },
-      { label: 'Roll your eyes', tag: 'Heal lowest-HP hero to full',
+      { label: 'Roll your eyes', tag: 'Heal lowest to full',
         resolve: (s) => { const id = _lowestHpAliveId(s); const c = id && s.party.chars[id]; if (c) { c.hp = c.maxHp; log(`<b>${CHARS[id].name}</b> is restored.`); } } },
     ],
   },
@@ -2005,9 +2005,9 @@ const VIGNETTES = {
       { who: '_first', text: '...they will rise for the next reach.' },
     ],
     choices: [
-      { label: 'Carry them forward', tag: 'Downed heroes are restored to 1 HP for the next fight',
+      { label: 'Carry them forward', tag: 'Downed restored to 1 HP',
         resolve: (s) => { Object.values(s.party.chars).forEach(c => { if (c.downed) { c.downed = false; c.hp = 1; } }); log('The fallen are lifted.'); } },
-      { label: 'Bind in silence',    tag: 'Restore to 25% HP and lock the lesson (gain Sigil of Mending if available)',
+      { label: 'Bind in silence',    tag: 'Restore 25% · Sigil of Mending',
         resolve: (s) => {
           Object.values(s.party.chars).forEach(c => { if (c.downed) { c.downed = false; c.hp = Math.max(1, Math.ceil(c.maxHp * 0.25)); } });
           if (!hasSigil(s, 'mending')) { s.run.sigils.push('mending'); log('You bind <b>Sigil of Mending</b>.'); }
@@ -2131,7 +2131,7 @@ const VIGNETTES = {
       { who: null, text: 'The reply is too quiet to write down.' },
     ],
     choices: [
-      { label: 'Spare them',  tag: 'Heal the party 4 and gain 1 Resolve next fight',
+      { label: 'Spare them',  tag: 'Heal party 4 · +1 Resolve next',
         resolve: (s) => { aliveParty(s).forEach(c => { c.hp = Math.min(c.maxHp, c.hp + 4); }); s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1; log('A bandage finds its way around the survivor.'); } },
       { label: 'Walk on',     tag: 'no change', resolve: () => {} },
     ],
@@ -2148,7 +2148,7 @@ const VIGNETTES = {
       { who: null, text: 'But you kneel anyway, and offer water.' },
     ],
     choices: [
-      { label: 'Bind their wounds', tag: 'Heal all party to full and gain 2 Resolve next fight',
+      { label: 'Bind their wounds', tag: 'Heal party to full · +2 Resolve next',
         resolve: (s) => { aliveParty(s).forEach(c => { c.hp = c.maxHp; }); s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 2; log('A small kindness in a cruel place.'); } },
       { label: 'Walk on',           tag: 'no change', resolve: () => {} },
     ],
@@ -2170,7 +2170,7 @@ const VIGNETTES = {
       { who: null,     text: "Something heard it too.  It is older than the abyss." },
     ],
     choices: [
-      { label: 'Climb anyway', tag: '+1 Resolve at the start of the first fight',
+      { label: 'Climb anyway', tag: '+1 Resolve next fight',
         resolve: (s) => { s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1; log('You press on into the veil.'); } },
       { label: 'Listen first', tag: 'Lowest-HP hero gains +4 max HP',
         resolve: (s) => { const id = _lowestHpAliveId(s); const c = id && s.party.chars[id]; if (c) { c.maxHp += 4; c.hp += 4; log(`<b>${CHARS[id].name}</b> hears something true. +4 max HP.`); } } },
@@ -2188,7 +2188,7 @@ const VIGNETTES = {
       { who: null,     text: "The whisper does not stop.  But the bleeding does, a little." },
     ],
     choices: [
-      { label: 'Refuse the name', tag: 'Heal lowest-HP hero to full · Resolve +1 next fight',
+      { label: 'Refuse the name', tag: 'Heal lowest to full · Resolve +1 next fight',
         resolve: (s) => { const id = _lowestHpAliveId(s); const c = id && s.party.chars[id]; if (c) c.hp = c.maxHp; s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1; } },
       { label: 'Answer it',       tag: 'Lowest-HP hero gains Brutal (+2 dmg)',
         resolve: (s) => { const id = _lowestHpAliveId(s); if (id) grantQuirk(s, id, 'brutal'); } },
@@ -6462,7 +6462,37 @@ function showRunInfoPanel() {
   panel.setAttribute('aria-hidden', 'false');
   const closeBtn = document.getElementById('info-close');
   if (closeBtn) closeBtn.onclick = () => hideRunInfoPanel();
+  bindBackdropDismiss(panel, '.ip-card', hideRunInfoPanel);
 }
+// One-time bind for the shared #overlay so that opt-in screens
+// (credits, settings — anything tagged .overlay-dismissable) close on
+// backdrop tap.  Vignettes / recruit / etc. don't get the class so
+// they keep requiring an explicit choice.
+function bindOverlayBackdropDismiss() {
+  const ov = $('#overlay');
+  if (!ov || ov._dismissBound) return;
+  ov._dismissBound = true;
+  ov.addEventListener('pointerdown', (e) => {
+    if (!ov.classList.contains('overlay-dismissable')) return;
+    const content = ov.querySelector('#overlay-content');
+    if (content && content.contains(e.target)) return;
+    hideOverlay();
+  });
+}
+
+// Wire backdrop tap → close on standalone-DOM modals.  Safe for screens
+// where dismissal has no destructive effect (info, codex, world map).
+// `closer` is invoked when the user taps OUTSIDE the inner card.
+function bindBackdropDismiss(rootEl, innerSelector, closer) {
+  if (!rootEl || rootEl._backdropBound) return;
+  rootEl._backdropBound = true;
+  rootEl.addEventListener('pointerdown', (e) => {
+    const inner = innerSelector ? rootEl.querySelector(innerSelector) : null;
+    if (inner && inner.contains(e.target)) return;
+    closer();
+  });
+}
+
 function hideRunInfoPanel() {
   const panel = document.getElementById('info-panel');
   if (!panel) return;
@@ -6894,7 +6924,7 @@ function showRestOverlay() {
   };
 
   // 1. Rest — heal half of all missing HP across the party.
-  mkChoice('Rest', 'Heal each ally half of missing HP', () => {
+  mkChoice('Rest', 'Heal half', () => {
     const lines = [];
     aliveParty(state).forEach(c => {
       const missing = c.maxHp - c.hp;
@@ -7108,9 +7138,11 @@ function showPartyInspect() {
 function hideOverlay() {
   const ov = $('#overlay');
   ov.classList.add('hidden');
-  ov.classList.remove('overlay-full', 'overlay-path', 'overlay-vignette',
+  ov.classList.remove('overlay-full', 'overlay-cinematic',
+                      'overlay-path', 'overlay-vignette',
                       'overlay-runsummary', 'overlay-rest',
-                      'overlay-recruit', 'overlay-upgrade', 'overlay-sigil');
+                      'overlay-recruit', 'overlay-upgrade', 'overlay-sigil',
+                      'overlay-starter', 'overlay-dismissable');
   const ch = $('#overlay-choices');
   if (ch) ch.classList.remove('path-map');
 }
@@ -7326,7 +7358,7 @@ function offerSigilFromNode(onDone) {
 function showSigilOverlay(offers, onDone) {
   const continueAfter = onDone || (() => renderMap());
   $('#overlay').classList.remove('overlay-path', 'overlay-vignette', 'overlay-runsummary', 'overlay-rest', 'overlay-recruit', 'overlay-upgrade');
-  $('#overlay').classList.add('overlay-full', 'overlay-sigil');
+  $('#overlay').classList.add('overlay-full', 'overlay-cinematic', 'overlay-sigil');
   $('#overlay-title').textContent = 'A sigil flickers into reach';
   $('#overlay-body').textContent = 'Add one to your run, or pass.';
   const choices = $('#overlay-choices');
@@ -7366,7 +7398,7 @@ function commitSigil(sigilId, onDone) {
 function showUpgradeOverlay(offers, onDone) {
   const continueAfter = onDone || (() => renderMap());
   $('#overlay').classList.remove('overlay-path', 'overlay-vignette', 'overlay-runsummary', 'overlay-rest', 'overlay-recruit', 'overlay-sigil');
-  $('#overlay').classList.add('overlay-full', 'overlay-upgrade');
+  $('#overlay').classList.add('overlay-full', 'overlay-cinematic', 'overlay-upgrade');
   $('#overlay-title').textContent = 'Hone your edge';
   $('#overlay-body').textContent = 'Pick an upgrade — or pass.';
   const choices = $('#overlay-choices');
@@ -7448,7 +7480,7 @@ const RECRUIT_GREETINGS = {
 // press-and-hold for full stats; "Walk on" declines.
 function showRecruitOverlay(candidates) {
   $('#overlay').classList.remove('overlay-path', 'overlay-vignette', 'overlay-runsummary', 'overlay-rest', 'overlay-upgrade', 'overlay-sigil');
-  $('#overlay').classList.add('overlay-full', 'overlay-recruit');
+  $('#overlay').classList.add('overlay-full', 'overlay-cinematic', 'overlay-recruit');
   $('#overlay-title').textContent = 'A new ally appears';
   const body = $('#overlay-body');
   body.classList.remove('victory-summary-body', 'welcome-body', 'run-summary-body');
@@ -7902,10 +7934,9 @@ function showWorldMap() {
   });
   root.classList.remove('hidden');
   const btn = document.getElementById('wm-continue');
-  if (btn) btn.onclick = () => {
-    root.classList.add('hidden');
-    showTitleScreen();
-  };
+  const close = () => { root.classList.add('hidden'); showTitleScreen(); };
+  if (btn) btn.onclick = close;
+  bindBackdropDismiss(root, '.wm-content', close);
 }
 
 function buildWorldMapContainer() {
@@ -7986,6 +8017,8 @@ function hideTitleScreen() {
 // Settings — small overlay over the title with toggles for audio,
 // tutorial, save reset, and meta-unlock reset.
 function showSettingsScreen() {
+  $('#overlay').classList.add('overlay-dismissable');
+  bindOverlayBackdropDismiss();
   $('#overlay-title').textContent = 'Settings';
   const body = $('#overlay-body');
   body.classList.remove('welcome-body', 'title-screen-body', 'victory-summary-body', 'run-summary-body');
@@ -8135,7 +8168,9 @@ function showHeroCodex() {
   });
   root.classList.remove('hidden');
   const close = document.getElementById('hc-close');
-  if (close) close.onclick = () => root.classList.add('hidden');
+  const closer = () => root.classList.add('hidden');
+  if (close) close.onclick = closer;
+  bindBackdropDismiss(root, '.hc-content', closer);
 }
 function _buildHeroCodexContainer() {
   const root = document.createElement('div');
@@ -8156,6 +8191,8 @@ function _buildHeroCodexContainer() {
 }
 
 function showCreditsScreen() {
+  $('#overlay').classList.add('overlay-dismissable');
+  bindOverlayBackdropDismiss();
   $('#overlay-title').textContent = 'Credits';
   const body = $('#overlay-body');
   body.classList.remove('welcome-body', 'title-screen-body');
