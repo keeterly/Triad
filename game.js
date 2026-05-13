@@ -5348,6 +5348,7 @@ function renderSigilTray() {
   if (!owned.length) {
     tray.innerHTML = '';
     tray.classList.add('empty');
+    hideActiveSigilsPanel();
     return;
   }
   tray.classList.remove('empty');
@@ -5357,6 +5358,74 @@ function renderSigilTray() {
     const titleText = `${s.name} — ${s.desc}`;
     return `<button type="button" class="sigil-chip cat-${s.category}" data-sigil="${s.id}" title="${titleText}" aria-label="${s.name}"><span class="sigil-chip-icon">${s.icon}</span></button>`;
   }).join('');
+  // Bind tap-to-reveal AFTER each render — innerHTML reset wipes prior bindings.
+  Array.from(tray.querySelectorAll('.sigil-chip')).forEach(chip => {
+    chip.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleActiveSigilsPanel(tray);
+    });
+  });
+}
+
+// Floating panel that surfaces every active sigil with its description, so
+// the player can answer "what do I have bound right now?" with a single tap.
+// Tapping any chip in the tray toggles the panel; tapping outside closes it.
+function showActiveSigilsPanel(anchorEl) {
+  hideActiveSigilsPanel();
+  const owned = (state.run && state.run.sigils) || [];
+  if (!owned.length) return;
+  const panel = document.createElement('div');
+  panel.id = 'active-sigils-panel';
+  panel.className = 'sigils-panel';
+  panel.innerHTML = `
+    <div class="sp-title">Bound Sigils</div>
+    <div class="sp-rows">
+      ${owned.map(id => {
+        const s = SIGILS[id];
+        if (!s) return '';
+        return `
+          <div class="sp-row cat-${s.category}">
+            <span class="sp-icon">${s.icon}</span>
+            <div class="sp-meta">
+              <div class="sp-name">${s.name}</div>
+              <div class="sp-desc">${s.desc}</div>
+            </div>
+          </div>`;
+      }).join('')}
+    </div>
+  `;
+  document.body.appendChild(panel);
+  // Position below the tray (or wherever it makes sense given viewport).
+  const rect = anchorEl.getBoundingClientRect();
+  const pw = panel.offsetWidth;
+  let left = rect.left + rect.width / 2 - pw / 2;
+  left = Math.max(8, Math.min(left, window.innerWidth - pw - 8));
+  let top = rect.bottom + 6;
+  if (top + panel.offsetHeight > window.innerHeight - 8) {
+    top = Math.max(8, rect.top - panel.offsetHeight - 6);
+  }
+  panel.style.left = `${left}px`;
+  panel.style.top  = `${top}px`;
+  // Outside-click closes (registered once after the open event finishes
+  // bubbling so the opener click doesn't immediately close it).
+  setTimeout(() => {
+    document.addEventListener('pointerdown', _activeSigilsOutsideClose, true);
+  }, 0);
+}
+function _activeSigilsOutsideClose(e) {
+  const panel = document.getElementById('active-sigils-panel');
+  if (!panel) { document.removeEventListener('pointerdown', _activeSigilsOutsideClose, true); return; }
+  if (panel.contains(e.target)) return;
+  hideActiveSigilsPanel();
+}
+function hideActiveSigilsPanel() {
+  const panel = document.getElementById('active-sigils-panel');
+  if (panel) panel.remove();
+  document.removeEventListener('pointerdown', _activeSigilsOutsideClose, true);
+}
+function toggleActiveSigilsPanel(anchorEl) {
+  if (document.getElementById('active-sigils-panel')) hideActiveSigilsPanel();
+  else showActiveSigilsPanel(anchorEl);
 }
 
 function flashResolve() {
@@ -7817,19 +7886,27 @@ function offerVignetteOrPath(fightCtx) {
 // Effect: a typical combat win is one overlay (vignette, sometimes) plus
 // a recruit when applicable.
 // Frequency + pressure gate for the post-combat recruit roll.  Recruits
-// shouldn't fire after every fight — they should feel earned and timely.
-//   - At most one roll per ~2 cleared nodes (chance ramps up after that)
+// shouldn't fire after every fight — they should feel earned and timely —
+// but the original gate was too stingy and players were getting stuck with
+// open slots for stretches.  The dial is more generous now, with an
+// open-slot pressure bonus so a solo party gets filled faster.
+//   - Never twice on the same cleared node
+//   - 1 cleared node since:  40% base chance
+//   - 2 cleared nodes since: 70% base chance
+//   - 3+ cleared nodes:      95% base chance
+//   - +25% chance when the party has 2+ open slots
 //   - If a hero fell this fight, the next roll is forced (Vigil)
 function shouldOfferRecruit() {
   const pickable = ROSTER.filter(id => !state.party.chars[id]);
   if (!pickable.length) return false;
-  const hasOpenSlot = ['front','mid','back'].some(sl => !state.party.slots[sl]);
-  if (!hasOpenSlot) return false;
+  const openSlots = ['front','mid','back'].filter(sl => !state.party.slots[sl]).length;
+  if (openSlots === 0) return false;
   if (state.run.recruitPending) return true;
   const since = state.run.nodesSinceRecruit || 0;
-  if (since < 2) return false;
-  const chance = since >= 4 ? 0.9 : 0.5;
-  return Math.random() < chance;
+  if (since < 1) return false;
+  const baseChance = since >= 3 ? 0.95 : since >= 2 ? 0.7 : 0.4;
+  const slotBoost = openSlots >= 2 ? 0.25 : 0;
+  return Math.random() < Math.min(1, baseChance + slotBoost);
 }
 
 function offerRecruitOrPath() {
