@@ -3387,6 +3387,7 @@ body.party-critical::after {
 .path-col-slots {
   display: flex;
   flex-direction: column;
+  align-items: center;
   justify-content: center;
   gap: 10px;
   flex: 1;
