@@ -1439,6 +1439,79 @@ const EVENTS = {
         resolve: () => { log('The footsteps fade behind you.'); } },
     ],
   },
+
+  // ============================ HIDDEN / SECRET EVENTS ====================
+  // Only enter the gen pool when their `when(state)` predicate matches.
+  // They reward specific play patterns — particular layer, comp, build.
+  mirror_shrine: {
+    id: 'mirror_shrine',
+    name: 'The Mirror Shrine',
+    secret: true,
+    when: (s) => s && s.run && s.run.layer === 3,
+    flavor: 'A shard of glass stands upright on the path, taller than any of you.  Your reflection blinks first.',
+    choices: [
+      { label: 'Look long', tag: 'Heal party 6 · cleanse',
+        resolve: (s) => { aliveParty(s).forEach(c => { c.hp = Math.min(c.maxHp, c.hp + 6); c.bleed = 0; c.weak = 0; }); log('The reflection forgives.'); } },
+      { label: 'Break it',  tag: '+2 max HP party · 2 self-dmg each',
+        resolve: (s) => { aliveParty(s).forEach(c => { c.maxHp += 2; c.hp = Math.max(1, c.hp - 2 + 2); }); log('Glass falls like rain.'); } },
+    ],
+  },
+  buried_hymn: {
+    id: 'buried_hymn',
+    name: 'A Buried Hymn',
+    secret: true,
+    when: (s) => s && s.party && s.party.chars && s.party.chars.cassia && s.party.chars.elin,
+    flavor: 'A note threads up out of the ground — old, slow, and tired of being buried.  Cassia tilts her head; Elin closes her eyes.',
+    choices: [
+      { label: 'Sing along',     tag: 'Heal party to full · +1 max HP each',
+        resolve: (s) => { aliveParty(s).forEach(c => { c.maxHp += 1; c.hp = c.maxHp; }); log('The hymn finishes through you.'); } },
+      { label: 'Walk past it',   tag: '+1 Resolve next fight',
+        resolve: (s) => { s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1; log('The note follows for a while, then fades.'); } },
+    ],
+  },
+  pact_eater: {
+    id: 'pact_eater',
+    name: 'The Pact-Eater',
+    secret: true,
+    when: (s) => {
+      if (!s || !s.party || !s.party.chars) return false;
+      const totalNeg = Object.values(s.party.chars)
+        .reduce((n, c) => n + ((c.quirks && c.quirks.negative) ? c.quirks.negative.length : 0), 0);
+      return totalNeg >= 2;
+    },
+    flavor: 'A figure in stitched leather offers a knife.  "Names you do not want.  I will eat them.  The cost is in the cut."',
+    choices: [
+      { label: 'Strike the bargain', tag: 'Clear all negative quirks · 3 self-dmg each',
+        resolve: (s) => {
+          aliveParty(s).forEach(c => { if (c.quirks) c.quirks.negative = []; c.hp = Math.max(1, c.hp - 3); });
+          log('The Pact-Eater swallows every name.');
+        } },
+      { label: 'Refuse',             tag: 'no change',
+        resolve: () => { log('You keep your wounds.  They are yours.'); } },
+    ],
+  },
+  last_verse: {
+    id: 'last_verse',
+    name: 'The Last Verse',
+    secret: true,
+    when: (s) => s && s.run && s.run.layer >= 2 && (!s.run.sigils || s.run.sigils.length === 0),
+    flavor: 'An old singer rests against a marker stone.  "I have a verse left.  No one to hear it but you."',
+    choices: [
+      { label: 'Listen',       tag: 'Bind a random rare sigil · −2 max HP each',
+        resolve: (s) => {
+          const rare = ['memory', 'wrath', 'doom', 'reaver'];
+          const candidates = rare.filter(id => SIGILS[id] && !(s.run.sigils || []).includes(id));
+          if (candidates.length) {
+            const pick = candidates[Math.floor(Math.random() * candidates.length)];
+            (s.run.sigils = s.run.sigils || []).push(pick);
+            log(`The verse becomes a sigil — <b>${SIGILS[pick].name}</b>.`);
+          }
+          aliveParty(s).forEach(c => { c.maxHp = Math.max(1, c.maxHp - 2); c.hp = Math.min(c.hp, c.maxHp); });
+        } },
+      { label: 'Walk on',      tag: 'no change',
+        resolve: () => { log('The verse stays with the singer.'); } },
+    ],
+  },
   bone_altar: {
     id: 'bone_altar',
     name: 'Bone Altar',
@@ -2599,7 +2672,15 @@ function generateMap() {
   const levels = [];
   const nodes = {};
   let idCounter = 0;
-  const eventPool = _shuffle(Object.keys(EVENTS));
+  // Filter out hidden / secret events whose `when(state)` predicate
+  // doesn't match the current run.  Open events are always in the pool;
+  // secrets unlock based on layer, party comp, sigil count, etc.
+  const eventPool = _shuffle(Object.keys(EVENTS).filter(eid => {
+    const ev = EVENTS[eid];
+    if (!ev || !ev.secret) return true;
+    if (typeof ev.when !== 'function') return true;
+    try { return !!ev.when(state); } catch (_) { return false; }
+  }));
 
   for (let lvl = 1; lvl <= numLevels; lvl++) {
     let countAndTypes; // array of types for the level
