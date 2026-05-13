@@ -6184,21 +6184,34 @@ function applyPreviewHighlight({ enemySlots, partySlots, enemyHits, partyHeals, 
       const fromIdx = SLOTS.indexOf(from);
       const toIdx = SLOTS.indexOf(to);
       // back-display has back on left, so toIdx > fromIdx = visually moving left
-      const glyph = toIdx > fromIdx ? '‹' : '›';
+      const movingLeft = toIdx > fromIdx;
+      const glyph = movingLeft ? '‹' : '›';
       const tag = document.createElement('div');
       tag.className = 'target-move-tag';
       tag.innerHTML = `<span class="move-glyph">${glyph}</span><span class="move-text">${SLOT_LABELS[to] || ''}</span>`;
       dest.appendChild(tag);
     }
     const src = document.querySelector(`#party-half .figure[data-slot="${from}"]`);
-    if (src) src.classList.add('move-src');
+    if (src) {
+      src.classList.add('move-src');
+      // Big direction arrow anchored to the source, pointing toward the
+      // destination.  Side of the figure is determined by movement direction
+      // (back-display puts back on left, so advance = arrow on right).
+      const fromIdx2 = SLOTS.indexOf(from);
+      const toIdx2 = SLOTS.indexOf(to);
+      const movingLeft2 = toIdx2 > fromIdx2;
+      const arrow = document.createElement('div');
+      arrow.className = `move-from-arrow ${movingLeft2 ? 'arrow-left' : 'arrow-right'}`;
+      arrow.textContent = movingLeft2 ? '‹' : '›';
+      src.appendChild(arrow);
+    }
   });
 }
 function clearPreviewHighlight() {
   document.querySelectorAll('.target-marker').forEach(el => el.classList.remove('target-marker'));
   document.querySelectorAll('.move-dest').forEach(el => el.classList.remove('move-dest'));
   document.querySelectorAll('.move-src').forEach(el => el.classList.remove('move-src'));
-  document.querySelectorAll('.target-dmg-label, .target-heal-label, .target-move-tag').forEach(el => el.remove());
+  document.querySelectorAll('.target-dmg-label, .target-heal-label, .target-move-tag, .move-from-arrow').forEach(el => el.remove());
 }
 
 function makeMoveOrBraceTile(charId, slot, tileCounts, teamLocked) {
