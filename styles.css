@@ -3379,8 +3379,8 @@ body.party-critical::after {
 }
 .hero-inspect-party {
   display: grid;
-  grid-template-columns: minmax(180px, 280px) 1fr;
-  gap: 16px;
+  grid-template-columns: minmax(220px, 320px) 1fr;
+  gap: 18px;
   max-height: 60vh;
   position: relative;
 }
@@ -3398,14 +3398,14 @@ body.party-critical::after {
 .hip-focus-column {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   min-width: 0;
 }
 .hip-focus-figure {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: center;
   gap: 4px;
   padding: 4px 4px 8px;
   flex: 1 1 auto;
@@ -3422,26 +3422,37 @@ body.party-critical::after {
 }
 
 /* ---- switcher strip ---- sits in the left column under the focused
-   silhouette.  Small, dim avatars; tapping promotes to focus. */
+   silhouette.  Tappable mini-silhouettes; the focused one lights up. */
 .hip-strip {
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  gap: 8px;
-  padding: 4px 2px 0;
-  border-top: 1px solid rgba(212,200,168,0.12);
+  gap: 10px;
+  padding: 8px 2px 2px;
+  border-top: 1px solid rgba(212,200,168,0.18);
   position: relative;
   flex: 0 0 auto;
   flex-wrap: nowrap;
 }
+.hip-strip::before {
+  /* subtle floor hairline beneath the row */
+  content: '';
+  position: absolute;
+  left: 12%; right: 12%;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(232,220,196,0.16) 50%, transparent 100%);
+  pointer-events: none;
+}
 .hip-avatar {
   flex: 0 1 auto;
   min-width: 0;
-  max-width: 70px;
-  height: 78px;
+  max-width: 90px;
+  width: 90px;
+  height: 110px;
   background: transparent;
   border: none;
-  padding: 0 2px 4px;
+  padding: 0 3px 4px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
@@ -3513,19 +3524,19 @@ body.party-critical::after {
   filter: drop-shadow(0 6px 14px rgba(0,0,0,0.7));
 }
 .hip-avatar-name {
-  font-size: 9px;
-  letter-spacing: 0.18em;
+  font-size: 10px;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--gold-pale);
-  margin-top: 3px;
+  margin-top: 4px;
   white-space: nowrap;
 }
 .hip-avatar-slot {
-  font-size: 7px;
-  letter-spacing: 0.18em;
+  font-size: 8px;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--ink-dim);
-  margin-top: 1px;
+  margin-top: 2px;
 }
 .hip-avatar.hip-avatar-focused .hip-avatar-slot { color: var(--gold); }
 
@@ -3534,7 +3545,7 @@ body.party-critical::after {
    container, name banner, and stat row. */
 .hip-focus-silhouette {
   width: 100%;
-  height: clamp(120px, 22vh, 200px);
+  height: clamp(160px, 30vh, 260px);
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
@@ -3896,15 +3907,15 @@ body.party-critical::after {
     max-height: 96vh;
   }
   .hero-inspect-party { max-height: 56vh; gap: 6px; }
-  .hero-inspect-party { grid-template-columns: minmax(120px, 180px) 1fr; gap: 10px; max-height: 64vh; }
-  .hip-strip { gap: 6px; padding: 2px 2px 0; }
-  .hip-avatar { max-width: 54px; height: 64px; padding: 0 2px 2px; }
-  .hip-avatar-name { font-size: 7.5px; letter-spacing: 0.12em; margin-top: 2px; }
-  .hip-avatar-slot { font-size: 6.5px; letter-spacing: 0.16em; }
+  .hero-inspect-party { grid-template-columns: minmax(170px, 240px) 1fr; gap: 12px; max-height: 64vh; }
+  .hip-strip { gap: 8px; padding: 6px 2px 2px; }
+  .hip-avatar { max-width: 74px; width: 74px; height: 90px; padding: 0 2px 3px; }
+  .hip-avatar-name { font-size: 8.5px; letter-spacing: 0.16em; margin-top: 3px; }
+  .hip-avatar-slot { font-size: 7px; letter-spacing: 0.18em; }
   .hip-focus-figure { padding: 2px 2px 4px; gap: 2px; }
-  .hip-focus-silhouette { height: clamp(90px, 20vh, 150px); }
-  .hip-focus-name { font-size: 13px; letter-spacing: 0.24em; }
-  .hip-focus-title { font-size: 9px; }
+  .hip-focus-silhouette { height: clamp(120px, 26vh, 200px); }
+  .hip-focus-name { font-size: 14px; letter-spacing: 0.26em; }
+  .hip-focus-title { font-size: 9.5px; }
   .hip-stat { padding: 2px 5px; gap: 4px; }
   .hip-stat .hip-stat-label { font-size: 6.5px; letter-spacing: 0.26em; }
   .hip-stat .hip-stat-val { font-size: 9.5px; }
