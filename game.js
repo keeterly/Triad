@@ -2880,7 +2880,32 @@ function grantQuirk(s, charId, quirkId) {
   if (c.quirks[side].length >= QUIRK_CAP) return null;
   if (c.quirks.positive.includes(quirkId) || c.quirks.negative.includes(quirkId)) return null;
   c.quirks[side].push(quirkId);
+  // Fanfare reveal (skipped during simulation)
+  showQuirkAward(charId, quirkId);
   return q;
+}
+
+// Brief full-screen reveal when a hero earns a quirk.  Hero name in
+// uppercase tracked caps + quirk name + flavor.  Fades after ~1.6s.
+// No-ops during simulation.
+function showQuirkAward(charId, quirkId) {
+  if (typeof __simulating !== 'undefined' && __simulating) return;
+  const def = CHARS[charId]; const q = QUIRKS[quirkId];
+  if (!def || !q) return;
+  const old = document.getElementById('quirk-award');
+  if (old) old.remove();
+  const el = document.createElement('div');
+  el.id = 'quirk-award';
+  el.className = `qa qa-${q.positive ? 'positive' : 'negative'}`;
+  el.innerHTML = `
+    <div class="qa-eyebrow">${def.name}</div>
+    <div class="qa-name">${q.name}</div>
+    <div class="qa-desc">${q.desc}</div>
+  `;
+  document.body.appendChild(el);
+  if (Audio && typeof Audio.ui === 'function') Audio.ui();
+  setTimeout(() => el.classList.add('qa-out'), 1200);
+  setTimeout(() => el.remove(), 1700);
 }
 
 // Pick a random quirk of a given polarity (positive | negative | any).
@@ -3935,6 +3960,8 @@ function killEnemy(s, e) {
   // Emoji reaction over the actor for the kill
   if (s.currentActorId) spawnReaction(s.currentActorId, '💀', 'party');
   spawnKillSparks(e.id, 'enemy', s.currentActorId && CHARS[s.currentActorId] && CHARS[s.currentActorId].school);
+  // The killing hero may bark
+  if (s.currentActorId && CHARS[s.currentActorId]) spawnBark(s.currentActorId, 'kill');
   // Pact of Cinders — every surviving enemy starts bleeding
   if (hasSigil(s, 'cinders')) {
     aliveEnemies(s).forEach(en => { if (en !== e && !en.dead) en.bleed = Math.max(en.bleed, 1); });
@@ -4000,6 +4027,8 @@ function applyDmgToParty(s, c, amt) {
   }
   // Near-death emoji reaction — once per character per drop into the danger zone
   if (toHp > 0 && c.hp > 0 && c.hp <= 4) spawnReaction(c.id, '😵', 'party');
+  // Hero may bark when their HP crosses ~30% (and isn't downed)
+  if (toHp > 0 && c.hp > 0 && c.hp <= Math.ceil(c.maxHp * 0.3)) spawnBark(c.id, 'lowHp');
   fireAdjacencyHook(s, 'onPartyDamaged', c.id, toHp);
 
   // Retaliate (Vow of Vigil sigil adds +2 to each retaliate strike)
@@ -4348,6 +4377,8 @@ function fireSynergyFeedback(s, name, receiverId, effectText, effectType) {
   // Fires on both members of the pair when discoverable, otherwise just receiver.
   const emoji = pair && pair.synergy.type === 'friction' ? '💢' : '✨';
   spawnReaction(receiverId, emoji, 'party');
+  // Receiver may bark on bond fires (skip frictions to keep it positive)
+  if (pair && pair.synergy.type === 'bond') spawnBark(receiverId, 'bond');
   if (pair && Array.isArray(pair.ids)) {
     pair.ids.forEach(other => {
       if (other !== receiverId) setTimeout(() => spawnReaction(other, emoji, 'party'), 120);
@@ -5808,6 +5839,73 @@ function spawnKillSparks(id, side, actorSchool) {
   }
 }
 
+// Per-hero combat barks — short lines that fire occasionally on key
+// moments (low HP, kill, bond fire).  Heavily deduped via _barkCooldown
+// so the same hero doesn't repeat a line too often.
+const BARKS = {
+  kai: {
+    lowHp: ["I'm not done.", "Keep climbing.", "Hold."],
+    kill:  ["Clean.", "Next.", "Forward."],
+    bond:  ["Ready.", "With you."],
+  },
+  cassia: {
+    lowHp: ["Hold the line.", "I have stood through worse.", "I do not yield."],
+    kill:  ["The line holds.", "For the banner.", "One more."],
+    bond:  ["I see you.", "Together."],
+  },
+  elin: {
+    lowHp: ["Mercy still has weight.", "I will mend if I can.", "Do not fall."],
+    kill:  ["A small mercy.", "May they rest."],
+    bond:  ["I am here.", "Carry on."],
+  },
+  branwen: {
+    lowHp: ["Quiver is light.", "I need a moment.", "Cover me."],
+    kill:  ["One arrow.", "Counted.", "Back to the quiver."],
+    bond:  ["Mark them.", "Loose."],
+  },
+  korin: {
+    lowHp: ["I will not break.", "Strike me again.", "Come on, then."],
+    kill:  ["Stand down.", "That's one.", "Down."],
+    bond:  ["I have you.", "Wall stands."],
+  },
+  ash: {
+    lowHp: ["...quietly now.", "Less seen.", "Veil closer."],
+    kill:  ["...gone.", "Quiet.", "Unseen."],
+    bond:  ["...with you.", "Veiled."],
+  },
+  mira: {
+    lowHp: ["Bleed me later.", "I am still here.", "Tch."],
+    kill:  ["Done.", "Clean."],
+    bond:  ["Step lightly.", "Move."],
+  },
+};
+const _barkCooldown = new Map(); // key: `${id}|${trigger}` -> last-fire ts
+const BARK_COOLDOWN_MS = 4000;
+function spawnBark(charId, trigger) {
+  if (typeof __simulating !== 'undefined' && __simulating) return;
+  const lines = BARKS[charId] && BARKS[charId][trigger];
+  if (!lines || !lines.length) return;
+  const key = `${charId}|${trigger}`;
+  const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  const last = _barkCooldown.get(key);
+  if (last && (now - last) < BARK_COOLDOWN_MS) return;
+  _barkCooldown.set(key, now);
+  const text = lines[Math.floor(Math.random() * lines.length)];
+  const cardEl = document.querySelector(`#party-half [data-id="${charId}"]`);
+  if (!cardEl) return;
+  const stage = $('#stage'); const layer = $('#popup-layer');
+  if (!stage || !layer) return;
+  const r = cardEl.getBoundingClientRect();
+  const s = stage.getBoundingClientRect();
+  const el = document.createElement('div');
+  el.className = 'combat-bark';
+  el.textContent = text;
+  el.style.left = (r.left + r.width / 2 - s.left) + 'px';
+  el.style.top  = (r.top - s.top + Math.max(28, r.height * 0.16)) + 'px';
+  layer.appendChild(el);
+  setTimeout(() => el.remove(), 2200);
+}
+
 function spawnReaction(id, emoji, side) {
   if (__simulating) return;
   let cardEl;
@@ -6229,6 +6327,8 @@ const Audio = (() => {
       this.stopAmbient();
       if (muted) return; // respect mute; resumes on toggle via stopAmbient/start cycle
       const presets = {
+        // Title screen — slow rising low pad with a slight chime tier
+        title:     { root: 73,  fifth: 110, lp: 800,  noiseGain: 0.018,gain: 0.04, type: 'sine' },
         burning:   { root: 110, fifth: 165, lp: 600,  noiseGain: 0.04, gain: 0.05, type: 'sawtooth' },
         bonetide:  { root: 80,  fifth: 120, lp: 400,  noiseGain: 0.05, gain: 0.045,type: 'sine' },
         withered:  { root: 90,  fifth: 0,   lp: 1200, noiseGain: 0.07, gain: 0.04, type: 'triangle' },
@@ -7827,7 +7927,7 @@ function buildWorldMapContainer() {
 }
 
 function showTitleScreen() {
-  if (Audio && typeof Audio.stopAmbient === 'function') Audio.stopAmbient();
+  if (Audio && typeof Audio.startAmbient === 'function') Audio.startAmbient('title');
   // Ensure the in-game overlay isn't competing
   hideOverlay();
   const root = document.getElementById('title-screen');
