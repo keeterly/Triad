@@ -3125,6 +3125,8 @@ body.party-critical::after {
   letter-spacing: 0.02em;
 }
 #overlay-btn {
+  position: relative;
+  z-index: 5;
   background:
     linear-gradient(180deg, var(--gold-pale) 0%, var(--gold-bright) 40%, var(--gold) 80%, var(--gold-dim) 100%);
   color: #1a0e04; border: 1px solid var(--gold-deep);
@@ -3382,6 +3384,7 @@ body.party-critical::after {
   grid-template-columns: minmax(220px, 320px) 1fr;
   gap: 18px;
   max-height: 60vh;
+  overflow: hidden;
   position: relative;
 }
 .hero-inspect-party::before,
@@ -3400,6 +3403,8 @@ body.party-critical::after {
   flex-direction: column;
   gap: 10px;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 .hip-focus-figure {
   display: flex;
@@ -3545,7 +3550,7 @@ body.party-critical::after {
    container, name banner, and stat row. */
 .hip-focus-silhouette {
   width: 100%;
-  height: clamp(160px, 30vh, 260px);
+  height: clamp(120px, 24vh, 220px);
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
