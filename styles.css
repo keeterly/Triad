@@ -3378,44 +3378,70 @@ body.party-critical::after {
   text-align: left;
 }
 .hero-inspect-party {
+  display: grid;
+  grid-template-columns: minmax(180px, 280px) 1fr;
+  gap: 16px;
+  max-height: 60vh;
+  position: relative;
+}
+.hero-inspect-party::before,
+.hero-inspect-party::after {
+  content: '';
+  position: absolute;
+  width: 10px; height: 10px;
+  border-color: var(--gold-bright);
+  pointer-events: none;
+  opacity: 0.7;
+}
+.hero-inspect-party::before { top: -4px;    left: -4px;  border-top: 1px solid;    border-left: 1px solid; }
+.hero-inspect-party::after  { bottom: -4px; right: -4px; border-bottom: 1px solid; border-right: 1px solid; }
+.hip-focus-column {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.hip-focus-figure {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  padding: 4px 4px 8px;
+  flex: 1 1 auto;
+  min-height: 0;
+  position: relative;
+}
+.hip-focus-info {
+  overflow-y: auto;
+  min-height: 0;
+  padding-right: 4px;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  max-height: 60vh;
 }
 
-/* ---- top lineup ---- standing silhouettes side by side, same vocabulary
-   as the recruit chooser / rest scene.  Tapping promotes to focus; the
-   rest dim.  A faint floor hairline ties them to the same ground. */
+/* ---- switcher strip ---- sits in the left column under the focused
+   silhouette.  Small, dim avatars; tapping promotes to focus. */
 .hip-strip {
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  gap: 16px;
-  padding: 6px 4px 14px;
-  border-bottom: 1px solid rgba(212,200,168,0.18);
+  gap: 8px;
+  padding: 4px 2px 0;
+  border-top: 1px solid rgba(212,200,168,0.12);
   position: relative;
   flex: 0 0 auto;
   flex-wrap: nowrap;
 }
-.hip-strip::after {
-  /* warm floor line beneath the lineup */
-  content: '';
-  position: absolute;
-  left: 8%; right: 8%;
-  bottom: 12px;
-  height: 1px;
-  background: linear-gradient(90deg, transparent 0%, rgba(232,220,196,0.2) 50%, transparent 100%);
-  pointer-events: none;
-}
 .hip-avatar {
   flex: 0 1 auto;
   min-width: 0;
-  max-width: 96px;
-  height: 110px;
+  max-width: 70px;
+  height: 78px;
   background: transparent;
   border: none;
-  padding: 0 4px 4px;
+  padding: 0 2px 4px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
@@ -3503,46 +3529,14 @@ body.party-critical::after {
 }
 .hip-avatar.hip-avatar-focused .hip-avatar-slot { color: var(--gold); }
 
-/* ---- detail pane ---- */
-.hip-detail {
-  display: grid;
-  grid-template-columns: minmax(160px, 240px) 1fr;
-  gap: 18px;
-  padding: 2px 4px 4px 2px;
-  min-height: 0;
-  flex: 1 1 auto;
-  overflow: hidden;
-  position: relative;
-}
-.hip-strip { flex: 0 0 auto; }
-/* NieR corner brackets across the whole detail block so the focused
-   silhouette + info read as one framed unit. */
-.hip-detail::before,
-.hip-detail::after {
-  content: '';
-  position: absolute;
-  width: 10px; height: 10px;
-  border-color: var(--gold-bright);
-  pointer-events: none;
-  opacity: 0.7;
-}
-.hip-detail::before { top: 0;    left: 0;  border-top: 1px solid;    border-left: 1px solid; }
-.hip-detail::after  { bottom: 0; right: 0; border-bottom: 1px solid; border-right: 1px solid; }
-
-/* Left column — large focused silhouette stack. */
-.hip-focus-figure {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 4px;
-  padding: 6px 4px 8px;
-  position: relative;
-  min-width: 0;
-}
+/* The .hip-focus-figure + .hip-focus-info layout is defined above
+   inside .hero-inspect-party.  This block just styles the silhouette
+   container, name banner, and stat row. */
 .hip-focus-silhouette {
   width: 100%;
-  height: clamp(150px, 28vh, 240px);
+  height: clamp(120px, 22vh, 200px);
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -3596,15 +3590,6 @@ body.party-critical::after {
   margin-top: 2px;
 }
 
-/* Right column — passive / affinities / abilities, scrolls internally if needed. */
-.hip-focus-info {
-  overflow-y: auto;
-  min-height: 0;
-  padding-right: 4px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
 .hip-stat {
   display: inline-flex;
   align-items: center;
@@ -3900,13 +3885,13 @@ body.party-critical::after {
     max-height: 96vh;
   }
   .hero-inspect-party { max-height: 56vh; gap: 6px; }
-  .hip-strip { gap: 8px; padding: 2px 2px 8px; }
-  .hip-avatar { max-width: 76px; height: 88px; padding: 0 2px 2px; }
-  .hip-avatar-name { font-size: 8.5px; letter-spacing: 0.14em; margin-top: 2px; }
+  .hero-inspect-party { grid-template-columns: minmax(120px, 180px) 1fr; gap: 10px; max-height: 64vh; }
+  .hip-strip { gap: 6px; padding: 2px 2px 0; }
+  .hip-avatar { max-width: 54px; height: 64px; padding: 0 2px 2px; }
+  .hip-avatar-name { font-size: 7.5px; letter-spacing: 0.12em; margin-top: 2px; }
   .hip-avatar-slot { font-size: 6.5px; letter-spacing: 0.16em; }
-  .hip-detail { grid-template-columns: minmax(120px, 180px) 1fr; gap: 12px; }
-  .hip-focus-figure { padding: 4px 2px 4px; gap: 2px; }
-  .hip-focus-silhouette { height: clamp(110px, 22vh, 170px); }
+  .hip-focus-figure { padding: 2px 2px 4px; gap: 2px; }
+  .hip-focus-silhouette { height: clamp(90px, 20vh, 150px); }
   .hip-focus-name { font-size: 13px; letter-spacing: 0.24em; }
   .hip-focus-title { font-size: 9px; }
   .hip-stat { padding: 2px 5px; gap: 4px; }

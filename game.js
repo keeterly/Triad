@@ -7734,18 +7734,23 @@ function showPartyInspect() {
     return;
   }
 
-  // FFT-style party menu — horizontal roster strip at the top, then a
-  // single detail panel below.  Tapping a strip avatar promotes that
-  // hero to focus; the rest grey.  Detail shows a large portrait, name +
-  // title banner, structured stat chips, passive, affinities, and a
-  // three-column ability grid (FRONT / MID / BACK) with the home slot
-  // marked.
+  // FFT-style party menu — the focused character's full silhouette sits
+  // in the LEFT column with the small switcher row beneath, and all the
+  // text info (passive, affinities, abilities) sits in the RIGHT column
+  // so the layout fits one screen with no scrolling.
   const layout = document.createElement('div');
   layout.className = 'hero-inspect-party';
-  layout.innerHTML = `<div class="hip-strip"></div><div class="hip-detail"></div>`;
+  layout.innerHTML = `
+    <div class="hip-focus-column">
+      <div class="hip-focus-figure"></div>
+      <div class="hip-strip"></div>
+    </div>
+    <div class="hip-focus-info"></div>
+  `;
   choices.appendChild(layout);
+  const figureEl = layout.querySelector('.hip-focus-figure');
   const stripEl  = layout.querySelector('.hip-strip');
-  const detailEl = layout.querySelector('.hip-detail');
+  const infoEl   = layout.querySelector('.hip-focus-info');
 
   const techRow = (kind, tech) => {
     if (!tech) return '';
@@ -7767,7 +7772,7 @@ function showPartyInspect() {
   const renderDetail = (id) => {
     const c = state.party.chars[id];
     const def = CHARS[id];
-    if (!c || !def) { detailEl.innerHTML = ''; return; }
+    if (!c || !def) { figureEl.innerHTML = ''; infoEl.innerHTML = ''; return; }
     const schoolTag = (def.school || '').slice(0, 3).toUpperCase();
     const slotNow = slotOfChar(state, id) || def.home;
     const pos = (c.quirks && c.quirks.positive) || [];
@@ -7780,34 +7785,32 @@ function showPartyInspect() {
     const affinities = (pos.length || neg.length)
       ? `${pos.map(qid => quirkChip(qid, 'positive')).join('')}${neg.map(qid => quirkChip(qid, 'negative')).join('')}`
       : `<span class="hero-quirks-empty">No affinities yet.</span>`;
-    detailEl.innerHTML = `
-      <div class="hip-focus-figure" aria-hidden="true">
-        <div class="hip-focus-silhouette">${PORTRAITS[id] || ''}</div>
-        <div class="hip-focus-name">${def.name}${c.downed ? ' · downed' : ''}</div>
-        <div class="hip-focus-title">${def.title || ''}</div>
-        <div class="hip-focus-stats">
-          <span class="hip-stat hip-stat-hp"><span class="hip-stat-label">HP</span><span class="hip-stat-val">${c.hp}/${c.maxHp}</span></span>
-          <span class="hip-stat hip-stat-school school-${def.school}"><span class="hip-stat-label">CLS</span><span class="hip-stat-val">${schoolTag}</span></span>
-          <span class="hip-stat hip-stat-slot"><span class="hip-stat-label">POS</span><span class="hip-stat-val">${(SLOT_LABELS[slotNow] || slotNow || '').toUpperCase()}${slotNow === def.home ? ' ◆' : ''}</span></span>
-        </div>
+    figureEl.innerHTML = `
+      <div class="hip-focus-silhouette" aria-hidden="true">${PORTRAITS[id] || ''}</div>
+      <div class="hip-focus-name">${def.name}${c.downed ? ' · downed' : ''}</div>
+      <div class="hip-focus-title">${def.title || ''}</div>
+      <div class="hip-focus-stats">
+        <span class="hip-stat hip-stat-hp"><span class="hip-stat-label">HP</span><span class="hip-stat-val">${c.hp}/${c.maxHp}</span></span>
+        <span class="hip-stat hip-stat-school school-${def.school}"><span class="hip-stat-label">CLS</span><span class="hip-stat-val">${schoolTag}</span></span>
+        <span class="hip-stat hip-stat-slot"><span class="hip-stat-label">POS</span><span class="hip-stat-val">${(SLOT_LABELS[slotNow] || slotNow || '').toUpperCase()}${slotNow === def.home ? ' ◆' : ''}</span></span>
       </div>
-      <div class="hip-focus-info">
-        ${def.passive ? `
-          <div class="hip-section">
-            <div class="hip-section-label">Passive</div>
-            <div class="hip-passive"><b>${def.passive.name}</b><span> — ${def.passive.desc}</span></div>
-          </div>` : ''}
+    `;
+    infoEl.innerHTML = `
+      ${def.passive ? `
         <div class="hip-section">
-          <div class="hip-section-label">Affinities</div>
-          <div class="hip-affinities">${affinities}</div>
-        </div>
-        <div class="hip-section">
-          <div class="hip-section-label">Abilities</div>
-          <div class="hip-tech-grid">
-            ${techSection(id, def, 'front')}
-            ${techSection(id, def, 'mid')}
-            ${techSection(id, def, 'back')}
-          </div>
+          <div class="hip-section-label">Passive</div>
+          <div class="hip-passive"><b>${def.passive.name}</b><span> — ${def.passive.desc}</span></div>
+        </div>` : ''}
+      <div class="hip-section">
+        <div class="hip-section-label">Affinities</div>
+        <div class="hip-affinities">${affinities}</div>
+      </div>
+      <div class="hip-section">
+        <div class="hip-section-label">Abilities</div>
+        <div class="hip-tech-grid">
+          ${techSection(id, def, 'front')}
+          ${techSection(id, def, 'mid')}
+          ${techSection(id, def, 'back')}
         </div>
       </div>
     `;
