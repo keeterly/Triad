@@ -7447,18 +7447,34 @@ function showRunSummary(outcome, opts) {
   btn.textContent = (opts && opts.afterClose) ? 'Ascend' : 'Return to Title';
   btn.classList.remove('hidden');
   btn.onclick = () => {
-    body.classList.remove('victory-summary-body', 'run-summary-body');
-    body.innerHTML = '';
-    document.body.classList.remove('party-fallen', 'boss-killed');
-    hideOverlay();
-    resetOverlayBtn();
-    clearSave();
-    // On defeat there's no team left to carry to the next layer — strip
-    // any stale carry so the title screen's "New Game" doesn't silently
-    // re-spawn the dead party.  Boss-win keeps the carry for ascend.
-    if (outcome !== 'boss') clearCarriedParty();
-    if (opts && typeof opts.afterClose === 'function') opts.afterClose();
-    else showTitleScreen();
+    // Ascend cinematic — on boss win the survivors' silhouettes rise up
+    // the stairway behind them, the stats fade out, then the world map
+    // appears.  The summary itself becomes the carry-over transition
+    // instead of dumping straight to the map.
+    const card = body.querySelector('.rs-card');
+    const isAscend = outcome === 'boss' && card;
+    const finish = () => {
+      body.classList.remove('victory-summary-body', 'run-summary-body');
+      body.innerHTML = '';
+      document.body.classList.remove('party-fallen', 'boss-killed');
+      hideOverlay();
+      resetOverlayBtn();
+      clearSave();
+      // On defeat there's no team left to carry to the next layer — strip
+      // any stale carry so the title screen's "New Game" doesn't silently
+      // re-spawn the dead party.  Boss-win keeps the carry for ascend.
+      if (outcome !== 'boss') clearCarriedParty();
+      if (opts && typeof opts.afterClose === 'function') opts.afterClose();
+      else showTitleScreen();
+    };
+    if (isAscend) {
+      btn.classList.add('hidden');
+      card.classList.add('rs-ascending');
+      // Match the longest CSS animation duration (rs-ascend-rise) below.
+      setTimeout(finish, 1400);
+      return;
+    }
+    finish();
   };
   $('#overlay').classList.remove('hidden');
 }
@@ -8305,8 +8321,10 @@ function showSettingsScreen() {
           setTimeout(() => { hideOverlay(); showTitleScreen(); }, 600);
         });
       } else if (action === 'resetprogress') {
-        confirmDestructive('Reset meta progression?', 'All starter unlocks earned across runs will be wiped.', () => {
+        confirmDestructive('Reset meta progression?', 'Starter unlocks, world-map progress, and the cleared-layer chain will be wiped.', () => {
           try { localStorage.removeItem(UNLOCKED_KEY); } catch (_) {}
+          try { localStorage.removeItem(LAYER_KEY); } catch (_) {}
+          try { localStorage.removeItem(CLEARED_KEY); } catch (_) {}
           clearCarriedParty();
           flashSettings('Meta progression reset.');
           setTimeout(() => { hideOverlay(); showTitleScreen(); }, 600);
