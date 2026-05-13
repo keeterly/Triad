@@ -7275,9 +7275,9 @@ function showRunSummary(outcome, opts) {
   else if (outcome === 'victory') { title = 'Victory'; flavor = 'The reaches are quiet.  For a moment, the sins rest.'; outcomeClass = 'rs-victory'; }
   else { title = 'Defeat'; flavor = 'The reach takes you back.  Your story is told elsewhere now.'; outcomeClass = 'rs-defeat'; }
 
-  // Newly-unlocked starters this run (compared to before the run)
-  const unlockedAfter = getUnlockedStarters();
-  const unlockedNew = unlockedAfter.filter(id => id !== 'kai').slice(-3); // recent unlocks
+  // Fallen this run — heroes who went down in a fight and were never lifted.
+  // They get a tombstone memorial below the stats.
+  const fallenIds = partyIds.filter(id => state.party.chars[id] && state.party.chars[id].downed);
 
   $('#overlay-title').textContent = title;
   $('#overlay').classList.remove('overlay-path', 'overlay-vignette');
@@ -7293,9 +7293,34 @@ function showRunSummary(outcome, opts) {
     return `<div class="rs-portrait ${downed ? 'rs-portrait-downed' : ''}">${PORTRAITS[id] || ''}</div>`;
   }).join('');
 
+  // Cinematic ascent — a glowing stairway behind the survivors on boss win.
+  const ascentHtml = outcome === 'boss' ? `
+    <div class="rs-ascent" aria-hidden="true">
+      <div class="rs-ascent-glow"></div>
+      <div class="rs-steps"><span></span><span></span><span></span><span></span><span></span></div>
+    </div>` : '';
+
+  // Tombstone memorial — only renders when at least one hero fell.
+  const memorialHtml = fallenIds.length ? `
+    <div class="rs-memorial">
+      <span class="rs-memorial-label">In memory</span>
+      <div class="rs-graves">
+        ${fallenIds.map(id => `
+          <div class="rs-grave">
+            <div class="rs-grave-stone">
+              <span class="rs-grave-mark">+</span>
+              <span class="rs-grave-name">${(CHARS[id]?.name || id).toUpperCase()}</span>
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>` : '';
+
   body.innerHTML = `
     <div class="rs-card ${outcomeClass}">
-      <div class="rs-montage">${montage}</div>
+      <div class="rs-montage ${outcome === 'boss' ? 'rs-with-ascent' : ''}">
+        ${ascentHtml}
+        ${montage}
+      </div>
       <div class="rs-flavor">${flavor}</div>
       <div class="rs-stats">
         <span class="rs-stat"><b>${rs.reaches}</b> <em>${rs.reaches === 1 ? 'reach' : 'reaches'}</em></span>
@@ -7304,7 +7329,7 @@ function showRunSummary(outcome, opts) {
       </div>
       <div class="rs-rows">${charRows}</div>
       ${synList}
-      ${unlockedNew.length ? `<div class="rs-unlocks"><span class="rs-unlocks-label">Companions remembered</span>${unlockedNew.map(id => `<span class="rs-unlocks-chip">${CHARS[id]?.name || id}</span>`).join('')}</div>` : ''}
+      ${memorialHtml}
     </div>
   `;
   $('#overlay-choices').classList.add('hidden');
