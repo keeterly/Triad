@@ -2581,24 +2581,28 @@ function getTeamSpecialCost(s) {
 // with a louder VFX.  Each combo's `requires` is a list of role tuples;
 // matching consumes one queue item per role.
 // ============================================================================
+// Combos exchange total damage for a different SHAPE.  Each is balanced so
+// the individual actions remain viable: fusing trades raw output for
+// utility (armor strip, AoE pressure, defensive setup, healing).  Players
+// should sometimes choose NOT to fuse — that's the whole point.
 const COMBOS = {
   // ---- Duos ----
   banner_volley: {
     id: 'banner_volley', name: 'Banner Volley', tier: 'duo',
-    desc: 'Strip armor + AoE bleed',
+    desc: 'Strip front armor · AoE bleed 2 (less raw dmg, more pressure)',
     requires: [
       { heroId: 'cassia', kind: 'attack' },
       { heroId: 'branwen', kind: 'attack' },
     ],
     fn: (s) => {
       const front = enemyBySlot(s, 'front');
-      if (front && !front.dead) { front.armor = 0; applyDmgToEnemy(s, front, 8); }
+      if (front && !front.dead) { front.armor = 0; applyDmgToEnemy(s, front, 4); }
       aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 2));
     },
   },
   twin_strike: {
     id: 'twin_strike', name: 'Twin Strike', tier: 'duo',
-    desc: 'Two heavy hits on the lowest-HP enemy',
+    desc: 'Focus fire — two heavy hits on lowest-HP target (single target)',
     requires: [
       { heroId: 'branwen', kind: 'attack' },
       { heroId: 'mira', kind: 'attack' },
@@ -2610,7 +2614,7 @@ const COMBOS = {
   },
   crossblade_dance: {
     id: 'crossblade_dance', name: 'Crossblade Dance', tier: 'duo',
-    desc: 'Four-hit barrage front',
+    desc: 'Stack bleed deep on the front-most (small chip, large bleed)',
     requires: [
       { heroId: 'kai', kind: 'attack' },
       { heroId: 'mira', kind: 'attack' },
@@ -2618,89 +2622,97 @@ const COMBOS = {
     fn: (s) => {
       const front = enemyBySlot(s, 'front');
       if (front && !front.dead) {
-        for (let i = 0; i < 4; i++) { if (!front.dead) applyDmgToEnemy(s, front, 4); }
-        if (!front.dead) front.bleed = Math.max(front.bleed, 1);
+        for (let i = 0; i < 3; i++) { if (!front.dead) applyDmgToEnemy(s, front, 3); }
+        if (!front.dead) front.bleed = Math.max(front.bleed, 4);
       }
     },
   },
   wall_charge: {
     id: 'wall_charge', name: 'Wall Charge', tier: 'duo',
-    desc: '10 dmg front + taunt + retaliate',
+    desc: 'Trade dmg for full defensive setup (Korin taunt + retal + party armor)',
     requires: [
       { heroId: 'cassia', kind: 'attack' },
       { heroId: 'korin', kind: 'attack' },
     ],
     fn: (s) => {
       const front = enemyBySlot(s, 'front');
-      if (front && !front.dead) applyDmgToEnemy(s, front, 10);
+      if (front && !front.dead) applyDmgToEnemy(s, front, 6);
       const k = s.party.chars.korin;
-      if (k && !k.downed) { k.taunt = true; k.retaliate = 3; k.armor += 3; }
+      if (k && !k.downed) { k.taunt = true; k.retaliate = 3; k.armor += 4; }
+      aliveParty(s).forEach(c => { if (c.id !== 'korin') c.armor += 2; });
     },
   },
   quiet_volley: {
     id: 'quiet_volley', name: 'Quiet Volley', tier: 'duo',
-    desc: 'AoE 4 + bleed all + party +1 dmg next turn',
+    desc: 'Spread bleed across all enemies + buff party for next turn',
     requires: [
       { heroId: 'ash', kind: 'attack' },
       { heroId: 'branwen', kind: 'attack' },
     ],
     fn: (s) => {
-      dmgAllEnemies(s, 4);
+      dmgAllEnemies(s, 3);
       aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 2));
       aliveParty(s).forEach(c => c.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'quiet_volley' }));
     },
   },
   hush_of_blades: {
     id: 'hush_of_blades', name: 'Hush of Blades', tier: 'duo',
-    desc: 'AoE 3 + bleed all + lowest +2 dmg next',
+    desc: 'AoE chip + set up the lowest-HP ally for a big next turn',
     requires: [
       { heroId: 'ash', kind: 'attack' },
       { heroId: 'mira', kind: 'attack' },
     ],
     fn: (s) => {
-      dmgAllEnemies(s, 3);
+      dmgAllEnemies(s, 2);
       aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 1));
       const t = aliveParty(s).slice().sort((a,b) => a.hp - b.hp)[0];
-      if (t) t.pendingEffects.push({ kind: 'attackBonus', amt: 2, source: 'hush' });
+      if (t) t.pendingEffects.push({ kind: 'attackBonus', amt: 3, source: 'hush' });
     },
   },
   sister_mend: {
     id: 'sister_mend', name: "Sister's Mend", tier: 'duo',
-    desc: 'Heal party 5 + +3⛨ all',
+    desc: 'No damage — heal party 6 + +4⛨ all + cleanse',
     requires: [
       { heroId: 'cassia', kind: 'attack' },
       { heroId: 'elin', kind: 'attack' },
     ],
     fn: (s) => {
       aliveParty(s).forEach(c => {
-        const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 5);
+        const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 6);
         if (c.hp > b) spawnPopupId(c.id, `+${c.hp - b}`, 'heal', 'party');
-        c.armor += 3;
+        c.armor += 4; c.bleed = 0; c.weak = 0;
       });
     },
   },
   veiled_flame: {
     id: 'veiled_flame', name: 'Veiled Flame', tier: 'duo',
-    desc: 'AoE 4 + heal lowest 5',
+    desc: 'Hybrid — light AoE + heal lowest ally to full (or +8)',
     requires: [
       { heroId: 'ash', kind: 'attack' },
       { heroId: 'elin', kind: 'attack' },
     ],
-    fn: (s) => { dmgAllEnemies(s, 4); healLowest(s, 5); },
+    fn: (s) => {
+      dmgAllEnemies(s, 3);
+      const t = aliveParty(s).slice().sort((a,b) => a.hp - b.hp)[0];
+      if (t) {
+        const b = t.hp; t.hp = Math.min(t.maxHp, t.hp + 8);
+        if (t.hp > b) spawnPopupId(t.id, `+${t.hp - b}`, 'heal', 'party');
+      }
+    },
   },
   // ---- Triples ----
   sacred_triad: {
     id: 'sacred_triad', name: 'Sacred Triad', tier: 'triple',
-    desc: 'AoE 7 + heal all 5 + cleanse + armor',
+    desc: 'AoE 6 + cleanse + heal all 6 + party +2⛨',
     requires: [
       { heroId: 'cassia', kind: 'attack' },
       { heroId: 'elin', kind: 'attack' },
       { heroId: 'branwen', kind: 'attack' },
     ],
     fn: (s) => {
-      dmgAllEnemies(s, 7);
+      dmgAllEnemies(s, 6);
       aliveParty(s).forEach(c => {
-        const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 5);
+        const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 6);
         if (c.hp > b) spawnPopupId(c.id, `+${c.hp - b}`, 'heal', 'party');
         c.bleed = 0; c.weak = 0; c.armor += 2;
       });
@@ -2708,21 +2720,21 @@ const COMBOS = {
   },
   three_blades: {
     id: 'three_blades', name: 'Three Blades', tier: 'triple',
-    desc: 'AoE 6 + bleed 3 all + +1 Resolve',
+    desc: 'AoE 4 + bleed 4 all (long pressure, less burst)',
     requires: [
       { heroId: 'kai', kind: 'attack' },
       { heroId: 'mira', kind: 'attack' },
       { heroId: 'branwen', kind: 'attack' },
     ],
     fn: (s) => {
-      dmgAllEnemies(s, 6);
-      aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 3));
+      dmgAllEnemies(s, 4);
+      aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 4));
       gainResolve(s, 1);
     },
   },
   front_phalanx: {
     id: 'front_phalanx', name: 'Front Phalanx', tier: 'triple',
-    desc: '12 dmg front + party +4⛨ + cleanse',
+    desc: '9 dmg front + party +5⛨ + cleanse (trade burst for defense)',
     requires: [
       { heroId: 'cassia', kind: 'attack' },
       { heroId: 'korin', kind: 'attack' },
@@ -2730,8 +2742,8 @@ const COMBOS = {
     ],
     fn: (s) => {
       const front = enemyBySlot(s, 'front');
-      if (front && !front.dead) applyDmgToEnemy(s, front, 12);
-      aliveParty(s).forEach(c => { c.armor += 4; c.bleed = 0; c.weak = 0; });
+      if (front && !front.dead) applyDmgToEnemy(s, front, 9);
+      aliveParty(s).forEach(c => { c.armor += 5; c.bleed = 0; c.weak = 0; });
     },
   },
 };
