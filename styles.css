@@ -6433,40 +6433,59 @@ body.boss-killed::before {
   .rs-portrait { width: 48px; height: 70px; }
 }
 
-/* Landscape compaction — most mobile landscapes sit around 360-460px tall.
-   The Ascend summary needs to fit on one screen end-to-end (montage,
-   stats, hero rows, memorial, button) without scrolling. */
-@media (max-height: 700px) {
+/* Landscape compaction — the Ascend summary must fit on one mobile/tablet
+   landscape screen without scrolling.  We trigger on orientation: landscape
+   so iPad-class viewports (e.g. 1024 tall) also compress, and tighten again
+   on the shorter phone-class screens. */
+@media (orientation: landscape) and (max-height: 1100px) {
   .overlay-runsummary #overlay-body { padding-top: 4px; padding-bottom: 4px; }
-  .rs-card { gap: 6px; padding: 2px 4px 0; }
-  .rs-montage { height: 96px; gap: 6px; padding-bottom: 0; }
+  .rs-card {
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr);
+    grid-template-areas:
+      "montage  rows"
+      "flavor   rows"
+      "stats    rows"
+      "bonds    memorial"
+      "bonds    memorial";
+    gap: 6px 18px;
+    padding: 0 6px;
+    align-items: start;
+  }
+  .rs-montage  { grid-area: montage;  height: 96px; gap: 6px; padding-bottom: 0; }
+  .rs-flavor   { grid-area: flavor;   font-size: 11px; line-height: 1.4; padding: 0; text-align: left; }
+  .rs-stats    { grid-area: stats;    justify-content: flex-start; gap: 14px; padding: 2px 0 0; border: none; }
+  .rs-rows     { grid-area: rows;     gap: 2px; align-self: start; }
+  .vs-syn      { grid-area: bonds;    padding-top: 4px; text-align: left; font-size: 9.5px; margin-top: 0; border-top: none; }
+  .rs-memorial { grid-area: memorial; margin-top: 0; padding-top: 4px; gap: 4px; align-items: flex-start; }
   .rs-portrait { width: 56px; height: 84px; }
-  .rs-flavor { font-size: 11px; line-height: 1.4; padding: 0 4px; }
-  .rs-stats { gap: 14px; padding: 4px 0 2px; }
-  .rs-stat b { font-size: 15px; }
-  .rs-stat em { font-size: 8.5px; }
-  .rs-rows { gap: 2px; }
-  .rs-rows .vs-row { padding: 2px 4px; font-size: 10.5px; }
-  .rs-rows .vs-name { font-size: 9.5px; }
-  .rs-rows .vs-stat { font-size: 9.5px; }
-  .rs-memorial { margin-top: 4px; padding-top: 6px; gap: 4px; }
+  .rs-stat b   { font-size: 14px; }
+  .rs-stat em  { font-size: 8px; }
+  .rs-rows .vs-row { padding: 2px 4px; font-size: 10px; grid-template-columns: 1fr auto; gap: 8px; }
+  .rs-rows .vs-name { font-size: 9px; }
+  .rs-rows .vs-stat { font-size: 9px; }
   .rs-memorial-label { font-size: 8px; }
   .rs-graves { gap: 8px; }
   .rs-grave-stone { width: 44px; min-height: 54px; padding: 4px 3px 6px; }
   .rs-grave-mark { font-size: 12px; }
   .rs-grave-name { font-size: 7.5px; letter-spacing: 0.14em; }
-  .vs-syn { padding-top: 4px; gap: 4px; }
   .vs-syn-label { font-size: 8px; }
   .vs-syn-chip { font-size: 9px; padding: 1px 6px; }
+  /* Title sits above the card — keep it small in landscape so it doesn't
+     steal vertical space.  Same for the Ascend button. */
+  .overlay-runsummary #overlay-title { font-size: 13px; padding: 2px 0; }
+  .overlay-runsummary #overlay-btn { padding: 6px 18px; font-size: 11px; }
 }
-@media (max-height: 480px) {
-  .rs-card { gap: 4px; }
-  .rs-montage { height: 76px; }
-  .rs-portrait { width: 44px; height: 64px; }
-  .rs-flavor { font-size: 10px; line-height: 1.35; }
-  .rs-stats { gap: 10px; padding: 2px 0 0; }
-  .rs-stat b { font-size: 13px; }
-  .rs-grave-stone { width: 38px; min-height: 46px; }
+@media (orientation: landscape) and (max-height: 520px) {
+  .rs-card { gap: 4px 16px; padding: 0 4px; }
+  .rs-montage { height: 72px; }
+  .rs-portrait { width: 44px; height: 60px; }
+  .rs-flavor { font-size: 10px; line-height: 1.3; }
+  .rs-stat b { font-size: 12px; }
+  .rs-rows .vs-row { padding: 1px 4px; font-size: 9px; }
+  .rs-rows .vs-name, .rs-rows .vs-stat { font-size: 8.5px; }
+  .rs-grave-stone { width: 36px; min-height: 44px; }
+  .rs-grave-mark { font-size: 10px; }
   .rs-grave-name { font-size: 7px; }
 }
 

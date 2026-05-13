@@ -8103,13 +8103,24 @@ const CARRIED_KEY = 'kizuna.carriedParty';
 function saveCarriedParty(s) {
   if (!s || !s.party) return;
   try {
-    const chars = Object.values(s.party.chars).map(c => ({
+    // Only the survivors climb.  Fallen heroes are mourned in the memorial
+    // and don't carry to the next layer — their slot opens for a recruit.
+    const survivors = Object.values(s.party.chars).filter(c => !c.downed);
+    const carriedIds = new Set(survivors.map(c => c.id));
+    const chars = survivors.map(c => ({
       id: c.id,
       hp: c.hp, maxHp: c.maxHp,
       quirks: c.quirks || { positive: [], negative: [] },
       upgrades: c.upgrades || {},
     }));
-    const data = { chars, slots: { ...s.party.slots } };
+    // Strip dead heroes from the slot map so their position opens for a
+    // future recruit on the next layer.
+    const slots = {};
+    ['front', 'mid', 'back'].forEach(sl => {
+      const id = s.party.slots[sl];
+      slots[sl] = (id && carriedIds.has(id)) ? id : null;
+    });
+    const data = { chars, slots };
     localStorage.setItem(CARRIED_KEY, JSON.stringify(data));
   } catch (_) {}
 }
