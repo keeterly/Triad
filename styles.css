@@ -3645,6 +3645,30 @@ body.party-critical::after {
 .hip-stat.hip-stat-school.school-stealth  { border-color: var(--weak); }
 .hip-stat.hip-stat-school.school-stealth  .hip-stat-val { color: var(--weak); }
 
+/* Compact formation diagram inside the POS chip — three dots, BACK on
+   the left and FRONT on the right.  The hero's current slot fills gold;
+   the home slot gets a thin gold outline whether or not they stand on it. */
+.hip-form {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.hip-form-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: transparent;
+  border: 1px solid rgba(212,200,168,0.32);
+}
+.hip-form-dot.hip-form-dot-home { border-color: var(--gold); }
+.hip-form-dot.hip-form-dot-on {
+  background: var(--gold-bright);
+  border-color: var(--gold-bright);
+  box-shadow: 0 0 6px rgba(240,212,136,0.55);
+}
+
+/* Hide the switcher strip when there's nothing to switch between */
+.hip-strip.hidden { display: none; }
+
 /* Sections — bracket-style labels */
 .hip-section { display: flex; flex-direction: column; gap: 4px; }
 .hip-section-label {

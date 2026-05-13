@@ -7782,9 +7782,14 @@ function showPartyInspect() {
       if (!q) return '';
       return `<span class="hero-quirk hero-quirk-${polarity}" title="${q.name} — ${q.desc}">${q.name}</span>`;
     };
-    const affinities = (pos.length || neg.length)
-      ? `${pos.map(qid => quirkChip(qid, 'positive')).join('')}${neg.map(qid => quirkChip(qid, 'negative')).join('')}`
-      : `<span class="hero-quirks-empty">No affinities yet.</span>`;
+    const hasAffinities = pos.length || neg.length;
+    // Compact formation diagram — three dots for F / M / B with the
+    // hero's current slot lit.  Sits in the POS chip so the chip is
+    // both label and tiny diagram in one.
+    const slotIdx = SLOTS.indexOf(slotNow);
+    const formation = SLOTS.map((_, i) =>
+      `<span class="hip-form-dot${i === slotIdx ? ' hip-form-dot-on' : ''}${i === SLOTS.indexOf(def.home) ? ' hip-form-dot-home' : ''}"></span>`
+    ).join('');
     figureEl.innerHTML = `
       <div class="hip-focus-silhouette" aria-hidden="true">${PORTRAITS[id] || ''}</div>
       <div class="hip-focus-name">${def.name}${c.downed ? ' · downed' : ''}</div>
@@ -7792,7 +7797,7 @@ function showPartyInspect() {
       <div class="hip-focus-stats">
         <span class="hip-stat hip-stat-hp"><span class="hip-stat-label">HP</span><span class="hip-stat-val">${c.hp}/${c.maxHp}</span></span>
         <span class="hip-stat hip-stat-school school-${def.school}"><span class="hip-stat-label">CLS</span><span class="hip-stat-val">${schoolTag}</span></span>
-        <span class="hip-stat hip-stat-slot"><span class="hip-stat-label">POS</span><span class="hip-stat-val">${(SLOT_LABELS[slotNow] || slotNow || '').toUpperCase()}${slotNow === def.home ? ' ◆' : ''}</span></span>
+        <span class="hip-stat hip-stat-slot"><span class="hip-stat-label">POS</span><span class="hip-form">${formation}</span></span>
       </div>
     `;
     infoEl.innerHTML = `
@@ -7801,10 +7806,11 @@ function showPartyInspect() {
           <div class="hip-section-label">Passive</div>
           <div class="hip-passive"><b>${def.passive.name}</b><span> — ${def.passive.desc}</span></div>
         </div>` : ''}
-      <div class="hip-section">
-        <div class="hip-section-label">Affinities</div>
-        <div class="hip-affinities">${affinities}</div>
-      </div>
+      ${hasAffinities ? `
+        <div class="hip-section">
+          <div class="hip-section-label">Affinities</div>
+          <div class="hip-affinities">${pos.map(qid => quirkChip(qid, 'positive')).join('')}${neg.map(qid => quirkChip(qid, 'negative')).join('')}</div>
+        </div>` : ''}
       <div class="hip-section">
         <div class="hip-section-label">Abilities</div>
         <div class="hip-tech-grid">
@@ -7845,6 +7851,9 @@ function showPartyInspect() {
     stripEl.appendChild(btn);
     if (idx === 0) setFocus(id);
   });
+  // A solo party doesn't need a switcher row.  Hide it so the column
+  // doesn't show a single orphan avatar.
+  if (charIds.length <= 1) stripEl.classList.add('hidden');
 
   choices.classList.remove('hidden');
   resetOverlayBtn();
