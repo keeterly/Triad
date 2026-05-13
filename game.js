@@ -565,6 +565,53 @@ const PORTRAITS = {
   <circle cx="32" cy="76" r="2.2" fill="#8a6a32"/>
   <circle cx="68" cy="76" r="2.2" fill="#8a6a32"/>
 </svg>`,
+  // ===== GARRON — Warden of the Gate =====
+  // Heavy plate silhouette, a great kite shield held forward.  Cool steel
+  // grey palette with iron-blue accents and a faint gold trim line.
+  garron: `
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <linearGradient id="garron-armor" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#5a6470"/>
+      <stop offset="60%" stop-color="#2c343c"/>
+      <stop offset="100%" stop-color="#10141a"/>
+    </linearGradient>
+    <linearGradient id="garron-shield" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#6a7682"/>
+      <stop offset="60%" stop-color="#2e3640"/>
+      <stop offset="100%" stop-color="#0a0e14"/>
+    </linearGradient>
+  </defs>
+  <!-- bulky pauldrons + chest plate silhouette -->
+  <path d="M22 130 L18 78 Q26 60 32 56 Q50 52 68 56 Q74 60 82 78 L78 130 Z"
+        fill="url(#garron-armor)" stroke="#06080c" stroke-width="0.7"/>
+  <!-- helm with face slit (great-helm) -->
+  <path d="M36 60 Q36 38 50 36 Q64 38 64 60 L60 64 L40 64 Z" fill="#3a4250" stroke="#06080c" stroke-width="0.5"/>
+  <!-- horizontal eye slit -->
+  <rect x="40" y="50" width="20" height="2.4" fill="#0a0c10"/>
+  <!-- twin glowing slits inside (the eyes) -->
+  <rect x="42" y="50.6" width="6" height="1.2" fill="#7c98c0" opacity="0.9"/>
+  <rect x="52" y="50.6" width="6" height="1.2" fill="#7c98c0" opacity="0.9"/>
+  <!-- helm crest ridge -->
+  <path d="M48 36 L50 30 L52 36 Z" fill="#5a6470"/>
+  <!-- pauldron edges -->
+  <path d="M18 78 Q14 70 22 64 L28 70 Z" fill="#3a4250"/>
+  <path d="M82 78 Q86 70 78 64 L72 70 Z" fill="#3a4250"/>
+  <!-- center chest emblem — gold cross on dark plate -->
+  <rect x="46" y="84" width="8" height="22" fill="#1a2028"/>
+  <rect x="48" y="86" width="4" height="18" fill="#a07a3c"/>
+  <rect x="46" y="92" width="8" height="3" fill="#a07a3c"/>
+  <!-- great kite shield held forward (left side from viewer) -->
+  <path d="M14 84 Q12 80 16 78 L26 80 L28 110 Q22 118 14 110 Z"
+        fill="url(#garron-shield)" stroke="#04060a" stroke-width="0.6"/>
+  <!-- shield boss + cross emblem -->
+  <circle cx="20" cy="92" r="3" fill="#1a2028" stroke="#a07a3c" stroke-width="0.6"/>
+  <line x1="20" y1="86" x2="20" y2="100" stroke="#a07a3c" stroke-width="0.5"/>
+  <line x1="14" y1="92" x2="26" y2="92" stroke="#a07a3c" stroke-width="0.5"/>
+  <!-- mace haft on his right hip (just a hint of weapon weight) -->
+  <rect x="68" y="90" width="2.4" height="30" fill="#3a2c20"/>
+  <rect x="65" y="118" width="9" height="6" fill="#2a323a" stroke="#06080c" stroke-width="0.4"/>
+</svg>`,
   husk: `
 <svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
   <path d="M30 130 L26 70 Q50 56 74 70 L70 130 Z" fill="#2a2628" stroke="#0a070a" stroke-width="0.6"/>
@@ -1055,6 +1102,42 @@ const CHARS = {
         basic: { name: 'Whetstone', desc: '+1 atk next turn (self)',
           fn: (s) => { const c = s.party.chars.kai; if (c) c.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'whetstone' }); } },
         sig:   { name: 'Patch Up',  desc: 'Heal 5 self', fn: (s) => { const c = s.party.chars.kai; if (c) { c.hp = Math.min(c.maxHp, c.hp + 5); } } },
+      },
+    },
+  },
+  // ============================ GARRON — Warden of the Gate ============
+  // Front-line tank/protector built around taunt + armor.  Highest HP in
+  // the roster, paired with the Sentinel passive that softens damage on
+  // adjacent allies while he holds the front.  Counterweight to the
+  // glass-cannon casters.
+  garron: {
+    id: 'garron',
+    name: 'Garron',
+    title: 'Warden of the Gate',
+    school: 'physical',
+    maxHp: 30,
+    home: 'front',
+    passive: { name: 'Sentinel', desc: 'While in Front, allies take -1 damage.' },
+    techs: {
+      front: {
+        basic: { name: 'Halt', desc: '4 dmg + self-taunt this turn', dmg: 4,
+          reach: ['front'], pattern: 'front-most',
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 4); const g = s.party.chars.garron; if (g && !g.downed) g.taunt = true; } },
+        sig:   { name: 'Bulwark', desc: 'Party +3⛨ + self-taunt',
+          fn: (s) => { partyArmor(s, 3); const g = s.party.chars.garron; if (g && !g.downed) g.taunt = true; } },
+      },
+      mid: {
+        basic: { name: 'Tower Slam', desc: '7 dmg front-most', dmg: 7,
+          reach: ['front'], pattern: 'front-most',
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 7); } },
+        sig:   { name: 'Anchor', desc: '10 dmg front + 3 retaliate self', dmg: 10,
+          reach: ['front'], pattern: 'front-most',
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 10); const g = s.party.chars.garron; if (g && !g.downed) g.retaliate += 3; } },
+      },
+      back: {
+        basic: { name: 'Whistle', desc: '+2 armor party', fn: (s) => partyArmor(s, 2) },
+        sig:   { name: 'Last Words', desc: 'Heal 6 lowest + +2 armor party',
+          fn: (s) => { healLowest(s, 6); partyArmor(s, 2); } },
       },
     },
   },
@@ -2342,6 +2425,21 @@ const VIGNETTES = {
       { label: 'Welcome her', tag: 'Mira heals to full', resolve: (s) => { const c = s.party.chars.mira; if (c) c.hp = c.maxHp; } },
     ],
   },
+  recruit_garron: {
+    id: 'recruit_garron', when: { recruited: 'garron' }, oneShot: true,
+    title: 'Garron, kite-shield to the path',
+    speaker: 'garron',
+    lines: [
+      { who: null,     text: 'A great kite shield is planted in the dust like a marker.  Behind it, a man in plate sits very still, helm balanced on one knee.' },
+      { who: 'garron', text: 'You moved well in the last fight.  I watched.' },
+      { who: '_first', text: 'You watched and didn\'t help?' },
+      { who: 'garron', text: 'You did not need helping then.  You may need it later.  Stand behind me.  I will know when to step aside.' },
+    ],
+    choices: [
+      { label: 'Welcome him', tag: 'Garron rests (HP restored)',
+        resolve: (s) => { const c = s.party.chars.garron; if (c) c.hp = c.maxHp; } },
+    ],
+  },
   recruit_kai: {
     id: 'recruit_kai', when: { recruited: 'kai' }, oneShot: true,
     title: 'Kai, on his feet again',
@@ -2779,7 +2877,7 @@ const RESOLVE_CARRY_CAP = 3;
 
 // Pool of characters the player can encounter mid-run.
 // Default starting party is the first three; the rest are recruitable between fights.
-const ROSTER = ['kai', 'cassia', 'elin', 'branwen', 'korin', 'ash', 'mira'];
+const ROSTER = ['kai', 'cassia', 'elin', 'branwen', 'korin', 'ash', 'mira', 'garron'];
 
 // ============================================================================
 // TECH UPGRADES — alternate variants for specific techs, picked between fights.
@@ -3927,7 +4025,7 @@ function unlockStarter(id) {
 // Heroes whose kit can carry a solo run.  Healers and party-buff specialists
 // (Elin) can be RECRUITED but never roll as the solo starter — without a
 // front-liner to keep alive, their kit has nothing to do.
-const SOLO_VIABLE = new Set(['kai', 'cassia', 'korin', 'branwen', 'mira', 'ash']);
+const SOLO_VIABLE = new Set(['kai', 'cassia', 'korin', 'branwen', 'mira', 'ash', 'garron']);
 function _pickStarter() {
   const pool = getUnlockedStarters().filter(id => SOLO_VIABLE.has(id));
   return pool.length ? pool[Math.floor(Math.random() * pool.length)] : 'kai';
@@ -4549,6 +4647,14 @@ function applyDmgToParty(s, c, amt) {
   if (c.id === 'cassia' && slotOfChar(s, 'cassia') === 'front' && amt > 0) {
     amt = Math.max(0, amt - 1);
     spawnPassivePopup('cassia', 'STEADFAST');
+  }
+  // Garron "Sentinel" — while he holds the front, every other party
+  // member takes -1 damage (Garron himself takes full so the cost lands
+  // on the warden).  Stacks below armor / vuln.
+  const garron = s.party.chars.garron;
+  if (garron && !garron.downed && c.id !== 'garron' && slotOfChar(s, 'garron') === 'front' && amt > 0) {
+    amt = Math.max(0, amt - 1);
+    spawnPassivePopup('garron', 'SENTINEL');
   }
   // Run modifier — "Hunger" twists Front-position damage taken upward
   if (hasRunModifier(s, 'hunger') && slotOfChar(s, c.id) === 'front') amt += 1;
@@ -8554,6 +8660,7 @@ const RECRUIT_GREETINGS = {
   korin:   "I do not run.  Say so now or never.",
   ash:     "I do not promise to be seen.  Only useful.",
   mira:    "I prefer to finish before they notice.",
+  garron:  "Stand behind me.  I will know when to step aside.",
 };
 
 // Recruit moment — single hero appears in a mini-vignette.  Re-uses the
