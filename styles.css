@@ -1722,6 +1722,9 @@ body {
   padding: 6px 0 10px;
   position: relative;
 }
+.starter-lineup.recruit-lineup {
+  padding-top: 72px;
+}
 .starter-lineup::after {
   /* Soft warm floor line under the row */
   content: '';
