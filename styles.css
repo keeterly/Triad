@@ -1627,6 +1627,9 @@ body {
 .wm-row.wm-locked { opacity: 0.4; }
 .wm-row.wm-locked .wm-name { color: var(--ink-faint); letter-spacing: 0.18em; }
 .wm-row.wm-locked .wm-sub  { font-style: normal; }
+.wm-row.wm-clickable { cursor: pointer; transition: filter 0.18s, transform 0.12s; }
+.wm-row.wm-clickable:hover { filter: brightness(1.18); transform: translateY(-1px); }
+.wm-row.wm-clickable:active { transform: translateY(0); }
 .wm-continue {
   align-self: center;
   margin-top: 8px;
