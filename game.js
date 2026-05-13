@@ -1914,8 +1914,8 @@ const VIGNETTES = {
     choices: [
       // Both choices simply close into the run-summary screen — the scene is
       // about catharsis, not bonuses.
-      { label: 'We try again', tag: 'continue to run summary', resolve: () => {} },
-      { label: 'Walk into the next reach in silence', tag: 'continue to run summary', resolve: () => {} },
+      { label: 'We try again', resolve: () => {} },
+      { label: 'Walk into the next reach in silence', resolve: () => {} },
     ],
   },
 
@@ -1932,8 +1932,8 @@ const VIGNETTES = {
       { who: '_last',  text: 'Until the next one wakes.' },
     ],
     choices: [
-      { label: 'Walk home', tag: 'continue to run summary', resolve: () => {} },
-      { label: 'Stay until the sky steadies', tag: 'continue to run summary', resolve: () => {} },
+      { label: 'Walk home', resolve: () => {} },
+      { label: 'Stay until the sky steadies', resolve: () => {} },
     ],
   },
 
@@ -2248,8 +2248,8 @@ const VIGNETTES = {
       { who: '_last',  text: "Then we keep climbing." },
     ],
     choices: [
-      { label: 'Climb on',          tag: 'continue to run summary', resolve: () => {} },
-      { label: 'Bury the chime',    tag: 'continue to run summary', resolve: () => {} },
+      { label: 'Climb on', resolve: () => {} },
+      { label: 'Bury the chime', resolve: () => {} },
     ],
   },
 };
@@ -3451,6 +3451,22 @@ function newState(forcedStarter) {
     // Solo start: starter goes in their HOME slot; the other two slots are empty.
     // Companions met along the path fill the remaining slots.
     party: (() => {
+      // Carried party from a previous layer's win takes precedence — the
+      // same team climbs together, with HP / quirks / upgrades intact.
+      const carried = consumeCarriedParty();
+      if (carried && carried.chars && carried.chars.length) {
+        const chars = {};
+        carried.chars.forEach(c => {
+          const fresh = newCharState(c.id);
+          // Restore persistent run-level state
+          fresh.maxHp   = c.maxHp || fresh.maxHp;
+          fresh.hp      = Math.max(1, Math.min(fresh.maxHp, c.hp || fresh.maxHp));
+          fresh.quirks  = c.quirks || fresh.quirks;
+          fresh.upgrades= c.upgrades || {};
+          chars[c.id] = fresh;
+        });
+        return { slots: carried.slots || {}, chars };
+      }
       const home = CHARS[startSolo].home;
       const slots = { front: null, mid: null, back: null };
       slots[home] = startSolo;
@@ -4891,9 +4907,11 @@ function checkEnd(s) {
       const bossMatches = matchVignettes(s, bossCtx);
       // After the run summary, surface the World Map so the player sees
       // they've cleared a layer of the Abyss with more layers above.
+      // Also snapshot the surviving party so the next layer's run starts
+      // with the same heroes intact (HP / quirks / upgrades carried).
       const continueToSummary = () => showVictorySummary(completedEnc, () => {
-        // Mark this layer cleared in meta-progression
         markLayerCleared(getCurrentLayer());
+        saveCarriedParty(state);
         showRunSummary('boss', { afterClose: () => showWorldMap() });
       });
       // Hold for the slo-mo death effect before the run-summary cascade.
@@ -7216,46 +7234,76 @@ function findEmptySlotForRecruit(recruitId) {
   return ['front','mid','back'].find(sl => !state.party.slots[sl]) || null;
 }
 
+// Short greeting line per hero — used in the recruit overlay's chat bubble.
+const RECRUIT_GREETINGS = {
+  kai:     "I have done this stretch alone too long.",
+  cassia:  "I lost what was worth keeping.  What I have left, I spend down here.",
+  elin:    "Mercy still has weight.  I will carry it.",
+  branwen: "I name every arrow before I loose it.",
+  korin:   "I do not run.  If that is a problem, say it now.",
+  ash:     "I do not promise to be seen.  Only useful.",
+  mira:    "I prefer to finish before they notice.",
+};
+
+// Recruit overlay — restyled like a vignette: standing portraits with chat
+// bubbles introducing themselves.  Tap a portrait to take that hero;
+// press-and-hold for full stats; "Walk on" declines.
 function showRecruitOverlay(candidates) {
   $('#overlay').classList.remove('overlay-path', 'overlay-vignette', 'overlay-runsummary', 'overlay-rest', 'overlay-upgrade', 'overlay-sigil');
   $('#overlay').classList.add('overlay-full', 'overlay-recruit');
   $('#overlay-title').textContent = 'A new ally appears';
-  $('#overlay-body').textContent = 'Walk together, or walk on alone.';
+  const body = $('#overlay-body');
+  body.classList.remove('victory-summary-body', 'welcome-body', 'run-summary-body');
+  body.innerHTML = `<p class="starter-flavor">Walk together, or walk on alone.</p>`;
   const choices = $('#overlay-choices');
   choices.innerHTML = '';
-  candidates.forEach(charId => {
+  choices.classList.remove('path-map', 'party-inspect', 'event-choices', 'title-choices', 'vignette-choices');
+  choices.classList.add('starter-choices'); // reuse lineup styling
+
+  // Build a vignette-style stage with each candidate standing.  Bubble
+  // floats above the silhouette with their intro line.
+  const lineup = document.createElement('div');
+  lineup.className = 'starter-lineup recruit-lineup';
+  candidates.forEach((charId, idx) => {
     const def = CHARS[charId];
-    const card = document.createElement('button');
-    card.className = 'encounter-choice recruit-choice';
-    card.innerHTML = `
-      <div class="enc-name">${def.name}</div>
-      <div class="recruit-portrait">${PORTRAITS[charId] || ''}</div>
-      <div class="recruit-meta">
-        <div class="recruit-title">${def.title || ''}</div>
-        <div class="recruit-stats">
-          <span class="recruit-stat">HP ${def.maxHp}</span>
-          <span class="recruit-stat">Home ${SLOT_LABELS[def.home]}</span>
-        </div>
-        <div class="recruit-passive"><b>${def.passive?.name || ''}</b> · ${def.passive?.desc || ''}</div>
+    const side = idx === 0 ? 'left' : 'right';
+    const greet = RECRUIT_GREETINGS[charId] || `${def.name} eyes you in the dark.`;
+    const fig = document.createElement('button');
+    fig.type = 'button';
+    fig.className = `starter-fig recruit-fig recruit-side-${side}`;
+    fig.dataset.id = charId;
+    fig.innerHTML = `
+      <div class="recruit-bubble bubble ${side === 'left' ? 'left' : 'right'}">
+        <span class="vn-who">${def.name}</span>
+        <span class="vn-text">${greet}</span>
       </div>
+      <div class="starter-portrait">${PORTRAITS[charId] || ''}</div>
+      <div class="starter-name">${def.name}</div>
     `;
-    card.addEventListener('click', () => {
-      // If a slot is open, drop in directly; otherwise prompt for the swap.
+    bindStarterHoldOrTap(fig, def, () => {
       const openSlot = findEmptySlotForRecruit(charId);
       if (openSlot) commitRecruit(openSlot, charId);
       else          showSwapOverlay(charId);
     });
-    choices.appendChild(card);
+    lineup.appendChild(fig);
   });
-  // "Walk on" decline — same as old "Pass" but in keeping with the abyss flavor.
-  const btn = $('#overlay-btn');
-  btn.textContent = 'Walk on';
-  btn.classList.remove('hidden');
-  btn.onclick = () => {
+  choices.appendChild(lineup);
+
+  // "Walk on" decline — slim text-link under the lineup.
+  const decline = document.createElement('button');
+  decline.type = 'button';
+  decline.className = 'recruit-walk-on';
+  decline.textContent = 'Walk on alone';
+  decline.addEventListener('click', () => {
+    Audio.ui();
     hideOverlay();
     resetOverlayBtn();
     offerUpgradeOrPath();
-  };
+  });
+  choices.appendChild(decline);
+
+  resetOverlayBtn();
+  $('#overlay-btn').classList.add('hidden');
   choices.classList.remove('hidden');
   $('#overlay').classList.remove('hidden');
 }
@@ -7363,6 +7411,10 @@ function fireRecruitVignette(recruitId) {
 function init() {
   // Make sure the full-bleed title isn't lingering behind the game.
   hideTitleScreen();
+  // If the player just cleared a layer, a carried party snapshot is
+  // waiting in localStorage.  Skip the starter chooser entirely — same
+  // team climbs.  newState() consumes the snapshot from inside.
+  const hasCarry = !!(function peek(){ try { return localStorage.getItem(CARRIED_KEY); } catch (_) { return null; } })();
   // Show the starter chooser if the player has more than one solo-viable
   // hero unlocked.  Otherwise auto-pick (Kai by default).
   const pool = getUnlockedStarters().filter(id => SOLO_VIABLE.has(id));
@@ -7378,7 +7430,7 @@ function init() {
     }
     renderMap();
   };
-  if (pool.length <= 1) {
+  if (hasCarry || pool.length <= 1) {
     proceed(pool[0] || 'kai');
     return;
   }
@@ -7571,6 +7623,32 @@ function markLayerCleared(layerId) {
     cur.push(layerId);
     try { localStorage.setItem(CLEARED_KEY, JSON.stringify(cur)); } catch (_) {}
   }
+}
+
+// Party persistence across layers — when ascending, snapshot the current
+// team so the next layer's run starts with the same heroes (HP / quirks /
+// upgrades intact).  consumeCarriedParty() reads + clears the snapshot.
+const CARRIED_KEY = 'kizuna.carriedParty';
+function saveCarriedParty(s) {
+  if (!s || !s.party) return;
+  try {
+    const chars = Object.values(s.party.chars).map(c => ({
+      id: c.id,
+      hp: c.hp, maxHp: c.maxHp,
+      quirks: c.quirks || { positive: [], negative: [] },
+      upgrades: c.upgrades || {},
+    }));
+    const data = { chars, slots: { ...s.party.slots } };
+    localStorage.setItem(CARRIED_KEY, JSON.stringify(data));
+  } catch (_) {}
+}
+function consumeCarriedParty() {
+  try {
+    const raw = localStorage.getItem(CARRIED_KEY);
+    if (!raw) return null;
+    localStorage.removeItem(CARRIED_KEY);
+    return JSON.parse(raw);
+  } catch (_) { return null; }
 }
 function isLayerUnlocked(layerId) {
   if (layerId === 1) return true;
