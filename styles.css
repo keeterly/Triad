@@ -1901,6 +1901,97 @@ body {
 }
 
 /* ===========================================================================
+   QUIRK AWARD FANFARE — brief full-screen reveal when a hero earns a quirk.
+   =========================================================================== */
+#quirk-award {
+  position: fixed;
+  left: 50%;
+  top: 22%;
+  transform: translate(-50%, 0);
+  z-index: 360;
+  text-align: center;
+  pointer-events: none;
+  animation: qa-in 0.4s cubic-bezier(.18,.89,.32,1) forwards;
+}
+#quirk-award.qa-out { animation: qa-out 0.45s ease-out forwards; }
+@keyframes qa-in {
+  from { opacity: 0; transform: translate(-50%, -10px) scale(0.96); filter: blur(2px); }
+  to   { opacity: 1; transform: translate(-50%, 0)     scale(1);    filter: blur(0); }
+}
+@keyframes qa-out {
+  from { opacity: 1; transform: translate(-50%, 0)    scale(1); filter: blur(0); }
+  to   { opacity: 0; transform: translate(-50%, -8px) scale(1.04); filter: blur(3px); }
+}
+#quirk-award .qa-eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.36em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin-bottom: 6px;
+}
+#quirk-award .qa-name {
+  font-size: 26px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--gold-pale);
+  text-shadow:
+    0 0 22px rgba(240,212,136,0.55),
+    0 0 4px rgba(255,255,255,0.18),
+    0 2px 0 rgba(0,0,0,0.85);
+  margin-bottom: 6px;
+  font-weight: 400;
+}
+#quirk-award.qa-negative .qa-name {
+  color: var(--blood-bright);
+  text-shadow:
+    0 0 22px rgba(220,80,80,0.55),
+    0 0 4px rgba(255,255,255,0.12),
+    0 2px 0 rgba(0,0,0,0.85);
+}
+#quirk-award .qa-desc {
+  font-size: 12px;
+  font-style: italic;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+  text-shadow: 0 1px 4px rgba(0,0,0,0.85);
+  max-width: 360px;
+  margin: 0 auto;
+}
+
+/* ===========================================================================
+   COMBAT BARKS — short hero quotes that float over the figure.
+   =========================================================================== */
+.combat-bark {
+  position: absolute;
+  z-index: 60;
+  transform: translate(-50%, 0);
+  padding: 4px 10px 5px;
+  background: linear-gradient(180deg,
+                              rgba(36,28,22,0.92) 0%,
+                              rgba(12,10,10,0.94) 100%);
+  border-radius: 12px 12px 12px 4px;
+  color: var(--ink);
+  font-size: 10.5px;
+  font-style: italic;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow:
+    0 6px 16px rgba(0,0,0,0.6),
+    inset 0 1px 0 rgba(232,220,196,0.06);
+  animation: bark-in 0.22s cubic-bezier(.18,.89,.32,1) forwards,
+             bark-out 0.45s ease-out 1.7s forwards;
+}
+@keyframes bark-in {
+  from { opacity: 0; transform: translate(-50%, 8px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+@keyframes bark-out {
+  from { opacity: 1; transform: translate(-50%, 0); }
+  to   { opacity: 0; transform: translate(-50%, -6px); }
+}
+
+/* ===========================================================================
    HERO CODEX — title-screen lore screen.
    Full-bleed dark backdrop; vertical scrollable list of hero cards.
    Locked entries silhouette + sealed tag.
