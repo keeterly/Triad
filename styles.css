@@ -4167,75 +4167,104 @@ button.path-node { cursor: pointer; }
 .swap-downed { opacity: 0.5; filter: grayscale(0.6); }
 .swap-downed .enc-name { color: var(--ink-faint); }
 
-/* ============ UPGRADE CARDS ============ */
+/* ============ UPGRADE CARDS ============
+   Layout reads top-down:  meta row (avatar + bracketed identity), then
+   upgrade title in gold, then a delta block showing the OLD tech dimmed
+   and the NEW description bright, separated by a centered chevron.  The
+   card itself carries NieR corner brackets via .encounter-choice's existing
+   ::before / ::after — we only need the inner structure here. */
 .upgrade-choice {
-  width: 240px;
-  padding: 14px 14px 12px;
+  width: 260px;
+  padding: 14px 16px 14px;
   align-items: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
-.upgrade-choice .enc-name {
-  color: var(--gold-bright);
-  text-shadow: 0 0 8px rgba(240,212,136,0.55), 0 1px 0 var(--shadow);
-}
-.upgrade-row {
-  display: flex; gap: 10px; align-items: flex-start;
+.upgrade-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 .upgrade-avatar {
-  width: 44px; height: 60px;
-  border-radius: 3px;
+  width: 32px; height: 44px;
   overflow: hidden;
-  background: var(--parchment-deep);
-  border: 1px solid var(--gold-deep);
-  box-shadow: inset 0 0 6px rgba(0,0,0,0.6);
   flex-shrink: 0;
+  -webkit-mask-image: radial-gradient(ellipse 95% 110% at 50% 52%, #000 78%, transparent 100%);
+          mask-image: radial-gradient(ellipse 95% 110% at 50% 52%, #000 78%, transparent 100%);
+  opacity: 0.85;
 }
 .upgrade-avatar svg {
   width: 100%; height: 100%; display: block;
-  -webkit-mask-image: radial-gradient(ellipse 95% 110% at 50% 52%, #000 78%, transparent 100%);
-          mask-image: radial-gradient(ellipse 95% 110% at 50% 52%, #000 78%, transparent 100%);
 }
-.upgrade-meta {
-  display: flex; flex-direction: column;
-  gap: 4px;
-  min-width: 0;
+.upgrade-meta-label {
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gold);
   flex: 1;
   text-align: left;
 }
-.upgrade-char {
-  font-size: 9px; letter-spacing: 0.14em;
-  color: var(--gold);
+.upgrade-title {
+  font-size: 14px;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
+  font-weight: 700;
+  color: var(--gold-bright);
+  text-shadow: 0 0 10px rgba(240,212,136,0.5), 0 1px 0 rgba(0,0,0,0.9);
+  text-align: center;
+  padding: 4px 0 6px;
+  border-bottom: 1px solid rgba(212,200,168,0.18);
+  line-height: 1.15;
 }
-.upgrade-from, .upgrade-to {
-  display: flex; flex-direction: column;
-  font-size: 10px;
-  line-height: 1.3;
-  color: var(--ink-dim);
+.upgrade-delta {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 10px;
+  align-items: center;
 }
 .upgrade-from {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  text-align: left;
+}
+.upgrade-from-name {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
   font-style: italic;
+  text-decoration: line-through;
+  text-decoration-color: rgba(212,200,168,0.35);
 }
 .upgrade-from-desc {
-  font-size: 9px;
+  font-size: 9.5px;
+  line-height: 1.35;
   color: var(--ink-faint);
   font-style: italic;
 }
-.upgrade-arrow {
-  color: var(--gold-bright);
-  font-size: 12px;
-  text-shadow: 0 0 6px rgba(240,212,136,0.55);
-  text-align: center;
+.upgrade-chevron {
+  font-size: 22px;
+  font-weight: 200;
   line-height: 1;
-}
-.upgrade-to b {
-  font-weight: bold;
   color: var(--gold-bright);
-  text-shadow: 0 0 6px rgba(240,212,136,0.45), 0 1px 0 var(--shadow);
+  text-shadow: 0 0 8px rgba(240,212,136,0.55), 0 1px 0 rgba(0,0,0,0.9);
+  text-align: center;
+  padding: 0 4px;
+}
+.upgrade-to {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  text-align: left;
 }
 .upgrade-to-desc {
-  font-size: 10px;
+  font-size: 10.5px;
+  line-height: 1.4;
   color: var(--ink);
-  font-style: italic;
+  font-style: normal;
 }
 
 /* ============ SIGIL CARDS ============ */
@@ -7292,11 +7321,14 @@ body.boss-killed::before {
   .recruit-choice .recruit-title { font-size: 9.5px !important; }
   .recruit-choice .recruit-stats { gap: 4px !important; font-size: 9.5px !important; }
   .recruit-choice .recruit-passive { font-size: 9.5px !important; }
-  .upgrade-choice .upgrade-row { gap: 6px !important; }
-  .upgrade-choice .upgrade-avatar { width: 40px !important; }
-  .upgrade-choice .upgrade-char,
-  .upgrade-choice .upgrade-from,
-  .upgrade-choice .upgrade-to { font-size: 10px !important; }
+  .upgrade-choice { width: 220px !important; padding: 10px 12px !important; gap: 6px !important; }
+  .upgrade-choice .upgrade-avatar { width: 26px !important; height: 36px !important; }
+  .upgrade-choice .upgrade-meta-label { font-size: 8.5px !important; letter-spacing: 0.18em !important; }
+  .upgrade-choice .upgrade-title { font-size: 12px !important; padding: 2px 0 4px !important; }
+  .upgrade-choice .upgrade-from-name { font-size: 9px !important; }
+  .upgrade-choice .upgrade-from-desc { font-size: 8.5px !important; }
+  .upgrade-choice .upgrade-to-desc { font-size: 9.5px !important; }
+  .upgrade-choice .upgrade-chevron { font-size: 18px !important; padding: 0 2px !important; }
   .sigil-choice .enc-name { font-size: 11px !important; }
   .sigil-choice .sigil-desc { font-size: 9.5px !important; }
   .sigil-choice .sigil-glyph { font-size: 16px !important; }
