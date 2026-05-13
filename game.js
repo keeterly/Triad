@@ -3878,7 +3878,10 @@ function applyDmgToEnemy(s, e, baseAmt) {
   // Game feel: shake the struck card; screen shake on big hits; SFX
   shakeCardId(e.id, 'enemy', toHp);
   if (toHp >= 6) shakeScreen(toHp >= 10 ? 3 : 2);
-  Audio.hit(Math.min(2, 0.6 + toHp / 8));
+  // Per-school hit colour: physical thud, stealth hiss, ranged twang,
+  // arcane chime, holy bell.
+  const actorSchool = s.currentActorId && CHARS[s.currentActorId] && CHARS[s.currentActorId].school;
+  Audio.hitSchool(Math.min(2, 0.6 + toHp / 8), actorSchool);
   // Attacker lunges toward the target for a beat
   if (s.currentActorId) lungeCardId(s.currentActorId, 'party');
   log(`<b>${ENEMIES[e.id].name}</b> takes ${toHp} damage${e.staggered ? ' (stagger!)' : ''}${schoolBadge ? ` — ${schoolBadge.toLowerCase()}` : ''}.`);
@@ -6055,6 +6058,9 @@ function applyBiomeBackground() {
   biomes.forEach(b => layer.classList.remove(`biome-${b}`));
   const mod = state && state.run && state.run.modifier;
   if (mod) layer.classList.add(`biome-${mod}`);
+  // Start the matching ambient drone (or a default one) so the silence
+  // between actions has weight.  Mute toggle mutes everything.
+  if (Audio && typeof Audio.startAmbient === 'function') Audio.startAmbient(mod);
 }
 
 // ============================================================================
@@ -6182,6 +6188,98 @@ const Audio = (() => {
     armor() { _tone({ freq: 380, type: 'square', dur: 0.10, gain: 0.10, sweep: 80 }); },
     queue() { _tone({ freq: 720, type: 'triangle', dur: 0.05, gain: 0.06 }); },
     ui()    { _tone({ freq: 540, type: 'sine',     dur: 0.06, gain: 0.05 }); },
+
+    // ===== Per-school hit variations =====
+    // Layered ON TOP of the generic Audio.hit() base so existing call
+    // sites still produce a thump; the school-specific call adds the
+    // distinguishing color (chime / hiss / twang / bell).
+    hitSchool(intensity = 1, school) {
+      // Base thump (same as Audio.hit)
+      _tone({ freq: 90 + Math.random()*10, type: 'sine', dur: 0.14, gain: 0.22 * Math.min(1.4, intensity * 0.6), sweep: -30 });
+      _noise({ dur: 0.05 + 0.02*intensity, gain: 0.08 * intensity, hp: 600, lp: 3500 });
+      // School flavor
+      switch (school) {
+        case 'physical':
+          _noise({ dur: 0.06, gain: 0.06 * intensity, hp: 200, lp: 1500 });
+          break;
+        case 'stealth':
+          _noise({ dur: 0.08, gain: 0.05 * intensity, hp: 2400, lp: 8000 });
+          break;
+        case 'ranged':
+          _tone({ freq: 480 + Math.random()*120, type: 'square', dur: 0.06, gain: 0.06, sweep: -180 });
+          break;
+        case 'arcane':
+          _tone({ freq: 880, type: 'triangle', dur: 0.18, gain: 0.07, sweep: 220 });
+          setTimeout(() => _tone({ freq: 1320, type: 'triangle', dur: 0.14, gain: 0.05, sweep: 100 }), 30);
+          break;
+        case 'holy':
+          _tone({ freq: 660, type: 'sine', dur: 0.22, gain: 0.08, sweep: 60 });
+          _tone({ freq: 990, type: 'sine', dur: 0.16, gain: 0.05, sweep: 40 });
+          break;
+      }
+    },
+
+    // ===== Ambient drone — biome-tuned background pad =====
+    // Long-tailed sine + fifth + filtered noise.  startAmbient is idempotent
+    // (replaces any prior layer); stopAmbient fades out cleanly.
+    _ambient: null,
+    startAmbient(biome) {
+      const c = ensure();
+      if (!c) return;
+      this.stopAmbient();
+      if (muted) return; // respect mute; resumes on toggle via stopAmbient/start cycle
+      const presets = {
+        burning:   { root: 110, fifth: 165, lp: 600,  noiseGain: 0.04, gain: 0.05, type: 'sawtooth' },
+        bonetide:  { root: 80,  fifth: 120, lp: 400,  noiseGain: 0.05, gain: 0.045,type: 'sine' },
+        withered:  { root: 90,  fifth: 0,   lp: 1200, noiseGain: 0.07, gain: 0.04, type: 'triangle' },
+        veiled:    { root: 220, fifth: 330, lp: 800,  noiseGain: 0.025,gain: 0.04, type: 'triangle' },
+        fortified: { root: 65,  fifth: 98,  lp: 320,  noiseGain: 0.03, gain: 0.05, type: 'sawtooth' },
+        hunger:    { root: 75,  fifth: 113, lp: 380,  noiseGain: 0.04, gain: 0.05, type: 'sine' },
+      };
+      const p = presets[biome] || { root: 100, fifth: 150, lp: 700, noiseGain: 0.03, gain: 0.04, type: 'sine' };
+      const out = c.createGain(); out.gain.value = 0;
+      out.connect(masterGain);
+      // Two oscillators: root + fifth (skip fifth if 0)
+      const o1 = c.createOscillator(); o1.type = p.type; o1.frequency.value = p.root;
+      const o2 = p.fifth ? c.createOscillator() : null;
+      if (o2) { o2.type = p.type; o2.frequency.value = p.fifth; }
+      // Soft LFO on the gain so the drone "breathes"
+      const lfo = c.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 0.13;
+      const lfoG = c.createGain(); lfoG.gain.value = p.gain * 0.4;
+      lfo.connect(lfoG); lfoG.connect(out.gain);
+      // Filtered noise pad
+      const buf = c.createBuffer(1, c.sampleRate * 2, c.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1);
+      const noise = c.createBufferSource(); noise.buffer = buf; noise.loop = true;
+      const lpF = c.createBiquadFilter(); lpF.type = 'lowpass'; lpF.frequency.value = p.lp;
+      const noiseGain = c.createGain(); noiseGain.gain.value = p.noiseGain;
+      noise.connect(lpF); lpF.connect(noiseGain); noiseGain.connect(out);
+      o1.connect(out); if (o2) o2.connect(out);
+      o1.start(); if (o2) o2.start(); lfo.start(); noise.start();
+      // Fade in
+      out.gain.cancelScheduledValues(c.currentTime);
+      out.gain.setValueAtTime(0, c.currentTime);
+      out.gain.linearRampToValueAtTime(p.gain, c.currentTime + 1.2);
+      this._ambient = { o1, o2, lfo, noise, out, baseGain: p.gain };
+    },
+    stopAmbient() {
+      const c = ensure();
+      const a = this._ambient;
+      if (!c || !a) { this._ambient = null; return; }
+      const fade = 0.6;
+      try {
+        a.out.gain.cancelScheduledValues(c.currentTime);
+        a.out.gain.setValueAtTime(a.out.gain.value || a.baseGain, c.currentTime);
+        a.out.gain.linearRampToValueAtTime(0, c.currentTime + fade);
+        const stopAt = c.currentTime + fade + 0.05;
+        a.o1.stop(stopAt);
+        if (a.o2) a.o2.stop(stopAt);
+        a.lfo.stop(stopAt);
+        a.noise.stop(stopAt);
+      } catch (_) {}
+      this._ambient = null;
+    },
   };
 })();
 
@@ -7659,6 +7757,7 @@ function isLayerUnlocked(layerId) {
 // as a vertical climb of 9 layers; current ones glow, cleared ones recede,
 // locked ones are dim placeholders that hint at what's above.
 function showWorldMap() {
+  if (Audio && typeof Audio.stopAmbient === 'function') Audio.stopAmbient();
   hideOverlay();
   hideTitleScreen();
   const root = document.getElementById('world-map');
@@ -7728,6 +7827,7 @@ function buildWorldMapContainer() {
 }
 
 function showTitleScreen() {
+  if (Audio && typeof Audio.stopAmbient === 'function') Audio.stopAmbient();
   // Ensure the in-game overlay isn't competing
   hideOverlay();
   const root = document.getElementById('title-screen');
@@ -7764,6 +7864,7 @@ function showTitleScreen() {
     hideTitleScreen();
     renderMap();
   }, !canContinue));
+  menuEl.appendChild(mkBtn('Heroes',  () => showHeroCodex()));
   menuEl.appendChild(mkBtn('Credits', () => showCreditsScreen()));
   menuEl.appendChild(mkBtn('Settings', () => showSettingsScreen()));
 
@@ -7890,6 +7991,70 @@ function flashSettings(msg) {
 
 // Credits — kept as an overlay since it's a "back" screen on top of the
 // title.  The title screen stays visible behind the dimmed overlay.
+// Hero Codex — title-screen lore screen showing every hero in the ROSTER.
+// Unlocked starters render with full info (portrait, title, school, HP,
+// home, passive, quirks-they-can-earn).  Locked heroes show a silhouette
+// with a "walk with them in a run to unlock" hint.
+function showHeroCodex() {
+  Audio.ui();
+  const root = document.getElementById('hero-codex') || _buildHeroCodexContainer();
+  const list = document.getElementById('hc-list');
+  list.innerHTML = '';
+  const unlocked = new Set(getUnlockedStarters());
+  ROSTER.forEach(id => {
+    const def = CHARS[id];
+    if (!def) return;
+    const isUnlocked = unlocked.has(id);
+    const card = document.createElement('div');
+    card.className = 'hc-card' + (isUnlocked ? '' : ' hc-locked');
+    // Quirks this hero can earn (filtered to hero-locked entries)
+    const quirks = Object.values(QUIRKS).filter(q => q.heroId === id);
+    const quirkList = quirks.length
+      ? `<div class="hc-quirks">${quirks.map(q => `<span class="hc-quirk">${q.name}</span>`).join('')}</div>`
+      : '';
+    card.innerHTML = `
+      <div class="hc-portrait">${PORTRAITS[id] || ''}</div>
+      <div class="hc-body">
+        <div class="hc-name">${def.name}</div>
+        <div class="hc-title">${def.title || ''}</div>
+        ${isUnlocked ? `
+          <div class="hc-stats">
+            <span class="hc-stat">HP ${def.maxHp}</span>
+            <span class="hc-stat">Home ${SLOT_LABELS[def.home] || '—'}</span>
+            <span class="hc-stat">${(def.school || '').toUpperCase()}</span>
+          </div>
+          ${def.passive ? `<div class="hc-passive"><b>${def.passive.name}</b> · ${def.passive.desc}</div>` : ''}
+          ${quirkList ? `<div class="hc-section">Affinities</div>${quirkList}` : ''}
+        ` : `
+          <div class="hc-locked-tag">— sealed —</div>
+          <div class="hc-locked-hint">Walk with this hero in a run to remember them.</div>
+        `}
+      </div>
+    `;
+    list.appendChild(card);
+  });
+  root.classList.remove('hidden');
+  const close = document.getElementById('hc-close');
+  if (close) close.onclick = () => root.classList.add('hidden');
+}
+function _buildHeroCodexContainer() {
+  const root = document.createElement('div');
+  root.id = 'hero-codex';
+  root.className = 'hidden';
+  root.innerHTML = `
+    <div class="hc-bg"></div>
+    <div class="hc-content">
+      <header class="hc-header">
+        <h2 class="hc-title-h">HEROES</h2>
+        <button type="button" class="hc-close" id="hc-close" aria-label="Close">×</button>
+      </header>
+      <div class="hc-list" id="hc-list"></div>
+    </div>
+  `;
+  document.body.appendChild(root);
+  return root;
+}
+
 function showCreditsScreen() {
   $('#overlay-title').textContent = 'Credits';
   const body = $('#overlay-body');

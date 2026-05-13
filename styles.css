@@ -1901,6 +1901,163 @@ body {
 }
 
 /* ===========================================================================
+   HERO CODEX — title-screen lore screen.
+   Full-bleed dark backdrop; vertical scrollable list of hero cards.
+   Locked entries silhouette + sealed tag.
+   =========================================================================== */
+#hero-codex {
+  position: fixed;
+  inset: 0;
+  z-index: 240;
+  overflow: hidden;
+  animation: hc-fade-in 0.4s ease-out;
+}
+#hero-codex.hidden { display: none !important; }
+@keyframes hc-fade-in { from { opacity: 0; } to { opacity: 1; } }
+#hero-codex .hc-bg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 70% at 50% 50%,
+                    rgba(20,14,16,0.94) 0%, rgba(0,0,0,1) 100%),
+    #050405;
+}
+#hero-codex .hc-content {
+  position: relative;
+  z-index: 2;
+  max-width: 720px;
+  margin: 0 auto;
+  height: 100%;
+  padding: 14px 16px 16px;
+  display: flex;
+  flex-direction: column;
+}
+.hc-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.hc-title-h {
+  font-size: 18px;
+  letter-spacing: 0.42em;
+  color: var(--gold-pale);
+  text-shadow: 0 0 18px rgba(240,212,136,0.35);
+  margin: 0;
+  font-weight: 400;
+}
+.hc-close {
+  background: transparent;
+  border: none;
+  font-family: inherit;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--ink-dim);
+  cursor: pointer;
+  padding: 2px 8px;
+}
+.hc-close:hover { color: var(--gold-pale); }
+.hc-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 4px 8px;
+}
+.hc-card {
+  display: grid;
+  grid-template-columns: 70px 1fr;
+  gap: 14px;
+  padding: 10px 12px;
+  background: linear-gradient(180deg, rgba(22,18,18,0.6) 0%, rgba(8,6,8,0.75) 100%);
+  align-items: start;
+}
+.hc-card.hc-locked { opacity: 0.45; filter: grayscale(0.7); }
+.hc-portrait {
+  width: 70px; height: 92px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+  -webkit-mask-image: radial-gradient(ellipse 80% 100% at 50% 50%, #000 60%, transparent 100%);
+          mask-image: radial-gradient(ellipse 80% 100% at 50% 50%, #000 60%, transparent 100%);
+}
+.hc-portrait svg { height: 100%; width: auto; }
+.hc-body { min-width: 0; }
+.hc-name {
+  font-size: 13px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gold-pale);
+}
+.hc-title {
+  font-size: 10px;
+  font-style: italic;
+  color: var(--ink-dim);
+  margin: 1px 0 6px;
+}
+.hc-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin-bottom: 6px;
+}
+.hc-stat {
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  background: rgba(0,0,0,0.45);
+  color: var(--gold);
+}
+.hc-passive {
+  font-size: 11px;
+  font-style: italic;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+.hc-section {
+  font-size: 9px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin: 4px 0 4px;
+}
+.hc-quirks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.hc-quirk {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  padding: 1px 6px;
+  color: var(--gold-pale);
+  background: rgba(40,28,20,0.5);
+}
+.hc-locked-tag {
+  font-size: 10px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-bottom: 4px;
+}
+.hc-locked-hint {
+  font-size: 10px;
+  font-style: italic;
+  color: var(--ink-dim);
+}
+
+@media (max-height: 480px) {
+  .hc-card { grid-template-columns: 50px 1fr; gap: 10px; padding: 6px 10px; }
+  .hc-portrait { width: 50px; height: 66px; }
+  .hc-name { font-size: 11.5px; letter-spacing: 0.18em; }
+  .hc-title { font-size: 9.5px; margin-bottom: 4px; }
+  .hc-passive { font-size: 10px; }
+}
+
+/* ===========================================================================
    COMBO DISCOVERABILITY — queue items that participate in an available
    Resonance pulse gold in sync with the bubble overhead.
    =========================================================================== */
