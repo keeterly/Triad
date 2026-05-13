@@ -1308,6 +1308,85 @@ const EVENTS = {
       { label: 'Walk on', tag: 'no change', resolve: () => {} },
     ],
   },
+  // ---- Abyss event additions ----
+  kneeling_stranger: {
+    id: 'kneeling_stranger',
+    name: 'A Kneeling Stranger',
+    flavor: 'A stranger kneels with their head bowed.  They do not look up when you approach.  In their open palm: a small grey stone.',
+    choices: [
+      { label: 'Take the stone',  tag: '−3 HP each · gain a random sigil',
+        resolve: (s) => { aliveParty(s).forEach(c => { c.hp = Math.max(1, c.hp - 3); }); _grantRandomSigil(s); } },
+      { label: 'Press their hand', tag: 'lowest-HP hero heals to full · +1 Resolve next fight',
+        resolve: (s) => { const id = _lowestHpAliveId(s); const c = id && s.party.chars[id]; if (c) c.hp = c.maxHp; s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1; } },
+      { label: 'Walk past',       tag: 'no change', resolve: () => {} },
+    ],
+  },
+  shrine_lost_names: {
+    id: 'shrine_lost_names',
+    name: 'Shrine of Lost Names',
+    flavor: 'A small shrine carved into the wall, names eroded.  Wind has been arguing with this stone for a long time.',
+    choices: [
+      { label: 'Speak a name', tag: '+positive affinity · −2 HP each',
+        resolve: (s) => { aliveParty(s).forEach(c => { c.hp = Math.max(1, c.hp - 2); }); _rollEventQuirk(s, 'positive'); } },
+      { label: 'Carve another',tag: 'gain Coin of Memory (sigil)',
+        resolve: (s) => { if (!s.run.sigils.includes('memory')) s.run.sigils.push('memory'); log('You bind <b>Coin of Memory</b>.'); } },
+      { label: 'Move on',      tag: 'no change', resolve: () => {} },
+    ],
+  },
+  fallen_knight: {
+    id: 'fallen_knight',
+    name: 'A Knight, Already Fallen',
+    flavor: 'Armor crumpled against a wall.  Eyes still open.  Their hand reaches toward you as if asking for forgiveness — but you cannot tell who it is meant for.',
+    choices: [
+      { label: 'Forgive them',     tag: 'heal party 4 · +2⛨ each',
+        resolve: (s) => { aliveParty(s).forEach(c => { const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 4); if (c.hp > b) spawnPopupId(c.id, `+${c.hp - b}`, 'heal', 'party'); c.armor += 2; }); } },
+      { label: 'Take the armor',   tag: 'front-row hero gains Warhardened (+2 dmg)',
+        resolve: (s) => { const fId = s.party.slots.front; if (fId) grantQuirk(s, fId, 'warhardened'); } },
+      { label: 'Leave them be',    tag: 'no change', resolve: () => {} },
+    ],
+  },
+  hanging_chime: {
+    id: 'hanging_chime',
+    name: 'A Hanging Chime',
+    flavor: 'A bronze chime hangs without a wind to move it.  As you pass, it sounds anyway — once for each of you.',
+    choices: [
+      { label: 'Bow to the chime', tag: 'all heroes +3 max HP',
+        resolve: (s) => { aliveParty(s).forEach(c => { c.maxHp += 3; c.hp += 3; }); log('Each hero stands a little straighter.'); } },
+      { label: 'Silence it',       tag: 'gain Ember of Wrath (sigil) · −5 HP each',
+        resolve: (s) => { aliveParty(s).forEach(c => { c.hp = Math.max(1, c.hp - 5); }); if (!s.run.sigils.includes('wrath')) s.run.sigils.push('wrath'); log('You bind <b>Ember of Wrath</b>.'); } },
+    ],
+  },
+  child_mask: {
+    id: 'child_mask',
+    name: "A Child's Mask",
+    flavor: 'A wooden mask sits at the edge of a chasm.  Painted to look surprised.  Around its eyes, the wood is wet.',
+    choices: [
+      { label: 'Wear it briefly', tag: 'gain a random sigil · gain a negative affinity',
+        resolve: (s) => { _grantRandomSigil(s); _rollEventQuirk(s, 'negative'); } },
+      { label: 'Bury it',         tag: 'party +1 Resolve next fight · cleanse',
+        resolve: (s) => { aliveParty(s).forEach(c => { c.bleed = 0; c.weak = 0; }); s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1; } },
+    ],
+  },
+  open_door: {
+    id: 'open_door',
+    name: 'An Open Door, Going Up',
+    flavor: 'A door stands open in the cliff face.  Beyond it, a staircase that does not match the rest of the abyss.  Newer.  Or older.  Both, maybe.',
+    choices: [
+      { label: 'Climb a few steps', tag: 'gain a tech upgrade now',
+        resolve: (s) => {
+          const pool = availableUpgrades(s);
+          if (!pool.length) return;
+          const up = pool[Math.floor(Math.random() * pool.length)];
+          const c = s.party.chars[up.charId];
+          if (!c) return;
+          c.upgrades = c.upgrades || {};
+          c.upgrades[`${up.slot}.${up.kind}`] = up.id;
+          log(`<b>${CHARS[up.charId].name}</b> learns <b>${up.name}</b>.`);
+        } },
+      { label: 'Close the door',    tag: 'heal party to full',
+        resolve: (s) => { aliveParty(s).forEach(c => { c.hp = c.maxHp; }); } },
+    ],
+  },
 };
 
 function _hurtRandomAlive(s, amt) {
@@ -3690,18 +3769,18 @@ function applyDmgToEnemy(s, e, baseAmt) {
   // Affinity quirks — run-wide per-character damage modifier
   amt += getQuirkDmgMod(s, s.currentActorId);
   // Kai's Lone Walker — +2 dmg when alone in the abyss (solo party)
-  if (s.currentActorId === 'kai' && Object.keys(s.party.chars).length === 1) amt += 2;
+  if (s.currentActorId === 'kai' && Object.keys(s.party.chars).length === 1) { amt += 2; spawnPassivePopup('kai', 'LONE WALKER'); }
   // Branwen Bleed Hunter passive
-  if (s.currentActorId === 'branwen' && e.bleed > 0) amt += 2;
+  if (s.currentActorId === 'branwen' && e.bleed > 0) { amt += 2; spawnPassivePopup('branwen', 'BLEED HUNTER'); }
   // Mira Eviscerate passive — bigger crit on bleeding enemies
-  if (s.currentActorId === 'mira' && e.bleed > 0) amt += 3;
+  if (s.currentActorId === 'mira' && e.bleed > 0) { amt += 3; spawnPassivePopup('mira', 'EVISCERATE'); }
   // Korin Bloodlust passive — scaling damage based on missing HP %
   if (s.currentActorId === 'korin') {
     const k = s.party.chars.korin;
     if (k) {
       const missingPct = (k.maxHp - k.hp) / k.maxHp;
-      if (missingPct >= 0.6) amt += 4;
-      else if (missingPct >= 0.3) amt += 2;
+      if (missingPct >= 0.6)      { amt += 4; spawnPassivePopup('korin', 'BLOODLUST'); }
+      else if (missingPct >= 0.3) { amt += 2; spawnPassivePopup('korin', 'BLOODLUST'); }
     }
   }
   // Ash Arcane Focus passive — first attack each turn deals +2
@@ -3710,6 +3789,7 @@ function applyDmgToEnemy(s, e, baseAmt) {
     if (a && !a.firstAttackUsed) {
       amt += 2;
       a.firstAttackUsed = true;
+      spawnPassivePopup('ash', 'ARCANE FOCUS');
     }
   }
   // pending one-shot attack bonuses (Banner Fire, Wild Hunt, etc.)
@@ -3824,7 +3904,14 @@ function killEnemy(s, e) {
   // Kai's Adept — heal 2 on kill (was 1; bumped to make solo runs survivable)
   if (s.currentActorId === 'kai') {
     const k = s.party.chars.kai;
-    if (k && !k.downed) k.hp = Math.min(k.maxHp, k.hp + 2);
+    if (k && !k.downed) {
+      const before = k.hp;
+      k.hp = Math.min(k.maxHp, k.hp + 2);
+      if (k.hp > before) {
+        spawnPopupId('kai', `+${k.hp - before}`, 'heal', 'party');
+        spawnPassivePopup('kai', 'ADEPT');
+      }
+    }
   }
   // Emoji reaction over the actor for the kill
   if (s.currentActorId) spawnReaction(s.currentActorId, '💀', 'party');
@@ -3861,7 +3948,10 @@ function enemyAdvanceFill(s) {
 function applyDmgToParty(s, c, amt) {
   if (!c || c.downed) return;
   // Cassia "Steadfast" — -1 dmg when in Front
-  if (c.id === 'cassia' && slotOfChar(s, 'cassia') === 'front') amt = Math.max(0, amt - 1);
+  if (c.id === 'cassia' && slotOfChar(s, 'cassia') === 'front' && amt > 0) {
+    amt = Math.max(0, amt - 1);
+    spawnPassivePopup('cassia', 'STEADFAST');
+  }
   // Run modifier — "Hunger" twists Front-position damage taken upward
   if (hasRunModifier(s, 'hunger') && slotOfChar(s, c.id) === 'front') amt += 1;
   // Vulnerable on party
@@ -4039,6 +4129,7 @@ function healLowest(s, amt) {
     const got2 = e.hp - eb;
     if (got2 > 0) {
       spawnPopupId('elin', `+${got2}`, 'heal', 'party');
+      spawnPassivePopup('elin', 'MERCY');
       if (s.fightStats) s.fightStats.healingDone.elin = (s.fightStats.healingDone.elin || 0) + got2;
       mercyTickle(s, 'elin', got2);
     }
@@ -5715,6 +5806,13 @@ function spawnReaction(id, emoji, side) {
   el.style.top  = (r.top - s.top + Math.max(28, r.height * 0.18)) + 'px';
   layer.appendChild(el);
   setTimeout(() => el.remove(), 1100);
+}
+
+// Small popup labeled with the passive name when one fires.  Goes through
+// the same dedup window as other popups so multi-hit attacks don't spam.
+function spawnPassivePopup(id, name) {
+  if (__simulating) return;
+  spawnPopupId(id, name, 'passive', 'party');
 }
 
 // Sequential popup pacing: damage / heal numbers fired in rapid succession
