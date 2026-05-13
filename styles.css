@@ -3454,7 +3454,6 @@ body.party-critical::after {
   min-width: 0;
   max-width: 90px;
   width: 90px;
-  height: 110px;
   background: transparent;
   border: none;
   padding: 0 3px 4px;
@@ -3495,8 +3494,12 @@ body.party-critical::after {
 .hip-avatar-downed { filter: grayscale(0.7) brightness(0.5); }
 .hip-avatar.hip-avatar-downed.hip-avatar-focused { filter: grayscale(0.4) brightness(0.8); }
 .hip-avatar-portrait {
-  flex: 1 1 auto;
+  /* Fixed portrait box so every switcher figure renders at the same
+     height and bottom-anchors cleanly to its caption regardless of
+     character-specific viewBox content (helmets, plumes, etc). */
+  flex: 0 0 auto;
   width: 100%;
+  height: 76px;
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -3504,7 +3507,6 @@ body.party-critical::after {
   overflow: hidden;
   -webkit-mask-image: radial-gradient(ellipse 80% 100% at 50% 50%, #000 60%, transparent 100%);
           mask-image: radial-gradient(ellipse 80% 100% at 50% 50%, #000 60%, transparent 100%);
-  /* override the circular crop / border from the previous look */
   border: none;
   border-radius: 0;
   background: transparent;
@@ -3938,7 +3940,8 @@ body.party-critical::after {
   .hero-inspect-party { max-height: 56vh; gap: 6px; }
   .hero-inspect-party { grid-template-columns: minmax(170px, 240px) 1fr; gap: 12px; max-height: 64vh; }
   .hip-strip { gap: 8px; padding: 6px 2px 2px; }
-  .hip-avatar { max-width: 74px; width: 74px; height: 90px; padding: 0 2px 3px; }
+  .hip-avatar { max-width: 74px; width: 74px; padding: 0 2px 3px; }
+  .hip-avatar-portrait { height: 60px; }
   .hip-avatar-name { font-size: 8.5px; letter-spacing: 0.16em; margin-top: 3px; }
   .hip-avatar-slot { font-size: 7px; letter-spacing: 0.18em; }
   .hip-focus-figure { padding: 2px 2px 4px; gap: 2px; }
