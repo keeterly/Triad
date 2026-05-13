@@ -1198,12 +1198,15 @@ const VIGNETTES = {
   // Mira watches Elin's back — Sister's Watch is the FM bond between them.
   sister_watch: {
     id: 'sister_watch',
-    when: { bondFired: "Sister's Watch", requires: ['mira', 'elin'] },
+    when: { bondFired: "Sister's Watch", bondFiredCount: { name: "Sister's Watch", n: 3 }, requires: ['mira', 'elin'] },
     title: 'A glance, returning',
     speaker: 'mira',
     lines: [
-      { who: 'mira', text: 'You watched my back. Again.' },
-      { who: 'elin', text: 'You always look ahead. Someone has to look behind.' },
+      { who: 'mira', text: "You watched my back.  Three times now.  I lost count after the second." },
+      { who: 'elin', text: "Someone has to look behind.  You only look ahead." },
+      { who: 'mira', text: "Because the front is where the killing is." },
+      { who: 'elin', text: "And behind is where the bleeding is." },
+      { who: null,   text: "They stand in the dust without quite meeting each other's eyes." },
     ],
     choices: [
       { label: 'Deepen the vow', tag: 'Elin gains Vow Unbroken',
@@ -1214,12 +1217,15 @@ const VIGNETTES = {
   // Cassia + Korin's Iron Bond — two front-liners after a hard fight.
   iron_bond: {
     id: 'iron_bond',
-    when: { bondFired: 'Iron Bond', requires: ['cassia', 'korin'] },
+    when: { bondFired: 'Iron Bond', bondFiredCount: { name: 'Iron Bond', n: 3 }, requires: ['cassia', 'korin'] },
     title: 'Shoulders, side by side',
     speaker: 'cassia',
     lines: [
-      { who: 'cassia', text: "You took the blow that was meant for me." },
-      { who: 'korin',  text: "You'll take the next one for me. That's the bond." },
+      { who: 'cassia', text: "You took the blow that was meant for me.  Again." },
+      { who: 'korin',  text: "And you took the one before that, meant for me." },
+      { who: 'cassia', text: "...we'll run out of blows to trade eventually." },
+      { who: 'korin',  text: "Then we run out together.  That's the bond." },
+      { who: null,    text: "Cassia laughs, soft and tired, and Korin's mouth does almost the same thing." },
     ],
     choices: [
       { label: 'Carry the banner', tag: 'Cassia gains Banner Bearer',
@@ -1231,7 +1237,7 @@ const VIGNETTES = {
   // Branwen + Cassia friction — Old Rivalry's residue.
   old_rivalry: {
     id: 'old_rivalry',
-    when: { frictionFired: 'Old Rivalry', requires: ['branwen', 'cassia'] },
+    when: { frictionFired: 'Old Rivalry', frictionFiredCount: { name: 'Old Rivalry', n: 2 }, requires: ['branwen', 'cassia'] },
     title: 'A line, redrawn',
     speaker: 'branwen',
     lines: [
@@ -1398,7 +1404,7 @@ const VIGNETTES = {
 
   banner_fire: {
     id: 'banner_fire',
-    when: { bondFired: 'Banner Fire', requires: ['branwen', 'cassia'] },
+    when: { bondFired: 'Banner Fire', bondFiredCount: { name: 'Banner Fire', n: 3 }, requires: ['branwen', 'cassia'] },
     title: 'A banner, not a name',
     speaker: 'branwen',
     lines: [
@@ -1416,7 +1422,7 @@ const VIGNETTES = {
 
   spirit_arrow: {
     id: 'spirit_arrow',
-    when: { bondFired: 'Spirit Arrow', requires: ['elin', 'branwen'] },
+    when: { bondFired: 'Spirit Arrow', bondFiredCount: { name: 'Spirit Arrow', n: 3 }, requires: ['elin', 'branwen'] },
     title: 'Two prayers, one shaft',
     speaker: 'elin',
     lines: [
@@ -1434,7 +1440,7 @@ const VIGNETTES = {
 
   veiled_flame: {
     id: 'veiled_flame',
-    when: { bondFired: 'Veiled Flame', requires: ['ash', 'elin'] },
+    when: { bondFired: 'Veiled Flame', bondFiredCount: { name: 'Veiled Flame', n: 3 }, requires: ['ash', 'elin'] },
     title: 'Flame, behind the veil',
     speaker: 'ash',
     lines: [
@@ -1451,7 +1457,7 @@ const VIGNETTES = {
 
   twin_blades: {
     id: 'twin_blades',
-    when: { bondFired: 'Twin Blades', requires: ['branwen', 'mira'] },
+    when: { bondFired: 'Twin Blades', bondFiredCount: { name: 'Twin Blades', n: 3 }, requires: ['branwen', 'mira'] },
     title: 'Two blades, one bleed',
     speaker: 'mira',
     lines: [
@@ -1488,7 +1494,7 @@ const VIGNETTES = {
 
   veiled_vow: {
     id: 'veiled_vow',
-    when: { bondFired: 'Veiled Vow', requires: ['mira', 'cassia'] },
+    when: { bondFired: 'Veiled Vow', bondFiredCount: { name: 'Veiled Vow', n: 3 }, requires: ['mira', 'cassia'] },
     title: 'A vow, drawn in shadow',
     speaker: 'mira',
     lines: [
@@ -1506,7 +1512,7 @@ const VIGNETTES = {
 
   bloodguard: {
     id: 'bloodguard',
-    when: { bondFired: 'Bloodguard', requires: ['cassia', 'korin'] },
+    when: { bondFired: 'Bloodguard', bondFiredCount: { name: 'Bloodguard', n: 3 }, requires: ['cassia', 'korin'] },
     title: 'A wall, not a hero',
     speaker: 'korin',
     lines: [
@@ -1524,7 +1530,7 @@ const VIGNETTES = {
 
   wild_hunt: {
     id: 'wild_hunt',
-    when: { bondFired: 'Wild Hunt', requires: ['branwen', 'korin'] },
+    when: { bondFired: 'Wild Hunt', bondFiredCount: { name: 'Wild Hunt', n: 3 }, requires: ['branwen', 'korin'] },
     title: 'Hounds, both of you',
     speaker: 'korin',
     lines: [
@@ -1542,7 +1548,7 @@ const VIGNETTES = {
 
   sisters_of_shadow: {
     id: 'sisters_of_shadow',
-    when: { bondFired: 'Sisters of Shadow', requires: ['branwen', 'mira'] },
+    when: { bondFired: 'Sisters of Shadow', bondFiredCount: { name: 'Sisters of Shadow', n: 3 }, requires: ['branwen', 'mira'] },
     title: 'Sisters, not in name',
     speaker: 'branwen',
     lines: [
@@ -1561,7 +1567,7 @@ const VIGNETTES = {
 
   sanctuary_fire: {
     id: 'sanctuary_fire',
-    when: { bondFired: 'Sanctuary Fire', requires: ['ash', 'elin'] },
+    when: { bondFired: 'Sanctuary Fire', bondFiredCount: { name: 'Sanctuary Fire', n: 3 }, requires: ['ash', 'elin'] },
     title: 'A flame that asks for nothing',
     speaker: 'elin',
     lines: [
@@ -1691,7 +1697,7 @@ const VIGNETTES = {
 
   hollow_vow: {
     id: 'hollow_vow',
-    when: { frictionFired: 'Hollow Vow', requires: ['cassia', 'mira'] },
+    when: { frictionFired: 'Hollow Vow', frictionFiredCount: { name: 'Hollow Vow', n: 2 }, requires: ['cassia', 'mira'] },
     title: 'Two ways to keep a vow',
     speaker: 'cassia',
     lines: [
@@ -1709,7 +1715,7 @@ const VIGNETTES = {
 
   crossed_oaths: {
     id: 'crossed_oaths',
-    when: { frictionFired: 'Crossed Oaths', requires: ['korin', 'mira'] },
+    when: { frictionFired: 'Crossed Oaths', frictionFiredCount: { name: 'Crossed Oaths', n: 2 }, requires: ['korin', 'mira'] },
     title: 'A paladin and a thief',
     speaker: 'korin',
     lines: [
@@ -1726,7 +1732,7 @@ const VIGNETTES = {
 
   tangled_sight: {
     id: 'tangled_sight',
-    when: { frictionFired: 'Tangled Sight', requires: ['ash', 'branwen'] },
+    when: { frictionFired: 'Tangled Sight', frictionFiredCount: { name: 'Tangled Sight', n: 2 }, requires: ['ash', 'branwen'] },
     title: 'A shared line',
     speaker: 'branwen',
     lines: [
@@ -1773,11 +1779,15 @@ const VIGNETTES = {
     title: 'Cassia, at the gate',
     speaker: 'cassia',
     lines: [
-      { who: 'cassia',  text: 'I have lost what is worth keeping. I have left to spend.' },
-      { who: '_first',  text: 'Then keep up.' },
+      { who: null,      text: "She stands at the threshold of the next reach, sword set point-down in the dust." },
+      { who: 'cassia',  text: "I lost what was worth keeping.  What I have left, I will spend down here." },
+      { who: '_first',  text: "Spend it well, then.  We're going up, not back." },
+      { who: 'cassia',  text: "Up.  I'd forgotten the word." },
+      { who: null,      text: "She lifts her sword.  The banner tied to its grip is grey with old smoke." },
     ],
     choices: [
-      { label: 'Welcome her', tag: 'Cassia heals to full', resolve: (s) => { const c = s.party.chars.cassia; if (c) c.hp = c.maxHp; } },
+      { label: 'Welcome her', tag: 'Cassia rests (HP restored)',
+        resolve: (s) => { const c = s.party.chars.cassia; if (c) c.hp = c.maxHp; } },
     ],
   },
   recruit_elin: {
@@ -1849,11 +1859,16 @@ const VIGNETTES = {
     title: 'Kai, on his feet again',
     speaker: 'kai',
     lines: [
-      { who: 'kai',    text: 'I have done this stretch alone too long.' },
-      { who: '_first', text: 'Walk it together, then.' },
+      { who: null,     text: "He's sitting against a dry stone with his sword across his knees when the party rounds the corner." },
+      { who: 'kai',    text: "Long walk by yourself, the abyss." },
+      { who: '_first', text: "We were going to keep walking past you." },
+      { who: 'kai',    text: "Reasonable.  I would have done the same." },
+      { who: 'kai',    text: "But — I have done this stretch alone too long.  Climb together?" },
+      { who: '_first', text: "Climb together." },
     ],
     choices: [
-      { label: 'Welcome him', tag: 'Kai heals to full', resolve: (s) => { const c = s.party.chars.kai; if (c) c.hp = c.maxHp; } },
+      { label: 'Welcome him', tag: 'Kai rests (HP restored)',
+        resolve: (s) => { const c = s.party.chars.kai; if (c) c.hp = c.maxHp; } },
     ],
   },
 
@@ -1907,6 +1922,7 @@ function captureFightContext(s, nodeType) {
   const completedNode = s.run.currentNodeId ? getMapNode(s.run.currentNodeId) : null;
   return {
     firedSynergies: Array.from(s.firedSynergies || []),
+    synergyCounts: { ...((s.run && s.run.synergyCounts) || {}) },
     minHp: { ...((s.fightStats && s.fightStats.minHp) || {}) },
     killsBy: { ...((s.fightStats && s.fightStats.killsBy) || {}) },
     downedThisFight: [...((s.fightStats && s.fightStats.downed) || [])],
@@ -1942,6 +1958,17 @@ function matchVignettes(s, ctx) {
     if (w.requires && !w.requires.every(id => ctx.alive.includes(id))) return false;
     if (w.bondFired && !ctx.firedSynergies.includes(w.bondFired)) return false;
     if (w.frictionFired && !ctx.firedSynergies.includes(w.frictionFired)) return false;
+    // Catalyst gates — the named bond must have fired at least N times this run.
+    // Vignettes that grant lasting rewards (hero quirks, sigils) gate on
+    // this so the reward feels earned rather than handed out on first sight.
+    if (w.bondFiredCount) {
+      const { name: bn, n: bnNeeded } = w.bondFiredCount;
+      if ((ctx.synergyCounts[bn] || 0) < bnNeeded) return false;
+    }
+    if (w.frictionFiredCount) {
+      const { name: fn, n: fnNeeded } = w.frictionFiredCount;
+      if ((ctx.synergyCounts[fn] || 0) < fnNeeded) return false;
+    }
     if (w.whileBiome && ctx.biome !== w.whileBiome) return false;
     if (typeof w.someoneAtOrBelow === 'number') {
       const hit = Object.entries(ctx.minHp).some(([id, hp]) => hp <= w.someoneAtOrBelow && ctx.alive.includes(id));
@@ -3888,10 +3915,16 @@ function fireSynergyFeedback(s, name, receiverId, effectText, effectType) {
   if (__simulating) return;
   spawnPopupId(receiverId, effectText, effectType, 'party');
   if (!s) return;
-  // Track first fires for the run/fight summary
+  // Track first fires for the run/fight summary AND a running per-run count
+  // (the count powers the bondFiredCount catalyst — vignettes that grant
+  // quirks now wait until a bond has fired several times before triggering).
   if (s.firedSynergies && !s.firedSynergies.has(name)) {
     s.firedSynergies.add(name);
     if (s.fightStats) s.fightStats.synergies.push(name);
+  }
+  if (s.run) {
+    s.run.synergyCounts = s.run.synergyCounts || {};
+    s.run.synergyCounts[name] = (s.run.synergyCounts[name] || 0) + 1;
   }
   // Look up bond/friction type from the active adjacency pair
   const pair = getAdjacencyPairs(s).find(p => p.synergy.name === name);

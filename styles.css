@@ -1563,14 +1563,19 @@ body {
 /* ============ ACTION ROW (row 5): tile-grid + team-special ============ */
 #action-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 108px 48px;
+  /* The middle column previously held the team-special tile.  With
+     Resonance bubbles floating above the action row (see #ts-area below),
+     we drop that column.  Tiles take the full width and the play column
+     hugs the right edge. */
+  grid-template-columns: minmax(0, 1fr) 48px;
   gap: 6px;
   padding: 2px 8px 4px;
   position: relative; z-index: 2;
   background: transparent;
   min-height: 0;
   align-items: stretch;
-  /* visible so the hold-to-reveal tooltip can escape upward */
+  /* visible so the hold-to-reveal tooltip and the Resonance bubble can
+     escape upward */
   overflow: visible;
 }
 #tile-grid {
@@ -4175,87 +4180,112 @@ button.path-node:not(:disabled):hover {
    RESONANCE RAIL — combo "fuse" chips that appear in the team-special slot
    when the queue contains matching ingredients.
    =========================================================================== */
+/* Resonance rail floats just above the action row.  Bubbles are wide chat
+   shapes with a small tail pointing down at the queue.  When no combos
+   match, the rail is hidden (#ts-area.hidden). */
+#ts-area {
+  position: absolute;
+  left: 8px; right: 56px;
+  bottom: calc(100% + 4px);
+  pointer-events: none; /* the bubbles themselves re-enable pointer events */
+}
 #ts-area.resonance-rail {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  align-items: stretch;
-  justify-content: flex-end;
-  padding: 0;
-  overflow: hidden;
+  flex-direction: row;
+  flex-wrap: wrap-reverse;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 6px;
+  padding: 0 4px 6px;
 }
 #ts-area.hidden { display: none; }
 .resonance-chip {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  grid-template-rows: auto auto;
-  align-items: center;
-  gap: 1px 8px;
-  padding: 6px 10px;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 220px;
+  max-width: 420px;
+  padding: 8px 14px 9px;
   background: linear-gradient(180deg,
-                              rgba(58,38,18,0.6) 0%,
-                              rgba(20,12,8,0.78) 100%);
+                              rgba(58,38,18,0.92) 0%,
+                              rgba(20,12,8,0.96) 100%);
   border: none;
+  border-radius: 12px 12px 4px 12px;  /* tail-ish bottom-right corner */
   color: var(--ink);
   font-family: inherit;
   cursor: pointer;
+  pointer-events: auto;
   position: relative;
-  animation: resonance-pulse 2.2s ease-in-out infinite;
+  animation: resonance-pulse 2.4s ease-in-out infinite;
   text-align: left;
   box-shadow:
-    inset 0 0 16px rgba(240,212,136,0.18),
-    0 0 14px rgba(240,212,136,0.22);
+    inset 0 0 20px rgba(240,212,136,0.2),
+    0 6px 18px rgba(0,0,0,0.6),
+    0 0 18px rgba(240,212,136,0.22);
+}
+.resonance-chip::after {
+  /* Chat-bubble tail pointing down at the action row */
+  content: '';
+  position: absolute;
+  right: 28px;
+  bottom: -8px;
+  width: 0; height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 8px solid rgba(20,12,8,0.96);
+  filter: drop-shadow(0 1px 0 rgba(240,212,136,0.18));
 }
 .resonance-chip:hover {
   filter: brightness(1.16);
   box-shadow:
-    inset 0 0 22px rgba(240,212,136,0.32),
-    0 0 22px rgba(240,212,136,0.4);
+    inset 0 0 26px rgba(240,212,136,0.36),
+    0 6px 18px rgba(0,0,0,0.6),
+    0 0 28px rgba(240,212,136,0.42);
 }
 @keyframes resonance-pulse {
-  0%, 100% { box-shadow: inset 0 0 16px rgba(240,212,136,0.18), 0 0 14px rgba(240,212,136,0.22); }
-  50%      { box-shadow: inset 0 0 26px rgba(240,212,136,0.36), 0 0 22px rgba(240,212,136,0.4); }
+  0%, 100% { box-shadow: inset 0 0 20px rgba(240,212,136,0.2),  0 6px 18px rgba(0,0,0,0.6), 0 0 18px rgba(240,212,136,0.22); }
+  50%      { box-shadow: inset 0 0 30px rgba(240,212,136,0.42), 0 6px 18px rgba(0,0,0,0.6), 0 0 30px rgba(240,212,136,0.44); }
 }
-.rc-label {
-  grid-column: 1;
-  grid-row: 1;
-  font-size: 11.5px;
-  letter-spacing: 0.18em;
+.resonance-chip .rc-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12.5px;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--gold-pale);
-  text-shadow: 0 0 8px rgba(240,212,136,0.4);
+  text-shadow: 0 0 10px rgba(240,212,136,0.45);
   font-weight: 600;
 }
-.rc-tier {
-  grid-column: 2;
-  grid-row: 1 / span 2;
-  align-self: center;
+.resonance-chip .rc-tier {
   font-size: 8.5px;
-  letter-spacing: 0.24em;
+  letter-spacing: 0.28em;
   color: var(--gold);
-  padding: 1px 5px;
-  background: rgba(0,0,0,0.45);
+  padding: 1px 6px;
+  background: rgba(0,0,0,0.55);
+  font-weight: 400;
 }
-.rc-desc {
-  grid-column: 1;
-  grid-row: 2;
-  font-size: 9.5px;
+.resonance-chip .rc-desc {
+  font-size: 10.5px;
   font-style: italic;
   letter-spacing: 0.04em;
   color: var(--ink-dim);
+  line-height: 1.4;
 }
 .resonance-chip.resonance-triple {
   background: linear-gradient(180deg,
-                              rgba(80,40,20,0.7) 0%,
-                              rgba(24,12,8,0.85) 100%);
+                              rgba(120,40,30,0.9) 0%,
+                              rgba(28,10,8,0.96) 100%);
 }
+.resonance-chip.resonance-triple::after { border-top-color: rgba(28,10,8,0.96); }
 .resonance-chip.resonance-triple .rc-label {
   color: var(--gold-bright);
-  text-shadow: 0 0 12px rgba(240,212,136,0.6);
+  text-shadow: 0 0 14px rgba(240,212,136,0.7);
 }
 .resonance-chip.resonance-triple .rc-tier {
   color: var(--gold-bright);
-  background: rgba(80,40,20,0.5);
+  background: rgba(80,30,20,0.65);
 }
 
 /* Keep the team-special tile styling as legacy fallback for any leftover
