@@ -7781,33 +7781,33 @@ function showPartyInspect() {
       ? `${pos.map(qid => quirkChip(qid, 'positive')).join('')}${neg.map(qid => quirkChip(qid, 'negative')).join('')}`
       : `<span class="hero-quirks-empty">No affinities yet.</span>`;
     detailEl.innerHTML = `
-      <div class="hip-banner">
-        <div class="hip-banner-portrait" aria-hidden="true">${PORTRAITS[id] || ''}</div>
-        <div class="hip-banner-meta">
-          <div class="hip-banner-name">${def.name}${c.downed ? ' · downed' : ''}</div>
-          <div class="hip-banner-title">${def.title || ''}</div>
-          <div class="hip-banner-stats">
-            <span class="hip-stat hip-stat-hp"><span class="hip-stat-label">HP</span><span class="hip-stat-val">${c.hp}/${c.maxHp}</span></span>
-            <span class="hip-stat hip-stat-school school-${def.school}"><span class="hip-stat-label">CLS</span><span class="hip-stat-val">${schoolTag}</span></span>
-            <span class="hip-stat hip-stat-slot"><span class="hip-stat-label">POS</span><span class="hip-stat-val">${(SLOT_LABELS[slotNow] || slotNow || '').toUpperCase()}${slotNow === def.home ? ' ◆' : ''}</span></span>
-          </div>
+      <div class="hip-focus-figure" aria-hidden="true">
+        <div class="hip-focus-silhouette">${PORTRAITS[id] || ''}</div>
+        <div class="hip-focus-name">${def.name}${c.downed ? ' · downed' : ''}</div>
+        <div class="hip-focus-title">${def.title || ''}</div>
+        <div class="hip-focus-stats">
+          <span class="hip-stat hip-stat-hp"><span class="hip-stat-label">HP</span><span class="hip-stat-val">${c.hp}/${c.maxHp}</span></span>
+          <span class="hip-stat hip-stat-school school-${def.school}"><span class="hip-stat-label">CLS</span><span class="hip-stat-val">${schoolTag}</span></span>
+          <span class="hip-stat hip-stat-slot"><span class="hip-stat-label">POS</span><span class="hip-stat-val">${(SLOT_LABELS[slotNow] || slotNow || '').toUpperCase()}${slotNow === def.home ? ' ◆' : ''}</span></span>
         </div>
       </div>
-      ${def.passive ? `
+      <div class="hip-focus-info">
+        ${def.passive ? `
+          <div class="hip-section">
+            <div class="hip-section-label">Passive</div>
+            <div class="hip-passive"><b>${def.passive.name}</b><span> — ${def.passive.desc}</span></div>
+          </div>` : ''}
         <div class="hip-section">
-          <div class="hip-section-label">Passive</div>
-          <div class="hip-passive"><b>${def.passive.name}</b><span> — ${def.passive.desc}</span></div>
-        </div>` : ''}
-      <div class="hip-section">
-        <div class="hip-section-label">Affinities</div>
-        <div class="hip-affinities">${affinities}</div>
-      </div>
-      <div class="hip-section">
-        <div class="hip-section-label">Abilities</div>
-        <div class="hip-tech-grid">
-          ${techSection(id, def, 'front')}
-          ${techSection(id, def, 'mid')}
-          ${techSection(id, def, 'back')}
+          <div class="hip-section-label">Affinities</div>
+          <div class="hip-affinities">${affinities}</div>
+        </div>
+        <div class="hip-section">
+          <div class="hip-section-label">Abilities</div>
+          <div class="hip-tech-grid">
+            ${techSection(id, def, 'front')}
+            ${techSection(id, def, 'mid')}
+            ${techSection(id, def, 'back')}
+          </div>
         </div>
       </div>
     `;
