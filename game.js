@@ -624,6 +624,84 @@ const PORTRAITS = {
   <circle cx="42" cy="110" r="0.8" fill="#a09080" opacity="0.45"/>
   <circle cx="58" cy="118" r="1.1" fill="#a09080" opacity="0.4"/>
 </svg>`,
+  // --- Layer 2 portraits ---
+  mourner: `
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <!-- robe drape -->
+  <path d="M30 130 L24 70 Q50 60 76 70 L70 130 Z" fill="#1c1620" stroke="#080510" stroke-width="0.5"/>
+  <!-- head veil -->
+  <path d="M34 60 Q50 36 66 60 L66 88 L34 88 Z" fill="#2c2638"/>
+  <!-- face shadow -->
+  <ellipse cx="50" cy="70" rx="12" ry="14" fill="#0a0612"/>
+  <!-- pale tear lines -->
+  <path d="M46 76 L46 90" stroke="#5a5a82" stroke-width="0.8"/>
+  <path d="M54 76 L54 88" stroke="#5a5a82" stroke-width="0.6"/>
+  <!-- floating name-shards -->
+  <text x="22" y="50" font-size="6" fill="#806a96" opacity="0.5">name</text>
+  <text x="74" y="58" font-size="6" fill="#806a96" opacity="0.45">echo</text>
+  <text x="18" y="92" font-size="5" fill="#806a96" opacity="0.4">forgotten</text>
+</svg>`,
+  drone: `
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <!-- floating geometric body -->
+  <polygon points="50,50 64,68 50,92 36,68" fill="#1a1828" stroke="#0a0612" stroke-width="0.5"/>
+  <!-- inner glyph -->
+  <circle cx="50" cy="70" r="6" fill="#0a0612"/>
+  <circle cx="50" cy="70" r="3" fill="#9a8ac8" opacity="0.7"/>
+  <!-- side fins -->
+  <polygon points="36,68 24,76 26,82 38,78" fill="#221c34"/>
+  <polygon points="64,68 76,76 74,82 62,78" fill="#221c34"/>
+  <!-- trailing tendrils -->
+  <path d="M48 92 L46 116" stroke="#3a304a" stroke-width="1.2" fill="none"/>
+  <path d="M52 92 L54 116" stroke="#3a304a" stroke-width="1.2" fill="none"/>
+  <path d="M50 92 L50 122" stroke="#5a4a6a" stroke-width="1" fill="none" opacity="0.7"/>
+</svg>`,
+  echoknight: `
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <!-- broad armored shoulders -->
+  <path d="M22 130 L18 64 Q50 50 82 64 L78 130 Z" fill="#2a2632" stroke="#0a0612" stroke-width="0.6"/>
+  <!-- helm -->
+  <ellipse cx="50" cy="60" rx="16" ry="16" fill="#181420"/>
+  <!-- visor slit -->
+  <rect x="38" y="58" width="24" height="2.5" fill="#3a3050"/>
+  <rect x="42" y="58.5" width="4" height="1.5" fill="#9a8ac8"/>
+  <rect x="54" y="58.5" width="4" height="1.5" fill="#9a8ac8"/>
+  <!-- crest -->
+  <path d="M44 46 L50 38 L56 46 Z" fill="#5a3838"/>
+  <!-- gauntlet on great sword -->
+  <rect x="78" y="80" width="3" height="40" fill="#7a7282"/>
+  <rect x="76" y="78" width="7" height="3" fill="#3a2818"/>
+  <!-- chestplate ridges -->
+  <path d="M40 88 L40 120 M50 90 L50 124 M60 88 L60 120" stroke="#0a0612" stroke-width="0.6"/>
+</svg>`,
+  listener: `
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <radialGradient id="lst-eye" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#fff4d2"/>
+      <stop offset="40%" stop-color="#d4a44a"/>
+      <stop offset="100%" stop-color="#3a2010"/>
+    </radialGradient>
+  </defs>
+  <!-- towering silhouette -->
+  <path d="M14 130 L8 72 Q50 50 92 72 L86 130 Z" fill="#15101a" stroke="#020108" stroke-width="0.8"/>
+  <!-- two great ear-fins -->
+  <path d="M10 64 Q4 50 14 38 L24 60 Z" fill="#1a1422"/>
+  <path d="M90 64 Q96 50 86 38 L76 60 Z" fill="#1a1422"/>
+  <!-- many eyes that hear -->
+  <ellipse cx="32" cy="70" rx="3" ry="5" fill="url(#lst-eye)"/>
+  <ellipse cx="50" cy="64" rx="4" ry="6" fill="url(#lst-eye)"/>
+  <ellipse cx="68" cy="70" rx="3" ry="5" fill="url(#lst-eye)"/>
+  <ellipse cx="40" cy="82" rx="2" ry="3" fill="url(#lst-eye)"/>
+  <ellipse cx="60" cy="82" rx="2" ry="3" fill="url(#lst-eye)"/>
+  <!-- a single hanging chime -->
+  <path d="M50 96 L50 108" stroke="#8a7252" stroke-width="0.8"/>
+  <polygon points="46,108 54,108 52,116 48,116" fill="#d4b86a"/>
+  <!-- whisper trails along the body -->
+  <text x="20" y="100" font-size="5" fill="#5a4830" opacity="0.6">listen</text>
+  <text x="62" y="116" font-size="5" fill="#5a4830" opacity="0.55">listen</text>
+  <text x="22" y="118" font-size="5" fill="#5a4830" opacity="0.45">listen</text>
+</svg>`,
 };
 
 // ============================================================================
@@ -1019,6 +1097,48 @@ const ENEMIES = {
       { name: 'Hollow Reach',     tag: 'ATK 4 + vuln',  targetSlot: 'back',  kind: 'debuff', dmg: 4, fn: (s) => { dmgPartyAt(s, 'back', 4); applyVulnParty(s, 'back', 2); } },
     ],
   },
+  // ============================== LAYER 2 — THE VEIL OF NAMES ===============
+  // Memory-themed sins.  Each leans into "naming" and "echoing" as mechanics.
+  mourner: {
+    id: 'mourner', name: 'Mourner', title: 'Sin of Naming', maxHp: 20,
+    weakness: 'physical', resistance: 'arcane',
+    intents: [
+      { name: 'Whisper a Name',  tag: 'WEAK 2 all', targetSlot: 'all',   kind: 'debuff', fn: (s) => aliveParty(s).forEach(c => { c.weak += 2; }) },
+      { name: 'Old Grief',       tag: 'ATK 4 + vuln', targetSlot: 'mid', kind: 'atk',    dmg: 4, fn: (s) => { dmgPartyAt(s, 'mid', 4); applyVulnParty(s, 'mid', 1); } },
+      { name: 'The Mourning',    tag: 'ATK 3 all + bleed', targetSlot: 'all', kind: 'aoe', dmg: 3, fn: (s) => { dmgAllParty(s, 3); aliveParty(s).forEach(c => { c.bleed = Math.max(c.bleed, 1); }); } },
+    ],
+  },
+  drone: {
+    id: 'drone', name: 'Naming Drone', title: 'Sin of Repetition', maxHp: 14,
+    weakness: 'stealth', resistance: 'holy',
+    intents: [
+      { name: 'Repeat',         tag: 'ATK 3 fm',    targetSlot: 'fm',   kind: 'debuff', dmg: 3, fn: (s) => { dmgPartyAt(s, 'front', 3); dmgPartyAt(s, 'mid', 3); } },
+      { name: 'Echo Back',      tag: '+3⛨ self',    targetSlot: '?',    kind: 'armor',  fn: (s) => { const me = Object.values(s.enemies.chars).find(en => en.id === 'drone' && !en.dead); if (me) me.armor += 3; } },
+      { name: 'Repetition',     tag: 'ATK 2 all twice', targetSlot: 'all', kind: 'aoe', dmg: 2, fn: (s) => { dmgAllParty(s, 2); dmgAllParty(s, 2); } },
+    ],
+  },
+  echoknight: {
+    id: 'echoknight', name: 'Echo Knight', title: 'Sin of Persistence', maxHp: 26,
+    weakness: 'arcane', resistance: 'physical',
+    intents: [
+      { name: 'Heavy Cleave',   tag: 'ATK 7',       targetSlot: 'front', kind: 'atk', dmg: 7, fn: (s) => dmgPartyAt(s, 'front', 7) },
+      { name: 'Return Stroke',  tag: 'ATK 5 + retal', targetSlot: 'front', kind: 'atk', dmg: 5, fn: (s) => { dmgPartyAt(s, 'front', 5); const me = Object.values(s.enemies.chars).find(en => en.id === 'echoknight' && !en.dead); if (me) me.retaliate = 2; } },
+      { name: 'Remembered',     tag: 'heal 5 self', targetSlot: '?',     kind: 'armor', fn: (s) => { const me = Object.values(s.enemies.chars).find(en => en.id === 'echoknight' && !en.dead); if (me) { me.hp = Math.min(me.maxHp, me.hp + 5); spawnPopupId('echoknight', '+5', 'heal', 'enemy'); } } },
+    ],
+  },
+  // Layer 2 boss — The Listener.  Knows every name; waits.  Marks a hero
+  // each turn and detonates the mark.
+  listener: {
+    id: 'listener', name: 'The Listener', title: 'Sin of Hearing', maxHp: 80, boss: true,
+    weakness: ['physical', 'stealth'], resistance: 'arcane',
+    intents: [
+      { name: 'I Know You',         tag: '+vuln front', targetSlot: 'front', kind: 'debuff', fn: (s) => applyVulnParty(s, 'front', 2) },
+      { name: 'Name Said Aloud',    tag: 'ATK 9 lowest', targetSlot: '?',     kind: 'atk', dmg: 9, fn: (s) => dmgLowestParty(s, 9) },
+      { name: 'Chamber Echo',       tag: 'ATK 4 all',   targetSlot: 'all',   kind: 'aoe', dmg: 4, fn: (s) => dmgAllParty(s, 4) },
+      { name: 'Stillness',          tag: 'heal 8 self', targetSlot: '?',     kind: 'armor', fn: (s) => { const me = Object.values(s.enemies.chars).find(en => en.id === 'listener' && !en.dead); if (me) { me.hp = Math.min(me.maxHp, me.hp + 8); spawnPopupId('listener', '+8', 'heal', 'enemy'); me.armor += 2; } } },
+      { name: 'Final Word',         tag: 'ATK 6 mid + weak', targetSlot: 'mid', kind: 'atk', dmg: 6, fn: (s) => { dmgPartyAt(s, 'mid', 6); const c = charBySlot(s, 'mid'); if (c) c.weak += 1; } },
+    ],
+  },
 };
 
 // ============================================================================
@@ -1047,9 +1167,37 @@ const ENCOUNTERS = {
 // graph for the current run.  See generateMap() below for the procedural rules.
 // ============================================================================
 
-// Pools for procedural encounter generation
+// Pools for procedural encounter generation — Layer 1 (Hollow Reach)
 const COMBAT_ENEMY_POOL = ['ghoul', 'cultist', 'wraith', 'lineCaster', 'sniper', 'husk', 'pyremaw', 'echocaster', 'ashling'];
 const ELITE_ENEMY_POOL  = ['grappler', 'sniper', 'lineCaster', 'wraith', 'cultist', 'husk', 'echocaster'];
+
+// Layer-specific encounter content.  state.run.layer determines which set
+// genCombatEncounter / genEliteEncounter / genBossEncounter draw from.
+// Layer 2 also bumps every enemy's HP slightly so the climb feels harder.
+const LAYER_CONTENT = {
+  1: {
+    combat: COMBAT_ENEMY_POOL,
+    elite:  ELITE_ENEMY_POOL,
+    boss:   'wakeling',
+    bossName: 'The Wakeling',
+    bossSubtitle: 'SIN OF THE DAWN',
+    bossTag: 'It does not flinch.',
+    hpBonus: 0, intentDmgBonus: 0,
+  },
+  2: {
+    combat: ['mourner', 'drone', 'echoknight', 'cultist', 'wraith', 'lineCaster'],
+    elite:  ['echoknight', 'mourner', 'grappler', 'lineCaster'],
+    boss:   'listener',
+    bossName: 'The Listener',
+    bossSubtitle: 'SIN OF HEARING',
+    bossTag: 'It knows every name.',
+    hpBonus: 2, intentDmgBonus: 1,
+  },
+};
+function getLayerContent(s) {
+  const id = (s && s.run && s.run.layer) || 1;
+  return LAYER_CONTENT[id] || LAYER_CONTENT[1];
+}
 
 // Flavor name pools — combat encounters draw a name from here at gen time so
 // the map has variety even when the underlying enemy mix is similar.
@@ -1080,7 +1228,11 @@ function genCombatEncounter(level, names) {
   const count = level <= 1 ? (Math.random() < 0.6 ? 1 : 2)
               : level === 2 ? (Math.random() < 0.5 ? 2 : 3)
               : (Math.random() < 0.45 ? 2 : 3);
-  const enemies = _shuffle(COMBAT_ENEMY_POOL).slice(0, count);
+  // Pull from the current layer's combat pool; falls back to Layer 1.
+  const pool = (typeof state !== 'undefined' && state && state.run && LAYER_CONTENT[state.run.layer])
+    ? LAYER_CONTENT[state.run.layer].combat
+    : COMBAT_ENEMY_POOL;
+  const enemies = _shuffle(pool).slice(0, count);
   const slotNames = _shuffle(['front', 'mid', 'back']);
   // Guarantee Front: rotate so 'front' is first slot in the shuffled order
   const frontIdx = slotNames.indexOf('front');
@@ -1091,7 +1243,10 @@ function genCombatEncounter(level, names) {
 }
 
 function genEliteEncounter(level, names) {
-  const enemies = _shuffle(ELITE_ENEMY_POOL).slice(0, 3);
+  const pool = (typeof state !== 'undefined' && state && state.run && LAYER_CONTENT[state.run.layer])
+    ? LAYER_CONTENT[state.run.layer].elite
+    : ELITE_ENEMY_POOL;
+  const enemies = _shuffle(pool).slice(0, 3);
   const slots = { front: enemies[0], mid: enemies[1], back: enemies[2] };
   const sigilCategory = _pickRandom(['combat', 'defense', 'resource']);
   return {
@@ -1103,7 +1258,8 @@ function genEliteEncounter(level, names) {
 }
 
 function genBossEncounter() {
-  return { name: 'The Wakeling', slots: { front: 'wakeling' }, boss: true };
+  const layer = (typeof state !== 'undefined' && state && state.run && LAYER_CONTENT[state.run.layer]) || LAYER_CONTENT[1];
+  return { name: layer.bossName, slots: { front: layer.boss }, boss: true };
 }
 
 // ----- Non-combat map node content -----
@@ -3106,6 +3262,7 @@ function newState(forcedStarter) {
       currentEnc: null,      // spec of the active encounter (set by startEncounter)
       sigils: [],            // ids of acquired sigils (run-wide modifiers)
       lastVictoryElite: false, // did the most recent victory come from an elite encounter? (gates sigil reward size)
+      layer: getCurrentLayer(),     // which Abyss layer this run is climbing
       map: generateMap(),    // freshly generated branching graph for this run
       modifier: rollRunModifier(), // biome modifier — passive effect for the whole run
       stats: { damageDealt: {}, damageTaken: {}, healingDone: {}, kills: 0, synergies: [], turns: 0, reaches: 0 },
@@ -3206,8 +3363,13 @@ function newCharState(id) {
 }
 function newEnemyState(id) {
   const def = ENEMIES[id];
+  // Layer-scaled HP — Layer 2+ enemies are slightly tougher per LAYER_CONTENT.
+  const bonus = (typeof state !== 'undefined' && state && state.run && LAYER_CONTENT[state.run.layer])
+    ? (def.boss ? LAYER_CONTENT[state.run.layer].hpBonus * 4 : LAYER_CONTENT[state.run.layer].hpBonus)
+    : 0;
+  const mhp = def.maxHp + bonus;
   return {
-    id, hp: def.maxHp, maxHp: def.maxHp,
+    id, hp: mhp, maxHp: mhp,
     armor: 0, bleed: 0, vuln: 0,
     chain: 0, staggered: false, staggerTurns: 0,
     dead: false, intentIdx: 0,
@@ -3795,20 +3957,28 @@ function gainResolve(s, amt) {
 }
 
 // Enemy → party effects (slot-targeted)
+// Layer-scaled intent damage: deeper layers add +N to every enemy hit.
+function _layerIntentBonus(s) {
+  return (s && s.run && LAYER_CONTENT[s.run.layer])
+    ? (LAYER_CONTENT[s.run.layer].intentDmgBonus || 0)
+    : 0;
+}
 function dmgPartyAt(s, slot, amt) {
+  amt = amt + _layerIntentBonus(s);
   const tauntee = aliveParty(s).find(c => c.taunt);
   let target = tauntee || charBySlot(s, slot);
   if (!target || target.downed) target = aliveParty(s)[0];
   if (target) applyDmgToParty(s, target, amt);
 }
 function dmgLowestParty(s, amt) {
+  amt = amt + _layerIntentBonus(s);
   const tauntee = aliveParty(s).find(c => c.taunt);
   if (tauntee) return applyDmgToParty(s, tauntee, amt);
   const alive = aliveParty(s); if (alive.length === 0) return;
   alive.sort((a, b) => a.hp - b.hp);
   applyDmgToParty(s, alive[0], amt);
 }
-function dmgAllParty(s, amt) { aliveParty(s).forEach(c => applyDmgToParty(s, c, amt)); }
+function dmgAllParty(s, amt) { const a = amt + _layerIntentBonus(s); aliveParty(s).forEach(c => applyDmgToParty(s, c, a)); }
 // Line Caster: hit both slots in a Front-Mid or Mid-Back line. AoE-style — bypasses taunt redirect.
 function dmgLinePair(s, line, amt) {
   const slots = line === 'fm' ? ['front', 'mid'] : ['mid', 'back'];
@@ -6049,7 +6219,12 @@ function renderMap() {
         if (node.type === 'rest')        return showRestOverlay();
         if (node.type === 'event')       return showEventOverlay(node.eventId);
         if (node.type === 'boss') {
-          const startBoss = () => showBossIntro({}, () => startEncounter(node.enc));
+          const layerInfo = LAYER_CONTENT[state.run.layer] || LAYER_CONTENT[1];
+          const startBoss = () => showBossIntro({
+            eyebrow: layerInfo.bossSubtitle,
+            name:    (layerInfo.bossName || '').toUpperCase(),
+            tag:     layerInfo.bossTag,
+          }, () => startEncounter(node.enc));
           const ctx = captureFightContext(state); ctx.phase = 'bossPrep';
           const matches = matchVignettes(state, ctx);
           if (matches.length) {
@@ -7122,15 +7297,28 @@ function showWorldMap() {
     const isCurrent = (layer.id === Math.min(9, Math.max.apply(null, [1, ...cleared.map(c => c + 1)])));
     const row = document.createElement('div');
     row.className = 'wm-row' + (isCleared ? ' wm-cleared' : '') + (isUnlocked && !isCleared ? ' wm-unlocked' : '') + (!isUnlocked ? ' wm-locked' : '') + (isCurrent ? ' wm-current' : '');
+    const hasContent = !!LAYER_CONTENT[layer.id];
     row.innerHTML = `
       <span class="wm-num">${layer.id}</span>
       <div class="wm-meta">
         <div class="wm-name">${layer.name}</div>
         <div class="wm-sub">${layer.subtitle}</div>
         ${isUnlocked ? `<div class="wm-desc">${layer.desc}</div>` : ''}
-        ${isUnlocked ? `<div class="wm-boss">Boss · ${layer.boss}</div>` : `<div class="wm-locked-tag">— sealed —</div>`}
+        ${isUnlocked ? `<div class="wm-boss">Boss · ${layer.boss}${hasContent ? '' : ' · <i>(coming soon)</i>'}</div>` : `<div class="wm-locked-tag">— sealed —</div>`}
       </div>
     `;
+    // Clickable iff unlocked AND content exists.  Tapping starts a fresh
+    // run on that layer.
+    if (isUnlocked && hasContent) {
+      row.classList.add('wm-clickable');
+      row.addEventListener('click', () => {
+        Audio.ui();
+        setCurrentLayer(layer.id);
+        root.classList.add('hidden');
+        clearSave();
+        init();
+      });
+    }
     list.appendChild(row);
   });
   root.classList.remove('hidden');
