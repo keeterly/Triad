@@ -1723,7 +1723,7 @@ body {
   position: relative;
 }
 .starter-lineup.recruit-lineup {
-  padding-top: 72px;
+  padding-top: 96px;
 }
 .starter-lineup::after {
   /* Soft warm floor line under the row */
@@ -1861,9 +1861,8 @@ body {
 }
 .recruit-fig .recruit-bubble {
   position: absolute;
-  /* Sit just over the head/shoulders of the silhouette rather than
-     floating off into the title region. */
-  bottom: calc(100% - 56px);
+  /* Float above the portrait with clear space, not draped over the head. */
+  bottom: calc(100% + 12px);
   max-width: 220px;
   padding: 6px 12px 8px;
   background: linear-gradient(180deg,
