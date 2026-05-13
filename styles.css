@@ -3356,16 +3356,21 @@ body.party-critical::after {
 }
 #overlay-choices.hidden { display: none; }
 
-/* ===== branching map: 5 level columns, variable nodes per column ===== */
+/* ===== branching map: 5 level columns, variable nodes per column =====
+   Flex row instead of grid — predictable on every iOS Safari and avoids
+   the grid-auto-flow stacking bug we hit on phones. */
 #overlay-choices.path-map {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  display: flex !important;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  justify-content: space-between;
+  align-items: stretch;
   gap: 12px;
   margin-top: 6px;
   position: relative;
-  align-items: stretch;
+  width: 100%;
 }
-.path-col { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.path-col { flex: 1 1 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .path-col-head {
   text-align: center;
   font-size: 9.5px;
@@ -5459,35 +5464,7 @@ button.path-node:not(:disabled):hover .pn-icon {
   opacity: 0.85;
 }
 
-/* ===========================================================================
-   PATH COLUMNS — wider gap between stretches; column heading is slim
-   =========================================================================== */
-#overlay-choices.path-map {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 1fr;
-  gap: 14px;
-  align-items: start;
-  width: 100%;
-}
-.path-col {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 14px;
-}
-.path-col-head {
-  font-size: 9.5px;
-  letter-spacing: 0.32em;
-  text-transform: uppercase;
-  color: var(--ink-dim);
-}
-.path-col-slots {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-}
+/* Mobile node compaction for path-map */
 @media (max-height: 480px) {
   #overlay-choices.path-map { gap: 8px; }
   .path-col { gap: 8px; }
@@ -5503,7 +5480,7 @@ button.path-node:not(:disabled):hover .pn-icon {
    .overlay-runsummary for size + spacing tweaks.
    =========================================================================== */
 #overlay.overlay-full {
-  background: radial-gradient(ellipse at center, rgba(8,4,4,0.86) 0%, rgba(0,0,0,0.96) 70%) !important;
+  background: radial-gradient(ellipse at center, #0a0606 0%, #000 70%) !important;
 }
 #overlay.overlay-full #overlay-content {
   background: transparent !important;

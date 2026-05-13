@@ -7636,7 +7636,7 @@ function commitRecruit(removeId, recruitId) {
     log(`<b>${CHARS[recruitId].name}</b> joins the party.`);
     hideOverlay();
     resetOverlayBtn();
-    fireRecruitVignette(recruitId);
+    offerUpgradeOrPath();
     return;
   }
   // Swap path: removeId is a hero id to eject.
@@ -7646,24 +7646,9 @@ function commitRecruit(removeId, recruitId) {
   state.party.chars[recruitId] = newCharState(recruitId);
   state.party.slots[slot] = recruitId;
   if (rememberRecruited(recruitId)) log(`<i>${CHARS[recruitId].name} is now available as a starter for future runs.</i>`);
+  log(`<b>${CHARS[recruitId].name}</b> joins the party.`);
   hideOverlay();
   resetOverlayBtn();
-  fireRecruitVignette(recruitId);
-}
-
-// Shared between the swap and empty-slot recruit paths: try a recruit-intro
-// vignette before the upgrade flow.
-function fireRecruitVignette(recruitId) {
-  const ctx = captureFightContext(state);
-  ctx.phase = 'recruit';
-  ctx.recruitedId = recruitId;
-  ctx.alive = Object.values(state.party.chars).filter(c => !c.downed).map(c => c.id);
-  const matches = matchVignettes(state, ctx);
-  if (matches.length) {
-    const pick = matches[Math.floor(Math.random() * matches.length)];
-    showVignette(pick, ctx, () => offerUpgradeOrPath());
-    return;
-  }
   offerUpgradeOrPath();
 }
 
