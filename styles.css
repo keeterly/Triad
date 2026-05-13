@@ -258,14 +258,14 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
+  width: 22px;
+  height: 22px;
   padding: 0;
   border: 1px solid rgba(212,200,168,0.45);
   background: rgba(18,18,20,0.85);
   color: var(--ink);
   font-family: inherit;
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1;
   cursor: pointer;
   border-radius: 0;
@@ -282,7 +282,7 @@ body {
 .sigil-chip-icon {
   display: block;
   line-height: 1;
-  font-size: 11px;
+  font-size: 13px;
   text-shadow: 0 1px 0 var(--shadow);
 }
 /* Category coloring — border + icon tint */
@@ -694,8 +694,8 @@ body {
   left: 50%;
   transform: translateX(-50%);
   color: var(--ink);
-  display: inline-flex; align-items: center; gap: 3px;
-  padding: 1px 5px;
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 7px;
   border-radius: 0;
   background: rgba(18,10,10,0.92);
   border: 1px solid var(--blood-bright);
@@ -705,11 +705,11 @@ body {
   white-space: nowrap;
 }
 .intent-bubble .intent-icon {
-  font-size: 8px; line-height: 1;
+  font-size: 11px; line-height: 1;
   filter: drop-shadow(0 1px 0 var(--shadow));
 }
 .intent-bubble .intent-num {
-  font-size: 9.5px; font-weight: bold; line-height: 1;
+  font-size: 13px; font-weight: bold; line-height: 1;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0;
   text-shadow: 0 1px 0 var(--shadow), 0 0 4px rgba(0,0,0,0.4);
