@@ -1382,7 +1382,20 @@ function genCombatEncounter(level, names) {
   if (frontIdx > 0) [slotNames[0], slotNames[frontIdx]] = [slotNames[frontIdx], slotNames[0]];
   const slots = {};
   enemies.forEach((eid, i) => { slots[slotNames[i]] = eid; });
-  return { name: _consumeName(COMBAT_NAMES, names), slots };
+  const enc = { name: _consumeName(COMBAT_NAMES, names), slots };
+  // 25% chance on multi-enemy combats: pick one enemy to be the "Ringleader".
+  // Killing them early wins the fight and routs the rest.  Adds a real
+  // priority decision instead of pure target-the-front-row optimization.
+  if (enemies.length >= 2 && Math.random() < 0.25) {
+    const targetSlot = slotNames[Math.floor(Math.random() * enemies.length)];
+    enc.objective = {
+      kind: 'priority',
+      targetSlot,
+      label: 'Mark the Ringleader',
+      hint: 'The marked enemy commands the others. Cut them down and the rest will flee.',
+    };
+  }
+  return enc;
 }
 
 function genEliteEncounter(level, names) {
@@ -3906,6 +3919,10 @@ function startEncounter(encSpec) {
   state.ignoreArmor = false;
   state.currentActorId = null;
   state.firedSynergies = new Set();
+  // Encounter objective (Ringleader / etc) — copied off the encSpec so the
+  // checkEnd hook can resolve early-win conditions and the UI can render
+  // the objective banner.  Cleared if the encSpec doesn't carry one.
+  state.run.objective = encSpec.objective ? { ...encSpec.objective, fired: false } : null;
   // Each Resonance can fire at most once per encounter — keeps the moment
   // special and forces players to mix combos across turns instead of
   // spamming the same chain.  Reset every encounter, persisted across the
@@ -5337,6 +5354,22 @@ function resolveEnemyStep(s, i) {
 
 function checkEnd(s) {
   if (s.over) return true;
+  // Objective check — if the encounter has a "Ringleader" priority target
+  // and they fall, the rest flee and the fight ends in victory.  Drains
+  // the remaining enemies' HP so the existing all-dead-enemies branch
+  // below picks it up cleanly.
+  if (s.run && s.run.objective && s.run.objective.kind === 'priority' && !s.run.objective.fired) {
+    const targetId = s.enemies.slots[s.run.objective.targetSlot];
+    const target = targetId && s.enemies.chars[targetId];
+    if (target && target.dead) {
+      s.run.objective.fired = true;
+      const survivors = aliveEnemies(s);
+      if (survivors.length) {
+        survivors.forEach(e => { e.hp = 0; e.dead = true; });
+        log('<i>The marked one falls.  The rest break and flee into the dark.</i>');
+      }
+    }
+  }
   if (aliveEnemies(s).length === 0) {
     s.over = true;
     // Mark the current MAP_NODE as completed; the next reachable nodes
@@ -5575,7 +5608,25 @@ function flashResolve() {
   );
 }
 
+function renderObjectiveBanner() {
+  const el = document.getElementById('objective-banner');
+  if (!el) return;
+  const obj = state.run && state.run.objective;
+  if (!obj || obj.fired) {
+    el.classList.add('hidden');
+    el.innerHTML = '';
+    return;
+  }
+  el.classList.remove('hidden');
+  el.innerHTML = `
+    <span class="ob-glyph" aria-hidden="true">◆</span>
+    <span class="ob-label">${obj.label}</span>
+    <span class="ob-hint">${obj.hint || ''}</span>
+  `;
+}
+
 function renderBattlefield() {
+  renderObjectiveBanner();
   // For each unstaggered enemy this turn, project its intent: which party
   // slots are threatened, and per-character predicted HP loss with armor/vuln
   // depleting across sequential hits.
@@ -5804,6 +5855,12 @@ function makeEnemyCard(e, slot) {
   const fig = document.createElement('div');
   fig.className = 'figure enemy-figure';
   fig.dataset.slot = slot;
+  // Mark the Ringleader for objective encounters — drives the crown overlay
+  // in CSS so the player can see who matters before targeting.
+  const obj = state.run && state.run.objective;
+  if (obj && obj.kind === 'priority' && obj.targetSlot === slot && !obj.fired) {
+    fig.classList.add('priority-target');
+  }
   if (!e || e.dead) {
     fig.classList.add('empty');
     fig.innerHTML = `<div class="figure-portrait"></div><div class="figure-shadow"></div><div class="figure-info"><div class="figure-name">—</div></div>`;
