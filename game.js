@@ -2116,6 +2116,71 @@ const VIGNETTES = {
     ],
   },
 
+  // ---- Rumor vignettes — short observations that plant a hero's name in
+  // the run.  state.run.rumoredHeroes gates which hero appears when the
+  // recruit moment fires, so the world feels like it wove them in instead
+  // of the picker handing out a random pair.
+  rumor_cassia: {
+    id: 'rumor_cassia',
+    when: { firstClearOf: 'combat', whileLayer: 1 },
+    oneShot: true,
+    title: 'A banner in the dust',
+    speakerFromFirstAlive: true,
+    lines: [
+      { who: null,     text: 'A torn banner snags in the brush — a sword set point-down in stone.' },
+      { who: '_first', text: 'Cassia.  They said she walked the gate when her house fell.' },
+    ],
+    choices: [
+      { label: 'Mark the sign', tag: 'Rumor noted: Cassia',
+        resolve: (s) => { (s.run.rumoredHeroes = s.run.rumoredHeroes || []).push('cassia'); } },
+    ],
+  },
+  rumor_elin: {
+    id: 'rumor_elin',
+    when: { someoneAtOrBelow: 6 },
+    oneShot: true,
+    title: 'A hand without a name',
+    speakerFromFirstAlive: true,
+    lines: [
+      { who: null,     text: 'You find a strip of linen bound around a hawthorn branch — a field-medic mark.' },
+      { who: '_first', text: 'Someone is healing strangers down here.  Elin, the old wards used to call her.' },
+    ],
+    choices: [
+      { label: 'Keep the strip', tag: 'Rumor noted: Elin',
+        resolve: (s) => { (s.run.rumoredHeroes = s.run.rumoredHeroes || []).push('elin'); } },
+    ],
+  },
+  rumor_branwen: {
+    id: 'rumor_branwen',
+    when: { whileBiome: 'bonetide' },
+    oneShot: true,
+    title: 'A shaft in the marrow',
+    speakerFromFirstAlive: true,
+    lines: [
+      { who: null,     text: 'An arrow stands in a sin, fletched with green thread.  The shaft has a name carved into it.' },
+      { who: '_first', text: 'Branwen.  Every arrow named before it flies.' },
+    ],
+    choices: [
+      { label: 'Read the name', tag: 'Rumor noted: Branwen',
+        resolve: (s) => { (s.run.rumoredHeroes = s.run.rumoredHeroes || []).push('branwen'); } },
+    ],
+  },
+  rumor_korin: {
+    id: 'rumor_korin',
+    when: { firstClearOf: 'elite' },
+    oneShot: true,
+    title: 'A wall someone built',
+    speakerFromFirstAlive: true,
+    lines: [
+      { who: null,     text: 'A row of cairns stands across the path, set by patient hands.  Whoever built them did not run.' },
+      { who: '_first', text: 'Korin.  He holds the line when no one asks him to.' },
+    ],
+    choices: [
+      { label: 'Pass through', tag: 'Rumor noted: Korin',
+        resolve: (s) => { (s.run.rumoredHeroes = s.run.rumoredHeroes || []).push('korin'); } },
+    ],
+  },
+
   // ---- "An enemy wanted to live" — post-fight vignettes that flavor the
   // existing recruit offer as a survivor asking to walk with you. Mechanic
   // is purely narrative: granting Resolve / heal, not adding new heroes.
@@ -3471,6 +3536,7 @@ function newState(forcedStarter) {
       map: generateMap(),    // freshly generated branching graph for this run
       modifier: rollRunModifier(), // biome modifier — passive effect for the whole run
       stats: { damageDealt: {}, damageTaken: {}, healingDone: {}, kills: 0, synergies: [], turns: 0, reaches: 0 },
+      rumoredHeroes: [],     // hero ids heard about in prior vignettes — recruit picker prefers these
     },
 
     // Solo start: starter goes in their HOME slot; the other two slots are empty.
@@ -7338,6 +7404,14 @@ function showVictorySummary(completedEnc, onContinue) {
 // when at least one vignette matches, so the player isn't bombarded.
 function offerVignetteOrPath(fightCtx) {
   const matches = matchVignettes(state, fightCtx);
+  // Rumor vignettes have priority — they always fire when available so
+  // they can plant a hero's name before the next recruit moment lands.
+  const rumors = matches.filter(v => v.id && v.id.startsWith('rumor_'));
+  if (rumors.length) {
+    const pick = rumors[Math.floor(Math.random() * rumors.length)];
+    showVignette(pick, fightCtx, () => offerRecruitOrPath());
+    return;
+  }
   const roll = Math.random();
   if (matches.length && roll < 0.55) {
     const pick = matches[Math.floor(Math.random() * matches.length)];
@@ -7361,9 +7435,13 @@ function offerRecruitOrPath() {
   if (!hasOpenSlot) { offerUpgradeOrPath(); return; }
   const pickable = ROSTER.filter(id => !state.party.chars[id]);
   if (pickable.length === 0) { offerUpgradeOrPath(); return; }
-  const shuffled = pickable.slice().sort(() => Math.random() - 0.5);
-  const candidates = shuffled.slice(0, Math.min(2, shuffled.length));
-  showRecruitOverlay(candidates);
+  // Prefer heroes whose names have been heard in earlier vignettes — makes
+  // recruits feel like the world wove them in rather than a draft.  When
+  // no rumored hero is available, fall back to random.
+  const rumored = (state.run.rumoredHeroes || []).filter(id => pickable.includes(id));
+  const pool = rumored.length ? rumored : pickable;
+  const heroId = pool[Math.floor(Math.random() * pool.length)];
+  showRecruitVignette(heroId);
 }
 
 function offerUpgradeOrPath() {
@@ -7510,72 +7588,47 @@ const RECRUIT_GREETINGS = {
   mira:    "I prefer to finish before they notice.",
 };
 
-// Recruit overlay — restyled like a vignette: standing portraits with chat
-// bubbles introducing themselves.  Tap a portrait to take that hero;
-// press-and-hold for full stats; "Walk on" declines.
-function showRecruitOverlay(candidates) {
-  $('#overlay').classList.remove('overlay-path', 'overlay-vignette', 'overlay-runsummary', 'overlay-rest', 'overlay-upgrade', 'overlay-sigil');
-  $('#overlay').classList.add('overlay-full', 'overlay-cinematic', 'overlay-recruit');
-  // Title is the eyebrow line beneath; hide the regular overlay-title so
-  // the chat bubbles have headroom above the silhouettes.
-  $('#overlay-title').textContent = '';
-  const body = $('#overlay-body');
-  body.classList.remove('victory-summary-body', 'welcome-body', 'run-summary-body');
-  body.innerHTML = `
-    <p class="starter-eyebrow">A new ally appears</p>
-    <p class="starter-flavor">Walk together, or walk on alone.</p>
-  `;
-  const choices = $('#overlay-choices');
-  choices.innerHTML = '';
-  choices.classList.remove('path-map', 'party-inspect', 'event-choices', 'title-choices', 'vignette-choices');
-  choices.classList.add('starter-choices'); // reuse lineup styling
-
-  // Build a vignette-style stage with each candidate standing.  Bubble
-  // floats above the silhouette with their intro line.
-  const lineup = document.createElement('div');
-  lineup.className = 'starter-lineup recruit-lineup';
-  candidates.forEach((charId, idx) => {
-    const def = CHARS[charId];
-    const side = idx === 0 ? 'left' : 'right';
-    const greet = RECRUIT_GREETINGS[charId] || `${def.name} eyes you in the dark.`;
-    const fig = document.createElement('button');
-    fig.type = 'button';
-    fig.className = `starter-fig recruit-fig recruit-side-${side}`;
-    fig.dataset.id = charId;
-    fig.innerHTML = `
-      <div class="recruit-bubble bubble ${side === 'left' ? 'left' : 'right'}">
-        <span class="vn-who">${def.name}</span>
-        <span class="vn-text">${greet}</span>
-      </div>
-      <div class="starter-portrait">${PORTRAITS[charId] || ''}</div>
-      <div class="starter-name">${def.name}</div>
-    `;
-    bindStarterHoldOrTap(fig, def, () => {
-      const openSlot = findEmptySlotForRecruit(charId);
-      if (openSlot) commitRecruit(openSlot, charId);
-      else          showSwapOverlay(charId);
-    });
-    lineup.appendChild(fig);
-  });
-  choices.appendChild(lineup);
-
-  // "Walk on" decline — slim text-link under the lineup.
-  const decline = document.createElement('button');
-  decline.type = 'button';
-  decline.className = 'recruit-walk-on';
-  decline.textContent = 'Walk on alone';
-  decline.addEventListener('click', () => {
-    Audio.ui();
-    hideOverlay();
-    resetOverlayBtn();
-    offerUpgradeOrPath();
-  });
-  choices.appendChild(decline);
-
-  resetOverlayBtn();
-  $('#overlay-btn').classList.add('hidden');
-  choices.classList.remove('hidden');
-  $('#overlay').classList.remove('hidden');
+// Recruit moment — single hero appears in a mini-vignette.  Re-uses the
+// existing showVignette stage so the recruit gets real dialogue with an
+// existing party member (via _first wildcard).  Welcome them or walk on.
+function showRecruitVignette(heroId) {
+  const def = CHARS[heroId];
+  const base = VIGNETTES[`recruit_${heroId}`];
+  // Hand-authored intro lines if we have them; otherwise a minimal fallback.
+  const lines = base ? base.lines.slice() : [
+    { who: heroId,    text: RECRUIT_GREETINGS[heroId] || `${def.name} eyes you in the dark.` },
+    { who: '_first',  text: 'Speak quickly.  The reach is hungry.' },
+  ];
+  const titleText = base ? base.title : `${def.name} steps from the dark`;
+  const vig = {
+    id: `recruit_event_${heroId}`,
+    title: titleText,
+    speaker: heroId,
+    lines,
+    choices: [
+      {
+        label: 'Welcome them',
+        tag: `${def.name} joins · HP restored`,
+        resolve: (s) => {
+          const slot = findEmptySlotForRecruit(heroId);
+          if (!slot) return;
+          s.party.chars[heroId] = newCharState(heroId);
+          s.party.slots[slot] = heroId;
+          const c = s.party.chars[heroId];
+          if (c) c.hp = c.maxHp;
+          if (rememberRecruited(heroId)) log(`<i>${def.name} is now available as a starter for future runs.</i>`);
+          log(`<b>${def.name}</b> joins the party.`);
+        },
+      },
+      {
+        label: 'Walk on',
+        tag: `${def.name} walks alone`,
+        resolve: () => { log(`<b>${def.name}</b> walks on alone.`); },
+      },
+    ],
+  };
+  const ctx = captureFightContext(state);
+  showVignette(vig, ctx, () => offerUpgradeOrPath());
 }
 
 function showSwapOverlay(recruitId) {
