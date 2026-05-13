@@ -1268,6 +1268,21 @@ function genBossEncounter() {
 // Each event has flavor + 2 choices.  Choice resolvers mutate state directly
 // (heal/dmg/quirk/sigil grants).  Player picks one, then returns to the map.
 const EVENTS = {
+  // Path-stranger encounter — hands off to a recruit beat on accept.
+  // _completeNonCombatNode reads run._pendingStrangerRecruit and routes
+  // into showRecruitVignette('stranger', ...) before returning to map.
+  // If the party is full, the strategic swap overlay opens instead.
+  wanderer: {
+    id: 'wanderer',
+    name: 'A Stranger on the Path',
+    flavor: 'Footsteps in the dust that are not yours.  Whoever they are, they stop when you stop.  They are waiting for you to choose first.',
+    choices: [
+      { label: 'Hear them out', tag: 'A new ally may walk with you',
+        resolve: (s) => { s.run._pendingStrangerRecruit = true; } },
+      { label: 'Keep walking',  tag: 'no change',
+        resolve: () => { log('The footsteps fade behind you.'); } },
+    ],
+  },
   bone_altar: {
     id: 'bone_altar',
     name: 'Bone Altar',
@@ -3634,6 +3649,8 @@ function newState(forcedStarter) {
       modifier: rollRunModifier(), // biome modifier — passive effect for the whole run
       stats: { damageDealt: {}, damageTaken: {}, healingDone: {}, kills: 0, synergies: [], turns: 0, reaches: 0 },
       rumoredHeroes: [],     // hero ids heard about in prior vignettes — recruit picker prefers these
+      nodesSinceRecruit: 0,  // cleared-node counter gating how often recruit rolls fire
+      recruitPending: false, // set when a hero falls — next recruit roll is forced (Vigil for the fallen)
     },
 
     // Solo start: starter goes in their HOME slot; the other two slots are empty.
@@ -5104,6 +5121,14 @@ function checkEnd(s) {
     // will be whatever this node's `next` lists.
     if (s.run.currentNodeId) s.run.completedNodes.push(s.run.currentNodeId);
     if (s.fightStats) s.fightStats.turns = s.turn;
+    // Frequency counter — recruit rolls are gated by how many nodes have
+    // passed since the last successful recruit.  Counts combat + non-combat.
+    s.run.nodesSinceRecruit = (s.run.nodesSinceRecruit || 0) + 1;
+    // Vigil for the fallen — if anyone went down in this fight, the next
+    // recruit moment is forced and reframed as a replacement.
+    if (s.fightStats && s.fightStats.downed && s.fightStats.downed.length > 0) {
+      s.run.recruitPending = true;
+    }
     const completedEnc = s.run.currentEnc;
     const completedNode = s.run.currentNodeId ? getMapNode(s.run.currentNodeId) : null;
     s.run.lastVictoryElite = !!(completedNode && completedNode.type === 'elite');
@@ -7061,7 +7086,27 @@ function showVignette(v, ctx, done) {
 function _completeNonCombatNode() {
   if (state.run.currentNodeId) state.run.completedNodes.push(state.run.currentNodeId);
   state.run.lastVictoryElite = false;
-  // Skip recruit/upgrade/sigil offers from non-combat nodes; just return to map.
+  state.run.nodesSinceRecruit = (state.run.nodesSinceRecruit || 0) + 1;
+
+  // Stranger event hand-off — the wanderer event sets this flag in its
+  // resolve.  Fire a recruit beat before returning to the map; if the
+  // party is full, offer a strategic swap instead of just walking on.
+  if (state.run._pendingStrangerRecruit) {
+    state.run._pendingStrangerRecruit = false;
+    const pickable = ROSTER.filter(id => !state.party.chars[id]);
+    if (pickable.length) {
+      const rumored = (state.run.rumoredHeroes || []).filter(id => pickable.includes(id));
+      const pool = rumored.length ? rumored : pickable;
+      const heroId = pool[Math.floor(Math.random() * pool.length)];
+      const hasOpenSlot = ['front','mid','back'].some(sl => !state.party.slots[sl]);
+      if (hasOpenSlot) {
+        showRecruitVignette(heroId, 'stranger', () => renderMap());
+      } else {
+        showSwapOverlay(heroId, () => renderMap());
+      }
+      return;
+    }
+  }
   renderMap();
 }
 
@@ -7585,18 +7630,40 @@ function offerVignetteOrPath(fightCtx) {
 //      and events.
 // Effect: a typical combat win is one overlay (vignette, sometimes) plus
 // a recruit when applicable.
-function offerRecruitOrPath() {
-  const hasOpenSlot = ['front','mid','back'].some(sl => !state.party.slots[sl]);
-  if (!hasOpenSlot) { offerUpgradeOrPath(); return; }
+// Frequency + pressure gate for the post-combat recruit roll.  Recruits
+// shouldn't fire after every fight — they should feel earned and timely.
+//   - At most one roll per ~2 cleared nodes (chance ramps up after that)
+//   - If a hero fell this fight, the next roll is forced (Vigil)
+function shouldOfferRecruit() {
   const pickable = ROSTER.filter(id => !state.party.chars[id]);
-  if (pickable.length === 0) { offerUpgradeOrPath(); return; }
+  if (!pickable.length) return false;
+  const hasOpenSlot = ['front','mid','back'].some(sl => !state.party.slots[sl]);
+  if (!hasOpenSlot) return false;
+  if (state.run.recruitPending) return true;
+  const since = state.run.nodesSinceRecruit || 0;
+  if (since < 2) return false;
+  const chance = since >= 4 ? 0.9 : 0.5;
+  return Math.random() < chance;
+}
+
+function offerRecruitOrPath() {
+  if (!shouldOfferRecruit()) { offerUpgradeOrPath(); return; }
+  const pickable = ROSTER.filter(id => !state.party.chars[id]);
   // Prefer heroes whose names have been heard in earlier vignettes — makes
   // recruits feel like the world wove them in rather than a draft.  When
   // no rumored hero is available, fall back to random.
   const rumored = (state.run.rumoredHeroes || []).filter(id => pickable.includes(id));
   const pool = rumored.length ? rumored : pickable;
   const heroId = pool[Math.floor(Math.random() * pool.length)];
-  showRecruitVignette(heroId);
+  // Flavor — vigil takes precedence (a hero just fell), otherwise a 1-in-3
+  // chance for "battlefield mercy" framing (a survivor turns coat), else
+  // the default authored intro.
+  const wasVigil = !!state.run.recruitPending;
+  state.run.recruitPending = false;
+  const flavor = wasVigil ? 'vigil'
+               : Math.random() < 0.33 ? 'survivor'
+               : 'default';
+  showRecruitVignette(heroId, flavor, () => offerUpgradeOrPath());
 }
 
 function offerUpgradeOrPath() {
@@ -7749,18 +7816,46 @@ const RECRUIT_GREETINGS = {
 // Recruit moment — single hero appears in a mini-vignette.  Re-uses the
 // existing showVignette stage so the recruit gets real dialogue with an
 // existing party member (via _first wildcard).  Welcome them or walk on.
-function showRecruitVignette(heroId) {
+// `flavor` selects the framing:
+//   default  — authored recruit_X intro (rare meeting in the dark)
+//   vigil    — fires after a party-mate fell this fight
+//   survivor — battlefield mercy; a wounded enemy reveals as a hero
+//   stranger — path encounter; the wanderer event hand-off
+function showRecruitVignette(heroId, flavor, onDone) {
   const def = CHARS[heroId];
   const base = VIGNETTES[`recruit_${heroId}`];
-  // Hand-authored intro lines if we have them; otherwise a minimal fallback.
-  const lines = base ? base.lines.slice() : [
-    { who: heroId,    text: RECRUIT_GREETINGS[heroId] || `${def.name} eyes you in the dark.` },
-    { who: '_first',  text: 'Speak quickly.  The reach is hungry.' },
-  ];
-  const titleText = base ? base.title : `${def.name} steps from the dark`;
+  let title, lines;
+  if (flavor === 'vigil') {
+    title = `${def.name} steps into the gap`;
+    lines = [
+      { who: null,     text: 'The silence after the fall is heavier than the fall.' },
+      { who: heroId,   text: 'I heard the shape of it on the wind.  I came as fast as feet allow.' },
+      { who: '_first', text: 'You came at the right hour.' },
+    ];
+  } else if (flavor === 'survivor') {
+    title = 'One of them was not theirs';
+    lines = [
+      { who: null,     text: 'A wounded shape lifts both hands in the dust.  Not surrender — a request.' },
+      { who: heroId,   text: 'I walked with them because I had to.  Let me walk with you instead.' },
+      { who: '_first', text: 'Prove it before the next reach.' },
+    ];
+  } else if (flavor === 'stranger') {
+    title = 'A stranger on the path';
+    lines = [
+      { who: null,     text: 'Footsteps in the dust that are not yours.  Whoever they are, they stop when you stop.' },
+      { who: heroId,   text: RECRUIT_GREETINGS[heroId] || `${def.name} eyes you in the dark.` },
+      { who: '_first', text: 'Speak before we keep walking.' },
+    ];
+  } else {
+    lines = base ? base.lines.slice() : [
+      { who: heroId,   text: RECRUIT_GREETINGS[heroId] || `${def.name} eyes you in the dark.` },
+      { who: '_first', text: 'Speak quickly.  The reach is hungry.' },
+    ];
+    title = base ? base.title : `${def.name} steps from the dark`;
+  }
   const vig = {
-    id: `recruit_event_${heroId}`,
-    title: titleText,
+    id: `recruit_event_${heroId}_${flavor || 'default'}`,
+    title,
     speaker: heroId,
     lines,
     choices: [
@@ -7776,6 +7871,9 @@ function showRecruitVignette(heroId) {
           if (c) c.hp = c.maxHp;
           if (rememberRecruited(heroId)) log(`<i>${def.name} is now available as a starter for future runs.</i>`);
           log(`<b>${def.name}</b> joins the party.`);
+          // Reset the frequency counter — a real recruit just landed, so
+          // the gate resets and the next one needs a fresh cadence.
+          s.run.nodesSinceRecruit = 0;
         },
       },
       {
@@ -7789,11 +7887,12 @@ function showRecruitVignette(heroId) {
   // Mark the incoming hero as a "guest" so showVignette renders their
   // portrait + named lines even though they aren't in state.party.chars yet.
   ctx.guests = [heroId];
-  showVignette(vig, ctx, () => offerUpgradeOrPath());
+  showVignette(vig, ctx, onDone || (() => offerUpgradeOrPath()));
 }
 
-function showSwapOverlay(recruitId) {
+function showSwapOverlay(recruitId, onDone) {
   const def = CHARS[recruitId];
+  const cleanup = onDone || (() => offerUpgradeOrPath());
   $('#overlay-title').textContent = `Recruit ${def.name}`;
   $('#overlay-body').textContent = 'Your party is full.  Choose who walks the other way — or refuse and continue alone.';
   const choices = $('#overlay-choices');
@@ -7818,7 +7917,7 @@ function showSwapOverlay(recruitId) {
         </div>
       </div>
     `;
-    card.addEventListener('click', () => commitRecruit(currentId, recruitId));
+    card.addEventListener('click', () => commitRecruit(currentId, recruitId, cleanup));
     choices.appendChild(card);
   });
   // Refuse — recruit walks away, party continues with the upgrade flow.
@@ -7834,7 +7933,7 @@ function showSwapOverlay(recruitId) {
     log(`<b>${def.name}</b> walks on alone.`);
     hideOverlay();
     resetOverlayBtn();
-    offerUpgradeOrPath();
+    cleanup();
   });
   choices.appendChild(refuse);
 
@@ -7842,11 +7941,12 @@ function showSwapOverlay(recruitId) {
   btn.textContent = '← Back';
   btn.onclick = () => {
     resetOverlayBtn();
-    offerRecruitOrPath();
+    cleanup();
   };
 }
 
-function commitRecruit(removeId, recruitId) {
+function commitRecruit(removeId, recruitId, onDone) {
+  const cleanup = onDone || (() => offerUpgradeOrPath());
   // Empty-slot path: removeId is one of 'front'|'mid'|'back' (a slot name)
   // and the recruit drops in without ejecting anyone.
   if (!removeId || ['front','mid','back'].includes(removeId)) {
@@ -7855,9 +7955,10 @@ function commitRecruit(removeId, recruitId) {
     state.party.slots[slot] = recruitId;
     if (rememberRecruited(recruitId)) log(`<i>${CHARS[recruitId].name} is now available as a starter for future runs.</i>`);
     log(`<b>${CHARS[recruitId].name}</b> joins the party.`);
+    state.run.nodesSinceRecruit = 0;
     hideOverlay();
     resetOverlayBtn();
-    offerUpgradeOrPath();
+    cleanup();
     return;
   }
   // Swap path: removeId is a hero id to eject.
@@ -7868,9 +7969,10 @@ function commitRecruit(removeId, recruitId) {
   state.party.slots[slot] = recruitId;
   if (rememberRecruited(recruitId)) log(`<i>${CHARS[recruitId].name} is now available as a starter for future runs.</i>`);
   log(`<b>${CHARS[recruitId].name}</b> joins the party.`);
+  state.run.nodesSinceRecruit = 0;
   hideOverlay();
   resetOverlayBtn();
-  offerUpgradeOrPath();
+  cleanup();
 }
 
 // ============================================================================
