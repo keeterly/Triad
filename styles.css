@@ -5506,15 +5506,14 @@ button.path-node:not(:disabled):hover .pn-icon {
 #overlay.overlay-full::before, #overlay.overlay-full::after { display: none !important; }
 
 /* Recruit / Upgrade / Sigil — bigger overlay frame for cinematic choices */
-#overlay.overlay-recruit #overlay-content,
-#overlay.overlay-upgrade #overlay-content,
-#overlay.overlay-sigil   #overlay-content {
+/* Shared cinematic overlay treatment.  Recruit / upgrade / sigil all add
+   .overlay-cinematic alongside their specific class so this block runs
+   once instead of three times. */
+#overlay.overlay-cinematic #overlay-content {
   max-width: min(820px, 96vw) !important;
   padding: 16px 22px 14px !important;
 }
-#overlay.overlay-recruit #overlay-title,
-#overlay.overlay-upgrade #overlay-title,
-#overlay.overlay-sigil   #overlay-title {
+#overlay.overlay-cinematic #overlay-title {
   border-bottom: none !important;
   font-size: 16px;
   letter-spacing: 0.32em;
@@ -5522,13 +5521,9 @@ button.path-node:not(:disabled):hover .pn-icon {
   color: var(--ink-dim);
   margin-bottom: 8px;
 }
-#overlay.overlay-recruit #overlay-title::after,
-#overlay.overlay-upgrade #overlay-title::after,
-#overlay.overlay-sigil   #overlay-title::after { display: none !important; }
-/* Pass / Back buttons slim down to match the cinematic vibe */
-#overlay.overlay-recruit #overlay-btn,
-#overlay.overlay-upgrade #overlay-btn,
-#overlay.overlay-sigil   #overlay-btn {
+#overlay.overlay-cinematic #overlay-title::after { display: none !important; }
+/* Pass / Back button — slim text-link */
+#overlay.overlay-cinematic #overlay-btn {
   background: transparent !important;
   border: none !important;
   color: var(--ink) !important;
@@ -5538,9 +5533,7 @@ button.path-node:not(:disabled):hover .pn-icon {
   padding: 6px 16px !important;
   box-shadow: none !important;
 }
-#overlay.overlay-recruit #overlay-btn:hover,
-#overlay.overlay-upgrade #overlay-btn:hover,
-#overlay.overlay-sigil   #overlay-btn:hover {
+#overlay.overlay-cinematic #overlay-btn:hover {
   color: var(--gold-pale) !important;
   text-shadow: 0 0 10px rgba(240,224,182,0.35);
 }
