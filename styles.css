@@ -1484,6 +1484,186 @@ body {
   text-shadow: 0 1px 0 var(--shadow), 0 0 10px rgba(212,69,69,0.7);
 }
 /* ===========================================================================
+   WORLD MAP — the Abyss layers.  Surfaced after a Wakeling kill so the
+   player sees that the run was one layer of a deeper climb.
+   =========================================================================== */
+#world-map {
+  position: fixed;
+  inset: 0;
+  z-index: 250;
+  overflow: hidden;
+  animation: wm-fade-in 0.6s ease-out;
+}
+#world-map.hidden { display: none !important; }
+@keyframes wm-fade-in { from { opacity: 0; } to { opacity: 1; } }
+#world-map .wm-bg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 50% 40% at 50% -10%,
+                    rgba(80,60,40,0.32) 0%, transparent 75%),
+    radial-gradient(ellipse 80% 70% at 50% 60%,
+                    rgba(18,10,12,0.96) 0%, rgba(0,0,0,1) 100%),
+    #050405;
+}
+#world-map .wm-bg::after {
+  content: '';
+  position: absolute; inset: 0;
+  background:
+    repeating-linear-gradient(180deg,
+      transparent 0,
+      transparent 36px,
+      rgba(232,220,196,0.018) 36px,
+      rgba(232,220,196,0.018) 37px);
+  mix-blend-mode: screen;
+}
+#world-map .wm-content {
+  position: relative;
+  z-index: 2;
+  height: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 18px 18px 18px;
+  display: flex;
+  flex-direction: column;
+}
+.wm-header { text-align: center; margin-bottom: 8px; }
+.wm-title {
+  font-size: 22px;
+  letter-spacing: 0.44em;
+  color: var(--gold-pale);
+  text-shadow: 0 0 18px rgba(240,212,136,0.35);
+  margin: 0;
+  font-weight: 400;
+}
+.wm-subtitle {
+  margin: 4px 0 0;
+  font-size: 10.5px;
+  letter-spacing: 0.18em;
+  font-style: italic;
+  color: var(--ink-dim);
+}
+.wm-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 4px;
+}
+.wm-row {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  gap: 14px;
+  align-items: center;
+  padding: 8px 12px;
+  background: linear-gradient(180deg, rgba(20,16,16,0.55) 0%, rgba(8,6,8,0.7) 100%);
+  position: relative;
+}
+.wm-row .wm-num {
+  font-size: 28px;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+  text-align: center;
+  font-weight: 300;
+}
+.wm-name {
+  font-size: 13px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gold-pale);
+}
+.wm-sub {
+  font-size: 10px;
+  font-style: italic;
+  color: var(--ink-dim);
+  margin-top: 1px;
+}
+.wm-desc {
+  font-size: 10.5px;
+  color: var(--ink);
+  margin-top: 4px;
+  letter-spacing: 0.02em;
+  line-height: 1.45;
+}
+.wm-boss {
+  font-size: 9px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--blood-bright);
+  margin-top: 4px;
+}
+.wm-locked-tag {
+  font-size: 9px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-top: 4px;
+}
+/* States */
+.wm-row.wm-cleared {
+  background: linear-gradient(180deg, rgba(24,18,16,0.4) 0%, rgba(6,6,6,0.55) 100%);
+  opacity: 0.65;
+}
+.wm-row.wm-cleared .wm-name { color: var(--gold); }
+.wm-row.wm-cleared::after {
+  content: '✓';
+  position: absolute;
+  top: 8px; right: 12px;
+  font-size: 14px;
+  color: var(--gold-pale);
+  text-shadow: 0 0 8px rgba(240,212,136,0.4);
+}
+.wm-row.wm-unlocked {
+  background: linear-gradient(180deg, rgba(48,28,18,0.7) 0%, rgba(10,6,6,0.85) 100%);
+  box-shadow: 0 0 18px rgba(232,184,120,0.22), inset 0 0 22px rgba(232,184,120,0.12);
+  animation: wm-unlocked-pulse 2.4s ease-in-out infinite;
+}
+@keyframes wm-unlocked-pulse {
+  0%, 100% { box-shadow: 0 0 18px rgba(232,184,120,0.22), inset 0 0 22px rgba(232,184,120,0.12); }
+  50%      { box-shadow: 0 0 26px rgba(232,184,120,0.4),  inset 0 0 30px rgba(232,184,120,0.22); }
+}
+.wm-row.wm-unlocked .wm-num { color: var(--gold-bright); }
+.wm-row.wm-locked { opacity: 0.4; }
+.wm-row.wm-locked .wm-name { color: var(--ink-faint); letter-spacing: 0.18em; }
+.wm-row.wm-locked .wm-sub  { font-style: normal; }
+.wm-continue {
+  align-self: center;
+  margin-top: 8px;
+  background: transparent;
+  border: none;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 11.5px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 8px 14px;
+  position: relative;
+  transition: color 0.18s, text-shadow 0.18s;
+}
+.wm-continue:hover { color: var(--gold-pale); text-shadow: 0 0 12px rgba(240,212,136,0.45); }
+.wm-continue::after {
+  content: '';
+  position: absolute;
+  left: 50%; bottom: 4px;
+  width: 0; height: 1px;
+  background: var(--gold-pale);
+  transition: width 0.2s, left 0.2s;
+}
+.wm-continue:hover::after { width: 100%; left: 0; }
+
+@media (max-height: 480px) {
+  .wm-title    { font-size: 18px; letter-spacing: 0.36em; }
+  .wm-subtitle { font-size: 9.5px; }
+  .wm-row      { padding: 4px 10px; grid-template-columns: 38px 1fr; gap: 10px; }
+  .wm-num      { font-size: 20px; }
+  .wm-name     { font-size: 11.5px; letter-spacing: 0.18em; }
+  .wm-sub      { font-size: 9.5px; }
+  .wm-desc     { font-size: 9.5px; }
+}
+
+/* ===========================================================================
    COMBO DISCOVERABILITY — queue items that participate in an available
    Resonance pulse gold in sync with the bubble overhead.
    =========================================================================== */
@@ -4181,10 +4361,12 @@ button.path-node:not(:disabled):hover {
   width: 84px;
   height: 130px;
   z-index: 3;
-  border-radius: 50%;
+  /* No border-radius / no big box-shadow — the previous oval halo was
+     leaking past the scene boundary on mobile.  Warmth is provided by
+     the flame elements themselves + a tighter inner glow. */
   box-shadow:
-    0 -12px 60px 14px rgba(255,150,60,0.22),
-    0 -2px  30px 4px  rgba(255,180,90,0.24);
+    0 -4px 20px 0 rgba(255,150,60,0.28),
+    0 -1px 10px 0 rgba(255,180,90,0.22);
 }
 .rest-fire .ts-fire-logs { left: 50%; bottom: 6px; transform: translateX(-50%); width: 60px; height: 12px; z-index: 4; }
 .rest-fire .ts-fire-logs::before, .rest-fire .ts-fire-logs::after { width: 36px; height: 8px; }
@@ -5113,6 +5295,7 @@ body.boss-fight #enemy-half {
   display: flex !important;
   align-items: flex-end;
   justify-content: center;
+  position: relative;
 }
 body.boss-fight #enemy-half .figure {
   flex: 0 0 auto;
@@ -5128,24 +5311,45 @@ body.boss-fight #enemy-half .figure-portrait svg {
   filter: drop-shadow(0 8px 24px rgba(0,0,0,0.7))
           drop-shadow(0 0 30px rgba(220,80,80,0.18));
 }
+/* Boss HP — wide banner across the top of the enemy half.  Same bar
+   shape as the regular HP but dramatically larger and red. */
 body.boss-fight #enemy-half .figure-hp {
-  height: 8px !important;
-  border-radius: 0;
-  background: rgba(40,12,12,0.6);
-  margin-top: 6px;
-  position: relative;
+  position: absolute !important;
+  top: 6px !important;
+  left: 4%; right: 4%;
+  width: auto !important;
+  height: 14px !important;
+  margin: 0 !important;
+  background: rgba(40,8,8,0.78);
+  box-shadow:
+    0 0 24px rgba(220,40,40,0.45),
+    inset 0 0 12px rgba(0,0,0,0.7);
+  z-index: 6;
 }
 body.boss-fight #enemy-half .figure-hp::before,
 body.boss-fight #enemy-half .figure-hp::after { display: none !important; }
 body.boss-fight #enemy-half .figure-hp .hp-fill {
-  background: linear-gradient(180deg, #c83838 0%, #6a1010 100%);
-  box-shadow: 0 0 16px rgba(220,60,60,0.55), inset 0 1px 0 rgba(255,200,180,0.18);
+  background: linear-gradient(180deg, #ff5050 0%, #c01818 55%, #5a0808 100%);
+  box-shadow:
+    0 0 20px rgba(220,60,60,0.75),
+    inset 0 1px 0 rgba(255,200,180,0.32),
+    inset 0 -2px 4px rgba(0,0,0,0.5);
+  animation: boss-hp-pulse 2.2s ease-in-out infinite;
+}
+@keyframes boss-hp-pulse {
+  0%, 100% { filter: brightness(1)   saturate(1); }
+  50%      { filter: brightness(1.1) saturate(1.12); }
 }
 body.boss-fight #enemy-half .figure-hp .hp-text {
-  font-size: 12px;
-  letter-spacing: 0.22em;
-  text-shadow: 0 0 8px rgba(0,0,0,0.9), 0 2px 0 rgba(0,0,0,0.8);
-  top: -22px;
+  position: absolute !important;
+  font-size: 13px !important;
+  letter-spacing: 0.28em !important;
+  text-shadow: 0 0 10px rgba(0,0,0,0.9), 0 2px 0 rgba(0,0,0,0.8);
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%);
+  color: var(--ink) !important;
+  font-weight: 600;
 }
 body.boss-fight #enemy-half .figure-name {
   font-size: 14px;

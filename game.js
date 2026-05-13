@@ -4504,7 +4504,13 @@ function checkEnd(s) {
       const bossCtx = captureFightContext(s);
       bossCtx.phase = 'bossDefeated';
       const bossMatches = matchVignettes(s, bossCtx);
-      const continueToSummary = () => showVictorySummary(completedEnc, () => showRunSummary('boss'));
+      // After the run summary, surface the World Map so the player sees
+      // they've cleared a layer of the Abyss with more layers above.
+      const continueToSummary = () => showVictorySummary(completedEnc, () => {
+        // Mark this layer cleared in meta-progression
+        markLayerCleared(getCurrentLayer());
+        showRunSummary('boss', { afterClose: () => showWorldMap() });
+      });
       // Hold for the slo-mo death effect before the run-summary cascade.
       const BOSS_DEATH_HOLD = 1600;
       if (bossMatches.length) {
@@ -4989,11 +4995,16 @@ function renderQueue() {
   for (let i = 0; i < remaining; i++) {
     const ph = document.createElement('div');
     ph.className = 'queue-slot placeholder';
-    // mark the trailing N cells as "bonus" when bonus ATB is active
+    // Mark the trailing N cells as "bonus" when bonus ATB is active.  The
+    // bonus comes from exploiting an enemy weakness last turn (free ATB
+    // this turn).  Title tooltip explains it on hover/long-tap.
     const cellIdx = used + i;
-    if (bonus && cellIdx >= (atbMax - bonus)) ph.classList.add('bonus');
+    if (bonus && cellIdx >= (atbMax - bonus)) {
+      ph.classList.add('bonus');
+      ph.title = 'Bonus ATB — earned last turn by exploiting a weakness';
+    }
     ph.dataset.atb = '1';
-    ph.innerHTML = `<span class="qs-name">${ph.classList.contains('bonus') ? '+' : '·'}</span>`;
+    ph.innerHTML = `<span class="qs-name">${ph.classList.contains('bonus') ? '★' : '·'}</span>`;
     strip.appendChild(ph);
   }
 }
@@ -6487,7 +6498,7 @@ function hideOverlay() {
 // Decide whether to show recruit, then proceed to upgrade-or-path.
 // Run-ending summary (victory, boss win, or defeat). Shows accumulated run
 // totals across every reach and replaces the plain flavor overlay.
-function showRunSummary(outcome) {
+function showRunSummary(outcome, opts) {
   // On defeat, the active fight's stats haven't been folded into run totals yet
   if (outcome === 'defeat' && state.fightStats) accumulateRunStats(state.fightStats);
   const rs = state.run.stats || { damageDealt: {}, damageTaken: {}, healingDone: {}, kills: 0, synergies: [], turns: 0, reaches: 0 };
@@ -6544,7 +6555,7 @@ function showRunSummary(outcome) {
   `;
   $('#overlay-choices').classList.add('hidden');
   const btn = $('#overlay-btn');
-  btn.textContent = 'Return to Title';
+  btn.textContent = (opts && opts.afterClose) ? 'Ascend' : 'Return to Title';
   btn.classList.remove('hidden');
   btn.onclick = () => {
     body.classList.remove('victory-summary-body', 'run-summary-body');
@@ -6553,7 +6564,8 @@ function showRunSummary(outcome) {
     hideOverlay();
     resetOverlayBtn();
     clearSave();
-    showTitleScreen();
+    if (opts && typeof opts.afterClose === 'function') opts.afterClose();
+    else showTitleScreen();
   };
   $('#overlay').classList.remove('hidden');
 }
@@ -7044,6 +7056,109 @@ function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch (_) {} }
 // container outside the standard #overlay, so it gets the whole viewport
 // and isn't constrained by the modal card.  A hero silhouette stands in
 // the abyss while drifting motes rise behind them.
+// ============================================================================
+// THE ABYSS — multi-layer meta-progression.  The abyss has 9 layers (echoes
+// of Dante / Yggdrasil); each completed boss unlocks the next.  The world
+// map screen surfaces this between runs.  Only Layer 1 has full content
+// authored; the rest are teasers / locked placeholders.
+// ============================================================================
+const ABYSS_LAYERS = [
+  { id: 1, name: 'The Hollow Reach',     subtitle: 'Where breath returns slow', desc: 'The abyss floor.  Sins of stillness, of recall, of cinders.', boss: 'The Wakeling' },
+  { id: 2, name: 'The Veil of Names',    subtitle: 'Where the dead remember',   desc: 'Sins that hold the names of who you used to be.', boss: 'The Listener' },
+  { id: 3, name: 'The Spire of Glass',   subtitle: 'Where every blade reflects',desc: 'Sins of mirrors and of pride.', boss: 'The Twin' },
+  { id: 4, name: 'The Floodlit Hall',    subtitle: 'Where the sky was buried',  desc: 'Sins of weight, of drowning oaths.', boss: 'The Drowned Choir' },
+  { id: 5, name: 'The Cinder Garden',    subtitle: 'Where roots eat the dead',  desc: 'Sins of cycles and of buried fires.', boss: 'The Slow Bloom' },
+  { id: 6, name: 'The Iron Forest',      subtitle: 'Where every tree is a name',desc: 'Sins of vows broken and re-sworn.', boss: 'The Nameless Knight' },
+  { id: 7, name: 'The Cold Reach',       subtitle: 'Where light forgets how',   desc: 'Sins of distance, of silence.', boss: 'The Last Star' },
+  { id: 8, name: 'The Tide of Wakes',    subtitle: 'Where the dawn never rose', desc: 'Sins of every morning the world refused.', boss: 'The Unwaking' },
+  { id: 9, name: 'The Crown of Echoes',  subtitle: 'Where the abyss looks back',desc: 'The summit.  What is climbing toward you.', boss: '???' },
+];
+const LAYER_KEY = 'kizuna.layer';
+const CLEARED_KEY = 'kizuna.clearedLayers';
+function getCurrentLayer() {
+  try { return Math.max(1, parseInt(localStorage.getItem(LAYER_KEY) || '1', 10)); } catch (_) { return 1; }
+}
+function setCurrentLayer(n) {
+  try { localStorage.setItem(LAYER_KEY, String(n)); } catch (_) {}
+}
+function getClearedLayers() {
+  try {
+    const raw = localStorage.getItem(CLEARED_KEY);
+    if (raw) { const arr = JSON.parse(raw); if (Array.isArray(arr)) return arr; }
+  } catch (_) {}
+  return [];
+}
+function markLayerCleared(layerId) {
+  const cur = getClearedLayers();
+  if (!cur.includes(layerId)) {
+    cur.push(layerId);
+    try { localStorage.setItem(CLEARED_KEY, JSON.stringify(cur)); } catch (_) {}
+  }
+}
+function isLayerUnlocked(layerId) {
+  if (layerId === 1) return true;
+  return getClearedLayers().includes(layerId - 1);
+}
+
+// World Map — surfaced after a boss-cleared run summary.  Shows the abyss
+// as a vertical climb of 9 layers; current ones glow, cleared ones recede,
+// locked ones are dim placeholders that hint at what's above.
+function showWorldMap() {
+  hideOverlay();
+  hideTitleScreen();
+  const root = document.getElementById('world-map');
+  if (!root) {
+    // Lazy build the container on first show
+    buildWorldMapContainer();
+    return showWorldMap();
+  }
+  const list = document.getElementById('wm-list');
+  list.innerHTML = '';
+  const cleared = getClearedLayers();
+  // Render top-down so the highest layer is at the top of the screen
+  ABYSS_LAYERS.slice().reverse().forEach(layer => {
+    const isCleared = cleared.includes(layer.id);
+    const isUnlocked = isLayerUnlocked(layer.id);
+    const isCurrent = (layer.id === Math.min(9, Math.max.apply(null, [1, ...cleared.map(c => c + 1)])));
+    const row = document.createElement('div');
+    row.className = 'wm-row' + (isCleared ? ' wm-cleared' : '') + (isUnlocked && !isCleared ? ' wm-unlocked' : '') + (!isUnlocked ? ' wm-locked' : '') + (isCurrent ? ' wm-current' : '');
+    row.innerHTML = `
+      <span class="wm-num">${layer.id}</span>
+      <div class="wm-meta">
+        <div class="wm-name">${layer.name}</div>
+        <div class="wm-sub">${layer.subtitle}</div>
+        ${isUnlocked ? `<div class="wm-desc">${layer.desc}</div>` : ''}
+        ${isUnlocked ? `<div class="wm-boss">Boss · ${layer.boss}</div>` : `<div class="wm-locked-tag">— sealed —</div>`}
+      </div>
+    `;
+    list.appendChild(row);
+  });
+  root.classList.remove('hidden');
+  const btn = document.getElementById('wm-continue');
+  if (btn) btn.onclick = () => {
+    root.classList.add('hidden');
+    showTitleScreen();
+  };
+}
+
+function buildWorldMapContainer() {
+  const root = document.createElement('div');
+  root.id = 'world-map';
+  root.className = 'hidden';
+  root.innerHTML = `
+    <div class="wm-bg"></div>
+    <div class="wm-content">
+      <header class="wm-header">
+        <h2 class="wm-title">THE ABYSS</h2>
+        <p class="wm-subtitle">Each layer climbed reveals what waits above</p>
+      </header>
+      <div class="wm-list" id="wm-list"></div>
+      <button type="button" class="wm-continue" id="wm-continue">Return to Title</button>
+    </div>
+  `;
+  document.body.appendChild(root);
+}
+
 function showTitleScreen() {
   // Ensure the in-game overlay isn't competing
   hideOverlay();
