@@ -883,7 +883,7 @@ const CHARS = {
         basic: { name: 'Greatsword Cleave', desc: '8 dmg + vuln', dmg: 8,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (!t[0]) return; applyDmgToEnemy(s, t[0], 8); if (!t[0].dead) t[0].vuln += 1; } },
-        sig:   { name: 'Sunder', desc: '14 dmg + strip armor + 2 vuln', dmg: 14,
+        sig:   { name: 'Sunder', desc: '3♦ · 14 dmg + strip armor + 2 vuln', cost: 3, dmg: 14,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (!t[0]) return; applyDmgToEnemy(s, t[0], 14); if (!t[0].dead) { t[0].armor = 0; t[0].vuln += 2; } } },
       },
@@ -898,7 +898,7 @@ const CHARS = {
       back: {
         basic: { name: 'Banner', desc: '+2 armor party · advance', move: 'advance',
           fn: (s) => { partyArmor(s, 2); advance(s, 'cassia'); } },
-        sig:   { name: 'Rally',  desc: 'Heal 4 to party', fn: (s) => partyHeal(s, 4) },
+        sig:   { name: 'Rally',  desc: '1♦ · Heal 4 to party', cost: 1, fn: (s) => partyHeal(s, 4) },
       },
     },
   },
@@ -921,7 +921,7 @@ const CHARS = {
       },
       mid: {
         basic: { name: 'Mend',         desc: 'Heal 6 lowest + cleanse', heal: 6, healTarget: 'lowest', fn: (s) => { healLowest(s, 6); cleanseLowest(s); } },
-        sig:   { name: 'Greater Mend', desc: 'Heal 12 lowest + cleanse + 2 armor', heal: 12, healTarget: 'lowest', fn: (s) => { const c = healLowest(s, 12); cleanseLowest(s); if (c) c.armor += 2; } },
+        sig:   { name: 'Greater Mend', desc: '3♦ · Heal 12 lowest + cleanse + 2 armor', cost: 3, heal: 12, healTarget: 'lowest', fn: (s) => { const c = healLowest(s, 12); cleanseLowest(s); if (c) c.armor += 2; } },
       },
       back: {
         basic: { name: 'Prayer',    desc: '+2 Resolve, heal 3 lowest', heal: 3, healTarget: 'lowest', fn: (s) => { gainResolve(s, 2); healLowest(s, 3); } },
@@ -961,7 +961,7 @@ const CHARS = {
         basic: { name: 'Volley', desc: '4 dmg + bleed 1 all', dmg: 4,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 4)); t.forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 1); }); } },
-        sig:   { name: 'Arrow Storm', desc: '7 dmg + bleed 2 all', dmg: 7,
+        sig:   { name: 'Arrow Storm', desc: '3♦ · 7 dmg + bleed 2 all', cost: 3, dmg: 7,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 7)); t.forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 2); }); } },
       },
@@ -995,7 +995,7 @@ const CHARS = {
       back: {
         basic: { name: 'Roar', desc: '+2 retaliate · advance', move: 'advance',
           fn: (s) => { const c = s.party.chars.korin; if (c && !c.downed) c.retaliate += 2; advance(s, 'korin'); } },
-        sig:   { name: 'Battle Trance', desc: '+4 retaliate, +3 armor · advance', move: 'advance',
+        sig:   { name: 'Battle Trance', desc: '3♦ · +4 retaliate, +3 armor · advance', cost: 3, move: 'advance',
           fn: (s) => { const c = s.party.chars.korin; if (c && !c.downed) { c.retaliate += 4; c.armor += 3; } advance(s, 'korin'); } },
       },
     },
@@ -1029,7 +1029,7 @@ const CHARS = {
         basic: { name: 'Arcane Bolts', desc: '4 dmg all', dmg: 4,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => t.forEach(e => applyDmgToEnemy(s, e, 4)) },
-        sig:   { name: 'Lightning Storm', desc: '5 dmg all + 1 vuln all', dmg: 5,
+        sig:   { name: 'Lightning Storm', desc: '3♦ · 5 dmg all + 1 vuln all', cost: 3, dmg: 5,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 5)); t.forEach(e => { if (!e.dead) e.vuln += 1; }); } },
       },
@@ -1064,7 +1064,7 @@ const CHARS = {
         basic: { name: 'Poison Cloud', desc: '3 dmg all + bleed 1 all', dmg: 3,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 3)); t.forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 1); }); } },
-        sig:   { name: 'Shadow Storm', desc: '4 dmg all + bleed 2 all', dmg: 4,
+        sig:   { name: 'Shadow Storm', desc: '3♦ · 4 dmg all + bleed 2 all', cost: 3, dmg: 4,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 4)); t.forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 2); }); } },
       },
@@ -1101,7 +1101,8 @@ const CHARS = {
       back: {
         basic: { name: 'Whetstone', desc: '+1 atk next turn (self)',
           fn: (s) => { const c = s.party.chars.kai; if (c) c.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'whetstone' }); } },
-        sig:   { name: 'Patch Up',  desc: 'Heal 5 self', fn: (s) => { const c = s.party.chars.kai; if (c) { c.hp = Math.min(c.maxHp, c.hp + 5); } } },
+        sig:   { name: 'Patch Up',  desc: '1♦ · Heal 5 self', cost: 1,
+          fn: (s) => { const c = s.party.chars.kai; if (c) { c.hp = Math.min(c.maxHp, c.hp + 5); } } },
       },
     },
   },
@@ -1130,7 +1131,7 @@ const CHARS = {
         basic: { name: 'Tower Slam', desc: '7 dmg front-most', dmg: 7,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 7); } },
-        sig:   { name: 'Anchor', desc: '10 dmg front + 3 retaliate self', dmg: 10,
+        sig:   { name: 'Anchor', desc: '3♦ · 10 dmg front + 3 retaliate self', cost: 3, dmg: 10,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 10); const g = s.party.chars.garron; if (g && !g.downed) g.retaliate += 3; } },
       },
@@ -3785,9 +3786,13 @@ function commitCombo(comboId) {
   render();
 }
 
-function getSpecialCost(s) {
-  // Mantra of Stillness drops Specials to 0 Resolve
-  return hasSigil(s, 'stillness') ? 0 : SPECIAL_COST;
+function getSpecialCost(s, tech) {
+  // Mantra of Stillness drops Specials to 0 Resolve regardless of base cost
+  if (hasSigil(s, 'stillness')) return 0;
+  // Per-tech cost override — sigs can declare `cost: 1 | 2 | 3` for variety.
+  // Cheap sigs are utility/support; expensive sigs are the showy payoffs.
+  if (tech && typeof tech.cost === 'number') return tech.cost;
+  return SPECIAL_COST;
 }
 
 function availableSigils(s) {
@@ -5203,7 +5208,9 @@ function previewTile(kind, charId, dir) {
   }
   if (kind === 'special') {
     const tech = getTech(s, charId, slot, 'sig');
-    return { kind, valid: true, label: tech.name, desc: tech.desc, atb, resolveCost: getSpecialCost(s), slot, noEffect: techWouldMiss(s, tech) };
+    // Per-sig cost flows through: getSpecialCost picks up tech.cost or
+    // falls back to SPECIAL_COST.
+    return { kind, valid: true, label: tech.name, desc: tech.desc, atb, resolveCost: getSpecialCost(s, tech), slot, noEffect: techWouldMiss(s, tech) };
   }
   if (kind === 'move') {
     const idx = SLOTS.indexOf(slot);
