@@ -5676,6 +5676,19 @@ function renderTiles() {
     if (c.downed) col.classList.add('downed');
     col.title = `${def.name} — ${SLOT_LABELS[simSlot] || '—'}${simSlot === def.home ? ' · home' : ''}`;
 
+    // Column header — small portrait + name + slot.  Makes it unmistakable
+    // which moveset belongs to which hero when the action tray crowds up.
+    const head = document.createElement('div');
+    head.className = 'char-col-head';
+    head.innerHTML = `
+      <div class="cch-portrait" aria-hidden="true">${PORTRAITS[charId] || ''}</div>
+      <div class="cch-meta">
+        <span class="cch-name">${def.name}</span>
+        <span class="cch-slot">${SLOT_LABELS[simSlot] || '—'}</span>
+      </div>
+    `;
+    col.appendChild(head);
+
     col.appendChild(makeTile('attack', charId, null, tileCounts, teamLocked));
     col.appendChild(makeTile('special', charId, null, tileCounts, teamLocked));
     // Move action is handled by tap-the-figure drag-drop on the battlefield, not a tile.
@@ -8928,22 +8941,30 @@ function showHeroCodex() {
   const list = document.getElementById('hc-list');
   list.innerHTML = '';
   const unlocked = new Set(getUnlockedStarters());
+  // Each row collapses by default to just portrait + name + title.  Tapping
+  // a row expands its details (stats / passive / affinities); opening one
+  // closes any other open row so the menu reads one focus at a time.
   ROSTER.forEach(id => {
     const def = CHARS[id];
     if (!def) return;
     const isUnlocked = unlocked.has(id);
-    const card = document.createElement('div');
-    card.className = 'hc-card' + (isUnlocked ? '' : ' hc-locked');
-    // Quirks this hero can earn (filtered to hero-locked entries)
     const quirks = Object.values(QUIRKS).filter(q => q.heroId === id);
     const quirkList = quirks.length
       ? `<div class="hc-quirks">${quirks.map(q => `<span class="hc-quirk">${q.name}</span>`).join('')}</div>`
       : '';
-    card.innerHTML = `
-      <div class="hc-portrait">${PORTRAITS[id] || ''}</div>
-      <div class="hc-body">
-        <div class="hc-name">${def.name}</div>
-        <div class="hc-title">${def.title || ''}</div>
+    const row = document.createElement('div');
+    row.className = 'hc-row' + (isUnlocked ? '' : ' hc-locked');
+    row.dataset.heroId = id;
+    row.innerHTML = `
+      <button type="button" class="hc-row-head" aria-expanded="false">
+        <div class="hc-portrait">${PORTRAITS[id] || ''}</div>
+        <div class="hc-row-meta">
+          <span class="hc-name">${def.name}</span>
+          <span class="hc-title">${isUnlocked ? (def.title || '') : '— sealed —'}</span>
+        </div>
+        <span class="hc-chev" aria-hidden="true">›</span>
+      </button>
+      <div class="hc-row-body" hidden>
         ${isUnlocked ? `
           <div class="hc-stats">
             <span class="hc-stat">HP ${def.maxHp}</span>
@@ -8953,12 +8974,29 @@ function showHeroCodex() {
           ${def.passive ? `<div class="hc-passive"><b>${def.passive.name}</b> · ${def.passive.desc}</div>` : ''}
           ${quirkList ? `<div class="hc-section">Affinities</div>${quirkList}` : ''}
         ` : `
-          <div class="hc-locked-tag">— sealed —</div>
           <div class="hc-locked-hint">Walk with this hero in a run to remember them.</div>
         `}
       </div>
     `;
-    list.appendChild(card);
+    const head = row.querySelector('.hc-row-head');
+    const body = row.querySelector('.hc-row-body');
+    head.addEventListener('click', () => {
+      const open = !row.classList.contains('hc-open');
+      // Single-expand: close any sibling that's open first.
+      list.querySelectorAll('.hc-row.hc-open').forEach(r => {
+        if (r === row) return;
+        r.classList.remove('hc-open');
+        const rb = r.querySelector('.hc-row-body');
+        const rh = r.querySelector('.hc-row-head');
+        if (rb) rb.hidden = true;
+        if (rh) rh.setAttribute('aria-expanded', 'false');
+      });
+      row.classList.toggle('hc-open', open);
+      body.hidden = !open;
+      head.setAttribute('aria-expanded', open ? 'true' : 'false');
+      Audio.ui();
+    });
+    list.appendChild(row);
   });
   root.classList.remove('hidden');
   const close = document.getElementById('hc-close');
