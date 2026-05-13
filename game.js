@@ -5587,7 +5587,7 @@ function makePartyCard(c, slot, threatened, adjMap, incoming) {
 
   // a move queued for this character → show the planned-direction arrow as a persistent overlay
   const queuedMove = state.queue.find(q => q.kind === 'move' && q.charId === c.id);
-  const queuedMoveGlyph = queuedMove ? (queuedMove.dir > 0 ? '◀' : '▶') : '';
+  const queuedMoveGlyph = queuedMove ? (queuedMove.dir > 0 ? '‹' : '›') : '';
   if (queuedMove) fig.classList.add('has-queued-move');
 
   // Telegraph (no exact-damage chip): targeted figures glow red via the
@@ -5622,8 +5622,8 @@ function makePartyCard(c, slot, threatened, adjMap, incoming) {
       <div class="figure-name${isHome ? ' home' : ''}">${def.name}</div>
       ${quirkDots ? `<div class="fig-quirks">${quirkDots}</div>` : ''}
     </div>
-    ${canMoveBack  ? `<button class="move-arrow move-arrow-left"  data-dir="1"  aria-label="Move toward back">◀</button>`  : ''}
-    ${canMoveFront ? `<button class="move-arrow move-arrow-right" data-dir="-1" aria-label="Move toward front">▶</button>` : ''}
+    ${canMoveBack  ? `<button class="move-arrow move-arrow-left"  data-dir="1"  aria-label="Move toward back">‹</button>`  : ''}
+    ${canMoveFront ? `<button class="move-arrow move-arrow-right" data-dir="-1" aria-label="Move toward front">›</button>` : ''}
     ${queuedMove ? `<div class="figure-queued-move">${queuedMoveGlyph}</div>` : ''}
   `;
 
@@ -6184,7 +6184,7 @@ function applyPreviewHighlight({ enemySlots, partySlots, enemyHits, partyHeals, 
       const fromIdx = SLOTS.indexOf(from);
       const toIdx = SLOTS.indexOf(to);
       // back-display has back on left, so toIdx > fromIdx = visually moving left
-      const glyph = toIdx > fromIdx ? '◀◀' : '▶▶';
+      const glyph = toIdx > fromIdx ? '‹' : '›';
       const tag = document.createElement('div');
       tag.className = 'target-move-tag';
       tag.innerHTML = `<span class="move-glyph">${glyph}</span><span class="move-text">${SLOT_LABELS[to] || ''}</span>`;

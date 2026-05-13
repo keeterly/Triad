@@ -494,82 +494,90 @@ body {
   transition: transform 0.14s ease-out, filter 0.14s ease-out;
 }
 
-/* Move arrows — only on party figures, only visible while inspecting */
+/* Move arrows — only on party figures, only visible while inspecting.
+   NieR-flat: thin gold chevron with drop-shadow legibility, no heavy
+   gold-coin circle.  Aim state thickens + brightens the glow. */
 .move-arrow {
   position: absolute;
   top: 38%;
-  width: 42px; height: 42px;
+  width: 38px; height: 38px;
   padding: 0;
-  border-radius: 50%;
-  border: 2px solid var(--gold-bright);
-  background: radial-gradient(circle at 50% 35%, #2a1c12 0%, #14100a 80%);
+  border-radius: 0;
+  border: none;
+  background: transparent;
   color: var(--gold-bright);
-  font-size: 22px;
+  font-size: 28px;
   line-height: 1;
   display: flex; align-items: center; justify-content: center;
   z-index: 10;
-  box-shadow:
-    0 0 14px rgba(240,212,136,0.55),
-    0 2px 6px rgba(0,0,0,0.7),
-    inset 0 1px 0 rgba(255,240,184,0.25);
+  filter:
+    drop-shadow(0 1px 0 rgba(0,0,0,0.95))
+    drop-shadow(0 0 4px rgba(0,0,0,0.85))
+    drop-shadow(0 0 8px rgba(240,212,136,0.4));
   transform: translateY(-50%) scale(0.4);
   font-family: inherit;
+  font-weight: 200;
   opacity: 0;
   pointer-events: none;
-  transition: transform 0.18s cubic-bezier(.4,1.4,.6,1), opacity 0.14s;
+  transition: transform 0.18s cubic-bezier(.4,1.4,.6,1), opacity 0.14s, filter 0.12s;
 }
-.move-arrow-left  { left: -18px; }
-.move-arrow-right { right: -18px; }
+.move-arrow-left  { left: -22px; }
+.move-arrow-right { right: -22px; }
 .figure.inspecting .move-arrow {
   opacity: 1;
   pointer-events: auto;
   transform: translateY(-50%) scale(1);
   animation: move-arrow-pulse 1.4s ease-in-out infinite;
 }
-/* arrow currently aimed at (pointer over it) — brighter highlight */
 .move-arrow.aim {
-  background: radial-gradient(circle at 50% 35%, var(--gold-bright) 0%, var(--gold) 75%);
-  color: var(--bg-0);
-  border-color: var(--gold-pale);
-  box-shadow:
-    0 0 22px var(--gold-bright),
-    0 0 12px var(--gold-bright),
-    inset 0 1px 0 rgba(255,248,224,0.5);
+  color: var(--gold-pale);
+  filter:
+    drop-shadow(0 1px 0 rgba(0,0,0,0.95))
+    drop-shadow(0 0 4px rgba(0,0,0,0.9))
+    drop-shadow(0 0 14px rgba(240,212,136,0.85));
   animation: none;
-  transform: translateY(-50%) scale(1.12);
+  transform: translateY(-50%) scale(1.18);
 }
 @keyframes move-arrow-pulse {
   0%, 100% {
     transform: translateY(-50%) scale(1);
-    box-shadow: 0 0 12px rgba(240,212,136,0.5), 0 2px 6px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,240,184,0.2);
+    filter:
+      drop-shadow(0 1px 0 rgba(0,0,0,0.95))
+      drop-shadow(0 0 4px rgba(0,0,0,0.85))
+      drop-shadow(0 0 6px rgba(240,212,136,0.35));
   }
   50% {
-    transform: translateY(-50%) scale(1.06);
-    box-shadow: 0 0 18px rgba(240,212,136,0.75), 0 2px 6px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,240,184,0.3);
+    transform: translateY(-50%) scale(1.08);
+    filter:
+      drop-shadow(0 1px 0 rgba(0,0,0,0.95))
+      drop-shadow(0 0 4px rgba(0,0,0,0.85))
+      drop-shadow(0 0 12px rgba(240,212,136,0.6));
   }
 }
 
 /* persistent direction indicator on a figure once a move is queued */
 .figure-queued-move {
   position: absolute;
-  top: 8%;
+  top: 6%;
   left: 50%;
   transform: translateX(-50%);
-  width: 26px; height: 26px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 50% 35%, var(--gold-bright) 0%, var(--gold) 70%, #6a4818 100%);
-  color: var(--bg-0);
-  font-size: 15px; font-weight: bold;
-  line-height: 26px;
-  text-align: center;
+  width: 22px; height: 22px;
+  border-radius: 0;
+  background: transparent;
+  color: var(--gold-pale);
+  font-size: 20px;
+  font-weight: 200;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   z-index: 9;
-  box-shadow:
-    0 0 12px var(--gold-bright),
-    0 2px 6px rgba(0,0,0,0.7),
-    inset 0 1px 0 rgba(255,248,224,0.55);
+  filter:
+    drop-shadow(0 1px 0 rgba(0,0,0,0.95))
+    drop-shadow(0 0 4px rgba(0,0,0,0.85))
+    drop-shadow(0 0 8px rgba(240,212,136,0.55));
   pointer-events: none;
   animation: queued-move-pulse 1.8s ease-in-out infinite;
-  text-shadow: 0 1px 0 rgba(255,255,255,0.25);
 }
 @keyframes queued-move-pulse {
   0%, 100% { opacity: 0.92; }
@@ -893,49 +901,69 @@ body {
   from { filter: drop-shadow(0 0 10px var(--gold-bright)) drop-shadow(0 0 18px rgba(240,212,136,0.35)); }
   to   { filter: drop-shadow(0 0 18px var(--gold-bright)) drop-shadow(0 0 28px rgba(240,212,136,0.55)); }
 }
-/* Dim only the portrait, not the figure container — so the floor marker
-   (::after on .move-dest) and the target-move-tag stay bright. */
-.figure.move-dest .figure-portrait {
-  filter: brightness(0.5) saturate(0.55);
-  opacity: 0.7;
+/* Move preview — clarity flip.  Previously the destination was dimmed, the
+   source was unmarked.  Now the SOURCE fades (you're leaving here) and the
+   DESTINATION stays full-bright with the gold halo + tag.  Reads as
+   "from → to" without ambiguity. */
+.figure.move-src .figure-portrait {
+  filter: brightness(0.45) saturate(0.45);
+  opacity: 0.55;
   transition: filter 0.18s ease, opacity 0.18s ease;
+}
+.figure.move-src::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  width: 56%;
+  height: 10px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(ellipse 50% 60% at 50% 50%,
+    rgba(212,200,168,0.32) 0%,
+    rgba(212,200,168,0.08) 50%,
+    transparent 75%);
+  pointer-events: none;
+  opacity: 0.85;
+  z-index: 6;
 }
 .figure.move-dest::after {
   content: '';
   position: absolute;
   left: 50%;
   bottom: 10px;
-  width: 72%;
-  height: 14px;
+  width: 78%;
+  height: 16px;
   transform: translateX(-50%);
   border-radius: 50%;
   background: radial-gradient(ellipse 50% 60% at 50% 50%,
     var(--gold-bright) 0%,
-    rgba(240,212,136,0.55) 30%,
-    rgba(240,212,136,0.18) 55%,
-    transparent 75%);
+    rgba(240,212,136,0.6) 28%,
+    rgba(240,212,136,0.22) 55%,
+    transparent 78%);
   pointer-events: none;
-  animation: move-landing-pulse 0.7s ease-in-out infinite alternate;
+  animation: move-landing-pulse 0.85s ease-in-out infinite alternate;
   z-index: 6;
 }
 @keyframes move-landing-pulse {
-  from { opacity: 0.55; transform: translateX(-50%) scaleX(0.9); }
-  to   { opacity: 1;    transform: translateX(-50%) scaleX(1.05); }
+  from { opacity: 0.7;  transform: translateX(-50%) scaleX(0.92); }
+  to   { opacity: 1;    transform: translateX(-50%) scaleX(1.08); }
 }
-/* Slot move tag — NieR bracketed instrument label. No pill chrome, no glow;
-   the text + corner brackets carry the read. */
+
+/* Move tag — NieR instrument label.  Black plate with corner brackets,
+   chevron + destination slot name.  Sits above the gold floor halo. */
 .target-move-tag {
   position: absolute;
-  bottom: 24px; left: 50%;
+  bottom: 28px; left: 50%;
   transform: translateX(-50%);
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 3px 9px;
-  background: rgba(10,10,12,0.88);
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 4px 14px;
+  background: rgba(8,8,10,0.92);
   border: none;
   border-radius: 0;
   color: var(--gold-bright);
-  font-size: 11px;
-  letter-spacing: 0.28em;
+  font-size: 10.5px;
+  letter-spacing: 0.32em;
   text-transform: uppercase;
   font-weight: 700;
   line-height: 1;
@@ -943,15 +971,40 @@ body {
   pointer-events: none;
   white-space: nowrap;
   animation: nier-target-pulse 1.6s ease-in-out infinite;
+  text-shadow: 0 1px 0 rgba(0,0,0,0.95), 0 0 6px rgba(240,212,136,0.45);
+}
+/* Corner brackets — NieR HUD instrument frame.  Top-left + bottom-right
+   bookend the label without the heaviness of a full border. */
+.target-move-tag::before,
+.target-move-tag::after {
+  content: '';
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-color: var(--gold-bright);
+  pointer-events: none;
+}
+.target-move-tag::before {
+  top: 0; left: 0;
+  border-top: 1px solid;
+  border-left: 1px solid;
+}
+.target-move-tag::after {
+  bottom: 0; right: 0;
+  border-bottom: 1px solid;
+  border-right: 1px solid;
 }
 @keyframes nier-target-pulse {
-  0%, 100% { opacity: 0.85; }
+  0%, 100% { opacity: 0.88; }
   50%      { opacity: 1; }
 }
 .target-move-tag .move-glyph {
-  font-size: 11px;
-  letter-spacing: -1px;
-  opacity: 0.9;
+  font-size: 16px;
+  letter-spacing: 0;
+  line-height: 1;
+  opacity: 0.95;
+  font-weight: 400;
+  text-shadow: 0 1px 0 rgba(0,0,0,0.95), 0 0 8px rgba(240,212,136,0.55);
 }
 .target-move-tag .move-text { font-weight: 700; }
 
