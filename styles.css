@@ -5107,6 +5107,108 @@ button.path-node:not(:disabled):hover {
     inset 0 1px 0 rgba(220,232,255,0.28);
 }
 
+/* Near-miss chips — combos the queue is one action away from.  Dimmer,
+   dashed, non-interactive.  Keep their tier palette so sig partials stay
+   visually distinct from attack-tier partials. */
+.resonance-chip.resonance-partial {
+  opacity: 0.6;
+  border: 1px dashed rgba(212,200,168,0.5);
+  background: linear-gradient(180deg, rgba(36,28,20,0.6) 0%, rgba(14,10,8,0.7) 100%);
+  box-shadow: none;
+  cursor: default;
+  pointer-events: none;
+}
+.resonance-chip.resonance-partial::after { display: none; }
+.resonance-chip.resonance-partial .rc-label { text-shadow: none; }
+.resonance-chip.resonance-partial.resonance-sig {
+  border-color: rgba(170,200,255,0.45);
+  background: linear-gradient(180deg, rgba(28,36,68,0.6) 0%, rgba(10,14,28,0.7) 100%);
+}
+.resonance-chip.resonance-partial.resonance-triple {
+  border-color: rgba(220,140,100,0.45);
+  background: linear-gradient(180deg, rgba(60,30,22,0.6) 0%, rgba(20,10,8,0.7) 100%);
+}
+
+/* Status tooltip — floating panel that appears on press-and-hold of a
+   status chip.  Position is computed at show-time. */
+.status-tooltip {
+  position: fixed;
+  z-index: 600;
+  max-width: 220px;
+  padding: 6px 9px;
+  background: rgba(14,12,10,0.96);
+  color: var(--ink);
+  border: 1px solid rgba(212,200,168,0.35);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.6), 0 0 14px rgba(232,220,196,0.08);
+  font-size: 10.5px;
+  line-height: 1.45;
+  pointer-events: none;
+  animation: status-tip-in 0.14s ease-out forwards;
+}
+.status-tooltip .st-name {
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gold-pale);
+  margin-bottom: 3px;
+}
+.status-tooltip .st-name .st-val {
+  color: var(--gold-bright);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+.status-tooltip .st-text {
+  color: var(--ink);
+  font-size: 10px;
+  line-height: 1.45;
+}
+@keyframes status-tip-in {
+  from { opacity: 0; transform: translateY(2px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Tile combo-ready glow — pressing this tile would complete a fresh
+   Resonance with the current queue.  Soft pulse + a small ribbon labels
+   which combo lands.  Sig-tier combos use the cool-blue palette. */
+.tile.tile-combo-ready {
+  animation: tile-combo-pulse 1.6s ease-in-out infinite;
+  position: relative;
+}
+.tile.tile-combo-ready::before {
+  content: attr(data-combo);
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 7.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  background: rgba(40,28,20,0.95);
+  color: var(--gold-bright);
+  border: 1px solid rgba(240,212,136,0.45);
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 0 10px rgba(240,212,136,0.35);
+}
+.tile.tile-combo-ready.tile-combo-sig::before {
+  color: #cfe1ff;
+  border-color: rgba(170,200,255,0.55);
+  box-shadow: 0 0 10px rgba(170,200,255,0.4);
+}
+@keyframes tile-combo-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(240,212,136,0.0); }
+  50%      { box-shadow: 0 0 16px 2px rgba(240,212,136,0.4); }
+}
+.tile.tile-combo-ready.tile-combo-sig {
+  animation-name: tile-combo-pulse-sig;
+}
+@keyframes tile-combo-pulse-sig {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(170,200,255,0.0); }
+  50%      { box-shadow: 0 0 16px 2px rgba(170,200,255,0.45); }
+}
+
 /* Keep the team-special tile styling as legacy fallback for any leftover
    references, but the live UI uses .resonance-chip now. */
 .tile.team-special {

@@ -811,9 +811,9 @@ const CHARS = {
     name: 'Branwen',
     title: 'Outlaw Archer',
     school: 'ranged',
-    maxHp: 17,
+    maxHp: 20,
     home: 'back',
-    passive: { name: 'Bleed Hunter', desc: '+2 dmg to bleeding enemies' },
+    passive: { name: 'Bleed Hunter', desc: '+2 dmg vs bleeding · heal 1 on bleeding kill (once/turn)' },
     techs: {
       front: {
         // close-range when shoved to Front: melee shots
@@ -854,12 +854,12 @@ const CHARS = {
     passive: { name: 'Bloodlust', desc: '+2 dmg per 30% missing HP' },
     techs: {
       front: {
-        basic: { name: 'Reckless Strike', desc: '7 dmg + 1 self-dmg', dmg: 7,
+        basic: { name: 'Reckless Strike', desc: '7 dmg + 2 self-dmg', dmg: 7,
           reach: ['front'], pattern: 'front-most',
-          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 7); applySelfDmg(s, 'korin', 1); } },
-        sig:   { name: 'Berserker Cleave', desc: '11 dmg + bleed 2 + 2 self-dmg', dmg: 11,
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 7); applySelfDmg(s, 'korin', 2); } },
+        sig:   { name: 'Berserker Cleave', desc: '11 dmg + bleed 2 + 3 self-dmg', dmg: 11,
           reach: ['front'], pattern: 'front-most',
-          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 11); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 2); } applySelfDmg(s, 'korin', 2); } },
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 11); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 2); } applySelfDmg(s, 'korin', 3); } },
       },
       mid: {
         basic: { name: 'Wild Swing', desc: '4 dmg all', dmg: 4,
@@ -880,7 +880,7 @@ const CHARS = {
     name: 'Ash',
     title: 'Veil-Touched Mage',
     school: 'arcane',
-    maxHp: 16,
+    maxHp: 19,
     home: 'mid',
     passive: { name: 'Arcane Focus', desc: 'First attack each turn deals +2' },
     techs: {
@@ -901,9 +901,9 @@ const CHARS = {
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 9); if (!t[0].dead) t[0].vuln += 2; } } },
       },
       back: {
-        basic: { name: 'Arcane Bolts', desc: '3 dmg all', dmg: 3,
+        basic: { name: 'Arcane Bolts', desc: '4 dmg all', dmg: 4,
           reach: ['front','mid','back'], pattern: 'all',
-          fn: (s, t) => t.forEach(e => applyDmgToEnemy(s, e, 3)) },
+          fn: (s, t) => t.forEach(e => applyDmgToEnemy(s, e, 4)) },
         sig:   { name: 'Lightning Storm', desc: '5 dmg all + 1 vuln all', dmg: 5,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 5)); t.forEach(e => { if (!e.dead) e.vuln += 1; }); } },
@@ -915,7 +915,7 @@ const CHARS = {
     name: 'Mira',
     title: 'Shadow Reaver',
     school: 'stealth',
-    maxHp: 18,
+    maxHp: 21,
     home: 'back',
     passive: { name: 'Eviscerate', desc: '+3 dmg vs bleeding enemies' },
     techs: {
@@ -936,9 +936,9 @@ const CHARS = {
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 5); if (!t[0].dead) applyDmgToEnemy(s, t[0], 5); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 2); } } },
       },
       back: {
-        basic: { name: 'Poison Cloud', desc: '2 dmg all + bleed 1 all', dmg: 2,
+        basic: { name: 'Poison Cloud', desc: '3 dmg all + bleed 1 all', dmg: 3,
           reach: ['front','mid','back'], pattern: 'all',
-          fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 2)); t.forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 1); }); } },
+          fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 3)); t.forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 1); }); } },
         sig:   { name: 'Shadow Storm', desc: '4 dmg all + bleed 2 all', dmg: 4,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 4)); t.forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 2); }); } },
@@ -2878,6 +2878,7 @@ const SIGILS = {
   stillness:  { id: 'stillness',  name: 'Mantra of Stillness', icon: '★', category: 'resource', desc: 'Specials cost 0 Resolve (down from 1).' },
   memory:     { id: 'memory',     name: 'Coin of Memory',      icon: '◆', category: 'resource', desc: 'Carry up to 4 Resolve between fights (instead of 3).' },
   vigor:      { id: 'vigor',      name: 'Pact of Vigor',       icon: '⚡', category: 'resource', desc: 'Killing an enemy refunds 1 ATB this turn.' },
+  vowiron:    { id: 'vowiron',    name: 'Vow of Iron',         icon: '⌖', category: 'defense',  desc: 'The Front slot starts each fight with Taunt for the first turn.' },
 };
 
 function hasSigil(s, id) {
@@ -3337,6 +3338,43 @@ function matchingCombos(queue) {
   }).filter(Boolean);
 }
 
+// Returns combos that are ONE action away from completion — the queue
+// satisfies N-1 of the requires, and the missing hero is alive and not the
+// already-spent one.  Each entry: { combo, missing: { heroId, kind } }.
+// Used by the Resonance Rail to show near-misses so players can SEE the
+// path to a combo as they build the queue.
+function partialCombos(queue) {
+  const spent = (state && state.usedCombos) || new Set();
+  const completed = matchingCombos(queue).map(m => m.combo.id);
+  const seen = new Set();
+  const out = [];
+  Object.values(COMBOS).forEach(combo => {
+    if (spent.has(combo.id)) return;
+    if (completed.includes(combo.id)) return;
+    for (let i = 0; i < combo.requires.length; i++) {
+      const missing = combo.requires[i];
+      const remaining = combo.requires.filter((_, idx) => idx !== i);
+      const used = new Set();
+      const ok = remaining.every(r => {
+        const qi = queue.findIndex((q, j) =>
+          !used.has(j) && q.charId === r.heroId && q.kind === r.kind);
+        if (qi < 0) return false;
+        used.add(qi);
+        return true;
+      });
+      if (!ok) continue;
+      const heroDef = state.party.chars[missing.heroId];
+      if (!heroDef || heroDef.downed) continue;
+      const key = `${combo.id}:${missing.heroId}:${missing.kind}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ combo, missing });
+      break; // only one missing-slot suggestion per combo
+    }
+  });
+  return out;
+}
+
 function commitCombo(comboId) {
   const s = state;
   if (s.executing || s.over) return;
@@ -3747,6 +3785,12 @@ function startEncounter(encSpec) {
   if (hasSigil(state, 'steel')) {
     Object.values(state.party.chars).forEach(c => { if (!c.downed) c.armor += 2; });
   }
+  // Vow of Iron — front slot wakes the fight with Taunt for turn 1.  The
+  // startTurn cleanup runs AFTER this, so we set the taunt to survive the
+  // first cycle by deferring via a flag and re-applying inside startTurn.
+  if (hasSigil(state, 'vowiron')) {
+    state._vowIronPending = true;
+  }
 
   startTurn(state);
   // First-encounter tutorial kicks in after the battlefield has rendered.
@@ -4140,6 +4184,20 @@ function killEnemy(s, e) {
         spawnPopupId('kai', `+${k.hp - before}`, 'heal', 'party');
         spawnPassivePopup('kai', 'ADEPT');
       }
+    }
+  }
+  // Branwen's Bleed Hunter — heal 1 on a bleeding kill, once per turn.  Gives
+  // her solo runs a small life-steal feedback loop tied to her core kit.
+  if (s.currentActorId === 'branwen' && e.bleed > 0) {
+    const b = s.party.chars.branwen;
+    if (b && !b.downed && !b.bleedKillUsed) {
+      const before = b.hp;
+      b.hp = Math.min(b.maxHp, b.hp + 1);
+      if (b.hp > before) {
+        spawnPopupId('branwen', `+${b.hp - before}`, 'heal', 'party');
+        spawnPassivePopup('branwen', 'BLEED HUNTER');
+      }
+      b.bleedKillUsed = true;
     }
   }
   // Emoji reaction over the actor for the kill
@@ -4601,7 +4659,20 @@ function startTurn(s) {
   s.bonusAtb = Math.min(1, s.pendingBonusAtb || 0);
   s.pendingBonusAtb = 0;
   // clear single-turn buffs that survived the enemy phase
-  aliveParty(s).forEach(c => { c.taunt = false; c.retaliate = 0; c.firstAttackUsed = false; });
+  aliveParty(s).forEach(c => { c.taunt = false; c.retaliate = 0; c.firstAttackUsed = false; c.bleedKillUsed = false; });
+  // Vow of Iron — front slot wakes turn 1 with Taunt.  Applied AFTER the
+  // taunt-clear so it survives this single turn; the next startTurn clears
+  // it normally.  The _vowIronPending flag was set in initEncounter so
+  // this only fires on the first turn of the fight.
+  if (s._vowIronPending) {
+    const frontId = s.party.slots.front;
+    const front = frontId && s.party.chars[frontId];
+    if (front && !front.downed) {
+      front.taunt = true;
+      spawnSigilPopup(frontId, 'vowiron');
+    }
+    s._vowIronPending = false;
+  }
   log(`<span class="msg-strong">— Turn ${s.turn} —</span>`);
   if (s.bonusAtb > 0) log(`<i>Weakness exploited — +${s.bonusAtb} ATB this turn.</i>`);
 
@@ -5040,7 +5111,15 @@ function executeQueueItem(s, item) {
   if (item.kind === 'brace') {
     c.armor += BRACE_ARMOR;
     spawnPopupId(item.charId, `+${BRACE_ARMOR}⛨`, 'armor', 'party');
-    log(`<b>${CHARS[item.charId].name}</b> braces (+${BRACE_ARMOR} armor).`);
+    // Front-slot brace also draws fire — Taunt for this turn so the player
+    // can plant a wall on demand without needing a Korin resonance setup.
+    if (slotOfChar(state, item.charId) === 'front') {
+      c.taunt = true;
+      spawnPopupId(item.charId, 'TAUNT', 'synergy', 'party');
+      log(`<b>${CHARS[item.charId].name}</b> braces (+${BRACE_ARMOR} armor · taunt).`);
+    } else {
+      log(`<b>${CHARS[item.charId].name}</b> braces (+${BRACE_ARMOR} armor).`);
+    }
     return;
   }
 }
@@ -5575,20 +5654,89 @@ function makeEnemyCard(e, slot) {
 
 function renderStatuses(ent) {
   const c = [];
-  const chip = (cls, icon, num, title) =>
-    `<span class="status-chip ${cls}" title="${title}"><span class="status-icon">${icon}</span>${num != null ? `<span class="status-num">${num}</span>` : ''}</span>`;
-  if (ent.armor > 0)     c.push(chip('status-armor', '⛨', ent.armor,    `Armor ${ent.armor} — absorbs ${ent.armor} damage before HP. Wears off as it absorbs.`));
-  if (ent.bleed > 0)     c.push(chip('status-bleed', '✤', ent.bleed,    `Bleed ${ent.bleed} — takes 2 damage at the start of each turn (3 with Bloodborne Sigil), then the stack decreases by 1.`));
-  if (ent.taunt)         c.push(chip('status-taunt', '⌖', null,         'Taunt — enemies single-target attacks redirect to this character instead of the original slot.'));
-  if (ent.weak > 0)      c.push(chip('status-weak',  '↓', ent.weak,     `Weak ${ent.weak} — this character's outgoing damage is reduced by 2 for the next ${ent.weak} attack(s).`));
-  if (ent.vuln > 0)      c.push(chip('status-vuln',  '⊕', ent.vuln,     `Vulnerable ${ent.vuln} — next ${ent.vuln} incoming attacks deal +2 damage (+4 with Ember of Wrath Sigil) and consume one stack.`));
-  if (ent.retaliate > 0) c.push(chip('status-retal', '↻', ent.retaliate,`Retaliate ${ent.retaliate} — when hit, counter-attack the front-most enemy for ${ent.retaliate} damage.`));
+  // Each chip carries data-status so the press-and-hold tooltip handler can
+  // resolve its explanation from STATUS_TOOLTIPS without re-parsing classes.
+  const chip = (statusId, icon, num, title) =>
+    `<span class="status-chip status-${statusId}" data-status="${statusId}"${num != null ? ` data-value="${num}"` : ''} title="${title}"><span class="status-icon">${icon}</span>${num != null ? `<span class="status-num">${num}</span>` : ''}</span>`;
+  if (ent.armor > 0)     c.push(chip('armor', '⛨', ent.armor,    `Armor ${ent.armor} — absorbs ${ent.armor} damage before HP. Wears off as it absorbs.`));
+  if (ent.bleed > 0)     c.push(chip('bleed', '✤', ent.bleed,    `Bleed ${ent.bleed} — takes 2 damage at the start of each turn (3 with Bloodborne Sigil), then the stack decreases by 1.`));
+  if (ent.taunt)         c.push(chip('taunt', '⌖', null,         'Taunt — enemies single-target attacks redirect to this character instead of the original slot.'));
+  if (ent.weak > 0)      c.push(chip('weak',  '↓', ent.weak,     `Weak ${ent.weak} — this character's outgoing damage is reduced by 2 for the next ${ent.weak} attack(s).`));
+  if (ent.vuln > 0)      c.push(chip('vuln',  '⊕', ent.vuln,     `Vulnerable ${ent.vuln} — next ${ent.vuln} incoming attacks deal +2 damage (+4 with Ember of Wrath Sigil) and consume one stack.`));
+  if (ent.retaliate > 0) c.push(chip('retal', '↻', ent.retaliate,`Retaliate ${ent.retaliate} — when hit, counter-attack the front-most enemy for ${ent.retaliate} damage.`));
   if (ent.pendingEffects) ent.pendingEffects.forEach(e => {
-    if (e.kind === 'attackBonus')      c.push(chip('status-pending', '⚔', `+${e.amt}`, `Next attack +${e.amt} damage (one-shot, consumed on use).`));
-    else if (e.kind === 'healBonus')   c.push(chip('status-pending', '✚', `+${e.amt}`, `Next heal +${e.amt} (one-shot, consumed on use).`));
-    else                                c.push(chip('status-pending', '✦', `+${e.amt}`, `Pending +${e.amt}`));
+    if (e.kind === 'attackBonus')      c.push(chip('pending', '⚔', `+${e.amt}`, `Next attack +${e.amt} damage (one-shot, consumed on use).`));
+    else if (e.kind === 'healBonus')   c.push(chip('pending', '✚', `+${e.amt}`, `Next heal +${e.amt} (one-shot, consumed on use).`));
+    else                                c.push(chip('pending', '✦', `+${e.amt}`, `Pending +${e.amt}`));
   });
   return c.join('');
+}
+
+// Mobile-friendly explanation surface for status chips.  The desktop `title`
+// attribute does the job there, but on touch you need press-and-hold.  Bound
+// once at boot via event delegation so re-renders don't need rebinding.
+const STATUS_TOOLTIPS = {
+  armor:    { name: 'Armor',       text: 'Absorbs incoming damage 1:1 before HP. Wears off as it absorbs. Does not regenerate.' },
+  bleed:    { name: 'Bleed',       text: 'Takes 2 damage at the start of each turn (+1 with Bloodborne / Bone Tide). Decays by 1 per turn. Ignores armor.' },
+  taunt:    { name: 'Taunt',       text: 'Enemy single-target attacks redirect to this hero. Clears at the start of the next turn.' },
+  weak:     { name: 'Weak',        text: 'Outgoing attacks deal -2 damage. Consumes 1 stack per attack.' },
+  vuln:     { name: 'Vulnerable',  text: 'Incoming hits deal +2 damage per stack (+2 more with Ember of Wrath). One stack is consumed per hit (unless Brand of Doom).' },
+  retal:    { name: 'Retaliate',   text: 'When hit, counter-attacks the front-most enemy for this value (+2 with Vow of Vigil). Clears at the start of the next turn.' },
+  pending:  { name: 'Pending',     text: 'A one-shot bonus from a synergy. Consumed by the next matching action.' },
+};
+
+let _statusTooltipState = null;
+function _hideStatusTooltip() {
+  const tt = document.getElementById('status-tooltip-active');
+  if (tt) tt.remove();
+  if (_statusTooltipState && _statusTooltipState.timer) {
+    clearTimeout(_statusTooltipState.timer);
+  }
+  _statusTooltipState = null;
+}
+function _showStatusTooltip(chip) {
+  _hideStatusTooltip();
+  const statusId = chip.dataset.status;
+  const info = STATUS_TOOLTIPS[statusId];
+  if (!info) return;
+  const value = chip.dataset.value || '';
+  const tt = document.createElement('div');
+  tt.id = 'status-tooltip-active';
+  tt.className = 'status-tooltip';
+  tt.innerHTML = `<div class="st-name">${info.name}${value ? ` <span class="st-val">${value}</span>` : ''}</div><div class="st-text">${info.text}</div>`;
+  document.body.appendChild(tt);
+  const rect = chip.getBoundingClientRect();
+  const tw = tt.offsetWidth;
+  const th = tt.offsetHeight;
+  let left = rect.left + rect.width / 2 - tw / 2;
+  left = Math.max(6, Math.min(left, window.innerWidth - tw - 6));
+  let top = rect.top - th - 8;
+  if (top < 6) top = rect.bottom + 8;
+  tt.style.left = `${left}px`;
+  tt.style.top  = `${top}px`;
+}
+function setupStatusTooltips() {
+  if (window._statusTipsBound) return;
+  window._statusTipsBound = true;
+  const HOLD_MS = 280;
+  document.addEventListener('pointerdown', (e) => {
+    const chip = e.target.closest && e.target.closest('.status-chip[data-status]');
+    if (!chip) return;
+    if (_statusTooltipState && _statusTooltipState.timer) clearTimeout(_statusTooltipState.timer);
+    _statusTooltipState = {
+      chip,
+      timer: setTimeout(() => { _showStatusTooltip(chip); }, HOLD_MS),
+    };
+  }, true);
+  const release = () => {
+    if (_statusTooltipState) {
+      if (_statusTooltipState.timer) clearTimeout(_statusTooltipState.timer);
+      setTimeout(_hideStatusTooltip, 80);
+    }
+  };
+  document.addEventListener('pointerup',     release, true);
+  document.addEventListener('pointercancel', release, true);
+  document.addEventListener('pointerleave',  release, true);
 }
 
 // queue strip — variable-width bar. Each queued item takes flex-grow proportional
@@ -5657,7 +5805,8 @@ function renderTeamSpecial() {
   // Don't show during resolution
   if (state.executing || state.over) { area.classList.add('hidden'); return; }
   const matches = matchingCombos(state.queue);
-  if (matches.length === 0) { area.classList.add('hidden'); return; }
+  const partials = partialCombos(state.queue).slice(0, 3); // cap so the rail doesn't flood
+  if (matches.length === 0 && partials.length === 0) { area.classList.add('hidden'); return; }
   area.classList.remove('hidden');
   area.classList.add('resonance-rail');
   matches.forEach(({ combo }) => {
@@ -5675,6 +5824,25 @@ function renderTeamSpecial() {
     btn.title = `Resonance · ${combo.name}: ${combo.desc}`;
     btn.addEventListener('click', () => commitCombo(combo.id));
     area.appendChild(btn);
+  });
+  // Near-miss chips — combos one action away.  Non-clickable indicators that
+  // surface the SETUP, not the payoff.  Sig-tier partials keep the cool-blue
+  // palette so the player can tell which class of combo is on offer.
+  partials.forEach(({ combo, missing }) => {
+    const heroName = CHARS[missing.heroId]?.name || missing.heroId;
+    const kindLabel = missing.kind === 'sig' ? 'Special' : 'Attack';
+    const chip = document.createElement('div');
+    chip.className = `resonance-chip resonance-partial resonance-${combo.tier}${combo.sigTier ? ' resonance-sig' : ''}`;
+    const tierLabel = combo.sigTier
+      ? (combo.tier === 'triple' ? 'SIG TRIPLE' : 'SIG DUO')
+      : (combo.tier === 'triple' ? 'TRIPLE' : 'DUO');
+    chip.innerHTML = `
+      <span class="rc-label">${combo.name}</span>
+      <span class="rc-tier">${tierLabel}</span>
+      <span class="rc-desc">+ ${heroName} ${kindLabel}</span>
+    `;
+    chip.title = `One action away · ${combo.name}: ${combo.desc}`;
+    area.appendChild(chip);
   });
 }
 
@@ -5701,6 +5869,21 @@ function makeTile(kind, charId, dir, tileCounts, teamLocked) {
   // De-emphasize when the action would land but produce no effect (e.g. an
   // attack whose reach holds only empty slots).  Still clickable.
   if (preview.noEffect && !t.disabled) t.classList.add('no-effect');
+  // Combo-ready glow — queueing THIS tile would complete a fresh Resonance
+  // that isn't already on offer.  Maps tile.kind to combo.kind:
+  //   attack → 'attack', special → 'sig'.  Move/brace never trigger.
+  if (!t.disabled && (kind === 'attack' || kind === 'special')) {
+    const comboKind = kind === 'special' ? 'sig' : 'attack';
+    const simulated = state.queue.concat([{ charId, kind: comboKind, atb: atbCost }]);
+    const existingIds = new Set(matchingCombos(state.queue).map(m => m.combo.id));
+    const wouldComplete = matchingCombos(simulated).filter(m => !existingIds.has(m.combo.id));
+    if (wouldComplete.length) {
+      const combo = wouldComplete[0].combo;
+      t.classList.add('tile-combo-ready');
+      if (combo.sigTier) t.classList.add('tile-combo-sig');
+      t.dataset.combo = combo.name;
+    }
+  }
   t.dataset.kind = kind;
   t.dataset.charId = charId;
   if (dir !== null && dir !== undefined) t.dataset.dir = dir;
@@ -8632,6 +8815,7 @@ function bootGame() {
     return;
   }
   bindUI();
+  setupStatusTooltips();
   // Title screen on every load.  "Continue" is enabled iff a save exists.
   showTitleScreen();
 }
