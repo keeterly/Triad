@@ -7495,10 +7495,10 @@ function findEmptySlotForRecruit(recruitId) {
 // Short greeting line per hero — used in the recruit overlay's chat bubble.
 const RECRUIT_GREETINGS = {
   kai:     "I have done this stretch alone too long.",
-  cassia:  "I lost what was worth keeping.  What I have left, I spend down here.",
+  cassia:  "What I have left, I spend down here.",
   elin:    "Mercy still has weight.  I will carry it.",
   branwen: "I name every arrow before I loose it.",
-  korin:   "I do not run.  If that is a problem, say it now.",
+  korin:   "I do not run.  Say so now or never.",
   ash:     "I do not promise to be seen.  Only useful.",
   mira:    "I prefer to finish before they notice.",
 };
