@@ -212,22 +212,33 @@ body {
 .run-mod-chip {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 1px 7px 1px 5px;
+  gap: 5px;
+  padding: 2px 8px 2px 6px;
   font-family: inherit;
   font-size: 9.5px;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--gold-bright);
-  background: rgba(20,16,30,0.85);
-  border: 1px solid rgba(154,120,192,0.55);
+  background: rgba(20,16,30,0.55);
+  border: none;
   cursor: help;
-  border-radius: 0;
+  border-radius: 12px;
   line-height: 1.5;
+  box-shadow: 0 0 12px rgba(154,120,192,0.18), inset 0 0 8px rgba(0,0,0,0.4);
 }
 .run-mod-icon { color: var(--debuff); font-size: 10px; }
-.run-mod-chip:hover { background: rgba(28,22,38,0.95); }
+.run-mod-chip:hover { filter: brightness(1.18); }
+#hud::after {
+  /* Faint hairline at the bottom of the HUD so it reads as a strip */
+  content: '';
+  position: absolute;
+  left: 8%; right: 8%;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(212,200,168,0.12) 50%, transparent 100%);
+  pointer-events: none;
+}
 #sigil-tray {
   display: flex;
   align-items: center;
@@ -6352,6 +6363,51 @@ body.boss-killed::before {
 }
 .rs-card.rs-boss .rs-flavor    { color: var(--gold-pale); text-shadow: 0 0 12px rgba(240,224,182,0.25); }
 .rs-card.rs-defeat .rs-flavor  { color: var(--ink-dim); }
+
+/* Silhouette montage of the party at the top of the run summary. */
+.rs-montage {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 10px;
+  height: 130px;
+  padding-bottom: 2px;
+  position: relative;
+}
+.rs-montage::after {
+  /* Faint floor hairline under the silhouettes */
+  content: '';
+  position: absolute;
+  left: 10%; right: 10%;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(232,220,196,0.18) 50%, transparent 100%);
+}
+.rs-portrait {
+  width: 70px; height: 110px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  position: relative;
+  -webkit-mask-image: radial-gradient(ellipse 80% 100% at 50% 50%, #000 60%, transparent 100%);
+          mask-image: radial-gradient(ellipse 80% 100% at 50% 50%, #000 60%, transparent 100%);
+}
+.rs-portrait svg {
+  height: 100%;
+  width: auto;
+  filter: drop-shadow(0 6px 14px rgba(0,0,0,0.65));
+}
+.rs-portrait.rs-portrait-downed {
+  opacity: 0.4;
+  filter: grayscale(0.6);
+}
+.rs-card.rs-boss .rs-portrait svg   { filter: drop-shadow(0 0 16px rgba(240,224,182,0.3)) drop-shadow(0 6px 14px rgba(0,0,0,0.65)); }
+.rs-card.rs-defeat .rs-portrait svg { filter: drop-shadow(0 0 14px rgba(220,80,80,0.25)) drop-shadow(0 6px 14px rgba(0,0,0,0.65)) grayscale(0.4); }
+
+@media (max-height: 480px) {
+  .rs-montage { height: 88px; gap: 6px; }
+  .rs-portrait { width: 48px; height: 70px; }
+}
 
 /* ===========================================================================
    SETTINGS PANEL

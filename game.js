@@ -3965,9 +3965,16 @@ function killEnemy(s, e) {
   // Pact of Cinders — every surviving enemy starts bleeding
   if (hasSigil(s, 'cinders')) {
     aliveEnemies(s).forEach(en => { if (en !== e && !en.dead) en.bleed = Math.max(en.bleed, 1); });
+    if (s.currentActorId) spawnSigilPopup(s.currentActorId, 'cinders');
   }
+  // Sigil of the Reaver — already adds +1 Resolve on kill in gainResolve;
+  // surface the trigger so the player sees the contribution.
+  if (hasSigil(s, 'reaver') && s.currentActorId) spawnSigilPopup(s.currentActorId, 'reaver');
   // Pact of Vigor — refund 1 ATB this turn (carried via bonusAtb until startTurn resets)
-  if (hasSigil(s, 'vigor')) s.bonusAtb = (s.bonusAtb || 0) + 1;
+  if (hasSigil(s, 'vigor')) {
+    s.bonusAtb = (s.bonusAtb || 0) + 1;
+    if (s.currentActorId) spawnSigilPopup(s.currentActorId, 'vigor');
+  }
   // Slide remaining enemies forward so a kill never strands an attacker
   // who can't reach the back slot.  Quiet rearrangement — no log line.
   enemyAdvanceFill(s);
@@ -4760,6 +4767,7 @@ function resolveQueueStep(i) {
         c.hp = Math.min(c.maxHp, c.hp + 2);
         if (c.hp > before) {
           spawnPopupId(c.id, `+${c.hp - before}`, 'heal', 'party');
+          spawnSigilPopup(c.id, 'mending');
           log(`<i>Sigil of Mending soothes <b>${CHARS[c.id].name}</b>.</i>`);
         }
       }
@@ -5932,6 +5940,16 @@ function spawnReaction(id, emoji, side) {
 function spawnPassivePopup(id, name) {
   if (__simulating) return;
   spawnPopupId(id, name, 'passive', 'party');
+}
+
+// Small popup naming a sigil when its on-trigger effect fires (kill, post-
+// turn heal, damage reduction).  Reuses the passive popup style so the
+// visual language for "something in your build proc'd" is consistent.
+function spawnSigilPopup(id, sigilId) {
+  if (__simulating) return;
+  const sg = SIGILS[sigilId];
+  if (!sg) return;
+  spawnPopupId(id, sg.name.toUpperCase(), 'passive', 'party');
 }
 
 // Sequential popup pacing: damage / heal numbers fired in rapid succession
@@ -7196,8 +7214,18 @@ function showRunSummary(outcome, opts) {
   $('#overlay').classList.add('overlay-full', 'overlay-runsummary');
   const body = $('#overlay-body');
   body.classList.add('victory-summary-body', 'run-summary-body');
+  // Silhouette montage of the party at the top of the summary.  Downed
+  // heroes render dimmed.  Mirrors the visual language we use everywhere.
+  const montageIds = partyIds.length ? partyIds : Object.keys(state.party.chars);
+  const montage = montageIds.map(id => {
+    const c = state.party.chars[id];
+    const downed = c && c.downed;
+    return `<div class="rs-portrait ${downed ? 'rs-portrait-downed' : ''}">${PORTRAITS[id] || ''}</div>`;
+  }).join('');
+
   body.innerHTML = `
     <div class="rs-card ${outcomeClass}">
+      <div class="rs-montage">${montage}</div>
       <div class="rs-flavor">${flavor}</div>
       <div class="rs-stats">
         <span class="rs-stat"><b>${rs.reaches}</b> <em>${rs.reaches === 1 ? 'reach' : 'reaches'}</em></span>
