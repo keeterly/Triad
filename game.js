@@ -8006,15 +8006,28 @@ function showUpgradeOverlay(offers, onDone) {
     const baseTech = char.techs[up.slot][up.kind];
     const card = document.createElement('button');
     card.className = 'encounter-choice upgrade-choice';
+    // Layout reads top-down:
+    //   1. bracketed meta line  — hero, slot, kind
+    //   2. upgrade name         — the answer to "what is this card?"
+    //   3. FROM block           — old tech name + its desc, dimmed
+    //   4. chevron separator    — clear visual delta
+    //   5. TO block             — new effect, bright
+    // The avatar tucks into the meta line so it doesn't compete with the
+    // body, and the name lives ONCE inside the card (no enc-name dupe).
     card.innerHTML = `
-      <div class="enc-name">${up.name}</div>
-      <div class="upgrade-row">
+      <div class="upgrade-meta-row">
         <div class="upgrade-avatar">${PORTRAITS[up.charId] || ''}</div>
-        <div class="upgrade-meta">
-          <div class="upgrade-char">${char.name} · ${SLOT_LABELS[up.slot]} · ${up.kind === 'sig' ? 'Special' : 'Attack'}</div>
-          <div class="upgrade-from">${baseTech.name}<span class="upgrade-from-desc">${baseTech.desc}</span></div>
-          <div class="upgrade-arrow">↓</div>
-          <div class="upgrade-to"><b>${up.name}</b><span class="upgrade-to-desc">${up.desc}</span></div>
+        <div class="upgrade-meta-label">${char.name} · ${SLOT_LABELS[up.slot]} · ${up.kind === 'sig' ? 'Special' : 'Attack'}</div>
+      </div>
+      <div class="upgrade-title">${up.name}</div>
+      <div class="upgrade-delta">
+        <div class="upgrade-from">
+          <span class="upgrade-from-name">${baseTech.name}</span>
+          <span class="upgrade-from-desc">${baseTech.desc}</span>
+        </div>
+        <div class="upgrade-chevron" aria-hidden="true">›</div>
+        <div class="upgrade-to">
+          <span class="upgrade-to-desc">${up.desc}</span>
         </div>
       </div>
     `;
