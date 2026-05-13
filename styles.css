@@ -5503,7 +5503,7 @@ button.path-node:not(:disabled):hover .pn-icon {
    .overlay-runsummary for size + spacing tweaks.
    =========================================================================== */
 #overlay.overlay-full {
-  background: radial-gradient(ellipse at center, rgba(8,4,4,0.86) 0%, rgba(0,0,0,0.96) 70%) !important;
+  background: radial-gradient(ellipse at center, #0a0606 0%, #000 70%) !important;
 }
 #overlay.overlay-full #overlay-content {
   background: transparent !important;
