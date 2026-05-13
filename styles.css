@@ -3363,10 +3363,12 @@ body.party-critical::after {
    Flex row instead of grid — predictable on every iOS Safari and avoids
    the grid-auto-flow stacking bug we hit on phones.
    Scoped to :not(.hidden) so the .hidden class can still display:none
-   when the victory summary takes over the overlay. */
+   when the victory summary takes over the overlay.
+   !important on display + flex-direction because some iOS Safari versions
+   were respecting source-order over class-specificity here. */
 #overlay-choices.path-map:not(.hidden) {
-  display: flex;
-  flex-direction: row;
+  display: flex !important;
+  flex-direction: row !important;
   flex-wrap: nowrap;
   justify-content: space-between;
   align-items: stretch;
@@ -3375,6 +3377,7 @@ body.party-critical::after {
   position: relative;
   width: 100%;
 }
+#overlay-choices.path-map.hidden { display: none !important; }
 .path-col { flex: 1 1 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .path-col-head {
   text-align: center;
