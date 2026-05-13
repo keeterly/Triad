@@ -2573,6 +2573,215 @@ function getTeamSpecialCost(s) {
   return cost;
 }
 
+// ============================================================================
+// RESONANCE — Chrono-Trigger-style combo attacks.
+// When the queue contains a specific combination of (hero, action-kind)
+// items, a Resonance becomes available.  Tapping its chip in the Resonance
+// Rail splices those queue items into a single 'combo' item that resolves
+// with a louder VFX.  Each combo's `requires` is a list of role tuples;
+// matching consumes one queue item per role.
+// ============================================================================
+const COMBOS = {
+  // ---- Duos ----
+  banner_volley: {
+    id: 'banner_volley', name: 'Banner Volley', tier: 'duo',
+    desc: 'Strip armor + AoE bleed',
+    requires: [
+      { heroId: 'cassia', kind: 'attack' },
+      { heroId: 'branwen', kind: 'attack' },
+    ],
+    fn: (s) => {
+      const front = enemyBySlot(s, 'front');
+      if (front && !front.dead) { front.armor = 0; applyDmgToEnemy(s, front, 8); }
+      aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 2));
+    },
+  },
+  twin_strike: {
+    id: 'twin_strike', name: 'Twin Strike', tier: 'duo',
+    desc: 'Two heavy hits on the lowest-HP enemy',
+    requires: [
+      { heroId: 'branwen', kind: 'attack' },
+      { heroId: 'mira', kind: 'attack' },
+    ],
+    fn: (s) => {
+      const t = aliveEnemies(s).slice().sort((a, b) => a.hp - b.hp)[0];
+      if (t) { applyDmgToEnemy(s, t, 6); if (!t.dead) { applyDmgToEnemy(s, t, 6); if (!t.dead) t.bleed = Math.max(t.bleed, 2); } }
+    },
+  },
+  crossblade_dance: {
+    id: 'crossblade_dance', name: 'Crossblade Dance', tier: 'duo',
+    desc: 'Four-hit barrage front',
+    requires: [
+      { heroId: 'kai', kind: 'attack' },
+      { heroId: 'mira', kind: 'attack' },
+    ],
+    fn: (s) => {
+      const front = enemyBySlot(s, 'front');
+      if (front && !front.dead) {
+        for (let i = 0; i < 4; i++) { if (!front.dead) applyDmgToEnemy(s, front, 4); }
+        if (!front.dead) front.bleed = Math.max(front.bleed, 1);
+      }
+    },
+  },
+  wall_charge: {
+    id: 'wall_charge', name: 'Wall Charge', tier: 'duo',
+    desc: '10 dmg front + taunt + retaliate',
+    requires: [
+      { heroId: 'cassia', kind: 'attack' },
+      { heroId: 'korin', kind: 'attack' },
+    ],
+    fn: (s) => {
+      const front = enemyBySlot(s, 'front');
+      if (front && !front.dead) applyDmgToEnemy(s, front, 10);
+      const k = s.party.chars.korin;
+      if (k && !k.downed) { k.taunt = true; k.retaliate = 3; k.armor += 3; }
+    },
+  },
+  quiet_volley: {
+    id: 'quiet_volley', name: 'Quiet Volley', tier: 'duo',
+    desc: 'AoE 4 + bleed all + party +1 dmg next turn',
+    requires: [
+      { heroId: 'ash', kind: 'attack' },
+      { heroId: 'branwen', kind: 'attack' },
+    ],
+    fn: (s) => {
+      dmgAllEnemies(s, 4);
+      aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 2));
+      aliveParty(s).forEach(c => c.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'quiet_volley' }));
+    },
+  },
+  hush_of_blades: {
+    id: 'hush_of_blades', name: 'Hush of Blades', tier: 'duo',
+    desc: 'AoE 3 + bleed all + lowest +2 dmg next',
+    requires: [
+      { heroId: 'ash', kind: 'attack' },
+      { heroId: 'mira', kind: 'attack' },
+    ],
+    fn: (s) => {
+      dmgAllEnemies(s, 3);
+      aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 1));
+      const t = aliveParty(s).slice().sort((a,b) => a.hp - b.hp)[0];
+      if (t) t.pendingEffects.push({ kind: 'attackBonus', amt: 2, source: 'hush' });
+    },
+  },
+  sister_mend: {
+    id: 'sister_mend', name: "Sister's Mend", tier: 'duo',
+    desc: 'Heal party 5 + +3⛨ all',
+    requires: [
+      { heroId: 'cassia', kind: 'attack' },
+      { heroId: 'elin', kind: 'attack' },
+    ],
+    fn: (s) => {
+      aliveParty(s).forEach(c => {
+        const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 5);
+        if (c.hp > b) spawnPopupId(c.id, `+${c.hp - b}`, 'heal', 'party');
+        c.armor += 3;
+      });
+    },
+  },
+  veiled_flame: {
+    id: 'veiled_flame', name: 'Veiled Flame', tier: 'duo',
+    desc: 'AoE 4 + heal lowest 5',
+    requires: [
+      { heroId: 'ash', kind: 'attack' },
+      { heroId: 'elin', kind: 'attack' },
+    ],
+    fn: (s) => { dmgAllEnemies(s, 4); healLowest(s, 5); },
+  },
+  // ---- Triples ----
+  sacred_triad: {
+    id: 'sacred_triad', name: 'Sacred Triad', tier: 'triple',
+    desc: 'AoE 7 + heal all 5 + cleanse + armor',
+    requires: [
+      { heroId: 'cassia', kind: 'attack' },
+      { heroId: 'elin', kind: 'attack' },
+      { heroId: 'branwen', kind: 'attack' },
+    ],
+    fn: (s) => {
+      dmgAllEnemies(s, 7);
+      aliveParty(s).forEach(c => {
+        const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 5);
+        if (c.hp > b) spawnPopupId(c.id, `+${c.hp - b}`, 'heal', 'party');
+        c.bleed = 0; c.weak = 0; c.armor += 2;
+      });
+    },
+  },
+  three_blades: {
+    id: 'three_blades', name: 'Three Blades', tier: 'triple',
+    desc: 'AoE 6 + bleed 3 all + +1 Resolve',
+    requires: [
+      { heroId: 'kai', kind: 'attack' },
+      { heroId: 'mira', kind: 'attack' },
+      { heroId: 'branwen', kind: 'attack' },
+    ],
+    fn: (s) => {
+      dmgAllEnemies(s, 6);
+      aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 3));
+      gainResolve(s, 1);
+    },
+  },
+  front_phalanx: {
+    id: 'front_phalanx', name: 'Front Phalanx', tier: 'triple',
+    desc: '12 dmg front + party +4⛨ + cleanse',
+    requires: [
+      { heroId: 'cassia', kind: 'attack' },
+      { heroId: 'korin', kind: 'attack' },
+      { heroId: 'mira', kind: 'attack' },
+    ],
+    fn: (s) => {
+      const front = enemyBySlot(s, 'front');
+      if (front && !front.dead) applyDmgToEnemy(s, front, 12);
+      aliveParty(s).forEach(c => { c.armor += 4; c.bleed = 0; c.weak = 0; });
+    },
+  },
+};
+
+// Find which combos can be assembled from the current queue.  Returns each
+// matching combo together with the queue indices that satisfy each role
+// (so commitCombo can splice them out).
+function matchingCombos(queue) {
+  return Object.values(COMBOS).map(combo => {
+    const used = new Set();
+    const indices = [];
+    const ok = combo.requires.every(req => {
+      const idx = queue.findIndex((q, i) =>
+        !used.has(i) && q.charId === req.heroId && q.kind === req.kind);
+      if (idx < 0) return false;
+      used.add(idx);
+      indices.push(idx);
+      return true;
+    });
+    return ok ? { combo, indices } : null;
+  }).filter(Boolean);
+}
+
+function commitCombo(comboId) {
+  const s = state;
+  if (s.executing || s.over) return;
+  const match = matchingCombos(s.queue).find(m => m.combo.id === comboId);
+  if (!match) return;
+  // Sum the costs of the consumed items so the combo is cost-neutral.
+  let atbTotal = 0, resolveTotal = 0;
+  match.indices.forEach(i => {
+    atbTotal += s.queue[i].atb || 0;
+    resolveTotal += s.queue[i].resolveCost || 0;
+  });
+  // Splice out the matched indices in descending order so earlier indices stay valid.
+  const drop = match.indices.slice().sort((a, b) => b - a);
+  drop.forEach(i => s.queue.splice(i, 1));
+  // Push the combo item.  It cost-neutrally replaces the inputs.
+  s.queue.push({
+    kind: 'combo',
+    comboId,
+    label: match.combo.name,
+    desc: match.combo.desc,
+    atb: atbTotal,
+    resolveCost: resolveTotal,
+  });
+  Audio.ui();
+  render();
+}
+
 function getSpecialCost(s) {
   // Mantra of Stillness drops Specials to 0 Resolve
   return hasSigil(s, 'stillness') ? 0 : SPECIAL_COST;
@@ -4028,23 +4237,8 @@ function bindFigureHold(fig, charId, isParty) {
   fig.addEventListener('contextmenu', (e) => e.preventDefault());
 }
 
-function queueTeamSpecial() {
-  const s = state;
-  if (s.executing || s.over) return;
-  const tsCost = getTeamSpecialCost(s);
-  if (s.resolve < tsCost) { flashMsg('Not enough Resolve.'); return; }
-  if (s.queue.length > 0) { flashMsg('Team Special needs an empty queue.'); return; }
-  const ts = getTeamSpecial(s);
-  s.queue = [{
-    kind: 'team',
-    label: ts.name,
-    desc: ts.short,
-    atb: getAtbMax(s),
-    resolveCost: tsCost,
-    tsId: ts.id,
-  }];
-  render();
-}
+// (queueTeamSpecial removed — Resonance system commits combos directly via
+// commitCombo() splicing matched queue items into a single combo entry.)
 
 // ============================================================================
 // FIGHT — resolve queue, then enemies
@@ -4098,7 +4292,22 @@ function resolveQueueStep(i) {
 }
 
 function executeQueueItem(s, item) {
-  if (item.kind === 'team') { execTeamSpecial(s, item.tsId); return; }
+  if (item.kind === 'combo') {
+    const combo = COMBOS[item.comboId];
+    if (!combo) return;
+    log(`<span class="msg-strong">★ ${combo.name} ★</span>`);
+    if (!__simulating) {
+      showTeamSpecialBanner(combo.name);
+      // Flash every participating hero
+      combo.requires.forEach(req => { if (s.party.chars[req.heroId] && !s.party.chars[req.heroId].downed) flashCardId(req.heroId, 'hit', 'party'); });
+      shakeScreen(combo.tier === 'triple' ? 3 : 2);
+      Audio.attack(); Audio.kill();
+    }
+    s.currentActorId = null;
+    try { combo.fn(s); }
+    finally { s.outgoingDmgMod = 0; s.ignoreArmor = false; s.currentActorId = null; }
+    return;
+  }
 
   const c = item.charId ? s.party.chars[item.charId] : null;
   if (item.charId && (!c || c.downed)) {
@@ -4154,175 +4363,10 @@ function executeQueueItem(s, item) {
 }
 
 // ============================================================================
-// TEAM SPECIALS — formation-dependent ultimates
-// Keyed by `front:mid:back` character ids. Each one fills the queue and costs
-// TEAM_SPECIAL_COST Resolve. Unknown formations fall back to "Triad Strike".
+// (Old formation-based TEAM_SPECIALS system removed.  Replaced by the
+// Resonance combo system above — see COMBOS and matchingCombos.)
 // ============================================================================
-
-// Team Specials carry the same reach/pattern metadata as techs so previews can
-// highlight what they'll hit.
-// TEAM_SPECIALS is keyed by the SORTED TRIO of hero ids (joined by '+'), so
-// any formation of the same three heroes triggers the same special.
-// Build the key with teamSpecialKey(s).  Authoring is much simpler this way:
-// one entry per unique trio composition (35 possible from a 7-hero ROSTER).
-const TEAM_SPECIALS = {
-  // ---- Trios with the original three ----
-  'branwen+cassia+elin': {
-    id: 'sacred', name: 'Sacred Triad',
-    short: 'AoE 5 · heal 5 · cleanse · armor', dmg: 5,
-    reach: ['front','mid','back'], pattern: 'all',
-    fn: (s) => {
-      dmgAllEnemies(s, 5);
-      aliveParty(s).forEach(c => {
-        const before = c.hp; c.hp = Math.min(c.maxHp, c.hp + 5);
-        if (c.hp > before) spawnPopupId(c.id, `+${c.hp - before}`, 'heal', 'party');
-        c.bleed = 0; c.weak = 0; c.armor += 2;
-      });
-    },
-  },
-  // ---- Kai-led trios ----
-  'cassia+elin+kai': {
-    id: 'mendedsteel', name: 'Mended Steel',
-    short: 'AoE 5 · heal 4 all · party +2⛨', dmg: 5,
-    reach: ['front','mid','back'], pattern: 'all',
-    fn: (s) => { dmgAllEnemies(s, 5); aliveParty(s).forEach(c => { const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 4); if (c.hp > b) spawnPopupId(c.id, `+${c.hp - b}`, 'heal', 'party'); c.armor += 2; }); },
-  },
-  'branwen+cassia+kai': {
-    id: 'sharpenedshield', name: 'Sharpened Shield',
-    short: 'AoE 6 · party +3⛨ · bleed all', dmg: 6,
-    reach: ['front','mid','back'], pattern: 'all',
-    fn: (s) => { dmgAllEnemies(s, 6); aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 1)); aliveParty(s).forEach(c => { c.armor += 3; }); },
-  },
-  'branwen+ash+kai': {
-    id: 'quietvolley', name: 'Quiet Volley',
-    short: 'AoE 5 · bleed all · party stealth (+1 dmg next turn)', dmg: 5,
-    reach: ['front','mid','back'], pattern: 'all',
-    fn: (s) => { dmgAllEnemies(s, 5); aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 2)); aliveParty(s).forEach(c => c.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'quietvolley' })); },
-  },
-  'ash+kai+mira': {
-    id: 'shadowtriad', name: 'Shadow Triad',
-    short: 'AoE 4 · bleed 2 all · stealth +2 dmg next turn', dmg: 4,
-    reach: ['front','mid','back'], pattern: 'all',
-    fn: (s) => { dmgAllEnemies(s, 4); aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 2)); aliveParty(s).forEach(c => c.pendingEffects.push({ kind: 'attackBonus', amt: 2, source: 'shadowtriad' })); },
-  },
-  'cassia+kai+korin': {
-    id: 'breakwall', name: 'Breakwall',
-    short: 'AoE 6 · taunt · +4⛨ front', dmg: 6,
-    reach: ['front','mid','back'], pattern: 'all',
-    fn: (s) => { dmgAllEnemies(s, 6); const fId = s.party.slots.front; const f = fId && s.party.chars[fId]; if (f) { f.armor += 4; f.taunt = true; f.retaliate = 2; } },
-  },
-  'kai+korin+mira': {
-    id: 'twilightrush', name: 'Twilight Rush',
-    short: 'AoE 6 · bleed all · +1 Resolve', dmg: 6,
-    reach: ['front','mid','back'], pattern: 'all',
-    fn: (s) => { dmgAllEnemies(s, 6); aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 2)); gainResolve(s, 1); },
-  },
-  // ---- Cassia-led trios ----
-  'branwen+cassia+korin': {
-    id: 'wallflight', name: 'Wall & Flight',
-    short: 'AoE 5 · party +3⛨ · Korin taunt + retaliate', dmg: 5,
-    reach: ['front','mid','back'], pattern: 'all',
-    fn: (s) => { dmgAllEnemies(s, 5); aliveParty(s).forEach(c => { c.armor += 3; }); const k = s.party.chars.korin; if (k && !k.downed) { k.taunt = true; k.retaliate = 2; } },
-  },
-  'cassia+elin+korin': {
-    id: 'oathbearers', name: 'Oath Bearers',
-    short: 'AoE 4 · heal 5 all · party +3⛨ · cleanse', dmg: 4,
-    reach: ['front','mid','back'], pattern: 'all',
-    fn: (s) => { dmgAllEnemies(s, 4); aliveParty(s).forEach(c => { const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 5); if (c.hp > b) spawnPopupId(c.id, `+${c.hp - b}`, 'heal', 'party'); c.armor += 3; c.bleed = 0; c.weak = 0; }); },
-  },
-  'cassia+elin+mira': {
-    id: 'bannerknife', name: 'Banner & Knife',
-    short: 'AoE 4 · bleed all · heal 4 lowest', dmg: 4,
-    reach: ['front','mid','back'], pattern: 'all',
-    fn: (s) => { dmgAllEnemies(s, 4); aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 1)); healLowest(s, 4); },
-  },
-  // ---- Elin-led trios ----
-  'branwen+elin+korin': {
-    id: 'shieldedshafts', name: 'Shielded Shafts',
-    short: 'AoE 5 + bleed 2 · heal 4 all', dmg: 5,
-    reach: ['front','mid','back'], pattern: 'all',
-    fn: (s) => { dmgAllEnemies(s, 5); aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 2)); aliveParty(s).forEach(c => { const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 4); if (c.hp > b) spawnPopupId(c.id, `+${c.hp - b}`, 'heal', 'party'); }); },
-  },
-  'ash+elin+mira': {
-    id: 'veilrend', name: 'Veil Rend',
-    short: 'AoE 5 · bleed all · heal 6 lowest', dmg: 5,
-    reach: ['front','mid','back'], pattern: 'all',
-    fn: (s) => { dmgAllEnemies(s, 5); aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 2)); healLowest(s, 6); },
-  },
-  'elin+korin+mira': {
-    id: 'mercysedge', name: "Mercy's Edge",
-    short: 'AoE 5 · bleed all · heal 3 all', dmg: 5,
-    reach: ['front','mid','back'], pattern: 'all',
-    fn: (s) => { dmgAllEnemies(s, 5); aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 1)); aliveParty(s).forEach(c => { const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 3); if (c.hp > b) spawnPopupId(c.id, `+${c.hp - b}`, 'heal', 'party'); }); },
-  },
-  // ---- Range-heavy / Stealth-heavy ----
-  'ash+branwen+korin': {
-    id: 'silentvanguard', name: 'Silent Vanguard',
-    short: 'Pierce 8 front · AoE 3 mid/back · party +2⛨', dmg: 8,
-    reach: ['front','mid','back'], pattern: 'all',
-    fn: (s) => { s.ignoreArmor = true; dmgEnemyAt(s, 0, 8); s.ignoreArmor = false; const frontId = s.enemies.slots.front; const back = aliveEnemies(s).filter(e => e.id !== frontId); back.forEach(e => applyDmgToEnemy(s, e, 3)); aliveParty(s).forEach(c => c.armor += 2); },
-  },
-  'branwen+mira+ash': {
-    id: 'darkflight', name: 'Dark Flight',
-    short: 'AoE 5 · bleed 2 all · party +1 dmg next turn', dmg: 5,
-    reach: ['front','mid','back'], pattern: 'all',
-    fn: (s) => { dmgAllEnemies(s, 5); aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 2)); aliveParty(s).forEach(c => c.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'darkflight' })); },
-  },
-};
-
-const TEAM_SPECIAL_DEFAULT = {
-  id: 'strike', name: 'Triad Strike',
-  short: 'AoE 5 · heal 3 lowest · cleanse · +1 Resolve', dmg: 5, heal: 3, healTarget: 'lowest',
-  reach: ['front','mid','back'], pattern: 'all',
-  fn: (s) => {
-    dmgAllEnemies(s, 5);
-    healLowest(s, 3);
-    aliveParty(s).forEach(c => { c.bleed = 0; c.weak = 0; });
-    gainResolve(s, 1);
-  },
-};
-
-function formationKey(s) {
-  return `${s.party.slots.front}:${s.party.slots.mid}:${s.party.slots.back}`;
-}
-
-function getTeamSpecial(s) {
-  return TEAM_SPECIALS[teamSpecialKey(s)] || TEAM_SPECIAL_DEFAULT;
-}
-function teamSpecialKey(s) {
-  // Sorted ids of the three slot occupants, so any formation of the same
-  // trio hits the same team special.
-  return ['front','mid','back']
-    .map(sl => s.party.slots[sl])
-    .filter(Boolean)
-    .slice()
-    .sort()
-    .join('+');
-}
-
-function execTeamSpecial(s, tsId) {
-  // find the matching def — may not be the current-formation one if formation
-  // shifted between queueing and execution (rare with team-special since it
-  // consumes the queue, but defensive)
-  let ts = getTeamSpecial(s);
-  if (ts.id !== tsId) {
-    ts = Object.values(TEAM_SPECIALS).find(t => t.id === tsId) || TEAM_SPECIAL_DEFAULT;
-  }
-  log(`<span class="msg-strong">★ ${ts.name} ★</span>`);
-  // Dramatic VFX: title banner, screen tint, all-party flash, hard shake.
-  if (!__simulating) {
-    showTeamSpecialBanner(ts.name);
-    aliveParty(s).forEach(c => flashCardId(c.id, 'hit', 'party'));
-    shakeScreen(3);
-    Audio.attack(); Audio.kill();
-  }
-  s.currentActorId = null;
-  try { ts.fn(s); }
-  finally { s.outgoingDmgMod = 0; s.ignoreArmor = false; s.currentActorId = null; }
-}
-
-// Team-special banner — large name-reveal across the stage that fades
-// quickly so it doesn't slow combat down.
+// Banner reveal used by Resonance combos when they fire.
 function showTeamSpecialBanner(name) {
   const old = document.getElementById('ts-banner');
   if (old) old.remove();
@@ -4332,6 +4376,7 @@ function showTeamSpecialBanner(name) {
   document.body.appendChild(b);
   setTimeout(() => b.remove(), 1400);
 }
+
 
 // Resolve the enemy phase one enemy at a time so each action's popups +
 // log line are visible before the next fires.  Previously this was a
@@ -4856,9 +4901,9 @@ function renderQueue() {
     el.className = `queue-slot filled kind-${item.kind}`;
     el.dataset.atb = String(item.atb || 1);
     const portraitSvg = item.charId ? (PORTRAITS[item.charId] || '') : '';
-    // team-special shows a crossed-swords glyph instead of a single character portrait
-    const teamGlyph = item.kind === 'team'
-      ? '<svg class="qs-team" viewBox="0 0 24 24" aria-hidden="true"><path d="M 4 4 L 20 20 M 20 4 L 4 20" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" fill="none"/></svg>'
+    // combo items (Resonance) get a glyph stack instead of a single portrait
+    const teamGlyph = item.kind === 'combo'
+      ? '<svg class="qs-team" viewBox="0 0 24 24" aria-hidden="true"><path d="M 12 3 L 21 12 L 12 21 L 3 12 Z" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" fill="none"/></svg>'
       : '';
     el.innerHTML = `
       <span class="qs-cost">${item.atb}</span>
@@ -4885,12 +4930,32 @@ function renderQueue() {
   }
 }
 
+// Resonance Rail — surfaces any Combos available from the current queue.
+// Each chip is a tap-to-fuse button.  When the queue is empty or has no
+// matches, the rail is hidden so it never crowds combat.
 function renderTeamSpecial() {
   const area = $('#ts-area');
   if (!area) return;
   area.innerHTML = '';
-  const teamLocked = state.queue.some(q => q.kind === 'team');
-  area.appendChild(makeTeamSpecialTile(teamLocked));
+  // Don't show during resolution
+  if (state.executing || state.over) { area.classList.add('hidden'); return; }
+  const matches = matchingCombos(state.queue);
+  if (matches.length === 0) { area.classList.add('hidden'); return; }
+  area.classList.remove('hidden');
+  area.classList.add('resonance-rail');
+  matches.forEach(({ combo }) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `resonance-chip resonance-${combo.tier}`;
+    btn.innerHTML = `
+      <span class="rc-label">${combo.name}</span>
+      <span class="rc-tier">${combo.tier === 'triple' ? 'TRIPLE' : 'DUO'}</span>
+      <span class="rc-desc">${combo.desc}</span>
+    `;
+    btn.title = `Resonance · ${combo.name}: ${combo.desc}`;
+    btn.addEventListener('click', () => commitCombo(combo.id));
+    area.appendChild(btn);
+  });
 }
 
 function makeTile(kind, charId, dir, tileCounts, teamLocked) {
@@ -5182,50 +5247,9 @@ function makeMoveOrBraceTile(charId, slot, tileCounts, teamLocked) {
   return makeTile('move', charId, dir, tileCounts, teamLocked);
 }
 
-function makeTeamSpecialTile(teamLocked) {
-  const ts = getTeamSpecial(state);
-  const t = document.createElement('button');
-  t.className = 'tile team-special';
-  const tsCost = getTeamSpecialCost(state);
-  const tsAtb = getAtbMax(state);
-  const canAfford = state.resolve >= tsCost;
-  const queueEmpty = state.queue.length === 0;
-  t.disabled = !canAfford || !queueEmpty || state.executing || state.over;
-  if (canAfford && queueEmpty) t.classList.add('ready');
-  if (teamLocked) t.classList.add('queued');
-
-  const formationLabel = `${CHARS[state.party.slots.front]?.name?.[0] || '·'}-${CHARS[state.party.slots.mid]?.name?.[0] || '·'}-${CHARS[state.party.slots.back]?.name?.[0] || '·'}`;
-  t.title = `${ts.name} · formation ${formationLabel} · ${ts.short}`;
-  t.innerHTML = `
-    <span class="ts-name">${ts.name}</span>
-    <span class="ts-cost"><span class="tile-atb">${tsAtb}</span><span class="tile-cost">${tsCost}♦</span></span>
-    <span class="ts-desc">${ts.short}</span>
-  `;
-  bindTileHold(t, {
-    onQueue: () => queueTeamSpecial(),
-    onPreview: () => {
-      const s = getPreviewState();
-      const targets = resolveTargets(s, ts) || [];
-      const enemyHits = targets.map(e => {
-        const sl = SLOTS.find(sl => s.enemies.slots[sl] === e.id);
-        if (!sl) return null;
-        if (typeof ts.dmg !== 'number') return { slot: sl };
-        const per = previewDamage(s, e, ts.dmg, null);
-        const kill = !e.dead && per.toHp >= e.hp;
-        return { slot: sl, dmg: per.toHp, badge: per.badge, kill };
-      }).filter(Boolean);
-      const enemySlots = enemyHits.map(h => h.slot);
-      const partyHeals = resolveHealTargets(s, ts, null).map(c => {
-        const sl = slotOfChar(s, c.id);
-        if (!sl) return null;
-        return { slot: sl, heal: previewHeal(s, c, ts.heal, null) };
-      }).filter(Boolean);
-      const partySlots = partyHeals.map(h => h.slot);
-      return { enemySlots, partySlots, enemyHits, partyHeals };
-    },
-  });
-  return t;
-}
+// (Old team-special tile builder removed — replaced by the Resonance Rail
+// in renderTeamSpecial.  Combos are surfaced as fuse chips when the
+// queue contains matching ingredients.)
 
 function renderFightButton() {
   const btn = $('#btn-fight');
