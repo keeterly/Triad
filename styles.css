@@ -1835,6 +1835,71 @@ body {
   .starter-flavor { font-size: 10.5px; }
 }
 
+/* Recruit overlay — chat-bubble vignette layout reusing the lineup.
+   Bubbles float above each silhouette with their intro line. */
+.recruit-fig .recruit-bubble {
+  position: absolute;
+  bottom: calc(100% - 20px);
+  max-width: 230px;
+  padding: 6px 12px 8px;
+  background: linear-gradient(180deg,
+                              rgba(36,28,22,0.92) 0%,
+                              rgba(12,10,10,0.94) 100%);
+  border-radius: 14px 14px 14px 4px;
+  box-shadow:
+    0 8px 22px rgba(0,0,0,0.7),
+    inset 0 1px 0 rgba(232,220,196,0.06);
+  text-align: left;
+  z-index: 4;
+}
+.recruit-fig.recruit-side-left .recruit-bubble  { left: 8px; }
+.recruit-fig.recruit-side-right .recruit-bubble { right: 8px; border-radius: 14px 14px 4px 14px; }
+.recruit-fig .recruit-bubble .vn-who {
+  display: block;
+  font-size: 9px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--gold-pale);
+  margin-bottom: 2px;
+}
+.recruit-fig.recruit-side-right .recruit-bubble .vn-who { text-align: right; color: var(--frost-bright); }
+.recruit-fig .recruit-bubble .vn-text {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--ink);
+  letter-spacing: 0.02em;
+}
+.recruit-walk-on {
+  display: block;
+  margin: 14px auto 0;
+  background: transparent;
+  border: none;
+  color: var(--ink-dim);
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 6px 14px;
+  position: relative;
+  transition: color 0.18s, text-shadow 0.18s;
+}
+.recruit-walk-on:hover { color: var(--gold-pale); text-shadow: 0 0 12px rgba(240,212,136,0.4); }
+.recruit-walk-on::after {
+  content: '';
+  position: absolute;
+  left: 50%; bottom: 4px;
+  width: 0; height: 1px;
+  background: var(--gold-pale);
+  transition: width 0.2s, left 0.2s;
+}
+.recruit-walk-on:hover::after { width: 100%; left: 0; }
+
+@media (max-height: 480px) {
+  .recruit-fig .recruit-bubble { max-width: 180px; padding: 4px 10px 6px; }
+  .recruit-fig .recruit-bubble .vn-text { font-size: 10.5px; }
+}
+
 /* ===========================================================================
    COMBO DISCOVERABILITY — queue items that participate in an available
    Resonance pulse gold in sync with the bubble overhead.
@@ -5507,29 +5572,42 @@ body.boss-fight #enemy-half .figure-portrait svg {
   filter: drop-shadow(0 8px 24px rgba(0,0,0,0.7))
           drop-shadow(0 0 30px rgba(220,80,80,0.18));
 }
-/* Boss HP — wide banner across the top of the enemy half.  Same bar
-   shape as the regular HP but dramatically larger and red. */
+/* Boss HP — same shape and styling as the regular hero HP bar (brackets,
+   thin bar, ink fill) but stretched dramatically wide across the boss's
+   side of the field.  Not centered as a banner anymore. */
 body.boss-fight #enemy-half .figure-hp {
   position: absolute !important;
-  top: 6px !important;
-  left: 4%; right: 4%;
+  top: 12px !important;
+  left: 6% !important;
+  right: 6% !important;
   width: auto !important;
-  height: 14px !important;
+  height: 5px !important;
   margin: 0 !important;
-  background: rgba(40,8,8,0.78);
-  box-shadow:
-    0 0 24px rgba(220,40,40,0.45),
-    inset 0 0 12px rgba(0,0,0,0.7);
+  transform: none !important;
+  background: rgba(10,10,12,0.78) !important;
+  box-shadow: 0 0 18px rgba(220,40,40,0.35);
   z-index: 6;
 }
+/* Match the bracket caps from the player bar but scaled up + tinted red. */
 body.boss-fight #enemy-half .figure-hp::before,
-body.boss-fight #enemy-half .figure-hp::after { display: none !important; }
+body.boss-fight #enemy-half .figure-hp::after {
+  display: block !important;
+  content: '[';
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: ui-monospace, 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--blood-bright);
+  text-shadow: 0 0 6px rgba(220,40,40,0.6);
+  pointer-events: none;
+}
+body.boss-fight #enemy-half .figure-hp::before { content: '['; right: calc(100% + 4px); left: auto; }
+body.boss-fight #enemy-half .figure-hp::after  { content: ']'; left:  calc(100% + 4px); right: auto; }
 body.boss-fight #enemy-half .figure-hp .hp-fill {
   background: linear-gradient(180deg, #ff5050 0%, #c01818 55%, #5a0808 100%);
-  box-shadow:
-    0 0 20px rgba(220,60,60,0.75),
-    inset 0 1px 0 rgba(255,200,180,0.32),
-    inset 0 -2px 4px rgba(0,0,0,0.5);
+  box-shadow: 0 0 16px rgba(220,60,60,0.55);
   animation: boss-hp-pulse 2.2s ease-in-out infinite;
 }
 @keyframes boss-hp-pulse {
@@ -5538,14 +5616,14 @@ body.boss-fight #enemy-half .figure-hp .hp-fill {
 }
 body.boss-fight #enemy-half .figure-hp .hp-text {
   position: absolute !important;
-  font-size: 13px !important;
-  letter-spacing: 0.28em !important;
-  text-shadow: 0 0 10px rgba(0,0,0,0.9), 0 2px 0 rgba(0,0,0,0.8);
-  top: 50% !important;
+  font-size: 11px !important;
+  letter-spacing: 0.22em !important;
+  text-shadow: 0 0 8px rgba(0,0,0,0.9), 0 2px 0 rgba(0,0,0,0.8);
+  top: -18px !important;
   left: 50% !important;
-  transform: translate(-50%, -50%);
+  transform: translateX(-50%);
   color: var(--ink) !important;
-  font-weight: 600;
+  font-weight: 500;
 }
 body.boss-fight #enemy-half .figure-name {
   font-size: 14px;
