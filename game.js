@@ -7343,6 +7343,10 @@ function showRunSummary(outcome, opts) {
     hideOverlay();
     resetOverlayBtn();
     clearSave();
+    // On defeat there's no team left to carry to the next layer — strip
+    // any stale carry so the title screen's "New Game" doesn't silently
+    // re-spawn the dead party.  Boss-win keeps the carry for ascend.
+    if (outcome !== 'boss') clearCarriedParty();
     if (opts && typeof opts.afterClose === 'function') opts.afterClose();
     else showTitleScreen();
   };
@@ -7983,6 +7987,9 @@ function consumeCarriedParty() {
     return JSON.parse(raw);
   } catch (_) { return null; }
 }
+function clearCarriedParty() {
+  try { localStorage.removeItem(CARRIED_KEY); } catch (_) {}
+}
 function isLayerUnlocked(layerId) {
   if (layerId === 1) return true;
   return getClearedLayers().includes(layerId - 1);
@@ -8086,7 +8093,11 @@ function showTitleScreen() {
     return b;
   };
   menuEl.appendChild(mkBtn('New Game', () => {
+    // Wipe both the in-flight save AND any layer-to-layer carry team.
+    // The carry only exists for the boss-win → ascend handoff; outside
+    // that path it must not silently pre-populate a "new" run.
     clearSave();
+    clearCarriedParty();
     hideTitleScreen();
     init();
   }));
@@ -8171,12 +8182,14 @@ function showSettingsScreen() {
       } else if (action === 'clearsave') {
         confirmDestructive('Clear the active run?', 'This deletes your in-progress save.', () => {
           clearSave();
+          clearCarriedParty();
           flashSettings('Active run cleared.');
           setTimeout(() => { hideOverlay(); showTitleScreen(); }, 600);
         });
       } else if (action === 'resetprogress') {
         confirmDestructive('Reset meta progression?', 'All starter unlocks earned across runs will be wiped.', () => {
           try { localStorage.removeItem(UNLOCKED_KEY); } catch (_) {}
+          clearCarriedParty();
           flashSettings('Meta progression reset.');
           setTimeout(() => { hideOverlay(); showTitleScreen(); }, 600);
         });
