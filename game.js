@@ -865,6 +865,55 @@ const PORTRAITS = {
   <ellipse cx="42" cy="128" rx="0.6" ry="1" fill="#7ed0e2" opacity="0.55"/>
   <ellipse cx="58" cy="128" rx="0.6" ry="1" fill="#7ed0e2" opacity="0.55"/>
 </svg>`,
+  // ===== LAYER 5 BOSS — THE SLOW BLOOM =====
+  // Towering thorned silhouette wrapped in curling branches and embers.
+  // Deep maroon palette with ash-grey vine accents and small ember motes.
+  slowbloom: `
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <radialGradient id="sb-body" cx="50%" cy="60%" r="80%">
+      <stop offset="0%" stop-color="#4a1a18"/>
+      <stop offset="55%" stop-color="#1c0a08"/>
+      <stop offset="100%" stop-color="#080202"/>
+    </radialGradient>
+    <radialGradient id="sb-ember" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffe0a4"/>
+      <stop offset="55%" stop-color="#d46a32"/>
+      <stop offset="100%" stop-color="#3a1408"/>
+    </radialGradient>
+  </defs>
+  <!-- towering bramble silhouette -->
+  <path d="M14 130 L8 70 Q24 44 50 42 Q76 44 92 70 L86 130 Z"
+        fill="url(#sb-body)" stroke="#04020a" stroke-width="0.8"/>
+  <!-- curling branches reaching up from the shoulders -->
+  <path d="M22 64 Q14 50 18 36 Q22 44 26 50 Q22 56 22 64 Z" fill="#2a1410"/>
+  <path d="M78 64 Q86 50 82 36 Q78 44 74 50 Q78 56 78 64 Z" fill="#2a1410"/>
+  <!-- two more vines coiling overhead -->
+  <path d="M40 44 Q44 28 50 24 Q56 28 60 44" fill="none" stroke="#2a1410" stroke-width="1.8" stroke-linecap="round"/>
+  <!-- petal crown — uneven, burnt -->
+  <path d="M38 48 L42 36 L44 48 Z" fill="#5a1410"/>
+  <path d="M48 46 L50 32 L52 46 Z" fill="#6a1810"/>
+  <path d="M56 48 L58 36 L62 48 Z" fill="#5a1410"/>
+  <!-- single ember-eye centered, lidded -->
+  <ellipse cx="50" cy="64" rx="6" ry="4" fill="url(#sb-ember)"/>
+  <ellipse cx="50" cy="64" rx="2.4" ry="1.6" fill="#08020c"/>
+  <ellipse cx="50" cy="63.5" rx="1" ry="0.6" fill="#fff2c8"/>
+  <!-- thorned ribs running down the body -->
+  <line x1="32" y1="84" x2="48" y2="92" stroke="#3a1410" stroke-width="0.8"/>
+  <line x1="68" y1="84" x2="52" y2="92" stroke="#3a1410" stroke-width="0.8"/>
+  <line x1="30" y1="100" x2="46" y2="106" stroke="#3a1410" stroke-width="0.6"/>
+  <line x1="70" y1="100" x2="54" y2="106" stroke="#3a1410" stroke-width="0.6"/>
+  <!-- ember motes drifting up around the figure -->
+  <circle cx="22" cy="58" r="1.1" fill="#ffb86b" opacity="0.85"/>
+  <circle cx="80" cy="62" r="0.9" fill="#ffb86b" opacity="0.75"/>
+  <circle cx="32" cy="36" r="0.8" fill="#ffd092" opacity="0.65"/>
+  <circle cx="70" cy="30" r="0.7" fill="#ffd092" opacity="0.6"/>
+  <circle cx="50" cy="20" r="0.9" fill="#ffe0a4" opacity="0.8"/>
+  <!-- ash drift along the hem -->
+  <ellipse cx="20" cy="128" rx="2.5" ry="0.8" fill="#1a0e0a" opacity="0.7"/>
+  <ellipse cx="80" cy="128" rx="2.5" ry="0.8" fill="#1a0e0a" opacity="0.7"/>
+  <ellipse cx="50" cy="129" rx="3" ry="0.7" fill="#1a0e0a" opacity="0.55"/>
+</svg>`,
 };
 
 // ============================================================================
@@ -1429,6 +1478,26 @@ const ENEMIES = {
         dmg: 7, fn: (s) => { dmgPartyAt(s, 'front', 7); bleedPartyAt(s, 'front', 2); } },
     ],
   },
+  // ============================== LAYER 5 — THE CINDER GARDEN ===============
+  // Cycles / buried fires / roots that won't die.  The Slow Bloom self-heals,
+  // applies bleed via burning roots, and grows armor as it unfurls.  Beat the
+  // tempo of its regrowth or the fight just renews itself.
+  slowbloom: {
+    id: 'slowbloom', name: 'The Slow Bloom', title: 'Sin of Cycles', maxHp: 128, boss: true,
+    weakness: ['holy', 'arcane'], resistance: ['physical'],
+    intents: [
+      { name: 'Burrowing Root',     tag: 'ATK 6 back + bleed 2',         targetSlot: 'back',  kind: 'atk',
+        dmg: 6, fn: (s) => { dmgPartyAt(s, 'back', 6); bleedPartyAt(s, 'back', 2); } },
+      { name: 'Spore Bloom',        tag: 'ATK 3 all + vuln 1 all',       targetSlot: 'all',   kind: 'aoe',
+        dmg: 3, fn: (s) => { dmgAllParty(s, 3); aliveParty(s).forEach(c => { c.vuln += 1; }); } },
+      { name: 'Slow Unfurling',     tag: 'heal 12 self + 3⛨ self',       targetSlot: '?',     kind: 'armor',
+        fn: (s) => { const me = Object.values(s.enemies.chars).find(en => en.id === 'slowbloom' && !en.dead); if (me) { me.hp = Math.min(me.maxHp, me.hp + 12); spawnPopupId('slowbloom', '+12', 'heal', 'enemy'); me.armor += 3; } } },
+      { name: 'Cycle of Ash',       tag: 'ATK 8 front + weak 1',         targetSlot: 'front', kind: 'atk',
+        dmg: 8, fn: (s) => { dmgPartyAt(s, 'front', 8); const c = charBySlot(s, 'front'); if (c) c.weak += 1; } },
+      { name: 'Final Bloom',        tag: 'ATK 5 all + heal 5 self',      targetSlot: 'all',   kind: 'aoe',
+        dmg: 5, fn: (s) => { dmgAllParty(s, 5); const me = Object.values(s.enemies.chars).find(en => en.id === 'slowbloom' && !en.dead); if (me) { me.hp = Math.min(me.maxHp, me.hp + 5); spawnPopupId('slowbloom', '+5', 'heal', 'enemy'); } } },
+    ],
+  },
 };
 
 // ============================================================================
@@ -1507,6 +1576,19 @@ const LAYER_CONTENT = {
     bossSubtitle: 'SIN OF HEARING-UNDER',
     bossTag: 'It sings the weight onto you.',
     hpBonus: 6, intentDmgBonus: 2,
+  },
+  5: {
+    // Layer 5 — The Cinder Garden.  Cycles / buried fires.  Roots, ash,
+    // and slow blooms.  Echoknight (the returning stroke), grappler
+    // (binding vines), mourner (ash names), drone (refrain of the
+    // garden) reuse from earlier layers; cultist + wraith round it out.
+    combat: ['echoknight', 'grappler', 'mourner', 'drone', 'cultist', 'wraith'],
+    elite:  ['echoknight', 'grappler', 'mourner', 'lineCaster'],
+    boss:   'slowbloom',
+    bossName: 'The Slow Bloom',
+    bossSubtitle: 'SIN OF CYCLES',
+    bossTag: 'It buried itself.  It grew back.',
+    hpBonus: 8, intentDmgBonus: 2,
   },
 };
 function getLayerContent(s) {
