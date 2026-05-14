@@ -2711,8 +2711,23 @@ const VIGNETTES = {
     ],
     // Hero-pair variants — when both heroes survive, override the base lines
     // with a scripted exchange written for them specifically.  Falls back to
-    // the base when no variant matches.
+    // the base when no variant matches.  Order matters: showVignette picks
+    // the first matching entry, so most-specific (3-hero) goes first.
     variants: [
+      // Full starter trio — the iconic Cassia/Elin/Branwen team.
+      {
+        requires: ['cassia', 'elin', 'branwen'],
+        lines: [
+          { who: null,      text: 'It does not scream.' },
+          { who: 'cassia',  text: 'It is done.' },
+          { who: 'elin',    text: 'Until the next one wakes.' },
+          { who: 'branwen', text: 'Then we walk faster.' },
+          { who: 'cassia',  text: 'We walk together.' },
+          { who: 'branwen', text: '...fine.  Together.' },
+          { who: null,      text: 'The dawn rises in pieces — too bright in some places, missing in others.' },
+        ],
+      },
+      // Cassia + Elin — Sister's Watch.  The grim joke they keep trading.
       {
         requires: ['cassia', 'elin'],
         lines: [
@@ -2722,6 +2737,19 @@ const VIGNETTES = {
           { who: 'cassia', text: 'You said that on the last reach, too.' },
           { who: 'elin',   text: 'I will keep saying it.' },
           { who: null,     text: 'The dawn rises in pieces — too bright in some places, missing in others.' },
+        ],
+      },
+      // Kai + Branwen — the solo starter meets the lone archer.  Both used
+      // to fights they didn't plan to walk out of.
+      {
+        requires: ['kai', 'branwen'],
+        lines: [
+          { who: null,      text: 'It does not scream.' },
+          { who: 'kai',     text: 'I owe you the throat shot.' },
+          { who: 'branwen', text: 'I owe you the second one.' },
+          { who: 'kai',     text: '...we should walk faster.  Before the dawn argues.' },
+          { who: 'branwen', text: 'Already walking.' },
+          { who: null,      text: 'The dawn rises in pieces — too bright in some places, missing in others.' },
         ],
       },
     ],
@@ -3291,6 +3319,18 @@ const VIGNETTES = {
           { who: null,    text: "Far below, a choir starts to remember its hymn." },
         ],
       },
+      // Mira + Cassia — opposite styles brace against the chorus.
+      {
+        requires: ['mira', 'cassia'],
+        lines: [
+          { who: null,     text: "The light comes from below the floor.  The water that ate the sky is still down there." },
+          { who: 'mira',   text: "If they sing, I cut.  Hymns first, then throats." },
+          { who: 'cassia', text: "If they sing, I march.  Loud.  Drown them out." },
+          { who: 'mira',   text: "...I hate that that works." },
+          { who: 'cassia', text: "We do both." },
+          { who: null,     text: "Far below, a choir starts to remember its hymn." },
+        ],
+      },
     ],
     choices: [
       { label: 'Hold against the chorus', tag: 'Survivors heal to full · +1 Resolve next fight',
@@ -3348,6 +3388,154 @@ const VIGNETTES = {
             c.hp = Math.min(c.maxHp, c.hp + 3);
           });
           log('The party stakes its weight into the row.  +3 max HP.');
+        } },
+    ],
+  },
+
+  // ============================================================================
+  // BOSS-DEFEAT VIGNETTES — layers 3 / 4 / 5
+  // Same pattern as wakeling_slain and layer2_listener_falls: a tight base
+  // exchange via _first/_last, three Take rewards, and one iconic pair variant
+  // gated to that pair's survival.  Each boss gets its own thematic frame.
+  // ============================================================================
+
+  // ==================== LAYER 3 — THE TWIN ===============================
+  // Boss-defeat for the Twin (Sin of Mirrors).  Its trick was learning what
+  // you brought; broken, every reflection it stole returns to its surface.
+  layer3_twin_falls: {
+    id: 'layer3_twin_falls',
+    when: { bossDefeated: true, whileLayer: 3 },
+    oneShot: true,
+    title: 'The Twin is broken',
+    speakerFromFirstAlive: true,
+    lines: [
+      { who: null, text: "It does not fall.  It splinters." },
+      { who: null, text: "Every reflection it stole goes back to its surface — yours, finally, returned." },
+      { who: '_first', text: "It got close, didn't it." },
+      { who: '_last',  text: "Close.  Not quite.",
+        if: (s) => aliveParty(s).length > 1 },
+      { who: null, text: "Glass remembers a long time.  But not forever." },
+    ],
+    variants: [
+      // Mira + Branwen — two hunters, both used to spotting decoys.
+      {
+        requires: ['mira', 'branwen'],
+        lines: [
+          { who: null,      text: "It does not fall.  It splinters." },
+          { who: 'mira',    text: "I thought I was about to shoot you for a second." },
+          { who: 'branwen', text: "...I was halfway to shooting you back." },
+          { who: 'mira',    text: "How did you know?" },
+          { who: 'branwen', text: "Your version of me always aims left.  Mine aims right." },
+          { who: null,      text: "Glass remembers a long time.  But not forever." },
+        ],
+      },
+    ],
+    choices: [
+      { label: 'Take its mirror', tag: "Bind a sigil from the Twin's surface",
+        resolve: (s) => { _grantRandomSigil(s); } },
+      { label: 'Take its eye',    tag: 'A survivor gains a positive affinity',
+        resolve: (s) => { _rollSurvivorQuirk(s, 'positive'); } },
+      { label: 'Take its shape',  tag: 'Survivors gain +4 max HP',
+        resolve: (s) => {
+          aliveParty(s).forEach(c => {
+            c.maxHp += 4;
+            c.hp = Math.min(c.maxHp, c.hp + 4);
+          });
+          log("The party takes the Twin's shape.  +4 max HP.");
+        } },
+    ],
+  },
+
+  // ==================== LAYER 4 — THE DROWNED CHOIR ======================
+  // Boss-defeat for the Choir (Sin of Hearing-Under).  Its hymn unsings.
+  // The water under the floor stops pretending to be a sky.
+  layer4_choir_falls: {
+    id: 'layer4_choir_falls',
+    when: { bossDefeated: true, whileLayer: 4 },
+    oneShot: true,
+    title: 'The Choir is unsung',
+    speakerFromFirstAlive: true,
+    lines: [
+      { who: null, text: "The hymn cracks.  One voice at a time, like icicles giving up." },
+      { who: null, text: "The water under the floor stops pretending to be a sky." },
+      { who: '_first', text: "Did it hear itself, at the end?" },
+      { who: '_last',  text: "Just at the end.",
+        if: (s) => aliveParty(s).length > 1 },
+      { who: null, text: "Somewhere far above, a real sky leans down to listen." },
+    ],
+    variants: [
+      // Hask + Lirien — the cold and the songbinder.  Both feel rhythm.
+      {
+        requires: ['hask', 'lirien'],
+        lines: [
+          { who: null,    text: "The hymn cracks.  One voice at a time, like icicles giving up." },
+          { who: 'lirien', text: "It was a beautiful chord, before the end." },
+          { who: 'hask',   text: "It was a cold chord.  I liked it." },
+          { who: 'lirien', text: "...you would." },
+          { who: 'hask',   text: "The rhythm is ours again." },
+          { who: null,     text: "Somewhere far above, a real sky leans down to listen." },
+        ],
+      },
+    ],
+    choices: [
+      { label: 'Take its hymn',   tag: 'Bind a sigil from the unsung verse',
+        resolve: (s) => { _grantRandomSigil(s); } },
+      { label: 'Take a note',     tag: 'A survivor gains a positive affinity',
+        resolve: (s) => { _rollSurvivorQuirk(s, 'positive'); } },
+      { label: 'Take its breath', tag: 'Survivors heal to full · +4 max HP',
+        resolve: (s) => {
+          aliveParty(s).forEach(c => {
+            c.maxHp += 4;
+            c.hp = c.maxHp;
+          });
+          log('The party catches the breath the Choir was holding.  +4 max HP, full heal.');
+        } },
+    ],
+  },
+
+  // ==================== LAYER 5 — THE SLOW BLOOM =========================
+  // Boss-defeat for the Slow Bloom (Sin of Cycles).  It composts back into
+  // the rows that bore it — for now.  Cycles end at the row's edge.
+  layer5_bloom_falls: {
+    id: 'layer5_bloom_falls',
+    when: { bossDefeated: true, whileLayer: 5 },
+    oneShot: true,
+    title: 'The Slow Bloom withers',
+    speakerFromFirstAlive: true,
+    lines: [
+      { who: null, text: "It does not die.  It composts.  Layer by layer, into the rows that bore it." },
+      { who: null, text: "A long, slow exhale rises from the soil and disperses up the spine of the abyss." },
+      { who: '_first', text: "How long until it comes back?" },
+      { who: '_last',  text: "Not before we do.",
+        if: (s) => aliveParty(s).length > 1 },
+      { who: null, text: "For the first time in cycles, no new shoots." },
+    ],
+    variants: [
+      // Garron + Korin — two tanks who held the row's edge.
+      {
+        requires: ['garron', 'korin'],
+        lines: [
+          { who: null,     text: "It does not die.  It composts.  Layer by layer, into the rows that bore it." },
+          { who: 'garron', text: "The row held." },
+          { who: 'korin',  text: "(He plants his shield, finally tired.  Nods, once.)" },
+          { who: 'garron', text: "I felt you behind me the whole time.  Like a second spine." },
+          { who: 'korin',  text: "...same." },
+          { who: null,     text: "For the first time in cycles, no new shoots." },
+        ],
+      },
+    ],
+    choices: [
+      { label: 'Take its root',   tag: 'Bind a sigil from the buried fire',
+        resolve: (s) => { _grantRandomSigil(s); } },
+      { label: 'Take its season', tag: 'A survivor gains a positive affinity',
+        resolve: (s) => { _rollSurvivorQuirk(s, 'positive'); } },
+      { label: 'Take its ash',    tag: 'Survivors gain +5 max HP',
+        resolve: (s) => {
+          aliveParty(s).forEach(c => {
+            c.maxHp += 5;
+            c.hp = Math.min(c.maxHp, c.hp + 5);
+          });
+          log('The party tracks ash up the climb.  +5 max HP.');
         } },
     ],
   },
