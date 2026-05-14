@@ -2301,7 +2301,7 @@ const VIGNETTES = {
 
   run_start: {
     id: 'run_start',
-    when: { runStart: true },
+    when: { runStart: true, whileLayer: 1 },
     oneShot: true,
     title: 'You wake at the bottom',
     speakerFromFirstAlive: true,
@@ -3162,7 +3162,15 @@ function matchVignettes(s, ctx) {
     if (v.oneShot && fired.includes(v.id)) return false;
     // Special phase triggers — bypass other conditions; only fire when the
     // matching phase is active.
-    if (w.runStart)      return ctx.phase === 'runStart';
+    // Special-phase vignettes (runStart/bossPrep/etc.) bypass node/synergy
+    // gating, but still respect whileLayer so layer-specific intros only fire
+    // on their layer.  Without this, multiple runStart vignettes match every
+    // climb and one gets picked at random.
+    if (w.runStart) {
+      if (ctx.phase !== 'runStart') return false;
+      if (w.whileLayer && ctx.layer !== w.whileLayer) return false;
+      return true;
+    }
     if (w.bossPrep)      return ctx.phase === 'bossPrep';
     if (w.runDefeat)     return ctx.phase === 'runDefeat';
     if (w.bossDefeated)  return ctx.phase === 'bossDefeated';
