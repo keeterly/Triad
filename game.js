@@ -2308,13 +2308,15 @@ const VIGNETTES = {
     lines: [
       { who: null,     text: 'The first thing you understand is that there is a ceiling.  Very high up.' },
       { who: null,     text: 'The second thing you understand is that you are alone.' },
-      { who: '_first', text: '...up, then.' },
+      { who: '_first', text: '...up, then.  But not empty-handed.' },
     ],
     choices: [
-      { label: 'Begin the climb', tag: '+1 Resolve next fight',
-        resolve: (s) => { s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1; log('You stand.'); } },
-      { label: 'Rest a moment',   tag: '+3 HP for the climb ',
-        resolve: (s) => { const id = Object.keys(s.party.chars)[0]; const c = s.party.chars[id]; if (c) { c.maxHp += 3; c.hp += 3; log(`<b>${CHARS[id].name}</b> gathers themselves — +3 HP.`); } } },
+      { label: 'Bind a sigil',         tag: 'Choose 1 of 3 run-wide powers',
+        resolve: (s) => { s.run._openingBoon = 'sigil'; } },
+      { label: 'Hone the edge twice',  tag: '2 tech upgrades for your starter',
+        resolve: (s) => { s.run._openingBoon = 'upgrade'; } },
+      { label: 'Listen for an ally',   tag: 'Rumor a future hero',
+        resolve: (s) => { s.run._openingBoon = 'rumor'; } },
     ],
   },
 
@@ -9449,18 +9451,18 @@ function init() {
     const matches = matchVignettes(state, ctx);
     if (matches.length) {
       const pick = matches[Math.floor(Math.random() * matches.length)];
-      showVignette(pick, ctx, () => renderMap());
+      // The wake vignette stashes the player's boon pick on state.run; the
+      // resolver opens the matching sub-screen (sigil / upgrades / rumor)
+      // before handing off to the map.  Other runStart vignettes set no tag
+      // and the resolver is a no-op pass-through.
+      showVignette(pick, ctx, () => resolveOpeningBoon(() => renderMap()));
       return;
     }
     renderMap();
   };
   const proceed = (starterId) => {
     state = newState(starterId);
-    // Fresh solo start gets an opening boon — one of: bind a sigil, hone the
-    // starter twice, or rumor a future ally.  Skip when a carried party is
-    // already in hand (mid-layer continuation, not a new run).
-    if (hasCarry) { afterStart(); return; }
-    showOpeningBoonChooser(starterId, afterStart);
+    afterStart();
   };
   if (hasCarry || pool.length <= 1) {
     proceed(pool[0] || 'kai');
@@ -9580,77 +9582,40 @@ function hideStarterTooltip() {
 }
 
 // ============================================================================
-// OPENING BOON — one-time choice at the start of a fresh solo run.
-// Eases the brutal first reach by letting the player tilt the opening:
-// a run-wide sigil, two upgrades for the starter, or a rumor that biases
-// the next recruit roll toward a hero of their choice.
+// OPENING BOON — the "you wake at the bottom" vignette offers three choices,
+// each of which stashes a tag on state.run._openingBoon.  resolveOpeningBoon
+// (called by init's afterStart after the vignette finishes) reads that tag
+// and opens the matching sub-screen: sigil offer, two starter upgrades, or
+// a rumor pick from the recruitable pool.
 // ============================================================================
-function showOpeningBoonChooser(starterId, onDone) {
-  const continueAfter = onDone || (() => renderMap());
-  const $overlay = $('#overlay');
-  $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-upgrade','overlay-sigil','overlay-starter');
-  $overlay.classList.add('overlay-full','overlay-cinematic','overlay-boon');
-  $('#overlay-title').textContent = 'The depths offer one breath';
-  const body = $('#overlay-body');
-  body.classList.remove('victory-summary-body','welcome-body','run-summary-body','title-screen-body');
-  body.innerHTML = `<p class="boon-flavor">Before the climb — what edge do you carry into the dark?</p>`;
-  const choices = $('#overlay-choices');
-  choices.innerHTML = '';
-  choices.classList.remove('path-map','party-inspect','vignette-choices','starter-choices');
-  choices.classList.add('event-choices');
-
-  const mkChoice = (label, tag, fn) => {
-    const card = document.createElement('button');
-    card.className = 'encounter-choice event-choice boon-choice';
-    card.innerHTML = `<div class="enc-name">${label}</div><div class="sigil-desc">${tag}</div>`;
-    card.addEventListener('click', () => { Audio.ui(); fn(); });
-    choices.appendChild(card);
-  };
-
-  // 1. Bind a sigil — reuse the standard sigil offer (3-of-pool pick).
-  const sgPool = availableSigils(state);
-  if (sgPool.length > 0) {
-    mkChoice('Bind a sigil', 'Choose 1 of 3 run-wide powers', () => {
-      hideOverlay();
-      choices.classList.remove('event-choices');
-      offerSigilFromNode(continueAfter);
-    });
+function resolveOpeningBoon(onDone) {
+  const after = onDone || (() => renderMap());
+  const which = state && state.run && state.run._openingBoon;
+  if (state && state.run) state.run._openingBoon = null;
+  if (which === 'sigil') {
+    offerSigilFromNode(after);
+    return;
   }
-
-  // 2. Hone twice — the starter is the only party member, so availableUpgrades
-  // naturally only returns their upgrades.  We offer up to 2 picks in sequence;
-  // passing on either still advances the flow.
-  const upPool = availableUpgrades(state);
-  if (upPool.length > 0) {
-    mkChoice('Hone the edge twice', 'Pick 2 tech upgrades for your starter', () => {
-      hideOverlay();
-      choices.classList.remove('event-choices');
-      const grantOne = (remaining, after) => {
-        const pool = availableUpgrades(state);
-        if (!pool.length || remaining <= 0) { after(); return; }
-        const shuffled = pool.slice().sort(() => Math.random() - 0.5);
-        const offers = shuffled.slice(0, Math.min(2, shuffled.length));
-        showUpgradeOverlay(offers, () => grantOne(remaining - 1, after));
-      };
-      grantOne(2, continueAfter);
-    });
+  if (which === 'upgrade') {
+    const grantOne = (remaining, done) => {
+      const pool = availableUpgrades(state);
+      if (!pool.length || remaining <= 0) { done(); return; }
+      const shuffled = pool.slice().sort(() => Math.random() - 0.5);
+      const offers = shuffled.slice(0, Math.min(2, shuffled.length));
+      showUpgradeOverlay(offers, () => grantOne(remaining - 1, done));
+    };
+    grantOne(2, after);
+    return;
   }
-
-  // 3. Rumor an ally — sub-screen with 3 recruitable heroes.  The pick gets
-  // pushed onto rumoredHeroes so the next recruit moment favors them.
-  const recruitable = ROSTER.filter(id => !state.party.chars[id]);
-  if (recruitable.length > 0) {
-    mkChoice('Listen for an ally', 'Rumor a hero — the next recruit favors them', () => {
-      const shuffled = recruitable.slice().sort(() => Math.random() - 0.5);
-      const offers = shuffled.slice(0, Math.min(3, shuffled.length));
-      showOpeningRumorChooser(offers, continueAfter);
-    });
+  if (which === 'rumor') {
+    const recruitable = ROSTER.filter(id => !state.party.chars[id]);
+    if (!recruitable.length) { after(); return; }
+    const shuffled = recruitable.slice().sort(() => Math.random() - 0.5);
+    const offers = shuffled.slice(0, Math.min(3, shuffled.length));
+    showOpeningRumorChooser(offers, after);
+    return;
   }
-
-  resetOverlayBtn();
-  $('#overlay-btn').classList.add('hidden');
-  choices.classList.remove('hidden');
-  $overlay.classList.remove('hidden');
+  after();
 }
 
 function showOpeningRumorChooser(heroIds, onDone) {
