@@ -4371,6 +4371,36 @@ function grantQuirk(s, charId, quirkId) {
   return q;
 }
 
+// Per-hero affinity reactions — short barks for the gained/lost fanfare.
+// Picked at random when an affinity award fires.  Generic across quirks
+// (it's the act of gaining/losing one that matters, not the specific
+// quirk) so the line set stays small and each hero has a recognisable
+// voice.
+const AFFINITY_BARKS = {
+  kai:     { gained: ["Sharper now.", "I'll take it.", "Useful."],
+             lost:   ["Tch.", "...slipped.", "I'll work without."] },
+  cassia:  { gained: ["Earned, then.", "The line strengthens.", "Mark it."],
+             lost:   ["A piece given.", "It is the cost.", "The line still holds."] },
+  elin:    { gained: ["Steadier.", "Light still finds me.", "I will spend it well."],
+             lost:   ["Less to give.", "...I will mend with what's left.", "It will mend back."] },
+  branwen: { gained: ["One more arrow in the quiver.", "I'll use it.", "Notch it."],
+             lost:   ["Quiver lighter.", "I had too many anyway.", "It happens."] },
+  korin:   { gained: ["(He nods, once.)", "Stronger.", "Wall holds."],
+             lost:   ["(He grunts, sets his shield.)", "...still standing.", "It will pass."] },
+  ash:     { gained: ["...quieter.", "Veil thickens.", "Useful."],
+             lost:   ["...thinner.", "Less hidden.", "Tch."] },
+  mira:    { gained: ["Sharp.", "I'll cut better.", "Good."],
+             lost:   ["Dull.", "Annoying.", "I'll deal."] },
+  garron:  { gained: ["The wall is wider.", "Hold the line.", "Good."],
+             lost:   ["The wall is thinner.", "Hold anyway.", "...still here."] },
+  lirien:  { gained: ["A new note.", "The chord deepens.", "Sing it."],
+             lost:   ["A note dropped.", "...the chord thins.", "I will hum without it."] },
+  vasha:   { gained: ["Light remembers.", "It shines clearer.", "Marked."],
+             lost:   ["Dimmer.", "...the light still finds.", "It will return."] },
+  hask:    { gained: ["Colder.", "Sharper.", "Good."],
+             lost:   ["Warmer than I want.", "Tch.", "I'll freeze again."] },
+};
+
 // Brief full-screen reveal when a hero earns or loses an affinity (quirk).
 // Wrapped in a dim backdrop so the focus is the award, not the
 // battlefield underneath.  Tap the backdrop to dismiss early; auto-fades
@@ -4379,11 +4409,16 @@ function showQuirkAward(charId, quirkId) {
   if (typeof __simulating !== 'undefined' && __simulating) return;
   const def = CHARS[charId]; const q = QUIRKS[quirkId];
   if (!def || !q) return;
+  const bank = AFFINITY_BARKS[charId];
+  const lines = bank && bank[q.positive ? 'gained' : 'lost'];
+  const bark = (lines && lines.length) ? lines[Math.floor(Math.random() * lines.length)] : null;
   _showAwardBackdrop({
     cls: q.positive ? 'qa-positive' : 'qa-negative',
     eyebrow: `${q.positive ? '+' : '−'} ${q.positive ? 'AFFINITY GAINED' : 'AFFINITY LOST'}`,
     name: `${def.name} · ${q.name}`,
     desc: q.desc,
+    portraitId: charId,
+    bark,
   });
 }
 
@@ -4402,15 +4437,24 @@ function showSigilAward(sigilId) {
 }
 
 // Shared award presenter.  Builds the backdrop + centered #quirk-award block,
-// wires the dismiss flow (tap anywhere or auto after a hold).
-function _showAwardBackdrop({ cls, eyebrow, name, desc }) {
+// wires the dismiss flow (tap anywhere or auto after a hold).  When a
+// portraitId + bark are supplied, renders a small hero portrait with a
+// chat bubble above the card — same visual register as combat barks.
+function _showAwardBackdrop({ cls, eyebrow, name, desc, portraitId, bark }) {
   const old = document.getElementById('quirk-award-backdrop');
   if (old) old.remove();
   const backdrop = document.createElement('div');
   backdrop.id = 'quirk-award-backdrop';
   backdrop.className = 'qa-backdrop';
+  const portraitMarkup = (portraitId && PORTRAITS[portraitId])
+    ? `<div class="qa-vignette">
+         ${bark ? `<div class="qa-bubble">${bark}</div>` : ''}
+         <div class="qa-portrait">${PORTRAITS[portraitId]}</div>
+       </div>`
+    : '';
   backdrop.innerHTML = `
     <div id="quirk-award" class="qa ${cls}">
+      ${portraitMarkup}
       <div class="qa-eyebrow">${eyebrow}</div>
       <div class="qa-name">${name}</div>
       <div class="qa-desc">${desc}</div>
@@ -4426,7 +4470,8 @@ function _showAwardBackdrop({ cls, eyebrow, name, desc }) {
     setTimeout(() => { if (backdrop.isConnected) backdrop.remove(); }, 450);
   };
   backdrop.addEventListener('click', dismiss);
-  setTimeout(dismiss, 2600);
+  // Hold longer when a vignette portrait is shown so the bark reads.
+  setTimeout(dismiss, portraitId ? 3400 : 2600);
 }
 
 // Pick a random quirk of a given polarity (positive | negative | any).
