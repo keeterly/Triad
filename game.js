@@ -3175,12 +3175,42 @@ const VIGNETTES = {
       { who: null,     text: "The eyes close, one by one, like windows being shut against weather." },
       { who: null,     text: "The chime falls without a sound." },
       { who: '_first', text: "...did the names go with her?" },
-      { who: null,     text: "Most of them.  A few wait for the next floor." },
-      { who: '_last',  text: "Then we keep climbing." },
+      { who: '_last',  text: "Most.  A few are still waiting on the next floor.",
+        if: (s) => aliveParty(s).length > 1 },
+      { who: null,     text: "The veil thins where she stood, like cloth wearing through." },
+    ],
+    variants: [
+      // Branwen + Elin — Spirit Arrow / Mercy's Gift.  Branwen names her
+      // arrows; Elin names what each one cost.  The Listener was their
+      // shape, in different directions.
+      {
+        requires: ['branwen', 'elin'],
+        lines: [
+          { who: null,     text: "The eyes close, one by one, like windows being shut against weather." },
+          { who: 'branwen', text: "She knew every name I ever shot." },
+          { who: 'elin',    text: "She knew every name I ever sang over." },
+          { who: 'branwen', text: "Which list was longer?" },
+          { who: 'elin',    text: "Don't ask me that on this floor." },
+          { who: null,      text: "The veil thins where she stood, like cloth wearing through." },
+        ],
+      },
     ],
     choices: [
-      { label: 'Climb on', resolve: () => {} },
-      { label: 'Bury the chime', resolve: () => {} },
+      // Mirrors the Wakeling reward pattern — three reflections, each
+      // takes something useful up the climb.  'Climb on' / 'Bury the
+      // chime' both did nothing before.
+      { label: 'Take her chime', tag: "Bind a sigil from the Listener's silence",
+        resolve: (s) => { _grantRandomSigil(s); } },
+      { label: 'Take a name',    tag: 'A survivor gains a positive affinity',
+        resolve: (s) => { _rollSurvivorQuirk(s, 'positive'); } },
+      { label: 'Take the veil',  tag: 'Survivors gain +4 max HP',
+        resolve: (s) => {
+          aliveParty(s).forEach(c => {
+            c.maxHp += 4;
+            c.hp = Math.min(c.maxHp, c.hp + 4);
+          });
+          log('The veil settles on the survivors.  +4 max HP.');
+        } },
     ],
   },
 
@@ -8401,7 +8431,11 @@ const TUTORIAL_HINTS = [
   { id: 'hold',      text: '<b>Hold</b> an action to see its reach and predicted damage.' },
   { id: 'commit',    text: 'Spend your ATB, then tap <b>Play ▶</b> to commit the turn.' },
   { id: 'enemies',   text: 'Enemies show their <b>intent</b> above their card.  Plan around it.' },
-  { id: 'move',      text: '<b>Tap a hero</b> on the battlefield to bring up gold arrows — tap an arrow to move them between Front, Mid, and Back slots.' },
+  // The hint below was previously labeled `move` and described a tap-an-arrow
+  // flow that didn't match the actual press-and-drag gesture.  Renamed to
+  // `move_v2` so the corrected version re-fires for players who dismissed
+  // the old one.
+  { id: 'move_v2',   text: '<b>Press and hold</b> a hero on the battlefield — gold arrows appear.  Drag onto an arrow (or release and tap one) to swap them between <b>Front · Mid · Back</b>.  Costs 1 ATB.' },
   { id: 'resonance', text: 'When your queued actions line up, a <b>Resonance</b> chip appears above the action tray.  Tap it to fuse them into a stronger team move (once per fight).' },
 ];
 
