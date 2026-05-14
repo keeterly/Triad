@@ -6473,11 +6473,14 @@ function renderObjectiveBanner() {
   } else if (obj.kind === 'survive' && typeof obj.turns === 'number') {
     counter = `<span class="ob-counter">${obj.turns}</span>`;
   }
+  // Keep the banner slim — label + counter only.  The full hint moves to
+  // the title attribute so press-and-hold (or hover) reveals it without
+  // taking battlefield width.
+  el.title = obj.hint ? `${obj.label} — ${obj.hint}` : obj.label;
   el.innerHTML = `
     <span class="ob-glyph" aria-hidden="true">${glyph}</span>
     <span class="ob-label">${obj.label}</span>
     ${counter}
-    <span class="ob-hint">${obj.hint || ''}</span>
   `;
 }
 
