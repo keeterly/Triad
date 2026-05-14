@@ -2290,6 +2290,23 @@ body {
     0 0 4px rgba(255,255,255,0.12),
     0 2px 0 rgba(0,0,0,0.85);
 }
+#quirk-award.qa-negative .qa-eyebrow {
+  color: var(--blood-bright);
+  opacity: 0.85;
+}
+#quirk-award.qa-sigil .qa-name {
+  color: var(--gold-bright);
+}
+#quirk-award.qa-sigil.cat-combat .qa-name   { color: var(--blood-bright); }
+#quirk-award.qa-sigil.cat-defense .qa-name  { color: var(--armor); }
+#quirk-award.qa-sigil.cat-resource .qa-name { color: var(--gold-bright); }
+#quirk-award .qa-glyph {
+  display: inline-block;
+  margin-right: 6px;
+  font-size: 22px;
+  vertical-align: -2px;
+  text-shadow: 0 0 14px currentColor;
+}
 #quirk-award .qa-desc {
   font-size: 12px;
   font-style: italic;

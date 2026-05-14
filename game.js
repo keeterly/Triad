@@ -2078,7 +2078,7 @@ const EVENTS = {
       { label: 'Speak a name', tag: '+positive affinity · −2 HP each',
         resolve: (s) => { aliveParty(s).forEach(c => { c.hp = Math.max(1, c.hp - 2); }); _rollEventQuirk(s, 'positive'); } },
       { label: 'Carve another',tag: 'gain Coin of Memory (sigil)',
-        resolve: (s) => { if (!s.run.sigils.includes('memory')) s.run.sigils.push('memory'); log('You bind <b>Coin of Memory</b>.'); } },
+        resolve: (s) => { bindSigil(s, 'memory'); } },
       { label: 'Move on',      tag: 'no change', resolve: () => {} },
     ],
   },
@@ -2102,7 +2102,7 @@ const EVENTS = {
       { label: 'Bow to the chime', tag: 'all heroes +3 max HP',
         resolve: (s) => { aliveParty(s).forEach(c => { c.maxHp += 3; c.hp += 3; }); log('Each hero stands a little straighter.'); } },
       { label: 'Silence it',       tag: 'gain Ember of Wrath (sigil) · −5 HP each',
-        resolve: (s) => { aliveParty(s).forEach(c => { c.hp = Math.max(1, c.hp - 5); }); if (!s.run.sigils.includes('wrath')) s.run.sigils.push('wrath'); log('You bind <b>Ember of Wrath</b>.'); } },
+        resolve: (s) => { aliveParty(s).forEach(c => { c.hp = Math.max(1, c.hp - 5); }); bindSigil(s, 'wrath'); } },
     ],
   },
   child_mask: {
@@ -2187,8 +2187,23 @@ function _grantRandomSigil(s) {
   const pool = availableSigils(s);
   if (!pool.length) return;
   const sg = pool[Math.floor(Math.random() * pool.length)];
-  s.run.sigils.push(sg.id);
+  bindSigil(s, sg.id);
+}
+
+// Single entry point for binding a sigil to the run.  Pushes the id onto
+// state.run.sigils if it isn't already owned, logs, and fires the fanfare.
+// Every grant site should route through here so the player always sees the
+// reveal, not just the message log.
+function bindSigil(s, sigilId) {
+  if (!s || !s.run) return null;
+  const sg = SIGILS[sigilId];
+  if (!sg) return null;
+  s.run.sigils = s.run.sigils || [];
+  if (s.run.sigils.includes(sigilId)) return sg;
+  s.run.sigils.push(sigilId);
   log(`<i>You bind the <b>${sg.name}</b>.</i>`);
+  showSigilAward(sigilId);
+  return sg;
 }
 
 // ============================================================================
@@ -2294,7 +2309,7 @@ const VIGNETTES = {
     ],
     choices: [
       { label: 'Sharpen the blade', tag: 'Bind Bloodborne Sigil',
-        resolve: (s) => { if (!hasSigil(s, 'bloodborne')) { s.run.sigils.push('bloodborne'); log('You bind <b>Bloodborne Sigil</b>.'); } } },
+        resolve: (s) => { bindSigil(s, 'bloodborne'); } },
       { label: 'Wash the wound',   tag: 'Heal all party 3',
         resolve: (s) => { aliveParty(s).forEach(c => { c.hp = Math.min(c.maxHp, c.hp + 3); }); log('The party staunches.'); } },
     ],
@@ -2500,7 +2515,7 @@ const VIGNETTES = {
     ],
     choices: [
       { label: 'Hoard a memory', tag: 'Gain Coin of Memory (sigil)',
-        resolve: (s) => { if (!hasSigil(s, 'memory')) { s.run.sigils.push('memory'); log('You bind <b>Coin of Memory</b>.'); } } },
+        resolve: (s) => { bindSigil(s, 'memory'); } },
       { label: 'Endure', tag: 'no change', resolve: () => {} },
     ],
   },
@@ -2631,7 +2646,7 @@ const VIGNETTES = {
       { label: 'Step softly', tag: '+2 Resolve next fight',
         resolve: (s) => { s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 2; log('You move with the veil.'); } },
       { label: 'Drop the veil', tag: 'Gain Ember of Wrath (sigil)',
-        resolve: (s) => { if (!hasSigil(s, 'wrath')) { s.run.sigils.push('wrath'); log('You bind <b>Ember of Wrath</b>.'); } } },
+        resolve: (s) => { bindSigil(s, 'wrath'); } },
     ],
   },
 
@@ -2645,7 +2660,7 @@ const VIGNETTES = {
     ],
     choices: [
       { label: 'Sharpen the wedge', tag: 'Gain Sigil of the Reaver',
-        resolve: (s) => { if (!hasSigil(s, 'reaver')) { s.run.sigils.push('reaver'); log('You bind <b>Sigil of the Reaver</b>.'); } } },
+        resolve: (s) => { bindSigil(s, 'reaver'); } },
       { label: 'Settle in', tag: 'Heal party 4',
         resolve: (s) => { aliveParty(s).forEach(c => { c.hp = Math.min(c.maxHp, c.hp + 4); }); log('You catch your breath.'); } },
     ],
@@ -2844,7 +2859,7 @@ const VIGNETTES = {
       { label: 'Bind in silence',    tag: 'Restore 25% · Sigil of Mending',
         resolve: (s) => {
           Object.values(s.party.chars).forEach(c => { if (c.downed) { c.downed = false; c.hp = Math.max(1, Math.ceil(c.maxHp * 0.25)); } });
-          if (!hasSigil(s, 'mending')) { s.run.sigils.push('mending'); log('You bind <b>Sigil of Mending</b>.'); }
+          bindSigil(s, 'mending');
           log('The fallen are lifted.');
         }
       },
@@ -4356,27 +4371,53 @@ function grantQuirk(s, charId, quirkId) {
   return q;
 }
 
-// Brief full-screen reveal when a hero earns a quirk.  Hero name in
-// uppercase tracked caps + quirk name + flavor.  Fades after ~1.6s.
-// No-ops during simulation.
+// Brief full-screen reveal when a hero earns or loses an affinity (quirk).
+// Eyebrow names the action ("AFFINITY GAINED" / "AFFINITY LOST") so the
+// player can read at a glance what just happened; the line under it pairs
+// hero name with quirk name.  Fades after ~2.5s.  No-ops during simulation.
 function showQuirkAward(charId, quirkId) {
   if (typeof __simulating !== 'undefined' && __simulating) return;
   const def = CHARS[charId]; const q = QUIRKS[quirkId];
   if (!def || !q) return;
   const old = document.getElementById('quirk-award');
   if (old) old.remove();
+  const polarityClass = q.positive ? 'positive' : 'negative';
+  const eyebrow = q.positive ? 'AFFINITY GAINED' : 'AFFINITY LOST';
+  const polaritySign = q.positive ? '+' : '−';
   const el = document.createElement('div');
   el.id = 'quirk-award';
-  el.className = `qa qa-${q.positive ? 'positive' : 'negative'}`;
+  el.className = `qa qa-${polarityClass}`;
   el.innerHTML = `
-    <div class="qa-eyebrow">${def.name}</div>
-    <div class="qa-name">${q.name}</div>
+    <div class="qa-eyebrow">${polaritySign} ${eyebrow}</div>
+    <div class="qa-name">${def.name} · ${q.name}</div>
     <div class="qa-desc">${q.desc}</div>
   `;
   document.body.appendChild(el);
   if (Audio && typeof Audio.ui === 'function') Audio.ui();
-  setTimeout(() => el.classList.add('qa-out'), 1200);
-  setTimeout(() => el.remove(), 1700);
+  setTimeout(() => el.classList.add('qa-out'), 2000);
+  setTimeout(() => el.remove(), 2500);
+}
+
+// Brief full-screen reveal when the player binds a sigil.  Same shape as
+// the quirk-award fanfare so the two read as one family of feedback.
+function showSigilAward(sigilId) {
+  if (typeof __simulating !== 'undefined' && __simulating) return;
+  const sg = SIGILS[sigilId];
+  if (!sg) return;
+  const old = document.getElementById('quirk-award');
+  if (old) old.remove();
+  const el = document.createElement('div');
+  el.id = 'quirk-award';
+  el.className = `qa qa-sigil cat-${sg.category || 'resource'}`;
+  el.innerHTML = `
+    <div class="qa-eyebrow">+ SIGIL BOUND</div>
+    <div class="qa-name"><span class="qa-glyph">${sg.icon || '◆'}</span> ${sg.name}</div>
+    <div class="qa-desc">${sg.desc}</div>
+  `;
+  document.body.appendChild(el);
+  if (Audio && typeof Audio.ui === 'function') Audio.ui();
+  setTimeout(() => el.classList.add('qa-out'), 2000);
+  setTimeout(() => el.remove(), 2500);
 }
 
 // Pick a random quirk of a given polarity (positive | negative | any).
@@ -6901,12 +6942,33 @@ function renderSigilTray() {
     `<button type="button" class="sigil-chip sigil-chip-squad" data-squad="${sq.id}" title="${sq.name} — ${sq.desc}" aria-label="${sq.name}"><span class="sigil-chip-icon">${sq.icon}</span></button>`
   ).join('');
   tray.innerHTML = ownedChips + squadChips;
-  // Bind tap-to-reveal AFTER each render — innerHTML reset wipes prior bindings.
+  // Bind tap / press-and-hold AFTER each render — innerHTML reset wipes
+  // prior bindings.  Both gestures surface the chip's description as a
+  // persistent chip tooltip.  No more "tap to open a panel that covers the
+  // tooltip you just opened".
   Array.from(tray.querySelectorAll('.sigil-chip')).forEach(chip => {
-    chip.addEventListener('click', (e) => {
-      e.stopPropagation();
-      toggleActiveSigilsPanel(tray);
-    });
+    bindSigilChipReveal(chip);
+  });
+}
+
+// Tap or press-and-hold a sigil chip to surface its name + effect as a
+// persistent tooltip.  Tapping elsewhere dismisses (handled by
+// bindChipExplainers's outside-tap branch).
+function bindSigilChipReveal(chip) {
+  const tooltipText = () => {
+    const sid = chip.dataset.sigil;
+    const sqid = chip.dataset.squad;
+    if (sid && SIGILS[sid]) return `${SIGILS[sid].name} — ${SIGILS[sid].desc}`;
+    if (sqid) {
+      const sq = activeSquadSigils(state).find(x => x.id === sqid);
+      if (sq) return `${sq.name} — ${sq.desc}`;
+    }
+    return chip.getAttribute('title') || '';
+  };
+  chip.addEventListener('click', (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    showChipTooltip(chip, tooltipText());
   });
 }
 
@@ -9722,8 +9784,7 @@ function showSigilOverlay(offers, onDone) {
 
 function commitSigil(sigilId, onDone) {
   if (!SIGILS[sigilId]) return;
-  if (!state.run.sigils.includes(sigilId)) state.run.sigils.push(sigilId);
-  log(`<i>You bind the <b>${SIGILS[sigilId].name}</b>.</i>`);
+  bindSigil(state, sigilId);
   hideOverlay();
   resetOverlayBtn();
   if (typeof onDone === 'function') onDone(); else renderMap();
