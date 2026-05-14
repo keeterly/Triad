@@ -9644,21 +9644,42 @@ function showVictorySummary(completedEnc, onContinue) {
 // when at least one vignette matches, so the player isn't bombarded.
 function offerVignetteOrPath(fightCtx) {
   const matches = matchVignettes(state, fightCtx);
-  // Rumor vignettes have priority — they always fire when available so
-  // they can plant a hero's name before the next recruit moment lands.
-  const rumors = matches.filter(v => v.id && v.id.startsWith('rumor_'));
-  if (rumors.length) {
-    const pick = rumors[Math.floor(Math.random() * rumors.length)];
-    showVignette(pick, fightCtx, () => offerRecruitOrPath());
-    return;
+  // Three categories:
+  //   priority — a hero fell, or a first-clear milestone landed.  These
+  //              are big narrative beats and should never be dropped in
+  //              favor of a random rumor or bond reflection.
+  //   rumor    — plant a hero's name before the next recruit moment.
+  //   ambient  — bond / friction / low-HP / biome reflections; gated
+  //              behind a probability so they don't fire every fight.
+  // Up to two vignettes can chain in one post-fight beat: a priority
+  // (always) + a rumor (always if matched), OR a single ambient under
+  // the gate.  The cap of two keeps the cascade snappy.
+  const isPriority = v => {
+    const w = v.when || {};
+    return !!(w.heroDowned || w.firstClearOf);
+  };
+  const isRumor = v => v.id && v.id.startsWith('rumor_');
+  const priorityMatches = matches.filter(v => !isRumor(v) && isPriority(v));
+  const rumorMatches    = matches.filter(isRumor);
+  const ambientMatches  = matches.filter(v => !isRumor(v) && !isPriority(v));
+  const pickOne = (arr) => arr[Math.floor(Math.random() * arr.length)];
+  const queue = [];
+  if (priorityMatches.length) queue.push(pickOne(priorityMatches));
+  if (rumorMatches.length)    queue.push(pickOne(rumorMatches));
+  if (!queue.length && ambientMatches.length && Math.random() < 0.55) {
+    queue.push(pickOne(ambientMatches));
+  } else if (queue.length === 1 && ambientMatches.length && Math.random() < 0.35) {
+    // Allow a low-probability second beat alongside a priority/rumor when
+    // there's also an ambient match — keeps the run feeling reactive
+    // without turning every fight into a cascade.
+    queue.push(pickOne(ambientMatches));
   }
-  const roll = Math.random();
-  if (matches.length && roll < 0.55) {
-    const pick = matches[Math.floor(Math.random() * matches.length)];
-    showVignette(pick, fightCtx, () => offerRecruitOrPath());
-    return;
-  }
-  offerRecruitOrPath();
+  const playNext = () => {
+    if (!queue.length) { offerRecruitOrPath(); return; }
+    const next = queue.shift();
+    showVignette(next, fightCtx, playNext);
+  };
+  playNext();
 }
 
 // Post-fight cascade — designed to be SHORT after normal combat so each click
