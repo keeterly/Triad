@@ -2677,14 +2677,54 @@ const VIGNETTES = {
     title: 'The Wakeling falls',
     speakerFromFirstAlive: true,
     lines: [
+      // Opening — narration only
       { who: null, text: 'It does not scream.' },
       { who: null, text: 'When the great body unmakes itself, the reach drinks the noise and does not give it back.' },
+      // Per-hero reflection — each fires only when that hero survived the
+      // fight, so a solo run gets one quiet line and a full party gets a
+      // moment of round-the-circle voices.
+      { who: 'kai',     text: "First time I've heard the abyss go quiet.",
+        if: (s) => s.party.chars.kai && !s.party.chars.kai.downed },
+      { who: 'cassia',  text: "The reach owed us this.  We collected.",
+        if: (s) => s.party.chars.cassia && !s.party.chars.cassia.downed },
+      { who: 'elin',    text: "Breathe.  The light is not going anywhere.",
+        if: (s) => s.party.chars.elin && !s.party.chars.elin.downed },
+      { who: 'branwen', text: "One arrow left.  I always carry one too many.",
+        if: (s) => s.party.chars.branwen && !s.party.chars.branwen.downed },
+      { who: 'korin',   text: "(He doesn't speak.  He nods, and that is enough.)",
+        if: (s) => s.party.chars.korin && !s.party.chars.korin.downed },
+      { who: 'ash',     text: "...did anyone else feel the air go warm right before it broke?",
+        if: (s) => s.party.chars.ash && !s.party.chars.ash.downed },
+      { who: 'mira',    text: "I'd say I killed it, but you'd argue.  So: we did.",
+        if: (s) => s.party.chars.mira && !s.party.chars.mira.downed },
+      { who: 'garron',  text: "Hold the line.  Even when the line is what falls.",
+        if: (s) => s.party.chars.garron && !s.party.chars.garron.downed },
+      { who: 'lirien',  text: "There was a chord at the end.  I think it was singing back.",
+        if: (s) => s.party.chars.lirien && !s.party.chars.lirien.downed },
+      { who: 'vasha',   text: "Light remembers.  Tonight it will remember us.",
+        if: (s) => s.party.chars.vasha && !s.party.chars.vasha.downed },
+      { who: 'hask',    text: "...colder, where the sin used to stand.",
+        if: (s) => s.party.chars.hask && !s.party.chars.hask.downed },
+      // Closing — "It is done" always lands; the second beat only fires when
+      // there's more than one survivor so solo runs don't echo themselves.
       { who: '_first', text: 'It is done.' },
-      { who: '_last',  text: 'Until the next one wakes.' },
+      { who: '_last',  text: 'Until the next one wakes.',
+        if: (s) => aliveParty(s).length > 1 },
     ],
     choices: [
-      { label: 'Walk home', resolve: () => {} },
-      { label: 'Stay until the sky steadies', resolve: () => {} },
+      // Two real options.  Walk home = take a piece of what the Wakeling
+      // hoarded (a sigil).  Stay = let the survivors absorb the dawn (carries
+      // +max HP into the next layer via saveCarriedParty's snapshot).
+      { label: 'Walk home', tag: "Bind a sigil from the Wakeling's hoard",
+        resolve: (s) => { _grantRandomSigil(s); } },
+      { label: 'Stay until the sky steadies', tag: 'Survivors gain +5 max HP',
+        resolve: (s) => {
+          aliveParty(s).forEach(c => {
+            c.maxHp += 5;
+            c.hp = Math.min(c.maxHp, c.hp + 5);
+          });
+          log('The dawn settles.  Each survivor draws a deeper breath — +5 max HP.');
+        } },
     ],
   },
 
