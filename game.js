@@ -653,6 +653,106 @@ const PORTRAITS = {
   <text x="22" y="110" font-size="5" fill="#a07acc" opacity="0.55">♫</text>
   <text x="76" y="116" font-size="4.5" fill="#a07acc" opacity="0.45">♪</text>
 </svg>`,
+  // ===== VASHA — Lightspeaker =====
+  // Open-robed silhouette in pale cream + warm gold trim.  Carries a
+  // lantern-staff on her right side and an open book on her left.  Soft
+  // gold dust motes around her head sell the holy back-line vibe.
+  vasha: `
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <linearGradient id="vasha-robe" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#f0e0c4"/>
+      <stop offset="60%" stop-color="#a08862"/>
+      <stop offset="100%" stop-color="#3a2c1a"/>
+    </linearGradient>
+    <radialGradient id="vasha-lantern" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#fff4d2"/>
+      <stop offset="55%" stop-color="#f0c460"/>
+      <stop offset="100%" stop-color="#3a2010"/>
+    </radialGradient>
+  </defs>
+  <!-- robed silhouette -->
+  <path d="M24 130 L20 70 Q28 56 50 54 Q72 56 80 70 L76 130 Z"
+        fill="url(#vasha-robe)" stroke="#2a1a08" stroke-width="0.6"/>
+  <!-- shoulder mantle trim -->
+  <path d="M22 78 Q34 70 50 70 Q66 70 78 78 L78 86 Q66 80 50 80 Q34 80 22 86 Z" fill="#d4b86a"/>
+  <!-- pale face -->
+  <ellipse cx="50" cy="60" rx="6.5" ry="8.5" fill="#f6e9d6"/>
+  <ellipse cx="46" cy="60" rx="1.2" ry="1.6" fill="#3a2010"/>
+  <ellipse cx="54" cy="60" rx="1.2" ry="1.6" fill="#3a2010"/>
+  <line x1="48" y1="66" x2="52" y2="66" stroke="#3a2010" stroke-width="0.5"/>
+  <!-- gold-trimmed hood, half-pulled back -->
+  <path d="M40 56 Q40 44 50 42 Q60 44 60 56 L56 54 L44 54 Z" fill="#a08862"/>
+  <path d="M40 56 Q40 44 50 42 Q60 44 60 56" fill="none" stroke="#f0c460" stroke-width="0.6"/>
+  <!-- lantern staff on her right -->
+  <rect x="78" y="76" width="2.4" height="46" fill="#5a3818"/>
+  <circle cx="79.2" cy="74" r="4.5" fill="url(#vasha-lantern)" stroke="#5a3818" stroke-width="0.5"/>
+  <line x1="76" y1="74" x2="82" y2="74" stroke="#3a2010" stroke-width="0.3"/>
+  <line x1="79.2" y1="70" x2="79.2" y2="78" stroke="#3a2010" stroke-width="0.3"/>
+  <!-- open book on her left arm -->
+  <rect x="14" y="92" width="14" height="10" fill="#f0e0c4" stroke="#3a2010" stroke-width="0.5"/>
+  <line x1="21" y1="92" x2="21" y2="102" stroke="#a08862" stroke-width="0.5"/>
+  <line x1="17" y1="95" x2="20" y2="95" stroke="#3a2010" stroke-width="0.25"/>
+  <line x1="17" y1="98" x2="20" y2="98" stroke="#3a2010" stroke-width="0.25"/>
+  <line x1="22" y1="95" x2="25" y2="95" stroke="#3a2010" stroke-width="0.25"/>
+  <line x1="22" y1="98" x2="25" y2="98" stroke="#3a2010" stroke-width="0.25"/>
+  <!-- gold dust motes around the head -->
+  <circle cx="36" cy="50" r="0.9" fill="#fff4d2" opacity="0.85"/>
+  <circle cx="64" cy="46" r="0.9" fill="#fff4d2" opacity="0.8"/>
+  <circle cx="50" cy="36" r="0.7" fill="#fff4d2" opacity="0.75"/>
+  <circle cx="42" cy="42" r="0.6" fill="#fff4d2" opacity="0.6"/>
+  <circle cx="58" cy="50" r="0.6" fill="#fff4d2" opacity="0.6"/>
+</svg>`,
+  // ===== HASK — Frostling =====
+  // Heavy fur-wrapped figure with ice plates on the shoulders and a long
+  // frosted blade held low.  Cold blue-white palette, pale eyes glowing
+  // through a winter hood, small ice motes drifting near his head.
+  hask: `
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <linearGradient id="hask-cloak" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#4a6478"/>
+      <stop offset="60%" stop-color="#1a2838"/>
+      <stop offset="100%" stop-color="#080e16"/>
+    </linearGradient>
+    <linearGradient id="hask-ice" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#d6e8f4"/>
+      <stop offset="100%" stop-color="#6090b0"/>
+    </linearGradient>
+    <radialGradient id="hask-eye" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#eaf6ff"/>
+      <stop offset="55%" stop-color="#7cb4d6"/>
+      <stop offset="100%" stop-color="#1a3850"/>
+    </radialGradient>
+  </defs>
+  <!-- broad fur cloak silhouette -->
+  <path d="M14 130 L10 76 Q24 56 50 56 Q76 56 90 76 L86 130 Z"
+        fill="url(#hask-cloak)" stroke="#04060a" stroke-width="0.7"/>
+  <!-- shaggy fur shoulder ruff -->
+  <path d="M16 78 Q24 70 36 76 Q26 72 18 86 Z" fill="#2c3e4e"/>
+  <path d="M84 78 Q76 70 64 76 Q74 72 82 86 Z" fill="#2c3e4e"/>
+  <!-- pale hood + face -->
+  <path d="M36 62 Q36 44 50 42 Q64 44 64 62 L60 66 L40 66 Z" fill="#3a4a5c"/>
+  <!-- ice plates / frost crystal on top of hood -->
+  <polygon points="48,42 50,32 52,42" fill="url(#hask-ice)"/>
+  <polygon points="44,46 41,38 46,44" fill="url(#hask-ice)" opacity="0.85"/>
+  <polygon points="56,46 59,38 54,44" fill="url(#hask-ice)" opacity="0.85"/>
+  <!-- glowing pale eyes -->
+  <ellipse cx="44" cy="58" rx="1.6" ry="2" fill="url(#hask-eye)"/>
+  <ellipse cx="56" cy="58" rx="1.6" ry="2" fill="url(#hask-eye)"/>
+  <!-- jaw shadow -->
+  <path d="M40 66 Q50 72 60 66 L58 70 L42 70 Z" fill="#1a2838"/>
+  <!-- long frosted blade held low on his right -->
+  <rect x="76" y="92" width="2.2" height="34" fill="url(#hask-ice)"/>
+  <rect x="74" y="90" width="6" height="3" fill="#3a4a5c"/>
+  <rect x="76.5" y="88" width="1.2" height="6" fill="#5a6a78"/>
+  <!-- ice motes around the head -->
+  <circle cx="34" cy="50" r="0.9" fill="#d6e8f4" opacity="0.85"/>
+  <circle cx="66" cy="48" r="0.9" fill="#d6e8f4" opacity="0.8"/>
+  <circle cx="50" cy="34" r="0.7" fill="#d6e8f4" opacity="0.75"/>
+  <circle cx="40" cy="38" r="0.6" fill="#d6e8f4" opacity="0.6"/>
+  <circle cx="60" cy="40" r="0.6" fill="#d6e8f4" opacity="0.6"/>
+</svg>`,
   husk: `
 <svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
   <path d="M30 130 L26 70 Q50 56 74 70 L70 130 Z" fill="#2a2628" stroke="#0a070a" stroke-width="0.6"/>
@@ -1276,6 +1376,135 @@ const CHARS = {
           fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 2)); aliveEnemies(s).forEach(e => { e.vuln += 1; }); } },
         sig:   { name: 'Aria', desc: '2♦ · Vuln 2 to all enemies',
           fn: (s) => aliveEnemies(s).forEach(e => { e.vuln += 2; }) },
+      },
+    },
+  },
+  // ============================ VASHA — Lightspeaker ====================
+  // Holy back-line.  Bright AoE damage + healing via offence — every hit
+  // Vasha lands also tops up the lowest-HP ally for 1.  Fills the holy
+  // back gap (Elin sits mid).  Pairs with Cassia for Mercy Doubled
+  // (her Litany pings count as heals through partyHeal/healLowest's
+  // shared bump pipe), and with any bleed party that wants steady
+  // ambient healing to offset bleed taken.
+  vasha: {
+    id: 'vasha',
+    name: 'Vasha',
+    title: 'Lightspeaker',
+    school: 'holy',
+    maxHp: 19,
+    home: 'back',
+    passive: { name: 'Litany', desc: 'When Vasha damages an enemy, the lowest-HP ally heals 1.' },
+    techs: {
+      front: {
+        basic: { name: 'Pulpit', desc: '4 dmg front + retreat', dmg: 4, move: 'retreat',
+          reach: ['front'], pattern: 'front-most',
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 4); retreat(s, 'vasha'); } },
+        sig:   { name: 'Hallowed Strike', desc: '6 dmg front + heal 2 self + retreat', dmg: 6, move: 'retreat',
+          reach: ['front'], pattern: 'front-most',
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 6); const v = s.party.chars.vasha; if (v && !v.downed) v.hp = Math.min(v.maxHp, v.hp + 2); retreat(s, 'vasha'); } },
+      },
+      mid: {
+        basic: { name: 'Recite', desc: '3 dmg lowest + cleanse one ally', dmg: 3,
+          reach: ['mid','back'], pattern: 'lowest',
+          fn: (s, t) => {
+            if (t[0]) applyDmgToEnemy(s, t[0], 3);
+            const ally = aliveParty(s).find(c => (c.bleed > 0 || c.weak > 0 || c.vuln > 0));
+            if (ally) { ally.bleed = 0; ally.weak = 0; ally.vuln = 0; }
+          } },
+        sig:   { name: 'Hymn of Light', desc: '5 dmg + +1 Resolve party', dmg: 5,
+          reach: ['mid','back'], pattern: 'lowest',
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 5); gainResolve(s, 1); } },
+      },
+      back: {
+        basic: { name: 'Bright Word', desc: '3 dmg all', dmg: 3,
+          reach: ['front','mid','back'], pattern: 'all',
+          fn: (s, t) => t.forEach(e => applyDmgToEnemy(s, e, 3)) },
+        sig:   { name: "Sun's Decree", desc: '3♦ · 6 dmg all + 1 vuln all', cost: 3, dmg: 6,
+          reach: ['front','mid','back'], pattern: 'all',
+          fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 6)); aliveEnemies(s).forEach(e => { e.vuln += 1; }); } },
+      },
+    },
+  },
+  // ============================ HASK — Frostling ========================
+  // Arcane front-line — the first front-row caster.  Built around chain
+  // (stagger meter).  His attacks add chain on top of the auto-build, his
+  // Shatter passive turns every stagger into +1 Resolve while he's alive,
+  // and his back-slot Frost-Lock is a cheap chain bomb for setting up
+  // expensive bursts.  Pairs well with Mark of the Hunt and Hask sigs.
+  hask: {
+    id: 'hask',
+    name: 'Hask',
+    title: 'Frostling',
+    school: 'arcane',
+    maxHp: 22,
+    home: 'front',
+    passive: { name: 'Shatter', desc: 'When an enemy is staggered while Hask is alive, gain +1 Resolve.' },
+    techs: {
+      front: {
+        basic: { name: 'Frost-Claw', desc: '5 dmg front + chain 5', dmg: 5,
+          reach: ['front'], pattern: 'front-most',
+          fn: (s, t) => {
+            if (t[0]) {
+              applyDmgToEnemy(s, t[0], 5);
+              if (!t[0].dead && !t[0].staggered) {
+                t[0].chain = Math.min(STAGGER_THRESHOLD, t[0].chain + 5);
+                if (t[0].chain >= STAGGER_THRESHOLD) triggerStagger(s, t[0]);
+              }
+            }
+          } },
+        sig:   { name: 'Glacier Crush', desc: '8 dmg front + chain 8', dmg: 8,
+          reach: ['front'], pattern: 'front-most',
+          fn: (s, t) => {
+            if (t[0]) {
+              applyDmgToEnemy(s, t[0], 8);
+              if (!t[0].dead && !t[0].staggered) {
+                t[0].chain = Math.min(STAGGER_THRESHOLD, t[0].chain + 8);
+                if (t[0].chain >= STAGGER_THRESHOLD) triggerStagger(s, t[0]);
+              }
+            }
+          } },
+      },
+      mid: {
+        basic: { name: 'Ice Bolt', desc: '4 dmg lowest + chain 3', dmg: 4,
+          reach: ['mid','back'], pattern: 'lowest',
+          fn: (s, t) => {
+            if (t[0]) {
+              applyDmgToEnemy(s, t[0], 4);
+              if (!t[0].dead && !t[0].staggered) {
+                t[0].chain = Math.min(STAGGER_THRESHOLD, t[0].chain + 3);
+                if (t[0].chain >= STAGGER_THRESHOLD) triggerStagger(s, t[0]);
+              }
+            }
+          } },
+        sig:   { name: 'Hailstorm', desc: '3♦ · 4 dmg all + chain 3 all', cost: 3, dmg: 4,
+          reach: ['front','mid','back'], pattern: 'all',
+          fn: (s, t) => {
+            t.forEach(e => {
+              applyDmgToEnemy(s, e, 4);
+              if (!e.dead && !e.staggered) {
+                e.chain = Math.min(STAGGER_THRESHOLD, e.chain + 3);
+                if (e.chain >= STAGGER_THRESHOLD) triggerStagger(s, e);
+              }
+            });
+          } },
+      },
+      back: {
+        basic: { name: 'Chill Mist', desc: '2 dmg all + vuln 1 all', dmg: 2,
+          reach: ['front','mid','back'], pattern: 'all',
+          fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 2)); aliveEnemies(s).forEach(e => { e.vuln += 1; }); } },
+        sig:   { name: 'Frost-Lock', desc: '1♦ · Chain 10 to lowest + 2 to all', cost: 1,
+          reach: ['mid','back'], pattern: 'lowest',
+          fn: (s, t) => {
+            if (t[0] && !t[0].dead && !t[0].staggered) {
+              t[0].chain = Math.min(STAGGER_THRESHOLD, t[0].chain + 10);
+              if (t[0].chain >= STAGGER_THRESHOLD) triggerStagger(s, t[0]);
+            }
+            aliveEnemies(s).forEach(e => {
+              if (e === t[0] || e.staggered) return;
+              e.chain = Math.min(STAGGER_THRESHOLD, e.chain + 2);
+              if (e.chain >= STAGGER_THRESHOLD) triggerStagger(s, e);
+            });
+          } },
       },
     },
   },
@@ -2648,6 +2877,36 @@ const VIGNETTES = {
         resolve: (s) => { const c = s.party.chars.lirien; if (c) c.hp = c.maxHp; } },
     ],
   },
+  recruit_vasha: {
+    id: 'recruit_vasha', when: { recruited: 'vasha' }, oneShot: true,
+    title: 'Vasha, lantern lit against the dark',
+    speaker: 'vasha',
+    lines: [
+      { who: null,    text: 'A woman in pale, dust-cuffed robes stands at the edge of the path with a lantern on a long staff.  The light does not move when the wind does.' },
+      { who: 'vasha', text: 'The reach takes my readings poorly.  Half my verses come back changed.' },
+      { who: '_first', text: 'Why keep reading?' },
+      { who: 'vasha', text: 'Light does not forgive.  But it remembers.  I can carry both.' },
+    ],
+    choices: [
+      { label: 'Welcome her', tag: 'Vasha rests (HP restored)',
+        resolve: (s) => { const c = s.party.chars.vasha; if (c) c.hp = c.maxHp; } },
+    ],
+  },
+  recruit_hask: {
+    id: 'recruit_hask', when: { recruited: 'hask' }, oneShot: true,
+    title: 'Hask, breath in the air',
+    speaker: 'hask',
+    lines: [
+      { who: null,    text: 'You see him before you feel him — a long pale figure in fur and frost, breath making slow shapes that do not melt.' },
+      { who: 'hask',  text: 'Stand in front of me if you can.  I do not pull punches with the cold.' },
+      { who: '_first', text: "We've held front against worse.  Walk with us." },
+      { who: 'hask',  text: 'I bring the cold with me.  Do not stand still.' },
+    ],
+    choices: [
+      { label: 'Welcome him', tag: 'Hask rests (HP restored)',
+        resolve: (s) => { const c = s.party.chars.hask; if (c) c.hp = c.maxHp; } },
+    ],
+  },
   recruit_kai: {
     id: 'recruit_kai', when: { recruited: 'kai' }, oneShot: true,
     title: 'Kai, on his feet again',
@@ -3085,7 +3344,7 @@ const RESOLVE_CARRY_CAP = 3;
 
 // Pool of characters the player can encounter mid-run.
 // Default starting party is the first three; the rest are recruitable between fights.
-const ROSTER = ['kai', 'cassia', 'elin', 'branwen', 'korin', 'ash', 'mira', 'garron', 'lirien'];
+const ROSTER = ['kai', 'cassia', 'elin', 'branwen', 'korin', 'ash', 'mira', 'garron', 'lirien', 'vasha', 'hask'];
 
 // ============================================================================
 // TECH UPGRADES — alternate variants for specific techs, picked between fights.
@@ -4237,7 +4496,7 @@ function unlockStarter(id) {
 // Heroes whose kit can carry a solo run.  Healers and party-buff specialists
 // (Elin) can be RECRUITED but never roll as the solo starter — without a
 // front-liner to keep alive, their kit has nothing to do.
-const SOLO_VIABLE = new Set(['kai', 'cassia', 'korin', 'branwen', 'mira', 'ash', 'garron', 'lirien']);
+const SOLO_VIABLE = new Set(['kai', 'cassia', 'korin', 'branwen', 'mira', 'ash', 'garron', 'lirien', 'vasha', 'hask']);
 function _pickStarter() {
   const pool = getUnlockedStarters().filter(id => SOLO_VIABLE.has(id));
   return pool.length ? pool[Math.floor(Math.random() * pool.length)] : 'kai';
@@ -4746,6 +5005,20 @@ function applyDmgToEnemy(s, e, baseAmt) {
       spawnPassivePopup('lirien', 'LINGERING NOTE');
     }
   }
+  // Vasha Litany passive — every time she damages an enemy, the lowest-HP
+  // ally heals 1.  Light triage that ticks alongside her offence.  Skips
+  // when no allies need a heal or when she herself is the only target.
+  if (s.currentActorId === 'vasha' && toHp > 0) {
+    const ally = aliveParty(s).slice().sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp))[0];
+    if (ally && ally.hp < ally.maxHp) {
+      const before = ally.hp;
+      ally.hp = Math.min(ally.maxHp, ally.hp + 1);
+      if (ally.hp > before) {
+        spawnPopupId(ally.id, `+${ally.hp - before}`, 'heal', 'party');
+        spawnPassivePopup('vasha', 'LITANY');
+      }
+    }
+  }
 
   const popupType = e.staggered ? 'crit' : (schoolBadge === 'WEAK!' ? 'crit' : 'dmg');
   spawnPopupId(e.id, `-${toHp}`, popupType, 'enemy');
@@ -4776,6 +5049,14 @@ function triggerStagger(s, e) {
   spawnPopupId(e.id, 'STAGGER', 'stagger', 'enemy');
   flashCardId(e.id, 'hit', 'enemy');
   log(`<b>${ENEMIES[e.id].name}</b> is STAGGERED!`);
+  // Hask Shatter passive — every stagger while he's alive grants +1 Resolve.
+  // Rewards his chain-building kit AND parties that lean into stagger
+  // (Frostball, Mark of the Hunt, etc) when Hask is on the bench.
+  const h = s && s.party && s.party.chars && s.party.chars.hask;
+  if (h && !h.downed) {
+    gainResolve(s, 1);
+    spawnPassivePopup('hask', 'SHATTER');
+  }
 }
 
 function killEnemy(s, e) {
@@ -8960,6 +9241,8 @@ const RECRUIT_GREETINGS = {
   mira:    "I prefer to finish before they notice.",
   garron:  "Stand behind me.  I will know when to step aside.",
   lirien:  "I am told my songs are a kind of weapon.  Let us see if it's true.",
+  vasha:   "Light does not forgive.  But it remembers.  I can carry both.",
+  hask:    "I bring the cold with me.  Do not stand still.",
 };
 
 // Recruit moment — single hero appears in a mini-vignette.  Re-uses the
