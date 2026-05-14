@@ -2163,6 +2163,26 @@ function _rollEventQuirk(s, polarity) {
   const verb = polarity === 'positive' ? 'gains' : 'is afflicted with';
   log(`<i><b>${CHARS[targetId].name}</b> ${verb} <b>${q.name}</b>.</i>`);
 }
+// Survivor variant — boss-defeat rewards skip downed heroes since only the
+// surviving party carries to the next layer.  Falls back silently if no
+// quirk fits (quirk cap reached, hero-locked pool empty).
+function _rollSurvivorQuirk(s, polarity) {
+  const survivors = aliveParty(s);
+  if (!survivors.length) return;
+  const eligible = survivors.filter(c => (c.quirks[polarity] || []).length < QUIRK_CAP);
+  if (!eligible.length) return;
+  const target = eligible[Math.floor(Math.random() * eligible.length)];
+  const taken = new Set([...target.quirks.positive, ...target.quirks.negative]);
+  const pool = Object.values(QUIRKS).filter(q =>
+    (polarity === 'positive') === !!q.positive
+    && !taken.has(q.id)
+    && (!q.heroId || q.heroId === target.id));
+  if (!pool.length) return;
+  const q = pool[Math.floor(Math.random() * pool.length)];
+  grantQuirk(s, target.id, q.id);
+  const verb = polarity === 'positive' ? 'gains' : 'is afflicted with';
+  log(`<i><b>${CHARS[target.id].name}</b> ${verb} <b>${q.name}</b>.</i>`);
+}
 function _grantRandomSigil(s) {
   const pool = availableSigils(s);
   if (!pool.length) return;
@@ -2712,12 +2732,13 @@ const VIGNETTES = {
         if: (s) => aliveParty(s).length > 1 },
     ],
     choices: [
-      // Two real options.  Walk home = take a piece of what the Wakeling
-      // hoarded (a sigil).  Stay = let the survivors absorb the dawn (carries
-      // +max HP into the next layer via saveCarriedParty's snapshot).
-      { label: 'Walk home', tag: "Bind a sigil from the Wakeling's hoard",
+      // Three reflections — each takes something from the moment up the climb.
+      // 'Walk home' was the wrong frame; the run is an ascent, not a retreat.
+      { label: 'Take its silence', tag: "Bind a sigil from the Wakeling's residue",
         resolve: (s) => { _grantRandomSigil(s); } },
-      { label: 'Stay until the sky steadies', tag: 'Survivors gain +5 max HP',
+      { label: 'Take its name',    tag: 'A survivor gains a positive affinity',
+        resolve: (s) => { _rollSurvivorQuirk(s, 'positive'); } },
+      { label: 'Take a breath',    tag: 'Survivors gain +5 max HP',
         resolve: (s) => {
           aliveParty(s).forEach(c => {
             c.maxHp += 5;
