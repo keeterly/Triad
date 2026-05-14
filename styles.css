@@ -389,6 +389,31 @@ body {
   0%, 100% { box-shadow: 0 0 0 0 rgba(240,212,136,0); }
   50%      { box-shadow: 0 0 14px 0 rgba(240,212,136,0.32); }
 }
+/* Ticking variant: red palette + faster pulse + a charge counter chip
+   to the right of the label.  Conveys urgency without being shouty. */
+#objective-banner.ob-ticking {
+  border-color: rgba(220,80,80,0.55);
+  animation: ob-pulse-ticking 1.6s ease-in-out infinite;
+}
+#objective-banner.ob-ticking .ob-glyph {
+  color: var(--blood-bright);
+  text-shadow: 0 0 10px rgba(220,80,80,0.7);
+}
+#objective-banner.ob-ticking .ob-label { color: #f6d3c3; }
+#objective-banner .ob-counter {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 0 6px;
+  color: var(--blood-bright);
+  text-shadow: 0 1px 0 rgba(0,0,0,0.95), 0 0 8px rgba(220,80,80,0.65);
+  border-left: 1px solid rgba(212,200,168,0.18);
+  border-right: 1px solid rgba(212,200,168,0.18);
+}
+@keyframes ob-pulse-ticking {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220,80,80,0); }
+  50%      { box-shadow: 0 0 16px 0 rgba(220,80,80,0.4); }
+}
 
 /* Priority Target — gold crown overhead + brighter ring underfoot so the
    marked enemy is unmistakable. */
@@ -414,6 +439,35 @@ body {
 @keyframes priority-pulse {
   0%, 100% { transform: translateX(-50%) translateY(0)    scale(1);    opacity: 0.85; }
   50%      { transform: translateX(-50%) translateY(-2px) scale(1.12); opacity: 1; }
+}
+
+/* Catalyst (Ticking Threat) — red flame mark overhead carrying the
+   remaining charge count, plus a hot floor halo.  Faster pulse so it
+   reads as urgent. */
+.figure.ticking-target::before {
+  content: '✸ ' attr(data-charge-left);
+  position: absolute;
+  top: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--blood-bright);
+  text-shadow:
+    0 1px 0 rgba(0,0,0,0.95),
+    0 0 6px rgba(0,0,0,0.85),
+    0 0 14px rgba(220,80,80,0.85);
+  z-index: 6;
+  pointer-events: none;
+  animation: ticking-pulse 1.0s ease-in-out infinite;
+}
+.figure.ticking-target .figure-shadow {
+  box-shadow: 0 0 24px 4px rgba(220,80,80,0.45);
+}
+@keyframes ticking-pulse {
+  0%, 100% { transform: translateX(-50%) translateY(0)    scale(1);    opacity: 0.85; }
+  50%      { transform: translateX(-50%) translateY(-3px) scale(1.16); opacity: 1; }
 }
 
 #battlefield {

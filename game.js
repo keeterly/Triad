@@ -1467,17 +1467,30 @@ function genCombatEncounter(level, names) {
   const slots = {};
   enemies.forEach((eid, i) => { slots[slotNames[i]] = eid; });
   const enc = { name: _consumeName(COMBAT_NAMES, names), slots };
-  // 25% chance on multi-enemy combats: pick one enemy to be the "Ringleader".
-  // Killing them early wins the fight and routs the rest.  Adds a real
-  // priority decision instead of pure target-the-front-row optimization.
-  if (enemies.length >= 2 && Math.random() < 0.25) {
+  // ~30% chance on multi-enemy combats: pick one of two objective kinds.
+  // Ringleader (priority kill) or Ticking Threat (kill before the catalyst
+  // detonates).  Single-enemy fights stay vanilla.
+  if (enemies.length >= 2 && Math.random() < 0.3) {
     const targetSlot = slotNames[Math.floor(Math.random() * enemies.length)];
-    enc.objective = {
-      kind: 'priority',
-      targetSlot,
-      label: 'Mark the Ringleader',
-      hint: 'The marked enemy commands the others. Cut them down and the rest will flee.',
-    };
+    const roll = Math.random();
+    if (roll < 0.55) {
+      enc.objective = {
+        kind: 'priority',
+        targetSlot,
+        label: 'Mark the Ringleader',
+        hint: 'The marked enemy commands the others.  Cut them down and the rest will flee.',
+      };
+    } else {
+      enc.objective = {
+        kind: 'ticking',
+        targetSlot,
+        charge: 4,
+        chargeMax: 4,
+        dmg: 7,
+        label: 'Stop the Catalyst',
+        hint: 'The marked enemy is charging an unblockable.  Kill or stagger them before the count reaches zero.',
+      };
+    }
   }
   return enc;
 }
@@ -5573,11 +5586,41 @@ function resolveEnemyTurn(s) {
   s._enemyTurnOrder = aliveEnemies(s).map(e => e.id);
   resolveEnemyStep(s, 0);
 }
+
+// Ticking Threat objective — runs at the very end of the enemy turn after
+// every enemy has acted.  Decrements the charge if the marked enemy is
+// alive and could act this round (not staggered); if the charge bottoms
+// out, the catalyst detonates and the objective clears.  Killing the
+// marked enemy disarms it (handled in checkEnd alongside priority).
+function tickObjectiveCharge(s) {
+  const obj = s.run && s.run.objective;
+  if (!obj || obj.kind !== 'ticking' || obj.fired) return;
+  const targetId = s.enemies.slots[obj.targetSlot];
+  const target = targetId && s.enemies.chars[targetId];
+  if (!target || target.dead) return; // disarmed elsewhere
+  if (target.staggered) {
+    log('<i>The catalyst staggers — the charge holds.</i>');
+    return;
+  }
+  obj.charge = Math.max(0, (obj.charge || 0) - 1);
+  if (obj.charge <= 0) {
+    obj.fired = true;
+    log('<b>The catalyst detonates!</b>');
+    shakeScreen(3);
+    dmgAllParty(s, obj.dmg || 7);
+  }
+}
 function resolveEnemyStep(s, i) {
   if (s.over) { s.executing = false; render(); return; }
   const order = s._enemyTurnOrder || [];
   if (i >= order.length) {
     delete s._enemyTurnOrder;
+    if (s.over) { s.executing = false; render(); return; }
+    // Ticking Threat objective — count down at the end of the enemy turn.
+    // If the marked enemy is alive and not staggered, the charge falls; if
+    // it reaches zero, the catalyst detonates for big AoE damage and the
+    // objective fires (clears so the banner disappears).
+    tickObjectiveCharge(s);
     if (s.over) { s.executing = false; render(); return; }
     s.turn += 1;
     startTurn(s);
@@ -5632,6 +5675,16 @@ function checkEnd(s) {
         survivors.forEach(e => { e.hp = 0; e.dead = true; });
         log('<i>The marked one falls.  The rest break and flee into the dark.</i>');
       }
+    }
+  }
+  // Ticking objective — disarm when the catalyst dies (objective banner
+  // clears via fired flag; remaining enemies still need to be cleared).
+  if (s.run && s.run.objective && s.run.objective.kind === 'ticking' && !s.run.objective.fired) {
+    const targetId = s.enemies.slots[s.run.objective.targetSlot];
+    const target = targetId && s.enemies.chars[targetId];
+    if (target && target.dead) {
+      s.run.objective.fired = true;
+      log('<i>The catalyst breaks.  The pressure goes out of the air.</i>');
     }
   }
   if (aliveEnemies(s).length === 0) {
@@ -5899,13 +5952,20 @@ function renderObjectiveBanner() {
   const obj = state.run && state.run.objective;
   if (!obj || obj.fired) {
     el.classList.add('hidden');
+    el.classList.remove('ob-ticking');
     el.innerHTML = '';
     return;
   }
   el.classList.remove('hidden');
+  // Distinct styling for ticking: red palette + a charge counter chip.
+  el.classList.toggle('ob-ticking', obj.kind === 'ticking');
+  const glyph = obj.kind === 'ticking' ? '✸' : '◆';
+  const counter = (obj.kind === 'ticking' && typeof obj.charge === 'number')
+    ? `<span class="ob-counter">${obj.charge}</span>` : '';
   el.innerHTML = `
-    <span class="ob-glyph" aria-hidden="true">◆</span>
+    <span class="ob-glyph" aria-hidden="true">${glyph}</span>
     <span class="ob-label">${obj.label}</span>
+    ${counter}
     <span class="ob-hint">${obj.hint || ''}</span>
   `;
 }
@@ -6140,11 +6200,12 @@ function makeEnemyCard(e, slot) {
   const fig = document.createElement('div');
   fig.className = 'figure enemy-figure';
   fig.dataset.slot = slot;
-  // Mark the Ringleader for objective encounters — drives the crown overlay
-  // in CSS so the player can see who matters before targeting.
+  // Objective-target markers — Ringleader gets a gold crown; Catalyst gets
+  // a red flame ring with the remaining charge count overhead.
   const obj = state.run && state.run.objective;
-  if (obj && obj.kind === 'priority' && obj.targetSlot === slot && !obj.fired) {
-    fig.classList.add('priority-target');
+  if (obj && obj.targetSlot === slot && !obj.fired) {
+    if (obj.kind === 'priority')  fig.classList.add('priority-target');
+    if (obj.kind === 'ticking')   { fig.classList.add('ticking-target'); fig.dataset.chargeLeft = obj.charge; }
   }
   if (!e || e.dead) {
     fig.classList.add('empty');
