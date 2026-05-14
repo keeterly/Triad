@@ -3106,11 +3106,16 @@ const VIGNETTES = {
       { who: '_first', text: "I heard mine just now." },
       { who: null,     text: "Something heard it too.  It is older than the abyss." },
     ],
+    // Layer 2 deserves the same opening boon — every climb is a fresh start
+    // worth tilting.  resolveOpeningBoon reads state.run._openingBoon after
+    // the vignette closes and opens the matching sub-screen.
     choices: [
-      { label: 'Climb anyway', tag: '+1 Resolve next fight',
-        resolve: (s) => { s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1; log('You press on into the veil.'); } },
-      { label: 'Listen first', tag: 'Lowest-HP hero gains +4 max HP',
-        resolve: (s) => { const id = _lowestHpAliveId(s); const c = id && s.party.chars[id]; if (c) { c.maxHp += 4; c.hp += 4; log(`<b>${CHARS[id].name}</b> hears something true. +4 max HP.`); } } },
+      { label: 'Bind a sigil',         tag: 'Choose 1 of 3 run-wide powers',
+        resolve: (s) => { s.run._openingBoon = 'sigil'; } },
+      { label: 'Hone the edge twice',  tag: '2 tech upgrades for a survivor',
+        resolve: (s) => { s.run._openingBoon = 'upgrade'; } },
+      { label: 'Listen for an ally',   tag: 'Rumor a future hero',
+        resolve: (s) => { s.run._openingBoon = 'rumor'; } },
     ],
   },
 
