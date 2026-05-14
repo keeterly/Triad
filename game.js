@@ -3633,6 +3633,126 @@ const UPGRADES = {
       retreatFull(s, 'mira');
     },
   },
+
+  // === Kai — mid home (default starter; covers solo opener) ===
+  'kai.mid.basic.flurry': {
+    id: 'kai.mid.basic.flurry', charId: 'kai', slot: 'mid', kind: 'basic',
+    name: 'Flurry', desc: '4 dmg twice (lowest) + bleed 1 · advance', dmg: 4, hits: 2, move: 'advance',
+    reach: ['front','mid'], pattern: 'lowest',
+    fn: (s, t) => {
+      if (t[0]) {
+        applyDmgToEnemy(s, t[0], 4);
+        if (!t[0].dead) {
+          applyDmgToEnemy(s, t[0], 4);
+          if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 1);
+        }
+      }
+      advance(s, 'kai');
+    },
+  },
+  'kai.mid.sig.executioner': {
+    id: 'kai.mid.sig.executioner', charId: 'kai', slot: 'mid', kind: 'sig',
+    name: 'Executioner', desc: '5 dmg twice lowest (+3 each if target ≤ ½ HP)', dmg: 5, hits: 2,
+    reach: ['front','mid'], pattern: 'lowest',
+    fn: (s, t) => {
+      if (!t[0]) return;
+      const bonus = (t[0].hp * 2 <= t[0].maxHp) ? 3 : 0;
+      applyDmgToEnemy(s, t[0], 5 + bonus);
+      if (!t[0].dead) applyDmgToEnemy(s, t[0], 5 + bonus);
+    },
+  },
+
+  // === Garron — front home (warden/tank) ===
+  'garron.front.basic.brace': {
+    id: 'garron.front.basic.brace', charId: 'garron', slot: 'front', kind: 'basic',
+    name: 'Brace', desc: '4 dmg + self-taunt + 2 self armor', dmg: 4,
+    reach: ['front'], pattern: 'front-most',
+    fn: (s, t) => {
+      if (t[0]) applyDmgToEnemy(s, t[0], 4);
+      const g = s.party.chars.garron;
+      if (g && !g.downed) { g.taunt = true; addArmor(s, 'garron', 2); }
+    },
+  },
+  'garron.front.sig.aegis': {
+    id: 'garron.front.sig.aegis', charId: 'garron', slot: 'front', kind: 'sig',
+    name: 'Aegis Wall', desc: 'Party +4⛨ + 1 retaliate party + self-taunt',
+    fn: (s) => {
+      partyArmor(s, 4);
+      aliveParty(s).forEach(c => { c.retaliate += 1; });
+      const g = s.party.chars.garron;
+      if (g && !g.downed) g.taunt = true;
+    },
+  },
+
+  // === Lirien — back home (vuln stacker / songbinder) ===
+  'lirien.back.basic.dirge': {
+    id: 'lirien.back.basic.dirge', charId: 'lirien', slot: 'back', kind: 'basic',
+    name: 'Dirge', desc: '1 dmg all + 2 vuln lowest', dmg: 1,
+    reach: ['front','mid','back'], pattern: 'all',
+    fn: (s, t) => {
+      t.forEach(e => applyDmgToEnemy(s, e, 1));
+      const lowest = aliveEnemies(s).slice().sort((a, b) => a.hp - b.hp)[0];
+      if (lowest) lowest.vuln += 2;
+    },
+  },
+  'lirien.back.sig.requiem': {
+    id: 'lirien.back.sig.requiem', charId: 'lirien', slot: 'back', kind: 'sig',
+    name: 'Requiem', desc: '2♦ · Vuln 2 all + party +1 atk next attack',
+    fn: (s) => {
+      aliveEnemies(s).forEach(e => { e.vuln += 2; });
+      aliveParty(s).forEach(c => c.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'lirien-requiem' }));
+    },
+  },
+
+  // === Vasha — back home (lightspeaker; AoE + healing) ===
+  'vasha.back.basic.dawnsong': {
+    id: 'vasha.back.basic.dawnsong', charId: 'vasha', slot: 'back', kind: 'basic',
+    name: 'Dawnsong', desc: '2 dmg all + heal 2 lowest', dmg: 2, heal: 2, healTarget: 'lowest',
+    reach: ['front','mid','back'], pattern: 'all',
+    fn: (s, t) => {
+      t.forEach(e => applyDmgToEnemy(s, e, 2));
+      healLowest(s, 2);
+    },
+  },
+  'vasha.back.sig.consecration': {
+    id: 'vasha.back.sig.consecration', charId: 'vasha', slot: 'back', kind: 'sig',
+    name: 'Consecration', desc: '3♦ · 5 dmg all + heal 4 party', cost: 3, dmg: 5, heal: 4, healTarget: 'all',
+    reach: ['front','mid','back'], pattern: 'all',
+    fn: (s, t) => {
+      t.forEach(e => applyDmgToEnemy(s, e, 5));
+      partyHeal(s, 4);
+    },
+  },
+
+  // === Hask — front home (frostling; chain/stagger) ===
+  'hask.front.basic.rime': {
+    id: 'hask.front.basic.rime', charId: 'hask', slot: 'front', kind: 'basic',
+    name: 'Rime Strike', desc: '4 dmg front + chain 8', dmg: 4,
+    reach: ['front'], pattern: 'front-most',
+    fn: (s, t) => {
+      if (t[0]) {
+        applyDmgToEnemy(s, t[0], 4);
+        if (!t[0].dead && !t[0].staggered) {
+          t[0].chain = Math.min(STAGGER_THRESHOLD, t[0].chain + 8);
+          if (t[0].chain >= STAGGER_THRESHOLD) triggerStagger(s, t[0]);
+        }
+      }
+    },
+  },
+  'hask.front.sig.avalanche': {
+    id: 'hask.front.sig.avalanche', charId: 'hask', slot: 'front', kind: 'sig',
+    name: 'Avalanche', desc: '6 dmg front + chain 14', dmg: 6,
+    reach: ['front'], pattern: 'front-most',
+    fn: (s, t) => {
+      if (t[0]) {
+        applyDmgToEnemy(s, t[0], 6);
+        if (!t[0].dead && !t[0].staggered) {
+          t[0].chain = Math.min(STAGGER_THRESHOLD, t[0].chain + 14);
+          if (t[0].chain >= STAGGER_THRESHOLD) triggerStagger(s, t[0]);
+        }
+      }
+    },
+  },
 };
 
 // Resolve a tech reference. If the character has an upgrade applied for this
@@ -9614,26 +9734,10 @@ function resolveOpeningBoon(onDone) {
     return;
   }
   if (which === 'upgrade') {
-    // Several starters (kai/garron/lirien/vasha/hask) currently have no
-    // upgrades defined in UPGRADES, so availableUpgrades returns empty and
-    // the screen would no-op.  Fall back to a flat +max HP boost so the
-    // boon still has weight.
-    const pool = availableUpgrades(state);
-    if (!pool.length) {
-      const id = Object.keys(state.party.chars)[0];
-      const c = id && state.party.chars[id];
-      if (c) {
-        c.maxHp += 6;
-        c.hp = Math.min(c.maxHp, c.hp + 6);
-        log(`<b>${CHARS[id].name}</b> draws a deeper breath — +6 max HP.`);
-      }
-      after();
-      return;
-    }
     const grantOne = (remaining, done) => {
-      const innerPool = availableUpgrades(state);
-      if (!innerPool.length || remaining <= 0) { done(); return; }
-      const shuffled = innerPool.slice().sort(() => Math.random() - 0.5);
+      const pool = availableUpgrades(state);
+      if (!pool.length || remaining <= 0) { done(); return; }
+      const shuffled = pool.slice().sort(() => Math.random() - 0.5);
       const offers = shuffled.slice(0, Math.min(2, shuffled.length));
       showUpgradeOverlay(offers, () => grantOne(remaining - 1, done));
     };
