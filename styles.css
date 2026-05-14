@@ -213,22 +213,23 @@ body {
 .run-mod-chip {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 2px 8px 2px 6px;
+  gap: 6px;
+  padding: 5px 12px 5px 10px;
   font-family: inherit;
-  font-size: 9.5px;
+  font-size: 11px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   font-weight: 600;
   color: var(--gold-bright);
-  background: rgba(20,16,30,0.55);
+  background: rgba(20,16,30,0.7);
   border: none;
   cursor: help;
-  border-radius: 12px;
-  line-height: 1.5;
-  box-shadow: 0 0 12px rgba(154,120,192,0.18), inset 0 0 8px rgba(0,0,0,0.4);
+  border-radius: 14px;
+  line-height: 1.4;
+  min-height: 28px;
+  box-shadow: 0 0 12px rgba(154,120,192,0.22), inset 0 0 8px rgba(0,0,0,0.4);
 }
-.run-mod-icon { color: var(--debuff); font-size: 10px; }
+.run-mod-icon { color: var(--debuff); font-size: 13px; }
 .run-mod-chip:hover { filter: brightness(1.18); }
 #hud::after {
   /* Faint hairline at the bottom of the HUD so it reads as a strip */
@@ -259,8 +260,8 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 36px;
+  height: 36px;
   padding: 0;
   border: 1px solid rgba(212,200,168,0.45);
   background: rgba(18,18,20,0.85);
@@ -283,7 +284,7 @@ body {
 .sigil-chip-icon {
   display: block;
   line-height: 1;
-  font-size: 13px;
+  font-size: 20px;
   text-shadow: 0 1px 0 var(--shadow);
 }
 /* Category coloring — border + icon tint */
@@ -2243,44 +2244,69 @@ body {
 }
 
 /* ===========================================================================
-   QUIRK AWARD FANFARE — brief full-screen reveal when a hero earns a quirk.
+   AWARD FANFARE — full-screen dim + centered reveal when a hero earns or
+   loses an affinity, or when a sigil is bound.  Click anywhere on the
+   backdrop to dismiss early; auto-fades after a hold.
    =========================================================================== */
-#quirk-award {
+.qa-backdrop {
   position: fixed;
-  left: 50%;
-  top: 22%;
-  transform: translate(-50%, 0);
+  inset: 0;
   z-index: 360;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(ellipse at center, rgba(0,0,0,0.62) 0%, rgba(0,0,0,0.88) 80%);
+  cursor: pointer;
+  animation: qa-bk-in 0.28s ease forwards;
+  -webkit-tap-highlight-color: transparent;
+}
+.qa-backdrop.qa-out {
+  animation: qa-bk-out 0.45s ease forwards;
+}
+@keyframes qa-bk-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes qa-bk-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+#quirk-award {
+  position: relative;
   text-align: center;
   pointer-events: none;
-  animation: qa-in 0.4s cubic-bezier(.18,.89,.32,1) forwards;
+  max-width: 92vw;
+  padding: 0 18px;
+  animation: qa-pop-in 0.42s cubic-bezier(.18,.89,.32,1.12) 0.05s both;
 }
-#quirk-award.qa-out { animation: qa-out 0.45s ease-out forwards; }
-@keyframes qa-in {
-  from { opacity: 0; transform: translate(-50%, -10px) scale(0.96); filter: blur(2px); }
-  to   { opacity: 1; transform: translate(-50%, 0)     scale(1);    filter: blur(0); }
+.qa-backdrop.qa-out #quirk-award {
+  animation: qa-pop-out 0.45s ease forwards;
 }
-@keyframes qa-out {
-  from { opacity: 1; transform: translate(-50%, 0)    scale(1); filter: blur(0); }
-  to   { opacity: 0; transform: translate(-50%, -8px) scale(1.04); filter: blur(3px); }
+@keyframes qa-pop-in {
+  from { opacity: 0; transform: scale(0.94); filter: blur(3px); }
+  to   { opacity: 1; transform: scale(1);    filter: blur(0); }
+}
+@keyframes qa-pop-out {
+  from { opacity: 1; transform: scale(1);    filter: blur(0); }
+  to   { opacity: 0; transform: scale(1.05); filter: blur(2px); }
 }
 #quirk-award .qa-eyebrow {
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: 0.36em;
   text-transform: uppercase;
   color: var(--ink-dim);
-  margin-bottom: 6px;
+  margin-bottom: 10px;
 }
 #quirk-award .qa-name {
-  font-size: 26px;
-  letter-spacing: 0.24em;
+  font-size: 30px;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--gold-pale);
   text-shadow:
     0 0 22px rgba(240,212,136,0.55),
     0 0 4px rgba(255,255,255,0.18),
     0 2px 0 rgba(0,0,0,0.85);
-  margin-bottom: 6px;
+  margin-bottom: 10px;
   font-weight: 400;
 }
 #quirk-award.qa-negative .qa-name {
@@ -2302,19 +2328,20 @@ body {
 #quirk-award.qa-sigil.cat-resource .qa-name { color: var(--gold-bright); }
 #quirk-award .qa-glyph {
   display: inline-block;
-  margin-right: 6px;
-  font-size: 22px;
-  vertical-align: -2px;
+  margin-right: 8px;
+  font-size: 26px;
+  vertical-align: -3px;
   text-shadow: 0 0 14px currentColor;
 }
 #quirk-award .qa-desc {
-  font-size: 12px;
+  font-size: 13px;
   font-style: italic;
   letter-spacing: 0.04em;
   color: var(--ink);
   text-shadow: 0 1px 4px rgba(0,0,0,0.85);
-  max-width: 360px;
+  max-width: 460px;
   margin: 0 auto;
+  line-height: 1.5;
 }
 
 /* ===========================================================================

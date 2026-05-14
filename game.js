@@ -4372,52 +4372,61 @@ function grantQuirk(s, charId, quirkId) {
 }
 
 // Brief full-screen reveal when a hero earns or loses an affinity (quirk).
-// Eyebrow names the action ("AFFINITY GAINED" / "AFFINITY LOST") so the
-// player can read at a glance what just happened; the line under it pairs
-// hero name with quirk name.  Fades after ~2.5s.  No-ops during simulation.
+// Wrapped in a dim backdrop so the focus is the award, not the
+// battlefield underneath.  Tap the backdrop to dismiss early; auto-fades
+// after a longer hold.  No-ops during simulation.
 function showQuirkAward(charId, quirkId) {
   if (typeof __simulating !== 'undefined' && __simulating) return;
   const def = CHARS[charId]; const q = QUIRKS[quirkId];
   if (!def || !q) return;
-  const old = document.getElementById('quirk-award');
-  if (old) old.remove();
-  const polarityClass = q.positive ? 'positive' : 'negative';
-  const eyebrow = q.positive ? 'AFFINITY GAINED' : 'AFFINITY LOST';
-  const polaritySign = q.positive ? '+' : '−';
-  const el = document.createElement('div');
-  el.id = 'quirk-award';
-  el.className = `qa qa-${polarityClass}`;
-  el.innerHTML = `
-    <div class="qa-eyebrow">${polaritySign} ${eyebrow}</div>
-    <div class="qa-name">${def.name} · ${q.name}</div>
-    <div class="qa-desc">${q.desc}</div>
-  `;
-  document.body.appendChild(el);
-  if (Audio && typeof Audio.ui === 'function') Audio.ui();
-  setTimeout(() => el.classList.add('qa-out'), 2000);
-  setTimeout(() => el.remove(), 2500);
+  _showAwardBackdrop({
+    cls: q.positive ? 'qa-positive' : 'qa-negative',
+    eyebrow: `${q.positive ? '+' : '−'} ${q.positive ? 'AFFINITY GAINED' : 'AFFINITY LOST'}`,
+    name: `${def.name} · ${q.name}`,
+    desc: q.desc,
+  });
 }
 
 // Brief full-screen reveal when the player binds a sigil.  Same shape as
-// the quirk-award fanfare so the two read as one family of feedback.
+// the quirk award so the two read as one family of feedback.
 function showSigilAward(sigilId) {
   if (typeof __simulating !== 'undefined' && __simulating) return;
   const sg = SIGILS[sigilId];
   if (!sg) return;
-  const old = document.getElementById('quirk-award');
+  _showAwardBackdrop({
+    cls: `qa-sigil cat-${sg.category || 'resource'}`,
+    eyebrow: '+ SIGIL BOUND',
+    name: `<span class="qa-glyph">${sg.icon || '◆'}</span>${sg.name}`,
+    desc: sg.desc,
+  });
+}
+
+// Shared award presenter.  Builds the backdrop + centered #quirk-award block,
+// wires the dismiss flow (tap anywhere or auto after a hold).
+function _showAwardBackdrop({ cls, eyebrow, name, desc }) {
+  const old = document.getElementById('quirk-award-backdrop');
   if (old) old.remove();
-  const el = document.createElement('div');
-  el.id = 'quirk-award';
-  el.className = `qa qa-sigil cat-${sg.category || 'resource'}`;
-  el.innerHTML = `
-    <div class="qa-eyebrow">+ SIGIL BOUND</div>
-    <div class="qa-name"><span class="qa-glyph">${sg.icon || '◆'}</span> ${sg.name}</div>
-    <div class="qa-desc">${sg.desc}</div>
+  const backdrop = document.createElement('div');
+  backdrop.id = 'quirk-award-backdrop';
+  backdrop.className = 'qa-backdrop';
+  backdrop.innerHTML = `
+    <div id="quirk-award" class="qa ${cls}">
+      <div class="qa-eyebrow">${eyebrow}</div>
+      <div class="qa-name">${name}</div>
+      <div class="qa-desc">${desc}</div>
+    </div>
   `;
-  document.body.appendChild(el);
+  document.body.appendChild(backdrop);
   if (Audio && typeof Audio.ui === 'function') Audio.ui();
-  setTimeout(() => el.classList.add('qa-out'), 2000);
-  setTimeout(() => el.remove(), 2500);
+  let dismissed = false;
+  const dismiss = () => {
+    if (dismissed || !backdrop.isConnected) return;
+    dismissed = true;
+    backdrop.classList.add('qa-out');
+    setTimeout(() => { if (backdrop.isConnected) backdrop.remove(); }, 450);
+  };
+  backdrop.addEventListener('click', dismiss);
+  setTimeout(dismiss, 2600);
 }
 
 // Pick a random quirk of a given polarity (positive | negative | any).
