@@ -2110,18 +2110,11 @@ body {
 }
 
 /* ===========================================================================
-   OPENING BOON — one-time run-start choice (sigil / upgrades / rumor).
-   Reuses .encounter-choice for the three top-level cards; .rumor-choice
-   adds a portrait above the name on the sub-screen.
+   OPENING BOON — the wake vignette stashes a pick on state.run._openingBoon
+   and resolveOpeningBoon opens the matching sub-screen.  Sigil and upgrade
+   sub-screens reuse existing styles; the rumor sub-screen needs a portrait
+   above the name.
    =========================================================================== */
-.boon-flavor {
-  text-align: center;
-  font-size: 12px;
-  font-style: italic;
-  letter-spacing: 0.04em;
-  color: var(--ink-dim);
-  margin: 0 0 10px;
-}
 .rumor-choice .rumor-portrait {
   height: clamp(90px, 18vh, 140px);
   display: flex;
