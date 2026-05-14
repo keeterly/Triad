@@ -612,6 +612,47 @@ const PORTRAITS = {
   <rect x="68" y="90" width="2.4" height="30" fill="#3a2c20"/>
   <rect x="65" y="118" width="9" height="6" fill="#2a323a" stroke="#06080c" stroke-width="0.4"/>
 </svg>`,
+  // ===== LIRIEN — Songbinder =====
+  // Slim hooded silhouette in deep teal, holding a small harp.  Cool
+  // arcane palette with faint violet eye-glow + drifting note glyphs
+  // around her shoulders so the player reads "musician-mage" at a glance.
+  lirien: `
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <linearGradient id="lirien-robe" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#2a4a52"/>
+      <stop offset="60%" stop-color="#142428"/>
+      <stop offset="100%" stop-color="#06101a"/>
+    </linearGradient>
+    <radialGradient id="lirien-eye" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#f0e0ff"/>
+      <stop offset="55%" stop-color="#a07acc"/>
+      <stop offset="100%" stop-color="#3a2050"/>
+    </radialGradient>
+  </defs>
+  <!-- robed silhouette + hood -->
+  <path d="M22 130 L20 70 Q30 52 50 50 Q70 52 80 70 L78 130 Z"
+        fill="url(#lirien-robe)" stroke="#04080c" stroke-width="0.6"/>
+  <!-- hood drape -->
+  <path d="M30 56 Q50 42 70 56 Q66 70 50 72 Q34 70 30 56 Z" fill="#0e1820"/>
+  <!-- shoulders cloth slit (asymmetric) -->
+  <path d="M18 76 Q22 70 28 72 L28 92 Q24 96 18 92 Z" fill="#1a2c34"/>
+  <!-- pale face, eyes faintly glowing -->
+  <ellipse cx="50" cy="62" rx="6.5" ry="8" fill="#f6e9d6"/>
+  <ellipse cx="46" cy="62" rx="1.4" ry="2" fill="url(#lirien-eye)"/>
+  <ellipse cx="54" cy="62" rx="1.4" ry="2" fill="url(#lirien-eye)"/>
+  <line x1="48" y1="68" x2="52" y2="68" stroke="#2a1a2a" stroke-width="0.5"/>
+  <!-- small harp held forward (just an angular bow + 3 strings) -->
+  <path d="M28 96 Q24 84 38 80 L38 100 Z" fill="none" stroke="#a07a3c" stroke-width="1.2"/>
+  <line x1="31" y1="92" x2="38" y2="92" stroke="#cfb86a" stroke-width="0.35"/>
+  <line x1="30" y1="96" x2="38" y2="96" stroke="#cfb86a" stroke-width="0.35"/>
+  <line x1="29" y1="100" x2="38" y2="100" stroke="#cfb86a" stroke-width="0.35"/>
+  <!-- drifting note glyphs around her -->
+  <text x="68" y="76" font-size="6" fill="#a07acc" opacity="0.75">♪</text>
+  <text x="80" y="92" font-size="5" fill="#a07acc" opacity="0.6">♪</text>
+  <text x="22" y="110" font-size="5" fill="#a07acc" opacity="0.55">♫</text>
+  <text x="76" y="116" font-size="4.5" fill="#a07acc" opacity="0.45">♪</text>
+</svg>`,
   husk: `
 <svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
   <path d="M30 130 L26 70 Q50 56 74 70 L70 130 Z" fill="#2a2628" stroke="#0a070a" stroke-width="0.6"/>
@@ -1139,6 +1180,53 @@ const CHARS = {
         basic: { name: 'Whistle', desc: '+2 armor party', fn: (s) => partyArmor(s, 2) },
         sig:   { name: 'Last Words', desc: 'Heal 6 lowest + +2 armor party',
           fn: (s) => { healLowest(s, 6); partyArmor(s, 2); } },
+      },
+    },
+  },
+  // ============================ LIRIEN — Songbinder =====================
+  // Back-line arcane debuffer.  Built around stacking vuln on enemies and
+  // pushing small attack-bonus notes into the party.  Pairs with Mira/
+  // Branwen bleed parties (every vuln stack turns bleed ticks into
+  // pressure), with Ash (sig amplification on stacked targets), and with
+  // any front-liner that wants its next hit to land harder.
+  lirien: {
+    id: 'lirien',
+    name: 'Lirien',
+    title: 'Songbinder',
+    school: 'arcane',
+    maxHp: 18,
+    home: 'back',
+    passive: { name: 'Lingering Note', desc: "Lirien's first attack each turn also applies vuln 1." },
+    techs: {
+      front: {
+        basic: { name: 'Sharp Note', desc: '3 dmg front + retreat', dmg: 3, move: 'retreat',
+          reach: ['front'], pattern: 'front-most',
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 3); retreat(s, 'lirien'); } },
+        sig:   { name: 'Discord', desc: '5 dmg front + 2 vuln + retreat', dmg: 5, move: 'retreat',
+          reach: ['front'], pattern: 'front-most',
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 5); if (!t[0].dead) t[0].vuln += 2; } retreat(s, 'lirien'); } },
+      },
+      mid: {
+        basic: { name: 'Beguile', desc: '3 dmg lowest + +1 atk to lowest-HP ally', dmg: 3,
+          reach: ['mid','back'], pattern: 'lowest',
+          fn: (s, t) => {
+            if (t[0]) applyDmgToEnemy(s, t[0], 3);
+            const ally = aliveParty(s).slice().sort((a, b) => a.hp - b.hp)[0];
+            if (ally) ally.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'lirien-beguile' });
+          } },
+        sig:   { name: 'Crescendo', desc: '3♦ · 4 dmg all + party +1 atk next attack', cost: 3, dmg: 4,
+          reach: ['front','mid','back'], pattern: 'all',
+          fn: (s, t) => {
+            t.forEach(e => applyDmgToEnemy(s, e, 4));
+            aliveParty(s).forEach(c => c.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'lirien-crescendo' }));
+          } },
+      },
+      back: {
+        basic: { name: 'Lullaby', desc: '2 dmg all + 1 vuln all', dmg: 2,
+          reach: ['front','mid','back'], pattern: 'all',
+          fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 2)); aliveEnemies(s).forEach(e => { e.vuln += 1; }); } },
+        sig:   { name: 'Aria', desc: '2♦ · Vuln 2 to all enemies',
+          fn: (s) => aliveEnemies(s).forEach(e => { e.vuln += 2; }) },
       },
     },
   },
@@ -2463,6 +2551,21 @@ const VIGNETTES = {
         resolve: (s) => { const c = s.party.chars.garron; if (c) c.hp = c.maxHp; } },
     ],
   },
+  recruit_lirien: {
+    id: 'recruit_lirien', when: { recruited: 'lirien' }, oneShot: true,
+    title: 'Lirien, with a song on her teeth',
+    speaker: 'lirien',
+    lines: [
+      { who: null,     text: 'A hooded figure sits cross-legged on a flat stone, plucking a small harp.  The notes do not echo.  They sink.' },
+      { who: 'lirien', text: 'The first sin I undid, I unwound with a chord.  The second with a verse.  The third would not listen.' },
+      { who: '_first', text: 'And you?' },
+      { who: 'lirien', text: 'I am told my songs are a kind of weapon.  Let us see if it is true.' },
+    ],
+    choices: [
+      { label: 'Welcome her', tag: 'Lirien rests (HP restored)',
+        resolve: (s) => { const c = s.party.chars.lirien; if (c) c.hp = c.maxHp; } },
+    ],
+  },
   recruit_kai: {
     id: 'recruit_kai', when: { recruited: 'kai' }, oneShot: true,
     title: 'Kai, on his feet again',
@@ -2900,7 +3003,7 @@ const RESOLVE_CARRY_CAP = 3;
 
 // Pool of characters the player can encounter mid-run.
 // Default starting party is the first three; the rest are recruitable between fights.
-const ROSTER = ['kai', 'cassia', 'elin', 'branwen', 'korin', 'ash', 'mira', 'garron'];
+const ROSTER = ['kai', 'cassia', 'elin', 'branwen', 'korin', 'ash', 'mira', 'garron', 'lirien'];
 
 // ============================================================================
 // TECH UPGRADES — alternate variants for specific techs, picked between fights.
@@ -4052,7 +4155,7 @@ function unlockStarter(id) {
 // Heroes whose kit can carry a solo run.  Healers and party-buff specialists
 // (Elin) can be RECRUITED but never roll as the solo starter — without a
 // front-liner to keep alive, their kit has nothing to do.
-const SOLO_VIABLE = new Set(['kai', 'cassia', 'korin', 'branwen', 'mira', 'ash', 'garron']);
+const SOLO_VIABLE = new Set(['kai', 'cassia', 'korin', 'branwen', 'mira', 'ash', 'garron', 'lirien']);
 function _pickStarter() {
   const pool = getUnlockedStarters().filter(id => SOLO_VIABLE.has(id));
   return pool.length ? pool[Math.floor(Math.random() * pool.length)] : 'kai';
@@ -4548,6 +4651,18 @@ function applyDmgToEnemy(s, e, baseAmt) {
     if (vulnConsumed) chainGain *= 2;
     e.chain = Math.min(STAGGER_THRESHOLD, e.chain + chainGain);
     if (e.chain >= STAGGER_THRESHOLD) triggerStagger(s, e);
+  }
+
+  // Lirien Lingering Note passive — her first attack each turn applies
+  // vuln 1 to whichever target she hit.  Fires after the damage lands so
+  // it stacks on for the NEXT incoming hit, not this one.
+  if (s.currentActorId === 'lirien' && !e.dead) {
+    const lir = s.party.chars.lirien;
+    if (lir && !lir.lingeringUsed) {
+      e.vuln += 1;
+      lir.lingeringUsed = true;
+      spawnPassivePopup('lirien', 'LINGERING NOTE');
+    }
   }
 
   const popupType = e.staggered ? 'crit' : (schoolBadge === 'WEAK!' ? 'crit' : 'dmg');
@@ -5098,7 +5213,7 @@ function startTurn(s) {
   s.bonusAtb = Math.min(1, s.pendingBonusAtb || 0);
   s.pendingBonusAtb = 0;
   // clear single-turn buffs that survived the enemy phase
-  aliveParty(s).forEach(c => { c.taunt = false; c.retaliate = 0; c.firstAttackUsed = false; c.bleedKillUsed = false; c.shadowVeilUsed = false; });
+  aliveParty(s).forEach(c => { c.taunt = false; c.retaliate = 0; c.firstAttackUsed = false; c.bleedKillUsed = false; c.shadowVeilUsed = false; c.lingeringUsed = false; });
   // Vow of Iron — front slot wakes turn 1 with Taunt.  Applied AFTER the
   // taunt-clear so it survives this single turn; the next startTurn clears
   // it normally.  The _vowIronPending flag was set in initEncounter so
@@ -8762,6 +8877,7 @@ const RECRUIT_GREETINGS = {
   ash:     "I do not promise to be seen.  Only useful.",
   mira:    "I prefer to finish before they notice.",
   garron:  "Stand behind me.  I will know when to step aside.",
+  lirien:  "I am told my songs are a kind of weapon.  Let us see if it's true.",
 };
 
 // Recruit moment — single hero appears in a mini-vignette.  Re-uses the
