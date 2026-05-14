@@ -2109,6 +2109,37 @@ body {
   .starter-flavor { font-size: 10.5px; }
 }
 
+/* ===========================================================================
+   OPENING BOON — one-time run-start choice (sigil / upgrades / rumor).
+   Reuses .encounter-choice for the three top-level cards; .rumor-choice
+   adds a portrait above the name on the sub-screen.
+   =========================================================================== */
+.boon-flavor {
+  text-align: center;
+  font-size: 12px;
+  font-style: italic;
+  letter-spacing: 0.04em;
+  color: var(--ink-dim);
+  margin: 0 0 10px;
+}
+.rumor-choice .rumor-portrait {
+  height: clamp(90px, 18vh, 140px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  margin-bottom: 6px;
+  overflow: hidden;
+  -webkit-mask-image: radial-gradient(ellipse 80% 100% at 50% 50%, #000 60%, transparent 100%);
+          mask-image: radial-gradient(ellipse 80% 100% at 50% 50%, #000 60%, transparent 100%);
+}
+.rumor-choice .rumor-portrait svg {
+  height: 100%;
+  width: auto;
+  max-width: 90%;
+  display: block;
+  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.7));
+}
+
 /* Recruit overlay — chat-bubble vignette layout reusing the lineup.
    Bubbles float above each silhouette with their intro line. */
 .starter-eyebrow {
