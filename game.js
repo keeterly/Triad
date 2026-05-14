@@ -3189,6 +3189,154 @@ const VIGNETTES = {
       { label: 'Bury the chime', resolve: () => {} },
     ],
   },
+
+  // ==================== LAYER 3 — THE SPIRE OF GLASS ====================
+  // Arrival cinematic for the climb into layer 3.  Mirror theme — every
+  // surface returns a face.  Per-hero reactive lines so the carried party
+  // each get a moment of seeing themselves reflected back.
+  layer3_arrival: {
+    id: 'layer3_arrival',
+    when: { runStart: true, whileLayer: 3 },
+    oneShot: true,
+    title: 'You climb into the Spire',
+    speakerFromFirstAlive: true,
+    lines: [
+      { who: null,     text: "Every surface here remembers a face.  Yours are waiting." },
+      { who: null,     text: "Your reflections turn before you do." },
+      { who: 'kai',     text: "Mine looks tired.",
+        if: (s) => s.party.chars.kai && !s.party.chars.kai.downed },
+      { who: 'cassia',  text: "Mine carries a banner I never lifted.",
+        if: (s) => s.party.chars.cassia && !s.party.chars.cassia.downed },
+      { who: 'elin',    text: "Mine isn't smiling.  I should fix that.",
+        if: (s) => s.party.chars.elin && !s.party.chars.elin.downed },
+      { who: 'branwen', text: "Mine has a different scar.",
+        if: (s) => s.party.chars.branwen && !s.party.chars.branwen.downed },
+      { who: 'korin',   text: "(He doesn't look at his.)",
+        if: (s) => s.party.chars.korin && !s.party.chars.korin.downed },
+      { who: 'ash',     text: "Mine is mouthing a word I don't know.",
+        if: (s) => s.party.chars.ash && !s.party.chars.ash.downed },
+      { who: 'mira',    text: "Mine grins back.  I don't.  Yet.",
+        if: (s) => s.party.chars.mira && !s.party.chars.mira.downed },
+      { who: 'garron',  text: "Mine is older.  It knows what comes.",
+        if: (s) => s.party.chars.garron && !s.party.chars.garron.downed },
+      { who: 'lirien',  text: "Mine has my voice.  But not my song.",
+        if: (s) => s.party.chars.lirien && !s.party.chars.lirien.downed },
+      { who: 'vasha',   text: "Mine isn't reflected.  Light doesn't bounce off light.",
+        if: (s) => s.party.chars.vasha && !s.party.chars.vasha.downed },
+      { who: 'hask',    text: "Mine doesn't freeze.  Mine burns.",
+        if: (s) => s.party.chars.hask && !s.party.chars.hask.downed },
+      { who: '_last',  text: "Don't trust your own face.",
+        if: (s) => aliveParty(s).length > 1 },
+    ],
+    choices: [
+      { label: 'Step through it', tag: '+1 Resolve next fight',
+        resolve: (s) => { s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1; log('You pass through your reflection.'); } },
+      { label: 'Take its scar',   tag: 'A survivor gains a positive affinity',
+        resolve: (s) => { _rollSurvivorQuirk(s, 'positive'); } },
+    ],
+  },
+
+  // ==================== LAYER 4 — THE FLOODLIT HALL =====================
+  // Arrival cinematic for layer 4.  Drowning / choir theme — light from
+  // below, water under the floor, the choir starting to remember.  Each
+  // hero reacts to the rising sound in their own register.
+  layer4_arrival: {
+    id: 'layer4_arrival',
+    when: { runStart: true, whileLayer: 4 },
+    oneShot: true,
+    title: 'You climb into the Hall',
+    speakerFromFirstAlive: true,
+    lines: [
+      { who: null,     text: "The light comes from below the floor.  The water that ate the sky is still here, somewhere under." },
+      { who: null,     text: "Somewhere far down, a choir starts to remember its hymn." },
+      { who: 'kai',     text: "I don't like ceilings I can't see.",
+        if: (s) => s.party.chars.kai && !s.party.chars.kai.downed },
+      { who: 'cassia',  text: "If they sing, I march to it.  Or against it.",
+        if: (s) => s.party.chars.cassia && !s.party.chars.cassia.downed },
+      { who: 'elin',    text: "The water remembers everyone it took.",
+        if: (s) => s.party.chars.elin && !s.party.chars.elin.downed },
+      { who: 'branwen', text: "I can shoot a song.  Can't I?",
+        if: (s) => s.party.chars.branwen && !s.party.chars.branwen.downed },
+      { who: 'korin',   text: "(He plants his shield in the floor.)",
+        if: (s) => s.party.chars.korin && !s.party.chars.korin.downed },
+      { who: 'ash',     text: "If the choir is real, it has rhythm.  Rhythm I can break.",
+        if: (s) => s.party.chars.ash && !s.party.chars.ash.downed },
+      { who: 'mira',    text: "I'm not a singer.  But I cut hymns.",
+        if: (s) => s.party.chars.mira && !s.party.chars.mira.downed },
+      { who: 'garron',  text: "Hold against the chorus.  Always hold.",
+        if: (s) => s.party.chars.garron && !s.party.chars.garron.downed },
+      { who: 'lirien',  text: "It's already a chord.  The note before the verse.",
+        if: (s) => s.party.chars.lirien && !s.party.chars.lirien.downed },
+      { who: 'vasha',   text: "Light against water.  I have done this before.",
+        if: (s) => s.party.chars.vasha && !s.party.chars.vasha.downed },
+      { who: 'hask',    text: "Cold sinks.  Cold remembers the bottom.",
+        if: (s) => s.party.chars.hask && !s.party.chars.hask.downed },
+      { who: '_last',  text: "It's been waiting for an audience.",
+        if: (s) => aliveParty(s).length > 1 },
+    ],
+    choices: [
+      { label: 'Hold against the chorus', tag: 'Survivors heal to full · +1 Resolve next fight',
+        resolve: (s) => {
+          aliveParty(s).forEach(c => { c.hp = c.maxHp; });
+          s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1;
+          log('The party braces against the rising hymn.');
+        } },
+      { label: 'Sing back',               tag: 'A survivor gains a positive affinity',
+        resolve: (s) => { _rollSurvivorQuirk(s, 'positive'); } },
+    ],
+  },
+
+  // ==================== LAYER 5 — THE CINDER GARDEN =====================
+  // Arrival cinematic for layer 5.  Buried-fire / cycles theme — black
+  // soil, old ash, things that should not be growing.  The party reads
+  // the pattern, each in their own way.
+  layer5_arrival: {
+    id: 'layer5_arrival',
+    when: { runStart: true, whileLayer: 5 },
+    oneShot: true,
+    title: 'You climb into the Garden',
+    speakerFromFirstAlive: true,
+    lines: [
+      { who: null,     text: "The path opens onto rows.  Black soil, old ash, things that should not be growing." },
+      { who: null,     text: "Something here has done this before.  It will do it again." },
+      { who: 'kai',     text: "Burnt earth, fresh shoots.  Awful pattern.",
+        if: (s) => s.party.chars.kai && !s.party.chars.kai.downed },
+      { who: 'cassia',  text: "Whatever planted this expects to harvest.",
+        if: (s) => s.party.chars.cassia && !s.party.chars.cassia.downed },
+      { who: 'elin',    text: "Don't touch the soil.",
+        if: (s) => s.party.chars.elin && !s.party.chars.elin.downed },
+      { who: 'branwen', text: "I can see what's coming up.  Aim before it blooms.",
+        if: (s) => s.party.chars.branwen && !s.party.chars.branwen.downed },
+      { who: 'korin',   text: "(He kneels.  Runs ash through his fingers.  Stands.)",
+        if: (s) => s.party.chars.korin && !s.party.chars.korin.downed },
+      { who: 'ash',     text: "Heat under here.  Old heat.",
+        if: (s) => s.party.chars.ash && !s.party.chars.ash.downed },
+      { who: 'mira',    text: "Death gardens.  Worst kind.",
+        if: (s) => s.party.chars.mira && !s.party.chars.mira.downed },
+      { who: 'garron',  text: "Hold the line at the row's edge.  Always at the edge.",
+        if: (s) => s.party.chars.garron && !s.party.chars.garron.downed },
+      { who: 'lirien',  text: "There's a song threaded through the roots.  Older than the abyss.",
+        if: (s) => s.party.chars.lirien && !s.party.chars.lirien.downed },
+      { who: 'vasha',   text: "Light won't carry through this.  It eats light.",
+        if: (s) => s.party.chars.vasha && !s.party.chars.vasha.downed },
+      { who: 'hask',    text: "Buried fire.  I can taste the cold around it.",
+        if: (s) => s.party.chars.hask && !s.party.chars.hask.downed },
+      { who: '_last',  text: "How many times has this garden been planted?",
+        if: (s) => aliveParty(s).length > 1 },
+    ],
+    choices: [
+      { label: "Burn what's already buried", tag: 'A survivor gains a positive affinity',
+        resolve: (s) => { _rollSurvivorQuirk(s, 'positive'); } },
+      { label: 'Plant your boot',            tag: 'Survivors gain +3 max HP',
+        resolve: (s) => {
+          aliveParty(s).forEach(c => {
+            c.maxHp += 3;
+            c.hp = Math.min(c.maxHp, c.hp + 3);
+          });
+          log('The party stakes its weight into the row.  +3 max HP.');
+        } },
+    ],
+  },
 };
 
 function _lowestHpAliveId(s) {
