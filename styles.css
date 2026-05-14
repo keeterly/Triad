@@ -414,6 +414,25 @@ body {
   0%, 100% { box-shadow: 0 0 0 0 rgba(220,80,80,0); }
   50%      { box-shadow: 0 0 16px 0 rgba(220,80,80,0.4); }
 }
+/* Survive variant: cool steel/blue palette + slow pulse — endurance,
+   not urgency.  Counter chip shows turns remaining. */
+#objective-banner.ob-survive {
+  border-color: rgba(170,200,255,0.5);
+  animation: ob-pulse-survive 2.6s ease-in-out infinite;
+}
+#objective-banner.ob-survive .ob-glyph {
+  color: #cfe1ff;
+  text-shadow: 0 0 8px rgba(170,200,255,0.6);
+}
+#objective-banner.ob-survive .ob-label { color: #d8e4f6; }
+#objective-banner.ob-survive .ob-counter {
+  color: #cfe1ff;
+  text-shadow: 0 1px 0 rgba(0,0,0,0.95), 0 0 8px rgba(170,200,255,0.6);
+}
+@keyframes ob-pulse-survive {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(170,200,255,0); }
+  50%      { box-shadow: 0 0 14px 0 rgba(170,200,255,0.35); }
+}
 
 /* Priority Target — gold crown overhead + brighter ring underfoot so the
    marked enemy is unmistakable. */
