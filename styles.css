@@ -96,8 +96,9 @@ body {
   display: grid;
   /* HUD (resolve readout) | ATB strip | battlefield (1fr) | action+commit
      Cinematic pass: HUD + ATB + action chrome trimmed so the battlefield
-     row dominates the frame. */
-  grid-template-rows: 22px 18px minmax(0, 1fr) 76px;
+     row dominates the frame.  Action row bumped 76 -> 92 so the per-hero
+     attack + special tiles have more breathing room and tappable area. */
+  grid-template-rows: 22px 18px minmax(0, 1fr) 92px;
   grid-template-columns: 1fr;
   /* NieR flatter backdrop — neutral graphite radial pools instead of warm
      parchment browns, so the chrome (cream-on-black) reads as the dominant

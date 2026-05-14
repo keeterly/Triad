@@ -8068,30 +8068,49 @@ function bindMuteButton() {
 }
 
 // ============================================================================
-// TUTORIAL — three short hints, shown during the first-ever encounter so
-// solo Kai players learn the loop.  Each hint is keyed by id so dismissing
-// one doesn't dismiss the others, but the whole set is gated by a single
-// localStorage flag so returning players don't see them again.
+// TUTORIAL — short hints, shown on the first fight of a run so the loop
+// is teachable without a long onboarding screen.  Tracked PER-HINT (not
+// a single flag) so adding new mechanics later only shows the new hints
+// to returning players, not the whole sequence again.
 // ============================================================================
 const TUTORIAL_HINTS = [
-  { id: 'tap',     text: '<b>Tap</b> an action below to queue it.  Each action costs ATB.' },
-  { id: 'hold',    text: '<b>Hold</b> an action to see its reach and predicted damage.' },
-  { id: 'commit',  text: 'Spend your ATB, then tap <b>Play ▶</b> to commit the turn.' },
-  { id: 'enemies', text: 'Enemies show their <b>intent</b> above their card.  Plan around it.' },
+  { id: 'tap',       text: '<b>Tap</b> an action below to queue it.  Each action costs ATB.' },
+  { id: 'hold',      text: '<b>Hold</b> an action to see its reach and predicted damage.' },
+  { id: 'commit',    text: 'Spend your ATB, then tap <b>Play ▶</b> to commit the turn.' },
+  { id: 'enemies',   text: 'Enemies show their <b>intent</b> above their card.  Plan around it.' },
+  { id: 'move',      text: '<b>Tap a hero</b> on the battlefield to bring up gold arrows — tap an arrow to move them between Front, Mid, and Back slots.' },
+  { id: 'resonance', text: 'When your queued actions line up, a <b>Resonance</b> chip appears above the action tray.  Tap it to fuse them into a stronger team move (once per fight).' },
 ];
+
+const TUT_KEY = 'kizuna.tutorialSeen.v2';
+function getTutorialSeen() {
+  // Migration — if the old single-flag exists, mark every hint that
+  // shipped before v2 as already seen so returning players only see the
+  // newly-added hints (move + resonance), not the whole sequence again.
+  try {
+    if (localStorage.getItem('kizuna.tutorialSeen') === '1' && !localStorage.getItem(TUT_KEY)) {
+      const baseline = ['tap', 'hold', 'commit', 'enemies'];
+      localStorage.setItem(TUT_KEY, JSON.stringify(baseline));
+    }
+  } catch (_) {}
+  try { return new Set(JSON.parse(localStorage.getItem(TUT_KEY) || '[]')); }
+  catch (_) { return new Set(); }
+}
+function markTutorialHintSeen(id) {
+  const s = getTutorialSeen(); s.add(id);
+  try { localStorage.setItem(TUT_KEY, JSON.stringify(Array.from(s))); } catch (_) {}
+}
 function tutorialSeen() {
-  try { return localStorage.getItem('kizuna.tutorialSeen') === '1'; } catch (_) { return false; }
+  // True only once every defined hint has been dismissed.
+  const seen = getTutorialSeen();
+  return TUTORIAL_HINTS.every(h => seen.has(h.id));
 }
-function markTutorialSeen() {
-  try { localStorage.setItem('kizuna.tutorialSeen', '1'); } catch (_) {}
-}
-let _tutCursor = 0;
 function maybeShowTutorial() {
-  if (tutorialSeen() || _tutCursor >= TUTORIAL_HINTS.length) return;
-  const hint = TUTORIAL_HINTS[_tutCursor];
-  showTutorialToast(hint.text, () => {
-    _tutCursor += 1;
-    if (_tutCursor >= TUTORIAL_HINTS.length) markTutorialSeen();
+  const seen = getTutorialSeen();
+  const next = TUTORIAL_HINTS.find(h => !seen.has(h.id));
+  if (!next) return;
+  showTutorialToast(next.text, () => {
+    markTutorialHintSeen(next.id);
     setTimeout(maybeShowTutorial, 220);
   });
 }
