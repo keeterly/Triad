@@ -10469,10 +10469,40 @@ function showWorldMap() {
     list.appendChild(row);
   });
   root.classList.remove('hidden');
+  // Cinematic intro — start scrolled to the top of the abyss (highest
+  // layers visible first), pause a beat so the player gets the panorama,
+  // then ease down until the next-playable layer sits at the top.  Skip
+  // the slide if there's no current row (every layer cleared) or the
+  // current row is already at the top.
+  const currentRow = list.querySelector('.wm-current');
+  list.scrollTop = 0;
+  if (currentRow) {
+    const target = Math.max(0, currentRow.offsetTop - list.offsetTop);
+    if (target > 4) {
+      setTimeout(() => _smoothScrollList(list, target, 1100), 520);
+    }
+  }
   const btn = document.getElementById('wm-continue');
   const close = () => { root.classList.add('hidden'); showTitleScreen(); };
   if (btn) btn.onclick = close;
   bindBackdropDismiss(root, '.wm-content', close);
+}
+
+// Cubic ease-out scroll on a container.  Used by the world map's intro
+// slide; kept generic in case other scroll-on-reveal flows want it.
+function _smoothScrollList(el, targetTop, duration) {
+  if (!el) return;
+  const startTop = el.scrollTop;
+  const delta = targetTop - startTop;
+  if (Math.abs(delta) < 1) return;
+  const startTime = performance.now();
+  const step = (now) => {
+    const t = Math.min(1, (now - startTime) / duration);
+    const eased = 1 - Math.pow(1 - t, 3);
+    el.scrollTop = startTop + delta * eased;
+    if (t < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
 }
 
 function buildWorldMapContainer() {
