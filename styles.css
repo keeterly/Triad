@@ -2111,16 +2111,16 @@ body {
 
 /* ===========================================================================
    OPENING BOON — the wake vignette stashes a pick on state.run._openingBoon
-   and resolveOpeningBoon opens the matching sub-screen.  Sigil and upgrade
-   sub-screens reuse existing styles; the rumor sub-screen needs a portrait
-   above the name.
+   and resolveOpeningBoon opens the matching sub-screen.  Both sub-screens
+   add .boon-sub to #overlay-choices to force a clean 3-in-a-row layout
+   regardless of viewport.
    =========================================================================== */
 .rumor-choice .rumor-portrait {
-  height: clamp(90px, 18vh, 140px);
+  height: clamp(70px, 14vh, 110px);
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   overflow: hidden;
   -webkit-mask-image: radial-gradient(ellipse 80% 100% at 50% 50%, #000 60%, transparent 100%);
           mask-image: radial-gradient(ellipse 80% 100% at 50% 50%, #000 60%, transparent 100%);
@@ -2131,6 +2131,41 @@ body {
   max-width: 90%;
   display: block;
   filter: drop-shadow(0 4px 12px rgba(0,0,0,0.7));
+}
+/* Force 3 tiles in one row on every viewport.  Overrides the global
+   flex-wrap: wrap that kicks in at max-height: 480px and the fixed
+   .sigil-choice width: 200px. */
+#overlay-choices.boon-sub {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  gap: 10px;
+  justify-content: center;
+  align-items: stretch;
+  width: 100%;
+}
+#overlay-choices.boon-sub .encounter-choice {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 240px;
+  width: auto !important;
+  padding: 10px 12px;
+}
+#overlay-choices.boon-sub .sigil-glyph {
+  font-size: 26px;
+  padding: 4px 0 2px;
+}
+#overlay-choices.boon-sub .sigil-desc {
+  font-size: 10.5px;
+  line-height: 1.3;
+}
+#overlay-choices.boon-sub .enc-name {
+  font-size: 11.5px;
+  letter-spacing: 0.14em;
+}
+#overlay-choices.boon-sub .rumor-portrait {
+  height: clamp(54px, 11vh, 90px);
+  margin-bottom: 4px;
 }
 
 /* Recruit overlay — chat-bubble vignette layout reusing the lineup.

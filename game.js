@@ -9600,15 +9600,40 @@ function resolveOpeningBoon(onDone) {
   const after = onDone || (() => renderMap());
   const which = state && state.run && state.run._openingBoon;
   if (state && state.run) state.run._openingBoon = null;
+
+  // Both sub-screens (sigil + rumor) tag the choices container so the layout
+  // forces 3 compact tiles in a single horizontal row — landscape-safe and
+  // dodging the global flex-wrap rule at max-height: 480px.  Cleared on the
+  // way back out.
+  const choicesEl = $('#overlay-choices');
+  const dropSubClass = (done) => () => { choicesEl.classList.remove('boon-sub'); done(); };
+
   if (which === 'sigil') {
-    offerSigilFromNode(after);
+    choicesEl.classList.add('boon-sub');
+    offerSigilFromNode(dropSubClass(after));
     return;
   }
   if (which === 'upgrade') {
+    // Several starters (kai/garron/lirien/vasha/hask) currently have no
+    // upgrades defined in UPGRADES, so availableUpgrades returns empty and
+    // the screen would no-op.  Fall back to a flat +max HP boost so the
+    // boon still has weight.
+    const pool = availableUpgrades(state);
+    if (!pool.length) {
+      const id = Object.keys(state.party.chars)[0];
+      const c = id && state.party.chars[id];
+      if (c) {
+        c.maxHp += 6;
+        c.hp = Math.min(c.maxHp, c.hp + 6);
+        log(`<b>${CHARS[id].name}</b> draws a deeper breath — +6 max HP.`);
+      }
+      after();
+      return;
+    }
     const grantOne = (remaining, done) => {
-      const pool = availableUpgrades(state);
-      if (!pool.length || remaining <= 0) { done(); return; }
-      const shuffled = pool.slice().sort(() => Math.random() - 0.5);
+      const innerPool = availableUpgrades(state);
+      if (!innerPool.length || remaining <= 0) { done(); return; }
+      const shuffled = innerPool.slice().sort(() => Math.random() - 0.5);
       const offers = shuffled.slice(0, Math.min(2, shuffled.length));
       showUpgradeOverlay(offers, () => grantOne(remaining - 1, done));
     };
@@ -9620,7 +9645,8 @@ function resolveOpeningBoon(onDone) {
     if (!recruitable.length) { after(); return; }
     const shuffled = recruitable.slice().sort(() => Math.random() - 0.5);
     const offers = shuffled.slice(0, Math.min(3, shuffled.length));
-    showOpeningRumorChooser(offers, after);
+    choicesEl.classList.add('boon-sub');
+    showOpeningRumorChooser(offers, dropSubClass(after));
     return;
   }
   after();
@@ -9628,11 +9654,16 @@ function resolveOpeningBoon(onDone) {
 
 function showOpeningRumorChooser(heroIds, onDone) {
   const continueAfter = onDone || (() => renderMap());
+  const $overlay = $('#overlay');
+  $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-upgrade','overlay-sigil','overlay-starter');
+  $overlay.classList.add('overlay-full','overlay-cinematic','overlay-recruit');
   $('#overlay-title').textContent = 'Whose name carries down here?';
   const body = $('#overlay-body');
+  body.classList.remove('victory-summary-body','welcome-body','run-summary-body','title-screen-body','vignette-body');
   body.innerHTML = `<p class="boon-flavor">Mark one — the next recruit will favor them.</p>`;
   const choices = $('#overlay-choices');
   choices.innerHTML = '';
+  choices.classList.remove('path-map','party-inspect','event-choices','vignette-choices','starter-choices');
   choices.classList.add('rumor-choices');
   heroIds.forEach(id => {
     const def = CHARS[id];
@@ -9657,7 +9688,7 @@ function showOpeningRumorChooser(heroIds, onDone) {
   resetOverlayBtn();
   $('#overlay-btn').classList.add('hidden');
   choices.classList.remove('hidden');
-  $('#overlay').classList.remove('hidden');
+  $overlay.classList.remove('hidden');
 }
 
 // ============================================================================
