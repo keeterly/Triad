@@ -9397,12 +9397,12 @@ function showPartyInspect() {
       return `<span class="hero-quirk hero-quirk-${polarity}" title="${q.name} — ${q.desc}">${q.name}</span>`;
     };
     const hasAffinities = pos.length || neg.length;
-    // Compact formation diagram — three dots for F / M / B with the
-    // hero's current slot lit.  Sits in the POS chip so the chip is
-    // both label and tiny diagram in one.
-    const slotIdx = SLOTS.indexOf(slotNow);
-    const formation = SLOTS.map((_, i) =>
-      `<span class="hip-form-dot${i === slotIdx ? ' hip-form-dot-on' : ''}${i === SLOTS.indexOf(def.home) ? ' hip-form-dot-home' : ''}"></span>`
+    // Compact formation diagram — three dots ordered to match how the
+    // party reads in combat (PARTY_DISPLAY_ORDER: back → mid → front,
+    // left-to-right).  The hero's current slot is lit; their home slot
+    // is marked.
+    const formation = PARTY_DISPLAY_ORDER.map(slot =>
+      `<span class="hip-form-dot${slot === slotNow ? ' hip-form-dot-on' : ''}${slot === def.home ? ' hip-form-dot-home' : ''}"></span>`
     ).join('');
     figureEl.innerHTML = `
       <div class="hip-focus-silhouette" aria-hidden="true">${PORTRAITS[id] || ''}</div>
@@ -9428,9 +9428,7 @@ function showPartyInspect() {
       <div class="hip-section">
         <div class="hip-section-label">Abilities</div>
         <div class="hip-tech-grid">
-          ${techSection(id, def, 'front')}
-          ${techSection(id, def, 'mid')}
-          ${techSection(id, def, 'back')}
+          ${PARTY_DISPLAY_ORDER.map(slot => techSection(id, def, slot)).join('')}
         </div>
       </div>
     `;
