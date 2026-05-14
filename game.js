@@ -6642,6 +6642,9 @@ function executeQueueItem(s, item) {
         const targets = resolveTargets(s, variant);
         if (targets.length === 0) {
           log(`<i>No target in reach — ${variant.name} fizzles.</i>`);
+          // Visible feedback over the actor so the moment doesn't pass
+          // silently while the player watches the queue resolve.
+          spawnPopupId(item.charId, 'fizzle', 'miss', 'party');
         } else {
           variant.fn(s, targets);
         }
@@ -10719,8 +10722,10 @@ function showHeroCodex() {
     if (!def) return;
     const isUnlocked = unlocked.has(id);
     const quirks = Object.values(QUIRKS).filter(q => q.heroId === id);
+    // Use the in-game .hero-quirk class so bindChipExplainers picks the chips
+    // up — tap or press-and-hold reveals the effect, same as in combat.
     const quirkList = quirks.length
-      ? `<div class="hc-quirks">${quirks.map(q => `<span class="hc-quirk">${q.name}</span>`).join('')}</div>`
+      ? `<div class="hc-quirks">${quirks.map(q => `<span class="hero-quirk hero-quirk-${q.positive ? 'positive' : 'negative'} hc-quirk" title="${q.name} — ${q.desc}">${q.name}</span>`).join('')}</div>`
       : '';
     const row = document.createElement('div');
     row.className = 'hc-row' + (isUnlocked ? '' : ' hc-locked');

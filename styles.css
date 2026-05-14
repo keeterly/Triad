@@ -2593,14 +2593,16 @@ body {
 .hc-quirks {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 6px;
 }
-.hc-quirk {
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  padding: 1px 6px;
-  color: var(--gold-pale);
-  background: rgba(40,28,20,0.5);
+/* Override the global micro-chip .hero-quirk size in the codex so chips
+   are a real tap target.  Tap or press-and-hold shows the explanation
+   via bindChipExplainers. */
+.hc-quirks .hero-quirk {
+  font-size: 11px;
+  padding: 4px 9px;
+  letter-spacing: 0.1em;
+  cursor: pointer;
 }
 .hc-locked-tag {
   font-size: 10px;
