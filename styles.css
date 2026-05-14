@@ -4002,11 +4002,20 @@ body.party-critical::after {
 .hip-affinities {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 6px;
   align-items: center;
   padding-left: 7px;
   border-left: 2px solid rgba(212,200,168,0.18);
-  min-height: 18px;
+  min-height: 26px;
+}
+/* Inspect-screen affinity chips — bumped from the global 9px micro-chip
+   so they're a real tap target.  Press or tap to surface name + effect
+   via the chip-explainer tooltip. */
+.hip-affinities .hero-quirk {
+  font-size: 11px;
+  padding: 4px 9px;
+  letter-spacing: 0.1em;
+  cursor: pointer;
 }
 .hip-affinities .hero-quirks-empty {
   font-size: 9.5px;
