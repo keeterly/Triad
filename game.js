@@ -2697,39 +2697,17 @@ const VIGNETTES = {
     title: 'The Wakeling falls',
     speakerFromFirstAlive: true,
     lines: [
-      // Opening — narration only
+      // Opening — the silence after.
       { who: null, text: 'It does not scream.' },
       { who: null, text: 'When the great body unmakes itself, the reach drinks the noise and does not give it back.' },
-      // Per-hero reflection — each fires only when that hero survived the
-      // fight, so a solo run gets one quiet line and a full party gets a
-      // moment of round-the-circle voices.
-      { who: 'kai',     text: "First time I've heard the abyss go quiet.",
-        if: (s) => s.party.chars.kai && !s.party.chars.kai.downed },
-      { who: 'cassia',  text: "The reach owed us this.  We collected.",
-        if: (s) => s.party.chars.cassia && !s.party.chars.cassia.downed },
-      { who: 'elin',    text: "Breathe.  The light is not going anywhere.",
-        if: (s) => s.party.chars.elin && !s.party.chars.elin.downed },
-      { who: 'branwen', text: "One arrow left.  I always carry one too many.",
-        if: (s) => s.party.chars.branwen && !s.party.chars.branwen.downed },
-      { who: 'korin',   text: "(He doesn't speak.  He nods, and that is enough.)",
-        if: (s) => s.party.chars.korin && !s.party.chars.korin.downed },
-      { who: 'ash',     text: "...did anyone else feel the air go warm right before it broke?",
-        if: (s) => s.party.chars.ash && !s.party.chars.ash.downed },
-      { who: 'mira',    text: "I'd say I killed it, but you'd argue.  So: we did.",
-        if: (s) => s.party.chars.mira && !s.party.chars.mira.downed },
-      { who: 'garron',  text: "Hold the line.  Even when the line is what falls.",
-        if: (s) => s.party.chars.garron && !s.party.chars.garron.downed },
-      { who: 'lirien',  text: "There was a chord at the end.  I think it was singing back.",
-        if: (s) => s.party.chars.lirien && !s.party.chars.lirien.downed },
-      { who: 'vasha',   text: "Light remembers.  Tonight it will remember us.",
-        if: (s) => s.party.chars.vasha && !s.party.chars.vasha.downed },
-      { who: 'hask',    text: "...colder, where the sin used to stand.",
-        if: (s) => s.party.chars.hask && !s.party.chars.hask.downed },
-      // Closing — "It is done" always lands; the second beat only fires when
-      // there's more than one survivor so solo runs don't echo themselves.
+      // First → last exchange.  Neutral enough that any pairing of survivors
+      // can carry it; on solo runs only the first beat lands (the closer is
+      // gated to 2+ alive).
       { who: '_first', text: 'It is done.' },
       { who: '_last',  text: 'Until the next one wakes.',
         if: (s) => aliveParty(s).length > 1 },
+      // Closing — the dawn doesn't quite settle.
+      { who: null, text: 'The dawn rises in pieces — too bright in some places, missing in others, like a half-remembered song.' },
     ],
     choices: [
       // Three reflections — each takes something from the moment up the climb.
@@ -3201,32 +3179,16 @@ const VIGNETTES = {
     title: 'You climb into the Spire',
     speakerFromFirstAlive: true,
     lines: [
+      // Setting — the spire's mirror law.
       { who: null,     text: "Every surface here remembers a face.  Yours are waiting." },
-      { who: null,     text: "Your reflections turn before you do." },
-      { who: 'kai',     text: "Mine looks tired.",
-        if: (s) => s.party.chars.kai && !s.party.chars.kai.downed },
-      { who: 'cassia',  text: "Mine carries a banner I never lifted.",
-        if: (s) => s.party.chars.cassia && !s.party.chars.cassia.downed },
-      { who: 'elin',    text: "Mine isn't smiling.  I should fix that.",
-        if: (s) => s.party.chars.elin && !s.party.chars.elin.downed },
-      { who: 'branwen', text: "Mine has a different scar.",
-        if: (s) => s.party.chars.branwen && !s.party.chars.branwen.downed },
-      { who: 'korin',   text: "(He doesn't look at his.)",
-        if: (s) => s.party.chars.korin && !s.party.chars.korin.downed },
-      { who: 'ash',     text: "Mine is mouthing a word I don't know.",
-        if: (s) => s.party.chars.ash && !s.party.chars.ash.downed },
-      { who: 'mira',    text: "Mine grins back.  I don't.  Yet.",
-        if: (s) => s.party.chars.mira && !s.party.chars.mira.downed },
-      { who: 'garron',  text: "Mine is older.  It knows what comes.",
-        if: (s) => s.party.chars.garron && !s.party.chars.garron.downed },
-      { who: 'lirien',  text: "Mine has my voice.  But not my song.",
-        if: (s) => s.party.chars.lirien && !s.party.chars.lirien.downed },
-      { who: 'vasha',   text: "Mine isn't reflected.  Light doesn't bounce off light.",
-        if: (s) => s.party.chars.vasha && !s.party.chars.vasha.downed },
-      { who: 'hask',    text: "Mine doesn't freeze.  Mine burns.",
-        if: (s) => s.party.chars.hask && !s.party.chars.hask.downed },
-      { who: '_last',  text: "Don't trust your own face.",
+      // First → last exchange.  The first survivor names what they see; the
+      // last responds with the warning.  Solo runs get the look, not the
+      // reply.
+      { who: '_first', text: "...mine looks tired." },
+      { who: '_last',  text: "Don't trust your own face down here.",
         if: (s) => aliveParty(s).length > 1 },
+      // Closing — the reflections move.
+      { who: null,     text: "Your reflections turn before you do.  They carry your weapons, your scars, your same tired hands." },
     ],
     choices: [
       { label: 'Step through it', tag: '+1 Resolve next fight',
@@ -3247,32 +3209,14 @@ const VIGNETTES = {
     title: 'You climb into the Hall',
     speakerFromFirstAlive: true,
     lines: [
-      { who: null,     text: "The light comes from below the floor.  The water that ate the sky is still here, somewhere under." },
-      { who: null,     text: "Somewhere far down, a choir starts to remember its hymn." },
-      { who: 'kai',     text: "I don't like ceilings I can't see.",
-        if: (s) => s.party.chars.kai && !s.party.chars.kai.downed },
-      { who: 'cassia',  text: "If they sing, I march to it.  Or against it.",
-        if: (s) => s.party.chars.cassia && !s.party.chars.cassia.downed },
-      { who: 'elin',    text: "The water remembers everyone it took.",
-        if: (s) => s.party.chars.elin && !s.party.chars.elin.downed },
-      { who: 'branwen', text: "I can shoot a song.  Can't I?",
-        if: (s) => s.party.chars.branwen && !s.party.chars.branwen.downed },
-      { who: 'korin',   text: "(He plants his shield in the floor.)",
-        if: (s) => s.party.chars.korin && !s.party.chars.korin.downed },
-      { who: 'ash',     text: "If the choir is real, it has rhythm.  Rhythm I can break.",
-        if: (s) => s.party.chars.ash && !s.party.chars.ash.downed },
-      { who: 'mira',    text: "I'm not a singer.  But I cut hymns.",
-        if: (s) => s.party.chars.mira && !s.party.chars.mira.downed },
-      { who: 'garron',  text: "Hold against the chorus.  Always hold.",
-        if: (s) => s.party.chars.garron && !s.party.chars.garron.downed },
-      { who: 'lirien',  text: "It's already a chord.  The note before the verse.",
-        if: (s) => s.party.chars.lirien && !s.party.chars.lirien.downed },
-      { who: 'vasha',   text: "Light against water.  I have done this before.",
-        if: (s) => s.party.chars.vasha && !s.party.chars.vasha.downed },
-      { who: 'hask',    text: "Cold sinks.  Cold remembers the bottom.",
-        if: (s) => s.party.chars.hask && !s.party.chars.hask.downed },
+      // Setting — the light is wrong here.
+      { who: null,     text: "The light comes from below the floor.  The water that ate the sky is still down there, somewhere under." },
+      // First names what's rising; last names what it wants.
+      { who: '_first', text: "Something is singing." },
       { who: '_last',  text: "It's been waiting for an audience.",
         if: (s) => aliveParty(s).length > 1 },
+      // Closing — the choir starts to remember.
+      { who: null,     text: "Far below, a choir starts to remember its hymn.  One note at a time, like rust learning to be metal again." },
     ],
     choices: [
       { label: 'Hold against the chorus', tag: 'Survivors heal to full · +1 Resolve next fight',
@@ -3297,32 +3241,14 @@ const VIGNETTES = {
     title: 'You climb into the Garden',
     speakerFromFirstAlive: true,
     lines: [
+      // Setting — the rows of black soil.
       { who: null,     text: "The path opens onto rows.  Black soil, old ash, things that should not be growing." },
-      { who: null,     text: "Something here has done this before.  It will do it again." },
-      { who: 'kai',     text: "Burnt earth, fresh shoots.  Awful pattern.",
-        if: (s) => s.party.chars.kai && !s.party.chars.kai.downed },
-      { who: 'cassia',  text: "Whatever planted this expects to harvest.",
-        if: (s) => s.party.chars.cassia && !s.party.chars.cassia.downed },
-      { who: 'elin',    text: "Don't touch the soil.",
-        if: (s) => s.party.chars.elin && !s.party.chars.elin.downed },
-      { who: 'branwen', text: "I can see what's coming up.  Aim before it blooms.",
-        if: (s) => s.party.chars.branwen && !s.party.chars.branwen.downed },
-      { who: 'korin',   text: "(He kneels.  Runs ash through his fingers.  Stands.)",
-        if: (s) => s.party.chars.korin && !s.party.chars.korin.downed },
-      { who: 'ash',     text: "Heat under here.  Old heat.",
-        if: (s) => s.party.chars.ash && !s.party.chars.ash.downed },
-      { who: 'mira',    text: "Death gardens.  Worst kind.",
-        if: (s) => s.party.chars.mira && !s.party.chars.mira.downed },
-      { who: 'garron',  text: "Hold the line at the row's edge.  Always at the edge.",
-        if: (s) => s.party.chars.garron && !s.party.chars.garron.downed },
-      { who: 'lirien',  text: "There's a song threaded through the roots.  Older than the abyss.",
-        if: (s) => s.party.chars.lirien && !s.party.chars.lirien.downed },
-      { who: 'vasha',   text: "Light won't carry through this.  It eats light.",
-        if: (s) => s.party.chars.vasha && !s.party.chars.vasha.downed },
-      { who: 'hask',    text: "Buried fire.  I can taste the cold around it.",
-        if: (s) => s.party.chars.hask && !s.party.chars.hask.downed },
-      { who: '_last',  text: "How many times has this garden been planted?",
+      // First asks the question; last answers it.
+      { who: '_first', text: "How many times has this been planted?" },
+      { who: '_last',  text: "Once more than it should have been.",
         if: (s) => aliveParty(s).length > 1 },
+      // Closing — the pattern goes on.
+      { who: null,     text: "Something here has done this before.  It will do it again." },
     ],
     choices: [
       { label: "Burn what's already buried", tag: 'A survivor gains a positive affinity',
