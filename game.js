@@ -2709,6 +2709,22 @@ const VIGNETTES = {
       // Closing — the dawn doesn't quite settle.
       { who: null, text: 'The dawn rises in pieces — too bright in some places, missing in others, like a half-remembered song.' },
     ],
+    // Hero-pair variants — when both heroes survive, override the base lines
+    // with a scripted exchange written for them specifically.  Falls back to
+    // the base when no variant matches.
+    variants: [
+      {
+        requires: ['cassia', 'elin'],
+        lines: [
+          { who: null,     text: 'It does not scream.' },
+          { who: 'cassia', text: 'It is done.' },
+          { who: 'elin',   text: 'Until the next one wakes.' },
+          { who: 'cassia', text: 'You said that on the last reach, too.' },
+          { who: 'elin',   text: 'I will keep saying it.' },
+          { who: null,     text: 'The dawn rises in pieces — too bright in some places, missing in others.' },
+        ],
+      },
+    ],
     choices: [
       // Three reflections — each takes something from the moment up the climb.
       // 'Walk home' was the wrong frame; the run is an ascent, not a retreat.
@@ -3190,6 +3206,20 @@ const VIGNETTES = {
       // Closing — the reflections move.
       { who: null,     text: "Your reflections turn before you do.  They carry your weapons, your scars, your same tired hands." },
     ],
+    variants: [
+      // Branwen + Cassia — the Old Rivalry pair meets themselves in mirrors.
+      {
+        requires: ['branwen', 'cassia'],
+        lines: [
+          { who: null,     text: "Every surface here remembers a face.  Yours are waiting." },
+          { who: 'branwen', text: "Mine is aiming at yours." },
+          { who: 'cassia',  text: "Mine has a banner.  Yours has an arrow." },
+          { who: 'branwen', text: "...that's accurate." },
+          { who: 'cassia',  text: "Don't trust either of them.  Just us." },
+          { who: null,      text: "Your reflections turn before you do." },
+        ],
+      },
+    ],
     choices: [
       { label: 'Step through it', tag: '+1 Resolve next fight',
         resolve: (s) => { s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1; log('You pass through your reflection.'); } },
@@ -3217,6 +3247,20 @@ const VIGNETTES = {
         if: (s) => aliveParty(s).length > 1 },
       // Closing — the choir starts to remember.
       { who: null,     text: "Far below, a choir starts to remember its hymn.  One note at a time, like rust learning to be metal again." },
+    ],
+    variants: [
+      // Elin + Vasha — the two healers, light against rising water.
+      {
+        requires: ['elin', 'vasha'],
+        lines: [
+          { who: null,    text: "The light comes from below the floor.  The water that ate the sky is still down there." },
+          { who: 'vasha', text: "It is singing the wrong key." },
+          { who: 'elin',  text: "Then we sing the right one." },
+          { who: 'vasha', text: "Together?  Light against water?" },
+          { who: 'elin',  text: "I will hold the note.  You hold the line." },
+          { who: null,    text: "Far below, a choir starts to remember its hymn." },
+        ],
+      },
     ],
     choices: [
       { label: 'Hold against the chorus', tag: 'Survivors heal to full · +1 Resolve next fight',
@@ -3249,6 +3293,20 @@ const VIGNETTES = {
         if: (s) => aliveParty(s).length > 1 },
       // Closing — the pattern goes on.
       { who: null,     text: "Something here has done this before.  It will do it again." },
+    ],
+    variants: [
+      // Cassia + Korin — the Iron Bond pair, both knowing what 'hold the row' means.
+      {
+        requires: ['cassia', 'korin'],
+        lines: [
+          { who: null,     text: "The path opens onto rows.  Black soil, old ash, things that should not be growing." },
+          { who: 'cassia', text: "Edge of the row.  We hold here." },
+          { who: 'korin',  text: "(He nods.  Drives his shield into the ash up to the strap.)" },
+          { who: 'cassia', text: "If it blooms past us, we plant ourselves." },
+          { who: 'korin',  text: "Then nothing past." },
+          { who: null,     text: "Something here has done this before.  It will not do it through them." },
+        ],
+      },
     ],
     choices: [
       { label: "Burn what's already buried", tag: 'A survivor gains a positive affinity',
@@ -8587,6 +8645,23 @@ function showVignette(v, ctx, done) {
   // hero appears on stage before the player commits to accepting them.
   const guests = (ctx && Array.isArray(ctx.guests)) ? ctx.guests : [];
   const isOnStage = (id) => !!(id && (state.party.chars[id] || guests.includes(id)));
+  // Variant resolution — a vignette can declare alternate scripted exchanges
+  // gated by which heroes are on stage.  Pick the first variant whose
+  // `requires` is fully satisfied; that variant's lines/choices/title
+  // override the base vignette's.  Falls through to the base if none match.
+  if (Array.isArray(v.variants) && v.variants.length) {
+    const aliveSet = new Set(aliveIds);
+    const matched = v.variants.find(va =>
+      Array.isArray(va.requires) && va.requires.every(id => aliveSet.has(id) && isOnStage(id)));
+    if (matched) {
+      v = {
+        ...v,
+        lines:   matched.lines   || v.lines,
+        choices: matched.choices || v.choices,
+        title:   matched.title   || v.title,
+      };
+    }
+  }
   let speakerId = v.speaker;
   if (v.speakerFromLowestHp)    speakerId = _lowestHpAliveId(state);
   if (v.speakerFromFirstAlive)  speakerId = aliveIds[0];
