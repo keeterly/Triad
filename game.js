@@ -6980,7 +6980,6 @@ function renderSigilTray() {
   if (!owned.length && !squad.length) {
     tray.innerHTML = '';
     tray.classList.add('empty');
-    hideActiveSigilsPanel();
     return;
   }
   tray.classList.remove('empty');
@@ -7026,80 +7025,9 @@ function bindSigilChipReveal(chip) {
   });
 }
 
-// Floating panel that surfaces every active sigil with its description, so
-// the player can answer "what do I have bound right now?" with a single tap.
-// Tapping any chip in the tray toggles the panel; tapping outside closes it.
-function showActiveSigilsPanel(anchorEl) {
-  hideActiveSigilsPanel();
-  const owned = (state.run && state.run.sigils) || [];
-  const squad = activeSquadSigils(state);
-  if (!owned.length && !squad.length) return;
-  const panel = document.createElement('div');
-  panel.id = 'active-sigils-panel';
-  panel.className = 'sigils-panel';
-  const ownedRows = owned.map(id => {
-    const s = SIGILS[id];
-    if (!s) return '';
-    return `
-      <div class="sp-row cat-${s.category}">
-        <span class="sp-icon">${s.icon}</span>
-        <div class="sp-meta">
-          <div class="sp-name">${s.name}</div>
-          <div class="sp-desc">${s.desc}</div>
-        </div>
-      </div>`;
-  }).join('');
-  const squadRows = squad.map(sq => `
-    <div class="sp-row sp-row-squad">
-      <span class="sp-icon">${sq.icon}</span>
-      <div class="sp-meta">
-        <div class="sp-name">${sq.name}</div>
-        <div class="sp-desc">${sq.desc}</div>
-      </div>
-    </div>`).join('');
-  panel.innerHTML = `
-    ${owned.length ? `
-      <div class="sp-title">Bound Sigils</div>
-      <div class="sp-rows">${ownedRows}</div>
-    ` : ''}
-    ${squad.length ? `
-      <div class="sp-title sp-title-squad">Squad Bonds</div>
-      <div class="sp-rows">${squadRows}</div>
-    ` : ''}
-  `;
-  document.body.appendChild(panel);
-  // Position below the tray (or wherever it makes sense given viewport).
-  const rect = anchorEl.getBoundingClientRect();
-  const pw = panel.offsetWidth;
-  let left = rect.left + rect.width / 2 - pw / 2;
-  left = Math.max(8, Math.min(left, window.innerWidth - pw - 8));
-  let top = rect.bottom + 6;
-  if (top + panel.offsetHeight > window.innerHeight - 8) {
-    top = Math.max(8, rect.top - panel.offsetHeight - 6);
-  }
-  panel.style.left = `${left}px`;
-  panel.style.top  = `${top}px`;
-  // Outside-click closes (registered once after the open event finishes
-  // bubbling so the opener click doesn't immediately close it).
-  setTimeout(() => {
-    document.addEventListener('pointerdown', _activeSigilsOutsideClose, true);
-  }, 0);
-}
-function _activeSigilsOutsideClose(e) {
-  const panel = document.getElementById('active-sigils-panel');
-  if (!panel) { document.removeEventListener('pointerdown', _activeSigilsOutsideClose, true); return; }
-  if (panel.contains(e.target)) return;
-  hideActiveSigilsPanel();
-}
-function hideActiveSigilsPanel() {
-  const panel = document.getElementById('active-sigils-panel');
-  if (panel) panel.remove();
-  document.removeEventListener('pointerdown', _activeSigilsOutsideClose, true);
-}
-function toggleActiveSigilsPanel(anchorEl) {
-  if (document.getElementById('active-sigils-panel')) hideActiveSigilsPanel();
-  else showActiveSigilsPanel(anchorEl);
-}
+// Note: the old all-sigils floating panel was replaced by per-chip
+// tooltips (bindSigilChipReveal) — the panel + outside-click handler
+// previously living here have been removed.
 
 function flashResolve() {
   $('#resolve-pips').animate(
@@ -8731,16 +8659,23 @@ function bindMuteButton() {
 // to returning players, not the whole sequence again.
 // ============================================================================
 const TUTORIAL_HINTS = [
-  { id: 'tap',       text: '<b>Tap</b> an action below to queue it.  Each action costs ATB.' },
-  { id: 'hold',      text: '<b>Hold</b> an action to see its reach and predicted damage.' },
-  { id: 'commit',    text: 'Spend your ATB, then tap <b>Play ▶</b> to commit the turn.' },
-  { id: 'enemies',   text: 'Enemies show their <b>intent</b> above their card.  Plan around it.' },
-  // The hint below was previously labeled `move` and described a tap-an-arrow
-  // flow that didn't match the actual press-and-drag gesture.  Renamed to
-  // `move_v2` so the corrected version re-fires for players who dismissed
-  // the old one.
-  { id: 'move_v2',   text: '<b>Press and hold</b> a hero on the battlefield — gold arrows appear.  Drag onto an arrow (or release and tap one) to swap them between <b>Front · Mid · Back</b>.  Costs 1 ATB.' },
-  { id: 'resonance', text: 'When your queued actions line up, a <b>Resonance</b> chip appears above the action tray.  Tap it to fuse them into a stronger team move (once per fight).' },
+  // Define ATB up-front — the tap hint used to handwave "Each action costs
+  // ATB" without saying what ATB is.  Number on an action tile = its ATB
+  // cost; you get 3 per turn.
+  { id: 'tap_v2',     text: '<b>Tap</b> an action to queue it.  Each turn you have <b>3 ATB</b> (your action budget).  The number on each tile is what it costs.' },
+  { id: 'hold',       text: '<b>Hold</b> an action to see its reach and predicted damage.' },
+  // Define Resolve here — Specials cost ♦ on top of ATB, and Resolve carries
+  // between fights (up to 3 by default).
+  { id: 'resolve',    text: 'Specials also cost <b>Resolve</b> (♦) on top of ATB.  You earn ♦ from kills and synergies; up to 3 carry between fights.' },
+  // New: explain reach labels (F / M / FM / MB etc).  Players were guessing
+  // what those letters on a tile meant.
+  { id: 'reach',      text: 'Each action has a <b>reach</b> — the enemy slots it can hit.  Letters on the tile (F·M·B) show which slots; if no enemy stands in any of them, the action fizzles.' },
+  { id: 'commit',     text: 'Spend your ATB, then tap <b>Play ▶</b> to commit the turn.' },
+  { id: 'enemies',    text: 'Enemies show their <b>intent</b> above their card.  Plan around it.' },
+  { id: 'move_v2',    text: '<b>Press and hold</b> a hero on the battlefield — gold arrows appear.  Drag onto an arrow (or release and tap one) to swap them between <b>Front · Mid · Back</b>.  Costs 1 ATB.' },
+  // Resonance hint — explain WHEN it appears (matching tags between queued
+  // actions) and WHERE the chip lives, plus the once-per-fight gate.
+  { id: 'resonance_v2', text: 'Queue actions whose tags line up (e.g. two attacks, or a heal + a shield) and a <b>Resonance</b> chip lights up the rail above your action tray.  Tap it to fuse the queue into a stronger team move.  Once per fight.' },
 ];
 
 const TUT_KEY = 'kizuna.tutorialSeen.v2';
