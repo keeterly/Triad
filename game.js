@@ -1467,20 +1467,21 @@ function genCombatEncounter(level, names) {
   const slots = {};
   enemies.forEach((eid, i) => { slots[slotNames[i]] = eid; });
   const enc = { name: _consumeName(COMBAT_NAMES, names), slots };
-  // ~30% chance on multi-enemy combats: pick one of two objective kinds.
-  // Ringleader (priority kill) or Ticking Threat (kill before the catalyst
-  // detonates).  Single-enemy fights stay vanilla.
+  // ~30% chance on multi-enemy combats: roll one of three objective kinds.
+  // Ringleader (priority kill), Ticking Threat (kill the catalyst before
+  // it detonates), or Hold the Line (survive N turns).  Single-enemy
+  // fights stay vanilla.
   if (enemies.length >= 2 && Math.random() < 0.3) {
     const targetSlot = slotNames[Math.floor(Math.random() * enemies.length)];
     const roll = Math.random();
-    if (roll < 0.55) {
+    if (roll < 0.45) {
       enc.objective = {
         kind: 'priority',
         targetSlot,
         label: 'Mark the Ringleader',
         hint: 'The marked enemy commands the others.  Cut them down and the rest will flee.',
       };
-    } else {
+    } else if (roll < 0.78) {
       enc.objective = {
         kind: 'ticking',
         targetSlot,
@@ -1489,6 +1490,14 @@ function genCombatEncounter(level, names) {
         dmg: 7,
         label: 'Stop the Catalyst',
         hint: 'The marked enemy is charging an unblockable.  Kill or stagger them before the count reaches zero.',
+      };
+    } else {
+      enc.objective = {
+        kind: 'survive',
+        turns: 5,
+        turnsMax: 5,
+        label: 'Hold the Line',
+        hint: 'Outlast them.  Survive the count and the sins will break off.',
       };
     }
   }
@@ -5587,27 +5596,45 @@ function resolveEnemyTurn(s) {
   resolveEnemyStep(s, 0);
 }
 
-// Ticking Threat objective — runs at the very end of the enemy turn after
-// every enemy has acted.  Decrements the charge if the marked enemy is
-// alive and could act this round (not staggered); if the charge bottoms
-// out, the catalyst detonates and the objective clears.  Killing the
-// marked enemy disarms it (handled in checkEnd alongside priority).
+// End-of-enemy-turn objective tick.  Each objective kind handles its own
+// timer here:
+//   - ticking: decrement charge unless the catalyst is staggered/dead;
+//              detonate when it hits zero.
+//   - survive: decrement the turn count; when it hits zero, the sins
+//              break off and victory triggers via the all-dead drain
+//              (same pattern as Ringleader).
+//   - priority: handled in checkEnd (kill-the-marked-enemy).
 function tickObjectiveCharge(s) {
   const obj = s.run && s.run.objective;
-  if (!obj || obj.kind !== 'ticking' || obj.fired) return;
-  const targetId = s.enemies.slots[obj.targetSlot];
-  const target = targetId && s.enemies.chars[targetId];
-  if (!target || target.dead) return; // disarmed elsewhere
-  if (target.staggered) {
-    log('<i>The catalyst staggers — the charge holds.</i>');
+  if (!obj || obj.fired) return;
+  if (obj.kind === 'ticking') {
+    const targetId = s.enemies.slots[obj.targetSlot];
+    const target = targetId && s.enemies.chars[targetId];
+    if (!target || target.dead) return; // disarmed elsewhere
+    if (target.staggered) {
+      log('<i>The catalyst staggers — the charge holds.</i>');
+      return;
+    }
+    obj.charge = Math.max(0, (obj.charge || 0) - 1);
+    if (obj.charge <= 0) {
+      obj.fired = true;
+      log('<b>The catalyst detonates!</b>');
+      shakeScreen(3);
+      dmgAllParty(s, obj.dmg || 7);
+    }
     return;
   }
-  obj.charge = Math.max(0, (obj.charge || 0) - 1);
-  if (obj.charge <= 0) {
-    obj.fired = true;
-    log('<b>The catalyst detonates!</b>');
-    shakeScreen(3);
-    dmgAllParty(s, obj.dmg || 7);
+  if (obj.kind === 'survive') {
+    obj.turns = Math.max(0, (obj.turns || 0) - 1);
+    if (obj.turns <= 0) {
+      obj.fired = true;
+      const survivors = aliveEnemies(s);
+      if (survivors.length) {
+        survivors.forEach(e => { e.hp = 0; e.dead = true; });
+      }
+      log('<i>You held.  The sins lose interest and slip back into the dark.</i>');
+    }
+    return;
   }
 }
 function resolveEnemyStep(s, i) {
@@ -5952,16 +5979,22 @@ function renderObjectiveBanner() {
   const obj = state.run && state.run.objective;
   if (!obj || obj.fired) {
     el.classList.add('hidden');
-    el.classList.remove('ob-ticking');
+    el.classList.remove('ob-ticking', 'ob-survive');
     el.innerHTML = '';
     return;
   }
   el.classList.remove('hidden');
-  // Distinct styling for ticking: red palette + a charge counter chip.
   el.classList.toggle('ob-ticking', obj.kind === 'ticking');
-  const glyph = obj.kind === 'ticking' ? '✸' : '◆';
-  const counter = (obj.kind === 'ticking' && typeof obj.charge === 'number')
-    ? `<span class="ob-counter">${obj.charge}</span>` : '';
+  el.classList.toggle('ob-survive', obj.kind === 'survive');
+  const glyph = obj.kind === 'ticking' ? '✸'
+              : obj.kind === 'survive' ? '⏳'
+              : '◆';
+  let counter = '';
+  if (obj.kind === 'ticking' && typeof obj.charge === 'number') {
+    counter = `<span class="ob-counter">${obj.charge}</span>`;
+  } else if (obj.kind === 'survive' && typeof obj.turns === 'number') {
+    counter = `<span class="ob-counter">${obj.turns}</span>`;
+  }
   el.innerHTML = `
     <span class="ob-glyph" aria-hidden="true">${glyph}</span>
     <span class="ob-label">${obj.label}</span>
