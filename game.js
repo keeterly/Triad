@@ -6699,6 +6699,20 @@ function executeQueueItem(s, item) {
 // Resonance combo system above — see COMBOS and matchingCombos.)
 // ============================================================================
 // Banner reveal used by Resonance combos when they fire.
+// Brief 'REACH CLEARED' callout that flashes after the last enemy falls,
+// before the victory summary opens.  Gives the kill a moment to land
+// instead of jumping straight to a stats overlay.
+function showReachClearedBanner() {
+  if (typeof __simulating !== 'undefined' && __simulating) return;
+  const old = document.getElementById('reach-banner');
+  if (old) old.remove();
+  const b = document.createElement('div');
+  b.id = 'reach-banner';
+  b.innerHTML = `<span class="rb-flank">⚔</span><span class="rb-name">REACH CLEARED</span><span class="rb-flank">⚔</span>`;
+  document.body.appendChild(b);
+  setTimeout(() => b.remove(), 1100);
+}
+
 function showTeamSpecialBanner(combo) {
   const old = document.getElementById('ts-banner');
   if (old) old.remove();
@@ -6908,8 +6922,11 @@ function checkEnd(s) {
       // Snapshot fight context for vignette triggers (firedSynergies, minHp etc.)
       // BEFORE the next encounter resets them.
       const fightCtx = captureFightContext(s);
-      // Between fights: recap -> maybe a vignette -> recruit -> upgrade -> sigil -> map
-      setTimeout(() => showVictorySummary(completedEnc, () => offerVignetteOrPath(fightCtx)), 480);
+      // Between fights: end-of-fight beat → recap → maybe a vignette →
+      // recruit → upgrade → sigil → map.  The reach-cleared banner gives
+      // the kill a moment to land before the stats overlay pops.
+      showReachClearedBanner();
+      setTimeout(() => showVictorySummary(completedEnc, () => offerVignetteOrPath(fightCtx)), 900);
     }
     return true;
   }
@@ -9822,8 +9839,11 @@ function offerSigilFromNode(onDone) {
 
 function showSigilOverlay(offers, onDone) {
   const continueAfter = onDone || (() => renderMap());
-  $('#overlay').classList.remove('overlay-path', 'overlay-vignette', 'overlay-runsummary', 'overlay-rest', 'overlay-recruit', 'overlay-upgrade');
-  $('#overlay').classList.add('overlay-full', 'overlay-cinematic', 'overlay-sigil');
+  // Use the wide overlay-event framing for parity with event / swap / rest
+  // overlays — same 1100px chrome so the three big sigil cards have room.
+  const $overlay = $('#overlay');
+  $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-upgrade','overlay-cinematic','overlay-event','overlay-starter','overlay-boon');
+  $overlay.classList.add('overlay-full','overlay-event','overlay-sigil');
   $('#overlay-title').textContent = 'A sigil flickers into reach';
   $('#overlay-body').textContent = 'Add one to your run, or pass.';
   const choices = $('#overlay-choices');
@@ -9861,8 +9881,11 @@ function commitSigil(sigilId, onDone) {
 
 function showUpgradeOverlay(offers, onDone) {
   const continueAfter = onDone || (() => renderMap());
-  $('#overlay').classList.remove('overlay-path', 'overlay-vignette', 'overlay-runsummary', 'overlay-rest', 'overlay-recruit', 'overlay-sigil');
-  $('#overlay').classList.add('overlay-full', 'overlay-cinematic', 'overlay-upgrade');
+  // Match the wider overlay-event chrome used by sigil / event / swap so
+  // every offer-card overlay shares the same frame language.
+  const $overlay = $('#overlay');
+  $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-sigil','overlay-cinematic','overlay-event','overlay-starter','overlay-boon');
+  $overlay.classList.add('overlay-full','overlay-event','overlay-upgrade');
   $('#overlay-title').textContent = 'Hone your edge';
   $('#overlay-body').textContent = 'Pick an upgrade — or pass.';
   const choices = $('#overlay-choices');
