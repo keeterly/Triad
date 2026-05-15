@@ -6083,6 +6083,12 @@ button.path-node:not(:disabled):hover {
 .rest-fire .ts-flame.f2 { width: 24px; height: 38px; bottom: 18px; }
 .rest-fire .ts-flame.f3 { width: 14px; height: 24px; bottom: 24px; }
 .rest-flavor { text-align: center; margin: 4px 0 10px; }
+/* Rest-choice categorization — tinted left border on each option so the
+   three actions (heal / hone / sigil) read at a glance without needing
+   to scan labels. */
+.rest-choice-heal  { border-left: 3px solid var(--heal); }
+.rest-choice-hone  { border-left: 3px solid var(--gold-bright); }
+.rest-choice-sigil { border-left: 3px solid #aacfff; }
 
 @media (max-height: 480px) {
   .rest-scene { min-height: 140px; }
@@ -6121,6 +6127,23 @@ button.path-node:not(:disabled):hover {
   color: var(--gold-bright);
   text-shadow: 0 0 14px rgba(240,212,136,0.65);
 }
+.tsb-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.tsb-tier {
+  font-size: 11px;
+  letter-spacing: 0.4em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  padding: 1px 6px;
+  border: 1px solid currentColor;
+}
+.tsb-tier.tsb-tier-duo    { color: var(--gold); }
+.tsb-tier.tsb-tier-triple { color: var(--gold-bright); text-shadow: 0 0 8px rgba(240,212,136,0.5); }
+.tsb-tier.tsb-tier-sig    { color: #aacfff; text-shadow: 0 0 8px rgba(170,200,255,0.5); }
 .tsb-name {
   font-size: 28px;
   letter-spacing: 0.36em;
@@ -6130,6 +6153,25 @@ button.path-node:not(:disabled):hover {
     0 0 22px rgba(240,212,136,0.55),
     0 0 4px rgba(255,255,255,0.2),
     0 3px 0 rgba(0,0,0,0.85);
+}
+/* Triple-tier combos burn a touch brighter; sig-tier combos shift cool. */
+#ts-banner.tsb-triple .tsb-name {
+  color: #fff3c8;
+  text-shadow:
+    0 0 26px rgba(240,212,136,0.75),
+    0 0 6px rgba(255,255,255,0.32),
+    0 3px 0 rgba(0,0,0,0.85);
+}
+#ts-banner.tsb-sig .tsb-name {
+  color: #d6e6ff;
+  text-shadow:
+    0 0 24px rgba(170,200,255,0.65),
+    0 0 5px rgba(255,255,255,0.25),
+    0 3px 0 rgba(0,0,0,0.85);
+}
+#ts-banner.tsb-sig .tsb-flank {
+  color: #aacfff;
+  text-shadow: 0 0 14px rgba(170,200,255,0.7);
 }
 
 /* ===========================================================================

@@ -6618,7 +6618,7 @@ function executeQueueItem(s, item) {
     if (!combo) return;
     log(`<span class="msg-strong">★ ${combo.name} ★</span>`);
     if (!__simulating) {
-      showTeamSpecialBanner(combo.name);
+      showTeamSpecialBanner(combo);
       // Flash every participating hero
       combo.requires.forEach(req => { if (s.party.chars[req.heroId] && !s.party.chars[req.heroId].downed) flashCardId(req.heroId, 'hit', 'party'); });
       shakeScreen(combo.tier === 'triple' ? 3 : 2);
@@ -6699,12 +6699,29 @@ function executeQueueItem(s, item) {
 // Resonance combo system above — see COMBOS and matchingCombos.)
 // ============================================================================
 // Banner reveal used by Resonance combos when they fire.
-function showTeamSpecialBanner(name) {
+function showTeamSpecialBanner(combo) {
   const old = document.getElementById('ts-banner');
   if (old) old.remove();
+  // Accept legacy string-only callers (defensive); modern callers pass the
+  // combo object so we can show the tier badge + correct color tint.
+  const name = (combo && combo.name) || combo || 'Resonance';
+  const tier = combo && combo.tier;
+  const sigTier = combo && combo.sigTier;
+  const tierLabel = sigTier
+    ? (tier === 'triple' ? 'SIG TRIPLE' : 'SIG DUO')
+    : (tier === 'triple' ? 'TRIPLE' : tier === 'duo' ? 'DUO' : '');
+  const tierClass = sigTier ? 'tsb-tier-sig' : tier === 'triple' ? 'tsb-tier-triple' : 'tsb-tier-duo';
   const b = document.createElement('div');
   b.id = 'ts-banner';
-  b.innerHTML = `<span class="tsb-flank">★</span><span class="tsb-name">${name}</span><span class="tsb-flank">★</span>`;
+  b.className = sigTier ? 'tsb-sig' : tier === 'triple' ? 'tsb-triple' : 'tsb-duo';
+  b.innerHTML = `
+    <span class="tsb-flank">★</span>
+    <div class="tsb-stack">
+      ${tierLabel ? `<span class="tsb-tier ${tierClass}">${tierLabel}</span>` : ''}
+      <span class="tsb-name">${name}</span>
+    </div>
+    <span class="tsb-flank">★</span>
+  `;
   document.body.appendChild(b);
   setTimeout(() => b.remove(), 1400);
 }
@@ -8212,10 +8229,14 @@ function showNodeTooltip(anchorEl, node) {
         const def = ENEMIES[eid];
         return `<span class="nt-enemy">${def?.name || eid}</span>`;
       }).join('');
+  // Boss flavor uses the current layer's actual boss name (was hardcoded
+  // to 'The Wakeling', wrong from layer 2 onward).
+  const layerContent = (typeof getLayerContent === 'function') ? getLayerContent(state) : null;
+  const bossName = (layerContent && layerContent.bossName) || 'The Wakeling';
   const rewardLine = node.type === 'rest'
     ? 'Heal · Hone an upgrade · Or bind a sigil — choose one.'
     : node.type === 'event' ? 'Choice with consequences.'
-    : node.type === 'boss' ? 'The Wakeling.  No escape but through.'
+    : node.type === 'boss' ? `${bossName}.  No escape but through.`
     : node.type === 'elite' ? `Tech upgrade.${sigilCat ? ` Themed: ${sigilCat}.` : ''}`
     : 'Affinity progression.';
   tt.innerHTML = `
@@ -9143,9 +9164,9 @@ function showRestOverlay() {
   choices.classList.remove('path-map', 'party-inspect');
   choices.classList.add('event-choices');
 
-  const mkChoice = (label, tag, fn) => {
+  const mkChoice = (label, tag, fn, kind) => {
     const card = document.createElement('button');
-    card.className = 'encounter-choice event-choice';
+    card.className = `encounter-choice event-choice${kind ? ` rest-choice-${kind}` : ''}`;
     card.innerHTML = `<div class="enc-name">${label}</div><div class="sigil-desc">${tag}</div>`;
     card.addEventListener('click', fn);
     choices.appendChild(card);
@@ -9163,7 +9184,7 @@ function showRestOverlay() {
     hideOverlay();
     choices.classList.remove('event-choices');
     _completeNonCombatNode();
-  });
+  }, 'heal');
 
   // 2. Hone — upgrade one tech.  Only shown if any upgrades remain.
   const upPool = availableUpgrades(state);
@@ -9174,7 +9195,7 @@ function showRestOverlay() {
       const shuffled = upPool.slice().sort(() => Math.random() - 0.5);
       const offers = shuffled.slice(0, Math.min(2, shuffled.length));
       showUpgradeOverlay(offers, () => _completeNonCombatNode());
-    });
+    }, 'hone');
   }
 
   // 3. Sigil — bind one new sigil.  Only shown if any remain unbound.
@@ -9184,7 +9205,7 @@ function showRestOverlay() {
       hideOverlay();
       choices.classList.remove('event-choices');
       offerSigilFromNode(() => _completeNonCombatNode());
-    });
+    }, 'sigil');
   }
 
   resetOverlayBtn();
