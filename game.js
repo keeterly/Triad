@@ -1045,9 +1045,10 @@ const RESOLVE_DRIP = 1;     // Resolve regenerated automatically each turn
 const KILL_RESOLVE = 1;     // Resolve gained per enemy killed (tuned down so Team Special is a real save-up)
 
 // stagger / chain
-const STAGGER_THRESHOLD = 30;
-const STAGGER_DMG_MULT = 1.5; // damage taken while staggered
-const STAGGER_DURATION = 1;   // skipped enemy turns
+// Stagger is now a state-based flow (WEAKENED → STAGGERED → 2× consume),
+// not a pressure meter.  The chain bar, threshold, multiplier, and
+// turn-skip duration are gone — see applyDmgToEnemy for the state
+// transitions and startTurn for end-of-turn decay.
 
 // ============================================================================
 // CHARACTERS — extreme specialists: one home slot, one ok, one weak
@@ -1408,8 +1409,8 @@ const CHARS = {
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => {
             if (t[0]) applyDmgToEnemy(s, t[0], 3);
-            const ally = aliveParty(s).find(c => (c.bleed > 0 || c.weak > 0 || c.vuln > 0));
-            if (ally) { ally.bleed = 0; ally.weak = 0; ally.vuln = 0; }
+            const ally = aliveParty(s).find(c => (c.bleed > 0 || c.dulled > 0 || c.vuln > 0));
+            if (ally) { ally.bleed = 0; ally.dulled = 0; ally.vuln = 0; }
           } },
         sig:   { name: 'Hymn of Light', desc: '5 dmg + +1 Resolve party', dmg: 5,
           reach: ['mid','back'], pattern: 'lowest',
@@ -1438,72 +1439,37 @@ const CHARS = {
     school: 'arcane',
     maxHp: 22,
     home: 'front',
-    passive: { name: 'Shatter', desc: 'When an enemy is staggered while Hask is alive, gain +1 Resolve.' },
+    // Reworked under the weakness-stagger system: instead of building a
+    // chain meter, Hask's hits *reveal* enemy weaknesses on impact (set
+    // weaknessRevealed = true even on non-weakness damage), and his
+    // Shatter passive still grants Resolve when any stagger lands.
+    passive: { name: 'Frostbreak', desc: "Hask's attacks reveal an enemy's weakness on hit.  When an enemy is staggered, gain +1 Resolve." },
     techs: {
       front: {
-        basic: { name: 'Frost-Claw', desc: '5 dmg front + chain 5', dmg: 5,
+        basic: { name: 'Frost-Claw', desc: '6 dmg front', dmg: 6,
           reach: ['front'], pattern: 'front-most',
-          fn: (s, t) => {
-            if (t[0]) {
-              applyDmgToEnemy(s, t[0], 5);
-              if (!t[0].dead && !t[0].staggered) {
-                t[0].chain = Math.min(STAGGER_THRESHOLD, t[0].chain + 5);
-                if (t[0].chain >= STAGGER_THRESHOLD) triggerStagger(s, t[0]);
-              }
-            }
-          } },
-        sig:   { name: 'Glacier Crush', desc: '8 dmg front + chain 8', dmg: 8,
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 6); } },
+        sig:   { name: 'Glacier Crush', desc: '10 dmg front', dmg: 10,
           reach: ['front'], pattern: 'front-most',
-          fn: (s, t) => {
-            if (t[0]) {
-              applyDmgToEnemy(s, t[0], 8);
-              if (!t[0].dead && !t[0].staggered) {
-                t[0].chain = Math.min(STAGGER_THRESHOLD, t[0].chain + 8);
-                if (t[0].chain >= STAGGER_THRESHOLD) triggerStagger(s, t[0]);
-              }
-            }
-          } },
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 10); } },
       },
       mid: {
-        basic: { name: 'Ice Bolt', desc: '4 dmg lowest + chain 3', dmg: 4,
+        basic: { name: 'Ice Bolt', desc: '5 dmg lowest', dmg: 5,
           reach: ['mid','back'], pattern: 'lowest',
-          fn: (s, t) => {
-            if (t[0]) {
-              applyDmgToEnemy(s, t[0], 4);
-              if (!t[0].dead && !t[0].staggered) {
-                t[0].chain = Math.min(STAGGER_THRESHOLD, t[0].chain + 3);
-                if (t[0].chain >= STAGGER_THRESHOLD) triggerStagger(s, t[0]);
-              }
-            }
-          } },
-        sig:   { name: 'Hailstorm', desc: '3♦ · 4 dmg all + chain 3 all', cost: 3, dmg: 4,
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 5); } },
+        sig:   { name: 'Hailstorm', desc: '3♦ · 5 dmg all', cost: 3, dmg: 5,
           reach: ['front','mid','back'], pattern: 'all',
-          fn: (s, t) => {
-            t.forEach(e => {
-              applyDmgToEnemy(s, e, 4);
-              if (!e.dead && !e.staggered) {
-                e.chain = Math.min(STAGGER_THRESHOLD, e.chain + 3);
-                if (e.chain >= STAGGER_THRESHOLD) triggerStagger(s, e);
-              }
-            });
-          } },
+          fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 5)); } },
       },
       back: {
         basic: { name: 'Chill Mist', desc: '2 dmg all + vuln 1 all', dmg: 2,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 2)); aliveEnemies(s).forEach(e => { e.vuln += 1; }); } },
-        sig:   { name: 'Frost-Lock', desc: '1♦ · Chain 10 to lowest + 2 to all', cost: 1,
+        sig:   { name: 'Frost-Lock', desc: '1♦ · 6 dmg lowest + vuln 2 all', cost: 1, dmg: 6,
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => {
-            if (t[0] && !t[0].dead && !t[0].staggered) {
-              t[0].chain = Math.min(STAGGER_THRESHOLD, t[0].chain + 10);
-              if (t[0].chain >= STAGGER_THRESHOLD) triggerStagger(s, t[0]);
-            }
-            aliveEnemies(s).forEach(e => {
-              if (e === t[0] || e.staggered) return;
-              e.chain = Math.min(STAGGER_THRESHOLD, e.chain + 2);
-              if (e.chain >= STAGGER_THRESHOLD) triggerStagger(s, e);
-            });
+            if (t[0]) applyDmgToEnemy(s, t[0], 6);
+            aliveEnemies(s).forEach(e => { if (!e.dead) e.vuln += 2; });
           } },
       },
     },
@@ -1528,8 +1494,8 @@ const ENEMIES = {
     id: 'cultist', name: 'Cultist', title: 'Sin of Whispers', maxHp: 13,
     weakness: 'physical', resistance: 'arcane',
     intents: [
-      { name: 'Curse',     tag: 'WEAK 2',         targetSlot: 'front', kind: 'debuff', fn: (s) => weakSlot(s, 'front', 2) },
-      { name: 'Hex',       tag: 'ATK 2 + weak',   targetSlot: 'front', kind: 'atk',    dmg: 2, fn: (s) => { dmgPartyAt(s, 'front', 2); weakSlot(s, 'front', 1); } },
+      { name: 'Curse',     tag: 'DULL 2',         targetSlot: 'front', kind: 'debuff', fn: (s) => dullSlot(s, 'front', 2) },
+      { name: 'Hex',       tag: 'ATK 2 + dull',   targetSlot: 'front', kind: 'atk',    dmg: 2, fn: (s) => { dmgPartyAt(s, 'front', 2); dullSlot(s, 'front', 1); } },
       { name: 'Doom Mark', tag: 'ATK 2 + vuln',   targetSlot: 'back',  kind: 'debuff', dmg: 2, fn: (s) => { dmgPartyAt(s, 'back', 2); applyVulnParty(s, 'back', 1); } },
     ],
   },
@@ -1570,12 +1536,12 @@ const ENEMIES = {
     intents: [
       { name: 'Hook',  tag: 'ATK 3 + pull', targetSlot: 'mid',   kind: 'atk', dmg: 3, fn: (s) => { dmgPartyAt(s, 'mid', 3); enemyShove(s, 'mid', 'front'); } },
       { name: 'Crush', tag: 'ATK 7',        targetSlot: 'front', kind: 'atk', dmg: 7, fn: (s) => dmgPartyAt(s, 'front', 7) },
-      { name: 'Bind',  tag: 'WEAK 1 + bind', targetSlot: 'front', kind: 'debuff', fn: (s) => {
+      { name: 'Bind',  tag: 'DULL 1 + bind', targetSlot: 'front', kind: 'debuff', fn: (s) => {
         const c = charBySlot(s, 'front');
         if (c && !c.downed) {
           if (c.taunt) { c.taunt = false; log(`<b>${CHARS[c.id].name}</b>'s taunt is broken.`); }
-          c.weak += 1;
-          log(`<b>${CHARS[c.id].name}</b> gains Weak.`);
+          c.dulled += 1;
+          log(`<b>${CHARS[c.id].name}</b> gains Dulled.`);
         }
       } },
     ],
@@ -1587,7 +1553,7 @@ const ENEMIES = {
     intents: [
       { name: 'Resolute Stand', tag: '+3⛨ self',    targetSlot: '?',     kind: 'armor',  fn: (s) => { const me = Object.values(s.enemies.chars).find(en => en.id === 'husk' && !en.dead); if (me) me.armor += 3; } },
       { name: 'Crashing Fist',  tag: 'ATK 7',       targetSlot: 'front', kind: 'atk', dmg: 7, fn: (s) => dmgPartyAt(s, 'front', 7) },
-      { name: 'Hollow Sigh',    tag: 'WEAK all',    targetSlot: 'all',   kind: 'debuff', fn: (s) => aliveParty(s).forEach(c => { c.weak += 1; }) },
+      { name: 'Hollow Sigh',    tag: 'DULL all',    targetSlot: 'all',   kind: 'debuff', fn: (s) => aliveParty(s).forEach(c => { c.dulled += 1; }) },
     ],
   },
   pyremaw: {
@@ -1604,7 +1570,7 @@ const ENEMIES = {
     intents: [
       { name: 'Repeat',       tag: 'ATK 3 + repeats', targetSlot: 'fm',  kind: 'debuff', dmg: 3, fn: (s) => { dmgPartyAt(s, 'front', 3); dmgPartyAt(s, 'mid', 3); } },
       { name: 'Mirror Shard', tag: 'ATK 4 + vuln',    targetSlot: 'back', kind: 'debuff', dmg: 4, fn: (s) => { dmgPartyAt(s, 'back', 4); applyVulnParty(s, 'back', 1); } },
-      { name: 'Hush',         tag: 'WEAK lowest',     targetSlot: '?',   kind: 'debuff', fn: (s) => { const t = aliveParty(s).slice().sort((a,b) => a.hp - b.hp)[0]; if (t) t.weak += 2; } },
+      { name: 'Hush',         tag: 'DULL lowest',     targetSlot: '?',   kind: 'debuff', fn: (s) => { const t = aliveParty(s).slice().sort((a,b) => a.hp - b.hp)[0]; if (t) t.dulled += 2; } },
     ],
   },
   ashling: {
@@ -1631,7 +1597,7 @@ const ENEMIES = {
     id: 'mourner', name: 'Mourner', title: 'Sin of Naming', maxHp: 20,
     weakness: 'physical', resistance: 'arcane',
     intents: [
-      { name: 'Whisper a Name',  tag: 'WEAK 2 all', targetSlot: 'all',   kind: 'debuff', fn: (s) => aliveParty(s).forEach(c => { c.weak += 2; }) },
+      { name: 'Whisper a Name',  tag: 'DULL 2 all', targetSlot: 'all',   kind: 'debuff', fn: (s) => aliveParty(s).forEach(c => { c.dulled += 2; }) },
       { name: 'Old Grief',       tag: 'ATK 4 + vuln', targetSlot: 'mid', kind: 'atk',    dmg: 4, fn: (s) => { dmgPartyAt(s, 'mid', 4); applyVulnParty(s, 'mid', 1); } },
       { name: 'The Mourning',    tag: 'ATK 3 all + bleed', targetSlot: 'all', kind: 'aoe', dmg: 3, fn: (s) => { dmgAllParty(s, 3); aliveParty(s).forEach(c => { c.bleed = Math.max(c.bleed, 1); }); } },
     ],
@@ -1664,7 +1630,7 @@ const ENEMIES = {
       { name: 'Name Said Aloud',    tag: 'ATK 9 lowest', targetSlot: '?',     kind: 'atk', dmg: 9, fn: (s) => dmgLowestParty(s, 9) },
       { name: 'Chamber Echo',       tag: 'ATK 4 all',   targetSlot: 'all',   kind: 'aoe', dmg: 4, fn: (s) => dmgAllParty(s, 4) },
       { name: 'Stillness',          tag: 'heal 8 self', targetSlot: '?',     kind: 'armor', fn: (s) => { const me = Object.values(s.enemies.chars).find(en => en.id === 'listener' && !en.dead); if (me) { me.hp = Math.min(me.maxHp, me.hp + 8); spawnPopupId('listener', '+8', 'heal', 'enemy'); me.armor += 2; } } },
-      { name: 'Final Word',         tag: 'ATK 6 mid + weak', targetSlot: 'mid', kind: 'atk', dmg: 6, fn: (s) => { dmgPartyAt(s, 'mid', 6); const c = charBySlot(s, 'mid'); if (c) c.weak += 1; } },
+      { name: 'Final Word',         tag: 'ATK 6 mid + dull', targetSlot: 'mid', kind: 'atk', dmg: 6, fn: (s) => { dmgPartyAt(s, 'mid', 6); const c = charBySlot(s, 'mid'); if (c) c.dulled += 1; } },
     ],
   },
   // ============================== LAYER 3 — THE SPIRE OF GLASS ===============
@@ -1681,8 +1647,8 @@ const ENEMIES = {
         fn: (s) => { const me = Object.values(s.enemies.chars).find(en => en.id === 'twin' && !en.dead); if (me) { me.hp = Math.min(me.maxHp, me.hp + 6); spawnPopupId('twin', '+6', 'heal', 'enemy'); me.armor = (me.armor || 0) + 3; } } },
       { name: 'Glass Shards',       tag: 'ATK 3 all + bleed 1 all', targetSlot: 'all', kind: 'aoe',
         dmg: 3, fn: (s) => { dmgAllParty(s, 3); aliveParty(s).forEach(c => { c.bleed = Math.max(c.bleed, 1); }); } },
-      { name: "Twin's Mark",        tag: '+vuln 2 + weak 1 front',  targetSlot: 'front', kind: 'debuff',
-        fn: (s) => { applyVulnParty(s, 'front', 2); const c = charBySlot(s, 'front'); if (c) c.weak += 1; } },
+      { name: "Twin's Mark",        tag: '+vuln 2 + dull 1 front',  targetSlot: 'front', kind: 'debuff',
+        fn: (s) => { applyVulnParty(s, 'front', 2); const c = charBySlot(s, 'front'); if (c) c.dulled += 1; } },
       { name: 'Shattering Stroke',  tag: 'ATK 7 mid + strip armor', targetSlot: 'mid',   kind: 'atk',
         dmg: 7, fn: (s) => { const c = charBySlot(s, 'mid'); if (c) c.armor = 0; dmgPartyAt(s, 'mid', 7); } },
     ],
@@ -1697,8 +1663,8 @@ const ENEMIES = {
     intents: [
       { name: 'Hymn of Weight',     tag: 'ATK 5 all + vuln 1 all', targetSlot: 'all', kind: 'aoe',
         dmg: 5, fn: (s) => { dmgAllParty(s, 5); aliveParty(s).forEach(c => { c.vuln += 1; }); } },
-      { name: 'Drowning Verse',     tag: 'ATK 9 lowest + weak 2',  targetSlot: '?',   kind: 'atk',
-        dmg: 9, fn: (s) => { dmgLowestParty(s, 9); const a = aliveParty(s).slice().sort((x, y) => x.hp - y.hp)[0]; if (a) a.weak += 2; } },
+      { name: 'Drowning Verse',     tag: 'ATK 9 lowest + dull 2',  targetSlot: '?',   kind: 'atk',
+        dmg: 9, fn: (s) => { dmgLowestParty(s, 9); const a = aliveParty(s).slice().sort((x, y) => x.hp - y.hp)[0]; if (a) a.dulled += 2; } },
       { name: 'Choir Crescendo',    tag: 'ATK 4 all twice',         targetSlot: 'all', kind: 'aoe',
         dmg: 4, fn: (s) => { dmgAllParty(s, 4); dmgAllParty(s, 4); } },
       { name: 'Buried Pact',        tag: 'heal 10 self + bleed all',targetSlot: '?',   kind: 'armor',
@@ -1721,8 +1687,8 @@ const ENEMIES = {
         dmg: 3, fn: (s) => { dmgAllParty(s, 3); aliveParty(s).forEach(c => { c.vuln += 1; }); } },
       { name: 'Slow Unfurling',     tag: 'heal 12 self + 3⛨ self',       targetSlot: '?',     kind: 'armor',
         fn: (s) => { const me = Object.values(s.enemies.chars).find(en => en.id === 'slowbloom' && !en.dead); if (me) { me.hp = Math.min(me.maxHp, me.hp + 12); spawnPopupId('slowbloom', '+12', 'heal', 'enemy'); me.armor += 3; } } },
-      { name: 'Cycle of Ash',       tag: 'ATK 8 front + weak 1',         targetSlot: 'front', kind: 'atk',
-        dmg: 8, fn: (s) => { dmgPartyAt(s, 'front', 8); const c = charBySlot(s, 'front'); if (c) c.weak += 1; } },
+      { name: 'Cycle of Ash',       tag: 'ATK 8 front + dull 1',         targetSlot: 'front', kind: 'atk',
+        dmg: 8, fn: (s) => { dmgPartyAt(s, 'front', 8); const c = charBySlot(s, 'front'); if (c) c.dulled += 1; } },
       { name: 'Final Bloom',        tag: 'ATK 5 all + heal 5 self',      targetSlot: 'all',   kind: 'aoe',
         dmg: 5, fn: (s) => { dmgAllParty(s, 5); const me = Object.values(s.enemies.chars).find(en => en.id === 'slowbloom' && !en.dead); if (me) { me.hp = Math.min(me.maxHp, me.hp + 5); spawnPopupId('slowbloom', '+5', 'heal', 'enemy'); } } },
     ],
@@ -1956,7 +1922,7 @@ const EVENTS = {
     flavor: 'A shard of glass stands upright on the path, taller than any of you.  Your reflection blinks first.',
     choices: [
       { label: 'Look long', tag: 'Heal party 6 · cleanse',
-        resolve: (s) => { aliveParty(s).forEach(c => { c.hp = Math.min(c.maxHp, c.hp + 6); c.bleed = 0; c.weak = 0; }); log('The reflection forgives.'); } },
+        resolve: (s) => { aliveParty(s).forEach(c => { c.hp = Math.min(c.maxHp, c.hp + 6); c.bleed = 0; c.dulled = 0; }); log('The reflection forgives.'); } },
       { label: 'Break it',  tag: '+2 max HP party · 2 self-dmg each',
         resolve: (s) => { aliveParty(s).forEach(c => { c.maxHp += 2; c.hp = Math.max(1, c.hp - 2 + 2); }); log('Glass falls like rain.'); } },
     ],
@@ -2113,7 +2079,7 @@ const EVENTS = {
       { label: 'Wear it briefly', tag: 'Random sigil · negative affinity',
         resolve: (s) => { _grantRandomSigil(s); _rollEventQuirk(s, 'negative'); } },
       { label: 'Bury it',         tag: 'party +1 Resolve next fight · cleanse',
-        resolve: (s) => { aliveParty(s).forEach(c => { c.bleed = 0; c.weak = 0; }); s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1; } },
+        resolve: (s) => { aliveParty(s).forEach(c => { c.bleed = 0; c.dulled = 0; }); s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1; } },
     ],
   },
   open_door: {
@@ -3182,7 +3148,7 @@ const VIGNETTES = {
     ],
     choices: [
       { label: 'Carry the silence', tag: 'Party heals 3 + cleanse',
-        resolve: (s) => { aliveParty(s).forEach(c => { const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 3); if (c.hp > b) spawnPopupId(c.id, `+${c.hp - b}`, 'heal', 'party'); c.bleed = 0; c.weak = 0; }); } },
+        resolve: (s) => { aliveParty(s).forEach(c => { const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 3); if (c.hp > b) spawnPopupId(c.id, `+${c.hp - b}`, 'heal', 'party'); c.bleed = 0; c.dulled = 0; }); } },
       { label: 'Bury her name',     tag: 'Gain a random sigil',
         resolve: (s) => _grantRandomSigil(s) },
     ],
@@ -3202,7 +3168,7 @@ const VIGNETTES = {
     ],
     choices: [
       { label: 'Move in silence', tag: 'Party +3⛨ + cleanse',
-        resolve: (s) => { aliveParty(s).forEach(c => { c.armor += 3; c.bleed = 0; c.weak = 0; }); } },
+        resolve: (s) => { aliveParty(s).forEach(c => { c.armor += 3; c.bleed = 0; c.dulled = 0; }); } },
       { label: 'Whet a blade',    tag: 'Lowest-HP hero gains Brutal (+2 dmg)',
         resolve: (s) => { const id = _lowestHpAliveId(s); if (id) grantQuirk(s, id, 'brutal'); } },
     ],
@@ -3813,7 +3779,7 @@ const UPGRADES = {
           spawnPopupId(c.id, `+${got}`, 'heal', 'party');
           fireAdjacencyHook(s, 'onHeal', s.currentActorId, c.id, got);
         }
-        c.bleed = 0; c.weak = 0;
+        c.bleed = 0; c.dulled = 0;
       });
     },
   },
@@ -3881,16 +3847,9 @@ const UPGRADES = {
   },
   'ash.mid.basic.frostball': {
     id: 'ash.mid.basic.frostball', charId: 'ash', slot: 'mid', kind: 'basic',
-    name: 'Frostball', desc: '5 dmg + chain 4', dmg: 5,
+    name: 'Frostball', desc: '6 dmg lowest', dmg: 6,
     reach: ['mid','back'], pattern: 'lowest',
-    fn: (s, t) => {
-      if (!t[0]) return;
-      applyDmgToEnemy(s, t[0], 5);
-      if (!t[0].dead && !t[0].staggered) {
-        t[0].chain = Math.min(STAGGER_THRESHOLD, t[0].chain + 4);
-        if (t[0].chain >= STAGGER_THRESHOLD) triggerStagger(s, t[0]);
-      }
-    },
+    fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 6); },
   },
   'ash.back.sig.arcstorm': {
     id: 'ash.back.sig.arcstorm', charId: 'ash', slot: 'back', kind: 'sig',
@@ -3955,7 +3914,7 @@ const UPGRADES = {
     name: 'Hymn of Glory', desc: 'Heal 6 party · cleanse · +2 Resolve', heal: 6, healTarget: 'all',
     fn: (s) => {
       partyHeal(s, 6);
-      aliveParty(s).forEach(c => { c.bleed = 0; c.weak = 0; });
+      aliveParty(s).forEach(c => { c.bleed = 0; c.dulled = 0; });
       gainResolve(s, 2);
     },
   },
@@ -3969,7 +3928,7 @@ const UPGRADES = {
       if (t[0]) applyDmgToEnemy(s, t[0], 8);
       retreat(s, 'elin');
       const e = s.party.chars.elin;
-      if (e && !e.downed) { e.bleed = 0; e.weak = 0; }
+      if (e && !e.downed) { e.bleed = 0; e.dulled = 0; }
     },
   },
   'elin.mid.sig.aegis': {
@@ -3988,7 +3947,7 @@ const UPGRADES = {
     name: 'Pious Chant', desc: '+1 Resolve · cleanse party',
     fn: (s) => {
       gainResolve(s, 1);
-      aliveParty(s).forEach(c => { c.bleed = 0; c.weak = 0; });
+      aliveParty(s).forEach(c => { c.bleed = 0; c.dulled = 0; });
     },
   },
 
@@ -4153,29 +4112,23 @@ const UPGRADES = {
   // === Hask — front home (frostling; chain/stagger) ===
   'hask.front.basic.rime': {
     id: 'hask.front.basic.rime', charId: 'hask', slot: 'front', kind: 'basic',
-    name: 'Rime Strike', desc: '4 dmg front + chain 8', dmg: 4,
+    name: 'Rime Strike', desc: '7 dmg front + vuln 1', dmg: 7,
     reach: ['front'], pattern: 'front-most',
     fn: (s, t) => {
       if (t[0]) {
-        applyDmgToEnemy(s, t[0], 4);
-        if (!t[0].dead && !t[0].staggered) {
-          t[0].chain = Math.min(STAGGER_THRESHOLD, t[0].chain + 8);
-          if (t[0].chain >= STAGGER_THRESHOLD) triggerStagger(s, t[0]);
-        }
+        applyDmgToEnemy(s, t[0], 7);
+        if (!t[0].dead) t[0].vuln += 1;
       }
     },
   },
   'hask.front.sig.avalanche': {
     id: 'hask.front.sig.avalanche', charId: 'hask', slot: 'front', kind: 'sig',
-    name: 'Avalanche', desc: '6 dmg front + chain 14', dmg: 6,
+    name: 'Avalanche', desc: '12 dmg front + vuln 2', dmg: 12,
     reach: ['front'], pattern: 'front-most',
     fn: (s, t) => {
       if (t[0]) {
-        applyDmgToEnemy(s, t[0], 6);
-        if (!t[0].dead && !t[0].staggered) {
-          t[0].chain = Math.min(STAGGER_THRESHOLD, t[0].chain + 14);
-          if (t[0].chain >= STAGGER_THRESHOLD) triggerStagger(s, t[0]);
-        }
+        applyDmgToEnemy(s, t[0], 12);
+        if (!t[0].dead) t[0].vuln += 2;
       }
     },
   },
@@ -4227,7 +4180,7 @@ const SIGILS = {
   patience:   { id: 'patience',   name: 'Crown of Patience',   icon: '◆', category: 'resource', desc: 'Start every fight with at least 2 Resolve.' },
   reaver:     { id: 'reaver',     name: 'Sigil of the Reaver', icon: '☠', category: 'combat',   desc: 'Killing an enemy grants +1 additional Resolve.' },
   // === new pool ===
-  hunt:       { id: 'hunt',       name: 'Mark of the Hunt',    icon: '➤', category: 'combat',   desc: 'Staggered enemies take +3 damage from every attack.' },
+  hunt:       { id: 'hunt',       name: 'Mark of the Hunt',    icon: '➤', category: 'combat',   desc: 'Weakness hits deal +2 damage.' },
   cinders:    { id: 'cinders',    name: 'Pact of Cinders',     icon: '🜂', category: 'combat',   desc: 'Killing an enemy applies bleed 1 to all remaining enemies.' },
   doom:       { id: 'doom',       name: 'Brand of Doom',       icon: '⊕', category: 'combat',   desc: "Vulnerable stacks aren't consumed by attacks." },
   aegis:      { id: 'aegis',      name: 'Sigil of Aegis',      icon: '◈', category: 'defense',  desc: 'Each incoming hit deals 1 less HP damage after armor.' },
@@ -4323,7 +4276,7 @@ const QUIRKS = {
   bulwark:   { id: 'bulwark',   name: 'Bulwark',     positive: true,  desc: '+1 armor whenever armor is gained.',   armorMod: 1 },
   gentle:    { id: 'gentle',    name: 'Gentle Hand', positive: true,  desc: '+1 to all healing dealt or received.', healMod:  1 },
   // Negative (red)
-  weakened:  { id: 'weakened',  name: 'Weakened',    positive: false, desc: '−1 damage on attacks.',                dmgMod: -1 },
+  dulled_q:  { id: 'dulled_q',  name: 'Dulled',      positive: false, desc: '−1 damage on attacks.',                dmgMod: -1 },
   shaken:    { id: 'shaken',    name: 'Shaken',      positive: false, desc: '−2 damage on attacks.',                dmgMod: -2 },
   brittle:   { id: 'brittle',   name: 'Brittle',     positive: false, desc: '−1 armor whenever armor is gained.',   armorMod: -1 },
   clumsy:    { id: 'clumsy',    name: 'Clumsy',      positive: false, desc: '−1 to all healing dealt or received.', healMod: -1 },
@@ -4643,7 +4596,7 @@ const COMBOS = {
       aliveParty(s).forEach(c => {
         const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 6);
         if (c.hp > b) spawnPopupId(c.id, `+${c.hp - b}`, 'heal', 'party');
-        c.armor += 4; c.bleed = 0; c.weak = 0;
+        c.armor += 4; c.bleed = 0; c.dulled = 0;
       });
     },
   },
@@ -4677,7 +4630,7 @@ const COMBOS = {
       aliveParty(s).forEach(c => {
         const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 6);
         if (c.hp > b) spawnPopupId(c.id, `+${c.hp - b}`, 'heal', 'party');
-        c.bleed = 0; c.weak = 0; c.armor += 2;
+        c.bleed = 0; c.dulled = 0; c.armor += 2;
       });
     },
   },
@@ -4706,7 +4659,7 @@ const COMBOS = {
     fn: (s) => {
       const front = enemyBySlot(s, 'front');
       if (front && !front.dead) applyDmgToEnemy(s, front, 9);
-      aliveParty(s).forEach(c => { c.armor += 5; c.bleed = 0; c.weak = 0; });
+      aliveParty(s).forEach(c => { c.armor += 5; c.bleed = 0; c.dulled = 0; });
     },
   },
 
@@ -4727,7 +4680,7 @@ const COMBOS = {
       aliveParty(s).forEach(c => {
         const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 8);
         if (c.hp > b) spawnPopupId(c.id, `+${c.hp - b}`, 'heal', 'party');
-        c.armor += 2; c.bleed = 0; c.weak = 0;
+        c.armor += 2; c.bleed = 0; c.dulled = 0;
       });
     },
   },
@@ -4790,7 +4743,7 @@ const COMBOS = {
       aliveParty(s).forEach(c => {
         const b = c.hp; c.hp = c.maxHp;
         if (c.hp > b) spawnPopupId(c.id, `+${c.hp - b}`, 'heal', 'party');
-        c.bleed = 0; c.weak = 0;
+        c.bleed = 0; c.dulled = 0;
       });
       gainResolve(s, 2);
     },
@@ -5227,7 +5180,7 @@ function startEncounter(encSpec) {
   Object.values(state.party.chars).forEach(c => {
     c.armor = 0;
     c.bleed = 0;
-    c.weak = 0;
+    c.dulled = 0;
     c.vuln = 0;
     c.taunt = false;
     c.retaliate = 0;
@@ -5298,7 +5251,7 @@ function newCharState(id) {
   const def = CHARS[id];
   return {
     id, hp: def.maxHp, maxHp: def.maxHp,
-    armor: 0, bleed: 0, weak: 0, taunt: false, retaliate: 0, vuln: 0,
+    armor: 0, bleed: 0, dulled: 0, taunt: false, retaliate: 0, vuln: 0,
     downed: false,
     pendingEffects: [], // { kind: 'attackBonus'|'healBonus', amt, source } — consumed on use
     upgrades: {},       // map of `${slot}.${kind}` → upgrade id (persists across fights within a run)
@@ -5317,8 +5270,13 @@ function newEnemyState(id) {
   const mhp = def.maxHp + bonus;
   return {
     id, hp: mhp, maxHp: mhp,
-    armor: 0, bleed: 0, vuln: 0,
-    chain: 0, staggered: false, staggerTurns: 0,
+    armor: 0, bleed: 0, vuln: 0, dulled: 0,
+    // Weakness/stagger state-flow.  weaknessRevealed flips once any
+    // damaging hit lands so the player can read the school glyph.
+    // weakened ↑ on a weakness-school hit; staggered ↑ on a second
+    // weakness hit same turn; staggerBonusUsed prevents the 2× consume
+    // from double-firing inside a multi-hit tech.
+    weaknessRevealed: false, weakened: false, staggered: false, staggerBonusUsed: false,
     dead: false, intentIdx: 0,
   };
 }
@@ -5413,16 +5371,19 @@ function previewDamage(s, e, baseAmt, actorId) {
     if (weaks.includes(actorDef.school)) {
       amt = Math.round(amt * 1.5);
       badge = 'WEAK!';
+      if (hasSigil(s, 'hunt')) amt += 2;
     } else if (resists.includes(actorDef.school)) {
       amt = Math.max(1, Math.floor(amt * 0.5));
       badge = 'RESIST';
     }
   }
 
-  if (e.staggered && amt > 0) {
-    amt = Math.floor(amt * STAGGER_DMG_MULT);
-    if (hasSigil(s, 'hunt')) amt += 3;
-    if (!badge) badge = 'STG';
+  // Stagger consume preview — next damaging hit on a staggered enemy
+  // doubles.  staggerBonusUsed prevents the preview from over-counting
+  // when a multi-hit tech is being simulated downstream.
+  if (e.staggered && !e.staggerBonusUsed && amt > 0) {
+    amt *= 2;
+    badge = badge || 'STG!';
   }
 
   amt = Math.max(0, amt);
@@ -5512,13 +5473,17 @@ function previewMultiHit(s, e, baseAmt, actorId, hits) {
   let badge = null;
   let simArmor = e.armor;
   let simVuln = e.vuln;
+  // Track stagger-consume across the sim — only the first hit gets the
+  // 2× bonus, so subsequent hits see staggerBonusUsed=true.
+  let simStaggerBonusUsed = !!e.staggerBonusUsed;
   for (let i = 0; i < hits; i++) {
-    const sim = Object.assign({}, e, { armor: simArmor, vuln: simVuln });
+    const sim = Object.assign({}, e, { armor: simArmor, vuln: simVuln, staggerBonusUsed: simStaggerBonusUsed });
     const r = previewDamage(s, sim, baseAmt, actorId);
     totalHp += r.toHp;
     if (r.badge && !badge) badge = r.badge;
     if (simVuln > 0 && r.amt > 0) simVuln -= 1;
     if (!s.ignoreArmor) simArmor = Math.max(0, simArmor - r.amt);
+    if (r.badge === 'STG!') simStaggerBonusUsed = true;
   }
   return { dmg: totalHp, badge };
 }
@@ -5582,6 +5547,7 @@ function applyDmgToEnemy(s, e, baseAmt) {
 
   // School weakness / resistance — actor's school vs enemy's weak/resist (may be arrays)
   let schoolBadge = null;
+  let isWeaknessHit = false;
   const actorDef = s.currentActorId ? CHARS[s.currentActorId] : null;
   if (actorDef && actorDef.school && amt > 0) {
     const enemyDef = ENEMIES[e.id];
@@ -5591,18 +5557,26 @@ function applyDmgToEnemy(s, e, baseAmt) {
     if (weaks.includes(actorDef.school)) {
       amt = Math.round(amt * 1.5);
       schoolBadge = 'WEAK!';
+      isWeaknessHit = true;
       // press-turn loop: weakness hit banks +1 ATB for next turn (capped at +1)
       s.pendingBonusAtb = Math.min(1, (s.pendingBonusAtb || 0) + 1);
+      // Mark of the Hunt sigil — weakness hits deal +2 damage.
+      if (hasSigil(s, 'hunt')) amt += 2;
     } else if (resists.includes(actorDef.school)) {
       amt = Math.max(1, Math.floor(amt * 0.5));
       schoolBadge = 'RESIST';
     }
   }
 
-  // staggered = +50% damage taken, plus +3 flat from Mark of the Hunt sigil
-  if (e.staggered && amt > 0) {
-    amt = Math.floor(amt * STAGGER_DMG_MULT);
-    if (hasSigil(s, 'hunt')) amt += 3;
+  // Stagger consume — the next damaging hit on a staggered enemy deals 2×
+  // and clears the state.  Guarded by staggerBonusUsed so multi-hit techs
+  // don't double-fire the bonus.
+  let pendingStaggerClear = false;
+  if (e.staggered && !e.staggerBonusUsed && amt > 0) {
+    amt *= 2;
+    e.staggerBonusUsed = true;
+    schoolBadge = schoolBadge || 'STG!';
+    pendingStaggerClear = true;
   }
 
   amt = Math.max(0, amt);
@@ -5622,12 +5596,36 @@ function applyDmgToEnemy(s, e, baseAmt) {
   // Brand of Doom — vuln stacks aren't consumed by attacks
   if (vulnConsumed && !hasSigil(s, 'doom')) e.vuln = Math.max(0, e.vuln - 1);
 
-  // chain build-up (skipped if already staggered or no HP damage)
-  if (!e.staggered && toHp > 0) {
-    let chainGain = toHp;
-    if (vulnConsumed) chainGain *= 2;
-    e.chain = Math.min(STAGGER_THRESHOLD, e.chain + chainGain);
-    if (e.chain >= STAGGER_THRESHOLD) triggerStagger(s, e);
+  // First damaging hit reveals the weakness icon.  Hask's Frostbreak
+  // passive also flips this even on a 0-damage hit so he scouts the
+  // enemy for the rest of the party regardless of armor.
+  if (!e.weaknessRevealed && (toHp > 0 || s.currentActorId === 'hask')) {
+    e.weaknessRevealed = true;
+    if (s.currentActorId === 'hask' && toHp === 0) spawnPassivePopup('hask', 'FROSTBREAK');
+  }
+
+  // Weakness → stagger state transitions.  Hitting the enemy's weakness
+  // school on a fresh target makes them WEAKENED; hitting them again
+  // with their weakness same turn promotes to STAGGERED.  The 2× consume
+  // already fired above; pendingStaggerClear handles the recovery.
+  if (isWeaknessHit && toHp > 0 && !e.dead && !pendingStaggerClear) {
+    if (e.weakened && !e.staggered) {
+      e.staggered = true;
+      spawnPopupId(e.id, 'STAGGERED', 'stagger', 'enemy');
+      log(`<b>${ENEMIES[e.id].name}</b> is STAGGERED!`);
+      // Hask Shatter passive — every stagger while he's alive grants
+      // +1 Resolve.  Inlined here so we can keep one damage funnel.
+      const h = s && s.party && s.party.chars && s.party.chars.hask;
+      if (h && !h.downed) { gainResolve(s, 1); spawnPassivePopup('hask', 'SHATTER'); }
+    } else if (!e.weakened && !e.staggered) {
+      e.weakened = true;
+      spawnPopupId(e.id, 'WEAKENED', 'stagger', 'enemy');
+    }
+  }
+  if (pendingStaggerClear) {
+    e.staggered = false;
+    e.weakened = false;
+    e.staggerBonusUsed = false;
   }
 
   // Lirien Lingering Note passive — her first attack each turn applies
@@ -5656,10 +5654,11 @@ function applyDmgToEnemy(s, e, baseAmt) {
     }
   }
 
-  const popupType = e.staggered ? 'crit' : (schoolBadge === 'WEAK!' ? 'crit' : 'dmg');
+  const popupType = (schoolBadge === 'WEAK!' || schoolBadge === 'STG!') ? 'crit' : 'dmg';
   spawnPopupId(e.id, `-${toHp}`, popupType, 'enemy');
   if (schoolBadge) {
-    setTimeout(() => spawnPopupId(e.id, schoolBadge, schoolBadge === 'WEAK!' ? 'crit' : 'miss', 'enemy'), 80);
+    const badgeType = (schoolBadge === 'WEAK!' || schoolBadge === 'STG!') ? 'crit' : 'miss';
+    setTimeout(() => spawnPopupId(e.id, schoolBadge, badgeType, 'enemy'), 80);
   }
   flashCardId(e.id, 'hit', 'enemy');
   // Game feel: shake the struck card; screen shake on big hits; SFX
@@ -5671,7 +5670,7 @@ function applyDmgToEnemy(s, e, baseAmt) {
   Audio.hitSchool(Math.min(2, 0.6 + toHp / 8), actorSchool);
   // Attacker lunges toward the target for a beat
   if (s.currentActorId) lungeCardId(s.currentActorId, 'party');
-  log(`<b>${ENEMIES[e.id].name}</b> takes ${toHp} damage${e.staggered ? ' (stagger!)' : ''}${schoolBadge ? ` — ${schoolBadge.toLowerCase()}` : ''}.`);
+  log(`<b>${ENEMIES[e.id].name}</b> takes ${toHp} damage${schoolBadge ? ` — ${schoolBadge.toLowerCase()}` : ''}.`);
   if (s.currentActorId && toHp > 0) fireAdjacencyHook(s, 'onAttack', s.currentActorId, e, toHp);
   if (s.fightStats && s.currentActorId && toHp > 0) {
     s.fightStats.damageDealt[s.currentActorId] = (s.fightStats.damageDealt[s.currentActorId] || 0) + toHp;
@@ -5679,21 +5678,8 @@ function applyDmgToEnemy(s, e, baseAmt) {
   if (e.hp === 0) { hitPause(120); killEnemy(s, e); }
 }
 
-function triggerStagger(s, e) {
-  e.staggered = true;
-  e.staggerTurns = STAGGER_DURATION;
-  spawnPopupId(e.id, 'STAGGER', 'stagger', 'enemy');
-  flashCardId(e.id, 'hit', 'enemy');
-  log(`<b>${ENEMIES[e.id].name}</b> is STAGGERED!`);
-  // Hask Shatter passive — every stagger while he's alive grants +1 Resolve.
-  // Rewards his chain-building kit AND parties that lean into stagger
-  // (Frostball, Mark of the Hunt, etc) when Hask is on the bench.
-  const h = s && s.party && s.party.chars && s.party.chars.hask;
-  if (h && !h.downed) {
-    gainResolve(s, 1);
-    spawnPassivePopup('hask', 'SHATTER');
-  }
-}
+// triggerStagger removed — the WEAKENED → STAGGERED transition is now
+// inlined in applyDmgToEnemy.  See the state-transition block there.
 
 function killEnemy(s, e) {
   e.dead = true;
@@ -5990,7 +5976,7 @@ function healLowest(s, amt) {
 function cleanseLowest(s) {
   const alive = aliveParty(s); if (alive.length === 0) return;
   alive.sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp));
-  const c = alive[0]; c.bleed = 0; c.weak = 0;
+  const c = alive[0]; c.bleed = 0; c.dulled = 0;
 }
 function taunt(s, id) { const c = s.party.chars[id]; if (c && !c.downed) c.taunt = true; }
 function gainResolve(s, amt) {
@@ -6060,9 +6046,9 @@ function dmgPierce(s, amt) {
     if (c && !c.downed) applyDmgToParty(s, c, amt);
   });
 }
-function weakSlot(s, slot, amt) {
+function dullSlot(s, slot, amt) {
   const c = charBySlot(s, slot);
-  if (c && !c.downed) { c.weak += amt; log(`<b>${CHARS[c.id].name}</b> gains Weak.`); }
+  if (c && !c.downed) { c.dulled += amt; log(`<b>${CHARS[c.id].name}</b> gains Dulled.`); }
 }
 function bleedPartyAt(s, slot, turns) {
   const c = charBySlot(s, slot);
@@ -6213,6 +6199,10 @@ function startTurn(s) {
   s.pendingBonusAtb = 0;
   // clear single-turn buffs that survived the enemy phase
   aliveParty(s).forEach(c => { c.taunt = false; c.retaliate = 0; c.firstAttackUsed = false; c.bleedKillUsed = false; c.shadowVeilUsed = false; c.lingeringUsed = false; });
+  // Weakness/stagger state decays at the top of each player turn.  If
+  // the player didn't capitalize last turn (no 2× consume hit), the
+  // enemy recovers — no turn-skip, just the window closes.
+  aliveEnemies(s).forEach(e => { e.weakened = false; e.staggered = false; e.staggerBonusUsed = false; });
   // Vow of Iron — front slot wakes turn 1 with Taunt.  Applied AFTER the
   // taunt-clear so it survives this single turn; the next startTurn clears
   // it normally.  The _vowIronPending flag was set in initEncounter so
@@ -6643,7 +6633,7 @@ function executeQueueItem(s, item) {
     if (!variant) return;
     log(`<b>${CHARS[item.charId].name}</b> uses <b>${variant.name}</b>${item.kind === 'special' ? ' ★' : ''}.`);
     s.currentActorId = item.charId;
-    s.outgoingDmgMod = c.weak > 0 ? -2 : 0;
+    s.outgoingDmgMod = c.dulled > 0 ? -2 : 0;
     try {
       if (variant.reach) {
         const targets = resolveTargets(s, variant);
@@ -6660,7 +6650,7 @@ function executeQueueItem(s, item) {
       }
     }
     finally { s.outgoingDmgMod = 0; s.ignoreArmor = false; s.currentActorId = null; }
-    if (c.weak > 0) c.weak = Math.max(0, c.weak - 1);
+    if (c.dulled > 0) c.dulled = Math.max(0, c.dulled - 1);
     return;
   }
 
@@ -6814,18 +6804,8 @@ function resolveEnemyStep(s, i) {
   const e = Object.values(s.enemies.chars).find(en => en.id === eid && !en.dead);
   if (!e) { resolveEnemyStep(s, i + 1); return; }
 
-  if (e.staggered) {
-    log(`<b>${ENEMIES[e.id].name}</b> is staggered — cannot act.`);
-    e.staggerTurns -= 1;
-    if (e.staggerTurns <= 0) {
-      e.staggered = false;
-      e.chain = 0;
-      log(`<b>${ENEMIES[e.id].name}</b> recovers.`);
-    }
-    render();
-    setTimeout(() => resolveEnemyStep(s, i + 1), 420);
-    return;
-  }
+  // Staggered enemies no longer skip turns — the 2× damage consume is
+  // the payoff, and state decay happens in startTurn.  They act normally.
 
   const def = ENEMIES[e.id];
   const intent = def.intents[e.intentIdx % def.intents.length];
@@ -7129,7 +7109,7 @@ function renderBattlefield() {
   const incomingByChar = {};
   const sim = {};  // charId -> { armor, vuln } working copy
   aliveEnemies(state).forEach(e => {
-    if (e.staggered) return;
+    // Staggered enemies still act under the new system; intents project normally.
     const intent = ENEMIES[e.id].intents[e.intentIdx % ENEMIES[e.id].intents.length];
     const ts = intent.targetSlot;
     if (ts === 'all') SLOTS.forEach(s => threatened.add(s));
@@ -7340,7 +7320,7 @@ function intentIconGlyph(kind) {
   return '⚔';
 }
 
-// Pull the primary numeric value out of an intent tag — e.g. "ATK 6" → "6", "WEAK 2" → "2"
+// Pull the primary numeric value out of an intent tag — e.g. "ATK 6" → "6", "DULL 2" → "2"
 function intentPrimaryNum(tag) {
   const m = (tag || '').match(/\d+/);
   return m ? m[0] : '';
@@ -7363,12 +7343,12 @@ function makeEnemyCard(e, slot) {
     return fig;
   }
   fig.dataset.id = e.id;
-  if (e.staggered) fig.classList.add('staggered');
+  if (e.staggered)     fig.classList.add('state-staggered');
+  else if (e.weakened) fig.classList.add('state-weakened');
 
   const def = ENEMIES[e.id];
   const intent = def.intents[e.intentIdx % def.intents.length];
   const hpPct = (e.hp / e.maxHp) * 100;
-  const chainPct = (e.chain / STAGGER_THRESHOLD) * 100;
   const intentClass = intent.kind === 'aoe' ? 'intent-aoe' : (intent.kind === 'debuff' ? 'intent-debuff' : '');
   const ts = intent.targetSlot;
   const targetTag = ts === 'all' ? 'ALL'
@@ -7397,33 +7377,46 @@ function makeEnemyCard(e, slot) {
     threat = lethal ? 'lethal' : maxRatio >= 0.4 ? 'heavy' : 'mild';
   }
 
-  const staggerBanner = e.staggered ? `<div class="staggered-banner">STAGGERED</div>` : '';
   // Minimal intent: just kind icon + the primary number. Targeting is conveyed by
   // the .targeted-by-enemy glow on the party figures it threatens.
-  const intentBubble = e.staggered ? '' : `
+  // Staggered enemies still telegraph their intent — the 2× damage hit is
+  // the payoff, not a turn-skip.
+  const intentBubble = `
     <div class="intent-bubble ${intentClass} threat-${threat}" title="${intent.name}: ${intent.tag} → ${targetTag}">
       <span class="intent-icon">${icon}</span>
       ${num ? `<span class="intent-num">${num}</span>` : ''}
     </div>`;
 
-  // (Affinity row removed — W/R schools no longer surfaced on the figure.
-  // Weakness / resistance still affect damage; they're just not telegraphed.)
+  // Weakness reveal — once any damaging hit has landed (or Hask's
+  // Frostbreak passive fires), show a small school-glyph under HP.
+  const SCHOOL_GLYPH = { physical: '⚔', holy: '✦', arcane: '✶', ranged: '➳', stealth: '◐' };
+  const weakDef = def.weakness;
+  const weakSchool = Array.isArray(weakDef) ? weakDef[0] : weakDef;
+  const weaknessIcon = (e.weaknessRevealed && weakSchool)
+    ? `<span class="weakness-icon" title="Weak to ${weakSchool}">${SCHOOL_GLYPH[weakSchool] || '?'}</span>`
+    : '';
+  // State pip — cracked shield while WEAKENED, lightning while STAGGERED.
+  const stateIcon = e.staggered
+    ? '<span class="state-pip pip-staggered" title="Staggered — next hit deals 2× damage">⚡</span>'
+    : e.weakened
+      ? '<span class="state-pip pip-weakened" title="Weakened — one more weakness hit triggers Stagger">⌖</span>'
+      : '';
 
   fig.innerHTML = `
-    ${staggerBanner}
     <div class="figure-portrait">
       ${PORTRAITS[e.id] || ''}
       <div class="figure-statuses">${renderStatuses(e)}</div>
+      ${stateIcon}
       <div class="figure-hp">
         <div class="hp-fill ${hpPct < 35 ? 'low' : ''}" style="width:${hpPct}%"></div>
         <div class="hp-text">${e.hp}/${e.maxHp}</div>
       </div>
+      ${weaknessIcon}
       ${intentBubble}
     </div>
     <div class="figure-shadow"></div>
     <div class="figure-info">
       <div class="figure-name">${def.name}</div>
-      <div class="chain-bar"><div class="chain-fill" style="width:${chainPct}%"></div></div>
     </div>
   `;
   bindFigureHold(fig, e.id, false);
@@ -7439,7 +7432,7 @@ function renderStatuses(ent) {
   if (ent.armor > 0)     c.push(chip('armor', '⛨', ent.armor,    `Armor ${ent.armor} — absorbs ${ent.armor} damage before HP. Wears off as it absorbs.`));
   if (ent.bleed > 0)     c.push(chip('bleed', '✤', ent.bleed,    `Bleed ${ent.bleed} — takes 2 damage at the start of each turn (3 with Bloodborne Sigil), then the stack decreases by 1.`));
   if (ent.taunt)         c.push(chip('taunt', '⌖', null,         'Taunt — enemies single-target attacks redirect to this character instead of the original slot.'));
-  if (ent.weak > 0)      c.push(chip('weak',  '↓', ent.weak,     `Weak ${ent.weak} — this character's outgoing damage is reduced by 2 for the next ${ent.weak} attack(s).`));
+  if (ent.dulled > 0)    c.push(chip('dulled', '↓', ent.dulled, `Dulled ${ent.dulled} — this character's outgoing damage is reduced by 2 for the next ${ent.dulled} attack(s).`));
   if (ent.vuln > 0)      c.push(chip('vuln',  '⊕', ent.vuln,     `Vulnerable ${ent.vuln} — next ${ent.vuln} incoming attacks deal +2 damage (+4 with Ember of Wrath Sigil) and consume one stack.`));
   if (ent.retaliate > 0) c.push(chip('retal', '↻', ent.retaliate,`Retaliate ${ent.retaliate} — when hit, counter-attack the front-most enemy for ${ent.retaliate} damage.`));
   if (ent.pendingEffects) ent.pendingEffects.forEach(e => {
@@ -7457,7 +7450,7 @@ const STATUS_TOOLTIPS = {
   armor:    { name: 'Armor',       text: 'Absorbs incoming damage 1:1 before HP. Wears off as it absorbs. Does not regenerate.' },
   bleed:    { name: 'Bleed',       text: 'Takes 2 damage at the start of each turn (+1 with Bloodborne / Bone Tide). Decays by 1 per turn. Ignores armor.' },
   taunt:    { name: 'Taunt',       text: 'Enemy single-target attacks redirect to this hero. Clears at the start of the next turn.' },
-  weak:     { name: 'Weak',        text: 'Outgoing attacks deal -2 damage. Consumes 1 stack per attack.' },
+  dulled:   { name: 'Dulled',      text: 'Outgoing attacks deal -2 damage. Consumes 1 stack per attack.' },
   vuln:     { name: 'Vulnerable',  text: 'Incoming hits deal +2 damage per stack (+2 more with Ember of Wrath). One stack is consumed per hit (unless Brand of Doom).' },
   retal:    { name: 'Retaliate',   text: 'When hit, counter-attacks the front-most enemy for this value (+2 with Vow of Vigil). Clears at the start of the next turn.' },
   pending:  { name: 'Pending',     text: 'A one-shot bonus from a synergy. Consumed by the next matching action.' },
@@ -8729,6 +8722,8 @@ const TUTORIAL_HINTS = [
   { id: 'reach',      text: 'Each action has a <b>reach</b> — the enemy slots it can hit.  Letters on the tile (F·M·B) show which slots; if no enemy stands in any of them, the action fizzles.' },
   { id: 'commit',     text: 'Spend your ATB, then tap <b>Play ▶</b> to commit the turn.' },
   { id: 'enemies',    text: 'Enemies show their <b>intent</b> above their card.  Plan around it.' },
+  // Persona-5 style weakness loop — explain WEAKENED → STAGGERED → 2× hit.
+  { id: 'weakness',   text: 'Each hero\'s school is also their <b>element</b>.  Hit an enemy\'s weakness once → <b>WEAKENED</b>.  Hit it again with the same weakness same turn → <b>STAGGERED</b>.  The next attack of any element deals <b>2× damage</b>.  Weakness icon (✶/✦/⚔/➳/◐) reveals on the first hit.' },
   { id: 'move_v2',    text: '<b>Press and hold</b> a hero on the battlefield — gold arrows appear.  Drag onto an arrow (or release and tap one) to swap them between <b>Front · Mid · Back</b>.  Costs 1 ATB.' },
   // Resonance hint — explain WHEN it appears (matching tags between queued
   // actions) and WHERE the chip lives, plus the once-per-fight gate.
@@ -10434,6 +10429,35 @@ function loadStateOrNull() {
     // Continue always lands on a controllable state.
     snap.executing = false;
     snap.executingIdx = -1;
+    // Migrate `weak` → `dulled` on every saved character/enemy (the
+    // -2 outgoing damage status was renamed when the new WEAKENED
+    // game state took the 'weak' namespace).
+    const migrateDulled = (ent) => {
+      if (!ent) return;
+      if (ent.dulled === undefined && ent.weak !== undefined) ent.dulled = ent.weak;
+      delete ent.weak;
+    };
+    Object.values((snap.party && snap.party.chars) || {}).forEach(migrateDulled);
+    Object.values((snap.enemies && snap.enemies.chars) || {}).forEach(migrateDulled);
+    // Migrate the 'weakened' quirk id → 'dulled_q' so existing runs that
+    // already collected the affliction keep their bonus pointer valid.
+    Object.values((snap.party && snap.party.chars) || {}).forEach(c => {
+      if (!c || !c.quirks) return;
+      ['positive', 'negative'].forEach(side => {
+        c.quirks[side] = (c.quirks[side] || []).map(q => q === 'weakened' ? 'dulled_q' : q);
+      });
+    });
+    // Drop the now-removed chain/staggerTurns transient enemy state and
+    // initialise the new weakness/stagger flags so render/preview don't
+    // read undefined on a freshly-loaded snapshot.
+    Object.values((snap.enemies && snap.enemies.chars) || {}).forEach(e => {
+      delete e.chain;
+      delete e.staggerTurns;
+      if (e.weakened === undefined)          e.weakened = false;
+      if (e.staggered === undefined)         e.staggered = false;
+      if (e.weaknessRevealed === undefined)  e.weaknessRevealed = false;
+      if (e.staggerBonusUsed === undefined)  e.staggerBonusUsed = false;
+    });
     return snap;
   } catch (_) { return null; }
 }
