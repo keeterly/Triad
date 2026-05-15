@@ -3674,6 +3674,26 @@ body.party-critical::after {
   border: 1px solid rgba(200,164,100,0.15);
   border-radius: 3px;
 }
+/* Tabular variant — name flush left, the three stat columns flush right
+   with consistent widths so dealt / healed / taken line up vertically
+   across rows. */
+.vs-row.vs-row-grid {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  gap: 14px;
+}
+.vs-row.vs-row-grid .vs-col {
+  text-align: right;
+  min-width: 84px;
+  font-size: 11px;
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+.vs-row.vs-row-grid .vs-col b { font-weight: 700; }
+.vs-row.vs-row-grid .vs-dealt b  { color: var(--blood-bright); }
+.vs-row.vs-row-grid .vs-healed b { color: var(--heal); }
+.vs-row.vs-row-grid .vs-taken b  { color: var(--gold-pale); }
+.vs-row.vs-row-grid .vs-zero { color: var(--ink-faint); opacity: 0.5; }
 .vs-row.vs-downed {
   opacity: 0.55;
   border-color: rgba(212,69,69,0.35);
@@ -7034,7 +7054,10 @@ body.party-fallen::before {
 }
 
 /* Dialogue rail: flex column.  Each line aligns L/R/center based on who's
-   speaking; no line ever sits in the bottom area where portraits live. */
+   speaking; no line ever sits in the bottom area where portraits live.
+   min-height: 0 is required for overflow-y: auto to actually engage when
+   the rail is inside a grid 1fr cell — without it the rail grows to fit
+   its content and the top bubbles get clipped above the stage. */
 .vn-dialogue {
   display: flex;
   flex-direction: column;
@@ -7043,9 +7066,12 @@ body.party-fallen::before {
   align-items: stretch;
   justify-content: flex-end;
   overflow-y: auto;
+  min-height: 0;
 }
 .vn-line {
-  max-width: 56%;
+  /* Bumped from 56% so longer lines wrap less aggressively and don't push
+     earlier bubbles off the top of the rail. */
+  max-width: 64%;
   padding: 8px 14px 10px;
   font-size: 13.5px;
   line-height: 1.5;
