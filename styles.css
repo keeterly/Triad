@@ -3125,46 +3125,82 @@ body.party-critical::after {
    clip-path), flat cream-on-black, blood-red text-only for the active
    "EXECUTE" state.  No glowing red disc. */
 .fight-btn {
-  width: 56px; height: 54px;
-  padding: 0;
+  min-width: 96px; height: 56px;
+  padding: 0 14px;
   border-radius: 0;
-  background: rgba(18,18,20,0.92);
+  background: linear-gradient(180deg, rgba(40,28,16,0.95) 0%, rgba(18,12,8,0.95) 100%);
   border: 1px solid var(--gold-bright);
   color: var(--gold-bright);
   cursor: pointer;
   font-family: inherit;
   display: inline-flex; align-items: center; justify-content: center;
-  transition: background 0.14s, color 0.14s, border-color 0.14s;
+  gap: 8px;
+  transition: background 0.14s, color 0.14s, border-color 0.14s, transform 0.1s;
   position: relative;
-  box-shadow: none;
+  box-shadow: 0 0 16px rgba(240,212,136,0.22),
+              inset 0 0 14px rgba(240,212,136,0.08);
   justify-self: end;
   align-self: center;
   /* NieR notched-corner clip — two angled cuts at top-left and bottom-right */
   clip-path: polygon(
-    8px 0, 100% 0, 100% calc(100% - 8px),
-    calc(100% - 8px) 100%, 0 100%, 0 8px
+    10px 0, 100% 0, 100% calc(100% - 10px),
+    calc(100% - 10px) 100%, 0 100%, 0 10px
   );
 }
 .fight-btn .fight-icon {
-  width: 22px; height: 22px;
-  filter: none;
+  width: 24px; height: 24px;
+  filter: drop-shadow(0 0 6px rgba(240,212,136,0.45));
 }
-.fight-btn:not(:disabled) { animation: fight-pulse 2.2s ease-in-out infinite; }
+.fight-btn .fight-label {
+  font-size: 14px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: inherit;
+  text-shadow: 0 0 10px rgba(240,212,136,0.4), 0 1px 0 rgba(0,0,0,0.85);
+}
+/* Active state — bright, pulsing, obviously go.  The ::after layer adds
+   an outward ring pulse so the button reads as 'commit' at a glance. */
+.fight-btn:not(:disabled) {
+  animation: fight-pulse 1.6s ease-in-out infinite;
+  background: linear-gradient(180deg, rgba(70,46,18,0.95) 0%, rgba(28,16,8,0.95) 100%);
+  box-shadow: 0 0 22px rgba(240,212,136,0.45),
+              inset 0 0 18px rgba(240,212,136,0.15);
+}
+.fight-btn:not(:disabled)::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border: 1px solid rgba(240,212,136,0.5);
+  pointer-events: none;
+  animation: fight-ring 1.4s ease-out infinite;
+}
 @keyframes fight-pulse {
-  0%, 100% { background: rgba(18,18,20,0.92); color: var(--gold-bright); }
-  50%      { background: rgba(40,40,42,0.92); color: var(--gold-pale); }
+  0%, 100% { filter: brightness(1); }
+  50%      { filter: brightness(1.18); }
 }
-.fight-btn:not(:disabled):hover { background: var(--gold-bright); color: var(--bg-0); }
+@keyframes fight-ring {
+  0%   { opacity: 0.7; transform: scale(1); }
+  100% { opacity: 0;   transform: scale(1.12); }
+}
+.fight-btn:not(:disabled):hover {
+  background: var(--gold-bright);
+  color: var(--bg-0);
+  transform: translateY(-1px);
+}
 .fight-btn:not(:disabled):hover .fight-icon path { fill: var(--bg-0); }
 .fight-btn:active:not(:disabled) { transform: translateY(1px); }
+/* Disabled — clearly muted; no glow, no pulse. */
 .fight-btn:disabled {
-  background: rgba(14,14,16,0.6);
+  background: rgba(14,14,16,0.55);
   color: var(--ink-faint);
-  border-color: var(--ink-faint);
+  border-color: rgba(212,200,168,0.22);
   cursor: not-allowed;
   animation: none;
+  box-shadow: none;
 }
-.fight-btn:disabled .fight-icon { opacity: 0.5; }
+.fight-btn:disabled .fight-icon { opacity: 0.4; filter: none; }
+.fight-btn:disabled .fight-label { color: var(--ink-faint); text-shadow: none; }
 
 /* ============ TS-AREA (right side of action row) ============ */
 #ts-area {
@@ -6102,6 +6138,44 @@ button.path-node:not(:disabled):hover {
 /* ===========================================================================
    TEAM SPECIAL — bigger banner on trigger + upgraded tile look
    =========================================================================== */
+/* End-of-fight callout — fires after the last enemy falls, before the
+   victory summary opens.  Subtler than the Resonance banner — the kill
+   itself is the loud moment; this just gives it a heading. */
+#reach-banner {
+  position: fixed;
+  top: 36%; left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 350;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  pointer-events: none;
+  animation: rb-in 0.28s cubic-bezier(.18,.89,.32,1) forwards,
+             rb-out 0.45s ease-out 0.65s forwards;
+}
+@keyframes rb-in {
+  from { opacity: 0; transform: translate(-50%, -48%) scale(0.92); filter: blur(2px); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1);    filter: blur(0); }
+}
+@keyframes rb-out {
+  from { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  to   { opacity: 0; transform: translate(-50%, -50%) scale(1.04); filter: blur(2px); }
+}
+.rb-flank {
+  font-size: 18px;
+  color: var(--gold);
+  text-shadow: 0 0 10px rgba(240,212,136,0.55);
+}
+.rb-name {
+  font-size: 22px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--gold-pale);
+  text-shadow:
+    0 0 18px rgba(240,212,136,0.55),
+    0 2px 0 rgba(0,0,0,0.85);
+}
+
 #ts-banner {
   position: fixed;
   top: 30%; left: 50%;
@@ -6448,28 +6522,12 @@ button.path-node:not(:disabled):hover {
 .tile.team-special .ts-desc { color: var(--ink-dim); font-size: 9.5px; letter-spacing: 0.06em; }
 .tile.team-special .ts-cost { gap: 4px; }
 
-/* Commit zone polish — keep the play button bold + give resolve pips space */
+/* Commit zone polish — give resolve pips space.  The fight button's own
+   styling (top of file) carries the bold/labeled/pulsing treatment; no
+   need to override it here. */
 #commit-zone {
   gap: 6px;
 }
-.fight-btn {
-  position: relative;
-  background: linear-gradient(180deg, rgba(40,28,18,0.7) 0%, rgba(14,10,8,0.9) 100%) !important;
-  border: 1px solid transparent !important;
-  box-shadow:
-    inset 0 0 20px rgba(232,220,196,0.08),
-    0 6px 18px rgba(0,0,0,0.55) !important;
-  transition: filter 0.18s, transform 0.06s;
-}
-.fight-btn:not(:disabled) {
-  box-shadow:
-    inset 0 0 24px rgba(232,220,196,0.18),
-    0 0 22px rgba(240,212,136,0.32),
-    0 6px 18px rgba(0,0,0,0.55) !important;
-}
-.fight-btn:not(:disabled):hover { filter: brightness(1.18); }
-.fight-btn:not(:disabled):active { transform: translateY(1px); }
-.fight-btn .fight-icon { width: 28px; height: 28px; filter: drop-shadow(0 0 6px rgba(240,212,136,0.4)); }
 
 /* ===========================================================================
    BIOME ATMOSPHERE — per-modifier ambient layer behind combat / map.
