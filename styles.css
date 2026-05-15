@@ -8334,7 +8334,12 @@ body.boss-killed::before {
   letter-spacing: 0.26em;
   text-transform: uppercase;
   color: var(--ink-dim);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: center;
 }
+.ts-meta .ts-meta-line { display: block; }
 .ts-meta b { color: var(--gold-pale); }
 
 /* Mobile fit */
