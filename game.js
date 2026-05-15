@@ -1106,7 +1106,7 @@ const CHARS = {
         basic: { name: 'Phase Step', desc: '3 dmg + retreat to Mid', dmg: 3, move: 'retreat',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 3); retreat(s, 'elin'); } },
-        sig:   { name: 'Veil Step', desc: '6 dmg + retreat + 2 armor', dmg: 6, move: 'retreat',
+        sig:   { name: 'Veil Step', desc: '6 arcane dmg + retreat + 2 armor', dmg: 6, move: 'retreat', element: 'arcane',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 6); retreat(s, 'elin'); addArmor(s, 'elin', 2); } },
       },
@@ -1449,7 +1449,7 @@ const CHARS = {
         basic: { name: 'Frost-Claw', desc: '6 dmg front', dmg: 6,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 6); } },
-        sig:   { name: 'Glacier Crush', desc: '10 dmg front', dmg: 10,
+        sig:   { name: 'Glacier Crush', desc: '10 stealth dmg front', dmg: 10, element: 'stealth',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 10); } },
       },
@@ -1510,7 +1510,7 @@ const ENEMIES = {
   },
   lineCaster: {
     id: 'lineCaster', name: 'Line Caster', title: 'Sin of Voices', maxHp: 16,
-    weakness: 'physical', resistance: 'arcane',
+    weakness: 'ranged', resistance: 'arcane',
     intents: [
       { name: 'Verse of Faces',   tag: 'ATK 3 F+M', targetSlot: 'fm',  kind: 'aoe', dmg: 3, fn: (s) => dmgLinePair(s, 'fm', 3) },
       { name: 'Discord',          tag: 'ATK 4 + vuln', targetSlot: 'mid', kind: 'atk', dmg: 4, fn: (s) => { dmgPartyAt(s, 'mid', 4); applyVulnParty(s, 'mid', 1); } },
@@ -1595,7 +1595,7 @@ const ENEMIES = {
   // Memory-themed sins.  Each leans into "naming" and "echoing" as mechanics.
   mourner: {
     id: 'mourner', name: 'Mourner', title: 'Sin of Naming', maxHp: 20,
-    weakness: 'physical', resistance: 'arcane',
+    weakness: 'ranged', resistance: 'arcane',
     intents: [
       { name: 'Whisper a Name',  tag: 'DULL 2 all', targetSlot: 'all',   kind: 'debuff', fn: (s) => aliveParty(s).forEach(c => { c.dulled += 2; }) },
       { name: 'Old Grief',       tag: 'ATK 4 + vuln', targetSlot: 'mid', kind: 'atk',    dmg: 4, fn: (s) => { dmgPartyAt(s, 'mid', 4); applyVulnParty(s, 'mid', 1); } },
