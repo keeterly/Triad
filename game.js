@@ -1074,7 +1074,7 @@ const CHARS = {
         basic: { name: 'Greatsword Cleave', desc: '8 dmg + vuln', dmg: 8,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (!t[0]) return; applyDmgToEnemy(s, t[0], 8); if (!t[0].dead) t[0].vuln += 1; } },
-        sig:   { name: 'Sunder', desc: '3♦ · 14 dmg + strip armor + 2 vuln', cost: 3, dmg: 14,
+        sig:   { name: 'Sunder', desc: '3♦ · 14 holy dmg + strip armor + 2 vuln', cost: 3, dmg: 14, element: 'holy',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (!t[0]) return; applyDmgToEnemy(s, t[0], 14); if (!t[0].dead) { t[0].armor = 0; t[0].vuln += 2; } } },
       },
@@ -1152,7 +1152,7 @@ const CHARS = {
         basic: { name: 'Volley', desc: '4 dmg + bleed 1 all', dmg: 4,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 4)); t.forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 1); }); } },
-        sig:   { name: 'Arrow Storm', desc: '3♦ · 7 dmg + bleed 2 all', cost: 3, dmg: 7,
+        sig:   { name: 'Arrow Storm', desc: '3♦ · 7 stealth dmg + bleed 2 all', cost: 3, dmg: 7, element: 'stealth',
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 7)); t.forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 2); }); } },
       },
@@ -1171,7 +1171,7 @@ const CHARS = {
         basic: { name: 'Reckless Strike', desc: '7 dmg + 2 self-dmg', dmg: 7,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 7); applySelfDmg(s, 'korin', 2); } },
-        sig:   { name: 'Berserker Cleave', desc: '11 dmg + bleed 2 + 3 self-dmg', dmg: 11,
+        sig:   { name: 'Berserker Cleave', desc: '11 holy dmg + bleed 2 + 3 self-dmg', dmg: 11, element: 'holy',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 11); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 2); } applySelfDmg(s, 'korin', 3); } },
       },
@@ -1201,7 +1201,7 @@ const CHARS = {
     passive: { name: 'Arcane Focus', desc: 'First attack each turn deals +2' },
     techs: {
       front: {
-        basic: { name: 'Spark', desc: '3 dmg + retreat', dmg: 3, move: 'retreat',
+        basic: { name: 'Spark', desc: '3 physical dmg + retreat', dmg: 3, move: 'retreat', element: 'physical',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 3); retreat(s, 'ash'); } },
         sig:   { name: 'Inferno Burst', desc: '5 dmg + 2 vuln + retreat', dmg: 5, move: 'retreat',
@@ -1285,7 +1285,7 @@ const CHARS = {
         basic: { name: 'Quick Cut', desc: '5 dmg lowest + bleed 1 · advance', dmg: 5, move: 'advance',
           reach: ['front','mid'], pattern: 'lowest',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 5); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 1); } advance(s, 'kai'); } },
-        sig:   { name: 'Crossblade', desc: '4 dmg twice (lowest)', dmg: 4, hits: 2,
+        sig:   { name: 'Crossblade', desc: '4 stealth dmg twice (lowest)', dmg: 4, hits: 2, element: 'stealth',
           reach: ['front','mid'], pattern: 'lowest',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 4); if (!t[0].dead) applyDmgToEnemy(s, t[0], 4); } } },
       },
@@ -1319,7 +1319,7 @@ const CHARS = {
           fn: (s) => { partyArmor(s, 3); const g = s.party.chars.garron; if (g && !g.downed) g.taunt = true; } },
       },
       mid: {
-        basic: { name: 'Tower Slam', desc: '7 dmg front-most', dmg: 7,
+        basic: { name: 'Tower Slam', desc: '7 holy dmg front-most', dmg: 7, element: 'holy',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 7); } },
         sig:   { name: 'Anchor', desc: '3♦ · 10 dmg front + 3 retaliate self', cost: 3, dmg: 10,
@@ -1372,7 +1372,7 @@ const CHARS = {
           } },
       },
       back: {
-        basic: { name: 'Lullaby', desc: '2 dmg all + 1 vuln all', dmg: 2,
+        basic: { name: 'Lullaby', desc: '2 stealth dmg all + 1 vuln all', dmg: 2, element: 'stealth',
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 2)); aliveEnemies(s).forEach(e => { e.vuln += 1; }); } },
         sig:   { name: 'Aria', desc: '2♦ · Vuln 2 to all enemies',
@@ -1417,7 +1417,7 @@ const CHARS = {
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 5); gainResolve(s, 1); } },
       },
       back: {
-        basic: { name: 'Bright Word', desc: '3 dmg all', dmg: 3,
+        basic: { name: 'Bright Word', desc: '3 arcane dmg all', dmg: 3, element: 'arcane',
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => t.forEach(e => applyDmgToEnemy(s, e, 3)) },
         sig:   { name: "Sun's Decree", desc: '3♦ · 6 dmg all + 1 vuln all', cost: 3, dmg: 6,
@@ -3859,7 +3859,7 @@ const UPGRADES = {
   },
   'mira.back.basic.toxic': {
     id: 'mira.back.basic.toxic', charId: 'mira', slot: 'back', kind: 'basic',
-    name: 'Toxic Cloud', desc: '3 dmg all + bleed 2 all', dmg: 3,
+    name: 'Toxic Cloud', desc: '3 arcane dmg all + bleed 2 all', dmg: 3, element: 'arcane',
     reach: ['front','mid','back'], pattern: 'all',
     fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 3)); t.forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 2); }); },
   },
@@ -5327,7 +5327,7 @@ function resolveTargets(s, def) {
 // Pure prediction — mirrors applyDmgToEnemy's modifier stack but never mutates state.
 // Returns { amt, toHp, badge } where badge is 'WEAK!' | 'RESIST' | 'STG' | null.
 // Assumes the action fires now (vuln/armor/pendings are read as-is from current state).
-function previewDamage(s, e, baseAmt, actorId) {
+function previewDamage(s, e, baseAmt, actorId, techElement) {
   if (!e || e.dead || !(baseAmt > 0)) return { amt: 0, toHp: 0, badge: null };
   let amt = baseAmt;
 
@@ -5363,16 +5363,20 @@ function previewDamage(s, e, baseAmt, actorId) {
 
   let badge = null;
   const actorDef = actorId ? CHARS[actorId] : null;
-  if (actorDef && actorDef.school && amt > 0) {
+  // Element resolution — a tech can override the actor's school via the
+  // techElement arg (preview path) or s.currentTechElement (live execute
+  // path).  Lets heroes carry more than one weakness type across their kit.
+  const element = techElement || s.currentTechElement || (actorDef && actorDef.school);
+  if (element && amt > 0) {
     const enemyDef = ENEMIES[e.id];
     const asArr = x => Array.isArray(x) ? x : (x ? [x] : []);
     const weaks = asArr(enemyDef && enemyDef.weakness);
     const resists = asArr(enemyDef && enemyDef.resistance);
-    if (weaks.includes(actorDef.school)) {
+    if (weaks.includes(element)) {
       amt = Math.round(amt * 1.5);
       badge = 'WEAK!';
       if (hasSigil(s, 'hunt')) amt += 2;
-    } else if (resists.includes(actorDef.school)) {
+    } else if (resists.includes(element)) {
       amt = Math.max(1, Math.floor(amt * 0.5));
       badge = 'RESIST';
     }
@@ -5467,7 +5471,7 @@ function intentTargetCharIds(s, intent) {
 // same baseAmt multiple times, but armor only absorbs once and vuln only
 // procs once per hit — so a naive (toHp * hits) overstates damage on armored
 // targets and understates it after vuln consumption. Simulate a working copy.
-function previewMultiHit(s, e, baseAmt, actorId, hits) {
+function previewMultiHit(s, e, baseAmt, actorId, hits, techElement) {
   hits = hits || 1;
   let totalHp = 0;
   let badge = null;
@@ -5478,7 +5482,7 @@ function previewMultiHit(s, e, baseAmt, actorId, hits) {
   let simStaggerBonusUsed = !!e.staggerBonusUsed;
   for (let i = 0; i < hits; i++) {
     const sim = Object.assign({}, e, { armor: simArmor, vuln: simVuln, staggerBonusUsed: simStaggerBonusUsed });
-    const r = previewDamage(s, sim, baseAmt, actorId);
+    const r = previewDamage(s, sim, baseAmt, actorId, techElement);
     totalHp += r.toHp;
     if (r.badge && !badge) badge = r.badge;
     if (simVuln > 0 && r.amt > 0) simVuln -= 1;
@@ -5545,16 +5549,20 @@ function applyDmgToEnemy(s, e, baseAmt) {
     vulnConsumed = 1;
   }
 
-  // School weakness / resistance — actor's school vs enemy's weak/resist (may be arrays)
+  // School weakness / resistance — actor's school vs enemy's weak/resist (may be arrays).
+  // s.currentTechElement overrides the actor's school so individual
+  // techs can carry a different element (Kai's Crossblade = stealth
+  // even though Kai is physical-school).
   let schoolBadge = null;
   let isWeaknessHit = false;
   const actorDef = s.currentActorId ? CHARS[s.currentActorId] : null;
-  if (actorDef && actorDef.school && amt > 0) {
+  const element = s.currentTechElement || (actorDef && actorDef.school);
+  if (element && amt > 0) {
     const enemyDef = ENEMIES[e.id];
     const asArr = x => Array.isArray(x) ? x : (x ? [x] : []);
     const weaks = asArr(enemyDef && enemyDef.weakness);
     const resists = asArr(enemyDef && enemyDef.resistance);
-    if (weaks.includes(actorDef.school)) {
+    if (weaks.includes(element)) {
       amt = Math.round(amt * 1.5);
       schoolBadge = 'WEAK!';
       isWeaknessHit = true;
@@ -5562,7 +5570,7 @@ function applyDmgToEnemy(s, e, baseAmt) {
       s.pendingBonusAtb = Math.min(1, (s.pendingBonusAtb || 0) + 1);
       // Mark of the Hunt sigil — weakness hits deal +2 damage.
       if (hasSigil(s, 'hunt')) amt += 2;
-    } else if (resists.includes(actorDef.school)) {
+    } else if (resists.includes(element)) {
       amt = Math.max(1, Math.floor(amt * 0.5));
       schoolBadge = 'RESIST';
     }
@@ -6615,8 +6623,9 @@ function executeQueueItem(s, item) {
       Audio.attack(); Audio.kill();
     }
     s.currentActorId = null;
+    s.currentTechElement = null;
     try { combo.fn(s); }
-    finally { s.outgoingDmgMod = 0; s.ignoreArmor = false; s.currentActorId = null; }
+    finally { s.outgoingDmgMod = 0; s.ignoreArmor = false; s.currentActorId = null; s.currentTechElement = null; }
     return;
   }
 
@@ -6634,6 +6643,10 @@ function executeQueueItem(s, item) {
     log(`<b>${CHARS[item.charId].name}</b> uses <b>${variant.name}</b>${item.kind === 'special' ? ' ★' : ''}.`);
     s.currentActorId = item.charId;
     s.outgoingDmgMod = c.dulled > 0 ? -2 : 0;
+    // Tech-level element override.  Defaults to the actor's school but
+    // a tech can declare its own `element` so a hero gets coverage of
+    // more than one weakness school.  Read in applyDmgToEnemy / preview.
+    s.currentTechElement = variant.element || null;
     try {
       if (variant.reach) {
         const targets = resolveTargets(s, variant);
@@ -6649,7 +6662,7 @@ function executeQueueItem(s, item) {
         variant.fn(s);
       }
     }
-    finally { s.outgoingDmgMod = 0; s.ignoreArmor = false; s.currentActorId = null; }
+    finally { s.outgoingDmgMod = 0; s.ignoreArmor = false; s.currentActorId = null; s.currentTechElement = null; }
     if (c.dulled > 0) c.dulled = Math.max(0, c.dulled - 1);
     return;
   }
@@ -7759,7 +7772,7 @@ function previewTargetsForTile(kind, charId, dir) {
       const sl = SLOTS.find(sl => s.enemies.slots[sl] === e.id);
       if (!sl) return null;
       if (typeof variant.dmg !== 'number') return { slot: sl };
-      const r = previewMultiHit(s, e, variant.dmg, charId, variant.hits || 1);
+      const r = previewMultiHit(s, e, variant.dmg, charId, variant.hits || 1, variant.element);
       const kill = !e.dead && r.dmg >= e.hp;
       return { slot: sl, dmg: r.dmg, badge: r.badge, kill };
     }).filter(Boolean);
@@ -8056,6 +8069,11 @@ const _barkCooldown = new Map(); // key: `${id}|${trigger}` -> last-fire ts
 const BARK_COOLDOWN_MS = 4000;
 function spawnBark(charId, trigger) {
   if (typeof __simulating !== 'undefined' && __simulating) return;
+  // Dead party members don't talk — they're on the ground, not in the
+  // banter rail.  Guards every bark trigger (kill / lowHp / bond) so an
+  // adjacency hook can't fire a line from a downed hero.
+  const c = state && state.party && state.party.chars && state.party.chars[charId];
+  if (!c || c.downed) return;
   const lines = BARKS[charId] && BARKS[charId][trigger];
   if (!lines || !lines.length) return;
   const key = `${charId}|${trigger}`;
@@ -9124,7 +9142,14 @@ function _completeNonCombatNode() {
       const rumored = (state.run.rumoredHeroes || []).filter(id => pickable.includes(id));
       const pool = rumored.length ? rumored : pickable;
       const heroId = pool[Math.floor(Math.random() * pool.length)];
-      const hasOpenSlot = ['front','mid','back'].some(sl => !state.party.slots[sl]);
+      // A 'free' slot is either empty OR held by a downed hero (the
+      // recruit replaces the corpse without needing a swap UI).
+      const hasOpenSlot = ['front','mid','back'].some(sl => {
+        const id = state.party.slots[sl];
+        if (!id) return true;
+        const c = state.party.chars[id];
+        return !!(c && c.downed);
+      });
       if (hasOpenSlot) {
         showRecruitVignette(heroId, 'stranger', () => renderMap());
       } else {
@@ -9778,7 +9803,15 @@ function offerVignetteOrPath(fightCtx) {
 function shouldOfferRecruit() {
   const pickable = ROSTER.filter(id => !state.party.chars[id]);
   if (!pickable.length) return false;
-  const openSlots = ['front','mid','back'].filter(sl => !state.party.slots[sl]).length;
+  // Downed-occupied slots count as open — a recruit lands on a corpse
+  // instead of being blocked by it.  Without this, a 3-hero run that
+  // loses one hero would never get a refill offer.
+  const openSlots = ['front','mid','back'].filter(sl => {
+    const id = state.party.slots[sl];
+    if (!id) return true;
+    const c = state.party.chars[id];
+    return !!(c && c.downed);
+  }).length;
   if (openSlots === 0) return false;
   if (state.run.recruitPending) return true;
   const since = state.run.nodesSinceRecruit || 0;
@@ -9948,18 +9981,21 @@ function commitUpgrade(upgradeId, onDone) {
 
 // Pick an empty slot for an incoming recruit — prefer their home, otherwise
 // any open slot.  Returns null if the party is full.
-function findEmptySlotForRecruit(recruitId) {
-  const home = CHARS[recruitId].home;
-  if (!state.party.slots[home]) return home;
-  return ['front','mid','back'].find(sl => !state.party.slots[sl]) || null;
-}
-
 // Pick an empty slot for an incoming recruit — prefer their home, otherwise
-// any open slot.  Returns null if the party is full.
+// any genuinely empty slot, otherwise any slot whose hero is downed (the
+// recruit replaces the corpse so the player never gets stuck on a 'full'
+// party that's mostly dead).  Returns null only when every slot has a
+// living hero in it.
 function findEmptySlotForRecruit(recruitId) {
+  const isFreeSlot = (sl) => {
+    const id = state.party.slots[sl];
+    if (!id) return true;
+    const c = state.party.chars[id];
+    return !!(c && c.downed);
+  };
   const home = CHARS[recruitId].home;
-  if (!state.party.slots[home]) return home;
-  return ['front','mid','back'].find(sl => !state.party.slots[sl]) || null;
+  if (isFreeSlot(home)) return home;
+  return ['front','mid','back'].find(isFreeSlot) || null;
 }
 
 // Short greeting line per hero — used in the recruit overlay's chat bubble.
@@ -10029,6 +10065,14 @@ function showRecruitVignette(heroId, flavor, onDone) {
         resolve: (s) => {
           const slot = findEmptySlotForRecruit(heroId);
           if (!slot) return;
+          // Evict a downed hero if the slot was held by their corpse —
+          // the recruit's now taking that position, so leaving the dead
+          // hero in s.party.chars would leak stats / quirks / etc.
+          const occupant = s.party.slots[slot];
+          if (occupant && s.party.chars[occupant] && s.party.chars[occupant].downed) {
+            log(`<i><b>${CHARS[occupant].name}</b> is laid to rest.</i>`);
+            delete s.party.chars[occupant];
+          }
           s.party.chars[heroId] = newCharState(heroId);
           s.party.slots[slot] = heroId;
           const c = s.party.chars[heroId];
