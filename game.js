@@ -9078,6 +9078,10 @@ function showVignette(v, ctx, done) {
   stage.appendChild(portraitRow);
 
   bodyEl.appendChild(stage);
+  // Scroll the dialogue rail so the most recent line is fully visible.
+  // Without this, long bubbles can render with their top edge clipped
+  // above the rail when total content height exceeds the stage.
+  requestAnimationFrame(() => { dlg.scrollTop = dlg.scrollHeight; });
 
   // Choices — slim, single row of text-link buttons.  Each is one chip:
   // an action label with a small tag chip.
@@ -9527,15 +9531,14 @@ function showRunSummary(outcome, opts) {
     const dealt = rs.damageDealt[id] || 0;
     const healed = rs.healingDone[id] || 0;
     const taken = rs.damageTaken[id] || 0;
+    // Tabular columns — render all three stat slots even when 0 so the
+    // numbers line up vertically across rows.  Empty cells render dim.
     return `
-      <div class="vs-row ${c.downed ? 'vs-downed' : ''}">
+      <div class="vs-row vs-row-grid ${c.downed ? 'vs-downed' : ''}">
         <span class="vs-name">${def.name}${c.downed ? ' · downed' : ''}</span>
-        <span class="vs-stats">
-          ${dealt > 0 ? `<span class="vs-stat vs-dealt"><b>${dealt}</b> dealt</span>` : ''}
-          ${healed > 0 ? `<span class="vs-stat vs-healed"><b>${healed}</b> healed</span>` : ''}
-          ${taken > 0 ? `<span class="vs-stat vs-taken"><b>${taken}</b> taken</span>` : ''}
-          ${dealt === 0 && healed === 0 && taken === 0 ? '<span class="vs-stat vs-quiet">—</span>' : ''}
-        </span>
+        <span class="vs-col vs-dealt">${dealt > 0 ? `<b>${dealt}</b> dealt` : '<span class="vs-zero">—</span>'}</span>
+        <span class="vs-col vs-healed">${healed > 0 ? `<b>${healed}</b> healed` : '<span class="vs-zero">—</span>'}</span>
+        <span class="vs-col vs-taken">${taken > 0 ? `<b>${taken}</b> taken` : '<span class="vs-zero">—</span>'}</span>
       </div>`;
   }).join('');
 
@@ -9669,14 +9672,11 @@ function showVictorySummary(completedEnc, onContinue) {
     const taken = fs.damageTaken[id] || 0;
     const downed = c.downed;
     return `
-      <div class="vs-row ${downed ? 'vs-downed' : ''}">
+      <div class="vs-row vs-row-grid ${downed ? 'vs-downed' : ''}">
         <span class="vs-name">${def.name}${downed ? ' · downed' : ''}</span>
-        <span class="vs-stats">
-          ${dealt > 0 ? `<span class="vs-stat vs-dealt"><b>${dealt}</b> dealt</span>` : ''}
-          ${healed > 0 ? `<span class="vs-stat vs-healed"><b>${healed}</b> healed</span>` : ''}
-          ${taken > 0 ? `<span class="vs-stat vs-taken"><b>${taken}</b> taken</span>` : ''}
-          ${dealt === 0 && healed === 0 && taken === 0 ? '<span class="vs-stat vs-quiet">—</span>' : ''}
-        </span>
+        <span class="vs-col vs-dealt">${dealt > 0 ? `<b>${dealt}</b> dealt` : '<span class="vs-zero">—</span>'}</span>
+        <span class="vs-col vs-healed">${healed > 0 ? `<b>${healed}</b> healed` : '<span class="vs-zero">—</span>'}</span>
+        <span class="vs-col vs-taken">${taken > 0 ? `<b>${taken}</b> taken` : '<span class="vs-zero">—</span>'}</span>
       </div>`;
   }).join('');
 
