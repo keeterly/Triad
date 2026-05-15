@@ -2251,7 +2251,10 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(ellipse at center, rgba(0,0,0,0.62) 0%, rgba(0,0,0,0.88) 80%);
+  /* Near-opaque backdrop — the award is meant to halt play, not float
+     translucently over the battlefield.  Subtle radial keeps the focal
+     point centered but the underlying scene is essentially blacked out. */
+  background: radial-gradient(ellipse at center, rgba(0,0,0,0.94) 0%, rgba(0,0,0,0.99) 80%);
   cursor: pointer;
   animation: qa-bk-in 0.28s ease forwards;
   -webkit-tap-highlight-color: transparent;
