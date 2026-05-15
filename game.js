@@ -7309,7 +7309,7 @@ function makePartyCard(c, slot, threatened, adjMap, incoming) {
     ${synStack}
     <div class="figure-portrait">
       ${PORTRAITS[c.id] || ''}
-      <div class="figure-statuses">${renderStatuses(c)}</div>
+      <div class="figure-statuses">${renderStatuses(c, state)}</div>
       <div class="figure-hp">
         <div class="hp-fill ${hpPct < 35 ? 'low' : ''}" style="width:${hpPct}%"></div>
         <div class="hp-text">${c.hp}/${c.maxHp}</div>
@@ -7448,7 +7448,7 @@ function makeEnemyCard(e, slot) {
   return fig;
 }
 
-function renderStatuses(ent) {
+function renderStatuses(ent, sForAuras) {
   const c = [];
   // Each chip carries data-status so the press-and-hold tooltip handler can
   // resolve its explanation from STATUS_TOOLTIPS without re-parsing classes.
@@ -7465,7 +7465,67 @@ function renderStatuses(ent) {
     else if (e.kind === 'healBonus')   c.push(chip('pending', '✚', `+${e.amt}`, `Next heal +${e.amt} (one-shot, consumed on use).`));
     else                                c.push(chip('pending', '✦', `+${e.amt}`, `Pending +${e.amt}`));
   });
+  // Position-derived passive auras — these are derived from the current
+  // formation (not stored on the entity) so the player can see at a glance
+  // *why* damage on this card is being softened.  Only applied for party
+  // members (sForAuras passed); enemies don't carry these.
+  if (sForAuras && ent.id) {
+    // Garron Sentinel — every OTHER ally takes -1 dmg while Garron holds Front.
+    const garron = sForAuras.party && sForAuras.party.chars && sForAuras.party.chars.garron;
+    if (garron && !garron.downed && ent.id !== 'garron' && slotOfChar(sForAuras, 'garron') === 'front') {
+      c.push(chip('sentinel', '⛨', '−1', 'Sentinel — Garron in Front softens incoming damage to allies by 1.'));
+    }
+    // Cassia Steadfast — she herself takes -1 dmg while in Front.
+    if (ent.id === 'cassia' && slotOfChar(sForAuras, 'cassia') === 'front') {
+      c.push(chip('steadfast', '⛨', '−1', 'Steadfast — Cassia in Front takes 1 less damage.'));
+    }
+  }
   return c.join('');
+}
+
+// Tech / status description icon-ifier.  Wraps known keywords with small
+// styled spans (icon + word) so the player can scan a tile description and
+// instantly recognise advance/retreat, bleed/vuln/armor, elemental damage,
+// etc.  Uses a placeholder pass so a replacement's own text (e.g. "kw-armor"
+// inside a class attribute) can't be re-matched by a later rule.
+const DESC_SCHOOL_GLYPH = { physical: '⚔', holy: '✦', arcane: '✶', ranged: '➳', stealth: '◐' };
+const DESC_KEYWORDS = [
+  // longer phrases first so they win over shorter sub-matches
+  { re: /\bretreat full\b/gi,
+    html: () => '<span class="kw kw-retreat">◀◀ retreat full</span>' },
+  { re: /\bself-taunt\b/gi,
+    html: () => '<span class="kw kw-taunt">⌖ self-taunt</span>' },
+  // element-prefixed damage: "5 holy dmg", "4 arcane dmg" → number stays, element becomes a tinted chip
+  { re: /\b(\d+)\s+(holy|arcane|stealth|ranged|physical)\s+dmg\b/gi,
+    html: (_m, n, sch) => {
+      const s = sch.toLowerCase();
+      return `${n} <span class="kw kw-school kw-school-${s}">${DESC_SCHOOL_GLYPH[s] || ''} ${s}</span> dmg`;
+    } },
+  { re: /\badvance\b/gi,   html: () => '<span class="kw kw-advance">▶ advance</span>' },
+  { re: /\bretreat\b/gi,   html: () => '<span class="kw kw-retreat">◀ retreat</span>' },
+  { re: /\bbleed\b/gi,     html: () => '<span class="kw kw-bleed">✤ bleed</span>' },
+  { re: /\bvulnerable\b/gi,html: () => '<span class="kw kw-vuln">⊕ vulnerable</span>' },
+  { re: /\bvuln\b/gi,      html: () => '<span class="kw kw-vuln">⊕ vuln</span>' },
+  { re: /\barmor\b/gi,     html: () => '<span class="kw kw-armor">⛨ armor</span>' },
+  { re: /\btaunt\b/gi,     html: () => '<span class="kw kw-taunt">⌖ taunt</span>' },
+  { re: /\bretaliate\b/gi, html: () => '<span class="kw kw-retal">↻ retaliate</span>' },
+  { re: /\bcleanse\b/gi,   html: () => '<span class="kw kw-cleanse">✦ cleanse</span>' },
+  { re: /\bresolve\b/gi,   html: () => '<span class="kw kw-resolve">♦ Resolve</span>' },
+  { re: /\bheals?\b/gi,    html: (m) => `<span class="kw kw-heal">✚ ${m.toLowerCase()}</span>` },
+  { re: /\bdulled?\b/gi,   html: (m) => `<span class="kw kw-dulled">↓ ${m.toLowerCase()}</span>` },
+];
+function formatDesc(text) {
+  if (!text) return '';
+  const tokens = [];
+  let out = String(text);
+  DESC_KEYWORDS.forEach((rule) => {
+    out = out.replace(rule.re, (...args) => {
+      const html = typeof rule.html === 'function' ? rule.html(...args) : rule.html;
+      tokens.push(html);
+      return `\x00${tokens.length - 1}\x00`;
+    });
+  });
+  return out.replace(/\x00(\d+)\x00/g, (_, i) => tokens[+i]);
 }
 
 // Mobile-friendly explanation surface for status chips.  The desktop `title`
@@ -7479,6 +7539,8 @@ const STATUS_TOOLTIPS = {
   vuln:     { name: 'Vulnerable',  text: 'Incoming hits deal +2 damage per stack (+2 more with Ember of Wrath). One stack is consumed per hit (unless Brand of Doom).' },
   retal:    { name: 'Retaliate',   text: 'When hit, counter-attacks the front-most enemy for this value (+2 with Vow of Vigil). Clears at the start of the next turn.' },
   pending:  { name: 'Pending',     text: 'A one-shot bonus from a synergy. Consumed by the next matching action.' },
+  sentinel: { name: 'Sentinel',    text: 'Garron in Front softens incoming damage to allies by 1. Lifts the moment he leaves Front or falls.' },
+  steadfast:{ name: 'Steadfast',   text: 'Cassia in Front takes 1 less damage. Lifts the moment she leaves Front.' },
 };
 
 let _statusTooltipState = null;
@@ -7708,7 +7770,7 @@ function makeTile(kind, charId, dir, tileCounts, teamLocked) {
   t.innerHTML = `
     <span class="tile-badges">${costBadges.join('')}</span>
     <span class="tile-name">${elBadge}${preview.label || '—'}</span>
-    <span class="tile-desc">${preview.desc || ''}</span>
+    <span class="tile-desc">${formatDesc(preview.desc) || ''}</span>
     ${reachLabel ? `<span class="tile-reach">${reachLabel}</span>` : ''}
     ${qCount > 1 ? `<span class="q-count">×${qCount}</span>` : ''}
   `;
@@ -9426,7 +9488,7 @@ function showPartyInspect() {
   const techRow = (kind, tech) => {
     if (!tech) return '';
     const label = kind === 'sig' ? 'S' : 'A';
-    return `<div class="hip-tech-row${kind === 'sig' ? ' sig' : ''}"><span class="hip-tech-kind${kind === 'sig' ? ' sig' : ''}">${label}</span><div class="hip-tech-body"><div class="hip-tech-name">${tech.name}</div><div class="hip-tech-desc">${tech.desc || ''}</div></div></div>`;
+    return `<div class="hip-tech-row${kind === 'sig' ? ' sig' : ''}"><span class="hip-tech-kind${kind === 'sig' ? ' sig' : ''}">${label}</span><div class="hip-tech-body"><div class="hip-tech-name">${tech.name}</div><div class="hip-tech-desc">${formatDesc(tech.desc)}</div></div></div>`;
   };
   const techSection = (id, def, pos) => {
     const basic = getTech(state, id, pos, 'basic');

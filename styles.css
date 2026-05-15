@@ -1593,6 +1593,37 @@ body {
 .status-retal   { color: var(--gold);        border-color: var(--gold); }
 .status-vuln    { color: #ff8a8a;            border-color: var(--bleed); background: rgba(196,56,56,0.25); }
 .status-pending { color: var(--gold-bright); border-color: var(--gold-bright); background: rgba(240,212,136,0.2); }
+/* Position-derived aura chips — make Garron Sentinel and Cassia Steadfast
+   visible so the player can see *why* damage on this card is being softened. */
+.status-sentinel,
+.status-steadfast { color: var(--armor); border-color: var(--armor); background: rgba(136,152,168,0.18); }
+
+/* ============ DESCRIPTION KEYWORD CHIPS ============
+   Inline icon+word chips that appear inside tech tooltips and the hero
+   codex so common keywords (advance/retreat/bleed/vuln/armor/etc.) read
+   consistently at a glance.  Substitution happens at render via formatDesc(). */
+.kw {
+  font-style: normal;
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+  font-weight: 600;
+}
+.kw-advance        { color: var(--frost-bright); }
+.kw-retreat        { color: var(--frost); }
+.kw-bleed          { color: #e07a6a; }
+.kw-vuln           { color: #ff8a8a; }
+.kw-armor          { color: var(--armor); }
+.kw-taunt          { color: var(--taunt); }
+.kw-retal          { color: var(--gold-bright); }
+.kw-cleanse        { color: var(--gold-pale); }
+.kw-resolve        { color: var(--gold-bright); }
+.kw-heal           { color: #b0d8a0; }
+.kw-dulled         { color: var(--weak); }
+.kw-school-physical { color: #d8c2a0; }
+.kw-school-holy     { color: #f4e6b8; }
+.kw-school-arcane   { color: #c9a8e8; }
+.kw-school-ranged   { color: #a8c8a0; }
+.kw-school-stealth  { color: #a8b8d0; }
 
 /* ============ CARD BOTTOM — name + HP ============ */
 .card-bottom {
@@ -5700,7 +5731,7 @@ button.path-node { cursor: pointer; }
 
 /* Status pills — let the COLOR carry identity; drop the bordered chip. */
 .status-pill, .status-armor, .status-bleed, .status-taunt, .status-dulled,
-.status-retal, .status-vuln {
+.status-retal, .status-vuln, .status-sentinel, .status-steadfast {
   border: none !important;
   background: rgba(0,0,0,0.45);
   padding: 0 4px;
