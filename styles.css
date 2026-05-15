@@ -994,6 +994,15 @@ body {
 /* hit shake on the portrait */
 .figure.hit-flash .figure-portrait { animation: portrait-shake 0.4s ease-out; }
 .figure.heal-flash { animation: card-heal-glow 0.7s ease-out; }
+/* Telegraph the target of an enemy intent — a brief red pulse on the
+   party slot(s) about to take a hit so the player traces enemy → target
+   before the swing lands. */
+.figure.warn-flash .figure-portrait { animation: portrait-warn 0.32s ease-out; }
+@keyframes portrait-warn {
+  0%   { filter: brightness(1)    drop-shadow(0 0 0 transparent); }
+  35%  { filter: brightness(1.18) drop-shadow(0 0 18px rgba(220,80,80,0.75)); }
+  100% { filter: brightness(1)    drop-shadow(0 0 0 transparent); }
+}
 
 /* preview / target marker */
 .figure.target-marker {

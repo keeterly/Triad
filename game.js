@@ -6801,6 +6801,13 @@ function resolveEnemyStep(s, i) {
   log(`<b>${def.name}</b> uses <b>${intent.name}</b>.`);
   // Telegraph: briefly highlight the acting enemy card before the hit lands.
   flashCardId(e.id, 'hit', 'enemy');
+  // Telegraph the target — flash a red warning on the party slot(s) the
+  // intent will hit so the player visually traces enemy → target before
+  // the damage lands.  Wrapped in try/catch so intents with unusual
+  // targetSlot shapes don't break the turn.
+  try {
+    intentTargetCharIds(s, intent).forEach(tid => flashCardId(tid, 'warn', 'party'));
+  } catch (_) {}
   setTimeout(() => {
     intent.fn(s);
     if (checkEnd(s)) { s.executing = false; render(); return; }
