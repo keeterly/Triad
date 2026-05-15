@@ -10428,6 +10428,12 @@ function loadStateOrNull() {
     const snap = JSON.parse(raw);
     snap.firedSynergies = new Set(snap.firedSynergies || []);
     snap.usedCombos     = new Set(snap.usedCombos || []);
+    // saveState fires on every render() including during turn resolution,
+    // so a snapshot can land with executing=true but no scheduled timers
+    // to drive the queue forward.  Reset the transient flags on load so
+    // Continue always lands on a controllable state.
+    snap.executing = false;
+    snap.executingIdx = -1;
     return snap;
   } catch (_) { return null; }
 }
