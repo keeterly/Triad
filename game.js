@@ -7459,10 +7459,14 @@ function makeEnemyCard(e, slot) {
   // self-documenting.
   let stateStrip = '';
   if (e.staggered) {
-    stateStrip = `<div class="state-strip state-strip-staggered" title="Staggered — the next damaging hit deals 2× damage">⚡ STAGGERED · NEXT HIT 2×</div>`;
+    stateStrip = `<div class="state-strip state-strip-staggered" title="Staggered — the next damaging hit (any element) deals 2× damage, then they recover">⚡ STAGGERED · NEXT HIT × 2</div>`;
   } else if (e.weakened) {
-    const more = weakSchool ? `${SCHOOL_GLYPH[weakSchool] || '?'} +1 = STAGGER` : '+1 WEAKNESS = STAGGER';
-    stateStrip = `<div class="state-strip state-strip-weakened" title="Weakened — hit them with their weakness again to stagger">⌖ WEAKENED · ${more}</div>`;
+    // Spell out HOW to stagger so the player doesn't need to remember the
+    // glyph legend.  e.g. "WEAKENED · HIT WITH ✦ HOLY → STAGGER"
+    const more = weakSchool
+      ? `HIT WITH ${SCHOOL_GLYPH[weakSchool] || '?'} ${weakSchool.toUpperCase()} → STAGGER`
+      : 'HIT WEAKNESS AGAIN → STAGGER';
+    stateStrip = `<div class="state-strip state-strip-weakened" title="Weakened — hit them with their weakness school again this turn to stagger">⌖ WEAKENED · ${more}</div>`;
   }
 
   fig.innerHTML = `
@@ -7928,7 +7932,7 @@ function previewTargetsForTile(kind, charId, dir) {
   const s = getPreviewState();
   if (kind === 'attack' || kind === 'special') {
     const slot = slotOfChar(s, charId);
-    if (!slot) return { enemySlots: [], partySlots: [], enemyHits: [], partyHeals: [], moveSlots: [] };
+    if (!slot) return { enemySlots: [], partySlots: [], enemyHits: [], partyHeals: [], moveSlots: [], weaknessSlots: [], staggerSlots: [], element: null };
     const variant = getTech(s, charId, slot, kind === 'special' ? 'sig' : 'basic');
     const targets = resolveTargets(s, variant) || [];
     const enemyHits = targets.map(e => {
@@ -7951,7 +7955,28 @@ function previewTargetsForTile(kind, charId, dir) {
       const dest = moveDestSlotFor(slot, variant.move);
       if (dest && dest !== slot) moveSlots.push({ from: slot, to: dest });
     }
-    return { enemySlots, partySlots, enemyHits, partyHeals, moveSlots };
+    // Weakness / stagger context highlights — when the tile would deal
+    // damage, show a school-tinted ring around every alive enemy weak to
+    // this element AND a gold pulse around any currently-staggered enemy
+    // (since the next damaging hit on staggered = 2× regardless of element).
+    // Even out-of-reach enemies are highlighted so the player can decide
+    // to reposition before committing.
+    const weaknessSlots = [];
+    const staggerSlots = [];
+    let element = null;
+    if (typeof variant.dmg === 'number') {
+      const heroSchool = CHARS[charId] && CHARS[charId].school;
+      element = variant.element || heroSchool || null;
+      const asArr = x => Array.isArray(x) ? x : (x ? [x] : []);
+      aliveEnemies(s).forEach(e => {
+        const sl = SLOTS.find(sl => s.enemies.slots[sl] === e.id);
+        if (!sl) return;
+        const weaks = asArr(ENEMIES[e.id] && ENEMIES[e.id].weakness);
+        if (element && weaks.includes(element)) weaknessSlots.push(sl);
+        if (e.staggered) staggerSlots.push(sl);
+      });
+    }
+    return { enemySlots, partySlots, enemyHits, partyHeals, moveSlots, weaknessSlots, staggerSlots, element };
   }
   if (kind === 'move') {
     const slot = slotOfChar(s, charId);
@@ -8012,8 +8037,24 @@ function bindTileHold(tile, handlers) {
   tile.addEventListener('contextmenu',  (e) => e.preventDefault());
 }
 
-function applyPreviewHighlight({ enemySlots, partySlots, enemyHits, partyHeals, moveSlots }) {
+function applyPreviewHighlight({ enemySlots, partySlots, enemyHits, partyHeals, moveSlots, weaknessSlots, staggerSlots, element }) {
   clearPreviewHighlight();
+  // Element-weakness aura: school-tinted ring on EVERY alive enemy weak to
+  // this tile's element, in-reach or not.  Lets the player see the matchup
+  // before committing — and decide to reposition if the weak enemy is out
+  // of the current reach.
+  (weaknessSlots || []).forEach(sl => {
+    const el = document.querySelector(`#enemy-half .figure[data-slot="${sl}"]`);
+    if (!el) return;
+    el.classList.add('weakness-target');
+    if (element) el.dataset.weaknessSchool = element;
+  });
+  // Stagger aura: any staggered enemy gets a gold lightning pulse so the
+  // 2× window is impossible to miss.
+  (staggerSlots || []).forEach(sl => {
+    const el = document.querySelector(`#enemy-half .figure[data-slot="${sl}"]`);
+    if (el) el.classList.add('stagger-target');
+  });
   const hitBySlot = {};
   (enemyHits || []).forEach(h => { if (h && h.slot) hitBySlot[h.slot] = h; });
   (enemySlots || []).forEach(sl => {
@@ -8093,6 +8134,11 @@ function clearPreviewHighlight() {
   document.querySelectorAll('.target-marker').forEach(el => el.classList.remove('target-marker'));
   document.querySelectorAll('.move-dest').forEach(el => el.classList.remove('move-dest'));
   document.querySelectorAll('.move-src').forEach(el => el.classList.remove('move-src'));
+  document.querySelectorAll('.weakness-target').forEach(el => {
+    el.classList.remove('weakness-target');
+    delete el.dataset.weaknessSchool;
+  });
+  document.querySelectorAll('.stagger-target').forEach(el => el.classList.remove('stagger-target'));
   document.querySelectorAll('.target-dmg-label, .target-heal-label, .target-move-tag, .move-from-arrow').forEach(el => el.remove());
 }
 
