@@ -1,6 +1,6 @@
 # Triad
 
-Dark-fantasy roguelite RPG prototype. Mobile landscape. ATB-style action queue + stagger, played as a 3-fight gauntlet with branching encounter choice and persistent damage between fights.
+Dark-fantasy roguelite RPG prototype. Mobile landscape. ATB-style action queue with Persona-5-style weakness stagger, played as a 3-fight gauntlet with branching encounter choice and persistent damage between fights.
 
 ## Core mechanic
 
@@ -36,13 +36,15 @@ Each pair of characters in adjacent slots has a named synergy — and a *differe
 
 Pending one-shot bonuses (next-attack/next-heal) show as gold chips on the receiver's card and consume on use.
 
-## Stagger loop
+## Weakness loop
 
-Each enemy has a chain gauge under their HP. Damage builds it (Vulnerable hits build x2). At full, the enemy is **Staggered** — skips their next action and takes +50% damage. That's your burst window.
+Each hero has a **school** (physical / holy / arcane / ranged / stealth) — that's also their attacks' **element**. Every enemy has a hidden weakness school, revealed the first time anyone hits them (the small icon under their HP bar). Hit that weakness once → enemy goes **WEAKENED** (red ⌖ pip). Hit the same weakness again the same turn → enemy is **STAGGERED** (gold ⚡ pip). The next damaging hit of any element on a staggered enemy deals **2× damage**, then the enemy recovers.
+
+Both states clear at the end of the player turn if you don't capitalize same turn — staggered enemies still act normally, the 2× hit is the only payoff. Stacking Resolve to spend on two specials in one turn is the cleanest stagger setup.
 
 ## Run structure — three reaches
 
-A run is three fights, called **reaches**. After each win you pick one of two encounters for the next reach, so a run is 2×2×2 = 8 possible paths. Things that persist between fights: **HP** (including downed status — a fallen character stays down for the run), **Resolve** (capped at 3 between fights so you can't bank it forever), and **pending one-shot bonuses** like Spirit Arrow's +2 heal. Things that reset: armor, statuses (bleed/weak/vuln/taunt/retaliate), the queue, the turn counter, and the enemy roster. Wipe at any point ends the run.
+A run is three fights, called **reaches**. After each win you pick one of two encounters for the next reach, so a run is 2×2×2 = 8 possible paths. Things that persist between fights: **HP** (including downed status — a fallen character stays down for the run), **Resolve** (capped at 3 between fights so you can't bank it forever), and **pending one-shot bonuses** like Spirit Arrow's +2 heal. Things that reset: armor, statuses (bleed/dulled/vuln/taunt/retaliate), weakness/stagger state, the queue, the turn counter, and the enemy roster. Wipe at any point ends the run.
 
 ### New enemies introduced in later reaches
 

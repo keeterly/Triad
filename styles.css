@@ -822,16 +822,44 @@ body {
   white-space: nowrap;
 }
 
-/* chain bar (enemies) — minimal flat track, no outline */
-.figure .chain-bar {
-  width: 44px;
-  max-width: 60px;
-  height: 2px;
-  margin-top: 2px;
-  border: none;
-  background: rgba(10,10,12,0.7);
-  border-radius: 0;
-  overflow: hidden;
+/* Weakness reveal icon — small school glyph under the HP bar on enemies.
+   Renders once weaknessRevealed flips true (first damaging hit or any
+   Hask hit via Frostbreak passive). */
+.figure .weakness-icon {
+  position: absolute;
+  bottom: -14px; left: 50%;
+  transform: translateX(-50%);
+  font-size: 12px;
+  color: var(--gold-pale);
+  text-shadow: 0 0 6px rgba(240,212,136,0.55), 0 1px 0 rgba(0,0,0,0.9);
+  pointer-events: none;
+  opacity: 0.92;
+  letter-spacing: 0;
+  z-index: 6;
+}
+
+/* State pips — WEAKENED (cracked sight) and STAGGERED (lightning).
+   Sit at the top-right corner of the portrait so they don't fight with
+   the status chip row at the top-center. */
+.figure .state-pip {
+  position: absolute;
+  top: 4px; right: 4px;
+  font-size: 16px;
+  pointer-events: none;
+  z-index: 8;
+}
+.figure .state-pip.pip-weakened {
+  color: rgba(220,160,160,0.92);
+  text-shadow: 0 0 8px rgba(200,80,80,0.6), 0 1px 0 rgba(0,0,0,0.9);
+}
+.figure .state-pip.pip-staggered {
+  color: var(--gold-bright);
+  text-shadow: 0 0 12px rgba(240,212,136,0.8), 0 1px 0 rgba(0,0,0,0.9);
+  animation: state-stagger-pulse 0.7s ease-in-out infinite alternate;
+}
+@keyframes state-stagger-pulse {
+  from { filter: brightness(1)    drop-shadow(0 0 6px rgba(240,212,136,0.4)); }
+  to   { filter: brightness(1.35) drop-shadow(0 0 14px rgba(240,212,136,0.9)); }
 }
 
 /* Status chips — horizontal row centered above the HP bar, inside the
@@ -1257,16 +1285,24 @@ body {
 
 /* downed character SVG breathing off */
 .figure.downed .figure-portrait svg { animation: none; }
-.figure.staggered .figure-portrait svg { animation-duration: 1.2s; }
+.figure.state-staggered .figure-portrait svg { animation-duration: 1.2s; }
 .figure.hit-flash .figure-portrait svg { animation: none; }
 
-/* staggered enemy: orange aura instead of red */
-.figure.staggered {
-  animation: stagger-aura 1.2s ease-in-out infinite;
+/* Staggered enemy — warm gold aura (was orange).  Weakened enemy gets
+   a subtler red-shifted aura.  Replaces the old chain-meter glow. */
+.figure.state-staggered {
+  animation: state-stagger-aura 1.2s ease-in-out infinite;
 }
-@keyframes stagger-aura {
-  0%, 100% { filter: drop-shadow(0 6px 8px rgba(0,0,0,0.65)) drop-shadow(0 0 8px rgba(255,128,48,0.4)); }
-  50%      { filter: drop-shadow(0 6px 8px rgba(0,0,0,0.65)) drop-shadow(0 0 18px rgba(255,128,48,0.8)); }
+.figure.state-weakened {
+  animation: state-weak-aura 1.8s ease-in-out infinite;
+}
+@keyframes state-stagger-aura {
+  0%, 100% { filter: drop-shadow(0 6px 8px rgba(0,0,0,0.65)) drop-shadow(0 0 10px rgba(240,212,136,0.4)); }
+  50%      { filter: drop-shadow(0 6px 8px rgba(0,0,0,0.65)) drop-shadow(0 0 22px rgba(240,212,136,0.85)); }
+}
+@keyframes state-weak-aura {
+  0%, 100% { filter: drop-shadow(0 6px 8px rgba(0,0,0,0.65)) drop-shadow(0 0 6px rgba(200,80,80,0.25)); }
+  50%      { filter: drop-shadow(0 6px 8px rgba(0,0,0,0.65)) drop-shadow(0 0 12px rgba(200,80,80,0.5)); }
 }
 
 /* adjacency icons — small row above figure */
@@ -1467,7 +1503,6 @@ body {
   55%      { transform: scaleX(-1.02) scaleY(1.01)   translateY(-0.4px); }
 }
 .card.downed .card-portrait svg { animation: none; }
-.card.staggered .card-portrait svg { animation-duration: 1.2s; }
 .card.hit-flash .card-portrait svg { animation: none; }
 /* deep vignette over the portrait */
 .card-portrait::after {
@@ -1523,7 +1558,7 @@ body {
 .status-armor   { color: var(--armor);       border-color: var(--armor); }
 .status-bleed   { color: var(--bleed);       border-color: var(--bleed); }
 .status-taunt   { color: var(--taunt);       border-color: var(--taunt); }
-.status-weak    { color: var(--weak);        border-color: var(--weak); }
+.status-dulled  { color: var(--weak);        border-color: var(--weak); }
 .status-retal   { color: var(--gold);        border-color: var(--gold); }
 .status-vuln    { color: #ff8a8a;            border-color: var(--bleed); background: rgba(196,56,56,0.25); }
 .status-pending { color: var(--gold-bright); border-color: var(--gold-bright); background: rgba(240,212,136,0.2); }
@@ -1591,58 +1626,9 @@ body {
   letter-spacing: 0.04em;
 }
 
-/* chain bar (enemies only) */
-.chain-bar {
-  width: 100%; height: 5px;
-  background: linear-gradient(180deg, #050200 0%, #1a0e08 100%);
-  border: 1px solid var(--gold-deep);
-  border-radius: 2px; overflow: hidden;
-  margin-top: 3px;
-  position: relative;
-  box-shadow: inset 0 1px 1px rgba(0,0,0,0.6);
-}
-.chain-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #6a3818 0%, var(--chain) 50%, var(--chain-full) 100%);
-  transition: width 0.4s ease-out;
-  box-shadow: 0 0 5px var(--chain), inset 0 1px 0 rgba(255,240,184,0.3);
-}
-.card.staggered .chain-bar { box-shadow: 0 0 14px var(--stagger), inset 0 1px 1px rgba(0,0,0,0.6); }
-.card.staggered .chain-fill {
-  background: linear-gradient(90deg, var(--stagger) 0%, #ffb060 50%, var(--chain-full) 100%);
-  animation: chain-pulse 0.7s ease-in-out infinite;
-}
-@keyframes chain-pulse {
-  0%, 100% { filter: brightness(1); }
-  50%      { filter: brightness(1.8); }
-}
-
-.staggered-banner {
-  position: absolute;
-  top: 24px; left: 0; right: 0;
-  text-align: center;
-  font-size: 13px; font-weight: bold;
-  color: var(--stagger);
-  text-shadow: 0 0 12px var(--stagger), 0 2px 0 var(--shadow);
-  letter-spacing: 0.25em;
-  z-index: 5;
-  pointer-events: none;
-  animation: stagger-banner 1s ease-out infinite;
-}
-@keyframes stagger-banner {
-  0%, 100% { transform: scale(1); opacity: 0.95; }
-  50%      { transform: scale(1.07); opacity: 1; }
-}
-
-.card.staggered {
-  border-color: var(--stagger);
-  box-shadow:
-    0 0 18px var(--stagger),
-    inset 0 0 16px rgba(255, 128, 48, 0.22),
-    0 0 0 2px rgba(255,128,48,0.4) inset;
-}
-.card.staggered .cnr { border-color: var(--stagger); box-shadow: 0 0 6px var(--stagger); }
-.card.staggered .intent { opacity: 0.25; }
+/* Chain meter + banner + staggered card chrome removed — the new
+   WEAKENED → STAGGERED state flow lives on .figure (.state-weakened /
+   .state-staggered class + the .state-pip overlay defined above). */
 
 /* ============ INTENT RIBBON (enemies) ============ */
 .intent {
@@ -5612,7 +5598,7 @@ button.path-node { cursor: pointer; }
 }
 
 /* Status pills — let the COLOR carry identity; drop the bordered chip. */
-.status-pill, .status-armor, .status-bleed, .status-taunt, .status-weak,
+.status-pill, .status-armor, .status-bleed, .status-taunt, .status-dulled,
 .status-retal, .status-vuln {
   border: none !important;
   background: rgba(0,0,0,0.45);
