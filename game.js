@@ -7684,7 +7684,7 @@ function makeTile(kind, charId, dir, tileCounts, teamLocked) {
     <span class="tile-name">${preview.label || '—'}</span>
     <span class="tile-desc">${preview.desc || ''}</span>
     ${reachLabel ? `<span class="tile-reach">${reachLabel}</span>` : ''}
-    ${qCount ? `<span class="q-count">×${qCount}</span>` : ''}
+    ${qCount > 1 ? `<span class="q-count">×${qCount}</span>` : ''}
   `;
 
   bindTileHold(t, {
