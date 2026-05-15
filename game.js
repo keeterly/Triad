@@ -10798,6 +10798,20 @@ function showHeroCodex() {
             <span class="hc-stat">${(def.school || '').toUpperCase()}</span>
           </div>
           ${def.passive ? `<div class="hc-passive"><b>${def.passive.name}</b> · ${def.passive.desc}</div>` : ''}
+          ${(() => {
+            // Home-slot abilities — surface the hero's two strongest tools
+            // (basic + sig at home) so the codex tells you what they bring
+            // before you commit to starting a run with them.
+            const home = def.techs && def.techs[def.home];
+            if (!home) return '';
+            const basic = home.basic; const sig = home.sig;
+            return `
+              <div class="hc-section">Home Abilities</div>
+              <div class="hc-techs">
+                ${basic ? `<div class="hc-tech-row"><span class="hc-tech-kind">A</span><div class="hc-tech-body"><div class="hc-tech-name">${basic.name}</div><div class="hc-tech-desc">${basic.desc || ''}</div></div></div>` : ''}
+                ${sig   ? `<div class="hc-tech-row sig"><span class="hc-tech-kind sig">S</span><div class="hc-tech-body"><div class="hc-tech-name">${sig.name}</div><div class="hc-tech-desc">${sig.desc || ''}</div></div></div>` : ''}
+              </div>`;
+          })()}
           ${quirkList ? `<div class="hc-section">Affinities</div>${quirkList}` : ''}
         ` : `
           <div class="hc-locked-hint">Walk with this hero in a run to remember them.</div>
