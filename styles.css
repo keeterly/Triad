@@ -2856,11 +2856,10 @@ body.party-critical::after {
 /* ============ ACTION ROW (row 5): tile-grid + team-special ============ */
 #action-row {
   display: grid;
-  /* The middle column previously held the team-special tile.  With
-     Resonance bubbles floating above the action row (see #ts-area below),
-     we drop that column.  Tiles take the full width and the play column
-     hugs the right edge. */
-  grid-template-columns: minmax(0, 1fr) 48px;
+  /* Right column hosts #commit-zone (resolve pips + the labeled FIGHT
+     button).  Bumped from 48px to 112px when the button gained its
+     'FIGHT' label so it has room without clipping past the viewport. */
+  grid-template-columns: minmax(0, 1fr) 112px;
   gap: 6px;
   padding: 2px 8px 4px;
   position: relative; z-index: 2;
@@ -3201,6 +3200,20 @@ body.party-critical::after {
 }
 .fight-btn:disabled .fight-icon { opacity: 0.4; filter: none; }
 .fight-btn:disabled .fight-label { color: var(--ink-faint); text-shadow: none; }
+/* Landscape mobile — slim the button so it never clips the right edge.
+   #action-row's right column is 112px on standard viewports; on small
+   heights we tighten to ~80px and shrink the label to match. */
+@media (max-height: 480px) {
+  #action-row { grid-template-columns: minmax(0, 1fr) 88px !important; }
+  .fight-btn {
+    min-width: 76px;
+    height: 48px;
+    padding: 0 10px;
+    gap: 6px;
+  }
+  .fight-btn .fight-icon { width: 20px; height: 20px; }
+  .fight-btn .fight-label { font-size: 12px; letter-spacing: 0.22em; }
+}
 
 /* ============ TS-AREA (right side of action row) ============ */
 #ts-area {
