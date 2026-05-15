@@ -4414,7 +4414,7 @@ function showQuirkAward(charId, quirkId) {
   const bark = (lines && lines.length) ? lines[Math.floor(Math.random() * lines.length)] : null;
   _showAwardBackdrop({
     cls: q.positive ? 'qa-positive' : 'qa-negative',
-    eyebrow: `${q.positive ? '+' : '−'} ${q.positive ? 'AFFINITY GAINED' : 'AFFINITY LOST'}`,
+    eyebrow: q.positive ? '+ AFFINITY GAINED' : '− AFFLICTION GAINED',
     name: `${def.name} · ${q.name}`,
     desc: q.desc,
     portraitId: charId,
@@ -9183,9 +9183,29 @@ function showEventOverlay(eventId) {
   const ev = EVENTS[eventId];
   if (!ev) { _completeNonCombatNode(); return; }
   $('#overlay-title').textContent = ev.name;
+  // Cinematic frame — same shell as recruit / upgrade / sigil overlays
+  // so events feel like a moment, not a text box.
+  const $overlay = $('#overlay');
+  $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-upgrade','overlay-sigil','overlay-starter','overlay-boon');
+  $overlay.classList.add('overlay-full','overlay-cinematic','overlay-event');
   const body = $('#overlay-body');
   body.classList.remove('victory-summary-body', 'welcome-body', 'run-summary-body');
   body.innerHTML = '';
+  // Party silhouettes — alive heroes stand alongside the event so the
+  // player sees who's looking at the wooden mask / blood altar / etc.,
+  // not just a text prompt floating in the void.
+  const partyIds = Object.values(state.party.chars).filter(c => !c.downed).map(c => c.id);
+  if (partyIds.length) {
+    const stage = document.createElement('div');
+    stage.className = `event-stage event-actors-${partyIds.length}`;
+    partyIds.forEach(id => {
+      const fig = document.createElement('div');
+      fig.className = 'event-actor';
+      fig.innerHTML = PORTRAITS[id] || '';
+      stage.appendChild(fig);
+    });
+    body.appendChild(stage);
+  }
   const flavor = document.createElement('p');
   flavor.className = 'event-flavor';
   flavor.textContent = ev.flavor;
