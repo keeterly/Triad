@@ -6335,16 +6335,22 @@ function previewTile(kind, charId, dir) {
   if (!slot) return { valid: false };
 
   const atb = ACTION_ATB[kind] || 0;
+  // Resolve the tech's element for the tile badge — tech.element override,
+  // else the hero's school.  Only damaging techs (attack/special with a
+  // reach) carry an element; utility moves/braces are elementless.
+  const heroSchool = CHARS[charId] && CHARS[charId].school;
 
   if (kind === 'attack') {
     const tech = getTech(s, charId, slot, 'basic');
-    return { kind, valid: true, label: tech.name, desc: tech.desc, atb, resolveCost: 0, slot, noEffect: techWouldMiss(s, tech) };
+    const element = tech.reach ? (tech.element || heroSchool) : null;
+    return { kind, valid: true, label: tech.name, desc: tech.desc, atb, resolveCost: 0, slot, element, noEffect: techWouldMiss(s, tech) };
   }
   if (kind === 'special') {
     const tech = getTech(s, charId, slot, 'sig');
+    const element = tech.reach ? (tech.element || heroSchool) : null;
     // Per-sig cost flows through: getSpecialCost picks up tech.cost or
     // falls back to SPECIAL_COST.
-    return { kind, valid: true, label: tech.name, desc: tech.desc, atb, resolveCost: getSpecialCost(s, tech), slot, noEffect: techWouldMiss(s, tech) };
+    return { kind, valid: true, label: tech.name, desc: tech.desc, atb, resolveCost: getSpecialCost(s, tech), slot, element, noEffect: techWouldMiss(s, tech) };
   }
   if (kind === 'move') {
     const idx = SLOTS.indexOf(slot);
@@ -7401,30 +7407,36 @@ function makeEnemyCard(e, slot) {
     </div>`;
 
   // Weakness reveal — once any damaging hit has landed (or Hask's
-  // Frostbreak passive fires), show a small school-glyph under HP.
+  // Frostbreak passive fires), show a small school-glyph next to the HP bar.
   const SCHOOL_GLYPH = { physical: '⚔', holy: '✦', arcane: '✶', ranged: '➳', stealth: '◐' };
   const weakDef = def.weakness;
   const weakSchool = Array.isArray(weakDef) ? weakDef[0] : weakDef;
+  const weaknessLabel = weakSchool ? `${SCHOOL_GLYPH[weakSchool] || '?'} ${weakSchool.toUpperCase()}` : '';
   const weaknessIcon = (e.weaknessRevealed && weakSchool)
-    ? `<span class="weakness-icon" title="Weak to ${weakSchool}">${SCHOOL_GLYPH[weakSchool] || '?'}</span>`
+    ? `<span class="weakness-icon weakness-icon-${weakSchool}" title="Weak to ${weakSchool}">${SCHOOL_GLYPH[weakSchool] || '?'}</span>`
     : '';
-  // State pip — cracked shield while WEAKENED, lightning while STAGGERED.
-  const stateIcon = e.staggered
-    ? '<span class="state-pip pip-staggered" title="Staggered — next hit deals 2× damage">⚡</span>'
-    : e.weakened
-      ? '<span class="state-pip pip-weakened" title="Weakened — one more weakness hit triggers Stagger">⌖</span>'
-      : '';
+  // Stagger strip — labeled state row under the HP bar so the player can
+  // read the loop directly off the enemy card.  Replaces the tiny corner
+  // pips with explicit text so the WEAKENED → STAGGERED → 2× chain is
+  // self-documenting.
+  let stateStrip = '';
+  if (e.staggered) {
+    stateStrip = `<div class="state-strip state-strip-staggered" title="Staggered — the next damaging hit deals 2× damage">⚡ STAGGERED · NEXT HIT 2×</div>`;
+  } else if (e.weakened) {
+    const more = weakSchool ? `${SCHOOL_GLYPH[weakSchool] || '?'} +1 = STAGGER` : '+1 WEAKNESS = STAGGER';
+    stateStrip = `<div class="state-strip state-strip-weakened" title="Weakened — hit them with their weakness again to stagger">⌖ WEAKENED · ${more}</div>`;
+  }
 
   fig.innerHTML = `
     <div class="figure-portrait">
       ${PORTRAITS[e.id] || ''}
       <div class="figure-statuses">${renderStatuses(e)}</div>
-      ${stateIcon}
       <div class="figure-hp">
         <div class="hp-fill ${hpPct < 35 ? 'low' : ''}" style="width:${hpPct}%"></div>
         <div class="hp-text">${e.hp}/${e.maxHp}</div>
       </div>
       ${weaknessIcon}
+      ${stateStrip}
       ${intentBubble}
     </div>
     <div class="figure-shadow"></div>
@@ -7685,10 +7697,19 @@ function makeTile(kind, charId, dir, tileCounts, teamLocked) {
   if (atbCost > 0)     costBadges.push(`<span class="tile-atb">${atbCost}</span>`);
   if (resolveCost > 0) costBadges.push(`<span class="tile-cost">${resolveCost}♦</span>`);
 
+  // Element badge — small school glyph in the bottom-left of the tile.
+  // Lets the player match attack element → enemy weakness icon without
+  // hovering or reading the description.
+  const SCHOOL_GLYPH_TILE = { physical: '⚔', holy: '✦', arcane: '✶', ranged: '➳', stealth: '◐' };
+  const elBadge = preview.element
+    ? `<span class="tile-element tile-element-${preview.element}" title="Element: ${preview.element}">${SCHOOL_GLYPH_TILE[preview.element] || ''}</span>`
+    : '';
+
   t.innerHTML = `
     <span class="tile-badges">${costBadges.join('')}</span>
     <span class="tile-name">${preview.label || '—'}</span>
     <span class="tile-desc">${preview.desc || ''}</span>
+    ${elBadge}
     ${reachLabel ? `<span class="tile-reach">${reachLabel}</span>` : ''}
     ${qCount > 1 ? `<span class="q-count">×${qCount}</span>` : ''}
   `;
@@ -9873,12 +9894,38 @@ function showSigilOverlay(offers, onDone) {
   $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-upgrade','overlay-cinematic','overlay-event','overlay-starter','overlay-boon');
   $overlay.classList.add('overlay-full','overlay-event','overlay-sigil');
   $('#overlay-title').textContent = 'A sigil flickers into reach';
-  $('#overlay-body').textContent = 'Add one to your run, or pass.';
+  // Cinematic body — party silhouettes watching the sigils emerge, plus
+  // an atmospheric flavor line.  Mirrors the event-overlay shape.
+  const body = $('#overlay-body');
+  body.classList.remove('victory-summary-body','welcome-body','run-summary-body','vignette-body');
+  body.innerHTML = '';
+  const partyIds = Object.values(state.party.chars).filter(c => !c.downed).map(c => c.id);
+  if (partyIds.length) {
+    const stage = document.createElement('div');
+    stage.className = `event-stage event-actors-${partyIds.length} sigil-stage`;
+    partyIds.forEach(id => {
+      const fig = document.createElement('div');
+      fig.className = 'event-actor';
+      fig.innerHTML = PORTRAITS[id] || '';
+      stage.appendChild(fig);
+    });
+    // Drifting motes evoke the sigil 'flickering into reach' — pure CSS,
+    // no extra elements per offer.
+    const motes = document.createElement('div');
+    motes.className = 'sigil-motes';
+    motes.innerHTML = '<span></span><span></span><span></span><span></span><span></span><span></span>';
+    stage.appendChild(motes);
+    body.appendChild(stage);
+  }
+  const flavor = document.createElement('p');
+  flavor.className = 'event-flavor';
+  flavor.textContent = 'Bind one of these powers to the climb — or let them fade.';
+  body.appendChild(flavor);
   const choices = $('#overlay-choices');
   choices.innerHTML = '';
   offers.forEach(sg => {
     const card = document.createElement('button');
-    card.className = 'encounter-choice sigil-choice';
+    card.className = `encounter-choice sigil-choice cat-${sg.category}`;
     card.innerHTML = `
       <div class="enc-name">${sg.name}</div>
       <div class="sigil-glyph">${sg.icon}</div>

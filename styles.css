@@ -837,30 +837,61 @@ body {
   letter-spacing: 0;
   z-index: 6;
 }
+/* Per-school tint so the weakness glyph reads the same color as the
+   matching action-tile element badge — visual handshake between them. */
+.figure .weakness-icon-physical { color: #d8c2a0; text-shadow: 0 0 6px #d8c2a0, 0 1px 0 rgba(0,0,0,0.9); }
+.figure .weakness-icon-holy     { color: #f4e6b8; text-shadow: 0 0 6px #f4e6b8, 0 1px 0 rgba(0,0,0,0.9); }
+.figure .weakness-icon-arcane   { color: #c9a8e8; text-shadow: 0 0 6px #c9a8e8, 0 1px 0 rgba(0,0,0,0.9); }
+.figure .weakness-icon-ranged   { color: #a8c8a0; text-shadow: 0 0 6px #a8c8a0, 0 1px 0 rgba(0,0,0,0.9); }
+.figure .weakness-icon-stealth  { color: #a8b8d0; text-shadow: 0 0 6px #a8b8d0, 0 1px 0 rgba(0,0,0,0.9); }
 
-/* State pips — WEAKENED (cracked sight) and STAGGERED (lightning).
-   Sit at the top-right corner of the portrait so they don't fight with
-   the status chip row at the top-center. */
-.figure .state-pip {
+/* State strip — labeled WEAKENED / STAGGERED banner under the HP bar.
+   Wider than the old corner pip and carries the next-step hint so the
+   stagger loop reads directly off the enemy figure without having to
+   hover a tooltip. */
+.figure .state-strip {
   position: absolute;
-  top: 4px; right: 4px;
-  font-size: 16px;
+  bottom: -22px; left: 50%;
+  transform: translateX(-50%);
+  font-size: 8.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  white-space: nowrap;
   pointer-events: none;
-  z-index: 8;
+  z-index: 7;
+  border-radius: 0;
+  font-weight: 700;
 }
-.figure .state-pip.pip-weakened {
-  color: rgba(220,160,160,0.92);
-  text-shadow: 0 0 8px rgba(200,80,80,0.6), 0 1px 0 rgba(0,0,0,0.9);
+.figure .state-strip-weakened {
+  color: #f4c0c0;
+  background: linear-gradient(180deg, rgba(60,18,18,0.92) 0%, rgba(28,8,8,0.92) 100%);
+  border: 1px solid rgba(220,80,80,0.55);
+  text-shadow: 0 0 6px rgba(220,80,80,0.55), 0 1px 0 rgba(0,0,0,0.9);
+  animation: state-strip-weak-pulse 1.6s ease-in-out infinite;
 }
-.figure .state-pip.pip-staggered {
-  color: var(--gold-bright);
-  text-shadow: 0 0 12px rgba(240,212,136,0.8), 0 1px 0 rgba(0,0,0,0.9);
-  animation: state-stagger-pulse 0.7s ease-in-out infinite alternate;
+.figure .state-strip-staggered {
+  color: #fff3c8;
+  background: linear-gradient(180deg, rgba(60,40,12,0.94) 0%, rgba(28,18,4,0.94) 100%);
+  border: 1px solid var(--gold-bright);
+  text-shadow: 0 0 8px rgba(240,212,136,0.7), 0 1px 0 rgba(0,0,0,0.9);
+  animation: state-strip-stagger-pulse 0.7s ease-in-out infinite alternate;
 }
-@keyframes state-stagger-pulse {
-  from { filter: brightness(1)    drop-shadow(0 0 6px rgba(240,212,136,0.4)); }
-  to   { filter: brightness(1.35) drop-shadow(0 0 14px rgba(240,212,136,0.9)); }
+@keyframes state-strip-weak-pulse {
+  0%, 100% { filter: brightness(1); }
+  50%      { filter: brightness(1.15); }
 }
+@keyframes state-strip-stagger-pulse {
+  from { filter: brightness(1)    drop-shadow(0 0 4px rgba(240,212,136,0.4)); }
+  to   { filter: brightness(1.25) drop-shadow(0 0 12px rgba(240,212,136,0.85)); }
+}
+/* When the state strip is visible, push the weakness icon out of its
+   way so they don't overlap.  Hidden when state strip exists. */
+.figure:has(.state-strip) .weakness-icon { display: none; }
+
+/* Old corner state pips removed — the WEAKENED / STAGGERED state now
+   renders as a labeled .state-strip below the HP bar (see above), which
+   carries the next-step hint and reads without hover. */
 
 /* Status chips — horizontal row centered above the HP bar, inside the
    portrait so they anchor near the figure's head, not the cell top.
@@ -3390,6 +3421,22 @@ body.party-critical::after {
   opacity: 0.7;
   pointer-events: none;
 }
+/* Element glyph — small school icon in the bottom-left of the tile.
+   Tinted per school so the player can spot attack-element ↔ enemy-
+   weakness matches at a glance. */
+.tile .tile-element {
+  position: absolute; bottom: 1px; left: 4px;
+  font-size: 12px;
+  line-height: 1;
+  pointer-events: none;
+  text-shadow: 0 0 6px currentColor, 0 1px 0 rgba(0,0,0,0.9);
+}
+.tile .tile-element-physical { color: #d8c2a0; }
+.tile .tile-element-holy     { color: #f4e6b8; }
+.tile .tile-element-arcane   { color: #c9a8e8; }
+.tile .tile-element-ranged   { color: #a8c8a0; }
+.tile .tile-element-stealth  { color: #a8b8d0; }
+.tile.queued .tile-element { opacity: 0.6; }
 
 /* hold-to-preview tile state */
 .tile.previewing {
@@ -4712,6 +4759,16 @@ button.path-node { cursor: pointer; }
   background: linear-gradient(90deg, transparent 0%, rgba(232,220,196,0.16) 50%, transparent 100%);
   pointer-events: none;
 }
+/* Soft atmospheric vignette behind the party — adds depth so the
+   silhouettes don't sit on a flat black plate. */
+.event-stage::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 70% 80% at 50% 90%, rgba(60,40,22,0.35) 0%, rgba(0,0,0,0) 70%);
+  pointer-events: none;
+  z-index: -1;
+}
 .event-actor {
   width: 100%;
   height: 100%;
@@ -4729,6 +4786,45 @@ button.path-node { cursor: pointer; }
 @media (max-height: 480px) {
   .event-stage { height: clamp(100px, 22vh, 160px); }
 }
+/* Sigil-stage overlay — drifting motes evoke the 'sigil flickering into
+   reach' moment.  Sits behind the party silhouettes; pure CSS-animated
+   golden dots floating upward. */
+.sigil-stage .sigil-motes {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+}
+.sigil-stage .sigil-motes span {
+  position: absolute;
+  bottom: -8px;
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: var(--gold-bright);
+  box-shadow: 0 0 8px var(--gold-bright), 0 0 16px rgba(240,212,136,0.4);
+  opacity: 0;
+  animation: sigil-mote-rise 4.2s ease-in infinite;
+}
+.sigil-stage .sigil-motes span:nth-child(1) { left: 18%; animation-delay: 0s;   width: 3px; height: 3px; }
+.sigil-stage .sigil-motes span:nth-child(2) { left: 32%; animation-delay: 0.7s; width: 5px; height: 5px; }
+.sigil-stage .sigil-motes span:nth-child(3) { left: 47%; animation-delay: 1.4s; width: 3px; height: 3px; }
+.sigil-stage .sigil-motes span:nth-child(4) { left: 58%; animation-delay: 2.1s; width: 4px; height: 4px; }
+.sigil-stage .sigil-motes span:nth-child(5) { left: 72%; animation-delay: 2.8s; width: 3px; height: 3px; }
+.sigil-stage .sigil-motes span:nth-child(6) { left: 84%; animation-delay: 3.4s; width: 5px; height: 5px; }
+@keyframes sigil-mote-rise {
+  0%   { transform: translateY(0)      scale(0.6); opacity: 0; }
+  15%  { opacity: 1; }
+  85%  { opacity: 0.6; }
+  100% { transform: translateY(-180px) scale(1.1); opacity: 0; }
+}
+/* Sigil card category tints — keep the existing per-category border but
+   add a faint inner glow on hover/active so the choice feels weightier. */
+.encounter-choice.sigil-choice.cat-combat   { box-shadow: inset 0 0 18px rgba(212,69,69,0.12); }
+.encounter-choice.sigil-choice.cat-defense  { box-shadow: inset 0 0 18px rgba(136,152,168,0.12); }
+.encounter-choice.sigil-choice.cat-resource { box-shadow: inset 0 0 18px rgba(232,220,150,0.12); }
+.encounter-choice.sigil-choice:hover  { transform: translateY(-1px); }
+
 .rest-heals {
   margin: 8px auto 4px;
   text-align: center;
