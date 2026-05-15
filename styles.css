@@ -2635,6 +2635,33 @@ body {
   position: relative;
   animation: queue-combo-pulse 2.4s ease-in-out infinite;
 }
+/* Active step during turn resolution — pulsing gold border + warm glow
+   so the eye can find which queued action is firing right now. */
+.queue-slot.queue-slot-active {
+  position: relative;
+  z-index: 1;
+  animation: queue-active-pulse 0.65s ease-in-out infinite alternate;
+  box-shadow: 0 0 0 2px rgba(240,212,136,0.85),
+              0 0 18px rgba(240,212,136,0.55),
+              inset 0 0 14px rgba(240,212,136,0.32);
+}
+.queue-slot.queue-slot-active::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border: 1px solid rgba(240,212,136,0.5);
+  pointer-events: none;
+  border-radius: inherit;
+  animation: queue-active-ring 0.9s ease-out infinite;
+}
+@keyframes queue-active-pulse {
+  from { transform: translateY(-2px) scale(1.03); filter: brightness(1.15); }
+  to   { transform: translateY(-2px) scale(1.06); filter: brightness(1.35); }
+}
+@keyframes queue-active-ring {
+  0%   { opacity: 0.85; transform: scale(1); }
+  100% { opacity: 0;    transform: scale(1.18); }
+}
 .queue-slot.filled.combo-matched::before {
   content: '';
   position: absolute;
@@ -4445,6 +4472,23 @@ button.path-node { cursor: pointer; }
 .path-node.node-event .path-type-glyph { color: var(--debuff); text-shadow: 0 0 6px rgba(154,120,192,0.55); }
 .path-tag.path-rest-tag  { color: var(--heal);    background: rgba(20,40,20,0.6); }
 .path-tag.path-event-tag { color: var(--debuff);  background: rgba(28,18,42,0.6); }
+
+/* Event overlay — same wide cinematic frame as vignettes so the party
+   silhouettes have room to breathe.  Override the .overlay-cinematic
+   max-width (820px) with the wider vignette dimensions. */
+#overlay.overlay-event #overlay-content {
+  max-width: min(1100px, 100vw) !important;
+  padding: 8px 18px 14px !important;
+}
+#overlay.overlay-event #overlay-title {
+  border-bottom: none !important;
+  font-size: 16px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin-bottom: 4px;
+}
+#overlay.overlay-event #overlay-title::after { display: none !important; }
 
 /* Event / Rest overlays — flavor paragraph + button stack */
 .event-flavor {
