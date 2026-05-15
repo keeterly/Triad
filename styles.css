@@ -744,6 +744,33 @@ body {
   50%      { opacity: 1; }
 }
 
+/* "·HOLD·" affordance shown beneath each party hero until the player has
+   completed their first press-and-hold pickup.  Pure teaching nudge; the
+   gold glow + slow blink hint that the card is a long-press target. */
+.fig-hold-hint {
+  position: absolute;
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 7px;
+  font-weight: bold;
+  letter-spacing: 0.32em;
+  color: var(--gold-bright);
+  text-shadow:
+    0 1px 0 rgba(0,0,0,0.95),
+    0 0 6px rgba(240,212,136,0.6);
+  pointer-events: none;
+  z-index: 6;
+  opacity: 0.78;
+  animation: fig-hold-blink 2.2s ease-in-out infinite;
+  white-space: nowrap;
+}
+@keyframes fig-hold-blink {
+  0%, 100% { opacity: 0.45; transform: translateX(-50%) scale(0.98); }
+  50%      { opacity: 0.95; transform: translateX(-50%) scale(1.02); }
+}
+.figure.inspecting .fig-hold-hint { opacity: 0; }
+
 /* HP bar reuses .hp-bar / .hp-fill / .hp-text from below — keep it the same look but constrained to the info width */
 /* Minimal HP readout, anchored just above the figure's head.
    .figure-hp is rendered INSIDE .figure-portrait so absolute positioning is
@@ -1270,6 +1297,17 @@ body {
 .target-move-tag .move-text { font-weight: 700; }
 
 .target-dmg-label .dmg-num { font-size: 19px; }
+.target-dmg-label .dmg-sub {
+  display: block;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gold-bright);
+  opacity: 0.85;
+  margin-top: 1px;
+  text-shadow: 0 0 4px rgba(240,212,136,0.55);
+}
 .target-dmg-label .dmg-badge {
   font-size: 9px;
   font-weight: 800;
@@ -1597,6 +1635,14 @@ body {
    visible so the player can see *why* damage on this card is being softened. */
 .status-sentinel,
 .status-steadfast { color: var(--armor); border-color: var(--armor); background: rgba(136,152,168,0.18); }
+/* Passive-bonus auras — gold tint so the player reads them as "your damage
+   is hot right now" instead of confusing them with defensive armor chips. */
+.status-bloodlust,
+.status-focus,
+.status-lone,
+.status-bhunt,
+.status-evis     { color: var(--gold-bright); border-color: var(--gold-bright); background: rgba(240,212,136,0.18); }
+.status-note     { color: #ff8a8a;            border-color: var(--bleed);       background: rgba(196,56,56,0.18); }
 
 /* ============ DESCRIPTION KEYWORD CHIPS ============
    Inline icon+word chips that appear inside tech tooltips and the hero
@@ -5731,7 +5777,9 @@ button.path-node { cursor: pointer; }
 
 /* Status pills — let the COLOR carry identity; drop the bordered chip. */
 .status-pill, .status-armor, .status-bleed, .status-taunt, .status-dulled,
-.status-retal, .status-vuln, .status-sentinel, .status-steadfast {
+.status-retal, .status-vuln, .status-sentinel, .status-steadfast,
+.status-bloodlust, .status-focus, .status-note, .status-lone,
+.status-bhunt, .status-evis {
   border: none !important;
   background: rgba(0,0,0,0.45);
   padding: 0 4px;
