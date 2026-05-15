@@ -10011,8 +10011,29 @@ function showRecruitVignette(heroId, flavor, onDone) {
 function showSwapOverlay(recruitId, onDone) {
   const def = CHARS[recruitId];
   const cleanup = onDone || (() => offerUpgradeOrPath());
-  $('#overlay-title').textContent = `Recruit ${def.name}`;
-  $('#overlay-body').textContent = 'Your party is full.  Choose who walks the other way — or refuse and continue alone.';
+  $('#overlay-title').textContent = `${def.name} wants to walk with you`;
+  // Use the wide cinematic frame so the newcomer's portrait has room to
+  // breathe alongside the swap candidates.
+  const $overlay = $('#overlay');
+  $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-upgrade','overlay-sigil','overlay-starter','overlay-boon','overlay-cinematic','overlay-event');
+  $overlay.classList.add('overlay-full','overlay-event','overlay-swap');
+  const body = $('#overlay-body');
+  body.classList.remove('victory-summary-body', 'welcome-body', 'run-summary-body');
+  body.innerHTML = `
+    <div class="swap-newcomer">
+      <div class="swap-newcomer-portrait">${PORTRAITS[recruitId] || ''}</div>
+      <div class="swap-newcomer-meta">
+        <div class="swap-newcomer-name">${def.name}</div>
+        <div class="swap-newcomer-title">${def.title || ''}</div>
+        <div class="swap-newcomer-stats">
+          <span class="swap-newcomer-stat">HP ${def.maxHp}</span>
+          <span class="swap-newcomer-stat">Home ${SLOT_LABELS[def.home] || '—'}</span>
+          <span class="swap-newcomer-stat">${(def.school || '').toUpperCase()}</span>
+        </div>
+      </div>
+    </div>
+    <p class="event-flavor">Your party is full.  Choose who walks the other way — or refuse and let ${def.name} go on alone.</p>
+  `;
   const choices = $('#overlay-choices');
   choices.innerHTML = '';
   // Each current party member is a swap candidate (downed too — recruits
