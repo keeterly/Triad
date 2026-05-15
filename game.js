@@ -5328,36 +5328,44 @@ function resolveTargets(s, def) {
 // Returns { amt, toHp, badge } where badge is 'WEAK!' | 'RESIST' | 'STG' | null.
 // Assumes the action fires now (vuln/armor/pendings are read as-is from current state).
 function previewDamage(s, e, baseAmt, actorId, techElement) {
-  if (!e || e.dead || !(baseAmt > 0)) return { amt: 0, toHp: 0, badge: null };
+  if (!e || e.dead || !(baseAmt > 0)) return { amt: 0, toHp: 0, badge: null, bonuses: [] };
   let amt = baseAmt;
+  // Track which passive(s) contributed so we can render a small "why is
+  // the number what it is?" subtitle under the preview.  Only the dominant
+  // bonus is shown to keep the label compact.
+  const bonuses = [];
 
   getAdjacencyPairs(s).forEach(p => {
     if (typeof p.synergy.dmgMod === 'number' && p.synergy.dmgModFor === actorId) {
       amt += p.synergy.dmgMod;
+      bonuses.push({ label: p.synergy.name, amt: p.synergy.dmgMod });
     }
   });
   // Affinity quirks
-  amt += getQuirkDmgMod(s, actorId);
-  if (actorId === 'kai' && Object.keys(s.party.chars).length === 1) amt += 2;
-  if (actorId === 'branwen' && e.bleed > 0) amt += 2;
-  if (actorId === 'mira' && e.bleed > 0) amt += 3;
+  const qMod = getQuirkDmgMod(s, actorId);
+  if (qMod) { amt += qMod; bonuses.push({ label: 'Affinity', amt: qMod }); }
+  if (actorId === 'kai' && Object.keys(s.party.chars).length === 1) { amt += 2; bonuses.push({ label: 'Lone Walker', amt: 2 }); }
+  if (actorId === 'branwen' && e.bleed > 0) { amt += 2; bonuses.push({ label: 'Bleed Hunter', amt: 2 }); }
+  if (actorId === 'mira' && e.bleed > 0) { amt += 3; bonuses.push({ label: 'Eviscerate', amt: 3 }); }
   if (actorId === 'korin') {
     const k = s.party.chars.korin;
     if (k) {
       const missingPct = (k.maxHp - k.hp) / k.maxHp;
-      if (missingPct >= 0.6) amt += 4;
-      else if (missingPct >= 0.3) amt += 2;
+      if (missingPct >= 0.6)      { amt += 4; bonuses.push({ label: 'Bloodlust', amt: 4 }); }
+      else if (missingPct >= 0.3) { amt += 2; bonuses.push({ label: 'Bloodlust', amt: 2 }); }
     }
   }
   if (actorId === 'ash') {
     const a = s.party.chars.ash;
-    if (a && !a.firstAttackUsed) amt += 2;
+    if (a && !a.firstAttackUsed) { amt += 2; bonuses.push({ label: 'Arcane Focus', amt: 2 }); }
   }
   const actor = actorId && s.party.chars[actorId];
   if (actor && Array.isArray(actor.pendingEffects)) {
-    actor.pendingEffects.forEach(eff => { if (eff.kind === 'attackBonus') amt += eff.amt; });
+    actor.pendingEffects.forEach(eff => {
+      if (eff.kind === 'attackBonus') { amt += eff.amt; bonuses.push({ label: 'Pending', amt: eff.amt }); }
+    });
   }
-  amt += (s.outgoingDmgMod || 0);
+  if (s.outgoingDmgMod) { amt += s.outgoingDmgMod; bonuses.push({ label: 'Buff', amt: s.outgoingDmgMod }); }
 
   if (e.vuln > 0 && amt > 0) amt += 2 + (hasSigil(s, 'wrath') ? 2 : 0);
 
@@ -5396,7 +5404,12 @@ function previewDamage(s, e, baseAmt, actorId, techElement) {
     const absorbed = Math.min(e.armor, amt);
     toHp = Math.max(0, amt - absorbed);
   }
-  return { amt, toHp, badge };
+  // Compact top-bonus label — pick the single largest contributor so the
+  // preview can read "9 · Bloodlust" rather than a wall of stacks.
+  const topBonus = bonuses.length
+    ? bonuses.slice().sort((a, b) => b.amt - a.amt)[0]
+    : null;
+  return { amt, toHp, badge, bonuses, topBonus };
 }
 
 // Pure prediction for healing — mirrors healLowest/partyHeal without mutating.
@@ -5475,6 +5488,7 @@ function previewMultiHit(s, e, baseAmt, actorId, hits, techElement) {
   hits = hits || 1;
   let totalHp = 0;
   let badge = null;
+  let topBonus = null;
   let simArmor = e.armor;
   let simVuln = e.vuln;
   // Track stagger-consume across the sim — only the first hit gets the
@@ -5485,11 +5499,14 @@ function previewMultiHit(s, e, baseAmt, actorId, hits, techElement) {
     const r = previewDamage(s, sim, baseAmt, actorId, techElement);
     totalHp += r.toHp;
     if (r.badge && !badge) badge = r.badge;
+    // Carry the top bonus from the first hit — same passives apply across
+    // all sub-hits of a multi-hit tech so showing the first is honest.
+    if (r.topBonus && !topBonus) topBonus = r.topBonus;
     if (simVuln > 0 && r.amt > 0) simVuln -= 1;
     if (!s.ignoreArmor) simArmor = Math.max(0, simArmor - r.amt);
     if (r.badge === 'STG!') simStaggerBonusUsed = true;
   }
-  return { dmg: totalHp, badge };
+  return { dmg: totalHp, badge, topBonus };
 }
 
 function applyDmgToEnemy(s, e, baseAmt) {
@@ -6465,6 +6482,21 @@ function pickMoveDir(charId, dir) {
 // ~200ms still enters "inspecting" mode so the figure's name is revealed.
 // Release with the pointer aimed at an arrow commits the move; release
 // elsewhere is a no-op.
+// Persistent affordance — show a small "·HOLD·" badge under each party
+// hero until the player has done a press-and-hold pickup at least once.
+// Stored in localStorage so returning players don't see the nudge again.
+const HELD_KEY = 'kizuna.heldHero.v1';
+function hasHeldHero() {
+  try { return localStorage.getItem(HELD_KEY) === '1'; } catch (_) { return false; }
+}
+function markHeldHero() {
+  try { if (localStorage.getItem(HELD_KEY) !== '1') {
+    localStorage.setItem(HELD_KEY, '1');
+    // Re-render so the badge disappears across all hero cards.
+    document.querySelectorAll('.fig-hold-hint').forEach(b => b.remove());
+  } } catch (_) {}
+}
+
 function bindFigureHold(fig, charId, isParty) {
   const HOLD_MS = 200;
   const DRAG_THRESHOLD = 6;    // px of motion that triggers immediate drag mode
@@ -6504,6 +6536,11 @@ function bindFigureHold(fig, charId, isParty) {
     // close other inspecting figures so only one is open at a time
     document.querySelectorAll('.figure.inspecting').forEach(f => { if (f !== fig) f.classList.remove('inspecting'); });
     fig.classList.add('inspecting');
+    // First time the player ever holds a party hero, remember it so the
+    // gold "·HOLD·" affordance under each card hides for the rest of the
+    // run.  The badge is purely a teaching nudge; once they've done it
+    // once it just clutters the cards.
+    if (isParty) markHeldHero();
   };
 
   const start = (e) => {
@@ -7323,6 +7360,7 @@ function makePartyCard(c, slot, threatened, adjMap, incoming) {
     ${canMoveBack  ? `<button class="move-arrow move-arrow-left"  data-dir="1"  aria-label="Move toward back">‹</button>`  : ''}
     ${canMoveFront ? `<button class="move-arrow move-arrow-right" data-dir="-1" aria-label="Move toward front">›</button>` : ''}
     ${queuedMove ? `<div class="figure-queued-move">${queuedMoveGlyph}</div>` : ''}
+    ${!hasHeldHero() ? `<div class="fig-hold-hint" aria-hidden="true">· HOLD ·</div>` : ''}
   `;
 
   bindFigureHold(fig, c.id, true);
@@ -7479,6 +7517,43 @@ function renderStatuses(ent, sForAuras) {
     if (ent.id === 'cassia' && slotOfChar(sForAuras, 'cassia') === 'front') {
       c.push(chip('steadfast', '⛨', '−1', 'Steadfast — Cassia in Front takes 1 less damage.'));
     }
+    // Korin Bloodlust — scaling outgoing dmg based on missing HP.
+    if (ent.id === 'korin') {
+      const k = sForAuras.party.chars.korin;
+      if (k) {
+        const missingPct = (k.maxHp - k.hp) / k.maxHp;
+        if (missingPct >= 0.6)      c.push(chip('bloodlust', '⚔', '+4', 'Bloodlust — Korin\'s rage adds +4 damage at low HP (≥60% missing).'));
+        else if (missingPct >= 0.3) c.push(chip('bloodlust', '⚔', '+2', 'Bloodlust — Korin\'s rage adds +2 damage at reduced HP (≥30% missing).'));
+      }
+    }
+    // Ash Arcane Focus — first attack each turn deals +2 (consumable).
+    if (ent.id === 'ash') {
+      const a = sForAuras.party.chars.ash;
+      if (a && !a.firstAttackUsed) {
+        c.push(chip('focus', '⚔', '+2', 'Arcane Focus — Ash\'s first attack this turn deals +2 damage. Consumed on use.'));
+      }
+    }
+    // Lirien Lingering Note — first attack each turn applies vuln 1.
+    if (ent.id === 'lirien') {
+      const lir = sForAuras.party.chars.lirien;
+      if (lir && !lir.lingeringUsed) {
+        c.push(chip('note', '⊕', '+1', 'Lingering Note — Lirien\'s first attack this turn applies vuln 1. Consumed on use.'));
+      }
+    }
+    // Kai Lone Walker — alone in the abyss, +2 dmg.
+    if (ent.id === 'kai' && Object.keys(sForAuras.party.chars).length === 1) {
+      c.push(chip('lone', '⚔', '+2', 'Lone Walker — alone in the abyss, Kai deals +2 damage.'));
+    }
+    // Branwen Bleed Hunter — +2 dmg vs bleeding enemies. Shown when at
+    // least one alive enemy is currently bleeding so the player knows
+    // it's hot right now.
+    if (ent.id === 'branwen' && aliveEnemies(sForAuras).some(e => e.bleed > 0)) {
+      c.push(chip('bhunt', '⚔', '+2', 'Bleed Hunter — +2 damage against any bleeding enemy on the board.'));
+    }
+    // Mira Eviscerate — +3 dmg vs bleeding enemies (contextual chip).
+    if (ent.id === 'mira' && aliveEnemies(sForAuras).some(e => e.bleed > 0)) {
+      c.push(chip('evis', '⚔', '+3', 'Eviscerate — +3 damage against any bleeding enemy on the board.'));
+    }
   }
   return c.join('');
 }
@@ -7541,6 +7616,12 @@ const STATUS_TOOLTIPS = {
   pending:  { name: 'Pending',     text: 'A one-shot bonus from a synergy. Consumed by the next matching action.' },
   sentinel: { name: 'Sentinel',    text: 'Garron in Front softens incoming damage to allies by 1. Lifts the moment he leaves Front or falls.' },
   steadfast:{ name: 'Steadfast',   text: 'Cassia in Front takes 1 less damage. Lifts the moment she leaves Front.' },
+  bloodlust:{ name: 'Bloodlust',   text: 'Korin\'s rage adds +2 damage at 30%+ missing HP, +4 at 60%+. Updates as HP changes.' },
+  focus:    { name: 'Arcane Focus',text: 'Ash\'s first attack this turn deals +2 damage. The chip lifts once she attacks.' },
+  note:     { name: 'Lingering Note', text: 'Lirien\'s first attack this turn applies vuln 1 to the target. The chip lifts once she attacks.' },
+  lone:     { name: 'Lone Walker', text: 'Alone in the abyss, Kai deals +2 damage. Lifts the moment another hero joins.' },
+  bhunt:    { name: 'Bleed Hunter',text: 'Branwen deals +2 damage to any bleeding enemy. Lifts when no enemy is bleeding.' },
+  evis:     { name: 'Eviscerate',  text: 'Mira deals +3 damage to any bleeding enemy. Lifts when no enemy is bleeding.' },
 };
 
 let _statusTooltipState = null;
@@ -7856,7 +7937,7 @@ function previewTargetsForTile(kind, charId, dir) {
       if (typeof variant.dmg !== 'number') return { slot: sl };
       const r = previewMultiHit(s, e, variant.dmg, charId, variant.hits || 1, variant.element);
       const kill = !e.dead && r.dmg >= e.hp;
-      return { slot: sl, dmg: r.dmg, badge: r.badge, kill };
+      return { slot: sl, dmg: r.dmg, badge: r.badge, kill, topBonus: r.topBonus };
     }).filter(Boolean);
     const enemySlots = enemyHits.map(h => h.slot);
     const partyHeals = resolveHealTargets(s, variant, charId).map(c => {
@@ -7948,9 +8029,14 @@ function applyPreviewHighlight({ enemySlots, partySlots, enemyHits, partyHeals, 
       else if (hit.badge === 'RESIST') label.classList.add('resist');
       else if (hit.badge === 'STG') label.classList.add('stagger');
       const badgeText = hit.kill ? 'KO' : hit.badge;
+      // Sub-label naming the dominant passive contributing to the hit —
+      // only shown when no other big badge (WEAK/RESIST/STG/KO) is taking
+      // the chip slot, so the preview stays uncluttered on big swings.
+      const subBonus = (!badgeText && hit.topBonus && hit.topBonus.amt > 0)
+        ? `<span class="dmg-sub">+${hit.topBonus.amt} ${hit.topBonus.label}</span>` : '';
       label.innerHTML = badgeText
         ? `<span class="dmg-num">${hit.dmg}</span><span class="dmg-badge">${badgeText}</span>`
-        : `<span class="dmg-num">${hit.dmg}</span>`;
+        : `<span class="dmg-num">${hit.dmg}</span>${subBonus}`;
       el.appendChild(label);
     }
   });
@@ -8821,10 +8907,13 @@ const TUTORIAL_HINTS = [
   // what those letters on a tile meant.
   { id: 'reach',      text: 'Each action has a <b>reach</b> — the enemy slots it can hit.  Letters on the tile (F·M·B) show which slots; if no enemy stands in any of them, the action fizzles.' },
   { id: 'commit',     text: 'Spend your ATB, then tap <b>Play ▶</b> to commit the turn.' },
+  // Move comes BEFORE enemies/weakness — positioning is fundamental and
+  // players were missing the press-and-hold gesture in the original order.
+  // The blinking ·HOLD· badge under each hero card backs this up.
+  { id: 'move_v2',    text: '<b>Press and hold</b> a hero on the battlefield — gold arrows appear.  Release onto an arrow (or drag onto one) to swap them between <b>Front · Mid · Back</b>.  Costs 1 ATB.' },
   { id: 'enemies',    text: 'Enemies show their <b>intent</b> above their card.  Plan around it.' },
   // Persona-5 style weakness loop — explain WEAKENED → STAGGERED → 2× hit.
   { id: 'weakness',   text: 'Each hero\'s school is also their <b>element</b>.  Hit an enemy\'s weakness once → <b>WEAKENED</b>.  Hit it again with the same weakness same turn → <b>STAGGERED</b>.  The next attack of any element deals <b>2× damage</b>.  Weakness icon (✶/✦/⚔/➳/◐) reveals on the first hit.' },
-  { id: 'move_v2',    text: '<b>Press and hold</b> a hero on the battlefield — gold arrows appear.  Drag onto an arrow (or release and tap one) to swap them between <b>Front · Mid · Back</b>.  Costs 1 ATB.' },
   // Resonance hint — explain WHEN it appears (matching tags between queued
   // actions) and WHERE the chip lives, plus the once-per-fight gate.
   { id: 'resonance_v2', text: 'Queue actions whose tags line up (e.g. two attacks, or a heal + a shield) and a <b>Resonance</b> chip lights up the rail above your action tray.  Tap it to fuse the queue into a stronger team move.  Once per fight.' },
