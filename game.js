@@ -10677,9 +10677,14 @@ function showTitleScreen() {
   menuEl.appendChild(mkBtn('Credits', () => showCreditsScreen()));
   menuEl.appendChild(mkBtn('Settings', () => showSettingsScreen()));
 
-  // Unlocks badge
+  // Unlocks badge — surface both meta-progression beats so returning
+  // players see what they've earned: starters unlocked + layers cleared.
   const metaEl = document.getElementById('ts-meta');
-  metaEl.innerHTML = `Starters unlocked · <b>${unlocked.length || 1}</b> / ${ROSTER.length}`;
+  const clearedCount = getClearedLayers().length;
+  metaEl.innerHTML = `
+    <span class="ts-meta-line">Starters unlocked · <b>${unlocked.length || 1}</b> / ${ROSTER.length}</span>
+    <span class="ts-meta-line">Layers cleared · <b>${clearedCount}</b> / ${ABYSS_LAYERS.length}</span>
+  `;
 
   root.classList.remove('hidden');
   root.setAttribute('aria-hidden', 'false');
