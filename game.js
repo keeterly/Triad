@@ -7697,19 +7697,18 @@ function makeTile(kind, charId, dir, tileCounts, teamLocked) {
   if (atbCost > 0)     costBadges.push(`<span class="tile-atb">${atbCost}</span>`);
   if (resolveCost > 0) costBadges.push(`<span class="tile-cost">${resolveCost}♦</span>`);
 
-  // Element badge — small school glyph in the bottom-left of the tile.
-  // Lets the player match attack element → enemy weakness icon without
-  // hovering or reading the description.
+  // Element glyph — inlined as a prefix to the tile-name so it never gets
+  // clipped by the tile's tight vertical padding or overlap the bottom-row
+  // reach label.  Tinted per school via tile-element-<school>.
   const SCHOOL_GLYPH_TILE = { physical: '⚔', holy: '✦', arcane: '✶', ranged: '➳', stealth: '◐' };
   const elBadge = preview.element
-    ? `<span class="tile-element tile-element-${preview.element}" title="Element: ${preview.element}">${SCHOOL_GLYPH_TILE[preview.element] || ''}</span>`
+    ? `<span class="tile-element tile-element-${preview.element}" title="Element: ${preview.element}">${SCHOOL_GLYPH_TILE[preview.element] || ''}</span> `
     : '';
 
   t.innerHTML = `
     <span class="tile-badges">${costBadges.join('')}</span>
-    <span class="tile-name">${preview.label || '—'}</span>
+    <span class="tile-name">${elBadge}${preview.label || '—'}</span>
     <span class="tile-desc">${preview.desc || ''}</span>
-    ${elBadge}
     ${reachLabel ? `<span class="tile-reach">${reachLabel}</span>` : ''}
     ${qCount > 1 ? `<span class="q-count">×${qCount}</span>` : ''}
   `;
