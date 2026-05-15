@@ -6563,6 +6563,7 @@ function onFight() {
   if (s.queue.length === 0) { flashMsg('Queue at least one action.'); return; }
   Audio.attack();
   s.executing = true;
+  s.executingIdx = -1;
   s.resolve -= queueReservedResolve();
   render();
   resolveQueueStep(0);
@@ -6570,8 +6571,9 @@ function onFight() {
 
 function resolveQueueStep(i) {
   const s = state;
-  if (s.over) { s.executing = false; render(); return; }
+  if (s.over) { s.executing = false; s.executingIdx = -1; render(); return; }
   if (i >= s.queue.length) {
+    s.executingIdx = -1;
     // queue done — leave taunt/retaliate up for the incoming enemy phase
     s.queue = [];
     // Sigil of Mending — at end of player phase, lowest-HP ally heals 2
@@ -6588,18 +6590,23 @@ function resolveQueueStep(i) {
         }
       }
     }
-    if (checkEnd(s)) { s.executing = false; render(); return; }
+    if (checkEnd(s)) { s.executing = false; s.executingIdx = -1; render(); return; }
     render();
     setTimeout(() => resolveEnemyTurn(s), 320);
     return;
   }
   const item = s.queue[i];
+  // Mark this slot as the active step before the action plays so the queue
+  // strip can pulse the cell that's resolving — gives the eye a clear read
+  // on where the turn is in its sequence.
+  s.executingIdx = i;
+  render();
   // Telegraph the acting hero before the hit fires so the eye can find
   // them; then run the action; then pause before the next step.
   if (item.charId) flashCardId(item.charId, 'hit', 'party');
   setTimeout(() => {
     executeQueueItem(s, item);
-    if (checkEnd(s)) { s.executing = false; render(); return; }
+    if (checkEnd(s)) { s.executing = false; s.executingIdx = -1; render(); return; }
     render();
     setTimeout(() => resolveQueueStep(i + 1), 720 + consumeHitPause());
   }, 200);
@@ -7485,10 +7492,12 @@ function renderQueue() {
     matchingCombos(state.queue).forEach(({ indices }) => indices.forEach(i => matchedIdx.add(i)));
   }
   let used = 0;
+  const activeIdx = (state.executing && typeof state.executingIdx === 'number') ? state.executingIdx : -1;
   state.queue.forEach((item, idx) => {
     const el = document.createElement('div');
     el.className = `queue-slot filled kind-${item.kind}`;
     if (matchedIdx.has(idx)) el.classList.add('combo-matched');
+    if (idx === activeIdx) el.classList.add('queue-slot-active');
     el.dataset.atb = String(item.atb || 1);
     const portraitSvg = item.charId ? (PORTRAITS[item.charId] || '') : '';
     // combo items (Resonance) get a glyph stack instead of a single portrait
@@ -9183,11 +9192,12 @@ function showEventOverlay(eventId) {
   const ev = EVENTS[eventId];
   if (!ev) { _completeNonCombatNode(); return; }
   $('#overlay-title').textContent = ev.name;
-  // Cinematic frame — same shell as recruit / upgrade / sigil overlays
-  // so events feel like a moment, not a text box.
+  // Cinematic frame — same wide vignette-style shell so events feel like
+  // a scene, not a text box.  overlay-event provides the sizing (defined
+  // alongside the event-flavor styles) so we don't need overlay-cinematic.
   const $overlay = $('#overlay');
-  $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-upgrade','overlay-sigil','overlay-starter','overlay-boon');
-  $overlay.classList.add('overlay-full','overlay-cinematic','overlay-event');
+  $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-upgrade','overlay-sigil','overlay-starter','overlay-boon','overlay-cinematic');
+  $overlay.classList.add('overlay-full','overlay-event');
   const body = $('#overlay-body');
   body.classList.remove('victory-summary-body', 'welcome-body', 'run-summary-body');
   body.innerHTML = '';
