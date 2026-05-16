@@ -1655,6 +1655,17 @@ const ENEMIES = {
       { name: 'Crashing Fist',  tag: 'ATK 7',       targetSlot: 'front', kind: 'atk', dmg: 7, fn: (s) => dmgPartyAt(s, 'front', 7) },
       { name: 'Hollow Sigh',    tag: 'DULL all',    targetSlot: 'all',   kind: 'debuff', fn: (s) => aliveParty(s).forEach(c => { c.dulled += 1; }) },
     ],
+    // Adaptive — only Resolute Stand when armor is actually low.
+    //   - armor ≤ 2 → Resolute Stand (rebuild the wall)
+    //   - no party member has dull → Hollow Sigh
+    //   - default → Crashing Fist
+    pickIntent: (s) => {
+      const me = Object.values(s.enemies.chars).find(en => en.id === 'husk' && !en.dead);
+      if (me && (me.armor || 0) <= 2) return 0; // Resolute Stand
+      const allHaveDull = aliveParty(s).every(c => c.dulled > 0);
+      if (!allHaveDull && Math.random() < 0.4) return 2; // Hollow Sigh
+      return 1; // Crashing Fist
+    },
   },
   pyremaw: {
     id: 'pyremaw', name: 'Pyre Maw', title: 'Sin of Cinders', maxHp: 16,
@@ -1726,6 +1737,15 @@ const ENEMIES = {
       { name: 'Echo Back',      tag: '+3⛨ self',    targetSlot: '?',    kind: 'armor',  fn: (s) => { const me = Object.values(s.enemies.chars).find(en => en.id === 'drone' && !en.dead); if (me) me.armor += 3; } },
       { name: 'Repetition',     tag: 'ATK 2 all twice', targetSlot: 'all', kind: 'aoe', dmg: 2, fn: (s) => { dmgAllParty(s, 2); dmgAllParty(s, 2); } },
     ],
+    // Adaptive — Echo Back only when armor is gone, otherwise mix Repeat
+    // and Repetition based on whether the party is bunched up front.
+    pickIntent: (s) => {
+      const me = Object.values(s.enemies.chars).find(en => en.id === 'drone' && !en.dead);
+      if (me && (me.armor || 0) <= 1) return 1; // Echo Back
+      const aliveCount = aliveParty(s).length;
+      if (aliveCount >= 3) return 2; // Repetition (everyone takes a hit)
+      return 0; // Repeat (front+mid pressure)
+    },
   },
   echoknight: {
     id: 'echoknight', name: 'Echo Knight', title: 'Sin of Persistence', maxHp: 26,
@@ -1735,6 +1755,15 @@ const ENEMIES = {
       { name: 'Return Stroke',  tag: 'ATK 5 + retal', targetSlot: 'front', kind: 'atk', dmg: 5, fn: (s) => { dmgPartyAt(s, 'front', 5); const me = Object.values(s.enemies.chars).find(en => en.id === 'echoknight' && !en.dead); if (me) me.retaliate = 2; } },
       { name: 'Remembered',     tag: 'heal 5 self', targetSlot: '?',     kind: 'armor', fn: (s) => { const me = Object.values(s.enemies.chars).find(en => en.id === 'echoknight' && !en.dead); if (me) { me.hp = Math.min(me.maxHp, me.hp + 5); spawnPopupId('echoknight', '+5', 'heal', 'enemy'); } } },
     ],
+    // Adaptive — Remembered only when wounded; Return Stroke when there's
+    // a fresh hero in the front to punish.  Default Heavy Cleave.
+    pickIntent: (s) => {
+      const me = Object.values(s.enemies.chars).find(en => en.id === 'echoknight' && !en.dead);
+      if (me && me.hp / me.maxHp <= 0.55) return 2; // Remembered
+      const front = charBySlot(s, 'front');
+      if (front && !front.downed && front.hp / front.maxHp > 0.7) return 1; // Return Stroke
+      return 0; // Heavy Cleave
+    },
   },
   // Layer 2 boss — The Listener.  Knows every name; waits.  Marks a hero
   // each turn and detonates the mark.
@@ -1748,6 +1777,26 @@ const ENEMIES = {
       { name: 'Stillness',          tag: 'heal 8 self', targetSlot: '?',     kind: 'armor', fn: (s) => { const me = Object.values(s.enemies.chars).find(en => en.id === 'listener' && !en.dead); if (me) { me.hp = Math.min(me.maxHp, me.hp + 8); spawnPopupId('listener', '+8', 'heal', 'enemy'); me.armor += 2; } } },
       { name: 'Final Word',         tag: 'ATK 6 mid + dull', targetSlot: 'mid', kind: 'atk', dmg: 6, fn: (s) => { dmgPartyAt(s, 'mid', 6); const c = charBySlot(s, 'mid'); if (c) c.dulled += 1; } },
     ],
+    // Adaptive boss — reads HP and threat shape:
+    //   - me ≤ 55% HP and Stillness hasn't fired in 3 turns → Stillness
+    //   - lowest hero at killable HP (≤ 12) → Name Said Aloud (execute)
+    //   - mid hero healthy & not yet dulled → Final Word (lockdown)
+    //   - front not yet vuln → I Know You (setup)
+    //   - default → Chamber Echo
+    pickIntent: (s, me) => {
+      const turn = s.turn || 0;
+      if (me && me.hp / me.maxHp <= 0.55 && turn - (me._lastHealTurn || -99) >= 3) {
+        me._lastHealTurn = turn;
+        return 3; // Stillness
+      }
+      const lowest = aliveParty(s).slice().sort((a,b) => a.hp - b.hp)[0];
+      if (lowest && lowest.hp <= 12) return 1; // execute
+      const mid = charBySlot(s, 'mid');
+      if (mid && !mid.downed && mid.dulled === 0 && mid.hp / mid.maxHp > 0.7) return 4; // Final Word
+      const front = charBySlot(s, 'front');
+      if (front && !front.downed && front.vuln === 0) return 0; // I Know You
+      return 2; // Chamber Echo
+    },
   },
   // ============================== LAYER 3 — THE SPIRE OF GLASS ===============
   // Mirror / pride boss.  Reflects what the party brings: stacks retaliate on
@@ -1768,6 +1817,20 @@ const ENEMIES = {
       { name: 'Shattering Stroke',  tag: 'ATK 7 mid + strip armor', targetSlot: 'mid',   kind: 'atk',
         dmg: 7, fn: (s) => { const c = charBySlot(s, 'mid'); if (c) c.armor = 0; dmgPartyAt(s, 'mid', 7); } },
     ],
+    // Adaptive — heal/armor only when wounded; mark before striking.
+    pickIntent: (s, me) => {
+      const turn = s.turn || 0;
+      if (me && me.hp / me.maxHp <= 0.60 && turn - (me._lastHealTurn || -99) >= 3) {
+        me._lastHealTurn = turn;
+        return 1; // Pride's Reflection
+      }
+      const mid = charBySlot(s, 'mid');
+      if (mid && !mid.downed && mid.armor >= 3) return 4; // Shattering Stroke (strip)
+      const front = charBySlot(s, 'front');
+      if (front && !front.downed && front.vuln === 0 && front.dulled === 0) return 3; // Twin's Mark
+      if (front && !front.downed && front.hp / front.maxHp > 0.6) return 0; // Mirror Cut + retaliate
+      return 2; // Glass Shards
+    },
   },
   // ============================== LAYER 4 — THE FLOODLIT HALL ================
   // Drowning / weight boss.  Sings vuln + weak across the party, then sings
@@ -1788,6 +1851,22 @@ const ENEMIES = {
       { name: 'Final Verse',        tag: 'ATK 7 front + bleed 2',   targetSlot: 'front', kind: 'atk',
         dmg: 7, fn: (s) => { dmgPartyAt(s, 'front', 7); bleedPartyAt(s, 'front', 2); } },
     ],
+    // Adaptive — only Buried Pact when wounded.  Execute the lowest with
+    // Drowning Verse when they're nearly down.
+    pickIntent: (s, me) => {
+      const turn = s.turn || 0;
+      if (me && me.hp / me.maxHp <= 0.55 && turn - (me._lastHealTurn || -99) >= 3) {
+        me._lastHealTurn = turn;
+        return 3; // Buried Pact
+      }
+      const lowest = aliveParty(s).slice().sort((a,b) => a.hp - b.hp)[0];
+      if (lowest && lowest.hp <= 12) return 1; // Drowning Verse (execute)
+      const allLow = aliveParty(s).every(c => c.hp / c.maxHp < 0.55);
+      if (allLow) return 2; // Choir Crescendo (finisher)
+      const front = charBySlot(s, 'front');
+      if (front && !front.downed && front.hp / front.maxHp > 0.7) return 4; // Final Verse
+      return 0; // Hymn of Weight
+    },
   },
   // ============================== LAYER 5 — THE CINDER GARDEN ===============
   // Cycles / buried fires / roots that won't die.  The Slow Bloom self-heals,
@@ -1808,6 +1887,22 @@ const ENEMIES = {
       { name: 'Final Bloom',        tag: 'ATK 5 all + heal 5 self',      targetSlot: 'all',   kind: 'aoe',
         dmg: 5, fn: (s) => { dmgAllParty(s, 5); const me = Object.values(s.enemies.chars).find(en => en.id === 'slowbloom' && !en.dead); if (me) { me.hp = Math.min(me.maxHp, me.hp + 5); spawnPopupId('slowbloom', '+5', 'heal', 'enemy'); } } },
     ],
+    // Adaptive — Slow Bloom only fully unfurls when seriously wounded;
+    // otherwise reads the formation.
+    pickIntent: (s, me) => {
+      const turn = s.turn || 0;
+      if (me && me.hp / me.maxHp <= 0.45 && turn - (me._lastHealTurn || -99) >= 4) {
+        me._lastHealTurn = turn;
+        return 2; // Slow Unfurling
+      }
+      const back = charBySlot(s, 'back');
+      if (back && !back.downed && back.hp / back.maxHp > 0.7 && back.bleed === 0) return 0; // Burrowing Root
+      const front = charBySlot(s, 'front');
+      if (front && !front.downed && front.hp / front.maxHp > 0.6 && front.dulled === 0) return 3; // Cycle of Ash
+      const noVuln = aliveParty(s).every(c => c.vuln === 0);
+      if (noVuln) return 1; // Spore Bloom (vuln setup)
+      return 4; // Final Bloom (AoE + self-heal)
+    },
   },
 };
 
@@ -2375,6 +2470,60 @@ const EVENTS = {
         resolve: (s) => { aliveParty(s).forEach(c => { c.hp = Math.min(c.maxHp, c.hp + 6); }); s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1; } },
       { label: 'Walk past quietly', tag: 'gain a random sigil',
         resolve: (s) => _grantRandomSigil(s) },
+    ],
+  },
+  // ============================ NAMED RECRUIT EVENTS ===================
+  // Events that introduce a specific hero by name rather than rolling a
+  // random stranger.  Gated by `when` so they only surface while their
+  // hero is still recruitable (not already in party).  Choosing to
+  // invite sets _pendingNamedRecruit which the non-combat completion
+  // handler routes through the standard recruit-vignette flow.
+  hooded_watcher: {
+    id: 'hooded_watcher',
+    name: 'The Hooded Watcher',
+    secret: true,
+    when: (s) => s && s.party && !s.party.chars.veyr && s.run && s.run.layer >= 1,
+    flavor: 'A hooded figure sits very still on a flat stone, watching the way you came in.  When you stop, she does not.  "I have named seven parties past this rock.  None of them came back up.  Take me with you and I will name one less."',
+    choices: [
+      { label: 'Walk with her', tag: 'Veyr joins the climb',
+        resolve: (s) => { s.run._pendingNamedRecruit = 'veyr'; log('The hood lifts.  She falls in behind you.'); } },
+      { label: 'Refuse the watcher', tag: '+1 max HP each · the eyes follow you',
+        resolve: (s) => {
+          aliveParty(s).forEach(c => { c.maxHp += 1; c.hp = Math.min(c.maxHp, c.hp + 1); });
+          log('You leave her on the stone.  She does not stop watching.');
+        } },
+    ],
+  },
+  sword_on_stone: {
+    id: 'sword_on_stone',
+    name: 'A Sword on a Stone',
+    secret: true,
+    when: (s) => s && s.party && !s.party.chars.kai && s.run && s.run.layer >= 1,
+    flavor: 'A long sword leans against a flat marker.  Behind it, a tall man sits with his hands open.  "I have done this stretch alone too long.  Climb together?"',
+    choices: [
+      { label: 'Walk with him', tag: 'Kai joins the climb',
+        resolve: (s) => { s.run._pendingNamedRecruit = 'kai'; log('He stands and walks with you.'); } },
+      { label: 'Keep walking', tag: '+1 Resolve next fight · the road is wide enough',
+        resolve: (s) => {
+          s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1;
+          log('You leave him by the marker.  The sword stays leaning.');
+        } },
+    ],
+  },
+  cold_breath: {
+    id: 'cold_breath',
+    name: 'Cold Breath in the Pass',
+    secret: true,
+    when: (s) => s && s.party && !s.party.chars.hask && s.run && s.run.layer >= 2,
+    flavor: 'You feel him before you see him — a long pale figure in fur and frost, breath making slow shapes that do not melt.  "I bring the cold with me," he says.  "Do not stand still."',
+    choices: [
+      { label: 'Stand in the cold', tag: 'Hask joins the climb',
+        resolve: (s) => { s.run._pendingNamedRecruit = 'hask'; log('The cold deepens.  He walks with you.'); } },
+      { label: 'Step around the cold', tag: '+2 max HP each · the warm path holds',
+        resolve: (s) => {
+          aliveParty(s).forEach(c => { c.maxHp += 2; c.hp = Math.min(c.maxHp, c.hp + 2); });
+          log('You step wide around him.  The air warms again.');
+        } },
     ],
   },
   ironbound_pact: {
@@ -9974,6 +10123,27 @@ function _completeNonCombatNode() {
   state.run.lastVictoryElite = false;
   state.run.nodesSinceRecruit = (state.run.nodesSinceRecruit || 0) + 1;
 
+  // Named recruit — events that introduce a specific hero (the Hooded
+  // Watcher, etc.) set this to the heroId they want to invite.  Takes
+  // priority over the random stranger flow when both are queued.
+  if (state.run._pendingNamedRecruit) {
+    const heroId = state.run._pendingNamedRecruit;
+    state.run._pendingNamedRecruit = null;
+    if (CHARS[heroId] && !state.party.chars[heroId]) {
+      const hasOpenSlot = ['front','mid','back'].some(sl => {
+        const id = state.party.slots[sl];
+        if (!id) return true;
+        const c = state.party.chars[id];
+        return !!(c && c.downed);
+      });
+      if (hasOpenSlot) {
+        showRecruitVignette(heroId, 'stranger', () => renderMap());
+      } else {
+        showSwapOverlay(heroId, () => renderMap());
+      }
+      return;
+    }
+  }
   // Stranger event hand-off — the wanderer event sets this flag in its
   // resolve.  Fire a recruit beat before returning to the map; if the
   // party is full, offer a strategic swap instead of just walking on.
