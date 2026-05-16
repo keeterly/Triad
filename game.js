@@ -12298,6 +12298,10 @@ function showTitleScreen() {
 
   root.classList.remove('hidden');
   root.setAttribute('aria-hidden', 'false');
+  // Suppress the in-game HUD strip (run modifier + sigil tray + menu
+  // button) while the title screen is up — the title already has its
+  // own NEW GAME / CONTINUE / HEROES / CREDITS / SETTINGS rail.
+  document.body.classList.add('on-title');
 }
 
 function hideTitleScreen() {
@@ -12305,6 +12309,7 @@ function hideTitleScreen() {
   if (!root) return;
   root.classList.add('hidden');
   root.setAttribute('aria-hidden', 'true');
+  document.body.classList.remove('on-title');
 }
 
 // Settings — small overlay over the title with toggles for audio,
