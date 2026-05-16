@@ -205,7 +205,10 @@ body {
   gap: 8px;
   padding: 0 8px;
   position: relative;
-  z-index: 3;
+  /* Lifted above the map/recruit/event overlay (z-index 260) so the run
+     modifier chip and the sigil tray stay visible on the path screen
+     too — the player can read what's active without dismissing the map. */
+  z-index: 280;
   overflow: hidden;
 }
 #run-modifier { flex-shrink: 0; }
@@ -255,6 +258,19 @@ body {
 }
 #sigil-tray::-webkit-scrollbar { display: none; }
 #sigil-tray.empty { display: none; }
+.sigil-tray-empty {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  opacity: 0.5;
+  padding: 5px 10px;
+  border-radius: 12px;
+  background: rgba(20,18,16,0.35);
+  white-space: nowrap;
+}
 
 .sigil-chip {
   display: inline-flex;
