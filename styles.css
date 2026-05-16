@@ -252,7 +252,7 @@ body {
 #sigil-tray {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 3px;
   flex-wrap: nowrap;
   min-width: 0;
   overflow-x: auto;
@@ -8487,7 +8487,9 @@ body.killing-blow::before {
   padding: 8px 14px 8px 12px;
 }
 #sigil-tray {
-  gap: 6px;
+  /* Tightened from 6px so chips read as a group instead of spread out
+     across the right side of the HUD strip. */
+  gap: 3px;
 }
 
 /* ===========================================================================
