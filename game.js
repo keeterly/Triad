@@ -1100,7 +1100,7 @@ const CHARS = {
     school: 'physical',
     maxHp: 26,
     home: 'front',
-    passive: { name: 'Steadfast', desc: '−1 dmg taken in Front' },
+    passive: { name: 'Held Gate', desc: 'While Cassia holds Front, the first incoming hit each turn is redirected to her.' },
     techs: {
       front: {
         basic: { name: 'Greatsword Cleave', desc: '8 dmg + vuln', dmg: 8,
@@ -1132,7 +1132,7 @@ const CHARS = {
     school: 'holy',
     maxHp: 19,
     home: 'mid',
-    passive: { name: 'Mercy', desc: 'Heals self 1 when healing an ally' },
+    passive: { name: 'Last Mercy', desc: 'The first time Elin would fall each fight, she stays at 1 HP instead and the lowest ally heals 4.' },
     techs: {
       front: {
         basic: { name: 'Phase Step', desc: '3 dmg + retreat to Mid', dmg: 3, move: 'retreat',
@@ -1159,7 +1159,7 @@ const CHARS = {
     school: 'ranged',
     maxHp: 20,
     home: 'back',
-    passive: { name: 'Bleed Hunter', desc: '+2 dmg vs bleeding · heal 1 on bleeding kill (once/turn)' },
+    passive: { name: 'Named Arrow', desc: "Branwen's first attack each turn applies bleed 1.  If that arrow kills, the next ally gets +2 on their next attack." },
     techs: {
       front: {
         // close-range when shoved to Front: melee shots
@@ -1184,7 +1184,7 @@ const CHARS = {
         basic: { name: 'Volley', desc: '4 dmg + bleed 1 all', dmg: 4,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 4)); t.forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 1); }); } },
-        sig:   { name: 'Arrow Storm', desc: '3♦ · 7 stealth dmg + bleed 2 all', cost: 3, dmg: 7, element: 'stealth',
+        sig:   { name: 'Arrow Storm', desc: '3♦ · 7 dmg + bleed 2 all', cost: 3, dmg: 7,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 7)); t.forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 2); }); } },
       },
@@ -1197,13 +1197,13 @@ const CHARS = {
     school: 'physical',
     maxHp: 22,
     home: 'front',
-    passive: { name: 'Bloodlust', desc: '+2 dmg per 30% missing HP' },
+    passive: { name: 'Red Tally', desc: 'Each time Korin takes self-damage, his next attack deals +3 and applies bleed 1.  Stacks.' },
     techs: {
       front: {
         basic: { name: 'Reckless Strike', desc: '7 dmg + 2 self-dmg', dmg: 7,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 7); applySelfDmg(s, 'korin', 2); } },
-        sig:   { name: 'Berserker Cleave', desc: '11 holy dmg + bleed 2 + 3 self-dmg', dmg: 11, element: 'holy',
+        sig:   { name: 'Berserker Cleave', desc: '11 dmg + bleed 2 + 3 self-dmg', dmg: 11,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 11); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 2); } applySelfDmg(s, 'korin', 3); } },
       },
@@ -1230,10 +1230,10 @@ const CHARS = {
     school: 'arcane',
     maxHp: 19,
     home: 'mid',
-    passive: { name: 'Arcane Focus', desc: 'First attack each turn deals +2' },
+    passive: { name: 'Veil Echo', desc: "When Ash's attack would consume a vuln stack, the stack stays on the target." },
     techs: {
       front: {
-        basic: { name: 'Spark', desc: '3 physical dmg + retreat', dmg: 3, move: 'retreat', element: 'physical',
+        basic: { name: 'Spark', desc: '3 dmg + retreat', dmg: 3, move: 'retreat',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 3); retreat(s, 'ash'); } },
         sig:   { name: 'Inferno Burst', desc: '5 dmg + 2 vuln + retreat', dmg: 5, move: 'retreat',
@@ -1265,7 +1265,7 @@ const CHARS = {
     school: 'stealth',
     maxHp: 21,
     home: 'back',
-    passive: { name: 'Eviscerate', desc: '+3 dmg vs bleeding enemies' },
+    passive: { name: "Shadow's Cut", desc: "When Mira strikes a bleeding enemy, that bleed skips its decay tick this turn." },
     techs: {
       front: {
         basic: { name: 'Backstab', desc: '6 dmg + bleed 1 + retreat', dmg: 6, move: 'retreat',
@@ -1303,7 +1303,7 @@ const CHARS = {
     school: 'physical',
     maxHp: 28,
     home: 'mid',
-    passive: { name: 'Adept', desc: 'Heals 2 on kill.  Alone in the abyss: +2 dmg.' },
+    passive: { name: 'Last Stand', desc: 'When Kai is the only ally still standing, each attack deals +3 and each kill heals 4.' },
     techs: {
       front: {
         basic: { name: 'Slash', desc: '7 dmg front', dmg: 7,
@@ -1317,7 +1317,7 @@ const CHARS = {
         basic: { name: 'Quick Cut', desc: '5 dmg lowest + bleed 1 · advance', dmg: 5, move: 'advance',
           reach: ['front','mid'], pattern: 'lowest',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 5); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 1); } advance(s, 'kai'); } },
-        sig:   { name: 'Crossblade', desc: '4 stealth dmg twice (lowest)', dmg: 4, hits: 2, element: 'stealth',
+        sig:   { name: 'Crossblade', desc: '4 dmg twice (lowest)', dmg: 4, hits: 2,
           reach: ['front','mid'], pattern: 'lowest',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 4); if (!t[0].dead) applyDmgToEnemy(s, t[0], 4); } } },
       },
@@ -1341,7 +1341,7 @@ const CHARS = {
     school: 'physical',
     maxHp: 30,
     home: 'front',
-    passive: { name: 'Sentinel', desc: 'While in Front, allies take -1 damage.' },
+    passive: { name: "Warden's Word", desc: 'While Garron holds Front, the first ally who would fall each fight is clamped to 1 HP and Garron loses 4 HP for the save.' },
     techs: {
       front: {
         basic: { name: 'Halt', desc: '4 dmg + self-taunt this turn', dmg: 4,
@@ -1378,7 +1378,7 @@ const CHARS = {
     school: 'arcane',
     maxHp: 18,
     home: 'back',
-    passive: { name: 'Lingering Note', desc: "Lirien's first attack each turn also applies vuln 1." },
+    passive: { name: 'Refrain', desc: "While Lirien is alive, every ally's first attack each turn applies vuln 1 to its target." },
     techs: {
       front: {
         basic: { name: 'Sharp Note', desc: '3 dmg front + retreat', dmg: 3, move: 'retreat',
@@ -1404,7 +1404,7 @@ const CHARS = {
           } },
       },
       back: {
-        basic: { name: 'Lullaby', desc: '2 stealth dmg all + 1 vuln all', dmg: 2, element: 'stealth',
+        basic: { name: 'Lullaby', desc: '2 dmg all + 1 vuln all', dmg: 2,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 2)); aliveEnemies(s).forEach(e => { e.vuln += 1; }); } },
         sig:   { name: 'Aria', desc: '2♦ · Vuln 2 to all enemies',
@@ -1426,7 +1426,7 @@ const CHARS = {
     school: 'holy',
     maxHp: 19,
     home: 'back',
-    passive: { name: 'Litany', desc: 'When Vasha damages an enemy, the lowest-HP ally heals 1.' },
+    passive: { name: 'Conviction', desc: "When any ally's HP drops to 1, Vasha's next sig costs 1 less Resolve and heals the party 3 on cast." },
     techs: {
       front: {
         basic: { name: 'Pulpit', desc: '4 dmg front + retreat', dmg: 4, move: 'retreat',
@@ -1449,7 +1449,7 @@ const CHARS = {
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 5); gainResolve(s, 1); } },
       },
       back: {
-        basic: { name: 'Bright Word', desc: '3 arcane dmg all', dmg: 3, element: 'arcane',
+        basic: { name: 'Bright Word', desc: '3 dmg all', dmg: 3,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => t.forEach(e => applyDmgToEnemy(s, e, 3)) },
         sig:   { name: "Sun's Decree", desc: '3♦ · 6 dmg all + 1 vuln all', cost: 3, dmg: 6,
@@ -1481,7 +1481,7 @@ const CHARS = {
         basic: { name: 'Frost-Claw', desc: '6 dmg front', dmg: 6,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 6); } },
-        sig:   { name: 'Glacier Crush', desc: '10 stealth dmg front', dmg: 10, element: 'stealth',
+        sig:   { name: 'Glacier Crush', desc: '10 dmg front', dmg: 10,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 10); } },
       },
@@ -2552,6 +2552,135 @@ const EVENTS = {
         resolve: (s) => {
           aliveParty(s).forEach(c => { c.maxHp += 2; c.hp = Math.min(c.maxHp, c.hp + 2); });
           log('You step wide around him.  The air warms again.');
+        } },
+    ],
+  },
+  the_dust_banner: {
+    id: 'the_dust_banner',
+    name: 'A Banner in the Dust',
+    secret: true,
+    when: (s) => s && s.party && !s.party.chars.cassia && s.run && s.run.layer >= 1,
+    flavor: 'A sword stands point-down through a torn banner — grey cloth, old smoke, no house mark you can still read.  A woman in dented plate sits beside it, helm off, fingers loose around the pommel.  She does not look up when you stop.  "If you came to take the sword, take it.  If you came to ask whose it was, do not.  I have spent the last reach forgetting."  A long pause.  The wind catches the banner.  "...but I have spent it standing."',
+    choices: [
+      { label: 'Stand with her', tag: 'Cassia joins the climb',
+        resolve: (s) => { s.run._pendingNamedRecruit = 'cassia'; log('She lifts the sword from the dust.  The banner falls open.'); } },
+      { label: 'Leave the gate', tag: '+1 max HP each · the marker holds',
+        resolve: (s) => {
+          aliveParty(s).forEach(c => { c.maxHp += 1; c.hp = Math.min(c.maxHp, c.hp + 1); });
+          log('You walk wide of the sword.  She does not turn.');
+        } },
+    ],
+  },
+  field_medic_in_the_brush: {
+    id: 'field_medic_in_the_brush',
+    name: 'A Field-Medic Mark',
+    secret: true,
+    when: (s) => s && s.party && !s.party.chars.elin && s.run && s.run.layer >= 1,
+    flavor: 'A strip of clean linen, bound around a hawthorn branch, white and stark against the reach.  Then another, on a stone.  Then another.  You follow them in.  A woman is kneeling in the brush, splinting a stranger\'s arm — a stranger who is not breathing.  She finishes the splint anyway.  When she stands she does not wipe her hands.  "I was sent to heal," she says, like it is a sentence someone else gave her.  "I will heal who walks."',
+    choices: [
+      { label: 'Walk with her', tag: 'Elin joins the climb',
+        resolve: (s) => { s.run._pendingNamedRecruit = 'elin'; log('She gathers her linens.  One she leaves behind.'); } },
+      { label: 'Leave her to the dead', tag: '+1 Resolve next fight · the strips lead on',
+        resolve: (s) => { s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1; log('You walk past.  The strips keep going up the path.'); } },
+    ],
+  },
+  arrow_in_a_sin: {
+    id: 'arrow_in_a_sin',
+    name: 'A Shaft in the Marrow',
+    secret: true,
+    when: (s) => s && s.party && !s.party.chars.branwen && s.run && s.run.layer >= 2,
+    flavor: 'An arrow stands upright in something that used to fight.  Green-threaded fletch.  The shaft has a name carved into it in a quick, practiced hand.  Further on, three more — different names, different sins.  A woman is sitting on a low rock at the end of the trail, restringing her bow.  She does not stand.  "I do not take a shot I would not sign.  If you can stomach a quiver that goes out one arrow at a time, walk with me.  If you cannot, walk faster than I draw."',
+    choices: [
+      { label: 'Walk at her pace', tag: 'Branwen joins the climb',
+        resolve: (s) => { s.run._pendingNamedRecruit = 'branwen'; log('She finishes the string.  Does not look back to see if you followed.'); } },
+      { label: 'Walk past the names', tag: '+1 Resolve next fight · the trail empties',
+        resolve: (s) => { s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1; log('The arrows stop being named after the next bend.'); } },
+    ],
+  },
+  cairn_builder: {
+    id: 'cairn_builder',
+    name: 'A Wall Someone Built',
+    secret: true,
+    when: (s) => s && s.party && !s.party.chars.korin && s.run && s.run.layer >= 2,
+    flavor: 'A line of cairns crosses the path — knee-high, hand-stacked, the kind of work that only gets done by someone who refused to walk further.  At the end of the line, the builder is still kneeling.  His hands are open.  His knuckles are split.  He has a deep cut across one shoulder he has not bothered to bind.  "I stopped here," he says, looking at the cairns, not at you.  "The next one of these was going to be mine.  But the reach can wait."',
+    choices: [
+      { label: 'Walk past the wall', tag: 'Korin joins the climb',
+        resolve: (s) => { s.run._pendingNamedRecruit = 'korin'; log('He stands.  The shoulder cut opens again.  He does not bind it.'); } },
+      { label: 'Leave him to his wall', tag: '+2 max HP each · the stones hold',
+        resolve: (s) => {
+          aliveParty(s).forEach(c => { c.maxHp += 2; c.hp = Math.min(c.maxHp, c.hp + 2); });
+          log('The cairns keep his name and yours apart.');
+        } },
+    ],
+  },
+  half_seen_traveller: {
+    id: 'half_seen_traveller',
+    name: 'Half in the Dark',
+    secret: true,
+    when: (s) => s && s.party && !s.party.chars.ash && s.run && s.run.layer >= 2,
+    flavor: 'You see them in the lamplight before you see them in the dark — and even in the lamplight only half.  A figure cloaked in something that does not return the light.  When you stop and turn, they are already turned.  When you ask their name, they give a word that sounds like ash, like dust, like the smaller half of a fire.  "I do not promise to be seen.  I promise to be useful.  If those are the same to you, walk on alone."',
+    choices: [
+      { label: 'Take the offer', tag: 'Ash joins the climb',
+        resolve: (s) => { s.run._pendingNamedRecruit = 'ash'; log('They fall in.  You stop being able to count the party.'); } },
+      { label: 'Walk on alone', tag: '+1 Resolve next fight · the lamplight steadies',
+        resolve: (s) => { s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1; log('The figure is gone before you finish saying no.'); } },
+    ],
+  },
+  quiet_blade_on_the_path: {
+    id: 'quiet_blade_on_the_path',
+    name: 'A Quiet Blade',
+    secret: true,
+    when: (s) => s && s.party && !s.party.chars.mira && s.run && s.run.layer >= 2,
+    flavor: 'You walk into the clearing already finished.  Three sins lie down in the moss, neat as folded cloth, each with the same small cut.  Somewhere just out of sight a knife is being wiped on something.  Then she steps forward — a thin woman with a thin smile and a thinner blade.  "You arrived after.  I prefer arriving after.  But I am running out of after.  Walk in front of me sometimes."',
+    choices: [
+      { label: 'Walk in front', tag: 'Mira joins the climb',
+        resolve: (s) => { s.run._pendingNamedRecruit = 'mira'; log('You hear her behind you.  You will not hear her again for a while.'); } },
+      { label: 'Leave her the clearing', tag: '+1 Resolve next fight · the cuts hold',
+        resolve: (s) => { s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1; log('You leave the moss as you found it.'); } },
+    ],
+  },
+  kite_shield_marker: {
+    id: 'kite_shield_marker',
+    name: 'A Kite Shield to the Path',
+    secret: true,
+    when: (s) => s && s.party && !s.party.chars.garron && s.run && s.run.layer >= 1,
+    flavor: 'A great kite shield is planted in the dust like a road marker.  The boss has been hammered out and re-set so many times it has stopped being round.  A man in scarred plate sits behind it on a low rock, helm balanced on one knee.  He watches you finish the last fight from a distance you did not know to check.  When you come into earshot he says, simply, "I watched.  You moved well.  You will not always.  Stand behind me when you do not."',
+    choices: [
+      { label: 'Stand behind him', tag: 'Garron joins the climb',
+        resolve: (s) => { s.run._pendingNamedRecruit = 'garron'; log('He stands.  The shield comes up easy in his hand.'); } },
+      { label: 'Walk past the marker', tag: '+1 Resolve next fight · the shield holds',
+        resolve: (s) => { s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1; log('The shield stays where it is.  So does the warden.'); } },
+    ],
+  },
+  harp_on_the_stone: {
+    id: 'harp_on_the_stone',
+    name: 'A Harp on a Stone',
+    secret: true,
+    when: (s) => s && s.party && !s.party.chars.lirien && s.run && s.run.layer >= 2,
+    flavor: 'A small harp sits propped on a flat stone, strings flexing without a hand.  Behind it a hooded figure is finishing a verse you cannot quite hear — the words land somewhere a little lower than your ears, in the middle of the chest.  She does not look up when you arrive.  She finishes the verse.  A small thing in the brush stops breathing.  "Some sins listen to a chord.  Some to a verse.  The rest I am still learning the words for.  Walk with me if you would like to know them."',
+    choices: [
+      { label: 'Walk with the song', tag: 'Lirien joins the climb',
+        resolve: (s) => { s.run._pendingNamedRecruit = 'lirien'; log('The harp comes off the stone.  She walks behind the verse.'); } },
+      { label: 'Leave the song unfinished', tag: '+1 max HP each · the chord holds',
+        resolve: (s) => {
+          aliveParty(s).forEach(c => { c.maxHp += 1; c.hp = Math.min(c.maxHp, c.hp + 1); });
+          log('The harp keeps playing.  You stop hearing it after the next bend.');
+        } },
+    ],
+  },
+  lantern_on_a_staff: {
+    id: 'lantern_on_a_staff',
+    name: 'A Lantern That Does Not Move',
+    secret: true,
+    when: (s) => s && s.party && !s.party.chars.vasha && s.run && s.run.layer >= 3,
+    flavor: 'You see the lantern first.  It is set on the end of a long staff, planted upright in the dust at the edge of the path, and the wind that bends every other thing here does not bend the flame.  The woman holding the staff has dust to her wrists and to her hem.  Her eyes are very tired and very bright.  "The reach takes my readings poorly," she says.  "Half my verses come back changed.  I keep reading.  Light does not forgive.  But it remembers."',
+    choices: [
+      { label: 'Walk in her light', tag: 'Vasha joins the climb',
+        resolve: (s) => { s.run._pendingNamedRecruit = 'vasha'; log('She lifts the staff.  The flame does not waver.'); } },
+      { label: 'Walk in the dark', tag: '+2 max HP each · the dust closes in',
+        resolve: (s) => {
+          aliveParty(s).forEach(c => { c.maxHp += 2; c.hp = Math.min(c.maxHp, c.hp + 2); });
+          log('The lantern stays at the edge of the path.  It does not follow.');
         } },
     ],
   },
@@ -4756,7 +4885,7 @@ const SQUAD_SIGILS = {
   shadowVeil: {
     id: 'shadowVeil', name: 'Shadow Veil', icon: '◐',
     requires: ['mira', 'ash'],
-    desc: 'First attack each turn deals +1 (stacks with Arcane Focus).',
+    desc: 'Every ally\'s first attack each turn deals +1.',
   },
   oldEdge: {
     id: 'oldEdge', name: 'Old Edge', icon: '★',
@@ -5533,13 +5662,21 @@ function commitCombo(comboId) {
   render();
 }
 
-function getSpecialCost(s, tech) {
+function getSpecialCost(s, tech, charId) {
   // Mantra of Stillness drops Specials to 0 Resolve regardless of base cost
   if (hasSigil(s, 'stillness')) return 0;
   // Per-tech cost override — sigs can declare `cost: 1 | 2 | 3` for variety.
   // Cheap sigs are utility/support; expensive sigs are the showy payoffs.
-  if (tech && typeof tech.cost === 'number') return tech.cost;
-  return SPECIAL_COST;
+  let cost = (tech && typeof tech.cost === 'number') ? tech.cost : SPECIAL_COST;
+  // Vasha Conviction — armed by an ally dropping to 1 HP, her next sig
+  // costs 1 less.  Discount is read at queue-time (charId from the queue
+  // build path) and consumed on cast in executeQueueItem.
+  const actorId = charId || (s && s.currentActorId);
+  if (actorId === 'vasha') {
+    const v = s && s.party && s.party.chars && s.party.chars.vasha;
+    if (v && v.convictionArmed) cost = Math.max(0, cost - 1);
+  }
+  return cost;
 }
 
 function availableSigils(s) {
@@ -5944,7 +6081,12 @@ function startEncounter(encSpec) {
     c.vuln = 0;
     c.taunt = false;
     c.retaliate = 0;
+    // Once-per-fight passive flags (Elin Last Mercy, Vasha Conviction)
+    c._mercyDeathSaveUsed = false;
+    c.convictionArmed = false;
   });
+  // Once-per-fight state flag (Garron Warden's Word)
+  state._wardenSaveUsed = false;
 
   // rebuild enemies fresh from the encounter spec
   state.enemies.slots = { ...encSpec.slots };
@@ -6028,8 +6170,12 @@ function newCharState(id) {
     id, hp: def.maxHp, maxHp: def.maxHp,
     armor: 0, bleed: 0, dulled: 0, taunt: false, retaliate: 0, vuln: 0,
     downed: false,
-    pendingEffects: [], // { kind: 'attackBonus'|'healBonus', amt, source } — consumed on use
+    pendingEffects: [], // { kind: 'attackBonus'|'healBonus'|'redTallyBleed', amt, source } — consumed on use
     upgrades: {},       // map of `${slot}.${kind}` → upgrade id (persists across fights within a run)
+    // Per-turn passive flags (reset in startTurn)
+    namedArrowUsed: false, _namedArrowPaid: false, _heldGateUsed: false,
+    // Once-per-fight passive flags (reset in startEncounter)
+    _mercyDeathSaveUsed: false, convictionArmed: false,
     // Darkest-Dungeon-style affinity quirks — persistent run-wide modifiers.
     // Earned from victories; positive quirks buff combat output, negative
     // quirks penalize.  Capped at QUIRK_CAP per side.
@@ -6055,6 +6201,7 @@ function newEnemyState(id) {
     // prevents the 2× consume from double-firing inside a multi-hit
     // tech.
     weaknessRevealed: false, weakened: false, weakenedTurnsLeft: 0, staggered: false, staggerBonusUsed: false,
+    _shadowCutHeld: false,
     dead: false, intentIdx: 0,
   };
 }
@@ -6122,21 +6269,9 @@ function previewDamage(s, e, baseAmt, actorId, techElement) {
   // Affinity quirks
   const qMod = getQuirkDmgMod(s, actorId);
   if (qMod) { amt += qMod; bonuses.push({ label: 'Affinity', amt: qMod }); }
-  if (actorId === 'kai' && Object.keys(s.party.chars).length === 1) { amt += 2; bonuses.push({ label: 'Lone Walker', amt: 2 }); }
-  if (actorId === 'branwen' && e.bleed > 0) { amt += 2; bonuses.push({ label: 'Bleed Hunter', amt: 2 }); }
-  if (actorId === 'mira' && e.bleed > 0) { amt += 3; bonuses.push({ label: 'Eviscerate', amt: 3 }); }
-  if (actorId === 'korin') {
-    const k = s.party.chars.korin;
-    if (k) {
-      const missingPct = (k.maxHp - k.hp) / k.maxHp;
-      if (missingPct >= 0.6)      { amt += 4; bonuses.push({ label: 'Bloodlust', amt: 4 }); }
-      else if (missingPct >= 0.3) { amt += 2; bonuses.push({ label: 'Bloodlust', amt: 2 }); }
-    }
-  }
-  if (actorId === 'ash') {
-    const a = s.party.chars.ash;
-    if (a && !a.firstAttackUsed) { amt += 2; bonuses.push({ label: 'Arcane Focus', amt: 2 }); }
-  }
+  // Kai Last Stand — +3 attack while he's the only ally upright.  Mirror
+  // of the live-hook bump in applyDmgToEnemy so tile previews read right.
+  if (actorId === 'kai' && aliveParty(s).length === 1) { amt += 3; bonuses.push({ label: 'Last Stand', amt: 3 }); }
   // Veyr Last Witness — +2 damage per downed party member.
   if (actorId === 'veyr') {
     const downed = Object.values(s.party.chars).filter(c => c.downed).length;
@@ -6226,13 +6361,14 @@ function resolveHealTargets(s, variant, healerId) {
 }
 
 // Pure prediction for incoming damage to a party member from an enemy intent.
-// Mirrors applyDmgToParty's modifier stack (Cassia Steadfast, vuln, armor,
-// Sigil of Aegis) without mutating state. opts.armor / opts.vuln override
-// current state so the caller can simulate sequential hits within a turn.
+// Mirrors applyDmgToParty's modifier stack (vuln, armor, Sigil of Aegis)
+// without mutating state. opts.armor / opts.vuln override current state so
+// the caller can simulate sequential hits within a turn.  Cassia's Held
+// Gate redirect is NOT modelled here — it's a once-per-turn intercept that
+// the preview can't safely simulate ordering for.
 function previewIncomingDmg(s, c, baseAmt, opts) {
   if (!c || c.downed || !(baseAmt > 0)) return { amt: 0, toHp: 0 };
   let amt = baseAmt;
-  if (c.id === 'cassia' && slotOfChar(s, 'cassia') === 'front') amt = Math.max(0, amt - 1);
   const vuln = (opts && typeof opts.vuln === 'number') ? opts.vuln : c.vuln;
   if (vuln > 0 && amt > 0) amt += 2;
   const baseArmor = (opts && typeof opts.armor === 'number') ? opts.armor : c.armor;
@@ -6304,32 +6440,14 @@ function applyDmgToEnemy(s, e, baseAmt) {
   });
   // Affinity quirks — run-wide per-character damage modifier
   amt += getQuirkDmgMod(s, s.currentActorId);
-  // Kai's Lone Walker — +2 dmg when alone in the abyss (solo party)
-  if (s.currentActorId === 'kai' && Object.keys(s.party.chars).length === 1) { amt += 2; spawnPassivePopup('kai', 'LONE WALKER'); }
-  // Branwen Bleed Hunter passive
-  if (s.currentActorId === 'branwen' && e.bleed > 0) { amt += 2; spawnPassivePopup('branwen', 'BLEED HUNTER'); }
-  // Mira Eviscerate passive — bigger crit on bleeding enemies
-  if (s.currentActorId === 'mira' && e.bleed > 0) { amt += 3; spawnPassivePopup('mira', 'EVISCERATE'); }
-  // Korin Bloodlust passive — scaling damage based on missing HP %
-  if (s.currentActorId === 'korin') {
-    const k = s.party.chars.korin;
-    if (k) {
-      const missingPct = (k.maxHp - k.hp) / k.maxHp;
-      if (missingPct >= 0.6)      { amt += 4; spawnPassivePopup('korin', 'BLOODLUST'); }
-      else if (missingPct >= 0.3) { amt += 2; spawnPassivePopup('korin', 'BLOODLUST'); }
-    }
+  // Kai Last Stand — alone-survivor: +3 to every attack while every other
+  // party member is downed.  Folds the old Lone Walker (+2 solo party) and
+  // the heal-on-kill into one comeback engine; kill-heal lives in killEnemy.
+  if (s.currentActorId === 'kai' && aliveParty(s).length === 1) {
+    amt += 3; spawnPassivePopup('kai', 'LAST STAND');
   }
-  // Ash Arcane Focus passive — first attack each turn deals +2
-  if (s.currentActorId === 'ash') {
-    const a = s.party.chars.ash;
-    if (a && !a.firstAttackUsed) {
-      amt += 2;
-      a.firstAttackUsed = true;
-      spawnPassivePopup('ash', 'ARCANE FOCUS');
-    }
-  }
-  // Veyr Last Witness passive — +2 damage per downed party member.
-  // Sharpens as the run takes losses; resets if everyone is alive.
+  // Veyr Last Witness — +2 damage per downed party member.  Sharpens as
+  // the run takes losses; resets if everyone is alive.
   if (s.currentActorId === 'veyr') {
     const downed = Object.values(s.party.chars).filter(c => c.downed).length;
     if (downed > 0) { amt += 2 * downed; spawnPassivePopup('veyr', 'LAST WITNESS'); }
@@ -6422,8 +6540,16 @@ function applyDmgToEnemy(s, e, baseAmt) {
     toHp = amt - absorbed;
   }
   e.hp = Math.max(0, e.hp - toHp);
-  // Brand of Doom — vuln stacks aren't consumed by attacks
-  if (vulnConsumed && !hasSigil(s, 'doom')) e.vuln = Math.max(0, e.vuln - 1);
+  // Brand of Doom — vuln stacks aren't consumed by attacks.
+  // Ash Veil Echo — Ash's own attacks don't consume the stack either; the
+  // mage keeps the chain alive for the rest of the party.
+  if (vulnConsumed && !hasSigil(s, 'doom')) {
+    if (s.currentActorId === 'ash' && amt > 0 && !e.dead) {
+      spawnPassivePopup('ash', 'VEIL ECHO');
+    } else {
+      e.vuln = Math.max(0, e.vuln - 1);
+    }
+  }
 
   // Mark of the Hunt — weakness hits also apply +1 vuln so the chain
   // builds on itself: every weakness hit primes the next one to land
@@ -6479,28 +6605,50 @@ function applyDmgToEnemy(s, e, baseAmt) {
     e.staggerBonusUsed = false;
   }
 
-  // Lirien Lingering Note passive — her first attack each turn applies
-  // vuln 1 to whichever target she hit.  Fires after the damage lands so
-  // it stacks on for the NEXT incoming hit, not this one.
-  if (s.currentActorId === 'lirien' && !e.dead) {
+  // Lirien Refrain — while Lirien is alive, every ally's first attack each
+  // turn applies vuln 1 to the target after the hit lands.  Per-char gate
+  // via the same `lingeringUsed` flag (already reset on every alive party
+  // member at startTurn).  Lirien tunes the party to the note; she doesn't
+  // have to land the hit herself.
+  if (!e.dead) {
     const lir = s.party.chars.lirien;
-    if (lir && !lir.lingeringUsed) {
+    const actor = s.currentActorId && s.party.chars[s.currentActorId];
+    if (lir && !lir.downed && actor && !actor.lingeringUsed) {
       e.vuln += 1;
-      lir.lingeringUsed = true;
-      spawnPassivePopup('lirien', 'LINGERING NOTE');
+      actor.lingeringUsed = true;
+      spawnPassivePopup('lirien', 'REFRAIN');
     }
   }
-  // Vasha Litany passive — every time she damages an enemy, the lowest-HP
-  // ally heals 1.  Light triage that ticks alongside her offence.  Skips
-  // when no allies need a heal or when she herself is the only target.
-  if (s.currentActorId === 'vasha' && toHp > 0) {
-    const ally = aliveParty(s).slice().sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp))[0];
-    if (ally && ally.hp < ally.maxHp) {
-      const before = ally.hp;
-      ally.hp = Math.min(ally.maxHp, ally.hp + 1);
-      if (ally.hp > before) {
-        spawnPopupId(ally.id, `+${ally.hp - before}`, 'heal', 'party');
-        spawnPassivePopup('vasha', 'LITANY');
+  // Branwen Named Arrow — her first attack each turn applies bleed 1
+  // post-hit (doesn't overwrite a deeper bleed stack).  Kill payoff is
+  // handled in killEnemy where the +2 pending bonus goes out to the rest
+  // of the party.
+  if (s.currentActorId === 'branwen' && !e.dead) {
+    const b = s.party.chars.branwen;
+    if (b && !b.namedArrowUsed) {
+      e.bleed = Math.max(e.bleed, 1);
+      b.namedArrowUsed = true;
+      spawnPassivePopup('branwen', 'NAMED ARROW');
+    }
+  }
+  // Mira Shadow's Cut — her hit on a bleeding enemy holds that bleed
+  // through the next startTurn decay tick (the bleed still ticks for
+  // damage, but doesn't count down).  Consumed at start of next turn.
+  if (s.currentActorId === 'mira' && e.bleed > 0 && !e.dead) {
+    e._shadowCutHeld = true;
+    spawnPassivePopup('mira', "SHADOW'S CUT");
+  }
+  // Korin Red Tally — pending bleed marker queued by applySelfDmg.  The
+  // next attack applies bleed 1 to its target; pending +3 attackBonus is
+  // consumed automatically by the normal pending-bonus pipe.
+  if (s.currentActorId === 'korin' && !e.dead) {
+    const k = s.party.chars.korin;
+    if (k && Array.isArray(k.pendingEffects)) {
+      const idx = k.pendingEffects.findIndex(eff => eff.source === 'red-tally' && eff.kind === 'redTallyBleed');
+      if (idx >= 0) {
+        e.bleed = Math.max(e.bleed, 1);
+        k.pendingEffects.splice(idx, 1);
+        spawnPassivePopup('korin', 'RED TALLY');
       }
     }
   }
@@ -6552,30 +6700,32 @@ function killEnemy(s, e) {
       s.fightStats.killsBy[s.currentActorId] = (s.fightStats.killsBy[s.currentActorId] || 0) + 1;
     }
   }
-  // Kai's Adept — heal 2 on kill (was 1; bumped to make solo runs survivable)
+  // Kai Last Stand — heal on kill: 2 normally, 4 while he's the last one
+  // standing.  Pairs with the +3 attack bonus in applyDmgToEnemy so a true
+  // solo Kai becomes a comeback engine.
   if (s.currentActorId === 'kai') {
     const k = s.party.chars.kai;
     if (k && !k.downed) {
+      const heal = (aliveParty(s).length === 1) ? 4 : 2;
       const before = k.hp;
-      k.hp = Math.min(k.maxHp, k.hp + 2);
+      k.hp = Math.min(k.maxHp, k.hp + heal);
       if (k.hp > before) {
         spawnPopupId('kai', `+${k.hp - before}`, 'heal', 'party');
-        spawnPassivePopup('kai', 'ADEPT');
+        spawnPassivePopup('kai', 'LAST STAND');
       }
     }
   }
-  // Branwen's Bleed Hunter — heal 1 on a bleeding kill, once per turn.  Gives
-  // her solo runs a small life-steal feedback loop tied to her core kit.
-  if (s.currentActorId === 'branwen' && e.bleed > 0) {
+  // Branwen Named Arrow — if Branwen lands the kill on her named-arrow
+  // turn, the next ally inherits her vendetta as a +2 attack bonus.
+  // One bonus per turn (the _namedArrowPaid flag), resets in startTurn.
+  if (s.currentActorId === 'branwen') {
     const b = s.party.chars.branwen;
-    if (b && !b.downed && !b.bleedKillUsed) {
-      const before = b.hp;
-      b.hp = Math.min(b.maxHp, b.hp + 1);
-      if (b.hp > before) {
-        spawnPopupId('branwen', `+${b.hp - before}`, 'heal', 'party');
-        spawnPassivePopup('branwen', 'BLEED HUNTER');
-      }
-      b.bleedKillUsed = true;
+    if (b && !b.downed && b.namedArrowUsed && !b._namedArrowPaid) {
+      b._namedArrowPaid = true;
+      aliveParty(s).forEach(ally => {
+        if (ally.id !== 'branwen') ally.pendingEffects.push({ kind: 'attackBonus', amt: 2, source: 'named-arrow' });
+      });
+      spawnPassivePopup('branwen', 'NAMED ARROW');
     }
   }
   // Emoji reaction over the actor for the kill
@@ -6621,18 +6771,15 @@ function enemyAdvanceFill(s) {
 
 function applyDmgToParty(s, c, amt) {
   if (!c || c.downed) return;
-  // Cassia "Steadfast" — -1 dmg when in Front
-  if (c.id === 'cassia' && slotOfChar(s, 'cassia') === 'front' && amt > 0) {
-    amt = Math.max(0, amt - 1);
-    spawnPassivePopup('cassia', 'STEADFAST');
-  }
-  // Garron "Sentinel" — while he holds the front, every other party
-  // member takes -1 damage (Garron himself takes full so the cost lands
-  // on the warden).  Stacks below armor / vuln.
-  const garron = s.party.chars.garron;
-  if (garron && !garron.downed && c.id !== 'garron' && slotOfChar(s, 'garron') === 'front' && amt > 0) {
-    amt = Math.max(0, amt - 1);
-    spawnPassivePopup('garron', 'SENTINEL');
+  // Cassia Held Gate — once per turn, while Cassia holds Front, the first
+  // incoming hit against any OTHER ally is redirected to her (armor first,
+  // then HP).  The original target takes nothing; Cassia eats the full hit.
+  const cas = s.party.chars.cassia;
+  if (cas && !cas.downed && !cas._heldGateUsed && c.id !== 'cassia'
+      && slotOfChar(s, 'cassia') === 'front' && amt > 0) {
+    cas._heldGateUsed = true;
+    spawnPassivePopup('cassia', 'HELD GATE');
+    return applyDmgToParty(s, cas, amt);
   }
   // Run modifier — "Hunger" twists Front-position damage taken upward
   if (hasRunModifier(s, 'hunger') && slotOfChar(s, c.id) === 'front') amt += 1;
@@ -6674,7 +6821,51 @@ function applyDmgToParty(s, c, amt) {
     if (target) applyDmgToEnemy(s, target, c.retaliate + (hasSigil(s, 'vigil') ? 2 : 0));
   }
 
+  // Vasha Conviction — when any ally drops to exactly 1 HP, arm Vasha's
+  // next sig: -1 Resolve cost, and party-heal 3 on cast.  Triggered on the
+  // way down regardless of damage source (also fires from bleed-tick in
+  // startTurn via the same guard).
+  if (c.hp === 1 && !c.downed) {
+    const v = s.party.chars.vasha;
+    if (v && !v.downed && !v.convictionArmed) {
+      v.convictionArmed = true;
+      spawnPassivePopup('vasha', 'CONVICTION');
+    }
+  }
+
   if (c.hp === 0) {
+    // Elin Last Mercy — once per fight she clamps from a lethal hit to 1 HP
+    // and the lowest ally heals 4.  Self-applies before the Garron save so
+    // Elin doesn't double-up the warden's intercept.
+    if (c.id === 'elin' && !c._mercyDeathSaveUsed) {
+      c._mercyDeathSaveUsed = true;
+      c.hp = 1;
+      spawnPopupId('elin', 'LAST MERCY', 'synergy', 'party');
+      spawnPassivePopup('elin', 'LAST MERCY');
+      log(`<b>${CHARS.elin.name}</b> holds at 1 HP — Last Mercy.`);
+      healLowest(s, 4);
+      return;
+    }
+    // Garron Warden's Word — first ally per fight to fall while Garron
+    // holds Front is clamped to 1 HP; Garron eats 4 HP for the save.
+    const g = s.party.chars.garron;
+    if (g && !g.downed && c.id !== 'garron'
+        && slotOfChar(s, 'garron') === 'front'
+        && !s._wardenSaveUsed) {
+      s._wardenSaveUsed = true;
+      c.hp = 1;
+      const gBefore = g.hp;
+      g.hp = Math.max(0, g.hp - 4);
+      spawnPopupId('garron', `-${gBefore - g.hp}`, 'dmg', 'party');
+      spawnPassivePopup('garron', "WARDEN'S WORD");
+      log(`<b>${CHARS.garron.name}</b> steps between — Warden's Word.`);
+      if (g.hp === 0) {
+        g.downed = true; g.pendingEffects = [];
+        if (s.fightStats) { s.fightStats.downed = s.fightStats.downed || []; if (!s.fightStats.downed.includes('garron')) s.fightStats.downed.push('garron'); }
+        log(`<b>${CHARS.garron.name}</b> falls.`);
+      }
+      return;
+    }
     c.downed = true;
     c.pendingEffects = [];
     log(`<b>${CHARS[c.id].name}</b> falls.`);
@@ -6688,6 +6879,23 @@ function applySelfDmg(s, charId, amt) {
   spawnPopupId(charId, `-${amt}`, 'dmg', 'party');
   flashCardId(charId, 'hit', 'party');
   log(`<b>${CHARS[charId].name}</b> takes ${amt} self damage.`);
+  // Korin Red Tally — every self-inflicted wound queues a +3 attack bonus
+  // and a one-shot bleed-1 marker on his next hit.  Stacks if he chains
+  // self-dmg techs (Reckless → Berserker → ...).
+  if (charId === 'korin' && amt > 0 && !c.downed) {
+    c.pendingEffects.push({ kind: 'attackBonus', amt: 3, source: 'red-tally' });
+    c.pendingEffects.push({ kind: 'redTallyBleed', amt: 1, source: 'red-tally' });
+    spawnPassivePopup('korin', 'RED TALLY');
+  }
+  // Vasha Conviction trigger via self-dmg path too — if Korin's Reckless
+  // drops him to exactly 1 HP, arm Vasha the same way.
+  if (c.hp === 1 && !c.downed) {
+    const v = s.party.chars.vasha;
+    if (v && !v.downed && !v.convictionArmed) {
+      v.convictionArmed = true;
+      spawnPassivePopup('vasha', 'CONVICTION');
+    }
+  }
   if (c.hp === 0) { c.downed = true; c.pendingEffects = []; if (s.fightStats) { s.fightStats.downed = s.fightStats.downed || []; if (!s.fightStats.downed.includes(charId)) s.fightStats.downed.push(charId); } log(`<b>${CHARS[charId].name}</b> falls.`); }
 }
 
@@ -6809,18 +7017,6 @@ function healLowest(s, amt) {
       s.fightStats.healingDone[s.currentActorId] = (s.fightStats.healingDone[s.currentActorId] || 0) + got;
     }
     mercyTickle(s, c.id, got);
-  }
-  // Elin passive: heal self 1 when healing an ally
-  if (s.currentActorId === 'elin' && c.id !== 'elin') {
-    const e = s.party.chars.elin;
-    const eb = e.hp; e.hp = Math.min(e.maxHp, e.hp + 1);
-    const got2 = e.hp - eb;
-    if (got2 > 0) {
-      spawnPopupId('elin', `+${got2}`, 'heal', 'party');
-      spawnPassivePopup('elin', 'MERCY');
-      if (s.fightStats) s.fightStats.healingDone.elin = (s.fightStats.healingDone.elin || 0) + got2;
-      mercyTickle(s, 'elin', got2);
-    }
   }
   return c;
 }
@@ -7049,7 +7245,7 @@ function startTurn(s) {
   s.bonusAtb = Math.min(1, s.pendingBonusAtb || 0);
   s.pendingBonusAtb = 0;
   // clear single-turn buffs that survived the enemy phase
-  aliveParty(s).forEach(c => { c.taunt = false; c.retaliate = 0; c.firstAttackUsed = false; c.bleedKillUsed = false; c.shadowVeilUsed = false; c.lingeringUsed = false; c._silentVolleyUsed = false; });
+  aliveParty(s).forEach(c => { c.taunt = false; c.retaliate = 0; c.firstAttackUsed = false; c.shadowVeilUsed = false; c.lingeringUsed = false; c._silentVolleyUsed = false; c.namedArrowUsed = false; c._namedArrowPaid = false; c._heldGateUsed = false; });
   // Weakness/stagger state decay at the top of each player turn:
   //   - weakened lingers for 2 player turns (so the follow-up weakness
   //     hit doesn't have to land same-turn).  weakenedTurnsLeft ticks
@@ -7128,13 +7324,25 @@ function startTurn(s) {
       spawnPopupId(c.id, `-${bleedTick}`, 'dmg', 'party');
       flashCardId(c.id, 'hit', 'party');
       log(`<b>${CHARS[c.id].name}</b> bleeds (${bleedTick}).`);
+      // Vasha Conviction — bleed-tick path can also drop an ally to 1.
+      if (c.hp === 1) {
+        const v = s.party.chars.vasha;
+        if (v && !v.downed && !v.convictionArmed) {
+          v.convictionArmed = true;
+          spawnPassivePopup('vasha', 'CONVICTION');
+        }
+      }
       if (c.hp === 0) { c.downed = true; c.pendingEffects = []; if (s.fightStats) { s.fightStats.downed = s.fightStats.downed || []; if (!s.fightStats.downed.includes(c.id)) s.fightStats.downed.push(c.id); } log(`<b>${CHARS[c.id].name}</b> falls.`); }
     }
   });
   aliveEnemies(s).forEach(e => {
     if (e.bleed > 0) {
       const dmg = Math.max(0, enemyBleedTick - (s.ignoreArmor ? 0 : e.armor));
-      e.hp = Math.max(0, e.hp - dmg); e.bleed -= 1;
+      e.hp = Math.max(0, e.hp - dmg);
+      // Mira Shadow's Cut — if Mira's last hit marked this bleed, the tick
+      // damage still lands but the stack doesn't count down this turn.
+      if (e._shadowCutHeld) { e._shadowCutHeld = false; }
+      else                  { e.bleed -= 1; }
       if (dmg > 0) { spawnPopupId(e.id, `-${dmg}`, 'dmg', 'enemy'); flashCardId(e.id, 'hit', 'enemy'); }
       log(`<b>${ENEMIES[e.id].name}</b> bleeds (${dmg}).`);
       if (e.hp === 0) killEnemy(s, e);
@@ -7226,7 +7434,7 @@ function previewTile(kind, charId, dir) {
     const element = tech.reach ? (tech.element || heroSchool) : null;
     // Per-sig cost flows through: getSpecialCost picks up tech.cost or
     // falls back to SPECIAL_COST.
-    return { kind, valid: true, label: tech.name, desc: tech.desc, atb, resolveCost: getSpecialCost(s, tech), slot, element, noEffect: techWouldMiss(s, tech) };
+    return { kind, valid: true, label: tech.name, desc: tech.desc, atb, resolveCost: getSpecialCost(s, tech, charId), slot, element, noEffect: techWouldMiss(s, tech) };
   }
   if (kind === 'move') {
     const idx = SLOTS.indexOf(slot);
@@ -7562,6 +7770,17 @@ function executeQueueItem(s, item) {
         }
       } else {
         variant.fn(s);
+      }
+      // Vasha Conviction payoff — if the sig that just resolved was Vasha's
+      // AND Conviction was armed, fire the party heal-3 and disarm.  The
+      // Resolve discount already landed at queue-time via getSpecialCost.
+      if (item.kind === 'special' && item.charId === 'vasha') {
+        const v = s.party.chars.vasha;
+        if (v && v.convictionArmed) {
+          v.convictionArmed = false;
+          spawnPassivePopup('vasha', 'CONVICTION');
+          partyHeal(s, 3);
+        }
       }
     }
     finally { s.outgoingDmgMod = 0; s.ignoreArmor = false; s.currentActorId = null; s.currentTechElement = null; }
@@ -8543,41 +8762,39 @@ function renderStatuses(ent, sForAuras) {
   // *why* damage on this card is being softened.  Only applied for party
   // members (sForAuras passed); enemies don't carry these.
   if (sForAuras && ent.id) {
-    // Garron Sentinel — every OTHER ally takes -1 dmg while Garron holds Front.
-    const garron = sForAuras.party && sForAuras.party.chars && sForAuras.party.chars.garron;
-    if (garron && !garron.downed && ent.id !== 'garron' && slotOfChar(sForAuras, 'garron') === 'front') {
-      c.push(chip('sentinel', '⛨', '−1', 'Sentinel — Garron in Front softens incoming damage to allies by 1.'));
-    }
-    // Cassia Steadfast — she herself takes -1 dmg while in Front.
+    // Cassia Held Gate — once-per-turn ally redirect while she holds Front.
     if (ent.id === 'cassia' && slotOfChar(sForAuras, 'cassia') === 'front') {
-      c.push(chip('steadfast', '⛨', '−1', 'Steadfast — Cassia in Front takes 1 less damage.'));
+      const cas = sForAuras.party.chars.cassia;
+      if (cas && !cas._heldGateUsed) {
+        c.push(chip('heldgate', '⛨', '◄', "Held Gate — first incoming hit this turn redirects to Cassia."));
+      }
     }
-    // Korin Bloodlust — scaling outgoing dmg based on missing HP.
+    // Korin Red Tally — pending +3 attack bonus from self-damage.
     if (ent.id === 'korin') {
       const k = sForAuras.party.chars.korin;
-      if (k) {
-        const missingPct = (k.maxHp - k.hp) / k.maxHp;
-        if (missingPct >= 0.6)      c.push(chip('bloodlust', '⚔', '+4', 'Bloodlust — Korin\'s rage adds +4 damage at low HP (≥60% missing).'));
-        else if (missingPct >= 0.3) c.push(chip('bloodlust', '⚔', '+2', 'Bloodlust — Korin\'s rage adds +2 damage at reduced HP (≥30% missing).'));
+      if (k && Array.isArray(k.pendingEffects)) {
+        const stacks = k.pendingEffects.filter(eff => eff.source === 'red-tally' && eff.kind === 'attackBonus').length;
+        if (stacks > 0) {
+          c.push(chip('redtally', '⚔', `+${3 * stacks}`, `Red Tally — Korin's next attack carries +${3 * stacks} damage and bleed 1.`));
+        }
       }
     }
-    // Ash Arcane Focus — first attack each turn deals +2 (consumable).
-    if (ent.id === 'ash') {
-      const a = sForAuras.party.chars.ash;
-      if (a && !a.firstAttackUsed) {
-        c.push(chip('focus', '⚔', '+2', 'Arcane Focus — Ash\'s first attack this turn deals +2 damage. Consumed on use.'));
+    // Ash Veil Echo — visible when there's a vuln stack she can preserve.
+    if (ent.id === 'ash' && aliveEnemies(sForAuras).some(e => e.vuln > 0)) {
+      c.push(chip('veilecho', '⊕', '◌', "Veil Echo — Ash's attacks don't consume vuln stacks."));
+    }
+    // Lirien Refrain — every ally's first attack each turn applies vuln 1
+    // while Lirien is alive.  Shown on each ally that still has the opener.
+    const lir = sForAuras.party.chars.lirien;
+    if (lir && !lir.downed) {
+      const me = sForAuras.party.chars[ent.id];
+      if (me && !me.lingeringUsed) {
+        c.push(chip('refrain', '⊕', '+1', "Refrain — first attack this turn applies vuln 1 (Lirien is singing)."));
       }
     }
-    // Lirien Lingering Note — first attack each turn applies vuln 1.
-    if (ent.id === 'lirien') {
-      const lir = sForAuras.party.chars.lirien;
-      if (lir && !lir.lingeringUsed) {
-        c.push(chip('note', '⊕', '+1', 'Lingering Note — Lirien\'s first attack this turn applies vuln 1. Consumed on use.'));
-      }
-    }
-    // Kai Lone Walker — alone in the abyss, +2 dmg.
-    if (ent.id === 'kai' && Object.keys(sForAuras.party.chars).length === 1) {
-      c.push(chip('lone', '⚔', '+2', 'Lone Walker — alone in the abyss, Kai deals +2 damage.'));
+    // Kai Last Stand — alone-survivor: +3 attacks, +4 heal on kill.
+    if (ent.id === 'kai' && aliveParty(sForAuras).length === 1) {
+      c.push(chip('laststand', '⚔', '+3', 'Last Stand — Kai is the only one upright: +3 damage, +4 heal on kill.'));
     }
     // Veyr Last Witness — +2 damage per downed party member.
     if (ent.id === 'veyr') {
@@ -8587,15 +8804,34 @@ function renderStatuses(ent, sForAuras) {
         c.push(chip('witness', '⚔', `+${bump}`, `Last Witness — Veyr's edge sharpens with each fallen ally (+${bump} damage).`));
       }
     }
-    // Branwen Bleed Hunter — +2 dmg vs bleeding enemies. Shown when at
-    // least one alive enemy is currently bleeding so the player knows
-    // it's hot right now.
-    if (ent.id === 'branwen' && aliveEnemies(sForAuras).some(e => e.bleed > 0)) {
-      c.push(chip('bhunt', '⚔', '+2', 'Bleed Hunter — +2 damage against any bleeding enemy on the board.'));
+    // Branwen Named Arrow — first attack each turn auto-bleeds.
+    if (ent.id === 'branwen') {
+      const b = sForAuras.party.chars.branwen;
+      if (b && !b.namedArrowUsed) {
+        c.push(chip('namedarrow', '✤', '+1', 'Named Arrow — her first attack this turn applies bleed 1; a kill on it buffs the next ally.'));
+      }
     }
-    // Mira Eviscerate — +3 dmg vs bleeding enemies (contextual chip).
+    // Mira Shadow's Cut — bleed she touches holds through the next decay tick.
     if (ent.id === 'mira' && aliveEnemies(sForAuras).some(e => e.bleed > 0)) {
-      c.push(chip('evis', '⚔', '+3', 'Eviscerate — +3 damage against any bleeding enemy on the board.'));
+      c.push(chip('shadowcut', '✤', '∞', "Shadow's Cut — her hit on a bleeding enemy holds the bleed through next turn's decay."));
+    }
+    // Elin Last Mercy — once per fight death-save (visible until consumed).
+    if (ent.id === 'elin') {
+      const el = sForAuras.party.chars.elin;
+      if (el && !el._mercyDeathSaveUsed && !el.downed) {
+        c.push(chip('lastmercy', '✚', '◇', 'Last Mercy — first lethal hit this fight clamps Elin to 1 HP and heals the lowest ally 4.'));
+      }
+    }
+    // Garron Warden's Word — once per fight ally death-save while Front.
+    if (ent.id === 'garron' && slotOfChar(sForAuras, 'garron') === 'front' && !sForAuras._wardenSaveUsed) {
+      c.push(chip('warden', '⛨', '◇', "Warden's Word — first ally to fall this fight is held at 1 HP (Garron loses 4 HP)."));
+    }
+    // Vasha Conviction — armed by an ally hitting 1 HP.
+    if (ent.id === 'vasha') {
+      const v = sForAuras.party.chars.vasha;
+      if (v && v.convictionArmed) {
+        c.push(chip('conviction', '✦', '−1♦', 'Conviction — next sig costs 1 less Resolve and heals the party 3 on cast.'));
+      }
     }
   }
   return c.join('');
@@ -8657,15 +8893,17 @@ const STATUS_TOOLTIPS = {
   vuln:     { name: 'Vulnerable',  text: 'Incoming hits deal +2 damage per stack (+2 more with Ember of Wrath). One stack is consumed per hit (unless Brand of Doom).' },
   retal:    { name: 'Retaliate',   text: 'When hit, counter-attacks the front-most enemy for this value (+2 with Vow of Vigil). Clears at the start of the next turn.' },
   pending:  { name: 'Pending',     text: 'A one-shot bonus from a synergy. Consumed by the next matching action.' },
-  sentinel: { name: 'Sentinel',    text: 'Garron in Front softens incoming damage to allies by 1. Lifts the moment he leaves Front or falls.' },
-  steadfast:{ name: 'Steadfast',   text: 'Cassia in Front takes 1 less damage. Lifts the moment she leaves Front.' },
-  bloodlust:{ name: 'Bloodlust',   text: 'Korin\'s rage adds +2 damage at 30%+ missing HP, +4 at 60%+. Updates as HP changes.' },
-  focus:    { name: 'Arcane Focus',text: 'Ash\'s first attack this turn deals +2 damage. The chip lifts once she attacks.' },
-  note:     { name: 'Lingering Note', text: 'Lirien\'s first attack this turn applies vuln 1 to the target. The chip lifts once she attacks.' },
-  lone:     { name: 'Lone Walker', text: 'Alone in the abyss, Kai deals +2 damage. Lifts the moment another hero joins.' },
-  bhunt:    { name: 'Bleed Hunter',text: 'Branwen deals +2 damage to any bleeding enemy. Lifts when no enemy is bleeding.' },
-  evis:     { name: 'Eviscerate',  text: 'Mira deals +3 damage to any bleeding enemy. Lifts when no enemy is bleeding.' },
-  witness:  { name: 'Last Witness',text: "Veyr's edge sharpens with each fallen ally — +2 damage per downed party member." },
+  heldgate: { name: 'Held Gate',     text: "While Cassia holds Front, the first incoming hit each turn against an ally is redirected to her. Lifts once she takes the redirect or leaves Front." },
+  warden:   { name: "Warden's Word", text: "While Garron holds Front, the first ally who would fall each fight is clamped to 1 HP and Garron loses 4 HP. Once per fight." },
+  redtally: { name: 'Red Tally',     text: "Each time Korin takes self-damage, his next attack carries +3 and bleed 1. Stacks — the wounds tally up." },
+  veilecho: { name: 'Veil Echo',     text: "Ash's attacks don't consume vuln stacks. She keeps the chain alive for the rest of the party." },
+  refrain:  { name: 'Refrain',       text: "While Lirien is alive, every ally's first attack each turn applies vuln 1 to its target. Lifts on Lirien's death." },
+  laststand:{ name: 'Last Stand',    text: "When Kai is the only ally upright, every attack deals +3 and every kill heals 4. Lifts the moment another hero stands with him." },
+  namedarrow:{name: 'Named Arrow',   text: "Branwen's first attack each turn applies bleed 1. If she kills with it, the next ally inherits +2 on their next attack." },
+  shadowcut:{ name: "Shadow's Cut",  text: "Mira's hit on a bleeding enemy holds that bleed through the next start-of-turn decay. The wound stays open one extra turn." },
+  lastmercy:{ name: 'Last Mercy',    text: "The first lethal hit on Elin each fight clamps her to 1 HP and heals the lowest ally for 4. Once per fight." },
+  conviction:{name: 'Conviction',    text: "When any ally drops to 1 HP, Vasha's next sig costs 1 less Resolve and heals the party 3 on cast." },
+  witness:  { name: 'Last Witness',  text: "Veyr's edge sharpens with each fallen ally — +2 damage per downed party member." },
 };
 
 let _statusTooltipState = null;
@@ -12038,7 +12276,22 @@ function loadStateOrNull() {
       if (e.weaknessRevealed === undefined)  e.weaknessRevealed = false;
       if (e.staggerBonusUsed === undefined)  e.staggerBonusUsed = false;
       if (e._charging === undefined)         e._charging = null;
+      if (e._shadowCutHeld === undefined)    e._shadowCutHeld = false;
     });
+    // Hero clarity pass — new per-turn / per-fight passive flags on each
+    // saved party char so freshly-loaded snapshots don't read undefined.
+    // Drop deprecated flags from the old Bleed Hunter / Arcane Focus
+    // implementations.
+    Object.values((snap.party && snap.party.chars) || {}).forEach(c => {
+      if (!c) return;
+      if (c.namedArrowUsed === undefined)     c.namedArrowUsed = false;
+      if (c._namedArrowPaid === undefined)    c._namedArrowPaid = false;
+      if (c._heldGateUsed === undefined)      c._heldGateUsed = false;
+      if (c._mercyDeathSaveUsed === undefined) c._mercyDeathSaveUsed = false;
+      if (c.convictionArmed === undefined)    c.convictionArmed = false;
+      delete c.bleedKillUsed;
+    });
+    if (snap._wardenSaveUsed === undefined) snap._wardenSaveUsed = false;
     return snap;
   } catch (_) { return null; }
 }
