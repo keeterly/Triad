@@ -6804,6 +6804,139 @@ button.path-node:not(:disabled):hover {
 }
 
 /* ===========================================================================
+   COMBO CINEMATIC SYSTEM — primitives consumed by playComboCinematic.
+   Each cinematic primitive injects one .cine-active element; the runtime
+   collects them on skip.  All animations are CSS keyframes parameterised
+   by --ms so the JS-supplied duration drives the timing.
+   =========================================================================== */
+body.cine-playing #tile-grid,
+body.cine-playing #ts-area,
+body.cine-playing #btn-fight,
+body.cine-playing #queue-strip { pointer-events: none; }
+
+/* TINT — radial school wash over the whole stage */
+.cine-tint {
+  position: fixed; inset: 0; pointer-events: none; z-index: 340;
+  opacity: 0;
+  animation: cine-tint-fade var(--ms, 200ms) ease-out forwards;
+}
+.cine-tint.school-physical { background: radial-gradient(ellipse at center, rgba(255,220,160,0.40), transparent 65%); }
+.cine-tint.school-holy     { background: radial-gradient(ellipse at center, rgba(255,240,180,0.44), transparent 65%); }
+.cine-tint.school-stealth  { background: radial-gradient(ellipse at center, rgba(160,200,255,0.42), transparent 65%); }
+.cine-tint.school-ranged   { background: radial-gradient(ellipse at center, rgba(220,190,140,0.42), transparent 65%); }
+.cine-tint.school-arcane   { background: radial-gradient(ellipse at center, rgba(200,160,240,0.44), transparent 65%); }
+@keyframes cine-tint-fade {
+  0%   { opacity: 0; }
+  30%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* BANNER — three sizes, lives at upper-third of screen, slides + fades */
+.cine-banner {
+  position: fixed; top: 30%; left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 360;
+  pointer-events: none;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  animation: cine-banner-in 0.30s cubic-bezier(.18,.89,.32,1) forwards,
+             cine-banner-out 0.35s ease-out var(--out-delay, 800ms) forwards;
+  text-align: center;
+}
+.cine-banner .cb-name {
+  text-transform: uppercase;
+  color: var(--gold-pale);
+  text-shadow: 0 0 22px rgba(240,212,136,0.55), 0 3px 0 rgba(0,0,0,0.85);
+  font-weight: 700;
+}
+.cine-banner .cb-sub {
+  font-size: 11px;
+  letter-spacing: 0.5em;
+  color: var(--ink-dim);
+  text-transform: uppercase;
+}
+.cine-banner.size-sm .cb-name { font-size: 22px; letter-spacing: 0.30em; }
+.cine-banner.size-md .cb-name { font-size: 30px; letter-spacing: 0.36em; }
+.cine-banner.size-lg .cb-name { font-size: 40px; letter-spacing: 0.42em; }
+.cine-banner.is-sig .cb-name {
+  color: #d6e6ff;
+  text-shadow: 0 0 28px rgba(170,200,255,0.7), 0 3px 0 rgba(0,0,0,0.85);
+}
+@keyframes cine-banner-in {
+  from { opacity: 0; transform: translate(-50%, -58%) scale(0.85); filter: blur(3px); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1);    filter: blur(0); }
+}
+@keyframes cine-banner-out {
+  from { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  to   { opacity: 0; transform: translate(-50%, -50%) scale(1.05); filter: blur(2px); }
+}
+
+/* SLASH — drawn SVG stroke across the enemy half */
+.cine-slash svg { width: 100%; height: 100%; overflow: visible; }
+.cine-slash .cs-stroke {
+  fill: none;
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-dasharray: 1600;
+  stroke-dashoffset: 1600;
+  animation: cine-slash-draw var(--ms, 280ms) cubic-bezier(.7,.0,.3,1) forwards,
+             cine-slash-fade calc(var(--ms, 280ms) * 0.6) ease-out calc(var(--ms, 280ms) * 0.55) forwards;
+  filter: drop-shadow(0 0 8px currentColor);
+}
+.cine-slash.school-physical .cs-stroke { stroke: #ffd098; color: #ffd098; }
+.cine-slash.school-holy     .cs-stroke { stroke: #ffe896; color: #ffe896; }
+.cine-slash.school-stealth  .cs-stroke { stroke: #b0c8ff; color: #b0c8ff; }
+.cine-slash.school-ranged   .cs-stroke { stroke: #d8c08c; color: #d8c08c; }
+.cine-slash.school-arcane   .cs-stroke { stroke: #c8a0f0; color: #c8a0f0; }
+@keyframes cine-slash-draw { to { stroke-dashoffset: 0; } }
+@keyframes cine-slash-fade { to { opacity: 0; } }
+
+/* PORTRAIT lift — additive class applied to a party .figure for the duration
+   of the step.  Distinct visual per pose so the player can read the moment. */
+.figure.cine-portrait-active { z-index: 30; }
+.figure.cine-portrait-rise {
+  transform: translateY(-8px) scale(1.06);
+  transition: transform 0.28s ease-out;
+  filter: drop-shadow(0 0 24px rgba(240,212,136,0.65));
+}
+.figure.cine-portrait-cross {
+  transform: translateY(-5px) scale(1.05) rotate(-2deg);
+  transition: transform 0.28s ease-out;
+  filter: drop-shadow(0 0 20px rgba(176,200,255,0.6));
+}
+.figure.cine-portrait-guard {
+  transform: scale(1.08);
+  transition: transform 0.28s ease-out;
+  filter: drop-shadow(0 0 26px rgba(170,200,255,0.7));
+}
+.figure.cine-portrait-whisper {
+  transform: translateY(-3px) scale(1.03);
+  transition: transform 0.28s ease-out;
+  filter: drop-shadow(0 0 16px rgba(176,200,255,0.5));
+}
+
+/* FADE — full-screen veil for cuts between phases */
+.cine-fade {
+  position: fixed; inset: 0;
+  pointer-events: none;
+  z-index: 355;
+  background: #000;
+  opacity: 0;
+}
+.cine-fade.dir-in  { animation: cine-fade-in  var(--ms, 200ms) ease-out forwards; }
+.cine-fade.dir-out { animation: cine-fade-out var(--ms, 200ms) ease-out forwards; }
+@keyframes cine-fade-in  { from { opacity: 0; }   to { opacity: 0.7; } }
+@keyframes cine-fade-out { from { opacity: 0.7; } to { opacity: 0; } }
+
+/* Reduced motion — collapse the animation visuals; timing stays
+   setTimeout-driven so combat still resolves correctly. */
+@media (prefers-reduced-motion: reduce) {
+  .cine-tint, .cine-banner, .cine-slash .cs-stroke, .cine-fade { animation-duration: 0.001ms !important; }
+  .figure.cine-portrait-rise, .figure.cine-portrait-cross, .figure.cine-portrait-guard, .figure.cine-portrait-whisper {
+    transform: none !important; filter: none !important;
+  }
+}
+
+/* ===========================================================================
    RESONANCE RAIL — combo "fuse" chips that appear in the team-special slot
    when the queue contains matching ingredients.
    =========================================================================== */

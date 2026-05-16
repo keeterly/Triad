@@ -5326,138 +5326,234 @@ const COMBOS = {
   // ---- Duos ----
   banner_volley: {
     id: 'banner_volley', name: 'Banner Volley', tier: 'duo',
-    desc: 'Strip front armor · AoE bleed 2 (less raw dmg, more pressure)',
+    desc: 'Strip front armor + Dulled — the only way to apply Dulled to a sin',
     requires: [
       { heroId: 'cassia', kind: 'attack' },
       { heroId: 'branwen', kind: 'attack' },
     ],
     fn: (s) => {
       const front = enemyBySlot(s, 'front');
-      if (front && !front.dead) { front.armor = 0; applyDmgToEnemy(s, front, 4); }
-      aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 2));
+      if (front && !front.dead) {
+        front.armor = 0;
+        applyDmgToEnemy(s, front, 5);
+        if (!front.dead) { front.dulled = (front.dulled || 0) + 1; spawnPopupId(front.id, 'DULLED', 'synergy', 'enemy'); }
+      }
     },
+    cinematic: [
+      { kind: 'tint',        school: 'holy',                  ms: 200 },
+      { kind: 'portrait',    heroes: ['cassia','branwen'], pose: 'rise', ms: 300 },
+      { kind: 'banner',      text: 'BANNER VOLLEY', size: 'md',    ms: 200 },
+      { kind: 'slash',       direction: 'down-right', school: 'holy', ms: 260 },
+      { kind: 'resolve' },
+      { kind: 'shake',       intensity: 2 },
+      { kind: 'enemy-flash', targets: 'front', kind2: 'hit',           ms: 200 },
+      { kind: 'burst',       at: 'enemy-front', school: 'holy', count: 12, ms: 300 },
+    ],
   },
   twin_strike: {
     id: 'twin_strike', name: 'Twin Strike', tier: 'duo',
-    desc: 'Focus fire — two heavy hits on lowest-HP target (single target)',
+    desc: 'Mass vuln-stacking on lowest — first hit stacks vuln, second cashes it',
     requires: [
       { heroId: 'branwen', kind: 'attack' },
       { heroId: 'mira', kind: 'attack' },
     ],
     fn: (s) => {
       const t = aliveEnemies(s).slice().sort((a, b) => a.hp - b.hp)[0];
-      if (t) { applyDmgToEnemy(s, t, 6); if (!t.dead) { applyDmgToEnemy(s, t, 6); if (!t.dead) t.bleed = Math.max(t.bleed, 2); } }
+      if (!t) return;
+      applyDmgToEnemy(s, t, 6);
+      if (!t.dead) { t.vuln += 2; spawnPopupId(t.id, 'VULN +2', 'stagger', 'enemy'); applyDmgToEnemy(s, t, 6); }
     },
+    cinematic: [
+      { kind: 'portrait',    heroes: ['branwen','mira'], pose: 'cross',  ms: 250 },
+      { kind: 'banner',      text: 'TWIN STRIKE', size: 'sm',            ms: 200 },
+      { kind: 'slash',       direction: 'down-right', school: 'ranged',  ms: 240 },
+      { kind: 'enemy-flash', targets: 'lowest', kind2: 'hit',            ms: 200 },
+      { kind: 'slash',       direction: 'down-left',  school: 'stealth', ms: 240 },
+      { kind: 'resolve' },
+      { kind: 'shake',       intensity: 2 },
+      { kind: 'burst',       at: 'enemy-front', school: 'stealth', count: 8, ms: 200 },
+    ],
   },
   crossblade_dance: {
     id: 'crossblade_dance', name: 'Crossblade Dance', tier: 'duo',
-    desc: 'Stack bleed deep on the front-most (small chip, large bleed)',
+    desc: 'AoE chip + bleed all · sets up every ally with +1 next attack',
     requires: [
       { heroId: 'kai', kind: 'attack' },
       { heroId: 'mira', kind: 'attack' },
     ],
     fn: (s) => {
-      const front = enemyBySlot(s, 'front');
-      if (front && !front.dead) {
-        for (let i = 0; i < 3; i++) { if (!front.dead) applyDmgToEnemy(s, front, 3); }
-        if (!front.dead) front.bleed = Math.max(front.bleed, 4);
-      }
+      aliveEnemies(s).forEach(e => { applyDmgToEnemy(s, e, 3); if (!e.dead) e.bleed = Math.max(e.bleed, 2); });
+      aliveParty(s).forEach(c => c.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'crossblade_dance' }));
     },
+    cinematic: [
+      { kind: 'portrait',    heroes: ['kai','mira'], pose: 'cross',  ms: 250 },
+      { kind: 'banner',      text: 'CROSSBLADE DANCE', size: 'md',   ms: 200 },
+      { kind: 'slash',       direction: 'horizontal', school: 'physical', ms: 180 },
+      { kind: 'slash',       direction: 'horizontal', school: 'stealth',  ms: 180 },
+      { kind: 'resolve' },
+      { kind: 'shake',       intensity: 2 },
+      { kind: 'burst',       at: 'enemy-all', school: 'physical', count: 8, ms: 300 },
+    ],
   },
   wall_charge: {
     id: 'wall_charge', name: 'Wall Charge', tier: 'duo',
-    desc: 'Trade dmg for full defensive setup (Korin taunt + retal + party armor)',
+    desc: 'Defensive setup — Korin Taunt + Retaliate + a one-hit Wall absorb',
     requires: [
       { heroId: 'cassia', kind: 'attack' },
       { heroId: 'korin', kind: 'attack' },
     ],
     fn: (s) => {
       const front = enemyBySlot(s, 'front');
-      if (front && !front.dead) applyDmgToEnemy(s, front, 6);
+      if (front && !front.dead) applyDmgToEnemy(s, front, 4);
       const k = s.party.chars.korin;
-      if (k && !k.downed) { k.taunt = true; k.retaliate = 3; k.armor += 4; }
-      aliveParty(s).forEach(c => { if (c.id !== 'korin') c.armor += 2; });
+      if (k && !k.downed) {
+        k.taunt = true;
+        k.retaliate = (k.retaliate || 0) + 3;
+        k.armorAbsorb = (k.armorAbsorb || 0) + 1;
+        spawnPassivePopup('korin', 'WALL');
+      }
     },
+    cinematic: [
+      { kind: 'tint',        school: 'physical',                ms: 200 },
+      { kind: 'portrait',    heroes: ['cassia','korin'], pose: 'guard', ms: 300 },
+      { kind: 'banner',      text: 'WALL CHARGE', size: 'md',   ms: 200 },
+      { kind: 'slash',       direction: 'down-right', school: 'physical', ms: 200 },
+      { kind: 'resolve' },
+      { kind: 'shake',       intensity: 3 },
+      { kind: 'enemy-flash', targets: 'front', kind2: 'hit',    ms: 200 },
+      { kind: 'portrait',    heroes: ['korin'],          pose: 'guard',  ms: 200 },
+    ],
   },
   quiet_volley: {
     id: 'quiet_volley', name: 'Quiet Volley', tier: 'duo',
-    desc: 'Spread bleed across all enemies + buff party for next turn',
+    desc: 'AoE chip + Veil on every ally — first enemy hit this turn fizzles',
     requires: [
       { heroId: 'ash', kind: 'attack' },
       { heroId: 'branwen', kind: 'attack' },
     ],
     fn: (s) => {
       dmgAllEnemies(s, 3);
-      aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 2));
-      aliveParty(s).forEach(c => c.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'quiet_volley' }));
+      aliveParty(s).forEach(c => { c._veil = true; spawnPopupId(c.id, 'VEIL', 'armor', 'party'); });
     },
+    cinematic: [
+      { kind: 'fade',        to: 'in',                          ms: 150 },
+      { kind: 'portrait',    heroes: ['ash','branwen'], pose: 'whisper', ms: 300 },
+      { kind: 'banner',      text: 'QUIET VOLLEY', size: 'sm', subtitle: 'arrows in dusk', ms: 200 },
+      { kind: 'burst',       at: 'enemy-all', school: 'stealth', count: 8, ms: 250 },
+      { kind: 'resolve' },
+      { kind: 'enemy-flash', targets: 'all', kind2: 'hit',       ms: 180 },
+      { kind: 'portrait',    heroes: ['ash','branwen'], pose: 'whisper', ms: 220 },
+      { kind: 'fade',        to: 'out',                          ms: 200 },
+    ],
   },
   hush_of_blades: {
     id: 'hush_of_blades', name: 'Hush of Blades', tier: 'duo',
-    desc: 'AoE chip + set up the lowest-HP ally for a big next turn',
+    desc: 'Stagger lowest enemy without needing a weakness setup — proactive open',
     requires: [
       { heroId: 'ash', kind: 'attack' },
       { heroId: 'mira', kind: 'attack' },
     ],
     fn: (s) => {
+      const t = aliveEnemies(s).slice().sort((a,b) => a.hp - b.hp)[0];
+      if (t) { t.staggered = true; t.staggerBonusUsed = false; spawnPopupId(t.id, 'STAGGERED', 'stagger', 'enemy'); log(`<b>${ENEMIES[t.id].name}</b> is STAGGERED — silence found the seam.`); }
       dmgAllEnemies(s, 2);
-      aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 1));
-      const t = aliveParty(s).slice().sort((a,b) => a.hp - b.hp)[0];
-      if (t) t.pendingEffects.push({ kind: 'attackBonus', amt: 3, source: 'hush' });
     },
+    cinematic: [
+      { kind: 'tint',        school: 'stealth',                 ms: 180 },
+      { kind: 'portrait',    heroes: ['ash','mira'], pose: 'whisper', ms: 260 },
+      { kind: 'banner',      text: 'HUSH OF BLADES', size: 'sm', ms: 200 },
+      { kind: 'slash',       direction: 'cross', school: 'stealth', ms: 260 },
+      { kind: 'resolve' },
+      { kind: 'enemy-flash', targets: 'lowest', kind2: 'warn',   ms: 200 },
+      { kind: 'shake',       intensity: 2 },
+      { kind: 'burst',       at: 'enemy-all', school: 'stealth', count: 8, ms: 200 },
+    ],
   },
   sister_mend: {
     id: 'sister_mend', name: "Sister's Mend", tier: 'duo',
-    desc: 'No damage — heal party 6 + +4⛨ all + cleanse',
+    desc: 'Heal 8 all + cleanse · revive one downed ally at 4 HP (only in-fight revive)',
     requires: [
       { heroId: 'cassia', kind: 'attack' },
       { heroId: 'elin', kind: 'attack' },
     ],
     fn: (s) => {
+      const downed = Object.values(s.party.chars).filter(c => c.downed);
       aliveParty(s).forEach(c => {
-        const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 6);
+        const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 8);
         if (c.hp > b) spawnPopupId(c.id, `+${c.hp - b}`, 'heal', 'party');
-        c.armor += 4; c.bleed = 0; c.dulled = 0;
+        c.bleed = 0; c.dulled = 0;
       });
+      if (downed.length) {
+        const r = downed[0];
+        r.downed = false;
+        r.hp = 4;
+        r.pendingEffects = [];
+        spawnPopupId(r.id, 'RISEN', 'heal', 'party');
+        log(`<b>${CHARS[r.id].name}</b> rises — Sister's Mend.`);
+      }
     },
+    cinematic: [
+      { kind: 'tint',        school: 'holy',                    ms: 300 },
+      { kind: 'portrait',    heroes: ['cassia','elin'], pose: 'rise', ms: 400 },
+      { kind: 'banner',      text: "SISTER'S MEND", size: 'md', ms: 200 },
+      { kind: 'burst',       at: 'party-all', school: 'holy', count: 12, ms: 400 },
+      { kind: 'resolve' },
+      { kind: 'portrait',    heroes: ['cassia','elin'], pose: 'rise', ms: 300 },
+    ],
   },
   veiled_flame: {
     id: 'veiled_flame', name: 'Veiled Flame', tier: 'duo',
-    desc: 'Hybrid — light AoE + heal lowest ally to full (or +8)',
+    desc: 'Cleanse party · Burn 3 to all enemies — armor-piercing DOT, only off-school DOT',
     requires: [
       { heroId: 'ash', kind: 'attack' },
       { heroId: 'elin', kind: 'attack' },
     ],
     fn: (s) => {
-      dmgAllEnemies(s, 3);
-      const t = aliveParty(s).slice().sort((a,b) => a.hp - b.hp)[0];
-      if (t) {
-        const b = t.hp; t.hp = Math.min(t.maxHp, t.hp + 8);
-        if (t.hp > b) spawnPopupId(t.id, `+${t.hp - b}`, 'heal', 'party');
-      }
+      aliveParty(s).forEach(c => { c.bleed = 0; c.dulled = 0; c.vuln = Math.max(0, c.vuln - 2); });
+      aliveEnemies(s).forEach(e => { e.burn = Math.max(e.burn, 3); spawnPopupId(e.id, 'BURN', 'crit', 'enemy'); });
+      dmgAllEnemies(s, 2);
     },
+    cinematic: [
+      { kind: 'portrait',    heroes: ['ash','elin'], pose: 'whisper', ms: 260 },
+      { kind: 'banner',      text: 'VEILED FLAME', size: 'md', subtitle: 'ash and grace', ms: 200 },
+      { kind: 'tint',        school: 'arcane',                  ms: 180 },
+      { kind: 'burst',       at: 'party-all', school: 'arcane', count: 8, ms: 200 },
+      { kind: 'burst',       at: 'enemy-all', school: 'arcane', count: 12, ms: 300 },
+      { kind: 'resolve' },
+      { kind: 'shake',       intensity: 2 },
+    ],
   },
   // ---- Triples ----
   sacred_triad: {
     id: 'sacred_triad', name: 'Sacred Triad', tier: 'triple',
-    desc: 'AoE 6 + cleanse + heal all 6 + party +2⛨',
+    desc: 'Heal 5 + cleanse · Divine Guard (next hit clamped to 1) — purely defensive',
     requires: [
       { heroId: 'cassia', kind: 'attack' },
       { heroId: 'elin', kind: 'attack' },
       { heroId: 'branwen', kind: 'attack' },
     ],
     fn: (s) => {
-      dmgAllEnemies(s, 6);
       aliveParty(s).forEach(c => {
-        const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 6);
+        const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 5);
         if (c.hp > b) spawnPopupId(c.id, `+${c.hp - b}`, 'heal', 'party');
-        c.bleed = 0; c.dulled = 0; c.armor += 2;
+        c.bleed = 0; c.dulled = 0;
+        c.divineGuard = true;
+        spawnPopupId(c.id, 'GUARD', 'armor', 'party');
       });
     },
+    cinematic: [
+      { kind: 'fade',        to: 'in',                          ms: 200 },
+      { kind: 'tint',        school: 'holy',                    ms: 300 },
+      { kind: 'portrait',    heroes: ['cassia','elin','branwen'], pose: 'rise', ms: 500 },
+      { kind: 'banner',      text: 'SACRED TRIAD', size: 'lg', subtitle: 'a circle held', ms: 300 },
+      { kind: 'burst',       at: 'party-all', school: 'holy', count: 24, ms: 400 },
+      { kind: 'resolve' },
+      { kind: 'fade',        to: 'out',                         ms: 200 },
+    ],
   },
   three_blades: {
     id: 'three_blades', name: 'Three Blades', tier: 'triple',
-    desc: 'AoE 4 + bleed 4 all (long pressure, less burst)',
+    desc: 'AoE 4 + Vulnerable 1 to all enemies · +1 Resolve — mass vuln setup',
     requires: [
       { heroId: 'kai', kind: 'attack' },
       { heroId: 'mira', kind: 'attack' },
@@ -5465,13 +5561,23 @@ const COMBOS = {
     ],
     fn: (s) => {
       dmgAllEnemies(s, 4);
-      aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 4));
+      aliveEnemies(s).forEach(e => { e.vuln += 1; spawnPopupId(e.id, 'VULN', 'stagger', 'enemy'); });
       gainResolve(s, 1);
     },
+    cinematic: [
+      { kind: 'portrait',    heroes: ['kai','mira','branwen'], pose: 'cross', ms: 300 },
+      { kind: 'banner',      text: 'THREE BLADES', size: 'md',  ms: 200 },
+      { kind: 'slash',       direction: 'down-right', school: 'physical', ms: 200 },
+      { kind: 'slash',       direction: 'down-left',  school: 'stealth',  ms: 200 },
+      { kind: 'slash',       direction: 'horizontal', school: 'ranged',   ms: 200 },
+      { kind: 'resolve' },
+      { kind: 'shake',       intensity: 3 },
+      { kind: 'burst',       at: 'enemy-all', school: 'physical', count: 12, ms: 300 },
+    ],
   },
   front_phalanx: {
     id: 'front_phalanx', name: 'Front Phalanx', tier: 'triple',
-    desc: '9 dmg front + party +5⛨ + cleanse (trade burst for defense)',
+    desc: 'Position control — shove front sin to back · party +3⛨ + cleanse',
     requires: [
       { heroId: 'cassia', kind: 'attack' },
       { heroId: 'korin', kind: 'attack' },
@@ -5479,9 +5585,19 @@ const COMBOS = {
     ],
     fn: (s) => {
       const front = enemyBySlot(s, 'front');
-      if (front && !front.dead) applyDmgToEnemy(s, front, 9);
-      aliveParty(s).forEach(c => { c.armor += 5; c.bleed = 0; c.dulled = 0; });
+      if (front && !front.dead) applyDmgToEnemy(s, front, 6);
+      swapEnemySlots(s, 'front', 'back');
+      aliveParty(s).forEach(c => { c.armor += 3; c.bleed = 0; c.dulled = 0; });
     },
+    cinematic: [
+      { kind: 'portrait',    heroes: ['cassia','korin','mira'], pose: 'guard', ms: 300 },
+      { kind: 'banner',      text: 'FRONT PHALANX', size: 'md', ms: 200 },
+      { kind: 'slash',       direction: 'horizontal', school: 'physical', ms: 250 },
+      { kind: 'resolve' },
+      { kind: 'shake',       intensity: 3 },
+      { kind: 'enemy-flash', targets: 'all', kind2: 'hit',     ms: 250 },
+      { kind: 'burst',       at: 'enemy-front', school: 'physical', count: 12, ms: 300 },
+    ],
   },
 
   // ---- Sig-tier ----
@@ -5490,24 +5606,37 @@ const COMBOS = {
   // slower, rarer, and showier than attack-tier resonance.
   hallowed_cleave: {
     id: 'hallowed_cleave', name: 'Hallowed Cleave', tier: 'duo', sigTier: true,
-    desc: 'Sunder + Greater Mend — strip front armor · party heal 8 + cleanse · +2⛨ all',
+    desc: 'Strip + 8 dmg + vuln 3 front · heal 6 all + cleanse · Veil to all',
     requires: [
       { heroId: 'cassia', kind: 'sig' },
       { heroId: 'elin',   kind: 'sig' },
     ],
     fn: (s) => {
       const front = enemyBySlot(s, 'front');
-      if (front && !front.dead) { front.armor = 0; applyDmgToEnemy(s, front, 6); front.vuln = Math.max(front.vuln, 2); }
+      if (front && !front.dead) { front.armor = 0; applyDmgToEnemy(s, front, 8); front.vuln = Math.max(front.vuln, 3); }
       aliveParty(s).forEach(c => {
-        const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 8);
+        const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 6);
         if (c.hp > b) spawnPopupId(c.id, `+${c.hp - b}`, 'heal', 'party');
-        c.armor += 2; c.bleed = 0; c.dulled = 0;
+        c.bleed = 0; c.dulled = 0;
+        c._veil = true;
       });
     },
+    cinematic: [
+      { kind: 'fade',        to: 'in',                          ms: 200 },
+      { kind: 'tint',        school: 'holy',                    ms: 400 },
+      { kind: 'portrait',    heroes: ['cassia','elin'], pose: 'rise', ms: 400 },
+      { kind: 'banner',      text: 'HALLOWED CLEAVE', size: 'lg', subtitle: 'sunder and mend', ms: 300 },
+      { kind: 'slash',       direction: 'down-right', school: 'holy', ms: 300 },
+      { kind: 'resolve' },
+      { kind: 'shake',       intensity: 3 },
+      { kind: 'burst',       at: 'enemy-front', school: 'holy', count: 12, ms: 200 },
+      { kind: 'burst',       at: 'party-all',   school: 'holy', count: 8,  ms: 200 },
+      { kind: 'fade',        to: 'out',                         ms: 200 },
+    ],
   },
   phantom_crescent: {
     id: 'phantom_crescent', name: 'Phantom Crescent', tier: 'duo', sigTier: true,
-    desc: 'Vanish Strike + Twin Daggers — 5 dmg ×3 on lowest (ignore armor) · bleed 3 all',
+    desc: '5 dmg ×3 lowest (ignore armor) — each hit stacks vuln · Veil to all',
     requires: [
       { heroId: 'mira', kind: 'sig' },
       { heroId: 'ash',  kind: 'sig' },
@@ -5517,57 +5646,138 @@ const COMBOS = {
       if (t) {
         const wasIgnore = s.ignoreArmor;
         s.ignoreArmor = true;
-        for (let i = 0; i < 3; i++) { if (t && !t.dead) applyDmgToEnemy(s, t, 5); }
+        for (let i = 0; i < 3; i++) {
+          if (t.dead) break;
+          t.vuln += 1;
+          applyDmgToEnemy(s, t, 5);
+        }
         s.ignoreArmor = wasIgnore;
       }
-      aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 3));
+      aliveParty(s).forEach(c => { c._veil = true; });
     },
+    cinematic: [
+      { kind: 'fade',        to: 'in',                          ms: 150 },
+      { kind: 'tint',        school: 'stealth',                 ms: 300 },
+      { kind: 'portrait',    heroes: ['mira','ash'], pose: 'whisper', ms: 300 },
+      { kind: 'banner',      text: 'PHANTOM CRESCENT', size: 'lg', ms: 300 },
+      { kind: 'slash',       direction: 'down-right', school: 'stealth', ms: 200 },
+      { kind: 'slash',       direction: 'down-left',  school: 'stealth', ms: 200 },
+      { kind: 'slash',       direction: 'cross',      school: 'stealth', ms: 250 },
+      { kind: 'resolve' },
+      { kind: 'shake',       intensity: 3 },
+      { kind: 'burst',       at: 'enemy-front', school: 'stealth', count: 24, ms: 250 },
+      { kind: 'fade',        to: 'out',                         ms: 200 },
+    ],
   },
   stormwall: {
     id: 'stormwall', name: 'Stormwall', tier: 'duo', sigTier: true,
-    desc: 'Battle Trance + Sunder — 8 dmg front + strip · Korin taunt + retal 4 · party +4⛨',
+    desc: 'Shove front to back · 6 dmg new front + strip + vuln 2 · Korin Wall',
     requires: [
       { heroId: 'korin',  kind: 'sig' },
       { heroId: 'cassia', kind: 'sig' },
     ],
     fn: (s) => {
+      swapEnemySlots(s, 'front', 'back');
       const front = enemyBySlot(s, 'front');
-      if (front && !front.dead) { front.armor = 0; applyDmgToEnemy(s, front, 8); front.vuln = Math.max(front.vuln, 2); }
+      if (front && !front.dead) {
+        front.armor = 0;
+        applyDmgToEnemy(s, front, 6);
+        if (!front.dead) front.vuln = Math.max(front.vuln, 2);
+      }
       const k = s.party.chars.korin;
-      if (k && !k.downed) { k.taunt = true; k.retaliate += 4; }
-      aliveParty(s).forEach(c => { c.armor += 4; });
+      if (k && !k.downed) {
+        k.taunt = true;
+        k.retaliate = (k.retaliate || 0) + 4;
+        k.armorAbsorb = (k.armorAbsorb || 0) + 1;
+      }
+      aliveParty(s).forEach(c => { c.armor += 3; });
     },
+    cinematic: [
+      { kind: 'tint',        school: 'physical',                ms: 250 },
+      { kind: 'portrait',    heroes: ['korin','cassia'], pose: 'guard', ms: 350 },
+      { kind: 'banner',      text: 'STORMWALL', size: 'lg', subtitle: 'pull and break', ms: 300 },
+      { kind: 'slash',       direction: 'horizontal', school: 'physical', ms: 250 },
+      { kind: 'enemy-flash', targets: 'all', kind2: 'warn',     ms: 200 },
+      { kind: 'slash',       direction: 'down-right', school: 'holy', ms: 300 },
+      { kind: 'resolve' },
+      { kind: 'shake',       intensity: 3 },
+      { kind: 'burst',       at: 'enemy-front', school: 'holy', count: 12, ms: 250 },
+    ],
   },
   wakeling_volley: {
     id: 'wakeling_volley', name: 'Wakeling Volley', tier: 'duo', sigTier: true,
-    desc: 'Arrow Storm + Riposte — 7 dmg all + bleed 3 all · +1 Resolve banked',
+    desc: '5 dmg all — each hit lands on the enemy weakness if covered · refund up to +2 Resolve',
     requires: [
       { heroId: 'branwen', kind: 'sig' },
       { heroId: 'kai',     kind: 'sig' },
     ],
     fn: (s) => {
-      dmgAllEnemies(s, 7);
-      aliveEnemies(s).forEach(e => e.bleed = Math.max(e.bleed, 3));
-      gainResolve(s, 1);
+      const elements = ['ranged', 'physical', 'stealth'];
+      let weakHits = 0;
+      aliveEnemies(s).forEach(e => {
+        if (e.dead) return;
+        const enemyDef = ENEMIES[e.id];
+        const asArr = x => Array.isArray(x) ? x : (x ? [x] : []);
+        const weaks = asArr(enemyDef && enemyDef.weakness);
+        const pick = elements.find(el => weaks.includes(el)) || 'ranged';
+        const wasEl = s.currentTechElement;
+        s.currentTechElement = pick;
+        const beforeDead = e.dead;
+        applyDmgToEnemy(s, e, 5);
+        s.currentTechElement = wasEl;
+        if (weaks.includes(pick) && !beforeDead) weakHits++;
+      });
+      const refund = Math.min(2, weakHits);
+      if (refund > 0) gainResolve(s, refund);
     },
+    cinematic: [
+      { kind: 'portrait',    heroes: ['branwen','kai'], pose: 'cross', ms: 300 },
+      { kind: 'banner',      text: 'WAKELING VOLLEY', size: 'md', subtitle: 'wake the storm', ms: 250 },
+      { kind: 'burst',       at: 'center', school: 'ranged', count: 24, ms: 300 },
+      { kind: 'enemy-flash', targets: 'all', kind2: 'warn',   ms: 200 },
+      { kind: 'burst',       at: 'enemy-all', school: 'ranged', count: 12, ms: 400 },
+      { kind: 'resolve' },
+      { kind: 'shake',       intensity: 3 },
+    ],
   },
   sacred_wakening: {
     id: 'sacred_wakening', name: 'Sacred Wakening', tier: 'triple', sigTier: true,
-    desc: '10 AoE + cleanse · party to full HP · +2 Resolve banked',
+    desc: 'Revive all downed at half · party to full + cleanse · 8 AoE · Veil all · +2 Resolve',
     requires: [
       { heroId: 'cassia',  kind: 'sig' },
       { heroId: 'elin',    kind: 'sig' },
       { heroId: 'branwen', kind: 'sig' },
     ],
     fn: (s) => {
-      dmgAllEnemies(s, 10);
-      aliveParty(s).forEach(c => {
-        const b = c.hp; c.hp = c.maxHp;
-        if (c.hp > b) spawnPopupId(c.id, `+${c.hp - b}`, 'heal', 'party');
-        c.bleed = 0; c.dulled = 0;
+      Object.values(s.party.chars).forEach(c => {
+        if (c.downed) {
+          c.downed = false;
+          c.hp = Math.max(1, Math.floor(c.maxHp / 2));
+          c.pendingEffects = [];
+          spawnPopupId(c.id, 'RISEN', 'heal', 'party');
+          log(`<b>${CHARS[c.id].name}</b> rises — Sacred Wakening.`);
+        } else {
+          const b = c.hp; c.hp = c.maxHp;
+          if (c.hp > b) spawnPopupId(c.id, `+${c.hp - b}`, 'heal', 'party');
+        }
+        c.bleed = 0; c.dulled = 0; c.vuln = 0;
+        c._veil = true;
       });
+      dmgAllEnemies(s, 8);
       gainResolve(s, 2);
     },
+    cinematic: [
+      { kind: 'fade',        to: 'in',                          ms: 250 },
+      { kind: 'tint',        school: 'holy',                    ms: 500 },
+      { kind: 'portrait',    heroes: ['cassia','elin','branwen'], pose: 'rise', ms: 500 },
+      { kind: 'banner',      text: 'SACRED WAKENING', size: 'lg', subtitle: 'three voices, one dawn', ms: 400 },
+      { kind: 'burst',       at: 'party-all', school: 'holy', count: 24, ms: 400 },
+      { kind: 'slash',       direction: 'cross', school: 'holy', ms: 300 },
+      { kind: 'resolve' },
+      { kind: 'shake',       intensity: 3 },
+      { kind: 'burst',       at: 'enemy-all', school: 'holy', count: 24, ms: 300 },
+      { kind: 'fade',        to: 'out',                         ms: 250 },
+    ],
   },
 };
 
@@ -6176,6 +6386,13 @@ function newCharState(id) {
     namedArrowUsed: false, _namedArrowPaid: false, _heldGateUsed: false,
     // Once-per-fight passive flags (reset in startEncounter)
     _mercyDeathSaveUsed: false, convictionArmed: false,
+    // Combo-granted one-shot defensive states.  _veil evades the next hit
+    // entirely (Quiet Volley / Hallowed Cleave / Phantom Crescent / Sacred
+    // Wakening).  armorAbsorb eats a full incoming hit per stack (Wall
+    // Charge / Stormwall).  divineGuard clamps the next hit to 1 damage
+    // (Sacred Triad).  All clear at the start of the next player turn or
+    // when consumed in applyDmgToParty — whichever comes first.
+    _veil: false, armorAbsorb: 0, divineGuard: false,
     // Darkest-Dungeon-style affinity quirks — persistent run-wide modifiers.
     // Earned from victories; positive quirks buff combat output, negative
     // quirks penalize.  Capped at QUIRK_CAP per side.
@@ -6202,6 +6419,10 @@ function newEnemyState(id) {
     // tech.
     weaknessRevealed: false, weakened: false, weakenedTurnsLeft: 0, staggered: false, staggerBonusUsed: false,
     _shadowCutHeld: false,
+    // Burn — Veiled Flame applies it.  Bleed-class DOT that ignores armor
+    // and ticks 2/turn for as many stacks as remain.  Tracked separately
+    // from bleed so cleanses, stagger interactions etc. don't double-fire.
+    burn: 0,
     dead: false, intentIdx: 0,
   };
 }
@@ -6771,6 +6992,23 @@ function enemyAdvanceFill(s) {
 
 function applyDmgToParty(s, c, amt) {
   if (!c || c.downed) return;
+  // Veil — Quiet Volley / Phantom Crescent / Hallowed Cleave / Sacred
+  // Wakening grant a one-shot evade.  First incoming hit fizzles entirely
+  // and the flag clears.  Sits at the very top: nothing else processes.
+  if (c._veil) {
+    c._veil = false;
+    spawnPopupId(c.id, 'VEIL', 'miss', 'party');
+    log(`<b>${CHARS[c.id].name}</b> slips the strike — Veil.`);
+    return;
+  }
+  // Wall — Wall Charge / Stormwall grant Korin (or whoever) an absorb
+  // bubble that eats one full hit, armor and HP both untouched.
+  if (c.armorAbsorb > 0) {
+    c.armorAbsorb -= 1;
+    spawnPopupId(c.id, 'WALL', 'armor', 'party');
+    log(`<b>${CHARS[c.id].name}</b> turns the blow aside — Wall.`);
+    return;
+  }
   // Cassia Held Gate — once per turn, while Cassia holds Front, the first
   // incoming hit against any OTHER ally is redirected to her (armor first,
   // then HP).  The original target takes nothing; Cassia eats the full hit.
@@ -6785,6 +7023,14 @@ function applyDmgToParty(s, c, amt) {
   if (hasRunModifier(s, 'hunger') && slotOfChar(s, c.id) === 'front') amt += 1;
   // Vulnerable on party
   if (c.vuln > 0 && amt > 0) { amt += 2; c.vuln = Math.max(0, c.vuln - 1); }
+  // Divine Guard — Sacred Triad clamps the next hit to 1 damage.  Caps
+  // catastrophic AoE while keeping bleed/burn chip honest.  Applied after
+  // vuln so the math still incorporates the threat shape, then floored.
+  if (c.divineGuard && amt > 1) {
+    amt = 1;
+    c.divineGuard = false;
+    spawnPassivePopup(c.id, 'GUARD');
+  }
 
   const absorbed = Math.min(c.armor, amt);
   c.armor = Math.max(0, c.armor - amt);
@@ -7125,8 +7371,32 @@ function swapWith(s, charId, targetSlot) {
   }
 }
 // Set of hero ids that need a slide-in animation on the next render.
-// makePartyCard reads + clears entries when it renders.
+// makePartyCard reads + clears entries when it renders.  Enemy cards
+// participate in the same set — when combos (Front Phalanx, Stormwall)
+// shove an enemy across slots, the affected ids get tagged here so
+// the animation reads as a physical drag/shove.
 const pendingSlideIds = new Set();
+
+// Combo helper — physically swap two enemy slot occupants.  The mid-fight
+// enemy reorder is unique to a couple of resonant combos; everyone else
+// reads s.enemies.slots fresh per render so the new positions paint
+// correctly without any other plumbing.  Telegraphed intents continue to
+// resolve against their own enemy id (not slot), so the threat shape the
+// player previewed still lands where it was promised.
+function swapEnemySlots(s, slotA, slotB) {
+  if (!s || !s.enemies || !s.enemies.slots) return;
+  const a = s.enemies.slots[slotA];
+  const b = s.enemies.slots[slotB];
+  if (!a && !b) return;
+  s.enemies.slots[slotA] = b || null;
+  s.enemies.slots[slotB] = a || null;
+  if (a) log(`<b>${ENEMIES[a].name}</b> is dragged to ${SLOT_LABELS[slotB]}.`);
+  if (b) log(`<b>${ENEMIES[b].name}</b> is dragged to ${SLOT_LABELS[slotA]}.`);
+  if (!__simulating) {
+    if (a) pendingSlideIds.add(a);
+    if (b) pendingSlideIds.add(b);
+  }
+}
 // Lunge-on-attack: triggered from applyDmgToEnemy via lungeCardId helper.
 function lungeCardId(id, side) {
   if (__simulating) return;
@@ -7245,7 +7515,7 @@ function startTurn(s) {
   s.bonusAtb = Math.min(1, s.pendingBonusAtb || 0);
   s.pendingBonusAtb = 0;
   // clear single-turn buffs that survived the enemy phase
-  aliveParty(s).forEach(c => { c.taunt = false; c.retaliate = 0; c.firstAttackUsed = false; c.shadowVeilUsed = false; c.lingeringUsed = false; c._silentVolleyUsed = false; c.namedArrowUsed = false; c._namedArrowPaid = false; c._heldGateUsed = false; });
+  aliveParty(s).forEach(c => { c.taunt = false; c.retaliate = 0; c.firstAttackUsed = false; c.shadowVeilUsed = false; c.lingeringUsed = false; c._silentVolleyUsed = false; c.namedArrowUsed = false; c._namedArrowPaid = false; c._heldGateUsed = false; c._veil = false; c.divineGuard = false; c.armorAbsorb = 0; });
   // Weakness/stagger state decay at the top of each player turn:
   //   - weakened lingers for 2 player turns (so the follow-up weakness
   //     hit doesn't have to land same-turn).  weakenedTurnsLeft ticks
@@ -7345,6 +7615,18 @@ function startTurn(s) {
       else                  { e.bleed -= 1; }
       if (dmg > 0) { spawnPopupId(e.id, `-${dmg}`, 'dmg', 'enemy'); flashCardId(e.id, 'hit', 'enemy'); }
       log(`<b>${ENEMIES[e.id].name}</b> bleeds (${dmg}).`);
+      if (e.hp === 0) killEnemy(s, e);
+    }
+    // Burn — Veiled Flame applies it.  Bleed-class status but ignores
+    // armor entirely (it's the heat passing through, not the cut) and
+    // hits harder per tick (2) for fewer turns.  Decays by 1 each tick.
+    if (!e.dead && e.burn > 0) {
+      const burnDmg = 2;
+      e.hp = Math.max(0, e.hp - burnDmg);
+      e.burn -= 1;
+      spawnPopupId(e.id, `-${burnDmg}`, 'crit', 'enemy');
+      flashCardId(e.id, 'hit', 'enemy');
+      log(`<b>${ENEMIES[e.id].name}</b> burns (${burnDmg}).`);
       if (e.hp === 0) killEnemy(s, e);
     }
   });
@@ -7725,17 +8007,21 @@ function executeQueueItem(s, item) {
     const combo = COMBOS[item.comboId];
     if (!combo) return;
     log(`<span class="msg-strong">★ ${combo.name} ★</span>`);
-    if (!__simulating) {
-      showTeamSpecialBanner(combo);
-      // Flash every participating hero
-      combo.requires.forEach(req => { if (s.party.chars[req.heroId] && !s.party.chars[req.heroId].downed) flashCardId(req.heroId, 'hit', 'party'); });
-      shakeScreen(combo.tier === 'triple' ? 3 : 2);
-      Audio.attack(); Audio.kill();
+    if (__simulating) {
+      // Headless sim — skip cinematic, just fire the effect.
+      s.currentActorId = null;
+      s.currentTechElement = null;
+      try { combo.fn(s); }
+      finally { s.outgoingDmgMod = 0; s.ignoreArmor = false; s.currentActorId = null; s.currentTechElement = null; }
+      return;
     }
-    s.currentActorId = null;
-    s.currentTechElement = null;
-    try { combo.fn(s); }
-    finally { s.outgoingDmgMod = 0; s.ignoreArmor = false; s.currentActorId = null; s.currentTechElement = null; }
+    combo.requires.forEach(req => { if (s.party.chars[req.heroId] && !s.party.chars[req.heroId].downed) flashCardId(req.heroId, 'hit', 'party'); });
+    Audio.attack(); Audio.kill();
+    // Hold the queue pacer until the cinematic finishes — playComboCinematic
+    // owns effect-resolution timing now.  hitPause adds to the post-step
+    // delay so resolveQueueStep naturally waits before advancing.
+    hitPause(CINE_BUDGET_MS + 60);
+    playComboCinematic(s, combo);
     return;
   }
 
@@ -7838,10 +8124,11 @@ function showReachClearedBanner() {
 }
 
 function showTeamSpecialBanner(combo) {
+  // Legacy banner.  Kept for non-combo callers (none right now) and as a
+  // fallback when a combo ships without a cinematic spec.  Combos with a
+  // cinematic field route through playComboCinematic instead.
   const old = document.getElementById('ts-banner');
   if (old) old.remove();
-  // Accept legacy string-only callers (defensive); modern callers pass the
-  // combo object so we can show the tier badge + correct color tint.
   const name = (combo && combo.name) || combo || 'Resonance';
   const tier = combo && combo.tier;
   const sigTier = combo && combo.sigTier;
@@ -7862,6 +8149,189 @@ function showTeamSpecialBanner(combo) {
   `;
   document.body.appendChild(b);
   setTimeout(() => b.remove(), 1400);
+}
+
+// ============================================================================
+// COMBO CINEMATIC SYSTEM — declarative steps, single runtime, tap-to-skip
+// ============================================================================
+// Each combo carries an optional `cinematic: [...steps]` field where each
+// step is `{ kind, ...params }`.  The runtime walks the list with cumulative
+// setTimeouts so the steps fire on schedule, then calls combo.fn(s) when
+// the `resolve` step lands (or after the last step if no `resolve` appears).
+// Everything is CSS / DOM / inline SVG — no asset pipeline, no library.
+
+const CINE_BUDGET_MS = 2200;
+const SCHOOL_GLYPH_CINE = { physical: '⚔', holy: '✦', arcane: '✶', ranged: '➳', stealth: '◐' };
+
+function playComboCinematic(s, combo, onDone) {
+  // Bot/sim mode: no DOM.  Fire the effect synchronously and return.
+  if (typeof __simulating !== 'undefined' && __simulating) {
+    try { combo.fn(s); }
+    finally { s.outgoingDmgMod = 0; s.ignoreArmor = false; s.currentActorId = null; s.currentTechElement = null; }
+    if (typeof onDone === 'function') onDone();
+    return;
+  }
+  // Default spec (legacy banner-only) when a combo lacks a cinematic.
+  const steps = (combo.cinematic && combo.cinematic.length)
+    ? combo.cinematic.slice()
+    : [{ kind: 'banner', text: combo.name, size: 'md', ms: 1200 }, { kind: 'resolve' }];
+  let resolved = false;
+  let skipped  = false;
+  const fireEffect = () => {
+    if (resolved) return;
+    resolved = true;
+    s.currentActorId = null;
+    s.currentTechElement = null;
+    try { combo.fn(s); }
+    finally { s.outgoingDmgMod = 0; s.ignoreArmor = false; s.currentActorId = null; s.currentTechElement = null; }
+    try { render(); } catch (_) {}
+  };
+  const cleanup = () => {
+    document.removeEventListener('pointerdown', skip, true);
+    document.querySelectorAll('.cine-active').forEach(el => el.remove());
+    document.body.classList.remove('cine-playing');
+    document.body.classList.remove('cine-sig-tier');
+  };
+  const skip = () => {
+    if (skipped) return;
+    skipped = true;
+    cleanup();
+    fireEffect();
+    if (typeof onDone === 'function') onDone();
+  };
+  document.addEventListener('pointerdown', skip, true);
+  document.body.classList.add('cine-playing');
+  if (combo.sigTier) document.body.classList.add('cine-sig-tier');
+  // Budget cap — anything over CINE_BUDGET_MS scale-compresses.  Steps with
+  // ms: 0 (shake, resolve) are unaffected.
+  const total = steps.reduce((acc, st) => acc + (st.ms || 0), 0);
+  const scale = total > CINE_BUDGET_MS ? CINE_BUDGET_MS / total : 1;
+  let t = 0;
+  steps.forEach(step => {
+    const dur = Math.round((step.ms || 0) * scale);
+    setTimeout(() => { if (!skipped) runCineStep(s, combo, step); }, t);
+    if (step.kind === 'resolve') {
+      setTimeout(() => { if (!skipped) fireEffect(); }, t);
+    }
+    t += dur;
+  });
+  setTimeout(() => {
+    if (skipped) return;
+    fireEffect();
+    cleanup();
+    if (typeof onDone === 'function') onDone();
+  }, Math.max(t + 120, 220));
+}
+
+function runCineStep(s, combo, step) {
+  switch (step.kind) {
+    case 'tint':        return cineTint(step.school, step.ms || 200);
+    case 'portrait':    return cinePortrait(step.heroes || (combo.requires || []).map(r => r.heroId), step.pose || 'rise', step.ms || 600);
+    case 'banner':      return cineBanner(step.text || combo.name, step.size || 'md', step.subtitle, combo, step.ms || 1000);
+    case 'slash':       return cineSlash(step.direction || 'down-right', step.school || 'physical', step.ms || 280);
+    case 'burst':       return cineBurst(s, step.at || 'center', step.school || 'physical', step.count || 12, step.ms || 400);
+    case 'shake':       return shakeScreen(step.intensity || 2);
+    case 'enemy-flash': return cineEnemyFlash(s, step.targets || 'front', step.kind2 || 'hit');
+    case 'fade':        return cineFade(step.to || 'in', step.ms || 200);
+    case 'resolve':     return;
+  }
+}
+
+function cineTint(school, ms) {
+  const el = document.createElement('div');
+  el.className = `cine-active cine-tint school-${school || 'holy'}`;
+  el.style.setProperty('--ms', `${ms}ms`);
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), ms + 40);
+}
+
+function cineBanner(text, size, subtitle, combo, ms) {
+  const el = document.createElement('div');
+  const sigTierCls = combo && combo.sigTier ? ' is-sig' : '';
+  el.className = `cine-active cine-banner size-${size}${sigTierCls}`;
+  el.style.setProperty('--out-delay', `${Math.max(60, ms - 350)}ms`);
+  el.innerHTML = `${subtitle ? `<div class="cb-sub">${subtitle}</div>` : ''}<div class="cb-name">${text}</div>`;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), ms + 80);
+}
+
+function cineSlash(direction, school, ms) {
+  // SVG stroke drawn across the enemy half.  Geometry is layout-relative:
+  // we compute the path inside the enemy-half bounds so the slash always
+  // sweeps the right area regardless of viewport size.
+  const enemyHalf = document.getElementById('enemy-half');
+  if (!enemyHalf) return;
+  const rect = enemyHalf.getBoundingClientRect();
+  const el = document.createElement('div');
+  el.className = `cine-active cine-slash school-${school}`;
+  el.style.position = 'fixed';
+  el.style.left = `${rect.left}px`;
+  el.style.top  = `${rect.top}px`;
+  el.style.width  = `${rect.width}px`;
+  el.style.height = `${rect.height}px`;
+  el.style.pointerEvents = 'none';
+  el.style.zIndex = '345';
+  el.style.setProperty('--ms', `${ms}ms`);
+  const W = rect.width, H = rect.height;
+  let path = '';
+  const pad = 10;
+  if (direction === 'down-right')      path = `M ${pad} ${pad} L ${W - pad} ${H - pad}`;
+  else if (direction === 'down-left')  path = `M ${W - pad} ${pad} L ${pad} ${H - pad}`;
+  else if (direction === 'horizontal') path = `M ${pad} ${H * 0.5} L ${W - pad} ${H * 0.5}`;
+  else if (direction === 'cross')      path = `M ${pad} ${pad} L ${W - pad} ${H - pad} M ${W - pad} ${pad} L ${pad} ${H - pad}`;
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><path class="cs-stroke" d="${path}"/></svg>`;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), ms + 200);
+}
+
+function cineBurst(s, at, school, count, ms) {
+  // Reuse the kill-spark geometry (game.js spawnKillSparks) — same color
+  // tint, same outward fan.  Just retarget the anchor.
+  const ids = [];
+  if (at === 'enemy-front') {
+    const f = enemyBySlot(s, 'front'); if (f && !f.dead) ids.push({ id: f.id, side: 'enemy' });
+  } else if (at === 'enemy-all') {
+    aliveEnemies(s).forEach(e => ids.push({ id: e.id, side: 'enemy' }));
+  } else if (at === 'party-all') {
+    aliveParty(s).forEach(c => ids.push({ id: c.id, side: 'party' }));
+  } else if (at === 'center') {
+    // Anchor on the first alive enemy as a stand-in for screen-center
+    const f = enemyBySlot(s, 'front') || aliveEnemies(s)[0];
+    if (f) ids.push({ id: f.id, side: 'enemy' });
+  }
+  const per = Math.max(4, Math.round(count / Math.max(1, ids.length)));
+  ids.forEach(t => spawnKillSparks(t.id, t.side, school, per));
+  // Visually fade — sparks self-terminate via spawnKillSparks (700ms),
+  // so this step's ms acts as the wait before the next step fires.
+}
+
+function cinePortrait(heroes, pose, ms) {
+  const cls = `cine-portrait-${pose}`;
+  const tagged = [];
+  (heroes || []).forEach(id => {
+    const fig = document.querySelector(`#party-half [data-id="${id}"]`);
+    if (!fig) return;
+    fig.classList.add(cls, 'cine-portrait-active');
+    tagged.push({ fig, cls });
+  });
+  setTimeout(() => tagged.forEach(t => { t.fig.classList.remove(t.cls, 'cine-portrait-active'); }), ms);
+}
+
+function cineEnemyFlash(s, targets, kind) {
+  let list = [];
+  if (targets === 'front')      { const f = enemyBySlot(s, 'front'); if (f && !f.dead) list = [f]; }
+  else if (targets === 'all')   { list = aliveEnemies(s); }
+  else if (targets === 'lowest'){ list = aliveEnemies(s).slice().sort((a,b) => a.hp - b.hp).slice(0, 1); }
+  else if (targets === 'line')  { list = aliveEnemies(s); }
+  list.forEach(e => flashCardId(e.id, kind || 'hit', 'enemy'));
+}
+
+function cineFade(to, ms) {
+  const el = document.createElement('div');
+  el.className = `cine-active cine-fade dir-${to}`;
+  el.style.setProperty('--ms', `${ms}ms`);
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), ms + 40);
 }
 
 
@@ -8597,6 +9067,11 @@ function makeEnemyCard(e, slot) {
   const fig = document.createElement('div');
   fig.className = 'figure enemy-figure';
   fig.dataset.slot = slot;
+  // Slide-in tag if this enemy was just shoved by a combo this turn
+  if (e && pendingSlideIds.has(e.id)) {
+    fig.classList.add('figure-sliding');
+    pendingSlideIds.delete(e.id);
+  }
   // Objective-target markers — Ringleader gets a gold crown; Catalyst gets
   // a red flame ring with the remaining charge count overhead.
   const obj = state.run && state.run.objective;
@@ -8748,10 +9223,14 @@ function renderStatuses(ent, sForAuras) {
     `<span class="status-chip status-${statusId}" data-status="${statusId}"${num != null ? ` data-value="${num}"` : ''} title="${title}"><span class="status-icon">${icon}</span>${num != null ? `<span class="status-num">${num}</span>` : ''}</span>`;
   if (ent.armor > 0)     c.push(chip('armor', '⛨', ent.armor,    `Armor ${ent.armor} — absorbs ${ent.armor} damage before HP. Wears off as it absorbs.`));
   if (ent.bleed > 0)     c.push(chip('bleed', '✤', ent.bleed,    `Bleed ${ent.bleed} — takes 2 damage at the start of each turn (3 with Bloodborne Sigil), then the stack decreases by 1.`));
+  if (ent.burn > 0)      c.push(chip('burn',  '🔥', ent.burn,    `Burn ${ent.burn} — takes 2 damage at start of each turn, ignores armor. Decays 1/turn.`));
   if (ent.taunt)         c.push(chip('taunt', '⌖', null,         'Taunt — enemies single-target attacks redirect to this character instead of the original slot.'));
   if (ent.dulled > 0)    c.push(chip('dulled', '↓', ent.dulled, `Dulled ${ent.dulled} — this character's outgoing damage is reduced by 2 for the next ${ent.dulled} attack(s).`));
   if (ent.vuln > 0)      c.push(chip('vuln',  '⊕', ent.vuln,     `Vulnerable ${ent.vuln} — next ${ent.vuln} incoming attacks deal +2 damage (+4 with Ember of Wrath Sigil) and consume one stack.`));
   if (ent.retaliate > 0) c.push(chip('retal', '↻', ent.retaliate,`Retaliate ${ent.retaliate} — when hit, counter-attack the front-most enemy for ${ent.retaliate} damage.`));
+  if (ent._veil)         c.push(chip('veil', '◐', null,          "Veil — first incoming hit this turn fizzles."));
+  if (ent.armorAbsorb > 0) c.push(chip('wall', '⛨', ent.armorAbsorb, `Wall ${ent.armorAbsorb} — next ${ent.armorAbsorb} incoming hit(s) absorbed entirely (no HP or armor cost).`));
+  if (ent.divineGuard)   c.push(chip('guard', '✦', null,         "Divine Guard — next incoming hit is clamped to 1 damage."));
   if (ent.pendingEffects) ent.pendingEffects.forEach(e => {
     if (e.kind === 'attackBonus')      c.push(chip('pending', '⚔', `+${e.amt}`, `Next attack +${e.amt} damage (one-shot, consumed on use).`));
     else if (e.kind === 'healBonus')   c.push(chip('pending', '✚', `+${e.amt}`, `Next heal +${e.amt} (one-shot, consumed on use).`));
@@ -8893,6 +9372,10 @@ const STATUS_TOOLTIPS = {
   vuln:     { name: 'Vulnerable',  text: 'Incoming hits deal +2 damage per stack (+2 more with Ember of Wrath). One stack is consumed per hit (unless Brand of Doom).' },
   retal:    { name: 'Retaliate',   text: 'When hit, counter-attacks the front-most enemy for this value (+2 with Vow of Vigil). Clears at the start of the next turn.' },
   pending:  { name: 'Pending',     text: 'A one-shot bonus from a synergy. Consumed by the next matching action.' },
+  burn:     { name: 'Burn',          text: 'Takes 2 damage at the start of each turn, ignores armor. Decays by 1 per turn.' },
+  veil:     { name: 'Veil',          text: 'First incoming hit this turn fizzles entirely. Cleared at the start of the next player turn.' },
+  wall:     { name: 'Wall',          text: 'Next incoming hit is absorbed entirely — no HP loss, no armor loss. Each stack covers one hit.' },
+  guard:    { name: 'Divine Guard',  text: 'Next incoming hit is clamped to 1 damage. Single-use shield from Sacred Triad.' },
   heldgate: { name: 'Held Gate',     text: "While Cassia holds Front, the first incoming hit each turn against an ally is redirected to her. Lifts once she takes the redirect or leaves Front." },
   warden:   { name: "Warden's Word", text: "While Garron holds Front, the first ally who would fall each fight is clamped to 1 HP and Garron loses 4 HP. Once per fight." },
   redtally: { name: 'Red Tally',     text: "Each time Korin takes self-damage, his next attack carries +3 and bleed 1. Stacks — the wounds tally up." },
@@ -9551,7 +10034,7 @@ const SPARK_TINT = {
   arcane:   'rgba(200,160,240,0.95)',
   holy:     'rgba(255,240,180,0.95)',
 };
-function spawnKillSparks(id, side, actorSchool) {
+function spawnKillSparks(id, side, actorSchool, count) {
   if (__simulating) return;
   let cardEl;
   if (side) cardEl = document.querySelector(`#${side === 'enemy' ? 'enemy' : 'party'}-half [data-id="${id}"]`);
@@ -9565,10 +10048,11 @@ function spawnKillSparks(id, side, actorSchool) {
   const cx = r.left + r.width / 2 - s.left;
   const cy = r.top  + r.height * 0.5 - s.top;
   const tint = SPARK_TINT[actorSchool] || SPARK_TINT.physical;
-  for (let i = 0; i < 8; i++) {
+  const n = typeof count === 'number' && count > 0 ? Math.min(count, 36) : 8;
+  for (let i = 0; i < n; i++) {
     const el = document.createElement('div');
     el.className = 'kill-spark';
-    const ang = (Math.PI * 2 * i / 8) + (Math.random() - 0.5) * 0.5;
+    const ang = (Math.PI * 2 * i / n) + (Math.random() - 0.5) * 0.5;
     const dist = 40 + Math.random() * 28;
     el.style.background = tint;
     el.style.left = cx + 'px';
@@ -10413,6 +10897,11 @@ function tutorialSeen() {
   return TUTORIAL_HINTS.every(h => seen.has(h.id));
 }
 function maybeShowTutorial() {
+  // Defer toast if a combo cinematic is playing — they'd race for taps.
+  if (document.body.classList.contains('cine-playing')) {
+    setTimeout(maybeShowTutorial, 800);
+    return;
+  }
   const seen = getTutorialSeen();
   const next = TUTORIAL_HINTS.find(h => !seen.has(h.id));
   if (!next) return;
@@ -12289,8 +12778,18 @@ function loadStateOrNull() {
       if (c._heldGateUsed === undefined)      c._heldGateUsed = false;
       if (c._mercyDeathSaveUsed === undefined) c._mercyDeathSaveUsed = false;
       if (c.convictionArmed === undefined)    c.convictionArmed = false;
+      // Combo-granted defensive states (Resonance refresh)
+      if (c._veil === undefined)              c._veil = false;
+      if (c.armorAbsorb === undefined)        c.armorAbsorb = 0;
+      if (c.divineGuard === undefined)        c.divineGuard = false;
       delete c.bleedKillUsed;
     });
+    Object.values((snap.enemies && snap.enemies.chars) || {}).forEach(e => {
+      if (!e) return;
+      if (e.burn === undefined) e.burn = 0;
+    });
+    // A snapshot taken mid-cinematic shouldn't keep the queue-pacing hint
+    if (snap._cineHoldUntil !== undefined) delete snap._cineHoldUntil;
     if (snap._wardenSaveUsed === undefined) snap._wardenSaveUsed = false;
     return snap;
   } catch (_) { return null; }
