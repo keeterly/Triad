@@ -854,23 +854,45 @@ body {
    Hask hit via Frostbreak passive). */
 .figure .weakness-icon {
   position: absolute;
-  bottom: -14px; left: 50%;
+  bottom: -18px; left: 50%;
   transform: translateX(-50%);
-  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 5px;
+  background: rgba(8,6,4,0.78);
+  border: 1px solid currentColor;
+  border-radius: 8px;
   color: var(--gold-pale);
-  text-shadow: 0 0 6px rgba(240,212,136,0.55), 0 1px 0 rgba(0,0,0,0.9);
-  pointer-events: none;
-  opacity: 0.92;
+  text-shadow: 0 0 6px currentColor, 0 1px 0 rgba(0,0,0,0.9);
+  pointer-events: auto;
+  cursor: help;
+  opacity: 0.95;
   letter-spacing: 0;
   z-index: 6;
+  white-space: nowrap;
 }
-/* Per-school tint so the weakness glyph reads the same color as the
+.figure .weakness-icon .wi-glyph { font-size: 11px; line-height: 1; }
+.figure .weakness-icon .wi-text  { font-size: 7.5px; line-height: 1; font-weight: 800; letter-spacing: 0.16em; }
+/* One-shot reveal animation — applied via .fresh class for ~1s after the
+   first hit lands so the discovery is impossible to miss.  Animation only
+   runs on classes added via JS (no infinite loop on subsequent renders). */
+.figure .weakness-icon.fresh {
+  animation: weakness-reveal 0.9s ease-out 1;
+}
+@keyframes weakness-reveal {
+  0%   { transform: translateX(-50%) scale(0.3); opacity: 0; filter: brightness(2); }
+  35%  { transform: translateX(-50%) scale(1.35); opacity: 1; filter: brightness(1.6); }
+  70%  { transform: translateX(-50%) scale(0.95); }
+  100% { transform: translateX(-50%) scale(1); opacity: 0.95; filter: brightness(1); }
+}
+/* Per-school tint so the weakness chip reads the same color as the
    matching action-tile element badge — visual handshake between them. */
-.figure .weakness-icon-physical { color: #d8c2a0; text-shadow: 0 0 6px #d8c2a0, 0 1px 0 rgba(0,0,0,0.9); }
-.figure .weakness-icon-holy     { color: #f4e6b8; text-shadow: 0 0 6px #f4e6b8, 0 1px 0 rgba(0,0,0,0.9); }
-.figure .weakness-icon-arcane   { color: #c9a8e8; text-shadow: 0 0 6px #c9a8e8, 0 1px 0 rgba(0,0,0,0.9); }
-.figure .weakness-icon-ranged   { color: #a8c8a0; text-shadow: 0 0 6px #a8c8a0, 0 1px 0 rgba(0,0,0,0.9); }
-.figure .weakness-icon-stealth  { color: #a8b8d0; text-shadow: 0 0 6px #a8b8d0, 0 1px 0 rgba(0,0,0,0.9); }
+.figure .weakness-icon-physical { color: #d8c2a0; }
+.figure .weakness-icon-holy     { color: #f4e6b8; }
+.figure .weakness-icon-arcane   { color: #c9a8e8; }
+.figure .weakness-icon-ranged   { color: #a8c8a0; }
+.figure .weakness-icon-stealth  { color: #a8b8d0; }
 
 /* State strip — labeled WEAKENED / STAGGERED banner under the HP bar.
    Wider than the old corner pip and carries the next-step hint so the
@@ -885,7 +907,10 @@ body {
   text-transform: uppercase;
   padding: 2px 8px;
   white-space: nowrap;
-  pointer-events: none;
+  /* Tap-friendly on mobile so the chip-tooltip handler can surface the
+     "what does this state mean?" explanation on press. */
+  pointer-events: auto;
+  cursor: help;
   z-index: 7;
   border-radius: 0;
   font-weight: 700;
@@ -3089,6 +3114,23 @@ body.party-critical::after {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* School glyph alongside the hero's name on the column header — same
+   tint as the weakness-icon under enemy HP, so the player can match
+   "this hero is ✦ HOLY" → "that enemy has ✦ HOLY weakness" at a glance. */
+.cch-school {
+  display: inline-block;
+  margin-right: 4px;
+  font-size: 11px;
+  line-height: 1;
+  vertical-align: -1px;
+  cursor: help;
+  text-shadow: 0 0 4px currentColor, 0 1px 0 rgba(0,0,0,0.9);
+}
+.cch-school-physical { color: #d8c2a0; }
+.cch-school-holy     { color: #f4e6b8; }
+.cch-school-arcane   { color: #c9a8e8; }
+.cch-school-ranged   { color: #a8c8a0; }
+.cch-school-stealth  { color: #a8b8d0; }
 .char-col-head .cch-slot {
   font-size: 7.5px;
   letter-spacing: 0.18em;
