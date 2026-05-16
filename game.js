@@ -11010,27 +11010,6 @@ function showRunSummary(outcome, opts) {
   const rs = state.run.stats || { damageDealt: {}, damageTaken: {}, healingDone: {}, kills: 0, synergies: [], turns: 0, reaches: 0 };
   const partyIds = Object.keys(state.party.chars);
 
-  const charRows = partyIds.map(id => {
-    const def = CHARS[id];
-    const c = state.party.chars[id];
-    const dealt = rs.damageDealt[id] || 0;
-    const healed = rs.healingDone[id] || 0;
-    const taken = rs.damageTaken[id] || 0;
-    // Tabular columns — render all three stat slots even when 0 so the
-    // numbers line up vertically across rows.  Empty cells render dim.
-    return `
-      <div class="vs-row vs-row-grid ${c.downed ? 'vs-downed' : ''}">
-        <span class="vs-name">${def.name}${c.downed ? ' · downed' : ''}</span>
-        <span class="vs-col vs-dealt">${dealt > 0 ? `<b>${dealt}</b> dealt` : '<span class="vs-zero">—</span>'}</span>
-        <span class="vs-col vs-healed">${healed > 0 ? `<b>${healed}</b> healed` : '<span class="vs-zero">—</span>'}</span>
-        <span class="vs-col vs-taken">${taken > 0 ? `<b>${taken}</b> taken` : '<span class="vs-zero">—</span>'}</span>
-      </div>`;
-  }).join('');
-
-  const synList = rs.synergies.length
-    ? `<div class="vs-syn"><span class="vs-syn-label">Bonds witnessed</span> ${rs.synergies.map(n => `<span class="vs-syn-chip">${n}</span>`).join('')}</div>`
-    : '';
-
   let title, flavor, outcomeClass;
   if (outcome === 'boss') { title = 'The Wakeling Falls'; flavor = 'The Sin of Dawn is unmade.  The triad endures, and the world breathes again.'; outcomeClass = 'rs-boss'; }
   else if (outcome === 'victory') { title = 'Victory'; flavor = 'The reaches are quiet.  For a moment, the sins rest.'; outcomeClass = 'rs-victory'; }
@@ -11088,8 +11067,6 @@ function showRunSummary(outcome, opts) {
         <span class="rs-stat"><b>${rs.turns}</b> <em>${rs.turns === 1 ? 'turn' : 'turns'}</em></span>
         <span class="rs-stat"><b>${rs.kills}</b> <em>${rs.kills === 1 ? 'kill' : 'kills'}</em></span>
       </div>
-      <div class="rs-rows">${charRows}</div>
-      ${synList}
       ${memorialHtml}
     </div>
   `;
@@ -11207,16 +11184,14 @@ function showVictorySummary(completedEnc, onContinue) {
 // when at least one vignette matches, so the player isn't bombarded.
 function offerVignetteOrPath(fightCtx) {
   const matches = matchVignettes(state, fightCtx);
-  // Three categories:
+  // ONE vignette per post-fight beat, picked by priority class:
   //   priority — a hero fell, or a first-clear milestone landed.  These
-  //              are big narrative beats and should never be dropped in
-  //              favor of a random rumor or bond reflection.
-  //   rumor    — plant a hero's name before the next recruit moment.
+  //              are big narrative beats and always fire when matched.
+  //   rumor    — plants a hero's name before the next recruit moment.
   //   ambient  — bond / friction / low-HP / biome reflections; gated
-  //              behind a probability so they don't fire every fight.
-  // Up to two vignettes can chain in one post-fight beat: a priority
-  // (always) + a rumor (always if matched), OR a single ambient under
-  // the gate.  The cap of two keeps the cascade snappy.
+  //              behind a low probability so most fights end clean.
+  // Vignettes no longer chain — capping at one keeps the post-fight
+  // cascade snappy.
   const isPriority = v => {
     const w = v.when || {};
     return !!(w.heroDowned || w.firstClearOf);
@@ -11226,23 +11201,16 @@ function offerVignetteOrPath(fightCtx) {
   const rumorMatches    = matches.filter(isRumor);
   const ambientMatches  = matches.filter(v => !isRumor(v) && !isPriority(v));
   const pickOne = (arr) => arr[Math.floor(Math.random() * arr.length)];
-  const queue = [];
-  if (priorityMatches.length) queue.push(pickOne(priorityMatches));
-  if (rumorMatches.length)    queue.push(pickOne(rumorMatches));
-  if (!queue.length && ambientMatches.length && Math.random() < 0.55) {
-    queue.push(pickOne(ambientMatches));
-  } else if (queue.length === 1 && ambientMatches.length && Math.random() < 0.35) {
-    // Allow a low-probability second beat alongside a priority/rumor when
-    // there's also an ambient match — keeps the run feeling reactive
-    // without turning every fight into a cascade.
-    queue.push(pickOne(ambientMatches));
+  let pick = null;
+  if (priorityMatches.length) {
+    pick = pickOne(priorityMatches);
+  } else if (rumorMatches.length) {
+    pick = pickOne(rumorMatches);
+  } else if (ambientMatches.length && Math.random() < 0.30) {
+    pick = pickOne(ambientMatches);
   }
-  const playNext = () => {
-    if (!queue.length) { offerRecruitOrPath(); return; }
-    const next = queue.shift();
-    showVignette(next, fightCtx, playNext);
-  };
-  playNext();
+  if (!pick) { offerRecruitOrPath(); return; }
+  showVignette(pick, fightCtx, offerRecruitOrPath);
 }
 
 // Post-fight cascade — designed to be SHORT after normal combat so each click
@@ -11287,6 +11255,13 @@ function shouldOfferRecruit() {
 }
 
 function offerRecruitOrPath() {
+  // Skip the recruit roll on the kill-step of elite nodes — the elite
+  // hand-off is already heavy (cinematic → banner → vignette → upgrade
+  // chooser).  Stacking a recruit on top made the post-elite beat feel
+  // like a slot machine.  Regular fights still roll recruit normally.
+  const lastNodeId = state.run.completedNodes[state.run.completedNodes.length - 1];
+  const lastNode = lastNodeId && getMapNode(lastNodeId);
+  if (lastNode && lastNode.type === 'elite') { offerUpgradeOrPath(); return; }
   if (!shouldOfferRecruit()) { offerUpgradeOrPath(); return; }
   const pickable = ROSTER.filter(id => !state.party.chars[id]);
   // Prefer heroes whose names have been heard in earlier vignettes — makes
