@@ -2217,7 +2217,7 @@ const EVENTS = {
     id: 'last_verse',
     name: 'The Last Verse',
     secret: true,
-    when: (s) => s && s.run && s.run.layer >= 2 && (!s.run.sigils || s.run.sigils.length === 0),
+    when: (s) => s && s.run && s.run.layer >= 2 && (!s.run.sigils || s.run.sigils.length === 0) && hasUnboundSigilIn(s, ['memory', 'wrath', 'doom', 'reaver']),
     flavor: 'An old singer rests against a marker stone.  "I have a verse left.  No one to hear it but you."',
     choices: [
       { label: 'Listen',       tag: 'Bind a random rare sigil · −2 max HP each',
@@ -2431,7 +2431,7 @@ const EVENTS = {
     id: 'burning_book',
     name: 'The Burning Book',
     secret: true,
-    when: (s) => s && s.run && s.run.layer >= 2,
+    when: (s) => s && s.run && s.run.layer >= 2 && hasUnboundSigilIn(s, ['memory', 'wrath', 'doom', 'reaver', 'quickening']),
     flavor: 'A heavy tome smoulders in the dust.  The pages do not turn to ash.  They turn to other pages.',
     choices: [
       { label: 'Read the burning words', tag: 'rare sigil · −3 HP each',
@@ -2559,7 +2559,7 @@ const EVENTS = {
     id: 'ironbound_pact',
     name: 'The Ironbound Pact',
     secret: true,
-    when: (s) => s && s.run && s.run.layer >= 3 && (s.run.sigils || []).length >= 1,
+    when: (s) => s && s.run && s.run.layer >= 3 && (s.run.sigils || []).length >= 1 && hasUnboundSigilIn(s, ['memory', 'wrath', 'doom', 'reaver', 'quickening', 'hunt', 'aegis']),
     flavor: 'A spirit in chains kneels in the dust.  "I will lift my weight to yours.  Bind me, and I will lift one more sin from your path."',
     choices: [
       { label: 'Accept the chains', tag: 'next fight: −1 max HP each, gain rare sigil',
@@ -5545,6 +5545,15 @@ function getSpecialCost(s, tech) {
 function availableSigils(s) {
   const owned = new Set((s.run && s.run.sigils) || []);
   return Object.values(SIGILS).filter(sg => !owned.has(sg.id));
+}
+
+// Cheap helper for event `when:` gates — return true if at least one
+// sigil in the supplied list isn't already bound on this run.  Stops
+// "rare sigil" events from firing when their entire grant pool would
+// silently dedupe to nothing.
+function hasUnboundSigilIn(s, list) {
+  const owned = new Set((s && s.run && s.run.sigils) || []);
+  return (list || []).some(id => SIGILS[id] && !owned.has(id));
 }
 
 // ============================================================================
@@ -10655,15 +10664,10 @@ function showRestOverlay() {
     }, 'hone');
   }
 
-  // 3. Sigil — bind one new sigil.  Only shown if any remain unbound.
-  const sgPool = availableSigils(state);
-  if (sgPool.length > 0) {
-    mkChoice('Reach for a sigil', 'Bind a run-wide power', () => {
-      hideOverlay();
-      choices.classList.remove('event-choices');
-      offerSigilFromNode(() => _completeNonCombatNode());
-    }, 'sigil');
-  }
+  // (Sigils intentionally removed from the rest menu — the sigil
+  // economy felt too inflationary when campfires were giving them out
+  // alongside elite / event / boss rewards.  Players still pick up
+  // sigils from elites, events, and boss rewards.)
 
   // 4. Reflect — context-aware introspection.  Shed an ailment if anyone
   // is currently carrying a negative quirk, otherwise grant a positive
