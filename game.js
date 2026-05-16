@@ -8472,20 +8472,22 @@ function makeEnemyCard(e, slot) {
   // read the loop directly off the enemy card.  Replaces the tiny corner
   // pips with explicit text so the WEAKENED → STAGGERED → 2× chain is
   // self-documenting.
+  // Label kept tight ("WEAKENED · 2T" / "STAGGERED · ×2 NEXT HIT") — the
+  // school glyph the player needs to land lives in the always-visible
+  // top-right weakness-icon, and the tooltip below still spells out the
+  // full play for anyone who taps for detail.
   let stateStrip = '';
   if (e.staggered) {
     const stgTip = 'STAGGERED — the next damaging hit (any element) deals 2× damage, then they recover. State clears at end of turn if you don\'t follow up.';
-    stateStrip = `<div class="state-strip state-strip-staggered" title="${stgTip}" data-tip="${stgTip}">⚡ STAGGERED · NEXT HIT × 2</div>`;
+    stateStrip = `<div class="state-strip state-strip-staggered" title="${stgTip}" data-tip="${stgTip}">⚡ STAGGERED · ×2 NEXT HIT</div>`;
   } else if (e.weakened) {
-    // Spell out HOW to stagger so the player doesn't need to remember the
-    // glyph legend.  e.g. "WEAKENED · HIT WITH ✦ HOLY → STAGGER"
-    const more = weakSchool
-      ? `HIT WITH ${SCHOOL_GLYPH[weakSchool] || '?'} ${weakSchool.toUpperCase()} → STAGGER`
-      : 'HIT WEAKNESS AGAIN → STAGGER';
     const turnsLeft = Math.max(0, e.weakenedTurnsLeft || 0);
     const turnTag = turnsLeft > 0 ? ` · ${turnsLeft}T` : '';
-    const wkTip = `WEAKENED (${turnsLeft || 1} turn${(turnsLeft || 1) === 1 ? '' : 's'} left) — hit them with their weakness school again to stagger.  The window persists across turns now, so the follow-up doesn't have to land this turn.`;
-    stateStrip = `<div class="state-strip state-strip-weakened" title="${wkTip}" data-tip="${wkTip}">⌖ WEAKENED${turnTag} · ${more}</div>`;
+    const schoolHint = weakSchool
+      ? `hit them with ${SCHOOL_GLYPH[weakSchool] || '?'} ${weakSchool.toUpperCase()} again to stagger`
+      : 'hit their weakness school again to stagger';
+    const wkTip = `WEAKENED (${turnsLeft || 1} turn${(turnsLeft || 1) === 1 ? '' : 's'} left) — ${schoolHint}.  The window persists across turns, so the follow-up doesn't have to land this turn.`;
+    stateStrip = `<div class="state-strip state-strip-weakened" title="${wkTip}" data-tip="${wkTip}">⌖ WEAKENED${turnTag}</div>`;
   }
 
   fig.innerHTML = `

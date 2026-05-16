@@ -925,16 +925,17 @@ body {
    Renders once weaknessRevealed flips true (first damaging hit or any
    Hask hit via Frostbreak passive). */
 .figure .weakness-icon {
+  /* Top-right corner of the portrait so it can co-exist with the
+     bottom .state-strip label without overlap. */
   position: absolute;
-  bottom: -18px; left: 50%;
-  transform: translateX(-50%);
+  top: 4px; right: 4px;
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  padding: 1px 5px;
-  background: rgba(8,6,4,0.78);
+  padding: 2px 6px;
+  background: rgba(8,6,4,0.82);
   border: 1px solid currentColor;
-  border-radius: 8px;
+  border-radius: 4px;
   color: var(--gold-pale);
   text-shadow: 0 0 6px currentColor, 0 1px 0 rgba(0,0,0,0.9);
   pointer-events: auto;
@@ -943,6 +944,7 @@ body {
   letter-spacing: 0;
   z-index: 6;
   white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.5);
 }
 .figure .weakness-icon .wi-glyph { font-size: 11px; line-height: 1; }
 .figure .weakness-icon .wi-text  { font-size: 7.5px; line-height: 1; font-weight: 800; letter-spacing: 0.16em; }
@@ -953,10 +955,10 @@ body {
   animation: weakness-reveal 0.9s ease-out 1;
 }
 @keyframes weakness-reveal {
-  0%   { transform: translateX(-50%) scale(0.3); opacity: 0; filter: brightness(2); }
-  35%  { transform: translateX(-50%) scale(1.35); opacity: 1; filter: brightness(1.6); }
-  70%  { transform: translateX(-50%) scale(0.95); }
-  100% { transform: translateX(-50%) scale(1); opacity: 0.95; filter: brightness(1); }
+  0%   { transform: scale(0.3); opacity: 0; filter: brightness(2); }
+  35%  { transform: scale(1.35); opacity: 1; filter: brightness(1.6); }
+  70%  { transform: scale(0.95); }
+  100% { transform: scale(1); opacity: 0.95; filter: brightness(1); }
 }
 /* Per-school tint so the weakness chip reads the same color as the
    matching action-tile element badge — visual handshake between them. */
@@ -971,21 +973,22 @@ body {
    stagger loop reads directly off the enemy figure without having to
    hover a tooltip. */
 .figure .state-strip {
+  /* Anchored inside the portrait at the bottom edge — used to float in
+     negative-margin space below the figure where it read as a footnote. */
   position: absolute;
-  bottom: -22px; left: 50%;
+  bottom: 4px; left: 50%;
   transform: translateX(-50%);
-  font-size: 8.5px;
-  letter-spacing: 0.18em;
+  font-size: 11px;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  padding: 2px 8px;
+  padding: 4px 10px;
   white-space: nowrap;
-  /* Tap-friendly on mobile so the chip-tooltip handler can surface the
-     "what does this state mean?" explanation on press. */
   pointer-events: auto;
   cursor: help;
   z-index: 7;
-  border-radius: 0;
+  border-radius: 3px;
   font-weight: 700;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.55);
 }
 .figure .state-strip-weakened {
   color: #f4c0c0;
@@ -1009,9 +1012,17 @@ body {
   from { filter: brightness(1)    drop-shadow(0 0 4px rgba(240,212,136,0.4)); }
   to   { filter: brightness(1.25) drop-shadow(0 0 12px rgba(240,212,136,0.85)); }
 }
-/* When the state strip is visible, push the weakness icon out of its
-   way so they don't overlap.  Hidden when state strip exists. */
-.figure:has(.state-strip) .weakness-icon { display: none; }
+/* Weakness icon now lives in the top-right corner of the portrait, so it
+   no longer collides with the bottom .state-strip — both are always
+   visible together.  School glyph stays readable when the strip text is
+   trimmed (e.g. "WEAKENED · 2T"). */
+
+@media (max-width: 720px) {
+  .figure .state-strip   { font-size: 10px; padding: 3px 8px; letter-spacing: 0.12em; }
+  .figure .weakness-icon { padding: 1px 5px; }
+  .figure .weakness-icon .wi-glyph { font-size: 10px; }
+  .figure .weakness-icon .wi-text  { font-size: 7px; }
+}
 
 /* Old corner state pips removed — the WEAKENED / STAGGERED state now
    renders as a labeled .state-strip below the HP bar (see above), which
