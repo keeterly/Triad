@@ -4375,6 +4375,26 @@ function showQuirkAward(charId, quirkId) {
   });
 }
 
+// Shed-an-ailment reveal — mirror of showQuirkAward but for the campfire
+// "Reflect on regret" path.  Uses the positive-tinted backdrop because
+// shedding a negative IS a positive moment.
+function showQuirkLost(charId, quirkId) {
+  if (typeof __simulating !== 'undefined' && __simulating) return;
+  const def = CHARS[charId]; const q = QUIRKS[quirkId];
+  if (!def || !q) return;
+  const bank = AFFINITY_BARKS[charId];
+  const lines = bank && bank.gained;
+  const bark = (lines && lines.length) ? lines[Math.floor(Math.random() * lines.length)] : null;
+  _showAwardBackdrop({
+    cls: 'qa-positive',
+    eyebrow: '− AFFLICTION SHED',
+    name: `${def.name} · ${q.name}`,
+    desc: 'Released by the fire.  The weight does not return.',
+    portraitId: charId,
+    bark,
+  });
+}
+
 // Brief full-screen reveal when the player binds a sigil.  Same shape as
 // the quirk award so the two read as one family of feedback.
 function showSigilAward(sigilId) {
@@ -4443,6 +4463,34 @@ function randomQuirk(polarity) {
 //   - Boss wins:    skipped (run-end)
 // Skips characters at cap or who already own the rolled quirk; logs the
 // grant so the player sees what happened.
+// Spoils of the Sin — fires after a boss kill, before the run summary.
+// Heals every surviving hero to full, grants each one a positive quirk
+// (subject to QUIRK_CAP / hero-locked eligibility), then offers a free
+// sigil choice.  Calls onDone when the player commits the sigil.
+function awardBossSpoils(s, onDone) {
+  const alive = aliveParty(s);
+  alive.forEach(c => { c.hp = c.maxHp; c.armor = Math.max(c.armor, 0); });
+  log('<i>The Sin falls.  The path lifts you — wounds close, names quicken.</i>');
+  // One positive quirk per surviving hero (if eligible).  Hero-locked
+  // quirks prefer their owner.  Skip if everyone is already maxed out.
+  alive.forEach(c => {
+    if (!c.quirks) return;
+    if (c.quirks.positive.length >= QUIRK_CAP) return;
+    const taken = new Set([...c.quirks.positive, ...c.quirks.negative]);
+    const pool = Object.values(QUIRKS).filter(q =>
+      q.positive && !taken.has(q.id) && (!q.heroId || q.heroId === c.id));
+    if (!pool.length) return;
+    const q = pool[Math.floor(Math.random() * pool.length)];
+    grantQuirk(s, c.id, q.id);
+    log(`<i><b>${CHARS[c.id].name}</b> gains <b>${q.name}</b> — ${q.desc}</i>`);
+  });
+  // Free sigil — same offer overlay used by rest/elite nodes.  If no
+  // sigils remain (full board), skip straight to the run summary.
+  const pool = availableSigils(s);
+  if (pool.length === 0) { if (typeof onDone === 'function') onDone(); return; }
+  setTimeout(() => offerSigilFromNode(onDone), 400);
+}
+
 function awardQuirkAfterWin(s, completedNode) {
   if (!completedNode || completedNode.type === 'boss') return;
   const aliveIds = Object.values(s.party.chars).filter(c => !c.downed).map(c => c.id);
@@ -6952,10 +7000,17 @@ function checkEnd(s) {
       // they've cleared a layer of the Abyss with more layers above.
       // Also snapshot the surviving party so the next layer's run starts
       // with the same heroes intact (HP / quirks / upgrades carried).
-      const continueToSummary = () => showVictorySummary(completedEnc, () => {
+      const finishBoss = () => {
         markLayerCleared(getCurrentLayer());
         saveCarriedParty(state);
         showRunSummary('boss', { afterClose: () => showWorldMap() });
+      };
+      const continueToSummary = () => showVictorySummary(completedEnc, () => {
+        // Spoils of the Sin — boss kill should feel like a layer payoff.
+        // Survivors heal to full HP, every alive hero rolls a positive
+        // quirk (if they have room), and the player gets a free sigil
+        // choice before the run summary lands.
+        awardBossSpoils(state, finishBoss);
       });
       // Hold for the slo-mo death effect before the run-summary cascade.
       const BOSS_DEATH_HOLD = 1600;
@@ -9171,11 +9226,20 @@ function renderMap() {
         rest:   '⌂',
         event:  '?',
       })[node.type] || '⚔';
-      // Compact icon-node markup: a single glyph in a glowing dot.  Pulse
-      // ring renders only on reachable nodes (CSS-side selector).
+      const typeLabel = ({
+        elite:  'ELITE',
+        boss:   'BOSS',
+        combat: 'FIGHT',
+        rest:   'REST',
+        event:  'EVENT',
+      })[node.type] || 'FIGHT';
+      // Compact icon-node markup: a glyph in a tinted dot + a labelled
+      // strap underneath so the player can read elite/event/regular at a
+      // glance.  Pulse ring renders only on reachable nodes (CSS-side).
       el.innerHTML = `
         <span class="pn-pulse" aria-hidden="true"></span>
         <span class="pn-icon">${typeGlyph}</span>
+        <span class="pn-label">${typeLabel}</span>
         ${status === 'completed' ? '<span class="pn-check" aria-hidden="true">✓</span>' : ''}
       `;
 
@@ -9501,6 +9565,48 @@ function showRestOverlay() {
       choices.classList.remove('event-choices');
       offerSigilFromNode(() => _completeNonCombatNode());
     }, 'sigil');
+  }
+
+  // 4. Reflect — context-aware introspection.  Shed an ailment if anyone
+  // is currently carrying a negative quirk, otherwise grant a positive
+  // affinity to a hero who still has room.  Skipped entirely if neither
+  // applies (everyone's full of positives, no negatives to clear).
+  const aliveHeroes = aliveParty(state);
+  const negCarriers = aliveHeroes.filter(c => c.quirks && c.quirks.negative && c.quirks.negative.length > 0);
+  const posRoom = aliveHeroes.filter(c => c.quirks && (c.quirks.positive || []).length < QUIRK_CAP);
+  if (negCarriers.length > 0) {
+    mkChoice('Reflect on regret', 'Shed one ailment from the party', () => {
+      // Pick the hero with the most negatives, then their first negative
+      // quirk.  Simple and predictable — no extra picker UI needed.
+      const tgt = negCarriers.slice().sort((a, b) => b.quirks.negative.length - a.quirks.negative.length)[0];
+      const qid = tgt.quirks.negative[0];
+      const q = QUIRKS[qid];
+      tgt.quirks.negative = tgt.quirks.negative.filter(x => x !== qid);
+      if (q) {
+        showQuirkLost(tgt.id, qid);
+        log(`<i><b>${CHARS[tgt.id].name}</b> lets go of <b>${q.name}</b>.</i>`);
+      }
+      hideOverlay();
+      choices.classList.remove('event-choices');
+      _completeNonCombatNode();
+    }, 'reflect');
+  } else if (posRoom.length > 0) {
+    mkChoice('Reflect on triumph', 'Grant an affinity to a hero', () => {
+      // Pick a hero with the most empty positive slots.  Hero-locked
+      // affinities prefer their named owner.
+      const tgt = posRoom.slice().sort((a, b) => a.quirks.positive.length - b.quirks.positive.length)[0];
+      const taken = new Set([...tgt.quirks.positive, ...tgt.quirks.negative]);
+      const pool = Object.values(QUIRKS).filter(q =>
+        q.positive && !taken.has(q.id) && (!q.heroId || q.heroId === tgt.id));
+      if (pool.length) {
+        const q = pool[Math.floor(Math.random() * pool.length)];
+        grantQuirk(state, tgt.id, q.id);
+        log(`<i><b>${CHARS[tgt.id].name}</b> reflects and grows — <b>${q.name}</b>.</i>`);
+      }
+      hideOverlay();
+      choices.classList.remove('event-choices');
+      _completeNonCombatNode();
+    }, 'reflect');
   }
 
   resetOverlayBtn();

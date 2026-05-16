@@ -7104,11 +7104,47 @@ button.path-node:not(:disabled):hover .pn-icon {
   opacity: 0.55;
 }
 
-/* Type-specific tints (color the glyph) */
-.path-node.node-elite.node-reachable .pn-icon { color: var(--gold-bright); }
-.path-node.node-boss.node-reachable  .pn-icon { color: var(--blood-bright); text-shadow: 0 0 12px rgba(200,80,80,0.55); }
-.path-node.node-rest.node-reachable  .pn-icon { color: var(--heal); }
-.path-node.node-event.node-reachable .pn-icon { color: var(--frost-bright); }
+/* Type-specific tints — ALWAYS on (not just when reachable) so the player
+   reads elite/event/regular at a glance, even when the node is locked or
+   completed.  Each type colors the glyph and the ring around it. */
+.path-node.node-elite  .pn-icon { color: #ffce5a; box-shadow: 0 0 0 1.5px rgba(255,206,90,0.55), inset 0 1px 0 rgba(255,232,160,0.18), 0 4px 10px rgba(0,0,0,0.5); }
+.path-node.node-boss   .pn-icon { color: var(--blood-bright); box-shadow: 0 0 0 2px rgba(212,69,69,0.65), inset 0 1px 0 rgba(255,180,180,0.18), 0 4px 14px rgba(0,0,0,0.6); width: 44px; height: 44px; font-size: 19px; text-shadow: 0 0 14px rgba(200,80,80,0.6); }
+.path-node.node-rest   .pn-icon { color: var(--heal); box-shadow: 0 0 0 1.5px rgba(152,216,120,0.55), inset 0 1px 0 rgba(220,255,200,0.16), 0 4px 10px rgba(0,0,0,0.5); }
+.path-node.node-event  .pn-icon { color: #c9a8e8; box-shadow: 0 0 0 1.5px rgba(154,120,192,0.55), inset 0 1px 0 rgba(220,200,240,0.16), 0 4px 10px rgba(0,0,0,0.5); }
+.path-node.node-combat .pn-icon { color: var(--gold-pale); box-shadow: 0 0 0 1px rgba(212,200,168,0.30), inset 0 1px 0 rgba(232,220,196,0.10), 0 4px 10px rgba(0,0,0,0.5); }
+
+/* On reachable, the type-tint glows brighter so the player's eye is drawn
+   to active choices but the type is already legible everywhere. */
+.path-node.node-elite.node-reachable .pn-icon  { box-shadow: 0 0 0 1.5px rgba(255,206,90,0.85), 0 0 22px rgba(255,206,90,0.35); }
+.path-node.node-boss.node-reachable  .pn-icon  { box-shadow: 0 0 0 2px rgba(212,69,69,0.95), 0 0 26px rgba(200,80,80,0.5); }
+.path-node.node-rest.node-reachable  .pn-icon  { box-shadow: 0 0 0 1.5px rgba(152,216,120,0.85), 0 0 22px rgba(152,216,120,0.35); }
+.path-node.node-event.node-reachable .pn-icon  { box-shadow: 0 0 0 1.5px rgba(180,140,220,0.85), 0 0 22px rgba(154,120,192,0.35); }
+.path-node.node-combat.node-reachable .pn-icon { box-shadow: 0 0 0 1px rgba(232,220,196,0.55), 0 0 20px rgba(232,220,196,0.30); }
+
+/* Type label strap — small uppercase text under each node so the type
+   is unmistakable.  Tinted to match the ring colour. */
+.path-node .pn-label {
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 7.5px;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  white-space: nowrap;
+  color: var(--ink-dim);
+  text-shadow: 0 1px 0 rgba(0,0,0,0.85);
+  z-index: 5;
+  pointer-events: none;
+}
+.path-node.node-elite  .pn-label { color: #ffce5a; }
+.path-node.node-boss   .pn-label { color: var(--blood-bright); text-shadow: 0 0 6px rgba(212,69,69,0.5), 0 1px 0 rgba(0,0,0,0.9); }
+.path-node.node-rest   .pn-label { color: var(--heal); }
+.path-node.node-event  .pn-label { color: #c9a8e8; }
+.path-node.node-combat .pn-label { color: var(--gold-pale); opacity: 0.7; }
+.path-node.node-locked .pn-label,
+.path-node.node-skipped .pn-label { opacity: 0.45; }
+.path-node.node-completed .pn-label { opacity: 0.5; }
 
 /* Hide the old text-bearing decorations the prior renderer added; the
    new markup doesn't include .path-name / .path-tag / .path-enemies but
