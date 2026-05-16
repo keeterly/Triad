@@ -893,8 +893,10 @@ body {
 /* HP numeric "5/8" — current/total, pushed past the right bracket.
    Overrides the visually-hidden clip rules earlier in the file. */
 .figure-hp .hp-text {
+  /* Sits past the closing `]` pseudo-element (which lives at +2px and is
+     ~6px wide) so the read is "[ ==== ] 4/10" without overlap. */
   position: absolute;
-  left: calc(100% + 8px);
+  left: calc(100% + 14px);
   top: 50%;
   transform: translateY(-50%);
   width: auto;
@@ -910,15 +912,6 @@ body {
   letter-spacing: 0.02em;
   text-shadow: 0 1px 0 var(--shadow), 0 0 3px rgba(0,0,0,0.7);
   pointer-events: none;
-}
-/* HP number is now revealed on the parent figure's title attribute only — keep
-   it in the DOM for accessibility but hide visually so the bar reads as a line */
-.figure-hp .hp-text {
-  position: absolute;
-  width: 1px; height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
 }
 
 /* Weakness reveal icon — small school glyph under the HP bar on enemies.
@@ -946,8 +939,8 @@ body {
   white-space: nowrap;
   box-shadow: 0 2px 6px rgba(0,0,0,0.5);
 }
-.figure .weakness-icon .wi-glyph { font-size: 11px; line-height: 1; }
-.figure .weakness-icon .wi-text  { font-size: 7.5px; line-height: 1; font-weight: 800; letter-spacing: 0.16em; }
+.figure .weakness-icon .wi-glyph { font-size: 14px; line-height: 1; }
+.figure .weakness-icon .wi-text  { font-size: 9.5px; line-height: 1; font-weight: 800; letter-spacing: 0.16em; }
 /* One-shot reveal animation — applied via .fresh class for ~1s after the
    first hit lands so the discovery is impossible to miss.  Animation only
    runs on classes added via JS (no infinite loop on subsequent renders). */
@@ -1020,8 +1013,8 @@ body {
 @media (max-width: 720px) {
   .figure .state-strip   { font-size: 10px; padding: 3px 8px; letter-spacing: 0.12em; }
   .figure .weakness-icon { padding: 1px 5px; }
-  .figure .weakness-icon .wi-glyph { font-size: 10px; }
-  .figure .weakness-icon .wi-text  { font-size: 7px; }
+  .figure .weakness-icon .wi-glyph { font-size: 12px; }
+  .figure .weakness-icon .wi-text  { font-size: 8.5px; }
 }
 
 /* Old corner state pips removed — the WEAKENED / STAGGERED state now
@@ -1034,12 +1027,15 @@ body {
    in empty space above it (z-index layers them above the portrait SVG). */
 .figure-statuses {
   position: absolute;
-  top: 9px;
+  /* Sits above the HP bar (which lives at top: 27px).  With the larger 22px
+     chips a top: 2px anchor keeps the chip bottom at 24px, clear of the bar.
+     Mobile breakpoint above shrinks chips to 19px so the same offset works. */
+  top: 2px;
   left: 50%;
   transform: translateX(-50%);
   display: flex; flex-direction: row;
   justify-content: center; align-items: center;
-  gap: 3px;
+  gap: 4px;
   z-index: 7;
   pointer-events: none;
   /* Side-by-side, never stacked: chips that don't fit overflow horizontally
@@ -1840,35 +1836,50 @@ body {
 }
 /* icon-centric status badge: glowing glyph + tiny tabular numeral */
 .status-chip {
-  display: inline-flex; align-items: center; gap: 1px;
-  min-width: 15px; height: 15px;
-  padding: 0 3px;
-  border-radius: 8px;
-  background: rgba(10,8,7,0.85);
-  border: 1px solid;
+  /* Larger pill so the glyph + stack count read at a glance without needing
+     an always-on text label.  Pairs with .status-icon / .status-num font
+     bumps below. */
+  display: inline-flex; align-items: center; gap: 2px;
+  min-width: 22px; height: 22px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: rgba(10,8,7,0.88);
+  border: 1.5px solid;
   line-height: 1;
   font-weight: bold;
   letter-spacing: 0;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.7);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.75);
 }
 .status-chip .status-icon {
-  font-size: 9px;
+  font-size: 14px;
   line-height: 1;
-  filter: drop-shadow(0 0 3px currentColor);
+  filter: drop-shadow(0 0 4px currentColor);
 }
 .status-chip .status-num {
-  font-size: 8.5px;
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
   line-height: 1;
+  font-weight: 700;
   text-shadow: 0 1px 0 var(--shadow);
+}
+/* Trio enemy layouts get a touch tighter so three chips fit comfortably
+   across a back-slot figure.  Mobile-width breakpoint further scales. */
+@media (max-width: 720px) {
+  .status-chip { min-width: 19px; height: 19px; padding: 1px 5px; gap: 1px; }
+  .status-chip .status-icon { font-size: 12px; }
+  .status-chip .status-num  { font-size: 11px; }
 }
 .status-armor   { color: var(--armor);       border-color: var(--armor); }
 .status-bleed   { color: var(--bleed);       border-color: var(--bleed); }
+.status-burn    { color: #ff9a4a;            border-color: #ff9a4a;       background: rgba(180,80,30,0.25); }
 .status-taunt   { color: var(--taunt);       border-color: var(--taunt); }
 .status-dulled  { color: var(--weak);        border-color: var(--weak); }
 .status-retal   { color: var(--gold);        border-color: var(--gold); }
 .status-vuln    { color: #ff8a8a;            border-color: var(--bleed); background: rgba(196,56,56,0.25); }
 .status-pending { color: var(--gold-bright); border-color: var(--gold-bright); background: rgba(240,212,136,0.2); }
+.status-veil    { color: #c0d8ff;            border-color: #c0d8ff;       background: rgba(60,90,140,0.28); }
+.status-wall    { color: #ffd098;            border-color: #ffd098;       background: rgba(120,80,40,0.28); }
+.status-guard   { color: #ffe896;            border-color: #ffe896;       background: rgba(140,110,50,0.28); }
 /* Position-derived aura chips — make Garron Sentinel and Cassia Steadfast
    visible so the player can see *why* damage on this card is being softened. */
 .status-sentinel,

@@ -9178,9 +9178,13 @@ function chipHtml(syn, edge) {
 }
 
 function intentIconGlyph(kind) {
+  // Glyphs picked so none collide with the weakness-icon school glyphs
+  // (⚔ physical, ✦ holy, ✶ arcane, ➳ ranged, ◐ stealth).  An enemy showing
+  // "⚔" in its top-right corner is reading "weak to physical"; its intent
+  // bubble shouldn't share the same symbol or the two read as one thing.
   if (kind === 'aoe')    return '✷';
   if (kind === 'debuff') return '☽';
-  return '⚔';
+  return '▶';
 }
 
 // Pull the primary numeric value out of an intent tag — e.g. "ATK 6" → "6", "DULL 2" → "2"
@@ -9349,7 +9353,7 @@ function renderStatuses(ent, sForAuras) {
     `<span class="status-chip status-${statusId}" data-status="${statusId}"${num != null ? ` data-value="${num}"` : ''} title="${title}"><span class="status-icon">${icon}</span>${num != null ? `<span class="status-num">${num}</span>` : ''}</span>`;
   if (ent.armor > 0)     c.push(chip('armor', '⛨', ent.armor,    `Armor ${ent.armor} — absorbs ${ent.armor} damage before HP. Wears off as it absorbs.`));
   if (ent.bleed > 0)     c.push(chip('bleed', '✤', ent.bleed,    `Bleed ${ent.bleed} — takes 2 damage at the start of each turn (3 with Bloodborne Sigil), then the stack decreases by 1.`));
-  if (ent.burn > 0)      c.push(chip('burn',  '🔥', ent.burn,    `Burn ${ent.burn} — takes 2 damage at start of each turn, ignores armor. Decays 1/turn.`));
+  if (ent.burn > 0)      c.push(chip('burn',  '≋', ent.burn,    `Burn ${ent.burn} — takes 2 damage at start of each turn, ignores armor. Decays 1/turn.`));
   if (ent.taunt)         c.push(chip('taunt', '⌖', null,         'Taunt — enemies single-target attacks redirect to this character instead of the original slot.'));
   if (ent.dulled > 0)    c.push(chip('dulled', '↓', ent.dulled, `Dulled ${ent.dulled} — this character's outgoing damage is reduced by 2 for the next ${ent.dulled} attack(s).`));
   if (ent.vuln > 0)      c.push(chip('vuln',  '⊕', ent.vuln,     `Vulnerable ${ent.vuln} — next ${ent.vuln} incoming attacks deal +2 damage (+4 with Ember of Wrath Sigil) and consume one stack.`));
