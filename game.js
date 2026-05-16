@@ -12,6 +12,38 @@
 // ============================================================================
 
 const PORTRAITS = {
+  veyr: `
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <radialGradient id="veyr-bg" cx="50%" cy="30%" r="80%">
+      <stop offset="0" stop-color="#3a3850"/><stop offset="0.5" stop-color="#15182a"/><stop offset="1" stop-color="#020308"/>
+    </radialGradient>
+    <linearGradient id="veyr-hood" x1="0%" x2="100%">
+      <stop offset="0" stop-color="#1a1a28"/><stop offset="0.5" stop-color="#0c0c14"/><stop offset="1" stop-color="#02020a"/>
+    </linearGradient>
+    <radialGradient id="veyr-eye" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#e8eaf8"/><stop offset="0.5" stop-color="#88a0c0"/><stop offset="1" stop-color="#202840"/>
+    </radialGradient>
+  </defs>
+  <rect x="0" y="0" width="100" height="80" fill="url(#veyr-bg)"/>
+  <ellipse cx="50" cy="118" rx="42" ry="10" fill="#020308" opacity="0.85"/>
+  <path d="M 18 130 Q 18 84 38 64 Q 50 56 62 64 Q 82 84 82 130 Z" fill="url(#veyr-hood)" stroke="#02020a" stroke-width="0.7"/>
+  <path d="M 30 130 Q 30 92 42 72 L 58 72 Q 70 92 70 130 Z" fill="#0a0a14" opacity="0.55"/>
+  <path d="M 28 82 Q 50 90 72 82" stroke="#2a3045" stroke-width="0.8" fill="none" opacity="0.65"/>
+  <rect x="30" y="100" width="40" height="3" fill="#1a1c2a" stroke="#02020a" stroke-width="0.4"/>
+  <path d="M 64 100 L 72 96 L 70 110 L 64 108 Z" fill="#5a6a80" stroke="#02020a" stroke-width="0.4"/>
+  <line x1="68" y1="100" x2="68" y2="108" stroke="#88a0c0" stroke-width="0.3"/>
+  <path d="M 28 64 Q 28 32 50 24 Q 72 32 72 64 Q 72 72 50 72 Q 28 72 28 64 Z" fill="url(#veyr-hood)" stroke="#02020a" stroke-width="0.8"/>
+  <path d="M 32 58 Q 36 46 50 42 Q 64 46 68 58 Q 64 66 50 66 Q 36 66 32 58 Z" fill="#020308" opacity="0.85"/>
+  <ellipse cx="44" cy="54" rx="2.2" ry="1.4" fill="url(#veyr-eye)"/>
+  <ellipse cx="56" cy="54" rx="2.2" ry="1.4" fill="url(#veyr-eye)"/>
+  <circle cx="44" cy="54" r="0.6" fill="#f0f8ff"/>
+  <circle cx="56" cy="54" r="0.6" fill="#f0f8ff"/>
+  <path d="M 28 64 Q 28 38 48 26" stroke="#5060a0" stroke-width="0.4" fill="none" opacity="0.45"/>
+  <path d="M 72 64 Q 72 38 52 26" stroke="#5060a0" stroke-width="0.4" fill="none" opacity="0.45"/>
+  <path d="M 18 130 Q 22 110 28 100" stroke="#2a2c3a" stroke-width="0.5" fill="none" opacity="0.6"/>
+  <path d="M 82 130 Q 78 110 72 100" stroke="#2a2c3a" stroke-width="0.5" fill="none" opacity="0.6"/>
+</svg>`,
   cassia: `
 <svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
   <defs>
@@ -1470,6 +1502,49 @@ const CHARS = {
           fn: (s, t) => {
             if (t[0]) applyDmgToEnemy(s, t[0], 6);
             aliveEnemies(s).forEach(e => { if (!e.dead) e.vuln += 2; });
+          } },
+      },
+    },
+  },
+  // ============================ VEYR — The Last Witness =================
+  // Stealth back-line sniper.  Squishy, lethal at range, and her edge
+  // sharpens with every fallen ally — a hero who turns wipe risk into
+  // damage pressure.  Fills the stealth-back gap (Mira is stealth-mid).
+  veyr: {
+    id: 'veyr',
+    name: 'Veyr',
+    title: 'The Last Witness',
+    school: 'stealth',
+    maxHp: 14,
+    home: 'back',
+    passive: { name: 'Last Witness', desc: 'For each downed ally, Veyr deals +2 damage on attacks.' },
+    techs: {
+      front: {
+        basic: { name: 'Wraithcut', desc: '3 stealth dmg front + retreat', dmg: 3, move: 'retreat', element: 'stealth',
+          reach: ['front'], pattern: 'front-most',
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 3); retreat(s, 'veyr'); } },
+        sig:   { name: 'Last Mercy', desc: '1♦ · 6 stealth dmg front + retreat full', cost: 1, dmg: 6, move: 'retreatFull', element: 'stealth',
+          reach: ['front'], pattern: 'front-most',
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 6); retreatFull(s, 'veyr'); } },
+      },
+      mid: {
+        basic: { name: 'Slip Knife', desc: '4 dmg + bleed 1 (lowest)', dmg: 4,
+          reach: ['mid','back'], pattern: 'lowest',
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 4); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 1); } } },
+        sig:   { name: 'Dark Tally', desc: '2♦ · 6 dmg + vuln 1 + retreat', cost: 2, dmg: 6, move: 'retreat',
+          reach: ['mid','back'], pattern: 'lowest',
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 6); if (!t[0].dead) t[0].vuln += 1; } retreat(s, 'veyr'); } },
+      },
+      back: {
+        basic: { name: 'Witness Bolt', desc: '5 stealth dmg lowest mid/back', dmg: 5, element: 'stealth',
+          reach: ['mid','back'], pattern: 'lowest',
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 5); } },
+        sig:   { name: 'Final Reckoning', desc: '3♦ · 4 stealth dmg × 2 all + bleed 1 all', cost: 3, dmg: 4, hits: 2, element: 'stealth',
+          reach: ['front','mid','back'], pattern: 'all',
+          fn: (s, t) => {
+            t.forEach(e => applyDmgToEnemy(s, e, 4));
+            t.forEach(e => { if (!e.dead) applyDmgToEnemy(s, e, 4); });
+            aliveEnemies(s).forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 1); });
           } },
       },
     },
@@ -3205,6 +3280,21 @@ const VIGNETTES = {
         resolve: (s) => { const c = s.party.chars.hask; if (c) c.hp = c.maxHp; } },
     ],
   },
+  recruit_veyr: {
+    id: 'recruit_veyr', when: { recruited: 'veyr' }, oneShot: true,
+    title: 'Veyr, eyes in the dark',
+    speaker: 'veyr',
+    lines: [
+      { who: null,    text: 'A hood. A glint of eye-shine. She has been watching the path for longer than you have been walking it.' },
+      { who: 'veyr',  text: 'I have seen six parties go past this stone.  None went back up it.' },
+      { who: '_first', text: 'Why are you still here?' },
+      { who: 'veyr',  text: 'To name them.  Someone should.  ...Take me with you.  I will name fewer if I am in the line.' },
+    ],
+    choices: [
+      { label: 'Walk with her', tag: 'Veyr joins (HP restored)',
+        resolve: (s) => { const c = s.party.chars.veyr; if (c) c.hp = c.maxHp; } },
+    ],
+  },
   recruit_kai: {
     id: 'recruit_kai', when: { recruited: 'kai' }, oneShot: true,
     title: 'Kai, on his feet again',
@@ -4003,7 +4093,7 @@ const RESOLVE_CARRY_CAP = 3;
 
 // Pool of characters the player can encounter mid-run.
 // Default starting party is the first three; the rest are recruitable between fights.
-const ROSTER = ['kai', 'cassia', 'elin', 'branwen', 'korin', 'ash', 'mira', 'garron', 'lirien', 'vasha', 'hask'];
+const ROSTER = ['kai', 'cassia', 'elin', 'branwen', 'korin', 'ash', 'mira', 'garron', 'lirien', 'vasha', 'hask', 'veyr'];
 
 // ============================================================================
 // TECH UPGRADES — alternate variants for specific techs, picked between fights.
@@ -4565,6 +4655,8 @@ const QUIRKS = {
                    flavor: 'The veil thickens around Ash — even her sigh moves quieter through the air.' },
   razor_edge:    { id: 'razor_edge',    heroId: 'mira',    name: "Razor's Edge",  positive: true, desc: '+2 damage on attacks (Mira).',                   dmgMod:   2,
                    flavor: 'Mira\'s knife has learned the geometry of bone.' },
+  witnessmark:   { id: 'witnessmark',   heroId: 'veyr',    name: 'Witnessmark',   positive: true, desc: '+2 damage on attacks (Veyr).',                   dmgMod:   2,
+                   flavor: 'Veyr has named every fall.  The names live behind her eyes now and steady her hand.' },
 };
 
 // Read all quirks a character currently has (positive ∪ negative).
@@ -4637,6 +4729,9 @@ const AFFINITY_BARKS = {
   hask:    { gained: ["Colder.", "Sharper.", "Good."],
              lost:   ["Warmer than I want.", "Tch.", "I'll freeze again."],
              shed:   ["...melted off.", "Off.", "Good."] },
+  veyr:    { gained: ["I will remember it.", "Marked.", "(She nods, slow, from under the hood.)"],
+             lost:   ["The dark takes it back.", "...forgotten.", "It was not mine to keep."],
+             shed:   ["The hood is lighter.", "Released.", "Set down."] },
 };
 
 // Brief full-screen reveal when a hero earns or loses an affinity (quirk).
@@ -5397,6 +5492,60 @@ const ADJ = {
       dmgMod: -1, dmgModFor: 'branwen',
     },
   },
+  // ===== Veyr's marquee synergies =====
+  // Stealth twin — two stealth specialists in the same line feed each
+  // other's openings.  Either one landing a stealth hit lights up the
+  // other's next attack.
+  'mira+veyr': {
+    fm: {
+      name: 'Shadowtwin', type: 'bond',
+      onAttack(s, attackerId) {
+        if (attackerId !== 'mira' && attackerId !== 'veyr') return;
+        const otherId = attackerId === 'mira' ? 'veyr' : 'mira';
+        const other = s.party.chars[otherId];
+        if (!other || other.downed) return;
+        if (other.pendingEffects.some(e => e.source === 'shadowtwin')) return;
+        other.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'shadowtwin' });
+        fireSynergyFeedback(s, 'Shadowtwin', otherId, '+1 atk', 'armor');
+      },
+    },
+    mb: {
+      name: 'Shadowtwin', type: 'bond',
+      onAttack(s, attackerId) {
+        if (attackerId !== 'mira' && attackerId !== 'veyr') return;
+        const otherId = attackerId === 'mira' ? 'veyr' : 'mira';
+        const other = s.party.chars[otherId];
+        if (!other || other.downed) return;
+        if (other.pendingEffects.some(e => e.source === 'shadowtwin')) return;
+        other.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'shadowtwin' });
+        fireSynergyFeedback(s, 'Shadowtwin', otherId, '+1 atk', 'armor');
+      },
+    },
+  },
+  // Frozen Witness — Veyr inherits Hask's weakness-scout passive while
+  // they share an adjacency line.  Her attacks reveal the target's
+  // weakness on impact (handled in applyDmgToEnemy via the same flag
+  // that fires for Hask).  Stored here as a marker the resolver reads.
+  'hask+veyr': {
+    fm: { name: 'Frozen Witness', type: 'bond', veyrInheritsFrostbreak: true },
+    mb: { name: 'Frozen Witness', type: 'bond', veyrInheritsFrostbreak: true },
+  },
+  // Silent Volley — when Veyr is back-row beside Branwen-mid, Branwen's
+  // first arrow each turn carries stealth element instead of ranged.
+  // Implemented via a per-turn flag the resolver checks; the synergy
+  // here just makes the flag set on Branwen's first attack each turn.
+  'branwen+veyr': {
+    mb: {
+      name: 'Silent Volley', type: 'bond',
+      onAttack(s, attackerId) {
+        if (attackerId !== 'branwen') return;
+        const b = s.party.chars.branwen;
+        if (!b || b._silentVolleyUsed) return;
+        b._silentVolleyUsed = true;
+        fireSynergyFeedback(s, 'Silent Volley', 'branwen', 'stealth', 'armor');
+      },
+    },
+  },
 };
 
 // ============================================================================
@@ -5720,6 +5869,11 @@ function previewDamage(s, e, baseAmt, actorId, techElement) {
     const a = s.party.chars.ash;
     if (a && !a.firstAttackUsed) { amt += 2; bonuses.push({ label: 'Arcane Focus', amt: 2 }); }
   }
+  // Veyr Last Witness — +2 damage per downed party member.
+  if (actorId === 'veyr') {
+    const downed = Object.values(s.party.chars).filter(c => c.downed).length;
+    if (downed > 0) { const bump = 2 * downed; amt += bump; bonuses.push({ label: 'Last Witness', amt: bump }); }
+  }
   const actor = actorId && s.party.chars[actorId];
   if (actor && Array.isArray(actor.pendingEffects)) {
     actor.pendingEffects.forEach(eff => {
@@ -5906,6 +6060,12 @@ function applyDmgToEnemy(s, e, baseAmt) {
       spawnPassivePopup('ash', 'ARCANE FOCUS');
     }
   }
+  // Veyr Last Witness passive — +2 damage per downed party member.
+  // Sharpens as the run takes losses; resets if everyone is alive.
+  if (s.currentActorId === 'veyr') {
+    const downed = Object.values(s.party.chars).filter(c => c.downed).length;
+    if (downed > 0) { amt += 2 * downed; spawnPassivePopup('veyr', 'LAST WITNESS'); }
+  }
   // Squad Sigil — Shadow Veil (Mira + Ash together) — every party member's
   // first attack each turn deals +1 (stacks with Ash's Arcane Focus on her
   // own opener).  Per-character: each hero's first hit gets the bonus.
@@ -5934,7 +6094,19 @@ function applyDmgToEnemy(s, e, baseAmt) {
   let schoolBadge = null;
   let isWeaknessHit = false;
   const actorDef = s.currentActorId ? CHARS[s.currentActorId] : null;
-  const element = s.currentTechElement || (actorDef && actorDef.school);
+  let element = s.currentTechElement || (actorDef && actorDef.school);
+  // Silent Volley (Branwen+Veyr mid-back) — Branwen's first attack each
+  // turn carries stealth element instead of her ranged default.  Checks
+  // the pair-active marker and the per-turn flag so the override fires
+  // exactly once.
+  if (s.currentActorId === 'branwen') {
+    const b = s.party.chars.branwen;
+    if (b && !b._silentVolleyUsed && getAdjacencyPairs(s).some(p => p.synergy.branwenStealthOnFirst)) {
+      element = 'stealth';
+      b._silentVolleyUsed = true;
+      fireSynergyFeedback(s, 'Silent Volley', 'branwen', 'stealth', 'armor');
+    }
+  }
   if (element && amt > 0) {
     const enemyDef = ENEMIES[e.id];
     const asArr = x => Array.isArray(x) ? x : (x ? [x] : []);
@@ -5997,10 +6169,15 @@ function applyDmgToEnemy(s, e, baseAmt) {
   // absorbed by armor STILL reveals — the blow connected on the weak
   // point, armor just caught it.  Old gate left armored enemies feeling
   // like they had no weakness even when the player nailed the element.
-  if (!e.weaknessRevealed && (amt > 0 || s.currentActorId === 'hask')) {
+  // Frozen Witness (Hask+Veyr adjacency) — Veyr inherits Hask's
+  // Frostbreak weakness-scout while they share a line.
+  const veyrInheritsFW = s.currentActorId === 'veyr'
+    && getAdjacencyPairs(s).some(p => p.synergy.veyrInheritsFrostbreak);
+  if (!e.weaknessRevealed && (amt > 0 || s.currentActorId === 'hask' || veyrInheritsFW)) {
     e.weaknessRevealed = true;
     e._weaknessJustRevealed = true;
     if (s.currentActorId === 'hask' && toHp === 0) spawnPassivePopup('hask', 'FROSTBREAK');
+    if (veyrInheritsFW && toHp === 0) spawnPassivePopup('veyr', 'FROZEN WITNESS');
   }
 
   // Weakness → stagger state transitions.  Hitting the enemy's weakness
@@ -6599,7 +6776,7 @@ function startTurn(s) {
   s.bonusAtb = Math.min(1, s.pendingBonusAtb || 0);
   s.pendingBonusAtb = 0;
   // clear single-turn buffs that survived the enemy phase
-  aliveParty(s).forEach(c => { c.taunt = false; c.retaliate = 0; c.firstAttackUsed = false; c.bleedKillUsed = false; c.shadowVeilUsed = false; c.lingeringUsed = false; });
+  aliveParty(s).forEach(c => { c.taunt = false; c.retaliate = 0; c.firstAttackUsed = false; c.bleedKillUsed = false; c.shadowVeilUsed = false; c.lingeringUsed = false; c._silentVolleyUsed = false; });
   // Weakness/stagger state decays at the top of each player turn.  If
   // the player didn't capitalize last turn (no 2× consume hit), the
   // enemy recovers — no turn-skip, just the window closes.
@@ -7978,6 +8155,14 @@ function renderStatuses(ent, sForAuras) {
     if (ent.id === 'kai' && Object.keys(sForAuras.party.chars).length === 1) {
       c.push(chip('lone', '⚔', '+2', 'Lone Walker — alone in the abyss, Kai deals +2 damage.'));
     }
+    // Veyr Last Witness — +2 damage per downed party member.
+    if (ent.id === 'veyr') {
+      const downed = Object.values(sForAuras.party.chars).filter(x => x.downed).length;
+      if (downed > 0) {
+        const bump = 2 * downed;
+        c.push(chip('witness', '⚔', `+${bump}`, `Last Witness — Veyr's edge sharpens with each fallen ally (+${bump} damage).`));
+      }
+    }
     // Branwen Bleed Hunter — +2 dmg vs bleeding enemies. Shown when at
     // least one alive enemy is currently bleeding so the player knows
     // it's hot right now.
@@ -8056,6 +8241,7 @@ const STATUS_TOOLTIPS = {
   lone:     { name: 'Lone Walker', text: 'Alone in the abyss, Kai deals +2 damage. Lifts the moment another hero joins.' },
   bhunt:    { name: 'Bleed Hunter',text: 'Branwen deals +2 damage to any bleeding enemy. Lifts when no enemy is bleeding.' },
   evis:     { name: 'Eviscerate',  text: 'Mira deals +3 damage to any bleeding enemy. Lifts when no enemy is bleeding.' },
+  witness:  { name: 'Last Witness',text: "Veyr's edge sharpens with each fallen ally — +2 damage per downed party member." },
 };
 
 let _statusTooltipState = null;
