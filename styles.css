@@ -8954,6 +8954,10 @@ body.killing-blow::before {
   animation: ts-fade-in 0.6s ease-out;
 }
 #title-screen.hidden { display: none !important; }
+/* While the title screen is up, suppress the in-game HUD strip — the
+   menu button and sigil tray don't belong on the title, which has its
+   own NEW GAME / CONTINUE / HEROES / CREDITS / SETTINGS rail. */
+body.on-title #hud { display: none !important; }
 @keyframes ts-fade-in {
   from { opacity: 0; }
   to   { opacity: 1; }
