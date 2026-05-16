@@ -262,34 +262,39 @@ body {
   display: inline-flex;
   align-items: center;
   font-size: 10px;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.24em;
   text-transform: uppercase;
   color: var(--ink-dim);
-  opacity: 0.5;
-  padding: 5px 10px;
-  border-radius: 12px;
+  opacity: 0.55;
+  padding: 7px 12px;
+  border: 1px dashed rgba(201,189,159,0.18);
+  border-radius: 4px;
   background: rgba(20,18,16,0.35);
   white-space: nowrap;
+  font-family: inherit;
 }
 
 .sigil-chip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  /* Bumped from 36×36 to a proper mobile tap target so the chip isn't
+     fiddly to press during combat.  The icon scales with the chip. */
+  width: 44px;
+  height: 44px;
   padding: 0;
   border: 1px solid rgba(212,200,168,0.45);
-  background: rgba(18,18,20,0.85);
+  background:
+    radial-gradient(ellipse at 50% 30%, rgba(34,26,18,0.92) 0%, rgba(12,10,8,0.92) 75%);
   color: var(--ink);
   font-family: inherit;
-  font-size: 13px;
+  font-size: 17px;
   line-height: 1;
   cursor: pointer;
-  border-radius: 0;
+  border-radius: 4px;
   flex-shrink: 0;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.5);
-  transition: border-color 0.15s, background 0.15s, transform 0.1s;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.55), 0 0 0 1px rgba(0,0,0,0.4) inset;
+  transition: border-color 0.15s, background 0.15s, transform 0.12s, box-shadow 0.15s;
 }
 .sigil-chip:hover,
 .sigil-chip:active {
@@ -300,9 +305,10 @@ body {
 .sigil-chip-icon {
   display: block;
   line-height: 1;
-  font-size: 20px;
-  text-shadow: 0 1px 0 var(--shadow);
+  font-size: 22px;
+  text-shadow: 0 1px 0 var(--shadow), 0 0 8px rgba(0,0,0,0.5);
 }
+.sigil-chip:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.6), 0 0 12px rgba(212,180,120,0.18), 0 0 0 1px rgba(0,0,0,0.4) inset; }
 /* Category coloring — border + icon tint */
 .sigil-chip.cat-combat   { border-color: rgba(212,69,69,0.55); }
 .sigil-chip.cat-combat   .sigil-chip-icon { color: var(--blood-bright); }
@@ -7938,111 +7944,140 @@ body.killing-blow::before {
    =========================================================================== */
 #info-btn {
   position: fixed;
-  top: 6px; right: 10px;
+  /* Respect the iPhone notch / Android display cutouts so the button
+     isn't clipped under the status bar.  Falls back to a small inset
+     on browsers that don't expose env(). */
+  top: calc(env(safe-area-inset-top, 0px) + 10px);
+  right: calc(env(safe-area-inset-right, 0px) + 12px);
   /* Above the run overlay (260) and the lifted HUD (280) so the menu
      button is always reachable, whether the player is in combat or on
      the map. */
   z-index: 310;
-  width: 40px; height: 40px;
+  width: 38px; height: 38px;
   border-radius: 50%;
-  border: 1px solid rgba(212,200,168,0.18);
-  background: rgba(10,8,8,0.72);
-  color: var(--ink);
+  border: 1px solid rgba(201,189,159,0.42);
+  background:
+    radial-gradient(ellipse at 50% 25%, rgba(44,32,20,0.96) 0%, rgba(14,10,8,0.96) 70%);
+  color: var(--gold);
   font-family: inherit;
-  font-size: 18px;
+  font-size: 17px;
   line-height: 1;
   cursor: pointer;
-  opacity: 0.85;
-  transition: opacity 0.18s, background 0.18s, border-color 0.18s;
+  opacity: 0.95;
+  transition: opacity 0.18s, background 0.18s, border-color 0.18s, transform 0.12s;
   display: flex; align-items: center; justify-content: center;
   padding: 0;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.55), 0 0 0 1px rgba(0,0,0,0.4) inset;
 }
-#info-btn:hover { opacity: 1; background: rgba(28,22,18,0.92); border-color: rgba(212,200,168,0.35); }
+#info-btn:hover {
+  opacity: 1;
+  border-color: var(--gold-bright);
+  color: var(--gold-bright);
+  transform: scale(1.04);
+}
 
 /* ===========================================================================
-   GAME MENU — opened from the ☰ button.  Replaces the old floating
-   mute toggle by bundling music + run info + settings + return-to-title
-   into one small pause panel.
+   GAME MENU — opened from the ☰ button.  Matches the game's overlay
+   aesthetic: dark radial card, gold hairline border, serif title,
+   uppercase tracking labels.  Centered modal (not corner-pinned) so
+   it never clips against the viewport edge on notched devices.
    =========================================================================== */
 .game-menu {
   position: fixed; inset: 0;
   z-index: 900;
   display: flex;
-  align-items: flex-start;
-  justify-content: flex-end;
-  padding: 56px 14px 14px;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
   pointer-events: auto;
 }
 .gm-backdrop {
   position: absolute; inset: 0;
-  background: rgba(4,3,2,0.5);
-  backdrop-filter: blur(3px);
-  -webkit-backdrop-filter: blur(3px);
+  background:
+    radial-gradient(ellipse at center, rgba(15,8,4,0.78) 0%, rgba(5,3,2,0.92) 70%);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
 }
 .gm-card {
   position: relative;
-  min-width: 240px;
-  max-width: 280px;
+  width: 100%;
+  max-width: 320px;
   background:
-    linear-gradient(180deg, rgba(28,22,16,0.97) 0%, rgba(14,10,8,0.97) 100%);
-  border: 1px solid rgba(212,200,168,0.32);
+    radial-gradient(ellipse at 50% 0%, #2c1f14 0%, #18110a 50%, #0c0805 100%);
+  border: 1px solid var(--gold);
   border-radius: 6px;
-  box-shadow: 0 18px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(0,0,0,0.4) inset;
-  padding: 14px 14px 12px;
-  animation: gm-in 0.18s ease-out;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.7), 0 0 24px rgba(201,189,159,0.12), 0 0 0 1px rgba(0,0,0,0.5) inset;
+  padding: 22px 22px 18px;
+  animation: gm-in 0.22s ease-out;
 }
 @keyframes gm-in {
-  from { opacity: 0; transform: translateY(-6px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(-4px) scale(0.985); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
 }
 .gm-title {
-  font-size: 11px;
-  letter-spacing: 0.28em;
+  font-family: 'Iowan Old Style', Georgia, serif;
+  font-size: 14px;
+  letter-spacing: 0.42em;
   text-transform: uppercase;
-  color: var(--ink-dim);
+  color: var(--gold-bright);
   text-align: center;
-  margin-bottom: 10px;
-  font-weight: 600;
+  margin: 0 0 16px;
+  font-weight: 400;
+  text-shadow: 0 0 12px rgba(212,180,120,0.3);
+  padding-right: 0.42em;  /* visually center the tracked text */
 }
-.gm-rows { display: flex; flex-direction: column; gap: 4px; }
+.gm-title::after {
+  content: '';
+  display: block;
+  margin: 8px auto 0;
+  width: 56px; height: 1px;
+  background: linear-gradient(90deg, transparent 0%, var(--gold) 50%, transparent 100%);
+}
+.gm-rows { display: flex; flex-direction: column; gap: 6px; }
 .gm-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 12px;
-  background: rgba(18,14,10,0.55);
-  border: 1px solid rgba(212,200,168,0.14);
+  padding: 11px 14px;
+  background: rgba(14,10,8,0.55);
+  border: 1px solid rgba(201,189,159,0.22);
   color: var(--ink);
   font-family: inherit;
-  font-size: 13px;
-  letter-spacing: 0.04em;
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: 3px;
   text-align: left;
-  transition: background 0.15s, border-color 0.15s;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.1s;
 }
 .gm-row:hover:not([disabled]) {
-  background: rgba(40,32,22,0.75);
-  border-color: rgba(212,200,168,0.34);
+  background: rgba(40,30,18,0.7);
+  border-color: var(--gold-bright);
+  color: var(--gold-bright);
+  transform: translateX(2px);
 }
-.gm-row[disabled] { opacity: 0.4; cursor: not-allowed; }
+.gm-row[disabled] { opacity: 0.35; cursor: not-allowed; }
 .gm-row-label {
-  font-size: 12.5px;
+  font-size: 13px;
   letter-spacing: 0.06em;
+  font-weight: 500;
 }
 .gm-row-value {
-  font-size: 11px;
-  letter-spacing: 0.16em;
+  font-size: 10px;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--ink-dim);
+  font-family: inherit;
+  white-space: nowrap;
 }
+.gm-row:hover:not([disabled]) .gm-row-value { color: var(--gold); }
 .gm-row-danger { border-color: rgba(212,90,90,0.28); }
 .gm-row-danger:hover:not([disabled]) {
-  background: rgba(60,24,20,0.75);
-  border-color: rgba(220,110,110,0.5);
+  background: rgba(48,18,16,0.7);
+  border-color: rgba(220,110,110,0.55);
+  color: #f0d0d0;
 }
-.gm-row-danger .gm-row-label { color: #e8c8c8; }
+.gm-row-danger .gm-row-label { color: #d8b8b8; }
+.gm-row-danger:hover:not([disabled]) .gm-row-value { color: #e8b8b8; }
 
 /* ===========================================================================
    SIGIL INFO CARD — focused popover shown when a sigil chip is tapped.
@@ -8067,62 +8102,74 @@ body.killing-blow::before {
   width: 100%;
   max-width: 360px;
   background:
-    radial-gradient(ellipse at 50% 0%, rgba(44,36,24,0.98) 0%, rgba(18,14,10,0.98) 70%);
+    radial-gradient(ellipse at 50% 0%, #2c1f14 0%, #18110a 50%, #0c0805 100%);
   border: 1px solid var(--gold);
   border-radius: 6px;
-  box-shadow: 0 24px 60px rgba(0,0,0,0.7), 0 0 24px rgba(212,180,120,0.18);
-  padding: 20px 22px 16px;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.7), 0 0 28px rgba(201,189,159,0.15), 0 0 0 1px rgba(0,0,0,0.5) inset;
+  padding: 26px 26px 20px;
   text-align: center;
-  animation: gm-in 0.2s ease-out;
+  animation: gm-in 0.22s ease-out;
 }
 .sic-icon {
-  font-size: 36px;
+  font-size: 44px;
   line-height: 1;
-  margin-bottom: 8px;
+  margin: 4px auto 12px;
   color: var(--gold-bright);
-  text-shadow: 0 0 16px rgba(212,180,120,0.4);
+  text-shadow: 0 0 18px rgba(212,180,120,0.45), 0 0 6px rgba(212,180,120,0.6);
+  display: inline-block;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle, rgba(60,42,22,0.7) 0%, rgba(20,14,10,0.6) 60%, transparent 100%);
 }
 .sic-eyebrow {
   font-size: 10px;
   letter-spacing: 0.32em;
   text-transform: uppercase;
   color: var(--ink-dim);
-  margin-bottom: 6px;
+  margin-bottom: 8px;
+  font-family: inherit;
 }
 .sic-name {
-  font-size: 18px;
-  letter-spacing: 0.04em;
-  font-weight: 600;
+  font-family: 'Iowan Old Style', Georgia, serif;
+  font-size: 22px;
+  letter-spacing: 0.02em;
+  font-weight: 400;
   color: var(--gold-bright);
-  margin-bottom: 10px;
-  text-shadow: 0 0 12px rgba(212,180,120,0.3);
+  margin-bottom: 12px;
+  text-shadow: 0 0 14px rgba(212,180,120,0.35);
 }
 .sic-desc {
-  font-size: 13px;
-  line-height: 1.55;
+  font-family: 'Iowan Old Style', Georgia, serif;
+  font-size: 14px;
+  line-height: 1.6;
   color: var(--ink);
   font-style: italic;
-  margin: 0 auto 14px;
-  max-width: 320px;
-  font-family: 'Iowan Old Style', Georgia, serif;
+  margin: 0 auto 18px;
+  max-width: 280px;
 }
 .sic-close {
   display: inline-block;
-  padding: 6px 18px;
-  background: rgba(20,16,12,0.7);
-  border: 1px solid rgba(212,200,168,0.32);
-  color: var(--ink);
+  padding: 8px 22px;
+  background: rgba(14,10,8,0.7);
+  border: 1px solid var(--gold);
+  color: var(--gold-bright);
   font-family: inherit;
   font-size: 11px;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.28em;
   text-transform: uppercase;
   border-radius: 3px;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition: background 0.15s, color 0.15s, transform 0.1s;
 }
 .sic-close:hover {
-  background: rgba(40,32,22,0.85);
-  border-color: var(--gold-bright);
+  background: rgba(40,30,18,0.85);
+  color: var(--gold-pale);
+  transform: translateY(-1px);
 }
 .sigil-info-card.sic-combat   .sic-body { border-color: rgba(212,69,69,0.7); }
 .sigil-info-card.sic-defense  .sic-body { border-color: rgba(136,152,168,0.7); }
