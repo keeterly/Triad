@@ -6048,10 +6048,13 @@ function newEnemyState(id) {
     armor: 0, bleed: 0, vuln: 0, dulled: 0,
     // Weakness/stagger state-flow.  weaknessRevealed flips once any
     // damaging hit lands so the player can read the school glyph.
-    // weakened ↑ on a weakness-school hit; staggered ↑ on a second
-    // weakness hit same turn; staggerBonusUsed prevents the 2× consume
-    // from double-firing inside a multi-hit tech.
-    weaknessRevealed: false, weakened: false, staggered: false, staggerBonusUsed: false,
+    // weakened ↑ on a weakness-school hit and persists for two player
+    // turns (decays via weakenedTurnsLeft); staggered ↑ on a second
+    // weakness hit while still weakened and clears at the start of the
+    // next player turn (1-turn consume window).  staggerBonusUsed
+    // prevents the 2× consume from double-firing inside a multi-hit
+    // tech.
+    weaknessRevealed: false, weakened: false, weakenedTurnsLeft: 0, staggered: false, staggerBonusUsed: false,
     dead: false, intentIdx: 0,
   };
 }
@@ -6462,12 +6465,17 @@ function applyDmgToEnemy(s, e, baseAmt) {
       if (h && !h.downed) { gainResolve(s, 1); spawnPassivePopup('hask', 'SHATTER'); }
     } else if (!e.weakened && !e.staggered) {
       e.weakened = true;
+      // Two-turn weakness window — the player gets THIS turn plus the
+      // next to land the follow-up weakness hit and trigger stagger.
+      // Tunes the loop so weakness isn't a same-turn-or-bust gamble.
+      e.weakenedTurnsLeft = 2;
       spawnPopupId(e.id, 'WEAKENED', 'stagger', 'enemy');
     }
   }
   if (pendingStaggerClear) {
     e.staggered = false;
     e.weakened = false;
+    e.weakenedTurnsLeft = 0;
     e.staggerBonusUsed = false;
   }
 
@@ -7042,10 +7050,24 @@ function startTurn(s) {
   s.pendingBonusAtb = 0;
   // clear single-turn buffs that survived the enemy phase
   aliveParty(s).forEach(c => { c.taunt = false; c.retaliate = 0; c.firstAttackUsed = false; c.bleedKillUsed = false; c.shadowVeilUsed = false; c.lingeringUsed = false; c._silentVolleyUsed = false; });
-  // Weakness/stagger state decays at the top of each player turn.  If
-  // the player didn't capitalize last turn (no 2× consume hit), the
-  // enemy recovers — no turn-skip, just the window closes.
-  aliveEnemies(s).forEach(e => { e.weakened = false; e.staggered = false; e.staggerBonusUsed = false; e._weaknessHitThisTurn = false; });
+  // Weakness/stagger state decay at the top of each player turn:
+  //   - weakened lingers for 2 player turns (so the follow-up weakness
+  //     hit doesn't have to land same-turn).  weakenedTurnsLeft ticks
+  //     down each player turn; when it hits 0 the state clears.
+  //   - staggered is a single-turn consume window — if the player
+  //     didn't capitalize, it closes here.
+  // No turn-skip in either case; the openings just expire.
+  aliveEnemies(s).forEach(e => {
+    if (e.weakened) {
+      e.weakenedTurnsLeft = Math.max(0, (e.weakenedTurnsLeft || 0) - 1);
+      if (e.weakenedTurnsLeft <= 0) e.weakened = false;
+    } else {
+      e.weakenedTurnsLeft = 0;
+    }
+    e.staggered = false;
+    e.staggerBonusUsed = false;
+    e._weaknessHitThisTurn = false;
+  });
   // Adaptive intents — enemies whose ENEMIES def carries a `pickIntent`
   // function get to choose THIS turn's intent based on live state (party
   // HP, formation, sigil counts).  We commit the choice to e.intentIdx
@@ -8460,8 +8482,10 @@ function makeEnemyCard(e, slot) {
     const more = weakSchool
       ? `HIT WITH ${SCHOOL_GLYPH[weakSchool] || '?'} ${weakSchool.toUpperCase()} → STAGGER`
       : 'HIT WEAKNESS AGAIN → STAGGER';
-    const wkTip = `WEAKENED — hit them with their weakness school again this turn to stagger. State clears at end of turn if you don't follow up.`;
-    stateStrip = `<div class="state-strip state-strip-weakened" title="${wkTip}" data-tip="${wkTip}">⌖ WEAKENED · ${more}</div>`;
+    const turnsLeft = Math.max(0, e.weakenedTurnsLeft || 0);
+    const turnTag = turnsLeft > 0 ? ` · ${turnsLeft}T` : '';
+    const wkTip = `WEAKENED (${turnsLeft || 1} turn${(turnsLeft || 1) === 1 ? '' : 's'} left) — hit them with their weakness school again to stagger.  The window persists across turns now, so the follow-up doesn't have to land this turn.`;
+    stateStrip = `<div class="state-strip state-strip-weakened" title="${wkTip}" data-tip="${wkTip}">⌖ WEAKENED${turnTag} · ${more}</div>`;
   }
 
   fig.innerHTML = `
@@ -12007,6 +12031,7 @@ function loadStateOrNull() {
       delete e.chain;
       delete e.staggerTurns;
       if (e.weakened === undefined)          e.weakened = false;
+      if (e.weakenedTurnsLeft === undefined) e.weakenedTurnsLeft = e.weakened ? 2 : 0;
       if (e.staggered === undefined)         e.staggered = false;
       if (e.weaknessRevealed === undefined)  e.weaknessRevealed = false;
       if (e.staggerBonusUsed === undefined)  e.staggerBonusUsed = false;
