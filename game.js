@@ -9839,7 +9839,7 @@ function showGameMenu() {
       <div class="gm-rows">
         <button type="button" class="gm-row" data-action="resume">
           <span class="gm-row-label">Resume</span>
-          <span class="gm-row-value">↩</span>
+          <span class="gm-row-value">Close</span>
         </button>
         <button type="button" class="gm-row" data-action="info" ${hasRun ? '' : 'disabled'}>
           <span class="gm-row-label">Run Info</span>
@@ -9851,11 +9851,11 @@ function showGameMenu() {
         </button>
         <button type="button" class="gm-row" data-action="settings">
           <span class="gm-row-label">Settings</span>
-          <span class="gm-row-value">→</span>
+          <span class="gm-row-value">Open</span>
         </button>
         <button type="button" class="gm-row gm-row-danger" data-action="title">
           <span class="gm-row-label">Return to Title</span>
-          <span class="gm-row-value">↺</span>
+          <span class="gm-row-value">Save · Quit</span>
         </button>
       </div>
     </div>
