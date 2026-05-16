@@ -1673,6 +1673,13 @@ const ENEMIES = {
     intents: [
       { name: 'Ember Bite',  tag: 'ATK 5 + bleed', targetSlot: 'mid',  kind: 'atk',    dmg: 5, fn: (s) => { dmgPartyAt(s, 'mid', 5); bleedPartyAt(s, 'mid', 2); } },
       { name: 'Cinder Wave', tag: 'ATK 2 all + bleed', targetSlot: 'all', kind: 'aoe', dmg: 2, fn: (s) => { dmgAllParty(s, 2); aliveParty(s).forEach(c => { c.bleed = Math.max(c.bleed, 1); }); } },
+      // Wind-up — telegraphs for 1 turn, then releases a heavy AoE.
+      // Stagger the Pyre Maw during the wind-up to break the charge.
+      { name: 'Kindling', kind: 'charge', tag: 'WIND-UP → Pyre Burst', chargeTurns: 1,
+        release: {
+          name: 'Pyre Burst', tag: 'ATK 8 all + bleed 2 all', targetSlot: 'all', kind: 'aoe', dmg: 8,
+          fn: (s) => { dmgAllParty(s, 8); aliveParty(s).forEach(c => { c.bleed = Math.max(c.bleed, 2); }); },
+        } },
     ],
   },
   echocaster: {
@@ -1727,6 +1734,13 @@ const ENEMIES = {
       { name: 'Whisper a Name',  tag: 'DULL 2 all', targetSlot: 'all',   kind: 'debuff', fn: (s) => aliveParty(s).forEach(c => { c.dulled += 2; }) },
       { name: 'Old Grief',       tag: 'ATK 4 + vuln', targetSlot: 'mid', kind: 'atk',    dmg: 4, fn: (s) => { dmgPartyAt(s, 'mid', 4); applyVulnParty(s, 'mid', 1); } },
       { name: 'The Mourning',    tag: 'ATK 3 all + bleed', targetSlot: 'all', kind: 'aoe', dmg: 3, fn: (s) => { dmgAllParty(s, 3); aliveParty(s).forEach(c => { c.bleed = Math.max(c.bleed, 1); }); } },
+      // Wind-up — 2-turn long grief.  Releases a heavy AoE with dull
+      // stacks across the party.  Stagger to break the wind-up.
+      { name: 'Long Grief', kind: 'charge', tag: 'WIND-UP 2 → Mourner\'s Wail', chargeTurns: 2,
+        release: {
+          name: "Mourner's Wail", tag: 'ATK 6 all + dull 2 all', targetSlot: 'all', kind: 'aoe', dmg: 6,
+          fn: (s) => { dmgAllParty(s, 6); aliveParty(s).forEach(c => { c.dulled += 2; }); },
+        } },
     ],
   },
   drone: {
@@ -1776,10 +1790,18 @@ const ENEMIES = {
       { name: 'Chamber Echo',       tag: 'ATK 4 all',   targetSlot: 'all',   kind: 'aoe', dmg: 4, fn: (s) => dmgAllParty(s, 4) },
       { name: 'Stillness',          tag: 'heal 8 self', targetSlot: '?',     kind: 'armor', fn: (s) => { const me = Object.values(s.enemies.chars).find(en => en.id === 'listener' && !en.dead); if (me) { me.hp = Math.min(me.maxHp, me.hp + 8); spawnPopupId('listener', '+8', 'heal', 'enemy'); me.armor += 2; } } },
       { name: 'Final Word',         tag: 'ATK 6 mid + dull', targetSlot: 'mid', kind: 'atk', dmg: 6, fn: (s) => { dmgPartyAt(s, 'mid', 6); const c = charBySlot(s, 'mid'); if (c) c.dulled += 1; } },
+      // Wind-up — 2 turns to release a massive single-target execute.
+      // Stagger the Listener during the wind-up to break it.
+      { name: 'Naming the Name', kind: 'charge', tag: 'WIND-UP 2 → Spoken True', chargeTurns: 2,
+        release: {
+          name: 'Spoken True', tag: 'ATK 16 lowest', targetSlot: '?', kind: 'atk', dmg: 16,
+          fn: (s) => { dmgLowestParty(s, 16); },
+        } },
     ],
     // Adaptive boss — reads HP and threat shape:
     //   - me ≤ 55% HP and Stillness hasn't fired in 3 turns → Stillness
     //   - lowest hero at killable HP (≤ 12) → Name Said Aloud (execute)
+    //   - HP > 50% AND wind-up cooldown ready (every 5 turns) → Naming the Name
     //   - mid hero healthy & not yet dulled → Final Word (lockdown)
     //   - front not yet vuln → I Know You (setup)
     //   - default → Chamber Echo
@@ -1791,6 +1813,10 @@ const ENEMIES = {
       }
       const lowest = aliveParty(s).slice().sort((a,b) => a.hp - b.hp)[0];
       if (lowest && lowest.hp <= 12) return 1; // execute
+      if (me && me.hp / me.maxHp > 0.5 && turn - (me._lastChargeTurn || -99) >= 5) {
+        me._lastChargeTurn = turn;
+        return 5; // Naming the Name (wind-up)
+      }
       const mid = charBySlot(s, 'mid');
       if (mid && !mid.downed && mid.dulled === 0 && mid.hp / mid.maxHp > 0.7) return 4; // Final Word
       const front = charBySlot(s, 'front');
@@ -6935,7 +6961,10 @@ function startTurn(s) {
   // HP, formation, sigil counts).  We commit the choice to e.intentIdx
   // here so the telegraph, the projection, and the resolver all read the
   // same intent.  Linear-rotation enemies are left alone.
+  // Enemies currently winding up a charged attack skip the picker —
+  // they're locked into completing the release.
   aliveEnemies(s).forEach(e => {
+    if (e._charging) return;
     const def = ENEMIES[e.id];
     if (def && typeof def.pickIntent === 'function') {
       try {
@@ -7587,7 +7616,63 @@ function resolveEnemyStep(s, i) {
   // the payoff, and state decay happens in startTurn.  They act normally.
 
   const def = ENEMIES[e.id];
+
+  // ----- Wind-up state machine ----------------------------------------
+  // If a stagger landed during the wind-up, the charge breaks.  Otherwise
+  // either continue the telegraph or fire the release.  The enemy spends
+  // its turn on the charge; no regular intent runs.
+  if (e._charging) {
+    if (e.staggered) {
+      log(`<b>${def.name}</b> is staggered — <b>${e._charging.name}</b> breaks apart.`);
+      spawnPopupId(e.id, 'INTERRUPTED', 'crit', 'enemy');
+      e._charging = null;
+      render();
+      setTimeout(() => resolveEnemyStep(s, i + 1), 600);
+      return;
+    }
+    e._charging.releaseIn = Math.max(0, (e._charging.releaseIn || 0) - 1);
+    if (e._charging.releaseIn <= 0) {
+      const rel = e._charging.releaseIntent;
+      log(`<b>${def.name}</b> releases <b>${rel.name}</b>!`);
+      flashCardId(e.id, 'hit', 'enemy');
+      try {
+        intentTargetCharIds(s, rel).forEach(tid => flashCardId(tid, 'warn', 'party'));
+      } catch (_) {}
+      shakeScreen(2);
+      setTimeout(() => {
+        rel.fn(s);
+        e._charging = null;
+        if (checkEnd(s)) { s.executing = false; render(); return; }
+        render();
+        setTimeout(() => resolveEnemyStep(s, i + 1), 700 + consumeHitPause());
+      }, 280);
+      return;
+    }
+    log(`<b>${def.name}</b> winds up <b>${e._charging.name}</b> — ${e._charging.releaseIn} turn(s) until release.`);
+    render();
+    setTimeout(() => resolveEnemyStep(s, i + 1), 600);
+    return;
+  }
+
   const intent = def.intents[e.intentIdx % def.intents.length];
+
+  // Starting a wind-up — set _charging state, telegraph, no damage this
+  // turn.  The charge fires in `chargeTurns` enemy phases (so a
+  // chargeTurns of 1 means "next turn it releases").
+  if (intent.kind === 'charge') {
+    e._charging = {
+      name: intent.name,
+      releaseIn: intent.chargeTurns,
+      releaseIntent: intent.release,
+    };
+    log(`<b>${def.name}</b> begins <b>${intent.name}</b> — ${intent.chargeTurns} turn(s) until release.`);
+    flashCardId(e.id, 'warn', 'enemy');
+    e.intentIdx = (e.intentIdx + 1) % def.intents.length;
+    render();
+    setTimeout(() => resolveEnemyStep(s, i + 1), 700);
+    return;
+  }
+
   log(`<b>${def.name}</b> uses <b>${intent.name}</b>.`);
   // Telegraph: briefly highlight the acting enemy card before the hit lands.
   flashCardId(e.id, 'hit', 'enemy');
@@ -8140,6 +8225,10 @@ function makeEnemyCard(e, slot) {
   fig.dataset.id = e.id;
   if (e.staggered)     fig.classList.add('state-staggered');
   else if (e.weakened) fig.classList.add('state-weakened');
+  if (e._charging) {
+    fig.classList.add('e-charging');
+    fig.dataset.releaseIn = e._charging.releaseIn;
+  }
 
   const def = ENEMIES[e.id];
   const intent = def.intents[e.intentIdx % def.intents.length];
@@ -8176,11 +8265,25 @@ function makeEnemyCard(e, slot) {
   // the .targeted-by-enemy glow on the party figures it threatens.
   // Staggered enemies still telegraph their intent — the 2× damage hit is
   // the payoff, not a turn-skip.
-  const intentBubble = `
-    <div class="intent-bubble ${intentClass} threat-${threat}" title="${intent.name}: ${intent.tag} → ${targetTag}">
-      <span class="intent-icon">${icon}</span>
-      ${num ? `<span class="intent-num">${num}</span>` : ''}
-    </div>`;
+  // When a wind-up is in progress, the intent bubble swaps to a red
+  // hourglass + countdown so the player knows the BIG hit is coming.
+  let intentBubble;
+  if (e._charging) {
+    const rel = e._charging.releaseIntent || {};
+    const relNum = intentPrimaryNum(rel.tag) || '';
+    const tip = `${e._charging.name} — wind-up. Releases ${rel.name || '???'} in ${e._charging.releaseIn} turn(s). Stagger to break.`;
+    intentBubble = `
+      <div class="intent-bubble intent-charging threat-lethal" title="${tip}">
+        <span class="intent-icon">⏳</span>
+        <span class="intent-num">${e._charging.releaseIn}</span>
+      </div>`;
+  } else {
+    intentBubble = `
+      <div class="intent-bubble ${intentClass} threat-${threat}" title="${intent.name}: ${intent.tag} → ${targetTag}">
+        <span class="intent-icon">${icon}</span>
+        ${num ? `<span class="intent-num">${num}</span>` : ''}
+      </div>`;
+  }
 
   // Weakness reveal — once any damaging hit has landed (or Hask's
   // Frostbreak passive fires), show a school-glyph + uppercase school
@@ -11581,6 +11684,7 @@ function loadStateOrNull() {
       if (e.staggered === undefined)         e.staggered = false;
       if (e.weaknessRevealed === undefined)  e.weaknessRevealed = false;
       if (e.staggerBonusUsed === undefined)  e.staggerBonusUsed = false;
+      if (e._charging === undefined)         e._charging = null;
     });
     return snap;
   } catch (_) { return null; }

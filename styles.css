@@ -1027,6 +1027,60 @@ body {
     drop-shadow(0 0 3px rgba(0,0,0,0.85))
     drop-shadow(0 0 8px rgba(120,140,200,0.5));
 }
+/* Wind-up bubble — fires while an enemy is charging a heavy attack.
+   Bright red hourglass + countdown so it can't be missed. */
+.intent-bubble.intent-charging .intent-icon {
+  color: var(--blood-bright);
+  font-size: 18px;
+  filter:
+    drop-shadow(0 1px 0 rgba(0,0,0,0.95))
+    drop-shadow(0 0 4px rgba(0,0,0,0.85))
+    drop-shadow(0 0 14px rgba(220,80,80,0.85));
+  animation: intent-charging-pulse 0.85s ease-in-out infinite alternate;
+}
+.intent-bubble.intent-charging .intent-num {
+  color: #ffd2c2;
+  font-weight: 800;
+  text-shadow: 0 0 8px rgba(220,80,80,0.7);
+}
+@keyframes intent-charging-pulse {
+  from { transform: scale(1)    rotate(-3deg); }
+  to   { transform: scale(1.18) rotate(3deg);  }
+}
+
+/* Wind-up enemy figure marker — red glow ring underfoot + a small
+   "WIND-UP N" strap so the threat is unmistakable.  Uses ::after so it
+   doesn't collide with the priority/ticking ::before markers. */
+.figure.e-charging {
+  filter:
+    drop-shadow(0 6px 8px rgba(0,0,0,0.65))
+    drop-shadow(0 0 16px rgba(220,80,80,0.55));
+}
+.figure.e-charging .figure-shadow {
+  box-shadow: 0 0 24px 5px rgba(220,80,80,0.55);
+}
+.figure.e-charging::after {
+  content: 'WIND-UP ' attr(data-release-in);
+  position: absolute;
+  top: -24px; left: 50%;
+  transform: translateX(-50%);
+  font-size: 7.5px;
+  font-weight: 800;
+  letter-spacing: 0.24em;
+  color: #ffd2c2;
+  background: linear-gradient(180deg, rgba(120,30,30,0.95) 0%, rgba(40,10,10,0.95) 100%);
+  border: 1px solid var(--blood-bright);
+  padding: 2px 7px;
+  text-shadow: 0 0 8px rgba(220,80,80,0.7), 0 1px 0 rgba(0,0,0,0.95);
+  z-index: 8;
+  pointer-events: none;
+  animation: e-charging-strap-pulse 0.85s ease-in-out infinite alternate;
+  white-space: nowrap;
+}
+@keyframes e-charging-strap-pulse {
+  from { filter: brightness(1);    box-shadow: 0 0 6px rgba(220,80,80,0.4); }
+  to   { filter: brightness(1.25); box-shadow: 0 0 14px rgba(220,80,80,0.85); }
+}
 
 /* Threat telegraph — party figures targeted by enemy intents glow red.
    No exact damage number; the glow communicates "this one is in trouble"
