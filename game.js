@@ -7842,29 +7842,32 @@ function checkEnd(s) {
         saveCarriedParty(state);
         showRunSummary('boss', { afterClose: () => showWorldMap() });
       };
-      const continueToSummary = () => showVictorySummary(completedEnc, () => {
-        // Spoils of the Sin — boss kill should feel like a layer payoff.
-        // Survivors heal to full HP, every alive hero rolls a positive
-        // quirk (if they have room), and the player gets a free sigil
-        // choice before the run summary lands.
-        awardBossSpoils(state, finishBoss);
-      });
-      // Hold for the slo-mo death effect before the run-summary cascade.
+      // Continuation after the boss death cinematic: roll spoils (heal +
+      // quirk + free sigil) then close out to the run-summary / world
+      // map.  The per-fight stats overlay is intentionally skipped —
+      // the run summary already shows the totals.
+      accumulateRunStats(s.fightStats || { damageDealt: {}, damageTaken: {}, healingDone: {}, kills: 0, synergies: [], turns: s.turn });
+      const continueAfterDeath = () => awardBossSpoils(state, finishBoss);
+      // Hold for the slo-mo death effect before the spoils overlay.
       const BOSS_DEATH_HOLD = 1600;
       if (bossMatches.length) {
         const pick = bossMatches[Math.floor(Math.random() * bossMatches.length)];
-        setTimeout(() => showVignette(pick, bossCtx, continueToSummary), BOSS_DEATH_HOLD);
+        setTimeout(() => showVignette(pick, bossCtx, continueAfterDeath), BOSS_DEATH_HOLD);
       } else {
-        setTimeout(continueToSummary, BOSS_DEATH_HOLD);
+        setTimeout(continueAfterDeath, BOSS_DEATH_HOLD);
       }
     } else {
       // Snapshot fight context for vignette triggers (firedSynergies, minHp etc.)
       // BEFORE the next encounter resets them.
       const fightCtx = captureFightContext(s);
-      // Between fights: cinematic killing-blow pause → reach banner →
-      // (maybe) affinity fanfare with reason → victory summary → recruit
-      // /upgrade/sigil/map.  The killing blow holds for a beat so it
-      // lands as a moment instead of cutting straight to UI.
+      // Roll per-fight totals into the run-wide tally before any UI
+      // beats fire — the victory-summary overlay used to do this for us.
+      accumulateRunStats(s.fightStats || { damageDealt: {}, damageTaken: {}, healingDone: {}, kills: 0, synergies: [], turns: s.turn });
+      // Streamlined post-fight cascade — kill → cinematic hold → reach
+      // banner → (maybe) affinity fanfare → directly into the vignette/
+      // recruit/upgrade/sigil/map flow.  The per-fight stats overlay is
+      // intentionally skipped; the run summary still shows aggregate
+      // totals at boss/end-of-run.
       playKillingBlowHold();
       const KILL_HOLD = 1200;
       const BANNER_HOLD = 1100;
@@ -7877,7 +7880,7 @@ function checkEnd(s) {
           // its own showQuirkAward fanfare with a context-aware reason.
           const awarded = awardQuirkAfterWin(s, completedNode);
           const wait = awarded ? FANFARE_HOLD : 500;
-          setTimeout(() => showVictorySummary(completedEnc, () => offerVignetteOrPath(fightCtx)), wait);
+          setTimeout(() => offerVignetteOrPath(fightCtx), wait);
         }, BANNER_HOLD);
       }, KILL_HOLD);
     }
