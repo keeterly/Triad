@@ -7987,24 +7987,51 @@ function renderSigilTray() {
   });
 }
 
-// Tap or press-and-hold a sigil chip to surface its name + effect as a
-// persistent tooltip.  Tapping elsewhere dismisses (handled by
-// bindChipExplainers's outside-tap branch).
+// Tap a sigil chip to surface its full info in a dedicated card.  The
+// strip re-renders every UI tick (innerHTML reset) so the old
+// chip-tooltip path was fragile — its anchor element vanished between
+// frames.  The popover here owns its own DOM appended to <body> so
+// re-renders don't disturb it; the player taps anywhere to dismiss.
 function bindSigilChipReveal(chip) {
-  const tooltipText = () => {
-    const sid = chip.dataset.sigil;
-    const sqid = chip.dataset.squad;
-    if (sid && SIGILS[sid]) return `${SIGILS[sid].name} — ${SIGILS[sid].desc}`;
-    if (sqid) {
-      const sq = activeSquadSigils(state).find(x => x.id === sqid);
-      if (sq) return `${sq.name} — ${sq.desc}`;
-    }
-    return chip.getAttribute('title') || '';
-  };
   chip.addEventListener('click', (e) => {
     e.stopPropagation();
     e.preventDefault();
-    showChipTooltip(chip, tooltipText());
+    const sid = chip.dataset.sigil;
+    const sqid = chip.dataset.squad;
+    if (sid && SIGILS[sid]) {
+      showSigilInfoCard(SIGILS[sid], { squad: false });
+    } else if (sqid) {
+      const sq = activeSquadSigils(state).find(x => x.id === sqid);
+      if (sq) showSigilInfoCard(sq, { squad: true });
+    }
+  });
+}
+
+// Dedicated focused-info card for a single sigil (or squad bond).  Owns
+// its own DOM so re-renders of #sigil-tray don't tear it down.  Tap
+// the backdrop or the close button to dismiss.
+function showSigilInfoCard(sigil, opts) {
+  if (!sigil) return;
+  const old = document.getElementById('sigil-info-card');
+  if (old) old.remove();
+  const isSquad = !!(opts && opts.squad);
+  const root = document.createElement('div');
+  root.id = 'sigil-info-card';
+  root.className = 'sigil-info-card' + (isSquad ? ' sic-squad' : ` sic-${sigil.category || 'combat'}`);
+  root.innerHTML = `
+    <div class="sic-backdrop" data-close="1"></div>
+    <div class="sic-body" role="dialog" aria-label="${sigil.name}">
+      <div class="sic-icon">${sigil.icon || '◆'}</div>
+      <div class="sic-eyebrow">${isSquad ? 'SQUAD BOND' : 'BOUND SIGIL'}${!isSquad && sigil.category ? ` · ${sigil.category.toUpperCase()}` : ''}</div>
+      <div class="sic-name">${sigil.name}</div>
+      <div class="sic-desc">${sigil.desc || ''}</div>
+      <button type="button" class="sic-close" data-close="1" aria-label="Close">Close</button>
+    </div>
+  `;
+  document.body.appendChild(root);
+  root.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-close="1"]');
+    if (el) { Audio.ui(); root.remove(); }
   });
 }
 
@@ -9779,17 +9806,96 @@ function bindUI() {
   // .onclick rather than addEventListener to keep a single replaceable handler.
   $('#overlay-btn').onclick = () => { hideOverlay(); init(); };
   bindChipExplainers();
-  bindMuteButton();
-  bindInfoButton();
+  bindMenuButton();
 }
 
-function bindInfoButton() {
+// Top-right menu button — replaces the separate mute + info buttons.
+// Opens a small panel with the typical pause-menu options: run info,
+// music toggle, settings, return to title.
+function bindMenuButton() {
   const btn = document.getElementById('info-btn');
   if (!btn) return;
   btn.addEventListener('click', () => {
-    if (!state || !state.party || !state.party.chars) return;
     Audio.ui();
-    showRunInfoPanel();
+    showGameMenu();
+  });
+}
+
+// Renders the in-game menu as a floating card pinned to the top-right
+// corner.  Owns its own DOM (no conflict with #overlay) so it stacks
+// cleanly over combat AND the map.
+function showGameMenu() {
+  let root = document.getElementById('game-menu');
+  if (root) { root.remove(); }
+  root = document.createElement('div');
+  root.id = 'game-menu';
+  root.className = 'game-menu';
+  const muted = Audio && Audio.isMuted && Audio.isMuted();
+  const hasRun = !!(state && state.party && state.party.chars);
+  root.innerHTML = `
+    <div class="gm-backdrop" data-close="1"></div>
+    <div class="gm-card" role="dialog" aria-label="Game menu">
+      <div class="gm-title">Menu</div>
+      <div class="gm-rows">
+        <button type="button" class="gm-row" data-action="resume">
+          <span class="gm-row-label">Resume</span>
+          <span class="gm-row-value">↩</span>
+        </button>
+        <button type="button" class="gm-row" data-action="info" ${hasRun ? '' : 'disabled'}>
+          <span class="gm-row-label">Run Info</span>
+          <span class="gm-row-value">Sigils · Heroes</span>
+        </button>
+        <button type="button" class="gm-row" data-action="music">
+          <span class="gm-row-label">Music</span>
+          <span class="gm-row-value" id="gm-music-val">${muted ? 'Muted' : 'On'}</span>
+        </button>
+        <button type="button" class="gm-row" data-action="settings">
+          <span class="gm-row-label">Settings</span>
+          <span class="gm-row-value">→</span>
+        </button>
+        <button type="button" class="gm-row gm-row-danger" data-action="title">
+          <span class="gm-row-label">Return to Title</span>
+          <span class="gm-row-value">↺</span>
+        </button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(root);
+  const close = () => { root.remove(); };
+  root.addEventListener('click', (e) => {
+    if (e.target.dataset && e.target.dataset.close === '1') { Audio.ui(); close(); }
+  });
+  root.querySelectorAll('.gm-row').forEach(b => {
+    b.addEventListener('click', () => {
+      Audio.ui();
+      const action = b.dataset.action;
+      if (action === 'resume') { close(); return; }
+      if (action === 'info') {
+        close();
+        if (hasRun) showRunInfoPanel();
+        return;
+      }
+      if (action === 'music') {
+        Audio.ensure();
+        Audio.toggleMute();
+        const v = document.getElementById('gm-music-val');
+        if (v) v.textContent = Audio.isMuted() ? 'Muted' : 'On';
+        return;
+      }
+      if (action === 'settings') {
+        close();
+        showSettingsScreen();
+        return;
+      }
+      if (action === 'title') {
+        confirmDestructive(
+          'Return to title?',
+          'Your run is auto-saved.  Continue from the title screen to resume.',
+          () => { close(); hideOverlay(); showTitleScreen(); }
+        );
+        return;
+      }
+    });
   });
 }
 
@@ -9884,20 +9990,8 @@ function hideRunInfoPanel() {
   panel.setAttribute('aria-hidden', 'true');
 }
 
-function bindMuteButton() {
-  const btn = $('#mute-btn');
-  if (!btn) return;
-  const sync = () => {
-    if (Audio.isMuted()) { btn.classList.add('muted'); btn.textContent = '♪̸'; btn.title = 'Unmute'; }
-    else                  { btn.classList.remove('muted'); btn.textContent = '♪';  btn.title = 'Mute'; }
-  };
-  sync();
-  btn.addEventListener('click', () => {
-    Audio.ensure(); // first click initializes the context (mobile policy)
-    Audio.toggleMute();
-    sync();
-  });
-}
+// (Floating mute button removed — music toggle now lives in the menu
+// opened by the top-right ☰ button via showGameMenu.)
 
 // ============================================================================
 // TUTORIAL — short hints, shown on the first fight of a run so the loop
@@ -12139,12 +12233,6 @@ function showSettingsScreen() {
       if (action === 'mute') {
         Audio.ensure();
         Audio.toggleMute();
-        // Sync the floating #mute-btn icon too
-        const m = document.getElementById('mute-btn');
-        if (m) {
-          if (Audio.isMuted()) { m.classList.add('muted'); m.textContent = '♪̸'; m.title = 'Unmute'; }
-          else                  { m.classList.remove('muted'); m.textContent = '♪'; m.title = 'Mute'; }
-        }
         syncMute();
       } else if (action === 'tutorial') {
         try { localStorage.removeItem('kizuna.tutorialSeen'); } catch (_) {}
