@@ -2373,14 +2373,16 @@ const EVENTS = {
     choices: [
       { label: 'Climb a few steps', tag: 'gain a tech upgrade now',
         resolve: (s) => {
+          // Hand off to the post-event upgrade chooser so the player
+          // actually picks the tech instead of getting a silent random
+          // grant.  _completeNonCombatNode honors this flag and pops
+          // showUpgradeOverlay before returning to the map.
           const pool = availableUpgrades(s);
-          if (!pool.length) return;
-          const up = pool[Math.floor(Math.random() * pool.length)];
-          const c = s.party.chars[up.charId];
-          if (!c) return;
-          c.upgrades = c.upgrades || {};
-          c.upgrades[`${up.slot}.${up.kind}`] = up.id;
-          log(`<b>${CHARS[up.charId].name}</b> learns <b>${up.name}</b>.`);
+          if (!pool.length) {
+            log('<i>The staircase fades.  Nothing new to learn here.</i>');
+            return;
+          }
+          s.run._pendingUpgradeOffer = true;
         } },
       { label: 'Close the door',    tag: 'heal party to full',
         resolve: (s) => { aliveParty(s).forEach(c => { c.hp = c.maxHp; }); } },
@@ -10441,6 +10443,23 @@ function _completeNonCombatNode() {
       }
       return;
     }
+  }
+  // Tech-upgrade hand-off — events that promise "gain a tech upgrade"
+  // (Open Door, etc.) set this flag in their resolve.  We pop the same
+  // chooser used by rest nodes / victory rewards so the player actually
+  // picks the upgrade instead of getting a silent random grant.
+  if (state.run._pendingUpgradeOffer) {
+    state.run._pendingUpgradeOffer = false;
+    const pool = availableUpgrades(state);
+    if (pool.length) {
+      const shuffled = pool.slice().sort(() => Math.random() - 0.5);
+      const offers = shuffled.slice(0, Math.min(2, shuffled.length));
+      showUpgradeOverlay(offers, () => renderMap());
+      return;
+    }
+    // Empty pool — log a fallback so the moment doesn't dead-end silently,
+    // then continue to the map.
+    log('<i>Nothing new to learn just now.</i>');
   }
   // Stranger event hand-off — the wanderer event sets this flag in its
   // resolve.  Fire a recruit beat before returning to the map; if the
