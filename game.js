@@ -5353,14 +5353,15 @@ const COMBOS = {
       }
     },
     cinematic: [
-      { kind: 'tint',        school: 'holy',                  ms: 200 },
-      { kind: 'portrait',    heroes: ['cassia','branwen'], pose: 'rise', ms: 300 },
-      { kind: 'banner',      text: 'BANNER VOLLEY', size: 'md',    ms: 200 },
-      { kind: 'slash',       direction: 'down-right', school: 'holy', ms: 260 },
+      { kind: 'stage',       school: 'holy',                            ms: 200 },
+      { kind: 'hero-big',    heroes: ['cassia','branwen'], pose: 'rise', ms: 400 },
+      { kind: 'banner',      text: 'BANNER VOLLEY', size: 'md',        ms: 350 },
+      { kind: 'slogan',      text: 'fly true · cut the gate',          ms: 250 },
+      { kind: 'punch',                                                  ms: 380 },
       { kind: 'resolve' },
       { kind: 'shake',       intensity: 2 },
       { kind: 'enemy-flash', targets: 'front', kind2: 'hit',           ms: 200 },
-      { kind: 'burst',       at: 'enemy-front', school: 'holy', count: 12, ms: 300 },
+      { kind: 'burst',       at: 'enemy-front', school: 'holy', count: 14, ms: 280 },
     ],
   },
   twin_strike: {
@@ -5377,14 +5378,17 @@ const COMBOS = {
       if (!t.dead) { t.vuln += 2; spawnPopupId(t.id, 'VULN +2', 'stagger', 'enemy'); applyDmgToEnemy(s, t, 6); }
     },
     cinematic: [
-      { kind: 'portrait',    heroes: ['branwen','mira'], pose: 'cross',  ms: 250 },
-      { kind: 'banner',      text: 'TWIN STRIKE', size: 'sm',            ms: 200 },
-      { kind: 'slash',       direction: 'down-right', school: 'ranged',  ms: 240 },
-      { kind: 'enemy-flash', targets: 'lowest', kind2: 'hit',            ms: 200 },
-      { kind: 'slash',       direction: 'down-left',  school: 'stealth', ms: 240 },
+      { kind: 'stage',       school: 'stealth',                          ms: 200 },
+      { kind: 'hero-big',    heroes: ['branwen','mira'], pose: 'cross',  ms: 380 },
+      { kind: 'banner',      text: 'TWIN STRIKE', size: 'md',            ms: 350 },
+      { kind: 'slogan',      text: 'name the wound · take the wound',    ms: 250 },
+      { kind: 'punch',                                                   ms: 380 },
       { kind: 'resolve' },
+      { kind: 'slash',       direction: 'down-right', school: 'ranged',  ms: 220 },
+      { kind: 'enemy-flash', targets: 'lowest', kind2: 'hit',            ms: 200 },
+      { kind: 'slash',       direction: 'down-left',  school: 'stealth', ms: 220 },
       { kind: 'shake',       intensity: 2 },
-      { kind: 'burst',       at: 'enemy-front', school: 'stealth', count: 8, ms: 200 },
+      { kind: 'burst',       at: 'enemy-front', school: 'stealth', count: 10, ms: 200 },
     ],
   },
   crossblade_dance: {
@@ -5399,13 +5403,16 @@ const COMBOS = {
       aliveParty(s).forEach(c => c.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'crossblade_dance' }));
     },
     cinematic: [
-      { kind: 'portrait',    heroes: ['kai','mira'], pose: 'cross',  ms: 250 },
-      { kind: 'banner',      text: 'CROSSBLADE DANCE', size: 'md',   ms: 200 },
+      { kind: 'stage',       school: 'physical',                        ms: 200 },
+      { kind: 'hero-big',    heroes: ['kai','mira'], pose: 'cross',     ms: 380 },
+      { kind: 'banner',      text: 'CROSSBLADE DANCE', size: 'md',      ms: 350 },
+      { kind: 'slogan',      text: 'feet that know the song',           ms: 250 },
+      { kind: 'punch',                                                  ms: 380 },
+      { kind: 'resolve' },
       { kind: 'slash',       direction: 'horizontal', school: 'physical', ms: 180 },
       { kind: 'slash',       direction: 'horizontal', school: 'stealth',  ms: 180 },
-      { kind: 'resolve' },
       { kind: 'shake',       intensity: 2 },
-      { kind: 'burst',       at: 'enemy-all', school: 'physical', count: 8, ms: 300 },
+      { kind: 'burst',       at: 'enemy-all', school: 'physical', count: 10, ms: 280 },
     ],
   },
   wall_charge: {
@@ -5427,14 +5434,15 @@ const COMBOS = {
       }
     },
     cinematic: [
-      { kind: 'tint',        school: 'physical',                ms: 200 },
-      { kind: 'portrait',    heroes: ['cassia','korin'], pose: 'guard', ms: 300 },
-      { kind: 'banner',      text: 'WALL CHARGE', size: 'md',   ms: 200 },
-      { kind: 'slash',       direction: 'down-right', school: 'physical', ms: 200 },
+      { kind: 'stage',       school: 'physical',                        ms: 200 },
+      { kind: 'hero-big',    heroes: ['cassia','korin'], pose: 'guard', ms: 400 },
+      { kind: 'banner',      text: 'WALL CHARGE', size: 'md',           ms: 350 },
+      { kind: 'slogan',      text: 'shield · shoulder · stand',         ms: 250 },
+      { kind: 'punch',                                                  ms: 400 },
       { kind: 'resolve' },
       { kind: 'shake',       intensity: 3 },
-      { kind: 'enemy-flash', targets: 'front', kind2: 'hit',    ms: 200 },
-      { kind: 'portrait',    heroes: ['korin'],          pose: 'guard',  ms: 200 },
+      { kind: 'enemy-flash', targets: 'front', kind2: 'hit',            ms: 200 },
+      { kind: 'burst',       at: 'enemy-front', school: 'physical', count: 12, ms: 250 },
     ],
   },
   quiet_volley: {
@@ -5449,14 +5457,14 @@ const COMBOS = {
       aliveParty(s).forEach(c => { c._veil = true; spawnPopupId(c.id, 'VEIL', 'armor', 'party'); });
     },
     cinematic: [
-      { kind: 'fade',        to: 'in',                          ms: 150 },
-      { kind: 'portrait',    heroes: ['ash','branwen'], pose: 'whisper', ms: 300 },
-      { kind: 'banner',      text: 'QUIET VOLLEY', size: 'sm', subtitle: 'arrows in dusk', ms: 200 },
-      { kind: 'burst',       at: 'enemy-all', school: 'stealth', count: 8, ms: 250 },
+      { kind: 'stage',       school: 'stealth',                          ms: 220 },
+      { kind: 'hero-big',    heroes: ['ash','branwen'], pose: 'whisper', ms: 400 },
+      { kind: 'banner',      text: 'QUIET VOLLEY', size: 'md', subtitle: 'arrows in dusk', ms: 380 },
+      { kind: 'slogan',      text: 'do not be where they look',          ms: 250 },
+      { kind: 'punch',                                                   ms: 400 },
       { kind: 'resolve' },
-      { kind: 'enemy-flash', targets: 'all', kind2: 'hit',       ms: 180 },
-      { kind: 'portrait',    heroes: ['ash','branwen'], pose: 'whisper', ms: 220 },
-      { kind: 'fade',        to: 'out',                          ms: 200 },
+      { kind: 'burst',       at: 'enemy-all', school: 'stealth', count: 10, ms: 260 },
+      { kind: 'enemy-flash', targets: 'all', kind2: 'hit',                ms: 180 },
     ],
   },
   hush_of_blades: {
@@ -5472,14 +5480,16 @@ const COMBOS = {
       dmgAllEnemies(s, 2);
     },
     cinematic: [
-      { kind: 'tint',        school: 'stealth',                 ms: 180 },
-      { kind: 'portrait',    heroes: ['ash','mira'], pose: 'whisper', ms: 260 },
-      { kind: 'banner',      text: 'HUSH OF BLADES', size: 'sm', ms: 200 },
-      { kind: 'slash',       direction: 'cross', school: 'stealth', ms: 260 },
+      { kind: 'stage',       school: 'stealth',                          ms: 220 },
+      { kind: 'hero-big',    heroes: ['ash','mira'], pose: 'whisper',    ms: 400 },
+      { kind: 'banner',      text: 'HUSH OF BLADES', size: 'md',         ms: 350 },
+      { kind: 'slogan',      text: 'silence finds the seam',             ms: 250 },
+      { kind: 'punch',                                                   ms: 400 },
       { kind: 'resolve' },
-      { kind: 'enemy-flash', targets: 'lowest', kind2: 'warn',   ms: 200 },
+      { kind: 'slash',       direction: 'cross', school: 'stealth',      ms: 260 },
+      { kind: 'enemy-flash', targets: 'lowest', kind2: 'warn',           ms: 200 },
       { kind: 'shake',       intensity: 2 },
-      { kind: 'burst',       at: 'enemy-all', school: 'stealth', count: 8, ms: 200 },
+      { kind: 'burst',       at: 'enemy-all', school: 'stealth', count: 10, ms: 200 },
     ],
   },
   sister_mend: {
@@ -5506,12 +5516,12 @@ const COMBOS = {
       }
     },
     cinematic: [
-      { kind: 'tint',        school: 'holy',                    ms: 300 },
-      { kind: 'portrait',    heroes: ['cassia','elin'], pose: 'rise', ms: 400 },
-      { kind: 'banner',      text: "SISTER'S MEND", size: 'md', ms: 200 },
-      { kind: 'burst',       at: 'party-all', school: 'holy', count: 12, ms: 400 },
+      { kind: 'stage',       school: 'holy',                            ms: 240 },
+      { kind: 'hero-big',    heroes: ['cassia','elin'], pose: 'rise',   ms: 420 },
+      { kind: 'banner',      text: "SISTER'S MEND", size: 'md', subtitle: 'no one falls today', ms: 380 },
+      { kind: 'punch',                                                  ms: 380 },
       { kind: 'resolve' },
-      { kind: 'portrait',    heroes: ['cassia','elin'], pose: 'rise', ms: 300 },
+      { kind: 'burst',       at: 'party-all', school: 'holy', count: 14, ms: 380 },
     ],
   },
   veiled_flame: {
@@ -5527,12 +5537,14 @@ const COMBOS = {
       dmgAllEnemies(s, 2);
     },
     cinematic: [
-      { kind: 'portrait',    heroes: ['ash','elin'], pose: 'whisper', ms: 260 },
-      { kind: 'banner',      text: 'VEILED FLAME', size: 'md', subtitle: 'ash and grace', ms: 200 },
-      { kind: 'tint',        school: 'arcane',                  ms: 180 },
-      { kind: 'burst',       at: 'party-all', school: 'arcane', count: 8, ms: 200 },
-      { kind: 'burst',       at: 'enemy-all', school: 'arcane', count: 12, ms: 300 },
+      { kind: 'stage',       school: 'arcane',                          ms: 240 },
+      { kind: 'hero-big',    heroes: ['ash','elin'], pose: 'whisper',   ms: 420 },
+      { kind: 'banner',      text: 'VEILED FLAME', size: 'md', subtitle: 'ash and grace', ms: 380 },
+      { kind: 'slogan',      text: 'a fire that does not forgive',      ms: 250 },
+      { kind: 'punch',                                                  ms: 400 },
       { kind: 'resolve' },
+      { kind: 'burst',       at: 'party-all', school: 'arcane', count: 10, ms: 200 },
+      { kind: 'burst',       at: 'enemy-all', school: 'arcane', count: 14, ms: 280 },
       { kind: 'shake',       intensity: 2 },
     ],
   },
@@ -5555,13 +5567,12 @@ const COMBOS = {
       });
     },
     cinematic: [
-      { kind: 'fade',        to: 'in',                          ms: 200 },
-      { kind: 'tint',        school: 'holy',                    ms: 300 },
-      { kind: 'portrait',    heroes: ['cassia','elin','branwen'], pose: 'rise', ms: 500 },
-      { kind: 'banner',      text: 'SACRED TRIAD', size: 'lg', subtitle: 'a circle held', ms: 300 },
-      { kind: 'burst',       at: 'party-all', school: 'holy', count: 24, ms: 400 },
+      { kind: 'stage',       school: 'holy',                            ms: 280 },
+      { kind: 'hero-big',    heroes: ['cassia','elin','branwen'], pose: 'rise', ms: 540 },
+      { kind: 'banner',      text: 'SACRED TRIAD', size: 'lg', subtitle: 'a circle held', ms: 480 },
+      { kind: 'punch',                                                  ms: 420 },
       { kind: 'resolve' },
-      { kind: 'fade',        to: 'out',                         ms: 200 },
+      { kind: 'burst',       at: 'party-all', school: 'holy', count: 24, ms: 380 },
     ],
   },
   three_blades: {
@@ -5578,14 +5589,17 @@ const COMBOS = {
       gainResolve(s, 1);
     },
     cinematic: [
-      { kind: 'portrait',    heroes: ['kai','mira','branwen'], pose: 'cross', ms: 300 },
-      { kind: 'banner',      text: 'THREE BLADES', size: 'md',  ms: 200 },
+      { kind: 'stage',       school: 'physical',                        ms: 280 },
+      { kind: 'hero-big',    heroes: ['kai','mira','branwen'], pose: 'cross', ms: 540 },
+      { kind: 'banner',      text: 'THREE BLADES', size: 'lg',          ms: 420 },
+      { kind: 'slogan',      text: 'three edges · one breath',          ms: 250 },
+      { kind: 'punch',                                                  ms: 420 },
+      { kind: 'resolve' },
       { kind: 'slash',       direction: 'down-right', school: 'physical', ms: 200 },
       { kind: 'slash',       direction: 'down-left',  school: 'stealth',  ms: 200 },
       { kind: 'slash',       direction: 'horizontal', school: 'ranged',   ms: 200 },
-      { kind: 'resolve' },
       { kind: 'shake',       intensity: 3 },
-      { kind: 'burst',       at: 'enemy-all', school: 'physical', count: 12, ms: 300 },
+      { kind: 'burst',       at: 'enemy-all', school: 'physical', count: 14, ms: 280 },
     ],
   },
   front_phalanx: {
@@ -5603,13 +5617,15 @@ const COMBOS = {
       aliveParty(s).forEach(c => { c.armor += 3; c.bleed = 0; c.dulled = 0; });
     },
     cinematic: [
-      { kind: 'portrait',    heroes: ['cassia','korin','mira'], pose: 'guard', ms: 300 },
-      { kind: 'banner',      text: 'FRONT PHALANX', size: 'md', ms: 200 },
-      { kind: 'slash',       direction: 'horizontal', school: 'physical', ms: 250 },
+      { kind: 'stage',       school: 'physical',                        ms: 280 },
+      { kind: 'hero-big',    heroes: ['cassia','korin','mira'], pose: 'guard', ms: 540 },
+      { kind: 'banner',      text: 'FRONT PHALANX', size: 'lg',         ms: 420 },
+      { kind: 'slogan',      text: 'a wall that moves you',             ms: 250 },
+      { kind: 'punch',                                                  ms: 420 },
       { kind: 'resolve' },
       { kind: 'shake',       intensity: 3 },
-      { kind: 'enemy-flash', targets: 'all', kind2: 'hit',     ms: 250 },
-      { kind: 'burst',       at: 'enemy-front', school: 'physical', count: 12, ms: 300 },
+      { kind: 'enemy-flash', targets: 'all', kind2: 'hit',              ms: 250 },
+      { kind: 'burst',       at: 'enemy-front', school: 'physical', count: 14, ms: 280 },
     ],
   },
 
@@ -5635,16 +5651,16 @@ const COMBOS = {
       });
     },
     cinematic: [
-      { kind: 'fade',        to: 'in',                          ms: 200 },
-      { kind: 'tint',        school: 'holy',                    ms: 400 },
-      { kind: 'portrait',    heroes: ['cassia','elin'], pose: 'rise', ms: 400 },
-      { kind: 'banner',      text: 'HALLOWED CLEAVE', size: 'lg', subtitle: 'sunder and mend', ms: 300 },
-      { kind: 'slash',       direction: 'down-right', school: 'holy', ms: 300 },
+      { kind: 'stage',       school: 'holy',                            ms: 320 },
+      { kind: 'hero-big',    heroes: ['cassia','elin'], pose: 'rise',   ms: 520 },
+      { kind: 'banner',      text: 'HALLOWED CLEAVE', size: 'lg', subtitle: 'sunder and mend', ms: 460 },
+      { kind: 'slogan',      text: 'the gate falls open · the wound closes', ms: 280 },
+      { kind: 'punch',                                                  ms: 440 },
       { kind: 'resolve' },
+      { kind: 'slash',       direction: 'down-right', school: 'holy',   ms: 280 },
       { kind: 'shake',       intensity: 3 },
-      { kind: 'burst',       at: 'enemy-front', school: 'holy', count: 12, ms: 200 },
-      { kind: 'burst',       at: 'party-all',   school: 'holy', count: 8,  ms: 200 },
-      { kind: 'fade',        to: 'out',                         ms: 200 },
+      { kind: 'burst',       at: 'enemy-front', school: 'holy', count: 16, ms: 220 },
+      { kind: 'burst',       at: 'party-all',   school: 'holy', count: 10, ms: 220 },
     ],
   },
   phantom_crescent: {
@@ -5669,17 +5685,17 @@ const COMBOS = {
       aliveParty(s).forEach(c => { c._veil = true; });
     },
     cinematic: [
-      { kind: 'fade',        to: 'in',                          ms: 150 },
-      { kind: 'tint',        school: 'stealth',                 ms: 300 },
-      { kind: 'portrait',    heroes: ['mira','ash'], pose: 'whisper', ms: 300 },
-      { kind: 'banner',      text: 'PHANTOM CRESCENT', size: 'lg', ms: 300 },
+      { kind: 'stage',       school: 'stealth',                         ms: 320 },
+      { kind: 'hero-big',    heroes: ['mira','ash'], pose: 'whisper',   ms: 520 },
+      { kind: 'banner',      text: 'PHANTOM CRESCENT', size: 'lg',      ms: 460 },
+      { kind: 'slogan',      text: 'three cuts in one breath',          ms: 280 },
+      { kind: 'punch',                                                  ms: 440 },
+      { kind: 'resolve' },
       { kind: 'slash',       direction: 'down-right', school: 'stealth', ms: 200 },
       { kind: 'slash',       direction: 'down-left',  school: 'stealth', ms: 200 },
-      { kind: 'slash',       direction: 'cross',      school: 'stealth', ms: 250 },
-      { kind: 'resolve' },
+      { kind: 'slash',       direction: 'cross',      school: 'stealth', ms: 240 },
       { kind: 'shake',       intensity: 3 },
-      { kind: 'burst',       at: 'enemy-front', school: 'stealth', count: 24, ms: 250 },
-      { kind: 'fade',        to: 'out',                         ms: 200 },
+      { kind: 'burst',       at: 'enemy-front', school: 'stealth', count: 24, ms: 240 },
     ],
   },
   stormwall: {
@@ -5706,15 +5722,17 @@ const COMBOS = {
       aliveParty(s).forEach(c => { c.armor += 3; });
     },
     cinematic: [
-      { kind: 'tint',        school: 'physical',                ms: 250 },
-      { kind: 'portrait',    heroes: ['korin','cassia'], pose: 'guard', ms: 350 },
-      { kind: 'banner',      text: 'STORMWALL', size: 'lg', subtitle: 'pull and break', ms: 300 },
-      { kind: 'slash',       direction: 'horizontal', school: 'physical', ms: 250 },
-      { kind: 'enemy-flash', targets: 'all', kind2: 'warn',     ms: 200 },
-      { kind: 'slash',       direction: 'down-right', school: 'holy', ms: 300 },
+      { kind: 'stage',       school: 'physical',                        ms: 320 },
+      { kind: 'hero-big',    heroes: ['korin','cassia'], pose: 'guard', ms: 520 },
+      { kind: 'banner',      text: 'STORMWALL', size: 'lg', subtitle: 'pull and break', ms: 460 },
+      { kind: 'slogan',      text: 'drag them where the hammer waits',  ms: 280 },
+      { kind: 'punch',                                                  ms: 440 },
       { kind: 'resolve' },
+      { kind: 'slash',       direction: 'horizontal', school: 'physical', ms: 240 },
+      { kind: 'enemy-flash', targets: 'all', kind2: 'warn',             ms: 200 },
+      { kind: 'slash',       direction: 'down-right', school: 'holy',   ms: 280 },
       { kind: 'shake',       intensity: 3 },
-      { kind: 'burst',       at: 'enemy-front', school: 'holy', count: 12, ms: 250 },
+      { kind: 'burst',       at: 'enemy-front', school: 'holy', count: 14, ms: 250 },
     ],
   },
   wakeling_volley: {
@@ -5744,12 +5762,15 @@ const COMBOS = {
       if (refund > 0) gainResolve(s, refund);
     },
     cinematic: [
-      { kind: 'portrait',    heroes: ['branwen','kai'], pose: 'cross', ms: 300 },
-      { kind: 'banner',      text: 'WAKELING VOLLEY', size: 'md', subtitle: 'wake the storm', ms: 250 },
-      { kind: 'burst',       at: 'center', school: 'ranged', count: 24, ms: 300 },
-      { kind: 'enemy-flash', targets: 'all', kind2: 'warn',   ms: 200 },
-      { kind: 'burst',       at: 'enemy-all', school: 'ranged', count: 12, ms: 400 },
+      { kind: 'stage',       school: 'ranged',                          ms: 320 },
+      { kind: 'hero-big',    heroes: ['branwen','kai'], pose: 'cross',  ms: 520 },
+      { kind: 'banner',      text: 'WAKELING VOLLEY', size: 'lg', subtitle: 'wake the storm', ms: 460 },
+      { kind: 'slogan',      text: 'every shaft has a name',            ms: 280 },
+      { kind: 'punch',                                                  ms: 440 },
       { kind: 'resolve' },
+      { kind: 'burst',       at: 'center', school: 'ranged', count: 24, ms: 260 },
+      { kind: 'enemy-flash', targets: 'all', kind2: 'warn',             ms: 200 },
+      { kind: 'burst',       at: 'enemy-all', school: 'ranged', count: 14, ms: 360 },
       { kind: 'shake',       intensity: 3 },
     ],
   },
@@ -5780,16 +5801,16 @@ const COMBOS = {
       gainResolve(s, 2);
     },
     cinematic: [
-      { kind: 'fade',        to: 'in',                          ms: 250 },
-      { kind: 'tint',        school: 'holy',                    ms: 500 },
-      { kind: 'portrait',    heroes: ['cassia','elin','branwen'], pose: 'rise', ms: 500 },
-      { kind: 'banner',      text: 'SACRED WAKENING', size: 'lg', subtitle: 'three voices, one dawn', ms: 400 },
-      { kind: 'burst',       at: 'party-all', school: 'holy', count: 24, ms: 400 },
-      { kind: 'slash',       direction: 'cross', school: 'holy', ms: 300 },
+      { kind: 'stage',       school: 'holy',                            ms: 380 },
+      { kind: 'hero-big',    heroes: ['cassia','elin','branwen'], pose: 'rise', ms: 620 },
+      { kind: 'banner',      text: 'SACRED WAKENING', size: 'lg', subtitle: 'three voices, one dawn', ms: 540 },
+      { kind: 'slogan',      text: 'stand up · stand up · stand up',    ms: 300 },
+      { kind: 'punch',                                                  ms: 460 },
       { kind: 'resolve' },
+      { kind: 'burst',       at: 'party-all', school: 'holy', count: 24, ms: 320 },
+      { kind: 'slash',       direction: 'cross', school: 'holy',        ms: 280 },
       { kind: 'shake',       intensity: 3 },
-      { kind: 'burst',       at: 'enemy-all', school: 'holy', count: 24, ms: 300 },
-      { kind: 'fade',        to: 'out',                         ms: 250 },
+      { kind: 'burst',       at: 'enemy-all', school: 'holy', count: 24, ms: 280 },
     ],
   },
 };
@@ -8032,8 +8053,10 @@ function executeQueueItem(s, item) {
     Audio.attack(); Audio.kill();
     // Hold the queue pacer until the cinematic finishes — playComboCinematic
     // owns effect-resolution timing now.  hitPause adds to the post-step
-    // delay so resolveQueueStep naturally waits before advancing.
-    hitPause(CINE_BUDGET_MS + 60);
+    // delay so resolveQueueStep naturally waits before advancing.  Sig-tier
+    // combos earn the longer budget.
+    const budget = combo.sigTier ? CINE_BUDGET_SIG_MS : CINE_BUDGET_MS;
+    hitPause(budget + 60);
     playComboCinematic(s, combo);
     return;
   }
@@ -8173,7 +8196,8 @@ function showTeamSpecialBanner(combo) {
 // the `resolve` step lands (or after the last step if no `resolve` appears).
 // Everything is CSS / DOM / inline SVG — no asset pipeline, no library.
 
-const CINE_BUDGET_MS = 2200;
+const CINE_BUDGET_MS = 2200;          // Duo/trio basic cap
+const CINE_BUDGET_SIG_MS = 3000;      // Sig-tier earns extra showtime
 const SCHOOL_GLYPH_CINE = { physical: '⚔', holy: '✦', arcane: '✶', ranged: '➳', stealth: '◐' };
 
 function playComboCinematic(s, combo, onDone) {
@@ -8204,6 +8228,8 @@ function playComboCinematic(s, combo, onDone) {
     document.querySelectorAll('.cine-active').forEach(el => el.remove());
     document.body.classList.remove('cine-playing');
     document.body.classList.remove('cine-sig-tier');
+    document.body.classList.remove('cine-stage-open');
+    _cineStageEl = null;
   };
   const skip = () => {
     if (skipped) return;
@@ -8215,10 +8241,12 @@ function playComboCinematic(s, combo, onDone) {
   document.addEventListener('pointerdown', skip, true);
   document.body.classList.add('cine-playing');
   if (combo.sigTier) document.body.classList.add('cine-sig-tier');
-  // Budget cap — anything over CINE_BUDGET_MS scale-compresses.  Steps with
-  // ms: 0 (shake, resolve) are unaffected.
+  // Budget cap — sig-tier gets the longer ceiling.  Anything over the
+  // applicable cap scale-compresses proportionally.  Steps with ms: 0
+  // (shake, resolve) are unaffected by the scale.
   const total = steps.reduce((acc, st) => acc + (st.ms || 0), 0);
-  const scale = total > CINE_BUDGET_MS ? CINE_BUDGET_MS / total : 1;
+  const budget = combo.sigTier ? CINE_BUDGET_SIG_MS : CINE_BUDGET_MS;
+  const scale = total > budget ? budget / total : 1;
   let t = 0;
   steps.forEach(step => {
     const dur = Math.round((step.ms || 0) * scale);
@@ -8238,6 +8266,10 @@ function playComboCinematic(s, combo, onDone) {
 
 function runCineStep(s, combo, step) {
   switch (step.kind) {
+    case 'stage':       return cineStage(step.school || 'holy', combo.sigTier ? 'sig' : (combo.tier || 'duo'), step.ms || 200);
+    case 'hero-big':    return cineHeroBig(step.heroes || (combo.requires || []).map(r => r.heroId), step.pose || 'rise', step.ms || 400);
+    case 'slogan':      return cineSlogan(step.text || '');
+    case 'punch':       return cinePunch(step.ms || 420);
     case 'tint':        return cineTint(step.school, step.ms || 200);
     case 'portrait':    return cinePortrait(step.heroes || (combo.requires || []).map(r => r.heroId), step.pose || 'rise', step.ms || 600);
     case 'banner':      return cineBanner(step.text || combo.name, step.size || 'md', step.subtitle, combo, step.ms || 1000);
@@ -8250,6 +8282,62 @@ function runCineStep(s, combo, step) {
   }
 }
 
+// Currently-open takeover stage element.  When non-null, banner/slogan
+// route into the stage frame instead of floating on top of combat.
+let _cineStageEl = null;
+
+function cineStage(school, tier, ms) {
+  if (_cineStageEl) return; // already open — ignore re-open
+  const el = document.createElement('div');
+  el.className = `cine-active cine-stage school-${school} tier-${tier}${tier === 'sig' ? ' is-sig' : ''}`;
+  el.style.setProperty('--ms', `${ms}ms`);
+  el.innerHTML = `
+    <div class="cine-stage-bg"></div>
+    <div class="cine-stage-rays"></div>
+    <div class="cine-stage-frame">
+      <div class="cine-stage-heroes"></div>
+      <div class="cine-stage-text"></div>
+    </div>
+  `;
+  document.body.appendChild(el);
+  document.body.classList.add('cine-stage-open');
+  _cineStageEl = el;
+}
+
+function cineHeroBig(heroes, pose, ms) {
+  if (!_cineStageEl) return; // no stage to render into
+  const slot = _cineStageEl.querySelector('.cine-stage-heroes');
+  if (!slot) return;
+  slot.innerHTML = (heroes || []).map(id =>
+    `<div class="ch-big ch-pose-${pose}" data-id="${id}">${PORTRAITS[id] || ''}</div>`
+  ).join('');
+}
+
+function cineSlogan(text) {
+  if (!_cineStageEl || !text) return;
+  const slot = _cineStageEl.querySelector('.cine-stage-text');
+  if (!slot) return;
+  // Append as a sibling line; banner injection later will land underneath.
+  const line = document.createElement('div');
+  line.className = 'cb-slogan';
+  line.textContent = text;
+  slot.appendChild(line);
+}
+
+function cinePunch(ms) {
+  // Camera punch-in: scale + fade the stage out, revealing combat.  The
+  // remaining post-punch primitives (shake, enemy-flash, burst) land on
+  // the freshly-visible combat board.  No-op if no stage is open.
+  if (!_cineStageEl) return;
+  _cineStageEl.classList.add('cine-stage-punch');
+  const el = _cineStageEl;
+  _cineStageEl = null;
+  setTimeout(() => {
+    if (el.isConnected) el.remove();
+    document.body.classList.remove('cine-stage-open');
+  }, ms + 40);
+}
+
 function cineTint(school, ms) {
   const el = document.createElement('div');
   el.className = `cine-active cine-tint school-${school || 'holy'}`;
@@ -8259,6 +8347,18 @@ function cineTint(school, ms) {
 }
 
 function cineBanner(text, size, subtitle, combo, ms) {
+  // If a takeover stage is open, inject the banner INTO the stage so it
+  // lands inside the cinematic frame above the hero portraits.  Otherwise
+  // fall back to the floating top-of-screen banner (used by legacy specs
+  // that don't open a stage).
+  if (_cineStageEl) {
+    const slot = _cineStageEl.querySelector('.cine-stage-text');
+    if (slot) {
+      const sub = subtitle ? `<div class="cb-sub">${subtitle}</div>` : '';
+      slot.insertAdjacentHTML('afterbegin', `${sub}<div class="cb-name size-${size}">${text}</div>`);
+      return;
+    }
+  }
   const el = document.createElement('div');
   const sigTierCls = combo && combo.sigTier ? ' is-sig' : '';
   el.className = `cine-active cine-banner size-${size}${sigTierCls}`;
