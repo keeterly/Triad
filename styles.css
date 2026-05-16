@@ -2606,6 +2606,12 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 .qa-backdrop.qa-out {
+  /* During the 450ms fade-out, the backdrop is still a fixed full-screen
+     element.  Without this, fast-clicking through awards intercepts the
+     follow-up clicks meant for the next overlay (recruit / vignette / map),
+     which reads to the player as the combat scene stalling. */
+  pointer-events: none;
+  cursor: default;
   animation: qa-bk-out 0.45s ease forwards;
 }
 @keyframes qa-bk-in {

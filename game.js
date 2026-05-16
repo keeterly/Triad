@@ -5123,6 +5123,12 @@ function showSigilAward(sigilId) {
 // wires the dismiss flow (tap anywhere or auto after a hold).  When a
 // portraitId + bark are supplied, renders a small hero portrait with a
 // chat bubble above the card — same visual register as combat barks.
+// Module-level continuation slot — the post-fight chain (and any other
+// "show award then move on" caller) parks the next-scene callback here.
+// The dismiss handler drains it so a fast tap on the backdrop short-
+// circuits the FANFARE_HOLD wait that would otherwise stall combat scene.
+let _pendingAfterAward = null;
+
 function _showAwardBackdrop({ cls, eyebrow, name, reason, flavor, desc, portraitId, bark }) {
   const old = document.getElementById('quirk-award-backdrop');
   if (old) old.remove();
@@ -5160,6 +5166,13 @@ function _showAwardBackdrop({ cls, eyebrow, name, reason, flavor, desc, portrait
     dismissed = true;
     backdrop.classList.add('qa-out');
     setTimeout(() => { if (backdrop.isConnected) backdrop.remove(); }, 450);
+    // Drain the post-award continuation if any caller parked one — small
+    // grace lets the fade-out start before the next scene paints.
+    if (_pendingAfterAward) {
+      const cb = _pendingAfterAward;
+      _pendingAfterAward = null;
+      setTimeout(cb, 200);
+    }
   };
   backdrop.addEventListener('click', dismiss);
   // Hold longer when there's a flavor line + portrait so the player has
@@ -8590,8 +8603,21 @@ function checkEnd(s) {
           // doesn't get covered by the strap.  awardQuirkAfterWin runs
           // its own showQuirkAward fanfare with a context-aware reason.
           const awarded = awardQuirkAfterWin(s, completedNode);
-          const wait = awarded ? FANFARE_HOLD : 500;
-          setTimeout(() => offerVignetteOrPath(fightCtx), wait);
+          if (awarded) {
+            // Park the next-scene transition; the award-dismiss handler
+            // (auto or tap) fires it.  Fallback timer at FANFARE_HOLD
+            // guarantees forward progress if dismiss somehow never lands.
+            const goNext = () => offerVignetteOrPath(fightCtx);
+            _pendingAfterAward = goNext;
+            setTimeout(() => {
+              if (_pendingAfterAward === goNext) {
+                _pendingAfterAward = null;
+                goNext();
+              }
+            }, FANFARE_HOLD);
+          } else {
+            setTimeout(() => offerVignetteOrPath(fightCtx), 500);
+          }
         }, BANNER_HOLD);
       }, KILL_HOLD);
     }
