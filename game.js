@@ -1906,8 +1906,20 @@ const EVENTS = {
     choices: [
       { label: 'Hear them out', tag: 'A new ally may walk with you',
         resolve: (s) => { s.run._pendingStrangerRecruit = true; } },
-      { label: 'Keep walking',  tag: 'no change',
-        resolve: () => { log('The footsteps fade behind you.'); } },
+      // Declining to recruit is no longer a no-op.  The party closes
+      // ranks: every existing hero gains +1 max HP (the bond tightens
+      // around the people already with you), AND there's a small chance
+      // someone takes a hit of doubt — a random alive hero may pick up
+      // a negative affinity for the cold shoulder.
+      { label: 'Keep walking',  tag: '+1 max HP each · risk: one hero feels the chill',
+        resolve: (s) => {
+          aliveParty(s).forEach(c => { c.maxHp += 1; c.hp = Math.min(c.maxHp, c.hp + 1); });
+          log('The footsteps fade behind you.  The party closes a little tighter.');
+          // 35% chance the cold shoulder leaves a mark — a random alive
+          // hero gains a negative affinity.  Small enough that "walk on"
+          // is still viable, real enough that the choice carries weight.
+          if (Math.random() < 0.35) _rollEventQuirk(s, 'negative');
+        } },
     ],
   },
 
@@ -1957,8 +1969,11 @@ const EVENTS = {
           aliveParty(s).forEach(c => { if (c.quirks) c.quirks.negative = []; c.hp = Math.max(1, c.hp - 3); });
           log('The Pact-Eater swallows every name.');
         } },
-      { label: 'Refuse',             tag: 'no change',
-        resolve: () => { log('You keep your wounds.  They are yours.'); } },
+      { label: 'Refuse',             tag: '+1 Resolve next fight · integrity holds',
+        resolve: (s) => {
+          s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1;
+          log('You keep your wounds.  They are yours.');
+        } },
     ],
   },
   last_verse: {
@@ -1979,8 +1994,11 @@ const EVENTS = {
           }
           aliveParty(s).forEach(c => { c.maxHp = Math.max(1, c.maxHp - 2); c.hp = Math.min(c.hp, c.maxHp); });
         } },
-      { label: 'Walk on',      tag: 'no change',
-        resolve: () => { log('The verse stays with the singer.'); } },
+      { label: 'Walk on',      tag: '+1 max HP each · the verse stays with the singer',
+        resolve: (s) => {
+          aliveParty(s).forEach(c => { c.maxHp += 1; c.hp = Math.min(c.maxHp, c.hp + 1); });
+          log('The verse stays with the singer.  You carry your own.');
+        } },
     ],
   },
   bone_altar: {
@@ -1990,7 +2008,11 @@ const EVENTS = {
     choices: [
       { label: 'Bleed for a boon', tag: '−5 HP, gain a positive affinity',
         resolve: (s) => { _hurtRandomAlive(s, 5); _rollEventQuirk(s, 'positive'); } },
-      { label: 'Walk on', tag: 'no change', resolve: () => {} },
+      { label: 'Walk on', tag: '+1 Resolve next fight · unbleeding',
+        resolve: (s) => {
+          s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1;
+          log('You leave the altar wanting.');
+        } },
     ],
   },
   hollow_reliquary: {
@@ -2000,7 +2022,11 @@ const EVENTS = {
     choices: [
       { label: 'Take the offering', tag: 'gain a random sigil',
         resolve: (s) => _grantRandomSigil(s) },
-      { label: 'Seal it shut', tag: 'no change', resolve: () => {} },
+      { label: 'Seal it shut', tag: 'party +2 armor each',
+        resolve: (s) => {
+          aliveParty(s).forEach(c => { c.armor += 2; });
+          log('You shut the reliquary.  Something inside settles.');
+        } },
     ],
   },
   wraiths_whisper: {
@@ -2010,7 +2036,11 @@ const EVENTS = {
     choices: [
       { label: 'Listen', tag: '+positive AND +negative affinity',
         resolve: (s) => { _rollEventQuirk(s, 'positive'); _rollEventQuirk(s, 'negative'); } },
-      { label: 'Refuse', tag: 'no change', resolve: () => {} },
+      { label: 'Refuse', tag: '+1 max HP each · the whisper stays a whisper',
+        resolve: (s) => {
+          aliveParty(s).forEach(c => { c.maxHp += 1; c.hp = Math.min(c.maxHp, c.hp + 1); });
+          log('You refuse.  The wraith laughs anyway.');
+        } },
     ],
   },
   veiled_well: {
@@ -2020,7 +2050,11 @@ const EVENTS = {
     choices: [
       { label: 'Drink', tag: 'heal party 6',
         resolve: (s) => { aliveParty(s).forEach(c => { const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 6); }); } },
-      { label: 'Walk on', tag: 'no change', resolve: () => {} },
+      { label: 'Walk on', tag: '+1 Resolve next fight · the water keeps its secrets',
+        resolve: (s) => {
+          s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1;
+          log('You leave the well unveiled.');
+        } },
     ],
   },
   // ---- Abyss event additions ----
@@ -2033,7 +2067,11 @@ const EVENTS = {
         resolve: (s) => { aliveParty(s).forEach(c => { c.hp = Math.max(1, c.hp - 3); }); _grantRandomSigil(s); } },
       { label: 'Press their hand', tag: 'Heal lowest to full · +1 Resolve next fight',
         resolve: (s) => { const id = _lowestHpAliveId(s); const c = id && s.party.chars[id]; if (c) c.hp = c.maxHp; s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1; } },
-      { label: 'Walk past',       tag: 'no change', resolve: () => {} },
+      { label: 'Walk past',       tag: '+1 Resolve next fight · you do not look back',
+        resolve: (s) => {
+          s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1;
+          log('You walk past.  The stranger does not move.');
+        } },
     ],
   },
   shrine_lost_names: {
@@ -2045,7 +2083,11 @@ const EVENTS = {
         resolve: (s) => { aliveParty(s).forEach(c => { c.hp = Math.max(1, c.hp - 2); }); _rollEventQuirk(s, 'positive'); } },
       { label: 'Carve another',tag: 'gain Coin of Memory (sigil)',
         resolve: (s) => { bindSigil(s, 'memory'); } },
-      { label: 'Move on',      tag: 'no change', resolve: () => {} },
+      { label: 'Move on',      tag: '+1 max HP each · the names stay carved',
+        resolve: (s) => {
+          aliveParty(s).forEach(c => { c.maxHp += 1; c.hp = Math.min(c.maxHp, c.hp + 1); });
+          log('You move on.  The wind keeps arguing.');
+        } },
     ],
   },
   fallen_knight: {
@@ -2057,7 +2099,11 @@ const EVENTS = {
         resolve: (s) => { aliveParty(s).forEach(c => { const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 4); if (c.hp > b) spawnPopupId(c.id, `+${c.hp - b}`, 'heal', 'party'); c.armor += 2; }); } },
       { label: 'Take the armor',   tag: 'Front gains Warhardened',
         resolve: (s) => { const fId = s.party.slots.front; if (fId) grantQuirk(s, fId, 'warhardened'); } },
-      { label: 'Leave them be',    tag: 'no change', resolve: () => {} },
+      { label: 'Leave them be',    tag: '+1 Resolve next fight · the silence is a vow',
+        resolve: (s) => {
+          s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1;
+          log('You leave the knight to their rest.');
+        } },
     ],
   },
   hanging_chime: {
@@ -2333,7 +2379,8 @@ const VIGNETTES = {
     choices: [
       { label: 'Deepen the vow', tag: 'Elin gains Vow Unbroken',
         resolve: (s) => { grantQuirk(s, 'elin', 'vow_unbroken'); log(`<b>Elin</b> gains <i>Vow Unbroken</i>.`); } },
-      { label: 'Say nothing',    tag: 'no change', resolve: () => {} },
+      { label: 'Say nothing',    tag: '+1 Resolve next fight · the silence is its own answer',
+        resolve: (s) => { s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1; log('The vow holds without words.'); } },
     ],
   },
   // Cassia + Korin's Iron Bond — two front-liners after a hard fight.
@@ -2508,7 +2555,8 @@ const VIGNETTES = {
     choices: [
       { label: 'Sharpen the edge', tag: "Mira gains Razor's Edge",
         resolve: (s) => { grantQuirk(s, 'mira', 'razor_edge'); log(`<b>Mira</b> gains <i>Razor's Edge</i>.`); } },
-      { label: 'Walk on', tag: 'no change', resolve: () => {} },
+      { label: 'Walk on', tag: '+1 Resolve next fight · sharp without saying so',
+        resolve: (s) => { s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1; log('She wipes the blade again, harder.'); } },
     ],
   },
 
@@ -2616,7 +2664,11 @@ const VIGNETTES = {
     choices: [
       { label: 'Hoard a memory', tag: 'Gain Coin of Memory (sigil)',
         resolve: (s) => { bindSigil(s, 'memory'); } },
-      { label: 'Endure', tag: 'no change', resolve: () => {} },
+      { label: 'Endure', tag: '+1 max HP each · enduring tempers you',
+        resolve: (s) => {
+          aliveParty(s).forEach(c => { c.maxHp += 1; c.hp = Math.min(c.maxHp, c.hp + 1); });
+          log('You endure.  The mercy stays unspent.');
+        } },
     ],
   },
 
@@ -2902,7 +2954,8 @@ const VIGNETTES = {
     choices: [
       { label: 'Bear the vow', tag: 'Cassia gains Banner Bearer',
         resolve: (s) => { grantQuirk(s, 'cassia', 'banner_bearer'); log(`<b>Cassia</b> gains <i>Banner Bearer</i>.`); } },
-      { label: 'Swallow the disagreement', tag: 'no change', resolve: () => {} },
+      { label: 'Swallow the disagreement', tag: '+1 Resolve next fight · the unsaid still steadies',
+        resolve: (s) => { s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1; log('The disagreement folds into the line.'); } },
     ],
   },
 
@@ -2919,7 +2972,11 @@ const VIGNETTES = {
     choices: [
       { label: 'Trade no more words', tag: 'Korin gains Warhardened',
         resolve: (s) => { grantQuirk(s, 'korin', 'warhardened'); log(`<b>Korin</b> gains <i>Warhardened</i>.`); } },
-      { label: 'Let it sit',          tag: 'no change', resolve: () => {} },
+      { label: 'Let it sit',          tag: '+1 max HP each · the silence between them holds',
+        resolve: (s) => {
+          aliveParty(s).forEach(c => { c.maxHp += 1; c.hp = Math.min(c.maxHp, c.hp + 1); });
+          log('The silence is its own bond.');
+        } },
     ],
   },
 
@@ -3207,7 +3264,13 @@ const VIGNETTES = {
     choices: [
       { label: 'Spare them',  tag: 'Heal party 4 · +1 Resolve next',
         resolve: (s) => { aliveParty(s).forEach(c => { c.hp = Math.min(c.maxHp, c.hp + 4); }); s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1; log('A bandage finds its way around the survivor.'); } },
-      { label: 'Walk on',     tag: 'no change', resolve: () => {} },
+      // Walking on after a moment of mercy carries weight — a random
+      // hero may pick up a negative affinity for the path not taken.
+      { label: 'Walk on',     tag: 'risk: someone carries the regret',
+        resolve: (s) => {
+          log('You walk on.  No one says anything for a while.');
+          if (Math.random() < 0.4) _rollEventQuirk(s, 'negative');
+        } },
     ],
   },
   enemy_survivor_elite: {
@@ -3224,7 +3287,11 @@ const VIGNETTES = {
     choices: [
       { label: 'Bind their wounds', tag: 'Heal party to full · +2 Resolve next',
         resolve: (s) => { aliveParty(s).forEach(c => { c.hp = c.maxHp; }); s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 2; log('A small kindness in a cruel place.'); } },
-      { label: 'Walk on',           tag: 'no change', resolve: () => {} },
+      { label: 'Walk on',           tag: 'risk: someone carries the regret',
+        resolve: (s) => {
+          log('You leave them where they fell.  The dust takes them.');
+          if (Math.random() < 0.4) _rollEventQuirk(s, 'negative');
+        } },
     ],
   },
 
@@ -4419,27 +4486,44 @@ function getRunModifier(s) {
 // ============================================================================
 const QUIRK_CAP = 5;
 const QUIRKS = {
-  // Positive (green)
-  precise:   { id: 'precise',   name: 'Precise',     positive: true,  desc: '+1 damage on attacks.',                dmgMod:  1 },
-  brutal:    { id: 'brutal',    name: 'Brutal',      positive: true,  desc: '+2 damage on attacks.',                dmgMod:  2 },
-  bulwark:   { id: 'bulwark',   name: 'Bulwark',     positive: true,  desc: '+1 armor whenever armor is gained.',   armorMod: 1 },
-  gentle:    { id: 'gentle',    name: 'Gentle Hand', positive: true,  desc: '+1 to all healing dealt or received.', healMod:  1 },
+  // Positive (green) — `flavor` is the narrative line shown in the reveal
+  // (italic, between name and the mechanical desc) so the moment reads as
+  // a small character beat instead of a stat sheet.
+  precise:   { id: 'precise',   name: 'Precise',     positive: true,  desc: '+1 damage on attacks.',                dmgMod:  1,
+               flavor: 'Their hands have found the line.  Every strike now falls where it should.' },
+  brutal:    { id: 'brutal',    name: 'Brutal',      positive: true,  desc: '+2 damage on attacks.',                dmgMod:  2,
+               flavor: 'Something sharp has settled in them, eager to be spent.' },
+  bulwark:   { id: 'bulwark',   name: 'Bulwark',     positive: true,  desc: '+1 armor whenever armor is gained.',   armorMod: 1,
+               flavor: 'They stand a little wider now.  Less moves through them.' },
+  gentle:    { id: 'gentle',    name: 'Gentle Hand', positive: true,  desc: '+1 to all healing dealt or received.', healMod:  1,
+               flavor: 'Their touch has learned to hold without breaking.' },
   // Negative (red)
-  dulled_q:  { id: 'dulled_q',  name: 'Dulled',      positive: false, desc: '−1 damage on attacks.',                dmgMod: -1 },
-  shaken:    { id: 'shaken',    name: 'Shaken',      positive: false, desc: '−2 damage on attacks.',                dmgMod: -2 },
-  brittle:   { id: 'brittle',   name: 'Brittle',     positive: false, desc: '−1 armor whenever armor is gained.',   armorMod: -1 },
-  clumsy:    { id: 'clumsy',    name: 'Clumsy',      positive: false, desc: '−1 to all healing dealt or received.', healMod: -1 },
-  cursed:    { id: 'cursed',    name: 'Cursed',      positive: false, desc: '−1 damage AND −1 healing.',            dmgMod: -1, healMod: -1 },
+  dulled_q:  { id: 'dulled_q',  name: 'Dulled',      positive: false, desc: '−1 damage on attacks.',                dmgMod: -1,
+               flavor: 'Their edge has rounded against too many sins.' },
+  shaken:    { id: 'shaken',    name: 'Shaken',      positive: false, desc: '−2 damage on attacks.',                dmgMod: -2,
+               flavor: 'A tremor in the hand that does not still.' },
+  brittle:   { id: 'brittle',   name: 'Brittle',     positive: false, desc: '−1 armor whenever armor is gained.',   armorMod: -1,
+               flavor: 'Their armor remembers every dent now.' },
+  clumsy:    { id: 'clumsy',    name: 'Clumsy',      positive: false, desc: '−1 to all healing dealt or received.', healMod: -1,
+               flavor: 'The hand reaches a half-beat late.' },
+  cursed:    { id: 'cursed',    name: 'Cursed',      positive: false, desc: '−1 damage AND −1 healing.',            dmgMod: -1, healMod: -1,
+               flavor: 'A name they cannot shed sits behind their teeth.' },
 
   // Hero-specific positive quirks — only roll on the named hero.  Themed
   // to each character's identity so the inspect view feels like a
   // build-arc, not a generic stat sheet.
-  banner_bearer: { id: 'banner_bearer', heroId: 'cassia',  name: "Banner Bearer", positive: true, desc: '+1 armor whenever armor is granted (Cassia).',   armorMod: 1 },
-  vow_unbroken:  { id: 'vow_unbroken',  heroId: 'elin',    name: 'Vow Unbroken',  positive: true, desc: '+1 healing dealt and received (Elin).',          healMod:  1 },
-  bleed_stalker: { id: 'bleed_stalker', heroId: 'branwen', name: 'Bleed Stalker', positive: true, desc: '+1 damage on attacks (Branwen).',                dmgMod:   1 },
-  warhardened:   { id: 'warhardened',   heroId: 'korin',   name: 'Warhardened',   positive: true, desc: '+2 damage on attacks (Korin).',                  dmgMod:   2 },
-  veil_walker:   { id: 'veil_walker',   heroId: 'ash',     name: 'Veil Walker',   positive: true, desc: '+1 damage and +1 armor gained (Ash).',           dmgMod: 1, armorMod: 1 },
-  razor_edge:    { id: 'razor_edge',    heroId: 'mira',    name: "Razor's Edge",  positive: true, desc: '+2 damage on attacks (Mira).',                   dmgMod:   2 },
+  banner_bearer: { id: 'banner_bearer', heroId: 'cassia',  name: "Banner Bearer", positive: true, desc: '+1 armor whenever armor is granted (Cassia).',   armorMod: 1,
+                   flavor: 'Cassia lifts the line a little higher.  Those around her stand straighter without being asked.' },
+  vow_unbroken:  { id: 'vow_unbroken',  heroId: 'elin',    name: 'Vow Unbroken',  positive: true, desc: '+1 healing dealt and received (Elin).',          healMod:  1,
+                   flavor: 'Elin has remade the vow tighter than before.  It does not fray.' },
+  bleed_stalker: { id: 'bleed_stalker', heroId: 'branwen', name: 'Bleed Stalker', positive: true, desc: '+1 damage on attacks (Branwen).',                dmgMod:   1,
+                   flavor: 'Branwen has learned to read the dark for trails of blood.' },
+  warhardened:   { id: 'warhardened',   heroId: 'korin',   name: 'Warhardened',   positive: true, desc: '+2 damage on attacks (Korin).',                  dmgMod:   2,
+                   flavor: 'Korin\'s scars are no longer wounds.  They are armor.' },
+  veil_walker:   { id: 'veil_walker',   heroId: 'ash',     name: 'Veil Walker',   positive: true, desc: '+1 damage and +1 armor gained (Ash).',           dmgMod: 1, armorMod: 1,
+                   flavor: 'The veil thickens around Ash — even her sigh moves quieter through the air.' },
+  razor_edge:    { id: 'razor_edge',    heroId: 'mira',    name: "Razor's Edge",  positive: true, desc: '+2 damage on attacks (Mira).',                   dmgMod:   2,
+                   flavor: 'Mira\'s knife has learned the geometry of bone.' },
 };
 
 // Read all quirks a character currently has (positive ∪ negative).
@@ -4480,27 +4564,38 @@ function grantQuirk(s, charId, quirkId) {
 // voice.
 const AFFINITY_BARKS = {
   kai:     { gained: ["Sharper now.", "I'll take it.", "Useful."],
-             lost:   ["Tch.", "...slipped.", "I'll work without."] },
+             lost:   ["Tch.", "...slipped.", "I'll work without."],
+             shed:   ["Off my back.", "Easier breath.", "Better without it."] },
   cassia:  { gained: ["Earned, then.", "The line strengthens.", "Mark it."],
-             lost:   ["A piece given.", "It is the cost.", "The line still holds."] },
+             lost:   ["A piece given.", "It is the cost.", "The line still holds."],
+             shed:   ["Released.", "Set down.", "The line breathes."] },
   elin:    { gained: ["Steadier.", "Light still finds me.", "I will spend it well."],
-             lost:   ["Less to give.", "...I will mend with what's left.", "It will mend back."] },
+             lost:   ["Less to give.", "...I will mend with what's left.", "It will mend back."],
+             shed:   ["Mended.", "Lighter.", "The light returns."] },
   branwen: { gained: ["One more arrow in the quiver.", "I'll use it.", "Notch it."],
-             lost:   ["Quiver lighter.", "I had too many anyway.", "It happens."] },
+             lost:   ["Quiver lighter.", "I had too many anyway.", "It happens."],
+             shed:   ["Quiver lighter — in a good way.", "Off my shoulder.", "Good."] },
   korin:   { gained: ["(He nods, once.)", "Stronger.", "Wall holds."],
-             lost:   ["(He grunts, sets his shield.)", "...still standing.", "It will pass."] },
+             lost:   ["(He grunts, sets his shield.)", "...still standing.", "It will pass."],
+             shed:   ["(He exhales, slow.)", "Off.", "Lighter wall."] },
   ash:     { gained: ["...quieter.", "Veil thickens.", "Useful."],
-             lost:   ["...thinner.", "Less hidden.", "Tch."] },
+             lost:   ["...thinner.", "Less hidden.", "Tch."],
+             shed:   ["Quieter now.", "The veil softens.", "...lighter."] },
   mira:    { gained: ["Sharp.", "I'll cut better.", "Good."],
-             lost:   ["Dull.", "Annoying.", "I'll deal."] },
+             lost:   ["Dull.", "Annoying.", "I'll deal."],
+             shed:   ["Off the blade.", "Better.", "Sharp again."] },
   garron:  { gained: ["The wall is wider.", "Hold the line.", "Good."],
-             lost:   ["The wall is thinner.", "Hold anyway.", "...still here."] },
+             lost:   ["The wall is thinner.", "Hold anyway.", "...still here."],
+             shed:   ["Lighter shield.", "Released.", "Good."] },
   lirien:  { gained: ["A new note.", "The chord deepens.", "Sing it."],
-             lost:   ["A note dropped.", "...the chord thins.", "I will hum without it."] },
+             lost:   ["A note dropped.", "...the chord thins.", "I will hum without it."],
+             shed:   ["A note finds its rest.", "The chord clears.", "Released."] },
   vasha:   { gained: ["Light remembers.", "It shines clearer.", "Marked."],
-             lost:   ["Dimmer.", "...the light still finds.", "It will return."] },
+             lost:   ["Dimmer.", "...the light still finds.", "It will return."],
+             shed:   ["The light lifts it.", "Forgiven.", "Released."] },
   hask:    { gained: ["Colder.", "Sharper.", "Good."],
-             lost:   ["Warmer than I want.", "Tch.", "I'll freeze again."] },
+             lost:   ["Warmer than I want.", "Tch.", "I'll freeze again."],
+             shed:   ["...melted off.", "Off.", "Good."] },
 };
 
 // Brief full-screen reveal when a hero earns or loses an affinity (quirk).
@@ -4518,6 +4613,7 @@ function showQuirkAward(charId, quirkId) {
     cls: q.positive ? 'qa-positive' : 'qa-negative',
     eyebrow: q.positive ? '+ AFFINITY GAINED' : '− AFFLICTION GAINED',
     name: `${def.name} · ${q.name}`,
+    flavor: q.flavor,
     desc: q.desc,
     portraitId: charId,
     bark,
@@ -4525,20 +4621,21 @@ function showQuirkAward(charId, quirkId) {
 }
 
 // Shed-an-ailment reveal — mirror of showQuirkAward but for the campfire
-// "Reflect on regret" path.  Uses the positive-tinted backdrop because
-// shedding a negative IS a positive moment.
+// "Reflect on regret" path.  Uses a dedicated 'shed' tint and the hero's
+// shed-bark bank so the moment reads as relief, not pride.
 function showQuirkLost(charId, quirkId) {
   if (typeof __simulating !== 'undefined' && __simulating) return;
   const def = CHARS[charId]; const q = QUIRKS[quirkId];
   if (!def || !q) return;
   const bank = AFFINITY_BARKS[charId];
-  const lines = bank && bank.gained;
+  const lines = (bank && bank.shed) || (bank && bank.gained) || null;
   const bark = (lines && lines.length) ? lines[Math.floor(Math.random() * lines.length)] : null;
   _showAwardBackdrop({
-    cls: 'qa-positive',
+    cls: 'qa-shed',
     eyebrow: '− AFFLICTION SHED',
     name: `${def.name} · ${q.name}`,
-    desc: 'Released by the fire.  The weight does not return.',
+    flavor: 'Released by the fire.  The weight does not return.',
+    desc: q.desc,
     portraitId: charId,
     bark,
   });
@@ -4562,7 +4659,7 @@ function showSigilAward(sigilId) {
 // wires the dismiss flow (tap anywhere or auto after a hold).  When a
 // portraitId + bark are supplied, renders a small hero portrait with a
 // chat bubble above the card — same visual register as combat barks.
-function _showAwardBackdrop({ cls, eyebrow, name, desc, portraitId, bark }) {
+function _showAwardBackdrop({ cls, eyebrow, name, flavor, desc, portraitId, bark }) {
   const old = document.getElementById('quirk-award-backdrop');
   if (old) old.remove();
   const backdrop = document.createElement('div');
@@ -4574,12 +4671,19 @@ function _showAwardBackdrop({ cls, eyebrow, name, desc, portraitId, bark }) {
          <div class="qa-portrait">${PORTRAITS[portraitId]}</div>
        </div>`
     : '';
+  // Each row carries a .qa-row class so the staggered fade-in cascade
+  // (eyebrow → name → flavor → desc) reads as one beat unfolding rather
+  // than everything popping in at once.
+  const flavorMarkup = flavor ? `<div class="qa-flavor qa-row">"${flavor}"</div>` : '';
+  const descMarkup   = desc   ? `<div class="qa-desc qa-row">${desc}</div>` : '';
   backdrop.innerHTML = `
     <div id="quirk-award" class="qa ${cls}">
+      <div class="qa-aura" aria-hidden="true"></div>
       ${portraitMarkup}
-      <div class="qa-eyebrow">${eyebrow}</div>
-      <div class="qa-name">${name}</div>
-      <div class="qa-desc">${desc}</div>
+      <div class="qa-eyebrow qa-row">${eyebrow}</div>
+      <div class="qa-name qa-row">${name}</div>
+      ${flavorMarkup}
+      ${descMarkup}
     </div>
   `;
   document.body.appendChild(backdrop);
@@ -4592,8 +4696,12 @@ function _showAwardBackdrop({ cls, eyebrow, name, desc, portraitId, bark }) {
     setTimeout(() => { if (backdrop.isConnected) backdrop.remove(); }, 450);
   };
   backdrop.addEventListener('click', dismiss);
-  // Hold longer when a vignette portrait is shown so the bark reads.
-  setTimeout(dismiss, portraitId ? 3400 : 2600);
+  // Hold longer when there's a flavor line + portrait so the player has
+  // time to read the moment — the reveal cascade alone takes ~700ms.
+  const holdMs = portraitId
+    ? (flavor ? 4400 : 3400)
+    : (flavor ? 3400 : 2600);
+  setTimeout(dismiss, holdMs);
 }
 
 // Pick a random quirk of a given polarity (positive | negative | any).
