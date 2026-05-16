@@ -4180,7 +4180,7 @@ const SIGILS = {
   patience:   { id: 'patience',   name: 'Crown of Patience',   icon: '◆', category: 'resource', desc: 'Start every fight with at least 2 Resolve.' },
   reaver:     { id: 'reaver',     name: 'Sigil of the Reaver', icon: '☠', category: 'combat',   desc: 'Killing an enemy grants +1 additional Resolve.' },
   // === new pool ===
-  hunt:       { id: 'hunt',       name: 'Mark of the Hunt',    icon: '➤', category: 'combat',   desc: 'Weakness hits deal +2 damage.' },
+  hunt:       { id: 'hunt',       name: 'Mark of the Hunt',    icon: '➤', category: 'combat',   desc: 'Weakness hits also apply Vuln 1. Stagger consumes deal 3× instead of 2×.' },
   cinders:    { id: 'cinders',    name: 'Pact of Cinders',     icon: '🜂', category: 'combat',   desc: 'Killing an enemy applies bleed 1 to all remaining enemies.' },
   doom:       { id: 'doom',       name: 'Brand of Doom',       icon: '⊕', category: 'combat',   desc: "Vulnerable stacks aren't consumed by attacks." },
   aegis:      { id: 'aegis',      name: 'Sigil of Aegis',      icon: '◈', category: 'defense',  desc: 'Each incoming hit deals 1 less HP damage after armor.' },
@@ -5383,7 +5383,6 @@ function previewDamage(s, e, baseAmt, actorId, techElement) {
     if (weaks.includes(element)) {
       amt = Math.round(amt * 1.5);
       badge = 'WEAK!';
-      if (hasSigil(s, 'hunt')) amt += 2;
     } else if (resists.includes(element)) {
       amt = Math.max(1, Math.floor(amt * 0.5));
       badge = 'RESIST';
@@ -5391,10 +5390,11 @@ function previewDamage(s, e, baseAmt, actorId, techElement) {
   }
 
   // Stagger consume preview — next damaging hit on a staggered enemy
-  // doubles.  staggerBonusUsed prevents the preview from over-counting
-  // when a multi-hit tech is being simulated downstream.
+  // doubles (or triples with Mark of the Hunt).  staggerBonusUsed prevents
+  // the preview from over-counting when a multi-hit tech is being
+  // simulated downstream.
   if (e.staggered && !e.staggerBonusUsed && amt > 0) {
-    amt *= 2;
+    amt *= (hasSigil(s, 'hunt') ? 3 : 2);
     badge = badge || 'STG!';
   }
 
@@ -5585,8 +5585,6 @@ function applyDmgToEnemy(s, e, baseAmt) {
       isWeaknessHit = true;
       // press-turn loop: weakness hit banks +1 ATB for next turn (capped at +1)
       s.pendingBonusAtb = Math.min(1, (s.pendingBonusAtb || 0) + 1);
-      // Mark of the Hunt sigil — weakness hits deal +2 damage.
-      if (hasSigil(s, 'hunt')) amt += 2;
     } else if (resists.includes(element)) {
       amt = Math.max(1, Math.floor(amt * 0.5));
       schoolBadge = 'RESIST';
@@ -5594,11 +5592,12 @@ function applyDmgToEnemy(s, e, baseAmt) {
   }
 
   // Stagger consume — the next damaging hit on a staggered enemy deals 2×
-  // and clears the state.  Guarded by staggerBonusUsed so multi-hit techs
-  // don't double-fire the bonus.
+  // (3× with Mark of the Hunt) and clears the state.  Guarded by
+  // staggerBonusUsed so multi-hit techs don't double-fire the bonus.
   let pendingStaggerClear = false;
   if (e.staggered && !e.staggerBonusUsed && amt > 0) {
-    amt *= 2;
+    const stgMult = hasSigil(s, 'hunt') ? 3 : 2;
+    amt *= stgMult;
     e.staggerBonusUsed = true;
     schoolBadge = schoolBadge || 'STG!';
     pendingStaggerClear = true;
@@ -5621,11 +5620,21 @@ function applyDmgToEnemy(s, e, baseAmt) {
   // Brand of Doom — vuln stacks aren't consumed by attacks
   if (vulnConsumed && !hasSigil(s, 'doom')) e.vuln = Math.max(0, e.vuln - 1);
 
+  // Mark of the Hunt — weakness hits also apply +1 vuln so the chain
+  // builds on itself: every weakness hit primes the next one to land
+  // harder.  Applied after the current hit (doesn't compound itself).
+  if (hasSigil(s, 'hunt') && isWeaknessHit && amt > 0 && !e.dead) e.vuln += 1;
+
   // First damaging hit reveals the weakness icon.  Hask's Frostbreak
   // passive also flips this even on a 0-damage hit so he scouts the
   // enemy for the rest of the party regardless of armor.
-  if (!e.weaknessRevealed && (toHp > 0 || s.currentActorId === 'hask')) {
+  // Gate is `amt > 0` (not `toHp > 0`) so a weakness hit that gets fully
+  // absorbed by armor STILL reveals — the blow connected on the weak
+  // point, armor just caught it.  Old gate left armored enemies feeling
+  // like they had no weakness even when the player nailed the element.
+  if (!e.weaknessRevealed && (amt > 0 || s.currentActorId === 'hask')) {
     e.weaknessRevealed = true;
+    e._weaknessJustRevealed = true;
     if (s.currentActorId === 'hask' && toHp === 0) spawnPassivePopup('hask', 'FROSTBREAK');
   }
 
@@ -5633,7 +5642,9 @@ function applyDmgToEnemy(s, e, baseAmt) {
   // school on a fresh target makes them WEAKENED; hitting them again
   // with their weakness same turn promotes to STAGGERED.  The 2× consume
   // already fired above; pendingStaggerClear handles the recovery.
-  if (isWeaknessHit && toHp > 0 && !e.dead && !pendingStaggerClear) {
+  // Same `amt > 0` rule applies — full-armor-absorb still counts as a
+  // strike on the weak point thematically and mechanically.
+  if (isWeaknessHit && amt > 0 && !e.dead && !pendingStaggerClear) {
     if (e.weakened && !e.staggered) {
       e.staggered = true;
       spawnPopupId(e.id, 'STAGGERED', 'stagger', 'enemy');
@@ -7262,10 +7273,18 @@ function renderTiles() {
     // which moveset belongs to which hero when the action tray crowds up.
     const head = document.createElement('div');
     head.className = 'char-col-head';
+    // School glyph on the column header so the player can instantly tell
+    // which hero matches a given enemy weakness icon.  Same glyph as the
+    // weakness reveal under the enemy's HP bar.
+    const SCHOOL_GLYPH_COL = { physical: '⚔', holy: '✦', arcane: '✶', ranged: '➳', stealth: '◐' };
+    const heroSchool = def.school;
+    const schoolGlyph = heroSchool
+      ? `<span class="cch-school cch-school-${heroSchool}" title="School: ${heroSchool}" data-tip="School: ${heroSchool.toUpperCase()} — match to an enemy's weakness icon to trigger WEAKENED / STAGGERED.">${SCHOOL_GLYPH_COL[heroSchool] || ''}</span>`
+      : '';
     head.innerHTML = `
       <div class="cch-portrait" aria-hidden="true">${PORTRAITS[charId] || ''}</div>
       <div class="cch-meta">
-        <span class="cch-name">${def.name}</span>
+        <span class="cch-name">${schoolGlyph}${def.name}</span>
         <span class="cch-slot">${SLOT_LABELS[simSlot] || '—'}</span>
       </div>
     `;
@@ -7445,13 +7464,19 @@ function makeEnemyCard(e, slot) {
     </div>`;
 
   // Weakness reveal — once any damaging hit has landed (or Hask's
-  // Frostbreak passive fires), show a small school-glyph next to the HP bar.
+  // Frostbreak passive fires), show a school-glyph + uppercase school
+  // name under the HP bar.  Bigger + labeled so the player doesn't need
+  // to memorise the glyph legend.  The .fresh class triggers a one-time
+  // scale-pulse animation on first reveal (see DOM fixup below).
   const SCHOOL_GLYPH = { physical: '⚔', holy: '✦', arcane: '✶', ranged: '➳', stealth: '◐' };
   const weakDef = def.weakness;
   const weakSchool = Array.isArray(weakDef) ? weakDef[0] : weakDef;
   const weaknessLabel = weakSchool ? `${SCHOOL_GLYPH[weakSchool] || '?'} ${weakSchool.toUpperCase()}` : '';
   const weaknessIcon = (e.weaknessRevealed && weakSchool)
-    ? `<span class="weakness-icon weakness-icon-${weakSchool}" title="Weak to ${weakSchool}">${SCHOOL_GLYPH[weakSchool] || '?'}</span>`
+    ? `<span class="weakness-icon weakness-icon-${weakSchool}" title="Weak to ${weakSchool}" data-tip="Weak to ${weakSchool.toUpperCase()} — match this element to weaken, then again to stagger.">
+         <span class="wi-glyph">${SCHOOL_GLYPH[weakSchool] || '?'}</span>
+         <span class="wi-text">${weakSchool.toUpperCase()}</span>
+       </span>`
     : '';
   // Stagger strip — labeled state row under the HP bar so the player can
   // read the loop directly off the enemy card.  Replaces the tiny corner
@@ -7459,10 +7484,16 @@ function makeEnemyCard(e, slot) {
   // self-documenting.
   let stateStrip = '';
   if (e.staggered) {
-    stateStrip = `<div class="state-strip state-strip-staggered" title="Staggered — the next damaging hit deals 2× damage">⚡ STAGGERED · NEXT HIT 2×</div>`;
+    const stgTip = 'STAGGERED — the next damaging hit (any element) deals 2× damage, then they recover. State clears at end of turn if you don\'t follow up.';
+    stateStrip = `<div class="state-strip state-strip-staggered" title="${stgTip}" data-tip="${stgTip}">⚡ STAGGERED · NEXT HIT × 2</div>`;
   } else if (e.weakened) {
-    const more = weakSchool ? `${SCHOOL_GLYPH[weakSchool] || '?'} +1 = STAGGER` : '+1 WEAKNESS = STAGGER';
-    stateStrip = `<div class="state-strip state-strip-weakened" title="Weakened — hit them with their weakness again to stagger">⌖ WEAKENED · ${more}</div>`;
+    // Spell out HOW to stagger so the player doesn't need to remember the
+    // glyph legend.  e.g. "WEAKENED · HIT WITH ✦ HOLY → STAGGER"
+    const more = weakSchool
+      ? `HIT WITH ${SCHOOL_GLYPH[weakSchool] || '?'} ${weakSchool.toUpperCase()} → STAGGER`
+      : 'HIT WEAKNESS AGAIN → STAGGER';
+    const wkTip = `WEAKENED — hit them with their weakness school again this turn to stagger. State clears at end of turn if you don't follow up.`;
+    stateStrip = `<div class="state-strip state-strip-weakened" title="${wkTip}" data-tip="${wkTip}">⌖ WEAKENED · ${more}</div>`;
   }
 
   fig.innerHTML = `
@@ -7483,6 +7514,16 @@ function makeEnemyCard(e, slot) {
     </div>
   `;
   bindFigureHold(fig, e.id, false);
+  // If the weakness just flipped to revealed this tick, queue a one-shot
+  // .fresh class on the icon so the CSS reveal pulse plays.  Clear the
+  // transient flag after — re-renders shouldn't replay the animation.
+  if (e._weaknessJustRevealed) {
+    e._weaknessJustRevealed = false;
+    requestAnimationFrame(() => {
+      const ic = fig.querySelector('.weakness-icon');
+      if (ic) ic.classList.add('fresh');
+    });
+  }
   return fig;
 }
 
@@ -7928,7 +7969,7 @@ function previewTargetsForTile(kind, charId, dir) {
   const s = getPreviewState();
   if (kind === 'attack' || kind === 'special') {
     const slot = slotOfChar(s, charId);
-    if (!slot) return { enemySlots: [], partySlots: [], enemyHits: [], partyHeals: [], moveSlots: [] };
+    if (!slot) return { enemySlots: [], partySlots: [], enemyHits: [], partyHeals: [], moveSlots: [], weaknessSlots: [], staggerSlots: [], element: null };
     const variant = getTech(s, charId, slot, kind === 'special' ? 'sig' : 'basic');
     const targets = resolveTargets(s, variant) || [];
     const enemyHits = targets.map(e => {
@@ -7951,7 +7992,28 @@ function previewTargetsForTile(kind, charId, dir) {
       const dest = moveDestSlotFor(slot, variant.move);
       if (dest && dest !== slot) moveSlots.push({ from: slot, to: dest });
     }
-    return { enemySlots, partySlots, enemyHits, partyHeals, moveSlots };
+    // Weakness / stagger context highlights — when the tile would deal
+    // damage, show a school-tinted ring around every alive enemy weak to
+    // this element AND a gold pulse around any currently-staggered enemy
+    // (since the next damaging hit on staggered = 2× regardless of element).
+    // Even out-of-reach enemies are highlighted so the player can decide
+    // to reposition before committing.
+    const weaknessSlots = [];
+    const staggerSlots = [];
+    let element = null;
+    if (typeof variant.dmg === 'number') {
+      const heroSchool = CHARS[charId] && CHARS[charId].school;
+      element = variant.element || heroSchool || null;
+      const asArr = x => Array.isArray(x) ? x : (x ? [x] : []);
+      aliveEnemies(s).forEach(e => {
+        const sl = SLOTS.find(sl => s.enemies.slots[sl] === e.id);
+        if (!sl) return;
+        const weaks = asArr(ENEMIES[e.id] && ENEMIES[e.id].weakness);
+        if (element && weaks.includes(element)) weaknessSlots.push(sl);
+        if (e.staggered) staggerSlots.push(sl);
+      });
+    }
+    return { enemySlots, partySlots, enemyHits, partyHeals, moveSlots, weaknessSlots, staggerSlots, element };
   }
   if (kind === 'move') {
     const slot = slotOfChar(s, charId);
@@ -8012,8 +8074,24 @@ function bindTileHold(tile, handlers) {
   tile.addEventListener('contextmenu',  (e) => e.preventDefault());
 }
 
-function applyPreviewHighlight({ enemySlots, partySlots, enemyHits, partyHeals, moveSlots }) {
+function applyPreviewHighlight({ enemySlots, partySlots, enemyHits, partyHeals, moveSlots, weaknessSlots, staggerSlots, element }) {
   clearPreviewHighlight();
+  // Element-weakness aura: school-tinted ring on EVERY alive enemy weak to
+  // this tile's element, in-reach or not.  Lets the player see the matchup
+  // before committing — and decide to reposition if the weak enemy is out
+  // of the current reach.
+  (weaknessSlots || []).forEach(sl => {
+    const el = document.querySelector(`#enemy-half .figure[data-slot="${sl}"]`);
+    if (!el) return;
+    el.classList.add('weakness-target');
+    if (element) el.dataset.weaknessSchool = element;
+  });
+  // Stagger aura: any staggered enemy gets a gold lightning pulse so the
+  // 2× window is impossible to miss.
+  (staggerSlots || []).forEach(sl => {
+    const el = document.querySelector(`#enemy-half .figure[data-slot="${sl}"]`);
+    if (el) el.classList.add('stagger-target');
+  });
   const hitBySlot = {};
   (enemyHits || []).forEach(h => { if (h && h.slot) hitBySlot[h.slot] = h; });
   (enemySlots || []).forEach(sl => {
@@ -8093,6 +8171,11 @@ function clearPreviewHighlight() {
   document.querySelectorAll('.target-marker').forEach(el => el.classList.remove('target-marker'));
   document.querySelectorAll('.move-dest').forEach(el => el.classList.remove('move-dest'));
   document.querySelectorAll('.move-src').forEach(el => el.classList.remove('move-src'));
+  document.querySelectorAll('.weakness-target').forEach(el => {
+    el.classList.remove('weakness-target');
+    delete el.dataset.weaknessSchool;
+  });
+  document.querySelectorAll('.stagger-target').forEach(el => el.classList.remove('stagger-target'));
   document.querySelectorAll('.target-dmg-label, .target-heal-label, .target-move-tag, .move-from-arrow').forEach(el => el.remove());
 }
 
@@ -8968,7 +9051,7 @@ function showTutorialToast(html, onDismiss) {
 // to surface its explanation. Capture-phase so the figure's setPointerCapture
 // (pickup gesture) doesn't swallow the tap.
 function bindChipExplainers() {
-  const CHIP_SEL = '.status-chip, .affinity-chip, .adj-chip, .incoming-chip, .sigil-chip, .hero-quirk, .run-mod-chip, .fig-quirk';
+  const CHIP_SEL = '.status-chip, .affinity-chip, .adj-chip, .incoming-chip, .sigil-chip, .hero-quirk, .run-mod-chip, .fig-quirk, .state-strip, .weakness-icon, .cch-school';
   document.addEventListener('pointerdown', (e) => {
     const chip = e.target.closest(CHIP_SEL);
     if (chip && chip.getAttribute('title')) {
