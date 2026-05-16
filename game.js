@@ -7958,12 +7958,14 @@ function renderSigilTray() {
   if (!tray) return;
   const owned = (state.run && state.run.sigils) || [];
   const squad = activeSquadSigils(state);
+  tray.classList.remove('empty');
   if (!owned.length && !squad.length) {
-    tray.innerHTML = '';
-    tray.classList.add('empty');
+    // No-sigils anchor — still draw a dim placeholder so the tray's spot
+    // is visible on combat AND map.  Player can see WHERE sigils land
+    // before they have any, instead of staring at empty space.
+    tray.innerHTML = `<span class="sigil-tray-empty" aria-label="No sigils bound yet">◇ NO SIGILS YET</span>`;
     return;
   }
-  tray.classList.remove('empty');
   const ownedChips = owned.map(id => {
     const s = SIGILS[id];
     if (!s) return '';
@@ -10053,6 +10055,11 @@ function showPathChoice() { renderMap(); }
 
 function renderMap() {
   applyBiomeBackground();
+  // Refresh the HUD strip so the sigil tray + run modifier chip reflect
+  // anything bound on the previous node (events, rests, victory rewards).
+  // The strip is z-lifted above the overlay so it stays visible here.
+  renderSigilTray();
+  renderRunModifier();
   // Path map is a full-bleed scene — clear any prior frame class then mark.
   $('#overlay').classList.remove('overlay-vignette', 'overlay-runsummary');
   $('#overlay').classList.add('overlay-full', 'overlay-path');
