@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#0d0a08" />
   <title>KIZUNA | Resonance</title>
-  <link rel="stylesheet" href="styles.css?v=68" />
+  <link rel="stylesheet" href="styles.css?v=69" />
 </head>
 <body>
 
@@ -17,7 +17,6 @@
     </div>
   </div>
 
-  <button id="info-btn" type="button" title="Menu" aria-label="Open menu">☰</button>
 
   <!-- Full-bleed title screen.  Drawn outside #stage so it covers the whole
        viewport without inheriting the game grid.  Shown/hidden via .hidden. -->
@@ -101,10 +100,11 @@
       </div>
     </div>
 
-    <!-- ROW 1: HUD — run modifier (left), sigil tray (right) -->
+    <!-- ROW 1: HUD — run modifier (left), sigil tray (centre/right), menu button (right) -->
     <header id="hud" aria-label="Run state">
       <div id="run-modifier" aria-label="Run modifier"></div>
       <div id="sigil-tray" aria-label="Acquired sigils"></div>
+      <button id="info-btn" type="button" title="Menu" aria-label="Open menu">☰</button>
     </header>
 
     <!-- ROW 2: ATB queue (slim, above battlefield) -->
@@ -148,6 +148,6 @@
 
   </main>
 
-  <script src="game.js?v=68"></script>
+  <script src="game.js?v=69"></script>
 </body>
 </html>

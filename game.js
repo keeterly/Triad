@@ -5840,6 +5840,11 @@ function newState(forcedStarter) {
   // Unlocked starter pool is meta-progression: heroes the player has
   // walked with in past runs become available as starters.
   const startSolo = (forcedStarter && CHARS[forcedStarter]) ? forcedStarter : _pickStarter();
+  // Carried-party snapshot from a previous layer's boss win.  Consumed
+  // ONCE here (it clears localStorage on read) and used both for the
+  // party block and the run.sigils carry below, so the build climbs
+  // intact across layers.
+  const carried = consumeCarriedParty();
 
   return {
     turn: 1,
@@ -5858,7 +5863,7 @@ function newState(forcedStarter) {
       currentNodeId: null,   // id of the node player is currently fighting (or null between fights)
       completedNodes: [],    // ids of cleared map nodes, in completion order
       currentEnc: null,      // spec of the active encounter (set by startEncounter)
-      sigils: [],            // ids of acquired sigils (run-wide modifiers)
+      sigils: (carried && Array.isArray(carried.sigils)) ? carried.sigils.slice() : [],            // ids of acquired sigils (run-wide modifiers) — carried across layers
       lastVictoryElite: false, // did the most recent victory come from an elite encounter? (gates sigil reward size)
       layer: getCurrentLayer(),     // which Abyss layer this run is climbing
       map: generateMap(),    // freshly generated branching graph for this run
@@ -5874,7 +5879,7 @@ function newState(forcedStarter) {
     party: (() => {
       // Carried party from a previous layer's win takes precedence — the
       // same team climbs together, with HP / quirks / upgrades intact.
-      const carried = consumeCarriedParty();
+      // `carried` is the snapshot consumed above (or null on a fresh run).
       if (carried && carried.chars && carried.chars.length) {
         const chars = {};
         carried.chars.forEach(c => {
@@ -12020,7 +12025,11 @@ function saveCarriedParty(s) {
       const id = s.party.slots[sl];
       slots[sl] = (id && carriedIds.has(id)) ? id : null;
     });
-    const data = { chars, slots };
+    // Sigils carry across layers — the boss reward sigil + every sigil
+    // bound on the previous climb should follow the survivors up so the
+    // build doesn't reset on every ascent.
+    const sigils = ((s.run && s.run.sigils) || []).slice();
+    const data = { chars, slots, sigils };
     localStorage.setItem(CARRIED_KEY, JSON.stringify(data));
   } catch (_) {}
 }
