@@ -5528,6 +5528,32 @@ button.path-node { cursor: pointer; }
 
 /* SVG connector layer drawn behind nodes */
 #overlay-choices.path-map { position: relative; }
+/* Ambient drift — dust motes rising slowly behind the map nodes so
+   the screen breathes between the connector dashes and the node
+   pulses.  CSS-only, no DOM additions, no JS. */
+#overlay-choices.path-map::before {
+  content: '';
+  position: absolute;
+  inset: -20px 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    radial-gradient(2px 2px at 12% 88%, rgba(232,220,196,0.40), transparent 60%),
+    radial-gradient(2px 2px at 31% 72%, rgba(232,220,196,0.30), transparent 60%),
+    radial-gradient(1px 1px at 47% 60%, rgba(232,220,196,0.55), transparent 60%),
+    radial-gradient(2px 2px at 64% 78%, rgba(232,220,196,0.35), transparent 60%),
+    radial-gradient(1px 1px at 79% 64%, rgba(232,220,196,0.50), transparent 60%),
+    radial-gradient(2px 2px at 22% 40%, rgba(232,220,196,0.32), transparent 60%),
+    radial-gradient(1px 1px at 58% 32%, rgba(232,220,196,0.45), transparent 60%),
+    radial-gradient(2px 2px at 88% 22%, rgba(232,220,196,0.30), transparent 60%);
+  background-size: 100% 200%;
+  animation: map-drift 18s linear infinite;
+  opacity: 0.6;
+}
+@keyframes map-drift {
+  from { background-position: 0% 100%; }
+  to   { background-position: 0% 0%; }
+}
 .map-connectors { overflow: visible; }
 .map-connector {
   stroke: rgba(200,164,100,0.25);
@@ -7324,6 +7350,15 @@ button.path-node:not(:disabled):hover .pn-icon {
    to active choices but the type is already legible everywhere. */
 .path-node.node-elite.node-reachable .pn-icon  { box-shadow: 0 0 0 1.5px rgba(255,206,90,0.85), 0 0 22px rgba(255,206,90,0.35); }
 .path-node.node-boss.node-reachable  .pn-icon  { box-shadow: 0 0 0 2px rgba(212,69,69,0.95), 0 0 26px rgba(200,80,80,0.5); }
+/* Boss node always breathes red — the destination should feel alive
+   from stretch 1, not just when it becomes reachable. */
+.path-node.node-boss .pn-icon {
+  animation: boss-node-breathe 3.2s ease-in-out infinite;
+}
+@keyframes boss-node-breathe {
+  0%, 100% { box-shadow: 0 0 0 1.5px rgba(212,69,69,0.55), 0 0 14px rgba(200,80,80,0.25); }
+  50%      { box-shadow: 0 0 0 2px   rgba(212,69,69,0.85), 0 0 26px rgba(200,80,80,0.55); }
+}
 .path-node.node-rest.node-reachable  .pn-icon  { box-shadow: 0 0 0 1.5px rgba(152,216,120,0.85), 0 0 22px rgba(152,216,120,0.35); }
 .path-node.node-event.node-reachable .pn-icon  { box-shadow: 0 0 0 1.5px rgba(180,140,220,0.85), 0 0 22px rgba(154,120,192,0.35); }
 .path-node.node-combat.node-reachable .pn-icon { box-shadow: 0 0 0 1px rgba(232,220,196,0.55), 0 0 20px rgba(232,220,196,0.30); }
