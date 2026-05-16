@@ -2649,8 +2649,15 @@ function bindSigil(s, sigilId) {
   s.run.sigils = s.run.sigils || [];
   if (s.run.sigils.includes(sigilId)) return sg;
   s.run.sigils.push(sigilId);
+  // Mark for the pulse-in animation — renderSigilTray reads + clears
+  // this so the chip flashes once when it first lands in the tray.
+  s.run._sigilJustBound = sigilId;
   log(`<i>You bind the <b>${sg.name}</b>.</i>`);
   showSigilAward(sigilId);
+  // Re-render the tray right away so the chip appears immediately
+  // (before the fanfare finishes dismissing).  Without this, the chip
+  // wouldn't appear until the next combat tick.
+  try { renderSigilTray(); } catch (_) {}
   return sg;
 }
 
@@ -7992,6 +7999,18 @@ function renderSigilTray() {
   Array.from(tray.querySelectorAll('.sigil-chip')).forEach(chip => {
     bindSigilChipReveal(chip);
   });
+  // Pulse-in animation for a freshly-bound sigil — bindSigil stashes
+  // the id on state.run._sigilJustBound; we consume it here so the
+  // chip flashes exactly once, on the render that introduces it.
+  if (state.run && state.run._sigilJustBound) {
+    const fresh = state.run._sigilJustBound;
+    state.run._sigilJustBound = null;
+    const chip = tray.querySelector(`.sigil-chip[data-sigil="${fresh}"]`);
+    if (chip) {
+      chip.classList.add('sigil-just-bound');
+      setTimeout(() => chip.classList.remove('sigil-just-bound'), 2400);
+    }
+  }
 }
 
 // Tap a sigil chip to surface its full info in a dedicated card.  The
@@ -8959,17 +8978,73 @@ function previewTargetsForTile(kind, charId, dir) {
         if (e.staggered) staggerSlots.push(sl);
       });
     }
-    return { enemySlots, partySlots, enemyHits, partyHeals, moveSlots, weaknessSlots, staggerSlots, element };
+    const sigilIds = relevantSigilsForPreview(s, kind, charId, enemyHits, partyHeals, weaknessSlots, staggerSlots);
+    return { enemySlots, partySlots, enemyHits, partyHeals, moveSlots, weaknessSlots, staggerSlots, element, sigilIds };
   }
   if (kind === 'move') {
     const slot = slotOfChar(s, charId);
-    if (!slot) return { enemySlots: [], partySlots: [], enemyHits: [], moveSlots: [] };
+    if (!slot) return { enemySlots: [], partySlots: [], enemyHits: [], moveSlots: [], sigilIds: [] };
     const idx = SLOTS.indexOf(slot);
     const ti = idx + dir;
-    if (ti < 0 || ti > 2) return { enemySlots: [], partySlots: [], enemyHits: [], moveSlots: [] };
-    return { enemySlots: [], partySlots: [SLOTS[ti]], enemyHits: [], moveSlots: [{ from: slot, to: SLOTS[ti] }] };
+    if (ti < 0 || ti > 2) return { enemySlots: [], partySlots: [], enemyHits: [], moveSlots: [], sigilIds: [] };
+    return { enemySlots: [], partySlots: [SLOTS[ti]], enemyHits: [], moveSlots: [{ from: slot, to: SLOTS[ti] }], sigilIds: [] };
   }
-  return { enemySlots: [], partySlots: [], enemyHits: [], moveSlots: [] };
+  if (kind === 'brace') {
+    // Brace doesn't have a preview target, but it does set up Retaliate —
+    // surface Vow of Vigil so the player sees the connection.
+    const sigilIds = relevantSigilsForPreview(s, kind, charId, [], [], [], []);
+    return { enemySlots: [], partySlots: [], enemyHits: [], moveSlots: [], sigilIds };
+  }
+  return { enemySlots: [], partySlots: [], enemyHits: [], moveSlots: [], sigilIds: [] };
+}
+
+// Decide which owned sigils would respond to the action being previewed,
+// so the matching chips in the HUD strip can pulse during the hold.
+// Reads the same hit/heal/badge data the highlight render uses, then
+// gates each sigil on whether it's actually bound in the run.
+function relevantSigilsForPreview(s, kind, charId, enemyHits, partyHeals, weaknessSlots, staggerSlots) {
+  const owned = new Set((s.run && s.run.sigils) || []);
+  if (!owned.size && !activeSquadSigils(s).length) return [];
+  const result = new Set();
+  const has = (id) => owned.has(id);
+  const hits = enemyHits || [];
+  const heals = partyHeals || [];
+  // Any hit landing on a vulnerable enemy → wrath / doom.
+  const anyOnVuln = hits.some(h => {
+    if (!h.slot) return false;
+    const eid = s.enemies.slots[h.slot];
+    const e = eid && s.enemies.chars[eid];
+    return !!(e && (e.vuln || 0) > 0);
+  });
+  if (anyOnVuln) {
+    if (has('wrath')) result.add('wrath');
+    if (has('doom'))  result.add('doom');
+  }
+  // Killing hits → reaver / cinders / vigor.
+  const anyKill = hits.some(h => h.kill);
+  if (anyKill) {
+    if (has('reaver'))  result.add('reaver');
+    if (has('vigor'))   result.add('vigor');
+    if (has('cinders')) result.add('cinders');
+  }
+  // Weakness / stagger landings → hunt (vuln on weak, 3× on stagger consume).
+  if ((weaknessSlots && weaknessSlots.length) || (staggerSlots && staggerSlots.length)) {
+    if (has('hunt')) result.add('hunt');
+  }
+  // Heal-bearing actions → mercy (heal spread) + Mercy Doubled squad bond.
+  if (heals.length) {
+    if (has('mercy')) result.add('mercy');
+  }
+  // Special-kind actions → echo (cost -1) + stillness (cost 0).
+  if (kind === 'special') {
+    if (has('echo'))      result.add('echo');
+    if (has('stillness')) result.add('stillness');
+  }
+  // Brace → Vow of Vigil boosts the retaliate strike.
+  if (kind === 'brace') {
+    if (has('vigil')) result.add('vigil');
+  }
+  return Array.from(result);
 }
 
 // shared hold-detection. ~220ms hold enters preview mode (no queue on release);
@@ -9020,8 +9095,14 @@ function bindTileHold(tile, handlers) {
   tile.addEventListener('contextmenu',  (e) => e.preventDefault());
 }
 
-function applyPreviewHighlight({ enemySlots, partySlots, enemyHits, partyHeals, moveSlots, weaknessSlots, staggerSlots, element }) {
+function applyPreviewHighlight({ enemySlots, partySlots, enemyHits, partyHeals, moveSlots, weaknessSlots, staggerSlots, element, sigilIds }) {
   clearPreviewHighlight();
+  // Pulse any sigil chips whose effect would respond to this action so
+  // the player sees the cause/effect link without opening a panel.
+  (sigilIds || []).forEach(id => {
+    const chip = document.querySelector(`#sigil-tray .sigil-chip[data-sigil="${id}"]`);
+    if (chip) chip.classList.add('sigil-relevant');
+  });
   // Element-weakness aura: school-tinted ring on EVERY alive enemy weak to
   // this tile's element, in-reach or not.  Lets the player see the matchup
   // before committing — and decide to reposition if the weak enemy is out
@@ -9123,6 +9204,7 @@ function clearPreviewHighlight() {
   });
   document.querySelectorAll('.stagger-target').forEach(el => el.classList.remove('stagger-target'));
   document.querySelectorAll('.target-dmg-label, .target-heal-label, .target-move-tag, .move-from-arrow').forEach(el => el.remove());
+  document.querySelectorAll('#sigil-tray .sigil-chip.sigil-relevant').forEach(el => el.classList.remove('sigil-relevant'));
 }
 
 function makeMoveOrBraceTile(charId, slot, tileCounts, teamLocked) {

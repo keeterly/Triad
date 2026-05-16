@@ -201,7 +201,12 @@ body {
 #hud {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  /* Run modifier sits on the LEFT; sigil tray + menu button cluster on
+     the RIGHT.  Achieved with flex-start + margin-left:auto on the
+     sigil tray, so both right-hand items hug the right edge of the
+     strip — easier to scan than the previous space-between layout
+     where the sigils drifted toward the centre. */
+  justify-content: flex-start;
   gap: 8px;
   padding: 0 8px;
   position: relative;
@@ -255,6 +260,9 @@ body {
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   padding: 1px 2px;
+  /* Push the tray (and the menu button that follows it) to the right
+     edge of the HUD strip. */
+  margin-left: auto;
 }
 #sigil-tray::-webkit-scrollbar { display: none; }
 #sigil-tray.empty { display: none; }
@@ -309,6 +317,48 @@ body {
   text-shadow: 0 1px 0 var(--shadow), 0 0 8px rgba(0,0,0,0.5);
 }
 .sigil-chip:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.6), 0 0 12px rgba(212,180,120,0.18), 0 0 0 1px rgba(0,0,0,0.4) inset; }
+
+/* ===========================================================================
+   SIGIL CHIP PULSE STATES
+   - .sigil-just-bound: one-shot 2.4s reveal cascade fired when the
+     sigil first lands in the tray (bindSigil stashes the id).
+   - .sigil-relevant: looping subtle pulse while the player holds an
+     action that would trigger this sigil.  Calls out the cause/effect
+     link without opening a panel.
+   =========================================================================== */
+@keyframes sigil-bound-pulse {
+  0%   { transform: scale(0.6) rotate(-6deg); opacity: 0; box-shadow: 0 0 0 0 rgba(212,180,120,0); }
+  35%  { transform: scale(1.18) rotate(2deg); opacity: 1; box-shadow: 0 0 24px 6px rgba(240,212,136,0.55); }
+  60%  { transform: scale(1) rotate(0deg);    opacity: 1; box-shadow: 0 0 18px 2px rgba(240,212,136,0.4); }
+  100% { transform: scale(1);                  opacity: 1; box-shadow: 0 2px 6px rgba(0,0,0,0.55), 0 0 0 1px rgba(0,0,0,0.4) inset; }
+}
+.sigil-chip.sigil-just-bound {
+  animation: sigil-bound-pulse 2.4s ease-out;
+  border-color: var(--gold-bright) !important;
+}
+.sigil-chip.sigil-just-bound .sigil-chip-icon {
+  text-shadow: 0 0 18px rgba(240,212,136,0.85), 0 0 6px rgba(255,240,200,0.7);
+}
+
+@keyframes sigil-relevant-pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.55), 0 0 0 1px rgba(0,0,0,0.4) inset;
+    border-color: rgba(240,212,136,0.85);
+  }
+  50% {
+    transform: scale(1.10);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.55), 0 0 16px 3px rgba(240,212,136,0.5), 0 0 0 1px rgba(0,0,0,0.4) inset;
+    border-color: var(--gold-bright);
+  }
+}
+.sigil-chip.sigil-relevant {
+  animation: sigil-relevant-pulse 0.95s ease-in-out infinite;
+  border-color: var(--gold-bright);
+}
+.sigil-chip.sigil-relevant .sigil-chip-icon {
+  text-shadow: 0 0 14px rgba(240,212,136,0.6), 0 0 4px rgba(255,240,200,0.5);
+}
 /* Category coloring — border + icon tint */
 .sigil-chip.cat-combat   { border-color: rgba(212,69,69,0.55); }
 .sigil-chip.cat-combat   .sigil-chip-icon { color: var(--blood-bright); }
@@ -7949,7 +7999,6 @@ body.killing-blow::before {
    overlay (z-index 280), so the button stays reachable on the map. */
 #info-btn {
   flex-shrink: 0;
-  margin-left: auto;
   width: 44px;
   height: 44px;
   border-radius: 4px;
