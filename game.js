@@ -2226,8 +2226,9 @@ const EVENTS = {
           const candidates = rare.filter(id => SIGILS[id] && !(s.run.sigils || []).includes(id));
           if (candidates.length) {
             const pick = candidates[Math.floor(Math.random() * candidates.length)];
-            (s.run.sigils = s.run.sigils || []).push(pick);
-            log(`The verse becomes a sigil — <b>${SIGILS[pick].name}</b>.`);
+            bindSigil(s, pick);
+          } else {
+            log('The verse fades; nothing new remains to bind.');
           }
           aliveParty(s).forEach(c => { c.maxHp = Math.max(1, c.maxHp - 2); c.hp = Math.min(c.hp, c.maxHp); });
         } },
@@ -2583,22 +2584,30 @@ function _hurtRandomAlive(s, amt) {
   log(`<b>${CHARS[c.id].name}</b> sheds blood — ${amt} HP.`);
 }
 function _rollEventQuirk(s, polarity) {
-  const ids = Object.values(s.party.chars).map(c => c.id);
+  // Walk EVERY alive hero (shuffled) before giving up, so a maxed-out
+  // pick doesn't silently no-op back to the map.
+  const ids = aliveParty(s).map(c => c.id);
   if (!ids.length) return;
-  const targetId = ids[Math.floor(Math.random() * ids.length)];
-  const c = s.party.chars[targetId];
-  if (!c) return;
-  const taken = new Set([...c.quirks.positive, ...c.quirks.negative]);
-  const pool = Object.values(QUIRKS).filter(q =>
-    (polarity === 'positive') === !!q.positive
-    && !taken.has(q.id)
-    && (!q.heroId || q.heroId === targetId));
-  if (!pool.length) return;
-  if (c.quirks[polarity].length >= QUIRK_CAP) return;
-  const q = pool[Math.floor(Math.random() * pool.length)];
-  grantQuirk(s, targetId, q.id);
-  const verb = polarity === 'positive' ? 'gains' : 'is afflicted with';
-  log(`<i><b>${CHARS[targetId].name}</b> ${verb} <b>${q.name}</b>.</i>`);
+  const shuffled = ids.slice().sort(() => Math.random() - 0.5);
+  for (const targetId of shuffled) {
+    const c = s.party.chars[targetId];
+    if (!c || !c.quirks) continue;
+    if (c.quirks[polarity].length >= QUIRK_CAP) continue;
+    const taken = new Set([...c.quirks.positive, ...c.quirks.negative]);
+    const pool = Object.values(QUIRKS).filter(q =>
+      (polarity === 'positive') === !!q.positive
+      && !taken.has(q.id)
+      && (!q.heroId || q.heroId === targetId));
+    if (!pool.length) continue;
+    const q = pool[Math.floor(Math.random() * pool.length)];
+    grantQuirk(s, targetId, q.id);
+    const verb = polarity === 'positive' ? 'gains' : 'is afflicted with';
+    log(`<i><b>${CHARS[targetId].name}</b> ${verb} <b>${q.name}</b>.</i>`);
+    return;
+  }
+  // Everyone's full — log so the player at least gets feedback that the
+  // moment passed without an award.
+  log(`<i>The reach hums and passes.  No one carries a new mark from it.</i>`);
 }
 // Survivor variant — boss-defeat rewards skip downed heroes since only the
 // surviving party carries to the next layer.  Falls back silently if no
@@ -4920,10 +4929,16 @@ function showQuirkAward(charId, quirkId) {
   const bank = AFFINITY_BARKS[charId];
   const lines = bank && bank[q.positive ? 'gained' : 'lost'];
   const bark = (lines && lines.length) ? lines[Math.floor(Math.random() * lines.length)] : null;
+  // awardQuirkAfterWin stashes a contextual narrator line on state so the
+  // fanfare can show WHY this hero earned the quirk from this specific
+  // fight ("After the elite's death...", "Watched X fall...").  Falls
+  // back to the quirk's static flavor when no reason was set.
+  const reason = (typeof state !== 'undefined' && state && state._pendingAffinityReason) || null;
   _showAwardBackdrop({
     cls: q.positive ? 'qa-positive' : 'qa-negative',
     eyebrow: q.positive ? '+ AFFINITY GAINED' : '− AFFLICTION GAINED',
     name: `${def.name} · ${q.name}`,
+    reason,
     flavor: q.flavor,
     desc: q.desc,
     portraitId: charId,
@@ -4970,7 +4985,7 @@ function showSigilAward(sigilId) {
 // wires the dismiss flow (tap anywhere or auto after a hold).  When a
 // portraitId + bark are supplied, renders a small hero portrait with a
 // chat bubble above the card — same visual register as combat barks.
-function _showAwardBackdrop({ cls, eyebrow, name, flavor, desc, portraitId, bark }) {
+function _showAwardBackdrop({ cls, eyebrow, name, reason, flavor, desc, portraitId, bark }) {
   const old = document.getElementById('quirk-award-backdrop');
   if (old) old.remove();
   const backdrop = document.createElement('div');
@@ -4983,8 +4998,9 @@ function _showAwardBackdrop({ cls, eyebrow, name, flavor, desc, portraitId, bark
        </div>`
     : '';
   // Each row carries a .qa-row class so the staggered fade-in cascade
-  // (eyebrow → name → flavor → desc) reads as one beat unfolding rather
-  // than everything popping in at once.
+  // (eyebrow → name → reason → flavor → desc) reads as one beat
+  // unfolding rather than everything popping in at once.
+  const reasonMarkup = reason ? `<div class="qa-reason qa-row">${reason}</div>` : '';
   const flavorMarkup = flavor ? `<div class="qa-flavor qa-row">"${flavor}"</div>` : '';
   const descMarkup   = desc   ? `<div class="qa-desc qa-row">${desc}</div>` : '';
   backdrop.innerHTML = `
@@ -4993,6 +5009,7 @@ function _showAwardBackdrop({ cls, eyebrow, name, flavor, desc, portraitId, bark
       ${portraitMarkup}
       <div class="qa-eyebrow qa-row">${eyebrow}</div>
       <div class="qa-name qa-row">${name}</div>
+      ${reasonMarkup}
       ${flavorMarkup}
       ${descMarkup}
     </div>
@@ -5009,9 +5026,11 @@ function _showAwardBackdrop({ cls, eyebrow, name, flavor, desc, portraitId, bark
   backdrop.addEventListener('click', dismiss);
   // Hold longer when there's a flavor line + portrait so the player has
   // time to read the moment — the reveal cascade alone takes ~700ms.
-  const holdMs = portraitId
+  // Reason adds another beat to read.
+  const base = portraitId
     ? (flavor ? 4400 : 3400)
     : (flavor ? 3400 : 2600);
+  const holdMs = base + (reason ? 1000 : 0);
   setTimeout(dismiss, holdMs);
 }
 
@@ -5059,10 +5078,14 @@ function awardBossSpoils(s, onDone) {
   setTimeout(() => offerSigilFromNode(onDone), 400);
 }
 
+// Roll an affinity/affliction after a non-boss victory.  Loops every alive
+// hero (shuffled) so a maxed-out roster doesn't silently skip the award.
+// Returns { charId, quirkId } on success so the caller can pace the fanfare;
+// returns null when no eligible grant exists.
 function awardQuirkAfterWin(s, completedNode) {
-  if (!completedNode || completedNode.type === 'boss') return;
+  if (!completedNode || completedNode.type === 'boss') return null;
   const aliveIds = Object.values(s.party.chars).filter(c => !c.downed).map(c => c.id);
-  if (!aliveIds.length) return;
+  if (!aliveIds.length) return null;
   let polarity = null;
   if (completedNode.type === 'elite') {
     polarity = 'positive';
@@ -5071,10 +5094,11 @@ function awardQuirkAfterWin(s, completedNode) {
     if (roll < 0.40) polarity = 'positive';
     else if (roll < 0.65) polarity = 'negative';
   }
-  if (!polarity) return;
-  // Try up to 3 random characters before giving up (handles caps + duplicates)
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const targetId = aliveIds[Math.floor(Math.random() * aliveIds.length)];
+  if (!polarity) return null;
+  // Walk EVERY eligible hero (shuffled) before giving up.  This stops
+  // the silent-no-op when 2-3 random picks all happen to be quirk-capped.
+  const shuffled = aliveIds.slice().sort(() => Math.random() - 0.5);
+  for (const targetId of shuffled) {
     const c = s.party.chars[targetId];
     if (!c || !c.quirks) continue;
     if (c.quirks[polarity].length >= QUIRK_CAP) continue;
@@ -5085,11 +5109,54 @@ function awardQuirkAfterWin(s, completedNode) {
       && (!q.heroId || q.heroId === targetId));
     if (!pool.length) continue;
     const q = pool[Math.floor(Math.random() * pool.length)];
+    const reason = quirkReasonForFight(s, completedNode, polarity, targetId);
+    // Stash the contextual reason so showQuirkAward can render it as a
+    // narrator line in the fanfare ("After the elite's death...").
+    s._pendingAffinityReason = reason;
     grantQuirk(s, targetId, q.id);
+    s._pendingAffinityReason = null;
     const verb = polarity === 'positive' ? 'gains' : 'is afflicted with';
     log(`<i><b>${CHARS[targetId].name}</b> ${verb} <b>${q.name}</b> — ${q.desc}</i>`);
-    return;
+    return { charId: targetId, quirkId: q.id, reason };
   }
+  return null;
+}
+
+// Stitch a one-line narrator caption to the affinity fanfare so the player
+// reads WHY this hero earned the quirk from THIS fight.  Pulls from the
+// fight context (downed allies, low-HP survivors, elite kills, biome).
+function quirkReasonForFight(s, completedNode, polarity, targetId) {
+  const c = s.party.chars[targetId];
+  const heroName = (CHARS[targetId] && CHARS[targetId].name) || 'They';
+  const stats = s.fightStats || {};
+  const downed = (stats.downed || []).filter(id => id !== targetId);
+  const isElite = completedNode && completedNode.type === 'elite';
+  const lowHp = c && c.hp / c.maxHp <= 0.3;
+  if (polarity === 'positive') {
+    if (isElite) {
+      return `The elite's last name was named.  ${heroName} stood through it.`;
+    }
+    if (downed.length > 0) {
+      const fallenName = (CHARS[downed[0]] && CHARS[downed[0]].name) || 'someone';
+      return `${heroName} carried the line after ${fallenName} fell.`;
+    }
+    if (lowHp) {
+      return `${heroName} held to the last breath — and the breath came.`;
+    }
+    return `The reach was kept clean.  ${heroName} steadies into it.`;
+  }
+  // negative
+  if (downed.length > 0) {
+    const fallenName = (CHARS[downed[0]] && CHARS[downed[0]].name) || 'someone';
+    return `${heroName} watched ${fallenName} fall — and could not stop it.`;
+  }
+  if (lowHp) {
+    return `${heroName} bled out close, and the dark left a mark.`;
+  }
+  if ((stats.turns || 0) >= 8) {
+    return `The fight dragged.  Something in ${heroName} dragged with it.`;
+  }
+  return `${heroName} carries something back from the reach.`;
 }
 
 function getAtbMax(s) {
@@ -7738,8 +7805,6 @@ function checkEnd(s) {
     const completedNode = s.run.currentNodeId ? getMapNode(s.run.currentNodeId) : null;
     s.run.lastVictoryElite = !!(completedNode && completedNode.type === 'elite');
     const isBoss = !!(completedNode && completedNode.type === 'boss');
-    // Affinity progression — roll a quirk grant before the post-fight UI fires
-    awardQuirkAfterWin(s, completedNode);
     if (isBoss) {
       // Boss kill — try a "Wakeling slain" vignette before the run summary.
       const bossCtx = captureFightContext(s);
@@ -7773,11 +7838,25 @@ function checkEnd(s) {
       // Snapshot fight context for vignette triggers (firedSynergies, minHp etc.)
       // BEFORE the next encounter resets them.
       const fightCtx = captureFightContext(s);
-      // Between fights: end-of-fight beat → recap → maybe a vignette →
-      // recruit → upgrade → sigil → map.  The reach-cleared banner gives
-      // the kill a moment to land before the stats overlay pops.
-      showReachClearedBanner();
-      setTimeout(() => showVictorySummary(completedEnc, () => offerVignetteOrPath(fightCtx)), 900);
+      // Between fights: cinematic killing-blow pause → reach banner →
+      // (maybe) affinity fanfare with reason → victory summary → recruit
+      // /upgrade/sigil/map.  The killing blow holds for a beat so it
+      // lands as a moment instead of cutting straight to UI.
+      playKillingBlowHold();
+      const KILL_HOLD = 1200;
+      const BANNER_HOLD = 1100;
+      const FANFARE_HOLD = 3600;
+      setTimeout(() => {
+        showReachClearedBanner();
+        setTimeout(() => {
+          // Affinity progression — roll AFTER the banner so the reveal
+          // doesn't get covered by the strap.  awardQuirkAfterWin runs
+          // its own showQuirkAward fanfare with a context-aware reason.
+          const awarded = awardQuirkAfterWin(s, completedNode);
+          const wait = awarded ? FANFARE_HOLD : 500;
+          setTimeout(() => showVictorySummary(completedEnc, () => offerVignetteOrPath(fightCtx)), wait);
+        }, BANNER_HOLD);
+      }, KILL_HOLD);
     }
     return true;
   }
@@ -9422,6 +9501,22 @@ function playDefeatIntro() {
   // hideOverlay so the next screen starts clean.
 }
 
+// Regular-fight killing-blow hold — slow-mo + dim for ~1s so the final
+// hit lands as a beat instead of cutting straight to the victory summary.
+// Lighter than playBossDeath; the body class is auto-removed once the
+// banner/fanfare cascade kicks in.
+function playKillingBlowHold() {
+  if (__simulating) return;
+  const stage = $('#stage');
+  if (stage) stage.classList.add('kill-slowmo');
+  document.body.classList.add('killing-blow');
+  shakeScreen(2);
+  setTimeout(() => {
+    if (stage) stage.classList.remove('kill-slowmo');
+    document.body.classList.remove('killing-blow');
+  }, 1200);
+}
+
 // Boss death slow-mo: dim the screen, slow CSS animations, brief flash.
 // Called from killEnemy when a boss falls.  Calls `then` after the
 // effect completes (so the run-summary cascade still fires).
@@ -10228,19 +10323,18 @@ function _completeNonCombatNode() {
 
   // Named recruit — events that introduce a specific hero (the Hooded
   // Watcher, etc.) set this to the heroId they want to invite.  Takes
-  // priority over the random stranger flow when both are queued.
+  // priority over the random stranger flow when both are queued.  The
+  // named event already delivered the introduction — we DON'T pop a
+  // second prompt here; the hero joins directly with a quick award
+  // fanfare.  (If the party is full, the swap overlay still fires —
+  // the player has to pick who walks the other way.)
   if (state.run._pendingNamedRecruit) {
     const heroId = state.run._pendingNamedRecruit;
     state.run._pendingNamedRecruit = null;
     if (CHARS[heroId] && !state.party.chars[heroId]) {
-      const hasOpenSlot = ['front','mid','back'].some(sl => {
-        const id = state.party.slots[sl];
-        if (!id) return true;
-        const c = state.party.chars[id];
-        return !!(c && c.downed);
-      });
-      if (hasOpenSlot) {
-        showRecruitVignette(heroId, 'stranger', () => renderMap());
+      const slot = findEmptySlotForRecruit(heroId);
+      if (slot) {
+        commitNamedRecruit(heroId, slot, () => renderMap());
       } else {
         showSwapOverlay(heroId, () => renderMap());
       }
@@ -11024,6 +11118,13 @@ function offerSigilFromNode(onDone) {
 
 function showSigilOverlay(offers, onDone) {
   const continueAfter = onDone || (() => renderMap());
+  // Defensive — even if a caller passes pre-filtered offers, scrub any
+  // sigil the player has already bound so the choice rail never shows a
+  // dead-end option (clicking it would short-circuit in bindSigil and
+  // dump the player back to the map with no feedback).
+  const owned = new Set((state.run && state.run.sigils) || []);
+  offers = (offers || []).filter(sg => sg && !owned.has(sg.id));
+  if (!offers.length) { continueAfter(); return; }
   // Use the wide overlay-event framing for parity with event / swap / rest
   // overlays — same 1100px chrome so the three big sigil cards have room.
   const $overlay = $('#overlay');
@@ -11194,6 +11295,7 @@ const RECRUIT_GREETINGS = {
   lirien:  "I am told my songs are a kind of weapon.  Let us see if it's true.",
   vasha:   "Light does not forgive.  But it remembers.  I can carry both.",
   hask:    "I bring the cold with me.  Do not stand still.",
+  veyr:    "I have named enough falls.  Let me name fewer.",
 };
 
 // Recruit moment — single hero appears in a mini-vignette.  Re-uses the
@@ -11355,6 +11457,41 @@ function showSwapOverlay(recruitId, onDone) {
     resetOverlayBtn();
     cleanup();
   };
+}
+
+// Named-recruit commit — the named event already delivered the introduction,
+// so we skip the recruit-vignette and just bind the hero to the empty slot
+// with a quick "joined" fanfare.  Reuses the award backdrop so the moment
+// reads as a beat, not a silent state mutation.
+function commitNamedRecruit(heroId, slot, onDone) {
+  const def = CHARS[heroId];
+  if (!def) { if (typeof onDone === 'function') onDone(); return; }
+  // Evict a downed occupant — the named event's "joins the climb" promise
+  // overrides a corpse holding the seat.
+  const occupant = state.party.slots[slot];
+  if (occupant && state.party.chars[occupant] && state.party.chars[occupant].downed) {
+    log(`<i><b>${CHARS[occupant].name}</b> is laid to rest.</i>`);
+    delete state.party.chars[occupant];
+  }
+  state.party.chars[heroId] = newCharState(heroId);
+  state.party.slots[slot] = heroId;
+  const c = state.party.chars[heroId];
+  if (c) c.hp = c.maxHp;
+  if (rememberRecruited(heroId)) log(`<i>${def.name} is now available as a starter for future runs.</i>`);
+  log(`<b>${def.name}</b> joins the party.`);
+  state.run.nodesSinceRecruit = 0;
+  _showAwardBackdrop({
+    cls: 'qa-positive qa-recruit',
+    eyebrow: '+ JOINED THE CLIMB',
+    name: def.name,
+    flavor: def.title || '',
+    desc: `Takes the ${SLOT_LABELS[slot] || slot} line.`,
+    portraitId: heroId,
+    bark: (RECRUIT_GREETINGS && RECRUIT_GREETINGS[heroId]) || null,
+  });
+  // Hold the fanfare for a beat before returning to the map so the join
+  // lands as a moment rather than a flash.
+  setTimeout(() => { if (typeof onDone === 'function') onDone(); }, 2400);
 }
 
 function commitRecruit(removeId, recruitId, onDone) {
