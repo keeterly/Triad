@@ -2102,6 +2102,140 @@ const EVENTS = {
         resolve: (s) => { aliveParty(s).forEach(c => { c.hp = c.maxHp; }); } },
     ],
   },
+
+  // ============================ NEW EVENTS — abyss interaction points ====
+  // Mix of open (always-eligible) and secret (gated) beats that surface as
+  // run depth grows.  Each is two or three choices, each with a meaningful
+  // mechanical hook (not just flavor).
+  wandering_oracle: {
+    id: 'wandering_oracle',
+    name: 'The Wandering Oracle',
+    flavor: 'A blindfolded figure sits cross-legged beside a small fire.  "I have two truths left in me.  You may have one."',
+    choices: [
+      { label: 'Ask about the Sin',  tag: 'next fight: bonus ATB this turn',
+        resolve: (s) => { s.run.bonusAtbNextFight = (s.run.bonusAtbNextFight || 0) + 1; log('The Oracle whispers the shape of the next reach.'); } },
+      { label: 'Ask about yourself', tag: '+positive affinity to a hero',
+        resolve: (s) => { _rollEventQuirk(s, 'positive'); } },
+      { label: 'Ask nothing',        tag: 'heal party 4 · the Oracle smiles',
+        resolve: (s) => { aliveParty(s).forEach(c => { c.hp = Math.min(c.maxHp, c.hp + 4); }); log('The Oracle nods, slow.'); } },
+    ],
+  },
+  pilgrims_cache: {
+    id: 'pilgrims_cache',
+    name: "A Pilgrim's Cache",
+    flavor: 'A worn satchel hangs from a marker stone.  Inside: a single sigil, a folded letter, a small vial of something cold.',
+    choices: [
+      { label: 'Take the sigil',   tag: 'gain a random sigil',
+        resolve: (s) => _grantRandomSigil(s) },
+      { label: 'Read the letter',  tag: 'shed one ailment',
+        resolve: (s) => {
+          const carriers = aliveParty(s).filter(c => c.quirks && c.quirks.negative && c.quirks.negative.length > 0);
+          if (!carriers.length) { log('The letter forgives someone you cannot name.'); return; }
+          const tgt = carriers.slice().sort((a, b) => b.quirks.negative.length - a.quirks.negative.length)[0];
+          const qid = tgt.quirks.negative[0];
+          tgt.quirks.negative = tgt.quirks.negative.filter(x => x !== qid);
+          const q = QUIRKS[qid];
+          if (q) { showQuirkLost(tgt.id, qid); log(`<b>${CHARS[tgt.id].name}</b> lets go of <b>${q.name}</b>.`); }
+        } },
+      { label: 'Drink the vial',   tag: 'party +2 armor each',
+        resolve: (s) => { aliveParty(s).forEach(c => { c.armor += 2; }); log('Cold settles around your bones.'); } },
+    ],
+  },
+  burning_book: {
+    id: 'burning_book',
+    name: 'The Burning Book',
+    secret: true,
+    when: (s) => s && s.run && s.run.layer >= 2,
+    flavor: 'A heavy tome smoulders in the dust.  The pages do not turn to ash.  They turn to other pages.',
+    choices: [
+      { label: 'Read the burning words', tag: 'rare sigil · −3 HP each',
+        resolve: (s) => {
+          const rare = ['memory', 'wrath', 'doom', 'reaver', 'quickening'];
+          const candidates = rare.filter(id => SIGILS[id] && !(s.run.sigils || []).includes(id));
+          if (candidates.length) {
+            const pick = candidates[Math.floor(Math.random() * candidates.length)];
+            bindSigil(s, pick);
+          }
+          aliveParty(s).forEach(c => { c.hp = Math.max(1, c.hp - 3); });
+        } },
+      { label: 'Throw it in the dark',   tag: 'heal party to full',
+        resolve: (s) => { aliveParty(s).forEach(c => { c.hp = c.maxHp; }); log('The dark accepts the offering.'); } },
+    ],
+  },
+  listening_grove: {
+    id: 'listening_grove',
+    name: 'The Listening Grove',
+    flavor: 'A circle of dead, leaning trees.  They are listening.  They have been listening for a long time.',
+    choices: [
+      { label: 'Speak a regret', tag: 'shed an ailment · +1 Resolve next fight',
+        resolve: (s) => {
+          const carriers = aliveParty(s).filter(c => c.quirks && c.quirks.negative && c.quirks.negative.length > 0);
+          if (carriers.length) {
+            const tgt = carriers[Math.floor(Math.random() * carriers.length)];
+            const qid = tgt.quirks.negative[0];
+            tgt.quirks.negative = tgt.quirks.negative.filter(x => x !== qid);
+            const q = QUIRKS[qid];
+            if (q) { showQuirkLost(tgt.id, qid); log(`<b>${CHARS[tgt.id].name}</b> lets go of <b>${q.name}</b>.`); }
+          } else {
+            log('You have no regrets to give.  The grove waits anyway.');
+          }
+          s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1;
+        } },
+      { label: 'Stand and listen', tag: 'heal party 4 · gain Resolve',
+        resolve: (s) => { aliveParty(s).forEach(c => { c.hp = Math.min(c.maxHp, c.hp + 4); }); gainResolve(s, 1); } },
+    ],
+  },
+  tributaries: {
+    id: 'tributaries',
+    name: 'Tributaries',
+    secret: true,
+    when: (s) => s && s.party && s.party.chars && Object.keys(s.party.chars).length >= 2,
+    flavor: 'Two streams of pale water flow from the cliff above and join here.  One tastes of iron, the other of salt.  You can drink from only one.',
+    choices: [
+      { label: 'Drink the iron stream', tag: 'one hero +5 max HP',
+        resolve: (s) => {
+          const alive = aliveParty(s);
+          if (!alive.length) return;
+          const tgt = alive[Math.floor(Math.random() * alive.length)];
+          tgt.maxHp += 5; tgt.hp = Math.min(tgt.maxHp, tgt.hp + 5);
+          log(`<b>${CHARS[tgt.id].name}</b> stands taller.  Iron sits behind their teeth.`);
+        } },
+      { label: 'Drink the salt stream', tag: 'one hero +affinity',
+        resolve: (s) => { _rollEventQuirk(s, 'positive'); } },
+    ],
+  },
+  silent_choir: {
+    id: 'silent_choir',
+    name: 'The Silent Choir',
+    flavor: 'A line of robed figures stand in silence.  Their mouths are open.  No sound comes out — but you can feel a hymn pressing against your ribs.',
+    choices: [
+      { label: 'Sing for them',    tag: 'heal party 6 · +1 Resolve next fight',
+        resolve: (s) => { aliveParty(s).forEach(c => { c.hp = Math.min(c.maxHp, c.hp + 6); }); s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1; } },
+      { label: 'Walk past quietly', tag: 'gain a random sigil',
+        resolve: (s) => _grantRandomSigil(s) },
+    ],
+  },
+  ironbound_pact: {
+    id: 'ironbound_pact',
+    name: 'The Ironbound Pact',
+    secret: true,
+    when: (s) => s && s.run && s.run.layer >= 3 && (s.run.sigils || []).length >= 1,
+    flavor: 'A spirit in chains kneels in the dust.  "I will lift my weight to yours.  Bind me, and I will lift one more sin from your path."',
+    choices: [
+      { label: 'Accept the chains', tag: 'next fight: −1 max HP each, gain rare sigil',
+        resolve: (s) => {
+          const rare = ['memory', 'wrath', 'doom', 'reaver', 'quickening', 'hunt', 'aegis'];
+          const candidates = rare.filter(id => SIGILS[id] && !(s.run.sigils || []).includes(id));
+          if (candidates.length) {
+            const pick = candidates[Math.floor(Math.random() * candidates.length)];
+            bindSigil(s, pick);
+          }
+          aliveParty(s).forEach(c => { c.maxHp = Math.max(1, c.maxHp - 1); c.hp = Math.min(c.hp, c.maxHp); });
+        } },
+      { label: 'Refuse the offer', tag: '+1 Resolve next fight',
+        resolve: (s) => { s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1; log('The spirit nods, slow.'); } },
+    ],
+  },
 };
 
 function _hurtRandomAlive(s, amt) {
@@ -3634,7 +3768,11 @@ function markVignetteFired(id) {
 // Each non-boss node links to 1-2 random next-level nodes; we then
 // guarantee every next-level node is reachable from at least one parent.
 function generateMap() {
-  const numLevels = 5;
+  // Map length scales with layer depth so later layers feel like longer
+  // descents.  Layer 1 keeps the 5-level shape players learn on; later
+  // layers stretch out and pack in more variety (events, elites, rests).
+  const layer = (state && state.run && state.run.layer) || 1;
+  const numLevels = Math.min(5 + Math.max(0, layer - 1), 8);
   const usedNames = new Set();
   const levels = [];
   const nodes = {};
@@ -3666,6 +3804,17 @@ function generateMap() {
       // L3: elite + combat + (event or rest) — three-way choice
       const extra = Math.random() < 0.5 ? 'event' : 'rest';
       countAndTypes = _shuffle(['elite', 'combat', extra]);
+    } else if (lvl === 4 && numLevels >= 7) {
+      // New mid-layer bend in deeper runs — give the player another
+      // event/elite branch instead of plain combat.
+      const mix = Math.random() < 0.5
+        ? ['combat', 'elite', 'event']
+        : ['combat', 'event', 'rest'];
+      countAndTypes = _shuffle(mix);
+    } else if (lvl === 5 && numLevels >= 8) {
+      // Deepest runs get one more mixed bend before the gate-rest-boss
+      // closer.  Sigil-heavy choice band.
+      countAndTypes = _shuffle(['elite', 'event', 'combat']);
     } else {
       const c = 2 + Math.floor(Math.random() * 2);
       countAndTypes = Array(c).fill('combat');
@@ -5272,6 +5421,21 @@ function startEncounter(encSpec) {
   }
   // Crown of Patience — start every fight with at least 2 Resolve
   if (hasSigil(state, 'patience')) state.resolve = Math.max(state.resolve, 2);
+  // Consume event/vignette bonuses queued for the next fight start.  These
+  // were granted by events ("the note follows", "the spirit nods") and
+  // had been silently dropping on the floor — now plumbed through so the
+  // promises actually pay out.  Resolve respects RESOLVE_MAX; bonus ATB
+  // is banked the same way as a weakness-exploit refund.
+  if (state.run.bonusResolveNextFight) {
+    state.resolve = Math.min(RESOLVE_MAX + (hasSigil(state, 'memory') ? 1 : 0),
+                             state.resolve + state.run.bonusResolveNextFight);
+    log(`<i>You enter the reach with +${state.run.bonusResolveNextFight} Resolve from before.</i>`);
+    state.run.bonusResolveNextFight = 0;
+  }
+  if (state.run.bonusAtbNextFight) {
+    state.pendingBonusAtb = (state.pendingBonusAtb || 0) + state.run.bonusAtbNextFight;
+    state.run.bonusAtbNextFight = 0;
+  }
   // Sigil of Steel — start each fight with +2 armor on each party member
   if (hasSigil(state, 'steel')) {
     Object.values(state.party.chars).forEach(c => { if (!c.downed) c.armor += 2; });
