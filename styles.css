@@ -1141,7 +1141,9 @@ body {
 
 /* Weakness-target aura — fires when the player previews an action whose
    element matches the enemy's weakness.  Tinted per school so the player
-   can see "this attack would land on this enemy's weakness" instantly. */
+   can see "this attack would land on this enemy's weakness" instantly.
+   Uses ::after so it doesn't override objective ::before markers (priority
+   crown, ticking charge) that share the same anchor. */
 .figure.weakness-target { filter: drop-shadow(0 0 14px currentColor); }
 .figure.weakness-target[data-weakness-school="physical"] { color: #d8c2a0; }
 .figure.weakness-target[data-weakness-school="holy"]     { color: #f4e6b8; }
@@ -1170,11 +1172,14 @@ body {
 }
 
 /* Staggered enemy under preview — gold lightning so the 2× window can't
-   be missed.  Stacks on top of weakness-target if both apply. */
-.figure.stagger-target {
-  filter: drop-shadow(0 0 16px rgba(255,206,90,0.85));
+   be missed.  Uses .stagger-badge as a real child element so it doesn't
+   conflict with the priority/ticking ::before markers. */
+.figure.stagger-target { filter: drop-shadow(0 0 16px rgba(255,206,90,0.85)); }
+.figure.stagger-target .stagger-badge,
+.figure.stagger-target::after {
+  /* fallback ::after only fires if no .stagger-badge child exists */
 }
-.figure.stagger-target::before {
+.figure.stagger-target:not(:has(.stagger-badge))::after {
   content: '⚡ 2×';
   position: absolute;
   top: -12px; left: 50%;
@@ -1190,6 +1195,14 @@ body {
   z-index: 12;
   pointer-events: none;
   animation: stagger-target-pulse 0.65s ease-in-out infinite alternate;
+}
+/* When BOTH weakness and stagger highlights apply, suppress the ::after
+   fallback (weakness owns ::after already) so the two don't collide. */
+.figure.weakness-target.stagger-target::after {
+  content: '⚡ WEAK 2×' !important;
+  color: #fff3b8 !important;
+  background: rgba(120,60,0,0.85) !important;
+  text-shadow: 0 0 8px rgba(255,206,90,0.9) !important;
 }
 @keyframes stagger-target-pulse {
   from { opacity: 0.85; transform: translateX(-50%) scale(0.96); }

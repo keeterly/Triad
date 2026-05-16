@@ -1529,6 +1529,19 @@ const ENEMIES = {
         dmgPartyAt(s, 'back', 2);
       } },
     ],
+    // Adaptive — pick the cruellest move for the current board.
+    //   - back hero with armor → Crack the Shield (strip + dmg)
+    //   - mid+back both wounded → Pierce (AoE)
+    //   - default → Aimed Shot (heavy single)
+    pickIntent: (s) => {
+      const back = charBySlot(s, 'back');
+      const mid  = charBySlot(s, 'mid');
+      if (back && !back.downed && back.armor >= 2) return 2; // Crack
+      const lowMid  = mid  && !mid.downed  && mid.hp  / mid.maxHp  < 0.55;
+      const lowBack = back && !back.downed && back.hp / back.maxHp < 0.55;
+      if (lowMid && lowBack) return 1; // Pierce
+      return 0; // Aimed Shot
+    },
   },
   grappler: {
     id: 'grappler', name: 'Grappler', title: 'Sin of Grasp', maxHp: 20,
@@ -1545,6 +1558,18 @@ const ENEMIES = {
         }
       } },
     ],
+    // Adaptive — read the formation and respond:
+    //   - front hero is taunting OR has lots of armor → Bind (break taunt, dull)
+    //   - front hero is wounded → Crush (finish them)
+    //   - mid hero is the healer/support shape → Hook (pull them out of position)
+    pickIntent: (s) => {
+      const front = charBySlot(s, 'front');
+      const mid   = charBySlot(s, 'mid');
+      if (front && !front.downed && (front.taunt || front.armor >= 3)) return 2; // Bind
+      if (front && !front.downed && front.hp / front.maxHp < 0.45) return 1; // Crush
+      if (mid && !mid.downed && mid.hp / mid.maxHp > 0.7) return 0; // Hook the still-healthy mid
+      return 1; // default Crush
+    },
   },
   // ---- Additional enemy types for run-to-run variety ----
   husk: {
@@ -1572,6 +1597,22 @@ const ENEMIES = {
       { name: 'Mirror Shard', tag: 'ATK 4 + vuln',    targetSlot: 'back', kind: 'debuff', dmg: 4, fn: (s) => { dmgPartyAt(s, 'back', 4); applyVulnParty(s, 'back', 1); } },
       { name: 'Hush',         tag: 'DULL lowest',     targetSlot: '?',   kind: 'debuff', fn: (s) => { const t = aliveParty(s).slice().sort((a,b) => a.hp - b.hp)[0]; if (t) t.dulled += 2; } },
     ],
+    // Adaptive — pick the line that hurts the most right now:
+    //   - lowest-HP hero is critical (≤30%) → Hush (silence the dying)
+    //   - back hero is squishy (lower hp ratio than front) → Mirror Shard
+    //   - default → Repeat (pressure the front line)
+    pickIntent: (s) => {
+      const alive = aliveParty(s);
+      if (!alive.length) return 0;
+      const lowest = alive.slice().sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp))[0];
+      if (lowest && (lowest.hp / lowest.maxHp) <= 0.30) return 2; // Hush
+      const back  = charBySlot(s, 'back');
+      const front = charBySlot(s, 'front');
+      const backRatio  = back  && !back.downed  ? back.hp  / back.maxHp  : 1;
+      const frontRatio = front && !front.downed ? front.hp / front.maxHp : 1;
+      if (backRatio < frontRatio - 0.15) return 1; // Mirror Shard
+      return 0; // Repeat
+    },
   },
   ashling: {
     id: 'ashling', name: 'Ashling', title: 'Sin of Drifting', maxHp: 10,
@@ -5903,6 +5944,10 @@ function applyDmgToEnemy(s, e, baseAmt) {
       amt = Math.round(amt * 1.5);
       schoolBadge = 'WEAK!';
       isWeaknessHit = true;
+      // Per-turn flag for the Ticking Threat objective — if the catalyst
+      // was struck on its weakness this turn, the charge holds even if
+      // the stagger consume cleared the staggered state.
+      e._weaknessHitThisTurn = true;
       // press-turn loop: weakness hit banks +1 ATB for next turn (capped at +1)
       s.pendingBonusAtb = Math.min(1, (s.pendingBonusAtb || 0) + 1);
     } else if (resists.includes(element)) {
@@ -6558,7 +6603,23 @@ function startTurn(s) {
   // Weakness/stagger state decays at the top of each player turn.  If
   // the player didn't capitalize last turn (no 2× consume hit), the
   // enemy recovers — no turn-skip, just the window closes.
-  aliveEnemies(s).forEach(e => { e.weakened = false; e.staggered = false; e.staggerBonusUsed = false; });
+  aliveEnemies(s).forEach(e => { e.weakened = false; e.staggered = false; e.staggerBonusUsed = false; e._weaknessHitThisTurn = false; });
+  // Adaptive intents — enemies whose ENEMIES def carries a `pickIntent`
+  // function get to choose THIS turn's intent based on live state (party
+  // HP, formation, sigil counts).  We commit the choice to e.intentIdx
+  // here so the telegraph, the projection, and the resolver all read the
+  // same intent.  Linear-rotation enemies are left alone.
+  aliveEnemies(s).forEach(e => {
+    const def = ENEMIES[e.id];
+    if (def && typeof def.pickIntent === 'function') {
+      try {
+        const picked = def.pickIntent(s, e);
+        if (typeof picked === 'number' && picked >= 0 && picked < def.intents.length) {
+          e.intentIdx = picked;
+        }
+      } catch (_) {}
+    }
+  });
   // Vow of Iron — front slot wakes turn 1 with Taunt.  Applied AFTER the
   // taunt-clear so it survives this single turn; the next startTurn clears
   // it normally.  The _vowIronPending flag was set in initEncounter so
@@ -7143,8 +7204,13 @@ function tickObjectiveCharge(s) {
     const targetId = s.enemies.slots[obj.targetSlot];
     const target = targetId && s.enemies.chars[targetId];
     if (!target || target.dead) return; // disarmed elsewhere
-    if (target.staggered) {
-      log('<i>The catalyst staggers — the charge holds.</i>');
+    // Pause the charge on any pressure: still-staggered at end of phase
+    // OR weakness-hit at any point this turn.  The second condition
+    // matters because the new stagger system consumes the bonus on the
+    // very next damaging hit and clears the state — a player who lands
+    // STAGGER → exploit-hit would otherwise see the pause skipped.
+    if (target.staggered || target._weaknessHitThisTurn) {
+      log('<i>The catalyst flinches under the pressure — the charge holds.</i>');
       return;
     }
     obj.charge = Math.max(0, (obj.charge || 0) - 1);
