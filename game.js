@@ -1926,6 +1926,121 @@ const ENEMIES = {
       return 4; // Final Bloom (AoE + self-heal)
     },
   },
+
+  // ============================ WANDERER FIGHT PROFILES ===============
+  // Each fightable hero has a sin-shaped solo profile here — what they
+  // become if the player draws a blade on them on the road.  Reuses the
+  // intent pipeline so startEncounter() needs zero special-casing.
+  // Naming convention: `wand_<heroId>` so the wanderer lookup can resolve
+  // an enemy id without a separate table.
+  wand_kai: {
+    id: 'wand_kai', name: 'Kai', title: 'On the Road', maxHp: 34,
+    weakness: 'arcane', resistance: 'physical',
+    intents: [
+      { name: 'Slash',     tag: 'ATK 7',          targetSlot: 'front', kind: 'atk', dmg: 7, fn: (s) => dmgPartyAt(s, 'front', 7) },
+      { name: 'Quick Cut', tag: 'ATK 5 + bleed',  targetSlot: '?',     kind: 'atk', dmg: 5, fn: (s) => { dmgLowestParty(s, 5); const a = aliveParty(s).slice().sort((x,y) => x.hp - y.hp)[0]; if (a) a.bleed = Math.max(a.bleed, 1); } },
+      { name: 'Whetstone', tag: '+3⛨ self',      targetSlot: '?',     kind: 'armor', fn: (s) => { const me = Object.values(s.enemies.chars).find(en => en.id === 'wand_kai' && !en.dead); if (me) me.armor += 3; } },
+    ],
+  },
+  wand_cassia: {
+    id: 'wand_cassia', name: 'Cassia', title: 'On the Road', maxHp: 36,
+    weakness: 'arcane', resistance: 'physical',
+    intents: [
+      { name: 'Greatsword Cleave', tag: 'ATK 8 + vuln', targetSlot: 'front', kind: 'atk', dmg: 8, fn: (s) => { dmgPartyAt(s, 'front', 8); const c = charBySlot(s, 'front'); if (c && !c.downed) c.vuln += 1; } },
+      { name: 'Banner Raise',      tag: '+3⛨ self',    targetSlot: '?',     kind: 'armor', fn: (s) => { const me = Object.values(s.enemies.chars).find(en => en.id === 'wand_cassia' && !en.dead); if (me) me.armor += 3; } },
+      { name: 'Sunder',            tag: 'ATK 10 + strip', targetSlot: 'front', kind: 'atk', dmg: 10, fn: (s) => { const c = charBySlot(s, 'front'); if (c && !c.downed) c.armor = 0; dmgPartyAt(s, 'front', 10); } },
+    ],
+  },
+  wand_elin: {
+    id: 'wand_elin', name: 'Elin', title: 'On the Road', maxHp: 30,
+    weakness: 'physical', resistance: 'arcane',
+    intents: [
+      { name: 'Phase Step',  tag: 'ATK 5 + retreat',  targetSlot: 'front', kind: 'atk', dmg: 5, fn: (s) => dmgPartyAt(s, 'front', 5) },
+      { name: 'Veil Step',   tag: 'ATK 4 all',        targetSlot: 'all',   kind: 'aoe', dmg: 4, fn: (s) => dmgAllParty(s, 4) },
+      { name: 'Mend (self)', tag: '+8 hp self',       targetSlot: '?',     kind: 'heal', fn: (s) => { const me = Object.values(s.enemies.chars).find(en => en.id === 'wand_elin' && !en.dead); if (me) { me.hp = Math.min(me.maxHp, me.hp + 8); spawnPopupId('wand_elin', '+8', 'heal', 'enemy'); } } },
+    ],
+  },
+  wand_branwen: {
+    id: 'wand_branwen', name: 'Branwen', title: 'On the Road', maxHp: 30,
+    weakness: 'stealth', resistance: 'ranged',
+    intents: [
+      { name: 'Named Arrow', tag: 'ATK 7 + bleed', targetSlot: 'back', kind: 'atk', dmg: 7, fn: (s) => { dmgPartyAt(s, 'back', 7); const c = charBySlot(s, 'back'); if (c && !c.downed) c.bleed = Math.max(c.bleed, 1); } },
+      { name: 'Pierce',      tag: 'ATK 4 M+B',     targetSlot: 'pierce', kind: 'aoe', dmg: 4, fn: (s) => dmgPierce(s, 4) },
+      { name: 'Trick Shot',  tag: 'ATK 6 low',     targetSlot: '?',    kind: 'atk', dmg: 6, fn: (s) => dmgLowestParty(s, 6) },
+    ],
+  },
+  wand_korin: {
+    id: 'wand_korin', name: 'Korin', title: 'On the Road', maxHp: 34,
+    weakness: 'holy', resistance: 'physical',
+    intents: [
+      { name: 'Reckless Strike', tag: 'ATK 8',           targetSlot: 'front', kind: 'atk', dmg: 8, fn: (s) => dmgPartyAt(s, 'front', 8) },
+      { name: 'Bloodfury',       tag: 'ATK 4 all + bleed', targetSlot: 'all', kind: 'aoe', dmg: 4, fn: (s) => { dmgAllParty(s, 4); aliveParty(s).forEach(c => { c.bleed = Math.max(c.bleed, 1); }); } },
+      { name: 'Berserker Cleave', tag: 'ATK 11 + bleed', targetSlot: 'front', kind: 'atk', dmg: 11, fn: (s) => { dmgPartyAt(s, 'front', 11); const c = charBySlot(s, 'front'); if (c && !c.downed) c.bleed = Math.max(c.bleed, 2); } },
+    ],
+  },
+  wand_ash: {
+    id: 'wand_ash', name: 'Ash', title: 'On the Road', maxHp: 28,
+    weakness: 'physical', resistance: 'arcane',
+    intents: [
+      { name: 'Fireball',  tag: 'ATK 7 + vuln',    targetSlot: '?',  kind: 'atk', dmg: 7, fn: (s) => { dmgLowestParty(s, 7); const a = aliveParty(s).slice().sort((x,y) => x.hp - y.hp)[0]; if (a) a.vuln += 1; } },
+      { name: 'Arcane Bolts', tag: 'ATK 4 all',    targetSlot: 'all', kind: 'aoe', dmg: 4, fn: (s) => dmgAllParty(s, 4) },
+      { name: 'Pyroclasm', tag: 'ATK 9 + vuln 2',  targetSlot: 'mid', kind: 'atk', dmg: 9, fn: (s) => { dmgPartyAt(s, 'mid', 9); const c = charBySlot(s, 'mid'); if (c && !c.downed) c.vuln += 2; } },
+    ],
+  },
+  wand_mira: {
+    id: 'wand_mira', name: 'Mira', title: 'On the Road', maxHp: 32,
+    weakness: 'holy', resistance: 'stealth',
+    intents: [
+      { name: 'Backstab',     tag: 'ATK 7 + bleed',  targetSlot: '?',     kind: 'atk', dmg: 7, fn: (s) => { dmgLowestParty(s, 7); const a = aliveParty(s).slice().sort((x,y) => x.hp - y.hp)[0]; if (a) a.bleed = Math.max(a.bleed, 1); } },
+      { name: 'Twin Daggers', tag: 'ATK 5 ×2 low',   targetSlot: '?',     kind: 'atk', dmg: 5, fn: (s) => { dmgLowestParty(s, 5); dmgLowestParty(s, 5); } },
+      { name: 'Poison Cloud', tag: 'ATK 3 all + bleed', targetSlot: 'all', kind: 'aoe', dmg: 3, fn: (s) => { dmgAllParty(s, 3); aliveParty(s).forEach(c => { c.bleed = Math.max(c.bleed, 1); }); } },
+    ],
+  },
+  wand_garron: {
+    id: 'wand_garron', name: 'Garron', title: 'On the Road', maxHp: 42,
+    weakness: 'arcane', resistance: 'physical',
+    intents: [
+      { name: 'Halt',        tag: 'ATK 5 + self-taunt', targetSlot: 'front', kind: 'atk', dmg: 5, fn: (s) => dmgPartyAt(s, 'front', 5) },
+      { name: 'Bulwark',     tag: '+4⛨ self',          targetSlot: '?',     kind: 'armor', fn: (s) => { const me = Object.values(s.enemies.chars).find(en => en.id === 'wand_garron' && !en.dead); if (me) me.armor += 4; } },
+      { name: 'Tower Slam',  tag: 'ATK 9',             targetSlot: 'front', kind: 'atk', dmg: 9, fn: (s) => dmgPartyAt(s, 'front', 9) },
+    ],
+  },
+  wand_lirien: {
+    id: 'wand_lirien', name: 'Lirien', title: 'On the Road', maxHp: 28,
+    weakness: 'physical', resistance: 'arcane',
+    intents: [
+      { name: 'Discord',  tag: 'ATK 5 + vuln 2',  targetSlot: 'front', kind: 'atk', dmg: 5, fn: (s) => { dmgPartyAt(s, 'front', 5); const c = charBySlot(s, 'front'); if (c && !c.downed) c.vuln += 2; } },
+      { name: 'Lullaby',  tag: 'ATK 2 all + dull', targetSlot: 'all',  kind: 'aoe', dmg: 2, fn: (s) => { dmgAllParty(s, 2); aliveParty(s).forEach(c => { c.dulled += 1; }); } },
+      { name: 'Crescendo', tag: 'ATK 4 all + vuln 1 all', targetSlot: 'all', kind: 'aoe', dmg: 4, fn: (s) => { dmgAllParty(s, 4); aliveParty(s).forEach(c => { c.vuln += 1; }); } },
+    ],
+  },
+  wand_vasha: {
+    id: 'wand_vasha', name: 'Vasha', title: 'On the Road', maxHp: 30,
+    weakness: 'stealth', resistance: 'holy',
+    intents: [
+      { name: 'Litany',     tag: 'ATK 6 + heal self 4', targetSlot: '?', kind: 'atk', dmg: 6, fn: (s) => { dmgLowestParty(s, 6); const me = Object.values(s.enemies.chars).find(en => en.id === 'wand_vasha' && !en.dead); if (me) { me.hp = Math.min(me.maxHp, me.hp + 4); spawnPopupId('wand_vasha', '+4', 'heal', 'enemy'); } } },
+      { name: 'Pulpit',     tag: 'ATK 5 + dull all',  targetSlot: 'all', kind: 'aoe', dmg: 5, fn: (s) => { dmgAllParty(s, 5); aliveParty(s).forEach(c => { c.dulled += 1; }); } },
+      { name: 'Sun Verse',  tag: 'ATK 9 holy',        targetSlot: 'front', kind: 'atk', dmg: 9, fn: (s) => dmgPartyAt(s, 'front', 9) },
+    ],
+  },
+  wand_hask: {
+    id: 'wand_hask', name: 'Hask', title: 'On the Road', maxHp: 34,
+    weakness: 'physical', resistance: 'arcane',
+    intents: [
+      { name: 'Frost-Claw',   tag: 'ATK 7',          targetSlot: 'front', kind: 'atk', dmg: 7, fn: (s) => dmgPartyAt(s, 'front', 7) },
+      { name: 'Chill Mist',   tag: 'ATK 2 all + vuln 1 all', targetSlot: 'all', kind: 'aoe', dmg: 2, fn: (s) => { dmgAllParty(s, 2); aliveParty(s).forEach(c => { c.vuln += 1; }); } },
+      { name: 'Glacier Crush', tag: 'ATK 11',        targetSlot: 'front', kind: 'atk', dmg: 11, fn: (s) => dmgPartyAt(s, 'front', 11) },
+    ],
+  },
+  wand_veyr: {
+    id: 'wand_veyr', name: 'Veyr', title: 'On the Road', maxHp: 26,
+    weakness: 'holy', resistance: 'stealth',
+    intents: [
+      { name: 'Witness Bolt', tag: 'ATK 6',            targetSlot: '?',    kind: 'atk', dmg: 6, fn: (s) => dmgLowestParty(s, 6) },
+      { name: 'Slip Knife',   tag: 'ATK 5 + bleed',    targetSlot: '?',    kind: 'atk', dmg: 5, fn: (s) => { dmgLowestParty(s, 5); const a = aliveParty(s).slice().sort((x,y) => x.hp - y.hp)[0]; if (a) a.bleed = Math.max(a.bleed, 1); } },
+      { name: 'Final Reckoning', tag: 'ATK 4×2 all + bleed', targetSlot: 'all', kind: 'aoe', dmg: 4, fn: (s) => { dmgAllParty(s, 4); dmgAllParty(s, 4); aliveParty(s).forEach(c => { c.bleed = Math.max(c.bleed, 1); }); } },
+    ],
+  },
 };
 
 // ============================================================================
@@ -2702,6 +2817,169 @@ const EVENTS = {
     ],
   },
 };
+
+// Map of named-recruit event ids → the hero they introduce.  Used by the
+// event-pool filter to drop these events when the hero has been locked out
+// of recruitment for this run (e.g. the player killed them on the road).
+const NAMED_RECRUIT_EVENT_HEROES = {
+  hooded_watcher:           'veyr',
+  sword_on_stone:           'kai',
+  cold_breath:              'hask',
+  the_dust_banner:          'cassia',
+  field_medic_in_the_brush: 'elin',
+  arrow_in_a_sin:           'branwen',
+  cairn_builder:            'korin',
+  half_seen_traveller:      'ash',
+  quiet_blade_on_the_path:  'mira',
+  kite_shield_marker:       'garron',
+  harp_on_the_stone:        'lirien',
+  lantern_on_a_staff:       'vasha',
+};
+
+// ============================================================================
+// WANDERERS — roster heroes you bump into on the map.  Each wanderer renders
+// as a 5-choice modal:
+//   1. Ask to join party   → _pendingNamedRecruit
+//   2. Trade (sigil-for-sigil)
+//   3. Ask for help (sigil-for-buff)
+//   4. Fight them          → startEncounter(wand_<id>); win → run lockout
+//   5. Walk past           → no resource cost; just marks the wanderer seen
+//
+// Pool is filtered against state.run._seenWanderers (already met this run)
+// and state.run._lockedOutHeroes (killed on the road = locked out).  Heroes
+// already in the party are excluded via the `when:` predicate.
+// ============================================================================
+const WANDERERS = {
+  wand_kai: {
+    id: 'wand_kai', kind: 'hero', heroId: 'kai',
+    flavor: 'A tall man sits with a long sword across his knees, watching the dust settle.  He looks up only when you do not move on.',
+    when: (s) => s && s.party && !s.party.chars.kai && s.run && s.run.layer >= 1,
+  },
+  wand_cassia: {
+    id: 'wand_cassia', kind: 'hero', heroId: 'cassia',
+    flavor: 'A woman in dented plate stands beside a sword planted through a torn banner.  Her stance reads: not done yet.',
+    when: (s) => s && s.party && !s.party.chars.cassia && s.run && s.run.layer >= 1,
+  },
+  wand_elin: {
+    id: 'wand_elin', kind: 'hero', heroId: 'elin',
+    flavor: 'A woman with stained linens is binding a wound on no one in particular.  She finishes the bandage, then looks up.',
+    when: (s) => s && s.party && !s.party.chars.elin && s.run && s.run.layer >= 1,
+  },
+  wand_branwen: {
+    id: 'wand_branwen', kind: 'hero', heroId: 'branwen',
+    flavor: 'An archer is restringing her bow on a low rock.  Her quiver is half empty and the arrows still in it have names carved into the shafts.',
+    when: (s) => s && s.party && !s.party.chars.branwen && s.run && s.run.layer >= 2,
+  },
+  wand_korin: {
+    id: 'wand_korin', kind: 'hero', heroId: 'korin',
+    flavor: 'A man kneels at the end of a line of cairns, hands open, knuckles split.  He has stopped here.  He has not stood up.',
+    when: (s) => s && s.party && !s.party.chars.korin && s.run && s.run.layer >= 2,
+  },
+  wand_ash: {
+    id: 'wand_ash', kind: 'hero', heroId: 'ash',
+    flavor: 'A figure cloaked in something the lamplight does not return.  Hard to tell if they have been waiting or just standing.',
+    when: (s) => s && s.party && !s.party.chars.ash && s.run && s.run.layer >= 2,
+  },
+  wand_mira: {
+    id: 'wand_mira', kind: 'hero', heroId: 'mira',
+    flavor: 'Three sins lie folded into the moss like cloth, each with the same small cut.  A thin woman is wiping her knife on something else.',
+    when: (s) => s && s.party && !s.party.chars.mira && s.run && s.run.layer >= 2,
+  },
+  wand_garron: {
+    id: 'wand_garron', kind: 'hero', heroId: 'garron',
+    flavor: 'A great kite shield is planted in the dust like a road marker.  Behind it, a man in scarred plate sits with his helm on his knee.',
+    when: (s) => s && s.party && !s.party.chars.garron && s.run && s.run.layer >= 1,
+  },
+  wand_lirien: {
+    id: 'wand_lirien', kind: 'hero', heroId: 'lirien',
+    flavor: 'A small harp sits on a flat stone, strings flexing without a hand.  The verse the figure is finishing lands somewhere just under your ribs.',
+    when: (s) => s && s.party && !s.party.chars.lirien && s.run && s.run.layer >= 2,
+  },
+  wand_vasha: {
+    id: 'wand_vasha', kind: 'hero', heroId: 'vasha',
+    flavor: 'A lantern on the end of a long staff, planted upright in the dust.  The flame does not bend in the wind.  The woman holding the staff is very tired.',
+    when: (s) => s && s.party && !s.party.chars.vasha && s.run && s.run.layer >= 3,
+  },
+  wand_hask: {
+    id: 'wand_hask', kind: 'hero', heroId: 'hask',
+    flavor: "You feel him before you see him — a pale figure whose breath does not melt.  He does not raise a hand in greeting; he doesn't have to.",
+    when: (s) => s && s.party && !s.party.chars.hask && s.run && s.run.layer >= 2,
+  },
+  wand_veyr: {
+    id: 'wand_veyr', kind: 'hero', heroId: 'veyr',
+    flavor: 'A hooded figure sits very still on a flat stone, watching the way you came.  When you stop, she does not.',
+    when: (s) => s && s.party && !s.party.chars.veyr && s.run && s.run.layer >= 1,
+  },
+};
+
+// Drop the sigil with id `give` from the run's sigil list (no-op if absent),
+// then bind `take` through the standard bindSigil pipeline so the fanfare
+// fires.  Returns the bound sigil def or null.
+function tradeSigil(s, giveId, takeId) {
+  if (!s || !s.run) return null;
+  s.run.sigils = (s.run.sigils || []).filter(id => id !== giveId);
+  const old = SIGILS[giveId];
+  if (old) log(`<i>You let go of the <b>${old.name}</b>.</i>`);
+  return bindSigil(s, takeId);
+}
+
+// Drop a sigil and apply a named one-shot buff.  Buff keys:
+//   'maxhp3'   — +3 maxHp to party + heal to new max
+//   'upgrade'  — queue a tech-upgrade offer for the next overlay drain
+//   'resolve2' — +2 bonusResolveNextFight
+//   'heal'     — full party heal
+function tradeSigilForBuff(s, giveId, buffKey) {
+  if (!s || !s.run) return;
+  s.run.sigils = (s.run.sigils || []).filter(id => id !== giveId);
+  const old = SIGILS[giveId];
+  if (old) log(`<i>You let go of the <b>${old.name}</b>.</i>`);
+  if (buffKey === 'maxhp3') {
+    aliveParty(s).forEach(c => { c.maxHp += 3; c.hp = Math.min(c.maxHp, c.hp + 3); });
+    log('The party stands a little straighter.');
+  } else if (buffKey === 'upgrade') {
+    s.run._pendingUpgradeOffer = true;
+  } else if (buffKey === 'resolve2') {
+    s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 2;
+    log('You carry the surety forward.');
+  } else if (buffKey === 'heal') {
+    aliveParty(s).forEach(c => { c.hp = c.maxHp; });
+    log('The party is whole again.');
+  }
+}
+
+// Mark a wanderer encountered this run so it won't reappear regardless of
+// which choice resolved it (join / trade / help / fight / walk past).
+function markWandererSeen(s, wandererId) {
+  if (!s || !s.run || !wandererId) return;
+  s.run._seenWanderers = s.run._seenWanderers || [];
+  if (!s.run._seenWanderers.includes(wandererId)) s.run._seenWanderers.push(wandererId);
+}
+
+// Lock a hero out of the recruit + wanderer pools for the rest of this run.
+// Triggered when the player kills a hero on the road.  Per-run only — the
+// hero is available again on the next run.
+function markHeroLockedOut(s, heroId) {
+  if (!s || !s.run || !heroId) return;
+  s.run._lockedOutHeroes = s.run._lockedOutHeroes || [];
+  if (!s.run._lockedOutHeroes.includes(heroId)) s.run._lockedOutHeroes.push(heroId);
+}
+
+// Pick a wanderer to slot into a wanderer node — filters the WANDERERS
+// table by `when()`, the seen-list, and the lockout-list, then takes a
+// random survivor.  Returns null if no wanderer fits the current run.
+function pickWandererFor(s) {
+  if (!s || !s.run) return null;
+  const seen = new Set(s.run._seenWanderers || []);
+  const locked = new Set(s.run._lockedOutHeroes || []);
+  const pool = Object.values(WANDERERS).filter(w => {
+    if (seen.has(w.id)) return false;
+    if (w.kind === 'hero' && locked.has(w.heroId)) return false;
+    if (typeof w.when === 'function') { try { return !!w.when(s); } catch (_) { return false; } }
+    return true;
+  });
+  if (!pool.length) return null;
+  return pool[Math.floor(Math.random() * pool.length)].id;
+}
 
 function _hurtRandomAlive(s, amt) {
   const alive = Object.values(s.party.chars).filter(c => !c.downed);
@@ -4296,7 +4574,13 @@ function generateMap() {
   // Filter out hidden / secret events whose `when(state)` predicate
   // doesn't match the current run.  Open events are always in the pool;
   // secrets unlock based on layer, party comp, sigil count, etc.
+  const lockedRecruits = (state && state.run && state.run._lockedOutHeroes) || [];
   const eventPool = _shuffle(Object.keys(EVENTS).filter(eid => {
+    // Drop named-recruit events for heroes the player has locked out of
+    // this run (e.g. killed them on a wanderer node).  Without this the
+    // event could fire and the recruit would silently fall through.
+    const lockedHero = NAMED_RECRUIT_EVENT_HEROES[eid];
+    if (lockedHero && lockedRecruits.includes(lockedHero)) return false;
     const ev = EVENTS[eid];
     if (!ev || !ev.secret) return true;
     if (typeof ev.when !== 'function') return true;
@@ -4335,6 +4619,15 @@ function generateMap() {
       const c = 2 + Math.floor(Math.random() * 2);
       countAndTypes = Array(c).fill('combat');
     }
+    // Wanderer slot — 35% chance to convert ONE event slot into a wanderer
+    // slot in layers 2-4.  Slots into the existing event distribution so we
+    // don't disturb map density math.  Skipped on boss / final-gate levels.
+    if (lvl >= 2 && lvl <= 4 && lvl !== numLevels && lvl !== numLevels - 1) {
+      if (countAndTypes && Math.random() < 0.35) {
+        const evIdx = countAndTypes.indexOf('event');
+        if (evIdx !== -1) countAndTypes[evIdx] = 'wanderer';
+      }
+    }
 
     const ids = [];
     countAndTypes.forEach((type, i) => {
@@ -4344,6 +4637,19 @@ function generateMap() {
       else if (type === 'elite')  node.enc = genEliteEncounter(lvl, usedNames);
       else if (type === 'combat') node.enc = genCombatEncounter(lvl, usedNames);
       else if (type === 'event')  node.eventId = eventPool[(i + lvl) % eventPool.length];
+      else if (type === 'wanderer') {
+        // Wanderer id is locked in at generation time so the modal can
+        // render a consistent identity even if the player backs out and
+        // re-opens the node.  Falls back to 'event' (a regular path
+        // encounter) if no wanderer fits — keeps the slot productive.
+        const wid = pickWandererFor(state);
+        if (wid) {
+          node.wandererId = wid;
+        } else {
+          node.type = 'event';
+          node.eventId = eventPool[(i + lvl) % eventPool.length];
+        }
+      }
       // rest nodes need no extra data
       nodes[id] = node;
       ids.push(id);
@@ -6494,6 +6800,13 @@ function newState(forcedStarter) {
       rumoredHeroes: [],     // hero ids heard about in prior vignettes — recruit picker prefers these
       nodesSinceRecruit: 0,  // cleared-node counter gating how often recruit rolls fire
       recruitPending: false, // set when a hero falls — next recruit roll is forced (Vigil for the fallen)
+      // Wanderer node bookkeeping — `_seenWanderers` resets between
+      // layers (each layer's map is its own meeting list), but
+      // `_lockedOutHeroes` carries across the climb so killing a hero on
+      // layer 1 keeps them locked through the final boss.  Both filter
+      // recruit events, stranger rolls, and the wanderer pool.
+      _seenWanderers: [],
+      _lockedOutHeroes: (carried && Array.isArray(carried.lockedOutHeroes)) ? carried.lockedOutHeroes.slice() : [],
     },
 
     // Solo start: starter goes in their HOME slot; the other two slots are empty.
@@ -8881,6 +9194,17 @@ function checkEnd(s) {
   }
   if (aliveEnemies(s).length === 0) {
     s.over = true;
+    // Wanderer-fight lockout — if this combat was a wanderer duel, the
+    // hero on the road is now removed from the run's recruit + wanderer
+    // pools.  Flag set by showWandererOverlay before startEncounter.
+    if (s.run._pendingWandererFight) {
+      const pwf = s.run._pendingWandererFight;
+      if (pwf.heroLockout) {
+        markHeroLockedOut(s, pwf.heroLockout);
+        log(`<i>The road keeps the name.</i>`);
+      }
+      s.run._pendingWandererFight = null;
+    }
     // Mark the current MAP_NODE as completed; the next reachable nodes
     // will be whatever this node's `next` lists.
     if (s.run.currentNodeId) s.run.completedNodes.push(s.run.currentNodeId);
@@ -11710,18 +12034,20 @@ function renderMap() {
       el.className = `path-node node-${node.type} node-${status}`;
       el.dataset.nodeId = node.id;
       const typeGlyph = ({
-        elite:  '★',
-        boss:   '☠',
-        combat: '⚔',
-        rest:   '⌂',
-        event:  '?',
+        elite:    '★',
+        boss:     '☠',
+        combat:   '⚔',
+        rest:     '⌂',
+        event:    '?',
+        wanderer: '☉',
       })[node.type] || '⚔';
       const typeLabel = ({
-        elite:  'ELITE',
-        boss:   'BOSS',
-        combat: 'FIGHT',
-        rest:   'REST',
-        event:  'EVENT',
+        elite:    'ELITE',
+        boss:     'BOSS',
+        combat:   'FIGHT',
+        rest:     'REST',
+        event:    'EVENT',
+        wanderer: 'WANDER',
       })[node.type] || 'FIGHT';
       // Compact icon-node markup: a glyph in a tinted dot + a labelled
       // strap underneath so the player can read elite/event/regular at a
@@ -11742,6 +12068,7 @@ function renderMap() {
         state.run.currentNodeId = node.id;
         if (node.type === 'rest')        return showRestOverlay();
         if (node.type === 'event')       return showEventOverlay(node.eventId);
+        if (node.type === 'wanderer')    return showWandererOverlay(node.wandererId);
         if (node.type === 'boss') {
           const layerInfo = LAYER_CONTENT[state.run.layer] || LAYER_CONTENT[1];
           const startBoss = () => showBossIntro({
@@ -11950,7 +12277,8 @@ function _completeNonCombatNode() {
   if (state.run._pendingNamedRecruit) {
     const heroId = state.run._pendingNamedRecruit;
     state.run._pendingNamedRecruit = null;
-    if (CHARS[heroId] && !state.party.chars[heroId]) {
+    const lockedOut = (state.run._lockedOutHeroes || []).includes(heroId);
+    if (CHARS[heroId] && !state.party.chars[heroId] && !lockedOut) {
       const slot = findEmptySlotForRecruit(heroId);
       if (slot) {
         commitNamedRecruit(heroId, slot, () => renderMap());
@@ -11959,10 +12287,11 @@ function _completeNonCombatNode() {
       }
       return;
     }
-    // Reachable only if a recruit event fired with a bad heroId or with a
-    // hero already in the party — both shouldn't happen, but if they do,
-    // surface a warning instead of dropping the recruit silently.
-    _qaWarn('namedRecruit', `dropped ${heroId} (CHARS=${!!CHARS[heroId]}, alreadyInParty=${!!state.party.chars[heroId]})`);
+    // Reachable only if a recruit event fired with a bad heroId, with a
+    // hero already in the party, or with a hero the player locked out by
+    // killing them on the road.  Surface a warning instead of dropping
+    // the recruit silently.
+    _qaWarn('namedRecruit', `dropped ${heroId} (CHARS=${!!CHARS[heroId]}, alreadyInParty=${!!state.party.chars[heroId]}, lockedOut=${lockedOut})`);
   }
   // Tech-upgrade hand-off — events that promise "gain a tech upgrade"
   // (Open Door, etc.) set this flag in their resolve.  We pop the same
@@ -11986,7 +12315,8 @@ function _completeNonCombatNode() {
   // party is full, offer a strategic swap instead of just walking on.
   if (state.run._pendingStrangerRecruit) {
     state.run._pendingStrangerRecruit = false;
-    const pickable = ROSTER.filter(id => !state.party.chars[id]);
+    const locked = state.run._lockedOutHeroes || [];
+    const pickable = ROSTER.filter(id => !state.party.chars[id] && !locked.includes(id));
     if (pickable.length) {
       const rumored = (state.run.rumoredHeroes || []).filter(id => pickable.includes(id));
       const pool = rumored.length ? rumored : pickable;
@@ -12201,6 +12531,374 @@ function showEventOverlay(eventId) {
   choices.classList.remove('hidden');
   resetOverlayBtn();
   $('#overlay-btn').classList.add('hidden');
+  $('#overlay').classList.remove('hidden');
+}
+
+// ============================================================================
+// WANDERER ENCOUNTER MODAL — five-choice meeting on the road.
+//   1. Ask to join party    → _pendingNamedRecruit (existing pipeline)
+//   2. Trade sigil-for-sigil → showSigilTradeOverlay
+//   3. Ask for help          → showSigilForBuffOverlay
+//   4. Fight them            → startEncounter; victory hooks lockout
+//   5. Walk past             → no resource cost; marks wanderer seen
+// Mirrors showEventOverlay's chrome and DOM scaffolding so we get path-event
+// styling and behavior for free.
+// ============================================================================
+function showWandererOverlay(wandererId) {
+  const w = WANDERERS[wandererId];
+  if (!w) { _completeNonCombatNode(); return; }
+  const heroDef = w.kind === 'hero' ? CHARS[w.heroId] : null;
+  const displayName = heroDef ? heroDef.name : (w.name || 'A figure on the path');
+  $('#overlay-title').textContent = displayName;
+
+  const $overlay = $('#overlay');
+  $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-upgrade','overlay-sigil','overlay-starter','overlay-boon','overlay-cinematic');
+  $overlay.classList.add('overlay-full','overlay-event','overlay-wanderer');
+
+  const body = $('#overlay-body');
+  body.classList.remove('victory-summary-body','welcome-body','run-summary-body');
+  body.innerHTML = '';
+
+  // Wanderer portrait — for hero wanderers, use their portrait SVG.  Front
+  // and center, so the player reads who they're meeting first.
+  if (heroDef) {
+    const stage = document.createElement('div');
+    stage.className = 'event-stage event-actors-1 wanderer-stage';
+    const fig = document.createElement('div');
+    fig.className = 'event-actor wanderer-portrait';
+    fig.innerHTML = PORTRAITS[w.heroId] || '';
+    stage.appendChild(fig);
+    body.appendChild(stage);
+  }
+
+  const flavor = document.createElement('p');
+  flavor.className = 'event-flavor';
+  flavor.textContent = w.flavor;
+  body.appendChild(flavor);
+
+  const choices = $('#overlay-choices');
+  choices.innerHTML = '';
+  choices.classList.remove('path-map', 'party-inspect');
+  choices.classList.add('event-choices');
+
+  const sigils = (state.run && state.run.sigils) || [];
+  const hasSigils = sigils.length > 0;
+
+  // 1. Ask to join — only meaningful for hero wanderers.
+  if (heroDef) {
+    _mkWandererChoice(choices, {
+      label: 'Ask to join the climb',
+      tag: `${heroDef.name} would walk with you`,
+      onClick: () => {
+        state.run._pendingNamedRecruit = w.heroId;
+        log(`<b>${heroDef.name}</b> stands and falls in behind you.`);
+        _resolveWandererChoice(wandererId);
+      },
+    });
+  }
+
+  // 2. Trade sigil-for-sigil.  Disabled if the run has no sigils.
+  _mkWandererChoice(choices, {
+    label: 'Trade a sigil',
+    tag: hasSigils ? 'Swap one you carry for one they offer' : 'You have nothing to trade',
+    disabled: !hasSigils,
+    onClick: () => {
+      hideOverlay();
+      choices.classList.remove('event-choices');
+      showSigilTradeOverlay(wandererId, () => {
+        markWandererSeen(state, wandererId);
+        _completeNonCombatNode();
+      });
+    },
+  });
+
+  // 3. Ask for help (sigil-for-buff).
+  _mkWandererChoice(choices, {
+    label: 'Ask for help',
+    tag: hasSigils ? 'Give up a sigil for a one-shot boon' : 'You have nothing to offer',
+    disabled: !hasSigils,
+    onClick: () => {
+      hideOverlay();
+      choices.classList.remove('event-choices');
+      showSigilForBuffOverlay(wandererId, () => {
+        markWandererSeen(state, wandererId);
+        _completeNonCombatNode();
+      });
+    },
+  });
+
+  // 4. Fight them.  Sets _pendingWandererFight so the victory hook can
+  // apply the run-long hero lockout, then starts a solo encounter.
+  _mkWandererChoice(choices, {
+    label: 'Draw your blade',
+    tag: heroDef ? `Fight ${heroDef.name} · death locks them out this run` : 'Fight them on the road',
+    kind: 'fight',
+    onClick: () => {
+      const encId = 'wand_' + (w.heroId || w.id);
+      if (!ENEMIES[encId]) {
+        _qaWarn('wandererFight', `missing enemy spec for ${encId}`);
+        markWandererSeen(state, wandererId);
+        _completeNonCombatNode();
+        return;
+      }
+      state.run._pendingWandererFight = {
+        wandererId,
+        heroLockout: w.kind === 'hero' ? w.heroId : null,
+      };
+      markWandererSeen(state, wandererId);
+      hideOverlay();
+      choices.classList.remove('event-choices');
+      startEncounter({
+        name: `${displayName} on the Road`,
+        slots: { front: encId },
+      });
+    },
+  });
+
+  // 5. Walk past — quiet exit.  Still marks the wanderer seen so the
+  // encounter doesn't reappear, but spends nothing.
+  _mkWandererChoice(choices, {
+    label: 'Walk past',
+    tag: 'You do not stop',
+    kind: 'walk-past',
+    onClick: () => {
+      log('You do not slow your pace.');
+      _resolveWandererChoice(wandererId);
+    },
+  });
+
+  choices.classList.remove('hidden');
+  resetOverlayBtn();
+  $('#overlay-btn').classList.add('hidden');
+  $('#overlay').classList.remove('hidden');
+}
+
+// Choice-card builder for the wanderer modal.  Wraps the same DOM shape
+// the event overlay uses so styling falls through.
+function _mkWandererChoice(choices, opts) {
+  const card = document.createElement('button');
+  card.className = `encounter-choice event-choice wanderer-choice${opts.kind ? ` wanderer-choice-${opts.kind}` : ''}`;
+  if (opts.disabled) card.classList.add('wanderer-disabled');
+  card.innerHTML = `
+    <div class="enc-name">${opts.label}</div>
+    <div class="sigil-desc">${opts.tag || ''}</div>
+  `;
+  if (opts.disabled) {
+    card.disabled = true;
+  } else {
+    card.addEventListener('click', opts.onClick);
+  }
+  choices.appendChild(card);
+  return card;
+}
+
+// Shared finisher for the non-combat wanderer choices: hide overlay, mark
+// wanderer seen, run the standard non-combat completion cascade.
+function _resolveWandererChoice(wandererId) {
+  hideOverlay();
+  const choices = $('#overlay-choices');
+  if (choices) choices.classList.remove('event-choices');
+  markWandererSeen(state, wandererId);
+  _completeNonCombatNode();
+}
+
+// Sigil trade overlay — pick a sigil to give up and a sigil to take.  The
+// wanderer offers 3 random sigils the player doesn't already own; the
+// player picks one of their current sigils to trade for it.  Two-step:
+// first card row is "give", second is "take".
+function showSigilTradeOverlay(wandererId, onDone) {
+  const continueAfter = onDone || (() => renderMap());
+  const sigils = ((state.run && state.run.sigils) || []).map(id => SIGILS[id]).filter(Boolean);
+  if (!sigils.length) { continueAfter(); return; }
+
+  // Pre-roll the 3 sigils the wanderer offers.  Filtered against owned so
+  // the player never trades for a sigil they already have.
+  const owned = new Set(state.run.sigils || []);
+  const offers = Object.values(SIGILS).filter(sg => !owned.has(sg.id));
+  if (!offers.length) { continueAfter(); return; }
+  const shuffled = offers.slice().sort(() => Math.random() - 0.5);
+  const trio = shuffled.slice(0, Math.min(3, shuffled.length));
+
+  const $overlay = $('#overlay');
+  $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-upgrade','overlay-cinematic','overlay-event','overlay-starter','overlay-boon');
+  $overlay.classList.add('overlay-full','overlay-event','overlay-sigil');
+  $('#overlay-title').textContent = 'Trade a sigil';
+
+  const body = $('#overlay-body');
+  body.classList.remove('victory-summary-body','welcome-body','run-summary-body','vignette-body');
+  body.innerHTML = '';
+  const flavor = document.createElement('p');
+  flavor.className = 'event-flavor';
+  flavor.textContent = 'Choose a sigil to let go of.';
+  body.appendChild(flavor);
+
+  const choices = $('#overlay-choices');
+  choices.innerHTML = '';
+  choices.classList.remove('path-map','party-inspect');
+  choices.classList.add('event-choices');
+
+  sigils.forEach(sg => {
+    const card = document.createElement('button');
+    card.className = `encounter-choice sigil-choice cat-${sg.category} wanderer-trade-give`;
+    card.innerHTML = `
+      <div class="enc-name">${sg.name}</div>
+      <div class="sigil-glyph">${sg.icon}</div>
+      <div class="sigil-desc">${sg.desc}</div>
+    `;
+    card.addEventListener('click', () => _showSigilTradeTakeStep(sg.id, trio, continueAfter));
+    choices.appendChild(card);
+  });
+
+  const btn = $('#overlay-btn');
+  btn.textContent = '← Back';
+  btn.onclick = () => {
+    hideOverlay();
+    resetOverlayBtn();
+    continueAfter();
+  };
+  btn.classList.remove('hidden');
+  choices.classList.remove('hidden');
+  $overlay.classList.remove('hidden');
+}
+
+function _showSigilTradeTakeStep(giveId, offers, onDone) {
+  const continueAfter = onDone || (() => renderMap());
+  const give = SIGILS[giveId];
+  $('#overlay-title').textContent = `For your ${give ? give.name : 'sigil'}, take —`;
+
+  const body = $('#overlay-body');
+  body.innerHTML = '';
+  const flavor = document.createElement('p');
+  flavor.className = 'event-flavor';
+  flavor.textContent = 'Pick the sigil you carry away.';
+  body.appendChild(flavor);
+
+  const choices = $('#overlay-choices');
+  choices.innerHTML = '';
+  offers.forEach(sg => {
+    const card = document.createElement('button');
+    card.className = `encounter-choice sigil-choice cat-${sg.category}`;
+    card.innerHTML = `
+      <div class="enc-name">${sg.name}</div>
+      <div class="sigil-glyph">${sg.icon}</div>
+      <div class="sigil-desc">${sg.desc}</div>
+    `;
+    card.addEventListener('click', () => {
+      tradeSigil(state, giveId, sg.id);
+      hideOverlay();
+      resetOverlayBtn();
+      continueAfter();
+    });
+    choices.appendChild(card);
+  });
+
+  const btn = $('#overlay-btn');
+  btn.textContent = '← Back';
+  btn.onclick = () => {
+    hideOverlay();
+    resetOverlayBtn();
+    continueAfter();
+  };
+  btn.classList.remove('hidden');
+  choices.classList.remove('hidden');
+  $('#overlay').classList.remove('hidden');
+}
+
+// Sigil-for-buff overlay.  Same shape as the trade picker, but the second
+// step is a buff picker instead of a sigil picker.
+function showSigilForBuffOverlay(wandererId, onDone) {
+  const continueAfter = onDone || (() => renderMap());
+  const sigils = ((state.run && state.run.sigils) || []).map(id => SIGILS[id]).filter(Boolean);
+  if (!sigils.length) { continueAfter(); return; }
+
+  const $overlay = $('#overlay');
+  $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-upgrade','overlay-cinematic','overlay-event','overlay-starter','overlay-boon');
+  $overlay.classList.add('overlay-full','overlay-event','overlay-sigil');
+  $('#overlay-title').textContent = 'Ask for help';
+
+  const body = $('#overlay-body');
+  body.innerHTML = '';
+  const flavor = document.createElement('p');
+  flavor.className = 'event-flavor';
+  flavor.textContent = 'They will help — but it will cost you a sigil.  Choose which one.';
+  body.appendChild(flavor);
+
+  const choices = $('#overlay-choices');
+  choices.innerHTML = '';
+  choices.classList.remove('path-map','party-inspect');
+  choices.classList.add('event-choices');
+
+  sigils.forEach(sg => {
+    const card = document.createElement('button');
+    card.className = `encounter-choice sigil-choice cat-${sg.category} wanderer-trade-give`;
+    card.innerHTML = `
+      <div class="enc-name">${sg.name}</div>
+      <div class="sigil-glyph">${sg.icon}</div>
+      <div class="sigil-desc">${sg.desc}</div>
+    `;
+    card.addEventListener('click', () => _showSigilForBuffStep(sg.id, continueAfter));
+    choices.appendChild(card);
+  });
+
+  const btn = $('#overlay-btn');
+  btn.textContent = '← Back';
+  btn.onclick = () => {
+    hideOverlay();
+    resetOverlayBtn();
+    continueAfter();
+  };
+  btn.classList.remove('hidden');
+  choices.classList.remove('hidden');
+  $overlay.classList.remove('hidden');
+}
+
+function _showSigilForBuffStep(giveId, onDone) {
+  const continueAfter = onDone || (() => renderMap());
+  const give = SIGILS[giveId];
+  $('#overlay-title').textContent = `For your ${give ? give.name : 'sigil'}, ask for —`;
+
+  const body = $('#overlay-body');
+  body.innerHTML = '';
+  const flavor = document.createElement('p');
+  flavor.className = 'event-flavor';
+  flavor.textContent = 'Pick the help they give back.';
+  body.appendChild(flavor);
+
+  const choices = $('#overlay-choices');
+  choices.innerHTML = '';
+
+  // Pre-roll 3 buff offers so the player doesn't see all 4 every time.
+  const buffPool = [
+    { key: 'maxhp3',   label: '+3 max HP, party',     tag: 'Stands a little straighter' },
+    { key: 'upgrade',  label: 'A tech upgrade',       tag: 'Hone the edge' },
+    { key: 'resolve2', label: '+2 Resolve next fight', tag: 'Carry it forward' },
+    { key: 'heal',     label: 'Heal the party',       tag: 'Full HP, every standing hero' },
+  ];
+  const shuffled = buffPool.slice().sort(() => Math.random() - 0.5);
+  const trio = shuffled.slice(0, 3);
+
+  trio.forEach(b => {
+    const card = document.createElement('button');
+    card.className = 'encounter-choice event-choice';
+    card.innerHTML = `<div class="enc-name">${b.label}</div><div class="sigil-desc">${b.tag}</div>`;
+    card.addEventListener('click', () => {
+      tradeSigilForBuff(state, giveId, b.key);
+      hideOverlay();
+      resetOverlayBtn();
+      continueAfter();
+    });
+    choices.appendChild(card);
+  });
+
+  const btn = $('#overlay-btn');
+  btn.textContent = '← Back';
+  btn.onclick = () => {
+    hideOverlay();
+    resetOverlayBtn();
+    continueAfter();
+  };
+  btn.classList.remove('hidden');
+  choices.classList.remove('hidden');
   $('#overlay').classList.remove('hidden');
 }
 
@@ -13554,7 +14252,12 @@ function saveCarriedParty(s) {
     // bound on the previous climb should follow the survivors up so the
     // build doesn't reset on every ascent.
     const sigils = ((s.run && s.run.sigils) || []).slice();
-    const data = { chars, slots, sigils };
+    // Hero lockouts also carry across the climb so killing someone on the
+    // road in layer 1 keeps them locked through the final boss.  Without
+    // this the consequence would feel like an inventory bug ("why is the
+    // hero I killed offering to join me again?").
+    const lockedOutHeroes = ((s.run && s.run._lockedOutHeroes) || []).slice();
+    const data = { chars, slots, sigils, lockedOutHeroes };
     localStorage.setItem(CARRIED_KEY, JSON.stringify(data));
   } catch (_) {}
 }
