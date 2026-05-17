@@ -11059,6 +11059,10 @@ function showGameMenu() {
           <span class="gm-row-label">Settings</span>
           <span class="gm-row-value">Open</span>
         </button>
+        <button type="button" class="gm-row" data-action="feedback">
+          <span class="gm-row-label">Send Feedback</span>
+          <span class="gm-row-value">Bug · Idea</span>
+        </button>
         <button type="button" class="gm-row gm-row-danger" data-action="title">
           <span class="gm-row-label">Return to Title</span>
           <span class="gm-row-value">Save · Quit</span>
@@ -11093,6 +11097,11 @@ function showGameMenu() {
         showSettingsScreen();
         return;
       }
+      if (action === 'feedback') {
+        close();
+        showFeedbackForm();
+        return;
+      }
       if (action === 'title') {
         confirmDestructive(
           'Return to title?',
@@ -11103,6 +11112,219 @@ function showGameMenu() {
       }
     });
   });
+}
+
+// ─── Alpha QA feedback ────────────────────────────────────────────────────
+// Set FEEDBACK_EMAIL to receive submissions in your inbox via mailto:.
+// Leave it empty to hide the email button and let testers Copy + paste
+// into Discord/Slack/wherever instead.
+const FEEDBACK_EMAIL = 'feedback@triad.local';
+const FEEDBACK_BUILD = 'alpha';
+
+// Snapshot whatever's relevant about the moment the tester hit Send.
+// Empty when no run is active — title-screen feedback still works fine.
+function _collectFeedbackContext() {
+  const lines = [];
+  lines.push(`Build: Triad ${FEEDBACK_BUILD}`);
+  try { lines.push(`When: ${new Date().toISOString()}`); } catch (_) {}
+  try { lines.push(`URL: ${location.href}`); } catch (_) {}
+  try { lines.push(`UA: ${navigator.userAgent}`); } catch (_) {}
+  try { lines.push(`Viewport: ${window.innerWidth}x${window.innerHeight} dpr ${window.devicePixelRatio || 1}`); } catch (_) {}
+  if (state && state.run) {
+    const r = state.run;
+    lines.push(`Run: layer ${r.layer || '?'} · node ${(r.currentNodeId || r.nodeId) || '?'} · seed ${r.seed || '?'}`);
+    if (Array.isArray(r.sigils) && r.sigils.length) lines.push(`Sigils: ${r.sigils.join(', ')}`);
+  } else {
+    lines.push('Run: (none — on title or between runs)');
+  }
+  if (state && state.party && Array.isArray(state.party.chars)) {
+    const party = state.party.chars.map(c => {
+      const def = CHARS[c.id] || {};
+      return `${def.name || c.id} ${c.hp}/${def.maxHp || '?'}${c.ko ? ' (KO)' : ''}`;
+    }).join(' · ');
+    lines.push(`Party: ${party}`);
+  }
+  if (state && state.usedCombos && state.usedCombos.size) {
+    lines.push(`Combos fired this fight: ${Array.from(state.usedCombos).join(', ')}`);
+  }
+  if (state && state.queue && state.queue.length) {
+    lines.push(`Queue: ${state.queue.map(q => `${q.charId}/${q.kind}`).join(' → ')}`);
+  }
+  if (state && state.enemies && Array.isArray(state.enemies)) {
+    const alive = state.enemies.filter(e => e && !e.dead);
+    if (alive.length) lines.push(`Enemies: ${alive.map(e => `${e.name || e.id} ${e.hp}/${e.maxHp || '?'}`).join(' · ')}`);
+  }
+  return lines.join('\n');
+}
+
+function _formatFeedbackPayload(fields) {
+  const parts = [];
+  parts.push(`Category: ${fields.category}`);
+  parts.push(`Subject: ${fields.subject}`);
+  parts.push('');
+  parts.push('--- Description ---');
+  parts.push(fields.description || '(none)');
+  if (fields.steps && fields.steps.trim()) {
+    parts.push('');
+    parts.push('--- Steps to reproduce ---');
+    parts.push(fields.steps);
+  }
+  if (fields.includeContext) {
+    parts.push('');
+    parts.push('--- Game context (auto-collected) ---');
+    parts.push(fields.context);
+  }
+  return parts.join('\n');
+}
+
+// QA feedback modal — fields, then Submit by Email (mailto:) or Copy to
+// clipboard.  Alpha-test scope: no backend, no auth, no rate limit.  When
+// FEEDBACK_EMAIL is set the Submit button opens the tester's mail client
+// with everything prefilled — they hit Send, you get a triage-ready email.
+function showFeedbackForm() {
+  Audio.ui();
+  const existing = document.getElementById('feedback-modal');
+  if (existing) existing.remove();
+  const root = document.createElement('div');
+  root.id = 'feedback-modal';
+  root.className = 'feedback-modal';
+  const context = _collectFeedbackContext();
+  const hasEmail = !!(FEEDBACK_EMAIL && FEEDBACK_EMAIL.trim());
+  root.innerHTML = `
+    <div class="fb-backdrop" data-close="1"></div>
+    <div class="fb-card" role="dialog" aria-label="Send feedback">
+      <div class="fb-head">
+        <span class="fb-title">Send Feedback</span>
+        <button type="button" class="fb-close" id="fb-close" aria-label="Close">×</button>
+      </div>
+      <div class="fb-body">
+        <label class="fb-field">
+          <span class="fb-label">Category</span>
+          <select class="fb-input" id="fb-category">
+            <option value="bug">Bug</option>
+            <option value="balance">Balance</option>
+            <option value="suggestion">Suggestion</option>
+            <option value="ui">UI / Polish</option>
+            <option value="other">Other</option>
+          </select>
+        </label>
+        <label class="fb-field">
+          <span class="fb-label">Subject</span>
+          <input type="text" class="fb-input" id="fb-subject" maxlength="120" placeholder="e.g. Sacred Triad triggers twice in one turn" />
+        </label>
+        <label class="fb-field">
+          <span class="fb-label">Description</span>
+          <textarea class="fb-input fb-textarea" id="fb-desc" rows="4" maxlength="2000" placeholder="What happened?  What did you expect?"></textarea>
+        </label>
+        <label class="fb-field" id="fb-steps-field">
+          <span class="fb-label">Steps to reproduce <span class="fb-optional">(optional)</span></span>
+          <textarea class="fb-input fb-textarea" id="fb-steps" rows="3" maxlength="2000" placeholder="1. Recruit Cassia&#10;2. Queue Cassia attack + Elin attack&#10;3. ..."></textarea>
+        </label>
+        <label class="fb-check">
+          <input type="checkbox" id="fb-include" checked />
+          <span>Include game state (build, party, run, viewport)</span>
+        </label>
+        <details class="fb-preview">
+          <summary>Preview included context</summary>
+          <pre id="fb-preview-text"></pre>
+        </details>
+        <div class="fb-flash" id="fb-flash" hidden></div>
+      </div>
+      <div class="fb-actions">
+        <button type="button" class="fb-btn fb-btn-ghost" id="fb-cancel">Cancel</button>
+        <button type="button" class="fb-btn fb-btn-ghost" id="fb-copy">Copy</button>
+        ${hasEmail ? '<button type="button" class="fb-btn fb-btn-primary" id="fb-submit">Submit by Email</button>' : ''}
+      </div>
+    </div>
+  `;
+  document.body.appendChild(root);
+
+  const $$ = (id) => root.querySelector(id);
+  const previewEl = $$('#fb-preview-text');
+  if (previewEl) previewEl.textContent = context;
+
+  const close = () => { root.remove(); };
+  root.addEventListener('click', (e) => {
+    if (e.target.dataset && e.target.dataset.close === '1') { Audio.ui(); close(); }
+  });
+  $$('#fb-close').addEventListener('click', () => { Audio.ui(); close(); });
+  $$('#fb-cancel').addEventListener('click', () => { Audio.ui(); close(); });
+
+  // Bug is the default — hide the steps field for non-bug categories so the
+  // form stays short.  (Balance/Suggestion don't really have repro steps.)
+  const stepsField = $$('#fb-steps-field');
+  const catSel = $$('#fb-category');
+  const syncSteps = () => {
+    if (!stepsField) return;
+    stepsField.style.display = (catSel.value === 'bug') ? '' : 'none';
+  };
+  catSel.addEventListener('change', syncSteps);
+  syncSteps();
+
+  const flash = (msg, isError) => {
+    const el = $$('#fb-flash');
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.toggle('fb-flash-error', !!isError);
+    el.hidden = false;
+    setTimeout(() => { if (el) el.hidden = true; }, 2400);
+  };
+
+  const collect = () => {
+    const subject = ($$('#fb-subject').value || '').trim();
+    const description = ($$('#fb-desc').value || '').trim();
+    if (!subject) { flash('Add a subject first.', true); $$('#fb-subject').focus(); return null; }
+    if (!description) { flash('Add a description first.', true); $$('#fb-desc').focus(); return null; }
+    return {
+      category: catSel.value,
+      subject,
+      description,
+      steps: catSel.value === 'bug' ? ($$('#fb-steps').value || '').trim() : '',
+      includeContext: $$('#fb-include').checked,
+      context,
+    };
+  };
+
+  $$('#fb-copy').addEventListener('click', async () => {
+    Audio.ui();
+    const fields = collect();
+    if (!fields) return;
+    const payload = `[Triad ${FEEDBACK_BUILD}] ${fields.subject}\n\n${_formatFeedbackPayload(fields)}`;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(payload);
+        flash('Copied to clipboard.');
+      } else {
+        // Fallback for older mobile browsers without async clipboard.
+        const ta = document.createElement('textarea');
+        ta.value = payload; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select();
+        document.execCommand('copy');
+        ta.remove();
+        flash('Copied to clipboard.');
+      }
+    } catch (_) {
+      flash('Copy failed — long-press the preview to copy manually.', true);
+    }
+  });
+
+  const submitBtn = $$('#fb-submit');
+  if (submitBtn) {
+    submitBtn.addEventListener('click', () => {
+      Audio.ui();
+      const fields = collect();
+      if (!fields) return;
+      const subject = `[Triad ${FEEDBACK_BUILD}] ${fields.category}: ${fields.subject}`;
+      const body = _formatFeedbackPayload(fields);
+      const url = `mailto:${encodeURIComponent(FEEDBACK_EMAIL)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      try {
+        window.location.href = url;
+        flash('Opening your email app — hit Send to submit.');
+      } catch (_) {
+        flash('Could not open email app — use Copy instead.', true);
+      }
+    });
+  }
 }
 
 // In-combat info pull-out — surfaces the moment-to-moment build state:
