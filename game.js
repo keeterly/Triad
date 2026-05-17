@@ -6818,11 +6818,14 @@ function applyDmgToEnemy(s, e, baseAmt) {
   // absorbed by armor STILL reveals — the blow connected on the weak
   // point, armor just caught it.  Old gate left armored enemies feeling
   // like they had no weakness even when the player nailed the element.
-  // Frozen Witness (Hask+Veyr adjacency) — Veyr inherits Hask's
-  // Frostbreak weakness-scout while they share a line.
+  // Weakness reveal is a *discovery* — the player only sees a school
+  // glyph appear once they actually find the weakness (land a matching-
+  // school hit).  Hask's Frostbreak still reveals on any hit (that's his
+  // whole identity), and Veyr inherits the same scout when Frozen
+  // Witness is active.  Otherwise: blind until you hit it right.
   const veyrInheritsFW = s.currentActorId === 'veyr'
     && getAdjacencyPairs(s).some(p => p.synergy.veyrInheritsFrostbreak);
-  if (!e.weaknessRevealed && (amt > 0 || s.currentActorId === 'hask' || veyrInheritsFW)) {
+  if (!e.weaknessRevealed && ((isWeaknessHit && amt > 0) || s.currentActorId === 'hask' || veyrInheritsFW)) {
     e.weaknessRevealed = true;
     e._weaknessJustRevealed = true;
     if (s.currentActorId === 'hask' && toHp === 0) spawnPassivePopup('hask', 'FROSTBREAK');
@@ -9300,7 +9303,9 @@ function makeEnemyCard(e, slot) {
   } else if (e.weaknessRevealed && weakSchool) {
     const glyph = SCHOOL_GLYPH[weakSchool] || '?';
     const wkTip = `Weak to ${weakSchool.toUpperCase()} — match this element to apply WEAKENED, then again to STAGGER for 2× damage.`;
-    stateStrip = `<div class="state-strip state-strip-weakness weakness-${weakSchool}" title="${wkTip}" data-tip="${wkTip}">${glyph} WEAK · ${weakSchool.toUpperCase()}</div>`;
+    // Minimal: just the school glyph in a small tinted badge.  Players who
+    // need the full name press-and-hold for the tooltip.
+    stateStrip = `<div class="state-strip state-strip-weakness weakness-${weakSchool}" title="${wkTip}" data-tip="${wkTip}">${glyph}</div>`;
   }
 
   fig.innerHTML = `
