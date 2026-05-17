@@ -8522,6 +8522,7 @@ function cineStage(school, tier, ms) {
   el.innerHTML = `
     <div class="cine-stage-bg"></div>
     <div class="cine-stage-rays"></div>
+    <div class="cine-stage-flash"></div>
     <div class="cine-stage-frame">
       <div class="cine-stage-heroes"></div>
       <div class="cine-stage-text"></div>
@@ -8530,6 +8531,10 @@ function cineStage(school, tier, ms) {
   document.body.appendChild(el);
   document.body.classList.add('cine-stage-open');
   _cineStageEl = el;
+  // Charge-up arpeggio — sells the "powering up" beat before the heroes
+  // converge.  School-tinted scale; the chord stinger on the title slam
+  // resolves it.
+  if (Audio && typeof Audio.comboCharge === 'function') Audio.comboCharge(school);
 }
 
 function cineHeroBig(heroes, pose, ms) {
@@ -8553,13 +8558,17 @@ function cineSlogan(text) {
 }
 
 function cinePunch(ms) {
-  // Camera punch-in: scale + fade the stage out, revealing combat.  The
-  // remaining post-punch primitives (shake, enemy-flash, burst) land on
-  // the freshly-visible combat board.  No-op if no stage is open.
+  // Camera punch-in: scale + shake + fade the stage out, revealing
+  // combat.  The CSS punch keyframe also triggers a school-tinted
+  // strobe + a synchronized hero flare so the moment lands as a single
+  // sync attack instead of a quiet stage fade.
   if (!_cineStageEl) return;
   _cineStageEl.classList.add('cine-stage-punch');
   const el = _cineStageEl;
   _cineStageEl = null;
+  // Low-end thud on the impact beat — pairs with the visual shake +
+  // strobe so the punch is felt, not just seen.
+  if (Audio && typeof Audio.comboImpact === 'function') Audio.comboImpact();
   setTimeout(() => {
     if (el.isConnected) el.remove();
     document.body.classList.remove('cine-stage-open');
@@ -8584,6 +8593,14 @@ function cineBanner(text, size, subtitle, combo, ms) {
     if (slot) {
       const sub = subtitle ? `<div class="cb-sub">${subtitle}</div>` : '';
       slot.insertAdjacentHTML('afterbegin', `${sub}<div class="cb-name size-${size}">${text}</div>`);
+      // Chord stinger lands with the title slam — resolves the charge
+      // arpeggio that started on cineStage and gives the moment a clear
+      // musical peak before the punch thud.
+      if (Audio && typeof Audio.comboStinger === 'function') {
+        const school = (_cineStageEl.className.match(/school-(\w+)/) || [])[1] || 'holy';
+        const sigTier = _cineStageEl.classList.contains('is-sig');
+        Audio.comboStinger(school, sigTier);
+      }
       return;
     }
   }
@@ -10899,6 +10916,49 @@ const Audio = (() => {
     armor() { _tone({ freq: 380, type: 'square', dur: 0.10, gain: 0.10, sweep: 80 }); },
     queue() { _tone({ freq: 720, type: 'triangle', dur: 0.05, gain: 0.06 }); },
     ui()    { _tone({ freq: 540, type: 'sine',     dur: 0.06, gain: 0.05 }); },
+
+    // ===== Resonance combo cinematics — three-beat audio story =====
+    // 1) comboCharge fires on cineStage — ascending arpeggio, "powering up"
+    // 2) comboStinger fires on the title slam — chord lands the moment
+    // 3) comboImpact fires on cinePunch — low thud sells the synchronized hit
+    // All three are school-tinted so each combo has its own musical color
+    // without needing per-combo audio specs.
+    comboCharge(school) {
+      const base = (() => {
+        switch (school) {
+          case 'arcane':  return [330, 415, 523, 659];
+          case 'holy':    return [392, 523, 659, 784];
+          case 'stealth': return [220, 277, 330, 415];
+          case 'ranged':  return [294, 370, 466, 587];
+          case 'physical':
+          default:        return [220, 277, 349, 440];
+        }
+      })();
+      base.forEach((f, i) => setTimeout(() => _tone({
+        freq: f, type: 'triangle', dur: 0.15, gain: 0.06, attack: 0.008, decay: 0.13,
+      }), i * 70));
+    },
+    comboStinger(school, sigTier) {
+      const root = sigTier ? 261.63 : 220; // sig combos resolve a step higher
+      const ratios = sigTier ? [1, 1.25, 1.5, 2, 2.5] : [1, 1.2, 1.5, 2];
+      ratios.forEach(r => _tone({
+        freq: root * r, type: 'triangle',
+        dur: 0.55, gain: 0.07, attack: 0.012, decay: 0.5,
+      }));
+      // High shimmer for the holy/arcane palette, low brass for
+      // physical/ranged — keeps the chord from sounding generic.
+      const shimmer = (school === 'holy' || school === 'arcane');
+      _tone({
+        freq: shimmer ? root * 4 : root * 0.5,
+        type: shimmer ? 'sine' : 'sawtooth',
+        dur: 0.6, gain: 0.04, attack: 0.02, decay: 0.55,
+      });
+    },
+    comboImpact() {
+      _tone({ freq: 60, type: 'sine',     dur: 0.28, gain: 0.32, sweep: -22 });
+      _tone({ freq: 110, type: 'triangle', dur: 0.16, gain: 0.14, sweep: -40 });
+      _noise({ dur: 0.18, gain: 0.16, hp: 80, lp: 2400 });
+    },
 
     // ===== Per-school hit variations =====
     // Layered ON TOP of the generic Audio.hit() base so existing call
