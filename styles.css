@@ -5320,8 +5320,8 @@ button.path-node { cursor: pointer; }
 
 /* ===========================================================================
    WANDERER MODAL — five-choice meeting on the road.  Reuses the event
-   overlay's frame; only the choice-card variants and the disabled state
-   are wanderer-specific.
+   overlay's frame and the slim event-choice row layout so sigil pickers,
+   buff pickers, and the main menu all share one mobile-friendly column.
    =========================================================================== */
 .wanderer-stage .wanderer-portrait {
   align-items: center;
@@ -5357,6 +5357,76 @@ button.path-node { cursor: pointer; }
 }
 .encounter-choice.wanderer-choice-walk-past:hover {
   opacity: 0.92;
+}
+
+/* Sigil row — used inside the trade and help pickers.  Slim full-width
+   strip with the glyph inline, so the layout matches the main menu's
+   event-choice cards instead of fighting them.  Defeats the previous
+   bug where 200px-wide sigil cards stacked vertically and overflowed
+   the modal on mobile landscape. */
+.encounter-choice.wanderer-sigil-row {
+  display: grid;
+  grid-template-columns: 40px 1fr;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  text-align: left;
+  width: 100%;
+  min-width: 0;
+}
+.encounter-choice.wanderer-sigil-row .wanderer-sigil-glyph {
+  font-size: 26px;
+  line-height: 1;
+  color: var(--gold-bright);
+  text-shadow:
+    0 0 12px rgba(240,212,136,0.55),
+    0 0 22px rgba(240,212,136,0.25);
+  text-align: center;
+}
+.encounter-choice.wanderer-sigil-row .wanderer-sigil-body {
+  min-width: 0;
+}
+.encounter-choice.wanderer-sigil-row .enc-name {
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold-bright);
+  text-shadow: 0 0 8px rgba(240,212,136,0.4);
+  margin: 0 0 2px;
+}
+.encounter-choice.wanderer-sigil-row .sigil-desc {
+  font-size: 11px;
+  line-height: 1.3;
+  font-style: italic;
+  color: var(--ink);
+  text-align: left;
+}
+/* Tone differentiator: the "give" rows read as something you're letting
+   go of (slightly dimmed left border in the rose hue); the "take" rows
+   read as something offered to you (gold border, full brightness). */
+.encounter-choice.wanderer-sigil-give {
+  border-left: 2px solid rgba(200,144,144,0.55);
+  opacity: 0.92;
+}
+.encounter-choice.wanderer-sigil-take {
+  border-left: 2px solid var(--gold-bright);
+}
+.encounter-choice.wanderer-sigil-row:hover {
+  border-color: var(--gold-bright);
+  transform: translateY(-1px);
+}
+
+/* Mobile landscape (height ≤ 520) — tighten the sigil row to match the
+   compact event-choice sizing in this viewport. */
+@media (max-height: 520px) {
+  .encounter-choice.wanderer-sigil-row {
+    padding: 6px 10px;
+    gap: 10px;
+    grid-template-columns: 32px 1fr;
+  }
+  .encounter-choice.wanderer-sigil-row .wanderer-sigil-glyph { font-size: 20px; }
+  .encounter-choice.wanderer-sigil-row .enc-name             { font-size: 11px; letter-spacing: 0.12em; }
+  .encounter-choice.wanderer-sigil-row .sigil-desc           { font-size: 9.5px; }
 }
 
 /* Sigil-stage overlay — drifting motes evoke the 'sigil flickering into

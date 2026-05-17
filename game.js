@@ -12537,30 +12537,51 @@ function showEventOverlay(eventId) {
 // ============================================================================
 // WANDERER ENCOUNTER MODAL — five-choice meeting on the road.
 //   1. Ask to join party    → _pendingNamedRecruit (existing pipeline)
-//   2. Trade sigil-for-sigil → showSigilTradeOverlay
-//   3. Ask for help          → showSigilForBuffOverlay
+//   2. Trade sigil-for-sigil → in-modal two-step picker
+//   3. Ask for help          → in-modal two-step picker
 //   4. Fight them            → startEncounter; victory hooks lockout
 //   5. Walk past             → no resource cost; marks wanderer seen
-// Mirrors showEventOverlay's chrome and DOM scaffolding so we get path-event
-// styling and behavior for free.
+//
+// Implemented as a state machine — the wanderer scene (portrait + flavor)
+// stays on screen across every step; only the choice rail at the bottom
+// swaps content as the player drills in.  Steps:
+//   'main' | 'trade-give' | 'trade-take' | 'help-give' | 'help-take'
 // ============================================================================
 function showWandererOverlay(wandererId) {
   const w = WANDERERS[wandererId];
   if (!w) { _completeNonCombatNode(); return; }
+  _renderWandererStep(wandererId, 'main', {});
+}
+
+// Re-render the wanderer scene + choice rail for the given step.  Reuses
+// the same #overlay so transitions feel like the rail changes, not a new
+// screen.  Each step picks its own flavor text and choices.
+function _renderWandererStep(wandererId, step, ctx) {
+  const w = WANDERERS[wandererId];
+  if (!w) { _completeNonCombatNode(); return; }
   const heroDef = w.kind === 'hero' ? CHARS[w.heroId] : null;
   const displayName = heroDef ? heroDef.name : (w.name || 'A figure on the path');
-  $('#overlay-title').textContent = displayName;
 
   const $overlay = $('#overlay');
   $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-upgrade','overlay-sigil','overlay-starter','overlay-boon','overlay-cinematic');
   $overlay.classList.add('overlay-full','overlay-event','overlay-wanderer');
 
+  // Title — root scene shows the wanderer's name; sub-steps show what's
+  // being decided so the player always reads context at the top.
+  const titleByStep = {
+    'main':       displayName,
+    'trade-give': `${displayName} — trade a sigil`,
+    'trade-take': `Take from ${displayName}`,
+    'help-give':  `${displayName} — ask for help`,
+    'help-take':  `${displayName} — choose the boon`,
+  };
+  $('#overlay-title').textContent = titleByStep[step] || displayName;
+
+  // Body — wanderer scene + step-appropriate flavor line.  Scene stays
+  // identical across every step so the wanderer is always on screen.
   const body = $('#overlay-body');
   body.classList.remove('victory-summary-body','welcome-body','run-summary-body');
   body.innerHTML = '';
-
-  // Wanderer portrait — for hero wanderers, use their portrait SVG.  Front
-  // and center, so the player reads who they're meeting first.
   if (heroDef) {
     const stage = document.createElement('div');
     stage.className = 'event-stage event-actors-1 wanderer-stage';
@@ -12570,17 +12591,66 @@ function showWandererOverlay(wandererId) {
     stage.appendChild(fig);
     body.appendChild(stage);
   }
-
   const flavor = document.createElement('p');
   flavor.className = 'event-flavor';
-  flavor.textContent = w.flavor;
+  flavor.textContent = _wandererStepFlavor(step, ctx, w);
   body.appendChild(flavor);
 
+  // Choice rail — always uses event-choices (vertical column of slim
+  // strips) so sigil pickers, buff pickers, and the main menu all share
+  // the same legible mobile-friendly layout.
   const choices = $('#overlay-choices');
   choices.innerHTML = '';
   choices.classList.remove('path-map', 'party-inspect');
   choices.classList.add('event-choices');
 
+  if (step === 'main')             _renderWandererMain(choices, wandererId, w, heroDef, displayName);
+  else if (step === 'trade-give')  _renderWandererTradeGive(choices, wandererId);
+  else if (step === 'trade-take')  _renderWandererTradeTake(choices, wandererId, ctx);
+  else if (step === 'help-give')   _renderWandererHelpGive(choices, wandererId);
+  else if (step === 'help-take')   _renderWandererHelpTake(choices, wandererId, ctx);
+
+  // Back button — only shown on sub-steps; main step hides it.  Returns
+  // to the main step in-place rather than exiting the modal.
+  const btn = $('#overlay-btn');
+  if (step === 'main') {
+    btn.classList.add('hidden');
+    resetOverlayBtn();
+  } else {
+    btn.textContent = '← Back';
+    btn.onclick = () => {
+      // From -take steps, back returns to the matching -give step.
+      // From -give steps, back returns to the main menu.
+      if (step === 'trade-take') return _renderWandererStep(wandererId, 'trade-give', {});
+      if (step === 'help-take')  return _renderWandererStep(wandererId, 'help-give',  {});
+      return _renderWandererStep(wandererId, 'main', {});
+    };
+    btn.classList.remove('hidden');
+  }
+
+  choices.classList.remove('hidden');
+  $overlay.classList.remove('hidden');
+}
+
+function _wandererStepFlavor(step, ctx, w) {
+  switch (step) {
+    case 'trade-give': return 'Choose a sigil to let go of.';
+    case 'trade-take': {
+      const give = ctx.giveId && SIGILS[ctx.giveId];
+      return give ? `For your ${give.name}, choose what you carry away.` : 'Choose what you carry away.';
+    }
+    case 'help-give':  return 'They will help — but it will cost you a sigil.';
+    case 'help-take': {
+      const give = ctx.giveId && SIGILS[ctx.giveId];
+      return give ? `For your ${give.name}, choose the boon.` : 'Choose the boon.';
+    }
+    default: return w.flavor;
+  }
+}
+
+// === Step renderers — each appends slim event-choice strips to `choices`. ===
+
+function _renderWandererMain(choices, wandererId, w, heroDef, displayName) {
   const sigils = (state.run && state.run.sigils) || [];
   const hasSigils = sigils.length > 0;
 
@@ -12602,14 +12672,7 @@ function showWandererOverlay(wandererId) {
     label: 'Trade a sigil',
     tag: hasSigils ? 'Swap one you carry for one they offer' : 'You have nothing to trade',
     disabled: !hasSigils,
-    onClick: () => {
-      hideOverlay();
-      choices.classList.remove('event-choices');
-      showSigilTradeOverlay(wandererId, () => {
-        markWandererSeen(state, wandererId);
-        _completeNonCombatNode();
-      });
-    },
+    onClick: () => _renderWandererStep(wandererId, 'trade-give', {}),
   });
 
   // 3. Ask for help (sigil-for-buff).
@@ -12617,18 +12680,10 @@ function showWandererOverlay(wandererId) {
     label: 'Ask for help',
     tag: hasSigils ? 'Give up a sigil for a one-shot boon' : 'You have nothing to offer',
     disabled: !hasSigils,
-    onClick: () => {
-      hideOverlay();
-      choices.classList.remove('event-choices');
-      showSigilForBuffOverlay(wandererId, () => {
-        markWandererSeen(state, wandererId);
-        _completeNonCombatNode();
-      });
-    },
+    onClick: () => _renderWandererStep(wandererId, 'help-give', {}),
   });
 
-  // 4. Fight them.  Sets _pendingWandererFight so the victory hook can
-  // apply the run-long hero lockout, then starts a solo encounter.
+  // 4. Fight them.
   _mkWandererChoice(choices, {
     label: 'Draw your blade',
     tag: heroDef ? `Fight ${heroDef.name} · death locks them out this run` : 'Fight them on the road',
@@ -12655,8 +12710,7 @@ function showWandererOverlay(wandererId) {
     },
   });
 
-  // 5. Walk past — quiet exit.  Still marks the wanderer seen so the
-  // encounter doesn't reappear, but spends nothing.
+  // 5. Walk past — quiet exit.
   _mkWandererChoice(choices, {
     label: 'Walk past',
     tag: 'You do not stop',
@@ -12666,15 +12720,97 @@ function showWandererOverlay(wandererId) {
       _resolveWandererChoice(wandererId);
     },
   });
-
-  choices.classList.remove('hidden');
-  resetOverlayBtn();
-  $('#overlay-btn').classList.add('hidden');
-  $('#overlay').classList.remove('hidden');
 }
 
-// Choice-card builder for the wanderer modal.  Wraps the same DOM shape
-// the event overlay uses so styling falls through.
+function _renderWandererTradeGive(choices, wandererId) {
+  const sigils = ((state.run && state.run.sigils) || []).map(id => SIGILS[id]).filter(Boolean);
+  if (!sigils.length) {
+    // Player ran out of sigils between steps (impossible from UI, but
+    // defend anyway) — bounce back to main.
+    _renderWandererStep(wandererId, 'main', {});
+    return;
+  }
+  sigils.forEach(sg => {
+    _mkWandererSigilChoice(choices, sg, () => {
+      // Roll the 3 take-offers fresh per give so each give has a unique
+      // pool — feels more like a real trade than a fixed inventory.
+      const owned = new Set(state.run.sigils || []);
+      const pool = Object.values(SIGILS).filter(o => !owned.has(o.id) && o.id !== sg.id);
+      if (!pool.length) {
+        // No sigil they can offer — give up the slot gracefully.
+        _renderWandererStep(wandererId, 'main', {});
+        return;
+      }
+      const shuffled = pool.slice().sort(() => Math.random() - 0.5);
+      const offers = shuffled.slice(0, Math.min(3, shuffled.length));
+      _renderWandererStep(wandererId, 'trade-take', { giveId: sg.id, offers });
+    }, { tone: 'give' });
+  });
+}
+
+function _renderWandererTradeTake(choices, wandererId, ctx) {
+  if (!ctx || !ctx.offers || !ctx.giveId) {
+    _renderWandererStep(wandererId, 'trade-give', {});
+    return;
+  }
+  ctx.offers.forEach(sg => {
+    _mkWandererSigilChoice(choices, sg, () => {
+      tradeSigil(state, ctx.giveId, sg.id);
+      markWandererSeen(state, wandererId);
+      hideOverlay();
+      resetOverlayBtn();
+      _completeNonCombatNode();
+    }, { tone: 'take' });
+  });
+}
+
+function _renderWandererHelpGive(choices, wandererId) {
+  const sigils = ((state.run && state.run.sigils) || []).map(id => SIGILS[id]).filter(Boolean);
+  if (!sigils.length) {
+    _renderWandererStep(wandererId, 'main', {});
+    return;
+  }
+  sigils.forEach(sg => {
+    _mkWandererSigilChoice(choices, sg, () => {
+      _renderWandererStep(wandererId, 'help-take', { giveId: sg.id });
+    }, { tone: 'give' });
+  });
+}
+
+function _renderWandererHelpTake(choices, wandererId, ctx) {
+  if (!ctx || !ctx.giveId) {
+    _renderWandererStep(wandererId, 'help-give', {});
+    return;
+  }
+  // Pre-roll 3 buff offers (out of 4) so each ask feels slightly random.
+  // Pool is small and the labels are short, so slim event-choice strips
+  // are perfect here.
+  const buffPool = [
+    { key: 'maxhp3',   label: '+3 max HP, party',     tag: 'Stands a little straighter' },
+    { key: 'upgrade',  label: 'A tech upgrade',       tag: 'Hone the edge' },
+    { key: 'resolve2', label: '+2 Resolve next fight', tag: 'Carry it forward' },
+    { key: 'heal',     label: 'Heal the party',       tag: 'Full HP, every standing hero' },
+  ];
+  const shuffled = buffPool.slice().sort(() => Math.random() - 0.5);
+  const trio = shuffled.slice(0, 3);
+  trio.forEach(b => {
+    _mkWandererChoice(choices, {
+      label: b.label,
+      tag: b.tag,
+      onClick: () => {
+        tradeSigilForBuff(state, ctx.giveId, b.key);
+        markWandererSeen(state, wandererId);
+        hideOverlay();
+        resetOverlayBtn();
+        _completeNonCombatNode();
+      },
+    });
+  });
+}
+
+// Slim event-style choice card — full-width row, left-aligned, matches
+// the rest of the wanderer modal's main menu.  Used for every choice
+// in the modal so the layout stays consistent on mobile landscape.
 function _mkWandererChoice(choices, opts) {
   const card = document.createElement('button');
   card.className = `encounter-choice event-choice wanderer-choice${opts.kind ? ` wanderer-choice-${opts.kind}` : ''}`;
@@ -12692,6 +12828,26 @@ function _mkWandererChoice(choices, opts) {
   return card;
 }
 
+// Slim sigil row — same full-width strip as the choice cards, but with
+// the sigil's glyph inline and the desc reading like a tooltip.  Avoids
+// the celebratory 200px-wide sigil cards that don't fit the column
+// layout on mobile.
+function _mkWandererSigilChoice(choices, sg, onClick, opts) {
+  const tone = (opts && opts.tone) || 'give';
+  const card = document.createElement('button');
+  card.className = `encounter-choice event-choice wanderer-sigil-row wanderer-sigil-${tone} cat-${sg.category}`;
+  card.innerHTML = `
+    <div class="wanderer-sigil-glyph">${sg.icon}</div>
+    <div class="wanderer-sigil-body">
+      <div class="enc-name">${sg.name}</div>
+      <div class="sigil-desc">${sg.desc}</div>
+    </div>
+  `;
+  card.addEventListener('click', onClick);
+  choices.appendChild(card);
+  return card;
+}
+
 // Shared finisher for the non-combat wanderer choices: hide overlay, mark
 // wanderer seen, run the standard non-combat completion cascade.
 function _resolveWandererChoice(wandererId) {
@@ -12700,206 +12856,6 @@ function _resolveWandererChoice(wandererId) {
   if (choices) choices.classList.remove('event-choices');
   markWandererSeen(state, wandererId);
   _completeNonCombatNode();
-}
-
-// Sigil trade overlay — pick a sigil to give up and a sigil to take.  The
-// wanderer offers 3 random sigils the player doesn't already own; the
-// player picks one of their current sigils to trade for it.  Two-step:
-// first card row is "give", second is "take".
-function showSigilTradeOverlay(wandererId, onDone) {
-  const continueAfter = onDone || (() => renderMap());
-  const sigils = ((state.run && state.run.sigils) || []).map(id => SIGILS[id]).filter(Boolean);
-  if (!sigils.length) { continueAfter(); return; }
-
-  // Pre-roll the 3 sigils the wanderer offers.  Filtered against owned so
-  // the player never trades for a sigil they already have.
-  const owned = new Set(state.run.sigils || []);
-  const offers = Object.values(SIGILS).filter(sg => !owned.has(sg.id));
-  if (!offers.length) { continueAfter(); return; }
-  const shuffled = offers.slice().sort(() => Math.random() - 0.5);
-  const trio = shuffled.slice(0, Math.min(3, shuffled.length));
-
-  const $overlay = $('#overlay');
-  $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-upgrade','overlay-cinematic','overlay-event','overlay-starter','overlay-boon');
-  $overlay.classList.add('overlay-full','overlay-event','overlay-sigil');
-  $('#overlay-title').textContent = 'Trade a sigil';
-
-  const body = $('#overlay-body');
-  body.classList.remove('victory-summary-body','welcome-body','run-summary-body','vignette-body');
-  body.innerHTML = '';
-  const flavor = document.createElement('p');
-  flavor.className = 'event-flavor';
-  flavor.textContent = 'Choose a sigil to let go of.';
-  body.appendChild(flavor);
-
-  const choices = $('#overlay-choices');
-  choices.innerHTML = '';
-  choices.classList.remove('path-map','party-inspect');
-  choices.classList.add('event-choices');
-
-  sigils.forEach(sg => {
-    const card = document.createElement('button');
-    card.className = `encounter-choice sigil-choice cat-${sg.category} wanderer-trade-give`;
-    card.innerHTML = `
-      <div class="enc-name">${sg.name}</div>
-      <div class="sigil-glyph">${sg.icon}</div>
-      <div class="sigil-desc">${sg.desc}</div>
-    `;
-    card.addEventListener('click', () => _showSigilTradeTakeStep(sg.id, trio, continueAfter));
-    choices.appendChild(card);
-  });
-
-  const btn = $('#overlay-btn');
-  btn.textContent = '← Back';
-  btn.onclick = () => {
-    hideOverlay();
-    resetOverlayBtn();
-    continueAfter();
-  };
-  btn.classList.remove('hidden');
-  choices.classList.remove('hidden');
-  $overlay.classList.remove('hidden');
-}
-
-function _showSigilTradeTakeStep(giveId, offers, onDone) {
-  const continueAfter = onDone || (() => renderMap());
-  const give = SIGILS[giveId];
-  $('#overlay-title').textContent = `For your ${give ? give.name : 'sigil'}, take —`;
-
-  const body = $('#overlay-body');
-  body.innerHTML = '';
-  const flavor = document.createElement('p');
-  flavor.className = 'event-flavor';
-  flavor.textContent = 'Pick the sigil you carry away.';
-  body.appendChild(flavor);
-
-  const choices = $('#overlay-choices');
-  choices.innerHTML = '';
-  offers.forEach(sg => {
-    const card = document.createElement('button');
-    card.className = `encounter-choice sigil-choice cat-${sg.category}`;
-    card.innerHTML = `
-      <div class="enc-name">${sg.name}</div>
-      <div class="sigil-glyph">${sg.icon}</div>
-      <div class="sigil-desc">${sg.desc}</div>
-    `;
-    card.addEventListener('click', () => {
-      tradeSigil(state, giveId, sg.id);
-      hideOverlay();
-      resetOverlayBtn();
-      continueAfter();
-    });
-    choices.appendChild(card);
-  });
-
-  const btn = $('#overlay-btn');
-  btn.textContent = '← Back';
-  btn.onclick = () => {
-    hideOverlay();
-    resetOverlayBtn();
-    continueAfter();
-  };
-  btn.classList.remove('hidden');
-  choices.classList.remove('hidden');
-  $('#overlay').classList.remove('hidden');
-}
-
-// Sigil-for-buff overlay.  Same shape as the trade picker, but the second
-// step is a buff picker instead of a sigil picker.
-function showSigilForBuffOverlay(wandererId, onDone) {
-  const continueAfter = onDone || (() => renderMap());
-  const sigils = ((state.run && state.run.sigils) || []).map(id => SIGILS[id]).filter(Boolean);
-  if (!sigils.length) { continueAfter(); return; }
-
-  const $overlay = $('#overlay');
-  $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-upgrade','overlay-cinematic','overlay-event','overlay-starter','overlay-boon');
-  $overlay.classList.add('overlay-full','overlay-event','overlay-sigil');
-  $('#overlay-title').textContent = 'Ask for help';
-
-  const body = $('#overlay-body');
-  body.innerHTML = '';
-  const flavor = document.createElement('p');
-  flavor.className = 'event-flavor';
-  flavor.textContent = 'They will help — but it will cost you a sigil.  Choose which one.';
-  body.appendChild(flavor);
-
-  const choices = $('#overlay-choices');
-  choices.innerHTML = '';
-  choices.classList.remove('path-map','party-inspect');
-  choices.classList.add('event-choices');
-
-  sigils.forEach(sg => {
-    const card = document.createElement('button');
-    card.className = `encounter-choice sigil-choice cat-${sg.category} wanderer-trade-give`;
-    card.innerHTML = `
-      <div class="enc-name">${sg.name}</div>
-      <div class="sigil-glyph">${sg.icon}</div>
-      <div class="sigil-desc">${sg.desc}</div>
-    `;
-    card.addEventListener('click', () => _showSigilForBuffStep(sg.id, continueAfter));
-    choices.appendChild(card);
-  });
-
-  const btn = $('#overlay-btn');
-  btn.textContent = '← Back';
-  btn.onclick = () => {
-    hideOverlay();
-    resetOverlayBtn();
-    continueAfter();
-  };
-  btn.classList.remove('hidden');
-  choices.classList.remove('hidden');
-  $overlay.classList.remove('hidden');
-}
-
-function _showSigilForBuffStep(giveId, onDone) {
-  const continueAfter = onDone || (() => renderMap());
-  const give = SIGILS[giveId];
-  $('#overlay-title').textContent = `For your ${give ? give.name : 'sigil'}, ask for —`;
-
-  const body = $('#overlay-body');
-  body.innerHTML = '';
-  const flavor = document.createElement('p');
-  flavor.className = 'event-flavor';
-  flavor.textContent = 'Pick the help they give back.';
-  body.appendChild(flavor);
-
-  const choices = $('#overlay-choices');
-  choices.innerHTML = '';
-
-  // Pre-roll 3 buff offers so the player doesn't see all 4 every time.
-  const buffPool = [
-    { key: 'maxhp3',   label: '+3 max HP, party',     tag: 'Stands a little straighter' },
-    { key: 'upgrade',  label: 'A tech upgrade',       tag: 'Hone the edge' },
-    { key: 'resolve2', label: '+2 Resolve next fight', tag: 'Carry it forward' },
-    { key: 'heal',     label: 'Heal the party',       tag: 'Full HP, every standing hero' },
-  ];
-  const shuffled = buffPool.slice().sort(() => Math.random() - 0.5);
-  const trio = shuffled.slice(0, 3);
-
-  trio.forEach(b => {
-    const card = document.createElement('button');
-    card.className = 'encounter-choice event-choice';
-    card.innerHTML = `<div class="enc-name">${b.label}</div><div class="sigil-desc">${b.tag}</div>`;
-    card.addEventListener('click', () => {
-      tradeSigilForBuff(state, giveId, b.key);
-      hideOverlay();
-      resetOverlayBtn();
-      continueAfter();
-    });
-    choices.appendChild(card);
-  });
-
-  const btn = $('#overlay-btn');
-  btn.textContent = '← Back';
-  btn.onclick = () => {
-    hideOverlay();
-    resetOverlayBtn();
-    continueAfter();
-  };
-  btn.classList.remove('hidden');
-  choices.classList.remove('hidden');
-  $('#overlay').classList.remove('hidden');
 }
 
 function drawMapConnectors(choices) {
