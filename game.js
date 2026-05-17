@@ -11115,10 +11115,14 @@ function showGameMenu() {
 }
 
 // ─── Alpha QA feedback ────────────────────────────────────────────────────
-// Set FEEDBACK_EMAIL to receive submissions in your inbox via mailto:.
-// Leave it empty to hide the email button and let testers Copy + paste
-// into Discord/Slack/wherever instead.
-const FEEDBACK_EMAIL = 'feedback@triad.local';
+// Submissions go to a fixed inbox.  Address is base64-obfuscated and only
+// decoded into a mailto: URL at click time — never shown in the modal,
+// never written to the DOM, never included in the preview pane.  This is
+// obfuscation, not security: anyone with devtools can still recover it,
+// but it keeps casual source-viewing and grep-scraping from harvesting
+// the address.
+const _FBR = 'a2VldGVyQHZlbmlhY29sbGVjdGlvbi5jb20=';
+const _feedbackTo = () => { try { return atob(_FBR); } catch (_) { return ''; } };
 const FEEDBACK_BUILD = 'alpha';
 
 // Snapshot whatever's relevant about the moment the tester hit Send.
@@ -11177,10 +11181,10 @@ function _formatFeedbackPayload(fields) {
   return parts.join('\n');
 }
 
-// QA feedback modal — fields, then Submit by Email (mailto:) or Copy to
-// clipboard.  Alpha-test scope: no backend, no auth, no rate limit.  When
-// FEEDBACK_EMAIL is set the Submit button opens the tester's mail client
-// with everything prefilled — they hit Send, you get a triage-ready email.
+// QA feedback modal — fields, then Submit (mailto:) or Copy to clipboard.
+// Alpha-test scope: no backend, no auth, no rate limit.  The Submit button
+// opens the tester's mail client with everything prefilled — they hit
+// Send, the report lands in the configured inbox.
 function showFeedbackForm() {
   Audio.ui();
   const existing = document.getElementById('feedback-modal');
@@ -11189,7 +11193,7 @@ function showFeedbackForm() {
   root.id = 'feedback-modal';
   root.className = 'feedback-modal';
   const context = _collectFeedbackContext();
-  const hasEmail = !!(FEEDBACK_EMAIL && FEEDBACK_EMAIL.trim());
+  const hasEmail = !!_feedbackTo();
   root.innerHTML = `
     <div class="fb-backdrop" data-close="1"></div>
     <div class="fb-card" role="dialog" aria-label="Send feedback">
@@ -11316,7 +11320,7 @@ function showFeedbackForm() {
       if (!fields) return;
       const subject = `[Triad ${FEEDBACK_BUILD}] ${fields.category}: ${fields.subject}`;
       const body = _formatFeedbackPayload(fields);
-      const url = `mailto:${encodeURIComponent(FEEDBACK_EMAIL)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      const url = `mailto:${encodeURIComponent(_feedbackTo())}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
       try {
         window.location.href = url;
         flash('Opening your email app — hit Send to submit.');
