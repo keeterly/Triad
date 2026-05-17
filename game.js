@@ -11125,6 +11125,20 @@ const _FBR = 'a2VldGVyQHZlbmlhY29sbGVjdGlvbi5jb20=';
 const _feedbackTo = () => { try { return atob(_FBR); } catch (_) { return ''; } };
 const FEEDBACK_BUILD = 'alpha';
 
+// Rolling ring buffer of recent "this shouldn't have happened" moments.
+// Anything that would otherwise be a silent fall-through (a flag set with
+// no UI surfacing the result, an empty pool blocking an event payoff,
+// etc.) calls _qaWarn — the entry survives into the QA feedback context
+// so a tester filing a bug auto-attaches the breadcrumbs.  Also goes to
+// console.warn for anyone with devtools open.
+const _qaWarnings = [];
+function _qaWarn(area, detail) {
+  const entry = `[${new Date().toISOString()}] ${area}: ${detail}`;
+  _qaWarnings.push(entry);
+  if (_qaWarnings.length > 24) _qaWarnings.shift();
+  try { console.warn(`[Triad QA] ${area}: ${detail}`); } catch (_) {}
+}
+
 // Snapshot whatever's relevant about the moment the tester hit Send.
 // Empty when no run is active — title-screen feedback still works fine.
 function _collectFeedbackContext() {
@@ -11141,12 +11155,18 @@ function _collectFeedbackContext() {
   } else {
     lines.push('Run: (none — on title or between runs)');
   }
-  if (state && state.party && Array.isArray(state.party.chars)) {
-    const party = state.party.chars.map(c => {
-      const def = CHARS[c.id] || {};
-      return `${def.name || c.id} ${c.hp}/${def.maxHp || '?'}${c.ko ? ' (KO)' : ''}`;
-    }).join(' · ');
-    lines.push(`Party: ${party}`);
+  if (state && state.party && state.party.chars) {
+    const ids = Object.keys(state.party.chars);
+    if (ids.length) {
+      const slotOf = (id) => ['front','mid','back'].find(sl => state.party.slots && state.party.slots[sl] === id) || '—';
+      const party = ids.map(id => {
+        const def = CHARS[id] || {};
+        const c = state.party.chars[id];
+        const flag = c.downed ? ' (DOWN)' : (c.ko ? ' (KO)' : '');
+        return `${def.name || id} ${slotOf(id)} ${c.hp}/${def.maxHp || '?'}${flag}`;
+      }).join(' · ');
+      lines.push(`Party: ${party}`);
+    }
   }
   if (state && state.usedCombos && state.usedCombos.size) {
     lines.push(`Combos fired this fight: ${Array.from(state.usedCombos).join(', ')}`);
@@ -11154,9 +11174,14 @@ function _collectFeedbackContext() {
   if (state && state.queue && state.queue.length) {
     lines.push(`Queue: ${state.queue.map(q => `${q.charId}/${q.kind}`).join(' → ')}`);
   }
-  if (state && state.enemies && Array.isArray(state.enemies)) {
+  if (state && Array.isArray(state.enemies)) {
     const alive = state.enemies.filter(e => e && !e.dead);
     if (alive.length) lines.push(`Enemies: ${alive.map(e => `${e.name || e.id} ${e.hp}/${e.maxHp || '?'}`).join(' · ')}`);
+  }
+  if (_qaWarnings.length) {
+    lines.push('');
+    lines.push(`Recent warnings (${_qaWarnings.length}):`);
+    _qaWarnings.forEach(w => lines.push(`  ${w}`));
   }
   return lines.join('\n');
 }
@@ -11878,6 +11903,10 @@ function _completeNonCombatNode() {
       }
       return;
     }
+    // Reachable only if a recruit event fired with a bad heroId or with a
+    // hero already in the party — both shouldn't happen, but if they do,
+    // surface a warning instead of dropping the recruit silently.
+    _qaWarn('namedRecruit', `dropped ${heroId} (CHARS=${!!CHARS[heroId]}, alreadyInParty=${!!state.party.chars[heroId]})`);
   }
   // Tech-upgrade hand-off — events that promise "gain a tech upgrade"
   // (Open Door, etc.) set this flag in their resolve.  We pop the same
@@ -11921,6 +11950,9 @@ function _completeNonCombatNode() {
       }
       return;
     }
+    // Full roster recruited and the stranger flag still fired — design
+    // bug or save migration; flag it so it lands in feedback reports.
+    _qaWarn('strangerRecruit', 'no pickable heroes (full roster already recruited)');
   }
   renderMap();
 }
