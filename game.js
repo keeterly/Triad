@@ -9179,12 +9179,11 @@ function chipHtml(syn, edge) {
 
 function intentIconGlyph(kind) {
   // Glyphs picked so none collide with the weakness-icon school glyphs
-  // (⚔ physical, ✦ holy, ✶ arcane, ➳ ranged, ◐ stealth).  An enemy showing
-  // "⚔" in its top-right corner is reading "weak to physical"; its intent
-  // bubble shouldn't share the same symbol or the two read as one thing.
+  // (⚔ physical, ✦ holy, ✶ arcane, ➳ ranged, ◐ stealth).  ↯ reads as a
+  // strike/zap — clearly an attack, doesn't share meaning with any school.
   if (kind === 'aoe')    return '✷';
   if (kind === 'debuff') return '☽';
-  return '▶';
+  return '↯';
 }
 
 // Pull the primary numeric value out of an intent tag — e.g. "ATK 6" → "6", "DULL 2" → "2"
@@ -9277,29 +9276,15 @@ function makeEnemyCard(e, slot) {
       </div>`;
   }
 
-  // Weakness reveal — once any damaging hit has landed (or Hask's
-  // Frostbreak passive fires), show a school-glyph + uppercase school
-  // name under the HP bar.  Bigger + labeled so the player doesn't need
-  // to memorise the glyph legend.  The .fresh class triggers a one-time
-  // scale-pulse animation on first reveal (see DOM fixup below).
+  // Unified bottom info-strip.  Weakness reveal, WEAKENED state, and
+  // STAGGERED state all share one anchor below the figure portrait —
+  // centered (never clipped at viewport edges), full pill background,
+  // school-tinted when showing weakness.  Priority: STAGGERED > WEAKENED >
+  // weakness-revealed.  Top-right corner of the figure is now empty so
+  // the figure reads cleanly.
   const SCHOOL_GLYPH = { physical: '⚔', holy: '✦', arcane: '✶', ranged: '➳', stealth: '◐' };
   const weakDef = def.weakness;
   const weakSchool = Array.isArray(weakDef) ? weakDef[0] : weakDef;
-  const weaknessLabel = weakSchool ? `${SCHOOL_GLYPH[weakSchool] || '?'} ${weakSchool.toUpperCase()}` : '';
-  const weaknessIcon = (e.weaknessRevealed && weakSchool)
-    ? `<span class="weakness-icon weakness-icon-${weakSchool}" title="Weak to ${weakSchool}" data-tip="Weak to ${weakSchool.toUpperCase()} — match this element to weaken, then again to stagger.">
-         <span class="wi-glyph">${SCHOOL_GLYPH[weakSchool] || '?'}</span>
-         <span class="wi-text">${weakSchool.toUpperCase()}</span>
-       </span>`
-    : '';
-  // Stagger strip — labeled state row under the HP bar so the player can
-  // read the loop directly off the enemy card.  Replaces the tiny corner
-  // pips with explicit text so the WEAKENED → STAGGERED → 2× chain is
-  // self-documenting.
-  // Label kept tight ("WEAKENED · 2T" / "STAGGERED · ×2 NEXT HIT") — the
-  // school glyph the player needs to land lives in the always-visible
-  // top-right weakness-icon, and the tooltip below still spells out the
-  // full play for anyone who taps for detail.
   let stateStrip = '';
   if (e.staggered) {
     const stgTip = 'STAGGERED — the next damaging hit (any element) deals 2× damage, then they recover. State clears at end of turn if you don\'t follow up.';
@@ -9312,6 +9297,10 @@ function makeEnemyCard(e, slot) {
       : 'hit their weakness school again to stagger';
     const wkTip = `WEAKENED (${turnsLeft || 1} turn${(turnsLeft || 1) === 1 ? '' : 's'} left) — ${schoolHint}.  The window persists across turns, so the follow-up doesn't have to land this turn.`;
     stateStrip = `<div class="state-strip state-strip-weakened" title="${wkTip}" data-tip="${wkTip}">⌖ WEAKENED${turnTag}</div>`;
+  } else if (e.weaknessRevealed && weakSchool) {
+    const glyph = SCHOOL_GLYPH[weakSchool] || '?';
+    const wkTip = `Weak to ${weakSchool.toUpperCase()} — match this element to apply WEAKENED, then again to STAGGER for 2× damage.`;
+    stateStrip = `<div class="state-strip state-strip-weakness weakness-${weakSchool}" title="${wkTip}" data-tip="${wkTip}">${glyph} WEAK · ${weakSchool.toUpperCase()}</div>`;
   }
 
   fig.innerHTML = `
@@ -9322,7 +9311,6 @@ function makeEnemyCard(e, slot) {
         <div class="hp-fill ${hpPct < 35 ? 'low' : ''}" style="width:${hpPct}%"></div>
         <div class="hp-text">${e.hp}/${e.maxHp}</div>
       </div>
-      ${weaknessIcon}
       ${stateStrip}
       ${intentBubble}
     </div>
@@ -9332,13 +9320,12 @@ function makeEnemyCard(e, slot) {
     </div>
   `;
   bindFigureHold(fig, e.id, false);
-  // If the weakness just flipped to revealed this tick, queue a one-shot
-  // .fresh class on the icon so the CSS reveal pulse plays.  Clear the
-  // transient flag after — re-renders shouldn't replay the animation.
+  // If the weakness just flipped to revealed this tick, play the reveal
+  // pulse on the bottom info-strip (which now carries the weakness label).
   if (e._weaknessJustRevealed) {
     e._weaknessJustRevealed = false;
     requestAnimationFrame(() => {
-      const ic = fig.querySelector('.weakness-icon');
+      const ic = fig.querySelector('.state-strip-weakness');
       if (ic) ic.classList.add('fresh');
     });
   }

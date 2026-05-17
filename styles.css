@@ -893,18 +893,19 @@ body {
 /* HP numeric "5/8" — current/total, pushed past the right bracket.
    Overrides the visually-hidden clip rules earlier in the file. */
 .figure-hp .hp-text {
-  /* Sits past the closing `]` pseudo-element (which lives at +2px and is
-     ~6px wide) so the read is "[ ==== ] 4/10" without overlap. */
+  /* Sits centered directly UNDER the bar so it never clips against the
+     viewport edge on the back-slot enemy.  Reads cleanly under the
+     [ === ] track. */
   position: absolute;
-  left: calc(100% + 14px);
-  top: 50%;
-  transform: translateY(-50%);
+  top: calc(100% + 3px);
+  left: 50%;
+  transform: translateX(-50%);
   width: auto;
   height: auto;
   clip: auto;
   overflow: visible;
   white-space: nowrap;
-  font-size: 9px;
+  font-size: 10px;
   line-height: 1;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
@@ -997,6 +998,30 @@ body {
   text-shadow: 0 0 8px rgba(240,212,136,0.7), 0 1px 0 rgba(0,0,0,0.9);
   animation: state-strip-stagger-pulse 0.7s ease-in-out infinite alternate;
 }
+/* Weakness reveal — shares the bottom info-strip anchor.  Renders only
+   when the enemy is not currently WEAKENED or STAGGERED (those take the
+   slot when active).  School-tinted background + matching glyph so the
+   color identifies the school at a glance. */
+.figure .state-strip-weakness {
+  background: linear-gradient(180deg, rgba(20,16,12,0.92) 0%, rgba(8,6,4,0.95) 100%);
+  text-shadow: 0 0 6px currentColor, 0 1px 0 rgba(0,0,0,0.9);
+}
+.figure .state-strip-weakness.weakness-physical { color: #f0d8a8; border: 1px solid #d8c2a0; }
+.figure .state-strip-weakness.weakness-holy     { color: #fbeec5; border: 1px solid #f4e6b8; }
+.figure .state-strip-weakness.weakness-arcane   { color: #e7c5ff; border: 1px solid #c9a8e8; }
+.figure .state-strip-weakness.weakness-ranged   { color: #c8e0bb; border: 1px solid #a8c8a0; }
+.figure .state-strip-weakness.weakness-stealth  { color: #c8d4ec; border: 1px solid #a8b8d0; }
+/* First-reveal scale pulse — one-shot via the .fresh class added by JS
+   after weaknessRevealed flips true. */
+.figure .state-strip-weakness.fresh {
+  animation: state-strip-weakness-reveal 0.85s ease-out 1;
+}
+@keyframes state-strip-weakness-reveal {
+  0%   { transform: translateX(-50%) scale(0.3); opacity: 0; filter: brightness(2); }
+  35%  { transform: translateX(-50%) scale(1.18); opacity: 1; filter: brightness(1.6); }
+  70%  { transform: translateX(-50%) scale(0.96); }
+  100% { transform: translateX(-50%) scale(1);    opacity: 1; filter: brightness(1); }
+}
 @keyframes state-strip-weak-pulse {
   0%, 100% { filter: brightness(1); }
   50%      { filter: brightness(1.15); }
@@ -1005,16 +1030,9 @@ body {
   from { filter: brightness(1)    drop-shadow(0 0 4px rgba(240,212,136,0.4)); }
   to   { filter: brightness(1.25) drop-shadow(0 0 12px rgba(240,212,136,0.85)); }
 }
-/* Weakness icon now lives in the top-right corner of the portrait, so it
-   no longer collides with the bottom .state-strip — both are always
-   visible together.  School glyph stays readable when the strip text is
-   trimmed (e.g. "WEAKENED · 2T"). */
 
 @media (max-width: 720px) {
   .figure .state-strip   { font-size: 10px; padding: 3px 8px; letter-spacing: 0.12em; }
-  .figure .weakness-icon { padding: 1px 5px; }
-  .figure .weakness-icon .wi-glyph { font-size: 12px; }
-  .figure .weakness-icon .wi-text  { font-size: 8.5px; }
 }
 
 /* Old corner state pips removed — the WEAKENED / STAGGERED state now
@@ -1056,7 +1074,9 @@ body {
    from the glyph + number themselves. */
 .intent-bubble {
   position: absolute;
-  top: 36px;
+  /* Sits below the HP bar AND the new under-bar HP number.  Bar bottom is
+     ~30px, HP-text spans ~33–46px, so 52px leaves clean breathing room. */
+  top: 52px;
   left: 50%;
   transform: translateX(-50%);
   color: var(--blood-bright);
