@@ -5813,6 +5813,231 @@ const COMBOS = {
       { kind: 'burst',       at: 'enemy-all', school: 'holy', count: 24, ms: 280 },
     ],
   },
+
+  // ---- Coverage-fill combos ----
+  // Brings the 5 previously-orphan heroes (Garron, Lirien, Vasha, Hask, Veyr)
+  // into the resonance graph.  Each fills a mechanical gap that wasn't
+  // covered before AND pairs heroes whose passives complement each other.
+  litany_of_the_gate: {
+    id: 'litany_of_the_gate', name: 'Litany of the Gate', tier: 'duo',
+    desc: 'Tank+heal without Cassia/Elin — Veil all, heal lowest 4, Garron retal',
+    requires: [
+      { heroId: 'garron', kind: 'attack' },
+      { heroId: 'vasha',  kind: 'attack' },
+    ],
+    fn: (s) => {
+      aliveParty(s).forEach(c => { c._veil = true; });
+      const alive = aliveParty(s).slice().sort((a,b) => (a.hp/a.maxHp) - (b.hp/b.maxHp));
+      const lowest = alive[0];
+      if (lowest) {
+        const b = lowest.hp; lowest.hp = Math.min(lowest.maxHp, lowest.hp + 4);
+        if (lowest.hp > b) spawnPopupId(lowest.id, `+${lowest.hp - b}`, 'heal', 'party');
+      }
+      const g = s.party.chars.garron;
+      if (g && !g.downed) { g.retaliate = (g.retaliate || 0) + 3; g.taunt = true; }
+    },
+    cinematic: [
+      { kind: 'stage',    school: 'holy',                          ms: 220 },
+      { kind: 'hero-big', heroes: ['garron','vasha'], pose: 'guard', ms: 420 },
+      { kind: 'banner',   text: 'LITANY OF THE GATE', size: 'md', ms: 360 },
+      { kind: 'slogan',   text: 'the verse holds the line',        ms: 240 },
+      { kind: 'punch',                                             ms: 380 },
+      { kind: 'resolve' },
+      { kind: 'burst',    at: 'party-all', school: 'holy', count: 10, ms: 280 },
+    ],
+  },
+  double_verse: {
+    id: 'double_verse', name: 'Double Verse', tier: 'duo',
+    desc: 'Double-arcane vuln stack — 3 dmg all + vuln 3 all + Burn 1 all',
+    requires: [
+      { heroId: 'lirien', kind: 'attack' },
+      { heroId: 'ash',    kind: 'attack' },
+    ],
+    fn: (s) => {
+      dmgAllEnemies(s, 3);
+      aliveEnemies(s).forEach(e => {
+        if (e.dead) return;
+        e.vuln += 3;
+        e.burn = Math.max(e.burn, 1);
+        spawnPopupId(e.id, 'VULN +3', 'stagger', 'enemy');
+      });
+    },
+    cinematic: [
+      { kind: 'stage',    school: 'arcane',                          ms: 220 },
+      { kind: 'hero-big', heroes: ['lirien','ash'], pose: 'whisper', ms: 420 },
+      { kind: 'banner',   text: 'DOUBLE VERSE', size: 'md',          ms: 360 },
+      { kind: 'slogan',   text: 'two voices in one chord',           ms: 240 },
+      { kind: 'punch',                                               ms: 380 },
+      { kind: 'resolve' },
+      { kind: 'burst',    at: 'enemy-all', school: 'arcane', count: 14, ms: 320 },
+      { kind: 'shake',    intensity: 2 },
+    ],
+  },
+  cold_light: {
+    id: 'cold_light', name: 'Cold Light', tier: 'duo',
+    desc: 'Mass weakness scout — every enemy weakness revealed · arm Conviction',
+    requires: [
+      { heroId: 'vasha', kind: 'attack' },
+      { heroId: 'hask',  kind: 'attack' },
+    ],
+    fn: (s) => {
+      aliveEnemies(s).forEach(e => {
+        if (e.dead) return;
+        if (!e.weaknessRevealed) { e.weaknessRevealed = true; e._weaknessJustRevealed = true; }
+      });
+      dmgAllEnemies(s, 3);
+      const v = s.party.chars.vasha;
+      if (v && !v.downed) {
+        v.convictionArmed = true;
+        spawnPassivePopup('vasha', 'CONVICTION');
+      }
+    },
+    cinematic: [
+      { kind: 'stage',    school: 'holy',                          ms: 240 },
+      { kind: 'hero-big', heroes: ['vasha','hask'], pose: 'rise', ms: 420 },
+      { kind: 'banner',   text: 'COLD LIGHT', size: 'md',          ms: 360 },
+      { kind: 'slogan',   text: 'every sin · named',               ms: 240 },
+      { kind: 'punch',                                             ms: 380 },
+      { kind: 'resolve' },
+      { kind: 'enemy-flash', targets: 'all', kind2: 'warn',        ms: 220 },
+      { kind: 'burst',    at: 'enemy-all', school: 'holy', count: 12, ms: 260 },
+    ],
+  },
+  frozen_witness_combo: {
+    id: 'frozen_witness_combo', name: 'Frozen Witness', tier: 'duo',
+    desc: 'Mass stagger conversion — STAGGER weakened enemies, WEAKEN the rest, 4 AoE',
+    requires: [
+      { heroId: 'hask', kind: 'attack' },
+      { heroId: 'veyr', kind: 'attack' },
+    ],
+    fn: (s) => {
+      aliveEnemies(s).forEach(e => {
+        if (e.dead) return;
+        if (!e.weaknessRevealed) { e.weaknessRevealed = true; e._weaknessJustRevealed = true; }
+        if (e.weakened && !e.staggered) {
+          e.staggered = true;
+          e.staggerBonusUsed = false;
+          spawnPopupId(e.id, 'STAGGERED', 'stagger', 'enemy');
+          const h = s.party.chars.hask;
+          if (h && !h.downed) { gainResolve(s, 1); spawnPassivePopup('hask', 'SHATTER'); }
+        } else if (!e.weakened && !e.staggered) {
+          e.weakened = true;
+          e.weakenedTurnsLeft = 2;
+          spawnPopupId(e.id, 'WEAKENED', 'stagger', 'enemy');
+        }
+      });
+      dmgAllEnemies(s, 4);
+    },
+    cinematic: [
+      { kind: 'stage',    school: 'stealth',                          ms: 240 },
+      { kind: 'hero-big', heroes: ['hask','veyr'], pose: 'whisper',  ms: 420 },
+      { kind: 'banner',   text: 'FROZEN WITNESS', size: 'md',         ms: 360 },
+      { kind: 'slogan',   text: 'the cold sees · the cold names',     ms: 240 },
+      { kind: 'punch',                                                ms: 380 },
+      { kind: 'resolve' },
+      { kind: 'shake',    intensity: 3 },
+      { kind: 'enemy-flash', targets: 'all', kind2: 'hit',            ms: 220 },
+      { kind: 'burst',    at: 'enemy-all', school: 'stealth', count: 14, ms: 280 },
+    ],
+  },
+  named_witness: {
+    id: 'named_witness', name: 'Named Witness', tier: 'duo',
+    desc: 'Late-fight scaling — 4 AoE (ignore armor) + bleed 2 all · +2 dmg per downed ally',
+    requires: [
+      { heroId: 'veyr',    kind: 'attack' },
+      { heroId: 'branwen', kind: 'attack' },
+    ],
+    fn: (s) => {
+      const downed = Object.values(s.party.chars).filter(c => c.downed).length;
+      const dmg = 4 + (2 * downed);
+      const wasIgnore = s.ignoreArmor;
+      s.ignoreArmor = true;
+      aliveEnemies(s).forEach(e => {
+        if (e.dead) return;
+        applyDmgToEnemy(s, e, dmg);
+        if (!e.dead) e.bleed = Math.max(e.bleed, 2);
+      });
+      s.ignoreArmor = wasIgnore;
+    },
+    cinematic: [
+      { kind: 'stage',    school: 'stealth',                          ms: 240 },
+      { kind: 'hero-big', heroes: ['veyr','branwen'], pose: 'cross', ms: 420 },
+      { kind: 'banner',   text: 'NAMED WITNESS', size: 'md',          ms: 360 },
+      { kind: 'slogan',   text: 'every fall · a name carved',         ms: 240 },
+      { kind: 'punch',                                                ms: 380 },
+      { kind: 'resolve' },
+      { kind: 'slash',    direction: 'down-right', school: 'ranged', ms: 220 },
+      { kind: 'shake',    intensity: 2 },
+      { kind: 'burst',    at: 'enemy-all', school: 'stealth', count: 12, ms: 260 },
+    ],
+  },
+
+  // ---- Sig-tier coverage-fill ----
+  choral_verse: {
+    id: 'choral_verse', name: 'Choral Verse', tier: 'duo', sigTier: true,
+    desc: 'Back-row caster pair — heal 8 all + cleanse · vuln 2 all · arm Conviction · +1 Resolve',
+    requires: [
+      { heroId: 'lirien', kind: 'sig' },
+      { heroId: 'vasha',  kind: 'sig' },
+    ],
+    fn: (s) => {
+      aliveParty(s).forEach(c => {
+        const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 8);
+        if (c.hp > b) spawnPopupId(c.id, `+${c.hp - b}`, 'heal', 'party');
+        c.bleed = 0; c.dulled = 0;
+      });
+      aliveEnemies(s).forEach(e => { if (!e.dead) { e.vuln += 2; spawnPopupId(e.id, 'VULN +2', 'stagger', 'enemy'); } });
+      const v = s.party.chars.vasha;
+      if (v && !v.downed) { v.convictionArmed = true; spawnPassivePopup('vasha', 'CONVICTION'); }
+      gainResolve(s, 1);
+    },
+    cinematic: [
+      { kind: 'stage',    school: 'arcane',                          ms: 320 },
+      { kind: 'hero-big', heroes: ['lirien','vasha'], pose: 'whisper', ms: 520 },
+      { kind: 'banner',   text: 'CHORAL VERSE', size: 'lg', subtitle: 'two voices · one verse', ms: 460 },
+      { kind: 'slogan',   text: 'the chord that holds and the chord that names', ms: 280 },
+      { kind: 'punch',                                                ms: 440 },
+      { kind: 'resolve' },
+      { kind: 'burst',    at: 'party-all', school: 'holy',   count: 10, ms: 220 },
+      { kind: 'burst',    at: 'enemy-all', school: 'arcane', count: 14, ms: 260 },
+      { kind: 'shake',    intensity: 2 },
+    ],
+  },
+
+  // ---- Triple coverage-fill ----
+  wall_of_walls: {
+    id: 'wall_of_walls', name: 'Wall of Walls', tier: 'triple',
+    desc: 'Front-trio defense — party Wall 1 all · STAGGER front sin · 4 AoE',
+    requires: [
+      { heroId: 'garron', kind: 'attack' },
+      { heroId: 'hask',   kind: 'attack' },
+      { heroId: 'korin',  kind: 'attack' },
+    ],
+    fn: (s) => {
+      aliveParty(s).forEach(c => { c.armorAbsorb = (c.armorAbsorb || 0) + 1; });
+      const front = enemyBySlot(s, 'front');
+      if (front && !front.dead) {
+        if (!front.weaknessRevealed) { front.weaknessRevealed = true; front._weaknessJustRevealed = true; }
+        front.staggered = true;
+        front.staggerBonusUsed = false;
+        spawnPopupId(front.id, 'STAGGERED', 'stagger', 'enemy');
+        const h = s.party.chars.hask;
+        if (h && !h.downed) { gainResolve(s, 1); spawnPassivePopup('hask', 'SHATTER'); }
+      }
+      dmgAllEnemies(s, 4);
+    },
+    cinematic: [
+      { kind: 'stage',    school: 'physical',                        ms: 300 },
+      { kind: 'hero-big', heroes: ['garron','hask','korin'], pose: 'guard', ms: 560 },
+      { kind: 'banner',   text: 'WALL OF WALLS', size: 'lg',          ms: 440 },
+      { kind: 'slogan',   text: 'three shields · one storm',          ms: 280 },
+      { kind: 'punch',                                                ms: 440 },
+      { kind: 'resolve' },
+      { kind: 'shake',    intensity: 3 },
+      { kind: 'enemy-flash', targets: 'front', kind2: 'hit',          ms: 220 },
+      { kind: 'burst',    at: 'enemy-front', school: 'physical', count: 14, ms: 280 },
+    ],
+  },
 };
 
 // Find which combos can be assembled from the current queue.  Returns each
