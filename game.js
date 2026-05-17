@@ -15,9 +15,6 @@ const PORTRAITS = {
   veyr: `
 <svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
   <defs>
-    <radialGradient id="veyr-bg" cx="50%" cy="30%" r="80%">
-      <stop offset="0" stop-color="#3a3850"/><stop offset="0.5" stop-color="#15182a"/><stop offset="1" stop-color="#020308"/>
-    </radialGradient>
     <linearGradient id="veyr-hood" x1="0%" x2="100%">
       <stop offset="0" stop-color="#1a1a28"/><stop offset="0.5" stop-color="#0c0c14"/><stop offset="1" stop-color="#02020a"/>
     </linearGradient>
@@ -25,7 +22,6 @@ const PORTRAITS = {
       <stop offset="0" stop-color="#e8eaf8"/><stop offset="0.5" stop-color="#88a0c0"/><stop offset="1" stop-color="#202840"/>
     </radialGradient>
   </defs>
-  <rect x="0" y="0" width="100" height="80" fill="url(#veyr-bg)"/>
   <ellipse cx="50" cy="118" rx="42" ry="10" fill="#020308" opacity="0.85"/>
   <path d="M 18 130 Q 18 84 38 64 Q 50 56 62 64 Q 82 84 82 130 Z" fill="url(#veyr-hood)" stroke="#02020a" stroke-width="0.7"/>
   <path d="M 30 130 Q 30 92 42 72 L 58 72 Q 70 92 70 130 Z" fill="#0a0a14" opacity="0.55"/>
