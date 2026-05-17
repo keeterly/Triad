@@ -7044,15 +7044,19 @@ body.cine-playing #queue-strip { pointer-events: none; }
   z-index: 350;
   pointer-events: none;
   overflow: hidden;
-  background: radial-gradient(ellipse at center, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.98) 80%);
+  /* Center darkness raised from 0.55 → 0.86 so the combat HUD (ATB bars,
+     party portraits, enemy stats) doesn't leak through the cinematic.
+     Edges stay near-opaque for the framed-stage feel. */
+  background: radial-gradient(ellipse at center, rgba(0,0,0,0.86) 0%, rgba(0,0,0,0.99) 75%);
   opacity: 0;
   animation: cine-stage-in 0.30s ease-out forwards;
   display: flex; align-items: center; justify-content: center;
 }
 .cine-stage::before {
-  /* Decorative vignette + film-grain feel — soft radial frame */
+  /* Tighter vignette frame — pulls focus to the center stage and crushes
+     any light bleed past the radial backdrop. */
   content: ''; position: absolute; inset: 0;
-  background: radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.45) 100%);
+  background: radial-gradient(ellipse at center, transparent 22%, rgba(0,0,0,0.62) 100%);
   pointer-events: none;
 }
 .cine-stage-bg {
@@ -7090,6 +7094,10 @@ body.cine-playing #queue-strip { pointer-events: none; }
 .cine-stage-text {
   display: flex; flex-direction: column; align-items: center; gap: 6px;
   text-align: center;
+  /* Constrain so long titles ("LITANY OF THE GATE", "AS ABOVE, SO BELOW")
+     don't span the full viewport.  text-wrap: balance gives a clean
+     two-line split when wrap is unavoidable on narrow screens. */
+  max-width: min(94vw, 1000px);
   opacity: 0;
   animation: cine-stage-text-in 0.45s cubic-bezier(.18,.89,.32,1) 0.15s forwards;
 }
@@ -7098,10 +7106,15 @@ body.cine-playing #queue-strip { pointer-events: none; }
   color: var(--gold-pale);
   text-shadow: 0 0 30px rgba(240,212,136,0.65), 0 4px 0 rgba(0,0,0,0.9);
   font-weight: 800;
+  text-wrap: balance;
+  line-height: 1.08;
 }
-.cine-stage-text .cb-name.size-sm { font-size: clamp(26px, 5vw, 38px); letter-spacing: 0.30em; }
-.cine-stage-text .cb-name.size-md { font-size: clamp(34px, 6.4vw, 52px); letter-spacing: 0.36em; }
-.cine-stage-text .cb-name.size-lg { font-size: clamp(44px, 8.2vw, 72px); letter-spacing: 0.42em; }
+/* Letter-spacing trimmed across all sizes so 17-18 char combo names fit
+   on one line at typical viewports.  Was 0.30/0.36/0.42 — too wide for
+   long titles, forcing awkward wraps like "LITANY OF THE / GATE". */
+.cine-stage-text .cb-name.size-sm { font-size: clamp(24px, 4.6vw, 34px); letter-spacing: 0.22em; }
+.cine-stage-text .cb-name.size-md { font-size: clamp(30px, 5.6vw, 46px); letter-spacing: 0.24em; }
+.cine-stage-text .cb-name.size-lg { font-size: clamp(40px, 7.4vw, 62px); letter-spacing: 0.28em; }
 .cine-stage.is-sig .cine-stage-text .cb-name {
   color: #d6e6ff;
   text-shadow: 0 0 36px rgba(170,200,255,0.78), 0 4px 0 rgba(0,0,0,0.9);
