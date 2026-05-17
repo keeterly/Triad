@@ -9294,12 +9294,11 @@ function makeEnemyCard(e, slot) {
     stateStrip = `<div class="state-strip state-strip-staggered" title="${stgTip}" data-tip="${stgTip}">⚡ STAGGERED · ×2 NEXT HIT</div>`;
   } else if (e.weakened) {
     const turnsLeft = Math.max(0, e.weakenedTurnsLeft || 0);
-    const turnTag = turnsLeft > 0 ? ` · ${turnsLeft}T` : '';
     const schoolHint = weakSchool
       ? `hit them with ${SCHOOL_GLYPH[weakSchool] || '?'} ${weakSchool.toUpperCase()} again to stagger`
       : 'hit their weakness school again to stagger';
     const wkTip = `WEAKENED (${turnsLeft || 1} turn${(turnsLeft || 1) === 1 ? '' : 's'} left) — ${schoolHint}.  The window persists across turns, so the follow-up doesn't have to land this turn.`;
-    stateStrip = `<div class="state-strip state-strip-weakened" title="${wkTip}" data-tip="${wkTip}">⌖ WEAKENED${turnTag}</div>`;
+    stateStrip = `<div class="state-strip state-strip-weakened" title="${wkTip}" data-tip="${wkTip}">⌖ WEAKENED</div>`;
   } else if (e.weaknessRevealed && weakSchool) {
     const glyph = SCHOOL_GLYPH[weakSchool] || '?';
     const wkTip = `Weak to ${weakSchool.toUpperCase()} — match this element to apply WEAKENED, then again to STAGGER for 2× damage.`;
