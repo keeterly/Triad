@@ -3116,6 +3116,70 @@ body {
   margin-top: 1px;
 }
 
+.hc-combos {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.hc-combo-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 5px 6px;
+  background: rgba(22,18,14,0.55);
+  border-left: 2px solid rgba(212,200,168,0.3);
+}
+.hc-combo-kind {
+  font-size: 9px;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: 0;
+  color: var(--ink-dim);
+  border: 1px solid rgba(212,200,168,0.3);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.hc-combo-body { flex: 1; min-width: 0; }
+.hc-combo-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.hc-combo-name {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gold-pale);
+}
+.hc-combo-tier {
+  font-size: 8px;
+  letter-spacing: 0.24em;
+  padding: 1px 4px;
+  border-radius: 2px;
+  border: 1px solid currentColor;
+}
+.hc-combo-tier.hc-combo-tier-duo    { color: var(--gold); }
+.hc-combo-tier.hc-combo-tier-triple { color: var(--gold-bright); text-shadow: 0 0 4px rgba(240,212,136,0.5); }
+.hc-combo-tier.hc-combo-tier-sig    { color: #aacfff; text-shadow: 0 0 4px rgba(170,200,255,0.5); }
+.hc-combo-partners {
+  font-size: 9.5px;
+  color: var(--ink-dim);
+  letter-spacing: 0.04em;
+  margin-top: 2px;
+}
+.hc-combo-desc {
+  font-size: 10px;
+  font-style: italic;
+  color: var(--ink-dim);
+  line-height: 1.4;
+  margin-top: 2px;
+}
+
 .hc-quirks {
   display: flex;
   flex-wrap: wrap;

@@ -6045,6 +6045,10 @@ const COMBOS = {
 // (so commitCombo can splice them out).
 function matchingCombos(queue) {
   const spent = (state && state.usedCombos) || new Set();
+  // Priority weight — bigger payoff combos surface first when the queue
+  // legally matches multiple at once.  Triple > sig-tier > duo so the
+  // player sees the rarer fire at the top of the rail.
+  const tierWeight = (c) => (c.tier === 'triple' ? 30 : 0) + (c.sigTier ? 10 : 0);
   return Object.values(COMBOS).map(combo => {
     // Resonance is once-per-encounter — a fired combo is locked out for the
     // rest of the fight, even if the queue could assemble it again.
@@ -6060,7 +6064,7 @@ function matchingCombos(queue) {
       return true;
     });
     return ok ? { combo, indices } : null;
-  }).filter(Boolean);
+  }).filter(Boolean).sort((a, b) => tierWeight(b.combo) - tierWeight(a.combo));
 }
 
 // Returns combos that are ONE action away from completion — the queue
@@ -9857,7 +9861,14 @@ function renderTeamSpecial() {
   // Don't show during resolution
   if (state.executing || state.over) { area.classList.add('hidden'); return; }
   const matches = matchingCombos(state.queue);
-  const partials = partialCombos(state.queue).slice(0, 3); // cap so the rail doesn't flood
+  // Sort partials by tier weight too so the rarer "one-away" hints sit on
+  // top of the partial section.  Cap raised from 3 to 5 — with 23 combos
+  // a 2-action queue can be one step from many; surfacing more keeps the
+  // planning loop honest without flooding the rail (CSS handles wrap).
+  const partialTierWeight = (c) => (c.tier === 'triple' ? 30 : 0) + (c.sigTier ? 10 : 0);
+  const partials = partialCombos(state.queue)
+    .sort((a, b) => partialTierWeight(b.combo) - partialTierWeight(a.combo))
+    .slice(0, 5);
   if (matches.length === 0 && partials.length === 0) { area.classList.add('hidden'); return; }
   area.classList.remove('hidden');
   area.classList.add('resonance-rail');
@@ -13579,6 +13590,40 @@ function showHeroCodex() {
                 ${basic ? `<div class="hc-tech-row"><span class="hc-tech-kind">A</span><div class="hc-tech-body"><div class="hc-tech-name">${basic.name}</div><div class="hc-tech-desc">${basic.desc || ''}</div></div></div>` : ''}
                 ${sig   ? `<div class="hc-tech-row sig"><span class="hc-tech-kind sig">S</span><div class="hc-tech-body"><div class="hc-tech-name">${sig.name}</div><div class="hc-tech-desc">${sig.desc || ''}</div></div></div>` : ''}
               </div>`;
+          })()}
+          ${(() => {
+            // Resonance participation — which team combos does this hero
+            // feed?  Surfaces the planning view that combat lacks ("if I
+            // recruit this hero, what new combos open up?").  Tier-ordered
+            // so the rarer fires read first.
+            const tierRank = (c) => (c.tier === 'triple' ? 0 : 2) + (c.sigTier ? 0 : 1);
+            const combos = Object.values(COMBOS)
+              .filter(c => c.requires.some(r => r.heroId === id))
+              .sort((a, b) => tierRank(a) - tierRank(b));
+            if (!combos.length) return '';
+            const items = combos.map(c => {
+              const tierLabel = c.sigTier
+                ? (c.tier === 'triple' ? 'SIG TRIPLE' : 'SIG DUO')
+                : (c.tier === 'triple' ? 'TRIPLE' : 'DUO');
+              const tierCls = c.sigTier ? 'hc-combo-tier-sig' : (c.tier === 'triple' ? 'hc-combo-tier-triple' : 'hc-combo-tier-duo');
+              const partners = c.requires
+                .filter(r => r.heroId !== id)
+                .map(r => `${(CHARS[r.heroId] && CHARS[r.heroId].name) || r.heroId}${r.kind === 'sig' ? ' ★' : ''}`)
+                .join(' · ');
+              const myKind = (c.requires.find(r => r.heroId === id) || {}).kind === 'sig' ? '★' : 'A';
+              return `<div class="hc-combo-row">
+                <span class="hc-combo-kind">${myKind}</span>
+                <div class="hc-combo-body">
+                  <div class="hc-combo-head">
+                    <span class="hc-combo-name">${c.name}</span>
+                    <span class="hc-combo-tier ${tierCls}">${tierLabel}</span>
+                  </div>
+                  <div class="hc-combo-partners">with ${partners}</div>
+                  <div class="hc-combo-desc">${c.desc || ''}</div>
+                </div>
+              </div>`;
+            }).join('');
+            return `<div class="hc-section">Resonances (${combos.length})</div><div class="hc-combos">${items}</div>`;
           })()}
           ${quirkList ? `<div class="hc-section">Affinities</div>${quirkList}` : ''}
         ` : `
