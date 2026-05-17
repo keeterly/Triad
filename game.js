@@ -12982,6 +12982,17 @@ function showSwapOverlay(recruitId, onDone) {
     resetOverlayBtn();
     cleanup();
   };
+  // CRITICAL — _completeNonCombatNode calls hideOverlay() before routing
+  // into this function (the path-event card handler hides itself), so we
+  // have to re-show the overlay or the swap UI is invisible.  Without
+  // this the named-recruit flow silently fails when the party is full:
+  // the event resolve sets _pendingNamedRecruit, _completeNonCombatNode
+  // routes here, this function repaints #overlay's contents — but the
+  // .hidden class is still on, so the player sees nothing, taps the
+  // next map node, and walks into a fight without the recruit.
+  btn.classList.remove('hidden');
+  choices.classList.remove('hidden');
+  $overlay.classList.remove('hidden');
 }
 
 // Named-recruit commit — the named event already delivered the introduction,
