@@ -7071,12 +7071,39 @@ body.cine-playing #queue-strip { pointer-events: none; }
 .cine-stage.school-ranged   .cine-stage-bg { background: radial-gradient(ellipse at center, rgba(220,190,140,0.55), transparent 60%); }
 .cine-stage.school-arcane   .cine-stage-bg { background: radial-gradient(ellipse at center, rgba(190,150,240,0.6), transparent 60%); }
 .cine-stage-rays {
-  /* Subtle animated rays sweeping in from off-screen behind the heroes */
+  /* Persona-style speed lines radiating from center.  Crank up during
+     hero-big phase to sell the "synchronizing" beat, then ride the
+     punch zoom outward at impact. */
   position: absolute; inset: -10% -10%;
   pointer-events: none;
-  background: repeating-conic-gradient(from 0deg at 50% 50%, transparent 0deg 8deg, rgba(255,255,255,0.06) 8deg 10deg);
-  animation: cine-rays-spin 8s linear infinite;
-  opacity: 0.45;
+  background: repeating-conic-gradient(from 0deg at 50% 50%, transparent 0deg 6deg, rgba(255,255,255,0.10) 6deg 9deg);
+  animation: cine-rays-spin 6s linear infinite;
+  opacity: 0.55;
+  mix-blend-mode: screen;
+}
+/* Punch frame intensifies the rays one more time, then fades with the stage. */
+.cine-stage.cine-stage-punch .cine-stage-rays {
+  animation: cine-rays-spin 1.4s linear infinite;
+  opacity: 0.95;
+}
+
+/* Color-flash layer — invisible until the punch frame, then a single
+   school-tinted strobe at impact.  Sells the "all heroes fire at once"
+   beat without spawning new DOM during the cinematic. */
+.cine-stage-flash {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  mix-blend-mode: screen;
+  background: radial-gradient(ellipse at center, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0) 60%);
+}
+.cine-stage.school-holy     .cine-stage-flash { background: radial-gradient(ellipse at center, rgba(255,242,180,0.95) 0%, rgba(255,242,180,0) 60%); }
+.cine-stage.school-physical .cine-stage-flash { background: radial-gradient(ellipse at center, rgba(255,210,140,0.95) 0%, rgba(255,210,140,0) 60%); }
+.cine-stage.school-stealth  .cine-stage-flash { background: radial-gradient(ellipse at center, rgba(180,210,255,0.95) 0%, rgba(180,210,255,0) 60%); }
+.cine-stage.school-ranged   .cine-stage-flash { background: radial-gradient(ellipse at center, rgba(232,196,140,0.95) 0%, rgba(232,196,140,0) 60%); }
+.cine-stage.school-arcane   .cine-stage-flash { background: radial-gradient(ellipse at center, rgba(208,168,255,0.95) 0%, rgba(208,168,255,0) 60%); }
+.cine-stage.cine-stage-punch .cine-stage-flash {
+  animation: cine-flash-strobe 0.42s cubic-bezier(.4,0,.6,1) forwards;
 }
 .cine-stage-frame {
   position: relative;
@@ -7135,49 +7162,109 @@ body.cine-playing #queue-strip { pointer-events: none; }
 }
 
 /* HERO-BIG — large portrait of a participating hero, scaled inside the
-   stage frame.  Pulls from the existing inline-SVG PORTRAITS map. */
+   stage frame.  Pulls from the existing inline-SVG PORTRAITS map.
+   Heroes converge from off-screen edges so the moment reads as a sync
+   attack — leftmost slides in from the left, rightmost from the right,
+   any middle hero rises from below.  Each lands with a brief overshoot
+   to sell the impact. */
 .ch-big {
   width: clamp(160px, 22vw, 280px);
   height: clamp(220px, 30vw, 380px);
   flex: 0 0 auto;
   opacity: 0;
-  transform: translateY(40px) scale(0.85);
-  animation: cine-hero-in 0.42s cubic-bezier(.18,.89,.32,1) forwards;
+  animation: cine-hero-converge-up 0.52s cubic-bezier(.18,.89,.32,1.18) forwards;
   filter: drop-shadow(0 18px 28px rgba(0,0,0,0.7));
   position: relative;
+  transform-origin: center bottom;
 }
-.ch-big:nth-child(1) { animation-delay: 0.05s; }
-.ch-big:nth-child(2) { animation-delay: 0.16s; }
-.ch-big:nth-child(3) { animation-delay: 0.27s; }
+/* Leftmost hero slides in from the left edge. */
+.ch-big:first-child:not(:only-child) { animation-name: cine-hero-converge-left; }
+/* Rightmost hero slides in from the right edge. */
+.ch-big:last-child:not(:only-child)  { animation-name: cine-hero-converge-right; }
+/* Stagger so they don't all arrive on the same frame. */
+.ch-big:nth-child(1) { animation-delay: 0.04s; }
+.ch-big:nth-child(2) { animation-delay: 0.12s; }
+.ch-big:nth-child(3) { animation-delay: 0.20s; }
 .ch-big svg, .ch-big > * { width: 100%; height: 100%; display: block; }
-.ch-big.ch-pose-rise    { filter: drop-shadow(0 18px 32px rgba(240,212,136,0.55)) drop-shadow(0 4px 6px rgba(0,0,0,0.7)); }
-.ch-big.ch-pose-cross   { transform: translateY(40px) scale(0.85) rotate(-3deg); filter: drop-shadow(0 18px 28px rgba(176,200,255,0.55)) drop-shadow(0 4px 6px rgba(0,0,0,0.7)); }
-.ch-big.ch-pose-guard   { filter: drop-shadow(0 14px 30px rgba(255,200,120,0.55)) drop-shadow(0 4px 6px rgba(0,0,0,0.7)); }
-.ch-big.ch-pose-whisper { filter: drop-shadow(0 12px 22px rgba(176,200,255,0.55)) drop-shadow(0 4px 6px rgba(0,0,0,0.7)) blur(0.4px); }
+/* Pose-specific aura colors layered onto the base drop-shadow.  Transform
+   is animation-driven now, so poses set FILTER only — keeps the converge
+   keyframe intact and lets the aura color cue each combo's tone. */
+.ch-big.ch-pose-rise    { filter: drop-shadow(0 18px 32px rgba(240,212,136,0.65)) drop-shadow(0 4px 6px rgba(0,0,0,0.7)); }
+.ch-big.ch-pose-cross   { filter: drop-shadow(0 18px 28px rgba(176,200,255,0.65)) drop-shadow(0 4px 6px rgba(0,0,0,0.7)); }
+.ch-big.ch-pose-guard   { filter: drop-shadow(0 14px 30px rgba(255,200,120,0.65)) drop-shadow(0 4px 6px rgba(0,0,0,0.7)); }
+.ch-big.ch-pose-whisper { filter: drop-shadow(0 12px 22px rgba(176,200,255,0.65)) drop-shadow(0 4px 6px rgba(0,0,0,0.7)) blur(0.4px); }
 
-/* PUNCH — closes the stage with a camera punch-in zoom + fade.  Reveals
-   the combat board underneath at the impact frame. */
+/* Punch frame triggers a synchronized flare — every hero brightens and
+   scales up together in the half-beat before the stage zooms out, so
+   the cinematic reads as "all three fire at once" instead of "stage
+   fades away." */
+.cine-stage.cine-stage-punch .ch-big {
+  animation: cine-hero-flare 0.36s cubic-bezier(.4,.0,.6,1) forwards;
+  animation-delay: 0s;
+}
+
+/* PUNCH — closes the stage with a camera punch-in zoom + fade + a brief
+   screen shake.  Reveals the combat board underneath at the impact
+   frame.  The shake + color flash + hero flare all fire on the same
+   beat so the moment lands as a single synchronized hit. */
 .cine-stage.cine-stage-punch {
-  animation: cine-stage-punch 0.42s cubic-bezier(.45,.05,.55,.95) forwards;
+  animation: cine-stage-punch 0.5s cubic-bezier(.45,.05,.55,.95) forwards;
 }
 
 @keyframes cine-stage-in {
   0%   { opacity: 0; }
   100% { opacity: 1; }
 }
+/* Title slam — title enters big + blurred and snaps to size with a brief
+   overshoot, like a JRPG combo name slamming onto the screen. */
 @keyframes cine-stage-text-in {
-  0%   { opacity: 0; transform: translateY(14px) scale(0.94); filter: blur(4px); }
-  100% { opacity: 1; transform: translateY(0)    scale(1);    filter: blur(0); }
+  0%   { opacity: 0; transform: scale(1.45) translateY(8px); filter: blur(10px); letter-spacing: 0.5em; }
+  45%  { opacity: 1; transform: scale(0.96) translateY(0);   filter: blur(0);    }
+  70%  { transform: scale(1.04); }
+  100% { opacity: 1; transform: scale(1)    translateY(0);   filter: blur(0); }
 }
-@keyframes cine-hero-in {
-  0%   { opacity: 0; transform: translateY(40px) scale(0.85); }
-  60%  { opacity: 1; }
-  100% { opacity: 1; transform: translateY(0)    scale(1); }
+@keyframes cine-hero-converge-left {
+  0%   { opacity: 0; transform: translateX(-160px) scale(0.78); filter: blur(5px); }
+  55%  { opacity: 1; transform: translateX(0)      scale(1.06); filter: blur(0); }
+  80%  { transform: translateX(0) scale(0.98); }
+  100% { opacity: 1; transform: translateX(0)      scale(1); }
 }
+@keyframes cine-hero-converge-right {
+  0%   { opacity: 0; transform: translateX(160px)  scale(0.78); filter: blur(5px); }
+  55%  { opacity: 1; transform: translateX(0)      scale(1.06); filter: blur(0); }
+  80%  { transform: translateX(0) scale(0.98); }
+  100% { opacity: 1; transform: translateX(0)      scale(1); }
+}
+@keyframes cine-hero-converge-up {
+  0%   { opacity: 0; transform: translateY(60px)   scale(0.78); filter: blur(5px); }
+  55%  { opacity: 1; transform: translateY(0)      scale(1.06); filter: blur(0); }
+  80%  { transform: translateY(0) scale(0.98); }
+  100% { opacity: 1; transform: translateY(0)      scale(1); }
+}
+/* Heroes pulse bright + scale up together one beat before the camera
+   punches out — the visible "fire" of the synchronized attack. */
+@keyframes cine-hero-flare {
+  0%   { transform: scale(1);    filter: brightness(1)   drop-shadow(0 0 0 rgba(255,255,255,0)); }
+  45%  { transform: scale(1.18); filter: brightness(1.8) drop-shadow(0 0 28px rgba(255,255,255,0.85)); }
+  100% { transform: scale(1.32); filter: brightness(1.3) drop-shadow(0 0 18px rgba(255,255,255,0.4)); opacity: 0.9; }
+}
+/* Punch — quick zoom + dual-axis shake before the fade-out.  The shake
+   reads as a screen-wide impact thump even without a camera primitive. */
 @keyframes cine-stage-punch {
-  0%   { opacity: 1; transform: scale(1)   translateY(0); filter: blur(0); }
-  40%  { opacity: 1; transform: scale(1.1) translateY(-4px); filter: blur(0); }
-  100% { opacity: 0; transform: scale(1.45) translateY(-8px); filter: blur(6px); }
+  0%   { opacity: 1; transform: scale(1)    translate(0, 0);    filter: blur(0); }
+  18%  { opacity: 1; transform: scale(1.06) translate(-6px, 4px); }
+  28%  { opacity: 1; transform: scale(1.12) translate(7px, -5px); }
+  38%  { opacity: 1; transform: scale(1.08) translate(-4px, 3px); }
+  50%  { opacity: 1; transform: scale(1.14) translate(0, 0);    filter: blur(0); }
+  100% { opacity: 0; transform: scale(1.5)  translate(0, -8px); filter: blur(6px); }
+}
+/* Single-beat strobe synchronized with the punch.  School color fed in
+   via .cine-stage.school-* on the parent. */
+@keyframes cine-flash-strobe {
+  0%   { opacity: 0; }
+  20%  { opacity: 1; }
+  60%  { opacity: 0.4; }
+  100% { opacity: 0; }
 }
 @keyframes cine-rays-spin {
   from { transform: rotate(0deg); }
