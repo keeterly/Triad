@@ -4856,8 +4856,10 @@ function generateMap() {
     }
     // Forge slot — 18% chance in layers 2+, converts an event (or combat
     // if there's no event) into a forge node.  Skipped on boss / final-
-    // gate levels.  At most one forge per stretch.
-    if (lvl >= 2 && lvl !== numLevels && lvl !== numLevels - 1) {
+    // gate levels.  At most one forge per stretch.  Gated behind the
+    // Layer 3 mega-boss kill (isForgeUnlocked); the node simply never
+    // spawns for new players, instead of teasing them with locked UI.
+    if (lvl >= 2 && lvl !== numLevels && lvl !== numLevels - 1 && isForgeUnlocked()) {
       if (countAndTypes && Math.random() < 0.18) {
         let fi = countAndTypes.indexOf('event');
         if (fi === -1) fi = countAndTypes.indexOf('combat');
@@ -5399,6 +5401,10 @@ const SIGILS = {
   memory:     { id: 'memory',     name: 'Coin of Memory',      icon: '◆', category: 'resource', desc: 'Carry up to 4 Resolve between fights (instead of 3).' },
   vigor:      { id: 'vigor',      name: 'Pact of Vigor',       icon: '⚡', category: 'resource', desc: 'Killing an enemy refunds 1 ATB this turn.' },
   vowiron:    { id: 'vowiron',    name: 'Vow of Iron',         icon: '⌖', category: 'defense',  desc: 'The Front slot starts each fight with Taunt for the first turn.' },
+
+  // --- additions filling slot-based and conditional-defense gaps ---
+  reach:      { id: 'reach',      name: 'Sigil of Reach',      icon: '➤', category: 'combat',   desc: 'Attacks from the Back slot deal +1 damage.' },
+  triage:     { id: 'triage',     name: 'Sigil of Triage',     icon: '✚', category: 'defense',  desc: 'Allies at half HP or below take 1 less damage from incoming hits.' },
 };
 
 // Sigil tiers — when the player binds a sigil they already own, it
@@ -5416,6 +5422,15 @@ const SIGIL_TIERS = {
   mercy:      [1, 2, 3],   // splash heal to other allies on heal
   mending:    [2, 3, 4],   // end-of-turn heal to lowest-HP ally
   memory:     [1, 2, 3],   // extra resolve carry between fights
+  // --- newly tiered: previously flat sigils that scale naturally with
+  // their printed magnitude.  Picked the ones whose effects compose
+  // safely (no per-turn / per-bond multiplier blowups). ---
+  echo:       [1, 2, 3],   // Team Special resolve discount (floor 0)
+  cinders:    [1, 2, 3],   // bleed amount applied to surviving enemies on kill
+  vigor:      [1, 2, 2],   // ATB refunded per kill (capped to keep stagger chains sane)
+  // --- new sigils introduced in this pass ---
+  reach:      [1, 2, 3],   // bonus damage for Back-slot attacks
+  triage:     [1, 2, 3],   // incoming-damage reduction while ally is at half HP or below
 };
 function maxSigilTier(id) { return (SIGIL_TIERS[id] || []).length || 1; }
 function getSigilLevel(s, id) {
@@ -6154,7 +6169,9 @@ function getAtbMax(s) {
 
 function getTeamSpecialCost(s) {
   let cost = TEAM_SPECIAL_COST;
-  if (hasSigil(s, 'echo')) cost = Math.max(1, cost - 1);
+  // Echo Sigil — TS resolve discount scales with sigil level (I=-1, II=-2,
+  // III=-3, floored at 0 so a maxed Echo can grant a free Team Special).
+  if (hasSigil(s, 'echo')) cost = Math.max(0, cost - sigilBonus(s, 'echo'));
   return cost;
 }
 
@@ -7775,6 +7792,9 @@ function previewIncomingDmg(s, c, baseAmt, opts) {
   const absorbed = Math.min(effArmor, amt);
   let toHp = Math.max(0, amt - absorbed);
   if (hasSigil(s, 'aegis') && toHp > 0) toHp = Math.max(0, toHp - sigilBonus(s, 'aegis'));
+  if (hasSigil(s, 'triage') && toHp > 0 && c.hp * 2 <= c.maxHp) {
+    toHp = Math.max(0, toHp - sigilBonus(s, 'triage'));
+  }
   return { amt, toHp };
 }
 
@@ -7885,6 +7905,12 @@ function applyDmgToEnemy(s, e, baseAmt) {
       amt += 1;
       c.shadowVeilUsed = true;
     }
+  }
+  // Sigil of Reach — Back-slot attacks deal +N damage.  Encourages
+  // mortar / archer back-row play; scales with sigil tier.
+  if (hasSigil(s, 'reach') && s.currentActorId) {
+    const actorSlot = slotOfChar(s, s.currentActorId);
+    if (actorSlot === 'back') amt += sigilBonus(s, 'reach');
   }
   // pending one-shot attack bonuses (Banner Fire, Wild Hunt, etc.)
   amt += consumePendingBonus(s, s.currentActorId, 'attackBonus');
@@ -8184,17 +8210,20 @@ function killEnemy(s, e) {
   spawnKillSparks(e.id, 'enemy', s.currentActorId && CHARS[s.currentActorId] && CHARS[s.currentActorId].school);
   // The killing hero may bark
   if (s.currentActorId && CHARS[s.currentActorId]) spawnBark(s.currentActorId, 'kill');
-  // Pact of Cinders — every surviving enemy starts bleeding
+  // Pact of Cinders — every surviving enemy starts bleeding.  Bleed amount
+  // scales with sigil tier (I=1, II=2, III=3) — leveling deepens the burn.
   if (hasSigil(s, 'cinders')) {
-    aliveEnemies(s).forEach(en => { if (en !== e && !en.dead) en.bleed = Math.max(en.bleed, 1); });
+    const cinderBleed = sigilBonus(s, 'cinders');
+    aliveEnemies(s).forEach(en => { if (en !== e && !en.dead) en.bleed = Math.max(en.bleed, cinderBleed); });
     if (s.currentActorId) spawnSigilPopup(s.currentActorId, 'cinders');
   }
   // Sigil of the Reaver — already adds +1 Resolve on kill in gainResolve;
   // surface the trigger so the player sees the contribution.
   if (hasSigil(s, 'reaver') && s.currentActorId) spawnSigilPopup(s.currentActorId, 'reaver');
-  // Pact of Vigor — refund 1 ATB this turn (carried via bonusAtb until startTurn resets)
+  // Pact of Vigor — refund ATB this turn (carried via bonusAtb until
+  // startTurn resets).  Refund scales with tier (I=1, II=2, III=2 cap).
   if (hasSigil(s, 'vigor')) {
-    s.bonusAtb = (s.bonusAtb || 0) + 1;
+    s.bonusAtb = (s.bonusAtb || 0) + sigilBonus(s, 'vigor');
     if (s.currentActorId) spawnSigilPopup(s.currentActorId, 'vigor');
   }
   // Slide remaining enemies forward so a kill never strands an attacker
@@ -8267,8 +8296,14 @@ function applyDmgToParty(s, c, amt) {
   const absorbed = Math.min(c.armor, amt);
   c.armor = Math.max(0, c.armor - amt);
   let toHp = amt - absorbed;
-  // Sigil of Aegis — each incoming hit deals 1 less HP after armor
+  // Sigil of Aegis — each incoming hit deals N less HP after armor
   if (hasSigil(s, 'aegis') && toHp > 0) toHp = Math.max(0, toHp - sigilBonus(s, 'aegis'));
+  // Sigil of Triage — when the target is already at half HP or below,
+  // each incoming hit deals an additional N less HP.  Stacks with Aegis;
+  // softens the death-spiral once a hero starts losing the war.
+  if (hasSigil(s, 'triage') && toHp > 0 && c.hp * 2 <= c.maxHp) {
+    toHp = Math.max(0, toHp - sigilBonus(s, 'triage'));
+  }
   c.hp = Math.max(0, c.hp - toHp);
 
   spawnPopupId(c.id, `-${toHp}`, 'dmg', 'party');
@@ -10070,9 +10105,26 @@ function checkEnd(s) {
       // Also snapshot the surviving party so the next layer's run starts
       // with the same heroes intact (HP / quirks / upgrades carried).
       const finishBoss = () => {
+        // Snapshot meta-unlock state BEFORE recording the clear so we
+        // can surface the first-time "X unlocked" callout on the run
+        // summary — once each lifetime per system.
+        const forgeWasLocked = !isForgeUnlocked();
+        const oathsWereLocked = !isOathUnlocked();
         markLayerCleared(getCurrentLayer());
         saveCarriedParty(state);
-        showRunSummary('boss', { afterClose: () => showWorldMap() });
+        const forgeJustUnlocked = forgeWasLocked && isForgeUnlocked();
+        const oathsJustUnlocked = oathsWereLocked && isOathUnlocked();
+        if (forgeJustUnlocked) {
+          log('<i><b>The Forge opens.</b>  Anvil nodes may now appear on the abyss map.</i>');
+        }
+        if (oathsJustUnlocked) {
+          log('<i><b>Oaths unlocked.</b>  Heroes may now speak permanent vows at rest nodes.</i>');
+        }
+        showRunSummary('boss', {
+          afterClose: () => showWorldMap(),
+          forgeJustUnlocked,
+          oathsJustUnlocked,
+        });
       };
       // Continuation after the boss death cinematic: roll spoils (heal +
       // quirk + free sigil) then close out to the run-summary / world
@@ -13452,10 +13504,10 @@ function showRestOverlay() {
   // sigils from elites, events, and boss rewards.)
 
   // 5. Speak an Oath — voluntary debuff-for-buff trade.  Targeted at a
-  // single hero, permanent for the run.  Only shown if at least one
-  // alive hero has room to take an oath (max one of each per hero per
-  // tier — speaking the same oath twice deepens it).
-  if (aliveParty(state).length > 0) {
+  // single hero, permanent for the run.  Hidden entirely until the
+  // player has downed the Layer 6 mega-boss at least once (see
+  // isOathUnlocked); deep-build complexity locked behind real progress.
+  if (aliveParty(state).length > 0 && isOathUnlocked()) {
     mkChoice('Speak an Oath', 'Trade something away for power', () => {
       hideOverlay();
       choices.classList.remove('event-choices');
@@ -14124,14 +14176,17 @@ function _renderForgeSigilPicker(choices, ctx) {
     return;
   }
   sigils.forEach(sg => {
-    const effect = FORGE_EFFECTS_BY_CATEGORY[sg.category] || FORGE_EFFECTS_BY_CATEGORY.combat;
+    const lvl = (state.run.sigilLevels && state.run.sigilLevels[sg.id]) || 1;
+    const tierMark = ['', 'I', 'II', 'III'][lvl] || String(lvl);
+    const scaledLabel = forgeBonusLabel(sg.category, lvl);
+    const tierNote = lvl > 1 ? ` <span class="forge-tier-note">(${tierMark} → ${tierMark.slice(0, -1) || '—'})</span>` : '';
     const card = document.createElement('button');
     card.className = `encounter-choice event-choice wanderer-sigil-row wanderer-sigil-give cat-${sg.category}`;
     card.innerHTML = `
       <div class="wanderer-sigil-glyph">${sg.icon}</div>
       <div class="wanderer-sigil-body">
-        <div class="enc-name">${sg.name}</div>
-        <div class="sigil-desc">Forge: <b>${effect.label}</b></div>
+        <div class="enc-name">${sg.name} ${tierMark}</div>
+        <div class="sigil-desc">Forge: <b>${scaledLabel}</b>${tierNote}</div>
       </div>
     `;
     card.addEventListener('click', () => _renderForgeStep('confirm', { heroId: ctx.heroId, sigilId: sg.id }));
@@ -14143,15 +14198,22 @@ function _renderForgeConfirm(choices, ctx) {
   const def = CHARS[ctx.heroId];
   const sg  = SIGILS[ctx.sigilId];
   if (!def || !sg) { _resolveForgeExit(); return; }
-  const effect = FORGE_EFFECTS_BY_CATEGORY[sg.category] || FORGE_EFFECTS_BY_CATEGORY.combat;
+  const lvl = (state.run.sigilLevels && state.run.sigilLevels[sg.id]) || 1;
+  const tierMark = ['', 'I', 'II', 'III'][lvl] || String(lvl);
+  const scaledLabel = forgeBonusLabel(sg.category, lvl);
+  // Tell the player whether the sigil will be consumed entirely or only
+  // drop one tier — the rules differ and the difference matters.
+  const aftermath = lvl > 1
+    ? `Sigil drops to tier ${tierMark.slice(0, -1) || '—'}.`
+    : 'Sigil is consumed entirely.';
 
   const card = document.createElement('button');
   card.className = 'encounter-choice event-choice wanderer-sigil-row';
   card.innerHTML = `
     <div class="wanderer-sigil-glyph">⚒</div>
     <div class="wanderer-sigil-body">
-      <div class="enc-name">Burn ${sg.name} for ${def.name}</div>
-      <div class="sigil-desc">${effect.label}.  This is permanent.</div>
+      <div class="enc-name">Burn ${sg.name} ${tierMark} for ${def.name}</div>
+      <div class="sigil-desc">${scaledLabel}.  ${aftermath}  This is permanent.</div>
     </div>
   `;
   card.addEventListener('click', () => _commitForge(ctx.heroId, ctx.sigilId));
@@ -14164,29 +14226,49 @@ function _renderForgeConfirm(choices, ctx) {
   choices.appendChild(cancel);
 }
 
+// Compute the scaled forge bonus for a sigil at its current run level.
+// Burning a higher-tier sigil pays a bigger bonus: lvl-1 burn = base, lvl-2
+// burn = 2x base, lvl-3 burn = 3x base.  The sigil drops one tier per burn,
+// so a maxed sigil is effectively a three-burn battery of escalating gifts.
+function forgeBonusForLevel(category, level) {
+  const effect = FORGE_EFFECTS_BY_CATEGORY[category] || FORGE_EFFECTS_BY_CATEGORY.combat;
+  const lvl = Math.max(1, level | 0);
+  return { effect, level: lvl, delta: effect.delta * lvl };
+}
+function forgeBonusLabel(category, level) {
+  const { effect, delta } = forgeBonusForLevel(category, level);
+  // Rewrite the printed effect's leading "+N" with the scaled value so the
+  // confirmation card and picker show the actual reward the player will get.
+  return effect.label.replace(/^([+-])\d+/, `$1${delta}`)
+                     .replace(/^-?\d+/, String(delta));
+}
+
 function _commitForge(heroId, sigilId) {
   const def = CHARS[heroId];
   const sg  = SIGILS[sigilId];
   const c   = state.party.chars[heroId];
   if (!def || !sg || !c) { _resolveForgeExit(); return; }
-  const effect = FORGE_EFFECTS_BY_CATEGORY[sg.category] || FORGE_EFFECTS_BY_CATEGORY.combat;
-  // Drop the sigil (one tier — leveled sigils only lose one tier per
-  // burn, matching the tier-up flow's "deepens" semantics).
-  const lvl = (state.run.sigilLevels && state.run.sigilLevels[sigilId]) || 1;
-  if (lvl > 1) {
-    state.run.sigilLevels[sigilId] = lvl - 1;
+  // Read the sigil's level BEFORE we burn it — that's what determines the
+  // bonus magnitude (a maxed III sigil pays 3x the base).
+  const lvlBurned = (state.run.sigilLevels && state.run.sigilLevels[sigilId]) || 1;
+  const { effect, delta } = forgeBonusForLevel(sg.category, lvlBurned);
+  // Drop the sigil (one tier — leveled sigils only lose one tier per burn,
+  // matching the tier-up flow's "deepens" semantics).
+  if (lvlBurned > 1) {
+    state.run.sigilLevels[sigilId] = lvlBurned - 1;
   } else {
     state.run.sigils = (state.run.sigils || []).filter(id => id !== sigilId);
     if (state.run.sigilLevels) delete state.run.sigilLevels[sigilId];
   }
-  // Apply the forge effect.
+  // Apply the forge effect, scaled by the sigil tier that was consumed.
   if (!c.forgeUpgrades) c.forgeUpgrades = { atkBonus: 0, maxHpBonus: 0, specialDiscount: 0 };
-  c.forgeUpgrades[effect.key] = (c.forgeUpgrades[effect.key] || 0) + effect.delta;
+  c.forgeUpgrades[effect.key] = (c.forgeUpgrades[effect.key] || 0) + delta;
   if (effect.key === 'maxHpBonus') {
-    c.maxHp += effect.delta;
+    c.maxHp += delta;
     c.hp = c.maxHp; // forge defense → full heal
   }
-  log(`<i>The forge takes <b>${sg.name}</b>.  <b>${def.name}</b>: ${effect.past}</i>`);
+  const tierMark = ['', 'I', 'II', 'III'][lvlBurned] || String(lvlBurned);
+  log(`<i>The forge takes <b>${sg.name} ${tierMark}</b>.  <b>${def.name}</b>: ${effect.past}</i>`);
   _resolveForgeExit();
 }
 
@@ -14659,6 +14741,31 @@ function showRunSummary(outcome, opts) {
       </div>
     </div>` : '';
 
+  // First-time meta-unlock callouts — surface on the run-summary card so
+  // the player knows a new system just opened up.  The forge unlocks
+  // after the Layer 3 mega-boss; oaths unlock after the Layer 6 mega-boss.
+  const unlocks = [];
+  if (opts && opts.forgeJustUnlocked) {
+    unlocks.push({
+      mark: '⚒',
+      label: 'The Forge opens',
+      desc: 'Anvil nodes may now appear on the abyss map.',
+    });
+  }
+  if (opts && opts.oathsJustUnlocked) {
+    unlocks.push({
+      mark: '⌖',
+      label: 'Oaths unlocked',
+      desc: 'Heroes may now speak permanent vows at rest nodes.',
+    });
+  }
+  const unlockHtml = unlocks.map(u => `
+    <div class="rs-unlock">
+      <span class="rs-unlock-mark">${u.mark}</span>
+      <span class="rs-unlock-label">${u.label}</span>
+      <span class="rs-unlock-desc">${u.desc}</span>
+    </div>`).join('');
+
   body.innerHTML = `
     <div class="rs-card ${outcomeClass}">
       <div class="rs-montage ${outcome === 'boss' ? 'rs-with-ascent' : ''}">
@@ -14671,6 +14778,7 @@ function showRunSummary(outcome, opts) {
         <span class="rs-stat"><b>${rs.turns}</b> <em>${rs.turns === 1 ? 'turn' : 'turns'}</em></span>
         <span class="rs-stat"><b>${rs.kills}</b> <em>${rs.kills === 1 ? 'kill' : 'kills'}</em></span>
       </div>
+      ${unlockHtml}
       ${memorialHtml}
       ${roadkillHtml}
     </div>
@@ -15705,6 +15813,33 @@ function markLayerCleared(layerId) {
     cur.push(layerId);
     try { localStorage.setItem(CLEARED_KEY, JSON.stringify(cur)); } catch (_) {}
   }
+}
+
+// ============================================================================
+// META-PROGRESSION UNLOCKS
+// Late-game features unlock after the player downs the corresponding
+// mega-boss for the first time.  Mega-bosses sit at the end of layers
+// 3, 6, and 9 (LAYER_CONTENT[N].megaBoss === true).  Gating them this
+// way means new players see only the core kit until they've actually
+// survived enough of the abyss to handle the complexity:
+//
+//   - Forge unlocks after the Layer 3 mega-boss falls.  Until then the
+//     forge node never spawns on the map, so players aren't tempted to
+//     burn random sigils before they understand the sigil economy.
+//   - Oaths  unlock after the Layer 6 mega-boss falls.  Permanent
+//     self-handicap trades are a deep-build tool — held until the
+//     player has internalized the sigil + forge + composition layers.
+//
+// Both unlocks survive across runs (stored in CLEARED_KEY) and only
+// reset via the Settings → "Reset meta progression" action.
+// ============================================================================
+const FORGE_UNLOCK_LAYER = 3;
+const OATH_UNLOCK_LAYER  = 6;
+function isForgeUnlocked() {
+  return getClearedLayers().some(id => id >= FORGE_UNLOCK_LAYER);
+}
+function isOathUnlocked() {
+  return getClearedLayers().some(id => id >= OATH_UNLOCK_LAYER);
 }
 
 // Party persistence across layers — when ascending, snapshot the current

@@ -10062,6 +10062,44 @@ body:has(#world-map:not(.hidden)) #hud {
 }
 
 /* ===========================================================================
+   META UNLOCK CALLOUT — one-shot moment surfaced on the run summary when
+   the player has just opened up a meta-progression system (e.g. oaths).
+   =========================================================================== */
+.rs-unlock {
+  margin: 8px auto 0;
+  padding: 6px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(180deg, rgba(40,28,52,0.7) 0%, rgba(14,10,18,0.85) 100%);
+  border: 1px solid rgba(170,140,212,0.45);
+  border-radius: 3px;
+  animation: rs-unlock-pulse 2s ease-in-out infinite;
+}
+@keyframes rs-unlock-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(170,140,212,0); }
+  50%      { box-shadow: 0 0 14px 0 rgba(170,140,212,0.35); }
+}
+.rs-unlock-mark {
+  font-size: 14px;
+  color: #d4b8f0;
+  text-shadow: 0 0 8px rgba(170,140,212,0.7);
+}
+.rs-unlock-label {
+  font-size: 10.5px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gold-pale);
+  font-weight: 700;
+}
+.rs-unlock-desc {
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  color: var(--ink-dim);
+  font-style: italic;
+}
+
+/* ===========================================================================
    TOMBSTONE MEMORIAL — fallen heroes from this run.  Replaces the old
    "Companions remembered" chip list with carved-stone markers.
    =========================================================================== */
