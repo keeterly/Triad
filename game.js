@@ -2959,6 +2959,18 @@ const WANDERER_WALK_PAST_BARKS = {
   veyr:    'She does not stop watching the way you came.',
 };
 
+// Resolve any actor id (hero or enemy) to a portrait SVG.  Wanderer
+// fight enemies (`wand_<heroId>`) reuse the hero's portrait so a duel
+// on the road shows the hero's face, not a blank slot.
+function _portraitFor(id) {
+  if (!id) return '';
+  if (PORTRAITS[id]) return PORTRAITS[id];
+  if (typeof id === 'string' && id.startsWith('wand_')) {
+    return PORTRAITS[id.slice(5)] || '';
+  }
+  return '';
+}
+
 // Drop the sigil with id `give` from the run's sigil list (no-op if absent),
 // then bind `take` through the standard bindSigil pipeline so the fanfare
 // fires.  Returns the bound sigil def or null.
@@ -9925,7 +9937,7 @@ function makeEnemyCard(e, slot) {
 
   fig.innerHTML = `
     <div class="figure-portrait">
-      ${PORTRAITS[e.id] || ''}
+      ${_portraitFor(e.id)}
       <div class="figure-statuses">${renderStatuses(e)}</div>
       <div class="figure-hp">
         <div class="hp-fill ${hpPct < 35 ? 'low' : ''}" style="width:${hpPct}%"></div>
@@ -11022,17 +11034,21 @@ function showNodeTooltip(anchorEl, node) {
   const enc = node.enc;
   const status = mapNodeStatus(state, node.id);
   const typeLabel = ({
-    elite:  'Elite',
-    boss:   'Boss',
-    combat: 'Combat',
-    rest:   'Rest',
-    event:  'Event',
+    elite:    'Elite',
+    boss:     'Boss',
+    combat:   'Combat',
+    rest:     'Rest',
+    event:    'Event',
+    wanderer: 'Wanderer',
   })[node.type] || node.type;
   const sigilCat = node.type === 'elite' && enc && enc.sigilCategory ? enc.sigilCategory : null;
-  const name = node.type === 'rest'  ? 'Hollow Rest'
-             : node.type === 'event' ? (EVENTS[node.eventId]?.name || 'Strange Encounter')
+  const wandererDef = node.type === 'wanderer' && node.wandererId ? WANDERERS[node.wandererId] : null;
+  const wandererHero = wandererDef && wandererDef.kind === 'hero' ? CHARS[wandererDef.heroId] : null;
+  const name = node.type === 'rest'     ? 'Hollow Rest'
+             : node.type === 'event'    ? (EVENTS[node.eventId]?.name || 'Strange Encounter')
+             : node.type === 'wanderer' ? (wandererHero ? wandererHero.name : 'A figure on the path')
              : (enc?.name || node.type);
-  const enemyChips = (node.type === 'rest' || node.type === 'event')
+  const enemyChips = (node.type === 'rest' || node.type === 'event' || node.type === 'wanderer')
     ? ''
     : SLOTS.map(sl => {
         const eid = enc && enc.slots ? enc.slots[sl] : null;
@@ -11047,6 +11063,7 @@ function showNodeTooltip(anchorEl, node) {
   const rewardLine = node.type === 'rest'
     ? 'Heal · Hone an upgrade · Or bind a sigil — choose one.'
     : node.type === 'event' ? 'Choice with consequences.'
+    : node.type === 'wanderer' ? (wandererHero ? `${wandererHero.title || 'A hero on the road'}.  Trade, fight, or walk past.` : 'A meeting on the road.')
     : node.type === 'boss' ? `${bossName}.  No escape but through.`
     : node.type === 'elite' ? `Tech upgrade.${sigilCat ? ` Themed: ${sigilCat}.` : ''}`
     : 'Affinity progression.';
