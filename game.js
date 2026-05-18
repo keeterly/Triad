@@ -1042,6 +1042,178 @@ const PORTRAITS = {
   <ellipse cx="80" cy="128" rx="2.5" ry="0.8" fill="#1a0e0a" opacity="0.7"/>
   <ellipse cx="50" cy="129" rx="3" ry="0.7" fill="#1a0e0a" opacity="0.55"/>
 </svg>`,
+
+  // ===== LAYER 3 MEGABOSS — THE TWIN MIRROR =====
+  // A vertically-split silhouette: cool silver-blue on one half, warm
+  // sepia/bone on the other, with a hairline mirror-fracture down the
+  // centre.  Two reflected halves of the same figure share one body.
+  twinMirror: `
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <linearGradient id="tm-left" x1="0%" x2="100%">
+      <stop offset="0%" stop-color="#4a5870"/>
+      <stop offset="60%" stop-color="#1c2434"/>
+      <stop offset="100%" stop-color="#080c14"/>
+    </linearGradient>
+    <linearGradient id="tm-right" x1="100%" x2="0%">
+      <stop offset="0%" stop-color="#a89878"/>
+      <stop offset="60%" stop-color="#3a3022"/>
+      <stop offset="100%" stop-color="#0c0804"/>
+    </linearGradient>
+    <radialGradient id="tm-eye-l" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#d8e8f8"/>
+      <stop offset="60%" stop-color="#5a7090"/>
+      <stop offset="100%" stop-color="#101620"/>
+    </radialGradient>
+    <radialGradient id="tm-eye-r" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#f0e0b4"/>
+      <stop offset="60%" stop-color="#a07840"/>
+      <stop offset="100%" stop-color="#181004"/>
+    </radialGradient>
+  </defs>
+  <ellipse cx="50" cy="128" rx="44" ry="8" fill="#050608" opacity="0.85"/>
+  <!-- left half of the body (cool, silver-blue) -->
+  <path d="M10 130 L8 70 Q22 36 50 32 L50 130 Z" fill="url(#tm-left)" stroke="#04060a" stroke-width="0.8"/>
+  <!-- right half of the body (warm, sepia) -->
+  <path d="M50 32 Q78 36 92 70 L90 130 L50 130 Z" fill="url(#tm-right)" stroke="#0a0604" stroke-width="0.8"/>
+  <!-- hairline mirror seam down the centre -->
+  <line x1="50" y1="32" x2="50" y2="130" stroke="#e8dcc4" stroke-width="0.45" opacity="0.75"/>
+  <line x1="50" y1="32" x2="50" y2="130" stroke="#8a98b0" stroke-width="0.25" opacity="0.55"/>
+  <!-- hood ridge on each side -->
+  <path d="M14 70 Q22 42 50 38" fill="none" stroke="#6a7a98" stroke-width="0.6" opacity="0.7"/>
+  <path d="M86 70 Q78 42 50 38" fill="none" stroke="#c8b488" stroke-width="0.6" opacity="0.7"/>
+  <!-- mirror-shard chips along the seam -->
+  <path d="M50 56 L48 60 L50 62 L52 60 Z" fill="#e8dcc4" opacity="0.85"/>
+  <path d="M50 96 L48 100 L50 102 L52 100 Z" fill="#e8dcc4" opacity="0.6"/>
+  <path d="M50 116 L49 118 L50 119 L51 118 Z" fill="#e8dcc4" opacity="0.45"/>
+  <!-- two mismatched eyes (cool / warm) staring out -->
+  <ellipse cx="42" cy="72" rx="2.4" ry="2.0" fill="url(#tm-eye-l)"/>
+  <ellipse cx="58" cy="72" rx="2.4" ry="2.0" fill="url(#tm-eye-r)"/>
+  <!-- glint highlights -->
+  <circle cx="41" cy="71" r="0.6" fill="#ffffff" opacity="0.85"/>
+  <circle cx="59" cy="71" r="0.6" fill="#fff0c8" opacity="0.85"/>
+  <!-- subtle shoulder-line definition -->
+  <path d="M22 88 Q34 80 50 78" stroke="#0a0c14" stroke-width="0.6" fill="none" opacity="0.6"/>
+  <path d="M78 88 Q66 80 50 78" stroke="#100804" stroke-width="0.6" fill="none" opacity="0.6"/>
+</svg>`,
+
+  // ===== LAYER 6 MEGABOSS — THE NAMELESS KNIGHT =====
+  // Heavy plate armour with a blank polished visor — no crest, no
+  // sigil, no name etched anywhere.  Cold steel against deep void;
+  // the visor catches a single pale glint where eyes should be.
+  nameless: `
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <linearGradient id="nm-steel" x1="0%" x2="0%" y1="0%" y2="100%">
+      <stop offset="0%" stop-color="#5a6068"/>
+      <stop offset="55%" stop-color="#2a2c30"/>
+      <stop offset="100%" stop-color="#080808"/>
+    </linearGradient>
+    <linearGradient id="nm-helm" x1="0%" x2="100%">
+      <stop offset="0%" stop-color="#3a3c40"/>
+      <stop offset="50%" stop-color="#6a6c70"/>
+      <stop offset="100%" stop-color="#1a1c20"/>
+    </linearGradient>
+    <linearGradient id="nm-visor" x1="0%" x2="0%" y1="0%" y2="100%">
+      <stop offset="0%" stop-color="#020204"/>
+      <stop offset="48%" stop-color="#0a0c10"/>
+      <stop offset="52%" stop-color="#e0e4ec"/>
+      <stop offset="55%" stop-color="#0a0c10"/>
+      <stop offset="100%" stop-color="#020204"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="50" cy="128" rx="46" ry="10" fill="#020304" opacity="0.9"/>
+  <!-- bulky pauldrons + chestplate silhouette -->
+  <path d="M8 130 L10 88 Q18 70 30 64 L30 86 Q40 78 50 78 Q60 78 70 86 L70 64 Q82 70 90 88 L92 130 Z"
+        fill="url(#nm-steel)" stroke="#020304" stroke-width="0.9"/>
+  <!-- chest seam + line accents -->
+  <path d="M50 80 L50 130" stroke="#0a0c10" stroke-width="0.7" opacity="0.85"/>
+  <path d="M34 96 Q50 100 66 96" stroke="#0a0c10" stroke-width="0.5" fill="none" opacity="0.7"/>
+  <path d="M32 110 Q50 114 68 110" stroke="#0a0c10" stroke-width="0.4" fill="none" opacity="0.55"/>
+  <!-- pauldron rivets -->
+  <circle cx="18" cy="88" r="1.0" fill="#1a1c20"/>
+  <circle cx="82" cy="88" r="1.0" fill="#1a1c20"/>
+  <circle cx="22" cy="100" r="0.8" fill="#1a1c20"/>
+  <circle cx="78" cy="100" r="0.8" fill="#1a1c20"/>
+  <!-- great helm — rounded with a flat-front visor band -->
+  <path d="M30 60 Q30 28 50 24 Q70 28 70 60 Q70 70 50 72 Q30 70 30 60 Z"
+        fill="url(#nm-helm)" stroke="#02030a" stroke-width="0.9"/>
+  <!-- visor band (blank, only the hairline glint reads as eyes) -->
+  <rect x="30" y="46" width="40" height="9" fill="url(#nm-visor)"/>
+  <line x1="30" y1="50.5" x2="70" y2="50.5" stroke="#e8ecf4" stroke-width="0.45" opacity="0.85"/>
+  <!-- the single glint — small, off-centre, unsettling -->
+  <ellipse cx="46" cy="50.5" rx="1.4" ry="0.45" fill="#ffffff" opacity="0.9"/>
+  <!-- helmet crown ridge — but DELIBERATELY no crest / no plume -->
+  <path d="M34 30 Q50 22 66 30" stroke="#1a1c20" stroke-width="0.7" fill="none" opacity="0.85"/>
+  <!-- bare hand grips at hips (no weapon shown — it has no name to swear by) -->
+  <path d="M14 110 Q18 116 22 122" stroke="#0a0c10" stroke-width="0.6" fill="none" opacity="0.7"/>
+  <path d="M86 110 Q82 116 78 122" stroke="#0a0c10" stroke-width="0.6" fill="none" opacity="0.7"/>
+</svg>`,
+
+  // ===== LAYER 9 MEGABOSS — THE CROWN OF ECHOES =====
+  // What is climbing toward you.  A tall crowned silhouette with
+  // three smaller versions of itself rising/echoing above the head
+  // — the player is staring at their own ascended self.  Royal
+  // gold against deep abyssal indigo.
+  crownEcho: `
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <radialGradient id="ce-body" cx="50%" cy="50%" r="80%">
+      <stop offset="0%" stop-color="#3a2c5a"/>
+      <stop offset="55%" stop-color="#160e2c"/>
+      <stop offset="100%" stop-color="#040208"/>
+    </radialGradient>
+    <linearGradient id="ce-gold" x1="0%" x2="100%">
+      <stop offset="0%" stop-color="#fff0c0"/>
+      <stop offset="50%" stop-color="#d4a848"/>
+      <stop offset="100%" stop-color="#5a3814"/>
+    </linearGradient>
+    <radialGradient id="ce-eye" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#fff8d8"/>
+      <stop offset="55%" stop-color="#d4a848"/>
+      <stop offset="100%" stop-color="#1a0c04"/>
+    </radialGradient>
+  </defs>
+  <ellipse cx="50" cy="128" rx="44" ry="9" fill="#030208" opacity="0.85"/>
+  <!-- tall regal silhouette -->
+  <path d="M12 130 L10 78 Q22 50 50 48 Q78 50 90 78 L88 130 Z"
+        fill="url(#ce-body)" stroke="#020108" stroke-width="0.9"/>
+  <!-- mantle drape across the chest -->
+  <path d="M22 88 Q50 80 78 88 L74 130 L26 130 Z" fill="#0c0820" opacity="0.7"/>
+  <!-- inner robe panel -->
+  <path d="M40 96 Q50 92 60 96 L58 130 L42 130 Z" fill="#1a1230" opacity="0.85"/>
+  <!-- main head + hooded crown base -->
+  <ellipse cx="50" cy="58" rx="14" ry="16" fill="url(#ce-body)" stroke="#020108" stroke-width="0.8"/>
+  <!-- glowing twin eyes -->
+  <ellipse cx="44" cy="58" rx="1.8" ry="1.4" fill="url(#ce-eye)"/>
+  <ellipse cx="56" cy="58" rx="1.8" ry="1.4" fill="url(#ce-eye)"/>
+  <circle cx="44" cy="57.5" r="0.5" fill="#ffffff" opacity="0.9"/>
+  <circle cx="56" cy="57.5" r="0.5" fill="#ffffff" opacity="0.9"/>
+  <!-- crown — five sharp gold points rising from the head -->
+  <path d="M36 44 L38 36 L41 44 L44 32 L47 44 L50 28 L53 44 L56 32 L59 44 L62 36 L64 44 Z"
+        fill="url(#ce-gold)" stroke="#1a0c04" stroke-width="0.5"/>
+  <!-- crown band base -->
+  <rect x="34" y="44" width="32" height="3" fill="url(#ce-gold)" stroke="#1a0c04" stroke-width="0.5"/>
+  <!-- subtle gold rim on the crown band -->
+  <line x1="34" y1="44.4" x2="66" y2="44.4" stroke="#fff0c0" stroke-width="0.4" opacity="0.85"/>
+  <!-- ECHO 1 — smaller version of the same figure rising above the crown -->
+  <g opacity="0.55">
+    <path d="M38 24 L37 14 Q42 6 50 6 Q58 6 63 14 L62 24 Z"
+          fill="url(#ce-body)" stroke="#020108" stroke-width="0.4"/>
+    <path d="M44 16 L45.5 12 L47 16 L48.5 11 L50 16 L51.5 11 L53 16 L54.5 12 L56 16 Z"
+          fill="url(#ce-gold)" stroke="#1a0c04" stroke-width="0.25"/>
+  </g>
+  <!-- ECHO 2 — even smaller, fainter, higher still -->
+  <g opacity="0.32">
+    <path d="M44 6 L43 1 Q46 -1 50 -1 Q54 -1 57 1 L56 6 Z"
+          fill="url(#ce-body)" stroke="#020108" stroke-width="0.3"/>
+  </g>
+  <!-- pectoral chain across the chest -->
+  <path d="M30 86 Q50 92 70 86" stroke="url(#ce-gold)" stroke-width="0.6" fill="none" opacity="0.85"/>
+  <circle cx="50" cy="92" r="1.4" fill="url(#ce-gold)" stroke="#1a0c04" stroke-width="0.3"/>
+  <!-- robe-hem gold trim -->
+  <path d="M14 124 Q50 128 86 124" stroke="url(#ce-gold)" stroke-width="0.4" fill="none" opacity="0.55"/>
+</svg>`,
 };
 
 // ============================================================================
@@ -5964,7 +6136,27 @@ function showHeroicBoonOverlay(onDone) {
   $('#overlay-title').textContent = 'Heroic Boon';
   const body = $('#overlay-body');
   body.classList.remove('victory-summary-body','welcome-body','run-summary-body');
-  body.innerHTML = '<p class="event-flavor">The megaboss leaves a gift behind.  Take one.</p>';
+  // Cinematic stage — the felled megaboss's silhouette behind a gold
+  // aura that the gift emanates from.  Falls back to a pure aura if
+  // we can't resolve the boss portrait (placeholder layers, edge cases).
+  const layerInfo = (state && state.run && LAYER_CONTENT[state.run.layer]) || null;
+  const bossId = layerInfo && layerInfo.boss;
+  const bossPortrait = (bossId && PORTRAITS[bossId]) || '';
+  const bossName = (layerInfo && layerInfo.bossName) || '';
+  body.innerHTML = `
+    <div class="boon-stage" aria-hidden="true">
+      <div class="boon-stage-bg"></div>
+      <div class="boon-stage-rays"></div>
+      <div class="boon-stage-aura"></div>
+      <div class="boon-stage-fallen">${bossPortrait}</div>
+      <div class="boon-stage-gift">
+        <span class="boon-gift-ring"></span>
+        <span class="boon-gift-core">✦</span>
+      </div>
+      ${bossName ? `<div class="boon-stage-caption">${bossName} falls.</div>` : ''}
+    </div>
+    <p class="event-flavor">The megaboss leaves a gift behind.  Take one.</p>
+  `;
 
   const choices = $('#overlay-choices');
   choices.innerHTML = '';
@@ -9438,6 +9630,12 @@ function resolveQueueStep(i) {
       s.executing = false;
       s.executingIdx = -1;
       s.queue = [];
+      // Clear the bonus-ATB carry too — the press-turn echo only applies
+      // to the next turn of the SAME fight.  Without this, the empty
+      // placeholder slots after REACH CLEARED inherit .bonus and render
+      // as bright gold-bordered bars stretching across the strip.
+      s.bonusAtb = 0;
+      s.pendingBonusAtb = 0;
       render();
       return;
     }
