@@ -7003,6 +7003,14 @@ function startEncounter(encSpec) {
   startTurn(state);
   // First-encounter tutorial kicks in after the battlefield has rendered.
   if (isFirstFight && !tutorialSeen()) setTimeout(maybeShowTutorial, 600);
+  // Objective splash — if this encounter has a battle goal, fire a brief
+  // centered banner so the player reads it as a moment, not as a strip
+  // overlapping the name labels.  Skipped if the tutorial is showing on
+  // the first fight (would double-stack overlays).
+  const obj = state.run && state.run.objective;
+  if (obj && !obj.fired && !(isFirstFight && !tutorialSeen())) {
+    setTimeout(() => showObjectiveSplash(obj), 320);
+  }
 }
 
 function newCharState(id) {
@@ -8488,6 +8496,7 @@ function bindFigureHold(fig, charId, isParty) {
   let holding = false;
   let aimArrow = null;
   let startX = 0, startY = 0;
+  let inspector = null;
 
   const removeAim = () => {
     if (aimArrow) {
@@ -8495,9 +8504,13 @@ function bindFigureHold(fig, charId, isParty) {
       aimArrow = null;
     }
   };
+  const removeInspector = () => {
+    if (inspector) { inspector.remove(); inspector = null; }
+  };
   const cleanup = () => {
     if (timer) { clearTimeout(timer); timer = null; }
     removeAim();
+    removeInspector();
     fig.classList.remove('inspecting');
     active = false;
     holding = false;
@@ -8516,14 +8529,20 @@ function bindFigureHold(fig, charId, isParty) {
   const enterHold = () => {
     if (holding) return;
     holding = true;
-    // close other inspecting figures so only one is open at a time
+    // close other inspecting figures so only one is open at a time AND
+    // their inspector panels — only one figure is "open" at a time.
     document.querySelectorAll('.figure.inspecting').forEach(f => { if (f !== fig) f.classList.remove('inspecting'); });
+    document.querySelectorAll('.figure-inspector').forEach(p => { if (p.parentNode !== fig) p.remove(); });
     fig.classList.add('inspecting');
     // First time the player ever holds a party hero, remember it so the
     // gold "·HOLD·" affordance under each card hides for the rest of the
     // run.  The badge is purely a teaching nudge; once they've done it
     // once it just clutters the cards.
     if (isParty) markHeldHero();
+    // Build the inspector panel listing what each status icon means.
+    // Reads from the figure's already-rendered chips, so it stays
+    // accurate even as effects expire mid-fight.
+    inspector = _buildFigureInspector(fig, charId, isParty);
   };
 
   const start = (e) => {
@@ -8572,6 +8591,61 @@ function bindFigureHold(fig, charId, isParty) {
   fig.addEventListener('pointercancel', cleanup);
   fig.addEventListener('lostpointercapture', cleanup);
   fig.addEventListener('contextmenu', (e) => e.preventDefault());
+}
+
+// Build the press-and-hold inspector panel for a figure.  Renders a small
+// card listing the character's name + slot + every active status icon
+// with its meaning.  Reads from the figure's already-rendered chips so
+// the panel stays in lockstep with whatever the icons say.  Returns the
+// element (caller stashes it for cleanup) or null if nothing to show.
+function _buildFigureInspector(fig, id, isParty) {
+  const ent = isParty ? (state.party.chars && state.party.chars[id]) : (state.enemies.chars && state.enemies.chars[id]);
+  if (!ent) return null;
+  const def = isParty ? CHARS[id] : ENEMIES[id];
+  const name = def ? def.name : id;
+  const slot = isParty ? (slotOfChar(state, id) || '') : '';
+  const slotLabel = SLOT_LABELS && SLOT_LABELS[slot] ? SLOT_LABELS[slot].toUpperCase() : '';
+
+  // Pull every status chip already rendered on this figure.  Each chip
+  // carries its own title attribute (the explanation) — reuse it
+  // verbatim so the panel never drifts out of sync with the icons.
+  const chips = fig.querySelectorAll('.figure-statuses .status-chip');
+  const rows = Array.from(chips).map(chip => {
+    const icon = chip.querySelector('.status-icon');
+    const num  = chip.querySelector('.status-num');
+    const iconText = icon ? icon.textContent : '';
+    const numText  = num  ? num.textContent  : '';
+    const title    = chip.getAttribute('title') || chip.getAttribute('data-tip') || '';
+    return `<li class="fi-row">
+      <span class="fi-icon">${iconText}${numText ? ` <span class="fi-num">${numText}</span>` : ''}</span>
+      <span class="fi-text">${title}</span>
+    </li>`;
+  });
+
+  // For party heroes, append the passive description so the player can
+  // read the always-on rule even when no chip is showing for it.
+  const passiveRow = (isParty && def && def.passive)
+    ? `<li class="fi-row fi-row-passive">
+        <span class="fi-icon">✦</span>
+        <span class="fi-text"><b>${def.passive.name}</b> — ${def.passive.desc}</span>
+      </li>`
+    : '';
+
+  const inner = (rows.length || passiveRow)
+    ? `<ul class="fi-list">${rows.join('')}${passiveRow}</ul>`
+    : `<div class="fi-empty">No active effects.</div>`;
+
+  const panel = document.createElement('div');
+  panel.className = 'figure-inspector';
+  panel.innerHTML = `
+    <div class="fi-head">
+      <span class="fi-name">${name}</span>
+      ${slotLabel ? `<span class="fi-slot">${slotLabel}</span>` : ''}
+    </div>
+    ${inner}
+  `;
+  fig.appendChild(panel);
+  return panel;
 }
 
 // (queueTeamSpecial removed — Resonance system commits combos directly via
@@ -9579,13 +9653,25 @@ function renderObjectiveBanner() {
   const obj = state.run && state.run.objective;
   if (!obj || obj.fired) {
     el.classList.add('hidden');
-    el.classList.remove('ob-ticking', 'ob-survive');
+    el.classList.remove('ob-ticking', 'ob-survive', 'ob-priority', 'ob-compact');
     el.innerHTML = '';
     return;
   }
   el.classList.remove('hidden');
-  el.classList.toggle('ob-ticking', obj.kind === 'ticking');
-  el.classList.toggle('ob-survive', obj.kind === 'survive');
+  el.classList.toggle('ob-ticking',  obj.kind === 'ticking');
+  el.classList.toggle('ob-survive',  obj.kind === 'survive');
+  el.classList.toggle('ob-priority', obj.kind === 'priority');
+  // Compact mode: a slim corner chip rather than the wide bottom strip
+  // that was overlapping the character name labels.  Priority objectives
+  // hide the chip entirely (the crowned enemy already telegraphs the
+  // target); ticking and survive keep the counter so the player can
+  // watch the timer tick down.
+  el.classList.add('ob-compact');
+  if (obj.kind === 'priority') {
+    el.classList.add('hidden');
+    el.innerHTML = '';
+    return;
+  }
   const glyph = obj.kind === 'ticking' ? '✸'
               : obj.kind === 'survive' ? '⏳'
               : '◆';
@@ -9595,15 +9681,49 @@ function renderObjectiveBanner() {
   } else if (obj.kind === 'survive' && typeof obj.turns === 'number') {
     counter = `<span class="ob-counter">${obj.turns}</span>`;
   }
-  // Keep the banner slim — label + counter only.  The full hint moves to
-  // the title attribute so press-and-hold (or hover) reveals it without
-  // taking battlefield width.
+  // Tap the chip to re-trigger the fight-start splash (full hint).
   el.title = obj.hint ? `${obj.label} — ${obj.hint}` : obj.label;
+  el.onclick = () => showObjectiveSplash(obj);
   el.innerHTML = `
     <span class="ob-glyph" aria-hidden="true">${glyph}</span>
-    <span class="ob-label">${obj.label}</span>
     ${counter}
   `;
+}
+
+// Fight-start splash: big centered banner with the objective name + hint.
+// Auto-dismisses after ~2.4s; tap to skip.  Also re-triggered when the
+// player taps the compact corner chip mid-fight.
+function showObjectiveSplash(obj) {
+  if (!obj || obj.fired) return;
+  const old = document.getElementById('objective-splash');
+  if (old) old.remove();
+  const root = document.createElement('div');
+  root.id = 'objective-splash';
+  root.className = `obs obs-${obj.kind || 'priority'}`;
+  const glyph = obj.kind === 'ticking' ? '✸'
+              : obj.kind === 'survive' ? '⏳'
+              : '◆';
+  root.innerHTML = `
+    <div class="obs-card" role="dialog" aria-label="Battle objective">
+      <div class="obs-eyebrow">OBJECTIVE</div>
+      <div class="obs-row">
+        <span class="obs-glyph">${glyph}</span>
+        <span class="obs-label">${obj.label || ''}</span>
+      </div>
+      ${obj.hint ? `<div class="obs-hint">${obj.hint}</div>` : ''}
+    </div>
+  `;
+  document.body.appendChild(root);
+  // Animate in via class; CSS keyframes handle the rest.
+  requestAnimationFrame(() => root.classList.add('obs-in'));
+  const dismiss = () => {
+    root.classList.add('obs-out');
+    setTimeout(() => { if (root.parentNode) root.remove(); }, 280);
+  };
+  // Tap anywhere to dismiss early.
+  root.addEventListener('pointerdown', (e) => { e.preventDefault(); dismiss(); });
+  // Auto-dismiss after a hold.
+  setTimeout(dismiss, 2400);
 }
 
 function renderBattlefield() {

@@ -442,35 +442,41 @@ body {
    figure.  Sits in the empty floor area between party feet and the
    action tray; semi-transparent so it never feels in the way. */
 #objective-banner {
+  /* Compact corner chip — was a wide bottom-strip banner that overlapped
+     the character name labels.  Now lives top-left as just glyph +
+     counter; tap to re-fire the full splash with the hint. */
   position: absolute;
-  bottom: 2px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 4;
+  top: 4px;
+  left: 6px;
+  z-index: 6;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 2px 10px;
-  background: rgba(8,6,8,0.74);
-  border: 1px solid rgba(212,200,168,0.28);
+  justify-content: center;
+  gap: 4px;
+  padding: 3px 8px;
+  min-width: 32px;
+  min-height: 28px;
+  background: rgba(8,6,8,0.78);
+  border: 1px solid rgba(212,200,168,0.32);
+  border-radius: 3px;
   white-space: nowrap;
-  pointer-events: none;
-  max-width: 80%;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  pointer-events: auto;
+  cursor: pointer;
   animation: ob-pulse 2.4s ease-in-out infinite;
+  transition: transform 0.12s, border-color 0.15s;
 }
+#objective-banner:hover { transform: scale(1.04); border-color: var(--gold-bright); }
+#objective-banner:active { transform: scale(0.96); }
 #objective-banner.hidden { display: none; }
 #objective-banner .ob-glyph {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--gold-bright);
   text-shadow: 0 0 8px rgba(240,212,136,0.6);
 }
 #objective-banner .ob-label {
-  font-size: 9.5px;
-  letter-spacing: 0.28em;
-  text-transform: uppercase;
-  color: var(--gold-pale);
+  /* No longer rendered in the compact chip (label moved to the splash);
+     kept for fallback / older callers. */
+  display: none;
 }
 #objective-banner .ob-hint {
   font-size: 9px;
@@ -495,14 +501,12 @@ body {
 }
 #objective-banner.ob-ticking .ob-label { color: #f6d3c3; }
 #objective-banner .ob-counter {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
   letter-spacing: 0.04em;
-  padding: 0 6px;
+  padding: 0 2px 0 4px;
   color: var(--blood-bright);
   text-shadow: 0 1px 0 rgba(0,0,0,0.95), 0 0 8px rgba(220,80,80,0.65);
-  border-left: 1px solid rgba(212,200,168,0.18);
-  border-right: 1px solid rgba(212,200,168,0.18);
 }
 @keyframes ob-pulse-ticking {
   0%, 100% { box-shadow: 0 0 0 0 rgba(220,80,80,0); }
@@ -526,6 +530,208 @@ body {
 @keyframes ob-pulse-survive {
   0%, 100% { box-shadow: 0 0 0 0 rgba(170,200,255,0); }
   50%      { box-shadow: 0 0 14px 0 rgba(170,200,255,0.35); }
+}
+
+/* ===========================================================================
+   OBJECTIVE SPLASH — centered fight-start banner.  Reads the objective
+   name + hint as a moment, then auto-dismisses (or taps away).  Replaces
+   the persistent wide banner that used to overlap the character labels.
+   =========================================================================== */
+#objective-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 320;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  opacity: 0;
+  transition: opacity 0.24s ease-out;
+}
+#objective-splash.obs-in  { opacity: 1; }
+#objective-splash.obs-out { opacity: 0; pointer-events: none; }
+#objective-splash .obs-card {
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(36,28,22,0.96) 0%, rgba(12,10,10,0.96) 70%);
+  border: 1px solid rgba(212,200,168,0.45);
+  padding: 18px 28px 16px;
+  max-width: min(520px, 88vw);
+  text-align: center;
+  border-radius: 4px;
+  box-shadow: 0 20px 48px rgba(0,0,0,0.7), inset 0 1px 0 rgba(232,220,196,0.08);
+  transform: translateY(-6px);
+  animation: obs-in 0.32s ease-out forwards;
+}
+#objective-splash.obs-out .obs-card { animation: obs-out 0.28s ease-in forwards; }
+@keyframes obs-in {
+  from { transform: translateY(-14px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+@keyframes obs-out {
+  to { transform: translateY(-6px); opacity: 0; }
+}
+#objective-splash .obs-eyebrow {
+  font-size: 9px;
+  letter-spacing: 0.42em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin-bottom: 8px;
+}
+#objective-splash .obs-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+#objective-splash .obs-glyph {
+  font-size: 24px;
+  color: var(--gold-bright);
+  text-shadow: 0 0 14px rgba(240,212,136,0.6);
+}
+#objective-splash .obs-label {
+  font-size: 16px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--gold-bright);
+  text-shadow: 0 0 10px rgba(240,212,136,0.35);
+}
+#objective-splash .obs-hint {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--ink);
+  margin-top: 6px;
+  max-width: 460px;
+  margin-left: auto;
+  margin-right: auto;
+  font-style: italic;
+  letter-spacing: 0.02em;
+}
+/* Ticking variant — blood-tint glyph + label so the urgency reads at a glance. */
+#objective-splash.obs-ticking .obs-glyph,
+#objective-splash.obs-ticking .obs-label {
+  color: var(--blood-bright);
+  text-shadow: 0 0 12px rgba(220,80,80,0.55);
+}
+#objective-splash.obs-ticking .obs-card { border-color: rgba(220,80,80,0.55); }
+/* Survive variant — steel/blue palette to match the corner badge. */
+#objective-splash.obs-survive .obs-glyph,
+#objective-splash.obs-survive .obs-label {
+  color: #cfe1ff;
+  text-shadow: 0 0 12px rgba(170,200,255,0.55);
+}
+#objective-splash.obs-survive .obs-card { border-color: rgba(170,200,255,0.5); }
+/* Mobile landscape — shrink padding so the card fits above the fold. */
+@media (max-height: 520px) {
+  #objective-splash .obs-card { padding: 12px 22px 12px; max-width: min(480px, 92vw); }
+  #objective-splash .obs-eyebrow { font-size: 8px; margin-bottom: 4px; }
+  #objective-splash .obs-glyph { font-size: 20px; }
+  #objective-splash .obs-label { font-size: 13px; letter-spacing: 0.26em; }
+  #objective-splash .obs-hint { font-size: 10.5px; margin-top: 4px; }
+}
+
+/* ===========================================================================
+   FIGURE INSPECTOR — the press-and-hold panel that explains the icons
+   above a character's head.  Attaches to the figure itself so it scrolls
+   with the battlefield; auto-removes when the inspect gesture ends.
+   =========================================================================== */
+.figure-inspector {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translate(-50%, 4px);
+  z-index: 25;
+  width: max-content;
+  max-width: min(280px, 80vw);
+  padding: 8px 10px;
+  background: rgba(8,6,8,0.96);
+  border: 1px solid rgba(212,200,168,0.4);
+  border-radius: 3px;
+  box-shadow: 0 8px 22px rgba(0,0,0,0.7), 0 0 0 1px rgba(0,0,0,0.5) inset;
+  pointer-events: none;
+  animation: fi-in 0.14s ease-out;
+}
+@keyframes fi-in {
+  from { opacity: 0; transform: translate(-50%, 0); }
+  to   { opacity: 1; transform: translate(-50%, 4px); }
+}
+.figure-inspector .fi-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 6px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid rgba(212,200,168,0.18);
+}
+.figure-inspector .fi-name {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gold-bright);
+  font-weight: 600;
+}
+.figure-inspector .fi-slot {
+  font-size: 8.5px;
+  letter-spacing: 0.24em;
+  color: var(--ink-dim);
+}
+.figure-inspector .fi-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.figure-inspector .fi-row {
+  display: grid;
+  grid-template-columns: 26px 1fr;
+  gap: 8px;
+  align-items: start;
+}
+.figure-inspector .fi-icon {
+  font-size: 13px;
+  color: var(--gold-bright);
+  text-shadow: 0 0 6px rgba(240,212,136,0.35);
+  text-align: center;
+  line-height: 1.2;
+}
+.figure-inspector .fi-num {
+  font-size: 9.5px;
+  color: var(--ink);
+  font-weight: 600;
+}
+.figure-inspector .fi-text {
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: var(--ink);
+}
+.figure-inspector .fi-row-passive .fi-icon { color: var(--gold-pale); }
+.figure-inspector .fi-row-passive .fi-text b { color: var(--gold-bright); letter-spacing: 0.06em; }
+.figure-inspector .fi-empty {
+  font-size: 10.5px;
+  color: var(--ink-dim);
+  font-style: italic;
+  text-align: center;
+}
+/* Flip above the figure if the panel would clip the action row.  Tight
+   landscape phones default to this — the figure column has more headroom
+   above than below in those layouts. */
+@media (max-height: 520px) {
+  .figure-inspector {
+    top: auto;
+    bottom: 100%;
+    transform: translate(-50%, -4px);
+    max-width: min(240px, 78vw);
+    padding: 6px 8px;
+  }
+  @keyframes fi-in {
+    from { opacity: 0; transform: translate(-50%, 0); }
+    to   { opacity: 1; transform: translate(-50%, -4px); }
+  }
+  .figure-inspector .fi-name { font-size: 10px; }
+  .figure-inspector .fi-slot { font-size: 8px; }
+  .figure-inspector .fi-text { font-size: 9.5px; }
 }
 
 /* Priority Target — gold crown overhead + brighter ring underfoot so the
