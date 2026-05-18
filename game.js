@@ -3101,16 +3101,32 @@ function _grantRandomSigil(s) {
 }
 
 // Single entry point for binding a sigil to the run.  Pushes the id onto
-// state.run.sigils if it isn't already owned, logs, and fires the fanfare.
-// Every grant site should route through here so the player always sees the
-// reveal, not just the message log.
+// state.run.sigils if it isn't already owned; if it IS already owned and
+// the sigil has tiers defined, levels it up instead (capped at max tier).
+// Every grant site should route through here so the player always sees
+// the reveal, not just the message log.
 function bindSigil(s, sigilId) {
   if (!s || !s.run) return null;
   const sg = SIGILS[sigilId];
   if (!sg) return null;
   s.run.sigils = s.run.sigils || [];
-  if (s.run.sigils.includes(sigilId)) return sg;
+  s.run.sigilLevels = s.run.sigilLevels || {};
+  if (s.run.sigils.includes(sigilId)) {
+    // Already bound — level up if tiers remain.
+    const cur = s.run.sigilLevels[sigilId] || 1;
+    const max = maxSigilTier(sigilId);
+    if (cur < max) {
+      s.run.sigilLevels[sigilId] = cur + 1;
+      s.run._sigilJustBound = sigilId;
+      const roman = ['', 'I', 'II', 'III'][cur + 1] || String(cur + 1);
+      log(`<i>Your <b>${sg.name}</b> deepens to <b>${roman}</b>.</i>`);
+      showSigilAward(sigilId);
+      try { renderSigilTray(); } catch (_) {}
+    }
+    return sg;
+  }
   s.run.sigils.push(sigilId);
+  s.run.sigilLevels[sigilId] = 1;
   // Mark for the pulse-in animation — renderSigilTray reads + clears
   // this so the chip flashes once when it first lands in the tray.
   s.run._sigilJustBound = sigilId;
@@ -5222,6 +5238,39 @@ const SIGILS = {
   vowiron:    { id: 'vowiron',    name: 'Vow of Iron',         icon: '⌖', category: 'defense',  desc: 'The Front slot starts each fight with Taunt for the first turn.' },
 };
 
+// Sigil tiers — when the player binds a sigil they already own, it
+// levels up instead of being refused.  Each entry is a 3-value array
+// where index 0 = level 1 (same as the printed desc), index 1 = lvl 2,
+// index 2 = lvl 3 (max).  Sigils without an entry here stay at level 1
+// (and level-up offers won't appear for them).
+const SIGIL_TIERS = {
+  wrath:      [2, 3, 4],   // bonus damage to Vulnerable enemies
+  bloodborne: [1, 2, 3],   // bleed-tick damage bonus
+  steel:      [2, 3, 4],   // fight-start armor per hero
+  reaver:     [1, 2, 3],   // kill-resolve bonus
+  aegis:      [1, 2, 3],   // hp damage absorbed per incoming hit
+  vigil:      [2, 3, 4],   // retaliate damage bonus
+  mercy:      [1, 2, 3],   // splash heal to other allies on heal
+  mending:    [2, 3, 4],   // end-of-turn heal to lowest-HP ally
+  memory:     [1, 2, 3],   // extra resolve carry between fights
+};
+function maxSigilTier(id) { return (SIGIL_TIERS[id] || []).length || 1; }
+function getSigilLevel(s, id) {
+  if (!hasSigil(s, id)) return 0;
+  return (s.run && s.run.sigilLevels && s.run.sigilLevels[id]) || 1;
+}
+// Returns the per-level numeric bonus for the sigil at its current
+// level, or 0 if the player doesn't own it.  Effects that scale (wrath
+// damage, steel armor, etc.) call through this instead of hard-coding
+// the value, so the tier table is the single source of truth.
+function sigilBonus(s, id) {
+  const lvl = getSigilLevel(s, id);
+  if (!lvl) return 0;
+  const tiers = SIGIL_TIERS[id];
+  if (!tiers) return 1;
+  return tiers[Math.min(lvl - 1, tiers.length - 1)];
+}
+
 // ============================================================================
 // SQUAD SIGILS — composition-based passive bonuses that activate
 // automatically when specific heroes walk together.  Not part of the
@@ -6515,7 +6564,28 @@ function getSpecialCost(s, tech, charId) {
 
 function availableSigils(s) {
   const owned = new Set((s.run && s.run.sigils) || []);
-  return Object.values(SIGILS).filter(sg => !owned.has(sg.id));
+  const newOnes = Object.values(SIGILS).filter(sg => !owned.has(sg.id));
+  // Also surface level-up candidates for sigils the player already
+  // owns but hasn't maxed out.  These ride along as upgrade offers so
+  // a player drowning in sigils still has a meaningful sigil-grant
+  // moment.  Marked with _isUpgrade so the offer card / defensive
+  // filter can distinguish them from fresh binds.
+  const upgrades = [];
+  Object.values(SIGILS).forEach(sg => {
+    if (!owned.has(sg.id)) return;
+    const cur = (s.run && s.run.sigilLevels && s.run.sigilLevels[sg.id]) || 1;
+    const max = maxSigilTier(sg.id);
+    if (cur < max) {
+      const roman = ['', 'I', 'II', 'III'][cur + 1] || String(cur + 1);
+      const cur_v = (SIGIL_TIERS[sg.id] && SIGIL_TIERS[sg.id][cur - 1]);
+      const next_v = (SIGIL_TIERS[sg.id] && SIGIL_TIERS[sg.id][cur]);
+      const upgradeDesc = (cur_v != null && next_v != null)
+        ? `${sg.desc}  Now <b>${next_v}</b> (was ${cur_v}).`
+        : `${sg.desc}  Deepened.`;
+      upgrades.push({ ...sg, name: `${sg.name} ${roman}`, desc: upgradeDesc, _isUpgrade: true, _nextLevel: cur + 1 });
+    }
+  });
+  return newOnes.concat(upgrades);
 }
 
 // Cheap helper for event `when:` gates — return true if at least one
@@ -6851,6 +6921,7 @@ function newState(forcedStarter) {
       completedNodes: [],    // ids of cleared map nodes, in completion order
       currentEnc: null,      // spec of the active encounter (set by startEncounter)
       sigils: (carried && Array.isArray(carried.sigils)) ? carried.sigils.slice() : [],            // ids of acquired sigils (run-wide modifiers) — carried across layers
+      sigilLevels: (carried && carried.sigilLevels && typeof carried.sigilLevels === 'object') ? { ...carried.sigilLevels } : {}, // per-sigil tier — duplicate binds level them up
       lastVictoryElite: false, // did the most recent victory come from an elite encounter? (gates sigil reward size)
       layer: getCurrentLayer(),     // which Abyss layer this run is climbing
       map: generateMap(),    // freshly generated branching graph for this run
@@ -6962,7 +7033,7 @@ function startEncounter(encSpec) {
   if (hasRunModifier(state, 'fortified')) Object.values(state.enemies.chars).forEach(e => { e.armor += 2; });
 
   if (!isFirstFight) {
-    const cap = RESOLVE_CARRY_CAP + (hasSigil(state, 'memory') ? 1 : 0);
+    const cap = RESOLVE_CARRY_CAP + sigilBonus(state, 'memory');
     state.resolve = Math.min(cap, state.resolve);
   }
   // Crown of Patience — start every fight with at least 2 Resolve
@@ -6973,7 +7044,7 @@ function startEncounter(encSpec) {
   // promises actually pay out.  Resolve respects RESOLVE_MAX; bonus ATB
   // is banked the same way as a weakness-exploit refund.
   if (state.run.bonusResolveNextFight) {
-    state.resolve = Math.min(RESOLVE_MAX + (hasSigil(state, 'memory') ? 1 : 0),
+    state.resolve = Math.min(RESOLVE_MAX + sigilBonus(state, 'memory'),
                              state.resolve + state.run.bonusResolveNextFight);
     log(`<i>You enter the reach with +${state.run.bonusResolveNextFight} Resolve from before.</i>`);
     state.run.bonusResolveNextFight = 0;
@@ -6982,9 +7053,11 @@ function startEncounter(encSpec) {
     state.pendingBonusAtb = (state.pendingBonusAtb || 0) + state.run.bonusAtbNextFight;
     state.run.bonusAtbNextFight = 0;
   }
-  // Sigil of Steel — start each fight with +2 armor on each party member
+  // Sigil of Steel — start each fight with +2 armor on each party
+  // member (scales with sigil level: 2 / 3 / 4 at I / II / III).
   if (hasSigil(state, 'steel')) {
-    Object.values(state.party.chars).forEach(c => { if (!c.downed) c.armor += 2; });
+    const armorBonus = sigilBonus(state, 'steel');
+    Object.values(state.party.chars).forEach(c => { if (!c.downed) c.armor += armorBonus; });
   }
   // Squad Sigil — Iron Wall (Cassia + Korin together) — front slot wakes
   // each fight with +2 extra armor on top of any other source.
@@ -7145,7 +7218,7 @@ function previewDamage(s, e, baseAmt, actorId, techElement) {
   }
   if (s.outgoingDmgMod) { amt += s.outgoingDmgMod; bonuses.push({ label: 'Buff', amt: s.outgoingDmgMod }); }
 
-  if (e.vuln > 0 && amt > 0) amt += 2 + (hasSigil(s, 'wrath') ? 2 : 0);
+  if (e.vuln > 0 && amt > 0) amt += 2 + sigilBonus(s, 'wrath');
 
   let badge = null;
   const actorDef = actorId ? CHARS[actorId] : null;
@@ -7235,7 +7308,7 @@ function previewIncomingDmg(s, c, baseAmt, opts) {
   const effArmor = (opts && opts.stripArmor) ? 0 : baseArmor;
   const absorbed = Math.min(effArmor, amt);
   let toHp = Math.max(0, amt - absorbed);
-  if (hasSigil(s, 'aegis') && toHp > 0) toHp = Math.max(0, toHp - 1);
+  if (hasSigil(s, 'aegis') && toHp > 0) toHp = Math.max(0, toHp - sigilBonus(s, 'aegis'));
   return { amt, toHp };
 }
 
@@ -7329,7 +7402,7 @@ function applyDmgToEnemy(s, e, baseAmt) {
   // vulnerable adds +2 per stack consumed (1 stack per hit); Ember of Wrath sigil adds +2 more
   let vulnConsumed = 0;
   if (e.vuln > 0 && amt > 0) {
-    amt += 2 + (hasSigil(s, 'wrath') ? 2 : 0);
+    amt += 2 + sigilBonus(s, 'wrath');
     vulnConsumed = 1;
   }
 
@@ -7554,7 +7627,7 @@ function killEnemy(s, e) {
     shakeScreen(3);
     playBossDeath();
   }
-  gainResolve(s, KILL_RESOLVE + (hasSigil(s, 'reaver') ? 1 : 0));
+  gainResolve(s, KILL_RESOLVE + sigilBonus(s, 'reaver'));
   if (s.fightStats) {
     s.fightStats.kills += 1;
     // Per-actor kill tally for vignette triggers (who got the killing blow)
@@ -7678,7 +7751,7 @@ function applyDmgToParty(s, c, amt) {
   c.armor = Math.max(0, c.armor - amt);
   let toHp = amt - absorbed;
   // Sigil of Aegis — each incoming hit deals 1 less HP after armor
-  if (hasSigil(s, 'aegis') && toHp > 0) toHp = Math.max(0, toHp - 1);
+  if (hasSigil(s, 'aegis') && toHp > 0) toHp = Math.max(0, toHp - sigilBonus(s, 'aegis'));
   c.hp = Math.max(0, c.hp - toHp);
 
   spawnPopupId(c.id, `-${toHp}`, 'dmg', 'party');
@@ -7706,7 +7779,7 @@ function applyDmgToParty(s, c, amt) {
   if (c.retaliate > 0 && toHp > 0) {
     log(`<b>${CHARS[c.id].name}</b> retaliates!`);
     const target = firstAliveEnemyFrom(s, 0);
-    if (target) applyDmgToEnemy(s, target, c.retaliate + (hasSigil(s, 'vigil') ? 2 : 0));
+    if (target) applyDmgToEnemy(s, target, c.retaliate + sigilBonus(s, 'vigil'));
   }
 
   // Vasha Conviction — when any ally drops to exactly 1 HP, arm Vasha's
@@ -7867,11 +7940,12 @@ function partyHeal(s, amt) {
 function mercyTickle(s, healedId, got) {
   if (!hasSigil(s, 'mercy') || !got || s.__mercyActive) return;
   s.__mercyActive = true;
+  const mercyBonus = sigilBonus(s, 'mercy');
   try {
     aliveParty(s).forEach(o => {
       if (o.id === healedId) return;
       const before = o.hp;
-      o.hp = Math.min(o.maxHp, o.hp + 1);
+      o.hp = Math.min(o.maxHp, o.hp + mercyBonus);
       const inc = o.hp - before;
       if (inc > 0) {
         spawnPopupId(o.id, `+${inc}`, 'heal', 'party');
@@ -8212,7 +8286,7 @@ function startTurn(s) {
   if (s.bonusAtb > 0) log(`<i>Weakness exploited — +${s.bonusAtb} ATB this turn.</i>`);
 
   // bleed tick — base 2 per turn, +1 if Bloodborne Sigil owned, +1 if Bone Tide modifier
-  const bleedTick = 2 + (hasSigil(s, 'bloodborne') ? 1 : 0) + (hasRunModifier(s, 'bonetide') ? 1 : 0);
+  const bleedTick = 2 + sigilBonus(s, 'bloodborne') + (hasRunModifier(s, 'bonetide') ? 1 : 0);
   // Squad Sigil — Crimson Pact (Branwen + Mira together) bumps the bleed
   // YOUR party deals to enemies by +1.  Doesn't affect bleed taken.
   const enemyBleedTick = bleedTick + (hasSquadSigil(s, 'crimsonPact') ? 1 : 0);
@@ -8674,13 +8748,14 @@ function resolveQueueStep(i) {
     s.executingIdx = -1;
     // queue done — leave taunt/retaliate up for the incoming enemy phase
     s.queue = [];
-    // Sigil of Mending — at end of player phase, lowest-HP ally heals 2
+    // Sigil of Mending — at end of player phase, lowest-HP ally heals
+    // 2 (or 3/4 at higher tiers).
     if (hasSigil(s, 'mending')) {
       const alive = aliveParty(s).slice().sort((a,b) => (a.hp/a.maxHp) - (b.hp/b.maxHp));
       const c = alive[0];
       if (c) {
         const before = c.hp;
-        c.hp = Math.min(c.maxHp, c.hp + 2);
+        c.hp = Math.min(c.maxHp, c.hp + sigilBonus(s, 'mending'));
         if (c.hp > before) {
           spawnPopupId(c.id, `+${c.hp - before}`, 'heal', 'party');
           spawnSigilPopup(c.id, 'mending');
@@ -9558,8 +9633,13 @@ function renderSigilTray() {
   const ownedChips = owned.map(id => {
     const s = SIGILS[id];
     if (!s) return '';
-    const titleText = `${s.name} — ${s.desc}`;
-    return `<button type="button" class="sigil-chip cat-${s.category}" data-sigil="${s.id}" title="${titleText}" aria-label="${s.name}"><span class="sigil-chip-icon">${s.icon}</span></button>`;
+    const lvl = (state.run.sigilLevels && state.run.sigilLevels[id]) || 1;
+    const maxL = maxSigilTier(id);
+    const tierDots = lvl > 1 ? `<span class="sigil-chip-tier" aria-label="Level ${lvl}">${'✦'.repeat(Math.min(lvl - 1, 2))}</span>` : '';
+    const roman = ['', 'I', 'II', 'III'][lvl] || String(lvl);
+    const tierSuffix = (maxL > 1) ? ` ${roman}` : '';
+    const titleText = `${s.name}${tierSuffix} — ${s.desc}`;
+    return `<button type="button" class="sigil-chip cat-${s.category}${lvl > 1 ? ' sigil-chip-leveled' : ''}" data-sigil="${s.id}" title="${titleText}" aria-label="${s.name}${tierSuffix}"><span class="sigil-chip-icon">${s.icon}</span>${tierDots}</button>`;
   }).join('');
   // Squad bond chips — distinct styling so the player can tell they were
   // earned through party composition, not bound from a node.
@@ -9616,6 +9696,16 @@ function showSigilInfoCard(sigil, opts) {
   const old = document.getElementById('sigil-info-card');
   if (old) old.remove();
   const isSquad = !!(opts && opts.squad);
+  // Show the sigil's current tier in the title.  Non-tiered sigils and
+  // squad bonds skip the tier suffix entirely.
+  const lvl = (!isSquad && state.run && state.run.sigilLevels && state.run.sigilLevels[sigil.id]) || (isSquad ? 0 : 1);
+  const maxL = isSquad ? 0 : maxSigilTier(sigil.id);
+  const roman = ['', 'I', 'II', 'III'][lvl] || String(lvl);
+  const tierLabel = (!isSquad && maxL > 1) ? `<span class="sic-tier">${roman} / ${'I'.repeat(maxL).replace(/^III/, 'III')}</span>` : '';
+  // For tiered sigils, append the current numeric value so the player
+  // can read at a glance what this level translates to in combat.
+  const valueLine = (!isSquad && SIGIL_TIERS[sigil.id])
+    ? `<div class="sic-value">Current effect: <b>${sigilBonus(state, sigil.id)}</b></div>` : '';
   const root = document.createElement('div');
   root.id = 'sigil-info-card';
   root.className = 'sigil-info-card' + (isSquad ? ' sic-squad' : ` sic-${sigil.category || 'combat'}`);
@@ -9624,8 +9714,9 @@ function showSigilInfoCard(sigil, opts) {
     <div class="sic-body" role="dialog" aria-label="${sigil.name}">
       <div class="sic-icon">${sigil.icon || '◆'}</div>
       <div class="sic-eyebrow">${isSquad ? 'SQUAD BOND' : 'BOUND SIGIL'}${!isSquad && sigil.category ? ` · ${sigil.category.toUpperCase()}` : ''}</div>
-      <div class="sic-name">${sigil.name}</div>
+      <div class="sic-name">${sigil.name}${tierLabel}</div>
       <div class="sic-desc">${sigil.desc || ''}</div>
+      ${valueLine}
       <button type="button" class="sic-close" data-close="1" aria-label="Close">Close</button>
     </div>
   `;
@@ -9651,10 +9742,15 @@ function renderObjectiveBanner() {
   const el = document.getElementById('objective-banner');
   if (!el) return;
   const obj = state.run && state.run.objective;
+  // Defensive inline reset — guarantees the banner doesn't render the
+  // old wide bottom-strip even if a stale CSS file is cached.  Cleared
+  // before applying the compact-mode rules below.
+  el.style.display = '';
   if (!obj || obj.fired) {
     el.classList.add('hidden');
     el.classList.remove('ob-ticking', 'ob-survive', 'ob-priority', 'ob-compact');
     el.innerHTML = '';
+    el.style.display = 'none';
     return;
   }
   el.classList.remove('hidden');
@@ -9670,6 +9766,7 @@ function renderObjectiveBanner() {
   if (obj.kind === 'priority') {
     el.classList.add('hidden');
     el.innerHTML = '';
+    el.style.display = 'none';
     return;
   }
   const glyph = obj.kind === 'ticking' ? '✸'
@@ -13743,12 +13840,12 @@ function offerSigilFromNode(onDone) {
 
 function showSigilOverlay(offers, onDone) {
   const continueAfter = onDone || (() => renderMap());
-  // Defensive — even if a caller passes pre-filtered offers, scrub any
-  // sigil the player has already bound so the choice rail never shows a
-  // dead-end option (clicking it would short-circuit in bindSigil and
-  // dump the player back to the map with no feedback).
+  // Defensive — scrub any owned sigil that ISN'T marked as an upgrade
+  // offer.  Upgrade entries (sg._isUpgrade === true) are intentionally
+  // duplicates of an owned sigil and should pass through to bindSigil
+  // for the level-up path.
   const owned = new Set((state.run && state.run.sigils) || []);
-  offers = (offers || []).filter(sg => sg && !owned.has(sg.id));
+  offers = (offers || []).filter(sg => sg && (!owned.has(sg.id) || sg._isUpgrade));
   if (!offers.length) { continueAfter(); return; }
   // Use the wide overlay-event framing for parity with event / swap / rest
   // overlays — same 1100px chrome so the three big sigil cards have room.
@@ -14571,7 +14668,10 @@ function saveCarriedParty(s) {
     // this the consequence would feel like an inventory bug ("why is the
     // hero I killed offering to join me again?").
     const lockedOutHeroes = ((s.run && s.run._lockedOutHeroes) || []).slice();
-    const data = { chars, slots, sigils, lockedOutHeroes };
+    // Sigil levels carry alongside the sigils themselves so a tier-III
+    // build doesn't reset to tier-I on the next layer.
+    const sigilLevels = { ...((s.run && s.run.sigilLevels) || {}) };
+    const data = { chars, slots, sigils, lockedOutHeroes, sigilLevels };
     localStorage.setItem(CARRIED_KEY, JSON.stringify(data));
   } catch (_) {}
 }
