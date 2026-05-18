@@ -2041,6 +2041,113 @@ const ENEMIES = {
       { name: 'Final Reckoning', tag: 'ATK 4×2 all + bleed', targetSlot: 'all', kind: 'aoe', dmg: 4, fn: (s) => { dmgAllParty(s, 4); dmgAllParty(s, 4); aliveParty(s).forEach(c => { c.bleed = Math.max(c.bleed, 1); }); } },
     ],
   },
+
+  // ============================ MEGA-BOSSES ===========================
+  // Layer 3 / 6 / 9 gates.  Each is a doubled-HP version of the layer's
+  // theme with a phase shift or unique mechanic.  Marked .boss = true so
+  // the layer-bonus HP multiplier and boss-fight visuals apply.
+  twinMirror: {
+    id: 'twinMirror', name: 'The Twin Mirror', title: 'Sin of Mirrors', maxHp: 180, boss: true,
+    weakness: ['holy', 'physical'], resistance: 'arcane',
+    intents: [
+      { name: 'Mirror Cut',         tag: 'ATK 9 front + retal 4', targetSlot: 'front', kind: 'atk',
+        dmg: 9, fn: (s) => { dmgPartyAt(s, 'front', 9); const me = Object.values(s.enemies.chars).find(en => en.id === 'twinMirror' && !en.dead); if (me) me.retaliate = (me.retaliate || 0) + 4; } },
+      { name: "Pride's Reflection", tag: 'heal 10 + 4 armor self', targetSlot: '?', kind: 'armor',
+        fn: (s) => { const me = Object.values(s.enemies.chars).find(en => en.id === 'twinMirror' && !en.dead); if (me) { me.hp = Math.min(me.maxHp, me.hp + 10); spawnPopupId('twinMirror', '+10', 'heal', 'enemy'); me.armor = (me.armor || 0) + 4; } } },
+      { name: 'Glass Shards', tag: 'ATK 4 all + bleed 2 all', targetSlot: 'all', kind: 'aoe',
+        dmg: 4, fn: (s) => { dmgAllParty(s, 4); aliveParty(s).forEach(c => { c.bleed = Math.max(c.bleed, 2); }); } },
+      { name: "Twin's Mark", tag: '+vuln 2 + dull 2 front', targetSlot: 'front', kind: 'debuff',
+        fn: (s) => { applyVulnParty(s, 'front', 2); const c = charBySlot(s, 'front'); if (c) c.dulled += 2; } },
+      { name: 'Shattering Stroke', tag: 'ATK 8 mid + strip armor', targetSlot: 'mid', kind: 'atk',
+        dmg: 8, fn: (s) => { const c = charBySlot(s, 'mid'); if (c) c.armor = 0; dmgPartyAt(s, 'mid', 8); } },
+    ],
+    pickIntent: (s, me) => {
+      const turn = s.turn || 0;
+      if (me && me.hp / me.maxHp <= 0.55 && turn - (me._lastHealTurn || -99) >= 3) {
+        me._lastHealTurn = turn;
+        return 1;
+      }
+      const mid = charBySlot(s, 'mid');
+      if (mid && !mid.downed && mid.armor >= 3) return 4;
+      const front = charBySlot(s, 'front');
+      if (front && !front.downed && front.vuln === 0 && front.dulled === 0) return 3;
+      if (front && !front.downed && front.hp / front.maxHp > 0.6) return 0;
+      return 2;
+    },
+  },
+  nameless: {
+    id: 'nameless', name: 'The Nameless Knight', title: 'Sin of Vows', maxHp: 220, boss: true,
+    weakness: ['arcane', 'stealth'], resistance: 'physical',
+    intents: [
+      { name: 'Iron Cut',     tag: 'ATK 10 front',        targetSlot: 'front', kind: 'atk', dmg: 10, fn: (s) => dmgPartyAt(s, 'front', 10) },
+      { name: 'Refuse a Name', tag: 'WIND-UP · 15 dmg all next turn', targetSlot: 'all', kind: 'debuff',
+        fn: (s) => {
+          const me = Object.values(s.enemies.chars).find(en => en.id === 'nameless' && !en.dead);
+          if (!me) return;
+          me._charging = {
+            name: 'Refuse a Name',
+            releaseIn: 1,
+            releaseIntent: { name: 'Unnamed Strike', tag: 'ATK 15 all', targetSlot: 'all', kind: 'aoe', dmg: 15,
+              fn: (s2) => dmgAllParty(s2, 15) },
+          };
+        } },
+      { name: 'Old Discipline', tag: 'heal 8 + 3 armor self', targetSlot: '?', kind: 'armor',
+        fn: (s) => { const me = Object.values(s.enemies.chars).find(en => en.id === 'nameless' && !en.dead); if (me) { me.hp = Math.min(me.maxHp, me.hp + 8); spawnPopupId('nameless', '+8', 'heal', 'enemy'); me.armor = (me.armor || 0) + 3; } } },
+      { name: 'Cleaving Vow', tag: 'ATK 6 + 2 vuln front',  targetSlot: 'front', kind: 'atk',
+        dmg: 6, fn: (s) => { dmgPartyAt(s, 'front', 6); const c = charBySlot(s, 'front'); if (c) c.vuln += 2; } },
+      { name: 'Silent Step',   tag: 'ATK 5 mid + dull 2',   targetSlot: 'mid',   kind: 'atk',
+        dmg: 5, fn: (s) => { dmgPartyAt(s, 'mid', 5); const c = charBySlot(s, 'mid'); if (c) c.dulled += 2; } },
+    ],
+    pickIntent: (s, me) => {
+      const turn = s.turn || 0;
+      if (me && me.hp / me.maxHp <= 0.5 && turn - (me._lastHealTurn || -99) >= 4) {
+        me._lastHealTurn = turn;
+        return 2;
+      }
+      // Wind-up every 3 turns, telegraphed turn before — stagger or eat 15 to the face
+      if (turn % 3 === 0 && !me._charging) return 1;
+      const front = charBySlot(s, 'front');
+      if (front && !front.downed && front.vuln < 1) return 3;
+      const mid = charBySlot(s, 'mid');
+      if (mid && !mid.downed && mid.dulled < 1) return 4;
+      return 0;
+    },
+  },
+  crownEcho: {
+    id: 'crownEcho', name: 'The Crown of Echoes', title: 'What is climbing toward you', maxHp: 260, boss: true,
+    weakness: ['holy', 'arcane'], resistance: 'stealth',
+    intents: [
+      { name: 'Crown Strike',  tag: 'ATK 11 front',           targetSlot: 'front', kind: 'atk', dmg: 11, fn: (s) => dmgPartyAt(s, 'front', 11) },
+      { name: 'Echoing Verse', tag: 'ATK 5 all + vuln 1 all', targetSlot: 'all',   kind: 'aoe', dmg: 5,
+        fn: (s) => { dmgAllParty(s, 5); aliveParty(s).forEach(c => { c.vuln += 1; }); } },
+      { name: 'Crowning Heal', tag: 'heal 12 + 4 armor self', targetSlot: '?',     kind: 'armor',
+        fn: (s) => { const me = Object.values(s.enemies.chars).find(en => en.id === 'crownEcho' && !en.dead); if (me) { me.hp = Math.min(me.maxHp, me.hp + 12); spawnPopupId('crownEcho', '+12', 'heal', 'enemy'); me.armor = (me.armor || 0) + 4; } } },
+      { name: "The Road's Names", tag: '+1 dmg per lost name', targetSlot: 'all', kind: 'aoe',
+        // Personalised: damage scales with the size of _lockedOutHeroes.
+        dmg: 5, fn: (s) => {
+          const lost = ((s.run && s.run._lockedOutHeroes) || []).length;
+          const base = 5 + lost;
+          dmgAllParty(s, base);
+        } },
+      { name: 'Bleeding Crown', tag: 'ATK 7 + bleed 2 all',    targetSlot: 'all', kind: 'aoe',
+        dmg: 7, fn: (s) => { dmgAllParty(s, 7); aliveParty(s).forEach(c => { c.bleed = Math.max(c.bleed, 2); }); } },
+    ],
+    pickIntent: (s, me) => {
+      const turn = s.turn || 0;
+      if (me && me.hp / me.maxHp <= 0.5 && turn - (me._lastHealTurn || -99) >= 4) {
+        me._lastHealTurn = turn;
+        return 2;
+      }
+      const lost = ((s.run && s.run._lockedOutHeroes) || []).length;
+      // If the player killed heroes on the road, the final boss reminds them.
+      if (lost > 0 && turn % 3 === 0) return 3;
+      const everyone = aliveParty(s).every(c => c.vuln > 0);
+      if (!everyone) return 1;
+      const front = charBySlot(s, 'front');
+      if (front && !front.downed && front.hp / front.maxHp > 0.5) return 0;
+      return 4;
+    },
+  },
 };
 
 // ============================================================================
@@ -2096,17 +2203,17 @@ const LAYER_CONTENT = {
     hpBonus: 2, intentDmgBonus: 1,
   },
   3: {
-    // Layer 3 — The Spire of Glass.  Mirror / pride enemies leaning on
-    // retaliate + armor reflection.  Echoknight (returns strokes), drone
-    // (repeats), wraith (slippery) carry the theme from layer 2; cultist +
-    // mourner round out the combat pool.
+    // Layer 3 — The Spire of Glass.  MEGA-BOSS layer: the Twin Mirror
+    // is the regular Twin with a phase-2 split (mirror copy spawns at
+    // 50% HP).  First milestone gate of the climb.
     combat: ['echoknight', 'drone', 'wraith', 'cultist', 'mourner', 'lineCaster'],
     elite:  ['echoknight', 'grappler', 'mourner', 'lineCaster'],
-    boss:   'twin',
-    bossName: 'The Twin',
-    bossSubtitle: 'SIN OF MIRRORS',
-    bossTag: 'It learns what you bring.',
+    boss:   'twinMirror',
+    bossName: 'The Twin Mirror',
+    bossSubtitle: 'MEGABOSS · SIN OF MIRRORS',
+    bossTag: 'It will not break alone.',
     hpBonus: 4, intentDmgBonus: 1,
+    megaBoss: true,
   },
   4: {
     // Layer 4 — The Floodlit Hall.  Drowning / weight enemies.  Grappler
@@ -2132,6 +2239,50 @@ const LAYER_CONTENT = {
     bossSubtitle: 'SIN OF CYCLES',
     bossTag: 'It buried itself.  It grew back.',
     hpBonus: 8, intentDmgBonus: 2,
+  },
+  6: {
+    // Layer 6 — The Iron Forest.  MEGA-BOSS layer: the Nameless Knight
+    // refuses every name you give it.  Charges a kill-blow every few
+    // turns that fires next turn unless staggered.  Second milestone.
+    combat: ['echoknight', 'grappler', 'lineCaster', 'mourner', 'drone', 'cultist'],
+    elite:  ['echoknight', 'grappler', 'lineCaster', 'mourner'],
+    boss:   'nameless',
+    bossName: 'The Nameless Knight',
+    bossSubtitle: 'MEGABOSS · SIN OF VOWS',
+    bossTag: 'It has refused every name.',
+    hpBonus: 10, intentDmgBonus: 3,
+    megaBoss: true,
+  },
+  7: {
+    combat: ['echoknight', 'grappler', 'lineCaster', 'wraith', 'cultist', 'mourner'],
+    elite:  ['echoknight', 'grappler', 'mourner', 'lineCaster'],
+    boss:   'slowbloom', // placeholder — layer 7's bespoke boss is a future pass
+    bossName: 'The Last Star',
+    bossSubtitle: 'SIN OF DISTANCE',
+    bossTag: 'Light forgets how.',
+    hpBonus: 12, intentDmgBonus: 3,
+  },
+  8: {
+    combat: ['echoknight', 'grappler', 'lineCaster', 'wraith', 'cultist', 'drone'],
+    elite:  ['echoknight', 'grappler', 'mourner', 'lineCaster'],
+    boss:   'drownedchoir', // placeholder
+    bossName: 'The Unwaking',
+    bossSubtitle: 'SIN OF DAWN-REFUSED',
+    bossTag: 'It chose the dark.',
+    hpBonus: 14, intentDmgBonus: 4,
+  },
+  9: {
+    // Layer 9 — The Crown of Echoes.  Final MEGA-BOSS.  Summons echoes
+    // of any heroes the player has killed on wanderer nodes this run
+    // (reads state.run._lockedOutHeroes) for a personalised final fight.
+    combat: ['echoknight', 'grappler', 'lineCaster', 'wraith', 'mourner', 'drone'],
+    elite:  ['echoknight', 'grappler', 'mourner', 'lineCaster'],
+    boss:   'crownEcho',
+    bossName: 'The Crown of Echoes',
+    bossSubtitle: 'MEGABOSS · WHAT IS CLIMBING TOWARD YOU',
+    bossTag: 'You are climbing toward yourself.',
+    hpBonus: 16, intentDmgBonus: 4,
+    megaBoss: true,
   },
 };
 function getLayerContent(s) {
@@ -4703,6 +4854,16 @@ function generateMap() {
         if (evIdx !== -1) countAndTypes[evIdx] = 'wanderer';
       }
     }
+    // Forge slot — 18% chance in layers 2+, converts an event (or combat
+    // if there's no event) into a forge node.  Skipped on boss / final-
+    // gate levels.  At most one forge per stretch.
+    if (lvl >= 2 && lvl !== numLevels && lvl !== numLevels - 1) {
+      if (countAndTypes && Math.random() < 0.18) {
+        let fi = countAndTypes.indexOf('event');
+        if (fi === -1) fi = countAndTypes.indexOf('combat');
+        if (fi !== -1) countAndTypes[fi] = 'forge';
+      }
+    }
 
     const ids = [];
     countAndTypes.forEach((type, i) => {
@@ -4725,6 +4886,8 @@ function generateMap() {
           node.eventId = eventPool[(i + lvl) % eventPool.length];
         }
       }
+      // forge nodes need no extra data — the modal reads current run
+      // state at tap time to know which sigils are burnable
       // rest nodes need no extra data
       nodes[id] = node;
       ids.push(id);
@@ -5272,6 +5435,59 @@ function sigilBonus(s, id) {
 }
 
 // ============================================================================
+// OATHS — voluntary debuff-for-buff trades.  A hero who speaks an oath
+// accepts a permanent (run-wide) drawback in exchange for a substantial
+// power boost.  Same oath spoken twice deepens to tier II.  Offered at
+// rest nodes (4th choice) and via the rare oath-altar event.
+// ============================================================================
+const OATHS = {
+  frailty:   { id: 'frailty',   name: 'Oath of Frailty',   icon: '✕',  desc: '-5 max HP, +2 damage on every attack.' },
+  stillness: { id: 'stillness', name: 'Oath of Stillness', icon: '⌖', desc: 'Brace tile disabled.  +1 Resolve drip per turn.' },
+  silence:   { id: 'silence',   name: 'Oath of Silence',   icon: '○', desc: 'Cannot trigger vignettes.  +3 damage on Specials.' },
+  hunger:    { id: 'hunger',    name: 'Oath of Hunger',    icon: '◐', desc: 'Start each fight at half HP.  Kills heal you 3.' },
+  exile:     { id: 'exile',     name: 'Oath of Exile',     icon: '↻', desc: 'Cannot receive heals.  Gain +1 armor at the start of every turn.' },
+};
+const OATH_TIERS = {
+  frailty:   [{ hp: -5, atk: 2 }, { hp: -8, atk: 3 }],
+  stillness: [{ drip: 1 }, { drip: 2 }],
+  silence:   [{ sigDmg: 3 }, { sigDmg: 5 }],
+  hunger:    [{ killHeal: 3 }, { killHeal: 5 }],
+  exile:     [{ armorPerTurn: 1 }, { armorPerTurn: 2 }],
+};
+function oathLevel(c, oathId) {
+  if (!c || !Array.isArray(c.oaths)) return 0;
+  return c.oaths.filter(id => id === oathId).length;
+}
+function oathValue(c, oathId, key) {
+  const lvl = oathLevel(c, oathId);
+  if (!lvl) return 0;
+  const tiers = OATH_TIERS[oathId];
+  if (!tiers) return 0;
+  const tier = tiers[Math.min(lvl - 1, tiers.length - 1)];
+  return tier && tier[key] != null ? tier[key] : 0;
+}
+
+// ============================================================================
+// HERO MASTERIES — hand-authored hero-specific bonuses unlocked when
+// a hero stacks 2 positive quirks (the QUIRK_CAP).  Read by combat
+// passives; persists across layers via the carried-party snapshot.
+// ============================================================================
+const HERO_MASTERIES = {
+  cassia:  { id: 'm_cassia',  name: 'Held Gate Doubled',  desc: 'Cassia redirects the FIRST TWO incoming hits each turn while she holds Front.' },
+  kai:     { id: 'm_kai',     name: 'Last Stand Always',  desc: 'Kai always carries the Last Stand bonus (+3 damage, +4 heal on kill), regardless of party state.' },
+  garron:  { id: 'm_garron',  name: 'Warden Heals',       desc: "Warden's Word also heals the saved ally for 6 HP." },
+  elin:    { id: 'm_elin',    name: 'Mercy Reignited',    desc: 'Last Mercy can fire twice per fight.' },
+  branwen: { id: 'm_branwen', name: 'Named Twice',        desc: 'The first TWO attacks each turn auto-apply bleed 1.' },
+  korin:   { id: 'm_korin',   name: 'Red Tally Compound', desc: 'Red Tally stacks no longer consume on use (one stack burns at end of fight).' },
+  mira:    { id: 'm_mira',    name: 'Shadow Doubled',     desc: "Shadow's Cut holds bleed across two decay ticks instead of one." },
+  ash:     { id: 'm_ash',     name: 'Veil Doubled',       desc: 'Veil Echo also adds +1 vuln when it preserves a stack.' },
+  lirien:  { id: 'm_lirien',  name: 'Refrain Carried',    desc: "Refrain's vuln-1 stays on the target through the next consume." },
+  vasha:   { id: 'm_vasha',   name: 'Conviction Twice',   desc: 'Conviction can arm twice per fight instead of once.' },
+  hask:    { id: 'm_hask',    name: 'Frostbreak Echo',    desc: 'Stagger landings grant +2 Resolve instead of +1.' },
+  veyr:    { id: 'm_veyr',    name: 'Witness Sharpened',  desc: 'Last Witness bonus is +3 damage per downed ally instead of +2.' },
+};
+
+// ============================================================================
 // SQUAD SIGILS — composition-based passive bonuses that activate
 // automatically when specific heroes walk together.  Not part of the
 // random sigil pool; they're discovered by playing certain party comps.
@@ -5301,6 +5517,46 @@ const SQUAD_SIGILS = {
     id: 'oldEdge', name: 'Old Edge', icon: '★',
     requires: ['kai', 'cassia', 'elin'],
     desc: '+1 Resolve drip per turn.',
+  },
+  cinderTrail: {
+    id: 'cinderTrail', name: 'Cinder Trail', icon: '≋',
+    requires: ['branwen', 'hask'],
+    desc: 'Bleed ticks also apply vuln 1 to the target.',
+  },
+  burningVerse: {
+    id: 'burningVerse', name: 'Burning Verse', icon: '✦',
+    requires: ['lirien', 'vasha'],
+    desc: "Vasha's heals also deal 2 damage to all enemies.",
+  },
+  frostfall: {
+    id: 'frostfall', name: 'Frostfall', icon: '❄',
+    requires: ['hask', 'mira'],
+    desc: 'Hits on bleeding enemies also apply Dull 1.',
+  },
+  ironbond: {
+    id: 'ironbond', name: 'Ironbond', icon: '↻',
+    requires: ['korin', 'garron'],
+    desc: 'Front + Mid both start each fight with +3 Retaliate.',
+  },
+  shadowMass: {
+    id: 'shadowMass', name: 'Shadow Mass', icon: '◐',
+    requires: ['veyr', 'mira'],
+    desc: 'Stealth-school hits deal +2 damage per downed ally (party-wide).',
+  },
+  witnessVow: {
+    id: 'witnessVow', name: 'Witness Vow', icon: '✚',
+    requires: ['veyr', 'elin'],
+    desc: "Elin's first heal each turn doubles in size.",
+  },
+  oldWords: {
+    id: 'oldWords', name: 'Old Words', icon: '⊕',
+    requires: ['lirien', 'ash'],
+    desc: 'Refrain applies vuln 2 instead of vuln 1.',
+  },
+  chargedPyre: {
+    id: 'chargedPyre', name: 'Charged Pyre', icon: '🜂',
+    requires: ['ash', 'vasha'],
+    desc: 'Vuln-stack consumes also apply burn 1.',
   },
 };
 
@@ -5419,6 +5675,26 @@ function grantQuirk(s, charId, quirkId) {
   c.quirks[side].push(quirkId);
   // Fanfare reveal (skipped during simulation)
   showQuirkAward(charId, quirkId);
+  // Mastery awakening — once a hero reaches the positive QUIRK_CAP and
+  // has a hand-authored mastery entry, unlock it as a one-shot bonus.
+  // Pre-existing mastery (from carry or Heroic Boon Awakening) is left
+  // alone.
+  if (q.positive && !c.mastery && c.quirks.positive.length >= QUIRK_CAP && HERO_MASTERIES[charId]) {
+    c.mastery = HERO_MASTERIES[charId];
+    log(`<i><b>${CHARS[charId].name}</b> awakens their Mastery: <b>${c.mastery.name}</b> — ${c.mastery.desc}</i>`);
+    if (typeof _showAwardBackdrop === 'function') {
+      try {
+        _showAwardBackdrop({
+          cls: 'qa-positive qa-mastery',
+          eyebrow: 'MASTERY AWAKENED',
+          name: c.mastery.name,
+          flavor: CHARS[charId].name,
+          desc: c.mastery.desc,
+          portraitId: charId,
+        });
+      } catch (_) {}
+    }
+  }
   return q;
 }
 
@@ -5637,6 +5913,155 @@ function awardBossSpoils(s, onDone) {
   const pool = availableSigils(s);
   if (pool.length === 0) { if (typeof onDone === 'function') onDone(); return; }
   setTimeout(() => offerSigilFromNode(onDone), 400);
+}
+
+// Mega-boss reward — replaces the standard boss spoils on layers 3, 6, 9.
+// Three-card Heroic Boon chooser, each a substantial run-permanent power
+// boost.  Wraps awardBossSpoils so the player still gets the heal + quirk
+// + sigil before picking their boon (the megaboss is the bigger version,
+// not a swap).
+function awardMegabossBoon(s, onDone) {
+  // Heal + quirks first (same as a regular boss kill).
+  const alive = aliveParty(s);
+  alive.forEach(c => { c.hp = c.maxHp; c.armor = Math.max(c.armor, 0); });
+  log('<i>The megaboss falls.  Something larger gives in the dark.</i>');
+  alive.forEach(c => {
+    if (!c.quirks) return;
+    if (c.quirks.positive.length >= QUIRK_CAP) return;
+    const taken = new Set([...c.quirks.positive, ...c.quirks.negative]);
+    const pool = Object.values(QUIRKS).filter(q =>
+      q.positive && !taken.has(q.id) && (!q.heroId || q.heroId === c.id));
+    if (!pool.length) return;
+    const q = pool[Math.floor(Math.random() * pool.length)];
+    grantQuirk(s, c.id, q.id);
+  });
+  // Then surface the boon chooser as the headline reward.
+  setTimeout(() => showHeroicBoonOverlay(onDone), 400);
+}
+
+// Heroic Boon — 3-card overlay shown after a mega-boss kill.  Each boon
+// is a substantial run-permanent power boost.  Picking one closes out
+// to the run-summary screen via onDone.
+function showHeroicBoonOverlay(onDone) {
+  const $overlay = $('#overlay');
+  $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-upgrade','overlay-sigil','overlay-starter','overlay-event','overlay-wanderer','overlay-cinematic','overlay-forge');
+  $overlay.classList.add('overlay-full','overlay-event','overlay-boon');
+  $('#overlay-title').textContent = 'Heroic Boon';
+  const body = $('#overlay-body');
+  body.classList.remove('victory-summary-body','welcome-body','run-summary-body');
+  body.innerHTML = '<p class="event-flavor">The megaboss leaves a gift behind.  Take one.</p>';
+
+  const choices = $('#overlay-choices');
+  choices.innerHTML = '';
+  choices.classList.remove('path-map','party-inspect');
+  choices.classList.add('event-choices');
+
+  const finish = () => {
+    hideOverlay();
+    resetOverlayBtn();
+    if (typeof onDone === 'function') onDone();
+  };
+
+  // Crown of Endurance — permanent +1 Resolve cap (compounds across megabosses).
+  _mkBoonChoice(choices, {
+    label: 'Crown of Endurance',
+    tag: '+1 to your Resolve cap — permanent',
+    onClick: () => {
+      state.run.resolveMaxBonus = (state.run.resolveMaxBonus || 0) + 1;
+      log('<i>You bind a Crown of Endurance.  The bar holds one more.</i>');
+      finish();
+    },
+  });
+
+  // Awakening — pick a hero who hasn't unlocked their mastery yet and
+  // grant it directly (skips the affinity-quirk path).
+  const candidates = aliveParty(state).filter(c => !c.mastery && HERO_MASTERIES[c.id]);
+  _mkBoonChoice(choices, {
+    label: 'Awakening',
+    tag: candidates.length ? 'Pick a hero — unlock their Mastery' : 'No mastery candidates',
+    disabled: !candidates.length,
+    onClick: () => _showHeroicBoonHeroPicker(candidates, finish),
+  });
+
+  // Deepening — pick any owned sigil and jump its tier by 2 (capped at max).
+  const tierable = ((state.run.sigils || [])).filter(id => {
+    const cur = (state.run.sigilLevels && state.run.sigilLevels[id]) || 1;
+    return cur < maxSigilTier(id);
+  });
+  _mkBoonChoice(choices, {
+    label: 'Deepening',
+    tag: tierable.length ? 'Pick a sigil — jump 2 tiers' : 'No sigils to deepen',
+    disabled: !tierable.length,
+    onClick: () => _showHeroicBoonSigilPicker(tierable, finish),
+  });
+
+  choices.classList.remove('hidden');
+  resetOverlayBtn();
+  $('#overlay-btn').classList.add('hidden');
+  $overlay.classList.remove('hidden');
+}
+
+function _mkBoonChoice(choices, opts) {
+  const card = document.createElement('button');
+  card.className = 'encounter-choice event-choice wanderer-choice boon-choice';
+  if (opts.disabled) card.classList.add('wanderer-disabled');
+  card.innerHTML = `<div class="enc-name">${opts.label}</div><div class="sigil-desc">${opts.tag}</div>`;
+  if (opts.disabled) card.disabled = true;
+  else card.addEventListener('click', opts.onClick);
+  choices.appendChild(card);
+}
+
+function _showHeroicBoonHeroPicker(candidates, finish) {
+  const choices = $('#overlay-choices');
+  choices.innerHTML = '';
+  $('#overlay-title').textContent = 'Awakening — choose a hero';
+  candidates.forEach(c => {
+    const def = CHARS[c.id]; if (!def) return;
+    const mastery = HERO_MASTERIES[c.id];
+    const card = document.createElement('button');
+    card.className = 'encounter-choice event-choice wanderer-sigil-row';
+    card.innerHTML = `
+      <div class="wanderer-sigil-glyph">✦</div>
+      <div class="wanderer-sigil-body">
+        <div class="enc-name">${def.name}</div>
+        <div class="sigil-desc"><b>${mastery.name}</b> — ${mastery.desc}</div>
+      </div>
+    `;
+    card.addEventListener('click', () => {
+      c.mastery = mastery;
+      log(`<i><b>${def.name}</b> awakens their <b>${mastery.name}</b>.</i>`);
+      finish();
+    });
+    choices.appendChild(card);
+  });
+}
+
+function _showHeroicBoonSigilPicker(tierable, finish) {
+  const choices = $('#overlay-choices');
+  choices.innerHTML = '';
+  $('#overlay-title').textContent = 'Deepening — choose a sigil';
+  tierable.forEach(id => {
+    const sg = SIGILS[id]; if (!sg) return;
+    const cur = (state.run.sigilLevels && state.run.sigilLevels[id]) || 1;
+    const max = maxSigilTier(id);
+    const next = Math.min(cur + 2, max);
+    const card = document.createElement('button');
+    card.className = `encounter-choice event-choice wanderer-sigil-row cat-${sg.category}`;
+    card.innerHTML = `
+      <div class="wanderer-sigil-glyph">${sg.icon}</div>
+      <div class="wanderer-sigil-body">
+        <div class="enc-name">${sg.name} ${'I'.repeat(cur)} → ${'I'.repeat(next)}</div>
+        <div class="sigil-desc">${sg.desc}</div>
+      </div>
+    `;
+    card.addEventListener('click', () => {
+      state.run.sigilLevels = state.run.sigilLevels || {};
+      state.run.sigilLevels[id] = next;
+      log(`<i>Your <b>${sg.name}</b> deepens twice.</i>`);
+      finish();
+    });
+    choices.appendChild(card);
+  });
 }
 
 // Roll an affinity/affliction after a non-boss victory.  Loops every alive
@@ -6559,7 +6984,13 @@ function getSpecialCost(s, tech, charId) {
     const v = s && s.party && s.party.chars && s.party.chars.vasha;
     if (v && v.convictionArmed) cost = Math.max(0, cost - 1);
   }
-  return cost;
+  // Forge upgrade — resource-category sigils burned for an actor permanently
+  // discount their Specials by N (floor at 0).
+  const actor = actorId && s && s.party && s.party.chars && s.party.chars[actorId];
+  if (actor && actor.forgeUpgrades && actor.forgeUpgrades.specialDiscount) {
+    cost = Math.max(0, cost - actor.forgeUpgrades.specialDiscount);
+  }
+  return Math.max(0, cost);
 }
 
 function availableSigils(s) {
@@ -6922,6 +7353,9 @@ function newState(forcedStarter) {
       currentEnc: null,      // spec of the active encounter (set by startEncounter)
       sigils: (carried && Array.isArray(carried.sigils)) ? carried.sigils.slice() : [],            // ids of acquired sigils (run-wide modifiers) — carried across layers
       sigilLevels: (carried && carried.sigilLevels && typeof carried.sigilLevels === 'object') ? { ...carried.sigilLevels } : {}, // per-sigil tier — duplicate binds level them up
+      // Heroic Boon — Crown of Endurance bumps the in-fight Resolve cap.
+      // Carried across layers so the boon's value compounds.
+      resolveMaxBonus: (carried && typeof carried.resolveMaxBonus === 'number') ? carried.resolveMaxBonus : 0,
       lastVictoryElite: false, // did the most recent victory come from an elite encounter? (gates sigil reward size)
       layer: getCurrentLayer(),     // which Abyss layer this run is climbing
       map: generateMap(),    // freshly generated branching graph for this run
@@ -6954,6 +7388,13 @@ function newState(forcedStarter) {
           fresh.hp      = Math.max(1, Math.min(fresh.maxHp, c.hp || fresh.maxHp));
           fresh.quirks  = c.quirks || fresh.quirks;
           fresh.upgrades= c.upgrades || {};
+          // Forge upgrades / oaths / mastery carry across layers — without
+          // these, the deliberate-build investments would reset every boss.
+          fresh.forgeUpgrades = (c.forgeUpgrades && typeof c.forgeUpgrades === 'object')
+            ? { atkBonus: 0, maxHpBonus: 0, specialDiscount: 0, ...c.forgeUpgrades }
+            : fresh.forgeUpgrades;
+          fresh.oaths   = Array.isArray(c.oaths)   ? c.oaths.slice() : [];
+          fresh.mastery = c.mastery || null;
           chars[c.id] = fresh;
         });
         return { slots: carried.slots || {}, chars };
@@ -7066,12 +7507,28 @@ function startEncounter(encSpec) {
     const front = frontId && state.party.chars[frontId];
     if (front && !front.downed) front.armor += 2;
   }
+  // Squad Sigil — Ironbond (Korin + Garron together) — front + mid both
+  // start each fight with +3 Retaliate.
+  if (hasSquadSigil(state, 'ironbond')) {
+    ['front', 'mid'].forEach(sl => {
+      const id = state.party.slots[sl];
+      const c = id && state.party.chars[id];
+      if (c && !c.downed) c.retaliate = (c.retaliate || 0) + 3;
+    });
+  }
   // Vow of Iron — front slot wakes the fight with Taunt for turn 1.  The
   // startTurn cleanup runs AFTER this, so we set the taunt to survive the
   // first cycle by deferring via a flag and re-applying inside startTurn.
   if (hasSigil(state, 'vowiron')) {
     state._vowIronPending = true;
   }
+  // Oath of Hunger — start each fight at half HP.  Applied per-hero
+  // after the per-fight status reset so it lands cleanly.
+  Object.values(state.party.chars).forEach(c => {
+    if (!c.downed && oathLevel(c, 'hunger') > 0) {
+      c.hp = Math.max(1, Math.floor(c.maxHp / 2));
+    }
+  });
 
   startTurn(state);
   // First-encounter tutorial kicks in after the battlefield has rendered.
@@ -7109,6 +7566,15 @@ function newCharState(id) {
     // Earned from victories; positive quirks buff combat output, negative
     // quirks penalize.  Capped at QUIRK_CAP per side.
     quirks: { positive: [], negative: [] },
+    // Forge upgrades — substantial run-permanent buffs purchased by
+    // burning a sigil at a Forge map node.  Stacks additively.
+    forgeUpgrades: { atkBonus: 0, maxHpBonus: 0, specialDiscount: 0 },
+    // Oaths — voluntary debuff-for-buff trades.  Array of OATHS ids;
+    // duplicates level the oath (mirrors sigil tier behavior).
+    oaths: [],
+    // Mastery — hand-authored hero-specific bonus unlocked when the
+    // hero reaches 2/2 positive quirks (see HERO_MASTERIES).
+    mastery: null,
   };
 }
 function newEnemyState(id) {
@@ -7373,6 +7839,31 @@ function applyDmgToEnemy(s, e, baseAmt) {
   });
   // Affinity quirks — run-wide per-character damage modifier
   amt += getQuirkDmgMod(s, s.currentActorId);
+  // Forge upgrades — combat-category sigils burned at a Forge node grant
+  // the hero a permanent +N attack bonus.  Reads from the actor's
+  // forgeUpgrades.atkBonus, set in _commitForge.
+  if (s.currentActorId) {
+    const actor = s.party.chars[s.currentActorId];
+    if (actor && actor.forgeUpgrades && actor.forgeUpgrades.atkBonus) {
+      amt += actor.forgeUpgrades.atkBonus;
+    }
+    // Oath of Frailty — accepts maxHp -N for +M damage on every attack.
+    if (actor) {
+      const fAtk = oathValue(actor, 'frailty', 'atk');
+      if (fAtk) amt += fAtk;
+    }
+    // Veyr Mastery (Witness Sharpened) — +3 per downed ally instead of +2.
+    if (s.currentActorId === 'veyr' && actor && actor.mastery && actor.mastery.id === 'm_veyr') {
+      // Cancel the +2 baseline below; we'll apply +3 here instead.
+      const downed = Object.values(s.party.chars).filter(c => c.downed).length;
+      if (downed > 0) { amt += downed; /* total = 2*d (baseline below) + 1*d here = 3*d */ }
+    }
+    // Kai Mastery (Last Stand Always) — +3 dmg regardless of party state.
+    if (s.currentActorId === 'kai' && actor && actor.mastery && actor.mastery.id === 'm_kai'
+        && aliveParty(s).length > 1) {
+      amt += 3;
+    }
+  }
   // Kai Last Stand — alone-survivor: +3 to every attack while every other
   // party member is downed.  Folds the old Lone Walker (+2 solo party) and
   // the heal-on-kill into one comeback engine; kill-heal lives in killEnemy.
@@ -7561,9 +8052,13 @@ function applyDmgToEnemy(s, e, baseAmt) {
   // of the party.
   if (s.currentActorId === 'branwen' && !e.dead) {
     const b = s.party.chars.branwen;
-    if (b && !b.namedArrowUsed) {
+    // Mastery "Named Twice" — first TWO attacks each turn auto-bleed.
+    const cap = (b && b.mastery && b.mastery.id === 'm_branwen') ? 2 : 1;
+    const used = (b && b._namedArrowCount) || 0;
+    if (b && used < cap) {
       e.bleed = Math.max(e.bleed, 1);
-      b.namedArrowUsed = true;
+      b._namedArrowCount = used + 1;
+      b.namedArrowUsed = true; // legacy flag kept for other readers
       spawnPassivePopup('branwen', 'NAMED ARROW');
     }
   }
@@ -7573,6 +8068,12 @@ function applyDmgToEnemy(s, e, baseAmt) {
   if (s.currentActorId === 'mira' && e.bleed > 0 && !e.dead) {
     e._shadowCutHeld = true;
     spawnPassivePopup('mira', "SHADOW'S CUT");
+  }
+  // Squad Sigil — Frostfall (Hask + Mira together) — any hit on a
+  // bleeding enemy also applies Dull 1 (chip damage compounded with
+  // status pressure).
+  if (e.bleed > 0 && !e.dead && hasSquadSigil(s, 'frostfall')) {
+    e.dulled = (e.dulled || 0) + 1;
   }
   // Korin Red Tally — pending bleed marker queued by applySelfDmg.  The
   // next attack applies bleed 1 to its target; pending +3 attackBonus is
@@ -7634,6 +8135,20 @@ function killEnemy(s, e) {
     if (s.currentActorId) {
       s.fightStats.killsBy = s.fightStats.killsBy || {};
       s.fightStats.killsBy[s.currentActorId] = (s.fightStats.killsBy[s.currentActorId] || 0) + 1;
+    }
+  }
+  // Oath of Hunger — every kill by a sworn hero heals them by their oath's
+  // killHeal amount.  Stacks with Kai's Last Stand kill-heal below.
+  if (s.currentActorId) {
+    const actor = s.party.chars[s.currentActorId];
+    if (actor && !actor.downed) {
+      const hungerHeal = oathValue(actor, 'hunger', 'killHeal');
+      if (hungerHeal > 0) {
+        const before = actor.hp;
+        actor.hp = Math.min(actor.maxHp, actor.hp + hungerHeal);
+        const got = actor.hp - before;
+        if (got > 0) spawnPopupId(actor.id, `+${got}`, 'heal', 'party');
+      }
     }
   }
   // Kai Last Stand — heal on kill: 2 normally, 4 while he's the last one
@@ -7728,9 +8243,11 @@ function applyDmgToParty(s, c, amt) {
   // incoming hit against any OTHER ally is redirected to her (armor first,
   // then HP).  The original target takes nothing; Cassia eats the full hit.
   const cas = s.party.chars.cassia;
-  if (cas && !cas.downed && !cas._heldGateUsed && c.id !== 'cassia'
+  const heldGateCap = (cas && cas.mastery && cas.mastery.id === 'm_cassia') ? 2 : 1;
+  if (cas && !cas.downed && (cas._heldGateUses || 0) < heldGateCap && c.id !== 'cassia'
       && slotOfChar(s, 'cassia') === 'front' && amt > 0) {
-    cas._heldGateUsed = true;
+    cas._heldGateUses = (cas._heldGateUses || 0) + 1;
+    cas._heldGateUsed = true; // legacy flag kept for any other readers
     spawnPassivePopup('cassia', 'HELD GATE');
     return applyDmgToParty(s, cas, amt);
   }
@@ -7798,14 +8315,21 @@ function applyDmgToParty(s, c, amt) {
     // Elin Last Mercy — once per fight she clamps from a lethal hit to 1 HP
     // and the lowest ally heals 4.  Self-applies before the Garron save so
     // Elin doesn't double-up the warden's intercept.
-    if (c.id === 'elin' && !c._mercyDeathSaveUsed) {
-      c._mercyDeathSaveUsed = true;
-      c.hp = 1;
-      spawnPopupId('elin', 'LAST MERCY', 'synergy', 'party');
-      spawnPassivePopup('elin', 'LAST MERCY');
-      log(`<b>${CHARS.elin.name}</b> holds at 1 HP — Last Mercy.`);
-      healLowest(s, 4);
-      return;
+    // Mastery "Mercy Reignited" — Elin's Last Mercy can fire TWICE per
+    // fight instead of once.  Counter replaces the boolean used flag.
+    if (c.id === 'elin') {
+      const cap = (c.mastery && c.mastery.id === 'm_elin') ? 2 : 1;
+      c._mercyDeathSaveCount = c._mercyDeathSaveCount || 0;
+      if (c._mercyDeathSaveCount < cap) {
+        c._mercyDeathSaveCount++;
+        c._mercyDeathSaveUsed = true; // legacy flag
+        c.hp = 1;
+        spawnPopupId('elin', 'LAST MERCY', 'synergy', 'party');
+        spawnPassivePopup('elin', 'LAST MERCY');
+        log(`<b>${CHARS.elin.name}</b> holds at 1 HP — Last Mercy.`);
+        healLowest(s, 4);
+        return;
+      }
     }
     // Garron Warden's Word — first ally per fight to fall while Garron
     // holds Front is clamped to 1 HP; Garron eats 4 HP for the save.
@@ -7820,6 +8344,15 @@ function applyDmgToParty(s, c, amt) {
       spawnPopupId('garron', `-${gBefore - g.hp}`, 'dmg', 'party');
       spawnPassivePopup('garron', "WARDEN'S WORD");
       log(`<b>${CHARS.garron.name}</b> steps between — Warden's Word.`);
+      // Mastery "Warden Heals" — the saved ally is also healed for 6 HP
+      // (capped at maxHp).  Lands as a +heal popup so the player can see
+      // the extra effect at the moment of the save.
+      if (g.mastery && g.mastery.id === 'm_garron') {
+        const before = c.hp;
+        c.hp = Math.min(c.maxHp, c.hp + 6);
+        const got = c.hp - before;
+        if (got > 0) spawnPopupId(c.id, `+${got}`, 'heal', 'party');
+      }
       if (g.hp === 0) {
         g.downed = true; g.pendingEffects = [];
         if (s.fightStats) { s.fightStats.downed = s.fightStats.downed || []; if (!s.fightStats.downed.includes('garron')) s.fightStats.downed.push('garron'); }
@@ -7957,7 +8490,12 @@ function mercyTickle(s, healedId, got) {
   } finally { s.__mercyActive = false; }
 }
 function healLowest(s, amt) {
-  const alive = aliveParty(s); if (alive.length === 0) return null;
+  let alive = aliveParty(s); if (alive.length === 0) return null;
+  // Oath of Exile — sworn heroes cannot receive heals.  Filter them out
+  // of the eligible pool; if everyone is exiled, the heal silently
+  // fizzles.
+  alive = alive.filter(c => oathLevel(c, 'exile') === 0);
+  if (alive.length === 0) return null;
   alive.sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp));
   const c = alive[0];
   const bonus = consumePendingBonus(s, s.currentActorId, 'healBonus');
@@ -7990,7 +8528,11 @@ function cleanseLowest(s) {
 function taunt(s, id) { const c = s.party.chars[id]; if (c && !c.downed) c.taunt = true; }
 function gainResolve(s, amt) {
   const before = s.resolve;
-  s.resolve = Math.min(RESOLVE_MAX, s.resolve + amt);
+  // Effective cap = base RESOLVE_MAX + Crown of Endurance boons.  The
+  // Memory sigil's at-fight-start bonus is handled separately in
+  // startEncounter (it lifts the carry cap, not the in-fight cap).
+  const cap = RESOLVE_MAX + ((s.run && s.run.resolveMaxBonus) || 0);
+  s.resolve = Math.min(cap, s.resolve + amt);
   const gained = s.resolve - before;
   if (gained > 0) {
     flashResolve();
@@ -8231,7 +8773,7 @@ function startTurn(s) {
   s.bonusAtb = Math.min(1, s.pendingBonusAtb || 0);
   s.pendingBonusAtb = 0;
   // clear single-turn buffs that survived the enemy phase
-  aliveParty(s).forEach(c => { c.taunt = false; c.retaliate = 0; c.firstAttackUsed = false; c.shadowVeilUsed = false; c.lingeringUsed = false; c._silentVolleyUsed = false; c.namedArrowUsed = false; c._namedArrowPaid = false; c._heldGateUsed = false; c._veil = false; c.divineGuard = false; c.armorAbsorb = 0; });
+  aliveParty(s).forEach(c => { c.taunt = false; c.retaliate = 0; c.firstAttackUsed = false; c.shadowVeilUsed = false; c.lingeringUsed = false; c._silentVolleyUsed = false; c.namedArrowUsed = false; c._namedArrowCount = 0; c._namedArrowPaid = false; c._heldGateUsed = false; c._heldGateUses = 0; c._veil = false; c.divineGuard = false; c.armorAbsorb = 0; });
   // Weakness/stagger state decay at the top of each player turn:
   //   - weakened lingers for 2 player turns (so the follow-up weakness
   //     hit doesn't have to land same-turn).  weakenedTurnsLeft ticks
@@ -8321,10 +8863,14 @@ function startTurn(s) {
       if (c.hp === 0) { c.downed = true; c.pendingEffects = []; if (s.fightStats) { s.fightStats.downed = s.fightStats.downed || []; if (!s.fightStats.downed.includes(c.id)) s.fightStats.downed.push(c.id); } log(`<b>${CHARS[c.id].name}</b> falls.`); }
     }
   });
+  const cinderTrail = hasSquadSigil(s, 'cinderTrail');
   aliveEnemies(s).forEach(e => {
     if (e.bleed > 0) {
       const dmg = Math.max(0, enemyBleedTick - (s.ignoreArmor ? 0 : e.armor));
       e.hp = Math.max(0, e.hp - dmg);
+      // Squad Sigil — Cinder Trail (Branwen + Hask) — bleed ticks also
+      // apply vuln 1 to the bleeding enemy.
+      if (cinderTrail && !e.dead) { e.vuln = (e.vuln || 0) + 1; }
       // Mira Shadow's Cut — if Mira's last hit marked this bleed, the tick
       // damage still lands but the stack doesn't count down this turn.
       if (e._shadowCutHeld) { e._shadowCutHeld = false; }
@@ -8348,6 +8894,19 @@ function startTurn(s) {
   });
 
   gainResolve(s, RESOLVE_DRIP);
+  // Oath of Stillness — sum the per-turn drip bonus across the party
+  // (each sworn hero adds their tier's drip value).
+  let stillnessDrip = 0;
+  Object.values(s.party.chars).forEach(c => {
+    if (c && !c.downed) stillnessDrip += oathValue(c, 'stillness', 'drip');
+  });
+  if (stillnessDrip > 0) gainResolve(s, stillnessDrip);
+  // Oath of Exile — +N armor on each sworn hero at the start of every turn.
+  Object.values(s.party.chars).forEach(c => {
+    if (!c || c.downed) return;
+    const armorPer = oathValue(c, 'exile', 'armorPerTurn');
+    if (armorPer > 0) c.armor = (c.armor || 0) + armorPer;
+  });
   // Sigil of the Pact — +1 Resolve per active bond
   if (hasSigil(s, 'pact')) {
     const bondCount = getAdjacencyPairs(s).filter(p => p.synergy.type === 'bond').length;
@@ -8721,8 +9280,49 @@ function _buildFigureInspector(fig, id, isParty) {
       </li>`
     : '';
 
-  const inner = (rows.length || passiveRow)
-    ? `<ul class="fi-list">${rows.join('')}${passiveRow}</ul>`
+  // Mastery — gold-tinted row visible only on heroes who have awakened.
+  const masteryRow = (isParty && ent && ent.mastery)
+    ? `<li class="fi-row fi-row-mastery">
+        <span class="fi-icon">♕</span>
+        <span class="fi-text"><b>${ent.mastery.name}</b> — ${ent.mastery.desc}</span>
+      </li>`
+    : '';
+
+  // Oaths — list every oath this hero has spoken, with its tier.
+  const oathRows = (isParty && ent && Array.isArray(ent.oaths) && ent.oaths.length)
+    ? (() => {
+        const tallies = {};
+        ent.oaths.forEach(oid => { tallies[oid] = (tallies[oid] || 0) + 1; });
+        return Object.keys(tallies).map(oid => {
+          const o = OATHS[oid]; if (!o) return '';
+          const t = tallies[oid];
+          const roman = ['', 'I', 'II', 'III'][t] || String(t);
+          return `<li class="fi-row">
+            <span class="fi-icon">${o.icon}</span>
+            <span class="fi-text"><b>${o.name} ${roman}</b> — ${o.desc}</span>
+          </li>`;
+        }).join('');
+      })()
+    : '';
+
+  // Forge upgrades — surface the cumulative bonuses as one summary row.
+  let forgeRow = '';
+  if (isParty && ent && ent.forgeUpgrades) {
+    const f = ent.forgeUpgrades;
+    const bits = [];
+    if (f.atkBonus)         bits.push(`+${f.atkBonus} atk`);
+    if (f.maxHpBonus)       bits.push(`+${f.maxHpBonus} max HP`);
+    if (f.specialDiscount)  bits.push(`-${f.specialDiscount} sig cost`);
+    if (bits.length) {
+      forgeRow = `<li class="fi-row">
+        <span class="fi-icon">⚒</span>
+        <span class="fi-text"><b>Forged</b> — ${bits.join(' · ')}</span>
+      </li>`;
+    }
+  }
+
+  const inner = (rows.length || passiveRow || masteryRow || oathRows || forgeRow)
+    ? `<ul class="fi-list">${rows.join('')}${forgeRow}${masteryRow}${oathRows}${passiveRow}</ul>`
     : `<div class="fi-empty">No active effects.</div>`;
 
   const panel = document.createElement('div');
@@ -9479,7 +10079,14 @@ function checkEnd(s) {
       // map.  The per-fight stats overlay is intentionally skipped —
       // the run summary already shows the totals.
       accumulateRunStats(s.fightStats || { damageDealt: {}, damageTaken: {}, healingDone: {}, kills: 0, synergies: [], turns: s.turn });
-      const continueAfterDeath = () => awardBossSpoils(state, finishBoss);
+      // Mega-boss layers (3, 6, 9) route through the Heroic Boon chooser
+      // instead of the standard spoils.  The boon overlay handles the heal
+      // + quirk grants internally before surfacing the 3-card chooser.
+      const layerInfo = LAYER_CONTENT[s.run.layer];
+      const isMegaBoss = !!(layerInfo && layerInfo.megaBoss);
+      const continueAfterDeath = isMegaBoss
+        ? () => awardMegabossBoon(state, finishBoss)
+        : () => awardBossSpoils(state, finishBoss);
       // Hold for the slo-mo death effect before the spoils overlay.
       const BOSS_DEATH_HOLD = 1600;
       if (bossMatches.length) {
@@ -9600,17 +10207,17 @@ function renderHUD() {
   //             Tinted gold so the player sees the bonus they paid for.
   const reserved = queueReservedResolve();
   const available = state.resolve - reserved;
-  // The displayed bar grows past RESOLVE_MAX when the player is briefly
-  // over-cap (Memory sigil's +1 fight-start bonus).  Once spent back to
-  // RESOLVE_MAX, the bonus pip drops away.  Honest pip count > a fixed
-  // 3-pip bar that hides the 4th unit.
-  const effectiveMax = Math.max(RESOLVE_MAX, state.resolve);
+  // Cap factors in Crown of Endurance boons; bar grows further when the
+  // player is briefly over that cap (Memory sigil at fight start).
+  const boon = (state.run && state.run.resolveMaxBonus) || 0;
+  const baseCap = RESOLVE_MAX + boon;
+  const effectiveMax = Math.max(baseCap, state.resolve);
   for (let i = 0; i < effectiveMax; i++) {
     const p = document.createElement('div');
     if (i < available) p.className = 'pip filled';
     else if (i < state.resolve) p.className = 'pip filled reserved';
     else p.className = 'pip';
-    if (i >= RESOLVE_MAX) p.classList.add('bonus');
+    if (i >= baseCap) p.classList.add('bonus');
     pips.appendChild(p);
   }
   // glanceable resolve readout in the HUD line (no interaction, just a count)
@@ -11324,6 +11931,7 @@ function showNodeTooltip(anchorEl, node) {
     rest:     'Rest',
     event:    'Event',
     wanderer: 'Wanderer',
+    forge:    'Forge',
   })[node.type] || node.type;
   const sigilCat = node.type === 'elite' && enc && enc.sigilCategory ? enc.sigilCategory : null;
   const wandererDef = node.type === 'wanderer' && node.wandererId ? WANDERERS[node.wandererId] : null;
@@ -11331,8 +11939,9 @@ function showNodeTooltip(anchorEl, node) {
   const name = node.type === 'rest'     ? 'Hollow Rest'
              : node.type === 'event'    ? (EVENTS[node.eventId]?.name || 'Strange Encounter')
              : node.type === 'wanderer' ? (wandererHero ? wandererHero.name : 'A figure on the path')
+             : node.type === 'forge'    ? 'The Forge'
              : (enc?.name || node.type);
-  const enemyChips = (node.type === 'rest' || node.type === 'event' || node.type === 'wanderer')
+  const enemyChips = (node.type === 'rest' || node.type === 'event' || node.type === 'wanderer' || node.type === 'forge')
     ? ''
     : SLOTS.map(sl => {
         const eid = enc && enc.slots ? enc.slots[sl] : null;
@@ -11348,6 +11957,7 @@ function showNodeTooltip(anchorEl, node) {
     ? 'Heal · Hone an upgrade · Or bind a sigil — choose one.'
     : node.type === 'event' ? 'Choice with consequences.'
     : node.type === 'wanderer' ? (wandererHero ? `${wandererHero.title || 'A hero on the road'}.  Trade, fight, or walk past.` : 'A meeting on the road.')
+    : node.type === 'forge'    ? 'Burn a sigil to forge a hero a permanent boon.'
     : node.type === 'boss' ? `${bossName}.  No escape but through.`
     : node.type === 'elite' ? `Tech upgrade.${sigilCat ? ` Themed: ${sigilCat}.` : ''}`
     : 'Affinity progression.';
@@ -11394,6 +12004,9 @@ function showBossIntro(opts, then) {
   if (ey) ey.textContent = opts?.eyebrow || 'SIN OF THE DAWN';
   if (nm) nm.textContent = opts?.name    || 'THE WAKELING';
   if (tg) tg.textContent = opts?.tag     || 'It does not flinch.';
+  // Mega-boss visual variant — red eyebrow, larger name, animated under-
+  // line.  CSS-only via .bi-megaboss modifier on the root.
+  root.classList.toggle('bi-megaboss', !!(opts && opts.megaBoss));
   root.classList.remove('hidden');
   root.classList.add('intro');
   Audio.kill(); // low ominous stinger reused
@@ -12441,6 +13054,7 @@ function renderMap() {
         rest:     '⌂',
         event:    '?',
         wanderer: '☉',
+        forge:    '⚒',
       })[node.type] || '⚔';
       const typeLabel = ({
         elite:    'ELITE',
@@ -12449,6 +13063,7 @@ function renderMap() {
         rest:     'REST',
         event:    'EVENT',
         wanderer: 'WANDER',
+        forge:    'FORGE',
       })[node.type] || 'FIGHT';
       // Compact icon-node markup: a glyph in a tinted dot + a labelled
       // strap underneath so the player can read elite/event/regular at a
@@ -12470,12 +13085,14 @@ function renderMap() {
         if (node.type === 'rest')        return showRestOverlay();
         if (node.type === 'event')       return showEventOverlay(node.eventId);
         if (node.type === 'wanderer')    return showWandererOverlay(node.wandererId);
+        if (node.type === 'forge')       return showForgeOverlay();
         if (node.type === 'boss') {
           const layerInfo = LAYER_CONTENT[state.run.layer] || LAYER_CONTENT[1];
           const startBoss = () => showBossIntro({
             eyebrow: layerInfo.bossSubtitle,
             name:    (layerInfo.bossName || '').toUpperCase(),
             tag:     layerInfo.bossTag,
+            megaBoss: !!layerInfo.megaBoss,
           }, () => startEncounter(node.enc));
           const ctx = captureFightContext(state); ctx.phase = 'bossPrep';
           const matches = matchVignettes(state, ctx);
@@ -12826,6 +13443,18 @@ function showRestOverlay() {
   // economy felt too inflationary when campfires were giving them out
   // alongside elite / event / boss rewards.  Players still pick up
   // sigils from elites, events, and boss rewards.)
+
+  // 5. Speak an Oath — voluntary debuff-for-buff trade.  Targeted at a
+  // single hero, permanent for the run.  Only shown if at least one
+  // alive hero has room to take an oath (max one of each per hero per
+  // tier — speaking the same oath twice deepens it).
+  if (aliveParty(state).length > 0) {
+    mkChoice('Speak an Oath', 'Trade something away for power', () => {
+      hideOverlay();
+      choices.classList.remove('event-choices');
+      showOathOverlay(() => _completeNonCombatNode());
+    }, 'oath');
+  }
 
   // 4. Reflect — context-aware introspection.  Shed an ailment if anyone
   // is currently carrying a negative quirk, otherwise grant a positive
@@ -13381,6 +14010,338 @@ function _organicNodeJitter(id) {
 function _organicColumnDrift(lvl) {
   // Sine-ish offset: small amplitude (±12px), period of ~3 columns.
   return Math.round(Math.sin(lvl * 1.1) * 12);
+}
+
+// ============================================================================
+// FORGE MAP NODE — burn a sigil for a permanent per-hero upgrade.  Three-
+// step in-modal state machine that mirrors the wanderer modal pattern:
+// hero pick → sigil burn → confirm.  Reuses event-style choice rails so
+// the layout is mobile-friendly and consistent with the rest of the UI.
+// ============================================================================
+function showForgeOverlay() {
+  _renderForgeStep('hero', {});
+}
+
+const FORGE_EFFECTS_BY_CATEGORY = {
+  combat:   { key: 'atkBonus',         delta: 2, label: '+2 damage on every attack', past: 'Their edge deepens.' },
+  defense:  { key: 'maxHpBonus',       delta: 6, label: '+6 max HP · fully healed',  past: 'The armor under the skin sets.' },
+  resource: { key: 'specialDiscount',  delta: 1, label: '-1 Resolve cost on every Special (min 0)', past: 'The cost of will is cheaper.' },
+};
+
+function _renderForgeStep(step, ctx) {
+  const $overlay = $('#overlay');
+  $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-upgrade','overlay-sigil','overlay-starter','overlay-boon','overlay-cinematic','overlay-wanderer');
+  $overlay.classList.add('overlay-full','overlay-event','overlay-forge');
+
+  $('#overlay-title').textContent = (step === 'hero')    ? 'The Forge'
+                                  : (step === 'sigil')   ? 'Burn a sigil'
+                                  : (step === 'confirm') ? 'Strike the iron'
+                                  : 'The Forge';
+
+  const body = $('#overlay-body');
+  body.classList.remove('victory-summary-body','welcome-body','run-summary-body');
+  body.innerHTML = '';
+
+  // Anvil glyph + step-aware flavor.  Stays on screen across every step
+  // so the forge reads as one place, not three modals.
+  const stage = document.createElement('div');
+  stage.className = 'forge-stage';
+  stage.innerHTML = `<div class="forge-anvil" aria-hidden="true">⚒</div>`;
+  body.appendChild(stage);
+
+  const flavor = document.createElement('p');
+  flavor.className = 'event-flavor';
+  flavor.textContent = (step === 'hero')    ? 'An anvil, still warm.  Choose who walks into the fire.'
+                     : (step === 'sigil')   ? `Choose a sigil to feed the forge.`
+                     : (step === 'confirm') ? 'The hammer waits.  Strike?'
+                     : '';
+  body.appendChild(flavor);
+
+  const choices = $('#overlay-choices');
+  choices.innerHTML = '';
+  choices.classList.remove('path-map','party-inspect');
+  choices.classList.add('event-choices');
+
+  if (step === 'hero')         _renderForgeHeroPicker(choices);
+  else if (step === 'sigil')   _renderForgeSigilPicker(choices, ctx);
+  else if (step === 'confirm') _renderForgeConfirm(choices, ctx);
+
+  const btn = $('#overlay-btn');
+  if (step === 'hero') {
+    btn.classList.add('hidden');
+    resetOverlayBtn();
+  } else {
+    btn.textContent = '← Back';
+    btn.onclick = () => {
+      if (step === 'confirm') return _renderForgeStep('sigil', { heroId: ctx.heroId });
+      return _renderForgeStep('hero', {});
+    };
+    btn.classList.remove('hidden');
+  }
+
+  choices.classList.remove('hidden');
+  $overlay.classList.remove('hidden');
+}
+
+function _renderForgeHeroPicker(choices) {
+  const aliveIds = aliveParty(state).map(c => c.id);
+  if (!aliveIds.length) { _resolveForgeExit(); return; }
+  aliveIds.forEach(id => {
+    const def = CHARS[id]; if (!def) return;
+    const card = document.createElement('button');
+    card.className = 'encounter-choice event-choice wanderer-sigil-row';
+    card.innerHTML = `
+      <div class="wanderer-sigil-glyph">${PORTRAITS[id] ? '◆' : '◇'}</div>
+      <div class="wanderer-sigil-body">
+        <div class="enc-name">${def.name}</div>
+        <div class="sigil-desc">${def.title || ''} · ${(def.school || '').toUpperCase()}</div>
+      </div>
+    `;
+    card.addEventListener('click', () => _renderForgeStep('sigil', { heroId: id }));
+    choices.appendChild(card);
+  });
+  // Walk-away option — leaving the forge spends nothing.
+  const walk = document.createElement('button');
+  walk.className = 'encounter-choice event-choice wanderer-choice-walk-past';
+  walk.innerHTML = `<div class="enc-name">Walk past the forge</div><div class="sigil-desc">The anvil cools behind you.</div>`;
+  walk.addEventListener('click', _resolveForgeExit);
+  choices.appendChild(walk);
+}
+
+function _renderForgeSigilPicker(choices, ctx) {
+  const sigils = ((state.run && state.run.sigils) || []).map(id => SIGILS[id]).filter(Boolean);
+  if (!sigils.length) {
+    // No sigils to burn — bounce back to hero pick with a flavor.
+    log('<i>You have nothing to feed the forge.</i>');
+    _renderForgeStep('hero', {});
+    return;
+  }
+  sigils.forEach(sg => {
+    const effect = FORGE_EFFECTS_BY_CATEGORY[sg.category] || FORGE_EFFECTS_BY_CATEGORY.combat;
+    const card = document.createElement('button');
+    card.className = `encounter-choice event-choice wanderer-sigil-row wanderer-sigil-give cat-${sg.category}`;
+    card.innerHTML = `
+      <div class="wanderer-sigil-glyph">${sg.icon}</div>
+      <div class="wanderer-sigil-body">
+        <div class="enc-name">${sg.name}</div>
+        <div class="sigil-desc">Forge: <b>${effect.label}</b></div>
+      </div>
+    `;
+    card.addEventListener('click', () => _renderForgeStep('confirm', { heroId: ctx.heroId, sigilId: sg.id }));
+    choices.appendChild(card);
+  });
+}
+
+function _renderForgeConfirm(choices, ctx) {
+  const def = CHARS[ctx.heroId];
+  const sg  = SIGILS[ctx.sigilId];
+  if (!def || !sg) { _resolveForgeExit(); return; }
+  const effect = FORGE_EFFECTS_BY_CATEGORY[sg.category] || FORGE_EFFECTS_BY_CATEGORY.combat;
+
+  const card = document.createElement('button');
+  card.className = 'encounter-choice event-choice wanderer-sigil-row';
+  card.innerHTML = `
+    <div class="wanderer-sigil-glyph">⚒</div>
+    <div class="wanderer-sigil-body">
+      <div class="enc-name">Burn ${sg.name} for ${def.name}</div>
+      <div class="sigil-desc">${effect.label}.  This is permanent.</div>
+    </div>
+  `;
+  card.addEventListener('click', () => _commitForge(ctx.heroId, ctx.sigilId));
+  choices.appendChild(card);
+
+  const cancel = document.createElement('button');
+  cancel.className = 'encounter-choice event-choice wanderer-choice-walk-past';
+  cancel.innerHTML = `<div class="enc-name">Pull the iron back</div><div class="sigil-desc">No strike.  The sigil stays.</div>`;
+  cancel.addEventListener('click', () => _renderForgeStep('sigil', { heroId: ctx.heroId }));
+  choices.appendChild(cancel);
+}
+
+function _commitForge(heroId, sigilId) {
+  const def = CHARS[heroId];
+  const sg  = SIGILS[sigilId];
+  const c   = state.party.chars[heroId];
+  if (!def || !sg || !c) { _resolveForgeExit(); return; }
+  const effect = FORGE_EFFECTS_BY_CATEGORY[sg.category] || FORGE_EFFECTS_BY_CATEGORY.combat;
+  // Drop the sigil (one tier — leveled sigils only lose one tier per
+  // burn, matching the tier-up flow's "deepens" semantics).
+  const lvl = (state.run.sigilLevels && state.run.sigilLevels[sigilId]) || 1;
+  if (lvl > 1) {
+    state.run.sigilLevels[sigilId] = lvl - 1;
+  } else {
+    state.run.sigils = (state.run.sigils || []).filter(id => id !== sigilId);
+    if (state.run.sigilLevels) delete state.run.sigilLevels[sigilId];
+  }
+  // Apply the forge effect.
+  if (!c.forgeUpgrades) c.forgeUpgrades = { atkBonus: 0, maxHpBonus: 0, specialDiscount: 0 };
+  c.forgeUpgrades[effect.key] = (c.forgeUpgrades[effect.key] || 0) + effect.delta;
+  if (effect.key === 'maxHpBonus') {
+    c.maxHp += effect.delta;
+    c.hp = c.maxHp; // forge defense → full heal
+  }
+  log(`<i>The forge takes <b>${sg.name}</b>.  <b>${def.name}</b>: ${effect.past}</i>`);
+  _resolveForgeExit();
+}
+
+function _resolveForgeExit() {
+  hideOverlay();
+  resetOverlayBtn();
+  _completeNonCombatNode();
+}
+
+// ============================================================================
+// OATH OVERLAY — voluntary debuff-for-buff trade.  Three-step in-modal
+// state machine (hero → oath → confirm), same shape as the Forge.
+// Reuses the wanderer-sigil-row styling for the menu rails.
+// ============================================================================
+function showOathOverlay(onDone) {
+  _renderOathStep('hero', { onDone }, null);
+}
+
+function _renderOathStep(step, ctx, prevCtx) {
+  const $overlay = $('#overlay');
+  $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-upgrade','overlay-sigil','overlay-starter','overlay-boon','overlay-cinematic','overlay-wanderer','overlay-forge');
+  $overlay.classList.add('overlay-full','overlay-event','overlay-oath');
+
+  $('#overlay-title').textContent = step === 'hero'    ? 'Speak an Oath'
+                                  : step === 'pick'    ? 'Choose the oath'
+                                  : step === 'confirm' ? 'Bind the oath'
+                                  : 'Speak an Oath';
+
+  const body = $('#overlay-body');
+  body.classList.remove('victory-summary-body','welcome-body','run-summary-body');
+  body.innerHTML = '';
+  const stage = document.createElement('div');
+  stage.className = 'forge-stage oath-stage';
+  stage.innerHTML = `<div class="forge-anvil" aria-hidden="true">⌖</div>`;
+  body.appendChild(stage);
+  const flavor = document.createElement('p');
+  flavor.className = 'event-flavor';
+  flavor.textContent = step === 'hero'    ? 'An oath is heavy.  Who speaks it?'
+                     : step === 'pick'    ? 'A trade.  You give something away to be given something back.'
+                     : step === 'confirm' ? 'This is permanent for the climb.  Are you sure?'
+                     : '';
+  body.appendChild(flavor);
+
+  const choices = $('#overlay-choices');
+  choices.innerHTML = '';
+  choices.classList.remove('path-map','party-inspect');
+  choices.classList.add('event-choices');
+
+  if (step === 'hero')         _renderOathHeroPicker(choices, ctx);
+  else if (step === 'pick')    _renderOathPicker(choices, ctx);
+  else if (step === 'confirm') _renderOathConfirm(choices, ctx);
+
+  const btn = $('#overlay-btn');
+  if (step === 'hero') {
+    btn.classList.add('hidden');
+    resetOverlayBtn();
+  } else {
+    btn.textContent = '← Back';
+    btn.onclick = () => {
+      if (step === 'confirm') return _renderOathStep('pick', { onDone: ctx.onDone, heroId: ctx.heroId });
+      return _renderOathStep('hero', { onDone: ctx.onDone });
+    };
+    btn.classList.remove('hidden');
+  }
+  choices.classList.remove('hidden');
+  $overlay.classList.remove('hidden');
+}
+
+function _renderOathHeroPicker(choices, ctx) {
+  const aliveIds = aliveParty(state).map(c => c.id);
+  if (!aliveIds.length) { _resolveOathExit(ctx); return; }
+  aliveIds.forEach(id => {
+    const def = CHARS[id]; if (!def) return;
+    const c = state.party.chars[id];
+    const oathCount = (c && c.oaths) ? c.oaths.length : 0;
+    const card = document.createElement('button');
+    card.className = 'encounter-choice event-choice wanderer-sigil-row';
+    card.innerHTML = `
+      <div class="wanderer-sigil-glyph">⌖</div>
+      <div class="wanderer-sigil-body">
+        <div class="enc-name">${def.name}</div>
+        <div class="sigil-desc">${oathCount ? `${oathCount} oath${oathCount > 1 ? 's' : ''} spoken` : 'No oaths yet'}</div>
+      </div>
+    `;
+    card.addEventListener('click', () => _renderOathStep('pick', { onDone: ctx.onDone, heroId: id }));
+    choices.appendChild(card);
+  });
+  // Walk away — no oath, no cost
+  const walk = document.createElement('button');
+  walk.className = 'encounter-choice event-choice wanderer-choice-walk-past';
+  walk.innerHTML = `<div class="enc-name">Speak no oath</div><div class="sigil-desc">Let the silence hold.</div>`;
+  walk.addEventListener('click', () => _resolveOathExit(ctx));
+  choices.appendChild(walk);
+}
+
+function _renderOathPicker(choices, ctx) {
+  Object.values(OATHS).forEach(o => {
+    const c = state.party.chars[ctx.heroId];
+    const cur = oathLevel(c, o.id);
+    const max = (OATH_TIERS[o.id] || []).length;
+    const roman = ['', 'I', 'II', 'III'][cur + 1] || String(cur + 1);
+    const card = document.createElement('button');
+    card.className = `encounter-choice event-choice wanderer-sigil-row${cur >= max ? ' wanderer-disabled' : ''}`;
+    card.innerHTML = `
+      <div class="wanderer-sigil-glyph">${o.icon}</div>
+      <div class="wanderer-sigil-body">
+        <div class="enc-name">${o.name}${cur > 0 ? ` ${roman}` : ''}</div>
+        <div class="sigil-desc">${o.desc}</div>
+      </div>
+    `;
+    if (cur >= max) card.disabled = true;
+    else card.addEventListener('click', () => _renderOathStep('confirm', { onDone: ctx.onDone, heroId: ctx.heroId, oathId: o.id }));
+    choices.appendChild(card);
+  });
+}
+
+function _renderOathConfirm(choices, ctx) {
+  const def = CHARS[ctx.heroId];
+  const o = OATHS[ctx.oathId];
+  if (!def || !o) { _resolveOathExit(ctx); return; }
+  const card = document.createElement('button');
+  card.className = 'encounter-choice event-choice wanderer-sigil-row';
+  card.innerHTML = `
+    <div class="wanderer-sigil-glyph">⌖</div>
+    <div class="wanderer-sigil-body">
+      <div class="enc-name">Bind ${def.name} to ${o.name}</div>
+      <div class="sigil-desc">${o.desc}</div>
+    </div>
+  `;
+  card.addEventListener('click', () => _commitOath(ctx));
+  choices.appendChild(card);
+  const cancel = document.createElement('button');
+  cancel.className = 'encounter-choice event-choice wanderer-choice-walk-past';
+  cancel.innerHTML = `<div class="enc-name">Let the words die</div><div class="sigil-desc">No oath.</div>`;
+  cancel.addEventListener('click', () => _renderOathStep('pick', { onDone: ctx.onDone, heroId: ctx.heroId }));
+  choices.appendChild(cancel);
+}
+
+function _commitOath(ctx) {
+  const def = CHARS[ctx.heroId];
+  const o = OATHS[ctx.oathId];
+  const c = state.party.chars[ctx.heroId];
+  if (!def || !o || !c) { _resolveOathExit(ctx); return; }
+  c.oaths = c.oaths || [];
+  c.oaths.push(ctx.oathId);
+  // Apply the maxHp side of Frailty immediately.  Other oaths take
+  // effect at fight start (Hunger), per-turn (Stillness/Exile), or in
+  // damage hooks (Frailty atk bonus, Silence sig dmg).
+  if (ctx.oathId === 'frailty') {
+    const hpDelta = oathValue(c, 'frailty', 'hp'); // negative number
+    c.maxHp = Math.max(1, c.maxHp + hpDelta);
+    c.hp = Math.min(c.hp, c.maxHp);
+  }
+  log(`<i><b>${def.name}</b> speaks <b>${o.name}</b>.  ${o.desc}</i>`);
+  _resolveOathExit(ctx);
+}
+
+function _resolveOathExit(ctx) {
+  hideOverlay();
+  resetOverlayBtn();
+  if (ctx && typeof ctx.onDone === 'function') ctx.onDone();
+  else _completeNonCombatNode();
 }
 
 function drawMapConnectors(choices) {
@@ -14755,6 +15716,12 @@ function saveCarriedParty(s) {
       hp: c.hp, maxHp: c.maxHp,
       quirks: c.quirks || { positive: [], negative: [] },
       upgrades: c.upgrades || {},
+      // Forge upgrades, oaths spoken, and unlocked mastery all persist
+      // across layer ascents alongside max HP.  Without these the
+      // build investment would reset every boss-clear.
+      forgeUpgrades: c.forgeUpgrades || { atkBonus: 0, maxHpBonus: 0, specialDiscount: 0 },
+      oaths: Array.isArray(c.oaths) ? c.oaths.slice() : [],
+      mastery: c.mastery || null,
     }));
     // Strip dead heroes from the slot map so their position opens for a
     // future recruit on the next layer.
@@ -14775,7 +15742,10 @@ function saveCarriedParty(s) {
     // Sigil levels carry alongside the sigils themselves so a tier-III
     // build doesn't reset to tier-I on the next layer.
     const sigilLevels = { ...((s.run && s.run.sigilLevels) || {}) };
-    const data = { chars, slots, sigils, lockedOutHeroes, sigilLevels };
+    // Heroic Boon — Crown of Endurance bumps the Resolve cap by +1 per
+    // mega-boss kill.  Carries so a fully ascended run keeps the cap.
+    const resolveMaxBonus = (s.run && s.run.resolveMaxBonus) || 0;
+    const data = { chars, slots, sigils, lockedOutHeroes, sigilLevels, resolveMaxBonus };
     localStorage.setItem(CARRIED_KEY, JSON.stringify(data));
   } catch (_) {}
 }
