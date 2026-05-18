@@ -7971,6 +7971,16 @@ button.path-node:not(:disabled):hover .pn-icon {
   0%, 100% { box-shadow: 0 0 0 1.5px rgba(212,69,69,0.55), 0 0 14px rgba(200,80,80,0.25); }
   50%      { box-shadow: 0 0 0 2px   rgba(212,69,69,0.85), 0 0 26px rgba(200,80,80,0.55); }
 }
+/* Wanderer node — a slower, gentler breathe (less aggressive than the
+   boss, but enough that the eye finds these special slots).  Only on
+   reachable nodes so completed wanderers stay quiet. */
+.path-node.node-wanderer.node-reachable .pn-icon {
+  animation: wanderer-node-breathe 4.5s ease-in-out infinite;
+}
+@keyframes wanderer-node-breathe {
+  0%, 100% { box-shadow: 0 0 0 1.5px rgba(200,144,144,0.55), 0 0 14px rgba(200,144,144,0.22); }
+  50%      { box-shadow: 0 0 0 1.5px rgba(224,168,160,0.95), 0 0 28px rgba(224,168,160,0.50); }
+}
 .path-node.node-rest.node-reachable  .pn-icon  { box-shadow: 0 0 0 1.5px rgba(152,216,120,0.85), 0 0 22px rgba(152,216,120,0.35); }
 .path-node.node-event.node-reachable .pn-icon  { box-shadow: 0 0 0 1.5px rgba(180,140,220,0.85), 0 0 22px rgba(154,120,192,0.35); }
 .path-node.node-wanderer.node-reachable .pn-icon { box-shadow: 0 0 0 1.5px rgba(224,168,160,0.85), 0 0 22px rgba(200,144,144,0.35); }
@@ -9121,6 +9131,48 @@ body.killing-blow::before {
   font-size: 9.5px;
   font-style: italic;
   color: var(--ink-faint);
+}
+
+/* ===========================================================================
+   LOST ON THE ROAD — memorial section in the info panel.  Lists every
+   hero the player killed on a wanderer node this climb (persisted across
+   layers).  Visual language is intentionally muted — desaturated
+   portraits, blood-tinted left border, italic flavor line — so the
+   section reads as consequence rather than achievement.
+   =========================================================================== */
+.info-section.info-section-lost .info-label { color: rgba(212,90,90,0.75); }
+.info-lost-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.info-lost-row {
+  display: grid;
+  grid-template-columns: 38px 1fr;
+  gap: 10px;
+  align-items: center;
+  padding: 4px 8px;
+  background: linear-gradient(180deg, rgba(30,16,14,0.55) 0%, rgba(8,4,4,0.7) 100%);
+  border-left: 2px solid rgba(180,60,60,0.5);
+}
+.info-lost-portrait {
+  width: 38px; height: 52px;
+  display: flex; align-items: flex-end; justify-content: center;
+  overflow: hidden;
+  filter: grayscale(0.85) brightness(0.7);
+}
+.info-lost-portrait svg { width: 100%; height: 100%; }
+.info-lost-name {
+  font-size: 10.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(232,200,200,0.85);
+}
+.info-lost-flavor {
+  font-size: 9.5px;
+  font-style: italic;
+  color: var(--ink-faint);
+  margin-top: 2px;
 }
 
 /* ===========================================================================

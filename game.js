@@ -2912,6 +2912,65 @@ const WANDERERS = {
   },
 };
 
+// Per-hero barks for the three weighty moments on the road: the hero's
+// reply when you draw your blade, their last word as they fall, and the
+// passing line if you walk past without stopping.  Authored once each so
+// the dialogue doesn't feel templated across 12 wanderers.
+const WANDERER_FIGHT_BARKS = {
+  kai:     'Then come.  I will not move.',
+  cassia:  "You know what this means.  Lift your sword anyway.",
+  elin:    "I have already buried someone today.  Don't make it two.",
+  branwen: 'I name my arrows.  Yours will not be one I forget.',
+  korin:   'Good.  I needed an answer.',
+  ash:     'Then you stop being seen.',
+  mira:    'After is a kindness.  This will be before.',
+  garron:  'I told you to stand behind me.  Now stand in front of me.',
+  lirien:  'I was finishing a verse.  Now it will be yours.',
+  vasha:   'Light remembers.  Even this.',
+  hask:    'Then do not stand still.',
+  veyr:    'I have named eight parties past this rock.  I will name a ninth.',
+};
+const WANDERER_DEATH_BARKS = {
+  kai:     'The sword leaves his hand without much sound.',
+  cassia:  'She lays the banner over her own shoulders before falling.',
+  elin:    'The last bandage she ties is loose, and on no one.',
+  branwen: 'The last arrow stays in the quiver, unnamed.',
+  korin:   'He sits down at the end of the cairns and does not rise.',
+  ash:     'You stop seeing them before they stop seeing you.',
+  mira:    'The blade folds neatly into the moss.',
+  garron:  'The shield falls flat.  It does not ring.',
+  lirien:  'The verse stops on the half-line.',
+  vasha:   'The lantern wavers for the first time, then steadies, smaller.',
+  hask:    'His breath stops making shapes.',
+  veyr:    'The hood does not lift.',
+};
+const WANDERER_WALK_PAST_BARKS = {
+  kai:     'You walk past the long sword.  He does not call you back.',
+  cassia:  'You step around the banner.  She does not turn.',
+  elin:    'The strips of linen keep going up the path without you.',
+  branwen: 'The names on the arrows go quiet after the next bend.',
+  korin:   'The cairns keep their own counsel.',
+  ash:     'You walk on alone.  You stop being able to count them.',
+  mira:    'You leave the moss as you found it.',
+  garron:  'The shield stays where it was.  So does the warden.',
+  lirien:  'The harp keeps playing.  You stop hearing it.',
+  vasha:   'The lantern stays at the edge of the path.  It does not follow.',
+  hask:    'You step wide around him.  The air warms again.',
+  veyr:    'She does not stop watching the way you came.',
+};
+
+// Resolve any actor id (hero or enemy) to a portrait SVG.  Wanderer
+// fight enemies (`wand_<heroId>`) reuse the hero's portrait so a duel
+// on the road shows the hero's face, not a blank slot.
+function _portraitFor(id) {
+  if (!id) return '';
+  if (PORTRAITS[id]) return PORTRAITS[id];
+  if (typeof id === 'string' && id.startsWith('wand_')) {
+    return PORTRAITS[id.slice(5)] || '';
+  }
+  return '';
+}
+
 // Drop the sigil with id `give` from the run's sigil list (no-op if absent),
 // then bind `take` through the standard bindSigil pipeline so the fanfare
 // fires.  Returns the bound sigil def or null.
@@ -9201,7 +9260,10 @@ function checkEnd(s) {
       const pwf = s.run._pendingWandererFight;
       if (pwf.heroLockout) {
         markHeroLockedOut(s, pwf.heroLockout);
-        log(`<i>The road keeps the name.</i>`);
+        const def = CHARS[pwf.heroLockout];
+        const deathLine = WANDERER_DEATH_BARKS[pwf.heroLockout];
+        if (deathLine) log(`<i>${deathLine}</i>`);
+        if (def) log(`<b>${def.name}</b> will not climb with you.`);
       }
       s.run._pendingWandererFight = null;
     }
@@ -9875,7 +9937,7 @@ function makeEnemyCard(e, slot) {
 
   fig.innerHTML = `
     <div class="figure-portrait">
-      ${PORTRAITS[e.id] || ''}
+      ${_portraitFor(e.id)}
       <div class="figure-statuses">${renderStatuses(e)}</div>
       <div class="figure-hp">
         <div class="hp-fill ${hpPct < 35 ? 'low' : ''}" style="width:${hpPct}%"></div>
@@ -10972,17 +11034,21 @@ function showNodeTooltip(anchorEl, node) {
   const enc = node.enc;
   const status = mapNodeStatus(state, node.id);
   const typeLabel = ({
-    elite:  'Elite',
-    boss:   'Boss',
-    combat: 'Combat',
-    rest:   'Rest',
-    event:  'Event',
+    elite:    'Elite',
+    boss:     'Boss',
+    combat:   'Combat',
+    rest:     'Rest',
+    event:    'Event',
+    wanderer: 'Wanderer',
   })[node.type] || node.type;
   const sigilCat = node.type === 'elite' && enc && enc.sigilCategory ? enc.sigilCategory : null;
-  const name = node.type === 'rest'  ? 'Hollow Rest'
-             : node.type === 'event' ? (EVENTS[node.eventId]?.name || 'Strange Encounter')
+  const wandererDef = node.type === 'wanderer' && node.wandererId ? WANDERERS[node.wandererId] : null;
+  const wandererHero = wandererDef && wandererDef.kind === 'hero' ? CHARS[wandererDef.heroId] : null;
+  const name = node.type === 'rest'     ? 'Hollow Rest'
+             : node.type === 'event'    ? (EVENTS[node.eventId]?.name || 'Strange Encounter')
+             : node.type === 'wanderer' ? (wandererHero ? wandererHero.name : 'A figure on the path')
              : (enc?.name || node.type);
-  const enemyChips = (node.type === 'rest' || node.type === 'event')
+  const enemyChips = (node.type === 'rest' || node.type === 'event' || node.type === 'wanderer')
     ? ''
     : SLOTS.map(sl => {
         const eid = enc && enc.slots ? enc.slots[sl] : null;
@@ -10997,6 +11063,7 @@ function showNodeTooltip(anchorEl, node) {
   const rewardLine = node.type === 'rest'
     ? 'Heal · Hone an upgrade · Or bind a sigil — choose one.'
     : node.type === 'event' ? 'Choice with consequences.'
+    : node.type === 'wanderer' ? (wandererHero ? `${wandererHero.title || 'A hero on the road'}.  Trade, fight, or walk past.` : 'A meeting on the road.')
     : node.type === 'boss' ? `${bossName}.  No escape but through.`
     : node.type === 'elite' ? `Tech upgrade.${sigilCat ? ` Themed: ${sigilCat}.` : ''}`
     : 'Affinity progression.';
@@ -11774,6 +11841,28 @@ function showRunInfoPanel() {
         </div>
       </div>`;
   }).join('');
+  // Lost on the Road — every hero the player killed on a wanderer node
+  // this climb.  Persists across layers via the carried-party snapshot.
+  // Hidden when the list is empty so the section doesn't dangle on a
+  // run where the player has been peaceable.
+  const lockedIds = (state.run && state.run._lockedOutHeroes) || [];
+  const lostBlock = lockedIds.length
+    ? `<div class="info-section info-section-lost">
+        <div class="info-label">Lost on the Road</div>
+        <div class="info-lost-list">
+          ${lockedIds.map(id => {
+            const def = CHARS[id]; if (!def) return '';
+            return `<div class="info-lost-row">
+              <div class="info-lost-portrait">${PORTRAITS[id] || ''}</div>
+              <div class="info-lost-body">
+                <div class="info-lost-name">${def.name}</div>
+                <div class="info-lost-flavor">fell to your blade</div>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`
+    : '';
   body.innerHTML = `
     ${mod ? `<div class="info-biome"><span class="info-label">Biome</span><span class="info-biome-name">${mod.name}</span><span class="info-biome-desc">${mod.desc}</span></div>` : ''}
     <div class="info-section">
@@ -11784,6 +11873,7 @@ function showRunInfoPanel() {
       <div class="info-label">Heroes</div>
       <div class="info-heroes">${heroBlocks}</div>
     </div>
+    ${lostBlock}
   `;
   panel.classList.remove('hidden');
   panel.setAttribute('aria-hidden', 'false');
@@ -12701,6 +12791,10 @@ function _renderWandererMain(choices, wandererId, w, heroDef, displayName) {
         heroLockout: w.kind === 'hero' ? w.heroId : null,
       };
       markWandererSeen(state, wandererId);
+      // Pre-fight bark — gives the hero one defiant line before the
+      // encounter spins up so the killing reads as a deliberate moment.
+      const fightBark = heroDef && WANDERER_FIGHT_BARKS[w.heroId];
+      if (fightBark) log(`<b>${heroDef.name}:</b> <i>${fightBark}</i>`);
       hideOverlay();
       choices.classList.remove('event-choices');
       startEncounter({
@@ -12710,13 +12804,18 @@ function _renderWandererMain(choices, wandererId, w, heroDef, displayName) {
     },
   });
 
-  // 5. Walk past — quiet exit.
+  // 5. Walk past — quiet exit.  Mirrors the vanilla refuse-event pattern
+  // by granting +1 Resolve next fight, so the slot isn't dead air when
+  // the player passes on the meeting.  Per-hero passing line so the
+  // moment doesn't read the same way every time you decline.
   _mkWandererChoice(choices, {
     label: 'Walk past',
-    tag: 'You do not stop',
+    tag: '+1 Resolve next fight · You do not stop',
     kind: 'walk-past',
     onClick: () => {
-      log('You do not slow your pace.');
+      const line = (heroDef && WANDERER_WALK_PAST_BARKS[w.heroId]) || 'You do not slow your pace.';
+      state.run.bonusResolveNextFight = (state.run.bonusResolveNextFight || 0) + 1;
+      log(`<i>${line}</i>`);
       _resolveWandererChoice(wandererId);
     },
   });
