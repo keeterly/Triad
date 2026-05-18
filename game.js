@@ -8759,7 +8759,7 @@ function onFight() {
 
 function resolveQueueStep(i) {
   const s = state;
-  if (s.over) { s.executing = false; s.executingIdx = -1; render(); return; }
+  if (s.over) { s.executing = false; s.executingIdx = -1; s.queue = []; render(); return; }
   if (i >= s.queue.length) {
     s.executingIdx = -1;
     // queue done — leave taunt/retaliate up for the incoming enemy phase
@@ -8795,7 +8795,17 @@ function resolveQueueStep(i) {
   if (item.charId) flashCardId(item.charId, 'hit', 'party');
   setTimeout(() => {
     executeQueueItem(s, item);
-    if (checkEnd(s)) { s.executing = false; s.executingIdx = -1; render(); return; }
+    // If this action ended the fight (last enemy killed mid-queue),
+    // wipe the remaining unresolved items so the queue strip doesn't
+    // keep painting them through the post-victory cascade.  Previously
+    // the leftover queue chips would stack on the REACH CLEARED banner.
+    if (checkEnd(s)) {
+      s.executing = false;
+      s.executingIdx = -1;
+      s.queue = [];
+      render();
+      return;
+    }
     render();
     setTimeout(() => resolveQueueStep(i + 1), 720 + consumeHitPause());
   }, 200);
