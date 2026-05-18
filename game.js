@@ -9408,20 +9408,29 @@ function renderHUD() {
   //   bright  = available to spend on further actions
   //   reserved (half-grey) = already slotted to be spent when you press Fight
   //   empty   = unfilled
+  //   bonus   = an extra pip that's only present when state.resolve has
+  //             pushed above the normal max (Coin of Memory's +1 carry).
+  //             Tinted gold so the player sees the bonus they paid for.
   const reserved = queueReservedResolve();
   const available = state.resolve - reserved;
-  for (let i = 0; i < RESOLVE_MAX; i++) {
+  // The displayed bar grows past RESOLVE_MAX when the player is briefly
+  // over-cap (Memory sigil's +1 fight-start bonus).  Once spent back to
+  // RESOLVE_MAX, the bonus pip drops away.  Honest pip count > a fixed
+  // 3-pip bar that hides the 4th unit.
+  const effectiveMax = Math.max(RESOLVE_MAX, state.resolve);
+  for (let i = 0; i < effectiveMax; i++) {
     const p = document.createElement('div');
     if (i < available) p.className = 'pip filled';
     else if (i < state.resolve) p.className = 'pip filled reserved';
     else p.className = 'pip';
+    if (i >= RESOLVE_MAX) p.classList.add('bonus');
     pips.appendChild(p);
   }
   // glanceable resolve readout in the HUD line (no interaction, just a count)
   const hudNum = $('#hud-resolve-num');
   if (hudNum) hudNum.textContent = String(state.resolve);
   const hudMax = $('#hud-resolve-max');
-  if (hudMax) hudMax.textContent = `/${RESOLVE_MAX}`;
+  if (hudMax) hudMax.textContent = `/${effectiveMax}`;
   const hudResolve = $('#hud-resolve');
   if (hudResolve) {
     if (reserved > 0) hudResolve.classList.add('has-reserved');
@@ -12744,11 +12753,22 @@ function _renderWandererMain(choices, wandererId, w, heroDef, displayName) {
   const sigils = (state.run && state.run.sigils) || [];
   const hasSigils = sigils.length > 0;
 
-  // 1. Ask to join — only meaningful for hero wanderers.
+  // 1. Ask to join — only meaningful for hero wanderers.  Tag varies by
+  // party state so the player sees the cost up front: an empty slot
+  // means a clean join, a full party means someone walks the other way.
   if (heroDef) {
+    const hasFreeSlot = ['front','mid','back'].some(sl => {
+      const id = state.party.slots[sl];
+      if (!id) return true;
+      const c = state.party.chars[id];
+      return !!(c && c.downed);
+    });
+    const joinTag = hasFreeSlot
+      ? `${heroDef.name} takes the empty seat`
+      : `${heroDef.name} would join — someone you carry walks the other way`;
     _mkWandererChoice(choices, {
       label: 'Ask to join the climb',
-      tag: `${heroDef.name} would walk with you`,
+      tag: joinTag,
       onClick: () => {
         state.run._pendingNamedRecruit = w.heroId;
         log(`<b>${heroDef.name}</b> stands and falls in behind you.`);
@@ -13232,6 +13252,26 @@ function showRunSummary(outcome, opts) {
       </div>
     </div>` : '';
 
+  // Lost on the Road — heroes the player killed on a wanderer node this
+  // climb.  Distinct from the in-combat fallen list: these are deaths the
+  // player chose to inflict, so the framing is darker (blood-tinted mark,
+  // "the road keeps" subtitle) and they render even when no party member
+  // died this run.
+  const lostOnRoadIds = (state.run && state.run._lockedOutHeroes) || [];
+  const roadkillHtml = lostOnRoadIds.length ? `
+    <div class="rs-memorial rs-roadkill">
+      <span class="rs-memorial-label">The road keeps</span>
+      <div class="rs-graves">
+        ${lostOnRoadIds.map(id => `
+          <div class="rs-grave rs-grave-roadkill">
+            <div class="rs-grave-stone">
+              <span class="rs-grave-mark">×</span>
+              <span class="rs-grave-name">${(CHARS[id]?.name || id).toUpperCase()}</span>
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>` : '';
+
   body.innerHTML = `
     <div class="rs-card ${outcomeClass}">
       <div class="rs-montage ${outcome === 'boss' ? 'rs-with-ascent' : ''}">
@@ -13245,6 +13285,7 @@ function showRunSummary(outcome, opts) {
         <span class="rs-stat"><b>${rs.kills}</b> <em>${rs.kills === 1 ? 'kill' : 'kills'}</em></span>
       </div>
       ${memorialHtml}
+      ${roadkillHtml}
     </div>
   `;
   $('#overlay-choices').classList.add('hidden');
