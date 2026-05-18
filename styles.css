@@ -220,8 +220,33 @@ body {
      visible is safer for the press-and-hold tooltip arrow + glow. */
   overflow: visible;
 }
-#run-modifier { flex-shrink: 0; }
+#run-modifier {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 #run-modifier.empty { display: none; }
+/* Layer chip — small gold pill always visible alongside the biome
+   chip so the player can read which Abyss layer they're climbing. */
+.run-layer-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  min-height: 28px;
+  padding: 0 8px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: var(--gold-bright);
+  background: rgba(8,6,8,0.78);
+  border: 1px solid rgba(212,200,168,0.45);
+  border-radius: 14px;
+  text-shadow: 0 0 8px rgba(240,212,136,0.35);
+  flex-shrink: 0;
+}
 .run-mod-chip {
   display: inline-flex;
   align-items: center;
@@ -464,23 +489,22 @@ body {
    figure.  Sits in the empty floor area between party feet and the
    action tray; semi-transparent so it never feels in the way. */
 #objective-banner {
-  /* Compact corner chip — was a wide bottom-strip banner that overlapped
-     the character name labels.  Now lives top-left as just glyph +
-     counter; tap to re-fire the full splash with the hint. */
-  position: absolute;
-  top: 4px;
-  left: 6px;
-  z-index: 6;
+  /* Inline HUD chip — was a wide bottom-strip banner, then a top-left
+     corner badge that overlapped the leftmost figure.  Now lives in
+     the HUD strip alongside the biome chip so it never sits on top of
+     anything in the battlefield. */
+  position: relative;
+  flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 4px;
-  padding: 3px 8px;
+  padding: 4px 10px;
   min-width: 32px;
   min-height: 28px;
   background: rgba(8,6,8,0.78);
   border: 1px solid rgba(212,200,168,0.32);
-  border-radius: 3px;
+  border-radius: 14px;
   white-space: nowrap;
   pointer-events: auto;
   cursor: pointer;
@@ -8761,7 +8785,11 @@ body.boss-fight #enemy-half .figure-portrait svg {
    side of the field.  Not centered as a banner anymore. */
 body.boss-fight #enemy-half .figure-hp {
   position: absolute !important;
-  top: 12px !important;
+  /* Pushed from 12px → 32px so the "20/30" text label that floats
+     -18px above the bar lands at +14px instead of -6px — keeping it
+     fully inside #enemy-half instead of clipping into the HUD strip
+     above (which sits at z-280 and was painting over the readout). */
+  top: 32px !important;
   left: 6% !important;
   right: 6% !important;
   width: auto !important;
@@ -9669,6 +9697,18 @@ body.killing-blow::before {
                               rgba(10,8,8,0.2)  100%) !important;
   border-bottom: none !important;
   box-shadow: 0 6px 10px -6px rgba(0,0,0,0.5);
+}
+/* Hide the HUD strip on welcome / vignette / starter / run-summary
+   / world-map overlays.  Those are full-screen narrative moments where
+   the biome chip + sigil tray + menu would compete with the title
+   text for the top-left area.  The HUD stays visible on map / combat. */
+body:has(#overlay.overlay-vignette:not(.hidden)) #hud,
+body:has(#overlay.overlay-starter:not(.hidden)) #hud,
+body:has(#overlay.overlay-runsummary:not(.hidden)) #hud,
+body:has(#overlay.overlay-wanderer-duel:not(.hidden)) #hud,
+body:has(#title-screen:not(.hidden)) #hud,
+body:has(#world-map:not(.hidden)) #hud {
+  visibility: hidden;
 }
 #run-modifier .run-mod-chip {
   border: none !important;

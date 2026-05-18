@@ -8501,13 +8501,29 @@ function queueRemoveAt(idx) {
   const s = state;
   if (s.executing || s.over) return;
   if (idx < 0 || idx >= s.queue.length) return;
+  const removed = s.queue[idx];
   s.queue.splice(idx, 1);
+  // Combos are once-per-encounter — commitCombo locks them into
+  // s.usedCombos.  But if the player cancels the combo entry from the
+  // queue BEFORE fight resolves, the base actions are still available
+  // and the player should be able to re-form the combo.  Release the
+  // lock here so the resonance rail offers it again.
+  if (removed && removed.kind === 'combo' && removed.comboId && s.usedCombos) {
+    s.usedCombos.delete(removed.comboId);
+  }
   render();
 }
 
 function clearQueue() {
   const s = state;
   if (s.executing || s.over) return;
+  // Release any combo locks the queue currently holds — they were never
+  // actually fired, so the lockout shouldn't carry over.
+  if (s.usedCombos) {
+    s.queue.forEach(q => {
+      if (q && q.kind === 'combo' && q.comboId) s.usedCombos.delete(q.comboId);
+    });
+  }
   s.queue = [];
   render();
 }
@@ -8743,7 +8759,7 @@ function onFight() {
 
 function resolveQueueStep(i) {
   const s = state;
-  if (s.over) { s.executing = false; s.executingIdx = -1; render(); return; }
+  if (s.over) { s.executing = false; s.executingIdx = -1; s.queue = []; render(); return; }
   if (i >= s.queue.length) {
     s.executingIdx = -1;
     // queue done — leave taunt/retaliate up for the incoming enemy phase
@@ -8779,7 +8795,17 @@ function resolveQueueStep(i) {
   if (item.charId) flashCardId(item.charId, 'hit', 'party');
   setTimeout(() => {
     executeQueueItem(s, item);
-    if (checkEnd(s)) { s.executing = false; s.executingIdx = -1; render(); return; }
+    // If this action ended the fight (last enemy killed mid-queue),
+    // wipe the remaining unresolved items so the queue strip doesn't
+    // keep painting them through the post-victory cascade.  Previously
+    // the leftover queue chips would stack on the REACH CLEARED banner.
+    if (checkEnd(s)) {
+      s.executing = false;
+      s.executingIdx = -1;
+      s.queue = [];
+      render();
+      return;
+    }
     render();
     setTimeout(() => resolveQueueStep(i + 1), 720 + consumeHitPause());
   }, 200);
@@ -9606,9 +9632,19 @@ function renderRunModifier() {
   const el = document.getElementById('run-modifier');
   if (!el) return;
   const mod = getRunModifier(state);
-  if (!mod) { el.innerHTML = ''; el.classList.add('empty'); return; }
+  // Layer badge — always visible so the player can tell which Abyss
+  // layer they're climbing at a glance.  Reads from the current run's
+  // layer; falls back to 1 between runs.
+  const layer = (state && state.run && state.run.layer) || 1;
+  const layerBadge = `<span class="run-layer-badge" title="Abyss Layer ${layer}" aria-label="Layer ${layer}">L${layer}</span>`;
+  if (!mod) {
+    // Even with no biome modifier, surface the layer chip alone.
+    el.classList.remove('empty');
+    el.innerHTML = layerBadge;
+    return;
+  }
   el.classList.remove('empty');
-  el.innerHTML = `<button type="button" class="run-mod-chip" title="${mod.name} — ${mod.desc}" aria-label="${mod.name}">
+  el.innerHTML = `${layerBadge}<button type="button" class="run-mod-chip" title="${mod.name} — ${mod.desc}" aria-label="${mod.name}">
     <span class="run-mod-icon">◈</span>
     <span class="run-mod-name">${mod.name}</span>
   </button>`;
@@ -9741,6 +9777,16 @@ function flashResolve() {
 function renderObjectiveBanner() {
   const el = document.getElementById('objective-banner');
   if (!el) return;
+  // Move the chip into the HUD strip the first time we render it.  The
+  // index.html keeps it inside #battlefield (legacy), but that position
+  // overlapped the leftmost figure's HP area.  Living in the HUD means
+  // it always sits in the safe top strip alongside the biome chip.
+  const hud = document.getElementById('hud');
+  if (hud && el.parentNode !== hud) {
+    const afterMod = document.getElementById('run-modifier');
+    if (afterMod && afterMod.nextSibling) hud.insertBefore(el, afterMod.nextSibling);
+    else hud.appendChild(el);
+  }
   const obj = state.run && state.run.objective;
   // Defensive inline reset — guarantees the banner doesn't render the
   // old wide bottom-strip even if a stale CSS file is cached.  Cleared
@@ -12301,7 +12347,16 @@ function resetOverlayBtn() {
   const btn = $('#overlay-btn');
   if (!btn) return;
   btn.textContent = 'Restart';
-  btn.onclick = () => { hideOverlay(); init(); };
+  // Restart needs to be a true fresh start — previously it just called
+  // init() which would pick up the existing save/carry and effectively
+  // resume the current run.  Now it wipes both so pressing Restart
+  // genuinely restarts the climb at the current layer.
+  btn.onclick = () => {
+    hideOverlay();
+    clearSave();
+    clearCarriedParty();
+    init();
+  };
 }
 
 function showOverlay(title, body) {
@@ -12359,6 +12414,12 @@ function renderMap() {
     col.appendChild(head);
     const slotsWrap = document.createElement('div');
     slotsWrap.className = 'path-col-slots';
+    // Per-column drift: shift the whole column up or down by a small,
+    // stable amount so the level row reads as a wavy line instead of a
+    // perfectly even grid.  Stable means: same drift every time this
+    // map renders, derived from the column index.
+    const colDriftY = _organicColumnDrift(lvl);
+    col.style.transform = `translateY(${colDriftY}px)`;
     byLevel[lvl].forEach(node => {
       const status = mapNodeStatus(state, node.id);
       const enc = node.enc;
@@ -12366,6 +12427,13 @@ function renderMap() {
       const el = document.createElement(isClickable ? 'button' : 'div');
       el.className = `path-node node-${node.type} node-${status}`;
       el.dataset.nodeId = node.id;
+      // Per-node jitter — tiny stable offset so nodes don't perfectly
+      // line up column-to-column.  Boss is the destination and stays
+      // fixed at center, so jitter is skipped for it.
+      if (node.type !== 'boss') {
+        const { dx, dy } = _organicNodeJitter(node.id);
+        el.style.transform = `translate(${dx}px, ${dy}px)`;
+      }
       const typeGlyph = ({
         elite:    '★',
         boss:     '☠',
@@ -13292,6 +13360,29 @@ function showWandererDuelBeat(wandererId, phase, onContinue) {
   $overlay.classList.remove('hidden');
 }
 
+// Stable pseudo-random jitter for a node id — same string always
+// yields the same offset.  Used by the map renderer to break the
+// perfectly-even grid into something more organic without disturbing
+// the actual graph topology.  Connectors are computed via
+// getBoundingClientRect AFTER the transform applies, so the lines
+// follow the new positions automatically.
+function _organicNodeJitter(id) {
+  const s = String(id || '');
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+  // Map h into two small offsets:  dx ∈ [-7, +7], dy ∈ [-10, +10]
+  const dx = ((Math.abs(h)        % 15) - 7);
+  const dy = ((Math.abs(h >> 4)   % 21) - 10);
+  return { dx, dy };
+}
+
+// Per-column drift — alternates up/down based on the level number so
+// the stretch columns form a gentle wave across the map.
+function _organicColumnDrift(lvl) {
+  // Sine-ish offset: small amplitude (±12px), period of ~3 columns.
+  return Math.round(Math.sin(lvl * 1.1) * 12);
+}
+
 function drawMapConnectors(choices) {
   // remove any previous overlay
   const prev = choices.querySelector('.map-connectors');
@@ -13319,11 +13410,24 @@ function drawMapConnectors(choices) {
     const y1 = aR.top + aR.height / 2 - cRect.top;
     const x2 = bR.left - cRect.left;
     const y2 = bR.top + bR.height / 2 - cRect.top;
-    const line = document.createElementNS(svgNS, 'line');
-    line.setAttribute('x1', x1);
-    line.setAttribute('y1', y1);
-    line.setAttribute('x2', x2);
-    line.setAttribute('y2', y2);
+    // Replace the straight <line> with a gently curved <path>.  The
+    // control point is offset perpendicular to the segment by a small
+    // stable amount derived from the edge endpoints so every connector
+    // bows the same way each render — organic rather than rigid.
+    const dx = x2 - x1, dy = y2 - y1;
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    // Perpendicular unit vector
+    const px = -dy / len, py = dx / len;
+    // Stable offset: hash from the two ids → -14 to +14
+    let h = 0;
+    const ehash = `${from}>${to}`;
+    for (let i = 0; i < ehash.length; i++) h = ((h << 5) - h + ehash.charCodeAt(i)) | 0;
+    const off = ((Math.abs(h) % 29) - 14);
+    const midX = (x1 + x2) / 2 + px * off;
+    const midY = (y1 + y2) / 2 + py * off;
+    const path = document.createElementNS(svgNS, 'path');
+    path.setAttribute('d', `M ${x1} ${y1} Q ${midX} ${midY} ${x2} ${y2}`);
+    path.setAttribute('fill', 'none');
     let cls = 'map-connector';
     const completed = (state.run.completedNodes || []).includes(from);
     if (completed && (state.run.completedNodes || []).includes(to)) {
@@ -13333,8 +13437,8 @@ function drawMapConnectors(choices) {
     } else {
       cls += ' locked';
     }
-    line.setAttribute('class', cls);
-    svg.appendChild(line);
+    path.setAttribute('class', cls);
+    svg.appendChild(path);
   });
 
   choices.appendChild(svg);
