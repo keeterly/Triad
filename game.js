@@ -16261,6 +16261,42 @@ function showPasswordGate(onUnlock) {
   setTimeout(() => input.focus(), 50);
 }
 
+// ============================================================================
+// CROSS-PLATFORM FIT-TO-SCREEN
+// The game was tuned for iPhone landscape (~698×393).  We lock the stage to
+// a fixed 720×405 design resolution and scale it visually so the same layout
+// renders correctly on Android landscape, iPad, and desktop — preserving the
+// iOS "feel" exactly (every tap target, font size, gap stays in proportion).
+// ============================================================================
+(function () {
+  const DESIGN_W = 720;
+  const DESIGN_H = 405;
+  let raf = 0;
+  function applyScale() {
+    raf = 0;
+    const vw = window.innerWidth  || document.documentElement.clientWidth;
+    const vh = window.innerHeight || document.documentElement.clientHeight;
+    if (!vw || !vh) return;
+    const scale = Math.min(vw / DESIGN_W, vh / DESIGN_H);
+    document.documentElement.style.setProperty('--ui-scale', scale.toFixed(4));
+  }
+  function schedule() {
+    if (raf) return;
+    raf = requestAnimationFrame(applyScale);
+  }
+  window.addEventListener('resize', schedule);
+  window.addEventListener('orientationchange', schedule);
+  // visualViewport fires when the Android URL bar collapses or iOS keyboard
+  // opens — keeps the scale accurate through those transitions.
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', schedule);
+  }
+  applyScale();
+  // Run again after first paint in case fonts / safe-area insets settle.
+  document.addEventListener('DOMContentLoaded', applyScale);
+  window.addEventListener('load', applyScale);
+})();
+
 function bootGame() {
   // Password gate first — if locked, nothing else runs.
   if (!isUnlocked()) {

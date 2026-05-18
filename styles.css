@@ -5,6 +5,16 @@
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
 :root {
+  /* === Cross-platform fit-to-screen ===
+     The game was hand-tuned for iPhone landscape (~698×393).  We lock
+     the stage to a fixed design resolution and scale it visually via
+     transform — same internal pixel layout on iOS / Android / desktop,
+     just rendered larger or smaller to fit the viewport.  --ui-scale
+     is set from JS on resize / orientationchange. */
+  --design-w: 720px;
+  --design-h: 405px;
+  --ui-scale: 1;
+
   /* === NieR Automata-inspired palette ===
      Bone-on-pitch.  All "gold" tokens now point at desaturated cream tones;
      warm parchment browns flattened to neutral graphite; decorative blood
@@ -87,12 +97,16 @@ body {
 
 /* ============ STAGE — battlefield backdrop ============ */
 #stage {
-  width: 100vw;
-  /* fallback for older Safari; dvh accounts for toolbar so the top doesn't clip */
-  height: 100vh;
-  height: 100dvh;
-  max-width: calc(100dvh * 16 / 9);
-  max-height: calc(100vw * 9 / 16);
+  /* Locked to a fixed design resolution and scaled visually via
+     transform.  Centered in the viewport with letterboxing in the
+     unused axis — same layout density on every device. */
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--design-w);
+  height: var(--design-h);
+  transform: translate(-50%, -50%) scale(var(--ui-scale));
+  transform-origin: center center;
   display: grid;
   /* HUD (resolve readout) | ATB strip | battlefield (1fr) | action+commit
      HUD bumped from 22px → 48px so the 44×44 sigil chips and menu
@@ -108,8 +122,10 @@ body {
     radial-gradient(ellipse 60% 80% at 22% 50%, #16161a 0%, transparent 60%),
     radial-gradient(ellipse 60% 80% at 78% 50%, #14141a 0%, transparent 60%),
     var(--bg-0);
-  position: relative;
   overflow: hidden;
+  /* Safe-area padding is left in for harmless backwards-compat — in
+     landscape it resolves to 0 on all known devices, and any notch /
+     cutout falls in the letterbox area outside the centered stage. */
   padding-top: env(safe-area-inset-top, 0);
   padding-bottom: env(safe-area-inset-bottom, 0);
   box-sizing: border-box;
@@ -4362,9 +4378,12 @@ body.party-critical::after {
   text-align: center;
   /* Mobile-fit: never wider than the viewport, never taller than it.
      overflow-y so long content (path map, victory rows) scrolls in place
-     instead of clipping out of view. */
-  max-width: min(380px, 94vw);
-  max-height: 92vh;
+     instead of clipping out of view.  The 94% / 92% caps clamp against
+     the (transform-scaled) stage parent so the overlay can't overflow
+     the design canvas on desktop, where 94vw/92vh would otherwise
+     resolve to viewport pixels far larger than the canvas. */
+  max-width: min(380px, 94vw, 94%);
+  max-height: min(92vh, 92%);
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
