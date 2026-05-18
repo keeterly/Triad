@@ -12804,14 +12804,17 @@ function _renderWandererMain(choices, wandererId, w, heroDef, displayName) {
     },
   });
 
-  // 5. Walk past — quiet exit.  Per-hero passing line so the moment
-  // doesn't read the same way every time you decline.
+  // 5. Walk past — quiet exit.  Mirrors the vanilla refuse-event pattern
+  // by granting +1 Resolve next fight, so the slot isn't dead air when
+  // the player passes on the meeting.  Per-hero passing line so the
+  // moment doesn't read the same way every time you decline.
   _mkWandererChoice(choices, {
     label: 'Walk past',
-    tag: 'You do not stop',
+    tag: '+1 Resolve next fight · You do not stop',
     kind: 'walk-past',
     onClick: () => {
       const line = (heroDef && WANDERER_WALK_PAST_BARKS[w.heroId]) || 'You do not slow your pace.';
+      state.run.bonusResolveNextFight = (state.run.bonusResolveNextFight || 0) + 1;
       log(`<i>${line}</i>`);
       _resolveWandererChoice(wandererId);
     },
