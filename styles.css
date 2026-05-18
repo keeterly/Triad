@@ -5551,16 +5551,17 @@ button.path-node { cursor: pointer; }
   color: var(--gold);
 }
 
-/* Event / Rest overlays — flavor paragraph + button stack.  Tightened
-   to fit alongside the cinematic stage and choice row in 405px. */
+/* Event / Rest overlays — single italic flavor line under the scene.
+   Sized as a caption, not a paragraph, so the silhouettes above stay
+   the focal point. */
 .event-flavor {
   font-style: italic;
-  color: var(--ink);
-  font-size: 10.5px;
-  line-height: 1.4;
+  color: var(--ink-dim);
+  font-size: 9.5px;
+  line-height: 1.35;
   text-align: center;
-  margin-bottom: 6px;
-  padding: 0 4px;
+  margin: 0 0 3px;
+  padding: 0 8px;
 }
 /* Party silhouettes standing alongside an event — same visual language
    as the vignette VN stage, but no dialogue rail (events use flavor +
@@ -5571,11 +5572,12 @@ button.path-node { cursor: pointer; }
   grid-auto-columns: 1fr;
   align-items: end;
   justify-items: center;
-  /* Tightened from clamp(130, 26vh, 200) so the cinematic silhouettes
-     can still set the mood but leave room for the choice row inside
-     the locked 405px canvas. */
-  height: clamp(96px, 26%, 140px);
-  margin: 0 0 6px;
+  /* The cinematic IS the scene — silhouettes take the lion's share of
+     the canvas and the choice rail beneath them collapses into slim
+     horizontal strips (see .event-choice rules below).  Encounters now
+     feel like vignette beats instead of a text panel + button stack. */
+  height: clamp(180px, 56%, 250px);
+  margin: 0 0 4px;
   position: relative;
 }
 .event-stage::after {
@@ -5589,12 +5591,20 @@ button.path-node { cursor: pointer; }
   pointer-events: none;
 }
 /* Soft atmospheric vignette behind the party — adds depth so the
-   silhouettes don't sit on a flat black plate. */
+   silhouettes don't sit on a flat black plate.  Two stacked gradients:
+   a warm floor pool (footlight) + a tall radial that fades the top to
+   pitch, so the scene reads as a beat of held breath, not a panel. */
 .event-stage::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse 70% 80% at 50% 90%, rgba(60,40,22,0.35) 0%, rgba(0,0,0,0) 70%);
+  background:
+    radial-gradient(ellipse 90% 60% at 50% 100%,
+                    rgba(80,52,32,0.35) 0%,
+                    rgba(0,0,0,0) 65%),
+    radial-gradient(ellipse 120% 110% at 50% 45%,
+                    rgba(20,16,18,0.7) 0%,
+                    rgba(6,4,6,0.95) 78%);
   pointer-events: none;
   z-index: -1;
 }
@@ -5856,15 +5866,59 @@ button.path-node { cursor: pointer; }
 #overlay-choices.event-choices {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-top: 4px;
+  gap: 3px;
+  margin-top: 2px;
 }
+/* === Slim event-choice strips ============================================
+   .event-choice cards used to render as tall vertical buttons with a
+   centered title, gold underline accent, and NieR corner brackets at
+   each corner — which made encounter screens read as "buttons" with
+   a small cinematic squeezed above them.  Recast as compact horizontal
+   strips here so the scene above can dominate the frame.  Title sits
+   inline on the left, mechanical tag right-aligned, no chrome.
+
+   Excluded: .wanderer-sigil-row (uses its own grid layout, see the
+   forge / trade pickers where glyph + body need explicit columns).
+   ========================================================================= */
 .event-choice {
   width: 100%;
   min-width: 0;
   text-align: left;
 }
-.event-choice .enc-name { letter-spacing: 0.12em; }
+.event-choice:not(.wanderer-sigil-row) {
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 6px 14px;
+  min-height: 0;
+}
+.event-choice:not(.wanderer-sigil-row)::before,
+.event-choice:not(.wanderer-sigil-row)::after {
+  /* Drop the corner brackets — they made every choice look like a
+     framed card and ate the cinematic budget.  The strip's border is
+     enough containment. */
+  display: none;
+}
+.event-choice .enc-name {
+  letter-spacing: 0.14em;
+  font-size: 11px;
+  /* Strip the centered title's underline accent and bottom padding —
+     the slim row treats the title as inline text, not a heading. */
+  text-align: left;
+  padding-bottom: 0;
+}
+.event-choice:not(.wanderer-sigil-row) .enc-name::after {
+  display: none;
+}
+.event-choice:not(.wanderer-sigil-row) .sigil-desc {
+  font-size: 9.5px;
+  color: var(--ink-dim);
+  font-style: italic;
+  letter-spacing: 0.02em;
+  margin: 0;
+  white-space: nowrap;
+}
 
 /* Recruit "Refuse" / decline option — visually subtler so the real heroes
    stay primary in the layout. */
