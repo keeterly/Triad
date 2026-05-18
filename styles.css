@@ -5333,6 +5333,80 @@ button.path-node { cursor: pointer; }
 }
 
 /* ===========================================================================
+   WANDERER DUEL — cinematic beat that frames a wanderer fight before
+   and after.  Pre-fight (intro): bright portrait + the hero's defiant
+   bark + "Begin".  Post-fight (fall): dimmed/desaturated portrait +
+   the hero's death line + "Continue".  Reuses the main #overlay shell
+   for one-screen continuity; no extra DOM.
+   =========================================================================== */
+#overlay.overlay-wanderer-duel #overlay-content {
+  max-width: min(720px, 100vw) !important;
+  padding: 16px 24px 18px !important;
+  text-align: center;
+}
+#overlay.overlay-wanderer-duel #overlay-title {
+  font-size: 22px;
+  letter-spacing: 0.4em;
+  color: var(--gold-bright);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+  text-shadow: 0 0 14px rgba(240,212,136,0.45), 0 2px 0 var(--shadow);
+  border-bottom: none !important;
+}
+#overlay.overlay-wanderer-duel #overlay-title::after { display: none !important; }
+.wanderer-duel-portrait {
+  height: clamp(160px, 36vh, 260px);
+  margin: 6px auto 4px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.wanderer-duel-portrait svg {
+  height: 100%;
+  width: auto;
+  max-width: 100%;
+  filter: drop-shadow(0 14px 28px rgba(0,0,0,0.8));
+}
+.wanderer-duel-subtitle {
+  font-size: 11px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin: 2px 0 8px;
+}
+.wanderer-duel-bark {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink);
+  max-width: 540px;
+  margin: 6px auto 12px;
+  letter-spacing: 0.03em;
+}
+.wanderer-duel-bark b { color: var(--gold-bright); letter-spacing: 0.12em; text-transform: uppercase; font-size: 12px; }
+/* Fall variant — desaturate the portrait, blood-tint the title strap,
+   shift the subtitle into the "lost on the road" colour space so the
+   beat reads as a funeral instead of a duel intro. */
+#overlay.overlay-wanderer-duel.wanderer-duel-fall #overlay-title {
+  color: rgba(232,140,140,0.85);
+  text-shadow: 0 0 14px rgba(212,90,90,0.4), 0 2px 0 var(--shadow);
+}
+.wanderer-duel-portrait-fallen svg {
+  filter: grayscale(0.85) brightness(0.55) drop-shadow(0 14px 28px rgba(0,0,0,0.85));
+}
+#overlay.overlay-wanderer-duel.wanderer-duel-fall .wanderer-duel-subtitle {
+  color: rgba(228,180,180,0.7);
+}
+/* Mobile landscape — tighten the portrait and type so the whole beat
+   fits above the fold without scroll. */
+@media (max-height: 520px) {
+  #overlay.overlay-wanderer-duel #overlay-title { font-size: 16px; letter-spacing: 0.32em; }
+  .wanderer-duel-portrait { height: clamp(120px, 28vh, 180px); }
+  .wanderer-duel-subtitle { font-size: 9.5px; letter-spacing: 0.24em; margin: 2px 0 4px; }
+  .wanderer-duel-bark { font-size: 12px; margin: 4px auto 8px; }
+  .wanderer-duel-bark b { font-size: 10.5px; }
+}
+
+/* ===========================================================================
    WANDERER MODAL — five-choice meeting on the road.  Reuses the event
    overlay's frame and the slim event-choice row layout so sigil pickers,
    buff pickers, and the main menu all share one mobile-friendly column.
