@@ -8300,6 +8300,7 @@ button.path-node:not(:disabled):hover .pn-icon {
 .path-node.node-rest     .pn-icon { color: var(--heal); box-shadow: 0 0 0 1.5px rgba(152,216,120,0.55), inset 0 1px 0 rgba(220,255,200,0.16), 0 4px 10px rgba(0,0,0,0.5); }
 .path-node.node-event    .pn-icon { color: #c9a8e8; box-shadow: 0 0 0 1.5px rgba(154,120,192,0.55), inset 0 1px 0 rgba(220,200,240,0.16), 0 4px 10px rgba(0,0,0,0.5); }
 .path-node.node-wanderer .pn-icon { color: #e0a8a0; box-shadow: 0 0 0 1.5px rgba(200,144,144,0.55), inset 0 1px 0 rgba(240,210,200,0.16), 0 4px 10px rgba(0,0,0,0.5); }
+.path-node.node-forge    .pn-icon { color: #e89858; box-shadow: 0 0 0 1.5px rgba(232,152,88,0.55), inset 0 1px 0 rgba(255,220,180,0.18), 0 4px 12px rgba(80,30,0,0.5); }
 .path-node.node-combat   .pn-icon { color: var(--gold-pale); box-shadow: 0 0 0 1px rgba(212,200,168,0.30), inset 0 1px 0 rgba(232,220,196,0.10), 0 4px 10px rgba(0,0,0,0.5); }
 
 /* On reachable, the type-tint glows brighter so the player's eye is drawn
@@ -8351,6 +8352,12 @@ button.path-node:not(:disabled):hover .pn-icon {
 .path-node.node-rest   .pn-label { color: var(--heal); }
 .path-node.node-event    .pn-label { color: #c9a8e8; }
 .path-node.node-wanderer .pn-label { color: #e0a8a0; }
+.path-node.node-forge    .pn-label { color: #e89858; }
+.path-node.node-forge.node-reachable .pn-icon { box-shadow: 0 0 0 1.5px rgba(232,152,88,0.95), 0 0 24px rgba(232,152,88,0.55); animation: forge-node-breathe 3.0s ease-in-out infinite; }
+@keyframes forge-node-breathe {
+  0%, 100% { box-shadow: 0 0 0 1.5px rgba(232,152,88,0.55), 0 0 14px rgba(232,152,88,0.25); }
+  50%      { box-shadow: 0 0 0 2px rgba(255,200,140,0.95), 0 0 28px rgba(232,152,88,0.6); }
+}
 .path-node.node-combat   .pn-label { color: var(--gold-pale); opacity: 0.7; }
 .path-node.node-locked .pn-label,
 .path-node.node-skipped .pn-label { opacity: 0.45; }
@@ -10525,3 +10532,80 @@ body.on-title #hud { display: none !important; }
   .info-hero-portrait { width: 32px !important; height: 42px !important; }
   .bi-name { font-size: 22px !important; }
 }
+
+/* ===========================================================================
+   FORGE + OATH MODAL — reuses the wanderer modal frame; only the stage
+   glyph + tinting are forge/oath specific.
+   =========================================================================== */
+.forge-stage {
+  height: clamp(70px, 16vh, 110px);
+  display: flex; align-items: center; justify-content: center;
+  margin: 4px auto 6px;
+}
+.forge-anvil {
+  font-size: clamp(36px, 8vh, 56px);
+  color: #e89858;
+  text-shadow:
+    0 0 18px rgba(232,152,88,0.55),
+    0 0 36px rgba(232,152,88,0.25),
+    0 2px 0 rgba(0,0,0,0.7);
+  filter: drop-shadow(0 6px 14px rgba(80,30,0,0.6));
+  animation: forge-anvil-pulse 2.2s ease-in-out infinite;
+}
+@keyframes forge-anvil-pulse {
+  0%, 100% { filter: drop-shadow(0 6px 14px rgba(80,30,0,0.6)); }
+  50%      { filter: drop-shadow(0 8px 18px rgba(232,152,88,0.7)); }
+}
+.oath-stage .forge-anvil {
+  color: rgba(212,90,90,0.78);
+  text-shadow:
+    0 0 18px rgba(220,80,80,0.55),
+    0 0 36px rgba(220,80,80,0.25),
+    0 2px 0 rgba(0,0,0,0.7);
+}
+
+/* Heroic Boon overlay — uses overlay-boon class.  Cards are slim event
+   rows with a brighter gold tone to signal the rarity of the pick. */
+#overlay.overlay-boon .encounter-choice.boon-choice {
+  border-color: rgba(232,200,160,0.55);
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.4) inset, 0 0 18px rgba(232,200,160,0.18);
+}
+#overlay.overlay-boon .encounter-choice.boon-choice .enc-name {
+  color: var(--gold-bright);
+  text-shadow: 0 0 12px rgba(240,212,136,0.45);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+/* Mega-boss intro variant — red eyebrow, larger name, animated underline
+   so the milestone reads as a genuine wall-stop. */
+#boss-intro.bi-megaboss .bi-eyebrow {
+  color: var(--blood-bright);
+  text-shadow: 0 0 14px rgba(220,80,80,0.6);
+  letter-spacing: 0.48em;
+}
+#boss-intro.bi-megaboss .bi-name {
+  font-size: 48px;
+  text-shadow:
+    0 0 28px rgba(220,40,40,0.45),
+    0 2px 0 rgba(0,0,0,0.95);
+  position: relative;
+}
+#boss-intro.bi-megaboss .bi-name::after {
+  content: '';
+  display: block;
+  margin: 12px auto 0;
+  width: 60%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent 0%, var(--blood-bright) 50%, transparent 100%);
+  animation: bi-megaboss-underline 2.2s ease-in-out infinite;
+}
+@keyframes bi-megaboss-underline {
+  0%, 100% { opacity: 0.45; transform: scaleX(0.85); }
+  50%      { opacity: 1;    transform: scaleX(1); }
+}
+
+/* Mastery — small gold crown chip in the inspector + figure overlay
+   so the player can see at a glance who has awakened. */
+.fi-row-mastery .fi-icon { color: var(--gold-bright); text-shadow: 0 0 8px rgba(240,212,136,0.6); }
+.fi-row-mastery .fi-text b { color: var(--gold-bright); letter-spacing: 0.08em; }
