@@ -95,10 +95,11 @@ body {
   max-height: calc(100vw * 9 / 16);
   display: grid;
   /* HUD (resolve readout) | ATB strip | battlefield (1fr) | action+commit
-     Cinematic pass: HUD + ATB + action chrome trimmed so the battlefield
-     row dominates the frame.  Action row bumped 76 -> 92 so the per-hero
-     attack + special tiles have more breathing room and tappable area. */
-  grid-template-rows: 22px 18px minmax(0, 1fr) 92px;
+     HUD bumped from 22px → 48px so the 44×44 sigil chips and menu
+     button have a real tap target.  Previously they overflowed the
+     22px row and overflow:hidden clipped them in half — visible but
+     un-tappable below the row line. */
+  grid-template-rows: 48px 18px minmax(0, 1fr) 92px;
   grid-template-columns: 1fr;
   /* NieR flatter backdrop — neutral graphite radial pools instead of warm
      parchment browns, so the chrome (cream-on-black) reads as the dominant
@@ -214,7 +215,10 @@ body {
      modifier chip and the sigil tray stay visible on the path screen
      too — the player can read what's active without dismissing the map. */
   z-index: 280;
-  overflow: hidden;
+  /* overflow:visible — was 'hidden', which clipped the chips when the
+     row was shorter than their 44px height.  Even with the 48px row,
+     visible is safer for the press-and-hold tooltip arrow + glow. */
+  overflow: visible;
 }
 #run-modifier { flex-shrink: 0; }
 #run-modifier.empty { display: none; }
@@ -9269,7 +9273,9 @@ body.killing-blow::before {
 #confirm-modal {
   position: fixed;
   inset: 0;
-  z-index: 400;
+  /* Above the game-menu (z 900) so the confirm dialog isn't hidden
+     behind it when Return-to-Title is tapped. */
+  z-index: 950;
   background: radial-gradient(ellipse at center, rgba(15,8,4,0.85) 0%, rgba(0,0,0,0.96) 70%);
   display: flex;
   align-items: center;

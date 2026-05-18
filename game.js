@@ -11571,10 +11571,15 @@ function showGameMenu() {
         return;
       }
       if (action === 'title') {
+        // Close the menu BEFORE opening the confirm dialog so the
+        // dialog isn't visually buried under the menu card.  The
+        // confirm dialog is now z-lifted above the menu's z-900 too
+        // (defense-in-depth), but closing first is the right UX.
+        close();
         confirmDestructive(
           'Return to title?',
           'Your run is auto-saved.  Continue from the title screen to resume.',
-          () => { close(); hideOverlay(); showTitleScreen(); }
+          () => { hideOverlay(); showTitleScreen(); }
         );
         return;
       }
