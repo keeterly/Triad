@@ -9256,14 +9256,16 @@ function checkEnd(s) {
     // Wanderer-fight lockout — if this combat was a wanderer duel, the
     // hero on the road is now removed from the run's recruit + wanderer
     // pools.  Flag set by showWandererOverlay before startEncounter.
+    // We also stash the wandererId on a separate flag so the cascade
+    // can interpose a "fall" cinematic beat between the killing-blow
+    // hold and the standard reach-cleared banner.
     if (s.run._pendingWandererFight) {
       const pwf = s.run._pendingWandererFight;
       if (pwf.heroLockout) {
         markHeroLockedOut(s, pwf.heroLockout);
         const def = CHARS[pwf.heroLockout];
-        const deathLine = WANDERER_DEATH_BARKS[pwf.heroLockout];
-        if (deathLine) log(`<i>${deathLine}</i>`);
         if (def) log(`<b>${def.name}</b> will not climb with you.`);
+        s.run._pendingWandererFallBeat = pwf.wandererId;
       }
       s.run._pendingWandererFight = null;
     }
@@ -9327,17 +9329,14 @@ function checkEnd(s) {
       const KILL_HOLD = 1200;
       const BANNER_HOLD = 1100;
       const FANFARE_HOLD = 3600;
-      setTimeout(() => {
+      // The post-kill cascade: reach banner → affinity fanfare →
+      // vignette/recruit/upgrade flow.  Extracted into a local so the
+      // wanderer-fall interlude can park it behind the cinematic beat.
+      const runPostKillCascade = () => {
         showReachClearedBanner();
         setTimeout(() => {
-          // Affinity progression — roll AFTER the banner so the reveal
-          // doesn't get covered by the strap.  awardQuirkAfterWin runs
-          // its own showQuirkAward fanfare with a context-aware reason.
           const awarded = awardQuirkAfterWin(s, completedNode);
           if (awarded) {
-            // Park the next-scene transition; the award-dismiss handler
-            // (auto or tap) fires it.  Fallback timer at FANFARE_HOLD
-            // guarantees forward progress if dismiss somehow never lands.
             const goNext = () => offerVignetteOrPath(fightCtx);
             _pendingAfterAward = goNext;
             setTimeout(() => {
@@ -9350,6 +9349,19 @@ function checkEnd(s) {
             setTimeout(() => offerVignetteOrPath(fightCtx), 500);
           }
         }, BANNER_HOLD);
+      };
+      setTimeout(() => {
+        // Wanderer fall beat — if the player just killed a hero on the
+        // road, interpose a dimmed-portrait + death-line cinematic
+        // before the standard banner so the moment lands with weight.
+        // The flag is set in checkEnd's victory branch and consumed here.
+        const fallWid = s.run._pendingWandererFallBeat;
+        if (fallWid) {
+          s.run._pendingWandererFallBeat = null;
+          showWandererDuelBeat(fallWid, 'fall', runPostKillCascade);
+          return;
+        }
+        runPostKillCascade();
       }, KILL_HOLD);
     }
     return true;
@@ -12649,6 +12661,29 @@ function showEventOverlay(eventId) {
 function showWandererOverlay(wandererId) {
   const w = WANDERERS[wandererId];
   if (!w) { _completeNonCombatNode(); return; }
+  // Re-validate at modal-open time.  The wandererId is baked into the
+  // node at map-generation time, so a hero who was recruitable then
+  // might now be in the party (recruited via a stranger event or named
+  // recruit elsewhere on the map) or locked out (killed on another
+  // wanderer node since this map was generated).  If the bake is
+  // stale, try to swap to a fresh wanderer for this node; if none
+  // fit the current run, quietly skip the slot.
+  if (w.kind === 'hero') {
+    const inParty   = !!(state.party && state.party.chars && state.party.chars[w.heroId]);
+    const lockedOut = (state.run._lockedOutHeroes || []).includes(w.heroId);
+    if (inParty || lockedOut) {
+      const replacement = pickWandererFor(state);
+      if (replacement && replacement !== wandererId) {
+        const node = getMapNode(state.run.currentNodeId);
+        if (node) node.wandererId = replacement;
+        return showWandererOverlay(replacement);
+      }
+      log('<i>The place is empty.  Whoever waited here has gone.</i>');
+      markWandererSeen(state, wandererId);
+      _completeNonCombatNode();
+      return;
+    }
+  }
   _renderWandererStep(wandererId, 'main', {});
 }
 
@@ -12811,16 +12846,17 @@ function _renderWandererMain(choices, wandererId, w, heroDef, displayName) {
         heroLockout: w.kind === 'hero' ? w.heroId : null,
       };
       markWandererSeen(state, wandererId);
-      // Pre-fight bark — gives the hero one defiant line before the
-      // encounter spins up so the killing reads as a deliberate moment.
-      const fightBark = heroDef && WANDERER_FIGHT_BARKS[w.heroId];
-      if (fightBark) log(`<b>${heroDef.name}:</b> <i>${fightBark}</i>`);
       hideOverlay();
       choices.classList.remove('event-choices');
-      startEncounter({
+      // Pre-fight cinematic — show the hero's portrait + defiant bark
+      // before combat takes over, so the moment lands as a beat rather
+      // than a UI flash.  Non-hero wanderers no-op out of the beat
+      // helper and drop straight into combat.
+      const beginFight = () => startEncounter({
         name: `${displayName} on the Road`,
         slots: { front: encId },
       });
+      showWandererDuelBeat(wandererId, 'intro', beginFight);
     },
   });
 
@@ -12975,6 +13011,63 @@ function _resolveWandererChoice(wandererId) {
   if (choices) choices.classList.remove('event-choices');
   markWandererSeen(state, wandererId);
   _completeNonCombatNode();
+}
+
+// Cinematic beat for the wanderer duel — used both as a pre-fight intro
+// (large portrait + the hero's defiant bark + "Begin") and as a post-
+// victory fall beat (dimmed portrait + the hero's death line + "Continue").
+// Reuses the main overlay shell so the transition feels like one screen,
+// not three different modals stacked together.
+function showWandererDuelBeat(wandererId, phase, onContinue) {
+  const w = WANDERERS[wandererId];
+  const heroDef = w && w.kind === 'hero' ? CHARS[w.heroId] : null;
+  if (!w || !heroDef) { if (typeof onContinue === 'function') onContinue(); return; }
+
+  const $overlay = $('#overlay');
+  $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-upgrade','overlay-sigil','overlay-starter','overlay-boon','overlay-event','overlay-wanderer');
+  $overlay.classList.add('overlay-full','overlay-cinematic','overlay-wanderer-duel');
+  if (phase === 'fall') $overlay.classList.add('wanderer-duel-fall');
+  else $overlay.classList.remove('wanderer-duel-fall');
+
+  $('#overlay-title').textContent = heroDef.name.toUpperCase();
+
+  const body = $('#overlay-body');
+  body.classList.remove('victory-summary-body','welcome-body','run-summary-body','vignette-body');
+  body.innerHTML = '';
+
+  const portraitWrap = document.createElement('div');
+  portraitWrap.className = `wanderer-duel-portrait${phase === 'fall' ? ' wanderer-duel-portrait-fallen' : ''}`;
+  portraitWrap.innerHTML = PORTRAITS[w.heroId] || '';
+  body.appendChild(portraitWrap);
+
+  const subtitle = document.createElement('div');
+  subtitle.className = 'wanderer-duel-subtitle';
+  subtitle.textContent = phase === 'fall'
+    ? `${heroDef.name} will not climb with you.`
+    : (heroDef.title || 'On the Road');
+  body.appendChild(subtitle);
+
+  const barkSrc = phase === 'fall' ? WANDERER_DEATH_BARKS : WANDERER_FIGHT_BARKS;
+  const barkLine = barkSrc[w.heroId] || '';
+  const bark = document.createElement('p');
+  bark.className = 'wanderer-duel-bark';
+  bark.innerHTML = phase === 'fall'
+    ? `<i>${barkLine}</i>`
+    : `<b>${heroDef.name}:</b> &nbsp;<i>"${barkLine}"</i>`;
+  body.appendChild(bark);
+
+  const choices = $('#overlay-choices');
+  choices.classList.add('hidden');
+
+  const btn = $('#overlay-btn');
+  btn.textContent = phase === 'fall' ? 'Continue' : 'Begin';
+  btn.onclick = () => {
+    hideOverlay();
+    resetOverlayBtn();
+    if (typeof onContinue === 'function') onContinue();
+  };
+  btn.classList.remove('hidden');
+  $overlay.classList.remove('hidden');
 }
 
 function drawMapConnectors(choices) {
