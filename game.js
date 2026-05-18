@@ -12744,11 +12744,22 @@ function _renderWandererMain(choices, wandererId, w, heroDef, displayName) {
   const sigils = (state.run && state.run.sigils) || [];
   const hasSigils = sigils.length > 0;
 
-  // 1. Ask to join — only meaningful for hero wanderers.
+  // 1. Ask to join — only meaningful for hero wanderers.  Tag varies by
+  // party state so the player sees the cost up front: an empty slot
+  // means a clean join, a full party means someone walks the other way.
   if (heroDef) {
+    const hasFreeSlot = ['front','mid','back'].some(sl => {
+      const id = state.party.slots[sl];
+      if (!id) return true;
+      const c = state.party.chars[id];
+      return !!(c && c.downed);
+    });
+    const joinTag = hasFreeSlot
+      ? `${heroDef.name} takes the empty seat`
+      : `${heroDef.name} would join — someone you carry walks the other way`;
     _mkWandererChoice(choices, {
       label: 'Ask to join the climb',
-      tag: `${heroDef.name} would walk with you`,
+      tag: joinTag,
       onClick: () => {
         state.run._pendingNamedRecruit = w.heroId;
         log(`<b>${heroDef.name}</b> stands and falls in behind you.`);
@@ -13232,6 +13243,26 @@ function showRunSummary(outcome, opts) {
       </div>
     </div>` : '';
 
+  // Lost on the Road — heroes the player killed on a wanderer node this
+  // climb.  Distinct from the in-combat fallen list: these are deaths the
+  // player chose to inflict, so the framing is darker (blood-tinted mark,
+  // "the road keeps" subtitle) and they render even when no party member
+  // died this run.
+  const lostOnRoadIds = (state.run && state.run._lockedOutHeroes) || [];
+  const roadkillHtml = lostOnRoadIds.length ? `
+    <div class="rs-memorial rs-roadkill">
+      <span class="rs-memorial-label">The road keeps</span>
+      <div class="rs-graves">
+        ${lostOnRoadIds.map(id => `
+          <div class="rs-grave rs-grave-roadkill">
+            <div class="rs-grave-stone">
+              <span class="rs-grave-mark">×</span>
+              <span class="rs-grave-name">${(CHARS[id]?.name || id).toUpperCase()}</span>
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>` : '';
+
   body.innerHTML = `
     <div class="rs-card ${outcomeClass}">
       <div class="rs-montage ${outcome === 'boss' ? 'rs-with-ascent' : ''}">
@@ -13245,6 +13276,7 @@ function showRunSummary(outcome, opts) {
         <span class="rs-stat"><b>${rs.kills}</b> <em>${rs.kills === 1 ? 'kill' : 'kills'}</em></span>
       </div>
       ${memorialHtml}
+      ${roadkillHtml}
     </div>
   `;
   $('#overlay-choices').classList.add('hidden');
