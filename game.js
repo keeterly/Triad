@@ -9408,20 +9408,29 @@ function renderHUD() {
   //   bright  = available to spend on further actions
   //   reserved (half-grey) = already slotted to be spent when you press Fight
   //   empty   = unfilled
+  //   bonus   = an extra pip that's only present when state.resolve has
+  //             pushed above the normal max (Coin of Memory's +1 carry).
+  //             Tinted gold so the player sees the bonus they paid for.
   const reserved = queueReservedResolve();
   const available = state.resolve - reserved;
-  for (let i = 0; i < RESOLVE_MAX; i++) {
+  // The displayed bar grows past RESOLVE_MAX when the player is briefly
+  // over-cap (Memory sigil's +1 fight-start bonus).  Once spent back to
+  // RESOLVE_MAX, the bonus pip drops away.  Honest pip count > a fixed
+  // 3-pip bar that hides the 4th unit.
+  const effectiveMax = Math.max(RESOLVE_MAX, state.resolve);
+  for (let i = 0; i < effectiveMax; i++) {
     const p = document.createElement('div');
     if (i < available) p.className = 'pip filled';
     else if (i < state.resolve) p.className = 'pip filled reserved';
     else p.className = 'pip';
+    if (i >= RESOLVE_MAX) p.classList.add('bonus');
     pips.appendChild(p);
   }
   // glanceable resolve readout in the HUD line (no interaction, just a count)
   const hudNum = $('#hud-resolve-num');
   if (hudNum) hudNum.textContent = String(state.resolve);
   const hudMax = $('#hud-resolve-max');
-  if (hudMax) hudMax.textContent = `/${RESOLVE_MAX}`;
+  if (hudMax) hudMax.textContent = `/${effectiveMax}`;
   const hudResolve = $('#hud-resolve');
   if (hudResolve) {
     if (reserved > 0) hudResolve.classList.add('has-reserved');

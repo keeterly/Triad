@@ -404,6 +404,20 @@ body {
   opacity: 0.6;
   filter: saturate(0.4);
 }
+/* "bonus" pip — the 4th unit that appears when Coin of Memory carried
+   the player over the normal cap.  Slightly larger and tinted with a
+   brighter gold glow so the buff is visible.  Drops away the moment
+   it's spent back below the cap. */
+.pip.bonus {
+  width: 10px; height: 10px;
+  border-color: rgba(255,232,160,0.9);
+  box-shadow:
+    0 0 6px rgba(255,232,160,0.85),
+    0 0 14px rgba(240,212,136,0.55);
+}
+.pip.bonus.filled {
+  background: radial-gradient(circle at 35% 30%, #fff5d0 0%, #ffce5a 35%, #b88820 75%, #6a4818 100%);
+}
 
 /* ============ COMMIT ZONE — Resolve pips above the Fight crest ============ */
 #commit-zone {
