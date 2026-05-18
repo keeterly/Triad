@@ -12123,11 +12123,29 @@ function consumeHitPause() {
 }
 
 // ============================================================================
-// AUDIO — Web Audio API synth-only sfx so we don't ship any sample files.
-// Lazily creates an AudioContext on the first user gesture so mobile browsers
-// don't block playback.  Toggleable via Audio.toggleMute().
+// AUDIO — stubbed out.  Audio was removed; this module is now a silent
+// no-op so the dozens of Audio.X() call sites throughout the codebase keep
+// working without making sound, allocating an AudioContext, or interacting
+// with the iOS / Android autoplay policies.  Every method is a no-op,
+// isMuted() always reports true, toggleMute() does nothing.
 // ============================================================================
 const Audio = (() => {
+  const NOOP = () => {};
+  return new Proxy({
+    isMuted: () => true,
+    toggleMute: () => true,
+    ensure: NOOP,
+    _ambient: null,
+    startAmbient: NOOP,
+    stopAmbient: NOOP,
+  }, {
+    get(target, prop) {
+      return prop in target ? target[prop] : NOOP;
+    },
+  });
+})();
+/* === Legacy Audio implementation kept commented for reference ============
+const _AudioLegacy = (() => {
   let ctx = null;
   let masterGain = null;
   let muted = false;
@@ -12343,6 +12361,7 @@ const Audio = (() => {
     },
   };
 })();
+=== End legacy Audio implementation ====================================== */
 
 // ============================================================================
 // INPUT
@@ -12380,7 +12399,6 @@ function showGameMenu() {
   root = document.createElement('div');
   root.id = 'game-menu';
   root.className = 'game-menu';
-  const muted = Audio && Audio.isMuted && Audio.isMuted();
   const hasRun = !!(state && state.party && state.party.chars);
   root.innerHTML = `
     <div class="gm-backdrop" data-close="1"></div>
@@ -12394,10 +12412,6 @@ function showGameMenu() {
         <button type="button" class="gm-row" data-action="info" ${hasRun ? '' : 'disabled'}>
           <span class="gm-row-label">Run Info</span>
           <span class="gm-row-value">Sigils · Heroes</span>
-        </button>
-        <button type="button" class="gm-row" data-action="music">
-          <span class="gm-row-label">Music</span>
-          <span class="gm-row-value" id="gm-music-val">${muted ? 'Muted' : 'On'}</span>
         </button>
         <button type="button" class="gm-row" data-action="settings">
           <span class="gm-row-label">Settings</span>
@@ -12427,13 +12441,6 @@ function showGameMenu() {
       if (action === 'info') {
         close();
         if (hasRun) showRunInfoPanel();
-        return;
-      }
-      if (action === 'music') {
-        Audio.ensure();
-        Audio.toggleMute();
-        const v = document.getElementById('gm-music-val');
-        if (v) v.textContent = Audio.isMuted() ? 'Muted' : 'On';
         return;
       }
       if (action === 'settings') {
@@ -15952,10 +15959,6 @@ function showSettingsScreen() {
   body.classList.remove('welcome-body', 'title-screen-body', 'victory-summary-body', 'run-summary-body');
   body.innerHTML = `
     <div class="settings-grid">
-      <button type="button" class="settings-row" data-action="mute">
-        <span class="settings-label">Audio</span>
-        <span class="settings-value" id="settings-mute-val"></span>
-      </button>
       <button type="button" class="settings-row" data-action="tutorial">
         <span class="settings-label">First-run tutorial</span>
         <span class="settings-value">Show again on next run</span>
@@ -15970,20 +15973,10 @@ function showSettingsScreen() {
       </button>
     </div>
   `;
-  const syncMute = () => {
-    const el = document.getElementById('settings-mute-val');
-    if (el) el.textContent = Audio.isMuted() ? 'Muted' : 'On';
-  };
-  syncMute();
   body.querySelectorAll('.settings-row').forEach(btn => {
     btn.addEventListener('click', () => {
       const action = btn.dataset.action;
-      Audio.ui();
-      if (action === 'mute') {
-        Audio.ensure();
-        Audio.toggleMute();
-        syncMute();
-      } else if (action === 'tutorial') {
+      if (action === 'tutorial') {
         try { localStorage.removeItem('kizuna.tutorialSeen'); } catch (_) {}
         _tutCursor = 0;
         flashSettings('Tutorial will replay next run.');
