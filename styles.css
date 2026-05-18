@@ -5,6 +5,16 @@
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
 :root {
+  /* === Cross-platform fit-to-screen ===
+     The game was hand-tuned for iPhone landscape (~698×393).  We lock
+     the stage to a fixed design resolution and scale it visually via
+     transform — same internal pixel layout on iOS / Android / desktop,
+     just rendered larger or smaller to fit the viewport.  --ui-scale
+     is set from JS on resize / orientationchange. */
+  --design-w: 720px;
+  --design-h: 405px;
+  --ui-scale: 1;
+
   /* === NieR Automata-inspired palette ===
      Bone-on-pitch.  All "gold" tokens now point at desaturated cream tones;
      warm parchment browns flattened to neutral graphite; decorative blood
@@ -87,12 +97,16 @@ body {
 
 /* ============ STAGE — battlefield backdrop ============ */
 #stage {
-  width: 100vw;
-  /* fallback for older Safari; dvh accounts for toolbar so the top doesn't clip */
-  height: 100vh;
-  height: 100dvh;
-  max-width: calc(100dvh * 16 / 9);
-  max-height: calc(100vw * 9 / 16);
+  /* Locked to a fixed design resolution and scaled visually via
+     transform.  Centered in the viewport with letterboxing in the
+     unused axis — same layout density on every device. */
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--design-w);
+  height: var(--design-h);
+  transform: translate(-50%, -50%) scale(var(--ui-scale));
+  transform-origin: center center;
   display: grid;
   /* HUD (resolve readout) | ATB strip | battlefield (1fr) | action+commit
      HUD bumped from 22px → 48px so the 44×44 sigil chips and menu
@@ -108,8 +122,10 @@ body {
     radial-gradient(ellipse 60% 80% at 22% 50%, #16161a 0%, transparent 60%),
     radial-gradient(ellipse 60% 80% at 78% 50%, #14141a 0%, transparent 60%),
     var(--bg-0);
-  position: relative;
   overflow: hidden;
+  /* Safe-area padding is left in for harmless backwards-compat — in
+     landscape it resolves to 0 on all known devices, and any notch /
+     cutout falls in the letterbox area outside the centered stage. */
   padding-top: env(safe-area-inset-top, 0);
   padding-bottom: env(safe-area-inset-bottom, 0);
   box-sizing: border-box;
@@ -2650,8 +2666,10 @@ body {
 .starter-fig {
   flex: 1 1 0;
   min-width: 0;
-  max-width: 160px;
-  height: clamp(180px, 36vh, 280px);
+  max-width: 140px;
+  /* Portrait carries the moment; sized to leave room for the name +
+     start button below in the locked 405px canvas. */
+  height: clamp(150px, 56%, 220px);
   background: transparent;
   border: none;
   padding: 0;
@@ -4357,14 +4375,20 @@ body.party-critical::after {
   background:
     radial-gradient(ellipse at 50% 0%, #2c1f14 0%, #18110a 50%, #0c0805 100%);
   border: 1px solid var(--gold);
-  padding: 32px 40px;
+  /* Tightened padding (was 32px 40px) so encounter / trade / recruit
+     overlays fit within the locked 405px design canvas without
+     scrolling, leaving more room for portraits and cinematic. */
+  padding: 14px 22px;
   border-radius: var(--card-radius);
   text-align: center;
   /* Mobile-fit: never wider than the viewport, never taller than it.
      overflow-y so long content (path map, victory rows) scrolls in place
-     instead of clipping out of view. */
-  max-width: min(380px, 94vw);
-  max-height: 92vh;
+     instead of clipping out of view.  The 94% / 92% caps clamp against
+     the (transform-scaled) stage parent so the overlay can't overflow
+     the design canvas on desktop, where 94vw/92vh would otherwise
+     resolve to viewport pixels far larger than the canvas. */
+  max-width: min(380px, 94vw, 94%);
+  max-height: min(92vh, 92%);
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
@@ -4386,7 +4410,9 @@ body.party-critical::after {
 #overlay-content::before { left: 14px; }
 #overlay-content::after  { right: 14px; }
 #overlay-title {
-  font-size: 28px; color: var(--gold-bright); margin-bottom: 14px;
+  /* Tightened (was 28px, margin 14) — gives the cinematic body more
+     room in the 405-tall design canvas. */
+  font-size: 18px; color: var(--gold-bright); margin-bottom: 8px;
   letter-spacing: 0.18em; text-transform: uppercase;
   text-shadow: 0 0 18px rgba(240,212,136,0.5), 0 2px 0 var(--shadow);
   position: relative;
@@ -5273,8 +5299,8 @@ body.party-critical::after {
   .hip-tech-desc { font-size: 8.5px; }
 }
 #overlay-choices {
-  display: flex; gap: 18px; justify-content: center;
-  margin-top: 10px; margin-bottom: 8px;
+  display: flex; gap: 10px; justify-content: center;
+  margin-top: 6px; margin-bottom: 4px;
 }
 #overlay-choices.hidden { display: none; }
 
@@ -5459,21 +5485,26 @@ button.path-node { cursor: pointer; }
 #overlay.overlay-event #overlay-title::after { display: none !important; }
 
 /* Swap overlay — recruit's portrait + stats banner above the picker, so
-   the player can see who's asking to join before deciding who leaves. */
+   the player can see who's asking to join before deciding who leaves.
+   Sizes baked in at the previously-compact-only mobile values now that
+   the design canvas is locked at 405px tall on every device. */
 .swap-newcomer {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 18px;
-  margin: 0 auto 10px;
-  padding: 8px 14px;
-  max-width: 720px;
+  gap: 12px;
+  margin: 0 auto 6px;
+  padding: 4px 10px;
+  max-width: 560px;
   background: linear-gradient(180deg, rgba(28,22,18,0.65) 0%, rgba(10,8,8,0.7) 100%);
   border-left: 2px solid var(--gold-bright);
   position: relative;
 }
 .swap-newcomer-portrait {
-  height: clamp(110px, 22vh, 160px);
+  /* Portrait stays the largest single element in the banner — it's the
+     cinematic moment of meeting a new hero — but no longer dominates
+     the whole canvas. */
+  height: clamp(78px, 22%, 110px);
   width: auto;
   display: flex;
   align-items: flex-end;
@@ -5483,7 +5514,7 @@ button.path-node { cursor: pointer; }
 .swap-newcomer-portrait svg {
   height: 100%;
   width: auto;
-  max-width: 120px;
+  max-width: 100px;
   display: block;
   filter: drop-shadow(0 6px 18px rgba(0,0,0,0.7));
 }
@@ -5491,51 +5522,46 @@ button.path-node { cursor: pointer; }
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 4px;
+  gap: 3px;
 }
 .swap-newcomer-name {
-  font-size: 18px;
-  letter-spacing: 0.24em;
+  font-size: 13px;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--gold-pale);
   text-shadow: 0 0 12px rgba(240,212,136,0.45);
 }
 .swap-newcomer-title {
-  font-size: 11px;
+  font-size: 9.5px;
   font-style: italic;
   color: var(--ink-dim);
   letter-spacing: 0.04em;
 }
 .swap-newcomer-stats {
   display: flex;
-  gap: 8px;
-  margin-top: 2px;
+  gap: 6px;
+  margin-top: 1px;
 }
 .swap-newcomer-stat {
-  font-size: 9.5px;
-  letter-spacing: 0.18em;
+  font-size: 8.5px;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  padding: 2px 6px;
+  padding: 1px 5px;
   background: rgba(0,0,0,0.45);
   color: var(--gold);
 }
-@media (max-height: 480px) {
-  .swap-newcomer { padding: 4px 10px; gap: 12px; }
-  .swap-newcomer-portrait { height: clamp(80px, 20vh, 130px); }
-  .swap-newcomer-name { font-size: 14px; letter-spacing: 0.18em; }
-  .swap-newcomer-title { font-size: 10px; }
-  .swap-newcomer-stat { font-size: 8.5px; padding: 1px 5px; }
-}
 
-/* Event / Rest overlays — flavor paragraph + button stack */
+/* Event / Rest overlays — single italic flavor line under the scene.
+   Sized as a caption, not a paragraph, so the silhouettes above stay
+   the focal point. */
 .event-flavor {
   font-style: italic;
-  color: var(--ink);
-  font-size: 12.5px;
-  line-height: 1.5;
+  color: var(--ink-dim);
+  font-size: 9.5px;
+  line-height: 1.35;
   text-align: center;
-  margin-bottom: 10px;
-  padding: 0 4px;
+  margin: 0 0 3px;
+  padding: 0 8px;
 }
 /* Party silhouettes standing alongside an event — same visual language
    as the vignette VN stage, but no dialogue rail (events use flavor +
@@ -5546,8 +5572,12 @@ button.path-node { cursor: pointer; }
   grid-auto-columns: 1fr;
   align-items: end;
   justify-items: center;
-  height: clamp(130px, 26vh, 200px);
-  margin: 0 0 10px;
+  /* The cinematic IS the scene — silhouettes take the lion's share of
+     the canvas and the choice rail beneath them collapses into slim
+     horizontal strips (see .event-choice rules below).  Encounters now
+     feel like vignette beats instead of a text panel + button stack. */
+  height: clamp(180px, 56%, 250px);
+  margin: 0 0 4px;
   position: relative;
 }
 .event-stage::after {
@@ -5561,12 +5591,20 @@ button.path-node { cursor: pointer; }
   pointer-events: none;
 }
 /* Soft atmospheric vignette behind the party — adds depth so the
-   silhouettes don't sit on a flat black plate. */
+   silhouettes don't sit on a flat black plate.  Two stacked gradients:
+   a warm floor pool (footlight) + a tall radial that fades the top to
+   pitch, so the scene reads as a beat of held breath, not a panel. */
 .event-stage::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse 70% 80% at 50% 90%, rgba(60,40,22,0.35) 0%, rgba(0,0,0,0) 70%);
+  background:
+    radial-gradient(ellipse 90% 60% at 50% 100%,
+                    rgba(80,52,32,0.35) 0%,
+                    rgba(0,0,0,0) 65%),
+    radial-gradient(ellipse 120% 110% at 50% 45%,
+                    rgba(20,16,18,0.7) 0%,
+                    rgba(6,4,6,0.95) 78%);
   pointer-events: none;
   z-index: -1;
 }
@@ -5601,18 +5639,22 @@ button.path-node { cursor: pointer; }
   text-align: center;
 }
 #overlay.overlay-wanderer-duel #overlay-title {
-  font-size: 22px;
-  letter-spacing: 0.4em;
+  font-size: 16px;
+  letter-spacing: 0.32em;
   color: var(--gold-bright);
   text-transform: uppercase;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
   text-shadow: 0 0 14px rgba(240,212,136,0.45), 0 2px 0 var(--shadow);
   border-bottom: none !important;
 }
 #overlay.overlay-wanderer-duel #overlay-title::after { display: none !important; }
 .wanderer-duel-portrait {
-  height: clamp(160px, 36vh, 260px);
-  margin: 6px auto 4px;
+  /* Portrait stays the cinematic focal point of the duel beat — the
+     percentage cap (vs. raw 260px) keeps it from overrunning the
+     locked 405px canvas while still leaving the heroic silhouette
+     dominant in the frame. */
+  height: clamp(120px, 42%, 180px);
+  margin: 4px auto 2px;
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -5624,18 +5666,18 @@ button.path-node { cursor: pointer; }
   filter: drop-shadow(0 14px 28px rgba(0,0,0,0.8));
 }
 .wanderer-duel-subtitle {
-  font-size: 11px;
-  letter-spacing: 0.32em;
+  font-size: 9.5px;
+  letter-spacing: 0.28em;
   text-transform: uppercase;
   color: var(--ink-dim);
-  margin: 2px 0 8px;
+  margin: 2px 0 6px;
 }
 .wanderer-duel-bark {
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: 11.5px;
+  line-height: 1.4;
   color: var(--ink);
-  max-width: 540px;
-  margin: 6px auto 12px;
+  max-width: 460px;
+  margin: 4px auto 8px;
   letter-spacing: 0.03em;
 }
 .wanderer-duel-bark b { color: var(--gold-bright); letter-spacing: 0.12em; text-transform: uppercase; font-size: 12px; }
@@ -5710,16 +5752,16 @@ button.path-node { cursor: pointer; }
    the modal on mobile landscape. */
 .encounter-choice.wanderer-sigil-row {
   display: grid;
-  grid-template-columns: 40px 1fr;
+  grid-template-columns: 32px 1fr;
   align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
+  gap: 10px;
+  padding: 6px 10px;
   text-align: left;
   width: 100%;
   min-width: 0;
 }
 .encounter-choice.wanderer-sigil-row .wanderer-sigil-glyph {
-  font-size: 26px;
+  font-size: 22px;
   line-height: 1;
   color: var(--gold-bright);
   text-shadow:
@@ -5731,12 +5773,12 @@ button.path-node { cursor: pointer; }
   min-width: 0;
 }
 .encounter-choice.wanderer-sigil-row .enc-name {
-  font-size: 13px;
-  letter-spacing: 0.14em;
+  font-size: 11px;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--gold-bright);
   text-shadow: 0 0 8px rgba(240,212,136,0.4);
-  margin: 0 0 2px;
+  margin: 0 0 1px;
 }
 .encounter-choice.wanderer-sigil-row .sigil-desc {
   font-size: 11px;
@@ -5824,15 +5866,59 @@ button.path-node { cursor: pointer; }
 #overlay-choices.event-choices {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-top: 4px;
+  gap: 3px;
+  margin-top: 2px;
 }
+/* === Slim event-choice strips ============================================
+   .event-choice cards used to render as tall vertical buttons with a
+   centered title, gold underline accent, and NieR corner brackets at
+   each corner — which made encounter screens read as "buttons" with
+   a small cinematic squeezed above them.  Recast as compact horizontal
+   strips here so the scene above can dominate the frame.  Title sits
+   inline on the left, mechanical tag right-aligned, no chrome.
+
+   Excluded: .wanderer-sigil-row (uses its own grid layout, see the
+   forge / trade pickers where glyph + body need explicit columns).
+   ========================================================================= */
 .event-choice {
   width: 100%;
   min-width: 0;
   text-align: left;
 }
-.event-choice .enc-name { letter-spacing: 0.12em; }
+.event-choice:not(.wanderer-sigil-row) {
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 6px 14px;
+  min-height: 0;
+}
+.event-choice:not(.wanderer-sigil-row)::before,
+.event-choice:not(.wanderer-sigil-row)::after {
+  /* Drop the corner brackets — they made every choice look like a
+     framed card and ate the cinematic budget.  The strip's border is
+     enough containment. */
+  display: none;
+}
+.event-choice .enc-name {
+  letter-spacing: 0.14em;
+  font-size: 11px;
+  /* Strip the centered title's underline accent and bottom padding —
+     the slim row treats the title as inline text, not a heading. */
+  text-align: left;
+  padding-bottom: 0;
+}
+.event-choice:not(.wanderer-sigil-row) .enc-name::after {
+  display: none;
+}
+.event-choice:not(.wanderer-sigil-row) .sigil-desc {
+  font-size: 9.5px;
+  color: var(--ink-dim);
+  font-style: italic;
+  letter-spacing: 0.02em;
+  margin: 0;
+  white-space: nowrap;
+}
 
 /* Recruit "Refuse" / decline option — visually subtler so the real heroes
    stay primary in the layout. */
@@ -5966,11 +6052,13 @@ button.path-node { cursor: pointer; }
   position: relative;
   width: 100%;
   /* Aspect-driven height — fills the overlay; the dialogue overlay sits
-     on top, anchored to the bottom. */
+     on top, anchored to the bottom.  The 64% / 56vh pair caps against
+     both the canvas height (when transform-scaled on desktop) and the
+     actual viewport (for safety on tall portrait emulators). */
   aspect-ratio: 16 / 9;
-  max-height: 56vh;
-  min-height: 220px;
-  margin: 4px 0 10px;
+  max-height: min(56vh, 64%);
+  min-height: 150px;
+  margin: 2px 0 6px;
   overflow: hidden;
   background: radial-gradient(ellipse 70% 90% at 35% 45%,
                               rgba(28,22,38,0.5) 0%,
@@ -5999,13 +6087,14 @@ button.path-node { cursor: pointer; }
   display: block;
 }
 /* Dialogue floats over the bottom 55% of the portrait with a scrim so the
-   text stays readable against any portrait color. */
+   text stays readable against any portrait color.  Tightened so dialogue
+   takes less of the cinematic frame and the portrait reads bigger. */
 .vignette-dialogue {
   position: absolute;
   left: 0; right: 0; bottom: 0;
-  padding: 18px 28px 14px;
+  padding: 10px 18px 8px;
   display: flex; flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   background: linear-gradient(180deg,
                               rgba(8,6,10,0) 0%,
                               rgba(8,6,10,0.72) 55%,
@@ -6015,27 +6104,27 @@ button.path-node { cursor: pointer; }
 .vignette-line {
   display: flex;
   align-items: baseline;
-  gap: 10px;
-  font-size: 14px;
-  line-height: 1.5;
+  gap: 8px;
+  font-size: 11.5px;
+  line-height: 1.4;
   color: var(--ink);
   text-shadow: 0 1px 4px rgba(0,0,0,0.85);
 }
 .vignette-who {
   flex-shrink: 0;
-  font-size: 10px;
-  letter-spacing: 0.22em;
+  font-size: 9px;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--gold-bright);
   font-weight: 700;
-  min-width: 64px;
+  min-width: 52px;
   align-self: center;
 }
 .vignette-text { flex: 1; letter-spacing: 0.01em; }
 .vignette-line.narration {
   color: var(--ink-dim);
   font-style: italic;
-  padding-left: 74px;
+  padding-left: 60px;
 }
 .vignette-line.speaker .vignette-who { color: var(--gold-pale); }
 
@@ -6049,8 +6138,8 @@ button.path-node { cursor: pointer; }
 }
 .vignette-choice {
   display: flex; align-items: baseline; justify-content: space-between;
-  gap: 16px;
-  padding: 8px 12px;
+  gap: 12px;
+  padding: 5px 10px;
   background: linear-gradient(180deg, rgba(20,18,16,0.55) 0%, rgba(10,8,8,0.65) 100%);
   border: none;
   color: var(--ink);
@@ -6058,7 +6147,7 @@ button.path-node { cursor: pointer; }
   cursor: pointer;
   text-align: left;
   letter-spacing: 0.02em;
-  font-size: 12.5px;
+  font-size: 11px;
   transition: background 0.16s, color 0.16s;
 }
 .vignette-choice:hover {
@@ -6066,13 +6155,13 @@ button.path-node { cursor: pointer; }
   color: var(--gold-pale);
 }
 .vc-label {
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   font-weight: 600;
-  font-size: 11.5px;
+  font-size: 10px;
 }
 .vc-tag {
-  font-size: 10px;
+  font-size: 9px;
   color: var(--ink-dim);
   font-style: italic;
   letter-spacing: 0.02em;
@@ -6265,13 +6354,16 @@ button.path-node { cursor: pointer; }
     linear-gradient(180deg, #251a10 0%, #160f08 60%, #0a0604 100%);
   border: 1px solid var(--gold-dim);
   border-radius: var(--card-radius);
-  padding: 14px 16px;
+  /* Tightened padding / gap / min-width so a row of 3 swap or wanderer
+     choices + the cinematic banner above them all fit within the
+     405px-tall design canvas without scrolling. */
+  padding: 8px 12px;
   cursor: pointer;
   color: var(--ink);
   font-family: inherit;
-  min-width: 200px;
+  min-width: 150px;
   transition: border-color 0.2s, transform 0.15s, box-shadow 0.2s, filter 0.15s;
-  display: flex; flex-direction: column; gap: 12px;
+  display: flex; flex-direction: column; gap: 6px;
   position: relative;
   box-shadow:
     inset 0 1px 0 rgba(232,220,196,0.08),
@@ -6306,11 +6398,11 @@ button.path-node { cursor: pointer; }
   border-color: var(--gold-pale);
 }
 .encounter-choice .enc-name {
-  font-size: 13px; letter-spacing: 0.2em; text-transform: uppercase;
+  font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
   color: var(--gold-bright); text-align: center;
   text-shadow: 0 0 8px rgba(240,212,136,0.4), 0 1px 0 var(--shadow);
   position: relative;
-  padding-bottom: 6px;
+  padding-bottom: 4px;
 }
 .encounter-choice .enc-name::after {
   content: '';
@@ -6323,7 +6415,7 @@ button.path-node { cursor: pointer; }
   display: flex; gap: 6px; justify-content: center;
 }
 .encounter-choice .enc-icon {
-  width: 50px; height: 66px; overflow: hidden;
+  width: 38px; height: 50px; overflow: hidden;
   border-radius: 2px; border: 1px solid var(--gold-deep);
   position: relative;
   background: var(--parchment-deep);
@@ -6348,7 +6440,11 @@ button.path-node { cursor: pointer; }
 }
 .recruit-portrait {
   width: 100%;
-  height: 130px;
+  /* Tightened from 130px so a row of three swap-candidate cards
+     fits below the newcomer banner inside the 405-tall canvas.  The
+     portrait remains the dominant element of each card — meta and
+     stats sit underneath as a slim caption. */
+  height: 84px;
   border-radius: 3px;
   overflow: hidden;
   background: var(--parchment-deep);
@@ -6412,12 +6508,12 @@ button.path-node { cursor: pointer; }
    card itself carries NieR corner brackets via .encounter-choice's existing
    ::before / ::after — we only need the inner structure here. */
 .upgrade-choice {
-  width: 260px;
-  padding: 14px 16px 14px;
+  width: 200px;
+  padding: 8px 12px;
   align-items: stretch;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
 }
 .upgrade-meta-row {
   display: flex;
@@ -10017,6 +10113,44 @@ body:has(#world-map:not(.hidden)) #hud {
   0%   { opacity: 0.9; transform: translateX(-50%) scale(1); }
   60%  { opacity: 1;   transform: translateX(-50%) scale(1.12); }
   100% { opacity: 0;   transform: translateX(-50%) scale(1.3); }
+}
+
+/* ===========================================================================
+   META UNLOCK CALLOUT — one-shot moment surfaced on the run summary when
+   the player has just opened up a meta-progression system (e.g. oaths).
+   =========================================================================== */
+.rs-unlock {
+  margin: 8px auto 0;
+  padding: 6px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(180deg, rgba(40,28,52,0.7) 0%, rgba(14,10,18,0.85) 100%);
+  border: 1px solid rgba(170,140,212,0.45);
+  border-radius: 3px;
+  animation: rs-unlock-pulse 2s ease-in-out infinite;
+}
+@keyframes rs-unlock-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(170,140,212,0); }
+  50%      { box-shadow: 0 0 14px 0 rgba(170,140,212,0.35); }
+}
+.rs-unlock-mark {
+  font-size: 14px;
+  color: #d4b8f0;
+  text-shadow: 0 0 8px rgba(170,140,212,0.7);
+}
+.rs-unlock-label {
+  font-size: 10.5px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gold-pale);
+  font-weight: 700;
+}
+.rs-unlock-desc {
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  color: var(--ink-dim);
+  font-style: italic;
 }
 
 /* ===========================================================================
