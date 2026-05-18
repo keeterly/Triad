@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#0d0a08" />
   <title>KIZUNA | Resonance</title>
-  <link rel="stylesheet" href="styles.css?v=81" />
+  <link rel="stylesheet" href="styles.css?v=82" />
 </head>
 <body class="on-title">
 
@@ -81,6 +81,11 @@
     </div>
   </div>
 
+  <!-- #stage-scale handles the design-canvas positioning + fit-to-viewport
+       transform, so #stage itself stays free for hit-shake animations
+       (the shake keyframes would otherwise clobber the scale transform
+       and pop the canvas back to its un-scaled top-left position). -->
+  <div id="stage-scale">
   <main id="stage">
 
     <!-- Biome-driven ambient layer.  Class is set via JS to biome-burning,
@@ -147,7 +152,8 @@
     </div>
 
   </main>
+  </div>
 
-  <script src="game.js?v=81"></script>
+  <script src="game.js?v=82"></script>
 </body>
 </html>

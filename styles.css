@@ -95,11 +95,13 @@ body {
   #stage { visibility: hidden; }
 }
 
-/* ============ STAGE — battlefield backdrop ============ */
-#stage {
-  /* Locked to a fixed design resolution and scaled visually via
-     transform.  Centered in the viewport with letterboxing in the
-     unused axis — same layout density on every device. */
+/* ============ STAGE FRAME — fit-to-screen wrapper ============
+   Owns the design-canvas positioning + viewport-fit transform.  #stage
+   itself stays plain (no transform) so per-hit screen-shake animations
+   can apply transform: translate() freely without clobbering the
+   scale/center transform that lets the whole game canvas render at
+   the right size on any device. */
+#stage-scale {
   position: absolute;
   top: 50%;
   left: 50%;
@@ -107,6 +109,19 @@ body {
   height: var(--design-h);
   transform: translate(-50%, -50%) scale(var(--ui-scale));
   transform-origin: center center;
+}
+
+/* ============ STAGE — battlefield backdrop ============ */
+#stage {
+  /* Fills its #stage-scale wrapper completely; the wrapper handles
+     positioning + viewport scale.  position:relative keeps absolutely
+     positioned children (overlay, popup-layer, biome-layer, ::before
+     vignette, etc.) anchored to #stage itself, not to the wrapper —
+     so the layout origin stays exactly where the rest of the
+     stylesheet expects it. */
+  position: relative;
+  width: 100%;
+  height: 100%;
   display: grid;
   /* HUD (resolve readout) | ATB strip | battlefield (1fr) | action+commit
      HUD bumped from 22px → 48px so the 44×44 sigil chips and menu
