@@ -16579,7 +16579,17 @@ function commitSigil(sigilId, onDone) {
   bindSigil(state, sigilId);
   hideOverlay();
   resetOverlayBtn();
-  if (typeof onDone === 'function') onDone(); else renderMap();
+  // Defer the next-scene handoff to the sigil-bound fanfare's dismiss
+  // (tap or auto-fade) so the run summary / map doesn't paint UNDER
+  // the still-visible backdrop.  If no backdrop landed for any reason
+  // (sigil somehow rejected, simulating, etc.), fall through immediately.
+  const cont = (typeof onDone === 'function') ? onDone : (() => renderMap());
+  const backdropUp = !!document.getElementById('quirk-award-backdrop');
+  if (backdropUp) {
+    _pendingAfterAward = cont;
+  } else {
+    cont();
+  }
 }
 
 function showUpgradeOverlay(offers, onDone) {
@@ -16891,9 +16901,16 @@ function commitNamedRecruit(heroId, slot, onDone) {
     portraitId: heroId,
     bark: (RECRUIT_GREETINGS && RECRUIT_GREETINGS[heroId]) || null,
   });
-  // Hold the fanfare for a beat before returning to the map so the join
-  // lands as a moment rather than a flash.
-  setTimeout(() => { if (typeof onDone === 'function') onDone(); }, 2400);
+  // Defer the next-scene handoff to the recruit fanfare's dismiss
+  // (tap or auto-fade) so the map doesn't paint UNDER the still-visible
+  // backdrop.  Mirror of the sigil-bind / post-fight-quirk handoff.
+  const cont = (typeof onDone === 'function') ? onDone : (() => renderMap());
+  const backdropUp = !!document.getElementById('quirk-award-backdrop');
+  if (backdropUp) {
+    _pendingAfterAward = cont;
+  } else {
+    cont();
+  }
 }
 
 function commitRecruit(removeId, recruitId, onDone) {
