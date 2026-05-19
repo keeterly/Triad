@@ -3334,6 +3334,236 @@ body.on-title:has(#overlay:not(.hidden)) #stage-scale {
 }
 #hero-codex.hidden { display: none !important; }
 @keyframes hc-fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* ===========================================================================
+   FULL CODEX — Bestiary / Sigils / Resonances.  Shares the dark backdrop
+   language with the hero codex but uses a tabbed body instead of a
+   single accordion list.  Each tab populates a scrollable row stack;
+   sealed (unencountered) entries dim out instead of disappearing so the
+   player can see what's still left to discover.
+   =========================================================================== */
+#full-codex {
+  position: fixed;
+  inset: 0;
+  z-index: 240;
+  overflow: hidden;
+  animation: hc-fade-in 0.4s ease-out;
+}
+#full-codex.hidden { display: none !important; }
+.codex-bg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 70% at 50% 50%,
+                    rgba(20,14,16,0.94) 0%, rgba(0,0,0,1) 100%),
+    #050405;
+}
+.codex-card {
+  position: relative;
+  z-index: 2;
+  max-width: 760px;
+  margin: 0 auto;
+  height: 100%;
+  padding: 14px 16px 16px;
+  display: flex;
+  flex-direction: column;
+}
+.codex-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.codex-title {
+  font-size: 18px;
+  letter-spacing: 0.42em;
+  color: var(--gold-pale);
+  text-shadow: 0 0 18px rgba(240,212,136,0.35);
+  margin: 0;
+  font-weight: 400;
+}
+.codex-close {
+  background: transparent;
+  border: 1px solid var(--gold-dim);
+  color: var(--gold-pale);
+  padding: 4px 12px;
+  font-size: 16px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.codex-close:hover { color: var(--gold-bright); border-color: var(--gold-bright); }
+.codex-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  gap: 8px;
+}
+.codex-tabs {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.codex-tab {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 6px 8px;
+  background: rgba(20,18,14,0.55);
+  border: 1px solid rgba(232,220,196,0.18);
+  color: var(--ink-dim);
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.codex-tab:hover {
+  background: rgba(40,30,20,0.65);
+  color: var(--gold-pale);
+}
+.codex-tab.codex-tab-active {
+  background: linear-gradient(180deg, rgba(50,36,20,0.85) 0%, rgba(20,12,8,0.92) 100%);
+  border-color: var(--gold-dim);
+  color: var(--gold-bright);
+}
+.codex-tab-label {
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.codex-tab-count {
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+.codex-tab.codex-tab-active .codex-tab-count { color: var(--gold-pale); }
+.codex-list {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 4px;
+}
+.codex-group { margin-bottom: 10px; }
+.codex-group-head {
+  font-size: 9.5px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  padding: 6px 4px 4px;
+  border-bottom: 1px solid rgba(232,220,196,0.12);
+  margin-bottom: 4px;
+}
+.codex-row {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  gap: 10px;
+  padding: 5px 8px;
+  background: linear-gradient(180deg, rgba(20,18,14,0.45) 0%, rgba(8,6,6,0.6) 100%);
+  margin-bottom: 3px;
+  align-items: center;
+}
+.codex-row-sealed {
+  opacity: 0.45;
+  filter: grayscale(0.7);
+}
+.codex-portrait {
+  width: 44px; height: 56px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+  font-size: 22px;
+  color: var(--ink-faint);
+}
+.codex-portrait svg { width: 100%; height: 100%; }
+.codex-row-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.codex-row-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.codex-row-name {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gold-pale);
+}
+.codex-row-stat {
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+.codex-row-meta {
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  color: var(--ink-dim);
+  display: flex;
+  gap: 14px;
+}
+.codex-row-desc {
+  font-size: 10px;
+  font-style: italic;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+  line-height: 1.4;
+}
+.codex-weak {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  font-size: 12px;
+  background: rgba(0,0,0,0.55);
+  border: 1px solid rgba(232,220,196,0.3);
+}
+.codex-weak.weak-physical { color: #f0d8a8; border-color: #d8c2a0; }
+.codex-weak.weak-holy     { color: #fbeec5; border-color: #f4e6b8; }
+.codex-weak.weak-arcane   { color: #e7c5ff; border-color: #c9a8e8; }
+.codex-weak.weak-ranged   { color: #c8e0bb; border-color: #a8c8a0; }
+.codex-weak.weak-stealth  { color: #c8d4ec; border-color: #a8b8d0; }
+.codex-weak.codex-weak-unknown {
+  color: var(--ink-faint);
+  font-style: italic;
+}
+/* Sigil row — icon-only column instead of a portrait box. */
+.codex-row.codex-row-sigil { grid-template-columns: 32px 1fr; }
+.codex-sigil-icon {
+  width: 32px; height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  border-radius: 4px;
+  background: rgba(0,0,0,0.45);
+}
+.codex-row-sigil.cat-combat   .codex-sigil-icon { color: var(--blood-bright); border: 1px solid rgba(212,69,69,0.4); }
+.codex-row-sigil.cat-defense  .codex-sigil-icon { color: var(--armor);        border: 1px solid rgba(156,170,208,0.4); }
+.codex-row-sigil.cat-resource .codex-sigil-icon { color: var(--gold-bright); border: 1px solid rgba(240,212,136,0.4); }
+/* Resonance row — no portrait column at all. */
+.codex-row.codex-row-combo { grid-template-columns: 1fr; }
+.codex-row-combo.tier-triple .codex-row-name { color: var(--gold-bright); }
+.codex-row-combo.tier-sig    .codex-row-name { color: #c0d8f4; }
+@media (max-width: 720px) {
+  .codex-tab-label { font-size: 10px; letter-spacing: 0.18em; }
+  .codex-tab-count { font-size: 8.5px; }
+  .codex-row { grid-template-columns: 36px 1fr; gap: 6px; padding: 4px 6px; }
+  .codex-row.codex-row-sigil { grid-template-columns: 26px 1fr; }
+  .codex-sigil-icon { width: 26px; height: 26px; font-size: 15px; }
+  .codex-portrait { width: 36px; height: 48px; }
+  .codex-row-name { font-size: 10px; }
+  .codex-row-desc { font-size: 9.5px; }
+}
 #hero-codex .hc-bg {
   position: absolute;
   inset: 0;

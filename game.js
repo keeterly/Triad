@@ -4146,6 +4146,9 @@ function bindSigil(s, sigilId) {
       const roman = ['', 'I', 'II', 'III'][cur + 1] || String(cur + 1);
       log(`<i>Your <b>${sg.name}</b> deepens to <b>${roman}</b>.</i>`);
       showSigilAward(sigilId);
+      // Codex — record the level-up so the encyclopedia shows the
+      // highest tier the player has ever pushed this sigil to.
+      recordCodexSigil(sigilId, cur + 1);
       try { renderSigilTray(); } catch (_) {}
     }
     return sg;
@@ -4157,6 +4160,8 @@ function bindSigil(s, sigilId) {
   s.run._sigilJustBound = sigilId;
   log(`<i>You bind the <b>${sg.name}</b>.</i>`);
   showSigilAward(sigilId);
+  // Codex — first bind of this sigil this lifetime.  Sets tier 1.
+  recordCodexSigil(sigilId, 1);
   // Re-render the tray right away so the chip appears immediately
   // (before the fanfare finishes dismissing).  Without this, the chip
   // wouldn't appear until the next combat tick.
@@ -8180,6 +8185,9 @@ function commitCombo(comboId) {
   // second echo.  Forces variety across turns.
   if (!s.usedCombos) s.usedCombos = new Set();
   s.usedCombos.add(comboId);
+  // Codex — record the first-fire and bump the count so the player can
+  // see across runs which Resonances they actually use.
+  recordCodexCombo(comboId);
   Audio.ui();
   render();
 }
@@ -8509,6 +8517,62 @@ let state;
 // the Abyss).  Everyone else is unlocked by recruiting them in a run.
 const UNLOCKED_KEY = 'kizuna.unlockedStarters';
 const DEFAULT_STARTERS = ['kai'];
+
+// ============================================================================
+// CODEX — persistent encyclopedia of enemies, sigils, and resonances the
+// player has encountered.  All writes go through recordCodex* helpers so a
+// single localStorage round-trip pattern stays consistent.  Reads from
+// showCodexScreen() populate the codex screens.  Simulating short-circuits.
+// ============================================================================
+const CODEX_KEY = 'kizuna.codex.v1';
+function getCodex() {
+  try {
+    const raw = localStorage.getItem(CODEX_KEY);
+    const obj = raw ? (JSON.parse(raw) || {}) : {};
+    return {
+      enemies: obj.enemies || {},
+      sigils:  obj.sigils  || {},
+      combos:  obj.combos  || {},
+    };
+  } catch (_) { return { enemies: {}, sigils: {}, combos: {} }; }
+}
+function _saveCodex(c) {
+  try { localStorage.setItem(CODEX_KEY, JSON.stringify(c)); } catch (_) {}
+}
+function recordCodexEnemy(enemyId, opts) {
+  if (!enemyId) return;
+  if (typeof __simulating !== 'undefined' && __simulating) return;
+  const c = getCodex();
+  const entry = c.enemies[enemyId] = c.enemies[enemyId] || { encountered: false, killed: 0, weaknessKnown: false, firstSeen: null };
+  if (opts && opts.encountered) {
+    if (!entry.firstSeen) entry.firstSeen = Date.now();
+    entry.encountered = true;
+  }
+  if (opts && opts.killed)         entry.killed = (entry.killed || 0) + 1;
+  if (opts && opts.weaknessKnown)  entry.weaknessKnown = true;
+  _saveCodex(c);
+}
+function recordCodexSigil(sigilId, tier) {
+  if (!sigilId) return;
+  if (typeof __simulating !== 'undefined' && __simulating) return;
+  const c = getCodex();
+  const entry = c.sigils[sigilId] = c.sigils[sigilId] || { binds: 0, maxTier: 1, firstBound: Date.now() };
+  entry.binds   = (entry.binds || 0) + 1;
+  entry.maxTier = Math.max(entry.maxTier || 1, tier || 1);
+  _saveCodex(c);
+}
+function recordCodexCombo(comboId) {
+  if (!comboId) return;
+  if (typeof __simulating !== 'undefined' && __simulating) return;
+  const c = getCodex();
+  const entry = c.combos[comboId] = c.combos[comboId] || { fires: 0, firstFired: Date.now() };
+  entry.fires = (entry.fires || 0) + 1;
+  _saveCodex(c);
+}
+function resetCodex() {
+  try { localStorage.removeItem(CODEX_KEY); } catch (_) {}
+}
+
 function getUnlockedStarters() {
   try {
     const raw = localStorage.getItem(UNLOCKED_KEY);
@@ -8703,6 +8767,10 @@ function startEncounter(encSpec) {
     if (!key) return;
     const baseId = String(key).split('#')[0];
     state.enemies.chars[key] = newEnemyState(baseId);
+    // Mark this enemy as "encountered" in the persistent codex.  The
+    // bestiary screen uses this flag to reveal name + portrait; before
+    // first encounter the entry shows as a sealed "???".
+    recordCodexEnemy(baseId, { encountered: true });
   });
 
   state.queue = [];
@@ -9322,6 +9390,9 @@ function applyDmgToEnemy(s, e, baseAmt) {
   if (!e.weaknessRevealed && ((isWeaknessHit && amt > 0) || s.currentActorId === 'hask' || veyrInheritsFW)) {
     e.weaknessRevealed = true;
     e._weaknessJustRevealed = true;
+    // Bestiary — knowing this enemy's weakness is persistent meta-info.
+    // Once discovered in one run it shows in the bestiary forever.
+    recordCodexEnemy(e.id, { weaknessKnown: true });
     if (s.currentActorId === 'hask' && toHp === 0) spawnPassivePopup('hask', 'FROSTBREAK');
     if (veyrInheritsFW && toHp === 0) spawnPassivePopup('veyr', 'FROZEN WITNESS');
     // Tutorial — first weakness reveal of the player's lifetime.  Wait
@@ -9488,6 +9559,10 @@ function applyDmgToEnemy(s, e, baseAmt) {
 
 function killEnemy(s, e) {
   e.dead = true;
+  // Bestiary kill count — bumps the codex tally for the enemy's TEMPLATE
+  // id (not the per-instance slot key like "shade#1"), since the codex
+  // groups by template.  Simulating short-circuits inside recordCodexEnemy.
+  recordCodexEnemy(e.id, { killed: true });
   // Per-enemy onDeath hook — used by minion-bosses (Sundering Choir's
   // Voices, Husk Garden's Blooms, Twin Mirror's shard split) to react
   // to the kill before the standard log/popup fires.  Receives the
@@ -18070,6 +18145,7 @@ function showTitleScreen() {
     renderMap();
   }, !canContinue));
   menuEl.appendChild(mkBtn('Heroes',  () => showHeroCodex()));
+  menuEl.appendChild(mkBtn('Codex',   () => showCodexScreen()));
   menuEl.appendChild(mkBtn('Credits', () => showCreditsScreen()));
   menuEl.appendChild(mkBtn('Settings', () => showSettingsScreen()));
 
@@ -18486,6 +18562,199 @@ function _buildHeroCodexContainer() {
         <button type="button" class="hc-close" id="hc-close" aria-label="Close">×</button>
       </header>
       <div class="hc-list" id="hc-list"></div>
+    </div>
+  `;
+  document.body.appendChild(root);
+  return root;
+}
+
+// ============================================================================
+// CODEX SCREEN — persistent encyclopedia of enemies, sigils, and resonances.
+// Mirrors the hero-codex container shape (full-bleed dark backdrop, single
+// card scrolling internally) but adds a 3-tab switcher.  Reads from
+// getCodex() — populated by recordCodex* hooks fired in combat.
+// ============================================================================
+let _codexActiveTab = 'bestiary';
+
+function showCodexScreen() {
+  Audio.ui();
+  const root = document.getElementById('full-codex') || _buildCodexContainer();
+  const body = document.getElementById('codex-body');
+  if (!body) return;
+  // Re-render tab nav + body for the current active tab.
+  _renderCodex(body);
+  root.classList.remove('hidden');
+  const closeBtn = document.getElementById('codex-close');
+  if (closeBtn) closeBtn.onclick = () => hideCodexScreen();
+  bindBackdropDismiss(root, '.codex-card', hideCodexScreen);
+}
+
+function hideCodexScreen() {
+  const root = document.getElementById('full-codex');
+  if (root) root.classList.add('hidden');
+}
+
+function _renderCodex(body) {
+  const codex = getCodex();
+  const tabs = [
+    { id: 'bestiary',   label: 'Bestiary',   count: Object.values(codex.enemies).filter(e => e.encountered).length, total: Object.values(ENEMIES).filter(e => !e._dev).length },
+    { id: 'sigils',     label: 'Sigils',     count: Object.keys(codex.sigils).length,                                total: Object.keys(SIGILS).length },
+    { id: 'resonances', label: 'Resonances', count: Object.keys(codex.combos).length,                                total: Object.keys(COMBOS).length },
+  ];
+  const nav = tabs.map(t => `
+    <button type="button" class="codex-tab${t.id === _codexActiveTab ? ' codex-tab-active' : ''}" data-tab="${t.id}">
+      <span class="codex-tab-label">${t.label}</span>
+      <span class="codex-tab-count">${t.count} / ${t.total}</span>
+    </button>
+  `).join('');
+  let listHtml = '';
+  if (_codexActiveTab === 'bestiary')        listHtml = _renderCodexBestiary(codex);
+  else if (_codexActiveTab === 'sigils')     listHtml = _renderCodexSigils(codex);
+  else if (_codexActiveTab === 'resonances') listHtml = _renderCodexResonances(codex);
+  body.innerHTML = `
+    <nav class="codex-tabs">${nav}</nav>
+    <div class="codex-list">${listHtml}</div>
+  `;
+  body.querySelectorAll('.codex-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      Audio.ui();
+      _codexActiveTab = btn.dataset.tab;
+      _renderCodex(body);
+    });
+  });
+}
+
+// Shared school glyph map — duplicated locally so the codex can render
+// weakness even when combat code isn't loaded into view.
+const _CODEX_SCHOOL_GLYPH = { physical: '⚔', holy: '✦', arcane: '✶', ranged: '➳', stealth: '◐' };
+
+function _renderCodexBestiary(codex) {
+  // Show every enemy in the ENEMIES table — known ones get their full
+  // entry, unknown ones render as sealed "???" rows so the player can
+  // see what's still out there to discover.
+  const groups = { minion: [], boss: [], megaboss: [], wanderer: [] };
+  Object.entries(ENEMIES).forEach(([id, def]) => {
+    if (!def) return;
+    let group = 'minion';
+    if (def.megaBoss) group = 'megaboss';
+    else if (def.boss) group = 'boss';
+    else if (id.startsWith('wand_')) group = 'wanderer';
+    groups[group].push({ id, def });
+  });
+  const renderGroup = (title, arr) => {
+    if (!arr.length) return '';
+    const rows = arr.map(({ id, def }) => {
+      const entry = codex.enemies[id] || {};
+      const seen = !!entry.encountered;
+      const killed = entry.killed || 0;
+      const weak = Array.isArray(def.weakness) ? def.weakness[0] : def.weakness;
+      const weakHtml = (seen && entry.weaknessKnown && weak)
+        ? `<span class="codex-weak weak-${weak}" title="Weak to ${weak}">${_CODEX_SCHOOL_GLYPH[weak] || '?'}</span>`
+        : (seen ? `<span class="codex-weak codex-weak-unknown" title="Weakness not yet discovered">?</span>` : '');
+      return `<div class="codex-row${seen ? '' : ' codex-row-sealed'}">
+        <div class="codex-portrait">${seen && PORTRAITS[id] ? PORTRAITS[id] : '◇'}</div>
+        <div class="codex-row-body">
+          <div class="codex-row-head">
+            <span class="codex-row-name">${seen ? def.name : '???'}</span>
+            ${weakHtml}
+          </div>
+          <div class="codex-row-meta">
+            <span>HP ${seen ? def.maxHp : '??'}</span>
+            <span>${seen ? `${killed} ${killed === 1 ? 'kill' : 'kills'}` : 'unseen'}</span>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+    return `<div class="codex-group">
+      <div class="codex-group-head">${title}</div>
+      ${rows}
+    </div>`;
+  };
+  return renderGroup('Minions', groups.minion)
+       + renderGroup('Bosses', groups.boss)
+       + renderGroup('Mega-bosses', groups.megaboss)
+       + renderGroup('Wanderers', groups.wanderer);
+}
+
+function _renderCodexSigils(codex) {
+  const cats = { combat: [], defense: [], resource: [] };
+  Object.entries(SIGILS).forEach(([id, sg]) => {
+    if (!sg) return;
+    (cats[sg.category] || cats.resource).push({ id, sg });
+  });
+  const ROMAN = ['', 'I', 'II', 'III'];
+  const renderCat = (title, arr) => {
+    if (!arr.length) return '';
+    const rows = arr.map(({ id, sg }) => {
+      const entry = codex.sigils[id] || {};
+      const seen = !!entry.binds;
+      const tier = entry.maxTier || 0;
+      const tierLabel = seen && tier > 1 ? ` · max ${ROMAN[Math.min(tier, 3)] || tier}` : '';
+      return `<div class="codex-row codex-row-sigil cat-${sg.category}${seen ? '' : ' codex-row-sealed'}">
+        <div class="codex-sigil-icon">${sg.icon || '◆'}</div>
+        <div class="codex-row-body">
+          <div class="codex-row-head">
+            <span class="codex-row-name">${sg.name}</span>
+            <span class="codex-row-stat">${seen ? `${entry.binds} bind${entry.binds === 1 ? '' : 's'}${tierLabel}` : 'unbound'}</span>
+          </div>
+          <div class="codex-row-desc">${sg.desc}</div>
+        </div>
+      </div>`;
+    }).join('');
+    return `<div class="codex-group">
+      <div class="codex-group-head">${title}</div>
+      ${rows}
+    </div>`;
+  };
+  return renderCat('Combat',   cats.combat)
+       + renderCat('Defense',  cats.defense)
+       + renderCat('Resource', cats.resource);
+}
+
+function _renderCodexResonances(codex) {
+  const tierRank = (c) => (c.tier === 'triple' ? 0 : 2) + (c.sigTier ? 0 : 1);
+  const sorted = Object.values(COMBOS).slice().sort((a, b) => {
+    const r = tierRank(a) - tierRank(b);
+    if (r) return r;
+    return (a.name || '').localeCompare(b.name || '');
+  });
+  const rows = sorted.map(c => {
+    const entry = codex.combos[c.id] || {};
+    const seen = !!entry.fires;
+    const tierLabel = c.sigTier
+      ? (c.tier === 'triple' ? 'SIG TRIPLE' : 'SIG DUO')
+      : (c.tier === 'triple' ? 'TRIPLE' : 'DUO');
+    const tierCls = c.sigTier ? 'tier-sig' : (c.tier === 'triple' ? 'tier-triple' : 'tier-duo');
+    const partners = (c.requires || []).map(r => {
+      const nm = (CHARS[r.heroId] && CHARS[r.heroId].name) || r.heroId;
+      return `${nm}${r.kind === 'sig' ? ' ★' : ''}`;
+    }).join(' + ');
+    return `<div class="codex-row codex-row-combo ${tierCls}${seen ? '' : ' codex-row-sealed'}">
+      <div class="codex-row-body">
+        <div class="codex-row-head">
+          <span class="codex-row-name">${c.name}</span>
+          <span class="codex-row-stat">${seen ? `${entry.fires} fire${entry.fires === 1 ? '' : 's'}` : 'unfired'}</span>
+        </div>
+        <div class="codex-row-meta"><span>${tierLabel}</span><span>${partners}</span></div>
+        <div class="codex-row-desc">${c.desc}</div>
+      </div>
+    </div>`;
+  }).join('');
+  return `<div class="codex-group">${rows}</div>`;
+}
+
+function _buildCodexContainer() {
+  const root = document.createElement('div');
+  root.id = 'full-codex';
+  root.className = 'hidden';
+  root.innerHTML = `
+    <div class="codex-bg"></div>
+    <div class="codex-card">
+      <header class="codex-header">
+        <h2 class="codex-title">CODEX</h2>
+        <button type="button" class="codex-close" id="codex-close" aria-label="Close">×</button>
+      </header>
+      <div class="codex-body" id="codex-body"></div>
     </div>
   `;
   document.body.appendChild(root);
