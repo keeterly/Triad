@@ -7389,7 +7389,7 @@ const COMBOS = {
       if (front && !front.dead) {
         front.armor = 0;
         applyDmgToEnemy(s, front, 5);
-        if (!front.dead) { front.dulled = (front.dulled || 0) + 1; spawnPopupId(front.id, 'DULLED', 'synergy', 'enemy'); }
+        if (!front.dead) { front.dulled = (front.dulled || 0) + 1; spawnPopupId(front.id, 'DULLED', 'stagger', 'enemy'); }
       }
     },
     cinematic: [
@@ -7573,7 +7573,7 @@ const COMBOS = {
     ],
     fn: (s) => {
       aliveParty(s).forEach(c => { c.bleed = 0; c.dulled = 0; c.vuln = Math.max(0, c.vuln - 2); });
-      aliveEnemies(s).forEach(e => { e.burn = Math.max(e.burn, 3); spawnPopupId(e.id, 'BURN', 'crit', 'enemy'); });
+      aliveEnemies(s).forEach(e => { e.burn = Math.max(e.burn, 3); spawnPopupId(e.id, 'BURN', 'stagger', 'enemy'); });
       dmgAllEnemies(s, 2);
     },
     cinematic: [
@@ -7625,7 +7625,7 @@ const COMBOS = {
     ],
     fn: (s) => {
       dmgAllEnemies(s, 4);
-      aliveEnemies(s).forEach(e => { e.vuln += 1; spawnPopupId(e.id, 'VULN', 'stagger', 'enemy'); });
+      aliveEnemies(s).forEach(e => { e.vuln += 1; spawnPopupId(e.id, 'VULN +1', 'stagger', 'enemy'); });
       gainResolve(s, 1);
     },
     cinematic: [
@@ -8939,7 +8939,9 @@ function resolveTargets(s, def) {
 // ============================================================================
 
 // Pure prediction — mirrors applyDmgToEnemy's modifier stack but never mutates state.
-// Returns { amt, toHp, badge } where badge is 'WEAK!' | 'RESIST' | 'STG' | null.
+// Returns { amt, toHp, badge } where badge is 'WEAK!' | 'RESIST' | 'STG!' | null.
+// (STG! = this hit would consume the staggered state for 2× damage — distinct
+//  from the state-apply moment which spawns a 'STAGGERED' popup instead.)
 // Assumes the action fires now (vuln/armor/pendings are read as-is from current state).
 function previewDamage(s, e, baseAmt, actorId, techElement) {
   if (!e || e.dead || !(baseAmt > 0)) return { amt: 0, toHp: 0, badge: null, bonuses: [] };
@@ -13119,7 +13121,7 @@ function applyPreviewHighlight({ enemySlots, partySlots, enemyHits, partyHeals, 
       if (hit.kill) label.classList.add('kill');
       else if (hit.badge === 'WEAK!') label.classList.add('weak');
       else if (hit.badge === 'RESIST') label.classList.add('resist');
-      else if (hit.badge === 'STG') label.classList.add('stagger');
+      else if (hit.badge === 'STG!') label.classList.add('stagger');
       const badgeText = hit.kill ? 'KO' : hit.badge;
       // Sub-label naming the dominant passive contributing to the hit —
       // only shown when no other big badge (WEAK/RESIST/STG/KO) is taking
