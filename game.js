@@ -8979,6 +8979,106 @@ function resetBonds() {
   try { localStorage.removeItem(BONDS_KEY); } catch (_) {}
 }
 
+// ============================================================================
+// CHARMS — keepsakes tied to hero pairs.  Each charm unlocks when its
+// pair reaches Bond tier 2 (Kindred / 10 shared fights).  The player
+// equips ONE charm before a run; the run gets a small permanent buff
+// for the climb.  Equip surface lives in the Codex Bonds tab.
+// Persistent: kizuna.equippedCharm = charmId | null.
+// ============================================================================
+const CHARM_KEY = 'kizuna.equippedCharm';
+const CHARMS = {
+  sisters_coal: {
+    name: "Sister's Coal",
+    pairKey: 'cassia+elin',
+    flavor: 'A coal from the watch-fire Cassia and Elin lit together.',
+    effect: '+2 max HP to every party hero at run start',
+    applyAtRunStart: (s) => {
+      Object.values(s.party.chars).forEach(c => {
+        if (c) { c.maxHp += 2; c.hp = Math.min(c.maxHp, c.hp + 2); }
+      });
+    },
+  },
+  iron_coal: {
+    name: 'Iron Coal',
+    pairKey: 'cassia+korin',
+    flavor: 'The pact between sword and oath, fused into a single ember.',
+    effect: 'Every hero starts each fight with +2 armor',
+    applyAtFightStart: (s) => {
+      aliveParty(s).forEach(c => { c.armor = (c.armor || 0) + 2; });
+    },
+  },
+  banner_coal: {
+    name: 'Banner Coal',
+    pairKey: 'branwen+cassia',
+    flavor: 'When the banner went up and the arrow went out — two beats, one moment.',
+    effect: 'First attack each fight deals +2 damage',
+    // Applied in applyDmgToEnemy by reading s.run._charmFirstAttackPending.
+    applyAtFightStart: (s) => { if (s.run) s.run._charmFirstAttackPending = true; },
+  },
+  shadow_coal: {
+    name: 'Shadow Coal',
+    pairKey: 'branwen+mira',
+    flavor: 'Two hunters share a kill and the same breath.',
+    effect: 'First kill each fight grants +1 bonus Resolve',
+    applyAtFightStart: (s) => { if (s.run) s.run._charmFirstKillPending = true; },
+  },
+  spirit_coal: {
+    name: 'Spirit Coal',
+    pairKey: 'branwen+elin',
+    flavor: 'A coal the arrows pass over — and the wound after closes deeper.',
+    effect: 'First heal each fight is +2',
+    applyAtFightStart: (s) => { if (s.run) s.run._charmFirstHealPending = true; },
+  },
+  hearth_coal: {
+    name: 'Hearth Coal',
+    pairKey: 'ash+elin',
+    flavor: 'Flame and mercy warmed at the same fire.  The cold cannot stay long.',
+    effect: 'First incoming attack each fight is reduced by 3',
+    applyAtFightStart: (s) => { if (s.run) s.run._charmFirstShieldPending = true; },
+  },
+};
+function getEquippedCharmId() {
+  try { return localStorage.getItem(CHARM_KEY) || null; }
+  catch (_) { return null; }
+}
+function setEquippedCharm(id) {
+  try {
+    if (id && CHARMS[id]) localStorage.setItem(CHARM_KEY, id);
+    else localStorage.removeItem(CHARM_KEY);
+  } catch (_) {}
+}
+function getEquippedCharm() {
+  const id = getEquippedCharmId();
+  return id && CHARMS[id] ? CHARMS[id] : null;
+}
+function isCharmUnlocked(charmId) {
+  const def = CHARMS[charmId];
+  if (!def) return false;
+  const bonds = getBonds();
+  const entry = bonds[def.pairKey];
+  if (!entry) return false;
+  return bondTierFor(entry.fights || 0) >= 2;
+}
+// Apply the equipped charm at the appropriate moment.  Two hook
+// stages — run start (HP bumps, etc.) and fight start (per-encounter
+// buffs).  Caller responsible for calling at the right time.
+function applyEquippedCharmRunStart(s) {
+  const c = getEquippedCharm();
+  if (c && typeof c.applyAtRunStart === 'function') {
+    try { c.applyAtRunStart(s); } catch (_) {}
+  }
+}
+function applyEquippedCharmFightStart(s) {
+  const c = getEquippedCharm();
+  if (c && typeof c.applyAtFightStart === 'function') {
+    try { c.applyAtFightStart(s); } catch (_) {}
+  }
+}
+function resetCharms() {
+  try { localStorage.removeItem(CHARM_KEY); } catch (_) {}
+}
+
 const CODEX_KEY = 'kizuna.codex.v1';
 function getCodex() {
   try {
@@ -9185,6 +9285,11 @@ const _newStateRaw = newState;
 newState = function(forcedStarter) {
   const s = _newStateRaw(forcedStarter);
   try { applyEmbersUnlocks(s); } catch (_) {}
+  // Charm — equipped pair-keepsake applies its run-start hook BEFORE
+  // baseline reroll wiring so HP/Resolve bumps are visible at first
+  // render.  Per-fight charm hooks fire from startEncounter.
+  if (s.run) s.run.charmId = getEquippedCharmId();
+  try { applyEquippedCharmRunStart(s); } catch (_) {}
   // Baseline reroll budget per layer — every run gets 1 free reroll
   // at sigil-offer screens, plus any bonus from the Second Look unlock
   // (applied above via s.run.rerollBonusPerLayer).
@@ -9299,6 +9404,16 @@ function startEncounter(encSpec) {
     flawless: true,
   };
   state.run.currentEnc = encSpec;
+  // Clear per-fight charm flags before applying the equipped charm so
+  // the new fight starts with a clean slate (e.g., first-attack bonus
+  // re-arms each encounter, not just the first one).
+  if (state.run) {
+    state.run._charmFirstAttackPending = false;
+    state.run._charmFirstKillPending = false;
+    state.run._charmFirstHealPending = false;
+    state.run._charmFirstShieldPending = false;
+  }
+  try { applyEquippedCharmFightStart(state); } catch (_) {}
   // Achievement — Five sigils carried into a single fight.  Cheap to
   // check at startEncounter (sigils count doesn't change mid-fight).
   if (state.run && Array.isArray(state.run.sigils) && state.run.sigils.length >= 5) {
@@ -9794,6 +9909,13 @@ function applyDmgToEnemy(s, e, baseAmt) {
   // pending one-shot attack bonuses (Banner Fire, Wild Hunt, etc.)
   amt += consumePendingBonus(s, s.currentActorId, 'attackBonus');
   amt += s.outgoingDmgMod;
+  // Charm — Banner Coal: first attack each fight gets +2 damage.
+  // Flag is set by applyEquippedCharmFightStart and consumed here on
+  // the first hit that actually deals damage.
+  if (s.run && s.run._charmFirstAttackPending && amt > 0) {
+    amt += 2;
+    s.run._charmFirstAttackPending = false;
+  }
 
   // vulnerable adds +2 per stack consumed (1 stack per hit); Ember of Wrath sigil adds +2 more
   let vulnConsumed = 0;
@@ -10092,6 +10214,11 @@ function applyDmgToEnemy(s, e, baseAmt) {
 
 function killEnemy(s, e) {
   e.dead = true;
+  // Charm — Shadow Coal: first kill each fight grants +1 bonus Resolve.
+  if (s.run && s.run._charmFirstKillPending) {
+    s.run._charmFirstKillPending = false;
+    gainResolve(s, 1);
+  }
   // Bestiary kill count — bumps the codex tally for the enemy's TEMPLATE
   // id (not the per-instance slot key like "shade#1"), since the codex
   // groups by template.  Simulating short-circuits inside recordCodexEnemy.
@@ -10247,6 +10374,14 @@ function enemyAdvanceFill(s) {
 
 function applyDmgToParty(s, c, amt) {
   if (!c || c.downed) return;
+  // Charm — Hearth Coal: first incoming attack each fight reduced by 3.
+  // Sits BEFORE the absorb-style passives below so the reduction shrinks
+  // the hit BEFORE Wall / Veil consume; that way a small first hit might
+  // not even need the absorb.  Consumed on the first non-zero hit.
+  if (s.run && s.run._charmFirstShieldPending && amt > 0) {
+    amt = Math.max(0, amt - 3);
+    s.run._charmFirstShieldPending = false;
+  }
   // Veil — Quiet Volley / Phantom Crescent / Hallowed Cleave / Sacred
   // Wakening grant a one-shot evade.  First incoming hit fizzles entirely
   // and the flag clears.  Sits at the very top: nothing else processes.
@@ -10483,7 +10618,14 @@ function partyHeal(s, amt) {
   // Squad Sigil — Mercy Doubled (Cassia + Elin together) bumps every
   // party heal by +1.
   const squadHeal = hasSquadSigil(s, 'mercyDoubled') ? 1 : 0;
-  const total = amt + bonus + casterMod + witherMod + squadHeal;
+  // Charm — Spirit Coal: first heal each fight is +2.  Consumed on
+  // first use; flag re-arms at startEncounter.
+  let charmBump = 0;
+  if (s.run && s.run._charmFirstHealPending && amt > 0) {
+    charmBump = 2;
+    s.run._charmFirstHealPending = false;
+  }
+  const total = amt + bonus + casterMod + witherMod + squadHeal + charmBump;
   aliveParty(s).forEach(c => {
     const recvMod = getQuirkHealMod(s, c.id);
     const heal = Math.max(0, total + recvMod);
@@ -19007,6 +19149,7 @@ function showSettingsScreen() {
           resetCodex();
           resetAchievements();
           resetBonds();
+          resetCharms();
           clearCarriedParty();
           flashSettings('Meta progression reset.');
           setTimeout(() => { hideOverlay(); showTitleScreen(); }, 600);
@@ -19598,15 +19741,34 @@ function _renderCodexHeroes(unlocked) {
 function _renderCodexBonds(bonds) {
   // Compact bond list reused inside the codex tab.  Mirrors the
   // standalone Bonds screen but trimmed to a single column so it
-  // fits the narrower codex card.  Empty state matches the standalone.
+  // fits the narrower codex card.  Pairs with a charm (declared in
+  // CHARMS by pairKey) get an Equip / Equipped / Locked button row
+  // below the bar so the player can pick a keepsake straight from
+  // the bond entry — no separate Charms screen needed.
   const entries = Object.entries(bonds).map(([key, val]) => {
     const [a, b] = key.split('+');
-    return { a, b, fights: val.fights || 0 };
+    return { a, b, fights: val.fights || 0, key };
   }).sort((x, y) => y.fights - x.fights);
+  const equippedId = getEquippedCharmId();
+  // Build a quick lookup from pair-key to charm so each bond row can
+  // surface its pair-keepsake (if one exists in CHARMS).
+  const charmByPair = {};
+  Object.entries(CHARMS).forEach(([id, def]) => { charmByPair[def.pairKey] = { id, def }; });
+  // Top of the tab: small banner showing what's currently equipped so
+  // the player can read their loadout for next run at a glance.
+  const equippedDef = equippedId && CHARMS[equippedId];
+  const equippedBanner = `
+    <div class="codex-charm-equipped">
+      <span class="codex-charm-equipped-label">Equipped</span>
+      ${equippedDef
+        ? `<span class="codex-charm-equipped-name">${equippedDef.name}</span><span class="codex-charm-equipped-effect">${equippedDef.effect}</span><button type="button" class="codex-charm-unequip">Unequip</button>`
+        : `<span class="codex-charm-equipped-empty">No charm — reach Bond tier 2 (Kindred · 10 shared fights) on a pair to unlock theirs.</span>`}
+    </div>
+  `;
   if (!entries.length) {
-    return `<div class="codex-group"><div class="codex-empty">No bonds yet.  Recruit a hero on the road, win a fight together, and watch this list fill.</div></div>`;
+    return `<div class="codex-group">${equippedBanner}<div class="codex-empty">No bonds yet.  Recruit a hero on the road, win a fight together, and watch this list fill.</div></div>`;
   }
-  const rows = entries.map(({ a, b, fights }) => {
+  const rows = entries.map(({ a, b, fights, key }) => {
     const da = CHARS[a]; const db = CHARS[b];
     if (!da || !db) return '';
     const tier = bondTierFor(fights);
@@ -19614,6 +19776,24 @@ function _renderCodexBonds(bonds) {
     const tierCls = `bond-tier-${tier}`;
     const nextAt = tier === 0 ? 1 : tier === 1 ? 10 : tier === 2 ? 25 : tier === 3 ? 50 : 50;
     const pct = Math.min(100, Math.round((fights / nextAt) * 100));
+    // Charm row — shows the pair's keepsake if one exists.  Locked
+    // until Bond tier 2; Equip button toggles to Equipped if it's
+    // currently the active charm.
+    const charm = charmByPair[key];
+    let charmHtml = '';
+    if (charm) {
+      const unlocked = tier >= 2;
+      const isEquipped = unlocked && equippedId === charm.id;
+      charmHtml = `<div class="codex-bond-charm${unlocked ? '' : ' codex-bond-charm-locked'}">
+        <div class="codex-bond-charm-info">
+          <span class="codex-bond-charm-name">${charm.def.name}</span>
+          <span class="codex-bond-charm-effect">${charm.def.effect}</span>
+        </div>
+        ${unlocked
+          ? `<button type="button" class="codex-bond-charm-btn${isEquipped ? ' codex-bond-charm-btn-active' : ''}" data-charm="${charm.id}">${isEquipped ? 'Equipped' : 'Equip'}</button>`
+          : `<span class="codex-bond-charm-lock">Kindred ✦ unlocks</span>`}
+      </div>`;
+    }
     return `<div class="codex-row codex-row-bond ${tierCls}">
       <div class="codex-bond-portraits">
         <div class="codex-bond-portrait">${PORTRAITS[a] || ''}</div>
@@ -19626,10 +19806,31 @@ function _renderCodexBonds(bonds) {
         </div>
         <div class="codex-bond-bar"><div class="codex-bond-bar-fill" style="width:${pct}%"></div></div>
         <div class="codex-row-meta"><span><b>${fights}</b> shared</span>${tier < 4 ? `<span>next ${nextAt}</span>` : `<span>max</span>`}</div>
+        ${charmHtml}
       </div>
     </div>`;
   }).join('');
-  return `<div class="codex-group">${rows}</div>`;
+  // Bind equip / unequip buttons after the next paint.
+  setTimeout(() => {
+    document.querySelectorAll('#codex-body .codex-bond-charm-btn[data-charm]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const charmId = btn.dataset.charm;
+        const currently = getEquippedCharmId();
+        setEquippedCharm(currently === charmId ? null : charmId);
+        Audio.ui();
+        _renderCodex(document.getElementById('codex-body'));
+      });
+    });
+    const unequipBtn = document.querySelector('#codex-body .codex-charm-unequip');
+    if (unequipBtn) {
+      unequipBtn.addEventListener('click', () => {
+        setEquippedCharm(null);
+        Audio.ui();
+        _renderCodex(document.getElementById('codex-body'));
+      });
+    }
+  }, 0);
+  return `<div class="codex-group">${equippedBanner}${rows}</div>`;
 }
 
 function _renderCodexAchievements(earned) {
