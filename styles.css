@@ -3717,6 +3717,73 @@ body.on-title:has(#overlay:not(.hidden)) #stage-scale {
   border: 1px solid rgba(240,212,136,0.18);
 }
 
+/* Active-slot count chip on the balance header — surfaces the "X / N
+   active" budget so the player sees what's equippable at a glance. */
+.embers-active-count {
+  margin-left: auto;
+  font-size: 9.5px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gold);
+  font-style: italic;
+  font-variant-numeric: tabular-nums;
+  padding: 3px 10px;
+  background: rgba(20,14,8,0.5);
+  border: 1px solid rgba(240,212,136,0.22);
+}
+
+/* Active perks get a gold glow + accent border so the player can
+   see which of their purchased unlocks are currently burning. */
+.embers-row.embers-row-active {
+  border-left: 2px solid var(--gold-bright);
+  box-shadow: inset 0 0 0 1px rgba(240,212,136,0.1), 0 0 14px rgba(240,212,136,0.18);
+}
+
+.embers-row-actions {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.embers-row-actions .embers-buy { flex: 1 1 auto; }
+
+/* Equip toggle button — sits next to the Buy button.  Three visual
+   states: unequipped (gold-border outline), equipped (filled gold),
+   disabled-but-unowned (no render), disabled-because-full (greyed). */
+.embers-equip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 14px;
+  background: transparent;
+  border: 1px solid var(--gold-dim);
+  color: var(--gold-pale);
+  font-family: inherit;
+  font-size: 9.5px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+  flex: 0 0 auto;
+}
+.embers-equip:not(.embers-equip-disabled):not(.embers-equip-active):hover {
+  border-color: var(--gold-bright);
+  color: var(--gold-bright);
+  background: rgba(240,212,136,0.08);
+}
+.embers-equip.embers-equip-active {
+  background: linear-gradient(180deg, var(--gold) 0%, var(--gold-deep) 100%);
+  color: #1a0e04;
+  border-color: var(--gold-bright);
+  text-shadow: 0 1px 0 rgba(255,240,184,0.4);
+  box-shadow: 0 0 10px rgba(240,212,136,0.5);
+}
+.embers-equip.embers-equip-disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+  filter: saturate(0.4);
+}
+
 /* ===========================================================================
    ASCENSION PICKER — overlay row list of available difficulty rungs.
    Each row stacks modifier descriptions so the player sees what they
@@ -3996,58 +4063,75 @@ body.on-title:has(#overlay:not(.hidden)) #stage-scale {
 
 /* ===========================================================================
    SIGIL REROLL — secondary action below the three offer cards on a
-   sigil-pick screen.  Sized to read as sub-action (not primary commit),
-   greys out when no rerolls are left.  Budget per layer comes from
-   newState (baseline 1 + Embers Second Look bonus).
+   sigil-pick screen.  Renders into #overlay-body (NOT the choices
+   grid) so it sits on its own row.  Hidden entirely unless the
+   player has purchased the Embers Second Look unlock.  Disabled
+   state ("0 left") is shown once the layer's budget is spent.
    =========================================================================== */
 .sigil-reroll-bar {
-  grid-column: 1 / -1;
   display: flex;
   justify-content: center;
-  margin-top: 6px;
+  margin: 10px auto 4px;
+  padding: 0 16px;
 }
 .sigil-reroll-btn {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 14px;
-  background: linear-gradient(180deg, rgba(28,22,18,0.7) 0%, rgba(10,8,6,0.85) 100%);
-  border: 1px solid rgba(240,212,136,0.32);
-  color: var(--ink-dim);
+  gap: 10px;
+  padding: 6px 18px;
+  background: linear-gradient(180deg, rgba(40,30,18,0.78) 0%, rgba(14,10,8,0.88) 100%);
+  border: 1px solid var(--gold-dim);
+  color: var(--ink);
   font-family: inherit;
-  font-size: 10px;
+  font-size: 10.5px;
   letter-spacing: 0.22em;
   text-transform: uppercase;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.18s;
+  box-shadow:
+    0 4px 14px rgba(0,0,0,0.55),
+    inset 0 1px 0 rgba(232,220,196,0.08);
 }
 .sigil-reroll-btn:not(.sigil-reroll-disabled):hover {
   filter: brightness(1.2);
   border-color: var(--gold-bright);
   color: var(--gold-pale);
-  box-shadow: 0 0 10px rgba(240,212,136,0.3);
+  box-shadow:
+    0 4px 14px rgba(0,0,0,0.55),
+    0 0 16px rgba(240,212,136,0.45),
+    inset 0 1px 0 rgba(232,220,196,0.12);
+  transform: translateY(-1px);
 }
+.sigil-reroll-btn:not(.sigil-reroll-disabled):active { transform: translateY(0); }
 .sigil-reroll-disabled {
   cursor: not-allowed;
-  opacity: 0.4;
+  opacity: 0.5;
+  filter: saturate(0.4);
 }
 .sigil-reroll-icon {
-  font-size: 13px;
+  font-size: 15px;
   color: var(--gold-bright);
-  text-shadow: 0 0 6px rgba(240,212,136,0.5);
+  text-shadow: 0 0 8px rgba(240,212,136,0.55);
+  line-height: 1;
 }
 .sigil-reroll-disabled .sigil-reroll-icon {
   color: var(--ink-faint);
   text-shadow: none;
 }
-.sigil-reroll-label { letter-spacing: 0.22em; }
+.sigil-reroll-label {
+  letter-spacing: 0.22em;
+  color: var(--gold-pale);
+  font-weight: 600;
+}
+.sigil-reroll-disabled .sigil-reroll-label { color: var(--ink-faint); }
 .sigil-reroll-count {
   font-size: 9px;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
   color: var(--ink-faint);
   font-variant-numeric: tabular-nums;
-  border-left: 1px solid rgba(232,220,196,0.18);
-  padding-left: 8px;
+  border-left: 1px solid rgba(232,220,196,0.2);
+  padding-left: 10px;
+  text-transform: lowercase;
 }
 
 /* ===========================================================================
@@ -10301,7 +10385,15 @@ button.path-node:not(:disabled):hover .pn-icon {
    blood-tinted glow across the screen.  Cleared when the player returns
    to the title from the run summary.
    =========================================================================== */
-body.party-fallen #stage {
+/* Dim the battlefield + HUD + ambient layers when the party falls,
+   but EXCLUDE #overlay from the filter — the run summary lives there
+   and shouldn't inherit the desaturation.  Previously a single rule
+   on #stage applied the filter to the whole subtree, so the Defeat
+   screen rendered with saturate(0.25) brightness(0.55) inherited and
+   every word read as faded grey.  Scoping to siblings of #overlay
+   keeps the in-fight scene dimmed (the intent) while letting the
+   summary card render at full brightness. */
+body.party-fallen #stage > *:not(#overlay) {
   filter: saturate(0.25) brightness(0.55);
   transition: filter 1.1s ease-out;
 }

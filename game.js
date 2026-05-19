@@ -8545,6 +8545,12 @@ const DEFAULT_STARTERS = ['kai'];
 const EMBERS_KEY        = 'kizuna.embers';
 const EMBERS_UNLOCKS_KEY = 'kizuna.embersUnlocks';
 const EMBERS_PENDING_KEY = 'kizuna.embersPendingRun';
+// Active-slot cap on simultaneously-equipped Ember perks.  Hades-
+// style: you can PURCHASE all of them across runs, but only a
+// small number provide their effect at any given moment.  Makes
+// every spend feel like a build decision, not just a stat creep.
+const EMBERS_ACTIVE_KEY  = 'kizuna.embersActive.v1';
+const EMBERS_ACTIVE_CAP  = 2;
 
 function getEmbersBalance() {
   try { return parseInt(localStorage.getItem(EMBERS_KEY) || '0', 10) || 0; }
@@ -8566,6 +8572,59 @@ function _setEmbersUnlocks(obj) {
 }
 function getEmbersUnlockTier(id) {
   return (getEmbersUnlocks()[id] || 0);
+}
+
+// Active-set helpers — which purchased unlocks are currently providing
+// their effect.  Stored as an array of unlock IDs in localStorage.
+// On first read, if the active set is empty but the player has owned
+// unlocks (migrating from v1 of the system where every purchase was
+// auto-applied), auto-equip up to EMBERS_ACTIVE_CAP so they don't
+// suddenly lose perks they paid for.
+function _readEmbersActiveRaw() {
+  try {
+    const raw = localStorage.getItem(EMBERS_ACTIVE_KEY);
+    return raw ? (JSON.parse(raw) || []) : null;
+  } catch (_) { return null; }
+}
+function _saveEmbersActive(arr) {
+  try { localStorage.setItem(EMBERS_ACTIVE_KEY, JSON.stringify(arr || [])); }
+  catch (_) {}
+}
+function getEmbersActive() {
+  const stored = _readEmbersActiveRaw();
+  if (stored !== null) {
+    // Defensive — drop ids that no longer exist in EMBER_UNLOCKS or
+    // aren't currently owned (a purchased unlock could be reset via
+    // settings; equipped state should follow).
+    const owned = getEmbersUnlocks();
+    return stored.filter(id => EMBER_UNLOCKS[id] && owned[id] > 0).slice(0, EMBERS_ACTIVE_CAP);
+  }
+  // Migration — pre-active-cap saves have purchased unlocks but no
+  // active set.  Auto-equip the first CAP unlocks the player owns so
+  // their existing state-of-the-world stays intact.
+  const owned = getEmbersUnlocks();
+  const purchased = Object.keys(owned).filter(id => EMBER_UNLOCKS[id] && owned[id] > 0);
+  const migrated = purchased.slice(0, EMBERS_ACTIVE_CAP);
+  if (migrated.length) _saveEmbersActive(migrated);
+  return migrated;
+}
+function isEmberUnlockActive(id) {
+  return getEmbersActive().includes(id);
+}
+function equipEmberUnlock(id) {
+  if (!EMBER_UNLOCKS[id]) return false;
+  if (!(getEmbersUnlocks()[id] > 0)) return false;  // can't equip what you haven't bought
+  const cur = getEmbersActive();
+  if (cur.includes(id)) return true;
+  if (cur.length >= EMBERS_ACTIVE_CAP) return false;
+  cur.push(id);
+  _saveEmbersActive(cur);
+  return true;
+}
+function unequipEmberUnlock(id) {
+  const cur = getEmbersActive().filter(x => x !== id);
+  _saveEmbersActive(cur);
+  return true;
 }
 function _getPendingEmbers() {
   try { return parseInt(localStorage.getItem(EMBERS_PENDING_KEY) || '0', 10) || 0; }
@@ -8697,8 +8756,14 @@ function purchaseEmberUnlock(id) {
   if (bal < cost) return false;
   _setEmbersBalance(bal - cost);
   const cur = getEmbersUnlocks();
+  const wasFirstTier = !(cur[id] > 0);
   cur[id] = (cur[id] || 0) + 1;
   _setEmbersUnlocks(cur);
+  // Auto-equip on the FIRST tier purchase if there's a free active
+  // slot — saves a tap when the player buys their first perk.  Later
+  // tiers don't change equip state (the unlock is already in the
+  // active set if the player wanted it there).
+  if (wasFirstTier) equipEmberUnlock(id);
   return true;
 }
 
@@ -8721,12 +8786,17 @@ function purchaseHeroUnlock(heroId) {
   unlockStarter(heroId);
   return true;
 }
-// Apply every purchased unlock to a fresh run state.  Called from
-// newState() right before the run is returned so the perks land before
-// the first render.
+// Apply every ACTIVELY-EQUIPPED unlock to a fresh run state.  Called
+// from newState() right before the run is returned so the perks land
+// before the first render.  Hades Mirror-style: the player can own
+// many purchased unlocks but only EMBERS_ACTIVE_CAP can be active
+// simultaneously, making each spend a build decision.
 function applyEmbersUnlocks(s) {
   const owned = getEmbersUnlocks();
-  Object.entries(owned).forEach(([id, tier]) => {
+  const active = getEmbersActive();
+  active.forEach(id => {
+    const tier = owned[id] || 0;
+    if (!tier) return;
     const def = EMBER_UNLOCKS[id];
     if (def && typeof def.apply === 'function') {
       try { def.apply(s, tier); } catch (_) {}
@@ -9505,11 +9575,13 @@ newState = function(forcedStarter) {
   // the player feels the trade clearly (e.g., Embers +HP minus
   // Ascension -3 HP nets correctly).
   try { applyAscensionToState(s); } catch (_) {}
-  // Baseline reroll budget per layer — every run gets 1 free reroll
-  // at sigil-offer screens, plus any bonus from the Second Look unlock
-  // (applied above via s.run.rerollBonusPerLayer).
+  // Reroll budget per layer — baseline is 0 (rerolls are an Embers
+  // reward, not a free baseline).  Players who haven't purchased the
+  // Second Look unlock get no rerolls and don't see the button at
+  // all on sigil offers; players who have spent Embers see 1 or 2
+  // rerolls per layer.
   if (s.run) {
-    s.run.rerollsBaseline = 1;
+    s.run.rerollsBaseline = 0;
     s.run.rerollsRemaining = (s.run.rerollsBaseline || 0) + (s.run.rerollBonusPerLayer || 0);
     s.run.rerollsLayerStamp = s.run.layer;
   }
@@ -18333,11 +18405,16 @@ function showSigilOverlay(offers, onDone, opts) {
     card.addEventListener('click', () => commitSigil(sg.id, continueAfter));
     choices.appendChild(card);
   });
-  // Reroll button — appears below the three sigil cards when allowed
-  // and the run has rerolls left.  Sized + styled to read as a sub-
-  // action rather than a primary commit, so it doesn't pull attention
-  // from the actual sigil cards.
-  if (rerollAllowed) {
+  // Reroll button — only renders when the player has the Second Look
+  // Embers unlock ACTIVELY equipped (purchased AND in the active set),
+  // so a new player without the unlock doesn't see a feature they
+  // can't use.  Appended to the overlay BODY (not the choices grid)
+  // so it sits on its own row below the three sigil cards instead of
+  // squeezing in as a fourth slot.  Disabled state shows "0 left"
+  // once the layer's rerolls are used up — informative, not a dead
+  // button.
+  const _hasRerollUnlock = isEmberUnlockActive('extra_reroll');
+  if (rerollAllowed && _hasRerollUnlock) {
     const rerollsLeft = (state.run && state.run.rerollsRemaining) || 0;
     const rerollBar = document.createElement('div');
     rerollBar.className = 'sigil-reroll-bar';
@@ -18349,7 +18426,7 @@ function showSigilOverlay(offers, onDone, opts) {
       </button>
     `;
     if (rerollsLeft > 0) rerollBar.querySelector('.sigil-reroll-btn').addEventListener('click', reroll);
-    choices.appendChild(rerollBar);
+    body.appendChild(rerollBar);
   }
   const btn = $('#overlay-btn');
   btn.textContent = 'Pass';
@@ -19646,6 +19723,7 @@ function showSettingsScreen() {
           try { localStorage.removeItem(EMBERS_KEY); } catch (_) {}
           try { localStorage.removeItem(EMBERS_UNLOCKS_KEY); } catch (_) {}
           try { localStorage.removeItem(EMBERS_PENDING_KEY); } catch (_) {}
+          try { localStorage.removeItem(EMBERS_ACTIVE_KEY); } catch (_) {}
           resetCodex();
           resetAchievements();
           resetBonds();
@@ -20430,13 +20508,15 @@ function _renderEmbersScreen() {
   const body = document.getElementById('embers-body');
   if (!body) return;
   const balance = getEmbersBalance();
+  const active = getEmbersActive();
   const headerHtml = `
     <div class="embers-balance">
       <span class="embers-balance-glyph">✦</span>
       <span class="embers-balance-num">${balance}</span>
       <span class="embers-balance-label">Embers banked</span>
+      <span class="embers-active-count">${active.length} / ${EMBERS_ACTIVE_CAP} active</span>
     </div>
-    <p class="embers-flavor">Every breath beneath the abyss leaves a coal behind.  Spend them on what carries forward.</p>
+    <p class="embers-flavor">Every breath beneath the abyss leaves a coal behind.  Buy what carries forward — and choose which to carry.  Only ${EMBERS_ACTIVE_CAP} can burn at once.</p>
   `;
   const rows = Object.entries(EMBER_UNLOCKS).map(([id, def]) => {
     const owned = getEmbersUnlockTier(id);
@@ -20445,23 +20525,39 @@ function _renderEmbersScreen() {
     const nextCost = next ? next.cost : null;
     const nextLabel = next ? next.label : null;
     const affordable = nextCost != null && balance >= nextCost;
+    const isActive = active.includes(id);
     const tierMarks = def.tiers.map((_, i) =>
       `<span class="embers-tier-mark${i < owned ? ' embers-tier-filled' : ''}">${i < owned ? '◆' : '◇'}</span>`
     ).join('');
-    const btnHtml = next
+    // Equip button — only relevant once the player owns tier 1+.
+    // Three states: not owned (hidden), owned + inactive (Equip),
+    // owned + active (Equipped, click to remove).  When the player
+    // tries to equip but the active set is full, the Equip button
+    // disables and the label hints to swap.
+    let equipHtml = '';
+    if (owned > 0) {
+      const canEquip = isActive || active.length < EMBERS_ACTIVE_CAP;
+      const label = isActive ? 'Equipped' : (active.length >= EMBERS_ACTIVE_CAP ? 'Slots full' : 'Equip');
+      const cls = isActive ? 'embers-equip embers-equip-active' : (canEquip ? 'embers-equip' : 'embers-equip embers-equip-disabled');
+      equipHtml = `<button type="button" class="${cls}" data-equip="${id}" ${(!canEquip && !isActive) ? 'disabled' : ''}>${label}</button>`;
+    }
+    const buyHtml = next
       ? `<button type="button" class="embers-buy${affordable ? '' : ' embers-buy-disabled'}" data-unlock="${id}" ${affordable ? '' : 'disabled'}>
           <span class="embers-buy-cost">✦ ${nextCost}</span>
           <span class="embers-buy-label">${nextLabel}</span>
         </button>`
       : `<div class="embers-buy embers-buy-maxed">Maxed</div>`;
     return `
-      <div class="embers-row">
+      <div class="embers-row${isActive ? ' embers-row-active' : ''}">
         <div class="embers-row-head">
           <span class="embers-row-name">${def.name}</span>
           <span class="embers-row-tier">${tierMarks} <span class="embers-row-tier-count">${owned} / ${max}</span></span>
         </div>
         <div class="embers-row-flavor">${def.flavor}</div>
-        ${btnHtml}
+        <div class="embers-row-actions">
+          ${equipHtml}
+          ${buyHtml}
+        </div>
       </div>
     `;
   }).join('');
@@ -20469,27 +20565,30 @@ function _renderEmbersScreen() {
     ${headerHtml}
     <div class="embers-rows">${rows}</div>
   `;
+  // Re-render the title underneath after any change so the Embers
+  // chip balance + starter / layer counts reflect.  Reused below.
+  const _refreshTitleIfShown = () => {
+    const titleRoot = document.getElementById('title-screen');
+    if (titleRoot && !titleRoot.classList.contains('hidden')) showTitleScreen();
+  };
   body.querySelectorAll('.embers-buy[data-unlock]').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.onclick = () => {
       const id = btn.dataset.unlock;
       if (purchaseEmberUnlock(id)) {
         Audio.ui();
         _renderEmbersScreen();
-        // Refresh the title menu in the background so the balance chip
-        // on the Embers button picks up the new total.  Cheap because
-        // the underlying showTitleScreen is idempotent.
-        const titleRoot = document.getElementById('title-screen');
-        if (titleRoot && !titleRoot.classList.contains('hidden')) {
-          // Title is up underneath — re-render its menu without
-          // double-restarting ambient audio.
-          const menuEl = document.getElementById('ts-menu');
-          if (menuEl) {
-            // Reuse showTitleScreen which is idempotent for menu wiring.
-            showTitleScreen();
-          }
-        }
+        _refreshTitleIfShown();
       }
-    });
+    };
+  });
+  body.querySelectorAll('.embers-equip[data-equip]').forEach(btn => {
+    btn.onclick = () => {
+      const id = btn.dataset.equip;
+      if (isEmberUnlockActive(id)) unequipEmberUnlock(id);
+      else equipEmberUnlock(id);
+      Audio.ui();
+      _renderEmbersScreen();
+    };
   });
 }
 
