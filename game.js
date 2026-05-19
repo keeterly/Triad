@@ -19217,28 +19217,24 @@ function showTitleScreen() {
     hideTitleScreen();
     renderMap();
   }, !canContinue));
-  // Top-level meta entries are gated by progression — same way Forge
-  // and Oaths gate in-run, Codex and Embers gate the title menu so a
-  // brand-new player sees just NEW GAME + SETTINGS (and CONTINUE if
-  // there's a save).  Each pops in when the player has earned a
-  // reason to look at it:
-  //   - Codex appears once the player has encountered ANY codex-
-  //     recordable content (enemies / sigils / combos).  Achievements
-  //     and Bonds are stored separately but covered by the same path
-  //     since the first fight always records enemies.
-  //   - Embers appears once the player has banked any Embers OR
-  //     already purchased an unlock.
-  // Once visible, both screens show every tab / row internally —
-  // sealed/dim styling on unearned content still signals progression
-  // inside; the top-level visibility is the gate.
-  const _codex = getCodex();
-  const _codexUnlocked =
-    Object.keys(_codex.enemies).length > 0 ||
-    Object.keys(_codex.sigils).length  > 0 ||
-    Object.keys(_codex.combos).length  > 0 ||
-    Object.keys(getAchievementsEarned()).length > 0 ||
-    Object.keys(getBonds()).length > 0;
-  if (_codexUnlocked) {
+  // Top-level meta entries gate on progression — same pattern as
+  // Forge / Oaths / Ascensions gating the in-run mechanics.  Two
+  // different triggers because the two surfaces serve different
+  // intents:
+  //
+  // CODEX → L1 boss clear.  A narrative milestone — the Wakeling
+  //   falls, and the meta-record of what you've discovered opens
+  //   up as the reward.  Players who haven't yet cleared Layer 1
+  //   see just NEW GAME + SETTINGS on the title.
+  //
+  // EMBERS → any banked.  The whole design of Embers is "every run
+  //   pays out — failure is progress."  Gating the entry until L1
+  //   clear would break that: a player wiping in Layer 1 would bank
+  //   Embers but never see them.  So the entry surfaces the moment
+  //   the player has ANY currency to spend, even from a defeated
+  //   run.  Same threshold doubles as "unlock has been purchased"
+  //   for migration safety.
+  if (getClearedLayers().includes(1)) {
     menuEl.appendChild(mkBtn('Codex', () => showCodexScreen()));
   }
   const _emb = getEmbersBalance();
