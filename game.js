@@ -10920,7 +10920,10 @@ function showReachClearedBanner() {
   b.id = 'reach-banner';
   b.innerHTML = `<span class="rb-flank">⚔</span><span class="rb-name">REACH CLEARED</span><span class="rb-flank">⚔</span>`;
   document.body.appendChild(b);
-  setTimeout(() => b.remove(), 1100);
+  // Removed earlier (was 1100ms) so it fades in step with the tightened
+  // BANNER_HOLD cascade — leaves the screen ~150ms after the next beat
+  // appears, instead of dwelling behind it.
+  setTimeout(() => b.remove(), 800);
 }
 
 function showTeamSpecialBanner(combo) {
@@ -11546,7 +11549,6 @@ function checkEnd(s) {
       // outlast the cascade's next-scene fallback.
       const KILL_HOLD = 800;
       const BANNER_HOLD = 650;
-      const FANFARE_HOLD = 1800;
       // The post-kill cascade: reach banner → affinity fanfare →
       // vignette/recruit/upgrade flow.  Extracted into a local so the
       // wanderer-fall interlude can park it behind the cinematic beat.
@@ -11554,15 +11556,14 @@ function checkEnd(s) {
         showReachClearedBanner();
         setTimeout(() => {
           const awarded = awardQuirkAfterWin(s, completedNode);
-          if (awarded) {
-            const goNext = () => offerVignetteOrPath(fightCtx);
-            _pendingAfterAward = goNext;
-            setTimeout(() => {
-              if (_pendingAfterAward === goNext) {
-                _pendingAfterAward = null;
-                goNext();
-              }
-            }, FANFARE_HOLD);
+          const backdropUp = !!document.getElementById('quirk-award-backdrop');
+          if (awarded && backdropUp) {
+            // Let the affinity backdrop drive the handoff — when it
+            // auto-dismisses (or the player taps it early), it fires
+            // _pendingAfterAward.  This way the next scene only paints
+            // AFTER the backdrop fades, instead of swapping behind a
+            // still-visible card.
+            _pendingAfterAward = () => offerVignetteOrPath(fightCtx);
           } else {
             setTimeout(() => offerVignetteOrPath(fightCtx), 500);
           }
