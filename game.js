@@ -9247,6 +9247,29 @@ function recordCodexCombo(comboId) {
 }
 function resetCodex() {
   try { localStorage.removeItem(CODEX_KEY); } catch (_) {}
+  try { localStorage.removeItem(CODEX_SEEN_TABS_KEY); } catch (_) {}
+}
+
+// Track which Codex tabs the player has opened.  Drives the "NEW" dot
+// on tabs they haven't visited yet — soft "go look" affordance for
+// tabs that just unlocked (e.g., the first time Bonds becomes visible
+// after they earn a shared fight).  Cleared the moment a tab is
+// activated.  Wiped by resetCodex so the dots all return on reset.
+const CODEX_SEEN_TABS_KEY = 'kizuna.codex.seenTabs.v1';
+function _getSeenCodexTabs() {
+  try {
+    const raw = localStorage.getItem(CODEX_SEEN_TABS_KEY);
+    return raw ? (JSON.parse(raw) || {}) : {};
+  } catch (_) { return {}; }
+}
+function _markCodexTabSeen(id) {
+  if (!id) return;
+  try {
+    const cur = _getSeenCodexTabs();
+    if (cur[id]) return;
+    cur[id] = Date.now();
+    localStorage.setItem(CODEX_SEEN_TABS_KEY, JSON.stringify(cur));
+  } catch (_) {}
 }
 
 function getUnlockedStarters() {
@@ -19196,12 +19219,18 @@ function showTitleScreen() {
   }, !canContinue));
   // Consolidated meta entries — Heroes / Bonds / Bestiary / Sigils /
   // Resonances / Achievements all live as tabs inside the Codex screen
-  // now, and Credits absorbed into Settings.  Final title menu is just
+  // now, and Credits absorbed into Settings.  Final title menu is
   // PLAY (NEW GAME / CONTINUE) + CODEX (browse) + EMBERS (spend) +
-  // SETTINGS (configure).  Five items.
+  // SETTINGS (configure).  Embers is GATED — hidden until the player
+  // has either banked Embers or already purchased an unlock, so a
+  // brand-new title screen reads as 3 entries instead of 5.
   menuEl.appendChild(mkBtn('Codex',   () => showCodexScreen()));
   const _emb = getEmbersBalance();
-  menuEl.appendChild(mkBtn(`Embers · ${_emb}`, () => showEmbersScreen()));
+  const _embUnlockCount = Object.keys(getEmbersUnlocks()).length;
+  const _embersUnlocked = _emb > 0 || _embUnlockCount > 0;
+  if (_embersUnlocked) {
+    menuEl.appendChild(mkBtn(`Embers · ${_emb}`, () => showEmbersScreen()));
+  }
   menuEl.appendChild(mkBtn('Settings', () => showSettingsScreen()));
 
   // Unlocks badge — surface both meta-progression beats so returning
@@ -19213,6 +19242,31 @@ function showTitleScreen() {
   metaEl.innerHTML = `
     <span class="ts-meta-line"><b>${unlocked.length || 1}</b>/${ROSTER.length} starters · <b>${clearedCount}</b>/${ABYSS_LAYERS.length} layers</span>
   `;
+
+  // Hidden gesture — long-press the KIZUNA title for 2s to toggle the
+  // Dev tools row in Settings.  Idempotent rebind (use onclick-style
+  // assignment via on* properties so re-showing the title doesn't
+  // accumulate listeners).
+  const titleH1 = root.querySelector('.ts-title');
+  if (titleH1) {
+    let _devHoldTimer = null;
+    const startHold = () => {
+      if (_devHoldTimer) clearTimeout(_devHoldTimer);
+      _devHoldTimer = setTimeout(() => {
+        const wasOn = _devToolsVisible();
+        if (wasOn) _disableDevTools(); else _enableDevTools();
+        // Brief visual confirmation — flash the title text so the
+        // player knows the gesture registered.
+        titleH1.classList.add('ts-title-flash');
+        setTimeout(() => titleH1.classList.remove('ts-title-flash'), 500);
+      }, 2000);
+    };
+    const cancelHold = () => { if (_devHoldTimer) { clearTimeout(_devHoldTimer); _devHoldTimer = null; } };
+    titleH1.onpointerdown   = startHold;
+    titleH1.onpointerup     = cancelHold;
+    titleH1.onpointerleave  = cancelHold;
+    titleH1.onpointercancel = cancelHold;
+  }
 
   root.classList.remove('hidden');
   root.setAttribute('aria-hidden', 'false');
@@ -19232,6 +19286,23 @@ function hideTitleScreen() {
 
 // Settings — small overlay over the title with toggles for audio,
 // tutorial, save reset, and meta-unlock reset.
+// Dev tools row in Settings is gated — it's debug-only (jump to any
+// layer, playtest any boss) and leaks immersion when it shows for a
+// fresh player.  Enabled by long-pressing the KIZUNA title text on
+// the title screen for 2 seconds; once enabled, persists in
+// localStorage until reset.  Off by default.
+const DEV_KEY = 'kizuna.devToolsEnabled.v1';
+function _devToolsVisible() {
+  try { return localStorage.getItem(DEV_KEY) === '1'; }
+  catch (_) { return false; }
+}
+function _enableDevTools() {
+  try { localStorage.setItem(DEV_KEY, '1'); } catch (_) {}
+}
+function _disableDevTools() {
+  try { localStorage.removeItem(DEV_KEY); } catch (_) {}
+}
+
 function showAscensionPicker() {
   $('#overlay').classList.add('overlay-dismissable');
   bindOverlayBackdropDismiss();
@@ -19314,10 +19385,10 @@ function showSettingsScreen() {
         <span class="settings-label">Credits</span>
         <span class="settings-value">Who built this</span>
       </button>
-      <button type="button" class="settings-row" data-action="dev">
+      ${_devToolsVisible() ? `<button type="button" class="settings-row" data-action="dev">
         <span class="settings-label">Dev tools</span>
         <span class="settings-value">Jump to layer · playtest boss</span>
-      </button>
+      </button>` : ''}
       <button type="button" class="settings-row settings-danger" data-action="clearsave">
         <span class="settings-label">Active run</span>
         <span class="settings-value">Clear save</span>
@@ -19370,6 +19441,7 @@ function showSettingsScreen() {
           resetBonds();
           resetCharms();
           resetAscensions();
+          _disableDevTools();
           clearCarriedParty();
           flashSettings('Meta progression reset.');
           setTimeout(() => { hideOverlay(); showTitleScreen(); }, 600);
@@ -19746,24 +19818,41 @@ function _renderCodex(body) {
   const earned = getAchievementsEarned();
   const bonds = getBonds();
   const unlockedStarters = new Set(getUnlockedStarters());
-  // Codex is now the universal "lifetime browse" screen — Heroes and
-  // Bonds folded in as tabs so the title menu doesn't have to carry
-  // them separately.  Tab counts reflect the player's progress against
-  // each catalog's total so completion is visible at a glance.
+  // Progressive disclosure — each tab has an `unlocked` gate so empty
+  // tabs don't clutter the bar for a new player.  The Heroes tab is
+  // always visible (Kai is unlocked by default).  Bestiary surfaces
+  // once the player has encountered any enemy (always true after the
+  // first turn of run 1).  Sigils / Resonances / Bonds / Achievements
+  // all wait until the player has actually touched that system.
+  // Each tab also tracks a "seen" flag in localStorage so we can
+  // surface a NEW dot on newly-available tabs until the player opens
+  // them (drives discovery — "what's this new thing?").
   const tabs = [
-    { id: 'heroes',       label: 'Heroes',       count: unlockedStarters.size,                                            total: ROSTER.length },
-    { id: 'bestiary',     label: 'Bestiary',     count: Object.values(codex.enemies).filter(e => e.encountered).length, total: Object.values(ENEMIES).filter(e => !e._dev).length },
-    { id: 'sigils',       label: 'Sigils',       count: Object.keys(codex.sigils).length,                                total: Object.keys(SIGILS).length },
-    { id: 'resonances',   label: 'Resonances',   count: Object.keys(codex.combos).length,                                total: Object.keys(COMBOS).length },
-    { id: 'bonds',        label: 'Bonds',        count: Object.values(bonds).filter(b => (b.fights || 0) >= 10).length,   total: Object.keys(bonds).length || 0 },
-    { id: 'achievements', label: 'Achievements', count: Object.keys(earned).length,                                       total: Object.keys(ACHIEVEMENTS).length },
-  ];
-  const nav = tabs.map(t => `
-    <button type="button" class="codex-tab${t.id === _codexActiveTab ? ' codex-tab-active' : ''}" data-tab="${t.id}">
-      <span class="codex-tab-label">${t.label}</span>
+    { id: 'heroes',       label: 'Heroes',       unlocked: true,                                                                   count: unlockedStarters.size,                                            total: ROSTER.length },
+    { id: 'bestiary',     label: 'Bestiary',     unlocked: Object.values(codex.enemies).some(e => e.encountered),                  count: Object.values(codex.enemies).filter(e => e.encountered).length, total: Object.values(ENEMIES).filter(e => !e._dev).length },
+    { id: 'sigils',       label: 'Sigils',       unlocked: Object.keys(codex.sigils).length > 0,                                   count: Object.keys(codex.sigils).length,                                total: Object.keys(SIGILS).length },
+    { id: 'resonances',   label: 'Resonances',   unlocked: Object.keys(codex.combos).length > 0,                                   count: Object.keys(codex.combos).length,                                total: Object.keys(COMBOS).length },
+    { id: 'bonds',        label: 'Bonds',        unlocked: Object.keys(bonds).length > 0,                                          count: Object.values(bonds).filter(b => (b.fights || 0) >= 10).length,   total: Object.keys(bonds).length || 0 },
+    { id: 'achievements', label: 'Achievements', unlocked: Object.keys(earned).length > 0,                                         count: Object.keys(earned).length,                                       total: Object.keys(ACHIEVEMENTS).length },
+  ].filter(t => t.unlocked);
+  // Default the active tab to Heroes if the previously-active tab is
+  // no longer visible (e.g., player reset progress while on the
+  // Achievements tab).
+  if (!tabs.find(t => t.id === _codexActiveTab)) _codexActiveTab = 'heroes';
+  // NEW dot — surfaced on tabs the player has unlocked but never
+  // opened.  Cleared the moment the tab is activated.
+  const seenTabs = _getSeenCodexTabs();
+  const nav = tabs.map(t => {
+    const isNew = !seenTabs[t.id];
+    return `
+    <button type="button" class="codex-tab${t.id === _codexActiveTab ? ' codex-tab-active' : ''}${isNew ? ' codex-tab-new' : ''}" data-tab="${t.id}">
+      <span class="codex-tab-label">${t.label}${isNew ? '<span class="codex-tab-newdot" aria-label="new"></span>' : ''}</span>
       <span class="codex-tab-count">${t.count} / ${t.total}</span>
     </button>
-  `).join('');
+  `;
+  }).join('');
+  // Mark the active tab as seen so the NEW dot fades after one visit.
+  if (!seenTabs[_codexActiveTab]) _markCodexTabSeen(_codexActiveTab);
   let listHtml = '';
   if (_codexActiveTab === 'heroes')             listHtml = _renderCodexHeroes(unlockedStarters);
   else if (_codexActiveTab === 'bestiary')      listHtml = _renderCodexBestiary(codex);

@@ -4431,6 +4431,35 @@ body.on-title:has(#overlay:not(.hidden)) #stage-scale {
   padding: 20px;
 }
 
+/* NEW dot on Codex tabs — surfaces on tabs that have just become
+   available (unlock criterion met) but the player hasn't opened yet.
+   Cleared the moment the tab is activated.  Small gold pulse so it
+   draws the eye without being loud. */
+.codex-tab-newdot {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--gold-bright);
+  margin-left: 6px;
+  box-shadow: 0 0 6px var(--gold-bright), 0 0 12px rgba(240,212,136,0.6);
+  vertical-align: super;
+  animation: codex-newdot-pulse 1.8s ease-in-out infinite;
+}
+@keyframes codex-newdot-pulse {
+  0%, 100% { opacity: 0.6; transform: scale(0.85); }
+  50%      { opacity: 1;   transform: scale(1.15); }
+}
+
+/* Title text flash — brief gold pulse confirmation that the dev-tools
+   long-press gesture registered.  Auto-clears after 500ms. */
+.ts-title.ts-title-flash {
+  animation: ts-title-flash 0.5s ease-out;
+}
+@keyframes ts-title-flash {
+  0%   { text-shadow: 0 0 30px rgba(240,212,136,0.7), 0 0 60px rgba(240,212,136,0.45); }
+  100% { text-shadow: none; }
+}
+
 /* 6-tab fitness — bestiary tabs now host 6 entries (Heroes + Bestiary
    + Sigils + Resonances + Bonds + Achievements).  Tighten the per-tab
    label so they still fit the 720px design canvas without wrapping. */
