@@ -11890,20 +11890,28 @@ body:has(#world-map:not(.hidden)) #hud {
      - overlay-content becomes a flex column
      - the body fills the remaining space and scrolls inside itself
      - the button sits at the bottom, always reachable
-   :has() is now widely supported; if the engine doesn't support it
-   the button still appears at the bottom of the scrolling content. */
-#overlay-content:has(#overlay-body.run-summary-body) {
-  display: flex;
-  flex-direction: column;
-  padding-bottom: 12px;
+   Targets via the .overlay-runsummary class on #overlay (added by
+   showRunSummary in JS) instead of :has() so it applies reliably
+   across every engine, including older mobile Safari quirks. */
+#overlay.overlay-runsummary #overlay-content {
+  display: flex !important;
+  flex-direction: column !important;
+  padding-bottom: 14px !important;
+  /* Hard cap on the run-summary card height so it never extends
+     behind the iOS home indicator / safe-area bottom.  The
+     viewport-fit=cover meta lets content slide under the indicator
+     by default; here we pull back so the Ascend button stays in
+     view.  88vh / 88% leaves a small margin even on edge-case
+     devices that compute 92vh past the safe area. */
+  max-height: min(88vh, 88%) !important;
 }
-#overlay-content:has(#overlay-body.run-summary-body) > #overlay-body {
+#overlay.overlay-runsummary #overlay-content > #overlay-body {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
-#overlay-content:has(#overlay-body.run-summary-body) > #overlay-btn {
+#overlay.overlay-runsummary #overlay-content > #overlay-btn {
   flex: 0 0 auto;
   align-self: center;
   margin-top: 10px;
