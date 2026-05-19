@@ -6997,13 +6997,15 @@ function _showAwardBackdrop({ cls, eyebrow, name, reason, flavor, desc, portrait
     }
   };
   backdrop.addEventListener('click', dismiss);
-  // Hold longer when there's a flavor line + portrait so the player has
-  // time to read the moment — the reveal cascade alone takes ~700ms.
-  // Reason adds another beat to read.
+  // Hold long enough to read but don't dwell — these used to auto-hold
+  // 4-5s which dominated the post-fight flow.  Tap-to-dismiss is fast
+  // for players who already read it, so the auto-dismiss timer just
+  // needs to cover "glanced at it, processed it".  Roughly halved
+  // across the matrix; reveal cascade alone is ~700ms.
   const base = portraitId
-    ? (flavor ? 4400 : 3400)
-    : (flavor ? 3400 : 2600);
-  const holdMs = base + (reason ? 1000 : 0);
+    ? (flavor ? 2400 : 1800)
+    : (flavor ? 1800 : 1400);
+  const holdMs = base + (reason ? 500 : 0);
   setTimeout(dismiss, holdMs);
 }
 
@@ -11535,9 +11537,16 @@ function checkEnd(s) {
       // intentionally skipped; the run summary still shows aggregate
       // totals at boss/end-of-run.
       playKillingBlowHold();
-      const KILL_HOLD = 1200;
-      const BANNER_HOLD = 1100;
-      const FANFARE_HOLD = 3600;
+      // Tightened from 1200/1100/3600 — the original cascade held the
+      // player on REACH-CLEARED + affinity fanfare for ~6s after every
+      // non-boss fight (10-15 fights per layer = ~90s of dead time).
+      // New cadence keeps each beat visible long enough to read but
+      // doesn't dwell.  Auto-dismiss timer on the affinity backdrop is
+      // also halved in _showAwardBackdrop so the fade-out doesn't
+      // outlast the cascade's next-scene fallback.
+      const KILL_HOLD = 800;
+      const BANNER_HOLD = 650;
+      const FANFARE_HOLD = 1800;
       // The post-kill cascade: reach banner → affinity fanfare →
       // vignette/recruit/upgrade flow.  Extracted into a local so the
       // wanderer-fall interlude can park it behind the cinematic beat.
@@ -15593,6 +15602,11 @@ function _renderForgeSigilPicker(choices, ctx) {
     _renderForgeStep('hero', {});
     return;
   }
+  // Hero name pinned to the sigil-picker title for one-screen context —
+  // since the confirm step is now skipped, the player needs to see at a
+  // glance which hero they're forging FOR.  e.g. "Burn a sigil — Cassia".
+  const heroDef = CHARS[ctx.heroId];
+  if (heroDef) $('#overlay-title').textContent = `Burn a sigil — ${heroDef.name}`;
   sigils.forEach(sg => {
     const lvl = (state.run.sigilLevels && state.run.sigilLevels[sg.id]) || 1;
     const tierMark = ['', 'I', 'II', 'III'][lvl] || String(lvl);
@@ -15607,7 +15621,12 @@ function _renderForgeSigilPicker(choices, ctx) {
         <div class="sigil-desc">Forge: <b>${scaledLabel}</b>${tierNote}</div>
       </div>
     `;
-    card.addEventListener('click', () => _renderForgeStep('confirm', { heroId: ctx.heroId, sigilId: sg.id }));
+    // Tapping a sigil commits the forge directly — the confirm step
+    // was redundant friction.  The card already shows the resulting
+    // bonus (scaledLabel), so the player knows what they're getting
+    // before they tap.  Use the Back button on the bottom rail to
+    // re-pick the hero if they tapped the wrong sigil.
+    card.addEventListener('click', () => _commitForge(ctx.heroId, sg.id));
     choices.appendChild(card);
   });
 }
