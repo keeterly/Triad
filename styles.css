@@ -11881,6 +11881,34 @@ body:has(#world-map:not(.hidden)) #hud {
    RUN SUMMARY — cinematic refresh
    =========================================================================== */
 #overlay-body.run-summary-body { padding-top: 4px; }
+
+/* Pin the Ascend / Return-to-Title button to the bottom of the
+   overlay so it stays visible when the summary content (montage +
+   stats + highlights + embers + unlock callouts + memorial) is taller
+   than the design canvas.  Was getting pushed below the fold —
+   players had to scroll without realizing it.  Layout:
+     - overlay-content becomes a flex column
+     - the body fills the remaining space and scrolls inside itself
+     - the button sits at the bottom, always reachable
+   :has() is now widely supported; if the engine doesn't support it
+   the button still appears at the bottom of the scrolling content. */
+#overlay-content:has(#overlay-body.run-summary-body) {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 12px;
+}
+#overlay-content:has(#overlay-body.run-summary-body) > #overlay-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+#overlay-content:has(#overlay-body.run-summary-body) > #overlay-btn {
+  flex: 0 0 auto;
+  align-self: center;
+  margin-top: 10px;
+}
+
 .rs-card {
   display: flex;
   flex-direction: column;
