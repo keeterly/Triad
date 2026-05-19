@@ -8585,6 +8585,19 @@ function newState(forcedStarter) {
 function startEncounter(encSpec) {
   if (!encSpec || !encSpec.slots) return;
   const isFirstFight = !state.run.currentEnc;
+  // Clear cross-fight transient sets that don't survive an encounter.
+  // pendingSlideIds tracks figures that should slide-in on next render;
+  // entries added late in a fight (e.g., a Voice respawn that never got
+  // to render because the player killed the Choir same turn) would
+  // otherwise carry over and trigger ghost slide-ins for unrelated
+  // enemies in the new fight that happen to share a key.
+  if (typeof pendingSlideIds !== 'undefined' && pendingSlideIds && pendingSlideIds.clear) {
+    pendingSlideIds.clear();
+  }
+  // Also reset the per-encounter multi-enemy flag so the boss-fight-multi
+  // CSS class doesn't get stickily-applied to a fresh single-boss fight
+  // just because the LAST fight had multiple enemies.
+  state._everMultiEnemy = false;
   applyBiomeBackground();
   // Boss flag drives full-width visual + dramatic HP bar
   // boss-fight class collapses the 3 enemy slots into one imposing
@@ -17374,6 +17387,26 @@ function showTitleScreen() {
   if (Audio && typeof Audio.startAmbient === 'function') Audio.startAmbient('title');
   // Ensure the in-game overlay isn't competing
   hideOverlay();
+  // Drain any queued affinity / mastery / recruit fanfare backdrops so
+  // they don't keep firing OVER the title screen after the player
+  // returns from a run.  Boss-spoils queues up to 3 vignettes that
+  // would otherwise drain one-by-one on auto-dismiss timers, painting
+  // over the title for ~10s post-return.
+  if (typeof window !== 'undefined') {
+    window._awardQueue = [];
+  }
+  const stuckBackdrop = document.getElementById('quirk-award-backdrop');
+  if (stuckBackdrop) stuckBackdrop.remove();
+  // Strip combat-only body classes so the title doesn't inherit
+  // boss-mode styling (boss-fight collapses the enemy half, killing-blow
+  // adds slow-mo filters, etc.).  These would normally be cleared on
+  // the next fight start, but the title screen sits in between and
+  // shouldn't carry stale combat state.
+  document.body.classList.remove(
+    'boss-fight', 'boss-fight-multi',
+    'party-fallen', 'boss-killed', 'killing-blow',
+    'party-critical'
+  );
   const root = document.getElementById('title-screen');
   if (!root) return;
 
