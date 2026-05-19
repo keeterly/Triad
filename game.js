@@ -2437,8 +2437,16 @@ const ENEMIES = {
       if (e._shattered) return;
       if (e.hp / e.maxHp > 0.5) return;
       e._shattered = true;
-      const splitHp = Math.max(1, Math.floor(e.hp / 2));
+      // Split BOTH hp AND maxHp so each shard's HP bar reads at the same
+      // percentage as the original pre-shatter Twin Mirror (30/90 = 33%,
+      // not 30/180 = 16%).  Without the maxHp halving, the bars looked
+      // alarmingly tiny right after the shatter cinematic — gave the
+      // impression the shards were near-dead when they were only at the
+      // same threshold the shatter just triggered on.
+      const splitHp    = Math.max(1, Math.floor(e.hp / 2));
+      const splitMaxHp = Math.max(splitHp, Math.floor(e.maxHp / 2));
       e.hp = splitHp;
+      e.maxHp = splitMaxHp;
       // Find the first empty enemy slot (mid → back → front fallback).
       const targetSlot = ['mid', 'back', 'front'].find(sl => {
         const occ = enemyBySlot(s, sl);
@@ -2447,7 +2455,7 @@ const ENEMIES = {
       if (!targetSlot) return; // no room — leave shattered but solo
       const fresh = spawnEnemy(s, targetSlot, 'mirrorShard', {
         uniqueId: 'mirrorShard#1',
-        maxHp: e.maxHp,
+        maxHp: splitMaxHp,
         hp: splitHp,
       });
       if (fresh) {
@@ -2773,6 +2781,24 @@ const ENEMIES = {
       const liveVoicesAfter = Object.values(s.enemies.chars).filter(en => en.id === 'voice' && !en.dead);
       me.untargetable = liveVoicesAfter.length > 0;
     },
+    // Defensive — banish all surviving Voices if the Choir somehow dies
+    // before they're silenced (DoTs that bypass untargetable: existing
+    // bleed ticks, biome chips).  Without this, the Voices would remain
+    // alive-but-MUTED-by-Choir-rules, but with the Choir gone there's
+    // no mechanism to make them targetable again, and checkEnd never
+    // resolves the fight.  In normal play the Choir can't die while
+    // Voices live (player has to silence them first), so this only
+    // ever fires when the boss is killed via a bypass.
+    onDeath: (s) => {
+      Object.values(s.enemies.chars).forEach(en => {
+        if (en.id === 'voice' && !en.dead) {
+          en.dead = true;
+          en.untargetable = false;
+          const key = Object.keys(s.enemies.chars).find(k => s.enemies.chars[k] === en);
+          if (key) spawnPopupId(key, 'SILENT', 'crit', 'enemy');
+        }
+      });
+    },
   },
 
   // ============================== LAYER 8 — THE HUSK GARDEN =================
@@ -2900,6 +2926,24 @@ const ENEMIES = {
         spawnPopupId('huskGarden', 'RETURNS', 'heal', 'enemy');
         log('<i>The Husk unburies — older, harder, full of roots.</i>');
       }
+    },
+    // Defensive — wither all surviving Blooms when the Husk dies.  This
+    // matters most for the bury-phase + bleed edge case: bury sets the
+    // Husk + Blooms untargetable, then bleed (which bypasses untargetable
+    // for already-applied DoTs) kills the Husk while buried.  Without
+    // this onDeath, the Blooms stay alive-but-untargetable forever (no
+    // onPlayerTurnStart to clear their flag), aliveEnemies() keeps
+    // returning them, and checkEnd never resolves the fight.  Also
+    // covers any future bypass path that could kill the Husk first.
+    onDeath: (s) => {
+      Object.values(s.enemies.chars).forEach(en => {
+        if (en.id === 'bloom' && !en.dead) {
+          en.dead = true;
+          en.untargetable = false;
+          const key = Object.keys(s.enemies.chars).find(k => s.enemies.chars[k] === en);
+          if (key) spawnPopupId(key, 'WITHERS', 'crit', 'enemy');
+        }
+      });
     },
   },
 
