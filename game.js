@@ -1214,6 +1214,187 @@ const PORTRAITS = {
   <!-- robe-hem gold trim -->
   <path d="M14 124 Q50 128 86 124" stroke="url(#ce-gold)" stroke-width="0.4" fill="none" opacity="0.55"/>
 </svg>`,
+
+  // ===== LAYER 7 BOSS — THE SUNDERING CHOIR =====
+  // Tall robed silhouette covered in throats — each one a Voice that
+  // sings out from the body.  Plum / wine palette with cold cyan
+  // throat-glow.  Visually echoes the "Voice" minion below.
+  sunderingChoir: `
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <linearGradient id="sc-robe" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#3a1e3a"/>
+      <stop offset="55%" stop-color="#16081a"/>
+      <stop offset="100%" stop-color="#040208"/>
+    </linearGradient>
+    <radialGradient id="sc-throat" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#a0e8f4"/>
+      <stop offset="55%" stop-color="#3a78a0"/>
+      <stop offset="100%" stop-color="#06141e"/>
+    </radialGradient>
+  </defs>
+  <ellipse cx="50" cy="128" rx="44" ry="8" fill="#02010a" opacity="0.85"/>
+  <!-- towering robe -->
+  <path d="M12 130 L10 72 Q22 42 50 38 Q78 42 90 72 L88 130 Z"
+        fill="url(#sc-robe)" stroke="#020108" stroke-width="0.8"/>
+  <!-- hood with central throat -->
+  <path d="M28 70 Q28 36 50 30 Q72 36 72 70 Q72 80 50 82 Q28 80 28 70 Z"
+        fill="url(#sc-robe)" stroke="#020108" stroke-width="0.7"/>
+  <!-- central throat — the primary singer -->
+  <ellipse cx="50" cy="60" rx="3.6" ry="5" fill="url(#sc-throat)"/>
+  <!-- secondary throats clustered around the chest -->
+  <ellipse cx="34" cy="86" rx="2" ry="3" fill="url(#sc-throat)"/>
+  <ellipse cx="66" cy="86" rx="2" ry="3" fill="url(#sc-throat)"/>
+  <ellipse cx="28" cy="104" rx="1.6" ry="2.4" fill="url(#sc-throat)"/>
+  <ellipse cx="50" cy="100" rx="1.8" ry="2.6" fill="url(#sc-throat)"/>
+  <ellipse cx="72" cy="104" rx="1.6" ry="2.4" fill="url(#sc-throat)"/>
+  <ellipse cx="42" cy="116" rx="1.4" ry="2" fill="url(#sc-throat)"/>
+  <ellipse cx="58" cy="116" rx="1.4" ry="2" fill="url(#sc-throat)"/>
+  <!-- subtle cold-light streaks rising from the throats -->
+  <path d="M34 80 Q36 76 38 72" stroke="#7ed0e2" stroke-width="0.4" fill="none" opacity="0.55"/>
+  <path d="M66 80 Q64 76 62 72" stroke="#7ed0e2" stroke-width="0.4" fill="none" opacity="0.55"/>
+  <path d="M50 54 Q52 48 50 42" stroke="#a0e8f4" stroke-width="0.5" fill="none" opacity="0.7"/>
+</svg>`,
+
+  // ===== LAYER 7 BOSS-MINION — THE VOICE =====
+  // Small cold-cyan ghost-throat, drifting.  Mostly an open mouth + a
+  // wisp of robe trailing into mist.
+  voice: `
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <radialGradient id="vc-body" cx="50%" cy="40%" r="80%">
+      <stop offset="0%" stop-color="#4a78a0"/>
+      <stop offset="55%" stop-color="#1a3850"/>
+      <stop offset="100%" stop-color="#040c14"/>
+    </radialGradient>
+    <radialGradient id="vc-throat" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#dff4f8"/>
+      <stop offset="55%" stop-color="#5ab0d4"/>
+      <stop offset="100%" stop-color="#082030"/>
+    </radialGradient>
+  </defs>
+  <ellipse cx="50" cy="124" rx="22" ry="4" fill="#020610" opacity="0.7"/>
+  <!-- wispy hourglass body, narrow waist, no feet -->
+  <path d="M30 122 Q24 110 32 88 Q38 76 50 70 Q62 76 68 88 Q76 110 70 122 Q60 130 50 128 Q40 130 30 122 Z"
+        fill="url(#vc-body)" stroke="#02060c" stroke-width="0.6" opacity="0.92"/>
+  <!-- open throat -->
+  <ellipse cx="50" cy="88" rx="5" ry="8" fill="url(#vc-throat)"/>
+  <ellipse cx="50" cy="88" rx="2" ry="4" fill="#02101c"/>
+  <!-- subtle wisps -->
+  <path d="M50 70 Q52 60 50 50" stroke="#dff4f8" stroke-width="0.4" fill="none" opacity="0.7"/>
+  <path d="M50 70 Q48 60 50 50" stroke="#dff4f8" stroke-width="0.3" fill="none" opacity="0.5"/>
+</svg>`,
+
+  // ===== LAYER 8 BOSS — THE HUSK GARDEN =====
+  // Gnarled tree-husk silhouette with buried-red glow at the base.
+  // Deep earth + sap palette.  Roots curl outward suggesting the
+  // Blooms growing in adjacent slots.
+  huskGarden: `
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <radialGradient id="hg-body" cx="50%" cy="45%" r="85%">
+      <stop offset="0%" stop-color="#3a2a18"/>
+      <stop offset="55%" stop-color="#180e08"/>
+      <stop offset="100%" stop-color="#020108"/>
+    </radialGradient>
+    <radialGradient id="hg-sap" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#f08038"/>
+      <stop offset="55%" stop-color="#a04020"/>
+      <stop offset="100%" stop-color="#180802"/>
+    </radialGradient>
+  </defs>
+  <ellipse cx="50" cy="128" rx="46" ry="8" fill="#040208" opacity="0.85"/>
+  <!-- jagged trunk silhouette -->
+  <path d="M16 130 L24 80 Q20 64 30 50 L40 38 L52 30 L60 38 L70 50 Q80 64 76 80 L84 130 Z"
+        fill="url(#hg-body)" stroke="#020108" stroke-width="0.8"/>
+  <!-- broken-off branches at the top -->
+  <path d="M40 38 L36 24 L42 30 Z" fill="#1a0e08"/>
+  <path d="M60 38 L64 24 L58 30 Z" fill="#1a0e08"/>
+  <path d="M52 30 L50 18 L54 28 Z" fill="#1a0e08"/>
+  <!-- hollow eye-knot in the trunk — a wound that breathes -->
+  <ellipse cx="50" cy="68" rx="6" ry="5" fill="#06030a"/>
+  <ellipse cx="50" cy="68" rx="3.2" ry="2.8" fill="url(#hg-sap)" opacity="0.85"/>
+  <circle cx="50" cy="68" r="1.2" fill="#ffd49a" opacity="0.9"/>
+  <!-- bark texture lines -->
+  <path d="M30 86 Q40 92 50 88" stroke="#080404" stroke-width="0.5" fill="none" opacity="0.7"/>
+  <path d="M50 88 Q60 92 70 86" stroke="#080404" stroke-width="0.5" fill="none" opacity="0.7"/>
+  <path d="M28 106 Q40 112 52 108" stroke="#080404" stroke-width="0.5" fill="none" opacity="0.6"/>
+  <path d="M48 108 Q60 112 72 106" stroke="#080404" stroke-width="0.5" fill="none" opacity="0.6"/>
+  <!-- buried-fire glow at the roots -->
+  <ellipse cx="50" cy="124" rx="14" ry="2.6" fill="url(#hg-sap)" opacity="0.75"/>
+  <!-- root tendrils crawling out -->
+  <path d="M16 130 Q22 122 30 122" stroke="#0a0604" stroke-width="0.7" fill="none" opacity="0.85"/>
+  <path d="M84 130 Q78 122 70 122" stroke="#0a0604" stroke-width="0.7" fill="none" opacity="0.85"/>
+</svg>`,
+
+  // ===== LAYER 8 BOSS-MINION — A BLOOM =====
+  // Wide flat flower with dark center.  Sits low, leans toward the Husk.
+  // Petals are bruise-purple with a single sap-red bud at the center.
+  bloom: `
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <radialGradient id="bl-petal" cx="50%" cy="50%" r="60%">
+      <stop offset="0%" stop-color="#806080"/>
+      <stop offset="55%" stop-color="#3a1a3a"/>
+      <stop offset="100%" stop-color="#0e0410"/>
+    </radialGradient>
+    <radialGradient id="bl-bud" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#f06848"/>
+      <stop offset="55%" stop-color="#a02818"/>
+      <stop offset="100%" stop-color="#180402"/>
+    </radialGradient>
+  </defs>
+  <ellipse cx="50" cy="126" rx="28" ry="4" fill="#040208" opacity="0.7"/>
+  <!-- thin stalk -->
+  <path d="M48 126 L48 92 L52 92 L52 126 Z" fill="#0e0a08" opacity="0.9"/>
+  <!-- five-petal head -->
+  <ellipse cx="50" cy="80" rx="22" ry="6"  fill="url(#bl-petal)" opacity="0.95"/>
+  <ellipse cx="38" cy="74" rx="10" ry="14" fill="url(#bl-petal)" transform="rotate(-30 38 74)" opacity="0.92"/>
+  <ellipse cx="62" cy="74" rx="10" ry="14" fill="url(#bl-petal)" transform="rotate(30 62 74)"  opacity="0.92"/>
+  <ellipse cx="32" cy="86" rx="9"  ry="11" fill="url(#bl-petal)" transform="rotate(-12 32 86)" opacity="0.9"/>
+  <ellipse cx="68" cy="86" rx="9"  ry="11" fill="url(#bl-petal)" transform="rotate(12 68 86)"  opacity="0.9"/>
+  <!-- central sap bud -->
+  <circle cx="50" cy="80" r="5" fill="url(#bl-bud)" stroke="#0a0204" stroke-width="0.4"/>
+  <circle cx="50" cy="80" r="1.4" fill="#ffd49a" opacity="0.9"/>
+  <!-- low leaves on the stalk -->
+  <path d="M48 110 Q40 108 38 116 Q44 114 48 114 Z" fill="#0e0a08" opacity="0.85"/>
+  <path d="M52 116 Q60 114 62 122 Q56 120 52 120 Z" fill="#0e0a08" opacity="0.85"/>
+</svg>`,
+
+  // ===== TWIN MIRROR PHASE-2 — A MIRROR SHARD =====
+  // Jagged half of the twin mirror, mirrored.  Crackled silver-blue
+  // with the same eye-glint at the seam.  Visually echoes twinMirror
+  // but obviously incomplete (shorter, asymmetrical, jagged top).
+  mirrorShard: `
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <linearGradient id="ms-body" x1="0%" x2="100%">
+      <stop offset="0%" stop-color="#5a6a80"/>
+      <stop offset="60%" stop-color="#1a2230"/>
+      <stop offset="100%" stop-color="#080a14"/>
+    </linearGradient>
+    <radialGradient id="ms-eye" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#d8e8f8"/>
+      <stop offset="55%" stop-color="#5a7090"/>
+      <stop offset="100%" stop-color="#101620"/>
+    </radialGradient>
+  </defs>
+  <ellipse cx="50" cy="128" rx="40" ry="7" fill="#040608" opacity="0.85"/>
+  <!-- jagged silhouette — shorter than twinMirror, asymmetrical -->
+  <path d="M16 130 L14 78 Q22 50 38 44 L46 36 L52 44 L60 38 L66 48 Q80 56 86 78 L84 130 Z"
+        fill="url(#ms-body)" stroke="#02040a" stroke-width="0.8"/>
+  <!-- crackle lines across the body — the seam from the shatter -->
+  <path d="M46 36 L50 70 L42 96 L48 130" stroke="#e8dcc4" stroke-width="0.5" opacity="0.75" fill="none"/>
+  <path d="M50 70 L58 80 L54 100" stroke="#8a98b0" stroke-width="0.35" opacity="0.55" fill="none"/>
+  <!-- shard chips along the crack -->
+  <path d="M50 70 L46 74 L50 76 L54 74 Z" fill="#e8dcc4" opacity="0.85"/>
+  <path d="M48 96 L46 100 L50 100 L52 98 Z" fill="#e8dcc4" opacity="0.6"/>
+  <!-- single eye in the visible half (the other half is gone) -->
+  <ellipse cx="56" cy="72" rx="2.4" ry="2" fill="url(#ms-eye)"/>
+  <circle cx="57" cy="71" r="0.6" fill="#ffffff" opacity="0.9"/>
+  <!-- broken edge highlight along the seam (reflective) -->
+  <path d="M50 36 L52 50 L48 64" stroke="#c8d8ec" stroke-width="0.3" opacity="0.6" fill="none"/>
+</svg>`,
 };
 
 // ============================================================================
@@ -2246,6 +2427,36 @@ const ENEMIES = {
       if (front && !front.downed && front.hp / front.maxHp > 0.6) return 0;
       return 2;
     },
+    // Phase-shift — at <50% HP, the Twin Mirror SHATTERS into two Mirror
+    // Shards.  The original keeps its slot but loses 50% of its current
+    // HP; the second shard spawns into the first free enemy slot with
+    // the matching half.  Killing either shard ENRAGES the other (see
+    // mirrorShard.onDeath).  One-shot — only fires the first time the
+    // 50% threshold is crossed.
+    onDamaged: (s, e) => {
+      if (e._shattered) return;
+      if (e.hp / e.maxHp > 0.5) return;
+      e._shattered = true;
+      const splitHp = Math.max(1, Math.floor(e.hp / 2));
+      e.hp = splitHp;
+      // Find the first empty enemy slot (mid → back → front fallback).
+      const targetSlot = ['mid', 'back', 'front'].find(sl => {
+        const occ = enemyBySlot(s, sl);
+        return !occ || occ.dead;
+      });
+      if (!targetSlot) return; // no room — leave shattered but solo
+      const fresh = spawnEnemy(s, targetSlot, 'mirrorShard', {
+        uniqueId: 'mirrorShard#1',
+        maxHp: e.maxHp,
+        hp: splitHp,
+      });
+      if (fresh) {
+        spawnPopupId('twinMirror', 'SHATTERS', 'crit', 'enemy');
+        spawnPopupId('mirrorShard#1', 'SHATTERS', 'crit', 'enemy');
+        log('<i>The Twin Mirror cracks down the seam — two halves stare back at you.</i>');
+        shakeScreen(3);
+      }
+    },
   },
   nameless: {
     id: 'nameless', name: 'The Nameless Knight', title: 'Sin of Vows', maxHp: 220, boss: true,
@@ -2320,6 +2531,283 @@ const ENEMIES = {
       return 4;
     },
   },
+
+  // ============================== LAYER 7 — THE SUNDERING CHOIR =============
+  // Untargetable until both Voices fall, and the Voices respawn at the
+  // start of every player turn UNLESS the Choir was staggered last turn.
+  // The puzzle: silence both Voices same turn → stagger the Choir →
+  // one clean window before the cycle starts again.
+  voice: {
+    id: 'voice', name: 'Voice', title: 'Echo of the Choir', maxHp: 16,
+    weakness: 'stealth', resistance: 'ranged',
+    intents: [
+      // Marks the slot it targets with +1 Vuln/turn — the Voices' job is
+      // to soften the party, not deal damage outright.
+      { name: 'Mark Vuln',  tag: '+vuln 1 front', targetSlot: 'front', kind: 'debuff', fn: (s) => applyVulnParty(s, 'front', 1) },
+      { name: 'Mark Vuln',  tag: '+vuln 1 mid',   targetSlot: 'mid',   kind: 'debuff', fn: (s) => applyVulnParty(s, 'mid',   1) },
+      { name: 'Mark Vuln',  tag: '+vuln 1 back',  targetSlot: 'back',  kind: 'debuff', fn: (s) => applyVulnParty(s, 'back',  1) },
+    ],
+    // Rotate the vuln target each turn so the Voice doesn't grind the
+    // same slot forever — front → mid → back → front.
+    pickIntent: (s, me) => {
+      const turn = s.turn || 0;
+      return turn % 3;
+    },
+    onDeath: (s, e) => {
+      // Each silenced Voice grants the Choir +1 armor (a throat covered).
+      const choir = Object.values(s.enemies.chars).find(en => en.id === 'sunderingChoir' && !en.dead);
+      if (choir) {
+        choir.armor = (choir.armor || 0) + 1;
+        spawnPopupId(choir.id, '+1⛨', 'armor', 'enemy');
+      }
+    },
+  },
+  sunderingChoir: {
+    id: 'sunderingChoir', name: 'The Sundering Choir', title: 'Sin of Voices', maxHp: 180, boss: true,
+    weakness: ['holy', 'arcane'], resistance: 'physical',
+    intents: [
+      // 0: Hush — soften the party while the Voices do their work
+      { name: 'Hush', tag: '+dull 1 + vuln 1 all', targetSlot: 'all', kind: 'debuff',
+        fn: (s) => { aliveParty(s).forEach(c => { c.dulled = (c.dulled || 0) + 1; c.vuln = (c.vuln || 0) + 1; }); } },
+      // 1: Held Note — targeted execute on lowest HP
+      { name: 'Held Note', tag: 'ATK 6 lowest', targetSlot: '?', kind: 'atk', dmg: 6, fn: (s) => dmgLowestParty(s, 6) },
+      // 2: Choral Surge — scales with living Voice count (punishes leaving them alive)
+      { name: 'Choral Surge', tag: 'ATK 4 all × Voices', targetSlot: 'all', kind: 'aoe', dmg: 4,
+        fn: (s) => {
+          const voices = Object.values(s.enemies.chars).filter(en => en.id === 'voice' && !en.dead).length;
+          const hits = Math.max(1, voices);
+          for (let i = 0; i < hits; i++) dmgAllParty(s, 4);
+        } },
+      // 3: Silence Pact — self-heal, fires when wounded
+      { name: 'Silence Pact', tag: 'heal 8 + 3 armor self', targetSlot: '?', kind: 'armor',
+        fn: (s) => {
+          const me = Object.values(s.enemies.chars).find(en => en.id === 'sunderingChoir' && !en.dead);
+          if (me) { me.hp = Math.min(me.maxHp, me.hp + 8); spawnPopupId('sunderingChoir', '+8', 'heal', 'enemy'); me.armor = (me.armor || 0) + 3; }
+        } },
+    ],
+    pickIntent: (s, me) => {
+      const voices = Object.values(s.enemies.chars).filter(en => en.id === 'voice' && !en.dead).length;
+      const turn = s.turn || 0;
+      // Heal when wounded, but not more than every 4 turns.
+      if (me && me.hp / me.maxHp <= 0.55 && turn - (me._lastHealTurn || -99) >= 4) {
+        me._lastHealTurn = turn;
+        return 3;
+      }
+      // Punish the player for leaving Voices alive: 2+ Voices = Choral Surge.
+      if (voices >= 2) return 2;
+      // 1 Voice or none → mix Hush (setup) and Held Note (execute).
+      const lowest = aliveParty(s).slice().sort((a,b) => a.hp - b.hp)[0];
+      if (lowest && lowest.hp <= 10) return 1;
+      return 0;
+    },
+    onPlayerTurnStart: (s, me) => {
+      // GC any dead-Voice entries left behind by previous kills so they
+      // don't collide with respawn uniqueId allocation below.
+      Object.keys(s.enemies.chars).forEach(k => {
+        const en = s.enemies.chars[k];
+        if (en && en.dead && en.id === 'voice') delete s.enemies.chars[k];
+      });
+      // Untargetable while any Voice is alive.  Cleared otherwise so the
+      // player gets the post-silence window to land damage.
+      const liveVoices = Object.values(s.enemies.chars).filter(en => en.id === 'voice' && !en.dead);
+      me.untargetable = liveVoices.length > 0;
+      // Stagger window — staggerTurnsLeft > 0 means the stagger persists
+      // into this turn (Choir was staggered last enemy turn), suppressing
+      // the respawn cycle for one full window.  Player capitalizes here.
+      if (me.staggered || (me.staggerTurnsLeft || 0) > 0) return;
+      // Respawn — fill any empty enemy slot with a fresh Voice.  Iterate
+      // both back-line slots so the count always returns to 2 (matches
+      // the layout the player started the fight against).
+      ['mid', 'back'].forEach(sl => {
+        const occ = enemyBySlot(s, sl);
+        if (occ && !occ.dead) return;
+        s.enemies.slots[sl] = null;
+        // Allocate a fresh, never-used uniqueId so we never stomp an
+        // existing entry.  Live keys like voice#2 may have drifted slots
+        // via enemyAdvanceFill, so just skip past anything already taken.
+        let n = 1;
+        while (s.enemies.chars[`voice#${n}`]) n++;
+        const key = `voice#${n}`;
+        const fresh = spawnEnemy(s, sl, 'voice', { uniqueId: key });
+        if (fresh) spawnPopupId(key, 'RESPAWN', 'stagger', 'enemy');
+      });
+      const liveVoicesAfter = Object.values(s.enemies.chars).filter(en => en.id === 'voice' && !en.dead);
+      me.untargetable = liveVoicesAfter.length > 0;
+    },
+  },
+
+  // ============================== LAYER 8 — THE HUSK GARDEN =================
+  // Surrounded by Blooms that heal it +4 per enemy turn.  Specials detonate
+  // a killed Bloom for +8 damage to the Husk — Resolve becomes the actual
+  // currency that hurts the boss.  Buries once at <30% HP for a one-shot
+  // "you almost had it" reset.
+  bloom: {
+    id: 'bloom', name: 'Bloom', title: 'Petal of the Husk', maxHp: 8,
+    weakness: null, resistance: null,
+    intents: [
+      // Blooms barely act on their own — their job is to be a healing
+      // aura.  A token chip to keep them dangerous if ignored.
+      { name: 'Pollen Sting', tag: 'ATK 2 lowest', targetSlot: '?', kind: 'atk', dmg: 2, fn: (s) => dmgLowestParty(s, 2) },
+      // Heal the Husk — fires automatically each enemy turn while alive.
+      { name: 'Feed the Husk', tag: 'heal 4 Husk', targetSlot: '?', kind: 'armor',
+        fn: (s) => {
+          const husk = Object.values(s.enemies.chars).find(en => en.id === 'huskGarden' && !en.dead);
+          if (husk) {
+            husk.hp = Math.min(husk.maxHp, husk.hp + 4);
+            spawnPopupId('huskGarden', '+4', 'heal', 'enemy');
+          }
+        } },
+    ],
+    pickIntent: (s, me) => {
+      // Every other turn feed the Husk; otherwise chip the party.  Means
+      // the Husk gets ~+4 per Bloom every other enemy turn — net ~+2/turn
+      // per Bloom in steady state.
+      return ((s.turn || 0) % 2 === 0) ? 1 : 0;
+    },
+    onDeath: (s, e, actionKind) => {
+      // Special-detonate: a Special killing a Bloom deals +8 to the Husk.
+      // Basic-attack kill is a clean kill, no detonate.  Combos count as
+      // a team Special (player committed Resolve).
+      const isSpecial = actionKind === 'special' || actionKind === 'combo';
+      if (!isSpecial) return;
+      const husk = Object.values(s.enemies.chars).find(en => en.id === 'huskGarden' && !en.dead);
+      if (!husk || husk.untargetable) return;
+      const dmg = 8;
+      husk.hp = Math.max(0, husk.hp - dmg);
+      spawnPopupId('huskGarden', `-${dmg}`, 'crit', 'enemy');
+      setTimeout(() => spawnPopupId('huskGarden', 'BLOOM DETONATES', 'crit', 'enemy'), 80);
+      log(`<i>The Bloom bursts — <b>${dmg}</b> damage carries into the Husk.</i>`);
+      flashCardId('huskGarden', 'hit', 'enemy');
+      shakeCardId('huskGarden', 'enemy', dmg);
+      if (husk.hp === 0) { hitPause(120); killEnemy(s, husk); }
+    },
+  },
+  huskGarden: {
+    id: 'huskGarden', name: 'The Husk Garden', title: 'Sin of Refusal', maxHp: 160, boss: true,
+    weakness: ['ranged', 'arcane'], resistance: 'stealth',
+    intents: [
+      { name: 'Strangling Vines', tag: 'ATK 5 mid + dull 1', targetSlot: 'mid', kind: 'atk', dmg: 5,
+        fn: (s) => { dmgPartyAt(s, 'mid', 5); const c = charBySlot(s, 'mid'); if (c) c.dulled = (c.dulled || 0) + 1; } },
+      { name: 'Pollen Cloud', tag: '+vuln 2 + bleed 1 all', targetSlot: 'all', kind: 'debuff',
+        fn: (s) => { aliveParty(s).forEach(c => { c.vuln = (c.vuln || 0) + 2; c.bleed = Math.max(c.bleed || 0, 1); }); } },
+      { name: 'Deep Root', tag: 'heal 8 + respawn Bloom', targetSlot: '?', kind: 'armor',
+        fn: (s) => {
+          const me = Object.values(s.enemies.chars).find(en => en.id === 'huskGarden' && !en.dead);
+          if (me) { me.hp = Math.min(me.maxHp, me.hp + 8); spawnPopupId('huskGarden', '+8', 'heal', 'enemy'); }
+          // GC dead Bloom entries before allocating new ones.
+          Object.keys(s.enemies.chars).forEach(k => {
+            const en = s.enemies.chars[k];
+            if (en && en.dead && en.id === 'bloom') delete s.enemies.chars[k];
+          });
+          // Respawn a Bloom in the first empty slot — uniqueId is the
+          // lowest unused bloom#N key.
+          ['mid', 'back'].some(sl => {
+            const occ = enemyBySlot(s, sl);
+            if (occ && !occ.dead) return false;
+            s.enemies.slots[sl] = null;
+            let n = 1;
+            while (s.enemies.chars[`bloom#${n}`]) n++;
+            spawnEnemy(s, sl, 'bloom', { uniqueId: `bloom#${n}` });
+            log('<i>A new Bloom roots itself in the Husk\'s shadow.</i>');
+            return true;
+          });
+        } },
+      { name: 'Buried Fire', tag: 'ATK 10 front', targetSlot: 'front', kind: 'atk', dmg: 10,
+        fn: (s) => dmgPartyAt(s, 'front', 10) },
+    ],
+    pickIntent: (s, me) => {
+      const turn = s.turn || 0;
+      const liveBlooms = Object.values(s.enemies.chars).filter(en => en.id === 'bloom' && !en.dead).length;
+      // Wounded + no Blooms → Deep Root (heal + respawn) — but limited to
+      // once per 4 turns so the player gets windows to commit damage.
+      if ((liveBlooms === 0 || (me && me.hp / me.maxHp <= 0.55))
+          && turn - (me._lastHealTurn || -99) >= 4) {
+        me._lastHealTurn = turn;
+        return 2;
+      }
+      // Big hit when the front is healthy.
+      const front = charBySlot(s, 'front');
+      if (front && !front.downed && front.hp / front.maxHp > 0.6) return 3;
+      // Cycle setup vs targeted dull.
+      return (turn % 2 === 0) ? 1 : 0;
+    },
+    onPlayerTurnStart: (s, me) => {
+      // Bury phase — at <30% HP, the Husk buries itself for ONE turn.
+      // While buried: Husk + all Blooms are untargetable.  Returns at 80%
+      // HP next player turn.  One-shot per fight (tracked via me._buried).
+      if (!me._buriedUsed && me.hp > 0 && me.hp / me.maxHp <= 0.30) {
+        me._buriedUsed = true;
+        me._buryPending = true;
+      }
+      if (me._buryPending && !me._buryActive) {
+        // Activate bury this turn cycle.
+        me._buryPending = false;
+        me._buryActive = true;
+        me.untargetable = true;
+        // Tag all Blooms untargetable too.
+        Object.values(s.enemies.chars).forEach(en => {
+          if (en.id === 'bloom' && !en.dead) en.untargetable = true;
+        });
+        spawnPopupId('huskGarden', 'BURIES', 'stagger', 'enemy');
+        log('<i>The Husk buries itself.  The garden holds its breath.</i>');
+      } else if (me._buryActive) {
+        // Resurrect — heal to 80%, untargetable cleared, blooms cleared too.
+        me._buryActive = false;
+        me.hp = Math.max(me.hp, Math.floor(me.maxHp * 0.8));
+        me.untargetable = false;
+        Object.values(s.enemies.chars).forEach(en => {
+          if (en.id === 'bloom' && !en.dead) en.untargetable = false;
+        });
+        spawnPopupId('huskGarden', 'RETURNS', 'heal', 'enemy');
+        log('<i>The Husk unburies — older, harder, full of roots.</i>');
+      }
+    },
+  },
+
+  // ============================== TWIN MIRROR PHASE-SHIFT ====================
+  // Mirror Shard — spawned when Twin Mirror reaches <50% HP.  Same intent
+  // table as the parent, but two instances pick independently.  Killing
+  // one shard enrages the other (+3 damage, retaliate doubled) — so the
+  // win condition is "bring both low, drop them in the same turn cycle".
+  mirrorShard: {
+    id: 'mirrorShard', name: 'Mirror Shard', title: 'Sin of Mirrors', maxHp: 90, boss: true,
+    weakness: ['holy', 'physical'], resistance: 'arcane',
+    intents: [
+      { name: 'Shard Cut', tag: 'ATK 7 front + retal 3', targetSlot: 'front', kind: 'atk',
+        dmg: 7, fn: (s) => {
+          dmgPartyAt(s, 'front', 7);
+          // Apply retaliate to ALL alive Mirror Shards.
+          Object.values(s.enemies.chars).forEach(en => {
+            if ((en.id === 'mirrorShard' || en.id === 'twinMirror') && !en.dead) en.retaliate = (en.retaliate || 0) + 3;
+          });
+        } },
+      { name: 'Glass Rain', tag: 'ATK 3 all + bleed 1 all', targetSlot: 'all', kind: 'aoe',
+        dmg: 3, fn: (s) => { dmgAllParty(s, 3); aliveParty(s).forEach(c => { c.bleed = Math.max(c.bleed || 0, 1); }); } },
+      { name: 'Refracted Strike', tag: 'ATK 6 mid', targetSlot: 'mid', kind: 'atk', dmg: 6,
+        fn: (s) => dmgPartyAt(s, 'mid', 6) },
+    ],
+    pickIntent: (s, me) => {
+      // If this is the LAST mirror standing, go full berserk (Glass Rain) every other turn.
+      const mirrors = Object.values(s.enemies.chars).filter(en =>
+        (en.id === 'mirrorShard' || en.id === 'twinMirror') && !en.dead);
+      if (mirrors.length === 1) return (s.turn || 0) % 2 === 0 ? 1 : 0;
+      return (s.turn || 0) % 3 === 0 ? 1 : ((s.turn || 0) % 3 === 1 ? 2 : 0);
+    },
+    onDeath: (s, e) => {
+      // Killing a Mirror Shard ENRAGES the surviving twin: +3 outgoing dmg,
+      // retaliate doubled.  Tracked via e._enraged on each shard so the
+      // damage scaling in applyDmgToEnemy can pick it up (folded into the
+      // intent.dmg lookups via a pickIntent hook below).
+      Object.values(s.enemies.chars).forEach(en => {
+        if ((en.id === 'mirrorShard' || en.id === 'twinMirror') && !en.dead) {
+          en._enraged = true;
+          en.retaliate = (en.retaliate || 0) * 2;
+          spawnPopupId(en.id === 'twinMirror' ? 'twinMirror' : Object.keys(s.enemies.chars).find(k => s.enemies.chars[k] === en),
+                       'ENRAGED', 'crit', 'enemy');
+        }
+      });
+    },
+  },
 };
 
 // ============================================================================
@@ -2340,6 +2828,13 @@ const ENCOUNTERS = {
   ee2: { id: 'ee2', name: 'Court of Wraiths', elite: true, sigilCategory: 'resource', slots: { front: 'grappler', mid: 'wraith', back: 'lineCaster' } },
   // boss encounter — single massive enemy, run-ending fight
   boss: { id: 'boss', name: 'The Wakeling', boss: true, slots: { front: 'wakeling' } },
+  // ---- Layer 7 boss: Sundering Choir + 2 Voices (multi-instance enemy
+  //      via voice#1 / voice#2 unique-key suffixes; see initEncounter). ----
+  boss_choir: { id: 'boss_choir', name: 'The Sundering Choir', boss: true,
+    slots: { front: 'sunderingChoir', mid: 'voice#1', back: 'voice#2' } },
+  // ---- Layer 8 boss: Husk Garden + 2 Blooms ----
+  boss_garden: { id: 'boss_garden', name: 'The Husk Garden', boss: true,
+    slots: { front: 'huskGarden', mid: 'bloom#1', back: 'bloom#2' } },
 };
 
 // ============================================================================
@@ -2428,19 +2923,19 @@ const LAYER_CONTENT = {
   7: {
     combat: ['echoknight', 'grappler', 'lineCaster', 'wraith', 'cultist', 'mourner'],
     elite:  ['echoknight', 'grappler', 'mourner', 'lineCaster'],
-    boss:   'slowbloom', // placeholder — layer 7's bespoke boss is a future pass
-    bossName: 'The Last Star',
-    bossSubtitle: 'SIN OF DISTANCE',
-    bossTag: 'Light forgets how.',
+    boss:   'sunderingChoir', bossEncId: 'boss_choir',
+    bossName: 'The Sundering Choir',
+    bossSubtitle: 'SIN OF VOICES',
+    bossTag: 'It speaks with many throats.',
     hpBonus: 12, intentDmgBonus: 3,
   },
   8: {
     combat: ['echoknight', 'grappler', 'lineCaster', 'wraith', 'cultist', 'drone'],
     elite:  ['echoknight', 'grappler', 'mourner', 'lineCaster'],
-    boss:   'drownedchoir', // placeholder
-    bossName: 'The Unwaking',
-    bossSubtitle: 'SIN OF DAWN-REFUSED',
-    bossTag: 'It chose the dark.',
+    boss:   'huskGarden', bossEncId: 'boss_garden',
+    bossName: 'The Husk Garden',
+    bossSubtitle: 'SIN OF REFUSAL',
+    bossTag: 'It grew downward instead.',
     hpBonus: 14, intentDmgBonus: 4,
   },
   9: {
@@ -2557,6 +3052,14 @@ function genEliteEncounter(level, names) {
 
 function genBossEncounter() {
   const layer = (typeof state !== 'undefined' && state && state.run && LAYER_CONTENT[state.run.layer]) || LAYER_CONTENT[1];
+  // Multi-actor boss encounters (Sundering Choir + Voices, Husk Garden +
+  // Blooms) declare a bossEncId pointing at a hand-authored ENCOUNTERS
+  // entry with the full slot layout.  Single-boss layers stick with the
+  // simple { front: bossId } construction.
+  if (layer.bossEncId && ENCOUNTERS[layer.bossEncId]) {
+    const spec = ENCOUNTERS[layer.bossEncId];
+    return { name: layer.bossName, slots: { ...spec.slots }, boss: true };
+  }
   return { name: layer.bossName, slots: { front: layer.boss }, boss: true };
 }
 
@@ -7876,9 +8379,16 @@ function startEncounter(encSpec) {
   // rebuild enemies fresh from the encounter spec
   state.enemies.slots = { ...encSpec.slots };
   state.enemies.chars = {};
+  // Slot values may be a bare ENEMIES key ("voice") OR a unique-instance
+  // form ("voice#1") so encounters can field multiple copies of the same
+  // enemy template (Sundering Choir's two Voices, Husk Garden's two
+  // Blooms).  The part before # picks the ENEMIES template; the whole
+  // string becomes the state.enemies.chars key.
   SLOTS.forEach(sl => {
-    const id = encSpec.slots[sl];
-    if (id) state.enemies.chars[id] = newEnemyState(id);
+    const key = encSpec.slots[sl];
+    if (!key) return;
+    const baseId = String(key).split('#')[0];
+    state.enemies.chars[key] = newEnemyState(baseId);
   });
 
   state.queue = [];
@@ -8055,6 +8565,36 @@ function enemyBySlot(s, slot) { const id = s.enemies.slots[slot]; return id ? s.
 function slotOfChar(s, id) { return SLOTS.find(sl => s.party.slots[sl] === id); }
 function aliveParty(s) { return Object.values(s.party.chars).filter(c => !c.downed); }
 function aliveEnemies(s) { return Object.values(s.enemies.chars).filter(e => !e.dead); }
+// Spawn an enemy into a slot mid-fight (Voice respawn, Mirror Shard split).
+// If the slot is occupied by a living enemy, the spawn is rejected (the
+// caller decides where to put it).  Uses newEnemyState so layer-bonus HP
+// scaling lands.  Multiple instances of the same ENEMIES key share state
+// — to spawn a duplicate, pass a `uniqueId` so the new instance gets its
+// own key in state.enemies.chars (e.g. "twinMirror#2").
+function spawnEnemy(s, slot, enemyId, opts) {
+  if (!s || !slot || !enemyId) return null;
+  const occ = enemyBySlot(s, slot);
+  if (occ && !occ.dead) return null;
+  const key = (opts && opts.uniqueId) || enemyId;
+  const fresh = newEnemyState(enemyId);
+  fresh.id = enemyId; // keep ENEMIES def lookup pointing at the template
+  if (opts && typeof opts.hp === 'number') {
+    fresh.hp = Math.max(1, Math.min(fresh.maxHp, opts.hp));
+  }
+  if (opts && typeof opts.maxHp === 'number') {
+    fresh.maxHp = opts.maxHp;
+    fresh.hp = Math.min(fresh.hp, fresh.maxHp);
+  }
+  // If a previous instance lived in this slot key, clear it first.
+  if (s.enemies.chars[key]) delete s.enemies.chars[key];
+  s.enemies.chars[key] = fresh;
+  s.enemies.slots[slot] = key;
+  // Slot animation hook so the new figure slides in instead of popping.
+  if (typeof pendingSlideIds !== 'undefined' && pendingSlideIds && pendingSlideIds.add) {
+    pendingSlideIds.add(key);
+  }
+  return fresh;
+}
 function firstAliveEnemyFrom(s, startIdx) {
   for (let i = startIdx; i < 3; i++) { const e = enemyBySlot(s, SLOTS[i]); if (e && !e.dead) return e; }
   for (let i = startIdx - 1; i >= 0; i--) { const e = enemyBySlot(s, SLOTS[i]); if (e && !e.dead) return e; }
@@ -8273,6 +8813,14 @@ function previewMultiHit(s, e, baseAmt, actorId, hits, techElement) {
 
 function applyDmgToEnemy(s, e, baseAmt) {
   if (!e || e.dead) return;
+  // Untargetable enemies absorb the strike without taking damage — used by
+  // the Sundering Choir while any Voice is alive, and by the Husk during
+  // its bury phase.  Still triggers the "MUTED" popup so the player knows
+  // their hit didn't connect (versus a silent no-op).
+  if (e.untargetable) {
+    spawnPopupId(e.id, 'MUTED', 'stagger', 'enemy');
+    return;
+  }
   let amt = baseAmt;
 
   // adjacency dmgMod (e.g. Old Rivalry friction on Branwen in FM line)
@@ -8564,6 +9112,15 @@ function applyDmgToEnemy(s, e, baseAmt) {
     s.fightStats.damageDealt[s.currentActorId] = (s.fightStats.damageDealt[s.currentActorId] || 0) + toHp;
   }
   if (e.hp === 0) { hitPause(120); killEnemy(s, e); }
+  // Per-enemy onDamaged hook — fires after the hit lands (and after the
+  // kill resolves if hp hit zero).  Used by Twin Mirror's phase-shift to
+  // detect the HP threshold and shatter into a second shard.
+  else if (toHp > 0) {
+    const _def2 = ENEMIES[e.id];
+    if (_def2 && typeof _def2.onDamaged === 'function') {
+      try { _def2.onDamaged(s, e, toHp); } catch (_) {}
+    }
+  }
 }
 
 // triggerStagger removed — the WEAKENED → STAGGERED transition is now
@@ -8571,7 +9128,15 @@ function applyDmgToEnemy(s, e, baseAmt) {
 
 function killEnemy(s, e) {
   e.dead = true;
-  log(`<b>${ENEMIES[e.id].name}</b> falls.`);
+  // Per-enemy onDeath hook — used by minion-bosses (Sundering Choir's
+  // Voices, Husk Garden's Blooms, Twin Mirror's shard split) to react
+  // to the kill before the standard log/popup fires.  Receives the
+  // current action kind so Bloom detonate can branch on Special vs basic.
+  const _def = ENEMIES[e.id];
+  if (_def && typeof _def.onDeath === 'function') {
+    try { _def.onDeath(s, e, s._currentActionKind); } catch (_) {}
+  }
+  log(`<b>${_def.name}</b> falls.`);
   Audio.kill();
   shakeScreen(2);
   // Boss death is climactic — slow time + screen flash, hold the moment
@@ -9027,22 +9592,32 @@ function _layerIntentBonus(s) {
     ? (LAYER_CONTENT[s.run.layer].intentDmgBonus || 0)
     : 0;
 }
+// Per-attacker damage modifier — currently used by Mirror Shard's enraged
+// state (+3 outgoing damage when its twin has fallen).  Reads the enemy
+// stashed by resolveEnemyStep right before intent.fn() fires.
+function _enemyAttackerBonus(s) {
+  const actor = s && s._currentEnemyActor;
+  if (!actor || actor.dead) return 0;
+  let bonus = 0;
+  if (actor._enraged) bonus += 3;
+  return bonus;
+}
 function dmgPartyAt(s, slot, amt) {
-  amt = amt + _layerIntentBonus(s);
+  amt = amt + _layerIntentBonus(s) + _enemyAttackerBonus(s);
   const tauntee = aliveParty(s).find(c => c.taunt);
   let target = tauntee || charBySlot(s, slot);
   if (!target || target.downed) target = aliveParty(s)[0];
   if (target) applyDmgToParty(s, target, amt);
 }
 function dmgLowestParty(s, amt) {
-  amt = amt + _layerIntentBonus(s);
+  amt = amt + _layerIntentBonus(s) + _enemyAttackerBonus(s);
   const tauntee = aliveParty(s).find(c => c.taunt);
   if (tauntee) return applyDmgToParty(s, tauntee, amt);
   const alive = aliveParty(s); if (alive.length === 0) return;
   alive.sort((a, b) => a.hp - b.hp);
   applyDmgToParty(s, alive[0], amt);
 }
-function dmgAllParty(s, amt) { const a = amt + _layerIntentBonus(s); aliveParty(s).forEach(c => applyDmgToParty(s, c, a)); }
+function dmgAllParty(s, amt) { const a = amt + _layerIntentBonus(s) + _enemyAttackerBonus(s); aliveParty(s).forEach(c => applyDmgToParty(s, c, a)); }
 // Line Caster: hit both slots in a Front-Mid or Mid-Back line. AoE-style — bypasses taunt redirect.
 function dmgLinePair(s, line, amt) {
   const slots = line === 'fm' ? ['front', 'mid'] : ['mid', 'back'];
@@ -9265,6 +9840,17 @@ function startTurn(s) {
       e.staggerBonusUsed = false;
     }
     e._weaknessHitThisTurn = false;
+  });
+  // Per-enemy onPlayerTurnStart hook — minion-bosses use this for the
+  // respawn-cycle logic (Sundering Choir's Voices) and re-evaluating
+  // dynamic state (Husk Garden's untargetable bury phase resolution,
+  // Sundering Choir's "any Voice alive → untargetable" link).
+  Object.values(s.enemies.chars).forEach(e => {
+    if (e.dead) return;
+    const _def = ENEMIES[e.id];
+    if (_def && typeof _def.onPlayerTurnStart === 'function') {
+      try { _def.onPlayerTurnStart(s, e); } catch (_) {}
+    }
   });
   // Adaptive intents — enemies whose ENEMIES def carries a `pickIntent`
   // function get to choose THIS turn's intent based on live state (party
@@ -9892,6 +10478,10 @@ function resolveQueueStep(i) {
 }
 
 function executeQueueItem(s, item) {
+  // Stash the kind of action driving this damage tick so kill handlers
+  // can branch on it (Husk Garden's Blooms detonate only when killed by
+  // a Special; Sundering Choir's invuln-while-Voices uses this path too).
+  s._currentActionKind = item && item.kind ? item.kind : null;
   if (item.kind === 'combo') {
     const combo = COMBOS[item.comboId];
     if (!combo) return;
@@ -10470,7 +11060,11 @@ function resolveEnemyStep(s, i) {
     intentTargetCharIds(s, intent).forEach(tid => flashCardId(tid, 'warn', 'party'));
   } catch (_) {}
   setTimeout(() => {
+    // Stash the currently-acting enemy so the party-damage funnel can
+    // pick up per-enemy modifiers (Mirror Shard's _enraged +3 dmg).
+    s._currentEnemyActor = e;
     intent.fn(s);
+    s._currentEnemyActor = null;
     if (checkEnd(s)) { s.executing = false; render(); return; }
     e.intentIdx = (e.intentIdx + 1) % def.intents.length;
     render();
