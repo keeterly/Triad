@@ -9087,6 +9087,46 @@ const CHARMS = {
     effect: 'First incoming attack each fight is reduced by 3',
     applyAtFightStart: (s) => { if (s.run) s.run._charmFirstShieldPending = true; },
   },
+  wild_coal: {
+    name: 'Wild Coal',
+    pairKey: 'branwen+korin',
+    flavor: 'A coal from the kindling they shared on the long hunt.',
+    effect: 'Every hero starts each fight with +1 retaliate',
+    applyAtFightStart: (s) => {
+      aliveParty(s).forEach(c => { c.retaliate = (c.retaliate || 0) + 1; });
+    },
+  },
+  twin_coal: {
+    name: 'Twin Coal',
+    pairKey: 'mira+veyr',
+    flavor: 'Two shadows over the same coal.  One steps; the other follows.',
+    effect: 'First attack each fight applies bleed 1 to its target',
+    // Consumed by applyDmgToEnemy on the first damaging hit each
+    // fight — adds bleed 1 to the target if the hit lands and the
+    // enemy survives.
+    applyAtFightStart: (s) => { if (s.run) s.run._charmFirstBleedPending = true; },
+  },
+  frost_coal: {
+    name: 'Frost Coal',
+    pairKey: 'hask+veyr',
+    flavor: 'A coal that does not warm.  It teaches the eye what is cold.',
+    effect: 'Every enemy starts each fight with their weakness revealed',
+    applyAtFightStart: (s) => {
+      Object.values(s.enemies.chars).forEach(e => {
+        if (e && !e.dead) { e.weaknessRevealed = true; e._weaknessJustRevealed = true; }
+      });
+    },
+  },
+  silent_coal: {
+    name: 'Silent Coal',
+    pairKey: 'branwen+veyr',
+    flavor: 'A coal that does not crackle.  Aim is what it teaches.',
+    effect: '+1 Resolve at fight start if Branwen or Veyr is in the party',
+    applyAtFightStart: (s) => {
+      const has = (id) => s.party.chars[id] && !s.party.chars[id].downed;
+      if (has('branwen') || has('veyr')) gainResolve(s, 1);
+    },
+  },
 };
 function getEquippedCharmId() {
   try { return localStorage.getItem(CHARM_KEY) || null; }
@@ -9587,6 +9627,7 @@ function startEncounter(encSpec) {
     state.run._charmFirstKillPending = false;
     state.run._charmFirstHealPending = false;
     state.run._charmFirstShieldPending = false;
+    state.run._charmFirstBleedPending = false;
   }
   try { applyEquippedCharmFightStart(state); } catch (_) {}
   // Ascension fight-start penalties — applied AFTER charm so the
@@ -10110,6 +10151,15 @@ function applyDmgToEnemy(s, e, baseAmt) {
     amt += 2;
     s.run._charmFirstAttackPending = false;
   }
+  // Charm — Twin Coal: first damaging hit each fight also applies
+  // bleed 1.  Consumed alongside the hit; the bleed itself is
+  // applied AFTER the damage subtract so a survivor takes the bleed.
+  // Stash a flag here and let the post-damage block apply it.
+  let _applyTwinBleed = false;
+  if (s.run && s.run._charmFirstBleedPending && amt > 0) {
+    _applyTwinBleed = true;
+    s.run._charmFirstBleedPending = false;
+  }
 
   // vulnerable adds +2 per stack consumed (1 stack per hit); Ember of Wrath sigil adds +2 more
   let vulnConsumed = 0;
@@ -10201,7 +10251,21 @@ function applyDmgToEnemy(s, e, baseAmt) {
   // after the subtract below.
   s._lastHitPreHp = e.hp;
   s._lastHitDmg = toHp;
+  // Per-run biggest-hit tracker for the run summary "BIGGEST HIT"
+  // line.  Stash on fightStats; accumulateRunStats folds the max
+  // into s.run.stats so the summary can read it.
+  if (s.fightStats && toHp > 0 && s.currentActorId) {
+    if (!s.fightStats.biggestHit || toHp > s.fightStats.biggestHit.dmg) {
+      s.fightStats.biggestHit = { dmg: toHp, actorId: s.currentActorId, enemyId: e.id };
+    }
+  }
   e.hp = Math.max(0, e.hp - toHp);
+  // Twin Coal charm — apply bleed 1 to the target if the hit landed
+  // and the enemy survives.  Consumed once per fight; the flag was
+  // captured above before the HP subtract.
+  if (_applyTwinBleed && e.hp > 0) {
+    e.bleed = Math.max(e.bleed || 0, 1);
+  }
   // Brand of Doom — vuln stacks aren't consumed by attacks.
   // Ash Veil Echo — Ash's own attacks don't consume the stack either; the
   // mage keeps the chain alive for the rest of the party.
@@ -15991,7 +16055,7 @@ function showTutorialToast(html, onDismiss) {
 // to surface its explanation. Capture-phase so the figure's setPointerCapture
 // (pickup gesture) doesn't swallow the tap.
 function bindChipExplainers() {
-  const CHIP_SEL = '.status-chip, .affinity-chip, .adj-chip, .incoming-chip, .sigil-chip, .hero-quirk, .run-mod-chip, .fig-quirk, .state-strip, .weakness-icon, .cch-school';
+  const CHIP_SEL = '.status-chip, .affinity-chip, .adj-chip, .incoming-chip, .sigil-chip, .hero-quirk, .run-mod-chip, .run-charm-chip, .run-asc-chip, .fig-quirk, .state-strip, .weakness-icon, .cch-school';
   document.addEventListener('pointerdown', (e) => {
     const chip = e.target.closest(CHIP_SEL);
     if (chip && chip.getAttribute('title')) {
@@ -17858,6 +17922,43 @@ function showRunSummary(outcome, opts) {
         <span class="rs-stat"><b>${rs.turns}</b> <em>${rs.turns === 1 ? 'turn' : 'turns'}</em></span>
         <span class="rs-stat"><b>${rs.kills}</b> <em>${rs.kills === 1 ? 'kill' : 'kills'}</em></span>
       </div>
+      ${(() => {
+        // Highlights row — MVP (most damage dealt across the run) +
+        // BIGGEST HIT (single largest hit value).  Both pull from
+        // run-wide stats so they reflect the whole climb, not just
+        // the final fight.  Skipped silently if neither stat exists
+        // (e.g. the player fled before landing any damage).
+        const dmgPairs = Object.entries(rs.damageDealt || {});
+        if (!dmgPairs.length && !rs.biggestHit) return '';
+        const tiles = [];
+        if (dmgPairs.length) {
+          dmgPairs.sort((a, b) => b[1] - a[1]);
+          const [mvpId, mvpDmg] = dmgPairs[0];
+          const mvpName = (CHARS[mvpId] && CHARS[mvpId].name) || mvpId;
+          tiles.push(`<div class="rs-highlight">
+            <div class="rs-highlight-portrait">${PORTRAITS[mvpId] || ''}</div>
+            <div class="rs-highlight-body">
+              <span class="rs-highlight-label">MVP</span>
+              <span class="rs-highlight-value">${mvpName}</span>
+              <span class="rs-highlight-sub">${mvpDmg} dmg dealt</span>
+            </div>
+          </div>`);
+        }
+        if (rs.biggestHit) {
+          const bh = rs.biggestHit;
+          const hitter = (CHARS[bh.actorId] && CHARS[bh.actorId].name) || bh.actorId;
+          const victim = (ENEMIES[bh.enemyId] && ENEMIES[bh.enemyId].name) || bh.enemyId;
+          tiles.push(`<div class="rs-highlight">
+            <div class="rs-highlight-portrait">${PORTRAITS[bh.actorId] || ''}</div>
+            <div class="rs-highlight-body">
+              <span class="rs-highlight-label">Biggest hit</span>
+              <span class="rs-highlight-value">${bh.dmg}</span>
+              <span class="rs-highlight-sub">${hitter} → ${victim}</span>
+            </div>
+          </div>`);
+        }
+        return `<div class="rs-highlights">${tiles.join('')}</div>`;
+      })()}
       ${_embersThisRun > 0 ? `<div class="rs-embers"><span class="rs-embers-glyph">✦</span><b>+${_embersThisRun}</b> <em>Embers banked</em><span class="rs-embers-total">total · ${getEmbersBalance()}</span></div>` : ''}
       ${unlockHtml}
       ${memorialHtml}
@@ -17917,6 +18018,14 @@ function accumulateRunStats(fs) {
   rs.turns += fs.turns;
   rs.reaches += 1;
   fs.synergies.forEach(name => { if (!rs.synergies.includes(name)) rs.synergies.push(name); });
+  // Carry the biggest single hit across the run for the run-summary
+  // headline.  Compare against the per-fight high-water mark; keep
+  // the better of the two.
+  if (fs.biggestHit) {
+    if (!rs.biggestHit || fs.biggestHit.dmg > rs.biggestHit.dmg) {
+      rs.biggestHit = { ...fs.biggestHit };
+    }
+  }
 }
 
 // Post-fight recap: show damage / healing / kills / synergies, then continue.
