@@ -17593,6 +17593,25 @@ function showSigilOverlay(offers, onDone, opts) {
   const owned = new Set((state.run && state.run.sigils) || []);
   offers = (offers || []).filter(sg => sg && (!owned.has(sg.id) || sg._isUpgrade));
   if (!offers.length) { continueAfter(); return; }
+  // Reroll plumbing — state.run.rerollsRemaining is set by newState()
+  // (baseline 1 + Embers Second-Look bonus).  When the player rerolls,
+  // we re-shuffle the available pool excluding the current offers so
+  // they ALWAYS get a fresh trio, and decrement the budget.  Boss-
+  // spoils sigil offers skip the reroll button so the climactic
+  // reward feels final (spoils carries opts.spoils).
+  const rerollAllowed = !(opts && opts.spoils);
+  const reroll = () => {
+    if (!state.run) return;
+    if ((state.run.rerollsRemaining || 0) <= 0) return;
+    state.run.rerollsRemaining -= 1;
+    const currentIds = new Set(offers.map(o => o.id));
+    const pool = (typeof availableSigils === 'function' ? availableSigils(state) : [])
+      .filter(sg => !currentIds.has(sg.id));
+    const next = pool.slice().sort(() => Math.random() - 0.5).slice(0, Math.min(3, pool.length));
+    if (!next.length) return;
+    Audio.ui();
+    showSigilOverlay(next, onDone, opts);
+  };
   // Use the wide overlay-event framing for parity with event / swap / rest
   // overlays — same 1100px chrome so the three big sigil cards have room.
   const $overlay = $('#overlay');
@@ -17667,6 +17686,24 @@ function showSigilOverlay(offers, onDone, opts) {
     card.addEventListener('click', () => commitSigil(sg.id, continueAfter));
     choices.appendChild(card);
   });
+  // Reroll button — appears below the three sigil cards when allowed
+  // and the run has rerolls left.  Sized + styled to read as a sub-
+  // action rather than a primary commit, so it doesn't pull attention
+  // from the actual sigil cards.
+  if (rerollAllowed) {
+    const rerollsLeft = (state.run && state.run.rerollsRemaining) || 0;
+    const rerollBar = document.createElement('div');
+    rerollBar.className = 'sigil-reroll-bar';
+    rerollBar.innerHTML = `
+      <button type="button" class="sigil-reroll-btn${rerollsLeft > 0 ? '' : ' sigil-reroll-disabled'}" ${rerollsLeft > 0 ? '' : 'disabled'}>
+        <span class="sigil-reroll-icon">↻</span>
+        <span class="sigil-reroll-label">Look again</span>
+        <span class="sigil-reroll-count">${rerollsLeft} left</span>
+      </button>
+    `;
+    if (rerollsLeft > 0) rerollBar.querySelector('.sigil-reroll-btn').addEventListener('click', reroll);
+    choices.appendChild(rerollBar);
+  }
   const btn = $('#overlay-btn');
   btn.textContent = 'Pass';
   btn.onclick = () => {

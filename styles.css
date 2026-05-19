@@ -3558,6 +3558,62 @@ body.on-title:has(#overlay:not(.hidden)) #stage-scale {
 }
 
 /* ===========================================================================
+   SIGIL REROLL — secondary action below the three offer cards on a
+   sigil-pick screen.  Sized to read as sub-action (not primary commit),
+   greys out when no rerolls are left.  Budget per layer comes from
+   newState (baseline 1 + Embers Second Look bonus).
+   =========================================================================== */
+.sigil-reroll-bar {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: center;
+  margin-top: 6px;
+}
+.sigil-reroll-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 14px;
+  background: linear-gradient(180deg, rgba(28,22,18,0.7) 0%, rgba(10,8,6,0.85) 100%);
+  border: 1px solid rgba(240,212,136,0.32);
+  color: var(--ink-dim);
+  font-family: inherit;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.sigil-reroll-btn:not(.sigil-reroll-disabled):hover {
+  filter: brightness(1.2);
+  border-color: var(--gold-bright);
+  color: var(--gold-pale);
+  box-shadow: 0 0 10px rgba(240,212,136,0.3);
+}
+.sigil-reroll-disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+.sigil-reroll-icon {
+  font-size: 13px;
+  color: var(--gold-bright);
+  text-shadow: 0 0 6px rgba(240,212,136,0.5);
+}
+.sigil-reroll-disabled .sigil-reroll-icon {
+  color: var(--ink-faint);
+  text-shadow: none;
+}
+.sigil-reroll-label { letter-spacing: 0.22em; }
+.sigil-reroll-count {
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+  border-left: 1px solid rgba(232,220,196,0.18);
+  padding-left: 8px;
+}
+
+/* ===========================================================================
    ACHIEVEMENT FANFARE — brief top-of-screen card when an achievement
    unlocks.  Slides in from the right, holds ~3s, slides out.  Doesn't
    block input (pointer-events: none on the wrapper) so it never gates
