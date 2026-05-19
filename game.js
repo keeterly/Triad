@@ -3099,13 +3099,16 @@ function _consumeName(pool, used) {
 // Generate a combat encounter spec.  Always at least 1 enemy in Front.
 // Level-1 encounters lean lighter so the solo opener is survivable; the
 // player typically picks up companions by mid-run.
-function genCombatEncounter(level, names) {
+function genCombatEncounter(level, names, layerOverride) {
   const count = level <= 1 ? (Math.random() < 0.6 ? 1 : 2)
               : level === 2 ? (Math.random() < 0.5 ? 2 : 3)
               : (Math.random() < 0.45 ? 2 : 3);
   // Pull from the current layer's combat pool; falls back to Layer 1.
-  const pool = (typeof state !== 'undefined' && state && state.run && LAYER_CONTENT[state.run.layer])
-    ? LAYER_CONTENT[state.run.layer].combat
+  const layerId = (typeof layerOverride === 'number' && layerOverride > 0)
+    ? layerOverride
+    : (state && state.run && state.run.layer) || 0;
+  const pool = (layerId && LAYER_CONTENT[layerId])
+    ? LAYER_CONTENT[layerId].combat
     : COMBAT_ENEMY_POOL;
   const enemies = _shuffle(pool).slice(0, count);
   const slotNames = _shuffle(['front', 'mid', 'back']);
@@ -3152,9 +3155,12 @@ function genCombatEncounter(level, names) {
   return enc;
 }
 
-function genEliteEncounter(level, names) {
-  const pool = (typeof state !== 'undefined' && state && state.run && LAYER_CONTENT[state.run.layer])
-    ? LAYER_CONTENT[state.run.layer].elite
+function genEliteEncounter(level, names, layerOverride) {
+  const layerId = (typeof layerOverride === 'number' && layerOverride > 0)
+    ? layerOverride
+    : (state && state.run && state.run.layer) || 0;
+  const pool = (layerId && LAYER_CONTENT[layerId])
+    ? LAYER_CONTENT[layerId].elite
     : ELITE_ENEMY_POOL;
   const enemies = _shuffle(pool).slice(0, 3);
   const slots = { front: enemies[0], mid: enemies[1], back: enemies[2] };
@@ -3167,8 +3173,11 @@ function genEliteEncounter(level, names) {
   };
 }
 
-function genBossEncounter() {
-  const layer = (typeof state !== 'undefined' && state && state.run && LAYER_CONTENT[state.run.layer]) || LAYER_CONTENT[1];
+function genBossEncounter(layerOverride) {
+  const layerId = (typeof layerOverride === 'number' && layerOverride > 0)
+    ? layerOverride
+    : (state && state.run && state.run.layer) || 1;
+  const layer = LAYER_CONTENT[layerId] || LAYER_CONTENT[1];
   // Multi-actor boss encounters (Sundering Choir + Voices, Husk Garden +
   // Blooms) declare a bossEncId pointing at a hand-authored ENCOUNTERS
   // entry with the full slot layout.  Single-boss layers stick with the
@@ -5790,11 +5799,17 @@ function markVignetteFired(id) {
 //   L5: boss
 // Each non-boss node links to 1-2 random next-level nodes; we then
 // guarantee every next-level node is reachable from at least one parent.
-function generateMap() {
+function generateMap(layerOverride) {
   // Map length scales with layer depth so later layers feel like longer
   // descents.  Layer 1 keeps the 5-level shape players learn on; later
   // layers stretch out and pack in more variety (events, elites, rests).
-  const layer = (state && state.run && state.run.layer) || 1;
+  // `layerOverride` lets callers pass the layer explicitly — needed
+  // during newState() construction, where the global `state` still holds
+  // the PREVIOUS run's layer (so reading state.run.layer would leak the
+  // old layer's bosses into the new map's enc nodes).
+  const layer = (typeof layerOverride === 'number' && layerOverride > 0)
+    ? layerOverride
+    : ((state && state.run && state.run.layer) || (typeof getCurrentLayer === 'function' ? getCurrentLayer() : 1) || 1);
   const numLevels = Math.min(5 + Math.max(0, layer - 1), 8);
   const usedNames = new Set();
   const levels = [];
@@ -5874,9 +5889,9 @@ function generateMap() {
     countAndTypes.forEach((type, i) => {
       const id = `n${idCounter++}`;
       const node = { id, level: lvl, col: i, type, next: [] };
-      if (type === 'boss')        node.enc = genBossEncounter();
-      else if (type === 'elite')  node.enc = genEliteEncounter(lvl, usedNames);
-      else if (type === 'combat') node.enc = genCombatEncounter(lvl, usedNames);
+      if (type === 'boss')        node.enc = genBossEncounter(layer);
+      else if (type === 'elite')  node.enc = genEliteEncounter(lvl, usedNames, layer);
+      else if (type === 'combat') node.enc = genCombatEncounter(lvl, usedNames, layer);
       else if (type === 'event')  node.eventId = eventPool[(i + lvl) % eventPool.length];
       else if (type === 'wanderer') {
         // Wanderer id is locked in at generation time so the modal can
@@ -8420,7 +8435,11 @@ function newState(forcedStarter) {
       resolveMaxBonus: (carried && typeof carried.resolveMaxBonus === 'number') ? carried.resolveMaxBonus : 0,
       lastVictoryElite: false, // did the most recent victory come from an elite encounter? (gates sigil reward size)
       layer: getCurrentLayer(),     // which Abyss layer this run is climbing
-      map: generateMap(),    // freshly generated branching graph for this run
+      // Pass the layer explicitly so map/encounter generators don't read
+      // stale state.run.layer from the PREVIOUS run (this is the same
+      // function building the new state object — global state hasn't
+      // been re-assigned yet at this point).
+      map: generateMap(getCurrentLayer()),    // freshly generated branching graph for this run
       modifier: rollRunModifier(), // biome modifier — passive effect for the whole run
       stats: { damageDealt: {}, damageTaken: {}, healingDone: {}, kills: 0, synergies: [], turns: 0, reaches: 0 },
       rumoredHeroes: [],     // hero ids heard about in prior vignettes — recruit picker prefers these
@@ -17283,6 +17302,10 @@ function showSettingsScreen() {
         <span class="settings-label">First-run tutorial</span>
         <span class="settings-value">Show again on next run</span>
       </button>
+      <button type="button" class="settings-row" data-action="dev">
+        <span class="settings-label">Dev tools</span>
+        <span class="settings-value">Jump to layer · playtest boss</span>
+      </button>
       <button type="button" class="settings-row settings-danger" data-action="clearsave">
         <span class="settings-label">Active run</span>
         <span class="settings-value">Clear save</span>
@@ -17300,6 +17323,8 @@ function showSettingsScreen() {
         try { localStorage.removeItem('kizuna.tutorialSeen'); } catch (_) {}
         _tutCursor = 0;
         flashSettings('Tutorial will replay next run.');
+      } else if (action === 'dev') {
+        showDevToolsScreen();
       } else if (action === 'clearsave') {
         confirmDestructive('Clear the active run?', 'This deletes your in-progress save.', () => {
           clearSave();
@@ -17351,6 +17376,144 @@ function confirmDestructive(title, body, onConfirm) {
   document.body.appendChild(m);
   m.querySelector('.cm-cancel').addEventListener('click', () => { Audio.ui(); m.remove(); });
   m.querySelector('.cm-confirm').addEventListener('click', () => { Audio.ui(); m.remove(); onConfirm(); });
+}
+
+// ============================================================================
+// DEV TOOLS — quick-jump panel for playtesting bosses + layers.  Opens
+// from Settings → Dev tools.  Two columns: jump to a layer (fresh run on
+// that floor, full map) or fight a boss directly (skip the map, drop
+// straight into the boss encounter with a full classic-trio party).
+// ============================================================================
+function showDevToolsScreen() {
+  $('#overlay').classList.add('overlay-dismissable');
+  bindOverlayBackdropDismiss();
+  $('#overlay-title').textContent = 'Dev Tools';
+  const body = $('#overlay-body');
+  body.classList.remove('welcome-body', 'title-screen-body', 'victory-summary-body', 'run-summary-body');
+
+  // Build a flat list of layers from LAYER_CONTENT so the order matches
+  // what actually exists (avoids ABYSS_LAYERS drift).
+  const layerIds = Object.keys(LAYER_CONTENT)
+    .map(k => parseInt(k, 10))
+    .filter(n => !Number.isNaN(n))
+    .sort((a, b) => a - b);
+
+  const jumpRow = layerIds.map(id => {
+    const info = LAYER_CONTENT[id];
+    const mega = info && info.megaBoss ? ' ★' : '';
+    return `<button type="button" class="dev-chip" data-jump="${id}">L${id}${mega}</button>`;
+  }).join('');
+
+  const bossRow = layerIds.map(id => {
+    const info = LAYER_CONTENT[id];
+    const name = (info && info.bossName) || `L${id} boss`;
+    const mega = info && info.megaBoss ? ' dev-chip-mega' : '';
+    return `<button type="button" class="dev-chip dev-chip-boss${mega}" data-boss="${id}">
+      <span class="dev-chip-tag">L${id}</span>
+      <span class="dev-chip-name">${name}</span>
+    </button>`;
+  }).join('');
+
+  body.innerHTML = `
+    <div class="dev-section">
+      <div class="dev-section-label">Jump to layer</div>
+      <div class="dev-row">${jumpRow}</div>
+      <div class="dev-section-hint">Starts a fresh run on that floor with the full map.  Save / progression untouched aside from current layer.</div>
+    </div>
+    <div class="dev-section">
+      <div class="dev-section-label">Playtest boss</div>
+      <div class="dev-col">${bossRow}</div>
+      <div class="dev-section-hint">Skips the map entirely.  Spawns the classic trio (Cassia · Elin · Branwen) and drops straight into the boss intro.  ★ = megaboss.</div>
+    </div>
+  `;
+
+  body.querySelectorAll('[data-jump]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const n = parseInt(btn.dataset.jump, 10);
+      if (!Number.isFinite(n)) return;
+      _devJumpToLayer(n);
+    });
+  });
+  body.querySelectorAll('[data-boss]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const n = parseInt(btn.dataset.boss, 10);
+      if (!Number.isFinite(n)) return;
+      _devFightBoss(n);
+    });
+  });
+
+  const choicesEl = $('#overlay-choices');
+  choicesEl.innerHTML = '';
+  choicesEl.classList.remove('title-choices');
+  choicesEl.classList.add('hidden');
+  resetOverlayBtn();
+  const btn = $('#overlay-btn');
+  btn.textContent = 'Back';
+  btn.onclick = () => { hideOverlay(); showSettingsScreen(); };
+  btn.classList.remove('hidden');
+  $('#overlay').classList.remove('hidden');
+}
+
+// Fresh run on layer N — same path as the world-map click handler, just
+// without the world-map UI in front of it.
+function _devJumpToLayer(layer) {
+  setCurrentLayer(layer);
+  clearSave();
+  clearCarriedParty();
+  hideOverlay();
+  init();
+}
+
+// Build a fresh state with the classic trio in their home slots and
+// drop straight into the boss encounter for the chosen layer.  Skips
+// the full map + opening vignette so iteration on boss mechanics is
+// instant.  Still routes through showBossIntro so any wind-up beats /
+// SFX cues land normally.
+function _devFightBoss(layer) {
+  setCurrentLayer(layer);
+  clearSave();
+  clearCarriedParty();
+  hideOverlay();
+  hideTitleScreen();
+
+  // Fresh state with Cassia as the starter (her home is front, fits
+  // the standard trio formation).
+  state = newState('cassia');
+  state.run.layer = layer;
+
+  // Backfill Elin (mid) and Branwen (back) into their home slots so the
+  // playtest starts with a full 3-hero party — single-hero against a
+  // megaboss is unreadable for tuning.
+  ['elin', 'branwen'].forEach(id => {
+    if (!CHARS[id] || state.party.chars[id]) return;
+    state.party.chars[id] = newCharState(id);
+    const home = CHARS[id].home;
+    if (home && !state.party.slots[home]) state.party.slots[home] = id;
+  });
+
+  // Build the boss encounter spec straight from the layer's content
+  // (honors bossEncId multi-actor layouts — Choir, Husk Garden, etc.).
+  const layerInfo = LAYER_CONTENT[layer] || LAYER_CONTENT[1];
+  const bossEnc = genBossEncounter(layer);
+
+  // No map node, no completion bookkeeping — just kick into the boss
+  // intro then the encounter.  finishBoss still fires on kill, but
+  // without a carried snapshot the run-summary "Ascend" lands the
+  // player on the world map; from there they can pick another layer
+  // or re-open Dev Tools.
+  state.run.currentNodeId = null;
+
+  const startBoss = () => showBossIntro({
+    eyebrow: layerInfo.bossSubtitle,
+    name:    (layerInfo.bossName || '').toUpperCase(),
+    tag:     layerInfo.bossTag,
+    megaBoss: !!layerInfo.megaBoss,
+  }, () => startEncounter(bossEnc));
+  // One render so the HUD / party row paints before the boss intro
+  // sequence kicks in.  Otherwise the boss intro can flash over a
+  // blank stage on the first frame after dev jump.
+  render();
+  setTimeout(startBoss, 60);
 }
 
 function flashSettings(msg) {
