@@ -4099,6 +4099,78 @@ body.on-title:has(#overlay:not(.hidden)) #stage-scale {
   color: var(--ink-faint);
   font-style: italic;
 }
+/* Hero row inside the codex — clickable; opens the full Hero codex
+   on tap (preserves the deep dive that used to live as its own menu
+   item).  Sealed rows show ◇ until the hero has been recruited. */
+.codex-row.codex-row-hero {
+  cursor: default;
+  transition: background 0.15s;
+}
+.codex-row.codex-row-hero:not(.codex-row-sealed):hover {
+  background: linear-gradient(180deg, rgba(40,30,18,0.6) 0%, rgba(16,10,8,0.7) 100%);
+}
+
+/* Bond row inside the codex — same as the dedicated Bonds screen but
+   one column wider since the codex card is narrower than the bonds
+   card.  Portraits stack with a -10px overlap so they read as a pair. */
+.codex-row.codex-row-bond { grid-template-columns: 70px 1fr; }
+.codex-row.codex-row-bond.bond-tier-2 { border-left: 2px solid rgba(240,212,136,0.55); }
+.codex-row.codex-row-bond.bond-tier-3 { border-left: 2px solid var(--gold-bright); }
+.codex-row.codex-row-bond.bond-tier-4 {
+  border-left: 2px solid var(--gold-bright);
+  box-shadow: inset 0 0 0 1px rgba(240,212,136,0.18), 0 0 16px rgba(240,212,136,0.18);
+}
+.codex-bond-portraits {
+  display: flex;
+  align-items: flex-end;
+  position: relative;
+  height: 50px;
+}
+.codex-bond-portrait {
+  width: 36px; height: 50px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+}
+.codex-bond-portrait + .codex-bond-portrait { margin-left: -10px; }
+.codex-bond-portrait svg { width: 100%; height: 100%; }
+.codex-bond-bar {
+  height: 3px;
+  background: rgba(232,220,196,0.08);
+  border-radius: 2px;
+  overflow: hidden;
+  margin: 2px 0;
+}
+.codex-bond-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, rgba(240,212,136,0.5) 0%, var(--gold-bright) 100%);
+}
+.codex-row.codex-row-bond.bond-tier-4 .codex-bond-bar-fill {
+  background: linear-gradient(90deg, var(--gold-bright) 0%, #fff5d0 100%);
+  box-shadow: 0 0 6px rgba(240,212,136,0.5);
+}
+.codex-empty {
+  font-size: 11px;
+  font-style: italic;
+  color: var(--ink-faint);
+  text-align: center;
+  padding: 20px;
+}
+
+/* 6-tab fitness — bestiary tabs now host 6 entries (Heroes + Bestiary
+   + Sigils + Resonances + Bonds + Achievements).  Tighten the per-tab
+   label so they still fit the 720px design canvas without wrapping. */
+.codex-tabs { gap: 2px; }
+.codex-tab { padding: 5px 4px; }
+.codex-tab-label { font-size: 9.5px; letter-spacing: 0.14em; }
+.codex-tab-count { font-size: 8px; }
+@media (max-width: 480px) {
+  .codex-tab-label { font-size: 8.5px; letter-spacing: 0.1em; }
+  .codex-tab-count { font-size: 7.5px; }
+  .codex-tab { padding: 4px 2px; }
+}
+
 /* Sigil row — icon-only column instead of a portrait box. */
 .codex-row.codex-row-sigil { grid-template-columns: 32px 1fr; }
 .codex-sigil-icon {

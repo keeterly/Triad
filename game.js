@@ -18881,23 +18881,24 @@ function showTitleScreen() {
     hideTitleScreen();
     renderMap();
   }, !canContinue));
-  menuEl.appendChild(mkBtn('Heroes',  () => showHeroCodex()));
+  // Consolidated meta entries — Heroes / Bonds / Bestiary / Sigils /
+  // Resonances / Achievements all live as tabs inside the Codex screen
+  // now, and Credits absorbed into Settings.  Final title menu is just
+  // PLAY (NEW GAME / CONTINUE) + CODEX (browse) + EMBERS (spend) +
+  // SETTINGS (configure).  Five items.
   menuEl.appendChild(mkBtn('Codex',   () => showCodexScreen()));
-  menuEl.appendChild(mkBtn('Bonds',   () => showBondsScreen()));
-  // Embers tab — meta-currency spend.  Label carries the current
-  // balance so the player sees their stockpile without entering.
   const _emb = getEmbersBalance();
   menuEl.appendChild(mkBtn(`Embers · ${_emb}`, () => showEmbersScreen()));
-  menuEl.appendChild(mkBtn('Credits', () => showCreditsScreen()));
   menuEl.appendChild(mkBtn('Settings', () => showSettingsScreen()));
 
   // Unlocks badge — surface both meta-progression beats so returning
   // players see what they've earned: starters unlocked + layers cleared.
   const metaEl = document.getElementById('ts-meta');
   const clearedCount = getClearedLayers().length;
+  // Single-line summary — was two lines (Starters / Layers), now one
+  // compact line so the title screen feels less stat-heavy.
   metaEl.innerHTML = `
-    <span class="ts-meta-line">Starters unlocked · <b>${unlocked.length || 1}</b> / ${ROSTER.length}</span>
-    <span class="ts-meta-line">Layers cleared · <b>${clearedCount}</b> / ${ABYSS_LAYERS.length}</span>
+    <span class="ts-meta-line"><b>${unlocked.length || 1}</b>/${ROSTER.length} starters · <b>${clearedCount}</b>/${ABYSS_LAYERS.length} layers</span>
   `;
 
   root.classList.remove('hidden');
@@ -18930,6 +18931,10 @@ function showSettingsScreen() {
         <span class="settings-label">First-run tutorial</span>
         <span class="settings-value">Show again on next run</span>
       </button>
+      <button type="button" class="settings-row" data-action="credits">
+        <span class="settings-label">Credits</span>
+        <span class="settings-value">Who built this</span>
+      </button>
       <button type="button" class="settings-row" data-action="dev">
         <span class="settings-label">Dev tools</span>
         <span class="settings-value">Jump to layer · playtest boss</span>
@@ -18958,6 +18963,10 @@ function showSettingsScreen() {
         try { localStorage.removeItem(HELD_KEY); } catch (_) {}
         _tutCursor = 0;
         flashSettings('Tutorial hints will fire fresh next run.');
+      } else if (action === 'credits') {
+        // Defer one frame so the click event doesn't bubble into the
+        // overlay-dismiss handler we wired for settings.
+        setTimeout(() => showCreditsScreen(), 0);
       } else if (action === 'dev') {
         showDevToolsScreen();
       } else if (action === 'clearsave') {
@@ -19352,10 +19361,18 @@ function hideCodexScreen() {
 function _renderCodex(body) {
   const codex = getCodex();
   const earned = getAchievementsEarned();
+  const bonds = getBonds();
+  const unlockedStarters = new Set(getUnlockedStarters());
+  // Codex is now the universal "lifetime browse" screen — Heroes and
+  // Bonds folded in as tabs so the title menu doesn't have to carry
+  // them separately.  Tab counts reflect the player's progress against
+  // each catalog's total so completion is visible at a glance.
   const tabs = [
+    { id: 'heroes',       label: 'Heroes',       count: unlockedStarters.size,                                            total: ROSTER.length },
     { id: 'bestiary',     label: 'Bestiary',     count: Object.values(codex.enemies).filter(e => e.encountered).length, total: Object.values(ENEMIES).filter(e => !e._dev).length },
     { id: 'sigils',       label: 'Sigils',       count: Object.keys(codex.sigils).length,                                total: Object.keys(SIGILS).length },
     { id: 'resonances',   label: 'Resonances',   count: Object.keys(codex.combos).length,                                total: Object.keys(COMBOS).length },
+    { id: 'bonds',        label: 'Bonds',        count: Object.values(bonds).filter(b => (b.fights || 0) >= 10).length,   total: Object.keys(bonds).length || 0 },
     { id: 'achievements', label: 'Achievements', count: Object.keys(earned).length,                                       total: Object.keys(ACHIEVEMENTS).length },
   ];
   const nav = tabs.map(t => `
@@ -19365,9 +19382,11 @@ function _renderCodex(body) {
     </button>
   `).join('');
   let listHtml = '';
-  if (_codexActiveTab === 'bestiary')           listHtml = _renderCodexBestiary(codex);
+  if (_codexActiveTab === 'heroes')             listHtml = _renderCodexHeroes(unlockedStarters);
+  else if (_codexActiveTab === 'bestiary')      listHtml = _renderCodexBestiary(codex);
   else if (_codexActiveTab === 'sigils')        listHtml = _renderCodexSigils(codex);
   else if (_codexActiveTab === 'resonances')    listHtml = _renderCodexResonances(codex);
+  else if (_codexActiveTab === 'bonds')         listHtml = _renderCodexBonds(bonds);
   else if (_codexActiveTab === 'achievements')  listHtml = _renderCodexAchievements(earned);
   body.innerHTML = `
     <nav class="codex-tabs">${nav}</nav>
@@ -19495,6 +19514,75 @@ function _renderCodexResonances(codex) {
         </div>
         <div class="codex-row-meta"><span>${tierLabel}</span><span>${partners}</span></div>
         <div class="codex-row-desc">${c.desc}</div>
+      </div>
+    </div>`;
+  }).join('');
+  return `<div class="codex-group">${rows}</div>`;
+}
+
+function _renderCodexHeroes(unlocked) {
+  // Compact roster summary — one row per hero, sealed rows for locked.
+  // Tap any unlocked row to expand into a Hero codex card for that
+  // hero (uses the existing showHeroCodex flow as a sub-screen).
+  const rows = ROSTER.map(id => {
+    const def = CHARS[id]; if (!def) return '';
+    const u = unlocked.has(id);
+    return `<div class="codex-row codex-row-hero${u ? '' : ' codex-row-sealed'}" data-hero="${id}">
+      <div class="codex-portrait">${u ? (PORTRAITS[id] || '') : '◇'}</div>
+      <div class="codex-row-body">
+        <div class="codex-row-head">
+          <span class="codex-row-name">${u ? def.name : '???'}</span>
+          <span class="codex-row-stat">${u ? `${(def.school || '').toUpperCase()} · ${SLOT_LABELS[def.home] || def.home || ''}` : 'sealed'}</span>
+        </div>
+        <div class="codex-row-desc">${u ? (def.title || '') : 'Walk the road with them to unseal.'}</div>
+      </div>
+    </div>`;
+  }).join('');
+  // Click-through to the full Hero codex preserved — defer the bind to
+  // the next paint via a tiny delegate on the codex body.
+  setTimeout(() => {
+    document.querySelectorAll('#codex-body .codex-row-hero:not(.codex-row-sealed)').forEach(row => {
+      row.style.cursor = 'pointer';
+      row.addEventListener('click', () => {
+        hideCodexScreen();
+        showHeroCodex();
+      });
+    });
+  }, 0);
+  return `<div class="codex-group">${rows}</div>`;
+}
+
+function _renderCodexBonds(bonds) {
+  // Compact bond list reused inside the codex tab.  Mirrors the
+  // standalone Bonds screen but trimmed to a single column so it
+  // fits the narrower codex card.  Empty state matches the standalone.
+  const entries = Object.entries(bonds).map(([key, val]) => {
+    const [a, b] = key.split('+');
+    return { a, b, fights: val.fights || 0 };
+  }).sort((x, y) => y.fights - x.fights);
+  if (!entries.length) {
+    return `<div class="codex-group"><div class="codex-empty">No bonds yet.  Recruit a hero on the road, win a fight together, and watch this list fill.</div></div>`;
+  }
+  const rows = entries.map(({ a, b, fights }) => {
+    const da = CHARS[a]; const db = CHARS[b];
+    if (!da || !db) return '';
+    const tier = bondTierFor(fights);
+    const tierLabel = BOND_TIER_LABELS[tier] || 'Unmet';
+    const tierCls = `bond-tier-${tier}`;
+    const nextAt = tier === 0 ? 1 : tier === 1 ? 10 : tier === 2 ? 25 : tier === 3 ? 50 : 50;
+    const pct = Math.min(100, Math.round((fights / nextAt) * 100));
+    return `<div class="codex-row codex-row-bond ${tierCls}">
+      <div class="codex-bond-portraits">
+        <div class="codex-bond-portrait">${PORTRAITS[a] || ''}</div>
+        <div class="codex-bond-portrait">${PORTRAITS[b] || ''}</div>
+      </div>
+      <div class="codex-row-body">
+        <div class="codex-row-head">
+          <span class="codex-row-name">${da.name} + ${db.name}</span>
+          <span class="codex-row-stat">${tierLabel}</span>
+        </div>
+        <div class="codex-bond-bar"><div class="codex-bond-bar-fill" style="width:${pct}%"></div></div>
+        <div class="codex-row-meta"><span><b>${fights}</b> shared</span>${tier < 4 ? `<span>next ${nextAt}</span>` : `<span>max</span>`}</div>
       </div>
     </div>`;
   }).join('');
