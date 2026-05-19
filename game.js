@@ -12655,7 +12655,14 @@ function renderTeamSpecial() {
       <span class="rc-desc">${combo.desc}</span>
     `;
     btn.title = `Resonance · ${combo.name}: ${combo.desc}`;
-    btn.addEventListener('click', () => commitCombo(combo.id));
+    // Press-and-hold previews the combo's targets — same affordance as
+    // action tiles.  Short tap commits the Resonance.  Combo fns are
+    // arbitrary effects so the preview is built by dry-running on a
+    // queue-aware clone and diffing the result (see previewComboTargets).
+    bindTileHold(btn, {
+      onQueue: () => commitCombo(combo.id),
+      onPreview: () => previewComboTargets(combo.id),
+    });
     area.appendChild(btn);
   });
   // Near-miss chips — combos one action away.  Non-clickable indicators that
@@ -12799,6 +12806,100 @@ function getPreviewState() {
     __simulating = false;
   }
   return clone;
+}
+
+// Dry-run a Resonance combo on a queue-aware clone and diff the resulting
+// state against the pre-roll snapshot to figure out which enemies got hit
+// and which party slots got healed/buffed.  Combo fns are arbitrary
+// imperative effects (apply dmg, set statuses, push popups) — no static
+// reach metadata to read — so the cleanest path is simulate-then-diff.
+// Returns the same shape as previewTargetsForTile so applyPreviewHighlight
+// can render it without special-casing.
+function previewComboTargets(comboId) {
+  const empty = { enemySlots: [], partySlots: [], enemyHits: [], partyHeals: [], moveSlots: [], weaknessSlots: [], staggerSlots: [], element: null, sigilIds: [] };
+  const combo = COMBOS[comboId];
+  if (!combo || typeof combo.fn !== 'function') return empty;
+  let clone;
+  try { clone = structuredClone(state); }
+  catch (_) { return empty; }
+  // Apply any already-queued actions first so the combo's targets reflect
+  // the world the combo would actually fire into (e.g. a queued Move
+  // shifts who's lowest-HP).
+  const real = state;
+  state = clone;
+  __simulating = true;
+  // Snapshot enemy + party state BEFORE running the combo so we can diff.
+  const enemyBefore = {};
+  SLOTS.forEach(sl => {
+    const key = clone.enemies.slots[sl];
+    const e = key && clone.enemies.chars[key];
+    if (e && !e.dead) {
+      enemyBefore[sl] = {
+        hp: e.hp, armor: e.armor || 0, vuln: e.vuln || 0,
+        bleed: e.bleed || 0, burn: e.burn || 0, dulled: e.dulled || 0,
+        weakened: !!e.weakened, staggered: !!e.staggered,
+      };
+    }
+  });
+  const partyBefore = {};
+  SLOTS.forEach(sl => {
+    const id = clone.party.slots[sl];
+    const c = id && clone.party.chars[id];
+    if (c && !c.downed) {
+      partyBefore[sl] = { hp: c.hp, armor: c.armor || 0 };
+    }
+  });
+  try {
+    // Replay the queue so movement / vuln stacking lands first.
+    (clone.queue || []).forEach(item => { try { executeQueueItem(clone, item); } catch (_) {} });
+    clone.queue = [];
+    try { combo.fn(clone); } catch (_) {}
+  } finally {
+    state = real;
+    __simulating = false;
+  }
+  // Diff enemies — any slot whose HP dropped, who died, or who gained
+  // bleed/burn/dulled/vuln/weakened/staggered is considered a target.
+  const enemySlots = [];
+  const enemyHits = [];
+  SLOTS.forEach(sl => {
+    const before = enemyBefore[sl];
+    if (!before) return;
+    const key = clone.enemies.slots[sl];
+    const after = key && clone.enemies.chars[key];
+    if (!after) return;
+    const dmg  = Math.max(0, (before.hp + before.armor) - (after.hp + (after.armor || 0)));
+    const dead = !!after.dead || (after.hp <= 0 && before.hp > 0);
+    const debuffed = !!(
+      (after.vuln || 0)  > before.vuln  ||
+      (after.bleed || 0) > before.bleed ||
+      (after.burn || 0)  > before.burn  ||
+      (after.dulled || 0)> before.dulled ||
+      (after.weakened && !before.weakened) ||
+      (after.staggered && !before.staggered)
+    );
+    if (dmg > 0 || dead || debuffed) {
+      enemySlots.push(sl);
+      enemyHits.push({ slot: sl, dmg: dmg || undefined, kill: dead });
+    }
+  });
+  // Diff party — any slot whose HP rose or who gained armor is a heal/buff target.
+  const partySlots = [];
+  const partyHeals = [];
+  SLOTS.forEach(sl => {
+    const before = partyBefore[sl];
+    if (!before) return;
+    const id = clone.party.slots[sl];
+    const after = id && clone.party.chars[id];
+    if (!after) return;
+    const heal = Math.max(0, after.hp - before.hp);
+    const armor = Math.max(0, (after.armor || 0) - before.armor);
+    if (heal > 0 || armor > 0) {
+      partySlots.push(sl);
+      if (heal > 0) partyHeals.push({ slot: sl, heal });
+    }
+  });
+  return { enemySlots, partySlots, enemyHits, partyHeals, moveSlots: [], weaknessSlots: [], staggerSlots: [], element: null, sigilIds: [] };
 }
 
 // Where does the actor end up if a movement-tagged tech fires from `fromSlot`?

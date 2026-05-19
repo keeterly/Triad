@@ -1745,8 +1745,13 @@ body.on-title:has(#overlay:not(.hidden)) #stage-scale {
 .target-dmg-label,
 .target-heal-label {
   position: absolute;
-  bottom: 24px; left: 50%;
-  transform: translateX(-50%);
+  /* Lifted from bottom: 24px to top: 38% so the WEAK / RESIST / KO badge
+     sits on the enemy's body mid-chest, well clear of the action-tile
+     hold-preview tooltip (which floats above the action row in the lower
+     middle of the screen and was overlapping when both rendered).
+     translateY(-50%) centers the label on that anchor. */
+  top: 38%; left: 50%;
+  transform: translate(-50%, -50%);
   display: flex;
   align-items: baseline;
   gap: 4px;
@@ -2141,8 +2146,11 @@ body.on-title:has(#overlay:not(.hidden)) #stage-scale {
 }
 
 @keyframes target-pulse {
-  from { opacity: 0.5; transform: translateX(-50%) scale(0.9); }
-  to   { opacity: 1;   transform: translateX(-50%) scale(1.1); }
+  /* translate(-50%, -50%) matches the centered anchor for .target-dmg-label
+     / .target-heal-label which sit at top: 38% — the Y offset must be
+     carried by the animation or the label snaps to the anchor. */
+  from { opacity: 0.5; transform: translate(-50%, -50%) scale(0.9); }
+  to   { opacity: 1;   transform: translate(-50%, -50%) scale(1.1); }
 }
 
 /* ============ SLOT BANNER ============ */
