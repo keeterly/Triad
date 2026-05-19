@@ -8519,6 +8519,180 @@ const UNLOCKED_KEY = 'kizuna.unlockedStarters';
 const DEFAULT_STARTERS = ['kai'];
 
 // ============================================================================
+// EMBERS — meta-currency earned every run (win or lose) and spent at the
+// title menu on permanent unlocks.  The roguelite "one more run" loop
+// hook: every death pays out something, so failure feels like progress.
+// Storage:
+//   kizuna.embers          — total Embers banked (number)
+//   kizuna.embersUnlocks   — { unlockId: tier } map of purchased unlocks
+//   kizuna.embersPendingRun — Embers accumulated in the active run; folded
+//                             into the banked total at run end so a mid-
+//                             run wipe doesn't silently drop the haul.
+// ============================================================================
+const EMBERS_KEY        = 'kizuna.embers';
+const EMBERS_UNLOCKS_KEY = 'kizuna.embersUnlocks';
+const EMBERS_PENDING_KEY = 'kizuna.embersPendingRun';
+
+function getEmbersBalance() {
+  try { return parseInt(localStorage.getItem(EMBERS_KEY) || '0', 10) || 0; }
+  catch (_) { return 0; }
+}
+function _setEmbersBalance(n) {
+  try { localStorage.setItem(EMBERS_KEY, String(Math.max(0, Math.floor(n)))); }
+  catch (_) {}
+}
+function getEmbersUnlocks() {
+  try {
+    const raw = localStorage.getItem(EMBERS_UNLOCKS_KEY);
+    return raw ? (JSON.parse(raw) || {}) : {};
+  } catch (_) { return {}; }
+}
+function _setEmbersUnlocks(obj) {
+  try { localStorage.setItem(EMBERS_UNLOCKS_KEY, JSON.stringify(obj || {})); }
+  catch (_) {}
+}
+function getEmbersUnlockTier(id) {
+  return (getEmbersUnlocks()[id] || 0);
+}
+function _getPendingEmbers() {
+  try { return parseInt(localStorage.getItem(EMBERS_PENDING_KEY) || '0', 10) || 0; }
+  catch (_) { return 0; }
+}
+function _setPendingEmbers(n) {
+  try { localStorage.setItem(EMBERS_PENDING_KEY, String(Math.max(0, Math.floor(n)))); }
+  catch (_) {}
+}
+// Track Embers earned during the active run.  Caller passes a positive
+// amount plus an optional reason for the run-summary readout.  Bonuses
+// are tallied on the pending bucket so a crash mid-run still preserves
+// progress when the player next loads.
+function earnEmbers(amt, _reason) {
+  if (!(amt > 0)) return;
+  if (typeof __simulating !== 'undefined' && __simulating) return;
+  // Dev playtest runs are excluded so a boss-tuning loop doesn't farm
+  // the meta-currency.  state._isDevRun is set by _devFightBoss.
+  if (typeof state !== 'undefined' && state && state._isDevRun) return;
+  _setPendingEmbers(_getPendingEmbers() + Math.floor(amt));
+}
+// Fold pending Embers into the banked total at run end.  Returns the
+// amount that was banked so the caller can surface it in the summary.
+function commitEmbersForRun() {
+  const pending = _getPendingEmbers();
+  if (pending > 0) {
+    _setEmbersBalance(getEmbersBalance() + pending);
+    _setPendingEmbers(0);
+  }
+  return pending;
+}
+// Discard pending Embers without banking — used by dev runs / aborted
+// state resets so partial loot doesn't leak into the real economy.
+function discardPendingEmbers() {
+  _setPendingEmbers(0);
+}
+
+// EMBER_UNLOCKS — permanent perks the player buys with Embers.  Each
+// entry defines: a tier ladder of (cost, label, effect-summary) and an
+// `apply(s)` hook that mutates a fresh state at run-start to grant the
+// perk.  Effects must be applied at newState() so the run starts with
+// the perk active.  Storage tier is 0 (unowned) → max-tier.
+const EMBER_UNLOCKS = {
+  'starter_hp': {
+    name: 'Quickened Breath',
+    flavor: 'The first breath at the bottom comes deeper now.',
+    tiers: [
+      { cost: 10, label: '+2 max HP to starter' },
+      { cost: 25, label: '+4 max HP to starter' },
+      { cost: 60, label: '+7 max HP to starter' },
+    ],
+    apply: (s, tier) => {
+      const bumps = [0, 2, 4, 7];
+      const bump = bumps[tier] || 0;
+      if (!bump || !s.party || !s.party.slots) return;
+      const starterSlot = ['front','mid','back'].find(sl => s.party.slots[sl]);
+      const starterId = starterSlot && s.party.slots[starterSlot];
+      const c = starterId && s.party.chars[starterId];
+      if (c) { c.maxHp += bump; c.hp = c.maxHp; }
+    },
+  },
+  'starter_resolve': {
+    name: 'Banked Will',
+    flavor: 'You wake already steady — a measure of resolve carried over.',
+    tiers: [
+      { cost: 20, label: 'Start every run with 1 Resolve' },
+      { cost: 50, label: 'Start every run with 2 Resolve' },
+    ],
+    apply: (s, tier) => {
+      const bumps = [0, 1, 2];
+      s.resolve = Math.max(s.resolve || 0, bumps[tier] || 0);
+    },
+  },
+  'resolve_cap': {
+    name: 'Crown of the Deep',
+    flavor: 'The bar holds one more than the breath beneath it expects.',
+    tiers: [
+      { cost: 80, label: '+1 to Resolve cap (permanent)' },
+    ],
+    apply: (s, tier) => {
+      if (!tier || !s.run) return;
+      s.run.resolveMaxBonus = (s.run.resolveMaxBonus || 0) + 1;
+    },
+  },
+  'extra_reroll': {
+    name: 'Second Look',
+    flavor: 'The path offers what it offers — until you look again.',
+    tiers: [
+      { cost: 40, label: '+1 reroll per layer at sigil offers' },
+      { cost: 100, label: '+2 rerolls per layer at sigil offers' },
+    ],
+    apply: (s, tier) => {
+      if (!s.run) return;
+      s.run.rerollBonusPerLayer = (s.run.rerollBonusPerLayer || 0) + (tier || 0);
+    },
+  },
+};
+
+// Cost of the NEXT tier to buy.  Returns null if all tiers are owned.
+function emberUnlockNextCost(id) {
+  const def = EMBER_UNLOCKS[id];
+  if (!def) return null;
+  const owned = getEmbersUnlockTier(id);
+  const next = def.tiers[owned];
+  return next ? next.cost : null;
+}
+function emberUnlockNextLabel(id) {
+  const def = EMBER_UNLOCKS[id];
+  if (!def) return null;
+  const owned = getEmbersUnlockTier(id);
+  const next = def.tiers[owned];
+  return next ? next.label : null;
+}
+function purchaseEmberUnlock(id) {
+  const cost = emberUnlockNextCost(id);
+  if (cost == null) return false;
+  const bal = getEmbersBalance();
+  if (bal < cost) return false;
+  _setEmbersBalance(bal - cost);
+  const cur = getEmbersUnlocks();
+  cur[id] = (cur[id] || 0) + 1;
+  _setEmbersUnlocks(cur);
+  return true;
+}
+// Apply every purchased unlock to a fresh run state.  Called from
+// newState() right before the run is returned so the perks land before
+// the first render.
+function applyEmbersUnlocks(s) {
+  const owned = getEmbersUnlocks();
+  Object.entries(owned).forEach(([id, tier]) => {
+    const def = EMBER_UNLOCKS[id];
+    if (def && typeof def.apply === 'function') {
+      try { def.apply(s, tier); } catch (_) {}
+    }
+  });
+}
+
+
+
+// ============================================================================
 // CODEX — persistent encyclopedia of enemies, sigils, and resonances the
 // player has encountered.  All writes go through recordCodex* helpers so a
 // single localStorage round-trip pattern stays consistent.  Reads from
@@ -8543,7 +8717,13 @@ function recordCodexEnemy(enemyId, opts) {
   if (!enemyId) return;
   if (typeof __simulating !== 'undefined' && __simulating) return;
   const c = getCodex();
+  const existed = !!c.enemies[enemyId];
   const entry = c.enemies[enemyId] = c.enemies[enemyId] || { encountered: false, killed: 0, weaknessKnown: false, firstSeen: null };
+  // Ember bonus for the very first time this enemy is ever encountered
+  // — only fires when both this call sets encountered AND the entry
+  // didn't exist before.  Discovery payouts compound across runs but
+  // are once-per-lifetime per template.
+  const isFirstDiscovery = !existed && !!(opts && opts.encountered);
   if (opts && opts.encountered) {
     if (!entry.firstSeen) entry.firstSeen = Date.now();
     entry.encountered = true;
@@ -8551,23 +8731,28 @@ function recordCodexEnemy(enemyId, opts) {
   if (opts && opts.killed)         entry.killed = (entry.killed || 0) + 1;
   if (opts && opts.weaknessKnown)  entry.weaknessKnown = true;
   _saveCodex(c);
+  if (isFirstDiscovery) earnEmbers(5, 'first-enemy');
 }
 function recordCodexSigil(sigilId, tier) {
   if (!sigilId) return;
   if (typeof __simulating !== 'undefined' && __simulating) return;
   const c = getCodex();
+  const existed = !!c.sigils[sigilId];
   const entry = c.sigils[sigilId] = c.sigils[sigilId] || { binds: 0, maxTier: 1, firstBound: Date.now() };
   entry.binds   = (entry.binds || 0) + 1;
   entry.maxTier = Math.max(entry.maxTier || 1, tier || 1);
   _saveCodex(c);
+  if (!existed) earnEmbers(5, 'first-sigil');
 }
 function recordCodexCombo(comboId) {
   if (!comboId) return;
   if (typeof __simulating !== 'undefined' && __simulating) return;
   const c = getCodex();
+  const existed = !!c.combos[comboId];
   const entry = c.combos[comboId] = c.combos[comboId] || { fires: 0, firstFired: Date.now() };
   entry.fires = (entry.fires || 0) + 1;
   _saveCodex(c);
+  if (!existed) earnEmbers(10, 'first-resonance');
 }
 function resetCodex() {
   try { localStorage.removeItem(CODEX_KEY); } catch (_) {}
@@ -8697,6 +8882,25 @@ function newState(forcedStarter) {
     messages: [],
   };
 }
+
+// Wrap newState so every fresh run starts with the player's purchased
+// Embers perks applied (max-HP bumps, starting-Resolve bumps, +1 cap,
+// extra rerolls).  Returns the same state object — caller assigns to
+// `state` as before.
+const _newStateRaw = newState;
+newState = function(forcedStarter) {
+  const s = _newStateRaw(forcedStarter);
+  try { applyEmbersUnlocks(s); } catch (_) {}
+  // Baseline reroll budget per layer — every run gets 1 free reroll
+  // at sigil-offer screens, plus any bonus from the Second Look unlock
+  // (applied above via s.run.rerollBonusPerLayer).
+  if (s.run) {
+    s.run.rerollsBaseline = 1;
+    s.run.rerollsRemaining = (s.run.rerollsBaseline || 0) + (s.run.rerollBonusPerLayer || 0);
+    s.run.rerollsLayerStamp = s.run.layer;
+  }
+  return s;
+};
 
 // Begin (or restart on a new slot) a fight. Resets per-fight state but preserves
 // run-level state: HP, downed status, pendingEffects, run.slotIdx, run.completed.
@@ -9560,6 +9764,15 @@ function killEnemy(s, e) {
   // id (not the per-instance slot key like "shade#1"), since the codex
   // groups by template.  Simulating short-circuits inside recordCodexEnemy.
   recordCodexEnemy(e.id, { killed: true });
+  // Embers payout — 1 per minion kill, 20 per boss, 50 per mega-boss.
+  // Boss tier dominates payouts so a layer clear pays out meaningfully.
+  // Mega-bosses (L3/L6/L9) are the biggest single grants in the run.
+  const _killDef = ENEMIES[e.id];
+  if (_killDef) {
+    if (_killDef.megaBoss)     earnEmbers(50, 'mega-boss');
+    else if (_killDef.boss)    earnEmbers(20, 'boss');
+    else                        earnEmbers(1, 'kill');
+  }
   // Per-enemy onDeath hook — used by minion-bosses (Sundering Choir's
   // Voices, Husk Garden's Blooms, Twin Mirror's shard split) to react
   // to the kill before the standard log/popup fires.  Receives the
@@ -16717,6 +16930,20 @@ function showRunSummary(outcome, opts) {
   if (outcome === 'defeat' && state.fightStats) accumulateRunStats(state.fightStats);
   const rs = state.run.stats || { damageDealt: {}, damageTaken: {}, healingDone: {}, kills: 0, synergies: [], turns: 0, reaches: 0 };
   const partyIds = Object.keys(state.party.chars);
+  // Embers payout — fold in a "made it to layer N" bonus before banking
+  // the run total.  Layer reached is THIS run's current layer (the one
+  // they were in when they died, or the layer they cleared on win).
+  // Dev playtest runs short-circuit on the earn helper.
+  if (state.run && typeof state.run.layer === 'number') {
+    earnEmbers(state.run.layer * 5, 'layer-reached');
+  }
+  // Dev runs discard pending Embers; everyone else banks.  We snapshot
+  // the run's haul BEFORE banking so the summary can show it; the bank
+  // happens immediately after so a crash-after-summary still preserves
+  // the payout.
+  const _embersThisRun = (state && state._isDevRun) ? 0 : _getPendingEmbers();
+  if (state && state._isDevRun) discardPendingEmbers();
+  else commitEmbersForRun();
 
   let title, flavor, outcomeClass;
   if (outcome === 'boss') { title = 'The Wakeling Falls'; flavor = 'The Sin of Dawn is unmade.  The triad endures, and the world breathes again.'; outcomeClass = 'rs-boss'; }
@@ -16820,6 +17047,7 @@ function showRunSummary(outcome, opts) {
         <span class="rs-stat"><b>${rs.turns}</b> <em>${rs.turns === 1 ? 'turn' : 'turns'}</em></span>
         <span class="rs-stat"><b>${rs.kills}</b> <em>${rs.kills === 1 ? 'kill' : 'kills'}</em></span>
       </div>
+      ${_embersThisRun > 0 ? `<div class="rs-embers"><span class="rs-embers-glyph">✦</span><b>+${_embersThisRun}</b> <em>Embers banked</em><span class="rs-embers-total">total · ${getEmbersBalance()}</span></div>` : ''}
       ${unlockHtml}
       ${memorialHtml}
       ${roadkillHtml}
@@ -18220,6 +18448,10 @@ function showTitleScreen() {
   }, !canContinue));
   menuEl.appendChild(mkBtn('Heroes',  () => showHeroCodex()));
   menuEl.appendChild(mkBtn('Codex',   () => showCodexScreen()));
+  // Embers tab — meta-currency spend.  Label carries the current
+  // balance so the player sees their stockpile without entering.
+  const _emb = getEmbersBalance();
+  menuEl.appendChild(mkBtn(`Embers · ${_emb}`, () => showEmbersScreen()));
   menuEl.appendChild(mkBtn('Credits', () => showCreditsScreen()));
   menuEl.appendChild(mkBtn('Settings', () => showSettingsScreen()));
 
@@ -18836,6 +19068,114 @@ function _buildCodexContainer() {
         <button type="button" class="codex-close" id="codex-close" aria-label="Close">×</button>
       </header>
       <div class="codex-body" id="codex-body"></div>
+    </div>
+  `;
+  document.body.appendChild(root);
+  return root;
+}
+
+// ============================================================================
+// EMBERS SCREEN — meta-currency spend.  Shows the player's current
+// balance and a list of permanent perks they can purchase.  Each perk
+// has a tier ladder; the next-tier cost button is enabled iff the
+// player can afford it.  Purchases are instant + persist; new perks
+// land on the next New Game (carry runs use the perks the run started
+// with — applying mid-run would tilt an in-progress climb).
+// ============================================================================
+function showEmbersScreen() {
+  Audio.ui();
+  const root = document.getElementById('embers-screen') || _buildEmbersContainer();
+  _renderEmbersScreen();
+  root.classList.remove('hidden');
+  const closeBtn = document.getElementById('embers-close');
+  if (closeBtn) closeBtn.onclick = () => hideEmbersScreen();
+  bindBackdropDismiss(root, '.embers-card', hideEmbersScreen);
+}
+
+function hideEmbersScreen() {
+  const root = document.getElementById('embers-screen');
+  if (root) root.classList.add('hidden');
+}
+
+function _renderEmbersScreen() {
+  const body = document.getElementById('embers-body');
+  if (!body) return;
+  const balance = getEmbersBalance();
+  const headerHtml = `
+    <div class="embers-balance">
+      <span class="embers-balance-glyph">✦</span>
+      <span class="embers-balance-num">${balance}</span>
+      <span class="embers-balance-label">Embers banked</span>
+    </div>
+    <p class="embers-flavor">Every breath beneath the abyss leaves a coal behind.  Spend them on what carries forward.</p>
+  `;
+  const rows = Object.entries(EMBER_UNLOCKS).map(([id, def]) => {
+    const owned = getEmbersUnlockTier(id);
+    const max = def.tiers.length;
+    const next = def.tiers[owned];
+    const nextCost = next ? next.cost : null;
+    const nextLabel = next ? next.label : null;
+    const affordable = nextCost != null && balance >= nextCost;
+    const tierMarks = def.tiers.map((_, i) =>
+      `<span class="embers-tier-mark${i < owned ? ' embers-tier-filled' : ''}">${i < owned ? '◆' : '◇'}</span>`
+    ).join('');
+    const btnHtml = next
+      ? `<button type="button" class="embers-buy${affordable ? '' : ' embers-buy-disabled'}" data-unlock="${id}" ${affordable ? '' : 'disabled'}>
+          <span class="embers-buy-cost">✦ ${nextCost}</span>
+          <span class="embers-buy-label">${nextLabel}</span>
+        </button>`
+      : `<div class="embers-buy embers-buy-maxed">Maxed</div>`;
+    return `
+      <div class="embers-row">
+        <div class="embers-row-head">
+          <span class="embers-row-name">${def.name}</span>
+          <span class="embers-row-tier">${tierMarks} <span class="embers-row-tier-count">${owned} / ${max}</span></span>
+        </div>
+        <div class="embers-row-flavor">${def.flavor}</div>
+        ${btnHtml}
+      </div>
+    `;
+  }).join('');
+  body.innerHTML = `
+    ${headerHtml}
+    <div class="embers-rows">${rows}</div>
+  `;
+  body.querySelectorAll('.embers-buy[data-unlock]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.unlock;
+      if (purchaseEmberUnlock(id)) {
+        Audio.ui();
+        _renderEmbersScreen();
+        // Refresh the title menu in the background so the balance chip
+        // on the Embers button picks up the new total.  Cheap because
+        // the underlying showTitleScreen is idempotent.
+        const titleRoot = document.getElementById('title-screen');
+        if (titleRoot && !titleRoot.classList.contains('hidden')) {
+          // Title is up underneath — re-render its menu without
+          // double-restarting ambient audio.
+          const menuEl = document.getElementById('ts-menu');
+          if (menuEl) {
+            // Reuse showTitleScreen which is idempotent for menu wiring.
+            showTitleScreen();
+          }
+        }
+      }
+    });
+  });
+}
+
+function _buildEmbersContainer() {
+  const root = document.createElement('div');
+  root.id = 'embers-screen';
+  root.className = 'hidden';
+  root.innerHTML = `
+    <div class="embers-bg"></div>
+    <div class="embers-card">
+      <header class="embers-header">
+        <h2 class="embers-title">EMBERS</h2>
+        <button type="button" class="embers-close" id="embers-close" aria-label="Close">×</button>
+      </header>
+      <div class="embers-body" id="embers-body"></div>
     </div>
   `;
   document.body.appendChild(root);

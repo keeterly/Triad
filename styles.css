@@ -3359,6 +3359,248 @@ body.on-title:has(#overlay:not(.hidden)) #stage-scale {
   animation: hc-fade-in 0.4s ease-out;
 }
 #full-codex.hidden { display: none !important; }
+
+/* ===========================================================================
+   EMBERS SCREEN — meta-currency spend.  Same dark backdrop / card
+   language as Codex / Hero codex so the meta-progression family of
+   screens reads as one set.  Body holds the balance header + a list
+   of unlock rows with tier marks and a per-row purchase button.
+   =========================================================================== */
+#embers-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 240;
+  overflow: hidden;
+  animation: hc-fade-in 0.4s ease-out;
+}
+#embers-screen.hidden { display: none !important; }
+.embers-bg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 70% at 50% 50%,
+                    rgba(28,14,8,0.96) 0%, rgba(0,0,0,1) 100%),
+    #060403;
+}
+.embers-card {
+  position: relative;
+  z-index: 2;
+  max-width: 600px;
+  margin: 0 auto;
+  height: 100%;
+  padding: 14px 16px 16px;
+  display: flex;
+  flex-direction: column;
+}
+.embers-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.embers-title {
+  font-size: 18px;
+  letter-spacing: 0.42em;
+  color: var(--gold-bright);
+  text-shadow: 0 0 18px rgba(240,212,136,0.5);
+  margin: 0;
+  font-weight: 400;
+}
+.embers-close {
+  background: transparent;
+  border: 1px solid var(--gold-dim);
+  color: var(--gold-pale);
+  padding: 4px 12px;
+  font-size: 16px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.embers-close:hover { color: var(--gold-bright); border-color: var(--gold-bright); }
+.embers-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 4px;
+}
+.embers-balance {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(240,212,136,0.18);
+  margin-bottom: 6px;
+}
+.embers-balance-glyph {
+  font-size: 18px;
+  color: var(--gold-bright);
+  text-shadow: 0 0 10px rgba(240,212,136,0.75);
+}
+.embers-balance-num {
+  font-size: 28px;
+  font-weight: bold;
+  color: var(--gold-bright);
+  text-shadow: 0 0 12px rgba(240,212,136,0.6);
+  font-variant-numeric: tabular-nums;
+}
+.embers-balance-label {
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.embers-flavor {
+  font-size: 11px;
+  font-style: italic;
+  letter-spacing: 0.02em;
+  color: var(--ink-dim);
+  text-align: center;
+  margin: 0 auto 12px;
+  max-width: 480px;
+  line-height: 1.5;
+}
+.embers-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.embers-row {
+  padding: 8px 10px;
+  background: linear-gradient(180deg, rgba(20,18,14,0.55) 0%, rgba(8,6,6,0.7) 100%);
+  border-left: 2px solid var(--gold-dim);
+}
+.embers-row-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+.embers-row-name {
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gold-pale);
+}
+.embers-row-tier {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--ink-dim);
+}
+.embers-tier-mark { color: rgba(240,212,136,0.3); font-size: 10px; }
+.embers-tier-filled { color: var(--gold-bright); text-shadow: 0 0 6px rgba(240,212,136,0.7); }
+.embers-row-tier-count {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+  margin-left: 4px;
+  font-size: 9px;
+  color: var(--ink-faint);
+}
+.embers-row-flavor {
+  font-size: 10px;
+  font-style: italic;
+  color: var(--ink-faint);
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+  margin-bottom: 6px;
+}
+.embers-buy {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 6px 12px;
+  background: linear-gradient(180deg, rgba(60,40,18,0.7) 0%, rgba(20,12,8,0.85) 100%);
+  border: 1px solid var(--gold-dim);
+  color: var(--ink);
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s;
+}
+.embers-buy:not(.embers-buy-disabled):hover {
+  filter: brightness(1.15);
+  border-color: var(--gold-bright);
+  box-shadow: 0 0 12px rgba(240,212,136,0.35);
+}
+.embers-buy-disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  filter: saturate(0.4);
+}
+.embers-buy-cost {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: var(--gold-bright);
+  font-weight: bold;
+  text-shadow: 0 0 6px rgba(240,212,136,0.5);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.embers-buy-label {
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+}
+.embers-buy-maxed {
+  text-align: center;
+  padding: 6px 12px;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gold);
+  font-style: italic;
+  background: rgba(20,14,8,0.4);
+  border: 1px solid rgba(240,212,136,0.18);
+}
+
+/* Run summary Embers banner — sits between the stats line and the
+   memorial/roadkill blocks.  Banked at run end so the count is solid
+   by the time this renders. */
+.rs-embers {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+  margin: 8px auto;
+  padding: 6px 14px;
+  background: linear-gradient(180deg, rgba(60,40,18,0.55) 0%, rgba(20,12,8,0.7) 100%);
+  border: 1px solid var(--gold-dim);
+  max-width: 360px;
+}
+.rs-embers-glyph {
+  color: var(--gold-bright);
+  text-shadow: 0 0 8px rgba(240,212,136,0.6);
+  font-size: 14px;
+}
+.rs-embers b {
+  font-size: 16px;
+  color: var(--gold-bright);
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 6px rgba(240,212,136,0.4);
+}
+.rs-embers em {
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  font-style: normal;
+}
+.rs-embers-total {
+  margin-left: auto;
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 720px) {
+  .embers-row-name { font-size: 11px; }
+  .embers-row-flavor { font-size: 9.5px; }
+  .embers-balance-num { font-size: 24px; }
+}
 .codex-bg {
   position: absolute;
   inset: 0;
