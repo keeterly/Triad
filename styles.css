@@ -110,6 +110,15 @@ body {
   transform: translate(-50%, -50%) scale(var(--ui-scale));
   transform-origin: center center;
 }
+/* Lift the (transform-scaled) stage above #title-screen (z-index: 150)
+   whenever the shared #overlay is open — so Credits / Settings overlays
+   opened from the title rail actually paint in front.  The transform on
+   #stage-scale creates a stacking context that traps #overlay's own
+   z-index inside, so without this rule the overlay opens "in front" of
+   the stage children but still behind the title-screen sibling. */
+body.on-title:has(#overlay:not(.hidden)) #stage-scale {
+  z-index: 200;
+}
 
 /* ============ STAGE — battlefield backdrop ============ */
 #stage {

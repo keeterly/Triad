@@ -6741,7 +6741,7 @@ const COMBOS = {
     ],
     fn: (s) => {
       const t = aliveEnemies(s).slice().sort((a,b) => a.hp - b.hp)[0];
-      if (t) { t.staggered = true; t.staggerBonusUsed = false; spawnPopupId(t.id, 'STAGGERED', 'stagger', 'enemy'); log(`<b>${ENEMIES[t.id].name}</b> is STAGGERED — silence found the seam.`); }
+      if (t) { t.staggered = true; t.staggerTurnsLeft = 2; t.staggerBonusUsed = false; spawnPopupId(t.id, 'STAGGERED', 'stagger', 'enemy'); log(`<b>${ENEMIES[t.id].name}</b> is STAGGERED — silence found the seam.`); }
       dmgAllEnemies(s, 2);
     },
     cinematic: [
@@ -7181,6 +7181,7 @@ const COMBOS = {
         if (!e.weaknessRevealed) { e.weaknessRevealed = true; e._weaknessJustRevealed = true; }
         if (e.weakened && !e.staggered) {
           e.staggered = true;
+          e.staggerTurnsLeft = 2;
           e.staggerBonusUsed = false;
           spawnPopupId(e.id, 'STAGGERED', 'stagger', 'enemy');
           const h = s.party.chars.hask;
@@ -7284,6 +7285,7 @@ const COMBOS = {
       if (front && !front.dead) {
         if (!front.weaknessRevealed) { front.weaknessRevealed = true; front._weaknessJustRevealed = true; }
         front.staggered = true;
+        front.staggerTurnsLeft = 2;
         front.staggerBonusUsed = false;
         spawnPopupId(front.id, 'STAGGERED', 'stagger', 'enemy');
         const h = s.party.chars.hask;
@@ -8458,6 +8460,7 @@ function applyDmgToEnemy(s, e, baseAmt) {
   if (isWeaknessHit && amt > 0 && !e.dead && !pendingStaggerClear) {
     if (e.weakened && !e.staggered) {
       e.staggered = true;
+      e.staggerTurnsLeft = 2;
       spawnPopupId(e.id, 'STAGGERED', 'stagger', 'enemy');
       log(`<b>${ENEMIES[e.id].name}</b> is STAGGERED!`);
       // Hask Shatter passive — every stagger while he's alive grants
@@ -8475,6 +8478,7 @@ function applyDmgToEnemy(s, e, baseAmt) {
   }
   if (pendingStaggerClear) {
     e.staggered = false;
+    e.staggerTurnsLeft = 0;
     e.weakened = false;
     e.weakenedTurnsLeft = 0;
     e.staggerBonusUsed = false;
@@ -9235,9 +9239,14 @@ function startTurn(s) {
   //   - weakened lingers for 2 player turns (so the follow-up weakness
   //     hit doesn't have to land same-turn).  weakenedTurnsLeft ticks
   //     down each player turn; when it hits 0 the state clears.
-  //   - staggered is a single-turn consume window — if the player
-  //     didn't capitalize, it closes here.
-  // No turn-skip in either case; the openings just expire.
+  //   - staggered now lingers through the enemy's next turn AND into
+  //     the player's next turn (staggerTurnsLeft = 2 when applied) so
+  //     a stagger applied late in the queue still gives the player a
+  //     fresh turn to capitalize on the 2× hit.  Counter ticks down
+  //     each player turn here; when it hits 0 the state clears.  A
+  //     consumed-stagger (pendingStaggerClear in applyDmgToEnemy) still
+  //     wipes the state immediately, so the 2× hit closes the window
+  //     the moment the player cashes it in.
   aliveEnemies(s).forEach(e => {
     if (e.weakened) {
       e.weakenedTurnsLeft = Math.max(0, (e.weakenedTurnsLeft || 0) - 1);
@@ -9245,8 +9254,16 @@ function startTurn(s) {
     } else {
       e.weakenedTurnsLeft = 0;
     }
-    e.staggered = false;
-    e.staggerBonusUsed = false;
+    if (e.staggered) {
+      e.staggerTurnsLeft = Math.max(0, (e.staggerTurnsLeft || 0) - 1);
+      if (e.staggerTurnsLeft <= 0) {
+        e.staggered = false;
+        e.staggerBonusUsed = false;
+      }
+    } else {
+      e.staggerTurnsLeft = 0;
+      e.staggerBonusUsed = false;
+    }
     e._weaknessHitThisTurn = false;
   });
   // Adaptive intents — enemies whose ENEMIES def carries a `pickIntent`
@@ -16161,6 +16178,7 @@ function loadStateOrNull() {
       if (e.weakened === undefined)          e.weakened = false;
       if (e.weakenedTurnsLeft === undefined) e.weakenedTurnsLeft = e.weakened ? 2 : 0;
       if (e.staggered === undefined)         e.staggered = false;
+      if (e.staggerTurnsLeft === undefined)  e.staggerTurnsLeft = e.staggered ? 2 : 0;
       if (e.weaknessRevealed === undefined)  e.weaknessRevealed = false;
       if (e.staggerBonusUsed === undefined)  e.staggerBonusUsed = false;
       if (e._charging === undefined)         e._charging = null;
