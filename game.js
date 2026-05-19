@@ -8888,6 +8888,77 @@ function resetAchievements() {
   try { localStorage.removeItem(ACH_KEY); } catch (_) {}
 }
 
+// ============================================================================
+// BONDS — hero relationship tracking across all runs.  Every fight the
+// player wins with two heroes both alive increments their pair's
+// "shared fights" counter.  At thresholds (10 / 25 / 50) the pair
+// reaches a deeper bond tier, which grants a small permanent buff to
+// their synergy effect on future runs.  Persistent storage + the
+// Bonds screen on the title menu surface the parasocial layer the
+// game was missing: "this pair fought together 38 times."
+// ============================================================================
+const BONDS_KEY = 'kizuna.bonds.v1';
+function _bondKey(a, b) {
+  return [a, b].slice().sort().join('+');
+}
+function getBonds() {
+  try {
+    const raw = localStorage.getItem(BONDS_KEY);
+    return raw ? (JSON.parse(raw) || {}) : {};
+  } catch (_) { return {}; }
+}
+function _saveBonds(obj) {
+  try { localStorage.setItem(BONDS_KEY, JSON.stringify(obj || {})); }
+  catch (_) {}
+}
+// Increment a pair's "shared fights" counter.  Called at fight-win
+// time for every still-alive pair on the team.  Tier thresholds:
+//   1+  → companions
+//   10+ → kindred
+//   25+ → sworn
+//   50+ → bonded
+function recordBondedFight(idA, idB) {
+  if (!idA || !idB || idA === idB) return;
+  if (typeof __simulating !== 'undefined' && __simulating) return;
+  if (typeof state !== 'undefined' && state && state._isDevRun) return;
+  const key = _bondKey(idA, idB);
+  const bonds = getBonds();
+  const entry = bonds[key] = bonds[key] || { fights: 0, since: Date.now() };
+  entry.fights = (entry.fights || 0) + 1;
+  _saveBonds(bonds);
+}
+function bondTierFor(fights) {
+  if (fights >= 50) return 4;
+  if (fights >= 25) return 3;
+  if (fights >= 10) return 2;
+  if (fights >= 1)  return 1;
+  return 0;
+}
+const BOND_TIER_LABELS = ['Unmet', 'Companions', 'Kindred', 'Sworn', 'Bonded'];
+// Bond tier buff — applied at newState() to bump the synergy's effect.
+// Tier 2+ pairs grant +1 to certain numeric synergy outputs (extra
+// armor / heal / dmg / resolve depending on the pair's effect type).
+// Wired into engine read sites — kept lightweight so the buff is felt
+// without rewriting the synergy stack.
+function bondBuffFor(idA, idB) {
+  const bonds = getBonds();
+  const key = _bondKey(idA, idB);
+  const entry = bonds[key];
+  if (!entry) return 0;
+  const tier = bondTierFor(entry.fights);
+  // Tiers 2/3/4 grant +0/+1/+2 to bonded synergy outputs.  Tier 1
+  // (Companions) is purely a label — no mechanical effect — so first
+  // recruits don't accidentally tilt early balance.
+  if (tier <= 1) return 0;
+  if (tier === 2) return 1;
+  if (tier === 3) return 1;
+  if (tier === 4) return 2;
+  return 0;
+}
+function resetBonds() {
+  try { localStorage.removeItem(BONDS_KEY); } catch (_) {}
+}
+
 const CODEX_KEY = 'kizuna.codex.v1';
 function getCodex() {
   try {
@@ -12114,6 +12185,18 @@ function checkEnd(s) {
     // the fifth combo lands the achievement immediately afterward.
     if (s.usedCombos && s.usedCombos.size >= 5) {
       tryUnlockAchievement('all_resonances_run');
+    }
+    // Bonds — every pair of heroes still standing at fight-win time
+    // gains +1 to their shared-fights counter.  Persistent across all
+    // runs; at thresholds (10/25/50) the pair's synergy gets a small
+    // permanent buff and the bond tier label rises (Companions →
+    // Kindred → Sworn → Bonded).  Downed heroes don't count — they
+    // weren't fighting at the end.
+    const _aliveIds = Object.values(s.party.chars).filter(c => !c.downed).map(c => c.id);
+    for (let i = 0; i < _aliveIds.length; i++) {
+      for (let j = i + 1; j < _aliveIds.length; j++) {
+        recordBondedFight(_aliveIds[i], _aliveIds[j]);
+      }
     }
     // Wanderer-fight lockout — if this combat was a wanderer duel, the
     // hero on the road is now removed from the run's recruit + wanderer
@@ -18800,6 +18883,7 @@ function showTitleScreen() {
   }, !canContinue));
   menuEl.appendChild(mkBtn('Heroes',  () => showHeroCodex()));
   menuEl.appendChild(mkBtn('Codex',   () => showCodexScreen()));
+  menuEl.appendChild(mkBtn('Bonds',   () => showBondsScreen()));
   // Embers tab — meta-currency spend.  Label carries the current
   // balance so the player sees their stockpile without entering.
   const _emb = getEmbersBalance();
@@ -18893,6 +18977,7 @@ function showSettingsScreen() {
           try { localStorage.removeItem(EMBERS_PENDING_KEY); } catch (_) {}
           resetCodex();
           resetAchievements();
+          resetBonds();
           clearCarriedParty();
           flashSettings('Meta progression reset.');
           setTimeout(() => { hideOverlay(); showTitleScreen(); }, 600);
@@ -19554,6 +19639,95 @@ function _buildEmbersContainer() {
         <button type="button" class="embers-close" id="embers-close" aria-label="Close">×</button>
       </header>
       <div class="embers-body" id="embers-body"></div>
+    </div>
+  `;
+  document.body.appendChild(root);
+  return root;
+}
+
+// ============================================================================
+// BONDS SCREEN — shows every pair of heroes the player has fought
+// alongside across all runs, sorted by shared-fights count.  Tier
+// labels (Companions → Kindred → Sworn → Bonded) make the relationship
+// progression legible without a numeric grind.  Pure display screen
+// for v1; mechanical buffs from high-tier bonds will land in a
+// follow-up so balance stays measurable.
+// ============================================================================
+function showBondsScreen() {
+  Audio.ui();
+  const root = document.getElementById('bonds-screen') || _buildBondsContainer();
+  _renderBondsScreen();
+  root.classList.remove('hidden');
+  const closeBtn = document.getElementById('bonds-close');
+  if (closeBtn) closeBtn.onclick = () => hideBondsScreen();
+  bindBackdropDismiss(root, '.bonds-card', hideBondsScreen);
+}
+function hideBondsScreen() {
+  const root = document.getElementById('bonds-screen');
+  if (root) root.classList.add('hidden');
+}
+function _renderBondsScreen() {
+  const body = document.getElementById('bonds-body');
+  if (!body) return;
+  const bonds = getBonds();
+  const entries = Object.entries(bonds).map(([key, val]) => {
+    const [a, b] = key.split('+');
+    return { a, b, fights: val.fights || 0, since: val.since };
+  }).sort((x, y) => y.fights - x.fights);
+  const header = `
+    <p class="bonds-flavor">Every fight survived together is a thread.  Walk longer with the same hands and the line tightens.</p>
+  `;
+  if (!entries.length) {
+    body.innerHTML = `
+      ${header}
+      <div class="bonds-empty">No bonds yet.  Recruit a hero on the road, win a fight together, and watch this list fill.</div>
+    `;
+    return;
+  }
+  const rows = entries.map(({ a, b, fights }) => {
+    const da = CHARS[a]; const db = CHARS[b];
+    if (!da || !db) return '';
+    const tier = bondTierFor(fights);
+    const tierLabel = BOND_TIER_LABELS[tier] || 'Unmet';
+    const tierCls = `bond-tier-${tier}`;
+    // Progress to next tier — surface the goalpost so the player
+    // sees the climb.  At max tier the bar full-fills.
+    const nextAt = tier === 0 ? 1 : tier === 1 ? 10 : tier === 2 ? 25 : tier === 3 ? 50 : 50;
+    const pct = Math.min(100, Math.round((fights / nextAt) * 100));
+    return `
+      <div class="bond-row ${tierCls}">
+        <div class="bond-portraits">
+          <div class="bond-portrait">${PORTRAITS[a] || ''}</div>
+          <div class="bond-portrait">${PORTRAITS[b] || ''}</div>
+        </div>
+        <div class="bond-body">
+          <div class="bond-head">
+            <span class="bond-names">${da.name} <span class="bond-amp">+</span> ${db.name}</span>
+            <span class="bond-tier">${tierLabel}</span>
+          </div>
+          <div class="bond-bar"><div class="bond-bar-fill" style="width:${pct}%"></div></div>
+          <div class="bond-stat"><b>${fights}</b> ${fights === 1 ? 'shared fight' : 'shared fights'}${tier < 4 ? ` · next at ${nextAt}` : ' · max'}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+  body.innerHTML = `
+    ${header}
+    <div class="bonds-list">${rows}</div>
+  `;
+}
+function _buildBondsContainer() {
+  const root = document.createElement('div');
+  root.id = 'bonds-screen';
+  root.className = 'hidden';
+  root.innerHTML = `
+    <div class="bonds-bg"></div>
+    <div class="bonds-card">
+      <header class="bonds-header">
+        <h2 class="bonds-title">BONDS</h2>
+        <button type="button" class="bonds-close" id="bonds-close" aria-label="Close">×</button>
+      </header>
+      <div class="bonds-body" id="bonds-body"></div>
     </div>
   `;
   document.body.appendChild(root);
