@@ -9060,6 +9060,81 @@ body.boss-fight #enemy-half .figure-name {
   text-shadow: 0 0 12px rgba(220,80,80,0.4);
 }
 
+/* ===========================================================================
+   MULTI-ACTOR BOSS FIGHT — Sundering Choir (Voices), Husk Garden (Blooms),
+   Crown of Echoes (Shades).  Restore the normal 3-slot grid so each figure
+   shares the enemy half cleanly instead of inheriting the single-boss 92%
+   width that was overflowing into the party half.  Keep the wide red HP
+   bar treatment ONLY on the actual boss (front slot); minions get
+   normal-scale HP bars over their figures.
+   =========================================================================== */
+body.boss-fight.boss-fight-multi #enemy-half {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr 1fr !important;
+  grid-template-rows: 1fr !important;
+  gap: 2px;
+}
+body.boss-fight.boss-fight-multi #enemy-half .figure {
+  flex: initial;
+  width: auto !important;
+  max-width: none !important;
+}
+body.boss-fight.boss-fight-multi #enemy-half .figure-portrait svg {
+  transform: none;
+  filter: drop-shadow(0 8px 22px rgba(0,0,0,0.7));
+}
+/* Minion HP bars (mid / back slots) — pull them OUT of the wide red
+   banner treatment.  They render as normal-shape inline bars over the
+   figure, like a regular fight.  Only the front-slot boss keeps the
+   dramatic stretched HP bar. */
+body.boss-fight.boss-fight-multi #enemy-half .figure[data-slot="mid"]  .figure-hp,
+body.boss-fight.boss-fight-multi #enemy-half .figure[data-slot="back"] .figure-hp {
+  position: absolute !important;
+  top: auto !important;
+  bottom: auto !important;
+  left: 0 !important;
+  right: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  margin: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  /* Re-anchor to the normal in-portrait position the base
+     .figure-hp rule sets.  We just need to undo the boss-fight
+     absolute-positioning, not re-author the whole thing. */
+  top: 8% !important;
+  left: 10% !important;
+  right: 10% !important;
+}
+body.boss-fight.boss-fight-multi #enemy-half .figure[data-slot="mid"]  .figure-hp::before,
+body.boss-fight.boss-fight-multi #enemy-half .figure[data-slot="mid"]  .figure-hp::after,
+body.boss-fight.boss-fight-multi #enemy-half .figure[data-slot="back"] .figure-hp::before,
+body.boss-fight.boss-fight-multi #enemy-half .figure[data-slot="back"] .figure-hp::after {
+  display: none !important;
+}
+body.boss-fight.boss-fight-multi #enemy-half .figure[data-slot="mid"]  .figure-hp .hp-fill,
+body.boss-fight.boss-fight-multi #enemy-half .figure[data-slot="back"] .figure-hp .hp-fill {
+  background: linear-gradient(180deg, var(--hp) 0%, var(--ink-dim) 100%);
+  box-shadow: none;
+  animation: none;
+}
+body.boss-fight.boss-fight-multi #enemy-half .figure[data-slot="mid"]  .figure-hp .hp-text,
+body.boss-fight.boss-fight-multi #enemy-half .figure[data-slot="back"] .figure-hp .hp-text {
+  position: static !important;
+  transform: none !important;
+  font-size: 9.5px !important;
+  letter-spacing: 0.06em !important;
+  color: var(--ink) !important;
+  text-align: center;
+  display: block;
+}
+body.boss-fight.boss-fight-multi #enemy-half .figure-name {
+  font-size: 10.5px;
+  letter-spacing: 0.18em;
+  color: var(--ink);
+  text-shadow: 0 0 6px rgba(0,0,0,0.8);
+}
+
 /* Boss intro overlay — full screen darken + name reveal. */
 #boss-intro {
   position: fixed;
