@@ -6003,8 +6003,19 @@ function showSigilAward(sigilId) {
 let _pendingAfterAward = null;
 
 function _showAwardBackdrop({ cls, eyebrow, name, reason, flavor, desc, portraitId, bark }) {
-  const old = document.getElementById('quirk-award-backdrop');
-  if (old) old.remove();
+  // If a previous award backdrop is still on screen, queue this one so
+  // the player gets to see every affinity / mastery / shed fanfare
+  // when several fire in the same tick (boss spoils grant every
+  // survivor a quirk; some events grant both a positive AND a negative
+  // to the same hero).  Without a queue, the second call would simply
+  // wipe the first and only the last vignette would render.
+  const existing = document.getElementById('quirk-award-backdrop');
+  if (existing && !existing.dataset.awardDismissing) {
+    if (!window._awardQueue) window._awardQueue = [];
+    window._awardQueue.push({ cls, eyebrow, name, reason, flavor, desc, portraitId, bark });
+    return;
+  }
+  if (existing) existing.remove();
   const backdrop = document.createElement('div');
   backdrop.id = 'quirk-award-backdrop';
   backdrop.className = 'qa-backdrop';
@@ -6037,8 +6048,17 @@ function _showAwardBackdrop({ cls, eyebrow, name, reason, flavor, desc, portrait
   const dismiss = () => {
     if (dismissed || !backdrop.isConnected) return;
     dismissed = true;
+    backdrop.dataset.awardDismissing = '1';
     backdrop.classList.add('qa-out');
-    setTimeout(() => { if (backdrop.isConnected) backdrop.remove(); }, 450);
+    setTimeout(() => {
+      if (backdrop.isConnected) backdrop.remove();
+      // Drain the next queued award after the fade-out completes.
+      if (window._awardQueue && window._awardQueue.length) {
+        const next = window._awardQueue.shift();
+        // Tiny gap so the cards don't blur into one another.
+        setTimeout(() => _showAwardBackdrop(next), 180);
+      }
+    }, 450);
     // Drain the post-award continuation if any caller parked one — small
     // grace lets the fade-out start before the next scene paints.
     if (_pendingAfterAward) {
