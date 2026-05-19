@@ -19221,16 +19221,12 @@ function showTitleScreen() {
   // Resonances / Achievements all live as tabs inside the Codex screen
   // now, and Credits absorbed into Settings.  Final title menu is
   // PLAY (NEW GAME / CONTINUE) + CODEX (browse) + EMBERS (spend) +
-  // SETTINGS (configure).  Embers is GATED — hidden until the player
-  // has either banked Embers or already purchased an unlock, so a
-  // brand-new title screen reads as 3 entries instead of 5.
+  // SETTINGS (configure).  Five items.  The Embers chip carries the
+  // current balance so the player sees their stockpile without
+  // entering — including the "0" on first sight, which is fine.
   menuEl.appendChild(mkBtn('Codex',   () => showCodexScreen()));
   const _emb = getEmbersBalance();
-  const _embUnlockCount = Object.keys(getEmbersUnlocks()).length;
-  const _embersUnlocked = _emb > 0 || _embUnlockCount > 0;
-  if (_embersUnlocked) {
-    menuEl.appendChild(mkBtn(`Embers · ${_emb}`, () => showEmbersScreen()));
-  }
+  menuEl.appendChild(mkBtn(`Embers · ${_emb}`, () => showEmbersScreen()));
   menuEl.appendChild(mkBtn('Settings', () => showSettingsScreen()));
 
   // Unlocks badge — surface both meta-progression beats so returning
@@ -19818,29 +19814,24 @@ function _renderCodex(body) {
   const earned = getAchievementsEarned();
   const bonds = getBonds();
   const unlockedStarters = new Set(getUnlockedStarters());
-  // Progressive disclosure — each tab has an `unlocked` gate so empty
-  // tabs don't clutter the bar for a new player.  The Heroes tab is
-  // always visible (Kai is unlocked by default).  Bestiary surfaces
-  // once the player has encountered any enemy (always true after the
-  // first turn of run 1).  Sigils / Resonances / Bonds / Achievements
-  // all wait until the player has actually touched that system.
-  // Each tab also tracks a "seen" flag in localStorage so we can
-  // surface a NEW dot on newly-available tabs until the player opens
-  // them (drives discovery — "what's this new thing?").
+  // All Codex tabs are visible from day 1 — they're navigation
+  // surfaces, not mechanic gates.  The real "haven't earned it yet"
+  // gating lives in the rows themselves (sealed/dim styling on
+  // unencountered entries).  Each tab tracks a "seen" flag in
+  // localStorage so a small NEW dot surfaces on tabs the player has
+  // just been touched by new content (e.g., the first time Sigils
+  // gets an entry); the dot clears when the tab is opened.  Soft
+  // "go look" affordance, doesn't hide anything.
   const tabs = [
-    { id: 'heroes',       label: 'Heroes',       unlocked: true,                                                                   count: unlockedStarters.size,                                            total: ROSTER.length },
-    { id: 'bestiary',     label: 'Bestiary',     unlocked: Object.values(codex.enemies).some(e => e.encountered),                  count: Object.values(codex.enemies).filter(e => e.encountered).length, total: Object.values(ENEMIES).filter(e => !e._dev).length },
-    { id: 'sigils',       label: 'Sigils',       unlocked: Object.keys(codex.sigils).length > 0,                                   count: Object.keys(codex.sigils).length,                                total: Object.keys(SIGILS).length },
-    { id: 'resonances',   label: 'Resonances',   unlocked: Object.keys(codex.combos).length > 0,                                   count: Object.keys(codex.combos).length,                                total: Object.keys(COMBOS).length },
-    { id: 'bonds',        label: 'Bonds',        unlocked: Object.keys(bonds).length > 0,                                          count: Object.values(bonds).filter(b => (b.fights || 0) >= 10).length,   total: Object.keys(bonds).length || 0 },
-    { id: 'achievements', label: 'Achievements', unlocked: Object.keys(earned).length > 0,                                         count: Object.keys(earned).length,                                       total: Object.keys(ACHIEVEMENTS).length },
-  ].filter(t => t.unlocked);
-  // Default the active tab to Heroes if the previously-active tab is
-  // no longer visible (e.g., player reset progress while on the
-  // Achievements tab).
-  if (!tabs.find(t => t.id === _codexActiveTab)) _codexActiveTab = 'heroes';
-  // NEW dot — surfaced on tabs the player has unlocked but never
-  // opened.  Cleared the moment the tab is activated.
+    { id: 'heroes',       label: 'Heroes',       count: unlockedStarters.size,                                            total: ROSTER.length },
+    { id: 'bestiary',     label: 'Bestiary',     count: Object.values(codex.enemies).filter(e => e.encountered).length, total: Object.values(ENEMIES).filter(e => !e._dev).length },
+    { id: 'sigils',       label: 'Sigils',       count: Object.keys(codex.sigils).length,                                total: Object.keys(SIGILS).length },
+    { id: 'resonances',   label: 'Resonances',   count: Object.keys(codex.combos).length,                                total: Object.keys(COMBOS).length },
+    { id: 'bonds',        label: 'Bonds',        count: Object.values(bonds).filter(b => (b.fights || 0) >= 10).length,   total: Object.keys(bonds).length || 0 },
+    { id: 'achievements', label: 'Achievements', count: Object.keys(earned).length,                                       total: Object.keys(ACHIEVEMENTS).length },
+  ];
+  // NEW dot — surfaced on tabs the player has never opened.  Cleared
+  // the moment the tab is activated.
   const seenTabs = _getSeenCodexTabs();
   const nav = tabs.map(t => {
     const isNew = !seenTabs[t.id];
