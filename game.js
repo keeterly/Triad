@@ -3612,11 +3612,16 @@ const VIGNETTES = {
     ],
   },
 
+  // (boss_prep is now generated dynamically per-fight by buildBossPrepVignette
+  //  in the map-commit handler — it varies the dialogue, choices, and title
+  //  based on the party's mood: affinities carried, fallen heroes, surviving
+  //  count.  Static fallback below stays in the table as a defensive default
+  //  in case the dynamic path is bypassed somehow.)
   boss_prep: {
     id: 'boss_prep',
-    when: { bossPrep: true },
+    when: { bossPrep: false }, // intentionally disabled — dynamic path owns this
     oneShot: true,
-    title: 'The Wakeling waits',
+    title: 'The reach waits',
     speakerFromLowestHp: true,
     lines: [
       { who: null,     text: 'The air closes over the reach like a hand.' },
@@ -4480,9 +4485,13 @@ const VIGNETTES = {
     ],
   },
 
+  // (Layer-2 specific boss-prep — disabled, the dynamic mood-based
+  //  generator now owns this scene for every layer.  Left in place so
+  //  the lines could be folded back in as a future layer-flavor variant
+  //  of the dynamic system without re-authoring from scratch.)
   layer2_listener_prep: {
     id: 'layer2_listener_prep',
-    when: { bossPrep: true, whileLayer: 2 },
+    when: { bossPrep: false, whileLayer: 2 },
     oneShot: true,
     title: 'The Listener waits',
     speakerFromFirstAlive: true,
@@ -4847,6 +4856,198 @@ const VIGNETTES = {
     ],
   },
 };
+
+// ============================================================================
+// PARTY MOOD — read affinity counts, fallen heroes, and survivor count to
+// pick a "feeling" the party is bringing into the boss fight.  Drives the
+// dynamic boss-prep vignette below so the beat right before each boss
+// reflects what just happened to this party on the climb up.
+// ============================================================================
+function partyMood(s) {
+  const all = Object.values(s.party.chars);
+  const alive = all.filter(c => !c.downed);
+  const fallen = all.length - alive.length;
+  let positives = 0, negatives = 0;
+  alive.forEach(c => {
+    if (!c.quirks) return;
+    positives += (c.quirks.positive || []).length;
+    negatives += (c.quirks.negative || []).length;
+  });
+  // Priority: grief (fallen) > solo > haunted (heavy negatives)
+  // > confident (heavy positives) > balanced default.
+  if (fallen >= 1)                          return 'grieving';
+  if (alive.length === 1)                   return 'solo';
+  if (negatives >= 2 && negatives > positives) return 'haunted';
+  if (positives >= 3 && negatives === 0)    return 'confident';
+  if (positives >= 1 && negatives >= 1)     return 'conflicted';
+  return 'balanced';
+}
+
+// Dialogue + choice templates per mood.  Lines reference _first / _last /
+// null (narrator) — same wildcards the static vignettes use.  Choices are
+// authored thematically: the resolve effect should match the mood being
+// expressed ("for the fallen" = aggression earned from grief; "trust the
+// dark" = a haunted party leaning into what's hurting them).
+const BOSS_PREP_MOODS = {
+  grieving: {
+    speaker: 'lowestHp',
+    lines: [
+      { who: null,     text: 'The fallen do not walk further with you.  But the line you carry is still a line.' },
+      { who: '_first', text: 'They were here.  They should be here.' },
+      { who: '_last',  text: 'Then we strike for them.' },
+    ],
+    choices: [
+      { label: 'For the fallen',
+        tag: 'Every survivor gains Brutal (+2 dmg)',
+        resolve: (s) => {
+          aliveParty(s).forEach(c => { grantQuirk(s, c.id, 'brutal'); });
+          log('<i>The line tightens.  The reach answers.</i>');
+        } },
+      { label: 'Mend the line',
+        tag: 'Heal survivors to full + +2 armor each',
+        resolve: (s) => {
+          aliveParty(s).forEach(c => { c.hp = c.maxHp; c.armor += 2; });
+          log('<i>The wounds close.  The breath returns.</i>');
+        } },
+    ],
+  },
+  solo: {
+    speaker: 'firstAlive',
+    lines: [
+      { who: null,     text: 'You stand alone in the reach.  The dark presses close, like a hand at the back.' },
+      { who: '_first', text: 'I have walked this far without them.' },
+      { who: '_first', text: 'I will walk the rest.' },
+    ],
+    choices: [
+      { label: 'Burn it down',
+        tag: 'Gain Brutal + +2 Resolve at fight start',
+        resolve: (s) => {
+          const sole = aliveParty(s)[0];
+          if (sole) grantQuirk(s, sole.id, 'brutal');
+          s._bossPrepResolveGift = 2;
+          log('<i>The breath sharpens.  The reach narrows to a single line.</i>');
+        } },
+      { label: 'Endure',
+        tag: 'Full heal + +4 armor',
+        resolve: (s) => {
+          aliveParty(s).forEach(c => { c.hp = c.maxHp; c.armor += 4; });
+          log('<i>You set your feet.  The reach can come.</i>');
+        } },
+    ],
+  },
+  haunted: {
+    speaker: 'lowestHp',
+    lines: [
+      { who: null,     text: 'The reach pressing down on you remembers every wrong step on the way up.' },
+      { who: '_first', text: 'I do not know that we are ready.' },
+      { who: '_last',  text: 'Then we are not.  We go anyway.' },
+    ],
+    choices: [
+      { label: 'Forgive a wound',
+        tag: 'Shed one ailment from the most-afflicted hero',
+        resolve: (s) => {
+          const carriers = aliveParty(s).filter(c => c.quirks && (c.quirks.negative || []).length > 0);
+          if (!carriers.length) { log('<i>Nothing left to forgive.</i>'); return; }
+          const tgt = carriers.slice().sort((a, b) => b.quirks.negative.length - a.quirks.negative.length)[0];
+          const qid = tgt.quirks.negative[0];
+          tgt.quirks.negative = tgt.quirks.negative.filter(x => x !== qid);
+          if (typeof showQuirkLost === 'function') showQuirkLost(tgt.id, qid);
+          log(`<i><b>${CHARS[tgt.id].name}</b> sets one weight down before the reach.</i>`);
+        } },
+      { label: 'Trust the dark',
+        tag: '+2 Resolve at fight start',
+        resolve: (s) => {
+          s._bossPrepResolveGift = 2;
+          log('<i>You step into what frightens you.  The reach steps with you.</i>');
+        } },
+    ],
+  },
+  confident: {
+    speaker: 'firstAlive',
+    lines: [
+      { who: null,     text: 'You can feel the air change.  The reach has been waiting; you are no longer surprised.' },
+      { who: '_first', text: 'We have come further than I thought we would.' },
+      { who: '_last',  text: 'Then go further still.' },
+    ],
+    choices: [
+      { label: 'Strike first',
+        tag: 'Lowest-HP hero gains Brutal (+2 dmg)',
+        resolve: (s) => {
+          const id = _lowestHpAliveId(s);
+          if (id) grantQuirk(s, id, 'brutal');
+        } },
+      { label: 'Steady the line',
+        tag: 'Party +3 armor each',
+        resolve: (s) => {
+          aliveParty(s).forEach(c => { c.armor += 3; });
+          log('<i>The line firms.  The reach cannot crack it.</i>');
+        } },
+    ],
+  },
+  conflicted: {
+    speaker: 'firstAlive',
+    lines: [
+      { who: null,     text: 'There is what you have earned, and what you have carried.  Both are walking in.' },
+      { who: '_first', text: "Half of us are sharper.  Half of us are bleeding." },
+      { who: '_last',  text: "We go in with what we have." },
+    ],
+    choices: [
+      { label: 'Sharpen what is sharp',
+        tag: 'Lowest-HP hero gains Brutal (+2 dmg)',
+        resolve: (s) => {
+          const id = _lowestHpAliveId(s);
+          if (id) grantQuirk(s, id, 'brutal');
+        } },
+      { label: 'Mend what is bleeding',
+        tag: 'Heal all 6 + cleanse bleed/dull',
+        resolve: (s) => {
+          aliveParty(s).forEach(c => { c.hp = Math.min(c.maxHp, c.hp + 6); c.bleed = 0; c.dulled = 0; });
+          log('<i>The line catches its breath.</i>');
+        } },
+    ],
+  },
+  balanced: {
+    speaker: 'lowestHp',
+    lines: [
+      { who: null,     text: 'The air closes over the reach like a hand.' },
+      { who: '_first', text: 'It knows we came.' },
+      { who: '_last',  text: 'Let it.' },
+    ],
+    choices: [
+      { label: 'Brace as one',
+        tag: 'Heal all party 6 + +2 armor each',
+        resolve: (s) => {
+          aliveParty(s).forEach(c => { c.hp = Math.min(c.maxHp, c.hp + 6); c.armor += 2; });
+          log('<i>The party braces.</i>');
+        } },
+      { label: 'Sharpen one blade',
+        tag: 'Lowest-HP hero gains Brutal (+2 dmg)',
+        resolve: (s) => {
+          const id = _lowestHpAliveId(s);
+          if (id) grantQuirk(s, id, 'brutal');
+        } },
+    ],
+  },
+};
+
+// Build a fresh boss-prep vignette object based on the party's mood and
+// the current layer's boss.  Returns a vignette compatible with
+// showVignette (id, title, lines, choices, speakerFromX flag).
+function buildBossPrepVignette(s) {
+  const mood = partyMood(s);
+  const tpl  = BOSS_PREP_MOODS[mood] || BOSS_PREP_MOODS.balanced;
+  const layerInfo = (s && s.run && LAYER_CONTENT[s.run.layer]) || {};
+  const bossName  = layerInfo.bossName || 'The Sin';
+  const vignette = {
+    id: `boss_prep_${mood}`,
+    title: `${bossName} waits`,
+    lines: tpl.lines,
+    choices: tpl.choices,
+  };
+  if (tpl.speaker === 'lowestHp')   vignette.speakerFromLowestHp   = true;
+  else                              vignette.speakerFromFirstAlive = true;
+  return vignette;
+}
 
 function _lowestHpAliveId(s) {
   const alive = Object.values(s.party.chars).filter(c => !c.downed);
@@ -7718,6 +7919,15 @@ function startEncounter(encSpec) {
                              state.resolve + state.run.bonusResolveNextFight);
     log(`<i>You enter the reach with +${state.run.bonusResolveNextFight} Resolve from before.</i>`);
     state.run.bonusResolveNextFight = 0;
+  }
+  // Boss-prep mood gift — the "Burn it down" (solo) and "Trust the dark"
+  // (haunted) choices park a Resolve bonus here so the carry lands on
+  // the very next fight (the boss).  One-shot — cleared after use.
+  if (state._bossPrepResolveGift) {
+    state.resolve = Math.min(RESOLVE_MAX + sigilBonus(state, 'memory'),
+                             state.resolve + state._bossPrepResolveGift);
+    log(`<i>You step in with +${state._bossPrepResolveGift} Resolve.</i>`);
+    state._bossPrepResolveGift = 0;
   }
   if (state.run.bonusAtbNextFight) {
     state.pendingBonusAtb = (state.pendingBonusAtb || 0) + state.run.bonusAtbNextFight;
@@ -13372,12 +13582,12 @@ function renderMap() {
             megaBoss: !!layerInfo.megaBoss,
           }, () => startEncounter(node.enc));
           const ctx = captureFightContext(state); ctx.phase = 'bossPrep';
-          const matches = matchVignettes(state, ctx);
-          if (matches.length) {
-            const pick = matches[Math.floor(Math.random() * matches.length)];
-            return showVignette(pick, ctx, startBoss);
-          }
-          return startBoss();
+          // Boss-prep is now generated dynamically from the party's mood
+          // (affinity counts, fallen heroes, survivor count) + the
+          // current layer's boss — so the scene right before each boss
+          // reflects how this party is feeling about climbing in.
+          const pick = buildBossPrepVignette(state);
+          return showVignette(pick, ctx, startBoss);
         }
         startEncounter(node.enc);
       };
