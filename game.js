@@ -16743,6 +16743,25 @@ function showRestOverlay() {
 function showEventOverlay(eventId) {
   const ev = EVENTS[eventId];
   if (!ev) { _completeNonCombatNode(); return; }
+  // Stale named-recruit guard — the node's eventId was baked at map-
+  // generation time when the target hero was recruitable, but the
+  // player may have recruited that hero via another path since (a
+  // wanderer JOIN, a stranger event, the vigil-for-the-fallen roll)
+  // — OR killed them on the road and locked them out.  Either way
+  // the named recruit event would fire here, set _pendingNamedRecruit,
+  // and then drop on the floor in _completeNonCombatNode with a QA
+  // warning.  Catch it at show time instead and substitute a brief
+  // "empty path" beat so the player's traversal pays out something
+  // small instead of feeling like they wandered into a no-op.
+  const _recruitTarget = NAMED_RECRUIT_EVENT_HEROES[eventId];
+  if (_recruitTarget) {
+    const inParty = !!(state.party && state.party.chars && state.party.chars[_recruitTarget]);
+    const lockedOut = ((state.run && state.run._lockedOutHeroes) || []).includes(_recruitTarget);
+    if (inParty || lockedOut) {
+      _showEmptyPathEvent(lockedOut, _recruitTarget);
+      return;
+    }
+  }
   $('#overlay-title').textContent = ev.name;
   // Cinematic frame — same wide vignette-style shell so events feel like
   // a scene, not a text box.  overlay-event provides the sizing (defined
@@ -16796,6 +16815,42 @@ function showEventOverlay(eventId) {
   resetOverlayBtn();
   $('#overlay-btn').classList.add('hidden');
   $('#overlay').classList.remove('hidden');
+}
+
+// Empty-path beat — substituted for a named-recruit event whose
+// target hero is no longer recruitable (already in party, or
+// killed on the road).  Single-choice flavor card that pays a
+// small Ember consolation so the traversal isn't wasted.  Flavor
+// differs by which way the hero is unavailable.
+function _showEmptyPathEvent(wasLockedOut, heroId) {
+  const heroName = (CHARS[heroId] && CHARS[heroId].name) || 'They';
+  $('#overlay-title').textContent = wasLockedOut ? 'No one waits here' : 'An empty path';
+  const $overlay = $('#overlay');
+  $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-upgrade','overlay-sigil','overlay-starter','overlay-boon','overlay-cinematic');
+  $overlay.classList.add('overlay-full','overlay-event');
+  const body = $('#overlay-body');
+  body.classList.remove('victory-summary-body', 'welcome-body', 'run-summary-body');
+  body.innerHTML = `<p class="event-flavor">${wasLockedOut
+    ? `${heroName} will not be standing here.  The road keeps what it took.`
+    : `The marker is here.  Whoever made it has gone on — perhaps with you, perhaps ahead.`}</p>`;
+  const choices = $('#overlay-choices');
+  choices.innerHTML = '';
+  choices.classList.remove('path-map', 'party-inspect');
+  choices.classList.add('event-choices');
+  const card = document.createElement('button');
+  card.className = 'encounter-choice event-choice';
+  card.innerHTML = `<div class="enc-name">Walk on</div><div class="sigil-desc">+5 Embers</div>`;
+  card.addEventListener('click', () => {
+    earnEmbers(5, 'empty-path');
+    hideOverlay();
+    choices.classList.remove('event-choices');
+    _completeNonCombatNode();
+  });
+  choices.appendChild(card);
+  choices.classList.remove('hidden');
+  resetOverlayBtn();
+  $('#overlay-btn').classList.add('hidden');
+  $overlay.classList.remove('hidden');
 }
 
 // ============================================================================
