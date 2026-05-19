@@ -8955,8 +8955,47 @@ function recordBondedFight(idA, idB) {
   const key = _bondKey(idA, idB);
   const bonds = getBonds();
   const entry = bonds[key] = bonds[key] || { fights: 0, since: Date.now() };
+  const tierBefore = bondTierFor(entry.fights || 0);
   entry.fights = (entry.fights || 0) + 1;
+  const tierAfter = bondTierFor(entry.fights);
   _saveBonds(bonds);
+  // Tier-up fanfare — fires when a pair crosses into a new tier
+  // (Companions → Kindred → Sworn → Bonded).  Kindred (tier 2) is
+  // especially worth surfacing because that's when the pair's
+  // Charm unlocks.  Deferred to next paint so it doesn't race with
+  // the post-fight cascade timers.
+  if (tierAfter > tierBefore) {
+    setTimeout(() => _showBondTierUpFanfare(idA, idB, tierAfter), 1400);
+  }
+}
+
+function _showBondTierUpFanfare(idA, idB, tier) {
+  if (typeof __simulating !== 'undefined' && __simulating) return;
+  const defA = CHARS[idA]; const defB = CHARS[idB];
+  if (!defA || !defB) return;
+  const label = BOND_TIER_LABELS[tier] || 'Bonded';
+  // Check whether this pair has a charm and whether THIS tier-up
+  // unlocks it (tier 2 = Kindred = charm unlock threshold).
+  const pairKey = _bondKey(idA, idB);
+  const charm = Object.values(CHARMS).find(c => c.pairKey === pairKey);
+  const charmHint = (charm && tier === 2)
+    ? `<div class="bond-fanfare-charm">Charm unlocked · ${charm.name}</div>`
+    : '';
+  const card = document.createElement('div');
+  card.className = 'bond-fanfare';
+  card.innerHTML = `
+    <div class="bond-fanfare-eyebrow">BOND DEEPENS</div>
+    <div class="bond-fanfare-pair">
+      <span class="bond-fanfare-portrait">${PORTRAITS[idA] || ''}</span>
+      <span class="bond-fanfare-portrait">${PORTRAITS[idB] || ''}</span>
+    </div>
+    <div class="bond-fanfare-names">${defA.name} + ${defB.name}</div>
+    <div class="bond-fanfare-tier">${label}</div>
+    ${charmHint}
+  `;
+  document.body.appendChild(card);
+  setTimeout(() => card.classList.add('bond-fanfare-out'), 3200);
+  setTimeout(() => { if (card.isConnected) card.remove(); }, 3700);
 }
 function bondTierFor(fights) {
   if (fights >= 50) return 4;
@@ -9248,6 +9287,7 @@ function recordCodexCombo(comboId) {
 function resetCodex() {
   try { localStorage.removeItem(CODEX_KEY); } catch (_) {}
   try { localStorage.removeItem(CODEX_SEEN_TABS_KEY); } catch (_) {}
+  try { localStorage.removeItem(CODEX_OPENED_KEY); } catch (_) {}
 }
 
 // Track which Codex tabs the player has opened.  Drives the "NEW" dot
@@ -9270,6 +9310,17 @@ function _markCodexTabSeen(id) {
     cur[id] = Date.now();
     localStorage.setItem(CODEX_SEEN_TABS_KEY, JSON.stringify(cur));
   } catch (_) {}
+}
+
+// Has the Codex menu screen ever been opened?  Drives the NEW dot on
+// the title-menu Codex button.  Set on first open via showCodexScreen.
+const CODEX_OPENED_KEY = 'kizuna.codex.opened.v1';
+function _hasCodexBeenOpened() {
+  try { return localStorage.getItem(CODEX_OPENED_KEY) === '1'; }
+  catch (_) { return false; }
+}
+function _markCodexOpened() {
+  try { localStorage.setItem(CODEX_OPENED_KEY, '1'); } catch (_) {}
 }
 
 function getUnlockedStarters() {
@@ -12570,6 +12621,9 @@ function checkEnd(s) {
         // summary — once each lifetime per system.
         const forgeWasLocked = !isForgeUnlocked();
         const oathsWereLocked = !isOathUnlocked();
+        // Codex unlocks the very first time the player clears L1.
+        // Snapshot the BEFORE state so we can fire the callout once.
+        const codexWasLocked = !getClearedLayers().includes(1);
         markLayerCleared(getCurrentLayer());
         // Achievements gated on layer clear — clear_l9 (the run-end
         // achievement) and the solo_l3 / solo_l6 challenges (party
@@ -12589,6 +12643,7 @@ function checkEnd(s) {
         saveCarriedParty(state);
         const forgeJustUnlocked = forgeWasLocked && isForgeUnlocked();
         const oathsJustUnlocked = oathsWereLocked && isOathUnlocked();
+        const codexJustUnlocked = codexWasLocked && getClearedLayers().includes(1);
         if (forgeJustUnlocked) {
           log('<i><b>The Forge opens.</b>  Anvil nodes may now appear on the abyss map.</i>');
         }
@@ -12599,6 +12654,7 @@ function checkEnd(s) {
           afterClose: () => showWorldMap(),
           forgeJustUnlocked,
           oathsJustUnlocked,
+          codexJustUnlocked,
           ascensionJustUnlocked: _ascensionJustUnlocked,
           newAscensionLevel: _ascensionJustUnlocked ? getAscensionMax() : null,
         });
@@ -12785,17 +12841,35 @@ function renderRunModifier() {
   // layer; falls back to 1 between runs.
   const layer = (state && state.run && state.run.layer) || 1;
   const layerBadge = `<span class="run-layer-badge" title="Abyss Layer ${layer}" aria-label="Layer ${layer}">L${layer}</span>`;
+  // Equipped charm chip — surfaces what the player chose pre-run so
+  // they can read their loadout at a glance without opening Codex.
+  // Reads from state.run.charmId (snapshotted at newState) so a mid-
+  // run setting change doesn't desync.
+  const charmId = state && state.run && state.run.charmId;
+  const charm = charmId && CHARMS[charmId];
+  const charmChip = charm
+    ? `<button type="button" class="run-charm-chip" title="${charm.name} — ${charm.effect}" aria-label="${charm.name}" data-tip="${charm.name} — ${charm.effect}">
+        <span class="run-charm-icon">✦</span>
+        <span class="run-charm-name">${charm.name.replace(/'s? Coal$/, '')}</span>
+      </button>`
+    : '';
+  // Ascension chip — only shown when running at A1+, so a base-
+  // difficulty run reads clean.  Carries the level label so the
+  // player knows what difficulty they opted into.
+  const ascLvl = state && state.run && state.run.ascensionLevel;
+  const ascChip = ascLvl > 0
+    ? `<span class="run-asc-chip" title="Ascension ${ascLvl} — ${(ASCENSIONS[ascLvl] && ASCENSIONS[ascLvl].name) || ''}" aria-label="Ascension ${ascLvl}">A${ascLvl}</span>`
+    : '';
   if (!mod) {
-    // Even with no biome modifier, surface the layer chip alone.
     el.classList.remove('empty');
-    el.innerHTML = layerBadge;
+    el.innerHTML = `${layerBadge}${ascChip}${charmChip}`;
     return;
   }
   el.classList.remove('empty');
-  el.innerHTML = `${layerBadge}<button type="button" class="run-mod-chip" title="${mod.name} — ${mod.desc}" aria-label="${mod.name}">
+  el.innerHTML = `${layerBadge}${ascChip}<button type="button" class="run-mod-chip" title="${mod.name} — ${mod.desc}" aria-label="${mod.name}">
     <span class="run-mod-icon">◈</span>
     <span class="run-mod-name">${mod.name}</span>
-  </button>`;
+  </button>${charmChip}`;
 }
 
 // Slay-the-Spire-style persistent sigil tray.  One chip per acquired sigil,
@@ -17733,7 +17807,16 @@ function showRunSummary(outcome, opts) {
   // First-time meta-unlock callouts — surface on the run-summary card so
   // the player knows a new system just opened up.  The forge unlocks
   // after the Layer 3 mega-boss; oaths unlock after the Layer 6 mega-boss.
+  // The Codex unlocks on the very first L1 clear (this is THAT moment
+  // for a new player) so it leads the list when it fires.
   const unlocks = [];
+  if (opts && opts.codexJustUnlocked) {
+    unlocks.push({
+      mark: '◆',
+      label: 'The Codex opens',
+      desc: 'A record of what you\'ve discovered — heroes, sigils, bonds, achievements — now waits on the title.',
+    });
+  }
   if (opts && opts.forgeJustUnlocked) {
     unlocks.push({
       mark: '⚒',
@@ -19235,7 +19318,14 @@ function showTitleScreen() {
   //   run.  Same threshold doubles as "unlock has been purchased"
   //   for migration safety.
   if (getClearedLayers().includes(1)) {
-    menuEl.appendChild(mkBtn('Codex', () => showCodexScreen()));
+    // NEW dot on the Codex menu button — pulses gold until the
+    // player has opened the Codex for the first time.  Cleared by
+    // showCodexScreen.  Mirrors the per-tab NEW dot pattern.
+    const _codexOpened = _hasCodexBeenOpened();
+    const _label = _codexOpened ? 'Codex' : 'Codex ✦';
+    const _btn = mkBtn(_label, () => showCodexScreen());
+    if (!_codexOpened) _btn.classList.add('ts-menu-btn-new');
+    menuEl.appendChild(_btn);
   }
   const _emb = getEmbersBalance();
   const _embersUnlocked = _emb > 0 || Object.keys(getEmbersUnlocks()).length > 0;
@@ -19808,6 +19898,9 @@ let _codexActiveTab = 'bestiary';
 
 function showCodexScreen() {
   Audio.ui();
+  // Mark codex-opened on first visit — clears the NEW dot from the
+  // title-menu Codex button next time the title renders.
+  _markCodexOpened();
   const root = document.getElementById('full-codex') || _buildCodexContainer();
   const body = document.getElementById('codex-body');
   if (!body) return;

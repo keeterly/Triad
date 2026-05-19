@@ -308,6 +308,158 @@ body.on-title:has(#overlay:not(.hidden)) #stage-scale {
 }
 .run-mod-icon { color: var(--debuff); font-size: 13px; }
 .run-mod-chip:hover { filter: brightness(1.18); }
+
+/* Ascension chip — surfaces the difficulty level the player opted
+   into (A1..A5).  Sits next to the layer badge so it reads as
+   "this is the climb I'm on."  Hidden at A0. */
+.run-asc-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  min-height: 28px;
+  padding: 0 8px;
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--blood-bright);
+  background: rgba(40,10,10,0.7);
+  border: 1px solid rgba(220,80,80,0.5);
+  border-radius: 14px;
+  text-shadow: 0 0 6px rgba(220,80,80,0.45);
+  flex-shrink: 0;
+  cursor: help;
+}
+
+/* Equipped-charm chip — surfaces the keepsake the player chose
+   pre-run so they can read their loadout at a glance.  Sits to the
+   right of the biome chip.  Hidden when no charm is equipped. */
+.run-charm-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 11px 4px 9px;
+  font-family: inherit;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--gold-bright);
+  background: rgba(40,28,14,0.72);
+  border: 1px solid rgba(240,212,136,0.45);
+  border-radius: 14px;
+  min-height: 28px;
+  cursor: help;
+  box-shadow: 0 0 10px rgba(240,212,136,0.18), inset 0 0 6px rgba(0,0,0,0.35);
+  flex-shrink: 0;
+}
+.run-charm-chip:hover { filter: brightness(1.18); }
+.run-charm-icon {
+  font-size: 12px;
+  color: var(--gold-bright);
+  text-shadow: 0 0 6px rgba(240,212,136,0.5);
+}
+.run-charm-name {
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+}
+
+/* NEW dot on title menu buttons — pulses gold to draw the eye to
+   newly-unlocked top-level entries (Codex on first L1 clear).
+   Currently only used on the Codex button until the player opens
+   it for the first time.  Cleared by marking codex-opened. */
+.ts-menu-btn.ts-menu-btn-new {
+  position: relative;
+  color: var(--gold-bright);
+  text-shadow: 0 0 12px rgba(240,212,136,0.5);
+  animation: ts-menu-btn-new-pulse 1.8s ease-in-out infinite;
+}
+@keyframes ts-menu-btn-new-pulse {
+  0%, 100% { text-shadow: 0 0 10px rgba(240,212,136,0.45); }
+  50%      { text-shadow: 0 0 18px rgba(240,212,136,0.85), 0 0 28px rgba(240,212,136,0.5); }
+}
+
+/* Bond tier-up fanfare — large central card when a pair crosses
+   into a new tier (Companions → Kindred → Sworn → Bonded).  Slides
+   down from above, holds ~3s, fades out.  Doesn't block input. */
+.bond-fanfare {
+  position: fixed;
+  top: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 260;
+  padding: 12px 22px 14px;
+  background: linear-gradient(180deg, rgba(48,32,18,0.97) 0%, rgba(14,10,8,0.98) 100%);
+  border-top: 2px solid var(--gold-bright);
+  border-bottom: 2px solid var(--gold-bright);
+  box-shadow:
+    0 12px 36px rgba(0,0,0,0.85),
+    0 0 36px rgba(240,212,136,0.5),
+    inset 0 1px 0 rgba(232,220,196,0.15);
+  text-align: center;
+  pointer-events: none;
+  animation: bond-fanfare-in 0.4s ease-out;
+}
+.bond-fanfare.bond-fanfare-out { animation: bond-fanfare-out 0.45s ease-in forwards; }
+@keyframes bond-fanfare-in {
+  from { opacity: 0; transform: translate(-50%, -16px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+@keyframes bond-fanfare-out {
+  from { opacity: 1; transform: translate(-50%, 0); }
+  to   { opacity: 0; transform: translate(-50%, -16px); }
+}
+.bond-fanfare-eyebrow {
+  font-size: 9.5px;
+  letter-spacing: 0.42em;
+  text-transform: uppercase;
+  color: var(--gold-pale);
+  opacity: 0.85;
+  margin-bottom: 4px;
+}
+.bond-fanfare-pair {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: -6px;
+  height: 56px;
+  margin-bottom: 4px;
+}
+.bond-fanfare-portrait {
+  width: 42px; height: 56px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+}
+.bond-fanfare-portrait + .bond-fanfare-portrait { margin-left: -8px; }
+.bond-fanfare-portrait svg { width: 100%; height: 100%; }
+.bond-fanfare-names {
+  font-size: 12.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gold-pale);
+  margin-bottom: 2px;
+}
+.bond-fanfare-tier {
+  font-size: 16px;
+  letter-spacing: 0.42em;
+  text-transform: uppercase;
+  color: var(--gold-bright);
+  text-shadow: 0 0 14px rgba(240,212,136,0.65);
+  font-weight: 600;
+}
+.bond-fanfare-charm {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(240,212,136,0.25);
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gold-bright);
+  font-style: italic;
+}
 #hud::after {
   /* Faint hairline at the bottom of the HUD so it reads as a strip */
   content: '';
