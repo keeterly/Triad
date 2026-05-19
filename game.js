@@ -9397,18 +9397,16 @@ function applyDmgToEnemy(s, e, baseAmt) {
     if (veyrInheritsFW && toHp === 0) spawnPassivePopup('veyr', 'FROZEN WITNESS');
     // Tutorial — first weakness reveal of the player's lifetime.  Wait
     // for the reveal animation to land (~700ms) before surfacing the
-    // hint, anchored to the weakness pill on the freshly-revealed
-    // enemy so the player can see what to look for next time.
+    // hint, anchored to the freshly-revealed enemy's figure.
     if (!hasSeenCoachmark('cm_weakness_reveal')) {
       const targetEnemyKey = SLOTS.find(sl => s.enemies.slots[sl] && s.enemies.chars[s.enemies.slots[sl]] === e);
       setTimeout(() => {
-        const sel = targetEnemyKey
-          ? `#enemy-half .figure[data-slot="${targetEnemyKey}"] .state-strip-weakness, #enemy-half .figure[data-slot="${targetEnemyKey}"]`
-          : '#enemy-half .state-strip-weakness';
         showCoachmark('cm_weakness_reveal', {
-          anchor: sel,
+          anchor: targetEnemyKey
+            ? `#enemy-half .figure[data-slot="${targetEnemyKey}"]`
+            : '#enemy-half .figure:not(.empty)',
           place: 'above',
-          text: 'You found their <b>weakness</b>.  Hit this element again in the same turn to <b>STAGGER</b> them.',
+          text: 'You found their <b>weakness</b> (the glyph under their bar).  Hit this element again to <b>STAGGER</b> them.',
         });
       }, 900);
     }
@@ -9436,11 +9434,10 @@ function applyDmgToEnemy(s, e, baseAmt) {
       if (!hasSeenCoachmark('cm_stagger_payoff')) {
         const targetEnemyKey = SLOTS.find(sl => s.enemies.slots[sl] && s.enemies.chars[s.enemies.slots[sl]] === e);
         setTimeout(() => {
-          const sel = targetEnemyKey
-            ? `#enemy-half .figure[data-slot="${targetEnemyKey}"] .state-strip-staggered, #enemy-half .figure[data-slot="${targetEnemyKey}"]`
-            : '#enemy-half .state-strip-staggered';
           showCoachmark('cm_stagger_payoff', {
-            anchor: sel,
+            anchor: targetEnemyKey
+              ? `#enemy-half .figure[data-slot="${targetEnemyKey}"]`
+              : '#enemy-half .figure:not(.empty)',
             place: 'above',
             text: 'Staggered.  The <b>next damaging hit</b> deals <b>2× damage</b>.  Don\'t waste it.',
           });
@@ -10253,14 +10250,33 @@ function startTurn(s) {
   // First-fight tutorial — surface the "hold to preview" hint once the
   // tiles are visible and the player has a clean slate to act.  Anchors
   // to the leftmost queueable tile, fires only on the very first turn
-  // of the very first fight per device.
-  if (s.turn === 1 && !hasSeenCoachmark('cm_hold_preview')) {
+  // of the very first fight per device.  Move-action hint follows
+  // immediately so the player learns both the tile interaction AND the
+  // positioning gesture in the same opening turn.
+  if (s.turn === 1) {
     setTimeout(() => {
-      showCoachmark('cm_hold_preview', {
-        anchor: '#tile-grid .tile:not(:disabled)',
-        place: 'above',
-        text: '<b>Tap</b> an action to queue it.  <b>Press &amp; hold</b> to preview where it lands before you commit.',
-      });
+      if (!hasSeenCoachmark('cm_hold_preview')) {
+        showCoachmark('cm_hold_preview', {
+          anchor: '#tile-grid .tile:not(:disabled)',
+          place: 'above',
+          text: '<b>Tap</b> an action to queue it.  <b>Press &amp; hold</b> to preview where it lands before you commit.',
+        });
+      }
+      // Move tutorial — only relevant before the player has ever
+      // long-pressed a hero AND they have at least one neighbor to
+      // swap with.  Solo runs (Kai alone) can't move, so the gesture
+      // would just frustrate them.  Anchors to the first hero card;
+      // the text teaches the gesture (hold → arrows appear → tap an
+      // arrow).  The matching "·HOLD·" badge under each hero card
+      // backs this up.
+      const partyCount = aliveParty(s).length;
+      if (partyCount >= 2 && !hasSeenCoachmark('cm_move_action') && !hasHeldHero()) {
+        showCoachmark('cm_move_action', {
+          anchor: '#party-half .figure:not(.empty):not(.downed)',
+          place: 'above',
+          text: '<b>Move</b> a hero: <b>press &amp; hold</b> their card, then tap an arrow to swap with a neighbor.  Costs 1 ATB.',
+        });
+      }
     }, 700);
   }
   // Press-turn echo: weakness hits last turn give us +1 ATB this turn.
@@ -10577,6 +10593,18 @@ function queueAdd(item) {
   s.queue.push(item);
   Audio.queue();
   render();
+  // Tutorial — first Special queued ever.  Anchor to the Resolve pips
+  // so the player ties the cost to the meter that just dropped.  Fires
+  // before the press-fight hint when both would land same call.
+  if (item && item.kind === 'special' && !hasSeenCoachmark('cm_resolve_special')) {
+    setTimeout(() => {
+      showCoachmark('cm_resolve_special', {
+        anchor: '#resolve-pips',
+        place: 'above',
+        text: 'Specials cost ATB <b>and</b> Resolve (♦).  You earn ♦ from kills, synergies, and a drip each turn — up to 3 carry between fights.',
+      });
+    }, 350);
+  }
   // Tutorial — once the player has queued 2 actions for the first time
   // ever, surface the Fight-button hint so they know how to commit.
   // The first queue-add fires the "hold to preview" coachmark; the
@@ -13493,6 +13521,23 @@ const _coachmarkQueue = [];
 function showCoachmark(id, opts) {
   if (typeof __simulating !== 'undefined' && __simulating) return;
   if (hasSeenCoachmark(id)) return;
+  // Don't compete with full-screen overlays (boss intro, vignette, map,
+  // recruit, etc.) or combo cinematics — the hint would either fight for
+  // attention or anchor to an element that's covered.  Queue and retry
+  // shortly so the hint still surfaces once the overlay closes.
+  const overlayUp = !!document.querySelector('#overlay:not(.hidden), #boss-intro:not(.hidden), #title-screen:not(.hidden)');
+  const cineUp    = document.body.classList.contains('cine-playing');
+  if (overlayUp || cineUp) {
+    if (!_coachmarkQueue.find(q => q.id === id)) _coachmarkQueue.push({ id, opts });
+    // Drain attempts on a short interval until the screen is clear.
+    setTimeout(() => {
+      const q = _coachmarkQueue.findIndex(x => x.id === id);
+      if (q < 0) return;
+      _coachmarkQueue.splice(q, 1);
+      showCoachmark(id, opts);
+    }, 800);
+    return;
+  }
   // Defer if another coachmark is up — first one wins; we'll re-fire
   // from its dismiss handler.
   if (_activeCoachmark) {
@@ -13500,7 +13545,11 @@ function showCoachmark(id, opts) {
     return;
   }
   const anchorSelector = opts && opts.anchor;
-  const anchorEl = anchorSelector ? document.querySelector(anchorSelector) : null;
+  let anchorEl = anchorSelector ? document.querySelector(anchorSelector) : null;
+  // If the anchor isn't rendered yet (race with engine timing), give it
+  // one more frame before falling back to a no-anchor center placement.
+  // This catches cases like cm_resonance where the chip animates in
+  // right as the coachmark fires.
   const text = (opts && opts.text) || '';
   if (!text) return;
   const place = (opts && opts.place) || 'above';  // 'above' | 'below' | 'left' | 'right'
@@ -13518,9 +13567,14 @@ function showCoachmark(id, opts) {
 
   // Position relative to anchor (if any) using viewport pixels — works
   // through the stage-scale transform because getBoundingClientRect
-  // returns transformed coordinates.  Falls back to center-bottom of
-  // the viewport when no anchor is supplied (e.g., global hints).
+  // returns transformed coordinates.  Arrow X also tracks the anchor
+  // center so the tail keeps pointing AT the thing even after the card
+  // clamps horizontally to stay inside the viewport.
+  const arrow = card.querySelector('.coachmark-arrow');
   const position = () => {
+    // Re-resolve the anchor every reposition — DOM may have re-rendered
+    // since first show (status chip re-render, state-strip swap, etc.).
+    if (anchorSelector) anchorEl = document.querySelector(anchorSelector);
     const r = anchorEl ? anchorEl.getBoundingClientRect() : null;
     const cr = card.getBoundingClientRect();
     const GAP = 14;
@@ -13541,6 +13595,26 @@ function showCoachmark(id, opts) {
     left = Math.max(M, Math.min(left, window.innerWidth  - cr.width  - M));
     card.style.top  = top  + 'px';
     card.style.left = left + 'px';
+    // Reposition the arrow tail along the relevant edge so it still
+    // points AT the anchor center even when the card has clamped away
+    // from the anchor (e.g., anchor near viewport edge).  Otherwise the
+    // tail stays card-centered and the player sees a hint pointing at
+    // empty space.
+    if (arrow && r) {
+      if (place === 'above' || place === 'below') {
+        const ax = r.left + r.width / 2 - left;
+        const clampX = Math.max(12, Math.min(cr.width - 12, ax));
+        arrow.style.left = clampX + 'px';
+        arrow.style.right = 'auto';
+        arrow.style.transform = 'translateX(-50%)';
+      } else {
+        const ay = r.top + r.height / 2 - top;
+        const clampY = Math.max(12, Math.min(cr.height - 12, ay));
+        arrow.style.top = clampY + 'px';
+        arrow.style.bottom = 'auto';
+        arrow.style.transform = 'translateY(-50%)';
+      }
+    }
   };
   // Two frames — first paint computes card size, second paint positions.
   requestAnimationFrame(() => { requestAnimationFrame(position); });
@@ -18206,9 +18280,16 @@ function showSettingsScreen() {
     btn.addEventListener('click', () => {
       const action = btn.dataset.action;
       if (action === 'tutorial') {
+        // Wipe both the legacy tutorial-toast flag AND the new
+        // coachmark dictionary so every hint can fire fresh next run.
         try { localStorage.removeItem('kizuna.tutorialSeen'); } catch (_) {}
+        try { localStorage.removeItem('kizuna.tutorialSeen.v2'); } catch (_) {}
+        resetCoachmarks();
+        // Also wipe the "has long-pressed a hero" flag so the move
+        // coachmark + ·HOLD· badge surface again.
+        try { localStorage.removeItem(HELD_KEY); } catch (_) {}
         _tutCursor = 0;
-        flashSettings('Tutorial will replay next run.');
+        flashSettings('Tutorial hints will fire fresh next run.');
       } else if (action === 'dev') {
         showDevToolsScreen();
       } else if (action === 'clearsave') {
