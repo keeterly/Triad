@@ -4101,13 +4101,52 @@ body.on-title:has(#overlay:not(.hidden)) #stage-scale {
 }
 /* Hero row inside the codex — clickable; opens the full Hero codex
    on tap (preserves the deep dive that used to live as its own menu
-   item).  Sealed rows show ◇ until the hero has been recruited. */
+   item).  Sealed rows show ◇ until the hero has been recruited or
+   unsealed via the Embers price tag inside the row. */
 .codex-row.codex-row-hero {
   cursor: default;
   transition: background 0.15s;
 }
 .codex-row.codex-row-hero:not(.codex-row-sealed):hover {
   background: linear-gradient(180deg, rgba(40,30,18,0.6) 0%, rgba(16,10,8,0.7) 100%);
+}
+.codex-hero-unseal {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 4px 10px;
+  background: linear-gradient(180deg, rgba(60,40,18,0.7) 0%, rgba(20,12,8,0.85) 100%);
+  border: 1px solid var(--gold-dim);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 9.5px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  cursor: pointer;
+  align-self: flex-start;
+  transition: all 0.15s;
+}
+.codex-hero-unseal:not(.codex-hero-unseal-poor):hover {
+  filter: brightness(1.18);
+  border-color: var(--gold-bright);
+  box-shadow: 0 0 10px rgba(240,212,136,0.4);
+}
+.codex-hero-unseal-poor {
+  cursor: not-allowed;
+  opacity: 0.45;
+  filter: saturate(0.4);
+}
+.codex-hero-unseal-cost {
+  color: var(--gold-bright);
+  font-weight: bold;
+  text-shadow: 0 0 6px rgba(240,212,136,0.5);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.06em;
+}
+.codex-hero-unseal-label {
+  color: var(--ink);
+  letter-spacing: 0.22em;
 }
 
 /* Bond row inside the codex — same as the dedicated Bonds screen but

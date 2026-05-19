@@ -8690,6 +8690,26 @@ function purchaseEmberUnlock(id) {
   _setEmbersUnlocks(cur);
   return true;
 }
+
+// Hero starter unlock via Embers — alternative path to the "walk with
+// them in a run" recruit-to-unlock mechanic.  Some players never roll
+// the recruit event for specific heroes (Hask / Veyr / Lirien / Vasha);
+// this gives them a deterministic path to unlocking via the meta-
+// currency they're already earning.  Cost is a flat 30 Embers per
+// hero — substantial but achievable in 1-2 runs.
+const HERO_UNLOCK_COST = 30;
+function isHeroLocked(heroId) {
+  if (!heroId || !ROSTER.includes(heroId)) return false;
+  return !getUnlockedStarters().includes(heroId);
+}
+function purchaseHeroUnlock(heroId) {
+  if (!isHeroLocked(heroId)) return false;
+  const bal = getEmbersBalance();
+  if (bal < HERO_UNLOCK_COST) return false;
+  _setEmbersBalance(bal - HERO_UNLOCK_COST);
+  unlockStarter(heroId);
+  return true;
+}
 // Apply every purchased unlock to a fresh run state.  Called from
 // newState() right before the run is returned so the perks land before
 // the first render.
@@ -19522,11 +19542,15 @@ function _renderCodexResonances(codex) {
 
 function _renderCodexHeroes(unlocked) {
   // Compact roster summary — one row per hero, sealed rows for locked.
-  // Tap any unlocked row to expand into a Hero codex card for that
-  // hero (uses the existing showHeroCodex flow as a sub-screen).
+  // Unlocked rows are clickable (jump to the full Hero codex screen);
+  // sealed rows carry an Unseal button priced in Embers so the player
+  // can buy the hero into the starter pool directly instead of waiting
+  // for the recruit event in a run.
+  const bal = getEmbersBalance();
   const rows = ROSTER.map(id => {
     const def = CHARS[id]; if (!def) return '';
     const u = unlocked.has(id);
+    const affordable = bal >= HERO_UNLOCK_COST;
     return `<div class="codex-row codex-row-hero${u ? '' : ' codex-row-sealed'}" data-hero="${id}">
       <div class="codex-portrait">${u ? (PORTRAITS[id] || '') : '◇'}</div>
       <div class="codex-row-body">
@@ -19534,18 +19558,37 @@ function _renderCodexHeroes(unlocked) {
           <span class="codex-row-name">${u ? def.name : '???'}</span>
           <span class="codex-row-stat">${u ? `${(def.school || '').toUpperCase()} · ${SLOT_LABELS[def.home] || def.home || ''}` : 'sealed'}</span>
         </div>
-        <div class="codex-row-desc">${u ? (def.title || '') : 'Walk the road with them to unseal.'}</div>
+        <div class="codex-row-desc">${u ? (def.title || '') : 'Walk the road with them to unseal — or pay the embers below.'}</div>
+        ${u ? '' : `<button type="button" class="codex-hero-unseal${affordable ? '' : ' codex-hero-unseal-poor'}" data-unseal="${id}" ${affordable ? '' : 'disabled'}>
+          <span class="codex-hero-unseal-cost">✦ ${HERO_UNLOCK_COST}</span>
+          <span class="codex-hero-unseal-label">Unseal</span>
+        </button>`}
       </div>
     </div>`;
   }).join('');
-  // Click-through to the full Hero codex preserved — defer the bind to
-  // the next paint via a tiny delegate on the codex body.
+  // Click delegates — set up after the next paint so the DOM is real.
   setTimeout(() => {
     document.querySelectorAll('#codex-body .codex-row-hero:not(.codex-row-sealed)').forEach(row => {
       row.style.cursor = 'pointer';
       row.addEventListener('click', () => {
         hideCodexScreen();
         showHeroCodex();
+      });
+    });
+    document.querySelectorAll('#codex-body .codex-hero-unseal[data-unseal]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const heroId = btn.dataset.unseal;
+        if (purchaseHeroUnlock(heroId)) {
+          Audio.ui();
+          // Re-render this tab in place so the unsealed row + new
+          // balance reflect immediately.  Also refresh the title
+          // menu underneath so the Embers chip + starters-unlocked
+          // count update without requiring an exit.
+          _renderCodex(document.getElementById('codex-body'));
+          const titleRoot = document.getElementById('title-screen');
+          if (titleRoot && !titleRoot.classList.contains('hidden')) showTitleScreen();
+        }
       });
     });
   }, 0);
