@@ -11281,7 +11281,11 @@ function checkEnd(s) {
     const completedEnc = s.run.currentEnc;
     const completedNode = s.run.currentNodeId ? getMapNode(s.run.currentNodeId) : null;
     s.run.lastVictoryElite = !!(completedNode && completedNode.type === 'elite');
-    const isBoss = !!(completedNode && completedNode.type === 'boss');
+    // Dev-tools playtest skips the map entirely, so completedNode is
+    // null — but we still want the boss-kill cascade (defeat vignette,
+    // spoils overlay, run summary) to fire for playtest verification.
+    // state._isDevRun is the toggle.
+    const isBoss = !!(completedNode && completedNode.type === 'boss') || !!s._isDevRun;
     if (isBoss) {
       // Boss kill — try a "Wakeling slain" vignette before the run summary.
       const bossCtx = captureFightContext(s);
@@ -11292,6 +11296,14 @@ function checkEnd(s) {
       // Also snapshot the surviving party so the next layer's run starts
       // with the same heroes intact (HP / quirks / upgrades carried).
       const finishBoss = () => {
+        // Dev-tools playtest path skips real meta-progression so a
+        // boss-tuning loop doesn't accidentally mark layers as cleared
+        // or carry a synthetic party into the next layer.  Set by
+        // _devFightBoss; cleared at run-summary close.
+        if (state._isDevRun) {
+          showRunSummary('boss', { afterClose: () => showTitleScreen() });
+          return;
+        }
         // Snapshot meta-unlock state BEFORE recording the clear so we
         // can surface the first-time "X unlocked" callout on the run
         // summary — once each lifetime per system.
@@ -17427,19 +17439,30 @@ function showDevToolsScreen() {
     </div>
   `;
 
+  // If the player has an in-progress run, gate dev-tools jumps behind
+  // a confirm so a stray tap doesn't nuke their progress.
+  const _activeRun = !!(state && state.party && state.party.chars && Object.keys(state.party.chars).length && !state.over && state.run);
+  const _gated = (fn) => () => {
+    if (!_activeRun) { fn(); return; }
+    confirmDestructive(
+      'Replace the active run?',
+      'A run is in progress.  Jumping or starting a boss playtest will clear the current save and start fresh.',
+      fn
+    );
+  };
   body.querySelectorAll('[data-jump]').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', _gated(() => {
       const n = parseInt(btn.dataset.jump, 10);
       if (!Number.isFinite(n)) return;
       _devJumpToLayer(n);
-    });
+    }));
   });
   body.querySelectorAll('[data-boss]').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', _gated(() => {
       const n = parseInt(btn.dataset.boss, 10);
       if (!Number.isFinite(n)) return;
       _devFightBoss(n);
-    });
+    }));
   });
 
   const choicesEl = $('#overlay-choices');
@@ -17480,6 +17503,10 @@ function _devFightBoss(layer) {
   // the standard trio formation).
   state = newState('cassia');
   state.run.layer = layer;
+  // Mark as a dev-tools playtest so finishBoss skips real meta
+  // progression (markLayerCleared / saveCarriedParty) — iteration on
+  // boss mechanics shouldn't drift the player's actual unlocks.
+  state._isDevRun = true;
 
   // Backfill Elin (mid) and Branwen (back) into their home slots so the
   // playtest starts with a full 3-hero party — single-hero against a
