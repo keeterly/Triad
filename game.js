@@ -8796,8 +8796,13 @@ function startEncounter(encSpec) {
   });
 
   startTurn(state);
-  // First-encounter tutorial kicks in after the battlefield has rendered.
-  if (isFirstFight && !tutorialSeen()) setTimeout(maybeShowTutorial, 600);
+  // Old sequential-toast tutorial is retired in favor of contextual
+  // coachmarks (see showCoachmark + cm_* triggers throughout the
+  // engine).  The coachmark system surfaces hints at the moment each
+  // concept first matters — weakness reveal, stagger landing, ready
+  // queue, first map — instead of dumping nine modals on the player
+  // at fight start.  The old toast plumbing stays in the file as a
+  // fallback but isn't invoked.
   // Objective splash — if this encounter has a battle goal, fire a brief
   // centered banner so the player reads it as a moment, not as a strip
   // overlapping the name labels.  Skipped if the tutorial is showing on
@@ -9319,6 +9324,23 @@ function applyDmgToEnemy(s, e, baseAmt) {
     e._weaknessJustRevealed = true;
     if (s.currentActorId === 'hask' && toHp === 0) spawnPassivePopup('hask', 'FROSTBREAK');
     if (veyrInheritsFW && toHp === 0) spawnPassivePopup('veyr', 'FROZEN WITNESS');
+    // Tutorial — first weakness reveal of the player's lifetime.  Wait
+    // for the reveal animation to land (~700ms) before surfacing the
+    // hint, anchored to the weakness pill on the freshly-revealed
+    // enemy so the player can see what to look for next time.
+    if (!hasSeenCoachmark('cm_weakness_reveal')) {
+      const targetEnemyKey = SLOTS.find(sl => s.enemies.slots[sl] && s.enemies.chars[s.enemies.slots[sl]] === e);
+      setTimeout(() => {
+        const sel = targetEnemyKey
+          ? `#enemy-half .figure[data-slot="${targetEnemyKey}"] .state-strip-weakness, #enemy-half .figure[data-slot="${targetEnemyKey}"]`
+          : '#enemy-half .state-strip-weakness';
+        showCoachmark('cm_weakness_reveal', {
+          anchor: sel,
+          place: 'above',
+          text: 'You found their <b>weakness</b>.  Hit this element again in the same turn to <b>STAGGER</b> them.',
+        });
+      }, 900);
+    }
   }
 
   // Weakness → stagger state transitions.  Hitting the enemy's weakness
@@ -9337,6 +9359,22 @@ function applyDmgToEnemy(s, e, baseAmt) {
       // +1 Resolve.  Inlined here so we can keep one damage funnel.
       const h = s && s.party && s.party.chars && s.party.chars.hask;
       if (h && !h.downed) { gainResolve(s, 1); spawnPassivePopup('hask', 'SHATTER'); }
+      // Tutorial — first STAGGERED state of the player's lifetime.
+      // Anchored to the staggered enemy so the player connects the
+      // visual state to the payoff.
+      if (!hasSeenCoachmark('cm_stagger_payoff')) {
+        const targetEnemyKey = SLOTS.find(sl => s.enemies.slots[sl] && s.enemies.chars[s.enemies.slots[sl]] === e);
+        setTimeout(() => {
+          const sel = targetEnemyKey
+            ? `#enemy-half .figure[data-slot="${targetEnemyKey}"] .state-strip-staggered, #enemy-half .figure[data-slot="${targetEnemyKey}"]`
+            : '#enemy-half .state-strip-staggered';
+          showCoachmark('cm_stagger_payoff', {
+            anchor: sel,
+            place: 'above',
+            text: 'Staggered.  The <b>next damaging hit</b> deals <b>2× damage</b>.  Don\'t waste it.',
+          });
+        }, 900);
+      }
     } else if (!e.weakened && !e.staggered) {
       e.weakened = true;
       // Two-turn weakness window — the player gets THIS turn plus the
@@ -10137,6 +10175,19 @@ function startTurn(s) {
   s.messages = [];
   s.executing = false;
   s.queue = [];
+  // First-fight tutorial — surface the "hold to preview" hint once the
+  // tiles are visible and the player has a clean slate to act.  Anchors
+  // to the leftmost queueable tile, fires only on the very first turn
+  // of the very first fight per device.
+  if (s.turn === 1 && !hasSeenCoachmark('cm_hold_preview')) {
+    setTimeout(() => {
+      showCoachmark('cm_hold_preview', {
+        anchor: '#tile-grid .tile:not(:disabled)',
+        place: 'above',
+        text: '<b>Tap</b> an action to queue it.  <b>Press &amp; hold</b> to preview where it lands before you commit.',
+      });
+    }, 700);
+  }
   // Press-turn echo: weakness hits last turn give us +1 ATB this turn.
   s.bonusAtb = Math.min(1, s.pendingBonusAtb || 0);
   s.pendingBonusAtb = 0;
@@ -10451,6 +10502,20 @@ function queueAdd(item) {
   s.queue.push(item);
   Audio.queue();
   render();
+  // Tutorial — once the player has queued 2 actions for the first time
+  // ever, surface the Fight-button hint so they know how to commit.
+  // The first queue-add fires the "hold to preview" coachmark; the
+  // press-fight nudge comes after the player has actually queued some
+  // depth and might be wondering "now what?".
+  if (state.queue.length >= 2 && !hasSeenCoachmark('cm_press_fight')) {
+    setTimeout(() => {
+      showCoachmark('cm_press_fight', {
+        anchor: '#btn-fight',
+        place: 'above',
+        text: 'Queue ready.  <b>Press Fight</b> to resolve your actions in order — then the enemies act.',
+      });
+    }, 400);
+  }
 }
 
 function queueRemoveAt(idx) {
@@ -12717,6 +12782,19 @@ function renderTeamSpecial() {
   if (matches.length === 0 && partials.length === 0) { area.classList.add('hidden'); return; }
   area.classList.remove('hidden');
   area.classList.add('resonance-rail');
+  // First-run tutorial — fire the Resonance hint the first time a combo
+  // chip lights up on the rail.  Anchored to the rail itself so the
+  // player can tell where to look.  Matched combo (tap to commit) is
+  // preferred for anchor visibility; falls back to a partial.
+  if (matches.length > 0 && !hasSeenCoachmark('cm_resonance')) {
+    setTimeout(() => {
+      showCoachmark('cm_resonance', {
+        anchor: '#ts-area .resonance-chip',
+        place: 'above',
+        text: 'A <b>Resonance</b> lit up — your queue lines up into a team move.  Tap to commit, or <b>press &amp; hold</b> to preview targets.',
+      });
+    }, 400);
+  }
   matches.forEach(({ combo }) => {
     const btn = document.createElement('button');
     btn.type = 'button';
@@ -13304,6 +13382,133 @@ function renderFightButton() {
 // log() is kept as a no-op so existing engine call sites stay quiet.
 function log(_html) { /* intentionally empty */ }
 function flashMsg(_text) { /* intentionally empty */ }
+
+// ============================================================================
+// COACHMARKS — first-run tutorial via contextual hints
+// ============================================================================
+// A coachmark is a small floating card that surfaces ONCE in the player's
+// lifetime when the relevant moment first happens (first weakness reveal,
+// first STAGGERED state, first map screen, etc.), then never appears again.
+// Tracked in localStorage by id.  Each call is idempotent: hasSeenCoachmark
+// short-circuits before any DOM work.
+const COACHMARK_KEY = 'kizuna.coachmarks.v1';
+function getCoachmarkState() {
+  try {
+    const raw = localStorage.getItem(COACHMARK_KEY);
+    return raw ? (JSON.parse(raw) || {}) : {};
+  } catch (_) { return {}; }
+}
+function markCoachmarkSeen(id) {
+  try {
+    const cur = getCoachmarkState();
+    cur[id] = Date.now();
+    localStorage.setItem(COACHMARK_KEY, JSON.stringify(cur));
+  } catch (_) {}
+}
+function hasSeenCoachmark(id) {
+  return !!getCoachmarkState()[id];
+}
+
+// One coachmark on screen at a time — if a new one fires while another is
+// up, the new one queues and shows when the previous dismisses.  Keeps
+// the screen from stacking hints on top of each other during a busy turn.
+let _activeCoachmark = null;
+const _coachmarkQueue = [];
+
+function showCoachmark(id, opts) {
+  if (typeof __simulating !== 'undefined' && __simulating) return;
+  if (hasSeenCoachmark(id)) return;
+  // Defer if another coachmark is up — first one wins; we'll re-fire
+  // from its dismiss handler.
+  if (_activeCoachmark) {
+    if (!_coachmarkQueue.find(q => q.id === id)) _coachmarkQueue.push({ id, opts });
+    return;
+  }
+  const anchorSelector = opts && opts.anchor;
+  const anchorEl = anchorSelector ? document.querySelector(anchorSelector) : null;
+  const text = (opts && opts.text) || '';
+  if (!text) return;
+  const place = (opts && opts.place) || 'above';  // 'above' | 'below' | 'left' | 'right'
+
+  const card = document.createElement('div');
+  card.className = `coachmark coachmark-${place}`;
+  card.setAttribute('role', 'status');
+  card.innerHTML = `
+    <div class="coachmark-body">${text}</div>
+    <button type="button" class="coachmark-dismiss" aria-label="Dismiss hint">Got it</button>
+    <span class="coachmark-arrow" aria-hidden="true"></span>
+  `;
+  document.body.appendChild(card);
+  _activeCoachmark = { id, card };
+
+  // Position relative to anchor (if any) using viewport pixels — works
+  // through the stage-scale transform because getBoundingClientRect
+  // returns transformed coordinates.  Falls back to center-bottom of
+  // the viewport when no anchor is supplied (e.g., global hints).
+  const position = () => {
+    const r = anchorEl ? anchorEl.getBoundingClientRect() : null;
+    const cr = card.getBoundingClientRect();
+    const GAP = 14;
+    let top, left;
+    if (r) {
+      if (place === 'above')      { top = r.top - cr.height - GAP;  left = r.left + r.width / 2 - cr.width / 2; }
+      else if (place === 'below') { top = r.bottom + GAP;           left = r.left + r.width / 2 - cr.width / 2; }
+      else if (place === 'left')  { top = r.top + r.height / 2 - cr.height / 2; left = r.left - cr.width - GAP; }
+      else                         { top = r.top + r.height / 2 - cr.height / 2; left = r.right + GAP; }
+    } else {
+      top  = window.innerHeight - cr.height - 80;
+      left = window.innerWidth  / 2 - cr.width / 2;
+    }
+    // Clamp to viewport with a small margin so the card never half-clips
+    // off-screen — happens when the anchor is in a corner.
+    const M = 8;
+    top  = Math.max(M, Math.min(top,  window.innerHeight - cr.height - M));
+    left = Math.max(M, Math.min(left, window.innerWidth  - cr.width  - M));
+    card.style.top  = top  + 'px';
+    card.style.left = left + 'px';
+  };
+  // Two frames — first paint computes card size, second paint positions.
+  requestAnimationFrame(() => { requestAnimationFrame(position); });
+  // Reposition on resize / orientation change so the coachmark follows
+  // its anchor through layout shifts.
+  const onResize = () => position();
+  window.addEventListener('resize', onResize);
+  window.addEventListener('orientationchange', onResize);
+
+  const dismiss = () => {
+    if (_activeCoachmark && _activeCoachmark.id !== id) return;
+    markCoachmarkSeen(id);
+    card.classList.add('coachmark-out');
+    window.removeEventListener('resize', onResize);
+    window.removeEventListener('orientationchange', onResize);
+    setTimeout(() => {
+      if (card.isConnected) card.remove();
+      _activeCoachmark = null;
+      // Drain one queued coachmark, if any, after a short gap.
+      if (_coachmarkQueue.length) {
+        const next = _coachmarkQueue.shift();
+        setTimeout(() => showCoachmark(next.id, next.opts), 250);
+      }
+    }, 260);
+  };
+  card.querySelector('.coachmark-dismiss').addEventListener('click', dismiss);
+  // Auto-dismiss after 12s so an idle player isn't blocked indefinitely
+  // by a hint they didn't read.  Player can also click anywhere on the
+  // card to dismiss.
+  setTimeout(dismiss, 12000);
+  card.addEventListener('click', (e) => {
+    if (e.target.closest('.coachmark-dismiss')) return; // handler above
+    dismiss();
+  });
+}
+
+// Reset all coachmarks — invoked from the dev tools / settings so the
+// player can replay the tutorial.  Not wired to a button yet but the
+// helper exists for when we add a "reset tutorial" option.
+function resetCoachmarks() {
+  try { localStorage.removeItem(COACHMARK_KEY); } catch (_) {}
+}
+
 
 // ============================================================================
 // POPUPS + FLASHES — visual juice
@@ -14715,6 +14920,20 @@ function showPathChoice() { renderMap(); }
 
 function renderMap() {
   applyBiomeBackground();
+  // First-run tutorial — surface the map-navigation hint on first map
+  // view ever.  Anchors to the leftmost reachable node so the player
+  // sees both the affordance (tap to enter) AND the inspect gesture
+  // (hold for tooltip).  Deferred to next frame so the map DOM exists
+  // by the time we query for the anchor.
+  if (!hasSeenCoachmark('cm_map_navigate')) {
+    setTimeout(() => {
+      showCoachmark('cm_map_navigate', {
+        anchor: '#overlay-choices .path-node',
+        place: 'below',
+        text: '<b>Tap</b> a node to enter.  <b>Press &amp; hold</b> to inspect what\'s there before you commit.',
+      });
+    }, 800);
+  }
   // Refresh the HUD strip so the sigil tray + run modifier chip reflect
   // anything bound on the previous node (events, rests, victory rewards).
   // The strip is z-lifted above the overlay so it stays visible here.

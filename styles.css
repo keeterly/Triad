@@ -7270,6 +7270,105 @@ button.path-node:not(:disabled):hover {
 }
 #tutorial-toast .tut-ok:hover { color: var(--gold-bright); }
 
+/* ===========================================================================
+   COACHMARKS — contextual first-run hints anchored to specific elements.
+   Replaces the sequential tutorial-toast stack: a coachmark appears once
+   per device when the relevant moment first happens (weakness reveal,
+   first staggered enemy, first map view, first Resonance) then never
+   shows again.  See showCoachmark / cm_* triggers in game.js.
+   =========================================================================== */
+.coachmark {
+  position: fixed;
+  z-index: 240;
+  max-width: min(320px, 78vw);
+  padding: 10px 14px;
+  background: radial-gradient(ellipse 120% 100% at 50% 0%,
+                              rgba(40,30,22,0.97) 0%,
+                              rgba(8,6,8,0.98) 70%);
+  color: var(--ink);
+  font-size: 11.5px;
+  line-height: 1.45;
+  text-align: center;
+  border: 1px solid var(--gold-dim);
+  border-radius: 4px;
+  box-shadow:
+    0 10px 32px rgba(0,0,0,0.85),
+    inset 0 1px 0 rgba(232,220,196,0.12),
+    0 0 28px rgba(200,164,100,0.22);
+  animation: coachmark-in 0.28s ease-out;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.coachmark.coachmark-out { animation: coachmark-out 0.24s ease-in forwards; }
+@keyframes coachmark-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes coachmark-out {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(6px); }
+}
+.coachmark .coachmark-body {
+  letter-spacing: 0.02em;
+}
+.coachmark .coachmark-body b {
+  color: var(--gold-bright);
+  letter-spacing: 0.06em;
+}
+.coachmark .coachmark-dismiss {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 9.5px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gold-pale);
+  background: transparent;
+  border: 1px solid var(--gold-dim);
+  padding: 4px 12px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.coachmark .coachmark-dismiss:hover {
+  color: var(--gold-bright);
+  border-color: var(--gold-bright);
+  background: rgba(240,212,136,0.08);
+}
+/* Arrow tail — points from the card edge to the anchor element.  Drawn
+   as a CSS triangle by combining a transparent border with a single
+   filled side; rotation handles the placement variants. */
+.coachmark .coachmark-arrow {
+  position: absolute;
+  width: 0; height: 0;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+}
+.coachmark.coachmark-above .coachmark-arrow {
+  /* card sits ABOVE anchor — arrow points DOWN from bottom-center */
+  bottom: -8px; left: 50%; transform: translateX(-50%);
+  border-top: 8px solid rgba(8,6,8,0.98);
+}
+.coachmark.coachmark-below .coachmark-arrow {
+  /* card sits BELOW anchor — arrow points UP from top-center */
+  top: -8px; left: 50%; transform: translateX(-50%);
+  border-bottom: 8px solid rgba(8,6,8,0.98);
+  border-top: none;
+}
+.coachmark.coachmark-left .coachmark-arrow {
+  right: -8px; top: 50%; transform: translateY(-50%);
+  border-left: 8px solid rgba(8,6,8,0.98);
+  border-top: 7px solid transparent;
+  border-bottom: 7px solid transparent;
+  border-right: none;
+}
+.coachmark.coachmark-right .coachmark-arrow {
+  left: -8px; top: 50%; transform: translateY(-50%);
+  border-right: 8px solid rgba(8,6,8,0.98);
+  border-top: 7px solid transparent;
+  border-bottom: 7px solid transparent;
+  border-left: none;
+}
+
 /* Strip the per-portrait card backdrop — every portrait SVG paints a
    background rect (fill="url(#X-bg)") and an atmospheric overlay
    (fill="url(#X-shadow)").  Hiding both lets the silhouettes float
