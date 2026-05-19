@@ -10420,6 +10420,91 @@ body:has(#world-map:not(.hidden)) #hud {
 }
 .settings-row:hover .settings-value { color: var(--gold-pale); }
 .settings-row.settings-danger .settings-value { color: var(--blood-bright); opacity: 0.85; }
+
+/* ===========================================================================
+   DEV TOOLS PANEL — Settings → Dev tools opens this.  Jump-to-layer chip
+   row + playtest-boss column.  Reuses the parent overlay-content shell;
+   only the inner section / chip styles live here.
+   =========================================================================== */
+.dev-section {
+  margin: 4px 0 8px;
+  text-align: left;
+}
+.dev-section-label {
+  font-size: 9.5px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin-bottom: 4px;
+}
+.dev-section-hint {
+  font-size: 9px;
+  font-style: italic;
+  color: var(--ink-faint);
+  letter-spacing: 0.02em;
+  margin-top: 4px;
+  line-height: 1.35;
+}
+.dev-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.dev-col {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.dev-chip {
+  flex: 0 0 auto;
+  padding: 4px 10px;
+  background: linear-gradient(180deg, rgba(28,22,18,0.7) 0%, rgba(10,8,8,0.8) 100%);
+  border: 1px solid var(--gold-dim);
+  color: var(--gold);
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+}
+.dev-chip:hover {
+  border-color: var(--gold-bright);
+  color: var(--gold-pale);
+  background: linear-gradient(180deg, rgba(48,36,22,0.85) 0%, rgba(18,12,10,0.92) 100%);
+}
+.dev-chip-boss {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 6px 12px;
+  text-align: left;
+}
+.dev-chip-boss .dev-chip-tag {
+  font-size: 9.5px;
+  letter-spacing: 0.22em;
+  color: var(--ink-dim);
+  flex-shrink: 0;
+}
+.dev-chip-boss .dev-chip-name {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: none;
+  color: var(--gold);
+  font-style: italic;
+}
+.dev-chip-boss:hover .dev-chip-name { color: var(--gold-pale); }
+.dev-chip-mega {
+  border-color: rgba(170,140,212,0.6);
+  box-shadow: 0 0 8px rgba(170,140,212,0.18) inset;
+}
+.dev-chip-mega .dev-chip-tag { color: #d4b8f0; }
+.dev-chip-mega .dev-chip-name { color: #f0d4ff; }
+.dev-chip-mega:hover { border-color: #d4b8f0; box-shadow: 0 0 12px rgba(170,140,212,0.32) inset; }
+
 .settings-flash {
   position: fixed;
   top: 50%; left: 50%;
