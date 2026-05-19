@@ -2283,7 +2283,26 @@ body.on-title:has(#overlay:not(.hidden)) #stage-scale {
 .status-dulled  { color: var(--weak);        border-color: var(--weak); }
 .status-retal   { color: var(--gold);        border-color: var(--gold); }
 .status-vuln    { color: #ff8a8a;            border-color: var(--bleed); background: rgba(196,56,56,0.25); }
-.status-pending { color: var(--gold-bright); border-color: var(--gold-bright); background: rgba(240,212,136,0.2); }
+.status-pending {
+  color: var(--gold-bright); border-color: var(--gold-bright);
+  background: rgba(240,212,136,0.22);
+  /* Pulse so the player remembers to consume the bonus next turn —
+     pending one-shots are easy to forget when the row crowds up. */
+  animation: status-pending-pulse 1.6s ease-in-out infinite;
+}
+@keyframes status-pending-pulse {
+  0%, 100% { box-shadow: 0 1px 4px rgba(0,0,0,0.75), 0 0 0 0 rgba(240,212,136,0); }
+  50%      { box-shadow: 0 1px 4px rgba(0,0,0,0.75), 0 0 10px 2px rgba(240,212,136,0.55); }
+}
+/* Overflow chip — collapses extra statuses when more than 4 would render
+   on a single figure.  Neutral gold "+N" pill; the title attribute lists
+   every collapsed status so press-and-hold reads them all. */
+.status-overflow {
+  color: var(--ink);
+  border-color: rgba(232,220,196,0.45);
+  background: rgba(40,30,20,0.78);
+}
+.status-overflow .status-icon { font-size: 13px; opacity: 0.8; }
 .status-veil    { color: #c0d8ff;            border-color: #c0d8ff;       background: rgba(60,90,140,0.28); }
 .status-wall    { color: #ffd098;            border-color: #ffd098;       background: rgba(120,80,40,0.28); }
 .status-guard   { color: #ffe896;            border-color: #ffe896;       background: rgba(140,110,50,0.28); }
@@ -2776,6 +2795,29 @@ body.on-title:has(#overlay:not(.hidden)) #stage-scale {
 }
 .starter-fig:hover { filter: brightness(1.16); transform: translateY(-2px); }
 .starter-fig:active { transform: translateY(0); }
+/* Locked starters — unlocked heroes who aren't solo-viable (Elin, Garron,
+   Veyr) render dimmed with a "needs a partner" tag so the player can
+   tell at a glance which roles they've recruited but can't open with.
+   Suppress hover/active states since the tile isn't actionable. */
+.starter-fig.starter-fig-locked {
+  cursor: default;
+  filter: grayscale(0.65) brightness(0.55);
+  opacity: 0.7;
+}
+.starter-fig.starter-fig-locked:hover {
+  filter: grayscale(0.55) brightness(0.65);
+  transform: none;
+}
+.starter-fig.starter-fig-locked:active { transform: none; }
+.starter-locked-tag {
+  font-size: 8.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--blood-bright);
+  margin-top: 3px;
+  font-style: italic;
+  opacity: 0.85;
+}
 .starter-portrait {
   flex: 1 1 auto;
   width: 100%;
@@ -9878,6 +9920,110 @@ body.killing-blow::before {
   font-size: 9.5px;
   font-style: italic;
   color: var(--ink-faint);
+}
+
+/* ===========================================================================
+   BONDS — info panel section listing active adjacency synergies with
+   their effect glyphs.  Each row reads: glyph + pair name + line label.
+   Bond rows have a gold accent; friction rows blood-red.
+   =========================================================================== */
+.info-bonds {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.info-bond {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  background: linear-gradient(180deg, rgba(20,18,14,0.45) 0%, rgba(8,6,6,0.6) 100%);
+  border-left: 2px solid rgba(232,220,196,0.18);
+}
+.info-bond.info-bond-bond     { border-left-color: var(--gold-bright); }
+.info-bond.info-bond-friction { border-left-color: var(--blood-bright); }
+.info-bond-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px; height: 22px;
+  font-size: 14px;
+  border-radius: 50%;
+  background: rgba(10,8,7,0.7);
+}
+.info-bond.effect-dmg     .info-bond-glyph { color: var(--blood-bright); }
+.info-bond.effect-heal    .info-bond-glyph { color: var(--heal); }
+.info-bond.effect-armor   .info-bond-glyph { color: var(--armor); }
+.info-bond.effect-resolve .info-bond-glyph { color: var(--gold-bright); }
+.info-bond.effect-utility .info-bond-glyph { color: var(--ink-dim); }
+.info-bond-body { display: flex; flex-direction: column; gap: 1px; }
+.info-bond-name {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.info-bond.info-bond-bond     .info-bond-name { color: var(--gold-pale); }
+.info-bond.info-bond-friction .info-bond-name { color: #ffb8b8; }
+.info-bond-pair {
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
+}
+
+/* ===========================================================================
+   RESONANCES — info panel section listing every combo the current party
+   can build.  Each row shows the combo name + tier badge + requirement
+   summary + flavor desc.  Sig-tier combos get a cool-blue accent;
+   triples get a red accent; duos default gold.
+   =========================================================================== */
+.info-combos {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.info-combo {
+  padding: 5px 8px;
+  background: linear-gradient(180deg, rgba(20,18,14,0.45) 0%, rgba(8,6,6,0.6) 100%);
+  border-left: 2px solid var(--gold-dim);
+}
+.info-combo.tier-triple { border-left-color: var(--blood-bright); }
+.info-combo.tier-sig    { border-left-color: #88b8e8; }
+.info-combo-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.info-combo-name {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gold-pale);
+}
+.info-combo.tier-triple .info-combo-name { color: var(--gold-bright); }
+.info-combo.tier-sig    .info-combo-name { color: #c0d8f4; }
+.info-combo-tier {
+  font-size: 8.5px;
+  letter-spacing: 0.28em;
+  color: var(--ink-faint);
+  padding: 1px 6px;
+  background: rgba(0,0,0,0.45);
+}
+.info-combo-req {
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  color: var(--ink-dim);
+  margin-top: 2px;
+}
+.info-combo-desc {
+  font-size: 10px;
+  font-style: italic;
+  color: var(--ink);
+  letter-spacing: 0.02em;
+  line-height: 1.35;
+  margin-top: 2px;
 }
 
 /* ===========================================================================

@@ -1419,7 +1419,14 @@ const ACTION_ATB = {
 const TEAM_SPECIAL_ATB = ATB_MAX;
 const SPECIAL_COST = 2;       // Resolve cost of an individual special
 const TEAM_SPECIAL_COST = 3;  // Resolve cost of a team special
-const BRACE_ARMOR = 2;
+const BRACE_ARMOR = 3;
+// How many stacks of vuln Brace clears from the actor.  Brace was the
+// dead button before — same Resolve-free 1-ATB cost as a basic attack
+// but only 2 armor and no upside, so it never paid out.  Now it clears
+// vuln stacks too so it has a real identity as "defensive cleanse": if
+// an enemy stacked Vuln on you last turn, Brace this turn shrugs it
+// before they cash it for +2/hit.
+const BRACE_VULN_CLEAR = 1;
 
 const RESOLVE_MAX = 3;
 const RESOLVE_DRIP = 1;     // Resolve regenerated automatically each turn
@@ -8241,10 +8248,14 @@ function hasUnboundSigilIn(s, list) {
 // Same pair produces a different bond depending on which adjacency line it occupies.
 // ============================================================================
 
+// effect: 'dmg' | 'heal' | 'armor' | 'resolve' | 'utility' — drives the
+// tiny colored dot on the synergy chip so the player can read at a glance
+// whether the pair is offensive, defensive, restorative, etc.  Friction
+// pairs always read 'dmg' since they're a damage penalty.
 const ADJ = {
   'cassia+elin': {
     fm: {
-      name: "Sister's Watch", type: 'bond',
+      name: "Sister's Watch", type: 'bond', effect: 'resolve',
       onPartyDamaged(s, charId) {
         if (charId !== 'cassia') return;
         gainResolve(s, 1);
@@ -8252,7 +8263,7 @@ const ADJ = {
       },
     },
     mb: {
-      name: 'Veiled Vow', type: 'bond',
+      name: 'Veiled Vow', type: 'bond', effect: 'armor',
       onHeal(s, healerId) {
         if (healerId !== 'elin') return;
         const c = s.party.chars.cassia;
@@ -8264,11 +8275,11 @@ const ADJ = {
   },
   'branwen+cassia': {
     fm: {
-      name: 'Old Rivalry', type: 'friction',
+      name: 'Old Rivalry', type: 'friction', effect: 'dmg',
       dmgMod: -2, dmgModFor: 'branwen', // -2 to Branwen's outgoing damage; see applyDmgToEnemy
     },
     mb: {
-      name: 'Banner Fire', type: 'bond',
+      name: 'Banner Fire', type: 'bond', effect: 'dmg',
       onArmorGrant(s, granterId) {
         if (granterId !== 'cassia') return;
         const b = s.party.chars.branwen;
@@ -8281,7 +8292,7 @@ const ADJ = {
   },
   'branwen+elin': {
     fm: {
-      name: 'Spirit Arrow', type: 'bond',
+      name: 'Spirit Arrow', type: 'bond', effect: 'heal',
       onAttack(s, attackerId) {
         if (attackerId !== 'branwen') return;
         const e = s.party.chars.elin;
@@ -8292,7 +8303,7 @@ const ADJ = {
       },
     },
     mb: {
-      name: "Mercy's Gift", type: 'bond',
+      name: "Mercy's Gift", type: 'bond', effect: 'heal',
       onHeal(s, healerId, targetId) {
         if (healerId !== 'elin' || targetId === 'branwen') return;
         const b = s.party.chars.branwen;
@@ -8306,7 +8317,7 @@ const ADJ = {
   // ===== synergies introduced with Korin / Ash / Mira =====
   'cassia+korin': {
     fm: {
-      name: 'Iron Bond', type: 'bond',
+      name: 'Iron Bond', type: 'bond', effect: 'armor',
       onArmorGrant(s, granterId) {
         if (granterId !== 'cassia') return;
         const k = s.party.chars.korin;
@@ -8316,7 +8327,7 @@ const ADJ = {
       },
     },
     mb: {
-      name: 'Bloodguard', type: 'bond',
+      name: 'Bloodguard', type: 'bond', effect: 'dmg',
       onPartyDamaged(s, charId) {
         if (charId !== 'cassia') return;
         const k = s.party.chars.korin;
@@ -8329,7 +8340,7 @@ const ADJ = {
   },
   'branwen+korin': {
     fm: {
-      name: 'Wild Hunt', type: 'bond',
+      name: 'Wild Hunt', type: 'bond', effect: 'dmg',
       onAttack(s, attackerId) {
         if (attackerId !== 'korin') return;
         const b = s.party.chars.branwen;
@@ -8340,7 +8351,7 @@ const ADJ = {
       },
     },
     mb: {
-      name: 'Crimson Echo', type: 'bond',
+      name: 'Crimson Echo', type: 'bond', effect: 'dmg',
       onAttack(s, attackerId) {
         if (attackerId !== 'branwen') return;
         const k = s.party.chars.korin;
@@ -8353,7 +8364,7 @@ const ADJ = {
   },
   'ash+elin': {
     fm: {
-      name: 'Veiled Flame', type: 'bond',
+      name: 'Veiled Flame', type: 'bond', effect: 'heal',
       onAttack(s, attackerId) {
         if (attackerId !== 'ash') return;
         const el = s.party.chars.elin;
@@ -8364,7 +8375,7 @@ const ADJ = {
       },
     },
     mb: {
-      name: 'Sanctuary Fire', type: 'bond',
+      name: 'Sanctuary Fire', type: 'bond', effect: 'dmg',
       onHeal(s, healerId, targetId) {
         if (healerId !== 'elin' || targetId === 'ash') return;
         const a = s.party.chars.ash;
@@ -8377,7 +8388,7 @@ const ADJ = {
   },
   'branwen+mira': {
     fm: {
-      name: 'Sisters of Shadow', type: 'bond',
+      name: 'Sisters of Shadow', type: 'bond', effect: 'dmg',
       onAttack(s, attackerId, e) {
         if (attackerId !== 'branwen' && attackerId !== 'mira') return;
         if (!e || e.dead || e.bleed === 0) return;
@@ -8390,7 +8401,7 @@ const ADJ = {
       },
     },
     mb: {
-      name: 'Twin Blades', type: 'bond',
+      name: 'Twin Blades', type: 'bond', effect: 'dmg',
       onAttack(s, attackerId, e) {
         if (attackerId !== 'branwen' && attackerId !== 'mira') return;
         if (!e || e.dead || e.bleed === 0) return;
@@ -8407,12 +8418,12 @@ const ADJ = {
   // Cassia + Mira — knight vs shadow: their styles cut against each other.
   'cassia+mira': {
     fm: {
-      name: 'Hollow Vow', type: 'friction',
+      name: 'Hollow Vow', type: 'friction', effect: 'dmg',
       // Cassia attacking from front while Mira is mid loses 1 dmg.
       dmgMod: -1, dmgModFor: 'cassia',
     },
     mb: {
-      name: 'Stained Banner', type: 'friction',
+      name: 'Stained Banner', type: 'friction', effect: 'dmg',
       // Mira attacking from mid while Cassia is back loses 1 dmg.
       dmgMod: -1, dmgModFor: 'mira',
     },
@@ -8420,14 +8431,14 @@ const ADJ = {
   // Korin + Mira — paladin vs cutpurse: oil and water.
   'korin+mira': {
     fm: {
-      name: 'Crossed Oaths', type: 'friction',
+      name: 'Crossed Oaths', type: 'friction', effect: 'dmg',
       dmgMod: -1, dmgModFor: 'korin',
     },
   },
   // Ash + Branwen — both range styles; they crowd each other.
   'ash+branwen': {
     mb: {
-      name: 'Tangled Sight', type: 'friction',
+      name: 'Tangled Sight', type: 'friction', effect: 'dmg',
       dmgMod: -1, dmgModFor: 'branwen',
     },
   },
@@ -8437,7 +8448,7 @@ const ADJ = {
   // other's next attack.
   'mira+veyr': {
     fm: {
-      name: 'Shadowtwin', type: 'bond',
+      name: 'Shadowtwin', type: 'bond', effect: 'dmg',
       onAttack(s, attackerId) {
         if (attackerId !== 'mira' && attackerId !== 'veyr') return;
         const otherId = attackerId === 'mira' ? 'veyr' : 'mira';
@@ -8449,7 +8460,7 @@ const ADJ = {
       },
     },
     mb: {
-      name: 'Shadowtwin', type: 'bond',
+      name: 'Shadowtwin', type: 'bond', effect: 'dmg',
       onAttack(s, attackerId) {
         if (attackerId !== 'mira' && attackerId !== 'veyr') return;
         const otherId = attackerId === 'mira' ? 'veyr' : 'mira';
@@ -8466,8 +8477,8 @@ const ADJ = {
   // weakness on impact (handled in applyDmgToEnemy via the same flag
   // that fires for Hask).  Stored here as a marker the resolver reads.
   'hask+veyr': {
-    fm: { name: 'Frozen Witness', type: 'bond', veyrInheritsFrostbreak: true },
-    mb: { name: 'Frozen Witness', type: 'bond', veyrInheritsFrostbreak: true },
+    fm: { name: 'Frozen Witness', type: 'bond', effect: 'utility', veyrInheritsFrostbreak: true },
+    mb: { name: 'Frozen Witness', type: 'bond', effect: 'utility', veyrInheritsFrostbreak: true },
   },
   // Silent Volley — when Veyr is back-row beside Branwen-mid, Branwen's
   // first arrow each turn carries stealth element instead of ranged.
@@ -8475,7 +8486,7 @@ const ADJ = {
   // here just makes the flag set on Branwen's first attack each turn.
   'branwen+veyr': {
     mb: {
-      name: 'Silent Volley', type: 'bond',
+      name: 'Silent Volley', type: 'bond', effect: 'utility',
       onAttack(s, attackerId) {
         if (attackerId !== 'branwen') return;
         const b = s.party.chars.branwen;
@@ -10384,7 +10395,12 @@ function previewTile(kind, charId, dir) {
     return { kind, valid: true, label: `→ ${SLOT_LABELS[target]}`, desc: `swap w/ ${otherName}`, atb, resolveCost: 0, slot, target };
   }
   if (kind === 'brace') {
-    return { kind, valid: true, label: 'Brace', desc: `+${BRACE_ARMOR} armor`, atb, resolveCost: 0, slot };
+    const c = s.party.chars[charId];
+    const cleansing = c && c.vuln > 0;
+    const desc = cleansing
+      ? `+${BRACE_ARMOR} armor · −${Math.min(BRACE_VULN_CLEAR, c.vuln)} vuln`
+      : `+${BRACE_ARMOR} armor`;
+    return { kind, valid: true, label: 'Brace', desc, atb, resolveCost: 0, slot };
   }
   return { valid: false };
 }
@@ -10893,6 +10909,14 @@ function executeQueueItem(s, item) {
   if (item.kind === 'brace') {
     c.armor += BRACE_ARMOR;
     spawnPopupId(item.charId, `+${BRACE_ARMOR}⛨`, 'armor', 'party');
+    // Defensive cleanse — Brace also strips Vuln stacks from the actor.
+    // Gives the button a planning hook beyond raw armor: when an enemy
+    // primed you with Vuln last turn, you can pre-empt the payoff.
+    if (c.vuln > 0) {
+      const cleared = Math.min(c.vuln, BRACE_VULN_CLEAR);
+      c.vuln = Math.max(0, c.vuln - BRACE_VULN_CLEAR);
+      spawnPopupId(item.charId, `−${cleared}⊕`, 'armor', 'party');
+    }
     // Front-slot brace also draws fire — Taunt for this turn so the player
     // can plant a wall on demand without needing a Korin resonance setup.
     if (slotOfChar(state, item.charId) === 'front') {
@@ -12155,8 +12179,25 @@ function makePartyCard(c, slot, threatened, adjMap, incoming) {
   return fig;
 }
 
+// Per-effect glyph rendered as a tiny colored dot on the synergy chip so
+// the player can read what the bond/friction actually does without
+// holding to inspect.  Maps onto the same vocabulary used by status
+// chips: dmg=red, heal=green, armor=blue, resolve=gold.  Friction always
+// reads as 'dmg' (it's a damage penalty); utility uses a neutral glyph.
+const ADJ_EFFECT_GLYPH = {
+  dmg:     '⚔',
+  heal:    '✚',
+  armor:   '⛨',
+  resolve: '◆',
+  utility: '◌',
+};
 function chipHtml(syn, edge) {
-  return `<div class="adj-chip ${edge} ${syn.type}">${syn.name}</div>`;
+  const effect = syn.effect || (syn.type === 'friction' ? 'dmg' : 'utility');
+  const glyph  = ADJ_EFFECT_GLYPH[effect] || '◌';
+  return `<div class="adj-chip ${edge} ${syn.type} effect-${effect}">`
+       + `<span class="adj-chip-effect" aria-hidden="true">${glyph}</span>`
+       + `<span class="adj-chip-name">${syn.name}</span>`
+       + `</div>`;
 }
 
 function intentIconGlyph(kind) {
@@ -12338,36 +12379,48 @@ function makeEnemyCard(e, slot) {
 }
 
 function renderStatuses(ent, sForAuras) {
-  const c = [];
+  // Status chips are collected with explicit priority so we can cap the
+  // visible count at 4 and roll the rest into a single overflow chip.
+  // Priority is "what does the player most need to read at a glance":
+  // defense (armor) → offense state (vuln) → DoTs (bleed/burn) → debuffs
+  // → one-shots → aura passives.  Above a cap of 4 visible chips, the
+  // overflow chip ("+N") expands the full list on tap (handled by the
+  // chip-tooltip layer, same as every other status chip).
+  const items = [];
+  const push = (priority, statusId, icon, num, title) => {
+    items.push({ priority, statusId, icon, num, title });
+  };
   // Each chip carries data-status so the press-and-hold tooltip handler can
   // resolve its explanation from STATUS_TOOLTIPS without re-parsing classes.
-  const chip = (statusId, icon, num, title) =>
-    `<span class="status-chip status-${statusId}" data-status="${statusId}"${num != null ? ` data-value="${num}"` : ''} title="${title}"><span class="status-icon">${icon}</span>${num != null ? `<span class="status-num">${num}</span>` : ''}</span>`;
-  if (ent.armor > 0)     c.push(chip('armor', '⛨', ent.armor,    `Armor ${ent.armor} — absorbs ${ent.armor} damage before HP. Wears off as it absorbs.`));
-  if (ent.bleed > 0)     c.push(chip('bleed', '✤', ent.bleed,    `Bleed ${ent.bleed} — takes 2 damage at the start of each turn (3 with Bloodborne Sigil), then the stack decreases by 1.`));
-  if (ent.burn > 0)      c.push(chip('burn',  '≋', ent.burn,    `Burn ${ent.burn} — takes 2 damage at start of each turn, ignores armor. Decays 1/turn.`));
-  if (ent.taunt)         c.push(chip('taunt', '⌖', null,         'Taunt — enemies single-target attacks redirect to this character instead of the original slot.'));
-  if (ent.dulled > 0)    c.push(chip('dulled', '↓', ent.dulled, `Dulled ${ent.dulled} — this character's outgoing damage is reduced by 2 for the next ${ent.dulled} attack(s).`));
-  if (ent.vuln > 0)      c.push(chip('vuln',  '⊕', ent.vuln,     `Vulnerable ${ent.vuln} — next ${ent.vuln} incoming attacks deal +2 damage (+4 with Ember of Wrath Sigil) and consume one stack.`));
-  if (ent.retaliate > 0) c.push(chip('retal', '↻', ent.retaliate,`Retaliate ${ent.retaliate} — when hit, counter-attack the front-most enemy for ${ent.retaliate} damage.`));
-  if (ent._veil)         c.push(chip('veil', '◐', null,          "Veil — first incoming hit this turn fizzles."));
-  if (ent.armorAbsorb > 0) c.push(chip('wall', '⛨', ent.armorAbsorb, `Wall ${ent.armorAbsorb} — next ${ent.armorAbsorb} incoming hit(s) absorbed entirely (no HP or armor cost).`));
-  if (ent.divineGuard)   c.push(chip('guard', '✦', null,         "Divine Guard — next incoming hit is clamped to 1 damage."));
+  if (ent.armor > 0)     push(10, 'armor', '⛨', ent.armor,    `Armor ${ent.armor} — absorbs ${ent.armor} damage before HP. Wears off as it absorbs.`);
+  if (ent.vuln > 0)      push(20, 'vuln',  '⊕', ent.vuln,     `Vulnerable ${ent.vuln} — next ${ent.vuln} incoming attacks deal +2 damage (+4 with Ember of Wrath Sigil) and consume one stack.`);
+  if (ent.bleed > 0)     push(30, 'bleed', '✤', ent.bleed,    `Bleed ${ent.bleed} — takes 2 damage at the start of each turn (3 with Bloodborne Sigil), then the stack decreases by 1.`);
+  if (ent.burn > 0)      push(40, 'burn',  '≋', ent.burn,    `Burn ${ent.burn} — takes 2 damage at start of each turn, ignores armor. Decays 1/turn.`);
+  if (ent.dulled > 0)    push(50, 'dulled', '↓', ent.dulled, `Dulled ${ent.dulled} — this character's outgoing damage is reduced by 2 for the next ${ent.dulled} attack(s).`);
+  if (ent.taunt)         push(60, 'taunt', '⌖', null,         'Taunt — enemies single-target attacks redirect to this character instead of the original slot.');
+  if (ent.retaliate > 0) push(70, 'retal', '↻', ent.retaliate,`Retaliate ${ent.retaliate} — when hit, counter-attack the front-most enemy for ${ent.retaliate} damage.`);
+  if (ent.armorAbsorb > 0) push(75, 'wall', '⛨', ent.armorAbsorb, `Wall ${ent.armorAbsorb} — next ${ent.armorAbsorb} incoming hit(s) absorbed entirely (no HP or armor cost).`);
+  if (ent._veil)         push(80, 'veil', '◐', null,          "Veil — first incoming hit this turn fizzles.");
+  if (ent.divineGuard)   push(85, 'guard', '✦', null,         "Divine Guard — next incoming hit is clamped to 1 damage.");
   if (ent.pendingEffects) ent.pendingEffects.forEach(e => {
-    if (e.kind === 'attackBonus')      c.push(chip('pending', '⚔', `+${e.amt}`, `Next attack +${e.amt} damage (one-shot, consumed on use).`));
-    else if (e.kind === 'healBonus')   c.push(chip('pending', '✚', `+${e.amt}`, `Next heal +${e.amt} (one-shot, consumed on use).`));
-    else                                c.push(chip('pending', '✦', `+${e.amt}`, `Pending +${e.amt}`));
+    // Pending one-shots get the 'pending' status class which CSS pulses
+    // gold so the player remembers to actually USE them next turn.
+    if (e.kind === 'attackBonus')      push(90, 'pending', '⚔', `+${e.amt}`, `Next attack +${e.amt} damage (one-shot, consumed on use).`);
+    else if (e.kind === 'healBonus')   push(90, 'pending', '✚', `+${e.amt}`, `Next heal +${e.amt} (one-shot, consumed on use).`);
+    else                                push(90, 'pending', '✦', `+${e.amt}`, `Pending +${e.amt}`);
   });
   // Position-derived passive auras — these are derived from the current
   // formation (not stored on the entity) so the player can see at a glance
   // *why* damage on this card is being softened.  Only applied for party
-  // members (sForAuras passed); enemies don't carry these.
+  // members (sForAuras passed); enemies don't carry these.  Aura chips
+  // sit at priority 100+ so they're the first to collapse when the row
+  // would otherwise overflow.
   if (sForAuras && ent.id) {
     // Cassia Held Gate — once-per-turn ally redirect while she holds Front.
     if (ent.id === 'cassia' && slotOfChar(sForAuras, 'cassia') === 'front') {
       const cas = sForAuras.party.chars.cassia;
       if (cas && !cas._heldGateUsed) {
-        c.push(chip('heldgate', '⛨', '◄', "Held Gate — first incoming hit this turn redirects to Cassia."));
+        push(100, 'heldgate', '⛨', '◄', "Held Gate — first incoming hit this turn redirects to Cassia.");
       }
     }
     // Korin Red Tally — pending +3 attack bonus from self-damage.
@@ -12376,13 +12429,13 @@ function renderStatuses(ent, sForAuras) {
       if (k && Array.isArray(k.pendingEffects)) {
         const stacks = k.pendingEffects.filter(eff => eff.source === 'red-tally' && eff.kind === 'attackBonus').length;
         if (stacks > 0) {
-          c.push(chip('redtally', '⚔', `+${3 * stacks}`, `Red Tally — Korin's next attack carries +${3 * stacks} damage and bleed 1.`));
+          push(100, 'redtally', '⚔', `+${3 * stacks}`, `Red Tally — Korin's next attack carries +${3 * stacks} damage and bleed 1.`);
         }
       }
     }
     // Ash Veil Echo — visible when there's a vuln stack she can preserve.
     if (ent.id === 'ash' && aliveEnemies(sForAuras).some(e => e.vuln > 0)) {
-      c.push(chip('veilecho', '⊕', '◌', "Veil Echo — Ash's attacks don't consume vuln stacks."));
+      push(100, 'veilecho', '⊕', '◌', "Veil Echo — Ash's attacks don't consume vuln stacks.");
     }
     // Lirien Refrain — every ally's first attack each turn applies vuln 1
     // while Lirien is alive.  Shown on each ally that still has the opener.
@@ -12390,52 +12443,72 @@ function renderStatuses(ent, sForAuras) {
     if (lir && !lir.downed) {
       const me = sForAuras.party.chars[ent.id];
       if (me && !me.lingeringUsed) {
-        c.push(chip('refrain', '⊕', '+1', "Refrain — first attack this turn applies vuln 1 (Lirien is singing)."));
+        push(100, 'refrain', '⊕', '+1', "Refrain — first attack this turn applies vuln 1 (Lirien is singing).");
       }
     }
     // Kai Last Stand — alone-survivor: +3 attacks, +4 heal on kill.
     if (ent.id === 'kai' && aliveParty(sForAuras).length === 1) {
-      c.push(chip('laststand', '⚔', '+3', 'Last Stand — Kai is the only one upright: +3 damage, +4 heal on kill.'));
+      push(100, 'laststand', '⚔', '+3', 'Last Stand — Kai is the only one upright: +3 damage, +4 heal on kill.');
     }
     // Veyr Last Witness — +2 damage per downed party member.
     if (ent.id === 'veyr') {
       const downed = Object.values(sForAuras.party.chars).filter(x => x.downed).length;
       if (downed > 0) {
         const bump = 2 * downed;
-        c.push(chip('witness', '⚔', `+${bump}`, `Last Witness — Veyr's edge sharpens with each fallen ally (+${bump} damage).`));
+        push(100, 'witness', '⚔', `+${bump}`, `Last Witness — Veyr's edge sharpens with each fallen ally (+${bump} damage).`);
       }
     }
     // Branwen Named Arrow — first attack each turn auto-bleeds.
     if (ent.id === 'branwen') {
       const b = sForAuras.party.chars.branwen;
       if (b && !b.namedArrowUsed) {
-        c.push(chip('namedarrow', '✤', '+1', 'Named Arrow — her first attack this turn applies bleed 1; a kill on it buffs the next ally.'));
+        push(100, 'namedarrow', '✤', '+1', 'Named Arrow — her first attack this turn applies bleed 1; a kill on it buffs the next ally.');
       }
     }
     // Mira Shadow's Cut — bleed she touches holds through the next decay tick.
     if (ent.id === 'mira' && aliveEnemies(sForAuras).some(e => e.bleed > 0)) {
-      c.push(chip('shadowcut', '✤', '∞', "Shadow's Cut — her hit on a bleeding enemy holds the bleed through next turn's decay."));
+      push(100, 'shadowcut', '✤', '∞', "Shadow's Cut — her hit on a bleeding enemy holds the bleed through next turn's decay.");
     }
     // Elin Last Mercy — once per fight death-save (visible until consumed).
     if (ent.id === 'elin') {
       const el = sForAuras.party.chars.elin;
       if (el && !el._mercyDeathSaveUsed && !el.downed) {
-        c.push(chip('lastmercy', '✚', '◇', 'Last Mercy — first lethal hit this fight clamps Elin to 1 HP and heals the lowest ally 4.'));
+        push(100, 'lastmercy', '✚', '◇', 'Last Mercy — first lethal hit this fight clamps Elin to 1 HP and heals the lowest ally 4.');
       }
     }
     // Garron Warden's Word — once per fight ally death-save while Front.
     if (ent.id === 'garron' && slotOfChar(sForAuras, 'garron') === 'front' && !sForAuras._wardenSaveUsed) {
-      c.push(chip('warden', '⛨', '◇', "Warden's Word — first ally to fall this fight is held at 1 HP (Garron loses 4 HP)."));
+      push(100, 'warden', '⛨', '◇', "Warden's Word — first ally to fall this fight is held at 1 HP (Garron loses 4 HP).");
     }
     // Vasha Conviction — armed by an ally hitting 1 HP.
     if (ent.id === 'vasha') {
       const v = sForAuras.party.chars.vasha;
       if (v && v.convictionArmed) {
-        c.push(chip('conviction', '✦', '−1♦', 'Conviction — next sig costs 1 less Resolve and heals the party 3 on cast.'));
+        push(100, 'conviction', '✦', '−1♦', 'Conviction — next sig costs 1 less Resolve and heals the party 3 on cast.');
       }
     }
   }
-  return c.join('');
+  // Sort by priority and cap to the visible budget.  Anything past the cap
+  // rolls into a single overflow chip whose tooltip lists every collapsed
+  // status, so nothing disappears — it just gets compressed when the row
+  // would otherwise wrap into the HP bar / spill off the card.
+  items.sort((a, b) => a.priority - b.priority);
+  const VISIBLE_CAP = 4;
+  const visible = items.slice(0, VISIBLE_CAP);
+  const overflow = items.slice(VISIBLE_CAP);
+  const renderChip = (it) =>
+    `<span class="status-chip status-${it.statusId}" data-status="${it.statusId}"${it.num != null ? ` data-value="${it.num}"` : ''} title="${it.title}"><span class="status-icon">${it.icon}</span>${it.num != null ? `<span class="status-num">${it.num}</span>` : ''}</span>`;
+  let html = visible.map(renderChip).join('');
+  if (overflow.length) {
+    // One condensed line per collapsed status so the tooltip remains
+    // scannable.  Strips line breaks so the title attribute stays valid.
+    const tip = overflow.map(it => {
+      const numLabel = it.num != null ? ` ${it.num}` : '';
+      return `${it.icon}${numLabel}  ${it.title}`;
+    }).join(' · ');
+    html += `<span class="status-chip status-overflow" data-status="overflow" data-value="${overflow.length}" title="${tip.replace(/"/g, '&quot;')}"><span class="status-icon">+</span><span class="status-num">${overflow.length}</span></span>`;
+  }
+  return html;
 }
 
 // Tech / status description icon-ifier.  Wraps known keywords with small
@@ -14311,6 +14384,58 @@ function showRunInfoPanel() {
         return `<span class="sigil-chip cat-${sg.category}" title="${sg.name} — ${sg.desc}" data-tip="${sg.name} — ${sg.desc}">${sg.icon || '◆'} ${sg.name}</span>`;
       }).join('')}</div>`
     : `<div class="info-empty">No sigils bound yet.</div>`;
+  // Active bonds + frictions — surfaces the synergies the current formation
+  // has unlocked, with each row's effect glyph next to the name so the
+  // player can read what the pair does at a glance instead of waiting for
+  // it to fire to see the popup.
+  const bondPairs = getAdjacencyPairs(state);
+  const bondBlock = bondPairs.length
+    ? `<div class="info-bonds">${bondPairs.map(p => {
+        const namesA = (CHARS[p.ids[0]] && CHARS[p.ids[0]].name) || p.ids[0];
+        const namesB = (CHARS[p.ids[1]] && CHARS[p.ids[1]].name) || p.ids[1];
+        const effect = p.synergy.effect || (p.synergy.type === 'friction' ? 'dmg' : 'utility');
+        const glyph = ADJ_EFFECT_GLYPH[effect] || '◌';
+        const lineLabel = p.line === 'fm' ? 'Front–Mid' : 'Mid–Back';
+        return `<div class="info-bond info-bond-${p.synergy.type} effect-${effect}">
+          <span class="info-bond-glyph" aria-hidden="true">${glyph}</span>
+          <div class="info-bond-body">
+            <span class="info-bond-name">${p.synergy.name}</span>
+            <span class="info-bond-pair">${namesA} + ${namesB} · ${lineLabel}</span>
+          </div>
+        </div>`;
+      }).join('')}</div>`
+    : `<div class="info-empty">No active bonds — adjacent heroes form bonds and frictions.</div>`;
+  // Available Resonances — every combo whose required heroes are currently
+  // in the party (alive or not, since downed isn't permanent within a
+  // fight).  Sorted by tier so triples / sig-tier rise.  Compact list with
+  // the requirement summary so the player can plan which actions to queue.
+  const partyIds = new Set(Object.keys(state.party.chars));
+  const tierWeight = (c) => (c.tier === 'triple' ? 30 : 0) + (c.sigTier ? 10 : 0);
+  const availCombos = Object.values(COMBOS)
+    .filter(c => Array.isArray(c.requires)
+      && c.requires.every(r => partyIds.has(r.heroId)))
+    .sort((a, b) => tierWeight(b) - tierWeight(a));
+  const comboBlock = availCombos.length
+    ? `<div class="info-combos">${availCombos.map(c => {
+        const tierLabel = c.sigTier
+          ? (c.tier === 'triple' ? 'SIG TRIPLE' : 'SIG DUO')
+          : (c.tier === 'triple' ? 'TRIPLE' : 'DUO');
+        const tierClass = c.sigTier ? 'tier-sig' : (c.tier === 'triple' ? 'tier-triple' : 'tier-duo');
+        const reqLine = c.requires.map(r => {
+          const nm = (CHARS[r.heroId] && CHARS[r.heroId].name) || r.heroId;
+          const kind = r.kind === 'sig' ? 'Special' : 'Attack';
+          return `${nm} ${kind}`;
+        }).join(' + ');
+        return `<div class="info-combo ${tierClass}">
+          <div class="info-combo-head">
+            <span class="info-combo-name">${c.name}</span>
+            <span class="info-combo-tier">${tierLabel}</span>
+          </div>
+          <div class="info-combo-req">${reqLine}</div>
+          <div class="info-combo-desc">${c.desc}</div>
+        </div>`;
+      }).join('')}</div>`
+    : `<div class="info-empty">No combos available — recruit more heroes to unlock Resonances.</div>`;
   const heroBlocks = Object.keys(state.party.chars).map(id => {
     const c = state.party.chars[id];
     const def = CHARS[id];
@@ -14364,6 +14489,14 @@ function showRunInfoPanel() {
     <div class="info-section">
       <div class="info-label">Heroes</div>
       <div class="info-heroes">${heroBlocks}</div>
+    </div>
+    <div class="info-section">
+      <div class="info-label">Bonds</div>
+      ${bondBlock}
+    </div>
+    <div class="info-section">
+      <div class="info-label">Resonances</div>
+      ${comboBlock}
     </div>
     ${lostBlock}
   `;
@@ -17079,7 +17212,14 @@ function init() {
     state = newState(starterId);
     afterStart();
   };
-  if (hasCarry || pool.length <= 1) {
+  // Show the chooser whenever the player has any meaningful agency over
+  // the starter pick.  That's normally "multiple solo-viable heroes
+  // unlocked", but ALSO "one solo hero + at least one non-solo hero
+  // recruited" so the player can see those locked-out portraits and
+  // learn why they aren't selectable yet.  Carry-forward runs still
+  // skip the chooser entirely (same team climbs).
+  const lockedCount = getUnlockedStarters().filter(id => !pool.includes(id)).length;
+  if (hasCarry || (pool.length <= 1 && lockedCount === 0)) {
     proceed(pool[0] || 'kai');
     return;
   }
@@ -17104,10 +17244,19 @@ function showStarterChooser(pool, onPick) {
   choices.classList.remove('path-map', 'party-inspect', 'event-choices', 'title-choices', 'vignette-choices');
   choices.classList.add('starter-choices');
 
+  // Also surface heroes the player has unlocked but can't solo with
+  // (Elin, Garron, Veyr) — render them dimmed with a "needs a partner"
+  // tag so the player can tell at a glance WHY their portrait isn't
+  // selectable, instead of wondering why a recruited hero vanished
+  // from the chooser.  They become recruitable mid-run via wanderer /
+  // recruit nodes, same as before.
+  const unlocked = getUnlockedStarters();
+  const locked = unlocked.filter(id => !pool.includes(id) && CHARS[id]);
+
   // Render the lineup as a single flexible row of standing silhouettes.
   const lineup = document.createElement('div');
   lineup.className = 'starter-lineup';
-  pool.forEach((id, idx) => {
+  pool.forEach((id) => {
     const def = CHARS[id];
     const fig = document.createElement('button');
     fig.type = 'button';
@@ -17123,6 +17272,22 @@ function showStarterChooser(pool, onPick) {
       resetOverlayBtn();
       onPick(id);
     });
+    lineup.appendChild(fig);
+  });
+  locked.forEach((id) => {
+    const def = CHARS[id];
+    const fig = document.createElement('div');
+    fig.className = 'starter-fig starter-fig-locked';
+    fig.dataset.id = id;
+    fig.setAttribute('aria-disabled', 'true');
+    fig.innerHTML = `
+      <div class="starter-portrait">${PORTRAITS[id] || ''}</div>
+      <div class="starter-name">${def.name}</div>
+      <div class="starter-locked-tag">needs a partner</div>
+    `;
+    // Hold to read the hero detail card, same affordance as selectable
+    // entries — but no onPick so taps don't dismiss the chooser.
+    bindStarterHoldOrTap(fig, def, () => {});
     lineup.appendChild(fig);
   });
   choices.appendChild(lineup);
