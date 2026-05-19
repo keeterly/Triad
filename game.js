@@ -7027,12 +7027,13 @@ function randomQuirk(polarity) {
 // Heals every surviving hero to full, grants each one a positive quirk
 // (subject to QUIRK_CAP / hero-locked eligibility), then offers a free
 // sigil choice.  Calls onDone when the player commits the sigil.
-function awardBossSpoils(s, onDone) {
-  const alive = aliveParty(s);
-  alive.forEach(c => { c.hp = c.maxHp; c.armor = Math.max(c.armor, 0); });
-  log('<i>The Sin falls.  The path lifts you — wounds close, names quicken.</i>');
-  // One positive quirk per surviving hero (if eligible).  Hero-locked
-  // quirks prefer their owner.  Skip if everyone is already maxed out.
+// Silently grant a post-boss positive affinity to each surviving hero
+// (subject to QUIRK_CAP + hero-lock eligibility).  Returns the list of
+// {charId, quirkId} grants so the sigil/boon overlay can render them
+// inline as a single consolidated "the triad earns" row, instead of
+// firing the per-quirk fanfare backdrop 3 times in a row.
+function _grantBossSpoilQuirksSilent(s, alive) {
+  const grants = [];
   alive.forEach(c => {
     if (!c.quirks) return;
     if (c.quirks.positive.length >= QUIRK_CAP) return;
@@ -7041,14 +7042,35 @@ function awardBossSpoils(s, onDone) {
       q.positive && !taken.has(q.id) && (!q.heroId || q.heroId === c.id));
     if (!pool.length) return;
     const q = pool[Math.floor(Math.random() * pool.length)];
-    grantQuirk(s, c.id, q.id);
+    // Add the quirk directly — no individual fanfare.  The sigil overlay
+    // gets the consolidated reveal via opts.spoils.
+    c.quirks.positive.push(q.id);
+    // Mirror grantQuirk's mastery-awakening hook so passing this path
+    // doesn't silently skip the mastery unlock.
+    if (q.positive && !c.mastery && c.quirks.positive.length >= QUIRK_CAP && HERO_MASTERIES[c.id]) {
+      c.mastery = HERO_MASTERIES[c.id];
+      log(`<i><b>${CHARS[c.id].name}</b> awakens their Mastery: <b>${c.mastery.name}</b> — ${c.mastery.desc}</i>`);
+    }
+    grants.push({ charId: c.id, quirkId: q.id });
     log(`<i><b>${CHARS[c.id].name}</b> gains <b>${q.name}</b> — ${q.desc}</i>`);
   });
-  // Free sigil — same offer overlay used by rest/elite nodes.  If no
-  // sigils remain (full board), skip straight to the run summary.
+  return grants;
+}
+
+function awardBossSpoils(s, onDone) {
+  const alive = aliveParty(s);
+  alive.forEach(c => { c.hp = c.maxHp; c.armor = Math.max(c.armor, 0); });
+  log('<i>The Sin falls.  The path lifts you — wounds close, names quicken.</i>');
+  // Silent grant — the sigil overlay shows the affinity reveal inline
+  // ("the triad earns") so the post-boss cascade is ONE screen instead
+  // of three separate fanfare backdrops.
+  const grants = _grantBossSpoilQuirksSilent(s, alive);
   const pool = availableSigils(s);
   if (pool.length === 0) { if (typeof onDone === 'function') onDone(); return; }
-  setTimeout(() => offerSigilFromNode(onDone), 400);
+  // Open the sigil offer immediately — no setTimeout delay, since the
+  // affinity reveal is now inline on the same screen.
+  const offers = pool.slice().sort(() => Math.random() - 0.5).slice(0, Math.min(3, pool.length));
+  showSigilOverlay(offers, onDone, { spoils: grants });
 }
 
 // Mega-boss reward — replaces the standard boss spoils on layers 3, 6, 9.
@@ -7057,22 +7079,19 @@ function awardBossSpoils(s, onDone) {
 // + sigil before picking their boon (the megaboss is the bigger version,
 // not a swap).
 function awardMegabossBoon(s, onDone) {
-  // Heal + quirks first (same as a regular boss kill).
+  // Heal + quirks first (same as a regular boss kill), but silent so the
+  // affinity reveal lands inline on the boon overlay instead of three
+  // separate fanfare backdrops blocking the boon chooser.
   const alive = aliveParty(s);
   alive.forEach(c => { c.hp = c.maxHp; c.armor = Math.max(c.armor, 0); });
   log('<i>The megaboss falls.  Something larger gives in the dark.</i>');
-  alive.forEach(c => {
-    if (!c.quirks) return;
-    if (c.quirks.positive.length >= QUIRK_CAP) return;
-    const taken = new Set([...c.quirks.positive, ...c.quirks.negative]);
-    const pool = Object.values(QUIRKS).filter(q =>
-      q.positive && !taken.has(q.id) && (!q.heroId || q.heroId === c.id));
-    if (!pool.length) return;
-    const q = pool[Math.floor(Math.random() * pool.length)];
-    grantQuirk(s, c.id, q.id);
-  });
-  // Then surface the boon chooser as the headline reward.
-  setTimeout(() => showHeroicBoonOverlay(onDone), 400);
+  const grants = _grantBossSpoilQuirksSilent(s, alive);
+  // Stash the grants on state so the boon overlay can pick them up
+  // (showHeroicBoonOverlay reads s.run._pendingBoonSpoils, clears it
+  // on render).
+  s.run._pendingBoonSpoils = grants;
+  // No setTimeout delay needed — affinity reveal is now inline.
+  showHeroicBoonOverlay(onDone);
 }
 
 // Heroic Boon — 3-card overlay shown after a mega-boss kill.  Each boon
@@ -7092,6 +7111,31 @@ function showHeroicBoonOverlay(onDone) {
   const bossId = layerInfo && layerInfo.boss;
   const bossPortrait = (bossId && PORTRAITS[bossId]) || '';
   const bossName = (layerInfo && layerInfo.bossName) || '';
+  // Affinity spoils — set by awardMegabossBoon, consumed (cleared) here.
+  // Renders inline as a "the triad earns" row so the post-megaboss
+  // cascade is ONE screen (boss-felled cinematic + earned affinities +
+  // boon picker) instead of 3 separate fanfare backdrops + boon overlay.
+  const spoils = (state && state.run && state.run._pendingBoonSpoils) || [];
+  if (state && state.run) state.run._pendingBoonSpoils = null;
+  const spoilsHtml = spoils.length ? `
+    <div class="spoils-row spoils-row-boon">
+      <div class="spoils-label">The triad earns</div>
+      <div class="spoils-grants">
+        ${spoils.map(g => {
+          const def = CHARS[g.charId];
+          const q = QUIRKS[g.quirkId];
+          if (!def || !q) return '';
+          return `
+            <div class="spoils-grant">
+              <div class="spoils-portrait">${PORTRAITS[g.charId] || ''}</div>
+              <div class="spoils-meta">
+                <span class="spoils-hero">${def.name}</span>
+                <span class="spoils-quirk">+ ${q.name}</span>
+              </div>
+            </div>`;
+        }).join('')}
+      </div>
+    </div>` : '';
   body.innerHTML = `
     <div class="boon-stage" aria-hidden="true">
       <div class="boon-stage-bg"></div>
@@ -7105,6 +7149,7 @@ function showHeroicBoonOverlay(onDone) {
       ${bossName ? `<div class="boon-stage-caption">${bossName} falls.</div>` : ''}
     </div>
     <p class="event-flavor">The megaboss leaves a gift behind.  Take one.</p>
+    ${spoilsHtml}
   `;
 
   const choices = $('#overlay-choices');
@@ -11519,10 +11564,15 @@ function checkEnd(s) {
         // road, interpose a dimmed-portrait + death-line cinematic
         // before the standard banner so the moment lands with weight.
         // The flag is set in checkEnd's victory branch and consumed here.
+        // After the fall beat, offer the wanderer's sigil ("X carried
+        // this") so the kill has real closure / payoff before bouncing
+        // back to the map.
         const fallWid = s.run._pendingWandererFallBeat;
         if (fallWid) {
           s.run._pendingWandererFallBeat = null;
-          showWandererDuelBeat(fallWid, 'fall', runPostKillCascade);
+          showWandererDuelBeat(fallWid, 'fall', () => {
+            offerWandererSigil(fallWid, runPostKillCascade);
+          });
           return;
         }
         runPostKillCascade();
@@ -16391,7 +16441,25 @@ function offerSigilFromNode(onDone) {
   showSigilOverlay(offers, onDone);
 }
 
-function showSigilOverlay(offers, onDone) {
+// Wanderer drop — when the player kills a hero on the road, give the
+// kill weight by offering a sigil "they carried."  Reuses the sigil
+// overlay with a flavor that names the fallen hero.  Skip → continue
+// without a sigil (the player passes the loot up).
+function offerWandererSigil(wandererId, onDone) {
+  const cont = onDone || (() => {});
+  const w = WANDERERS[wandererId];
+  const heroDef = w && w.kind === 'hero' && CHARS[w.heroId];
+  const heroName = heroDef ? heroDef.name : 'They';
+  const pool = availableSigils(state);
+  if (!pool.length) { cont(); return; }
+  const offers = pool.slice().sort(() => Math.random() - 0.5).slice(0, Math.min(3, pool.length));
+  showSigilOverlay(offers, cont, {
+    title: `${heroName} carried this`,
+    flavor: `The road keeps the body.  You keep what they walked with — or leave it for the next traveler.`,
+  });
+}
+
+function showSigilOverlay(offers, onDone, opts) {
   const continueAfter = onDone || (() => renderMap());
   // Defensive — scrub any owned sigil that ISN'T marked as an upgrade
   // offer.  Upgrade entries (sg._isUpgrade === true) are intentionally
@@ -16405,7 +16473,7 @@ function showSigilOverlay(offers, onDone) {
   const $overlay = $('#overlay');
   $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-upgrade','overlay-cinematic','overlay-event','overlay-starter','overlay-boon');
   $overlay.classList.add('overlay-full','overlay-event','overlay-sigil');
-  $('#overlay-title').textContent = 'A sigil flickers into reach';
+  $('#overlay-title').textContent = (opts && opts.title) || 'A sigil flickers into reach';
   // Cinematic body — party silhouettes watching the sigils emerge, plus
   // an atmospheric flavor line.  Mirrors the event-overlay shape.
   const body = $('#overlay-body');
@@ -16431,8 +16499,36 @@ function showSigilOverlay(offers, onDone) {
   }
   const flavor = document.createElement('p');
   flavor.className = 'event-flavor';
-  flavor.textContent = 'Bind one of these powers to the climb — or let them fade.';
+  flavor.textContent = (opts && opts.flavor)
+    || 'Bind one of these powers to the climb — or let them fade.';
   body.appendChild(flavor);
+  // Optional spoils row — boss/megaboss kills show each surviving hero's
+  // earned affinity inline so the post-kill cascade is ONE screen instead
+  // of a stack of separate fanfare backdrops.  See awardBossSpoils /
+  // awardMegabossBoon for the source of the grants array.
+  if (opts && Array.isArray(opts.spoils) && opts.spoils.length) {
+    const spoilsBox = document.createElement('div');
+    spoilsBox.className = 'spoils-row';
+    spoilsBox.innerHTML = `
+      <div class="spoils-label">The triad earns</div>
+      <div class="spoils-grants">
+        ${opts.spoils.map(g => {
+          const def = CHARS[g.charId];
+          const q = QUIRKS[g.quirkId];
+          if (!def || !q) return '';
+          return `
+            <div class="spoils-grant">
+              <div class="spoils-portrait">${PORTRAITS[g.charId] || ''}</div>
+              <div class="spoils-meta">
+                <span class="spoils-hero">${def.name}</span>
+                <span class="spoils-quirk">+ ${q.name}</span>
+              </div>
+            </div>`;
+        }).join('')}
+      </div>
+    `;
+    body.appendChild(spoilsBox);
+  }
   const choices = $('#overlay-choices');
   choices.innerHTML = '';
   offers.forEach(sg => {
