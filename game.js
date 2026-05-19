@@ -7532,7 +7532,7 @@ const COMBOS = {
     ],
     fn: (s) => {
       const t = aliveEnemies(s).slice().sort((a,b) => a.hp - b.hp)[0];
-      if (t) { t.staggered = true; t.staggerTurnsLeft = 2; t.staggerBonusUsed = false; spawnPopupId(t.id, 'STAGGERED', 'stagger', 'enemy'); log(`<b>${ENEMIES[t.id].name}</b> is STAGGERED — silence found the seam.`); }
+      if (t) { t.staggered = true; t.staggerTurnsLeft = (s.run && s.run.ascStaggerShort) ? 1 : 2; t.staggerBonusUsed = false; spawnPopupId(t.id, 'STAGGERED', 'stagger', 'enemy'); log(`<b>${ENEMIES[t.id].name}</b> is STAGGERED — silence found the seam.`); }
       dmgAllEnemies(s, 2);
     },
     cinematic: [
@@ -7972,7 +7972,7 @@ const COMBOS = {
         if (!e.weaknessRevealed) { e.weaknessRevealed = true; e._weaknessJustRevealed = true; }
         if (e.weakened && !e.staggered) {
           e.staggered = true;
-          e.staggerTurnsLeft = 2;
+          e.staggerTurnsLeft = (s.run && s.run.ascStaggerShort) ? 1 : 2;
           e.staggerBonusUsed = false;
           spawnPopupId(e.id, 'STAGGERED', 'stagger', 'enemy');
           const h = s.party.chars.hask;
@@ -8076,7 +8076,7 @@ const COMBOS = {
       if (front && !front.dead) {
         if (!front.weaknessRevealed) { front.weaknessRevealed = true; front._weaknessJustRevealed = true; }
         front.staggered = true;
-        front.staggerTurnsLeft = 2;
+        front.staggerTurnsLeft = (s.run && s.run.ascStaggerShort) ? 1 : 2;
         front.staggerBonusUsed = false;
         spawnPopupId(front.id, 'STAGGERED', 'stagger', 'enemy');
         const h = s.party.chars.hask;
@@ -8585,7 +8585,18 @@ function earnEmbers(amt, _reason) {
   // Dev playtest runs are excluded so a boss-tuning loop doesn't farm
   // the meta-currency.  state._isDevRun is set by _devFightBoss.
   if (typeof state !== 'undefined' && state && state._isDevRun) return;
-  _setPendingEmbers(_getPendingEmbers() + Math.floor(amt));
+  // Ascension reward multiplier — each rung adds +25% to all Ember
+  // earnings.  Reads the level the run STARTED at (snapshot on
+  // state.run.ascensionLevel) so changing the dial mid-run doesn't
+  // retroactively pay more.  Falls back to live setting when there's
+  // no active run (e.g., codex first-time discovery payouts).
+  let mult = 1;
+  if (typeof state !== 'undefined' && state && state.run && typeof state.run.ascensionLevel === 'number') {
+    mult = 1 + state.run.ascensionLevel * 0.25;
+  } else {
+    mult = getAscensionEmberMult();
+  }
+  _setPendingEmbers(_getPendingEmbers() + Math.floor(amt * mult));
 }
 // Fold pending Embers into the banked total at run end.  Returns the
 // amount that was banked so the caller can surface it in the summary.
@@ -9079,6 +9090,92 @@ function resetCharms() {
   try { localStorage.removeItem(CHARM_KEY); } catch (_) {}
 }
 
+// ============================================================================
+// ASCENSIONS — post-clear difficulty ladder.  Unlocks one rung at a
+// time per L9 clear at the current max level (you climb the ladder
+// the same way Hades climbs Heat).  Each level adds a modifier that
+// makes the run harder; in return all Ember earnings scale up so the
+// player still feels rewarded for repeat climbs.
+// Storage:
+//   kizuna.ascensionLevel — currently SELECTED level (0..max).  0 is
+//                            base difficulty.
+//   kizuna.ascensionMax   — highest level UNLOCKED.  Starts at 0;
+//                            bumps after each L9 clear at the current
+//                            max (capped at ASCENSION_MAX).
+// ============================================================================
+const ASC_LEVEL_KEY = 'kizuna.ascensionLevel';
+const ASC_MAX_KEY   = 'kizuna.ascensionMax';
+const ASCENSION_MAX = 5;
+const ASCENSIONS = [
+  // Index 0 is "no ascension" — base difficulty.  Indices 1..5 each
+  // add a modifier; A3 stacks A1+A2+A3, etc.  Effects apply on top of
+  // each other so the ladder is genuinely escalating.
+  { level: 0, name: 'Base', desc: 'Standard difficulty.' },
+  { level: 1, name: 'Pressing Dark', desc: 'Stagger lingers only 1 turn.' },
+  { level: 2, name: 'Hardened Sins', desc: 'Enemies start each fight with +1 armor.' },
+  { level: 3, name: 'Thin Breath',   desc: 'Starter loses 3 max HP.' },
+  { level: 4, name: 'Held Bar',      desc: '-1 to your Resolve cap (floors at 1).' },
+  { level: 5, name: 'Crowned Sins',  desc: 'Boss enemies gain +20% max HP.' },
+];
+function getAscensionLevel() {
+  try { return Math.max(0, parseInt(localStorage.getItem(ASC_LEVEL_KEY) || '0', 10) || 0); }
+  catch (_) { return 0; }
+}
+function getAscensionMax() {
+  try { return Math.max(0, parseInt(localStorage.getItem(ASC_MAX_KEY) || '0', 10) || 0); }
+  catch (_) { return 0; }
+}
+function setAscensionLevel(n) {
+  const max = getAscensionMax();
+  const lvl = Math.max(0, Math.min(max, Math.floor(n) || 0));
+  try { localStorage.setItem(ASC_LEVEL_KEY, String(lvl)); } catch (_) {}
+  return lvl;
+}
+// L9 clear advances the ladder one rung — but only when the clear was
+// done AT the current max level.  Clearing L9 at A0 unlocks A1.
+// Clearing again at A0 doesn't unlock A2 — the player must push the
+// ladder.  Capped at ASCENSION_MAX.
+function maybeAdvanceAscension(clearedAtLevel) {
+  const max = getAscensionMax();
+  if (clearedAtLevel < max) return false;
+  if (max >= ASCENSION_MAX) return false;
+  try { localStorage.setItem(ASC_MAX_KEY, String(max + 1)); } catch (_) {}
+  return true;
+}
+function resetAscensions() {
+  try { localStorage.removeItem(ASC_LEVEL_KEY); } catch (_) {}
+  try { localStorage.removeItem(ASC_MAX_KEY); } catch (_) {}
+}
+// Ember reward multiplier for the current ascension level.  Each
+// rung adds +25%, so A5 pays 2.25× base.  Used inside earnEmbers.
+function getAscensionEmberMult() {
+  const lvl = getAscensionLevel();
+  return 1 + lvl * 0.25;
+}
+// Apply the modifiers for the current ascension level to a fresh
+// state.  Called from the newState wrapper after Embers + Charm
+// hooks so per-run penalties land BEFORE startEncounter reads them.
+function applyAscensionToState(s) {
+  const lvl = getAscensionLevel();
+  if (!s || !s.run || lvl <= 0) return;
+  s.run.ascensionLevel = lvl;
+  if (lvl >= 1) s.run.ascStaggerShort = true;
+  if (lvl >= 2) s.run.ascEnemyArmorBump = (s.run.ascEnemyArmorBump || 0) + 1;
+  if (lvl >= 3) {
+    // -3 max HP to the starter.  If the starter HP would go below 1,
+    // floor at 1 so the run is at least playable.
+    const starterSlot = ['front','mid','back'].find(sl => s.party.slots[sl]);
+    const starterId = starterSlot && s.party.slots[starterSlot];
+    const c = starterId && s.party.chars[starterId];
+    if (c) {
+      c.maxHp = Math.max(1, c.maxHp - 3);
+      c.hp = Math.min(c.maxHp, c.hp);
+    }
+  }
+  if (lvl >= 4) s.run.ascResolveCapPenalty = 1;
+  if (lvl >= 5) s.run.ascBossHpBonus = 0.2;
+}
+
 const CODEX_KEY = 'kizuna.codex.v1';
 function getCodex() {
   try {
@@ -9290,6 +9387,10 @@ newState = function(forcedStarter) {
   // render.  Per-fight charm hooks fire from startEncounter.
   if (s.run) s.run.charmId = getEquippedCharmId();
   try { applyEquippedCharmRunStart(s); } catch (_) {}
+  // Ascension modifiers — penalty stack applied AFTER perks land so
+  // the player feels the trade clearly (e.g., Embers +HP minus
+  // Ascension -3 HP nets correctly).
+  try { applyAscensionToState(s); } catch (_) {}
   // Baseline reroll budget per layer — every run gets 1 free reroll
   // at sigil-offer screens, plus any bonus from the Second Look unlock
   // (applied above via s.run.rerollBonusPerLayer).
@@ -9414,6 +9515,25 @@ function startEncounter(encSpec) {
     state.run._charmFirstShieldPending = false;
   }
   try { applyEquippedCharmFightStart(state); } catch (_) {}
+  // Ascension fight-start penalties — applied AFTER charm so the
+  // enemy armor / boss HP bumps land on the final spawn numbers.
+  if (state.run && state.run.ascEnemyArmorBump > 0) {
+    const bump = state.run.ascEnemyArmorBump;
+    Object.values(state.enemies.chars).forEach(e => {
+      if (e && !e.dead) e.armor = (e.armor || 0) + bump;
+    });
+  }
+  if (state.run && state.run.ascBossHpBonus > 0) {
+    const bonus = state.run.ascBossHpBonus;
+    Object.values(state.enemies.chars).forEach(e => {
+      const def = e && ENEMIES[e.id];
+      if (def && (def.boss || def.megaBoss) && !e.dead) {
+        const bump = Math.ceil(e.maxHp * bonus);
+        e.maxHp += bump;
+        e.hp    += bump;
+      }
+    });
+  }
   // Achievement — Five sigils carried into a single fight.  Cheap to
   // check at startEncounter (sigils count doesn't change mid-fight).
   if (state.run && Array.isArray(state.run.sigils) && state.run.sigils.length >= 5) {
@@ -10072,7 +10192,10 @@ function applyDmgToEnemy(s, e, baseAmt) {
   if (isWeaknessHit && amt > 0 && !e.dead && !pendingStaggerClear) {
     if (e.weakened && !e.staggered) {
       e.staggered = true;
-      e.staggerTurnsLeft = 2;
+      // Ascension A1 — Pressing Dark shortens the stagger window to
+      // a single turn, so the player can't carry the consume into
+      // the next round.
+      e.staggerTurnsLeft = (s.run && s.run.ascStaggerShort) ? 1 : 2;
       spawnPopupId(e.id, 'STAGGERED', 'stagger', 'enemy');
       log(`<b>${ENEMIES[e.id].name}</b> is STAGGERED!`);
       // Achievement bookkeeping — first stagger of the player's life
@@ -10704,10 +10827,13 @@ function cleanseLowest(s) {
 function taunt(s, id) { const c = s.party.chars[id]; if (c && !c.downed) c.taunt = true; }
 function gainResolve(s, amt) {
   const before = s.resolve;
-  // Effective cap = base RESOLVE_MAX + Crown of Endurance boons.  The
-  // Memory sigil's at-fight-start bonus is handled separately in
-  // startEncounter (it lifts the carry cap, not the in-fight cap).
-  const cap = RESOLVE_MAX + ((s.run && s.run.resolveMaxBonus) || 0);
+  // Effective cap = base RESOLVE_MAX + Crown of Endurance boons -
+  // Ascension A4 penalty (floors at 1).  The Memory sigil's at-fight-
+  // start bonus is handled separately in startEncounter (it lifts the
+  // carry cap, not the in-fight cap).
+  const bonus   = (s.run && s.run.resolveMaxBonus)     || 0;
+  const penalty = (s.run && s.run.ascResolveCapPenalty) || 0;
+  const cap = Math.max(1, RESOLVE_MAX + bonus - penalty);
   s.resolve = Math.min(cap, s.resolve + amt);
   const gained = s.resolve - before;
   if (gained > 0) {
@@ -12427,7 +12553,14 @@ function checkEnd(s) {
         // size 1 at the moment the layer falls).
         const _clearedLayer = getCurrentLayer();
         const _partySize = aliveParty(state).length;
-        if (_clearedLayer === 9) tryUnlockAchievement('clear_l9');
+        let _ascensionJustUnlocked = false;
+        if (_clearedLayer === 9) {
+          tryUnlockAchievement('clear_l9');
+          // Ascension ladder — a fresh L9 clear at the current max
+          // level unlocks the next rung.  Clearing at a lower level
+          // pays no progress (you must push the ladder).
+          _ascensionJustUnlocked = maybeAdvanceAscension(state.run.ascensionLevel || 0);
+        }
         if (_partySize === 1 && _clearedLayer >= 3) tryUnlockAchievement('solo_l3');
         if (_partySize === 1 && _clearedLayer >= 6) tryUnlockAchievement('solo_l6');
         saveCarriedParty(state);
@@ -12443,6 +12576,8 @@ function checkEnd(s) {
           afterClose: () => showWorldMap(),
           forgeJustUnlocked,
           oathsJustUnlocked,
+          ascensionJustUnlocked: _ascensionJustUnlocked,
+          newAscensionLevel: _ascensionJustUnlocked ? getAscensionMax() : null,
         });
       };
       // Continuation after the boss death cinematic: roll spoils (heal +
@@ -12588,10 +12723,12 @@ function renderHUD() {
   //             Tinted gold so the player sees the bonus they paid for.
   const reserved = queueReservedResolve();
   const available = state.resolve - reserved;
-  // Cap factors in Crown of Endurance boons; bar grows further when the
-  // player is briefly over that cap (Memory sigil at fight start).
+  // Cap factors in Crown of Endurance boons MINUS the Ascension A4
+  // penalty (Held Bar — floors at 1).  The bar grows further when
+  // the player is briefly over that cap (Memory sigil at fight start).
   const boon = (state.run && state.run.resolveMaxBonus) || 0;
-  const baseCap = RESOLVE_MAX + boon;
+  const penalty = (state.run && state.run.ascResolveCapPenalty) || 0;
+  const baseCap = Math.max(1, RESOLVE_MAX + boon - penalty);
   const effectiveMax = Math.max(baseCap, state.resolve);
   for (let i = 0; i < effectiveMax; i++) {
     const p = document.createElement('div');
@@ -17588,6 +17725,14 @@ function showRunSummary(outcome, opts) {
       desc: 'Heroes may now speak permanent vows at rest nodes.',
     });
   }
+  if (opts && opts.ascensionJustUnlocked && opts.newAscensionLevel) {
+    const def = ASCENSIONS[opts.newAscensionLevel];
+    unlocks.push({
+      mark: '✦',
+      label: `Ascension ${opts.newAscensionLevel} — ${(def && def.name) || ''}`,
+      desc: `${(def && def.desc) || ''}  Switch on in Settings to climb harder for more Embers.`,
+    });
+  }
   const unlockHtml = unlocks.map(u => `
     <div class="rs-unlock">
       <span class="rs-unlock-mark">${u.mark}</span>
@@ -19022,7 +19167,13 @@ function showTitleScreen() {
     if (!disabled) b.addEventListener('click', () => { Audio.ui(); onClick(); });
     return b;
   };
-  menuEl.appendChild(mkBtn('New Game', () => {
+  // Show the active Ascension level on the New Game label so the
+  // player can see what difficulty they've selected without entering
+  // settings.  A0 (base) renders as plain "New Game"; A1+ adds the
+  // level suffix.
+  const _ascLvl = getAscensionLevel();
+  const _ngLabel = _ascLvl > 0 ? `New Game · A${_ascLvl}` : 'New Game';
+  menuEl.appendChild(mkBtn(_ngLabel, () => {
     // Wipe both the in-flight save AND any layer-to-layer carry team.
     // The carry only exists for the boss-win → ascend handoff; outside
     // that path it must not silently pre-populate a "new" run.
@@ -19081,14 +19232,80 @@ function hideTitleScreen() {
 
 // Settings — small overlay over the title with toggles for audio,
 // tutorial, save reset, and meta-unlock reset.
+function showAscensionPicker() {
+  $('#overlay').classList.add('overlay-dismissable');
+  bindOverlayBackdropDismiss();
+  $('#overlay-title').textContent = 'Ascension';
+  const body = $('#overlay-body');
+  body.classList.remove('welcome-body', 'title-screen-body', 'victory-summary-body', 'run-summary-body');
+  const max = getAscensionMax();
+  const cur = getAscensionLevel();
+  // Build a row per level from 0..max.  Higher levels show stacked
+  // modifiers so the player can see what they're opting into.  Each
+  // row is a button — tap to select; the picker closes on confirm.
+  const rows = [];
+  for (let lvl = 0; lvl <= max; lvl++) {
+    const def = ASCENSIONS[lvl];
+    if (!def) continue;
+    const mods = [];
+    for (let i = 1; i <= lvl; i++) {
+      mods.push(`<li class="asc-mod">${ASCENSIONS[i].desc}</li>`);
+    }
+    const mult = 1 + lvl * 0.25;
+    const multText = lvl > 0 ? `· ${mult.toFixed(2).replace(/\.00$/, '')}× Embers` : '· Base Ember rate';
+    const isCur = lvl === cur;
+    rows.push(`<button type="button" class="asc-row${isCur ? ' asc-row-active' : ''}" data-asc="${lvl}">
+      <div class="asc-row-head">
+        <span class="asc-level">${lvl === 0 ? 'A 0' : `A ${lvl}`}</span>
+        <span class="asc-name">${def.name}</span>
+        <span class="asc-mult">${multText}</span>
+      </div>
+      ${mods.length ? `<ul class="asc-mods">${mods.join('')}</ul>` : `<div class="asc-mods-empty">Standard difficulty.</div>`}
+    </button>`);
+  }
+  body.innerHTML = `
+    <p class="asc-flavor">Climb the ladder.  Each rung pays more Embers per kill — and asks more of you.</p>
+    <div class="asc-grid">${rows.join('')}</div>
+    <p class="asc-foot">Higher rungs unlock by clearing Layer 9 at your current max.</p>
+  `;
+  const choices = $('#overlay-choices'); choices.innerHTML = ''; choices.classList.add('hidden');
+  resetOverlayBtn();
+  $('#overlay-btn').classList.add('hidden');
+  $('#overlay').classList.remove('hidden');
+  body.querySelectorAll('.asc-row[data-asc]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const lvl = parseInt(btn.dataset.asc, 10) || 0;
+      setAscensionLevel(lvl);
+      Audio.ui();
+      hideOverlay();
+      // Re-open settings so the player sees the updated current row.
+      showSettingsScreen();
+    });
+  });
+}
+
 function showSettingsScreen() {
   $('#overlay').classList.add('overlay-dismissable');
   bindOverlayBackdropDismiss();
   $('#overlay-title').textContent = 'Settings';
   const body = $('#overlay-body');
   body.classList.remove('welcome-body', 'title-screen-body', 'victory-summary-body', 'run-summary-body');
+  // Ascension status row — shows current level + max unlocked, tap to
+  // adjust if the player has unlocked any rungs.  Hidden completely
+  // until the first L9 clear so new players don't see a feature they
+  // haven't earned access to yet.
+  const _ascMax = getAscensionMax();
+  const _ascCur = getAscensionLevel();
+  const _ascDef = ASCENSIONS[_ascCur] || ASCENSIONS[0];
+  const _ascRowHtml = _ascMax > 0
+    ? `<button type="button" class="settings-row settings-row-ascension" data-action="ascension">
+        <span class="settings-label">Ascension · ${_ascCur === 0 ? 'Base' : `A${_ascCur}`}</span>
+        <span class="settings-value">${_ascDef.name} · ${_ascCur} / ${_ascMax} unlocked</span>
+      </button>`
+    : '';
   body.innerHTML = `
     <div class="settings-grid">
+      ${_ascRowHtml}
       <button type="button" class="settings-row" data-action="tutorial">
         <span class="settings-label">First-run tutorial</span>
         <span class="settings-value">Show again on next run</span>
@@ -19125,6 +19342,8 @@ function showSettingsScreen() {
         try { localStorage.removeItem(HELD_KEY); } catch (_) {}
         _tutCursor = 0;
         flashSettings('Tutorial hints will fire fresh next run.');
+      } else if (action === 'ascension') {
+        setTimeout(() => showAscensionPicker(), 0);
       } else if (action === 'credits') {
         // Defer one frame so the click event doesn't bubble into the
         // overlay-dismiss handler we wired for settings.
@@ -19150,6 +19369,7 @@ function showSettingsScreen() {
           resetAchievements();
           resetBonds();
           resetCharms();
+          resetAscensions();
           clearCarriedParty();
           flashSettings('Meta progression reset.');
           setTimeout(() => { hideOverlay(); showTitleScreen(); }, 600);
