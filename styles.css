@@ -8832,9 +8832,11 @@ body.party-fallen::before {
      several hundred design pixels tall — head visible, body off-screen.
      With the canvas locked to 720×405 the stage's design budget is
      well-known: title (~26) + choices+btn (~120) leaves ~225 design px
-     for the cinematic, so 220 fits with breathing room. */
-  height: 220px;
-  max-height: 220px;
+     for the cinematic.  Bumped from 220 → 250 + shrunk portraits from
+     140 → 110 so 3-line bossPrep vignettes no longer clip the first
+     bubble above the rail's scroll fold. */
+  height: 250px;
+  max-height: 250px;
   gap: 4px;
   padding: 0;
   position: relative;
@@ -8865,11 +8867,12 @@ body.party-fallen::before {
 }
 .vn-line {
   /* Bumped from 56% so longer lines wrap less aggressively and don't push
-     earlier bubbles off the top of the rail. */
+     earlier bubbles off the top of the rail.  Padding + line-height
+     tightened so 3-line vignettes fit the rail without scroll-clipping. */
   max-width: 64%;
-  padding: 8px 14px 10px;
-  font-size: 13.5px;
-  line-height: 1.5;
+  padding: 6px 12px 8px;
+  font-size: 13px;
+  line-height: 1.4;
   color: var(--ink);
   background: linear-gradient(180deg, rgba(36,28,22,0.92) 0%, rgba(12,10,10,0.94) 100%);
   box-shadow:
@@ -8921,9 +8924,11 @@ body.party-fallen::before {
   /* Fixed design-pixel height.  Anything percentage-based here was
      resolving against an unexpected ancestor on Android Chrome and
      blowing the portrait area up several hundred px, pushing the
-     character bodies below the visible viewport. */
-  height: 140px;
-  max-height: 140px;
+     character bodies below the visible viewport.  Shrunk from 140
+     → 110 so the dialogue rail above gets enough room for 3 bubbles
+     without scroll-clipping the first line. */
+  height: 110px;
+  max-height: 110px;
   padding-bottom: 4px;
   position: relative;
 }
@@ -8932,8 +8937,8 @@ body.party-fallen::before {
 }
 .vn-portrait {
   width: 100%;
-  height: 140px;
-  max-height: 140px;
+  height: 110px;
+  max-height: 110px;
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -8944,8 +8949,8 @@ body.party-fallen::before {
   /* Hard-bound on both axes so the SVG can't compute a runaway
      intrinsic size on Android (where width:auto + height:100% in a
      percent-sized grid cell was producing 400+ design-px renders). */
-  height: 140px;
-  max-height: 140px;
+  height: 110px;
+  max-height: 110px;
   width: auto;
   max-width: 90%;
   display: block;
