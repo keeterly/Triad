@@ -8680,15 +8680,16 @@ body.party-fallen::before {
   display: grid;
   grid-template-rows: 1fr auto;
   width: 100%;
-  /* Canvas-relative sizing — vh was firing off the full Android
-     viewport (which differs from the locked 405px design canvas)
-     and producing a 320px min-height inside a ~280px slot, forcing
-     the portrait row to collapse to zero on grid recompute.  Using
-     percents of the (locked) parent keeps the layout stable across
-     iOS / Android / desktop. */
-  height: 100%;
-  min-height: 200px;
-  max-height: none;
+  /* Fixed design-pixel sizing.  Percentage heights kept resolving to
+     unexpected values on Android Chrome (the parent <p>'s indefinite
+     height + nested grid percent heights cascading off the wrong
+     ancestor), making the portrait track balloon and the SVG render
+     several hundred design pixels tall — head visible, body off-screen.
+     With the canvas locked to 720×405 the stage's design budget is
+     well-known: title (~26) + choices+btn (~120) leaves ~225 design px
+     for the cinematic, so 220 fits with breathing room. */
+  height: 220px;
+  max-height: 220px;
   gap: 4px;
   padding: 0;
   position: relative;
@@ -8696,12 +8697,10 @@ body.party-fallen::before {
 }
 /* When .vn-stage rides on top of .vignette-stage (recruit / story
    vignettes), neutralize .vignette-stage's aspect-ratio: 16/9 — the
-   grid template here drives the layout, and the aspect-ratio rule
-   was triggering an Android Chrome quirk that collapsed the auto
-   portrait row to zero (rendering only the top of each silhouette). */
+   grid template alone drives the layout here. */
 .vignette-stage.vn-stage {
   aspect-ratio: auto;
-  min-height: 200px;
+  min-height: 0;
 }
 
 /* Dialogue rail: flex column.  Each line aligns L/R/center based on who's
@@ -8774,13 +8773,12 @@ body.party-fallen::before {
   grid-template-columns: 1fr 1fr;
   align-items: end;
   justify-items: center;
-  /* Percent of .vn-stage (not vh) so the portrait track holds its
-     allocated space even when the grid recomputes mid-frame on
-     Android — that was the root of the "only the head visible"
-     symptom: the auto row collapsed and the svg's height:100%
-     resolved to 0. */
-  height: 55%;
-  min-height: 130px;
+  /* Fixed design-pixel height.  Anything percentage-based here was
+     resolving against an unexpected ancestor on Android Chrome and
+     blowing the portrait area up several hundred px, pushing the
+     character bodies below the visible viewport. */
+  height: 140px;
+  max-height: 140px;
   padding-bottom: 4px;
   position: relative;
 }
@@ -8789,21 +8787,20 @@ body.party-fallen::before {
 }
 .vn-portrait {
   width: 100%;
-  height: 100%;
-  /* Floor so even if grid track sizing wobbles, the SVG still has a
-     stable rendering box.  The svg's min-height below pairs with this. */
-  min-height: 120px;
+  height: 140px;
+  max-height: 140px;
   display: flex;
   align-items: flex-end;
   justify-content: center;
   position: relative;
+  overflow: hidden;
 }
 .vn-portrait svg {
-  height: 100%;
-  /* Pixel floor + 100% — guards against the grid auto row resolving
-     to zero on Android Chrome's first paint (which made width:auto
-     compute against a 0-height box and clip the body to a head sliver). */
-  min-height: 110px;
+  /* Hard-bound on both axes so the SVG can't compute a runaway
+     intrinsic size on Android (where width:auto + height:100% in a
+     percent-sized grid cell was producing 400+ design-px renders). */
+  height: 140px;
+  max-height: 140px;
   width: auto;
   max-width: 90%;
   display: block;
