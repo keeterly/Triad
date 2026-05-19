@@ -8189,6 +8189,15 @@ function commitCombo(comboId) {
   // second echo.  Forces variety across turns.
   if (!s.usedCombos) s.usedCombos = new Set();
   s.usedCombos.add(comboId);
+  // Power-spike — first Resonance committed in THIS run (tracked
+  // per-run on s.run._comboIdsFiredThisRun) gets an extra reveal
+  // flourish on top of the cinematic.  Subsequent fires of the same
+  // combo skip the flourish so the moment stays earned.
+  if (!s.run._comboIdsFiredThisRun) s.run._comboIdsFiredThisRun = new Set();
+  if (!s.run._comboIdsFiredThisRun.has(comboId)) {
+    s.run._comboIdsFiredThisRun.add(comboId);
+    playFirstResonanceOfRun(match.combo.name);
+  }
   // Codex — record the first-fire and bump the count so the player can
   // see across runs which Resonances they actually use.
   recordCodexCombo(comboId);
@@ -9760,6 +9769,11 @@ function applyDmgToEnemy(s, e, baseAmt) {
     e.staggerBonusUsed = true;
     schoolBadge = schoolBadge || 'STG!';
     pendingStaggerClear = true;
+    // Power-spike — the 2× (or 3× with Hunt) stagger consume is the
+    // payoff of the whole weakness loop.  Plays a brief slow-mo +
+    // chromatic flash so the hit lands as a MOMENT instead of a
+    // normal popup.  No-op during simulation.
+    playStaggerHit();
   }
 
   amt = Math.max(0, amt);
@@ -14547,6 +14561,34 @@ function playKillingBlowHold() {
     if (stage) stage.classList.remove('kill-slowmo');
     document.body.classList.remove('killing-blow');
   }, 1200);
+}
+
+// Power-spike — fires when the 2× stagger-consume hit lands.  Brief
+// gold flash + tiny zoom on the stage so the payoff of the weakness
+// loop reads as a MOMENT, not a damage number.  Lighter than
+// playKillingBlowHold so the cascade doesn't drag.
+function playStaggerHit() {
+  if (__simulating) return;
+  const stage = $('#stage');
+  if (stage) stage.classList.add('stagger-hit');
+  shakeScreen(2);
+  setTimeout(() => {
+    if (stage) stage.classList.remove('stagger-hit');
+  }, 380);
+}
+
+// Power-spike — fires when a Resonance is committed for the very
+// first time in a run (per-run tracked, not lifetime).  Brief extra
+// reveal flourish on top of the combo cinematic so the moment of
+// discovery feels weighty.  Lifetime-first-fire payouts already land
+// in the codex/embers system.
+function playFirstResonanceOfRun(comboName) {
+  if (__simulating) return;
+  const stage = $('#stage');
+  if (stage) stage.classList.add('first-resonance');
+  setTimeout(() => {
+    if (stage) stage.classList.remove('first-resonance');
+  }, 700);
 }
 
 // Boss death slow-mo: dim the screen, slow CSS animations, brief flash.

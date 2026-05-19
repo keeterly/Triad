@@ -10098,6 +10098,53 @@ body.boss-killed::before {
   100% { opacity: 0; }
 }
 
+/* Power-spike — stagger consume hit (2× damage on a staggered enemy).
+   Triggered by playStaggerHit; the body class lifts off after ~380ms.
+   Brief gold flash across the stage so the payoff of the weakness
+   loop reads as a MOMENT instead of a numbered popup.  Doesn't slow
+   animations — just a visual pulse so it doesn't stall pace. */
+#stage.stagger-hit {
+  filter: brightness(1.18) saturate(1.15);
+  transition: filter 0.18s ease-out;
+}
+#stage.stagger-hit::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center,
+                              rgba(240,212,136,0.42) 0%,
+                              rgba(180,140,80,0.18) 40%,
+                              rgba(0,0,0,0) 70%);
+  animation: stagger-hit-flash 0.36s ease-out forwards;
+}
+@keyframes stagger-hit-flash {
+  0%   { opacity: 0; }
+  20%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* Power-spike — first Resonance of the run.  Subtle gold halo on the
+   stage so the moment of discovery feels weighty on top of the combo
+   cinematic.  Held ~700ms; cinematic runtime handles the rest. */
+#stage.first-resonance::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 99;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center,
+                              rgba(240,212,136,0.30) 0%,
+                              rgba(0,0,0,0) 60%);
+  animation: first-resonance-pulse 0.7s ease-out forwards;
+}
+@keyframes first-resonance-pulse {
+  0%   { opacity: 0; }
+  30%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 /* Regular fight killing-blow hold — lighter slow-mo than the boss kill.
    Gives the final hit a moment to breathe before the victory cascade.
    Body class is removed after ~1.2s by playKillingBlowHold. */
