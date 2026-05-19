@@ -4149,6 +4149,8 @@ function bindSigil(s, sigilId) {
       // Codex — record the level-up so the encyclopedia shows the
       // highest tier the player has ever pushed this sigil to.
       recordCodexSigil(sigilId, cur + 1);
+      // Achievement — leveling any sigil to Tier III.
+      if (cur + 1 >= 3) tryUnlockAchievement('tier_iii_sigil');
       try { renderSigilTray(); } catch (_) {}
     }
     return sg;
@@ -6810,6 +6812,8 @@ function grantQuirk(s, charId, quirkId) {
   if (q.positive && !c.mastery && c.quirks.positive.length >= QUIRK_CAP && HERO_MASTERIES[charId]) {
     c.mastery = HERO_MASTERIES[charId];
     log(`<i><b>${CHARS[charId].name}</b> awakens their Mastery: <b>${c.mastery.name}</b> — ${c.mastery.desc}</i>`);
+    // Achievement — first hero to awaken their mastery in any run.
+    tryUnlockAchievement('mastery_awakened');
     if (typeof _showAwardBackdrop === 'function') {
       try {
         _showAwardBackdrop({
@@ -8698,6 +8702,183 @@ function applyEmbersUnlocks(s) {
 // single localStorage round-trip pattern stays consistent.  Reads from
 // showCodexScreen() populate the codex screens.  Simulating short-circuits.
 // ============================================================================
+// ============================================================================
+// ACHIEVEMENTS — discrete one-time goals across the player's lifetime.
+// Each achievement is { id, name, desc, embers, check(s, ctx) } where
+// `check` returns true if the achievement should fire RIGHT NOW given
+// the current state + optional context (e.g. "this turn staggered N
+// enemies").  Earning grants Embers and surfaces a small fanfare.
+// ============================================================================
+const ACH_KEY = 'kizuna.achievements.v1';
+function getAchievementsEarned() {
+  try {
+    const raw = localStorage.getItem(ACH_KEY);
+    return raw ? (JSON.parse(raw) || {}) : {};
+  } catch (_) { return {}; }
+}
+function _setAchievementsEarned(obj) {
+  try { localStorage.setItem(ACH_KEY, JSON.stringify(obj || {})); }
+  catch (_) {}
+}
+function hasAchievement(id) {
+  return !!getAchievementsEarned()[id];
+}
+
+// Achievement registry.  Definitions live here; trigger sites call
+// tryUnlockAchievement(id, ctx) where it makes sense (boss kills,
+// stagger landings, etc.).  Keeping the check inline + the trigger
+// site explicit means an achievement never silently slips through a
+// refactor — every grant has a real call site.
+const ACHIEVEMENTS = {
+  // ---- First steps ----
+  first_fight: {
+    name: 'First Breath',
+    desc: 'Win your first encounter.',
+    embers: 5,
+  },
+  first_boss: {
+    name: 'The Wakeling Sees You',
+    desc: 'Fall the Layer 1 boss.',
+    embers: 15,
+  },
+  first_megaboss: {
+    name: 'Crown the Deep',
+    desc: 'Fall your first mega-boss (Layer 3, 6, or 9).',
+    embers: 40,
+  },
+  clear_l9: {
+    name: 'Top of the Abyss',
+    desc: 'Clear Layer 9 — the last reach.',
+    embers: 100,
+  },
+
+  // ---- Tactical milestones ----
+  first_stagger: {
+    name: 'Find the Seam',
+    desc: 'Stagger your first enemy.',
+    embers: 5,
+  },
+  triple_stagger: {
+    name: 'Three Seams',
+    desc: 'Stagger three enemies in a single turn.',
+    embers: 30,
+  },
+  weakness_chain_5: {
+    name: 'Pressed Turns',
+    desc: 'Exploit five weaknesses in one fight.',
+    embers: 15,
+  },
+  flawless_fight: {
+    name: 'Untouched',
+    desc: 'Win an encounter without any hero losing HP.',
+    embers: 20,
+  },
+  ko_full_health: {
+    name: 'Overkill',
+    desc: 'Deliver a killing blow that exceeds the enemy\'s HP by 10+.',
+    embers: 15,
+  },
+
+  // ---- Build identity ----
+  five_sigils: {
+    name: 'Bound to the Climb',
+    desc: 'Carry five sigils into a single fight.',
+    embers: 15,
+  },
+  tier_iii_sigil: {
+    name: 'Deepened',
+    desc: 'Level a sigil to Tier III in a run.',
+    embers: 20,
+  },
+  mastery_awakened: {
+    name: 'Mastery Awakened',
+    desc: 'Awaken a hero\'s Mastery.',
+    embers: 25,
+  },
+  all_resonances_run: {
+    name: 'Every Echo',
+    desc: 'Fire 5 different Resonances in one run.',
+    embers: 30,
+  },
+
+  // ---- Solo challenges ----
+  solo_l3: {
+    name: 'Walking Alone',
+    desc: 'Reach Layer 3 with only one hero on the team.',
+    embers: 25,
+  },
+  solo_l6: {
+    name: 'Half the Abyss',
+    desc: 'Clear Layer 6 with only one hero on the team.',
+    embers: 60,
+  },
+
+  // ---- Wanderer / roadkill ----
+  first_roadkill: {
+    name: 'The Road Keeps',
+    desc: 'Fall a wanderer hero on the road.',
+    embers: 10,
+  },
+  pacifist_layer: {
+    name: 'Pass the Bone',
+    desc: 'Clear a full layer without killing any wanderer.',
+    embers: 15,
+  },
+
+  // ---- Discovery completionism ----
+  bestiary_half: {
+    name: 'Half the Names',
+    desc: 'Encounter half the bestiary.',
+    embers: 25,
+  },
+  all_combos_fired: {
+    name: 'Echoes of All',
+    desc: 'Fire every Resonance at least once across all runs.',
+    embers: 60,
+  },
+};
+
+// Try to grant an achievement.  Caller passes the id (must be in the
+// registry) plus an optional reason.  Idempotent — already-earned
+// achievements no-op.  Grants the Embers reward and surfaces a small
+// fanfare (deferred to next paint so it doesn't fight combat popups).
+function tryUnlockAchievement(id, _reason) {
+  if (!id || !ACHIEVEMENTS[id]) return false;
+  if (typeof __simulating !== 'undefined' && __simulating) return false;
+  if (typeof state !== 'undefined' && state && state._isDevRun) return false;
+  if (hasAchievement(id)) return false;
+  const def = ACHIEVEMENTS[id];
+  const cur = getAchievementsEarned();
+  cur[id] = Date.now();
+  _setAchievementsEarned(cur);
+  if (def.embers) earnEmbers(def.embers, `achievement:${id}`);
+  // Surface a brief fanfare so the player sees the unlock.  Falls
+  // back gracefully if showCoachmark / spawn helpers aren't ready.
+  setTimeout(() => _showAchievementFanfare(def), 200);
+  return true;
+}
+
+function _showAchievementFanfare(def) {
+  if (!def) return;
+  // Reuse the chat-bubble popup family for the fanfare so it shares
+  // the visual language of the rest of the game's feedback.
+  const card = document.createElement('div');
+  card.className = 'achievement-fanfare';
+  card.innerHTML = `
+    <div class="ach-eyebrow">ACHIEVEMENT UNLOCKED</div>
+    <div class="ach-name">${def.name}</div>
+    <div class="ach-desc">${def.desc}</div>
+    ${def.embers ? `<div class="ach-reward">✦ +${def.embers} Embers</div>` : ''}
+  `;
+  document.body.appendChild(card);
+  setTimeout(() => card.classList.add('ach-out'), 3200);
+  setTimeout(() => { if (card.isConnected) card.remove(); }, 3700);
+}
+
+function resetAchievements() {
+  try { localStorage.removeItem(ACH_KEY); } catch (_) {}
+}
+
 const CODEX_KEY = 'kizuna.codex.v1';
 function getCodex() {
   try {
@@ -8731,7 +8912,14 @@ function recordCodexEnemy(enemyId, opts) {
   if (opts && opts.killed)         entry.killed = (entry.killed || 0) + 1;
   if (opts && opts.weaknessKnown)  entry.weaknessKnown = true;
   _saveCodex(c);
-  if (isFirstDiscovery) earnEmbers(5, 'first-enemy');
+  if (isFirstDiscovery) {
+    earnEmbers(5, 'first-enemy');
+    // Bestiary completion achievement — fires when the player has
+    // encountered at least half the catalog.
+    const seen = Object.values(c.enemies).filter(x => x.encountered).length;
+    const total = Object.values(ENEMIES).filter(x => !x._dev).length;
+    if (total > 0 && seen >= Math.ceil(total / 2)) tryUnlockAchievement('bestiary_half');
+  }
 }
 function recordCodexSigil(sigilId, tier) {
   if (!sigilId) return;
@@ -8752,7 +8940,13 @@ function recordCodexCombo(comboId) {
   const entry = c.combos[comboId] = c.combos[comboId] || { fires: 0, firstFired: Date.now() };
   entry.fires = (entry.fires || 0) + 1;
   _saveCodex(c);
-  if (!existed) earnEmbers(10, 'first-resonance');
+  if (!existed) {
+    earnEmbers(10, 'first-resonance');
+    // Completionism — fire all 29 combos across lifetime → achievement.
+    const fired = Object.keys(c.combos).length;
+    const total = Object.keys(COMBOS).length;
+    if (total > 0 && fired >= total) tryUnlockAchievement('all_combos_fired');
+  }
 }
 function resetCodex() {
   try { localStorage.removeItem(CODEX_KEY); } catch (_) {}
@@ -8994,8 +9188,22 @@ function startEncounter(encSpec) {
   // spamming the same chain.  Reset every encounter, persisted across the
   // save snapshot.
   state.usedCombos = new Set();
-  state.fightStats = { damageDealt: {}, damageTaken: {}, healingDone: {}, kills: 0, synergies: [], turns: 0 };
+  // fightStats carries achievement-tracking counters too: staggers
+  // landed this turn (reset on player turn start), weakness exploits
+  // this fight, and a flawless flag that flips false on first damage
+  // taken.  All used by tryUnlockAchievement at trigger sites.
+  state.fightStats = {
+    damageDealt: {}, damageTaken: {}, healingDone: {},
+    kills: 0, synergies: [], turns: 0,
+    staggersThisTurn: 0, weaknessExploits: 0,
+    flawless: true,
+  };
   state.run.currentEnc = encSpec;
+  // Achievement — Five sigils carried into a single fight.  Cheap to
+  // check at startEncounter (sigils count doesn't change mid-fight).
+  if (state.run && Array.isArray(state.run.sigils) && state.run.sigils.length >= 5) {
+    tryUnlockAchievement('five_sigils');
+  }
 
   // Apply biome modifier seasoning to fresh enemies
   if (hasRunModifier(state, 'veiled'))    Object.values(state.enemies.chars).forEach(e => { e.vuln += 1; });
@@ -9529,6 +9737,13 @@ function applyDmgToEnemy(s, e, baseAmt) {
       e._weaknessHitThisTurn = true;
       // press-turn loop: weakness hit banks +1 ATB for next turn (capped at +1)
       s.pendingBonusAtb = Math.min(1, (s.pendingBonusAtb || 0) + 1);
+      // Embers + achievement bookkeeping — every weakness exploit pays
+      // 1 Ember and tallies toward Pressed Turns (5 in a fight).
+      earnEmbers(1, 'weakness-exploit');
+      if (s.fightStats) {
+        s.fightStats.weaknessExploits = (s.fightStats.weaknessExploits || 0) + 1;
+        if (s.fightStats.weaknessExploits === 5) tryUnlockAchievement('weakness_chain_5');
+      }
     } else if (resists.includes(element)) {
       amt = Math.max(1, Math.floor(amt * 0.5));
       schoolBadge = 'RESIST';
@@ -9560,6 +9775,11 @@ function applyDmgToEnemy(s, e, baseAmt) {
     e.armor = Math.max(0, e.armor - amt);
     toHp = amt - absorbed;
   }
+  // Track last-hit metadata so killEnemy can detect Overkill (toHp >=
+  // pre-hit HP + 10) — needs the BEFORE value of e.hp, which is gone
+  // after the subtract below.
+  s._lastHitPreHp = e.hp;
+  s._lastHitDmg = toHp;
   e.hp = Math.max(0, e.hp - toHp);
   // Brand of Doom — vuln stacks aren't consumed by attacks.
   // Ash Veil Echo — Ash's own attacks don't consume the stack either; the
@@ -9628,6 +9848,13 @@ function applyDmgToEnemy(s, e, baseAmt) {
       e.staggerTurnsLeft = 2;
       spawnPopupId(e.id, 'STAGGERED', 'stagger', 'enemy');
       log(`<b>${ENEMIES[e.id].name}</b> is STAGGERED!`);
+      // Achievement bookkeeping — first stagger of the player's life
+      // pays out; three staggers in a single turn fires Three Seams.
+      tryUnlockAchievement('first_stagger');
+      if (s.fightStats) {
+        s.fightStats.staggersThisTurn = (s.fightStats.staggersThisTurn || 0) + 1;
+        if (s.fightStats.staggersThisTurn >= 3) tryUnlockAchievement('triple_stagger');
+      }
       // Hask Shatter passive — every stagger while he's alive grants
       // +1 Resolve.  Inlined here so we can keep one damage funnel.
       const h = s && s.party && s.party.chars && s.party.chars.hask;
@@ -9764,6 +9991,24 @@ function killEnemy(s, e) {
   // id (not the per-instance slot key like "shade#1"), since the codex
   // groups by template.  Simulating short-circuits inside recordCodexEnemy.
   recordCodexEnemy(e.id, { killed: true });
+  // Achievement bookkeeping — boss kills and first-time achievement
+  // payouts handled here so the run-ending cascade picks them up.
+  const _killDef0 = ENEMIES[e.id];
+  if (_killDef0) {
+    if (_killDef0.boss && !_killDef0.megaBoss) tryUnlockAchievement('first_boss');
+    if (_killDef0.megaBoss)                    tryUnlockAchievement('first_megaboss');
+  }
+  // Overkill — killing blow that exceeds the enemy's HP by 10+.  e.hp
+  // is the final pre-kill HP (right before the strike that dropped it
+  // to 0), so we compare against the last hit's damage saved on
+  // s._lastHitDmg.  Set in applyDmgToEnemy right before the kill check.
+  if (s._lastHitDmg != null && e.maxHp && s._lastHitDmg >= e.hp + 10) {
+    // Disabled — e.hp is already 0 here.  Use s._lastHitDmg vs the
+    // pre-hit HP saved on s._lastHitPreHp by the caller.
+  }
+  if (s._lastHitPreHp != null && s._lastHitDmg != null && s._lastHitDmg >= s._lastHitPreHp + 10) {
+    tryUnlockAchievement('ko_full_health');
+  }
   // Embers payout — 1 per minion kill, 20 per boss, 50 per mega-boss.
   // Boss tier dominates payouts so a layer clear pays out meaningfully.
   // Mega-bosses (L3/L6/L9) are the biggest single grants in the run.
@@ -9961,6 +10206,9 @@ function applyDmgToParty(s, c, amt) {
 
   if (s.fightStats && toHp > 0) {
     s.fightStats.damageTaken[c.id] = (s.fightStats.damageTaken[c.id] || 0) + toHp;
+    // Flawless tracking — any HP damage to any hero this fight breaks
+    // the Untouched chain.
+    s.fightStats.flawless = false;
     // Track each character's lowest HP this fight (for vignette triggers)
     s.fightStats.minHp = s.fightStats.minHp || {};
     if (s.fightStats.minHp[c.id] === undefined || c.hp < s.fightStats.minHp[c.id]) {
@@ -10460,6 +10708,8 @@ function startTurn(s) {
   s.messages = [];
   s.executing = false;
   s.queue = [];
+  // Reset per-turn achievement counters (staggersThisTurn → triple-stagger).
+  if (s.fightStats) s.fightStats.staggersThisTurn = 0;
   // First-fight tutorial — surface the "hold to preview" hint once the
   // tiles are visible and the player has a clean slate to act.  Anchors
   // to the leftmost queueable tile, fires only on the very first turn
@@ -11838,6 +12088,19 @@ function checkEnd(s) {
   }
   if (aliveEnemies(s).length === 0) {
     s.over = true;
+    // Achievements that fire on encounter win — first fight, flawless,
+    // and triple-combo runs.
+    tryUnlockAchievement('first_fight');
+    if (s.fightStats && s.fightStats.flawless) {
+      tryUnlockAchievement('flawless_fight');
+    }
+    // All-Resonances-fired-this-run tracker.  Combos lock into
+    // s.usedCombos when committed; once we've fired 5 unique ones in
+    // a run, fire Every Echo.  Checked on every win so the moment of
+    // the fifth combo lands the achievement immediately afterward.
+    if (s.usedCombos && s.usedCombos.size >= 5) {
+      tryUnlockAchievement('all_resonances_run');
+    }
     // Wanderer-fight lockout — if this combat was a wanderer duel, the
     // hero on the road is now removed from the run's recruit + wanderer
     // pools.  Flag set by showWandererOverlay before startEncounter.
@@ -11851,6 +12114,8 @@ function checkEnd(s) {
         const def = CHARS[pwf.heroLockout];
         if (def) log(`<b>${def.name}</b> will not climb with you.`);
         s.run._pendingWandererFallBeat = pwf.wandererId;
+        // Achievement — first wanderer-hero kill.
+        tryUnlockAchievement('first_roadkill');
       }
       s.run._pendingWandererFight = null;
     }
@@ -11898,6 +12163,14 @@ function checkEnd(s) {
         const forgeWasLocked = !isForgeUnlocked();
         const oathsWereLocked = !isOathUnlocked();
         markLayerCleared(getCurrentLayer());
+        // Achievements gated on layer clear — clear_l9 (the run-end
+        // achievement) and the solo_l3 / solo_l6 challenges (party
+        // size 1 at the moment the layer falls).
+        const _clearedLayer = getCurrentLayer();
+        const _partySize = aliveParty(state).length;
+        if (_clearedLayer === 9) tryUnlockAchievement('clear_l9');
+        if (_partySize === 1 && _clearedLayer >= 3) tryUnlockAchievement('solo_l3');
+        if (_partySize === 1 && _clearedLayer >= 6) tryUnlockAchievement('solo_l6');
         saveCarriedParty(state);
         const forgeJustUnlocked = forgeWasLocked && isForgeUnlocked();
         const oathsJustUnlocked = oathsWereLocked && isOathUnlocked();
@@ -18532,10 +18805,15 @@ function showSettingsScreen() {
           setTimeout(() => { hideOverlay(); showTitleScreen(); }, 600);
         });
       } else if (action === 'resetprogress') {
-        confirmDestructive('Reset meta progression?', 'Starter unlocks, world-map progress, and the cleared-layer chain will be wiped.', () => {
+        confirmDestructive('Reset meta progression?', 'Starter unlocks, world-map progress, the cleared-layer chain, Embers banked, codex, and achievements will be wiped.', () => {
           try { localStorage.removeItem(UNLOCKED_KEY); } catch (_) {}
           try { localStorage.removeItem(LAYER_KEY); } catch (_) {}
           try { localStorage.removeItem(CLEARED_KEY); } catch (_) {}
+          try { localStorage.removeItem(EMBERS_KEY); } catch (_) {}
+          try { localStorage.removeItem(EMBERS_UNLOCKS_KEY); } catch (_) {}
+          try { localStorage.removeItem(EMBERS_PENDING_KEY); } catch (_) {}
+          resetCodex();
+          resetAchievements();
           clearCarriedParty();
           flashSettings('Meta progression reset.');
           setTimeout(() => { hideOverlay(); showTitleScreen(); }, 600);
@@ -18909,10 +19187,12 @@ function hideCodexScreen() {
 
 function _renderCodex(body) {
   const codex = getCodex();
+  const earned = getAchievementsEarned();
   const tabs = [
-    { id: 'bestiary',   label: 'Bestiary',   count: Object.values(codex.enemies).filter(e => e.encountered).length, total: Object.values(ENEMIES).filter(e => !e._dev).length },
-    { id: 'sigils',     label: 'Sigils',     count: Object.keys(codex.sigils).length,                                total: Object.keys(SIGILS).length },
-    { id: 'resonances', label: 'Resonances', count: Object.keys(codex.combos).length,                                total: Object.keys(COMBOS).length },
+    { id: 'bestiary',     label: 'Bestiary',     count: Object.values(codex.enemies).filter(e => e.encountered).length, total: Object.values(ENEMIES).filter(e => !e._dev).length },
+    { id: 'sigils',       label: 'Sigils',       count: Object.keys(codex.sigils).length,                                total: Object.keys(SIGILS).length },
+    { id: 'resonances',   label: 'Resonances',   count: Object.keys(codex.combos).length,                                total: Object.keys(COMBOS).length },
+    { id: 'achievements', label: 'Achievements', count: Object.keys(earned).length,                                       total: Object.keys(ACHIEVEMENTS).length },
   ];
   const nav = tabs.map(t => `
     <button type="button" class="codex-tab${t.id === _codexActiveTab ? ' codex-tab-active' : ''}" data-tab="${t.id}">
@@ -18921,9 +19201,10 @@ function _renderCodex(body) {
     </button>
   `).join('');
   let listHtml = '';
-  if (_codexActiveTab === 'bestiary')        listHtml = _renderCodexBestiary(codex);
-  else if (_codexActiveTab === 'sigils')     listHtml = _renderCodexSigils(codex);
-  else if (_codexActiveTab === 'resonances') listHtml = _renderCodexResonances(codex);
+  if (_codexActiveTab === 'bestiary')           listHtml = _renderCodexBestiary(codex);
+  else if (_codexActiveTab === 'sigils')        listHtml = _renderCodexSigils(codex);
+  else if (_codexActiveTab === 'resonances')    listHtml = _renderCodexResonances(codex);
+  else if (_codexActiveTab === 'achievements')  listHtml = _renderCodexAchievements(earned);
   body.innerHTML = `
     <nav class="codex-tabs">${nav}</nav>
     <div class="codex-list">${listHtml}</div>
@@ -19050,6 +19331,24 @@ function _renderCodexResonances(codex) {
         </div>
         <div class="codex-row-meta"><span>${tierLabel}</span><span>${partners}</span></div>
         <div class="codex-row-desc">${c.desc}</div>
+      </div>
+    </div>`;
+  }).join('');
+  return `<div class="codex-group">${rows}</div>`;
+}
+
+function _renderCodexAchievements(earned) {
+  const rows = Object.entries(ACHIEVEMENTS).map(([id, def]) => {
+    const ts = earned[id];
+    const got = !!ts;
+    return `<div class="codex-row codex-row-ach${got ? '' : ' codex-row-sealed'}">
+      <div class="codex-ach-mark">${got ? '✦' : '◇'}</div>
+      <div class="codex-row-body">
+        <div class="codex-row-head">
+          <span class="codex-row-name">${def.name}</span>
+          <span class="codex-row-stat">${def.embers ? `✦ ${def.embers}` : ''}</span>
+        </div>
+        <div class="codex-row-desc">${def.desc}</div>
       </div>
     </div>`;
   }).join('');
