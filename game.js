@@ -2619,10 +2619,14 @@ const ENEMIES = {
       ];
       // Fallback echoes — even a clean run faces the Necromancer's
       // catalog of "what could have walked with you".  Pick up to two
-      // random heroes the player doesn't currently field.
+      // random heroes the player doesn't currently field.  Filter out
+      // wand_* keys — those are wanderer-only NPC variants of heroes
+      // used for road-fight enemies (different stats / intents); only
+      // real playable heroes should appear as echoes.
       if (pool.length === 0) {
         const partyHas = new Set(Object.keys(s.party.chars));
-        const candidates = Object.keys(CHARS).filter(id => !partyHas.has(id));
+        const candidates = Object.keys(CHARS).filter(id =>
+          !partyHas.has(id) && !id.startsWith('wand_'));
         const shuffled = candidates.slice().sort(() => Math.random() - 0.5).slice(0, 2);
         shuffled.forEach(id => pool.push({ kind: 'echo', heroId: id }));
       }
@@ -9406,9 +9410,17 @@ function killEnemy(s, e) {
   if (s.currentActorId && CHARS[s.currentActorId]) spawnBark(s.currentActorId, 'kill');
   // Pact of Cinders — every surviving enemy starts bleeding.  Bleed amount
   // scales with sigil tier (I=1, II=2, III=3) — leveling deepens the burn.
+  // Skip untargetable enemies (Sundering Choir while Voices live, Husk
+  // during its bury phase) so the cascade can't backdoor damage onto
+  // an enemy the player isn't supposed to be hitting yet — it's the
+  // same "MUTED" rule that applyDmgToEnemy enforces, applied here too.
   if (hasSigil(s, 'cinders')) {
     const cinderBleed = sigilBonus(s, 'cinders');
-    aliveEnemies(s).forEach(en => { if (en !== e && !en.dead) en.bleed = Math.max(en.bleed, cinderBleed); });
+    aliveEnemies(s).forEach(en => {
+      if (en === e || en.dead) return;
+      if (en.untargetable) return;
+      en.bleed = Math.max(en.bleed, cinderBleed);
+    });
     if (s.currentActorId) spawnSigilPopup(s.currentActorId, 'cinders');
   }
   // Sigil of the Reaver — already adds +1 Resolve on kill in gainResolve;
@@ -11265,9 +11277,16 @@ function resolveEnemyStep(s, i) {
   setTimeout(() => {
     // Stash the currently-acting enemy so the party-damage funnel can
     // pick up per-enemy modifiers (Mirror Shard's _enraged +3 dmg).
+    // Guard with try/finally — without it, an intent.fn that throws
+    // would leave _currentEnemyActor set, and the NEXT enemy turn's
+    // damage would be wrongly attributed to the dead/stale actor
+    // (Mirror Shard's enrage bonus would leak into other enemies).
     s._currentEnemyActor = e;
-    intent.fn(s);
-    s._currentEnemyActor = null;
+    try {
+      intent.fn(s);
+    } finally {
+      s._currentEnemyActor = null;
+    }
     if (checkEnd(s)) { s.executing = false; render(); return; }
     e.intentIdx = (e.intentIdx + 1) % def.intents.length;
     render();
