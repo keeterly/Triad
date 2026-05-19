@@ -4629,8 +4629,18 @@ const VIGNETTES = {
       { who: '_first', text: '...they will rise for the next reach.' },
     ],
     choices: [
-      { label: 'Carry them forward', tag: 'Downed restored to 1 HP',
-        resolve: (s) => { Object.values(s.party.chars).forEach(c => { if (c.downed) { c.downed = false; c.hp = 1; } }); log('The fallen are lifted.'); } },
+      { label: 'Carry them forward', tag: 'Downed restored to 20% HP',
+        // Was 1 HP, but biome chips (Burning Sky, Bone Tide, etc.) bypass
+        // armor and ping HP directly at the start of every turn — so a 1-HP
+        // revive was getting re-downed on turn 1 of the next fight before
+        // the player had any opportunity to heal it.  20% gives the carry
+        // enough breath to walk a few turns under attrition pressure.
+        resolve: (s) => {
+          Object.values(s.party.chars).forEach(c => {
+            if (c.downed) { c.downed = false; c.hp = Math.max(1, Math.ceil(c.maxHp * 0.20)); }
+          });
+          log('The fallen are lifted.');
+        } },
       { label: 'Bind in silence',    tag: 'Restore 25% · Sigil of Mending',
         resolve: (s) => {
           Object.values(s.party.chars).forEach(c => { if (c.downed) { c.downed = false; c.hp = Math.max(1, Math.ceil(c.maxHp * 0.25)); } });
