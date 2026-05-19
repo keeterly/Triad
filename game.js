@@ -8539,8 +8539,22 @@ function startEncounter(encSpec) {
   const isFirstFight = !state.run.currentEnc;
   applyBiomeBackground();
   // Boss flag drives full-width visual + dramatic HP bar
-  if (encSpec.boss) document.body.classList.add('boss-fight');
-  else              document.body.classList.remove('boss-fight');
+  // boss-fight class collapses the 3 enemy slots into one imposing
+  // figure with a wide HP bar.  For MULTI-ACTOR boss fights (Sundering
+  // Choir + Voices, Husk Garden + Blooms, Crown of Echoes + Shades)
+  // that single-figure styling overflows into the party half — each
+  // figure inherits 92% width and they overlap each other + the party.
+  // Add a boss-fight-multi modifier so CSS can restore the normal
+  // grid layout for those encounters.
+  if (encSpec.boss) {
+    document.body.classList.add('boss-fight');
+    const filledSlots = Object.values(encSpec.slots || {}).filter(Boolean).length;
+    if (filledSlots > 1) document.body.classList.add('boss-fight-multi');
+    else                 document.body.classList.remove('boss-fight-multi');
+  } else {
+    document.body.classList.remove('boss-fight');
+    document.body.classList.remove('boss-fight-multi');
+  }
 
   // reset per-fight party statuses; keep hp, downed, pendingEffects
   Object.values(state.party.chars).forEach(c => {
@@ -8774,6 +8788,12 @@ function spawnEnemy(s, slot, enemyId, opts) {
   if (typeof pendingSlideIds !== 'undefined' && pendingSlideIds && pendingSlideIds.add) {
     pendingSlideIds.add(key);
   }
+  // Mark this encounter as having had multiple enemies — keeps the
+  // boss-fight-multi CSS layout sticky through the fight even if the
+  // minions die off and only the boss is alive momentarily.  Without
+  // this the Necromancer (L9) would visually expand/shrink as Shades
+  // died and respawned.
+  s._everMultiEnemy = true;
   return fresh;
 }
 function firstAliveEnemyFrom(s, startIdx) {
@@ -11835,6 +11855,22 @@ function renderBattlefield() {
     const e = enemyBySlot(state, slot);
     enemyHalf.appendChild(makeEnemyCard(e, slot));
   });
+  // Re-evaluate boss-fight-multi each render — the Necromancer at L9
+  // starts with a single slot (front: crownEcho) and SUMMONS shades
+  // into mid/back over the course of the fight.  Without this update
+  // the boss-fight CSS (which assumes a single oversize figure) keeps
+  // applying and the shades overlap the Necromancer + the party half.
+  // Once multi has fired (initial multi-slot encounter OR a spawnEnemy
+  // call recorded _everMultiEnemy), keep the class sticky so the
+  // layout doesn't oscillate when minions die off momentarily.
+  if (document.body.classList.contains('boss-fight')) {
+    const aliveCount = aliveEnemies(state).length;
+    const initialSlots = state.run && state.run.currentEnc
+      ? Object.values(state.run.currentEnc.slots || {}).filter(Boolean).length
+      : 1;
+    const isMulti = initialSlots > 1 || state._everMultiEnemy || aliveCount > 1;
+    document.body.classList.toggle('boss-fight-multi', isMulti);
+  }
 }
 
 // Bottom action row — one column per party character, rendered in
