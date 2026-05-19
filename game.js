@@ -19930,17 +19930,29 @@ function _renderCodexHeroes(unlocked) {
     </div>`;
   }).join('');
   // Click delegates — set up after the next paint so the DOM is real.
+  // Uses `onclick =` (not addEventListener) so a tab that re-renders
+  // rapidly doesn't double-bind handlers on the same nodes: if two
+  // setTimeouts from successive renders both fire after the final DOM
+  // settles, the second assignment OVERWRITES the first, leaving one
+  // active handler per element instead of N.
   setTimeout(() => {
     document.querySelectorAll('#codex-body .codex-row-hero:not(.codex-row-sealed)').forEach(row => {
       row.style.cursor = 'pointer';
-      row.addEventListener('click', () => {
+      row.onclick = () => {
         hideCodexScreen();
         showHeroCodex();
-      });
+      };
     });
     document.querySelectorAll('#codex-body .codex-hero-unseal[data-unseal]').forEach(btn => {
-      btn.addEventListener('click', (e) => {
+      btn.onclick = (e) => {
         e.stopPropagation();
+        // Defensive — disable the button immediately so a rapid
+        // double-tap can't fire two purchases (the second would
+        // silently fail on the balance check, but the player would
+        // think it succeeded).  Re-render rebuilds the row from
+        // scratch, replacing this button anyway.
+        if (btn.disabled) return;
+        btn.disabled = true;
         const heroId = btn.dataset.unseal;
         if (purchaseHeroUnlock(heroId)) {
           Audio.ui();
@@ -19951,8 +19963,10 @@ function _renderCodexHeroes(unlocked) {
           _renderCodex(document.getElementById('codex-body'));
           const titleRoot = document.getElementById('title-screen');
           if (titleRoot && !titleRoot.classList.contains('hidden')) showTitleScreen();
+        } else {
+          btn.disabled = false;  // re-enable on failed buy
         }
-      });
+      };
     });
   }, 0);
   return `<div class="codex-group">${rows}</div>`;
@@ -20030,24 +20044,27 @@ function _renderCodexBonds(bonds) {
       </div>
     </div>`;
   }).join('');
-  // Bind equip / unequip buttons after the next paint.
+  // Bind equip / unequip buttons after the next paint.  Uses `onclick =`
+  // (not addEventListener) so two successive renders don't both bind on
+  // the same node — the second assignment overwrites the first, leaving
+  // exactly one handler per button.
   setTimeout(() => {
     document.querySelectorAll('#codex-body .codex-bond-charm-btn[data-charm]').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.onclick = () => {
         const charmId = btn.dataset.charm;
         const currently = getEquippedCharmId();
         setEquippedCharm(currently === charmId ? null : charmId);
         Audio.ui();
         _renderCodex(document.getElementById('codex-body'));
-      });
+      };
     });
     const unequipBtn = document.querySelector('#codex-body .codex-charm-unequip');
     if (unequipBtn) {
-      unequipBtn.addEventListener('click', () => {
+      unequipBtn.onclick = () => {
         setEquippedCharm(null);
         Audio.ui();
         _renderCodex(document.getElementById('codex-body'));
-      });
+      };
     }
   }, 0);
   return `<div class="codex-group">${equippedBanner}${rows}</div>`;
