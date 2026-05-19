@@ -10266,15 +10266,15 @@ function startTurn(s) {
       // long-pressed a hero AND they have at least one neighbor to
       // swap with.  Solo runs (Kai alone) can't move, so the gesture
       // would just frustrate them.  Anchors to the first hero card;
-      // the text teaches the gesture (hold → arrows appear → tap an
-      // arrow).  The matching "·HOLD·" badge under each hero card
-      // backs this up.
+      // the text teaches the actual gesture (hold → arrows appear →
+      // DRAG onto one).  The matching "·HOLD·" badge under each hero
+      // card backs this up.
       const partyCount = aliveParty(s).length;
       if (partyCount >= 2 && !hasSeenCoachmark('cm_move_action') && !hasHeldHero()) {
         showCoachmark('cm_move_action', {
           anchor: '#party-half .figure:not(.empty):not(.downed)',
           place: 'above',
-          text: '<b>Move</b> a hero: <b>press &amp; hold</b> their card, then tap an arrow to swap with a neighbor.  Costs 1 ATB.',
+          text: '<b>Move</b> a hero: <b>press, hold, and drag</b> their card toward an arrow that appears — release on it to swap with that neighbor.  Costs 1 ATB.',
         });
       }
     }, 700);

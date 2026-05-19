@@ -470,14 +470,23 @@ body.on-title:has(#overlay:not(.hidden)) #stage-scale {
 }
 /* ============ RESOLVE PIPS — small jewels next to the Fight crest ============ */
 #resolve-pips {
-  display: flex; gap: 3px; align-items: center; justify-content: center;
+  /* Diamonds rotate 45deg via transform, so their visual extent reaches
+     ~1.6px past each side of the bounding box.  Gap bumped from 3 → 5
+     so adjacent diamonds keep a clean breathing space. */
+  display: flex; gap: 5px; align-items: center; justify-content: center;
 }
 .pip {
-  width: 8px; height: 8px; border-radius: 50%;
+  /* Resolve pip is a diamond (rotated square).  Matches the ♦ glyph used
+     in tile descs, vignette tags, and tutorial copy so the visual
+     vocabulary stays one shape.  Was a circle; that read clean on its
+     own but disconnected from every other ♦ reference in the UI. */
+  width: 9px; height: 9px;
+  border-radius: 1px;
+  transform: rotate(45deg);
   border: 1px solid var(--gold-dim);
   background: radial-gradient(circle at 35% 30%, #221812 0%, #0a0604 100%);
   position: relative;
-  transition: all 0.25s;
+  transition: border-color 0.25s, background 0.25s, box-shadow 0.25s;
 }
 .pip.filled {
   border-color: var(--gold-bright);
@@ -500,7 +509,7 @@ body.on-title:has(#overlay:not(.hidden)) #stage-scale {
    brighter gold glow so the buff is visible.  Drops away the moment
    it's spent back below the cap. */
 .pip.bonus {
-  width: 10px; height: 10px;
+  width: 11px; height: 11px;
   border-color: rgba(255,232,160,0.9);
   box-shadow:
     0 0 6px rgba(255,232,160,0.85),
