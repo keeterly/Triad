@@ -2457,6 +2457,24 @@ const ENEMIES = {
         shakeScreen(3);
       }
     },
+    // The Twin Mirror is one of the two "halves" after shatter — killing
+    // either half ENRAGES the survivor.  Without this onDeath, killing
+    // the ORIGINAL twinMirror entity first would skip the enrage entirely
+    // (mirrorShard.onDeath covers the inverse direction only).  Mirrors
+    // mirrorShard.onDeath exactly so the rule reads the same both ways.
+    onDeath: (s, e) => {
+      if (!e._shattered) return; // nothing to enrage if shatter never fired
+      Object.values(s.enemies.chars).forEach(en => {
+        if ((en.id === 'mirrorShard' || en.id === 'twinMirror') && !en.dead) {
+          en._enraged = true;
+          en.retaliate = (en.retaliate || 0) * 2;
+          const key = en.id === 'twinMirror'
+            ? 'twinMirror'
+            : Object.keys(s.enemies.chars).find(k => s.enemies.chars[k] === en);
+          if (key) spawnPopupId(key, 'ENRAGED', 'crit', 'enemy');
+        }
+      });
+    },
   },
   nameless: {
     id: 'nameless', name: 'The Nameless Knight', title: 'Sin of Vows', maxHp: 220, boss: true,
@@ -5729,9 +5747,26 @@ function matchVignettes(s, ctx) {
       if (w.whileLayer && ctx.layer !== w.whileLayer) return false;
       return true;
     }
-    if (w.bossPrep)      return ctx.phase === 'bossPrep';
-    if (w.runDefeat)     return ctx.phase === 'runDefeat';
-    if (w.bossDefeated)  return ctx.phase === 'bossDefeated';
+    if (w.bossPrep) {
+      if (ctx.phase !== 'bossPrep') return false;
+      if (w.whileLayer && ctx.layer !== w.whileLayer) return false;
+      return true;
+    }
+    if (w.runDefeat) {
+      if (ctx.phase !== 'runDefeat') return false;
+      if (w.whileLayer && ctx.layer !== w.whileLayer) return false;
+      return true;
+    }
+    if (w.bossDefeated) {
+      if (ctx.phase !== 'bossDefeated') return false;
+      // Bug fix: layer-specific boss-defeat vignettes were firing on
+      // ANY boss kill because the early return skipped the whileLayer
+      // gate.  A layer-2 vignette could narrate after a layer-1
+      // wakeling kill, etc.  oneShot saved most runs from compounding
+      // the issue, but the dialogue was still wrong.
+      if (w.whileLayer && ctx.layer !== w.whileLayer) return false;
+      return true;
+    }
     if (ctx.phase === 'runStart' || ctx.phase === 'bossPrep'
         || ctx.phase === 'runDefeat' || ctx.phase === 'bossDefeated') return false;
     // Recruit phase: only `recruited` vignettes can play; everything else waits
@@ -11974,9 +12009,15 @@ function makeEnemyCard(e, slot) {
   // the Necromancer's Shades) get distinct popup targets.  See the
   // dataset.id assignment further down for the actual data-id wiring.
   const slotKey = state && state.enemies && state.enemies.slots && state.enemies.slots[slot];
-  // Slide-in tag if this enemy was just shoved by a combo this turn
-  if (e && pendingSlideIds.has(e.id)) {
+  // Slide-in tag if this enemy was just shoved by a combo this turn,
+  // or freshly spawned by a minion-boss (Voice respawn, Bloom respawn,
+  // Mirror Shard split, Necromancer Shade raise).  Check BOTH the
+  // unique slot-key and the template id so single-instance enemies
+  // (added by old call sites with e.id) and multi-instance enemies
+  // (added by spawnEnemy with the unique key) both animate.
+  if (e && (pendingSlideIds.has(slotKey) || pendingSlideIds.has(e.id))) {
     fig.classList.add('figure-sliding');
+    pendingSlideIds.delete(slotKey);
     pendingSlideIds.delete(e.id);
   }
   // Objective-target markers — Ringleader gets a gold crown; Catalyst gets
@@ -16000,7 +16041,12 @@ function showRunSummary(outcome, opts) {
   `;
   $('#overlay-choices').classList.add('hidden');
   const btn = $('#overlay-btn');
-  btn.textContent = (opts && opts.afterClose) ? 'Ascend' : 'Return to Title';
+  // Dev-tools playtest routes afterClose → showTitleScreen, not the
+  // world map, so label the button honestly.  Regular boss-clear runs
+  // go to "Ascend" (which lands on the world map); defeats / dev runs
+  // both surface "Return to Title".
+  const devLabel = !!(state && state._isDevRun);
+  btn.textContent = (opts && opts.afterClose && !devLabel) ? 'Ascend' : 'Return to Title';
   btn.classList.remove('hidden');
   btn.onclick = () => {
     // Ascend cinematic — on boss win the survivors' silhouettes rise up
