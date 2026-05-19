@@ -19217,16 +19217,35 @@ function showTitleScreen() {
     hideTitleScreen();
     renderMap();
   }, !canContinue));
-  // Consolidated meta entries — Heroes / Bonds / Bestiary / Sigils /
-  // Resonances / Achievements all live as tabs inside the Codex screen
-  // now, and Credits absorbed into Settings.  Final title menu is
-  // PLAY (NEW GAME / CONTINUE) + CODEX (browse) + EMBERS (spend) +
-  // SETTINGS (configure).  Five items.  The Embers chip carries the
-  // current balance so the player sees their stockpile without
-  // entering — including the "0" on first sight, which is fine.
-  menuEl.appendChild(mkBtn('Codex',   () => showCodexScreen()));
+  // Top-level meta entries are gated by progression — same way Forge
+  // and Oaths gate in-run, Codex and Embers gate the title menu so a
+  // brand-new player sees just NEW GAME + SETTINGS (and CONTINUE if
+  // there's a save).  Each pops in when the player has earned a
+  // reason to look at it:
+  //   - Codex appears once the player has encountered ANY codex-
+  //     recordable content (enemies / sigils / combos).  Achievements
+  //     and Bonds are stored separately but covered by the same path
+  //     since the first fight always records enemies.
+  //   - Embers appears once the player has banked any Embers OR
+  //     already purchased an unlock.
+  // Once visible, both screens show every tab / row internally —
+  // sealed/dim styling on unearned content still signals progression
+  // inside; the top-level visibility is the gate.
+  const _codex = getCodex();
+  const _codexUnlocked =
+    Object.keys(_codex.enemies).length > 0 ||
+    Object.keys(_codex.sigils).length  > 0 ||
+    Object.keys(_codex.combos).length  > 0 ||
+    Object.keys(getAchievementsEarned()).length > 0 ||
+    Object.keys(getBonds()).length > 0;
+  if (_codexUnlocked) {
+    menuEl.appendChild(mkBtn('Codex', () => showCodexScreen()));
+  }
   const _emb = getEmbersBalance();
-  menuEl.appendChild(mkBtn(`Embers · ${_emb}`, () => showEmbersScreen()));
+  const _embersUnlocked = _emb > 0 || Object.keys(getEmbersUnlocks()).length > 0;
+  if (_embersUnlocked) {
+    menuEl.appendChild(mkBtn(`Embers · ${_emb}`, () => showEmbersScreen()));
+  }
   menuEl.appendChild(mkBtn('Settings', () => showSettingsScreen()));
 
   // Unlocks badge — surface both meta-progression beats so returning
