@@ -951,6 +951,67 @@ body.on-title:has(#overlay:not(.hidden)) #stage-scale {
 .figure.empty { visibility: hidden; }
 .figure.downed { opacity: 0.4; filter: grayscale(1) brightness(0.65); }
 
+/* ===========================================================================
+   SHADE FIGURES — Necromancer's risen heroes at L9.  Each Shade wraps
+   a specific hero's portrait; the kind class tints the visual: fallen
+   (your dead party) reads gold/heroic, roadkill (heroes you killed)
+   reads red/vengeful, echo (generic fallback) reads cold/neutral.
+   =========================================================================== */
+.figure-shade .figure-portrait svg {
+  /* Base spectral treatment — slightly translucent, soft glow, slow
+     flicker.  Kind classes below override the colour cast. */
+  filter: grayscale(0.55) brightness(0.62) drop-shadow(0 0 6px rgba(180,200,255,0.5));
+  opacity: 0.88;
+  animation: shade-flicker 2.6s ease-in-out infinite;
+}
+.figure-shade.shade-fallen .figure-portrait svg {
+  /* Heroic gold — these are YOUR dead, dragged back against you. */
+  filter: grayscale(0.4) brightness(0.6) sepia(0.4) hue-rotate(-10deg) saturate(1.2)
+          drop-shadow(0 0 10px rgba(240,200,140,0.65));
+}
+.figure-shade.shade-roadkill .figure-portrait svg {
+  /* Vengeful red — heroes whose blood is on your road. */
+  filter: grayscale(0.45) brightness(0.55) sepia(0.6) hue-rotate(-30deg) saturate(1.8)
+          drop-shadow(0 0 10px rgba(220,80,80,0.7));
+}
+.figure-shade.shade-echo .figure-portrait svg {
+  /* Cold neutral blue — generic echo, "what could have been". */
+  filter: grayscale(0.65) brightness(0.55) hue-rotate(200deg) saturate(0.85)
+          drop-shadow(0 0 8px rgba(180,200,255,0.55));
+}
+@keyframes shade-flicker {
+  0%, 100% { opacity: 0.88; }
+  50%      { opacity: 0.62; }
+}
+/* Subtle aura halo behind a shade — sells "raised by dark magic" */
+.figure-shade .figure-portrait::after {
+  content: '';
+  position: absolute;
+  left: 50%; bottom: 4%;
+  width: 70%; height: 14%;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse 50% 50% at 50% 50%,
+                              rgba(180,140,220,0.45) 0%,
+                              rgba(180,140,220,0) 75%);
+  pointer-events: none;
+  z-index: -1;
+  animation: shade-aura 2.6s ease-in-out infinite;
+}
+.figure-shade.shade-fallen .figure-portrait::after {
+  background: radial-gradient(ellipse 50% 50% at 50% 50%,
+                              rgba(240,200,140,0.5) 0%,
+                              rgba(240,200,140,0) 75%);
+}
+.figure-shade.shade-roadkill .figure-portrait::after {
+  background: radial-gradient(ellipse 50% 50% at 50% 50%,
+                              rgba(220,80,80,0.55) 0%,
+                              rgba(220,80,80,0) 75%);
+}
+@keyframes shade-aura {
+  0%, 100% { opacity: 0.5; transform: translateX(-50%) scale(1); }
+  50%      { opacity: 0.85; transform: translateX(-50%) scale(1.1); }
+}
+
 .figure-portrait {
   flex: 1 1 auto;
   width: 100%;

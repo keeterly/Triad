@@ -2497,7 +2497,7 @@ const ENEMIES = {
     },
   },
   crownEcho: {
-    id: 'crownEcho', name: 'The Crown of Echoes', title: 'What is climbing toward you', maxHp: 260, boss: true,
+    id: 'crownEcho', name: 'The Crown of Echoes', title: 'The Necromancer at the Summit', maxHp: 260, boss: true,
     weakness: ['holy', 'arcane'], resistance: 'stealth',
     intents: [
       { name: 'Crown Strike',  tag: 'ATK 11 front',           targetSlot: 'front', kind: 'atk', dmg: 11, fn: (s) => dmgPartyAt(s, 'front', 11) },
@@ -2505,12 +2505,65 @@ const ENEMIES = {
         fn: (s) => { dmgAllParty(s, 5); aliveParty(s).forEach(c => { c.vuln += 1; }); } },
       { name: 'Crowning Heal', tag: 'heal 12 + 4 armor self', targetSlot: '?',     kind: 'armor',
         fn: (s) => { const me = Object.values(s.enemies.chars).find(en => en.id === 'crownEcho' && !en.dead); if (me) { me.hp = Math.min(me.maxHp, me.hp + 12); spawnPopupId('crownEcho', '+12', 'heal', 'enemy'); me.armor = (me.armor || 0) + 4; } } },
-      { name: "The Road's Names", tag: '+1 dmg per lost name', targetSlot: 'all', kind: 'aoe',
-        // Personalised: damage scales with the size of _lockedOutHeroes.
-        dmg: 5, fn: (s) => {
-          const lost = ((s.run && s.run._lockedOutHeroes) || []).length;
-          const base = 5 + lost;
-          dmgAllParty(s, base);
+      // Necromancy intent — pulls a name from the _risenPool (your fallen
+      // party + heroes you killed on the road + a generic echo fallback)
+      // and spawns a Shade in the first empty enemy slot.  The Shade
+      // takes that hero's portrait, school, and damage profile, then
+      // hunts the wounded each enemy turn.
+      { name: 'Raise the Dead', tag: 'summon a Shade', targetSlot: '?', kind: 'debuff',
+        fn: (s) => {
+          const me = Object.values(s.enemies.chars).find(en => en.id === 'crownEcho' && !en.dead);
+          if (!me || !Array.isArray(me._risenPool) || me._risenPool.length === 0) {
+            // Pool dry — fallback to a soft Echoing Verse beat so the
+            // intent doesn't no-op visually.
+            dmgAllParty(s, 4);
+            return;
+          }
+          const sl = ['mid', 'back'].find(s2 => {
+            const occ = enemyBySlot(s, s2);
+            return !occ || occ.dead;
+          });
+          if (!sl) {
+            // No room — Crown wails instead.
+            dmgAllParty(s, 4);
+            return;
+          }
+          const next = me._risenPool.shift();
+          // GC any prior dead Shade entries so the uniqueId allocator can
+          // recycle slots safely (see spawnEnemy preconditions).
+          Object.keys(s.enemies.chars).forEach(k => {
+            const en = s.enemies.chars[k];
+            if (en && en.dead && en.id === 'shade') delete s.enemies.chars[k];
+          });
+          let n = 1;
+          while (s.enemies.chars[`shade#${n}`]) n++;
+          const key = `shade#${n}`;
+          s.enemies.slots[sl] = null;
+          const fresh = spawnEnemy(s, sl, 'shade', { uniqueId: key });
+          if (!fresh) return;
+          // Decorate the new Shade with the wrapped hero's identity so
+          // the renderer can swap in the right portrait + name, and the
+          // intent damage scales off the hero's maxHp.
+          fresh.heroId    = next.heroId;
+          fresh.shadeKind = next.kind;
+          const heroDef = CHARS[next.heroId];
+          if (heroDef) {
+            const kindWord = next.kind === 'fallen'   ? 'risen'
+                           : next.kind === 'roadkill' ? 'returned'
+                           :                            'echoed';
+            fresh.shadeName = `${heroDef.name}, ${kindWord}`;
+            const heroHp = heroDef.maxHp || 18;
+            fresh.shadeDmg = Math.max(4, Math.min(10, Math.ceil(heroHp * 0.30)));
+            fresh.maxHp = Math.max(20, Math.ceil(heroHp * 0.7));
+            fresh.hp = fresh.maxHp;
+            fresh.shadeSchool = heroDef.school || null;
+          }
+          spawnPopupId(key, 'RISEN', 'crit', 'enemy');
+          const heroName = (heroDef && heroDef.name) || 'one of the lost';
+          const kindFlavor = next.kind === 'fallen'   ? 'who fell beside you'
+                          : next.kind === 'roadkill' ? 'whose blood is on your road'
+                          :                            'whose name still echoes';
+          log(`<i>The Crown raises <b>${heroName}</b> — ${kindFlavor}.</i>`);
         } },
       { name: 'Bleeding Crown', tag: 'ATK 7 + bleed 2 all',    targetSlot: 'all', kind: 'aoe',
         dmg: 7, fn: (s) => { dmgAllParty(s, 7); aliveParty(s).forEach(c => { c.bleed = Math.max(c.bleed, 2); }); } },
@@ -2521,16 +2574,80 @@ const ENEMIES = {
         me._lastHealTurn = turn;
         return 2;
       }
-      const lost = ((s.run && s.run._lockedOutHeroes) || []).length;
-      // If the player killed heroes on the road, the final boss reminds them.
-      if (lost > 0 && turn % 3 === 0) return 3;
+      // Raise priority — if the pool still has names AND a slot is open,
+      // build the army first.  This is the Necromancer's signature beat.
+      const poolHasNames = Array.isArray(me._risenPool) && me._risenPool.length > 0;
+      const slotOpen = ['mid', 'back'].some(sl => {
+        const occ = enemyBySlot(s, sl);
+        return !occ || occ.dead;
+      });
+      if (poolHasNames && slotOpen) return 3;
       const everyone = aliveParty(s).every(c => c.vuln > 0);
       if (!everyone) return 1;
       const front = charBySlot(s, 'front');
       if (front && !front.downed && front.hp / front.maxHp > 0.5) return 0;
       return 4;
     },
+    onPlayerTurnStart: (s, me) => {
+      // Lazily build the necromancy pool on the first player turn of the
+      // fight.  Drains it as Shades are raised over the course of the
+      // encounter (see Raise the Dead intent above).
+      if (me._risenPool) return;
+      const fallenParty = Object.values(s.party.chars).filter(c => c.downed);
+      const roadkills   = (s.run && s.run._lockedOutHeroes) || [];
+      const pool = [
+        ...fallenParty.map(c => ({ kind: 'fallen',    heroId: c.id })),
+        ...roadkills.map(id =>   ({ kind: 'roadkill', heroId: id })),
+      ];
+      // Fallback echoes — even a clean run faces the Necromancer's
+      // catalog of "what could have walked with you".  Pick up to two
+      // random heroes the player doesn't currently field.
+      if (pool.length === 0) {
+        const partyHas = new Set(Object.keys(s.party.chars));
+        const candidates = Object.keys(CHARS).filter(id => !partyHas.has(id));
+        const shuffled = candidates.slice().sort(() => Math.random() - 0.5).slice(0, 2);
+        shuffled.forEach(id => pool.push({ kind: 'echo', heroId: id }));
+      }
+      me._risenPool = pool;
+      log(`<i>The Crown of Echoes opens its hand — <b>${pool.length}</b> name${pool.length === 1 ? '' : 's'} answer.</i>`);
+    },
+    onDeath: (s) => {
+      // Banish every Shade when the Crown falls — the magic that held
+      // them upright is gone.  Without this checkEnd would stall on the
+      // remaining Shades and force the player to mop them up after the
+      // boss is already down.
+      Object.values(s.enemies.chars).forEach(en => {
+        if (en.id === 'shade' && !en.dead) {
+          en.dead = true;
+          // Surface where the shade was so the player reads the moment
+          const key = Object.keys(s.enemies.chars).find(k => s.enemies.chars[k] === en);
+          if (key) spawnPopupId(key, 'BANISHED', 'crit', 'enemy');
+        }
+      });
+      log('<i>The Crown falls — the risen return to the dark.</i>');
+    },
   },
+  // ============================ NECROMANCER MINION — SHADE ===================
+  // Raised by The Crown of Echoes at L9.  Each Shade wraps a specific
+  // hero (your fallen party member, a hero you killed on the road, or
+  // a generic echo) — instance fields heroId / shadeName / shadeDmg /
+  // shadeKind are stamped by the Raise intent above and read by the
+  // figure renderer (portrait swap), the intent fn (damage), and the
+  // CSS (kind-specific ghost tint).
+  shade: {
+    id: 'shade', name: 'Shade', title: 'Risen by the Necromancer', maxHp: 18,
+    weakness: 'holy', resistance: 'stealth',
+    intents: [
+      { name: 'Spectral Strike', tag: 'ATK var lowest', targetSlot: '?', kind: 'atk',
+        fn: (s) => {
+          const me = s._currentEnemyActor;
+          const dmg = (me && me.shadeDmg) || 4;
+          dmgLowestParty(s, dmg);
+        } },
+    ],
+    pickIntent: () => 0,
+  },
+
 
   // ============================== LAYER 7 — THE SUNDERING CHOIR =============
   // Untargetable until both Voices fall, and the Voices respawn at the
@@ -2946,8 +3063,8 @@ const LAYER_CONTENT = {
     elite:  ['echoknight', 'grappler', 'mourner', 'lineCaster'],
     boss:   'crownEcho',
     bossName: 'The Crown of Echoes',
-    bossSubtitle: 'MEGABOSS · WHAT IS CLIMBING TOWARD YOU',
-    bossTag: 'You are climbing toward yourself.',
+    bossSubtitle: 'MEGABOSS · THE NECROMANCER AT THE SUMMIT',
+    bossTag: 'It raises every name you left behind.',
     hpBonus: 16, intentDmgBonus: 4,
     megaBoss: true,
   },
@@ -9146,7 +9263,9 @@ function killEnemy(s, e) {
   if (_def && typeof _def.onDeath === 'function') {
     try { _def.onDeath(s, e, s._currentActionKind); } catch (_) {}
   }
-  log(`<b>${_def.name}</b> falls.`);
+  // Shades (Necromancer's risen heroes) log under their wrapped hero's
+  // name — "Kai, risen falls" instead of the generic "Shade falls".
+  log(`<b>${e.shadeName || _def.name}</b> falls.`);
   Audio.kill();
   shakeScreen(2);
   // Boss death is climactic — slow time + screen flash, hold the moment
@@ -11819,6 +11938,11 @@ function makeEnemyCard(e, slot) {
   const fig = document.createElement('div');
   fig.className = 'figure enemy-figure';
   fig.dataset.slot = slot;
+  // Carry the unique slot-key as a separate dataset so multi-instance
+  // enemies (Sundering Choir's two Voices, Husk Garden's two Blooms,
+  // the Necromancer's Shades) get distinct popup targets.  See the
+  // dataset.id assignment further down for the actual data-id wiring.
+  const slotKey = state && state.enemies && state.enemies.slots && state.enemies.slots[slot];
   // Slide-in tag if this enemy was just shoved by a combo this turn
   if (e && pendingSlideIds.has(e.id)) {
     fig.classList.add('figure-sliding');
@@ -11836,7 +11960,18 @@ function makeEnemyCard(e, slot) {
     fig.innerHTML = `<div class="figure-portrait"></div><div class="figure-shadow"></div><div class="figure-info"><div class="figure-name">—</div></div>`;
     return fig;
   }
-  fig.dataset.id = e.id;
+  // Use the unique slot-key (e.g., "shade#1", "voice#2") as the
+  // data-id so popups landing on multi-instance enemies hit the right
+  // figure.  Falls back to the ENEMIES template id for single-instance
+  // enemies (where the key already equals the id).
+  fig.dataset.id = slotKey || e.id;
+  // Shade figures (raised by the Necromancer at L9) get a kind-tinted
+  // ghost class so CSS can render them as spectral versions of their
+  // wrapped hero — fallen = gold, roadkill = red, echo = blue.
+  if (e.id === 'shade' && e.heroId) {
+    fig.classList.add('figure-shade');
+    if (e.shadeKind) fig.classList.add(`shade-${e.shadeKind}`);
+  }
   if (e.staggered)     fig.classList.add('state-staggered');
   else if (e.weakened) fig.classList.add('state-weakened');
   if (e._charging) {
@@ -11929,7 +12064,7 @@ function makeEnemyCard(e, slot) {
 
   fig.innerHTML = `
     <div class="figure-portrait">
-      ${_portraitFor(e.id)}
+      ${_portraitFor(e.heroId || e.id)}
       <div class="figure-statuses">${renderStatuses(e)}</div>
       <div class="figure-hp">
         <div class="hp-fill ${hpPct < 35 ? 'low' : ''}" style="width:${hpPct}%"></div>
@@ -11940,7 +12075,7 @@ function makeEnemyCard(e, slot) {
     </div>
     <div class="figure-shadow"></div>
     <div class="figure-info">
-      <div class="figure-name">${def.name}</div>
+      <div class="figure-name">${e.shadeName || def.name}</div>
     </div>
   `;
   bindFigureHold(fig, e.id, false);
