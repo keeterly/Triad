@@ -1545,6 +1545,42 @@ const PORTRAITS = {
   <line x1="54" y1="68" x2="54" y2="78" stroke="#3a2818" stroke-width="0.4"/>
   <path d="M40 52 Q50 44 60 52 L62 48 L38 48 Z" fill="#4a2820"/>
 </svg>`,
+
+  // ============================ KIKI — Loyal =============================
+  // Small loyal dog.  Sits upright, floppy ears, big button eyes, pink
+  // tongue out.  Cream chest, brown fur, leather collar with a small
+  // brass tag.  Tail curling up behind one shoulder.
+  kiki: `
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <linearGradient id="kiki-fur" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#d8a468"/>
+      <stop offset="55%" stop-color="#8a5828"/>
+      <stop offset="100%" stop-color="#3a2010"/>
+    </linearGradient>
+  </defs>
+  <path d="M70 100 Q84 96 80 80 Q72 86 70 100 Z" fill="#5a3818" stroke="#2a1808" stroke-width="0.4"/>
+  <path d="M30 130 L26 86 Q28 70 38 64 Q50 60 62 64 Q72 70 74 86 L70 130 Z"
+        fill="url(#kiki-fur)" stroke="#2a1808" stroke-width="0.6"/>
+  <path d="M40 84 Q50 80 60 84 L58 116 Q50 118 42 116 Z" fill="#e8d4a0" opacity="0.85"/>
+  <ellipse cx="38" cy="124" rx="5" ry="4" fill="#5a3818"/>
+  <ellipse cx="62" cy="124" rx="5" ry="4" fill="#5a3818"/>
+  <ellipse cx="50" cy="50" rx="14" ry="12" fill="url(#kiki-fur)"/>
+  <path d="M36 44 Q28 50 30 64 Q34 56 38 54 Z" fill="#3a2010"/>
+  <path d="M64 44 Q72 50 70 64 Q66 56 62 54 Z" fill="#3a2010"/>
+  <ellipse cx="50" cy="58" rx="6.5" ry="5" fill="#e8d4a0"/>
+  <ellipse cx="50" cy="56" rx="2" ry="1.6" fill="#1a0e04"/>
+  <path d="M48 60 Q50 62 52 60" stroke="#1a0e04" stroke-width="0.5" fill="none"/>
+  <ellipse cx="50" cy="63" rx="1.8" ry="2.2" fill="#d06868"/>
+  <ellipse cx="44" cy="48" rx="2" ry="2.5" fill="#1a0e04"/>
+  <ellipse cx="56" cy="48" rx="2" ry="2.5" fill="#1a0e04"/>
+  <ellipse cx="44.5" cy="47" rx="0.6" ry="0.8" fill="#fff4d2"/>
+  <ellipse cx="56.5" cy="47" rx="0.6" ry="0.8" fill="#fff4d2"/>
+  <ellipse cx="50" cy="76" rx="13" ry="3" fill="#7a3818"/>
+  <ellipse cx="50" cy="76" rx="13" ry="2.5" fill="none" stroke="#3a1808" stroke-width="0.4"/>
+  <circle cx="50" cy="80" r="2.4" fill="#d4b060" stroke="#8a6020" stroke-width="0.5"/>
+  <circle cx="50" cy="80" r="0.6" fill="#8a6020"/>
+</svg>`,
 };
 
 // ============================================================================
@@ -2236,6 +2272,56 @@ const CHARS = {
         sig:   { name: 'Avalanche', desc: '3♦ · 5 dmg all + Party +2 armor', cost: 3, dmg: 5,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 5)); partyArmor(s, 2); } },
+      },
+    },
+  },
+  // ============================ KIKI — Loyal ===========================
+  // Small loyal dog.  Recruit-only (her kit needs a friend to protect),
+  // low HP, stealth-school ankle-biter.  Heel is the unique reactive:
+  // when any other ally takes a hit, Kiki snaps at the front-most enemy
+  // for a flat 2 damage — once per turn, twice with mastery.  The bite
+  // doesn't trigger her own attack hooks, just a clean follow-up that
+  // adds up when her ally is being hammered.
+  kiki: {
+    id: 'kiki',
+    name: 'Kiki',
+    title: 'Loyal',
+    school: 'stealth',
+    maxHp: 17,
+    home: 'front',
+    passive: { name: 'Heel', desc: "When another ally takes damage, Kiki snaps at the front-most enemy for 2 dmg.  Once per turn." },
+    techs: {
+      front: {
+        basic: { name: 'Nip', desc: '4 stl dmg front', dmg: 4, element: 'stealth',
+          reach: ['front'], pattern: 'front-most',
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 4); } },
+        sig:   { name: 'Lunge!', desc: '2♦ · 7 stl dmg + bleed 1', cost: 2, dmg: 7, element: 'stealth',
+          reach: ['front'], pattern: 'front-most',
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 7); if (!t[0].dead) t[0].bleed = (t[0].bleed || 0) + 1; } } },
+      },
+      mid: {
+        basic: { name: 'Snap', desc: '5 stl dmg lowest mid/back', dmg: 5, element: 'stealth',
+          reach: ['mid','back'], pattern: 'lowest',
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 5); } },
+        sig:   { name: 'Tear', desc: '2♦ · 8 stl dmg lowest + bleed 2', cost: 2, dmg: 8, element: 'stealth',
+          reach: ['mid','back'], pattern: 'lowest',
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 8); if (!t[0].dead) t[0].bleed = (t[0].bleed || 0) + 2; } } },
+      },
+      back: {
+        basic: { name: 'Howl', desc: 'Dulled 1 all enemies', dmg: 0,
+          reach: ['front','mid','back'], pattern: 'all',
+          fn: (s, t) => { t.forEach(e => { if (!e.dead) e.dulled = (e.dulled || 0) + 1; });
+            spawnPassivePopup('kiki', 'HOWL'); } },
+        sig:   { name: 'Pack Cry', desc: '2♦ · Dulled 2 all + party +1 atk pending', cost: 2, dmg: 0,
+          reach: ['front','mid','back'], pattern: 'all',
+          fn: (s, t) => {
+            t.forEach(e => { if (!e.dead) e.dulled = (e.dulled || 0) + 2; });
+            aliveParty(s).forEach(c => {
+              if (c.pendingEffects.some(eff => eff.source === 'pack-cry')) return;
+              c.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'pack-cry' });
+            });
+            spawnPassivePopup('kiki', 'PACK CRY');
+          } },
       },
     },
   },
@@ -6406,7 +6492,7 @@ const RESOLVE_CARRY_CAP = 3;
 
 // Pool of characters the player can encounter mid-run.
 // Default starting party is the first three; the rest are recruitable between fights.
-const ROSTER = ['kai', 'cassia', 'elin', 'branwen', 'korin', 'ash', 'mira', 'garron', 'lirien', 'vasha', 'hask', 'veyr', 'kell', 'nira', 'joran', 'tarn'];
+const ROSTER = ['kai', 'cassia', 'elin', 'branwen', 'korin', 'ash', 'mira', 'garron', 'lirien', 'vasha', 'hask', 'veyr', 'kell', 'nira', 'joran', 'tarn', 'kiki'];
 
 // ============================================================================
 // TECH UPGRADES — alternate variants for specific techs, picked between fights.
@@ -6953,6 +7039,7 @@ const HERO_MASTERIES = {
   nira:    { id: 'm_nira',    name: 'Old Hex Doubled',    desc: 'Old Hex heals 2 HP per DoT applied instead of 1.' },
   joran:   { id: 'm_joran',   name: 'Long Eye Doubled',   desc: "Joran's attacks deal +2 damage per vuln stack on the target instead of +1." },
   tarn:    { id: 'm_tarn',    name: 'Iron Toss Echo',     desc: "Iron Toss also grants +1 armor to the mid ally." },
+  kiki:    { id: 'm_kiki',    name: 'Heel Twice',         desc: 'Heel can fire up to twice per turn (instead of once), and snaps for 3 dmg instead of 2.' },
 };
 
 // ============================================================================
@@ -7222,6 +7309,9 @@ const AFFINITY_BARKS = {
   tarn:    { gained: ["Stone settles.", "Held.", "It bears."],
              lost:   ["A crack.", "I will hold the rest.", "The stone shifts."],
              shed:   ["The weight goes.", "Lighter.", "Set down."] },
+  kiki:    { gained: ["A new scent.", "Got it.", "I will remember."],
+             lost:   ["Lost the scent.", "...where?", "I will find it."],
+             shed:   ["Off the trail.", "Released.", "Good."] },
 };
 
 // Brief full-screen reveal when a hero earns or loses an affinity (quirk).
@@ -9008,6 +9098,41 @@ const ADJ = {
         if (!fc || fc.downed) return;
         fc.armor = (fc.armor || 0) + 1;
         fireSynergyFeedback(s, 'Mended Stone', frontId, '+1⛨', 'armor');
+      },
+    },
+  },
+  // ===== Kiki synergies (Loyal — front-home stealth) =====
+  // Kiki-front pairs with mid heroes on the F-M line.  Both bonds lean
+  // into "the dog reacts to her people" — Elin's heal pays out as a
+  // grateful snap; Mira's stealth attack drags Kiki into the same hunt.
+  'elin+kiki': {
+    fm: {
+      name: 'Faithful Heart', type: 'bond', effect: 'dmg',
+      // Elin heals → Kiki gets a one-shot +2 atk pending.  The dog
+      // remembers and bites harder.
+      onHeal(s, healerId) {
+        if (healerId !== 'elin') return;
+        const k = s.party.chars.kiki;
+        if (!k || k.downed) return;
+        if (k.pendingEffects.some(eff => eff.source === 'faithful-heart')) return;
+        k.pendingEffects.push({ kind: 'attackBonus', amt: 2, source: 'faithful-heart' });
+        fireSynergyFeedback(s, 'Faithful Heart', 'kiki', '+2 atk', 'heal');
+      },
+    },
+  },
+  'kiki+mira': {
+    fm: {
+      name: 'Pack Hunt', type: 'bond', effect: 'dmg',
+      // Mira attacks → Kiki gets +1 atk pending.  Two stealth scrappers
+      // working the same opening; once per turn.
+      onAttack(s, attackerId, e) {
+        if (attackerId !== 'mira') return;
+        if (!e || e.dead) return;
+        const k = s.party.chars.kiki;
+        if (!k || k.downed) return;
+        if (k.pendingEffects.some(eff => eff.source === 'pack-hunt')) return;
+        k.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'pack-hunt' });
+        fireSynergyFeedback(s, 'Pack Hunt', 'kiki', '+1 atk', 'armor');
       },
     },
   },
@@ -11369,6 +11494,35 @@ function applyDmgToParty(s, c, amt) {
   if (toHp > 0 && c.hp > 0 && c.hp <= Math.ceil(c.maxHp * 0.3)) spawnBark(c.id, 'lowHp');
   fireAdjacencyHook(s, 'onPartyDamaged', c.id, toHp);
 
+  // Kiki Heel — when ANOTHER ally takes a hit, Kiki snaps at the
+  // front-most enemy for 2 dmg (3 with mastery).  Once per turn baseline,
+  // twice with mastery.  Per-turn counter resets in startTurn alongside
+  // other first-attack flags.  Damage is a flat HP shave (no element /
+  // weakness routing) so the passive stays predictable as a chip-back.
+  if (toHp > 0 && c.id !== 'kiki') {
+    const k = s.party.chars.kiki;
+    if (k && !k.downed) {
+      k._heelUsed = k._heelUsed || 0;
+      const max = k.mastery ? 2 : 1;
+      if (k._heelUsed < max) {
+        const target = aliveEnemies(s).find(en => SLOTS.find(sl => s.enemies.slots[sl] === en.id) === 'front')
+          || aliveEnemies(s)[0];
+        if (target) {
+          k._heelUsed += 1;
+          const dmg = k.mastery ? 3 : 2;
+          const before = target.hp;
+          target.hp = Math.max(0, target.hp - dmg);
+          const got = before - target.hp;
+          if (got > 0) {
+            spawnPopupId(target.id, `-${got}`, 'dmg', 'enemy');
+            spawnPassivePopup('kiki', 'HEEL');
+          }
+          if (target.hp === 0) target.dead = true;
+        }
+      }
+    }
+  }
+
   // Retaliate (Vow of Vigil sigil adds +2 to each retaliate strike)
   if (c.retaliate > 0 && toHp > 0) {
     log(`<b>${CHARS[c.id].name}</b> retaliates!`);
@@ -11920,7 +12074,7 @@ function startTurn(s) {
   s.bonusAtb = Math.min(1, s.pendingBonusAtb || 0);
   s.pendingBonusAtb = 0;
   // clear single-turn buffs that survived the enemy phase
-  aliveParty(s).forEach(c => { c.taunt = false; c.retaliate = 0; c.firstAttackUsed = false; c.shadowVeilUsed = false; c.lingeringUsed = false; c._silentVolleyUsed = false; c.namedArrowUsed = false; c._namedArrowCount = 0; c._namedArrowPaid = false; c._heldGateUsed = false; c._heldGateUses = 0; c._veil = false; c.divineGuard = false; c.armorAbsorb = 0; c._ironTossUsed = false; });
+  aliveParty(s).forEach(c => { c.taunt = false; c.retaliate = 0; c.firstAttackUsed = false; c.shadowVeilUsed = false; c.lingeringUsed = false; c._silentVolleyUsed = false; c.namedArrowUsed = false; c._namedArrowCount = 0; c._namedArrowPaid = false; c._heldGateUsed = false; c._heldGateUses = 0; c._veil = false; c.divineGuard = false; c.armorAbsorb = 0; c._ironTossUsed = false; c._heelUsed = 0; });
   // Weakness/stagger state decay at the top of each player turn:
   //   - weakened lingers for 2 player turns (so the follow-up weakness
   //     hit doesn't have to land same-turn).  weakenedTurnsLeft ticks
@@ -19299,6 +19453,7 @@ const RECRUIT_GREETINGS = {
   nira:    "The old hex still answers when I call.  Walk a step behind.",
   joran:   "I count the wind before I draw.  Stand where I say.",
   tarn:    "Where I throw, the line will hold.",
+  kiki:    "Tail-thump.  I will keep up.  Tell me where.",
 };
 
 // Recruit moment — single hero appears in a mini-vignette.  Re-uses the
