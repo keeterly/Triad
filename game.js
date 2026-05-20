@@ -14781,50 +14781,48 @@ function makeTile(kind, charId, dir, tileCounts, teamLocked) {
   return t;
 }
 
-// reach-label shown statically on damaging tiles.  Renders a single
-// readable word ("MID", "BACK", "ALL", or "miss") describing WHERE the
-// tile would land right now — computed against the queue-aware state
-// snapshot so a queued Move or a queued debuff updates the label.
-// Front-most / lowest patterns resolve to whichever single slot would be
-// hit at this instant; AoE patterns collapse to "ALL" (or, if reach is
-// narrower than all three slots, the slot initials joined by ·).
+// Reach indicator shown on each damaging / healing tile.  Renders three
+// F·M·B cells with the slots that will ACTUALLY get hit right now lit
+// in gold.  Dim cells are spatial placeholders so the player reads the
+// row positionally ("the MIDDLE cell is lit → this hits MID").  Edge
+// cases collapse to a single readable word:
+//   • full enemy sweep        → 'ALL'  (every enemy slot lit)
+//   • would-miss              → 'miss' (no enemy in reach)
+//   • self-target heal        → 'SELF' (party-side, cells don't apply)
+//   • party-target heal       → 'PARTY' (heal-all) / 'ALLY' (lowest)
 function previewReachLabel(kind, charId, dir) {
   if (kind !== 'attack' && kind !== 'special') return '';
   const s = getPreviewState();
   const slot = slotOfChar(s, charId);
   if (!slot) return '';
   const variant = getTech(s, charId, slot, kind === 'special' ? 'sig' : 'basic');
-  if (!variant || !variant.reach) return '';
+  if (!variant) return '';
+  // Pure heal techs (no enemy reach) — surface the party-side target
+  // with a distinct word.  Heal+damage techs (Vampiric Strike etc.)
+  // have a `reach` and fall through to the enemy cells below.
+  if (!variant.reach && variant.heal) {
+    if (variant.healTarget === 'self')   return `<span class="rch-label rch-ally" title="Heals the caster">SELF</span>`;
+    if (variant.healTarget === 'all')    return `<span class="rch-label rch-ally" title="Heals every ally">PARTY</span>`;
+    if (variant.healTarget === 'lowest') return `<span class="rch-label rch-ally" title="Heals the lowest-HP ally">ALLY</span>`;
+    return `<span class="rch-label rch-ally">ALLY</span>`;
+  }
+  if (!variant.reach) return '';
+  // Enemy-targeted: figure out which slots get hit at this instant.
   const targets = resolveTargets(s, variant) || [];
-  const targetSlots = targets
-    .map(e => SLOTS.find(sl => s.enemies.slots[sl] === e.id))
-    .filter(Boolean);
-  if (targetSlots.length === 0) {
-    return `<span class="rch-label rch-miss" title="No enemy in reach — this action would miss">miss</span>`;
+  const targetSlotSet = new Set(
+    targets.map(e => SLOTS.find(sl => s.enemies.slots[sl] === e.id)).filter(Boolean)
+  );
+  if (targetSlotSet.size === 0) {
+    return `<span class="rch-label rch-miss" title="No enemy in reach — would miss">miss</span>`;
   }
-  if (variant.pattern === 'all') {
-    let txt;
-    if (targetSlots.length === 3) {
-      // Full sweep — every alive enemy.  Short pill reads cleanly here.
-      txt = 'ALL';
-    } else if (targetSlots.length === 1) {
-      // AoE that only catches one live target right now — match the
-      // single-target pill's wording so 'Spread Fire → FRONT' looks the
-      // same as 'Aim and Shoot → FRONT'.
-      txt = targetSlots[0].toUpperCase();
-    } else {
-      // Partial sweep (2 of 3) — initials joined keep the pill compact.
-      txt = targetSlots.map(sl => sl.charAt(0).toUpperCase()).join('·');
-    }
-    const title = `Hits every enemy in reach (${targetSlots.join(' + ')})`;
-    return `<span class="rch-label rch-aoe" title="${title}">→ ${txt}</span>`;
+  if (targetSlotSet.size === 3) {
+    return `<span class="rch-label rch-all" title="Hits every enemy slot">ALL</span>`;
   }
-  const sl = targetSlots[0];
-  const slotLabel = sl.toUpperCase();
-  const title = variant.pattern === 'lowest'
-    ? `Hits the lowest-HP enemy in reach (currently ${sl})`
-    : `Hits the front-most enemy in reach (currently ${sl})`;
-  return `<span class="rch-label rch-single" title="${title}">→ ${slotLabel}</span>`;
+  const cells = ['front','mid','back'].map(sl =>
+    `<span class="rch-cell ${targetSlotSet.has(sl) ? 'on' : 'off'}">${sl[0].toUpperCase()}</span>`
+  ).join('');
+  const targetList = [...targetSlotSet].join(' + ');
+  return `<span class="rch-cells" title="Lands on: ${targetList}">${cells}</span>`;
 }
 
 // Dry-run the entire current queue on a deep clone of state, suppressing
@@ -16738,7 +16736,7 @@ const TUTORIAL_HINTS = [
   { id: 'resolve',    text: 'Specials also cost <b>Resolve</b> (♦) on top of ATB.  You earn ♦ from kills and synergies; up to 3 carry between fights.' },
   // New: explain reach labels (F / M / FM / MB etc).  Players were guessing
   // what those letters on a tile meant.
-  { id: 'reach',      text: 'Each action has a <b>reach</b> — the enemy slots it can hit.  The pill on the tile shows where the action would land right now (e.g. <b>→ MID</b> or <b>→ ALL</b>); it reads <b>miss</b> in red when no enemy stands in reach.' },
+  { id: 'reach',      text: 'Each action has a <b>reach</b> — the enemy slots it can hit.  The F·M·B cells on the tile <b>light up</b> on the slot the action would land on right now; the pill swaps to <b>ALL</b> for a full sweep, <b>SELF</b>/<b>ALLY</b>/<b>PARTY</b> for party heals, or red <b>miss</b> when no enemy is in reach.' },
   { id: 'commit',     text: 'Spend your ATB, then tap <b>Play ▶</b> to commit the turn.' },
   // Move comes BEFORE enemies/weakness — positioning is fundamental and
   // players were missing the press-and-hold gesture in the original order.
