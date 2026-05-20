@@ -16721,7 +16721,7 @@ const TUTORIAL_HINTS = [
   { id: 'resolve',    text: 'Specials also cost <b>Resolve</b> (♦) on top of ATB.  You earn ♦ from kills and synergies; up to 3 carry between fights.' },
   // New: explain reach labels (F / M / FM / MB etc).  Players were guessing
   // what those letters on a tile meant.
-  { id: 'reach',      text: 'Each action has a <b>reach</b> — the enemy slots it can hit.  The cells on the tile (F·M·B) show which slots; if no enemy stands in any of them, the action misses.' },
+  { id: 'reach',      text: 'Each action has a <b>reach</b> — the enemy slots it can hit.  The pill on the tile shows where the action would land right now (e.g. <b>→ MID</b> or <b>→ ALL</b>); it reads <b>miss</b> in red when no enemy stands in reach.' },
   { id: 'commit',     text: 'Spend your ATB, then tap <b>Play ▶</b> to commit the turn.' },
   // Move comes BEFORE enemies/weakness — positioning is fundamental and
   // players were missing the press-and-hold gesture in the original order.
