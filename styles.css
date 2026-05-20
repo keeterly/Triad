@@ -1137,9 +1137,21 @@ body.on-title:has(#overlay:not(.hidden)) #stage-scale {
    it can serve as a drop target for hero drag-drop.  visibility:hidden
    on the parent would make the slot invisible to elementsFromPoint
    (and therefore unselectable as a drop), so we scope the hide to
-   children only.  The .drop-target dashed outline applies to the box
-   when a dragged hero is hovered over it. */
+   children only.  A faint dashed outline marks the empty slot so the
+   player can SEE the drop target; the outline brightens whenever any
+   hero is being dragged. */
 .figure.empty > * { visibility: hidden; }
+.figure.party-figure.empty {
+  border: 1px dashed rgba(212, 200, 168, 0.18);
+  border-radius: 6px;
+  background: rgba(20, 18, 14, 0.25);
+  pointer-events: auto;
+}
+body:has(.figure.inspecting) .figure.party-figure.empty {
+  border-color: rgba(212, 200, 168, 0.55);
+  background: rgba(40, 32, 22, 0.4);
+  box-shadow: inset 0 0 12px rgba(240, 212, 136, 0.15);
+}
 .figure.downed { opacity: 0.4; filter: grayscale(1) brightness(0.65); }
 
 /* ===========================================================================

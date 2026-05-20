@@ -12424,20 +12424,51 @@ function startTurn(s) {
 // Simulate party slot positions after applying queue items up to (but not
 // including) index `upto`. Moves are the only thing that changes positions
 // mid-queue. Used for tile previews and for resolving "contextual" actions.
+// Replay every move-causing action in the queue up to (but not including)
+// index `upto`.  Two kinds of actions reposition party heroes:
+//   1) explicit Move tile (kind === 'move' + dir)
+//   2) attack / sig techs that carry a `move: 'advance' | 'retreat' |
+//      'retreatFull'` property on the variant (Kell's Inner Step,
+//      Joran's Pommel, Nira's Curse-bite, etc.)
+// Used for tile previews, drag-drop projection, and resolving
+// "contextual" actions.  The sim also tracks tech-driven moves so the
+// queue-aware battlefield render places each hero at their POST-queue
+// slot regardless of whether the move came from a Move tile or an
+// embedded move-clause.
 function simulateSlotsThrough(s, upto) {
   const sim = { ...s.party.slots };
+  const applyStep = (charId, fromIdx, toIdx) => {
+    if (toIdx < 0 || toIdx > 2 || fromIdx === toIdx) return;
+    const fromSlot = SLOTS[fromIdx];
+    const toSlot = SLOTS[toIdx];
+    const swap = sim[toSlot];
+    sim[fromSlot] = swap;
+    sim[toSlot] = charId;
+  };
   for (let i = 0; i < upto && i < s.queue.length; i++) {
     const item = s.queue[i];
-    if (item.kind !== 'move') continue;
-    const cur = Object.keys(sim).find(sl => sim[sl] === item.charId);
-    if (!cur) continue;
-    const idx = SLOTS.indexOf(cur);
-    const ti = idx + item.dir;
-    if (ti < 0 || ti > 2) continue;
-    const target = SLOTS[ti];
-    const swap = sim[target];
-    sim[cur] = swap;
-    sim[target] = item.charId;
+    if (item.kind === 'move') {
+      const cur = Object.keys(sim).find(sl => sim[sl] === item.charId);
+      if (!cur) continue;
+      const idx = SLOTS.indexOf(cur);
+      applyStep(item.charId, idx, idx + item.dir);
+      continue;
+    }
+    // Tech-embedded movement — read variant.move on the queued
+    // attack / special and project the same slot transition that
+    // applyDmgToEnemy's helpers (advance/retreat/retreatFull) would
+    // run at execute time.
+    if (item.kind === 'attack' || item.kind === 'special') {
+      const cur = Object.keys(sim).find(sl => sim[sl] === item.charId);
+      if (!cur) continue;
+      const techKind = item.kind === 'special' ? 'sig' : 'basic';
+      const tech = getTech(s, item.charId, cur, techKind);
+      if (!tech || !tech.move) continue;
+      const idx = SLOTS.indexOf(cur);
+      if (tech.move === 'advance')           applyStep(item.charId, idx, idx - 1);
+      else if (tech.move === 'retreat')      applyStep(item.charId, idx, idx + 1);
+      else if (tech.move === 'retreatFull')  applyStep(item.charId, idx, 2);
+    }
   }
   return sim;
 }
@@ -14302,12 +14333,20 @@ function renderBattlefield() {
   const slotsSim = simulateSlotsThrough(state, state.queue.length);
   state.party.slots = slotsSim;
   try {
-  // Set of charIds that have a queued move this turn — used to add a
-  // 'pending-move' affordance on the figure so the player understands
-  // the position is PLANNED, not yet committed.
-  const queuedMoveIds = new Set(
-    state.queue.filter(q => q.kind === 'move' && q.charId).map(q => q.charId)
-  );
+  // Set of charIds whose slot has shifted from live → sim — covers
+  // both explicit Move tiles AND techs with embedded advance/retreat
+  // (Inner Step, Pommel, Curse-bite, etc.), and includes the displaced
+  // partner of any swap.  The 'pending-move' class adds a cool-blue
+  // affordance so the player knows the position is PLANNED.
+  const queuedMoveIds = new Set();
+  SLOTS.forEach(sl => {
+    const liveId = _liveSlots[sl];
+    const simId = slotsSim[sl];
+    if (liveId !== simId) {
+      if (liveId) queuedMoveIds.add(liveId);
+      if (simId) queuedMoveIds.add(simId);
+    }
+  });
   // For each unstaggered enemy this turn, project its intent: which party
   // slots are threatened, and per-character predicted HP loss with armor/vuln
   // depleting across sequential hits.
