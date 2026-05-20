@@ -12475,17 +12475,18 @@ function startTurn(s) {
 // queue-aware battlefield render places each hero at their POST-queue
 // slot regardless of whether the move came from a Move tile or an
 // embedded move-clause.
-function simulateSlotsThrough(s, upto) {
+function simulateSlotsThrough(s, upto, fromIdx) {
+  const start = (typeof fromIdx === 'number' && fromIdx > 0) ? fromIdx : 0;
   const sim = { ...s.party.slots };
-  const applyStep = (charId, fromIdx, toIdx) => {
-    if (toIdx < 0 || toIdx > 2 || fromIdx === toIdx) return;
-    const fromSlot = SLOTS[fromIdx];
+  const applyStep = (charId, fromI, toIdx) => {
+    if (toIdx < 0 || toIdx > 2 || fromI === toIdx) return;
+    const fromSlot = SLOTS[fromI];
     const toSlot = SLOTS[toIdx];
     const swap = sim[toSlot];
     sim[fromSlot] = swap;
     sim[toSlot] = charId;
   };
-  for (let i = 0; i < upto && i < s.queue.length; i++) {
+  for (let i = start; i < upto && i < s.queue.length; i++) {
     const item = s.queue[i];
     if (item.kind === 'move') {
       const cur = Object.keys(sim).find(sl => sim[sl] === item.charId);
@@ -14060,12 +14061,60 @@ const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
 
 function render() {
+  // FLIP — capture each party figure's pre-render bounding rect (keyed
+  // by data-id), then after the battlefield re-renders, compute the
+  // delta and animate each figure FROM the old position TO the new.
+  // This makes any layout shift (drag-drop queueing, executed moves,
+  // tech-embedded advance/retreat) feel like a smooth slide instead
+  // of a pop.  Skipped on figures with the inspecting class (the drag
+  // gesture owns transform during pickup) or for figures whose
+  // position is unchanged (no-op deltas).
+  const _flipBefore = new Map();
+  if (!__simulating) {
+    document.querySelectorAll('#party-half .figure[data-id]').forEach(f => {
+      _flipBefore.set(f.dataset.id, f.getBoundingClientRect());
+    });
+  }
   renderHUD();
   renderBattlefield();
   renderTiles();
   renderQueue();
   renderTeamSpecial();
   renderFightButton();
+  if (!__simulating && _flipBefore.size > 0) {
+    // Compute stage scale so translate deltas (which are in viewport
+    // pixels post-#stage-scale transform) map to local design-canvas
+    // pixels — matching how the drag transform uses --drag-x/y.
+    let stageScale = 1;
+    try {
+      const stageEl = document.getElementById('stage');
+      const r = stageEl && stageEl.getBoundingClientRect();
+      stageScale = (r && r.width > 0) ? (r.width / 720) : 1;
+    } catch (_) { stageScale = 1; }
+    document.querySelectorAll('#party-half .figure[data-id]').forEach(f => {
+      if (f.classList.contains('inspecting')) return;  // drag owns transform
+      const oldRect = _flipBefore.get(f.dataset.id);
+      if (!oldRect) return;
+      const newRect = f.getBoundingClientRect();
+      const dx = (oldRect.left - newRect.left) / stageScale;
+      const dy = (oldRect.top  - newRect.top ) / stageScale;
+      if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+      // Apply inverse transform with no transition (instant), then on
+      // next frame animate back to identity with a smooth ease.
+      f.style.transition = 'none';
+      f.style.transform = `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px)`;
+      requestAnimationFrame(() => {
+        f.style.transition = 'transform 0.34s cubic-bezier(.32, .72, .32, 1.05)';
+        f.style.transform = 'translate(0, 0)';
+        setTimeout(() => {
+          // Clear inline styles so class-based transforms (drag-pickup,
+          // inspecting, etc.) can resume control after the slide ends.
+          f.style.transition = '';
+          f.style.transform = '';
+        }, 360);
+      });
+    });
+  }
   // Critical-HP screen vignette: when any alive hero is at <=3 HP, body
   // gets .party-critical so a faint red edge glow pulses around the
   // viewport.  Cleared otherwise.
@@ -14387,17 +14436,18 @@ function renderBattlefield() {
   // helpers (charBySlot, intentTargetCharIds, slotOfChar) pick up the
   // simulated layout without per-call plumbing.
   //
-  // Critical: skip the sim during execution.  Queue items resolve
-  // linearly via executeQueueItem and each move lands in state.party.
-  // slots directly.  Replaying the queue on top of the already-mutated
-  // state would double-apply movement — the rendered figure jumps to
-  // the slot AFTER where it should be after each completed item.
-  const useSim = !state.executing;
+  // During execution, sim from executingIdx (NOT from 0).  Items
+  // before executingIdx have already mutated state.party.slots; only
+  // items at executingIdx and beyond are pending.  This prevents
+  // double-application AND keeps the hero visually at their planned
+  // position throughout the resolution — no 'pop back to old slot
+  // when Fight is pressed' jarring frame.
+  const startIdx = (state.executing && typeof state.executingIdx === 'number')
+    ? Math.max(0, state.executingIdx)
+    : 0;
   const _liveSlots = state.party.slots;
-  const slotsSim = useSim
-    ? simulateSlotsThrough(state, state.queue.length)
-    : state.party.slots;
-  if (useSim) state.party.slots = slotsSim;
+  const slotsSim = simulateSlotsThrough(state, state.queue.length, startIdx);
+  state.party.slots = slotsSim;
   try {
   // Set of charIds whose slot has shifted from live → sim — covers
   // both explicit Move tiles AND techs with embedded advance/retreat
@@ -14510,9 +14560,8 @@ function renderBattlefield() {
   });
   } finally {
     // Restore live slots so the rest of the engine (queue resolution,
-    // move execution, etc.) keeps reading the true layout.  No-op when
-    // we didn't swap (during execution).
-    if (useSim) state.party.slots = _liveSlots;
+    // move execution, etc.) keeps reading the true layout.
+    state.party.slots = _liveSlots;
   }
 }
 
@@ -14523,13 +14572,14 @@ function renderTiles() {
   if (!grid) return;
   grid.innerHTML = '';
 
-  // Same execution-time guard as renderBattlefield — during queue
-  // resolution, each item's effects (including embedded moves) have
-  // already landed in state.party.slots, so re-projecting the queue
-  // on top would double-apply.  Use the live slots while executing.
-  const sim = state.executing
-    ? { ...state.party.slots }
-    : simulateSlotsThrough(state, state.queue.length);
+  // Match renderBattlefield: sim from executingIdx so the column for
+  // each hero sits under their POST-queue slot at all times.  During
+  // execution this skips already-resolved items (preventing double-
+  // apply) while still projecting pending ones.
+  const startIdx = (state.executing && typeof state.executingIdx === 'number')
+    ? Math.max(0, state.executingIdx)
+    : 0;
+  const sim = simulateSlotsThrough(state, state.queue.length, startIdx);
   const teamLocked = state.queue.some(q => q.kind === 'team');
   const tileCounts = {};
   state.queue.forEach(q => {
@@ -14596,9 +14646,15 @@ function makePartyCard(c, slot, threatened, adjMap, incoming) {
     pendingSlideIds.delete(c.id);
   }
   fig.dataset.slot = slot;
+  // Slot-name label (FRONT / MID / BACK) — only visible during an
+  // active drag (CSS controls opacity via body:has(.figure.inspecting)).
+  // Injected on every party figure so the source slot of the dragged
+  // hero AND every empty drop target both read their position clearly.
+  const SLOT_NAME = { front: 'FRONT', mid: 'MID', back: 'BACK' };
+  const slotLabelHtml = `<span class="slot-label">${SLOT_NAME[slot] || ''}</span>`;
   if (!c) {
     fig.classList.add('empty');
-    fig.innerHTML = `<div class="figure-portrait"></div><div class="figure-shadow"></div><div class="figure-info"><div class="figure-name">—</div></div>`;
+    fig.innerHTML = `<div class="figure-portrait"></div><div class="figure-shadow"></div><div class="figure-info"><div class="figure-name">—</div></div>${slotLabelHtml}`;
     return fig;
   }
   fig.dataset.id = c.id;
@@ -14674,6 +14730,7 @@ function makePartyCard(c, slot, threatened, adjMap, incoming) {
     ${canMoveFront ? `<button class="move-arrow move-arrow-right" data-dir="-1" aria-label="Move toward front">›</button>` : ''}
     ${queuedMove ? `<div class="figure-queued-move">${queuedMoveGlyph}</div>` : ''}
     ${!hasHeldHero() ? `<div class="fig-hold-hint" aria-hidden="true">· HOLD ·</div>` : ''}
+    ${slotLabelHtml}
   `;
 
   bindFigureHold(fig, c.id, true);

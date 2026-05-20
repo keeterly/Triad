@@ -1137,20 +1137,17 @@ body.on-title:has(#overlay:not(.hidden)) #stage-scale {
    it can serve as a drop target for hero drag-drop.  visibility:hidden
    on the parent would make the slot invisible to elementsFromPoint
    (and therefore unselectable as a drop), so we scope the hide to
-   children only.  A faint dashed outline marks the empty slot so the
-   player can SEE the drop target; the outline brightens whenever any
-   hero is being dragged AND a 'FRONT / MID / BACK' label appears so
-   the player knows exactly what they're aiming at. */
+   children only.  At REST the slot is invisible; the outline + label
+   only surface when a hero is being dragged. */
 .figure.empty > * { visibility: hidden; }
 .figure.party-figure.empty {
-  border: 1px dashed rgba(212, 200, 168, 0.18);
+  border: 1px solid transparent;
   border-radius: 6px;
-  background: rgba(20, 18, 14, 0.25);
   pointer-events: auto;
   position: relative;
 }
 body:has(.figure.inspecting) .figure.party-figure.empty {
-  border-color: rgba(212, 200, 168, 0.55);
+  border: 1px dashed rgba(212, 200, 168, 0.55);
   background: rgba(40, 32, 22, 0.4);
   box-shadow: inset 0 0 12px rgba(240, 212, 136, 0.15);
   animation: empty-slot-breathe 1.6s ease-in-out infinite;
@@ -1159,28 +1156,46 @@ body:has(.figure.inspecting) .figure.party-figure.empty {
   0%, 100% { box-shadow: inset 0 0 12px rgba(240, 212, 136, 0.15); }
   50%      { box-shadow: inset 0 0 20px rgba(240, 212, 136, 0.32); }
 }
-/* Slot-name label — surfaces during any active drag.  Pseudo-element
-   so it doesn't get caught by .figure.empty > * { visibility:hidden }. */
-.figure.party-figure.empty::before {
-  content: '';
+/* Slot-name labels — surface during any active drag.  Shown on BOTH
+   empty AND occupied slots so the source slot of the dragged hero
+   also reads as 'FRONT' / 'MID' / 'BACK' for symmetry.  Real DOM
+   element (.slot-label) injected by makePartyCard so it survives
+   .figure.empty > * { visibility:hidden } via an explicit override
+   AND doesn't collide with the many .figure::before / ::after
+   pseudo-elements other state classes use. */
+.figure .slot-label {
   position: absolute;
-  top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 11px;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 9px;
   font-weight: 800;
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: rgba(212, 200, 168, 0.45);
+  color: rgba(212, 200, 168, 0.85);
   text-shadow: 0 1px 0 rgba(0, 0, 0, 0.9);
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.18s ease-out;
+  padding: 1px 6px;
+  background: rgba(20, 16, 12, 0.7);
+  border-radius: 2px;
+  z-index: 6;
+  visibility: visible !important;
 }
-.figure.party-figure.empty[data-slot="front"]::before { content: 'FRONT'; }
-.figure.party-figure.empty[data-slot="mid"]::before   { content: 'MID'; }
-.figure.party-figure.empty[data-slot="back"]::before  { content: 'BACK'; }
-body:has(.figure.inspecting) .figure.party-figure.empty::before {
+body:has(.figure.inspecting) .figure .slot-label {
   opacity: 1;
+}
+/* Empty slots get a bigger CENTERED label since their box has no
+   portrait competing for attention; occupied slots use the small
+   bottom badge above. */
+.figure.empty .slot-label {
+  bottom: auto;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 11px;
+  background: transparent;
+  padding: 0;
   color: rgba(232, 220, 196, 0.85);
 }
 .figure.downed { opacity: 0.4; filter: grayscale(1) brightness(0.65); }
