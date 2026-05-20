@@ -14774,15 +14774,13 @@ function makeTile(kind, charId, dir, tileCounts, teamLocked) {
   return t;
 }
 
-// reach-label shown statically on damaging tiles.  Renders three small
-// cells (F · M · B) with the in-reach slots filled gold + a pattern
-// marker so the player can read "where does this land" without holding
-// the tile to see the live highlight.  Uses the queue-aware snapshot so
-// a queued Move shifts which slots the tile reaches.
-//   pattern 'front-most' → no extra marker (default: lands on the front-
-//                          most living enemy in reach)
-//   pattern 'lowest'     → ↓ marker (lands on the lowest-HP enemy in reach)
-//   pattern 'all'        → ⋮ marker (lands on every enemy in reach)
+// reach-label shown statically on damaging tiles.  Renders a single
+// readable word ("MID", "BACK", "ALL", or "miss") describing WHERE the
+// tile would land right now — computed against the queue-aware state
+// snapshot so a queued Move or a queued debuff updates the label.
+// Front-most / lowest patterns resolve to whichever single slot would be
+// hit at this instant; AoE patterns collapse to "ALL" (or, if reach is
+// narrower than all three slots, the slot initials joined by ·).
 function previewReachLabel(kind, charId, dir) {
   if (kind !== 'attack' && kind !== 'special') return '';
   const s = getPreviewState();
@@ -14790,14 +14788,26 @@ function previewReachLabel(kind, charId, dir) {
   if (!slot) return '';
   const variant = getTech(s, charId, slot, kind === 'special' ? 'sig' : 'basic');
   if (!variant || !variant.reach) return '';
-  const reach = new Set(variant.reach);
-  const cells = ['front','mid','back'].map(sl =>
-    `<span class="rch-cell ${reach.has(sl) ? 'on' : 'off'}">${sl[0].toUpperCase()}</span>`
-  ).join('');
-  let mark = '';
-  if (variant.pattern === 'lowest')   mark = '<span class="rch-mark" title="Hits lowest-HP enemy in reach">↓</span>';
-  else if (variant.pattern === 'all') mark = '<span class="rch-mark" title="Hits every enemy in reach">⋮</span>';
-  return `<span class="rch-cells">${mark}${cells}</span>`;
+  const targets = resolveTargets(s, variant) || [];
+  const targetSlots = targets
+    .map(e => SLOTS.find(sl => s.enemies.slots[sl] === e.id))
+    .filter(Boolean);
+  if (targetSlots.length === 0) {
+    return `<span class="rch-label rch-miss" title="No enemy in reach — this action would miss">miss</span>`;
+  }
+  if (variant.pattern === 'all') {
+    const txt = targetSlots.length === 3
+      ? 'ALL'
+      : targetSlots.map(sl => sl.charAt(0).toUpperCase()).join('·');
+    const title = `Hits every enemy in reach (${targetSlots.join(' + ')})`;
+    return `<span class="rch-label rch-aoe" title="${title}">→ ${txt}</span>`;
+  }
+  const sl = targetSlots[0];
+  const slotLabel = sl.toUpperCase();
+  const title = variant.pattern === 'lowest'
+    ? `Hits the lowest-HP enemy in reach (currently ${sl})`
+    : `Hits the front-most enemy in reach (currently ${sl})`;
+  return `<span class="rch-label rch-single" title="${title}">→ ${slotLabel}</span>`;
 }
 
 // Dry-run the entire current queue on a deep clone of state, suppressing
