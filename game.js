@@ -12769,16 +12769,33 @@ function bindFigureHold(fig, charId, isParty) {
       fig.style.setProperty('--drag-x', dx.toFixed(1) + 'px');
       fig.style.setProperty('--drag-y', dy.toFixed(1) + 'px');
     }
-    // Drop-target detection — what's under the finger?  Priority:
+    // Drop-target detection — what's under the finger?  Use
+    // elementsFromPoint (plural) so we can SKIP PAST the dragged
+    // figure itself, which is visually pinned to the pointer thanks
+    // to the drag-x/y transform.  Without this, the dragged figure
+    // would always be the topmost hit and we'd never see the slot
+    // beneath it.  Priority:
     //   1. A move-arrow inside this figure (legacy aim path)
-    //   2. Another live party figure (drag-to-swap)
-    const el = document.elementFromPoint(e.clientX, e.clientY);
-    const arrow = (el && el.closest) ? el.closest('.move-arrow') : null;
+    //   2. Another party slot (live, downed, OR empty — empty slots
+    //      are valid drop targets so a moved hero can land in a
+    //      vacated column)
+    const els = (typeof document.elementsFromPoint === 'function')
+      ? document.elementsFromPoint(e.clientX, e.clientY)
+      : [document.elementFromPoint(e.clientX, e.clientY)].filter(Boolean);
+    let arrow = null;
     let dropFig = null;
-    if (isParty && !arrow && el && el.closest) {
-      dropFig = el.closest('#party-half .figure.party-figure');
-      if (dropFig === fig || (dropFig && (dropFig.classList.contains('empty') || dropFig.classList.contains('downed')))) {
-        dropFig = null;
+    for (const el of els) {
+      if (!el || !el.closest) continue;
+      if (!arrow) {
+        const a = el.closest('.move-arrow');
+        if (a && fig.contains(a)) { arrow = a; break; }
+      }
+      if (isParty && !dropFig) {
+        const f = el.closest('#party-half .figure.party-figure');
+        if (f && f !== fig && !f.classList.contains('downed')) {
+          dropFig = f;
+          // don't break — keep scanning for an arrow which trumps
+        }
       }
     }
     // Re-aim if anything changed
@@ -12794,11 +12811,11 @@ function bindFigureHold(fig, charId, isParty) {
   };
 
   const end = () => {
-    // Drag-to-swap onto another live party figure — figure out the
-    // direction(s) needed to land on that slot, queue accordingly.
-    // Adjacent swap = one move; two-step swap (front↔back) = two
-    // chained moves, which costs 2 ATB — same as if the player had
-    // queued them by hand.
+    // Drag-to-swap onto another party slot (live, empty, anything but
+    // downed).  Queue a SINGLE-step move toward the target slot —
+    // pickMoveDir auto-replaces a prior queued move for the same char,
+    // so chaining loop'd just keep replacing.  If the player wants to
+    // go further they drag again.
     if (holding && isParty && aimDropFig) {
       const targetSlot = aimDropFig.dataset.slot;
       const liveSlots = simulateSlotsThrough(state, state.queue.length);
@@ -12808,12 +12825,7 @@ function bindFigureHold(fig, charId, isParty) {
       cleanup();
       if (curIdx >= 0 && tgtIdx >= 0 && curIdx !== tgtIdx) {
         const step = tgtIdx > curIdx ? 1 : -1;
-        // Queue one move per step toward the target slot
-        let cursor = curIdx;
-        while (cursor !== tgtIdx) {
-          pickMoveDir(charId, step);
-          cursor += step;
-        }
+        pickMoveDir(charId, step);
       }
       return;
     }
