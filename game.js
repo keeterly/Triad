@@ -14209,6 +14209,24 @@ function showObjectiveSplash(obj) {
 
 function renderBattlefield() {
   renderObjectiveBanner();
+  // Queue-aware slot layout — figures, threats, adjacency, and intent
+  // targeting all read against the POST-queue positions so a queued
+  // move visibly relocates the hero on the field immediately.  The
+  // ATB queue chip is still the source of truth — cancelling it
+  // re-renders against live slots and the hero snaps back.  We swap
+  // state.party.slots for the duration of the render so all sub-
+  // helpers (charBySlot, intentTargetCharIds, slotOfChar) pick up the
+  // simulated layout without per-call plumbing.
+  const _liveSlots = state.party.slots;
+  const slotsSim = simulateSlotsThrough(state, state.queue.length);
+  state.party.slots = slotsSim;
+  try {
+  // Set of charIds that have a queued move this turn — used to add a
+  // 'pending-move' affordance on the figure so the player understands
+  // the position is PLANNED, not yet committed.
+  const queuedMoveIds = new Set(
+    state.queue.filter(q => q.kind === 'move' && q.charId).map(q => q.charId)
+  );
   // For each unstaggered enemy this turn, project its intent: which party
   // slots are threatened, and per-character predicted HP loss with armor/vuln
   // depleting across sequential hits.
@@ -14296,6 +14314,19 @@ function renderBattlefield() {
     const isMulti = initialSlots > 1 || state._everMultiEnemy || aliveCount > 1;
     document.body.classList.toggle('boss-fight-multi', isMulti);
   }
+  // Add 'pending-move' affordance to any figure whose hero has a queued
+  // move — the visual cue tells the player 'this position is planned,
+  // not committed yet'.  Applied after card creation so it survives
+  // any inner template overwrites.
+  queuedMoveIds.forEach(id => {
+    const el = document.querySelector(`#party-half .figure[data-id="${id}"]`);
+    if (el) el.classList.add('pending-move');
+  });
+  } finally {
+    // Restore live slots so the rest of the engine (queue resolution,
+    // move execution, etc.) keeps reading the true layout.
+    state.party.slots = _liveSlots;
+  }
 }
 
 // Bottom action row — one column per party character, rendered in
@@ -14313,15 +14344,20 @@ function renderTiles() {
     tileCounts[key] = (tileCounts[key] || 0) + 1;
   });
 
+  // Iterate the queue-aware sim layout so the tile column for each hero
+  // sits under their POST-QUEUE slot.  Queue a move → the action tiles
+  // immediately re-order to follow the hero to their new slot, even
+  // though the swap hasn't actually resolved yet.  Canceling the queued
+  // move re-renders against the live slots, snapping them back.
   PARTY_DISPLAY_ORDER.forEach(slot => {
-    const charId = state.party.slots[slot];
+    const charId = sim[slot];
     const col = document.createElement('div');
     col.className = 'char-col';
     if (!charId) { col.classList.add('empty'); grid.appendChild(col); return; }
 
     const c = state.party.chars[charId];
     const def = CHARS[charId];
-    const simSlot = slotOfCharSim(sim, charId) || slot;
+    const simSlot = slot;  // we're already iterating sim — this IS the post-queue slot
     if (c.downed) col.classList.add('downed');
     col.title = `${def.name} — ${SLOT_LABELS[simSlot] || '—'}${simSlot === def.home ? ' · home' : ''}`;
 

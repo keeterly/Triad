@@ -1274,12 +1274,49 @@ body.on-title:has(#overlay:not(.hidden)) #stage-scale {
 /* ============ HOLD-TO-INSPECT / MOVE PICKER ============ */
 .figure { cursor: pointer; touch-action: none; }
 
-/* "Pick up" feel — figure lifts + scales up + glows while held */
+/* "Pick up" feel — figure lifts further + scales up + glows while held,
+   so the gesture reads as "I have the hero in my hand" instead of just
+   "this hero is selected".  Drop on a move-arrow → swap.  Drop off → no-op. */
 .figure.inspecting {
-  transform: scale(1.05) translateY(-3px);
-  z-index: 6;
-  filter: drop-shadow(0 6px 12px rgba(0,0,0,0.85)) drop-shadow(0 0 18px var(--gold-bright));
+  transform: scale(1.10) translateY(-8px);
+  z-index: 12;
+  filter:
+    drop-shadow(0 10px 16px rgba(0,0,0,0.85))
+    drop-shadow(0 0 22px var(--gold-bright));
   transition: transform 0.14s ease-out, filter 0.14s ease-out;
+}
+/* Pending-move affordance — a hero with a queued move displays at
+   their PLANNED destination already (battlefield + tiles both re-
+   order against the queue-aware sim slots).  This class adds a small
+   visual cue so the player understands the position is planned, not
+   committed yet.  Cancel the queue chip → render-against-live → snap
+   back to the original slot. */
+.figure.pending-move {
+  filter: drop-shadow(0 0 12px rgba(170,200,255,0.5));
+  animation: pending-move-pulse 1.6s ease-in-out infinite;
+}
+.figure.pending-move::after {
+  content: '→ moving';
+  position: absolute;
+  top: 4px; left: 50%;
+  transform: translateX(-50%);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #d2deff;
+  background: rgba(20,30,50,0.85);
+  border: 1px solid rgba(170,200,255,0.55);
+  padding: 1px 6px;
+  border-radius: 2px;
+  text-shadow: 0 1px 0 rgba(0,0,0,0.9);
+  pointer-events: none;
+  z-index: 11;
+  white-space: nowrap;
+}
+@keyframes pending-move-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.82; }
 }
 
 /* Move arrows — only on party figures, only visible while inspecting.
