@@ -12602,22 +12602,22 @@ function queueAdd(item) {
     return;
   }
   // Cap each character at ACTIONS_PER_CHAR distinct actions per turn (team
-  // special excluded — no charId).  Also reject duplicates: each exact
-  // (kind, dir) tuple may only be queued once per character per turn, so
-  // a character can attack + special + move, but not attack twice.
+  // special excluded — no charId).  Move is exempt from the per-kind
+  // dedup so a hero can step multiple slots in one turn (back → mid →
+  // front = 2 move items, 2 ATB).  Attack / special / brace still dedup
+  // on kind alone since they have no positional component.
   if (item.charId) {
     const charActions = s.queue.filter(q => q.charId === item.charId).length;
     if (charActions >= ACTIONS_PER_CHAR) {
       flashMsg(`${CHARS[item.charId].name} has already done ${ACTIONS_PER_CHAR} things this turn.`);
       return;
     }
-    // Move is one per turn regardless of direction (you can't shuffle
-     // forward and back to teleport).  Attack / special / brace dedup on
-     // their kind alone since they have no dir.
-    const dup = s.queue.some(q => q.charId === item.charId && q.kind === item.kind);
-    if (dup) {
-      flashMsg(`${CHARS[item.charId].name} already used ${item.kind} this turn.`);
-      return;
+    if (item.kind !== 'move') {
+      const dup = s.queue.some(q => q.charId === item.charId && q.kind === item.kind);
+      if (dup) {
+        flashMsg(`${CHARS[item.charId].name} already used ${item.kind} this turn.`);
+        return;
+      }
     }
   }
   s.queue.push(item);
@@ -12693,17 +12693,21 @@ function clearQueue() {
 
 function pickMoveDir(charId, dir) {
   const s = state;
-  const slot = slotOfChar(s, charId);
+  // Compute the char's CURRENT slot in the queue-aware sim so chained
+  // pickMoveDir calls each project from the previous sim position.
+  // Without this, queueing back→mid then a follow-up call would still
+  // read the LIVE slot (back) and queue another back→mid, not mid→front.
+  // Multi-step movement (back → mid → front in a single drag) needs
+  // each step to advance from the post-previous-step position.
+  const sim = simulateSlotsThrough(s, s.queue.length);
+  const slot = SLOTS.find(sl => sim[sl] === charId);
   if (!slot) return;
   const idx = SLOTS.indexOf(slot);
   const ti = idx + dir;
   if (ti < 0 || ti > 2) return;
   const target = SLOTS[ti];
-  const otherId = s.party.slots[target];
+  const otherId = sim[target];
   const otherName = otherId ? CHARS[otherId].name : '—';
-  // If a move is already queued for this character, swap direction by removing the old one first.
-  const queuedIdx = s.queue.findIndex(q => q.kind === 'move' && q.charId === charId);
-  if (queuedIdx >= 0) s.queue.splice(queuedIdx, 1);
   queueAdd({
     kind: 'move',
     charId,
@@ -12897,10 +12901,11 @@ function bindFigureHold(fig, charId, isParty) {
 
   const end = () => {
     // Drag-to-swap onto another party slot (live, empty, anything but
-    // downed).  Queue a SINGLE-step move toward the target slot —
-    // pickMoveDir auto-replaces a prior queued move for the same char,
-    // so chaining loop'd just keep replacing.  If the player wants to
-    // go further they drag again.
+    // downed).  Queue one move per step toward the target — back→front
+    // in a single drag = 2 moves, 2 ATB.  Each pickMoveDir call reads
+    // the queue-aware sim, so consecutive calls correctly project from
+    // the previous step's position.  ATB / per-char cap rejections
+    // surface as flashMsg from queueAdd.
     if (holding && isParty && aimDropFig) {
       const targetSlot = aimDropFig.dataset.slot;
       const liveSlots = simulateSlotsThrough(state, state.queue.length);
@@ -12910,7 +12915,11 @@ function bindFigureHold(fig, charId, isParty) {
       cleanup();
       if (curIdx >= 0 && tgtIdx >= 0 && curIdx !== tgtIdx) {
         const step = tgtIdx > curIdx ? 1 : -1;
-        pickMoveDir(charId, step);
+        let cursor = curIdx;
+        while (cursor !== tgtIdx) {
+          pickMoveDir(charId, step);
+          cursor += step;
+        }
         // Confirm drop with a slightly stronger haptic — distinct
         // from the pickup buzz so the gesture has a clear "click" end.
         try { if (navigator.vibrate) navigator.vibrate(24); } catch (_) {}
