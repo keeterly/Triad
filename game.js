@@ -11238,6 +11238,22 @@ function applyDmgToEnemy(s, e, baseAmt) {
   if (schoolBadge) {
     const badgeType = (schoolBadge === 'WEAK!' || schoolBadge === 'STG!') ? 'crit' : 'miss';
     setTimeout(() => spawnPopupId(e.id, schoolBadge, badgeType, 'enemy'), 80);
+    // WEAK!/STG! shimmer — brief gold pulse on the struck figure so
+    // the elemental-matchup payoff has a visible beat beyond the
+    // popup text.  RESIST gets a cool blue dim to telegraph the
+    // bad matchup without overlapping the WEAK animation channel.
+    if (!__simulating) {
+      const shEl = document.querySelector(`#enemy-half [data-id="${e.id}"]`);
+      if (shEl) {
+        const cls = (schoolBadge === 'WEAK!' || schoolBadge === 'STG!')
+          ? 'weak-shimmer'
+          : (schoolBadge === 'RESIST' ? 'resist-dim' : null);
+        if (cls) {
+          shEl.classList.add(cls);
+          setTimeout(() => shEl.classList.remove(cls), 520);
+        }
+      }
+    }
   }
   flashCardId(e.id, 'hit', 'enemy');
   // Game feel: shake the struck card; screen shake on big hits; SFX
@@ -11380,6 +11396,17 @@ function killEnemy(s, e) {
   // Emoji reaction over the actor for the kill
   if (s.currentActorId) spawnReaction(s.currentActorId, '💀', 'party');
   spawnKillSparks(e.id, 'enemy', s.currentActorId && CHARS[s.currentActorId] && CHARS[s.currentActorId].school);
+  // KO flash — brief white blast on the dying figure so the killing
+  // blow has a clear cinematic beat before it fades to gone.  Adds a
+  // 'ko-flash' class that runs a short keyframe animation; removed
+  // automatically once the figure re-renders or after 720ms.
+  if (!__simulating) {
+    const koEl = document.querySelector(`#enemy-half [data-id="${e.id}"]`);
+    if (koEl) {
+      koEl.classList.add('ko-flash');
+      setTimeout(() => koEl.classList.remove('ko-flash'), 720);
+    }
+  }
   // The killing hero may bark
   if (s.currentActorId && CHARS[s.currentActorId]) spawnBark(s.currentActorId, 'kill');
   // Pact of Cinders — every surviving enemy starts bleeding.  Bleed amount
@@ -12177,6 +12204,22 @@ function fireSynergyFeedback(s, name, receiverId, effectText, effectType) {
   spawnReaction(receiverId, emoji, 'party');
   // Receiver may bark on bond fires (skip frictions to keep it positive)
   if (pair && pair.synergy.type === 'bond') spawnBark(receiverId, 'bond');
+  // Bond fire halo — BOTH heroes in the active pair glow simultaneously
+  // for ~700ms so the kizuna moment reads as a connection between them,
+  // not a one-way buff.  Tier III adds an extra-bright pulse via the
+  // .bond-flash-resonant variant.  Frictions get a red flicker instead.
+  if (pair && Array.isArray(pair.ids) && !__simulating) {
+    const cls = pair.synergy.type === 'friction'
+      ? 'friction-flash'
+      : (tierAfter === 3 ? 'bond-flash bond-flash-resonant' : 'bond-flash');
+    const tot = pair.synergy.type === 'friction' ? 550 : 720;
+    pair.ids.forEach(otherId => {
+      const el = document.querySelector(`#party-half .figure[data-id="${otherId}"]`);
+      if (!el) return;
+      el.classList.add(...cls.split(' '));
+      setTimeout(() => el.classList.remove(...cls.split(' ')), tot);
+    });
+  }
   if (pair && Array.isArray(pair.ids)) {
     pair.ids.forEach(other => {
       if (other !== receiverId) setTimeout(() => spawnReaction(other, emoji, 'party'), 120);
@@ -12752,6 +12795,9 @@ function bindFigureHold(fig, charId, isParty) {
     document.querySelectorAll('.figure.inspecting').forEach(f => { if (f !== fig) f.classList.remove('inspecting'); });
     document.querySelectorAll('.figure-inspector').forEach(p => { if (p.parentNode !== fig) p.remove(); });
     fig.classList.add('inspecting');
+    // Brief haptic + visual flash to confirm 'I picked up the hero'.
+    // Supported devices buzz for ~10ms; others ignore vibrate silently.
+    try { if (isParty && navigator.vibrate) navigator.vibrate(12); } catch (_) {}
     // First time the player ever holds a party hero, remember it so the
     // gold "·HOLD·" affordance under each card hides for the rest of the
     // run.  The badge is purely a teaching nudge; once they've done it
@@ -12864,6 +12910,9 @@ function bindFigureHold(fig, charId, isParty) {
       if (curIdx >= 0 && tgtIdx >= 0 && curIdx !== tgtIdx) {
         const step = tgtIdx > curIdx ? 1 : -1;
         pickMoveDir(charId, step);
+        // Confirm drop with a slightly stronger haptic — distinct
+        // from the pickup buzz so the gesture has a clear "click" end.
+        try { if (navigator.vibrate) navigator.vibrate(24); } catch (_) {}
       }
       return;
     }
@@ -12871,6 +12920,7 @@ function bindFigureHold(fig, charId, isParty) {
       const dir = parseInt(aimArrow.dataset.dir, 10);
       cleanup();
       pickMoveDir(charId, dir);
+      try { if (navigator.vibrate) navigator.vibrate(24); } catch (_) {}
       return;
     }
     cleanup();

@@ -1139,18 +1139,49 @@ body.on-title:has(#overlay:not(.hidden)) #stage-scale {
    (and therefore unselectable as a drop), so we scope the hide to
    children only.  A faint dashed outline marks the empty slot so the
    player can SEE the drop target; the outline brightens whenever any
-   hero is being dragged. */
+   hero is being dragged AND a 'FRONT / MID / BACK' label appears so
+   the player knows exactly what they're aiming at. */
 .figure.empty > * { visibility: hidden; }
 .figure.party-figure.empty {
   border: 1px dashed rgba(212, 200, 168, 0.18);
   border-radius: 6px;
   background: rgba(20, 18, 14, 0.25);
   pointer-events: auto;
+  position: relative;
 }
 body:has(.figure.inspecting) .figure.party-figure.empty {
   border-color: rgba(212, 200, 168, 0.55);
   background: rgba(40, 32, 22, 0.4);
   box-shadow: inset 0 0 12px rgba(240, 212, 136, 0.15);
+  animation: empty-slot-breathe 1.6s ease-in-out infinite;
+}
+@keyframes empty-slot-breathe {
+  0%, 100% { box-shadow: inset 0 0 12px rgba(240, 212, 136, 0.15); }
+  50%      { box-shadow: inset 0 0 20px rgba(240, 212, 136, 0.32); }
+}
+/* Slot-name label — surfaces during any active drag.  Pseudo-element
+   so it doesn't get caught by .figure.empty > * { visibility:hidden }. */
+.figure.party-figure.empty::before {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(212, 200, 168, 0.45);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.9);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.18s ease-out;
+}
+.figure.party-figure.empty[data-slot="front"]::before { content: 'FRONT'; }
+.figure.party-figure.empty[data-slot="mid"]::before   { content: 'MID'; }
+.figure.party-figure.empty[data-slot="back"]::before  { content: 'BACK'; }
+body:has(.figure.inspecting) .figure.party-figure.empty::before {
+  opacity: 1;
+  color: rgba(232, 220, 196, 0.85);
 }
 .figure.downed { opacity: 0.4; filter: grayscale(1) brightness(0.65); }
 
@@ -1298,7 +1329,9 @@ body:has(.figure.inspecting) .figure.party-figure.empty {
    so the figure tracks the finger 1:1.  Idle state defaults to 0,0
    so the inspecting state without motion just lifts in place.  No
    transition on transform during drag — the figure needs to feel
-   stuck to the finger, not "easing toward" it. */
+   stuck to the finger, not "easing toward" it.  A brief brightness/
+   shadow flash animation runs on entering hold so the pickup has
+   tactile pop. */
 .figure.inspecting {
   --drag-x: 0px;
   --drag-y: 0px;
@@ -1308,15 +1341,48 @@ body:has(.figure.inspecting) .figure.party-figure.empty {
     drop-shadow(0 10px 16px rgba(0,0,0,0.85))
     drop-shadow(0 0 22px var(--gold-bright));
   transition: filter 0.14s ease-out;
+  animation: figure-pickup-flash 0.32s ease-out;
+}
+@keyframes figure-pickup-flash {
+  from {
+    filter:
+      drop-shadow(0 0 24px rgba(255, 240, 200, 0.95))
+      drop-shadow(0 0 48px rgba(240, 212, 136, 0.7))
+      brightness(1.45);
+  }
+  to {
+    filter:
+      drop-shadow(0 10px 16px rgba(0,0,0,0.85))
+      drop-shadow(0 0 22px var(--gold-bright));
+  }
 }
 /* Drop-target highlight — fires while the dragged figure is hovered
-   over another live party figure.  Releasing here swaps them. */
+   over another party slot.  Cyan halo + pulsing outline reads as
+   "release HERE".  Stronger than the breathing empty-slot baseline so
+   the active aim target visibly dominates. */
 .figure.drop-target {
-  filter: drop-shadow(0 0 18px rgba(170,200,255,0.85));
-  outline: 2px dashed rgba(170,200,255,0.7);
+  filter: drop-shadow(0 0 22px rgba(170,200,255,0.95));
+  outline: 2px dashed rgba(170,200,255,0.85);
   outline-offset: 4px;
   border-radius: 4px;
   z-index: 8;
+  animation: drop-target-pulse 0.6s ease-in-out infinite alternate;
+}
+@keyframes drop-target-pulse {
+  from {
+    outline-color: rgba(170,200,255,0.85);
+    filter: drop-shadow(0 0 18px rgba(170,200,255,0.7));
+  }
+  to {
+    outline-color: rgba(210,232,255,1);
+    filter: drop-shadow(0 0 28px rgba(170,200,255,1));
+  }
+}
+/* Empty-slot drop target — additionally fill with a soft tint so the
+   release zone is impossible to miss against the dim baseline. */
+.figure.party-figure.empty.drop-target {
+  background: rgba(64, 80, 110, 0.55);
+  border-color: rgba(170, 200, 255, 0.9);
 }
 /* Pending-move affordance — a hero with a queued move displays at
    their PLANNED destination already (battlefield + tiles both re-
@@ -2533,7 +2599,9 @@ body:has(.figure.inspecting) .figure.party-figure.empty {
 .status-chip {
   /* Larger pill so the glyph + stack count read at a glance without needing
      an always-on text label.  Pairs with .status-icon / .status-num font
-     bumps below. */
+     bumps below.  Brief scale-in on every render so applying a new chip
+     pops; re-renders of existing chips re-trigger the animation but the
+     visual cost is tiny and the read-on-apply benefit is worth it. */
   display: inline-flex; align-items: center; gap: 2px;
   min-width: 22px; height: 22px;
   padding: 1px 6px;
@@ -2544,6 +2612,11 @@ body:has(.figure.inspecting) .figure.party-figure.empty {
   font-weight: bold;
   letter-spacing: 0;
   box-shadow: 0 1px 4px rgba(0,0,0,0.75);
+  animation: status-chip-pop 0.24s cubic-bezier(.18, 1.4, .42, 1);
+}
+@keyframes status-chip-pop {
+  from { transform: scale(0.6); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
 }
 .status-chip .status-icon {
   font-size: 14px;
@@ -2829,6 +2902,69 @@ body:has(.figure.inspecting) .figure.party-figure.empty {
 .popup.friction {
   color: var(--blood-bright);
   text-shadow: 0 1px 0 var(--shadow), 0 0 10px rgba(212,69,69,0.7);
+}
+/* Bond fire halo — both heroes in the active pair glow simultaneously
+   on every bond resonance so the kizuna reads as a CONNECTION between
+   them, not just a buff dropped on one side.  Tier III adds an extra-
+   bright pulse via the .bond-flash-resonant variant. */
+.figure.bond-flash {
+  animation: bond-fire-halo 0.72s ease-out;
+}
+@keyframes bond-fire-halo {
+  0%   { filter: drop-shadow(0 6px 8px rgba(0,0,0,0.65)); }
+  25%  { filter: drop-shadow(0 0 22px rgba(240, 212, 136, 0.95)) drop-shadow(0 0 38px rgba(240, 212, 136, 0.6)) brightness(1.25); }
+  100% { filter: drop-shadow(0 6px 8px rgba(0,0,0,0.65)); }
+}
+.figure.bond-flash.bond-flash-resonant {
+  animation: bond-fire-halo-resonant 0.95s ease-out;
+}
+@keyframes bond-fire-halo-resonant {
+  0%   { filter: drop-shadow(0 6px 8px rgba(0,0,0,0.65)); }
+  20%  { filter: drop-shadow(0 0 32px rgba(255, 240, 200, 1)) drop-shadow(0 0 56px rgba(240, 212, 136, 0.85)) brightness(1.4); }
+  60%  { filter: drop-shadow(0 0 20px rgba(240, 212, 136, 0.7)) brightness(1.15); }
+  100% { filter: drop-shadow(0 6px 8px rgba(0,0,0,0.65)); }
+}
+.figure.friction-flash {
+  animation: friction-flash 0.55s ease-out;
+}
+@keyframes friction-flash {
+  0%   { filter: drop-shadow(0 6px 8px rgba(0,0,0,0.65)); }
+  30%  { filter: drop-shadow(0 0 18px rgba(220, 80, 80, 0.85)) brightness(0.9) hue-rotate(-12deg); }
+  100% { filter: drop-shadow(0 6px 8px rgba(0,0,0,0.65)); }
+}
+
+/* KO flash — bright white blast on the killing blow, then fade to
+   gone.  Runs as the figure starts to die so the kill has a clear
+   cinematic beat before the kill-sparks fan out. */
+.figure.ko-flash {
+  animation: ko-flash 0.72s ease-out;
+}
+@keyframes ko-flash {
+  0%   { filter: drop-shadow(0 6px 8px rgba(0,0,0,0.65)) brightness(1); }
+  18%  { filter: drop-shadow(0 0 38px rgba(255, 240, 220, 1)) drop-shadow(0 0 64px rgba(255, 200, 160, 0.85)) brightness(2.4); }
+  60%  { filter: drop-shadow(0 0 16px rgba(220, 80, 80, 0.6)) brightness(0.9); opacity: 0.85; }
+  100% { filter: drop-shadow(0 0 8px rgba(0, 0, 0, 0.4)) brightness(0.35); opacity: 0.5; }
+}
+/* Weakness / stagger shimmer — gold flicker on the struck figure
+   the moment a WEAK or STG hit lands.  Doubles up with the popup
+   badge for a clearer elemental-matchup payoff. */
+.figure.weak-shimmer {
+  animation: weak-shimmer 0.52s ease-out;
+}
+@keyframes weak-shimmer {
+  0%   { filter: drop-shadow(0 6px 8px rgba(0,0,0,0.65)); }
+  35%  { filter: drop-shadow(0 0 22px rgba(255, 230, 140, 1)) brightness(1.45); }
+  100% { filter: drop-shadow(0 6px 8px rgba(0,0,0,0.65)); }
+}
+/* Resist dim — cool blue cast so a bad-element hit feels visibly off
+   beyond just the smaller damage number. */
+.figure.resist-dim {
+  animation: resist-dim 0.5s ease-out;
+}
+@keyframes resist-dim {
+  0%   { filter: drop-shadow(0 6px 8px rgba(0,0,0,0.65)) brightness(1); }
+  35%  { filter: drop-shadow(0 0 12px rgba(140, 170, 220, 0.7)) brightness(0.65) saturate(0.6); }
+  100% { filter: drop-shadow(0 6px 8px rgba(0,0,0,0.65)) brightness(1); }
 }
 /* Bond rank-up celebration — fires the moment a bond crosses 3 or 8
    fires and unlocks its next tier.  Bigger, longer, brighter than a
