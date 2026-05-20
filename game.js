@@ -12220,19 +12220,16 @@ function startTurn(s) {
           text: '<b>Tap</b> an action to queue it.  <b>Press &amp; hold</b> to preview where it lands before you commit.',
         });
       }
-      // Move tutorial — only relevant before the player has ever
-      // long-pressed a hero AND they have at least one neighbor to
-      // swap with.  Solo runs (Kai alone) can't move, so the gesture
-      // would just frustrate them.  Anchors to the first hero card;
-      // the text teaches the actual gesture (hold → arrows appear →
-      // DRAG onto one).  The matching "·HOLD·" badge under each hero
-      // card backs this up.
+      // Move tutorial — drag any hero card and DROP it on another slot.
+      // Works with the solo starter too (drop on an empty slot to
+      // relocate), so only gate on 'haven't held a hero yet'.  The
+      // matching "·HOLD·" badge under each hero card backs this up.
       const partyCount = aliveParty(s).length;
-      if (partyCount >= 2 && !hasSeenCoachmark('cm_move_action') && !hasHeldHero()) {
+      if (partyCount >= 1 && !hasSeenCoachmark('cm_move_action') && !hasHeldHero()) {
         showCoachmark('cm_move_action', {
           anchor: '#party-half .figure:not(.empty):not(.downed)',
           place: 'above',
-          text: '<b>Move</b> a hero: <b>press, hold, and drag</b> their card toward an arrow that appears — release on it to swap with that neighbor.  Costs 1 ATB.',
+          text: '<b>Move</b> a hero: <b>press &amp; hold</b> their card, then <b>drag</b> it onto another slot.  Drop on another ally to swap; drop on an empty slot to relocate.  Costs 1 ATB per step.',
         });
       }
     }, 700);
@@ -12642,8 +12639,12 @@ function clearQueue() {
 }
 
 // ============================================================================
-// MOVE PICKER — press-and-hold a party figure, drag toward an arrow to queue a move.
-// Bound on each figure via bindFigureHold(); the actual commit goes through pickMoveDir.
+// MOVE PICKER — press a party figure and drag the card to another slot.
+// The figure literally follows the finger (transform via --drag-x/y CSS
+// vars set in bindFigureHold); on release, the slot under the pointer
+// becomes the drop target.  Adjacent arrows are kept as a fallback aim
+// path.  The actual commit goes through pickMoveDir, which queues a
+// single-step move toward the target slot.
 // ============================================================================
 
 function pickMoveDir(charId, dir) {
@@ -12670,9 +12671,12 @@ function pickMoveDir(charId, dir) {
   });
 }
 
-// Press a figure and drag toward an arrow to queue a move. Drag activates
-// immediately on the first few pixels of motion — no hold delay — so the
-// gesture feels like a direct click-and-drag. A still press (no motion) for
+// Press a party figure and drag — the figure tracks the finger 1:1
+// (--drag-x/y CSS vars), and releases onto either another slot
+// (drag-to-swap or drag-to-empty) or an adjacent arrow (legacy aim
+// path). Drag activates immediately on the first few pixels of motion
+// — no hold delay — so the gesture feels like a direct click-and-drag.
+// A still press (no motion) for
 // ~200ms still enters "inspecting" mode so the figure's name is revealed.
 // Release with the pointer aimed at an arrow commits the move; release
 // elsewhere is a no-op.
@@ -17271,13 +17275,19 @@ const TUTORIAL_HINTS = [
   // Move comes BEFORE enemies/weakness — positioning is fundamental and
   // players were missing the press-and-hold gesture in the original order.
   // The blinking ·HOLD· badge under each hero card backs this up.
-  { id: 'move_v2',    text: '<b>Press and hold</b> a hero on the battlefield — gold arrows appear.  Release onto an arrow (or drag onto one) to swap them between <b>Front · Mid · Back</b>.  Costs 1 ATB.' },
-  { id: 'enemies',    text: 'Enemies show their <b>intent</b> above their card.  Plan around it.' },
+  { id: 'move_v2',    text: '<b>Press and hold</b> a hero card, then <b>drag</b> it to another slot — the hero follows your finger.  Drop on an ally to swap, or on an empty slot to relocate.  Costs 1 ATB per step.' },
+  { id: 'enemies',    text: 'Enemies show their <b>intent</b> above their card — icon (↯ atk · ☽ debuff · ✷ aoe), damage number, and a <b>→ slot</b> pill telling you who they\'ll hit.  Plan around it.' },
   // Persona-5 style weakness loop — explain WEAKENED → STAGGERED → 2× hit.
   { id: 'weakness',   text: 'Each hero\'s school is also their <b>element</b>.  Hit an enemy\'s weakness once → <b>WEAKENED</b>.  Hit it again with the same weakness same turn → <b>STAGGERED</b>.  The next attack of any element deals <b>2× damage</b>.  Weakness icon (✶/✦/⚔/➳/◐) reveals on the first hit.' },
   // Resonance hint — explain WHEN it appears (matching tags between queued
   // actions) and WHERE the chip lives, plus the once-per-fight gate.
   { id: 'resonance_v2', text: 'Queue actions whose tags line up (e.g. two attacks, or a heal + a shield) and a <b>Resonance</b> chip lights up the rail above your action tray.  Tap it to fuse the queue into a stronger team move.  Once per fight.' },
+  // Bond progression — the kizuna pitch.  Heroes adjacent on the F-M
+  // or M-B line share a passive bond; firing it repeatedly deepens
+  // the bond into Tier II (+1 amt) and Tier III (RESONANT — unlocks
+  // an extra clause like cleanse / heal / +Resolve).  Long-press a
+  // hero to see their active bonds and progress to the next tier.
+  { id: 'bonds',      text: '<b>Bonds</b> — heroes side-by-side share a passive that fires on attacks / heals / damage.  Every fire ticks the bond up; at <b>3 fires</b> it deepens (<b>II</b>) and at <b>8 fires</b> it becomes <b>RESONANT</b> (<b>III</b>) — unlocking an extra clause on top of the bigger numbers.  Long-press a hero to see their bonds.' },
 ];
 
 const TUT_KEY = 'kizuna.tutorialSeen.v2';
