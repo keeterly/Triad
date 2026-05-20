@@ -13438,6 +13438,15 @@ function makePartyCard(c, slot, threatened, adjMap, incoming) {
     if (!q) return '';
     return `<span class="fig-quirk fig-quirk-${polarity}" title="${q.name} — ${q.desc}" data-tip="${q.name} — ${q.desc}">✦</span>`;
   }).join('');
+  // Mastery crown — surfaced under the hero's name once they've
+  // awakened (positive quirks hit cap → HERO_MASTERIES grant fires).
+  // Persistent visual reminder that this hero is operating at their
+  // upgraded passive, not just visible in the unlock cinematic.
+  // Press-and-hold reveals the full mastery name + effect via the
+  // chip-tooltip layer (registered in bindChipExplainers).
+  const masteryChip = (c.mastery && c.mastery.name)
+    ? `<span class="fig-mastery" title="Mastery: ${c.mastery.name} — ${c.mastery.desc}" data-tip="Mastery: ${c.mastery.name} — ${c.mastery.desc}">♕</span>`
+    : '';
 
   fig.innerHTML = `
     ${synStack}
@@ -13451,7 +13460,7 @@ function makePartyCard(c, slot, threatened, adjMap, incoming) {
     </div>
     <div class="figure-shadow"></div>
     <div class="figure-info">
-      <div class="figure-name${isHome ? ' home' : ''}">${def.name}</div>
+      <div class="figure-name${isHome ? ' home' : ''}">${masteryChip}${def.name}</div>
       ${quirkDots ? `<div class="fig-quirks">${quirkDots}</div>` : ''}
     </div>
     ${canMoveBack  ? `<button class="move-arrow move-arrow-left"  data-dir="1"  aria-label="Move toward back">‹</button>`  : ''}
@@ -15947,12 +15956,19 @@ function showRunInfoPanel() {
         const q = QUIRKS[qid]; if (!q) return '';
         return `<span class="hero-quirk hero-quirk-${pol}" title="${q.name} — ${q.desc}" data-tip="${q.name} — ${q.desc}">${q.name}</span>`;
       }).join('');
+    // Mastery row — visible once the hero has awakened (positive
+    // affinities at cap).  Sits between HP and affinity chips so the
+    // info-panel reads as a hero card with their current loadout.
+    const masteryHtml = (c.mastery && c.mastery.name)
+      ? `<div class="info-hero-mastery" title="Mastery: ${c.mastery.name} — ${c.mastery.desc}" data-tip="Mastery: ${c.mastery.name} — ${c.mastery.desc}"><span class="info-hero-mastery-mark">♕</span><span class="info-hero-mastery-name">${c.mastery.name}</span></div>`
+      : '';
     return `
       <div class="info-hero ${c.downed ? 'info-hero-downed' : ''}">
         <div class="info-hero-portrait">${PORTRAITS[id] || ''}</div>
         <div class="info-hero-body">
           <div class="info-hero-name">${def.name}${c.downed ? ' · downed' : ''}</div>
           <div class="info-hero-hp">HP ${c.hp} / ${c.maxHp}</div>
+          ${masteryHtml}
           ${chips ? `<div class="info-hero-quirks">${chips}</div>` : `<div class="info-hero-quirks info-hero-quirks-empty">No affinities yet.</div>`}
         </div>
       </div>`;
@@ -16129,7 +16145,7 @@ function showTutorialToast(html, onDismiss) {
 // to surface its explanation. Capture-phase so the figure's setPointerCapture
 // (pickup gesture) doesn't swallow the tap.
 function bindChipExplainers() {
-  const CHIP_SEL = '.status-chip, .affinity-chip, .adj-chip, .incoming-chip, .sigil-chip, .hero-quirk, .run-mod-chip, .run-charm-chip, .run-asc-chip, .fig-quirk, .state-strip, .weakness-icon, .cch-school';
+  const CHIP_SEL = '.status-chip, .affinity-chip, .adj-chip, .incoming-chip, .sigil-chip, .hero-quirk, .run-mod-chip, .run-charm-chip, .run-asc-chip, .fig-quirk, .fig-mastery, .info-hero-mastery, .state-strip, .weakness-icon, .cch-school';
   document.addEventListener('pointerdown', (e) => {
     const chip = e.target.closest(CHIP_SEL);
     if (chip && chip.getAttribute('title')) {
@@ -20035,6 +20051,16 @@ function showHeroCodex() {
           </div>
           ${def.passive ? `<div class="hc-passive"><b>${def.passive.name}</b> · ${def.passive.desc}</div>` : ''}
           ${(() => {
+            // Mastery — the awakened upgrade to this hero's passive.
+            // Earned in-run by filling positive affinities to the cap.
+            // Surfaced here as the "end goal" of the hero's growth
+            // arc so players see what they're playing toward — not
+            // just visible once in the unlock cinematic.
+            const mast = HERO_MASTERIES[id];
+            if (!mast) return '';
+            return `<div class="hc-mastery"><span class="hc-mastery-mark">✦</span><div class="hc-mastery-body"><span class="hc-mastery-label">Mastery</span><span class="hc-mastery-name">${mast.name}</span><span class="hc-mastery-desc">${mast.desc}</span></div></div>`;
+          })()}
+          ${(() => {
             // Home-slot abilities — surface the hero's two strongest tools
             // (basic + sig at home) so the codex tells you what they bring
             // before you commit to starting a run with them.
@@ -20336,16 +20362,14 @@ function _renderCodexResonances(codex) {
 }
 
 function _renderCodexHeroes(unlocked) {
-  // Compact roster summary — one row per hero, sealed rows for locked.
-  // Unlocked rows are clickable (jump to the full Hero codex screen);
-  // sealed rows carry an Unseal button priced in Embers so the player
-  // can buy the hero into the starter pool directly instead of waiting
-  // for the recruit event in a run.
-  const bal = getEmbersBalance();
+  // Compact roster summary — one row per hero.  Unlocked rows are
+  // clickable (jump to the full Hero codex screen); sealed rows
+  // render dimmed with a "find them on the road" hint.  The Embers
+  // unseal purchase flow lives on the Embers screen instead — this
+  // tab is a browse / read surface, not a spend.
   const rows = ROSTER.map(id => {
     const def = CHARS[id]; if (!def) return '';
     const u = unlocked.has(id);
-    const affordable = bal >= HERO_UNLOCK_COST;
     return `<div class="codex-row codex-row-hero${u ? '' : ' codex-row-sealed'}" data-hero="${id}">
       <div class="codex-portrait">${u ? (PORTRAITS[id] || '') : '◇'}</div>
       <div class="codex-row-body">
@@ -20353,51 +20377,19 @@ function _renderCodexHeroes(unlocked) {
           <span class="codex-row-name">${u ? def.name : '???'}</span>
           <span class="codex-row-stat">${u ? `${(def.school || '').toUpperCase()} · ${SLOT_LABELS[def.home] || def.home || ''}` : 'sealed'}</span>
         </div>
-        <div class="codex-row-desc">${u ? (def.title || '') : 'Walk the road with them to unseal — or pay the embers below.'}</div>
-        ${u ? '' : `<button type="button" class="codex-hero-unseal${affordable ? '' : ' codex-hero-unseal-poor'}" data-unseal="${id}" ${affordable ? '' : 'disabled'}>
-          <span class="codex-hero-unseal-cost">✦ ${HERO_UNLOCK_COST}</span>
-          <span class="codex-hero-unseal-label">Unseal</span>
-        </button>`}
+        <div class="codex-row-desc">${u ? (def.title || '') : 'Walk the road with them — or unseal them from the Embers screen.'}</div>
       </div>
     </div>`;
   }).join('');
   // Click delegates — set up after the next paint so the DOM is real.
-  // Uses `onclick =` (not addEventListener) so a tab that re-renders
-  // rapidly doesn't double-bind handlers on the same nodes: if two
-  // setTimeouts from successive renders both fire after the final DOM
-  // settles, the second assignment OVERWRITES the first, leaving one
-  // active handler per element instead of N.
+  // Uses `onclick =` so a tab that re-renders rapidly doesn't double-
+  // bind handlers on the same nodes.
   setTimeout(() => {
     document.querySelectorAll('#codex-body .codex-row-hero:not(.codex-row-sealed)').forEach(row => {
       row.style.cursor = 'pointer';
       row.onclick = () => {
         hideCodexScreen();
         showHeroCodex();
-      };
-    });
-    document.querySelectorAll('#codex-body .codex-hero-unseal[data-unseal]').forEach(btn => {
-      btn.onclick = (e) => {
-        e.stopPropagation();
-        // Defensive — disable the button immediately so a rapid
-        // double-tap can't fire two purchases (the second would
-        // silently fail on the balance check, but the player would
-        // think it succeeded).  Re-render rebuilds the row from
-        // scratch, replacing this button anyway.
-        if (btn.disabled) return;
-        btn.disabled = true;
-        const heroId = btn.dataset.unseal;
-        if (purchaseHeroUnlock(heroId)) {
-          Audio.ui();
-          // Re-render this tab in place so the unsealed row + new
-          // balance reflect immediately.  Also refresh the title
-          // menu underneath so the Embers chip + starters-unlocked
-          // count update without requiring an exit.
-          _renderCodex(document.getElementById('codex-body'));
-          const titleRoot = document.getElementById('title-screen');
-          if (titleRoot && !titleRoot.classList.contains('hidden')) showTitleScreen();
-        } else {
-          btn.disabled = false;  // re-enable on failed buy
-        }
       };
     });
   }, 0);
@@ -20618,10 +20610,39 @@ function _renderEmbersScreen() {
       </div>
     `;
   }).join('');
+  // Sealed-heroes section — pay Embers to unseal heroes directly
+  // instead of waiting to recruit them on the road.  Lives on this
+  // screen (not the Codex) since this is the spend surface.  Hidden
+  // when every hero is unlocked.
+  const _sealedIds = ROSTER.filter(id => isHeroLocked(id) && CHARS[id]);
+  const heroesHtml = _sealedIds.length ? `
+    <div class="embers-section-head">Sealed Heroes <span class="embers-section-sub">${_sealedIds.length} / ${ROSTER.length} still to unseal</span></div>
+    <div class="embers-heroes">
+      ${_sealedIds.map(id => {
+        const def = CHARS[id];
+        const affordable = balance >= HERO_UNLOCK_COST;
+        return `<button type="button" class="embers-hero${affordable ? '' : ' embers-hero-poor'}" data-unseal="${id}" ${affordable ? '' : 'disabled'} title="Unseal ${def.name} (${(def.school || '').toUpperCase()} · ${SLOT_LABELS[def.home] || def.home || ''})">
+          <div class="embers-hero-portrait">${PORTRAITS[id] || ''}</div>
+          <div class="embers-hero-meta">
+            <span class="embers-hero-name">${def.name}</span>
+            <span class="embers-hero-stat">${(def.school || '').toUpperCase()} · ${SLOT_LABELS[def.home] || def.home || ''}</span>
+          </div>
+          <span class="embers-hero-cost">✦ ${HERO_UNLOCK_COST}</span>
+        </button>`;
+      }).join('')}
+    </div>
+  ` : '';
+  // Preserve the scroll position across re-renders so an unseal / equip /
+  // purchase doesn't jump the player back to the top — they're often
+  // mid-list working through choices and the snap-to-top is disorienting.
+  const _prevScroll = body.scrollTop;
   body.innerHTML = `
     ${headerHtml}
+    <div class="embers-section-head">Perks</div>
     <div class="embers-rows">${rows}</div>
+    ${heroesHtml}
   `;
+  body.scrollTop = _prevScroll;
   // Re-render the title underneath after any change so the Embers
   // chip balance + starter / layer counts reflect.  Reused below.
   const _refreshTitleIfShown = () => {
@@ -20645,6 +20666,20 @@ function _renderEmbersScreen() {
       else equipEmberUnlock(id);
       Audio.ui();
       _renderEmbersScreen();
+    };
+  });
+  body.querySelectorAll('.embers-hero[data-unseal]').forEach(btn => {
+    btn.onclick = () => {
+      if (btn.disabled) return;
+      btn.disabled = true;
+      const id = btn.dataset.unseal;
+      if (purchaseHeroUnlock(id)) {
+        Audio.ui();
+        _renderEmbersScreen();
+        _refreshTitleIfShown();
+      } else {
+        btn.disabled = false;
+      }
     };
   });
 }

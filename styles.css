@@ -3624,6 +3624,97 @@ body.on-title:has(#overlay:not(.hidden)) #stage-scale {
   flex-direction: column;
   gap: 8px;
 }
+/* Section headers inside the Embers screen — separate the perk
+   ladder from the sealed-hero unseal list so the spend surface
+   reads as two clear shopping aisles. */
+.embers-section-head {
+  font-size: 9.5px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--gold-pale);
+  padding: 12px 4px 6px;
+  border-bottom: 1px solid rgba(240,212,136,0.18);
+  margin-bottom: 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.embers-section-head:first-child { padding-top: 4px; }
+.embers-section-sub {
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+  text-transform: none;
+  font-style: italic;
+}
+/* Grid of sealed-hero tiles — portrait + name/school + cost.  Tap
+   to unseal.  Greyed when unaffordable.  Layout wraps to 2-3 columns
+   depending on viewport. */
+.embers-heroes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.embers-hero {
+  display: grid;
+  grid-template-columns: 36px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px 5px 6px;
+  background: linear-gradient(180deg, rgba(20,18,14,0.55) 0%, rgba(8,6,6,0.7) 100%);
+  border: 1px solid rgba(240,212,136,0.18);
+  color: var(--ink);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.embers-hero:not(.embers-hero-poor):hover {
+  filter: brightness(1.18);
+  border-color: var(--gold-bright);
+  box-shadow: 0 0 12px rgba(240,212,136,0.32);
+  transform: translateY(-1px);
+}
+.embers-hero:not(.embers-hero-poor):active { transform: translateY(0); }
+.embers-hero-poor {
+  cursor: not-allowed;
+  opacity: 0.45;
+  filter: saturate(0.4);
+}
+.embers-hero-portrait {
+  width: 36px; height: 48px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+}
+.embers-hero-portrait svg { width: 100%; height: 100%; }
+.embers-hero-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.embers-hero-name {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gold-pale);
+}
+.embers-hero-stat {
+  font-size: 8.5px;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+}
+.embers-hero-cost {
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  color: var(--gold-bright);
+  font-weight: bold;
+  text-shadow: 0 0 6px rgba(240,212,136,0.45);
+  font-variant-numeric: tabular-nums;
+}
 .embers-row {
   padding: 8px 10px;
   background: linear-gradient(180deg, rgba(20,18,14,0.55) 0%, rgba(8,6,6,0.7) 100%);
@@ -11043,6 +11134,89 @@ body.killing-blow::before {
 }
 .fig-quirk-positive { color: var(--gold-pale); text-shadow: 0 0 8px rgba(240,224,182,0.55); }
 .fig-quirk-negative { color: var(--blood-bright); text-shadow: 0 0 8px rgba(220,80,80,0.45); }
+
+/* Mastery crown — small gold mark next to a hero's name once they've
+   awakened their Mastery (positive affinities hit cap → HERO_MASTERIES
+   grants the upgrade).  Persistent reminder of "this hero is operating
+   at their final form" so the achievement reads beyond just the unlock
+   cinematic.  Pulses subtly so it draws the eye without being loud. */
+.fig-mastery {
+  display: inline-block;
+  margin-right: 4px;
+  font-size: 10px;
+  color: var(--gold-bright);
+  text-shadow: 0 0 8px rgba(240,212,136,0.7), 0 0 14px rgba(240,212,136,0.45);
+  cursor: help;
+  animation: fig-mastery-pulse 2.4s ease-in-out infinite;
+}
+@keyframes fig-mastery-pulse {
+  0%, 100% { text-shadow: 0 0 6px rgba(240,212,136,0.55), 0 0 10px rgba(240,212,136,0.3); }
+  50%      { text-shadow: 0 0 10px rgba(240,212,136,0.85), 0 0 18px rgba(240,212,136,0.55); }
+}
+
+/* Mastery row in the in-run info panel — small gold chip under
+   each hero's HP showing which mastery they've awakened.  Tap or
+   hold for the full effect text via the chip-tooltip layer. */
+.info-hero-mastery {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  padding: 2px 8px 2px 6px;
+  background: rgba(40,28,14,0.6);
+  border: 1px solid rgba(240,212,136,0.45);
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gold-pale);
+  cursor: help;
+  white-space: nowrap;
+}
+.info-hero-mastery-mark {
+  color: var(--gold-bright);
+  text-shadow: 0 0 6px rgba(240,212,136,0.5);
+  font-size: 11px;
+}
+
+/* Mastery row inside the Hero codex — surfaces the awakening goal so
+   the player sees what each hero's passive becomes at full affinity.
+   Sits between passive and home abilities. */
+.hc-mastery {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 10px;
+  margin: 6px 0;
+  background: linear-gradient(180deg, rgba(40,28,14,0.55) 0%, rgba(12,8,8,0.7) 100%);
+  border-left: 2px solid var(--gold-bright);
+}
+.hc-mastery-mark {
+  font-size: 14px;
+  color: var(--gold-bright);
+  text-shadow: 0 0 8px rgba(240,212,136,0.6);
+  text-align: center;
+}
+.hc-mastery-body { display: flex; flex-direction: column; gap: 1px; }
+.hc-mastery-label {
+  font-size: 8.5px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.hc-mastery-name {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gold-pale);
+}
+.hc-mastery-desc {
+  font-size: 9.5px;
+  font-style: italic;
+  color: var(--ink);
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+}
 
 /* ===========================================================================
    IN-COMBAT INFO BUTTON + PANEL
