@@ -5082,24 +5082,11 @@ const VIGNETTES = {
 
   // ---- Run-bracket beats ----
 
-  run_defeat: {
-    id: 'run_defeat',
-    when: { runDefeat: true },
-    oneShot: true,
-    title: 'The reach takes you back',
-    speakerFromFirstAlive: true,
-    lines: [
-      { who: null, text: 'The wind moves over the line of you, and the reach does not flinch.' },
-      { who: null, text: "Someone, somewhere, hears the story you didn't finish telling." },
-      { who: '_first', text: '...we try again.' },
-    ],
-    choices: [
-      // Both choices simply close into the run-summary screen — the scene is
-      // about catharsis, not bonuses.
-      { label: 'We try again', resolve: () => {} },
-      { label: 'Walk into the next reach in silence', resolve: () => {} },
-    ],
-  },
+  // (run_defeat removed — the defeat vignette is now generated
+  // dynamically per-wipe by buildDefeatVignette so the scene reflects
+  // the actual journey: layer reached, who fell, kizuna fired, heroes
+  // lost on the road.  The 'oneShot' static version only fired once
+  // per device and felt generic by the second run.)
 
   wakeling_slain: {
     id: 'wakeling_slain',
@@ -6361,6 +6348,96 @@ function buildBossPrepVignette(s) {
   if (tpl.speaker === 'lowestHp')   vignette.speakerFromLowestHp   = true;
   else                              vignette.speakerFromFirstAlive = true;
   return vignette;
+}
+
+// Dynamic defeat vignette — paints the journey the way this party
+// actually climbed it.  Pulls from layer reached, party composition,
+// who fell this fight, who was lost on the road, and the bonds that
+// rang loudest before the line broke.  Replaces the old static
+// run_defeat vignette which fired once per device and felt generic.
+//
+// Called from the wipe-detection branch in resolveEnemyTurn; the
+// vignette opens, then closes into the run-summary screen.
+function buildDefeatVignette(s) {
+  const layerInfo = ABYSS_LAYERS[s.run.layer - 1] || {};
+  const layerName = layerInfo.name || 'the reach';
+  const partyIds = Object.keys(s.party.chars);
+  const downedThisFight = (s.fightStats && s.fightStats.downed) || [];
+  const lostOnRoad = (s.run && s.run._lockedOutHeroes) || [];
+  const sc = (s.run && s.run.synergyCounts) || {};
+  // Top bond fired this run — friction names start with Old / Hollow /
+  // Crossed / Tangled / Stained, exclude those so only real kizuna shows.
+  const topBond = Object.entries(sc)
+    .filter(([n, c]) => c >= 3 && !/^Old |^Hollow |^Crossed |^Tangled |^Stained /.test(n))
+    .sort((a, b) => b[1] - a[1])[0];
+
+  const lines = [];
+  // 1. Opener — atmospheric beat naming the layer.
+  lines.push({ who: null, text: `In ${layerName}, the line breaks.` });
+
+  // 2. Who falls / how the party reads.
+  if (partyIds.length === 1) {
+    const id = partyIds[0];
+    lines.push({ who: null, text: `${CHARS[id].name} was alone the whole way.  No one to call back to.` });
+  } else if (downedThisFight.length === partyIds.length) {
+    lines.push({ who: null, text: `All of them go down together.  No one walks out.` });
+  } else if (downedThisFight.length > 0) {
+    const lastFallenId = downedThisFight[downedThisFight.length - 1];
+    const lastFallenName = (CHARS[lastFallenId] && CHARS[lastFallenId].name) || 'The last';
+    lines.push({ who: null, text: `${lastFallenName} is the last to fall.` });
+  } else {
+    lines.push({ who: null, text: `They hold — but not enough.  The reach takes them.` });
+  }
+
+  // 3. Journey depth — calibrates "how far did we climb?"
+  if (s.run.layer >= 7) {
+    lines.push({ who: null, text: `${s.run.layer - 1} layers cleared.  Few have walked this deep and come back.` });
+  } else if (s.run.layer >= 4) {
+    lines.push({ who: null, text: `${s.run.layer - 1} layers cleared.  Further than most.` });
+  } else if (s.run.layer >= 2) {
+    lines.push({ who: null, text: `Past the first reach, into the second.  A start.` });
+  }
+
+  // 4. Notable bond — if a kizuna deepened to II or rang RESONANT.
+  if (topBond) {
+    const [bondName, count] = topBond;
+    const tier = getBondTier(s, bondName, count);
+    if (tier >= 3) {
+      lines.push({ who: null, text: `${bondName} rang true — ${count}× before the end.` });
+    } else if (tier === 2) {
+      lines.push({ who: null, text: `${bondName} deepened ${count}× before the line broke.` });
+    }
+  }
+
+  // 5. Lost on the road — heroes the player killed on wanderer nodes.
+  if (lostOnRoad.length === 1) {
+    const lostName = (CHARS[lostOnRoad[0]] && CHARS[lostOnRoad[0]].name) || 'A name';
+    lines.push({ who: null, text: `${lostName} is still where the road took them.` });
+  } else if (lostOnRoad.length >= 2) {
+    lines.push({ who: null, text: `${lostOnRoad.length} names are still where the road took them.` });
+  }
+
+  // 6. Closing line — voice it from whoever fell last (or the lone
+  //    party member on a solo wipe).  Speaks from the brink.
+  const closerId = downedThisFight[downedThisFight.length - 1]
+    || partyIds[partyIds.length - 1];
+  if (closerId && CHARS[closerId]) {
+    lines.push({ who: closerId, text: 'We try again.' });
+  } else {
+    lines.push({ who: null, text: 'They try again.' });
+  }
+
+  return {
+    id: 'run_defeat_dynamic',
+    title: 'The reach takes you back',
+    lines,
+    choices: [
+      // Both choices simply close into the run-summary screen — the
+      // scene is about catharsis, not bonuses.
+      { label: 'We try again',                        resolve: () => {} },
+      { label: 'Walk into the next reach in silence', resolve: () => {} },
+    ],
+  };
 }
 
 function _lowestHpAliveId(s) {
@@ -14140,22 +14217,16 @@ function checkEnd(s) {
   if (aliveParty(s).length === 0) {
     s.over = true;
     // Defeat spectacle — mirror of the boss-kill moment.  Party silhouettes
-    // dim, screen desaturates, a quiet flash fades in.  Then the vignette
-    // (if any) plays; then the run summary.
+    // dim, screen desaturates, a quiet flash fades in.  Then the dynamic
+    // defeat vignette plays (painting the journey-so-far via layer, party,
+    // fallen, lost-on-road, and top bond fired); then the run summary.
     playDefeatIntro();
     const HOLD = 1700;
-    // Try a run-defeat vignette before the run-summary screen.  If none match
-    // (or it's already fired), fall straight through.
     const defeatCtx = captureFightContext(s);
     defeatCtx.phase = 'runDefeat';
     defeatCtx.alive = Object.keys(s.party.chars);
-    const defeatMatches = matchVignettes(s, defeatCtx);
-    if (defeatMatches.length) {
-      const pick = defeatMatches[Math.floor(Math.random() * defeatMatches.length)];
-      setTimeout(() => showVignette(pick, defeatCtx, () => showRunSummary('defeat')), HOLD);
-      return true;
-    }
-    setTimeout(() => showRunSummary('defeat'), HOLD);
+    const pick = buildDefeatVignette(s);
+    setTimeout(() => showVignette(pick, defeatCtx, () => showRunSummary('defeat')), HOLD);
     return true;
   }
   return false;
@@ -19179,12 +19250,34 @@ function drawMapConnectors(choices) {
     const aEl = choices.querySelector(`[data-node-id="${from}"]`);
     const bEl = choices.querySelector(`[data-node-id="${to}"]`);
     if (!aEl || !bEl) return;
-    const aR = aEl.getBoundingClientRect();
-    const bR = bEl.getBoundingClientRect();
-    const x1 = aR.right - cRect.left;
-    const y1 = aR.top + aR.height / 2 - cRect.top;
-    const x2 = bR.left - cRect.left;
-    const y2 = bR.top + bR.height / 2 - cRect.top;
+    // Anchor on the visible icon circle (.pn-icon), not the outer
+    // .path-node box.  path-node is a 58×58 hit target; pn-icon is
+    // the smaller (38×38, or 44 for boss) visible disc centered
+    // inside.  Using the outer rect put line endpoints ~10px outside
+    // the visible disc — looked detached.  Falling back to the node
+    // root if no icon child exists keeps the connector lines drawing
+    // even for legacy layouts.
+    const aIcon = aEl.querySelector('.pn-icon') || aEl;
+    const bIcon = bEl.querySelector('.pn-icon') || bEl;
+    const aR = aIcon.getBoundingClientRect();
+    const bR = bIcon.getBoundingClientRect();
+    const cAx = aR.left + aR.width / 2 - cRect.left;
+    const cAy = aR.top  + aR.height / 2 - cRect.top;
+    const cBx = bR.left + bR.width / 2 - cRect.left;
+    const cBy = bR.top  + bR.height / 2 - cRect.top;
+    const dxC = cBx - cAx, dyC = cBy - cAy;
+    const lenC = Math.sqrt(dxC * dxC + dyC * dyC) || 1;
+    // Trim each end by the icon radius IN THE DIRECTION OF THE LINE
+    // so the endpoint sits exactly on the circle perimeter rather than
+    // at right-center / left-center (which only lands on the perimeter
+    // for purely horizontal connections; diagonals previously ended
+    // off the visible disc).
+    const aRadius = aR.width / 2;
+    const bRadius = bR.width / 2;
+    const x1 = cAx + (dxC / lenC) * aRadius;
+    const y1 = cAy + (dyC / lenC) * aRadius;
+    const x2 = cBx - (dxC / lenC) * bRadius;
+    const y2 = cBy - (dyC / lenC) * bRadius;
     // Replace the straight <line> with a gently curved <path>.  The
     // control point is offset perpendicular to the segment by a small
     // stable amount derived from the edge endpoints so every connector
@@ -19193,11 +19286,13 @@ function drawMapConnectors(choices) {
     const len = Math.sqrt(dx * dx + dy * dy) || 1;
     // Perpendicular unit vector
     const px = -dy / len, py = dx / len;
-    // Stable offset: hash from the two ids → -14 to +14
+    // Stable offset: hash from the two ids → -10 to +10 (tighter than
+    // the prior -14/+14 so the bow stays subtle now that endpoints are
+    // anchored cleanly on the circle perimeter).
     let h = 0;
     const ehash = `${from}>${to}`;
     for (let i = 0; i < ehash.length; i++) h = ((h << 5) - h + ehash.charCodeAt(i)) | 0;
-    const off = ((Math.abs(h) % 29) - 14);
+    const off = ((Math.abs(h) % 21) - 10);
     const midX = (x1 + x2) / 2 + px * off;
     const midY = (y1 + y2) / 2 + py * off;
     const path = document.createElementNS(svgNS, 'path');
