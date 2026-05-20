@@ -1396,47 +1396,91 @@ const PORTRAITS = {
   <path d="M50 36 L52 50 L48 64" stroke="#c8d8ec" stroke-width="0.3" opacity="0.6" fill="none"/>
 </svg>`,
 
-  // ============================ SELEN — The Dawnward ====================
-  // Front-holy paladin.  Plate-mantle silhouette with a soft sun-halo
-  // behind the head, gold sun emblem on the breastplate, vertical
-  // sword held at her right side.
-  selen: `
+  // ============================ KELL — The Open Hand ====================
+  // Front-holy monk.  No plate, no weapon.  Wrapped torso (hand-wraps
+  // continuing up the forearms), bare shoulders, beads at the neck,
+  // simple knot belt.  A faint sun-mark glows over his sternum where
+  // armor would be — light worn instead of carried.
+  kell: `
 <svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
   <defs>
-    <linearGradient id="selen-mantle" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#f4e8c0"/>
-      <stop offset="55%" stop-color="#9a7842"/>
-      <stop offset="100%" stop-color="#3a2810"/>
+    <linearGradient id="kell-skin" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#d8a878"/>
+      <stop offset="100%" stop-color="#7a4a28"/>
     </linearGradient>
-    <radialGradient id="selen-halo" cx="50%" cy="50%" r="50%">
+    <radialGradient id="kell-glow" cx="50%" cy="50%" r="50%">
       <stop offset="0%" stop-color="#fff4d0" stop-opacity="0.85"/>
-      <stop offset="60%" stop-color="#f0c460" stop-opacity="0.28"/>
+      <stop offset="60%" stop-color="#f0c460" stop-opacity="0.22"/>
       <stop offset="100%" stop-color="#3a2010" stop-opacity="0"/>
     </radialGradient>
   </defs>
-  <circle cx="50" cy="46" r="30" fill="url(#selen-halo)"/>
-  <path d="M22 130 L20 78 Q24 60 34 52 Q50 48 66 52 Q76 60 80 78 L78 130 Z"
-        fill="url(#selen-mantle)" stroke="#2a1808" stroke-width="0.6"/>
-  <ellipse cx="28" cy="64" rx="9" ry="6" fill="#a08858"/>
-  <ellipse cx="72" cy="64" rx="9" ry="6" fill="#a08858"/>
-  <circle cx="50" cy="86" r="6.5" fill="none" stroke="#f0c460" stroke-width="1"/>
-  <circle cx="50" cy="86" r="2.4" fill="#f0c460"/>
-  <line x1="50" y1="77" x2="50" y2="74" stroke="#f0c460" stroke-width="0.7"/>
-  <line x1="50" y1="95" x2="50" y2="98" stroke="#f0c460" stroke-width="0.7"/>
-  <line x1="41" y1="86" x2="38" y2="86" stroke="#f0c460" stroke-width="0.7"/>
-  <line x1="59" y1="86" x2="62" y2="86" stroke="#f0c460" stroke-width="0.7"/>
-  <ellipse cx="50" cy="56" rx="6.5" ry="8" fill="#f0d8b0"/>
-  <ellipse cx="46" cy="56" rx="1.2" ry="1.6" fill="#3a2010"/>
-  <ellipse cx="54" cy="56" rx="1.2" ry="1.6" fill="#3a2010"/>
-  <line x1="48" y1="62" x2="52" y2="62" stroke="#3a2010" stroke-width="0.5"/>
-  <path d="M42 50 Q50 46 58 50 L57 52 Q50 48.5 43 52 Z" fill="#f0c460"/>
-  <rect x="84" y="62" width="2.4" height="58" fill="#c8c0a0" stroke="#3a2010" stroke-width="0.4"/>
-  <rect x="80" y="90" width="10" height="2.2" fill="#a08858"/>
-  <circle cx="85.2" cy="60" r="1.8" fill="#f0c460"/>
-  <circle cx="34" cy="40" r="0.9" fill="#fff4d2" opacity="0.7"/>
-  <circle cx="66" cy="38" r="0.9" fill="#fff4d2" opacity="0.7"/>
-  <circle cx="40" cy="46" r="0.6" fill="#fff4d2" opacity="0.6"/>
-  <circle cx="60" cy="44" r="0.6" fill="#fff4d2" opacity="0.6"/>
+  <path d="M22 130 L20 80 Q24 64 32 56 Q50 50 68 56 Q76 64 80 80 L78 130 Z"
+        fill="url(#kell-skin)" stroke="#2a1808" stroke-width="0.6"/>
+  <circle cx="50" cy="86" r="14" fill="url(#kell-glow)"/>
+  <path d="M50 78 L52 86 L50 94 L48 86 Z" fill="#f0c460" opacity="0.9"/>
+  <path d="M42 86 L50 84 L58 86 L50 88 Z" fill="#f0c460" opacity="0.9"/>
+  <circle cx="50" cy="86" r="2" fill="#fff4d2"/>
+  <path d="M20 80 Q15 96 22 130 L26 130 Q24 100 28 84 Z" fill="#e8d0a0"/>
+  <path d="M80 80 Q85 96 78 130 L74 130 Q76 100 72 84 Z" fill="#e8d0a0"/>
+  <line x1="22" y1="92" x2="26" y2="92" stroke="#3a2010" stroke-width="0.4"/>
+  <line x1="22" y1="100" x2="26" y2="100" stroke="#3a2010" stroke-width="0.4"/>
+  <line x1="22" y1="108" x2="26" y2="108" stroke="#3a2010" stroke-width="0.4"/>
+  <line x1="74" y1="92" x2="78" y2="92" stroke="#3a2010" stroke-width="0.4"/>
+  <line x1="74" y1="100" x2="78" y2="100" stroke="#3a2010" stroke-width="0.4"/>
+  <line x1="74" y1="108" x2="78" y2="108" stroke="#3a2010" stroke-width="0.4"/>
+  <rect x="22" y="112" width="56" height="4" fill="#5a3a1a"/>
+  <rect x="48" y="112" width="4" height="6" fill="#3a2010"/>
+  <ellipse cx="50" cy="58" rx="8" ry="9.5" fill="#d8a878"/>
+  <path d="M40 56 Q40 48 50 46 Q60 48 60 56 L58 52 Q50 48 42 52 Z" fill="#1a0e04"/>
+  <line x1="42" y1="54" x2="58" y2="54" stroke="#1a0e04" stroke-width="0.3" opacity="0.5"/>
+  <ellipse cx="46" cy="58" rx="1.2" ry="1.4" fill="#1a0e04"/>
+  <ellipse cx="54" cy="58" rx="1.2" ry="1.4" fill="#1a0e04"/>
+  <line x1="48" y1="64" x2="52" y2="64" stroke="#3a2010" stroke-width="0.5"/>
+  <circle cx="46" cy="72" r="0.8" fill="#c8a868"/>
+  <circle cx="50" cy="73" r="0.8" fill="#c8a868"/>
+  <circle cx="54" cy="72" r="0.8" fill="#c8a868"/>
+  <path d="M42 70 Q50 75 58 70" fill="none" stroke="#3a2010" stroke-width="0.3" opacity="0.6"/>
+</svg>`,
+
+  // ============================ NIRA — Old Hex ==========================
+  // Back-arcane witch.  Hooded crone-silhouette with deep shadow under
+  // the hood, twisted wand held across the chest, scattered hex-runes
+  // floating in the violet glow around her.
+  nira: `
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <linearGradient id="nira-robe" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#5a3a6a"/>
+      <stop offset="55%" stop-color="#2a1838"/>
+      <stop offset="100%" stop-color="#0e0408"/>
+    </linearGradient>
+    <radialGradient id="nira-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#c890f0" stop-opacity="0.55"/>
+      <stop offset="60%" stop-color="#6a3098" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#1a0828" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <circle cx="50" cy="64" r="34" fill="url(#nira-glow)"/>
+  <path d="M22 130 L18 80 Q22 60 34 52 Q50 46 66 52 Q78 60 82 80 L78 130 Z"
+        fill="url(#nira-robe)" stroke="#0e0408" stroke-width="0.6"/>
+  <path d="M30 70 Q30 38 50 32 Q70 38 70 70 L62 60 Q50 50 38 60 Z" fill="#1a0828"/>
+  <path d="M30 70 L26 86 L34 80 Z" fill="#2a1838"/>
+  <path d="M70 70 L74 86 L66 80 Z" fill="#2a1838"/>
+  <ellipse cx="50" cy="62" rx="6" ry="7" fill="#0a0410"/>
+  <ellipse cx="46" cy="61" rx="0.9" ry="1.1" fill="#c890f0"/>
+  <ellipse cx="54" cy="61" rx="0.9" ry="1.1" fill="#c890f0"/>
+  <path d="M82 56 Q90 76 88 118" fill="none" stroke="#3a2818" stroke-width="1.4"/>
+  <path d="M82 56 Q84 52 88 50" fill="none" stroke="#3a2818" stroke-width="1.2"/>
+  <circle cx="88" cy="50" r="1.6" fill="#c890f0"/>
+  <circle cx="88" cy="50" r="0.7" fill="#fff4d2"/>
+  <path d="M20 88 L24 90 L20 92 Z" fill="#c890f0" opacity="0.7"/>
+  <path d="M14 76 L18 78 L14 80 Z" fill="#c890f0" opacity="0.6"/>
+  <circle cx="16" cy="98" r="0.9" fill="#c890f0" opacity="0.7"/>
+  <circle cx="12" cy="84" r="0.7" fill="#c890f0" opacity="0.6"/>
+  <path d="M72 96 L76 98 L72 100 Z" fill="#c890f0" opacity="0.6"/>
+  <circle cx="80" cy="106" r="0.8" fill="#c890f0" opacity="0.6"/>
+  <path d="M42 78 L46 80 L50 78 L54 80 L58 78" fill="none" stroke="#c890f0" stroke-width="0.4" opacity="0.7"/>
+  <path d="M46 86 L50 88 L54 86" fill="none" stroke="#c890f0" stroke-width="0.4" opacity="0.7"/>
 </svg>`,
 
   // ============================ JORAN — The Long-eye ====================
@@ -2013,40 +2057,97 @@ const CHARS = {
       },
     },
   },
-  // ============================ SELEN — The Dawnward ===================
-  // Front-line holy paladin.  Fills the front-holy gap (no other holy
-  // hero held the line).  Built around her Sworn Light passive that
-  // drips healing into the lowest ally with every damaging hit she
-  // lands — a frontliner whose damage IS support.
-  selen: {
-    id: 'selen',
-    name: 'Selen',
-    title: 'The Dawnward',
+  // ============================ KELL — The Open Hand ===================
+  // Front-line holy monk.  Fills the front-holy gap left when no other
+  // holy hero held the line, but plays nothing like Cassia's plate-and-
+  // taunt.  Built around Empty Hand — Kell hits hardest when he carries
+  // no armor.  Bracing dulls his strikes; the trade is durability for
+  // damage, the inverse of every other frontliner.
+  kell: {
+    id: 'kell',
+    name: 'Kell',
+    title: 'The Open Hand',
     school: 'holy',
-    maxHp: 24,
+    maxHp: 22,
     home: 'front',
-    passive: { name: 'Sworn Light', desc: "When Selen lands a damaging hit, the lowest-HP ally heals 1." },
+    passive: { name: 'Empty Hand', desc: "When Kell has 0 armor at the moment he attacks, his hit deals +2 damage." },
     techs: {
       front: {
-        basic: { name: 'Smite', desc: '7 holy dmg', dmg: 7, element: 'holy',
+        basic: { name: 'Palm Strike', desc: '6 holy dmg', dmg: 6, element: 'holy',
           reach: ['front'], pattern: 'front-most',
-          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 7); } },
-        sig:   { name: 'Solar Plea', desc: '3♦ · 12 holy dmg + party +2 armor', cost: 3, dmg: 12, element: 'holy',
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 6); } },
+        sig:   { name: 'Hundred Hands', desc: '2♦ · 3 holy dmg × 4', cost: 2, dmg: 3, hits: 4, element: 'holy',
           reach: ['front'], pattern: 'front-most',
-          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 12); partyArmor(s, 2); } },
+          fn: (s, t) => { if (!t[0]) return;
+            for (let i = 0; i < 4; i++) { if (t[0].dead) break; applyDmgToEnemy(s, t[0], 3); } } },
       },
       mid: {
-        basic: { name: 'Censure', desc: '5 holy dmg lowest mid/back', dmg: 5, element: 'holy',
-          reach: ['mid','back'], pattern: 'lowest',
-          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 5); } },
-        sig:   { name: 'Reckoning', desc: '9 holy dmg lowest + 2 armor self', dmg: 9, element: 'holy',
-          reach: ['mid','back'], pattern: 'lowest',
-          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 9); addArmor(s, 'selen', 2); } },
+        basic: { name: 'Inner Step', desc: '4 holy dmg + advance', dmg: 4, element: 'holy', move: 'advance',
+          reach: ['front'], pattern: 'front-most',
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 4); advance(s, 'kell'); } },
+        sig:   { name: 'Five-Stance', desc: '2♦ · 7 holy dmg + 2 armor self', cost: 2, dmg: 7, element: 'holy',
+          reach: ['front'], pattern: 'front-most',
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 7); addArmor(s, 'kell', 2); } },
       },
       back: {
-        basic: { name: 'Benediction', desc: 'Heal 3 lowest', heal: 3, healTarget: 'lowest', fn: (s) => healLowest(s, 3) },
-        sig:   { name: 'Sunfast Bond', desc: '2♦ · Heal 6 lowest + cleanse + +1 Resolve', cost: 2, heal: 6, healTarget: 'lowest',
-          fn: (s) => { healLowest(s, 6); cleanseLowest(s); gainResolve(s, 1); } },
+        basic: { name: 'Meditate', desc: 'Heal 2 self', heal: 2, healTarget: 'self',
+          fn: (s) => { const c = s.party.chars.kell;
+            if (c && !c.downed) { const before = c.hp; c.hp = Math.min(c.maxHp, c.hp + 2);
+              if (c.hp > before) spawnPopupId('kell', `+${c.hp - before}`, 'heal', 'party'); } } },
+        sig:   { name: 'Centered', desc: '2♦ · Heal 5 self + cleanse self', cost: 2, heal: 5, healTarget: 'self',
+          fn: (s) => { const c = s.party.chars.kell;
+            if (c && !c.downed) { const before = c.hp; c.hp = Math.min(c.maxHp, c.hp + 5);
+              if (c.hp > before) spawnPopupId('kell', `+${c.hp - before}`, 'heal', 'party');
+              c.bleed = 0; c.dulled = 0; } } },
+      },
+    },
+  },
+  // ============================ NIRA — Old Hex =========================
+  // Back-row arcane witch.  Fills out the arcane school as a pure DoT
+  // engine — every kit slot stacks bleed, dulled, vuln, or burn rather
+  // than throwing big single hits.  Pairs with Ash (vuln) and Kai
+  // (frontline lock-down) so the DoTs land on staggered or pinned
+  // targets.  Her passive turns each tick of decay into a sip of HP.
+  nira: {
+    id: 'nira',
+    name: 'Nira',
+    title: 'Old Hex',
+    school: 'arcane',
+    maxHp: 18,
+    home: 'back',
+    passive: { name: 'Old Hex', desc: "When Nira applies bleed, burn, or dulled, she heals 1 HP." },
+    techs: {
+      front: {
+        basic: { name: 'Curse-bite', desc: '3 arc dmg + dulled 1 + retreat', dmg: 3, element: 'arcane', move: 'retreat',
+          reach: ['front'], pattern: 'front-most',
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 3); if (!t[0].dead) { t[0].dulled = (t[0].dulled || 0) + 1; _niraOldHexTick(s); } } retreat(s, 'nira'); } },
+        sig:   { name: 'Withering', desc: '2♦ · 5 arc dmg + bleed 1 + dulled 1 + retreat', cost: 2, dmg: 5, element: 'arcane', move: 'retreat',
+          reach: ['front'], pattern: 'front-most',
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 5);
+            if (!t[0].dead) { t[0].bleed = (t[0].bleed || 0) + 1; t[0].dulled = (t[0].dulled || 0) + 1; _niraOldHexTick(s); } }
+            retreat(s, 'nira'); } },
+      },
+      mid: {
+        basic: { name: 'Marking Curse', desc: '4 arc dmg lowest + bleed 1 + 1 vuln', dmg: 4, element: 'arcane',
+          reach: ['mid','back'], pattern: 'lowest',
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 4);
+            if (!t[0].dead) { t[0].bleed = (t[0].bleed || 0) + 1; t[0].vuln = (t[0].vuln || 0) + 1; _niraOldHexTick(s); } } } },
+        sig:   { name: 'Layered Curse', desc: '2♦ · 6 arc dmg lowest + bleed 2 + dulled 1', cost: 2, dmg: 6, element: 'arcane',
+          reach: ['mid','back'], pattern: 'lowest',
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 6);
+            if (!t[0].dead) { t[0].bleed = (t[0].bleed || 0) + 2; t[0].dulled = (t[0].dulled || 0) + 1; _niraOldHexTick(s); } } } },
+      },
+      back: {
+        basic: { name: 'Spores', desc: '2 arc dmg all + bleed 1 all', dmg: 2, element: 'arcane',
+          reach: ['front','mid','back'], pattern: 'all',
+          fn: (s, t) => { let any = false; t.forEach(e => { applyDmgToEnemy(s, e, 2);
+            if (!e.dead) { e.bleed = (e.bleed || 0) + 1; any = true; } });
+            if (any) _niraOldHexTick(s); } },
+        sig:   { name: "Coven's Pyre", desc: '3♦ · 3 arc dmg all + burn 2 all', cost: 3, dmg: 3, element: 'arcane',
+          reach: ['front','mid','back'], pattern: 'all',
+          fn: (s, t) => { let any = false; t.forEach(e => { applyDmgToEnemy(s, e, 3);
+            if (!e.dead) { e.burn = (e.burn || 0) + 2; any = true; } });
+            if (any) _niraOldHexTick(s); } },
       },
     },
   },
@@ -6305,7 +6406,7 @@ const RESOLVE_CARRY_CAP = 3;
 
 // Pool of characters the player can encounter mid-run.
 // Default starting party is the first three; the rest are recruitable between fights.
-const ROSTER = ['kai', 'cassia', 'elin', 'branwen', 'korin', 'ash', 'mira', 'garron', 'lirien', 'vasha', 'hask', 'veyr', 'selen', 'joran', 'tarn'];
+const ROSTER = ['kai', 'cassia', 'elin', 'branwen', 'korin', 'ash', 'mira', 'garron', 'lirien', 'vasha', 'hask', 'veyr', 'kell', 'nira', 'joran', 'tarn'];
 
 // ============================================================================
 // TECH UPGRADES — alternate variants for specific techs, picked between fights.
@@ -6848,7 +6949,8 @@ const HERO_MASTERIES = {
   vasha:   { id: 'm_vasha',   name: 'Conviction Twice',   desc: 'Conviction can arm twice per fight instead of once.' },
   hask:    { id: 'm_hask',    name: 'Frostbreak Echo',    desc: 'Stagger landings grant +2 Resolve instead of +1.' },
   veyr:    { id: 'm_veyr',    name: 'Witness Sharpened',  desc: 'Last Witness bonus is +3 damage per downed ally instead of +2.' },
-  selen:   { id: 'm_selen',   name: 'Sworn Light Doubled',desc: 'Sworn Light heals 2 to the lowest ally instead of 1.' },
+  kell:    { id: 'm_kell',    name: 'Empty Hand Sharpened', desc: 'Empty Hand bumps damage by +4 instead of +2.' },
+  nira:    { id: 'm_nira',    name: 'Old Hex Doubled',    desc: 'Old Hex heals 2 HP per DoT applied instead of 1.' },
   joran:   { id: 'm_joran',   name: 'Long Eye Doubled',   desc: "Joran's attacks deal +2 damage per vuln stack on the target instead of +1." },
   tarn:    { id: 'm_tarn',    name: 'Iron Toss Echo',     desc: "Iron Toss also grants +1 armor to the mid ally." },
 };
@@ -7108,9 +7210,12 @@ const AFFINITY_BARKS = {
   veyr:    { gained: ["I will remember it.", "Marked.", "(She nods, slow, from under the hood.)"],
              lost:   ["The dark takes it back.", "...forgotten.", "It was not mine to keep."],
              shed:   ["The hood is lighter.", "Released.", "Set down."] },
-  selen:   { gained: ["The light keeps.", "I am tempered.", "It is given."],
-             lost:   ["The light dims.", "A shadow on the gate.", "I will mend it."],
-             shed:   ["The weight is lifted.", "I let it go.", "The path is bright."] },
+  kell:    { gained: ["The hand is open.", "I am ready.", "Good — empty."],
+             lost:   ["A weight returns.", "...the hand closes.", "I will set it down."],
+             shed:   ["Empty again.", "Released.", "Good."] },
+  nira:    { gained: ["The hex sticks.", "It will rot a while.", "Good."],
+             lost:   ["Slipped its leash.", "Tch.", "I will catch it later."],
+             shed:   ["Off the bone.", "Released.", "It can keep itself."] },
   joran:   { gained: ["A steadier hand.", "Marked.", "Good wind."],
              lost:   ["A trembling.", "I will steady.", "Off the line."],
              shed:   ["Cleaner draw.", "The string is true again.", "Released."] },
@@ -8762,39 +8867,78 @@ const ADJ = {
       },
     },
   },
-  // ===== Selen synergies (Dawnward — front-home holy) =====
-  // Pairs that ACTUALLY trigger at home slots: Selen-front meets a
-  // mid hero for an F-M line.  Skip cassia+selen / garron+selen
-  // (both front-home, never adjacent at default positions).
-  'elin+selen': {
+  // ===== Kell synergies (Open Hand — front-home holy) =====
+  // Kell-front pairs naturally with mid heroes on the F-M line.  Both
+  // synergies feed Empty Hand by either NOT giving him armor or by
+  // refilling his attack window after enemy damage strips him bare.
+  'cassia+kell': {
     fm: {
-      name: 'Sister Light', type: 'bond', effect: 'dmg',
-      // Selen-front + Elin-mid: when either heals, the other gets a
-      // small +1-atk pending bonus.  Holy-on-holy trade.
-      onHeal(s, healerId) {
-        if (healerId !== 'elin' && healerId !== 'selen') return;
-        const otherId = healerId === 'elin' ? 'selen' : 'elin';
-        const o = s.party.chars[otherId];
-        if (!o || o.downed) return;
-        if (o.pendingEffects.some(eff => eff.source === 'sister-light')) return;
-        o.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'sister-light' });
-        fireSynergyFeedback(s, 'Sister Light', otherId, '+1 atk', 'heal');
+      name: 'Open Strike', type: 'bond', effect: 'dmg',
+      // Cassia-front + Kell-mid (or vice versa): when Cassia gains
+      // armor, Kell gets a one-shot +1 atk — she carries the wall,
+      // he keeps swinging open-handed.  Mid-row Kell triggers Inner
+      // Step / Five-Stance without breaking Empty Hand.
+      onArmorGrant(s, granterId) {
+        if (granterId !== 'cassia') return;
+        const k = s.party.chars.kell;
+        if (!k || k.downed) return;
+        if (k.pendingEffects.some(eff => eff.source === 'open-strike')) return;
+        k.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'open-strike' });
+        fireSynergyFeedback(s, 'Open Strike', 'kell', '+1 atk', 'armor');
       },
     },
   },
-  'ash+selen': {
+  'elin+kell': {
     fm: {
-      name: 'Hallowed Sparks', type: 'bond', effect: 'dmg',
-      // Selen-front + Ash-mid: Ash's vuln applications grant Selen
-      // a one-shot +2 atk so the paladin punches through the debuff.
+      name: 'Sister Hand', type: 'bond', effect: 'dmg',
+      // Elin-mid + Kell-front: when Elin heals, Kell gets a pending
+      // +2 atk.  Elin's heal often restores Kell after he took a
+      // hit that stripped armor — the bonus lets him close the loop
+      // by punching back harder on the next swing.
+      onHeal(s, healerId) {
+        if (healerId !== 'elin') return;
+        const k = s.party.chars.kell;
+        if (!k || k.downed) return;
+        if (k.pendingEffects.some(eff => eff.source === 'sister-hand')) return;
+        k.pendingEffects.push({ kind: 'attackBonus', amt: 2, source: 'sister-hand' });
+        fireSynergyFeedback(s, 'Sister Hand', 'kell', '+2 atk', 'heal');
+      },
+    },
+  },
+  // ===== Nira synergies (Old Hex — back-home arcane) =====
+  // Nira-back pairs with mid heroes on the M-B line.  Both synergies
+  // either compound her DoTs or pay them out as Resolve / damage.
+  'ash+nira': {
+    mb: {
+      name: 'Hex Compact', type: 'bond', effect: 'dmg',
+      // Ash-mid + Nira-back: when Ash applies vuln, Nira's next
+      // attack carries +1 atk.  Layers arcane debuffs onto the same
+      // target so Layered Curse and Spores tick harder.
       onAttack(s, attackerId, e) {
         if (attackerId !== 'ash') return;
         if (!e || e.dead) return;
-        const sel = s.party.chars.selen;
-        if (!sel || sel.downed) return;
-        if (sel.pendingEffects.some(eff => eff.source === 'hallowed-sparks')) return;
-        sel.pendingEffects.push({ kind: 'attackBonus', amt: 2, source: 'hallowed-sparks' });
-        fireSynergyFeedback(s, 'Hallowed Sparks', 'selen', '+2 atk', 'armor');
+        const n = s.party.chars.nira;
+        if (!n || n.downed) return;
+        if (n.pendingEffects.some(eff => eff.source === 'hex-compact')) return;
+        n.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'hex-compact' });
+        fireSynergyFeedback(s, 'Hex Compact', 'nira', '+1 atk', 'armor');
+      },
+    },
+  },
+  'kai+nira': {
+    mb: {
+      name: 'Bound Edge', type: 'bond', effect: 'dmg',
+      // Kai-mid + Nira-back: when Kai damages an enemy, Nira's next
+      // hex hit lands with +2 atk — Kai pins the target, Nira rots it.
+      // Once per turn.
+      onAttack(s, attackerId, e) {
+        if (attackerId !== 'kai') return;
+        if (!e || e.dead) return;
+        const n = s.party.chars.nira;
+        if (!n || n.downed) return;
+        if (n.pendingEffects.some(eff => eff.source === 'bound-edge')) return;
+        n.pendingEffects.push({ kind: 'attackBonus', amt: 2, source: 'bound-edge' });
+        fireSynergyFeedback(s, 'Bound Edge', 'nira', '+2 atk', 'armor');
       },
     },
   },
@@ -9804,7 +9948,7 @@ function unlockStarter(id) {
 // Heroes whose kit can carry a solo run.  Healers and party-buff specialists
 // (Elin) can be RECRUITED but never roll as the solo starter — without a
 // front-liner to keep alive, their kit has nothing to do.
-const SOLO_VIABLE = new Set(['kai', 'cassia', 'korin', 'branwen', 'mira', 'ash', 'garron', 'lirien', 'vasha', 'hask', 'selen', 'joran', 'tarn']);
+const SOLO_VIABLE = new Set(['kai', 'cassia', 'korin', 'branwen', 'mira', 'ash', 'garron', 'lirien', 'vasha', 'hask', 'kell', 'joran', 'tarn']);
 function _pickStarter() {
   const pool = getUnlockedStarters().filter(id => SOLO_VIABLE.has(id));
   return pool.length ? pool[Math.floor(Math.random() * pool.length)] : 'kai';
@@ -10352,6 +10496,17 @@ function previewDamage(s, e, baseAmt, actorId, techElement) {
     amt += bump;
     bonuses.push({ label: 'Long Eye', amt: bump });
   }
+  // Kell Empty Hand — when Kell has 0 armor at attack time, +2 dmg
+  // (+4 with mastery).  The bonus reads in preview so the player can
+  // see "brace and you lose 4 dmg" before committing the queue.
+  if (actorId === 'kell') {
+    const k = s.party.chars.kell;
+    if (k && (k.armor || 0) === 0) {
+      const bump = (k && k.mastery) ? 4 : 2;
+      amt += bump;
+      bonuses.push({ label: 'Empty Hand', amt: bump });
+    }
+  }
   const actor = actorId && s.party.chars[actorId];
   if (actor && Array.isArray(actor.pendingEffects)) {
     actor.pendingEffects.forEach(eff => {
@@ -10579,6 +10734,18 @@ function applyDmgToEnemy(s, e, baseAmt) {
     const stacks = Math.min(3, e.vuln);
     amt += per * stacks;
     spawnPassivePopup('joran', 'LONG EYE');
+  }
+  // Kell Empty Hand — bare-handed bonus.  Live hook mirrors the
+  // preview math so the queue and the resolve never disagree.  Each
+  // hit in a multi-strike (Hundred Hands) gets the bonus on the
+  // hit it's measured at — the armor check re-evaluates per call.
+  if (s.currentActorId === 'kell') {
+    const k = s.party.chars.kell;
+    if (k && (k.armor || 0) === 0) {
+      const bump = (k && k.mastery) ? 4 : 2;
+      amt += bump;
+      spawnPassivePopup('kell', 'EMPTY HAND');
+    }
   }
   // Squad Sigil — Shadow Veil (Mira + Ash together) — every party member's
   // first attack each turn deals +1 (stacks with Ash's Arcane Focus on her
@@ -10888,25 +11055,6 @@ function applyDmgToEnemy(s, e, baseAmt) {
         e.bleed = Math.max(e.bleed, 1);
         k.pendingEffects.splice(idx, 1);
         spawnPassivePopup('korin', 'RED TALLY');
-      }
-    }
-  }
-  // Selen Sworn Light — every damaging hit heals the lowest-HP ally
-  // for 1 (2 with mastery).  Frontliner whose damage IS support.
-  if (s.currentActorId === 'selen' && toHp > 0) {
-    const sel = s.party.chars.selen;
-    const heal = (sel && sel.mastery) ? 2 : 1;
-    const alive = aliveParty(s);
-    if (alive.length) {
-      const lowest = alive.slice().sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp))[0];
-      if (lowest && lowest.hp < lowest.maxHp) {
-        const before = lowest.hp;
-        lowest.hp = Math.min(lowest.maxHp, lowest.hp + heal);
-        const got = lowest.hp - before;
-        if (got > 0) {
-          spawnPopupId(lowest.id, `+${got}`, 'heal', 'party');
-          spawnPassivePopup('selen', 'SWORN LIGHT');
-        }
       }
     }
   }
@@ -11618,6 +11766,22 @@ function advance(s, charId) {
   const slot = slotOfChar(s, charId);
   if (slot === 'mid')  { swapWith(s, charId, 'front'); spawnReaction(charId, '💨', 'party'); }
   else if (slot === 'back') { swapWith(s, charId, 'mid'); spawnReaction(charId, '💨', 'party'); }
+}
+// Nira Old Hex — every time she applies a DoT (bleed/burn/dulled), she
+// heals 1 HP (2 with mastery).  Called from each Nira tech the moment a
+// status lands; the per-call heal makes multi-target hexes feel sticky
+// even when no single hit deals much damage.
+function _niraOldHexTick(s) {
+  const n = s.party.chars.nira;
+  if (!n || n.downed) return;
+  const heal = n.mastery ? 2 : 1;
+  const before = n.hp;
+  n.hp = Math.min(n.maxHp, n.hp + heal);
+  const got = n.hp - before;
+  if (got > 0) {
+    spawnPopupId('nira', `+${got}`, 'heal', 'party');
+    spawnPassivePopup('nira', 'OLD HEX');
+  }
 }
 function retreat(s, charId) {
   const slot = slotOfChar(s, charId);
@@ -19061,7 +19225,8 @@ const RECRUIT_GREETINGS = {
   vasha:   "Light does not forgive.  But it remembers.  I can carry both.",
   hask:    "I bring the cold with me.  Do not stand still.",
   veyr:    "I have named enough falls.  Let me name fewer.",
-  selen:   "I keep the gate while there is light to keep it by.",
+  kell:    "Empty hands.  I will fill them with what comes.",
+  nira:    "The old hex still answers when I call.  Walk a step behind.",
   joran:   "I count the wind before I draw.  Stand where I say.",
   tarn:    "Where I throw, the line will hold.",
 };
