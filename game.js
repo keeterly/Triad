@@ -1395,6 +1395,112 @@ const PORTRAITS = {
   <!-- broken edge highlight along the seam (reflective) -->
   <path d="M50 36 L52 50 L48 64" stroke="#c8d8ec" stroke-width="0.3" opacity="0.6" fill="none"/>
 </svg>`,
+
+  // ============================ SELEN — The Dawnward ====================
+  // Front-holy paladin.  Plate-mantle silhouette with a soft sun-halo
+  // behind the head, gold sun emblem on the breastplate, vertical
+  // sword held at her right side.
+  selen: `
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <linearGradient id="selen-mantle" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#f4e8c0"/>
+      <stop offset="55%" stop-color="#9a7842"/>
+      <stop offset="100%" stop-color="#3a2810"/>
+    </linearGradient>
+    <radialGradient id="selen-halo" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#fff4d0" stop-opacity="0.85"/>
+      <stop offset="60%" stop-color="#f0c460" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#3a2010" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <circle cx="50" cy="46" r="30" fill="url(#selen-halo)"/>
+  <path d="M22 130 L20 78 Q24 60 34 52 Q50 48 66 52 Q76 60 80 78 L78 130 Z"
+        fill="url(#selen-mantle)" stroke="#2a1808" stroke-width="0.6"/>
+  <ellipse cx="28" cy="64" rx="9" ry="6" fill="#a08858"/>
+  <ellipse cx="72" cy="64" rx="9" ry="6" fill="#a08858"/>
+  <circle cx="50" cy="86" r="6.5" fill="none" stroke="#f0c460" stroke-width="1"/>
+  <circle cx="50" cy="86" r="2.4" fill="#f0c460"/>
+  <line x1="50" y1="77" x2="50" y2="74" stroke="#f0c460" stroke-width="0.7"/>
+  <line x1="50" y1="95" x2="50" y2="98" stroke="#f0c460" stroke-width="0.7"/>
+  <line x1="41" y1="86" x2="38" y2="86" stroke="#f0c460" stroke-width="0.7"/>
+  <line x1="59" y1="86" x2="62" y2="86" stroke="#f0c460" stroke-width="0.7"/>
+  <ellipse cx="50" cy="56" rx="6.5" ry="8" fill="#f0d8b0"/>
+  <ellipse cx="46" cy="56" rx="1.2" ry="1.6" fill="#3a2010"/>
+  <ellipse cx="54" cy="56" rx="1.2" ry="1.6" fill="#3a2010"/>
+  <line x1="48" y1="62" x2="52" y2="62" stroke="#3a2010" stroke-width="0.5"/>
+  <path d="M42 50 Q50 46 58 50 L57 52 Q50 48.5 43 52 Z" fill="#f0c460"/>
+  <rect x="84" y="62" width="2.4" height="58" fill="#c8c0a0" stroke="#3a2010" stroke-width="0.4"/>
+  <rect x="80" y="90" width="10" height="2.2" fill="#a08858"/>
+  <circle cx="85.2" cy="60" r="1.8" fill="#f0c460"/>
+  <circle cx="34" cy="40" r="0.9" fill="#fff4d2" opacity="0.7"/>
+  <circle cx="66" cy="38" r="0.9" fill="#fff4d2" opacity="0.7"/>
+  <circle cx="40" cy="46" r="0.6" fill="#fff4d2" opacity="0.6"/>
+  <circle cx="60" cy="44" r="0.6" fill="#fff4d2" opacity="0.6"/>
+</svg>`,
+
+  // ============================ JORAN — The Long-eye ====================
+  // Mid-ranged skirmisher.  Hooded cloak with shadow-buried face, longbow
+  // arc visible over the right shoulder, quiver of fletched arrows over
+  // the left.
+  joran: `
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <linearGradient id="joran-cloak" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#8a8060"/>
+      <stop offset="55%" stop-color="#4a3a22"/>
+      <stop offset="100%" stop-color="#16100a"/>
+    </linearGradient>
+  </defs>
+  <path d="M22 130 L18 78 Q22 60 34 54 Q50 48 66 54 Q78 60 82 78 L78 130 Z"
+        fill="url(#joran-cloak)" stroke="#0e0804" stroke-width="0.6"/>
+  <path d="M34 64 Q34 38 50 36 Q66 38 66 64 L60 60 Q50 54 40 60 Z" fill="#2a1f12"/>
+  <ellipse cx="50" cy="60" rx="5.8" ry="6.8" fill="#1a1208"/>
+  <ellipse cx="47" cy="60" rx="1" ry="1.2" fill="#c8a868"/>
+  <ellipse cx="53" cy="60" rx="1" ry="1.2" fill="#c8a868"/>
+  <path d="M83 50 Q94 86 83 122" fill="none" stroke="#3a2010" stroke-width="1.6"/>
+  <line x1="83" y1="50" x2="83" y2="122" stroke="#6a4818" stroke-width="0.35" opacity="0.55"/>
+  <line x1="28" y1="86" x2="60" y2="106" stroke="#3a2010" stroke-width="1.6"/>
+  <line x1="20" y1="64" x2="13" y2="72" stroke="#8a7048" stroke-width="0.8"/>
+  <line x1="22" y1="66" x2="15" y2="74" stroke="#8a7048" stroke-width="0.8"/>
+  <line x1="24" y1="68" x2="17" y2="76" stroke="#8a7048" stroke-width="0.8"/>
+  <path d="M13 72 L11 69 L11 75 Z" fill="#f0d090"/>
+  <path d="M15 74 L13 71 L13 77 Z" fill="#f0d090"/>
+  <path d="M17 76 L15 73 L15 79 Z" fill="#f0d090"/>
+</svg>`,
+
+  // ============================ TARN — Stonebound =======================
+  // Back-physical hurler.  Bulky leather-and-iron silhouette, braided
+  // beard, a great hammer held across the chest.
+  tarn: `
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <linearGradient id="tarn-leather" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#8a6a3a"/>
+      <stop offset="55%" stop-color="#3a2818"/>
+      <stop offset="100%" stop-color="#0e0804"/>
+    </linearGradient>
+  </defs>
+  <path d="M14 130 L12 84 Q18 64 32 56 Q50 50 68 56 Q82 64 88 84 L86 130 Z"
+        fill="url(#tarn-leather)" stroke="#0e0804" stroke-width="0.6"/>
+  <rect x="14" y="108" width="72" height="6" fill="#5a3a1a"/>
+  <rect x="46" y="108" width="8" height="6" fill="#8a6a3a"/>
+  <ellipse cx="22" cy="86" rx="6" ry="14" fill="#9a7848"/>
+  <ellipse cx="78" cy="86" rx="6" ry="14" fill="#9a7848"/>
+  <rect x="24" y="86" width="52" height="6" fill="#3a2010"/>
+  <rect x="12" y="76" width="22" height="26" fill="#6a6058" stroke="#0e0804" stroke-width="0.6"/>
+  <rect x="66" y="76" width="22" height="26" fill="#6a6058" stroke="#0e0804" stroke-width="0.6"/>
+  <line x1="16" y1="82" x2="30" y2="82" stroke="#0e0804" stroke-width="0.4" opacity="0.7"/>
+  <line x1="70" y1="82" x2="84" y2="82" stroke="#0e0804" stroke-width="0.4" opacity="0.7"/>
+  <ellipse cx="50" cy="58" rx="8" ry="9" fill="#c0986a"/>
+  <ellipse cx="46" cy="56" rx="1.2" ry="1.4" fill="#1a0e04"/>
+  <ellipse cx="54" cy="56" rx="1.2" ry="1.4" fill="#1a0e04"/>
+  <path d="M42 64 Q50 80 58 64 L58 70 Q50 84 42 70 Z" fill="#5a4828"/>
+  <line x1="46" y1="68" x2="46" y2="78" stroke="#3a2818" stroke-width="0.4"/>
+  <line x1="50" y1="68" x2="50" y2="80" stroke="#3a2818" stroke-width="0.4"/>
+  <line x1="54" y1="68" x2="54" y2="78" stroke="#3a2818" stroke-width="0.4"/>
+  <path d="M40 52 Q50 44 60 52 L62 48 L38 48 Z" fill="#4a2820"/>
+</svg>`,
 };
 
 // ============================================================================
@@ -1904,6 +2010,131 @@ const CHARS = {
             t.forEach(e => { if (!e.dead) applyDmgToEnemy(s, e, 4); });
             aliveEnemies(s).forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 1); });
           } },
+      },
+    },
+  },
+  // ============================ SELEN — The Dawnward ===================
+  // Front-line holy paladin.  Fills the front-holy gap (no other holy
+  // hero held the line).  Built around her Sworn Light passive that
+  // drips healing into the lowest ally with every damaging hit she
+  // lands — a frontliner whose damage IS support.
+  selen: {
+    id: 'selen',
+    name: 'Selen',
+    title: 'The Dawnward',
+    school: 'holy',
+    maxHp: 24,
+    home: 'front',
+    passive: { name: 'Sworn Light', desc: "When Selen lands a damaging hit, the lowest-HP ally heals 1." },
+    techs: {
+      front: {
+        basic: { name: 'Smite', desc: '7 holy dmg', dmg: 7, element: 'holy',
+          reach: ['front'], pattern: 'front-most',
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 7); } },
+        sig:   { name: 'Solar Plea', desc: '3♦ · 12 holy dmg + party +2 armor', cost: 3, dmg: 12, element: 'holy',
+          reach: ['front'], pattern: 'front-most',
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 12); partyArmor(s, 2); } },
+      },
+      mid: {
+        basic: { name: 'Censure', desc: '5 holy dmg lowest mid/back', dmg: 5, element: 'holy',
+          reach: ['mid','back'], pattern: 'lowest',
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 5); } },
+        sig:   { name: 'Reckoning', desc: '9 holy dmg lowest + 2 armor self', dmg: 9, element: 'holy',
+          reach: ['mid','back'], pattern: 'lowest',
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 9); addArmor(s, 'selen', 2); } },
+      },
+      back: {
+        basic: { name: 'Benediction', desc: 'Heal 3 lowest', heal: 3, healTarget: 'lowest', fn: (s) => healLowest(s, 3) },
+        sig:   { name: 'Sunfast Bond', desc: '2♦ · Heal 6 lowest + cleanse + +1 Resolve', cost: 2, heal: 6, healTarget: 'lowest',
+          fn: (s) => { healLowest(s, 6); cleanseLowest(s); gainResolve(s, 1); } },
+      },
+    },
+  },
+  // ============================ JORAN — The Long-eye ===================
+  // Mid-row ranged skirmisher.  Fills the mid-ranged gap (Branwen's
+  // back-row mortar leaves no mid presence).  Built around his Long
+  // Eye passive that scales damage with vuln stacks on the target —
+  // a hero who feeds off Lirien / Ash / Hask setup turns.
+  joran: {
+    id: 'joran',
+    name: 'Joran',
+    title: 'The Long-eye',
+    school: 'ranged',
+    maxHp: 20,
+    home: 'mid',
+    passive: { name: 'Long Eye', desc: "Joran's attacks deal +1 damage per vuln stack on the target (max +3)." },
+    techs: {
+      front: {
+        basic: { name: 'Pommel', desc: '4 dmg + retreat', dmg: 4, move: 'retreat',
+          reach: ['front'], pattern: 'front-most',
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 4); retreat(s, 'joran'); } },
+        sig:   { name: 'Snap Shot', desc: '7 dmg + retreat full', dmg: 7, move: 'retreatFull',
+          reach: ['front'], pattern: 'front-most',
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 7); retreatFull(s, 'joran'); } },
+      },
+      mid: {
+        basic: { name: 'Aim and Shoot', desc: '6 dmg lowest mid/back', dmg: 6,
+          reach: ['mid','back'], pattern: 'lowest',
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 6); } },
+        sig:   { name: 'Heartshot', desc: '10 dmg lowest + 1 vuln', dmg: 10,
+          reach: ['mid','back'], pattern: 'lowest',
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 10); if (!t[0].dead) t[0].vuln += 1; } } },
+      },
+      back: {
+        basic: { name: 'Spread Fire', desc: '3 dmg all', dmg: 3,
+          reach: ['front','mid','back'], pattern: 'all',
+          fn: (s, t) => t.forEach(e => applyDmgToEnemy(s, e, 3)) },
+        sig:   { name: 'Hail Shot', desc: '3♦ · 5 dmg all + 1 vuln lowest', cost: 3, dmg: 5,
+          reach: ['front','mid','back'], pattern: 'all',
+          fn: (s, t) => {
+            t.forEach(e => applyDmgToEnemy(s, e, 5));
+            const low = aliveEnemies(s).slice().sort((a, b) => a.hp - b.hp)[0];
+            if (low) low.vuln += 1;
+          } },
+      },
+    },
+  },
+  // ============================ TARN — Stonebound ======================
+  // Back-row physical hurler.  Fills the back-physical gap (no other
+  // physical school sat in the back row).  Built around his Iron Toss
+  // passive — every first attack each turn grants armor to the front-
+  // most ally, turning his back-row pressure into front-row durability.
+  tarn: {
+    id: 'tarn',
+    name: 'Tarn',
+    title: 'Stonebound',
+    school: 'physical',
+    maxHp: 23,
+    home: 'back',
+    passive: { name: 'Iron Toss', desc: "Tarn's first attack each turn grants the front-most ally +1 armor." },
+    techs: {
+      front: {
+        basic: { name: 'Wedge', desc: '5 dmg + 1 armor self', dmg: 5,
+          reach: ['front'], pattern: 'front-most',
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 5); addArmor(s, 'tarn', 1); } },
+        sig:   { name: 'Standing Stone', desc: '6 dmg + Party +2 armor + self-taunt', dmg: 6,
+          reach: ['front'], pattern: 'front-most',
+          fn: (s, t) => {
+            if (t[0]) applyDmgToEnemy(s, t[0], 6);
+            partyArmor(s, 2);
+            const ta = s.party.chars.tarn; if (ta && !ta.downed) ta.taunt = true;
+          } },
+      },
+      mid: {
+        basic: { name: 'Throw Iron', desc: '5 dmg lowest mid/back', dmg: 5,
+          reach: ['mid','back'], pattern: 'lowest',
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 5); } },
+        sig:   { name: 'Cracker', desc: '9 dmg lowest + dulled 2', dmg: 9,
+          reach: ['mid','back'], pattern: 'lowest',
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 9); if (!t[0].dead) t[0].dulled = (t[0].dulled || 0) + 2; } } },
+      },
+      back: {
+        basic: { name: 'Boulder', desc: '6 dmg lowest mid/back', dmg: 6,
+          reach: ['mid','back'], pattern: 'lowest',
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 6); } },
+        sig:   { name: 'Avalanche', desc: '3♦ · 5 dmg all + Party +2 armor', cost: 3, dmg: 5,
+          reach: ['front','mid','back'], pattern: 'all',
+          fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 5)); partyArmor(s, 2); } },
       },
     },
   },
@@ -6074,7 +6305,7 @@ const RESOLVE_CARRY_CAP = 3;
 
 // Pool of characters the player can encounter mid-run.
 // Default starting party is the first three; the rest are recruitable between fights.
-const ROSTER = ['kai', 'cassia', 'elin', 'branwen', 'korin', 'ash', 'mira', 'garron', 'lirien', 'vasha', 'hask', 'veyr'];
+const ROSTER = ['kai', 'cassia', 'elin', 'branwen', 'korin', 'ash', 'mira', 'garron', 'lirien', 'vasha', 'hask', 'veyr', 'selen', 'joran', 'tarn'];
 
 // ============================================================================
 // TECH UPGRADES — alternate variants for specific techs, picked between fights.
@@ -6617,6 +6848,9 @@ const HERO_MASTERIES = {
   vasha:   { id: 'm_vasha',   name: 'Conviction Twice',   desc: 'Conviction can arm twice per fight instead of once.' },
   hask:    { id: 'm_hask',    name: 'Frostbreak Echo',    desc: 'Stagger landings grant +2 Resolve instead of +1.' },
   veyr:    { id: 'm_veyr',    name: 'Witness Sharpened',  desc: 'Last Witness bonus is +3 damage per downed ally instead of +2.' },
+  selen:   { id: 'm_selen',   name: 'Sworn Light Doubled',desc: 'Sworn Light heals 2 to the lowest ally instead of 1.' },
+  joran:   { id: 'm_joran',   name: 'Long Eye Doubled',   desc: "Joran's attacks deal +2 damage per vuln stack on the target instead of +1." },
+  tarn:    { id: 'm_tarn',    name: 'Iron Toss Echo',     desc: "Iron Toss also grants +1 armor to the mid ally." },
 };
 
 // ============================================================================
@@ -6874,6 +7108,15 @@ const AFFINITY_BARKS = {
   veyr:    { gained: ["I will remember it.", "Marked.", "(She nods, slow, from under the hood.)"],
              lost:   ["The dark takes it back.", "...forgotten.", "It was not mine to keep."],
              shed:   ["The hood is lighter.", "Released.", "Set down."] },
+  selen:   { gained: ["The light keeps.", "I am tempered.", "It is given."],
+             lost:   ["The light dims.", "A shadow on the gate.", "I will mend it."],
+             shed:   ["The weight is lifted.", "I let it go.", "The path is bright."] },
+  joran:   { gained: ["A steadier hand.", "Marked.", "Good wind."],
+             lost:   ["A trembling.", "I will steady.", "Off the line."],
+             shed:   ["Cleaner draw.", "The string is true again.", "Released."] },
+  tarn:    { gained: ["Stone settles.", "Held.", "It bears."],
+             lost:   ["A crack.", "I will hold the rest.", "The stone shifts."],
+             shed:   ["The weight goes.", "Lighter.", "Set down."] },
 };
 
 // Brief full-screen reveal when a hero earns or loses an affinity (quirk).
@@ -8519,6 +8762,111 @@ const ADJ = {
       },
     },
   },
+  // ===== Selen synergies (Dawnward — front-home holy) =====
+  // Pairs that ACTUALLY trigger at home slots: Selen-front meets a
+  // mid hero for an F-M line.  Skip cassia+selen / garron+selen
+  // (both front-home, never adjacent at default positions).
+  'elin+selen': {
+    fm: {
+      name: 'Sister Light', type: 'bond', effect: 'dmg',
+      // Selen-front + Elin-mid: when either heals, the other gets a
+      // small +1-atk pending bonus.  Holy-on-holy trade.
+      onHeal(s, healerId) {
+        if (healerId !== 'elin' && healerId !== 'selen') return;
+        const otherId = healerId === 'elin' ? 'selen' : 'elin';
+        const o = s.party.chars[otherId];
+        if (!o || o.downed) return;
+        if (o.pendingEffects.some(eff => eff.source === 'sister-light')) return;
+        o.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'sister-light' });
+        fireSynergyFeedback(s, 'Sister Light', otherId, '+1 atk', 'heal');
+      },
+    },
+  },
+  'ash+selen': {
+    fm: {
+      name: 'Hallowed Sparks', type: 'bond', effect: 'dmg',
+      // Selen-front + Ash-mid: Ash's vuln applications grant Selen
+      // a one-shot +2 atk so the paladin punches through the debuff.
+      onAttack(s, attackerId, e) {
+        if (attackerId !== 'ash') return;
+        if (!e || e.dead) return;
+        const sel = s.party.chars.selen;
+        if (!sel || sel.downed) return;
+        if (sel.pendingEffects.some(eff => eff.source === 'hallowed-sparks')) return;
+        sel.pendingEffects.push({ kind: 'attackBonus', amt: 2, source: 'hallowed-sparks' });
+        fireSynergyFeedback(s, 'Hallowed Sparks', 'selen', '+2 atk', 'armor');
+      },
+    },
+  },
+
+  // ===== Joran synergies (Long-eye — mid-home ranged) =====
+  // Joran-mid pairs naturally with back heroes (Lirien, Branwen) on
+  // the M-B line, and with front heroes on the F-M line.
+  'joran+lirien': {
+    mb: {
+      name: 'Spotter', type: 'bond', effect: 'dmg',
+      // Lirien's attack (Refrain stacks vuln) grants Joran +1 pending
+      // attack — feeds the Long Eye scaling directly.
+      onAttack(s, attackerId) {
+        if (attackerId !== 'lirien') return;
+        const j = s.party.chars.joran;
+        if (!j || j.downed) return;
+        if (j.pendingEffects.some(eff => eff.source === 'spotter')) return;
+        j.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'spotter' });
+        fireSynergyFeedback(s, 'Spotter', 'joran', '+1 atk', 'armor');
+      },
+    },
+  },
+  'branwen+joran': {
+    mb: {
+      name: 'Marksman Pair', type: 'bond', effect: 'dmg',
+      // Both archers gain +1 atk pending on their first attack each
+      // turn — opens a ranged crit-line.  Joran-mid + Branwen-back.
+      onAttack(s, attackerId) {
+        if (attackerId !== 'branwen' && attackerId !== 'joran') return;
+        const otherId = attackerId === 'branwen' ? 'joran' : 'branwen';
+        const o = s.party.chars[otherId];
+        if (!o || o.downed) return;
+        if (o.pendingEffects.some(eff => eff.source === 'marksman-pair')) return;
+        o.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'marksman-pair' });
+        fireSynergyFeedback(s, 'Marksman Pair', otherId, '+1 atk', 'armor');
+      },
+    },
+  },
+
+  // ===== Tarn synergies (Stonebound — back-home physical) =====
+  // Tarn-back pairs with mid heroes on the M-B line.
+  'kai+tarn': {
+    mb: {
+      name: 'Forge Brother', type: 'bond', effect: 'dmg',
+      // Kai's attack grants Tarn a one-shot +2 atk pending — turns
+      // Kai's openings into Tarn's heavies.
+      onAttack(s, attackerId) {
+        if (attackerId !== 'kai') return;
+        const ta = s.party.chars.tarn;
+        if (!ta || ta.downed) return;
+        if (ta.pendingEffects.some(eff => eff.source === 'forge-brother')) return;
+        ta.pendingEffects.push({ kind: 'attackBonus', amt: 2, source: 'forge-brother' });
+        fireSynergyFeedback(s, 'Forge Brother', 'tarn', '+2 atk', 'armor');
+      },
+    },
+  },
+  'elin+tarn': {
+    mb: {
+      name: 'Mended Stone', type: 'bond', effect: 'armor',
+      // Elin-mid + Tarn-back: when Elin heals, the front-most ally
+      // also gains +1 armor.  Tarn's Iron Toss style baked into the
+      // holy line so heals double as defensive setup.
+      onHeal(s, healerId) {
+        if (healerId !== 'elin') return;
+        const frontId = s.party.slots.front;
+        const fc = frontId && s.party.chars[frontId];
+        if (!fc || fc.downed) return;
+        fc.armor = (fc.armor || 0) + 1;
+        fireSynergyFeedback(s, 'Mended Stone', frontId, '+1⛨', 'armor');
+      },
+    },
+  },
 };
 
 // ============================================================================
@@ -9456,7 +9804,7 @@ function unlockStarter(id) {
 // Heroes whose kit can carry a solo run.  Healers and party-buff specialists
 // (Elin) can be RECRUITED but never roll as the solo starter — without a
 // front-liner to keep alive, their kit has nothing to do.
-const SOLO_VIABLE = new Set(['kai', 'cassia', 'korin', 'branwen', 'mira', 'ash', 'garron', 'lirien', 'vasha', 'hask']);
+const SOLO_VIABLE = new Set(['kai', 'cassia', 'korin', 'branwen', 'mira', 'ash', 'garron', 'lirien', 'vasha', 'hask', 'selen', 'joran', 'tarn']);
 function _pickStarter() {
   const pool = getUnlockedStarters().filter(id => SOLO_VIABLE.has(id));
   return pool.length ? pool[Math.floor(Math.random() * pool.length)] : 'kai';
@@ -9986,7 +10334,23 @@ function previewDamage(s, e, baseAmt, actorId, techElement) {
   // Veyr Last Witness — +2 damage per downed party member.
   if (actorId === 'veyr') {
     const downed = Object.values(s.party.chars).filter(c => c.downed).length;
-    if (downed > 0) { const bump = 2 * downed; amt += bump; bonuses.push({ label: 'Last Witness', amt: bump }); }
+    if (downed > 0) {
+      const veyr = s.party.chars.veyr;
+      const per = (veyr && veyr.mastery) ? 3 : 2;
+      const bump = per * downed;
+      amt += bump;
+      bonuses.push({ label: 'Last Witness', amt: bump });
+    }
+  }
+  // Joran Long Eye — +1 damage per vuln stack on the target, capped at +3.
+  // Mastery bumps the per-stack to +2 (cap remains 3 stacks read).
+  if (actorId === 'joran' && e && e.vuln > 0) {
+    const joran = s.party.chars.joran;
+    const per = (joran && joran.mastery) ? 2 : 1;
+    const stacks = Math.min(3, e.vuln);
+    const bump = per * stacks;
+    amt += bump;
+    bonuses.push({ label: 'Long Eye', amt: bump });
   }
   const actor = actorId && s.party.chars[actorId];
   if (actor && Array.isArray(actor.pendingEffects)) {
@@ -10194,10 +10558,27 @@ function applyDmgToEnemy(s, e, baseAmt) {
     amt += 3; spawnPassivePopup('kai', 'LAST STAND');
   }
   // Veyr Last Witness — +2 damage per downed party member.  Sharpens as
-  // the run takes losses; resets if everyone is alive.
+  // the run takes losses; resets if everyone is alive.  Mastery bumps
+  // the per-downed value to +3.
   if (s.currentActorId === 'veyr') {
     const downed = Object.values(s.party.chars).filter(c => c.downed).length;
-    if (downed > 0) { amt += 2 * downed; spawnPassivePopup('veyr', 'LAST WITNESS'); }
+    if (downed > 0) {
+      const veyr = s.party.chars.veyr;
+      const per = (veyr && veyr.mastery) ? 3 : 2;
+      amt += per * downed;
+      spawnPassivePopup('veyr', 'LAST WITNESS');
+    }
+  }
+  // Joran Long Eye — +1 damage per vuln stack on the target (cap 3).
+  // Mastery bumps the per-stack value to +2.  Sits in the live hook
+  // (vs preview) so the bonus reflects vuln stacks that landed earlier
+  // in the same queue resolve.
+  if (s.currentActorId === 'joran' && e && e.vuln > 0) {
+    const joran = s.party.chars.joran;
+    const per = (joran && joran.mastery) ? 2 : 1;
+    const stacks = Math.min(3, e.vuln);
+    amt += per * stacks;
+    spawnPassivePopup('joran', 'LONG EYE');
   }
   // Squad Sigil — Shadow Veil (Mira + Ash together) — every party member's
   // first attack each turn deals +1 (stacks with Ash's Arcane Focus on her
@@ -10508,6 +10889,50 @@ function applyDmgToEnemy(s, e, baseAmt) {
         k.pendingEffects.splice(idx, 1);
         spawnPassivePopup('korin', 'RED TALLY');
       }
+    }
+  }
+  // Selen Sworn Light — every damaging hit heals the lowest-HP ally
+  // for 1 (2 with mastery).  Frontliner whose damage IS support.
+  if (s.currentActorId === 'selen' && toHp > 0) {
+    const sel = s.party.chars.selen;
+    const heal = (sel && sel.mastery) ? 2 : 1;
+    const alive = aliveParty(s);
+    if (alive.length) {
+      const lowest = alive.slice().sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp))[0];
+      if (lowest && lowest.hp < lowest.maxHp) {
+        const before = lowest.hp;
+        lowest.hp = Math.min(lowest.maxHp, lowest.hp + heal);
+        const got = lowest.hp - before;
+        if (got > 0) {
+          spawnPopupId(lowest.id, `+${got}`, 'heal', 'party');
+          spawnPassivePopup('selen', 'SWORN LIGHT');
+        }
+      }
+    }
+  }
+  // Tarn Iron Toss — first attack each turn grants +1 armor to the
+  // front-most ally; with mastery, also +1 to the mid ally.  Gated by
+  // a per-turn flag that resets at startTurn (alongside Branwen's
+  // namedArrowUsed / Mira's _shadowCutHeld etc.).
+  if (s.currentActorId === 'tarn' && toHp > 0) {
+    const ta = s.party.chars.tarn;
+    if (ta && !ta._ironTossUsed) {
+      ta._ironTossUsed = true;
+      const frontId = s.party.slots.front;
+      const fc = frontId && s.party.chars[frontId];
+      if (fc && !fc.downed) {
+        fc.armor = (fc.armor || 0) + 1;
+        spawnPopupId(frontId, '+1⛨', 'armor', 'party');
+      }
+      if (ta.mastery) {
+        const midId = s.party.slots.mid;
+        const mc = midId && s.party.chars[midId];
+        if (mc && !mc.downed && midId !== 'tarn') {
+          mc.armor = (mc.armor || 0) + 1;
+          spawnPopupId(midId, '+1⛨', 'armor', 'party');
+        }
+      }
+      spawnPassivePopup('tarn', 'IRON TOSS');
     }
   }
 
@@ -11331,7 +11756,7 @@ function startTurn(s) {
   s.bonusAtb = Math.min(1, s.pendingBonusAtb || 0);
   s.pendingBonusAtb = 0;
   // clear single-turn buffs that survived the enemy phase
-  aliveParty(s).forEach(c => { c.taunt = false; c.retaliate = 0; c.firstAttackUsed = false; c.shadowVeilUsed = false; c.lingeringUsed = false; c._silentVolleyUsed = false; c.namedArrowUsed = false; c._namedArrowCount = 0; c._namedArrowPaid = false; c._heldGateUsed = false; c._heldGateUses = 0; c._veil = false; c.divineGuard = false; c.armorAbsorb = 0; });
+  aliveParty(s).forEach(c => { c.taunt = false; c.retaliate = 0; c.firstAttackUsed = false; c.shadowVeilUsed = false; c.lingeringUsed = false; c._silentVolleyUsed = false; c.namedArrowUsed = false; c._namedArrowCount = 0; c._namedArrowPaid = false; c._heldGateUsed = false; c._heldGateUses = 0; c._veil = false; c.divineGuard = false; c.armorAbsorb = 0; c._ironTossUsed = false; });
   // Weakness/stagger state decay at the top of each player turn:
   //   - weakened lingers for 2 player turns (so the follow-up weakness
   //     hit doesn't have to land same-turn).  weakenedTurnsLeft ticks
@@ -18636,6 +19061,9 @@ const RECRUIT_GREETINGS = {
   vasha:   "Light does not forgive.  But it remembers.  I can carry both.",
   hask:    "I bring the cold with me.  Do not stand still.",
   veyr:    "I have named enough falls.  Let me name fewer.",
+  selen:   "I keep the gate while there is light to keep it by.",
+  joran:   "I count the wind before I draw.  Stand where I say.",
+  tarn:    "Where I throw, the line will hold.",
 };
 
 // Recruit moment — single hero appears in a mini-vignette.  Re-uses the
