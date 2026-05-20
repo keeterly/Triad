@@ -3915,18 +3915,20 @@ body:has(.figure.inspecting) .figure .slot-label {
    ladder from the sealed-hero unseal list so the spend surface
    reads as two clear shopping aisles. */
 .embers-section-head {
-  font-size: 9.5px;
+  font-size: 10px;
+  font-weight: 700;
   letter-spacing: 0.32em;
   text-transform: uppercase;
-  color: var(--gold-pale);
-  padding: 12px 4px 6px;
-  border-bottom: 1px solid rgba(240,212,136,0.18);
-  margin-bottom: 6px;
+  color: var(--gold-bright);
+  padding: 16px 4px 6px;
+  border-bottom: 1px solid rgba(240,212,136,0.22);
+  margin-bottom: 8px;
   display: flex;
   justify-content: space-between;
   align-items: baseline;
+  text-shadow: 0 0 8px rgba(240,212,136,0.18);
 }
-.embers-section-head:first-child { padding-top: 4px; }
+.embers-section-head:first-of-type { padding-top: 8px; }
 .embers-section-sub {
   font-size: 9px;
   letter-spacing: 0.06em;
@@ -10361,14 +10363,14 @@ body.cine-stage-open #stage::after {
   display: inline-flex;
   flex-direction: column;
   gap: 2px;
-  min-width: 220px;
-  max-width: 420px;
-  padding: 8px 14px 9px;
+  min-width: 180px;
+  max-width: 320px;
+  padding: 6px 12px 7px;
   background: linear-gradient(180deg,
                               rgba(58,38,18,0.92) 0%,
                               rgba(20,12,8,0.96) 100%);
   border: none;
-  border-radius: 12px 12px 4px 12px;  /* tail-ish bottom-right corner */
+  border-radius: 10px 10px 4px 10px;  /* tail-ish bottom-right corner */
   color: var(--ink);
   font-family: inherit;
   cursor: pointer;
@@ -12933,24 +12935,27 @@ body:has(#world-map:not(.hidden)) #hud {
     display: grid;
     grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr);
     grid-template-areas:
-      "montage  rows"
-      "flavor   rows"
-      "stats    rows"
-      "bonds    memorial"
-      "bonds    memorial";
+      "montage    rows"
+      "flavor     rows"
+      "stats      rows"
+      "kizuna     kizuna"
+      "embers     embers"
+      "memorial   memorial";
     gap: 6px 18px;
     padding: 0 6px;
     align-items: start;
   }
-  .rs-montage  { grid-area: montage;  height: 96px; gap: 6px; padding-bottom: 0; }
-  .rs-flavor   { grid-area: flavor;   font-size: 11px; line-height: 1.4; padding: 0; text-align: left; }
-  .rs-stats    { grid-area: stats;    justify-content: flex-start; gap: 14px; padding: 2px 0 0; border: none; }
-  .rs-rows     { grid-area: rows;     gap: 2px; align-self: start; }
-  .vs-syn      { grid-area: bonds;    padding-top: 4px; text-align: left; font-size: 9.5px; margin-top: 0; border-top: none; }
-  .rs-memorial { grid-area: memorial; margin-top: 0; padding-top: 4px; gap: 4px; align-items: flex-start; }
+  .rs-montage    { grid-area: montage;  height: 96px; gap: 6px; padding-bottom: 0; }
+  .rs-flavor     { grid-area: flavor;   font-size: 11px; line-height: 1.4; padding: 0; text-align: left; }
+  .rs-stats      { grid-area: stats;    justify-content: flex-start; gap: 14px; padding: 2px 0 0; border: none; }
+  .rs-highlights { grid-area: rows;     align-self: start; }
+  .rs-kizuna     { grid-area: kizuna;   margin: 4px 0; }
+  .rs-embers     { grid-area: embers;   margin: 2px 0; }
+  .vs-syn        { grid-area: bonds;    padding-top: 4px; text-align: left; font-size: 9.5px; margin-top: 0; border-top: none; }
+  .rs-memorial   { grid-area: memorial; margin-top: 0; padding-top: 4px; gap: 4px; align-items: flex-start; }
   .rs-portrait { width: 56px; height: 84px; }
   .rs-stat b   { font-size: 14px; }
-  .rs-stat em  { font-size: 8px; }
+  .rs-stat em  { font-size: 9px; color: var(--gold-pale); opacity: 0.85; }
   .rs-rows .vs-row { padding: 2px 4px; font-size: 10px; grid-template-columns: 1fr auto; gap: 8px; }
   .rs-rows .vs-name { font-size: 9px; }
   .rs-rows .vs-stat { font-size: 9px; }

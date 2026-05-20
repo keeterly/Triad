@@ -22030,9 +22030,8 @@ function _renderEmbersScreen() {
       <span class="embers-balance-glyph">✦</span>
       <span class="embers-balance-num">${balance}</span>
       <span class="embers-balance-label">Embers banked</span>
-      <span class="embers-active-count">${active.length} / ${EMBERS_ACTIVE_CAP} active</span>
     </div>
-    <p class="embers-flavor">Every breath beneath the abyss leaves a coal behind.  Buy what carries forward — and choose which to carry.  Only ${EMBERS_ACTIVE_CAP} can burn at once.</p>
+    <p class="embers-flavor">Every breath beneath the abyss leaves a coal.  Spend on heroes, charms, or perks — what you carry forward shapes the next climb.</p>
   `;
   const rows = Object.entries(EMBER_UNLOCKS).map(([id, def]) => {
     const owned = getEmbersUnlockTier(id);
@@ -22138,13 +22137,20 @@ function _renderEmbersScreen() {
   // Preserve the scroll position across re-renders so an unseal / equip /
   // purchase doesn't jump the player back to the top — they're often
   // mid-list working through choices and the snap-to-top is disorienting.
+  //
+  // Section order is intentional: Heroes first (the most onboarding-friendly
+  // spend — unlocks variety for the player's next run), then Charms (small
+  // pre-run buffs that compound with any team), then Perks (deep multi-tier
+  // upgrades that pay off after the player has internalized the meta).
+  // Reordered from the previous Perks-first layout because the spend
+  // priority for a new player is clearly Heroes → Charms → Perks.
   const _prevScroll = body.scrollTop;
   body.innerHTML = `
     ${headerHtml}
-    <div class="embers-section-head">Perks</div>
-    <div class="embers-rows">${rows}</div>
     ${heroesHtml}
     ${charmsSection}
+    <div class="embers-section-head">Perks <span class="embers-section-sub">${active.length} / ${EMBERS_ACTIVE_CAP} equipped</span></div>
+    <div class="embers-rows">${rows}</div>
   `;
   body.scrollTop = _prevScroll;
   // Re-render the title underneath after any change so the Embers
