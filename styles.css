@@ -1274,16 +1274,31 @@ body.on-title:has(#overlay:not(.hidden)) #stage-scale {
 /* ============ HOLD-TO-INSPECT / MOVE PICKER ============ */
 .figure { cursor: pointer; touch-action: none; }
 
-/* "Pick up" feel — figure lifts further + scales up + glows while held,
-   so the gesture reads as "I have the hero in my hand" instead of just
-   "this hero is selected".  Drop on a move-arrow → swap.  Drop off → no-op. */
+/* "Pick up" feel — figure lifts AND follows the pointer while held.
+   --drag-x / --drag-y are written by bindFigureHold on pointermove
+   (in design-canvas pixels, accounting for the #stage-scale wrapper)
+   so the figure tracks the finger 1:1.  Idle state defaults to 0,0
+   so the inspecting state without motion just lifts in place.  No
+   transition on transform during drag — the figure needs to feel
+   stuck to the finger, not "easing toward" it. */
 .figure.inspecting {
-  transform: scale(1.10) translateY(-8px);
-  z-index: 12;
+  --drag-x: 0px;
+  --drag-y: 0px;
+  transform: translate(var(--drag-x), var(--drag-y)) translateY(-8px) scale(1.10);
+  z-index: 30;
   filter:
     drop-shadow(0 10px 16px rgba(0,0,0,0.85))
     drop-shadow(0 0 22px var(--gold-bright));
-  transition: transform 0.14s ease-out, filter 0.14s ease-out;
+  transition: filter 0.14s ease-out;
+}
+/* Drop-target highlight — fires while the dragged figure is hovered
+   over another live party figure.  Releasing here swaps them. */
+.figure.drop-target {
+  filter: drop-shadow(0 0 18px rgba(170,200,255,0.85));
+  outline: 2px dashed rgba(170,200,255,0.7);
+  outline-offset: 4px;
+  border-radius: 4px;
+  z-index: 8;
 }
 /* Pending-move affordance — a hero with a queued move displays at
    their PLANNED destination already (battlefield + tiles both re-

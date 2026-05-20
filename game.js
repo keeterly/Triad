@@ -12667,7 +12667,9 @@ function bindFigureHold(fig, charId, isParty) {
   let active = false;
   let holding = false;
   let aimArrow = null;
+  let aimDropFig = null;       // a sibling party figure the pointer is over
   let startX = 0, startY = 0;
+  let stageScale = 1;          // captured at start so pointer delta maps to local px
   let inspector = null;
 
   const removeAim = () => {
@@ -12675,14 +12677,23 @@ function bindFigureHold(fig, charId, isParty) {
       aimArrow.classList.remove('aim');
       aimArrow = null;
     }
+    if (aimDropFig) {
+      aimDropFig.classList.remove('drop-target');
+      aimDropFig = null;
+    }
   };
   const removeInspector = () => {
     if (inspector) { inspector.remove(); inspector = null; }
+  };
+  const clearDragOffset = () => {
+    fig.style.removeProperty('--drag-x');
+    fig.style.removeProperty('--drag-y');
   };
   const cleanup = () => {
     if (timer) { clearTimeout(timer); timer = null; }
     removeAim();
     removeInspector();
+    clearDragOffset();
     fig.classList.remove('inspecting');
     active = false;
     holding = false;
@@ -12722,6 +12733,15 @@ function bindFigureHold(fig, charId, isParty) {
     active = true;
     holding = false;
     startX = e.clientX; startY = e.clientY;
+    // Capture the stage's render scale so pointer delta in viewport
+    // pixels can be converted to design-canvas pixels (the coordinate
+    // system the figure's transform: translate(...) operates in,
+    // since the figure lives inside #stage-scale's scaled subtree).
+    try {
+      const stage = document.getElementById('stage');
+      const r = stage && stage.getBoundingClientRect();
+      stageScale = (r && r.width > 0) ? (r.width / 720) : 1;
+    } catch (_) { stageScale = 1; }
     try { fig.setPointerCapture(e.pointerId); } catch (_) {}
     // still-press timer reveals the inspecting state (name) without requiring motion
     timer = setTimeout(() => { if (active) enterHold(); }, HOLD_MS);
@@ -12732,22 +12752,71 @@ function bindFigureHold(fig, charId, isParty) {
     if (!active) return;
     // first sign of motion → enter drag mode immediately (don't wait for the timer)
     if (!holding) {
-      const dx = Math.abs(e.clientX - startX);
-      const dy = Math.abs(e.clientY - startY);
-      if (dx + dy < DRAG_THRESHOLD) return;
+      const ddx = Math.abs(e.clientX - startX);
+      const ddy = Math.abs(e.clientY - startY);
+      if (ddx + ddy < DRAG_THRESHOLD) return;
       enterHold();
     }
+    // Party figures literally follow the finger — the hero is being
+    // PICKED UP and moved, not just selected.  Convert the pointer's
+    // viewport-pixel delta into design-canvas pixels using the captured
+    // stage scale so the figure tracks 1:1 with the finger regardless
+    // of device scale.  Enemy figures stay anchored (no drag — they're
+    // just being inspected).
+    if (isParty) {
+      const dx = (e.clientX - startX) / stageScale;
+      const dy = (e.clientY - startY) / stageScale;
+      fig.style.setProperty('--drag-x', dx.toFixed(1) + 'px');
+      fig.style.setProperty('--drag-y', dy.toFixed(1) + 'px');
+    }
+    // Drop-target detection — what's under the finger?  Priority:
+    //   1. A move-arrow inside this figure (legacy aim path)
+    //   2. Another live party figure (drag-to-swap)
     const el = document.elementFromPoint(e.clientX, e.clientY);
     const arrow = (el && el.closest) ? el.closest('.move-arrow') : null;
-    if (arrow === aimArrow) return;
+    let dropFig = null;
+    if (isParty && !arrow && el && el.closest) {
+      dropFig = el.closest('#party-half .figure.party-figure');
+      if (dropFig === fig || (dropFig && (dropFig.classList.contains('empty') || dropFig.classList.contains('downed')))) {
+        dropFig = null;
+      }
+    }
+    // Re-aim if anything changed
+    if (arrow === aimArrow && dropFig === aimDropFig) return;
     removeAim();
     if (arrow && fig.contains(arrow)) {
       aimArrow = arrow;
       aimArrow.classList.add('aim');
+    } else if (dropFig) {
+      aimDropFig = dropFig;
+      aimDropFig.classList.add('drop-target');
     }
   };
 
   const end = () => {
+    // Drag-to-swap onto another live party figure — figure out the
+    // direction(s) needed to land on that slot, queue accordingly.
+    // Adjacent swap = one move; two-step swap (front↔back) = two
+    // chained moves, which costs 2 ATB — same as if the player had
+    // queued them by hand.
+    if (holding && isParty && aimDropFig) {
+      const targetSlot = aimDropFig.dataset.slot;
+      const liveSlots = simulateSlotsThrough(state, state.queue.length);
+      const curSlot = SLOTS.find(s => liveSlots[s] === charId);
+      const curIdx = SLOTS.indexOf(curSlot);
+      const tgtIdx = SLOTS.indexOf(targetSlot);
+      cleanup();
+      if (curIdx >= 0 && tgtIdx >= 0 && curIdx !== tgtIdx) {
+        const step = tgtIdx > curIdx ? 1 : -1;
+        // Queue one move per step toward the target slot
+        let cursor = curIdx;
+        while (cursor !== tgtIdx) {
+          pickMoveDir(charId, step);
+          cursor += step;
+        }
+      }
+      return;
+    }
     if (holding && aimArrow && isParty) {
       const dir = parseInt(aimArrow.dataset.dir, 10);
       cleanup();
