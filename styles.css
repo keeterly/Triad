@@ -1055,7 +1055,10 @@ body.on-title:has(#overlay:not(.hidden)) #stage-scale {
   padding: 0 2px;
   position: relative; z-index: 2;
   min-height: 0;
-  overflow: hidden;
+  /* overflow:visible so the figure-inspector panel (anchored at top:100%
+     of each figure card) can extend into the action-row area; the
+     inspector has its own z-index so it sits over the tiles when open. */
+  overflow: visible;
 }
 /* faint glowing arcane sigil between the two halves */
 #battlefield::before {

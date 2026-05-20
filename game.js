@@ -12523,8 +12523,11 @@ function _buildFigureInspector(fig, id, isParty) {
     }
   }
 
+  // Order: passive + mastery first (identity reads instantly under the
+  // name), then oaths, then forge bonuses, then live status chips.  The
+  // player came here to read who this hero is; statuses come second.
   const inner = (rows.length || passiveRow || masteryRow || oathRows || forgeRow)
-    ? `<ul class="fi-list">${rows.join('')}${forgeRow}${masteryRow}${oathRows}${passiveRow}</ul>`
+    ? `<ul class="fi-list">${passiveRow}${masteryRow}${oathRows}${forgeRow}${rows.join('')}</ul>`
     : `<div class="fi-empty">No active effects.</div>`;
 
   const panel = document.createElement('div');
