@@ -12827,7 +12827,10 @@ function bindFigureHold(fig, charId, isParty) {
       }
       if (isParty && !dropFig) {
         const f = el.closest('#party-half .figure.party-figure');
-        if (f && f !== fig && !f.classList.contains('downed')) {
+        // Downed allies ARE valid drop targets — the alive hero can
+        // swap into their slot (and the downed body slides to the
+        // vacated one).  Only self-drop is rejected.
+        if (f && f !== fig) {
           dropFig = f;
           // don't break — keep scanning for an arrow which trumps
         }
@@ -14333,9 +14336,18 @@ function renderBattlefield() {
   // state.party.slots for the duration of the render so all sub-
   // helpers (charBySlot, intentTargetCharIds, slotOfChar) pick up the
   // simulated layout without per-call plumbing.
+  //
+  // Critical: skip the sim during execution.  Queue items resolve
+  // linearly via executeQueueItem and each move lands in state.party.
+  // slots directly.  Replaying the queue on top of the already-mutated
+  // state would double-apply movement — the rendered figure jumps to
+  // the slot AFTER where it should be after each completed item.
+  const useSim = !state.executing;
   const _liveSlots = state.party.slots;
-  const slotsSim = simulateSlotsThrough(state, state.queue.length);
-  state.party.slots = slotsSim;
+  const slotsSim = useSim
+    ? simulateSlotsThrough(state, state.queue.length)
+    : state.party.slots;
+  if (useSim) state.party.slots = slotsSim;
   try {
   // Set of charIds whose slot has shifted from live → sim — covers
   // both explicit Move tiles AND techs with embedded advance/retreat
@@ -14448,8 +14460,9 @@ function renderBattlefield() {
   });
   } finally {
     // Restore live slots so the rest of the engine (queue resolution,
-    // move execution, etc.) keeps reading the true layout.
-    state.party.slots = _liveSlots;
+    // move execution, etc.) keeps reading the true layout.  No-op when
+    // we didn't swap (during execution).
+    if (useSim) state.party.slots = _liveSlots;
   }
 }
 
@@ -14460,7 +14473,13 @@ function renderTiles() {
   if (!grid) return;
   grid.innerHTML = '';
 
-  const sim = simulateSlotsThrough(state, state.queue.length);
+  // Same execution-time guard as renderBattlefield — during queue
+  // resolution, each item's effects (including embedded moves) have
+  // already landed in state.party.slots, so re-projecting the queue
+  // on top would double-apply.  Use the live slots while executing.
+  const sim = state.executing
+    ? { ...state.party.slots }
+    : simulateSlotsThrough(state, state.queue.length);
   const teamLocked = state.queue.some(q => q.kind === 'team');
   const tileCounts = {};
   state.queue.forEach(q => {
@@ -15365,6 +15384,11 @@ function previewReachLabel(kind, charId, dir) {
 // would fire?" snapshot for queue-aware damage/heal previews.
 function getPreviewState() {
   if (!state.queue || state.queue.length === 0) return state;
+  // During queue resolution the queue items are partway through
+  // executing — replaying them on a clone of the live (already mid-
+  // mutation) state would compound the effects.  Return the live
+  // state in that window; tiles are disabled while executing anyway.
+  if (state.executing) return state;
   let clone;
   try { clone = structuredClone(state); }
   catch (_) { return state; }  // fall back to live state if structuredClone unsupported
