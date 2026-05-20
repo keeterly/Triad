@@ -14796,9 +14796,19 @@ function previewReachLabel(kind, charId, dir) {
     return `<span class="rch-label rch-miss" title="No enemy in reach — this action would miss">miss</span>`;
   }
   if (variant.pattern === 'all') {
-    const txt = targetSlots.length === 3
-      ? 'ALL'
-      : targetSlots.map(sl => sl.charAt(0).toUpperCase()).join('·');
+    let txt;
+    if (targetSlots.length === 3) {
+      // Full sweep — every alive enemy.  Short pill reads cleanly here.
+      txt = 'ALL';
+    } else if (targetSlots.length === 1) {
+      // AoE that only catches one live target right now — match the
+      // single-target pill's wording so 'Spread Fire → FRONT' looks the
+      // same as 'Aim and Shoot → FRONT'.
+      txt = targetSlots[0].toUpperCase();
+    } else {
+      // Partial sweep (2 of 3) — initials joined keep the pill compact.
+      txt = targetSlots.map(sl => sl.charAt(0).toUpperCase()).join('·');
+    }
     const title = `Hits every enemy in reach (${targetSlots.join(' + ')})`;
     return `<span class="rch-label rch-aoe" title="${title}">→ ${txt}</span>`;
   }
