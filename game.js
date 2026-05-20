@@ -13855,16 +13855,12 @@ function checkEnd(s) {
     }
     // Bonds — every pair of heroes still standing at fight-win time
     // gains +1 to their shared-fights counter.  Persistent across all
-    // runs; at thresholds (10/25/50) the pair's synergy gets a small
-    // permanent buff and the bond tier label rises (Companions →
-    // Kindred → Sworn → Bonded).  Downed heroes don't count — they
-    // weren't fighting at the end.
-    const _aliveIds = Object.values(s.party.chars).filter(c => !c.downed).map(c => c.id);
-    for (let i = 0; i < _aliveIds.length; i++) {
-      for (let j = i + 1; j < _aliveIds.length; j++) {
-        recordBondedFight(_aliveIds[i], _aliveIds[j]);
-      }
-    }
+    // Cross-run bonded-fight tracking was removed in the bond-system
+    // simplification — bonds now progress ONLY via per-run fires
+    // (Tier I/II/III in s.run.synergyCounts).  The pair-fight count
+    // added a parallel meta layer that didn't pay off well in a
+    // roguelite where the party reshuffles every run; the kizuna
+    // pitch is delivered in-run, not across runs.
     // Wanderer-fight lockout — if this combat was a wanderer duel, the
     // hero on the road is now removed from the run's recruit + wanderer
     // pools.  Flag set by showWandererOverlay before startEncounter.
@@ -17240,14 +17236,11 @@ function showRunInfoPanel() {
         return `<span class="sigil-chip cat-${sg.category}" title="${sg.name} — ${sg.desc}" data-tip="${sg.name} — ${sg.desc}">${sg.icon || '◆'} ${sg.name}</span>`;
       }).join('')}</div>`
     : `<div class="info-empty">No sigils bound yet.</div>`;
-  // Active bonds + frictions — surfaces the synergies the current formation
-  // has unlocked, with each row's effect glyph + the per-run TIER + fire
-  // count so the player can read kizuna progress without long-pressing.
-  // Pairs with a charm also show "Charm" hint if it's unlocked (Kindred+)
-  // or how-to-unlock if not (10 shared fights).
-  const _allBonds = getBonds();
-  const _charmByPair = {};
-  Object.entries(CHARMS).forEach(([id, def]) => { _charmByPair[def.pairKey] = { id, def }; });
+  // Active bonds + frictions — surfaces the synergies the current
+  // formation has unlocked, with each row's effect glyph + the per-run
+  // TIER + fire count so the player can read kizuna progress without
+  // long-pressing.  No cross-run charm strip — charms live in the
+  // Embers store now (separate progression).
   const bondPairs = getAdjacencyPairs(state);
   const bondBlock = bondPairs.length
     ? `<div class="info-bonds">${bondPairs.map(p => {
@@ -17270,34 +17263,16 @@ function showRunInfoPanel() {
           else                 next = 'resonant';
           tierStrip = `<span class="info-bond-tier" data-tier="${tier}">${tier > 1 ? `${tierRoman} · ` : ''}${count}× · ${next}</span>`;
         }
-        // Cross-run charm strip — show the pair's keepsake (if any).
-        const pairKey = _bondKey(p.ids[0], p.ids[1]);
-        const charmInfo = _charmByPair[pairKey];
-        const sharedFights = (_allBonds[pairKey] && _allBonds[pairKey].fights) || 0;
-        let charmStrip = '';
-        if (charmInfo) {
-          const unlocked = sharedFights >= 10;
-          const equipped = unlocked && getEquippedCharmId() === charmInfo.id;
-          if (equipped) {
-            charmStrip = `<span class="info-bond-charm info-bond-charm-equipped">✦ ${charmInfo.def.name} equipped</span>`;
-          } else if (unlocked) {
-            charmStrip = `<span class="info-bond-charm info-bond-charm-ready">✦ ${charmInfo.def.name} ready — Codex › Bonds</span>`;
-          } else {
-            const toGo = 10 - sharedFights;
-            charmStrip = `<span class="info-bond-charm info-bond-charm-locked">✦ ${charmInfo.def.name} · ${toGo} more shared fight${toGo === 1 ? '' : 's'} to unlock</span>`;
-          }
-        }
         return `<div class="info-bond info-bond-${p.synergy.type} effect-${effect}">
           <span class="info-bond-glyph" aria-hidden="true">${glyph}</span>
           <div class="info-bond-body">
             <span class="info-bond-name">${p.synergy.name}</span>
             <span class="info-bond-pair">${namesA} + ${namesB} · ${lineLabel}</span>
             ${tierStrip}
-            ${charmStrip}
           </div>
         </div>`;
       }).join('')}</div>`
-    : `<div class="info-empty">No active bonds — place two heroes side-by-side (Front+Mid or Mid+Back) to form a bond.  Long-press the menu's Codex › Bonds tab to see all kizuna progress + equip charms.</div>`;
+    : `<div class="info-empty">No active bonds — place two heroes side-by-side (Front+Mid or Mid+Back) to form a bond.</div>`;
   // Available Resonances — every combo whose required heroes are currently
   // in the party (alive or not, since downed isn't permanent within a
   // fight).  Sorted by tier so triples / sig-tier rise.  Compact list with
@@ -17480,12 +17455,6 @@ const TUTORIAL_HINTS = [
   // an extra clause like cleanse / heal / +Resolve).  Long-press a
   // hero to see their active bonds and progress to the next tier.
   { id: 'bonds',      text: '<b>Bonds</b> — heroes side-by-side share a passive that fires on attacks / heals / damage.  Every fire ticks the bond up; at <b>3 fires</b> it deepens (<b>II</b>) and at <b>8 fires</b> it becomes <b>RESONANT</b> (<b>III</b>) — unlocking an extra clause on top of the bigger numbers.  Long-press a hero to see their bonds.' },
-  // Charms — the cross-run kizuna track.  Pairs that survive a fight
-  // together track shared-fight count in localStorage; at 10 they hit
-  // Kindred and unlock their pair's Charm, a small pre-run buff equipped
-  // from the Codex › Bonds tab.  Players were missing this because the
-  // surface lives in the Codex and there was no in-fight pointer.
-  { id: 'charms',     text: '<b>Charms</b> — pairs that win fights together track shared-fight count <i>across runs</i>.  At <b>10 shared fights</b> (Kindred ✦) a pair\'s Charm unlocks — a small pre-run buff (e.g. +2 max HP all heroes, first-attack +2 dmg).  Equip one charm per run from <b>Codex › Bonds</b>.' },
 ];
 
 const TUT_KEY = 'kizuna.tutorialSeen.v2';
@@ -21607,7 +21576,7 @@ function _renderCodex(body) {
     { id: 'bestiary',     label: 'Bestiary',     count: Object.values(codex.enemies).filter(e => e.encountered).length, total: Object.values(ENEMIES).filter(e => !e._dev).length },
     { id: 'sigils',       label: 'Sigils',       count: Object.keys(codex.sigils).length,                                total: Object.keys(SIGILS).length },
     { id: 'resonances',   label: 'Resonances',   count: Object.keys(codex.combos).length,                                total: Object.keys(COMBOS).length },
-    { id: 'bonds',        label: 'Bonds',        count: Object.values(bonds).filter(b => (b.fights || 0) >= 10).length,   total: Object.keys(bonds).length || 0 },
+    { id: 'bonds',        label: 'Bonds',        count: 0,                                                                total: 0, hideCount: true },
     { id: 'achievements', label: 'Achievements', count: Object.keys(earned).length,                                       total: Object.keys(ACHIEVEMENTS).length },
   ];
   // NEW dot — surfaced on tabs the player has never opened.  Cleared
@@ -21615,10 +21584,13 @@ function _renderCodex(body) {
   const seenTabs = _getSeenCodexTabs();
   const nav = tabs.map(t => {
     const isNew = !seenTabs[t.id];
+    const countStrip = t.hideCount
+      ? ''
+      : `<span class="codex-tab-count">${t.count} / ${t.total}</span>`;
     return `
     <button type="button" class="codex-tab${t.id === _codexActiveTab ? ' codex-tab-active' : ''}${isNew ? ' codex-tab-new' : ''}" data-tab="${t.id}">
       <span class="codex-tab-label">${t.label}${isNew ? '<span class="codex-tab-newdot" aria-label="new"></span>' : ''}</span>
-      <span class="codex-tab-count">${t.count} / ${t.total}</span>
+      ${countStrip}
     </button>
   `;
   }).join('');
@@ -21798,102 +21770,68 @@ function _renderCodexHeroes(unlocked) {
   return `<div class="codex-group">${rows}</div>`;
 }
 
-function _renderCodexBonds(bonds) {
-  // Compact bond list reused inside the codex tab.  Mirrors the
-  // standalone Bonds screen but trimmed to a single column so it
-  // fits the narrower codex card.  Pairs with a charm (declared in
-  // CHARMS by pairKey) get an Equip / Equipped / Locked button row
-  // below the bar so the player can pick a keepsake straight from
-  // the bond entry — no separate Charms screen needed.
-  const entries = Object.entries(bonds).map(([key, val]) => {
-    const [a, b] = key.split('+');
-    return { a, b, fights: val.fights || 0, key };
-  }).sort((x, y) => y.fights - x.fights);
-  const equippedId = getEquippedCharmId();
-  // Build a quick lookup from pair-key to charm so each bond row can
-  // surface its pair-keepsake (if one exists in CHARMS).
-  const charmByPair = {};
-  Object.entries(CHARMS).forEach(([id, def]) => { charmByPair[def.pairKey] = { id, def }; });
-  // Top of the tab: small banner showing what's currently equipped so
-  // the player can read their loadout for next run at a glance.
-  const equippedDef = equippedId && CHARMS[equippedId];
-  const equippedBanner = `
-    <div class="codex-charm-equipped">
-      <span class="codex-charm-equipped-label">Equipped</span>
-      ${equippedDef
-        ? `<span class="codex-charm-equipped-name">${equippedDef.name}</span><span class="codex-charm-equipped-effect">${equippedDef.effect}</span><button type="button" class="codex-charm-unequip">Unequip</button>`
-        : `<span class="codex-charm-equipped-empty">No charm — reach Bond tier 2 (Kindred · 10 shared fights) on a pair to unlock theirs.</span>`}
+function _renderCodexBonds(_bonds) {
+  // Bond catalog — the cross-run shared-fight tracking was removed in
+  // the bond-system simplification.  Bonds are now purely per-run
+  // (Tier I/II/III via s.run.synergyCounts).  This screen lists every
+  // named bond authored in ADJ so the player can browse pair effects
+  // ahead of building their party — same role the catalog tab serves
+  // for Sigils / Resonances.  Charms live in the Embers store now.
+  const _alreadyShown = new Set();
+  const bondEntries = [];
+  Object.entries(ADJ).forEach(([pairKey, lines]) => {
+    ['fm', 'mb'].forEach(line => {
+      const syn = lines && lines[line];
+      if (!syn || syn.type === 'friction') return;
+      if (_alreadyShown.has(syn.name)) return;
+      _alreadyShown.add(syn.name);
+      const [a, b] = pairKey.split('+');
+      const defA = CHARS[a]; const defB = CHARS[b];
+      if (!defA || !defB) return;
+      bondEntries.push({ name: syn.name, pairKey, a, b, line, effect: syn.effect || 'utility' });
+    });
+  });
+  bondEntries.sort((x, y) => x.name.localeCompare(y.name));
+  // Quick reference of how bonds deepen — kizuna pitch in one strip.
+  const intro = `
+    <div class="codex-bond-intro">
+      <span class="codex-bond-intro-icon">✦</span>
+      <span class="codex-bond-intro-text">
+        Adjacent heroes share <b>kizuna</b>.  Every time a bond fires it ticks up;
+        at <b>3 fires</b> the bond deepens (<b>II</b>, +1 amt), at <b>8 fires</b> it
+        becomes <b>RESONANT</b> (<b>III</b>) and unlocks a unique clause —
+        cleanse, +1 Resolve, heal, etc.  Per run only.
+      </span>
     </div>
   `;
-  if (!entries.length) {
-    return `<div class="codex-group">${equippedBanner}<div class="codex-empty">No bonds yet.  Recruit a hero on the road, win a fight together, and watch this list fill.</div></div>`;
+  if (!bondEntries.length) {
+    return `<div class="codex-group">${intro}<div class="codex-empty">No bonds catalogued.</div></div>`;
   }
-  const rows = entries.map(({ a, b, fights, key }) => {
+  const ADJ_EFFECT_GLYPH = { dmg: '⚔', heal: '✚', armor: '⛨', resolve: '♦', utility: '◌' };
+  const rows = bondEntries.map(({ name, a, b, line, effect }) => {
     const da = CHARS[a]; const db = CHARS[b];
-    if (!da || !db) return '';
-    const tier = bondTierFor(fights);
-    const tierLabel = BOND_TIER_LABELS[tier] || 'Unmet';
-    const tierCls = `bond-tier-${tier}`;
-    const nextAt = tier === 0 ? 1 : tier === 1 ? 10 : tier === 2 ? 25 : tier === 3 ? 50 : 50;
-    const pct = Math.min(100, Math.round((fights / nextAt) * 100));
-    // Charm row — shows the pair's keepsake if one exists.  Locked
-    // until Bond tier 2; Equip button toggles to Equipped if it's
-    // currently the active charm.
-    const charm = charmByPair[key];
-    let charmHtml = '';
-    if (charm) {
-      const unlocked = tier >= 2;
-      const isEquipped = unlocked && equippedId === charm.id;
-      charmHtml = `<div class="codex-bond-charm${unlocked ? '' : ' codex-bond-charm-locked'}">
-        <div class="codex-bond-charm-info">
-          <span class="codex-bond-charm-name">${charm.def.name}</span>
-          <span class="codex-bond-charm-effect">${charm.def.effect}</span>
-        </div>
-        ${unlocked
-          ? `<button type="button" class="codex-bond-charm-btn${isEquipped ? ' codex-bond-charm-btn-active' : ''}" data-charm="${charm.id}">${isEquipped ? 'Equipped' : 'Equip'}</button>`
-          : `<span class="codex-bond-charm-lock">Kindred ✦ unlocks</span>`}
-      </div>`;
-    }
-    return `<div class="codex-row codex-row-bond ${tierCls}">
+    const lineLabel = line === 'fm' ? 'Front · Mid' : 'Mid · Back';
+    const t3 = BOND_TIER3_CLAUSES[name];
+    const t3Hint = t3 ? `<span class="codex-bond-t3"><b>III:</b> + ${t3.text}</span>` : '';
+    return `<div class="codex-row codex-row-bond">
       <div class="codex-bond-portraits">
         <div class="codex-bond-portrait">${PORTRAITS[a] || ''}</div>
         <div class="codex-bond-portrait">${PORTRAITS[b] || ''}</div>
       </div>
       <div class="codex-row-body">
         <div class="codex-row-head">
-          <span class="codex-row-name">${da.name} + ${db.name}</span>
-          <span class="codex-row-stat">${tierLabel}</span>
+          <span class="codex-row-name">${name}</span>
+          <span class="codex-row-stat effect-${effect}">${ADJ_EFFECT_GLYPH[effect] || '◌'}</span>
         </div>
-        <div class="codex-bond-bar"><div class="codex-bond-bar-fill" style="width:${pct}%"></div></div>
-        <div class="codex-row-meta"><span><b>${fights}</b> shared</span>${tier < 4 ? `<span>next ${nextAt}</span>` : `<span>max</span>`}</div>
-        ${charmHtml}
+        <div class="codex-row-meta">
+          <span>${da.name} + ${db.name}</span>
+          <span>${lineLabel}</span>
+        </div>
+        ${t3Hint}
       </div>
     </div>`;
   }).join('');
-  // Bind equip / unequip buttons after the next paint.  Uses `onclick =`
-  // (not addEventListener) so two successive renders don't both bind on
-  // the same node — the second assignment overwrites the first, leaving
-  // exactly one handler per button.
-  setTimeout(() => {
-    document.querySelectorAll('#codex-body .codex-bond-charm-btn[data-charm]').forEach(btn => {
-      btn.onclick = () => {
-        const charmId = btn.dataset.charm;
-        const currently = getEquippedCharmId();
-        setEquippedCharm(currently === charmId ? null : charmId);
-        Audio.ui();
-        _renderCodex(document.getElementById('codex-body'));
-      };
-    });
-    const unequipBtn = document.querySelector('#codex-body .codex-charm-unequip');
-    if (unequipBtn) {
-      unequipBtn.onclick = () => {
-        setEquippedCharm(null);
-        Audio.ui();
-        _renderCodex(document.getElementById('codex-body'));
-      };
-    }
-  }, 0);
-  return `<div class="codex-group">${equippedBanner}${rows}</div>`;
+  return `<div class="codex-group">${intro}${rows}</div>`;
 }
 
 function _renderCodexAchievements(earned) {
