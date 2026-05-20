@@ -10004,7 +10004,25 @@ const CHARM_UNLOCK_COST = 40;
 function getPurchasedCharms() {
   try {
     const raw = localStorage.getItem(CHARMS_PURCHASED_KEY);
-    return raw ? new Set(JSON.parse(raw) || []) : new Set();
+    if (raw) return new Set(JSON.parse(raw) || []);
+    // Migration — players who had a charm equipped under the old
+    // Kindred-unlock system get that charm granted as purchased so
+    // they don't lose the keepsake they already earned.  Runs once
+    // per device: writes the migrated set back so subsequent reads
+    // skip this branch.
+    const legacyEquipped = localStorage.getItem(CHARM_KEY);
+    if (legacyEquipped && CHARMS[legacyEquipped]) {
+      const migrated = new Set([legacyEquipped]);
+      try {
+        localStorage.setItem(CHARMS_PURCHASED_KEY, JSON.stringify(Array.from(migrated)));
+      } catch (_) {}
+      return migrated;
+    }
+    // Persist an empty set so the migration check doesn't re-run every
+    // call.  Without this, a player with no equipped charm hits the
+    // legacyEquipped path every render.
+    try { localStorage.setItem(CHARMS_PURCHASED_KEY, JSON.stringify([])); } catch (_) {}
+    return new Set();
   } catch (_) { return new Set(); }
 }
 function _savePurchasedCharms(set) {
@@ -17609,17 +17627,33 @@ const TUTORIAL_HINTS = [
 
 const TUT_KEY = 'kizuna.tutorialSeen.v2';
 function getTutorialSeen() {
-  // Migration — if the old single-flag exists, mark every hint that
-  // shipped before v2 as already seen so returning players only see the
-  // newly-added hints (move + resonance), not the whole sequence again.
+  // Migration v1 → v2 — if the old single-flag exists, mark every
+  // hint that shipped before v2 as already seen so returning players
+  // only see the newly-added hints, not the whole sequence again.
   try {
     if (localStorage.getItem('kizuna.tutorialSeen') === '1' && !localStorage.getItem(TUT_KEY)) {
       const baseline = ['tap', 'hold', 'commit', 'enemies'];
       localStorage.setItem(TUT_KEY, JSON.stringify(baseline));
     }
   } catch (_) {}
-  try { return new Set(JSON.parse(localStorage.getItem(TUT_KEY) || '[]')); }
+  let set;
+  try { set = new Set(JSON.parse(localStorage.getItem(TUT_KEY) || '[]')); }
   catch (_) { return new Set(); }
+  // Migration v2 reword — tap_v2 → queue_v3, hold → preview_v3.
+  // The new IDs cover the same surface with consolidated wording
+  // (tap + commit folded into queue, hold + reach folded into
+  // preview), so a returning player who already saw the old hints
+  // shouldn't be re-shown the reworded version.  Persist once.
+  let changed = false;
+  if (set.has('tap_v2') && !set.has('queue_v3'))   { set.add('queue_v3');   changed = true; }
+  if (set.has('hold')   && !set.has('preview_v3')) { set.add('preview_v3'); changed = true; }
+  // The 'commit' and 'reach' hints were rolled into queue_v3 /
+  // preview_v3 respectively; mark their old IDs seen too so the
+  // returning player's seen-set stays accurate for future migrations.
+  if (changed) {
+    try { localStorage.setItem(TUT_KEY, JSON.stringify(Array.from(set))); } catch (_) {}
+  }
+  return set;
 }
 function markTutorialHintSeen(id) {
   const s = getTutorialSeen(); s.add(id);
