@@ -1133,7 +1133,13 @@ body.on-title:has(#overlay:not(.hidden)) #stage-scale {
   padding: 0 0 1px;
   cursor: pointer;
 }
-.figure.empty { visibility: hidden; }
+/* Empty slot — hide the contents but keep the box itself hittable so
+   it can serve as a drop target for hero drag-drop.  visibility:hidden
+   on the parent would make the slot invisible to elementsFromPoint
+   (and therefore unselectable as a drop), so we scope the hide to
+   children only.  The .drop-target dashed outline applies to the box
+   when a dragged hero is hovered over it. */
+.figure.empty > * { visibility: hidden; }
 .figure.downed { opacity: 0.4; filter: grayscale(1) brightness(0.65); }
 
 /* ===========================================================================
