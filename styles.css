@@ -973,6 +973,8 @@ body.on-title:has(#overlay:not(.hidden)) #stage-scale {
 }
 .figure-inspector .fi-row-passive .fi-icon { color: var(--gold-pale); }
 .figure-inspector .fi-row-passive .fi-text b { color: var(--gold-bright); letter-spacing: 0.06em; }
+.figure-inspector .fi-row-bond .fi-icon { color: var(--heal); text-shadow: 0 0 6px rgba(152,216,120,0.5); }
+.figure-inspector .fi-row-bond .fi-text b { color: var(--heal); letter-spacing: 0.06em; }
 .figure-inspector .fi-empty {
   font-size: 10.5px;
   color: var(--ink-dim);
@@ -2757,6 +2759,23 @@ body.on-title:has(#overlay:not(.hidden)) #stage-scale {
 .popup.friction {
   color: var(--blood-bright);
   text-shadow: 0 1px 0 var(--shadow), 0 0 10px rgba(212,69,69,0.7);
+}
+/* Bond rank-up celebration — fires the moment a bond crosses 3 or 8
+   fires and unlocks its next tier.  Bigger, longer, brighter than a
+   normal bond popup so the player FEELS the kizuna deepening. */
+.popup.bond-rankup {
+  color: #ffeec0;
+  font-size: 14px;
+  font-weight: 800;
+  font-style: italic;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  text-shadow:
+    0 1px 0 var(--shadow),
+    0 0 6px rgba(240,212,136,0.95),
+    0 0 16px rgba(240,212,136,0.6),
+    0 0 28px rgba(240,212,136,0.35);
+  animation: popup-rise 1.7s cubic-bezier(.18,.7,.25,1) forwards;
 }
 /* ===========================================================================
    WORLD MAP — the Abyss layers.  Surfaced after a Wakeling kill so the

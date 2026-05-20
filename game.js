@@ -8729,8 +8729,9 @@ const ADJ = {
         if (healerId !== 'elin') return;
         const c = s.party.chars.cassia;
         if (!c || c.downed) return;
-        c.armor += 1;
-        fireSynergyFeedback(s, 'Veiled Vow', 'cassia', '+1⛨', 'armor');
+        const amt = bondTierBonus(s, 'Veiled Vow', 1);
+        c.armor += amt;
+        fireSynergyFeedback(s, 'Veiled Vow', 'cassia', `+${amt}⛨`, 'armor');
       },
     },
   },
@@ -8746,8 +8747,9 @@ const ADJ = {
         const b = s.party.chars.branwen;
         if (!b || b.downed) return;
         if (b.pendingEffects.some(e => e.source === 'banner-fire')) return;
-        b.pendingEffects.push({ kind: 'attackBonus', amt: 2, source: 'banner-fire' });
-        fireSynergyFeedback(s, 'Banner Fire', 'branwen', '+2 atk', 'armor');
+        const amt = bondTierBonus(s, 'Banner Fire', 2);
+        b.pendingEffects.push({ kind: 'attackBonus', amt, source: 'banner-fire' });
+        fireSynergyFeedback(s, 'Banner Fire', 'branwen', `+${amt} atk`, 'armor');
       },
     },
   },
@@ -8759,8 +8761,9 @@ const ADJ = {
         const e = s.party.chars.elin;
         if (!e || e.downed) return;
         if (e.pendingEffects.some(eff => eff.source === 'spirit-arrow')) return;
-        e.pendingEffects.push({ kind: 'healBonus', amt: 2, source: 'spirit-arrow' });
-        fireSynergyFeedback(s, 'Spirit Arrow', 'elin', '+2 heal', 'heal');
+        const amt = bondTierBonus(s, 'Spirit Arrow', 2);
+        e.pendingEffects.push({ kind: 'healBonus', amt, source: 'spirit-arrow' });
+        fireSynergyFeedback(s, 'Spirit Arrow', 'elin', `+${amt} heal`, 'heal');
       },
     },
     mb: {
@@ -8769,9 +8772,10 @@ const ADJ = {
         if (healerId !== 'elin' || targetId === 'branwen') return;
         const b = s.party.chars.branwen;
         if (!b || b.downed) return;
+        const amt = bondTierBonus(s, "Mercy's Gift", 1);
         const before = b.hp;
-        b.hp = Math.min(b.maxHp, b.hp + 1);
-        if (b.hp > before) fireSynergyFeedback(s, "Mercy's Gift", 'branwen', '+1', 'heal');
+        b.hp = Math.min(b.maxHp, b.hp + amt);
+        if (b.hp > before) fireSynergyFeedback(s, "Mercy's Gift", 'branwen', `+${b.hp - before}`, 'heal');
       },
     },
   },
@@ -8783,8 +8787,9 @@ const ADJ = {
         if (granterId !== 'cassia') return;
         const k = s.party.chars.korin;
         if (!k || k.downed) return;
-        k.retaliate += 1;
-        fireSynergyFeedback(s, 'Iron Bond', 'korin', '+1↻', 'armor');
+        const amt = bondTierBonus(s, 'Iron Bond', 1);
+        k.retaliate += amt;
+        fireSynergyFeedback(s, 'Iron Bond', 'korin', `+${amt}↻`, 'armor');
       },
     },
     mb: {
@@ -8794,8 +8799,9 @@ const ADJ = {
         const k = s.party.chars.korin;
         if (!k || k.downed) return;
         if (k.pendingEffects.some(e => e.source === 'bloodguard')) return;
-        k.pendingEffects.push({ kind: 'attackBonus', amt: 2, source: 'bloodguard' });
-        fireSynergyFeedback(s, 'Bloodguard', 'korin', '+2 atk', 'armor');
+        const amt = bondTierBonus(s, 'Bloodguard', 2);
+        k.pendingEffects.push({ kind: 'attackBonus', amt, source: 'bloodguard' });
+        fireSynergyFeedback(s, 'Bloodguard', 'korin', `+${amt} atk`, 'armor');
       },
     },
   },
@@ -8807,8 +8813,9 @@ const ADJ = {
         const b = s.party.chars.branwen;
         if (!b || b.downed) return;
         if (b.pendingEffects.some(e => e.source === 'wild-hunt')) return;
-        b.pendingEffects.push({ kind: 'attackBonus', amt: 2, source: 'wild-hunt' });
-        fireSynergyFeedback(s, 'Wild Hunt', 'branwen', '+2 atk', 'armor');
+        const amt = bondTierBonus(s, 'Wild Hunt', 2);
+        b.pendingEffects.push({ kind: 'attackBonus', amt, source: 'wild-hunt' });
+        fireSynergyFeedback(s, 'Wild Hunt', 'branwen', `+${amt} atk`, 'armor');
       },
     },
     mb: {
@@ -8818,8 +8825,9 @@ const ADJ = {
         const k = s.party.chars.korin;
         if (!k || k.downed) return;
         if (k.pendingEffects.some(e => e.source === 'crimson-echo')) return;
-        k.pendingEffects.push({ kind: 'attackBonus', amt: 2, source: 'crimson-echo' });
-        fireSynergyFeedback(s, 'Crimson Echo', 'korin', '+2 atk', 'armor');
+        const amt = bondTierBonus(s, 'Crimson Echo', 2);
+        k.pendingEffects.push({ kind: 'attackBonus', amt, source: 'crimson-echo' });
+        fireSynergyFeedback(s, 'Crimson Echo', 'korin', `+${amt} atk`, 'armor');
       },
     },
   },
@@ -8830,9 +8838,10 @@ const ADJ = {
         if (attackerId !== 'ash') return;
         const el = s.party.chars.elin;
         if (!el || el.downed) return;
+        const amt = bondTierBonus(s, 'Veiled Flame', 1);
         const before = el.hp;
-        el.hp = Math.min(el.maxHp, el.hp + 1);
-        if (el.hp > before) fireSynergyFeedback(s, 'Veiled Flame', 'elin', '+1', 'heal');
+        el.hp = Math.min(el.maxHp, el.hp + amt);
+        if (el.hp > before) fireSynergyFeedback(s, 'Veiled Flame', 'elin', `+${el.hp - before}`, 'heal');
       },
     },
     mb: {
@@ -8842,8 +8851,9 @@ const ADJ = {
         const a = s.party.chars.ash;
         if (!a || a.downed) return;
         if (a.pendingEffects.some(e => e.source === 'sanctuary-fire')) return;
-        a.pendingEffects.push({ kind: 'attackBonus', amt: 2, source: 'sanctuary-fire' });
-        fireSynergyFeedback(s, 'Sanctuary Fire', 'ash', '+2 atk', 'heal');
+        const amt = bondTierBonus(s, 'Sanctuary Fire', 2);
+        a.pendingEffects.push({ kind: 'attackBonus', amt, source: 'sanctuary-fire' });
+        fireSynergyFeedback(s, 'Sanctuary Fire', 'ash', `+${amt} atk`, 'heal');
       },
     },
   },
@@ -8857,8 +8867,9 @@ const ADJ = {
         const o = s.party.chars[otherId];
         if (!o || o.downed) return;
         if (o.pendingEffects.some(eff => eff.source === 'sisters-shadow')) return;
-        o.pendingEffects.push({ kind: 'attackBonus', amt: 2, source: 'sisters-shadow' });
-        fireSynergyFeedback(s, 'Sisters of Shadow', otherId, '+2 atk', 'armor');
+        const amt = bondTierBonus(s, 'Sisters of Shadow', 2);
+        o.pendingEffects.push({ kind: 'attackBonus', amt, source: 'sisters-shadow' });
+        fireSynergyFeedback(s, 'Sisters of Shadow', otherId, `+${amt} atk`, 'armor');
       },
     },
     mb: {
@@ -8870,8 +8881,9 @@ const ADJ = {
         const o = s.party.chars[otherId];
         if (!o || o.downed) return;
         if (o.pendingEffects.some(eff => eff.source === 'twin-blades')) return;
-        o.pendingEffects.push({ kind: 'attackBonus', amt: 2, source: 'twin-blades' });
-        fireSynergyFeedback(s, 'Twin Blades', otherId, '+2 atk', 'armor');
+        const amt = bondTierBonus(s, 'Twin Blades', 2);
+        o.pendingEffects.push({ kind: 'attackBonus', amt, source: 'twin-blades' });
+        fireSynergyFeedback(s, 'Twin Blades', otherId, `+${amt} atk`, 'armor');
       },
     },
   },
@@ -8916,8 +8928,9 @@ const ADJ = {
         const other = s.party.chars[otherId];
         if (!other || other.downed) return;
         if (other.pendingEffects.some(e => e.source === 'shadowtwin')) return;
-        other.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'shadowtwin' });
-        fireSynergyFeedback(s, 'Shadowtwin', otherId, '+1 atk', 'armor');
+        const amt = bondTierBonus(s, 'Shadowtwin', 1);
+        other.pendingEffects.push({ kind: 'attackBonus', amt, source: 'shadowtwin' });
+        fireSynergyFeedback(s, 'Shadowtwin', otherId, `+${amt} atk`, 'armor');
       },
     },
     mb: {
@@ -8928,8 +8941,9 @@ const ADJ = {
         const other = s.party.chars[otherId];
         if (!other || other.downed) return;
         if (other.pendingEffects.some(e => e.source === 'shadowtwin')) return;
-        other.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'shadowtwin' });
-        fireSynergyFeedback(s, 'Shadowtwin', otherId, '+1 atk', 'armor');
+        const amt = bondTierBonus(s, 'Shadowtwin', 1);
+        other.pendingEffects.push({ kind: 'attackBonus', amt, source: 'shadowtwin' });
+        fireSynergyFeedback(s, 'Shadowtwin', otherId, `+${amt} atk`, 'armor');
       },
     },
   },
@@ -8973,8 +8987,9 @@ const ADJ = {
         const k = s.party.chars.kell;
         if (!k || k.downed) return;
         if (k.pendingEffects.some(eff => eff.source === 'open-strike')) return;
-        k.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'open-strike' });
-        fireSynergyFeedback(s, 'Open Strike', 'kell', '+1 atk', 'armor');
+        const amt = bondTierBonus(s, 'Open Strike', 1);
+        k.pendingEffects.push({ kind: 'attackBonus', amt, source: 'open-strike' });
+        fireSynergyFeedback(s, 'Open Strike', 'kell', `+${amt} atk`, 'armor');
       },
     },
   },
@@ -8990,8 +9005,9 @@ const ADJ = {
         const k = s.party.chars.kell;
         if (!k || k.downed) return;
         if (k.pendingEffects.some(eff => eff.source === 'sister-hand')) return;
-        k.pendingEffects.push({ kind: 'attackBonus', amt: 2, source: 'sister-hand' });
-        fireSynergyFeedback(s, 'Sister Hand', 'kell', '+2 atk', 'heal');
+        const amt = bondTierBonus(s, 'Sister Hand', 2);
+        k.pendingEffects.push({ kind: 'attackBonus', amt, source: 'sister-hand' });
+        fireSynergyFeedback(s, 'Sister Hand', 'kell', `+${amt} atk`, 'heal');
       },
     },
   },
@@ -9010,8 +9026,9 @@ const ADJ = {
         const n = s.party.chars.nira;
         if (!n || n.downed) return;
         if (n.pendingEffects.some(eff => eff.source === 'hex-compact')) return;
-        n.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'hex-compact' });
-        fireSynergyFeedback(s, 'Hex Compact', 'nira', '+1 atk', 'armor');
+        const amt = bondTierBonus(s, 'Hex Compact', 1);
+        n.pendingEffects.push({ kind: 'attackBonus', amt, source: 'hex-compact' });
+        fireSynergyFeedback(s, 'Hex Compact', 'nira', `+${amt} atk`, 'armor');
       },
     },
   },
@@ -9027,8 +9044,9 @@ const ADJ = {
         const n = s.party.chars.nira;
         if (!n || n.downed) return;
         if (n.pendingEffects.some(eff => eff.source === 'bound-edge')) return;
-        n.pendingEffects.push({ kind: 'attackBonus', amt: 2, source: 'bound-edge' });
-        fireSynergyFeedback(s, 'Bound Edge', 'nira', '+2 atk', 'armor');
+        const amt = bondTierBonus(s, 'Bound Edge', 2);
+        n.pendingEffects.push({ kind: 'attackBonus', amt, source: 'bound-edge' });
+        fireSynergyFeedback(s, 'Bound Edge', 'nira', `+${amt} atk`, 'armor');
       },
     },
   },
@@ -9046,8 +9064,9 @@ const ADJ = {
         const j = s.party.chars.joran;
         if (!j || j.downed) return;
         if (j.pendingEffects.some(eff => eff.source === 'spotter')) return;
-        j.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'spotter' });
-        fireSynergyFeedback(s, 'Spotter', 'joran', '+1 atk', 'armor');
+        const amt = bondTierBonus(s, 'Spotter', 1);
+        j.pendingEffects.push({ kind: 'attackBonus', amt, source: 'spotter' });
+        fireSynergyFeedback(s, 'Spotter', 'joran', `+${amt} atk`, 'armor');
       },
     },
   },
@@ -9062,8 +9081,9 @@ const ADJ = {
         const o = s.party.chars[otherId];
         if (!o || o.downed) return;
         if (o.pendingEffects.some(eff => eff.source === 'marksman-pair')) return;
-        o.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'marksman-pair' });
-        fireSynergyFeedback(s, 'Marksman Pair', otherId, '+1 atk', 'armor');
+        const amt = bondTierBonus(s, 'Marksman Pair', 1);
+        o.pendingEffects.push({ kind: 'attackBonus', amt, source: 'marksman-pair' });
+        fireSynergyFeedback(s, 'Marksman Pair', otherId, `+${amt} atk`, 'armor');
       },
     },
   },
@@ -9080,8 +9100,9 @@ const ADJ = {
         const ta = s.party.chars.tarn;
         if (!ta || ta.downed) return;
         if (ta.pendingEffects.some(eff => eff.source === 'forge-brother')) return;
-        ta.pendingEffects.push({ kind: 'attackBonus', amt: 2, source: 'forge-brother' });
-        fireSynergyFeedback(s, 'Forge Brother', 'tarn', '+2 atk', 'armor');
+        const amt = bondTierBonus(s, 'Forge Brother', 2);
+        ta.pendingEffects.push({ kind: 'attackBonus', amt, source: 'forge-brother' });
+        fireSynergyFeedback(s, 'Forge Brother', 'tarn', `+${amt} atk`, 'armor');
       },
     },
   },
@@ -9096,8 +9117,9 @@ const ADJ = {
         const frontId = s.party.slots.front;
         const fc = frontId && s.party.chars[frontId];
         if (!fc || fc.downed) return;
-        fc.armor = (fc.armor || 0) + 1;
-        fireSynergyFeedback(s, 'Mended Stone', frontId, '+1⛨', 'armor');
+        const amt = bondTierBonus(s, 'Mended Stone', 1);
+        fc.armor = (fc.armor || 0) + amt;
+        fireSynergyFeedback(s, 'Mended Stone', frontId, `+${amt}⛨`, 'armor');
       },
     },
   },
@@ -9115,8 +9137,9 @@ const ADJ = {
         const k = s.party.chars.kiki;
         if (!k || k.downed) return;
         if (k.pendingEffects.some(eff => eff.source === 'faithful-heart')) return;
-        k.pendingEffects.push({ kind: 'attackBonus', amt: 2, source: 'faithful-heart' });
-        fireSynergyFeedback(s, 'Faithful Heart', 'kiki', '+2 atk', 'heal');
+        const amt = bondTierBonus(s, 'Faithful Heart', 2);
+        k.pendingEffects.push({ kind: 'attackBonus', amt, source: 'faithful-heart' });
+        fireSynergyFeedback(s, 'Faithful Heart', 'kiki', `+${amt} atk`, 'heal');
       },
     },
   },
@@ -9131,8 +9154,9 @@ const ADJ = {
         const k = s.party.chars.kiki;
         if (!k || k.downed) return;
         if (k.pendingEffects.some(eff => eff.source === 'pack-hunt')) return;
-        k.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'pack-hunt' });
-        fireSynergyFeedback(s, 'Pack Hunt', 'kiki', '+1 atk', 'armor');
+        const amt = bondTierBonus(s, 'Pack Hunt', 1);
+        k.pendingEffects.push({ kind: 'attackBonus', amt, source: 'pack-hunt' });
+        fireSynergyFeedback(s, 'Pack Hunt', 'kiki', `+${amt} atk`, 'armor');
       },
     },
   },
@@ -11982,6 +12006,38 @@ function fireAdjacencyHook(s, hookName, ...args) {
   });
 }
 
+// ============================================================================
+// BOND PROGRESSION — bonds deepen as the party fights together
+// ============================================================================
+// Every time a bond fires, its run-scoped count in s.run.synergyCounts
+// ticks up.  Past N fires, the bond crosses into a higher tier and its
+// numeric effects scale (+1 amt per tier).  The kizuna pitch made real:
+// the longer you walk with someone, the louder the resonance.
+//
+// Thresholds are run-scoped (reset between runs).  Tier I is the base
+// effect; Tier II unlocks at 3 fires; Tier III at 8 fires.  bondTierBonus
+// PRE-INCREMENTS the count so the fire that triggers a tier-up is the
+// one that feels the new amplification — not the fire after.
+const BOND_TIER_THRESHOLDS = [3, 8];
+const BOND_TIER_ROMAN = ['', 'I', 'II', 'III'];
+
+function getBondTier(s, name, count) {
+  const n = count !== undefined
+    ? count
+    : ((s && s.run && s.run.synergyCounts && s.run.synergyCounts[name]) || 0);
+  if (n >= BOND_TIER_THRESHOLDS[1]) return 3;
+  if (n >= BOND_TIER_THRESHOLDS[0]) return 2;
+  return 1;
+}
+function bondTierBonus(s, name, baseAmt) {
+  // Tier scaling reads the count AS IF this fire has already counted —
+  // so the fire that crosses into Tier II is itself the first Tier II
+  // amplified hit, not the fire after.
+  const cur = (s && s.run && s.run.synergyCounts && s.run.synergyCounts[name]) || 0;
+  const tier = getBondTier(s, name, cur + 1);
+  return baseAmt + (tier - 1);
+}
+
 // Spawn the synergy's effect popup, then EVERY trigger also flashes the
 // synergy NAME above the receiver in bond (green) or friction (red) color.
 // First-fire-per-fight is still tracked separately for the post-fight stats.
@@ -11990,20 +12046,32 @@ function fireSynergyFeedback(s, name, receiverId, effectText, effectType) {
   spawnPopupId(receiverId, effectText, effectType, 'party');
   if (!s) return;
   // Track first fires for the run/fight summary AND a running per-run count
-  // (the count powers the bondFiredCount catalyst — vignettes that grant
-  // quirks now wait until a bond has fired several times before triggering).
+  // (the count drives bondTierBonus scaling + vignette catalysts).
   if (s.firedSynergies && !s.firedSynergies.has(name)) {
     s.firedSynergies.add(name);
     if (s.fightStats) s.fightStats.synergies.push(name);
   }
+  let tierBefore = 1, tierAfter = 1;
   if (s.run) {
     s.run.synergyCounts = s.run.synergyCounts || {};
-    s.run.synergyCounts[name] = (s.run.synergyCounts[name] || 0) + 1;
+    const before = s.run.synergyCounts[name] || 0;
+    tierBefore = getBondTier(s, name, before);
+    s.run.synergyCounts[name] = before + 1;
+    tierAfter = getBondTier(s, name, before + 1);
   }
+  const tierRoman = BOND_TIER_ROMAN[tierAfter] || '';
+  const nameWithTier = tierAfter > 1 ? `${name} ${tierRoman}` : name;
   // Look up bond/friction type from the active adjacency pair
   const pair = getAdjacencyPairs(s).find(p => p.synergy.name === name);
   const popupClass = pair ? pair.synergy.type : 'synergy';
-  setTimeout(() => spawnPopupId(receiverId, name, popupClass, 'party'), 180);
+  setTimeout(() => spawnPopupId(receiverId, nameWithTier, popupClass, 'party'), 180);
+  // Rank-up moment — the first fire to cross into a new tier gets a
+  // distinct celebration so the player FEELS the bond deepening.
+  if (tierAfter > tierBefore && tierAfter > 1) {
+    setTimeout(() => {
+      spawnPopupId(receiverId, `${name} ${tierRoman} ✦ DEEPENED`, 'bond-rankup', 'party');
+    }, 360);
+  }
   // Manga-style emoji reaction: bonds get sparkles, frictions get an angry mark.
   // Fires on both members of the pair when discoverable, otherwise just receiver.
   const emoji = pair && pair.synergy.type === 'friction' ? '💢' : '✨';
@@ -12677,11 +12745,36 @@ function _buildFigureInspector(fig, id, isParty) {
     }
   }
 
+  // Active bonds — list every bond this hero is part of right now,
+  // with its current tier (I / II / III) and fire-count this run.
+  // Shows the kizuna progression made visible: the longer the party
+  // walks together, the deeper the bond text reads on the card.
+  let bondRows = '';
+  if (isParty && state && state.party && state.party.chars && state.party.chars[id]) {
+    const pairs = getAdjacencyPairs(state).filter(p => p.ids.includes(id));
+    const seen = new Set();
+    const items = [];
+    pairs.forEach(p => {
+      const syn = p.synergy;
+      if (!syn || syn.type === 'friction') return;
+      if (seen.has(syn.name)) return;
+      seen.add(syn.name);
+      const count = (state.run && state.run.synergyCounts && state.run.synergyCounts[syn.name]) || 0;
+      const tier = getBondTier(state, syn.name, count);
+      const tierRoman = BOND_TIER_ROMAN[tier] || '';
+      items.push(`<li class="fi-row fi-row-bond">
+        <span class="fi-icon">✦</span>
+        <span class="fi-text"><b>${syn.name}${tier > 1 ? ` ${tierRoman}` : ''}</b> — ${count} fired this run</span>
+      </li>`);
+    });
+    bondRows = items.join('');
+  }
+
   // Order: passive + mastery first (identity reads instantly under the
-  // name), then oaths, then forge bonuses, then live status chips.  The
-  // player came here to read who this hero is; statuses come second.
-  const inner = (rows.length || passiveRow || masteryRow || oathRows || forgeRow)
-    ? `<ul class="fi-list">${passiveRow}${masteryRow}${oathRows}${forgeRow}${rows.join('')}</ul>`
+  // name), then bonds (kizuna progress), then oaths, then forge bonuses,
+  // then live status chips.
+  const inner = (rows.length || passiveRow || masteryRow || oathRows || forgeRow || bondRows)
+    ? `<ul class="fi-list">${passiveRow}${masteryRow}${bondRows}${oathRows}${forgeRow}${rows.join('')}</ul>`
     : `<div class="fi-empty">No active effects.</div>`;
 
   const panel = document.createElement('div');
