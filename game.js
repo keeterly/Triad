@@ -14752,9 +14752,11 @@ function makeTile(kind, charId, dir, tileCounts, teamLocked) {
 
   t.innerHTML = `
     <span class="tile-badges">${costBadges.join('')}</span>
-    <span class="tile-name">${elBadge}${preview.label || '—'}</span>
+    <span class="tile-name-row">
+      <span class="tile-name">${elBadge}${preview.label || '—'}</span>
+      ${reachLabel ? `<span class="tile-reach">${reachLabel}</span>` : ''}
+    </span>
     <span class="tile-desc">${formatDesc(preview.desc) || ''}</span>
-    ${reachLabel ? `<span class="tile-reach">${reachLabel}</span>` : ''}
     ${qCount > 1 ? `<span class="q-count">×${qCount}</span>` : ''}
   `;
 
