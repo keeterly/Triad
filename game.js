@@ -12011,13 +12011,16 @@ function fireAdjacencyHook(s, hookName, ...args) {
 // ============================================================================
 // Every time a bond fires, its run-scoped count in s.run.synergyCounts
 // ticks up.  Past N fires, the bond crosses into a higher tier and its
-// numeric effects scale (+1 amt per tier).  The kizuna pitch made real:
+// numeric effects scale (+1 amt per tier), AND at Tier III each bond
+// gains an additional unique clause — cleanse, heal, Resolve, etc. —
+// that fires every Tier III resonance.  The kizuna pitch made real:
 // the longer you walk with someone, the louder the resonance.
 //
 // Thresholds are run-scoped (reset between runs).  Tier I is the base
-// effect; Tier II unlocks at 3 fires; Tier III at 8 fires.  bondTierBonus
-// PRE-INCREMENTS the count so the fire that triggers a tier-up is the
-// one that feels the new amplification — not the fire after.
+// effect; Tier II unlocks at 3 fires (+1 amt); Tier III at 8 fires
+// (+2 amt and unlocks the resonant clause).  bondTierBonus PRE-INCREMENTS
+// the count so the fire that triggers a tier-up is the one that feels
+// the new amplification — not the fire after.
 const BOND_TIER_THRESHOLDS = [3, 8];
 const BOND_TIER_ROMAN = ['', 'I', 'II', 'III'];
 
@@ -12038,6 +12041,91 @@ function bondTierBonus(s, name, baseAmt) {
   return baseAmt + (tier - 1);
 }
 
+// Tiny helpers used by the Tier III resonance clauses below — kept
+// here so the BOND_TIER3_CLAUSES table reads as a clean one-liner per
+// bond instead of 7-line inline mutations.
+function _bondHealHero(s, charId, amt) {
+  const c = s.party.chars[charId];
+  if (!c || c.downed) return;
+  const before = c.hp;
+  c.hp = Math.min(c.maxHp, c.hp + amt);
+  if (c.hp > before) spawnPopupId(charId, `+${c.hp - before}`, 'heal', 'party');
+}
+function _bondCleanseHero(s, charId) {
+  const c = s.party.chars[charId];
+  if (c && !c.downed) { c.bleed = 0; c.dulled = 0; }
+}
+function _bondArmorHero(s, charId, amt) {
+  const c = s.party.chars[charId];
+  if (!c || c.downed) return;
+  c.armor = (c.armor || 0) + amt;
+  spawnPopupId(charId, `+${amt}⛨`, 'armor', 'party');
+}
+
+// Tier III resonance clauses — extra effect that fires on top of the
+// numeric bonus every time the bond resonates at max tier.  Each clause
+// has a short `text` for the rank-up popup + tooltip, and a `fn` that
+// applies the side effect.  Authored thematically: healing bonds heal
+// extra, armor bonds armor extra, attack bonds buy Resolve, etc.
+const BOND_TIER3_CLAUSES = {
+  // Cassia + Elin loop — armor / healing bond resonates as cleansing
+  // and mutual reinforcement.
+  'Veiled Vow':         { text: 'cleanse',       fn: (s) => _bondCleanseHero(s, 'cassia') },
+  // Cassia + Branwen — banner / arrow martial bond → fighters tend the
+  // wounded; Branwen sips a HP back as she draws.
+  'Banner Fire':        { text: '+1 hp Branwen', fn: (s) => _bondHealHero(s, 'branwen', 1) },
+  // Branwen + Elin — arrow / mercy → the act of healing pays a Resolve
+  // back, the bond literally singing a chord that resounds.
+  'Spirit Arrow':       { text: '+1 Resolve',    fn: (s) => gainResolve(s, 1) },
+  "Mercy's Gift":       { text: 'cleanse',       fn: (s) => _bondCleanseHero(s, 'branwen') },
+  // Cassia + Korin — iron oath / blood debt.
+  'Iron Bond':          { text: '+1⛨ Cassia',   fn: (s) => _bondArmorHero(s, 'cassia', 1) },
+  'Bloodguard':         { text: '+1↻ Korin',    fn: (s) => { const k = s.party.chars.korin; if (k && !k.downed) k.retaliate += 1; } },
+  // Branwen + Korin — wild hunt / crimson echo.
+  'Wild Hunt':          { text: '+1 hp Branwen', fn: (s) => _bondHealHero(s, 'branwen', 1) },
+  'Crimson Echo':       { text: '+1 hp Korin',  fn: (s) => _bondHealHero(s, 'korin', 1) },
+  // Ash + Elin — arcane / mercy → the bond resonates as Resolve back.
+  'Veiled Flame':       { text: '+1 Resolve',    fn: (s) => gainResolve(s, 1) },
+  'Sanctuary Fire':     { text: '+1 hp Ash',    fn: (s) => _bondHealHero(s, 'ash', 1) },
+  // Branwen + Mira — bleed sisters.
+  'Sisters of Shadow':  { text: '+1 Resolve',    fn: (s) => gainResolve(s, 1) },
+  'Twin Blades':        { text: '+1 Resolve',    fn: (s) => gainResolve(s, 1) },
+  // Mira + Veyr — shadow twins; the resonance pays Resolve to keep
+  // the stealth attrition rolling.
+  'Shadowtwin':         { text: '+1 Resolve',    fn: (s) => gainResolve(s, 1) },
+  // Cassia / Elin + Kell — the monk's bonds tend his bare-handed body.
+  'Open Strike':        { text: '+1 hp Kell',   fn: (s) => _bondHealHero(s, 'kell', 1) },
+  'Sister Hand':        { text: 'cleanse',       fn: (s) => _bondCleanseHero(s, 'kell') },
+  // Ash / Kai + Nira — hex compact / bound edge → witch sips Resolve.
+  'Hex Compact':        { text: '+1 Resolve',    fn: (s) => gainResolve(s, 1) },
+  'Bound Edge':         { text: '+1 Resolve',    fn: (s) => gainResolve(s, 1) },
+  // Joran's archer bonds.
+  'Spotter':            { text: '+1 hp Joran',  fn: (s) => _bondHealHero(s, 'joran', 1) },
+  'Marksman Pair':      { text: '+1 Resolve',    fn: (s) => gainResolve(s, 1) },
+  // Tarn's stone bonds.
+  'Forge Brother':      { text: '+1⛨ Tarn',    fn: (s) => _bondArmorHero(s, 'tarn', 1) },
+  'Mended Stone':       { text: '+1 hp front',   fn: (s) => { const frontId = s.party.slots.front; if (frontId) _bondHealHero(s, frontId, 1); } },
+  // Kiki's loyalty bonds — the dog gets patched up.
+  'Faithful Heart':     { text: '+2 hp Kiki',   fn: (s) => _bondHealHero(s, 'kiki', 2) },
+  'Pack Hunt':          { text: '+1 hp Kiki',   fn: (s) => _bondHealHero(s, 'kiki', 1) },
+};
+
+// Apply the Tier III resonance clause if this fire is at max tier.
+// Returns the clause text (for popup labels) or null.  Called from
+// each bond's hook AFTER the numeric effect but BEFORE
+// fireSynergyFeedback (which increments the count and fires the popup).
+function applyBondTier3Clause(s, name) {
+  const cur = (s && s.run && s.run.synergyCounts && s.run.synergyCounts[name]) || 0;
+  const tier = getBondTier(s, name, cur + 1);
+  if (tier < 3) return null;
+  const clause = BOND_TIER3_CLAUSES[name];
+  if (!clause) return null;
+  if (typeof clause.fn === 'function') {
+    try { clause.fn(s); } catch (_) {}
+  }
+  return clause.text;
+}
+
 // Spawn the synergy's effect popup, then EVERY trigger also flashes the
 // synergy NAME above the receiver in bond (green) or friction (red) color.
 // First-fire-per-fight is still tracked separately for the post-fight stats.
@@ -12045,6 +12133,12 @@ function fireSynergyFeedback(s, name, receiverId, effectText, effectType) {
   if (__simulating) return;
   spawnPopupId(receiverId, effectText, effectType, 'party');
   if (!s) return;
+  // Apply Tier III resonance clause BEFORE incrementing the count
+  // (applyBondTier3Clause pre-increments to read the post-fire tier).
+  // This fires the extra effect (cleanse / heal / Resolve) every time
+  // a Tier III bond resonates — the qualitative reward for sticking
+  // with the same party long enough to deepen them.
+  applyBondTier3Clause(s, name);
   // Track first fires for the run/fight summary AND a running per-run count
   // (the count drives bondTierBonus scaling + vignette catalysts).
   if (s.firedSynergies && !s.firedSynergies.has(name)) {
@@ -12067,9 +12161,14 @@ function fireSynergyFeedback(s, name, receiverId, effectText, effectType) {
   setTimeout(() => spawnPopupId(receiverId, nameWithTier, popupClass, 'party'), 180);
   // Rank-up moment — the first fire to cross into a new tier gets a
   // distinct celebration so the player FEELS the bond deepening.
+  // Tier III uses 'RESONANT' label and lists the new clause inline so
+  // the player learns what the resonant effect is the moment it unlocks.
   if (tierAfter > tierBefore && tierAfter > 1) {
+    const clause = tierAfter === 3 ? BOND_TIER3_CLAUSES[name] : null;
+    const clauseLabel = clause ? ` + ${clause.text}` : '';
+    const word = tierAfter === 3 ? 'RESONANT' : 'DEEPENED';
     setTimeout(() => {
-      spawnPopupId(receiverId, `${name} ${tierRoman} ✦ DEEPENED`, 'bond-rankup', 'party');
+      spawnPopupId(receiverId, `${name} ${tierRoman} ✦ ${word}${clauseLabel}`, 'bond-rankup', 'party');
     }, 360);
   }
   // Manga-style emoji reaction: bonds get sparkles, frictions get an angry mark.
@@ -12746,14 +12845,18 @@ function _buildFigureInspector(fig, id, isParty) {
   }
 
   // Active bonds — list every bond this hero is part of right now,
-  // with its current tier (I / II / III) and fire-count this run.
-  // Shows the kizuna progression made visible: the longer the party
-  // walks together, the deeper the bond text reads on the card.
+  // with its current tier (I / II / III), fire-count this run, and
+  // progress to the next tier ("3 to III") or, at Tier III, the
+  // unlocked resonance clause.  Shows the kizuna progression made
+  // visible: the longer the party walks together, the deeper the
+  // bond text reads on the card.
   let bondRows = '';
   if (isParty && state && state.party && state.party.chars && state.party.chars[id]) {
     const pairs = getAdjacencyPairs(state).filter(p => p.ids.includes(id));
     const seen = new Set();
     const items = [];
+    const t2 = BOND_TIER_THRESHOLDS[0];
+    const t3 = BOND_TIER_THRESHOLDS[1];
     pairs.forEach(p => {
       const syn = p.synergy;
       if (!syn || syn.type === 'friction') return;
@@ -12762,9 +12865,16 @@ function _buildFigureInspector(fig, id, isParty) {
       const count = (state.run && state.run.synergyCounts && state.run.synergyCounts[syn.name]) || 0;
       const tier = getBondTier(state, syn.name, count);
       const tierRoman = BOND_TIER_ROMAN[tier] || '';
+      let progress;
+      if (tier === 1)      progress = `${count}× fired · ${t2 - count} to II`;
+      else if (tier === 2) progress = `${count}× fired · ${t3 - count} to III`;
+      else {
+        const clause = BOND_TIER3_CLAUSES[syn.name];
+        progress = clause ? `${count}× fired · resonant (${clause.text})` : `${count}× fired · resonant`;
+      }
       items.push(`<li class="fi-row fi-row-bond">
         <span class="fi-icon">✦</span>
-        <span class="fi-text"><b>${syn.name}${tier > 1 ? ` ${tierRoman}` : ''}</b> — ${count} fired this run</span>
+        <span class="fi-text"><b>${syn.name}${tier > 1 ? ` ${tierRoman}` : ''}</b> — ${progress}</span>
       </li>`);
     });
     bondRows = items.join('');
