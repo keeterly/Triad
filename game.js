@@ -9633,123 +9633,13 @@ function resetAchievements() {
 }
 
 // ============================================================================
-// BONDS — hero relationship tracking across all runs.  Every fight the
-// player wins with two heroes both alive increments their pair's
-// "shared fights" counter.  At thresholds (10 / 25 / 50) the pair
-// reaches a deeper bond tier, which grants a small permanent buff to
-// their synergy effect on future runs.  Persistent storage + the
-// Bonds screen on the title menu surface the parasocial layer the
-// game was missing: "this pair fought together 38 times."
-// ============================================================================
-const BONDS_KEY = 'kizuna.bonds.v1';
-function _bondKey(a, b) {
-  return [a, b].slice().sort().join('+');
-}
-function getBonds() {
-  try {
-    const raw = localStorage.getItem(BONDS_KEY);
-    return raw ? (JSON.parse(raw) || {}) : {};
-  } catch (_) { return {}; }
-}
-function _saveBonds(obj) {
-  try { localStorage.setItem(BONDS_KEY, JSON.stringify(obj || {})); }
-  catch (_) {}
-}
-// Increment a pair's "shared fights" counter.  Called at fight-win
-// time for every still-alive pair on the team.  Tier thresholds:
-//   1+  → companions
-//   10+ → kindred
-//   25+ → sworn
-//   50+ → bonded
-function recordBondedFight(idA, idB) {
-  if (!idA || !idB || idA === idB) return;
-  if (typeof __simulating !== 'undefined' && __simulating) return;
-  if (typeof state !== 'undefined' && state && state._isDevRun) return;
-  const key = _bondKey(idA, idB);
-  const bonds = getBonds();
-  const entry = bonds[key] = bonds[key] || { fights: 0, since: Date.now() };
-  const tierBefore = bondTierFor(entry.fights || 0);
-  entry.fights = (entry.fights || 0) + 1;
-  const tierAfter = bondTierFor(entry.fights);
-  _saveBonds(bonds);
-  // Tier-up fanfare — fires when a pair crosses into a new tier
-  // (Companions → Kindred → Sworn → Bonded).  Kindred (tier 2) is
-  // especially worth surfacing because that's when the pair's
-  // Charm unlocks.  Deferred to next paint so it doesn't race with
-  // the post-fight cascade timers.
-  if (tierAfter > tierBefore) {
-    setTimeout(() => _showBondTierUpFanfare(idA, idB, tierAfter), 1400);
-  }
-}
-
-function _showBondTierUpFanfare(idA, idB, tier) {
-  if (typeof __simulating !== 'undefined' && __simulating) return;
-  const defA = CHARS[idA]; const defB = CHARS[idB];
-  if (!defA || !defB) return;
-  const label = BOND_TIER_LABELS[tier] || 'Bonded';
-  // Check whether this pair has a charm and whether THIS tier-up
-  // unlocks it (tier 2 = Kindred = charm unlock threshold).
-  const pairKey = _bondKey(idA, idB);
-  const charm = Object.values(CHARMS).find(c => c.pairKey === pairKey);
-  // Surface different secondary hints based on tier so the player learns
-  // the system on the first ever tier-up (Companions), gets the charm-
-  // unlock celebration at Kindred, and a quieter milestone at Sworn /
-  // Bonded.  Companions hint also points at the Codex so the player
-  // finds the Bonds tab + charm equip surface without needing tutorial.
-  let charmHint = '';
-  if (tier === 1) {
-    charmHint = `<div class="bond-fanfare-charm">Tracked in Codex › Bonds${charm ? ` · ${charm.name} unlocks at Kindred` : ''}</div>`;
-  } else if (tier === 2 && charm) {
-    charmHint = `<div class="bond-fanfare-charm">Charm unlocked · ${charm.name}<br/><span class="bond-fanfare-charm-sub">Equip in Codex › Bonds</span></div>`;
-  } else if (tier === 2) {
-    charmHint = `<div class="bond-fanfare-charm">Kindred reached · Codex › Bonds</div>`;
-  }
-  const card = document.createElement('div');
-  card.className = 'bond-fanfare';
-  card.innerHTML = `
-    <div class="bond-fanfare-eyebrow">BOND DEEPENS</div>
-    <div class="bond-fanfare-pair">
-      <span class="bond-fanfare-portrait">${PORTRAITS[idA] || ''}</span>
-      <span class="bond-fanfare-portrait">${PORTRAITS[idB] || ''}</span>
-    </div>
-    <div class="bond-fanfare-names">${defA.name} + ${defB.name}</div>
-    <div class="bond-fanfare-tier">${label}</div>
-    ${charmHint}
-  `;
-  document.body.appendChild(card);
-  setTimeout(() => card.classList.add('bond-fanfare-out'), 3200);
-  setTimeout(() => { if (card.isConnected) card.remove(); }, 3700);
-}
-function bondTierFor(fights) {
-  if (fights >= 50) return 4;
-  if (fights >= 25) return 3;
-  if (fights >= 10) return 2;
-  if (fights >= 1)  return 1;
-  return 0;
-}
-const BOND_TIER_LABELS = ['Unmet', 'Companions', 'Kindred', 'Sworn', 'Bonded'];
-// Bond tier buff — applied at newState() to bump the synergy's effect.
-// Tier 2+ pairs grant +1 to certain numeric synergy outputs (extra
-// armor / heal / dmg / resolve depending on the pair's effect type).
-// Wired into engine read sites — kept lightweight so the buff is felt
-// without rewriting the synergy stack.
-function bondBuffFor(idA, idB) {
-  const bonds = getBonds();
-  const key = _bondKey(idA, idB);
-  const entry = bonds[key];
-  if (!entry) return 0;
-  const tier = bondTierFor(entry.fights);
-  // Tiers 2/3/4 grant +0/+1/+2 to bonded synergy outputs.  Tier 1
-  // (Companions) is purely a label — no mechanical effect — so first
-  // recruits don't accidentally tilt early balance.
-  if (tier <= 1) return 0;
-  if (tier === 2) return 1;
-  if (tier === 3) return 1;
-  if (tier === 4) return 2;
-  return 0;
-}
+// (Cross-run shared-fight tracking lived here.  Removed when bonds
+// collapsed to per-run only — see s.run.synergyCounts + getBondTier
+// for the in-run Tier I/II/III system.  Charms moved to the Embers
+// store; isCharmUnlocked now reads kizuna.charmsPurchased.)
+// resetBonds() left as a no-op so any legacy reset menu doesn't crash.
 function resetBonds() {
-  try { localStorage.removeItem(BONDS_KEY); } catch (_) {}
+  try { localStorage.removeItem('kizuna.bonds.v1'); } catch (_) {}
 }
 
 // ============================================================================
@@ -9851,27 +9741,55 @@ const CHARMS = {
     },
   },
 };
+// Charms are now permanent purchases from the Embers store.  Each
+// charm costs CHARM_UNLOCK_COST embers to buy; once purchased it
+// joins kizuna.charmsPurchased and stays available across all runs.
+// Equip up to one at a time (kizuna.equippedCharm).  The old per-
+// pair Kindred unlock route was retired alongside the cross-run
+// bond tracking.
+const CHARMS_PURCHASED_KEY = 'kizuna.charmsPurchased';
+const CHARM_UNLOCK_COST = 40;
+function getPurchasedCharms() {
+  try {
+    const raw = localStorage.getItem(CHARMS_PURCHASED_KEY);
+    return raw ? new Set(JSON.parse(raw) || []) : new Set();
+  } catch (_) { return new Set(); }
+}
+function _savePurchasedCharms(set) {
+  try { localStorage.setItem(CHARMS_PURCHASED_KEY, JSON.stringify(Array.from(set))); }
+  catch (_) {}
+}
+function isCharmUnlocked(charmId) {
+  if (!charmId || !CHARMS[charmId]) return false;
+  return getPurchasedCharms().has(charmId);
+}
+function purchaseCharm(charmId) {
+  if (!CHARMS[charmId]) return false;
+  const owned = getPurchasedCharms();
+  if (owned.has(charmId)) return false;
+  const bal = getEmbersBalance();
+  if (bal < CHARM_UNLOCK_COST) return false;
+  _setEmbersBalance(bal - CHARM_UNLOCK_COST);
+  owned.add(charmId);
+  _savePurchasedCharms(owned);
+  return true;
+}
 function getEquippedCharmId() {
   try { return localStorage.getItem(CHARM_KEY) || null; }
   catch (_) { return null; }
 }
 function setEquippedCharm(id) {
+  // Refuse to equip a charm the player hasn't purchased (defensive —
+  // the Embers screen disables un-purchased Equip buttons already).
   try {
-    if (id && CHARMS[id]) localStorage.setItem(CHARM_KEY, id);
+    if (id && CHARMS[id] && isCharmUnlocked(id)) localStorage.setItem(CHARM_KEY, id);
     else localStorage.removeItem(CHARM_KEY);
   } catch (_) {}
 }
 function getEquippedCharm() {
   const id = getEquippedCharmId();
-  return id && CHARMS[id] ? CHARMS[id] : null;
-}
-function isCharmUnlocked(charmId) {
-  const def = CHARMS[charmId];
-  if (!def) return false;
-  const bonds = getBonds();
-  const entry = bonds[def.pairKey];
-  if (!entry) return false;
-  return bondTierFor(entry.fights || 0) >= 2;
+  if (!id || !isCharmUnlocked(id)) return null;
+  return CHARMS[id] || null;
 }
 // Apply the equipped charm at the appropriate moment.  Two hook
 // stages — run start (HP bumps, etc.) and fight start (per-encounter
@@ -21561,7 +21479,6 @@ function hideCodexScreen() {
 function _renderCodex(body) {
   const codex = getCodex();
   const earned = getAchievementsEarned();
-  const bonds = getBonds();
   const unlockedStarters = new Set(getUnlockedStarters());
   // All Codex tabs are visible from day 1 — they're navigation
   // surfaces, not mechanic gates.  The real "haven't earned it yet"
@@ -21972,6 +21889,42 @@ function _renderEmbersScreen() {
       }).join('')}
     </div>
   ` : '';
+  // Charms section — buy with Embers, equip one per run.  Replaces
+  // the old per-pair Kindred unlock route; the kizuna meta-track
+  // is now Embers-driven so the player has a predictable path to
+  // every charm regardless of which heroes they pair on the road.
+  const _purchasedCharms = getPurchasedCharms();
+  const _equippedCharmId = getEquippedCharmId();
+  const charmsHtml = Object.entries(CHARMS).map(([id, def]) => {
+    const owned = _purchasedCharms.has(id);
+    const isEquipped = owned && _equippedCharmId === id;
+    const affordable = balance >= CHARM_UNLOCK_COST;
+    const a = def.pairKey.split('+')[0];
+    const b = def.pairKey.split('+')[1];
+    const pairNames = `${(CHARS[a] && CHARS[a].name) || a} + ${(CHARS[b] && CHARS[b].name) || b}`;
+    let actionHtml;
+    if (owned) {
+      actionHtml = `<button type="button" class="embers-charm-equip${isEquipped ? ' embers-charm-equip-active' : ''}" data-charm-equip="${id}">${isEquipped ? 'Equipped' : 'Equip'}</button>`;
+    } else {
+      actionHtml = `<button type="button" class="embers-charm-buy${affordable ? '' : ' embers-charm-buy-disabled'}" data-charm-buy="${id}" ${affordable ? '' : 'disabled'}>
+        <span class="embers-charm-cost">✦ ${CHARM_UNLOCK_COST}</span>
+        <span class="embers-charm-buy-label">Buy</span>
+      </button>`;
+    }
+    return `<div class="embers-charm${owned ? ' embers-charm-owned' : ''}${isEquipped ? ' embers-charm-equipped' : ''}">
+      <div class="embers-charm-head">
+        <span class="embers-charm-name">${def.name}</span>
+        <span class="embers-charm-pair">${pairNames}</span>
+      </div>
+      <div class="embers-charm-effect">${def.effect}</div>
+      <div class="embers-charm-flavor">${def.flavor}</div>
+      <div class="embers-charm-actions">${actionHtml}</div>
+    </div>`;
+  }).join('');
+  const charmsSection = `
+    <div class="embers-section-head">Charms <span class="embers-section-sub">${_purchasedCharms.size} / ${Object.keys(CHARMS).length} purchased · one equipped per run</span></div>
+    <div class="embers-charms">${charmsHtml}</div>
+  `;
   // Preserve the scroll position across re-renders so an unseal / equip /
   // purchase doesn't jump the player back to the top — they're often
   // mid-list working through choices and the snap-to-top is disorienting.
@@ -21981,6 +21934,7 @@ function _renderEmbersScreen() {
     <div class="embers-section-head">Perks</div>
     <div class="embers-rows">${rows}</div>
     ${heroesHtml}
+    ${charmsSection}
   `;
   body.scrollTop = _prevScroll;
   // Re-render the title underneath after any change so the Embers
@@ -22022,6 +21976,32 @@ function _renderEmbersScreen() {
       }
     };
   });
+  // Buy a charm — costs CHARM_UNLOCK_COST embers, then the row
+  // flips to an Equip button on next render.
+  body.querySelectorAll('.embers-charm-buy[data-charm-buy]').forEach(btn => {
+    btn.onclick = () => {
+      if (btn.disabled) return;
+      btn.disabled = true;
+      const id = btn.dataset.charmBuy;
+      if (purchaseCharm(id)) {
+        Audio.ui();
+        _renderEmbersScreen();
+      } else {
+        btn.disabled = false;
+      }
+    };
+  });
+  // Equip / unequip a charm — only one equipped per run.  Toggle:
+  // clicking the currently-equipped charm unequips it.
+  body.querySelectorAll('.embers-charm-equip[data-charm-equip]').forEach(btn => {
+    btn.onclick = () => {
+      const id = btn.dataset.charmEquip;
+      const current = getEquippedCharmId();
+      setEquippedCharm(current === id ? null : id);
+      Audio.ui();
+      _renderEmbersScreen();
+    };
+  });
 }
 
 function _buildEmbersContainer() {
@@ -22050,86 +22030,11 @@ function _buildEmbersContainer() {
 // for v1; mechanical buffs from high-tier bonds will land in a
 // follow-up so balance stays measurable.
 // ============================================================================
-function showBondsScreen() {
-  Audio.ui();
-  const root = document.getElementById('bonds-screen') || _buildBondsContainer();
-  _renderBondsScreen();
-  root.classList.remove('hidden');
-  const closeBtn = document.getElementById('bonds-close');
-  if (closeBtn) closeBtn.onclick = () => hideBondsScreen();
-  bindBackdropDismiss(root, '.bonds-card', hideBondsScreen);
-}
-function hideBondsScreen() {
-  const root = document.getElementById('bonds-screen');
-  if (root) root.classList.add('hidden');
-}
-function _renderBondsScreen() {
-  const body = document.getElementById('bonds-body');
-  if (!body) return;
-  const bonds = getBonds();
-  const entries = Object.entries(bonds).map(([key, val]) => {
-    const [a, b] = key.split('+');
-    return { a, b, fights: val.fights || 0, since: val.since };
-  }).sort((x, y) => y.fights - x.fights);
-  const header = `
-    <p class="bonds-flavor">Every fight survived together is a thread.  Walk longer with the same hands and the line tightens.</p>
-  `;
-  if (!entries.length) {
-    body.innerHTML = `
-      ${header}
-      <div class="bonds-empty">No bonds yet.  Recruit a hero on the road, win a fight together, and watch this list fill.</div>
-    `;
-    return;
-  }
-  const rows = entries.map(({ a, b, fights }) => {
-    const da = CHARS[a]; const db = CHARS[b];
-    if (!da || !db) return '';
-    const tier = bondTierFor(fights);
-    const tierLabel = BOND_TIER_LABELS[tier] || 'Unmet';
-    const tierCls = `bond-tier-${tier}`;
-    // Progress to next tier — surface the goalpost so the player
-    // sees the climb.  At max tier the bar full-fills.
-    const nextAt = tier === 0 ? 1 : tier === 1 ? 10 : tier === 2 ? 25 : tier === 3 ? 50 : 50;
-    const pct = Math.min(100, Math.round((fights / nextAt) * 100));
-    return `
-      <div class="bond-row ${tierCls}">
-        <div class="bond-portraits">
-          <div class="bond-portrait">${PORTRAITS[a] || ''}</div>
-          <div class="bond-portrait">${PORTRAITS[b] || ''}</div>
-        </div>
-        <div class="bond-body">
-          <div class="bond-head">
-            <span class="bond-names">${da.name} <span class="bond-amp">+</span> ${db.name}</span>
-            <span class="bond-tier">${tierLabel}</span>
-          </div>
-          <div class="bond-bar"><div class="bond-bar-fill" style="width:${pct}%"></div></div>
-          <div class="bond-stat"><b>${fights}</b> ${fights === 1 ? 'shared fight' : 'shared fights'}${tier < 4 ? ` · next at ${nextAt}` : ' · max'}</div>
-        </div>
-      </div>
-    `;
-  }).join('');
-  body.innerHTML = `
-    ${header}
-    <div class="bonds-list">${rows}</div>
-  `;
-}
-function _buildBondsContainer() {
-  const root = document.createElement('div');
-  root.id = 'bonds-screen';
-  root.className = 'hidden';
-  root.innerHTML = `
-    <div class="bonds-bg"></div>
-    <div class="bonds-card">
-      <header class="bonds-header">
-        <h2 class="bonds-title">BONDS</h2>
-        <button type="button" class="bonds-close" id="bonds-close" aria-label="Close">×</button>
-      </header>
-      <div class="bonds-body" id="bonds-body"></div>
-    </div>
-  `;
-  document.body.appendChild(root);
-  return root;
-}
+// (The standalone Bonds screen lived here — surfaced the cross-run
+// shared-fight tracker.  Removed alongside the rest of the cross-run
+// system; the Codex › Bonds tab is now the bond catalog, and
+// per-run kizuna progress shows in the long-press inspector + the
+// run-state info panel.)
 
 function showCreditsScreen() {
   $('#overlay').classList.add('overlay-dismissable');

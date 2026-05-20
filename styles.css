@@ -4007,6 +4007,110 @@ body:has(.figure.inspecting) .figure .slot-label {
   background: linear-gradient(180deg, rgba(20,18,14,0.55) 0%, rgba(8,6,6,0.7) 100%);
   border-left: 2px solid var(--gold-dim);
 }
+
+/* ===========================================================================
+   CHARMS — pre-run keepsakes purchased with Embers.  Each card shows the
+   charm name, its pair-of-origin, the effect line, a flavor line, and a
+   Buy / Equip action.  Owned charms get a brighter border; the equipped
+   one pulses gold so the player can see their loadout choice at a glance.
+   =========================================================================== */
+.embers-charms {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 12px 12px;
+}
+.embers-charm {
+  padding: 8px 10px;
+  background: linear-gradient(180deg, rgba(20,18,14,0.5) 0%, rgba(8,6,6,0.65) 100%);
+  border-left: 2px solid rgba(212,200,168,0.18);
+  border-radius: 0 2px 2px 0;
+}
+.embers-charm-owned {
+  border-left-color: var(--gold-dim);
+  background: linear-gradient(180deg, rgba(28,22,14,0.6) 0%, rgba(12,8,6,0.75) 100%);
+}
+.embers-charm-equipped {
+  border-left-color: var(--gold-bright);
+  box-shadow: inset 0 0 14px rgba(240,212,136,0.16);
+  animation: embers-charm-equipped-pulse 2.4s ease-in-out infinite;
+}
+@keyframes embers-charm-equipped-pulse {
+  0%, 100% { box-shadow: inset 0 0 14px rgba(240,212,136,0.16); }
+  50%      { box-shadow: inset 0 0 20px rgba(240,212,136,0.28); }
+}
+.embers-charm-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+.embers-charm-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gold-bright);
+  letter-spacing: 0.08em;
+}
+.embers-charm-pair {
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-left: auto;
+}
+.embers-charm-effect {
+  font-size: 11px;
+  color: var(--ink);
+  margin-bottom: 2px;
+}
+.embers-charm-flavor {
+  font-size: 9.5px;
+  font-style: italic;
+  color: var(--ink-dim);
+  margin-bottom: 6px;
+}
+.embers-charm-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+.embers-charm-buy,
+.embers-charm-equip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gold-bright);
+  background: linear-gradient(180deg, rgba(48,32,18,0.7) 0%, rgba(16,10,6,0.85) 100%);
+  border: 1px solid var(--gold-dim);
+  border-radius: 2px;
+  cursor: pointer;
+  transition: border-color 0.14s, box-shadow 0.14s;
+}
+.embers-charm-buy:not(.embers-charm-buy-disabled):hover,
+.embers-charm-equip:hover {
+  border-color: var(--gold-bright);
+  box-shadow: 0 0 10px rgba(240,212,136,0.3);
+}
+.embers-charm-buy-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.embers-charm-equip-active {
+  background: linear-gradient(180deg, rgba(80,56,22,0.85) 0%, rgba(40,28,12,0.95) 100%);
+  border-color: var(--gold-bright);
+  color: #ffeec0;
+}
+.embers-charm-cost {
+  color: var(--gold-bright);
+  font-variant-numeric: tabular-nums;
+}
+.embers-charm-buy-label {
+  color: var(--ink);
+}
 .embers-row-head {
   display: flex;
   justify-content: space-between;
