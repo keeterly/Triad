@@ -14649,9 +14649,14 @@ function cornerBrackets() {
 function makePartyCard(c, slot, threatened, adjMap, incoming) {
   const fig = document.createElement('div');
   fig.className = 'figure party-figure';
-  // Slide-in tag if this hero just moved this turn
+  // FLIP in render() now handles all movement transitions for party
+  // figures (drag-drop queueing, executed moves, tech-embedded
+  // advance/retreat) by capturing pre/post bounding rects.  Drain
+  // pendingSlideIds so the legacy 'figure-sliding' class doesn't fight
+  // FLIP — the old +40px slide-in keyframe was directional and would
+  // visibly jump the figure to +40 then slide back on top of FLIP's
+  // smooth path.
   if (c && pendingSlideIds.has(c.id)) {
-    fig.classList.add('figure-sliding');
     pendingSlideIds.delete(c.id);
   }
   fig.dataset.slot = slot;
