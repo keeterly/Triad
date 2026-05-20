@@ -5937,15 +5937,42 @@ body.party-critical::after {
   letter-spacing: 0;
 }
 .tile .tile-reach {
-  position: absolute; bottom: 1px; right: 4px;
-  font-size: 6px; font-weight: bold;
-  color: var(--gold-dim);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  font-family: 'Iowan Old Style', Georgia, serif;
-  font-style: italic;
-  opacity: 0.7;
+  position: absolute; bottom: 2px; right: 4px;
   pointer-events: none;
+  line-height: 1;
+}
+.tile .tile-reach .rch-cells {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+}
+.tile .tile-reach .rch-mark {
+  font-size: 9px;
+  color: var(--gold-bright);
+  margin-right: 2px;
+  line-height: 1;
+  text-shadow: 0 0 4px rgba(240,212,136,0.7);
+}
+.tile .tile-reach .rch-cell {
+  display: inline-block;
+  width: 9px; height: 9px;
+  font-size: 7px;
+  font-weight: 700;
+  line-height: 9px;
+  text-align: center;
+  border-radius: 1.5px;
+  font-family: 'Trebuchet MS', sans-serif;
+}
+.tile .tile-reach .rch-cell.on {
+  background: var(--gold-deep);
+  color: #0a0608;
+  box-shadow: 0 0 4px rgba(200,164,100,0.55);
+}
+.tile .tile-reach .rch-cell.off {
+  background: rgba(0,0,0,0.4);
+  color: rgba(212,200,168,0.28);
+  border: 1px solid rgba(212,200,168,0.18);
+  line-height: 7px;
 }
 /* Element glyph — inline prefix on the tile name so the player can spot
    attack-element ↔ enemy-weakness matches at a glance without the icon

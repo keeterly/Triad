@@ -7853,7 +7853,7 @@ const COMBOS = {
   },
   quiet_volley: {
     id: 'quiet_volley', name: 'Quiet Volley', tier: 'duo',
-    desc: 'AoE chip + Veil on every ally — first enemy hit this turn fizzles',
+    desc: 'AoE chip + Veil on every ally — first enemy hit this turn misses',
     requires: [
       { heroId: 'ash', kind: 'attack' },
       { heroId: 'branwen', kind: 'attack' },
@@ -12702,10 +12702,10 @@ function executeQueueItem(s, item) {
       if (variant.reach) {
         const targets = resolveTargets(s, variant);
         if (targets.length === 0) {
-          log(`<i>No target in reach — ${variant.name} fizzles.</i>`);
+          log(`<i>No target in reach — ${variant.name} misses.</i>`);
           // Visible feedback over the actor so the moment doesn't pass
           // silently while the player watches the queue resolve.
-          spawnPopupId(item.charId, 'fizzle', 'miss', 'party');
+          spawnPopupId(item.charId, 'miss', 'miss', 'party');
         } else {
           variant.fn(s, targets);
         }
@@ -14315,7 +14315,7 @@ function renderStatuses(ent, sForAuras) {
   if (ent.taunt)         push(60, 'taunt', '⌖', null,         'Taunt — enemies single-target attacks redirect to this character instead of the original slot.');
   if (ent.retaliate > 0) push(70, 'retal', '↻', ent.retaliate,`Retaliate ${ent.retaliate} — when hit, counter-attack the front-most enemy for ${ent.retaliate} damage.`);
   if (ent.armorAbsorb > 0) push(75, 'wall', '⛨', ent.armorAbsorb, `Wall ${ent.armorAbsorb} — next ${ent.armorAbsorb} incoming hit(s) absorbed entirely (no HP or armor cost).`);
-  if (ent._veil)         push(80, 'veil', '◐', null,          "Veil — first incoming hit this turn fizzles.");
+  if (ent._veil)         push(80, 'veil', '◐', null,          "Veil — first incoming hit this turn misses.");
   if (ent.divineGuard)   push(85, 'guard', '✦', null,         "Divine Guard — next incoming hit is clamped to 1 damage.");
   if (ent.pendingEffects) ent.pendingEffects.forEach(e => {
     // Pending one-shots get the 'pending' status class which CSS pulses
@@ -14483,7 +14483,7 @@ const STATUS_TOOLTIPS = {
   retal:    { name: 'Retaliate',   text: 'When hit, counter-attacks the front-most enemy for this value (+2 with Vow of Vigil). Clears at the start of the next turn.' },
   pending:  { name: 'Pending',     text: 'A one-shot bonus from a synergy. Consumed by the next matching action.' },
   burn:     { name: 'Burn',          text: 'Takes 2 damage at the start of each turn, ignores armor. Decays by 1 per turn.' },
-  veil:     { name: 'Veil',          text: 'First incoming hit this turn fizzles entirely. Cleared at the start of the next player turn.' },
+  veil:     { name: 'Veil',          text: 'First incoming hit this turn misses entirely. Cleared at the start of the next player turn.' },
   wall:     { name: 'Wall',          text: 'Next incoming hit is absorbed entirely — no HP loss, no armor loss. Each stack covers one hit.' },
   guard:    { name: 'Divine Guard',  text: 'Next incoming hit is clamped to 1 damage. Single-use shield from Sacred Triad.' },
   heldgate: { name: 'Held Gate',     text: "While Cassia holds Front, the first incoming hit each turn against an ally is redirected to her. Lifts once she takes the redirect or leaves Front." },
@@ -14772,8 +14772,15 @@ function makeTile(kind, charId, dir, tileCounts, teamLocked) {
   return t;
 }
 
-// reach-label shown statically on damaging tiles ("F" / "MB" / "FMB" / "low").
-// Uses the queue-aware snapshot so a queued Move shifts the slot's reach.
+// reach-label shown statically on damaging tiles.  Renders three small
+// cells (F · M · B) with the in-reach slots filled gold + a pattern
+// marker so the player can read "where does this land" without holding
+// the tile to see the live highlight.  Uses the queue-aware snapshot so
+// a queued Move shifts which slots the tile reaches.
+//   pattern 'front-most' → no extra marker (default: lands on the front-
+//                          most living enemy in reach)
+//   pattern 'lowest'     → ↓ marker (lands on the lowest-HP enemy in reach)
+//   pattern 'all'        → ⋮ marker (lands on every enemy in reach)
 function previewReachLabel(kind, charId, dir) {
   if (kind !== 'attack' && kind !== 'special') return '';
   const s = getPreviewState();
@@ -14781,10 +14788,14 @@ function previewReachLabel(kind, charId, dir) {
   if (!slot) return '';
   const variant = getTech(s, charId, slot, kind === 'special' ? 'sig' : 'basic');
   if (!variant || !variant.reach) return '';
-  const letters = variant.reach.map(r => r[0].toUpperCase()).join('');
-  if (variant.pattern === 'all')    return `hit ${letters}`;
-  if (variant.pattern === 'lowest') return `low ${letters}`;
-  return letters;
+  const reach = new Set(variant.reach);
+  const cells = ['front','mid','back'].map(sl =>
+    `<span class="rch-cell ${reach.has(sl) ? 'on' : 'off'}">${sl[0].toUpperCase()}</span>`
+  ).join('');
+  let mark = '';
+  if (variant.pattern === 'lowest')   mark = '<span class="rch-mark" title="Hits lowest-HP enemy in reach">↓</span>';
+  else if (variant.pattern === 'all') mark = '<span class="rch-mark" title="Hits every enemy in reach">⋮</span>';
+  return `<span class="rch-cells">${mark}${cells}</span>`;
 }
 
 // Dry-run the entire current queue on a deep clone of state, suppressing
@@ -16698,7 +16709,7 @@ const TUTORIAL_HINTS = [
   { id: 'resolve',    text: 'Specials also cost <b>Resolve</b> (♦) on top of ATB.  You earn ♦ from kills and synergies; up to 3 carry between fights.' },
   // New: explain reach labels (F / M / FM / MB etc).  Players were guessing
   // what those letters on a tile meant.
-  { id: 'reach',      text: 'Each action has a <b>reach</b> — the enemy slots it can hit.  Letters on the tile (F·M·B) show which slots; if no enemy stands in any of them, the action fizzles.' },
+  { id: 'reach',      text: 'Each action has a <b>reach</b> — the enemy slots it can hit.  The cells on the tile (F·M·B) show which slots; if no enemy stands in any of them, the action misses.' },
   { id: 'commit',     text: 'Spend your ATB, then tap <b>Play ▶</b> to commit the turn.' },
   // Move comes BEFORE enemies/weakness — positioning is fundamental and
   // players were missing the press-and-hold gesture in the original order.
