@@ -12151,6 +12151,74 @@ body.killing-blow::before {
   letter-spacing: 0.04em;
   color: var(--ink-faint);
 }
+/* Per-run kizuna tier + fire count for each active bond — surfaces
+   "Sister Hand II · 5× · 3 to III" so the player can see kizuna
+   progress without long-pressing the hero card.  Frictions skip
+   this strip (no tier progression). */
+.info-bond-tier {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gold-pale);
+  background: rgba(40, 32, 18, 0.5);
+  border: 1px solid rgba(240, 212, 136, 0.25);
+  border-radius: 3px;
+  padding: 1px 5px;
+  margin-top: 2px;
+}
+.info-bond-tier[data-tier="2"] {
+  color: var(--gold-bright);
+  border-color: rgba(240, 212, 136, 0.55);
+  background: rgba(60, 44, 18, 0.6);
+}
+.info-bond-tier[data-tier="3"] {
+  color: #ffeec0;
+  border-color: rgba(255, 240, 200, 0.7);
+  background: rgba(80, 56, 22, 0.7);
+  box-shadow: 0 0 8px rgba(240, 212, 136, 0.35);
+}
+/* Charm strip — surfaces the pair's keepsake.  Locked → quiet grey
+   with "X more shared fights".  Ready → bright gold pointing at
+   Codex › Bonds.  Equipped → green check. */
+.info-bond-charm {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  border-radius: 3px;
+  padding: 1px 5px;
+  margin-top: 2px;
+}
+.info-bond-charm.info-bond-charm-locked {
+  color: rgba(212, 200, 168, 0.5);
+  border: 1px solid rgba(212, 200, 168, 0.18);
+  background: rgba(20, 18, 14, 0.4);
+}
+.info-bond-charm.info-bond-charm-ready {
+  color: var(--gold-bright);
+  border: 1px solid rgba(240, 212, 136, 0.5);
+  background: rgba(50, 36, 14, 0.7);
+  animation: charm-ready-pulse 1.6s ease-in-out infinite;
+}
+@keyframes charm-ready-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(240, 212, 136, 0); }
+  50%      { box-shadow: 0 0 10px 1px rgba(240, 212, 136, 0.35); }
+}
+.info-bond-charm.info-bond-charm-equipped {
+  color: var(--heal);
+  border: 1px solid rgba(152, 216, 120, 0.45);
+  background: rgba(20, 36, 22, 0.6);
+}
+/* Bond-fanfare charm sub-line — small hint about where to equip */
+.bond-fanfare-charm-sub {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: var(--ink-faint);
+  margin-top: 4px;
+}
 
 /* ===========================================================================
    RESONANCES — info panel section listing every combo the current party

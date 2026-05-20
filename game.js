@@ -9691,9 +9691,19 @@ function _showBondTierUpFanfare(idA, idB, tier) {
   // unlocks it (tier 2 = Kindred = charm unlock threshold).
   const pairKey = _bondKey(idA, idB);
   const charm = Object.values(CHARMS).find(c => c.pairKey === pairKey);
-  const charmHint = (charm && tier === 2)
-    ? `<div class="bond-fanfare-charm">Charm unlocked · ${charm.name}</div>`
-    : '';
+  // Surface different secondary hints based on tier so the player learns
+  // the system on the first ever tier-up (Companions), gets the charm-
+  // unlock celebration at Kindred, and a quieter milestone at Sworn /
+  // Bonded.  Companions hint also points at the Codex so the player
+  // finds the Bonds tab + charm equip surface without needing tutorial.
+  let charmHint = '';
+  if (tier === 1) {
+    charmHint = `<div class="bond-fanfare-charm">Tracked in Codex › Bonds${charm ? ` · ${charm.name} unlocks at Kindred` : ''}</div>`;
+  } else if (tier === 2 && charm) {
+    charmHint = `<div class="bond-fanfare-charm">Charm unlocked · ${charm.name}<br/><span class="bond-fanfare-charm-sub">Equip in Codex › Bonds</span></div>`;
+  } else if (tier === 2) {
+    charmHint = `<div class="bond-fanfare-charm">Kindred reached · Codex › Bonds</div>`;
+  }
   const card = document.createElement('div');
   card.className = 'bond-fanfare';
   card.innerHTML = `
@@ -17231,9 +17241,13 @@ function showRunInfoPanel() {
       }).join('')}</div>`
     : `<div class="info-empty">No sigils bound yet.</div>`;
   // Active bonds + frictions — surfaces the synergies the current formation
-  // has unlocked, with each row's effect glyph next to the name so the
-  // player can read what the pair does at a glance instead of waiting for
-  // it to fire to see the popup.
+  // has unlocked, with each row's effect glyph + the per-run TIER + fire
+  // count so the player can read kizuna progress without long-pressing.
+  // Pairs with a charm also show "Charm" hint if it's unlocked (Kindred+)
+  // or how-to-unlock if not (10 shared fights).
+  const _allBonds = getBonds();
+  const _charmByPair = {};
+  Object.entries(CHARMS).forEach(([id, def]) => { _charmByPair[def.pairKey] = { id, def }; });
   const bondPairs = getAdjacencyPairs(state);
   const bondBlock = bondPairs.length
     ? `<div class="info-bonds">${bondPairs.map(p => {
@@ -17242,15 +17256,48 @@ function showRunInfoPanel() {
         const effect = p.synergy.effect || (p.synergy.type === 'friction' ? 'dmg' : 'utility');
         const glyph = ADJ_EFFECT_GLYPH[effect] || '◌';
         const lineLabel = p.line === 'fm' ? 'Front–Mid' : 'Mid–Back';
+        // Per-run kizuna tier + fire count.  Frictions don't progress
+        // (they're a fixed dmg penalty) so skip the tier strip there.
+        let tierStrip = '';
+        if (p.synergy.type !== 'friction') {
+          const count = (state.run && state.run.synergyCounts && state.run.synergyCounts[p.synergy.name]) || 0;
+          const tier = getBondTier(state, p.synergy.name, count);
+          const tierRoman = BOND_TIER_ROMAN[tier] || '';
+          const t2 = BOND_TIER_THRESHOLDS[0], t3 = BOND_TIER_THRESHOLDS[1];
+          let next;
+          if (tier === 1)      next = `${t2 - count} to II`;
+          else if (tier === 2) next = `${t3 - count} to III`;
+          else                 next = 'resonant';
+          tierStrip = `<span class="info-bond-tier" data-tier="${tier}">${tier > 1 ? `${tierRoman} · ` : ''}${count}× · ${next}</span>`;
+        }
+        // Cross-run charm strip — show the pair's keepsake (if any).
+        const pairKey = _bondKey(p.ids[0], p.ids[1]);
+        const charmInfo = _charmByPair[pairKey];
+        const sharedFights = (_allBonds[pairKey] && _allBonds[pairKey].fights) || 0;
+        let charmStrip = '';
+        if (charmInfo) {
+          const unlocked = sharedFights >= 10;
+          const equipped = unlocked && getEquippedCharmId() === charmInfo.id;
+          if (equipped) {
+            charmStrip = `<span class="info-bond-charm info-bond-charm-equipped">✦ ${charmInfo.def.name} equipped</span>`;
+          } else if (unlocked) {
+            charmStrip = `<span class="info-bond-charm info-bond-charm-ready">✦ ${charmInfo.def.name} ready — Codex › Bonds</span>`;
+          } else {
+            const toGo = 10 - sharedFights;
+            charmStrip = `<span class="info-bond-charm info-bond-charm-locked">✦ ${charmInfo.def.name} · ${toGo} more shared fight${toGo === 1 ? '' : 's'} to unlock</span>`;
+          }
+        }
         return `<div class="info-bond info-bond-${p.synergy.type} effect-${effect}">
           <span class="info-bond-glyph" aria-hidden="true">${glyph}</span>
           <div class="info-bond-body">
             <span class="info-bond-name">${p.synergy.name}</span>
             <span class="info-bond-pair">${namesA} + ${namesB} · ${lineLabel}</span>
+            ${tierStrip}
+            ${charmStrip}
           </div>
         </div>`;
       }).join('')}</div>`
-    : `<div class="info-empty">No active bonds — adjacent heroes form bonds and frictions.</div>`;
+    : `<div class="info-empty">No active bonds — place two heroes side-by-side (Front+Mid or Mid+Back) to form a bond.  Long-press the menu's Codex › Bonds tab to see all kizuna progress + equip charms.</div>`;
   // Available Resonances — every combo whose required heroes are currently
   // in the party (alive or not, since downed isn't permanent within a
   // fight).  Sorted by tier so triples / sig-tier rise.  Compact list with
@@ -17433,6 +17480,12 @@ const TUTORIAL_HINTS = [
   // an extra clause like cleanse / heal / +Resolve).  Long-press a
   // hero to see their active bonds and progress to the next tier.
   { id: 'bonds',      text: '<b>Bonds</b> — heroes side-by-side share a passive that fires on attacks / heals / damage.  Every fire ticks the bond up; at <b>3 fires</b> it deepens (<b>II</b>) and at <b>8 fires</b> it becomes <b>RESONANT</b> (<b>III</b>) — unlocking an extra clause on top of the bigger numbers.  Long-press a hero to see their bonds.' },
+  // Charms — the cross-run kizuna track.  Pairs that survive a fight
+  // together track shared-fight count in localStorage; at 10 they hit
+  // Kindred and unlock their pair's Charm, a small pre-run buff equipped
+  // from the Codex › Bonds tab.  Players were missing this because the
+  // surface lives in the Codex and there was no in-fight pointer.
+  { id: 'charms',     text: '<b>Charms</b> — pairs that win fights together track shared-fight count <i>across runs</i>.  At <b>10 shared fights</b> (Kindred ✦) a pair\'s Charm unlocks — a small pre-run buff (e.g. +2 max HP all heroes, first-attack +2 dmg).  Equip one charm per run from <b>Codex › Bonds</b>.' },
 ];
 
 const TUT_KEY = 'kizuna.tutorialSeen.v2';
