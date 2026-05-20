@@ -905,9 +905,19 @@ body.on-title:has(#overlay:not(.hidden)) #stage-scale {
   pointer-events: none;
   animation: fi-in 0.14s ease-out;
 }
+/* Floating variant — panel is appended to #popup-layer instead of the
+   figure, and its left/top are stamped inline.  The base top:100% /
+   left:50% rules above don't apply when an inline value is set, but
+   the transform from those base rules would re-center the box; the JS
+   sets transform inline too (translate(-50%, 0) or -100%) to anchor
+   the panel correctly below or above the figure. */
+.figure-inspector.figure-inspector-floating {
+  top: auto;
+  left: auto;
+}
 @keyframes fi-in {
-  from { opacity: 0; transform: translate(-50%, 0); }
-  to   { opacity: 1; transform: translate(-50%, 4px); }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 .figure-inspector .fi-head {
   display: flex;
@@ -969,20 +979,21 @@ body.on-title:has(#overlay:not(.hidden)) #stage-scale {
   font-style: italic;
   text-align: center;
 }
-/* Flip above the figure if the panel would clip the action row.  Tight
-   landscape phones default to this — the figure column has more headroom
-   above than below in those layouts. */
+/* Floating-variant flip is decided in JS now (based on the figure's
+   bottom Y in design-canvas coords), so this media query only retunes
+   the legacy in-figure variant.  The floating variant carries inline
+   left/top/transform that always win over these rules. */
 @media (max-height: 520px) {
-  .figure-inspector {
+  .figure-inspector:not(.figure-inspector-floating) {
     top: auto;
     bottom: 100%;
     transform: translate(-50%, -4px);
     max-width: min(240px, 78vw);
     padding: 6px 8px;
   }
-  @keyframes fi-in {
-    from { opacity: 0; transform: translate(-50%, 0); }
-    to   { opacity: 1; transform: translate(-50%, -4px); }
+  .figure-inspector.figure-inspector-floating {
+    max-width: min(240px, 78vw);
+    padding: 6px 8px;
   }
   .figure-inspector .fi-name { font-size: 10px; }
   .figure-inspector .fi-slot { font-size: 8px; }

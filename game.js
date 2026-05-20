@@ -12539,7 +12539,36 @@ function _buildFigureInspector(fig, id, isParty) {
     </div>
     ${inner}
   `;
-  fig.appendChild(panel);
+  // Anchor the panel to #popup-layer (z-index 50, sibling of #battlefield)
+  // instead of the figure card.  The card lives inside #battlefield which
+  // shares z-index:2 with #action-row — and since action-row comes after
+  // battlefield in document order, the action tiles paint OVER any panel
+  // appended inside a figure regardless of its inner z-index.  popup-layer
+  // sits above both, so the panel can actually be seen.  Position is
+  // computed from the figure's bounding box in stage coords (same pattern
+  // the damage popups use).
+  const layer = document.getElementById('popup-layer');
+  const stage = document.getElementById('stage');
+  if (layer && stage) {
+    const r = fig.getBoundingClientRect();
+    const s = stage.getBoundingClientRect();
+    const scale = s.width > 0 ? (s.width / 720) : 1;
+    const cx = (r.left + r.width / 2 - s.left) / scale;
+    const figBottomY = (r.bottom - s.top) / scale;
+    const figTopY    = (r.top    - s.top) / scale;
+    // Flip ABOVE the figure if anchoring below would clip the bottom of
+    // the design canvas (405px tall).  Most figures sit in the upper
+    // half of the battlefield so the default is "below," but back-row /
+    // tall portraits can crowd the bottom edge.
+    const flipAbove = figBottomY > 320;
+    panel.style.left = cx + 'px';
+    panel.style.transform = flipAbove ? 'translate(-50%, -100%)' : 'translate(-50%, 0)';
+    panel.style.top  = (flipAbove ? (figTopY - 4) : (figBottomY + 4)) + 'px';
+    panel.classList.add('figure-inspector-floating');
+    layer.appendChild(panel);
+  } else {
+    fig.appendChild(panel);
+  }
   return panel;
 }
 
