@@ -14712,9 +14712,13 @@ function makeTile(kind, charId, dir, tileCounts, teamLocked) {
   // De-emphasize when the action would land but produce no effect (e.g. an
   // attack whose reach holds only empty slots).  Still clickable.
   if (preview.noEffect && !t.disabled) t.classList.add('no-effect');
-  // Combo-ready glow — queueing THIS tile would complete a fresh Resonance
-  // that isn't already on offer.  Maps tile.kind to combo.kind:
+  // Combo-ready signal — queueing THIS tile would complete a fresh
+  // Resonance that isn't already on offer.  Maps tile.kind to combo.kind:
   //   attack → 'attack', special → 'sig'.  Move/brace never trigger.
+  // Captured into variables so we can render an INLINE combo badge inside
+  // the tile (decodable at a glance), not just a floating ribbon above.
+  let comboName = null;
+  let comboIsSig = false;
   if (!t.disabled && (kind === 'attack' || kind === 'special')) {
     const comboKind = kind === 'special' ? 'sig' : 'attack';
     const simulated = state.queue.concat([{ charId, kind: comboKind, atb: atbCost }]);
@@ -14722,8 +14726,10 @@ function makeTile(kind, charId, dir, tileCounts, teamLocked) {
     const wouldComplete = matchingCombos(simulated).filter(m => !existingIds.has(m.combo.id));
     if (wouldComplete.length) {
       const combo = wouldComplete[0].combo;
+      comboName = combo.name;
+      comboIsSig = !!combo.sigTier;
       t.classList.add('tile-combo-ready');
-      if (combo.sigTier) t.classList.add('tile-combo-sig');
+      if (comboIsSig) t.classList.add('tile-combo-sig');
       t.dataset.combo = combo.name;
     }
   }
@@ -14752,12 +14758,13 @@ function makeTile(kind, charId, dir, tileCounts, teamLocked) {
 
   t.innerHTML = `
     <span class="tile-badges">${costBadges.join('')}</span>
+    ${comboName ? `<span class="tile-combo-badge${comboIsSig ? ' sig' : ''}" title="Queueing this would complete: ${comboName}">+ ${comboName}</span>` : ''}
     <span class="tile-name-row">
       <span class="tile-name">${elBadge}${preview.label || '—'}</span>
       ${reachLabel ? `<span class="tile-reach">${reachLabel}</span>` : ''}
     </span>
     <span class="tile-desc">${formatDesc(preview.desc) || ''}</span>
-    ${qCount > 1 ? `<span class="q-count">×${qCount}</span>` : ''}
+    ${qCount ? `<span class="tile-queued-mark" title="${qCount > 1 ? `Queued ×${qCount} this turn` : 'Queued this turn'}">✓${qCount > 1 ? ` ×${qCount}` : ''}</span>` : ''}
   `;
 
   bindTileHold(t, {

@@ -5805,12 +5805,8 @@ body.party-critical::after {
   gap: 0;
   box-shadow: none;
 }
-.tile:hover,
-.tile.queued {
-  border-color: var(--gold-bright);
-  background: rgba(28,28,30,0.85);
-}
-/* corner brackets removed for a cleaner inline-card feel */
+/* Hover state — subtle gold tint so every queueable tile reads as
+   "tappable", but never bright enough to look special vs siblings. */
 .tile:not(:disabled):hover {
   border-color: var(--gold-dim);
   background: linear-gradient(180deg, rgba(48,32,20,0.7) 0%, rgba(24,18,12,0.7) 100%);
@@ -6093,12 +6089,23 @@ body.party-critical::after {
 .tile.team-special .ts-cost .tile-cost { min-width: 16px; height: 16px; font-size: 10px; padding: 0 4px; }
 .tile.team-special:disabled { opacity: 0.4; }
 
+/* Queued — the action is locked into the turn.  Reads as "satisfied/
+   done" (a quiet green check overlay), not "this is the active option
+   right now" (which the old gold-bright border read as).  Border stays
+   default so non-queued siblings don't look "lesser" by comparison. */
 .tile.queued {
-  box-shadow:
-    inset 0 0 0 1px var(--gold-bright),
-    0 0 10px rgba(240,212,136,0.3);
+  background: rgba(20,28,22,0.85);
+  box-shadow: inset 0 0 0 1px rgba(140,200,150,0.4);
 }
 .tile.queued .tile-reach { display: none; }
+.tile .tile-queued-mark {
+  position: absolute; bottom: 2px; right: 4px;
+  font-size: 11px; color: #9ed4a4; font-weight: 800;
+  text-shadow: 0 0 6px rgba(140,200,150,0.6);
+  letter-spacing: 0.04em;
+  line-height: 1;
+  pointer-events: none;
+}
 .tile .q-count {
   position: absolute; bottom: 2px; right: 4px;
   font-size: 10px; color: var(--gold-bright); font-weight: bold;
@@ -8612,11 +8619,15 @@ button.path-node { cursor: pointer; }
   border-bottom-color: rgba(240,212,136,0.35);
   box-shadow: 0 0 14px rgba(200,164,100,0.15) inset;
 }
+/* Queued tile — "locked in for this turn".  Quiet green tint + green
+   bottom hairline + check overlay (via .tile-queued-mark) so it reads
+   as "satisfied/done", distinct from the combo-ready gold pulse and
+   from sibling queueable tiles. */
 .tile.queued {
-  background: linear-gradient(180deg, rgba(58,40,24,0.7) 0%, rgba(22,14,8,0.75) 100%);
+  background: linear-gradient(180deg, rgba(28,40,30,0.65) 0%, rgba(12,18,14,0.75) 100%);
   border-color: transparent;
-  border-bottom-color: var(--gold-bright);
-  box-shadow: 0 0 18px rgba(232,220,196,0.18) inset;
+  border-bottom-color: rgba(140,200,150,0.55);
+  box-shadow: inset 0 0 0 1px rgba(140,200,150,0.25), 0 0 10px rgba(140,200,150,0.12) inset;
 }
 
 /* Overlay choice cards — sigils, recruits, upgrades, vignette choices,
@@ -9975,42 +9986,50 @@ body.cine-stage-open #stage::after {
 /* Tile combo-ready glow — pressing this tile would complete a fresh
    Resonance with the current queue.  Soft pulse + a small ribbon labels
    which combo lands.  Sig-tier combos use the cool-blue palette. */
+/* Combo-ready glow — toned down so non-combo siblings don't read as
+   "lesser".  The inline .tile-combo-badge inside the tile carries the
+   semantic load ("+ Combo Name"); the pulse is now a subtle accent. */
 .tile.tile-combo-ready {
-  animation: tile-combo-pulse 1.6s ease-in-out infinite;
+  animation: tile-combo-pulse 2s ease-in-out infinite;
   position: relative;
 }
-.tile.tile-combo-ready::before {
-  content: attr(data-combo);
-  position: absolute;
-  top: -10px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 7.5px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  padding: 1px 6px;
-  background: rgba(40,28,20,0.95);
-  color: var(--gold-bright);
-  border: 1px solid rgba(240,212,136,0.45);
-  white-space: nowrap;
-  pointer-events: none;
-  box-shadow: 0 0 10px rgba(240,212,136,0.35);
-}
-.tile.tile-combo-ready.tile-combo-sig::before {
-  color: #cfe1ff;
-  border-color: rgba(170,200,255,0.55);
-  box-shadow: 0 0 10px rgba(170,200,255,0.4);
-}
+/* Old floating ribbon (::before) removed — the inline .tile-combo-badge
+   below renders the combo name inside the tile where it can't be missed
+   or clipped by overflow above the tile-grid row. */
 @keyframes tile-combo-pulse {
   0%, 100% { box-shadow: 0 0 0 0 rgba(240,212,136,0.0); }
-  50%      { box-shadow: 0 0 16px 2px rgba(240,212,136,0.4); }
+  50%      { box-shadow: 0 0 7px 1px rgba(240,212,136,0.22); }
 }
 .tile.tile-combo-ready.tile-combo-sig {
   animation-name: tile-combo-pulse-sig;
 }
 @keyframes tile-combo-pulse-sig {
   0%, 100% { box-shadow: 0 0 0 0 rgba(170,200,255,0.0); }
-  50%      { box-shadow: 0 0 16px 2px rgba(170,200,255,0.45); }
+  50%      { box-shadow: 0 0 7px 1px rgba(170,200,255,0.25); }
+}
+/* Inline combo badge — sits at the very top of the tile (above the
+   name row) so the player sees both WHAT the tile does (name + reach)
+   AND WHY it glows ("+ Combo Name") at a single glance. */
+.tile .tile-combo-badge {
+  display: block;
+  font-size: 7.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-weight: 800;
+  color: var(--gold-bright);
+  margin-bottom: 2px;
+  line-height: 1.1;
+  text-shadow: 0 0 6px rgba(240,212,136,0.35);
+  /* Don't run under the cost badges in the top-right corner */
+  padding-right: 40px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+.tile .tile-combo-badge.sig {
+  color: #cfe1ff;
+  text-shadow: 0 0 6px rgba(170,200,255,0.4);
 }
 
 /* Keep the team-special tile styling as legacy fallback for any leftover
