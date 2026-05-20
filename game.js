@@ -5847,6 +5847,181 @@ const VIGNETTES = {
     ],
   },
 
+  // ==================== LAYER 6 — THE IRON FOREST =======================
+  // Sins of vows broken and re-sworn.  The trees here are names —
+  // driven hilt-deep into the world, iron-barked and patient.  Old
+  // oaths, most of them broken; some of them re-sworn.  The party
+  // reads their own initials on the wood and decides what they will
+  // and will not break here.
+  layer6_arrival: {
+    id: 'layer6_arrival',
+    when: { runStart: true, whileLayer: 6 },
+    oneShot: true,
+    title: 'You climb into the Forest',
+    speakerFromFirstAlive: true,
+    lines: [
+      { who: null,     text: "The trees are not trees.  They are names — driven hilt-deep into the world, iron-barked and patient." },
+      { who: '_first', text: "Mine is here somewhere." },
+      { who: '_last',  text: "So is mine.  We walk past them.",
+        if: (s) => aliveParty(s).length > 1 },
+      { who: null,     text: "Old oaths.  Most of them broken.  Some of them re-sworn." },
+    ],
+    variants: [
+      // Garron + Vasha — two oath-keepers reading the bark.
+      {
+        requires: ['garron', 'vasha'],
+        lines: [
+          { who: null,     text: "The trees are not trees.  They are names." },
+          { who: 'vasha',  text: "I see oaths here I forgot I swore." },
+          { who: 'garron', text: "I see oaths I broke." },
+          { who: 'vasha',  text: "Will you swear them again?" },
+          { who: 'garron', text: "I will swear the ones that bring me home." },
+          { who: null,     text: "The bark closes a little.  As if listening." },
+        ],
+      },
+      // Cassia + Korin — the iron pair facing the iron forest.
+      {
+        requires: ['cassia', 'korin'],
+        lines: [
+          { who: null,     text: "The trees are not trees.  They are names." },
+          { who: 'cassia', text: "We carved one of these once.  Different forest." },
+          { who: 'korin',  text: "(He doesn't answer.  Cuts a notch in the nearest trunk with his thumbnail.)" },
+          { who: 'cassia', text: "Still standing, then." },
+          { who: 'korin',  text: "Still standing." },
+          { who: null,     text: "Two oaths walk into a forest of broken ones, and don't break." },
+        ],
+      },
+    ],
+    choices: [
+      { label: 'Re-swear what matters',     tag: 'A survivor gains a positive affinity',
+        resolve: (s) => { _rollSurvivorQuirk(s, 'positive'); } },
+      { label: 'Burn what you broke',       tag: 'Survivors heal to full · +1 Resolve next fight',
+        resolve: (s) => {
+          aliveParty(s).forEach(c => { c.hp = c.maxHp; });
+          s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1;
+          log('The party burns past names they refuse to be again.');
+        } },
+    ],
+  },
+
+  // ==================== LAYER 7 — THE COLD REACH ========================
+  // Sins of distance, of silence.  Light forgets how to travel here;
+  // sound goes out and doesn't come back.  The kizuna has to hold the
+  // line where words can't — pressed hands, watched flanks, breath in
+  // the same rhythm.
+  layer7_arrival: {
+    id: 'layer7_arrival',
+    when: { runStart: true, whileLayer: 7 },
+    oneShot: true,
+    title: 'You climb into the Cold',
+    speakerFromFirstAlive: true,
+    lines: [
+      { who: null,     text: "There is no snow.  Only the cold the snow used to fall through." },
+      { who: '_first', text: "I can't hear you well." },
+      { who: '_last',  text: "(They nod.  Lay a hand on your arm.  Press it once.  That has to be enough.)",
+        if: (s) => aliveParty(s).length > 1 },
+      { who: null,     text: "Every footstep lands quieter than the last.  But the line is still there." },
+    ],
+    variants: [
+      // Hask + Veyr — already a pair that speaks in silences.
+      {
+        requires: ['hask', 'veyr'],
+        lines: [
+          { who: null,  text: "There is no snow.  Only the cold the snow used to fall through." },
+          { who: 'hask', text: "Good." },
+          { who: 'veyr', text: "(She watches the way you came.  Nods once.)" },
+          { who: 'hask', text: "It's warmer than where I came from, anyway." },
+          { who: null,  text: "Two who already speak in silence take point.  The party follows their breath." },
+        ],
+      },
+      // Lirien + anyone — bard hums against the silence.
+      {
+        requires: ['lirien'],
+        lines: [
+          { who: null,    text: "There is no snow.  Only the cold the snow used to fall through." },
+          { who: 'lirien',text: "If sound won't carry, I'll carry it." },
+          { who: 'lirien',text: "(She begins to hum.  Low.  Inside her chest more than out of it.)" },
+          { who: null,    text: "The note doesn't travel — but the party hears it, all the same.  Through the line." },
+        ],
+      },
+    ],
+    choices: [
+      { label: 'Walk close',             tag: 'Survivors heal to full',
+        resolve: (s) => { aliveParty(s).forEach(c => { c.hp = c.maxHp; }); log('The party draws in tight.  Full HP.'); } },
+      { label: 'Listen for the silence', tag: 'A survivor gains a positive affinity',
+        resolve: (s) => { _rollSurvivorQuirk(s, 'positive'); } },
+    ],
+  },
+
+  // ==================== LAYER 8 — THE TIDE OF WAKES =====================
+  // Sins of every morning the world refused.  The dawn has not come
+  // for a long time here, but the party is the kind that brings one
+  // anyway.  The reach knows the difference between people who wait
+  // for dawn and people who walk into it.
+  layer8_arrival: {
+    id: 'layer8_arrival',
+    when: { runStart: true, whileLayer: 8 },
+    oneShot: true,
+    title: 'You climb into the Tide',
+    speakerFromFirstAlive: true,
+    lines: [
+      { who: null,     text: "The sky never broke into morning here.  Wave after wave of dawn that didn't open." },
+      { who: '_first', text: "We brought the wrong tools to wait." },
+      { who: '_last',  text: "Then we don't wait.",
+        if: (s) => aliveParty(s).length > 1 },
+      { who: null,     text: "The reach knows the difference between people who wait for dawn and people who walk into it.  You are the second kind." },
+    ],
+    variants: [
+      // Kai alive — full-circle reference back to the Wakeling.
+      {
+        requires: ['kai'],
+        lines: [
+          { who: null,  text: "The sky never broke into morning here.  Wave after wave of dawn that didn't open." },
+          { who: 'kai', text: "We made one in the Hollow Reach.  Different mountain, same sun." },
+          { who: null,  text: "Far below, far back, the Wakeling fell.  Far above, far ahead, something is waiting for the news." },
+        ],
+      },
+    ],
+    choices: [
+      { label: 'Make the dawn yourselves', tag: '+2 Resolve at next fight start',
+        resolve: (s) => {
+          s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 2;
+          log('The party stops waiting.  +2 Resolve carry.');
+        } },
+      { label: "Wake what wouldn't",       tag: 'A survivor gains a positive affinity',
+        resolve: (s) => { _rollSurvivorQuirk(s, 'positive'); } },
+    ],
+  },
+
+  // ==================== LAYER 9 — THE CROWN OF ECHOES ===================
+  // The summit.  What is climbing toward you.  The kizuna pitch
+  // delivered: the hero who woke alone at the bottom is not alone
+  // any more.  Single choice — no branching, just a beat of resolve
+  // before the final fight.
+  layer9_arrival: {
+    id: 'layer9_arrival',
+    when: { runStart: true, whileLayer: 9 },
+    oneShot: true,
+    title: 'You climb into the Crown',
+    speakerFromFirstAlive: true,
+    lines: [
+      { who: null,     text: "There is no ceiling here.  There never was a ceiling — only the abyss looking down at itself." },
+      { who: null,     text: "Far below, in the Hollow Reach, you remember waking alone." },
+      { who: '_first', text: "I'm not, though." },
+      { who: '_last',  text: "(They take your hand without looking at you.)",
+        if: (s) => aliveParty(s).length > 1 },
+      { who: null,     text: "Something on the summit turns.  It has been climbing toward you the whole time.  And now you have arrived to meet it." },
+    ],
+    choices: [
+      { label: 'Climb to meet it', tag: 'Survivors heal to full · +1 Resolve next fight',
+        resolve: (s) => {
+          aliveParty(s).forEach(c => { c.hp = c.maxHp; });
+          s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1;
+          log('The party climbs into the Crown — together.');
+        } },
+    ],
+  },
+
   // ============================================================================
   // BOSS-DEFEAT VIGNETTES — layers 3 / 4 / 5
   // Same pattern as wakeling_slain and layer2_listener_falls: a tight base
@@ -17345,34 +17520,20 @@ function hideRunInfoPanel() {
 // to returning players, not the whole sequence again.
 // ============================================================================
 const TUTORIAL_HINTS = [
-  // Define ATB up-front — the tap hint used to handwave "Each action costs
-  // ATB" without saying what ATB is.  Number on an action tile = its ATB
-  // cost; you get 3 per turn.
-  { id: 'tap_v2',     text: '<b>Tap</b> an action to queue it.  Each turn you have <b>3 ATB</b> (your action budget).  The number on each tile is what it costs.' },
-  { id: 'hold',       text: '<b>Hold</b> an action to see its reach and predicted damage.' },
-  // Define Resolve here — Specials cost ♦ on top of ATB, and Resolve carries
-  // between fights (up to 3 by default).
-  { id: 'resolve',    text: 'Specials also cost <b>Resolve</b> (♦) on top of ATB.  You earn ♦ from kills and synergies; up to 3 carry between fights.' },
-  // New: explain reach labels (F / M / FM / MB etc).  Players were guessing
-  // what those letters on a tile meant.
-  { id: 'reach',      text: 'Each action has a <b>reach</b> — the enemy slots it can hit.  The F·M·B cells on the tile <b>light up</b> on the slot the action would land on right now; the pill swaps to <b>ALL</b> for a full sweep, <b>SELF</b>/<b>ALLY</b>/<b>PARTY</b> for party heals, or red <b>miss</b> when no enemy is in reach.' },
-  { id: 'commit',     text: 'Spend your ATB, then tap <b>Play ▶</b> to commit the turn.' },
-  // Move comes BEFORE enemies/weakness — positioning is fundamental and
-  // players were missing the press-and-hold gesture in the original order.
-  // The blinking ·HOLD· badge under each hero card backs this up.
-  { id: 'move_v2',    text: '<b>Press and hold</b> a hero card, then <b>drag</b> it to another slot — the hero follows your finger.  Drop on an ally to swap, or on an empty slot to relocate.  Costs 1 ATB per step.' },
-  { id: 'enemies',    text: 'Enemies show their <b>intent</b> above their card — icon (↯ atk · ☽ debuff · ✷ aoe), damage number, and a <b>→ slot</b> pill telling you who they\'ll hit.  Plan around it.' },
-  // Persona-5 style weakness loop — explain WEAKENED → STAGGERED → 2× hit.
-  { id: 'weakness',   text: 'Each hero\'s school is also their <b>element</b>.  Hit an enemy\'s weakness once → <b>WEAKENED</b>.  Hit it again with the same weakness same turn → <b>STAGGERED</b>.  The next attack of any element deals <b>2× damage</b>.  Weakness icon (✶/✦/⚔/➳/◐) reveals on the first hit.' },
-  // Resonance hint — explain WHEN it appears (matching tags between queued
-  // actions) and WHERE the chip lives, plus the once-per-fight gate.
-  { id: 'resonance_v2', text: 'Queue actions whose tags line up (e.g. two attacks, or a heal + a shield) and a <b>Resonance</b> chip lights up the rail above your action tray.  Tap it to fuse the queue into a stronger team move.  Once per fight.' },
-  // Bond progression — the kizuna pitch.  Heroes adjacent on the F-M
-  // or M-B line share a passive bond; firing it repeatedly deepens
-  // the bond into Tier II (+1 amt) and Tier III (RESONANT — unlocks
-  // an extra clause like cleanse / heal / +Resolve).  Long-press a
-  // hero to see their active bonds and progress to the next tier.
-  { id: 'bonds',      text: '<b>Bonds</b> — heroes side-by-side share a passive that fires on attacks / heals / damage.  Every fire ticks the bond up; at <b>3 fires</b> it deepens (<b>II</b>) and at <b>8 fires</b> it becomes <b>RESONANT</b> (<b>III</b>) — unlocking an extra clause on top of the bigger numbers.  Long-press a hero to see their bonds.' },
+  // Trimmed from 10 hints to 8 by folding tap+commit and hold+reach into
+  // single beats.  Each hint anchors to a distinct UI surface so the
+  // coachmark sequence still teaches the player WHERE to look as well
+  // as WHAT it means.
+  { id: 'queue_v3',     text: '<b>Tap</b> actions to queue them.  Each costs 1–3 <b>ATB</b> (3 per turn).  Then tap <b>Play ▶</b> to commit your turn.' },
+  { id: 'preview_v3',   text: '<b>Hold</b> an action to preview where it lands.  The F·M·B cells light up on the target slot; the pill swaps to <b>ALL</b> / <b>SELF</b> / <b>PARTY</b> / red <b>miss</b> for special cases.' },
+  { id: 'resolve',      text: 'Specials cost <b>Resolve</b> (♦) on top of ATB.  You earn ♦ from kills and synergies; up to 3 carry between fights.' },
+  { id: 'move_v2',      text: '<b>Press and hold</b> a hero card, then <b>drag</b> it to another slot — the hero follows your finger.  Drop on an ally to swap, or on an empty slot to relocate.  Costs 1 ATB per step.' },
+  { id: 'enemies',      text: 'Each enemy shows <b>intent</b> above their card — icon (↯ atk · ☽ debuff · ✷ aoe), damage, and a <b>→ slot</b> pill telling you who they\'ll hit.  Plan around it.' },
+  { id: 'weakness',     text: 'Each hero\'s school is also their <b>element</b>.  Hit weakness once → <b>WEAKENED</b>; hit it again → <b>STAGGERED</b>.  The next attack of any element deals <b>2× damage</b>.' },
+  { id: 'resonance_v2', text: 'Queue actions whose tags line up and a <b>Resonance</b> chip lights up the rail above your action tray.  Tap it to fuse the queue into a stronger team move.  Once per fight.' },
+  // Bond progression — the kizuna pitch.  Per-run only; deepens via
+  // fires within the same climb.
+  { id: 'bonds',        text: '<b>Bonds</b> — adjacent heroes share a passive.  Every fire deepens it: <b>3 fires</b> → <b>II</b> (+1 amt), <b>8 fires</b> → <b>RESONANT III</b> (extra clause).  Long-press a hero to see their bonds.' },
 ];
 
 const TUT_KEY = 'kizuna.tutorialSeen.v2';
@@ -17537,9 +17698,31 @@ function renderMap() {
   $('#overlay').classList.remove('overlay-vignette', 'overlay-runsummary');
   $('#overlay').classList.add('overlay-full', 'overlay-path');
   $('#overlay-title').textContent = 'The Path';
-  $('#overlay-body').textContent = (state.run.completedNodes || []).length === 0
+  // Subtitle + kizuna strip — shows the top 2 bonds fired this run
+  // with their current tier so the kizuna progression stays visible
+  // between encounters, not just on the long-press inspector.  Skipped
+  // silently if no bonds have fired (solo runs, first-encounter maps).
+  const _pathSubtitle = (state.run.completedNodes || []).length === 0
     ? 'Pick your entry point.'
     : 'Choose the next stretch.';
+  const _sc = (state.run && state.run.synergyCounts) || {};
+  const _topBonds = Object.entries(_sc)
+    .filter(([name, count]) => count > 0 && !(/^Old |^Hollow |^Crossed |^Tangled |^Stained /.test(name)))
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 2);
+  let _kizunaStrip = '';
+  if (_topBonds.length) {
+    const chips = _topBonds.map(([name, count]) => {
+      const tier = getBondTier(state, name, count);
+      const roman = BOND_TIER_ROMAN[tier] || '';
+      return `<span class="path-kizuna-chip" data-tier="${tier}">
+        <span class="path-kizuna-name">${name}${tier > 1 ? ` ${roman}` : ''}</span>
+        <span class="path-kizuna-count">${count}×</span>
+      </span>`;
+    }).join('');
+    _kizunaStrip = `<div class="path-kizuna"><span class="path-kizuna-label">Kizuna</span>${chips}</div>`;
+  }
+  $('#overlay-body').innerHTML = `<span class="path-subtitle">${_pathSubtitle}</span>${_kizunaStrip}`;
   const choices = $('#overlay-choices');
   choices.innerHTML = '';
   choices.classList.add('path-map');
@@ -19388,6 +19571,40 @@ function showRunSummary(outcome, opts) {
         }
         return `<div class="rs-highlights">${tiles.join('')}</div>`;
       })()}
+      ${(() => {
+        // KIZUNA RECAP — surfaces the bonds that mattered this run.
+        // Reads s.run.synergyCounts (per-run fire counts) and picks
+        // the top 3 by count.  Each tier gets a different roman + a
+        // celebratory line for any bond that reached RESONANT III —
+        // the climactic moment the kizuna pitch promises.  Skipped
+        // silently if no bonds fired (solo run, or a quick wipe).
+        const sc = (state.run && state.run.synergyCounts) || {};
+        const sortedBonds = Object.entries(sc)
+          .filter(([name, count]) => count > 0 && !(/^Old |^Hollow |^Crossed |^Tangled |^Stained /.test(name)))
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 3);
+        if (!sortedBonds.length) return '';
+        const resonantBonds = sortedBonds.filter(([n, c]) => c >= BOND_TIER_THRESHOLDS[1]);
+        const headlineLine = resonantBonds.length
+          ? `<div class="rs-kizuna-headline">${resonantBonds[0][0]} <b>RESONANT</b> · the bond rang true.</div>`
+          : '';
+        const rows = sortedBonds.map(([name, count]) => {
+          const tier = getBondTier(state, name, count);
+          const roman = BOND_TIER_ROMAN[tier] || '';
+          const tierClass = `rs-kizuna-tier-${tier}`;
+          const clause = (tier === 3 && BOND_TIER3_CLAUSES[name]) ? ` + ${BOND_TIER3_CLAUSES[name].text}` : '';
+          return `<div class="rs-kizuna-row ${tierClass}">
+            <span class="rs-kizuna-mark">✦</span>
+            <span class="rs-kizuna-name">${name}${tier > 1 ? ` ${roman}` : ''}</span>
+            <span class="rs-kizuna-count">${count}× fired${clause}</span>
+          </div>`;
+        }).join('');
+        return `<div class="rs-kizuna">
+          <div class="rs-kizuna-label">Kizuna</div>
+          ${headlineLine}
+          <div class="rs-kizuna-list">${rows}</div>
+        </div>`;
+      })()}
       ${_embersThisRun > 0 ? `<div class="rs-embers"><span class="rs-embers-glyph">✦</span><b>+${_embersThisRun}</b> <em>Embers banked</em><span class="rs-embers-total">total · ${getEmbersBalance()}</span></div>` : ''}
       ${unlockHtml}
       ${memorialHtml}
@@ -20848,24 +21065,17 @@ function showTitleScreen() {
     hideTitleScreen();
     renderMap();
   }, !canContinue));
-  // Top-level meta entries gate on progression — same pattern as
-  // Forge / Oaths / Ascensions gating the in-run mechanics.  Two
-  // different triggers because the two surfaces serve different
-  // intents:
+  // Codex is now available from the start — the catalog tabs (Bonds,
+  // Sigils, Resonances, Bestiary, Heroes, Achievements) are useful
+  // PRE-build planning info, especially for new players figuring out
+  // who pairs with whom.  Bestiary / sigils / resonance entries are
+  // still "sealed" until encountered; the catalog tab labels just
+  // surface the structure so the player has a mental map.
   //
-  // CODEX → L1 boss clear.  A narrative milestone — the Wakeling
-  //   falls, and the meta-record of what you've discovered opens
-  //   up as the reward.  Players who haven't yet cleared Layer 1
-  //   see just NEW GAME + SETTINGS on the title.
-  //
-  // EMBERS → any banked.  The whole design of Embers is "every run
-  //   pays out — failure is progress."  Gating the entry until L1
-  //   clear would break that: a player wiping in Layer 1 would bank
-  //   Embers but never see them.  So the entry surfaces the moment
-  //   the player has ANY currency to spend, even from a defeated
-  //   run.  Same threshold doubles as "unlock has been purchased"
-  //   for migration safety.
-  if (getClearedLayers().includes(1)) {
+  // EMBERS still gates on any banked — Embers is "every run pays
+  // out, failure is progress", so the entry surfaces the moment the
+  // player has currency to spend.
+  {
     // NEW dot on the Codex menu button — pulses gold until the
     // player has opened the Codex for the first time.  Cleared by
     // showCodexScreen.  Mirrors the per-tab NEW dot pattern.
