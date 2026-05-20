@@ -14372,21 +14372,38 @@ function makeEnemyCard(e, slot) {
   // the payoff, not a turn-skip.
   // When a wind-up is in progress, the intent bubble swaps to a red
   // hourglass + countdown so the player knows the BIG hit is coming.
+  // The release intent's target slot is surfaced too so the player can
+  // pre-position before the heavy hit lands.
   let intentBubble;
   if (e._charging) {
     const rel = e._charging.releaseIntent || {};
     const relNum = intentPrimaryNum(rel.tag) || '';
+    const relTs = rel.targetSlot;
+    const relTarget = relTs === 'all' ? 'ALL'
+      : relTs === '?' ? 'LOW'
+      : relTs === 'fm' ? 'F+M'
+      : relTs === 'mb' ? 'M+B'
+      : relTs === 'pierce' ? 'M+B>'
+      : (relTs || '').slice(0,1).toUpperCase();
     const tip = `${e._charging.name} — wind-up. Releases ${rel.name || '???'} in ${e._charging.releaseIn} turn(s). Stagger to break.`;
     intentBubble = `
       <div class="intent-bubble intent-charging threat-lethal" title="${tip}">
         <span class="intent-icon">⏳</span>
         <span class="intent-num">${e._charging.releaseIn}</span>
+        ${relTarget ? `<span class="intent-target intent-target-charging">→ ${relTarget}</span>` : ''}
       </div>`;
   } else {
+    // Append the target slot tag (e.g. "→ M", "→ ALL") so the player
+    // reads "what + how much + who" in one glance instead of decoding
+    // the icon, finding the party-side red glow, and inferring the
+    // slot.  Suppressed for self-targeted enemy actions ('?' lowest
+    // becomes 'LOW' which is meaningful; pure self-buffs have no
+    // targetSlot and the tag is hidden).
     intentBubble = `
       <div class="intent-bubble ${intentClass} threat-${threat}" title="${intent.name}: ${intent.tag} → ${targetTag}">
         <span class="intent-icon">${icon}</span>
         ${num ? `<span class="intent-num">${num}</span>` : ''}
+        ${targetTag ? `<span class="intent-target">→ ${targetTag}</span>` : ''}
       </div>`;
   }
 
