@@ -8802,15 +8802,35 @@ const COMBOS = {
 // Find which combos can be assembled from the current queue.  Returns each
 // matching combo together with the queue indices that satisfy each role
 // (so commitCombo can splice them out).
+// Build the list of combos to scan against the queue.  Most entries
+// come straight from COMBOS, but any generic coord_<pairKey> duo
+// whose pair has a chosen Resonance variant is SWAPPED OUT for the
+// chosen variant.  This way the rail surfaces the player's pick once
+// they've chosen, not the default generic.
+function _comboLookupList() {
+  const chosen = (state && state.run && state.run.chosenResonances) || {};
+  const out = [];
+  Object.values(COMBOS).forEach(c => {
+    if (c.generic && c.tier === 'duo' && typeof c.id === 'string' && c.id.startsWith('coord_')) {
+      const pk = c.id.slice('coord_'.length);
+      if (chosen[pk]) return; // chosen variant replaces this entry
+    }
+    out.push(c);
+  });
+  Object.values(chosen).forEach(v => { if (v) out.push(v); });
+  return out;
+}
+
 function matchingCombos(queue) {
   const spent = (state && state.usedCombos) || new Set();
   // Priority weight — bigger payoff combos surface first when the queue
   // legally matches multiple at once.  Triple > sig-tier > duo so the
   // player sees the rarer fire at the top of the rail.  Themed (authored)
-  // combos sort ahead of generic Coordinated Strike / Triad Resonance
-  // so a pair that has BOTH (themed + generic) defaults to the themed one.
-  const tierWeight = (c) => (c.tier === 'triple' ? 30 : 0) + (c.sigTier ? 10 : 0) + (c.generic ? 0 : 5);
-  return Object.values(COMBOS).map(combo => {
+  // combos AND chosen Resonances both sort ahead of generic Coordinated
+  // Strike / Triad Resonance — a pair that just made their kizuna choice
+  // shouldn't have the generic still surfacing.
+  const tierWeight = (c) => (c.tier === 'triple' ? 30 : 0) + (c.sigTier ? 10 : 0) + ((c.generic && !c.chosenResonance) ? 0 : 5);
+  return _comboLookupList().map(combo => {
     // Resonance is once-per-encounter — a fired combo is locked out for the
     // rest of the fight, even if the queue could assemble it again.
     if (spent.has(combo.id)) return null;
@@ -8840,7 +8860,7 @@ function partialCombos(queue) {
   const completed = matchingCombos(queue).map(m => m.combo.id);
   const seen = new Set();
   const out = [];
-  Object.values(COMBOS).forEach(combo => {
+  _comboLookupList().forEach(combo => {
     if (spent.has(combo.id)) return;
     if (completed.includes(combo.id)) return;
     // Hide locked combos from the near-miss rail too — the kizuna pitch
@@ -12675,6 +12695,126 @@ function _deriveComboUnlock(combo) {
   return { reqs: pairs, mode: 'count', count: 2 };
 }
 
+// Build the two mirror-split Resonance variants for a pair when their
+// bond crosses Tier II.  Both variants have the same total cost; what
+// differs is WHICH hero carries the basic and which carries the sig —
+// reading as a real character moment in the choice overlay ("Cassia
+// leads with shield, Kai finishes" vs "Cassia closes what Kai opened").
+// The variant binds to action KIND (basic/sig), not specific tile
+// names, so the Resonance keeps firing if either hero changes slot
+// later in the run.
+function _buildResonanceVariants(s, heroA, heroB) {
+  // Normalize so heroA is the alphabetically-first id — keeps the
+  // variant ids stable regardless of which side of the bond fired.
+  const ids = [heroA, heroB].sort();
+  const a = ids[0], b = ids[1];
+  const slotA = slotOfChar(s, a);
+  const slotB = slotOfChar(s, b);
+  if (!slotA || !slotB) return null;
+  const aBasic = getTech(s, a, slotA, 'basic');
+  const aSig   = getTech(s, a, slotA, 'sig');
+  const bBasic = getTech(s, b, slotB, 'basic');
+  const bSig   = getTech(s, b, slotB, 'sig');
+  if (!aBasic || !aSig || !bBasic || !bSig) return null;
+  const nameA = (CHARS[a] && CHARS[a].name) || a;
+  const nameB = (CHARS[b] && CHARS[b].name) || b;
+  const pairKey = `${a}+${b}`;
+  // Shared cinematic shape — heroes change but the beat structure
+  // (stage, hero-big, banner, punch, enemy-flash) stays consistent.
+  const cinematicFor = (text, school) => ([
+    { kind: 'stage',       school,                              ms: 200 },
+    { kind: 'hero-big',    heroes: [a, b], pose: 'rise',        ms: 380 },
+    { kind: 'banner',      text, size: 'sm',                    ms: 320 },
+    { kind: 'slogan',      text: 'kizuna',                       ms: 220 },
+    { kind: 'punch',                                              ms: 360 },
+    { kind: 'resolve' },
+    { kind: 'enemy-flash', targets: 'front', kind2: 'hit',       ms: 200 },
+  ]);
+  // Variant runner — invokes each hero's tech with the front-most
+  // enemy as the target.  Falls back to first alive enemy if there's
+  // no one in front.  setting currentActorId / currentTechElement is
+  // necessary so bond hooks (onAttack, etc.) credit the right hero.
+  const runVariant = (kindA, kindB) => (s2) => {
+    const front = enemyBySlot(s2, 'front')
+      || aliveEnemies(s2)[0];
+    const targets = (front && !front.dead) ? [front] : [];
+    [{ id: a, kind: kindA }, { id: b, kind: kindB }].forEach(({ id, kind }) => {
+      const sl = slotOfChar(s2, id);
+      if (!sl) return;
+      const t = getTech(s2, id, sl, kind);
+      if (!t || typeof t.fn !== 'function') return;
+      s2.currentActorId = id;
+      s2.currentTechElement = t.element || (CHARS[id] && CHARS[id].school) || null;
+      try { t.fn(s2, targets); }
+      finally { s2.currentActorId = null; s2.currentTechElement = null; }
+    });
+  };
+  // Variant 1: A basic + B sig.  A sets up, B finishes.
+  const v1Name = `${aBasic.name} → ${bSig.name}`;
+  const v1 = {
+    id: `chosen_${pairKey}__v1`,
+    name: v1Name,
+    tier: 'duo',
+    chosenResonance: true,
+    pairKey,
+    desc: `${nameA}'s ${aBasic.name} into ${nameB}'s ${bSig.name}.`,
+    requires: [
+      { heroId: a, kind: 'attack'  },
+      { heroId: b, kind: 'special' },
+    ],
+    fn: runVariant('basic', 'sig'),
+    cinematic: cinematicFor(v1Name.toUpperCase(), (CHARS[a] && CHARS[a].school) || 'physical'),
+    // Carry the descriptive preview so the overlay can render it
+    // without re-querying tile state at render time.
+    _preview: { aHero: a, bHero: b, aTech: aBasic, bTech: bSig, kindA: 'basic', kindB: 'sig' },
+  };
+  // Variant 2: A sig + B basic.  B sets up, A finishes.
+  const v2Name = `${bBasic.name} → ${aSig.name}`;
+  const v2 = {
+    id: `chosen_${pairKey}__v2`,
+    name: v2Name,
+    tier: 'duo',
+    chosenResonance: true,
+    pairKey,
+    desc: `${nameB}'s ${bBasic.name} into ${nameA}'s ${aSig.name}.`,
+    requires: [
+      { heroId: a, kind: 'special' },
+      { heroId: b, kind: 'attack'  },
+    ],
+    fn: runVariant('sig', 'basic'),
+    cinematic: cinematicFor(v2Name.toUpperCase(), (CHARS[b] && CHARS[b].school) || 'physical'),
+    _preview: { aHero: b, bHero: a, aTech: bBasic, bTech: aSig, kindA: 'basic', kindB: 'sig' },
+  };
+  return [v1, v2];
+}
+
+// Does this pair have an authored COMBOS entry?  Authored pairs keep
+// their hand-crafted Resonance and skip the choice overlay — the
+// authored combo IS their kizuna payoff.  Only pairs that would
+// otherwise fall back to the generic Coordinated Strike get to pick
+// between mirror-split variants.
+function _pairHasAuthoredCombo(heroA, heroB) {
+  const key = [heroA, heroB].sort().join('+');
+  return Object.values(COMBOS).some(c =>
+    !c.generic && !c.chosenResonance && c.tier === 'duo' && c.requires && c.requires.length === 2 &&
+    c.requires.map(r => r.heroId).slice().sort().join('+') === key);
+}
+
+// Queue a Resonance unlock choice for this pair if all conditions
+// hold: pair has no authored combo, no choice already made, not
+// already queued for choice this run.  Called from BOTH the themed
+// bond rank-up path (fireSynergyFeedback) and the Camaraderie tick.
+function _queueResonanceChoice(s, heroA, heroB) {
+  if (!s || !s.run || __simulating) return;
+  if (_pairHasAuthoredCombo(heroA, heroB)) return;
+  const key = adjKey(heroA, heroB);
+  s.run.chosenResonances = s.run.chosenResonances || {};
+  if (s.run.chosenResonances[key]) return;
+  s.run._pendingResonanceChoices = s.run._pendingResonanceChoices || [];
+  if (s.run._pendingResonanceChoices.some(c => c.pairKey === key)) return;
+  s.run._pendingResonanceChoices.push({ pairKey: key, heroA, heroB });
+}
+
 // Is this combo currently unlocked by the run's bond progress?
 // combo.unlockedBy explicit override:
 //   - undefined → auto-derived from requires (the common case)
@@ -12684,6 +12824,10 @@ function _deriveComboUnlock(combo) {
 // (authored AND generic) let the derive helper compute the gate.
 function isComboUnlocked(s, combo) {
   if (!combo) return true;
+  // Chosen Resonance variants ARE the unlock — they only exist in
+  // state.run.chosenResonances after the player picked them at the
+  // bond's Tier II crossing.  Skip the derive-from-requires check.
+  if (combo.chosenResonance) return true;
   let reqs, mode, need;
   if (combo.unlockedBy) {
     reqs = Array.isArray(combo.unlockedBy) ? combo.unlockedBy : [combo.unlockedBy];
@@ -12840,6 +12984,13 @@ function fireSynergyFeedback(s, name, receiverId, effectText, effectType) {
   // distinct celebration so the player FEELS the bond deepening.
   // Tier III uses 'RESONANT' label and lists the new clause inline so
   // the player learns what the resonant effect is the moment it unlocks.
+  // Tier II crossing for a themed pair without an authored combo —
+  // queue a Resonance choice overlay so the player picks how the
+  // pair fights as one.  Authored pairs (Banner Volley, Twin Strike,
+  // etc.) skip the choice and use their hand-crafted Resonance.
+  if (tierBefore < 2 && tierAfter >= 2 && pair && Array.isArray(pair.ids) && pair.ids.length === 2) {
+    _queueResonanceChoice(s, pair.ids[0], pair.ids[1]);
+  }
   if (tierAfter > tierBefore && tierAfter > 1) {
     const clause = tierAfter === 3 ? BOND_TIER3_CLAUSES[name] : null;
     const clauseLabel = clause ? ` + ${clause.text}` : '';
@@ -13864,6 +14015,13 @@ function tickCamaraderie(s, committedQueue) {
       const tierBefore = getBondTier(s, bondName, before);
       s.run.synergyCounts[bondName] = before + 1;
       const tierAfter = getBondTier(s, bondName, before + 1);
+      // Tier II crossing — queue Resonance choice for this pair.
+      // The overlay surfaces between turns (after queue resolves,
+      // before enemy phase) so the player picks WHICH variant
+      // becomes their duo Resonance for the rest of the run.
+      if (tierBefore < 2 && tierAfter >= 2) {
+        _queueResonanceChoice(s, a, b);
+      }
       // Tier-up celebration — show a single 'X + Y · DEEPENED' popup
       // over the lower-HP hero of the pair so the kizuna feels
       // shared, not single-sided.  No popup on first fire (Tier I)
@@ -13914,7 +14072,16 @@ function resolveQueueStep(i) {
     }
     if (checkEnd(s)) { s.executing = false; s.executingIdx = -1; render(); return; }
     render();
-    setTimeout(() => resolveEnemyTurn(s), 320);
+    // Drain any Resonance unlock choices queued by tickCamaraderie /
+    // fireSynergyFeedback during this turn before the enemy phase starts.
+    // The overlay blocks until the player picks; resolveEnemyTurn fires
+    // through the onDone callback so combat flow stays linear.
+    const advanceToEnemyPhase = () => setTimeout(() => resolveEnemyTurn(s), 320);
+    if (s.run && s.run._pendingResonanceChoices && s.run._pendingResonanceChoices.length) {
+      setTimeout(() => showResonanceChoice(s, advanceToEnemyPhase), 320);
+    } else {
+      advanceToEnemyPhase();
+    }
     return;
   }
   const item = s.queue[i];
@@ -20906,6 +21073,94 @@ function commitUpgrade(upgradeId, onDone) {
   hideOverlay();
   resetOverlayBtn();
   if (typeof onDone === 'function') onDone(); else renderMap();
+}
+
+// Resonance unlock — when a bond crosses Tier II for a pair that has
+// no authored COMBOS entry, the player picks one of two mirror-split
+// Resonance variants.  Each variant uses one hero's basic + the other
+// hero's sig (A.basic + B.sig vs A.sig + B.basic) — same cost, same
+// total damage potential, different character moment.
+//
+// Drains one pending choice per call; if more choices queued, the
+// onDone callback re-invokes showResonanceChoice so the player works
+// through all pending unlocks before combat resumes.
+function showResonanceChoice(s, onDone) {
+  const cont = (typeof onDone === 'function') ? onDone : (() => {});
+  const pending = (s && s.run && s.run._pendingResonanceChoices) || [];
+  if (!pending.length) { cont(); return; }
+  const next = pending.shift();
+  const variants = _buildResonanceVariants(s, next.heroA, next.heroB);
+  if (!variants || variants.length !== 2) {
+    // Couldn't build variants (slots missing, etc.) — drop the choice
+    // silently and keep going.  The pair stays on the default generic
+    // until another tier-up retriggers (it won't, but a fallback's safer
+    // than locking the rail).
+    if (pending.length) { showResonanceChoice(s, cont); } else { cont(); }
+    return;
+  }
+  const nameA = (CHARS[next.heroA] && CHARS[next.heroA].name) || next.heroA;
+  const nameB = (CHARS[next.heroB] && CHARS[next.heroB].name) || next.heroB;
+  const $overlay = $('#overlay');
+  $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-sigil','overlay-cinematic','overlay-starter','overlay-boon','overlay-upgrade');
+  $overlay.classList.add('overlay-full','overlay-event','overlay-resonance');
+  $('#overlay-title').textContent = `Kizuna deepened — ${nameA} + ${nameB}`;
+  $('#overlay-body').textContent = 'Their bond rings out.  Choose how they fight as one — this Resonance locks in for the rest of the run.';
+  const choices = $('#overlay-choices');
+  choices.innerHTML = '';
+  const finishPick = (variant) => {
+    s.run.chosenResonances = s.run.chosenResonances || {};
+    s.run.chosenResonances[next.pairKey] = variant;
+    log(`<i><b>${nameA}</b> + <b>${nameB}</b> learn <b>${variant.name}</b>.</i>`);
+    hideOverlay();
+    resetOverlayBtn();
+    // Drain the next pending choice, or hand off.
+    if (s.run._pendingResonanceChoices && s.run._pendingResonanceChoices.length) {
+      setTimeout(() => showResonanceChoice(s, cont), 200);
+    } else {
+      cont();
+    }
+  };
+  variants.forEach(v => {
+    const p = v._preview || {};
+    const aHero = (CHARS[p.aHero] && CHARS[p.aHero].name) || p.aHero || '';
+    const bHero = (CHARS[p.bHero] && CHARS[p.bHero].name) || p.bHero || '';
+    const aTechName = (p.aTech && p.aTech.name) || '';
+    const aTechDesc = (p.aTech && p.aTech.desc) || '';
+    const bTechName = (p.bTech && p.bTech.name) || '';
+    const bTechDesc = (p.bTech && p.bTech.desc) || '';
+    const card = document.createElement('button');
+    card.className = 'encounter-choice resonance-choice';
+    card.innerHTML = `
+      <div class="reso-title">${v.name}</div>
+      <div class="reso-pair">
+        <div class="reso-side">
+          <div class="reso-portrait">${PORTRAITS[p.aHero] || ''}</div>
+          <div class="reso-tech">
+            <div class="reso-tech-hero">${aHero} · attack</div>
+            <div class="reso-tech-name">${aTechName}</div>
+            <div class="reso-tech-desc">${aTechDesc}</div>
+          </div>
+        </div>
+        <div class="reso-arrow" aria-hidden="true">›</div>
+        <div class="reso-side">
+          <div class="reso-portrait">${PORTRAITS[p.bHero] || ''}</div>
+          <div class="reso-tech">
+            <div class="reso-tech-hero">${bHero} · special</div>
+            <div class="reso-tech-name">${bTechName}</div>
+            <div class="reso-tech-desc">${bTechDesc}</div>
+          </div>
+        </div>
+      </div>
+    `;
+    card.addEventListener('click', () => finishPick(v));
+    choices.appendChild(card);
+  });
+  // Hide the standalone Continue button — this is a forced choice, no
+  // 'pass' option (the kizuna just deepened, the player commits).
+  const btn = $('#overlay-btn');
+  if (btn) btn.classList.add('hidden');
+  choices.classList.remove('hidden');
+  $overlay.classList.remove('hidden');
 }
 
 // Pick an empty slot for an incoming recruit — prefer their home, otherwise
