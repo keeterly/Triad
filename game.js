@@ -19900,6 +19900,27 @@ function showRunSummary(outcome, opts) {
           .sort((a, b) => b[1] - a[1])
           .slice(0, 3);
         if (!sortedBonds.length) return '';
+        // Reverse-lookup table: bond name → [charIdA, charIdB].  Built
+        // once by walking ADJ — keys are 'a+b', and each entry's .fm/.mb
+        // declare the bond's display name.  Lets the recap show "Cassia
+        // + Kai" beside "Sword and Banner" so the player can connect
+        // bonds back to the heroes that earned them.
+        const bondPair = {};
+        Object.entries(ADJ).forEach(([pairKey, def]) => {
+          const ids = pairKey.split('+');
+          if (ids.length !== 2) return;
+          ['fm', 'mb'].forEach(slot => {
+            const nm = def[slot] && def[slot].name;
+            if (nm && !bondPair[nm]) bondPair[nm] = ids;
+          });
+        });
+        const pairLabel = (bondName) => {
+          const ids = bondPair[bondName];
+          if (!ids) return '';
+          const a = (CHARS[ids[0]] && CHARS[ids[0]].name) || ids[0];
+          const b = (CHARS[ids[1]] && CHARS[ids[1]].name) || ids[1];
+          return `${a} + ${b}`;
+        };
         const resonantBonds = sortedBonds.filter(([n, c]) => c >= BOND_TIER_THRESHOLDS[1]);
         const headlineLine = resonantBonds.length
           ? `<div class="rs-kizuna-headline">${resonantBonds[0][0]} <b>RESONANT</b> · the bond rang true.</div>`
@@ -19909,14 +19930,16 @@ function showRunSummary(outcome, opts) {
           const roman = BOND_TIER_ROMAN[tier] || '';
           const tierClass = `rs-kizuna-tier-${tier}`;
           const clause = (tier === 3 && BOND_TIER3_CLAUSES[name]) ? ` + ${BOND_TIER3_CLAUSES[name].text}` : '';
+          const pair = pairLabel(name);
           return `<div class="rs-kizuna-row ${tierClass}">
             <span class="rs-kizuna-mark">✦</span>
             <span class="rs-kizuna-name">${name}${tier > 1 ? ` ${roman}` : ''}</span>
+            ${pair ? `<span class="rs-kizuna-pair">${pair}</span>` : ''}
             <span class="rs-kizuna-count">${count}× fired${clause}</span>
           </div>`;
         }).join('');
         return `<div class="rs-kizuna">
-          <div class="rs-kizuna-label">Kizuna</div>
+          <div class="rs-kizuna-label">Kizuna <span class="rs-kizuna-sublabel">· bonds your party formed</span></div>
           ${headlineLine}
           <div class="rs-kizuna-list">${rows}</div>
         </div>`;
