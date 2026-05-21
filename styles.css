@@ -915,6 +915,29 @@ body.on-title:has(#overlay:not(.hidden)) #stage-scale {
   top: auto;
   left: auto;
 }
+/* Side-anchored variant — used when inspecting a PARTY hero.  Sits on
+   the right edge (where enemies live) so the panel doesn't get covered
+   by the player's hand and the eyes don't have to dart back and forth.
+   A little wider since the right column has more room than under a
+   pinched-finger figure. */
+.figure-inspector.figure-inspector-floating.figure-inspector-side {
+  max-width: 260px;
+  min-width: 200px;
+  padding: 10px 12px;
+  background: rgba(8,6,8,0.92);
+  border-color: rgba(212,200,168,0.55);
+  box-shadow:
+    0 12px 28px rgba(0,0,0,0.78),
+    0 0 0 1px rgba(0,0,0,0.55) inset,
+    0 0 24px rgba(240,212,136,0.08);
+}
+.figure-inspector.figure-inspector-floating.figure-inspector-side .fi-name {
+  font-size: 12px;
+}
+.figure-inspector.figure-inspector-floating.figure-inspector-side .fi-text {
+  font-size: 11px;
+  line-height: 1.45;
+}
 @keyframes fi-in {
   from { opacity: 0; }
   to   { opacity: 1; }
@@ -4748,11 +4771,11 @@ body:has(.figure.inspecting) .figure .slot-label {
    clause if reached.  This is the climactic 'the bonds rang true'
    beat the kizuna pitch is built around. */
 .rs-kizuna {
-  margin: 14px 0 8px;
-  padding: 12px 14px;
+  margin: 6px 0 4px;
+  padding: 8px 12px 10px;
   background:
-    linear-gradient(180deg, rgba(40, 28, 16, 0.5) 0%, rgba(16, 10, 6, 0.7) 100%);
-  border-left: 2px solid var(--gold-dim);
+    linear-gradient(180deg, rgba(28, 20, 14, 0.55) 0%, rgba(10, 8, 8, 0.7) 100%);
+  border-left: 2px solid var(--gold-bright);
   border-radius: 0 3px 3px 0;
 }
 .rs-kizuna-label {
@@ -12798,10 +12821,10 @@ body:has(#world-map:not(.hidden)) #hud {
 .rs-card {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
   align-items: stretch;
   text-align: center;
-  padding: 6px 4px 0;
+  padding: 4px 4px 0;
 }
 .rs-flavor {
   font-size: 13px;
@@ -12815,9 +12838,10 @@ body:has(#world-map:not(.hidden)) #hud {
   display: flex;
   justify-content: center;
   gap: 18px;
-  padding: 6px 0 4px;
-  border-top: 1px solid rgba(212,200,168,0.06);
-  border-bottom: 1px solid rgba(212,200,168,0.06);
+  padding: 4px 0 2px;
+  /* Dropped the top+bottom 1px dividers — they fragmented the column
+     into stripes against the highlights/kizuna blocks below.  The
+     stats now flow into the highlights without a hard rule. */
 }
 .rs-stat {
   display: flex; flex-direction: column; align-items: center; gap: 2px;

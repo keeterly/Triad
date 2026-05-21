@@ -12419,11 +12419,17 @@ function fireAdjacencyHook(s, hookName, ...args) {
 // the longer you walk with someone, the louder the resonance.
 //
 // Thresholds are run-scoped (reset between runs).  Tier I is the base
-// effect; Tier II unlocks at 3 fires (+1 amt); Tier III at 8 fires
+// effect; Tier II unlocks at 2 fires (+1 amt); Tier III at 5 fires
 // (+2 amt and unlocks the resonant clause).  bondTierBonus PRE-INCREMENTS
 // the count so the fire that triggers a tier-up is the one that feels
 // the new amplification — not the fire after.
-const BOND_TIER_THRESHOLDS = [3, 8];
+//
+// Thresholds tuned down from [3, 8] → [2, 5] because real runs were
+// only firing each bond 1–3 times before the boss, so most players
+// never saw a tier-up.  At [2, 5] the second fire of a bond hits
+// Tier II reliably, and a player leaning into one pair for a full
+// run can plausibly reach Tier III resonance.
+const BOND_TIER_THRESHOLDS = [2, 5];
 const BOND_TIER_ROMAN = ['', 'I', 'II', 'III'];
 
 function getBondTier(s, name, count) {
@@ -13477,16 +13483,36 @@ function _buildFigureInspector(fig, id, isParty) {
     const cx = (r.left + r.width / 2 - s.left) / scale;
     const figBottomY = (r.bottom - s.top) / scale;
     const figTopY    = (r.top    - s.top) / scale;
-    // Flip ABOVE the figure if anchoring below would clip the bottom of
-    // the design canvas (405px tall).  Most figures sit in the upper
-    // half of the battlefield so the default is "below," but back-row /
-    // tall portraits can crowd the bottom edge.
-    const flipAbove = figBottomY > 320;
-    panel.style.left = cx + 'px';
-    panel.style.transform = flipAbove ? 'translate(-50%, -100%)' : 'translate(-50%, 0)';
-    panel.style.top  = (flipAbove ? (figTopY - 4) : (figBottomY + 4)) + 'px';
-    panel.classList.add('figure-inspector-floating');
-    layer.appendChild(panel);
+    // When inspecting a PARTY hero, the player is holding them on the
+    // left half of the screen — looking at the figure under their finger,
+    // not the action tiles below.  Anchor the panel to the RIGHT half
+    // (the enemy area) so it stays out from under the hand and lands
+    // where the player's eyes already drift while choosing a target.
+    //
+    // For an enemy figure (rare path — long-press an enemy), fall back
+    // to the original below/above-the-figure anchoring.
+    if (isParty) {
+      // Anchor to a fixed slot in the enemy half: right-edge of the
+      // design canvas, vertically aligned with the top of the figure
+      // row so the panel reads alongside the held hero.
+      const panelRight = 712; // design-canvas px
+      panel.style.left = panelRight + 'px';
+      panel.style.transform = 'translate(-100%, 0)';
+      panel.style.top = Math.max(56, figTopY - 8) + 'px';
+      panel.classList.add('figure-inspector-floating', 'figure-inspector-side');
+      layer.appendChild(panel);
+    } else {
+      // Flip ABOVE the figure if anchoring below would clip the bottom of
+      // the design canvas (405px tall).  Most figures sit in the upper
+      // half of the battlefield so the default is "below," but back-row /
+      // tall portraits can crowd the bottom edge.
+      const flipAbove = figBottomY > 320;
+      panel.style.left = cx + 'px';
+      panel.style.transform = flipAbove ? 'translate(-50%, -100%)' : 'translate(-50%, 0)';
+      panel.style.top  = (flipAbove ? (figTopY - 4) : (figBottomY + 4)) + 'px';
+      panel.classList.add('figure-inspector-floating');
+      layer.appendChild(panel);
+    }
   } else {
     fig.appendChild(panel);
   }
