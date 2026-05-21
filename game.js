@@ -10050,10 +10050,23 @@ function _showAchievementFanfare(def) {
     <div class="ach-name">${def.name}</div>
     <div class="ach-desc">${def.desc}</div>
     ${def.embers ? `<div class="ach-reward">✦ +${def.embers} Embers</div>` : ''}
+    <button class="ach-continue" type="button">Continue</button>
   `;
   document.body.appendChild(card);
-  setTimeout(() => card.classList.add('ach-out'), 3200);
-  setTimeout(() => { if (card.isConnected) card.remove(); }, 3700);
+  // No auto-dismiss — same rationale as the affinity / boss intro
+  // reveals: this is a narrative beat the player asked to be able to
+  // read at their own pace.  Continue button (or tap anywhere on the
+  // card) dismisses.
+  let dismissed = false;
+  const dismiss = () => {
+    if (dismissed || !card.isConnected) return;
+    dismissed = true;
+    card.classList.add('ach-out');
+    setTimeout(() => { if (card.isConnected) card.remove(); }, 500);
+  };
+  const btn = card.querySelector('.ach-continue');
+  if (btn) btn.addEventListener('click', (e) => { e.stopPropagation(); dismiss(); });
+  card.addEventListener('click', dismiss);
 }
 
 function resetAchievements() {
@@ -14845,19 +14858,30 @@ function showObjectiveSplash(obj) {
         <span class="obs-label">${obj.label || ''}</span>
       </div>
       ${obj.hint ? `<div class="obs-hint">${obj.hint}</div>` : ''}
+      <button class="obs-continue" type="button">Continue</button>
     </div>
   `;
   document.body.appendChild(root);
   // Animate in via class; CSS keyframes handle the rest.
   requestAnimationFrame(() => root.classList.add('obs-in'));
+  let dismissed = false;
   const dismiss = () => {
+    if (dismissed) return;
+    dismissed = true;
     root.classList.add('obs-out');
     setTimeout(() => { if (root.parentNode) root.remove(); }, 280);
   };
-  // Tap anywhere to dismiss early.
-  root.addEventListener('pointerdown', (e) => { e.preventDefault(); dismiss(); });
-  // Auto-dismiss after a hold.
-  setTimeout(dismiss, 2400);
+  // Continue button is the discoverable affordance; tap-anywhere on
+  // the backdrop still works as fast-skip.  No auto-dismiss timer —
+  // objective splashes carry the rules for the fight and players
+  // asked to read them at their own pace.
+  const btn = root.querySelector('.obs-continue');
+  if (btn) btn.addEventListener('click', (e) => { e.stopPropagation(); dismiss(); });
+  root.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('.obs-continue')) return;
+    e.preventDefault();
+    dismiss();
+  });
 }
 
 function renderBattlefield() {
