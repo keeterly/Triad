@@ -21358,11 +21358,11 @@ function bindTapAsPointer(el, handler) {
   };
   // Contact signals — fire on FIRST touch.
   el.addEventListener('pointerdown', fire);
-  el.addEventListener('touchstart', (e) => {
-    if (el.disabled) return;
-    try { e.preventDefault(); } catch (_) {}
-    fire();
-  }, { passive: false });
+  // Passive: true so the browser knows this listener won't block
+  // scroll/zoom — letting iOS fire all subsequent events normally
+  // (pointerdown, touchend, click).  We rely on the guarded flag to
+  // prevent multi-fire from the cascade.
+  el.addEventListener('touchstart', fire, { passive: true });
   el.addEventListener('mousedown', fire);
   // Release signals as fallback — in case contact events were
   // suppressed entirely (some accessibility tools).
