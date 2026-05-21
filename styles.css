@@ -2937,10 +2937,14 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
 .popup.synergy,
 .popup.bond,
 .popup.friction {
-  font-size: 12px;
-  font-weight: 700;
+  /* Bumped from 12px → 13px and added a soft halo so the bond / friction
+     names don't read as smaller than the damage numbers they share the
+     screen with.  Players asked for bond fires to be more visibly
+     distinct from generic combat popups. */
+  font-size: 13px;
+  font-weight: 800;
   font-style: italic;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
 }
 .popup.passive {

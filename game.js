@@ -10060,13 +10060,13 @@ function _showAchievementFanfare(def) {
     <div class="ach-name">${def.name}</div>
     <div class="ach-desc">${def.desc}</div>
     ${def.embers ? `<div class="ach-reward">✦ +${def.embers} Embers</div>` : ''}
-    <button class="ach-continue" type="button">Continue</button>
   `;
   document.body.appendChild(card);
-  // No auto-dismiss — same rationale as the affinity / boss intro
-  // reveals: this is a narrative beat the player asked to be able to
-  // read at their own pace.  Continue button (or tap anywhere on the
-  // card) dismisses.
+  // Auto-fade timer — long enough to read the name + desc + embers
+  // reward at a relaxed pace, but still gets out of the way on its
+  // own (these are passive 'background' celebrations, not narrative
+  // beats that demand a Continue tap).  Tap-anywhere also dismisses
+  // early for players who've already read it.
   let dismissed = false;
   const dismiss = () => {
     if (dismissed || !card.isConnected) return;
@@ -10074,13 +10074,7 @@ function _showAchievementFanfare(def) {
     card.classList.add('ach-out');
     setTimeout(() => { if (card.isConnected) card.remove(); }, 500);
   };
-  const btn = card.querySelector('.ach-continue');
-  if (btn) btn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    if (Audio && typeof Audio.ui === 'function') Audio.ui();
-    btn.classList.add('pressed');
-    setTimeout(dismiss, 140);
-  });
+  setTimeout(() => dismiss(), 7000);
   card.addEventListener('click', dismiss);
 }
 
@@ -16842,7 +16836,13 @@ function spawnPopup(cardEl, text, type='dmg') {
     el.style.left = left + 'px';
     el.style.top  = top + 'px';
     layer.appendChild(el);
-    setTimeout(() => el.remove(), 950);
+    // Removal timer matches the CSS animation length per type.  Default
+    // popup-rise is 1s; bond-rankup is 1.7s (a celebration beat we want
+    // to dwell on).  Using a single 950ms removal cut the bond-rankup
+    // off mid-fade, so the player would see the popup pop in and then
+    // vanish before the name finished reading.
+    const ttl = (type === 'bond-rankup') ? 1750 : 950;
+    setTimeout(() => el.remove(), ttl);
   };
   if (delay <= 0) fire(); else setTimeout(fire, delay);
 }
