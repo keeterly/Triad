@@ -9139,14 +9139,17 @@ button.path-node { cursor: pointer; }
 }
 
 /* iOS overflow-scrolling absorption — overlays that don't need to
-   scroll (sigil offers, resonance picks, vignettes, recruit, event,
-   forge) get overflow:visible so the parent doesn't claim taps as
-   scroll candidates.  Path map and run summary KEEP overflow:auto
-   because those screens legitimately need to scroll on small
-   viewports. */
+   scroll get overflow:visible so the parent doesn't claim taps as
+   scroll candidates.  Three exceptions KEEP overflow:auto because
+   their content legitimately exceeds the viewport on small
+   screens: path-map, run-summary, AND the Resonance picker
+   (batched — can stack multiple sections when several bonds tier
+   up the same fight).  bindTapAsPointer's contact-firing model
+   means even on these scrollable overlays the choice cards still
+   tap reliably (pointerdown fires before scroll detection
+   resolves). */
 #overlay.overlay-sigil      #overlay-content,
 #overlay.overlay-vignette   #overlay-content,
-#overlay.overlay-resonance  #overlay-content,
 #overlay.overlay-recruit    #overlay-content,
 #overlay.overlay-event      #overlay-content,
 #overlay.overlay-forge      #overlay-content,

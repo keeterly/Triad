@@ -17256,15 +17256,24 @@ function bindTileHold(tile, handlers) {
   let timer = null;
   let previewing = false;
   let active = false;
+  // wasPreview latches when a hold actually fires the preview, and
+  // stays true until the next pointerdown — this lets the click
+  // fallback below distinguish 'short tap = select' from 'long
+  // press = preview, release = back out'.  Without this latch the
+  // click event that fires after a hold-release would still call
+  // onQueue() and select the action, defeating the preview affordance.
+  let wasPreview = false;
 
   const start = (e) => {
     if (tile.disabled || state.over || state.executing) return;
     e.preventDefault();
     active = true;
     previewing = false;
+    wasPreview = false;
     timer = setTimeout(() => {
       if (!active) return;
       previewing = true;
+      wasPreview = true;
       tile.classList.add('previewing');
       applyPreviewHighlight(handlers.onPreview());
     }, HOLD_MS);
@@ -17275,6 +17284,7 @@ function bindTileHold(tile, handlers) {
     if (previewing) {
       clearPreviewHighlight();
       tile.classList.remove('previewing');
+      // wasPreview stays true so the upcoming click fallback skips.
     } else {
       handlers.onQueue();
     }
@@ -17296,11 +17306,14 @@ function bindTileHold(tile, handlers) {
   tile.addEventListener('pointercancel', cancel);
   tile.addEventListener('contextmenu',  (e) => e.preventDefault());
   // BUG-03 fix: click fallback for accessibility tools / automation /
-  // keyboard activation (Enter on a focused button synthesizes a click
-  // but not pointer events).  Guarded by active+previewing so a real
-  // pointer-driven press doesn't double-fire.
+  // keyboard activation.  Skipped when:
+  //   - active/previewing: pointer path is still handling
+  //   - wasPreview: hold-and-release just happened, release should
+  //     NOT select the action (the player held to peek, lifting
+  //     means 'I saw enough, don't commit')
   tile.addEventListener('click', (e) => {
-    if (active || previewing) return; // pointer path already handled it
+    if (active || previewing) return;
+    if (wasPreview) { wasPreview = false; return; }
     if (tile.disabled || state.over || state.executing) return;
     handlers.onQueue();
   });
@@ -19695,13 +19708,21 @@ function showRestOverlay() {
       const qid = tgt.quirks.negative[0];
       const q = QUIRKS[qid];
       tgt.quirks.negative = tgt.quirks.negative.filter(x => x !== qid);
+      // Hide overlay FIRST so the toast track (z-50, below #overlay's
+      // z-260) becomes visible — without this gap the player closes the
+      // rest overlay and the next-scene overlay opens before the toast
+      // ever paints, making Reflect feel like it silently passed.
+      hideOverlay();
+      choices.classList.remove('event-choices');
       if (q) {
         showQuirkLost(tgt.id, qid);
         log(`<i><b>${CHARS[tgt.id].name}</b> lets go of <b>${q.name}</b>.</i>`);
       }
-      hideOverlay();
-      choices.classList.remove('event-choices');
-      _completeNonCombatNode();
+      // Hold the gap so the toast is visible before the map overlay
+      // covers it again.  900ms is enough to read the affliction
+      // name + the bark; the toast itself still auto-fades on its
+      // own normal timer once the map is up.
+      setTimeout(() => _completeNonCombatNode(), 900);
     }, 'reflect');
   } else if (posRoom.length > 0) {
     mkChoice('Reflect on triumph', 'Grant an affinity to a hero', () => {
@@ -19711,14 +19732,17 @@ function showRestOverlay() {
       const taken = new Set([...tgt.quirks.positive, ...tgt.quirks.negative]);
       const pool = Object.values(QUIRKS).filter(q =>
         q.positive && !taken.has(q.id) && (!q.heroId || q.heroId === tgt.id));
+      // Hide overlay BEFORE spawning the toast so the toast track
+      // isn't hidden behind it; pause before the next-scene transition
+      // so the player gets a beat to read the affinity reveal.
+      hideOverlay();
+      choices.classList.remove('event-choices');
       if (pool.length) {
         const q = pool[Math.floor(Math.random() * pool.length)];
         grantQuirk(state, tgt.id, q.id);
         log(`<i><b>${CHARS[tgt.id].name}</b> reflects and grows — <b>${q.name}</b>.</i>`);
       }
-      hideOverlay();
-      choices.classList.remove('event-choices');
-      _completeNonCombatNode();
+      setTimeout(() => _completeNonCombatNode(), 900);
     }, 'reflect');
   }
 
