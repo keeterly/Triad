@@ -12865,17 +12865,33 @@ function startTurn(s) {
 // queue-aware battlefield render places each hero at their POST-queue
 // slot regardless of whether the move came from a Move tile or an
 // embedded move-clause.
-// opts.includeEmbedded — when true, also project attack/special techs
-// that carry an advance/retreat clause (the "movement on actions" path).
+// opts.includeMoves — when true, project the slot changes that queued
+// movement (explicit Move kind, or attack/special with an embedded
+// advance/retreat clause) WILL produce when the queue resolves.  Used
+// by planning surfaces (tile preview, reach indicator, drag-chain) so
+// they can show the final post-queue position.
+//
 // Default false so the battlefield renderer and tile-column ordering
 // keep heroes visually at their LIVE slot until the FIGHT button is
-// pressed; the embedded move only animates as the action resolves.
-// Tile previews / reach projection / pickMoveDir chain still pass true
-// so the planning UI can show the FINAL post-queue position.
+// pressed.  Player taps Flurry → the queued advance shows as an arrow
+// over the figure but the figure doesn't slide until the action
+// actually resolves at execute time.  Player drags hero A onto hero
+// B's slot → A briefly follows the finger to B, then animates back to
+// A's original slot once the queue chip is committed, and the swap
+// only commits when FIGHT fires.  Unifies the rule across all move
+// sources: nothing on the field changes until the player commits the
+// queue.
 function simulateSlotsThrough(s, upto, fromIdx, opts) {
   const start = (typeof fromIdx === 'number' && fromIdx > 0) ? fromIdx : 0;
-  const includeEmbedded = !!(opts && opts.includeEmbedded);
+  const includeMoves = !!(opts && (opts.includeMoves || opts.includeEmbedded));
   const sim = { ...s.party.slots };
+  // During execution we always project the remaining queue forward
+  // from executingIdx so the hero stays at their planned position
+  // through resolution (no pop-back frame between resolveQueueStep
+  // calls).  The opts override is only for callers that always want
+  // the full post-queue layout regardless of execution phase.
+  const executing = !!(s && s.executing);
+  if (!includeMoves && !executing) return sim;
   const applyStep = (charId, fromI, toIdx) => {
     if (toIdx < 0 || toIdx > 2 || fromI === toIdx) return;
     const fromSlot = SLOTS[fromI];
@@ -12887,22 +12903,12 @@ function simulateSlotsThrough(s, upto, fromIdx, opts) {
   for (let i = start; i < upto && i < s.queue.length; i++) {
     const item = s.queue[i];
     if (item.kind === 'move') {
-      // Explicit Move queue items (drag-to-swap, advance/retreat
-      // arrows on a held figure) always project — this is direct
-      // manipulation, the hero should visually swap the moment the
-      // player commits the gesture.
       const cur = Object.keys(sim).find(sl => sim[sl] === item.charId);
       if (!cur) continue;
       const idx = SLOTS.indexOf(cur);
       applyStep(item.charId, idx, idx + item.dir);
       continue;
     }
-    // Tech-embedded movement — only projected when the caller asks
-    // for it (tile preview, reach indicator, pickMoveDir's chaining).
-    // The default render path skips this so a queued Vanguard / Pommel
-    // / Curse-bite leaves the hero at their LIVE slot until FIGHT
-    // fires the action, then the move animates as part of resolve.
-    if (!includeEmbedded) continue;
     if (item.kind === 'attack' || item.kind === 'special') {
       const cur = Object.keys(sim).find(sl => sim[sl] === item.charId);
       if (!cur) continue;
@@ -13097,13 +13103,12 @@ function clearQueue() {
 
 function pickMoveDir(charId, dir) {
   const s = state;
-  // Compute the char's CURRENT slot in the queue-aware sim so chained
-  // pickMoveDir calls each project from the previous sim position.
-  // Without this, queueing back→mid then a follow-up call would still
-  // read the LIVE slot (back) and queue another back→mid, not mid→front.
-  // Multi-step movement (back → mid → front in a single drag) needs
-  // each step to advance from the post-previous-step position.
-  const sim = simulateSlotsThrough(s, s.queue.length);
+  // Compute the char's slot AS IF the queued moves had already resolved
+  // — chained pickMoveDir calls (back→mid then mid→front in one drag)
+  // need each step to project from the post-previous-step position.
+  // The default sim returns live slots during queueing now, so we have
+  // to opt in with includeMoves to see the projection.
+  const sim = simulateSlotsThrough(s, s.queue.length, 0, { includeMoves: true });
   const slot = SLOTS.find(sl => sim[sl] === charId);
   if (!slot) return;
   const idx = SLOTS.indexOf(slot);
@@ -13312,7 +13317,10 @@ function bindFigureHold(fig, charId, isParty) {
     // surface as flashMsg from queueAdd.
     if (holding && isParty && aimDropFig) {
       const targetSlot = aimDropFig.dataset.slot;
-      const liveSlots = simulateSlotsThrough(state, state.queue.length);
+      // includeMoves: project past any already-queued moves so a hero
+      // dragged again mid-turn projects from their planned slot, not
+      // their LIVE one.  Default sim is now live-during-queueing.
+      const liveSlots = simulateSlotsThrough(state, state.queue.length, 0, { includeMoves: true });
       const curSlot = SLOTS.find(s => liveSlots[s] === charId);
       const curIdx = SLOTS.indexOf(curSlot);
       const tgtIdx = SLOTS.indexOf(targetSlot);
