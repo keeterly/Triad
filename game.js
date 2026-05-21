@@ -13494,12 +13494,16 @@ function _buildFigureInspector(fig, id, isParty) {
     if (isParty) {
       // Anchor to a fixed slot in the enemy half: right-edge of the
       // design canvas, vertically aligned with the top of the figure
-      // row so the panel reads alongside the held hero.
-      const panelRight = 712; // design-canvas px
-      panel.style.left = panelRight + 'px';
-      panel.style.transform = 'translate(-100%, 0)';
-      panel.style.top = Math.max(56, figTopY - 8) + 'px';
+      // row so the panel reads alongside the held hero.  setProperty
+      // with 'important' so nothing in the .figure-inspector CSS
+      // (which has its own left/top/transform on the floating variant)
+      // can override the anchor.
       panel.classList.add('figure-inspector-floating', 'figure-inspector-side');
+      panel.style.setProperty('left',       '712px',                   'important');
+      panel.style.setProperty('top',        Math.max(56, figTopY - 8) + 'px', 'important');
+      panel.style.setProperty('transform',  'translate(-100%, 0)',     'important');
+      panel.style.setProperty('right',      'auto',                    'important');
+      panel.style.setProperty('bottom',     'auto',                    'important');
       layer.appendChild(panel);
     } else {
       // Flip ABOVE the figure if anchoring below would clip the bottom of
