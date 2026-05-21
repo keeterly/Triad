@@ -7577,12 +7577,14 @@ function showQuirkAward(charId, quirkId) {
   const bank = AFFINITY_BARKS[charId];
   const lines = bank && bank[q.positive ? 'gained' : 'lost'];
   const bark = (lines && lines.length) ? lines[Math.floor(Math.random() * lines.length)] : null;
-  // awardQuirkAfterWin stashes a contextual narrator line on state so the
-  // fanfare can show WHY this hero earned the quirk from this specific
-  // fight ("After the elite's death...", "Watched X fall...").  Falls
-  // back to the quirk's static flavor when no reason was set.
   const reason = (typeof state !== 'undefined' && state && state._pendingAffinityReason) || null;
-  _showAwardBackdrop({
+  // Replaced full-screen backdrop with a corner toast — affinity reveals
+  // were stacking with sigil / achievement / Resonance overlays after
+  // every fight, making the post-fight cascade feel like a notification
+  // gauntlet.  Toast preserves the portrait + bark + tap-to-expand for
+  // flavor / desc, without blocking the player from moving on.
+  spawnToast({
+    category: q.positive ? 'affinity' : 'affliction',
     cls: q.positive ? 'qa-positive' : 'qa-negative',
     eyebrow: q.positive ? '+ AFFINITY GAINED' : '− AFFLICTION GAINED',
     name: `${def.name} · ${q.name}`,
@@ -7604,7 +7606,8 @@ function showQuirkLost(charId, quirkId) {
   const bank = AFFINITY_BARKS[charId];
   const lines = (bank && bank.shed) || (bank && bank.gained) || null;
   const bark = (lines && lines.length) ? lines[Math.floor(Math.random() * lines.length)] : null;
-  _showAwardBackdrop({
+  spawnToast({
+    category: 'shed',
     cls: 'qa-shed',
     eyebrow: '− AFFLICTION SHED',
     name: `${def.name} · ${q.name}`,
@@ -7621,15 +7624,137 @@ function showSigilAward(sigilId) {
   if (typeof __simulating !== 'undefined' && __simulating) return;
   const sg = SIGILS[sigilId];
   if (!sg) return;
-  _showAwardBackdrop({
+  spawnToast({
+    category: 'sigil',
     cls: `qa-sigil cat-${sg.category || 'resource'}`,
     eyebrow: '+ SIGIL BOUND',
-    name: `<span class="qa-glyph">${sg.icon || '◆'}</span>${sg.name}`,
+    name: sg.name,
+    glyph: sg.icon || '◆',
     desc: sg.desc,
   });
 }
 
-// Shared award presenter.  Builds the backdrop + centered #quirk-award block,
+// ===========================================================================
+// TOAST TRACK — non-blocking reward feed for affinity / affliction / sigil
+// award / achievement / sigil-shed.  Replaces the full-screen backdrop these
+// used to spawn (which interrupted combat / post-fight flow).  Toasts stack
+// in the corner, auto-fade after a beat, and TAP-TO-EXPAND opens the full
+// ceremony for players who want to read the flavor + description.
+//
+// Vignettes / Resonance picks / boss intro / boon picker stay full-screen —
+// those carry the run's narrative weight and warrant the player's full
+// attention.  Toasts handle the 'system rewards' tier.
+// ===========================================================================
+function _ensureToastTrack() {
+  let track = document.getElementById('toast-track');
+  if (track) return track;
+  track = document.createElement('div');
+  track.id = 'toast-track';
+  track.className = 'toast-track';
+  document.body.appendChild(track);
+  return track;
+}
+
+function spawnToast(opts) {
+  if (typeof __simulating !== 'undefined' && __simulating) return null;
+  if (!opts) return null;
+  const track = _ensureToastTrack();
+  const t = document.createElement('div');
+  t.className = `toast toast-${opts.category || 'info'}`;
+  if (opts.cls) t.classList.add(opts.cls);
+  // Portrait — accepts a heroId / sigil glyph SVG / inline svg string.
+  // Falls back to the eyebrow's first character glyph when nothing's
+  // provided (achievements use a star glyph).
+  const portraitSvg = opts.portraitSvg
+    || (opts.portraitId && PORTRAITS[opts.portraitId])
+    || '';
+  const portraitHtml = portraitSvg
+    ? `<div class="toast-portrait">${portraitSvg}</div>`
+    : (opts.glyph ? `<div class="toast-glyph">${opts.glyph}</div>` : '');
+  const barkHtml = opts.bark ? `<div class="toast-bark">"${opts.bark}"</div>` : '';
+  // Expanded section — hidden by default; revealed when the player taps
+  // the toast.  Stays in the DOM so the tap-to-expand transition is a
+  // pure CSS height/opacity change.
+  const expandedBits = [];
+  if (opts.reason) expandedBits.push(`<div class="toast-reason">${opts.reason}</div>`);
+  if (opts.flavor) expandedBits.push(`<div class="toast-flavor">"${opts.flavor}"</div>`);
+  if (opts.desc)   expandedBits.push(`<div class="toast-desc">${opts.desc}</div>`);
+  const expandedHtml = expandedBits.length
+    ? `<div class="toast-expanded">${expandedBits.join('')}</div>`
+    : '';
+  t.innerHTML = `
+    ${portraitHtml}
+    <div class="toast-body">
+      <div class="toast-eyebrow">${opts.eyebrow || ''}</div>
+      <div class="toast-name">${opts.name || ''}</div>
+      ${barkHtml}
+      ${expandedHtml}
+    </div>
+  `;
+  // Cap the visible stack so a flurry of post-fight awards doesn't
+  // pile off-screen.  Oldest toast slides out when a new one arrives
+  // past the cap.
+  const TOAST_STACK_CAP = 4;
+  const existing = track.querySelectorAll('.toast:not(.toast-out)');
+  if (existing.length >= TOAST_STACK_CAP) {
+    const oldest = existing[0];
+    oldest.classList.add('toast-out');
+    setTimeout(() => { if (oldest.parentNode) oldest.remove(); }, 400);
+  }
+  track.appendChild(t);
+  // Audio cue — same UI sting the other reveals use.
+  try { if (Audio && typeof Audio.ui === 'function') Audio.ui(); } catch (_) {}
+  // Auto-fade timer.  Pauses while the toast is expanded (player is
+  // actively reading) AND while a blocking overlay is up (vignette /
+  // picker covering the screen — no point counting down when the
+  // toast isn't visible).
+  const hold = opts.hold || 5500;
+  let dismissed = false;
+  let elapsed = 0;
+  let lastTick = performance.now();
+  let raf = null;
+  const dismiss = () => {
+    if (dismissed || !t.isConnected) return;
+    dismissed = true;
+    if (raf) cancelAnimationFrame(raf);
+    t.classList.add('toast-out');
+    setTimeout(() => { if (t.parentNode) t.remove(); }, 400);
+  };
+  const _overlayUp = () => {
+    const ov = document.getElementById('overlay');
+    const bi = document.getElementById('boss-intro');
+    return !!((ov && !ov.classList.contains('hidden')) || (bi && !bi.classList.contains('hidden')));
+  };
+  const tick = (now) => {
+    if (dismissed) return;
+    const dt = now - lastTick;
+    lastTick = now;
+    if (!t.classList.contains('toast-expanded-state') && !_overlayUp()) {
+      elapsed += dt;
+    }
+    if (elapsed >= hold) { dismiss(); return; }
+    raf = requestAnimationFrame(tick);
+  };
+  raf = requestAnimationFrame(tick);
+  // Tap interaction — first tap expands (if there's expandable
+  // content), second tap dismisses.  No expandable content?  Tap
+  // just dismisses.
+  t.addEventListener('click', () => {
+    if (dismissed) return;
+    if (expandedHtml && !t.classList.contains('toast-expanded-state')) {
+      t.classList.add('toast-expanded-state');
+      // Reset the timer so the player has time to read the expanded
+      // content.  The timer pauses while expanded anyway, but resetting
+      // means closing the expanded state restarts the countdown.
+      elapsed = 0;
+      return;
+    }
+    dismiss();
+  });
+  return t;
+}
+
+
 // wires the dismiss flow (tap anywhere or auto after a hold).  When a
 // portraitId + bark are supplied, renders a small hero portrait with a
 // chat bubble above the card — same visual register as combat barks.
@@ -10253,31 +10378,21 @@ function tryUnlockAchievement(id, _reason) {
 
 function _showAchievementFanfare(def) {
   if (!def) return;
-  // Reuse the chat-bubble popup family for the fanfare so it shares
-  // the visual language of the rest of the game's feedback.
-  const card = document.createElement('div');
-  card.className = 'achievement-fanfare';
-  card.innerHTML = `
-    <div class="ach-eyebrow">ACHIEVEMENT UNLOCKED</div>
-    <div class="ach-name">${def.name}</div>
-    <div class="ach-desc">${def.desc}</div>
-    ${def.embers ? `<div class="ach-reward">✦ +${def.embers} Embers</div>` : ''}
-  `;
-  document.body.appendChild(card);
-  // Auto-fade timer — long enough to read the name + desc + embers
-  // reward at a relaxed pace, but still gets out of the way on its
-  // own (these are passive 'background' celebrations, not narrative
-  // beats that demand a Continue tap).  Tap-anywhere also dismisses
-  // early for players who've already read it.
-  let dismissed = false;
-  const dismiss = () => {
-    if (dismissed || !card.isConnected) return;
-    dismissed = true;
-    card.classList.add('ach-out');
-    setTimeout(() => { if (card.isConnected) card.remove(); }, 500);
-  };
-  setTimeout(() => dismiss(), 7000);
-  card.addEventListener('click', dismiss);
+  // Routed through the unified toast track so achievements share a
+  // visual language with affinity / sigil / shed reveals.  Embers
+  // reward gets folded into the desc line so the toast stays
+  // single-row by default; tap-to-expand opens the full desc.
+  const desc = def.embers
+    ? `${def.desc}  <span class="ach-reward-inline">✦ +${def.embers} Embers</span>`
+    : def.desc;
+  spawnToast({
+    category: 'achievement',
+    eyebrow: 'ACHIEVEMENT UNLOCKED',
+    name: def.name,
+    desc,
+    glyph: '✦',
+    hold: 7000,
+  });
 }
 
 function resetAchievements() {
@@ -20970,24 +21085,47 @@ function offerVignetteOrPath(fightCtx) {
   //              behind a low probability so most fights end clean.
   // Vignettes no longer chain — capping at one keeps the post-fight
   // cascade snappy.
+  //
+  // Recent-vignette cooldown — non-oneShot ambient/rumor vignettes can
+  // technically replay every fight; without a cooldown a player might
+  // see the same "Banner Fire reflection" beat back-to-back as the
+  // bond keeps firing.  Track the last 4 fired and exclude them from
+  // the candidate pool so each vignette feels novel.
+  const recent = (state.run && state.run._recentVignettes) || [];
   const isPriority = v => {
     const w = v.when || {};
     return !!(w.heroDowned || w.firstClearOf);
   };
   const isRumor = v => v.id && v.id.startsWith('rumor_');
+  const filterRecent = arr => arr.filter(v => !recent.includes(v.id));
+  // Priority vignettes BYPASS the cooldown — a hero falling is too
+  // important to silently skip.  Rumor + ambient honor it.
   const priorityMatches = matches.filter(v => !isRumor(v) && isPriority(v));
-  const rumorMatches    = matches.filter(isRumor);
-  const ambientMatches  = matches.filter(v => !isRumor(v) && !isPriority(v));
+  const rumorMatches    = filterRecent(matches.filter(isRumor));
+  const ambientMatches  = filterRecent(matches.filter(v => !isRumor(v) && !isPriority(v)));
   const pickOne = (arr) => arr[Math.floor(Math.random() * arr.length)];
+  // Ambient chance scales down as the run progresses — by layer 5+ the
+  // player has seen many reflections already; reducing the rate keeps
+  // them feeling earned without removing them entirely.
+  const layer = (state.run && state.run.layer) || 1;
+  const ambientChance = (layer >= 5) ? 0.18 : (layer >= 3) ? 0.24 : 0.30;
   let pick = null;
   if (priorityMatches.length) {
     pick = pickOne(priorityMatches);
   } else if (rumorMatches.length) {
     pick = pickOne(rumorMatches);
-  } else if (ambientMatches.length && Math.random() < 0.30) {
+  } else if (ambientMatches.length && Math.random() < ambientChance) {
     pick = pickOne(ambientMatches);
   }
   if (!pick) { offerRecruitOrPath(); return; }
+  // Track this vignette as recent so it's excluded from the next few
+  // post-fight rolls.  Cap the recent list at 4 so the cooldown is
+  // 'last few', not 'forever'.
+  if (state.run) {
+    state.run._recentVignettes = state.run._recentVignettes || [];
+    state.run._recentVignettes.push(pick.id);
+    if (state.run._recentVignettes.length > 4) state.run._recentVignettes.shift();
+  }
   showVignette(pick, fightCtx, offerRecruitOrPath);
 }
 
@@ -21341,16 +21479,209 @@ function showResonanceChoice(s, onDone) {
   const cont = (typeof onDone === 'function') ? onDone : (() => {});
   const pending = (s && s.run && s.run._pendingResonanceChoices) || [];
   if (!pending.length) { cont(); return; }
-  const next = pending.shift();
-  // Branch on the kind of unlock — duos use mirror-split (A.basic vs
-  // B.sig swap), trios use anchor-split (which hero plays sig vs the
-  // other two supporting with basics).  Both render as forced choice
-  // overlays with a similar visual rhythm.
-  if (next.kind === 'trio') {
-    _showTrioChoice(s, next, cont);
-  } else {
-    _showDuoChoice(s, next, cont);
+  // Batch picker — render ALL pending unlocks on a single overlay so a
+  // fight that triggers multiple Resonance choices (a duo + a trio
+  // crossing the same turn) doesn't spawn N sequential pickers.  Each
+  // section gets its 2 cards; the Continue button enables when every
+  // section has a selection.  The pending queue is consumed in full
+  // when Continue commits.
+  _showBatchResonanceChoice(s, pending.slice(), cont);
+}
+
+function _showBatchResonanceChoice(s, choices, cont) {
+  // Build each section's variant pair up-front.  Anything that fails
+  // to build (slots missing, etc.) drops out silently so the player
+  // never sees a half-rendered section.
+  const sections = [];
+  choices.forEach(ch => {
+    if (ch.kind === 'trio') {
+      const variants = _buildTrioResonanceVariants(s, ch.heroes);
+      if (variants && variants.length === 2) {
+        sections.push({ choice: ch, variants, kind: 'trio' });
+      }
+    } else {
+      const variants = _buildResonanceVariants(s, ch.heroA, ch.heroB);
+      if (variants && variants.length === 2) {
+        sections.push({ choice: ch, variants, kind: 'duo' });
+      }
+    }
+  });
+  if (!sections.length) {
+    // Nothing buildable — clear the queue and continue silently.
+    if (s.run) s.run._pendingResonanceChoices = [];
+    cont();
+    return;
   }
+  const $overlay = $('#overlay');
+  $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-sigil','overlay-cinematic','overlay-starter','overlay-boon','overlay-upgrade','overlay-resonance-trio');
+  $overlay.classList.add('overlay-full','overlay-event','overlay-resonance');
+  if (sections.some(s2 => s2.kind === 'trio')) $overlay.classList.add('overlay-resonance-trio');
+  const title = (sections.length === 1)
+    ? (sections[0].kind === 'trio'
+        ? `Triad resonant — ${sections[0].choice.heroes.map(id => (CHARS[id] && CHARS[id].name) || id).join(' + ')}`
+        : `Kizuna deepened — ${(CHARS[sections[0].choice.heroA] && CHARS[sections[0].choice.heroA].name) || ''} + ${(CHARS[sections[0].choice.heroB] && CHARS[sections[0].choice.heroB].name) || ''}`)
+    : `Kizuna deepened — ${sections.length} new resonances`;
+  const subtitle = (sections.length === 1)
+    ? (sections[0].kind === 'trio'
+        ? 'The three move as one.  Choose who anchors the moment — they fire their signature while the other two support.'
+        : 'Their bond rings out.  Choose how they fight as one — this Resonance locks in for the rest of the run.')
+    : 'Multiple bonds deepened this fight.  Choose a Resonance variant for each pair / triad — every choice locks in for the rest of the run.';
+  $('#overlay-title').textContent = title;
+  $('#overlay-body').textContent = subtitle;
+  const choicesEl = $('#overlay-choices');
+  choicesEl.innerHTML = '';
+  // Selections — keyed by pairKey/trioKey, value is the chosen
+  // variant object.  Continue button enables when every section has
+  // a selection.
+  const selections = {};
+  // Container for the sections so we can render a header + 2 cards
+  // per section.  The whole thing scrolls if it overflows the
+  // overlay-body region.
+  const sectionsWrap = document.createElement('div');
+  sectionsWrap.className = 'reso-sections';
+  // Continue button — we control enable/disable ourselves rather than
+  // using the overlay's default button (which is shared and styled
+  // differently).
+  const continueBtn = document.createElement('button');
+  continueBtn.className = 'reso-continue';
+  continueBtn.type = 'button';
+  continueBtn.disabled = true;
+  continueBtn.textContent = (sections.length === 1) ? 'Commit choice' : `Commit choices (0/${sections.length})`;
+  const refreshContinue = () => {
+    const picked = Object.keys(selections).length;
+    continueBtn.disabled = picked < sections.length;
+    continueBtn.textContent = (sections.length === 1) ? 'Commit choice' : `Commit choices (${picked}/${sections.length})`;
+  };
+  const sectionKeyFor = sec => sec.kind === 'trio' ? sec.choice.trioKey : sec.choice.pairKey;
+  const buildDuoCard = (variant) => {
+    const p = variant._preview || {};
+    const aHero = (CHARS[p.aHero] && CHARS[p.aHero].name) || p.aHero || '';
+    const bHero = (CHARS[p.bHero] && CHARS[p.bHero].name) || p.bHero || '';
+    const aTechName = (p.aTech && p.aTech.name) || '';
+    const aTechDesc = (p.aTech && p.aTech.desc) || '';
+    const bTechName = (p.bTech && p.bTech.name) || '';
+    const bTechDesc = (p.bTech && p.bTech.desc) || '';
+    const card = document.createElement('button');
+    card.className = 'encounter-choice resonance-choice';
+    card.innerHTML = `
+      <div class="reso-title">${variant.name}</div>
+      <div class="reso-pair">
+        <div class="reso-side">
+          <div class="reso-portrait">${PORTRAITS[p.aHero] || ''}</div>
+          <div class="reso-tech">
+            <div class="reso-tech-hero">${aHero} · attack</div>
+            <div class="reso-tech-name">${aTechName}</div>
+            <div class="reso-tech-desc">${aTechDesc}</div>
+          </div>
+        </div>
+        <div class="reso-arrow" aria-hidden="true">›</div>
+        <div class="reso-side">
+          <div class="reso-portrait">${PORTRAITS[p.bHero] || ''}</div>
+          <div class="reso-tech">
+            <div class="reso-tech-hero">${bHero} · special</div>
+            <div class="reso-tech-name">${bTechName}</div>
+            <div class="reso-tech-desc">${bTechDesc}</div>
+          </div>
+        </div>
+      </div>
+    `;
+    return card;
+  };
+  const buildTrioCard = (variant) => {
+    const p = variant._preview || {};
+    const anchorName = (CHARS[p.anchor] && CHARS[p.anchor].name) || p.anchor || '';
+    const anchorTechName = (p.anchorTech && p.anchorTech.name) || '';
+    const anchorTechDesc = (p.anchorTech && p.anchorTech.desc) || '';
+    const supRows = (p.supporters || []).map(st => {
+      const supName = (CHARS[st.id] && CHARS[st.id].name) || st.id;
+      const techName = (st.tech && st.tech.name) || '';
+      const techDesc = (st.tech && st.tech.desc) || '';
+      return `
+        <div class="reso-trio-supporter">
+          <div class="reso-portrait reso-portrait-sm">${PORTRAITS[st.id] || ''}</div>
+          <div class="reso-tech">
+            <div class="reso-tech-hero">${supName} · attack</div>
+            <div class="reso-tech-name">${techName}</div>
+            <div class="reso-tech-desc">${techDesc}</div>
+          </div>
+        </div>`;
+    }).join('');
+    const card = document.createElement('button');
+    card.className = 'encounter-choice resonance-choice resonance-choice-trio';
+    card.innerHTML = `
+      <div class="reso-title">${variant.name}</div>
+      <div class="reso-trio-anchor">
+        <div class="reso-trio-anchor-badge">Anchor</div>
+        <div class="reso-portrait">${PORTRAITS[p.anchor] || ''}</div>
+        <div class="reso-tech">
+          <div class="reso-tech-hero">${anchorName} · special</div>
+          <div class="reso-tech-name">${anchorTechName}</div>
+          <div class="reso-tech-desc">${anchorTechDesc}</div>
+        </div>
+      </div>
+      <div class="reso-trio-supporters">${supRows}</div>
+    `;
+    return card;
+  };
+  sections.forEach(sec => {
+    const key = sectionKeyFor(sec);
+    const section = document.createElement('div');
+    section.className = 'reso-section';
+    section.dataset.key = key;
+    // Section header — only render when there's more than one section
+    // (single-section overlays already have the title up top).
+    if (sections.length > 1) {
+      const header = document.createElement('div');
+      header.className = 'reso-section-header';
+      header.textContent = sec.kind === 'trio'
+        ? sec.choice.heroes.map(id => (CHARS[id] && CHARS[id].name) || id).join(' + ')
+        : `${(CHARS[sec.choice.heroA] && CHARS[sec.choice.heroA].name) || sec.choice.heroA} + ${(CHARS[sec.choice.heroB] && CHARS[sec.choice.heroB].name) || sec.choice.heroB}`;
+      section.appendChild(header);
+    }
+    const row = document.createElement('div');
+    row.className = 'reso-section-options';
+    sec.variants.forEach(variant => {
+      const card = sec.kind === 'trio' ? buildTrioCard(variant) : buildDuoCard(variant);
+      card.addEventListener('click', () => {
+        // Mark this card as selected, deselect siblings in this section.
+        Array.from(row.children).forEach(c => c.classList.remove('reso-card-selected'));
+        card.classList.add('reso-card-selected');
+        selections[key] = variant;
+        refreshContinue();
+      });
+      row.appendChild(card);
+    });
+    section.appendChild(row);
+    sectionsWrap.appendChild(section);
+  });
+  choicesEl.appendChild(sectionsWrap);
+  choicesEl.appendChild(continueBtn);
+  continueBtn.addEventListener('click', () => {
+    if (continueBtn.disabled) return;
+    // Apply all selections to state.run.chosenResonances + log them.
+    s.run.chosenResonances = s.run.chosenResonances || {};
+    sections.forEach(sec => {
+      const key = sectionKeyFor(sec);
+      const variant = selections[key];
+      if (!variant) return;
+      s.run.chosenResonances[key] = variant;
+      const names = sec.kind === 'trio'
+        ? sec.choice.heroes.map(id => `<b>${(CHARS[id] && CHARS[id].name) || id}</b>`).join(' + ')
+        : `<b>${(CHARS[sec.choice.heroA] && CHARS[sec.choice.heroA].name) || sec.choice.heroA}</b> + <b>${(CHARS[sec.choice.heroB] && CHARS[sec.choice.heroB].name) || sec.choice.heroB}</b>`;
+      log(`<i>${names} learn <b>${variant.name}</b>.</i>`);
+    });
+    // Clear the pending queue — every choice resolved.
+    if (s.run) s.run._pendingResonanceChoices = [];
+    hideOverlay();
+    resetOverlayBtn();
+    cont();
+  });
+  // Hide the shared overlay button — we use our own Continue inside
+  // the choices region so it sits next to the picker UI.
+  const btn = $('#overlay-btn');
+  if (btn) btn.classList.add('hidden');
+  choicesEl.classList.remove('hidden');
+  $overlay.classList.remove('hidden');
 }
 
 function _showDuoChoice(s, next, cont) {
