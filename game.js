@@ -21338,40 +21338,40 @@ function offerWandererSigil(wandererId, onDone) {
 // drops on touch devices.  touchend fires reliably as a raw signal
 // even when the click is eaten.
 function bindTapAsPointer(el, handler) {
-  // Stripped down to two signals: touchend (iOS / Android raw tap)
-  // and click (desktop / accessibility / keyboard Enter).  The
-  // pointer-events / motion-slop / consumed dance from earlier
-  // builds was layering too much logic on top of what should be
-  // a one-liner.  iOS reliably fires touchend on every tap that
-  // wasn't absorbed by overscroll; click reliably fires on
-  // everything else.  A 200ms guard prevents the same tap from
-  // double-firing when both arrive.
+  // Belt-and-suspenders tap binding.  Multiple iterations of more
+  // 'correct' implementations all failed to land for some players on
+  // overlay choice cards.  This version binds to EVERY event that
+  // could plausibly signal a tap, guarded by a 250ms 'guarded' flag
+  // so the same tap doesn't fire the handler more than once.
+  //
+  // Bindings:
+  //   - onclick property (primitive, bypasses any addEventListener
+  //     ordering quirks)
+  //   - click event (addEventListener for desktop / accessibility)
+  //   - touchend (iOS raw tap, fires even when overscroll-pan
+  //     absorbs the synthetic click)
+  //   - pointerup (modern pointer events for stylus / mixed input)
+  //
+  // Any one of these firing wins; the others get short-circuited.
   let guarded = false;
   const fire = () => {
     if (guarded || el.disabled) return;
     guarded = true;
     setTimeout(() => { guarded = false; }, 250);
     try { handler(); } catch (err) {
-      // Swallow handler errors so a buggy combo doesn't break the
-      // tap path for every subsequent press.
       try { console && console.error && console.error('bindTapAsPointer handler', err); } catch (_) {}
     }
   };
-  // touchend — non-passive so we can preventDefault to suppress the
-  // synthetic click that would otherwise fire ~300ms later.
+  el.onclick = fire;
+  el.addEventListener('click', fire);
+  el.addEventListener('pointerup', fire);
   el.addEventListener('touchend', (e) => {
     if (el.disabled) return;
-    // Only honor single-finger taps with the touch ending where it
-    // started (within ~20px).  Multi-touch / drags fall through to
-    // browser default (which is nothing here).
     if (e.changedTouches && e.changedTouches.length === 1) {
       try { e.preventDefault(); } catch (_) {}
       fire();
     }
   }, { passive: false });
-  // click — handles desktop mouse and the fallback path when touch
-  // events didn't fire (some Android browsers, accessibility).
-  el.addEventListener('click', fire);
 }
 
 function showSigilOverlay(offers, onDone, opts) {
