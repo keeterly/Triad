@@ -16683,17 +16683,53 @@ function renderTeamSpecial() {
       <span class="rc-desc">${combo.desc}</span>
     `;
     btn.title = `Resonance · ${combo.name}: ${combo.desc}`;
-    // Direct click handler — bindTileHold's pointerdown preventDefault
-    // was eating the synthetic click on touch devices, and players
-    // reading the chip's desc would naturally hold long enough to
-    // trigger preview-mode instead of tap-to-commit.  The chip already
-    // shows its desc inline (rc-desc), so the figure-highlight preview
-    // on hold is bonus — losing it for a reliable tap is the better
-    // trade.  Players who want target preview can press-and-hold an
-    // ACTION tile (where bindTileHold still applies) to dry-run before
-    // committing the Resonance.
-    btn.addEventListener('click', () => {
+    // Tap commits the Resonance; press-and-hold (>320ms) shows the
+    // figure-highlight preview (which enemies get hit, weakness rings,
+    // etc.) while the finger is down.  Release commits regardless of
+    // whether the preview fired — so a player who held to peek will
+    // STILL fire the combo on release.  To preview-without-committing,
+    // drag the pointer OFF the chip before releasing — pointerleave
+    // suppresses the click that would otherwise commit.
+    //
+    // No preventDefault on pointerdown — that suppresses the synthetic
+    // click on touch, which is what made bindTileHold unreliable
+    // (players got the preview but no commit on release).
+    let holdTimer = null;
+    let leftWhileDown = false;
+    const cancelHoldTimer = () => {
+      if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+    };
+    const clearChipPreview = () => {
+      clearPreviewHighlight();
+      btn.classList.remove('previewing');
+    };
+    btn.addEventListener('pointerdown', () => {
+      leftWhileDown = false;
+      holdTimer = setTimeout(() => {
+        btn.classList.add('previewing');
+        applyPreviewHighlight(previewComboTargets(combo.id));
+      }, 320);
+    });
+    btn.addEventListener('pointerup', cancelHoldTimer);
+    btn.addEventListener('pointerleave', () => {
+      cancelHoldTimer();
+      leftWhileDown = true;
+      // Drop the preview a moment after leaving so the player has a
+      // beat to register what they saw before it fades.
+      setTimeout(clearChipPreview, 180);
+    });
+    btn.addEventListener('pointercancel', () => {
+      cancelHoldTimer();
+      clearChipPreview();
+    });
+    btn.addEventListener('click', (e) => {
+      // Drag-away cancels — if the pointer left the chip before release,
+      // click won't fire from the browser, but in case of edge cases on
+      // some browsers, this guard is a fallback.
+      if (leftWhileDown) { leftWhileDown = false; clearChipPreview(); return; }
       if (state.executing || state.over) return;
+      cancelHoldTimer();
+      clearChipPreview();
       commitCombo(combo.id);
     });
     area.appendChild(btn);
