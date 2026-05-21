@@ -8803,17 +8803,21 @@ const COMBOS = {
 // matching combo together with the queue indices that satisfy each role
 // (so commitCombo can splice them out).
 // Build the list of combos to scan against the queue.  Most entries
-// come straight from COMBOS, but any generic coord_<pairKey> duo
-// whose pair has a chosen Resonance variant is SWAPPED OUT for the
-// chosen variant.  This way the rail surfaces the player's pick once
-// they've chosen, not the default generic.
+// come straight from COMBOS, but any generic combo whose pair / trio
+// has a chosen Resonance variant is SWAPPED OUT for the chosen
+// variant.  This way the rail surfaces the player's pick once they've
+// chosen, not the default generic.
 function _comboLookupList() {
   const chosen = (state && state.run && state.run.chosenResonances) || {};
   const out = [];
   Object.values(COMBOS).forEach(c => {
-    if (c.generic && c.tier === 'duo' && typeof c.id === 'string' && c.id.startsWith('coord_')) {
+    if (!c.generic || typeof c.id !== 'string') { out.push(c); return; }
+    if (c.tier === 'duo' && c.id.startsWith('coord_')) {
       const pk = c.id.slice('coord_'.length);
-      if (chosen[pk]) return; // chosen variant replaces this entry
+      if (chosen[pk]) return; // chosen duo variant replaces this entry
+    } else if (c.tier === 'triple' && c.id.startsWith('triad_')) {
+      const tk = c.id.slice('triad_'.length);
+      if (chosen[tk]) return; // chosen trio variant replaces this entry
     }
     out.push(c);
   });
@@ -12800,19 +12804,161 @@ function _pairHasAuthoredCombo(heroA, heroB) {
     c.requires.map(r => r.heroId).slice().sort().join('+') === key);
 }
 
+// Does this trio have an authored COMBOS entry?  Mirror of
+// _pairHasAuthoredCombo for 3-hero combos — Sacred Triad, Three Blades,
+// Front Phalanx, etc. keep their hand-crafted Resonance and skip the
+// trio choice overlay.
+function _trioHasAuthoredCombo(heroes) {
+  const key = heroes.slice().sort().join('+');
+  return Object.values(COMBOS).some(c =>
+    !c.generic && !c.chosenResonance && c.tier === 'triple' && c.requires && c.requires.length === 3 &&
+    c.requires.map(r => r.heroId).slice().sort().join('+') === key);
+}
+
+// Build the two anchor-split Resonance variants for a trio.  In each
+// variant ONE hero anchors with their sig (the focused payoff routed
+// through their signature beat) while the other two contribute their
+// basics in support.  Same total cost both ways; the choice is "who
+// carries the moment".  The two anchor candidates are picked by sig
+// damage potential — the heroes whose signature actually hits hard
+// surface as the meaningful anchors; a healer / utility-sig hero
+// drops to the supporter role in both variants.
+function _buildTrioResonanceVariants(s, heroes) {
+  const ids = heroes.slice().sort();
+  // Score each hero's sig damage potential (dmg × hits, 0 for non-
+  // damaging sigs).  Pick the top two as anchor candidates.  Ties
+  // break alphabetically so the same trio reliably surfaces the same
+  // two anchors across runs.
+  const ranked = ids.map(id => {
+    const slot = slotOfChar(s, id);
+    if (!slot) return { id, score: -1 };
+    const sig = getTech(s, id, slot, 'sig');
+    const score = (sig && typeof sig.dmg === 'number') ? sig.dmg * (sig.hits || 1) : 0;
+    return { id, score };
+  }).sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    return a.id < b.id ? -1 : 1;
+  });
+  if (ranked[0].score < 0) return null; // missing slots — bail
+  const anchors = [ranked[0].id, ranked[1].id];
+  // Shared cinematic shape — slogans personalize per anchor.
+  const cinematicFor = (text, anchorId) => ([
+    { kind: 'stage',       school: (CHARS[anchorId] && CHARS[anchorId].school) || 'physical', ms: 220 },
+    { kind: 'hero-big',    heroes: ids, pose: 'rise',           ms: 400 },
+    { kind: 'banner',      text, size: 'md',                    ms: 340 },
+    { kind: 'slogan',      text: `${(CHARS[anchorId] && CHARS[anchorId].name) || anchorId} anchors`, ms: 240 },
+    { kind: 'punch',                                              ms: 380 },
+    { kind: 'resolve' },
+    { kind: 'enemy-flash', targets: 'front', kind2: 'hit',       ms: 200 },
+    { kind: 'burst',       at: 'enemy-front', school: 'holy', count: 10, ms: 280 },
+  ]);
+  // Variant runner — anchor invokes their sig, then each supporter
+  // invokes their basic.  All target the front-most enemy.
+  const runVariant = (anchorId, supporters) => (s2) => {
+    const front = enemyBySlot(s2, 'front') || aliveEnemies(s2)[0];
+    const targets = (front && !front.dead) ? [front] : [];
+    const invoke = (id, kind) => {
+      const sl = slotOfChar(s2, id);
+      if (!sl) return;
+      const t = getTech(s2, id, sl, kind);
+      if (!t || typeof t.fn !== 'function') return;
+      s2.currentActorId = id;
+      s2.currentTechElement = t.element || (CHARS[id] && CHARS[id].school) || null;
+      try { t.fn(s2, targets); }
+      finally { s2.currentActorId = null; s2.currentTechElement = null; }
+    };
+    invoke(anchorId, 'sig');
+    supporters.forEach(id => invoke(id, 'basic'));
+  };
+  const makeVariant = (anchorId, variantId) => {
+    const slot = slotOfChar(s, anchorId);
+    const anchorSig = slot && getTech(s, anchorId, slot, 'sig');
+    if (!anchorSig) return null;
+    const supporters = ids.filter(id => id !== anchorId);
+    const supTechs = supporters.map(id => ({
+      id,
+      tech: slotOfChar(s, id) && getTech(s, id, slotOfChar(s, id), 'basic'),
+    }));
+    const anchorName = (CHARS[anchorId] && CHARS[anchorId].name) || anchorId;
+    const supNames = supporters.map(id => (CHARS[id] && CHARS[id].name) || id);
+    const name = `${anchorName} anchors · ${anchorSig.name}`;
+    return {
+      id: `chosen_trio_${ids.join('+')}__${variantId}`,
+      name,
+      tier: 'triple',
+      chosenResonance: true,
+      trioKey: ids.join('+'),
+      desc: `${anchorName} fires ${anchorSig.name} while ${supNames.join(' and ')} support.`,
+      requires: [
+        { heroId: anchorId, kind: 'special' },
+        ...supporters.map(id => ({ heroId: id, kind: 'attack' })),
+      ],
+      fn: runVariant(anchorId, supporters),
+      cinematic: cinematicFor(name.toUpperCase(), anchorId),
+      _preview: { anchor: anchorId, anchorTech: anchorSig, supporters: supTechs },
+    };
+  };
+  const v1 = makeVariant(anchors[0], 'v1');
+  const v2 = makeVariant(anchors[1], 'v2');
+  if (!v1 || !v2) return null;
+  return [v1, v2];
+}
+
 // Queue a Resonance unlock choice for this pair if all conditions
 // hold: pair has no authored combo, no choice already made, not
 // already queued for choice this run.  Called from BOTH the themed
 // bond rank-up path (fireSynergyFeedback) and the Camaraderie tick.
+//
+// Also walks the party for any 3rd hero whose trio with this pair
+// is NOW unlocked (2-of-3 pair bonds at Tier II) — if so, queues a
+// trio choice too.  This catches trio crossings that happen as a
+// side-effect of a single pair-bond tier-up.
 function _queueResonanceChoice(s, heroA, heroB) {
   if (!s || !s.run || __simulating) return;
-  if (_pairHasAuthoredCombo(heroA, heroB)) return;
-  const key = adjKey(heroA, heroB);
+  if (!_pairHasAuthoredCombo(heroA, heroB)) {
+    const key = adjKey(heroA, heroB);
+    s.run.chosenResonances = s.run.chosenResonances || {};
+    if (!s.run.chosenResonances[key]) {
+      s.run._pendingResonanceChoices = s.run._pendingResonanceChoices || [];
+      if (!s.run._pendingResonanceChoices.some(c => c.kind === 'duo' && c.pairKey === key)) {
+        s.run._pendingResonanceChoices.push({ kind: 'duo', pairKey: key, heroA, heroB });
+      }
+    }
+  }
+  _checkTrioUnlocks(s, heroA, heroB);
+}
+
+// Walk through every other party hero and check whether the trio
+// {heroA, heroB, heroC} just crossed its unlock threshold — i.e.
+// became unlocked due to this pair-bond's tier-up.  If so, queue a
+// trio choice for that triple.
+function _checkTrioUnlocks(s, heroA, heroB) {
+  if (!s || !s.run || __simulating) return;
   s.run.chosenResonances = s.run.chosenResonances || {};
-  if (s.run.chosenResonances[key]) return;
   s.run._pendingResonanceChoices = s.run._pendingResonanceChoices || [];
-  if (s.run._pendingResonanceChoices.some(c => c.pairKey === key)) return;
-  s.run._pendingResonanceChoices.push({ pairKey: key, heroA, heroB });
+  const partyIds = Object.keys(s.party.chars).filter(id => {
+    const c = s.party.chars[id];
+    return c && !c.downed;
+  });
+  partyIds.forEach(heroC => {
+    if (heroC === heroA || heroC === heroB) return;
+    const trio = [heroA, heroB, heroC].sort();
+    const trioKey = trio.join('+');
+    if (s.run.chosenResonances[trioKey]) return;
+    if (s.run._pendingResonanceChoices.some(c => c.kind === 'trio' && c.trioKey === trioKey)) return;
+    if (_trioHasAuthoredCombo(trio)) return;
+    // Find the generic trio combo to test against isComboUnlocked.
+    // (Authored trios were already filtered above.)
+    const genericId = `triad_${trioKey}`;
+    const trioCombo = COMBOS[genericId];
+    if (!trioCombo) return;
+    if (!isComboUnlocked(s, trioCombo)) return;
+    s.run._pendingResonanceChoices.push({
+      kind: 'trio',
+      trioKey,
+      heroes: trio,
+    });
+  });
 }
 
 // Is this combo currently unlocked by the run's bond progress?
@@ -21089,13 +21235,23 @@ function showResonanceChoice(s, onDone) {
   const pending = (s && s.run && s.run._pendingResonanceChoices) || [];
   if (!pending.length) { cont(); return; }
   const next = pending.shift();
+  // Branch on the kind of unlock — duos use mirror-split (A.basic vs
+  // B.sig swap), trios use anchor-split (which hero plays sig vs the
+  // other two supporting with basics).  Both render as forced choice
+  // overlays with a similar visual rhythm.
+  if (next.kind === 'trio') {
+    _showTrioChoice(s, next, cont);
+  } else {
+    _showDuoChoice(s, next, cont);
+  }
+}
+
+function _showDuoChoice(s, next, cont) {
   const variants = _buildResonanceVariants(s, next.heroA, next.heroB);
   if (!variants || variants.length !== 2) {
     // Couldn't build variants (slots missing, etc.) — drop the choice
-    // silently and keep going.  The pair stays on the default generic
-    // until another tier-up retriggers (it won't, but a fallback's safer
-    // than locking the rail).
-    if (pending.length) { showResonanceChoice(s, cont); } else { cont(); }
+    // silently and keep going.
+    if (s.run._pendingResonanceChoices.length) { showResonanceChoice(s, cont); } else { cont(); }
     return;
   }
   const nameA = (CHARS[next.heroA] && CHARS[next.heroA].name) || next.heroA;
@@ -21113,7 +21269,6 @@ function showResonanceChoice(s, onDone) {
     log(`<i><b>${nameA}</b> + <b>${nameB}</b> learn <b>${variant.name}</b>.</i>`);
     hideOverlay();
     resetOverlayBtn();
-    // Drain the next pending choice, or hand off.
     if (s.run._pendingResonanceChoices && s.run._pendingResonanceChoices.length) {
       setTimeout(() => showResonanceChoice(s, cont), 200);
     } else {
@@ -21155,8 +21310,75 @@ function showResonanceChoice(s, onDone) {
     card.addEventListener('click', () => finishPick(v));
     choices.appendChild(card);
   });
-  // Hide the standalone Continue button — this is a forced choice, no
-  // 'pass' option (the kizuna just deepened, the player commits).
+  const btn = $('#overlay-btn');
+  if (btn) btn.classList.add('hidden');
+  choices.classList.remove('hidden');
+  $overlay.classList.remove('hidden');
+}
+
+function _showTrioChoice(s, next, cont) {
+  const variants = _buildTrioResonanceVariants(s, next.heroes);
+  if (!variants || variants.length !== 2) {
+    if (s.run._pendingResonanceChoices.length) { showResonanceChoice(s, cont); } else { cont(); }
+    return;
+  }
+  const heroNames = next.heroes.map(id => (CHARS[id] && CHARS[id].name) || id);
+  const $overlay = $('#overlay');
+  $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-sigil','overlay-cinematic','overlay-starter','overlay-boon','overlay-upgrade');
+  $overlay.classList.add('overlay-full','overlay-event','overlay-resonance','overlay-resonance-trio');
+  $('#overlay-title').textContent = `Triad resonant — ${heroNames.join(' + ')}`;
+  $('#overlay-body').textContent = 'The three move as one.  Choose who anchors the moment — they fire their signature while the other two support.';
+  const choices = $('#overlay-choices');
+  choices.innerHTML = '';
+  const finishPick = (variant) => {
+    s.run.chosenResonances = s.run.chosenResonances || {};
+    s.run.chosenResonances[next.trioKey] = variant;
+    log(`<i>${heroNames.join(' + ')} learn <b>${variant.name}</b>.</i>`);
+    hideOverlay();
+    resetOverlayBtn();
+    if (s.run._pendingResonanceChoices && s.run._pendingResonanceChoices.length) {
+      setTimeout(() => showResonanceChoice(s, cont), 200);
+    } else {
+      cont();
+    }
+  };
+  variants.forEach(v => {
+    const p = v._preview || {};
+    const anchorName = (CHARS[p.anchor] && CHARS[p.anchor].name) || p.anchor || '';
+    const anchorTechName = (p.anchorTech && p.anchorTech.name) || '';
+    const anchorTechDesc = (p.anchorTech && p.anchorTech.desc) || '';
+    const supRows = (p.supporters || []).map(st => {
+      const supName = (CHARS[st.id] && CHARS[st.id].name) || st.id;
+      const techName = (st.tech && st.tech.name) || '';
+      const techDesc = (st.tech && st.tech.desc) || '';
+      return `
+        <div class="reso-trio-supporter">
+          <div class="reso-portrait reso-portrait-sm">${PORTRAITS[st.id] || ''}</div>
+          <div class="reso-tech">
+            <div class="reso-tech-hero">${supName} · attack</div>
+            <div class="reso-tech-name">${techName}</div>
+            <div class="reso-tech-desc">${techDesc}</div>
+          </div>
+        </div>`;
+    }).join('');
+    const card = document.createElement('button');
+    card.className = 'encounter-choice resonance-choice resonance-choice-trio';
+    card.innerHTML = `
+      <div class="reso-title">${v.name}</div>
+      <div class="reso-trio-anchor">
+        <div class="reso-trio-anchor-badge">Anchor</div>
+        <div class="reso-portrait">${PORTRAITS[p.anchor] || ''}</div>
+        <div class="reso-tech">
+          <div class="reso-tech-hero">${anchorName} · special</div>
+          <div class="reso-tech-name">${anchorTechName}</div>
+          <div class="reso-tech-desc">${anchorTechDesc}</div>
+        </div>
+      </div>
+      <div class="reso-trio-supporters">${supRows}</div>
+    `;
+    card.addEventListener('click', () => finishPick(v));
+    choices.appendChild(card);
+  });
   const btn = $('#overlay-btn');
   if (btn) btn.classList.add('hidden');
   choices.classList.remove('hidden');
