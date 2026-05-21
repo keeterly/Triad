@@ -14464,6 +14464,15 @@ function resolveQueueStep(i) {
     // keep painting them through the post-victory cascade.  Previously
     // the leftover queue chips would stack on the REACH CLEARED banner.
     if (checkEnd(s)) {
+      // Tick Camaraderie BEFORE the early return — fights usually end
+      // mid-queue (last enemy dies on a kill action), and without this
+      // hook the end-of-queue tick is skipped entirely.  No Camaraderie
+      // = no Tier II crossing detection = no post-fight Resonance
+      // choice fires.  Calling here mirrors the end-of-queue path so
+      // the kizuna accounting is consistent regardless of WHEN the
+      // last enemy died.
+      tickCamaraderie(s, s._committedQueueThisTurn || s.queue);
+      s._committedQueueThisTurn = null;
       s.executing = false;
       s.executingIdx = -1;
       s.queue = [];
