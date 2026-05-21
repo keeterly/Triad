@@ -8806,12 +8806,16 @@ function matchingCombos(queue) {
   const spent = (state && state.usedCombos) || new Set();
   // Priority weight — bigger payoff combos surface first when the queue
   // legally matches multiple at once.  Triple > sig-tier > duo so the
-  // player sees the rarer fire at the top of the rail.
-  const tierWeight = (c) => (c.tier === 'triple' ? 30 : 0) + (c.sigTier ? 10 : 0);
+  // player sees the rarer fire at the top of the rail.  Themed (authored)
+  // combos sort ahead of generic Coordinated Strike / Triad Resonance
+  // so a pair that has BOTH (themed + generic) defaults to the themed one.
+  const tierWeight = (c) => (c.tier === 'triple' ? 30 : 0) + (c.sigTier ? 10 : 0) + (c.generic ? 0 : 5);
   return Object.values(COMBOS).map(combo => {
     // Resonance is once-per-encounter — a fired combo is locked out for the
     // rest of the fight, even if the queue could assemble it again.
     if (spent.has(combo.id)) return null;
+    // Bond-gated — combo only appears once its kizuna requirement is met.
+    if (!isComboUnlocked(state, combo)) return null;
     const used = new Set();
     const indices = [];
     const ok = combo.requires.every(req => {
@@ -8839,6 +8843,10 @@ function partialCombos(queue) {
   Object.values(COMBOS).forEach(combo => {
     if (spent.has(combo.id)) return;
     if (completed.includes(combo.id)) return;
+    // Hide locked combos from the near-miss rail too — the kizuna pitch
+    // is 'bonds unlock paths', not 'here's a path you can't take yet'.
+    // Once the gating bond hits Tier II the combo surfaces normally.
+    if (!isComboUnlocked(state, combo)) return;
     for (let i = 0; i < combo.requires.length; i++) {
       const missing = combo.requires[i];
       const remaining = combo.requires.filter((_, idx) => idx !== i);
@@ -8877,7 +8885,11 @@ function commitCombo(comboId) {
   // Splice out the matched indices in descending order so earlier indices stay valid.
   const drop = match.indices.slice().sort((a, b) => b - a);
   drop.forEach(i => s.queue.splice(i, 1));
-  // Push the combo item.  It cost-neutrally replaces the inputs.
+  // Push the combo item.  It cost-neutrally replaces the inputs.  Stash
+  // the heroes that contributed so the end-of-turn Camaraderie tick can
+  // credit each pair that fired into this resonance (combos splice their
+  // inputs out of s.queue, so without this list those heroes wouldn't
+  // be visible in the committed snapshot).
   s.queue.push({
     kind: 'combo',
     comboId,
@@ -8885,6 +8897,7 @@ function commitCombo(comboId) {
     desc: match.combo.desc,
     atb: atbTotal,
     resolveCost: resolveTotal,
+    heroes: match.combo.requires.map(r => r.heroId),
   });
   // Lock the combo for the rest of the encounter — first echo lands, no
   // second echo.  Forces variety across turns.
@@ -9599,6 +9612,134 @@ const ADJ = {
     },
   },
 };
+
+// ============================================================================
+// GENERIC COMBO GENERATION — every roster pair gets a fallback duo, every
+// roster triple gets a fallback trio.  Authored combos (banner_volley,
+// sacred_triad, etc.) take precedence (sorted ahead of generics in the
+// rail via tierWeight) so a Cassia+Branwen queue still surfaces 'Banner
+// Volley' rather than 'Coordinated Strike'.  Generics fill every other
+// gap so a player who builds a Cassia+Mira pair bond can eventually fire
+// a duo — the kizuna pitch is 'any pair can resonate if they fight long
+// enough together'.
+//
+// Each generic combo's unlock condition is derived in isComboUnlocked at
+// runtime from its `requires` array, so authored bonds gate authored
+// pairs and Camaraderie gates the rest with no per-combo boilerplate.
+// ============================================================================
+(function _generateGenericCombos() {
+  // Build the set of pair / triple keys that already have an authored
+  // combo so we don't shadow them with a generic.  Key = sorted heroIds
+  // joined by '+'.  Mixed-kind authored combos (sig-tier vs basic) count
+  // as 'authored' — the generic is only injected when zero authored
+  // combos exist for the exact pair / triple.
+  const authoredPairs = new Set();
+  const authoredTriples = new Set();
+  Object.values(COMBOS).forEach(c => {
+    if (!c.requires) return;
+    const ids = c.requires.map(r => r.heroId);
+    if (ids.length === 2) authoredPairs.add(ids.slice().sort().join('+'));
+    if (ids.length === 3) authoredTriples.add(ids.slice().sort().join('+'));
+  });
+
+  // ----- Generic duo factory ---------------------------------------------
+  const makeDuo = (a, b) => {
+    const ids = [a, b].sort();
+    const key = ids.join('+');
+    return {
+      id: `coord_${key}`,
+      name: 'Coordinated Strike',
+      tier: 'duo',
+      generic: true,
+      desc: 'Two heroes strike together — both basic attacks land on the front-most foe.',
+      requires: [
+        { heroId: ids[0], kind: 'attack' },
+        { heroId: ids[1], kind: 'attack' },
+      ],
+      fn: (s) => {
+        const front = enemiesInReach(s, ['front', 'mid', 'back'])[0] || enemyBySlot(s, 'front');
+        if (!front || front.dead) return;
+        ids.forEach(heroId => {
+          const slot = slotOfChar(s, heroId);
+          if (!slot) return;
+          const tech = getTech(s, heroId, slot, 'basic');
+          const dmg = (tech && typeof tech.dmg === 'number') ? tech.dmg : 3;
+          s.currentActorId = heroId;
+          s.currentTechElement = (tech && tech.element) || (CHARS[heroId] && CHARS[heroId].school) || null;
+          applyDmgToEnemy(s, front, dmg);
+          s.currentActorId = null;
+          s.currentTechElement = null;
+          if (front.dead) return;
+        });
+      },
+      cinematic: [
+        { kind: 'stage',       school: 'physical',                 ms: 180 },
+        { kind: 'hero-big',    heroes: ids, pose: 'rise',          ms: 340 },
+        { kind: 'banner',      text: 'COORDINATED STRIKE', size: 'sm', ms: 300 },
+        { kind: 'slogan',      text: 'two as one',                  ms: 220 },
+        { kind: 'punch',                                            ms: 340 },
+        { kind: 'resolve' },
+        { kind: 'enemy-flash', targets: 'front', kind2: 'hit',     ms: 180 },
+      ],
+    };
+  };
+
+  // ----- Generic trio factory --------------------------------------------
+  const makeTrio = (a, b, c) => {
+    const ids = [a, b, c].sort();
+    const key = ids.join('+');
+    return {
+      id: `triad_${key}`,
+      name: 'Triad Resonance',
+      tier: 'triple',
+      generic: true,
+      desc: 'Three heroes strike as one — all basic attacks land on the front-most foe.',
+      requires: ids.map(h => ({ heroId: h, kind: 'attack' })),
+      fn: (s) => {
+        const front = enemiesInReach(s, ['front', 'mid', 'back'])[0] || enemyBySlot(s, 'front');
+        if (!front || front.dead) return;
+        ids.forEach(heroId => {
+          const slot = slotOfChar(s, heroId);
+          if (!slot) return;
+          const tech = getTech(s, heroId, slot, 'basic');
+          const dmg = (tech && typeof tech.dmg === 'number') ? tech.dmg : 3;
+          s.currentActorId = heroId;
+          s.currentTechElement = (tech && tech.element) || (CHARS[heroId] && CHARS[heroId].school) || null;
+          applyDmgToEnemy(s, front, dmg + 1);
+          s.currentActorId = null;
+          s.currentTechElement = null;
+          if (front.dead) return;
+        });
+      },
+      cinematic: [
+        { kind: 'stage',       school: 'holy',                     ms: 220 },
+        { kind: 'hero-big',    heroes: ids, pose: 'rise',          ms: 400 },
+        { kind: 'banner',      text: 'TRIAD RESONANCE', size: 'md',ms: 360 },
+        { kind: 'slogan',      text: 'three notes · one chord',    ms: 240 },
+        { kind: 'punch',                                            ms: 380 },
+        { kind: 'resolve' },
+        { kind: 'enemy-flash', targets: 'front', kind2: 'hit',     ms: 200 },
+        { kind: 'burst',       at: 'enemy-front', school: 'holy', count: 10, ms: 280 },
+      ],
+    };
+  };
+
+  // ----- Walk every pair / triple in ROSTER ------------------------------
+  for (let i = 0; i < ROSTER.length; i++) {
+    for (let j = i + 1; j < ROSTER.length; j++) {
+      const pairKey = [ROSTER[i], ROSTER[j]].slice().sort().join('+');
+      if (authoredPairs.has(pairKey)) continue;
+      const duo = makeDuo(ROSTER[i], ROSTER[j]);
+      COMBOS[duo.id] = duo;
+      for (let k = j + 1; k < ROSTER.length; k++) {
+        const tripKey = [ROSTER[i], ROSTER[j], ROSTER[k]].slice().sort().join('+');
+        if (authoredTriples.has(tripKey)) continue;
+        const trio = makeTrio(ROSTER[i], ROSTER[j], ROSTER[k]);
+        COMBOS[trio.id] = trio;
+      }
+    }
+  }
+})();
 
 // ============================================================================
 // STATE
@@ -12484,6 +12625,89 @@ function bondTierBonus(s, name, baseAmt) {
   return baseAmt + (tier - 1);
 }
 
+// Return the bond name that gates the pair (heroA, heroB).  Themed
+// pairs (those with an authored ADJ entry) use the entry's bond name;
+// every other pair falls back to a generic 'Camaraderie' bond keyed
+// by the sorted pair so each pair builds its own count.  This is the
+// single bond-name lookup used by combo unlock checks AND the
+// end-of-turn Camaraderie tick — keeping them aligned guarantees that
+// a combo's unlock condition is exactly the bond that would have been
+// built by the heroes' play.
+function bondNameForPair(heroA, heroB) {
+  const key = adjKey(heroA, heroB);
+  const entry = ADJ[key];
+  if (entry) {
+    const nm = (entry.fm && entry.fm.name) || (entry.mb && entry.mb.name);
+    if (nm) return nm;
+  }
+  return `Camaraderie:${key}`;
+}
+
+// Derive the kizuna unlock condition for a combo based on the heroes it
+// requires.  Duos lock behind the single bond between their two heroes
+// (themed name from ADJ when present, otherwise Camaraderie:<pair-key>).
+// Trios lock behind the three pair-bonds among their heroes, with a
+// 'two of three' rule — the kizuna pitch is 'enough of the party has
+// fought together to harmonize', not 'every possible bond must reach
+// tier'.  Sig-tier combos require Tier III instead of Tier II so the
+// signature-move variants only fire when the kizuna is truly resonant.
+function _deriveComboUnlock(combo) {
+  if (!combo || !combo.requires) return null;
+  const heroes = combo.requires.map(r => r.heroId);
+  if (heroes.length < 2) return null;
+  const tier = combo.sigTier ? 3 : 2;
+  if (heroes.length === 2) {
+    return {
+      reqs: [{ bond: bondNameForPair(heroes[0], heroes[1]), tier }],
+      mode: 'all',
+      count: 1,
+    };
+  }
+  // 3+ heroes — pull the bond name for every pair.  For a trio that's 3
+  // pair-bonds; require 2 of them at tier (works for any-3 trio without
+  // requiring the player to grind every single pair).
+  const pairs = [];
+  for (let i = 0; i < heroes.length; i++) {
+    for (let j = i + 1; j < heroes.length; j++) {
+      pairs.push({ bond: bondNameForPair(heroes[i], heroes[j]), tier });
+    }
+  }
+  return { reqs: pairs, mode: 'count', count: 2 };
+}
+
+// Is this combo currently unlocked by the run's bond progress?
+// combo.unlockedBy explicit override:
+//   - undefined → auto-derived from requires (the common case)
+//   - { bond, tier }                  → that single bond at or above tier
+//   - [{bond,tier}, ...] with mode    → 'all' / 'any' / 'count' (N of M)
+// Explicit override is reserved for design escape hatches; most combos
+// (authored AND generic) let the derive helper compute the gate.
+function isComboUnlocked(s, combo) {
+  if (!combo) return true;
+  let reqs, mode, need;
+  if (combo.unlockedBy) {
+    reqs = Array.isArray(combo.unlockedBy) ? combo.unlockedBy : [combo.unlockedBy];
+    mode = combo.unlockMode || 'all';
+    need = combo.unlockCount || 1;
+  } else {
+    const derived = _deriveComboUnlock(combo);
+    if (!derived) return true;
+    reqs = derived.reqs;
+    mode = derived.mode;
+    need = derived.count;
+  }
+  if (!reqs.length) return true;
+  const tested = reqs.map(req => {
+    const count = (s && s.run && s.run.synergyCounts && s.run.synergyCounts[req.bond]) || 0;
+    const t = req.tier || 2;
+    const threshold = (t === 3) ? BOND_TIER_THRESHOLDS[1] : BOND_TIER_THRESHOLDS[0];
+    return count >= threshold;
+  });
+  if (mode === 'any')   return tested.some(Boolean);
+  if (mode === 'count') return tested.filter(Boolean).length >= need;
+  return tested.every(Boolean);
+}
+
 // Tiny helpers used by the Tier III resonance clauses below — kept
 // here so the BOND_TIER3_CLAUSES table reads as a clean one-liner per
 // bond instead of 7-line inline mutations.
@@ -13595,8 +13819,66 @@ function onFight() {
   s.executing = true;
   s.executingIdx = -1;
   s.resolve -= queueReservedResolve();
+  // Snapshot the committed queue so the end-of-turn Camaraderie tick can
+  // see which heroes acted this turn even after the queue is wiped by
+  // resolveQueueStep (and combos that spliced multi-hero items out).
+  s._committedQueueThisTurn = s.queue.slice();
   render();
   resolveQueueStep(0);
+}
+
+// End-of-player-turn kizuna tick — increments 'Camaraderie:<pair-key>'
+// for every PAIR of alive heroes who both committed an action this turn
+// AND don't have a themed ADJ bond connecting them.  Themed pairs build
+// their themed bond via the existing onAttack / onHeal / onArmorGrant
+// hooks, so they're skipped here.  The generic count is the gate for
+// Coordinated Strike / Triad Resonance combos involving these pairs.
+function tickCamaraderie(s, committedQueue) {
+  if (__simulating) return;
+  if (!s || !s.run) return;
+  const q = Array.isArray(committedQueue) ? committedQueue : [];
+  const acted = new Set();
+  q.forEach(item => {
+    if (!item) return;
+    if (item.kind === 'combo' && Array.isArray(item.heroes)) {
+      item.heroes.forEach(id => acted.add(id));
+    } else if (item.charId) {
+      acted.add(item.charId);
+    }
+  });
+  if (acted.size < 2) return;
+  s.run.synergyCounts = s.run.synergyCounts || {};
+  const actedList = [...acted].filter(id => {
+    const c = s.party.chars[id];
+    return c && !c.downed;
+  });
+  for (let i = 0; i < actedList.length; i++) {
+    for (let j = i + 1; j < actedList.length; j++) {
+      const a = actedList[i];
+      const b = actedList[j];
+      const key = adjKey(a, b);
+      // Themed pair?  Skip — their bond builds via its own hooks.
+      if (ADJ[key]) continue;
+      const bondName = `Camaraderie:${key}`;
+      const before = s.run.synergyCounts[bondName] || 0;
+      const tierBefore = getBondTier(s, bondName, before);
+      s.run.synergyCounts[bondName] = before + 1;
+      const tierAfter = getBondTier(s, bondName, before + 1);
+      // Tier-up celebration — show a single 'X + Y · DEEPENED' popup
+      // over the lower-HP hero of the pair so the kizuna feels
+      // shared, not single-sided.  No popup on first fire (Tier I)
+      // since Tier I just means 'they cooperated once' — not yet a
+      // unlock moment.
+      if (tierAfter > tierBefore && tierAfter > 1) {
+        const word = tierAfter === 3 ? 'RESONANT' : 'DEEPENED';
+        const nameA = (CHARS[a] && CHARS[a].name) || a;
+        const nameB = (CHARS[b] && CHARS[b].name) || b;
+        const ca = s.party.chars[a], cb = s.party.chars[b];
+        const anchor = (ca && cb && (ca.hp / ca.maxHp) <= (cb.hp / cb.maxHp)) ? a : b;
+        spawnPopupId(anchor, `${nameA} + ${nameB} ✦ ${word}`, 'bond-rankup', 'party');
+      }
+    }
+  }
 }
 
 function resolveQueueStep(i) {
@@ -13604,7 +13886,16 @@ function resolveQueueStep(i) {
   if (s.over) { s.executing = false; s.executingIdx = -1; s.queue = []; render(); return; }
   if (i >= s.queue.length) {
     s.executingIdx = -1;
-    // queue done — leave taunt/retaliate up for the incoming enemy phase
+    // queue done — tick Camaraderie BEFORE wiping the queue so we can
+    // see which heroes contributed this turn.  Every pair WITHOUT a
+    // themed ADJ bond builds a 'Camaraderie:<pair-key>' count when
+    // both of its heroes committed an action this turn — that's the
+    // generic kizuna track that gates Coordinated Strike + Triad
+    // Resonance combos for pairs/triples the game doesn't have hand-
+    // authored bonds for.  Themed pairs build their themed bond via
+    // their existing hooks instead; this path stays out of their way.
+    tickCamaraderie(s, s._committedQueueThisTurn || s.queue);
+    s._committedQueueThisTurn = null;
     s.queue = [];
     // Sigil of Mending — at end of player phase, lowest-HP ally heals
     // 2 (or 3/4 at higher tiers).
@@ -20076,15 +20367,28 @@ function showRunSummary(outcome, opts) {
           });
         });
         const pairLabel = (bondName) => {
+          // Camaraderie:<pair-key> — generic bonds that build between
+          // any pair without an authored ADJ entry.  The pair is in
+          // the name itself, so render it directly.
+          if (bondName.startsWith('Camaraderie:')) {
+            const ids = bondName.slice('Camaraderie:'.length).split('+');
+            if (ids.length !== 2) return '';
+            const a = (CHARS[ids[0]] && CHARS[ids[0]].name) || ids[0];
+            const b = (CHARS[ids[1]] && CHARS[ids[1]].name) || ids[1];
+            return `${a} + ${b}`;
+          }
           const ids = bondPair[bondName];
           if (!ids) return '';
           const a = (CHARS[ids[0]] && CHARS[ids[0]].name) || ids[0];
           const b = (CHARS[ids[1]] && CHARS[ids[1]].name) || ids[1];
           return `${a} + ${b}`;
         };
+        // Display name — Camaraderie:cassia+mira renders as 'Camaraderie'
+        // (the prefix is just routing; the suffix is the pair-key).
+        const displayName = (bondName) => bondName.startsWith('Camaraderie:') ? 'Camaraderie' : bondName;
         const resonantBonds = sortedBonds.filter(([n, c]) => c >= BOND_TIER_THRESHOLDS[1]);
         const headlineLine = resonantBonds.length
-          ? `<div class="rs-kizuna-headline">${resonantBonds[0][0]} <b>RESONANT</b> · the bond rang true.</div>`
+          ? `<div class="rs-kizuna-headline">${displayName(resonantBonds[0][0])} <b>RESONANT</b> · the bond rang true.</div>`
           : '';
         const rows = sortedBonds.map(([name, count]) => {
           const tier = getBondTier(state, name, count);
@@ -20094,7 +20398,7 @@ function showRunSummary(outcome, opts) {
           const pair = pairLabel(name);
           return `<div class="rs-kizuna-row ${tierClass}">
             <span class="rs-kizuna-mark">✦</span>
-            <span class="rs-kizuna-name">${name}${tier > 1 ? ` ${roman}` : ''}</span>
+            <span class="rs-kizuna-name">${displayName(name)}${tier > 1 ? ` ${roman}` : ''}</span>
             ${pair ? `<span class="rs-kizuna-pair">${pair}</span>` : ''}
             <span class="rs-kizuna-count">${count}× fired${clause}</span>
           </div>`;
