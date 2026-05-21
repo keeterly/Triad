@@ -14496,7 +14496,16 @@ function executeQueueItem(s, item) {
   // a Special; Sundering Choir's invuln-while-Voices uses this path too).
   s._currentActionKind = item && item.kind ? item.kind : null;
   if (item.kind === 'combo') {
-    const combo = COMBOS[item.comboId];
+    // Chosen Resonance variants live in state.run.chosenResonances
+    // (per-pair / per-trio picks the player made at Tier II unlock)
+    // and DO NOT appear in COMBOS.  Without this fallback the queued
+    // chosen variant would resolve to undefined and silently fire
+    // nothing — the cinematic wouldn't play and the effect wouldn't
+    // land.  Lookup chain: COMBOS first (authored + generic), then
+    // chosenResonances (the player's mirror-split / anchor picks).
+    const combo = COMBOS[item.comboId]
+      || (s.run && s.run.chosenResonances
+            && Object.values(s.run.chosenResonances).find(v => v && v.id === item.comboId));
     if (!combo) return;
     log(`<span class="msg-strong">★ ${combo.name} ★</span>`);
     if (__simulating) {
@@ -21365,7 +21374,16 @@ function showSigilOverlay(offers, onDone, opts) {
       <div class="sigil-glyph">${sg.icon}</div>
       <div class="sigil-desc">${sg.desc}</div>
     `;
-    card.addEventListener('click', () => commitSigil(sg.id, continueAfter));
+    // Idempotency guard — a rapid double-tap was hitting commitSigil
+    // twice, with the second call going through bindSigil's
+    // already-owned LEVEL-UP path, so a fresh bind would end up at
+    // level II or III instead of I.  Disable all sibling cards on
+    // first click so subsequent taps drop silently.
+    card.addEventListener('click', () => {
+      if (card.disabled) return;
+      Array.from(choices.querySelectorAll('button')).forEach(b => { b.disabled = true; });
+      commitSigil(sg.id, continueAfter);
+    });
     choices.appendChild(card);
   });
   // Reroll button — only renders when the player has the Second Look
