@@ -9675,7 +9675,7 @@ const ADJ = {
       name: 'Coordinated Strike',
       tier: 'duo',
       generic: true,
-      desc: 'Two heroes strike together — both basic attacks land on the front-most foe.',
+      desc: 'Two heroes strike together — combined basic damage + a +2 kizuna burst on the front-most foe.',
       requires: [
         { heroId: ids[0], kind: 'attack' },
         { heroId: ids[1], kind: 'attack' },
@@ -9695,6 +9695,23 @@ const ADJ = {
           s.currentTechElement = null;
           if (front.dead) return;
         });
+        // Kizuna burst — same shape as the chosen Mirror Split
+        // variants get.  Scales with the pair's bond tier so deeper
+        // bonds hit harder even on the default generic.
+        if (!front.dead) {
+          const tier = getBondTier(s, bondNameForPair(ids[0], ids[1]));
+          const bonusDmg = (tier >= 3) ? 4 : 2;
+          const vulnAmt = (tier >= 3) ? 2 : 1;
+          s.currentActorId = ids[0];
+          s.currentTechElement = (CHARS[ids[0]] && CHARS[ids[0]].school) || null;
+          try {
+            applyDmgToEnemy(s, front, bonusDmg);
+            if (!front.dead) {
+              front.vuln = (front.vuln || 0) + vulnAmt;
+              spawnPopupId(front.id, `+${vulnAmt} VULN`, 'stagger', 'enemy');
+            }
+          } finally { s.currentActorId = null; s.currentTechElement = null; }
+        }
       },
       cinematic: [
         { kind: 'stage',       school: 'physical',                 ms: 180 },
@@ -9717,7 +9734,7 @@ const ADJ = {
       name: 'Triad Resonance',
       tier: 'triple',
       generic: true,
-      desc: 'Three heroes strike as one — all basic attacks land on the front-most foe.',
+      desc: 'Three heroes strike as one — combined basic damage + a kizuna burst that STAGGERS the front-most foe.',
       requires: ids.map(h => ({ heroId: h, kind: 'attack' })),
       fn: (s) => {
         const front = enemiesInReach(s, ['front', 'mid', 'back'])[0] || enemyBySlot(s, 'front');
@@ -9734,6 +9751,26 @@ const ADJ = {
           s.currentTechElement = null;
           if (front.dead) return;
         });
+        // Kizuna burst — trio variant.  Reads the deepest bond tier
+        // among the three pair-bonds; STAGGERED primes the next
+        // player turn for a 2× hit.
+        if (!front.dead) {
+          const deepest = Math.max(
+            getBondTier(s, bondNameForPair(ids[0], ids[1])),
+            getBondTier(s, bondNameForPair(ids[1], ids[2])),
+            getBondTier(s, bondNameForPair(ids[0], ids[2])),
+          );
+          const bonusDmg = (deepest >= 3) ? 5 : 3;
+          s.currentActorId = ids[0];
+          s.currentTechElement = (CHARS[ids[0]] && CHARS[ids[0]].school) || null;
+          try {
+            applyDmgToEnemy(s, front, bonusDmg);
+            if (!front.dead) {
+              front.staggered = true;
+              spawnPopupId(front.id, 'STAGGERED', 'stagger', 'enemy');
+            }
+          } finally { s.currentActorId = null; s.currentTechElement = null; }
+        }
       },
       cinematic: [
         { kind: 'stage',       school: 'holy',                     ms: 220 },
@@ -10721,6 +10758,11 @@ function newState(forcedStarter) {
       // recruit events, stranger rolls, and the wanderer pool.
       _seenWanderers: [],
       _lockedOutHeroes: (carried && Array.isArray(carried.lockedOutHeroes)) ? carried.lockedOutHeroes.slice() : [],
+      // Kizuna progress carries across layers — bond fire counts and
+      // chosen Resonance variants survive the ascend.  See
+      // stashCarriedParty for what we serialize between layers.
+      synergyCounts: (carried && carried.synergyCounts && typeof carried.synergyCounts === 'object') ? { ...carried.synergyCounts } : {},
+      chosenResonances: (carried && carried.chosenResonances && typeof carried.chosenResonances === 'object') ? { ...carried.chosenResonances } : {},
     },
 
     // Solo start: starter goes in their HOME slot; the other two slots are empty.
@@ -12734,10 +12776,13 @@ function _buildResonanceVariants(s, heroA, heroB) {
     { kind: 'resolve' },
     { kind: 'enemy-flash', targets: 'front', kind2: 'hit',       ms: 200 },
   ]);
-  // Variant runner — invokes each hero's tech with the front-most
-  // enemy as the target.  Falls back to first alive enemy if there's
-  // no one in front.  setting currentActorId / currentTechElement is
-  // necessary so bond hooks (onAttack, etc.) credit the right hero.
+  // Variant runner — invokes each hero's tech, then layers a kizuna
+  // bonus on top so the Resonance feels MORE than the two source
+  // techs played in sequence.  The kizuna bonus is what makes the
+  // unlock worth chasing: +2 dmg on the front enemy AFTER both techs
+  // resolve, and stacks vuln 1 if the front is still alive (so the
+  // next hit after the Resonance also benefits).  Scales with the
+  // pair's bond tier — Tier III pairs get +4 dmg + vuln 2 instead.
   const runVariant = (kindA, kindB) => (s2) => {
     const front = enemyBySlot(s2, 'front')
       || aliveEnemies(s2)[0];
@@ -12752,6 +12797,25 @@ function _buildResonanceVariants(s, heroA, heroB) {
       try { t.fn(s2, targets); }
       finally { s2.currentActorId = null; s2.currentTechElement = null; }
     });
+    // Kizuna burst — the moment that makes the Resonance distinct.
+    // Reads the bond tier of the GATING bond (themed or Camaraderie)
+    // so deeper bonds hit harder.
+    const bondName = bondNameForPair(a, b);
+    const tier = getBondTier(s2, bondName);
+    const bonusDmg = (tier >= 3) ? 4 : 2;
+    const vulnAmt = (tier >= 3) ? 2 : 1;
+    const finishTarget = (front && !front.dead) ? front : (aliveEnemies(s2)[0] || null);
+    if (finishTarget && !finishTarget.dead) {
+      s2.currentActorId = a;
+      s2.currentTechElement = (CHARS[a] && CHARS[a].school) || null;
+      try {
+        applyDmgToEnemy(s2, finishTarget, bonusDmg);
+        if (!finishTarget.dead) {
+          finishTarget.vuln = (finishTarget.vuln || 0) + vulnAmt;
+          spawnPopupId(finishTarget.id, `+${vulnAmt} VULN`, 'stagger', 'enemy');
+        }
+      } finally { s2.currentActorId = null; s2.currentTechElement = null; }
+    }
   };
   // Variant 1: A basic + B sig.  A sets up, B finishes.
   const v1Name = `${aBasic.name} → ${bSig.name}`;
@@ -12761,7 +12825,7 @@ function _buildResonanceVariants(s, heroA, heroB) {
     tier: 'duo',
     chosenResonance: true,
     pairKey,
-    desc: `${nameA}'s ${aBasic.name} into ${nameB}'s ${bSig.name}.`,
+    desc: `${nameA}'s ${aBasic.name} into ${nameB}'s ${bSig.name}, then a kizuna burst (+2 dmg, +1 VULN).`,
     requires: [
       { heroId: a, kind: 'attack'  },
       { heroId: b, kind: 'special' },
@@ -12780,7 +12844,7 @@ function _buildResonanceVariants(s, heroA, heroB) {
     tier: 'duo',
     chosenResonance: true,
     pairKey,
-    desc: `${nameB}'s ${bBasic.name} into ${nameA}'s ${aSig.name}.`,
+    desc: `${nameB}'s ${bBasic.name} into ${nameA}'s ${aSig.name}, then a kizuna burst (+2 dmg, +1 VULN).`,
     requires: [
       { heroId: a, kind: 'special' },
       { heroId: b, kind: 'attack'  },
@@ -12853,7 +12917,12 @@ function _buildTrioResonanceVariants(s, heroes) {
     { kind: 'burst',       at: 'enemy-front', school: 'holy', count: 10, ms: 280 },
   ]);
   // Variant runner — anchor invokes their sig, then each supporter
-  // invokes their basic.  All target the front-most enemy.
+  // invokes their basic, then a kizuna burst lands on the front
+  // enemy: +3 dmg (+5 at Tier III for any of the involved bonds),
+  // applies STAGGER 1 if still alive, AND heals the anchor for 2
+  // (the trio rallies around their finisher).  Reads the deepest
+  // tier among the three pair-bonds so trios that have built ALL
+  // their bonds reap the strongest payoff.
   const runVariant = (anchorId, supporters) => (s2) => {
     const front = enemyBySlot(s2, 'front') || aliveEnemies(s2)[0];
     const targets = (front && !front.dead) ? [front] : [];
@@ -12869,6 +12938,33 @@ function _buildTrioResonanceVariants(s, heroes) {
     };
     invoke(anchorId, 'sig');
     supporters.forEach(id => invoke(id, 'basic'));
+    // Kizuna burst — trio variant.  Lands AFTER all three techs so
+    // the burst's stagger primes the NEXT player turn for follow-up.
+    const deepestTier = Math.max(
+      getBondTier(s2, bondNameForPair(ids[0], ids[1])),
+      getBondTier(s2, bondNameForPair(ids[1], ids[2])),
+      getBondTier(s2, bondNameForPair(ids[0], ids[2])),
+    );
+    const bonusDmg = (deepestTier >= 3) ? 5 : 3;
+    const finishTarget = (front && !front.dead) ? front : (aliveEnemies(s2)[0] || null);
+    if (finishTarget && !finishTarget.dead) {
+      s2.currentActorId = anchorId;
+      s2.currentTechElement = (CHARS[anchorId] && CHARS[anchorId].school) || null;
+      try {
+        applyDmgToEnemy(s2, finishTarget, bonusDmg);
+        if (!finishTarget.dead) {
+          finishTarget.staggered = true;
+          spawnPopupId(finishTarget.id, 'STAGGERED', 'stagger', 'enemy');
+        }
+      } finally { s2.currentActorId = null; s2.currentTechElement = null; }
+    }
+    // Anchor heal — the trio rallies around their finisher.
+    const anchor = s2.party && s2.party.chars && s2.party.chars[anchorId];
+    if (anchor && !anchor.downed) {
+      const before = anchor.hp;
+      anchor.hp = Math.min(anchor.maxHp, anchor.hp + 2);
+      if (anchor.hp > before) spawnPopupId(anchorId, `+${anchor.hp - before}`, 'heal', 'party');
+    }
   };
   const makeVariant = (anchorId, variantId) => {
     const slot = slotOfChar(s, anchorId);
@@ -12888,7 +12984,7 @@ function _buildTrioResonanceVariants(s, heroes) {
       tier: 'triple',
       chosenResonance: true,
       trioKey: ids.join('+'),
-      desc: `${anchorName} fires ${anchorSig.name} while ${supNames.join(' and ')} support.`,
+      desc: `${anchorName} fires ${anchorSig.name} while ${supNames.join(' and ')} support, then a kizuna burst (+3 dmg, STAGGERED, ${anchorName} heals 2).`,
       requires: [
         { heroId: anchorId, kind: 'special' },
         ...supporters.map(id => ({ heroId: id, kind: 'attack' })),
@@ -14218,16 +14314,14 @@ function resolveQueueStep(i) {
     }
     if (checkEnd(s)) { s.executing = false; s.executingIdx = -1; render(); return; }
     render();
-    // Drain any Resonance unlock choices queued by tickCamaraderie /
-    // fireSynergyFeedback during this turn before the enemy phase starts.
-    // The overlay blocks until the player picks; resolveEnemyTurn fires
-    // through the onDone callback so combat flow stays linear.
-    const advanceToEnemyPhase = () => setTimeout(() => resolveEnemyTurn(s), 320);
-    if (s.run && s.run._pendingResonanceChoices && s.run._pendingResonanceChoices.length) {
-      setTimeout(() => showResonanceChoice(s, advanceToEnemyPhase), 320);
-    } else {
-      advanceToEnemyPhase();
-    }
+    // Resonance unlock choices were originally drained here (between
+    // the player phase and the enemy phase), but the overlay landing
+    // mid-fight broke combat flow — the player would just queue
+    // actions, hit Fight, and get yanked into a Resonance picker
+    // before the enemy even responded.  Now the queued choices
+    // accumulate during combat and surface AFTER the fight clears
+    // (see runPostKillCascade in checkEnd → onVictoryCascade).
+    setTimeout(() => resolveEnemyTurn(s), 320);
     return;
   }
   const item = s.queue[i];
@@ -15077,15 +15171,28 @@ function checkEnd(s) {
         setTimeout(() => {
           const awarded = awardQuirkAfterWin(s, completedNode);
           const backdropUp = !!document.getElementById('quirk-award-backdrop');
+          // Drain any Resonance unlock choices queued during the fight
+          // BEFORE handing off to the vignette / path picker.  The
+          // overlay used to fire mid-fight (between player and enemy
+          // phase) but that broke combat flow — now choices wait for
+          // the fight to fully clear so the player reads them as a
+          // 'post-fight reward' beat, not a combat interruption.
+          const handoff = () => {
+            if (s.run && s.run._pendingResonanceChoices && s.run._pendingResonanceChoices.length) {
+              showResonanceChoice(s, () => offerVignetteOrPath(fightCtx));
+            } else {
+              offerVignetteOrPath(fightCtx);
+            }
+          };
           if (awarded && backdropUp) {
             // Let the affinity backdrop drive the handoff — when it
             // auto-dismisses (or the player taps it early), it fires
             // _pendingAfterAward.  This way the next scene only paints
             // AFTER the backdrop fades, instead of swapping behind a
             // still-visible card.
-            _pendingAfterAward = () => offerVignetteOrPath(fightCtx);
+            _pendingAfterAward = handoff;
           } else {
-            setTimeout(() => offerVignetteOrPath(fightCtx), 500);
+            setTimeout(handoff, 500);
           }
         }, BANNER_HOLD);
       };
@@ -22152,7 +22259,16 @@ function saveCarriedParty(s) {
     // Heroic Boon — Crown of Endurance bumps the Resolve cap by +1 per
     // mega-boss kill.  Carries so a fully ascended run keeps the cap.
     const resolveMaxBonus = (s.run && s.run.resolveMaxBonus) || 0;
-    const data = { chars, slots, sigils, lockedOutHeroes, sigilLevels, resolveMaxBonus };
+    // Kizuna progress — bond counts AND the per-pair / per-trio
+    // Resonance choices both carry across layers.  Without these the
+    // tier system would silently reset on each ascend: a pair you
+    // built to RESONANT III on layer 3 would walk into layer 4 at
+    // Tier I again, and any chosen mirror-split / anchor variant
+    // would have to be re-picked.  Now the climb's kizuna
+    // accumulates the way the sigils / quirks / oaths do.
+    const synergyCounts = { ...((s.run && s.run.synergyCounts) || {}) };
+    const chosenResonances = { ...((s.run && s.run.chosenResonances) || {}) };
+    const data = { chars, slots, sigils, lockedOutHeroes, sigilLevels, resolveMaxBonus, synergyCounts, chosenResonances };
     localStorage.setItem(CARRIED_KEY, JSON.stringify(data));
   } catch (_) {}
 }
