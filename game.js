@@ -19333,7 +19333,7 @@ function showVignette(v, ctx, done) {
       <span class="vc-label">${ch.label}</span>
       ${ch.tag ? `<span class="vc-tag">${ch.tag}</span>` : ''}
     `;
-    card.addEventListener('click', () => {
+    bindTapAsPointer(card, () => {
       ch.resolve(state);
       if (v.oneShot) markVignetteFired(v.id);
       hideOverlay();
@@ -21313,6 +21313,49 @@ function offerWandererSigil(wandererId, onDone) {
   });
 }
 
+// Bind a pointer-driven tap detector to an element.  Bypasses the
+// synthetic click event, which iOS's overflow-scrolling absorbs
+// when the parent #overlay-content is scrollable.  Fires `handler`
+// on a pointerup that came from a pointerdown on the same element
+// with less than TAP_SLOP px of motion in between.
+//
+// Used for all choice cards inside scrollable overlay-content
+// (sigil offers, Resonance picks, vignette choices) where the
+// regular click handler stopped firing reliably on touch devices.
+function bindTapAsPointer(el, handler) {
+  const TAP_SLOP = 10;
+  let pressed = false;
+  let downX = 0, downY = 0;
+  let consumed = false;
+  el.addEventListener('pointerdown', (e) => {
+    if (el.disabled) return;
+    pressed = true;
+    downX = e.clientX;
+    downY = e.clientY;
+  });
+  el.addEventListener('pointermove', (e) => {
+    if (!pressed) return;
+    const dx = Math.abs(e.clientX - downX);
+    const dy = Math.abs(e.clientY - downY);
+    if (dx > TAP_SLOP || dy > TAP_SLOP) pressed = false;
+  });
+  el.addEventListener('pointerleave',  () => { pressed = false; });
+  el.addEventListener('pointercancel', () => { pressed = false; });
+  el.addEventListener('pointerup', () => {
+    if (!pressed || consumed) return;
+    if (el.disabled) return;
+    pressed = false;
+    consumed = true;
+    try { handler(); }
+    finally {
+      // Re-arm after a tick so a re-rendered overlay can re-use
+      // the same handler if needed.  Most call sites disable the
+      // element anyway, so this is defensive.
+      setTimeout(() => { consumed = false; }, 0);
+    }
+  });
+}
+
 function showSigilOverlay(offers, onDone, opts) {
   const continueAfter = onDone || (() => renderMap());
   // Defensive — scrub any owned sigil that ISN'T marked as an upgrade
@@ -21421,13 +21464,20 @@ function showSigilOverlay(offers, onDone, opts) {
       <div class="sigil-glyph">${sg.icon}</div>
       <div class="sigil-desc">${sg.desc}</div>
     `;
-    // Idempotency guard — a rapid double-tap was hitting commitSigil
-    // twice, with the second call going through bindSigil's
-    // already-owned LEVEL-UP path, so a fresh bind would end up at
-    // level II or III instead of I.  Disable all sibling cards on
-    // first click so subsequent taps drop silently.
-    card.addEventListener('click', () => {
-      if (card.disabled) return;
+    // Use pointer events directly instead of relying on the synthetic
+    // click — #overlay-content has overflow-y:auto + iOS
+    // momentum-scrolling, which absorbs the click as a candidate
+    // scroll-pan gesture if the finger has any vertical movement
+    // (and natural taps almost always do).  touch-action: manipulation
+    // helps but doesn't fully fix it on all iOS versions.
+    //
+    // pointerdown sets a pressed flag, pointerup fires the action IF
+    // the pointer is still over the card AND no horizontal/vertical
+    // drag happened — same model the action tiles use, just bypassing
+    // the click event entirely.
+    bindTapAsPointer(card, () => {
+      // Idempotency — disable sibling cards so subsequent taps drop
+      // silently while the pick processes.
       Array.from(choices.querySelectorAll('button')).forEach(b => { b.disabled = true; });
       commitSigil(sg.id, continueAfter);
     });
@@ -21734,7 +21784,11 @@ function _showBatchResonanceChoice(s, choices, cont) {
     row.className = 'reso-section-options';
     sec.variants.forEach(variant => {
       const card = sec.kind === 'trio' ? buildTrioCard(variant) : buildDuoCard(variant);
-      card.addEventListener('click', () => {
+      // Use pointer-driven tap detection — the parent #overlay-content
+      // has overflow-y:auto + iOS momentum scrolling, which silently
+      // ate the synthetic click event when players tapped Resonance
+      // pick cards on touch devices.  See bindTapAsPointer.
+      bindTapAsPointer(card, () => {
         // Mark this card as selected, deselect siblings in this section.
         Array.from(row.children).forEach(c => c.classList.remove('reso-card-selected'));
         card.classList.add('reso-card-selected');
@@ -21748,7 +21802,7 @@ function _showBatchResonanceChoice(s, choices, cont) {
   });
   choicesEl.appendChild(sectionsWrap);
   choicesEl.appendChild(continueBtn);
-  continueBtn.addEventListener('click', () => {
+  bindTapAsPointer(continueBtn, () => {
     if (continueBtn.disabled) return;
     // Apply all selections to state.run.chosenResonances + log them.
     s.run.chosenResonances = s.run.chosenResonances || {};
