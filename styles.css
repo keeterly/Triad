@@ -8895,6 +8895,13 @@ button.path-node { cursor: pointer; }
   text-align: left;
   letter-spacing: 0.02em;
   font-size: 11px;
+  /* Same touch-action rationale as .encounter-choice — the parent
+     #overlay-content scrolls on iOS, which silently ate vignette-
+     choice taps before this. */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
   transition: background 0.16s, color 0.16s;
 }
 .vignette-choice:hover {
@@ -9112,6 +9119,20 @@ button.path-node { cursor: pointer; }
   transition: border-color 0.2s, transform 0.15s, box-shadow 0.2s, filter 0.15s;
   display: flex; flex-direction: column; gap: 6px;
   position: relative;
+  /* touch-action: manipulation kills the 300ms tap delay AND prevents
+     the parent #overlay-content (which is overflow-y:auto for the
+     long path/victory screens) from interpreting taps as the start
+     of a scroll gesture.  Players reported choice cards across the
+     game — sigil offers, Resonance picks, vignette choices,
+     wanderer / event picks — silently swallowing taps; root cause
+     was the scroll-pan gesture eating the click on touch devices.
+     -webkit-tap-highlight-color: transparent disables the default
+     iOS gray flash so the card's own :hover/:active styles read
+     cleanly. */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
   box-shadow:
     inset 0 1px 0 rgba(232,220,196,0.08),
     0 4px 16px rgba(0,0,0,0.6);
