@@ -11647,7 +11647,11 @@ body.boss-fight.boss-fight-multi #enemy-half .figure-name {
   display: flex;
   align-items: center;
   justify-content: center;
-  pointer-events: none;
+  /* The overlay used to be non-interactive (auto-dismiss timer did all
+     the work).  Now that there's a Continue button, the root + its
+     children need to capture clicks again.  Hidden state still
+     `display:none`, so this only applies while the intro is up. */
+  pointer-events: auto;
 }
 #boss-intro.hidden { display: none !important; }
 #boss-intro .bi-bg {
