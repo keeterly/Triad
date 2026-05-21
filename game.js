@@ -13202,6 +13202,63 @@ function _checkTrioUnlocks(s, heroA, heroB) {
   });
 }
 
+// Reconcile pass — walks the current party and queues a Resonance
+// choice for every pair / trio that's ALREADY unlocked (bond at
+// Tier II+) but has no chosenResonance entry AND no pending choice.
+// Covers two cases that the per-event _queueResonanceChoice path
+// can miss:
+//   1. The pair crossed Tier II in a fight where the post-fight
+//      cascade was interrupted (e.g. a crash mid-cascade, or
+//      BUG-01's silent throw in spawnToast), so the picker was
+//      never shown.  The generic combo then surfaces on the rail
+//      without the player ever having gotten the choice.
+//   2. The pair carried over from a previous layer with bond
+//      already at Tier II — no new tier-up event fires this layer
+//      to retrigger the picker.
+//
+// Called from the post-fight cascade so any missed unlock surfaces
+// at the next natural beat (post-fight, alongside other Resonance
+// choices that just triggered).
+function _reconcileResonanceUnlocks(s) {
+  if (!s || !s.run || __simulating) return;
+  s.run.chosenResonances = s.run.chosenResonances || {};
+  s.run._pendingResonanceChoices = s.run._pendingResonanceChoices || [];
+  const partyIds = Object.keys(s.party.chars).filter(id => {
+    const c = s.party.chars[id];
+    return c && !c.downed;
+  });
+  // Pair check.
+  for (let i = 0; i < partyIds.length; i++) {
+    for (let j = i + 1; j < partyIds.length; j++) {
+      const a = partyIds[i], b = partyIds[j];
+      if (_pairHasAuthoredCombo(a, b)) continue;
+      const key = adjKey(a, b);
+      if (s.run.chosenResonances[key]) continue;
+      if (s.run._pendingResonanceChoices.some(c => c.kind === 'duo' && c.pairKey === key)) continue;
+      const bondName = bondNameForPair(a, b);
+      const count = s.run.synergyCounts && s.run.synergyCounts[bondName];
+      if (!count || count < BOND_TIER_THRESHOLDS[0]) continue;
+      s.run._pendingResonanceChoices.push({ kind: 'duo', pairKey: key, heroA: a, heroB: b });
+    }
+  }
+  // Trio check.
+  for (let i = 0; i < partyIds.length; i++) {
+    for (let j = i + 1; j < partyIds.length; j++) {
+      for (let k = j + 1; k < partyIds.length; k++) {
+        const trio = [partyIds[i], partyIds[j], partyIds[k]].sort();
+        const trioKey = trio.join('+');
+        if (_trioHasAuthoredCombo(trio)) continue;
+        if (s.run.chosenResonances[trioKey]) continue;
+        if (s.run._pendingResonanceChoices.some(c => c.kind === 'trio' && c.trioKey === trioKey)) continue;
+        const trioCombo = COMBOS[`triad_${trioKey}`];
+        if (!trioCombo) continue;
+        if (!isComboUnlocked(s, trioCombo)) continue;
+        s.run._pendingResonanceChoices.push({ kind: 'trio', trioKey, heroes: trio });
+      }
+    }
+  }
+}
+
 // Is this combo currently unlocked by the run's bond progress?
 // combo.unlockedBy explicit override:
 //   - undefined → auto-derived from requires (the common case)
@@ -15341,6 +15398,13 @@ function checkEnd(s) {
           // the fight to fully clear so the player reads them as a
           // 'post-fight reward' beat, not a combat interruption.
           const handoff = () => {
+            // Reconcile any unlocks the player should have been offered
+            // but missed — pair / trio bonds that are at Tier II+ in
+            // synergyCounts but have no chosenResonance entry AND no
+            // pending choice.  Catches missed picks from a prior fight
+            // (e.g. a cascade interruption) and pairs that carried over
+            // already at Tier II from a previous layer.
+            _reconcileResonanceUnlocks(s);
             if (s.run && s.run._pendingResonanceChoices && s.run._pendingResonanceChoices.length) {
               showResonanceChoice(s, () => offerVignetteOrPath(fightCtx));
             } else {
@@ -16726,17 +16790,12 @@ function renderTeamSpecial() {
       <span class="rc-desc">${combo.desc}</span>
     `;
     btn.title = `Resonance · ${combo.name}: ${combo.desc}`;
-    // Tap commits the Resonance; press-and-hold (>320ms) shows the
-    // figure-highlight preview (which enemies get hit, weakness rings,
-    // etc.) while the finger is down.  Release commits regardless of
-    // whether the preview fired — so a player who held to peek will
-    // STILL fire the combo on release.  To preview-without-committing,
-    // drag the pointer OFF the chip before releasing — pointerleave
-    // suppresses the click that would otherwise commit.
-    //
-    // No preventDefault on pointerdown — that suppresses the synthetic
-    // click on touch, which is what made bindTileHold unreliable
-    // (players got the preview but no commit on release).
+    // Tap commits (via bindTapAsPointer, same belt-and-suspenders path
+    // every other choice button uses now).  Press-and-hold (>320ms)
+    // surfaces the figure-highlight preview while the finger is down.
+    // Dragging off the chip while holding cancels the preview without
+    // committing.  bindTapAsPointer's contact-firing means even iOS
+    // overscroll absorption can't eat the tap.
     let holdTimer = null;
     let leftWhileDown = false;
     const cancelHoldTimer = () => {
@@ -16757,18 +16816,13 @@ function renderTeamSpecial() {
     btn.addEventListener('pointerleave', () => {
       cancelHoldTimer();
       leftWhileDown = true;
-      // Drop the preview a moment after leaving so the player has a
-      // beat to register what they saw before it fades.
       setTimeout(clearChipPreview, 180);
     });
     btn.addEventListener('pointercancel', () => {
       cancelHoldTimer();
       clearChipPreview();
     });
-    btn.addEventListener('click', (e) => {
-      // Drag-away cancels — if the pointer left the chip before release,
-      // click won't fire from the browser, but in case of edge cases on
-      // some browsers, this guard is a fallback.
+    bindTapAsPointer(btn, () => {
       if (leftWhileDown) { leftWhileDown = false; clearChipPreview(); return; }
       if (state.executing || state.over) return;
       cancelHoldTimer();
