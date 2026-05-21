@@ -11315,6 +11315,19 @@ function firstAliveEnemyFrom(s, startIdx) {
 // reach-aware target resolution. `reach` is an array of enemy slot names.
 function enemiesInReach(s, reach) {
   if (!reach) return [];
+  // Solo boss fights — the boss visually occupies all three slots
+  // (front/mid/back collapse into one oversized figure) but mechanically
+  // sits in a single slot, usually front.  Attacks with reach: ['mid']
+  // or ['back'] would otherwise MISS the boss entirely because their
+  // reach doesn't include the slot the boss is actually in.  When the
+  // only alive enemy is flagged boss, every reach resolves to that
+  // boss so 'mid/back-only' attacks still land.
+  const alive = Object.values(s.enemies.chars).filter(e => e && !e.dead);
+  if (alive.length === 1) {
+    const sole = alive[0];
+    const def = sole && ENEMIES[sole.id];
+    if (def && def.boss) return [sole];
+  }
   return SLOTS.filter(sl => reach.includes(sl))
     .map(sl => enemyBySlot(s, sl))
     .filter(e => e && !e.dead);
