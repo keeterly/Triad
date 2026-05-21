@@ -877,6 +877,17 @@ body.on-title:has(#overlay:not(.hidden)) #stage-scale {
   color: var(--gold-bright);
   outline: none;
 }
+#objective-splash .obs-continue:active,
+#objective-splash .obs-continue.pressed {
+  transform: scale(0.96);
+  background: linear-gradient(180deg, rgba(120, 92, 44, 0.95) 0%, rgba(60, 44, 22, 0.96) 100%);
+  border-color: #ffe6a8;
+  color: #fff3c8;
+  box-shadow:
+    0 1px 4px rgba(0, 0, 0, 0.6),
+    inset 0 2px 6px rgba(0, 0, 0, 0.5),
+    0 0 12px rgba(255, 230, 168, 0.45);
+}
 #objective-splash .obs-hint {
   font-size: 11.5px;
   line-height: 1.5;
@@ -3811,8 +3822,20 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
   color: var(--gold-bright);
   outline: none;
 }
-#quirk-award .qa-continue:active {
-  transform: translateY(1px);
+/* Press feedback — flash brighter + shrink slightly so a tap feels
+   acknowledged before the dismiss animation starts.  On touch
+   devices :hover doesn't fire so :active is the only state the
+   player sees. */
+#quirk-award .qa-continue:active,
+#quirk-award .qa-continue.pressed {
+  transform: scale(0.96);
+  background: linear-gradient(180deg, rgba(120, 92, 44, 0.95) 0%, rgba(60, 44, 22, 0.96) 100%);
+  border-color: #ffe6a8;
+  color: #fff3c8;
+  box-shadow:
+    0 1px 4px rgba(0, 0, 0, 0.6),
+    inset 0 2px 6px rgba(0, 0, 0, 0.5),
+    0 0 12px rgba(255, 230, 168, 0.45);
 }
 
 /* ===========================================================================
@@ -4782,6 +4805,17 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
   border-color: var(--gold-bright);
   color: var(--gold-bright);
   outline: none;
+}
+.achievement-fanfare .ach-continue:active,
+.achievement-fanfare .ach-continue.pressed {
+  transform: scale(0.94);
+  background: linear-gradient(180deg, rgba(120, 92, 44, 0.95) 0%, rgba(60, 44, 22, 0.96) 100%);
+  border-color: #ffe6a8;
+  color: #fff3c8;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.6),
+    inset 0 2px 5px rgba(0, 0, 0, 0.5),
+    0 0 10px rgba(255, 230, 168, 0.4);
 }
 
 /* Achievement codex row — shares the codex-row layout but uses a
@@ -11771,8 +11805,18 @@ body.boss-fight.boss-fight-multi #enemy-half .figure-name {
   color: #ffe6dc;
   outline: none;
 }
-#boss-intro .bi-continue:active {
-  transform: translateY(1px);
+/* Press feedback — same shape as the qa-continue press but tinted
+   with the boss-intro's blood-red palette. */
+#boss-intro .bi-continue:active,
+#boss-intro .bi-continue.pressed {
+  transform: scale(0.96);
+  background: linear-gradient(180deg, rgba(180, 50, 50, 0.95) 0%, rgba(80, 18, 18, 0.96) 100%);
+  border-color: #ffb8a8;
+  color: #ffece4;
+  box-shadow:
+    0 1px 4px rgba(0, 0, 0, 0.6),
+    inset 0 2px 6px rgba(0, 0, 0, 0.5),
+    0 0 14px rgba(255, 120, 120, 0.55);
 }
 @keyframes bi-continue-in {
   from { opacity: 0; transform: translateY(6px); }

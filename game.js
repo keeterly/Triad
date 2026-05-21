@@ -7712,7 +7712,17 @@ function _showAwardBackdrop({ cls, eyebrow, name, reason, flavor, desc, portrait
   // on, especially the Affinity / Affliction beats which carry the
   // run's narrative weight.
   const cont = backdrop.querySelector('.qa-continue');
-  if (cont) cont.addEventListener('click', (e) => { e.stopPropagation(); dismiss(); });
+  if (cont) cont.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (Audio && typeof Audio.ui === 'function') Audio.ui();
+    // Brief programmatic press flash — :active alone is only visible
+    // while the finger is held down, which on a fast tap can be
+    // <50ms (i.e. invisible).  Adding 'pressed' for ~140ms gives
+    // the player a clear 'click registered' cue before the card
+    // fades out.
+    cont.classList.add('pressed');
+    setTimeout(dismiss, 140);
+  });
   backdrop.addEventListener('click', dismiss);
 }
 
@@ -10065,7 +10075,12 @@ function _showAchievementFanfare(def) {
     setTimeout(() => { if (card.isConnected) card.remove(); }, 500);
   };
   const btn = card.querySelector('.ach-continue');
-  if (btn) btn.addEventListener('click', (e) => { e.stopPropagation(); dismiss(); });
+  if (btn) btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (Audio && typeof Audio.ui === 'function') Audio.ui();
+    btn.classList.add('pressed');
+    setTimeout(dismiss, 140);
+  });
   card.addEventListener('click', dismiss);
 }
 
@@ -14876,7 +14891,12 @@ function showObjectiveSplash(obj) {
   // objective splashes carry the rules for the fight and players
   // asked to read them at their own pace.
   const btn = root.querySelector('.obs-continue');
-  if (btn) btn.addEventListener('click', (e) => { e.stopPropagation(); dismiss(); });
+  if (btn) btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (Audio && typeof Audio.ui === 'function') Audio.ui();
+    btn.classList.add('pressed');
+    setTimeout(dismiss, 140);
+  });
   root.addEventListener('pointerdown', (e) => {
     if (e.target.closest('.obs-continue')) return;
     e.preventDefault();
@@ -16986,7 +17006,12 @@ function showBossIntro(opts, then) {
     const card = root.querySelector('.bi-content') || root;
     card.appendChild(btn);
   }
-  btn.onclick = (e) => { e.stopPropagation(); dismiss(); };
+  btn.onclick = (e) => {
+    e.stopPropagation();
+    if (Audio && typeof Audio.ui === 'function') Audio.ui();
+    btn.classList.add('pressed');
+    setTimeout(dismiss, 140);
+  };
   // Tap anywhere on the backdrop also dismisses, for fast-skip flow.
   root.onclick = dismiss;
 }
