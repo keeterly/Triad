@@ -7677,6 +7677,7 @@ function _showAwardBackdrop({ cls, eyebrow, name, reason, flavor, desc, portrait
       ${reasonMarkup}
       ${flavorMarkup}
       ${descMarkup}
+      <button class="qa-continue qa-row" type="button">Continue</button>
     </div>
   `;
   document.body.appendChild(backdrop);
@@ -7704,17 +7705,15 @@ function _showAwardBackdrop({ cls, eyebrow, name, reason, flavor, desc, portrait
       setTimeout(cb, 200);
     }
   };
+  // Tap anywhere on the backdrop OR the explicit Continue button to
+  // advance.  The Continue button is the discoverable affordance — the
+  // backdrop click is a power-user shortcut.  No auto-dismiss timer:
+  // players asked for the reveals to wait until they're ready to read
+  // on, especially the Affinity / Affliction beats which carry the
+  // run's narrative weight.
+  const cont = backdrop.querySelector('.qa-continue');
+  if (cont) cont.addEventListener('click', (e) => { e.stopPropagation(); dismiss(); });
   backdrop.addEventListener('click', dismiss);
-  // Hold long enough to read but don't dwell — these used to auto-hold
-  // 4-5s which dominated the post-fight flow.  Tap-to-dismiss is fast
-  // for players who already read it, so the auto-dismiss timer just
-  // needs to cover "glanced at it, processed it".  Roughly halved
-  // across the matrix; reveal cascade alone is ~700ms.
-  const base = portraitId
-    ? (flavor ? 2400 : 1800)
-    : (flavor ? 1800 : 1400);
-  const holdMs = base + (reason ? 500 : 0);
-  setTimeout(dismiss, holdMs);
 }
 
 // Pick a random quirk of a given polarity (positive | negative | any).
@@ -16889,14 +16888,41 @@ function showBossIntro(opts, then) {
   root.classList.remove('hidden');
   root.classList.add('intro');
   Audio.kill(); // low ominous stinger reused
-  setTimeout(() => {
+  // Inject a Continue button so the player can dwell on the boss
+  // intro as long as they want before combat starts.  Auto-dismiss
+  // was 1.3s which is enough to read the eyebrow + name but cuts
+  // off players who want to absorb the tag line.  Tap-anywhere on
+  // the backdrop still skips for speed-runners.
+  let dismissed = false;
+  const dismiss = () => {
+    if (dismissed) return;
+    dismissed = true;
     root.classList.add('out');
     setTimeout(() => {
       root.classList.add('hidden');
       root.classList.remove('intro', 'out');
+      // Remove the injected button so the next boss intro builds
+      // a fresh one (the bi-content children persist between
+      // encounters since this overlay is shared DOM).
+      const btn = root.querySelector('.bi-continue');
+      if (btn) btn.remove();
+      root.onclick = null;
       if (then) then();
     }, 500);
-  }, 1300);
+  };
+  // Build (or refresh) the Continue button inside the boss-intro card.
+  let btn = root.querySelector('.bi-continue');
+  if (!btn) {
+    btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'bi-continue';
+    btn.textContent = 'Continue';
+    const card = root.querySelector('.bi-content') || root;
+    card.appendChild(btn);
+  }
+  btn.onclick = (e) => { e.stopPropagation(); dismiss(); };
+  // Tap anywhere on the backdrop also dismisses, for fast-skip flow.
+  root.onclick = dismiss;
 }
 
 // Defeat moment: mirrors the boss-kill spectacle in reverse — the stage

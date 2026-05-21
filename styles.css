@@ -3744,11 +3744,49 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
 #quirk-award .qa-row:nth-of-type(2) { animation-delay: 0.25s; }
 #quirk-award .qa-row:nth-of-type(3) { animation-delay: 0.45s; }
 #quirk-award .qa-row:nth-of-type(4) { animation-delay: 0.62s; }
+#quirk-award .qa-row:nth-of-type(5) { animation-delay: 0.78s; }
+#quirk-award .qa-row:nth-of-type(6) { animation-delay: 0.92s; }
 @keyframes qa-row-in {
   from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 .qa-backdrop.qa-out #quirk-award .qa-row { animation: none; opacity: 1; }
+
+/* Continue button — sits below the description rows, lets the player
+   advance the reveal at their own pace.  Auto-dismiss timer was
+   removed; this is the only way forward (or a tap on the backdrop
+   anywhere outside the button).  Styled as a quiet gold pill so it
+   reads as 'advance' without competing with the qa-name headline. */
+#quirk-award .qa-continue {
+  margin-top: 14px;
+  align-self: center;
+  padding: 7px 22px;
+  background: linear-gradient(180deg, rgba(50, 40, 24, 0.88) 0%, rgba(20, 16, 10, 0.92) 100%);
+  border: 1px solid rgba(212, 200, 168, 0.45);
+  border-radius: 2px;
+  color: var(--gold-pale);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  font-family: inherit;
+  cursor: pointer;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.7);
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(232, 220, 196, 0.08);
+  transition: background 0.18s ease-out, border-color 0.18s ease-out, color 0.18s ease-out;
+}
+#quirk-award .qa-continue:hover,
+#quirk-award .qa-continue:focus-visible {
+  background: linear-gradient(180deg, rgba(80, 60, 30, 0.92) 0%, rgba(40, 30, 16, 0.95) 100%);
+  border-color: var(--gold-bright);
+  color: var(--gold-bright);
+  outline: none;
+}
+#quirk-award .qa-continue:active {
+  transform: translateY(1px);
+}
 
 /* ===========================================================================
    COMBAT BARKS — short hero quotes that float over the figure.
@@ -11639,6 +11677,49 @@ body.boss-fight.boss-fight-multi #enemy-half .figure-name {
   gap: 6px;
   animation: bi-content-in 0.55s cubic-bezier(.18,.89,.32,1) forwards;
 }
+/* Boss-intro continue button — injected by showBossIntro.  Matches
+   the quirk-award Continue but tinted with the boss's blood-red
+   palette so the affordance feels of-a-piece with the rest of the
+   intro card. */
+#boss-intro .bi-continue {
+  margin-top: 18px;
+  padding: 8px 26px;
+  background: linear-gradient(180deg, rgba(60, 16, 16, 0.85) 0%, rgba(24, 8, 8, 0.92) 100%);
+  border: 1px solid rgba(220, 80, 80, 0.55);
+  border-radius: 2px;
+  color: rgba(255, 220, 200, 0.92);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  font-family: inherit;
+  cursor: pointer;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.7);
+  box-shadow:
+    0 4px 14px rgba(80, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 200, 200, 0.08);
+  /* Fades in after the eyebrow / name / tag have settled so the
+     reveal cascade still feels cinematic before the affordance
+     surfaces. */
+  opacity: 0;
+  animation: bi-continue-in 0.5s ease-out 1.1s forwards;
+  transition: background 0.18s ease-out, border-color 0.18s ease-out, color 0.18s ease-out;
+}
+#boss-intro .bi-continue:hover,
+#boss-intro .bi-continue:focus-visible {
+  background: linear-gradient(180deg, rgba(120, 30, 30, 0.92) 0%, rgba(50, 14, 14, 0.95) 100%);
+  border-color: var(--blood-bright);
+  color: #ffe6dc;
+  outline: none;
+}
+#boss-intro .bi-continue:active {
+  transform: translateY(1px);
+}
+@keyframes bi-continue-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+#boss-intro.out .bi-continue { animation: none; opacity: 0; transition: opacity 0.2s ease-out; }
 #boss-intro.out .bi-content { animation: bi-content-out 0.4s ease-out forwards; }
 @keyframes bi-content-in {
   0%   { opacity: 0; transform: translateY(8px); }
