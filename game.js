@@ -8966,6 +8966,183 @@ function hasUnboundSigilIn(s, list) {
 // whether the pair is offensive, defensive, restorative, etc.  Friction
 // pairs always read 'dmg' since they're a damage penalty.
 const ADJ = {
+  // ===== Kai's bonds — the default starter needed to actually FORM
+  // kizuna with the heroes he most commonly recruits.  Before these
+  // were authored, Kai only paired with Nira and Tarn (both recruit-
+  // only late-game), so a typical Kai-led party went whole runs with
+  // zero bond fires.  Each entry defines BOTH fm and mb so the bond
+  // works whether Kai is at front and the partner at mid (FM), or
+  // Kai is shoved to mid and the partner is at back (MB), etc.
+  'cassia+kai': {
+    fm: {
+      name: 'Sword and Banner', type: 'bond', effect: 'dmg',
+      // Cassia braces / grants armor → Kai's next swing gets +1 atk.
+      // Two front-line fighters, one carrying the shield, the other
+      // free to strike past it.
+      onArmorGrant(s, granterId) {
+        if (granterId !== 'cassia') return;
+        const k = s.party.chars.kai;
+        if (!k || k.downed) return;
+        if (k.pendingEffects.some(e => e.source === 'sword-banner')) return;
+        const amt = bondTierBonus(s, 'Sword and Banner', 1);
+        k.pendingEffects.push({ kind: 'attackBonus', amt, source: 'sword-banner' });
+        fireSynergyFeedback(s, 'Sword and Banner', 'kai', `+${amt} atk`, 'armor');
+      },
+    },
+    mb: {
+      name: 'Sword and Banner', type: 'bond', effect: 'dmg',
+      onArmorGrant(s, granterId) {
+        if (granterId !== 'cassia') return;
+        const k = s.party.chars.kai;
+        if (!k || k.downed) return;
+        if (k.pendingEffects.some(e => e.source === 'sword-banner')) return;
+        const amt = bondTierBonus(s, 'Sword and Banner', 1);
+        k.pendingEffects.push({ kind: 'attackBonus', amt, source: 'sword-banner' });
+        fireSynergyFeedback(s, 'Sword and Banner', 'kai', `+${amt} atk`, 'armor');
+      },
+    },
+  },
+  'elin+kai': {
+    fm: {
+      name: 'First Mercy', type: 'bond', effect: 'dmg',
+      // Elin patches Kai up → Kai swings back harder.  The healer-and-
+      // sword loop that defines Kai's whole arc.
+      onHeal(s, healerId) {
+        if (healerId !== 'elin') return;
+        const k = s.party.chars.kai;
+        if (!k || k.downed) return;
+        if (k.pendingEffects.some(eff => eff.source === 'first-mercy')) return;
+        const amt = bondTierBonus(s, 'First Mercy', 2);
+        k.pendingEffects.push({ kind: 'attackBonus', amt, source: 'first-mercy' });
+        fireSynergyFeedback(s, 'First Mercy', 'kai', `+${amt} atk`, 'heal');
+      },
+    },
+    mb: {
+      name: 'First Mercy', type: 'bond', effect: 'dmg',
+      onHeal(s, healerId) {
+        if (healerId !== 'elin') return;
+        const k = s.party.chars.kai;
+        if (!k || k.downed) return;
+        if (k.pendingEffects.some(eff => eff.source === 'first-mercy')) return;
+        const amt = bondTierBonus(s, 'First Mercy', 2);
+        k.pendingEffects.push({ kind: 'attackBonus', amt, source: 'first-mercy' });
+        fireSynergyFeedback(s, 'First Mercy', 'kai', `+${amt} atk`, 'heal');
+      },
+    },
+  },
+  'branwen+kai': {
+    fm: {
+      name: 'Long Hunt', type: 'bond', effect: 'dmg',
+      // Branwen names her arrow → Kai's next swing follows the line
+      // she opened.  Old hunting pair.
+      onAttack(s, attackerId) {
+        if (attackerId !== 'branwen') return;
+        const k = s.party.chars.kai;
+        if (!k || k.downed) return;
+        if (k.pendingEffects.some(eff => eff.source === 'long-hunt')) return;
+        const amt = bondTierBonus(s, 'Long Hunt', 1);
+        k.pendingEffects.push({ kind: 'attackBonus', amt, source: 'long-hunt' });
+        fireSynergyFeedback(s, 'Long Hunt', 'kai', `+${amt} atk`, 'armor');
+      },
+    },
+    mb: {
+      name: 'Long Hunt', type: 'bond', effect: 'dmg',
+      onAttack(s, attackerId) {
+        if (attackerId !== 'branwen') return;
+        const k = s.party.chars.kai;
+        if (!k || k.downed) return;
+        if (k.pendingEffects.some(eff => eff.source === 'long-hunt')) return;
+        const amt = bondTierBonus(s, 'Long Hunt', 1);
+        k.pendingEffects.push({ kind: 'attackBonus', amt, source: 'long-hunt' });
+        fireSynergyFeedback(s, 'Long Hunt', 'kai', `+${amt} atk`, 'armor');
+      },
+    },
+  },
+  'kai+korin': {
+    fm: {
+      name: 'Same Edge', type: 'bond', effect: 'dmg',
+      // Korin's frenzy → Kai matches it.  Two warriors, one path.
+      onAttack(s, attackerId) {
+        if (attackerId !== 'korin') return;
+        const k = s.party.chars.kai;
+        if (!k || k.downed) return;
+        if (k.pendingEffects.some(eff => eff.source === 'same-edge')) return;
+        const amt = bondTierBonus(s, 'Same Edge', 1);
+        k.pendingEffects.push({ kind: 'attackBonus', amt, source: 'same-edge' });
+        fireSynergyFeedback(s, 'Same Edge', 'kai', `+${amt} atk`, 'armor');
+      },
+    },
+    mb: {
+      name: 'Same Edge', type: 'bond', effect: 'dmg',
+      onAttack(s, attackerId) {
+        if (attackerId !== 'korin') return;
+        const k = s.party.chars.kai;
+        if (!k || k.downed) return;
+        if (k.pendingEffects.some(eff => eff.source === 'same-edge')) return;
+        const amt = bondTierBonus(s, 'Same Edge', 1);
+        k.pendingEffects.push({ kind: 'attackBonus', amt, source: 'same-edge' });
+        fireSynergyFeedback(s, 'Same Edge', 'kai', `+${amt} atk`, 'armor');
+      },
+    },
+  },
+  'kai+mira': {
+    fm: {
+      name: 'Quiet Strike', type: 'bond', effect: 'dmg',
+      // Mira opens a bleeding wound → Kai presses the cut.
+      onAttack(s, attackerId, e) {
+        if (attackerId !== 'mira') return;
+        if (!e || e.dead) return;
+        const k = s.party.chars.kai;
+        if (!k || k.downed) return;
+        if (k.pendingEffects.some(eff => eff.source === 'quiet-strike')) return;
+        const amt = bondTierBonus(s, 'Quiet Strike', 1);
+        k.pendingEffects.push({ kind: 'attackBonus', amt, source: 'quiet-strike' });
+        fireSynergyFeedback(s, 'Quiet Strike', 'kai', `+${amt} atk`, 'armor');
+      },
+    },
+    mb: {
+      name: 'Quiet Strike', type: 'bond', effect: 'dmg',
+      onAttack(s, attackerId, e) {
+        if (attackerId !== 'mira') return;
+        if (!e || e.dead) return;
+        const k = s.party.chars.kai;
+        if (!k || k.downed) return;
+        if (k.pendingEffects.some(eff => eff.source === 'quiet-strike')) return;
+        const amt = bondTierBonus(s, 'Quiet Strike', 1);
+        k.pendingEffects.push({ kind: 'attackBonus', amt, source: 'quiet-strike' });
+        fireSynergyFeedback(s, 'Quiet Strike', 'kai', `+${amt} atk`, 'armor');
+      },
+    },
+  },
+  'ash+kai': {
+    fm: {
+      name: 'Steel and Spark', type: 'bond', effect: 'dmg',
+      // Ash applies vuln → Kai's next swing presses it.
+      onAttack(s, attackerId, e) {
+        if (attackerId !== 'ash') return;
+        if (!e || e.dead) return;
+        const k = s.party.chars.kai;
+        if (!k || k.downed) return;
+        if (k.pendingEffects.some(eff => eff.source === 'steel-spark')) return;
+        const amt = bondTierBonus(s, 'Steel and Spark', 1);
+        k.pendingEffects.push({ kind: 'attackBonus', amt, source: 'steel-spark' });
+        fireSynergyFeedback(s, 'Steel and Spark', 'kai', `+${amt} atk`, 'armor');
+      },
+    },
+    mb: {
+      name: 'Steel and Spark', type: 'bond', effect: 'dmg',
+      onAttack(s, attackerId, e) {
+        if (attackerId !== 'ash') return;
+        if (!e || e.dead) return;
+        const k = s.party.chars.kai;
+        if (!k || k.downed) return;
+        if (k.pendingEffects.some(eff => eff.source === 'steel-spark')) return;
+        const amt = bondTierBonus(s, 'Steel and Spark', 1);
+        k.pendingEffects.push({ kind: 'attackBonus', amt, source: 'steel-spark' });
+        fireSynergyFeedback(s, 'Steel and Spark', 'kai', `+${amt} atk`, 'armor');
+      },
+    },
+  },
   'cassia+elin': {
     fm: {
       name: "Sister's Watch", type: 'bond', effect: 'resolve',
@@ -12293,6 +12470,16 @@ function _bondArmorHero(s, charId, amt) {
 // applies the side effect.  Authored thematically: healing bonds heal
 // extra, armor bonds armor extra, attack bonds buy Resolve, etc.
 const BOND_TIER3_CLAUSES = {
+  // ===== Kai's bonds — RESONANT III clauses for the default-starter
+  // partnerships.  Each pays off with a small clause tied to the
+  // bond's thematic loop (warrior with healer = heal, warrior with
+  // warrior = HP top-up, warrior with caster = Resolve carry).
+  'Sword and Banner': { text: 'cleanse Kai',  fn: (s) => _bondCleanseHero(s, 'kai') },
+  'First Mercy':      { text: '+1 hp Kai',    fn: (s) => _bondHealHero(s, 'kai', 1) },
+  'Long Hunt':        { text: '+1 Resolve',   fn: (s) => gainResolve(s, 1) },
+  'Same Edge':        { text: '+1 hp Kai',    fn: (s) => _bondHealHero(s, 'kai', 1) },
+  'Quiet Strike':     { text: '+1 Resolve',   fn: (s) => gainResolve(s, 1) },
+  'Steel and Spark':  { text: '+1 Resolve',   fn: (s) => gainResolve(s, 1) },
   // Cassia + Elin loop — armor / healing bond resonates as cleansing
   // and mutual reinforcement.
   'Veiled Vow':         { text: 'cleanse',       fn: (s) => _bondCleanseHero(s, 'cassia') },
