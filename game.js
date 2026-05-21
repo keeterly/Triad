@@ -16683,13 +16683,18 @@ function renderTeamSpecial() {
       <span class="rc-desc">${combo.desc}</span>
     `;
     btn.title = `Resonance · ${combo.name}: ${combo.desc}`;
-    // Press-and-hold previews the combo's targets — same affordance as
-    // action tiles.  Short tap commits the Resonance.  Combo fns are
-    // arbitrary effects so the preview is built by dry-running on a
-    // queue-aware clone and diffing the result (see previewComboTargets).
-    bindTileHold(btn, {
-      onQueue: () => commitCombo(combo.id),
-      onPreview: () => previewComboTargets(combo.id),
+    // Direct click handler — bindTileHold's pointerdown preventDefault
+    // was eating the synthetic click on touch devices, and players
+    // reading the chip's desc would naturally hold long enough to
+    // trigger preview-mode instead of tap-to-commit.  The chip already
+    // shows its desc inline (rc-desc), so the figure-highlight preview
+    // on hold is bonus — losing it for a reliable tap is the better
+    // trade.  Players who want target preview can press-and-hold an
+    // ACTION tile (where bindTileHold still applies) to dry-run before
+    // committing the Resonance.
+    btn.addEventListener('click', () => {
+      if (state.executing || state.over) return;
+      commitCombo(combo.id);
     });
     area.appendChild(btn);
   });
@@ -16888,7 +16893,13 @@ function getPreviewState() {
 // can render it without special-casing.
 function previewComboTargets(comboId) {
   const empty = { enemySlots: [], partySlots: [], enemyHits: [], partyHeals: [], moveSlots: [], weaknessSlots: [], staggerSlots: [], element: null, sigilIds: [] };
-  const combo = COMBOS[comboId];
+  // Same lookup chain as executeQueueItem — chosen Resonance variants
+  // live in state.run.chosenResonances, not in the static COMBOS table.
+  // Without this fallback the preview shows nothing when the player
+  // holds a chosen-variant chip (no enemy highlights, no damage tags).
+  const combo = COMBOS[comboId]
+    || (state && state.run && state.run.chosenResonances
+          && Object.values(state.run.chosenResonances).find(v => v && v.id === comboId));
   if (!combo || typeof combo.fn !== 'function') return empty;
   let clone;
   try { clone = structuredClone(state); }

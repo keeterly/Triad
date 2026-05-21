@@ -11005,6 +11005,16 @@ body.cine-stage-open #stage::after {
   font-family: inherit;
   cursor: pointer;
   pointer-events: auto;
+  /* touch-action: manipulation kills the 300ms tap delay + double-tap
+     gesture detection that some mobile browsers add by default.  Without
+     this, the chip's bindTileHold pointerdown handler can register but
+     the pointerup that should fire onQueue gets eaten by the browser's
+     synthetic-click suppression.  Players reported the chip 'not
+     pressable' on touch devices even though pointer events looked fine. */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
   position: relative;
   animation: resonance-pulse 2.4s ease-in-out infinite;
   text-align: left;
