@@ -21313,47 +21313,78 @@ function offerWandererSigil(wandererId, onDone) {
   });
 }
 
-// Bind a pointer-driven tap detector to an element.  Bypasses the
-// synthetic click event, which iOS's overflow-scrolling absorbs
-// when the parent #overlay-content is scrollable.  Fires `handler`
-// on a pointerup that came from a pointerdown on the same element
-// with less than TAP_SLOP px of motion in between.
+// Bind a tap detector that fires `handler` on the first of several
+// signals: pointerup (covers desktop mouse), touchend (covers iOS
+// even when overscroll-pan would suppress the synthetic click),
+// or click (legacy / accessibility paths).  A consumed-flag guards
+// against double-fire when multiple events arrive for the same tap.
 //
-// Used for all choice cards inside scrollable overlay-content
-// (sigil offers, Resonance picks, vignette choices) where the
-// regular click handler stopped firing reliably on touch devices.
+// Used for choice cards inside scrollable overlay-content where the
+// browser's gesture system absorbs the click as a candidate scroll
+// gesture and the regular addEventListener('click', …) silently
+// drops on touch devices.  touchend fires reliably as a raw signal
+// even when the click is eaten.
 function bindTapAsPointer(el, handler) {
-  const TAP_SLOP = 10;
+  const TAP_SLOP = 12;
   let pressed = false;
   let downX = 0, downY = 0;
   let consumed = false;
+  const fire = (e) => {
+    if (consumed) return;
+    if (el.disabled) return;
+    consumed = true;
+    if (e && typeof e.preventDefault === 'function') {
+      try { e.preventDefault(); } catch (_) {}
+    }
+    try { handler(); } finally {
+      setTimeout(() => { consumed = false; }, 200);
+    }
+  };
+  // Pointer-events path — disarm on motion / leave so an
+  // accidental drag doesn't fire the handler on release.
   el.addEventListener('pointerdown', (e) => {
     if (el.disabled) return;
     pressed = true;
-    downX = e.clientX;
-    downY = e.clientY;
+    downX = e.clientX || 0;
+    downY = e.clientY || 0;
   });
   el.addEventListener('pointermove', (e) => {
     if (!pressed) return;
-    const dx = Math.abs(e.clientX - downX);
-    const dy = Math.abs(e.clientY - downY);
+    const dx = Math.abs((e.clientX || 0) - downX);
+    const dy = Math.abs((e.clientY || 0) - downY);
     if (dx > TAP_SLOP || dy > TAP_SLOP) pressed = false;
   });
-  el.addEventListener('pointerleave',  () => { pressed = false; });
   el.addEventListener('pointercancel', () => { pressed = false; });
-  el.addEventListener('pointerup', () => {
-    if (!pressed || consumed) return;
+  el.addEventListener('pointerup', (e) => { if (pressed) fire(e); pressed = false; });
+  // Touch fallback — iOS Safari sometimes suppresses pointerup when
+  // overscroll-pan absorbs the gesture, but touchend still fires.
+  // Track touch position so we can apply the same slop guard.
+  let touchStartX = 0, touchStartY = 0, touchActive = false;
+  el.addEventListener('touchstart', (e) => {
     if (el.disabled) return;
-    pressed = false;
-    consumed = true;
-    try { handler(); }
-    finally {
-      // Re-arm after a tick so a re-rendered overlay can re-use
-      // the same handler if needed.  Most call sites disable the
-      // element anyway, so this is defensive.
-      setTimeout(() => { consumed = false; }, 0);
+    touchActive = true;
+    if (e.touches && e.touches[0]) {
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
     }
+  }, { passive: true });
+  el.addEventListener('touchmove', (e) => {
+    if (!touchActive) return;
+    if (e.touches && e.touches[0]) {
+      const dx = Math.abs(e.touches[0].clientX - touchStartX);
+      const dy = Math.abs(e.touches[0].clientY - touchStartY);
+      if (dx > TAP_SLOP || dy > TAP_SLOP) touchActive = false;
+    }
+  }, { passive: true });
+  el.addEventListener('touchcancel', () => { touchActive = false; });
+  el.addEventListener('touchend', (e) => {
+    if (touchActive) fire(e);
+    touchActive = false;
   });
+  // Click fallback — desktop mouse + accessibility (keyboard Enter
+  // synthesizes click).  Most touch paths fire pointerup or
+  // touchend first; this is the catch-all.
+  el.addEventListener('click', fire);
 }
 
 function showSigilOverlay(offers, onDone, opts) {

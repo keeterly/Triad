@@ -9137,6 +9137,28 @@ button.path-node { cursor: pointer; }
     inset 0 1px 0 rgba(232,220,196,0.08),
     0 4px 16px rgba(0,0,0,0.6);
 }
+
+/* iOS overflow-scrolling absorption — overlays that don't need to
+   scroll (sigil offers, resonance picks, vignettes, recruit, event,
+   forge) get overflow:visible so the parent doesn't claim taps as
+   scroll candidates.  Path map and run summary KEEP overflow:auto
+   because those screens legitimately need to scroll on small
+   viewports. */
+#overlay.overlay-sigil      #overlay-content,
+#overlay.overlay-vignette   #overlay-content,
+#overlay.overlay-resonance  #overlay-content,
+#overlay.overlay-recruit    #overlay-content,
+#overlay.overlay-event      #overlay-content,
+#overlay.overlay-forge      #overlay-content,
+#overlay.overlay-upgrade    #overlay-content,
+#overlay.overlay-starter    #overlay-content,
+#overlay.overlay-boon       #overlay-content,
+#overlay.overlay-rest       #overlay-content,
+#overlay.overlay-wanderer   #overlay-content {
+  overflow-y: visible;
+  overflow-x: visible;
+  -webkit-overflow-scrolling: auto;
+}
 .encounter-choice::before, .encounter-choice::after {
   content: '';
   position: absolute;
