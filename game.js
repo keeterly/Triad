@@ -7671,7 +7671,15 @@ function spawnToast(opts) {
   const track = _ensureToastTrack();
   const t = document.createElement('div');
   t.className = `toast toast-${opts.category || 'info'}`;
-  if (opts.cls) t.classList.add(opts.cls);
+  // BUG-01 fix: classList.add() throws InvalidCharacterError if any
+  // argument contains a space.  Several callers pass multi-class
+  // strings (e.g. showSigilAward → 'qa-sigil cat-combat').  The throw
+  // was being swallowed by bindTapAsPointer's try/catch, leaving the
+  // overlay 'stuck' because the bind path never reached hideOverlay.
+  // Split on whitespace and add each token individually.
+  if (opts.cls) {
+    String(opts.cls).split(/\s+/).filter(Boolean).forEach(c => t.classList.add(c));
+  }
   // Portrait — accepts a heroId / sigil glyph SVG / inline svg string.
   // Falls back to the eyebrow's first character glyph when nothing's
   // provided (achievements use a star glyph).
@@ -16112,6 +16120,28 @@ function makePartyCard(c, slot, threatened, adjMap, incoming) {
   `;
 
   bindFigureHold(fig, c.id, true);
+  // BUG-02 fix: the ‹ / › move arrows above the figure used to be a
+  // legacy 'aim path' — drag the held figure over them to commit a
+  // move.  They looked tappable but had no click handler, so casual
+  // taps did nothing.  Wire them up as real buttons so movement is
+  // discoverable without the drag gesture.  pickMoveDir queues a
+  // move action that resolves on FIGHT, same as the drag path.
+  //
+  // stopPropagation on pointerdown so the underlying figure's hold
+  // detector doesn't ALSO fire from the same tap (which would start
+  // the pick-up-and-drag gesture on top of the move command).
+  fig.querySelectorAll('.move-arrow').forEach(btn => {
+    const stopBubble = (e) => { try { e.stopPropagation(); } catch (_) {} };
+    btn.addEventListener('pointerdown', stopBubble);
+    btn.addEventListener('touchstart', stopBubble, { passive: true });
+    btn.addEventListener('mousedown', stopBubble);
+    bindTapAsPointer(btn, () => {
+      if (state.over || state.executing) return;
+      if (c.downed) return;
+      const dir = parseInt(btn.dataset.dir, 10);
+      if (Number.isFinite(dir)) pickMoveDir(c.id, dir);
+    });
+  });
   return fig;
 }
 
@@ -17211,6 +17241,15 @@ function bindTileHold(tile, handlers) {
   tile.addEventListener('pointerleave', cancel);
   tile.addEventListener('pointercancel', cancel);
   tile.addEventListener('contextmenu',  (e) => e.preventDefault());
+  // BUG-03 fix: click fallback for accessibility tools / automation /
+  // keyboard activation (Enter on a focused button synthesizes a click
+  // but not pointer events).  Guarded by active+previewing so a real
+  // pointer-driven press doesn't double-fire.
+  tile.addEventListener('click', (e) => {
+    if (active || previewing) return; // pointer path already handled it
+    if (tile.disabled || state.over || state.executing) return;
+    handlers.onQueue();
+  });
 }
 
 function applyPreviewHighlight({ enemySlots, partySlots, enemyHits, partyHeals, moveSlots, weaknessSlots, staggerSlots, element, sigilIds }) {
@@ -17804,6 +17843,16 @@ function bindNodeHoldOrTap(el, node, onCommit) {
     if (!downPos) return;
     const dx = e.clientX - downPos.x, dy = e.clientY - downPos.y;
     if (dx*dx + dy*dy > 100) { cancelTimer(); }
+  });
+  // BUG-04 fix: click fallback for accessibility tools / automation /
+  // keyboard activation.  triggered=true means the long-press tooltip
+  // fired (player is browsing, not committing) — suppress the click
+  // there.  downPos==null means the pointer path already handled
+  // pointerup → onCommit.  Otherwise fire commit from click directly.
+  el.addEventListener('click', () => {
+    if (triggered) { triggered = false; return; }
+    if (downPos) return; // pointer path will handle / has handled
+    if (typeof onCommit === 'function') onCommit();
   });
 }
 
