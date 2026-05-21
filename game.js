@@ -21338,21 +21338,15 @@ function offerWandererSigil(wandererId, onDone) {
 // drops on touch devices.  touchend fires reliably as a raw signal
 // even when the click is eaten.
 function bindTapAsPointer(el, handler) {
-  // Belt-and-suspenders tap binding.  Multiple iterations of more
-  // 'correct' implementations all failed to land for some players on
-  // overlay choice cards.  This version binds to EVERY event that
-  // could plausibly signal a tap, guarded by a 250ms 'guarded' flag
-  // so the same tap doesn't fire the handler more than once.
-  //
-  // Bindings:
-  //   - onclick property (primitive, bypasses any addEventListener
-  //     ordering quirks)
-  //   - click event (addEventListener for desktop / accessibility)
-  //   - touchend (iOS raw tap, fires even when overscroll-pan
-  //     absorbs the synthetic click)
-  //   - pointerup (modern pointer events for stylus / mixed input)
-  //
-  // Any one of these firing wins; the others get short-circuited.
+  // Fires on the EARLIEST contact signal — pointerdown, touchstart,
+  // mousedown, click — guarded by a 250ms flag so multiple events
+  // for the same tap don't double-fire.  Earlier iterations bound
+  // pointerup/touchend/click and got eaten when the browser's
+  // scroll-pan absorbed the gesture before release.  Firing on
+  // pointerdown sidesteps that entirely: the moment the player's
+  // finger touches the card, the handler runs.  No swipe gestures
+  // exist on these choice cards anyway, so firing on contact is
+  // semantically correct.
   let guarded = false;
   const fire = () => {
     if (guarded || el.disabled) return;
@@ -21362,16 +21356,18 @@ function bindTapAsPointer(el, handler) {
       try { console && console.error && console.error('bindTapAsPointer handler', err); } catch (_) {}
     }
   };
-  el.onclick = fire;
-  el.addEventListener('click', fire);
-  el.addEventListener('pointerup', fire);
-  el.addEventListener('touchend', (e) => {
+  // Contact signals — fire on FIRST touch.
+  el.addEventListener('pointerdown', fire);
+  el.addEventListener('touchstart', (e) => {
     if (el.disabled) return;
-    if (e.changedTouches && e.changedTouches.length === 1) {
-      try { e.preventDefault(); } catch (_) {}
-      fire();
-    }
+    try { e.preventDefault(); } catch (_) {}
+    fire();
   }, { passive: false });
+  el.addEventListener('mousedown', fire);
+  // Release signals as fallback — in case contact events were
+  // suppressed entirely (some accessibility tools).
+  el.addEventListener('click', fire);
+  el.onclick = fire;
 }
 
 function showSigilOverlay(offers, onDone, opts) {
