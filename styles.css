@@ -4734,7 +4734,13 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
   position: fixed;
   top: 60px;
   right: 16px;
-  z-index: 280;
+  /* Sits BELOW the modal overlay (#overlay z-index 260) so vignette /
+     picker / map clicks land on the overlay, not on a lingering
+     toast.  Toasts spawn during combat (no overlay) where they're
+     fully visible; when an overlay opens the toasts visually slide
+     behind it, but their auto-fade timer keeps running so they're
+     gone by the time the player gets back to combat. */
+  z-index: 250;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -4763,6 +4769,10 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
 }
 .toast.toast-out {
   animation: toast-out 0.4s ease-in forwards;
+  /* During the fade-out the toast is still in the DOM — drop pointer
+     events so it can't intercept clicks meant for whatever's
+     underneath while it animates away. */
+  pointer-events: none;
 }
 @keyframes toast-in {
   from { opacity: 0; transform: translateX(40px); }

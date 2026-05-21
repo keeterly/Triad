@@ -7704,11 +7704,15 @@ function spawnToast(opts) {
   track.appendChild(t);
   // Audio cue — same UI sting the other reveals use.
   try { if (Audio && typeof Audio.ui === 'function') Audio.ui(); } catch (_) {}
-  // Auto-fade timer.  Pauses while the toast is expanded (player is
-  // actively reading) AND while a blocking overlay is up (vignette /
-  // picker covering the screen — no point counting down when the
-  // toast isn't visible).
-  const hold = opts.hold || 5500;
+  // Auto-fade timer.  Pauses ONLY while the toast is in its expanded
+  // state (player is actively reading).  Does NOT pause while
+  // overlays are up — the map / vignette / picker live in #overlay
+  // too, and pausing across those would mean a toast spawned right
+  // before a long map navigation never fades.  The toast track sits
+  // at z-index 250 (below #overlay's 260), so toasts visually hide
+  // behind any overlay anyway; the timer running through means a
+  // toast spawned during combat won't reappear stale 30s later.
+  const hold = opts.hold || 3500;
   let dismissed = false;
   let elapsed = 0;
   let lastTick = performance.now();
@@ -7720,16 +7724,11 @@ function spawnToast(opts) {
     t.classList.add('toast-out');
     setTimeout(() => { if (t.parentNode) t.remove(); }, 400);
   };
-  const _overlayUp = () => {
-    const ov = document.getElementById('overlay');
-    const bi = document.getElementById('boss-intro');
-    return !!((ov && !ov.classList.contains('hidden')) || (bi && !bi.classList.contains('hidden')));
-  };
   const tick = (now) => {
     if (dismissed) return;
     const dt = now - lastTick;
     lastTick = now;
-    if (!t.classList.contains('toast-expanded-state') && !_overlayUp()) {
+    if (!t.classList.contains('toast-expanded-state')) {
       elapsed += dt;
     }
     if (elapsed >= hold) { dismiss(); return; }
@@ -10391,7 +10390,7 @@ function _showAchievementFanfare(def) {
     name: def.name,
     desc,
     glyph: '✦',
-    hold: 7000,
+    hold: 4500,
   });
 }
 
