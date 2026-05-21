@@ -19615,6 +19615,42 @@ function showRestOverlay() {
     _completeNonCombatNode();
   }, 'heal');
 
+  // 1b. Revive — bring a fallen hero back at 25% of their max HP.
+  // Shown only when at least one party member is currently downed.
+  // Picks the front-most fallen hero so the choice is predictable
+  // (no second picker required).  The revived hero comes back with
+  // a clean status sheet (vuln / bleed / pending effects cleared)
+  // since those would otherwise have applied on the turn they fell.
+  const fallen = ['front', 'mid', 'back']
+    .map(sl => state.party.slots[sl])
+    .filter(Boolean)
+    .map(id => state.party.chars[id])
+    .filter(c => c && c.downed);
+  if (fallen.length > 0) {
+    const target = fallen[0];
+    const heroName = CHARS[target.id].name;
+    const revHp = Math.max(1, Math.ceil(target.maxHp * 0.25));
+    const subtitle = fallen.length === 1
+      ? `Bring back ${heroName} at ${revHp} HP (25%)`
+      : `Bring back ${heroName} at ${revHp} HP (25%) — other fallen stay down`;
+    mkChoice('Revive a fallen', subtitle, () => {
+      target.downed = false;
+      target.hp = revHp;
+      target.armor = 0;
+      target.vuln = 0;
+      target.bleed = 0;
+      target.burn = 0;
+      target.dulled = 0;
+      target.weakened = false;
+      target.staggered = false;
+      target.pendingEffects = [];
+      log(`<i><b>${heroName}</b> draws breath again — back at <b>${revHp}</b> HP.</i>`);
+      hideOverlay();
+      choices.classList.remove('event-choices');
+      _completeNonCombatNode();
+    }, 'revive');
+  }
+
   // 2. Hone — upgrade one tech.  Only shown if any upgrades remain.
   const upPool = availableUpgrades(state);
   if (upPool.length > 0) {
