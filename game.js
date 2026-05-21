@@ -12865,8 +12865,16 @@ function startTurn(s) {
 // queue-aware battlefield render places each hero at their POST-queue
 // slot regardless of whether the move came from a Move tile or an
 // embedded move-clause.
-function simulateSlotsThrough(s, upto, fromIdx) {
+// opts.includeEmbedded — when true, also project attack/special techs
+// that carry an advance/retreat clause (the "movement on actions" path).
+// Default false so the battlefield renderer and tile-column ordering
+// keep heroes visually at their LIVE slot until the FIGHT button is
+// pressed; the embedded move only animates as the action resolves.
+// Tile previews / reach projection / pickMoveDir chain still pass true
+// so the planning UI can show the FINAL post-queue position.
+function simulateSlotsThrough(s, upto, fromIdx, opts) {
   const start = (typeof fromIdx === 'number' && fromIdx > 0) ? fromIdx : 0;
+  const includeEmbedded = !!(opts && opts.includeEmbedded);
   const sim = { ...s.party.slots };
   const applyStep = (charId, fromI, toIdx) => {
     if (toIdx < 0 || toIdx > 2 || fromI === toIdx) return;
@@ -12879,16 +12887,22 @@ function simulateSlotsThrough(s, upto, fromIdx) {
   for (let i = start; i < upto && i < s.queue.length; i++) {
     const item = s.queue[i];
     if (item.kind === 'move') {
+      // Explicit Move queue items (drag-to-swap, advance/retreat
+      // arrows on a held figure) always project — this is direct
+      // manipulation, the hero should visually swap the moment the
+      // player commits the gesture.
       const cur = Object.keys(sim).find(sl => sim[sl] === item.charId);
       if (!cur) continue;
       const idx = SLOTS.indexOf(cur);
       applyStep(item.charId, idx, idx + item.dir);
       continue;
     }
-    // Tech-embedded movement — read variant.move on the queued
-    // attack / special and project the same slot transition that
-    // applyDmgToEnemy's helpers (advance/retreat/retreatFull) would
-    // run at execute time.
+    // Tech-embedded movement — only projected when the caller asks
+    // for it (tile preview, reach indicator, pickMoveDir's chaining).
+    // The default render path skips this so a queued Vanguard / Pommel
+    // / Curse-bite leaves the hero at their LIVE slot until FIGHT
+    // fires the action, then the move animates as part of resolve.
+    if (!includeEmbedded) continue;
     if (item.kind === 'attack' || item.kind === 'special') {
       const cur = Object.keys(sim).find(sl => sim[sl] === item.charId);
       if (!cur) continue;
@@ -15098,9 +15112,29 @@ function makePartyCard(c, slot, threatened, adjMap, incoming) {
   const canMoveBack  = slotIdx + 1 < SLOTS.length;
   const canMoveFront = slotIdx - 1 >= 0;
 
-  // a move queued for this character → show the planned-direction arrow as a persistent overlay
-  const queuedMove = state.queue.find(q => q.kind === 'move' && q.charId === c.id);
-  const queuedMoveGlyph = queuedMove ? (queuedMove.dir > 0 ? '‹' : '›') : '';
+  // a move queued for this character → show the planned-direction arrow as a persistent overlay.
+  // Covers BOTH explicit Move queue items AND tech-embedded advance / retreat clauses on
+  // queued attacks (Vanguard, Pommel, Curse-bite, etc.).  Since the renderer no longer
+  // visually relocates the hero for embedded moves until FIGHT resolves them, this arrow
+  // is the only cue that the hero will shift slot — without it the queued advance/retreat
+  // would be invisible until the action fires.
+  let queuedMoveDir = 0;
+  const explicitMove = state.queue.find(q => q.kind === 'move' && q.charId === c.id);
+  if (explicitMove) queuedMoveDir = explicitMove.dir;
+  else {
+    const liveSlot = SLOTS.find(sl => state.party.slots[sl] === c.id);
+    for (const q of state.queue) {
+      if ((q.kind !== 'attack' && q.kind !== 'special') || q.charId !== c.id) continue;
+      const techKind = q.kind === 'special' ? 'sig' : 'basic';
+      const tech = getTech(state, c.id, liveSlot, techKind);
+      if (!tech || !tech.move) continue;
+      if (tech.move === 'advance')           { queuedMoveDir = -1; break; }
+      else if (tech.move === 'retreat')      { queuedMoveDir = 1;  break; }
+      else if (tech.move === 'retreatFull')  { queuedMoveDir = 1;  break; }
+    }
+  }
+  const queuedMove = !!queuedMoveDir;
+  const queuedMoveGlyph = queuedMoveDir > 0 ? '‹' : queuedMoveDir < 0 ? '›' : '';
   if (queuedMove) fig.classList.add('has-queued-move');
 
   // Telegraph (no exact-damage chip): targeted figures glow red via the
