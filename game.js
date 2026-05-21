@@ -10929,6 +10929,20 @@ function newEnemyState(id) {
 function charBySlot(s, slot) { const id = s.party.slots[slot]; return id ? s.party.chars[id] : null; }
 function enemyBySlot(s, slot) { const id = s.enemies.slots[slot]; return id ? s.enemies.chars[id] : null; }
 function slotOfChar(s, id) { return SLOTS.find(sl => s.party.slots[sl] === id); }
+// Find the slot an enemy object currently occupies.  CANNOT use
+// s.enemies.slots[sl] === e.id, because slot KEYS are the per-instance
+// uniqueId ('mirrorShard#1', 'shade#2') while e.id is the TEMPLATE id
+// ('mirrorShard', 'shade').  Comparing template-id to instance-key
+// silently misses any spawned-mid-fight enemy and causes downstream
+// 'no target' false positives (the Mirror Shard split previewing as
+// 'Miss' while the attack actually lands is the canonical symptom).
+function slotOfEnemy(s, e) {
+  if (!s || !e || !s.enemies || !s.enemies.slots) return undefined;
+  return SLOTS.find(sl => {
+    const key = s.enemies.slots[sl];
+    return !!key && s.enemies.chars[key] === e;
+  });
+}
 function aliveParty(s) { return Object.values(s.party.chars).filter(c => !c.downed); }
 function aliveEnemies(s) { return Object.values(s.enemies.chars).filter(e => !e.dead); }
 // Spawn an enemy into a slot mid-fight (Voice respawn, Mirror Shard split).
@@ -11958,7 +11972,7 @@ function applyDmgToParty(s, c, amt) {
       k._heelUsed = k._heelUsed || 0;
       const max = k.mastery ? 2 : 1;
       if (k._heelUsed < max) {
-        const target = aliveEnemies(s).find(en => SLOTS.find(sl => s.enemies.slots[sl] === en.id) === 'front')
+        const target = aliveEnemies(s).find(en => slotOfEnemy(s, en) === 'front')
           || aliveEnemies(s)[0];
         if (target) {
           k._heelUsed += 1;
@@ -15974,7 +15988,7 @@ function previewReachLabel(kind, charId, dir) {
   // Enemy-targeted: figure out which slots get hit at this instant.
   const targets = resolveTargets(s, variant) || [];
   const targetSlotSet = new Set(
-    targets.map(e => SLOTS.find(sl => s.enemies.slots[sl] === e.id)).filter(Boolean)
+    targets.map(e => slotOfEnemy(s, e)).filter(Boolean)
   );
   if (targetSlotSet.size === 0) {
     return `<span class="rch-label rch-miss" title="No enemy in reach — would miss">miss</span>`;
@@ -16135,7 +16149,7 @@ function previewTargetsForTile(kind, charId, dir) {
     const variant = getTech(s, charId, slot, kind === 'special' ? 'sig' : 'basic');
     const targets = resolveTargets(s, variant) || [];
     const enemyHits = targets.map(e => {
-      const sl = SLOTS.find(sl => s.enemies.slots[sl] === e.id);
+      const sl = slotOfEnemy(s, e);
       if (!sl) return null;
       if (typeof variant.dmg !== 'number') return { slot: sl };
       const r = previewMultiHit(s, e, variant.dmg, charId, variant.hits || 1, variant.element);
@@ -16168,7 +16182,7 @@ function previewTargetsForTile(kind, charId, dir) {
       element = variant.element || heroSchool || null;
       const asArr = x => Array.isArray(x) ? x : (x ? [x] : []);
       aliveEnemies(s).forEach(e => {
-        const sl = SLOTS.find(sl => s.enemies.slots[sl] === e.id);
+        const sl = slotOfEnemy(s, e);
         if (!sl) return;
         const weaks = asArr(ENEMIES[e.id] && ENEMIES[e.id].weakness);
         if (element && weaks.includes(element)) weaknessSlots.push(sl);
