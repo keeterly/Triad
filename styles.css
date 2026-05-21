@@ -4731,16 +4731,16 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
    track.  Tap to expand for flavor + desc; tap again to dismiss.
    =========================================================================== */
 .toast-track {
-  position: fixed;
+  position: absolute;
   top: 60px;
   right: 16px;
-  /* Sits BELOW the modal overlay (#overlay z-index 260) so vignette /
-     picker / map clicks land on the overlay, not on a lingering
-     toast.  Toasts spawn during combat (no overlay) where they're
-     fully visible; when an overlay opens the toasts visually slide
-     behind it, but their auto-fade timer keeps running so they're
-     gone by the time the player gets back to combat. */
-  z-index: 250;
+  /* Inside #stage (anchored there by _ensureToastTrack) so this
+     z-index is compared with #overlay (260) in the same stacking
+     context — overlay paints above toasts whenever it's open, so
+     vignette / picker buttons can't be blocked by a lingering
+     toast in their column.  z-50 keeps toasts above the combat UI
+     (z-2 to z-7) so they're visible during fights. */
+  z-index: 50;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -9599,6 +9599,26 @@ button.path-node { cursor: pointer; }
 }
 .reso-continue:not(:disabled):active {
   transform: scale(0.97);
+}
+
+/* Sigil upgrade entries — when the offer is leveling up an OWNED
+   sigil instead of binding a fresh one, surface a gold 'DEEPEN'
+   badge so the player understands the roman numeral on the card
+   is the FUTURE level, not 'this is already at max'. */
+.sigil-choice-upgrade {
+  border-color: var(--gold-bright) !important;
+}
+.sigil-upgrade-badge {
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--gold-bright);
+  text-shadow: 0 0 6px rgba(240, 212, 136, 0.5);
+  text-align: center;
+  padding: 2px 0 4px;
+  border-bottom: 1px solid rgba(212, 200, 168, 0.18);
+  margin-bottom: 4px;
 }
 
 /* ============ SIGIL CARDS ============ */

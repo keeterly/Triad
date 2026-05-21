@@ -7651,7 +7651,17 @@ function _ensureToastTrack() {
   track = document.createElement('div');
   track.id = 'toast-track';
   track.className = 'toast-track';
-  document.body.appendChild(track);
+  // Anchor INSIDE #stage so the toast track shares #overlay's stacking
+  // context.  #stage-scale's CSS transform creates its own stacking
+  // context, so #overlay (z-index 260) is trapped inside it — a toast
+  // track appended to <body> would actually sit ABOVE the whole stage
+  // regardless of its own z-index, blocking overlay button clicks
+  // anywhere a toast happens to overlap.  Anchoring inside #stage
+  // means stage-relative z-index ordering works naturally: toasts at
+  // z-index 50 paint above combat UI (z-2~7) but below the
+  // #overlay (z-260) when a picker / vignette opens.
+  const stage = document.getElementById('stage');
+  (stage || document.body).appendChild(track);
   return track;
 }
 
@@ -21331,8 +21341,17 @@ function showSigilOverlay(offers, onDone, opts) {
   choices.innerHTML = '';
   offers.forEach(sg => {
     const card = document.createElement('button');
-    card.className = `encounter-choice sigil-choice cat-${sg.category}`;
+    const isUpgrade = !!sg._isUpgrade;
+    card.className = `encounter-choice sigil-choice cat-${sg.category}${isUpgrade ? ' sigil-choice-upgrade' : ''}`;
+    // Upgrade entries — clarify that this LEVELS an owned sigil rather
+    // than binding a new one.  Without the badge the offered name like
+    // 'Brutal III' read as 'this is already at max' to players, since
+    // the roman numeral is the FUTURE level, not the current one.
+    const upgradeBadge = isUpgrade
+      ? `<div class="sigil-upgrade-badge">DEEPEN · level ${(sg._nextLevel || 2) - 1} → ${sg._nextLevel || 2}</div>`
+      : '';
     card.innerHTML = `
+      ${upgradeBadge}
       <div class="enc-name">${sg.name}</div>
       <div class="sigil-glyph">${sg.icon}</div>
       <div class="sigil-desc">${sg.desc}</div>
