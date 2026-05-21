@@ -21338,65 +21338,39 @@ function offerWandererSigil(wandererId, onDone) {
 // drops on touch devices.  touchend fires reliably as a raw signal
 // even when the click is eaten.
 function bindTapAsPointer(el, handler) {
-  const TAP_SLOP = 12;
-  let pressed = false;
-  let downX = 0, downY = 0;
-  let consumed = false;
-  const fire = (e) => {
-    if (consumed) return;
-    if (el.disabled) return;
-    consumed = true;
-    if (e && typeof e.preventDefault === 'function') {
-      try { e.preventDefault(); } catch (_) {}
-    }
-    try { handler(); } finally {
-      setTimeout(() => { consumed = false; }, 200);
+  // Stripped down to two signals: touchend (iOS / Android raw tap)
+  // and click (desktop / accessibility / keyboard Enter).  The
+  // pointer-events / motion-slop / consumed dance from earlier
+  // builds was layering too much logic on top of what should be
+  // a one-liner.  iOS reliably fires touchend on every tap that
+  // wasn't absorbed by overscroll; click reliably fires on
+  // everything else.  A 200ms guard prevents the same tap from
+  // double-firing when both arrive.
+  let guarded = false;
+  const fire = () => {
+    if (guarded || el.disabled) return;
+    guarded = true;
+    setTimeout(() => { guarded = false; }, 250);
+    try { handler(); } catch (err) {
+      // Swallow handler errors so a buggy combo doesn't break the
+      // tap path for every subsequent press.
+      try { console && console.error && console.error('bindTapAsPointer handler', err); } catch (_) {}
     }
   };
-  // Pointer-events path — disarm on motion / leave so an
-  // accidental drag doesn't fire the handler on release.
-  el.addEventListener('pointerdown', (e) => {
-    if (el.disabled) return;
-    pressed = true;
-    downX = e.clientX || 0;
-    downY = e.clientY || 0;
-  });
-  el.addEventListener('pointermove', (e) => {
-    if (!pressed) return;
-    const dx = Math.abs((e.clientX || 0) - downX);
-    const dy = Math.abs((e.clientY || 0) - downY);
-    if (dx > TAP_SLOP || dy > TAP_SLOP) pressed = false;
-  });
-  el.addEventListener('pointercancel', () => { pressed = false; });
-  el.addEventListener('pointerup', (e) => { if (pressed) fire(e); pressed = false; });
-  // Touch fallback — iOS Safari sometimes suppresses pointerup when
-  // overscroll-pan absorbs the gesture, but touchend still fires.
-  // Track touch position so we can apply the same slop guard.
-  let touchStartX = 0, touchStartY = 0, touchActive = false;
-  el.addEventListener('touchstart', (e) => {
-    if (el.disabled) return;
-    touchActive = true;
-    if (e.touches && e.touches[0]) {
-      touchStartX = e.touches[0].clientX;
-      touchStartY = e.touches[0].clientY;
-    }
-  }, { passive: true });
-  el.addEventListener('touchmove', (e) => {
-    if (!touchActive) return;
-    if (e.touches && e.touches[0]) {
-      const dx = Math.abs(e.touches[0].clientX - touchStartX);
-      const dy = Math.abs(e.touches[0].clientY - touchStartY);
-      if (dx > TAP_SLOP || dy > TAP_SLOP) touchActive = false;
-    }
-  }, { passive: true });
-  el.addEventListener('touchcancel', () => { touchActive = false; });
+  // touchend — non-passive so we can preventDefault to suppress the
+  // synthetic click that would otherwise fire ~300ms later.
   el.addEventListener('touchend', (e) => {
-    if (touchActive) fire(e);
-    touchActive = false;
-  });
-  // Click fallback — desktop mouse + accessibility (keyboard Enter
-  // synthesizes click).  Most touch paths fire pointerup or
-  // touchend first; this is the catch-all.
+    if (el.disabled) return;
+    // Only honor single-finger taps with the touch ending where it
+    // started (within ~20px).  Multi-touch / drags fall through to
+    // browser default (which is nothing here).
+    if (e.changedTouches && e.changedTouches.length === 1) {
+      try { e.preventDefault(); } catch (_) {}
+      fire();
+    }
+  }, { passive: false });
+  // click — handles desktop mouse and the fallback path when touch
+  // events didn't fire (some Android browsers, accessibility).
   el.addEventListener('click', fire);
 }
 
