@@ -13412,6 +13412,202 @@ const SCHOOL_PAIR_TEMPLATES = (() => {
 // Look up the school-pair template for two heroes.  Returns the template
 // object or null when there isn't one (e.g., one of the heroes has no
 // school assigned — falls back to the basic+sig kizuna burst).
+// ============================================================================
+// SCHOOL SIGNATURES — per-anchor kizuna effects
+// ============================================================================
+// Every Kizuna variant runs the ANCHOR's school signature as the
+// primary effect, plus a smaller SUPPORT contribution from the other
+// hero's school.  That's what makes the two picker variants for the
+// same pair mechanically distinct: when Kell (Holy) leads, the effect
+// is heal-heavy + Mira's bleed mark is a small tag.  When Mira
+// (Stealth) leads, the effect is bleed-heavy + Kell's heal is a small
+// patch.  Player picks based on what the party needs THIS run.
+//
+// Each signature scales by `level` (1 / 2 / 3) — L3 unlocks RESONANT
+// bonuses on top of the base effect.
+const SCHOOL_SIGNATURE = {
+  physical: {
+    label: 'STRIKES + GUARDS',
+    primary: (s, anchorId, level) => {
+      const frontDmg = level === 3 ? 16 : level === 2 ? 11 : 7;
+      const armor   = level === 3 ? 5  : level === 2 ? 4  : 3;
+      const front = enemyBySlot(s, 'front') || aliveEnemies(s)[0];
+      if (front && !front.dead) {
+        s.currentActorId = anchorId; s.currentTechElement = 'physical';
+        try { applyDmgToEnemy(s, front, frontDmg); }
+        finally { s.currentActorId = null; s.currentTechElement = null; }
+      }
+      partyArmor(s, armor);
+      if (level === 3 && front && !front.dead) {
+        front.staggered = true; front.staggerTurnsLeft = 2;
+        spawnPopupId(front.id, 'STAGGERED', 'stagger', 'enemy');
+      }
+    },
+    support: (s, supId, level) => {
+      // Small physical bonus when supporting: +1 atk pending on the
+      // supporter for the next turn, scales with level.
+      const c = s.party.chars[supId];
+      if (c && !c.downed) c.pendingEffects.push({ kind: 'attackBonus', amt: level >= 3 ? 2 : 1, source: 'kizuna' });
+    },
+    desc: (level) => `Front ${level === 3 ? 16 : level === 2 ? 11 : 7} dmg, party +${level === 3 ? 5 : level === 2 ? 4 : 3} armor${level === 3 ? ', STAGGER front' : ''}.`,
+  },
+  holy: {
+    label: 'HEALS + CLEANSES',
+    primary: (s, anchorId, level) => {
+      const healAmt = level === 3 ? 10 : level === 2 ? 7 : 4;
+      const armor   = level === 3 ? 4  : level === 2 ? 3  : 2;
+      aliveParty(s).forEach(c => {
+        const before = c.hp;
+        c.hp = Math.min(c.maxHp, c.hp + healAmt);
+        if (c.hp > before) spawnPopupId(c.id, `+${c.hp - before}`, 'heal', 'party');
+        if (level >= 2) { c.bleed = 0; c.dulled = 0; c.vuln = Math.max(0, c.vuln - 1); }
+      });
+      partyArmor(s, armor);
+      if (level === 3) {
+        // RESONANT: revive one fallen at 30% if any
+        const fallen = Object.values(s.party.chars).find(c => c && c.downed);
+        if (fallen) {
+          fallen.downed = false; fallen.hp = Math.max(1, Math.ceil(fallen.maxHp * 0.30));
+          fallen.pendingEffects = [];
+          spawnPopupId(fallen.id, 'REVIVED', 'heal', 'party');
+          log(`<i><b>${CHARS[fallen.id].name}</b> rises in the light.</i>`);
+        }
+      }
+    },
+    support: (s, supId, level) => {
+      // Small heal on the supporter so their contribution costs nothing.
+      const c = s.party.chars[supId];
+      if (c && !c.downed) {
+        const before = c.hp;
+        c.hp = Math.min(c.maxHp, c.hp + (level >= 3 ? 3 : 2));
+        if (c.hp > before) spawnPopupId(c.id, `+${c.hp - before}`, 'heal', 'party');
+      }
+    },
+    desc: (level) => `Party heal ${level === 3 ? 10 : level === 2 ? 7 : 4}, +${level === 3 ? 4 : level === 2 ? 3 : 2} armor${level >= 2 ? ', cleanse one debuff each' : ''}${level === 3 ? '.  RESONANT: revive one fallen ally at 30% HP' : ''}.`,
+  },
+  arcane: {
+    label: 'BURSTS + HEXES',
+    primary: (s, anchorId, level) => {
+      const dmg  = level === 3 ? 9 : level === 2 ? 6 : 4;
+      const vuln = level === 3 ? 4 : level === 2 ? 3 : 2;
+      const wasIgnore = s.ignoreArmor;
+      s.ignoreArmor = true;
+      s.currentActorId = anchorId; s.currentTechElement = 'arcane';
+      try {
+        aliveEnemies(s).forEach(e => {
+          if (e.dead) return;
+          applyDmgToEnemy(s, e, dmg);
+          if (!e.dead) {
+            e.vuln = (e.vuln || 0) + vuln;
+            if (level === 3) { e.staggered = true; e.staggerTurnsLeft = 2; }
+          }
+        });
+      } finally { s.currentActorId = null; s.currentTechElement = null; s.ignoreArmor = wasIgnore; }
+    },
+    support: (s, supId, level) => {
+      // Small support: +1 Resolve, scales with level.
+      gainResolve(s, level >= 3 ? 2 : 1);
+    },
+    desc: (level) => `All foes take ${level === 3 ? 9 : level === 2 ? 6 : 4} arcane dmg (ignore armor), +${level === 3 ? 4 : level === 2 ? 3 : 2} VULN${level === 3 ? '.  RESONANT: STAGGER all' : ''}.`,
+  },
+  ranged: {
+    label: 'VOLLEYS + BLEEDS',
+    primary: (s, anchorId, level) => {
+      const dmg   = level === 3 ? 8 : level === 2 ? 5 : 4;
+      const bleed = level === 3 ? 2 : level === 2 ? 1 : 1;
+      const hits  = level === 3 ? 2 : 1;
+      s.currentActorId = anchorId; s.currentTechElement = 'ranged';
+      try {
+        for (let i = 0; i < hits; i++) {
+          aliveEnemies(s).forEach(e => {
+            if (e.dead) return;
+            applyDmgToEnemy(s, e, dmg);
+            if (!e.dead) e.bleed = Math.max(e.bleed, bleed);
+          });
+        }
+      } finally { s.currentActorId = null; s.currentTechElement = null; }
+    },
+    support: (s, supId, level) => {
+      // Small support: drop a +1 bleed onto the front foe.
+      const front = enemyBySlot(s, 'front') || aliveEnemies(s)[0];
+      if (front && !front.dead) front.bleed = Math.max(front.bleed, level >= 3 ? 2 : 1);
+    },
+    desc: (level) => `Ranged hits all for ${level === 3 ? 8 : level === 2 ? 5 : 4}${level === 3 ? ' TWICE' : ''}, bleed ${level === 3 ? 2 : 1} each.`,
+  },
+  stealth: {
+    label: 'BLEEDS + MARKS LOWEST',
+    primary: (s, anchorId, level) => {
+      const dmg   = level === 3 ? 14 : level === 2 ? 10 : 7;
+      const bleed = level === 3 ? 3  : level === 2 ? 3  : 2;
+      const vuln  = level === 3 ? 4  : level === 2 ? 3  : 2;
+      const alive = aliveEnemies(s);
+      if (!alive.length) return;
+      const target = alive.slice().sort((a, b) => a.hp - b.hp)[0];
+      s.currentActorId = anchorId; s.currentTechElement = 'stealth';
+      try {
+        applyDmgToEnemy(s, target, dmg);
+        if (!target.dead) {
+          target.bleed = (target.bleed || 0) + bleed;
+          target.vuln  = (target.vuln  || 0) + vuln;
+          spawnPopupId(target.id, `+${vuln} VULN`, 'stagger', 'enemy');
+          if (level === 3) {
+            target.staggered = true; target.staggerTurnsLeft = 2;
+          }
+        }
+      } finally { s.currentActorId = null; s.currentTechElement = null; }
+    },
+    support: (s, supId, level) => {
+      // Small support: +1 vuln on all foes.
+      aliveEnemies(s).forEach(e => {
+        if (e.dead) return;
+        e.vuln = (e.vuln || 0) + (level >= 3 ? 2 : 1);
+      });
+    },
+    desc: (level) => `Lowest-HP foe takes ${level === 3 ? 14 : level === 2 ? 10 : 7} dmg + ${level === 3 ? 3 : level === 2 ? 3 : 2} bleed + ${level === 3 ? 4 : level === 2 ? 3 : 2} VULN${level === 3 ? ', STAGGER' : ''}.`,
+  },
+};
+
+// Build a school-signature variant.  The anchor runs their school's
+// PRIMARY effect; the other hero contributes a smaller SUPPORT effect
+// from their school.  Scales by level (1/2/3).
+function _runSchoolVariant(s, anchorId, otherId, level) {
+  const anchorSchool = (CHARS[anchorId] && CHARS[anchorId].school) || 'physical';
+  const otherSchool  = (CHARS[otherId]  && CHARS[otherId].school)  || 'physical';
+  const anchorSig = SCHOOL_SIGNATURE[anchorSchool];
+  const otherSig  = SCHOOL_SIGNATURE[otherSchool];
+  if (anchorSig && typeof anchorSig.primary === 'function') anchorSig.primary(s, anchorId, level);
+  // Same-school pairs — skip the support pass to avoid double-firing
+  // the same effect family.  The kizuna ALREADY hit hard via the
+  // primary; a second 'support' of the same school would feel like a
+  // single effect blown up twice.  Cross-school keeps the support
+  // contribution so the other hero's identity reads through.
+  if (anchorSchool !== otherSchool && otherSig && typeof otherSig.support === 'function') {
+    otherSig.support(s, otherId, level);
+  }
+}
+
+// Variant description — explicitly spells out what the anchor brings
+// (primary effect) + the other hero's support contribution.  Keeps the
+// picker card honest about what differs between the two leads.
+function _schoolVariantDesc(anchorId, otherId, level) {
+  const anchorSchool = (CHARS[anchorId] && CHARS[anchorId].school) || 'physical';
+  const otherSchool  = (CHARS[otherId]  && CHARS[otherId].school)  || 'physical';
+  const anchorName = (CHARS[anchorId] && CHARS[anchorId].name) || anchorId;
+  const otherName  = (CHARS[otherId]  && CHARS[otherId].name)  || otherId;
+  const aDesc = (SCHOOL_SIGNATURE[anchorSchool] && SCHOOL_SIGNATURE[anchorSchool].desc(level)) || '';
+  if (anchorSchool === otherSchool) {
+    return `${anchorName} leads: ${aDesc}`;
+  }
+  const supportLine = ({
+    physical: `${otherName}: +1 atk pending`,
+    holy:     `${otherName}: heals self ${level >= 3 ? 3 : 2}`,
+    arcane:   `${otherName}: +${level >= 3 ? 2 : 1} Resolve`,
+    ranged:   `${otherName}: +${level >= 3 ? 2 : 1} bleed on front`,
+    stealth:  `${otherName}: +${level >= 3 ? 2 : 1} VULN all`,
+  })[otherSchool] || '';
+  return `${anchorName} leads: ${aDesc}${supportLine ? `  ${supportLine}.` : ''}`;
+}
+
 function _schoolPairTemplate(a, b) {
   const sa = CHARS[a] && CHARS[a].school;
   const sb = CHARS[b] && CHARS[b].school;
@@ -13455,11 +13651,6 @@ function _buildLevelVariants(s, heroA, heroB, level) {
     try { console.warn('[Kizuna] missing slot', { a, b, level }); } catch (_) {}
     return null;
   }
-  const template = _schoolPairTemplate(a, b);
-  if (!template) {
-    try { console.warn('[Kizuna] no school-pair template', { a, b }); } catch (_) {}
-    return null;
-  }
   const nameA = (CHARS[a] && CHARS[a].name) || a;
   const nameB = (CHARS[b] && CHARS[b].name) || b;
   const pairKey = adjKey(a, b);
@@ -13474,23 +13665,25 @@ function _buildLevelVariants(s, heroA, heroB, level) {
     { kind: 'resolve' },
     { kind: 'enemy-flash', targets: 'front', kind2: 'hit', ms: 200 },
   ]);
-  // The template effect — L3 passes tier=3 so the RESONANT branch of
-  // the template fires; L1 / L2 pass tier=2 so the base effect fires.
-  // The progression at L1 → L2 is in the TRIGGER (attack+attack →
-  // attack+special, paying more Resolve for a bigger kizuna moment
-  // because the special's own effect feeds the picture); L3 unlocks
-  // the RESONANT scaling on top of both specials.
-  const runTemplate = (anchorId, otherId) => (s2) => {
-    const tier = level === 3 ? 3 : 2;
-    template.fn(s2, anchorId, otherId, tier);
+  // Variant runner — anchor's school signature is the PRIMARY effect;
+  // other hero's school contributes a smaller SUPPORT effect.  Swapping
+  // the anchor flips which school dominates, so the two picker cards
+  // actually feel different at the table.
+  const runVariant = (anchorId, otherId) => (s2) => {
+    _runSchoolVariant(s2, anchorId, otherId, level);
+  };
+  // Variant name leads with the anchor's identity so the player sees
+  // 'KELL leads' vs 'MIRA leads' at a glance, not the same template name.
+  const variantName = (anchorId, otherId) => {
+    const aN = (CHARS[anchorId] && CHARS[anchorId].name) || anchorId;
+    const aSchool = (CHARS[anchorId] && CHARS[anchorId].school) || 'physical';
+    const lbl = (SCHOOL_SIGNATURE[aSchool] && SCHOOL_SIGNATURE[aSchool].label) || '';
+    return `${aN} leads · ${lbl}`;
   };
   // ===== LEVEL 1 — both attack =====
   if (level === 1) {
     const mkV = (anchorId, otherId, variantId) => {
-      const aN = (CHARS[anchorId] && CHARS[anchorId].name) || anchorId;
-      const oN = (CHARS[otherId]  && CHARS[otherId].name)  || otherId;
-      const vname = `${aN} & ${oN} · ${template.name(aN, oN).split('·').pop().trim() || 'Kizuna'}`;
-      const baseDesc = template.desc(aN, oN, 2);
+      const vname = variantName(anchorId, otherId);
       return {
         id: `chosen_${pairKey}_L1_${variantId}`,
         name: vname,
@@ -13498,18 +13691,16 @@ function _buildLevelVariants(s, heroA, heroB, level) {
         chosenResonance: true,
         kizunaLevel: 1,
         pairKey,
-        desc: `${baseDesc.split('RESONANT')[0].trim()}  (Level 1 — lighter scaling.)`,
+        desc: _schoolVariantDesc(anchorId, otherId, 1),
         requires: [
           { heroId: a, kind: 'attack' },
           { heroId: b, kind: 'attack' },
         ],
-        fn: runTemplate(anchorId, otherId),
+        fn: runVariant(anchorId, otherId),
         cinematic: cinematicFor(vname.toUpperCase(), anchorId),
         _preview: {
           aHero: anchorId, bHero: otherId,
           schoolPair: true, level: 1,
-          aTech: { name: aN, desc: 'leads' },
-          bTech: { name: oN, desc: 'supports' },
         },
       };
     };
@@ -13521,10 +13712,7 @@ function _buildLevelVariants(s, heroA, heroB, level) {
   // ===== LEVEL 2 — attack + special, mixed direction =====
   if (level === 2) {
     const mkV = (specialId, attackerId, variantId) => {
-      const sN = (CHARS[specialId] && CHARS[specialId].name) || specialId;
-      const aN = (CHARS[attackerId] && CHARS[attackerId].name) || attackerId;
-      const vname = `${sN}'s Special · ${aN}'s Edge`;
-      const baseDesc = template.desc(sN, aN, 2);
+      const vname = variantName(specialId, attackerId);
       return {
         id: `chosen_${pairKey}_L2_${variantId}`,
         name: vname,
@@ -13532,19 +13720,17 @@ function _buildLevelVariants(s, heroA, heroB, level) {
         chosenResonance: true,
         kizunaLevel: 2,
         pairKey,
-        desc: `${baseDesc.split('RESONANT')[0].trim()}  (Level 2 — ${sN} specials, ${aN} attacks.)`,
+        desc: _schoolVariantDesc(specialId, attackerId, 2),
         // requires direction matters at L2 — picker variant locks in
         // which hero specials.
         requires: specialId === a
           ? [{ heroId: a, kind: 'special' }, { heroId: b, kind: 'attack' }]
           : [{ heroId: a, kind: 'attack' }, { heroId: b, kind: 'special' }],
-        fn: runTemplate(specialId, attackerId),
+        fn: runVariant(specialId, attackerId),
         cinematic: cinematicFor(vname.toUpperCase(), specialId),
         _preview: {
           aHero: specialId, bHero: attackerId,
           schoolPair: true, level: 2,
-          aTech: { name: sN, desc: 'specials' },
-          bTech: { name: aN, desc: 'attacks' },
         },
       };
     };
@@ -13586,10 +13772,7 @@ function _buildLevelVariants(s, heroA, heroB, level) {
       return [climax];
     }
     const mkV = (anchorId, otherId, variantId) => {
-      const aN = (CHARS[anchorId] && CHARS[anchorId].name) || anchorId;
-      const oN = (CHARS[otherId]  && CHARS[otherId].name)  || otherId;
-      const vname = `${aN} resonant · ${oN} resonant`;
-      const baseDesc = template.desc(aN, oN, 3);
+      const vname = variantName(anchorId, otherId) + ' · RESONANT';
       return {
         id: `chosen_${pairKey}_L3_${variantId}`,
         name: vname,
@@ -13597,18 +13780,16 @@ function _buildLevelVariants(s, heroA, heroB, level) {
         chosenResonance: true,
         kizunaLevel: 3,
         pairKey,
-        desc: baseDesc,
+        desc: _schoolVariantDesc(anchorId, otherId, 3),
         requires: [
           { heroId: a, kind: 'special' },
           { heroId: b, kind: 'special' },
         ],
-        fn: runTemplate(anchorId, otherId),
+        fn: runVariant(anchorId, otherId),
         cinematic: cinematicFor(vname.toUpperCase(), anchorId),
         _preview: {
           aHero: anchorId, bHero: otherId,
           schoolPair: true, level: 3,
-          aTech: { name: aN, desc: 'resonant' },
-          bTech: { name: oN, desc: 'resonant' },
         },
       };
     };
@@ -22934,23 +23115,28 @@ function _showBatchResonanceChoice(s, choices, cont) {
     // portraits + 'anchors / channels' tags, plus the full template
     // description below so the player can read the payoff.
     if (p.schoolPair) {
+      // School-signature card.  Lead hero sits LARGER on the left, the
+      // supporter is dimmer on the right — visually the choice is
+      // 'who carries the moment'.  Description spells out the mechanic
+      // (anchor's school primary + other's support contribution).
       const schoolA = (CHARS[p.aHero] && CHARS[p.aHero].school) || '';
       const schoolB = (CHARS[p.bHero] && CHARS[p.bHero].school) || '';
       card.classList.add('resonance-choice-template');
       card.innerHTML = `
         <div class="reso-title">${variant.name}</div>
         <div class="reso-pair reso-pair-template">
-          <div class="reso-side">
+          <div class="reso-side reso-side-lead">
             <div class="reso-portrait">${PORTRAITS[p.aHero] || ''}</div>
             <div class="reso-tech-hero">${aHero} · ${schoolA}</div>
+            <div class="reso-lead-tag">LEADS</div>
           </div>
           <div class="reso-arrow" aria-hidden="true">+</div>
-          <div class="reso-side">
+          <div class="reso-side reso-side-support">
             <div class="reso-portrait">${PORTRAITS[p.bHero] || ''}</div>
             <div class="reso-tech-hero">${bHero} · ${schoolB}</div>
+            <div class="reso-support-tag">supports</div>
           </div>
         </div>
-        ${triggerLine(variant.requires)}
         <div class="reso-template-desc">${variant.desc || ''}</div>
       `;
       return card;
@@ -22976,7 +23162,6 @@ function _showBatchResonanceChoice(s, choices, cont) {
           </div>
         </div>
       </div>
-      ${triggerLine(variant.requires)}
     `;
     return card;
   };
@@ -23061,19 +23246,20 @@ function _showBatchResonanceChoice(s, choices, cont) {
     const section = document.createElement('div');
     section.className = 'reso-section';
     section.dataset.key = key;
-    // Header always shows now — the level tag tells the player which
-    // tier this picker is for, even on single-section flows.
-    const header = document.createElement('div');
-    header.className = 'reso-section-header';
-    const heroLabel = sec.kind === 'trio'
-      ? sec.choice.heroes.map(id => (CHARS[id] && CHARS[id].name) || id).join(' + ')
-      : `${(CHARS[sec.choice.heroA] && CHARS[sec.choice.heroA].name) || sec.choice.heroA} + ${(CHARS[sec.choice.heroB] && CHARS[sec.choice.heroB].name) || sec.choice.heroB}`;
-    const levelLabel = `LEVEL ${sec.level || 1}`;
-    const trigLabel = sec.kind === 'trio'
-      ? ''
-      : (sec.level === 1 ? 'ATTACK + ATTACK' : sec.level === 2 ? 'ATTACK + SPECIAL' : 'SPECIAL + SPECIAL');
-    header.innerHTML = `<span class="reso-level-tag reso-level-${sec.level || 1}">${levelLabel}</span> <span class="reso-section-heroes">${heroLabel}</span>${trigLabel ? `<span class="reso-section-trig">${trigLabel}</span>` : ''}`;
-    section.appendChild(header);
+    // Section header only renders when there are 2+ sections — single-
+    // section pickers already have the level + heroes in the title, so
+    // a duplicate row above the cards was just noise.  Multi-section
+    // pages need it to tell the player which pair this slide is for.
+    if (sections.length > 1) {
+      const header = document.createElement('div');
+      header.className = 'reso-section-header';
+      const heroLabel = sec.kind === 'trio'
+        ? sec.choice.heroes.map(id => (CHARS[id] && CHARS[id].name) || id).join(' + ')
+        : `${(CHARS[sec.choice.heroA] && CHARS[sec.choice.heroA].name) || sec.choice.heroA} + ${(CHARS[sec.choice.heroB] && CHARS[sec.choice.heroB].name) || sec.choice.heroB}`;
+      const levelLabel = `LEVEL ${sec.level || 1}`;
+      header.innerHTML = `<span class="reso-level-tag reso-level-${sec.level || 1}">${levelLabel}</span> <span class="reso-section-heroes">${heroLabel}</span>`;
+      section.appendChild(header);
+    }
     const row = document.createElement('div');
     row.className = 'reso-section-options';
     if (sec.authored) {

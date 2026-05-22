@@ -9802,6 +9802,53 @@ button.path-node { cursor: pointer; }
   color: var(--gold-pale);
   opacity: 0.85;
 }
+/* Lead / support distinction — the anchored hero gets larger portrait,
+   brighter outline, gold LEADS tag.  The supporter renders dim with a
+   small 'supports' tag.  Visually the choice reads as 'who carries
+   this moment' instead of two identical halves. */
+.resonance-choice-template .reso-side-lead .reso-portrait {
+  width: 56px;
+  height: 80px;
+  opacity: 1;
+  filter: drop-shadow(0 0 12px rgba(240, 212, 136, 0.4));
+}
+.resonance-choice-template .reso-side-lead .reso-tech-hero {
+  color: var(--gold-bright);
+  opacity: 1;
+  font-weight: 700;
+  text-shadow: 0 0 6px rgba(240, 212, 136, 0.4);
+}
+.resonance-choice-template .reso-lead-tag {
+  font-size: 8px;
+  letter-spacing: 0.32em;
+  color: var(--gold-bright);
+  text-transform: uppercase;
+  text-shadow: 0 0 8px rgba(240, 212, 136, 0.55);
+  margin-top: 2px;
+  font-weight: 700;
+}
+.resonance-choice-template .reso-side-support .reso-portrait {
+  width: 38px;
+  height: 54px;
+  opacity: 0.65;
+  filter: grayscale(0.35) brightness(0.85);
+}
+.resonance-choice-template .reso-side-support .reso-tech-hero {
+  color: var(--ink-dim);
+  opacity: 0.72;
+}
+.resonance-choice-template .reso-support-tag {
+  font-size: 8px;
+  letter-spacing: 0.24em;
+  color: var(--ink-dim);
+  text-transform: uppercase;
+  margin-top: 2px;
+  opacity: 0.7;
+}
+.resonance-choice-template .reso-pair-template {
+  align-items: center;
+  gap: 12px;
+}
 
 /* Trigger line — spells out exactly which actions the player needs
    to queue to fire this kizuna.  Promoted from a small footnote to
@@ -9906,12 +9953,14 @@ button.path-node { cursor: pointer; }
   flex-direction: column;
   max-height: min(92vh, 92%);
 }
+/* Title + subtitle shrink to fit their own content; the picker
+   region (#overlay-choices) takes the remaining height and scrolls
+   internally so the Commit button always sits visible at the
+   bottom.  The old rule made #overlay-body grow too, which ate the
+   picker's vertical budget and pushed the button below the fold. */
+#overlay.overlay-resonance #overlay-title,
 #overlay.overlay-resonance #overlay-body {
-  display: flex;
-  flex-direction: column;
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: hidden;
+  flex: 0 0 auto;
 }
 #overlay.overlay-resonance #overlay-choices {
   display: flex;
