@@ -12901,12 +12901,18 @@ function _buildResonanceVariants(s, heroA, heroB) {
   const a = ids[0], b = ids[1];
   const slotA = slotOfChar(s, a);
   const slotB = slotOfChar(s, b);
-  if (!slotA || !slotB) return null;
+  if (!slotA || !slotB) {
+    try { console.warn('[Resonance] missing slot', { a, b, slotA, slotB, slots: s && s.party && s.party.slots }); } catch (_) {}
+    return null;
+  }
   const aBasic = getTech(s, a, slotA, 'basic');
   const aSig   = getTech(s, a, slotA, 'sig');
   const bBasic = getTech(s, b, slotB, 'basic');
   const bSig   = getTech(s, b, slotB, 'sig');
-  if (!aBasic || !aSig || !bBasic || !bSig) return null;
+  if (!aBasic || !aSig || !bBasic || !bSig) {
+    try { console.warn('[Resonance] missing techs', { a, slotA, aBasic: !!aBasic, aSig: !!aSig, b, slotB, bBasic: !!bBasic, bSig: !!bSig }); } catch (_) {}
+    return null;
+  }
   const nameA = (CHARS[a] && CHARS[a].name) || a;
   const nameB = (CHARS[b] && CHARS[b].name) || b;
   const pairKey = `${a}+${b}`;
@@ -15350,9 +15356,23 @@ function checkEnd(s) {
       // + quirk grants internally before surfacing the 3-card chooser.
       const layerInfo = LAYER_CONTENT[s.run.layer];
       const isMegaBoss = !!(layerInfo && layerInfo.megaBoss);
+      // Drain any pending Resonance picks between the spoils card and the
+      // run-summary screen.  Without this, bonds that cross Tier II during
+      // the boss fight itself never get a picker on this layer — the
+      // post-kill reconcile path only runs after non-boss wins, so the
+      // unlock would slide silently into the next layer (or get hidden
+      // by the run-summary close on the final boss).
+      const afterSpoils = () => {
+        _reconcileResonanceUnlocks(state);
+        if (state.run && state.run._pendingResonanceChoices && state.run._pendingResonanceChoices.length) {
+          showResonanceChoice(state, finishBoss);
+        } else {
+          finishBoss();
+        }
+      };
       const continueAfterDeath = isMegaBoss
-        ? () => awardMegabossBoon(state, finishBoss)
-        : () => awardBossSpoils(state, finishBoss);
+        ? () => awardMegabossBoon(state, afterSpoils)
+        : () => awardBossSpoils(state, afterSpoils);
       // Hold for the slo-mo death effect before the spoils overlay.
       const BOSS_DEATH_HOLD = 1600;
       if (bossMatches.length) {
@@ -21817,17 +21837,24 @@ function _showBatchResonanceChoice(s, choices, cont) {
       const variants = _buildTrioResonanceVariants(s, ch.heroes);
       if (variants && variants.length === 2) {
         sections.push({ choice: ch, variants, kind: 'trio' });
+      } else {
+        try { console.warn('[Resonance] trio variants failed to build', ch.heroes); } catch (_) {}
       }
     } else {
       const variants = _buildResonanceVariants(s, ch.heroA, ch.heroB);
       if (variants && variants.length === 2) {
         sections.push({ choice: ch, variants, kind: 'duo' });
+      } else {
+        try { console.warn('[Resonance] duo variants failed to build', ch.heroA, ch.heroB); } catch (_) {}
       }
     }
   });
   if (!sections.length) {
-    // Nothing buildable — clear the queue and continue silently.
-    if (s.run) s.run._pendingResonanceChoices = [];
+    // Nothing buildable right now — leave the queue intact so the
+    // next reconcile pass can retry (e.g. once heroes are no longer
+    // in a transient state).  Earlier this path wiped the queue,
+    // which meant a single transient build failure permanently lost
+    // the unlock.
     cont();
     return;
   }
@@ -21983,18 +22010,27 @@ function _showBatchResonanceChoice(s, choices, cont) {
     if (continueBtn.disabled) return;
     // Apply all selections to state.run.chosenResonances + log them.
     s.run.chosenResonances = s.run.chosenResonances || {};
+    const resolvedKeys = new Set();
     sections.forEach(sec => {
       const key = sectionKeyFor(sec);
       const variant = selections[key];
       if (!variant) return;
       s.run.chosenResonances[key] = variant;
+      resolvedKeys.add(key);
       const names = sec.kind === 'trio'
         ? sec.choice.heroes.map(id => `<b>${(CHARS[id] && CHARS[id].name) || id}</b>`).join(' + ')
         : `<b>${(CHARS[sec.choice.heroA] && CHARS[sec.choice.heroA].name) || sec.choice.heroA}</b> + <b>${(CHARS[sec.choice.heroB] && CHARS[sec.choice.heroB].name) || sec.choice.heroB}</b>`;
       log(`<i>${names} learn <b>${variant.name}</b>.</i>`);
     });
-    // Clear the pending queue — every choice resolved.
-    if (s.run) s.run._pendingResonanceChoices = [];
+    // Remove only the entries the player just resolved.  Any pending
+    // entry that failed to build (and so never made it into sections)
+    // stays queued so the reconcile pass can retry it next time.
+    if (s.run) {
+      s.run._pendingResonanceChoices = (s.run._pendingResonanceChoices || []).filter(c => {
+        const k = c.kind === 'trio' ? c.trioKey : c.pairKey;
+        return !resolvedKeys.has(k);
+      });
+    }
     hideOverlay();
     resetOverlayBtn();
     cont();
