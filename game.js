@@ -12926,6 +12926,466 @@ function _deriveComboUnlock(combo) {
   return { reqs: pairs, mode: 'count', count: 2 };
 }
 
+// ============================================================================
+// SCHOOL-PAIR RESONANCE TEMPLATES
+// ============================================================================
+// Every pair without an authored combo derives its kizuna mechanic from
+// the SCHOOLS its two heroes bring.  5 schools = 15 unique pairings:
+// physical/holy/arcane/ranged/stealth × same-or-cross.  Each template
+// has TWO variants — one anchored by each hero's identity — so the
+// picker still presents a real choice, but the underlying mechanic is
+// thematic to the school pairing instead of every pair feeling like
+// 'basic + sig + small burst'.
+//
+// Each template returns an object with:
+//   name(anchorName, otherName) → string
+//   desc(anchorName, otherName, tier) → string
+//   fn(s, anchorId, otherId, tier) → void  (the actual mechanic)
+//
+// The variant builder calls the template twice with the heroes swapped
+// so the two cards on the picker offer 'Hero A anchors' vs 'Hero B
+// anchors' — each with a different flavor and slight mechanical lean.
+const SCHOOL_PAIR_TEMPLATES = (() => {
+  // Helper — apply damage AS a specific hero so school flags, popups,
+  // and on-kill hooks read correctly.
+  const asHero = (s, id, fn) => {
+    s.currentActorId = id;
+    s.currentTechElement = (CHARS[id] && CHARS[id].school) || null;
+    try { fn(); } finally { s.currentActorId = null; s.currentTechElement = null; }
+  };
+  // Helper — pull the gating bond tier for the pair so Tier III scaling
+  // can read 'these two have fought together a long time'.
+  const burstTier = (s, a, b) => getBondTier(s, bondNameForPair(a, b));
+  // Front + splash damage primitive — used by several templates.
+  const frontAndSplash = (s, anchorId, frontDmg, splashDmg) => {
+    const front = enemyBySlot(s, 'front') || aliveEnemies(s)[0];
+    if (!front || front.dead) return null;
+    asHero(s, anchorId, () => applyDmgToEnemy(s, front, frontDmg));
+    if (splashDmg > 0) {
+      const others = aliveEnemies(s).filter(e => e && !e.dead && e !== front);
+      if (others.length) {
+        asHero(s, anchorId, () => {
+          others.forEach(e => { if (!e.dead) applyDmgToEnemy(s, e, splashDmg); });
+        });
+      }
+    }
+    return front;
+  };
+  const T = {
+    // ---- PHYSICAL × PHYSICAL — Twin Steel -----------------------------
+    // Two physical fighters lock the front down.  Front-focused power
+    // hit with a wider sweep, stagger, party armor as the bond gets
+    // deeper.  Tier III the pair gets a +1 atk pending for the next
+    // turn — the kizuna keeps swinging.
+    physical_physical: {
+      name: (a, b) => `${a} and ${b} · Twin Steel`,
+      desc: (a, b, t) => `Front +${t >= 3 ? 16 : 11} dmg, splash +${t >= 3 ? 6 : 4}, party +${t >= 3 ? 4 : 2} armor.  RESONANT: stagger front, +1 atk next turn for both heroes.`,
+      fn: (s, anchorId, otherId, tier) => {
+        const front = frontAndSplash(s, anchorId, tier >= 3 ? 16 : 11, tier >= 3 ? 6 : 4);
+        partyArmor(s, tier >= 3 ? 4 : 2);
+        if (tier >= 3) {
+          if (front && !front.dead) {
+            front.staggered = true; spawnPopupId(front.id, 'STAGGERED', 'stagger', 'enemy');
+          }
+          [anchorId, otherId].forEach(id => {
+            const c = s.party.chars[id];
+            if (c && !c.downed) c.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'twin-steel' });
+          });
+        }
+      },
+    },
+    // ---- HOLY × HOLY — Twin Light -------------------------------------
+    holy_holy: {
+      name: (a, b) => `${a} and ${b} · Twin Light`,
+      desc: (a, b, t) => `Party heal ${t >= 3 ? 8 : 5}, +${t >= 3 ? 4 : 2} armor, cleanse one debuff each.  RESONANT: revive one fallen ally at 30% HP.`,
+      fn: (s, anchorId, otherId, tier) => {
+        const healAmt = tier >= 3 ? 8 : 5;
+        aliveParty(s).forEach(c => {
+          const before = c.hp;
+          c.hp = Math.min(c.maxHp, c.hp + healAmt);
+          if (c.hp > before) spawnPopupId(c.id, `+${c.hp - before}`, 'heal', 'party');
+          c.bleed = 0; c.dulled = 0; c.vuln = 0;
+        });
+        partyArmor(s, tier >= 3 ? 4 : 2);
+        if (tier >= 3) {
+          const fallen = Object.values(s.party.chars).find(c => c && c.downed);
+          if (fallen) {
+            fallen.downed = false;
+            fallen.hp = Math.max(1, Math.ceil(fallen.maxHp * 0.30));
+            fallen.pendingEffects = [];
+            spawnPopupId(fallen.id, 'REVIVED', 'heal', 'party');
+            log(`<i><b>${CHARS[fallen.id].name}</b> rises in the light.</i>`);
+          }
+        }
+      },
+    },
+    // ---- ARCANE × ARCANE — Double Hex ---------------------------------
+    arcane_arcane: {
+      name: (a, b) => `${a} and ${b} · Double Hex`,
+      desc: (a, b, t) => `Arcane burst hits ALL for ${t >= 3 ? 9 : 6} (ignore armor), +${t >= 3 ? 4 : 3} VULN each.  RESONANT: stagger every foe.`,
+      fn: (s, anchorId, otherId, tier) => {
+        const dmg = tier >= 3 ? 9 : 6;
+        const vuln = tier >= 3 ? 4 : 3;
+        const wasIgnore = s.ignoreArmor;
+        s.ignoreArmor = true;
+        asHero(s, anchorId, () => {
+          aliveEnemies(s).forEach(e => {
+            if (e.dead) return;
+            applyDmgToEnemy(s, e, dmg);
+            if (!e.dead) {
+              e.vuln = (e.vuln || 0) + vuln;
+              if (tier >= 3) { e.staggered = true; }
+            }
+          });
+        });
+        s.ignoreArmor = wasIgnore;
+      },
+    },
+    // ---- RANGED × RANGED — Crossfire ----------------------------------
+    ranged_ranged: {
+      name: (a, b) => `${a} and ${b} · Crossfire`,
+      desc: (a, b, t) => `Both heroes loose: ${t >= 3 ? 8 : 5} dmg each foe, +1 bleed each.  RESONANT: focus front for extra +6 dmg, bleed becomes 2.`,
+      fn: (s, anchorId, otherId, tier) => {
+        const dmg = tier >= 3 ? 8 : 5;
+        const bleedAmt = tier >= 3 ? 2 : 1;
+        asHero(s, anchorId, () => {
+          aliveEnemies(s).forEach(e => {
+            if (e.dead) return;
+            applyDmgToEnemy(s, e, dmg);
+            if (!e.dead) e.bleed = Math.max(e.bleed, bleedAmt);
+          });
+        });
+        if (tier >= 3) {
+          const front = enemyBySlot(s, 'front') || aliveEnemies(s)[0];
+          if (front && !front.dead) asHero(s, otherId, () => applyDmgToEnemy(s, front, 6));
+        }
+      },
+    },
+    // ---- STEALTH × STEALTH — Twin Cuts --------------------------------
+    stealth_stealth: {
+      name: (a, b) => `${a} and ${b} · Twin Cuts`,
+      desc: (a, b, t) => `Lowest-HP foe takes ${t >= 3 ? 14 : 10} dmg, gains +${t >= 3 ? 3 : 2} bleed, +${t >= 3 ? 3 : 2} VULN.  RESONANT: detonate bleed for +1 dmg per stack, spread to adjacent.`,
+      fn: (s, anchorId, otherId, tier) => {
+        const dmg = tier >= 3 ? 14 : 10;
+        const bleedAmt = tier >= 3 ? 3 : 2;
+        const vulnAmt = tier >= 3 ? 3 : 2;
+        const alive = aliveEnemies(s);
+        if (!alive.length) return;
+        const target = alive.slice().sort((a, b) => a.hp - b.hp)[0];
+        asHero(s, anchorId, () => {
+          applyDmgToEnemy(s, target, dmg);
+          if (!target.dead) {
+            target.bleed = (target.bleed || 0) + bleedAmt;
+            target.vuln = (target.vuln || 0) + vulnAmt;
+            spawnPopupId(target.id, `+${vulnAmt} VULN`, 'stagger', 'enemy');
+          }
+        });
+        if (tier >= 3) {
+          asHero(s, otherId, () => {
+            aliveEnemies(s).forEach(e => {
+              if (e.dead) return;
+              const bleed = e.bleed || 0;
+              if (bleed > 0) applyDmgToEnemy(s, e, bleed);
+            });
+          });
+        }
+      },
+    },
+    // ---- PHYSICAL × HOLY — Hallowed Strike ----------------------------
+    physical_holy: {
+      name: (a, b) => `${a}'s Edge · ${b}'s Light`,
+      desc: (a, b, t) => `${a} hits front for ${t >= 3 ? 14 : 9} dmg, ${b} heals party ${t >= 3 ? 6 : 4} + ${t >= 3 ? 4 : 2} armor.  RESONANT: cleanse one debuff per ally.`,
+      fn: (s, anchorId, otherId, tier) => {
+        // Anchor is whoever school === 'physical' here; if anchor is
+        // holy we still swing the same effect — the variant naming
+        // changes but the kizuna body is the same.
+        const physId = (CHARS[anchorId] && CHARS[anchorId].school) === 'physical' ? anchorId : otherId;
+        const holyId = physId === anchorId ? otherId : anchorId;
+        const front = enemyBySlot(s, 'front') || aliveEnemies(s)[0];
+        if (front && !front.dead) asHero(s, physId, () => applyDmgToEnemy(s, front, tier >= 3 ? 14 : 9));
+        const healAmt = tier >= 3 ? 6 : 4;
+        aliveParty(s).forEach(c => {
+          const before = c.hp;
+          c.hp = Math.min(c.maxHp, c.hp + healAmt);
+          if (c.hp > before) spawnPopupId(c.id, `+${c.hp - before}`, 'heal', 'party');
+          if (tier >= 3) { c.bleed = 0; c.dulled = 0; c.vuln = Math.max(0, c.vuln - 1); }
+        });
+        partyArmor(s, tier >= 3 ? 4 : 2);
+      },
+    },
+    // ---- PHYSICAL × ARCANE — Steel and Spark --------------------------
+    physical_arcane: {
+      name: (a, b) => `${a}'s Steel · ${b}'s Spark`,
+      desc: (a, b, t) => `Physical hits front for ${t >= 3 ? 12 : 8}, arcane burst hits ALL for ${t >= 3 ? 6 : 4} (ignore armor), +${t >= 3 ? 3 : 2} VULN each.  RESONANT: stagger front.`,
+      fn: (s, anchorId, otherId, tier) => {
+        const physId = (CHARS[anchorId] && CHARS[anchorId].school) === 'physical' ? anchorId : otherId;
+        const arcId  = physId === anchorId ? otherId : anchorId;
+        const front = enemyBySlot(s, 'front') || aliveEnemies(s)[0];
+        if (front && !front.dead) asHero(s, physId, () => applyDmgToEnemy(s, front, tier >= 3 ? 12 : 8));
+        const burst = tier >= 3 ? 6 : 4;
+        const vuln = tier >= 3 ? 3 : 2;
+        const wasIgnore = s.ignoreArmor;
+        s.ignoreArmor = true;
+        asHero(s, arcId, () => {
+          aliveEnemies(s).forEach(e => {
+            if (e.dead) return;
+            applyDmgToEnemy(s, e, burst);
+            if (!e.dead) e.vuln = (e.vuln || 0) + vuln;
+          });
+        });
+        s.ignoreArmor = wasIgnore;
+        if (tier >= 3 && front && !front.dead) {
+          front.staggered = true;
+          spawnPopupId(front.id, 'STAGGERED', 'stagger', 'enemy');
+        }
+      },
+    },
+    // ---- PHYSICAL × RANGED — Volley and Charge ------------------------
+    physical_ranged: {
+      name: (a, b) => `${a}'s Charge · ${b}'s Volley`,
+      desc: (a, b, t) => `Physical hits front for ${t >= 3 ? 13 : 9}, ranged hits ALL for ${t >= 3 ? 5 : 3}, +${t >= 3 ? 2 : 1} bleed each.  RESONANT: bleed on EVERY foe spreads +1 to neighbours.`,
+      fn: (s, anchorId, otherId, tier) => {
+        const physId = (CHARS[anchorId] && CHARS[anchorId].school) === 'physical' ? anchorId : otherId;
+        const rngId  = physId === anchorId ? otherId : anchorId;
+        const front = enemyBySlot(s, 'front') || aliveEnemies(s)[0];
+        if (front && !front.dead) asHero(s, physId, () => applyDmgToEnemy(s, front, tier >= 3 ? 13 : 9));
+        const dmg = tier >= 3 ? 5 : 3;
+        const bleedAmt = tier >= 3 ? 2 : 1;
+        asHero(s, rngId, () => {
+          aliveEnemies(s).forEach(e => {
+            if (e.dead) return;
+            applyDmgToEnemy(s, e, dmg);
+            if (!e.dead) e.bleed = Math.max(e.bleed, bleedAmt);
+          });
+        });
+        if (tier >= 3) {
+          aliveEnemies(s).forEach(e => { if (!e.dead && e.bleed > 0) e.bleed += 1; });
+        }
+      },
+    },
+    // ---- PHYSICAL × STEALTH — Shadow Cleave ---------------------------
+    physical_stealth: {
+      name: (a, b) => `${a}'s Cleave · ${b}'s Shadow`,
+      desc: (a, b, t) => `Physical hits front for ${t >= 3 ? 12 : 8}, stealth bleeds lowest for ${t >= 3 ? 4 : 3} + ${t >= 3 ? 3 : 2} VULN.  RESONANT: front becomes weakened (-2 outgoing).`,
+      fn: (s, anchorId, otherId, tier) => {
+        const physId = (CHARS[anchorId] && CHARS[anchorId].school) === 'physical' ? anchorId : otherId;
+        const sthId  = physId === anchorId ? otherId : anchorId;
+        const front = enemyBySlot(s, 'front') || aliveEnemies(s)[0];
+        if (front && !front.dead) asHero(s, physId, () => applyDmgToEnemy(s, front, tier >= 3 ? 12 : 8));
+        const alive = aliveEnemies(s);
+        if (alive.length) {
+          const lowest = alive.slice().sort((a, b) => a.hp - b.hp)[0];
+          asHero(s, sthId, () => {
+            applyDmgToEnemy(s, lowest, tier >= 3 ? 4 : 3);
+            if (!lowest.dead) {
+              lowest.bleed = Math.max(lowest.bleed, tier >= 3 ? 3 : 2);
+              lowest.vuln = (lowest.vuln || 0) + (tier >= 3 ? 3 : 2);
+              spawnPopupId(lowest.id, `+${tier >= 3 ? 3 : 2} VULN`, 'stagger', 'enemy');
+            }
+          });
+        }
+        if (tier >= 3 && front && !front.dead) {
+          front.weakened = true;
+          front.weakenedTurnsLeft = 2;
+          spawnPopupId(front.id, 'WEAKENED', 'stagger', 'enemy');
+        }
+      },
+    },
+    // ---- HOLY × ARCANE — Sacred Hex -----------------------------------
+    holy_arcane: {
+      name: (a, b) => `${a}'s Litany · ${b}'s Hex`,
+      desc: (a, b, t) => `Heal lowest for ${t >= 3 ? 12 : 8}, ALL foes gain +${t >= 3 ? 4 : 3} VULN, +${t >= 3 ? 2 : 1} Resolve.  RESONANT: party also heals 4 each.`,
+      fn: (s, anchorId, otherId, tier) => {
+        const holyId = (CHARS[anchorId] && CHARS[anchorId].school) === 'holy' ? anchorId : otherId;
+        const arcId  = holyId === anchorId ? otherId : anchorId;
+        const alive = aliveParty(s);
+        if (alive.length) {
+          const target = alive.slice().sort((a, b) => (a.hp/a.maxHp) - (b.hp/b.maxHp))[0];
+          const before = target.hp;
+          target.hp = Math.min(target.maxHp, target.hp + (tier >= 3 ? 12 : 8));
+          if (target.hp > before) spawnPopupId(target.id, `+${target.hp - before}`, 'heal', 'party');
+        }
+        const vuln = tier >= 3 ? 4 : 3;
+        asHero(s, arcId, () => {
+          aliveEnemies(s).forEach(e => {
+            if (e.dead) return;
+            e.vuln = (e.vuln || 0) + vuln;
+            spawnPopupId(e.id, `+${vuln} VULN`, 'stagger', 'enemy');
+          });
+        });
+        gainResolve(s, tier >= 3 ? 2 : 1);
+        if (tier >= 3) {
+          aliveParty(s).forEach(c => {
+            const before = c.hp;
+            c.hp = Math.min(c.maxHp, c.hp + 4);
+            if (c.hp > before) spawnPopupId(c.id, `+${c.hp - before}`, 'heal', 'party');
+          });
+        }
+      },
+    },
+    // ---- HOLY × RANGED — Blessed Arrow --------------------------------
+    holy_ranged: {
+      name: (a, b) => `${a}'s Blessing · ${b}'s Arrow`,
+      desc: (a, b, t) => `Ranged hits ALL for ${t >= 3 ? 7 : 5}, heal lowest ${t >= 3 ? 10 : 7}, +${t >= 3 ? 3 : 2} armor party.  RESONANT: ranged hits ALL twice.`,
+      fn: (s, anchorId, otherId, tier) => {
+        const holyId = (CHARS[anchorId] && CHARS[anchorId].school) === 'holy' ? anchorId : otherId;
+        const rngId  = holyId === anchorId ? otherId : anchorId;
+        const dmg = tier >= 3 ? 7 : 5;
+        const hits = tier >= 3 ? 2 : 1;
+        asHero(s, rngId, () => {
+          for (let i = 0; i < hits; i++) {
+            aliveEnemies(s).forEach(e => { if (!e.dead) applyDmgToEnemy(s, e, dmg); });
+          }
+        });
+        const alive = aliveParty(s);
+        if (alive.length) {
+          const target = alive.slice().sort((a, b) => (a.hp/a.maxHp) - (b.hp/b.maxHp))[0];
+          const before = target.hp;
+          target.hp = Math.min(target.maxHp, target.hp + (tier >= 3 ? 10 : 7));
+          if (target.hp > before) spawnPopupId(target.id, `+${target.hp - before}`, 'heal', 'party');
+        }
+        partyArmor(s, tier >= 3 ? 3 : 2);
+      },
+    },
+    // ---- HOLY × STEALTH — Veil Mend -----------------------------------
+    holy_stealth: {
+      name: (a, b) => `${a}'s Mend · ${b}'s Veil`,
+      desc: (a, b, t) => `Party heal ${t >= 3 ? 7 : 5}, +${t >= 3 ? 6 : 3} armor.  Stealth marks the deadliest foe for +${t >= 3 ? 4 : 3} VULN.  RESONANT: extra +3 armor.`,
+      fn: (s, anchorId, otherId, tier) => {
+        const holyId = (CHARS[anchorId] && CHARS[anchorId].school) === 'holy' ? anchorId : otherId;
+        const sthId  = holyId === anchorId ? otherId : anchorId;
+        aliveParty(s).forEach(c => {
+          const before = c.hp;
+          c.hp = Math.min(c.maxHp, c.hp + (tier >= 3 ? 7 : 5));
+          if (c.hp > before) spawnPopupId(c.id, `+${c.hp - before}`, 'heal', 'party');
+        });
+        partyArmor(s, tier >= 3 ? 6 : 3);
+        const alive = aliveEnemies(s);
+        if (alive.length) {
+          // 'Deadliest' = highest current HP — the threat the party should
+          // soften before it swings again.
+          const target = alive.slice().sort((a, b) => b.hp - a.hp)[0];
+          asHero(s, sthId, () => {
+            target.vuln = (target.vuln || 0) + (tier >= 3 ? 4 : 3);
+            spawnPopupId(target.id, `+${tier >= 3 ? 4 : 3} VULN`, 'stagger', 'enemy');
+          });
+        }
+      },
+    },
+    // ---- ARCANE × RANGED — Hex Arrow ----------------------------------
+    arcane_ranged: {
+      name: (a, b) => `${a}'s Hex · ${b}'s Arrow`,
+      desc: (a, b, t) => `Ranged hits ALL for ${t >= 3 ? 6 : 4}, +${t >= 3 ? 3 : 2} VULN each.  Arcane burst on front for ${t >= 3 ? 10 : 7} (ignore armor).  RESONANT: bleed all 2.`,
+      fn: (s, anchorId, otherId, tier) => {
+        const arcId = (CHARS[anchorId] && CHARS[anchorId].school) === 'arcane' ? anchorId : otherId;
+        const rngId = arcId === anchorId ? otherId : anchorId;
+        const dmg = tier >= 3 ? 6 : 4;
+        const vuln = tier >= 3 ? 3 : 2;
+        asHero(s, rngId, () => {
+          aliveEnemies(s).forEach(e => {
+            if (e.dead) return;
+            applyDmgToEnemy(s, e, dmg);
+            if (!e.dead) e.vuln = (e.vuln || 0) + vuln;
+          });
+        });
+        const front = enemyBySlot(s, 'front') || aliveEnemies(s)[0];
+        if (front && !front.dead) {
+          const wasIgnore = s.ignoreArmor;
+          s.ignoreArmor = true;
+          asHero(s, arcId, () => applyDmgToEnemy(s, front, tier >= 3 ? 10 : 7));
+          s.ignoreArmor = wasIgnore;
+        }
+        if (tier >= 3) {
+          aliveEnemies(s).forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 2); });
+        }
+      },
+    },
+    // ---- ARCANE × STEALTH — Veiled Curse ------------------------------
+    arcane_stealth: {
+      name: (a, b) => `${a}'s Curse · ${b}'s Veil`,
+      desc: (a, b, t) => `Stealth bleeds + marks lowest (+${t >= 3 ? 4 : 3} bleed, +${t >= 3 ? 3 : 2} VULN).  Arcane detonates: every existing VULN stack on ANY foe deals ${t >= 3 ? 3 : 2} dmg each.  RESONANT: vuln spreads to neighbours.`,
+      fn: (s, anchorId, otherId, tier) => {
+        const arcId = (CHARS[anchorId] && CHARS[anchorId].school) === 'arcane' ? anchorId : otherId;
+        const sthId = arcId === anchorId ? otherId : anchorId;
+        const aliveBefore = aliveEnemies(s);
+        if (aliveBefore.length) {
+          const lowest = aliveBefore.slice().sort((a, b) => a.hp - b.hp)[0];
+          asHero(s, sthId, () => {
+            lowest.bleed = (lowest.bleed || 0) + (tier >= 3 ? 4 : 3);
+            lowest.vuln  = (lowest.vuln || 0) + (tier >= 3 ? 3 : 2);
+            spawnPopupId(lowest.id, `+${tier >= 3 ? 3 : 2} VULN`, 'stagger', 'enemy');
+          });
+        }
+        // Detonate: each existing VULN stack on each enemy = N damage.
+        const perStack = tier >= 3 ? 3 : 2;
+        asHero(s, arcId, () => {
+          aliveEnemies(s).forEach(e => {
+            if (e.dead) return;
+            const stacks = e.vuln || 0;
+            if (stacks > 0) applyDmgToEnemy(s, e, stacks * perStack);
+          });
+        });
+        if (tier >= 3) {
+          // Vuln spreads — every enemy with vuln transfers +1 to every
+          // other alive enemy.  Reads like a curse rippling outward.
+          const enemies = aliveEnemies(s);
+          const carriers = enemies.filter(e => (e.vuln || 0) > 0);
+          if (carriers.length) {
+            enemies.forEach(e => {
+              if (e.dead) return;
+              if (carriers.includes(e)) return;
+              e.vuln = (e.vuln || 0) + 1;
+              spawnPopupId(e.id, '+1 VULN', 'stagger', 'enemy');
+            });
+          }
+        }
+      },
+    },
+    // ---- RANGED × STEALTH — Silent Volley -----------------------------
+    ranged_stealth: {
+      name: (a, b) => `${a}'s Silence · ${b}'s Volley`,
+      desc: (a, b, t) => `Ranged hits ALL for ${t >= 3 ? 8 : 6} (no retaliation triggers).  Stealth bleeds front for ${t >= 3 ? 4 : 3}.  RESONANT: stagger all.`,
+      fn: (s, anchorId, otherId, tier) => {
+        const rngId = (CHARS[anchorId] && CHARS[anchorId].school) === 'ranged' ? anchorId : otherId;
+        const sthId = rngId === anchorId ? otherId : anchorId;
+        const dmg = tier >= 3 ? 8 : 6;
+        // Silent volley — suppress retaliate for this burst.  Stash the
+        // current state of retaliating enemies, zero them, fire, restore.
+        const retaliators = aliveEnemies(s).map(e => ({ e, r: e.retaliate || 0 }));
+        retaliators.forEach(r => { r.e.retaliate = 0; });
+        asHero(s, rngId, () => {
+          aliveEnemies(s).forEach(e => { if (!e.dead) applyDmgToEnemy(s, e, dmg); });
+        });
+        retaliators.forEach(r => { if (r.e && !r.e.dead) r.e.retaliate = r.r; });
+        const front = enemyBySlot(s, 'front') || aliveEnemies(s)[0];
+        if (front && !front.dead) {
+          asHero(s, sthId, () => {
+            front.bleed = (front.bleed || 0) + (tier >= 3 ? 4 : 3);
+          });
+        }
+        if (tier >= 3) {
+          aliveEnemies(s).forEach(e => {
+            if (!e.dead) { e.staggered = true; spawnPopupId(e.id, 'STAGGERED', 'stagger', 'enemy'); }
+          });
+        }
+      },
+    },
+  };
+  // Key the templates by sorted school-pair so lookup is order-insensitive.
+  return T;
+})();
+
+// Look up the school-pair template for two heroes.  Returns the template
+// object or null when there isn't one (e.g., one of the heroes has no
+// school assigned — falls back to the basic+sig kizuna burst).
+function _schoolPairTemplate(a, b) {
+  const sa = CHARS[a] && CHARS[a].school;
+  const sb = CHARS[b] && CHARS[b].school;
+  if (!sa || !sb) return null;
+  const key = [sa, sb].sort().join('_');
+  return SCHOOL_PAIR_TEMPLATES[key] || null;
+}
+
 // Build the two mirror-split Resonance variants for a pair when their
 // bond crosses Tier II.  Both variants have the same total cost; what
 // differs is WHICH hero carries the basic and which carries the sig —
@@ -12967,17 +13427,54 @@ function _buildResonanceVariants(s, heroA, heroB) {
     { kind: 'resolve' },
     { kind: 'enemy-flash', targets: 'front', kind2: 'hit',       ms: 200 },
   ]);
-  // Variant runner — invokes each hero's tech, then layers a SUBSTANTIAL
-  // kizuna burst on top so the Resonance feels like a real payoff for
-  // the bond unlock, not 'the same two attacks but slightly bigger'.
-  // The burst:
-  //   - Tier II: +6 dmg + 2 VULN on the front, AND +3 dmg splash on
-  //     every other alive enemy (so back-line foes still get a tag).
-  //   - Tier III: +9 dmg + 3 VULN on the front, +4 splash, AND staggers
-  //     the front-most foe so the next damaging hit lands at 2x.
-  // Bond-tier scaling carries the 'deeper bonds hit harder' pitch —
-  // same heroes, same techs, much louder kizuna when you've fought
-  // together long enough.
+  // School-pair template path — when both heroes have a school we
+  // recognize, the kizuna fires the school-pair template's bespoke
+  // effect instead of the generic basic+sig+burst.  Each pair gets a
+  // mechanic themed to their two schools (Twin Steel, Sacred Hex,
+  // Veiled Curse, etc.), with a distinct Tier III variant when the
+  // bond reaches RESONANT.  The picker still offers two anchored
+  // variants (Kai anchors vs Hask anchors) — the mechanic is the
+  // same but the cinematic + naming follows the anchor hero.
+  const template = _schoolPairTemplate(a, b);
+  if (template) {
+    const bondName = bondNameForPair(a, b);
+    const buildAnchored = (anchorId, otherId, variantId) => {
+      const anchorName = (CHARS[anchorId] && CHARS[anchorId].name) || anchorId;
+      const otherName  = (CHARS[otherId]  && CHARS[otherId].name)  || otherId;
+      const vname = template.name(anchorName, otherName);
+      const t2desc = template.desc(anchorName, otherName, 2);
+      return {
+        id: `chosen_${pairKey}__${variantId}`,
+        name: vname,
+        tier: 'duo',
+        chosenResonance: true,
+        pairKey,
+        desc: t2desc,
+        requires: [
+          { heroId: a, kind: 'attack' },
+          { heroId: b, kind: 'attack' },
+        ],
+        fn: (s2) => {
+          const tier = getBondTier(s2, bondName);
+          template.fn(s2, anchorId, otherId, tier);
+        },
+        cinematic: cinematicFor(vname.toUpperCase(), (CHARS[anchorId] && CHARS[anchorId].school) || 'physical'),
+        _preview: {
+          aHero: anchorId, bHero: otherId,
+          aTech: { name: anchorName, desc: 'anchors the moment' },
+          bTech: { name: otherName,  desc: 'channels the bond'  },
+          kindA: 'attack', kindB: 'attack',
+          schoolPair: true,
+        },
+      };
+    };
+    return [
+      buildAnchored(a, b, 'v1'),
+      buildAnchored(b, a, 'v2'),
+    ];
+  }
+  // Fallback path — pairs whose schools don't map to a template (or
+  // future schools we add) still get the basic+sig+kizuna burst.
   const runVariant = (kindA, kindB) => (s2) => {
     const front = enemyBySlot(s2, 'front')
       || aliveEnemies(s2)[0];
@@ -22138,6 +22635,38 @@ function _showBatchResonanceChoice(s, choices, cont) {
     const bTechDesc = (p.bTech && p.bTech.desc) || '';
     const card = document.createElement('button');
     card.className = 'encounter-choice resonance-choice';
+    // School-pair variants don't bind to specific basic / sig techs —
+    // they fire a hand-crafted template (Twin Steel, Sacred Hex, etc.)
+    // anchored on one of the two heroes.  Render a leaner card: two
+    // portraits + 'anchors / channels' tags, plus the full template
+    // description below so the player can read the payoff.
+    if (p.schoolPair) {
+      const schoolA = (CHARS[p.aHero] && CHARS[p.aHero].school) || '';
+      const schoolB = (CHARS[p.bHero] && CHARS[p.bHero].school) || '';
+      card.classList.add('resonance-choice-template');
+      card.innerHTML = `
+        <div class="reso-title">${variant.name}</div>
+        <div class="reso-pair reso-pair-template">
+          <div class="reso-side">
+            <div class="reso-portrait">${PORTRAITS[p.aHero] || ''}</div>
+            <div class="reso-tech">
+              <div class="reso-tech-hero">${aHero} · ${schoolA}</div>
+              <div class="reso-tech-name">anchors</div>
+            </div>
+          </div>
+          <div class="reso-arrow" aria-hidden="true">+</div>
+          <div class="reso-side">
+            <div class="reso-portrait">${PORTRAITS[p.bHero] || ''}</div>
+            <div class="reso-tech">
+              <div class="reso-tech-hero">${bHero} · ${schoolB}</div>
+              <div class="reso-tech-name">channels</div>
+            </div>
+          </div>
+        </div>
+        <div class="reso-template-desc">${variant.desc || ''}</div>
+      `;
+      return card;
+    }
     card.innerHTML = `
       <div class="reso-title">${variant.name}</div>
       <div class="reso-pair">

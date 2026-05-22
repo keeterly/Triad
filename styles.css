@@ -9764,6 +9764,33 @@ button.path-node { cursor: pointer; }
   border-top: 1px solid rgba(212,200,168,0.18);
   padding-top: 6px;
 }
+
+/* School-pair template cards — used when a chosen Resonance variant
+   fires a bespoke school-pair mechanic instead of basic+sig+burst.
+   Slightly different framing from the standard mirror-split card:
+   the 'arrow' becomes a plus (both heroes contribute together) and
+   the template's full mechanic description sits at the bottom. */
+.resonance-choice-template .reso-pair-template .reso-arrow {
+  color: var(--gold-pale);
+  font-size: 18px;
+  opacity: 0.78;
+}
+.resonance-choice-template .reso-template-desc {
+  text-align: center;
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--ink);
+  padding: 6px 4px 0;
+  border-top: 1px solid rgba(212,200,168,0.18);
+  margin-top: 6px;
+  letter-spacing: 0.02em;
+}
+.resonance-choice-template .reso-tech-hero {
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--gold-pale);
+  opacity: 0.85;
+}
 @media (orientation: landscape) and (max-height: 520px) {
   .resonance-choice { width: 240px !important; padding: 8px 10px 10px !important; gap: 6px !important; }
   .resonance-choice .reso-title { font-size: 11px !important; padding: 0 0 4px !important; }
