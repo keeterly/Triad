@@ -21196,7 +21196,10 @@ function showRunSummary(outcome, opts) {
             </div>
           </div>`);
         }
-        return `<div class="rs-highlights">${tiles.join('')}</div>`;
+        return `<div class="rs-highlights">
+          <div class="rs-section-label">Highlights</div>
+          <div class="rs-highlights-row">${tiles.join('')}</div>
+        </div>`;
       })()}
       ${(() => {
         // KIZUNA RECAP — surfaces the bonds that mattered this run.
@@ -22318,6 +22321,20 @@ function showRecruitVignette(heroId, flavor, onDone) {
     ];
     title = base ? base.title : `${def.name} steps from the dark`;
   }
+  // Compose a richer tag line for the 'Welcome them' choice — players
+  // need to see WHAT they're getting before they commit (home slot,
+  // school, max HP, passive name).  Without this, recruits read as a
+  // blind portrait pick.
+  const schoolLabel = (sch) => {
+    if (sch === 'physical') return 'Physical';
+    if (sch === 'arcane')   return 'Arcane';
+    if (sch === 'holy')     return 'Holy';
+    if (sch === 'shadow')   return 'Shadow';
+    return sch || '';
+  };
+  const homeName = SLOT_LABELS[def.home] || '—';
+  const passName = (def.passive && def.passive.name) || '';
+  const welcomeTag = `Home ${homeName} · ${schoolLabel(def.school)} · ${def.maxHp} HP${passName ? ` · ${passName}` : ''}`;
   const vig = {
     id: `recruit_event_${heroId}_${flavor || 'default'}`,
     title,
@@ -22326,7 +22343,7 @@ function showRecruitVignette(heroId, flavor, onDone) {
     choices: [
       {
         label: 'Welcome them',
-        tag: `${def.name} joins · HP restored`,
+        tag: welcomeTag,
         resolve: (s) => {
           const slot = findEmptySlotForRecruit(heroId);
           if (!slot) return;

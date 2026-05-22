@@ -5103,12 +5103,29 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
    Portrait + label + value + subline.  Either tile renders alone if
    the other is unavailable (e.g., player fled before dealing damage). */
 .rs-highlights {
+  margin: 8px auto 4px;
+  max-width: 460px;
+}
+.rs-highlights-row {
   display: flex;
   gap: 10px;
   justify-content: center;
   flex-wrap: wrap;
-  margin: 8px auto 4px;
-  max-width: 460px;
+}
+.rs-section-label {
+  font-size: 10px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--gold-pale);
+  text-align: center;
+  margin-bottom: 6px;
+  opacity: 0.82;
+}
+.rs-section-label::before,
+.rs-section-label::after {
+  content: '·';
+  margin: 0 8px;
+  color: var(--ink-dim);
 }
 .rs-highlight {
   display: flex;
