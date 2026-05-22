@@ -22851,14 +22851,14 @@ function _showBatchResonanceChoice(s, choices, cont) {
         ? `Triad resonant L${sections[0].level || 1} — ${sections[0].choice.heroes.map(id => (CHARS[id] && CHARS[id].name) || id).join(' + ')}`
         : `${titleLevelLabel} — ${(CHARS[sections[0].choice.heroA] && CHARS[sections[0].choice.heroA].name) || ''} + ${(CHARS[sections[0].choice.heroB] && CHARS[sections[0].choice.heroB].name) || ''}`)
     : `Kizuna deepened — ${sections.length} new resonances`;
-  const triggerLine = (lvl) =>
+  const triggerSubtitle = (lvl) =>
     lvl === 1 ? 'Triggered when both heroes ATTACK.'
     : lvl === 2 ? 'Triggered by ATTACK + SPECIAL.'
     : 'Triggered when both heroes SPECIAL.';
   const subtitle = (sections.length === 1)
     ? (sections[0].variants && sections[0].variants[0]._preview && sections[0].variants[0]._preview.authored
         ? 'Their bond rings true — a named kizuna locks in.'
-        : `${triggerLine(sections[0].level || 1)}  Pick who leads — the choice locks in for the rest of the run.`)
+        : `${triggerSubtitle(sections[0].level || 1)}  Pick who leads — the choice locks in for the rest of the run.`)
     : 'Multiple kizuna unlocked.  Step through and pick how each fires.';
   $('#overlay-title').textContent = title;
   $('#overlay-body').textContent = subtitle;
