@@ -22844,11 +22844,14 @@ function showStarterChooser(pool, onPick) {
   const unlocked = getUnlockedStarters();
   const locked = unlocked.filter(id => !pool.includes(id) && CHARS[id]);
 
-  // Render selectable starters as a row of richer cards (portrait +
-  // title + school / HP + passive) so the pick is informed.  Locked
-  // heroes go into a separate compact strip below — portrait + name +
-  // tag only — so they don't crowd the selectable pool when the player
-  // has many unlocks.
+  // Single horizontal lineup that includes BOTH selectable and locked
+  // heroes inline.  When the player has many unlocks the strip simply
+  // scrolls horizontally — swipe on mobile, scroll wheel / arrow keys
+  // on desktop — instead of wrapping (which crowded the locked strip
+  // up against the selectable cards' passives) or hiding entries
+  // behind a separate panel.  Locked heroes stay dimmed with a "needs
+  // a partner" tag so the player still sees who they have but can't
+  // open with.
   const schoolLabel = (sch) => {
     if (sch === 'physical') return 'Physical';
     if (sch === 'arcane')   return 'Arcane';
@@ -22856,14 +22859,21 @@ function showStarterChooser(pool, onPick) {
     if (sch === 'shadow')   return 'Shadow';
     return sch || '';
   };
+  const scrollWrap = document.createElement('div');
+  scrollWrap.className = 'starter-scroll';
   const lineup = document.createElement('div');
   lineup.className = 'starter-lineup';
-  pool.forEach((id) => {
+  const renderFig = (id, selectable) => {
     const def = CHARS[id];
-    const fig = document.createElement('button');
-    fig.type = 'button';
-    fig.className = 'starter-fig';
+    const fig = document.createElement(selectable ? 'button' : 'div');
+    if (selectable) fig.type = 'button';
+    fig.className = `starter-fig${selectable ? '' : ' starter-fig-locked'}`;
     fig.dataset.id = id;
+    if (!selectable) fig.setAttribute('aria-disabled', 'true');
+    const passiveHtml = def.passive
+      ? `<div class="starter-passive"><b>${def.passive.name}</b> — ${def.passive.desc}</div>`
+      : '';
+    const tagHtml = selectable ? '' : `<div class="starter-locked-tag">needs a partner</div>`;
     fig.innerHTML = `
       <div class="starter-portrait">${PORTRAITS[id] || ''}</div>
       <div class="starter-name">${def.name}</div>
@@ -22872,41 +22882,29 @@ function showStarterChooser(pool, onPick) {
         <span class="starter-school">${schoolLabel(def.school)}</span>
         <span class="starter-hp">${def.maxHp} HP</span>
       </div>
-      ${def.passive ? `<div class="starter-passive"><b>${def.passive.name}</b> — ${def.passive.desc}</div>` : ''}
+      ${passiveHtml}
+      ${tagHtml}
     `;
     bindStarterHoldOrTap(fig, def, () => {
+      if (!selectable) return; // hold-to-read still works; tap is a no-op
       hideOverlay();
       choices.classList.remove('starter-choices');
       resetOverlayBtn();
       onPick(id);
     });
-    lineup.appendChild(fig);
+    return fig;
+  };
+  pool.forEach(id => lineup.appendChild(renderFig(id, true)));
+  locked.forEach(id => lineup.appendChild(renderFig(id, false)));
+  scrollWrap.appendChild(lineup);
+  choices.appendChild(scrollWrap);
+  // Swipe / scroll hint — only shown when the lineup actually overflows.
+  // Defers to next frame so layout is settled before we measure.
+  requestAnimationFrame(() => {
+    if (lineup.scrollWidth > scrollWrap.clientWidth + 4) {
+      scrollWrap.classList.add('starter-scroll-overflow');
+    }
   });
-  choices.appendChild(lineup);
-  if (locked.length) {
-    const lockedHeader = document.createElement('div');
-    lockedHeader.className = 'starter-locked-header';
-    lockedHeader.textContent = `Needs a partner · ${locked.length} ${locked.length === 1 ? 'hero' : 'heroes'} waiting to be recruited`;
-    choices.appendChild(lockedHeader);
-    const lockedStrip = document.createElement('div');
-    lockedStrip.className = 'starter-locked-strip';
-    locked.forEach((id) => {
-      const def = CHARS[id];
-      const fig = document.createElement('div');
-      fig.className = 'starter-fig-mini starter-fig-locked';
-      fig.dataset.id = id;
-      fig.setAttribute('aria-disabled', 'true');
-      fig.innerHTML = `
-        <div class="starter-mini-portrait">${PORTRAITS[id] || ''}</div>
-        <div class="starter-mini-name">${def.name}</div>
-      `;
-      // Hold-to-read still works on the mini chips — same affordance as
-      // selectable entries but with no onPick.
-      bindStarterHoldOrTap(fig, def, () => {});
-      lockedStrip.appendChild(fig);
-    });
-    choices.appendChild(lockedStrip);
-  }
 
   resetOverlayBtn();
   $('#overlay-btn').classList.add('hidden');

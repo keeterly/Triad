@@ -3271,20 +3271,69 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
 #overlay-choices.starter-choices {
   display: block !important;
 }
+/* Horizontal scroll container — when the player has many unlocked
+   heroes the lineup overflows the design canvas, so we wrap it in
+   a single overflow-x: auto strip with momentum scrolling on mobile.
+   Edge fades + a small "swipe ↔" hint surface only when the lineup
+   actually overflows (starter-scroll-overflow class added by JS). */
+.starter-scroll {
+  position: relative;
+  max-width: 100%;
+  margin: 0 auto;
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(212,200,168,0.25) transparent;
+  scroll-snap-type: x proximity;
+  padding: 2px 0 8px;
+}
+.starter-scroll::-webkit-scrollbar {
+  height: 6px;
+}
+.starter-scroll::-webkit-scrollbar-thumb {
+  background: rgba(212,200,168,0.22);
+  border-radius: 3px;
+}
+.starter-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.starter-scroll.starter-scroll-overflow::before,
+.starter-scroll.starter-scroll-overflow::after {
+  content: '';
+  position: sticky;
+  top: 0;
+  bottom: 0;
+  width: 28px;
+  height: 100%;
+  display: block;
+  flex-shrink: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+.starter-scroll.starter-scroll-overflow::before {
+  left: 0;
+  margin-right: -28px;
+  background: linear-gradient(90deg, rgba(0,0,0,0.85) 0%, transparent 100%);
+}
+.starter-scroll.starter-scroll-overflow::after {
+  right: 0;
+  margin-left: -28px;
+  background: linear-gradient(270deg, rgba(0,0,0,0.85) 0%, transparent 100%);
+}
 .starter-lineup {
   display: flex;
   align-items: flex-start;
+  /* Centered when the lineup fits the viewport; pushed to flex-start
+     when it overflows so the scroll starts at the leftmost card.
+     The parent .starter-scroll handles overflow. */
   justify-content: center;
   gap: 10px;
-  /* Wrap when too many selectable starters share the row.  The old
-     nowrap layout silently crushed every fig past ~5 heroes, which
-     blew out our 720px design canvas as soon as a player unlocked
-     more solo-viable starters. */
-  flex-wrap: wrap;
-  padding: 6px 0 10px;
+  flex-wrap: nowrap;
+  padding: 6px 12px 10px;
   position: relative;
-  max-width: 720px;
-  margin: 0 auto;
+  width: max-content;
+  min-width: 100%;
 }
 .starter-lineup.recruit-lineup {
   padding-top: 96px;
@@ -3300,10 +3349,9 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
   pointer-events: none;
 }
 .starter-fig {
-  /* Fixed-width cards so the lineup wraps cleanly past ~4 heroes per
-     row instead of squishing every fig into illegibility.  Was
-     flex: 1 1 0 with max-width 160px — fine on wide screens, broken
-     anywhere narrower than ~720px. */
+  /* Fixed-width cards so the horizontal scroll has predictable snap
+     points and each hero gets the same amount of room — selectable
+     or locked. */
   flex: 0 0 auto;
   width: 138px;
   background: transparent;
@@ -3317,6 +3365,7 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
   position: relative;
   transition: filter 0.18s, transform 0.12s, background 0.18s;
   border-radius: 6px;
+  scroll-snap-align: start;
 }
 .starter-fig:hover, .starter-fig:active {
   background: rgba(40,28,18,0.35);
