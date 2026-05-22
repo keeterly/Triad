@@ -9978,7 +9978,9 @@ button.path-node { cursor: pointer; }
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
+  width: 100%;
 }
 #overlay.overlay-resonance #overlay-choices .reso-continue {
   flex: 0 0 auto;
@@ -10148,10 +10150,20 @@ button.path-node { cursor: pointer; }
 }
 /* Trio cards used to render at 260px each — two side-by-side
    plus padding overflowed the picker container on landscape mobile
-   and pushed the right card off-screen.  Trim to 220px + tighter
-   internal layout so the row fits cleanly under the section header. */
+   and pushed the right card off-screen.  Stack them vertically so
+   each card gets the full picker width and the section never
+   overflows. */
 .resonance-choice-trio {
-  max-width: 220px;
+  width: 260px !important;
+  max-width: 280px !important;
+}
+/* Stack trio variants vertically — two trio cards side-by-side
+   always overflowed the picker container.  A single column keeps
+   each card readable and the slide compact. */
+.reso-section-options:has(.resonance-choice-trio) {
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 10px !important;
 }
 /* Selected card — a small affordance so the player knows the row's
    pick is committed.  Stronger border + gold inner glow.  Only shows
