@@ -10895,6 +10895,7 @@ function newState(forcedStarter) {
       // stashCarriedParty for what we serialize between layers.
       synergyCounts: (carried && carried.synergyCounts && typeof carried.synergyCounts === 'object') ? { ...carried.synergyCounts } : {},
       chosenResonances: (carried && carried.chosenResonances && typeof carried.chosenResonances === 'object') ? { ...carried.chosenResonances } : {},
+      _ackedResonances: (carried && carried.ackedResonances && typeof carried.ackedResonances === 'object') ? { ...carried.ackedResonances } : {},
     },
 
     // Solo start: starter goes in their HOME slot; the other two slots are empty.
@@ -13151,25 +13152,37 @@ function _buildTrioResonanceVariants(s, heroes) {
   return [v1, v2];
 }
 
-// Queue a Resonance unlock choice for this pair if all conditions
-// hold: pair has no authored combo, no choice already made, not
-// already queued for choice this run.  Called from BOTH the themed
-// bond rank-up path (fireSynergyFeedback) and the Camaraderie tick.
+// Queue a Resonance unlock choice for this pair when their bond crosses
+// Tier II.  Pairs WITHOUT an authored combo get the mirror-split
+// picker (two variants); pairs WITH an authored combo (Banner Volley,
+// Twin Strike, etc.) get a single-card celebration overlay so the
+// unlock still has a "level up" moment — they just don't get a real
+// choice, since the authored combo IS the variant.  Either way the
+// pair is queued and a screen appears.
 //
 // Also walks the party for any 3rd hero whose trio with this pair
 // is NOW unlocked (2-of-3 pair bonds at Tier II) — if so, queues a
-// trio choice too.  This catches trio crossings that happen as a
-// side-effect of a single pair-bond tier-up.
+// trio entry too.
 function _queueResonanceChoice(s, heroA, heroB) {
   if (!s || !s.run || __simulating) return;
-  if (!_pairHasAuthoredCombo(heroA, heroB)) {
-    const key = adjKey(heroA, heroB);
-    s.run.chosenResonances = s.run.chosenResonances || {};
-    if (!s.run.chosenResonances[key]) {
-      s.run._pendingResonanceChoices = s.run._pendingResonanceChoices || [];
-      if (!s.run._pendingResonanceChoices.some(c => c.kind === 'duo' && c.pairKey === key)) {
-        s.run._pendingResonanceChoices.push({ kind: 'duo', pairKey: key, heroA, heroB });
-      }
+  const key = adjKey(heroA, heroB);
+  s.run.chosenResonances = s.run.chosenResonances || {};
+  s.run._pendingResonanceChoices = s.run._pendingResonanceChoices || [];
+  // Authored pairs have no per-run "chosen" entry (the authored combo
+  // is the chosen variant) so we gate on a separate _ackedResonances
+  // ledger to make sure we only ever show the celebration once per
+  // pair per run.
+  const authored = _pairHasAuthoredCombo(heroA, heroB);
+  if (authored) {
+    s.run._ackedResonances = s.run._ackedResonances || {};
+    if (!s.run._ackedResonances[key]
+        && !s.run._pendingResonanceChoices.some(c => c.kind === 'duo' && c.pairKey === key)) {
+      s.run._pendingResonanceChoices.push({ kind: 'duo', pairKey: key, heroA, heroB, authored: true });
+    }
+  } else {
+    if (!s.run.chosenResonances[key]
+        && !s.run._pendingResonanceChoices.some(c => c.kind === 'duo' && c.pairKey === key)) {
+      s.run._pendingResonanceChoices.push({ kind: 'duo', pairKey: key, heroA, heroB });
     }
   }
   _checkTrioUnlocks(s, heroA, heroB);
@@ -13183,6 +13196,7 @@ function _checkTrioUnlocks(s, heroA, heroB) {
   if (!s || !s.run || __simulating) return;
   s.run.chosenResonances = s.run.chosenResonances || {};
   s.run._pendingResonanceChoices = s.run._pendingResonanceChoices || [];
+  s.run._ackedResonances = s.run._ackedResonances || {};
   const partyIds = Object.keys(s.party.chars).filter(id => {
     const c = s.party.chars[id];
     return c && !c.downed;
@@ -13191,11 +13205,28 @@ function _checkTrioUnlocks(s, heroA, heroB) {
     if (heroC === heroA || heroC === heroB) return;
     const trio = [heroA, heroB, heroC].sort();
     const trioKey = trio.join('+');
-    if (s.run.chosenResonances[trioKey]) return;
     if (s.run._pendingResonanceChoices.some(c => c.kind === 'trio' && c.trioKey === trioKey)) return;
-    if (_trioHasAuthoredCombo(trio)) return;
+    const authored = _trioHasAuthoredCombo(trio);
+    if (authored) {
+      // Authored trios — celebrate the unlock once per run via the
+      // _ackedResonances ledger (they have no chosenResonance entry).
+      if (s.run._ackedResonances[trioKey]) return;
+      // The authored combo gates on its own unlock condition; use it
+      // to test "is this trio actually unlocked right now?".
+      const authoredCombo = Object.values(COMBOS).find(c =>
+        !c.generic && !c.chosenResonance && c.tier === 'triple' && c.requires
+        && c.requires.map(r => r.heroId).slice().sort().join('+') === trioKey);
+      if (authoredCombo && !isComboUnlocked(s, authoredCombo)) return;
+      s.run._pendingResonanceChoices.push({
+        kind: 'trio',
+        trioKey,
+        heroes: trio,
+        authored: true,
+      });
+      return;
+    }
+    if (s.run.chosenResonances[trioKey]) return;
     // Find the generic trio combo to test against isComboUnlocked.
-    // (Authored trios were already filtered above.)
     const genericId = `triad_${trioKey}`;
     const trioCombo = COMBOS[genericId];
     if (!trioCombo) return;
@@ -13229,22 +13260,30 @@ function _reconcileResonanceUnlocks(s) {
   if (!s || !s.run || __simulating) return;
   s.run.chosenResonances = s.run.chosenResonances || {};
   s.run._pendingResonanceChoices = s.run._pendingResonanceChoices || [];
+  s.run._ackedResonances = s.run._ackedResonances || {};
   const partyIds = Object.keys(s.party.chars).filter(id => {
     const c = s.party.chars[id];
     return c && !c.downed;
   });
-  // Pair check.
+  // Pair check — covers both authored (celebration) and generic
+  // (mirror-split) variants.  Authored pairs use _ackedResonances as
+  // their per-run gate; generic pairs use chosenResonances.
   for (let i = 0; i < partyIds.length; i++) {
     for (let j = i + 1; j < partyIds.length; j++) {
       const a = partyIds[i], b = partyIds[j];
-      if (_pairHasAuthoredCombo(a, b)) continue;
       const key = adjKey(a, b);
-      if (s.run.chosenResonances[key]) continue;
       if (s.run._pendingResonanceChoices.some(c => c.kind === 'duo' && c.pairKey === key)) continue;
       const bondName = bondNameForPair(a, b);
-      const count = s.run.synergyCounts && s.run.synergyCounts[bondName];
-      if (!count || count < BOND_TIER_THRESHOLDS[0]) continue;
-      s.run._pendingResonanceChoices.push({ kind: 'duo', pairKey: key, heroA: a, heroB: b });
+      const count = (s.run.synergyCounts && s.run.synergyCounts[bondName]) || 0;
+      if (count < BOND_TIER_THRESHOLDS[0]) continue;
+      const authored = _pairHasAuthoredCombo(a, b);
+      if (authored) {
+        if (s.run._ackedResonances[key]) continue;
+        s.run._pendingResonanceChoices.push({ kind: 'duo', pairKey: key, heroA: a, heroB: b, authored: true });
+      } else {
+        if (s.run.chosenResonances[key]) continue;
+        s.run._pendingResonanceChoices.push({ kind: 'duo', pairKey: key, heroA: a, heroB: b });
+      }
     }
   }
   // Trio check.
@@ -13253,9 +13292,18 @@ function _reconcileResonanceUnlocks(s) {
       for (let k = j + 1; k < partyIds.length; k++) {
         const trio = [partyIds[i], partyIds[j], partyIds[k]].sort();
         const trioKey = trio.join('+');
-        if (_trioHasAuthoredCombo(trio)) continue;
-        if (s.run.chosenResonances[trioKey]) continue;
         if (s.run._pendingResonanceChoices.some(c => c.kind === 'trio' && c.trioKey === trioKey)) continue;
+        const authored = _trioHasAuthoredCombo(trio);
+        if (authored) {
+          if (s.run._ackedResonances[trioKey]) continue;
+          const authoredCombo = Object.values(COMBOS).find(c =>
+            !c.generic && !c.chosenResonance && c.tier === 'triple' && c.requires
+            && c.requires.map(r => r.heroId).slice().sort().join('+') === trioKey);
+          if (authoredCombo && !isComboUnlocked(s, authoredCombo)) continue;
+          s.run._pendingResonanceChoices.push({ kind: 'trio', trioKey, heroes: trio, authored: true });
+          continue;
+        }
+        if (s.run.chosenResonances[trioKey]) continue;
         const trioCombo = COMBOS[`triad_${trioKey}`];
         if (!trioCombo) continue;
         if (!isComboUnlocked(s, trioCombo)) continue;
@@ -21890,8 +21938,28 @@ function _showBatchResonanceChoice(s, choices, cont) {
   // Build each section's variant pair up-front.  Anything that fails
   // to build (slots missing, etc.) drops out silently so the player
   // never sees a half-rendered section.
+  //
+  // Authored entries (authored: true) skip the mirror-split builder
+  // and present a single celebration card showing the authored combo
+  // — name, description, the heroes it binds.  The pair is auto-
+  // selected on render so the Continue button activates immediately.
   const sections = [];
   choices.forEach(ch => {
+    if (ch.authored) {
+      const combo = ch.kind === 'trio'
+        ? Object.values(COMBOS).find(c =>
+            !c.generic && !c.chosenResonance && c.tier === 'triple' && c.requires
+            && c.requires.map(r => r.heroId).slice().sort().join('+') === ch.trioKey)
+        : Object.values(COMBOS).find(c =>
+            !c.generic && !c.chosenResonance && c.tier === 'duo' && c.requires
+            && c.requires.map(r => r.heroId).slice().sort().join('+') === ch.pairKey);
+      if (combo) {
+        sections.push({ choice: ch, kind: ch.kind, authored: true, combo });
+      } else {
+        try { console.warn('[Resonance] authored combo missing', ch); } catch (_) {}
+      }
+      return;
+    }
     if (ch.kind === 'trio') {
       const variants = _buildTrioResonanceVariants(s, ch.heroes);
       if (variants && variants.length === 2) {
@@ -21921,16 +21989,26 @@ function _showBatchResonanceChoice(s, choices, cont) {
   $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-sigil','overlay-cinematic','overlay-starter','overlay-boon','overlay-upgrade','overlay-resonance-trio');
   $overlay.classList.add('overlay-full','overlay-event','overlay-resonance');
   if (sections.some(s2 => s2.kind === 'trio')) $overlay.classList.add('overlay-resonance-trio');
+  const allAuthored = sections.every(sec => sec.authored);
+  const anyChoice = sections.some(sec => !sec.authored);
   const title = (sections.length === 1)
     ? (sections[0].kind === 'trio'
         ? `Triad resonant — ${sections[0].choice.heroes.map(id => (CHARS[id] && CHARS[id].name) || id).join(' + ')}`
         : `Kizuna deepened — ${(CHARS[sections[0].choice.heroA] && CHARS[sections[0].choice.heroA].name) || ''} + ${(CHARS[sections[0].choice.heroB] && CHARS[sections[0].choice.heroB].name) || ''}`)
     : `Kizuna deepened — ${sections.length} new resonances`;
+  const subtitleAuthoredSingle = (sections[0] && sections[0].kind === 'trio')
+    ? 'The three resonate as one — their authored kizuna is now ready to fire.'
+    : 'Their bond rings out — a named kizuna is now ready to fire.';
   const subtitle = (sections.length === 1)
-    ? (sections[0].kind === 'trio'
-        ? 'The three move as one.  Choose who anchors the moment — they fire their signature while the other two support.'
-        : 'Their bond rings out.  Choose how they fight as one — this Resonance locks in for the rest of the run.')
-    : 'Multiple bonds deepened this fight.  Choose a Resonance variant for each pair / triad — every choice locks in for the rest of the run.';
+    ? (sections[0].authored ? subtitleAuthoredSingle
+       : (sections[0].kind === 'trio'
+            ? 'The three move as one.  Choose who anchors the moment — they fire their signature while the other two support.'
+            : 'Their bond rings out.  Choose how they fight as one — this Resonance locks in for the rest of the run.'))
+    : (allAuthored
+        ? 'Multiple bonds deepened this fight — each named kizuna is now ready to fire.'
+        : (anyChoice
+            ? 'Multiple bonds deepened this fight.  Choose a Resonance variant where it applies — every choice locks in for the rest of the run.'
+            : 'Multiple bonds deepened this fight.'));
   $('#overlay-title').textContent = title;
   $('#overlay-body').textContent = subtitle;
   const choicesEl = $('#overlay-choices');
@@ -21951,11 +22029,24 @@ function _showBatchResonanceChoice(s, choices, cont) {
   continueBtn.className = 'reso-continue';
   continueBtn.type = 'button';
   continueBtn.disabled = true;
-  continueBtn.textContent = (sections.length === 1) ? 'Commit choice' : `Commit choices (0/${sections.length})`;
+  // Wording depends on whether the player actually has a choice to make
+  // here.  Authored-only sections (themed pairs / trios with a single
+  // hand-crafted combo) are celebration cards, not picks — "Continue"
+  // reads more honestly there.
+  const commitLabel = (allAuthored)
+    ? 'Continue'
+    : (sections.length === 1 ? 'Commit choice' : `Commit choices (0/${sections.length})`);
+  continueBtn.textContent = commitLabel;
   const refreshContinue = () => {
     const picked = Object.keys(selections).length;
     continueBtn.disabled = picked < sections.length;
-    continueBtn.textContent = (sections.length === 1) ? 'Commit choice' : `Commit choices (${picked}/${sections.length})`;
+    if (allAuthored) {
+      continueBtn.textContent = 'Continue';
+    } else if (sections.length === 1) {
+      continueBtn.textContent = 'Commit choice';
+    } else {
+      continueBtn.textContent = `Commit choices (${picked}/${sections.length})`;
+    }
   };
   const sectionKeyFor = sec => sec.kind === 'trio' ? sec.choice.trioKey : sec.choice.pairKey;
   const buildDuoCard = (variant) => {
@@ -22028,6 +22119,37 @@ function _showBatchResonanceChoice(s, choices, cont) {
     `;
     return card;
   };
+  // Build a single authored-celebration card showing the combo's name,
+  // requirement summary, and description.  No tap handler — the section
+  // auto-selects on render so the Continue button can fire immediately.
+  const buildAuthoredCard = (combo, sec) => {
+    const heroIds = sec.kind === 'trio' ? sec.choice.heroes
+                                        : [sec.choice.heroA, sec.choice.heroB];
+    const heroLine = heroIds.map(id => {
+      const def = CHARS[id] || {};
+      return `<div class="reso-side reso-side-celebrate">
+        <div class="reso-portrait">${PORTRAITS[id] || ''}</div>
+        <div class="reso-tech-hero">${def.name || id}</div>
+      </div>`;
+    }).join('<div class="reso-arrow" aria-hidden="true">+</div>');
+    const reqLine = (combo.requires || []).map(r => {
+      const nm = (CHARS[r.heroId] && CHARS[r.heroId].name) || r.heroId;
+      const kind = r.kind === 'sig' ? 'Special' : 'Attack';
+      return `${nm} ${kind}`;
+    }).join(' + ');
+    const tierLabel = combo.sigTier
+      ? (combo.tier === 'triple' ? 'SIG TRIPLE' : 'SIG DUO')
+      : (combo.tier === 'triple' ? 'TRIPLE' : 'DUO');
+    const card = document.createElement('div');
+    card.className = 'encounter-choice resonance-choice resonance-choice-authored reso-card-selected';
+    card.innerHTML = `
+      <div class="reso-title">${combo.name} <span class="reso-tier-tag">${tierLabel}</span></div>
+      <div class="reso-pair reso-pair-celebrate">${heroLine}</div>
+      <div class="reso-tech-desc reso-authored-desc">${combo.desc || ''}</div>
+      <div class="reso-authored-req">Resonates when ${reqLine} fire together.</div>
+    `;
+    return card;
+  };
   sections.forEach(sec => {
     const key = sectionKeyFor(sec);
     const section = document.createElement('div');
@@ -22045,41 +22167,61 @@ function _showBatchResonanceChoice(s, choices, cont) {
     }
     const row = document.createElement('div');
     row.className = 'reso-section-options';
-    sec.variants.forEach(variant => {
-      const card = sec.kind === 'trio' ? buildTrioCard(variant) : buildDuoCard(variant);
-      // Use pointer-driven tap detection — the parent #overlay-content
-      // has overflow-y:auto + iOS momentum scrolling, which silently
-      // ate the synthetic click event when players tapped Resonance
-      // pick cards on touch devices.  See bindTapAsPointer.
-      bindTapAsPointer(card, () => {
-        // Mark this card as selected, deselect siblings in this section.
-        Array.from(row.children).forEach(c => c.classList.remove('reso-card-selected'));
-        card.classList.add('reso-card-selected');
-        selections[key] = variant;
-        refreshContinue();
-      });
+    if (sec.authored) {
+      // Single celebration card — auto-select so Continue activates.
+      const card = buildAuthoredCard(sec.combo, sec);
       row.appendChild(card);
-    });
+      selections[key] = { __authored: true, combo: sec.combo };
+    } else {
+      sec.variants.forEach(variant => {
+        const card = sec.kind === 'trio' ? buildTrioCard(variant) : buildDuoCard(variant);
+        // Use pointer-driven tap detection — the parent #overlay-content
+        // has overflow-y:auto + iOS momentum scrolling, which silently
+        // ate the synthetic click event when players tapped Resonance
+        // pick cards on touch devices.  See bindTapAsPointer.
+        bindTapAsPointer(card, () => {
+          // Mark this card as selected, deselect siblings in this section.
+          Array.from(row.children).forEach(c => c.classList.remove('reso-card-selected'));
+          card.classList.add('reso-card-selected');
+          selections[key] = variant;
+          refreshContinue();
+        });
+        row.appendChild(card);
+      });
+    }
     section.appendChild(row);
     sectionsWrap.appendChild(section);
   });
+  // Authored sections pre-fill their selection on render; refresh the
+  // Continue button so it activates when every section is either an
+  // authored auto-select or has a tapped variant.
+  refreshContinue();
   choicesEl.appendChild(sectionsWrap);
   choicesEl.appendChild(continueBtn);
   bindTapAsPointer(continueBtn, () => {
     if (continueBtn.disabled) return;
-    // Apply all selections to state.run.chosenResonances + log them.
+    // Apply all selections.  Authored sections mark the pair as
+    // acknowledged via _ackedResonances; mirror-split selections
+    // commit to chosenResonances so they fire as the pair's
+    // Resonance for the rest of the run.
     s.run.chosenResonances = s.run.chosenResonances || {};
+    s.run._ackedResonances = s.run._ackedResonances || {};
     const resolvedKeys = new Set();
     sections.forEach(sec => {
       const key = sectionKeyFor(sec);
       const variant = selections[key];
       if (!variant) return;
-      s.run.chosenResonances[key] = variant;
-      resolvedKeys.add(key);
       const names = sec.kind === 'trio'
         ? sec.choice.heroes.map(id => `<b>${(CHARS[id] && CHARS[id].name) || id}</b>`).join(' + ')
         : `<b>${(CHARS[sec.choice.heroA] && CHARS[sec.choice.heroA].name) || sec.choice.heroA}</b> + <b>${(CHARS[sec.choice.heroB] && CHARS[sec.choice.heroB].name) || sec.choice.heroB}</b>`;
-      log(`<i>${names} learn <b>${variant.name}</b>.</i>`);
+      if (variant.__authored) {
+        s.run._ackedResonances[key] = true;
+        log(`<i>${names} resonate — <b>${variant.combo.name}</b> rings true.</i>`);
+      } else {
+        s.run.chosenResonances[key] = variant;
+        log(`<i>${names} learn <b>${variant.name}</b>.</i>`);
+      }
+      resolvedKeys.add(key);
     });
     // Remove only the entries the player just resolved.  Any pending
     // entry that failed to build (and so never made it into sections)
@@ -23045,7 +23187,11 @@ function saveCarriedParty(s) {
     // accumulates the way the sigils / quirks / oaths do.
     const synergyCounts = { ...((s.run && s.run.synergyCounts) || {}) };
     const chosenResonances = { ...((s.run && s.run.chosenResonances) || {}) };
-    const data = { chars, slots, sigils, lockedOutHeroes, sigilLevels, resolveMaxBonus, synergyCounts, chosenResonances };
+    // Authored-pair / authored-trio celebration acknowledgements carry
+    // across layers too — otherwise the picker would re-fire the same
+    // 'Banner Volley unlocked' celebration on every ascend.
+    const ackedResonances = { ...((s.run && s.run._ackedResonances) || {}) };
+    const data = { chars, slots, sigils, lockedOutHeroes, sigilLevels, resolveMaxBonus, synergyCounts, chosenResonances, ackedResonances };
     localStorage.setItem(CARRIED_KEY, JSON.stringify(data));
   } catch (_) {}
 }
