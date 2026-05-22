@@ -9992,7 +9992,7 @@ button.path-node { cursor: pointer; }
   .resonance-choice .reso-tech-name { font-size: 10px !important; }
   .resonance-choice .reso-tech-desc { font-size: 9px !important; }
   .resonance-choice .reso-arrow { font-size: 20px !important; }
-  .resonance-choice-trio { width: 260px !important; }
+  .resonance-choice-trio { width: 210px !important; }
   .resonance-choice-trio .reso-trio-anchor-badge { font-size: 7.5px !important; }
   .resonance-choice-trio .reso-portrait-sm { width: 20px !important; height: 28px !important; }
 }
@@ -10143,6 +10143,15 @@ button.path-node { cursor: pointer; }
   gap: 14px;
   justify-content: center;
   flex-wrap: wrap;
+  max-width: 100%;
+  margin: 0 auto;
+}
+/* Trio cards used to render at 260px each — two side-by-side
+   plus padding overflowed the picker container on landscape mobile
+   and pushed the right card off-screen.  Trim to 220px + tighter
+   internal layout so the row fits cleanly under the section header. */
+.resonance-choice-trio {
+  max-width: 220px;
 }
 /* Selected card — a small affordance so the player knows the row's
    pick is committed.  Stronger border + gold inner glow.  Only shows
