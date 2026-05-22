@@ -8949,10 +8949,29 @@ const COMBOS = {
 // has a chosen Resonance variant is SWAPPED OUT for the chosen
 // variant.  This way the rail surfaces the player's pick once they've
 // chosen, not the default generic.
+//
+// Also gates EVERY combo (authored or generic) against the pending-
+// picker queue — if a pair / trio has an entry in
+// _pendingResonanceChoices, the combo stays hidden from the rail
+// until the player resolves the kizuna-deepened screen.  Without
+// this gate, the generic Coordinated Strike (or the authored combo
+// for themed pairs) would surface mid-fight the instant the bond
+// crossed Tier II, and the post-fight picker would feel late /
+// pointless.
 function _comboLookupList() {
   const chosen = (state && state.run && state.run.chosenResonances) || {};
+  const pending = (state && state.run && state.run._pendingResonanceChoices) || [];
+  const pendingKeys = new Set(pending.map(p => p.kind === 'trio' ? p.trioKey : p.pairKey));
+  const comboKey = (c) => {
+    if (!c || !Array.isArray(c.requires)) return null;
+    return c.requires.map(r => r.heroId).slice().sort().join('+');
+  };
   const out = [];
   Object.values(COMBOS).forEach(c => {
+    // Pending picker — hide the underlying combo until the player
+    // commits / acknowledges the kizuna screen for this pair / trio.
+    const ck = comboKey(c);
+    if (ck && pendingKeys.has(ck)) return;
     if (!c.generic || typeof c.id !== 'string') { out.push(c); return; }
     if (c.tier === 'duo' && c.id.startsWith('coord_')) {
       const pk = c.id.slice('coord_'.length);
@@ -8963,7 +8982,14 @@ function _comboLookupList() {
     }
     out.push(c);
   });
-  Object.values(chosen).forEach(v => { if (v) out.push(v); });
+  Object.values(chosen).forEach(v => {
+    if (!v) return;
+    // Chosen variants get the same pending-pair gate just in case the
+    // picker is mid-flight for a related entry.
+    const ck = comboKey(v);
+    if (ck && pendingKeys.has(ck)) return;
+    out.push(v);
+  });
   return out;
 }
 
@@ -22755,9 +22781,11 @@ function showStarterChooser(pool, onPick) {
   const unlocked = getUnlockedStarters();
   const locked = unlocked.filter(id => !pool.includes(id) && CHARS[id]);
 
-  // Render the lineup as a single flexible row of standing silhouettes.
-  const lineup = document.createElement('div');
-  lineup.className = 'starter-lineup';
+  // Render selectable starters as a row of richer cards (portrait +
+  // title + school / HP + passive) so the pick is informed.  Locked
+  // heroes go into a separate compact strip below — portrait + name +
+  // tag only — so they don't crowd the selectable pool when the player
+  // has many unlocks.
   const schoolLabel = (sch) => {
     if (sch === 'physical') return 'Physical';
     if (sch === 'arcane')   return 'Arcane';
@@ -22765,6 +22793,8 @@ function showStarterChooser(pool, onPick) {
     if (sch === 'shadow')   return 'Shadow';
     return sch || '';
   };
+  const lineup = document.createElement('div');
+  lineup.className = 'starter-lineup';
   pool.forEach((id) => {
     const def = CHARS[id];
     const fig = document.createElement('button');
@@ -22789,24 +22819,31 @@ function showStarterChooser(pool, onPick) {
     });
     lineup.appendChild(fig);
   });
-  locked.forEach((id) => {
-    const def = CHARS[id];
-    const fig = document.createElement('div');
-    fig.className = 'starter-fig starter-fig-locked';
-    fig.dataset.id = id;
-    fig.setAttribute('aria-disabled', 'true');
-    fig.innerHTML = `
-      <div class="starter-portrait">${PORTRAITS[id] || ''}</div>
-      <div class="starter-name">${def.name}</div>
-      <div class="starter-title">${def.title || ''}</div>
-      <div class="starter-locked-tag">needs a partner</div>
-    `;
-    // Hold to read the hero detail card, same affordance as selectable
-    // entries — but no onPick so taps don't dismiss the chooser.
-    bindStarterHoldOrTap(fig, def, () => {});
-    lineup.appendChild(fig);
-  });
   choices.appendChild(lineup);
+  if (locked.length) {
+    const lockedHeader = document.createElement('div');
+    lockedHeader.className = 'starter-locked-header';
+    lockedHeader.textContent = `Needs a partner · ${locked.length} ${locked.length === 1 ? 'hero' : 'heroes'} waiting to be recruited`;
+    choices.appendChild(lockedHeader);
+    const lockedStrip = document.createElement('div');
+    lockedStrip.className = 'starter-locked-strip';
+    locked.forEach((id) => {
+      const def = CHARS[id];
+      const fig = document.createElement('div');
+      fig.className = 'starter-fig-mini starter-fig-locked';
+      fig.dataset.id = id;
+      fig.setAttribute('aria-disabled', 'true');
+      fig.innerHTML = `
+        <div class="starter-mini-portrait">${PORTRAITS[id] || ''}</div>
+        <div class="starter-mini-name">${def.name}</div>
+      `;
+      // Hold-to-read still works on the mini chips — same affordance as
+      // selectable entries but with no onPick.
+      bindStarterHoldOrTap(fig, def, () => {});
+      lockedStrip.appendChild(fig);
+    });
+    choices.appendChild(lockedStrip);
+  }
 
   resetOverlayBtn();
   $('#overlay-btn').classList.add('hidden');

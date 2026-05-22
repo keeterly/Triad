@@ -3275,10 +3275,16 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  gap: 14px;
-  flex-wrap: nowrap;
+  gap: 10px;
+  /* Wrap when too many selectable starters share the row.  The old
+     nowrap layout silently crushed every fig past ~5 heroes, which
+     blew out our 720px design canvas as soon as a player unlocked
+     more solo-viable starters. */
+  flex-wrap: wrap;
   padding: 6px 0 10px;
   position: relative;
+  max-width: 720px;
+  margin: 0 auto;
 }
 .starter-lineup.recruit-lineup {
   padding-top: 96px;
@@ -3294,9 +3300,12 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
   pointer-events: none;
 }
 .starter-fig {
-  flex: 1 1 0;
-  min-width: 0;
-  max-width: 160px;
+  /* Fixed-width cards so the lineup wraps cleanly past ~4 heroes per
+     row instead of squishing every fig into illegibility.  Was
+     flex: 1 1 0 with max-width 160px — fine on wide screens, broken
+     anywhere narrower than ~720px. */
+  flex: 0 0 auto;
+  width: 138px;
   background: transparent;
   border: none;
   padding: 4px 4px 6px;
@@ -3304,7 +3313,7 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   position: relative;
   transition: filter 0.18s, transform 0.12s, background 0.18s;
   border-radius: 6px;
@@ -3370,7 +3379,8 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
      rows below.  Was flex: 1 1 auto, which stole all the space and
      let the new title / passive rows clip silently. */
   flex: 0 0 auto;
-  height: 130px;
+  height: 110px;
+  width: 100%;
 }
 .starter-name {
   font-size: 11px;
@@ -3414,11 +3424,69 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
   line-height: 1.35;
   color: var(--ink);
   text-align: center;
-  max-width: 150px;
+  /* Match the starter-fig width above so passives stay inside the
+     card and don't push their neighbours sideways. */
+  width: 100%;
   letter-spacing: 0.02em;
 }
 .starter-passive b {
   color: var(--gold-pale);
+}
+
+/* Locked-pool strip — heroes the player has unlocked but who aren't
+   solo-viable.  Rendered as a separate compact row below the selectable
+   pool so the wide selectable cards don't compete with a long list of
+   dimmed portraits.  Hold-to-read still works on each mini chip. */
+.starter-locked-header {
+  font-size: 9px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  text-align: center;
+  margin: 14px 0 6px;
+  opacity: 0.7;
+}
+.starter-locked-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  padding: 0 6px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+.starter-fig-mini {
+  width: 54px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  cursor: default;
+  filter: grayscale(0.65) brightness(0.55);
+  opacity: 0.75;
+}
+.starter-mini-portrait {
+  width: 100%;
+  height: 60px;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  -webkit-mask-image: radial-gradient(ellipse 90% 110% at 50% 50%, #000 70%, transparent 100%);
+          mask-image: radial-gradient(ellipse 90% 110% at 50% 50%, #000 70%, transparent 100%);
+}
+.starter-mini-portrait svg {
+  height: 100%;
+  width: auto;
+  max-width: 100%;
+  display: block;
+}
+.starter-mini-name {
+  font-size: 8px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  text-align: center;
 }
 
 #starter-tooltip {
