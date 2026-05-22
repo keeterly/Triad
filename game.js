@@ -22098,11 +22098,15 @@ function hideOverlay() {
                       'overlay-path', 'overlay-vignette',
                       'overlay-runsummary', 'overlay-rest',
                       'overlay-recruit', 'overlay-upgrade', 'overlay-sigil',
-                      'overlay-starter', 'overlay-dismissable');
+                      'overlay-starter', 'overlay-event', 'overlay-boon',
+                      'overlay-resonance', 'overlay-resonance-trio',
+                      'overlay-wanderer', 'overlay-forge',
+                      'overlay-dismissable');
   const ch = $('#overlay-choices');
   if (ch) {
     ch.classList.remove('path-map', 'party-inspect', 'event-choices',
-                        'vignette-choices', 'starter-choices', 'title-choices');
+                        'vignette-choices', 'starter-choices', 'title-choices',
+                        'boon-sub');
     ch.innerHTML = '';
   }
 }
@@ -23044,6 +23048,14 @@ function _showBatchResonanceChoice(s, choices, cont) {
   $('#overlay-title').textContent = title;
   $('#overlay-body').textContent = subtitle;
   const choicesEl = $('#overlay-choices');
+  // Scrub the choices container's classList — previous screens (map,
+  // events, vignettes, starter) leave their layout class on this
+  // element and the picker would inherit a wrong flex direction.
+  choicesEl.classList.remove(
+    'path-map', 'party-inspect', 'event-choices', 'vignette-choices',
+    'starter-choices', 'title-choices', 'boon-sub'
+  );
+  choicesEl.classList.remove('hidden');
   choicesEl.innerHTML = '';
   // Selections — keyed by pairKey/trioKey, value is the chosen
   // variant object.  Continue button enables when every section has
