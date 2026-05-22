@@ -9885,11 +9885,16 @@ button.path-node { cursor: pointer; }
   border-color: var(--gold-bright);
   transform: scale(1.18);
 }
-.reso-slide {
+.reso-section.reso-slide {
+  /* Bumped specificity to two classes — the base .reso-section
+     declares display: flex later in this file, so a single-class
+     .reso-slide rule lost the cascade fight and every slide
+     stayed visible, defeating the multi-section pager.  Compound
+     selector forces our hide/show to win. */
   display: none;
 }
-.reso-slide.reso-slide-active {
-  display: block;
+.reso-section.reso-slide.reso-slide-active {
+  display: flex;
 }
 
 /* Resonance overlay layout — pin the Commit button to the bottom so
