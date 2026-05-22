@@ -5090,6 +5090,17 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
 .toast.toast-sigil.cat-resource { border-left-color: var(--gold-bright); }
 .toast.toast-achievement  { border-left-color: var(--gold-bright); }
 .toast.toast-achievement .toast-glyph { animation: toast-glyph-pulse 1.8s ease-in-out infinite; }
+/* Bond tier crossings — DEEPENED (Tier II) reads warmer / amber,
+   RESONANT (Tier III) reads brighter and gold-shimmer.  Both replace
+   the old over-hero popup that competed with combat damage numbers
+   on the same character card. */
+.toast.toast-bond { border-left-color: #c8a060; }
+.toast.toast-bond.qa-bond-deepened { border-left-color: #c8a060; box-shadow: 0 10px 28px rgba(0,0,0,0.78), 0 0 22px rgba(212,180,120,0.3), inset 0 1px 0 rgba(232,220,196,0.1); }
+.toast.toast-bond.qa-bond-deepened .toast-eyebrow { color: var(--gold-pale); }
+.toast.toast-bond.qa-bond-deepened .toast-name { color: var(--gold-pale); text-shadow: 0 0 10px rgba(212,180,120,0.5); }
+.toast.toast-bond.qa-bond-resonant { border-left-color: var(--gold-bright); box-shadow: 0 10px 28px rgba(0,0,0,0.78), 0 0 28px rgba(240,212,136,0.45), inset 0 1px 0 rgba(232,220,196,0.18); }
+.toast.toast-bond.qa-bond-resonant .toast-eyebrow { color: var(--gold-bright); text-shadow: 0 0 8px rgba(240,212,136,0.55); }
+.toast.toast-bond.qa-bond-resonant .toast-name { color: var(--gold-bright); text-shadow: 0 0 12px rgba(240,212,136,0.65); }
 @keyframes toast-glyph-pulse {
   0%, 100% { transform: scale(1);   opacity: 0.92; }
   50%      { transform: scale(1.12); opacity: 1; }
@@ -9790,6 +9801,92 @@ button.path-node { cursor: pointer; }
   letter-spacing: 0.18em;
   color: var(--gold-pale);
   opacity: 0.85;
+}
+
+/* Trigger line — 'Resonates when: Kell Attack + Mira Attack' sits at
+   the bottom of every Resonance picker card so the player can tell
+   exactly which two (or three) actions complete the combo.  Reads
+   the variant.requires array, same source the matcher uses, so what
+   it says always matches what fires. */
+.reso-trigger {
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gold-pale);
+  text-align: center;
+  padding: 6px 4px 0;
+  margin-top: 4px;
+  border-top: 1px dashed rgba(212,200,168,0.25);
+  opacity: 0.85;
+}
+.reso-trigger b {
+  color: var(--gold-bright);
+  font-weight: 600;
+}
+
+/* Multi-section pager — shows one Resonance section at a time when
+   2+ bonds deepen in the same fight.  Prev / Next arrows + a dot
+   strip indicating progress.  Replaces the old stacked-sections
+   layout that overflowed the overlay and hid the Commit button. */
+.reso-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 4px 0 8px;
+}
+.reso-pager-arrow {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(18,14,10,0.6);
+  border: 1px solid rgba(201,189,159,0.4);
+  border-radius: 50%;
+  color: var(--gold-pale);
+  font-family: inherit;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.reso-pager-arrow:hover:not([disabled]),
+.reso-pager-arrow:active:not([disabled]) {
+  background: rgba(40,28,18,0.85);
+  border-color: var(--gold-bright);
+  color: var(--gold-bright);
+}
+.reso-pager-arrow[disabled] {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+.reso-pager-dots {
+  display: flex;
+  gap: 8px;
+}
+.reso-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: rgba(212,200,168,0.18);
+  border: 1px solid rgba(212,200,168,0.32);
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+}
+.reso-dot.reso-dot-picked {
+  background: rgba(168,210,150,0.4);
+  border-color: rgba(168,210,150,0.7);
+}
+.reso-dot.reso-dot-active {
+  background: var(--gold-bright);
+  border-color: var(--gold-bright);
+  transform: scale(1.18);
+}
+.reso-slide {
+  display: none;
+}
+.reso-slide.reso-slide-active {
+  display: block;
 }
 @media (orientation: landscape) and (max-height: 520px) {
   .resonance-choice { width: 240px !important; padding: 8px 10px 10px !important; gap: 6px !important; }

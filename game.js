@@ -14067,10 +14067,28 @@ function fireSynergyFeedback(s, name, receiverId, effectText, effectType) {
   }
   if (tierAfter > tierBefore && tierAfter > 1) {
     const clause = tierAfter === 3 ? BOND_TIER3_CLAUSES[name] : null;
-    const clauseLabel = clause ? ` + ${clause.text}` : '';
     const word = tierAfter === 3 ? 'RESONANT' : 'DEEPENED';
+    // Tier crossing fanfare uses the side-toast track now instead of a
+    // floating popup over the hero card.  The popup competed with damage
+    // numbers and other combat noise on the same hero; the toast lives
+    // in its own column so it's never lost.  Tier III crossings get
+    // 'resonant' tint, Tier II gets 'deepened'.
+    const cls = tierAfter === 3 ? 'qa-bond-resonant' : 'qa-bond-deepened';
+    const eyebrow = tierAfter === 3 ? '✦ RESONANT' : '✦ DEEPENED';
+    const partnerIds = pair && Array.isArray(pair.ids) ? pair.ids : [receiverId];
+    const partnerNames = partnerIds.map(id => (CHARS[id] && CHARS[id].name) || id).join(' + ');
     setTimeout(() => {
-      spawnPopupId(receiverId, `${name} ${tierRoman} ✦ ${word}${clauseLabel}`, 'bond-rankup', 'party');
+      spawnToast({
+        category: 'bond',
+        cls,
+        eyebrow,
+        name: `${name} ${tierRoman}`,
+        flavor: partnerNames,
+        desc: clause ? clause.text : (tierAfter === 3
+          ? 'Their kizuna rings true. A resonant clause now fires on every bond beat.'
+          : 'Their bond deepens. The kizuna burst hits harder from here on.'),
+        portraitId: partnerIds[0] || receiverId,
+      });
     }, 360);
   }
   // Manga-style emoji reaction: bonds get sparkles, frictions get an angry mark.
@@ -15096,18 +15114,26 @@ function tickCamaraderie(s, committedQueue) {
       if (tierBefore < 2 && tierAfter >= 2) {
         _queueResonanceChoice(s, a, b);
       }
-      // Tier-up celebration — show a single 'X + Y · DEEPENED' popup
-      // over the lower-HP hero of the pair so the kizuna feels
-      // shared, not single-sided.  No popup on first fire (Tier I)
-      // since Tier I just means 'they cooperated once' — not yet a
-      // unlock moment.
+      // Tier-up fanfare for the camaraderie tick — side toast, same
+      // family as the themed-bond tier crossings.  No fanfare on
+      // first fire (Tier I just means 'they cooperated once').
       if (tierAfter > tierBefore && tierAfter > 1) {
         const word = tierAfter === 3 ? 'RESONANT' : 'DEEPENED';
         const nameA = (CHARS[a] && CHARS[a].name) || a;
         const nameB = (CHARS[b] && CHARS[b].name) || b;
         const ca = s.party.chars[a], cb = s.party.chars[b];
-        const anchor = (ca && cb && (ca.hp / ca.maxHp) <= (cb.hp / cb.maxHp)) ? a : b;
-        spawnPopupId(anchor, `${nameA} + ${nameB} ✦ ${word}`, 'bond-rankup', 'party');
+        const portraitAnchor = (ca && cb && (ca.hp / ca.maxHp) <= (cb.hp / cb.maxHp)) ? a : b;
+        spawnToast({
+          category: 'bond',
+          cls: tierAfter === 3 ? 'qa-bond-resonant' : 'qa-bond-deepened',
+          eyebrow: tierAfter === 3 ? '✦ RESONANT' : '✦ DEEPENED',
+          name: `${nameA} + ${nameB}`,
+          flavor: 'Camaraderie',
+          desc: tierAfter === 3
+            ? 'Their kizuna rings true.  The resonance hits harder from here.'
+            : 'Their bond deepens.  The kizuna burst hits harder from here on.',
+          portraitId: portraitAnchor,
+        });
       }
     }
   }
@@ -22625,6 +22651,19 @@ function _showBatchResonanceChoice(s, choices, cont) {
     }
   };
   const sectionKeyFor = sec => sec.kind === 'trio' ? sec.choice.trioKey : sec.choice.pairKey;
+  // Render the 'Resonates when' line so the player knows EXACTLY which
+  // actions to queue to trigger this kizuna.  Reads the variant /
+  // combo's requires array — same source the matcher uses, so what
+  // the card says always matches what fires.
+  const triggerLine = (requires) => {
+    if (!Array.isArray(requires) || !requires.length) return '';
+    const parts = requires.map(r => {
+      const nm = (CHARS[r.heroId] && CHARS[r.heroId].name) || r.heroId;
+      const kindLabel = r.kind === 'sig' || r.kind === 'special' ? 'Special' : 'Attack';
+      return `<b>${nm}</b> ${kindLabel}`;
+    });
+    return `<div class="reso-trigger">Trigger: ${parts.join(' + ')}</div>`;
+  };
   const buildDuoCard = (variant) => {
     const p = variant._preview || {};
     const aHero = (CHARS[p.aHero] && CHARS[p.aHero].name) || p.aHero || '';
@@ -22663,6 +22702,7 @@ function _showBatchResonanceChoice(s, choices, cont) {
             </div>
           </div>
         </div>
+        ${triggerLine(variant.requires)}
         <div class="reso-template-desc">${variant.desc || ''}</div>
       `;
       return card;
@@ -22688,6 +22728,7 @@ function _showBatchResonanceChoice(s, choices, cont) {
           </div>
         </div>
       </div>
+      ${triggerLine(variant.requires)}
     `;
     return card;
   };
@@ -22724,6 +22765,7 @@ function _showBatchResonanceChoice(s, choices, cont) {
         </div>
       </div>
       <div class="reso-trio-supporters">${supRows}</div>
+      ${triggerLine(variant.requires)}
     `;
     return card;
   };
@@ -22758,13 +22800,19 @@ function _showBatchResonanceChoice(s, choices, cont) {
     `;
     return card;
   };
+  // Multi-section flow now PAGINATES — one section per slide with
+  // Prev / Next arrows and a 'page N of M' dot strip.  The previous
+  // 'stacked vertical sections' layout overflowed the overlay when
+  // a fight popped 2-3 kizuna unlocks at once, hiding the Commit
+  // button below the scroll line and making the screen feel stuck.
+  // Single-section flow renders the same card straight into the
+  // wrapper without the nav UI (no point paginating one slide).
+  const sectionEls = [];
   sections.forEach(sec => {
     const key = sectionKeyFor(sec);
     const section = document.createElement('div');
     section.className = 'reso-section';
     section.dataset.key = key;
-    // Section header — only render when there's more than one section
-    // (single-section overlays already have the title up top).
     if (sections.length > 1) {
       const header = document.createElement('div');
       header.className = 'reso-section-header';
@@ -22776,19 +22824,13 @@ function _showBatchResonanceChoice(s, choices, cont) {
     const row = document.createElement('div');
     row.className = 'reso-section-options';
     if (sec.authored) {
-      // Single celebration card — auto-select so Continue activates.
       const card = buildAuthoredCard(sec.combo, sec);
       row.appendChild(card);
       selections[key] = { __authored: true, combo: sec.combo };
     } else {
       sec.variants.forEach(variant => {
         const card = sec.kind === 'trio' ? buildTrioCard(variant) : buildDuoCard(variant);
-        // Use pointer-driven tap detection — the parent #overlay-content
-        // has overflow-y:auto + iOS momentum scrolling, which silently
-        // ate the synthetic click event when players tapped Resonance
-        // pick cards on touch devices.  See bindTapAsPointer.
         bindTapAsPointer(card, () => {
-          // Mark this card as selected, deselect siblings in this section.
           Array.from(row.children).forEach(c => c.classList.remove('reso-card-selected'));
           card.classList.add('reso-card-selected');
           selections[key] = variant;
@@ -22798,14 +22840,82 @@ function _showBatchResonanceChoice(s, choices, cont) {
       });
     }
     section.appendChild(row);
-    sectionsWrap.appendChild(section);
+    sectionEls.push(section);
   });
-  // Authored sections pre-fill their selection on render; refresh the
-  // Continue button so it activates when every section is either an
-  // authored auto-select or has a tapped variant.
-  refreshContinue();
-  choicesEl.appendChild(sectionsWrap);
-  choicesEl.appendChild(continueBtn);
+  // Single section — drop the section straight into the wrap.  Multi-
+  // section — wrap each in a slide and build the pager UI.
+  if (sections.length === 1) {
+    sectionsWrap.appendChild(sectionEls[0]);
+    refreshContinue();
+    choicesEl.appendChild(sectionsWrap);
+    choicesEl.appendChild(continueBtn);
+  } else {
+    const pager = document.createElement('div');
+    pager.className = 'reso-pager';
+    let pageIdx = 0;
+    const setPage = (idx) => {
+      pageIdx = Math.max(0, Math.min(sections.length - 1, idx));
+      Array.from(sectionsWrap.children).forEach((el, i) => {
+        el.classList.toggle('reso-slide-active', i === pageIdx);
+      });
+      Array.from(dots.children).forEach((el, i) => {
+        el.classList.toggle('reso-dot-active', i === pageIdx);
+        // Mark dots whose section already has a selection so the player
+        // can see at a glance which slides they've answered.
+        const key = sectionKeyFor(sections[i]);
+        el.classList.toggle('reso-dot-picked', !!selections[key]);
+      });
+      prevBtn.disabled = pageIdx === 0;
+      nextBtn.disabled = pageIdx === sections.length - 1;
+    };
+    sectionEls.forEach((el, i) => {
+      el.classList.add('reso-slide');
+      if (i === 0) el.classList.add('reso-slide-active');
+      sectionsWrap.appendChild(el);
+    });
+    const prevBtn = document.createElement('button');
+    prevBtn.type = 'button';
+    prevBtn.className = 'reso-pager-arrow reso-pager-prev';
+    prevBtn.setAttribute('aria-label', 'Previous resonance');
+    prevBtn.textContent = '‹';
+    bindTapAsPointer(prevBtn, () => setPage(pageIdx - 1));
+    const nextBtn = document.createElement('button');
+    nextBtn.type = 'button';
+    nextBtn.className = 'reso-pager-arrow reso-pager-next';
+    nextBtn.setAttribute('aria-label', 'Next resonance');
+    nextBtn.textContent = '›';
+    bindTapAsPointer(nextBtn, () => setPage(pageIdx + 1));
+    const dots = document.createElement('div');
+    dots.className = 'reso-pager-dots';
+    sections.forEach((_, i) => {
+      const dot = document.createElement('span');
+      dot.className = 'reso-dot';
+      dots.appendChild(dot);
+    });
+    pager.appendChild(prevBtn);
+    pager.appendChild(dots);
+    pager.appendChild(nextBtn);
+    // Keep the pager dots in sync when the player picks an option —
+    // override refreshContinue to also refresh the dot 'picked' marks.
+    const baseRefreshContinue = refreshContinue;
+    const wrappedRefresh = () => {
+      baseRefreshContinue();
+      Array.from(dots.children).forEach((el, i) => {
+        const key = sectionKeyFor(sections[i]);
+        el.classList.toggle('reso-dot-picked', !!selections[key]);
+      });
+    };
+    // Re-bind variant taps so they refresh the dots too.  Cards are
+    // already wired above; we just need wrappedRefresh to fire.  Use a
+    // delegated listener that catches selections after they happen.
+    sectionsWrap.addEventListener('click', () => setTimeout(wrappedRefresh, 0));
+    sectionsWrap.addEventListener('pointerup', () => setTimeout(wrappedRefresh, 0));
+    choicesEl.appendChild(pager);
+    choicesEl.appendChild(sectionsWrap);
+    choicesEl.appendChild(continueBtn);
+    setPage(0);
+    wrappedRefresh();
+  }
   bindTapAsPointer(continueBtn, () => {
     if (continueBtn.disabled) return;
     // Apply all selections.  Authored sections mark the pair as
