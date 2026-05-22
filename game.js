@@ -23653,6 +23653,14 @@ function showRecruitVignette(heroId, flavor, onDone) {
   const homeName = SLOT_LABELS[def.home] || '—';
   const passName = (def.passive && def.passive.name) || '';
   const welcomeTag = `Home ${homeName} · ${schoolLabel(def.school)} · ${def.maxHp} HP${passName ? ` · ${passName}` : ''}`;
+  // Stash the slot the recruit lands in so the post-vignette done
+  // callback can fire the JOINED THE CLIMB celebration with the right
+  // line label.  We can't run the celebration INSIDE the resolve fn
+  // because showVignette calls hideOverlay() immediately after,
+  // wiping the backdrop.  Resolve sets _pendingRecruitSlot; done
+  // reads it and triggers the celebration.
+  let pendingSlot = null;
+  let recruited = false;
   const vig = {
     id: `recruit_event_${heroId}_${flavor || 'default'}`,
     title,
@@ -23682,6 +23690,8 @@ function showRecruitVignette(heroId, flavor, onDone) {
           // Reset the frequency counter — a real recruit just landed, so
           // the gate resets and the next one needs a fresh cadence.
           s.run.nodesSinceRecruit = 0;
+          pendingSlot = slot;
+          recruited = true;
         },
       },
       {
@@ -23695,7 +23705,17 @@ function showRecruitVignette(heroId, flavor, onDone) {
   // Mark the incoming hero as a "guest" so showVignette renders their
   // portrait + named lines even though they aren't in state.party.chars yet.
   ctx.guests = [heroId];
-  showVignette(vig, ctx, onDone || (() => offerUpgradeOrPath()));
+  const baseDone = onDone || (() => offerUpgradeOrPath());
+  showVignette(vig, ctx, () => {
+    // Recruit accepted — fire the JOINED THE CLIMB celebration, then
+    // chain to the original done callback.  Walk-on path skips
+    // straight to done.
+    if (recruited && pendingSlot) {
+      showJoinCelebration(heroId, pendingSlot, baseDone);
+    } else {
+      baseDone();
+    }
+  });
 }
 
 function showSwapOverlay(recruitId, onDone) {
@@ -23789,6 +23809,33 @@ function showSwapOverlay(recruitId, onDone) {
 // so we skip the recruit-vignette and just bind the hero to the empty slot
 // with a quick "joined" fanfare.  Reuses the award backdrop so the moment
 // reads as a beat, not a silent state mutation.
+// Celebration shown EVERY time a hero joins the climb.  Centralised so
+// every recruit path (post-fight vignette, stranger event, wanderer
+// 'ask to join', named event, swap, vigil-for-the-fallen) lands the
+// same '+ JOINED THE CLIMB' moment.  Schedules onDone to fire after
+// the player dismisses the backdrop so the next scene doesn't paint
+// underneath it.
+function showJoinCelebration(heroId, slot, onDone) {
+  const def = CHARS[heroId];
+  const cont = (typeof onDone === 'function') ? onDone : (() => renderMap());
+  if (!def) { cont(); return; }
+  _showAwardBackdrop({
+    cls: 'qa-positive qa-recruit',
+    eyebrow: '+ JOINED THE CLIMB',
+    name: def.name,
+    flavor: def.title || '',
+    desc: `Takes the ${SLOT_LABELS[slot] || slot} line.`,
+    portraitId: heroId,
+    bark: (RECRUIT_GREETINGS && RECRUIT_GREETINGS[heroId]) || null,
+  });
+  const backdropUp = !!document.getElementById('quirk-award-backdrop');
+  if (backdropUp) {
+    _pendingAfterAward = cont;
+  } else {
+    cont();
+  }
+}
+
 function commitNamedRecruit(heroId, slot, onDone) {
   const def = CHARS[heroId];
   if (!def) { if (typeof onDone === 'function') onDone(); return; }
@@ -23806,25 +23853,7 @@ function commitNamedRecruit(heroId, slot, onDone) {
   if (rememberRecruited(heroId)) log(`<i>${def.name} is now available as a starter for future runs.</i>`);
   log(`<b>${def.name}</b> joins the party.`);
   state.run.nodesSinceRecruit = 0;
-  _showAwardBackdrop({
-    cls: 'qa-positive qa-recruit',
-    eyebrow: '+ JOINED THE CLIMB',
-    name: def.name,
-    flavor: def.title || '',
-    desc: `Takes the ${SLOT_LABELS[slot] || slot} line.`,
-    portraitId: heroId,
-    bark: (RECRUIT_GREETINGS && RECRUIT_GREETINGS[heroId]) || null,
-  });
-  // Defer the next-scene handoff to the recruit fanfare's dismiss
-  // (tap or auto-fade) so the map doesn't paint UNDER the still-visible
-  // backdrop.  Mirror of the sigil-bind / post-fight-quirk handoff.
-  const cont = (typeof onDone === 'function') ? onDone : (() => renderMap());
-  const backdropUp = !!document.getElementById('quirk-award-backdrop');
-  if (backdropUp) {
-    _pendingAfterAward = cont;
-  } else {
-    cont();
-  }
+  showJoinCelebration(heroId, slot, onDone);
 }
 
 function commitRecruit(removeId, recruitId, onDone) {
@@ -23840,7 +23869,7 @@ function commitRecruit(removeId, recruitId, onDone) {
     state.run.nodesSinceRecruit = 0;
     hideOverlay();
     resetOverlayBtn();
-    cleanup();
+    showJoinCelebration(recruitId, slot, cleanup);
     return;
   }
   // Swap path: removeId is a hero id to eject.
@@ -23854,7 +23883,7 @@ function commitRecruit(removeId, recruitId, onDone) {
   state.run.nodesSinceRecruit = 0;
   hideOverlay();
   resetOverlayBtn();
-  cleanup();
+  showJoinCelebration(recruitId, slot, cleanup);
 }
 
 // ============================================================================
