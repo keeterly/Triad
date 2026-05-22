@@ -8960,18 +8960,38 @@ const COMBOS = {
 // pointless.
 function _comboLookupList() {
   const chosen = (state && state.run && state.run.chosenResonances) || {};
-  const pending = (state && state.run && state.run._pendingResonanceChoices) || [];
-  const pendingKeys = new Set(pending.map(p => p.kind === 'trio' ? p.trioKey : p.pairKey));
+  const acked = (state && state.run && state.run._ackedResonances) || {};
   const comboKey = (c) => {
     if (!c || !Array.isArray(c.requires)) return null;
     return c.requires.map(r => r.heroId).slice().sort().join('+');
   };
+  // Is this combo's kizuna screen still owed to the player?  Generic
+  // Coordinated Strike / Triad Resonance entries are owed until the
+  // player picks a mirror-split / anchor variant (chosen[key] set).
+  // Authored named combos (Banner Volley, Named Witness, etc.) are
+  // owed until the celebration screen fires (acked[key] set).
+  // Chosen variants themselves — the objects stored in
+  // state.run.chosenResonances and re-added at the bottom of this
+  // function — bypass the gate via the chosenResonance flag.
+  //
+  // Covers both timing windows that used to leak the underlying combo
+  // onto the rail before its kizuna moment fired:
+  //   - Bond crosses Tier II mid-fight (picker fires post-fight) —
+  //     combo stays hidden through the rest of THIS fight.
+  //   - Bond carried over from a previous layer at Tier II (no
+  //     transition fires this layer) — combo stays hidden until the
+  //     reconcile pass surfaces the picker post-fight.
+  const isPickerOwed = (c) => {
+    if (!c) return false;
+    if (c.chosenResonance) return false;
+    const ck = comboKey(c);
+    if (!ck) return false;
+    if (c.generic) return !chosen[ck];
+    return !acked[ck];
+  };
   const out = [];
   Object.values(COMBOS).forEach(c => {
-    // Pending picker — hide the underlying combo until the player
-    // commits / acknowledges the kizuna screen for this pair / trio.
-    const ck = comboKey(c);
-    if (ck && pendingKeys.has(ck)) return;
+    if (isPickerOwed(c)) return;
     if (!c.generic || typeof c.id !== 'string') { out.push(c); return; }
     if (c.tier === 'duo' && c.id.startsWith('coord_')) {
       const pk = c.id.slice('coord_'.length);
@@ -8982,14 +9002,7 @@ function _comboLookupList() {
     }
     out.push(c);
   });
-  Object.values(chosen).forEach(v => {
-    if (!v) return;
-    // Chosen variants get the same pending-pair gate just in case the
-    // picker is mid-flight for a related entry.
-    const ck = comboKey(v);
-    if (ck && pendingKeys.has(ck)) return;
-    out.push(v);
-  });
+  Object.values(chosen).forEach(v => { if (v) out.push(v); });
   return out;
 }
 
@@ -22722,19 +22735,29 @@ function init() {
   // hero unlocked.  Otherwise auto-pick (Kai by default).
   const pool = getUnlockedStarters().filter(id => SOLO_VIABLE.has(id));
   const afterStart = () => {
-    const ctx = captureFightContext(state);
-    ctx.phase = 'runStart';
-    const matches = matchVignettes(state, ctx);
-    if (matches.length) {
-      const pick = matches[Math.floor(Math.random() * matches.length)];
-      // The wake vignette stashes the player's boon pick on state.run; the
-      // resolver opens the matching sub-screen (sigil / upgrades / rumor)
-      // before handing off to the map.  Other runStart vignettes set no tag
-      // and the resolver is a no-op pass-through.
-      showVignette(pick, ctx, () => resolveOpeningBoon(() => renderMap()));
+    // Layer-start kizuna check — when a party carries up to a new
+    // layer with one or more bonds already at Tier II+, the picker
+    // would otherwise wait until the first fight ends.  Reconcile
+    // any owed pickers now and surface them BEFORE the wake vignette
+    // / map so the player gets the celebration / mirror-split screen
+    // first and the combo is on the rail for fight 1 of the layer.
+    const showNextScene = () => {
+      const ctx = captureFightContext(state);
+      ctx.phase = 'runStart';
+      const matches = matchVignettes(state, ctx);
+      if (matches.length) {
+        const pick = matches[Math.floor(Math.random() * matches.length)];
+        showVignette(pick, ctx, () => resolveOpeningBoon(() => renderMap()));
+        return;
+      }
+      renderMap();
+    };
+    try { _reconcileResonanceUnlocks(state); } catch (_) {}
+    if (state.run && state.run._pendingResonanceChoices && state.run._pendingResonanceChoices.length) {
+      showResonanceChoice(state, showNextScene);
       return;
     }
-    renderMap();
+    showNextScene();
   };
   const proceed = (starterId) => {
     state = newState(starterId);
