@@ -8960,49 +8960,52 @@ const COMBOS = {
 // pointless.
 function _comboLookupList() {
   const chosen = (state && state.run && state.run.chosenResonances) || {};
-  const acked = (state && state.run && state.run._ackedResonances) || {};
   const comboKey = (c) => {
     if (!c || !Array.isArray(c.requires)) return null;
     return c.requires.map(r => r.heroId).slice().sort().join('+');
   };
-  // Is this combo's kizuna screen still owed to the player?  Generic
-  // Coordinated Strike / Triad Resonance entries are owed until the
-  // player picks a mirror-split / anchor variant (chosen[key] set).
-  // Authored named combos (Banner Volley, Named Witness, etc.) are
-  // owed until the celebration screen fires (acked[key] set).
-  // Chosen variants themselves — the objects stored in
-  // state.run.chosenResonances and re-added at the bottom of this
-  // function — bypass the gate via the chosenResonance flag.
-  //
-  // Covers both timing windows that used to leak the underlying combo
-  // onto the rail before its kizuna moment fired:
-  //   - Bond crosses Tier II mid-fight (picker fires post-fight) —
-  //     combo stays hidden through the rest of THIS fight.
-  //   - Bond carried over from a previous layer at Tier II (no
-  //     transition fires this layer) — combo stays hidden until the
-  //     reconcile pass surfaces the picker post-fight.
-  const isPickerOwed = (c) => {
-    if (!c) return false;
-    if (c.chosenResonance) return false;
-    const ck = comboKey(c);
-    if (!ck) return false;
-    if (c.generic) return !chosen[ck];
-    return !acked[ck];
-  };
+  // The new Kizuna progression keys chosen variants by (pairKey, level)
+  // — chosenResonances[pairKey] is now an object { L1, L2, L3 }.  Each
+  // level is a separate combo on the rail because each fires on a
+  // different trigger (attack+attack / attack+special / special+special).
+  // Generic Coordinated Strike / Triad Resonance entries get hidden
+  // entirely now — the new system covers every pair via school-pair
+  // templates + authored L3s, so the generic fallback is no longer
+  // needed.  Authored combos surface only when their pair commits the
+  // L3 kizuna (since they ARE the L3 climax).
   const out = [];
   Object.values(COMBOS).forEach(c => {
-    if (isPickerOwed(c)) return;
-    if (!c.generic || typeof c.id !== 'string') { out.push(c); return; }
-    if (c.tier === 'duo' && c.id.startsWith('coord_')) {
-      const pk = c.id.slice('coord_'.length);
-      if (chosen[pk]) return; // chosen duo variant replaces this entry
-    } else if (c.tier === 'triple' && c.id.startsWith('triad_')) {
-      const tk = c.id.slice('triad_'.length);
-      if (chosen[tk]) return; // chosen trio variant replaces this entry
+    // Generic Coordinated Strike / Triad Resonance — always hide; the
+    // chosen variant in chosenResonances[pairKey][LN] replaces them.
+    if (c.generic && typeof c.id === 'string'
+        && (c.id.startsWith('coord_') || c.id.startsWith('triad_'))) {
+      return;
+    }
+    // Authored duo — only show when this pair has committed L3 with
+    // it as the chosen variant (i.e., the player saw the celebration
+    // and picked it).  We re-add the variant entry below, so skip the
+    // authored entry here to avoid double-listing.
+    if (!c.generic && !c.chosenResonance && c.tier === 'duo' && c.requires && c.requires.length === 2) {
+      return;
+    }
+    // Authored trio — same gating.  Trio L3 celebration not wired yet
+    // but for completeness hide here.
+    if (!c.generic && !c.chosenResonance && c.tier === 'triple' && c.requires && c.requires.length === 3) {
+      return;
     }
     out.push(c);
   });
-  Object.values(chosen).forEach(v => { if (v) out.push(v); });
+  // Add every chosen variant from chosenResonances.  Structure:
+  //   chosenResonances[pairKey] = { L1: variant, L2: variant, L3: variant }
+  // (Legacy single-variant shape still supported as a fallback.)
+  Object.values(chosen).forEach(entry => {
+    if (!entry) return;
+    if (entry.L1 || entry.L2 || entry.L3) {
+      ['L1', 'L2', 'L3'].forEach(lk => { if (entry[lk]) out.push(entry[lk]); });
+    } else {
+      out.push(entry);
+    }
+  });
   return out;
 }
 
@@ -12856,20 +12859,51 @@ function fireAdjacencyHook(s, hookName, ...args) {
 // never saw a tier-up.  At [2, 5] the second fire of a bond hits
 // Tier II reliably, and a player leaning into one pair for a full
 // run can plausibly reach Tier III resonance.
-const BOND_TIER_THRESHOLDS = [2, 5];
-const BOND_TIER_ROMAN = ['', 'I', 'II', 'III'];
+// Bond progression — every pair walks a 4-step ladder over the run:
+//   Level 0 → no kizuna yet (under 2 fires)
+//   Level 1 → unlocked at 2 fires.  Trigger: both heroes ATTACK.
+//             Player picks a mechanical variant at the level-up screen.
+//   Level 2 → unlocked at 4 fires.  Trigger: attack + special (either
+//             direction; the variant the player picks decides which
+//             hero attacks vs specials).
+//   Level 3 → unlocked at 6 fires.  Trigger: both heroes SPECIAL.
+//             Pairs with an authored combo (Banner Volley, Sacred
+//             Triad, etc.) surface that here as the climactic kizuna;
+//             the rest get school-pair-template climax variants.
+//
+// Each level-up surfaces the Kizuna picker; the player commits a
+// variant and it locks into chosenResonances[pairKey][LN] for the run.
+// BOND_TIER_THRESHOLDS / getBondTier / BOND_TIER_ROMAN stay as
+// aliases so legacy code paths (run-info panel, vignette catalysts,
+// run-summary kizuna recap) keep reading the same numbers — they
+// look at the SAME synergyCounts, just with one more rung.
+const BOND_LEVEL_THRESHOLDS = [2, 4, 6];
+const BOND_LEVEL_ROMAN = ['', 'I', 'II', 'III'];
+// Legacy aliases — old code reads BOND_TIER_*; map them to the new
+// ladder so we don't have to touch a dozen files at once.  Tier I/II/III
+// in the old vocabulary lines up with Level 1/2/3 in the new.
+const BOND_TIER_THRESHOLDS = BOND_LEVEL_THRESHOLDS.slice(1); // [4, 6] — old Tier II = new L2, Tier III = new L3
+const BOND_TIER_ROMAN = BOND_LEVEL_ROMAN;
 
-function getBondTier(s, name, count) {
+function getBondLevel(s, name, count) {
   const n = count !== undefined
     ? count
     : ((s && s.run && s.run.synergyCounts && s.run.synergyCounts[name]) || 0);
-  if (n >= BOND_TIER_THRESHOLDS[1]) return 3;
-  if (n >= BOND_TIER_THRESHOLDS[0]) return 2;
-  return 1;
+  if (n >= BOND_LEVEL_THRESHOLDS[2]) return 3;
+  if (n >= BOND_LEVEL_THRESHOLDS[1]) return 2;
+  if (n >= BOND_LEVEL_THRESHOLDS[0]) return 1;
+  return 0;
+}
+// Legacy alias — old call sites pass 'tier' to mean 'level'.  Map
+// 0→1, 1→1, 2→2, 3→3 so callers that used to assume tier 1 as the
+// 'no kizuna' baseline still read meaningful values.
+function getBondTier(s, name, count) {
+  const lvl = getBondLevel(s, name, count);
+  return lvl === 0 ? 1 : lvl;
 }
 function bondTierBonus(s, name, baseAmt) {
   // Tier scaling reads the count AS IF this fire has already counted —
-  // so the fire that crosses into Tier II is itself the first Tier II
+  // so the fire that crosses into a new level is itself the first
   // amplified hit, not the fire after.
   const cur = (s && s.run && s.run.synergyCounts && s.run.synergyCounts[name]) || 0;
   const tier = getBondTier(s, name, cur + 1);
@@ -13386,6 +13420,206 @@ function _schoolPairTemplate(a, b) {
   return SCHOOL_PAIR_TEMPLATES[key] || null;
 }
 
+// Find the authored combo for a duo pair (Banner Volley, Twin Strike,
+// Named Witness, etc.).  Returns null when the pair has no bespoke
+// combo — those pairs use the school-pair template at every level.
+function _authoredDuoFor(a, b) {
+  const key = adjKey(a, b);
+  return Object.values(COMBOS).find(c =>
+    !c.generic && !c.chosenResonance && c.tier === 'duo' && c.requires && c.requires.length === 2 &&
+    c.requires.map(r => r.heroId).slice().sort().join('+') === key) || null;
+}
+
+// Build the picker variants for a pair at a specific Kizuna level.
+// Returns an array of variant objects the picker will offer.  Variants
+// at each level differ in mechanic AND trigger:
+//   L1 (attack + attack)   — 2 anchor variants from the school-pair
+//                            template, light effect.  Same trigger
+//                            but the anchor changes which hero leads
+//                            the cinematic + the school's effect lean.
+//   L2 (attack + special)  — 2 directional variants.  Different
+//                            requires: one has hero A specials, the
+//                            other has hero B specials.  Same template
+//                            effect, but who pays the Resolve differs.
+//   L3 (special + special) — 2 anchor variants AT RESONANT power, OR
+//                            for pairs with an authored combo (Banner
+//                            Volley etc.), a single celebration card
+//                            with that authored combo as the climax.
+function _buildLevelVariants(s, heroA, heroB, level) {
+  if (level < 1 || level > 3) return null;
+  const ids = [heroA, heroB].sort();
+  const a = ids[0], b = ids[1];
+  const slotA = slotOfChar(s, a);
+  const slotB = slotOfChar(s, b);
+  if (!slotA || !slotB) {
+    try { console.warn('[Kizuna] missing slot', { a, b, level }); } catch (_) {}
+    return null;
+  }
+  const template = _schoolPairTemplate(a, b);
+  if (!template) {
+    try { console.warn('[Kizuna] no school-pair template', { a, b }); } catch (_) {}
+    return null;
+  }
+  const nameA = (CHARS[a] && CHARS[a].name) || a;
+  const nameB = (CHARS[b] && CHARS[b].name) || b;
+  const pairKey = adjKey(a, b);
+  const bondName = bondNameForPair(a, b);
+  // Cinematic shared shape.  Anchor's school tints the stage.
+  const cinematicFor = (text, anchorId) => ([
+    { kind: 'stage',       school: (CHARS[anchorId] && CHARS[anchorId].school) || 'physical', ms: 200 },
+    { kind: 'hero-big',    heroes: [a, b], pose: 'rise', ms: 380 },
+    { kind: 'banner',      text, size: 'sm', ms: 320 },
+    { kind: 'slogan',      text: 'kizuna', ms: 220 },
+    { kind: 'punch',                                              ms: 360 },
+    { kind: 'resolve' },
+    { kind: 'enemy-flash', targets: 'front', kind2: 'hit', ms: 200 },
+  ]);
+  // The template effect — L3 passes tier=3 so the RESONANT branch of
+  // the template fires; L1 / L2 pass tier=2 so the base effect fires.
+  // The progression at L1 → L2 is in the TRIGGER (attack+attack →
+  // attack+special, paying more Resolve for a bigger kizuna moment
+  // because the special's own effect feeds the picture); L3 unlocks
+  // the RESONANT scaling on top of both specials.
+  const runTemplate = (anchorId, otherId) => (s2) => {
+    const tier = level === 3 ? 3 : 2;
+    template.fn(s2, anchorId, otherId, tier);
+  };
+  // ===== LEVEL 1 — both attack =====
+  if (level === 1) {
+    const mkV = (anchorId, otherId, variantId) => {
+      const aN = (CHARS[anchorId] && CHARS[anchorId].name) || anchorId;
+      const oN = (CHARS[otherId]  && CHARS[otherId].name)  || otherId;
+      const vname = `${aN} & ${oN} · ${template.name(aN, oN).split('·').pop().trim() || 'Kizuna'}`;
+      const baseDesc = template.desc(aN, oN, 2);
+      return {
+        id: `chosen_${pairKey}_L1_${variantId}`,
+        name: vname,
+        tier: 'duo',
+        chosenResonance: true,
+        kizunaLevel: 1,
+        pairKey,
+        desc: `${baseDesc.split('RESONANT')[0].trim()}  (Level 1 — lighter scaling.)`,
+        requires: [
+          { heroId: a, kind: 'attack' },
+          { heroId: b, kind: 'attack' },
+        ],
+        fn: runTemplate(anchorId, otherId),
+        cinematic: cinematicFor(vname.toUpperCase(), anchorId),
+        _preview: {
+          aHero: anchorId, bHero: otherId,
+          schoolPair: true, level: 1,
+          aTech: { name: aN, desc: 'leads' },
+          bTech: { name: oN, desc: 'supports' },
+        },
+      };
+    };
+    return [
+      mkV(a, b, 'A'),
+      mkV(b, a, 'B'),
+    ];
+  }
+  // ===== LEVEL 2 — attack + special, mixed direction =====
+  if (level === 2) {
+    const mkV = (specialId, attackerId, variantId) => {
+      const sN = (CHARS[specialId] && CHARS[specialId].name) || specialId;
+      const aN = (CHARS[attackerId] && CHARS[attackerId].name) || attackerId;
+      const vname = `${sN}'s Special · ${aN}'s Edge`;
+      const baseDesc = template.desc(sN, aN, 2);
+      return {
+        id: `chosen_${pairKey}_L2_${variantId}`,
+        name: vname,
+        tier: 'duo',
+        chosenResonance: true,
+        kizunaLevel: 2,
+        pairKey,
+        desc: `${baseDesc.split('RESONANT')[0].trim()}  (Level 2 — ${sN} specials, ${aN} attacks.)`,
+        // requires direction matters at L2 — picker variant locks in
+        // which hero specials.
+        requires: specialId === a
+          ? [{ heroId: a, kind: 'special' }, { heroId: b, kind: 'attack' }]
+          : [{ heroId: a, kind: 'attack' }, { heroId: b, kind: 'special' }],
+        fn: runTemplate(specialId, attackerId),
+        cinematic: cinematicFor(vname.toUpperCase(), specialId),
+        _preview: {
+          aHero: specialId, bHero: attackerId,
+          schoolPair: true, level: 2,
+          aTech: { name: sN, desc: 'specials' },
+          bTech: { name: aN, desc: 'attacks' },
+        },
+      };
+    };
+    return [
+      mkV(a, b, 'A'),
+      mkV(b, a, 'B'),
+    ];
+  }
+  // ===== LEVEL 3 — both special =====
+  if (level === 3) {
+    const authored = _authoredDuoFor(a, b);
+    if (authored) {
+      // Authored combo IS the L3 climax.  Single celebration card
+      // (auto-selected on render so Commit fires immediately).  Stamp
+      // it with kizunaLevel + pairKey so the combo lookup knows it
+      // belongs to this pair's L3 slot.
+      const climax = {
+        id: authored.id, // reuse the authored id so the cinematic / sound assets line up
+        name: authored.name,
+        tier: 'duo',
+        chosenResonance: true,
+        kizunaLevel: 3,
+        pairKey,
+        authoredId: authored.id,
+        desc: authored.desc || '',
+        requires: authored.requires
+          ? authored.requires.slice()
+          : [{ heroId: a, kind: 'special' }, { heroId: b, kind: 'special' }],
+        fn: authored.fn,
+        cinematic: authored.cinematic,
+        _preview: {
+          aHero: a, bHero: b,
+          schoolPair: false, level: 3, authored: true,
+          aTech: { name: nameA, desc: '' },
+          bTech: { name: nameB, desc: '' },
+          autoSelect: true,
+        },
+      };
+      return [climax];
+    }
+    const mkV = (anchorId, otherId, variantId) => {
+      const aN = (CHARS[anchorId] && CHARS[anchorId].name) || anchorId;
+      const oN = (CHARS[otherId]  && CHARS[otherId].name)  || otherId;
+      const vname = `${aN} resonant · ${oN} resonant`;
+      const baseDesc = template.desc(aN, oN, 3);
+      return {
+        id: `chosen_${pairKey}_L3_${variantId}`,
+        name: vname,
+        tier: 'duo',
+        chosenResonance: true,
+        kizunaLevel: 3,
+        pairKey,
+        desc: baseDesc,
+        requires: [
+          { heroId: a, kind: 'special' },
+          { heroId: b, kind: 'special' },
+        ],
+        fn: runTemplate(anchorId, otherId),
+        cinematic: cinematicFor(vname.toUpperCase(), anchorId),
+        _preview: {
+          aHero: anchorId, bHero: otherId,
+          schoolPair: true, level: 3,
+          aTech: { name: aN, desc: 'resonant' },
+          bTech: { name: oN, desc: 'resonant' },
+        },
+      };
+    };
+    return [
+      mkV(a, b, 'A'),
+      mkV(b, a, 'B'),
+    ];
+  }
+  return null;
+}
+
 // Build the two mirror-split Resonance variants for a pair when their
 // bond crosses Tier II.  Both variants have the same total cost; what
 // differs is WHICH hero carries the basic and which carries the sig —
@@ -13733,38 +13967,37 @@ function _buildTrioResonanceVariants(s, heroes) {
 }
 
 // Queue a Resonance unlock choice for this pair when their bond crosses
-// Tier II.  Pairs WITHOUT an authored combo get the mirror-split
-// picker (two variants); pairs WITH an authored combo (Banner Volley,
-// Twin Strike, etc.) get a single-card celebration overlay so the
-// unlock still has a "level up" moment — they just don't get a real
-// choice, since the authored combo IS the variant.  Either way the
-// pair is queued and a screen appears.
+// a new Kizuna level (1 / 2 / 3).  Each level surfaces an independent
+// picker:
+//   Level 1 (2 fires)  — attack + attack combo, 2 anchor variants
+//   Level 2 (4 fires)  — attack + special combo, variant decides which
+//                        hero specials vs attacks
+//   Level 3 (6 fires)  — special + special climax.  Pairs with an
+//                        authored combo (Banner Volley, Sacred Triad,
+//                        etc.) get that as a single celebration card
+//                        here; the rest get 2 anchor variants from
+//                        the school-pair template.
 //
-// Also walks the party for any 3rd hero whose trio with this pair
-// is NOW unlocked (2-of-3 pair bonds at Tier II) — if so, queues a
-// trio entry too.
-function _queueResonanceChoice(s, heroA, heroB) {
+// `levels` is an array of one or more levels that just crossed.  In
+// practice this is usually a single level per fire, but the function
+// supports multiple in case fights skip ahead (carry-over reconcile).
+function _queueResonanceChoice(s, heroA, heroB, levels) {
   if (!s || !s.run || __simulating) return;
   const key = adjKey(heroA, heroB);
   s.run.chosenResonances = s.run.chosenResonances || {};
   s.run._pendingResonanceChoices = s.run._pendingResonanceChoices || [];
-  // Authored pairs have no per-run "chosen" entry (the authored combo
-  // is the chosen variant) so we gate on a separate _ackedResonances
-  // ledger to make sure we only ever show the celebration once per
-  // pair per run.
-  const authored = _pairHasAuthoredCombo(heroA, heroB);
-  if (authored) {
-    s.run._ackedResonances = s.run._ackedResonances || {};
-    if (!s.run._ackedResonances[key]
-        && !s.run._pendingResonanceChoices.some(c => c.kind === 'duo' && c.pairKey === key)) {
-      s.run._pendingResonanceChoices.push({ kind: 'duo', pairKey: key, heroA, heroB, authored: true });
-    }
-  } else {
-    if (!s.run.chosenResonances[key]
-        && !s.run._pendingResonanceChoices.some(c => c.kind === 'duo' && c.pairKey === key)) {
-      s.run._pendingResonanceChoices.push({ kind: 'duo', pairKey: key, heroA, heroB });
-    }
-  }
+  const owned = s.run.chosenResonances[key] || {};
+  const targetLevels = Array.isArray(levels) ? levels : [levels];
+  targetLevels.forEach(level => {
+    if (level < 1 || level > 3) return;
+    const lkey = `L${level}`;
+    if (owned[lkey]) return; // already picked
+    if (s.run._pendingResonanceChoices.some(c =>
+      c.kind === 'duo' && c.pairKey === key && c.level === level)) return;
+    s.run._pendingResonanceChoices.push({
+      kind: 'duo', pairKey: key, heroA, heroB, level,
+    });
+  });
   _checkTrioUnlocks(s, heroA, heroB);
 }
 
@@ -13772,11 +14005,15 @@ function _queueResonanceChoice(s, heroA, heroB) {
 // {heroA, heroB, heroC} just crossed its unlock threshold — i.e.
 // became unlocked due to this pair-bond's tier-up.  If so, queue a
 // trio choice for that triple.
+// Trio kizuna walks the same 3-level ladder as pairs.  A trio is
+// 'unlocked' when 2 of its 3 pair-bonds have reached the matching
+// level.  The picker offers anchor variants for L1 (all attack) and
+// L3 (anchor's special), and an action-mix variant for L2.  Trios
+// with authored combos surface them as L3.
 function _checkTrioUnlocks(s, heroA, heroB) {
   if (!s || !s.run || __simulating) return;
   s.run.chosenResonances = s.run.chosenResonances || {};
   s.run._pendingResonanceChoices = s.run._pendingResonanceChoices || [];
-  s.run._ackedResonances = s.run._ackedResonances || {};
   const partyIds = Object.keys(s.party.chars).filter(id => {
     const c = s.party.chars[id];
     return c && !c.downed;
@@ -13785,36 +14022,26 @@ function _checkTrioUnlocks(s, heroA, heroB) {
     if (heroC === heroA || heroC === heroB) return;
     const trio = [heroA, heroB, heroC].sort();
     const trioKey = trio.join('+');
-    if (s.run._pendingResonanceChoices.some(c => c.kind === 'trio' && c.trioKey === trioKey)) return;
-    const authored = _trioHasAuthoredCombo(trio);
-    if (authored) {
-      // Authored trios — celebrate the unlock once per run via the
-      // _ackedResonances ledger (they have no chosenResonance entry).
-      if (s.run._ackedResonances[trioKey]) return;
-      // The authored combo gates on its own unlock condition; use it
-      // to test "is this trio actually unlocked right now?".
-      const authoredCombo = Object.values(COMBOS).find(c =>
-        !c.generic && !c.chosenResonance && c.tier === 'triple' && c.requires
-        && c.requires.map(r => r.heroId).slice().sort().join('+') === trioKey);
-      if (authoredCombo && !isComboUnlocked(s, authoredCombo)) return;
+    const owned = s.run.chosenResonances[trioKey] || {};
+    // Compute the trio's current 'kizuna depth' — for each of the 3
+    // pair bonds, what level have they reached.  N-of-3 at each level
+    // unlocks the trio combo at that level.  Mirror of the 'count 2'
+    // rule in _deriveComboUnlock.
+    const pairLevels = [
+      getBondLevel(s, bondNameForPair(trio[0], trio[1])),
+      getBondLevel(s, bondNameForPair(trio[1], trio[2])),
+      getBondLevel(s, bondNameForPair(trio[0], trio[2])),
+    ];
+    [1, 2, 3].forEach(level => {
+      const lkey = `L${level}`;
+      if (owned[lkey]) return;
+      if (s.run._pendingResonanceChoices.some(c =>
+        c.kind === 'trio' && c.trioKey === trioKey && c.level === level)) return;
+      const reached = pairLevels.filter(l => l >= level).length;
+      if (reached < 2) return;
       s.run._pendingResonanceChoices.push({
-        kind: 'trio',
-        trioKey,
-        heroes: trio,
-        authored: true,
+        kind: 'trio', trioKey, heroes: trio, level,
       });
-      return;
-    }
-    if (s.run.chosenResonances[trioKey]) return;
-    // Find the generic trio combo to test against isComboUnlocked.
-    const genericId = `triad_${trioKey}`;
-    const trioCombo = COMBOS[genericId];
-    if (!trioCombo) return;
-    if (!isComboUnlocked(s, trioCombo)) return;
-    s.run._pendingResonanceChoices.push({
-      kind: 'trio',
-      trioKey,
-      heroes: trio,
     });
   });
 }
@@ -13836,58 +14063,65 @@ function _checkTrioUnlocks(s, heroA, heroB) {
 // Called from the post-fight cascade so any missed unlock surfaces
 // at the next natural beat (post-fight, alongside other Resonance
 // choices that just triggered).
+// Reconcile pass — walks the party and queues a picker for every
+// (pair, level) and (trio, level) the player should have been offered
+// but missed.  Covers carry-over from a previous layer (bond was
+// already past a level threshold) and fights where the cascade was
+// interrupted (BUG-01-style scenarios).
 function _reconcileResonanceUnlocks(s) {
   if (!s || !s.run || __simulating) return;
   s.run.chosenResonances = s.run.chosenResonances || {};
   s.run._pendingResonanceChoices = s.run._pendingResonanceChoices || [];
-  s.run._ackedResonances = s.run._ackedResonances || {};
   const partyIds = Object.keys(s.party.chars).filter(id => {
     const c = s.party.chars[id];
     return c && !c.downed;
   });
-  // Pair check — covers both authored (celebration) and generic
-  // (mirror-split) variants.  Authored pairs use _ackedResonances as
-  // their per-run gate; generic pairs use chosenResonances.
+  // Pair check — for each pair, queue any level that's been reached
+  // (bond count past threshold) but not yet committed AND not yet
+  // queued.  Each level is independent — a pair that already picked
+  // L1 still gets the L2 picker when bond count crosses 4.
   for (let i = 0; i < partyIds.length; i++) {
     for (let j = i + 1; j < partyIds.length; j++) {
       const a = partyIds[i], b = partyIds[j];
       const key = adjKey(a, b);
-      if (s.run._pendingResonanceChoices.some(c => c.kind === 'duo' && c.pairKey === key)) continue;
+      const owned = s.run.chosenResonances[key] || {};
       const bondName = bondNameForPair(a, b);
       const count = (s.run.synergyCounts && s.run.synergyCounts[bondName]) || 0;
-      if (count < BOND_TIER_THRESHOLDS[0]) continue;
-      const authored = _pairHasAuthoredCombo(a, b);
-      if (authored) {
-        if (s.run._ackedResonances[key]) continue;
-        s.run._pendingResonanceChoices.push({ kind: 'duo', pairKey: key, heroA: a, heroB: b, authored: true });
-      } else {
-        if (s.run.chosenResonances[key]) continue;
-        s.run._pendingResonanceChoices.push({ kind: 'duo', pairKey: key, heroA: a, heroB: b });
-      }
+      [1, 2, 3].forEach(level => {
+        if (count < BOND_LEVEL_THRESHOLDS[level - 1]) return;
+        const lkey = `L${level}`;
+        if (owned[lkey]) return;
+        if (s.run._pendingResonanceChoices.some(c =>
+          c.kind === 'duo' && c.pairKey === key && c.level === level)) return;
+        s.run._pendingResonanceChoices.push({
+          kind: 'duo', pairKey: key, heroA: a, heroB: b, level,
+        });
+      });
     }
   }
-  // Trio check.
+  // Trio check — 2 of 3 pair-bonds at the target level unlocks the trio.
   for (let i = 0; i < partyIds.length; i++) {
     for (let j = i + 1; j < partyIds.length; j++) {
       for (let k = j + 1; k < partyIds.length; k++) {
         const trio = [partyIds[i], partyIds[j], partyIds[k]].sort();
         const trioKey = trio.join('+');
-        if (s.run._pendingResonanceChoices.some(c => c.kind === 'trio' && c.trioKey === trioKey)) continue;
-        const authored = _trioHasAuthoredCombo(trio);
-        if (authored) {
-          if (s.run._ackedResonances[trioKey]) continue;
-          const authoredCombo = Object.values(COMBOS).find(c =>
-            !c.generic && !c.chosenResonance && c.tier === 'triple' && c.requires
-            && c.requires.map(r => r.heroId).slice().sort().join('+') === trioKey);
-          if (authoredCombo && !isComboUnlocked(s, authoredCombo)) continue;
-          s.run._pendingResonanceChoices.push({ kind: 'trio', trioKey, heroes: trio, authored: true });
-          continue;
-        }
-        if (s.run.chosenResonances[trioKey]) continue;
-        const trioCombo = COMBOS[`triad_${trioKey}`];
-        if (!trioCombo) continue;
-        if (!isComboUnlocked(s, trioCombo)) continue;
-        s.run._pendingResonanceChoices.push({ kind: 'trio', trioKey, heroes: trio });
+        const owned = s.run.chosenResonances[trioKey] || {};
+        const pairLevels = [
+          getBondLevel(s, bondNameForPair(trio[0], trio[1])),
+          getBondLevel(s, bondNameForPair(trio[1], trio[2])),
+          getBondLevel(s, bondNameForPair(trio[0], trio[2])),
+        ];
+        [1, 2, 3].forEach(level => {
+          const lkey = `L${level}`;
+          if (owned[lkey]) return;
+          if (s.run._pendingResonanceChoices.some(c =>
+            c.kind === 'trio' && c.trioKey === trioKey && c.level === level)) return;
+          const reached = pairLevels.filter(l => l >= level).length;
+          if (reached < 2) return;
+          s.run._pendingResonanceChoices.push({
+            kind: 'trio', trioKey, heroes: trio, level,
+          });
+        });
       }
     }
   }
@@ -14044,41 +14278,39 @@ function fireSynergyFeedback(s, name, receiverId, effectText, effectType) {
     s.firedSynergies.add(name);
     if (s.fightStats) s.fightStats.synergies.push(name);
   }
-  let tierBefore = 1, tierAfter = 1;
+  let levelBefore = 0, levelAfter = 0;
   if (s.run) {
     s.run.synergyCounts = s.run.synergyCounts || {};
     const before = s.run.synergyCounts[name] || 0;
-    tierBefore = getBondTier(s, name, before);
+    levelBefore = getBondLevel(s, name, before);
     s.run.synergyCounts[name] = before + 1;
-    tierAfter = getBondTier(s, name, before + 1);
+    levelAfter = getBondLevel(s, name, before + 1);
   }
-  const tierRoman = BOND_TIER_ROMAN[tierAfter] || '';
-  const nameWithTier = tierAfter > 1 ? `${name} ${tierRoman}` : name;
+  // Roman / tier wording for legacy popups + run-info readouts.  Level
+  // 0 reads as bare bond name, levels 1-3 add the roman.
+  const tierAfter = levelAfter === 0 ? 1 : levelAfter; // legacy mapping for older code paths
+  const tierBefore = levelBefore === 0 ? 1 : levelBefore;
+  const tierRoman = BOND_LEVEL_ROMAN[levelAfter] || '';
+  const nameWithTier = levelAfter >= 1 ? `${name} ${tierRoman}` : name;
   // Look up bond/friction type from the active adjacency pair
   const pair = getAdjacencyPairs(s).find(p => p.synergy.name === name);
   const popupClass = pair ? pair.synergy.type : 'synergy';
   setTimeout(() => spawnPopupId(receiverId, nameWithTier, popupClass, 'party'), 180);
-  // Rank-up moment — the first fire to cross into a new tier gets a
-  // distinct celebration so the player FEELS the bond deepening.
-  // Tier III uses 'RESONANT' label and lists the new clause inline so
-  // the player learns what the resonant effect is the moment it unlocks.
-  // Tier II crossing for a themed pair without an authored combo —
-  // queue a Resonance choice overlay so the player picks how the
-  // pair fights as one.  Authored pairs (Banner Volley, Twin Strike,
-  // etc.) skip the choice and use their hand-crafted Resonance.
-  if (tierBefore < 2 && tierAfter >= 2 && pair && Array.isArray(pair.ids) && pair.ids.length === 2) {
-    _queueResonanceChoice(s, pair.ids[0], pair.ids[1]);
+  // Level crossing — queue the picker for the new level.  EVERY pair
+  // (authored or not) gets the picker — authored combos surface as
+  // the L3 entry so the player still has agency at L1 / L2 over
+  // mechanical variants from the school-pair template.
+  if (levelAfter > levelBefore && pair && Array.isArray(pair.ids) && pair.ids.length === 2) {
+    const newLevels = [];
+    for (let l = levelBefore + 1; l <= levelAfter; l++) newLevels.push(l);
+    _queueResonanceChoice(s, pair.ids[0], pair.ids[1], newLevels);
   }
-  if (tierAfter > tierBefore && tierAfter > 1) {
-    const clause = tierAfter === 3 ? BOND_TIER3_CLAUSES[name] : null;
-    const word = tierAfter === 3 ? 'RESONANT' : 'DEEPENED';
-    // Tier crossing fanfare uses the side-toast track now instead of a
-    // floating popup over the hero card.  The popup competed with damage
-    // numbers and other combat noise on the same hero; the toast lives
-    // in its own column so it's never lost.  Tier III crossings get
-    // 'resonant' tint, Tier II gets 'deepened'.
-    const cls = tierAfter === 3 ? 'qa-bond-resonant' : 'qa-bond-deepened';
-    const eyebrow = tierAfter === 3 ? '✦ RESONANT' : '✦ DEEPENED';
+  if (levelAfter > levelBefore && levelAfter >= 1) {
+    const clause = levelAfter === 3 ? BOND_TIER3_CLAUSES[name] : null;
+    // Level crossing fanfare uses the side-toast track.  L3 reads as
+    // RESONANT (the climactic unlock); L1 / L2 read as DEEPENED.
+    const cls = levelAfter === 3 ? 'qa-bond-resonant' : 'qa-bond-deepened';
+    const eyebrow = levelAfter === 3 ? '✦ RESONANT' : '✦ DEEPENED';
     const partnerIds = pair && Array.isArray(pair.ids) ? pair.ids : [receiverId];
     const partnerNames = partnerIds.map(id => (CHARS[id] && CHARS[id].name) || id).join(' + ');
     setTimeout(() => {
@@ -14088,7 +14320,7 @@ function fireSynergyFeedback(s, name, receiverId, effectText, effectType) {
         eyebrow,
         name: `${name} ${tierRoman}`,
         flavor: partnerNames,
-        desc: clause ? clause.text : (tierAfter === 3
+        desc: clause ? clause.text : (levelAfter === 3
           ? 'Their kizuna rings true. A resonant clause now fires on every bond beat.'
           : 'Their bond deepens. The kizuna burst hits harder from here on.'),
         portraitId: partnerIds[0] || receiverId,
@@ -15108,21 +15340,23 @@ function tickCamaraderie(s, committedQueue) {
       if (ADJ[key]) continue;
       const bondName = `Camaraderie:${key}`;
       const before = s.run.synergyCounts[bondName] || 0;
-      const tierBefore = getBondTier(s, bondName, before);
+      const levelBefore = getBondLevel(s, bondName, before);
       s.run.synergyCounts[bondName] = before + 1;
-      const tierAfter = getBondTier(s, bondName, before + 1);
-      // Tier II crossing — queue Resonance choice for this pair.
-      // The overlay surfaces between turns (after queue resolves,
-      // before enemy phase) so the player picks WHICH variant
-      // becomes their duo Resonance for the rest of the run.
-      if (tierBefore < 2 && tierAfter >= 2) {
-        _queueResonanceChoice(s, a, b);
+      const levelAfter = getBondLevel(s, bondName, before + 1);
+      // Level transition — queue the picker for every newly-crossed
+      // level (usually one, but reconcile can stack).
+      if (levelAfter > levelBefore) {
+        const newLevels = [];
+        for (let l = levelBefore + 1; l <= levelAfter; l++) newLevels.push(l);
+        _queueResonanceChoice(s, a, b, newLevels);
       }
-      // Tier-up fanfare for the camaraderie tick — side toast, same
-      // family as the themed-bond tier crossings.  No fanfare on
-      // first fire (Tier I just means 'they cooperated once').
-      if (tierAfter > tierBefore && tierAfter > 1) {
-        const word = tierAfter === 3 ? 'RESONANT' : 'DEEPENED';
+      // Legacy tier vocabulary for the toast / popup paths below.
+      const tierBefore = levelBefore === 0 ? 1 : levelBefore;
+      const tierAfter = levelAfter === 0 ? 1 : levelAfter;
+      // Level-up fanfare — side toast.  No fanfare at Level 0 (just
+      // 'they cooperated once').
+      if (levelAfter > levelBefore && levelAfter >= 1) {
+        const word = levelAfter === 3 ? 'RESONANT' : 'DEEPENED';
         const nameA = (CHARS[a] && CHARS[a].name) || a;
         const nameB = (CHARS[b] && CHARS[b].name) || b;
         const ca = s.party.chars[a], cb = s.party.chars[b];
@@ -15241,9 +15475,21 @@ function executeQueueItem(s, item) {
     // nothing — the cinematic wouldn't play and the effect wouldn't
     // land.  Lookup chain: COMBOS first (authored + generic), then
     // chosenResonances (the player's mirror-split / anchor picks).
-    const combo = COMBOS[item.comboId]
-      || (s.run && s.run.chosenResonances
-            && Object.values(s.run.chosenResonances).find(v => v && v.id === item.comboId));
+    // chosenResonances is keyed by pair / trio with per-level slots
+    // {L1, L2, L3} — flatten when searching for the combo id.
+    const findChosen = (id) => {
+      const cr = s && s.run && s.run.chosenResonances;
+      if (!cr) return null;
+      for (const entry of Object.values(cr)) {
+        if (!entry) continue;
+        if (entry.id === id) return entry; // legacy single-variant shape
+        for (const lk of ['L1', 'L2', 'L3']) {
+          if (entry[lk] && entry[lk].id === id) return entry[lk];
+        }
+      }
+      return null;
+    };
+    const combo = COMBOS[item.comboId] || findChosen(item.comboId);
     if (!combo) return;
     log(`<span class="msg-strong">★ ${combo.name} ★</span>`);
     if (__simulating) {
@@ -17736,9 +17982,20 @@ function previewComboTargets(comboId) {
   // live in state.run.chosenResonances, not in the static COMBOS table.
   // Without this fallback the preview shows nothing when the player
   // holds a chosen-variant chip (no enemy highlights, no damage tags).
-  const combo = COMBOS[comboId]
-    || (state && state.run && state.run.chosenResonances
-          && Object.values(state.run.chosenResonances).find(v => v && v.id === comboId));
+  // Flatten chosenResonances {pairKey: {L1, L2, L3}} when searching.
+  const findChosen = (id) => {
+    const cr = state && state.run && state.run.chosenResonances;
+    if (!cr) return null;
+    for (const entry of Object.values(cr)) {
+      if (!entry) continue;
+      if (entry.id === id) return entry;
+      for (const lk of ['L1', 'L2', 'L3']) {
+        if (entry[lk] && entry[lk].id === id) return entry[lk];
+      }
+    }
+    return null;
+  };
+  const combo = COMBOS[comboId] || findChosen(comboId);
   if (!combo || typeof combo.fn !== 'function') return empty;
   let clone;
   try { clone = structuredClone(state); }
@@ -22541,49 +22798,31 @@ function showResonanceChoice(s, onDone) {
 }
 
 function _showBatchResonanceChoice(s, choices, cont) {
-  // Build each section's variant pair up-front.  Anything that fails
-  // to build (slots missing, etc.) drops out silently so the player
-  // never sees a half-rendered section.
-  //
-  // Authored entries (authored: true) skip the mirror-split builder
-  // and present a single celebration card showing the authored combo
-  // — name, description, the heroes it binds.  The pair is auto-
-  // selected on render so the Continue button activates immediately.
+  // Build each section's variants per Kizuna level.  Each pending
+  // entry carries a `level` field (1 / 2 / 3) and we route to the
+  // right builder.  Variants for the same pair at different levels
+  // are independent sections — the player picks one per level.
   const sections = [];
   choices.forEach(ch => {
-    if (ch.authored) {
-      const combo = ch.kind === 'trio'
-        ? Object.values(COMBOS).find(c =>
-            !c.generic && !c.chosenResonance && c.tier === 'triple' && c.requires
-            && c.requires.map(r => r.heroId).slice().sort().join('+') === ch.trioKey)
-        : Object.values(COMBOS).find(c =>
-            !c.generic && !c.chosenResonance && c.tier === 'duo' && c.requires
-            && c.requires.map(r => r.heroId).slice().sort().join('+') === ch.pairKey);
-      if (combo) {
-        sections.push({ choice: ch, kind: ch.kind, authored: true, combo });
+    if (ch.kind === 'trio') {
+      // Trio L1/L2/L3 fall back to the legacy 2-variant builder for
+      // now (the trio mechanics already differ by anchor).  Will
+      // separate into level-specific entries in a follow-up.
+      const variants = _buildTrioResonanceVariants(s, ch.heroes);
+      if (variants && variants.length >= 1) {
+        sections.push({ choice: ch, variants, kind: 'trio', level: ch.level || 1 });
       } else {
-        try { console.warn('[Resonance] authored combo missing', ch); } catch (_) {}
+        try { console.warn('[Kizuna] trio variants failed to build', ch.heroes, ch.level); } catch (_) {}
       }
       return;
     }
-    if (ch.kind === 'trio') {
-      const variants = _buildTrioResonanceVariants(s, ch.heroes);
-      if (variants && variants.length === 2) {
-        sections.push({ choice: ch, variants, kind: 'trio' });
-      } else {
-        try { console.warn('[Resonance] trio variants failed to build', ch.heroes); } catch (_) {}
-      }
+    // Duo — new per-level builder.
+    const level = ch.level || 1;
+    const variants = _buildLevelVariants(s, ch.heroA, ch.heroB, level);
+    if (variants && variants.length >= 1) {
+      sections.push({ choice: ch, variants, kind: 'duo', level });
     } else {
-      const variants = _buildResonanceVariants(s, ch.heroA, ch.heroB);
-      // School-pair templates return a single auto-select card; the
-      // basic+sig+burst fallback returns the mirror-split pair (2).
-      // Either is valid here — sections.length === 0 is the only
-      // failure mode we treat as 'couldn't build'.
-      if (variants && variants.length >= 1) {
-        sections.push({ choice: ch, variants, kind: 'duo' });
-      } else {
-        try { console.warn('[Resonance] duo variants failed to build', ch.heroA, ch.heroB); } catch (_) {}
-      }
+      try { console.warn('[Kizuna] duo variants failed to build', ch.heroA, ch.heroB, level); } catch (_) {}
     }
   });
   if (!sections.length) {
@@ -22599,26 +22838,28 @@ function _showBatchResonanceChoice(s, choices, cont) {
   $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-sigil','overlay-cinematic','overlay-starter','overlay-boon','overlay-upgrade','overlay-resonance-trio');
   $overlay.classList.add('overlay-full','overlay-event','overlay-resonance');
   if (sections.some(s2 => s2.kind === 'trio')) $overlay.classList.add('overlay-resonance-trio');
-  const allAuthored = sections.every(sec => sec.authored);
-  const anyChoice = sections.some(sec => !sec.authored);
+  // Authored detection still used by Continue button labelling — a
+  // section is 'authored' when its only variant carries _preview.authored
+  // (the L3 celebration card for pairs with bespoke combos).
+  const allAuthored = sections.every(sec =>
+    sec.variants && sec.variants.length === 1 && sec.variants[0]._preview && sec.variants[0]._preview.authored);
+  const titleLevelLabel = (sections.length === 1)
+    ? `Level ${sections[0].level || 1} Kizuna`
+    : `${sections.length} new kizuna`;
   const title = (sections.length === 1)
     ? (sections[0].kind === 'trio'
-        ? `Triad resonant — ${sections[0].choice.heroes.map(id => (CHARS[id] && CHARS[id].name) || id).join(' + ')}`
-        : `Kizuna deepened — ${(CHARS[sections[0].choice.heroA] && CHARS[sections[0].choice.heroA].name) || ''} + ${(CHARS[sections[0].choice.heroB] && CHARS[sections[0].choice.heroB].name) || ''}`)
+        ? `Triad resonant L${sections[0].level || 1} — ${sections[0].choice.heroes.map(id => (CHARS[id] && CHARS[id].name) || id).join(' + ')}`
+        : `${titleLevelLabel} — ${(CHARS[sections[0].choice.heroA] && CHARS[sections[0].choice.heroA].name) || ''} + ${(CHARS[sections[0].choice.heroB] && CHARS[sections[0].choice.heroB].name) || ''}`)
     : `Kizuna deepened — ${sections.length} new resonances`;
-  const subtitleAuthoredSingle = (sections[0] && sections[0].kind === 'trio')
-    ? 'The three resonate as one — their authored kizuna is now ready to fire.'
-    : 'Their bond rings out — a named kizuna is now ready to fire.';
+  const triggerLine = (lvl) =>
+    lvl === 1 ? 'Triggered when both heroes ATTACK.'
+    : lvl === 2 ? 'Triggered by ATTACK + SPECIAL.'
+    : 'Triggered when both heroes SPECIAL.';
   const subtitle = (sections.length === 1)
-    ? (sections[0].authored ? subtitleAuthoredSingle
-       : (sections[0].kind === 'trio'
-            ? 'The three move as one.  Choose who anchors the moment — they fire their signature while the other two support.'
-            : 'Their bond rings out.  Choose how they fight as one — this Resonance locks in for the rest of the run.'))
-    : (allAuthored
-        ? 'Multiple bonds deepened this fight — each named kizuna is now ready to fire.'
-        : (anyChoice
-            ? 'Multiple bonds deepened this fight.  Choose a Resonance variant where it applies — every choice locks in for the rest of the run.'
-            : 'Multiple bonds deepened this fight.'));
+    ? (sections[0].variants && sections[0].variants[0]._preview && sections[0].variants[0]._preview.authored
+        ? 'Their bond rings true — a named kizuna locks in.'
+        : `${triggerLine(sections[0].level || 1)}  Pick who leads — the choice locks in for the rest of the run.`)
+    : 'Multiple kizuna unlocked.  Step through and pick how each fires.';
   $('#overlay-title').textContent = title;
   $('#overlay-body').textContent = subtitle;
   const choicesEl = $('#overlay-choices');
@@ -22658,7 +22899,12 @@ function _showBatchResonanceChoice(s, choices, cont) {
       continueBtn.textContent = `Commit choices (${picked}/${sections.length})`;
     }
   };
-  const sectionKeyFor = sec => sec.kind === 'trio' ? sec.choice.trioKey : sec.choice.pairKey;
+  // Section key includes the Kizuna level so multiple levels for the
+  // same pair don't collide in `selections`.  Format: 'pairKey@L1'.
+  const sectionKeyFor = sec => {
+    const base = sec.kind === 'trio' ? sec.choice.trioKey : sec.choice.pairKey;
+    return `${base}@L${sec.level || 1}`;
+  };
   // Render the 'Resonates when' line so the player knows EXACTLY which
   // actions to queue to trigger this kizuna.  Reads the variant /
   // combo's requires array — same source the matcher uses, so what
@@ -22815,14 +23061,19 @@ function _showBatchResonanceChoice(s, choices, cont) {
     const section = document.createElement('div');
     section.className = 'reso-section';
     section.dataset.key = key;
-    if (sections.length > 1) {
-      const header = document.createElement('div');
-      header.className = 'reso-section-header';
-      header.textContent = sec.kind === 'trio'
-        ? sec.choice.heroes.map(id => (CHARS[id] && CHARS[id].name) || id).join(' + ')
-        : `${(CHARS[sec.choice.heroA] && CHARS[sec.choice.heroA].name) || sec.choice.heroA} + ${(CHARS[sec.choice.heroB] && CHARS[sec.choice.heroB].name) || sec.choice.heroB}`;
-      section.appendChild(header);
-    }
+    // Header always shows now — the level tag tells the player which
+    // tier this picker is for, even on single-section flows.
+    const header = document.createElement('div');
+    header.className = 'reso-section-header';
+    const heroLabel = sec.kind === 'trio'
+      ? sec.choice.heroes.map(id => (CHARS[id] && CHARS[id].name) || id).join(' + ')
+      : `${(CHARS[sec.choice.heroA] && CHARS[sec.choice.heroA].name) || sec.choice.heroA} + ${(CHARS[sec.choice.heroB] && CHARS[sec.choice.heroB].name) || sec.choice.heroB}`;
+    const levelLabel = `LEVEL ${sec.level || 1}`;
+    const trigLabel = sec.kind === 'trio'
+      ? ''
+      : (sec.level === 1 ? 'ATTACK + ATTACK' : sec.level === 2 ? 'ATTACK + SPECIAL' : 'SPECIAL + SPECIAL');
+    header.innerHTML = `<span class="reso-level-tag reso-level-${sec.level || 1}">${levelLabel}</span> <span class="reso-section-heroes">${heroLabel}</span>${trigLabel ? `<span class="reso-section-trig">${trigLabel}</span>` : ''}`;
+    section.appendChild(header);
     const row = document.createElement('div');
     row.className = 'reso-section-options';
     if (sec.authored) {
@@ -22931,36 +23182,32 @@ function _showBatchResonanceChoice(s, choices, cont) {
   }
   bindTapAsPointer(continueBtn, () => {
     if (continueBtn.disabled) return;
-    // Apply all selections.  Authored sections mark the pair as
-    // acknowledged via _ackedResonances; mirror-split selections
-    // commit to chosenResonances so they fire as the pair's
-    // Resonance for the rest of the run.
+    // Commit each section's chosen variant into chosenResonances at
+    // the right (pairKey, level) slot.  Structure now:
+    //   chosenResonances[pairKey] = { L1: variant, L2: variant, L3: variant }
     s.run.chosenResonances = s.run.chosenResonances || {};
-    s.run._ackedResonances = s.run._ackedResonances || {};
-    const resolvedKeys = new Set();
+    const resolved = []; // [{ baseKey, level }]
     sections.forEach(sec => {
       const key = sectionKeyFor(sec);
       const variant = selections[key];
       if (!variant) return;
+      const baseKey = sec.kind === 'trio' ? sec.choice.trioKey : sec.choice.pairKey;
+      const level = sec.level || 1;
+      const lkey = `L${level}`;
+      s.run.chosenResonances[baseKey] = s.run.chosenResonances[baseKey] || {};
+      s.run.chosenResonances[baseKey][lkey] = variant;
       const names = sec.kind === 'trio'
         ? sec.choice.heroes.map(id => `<b>${(CHARS[id] && CHARS[id].name) || id}</b>`).join(' + ')
         : `<b>${(CHARS[sec.choice.heroA] && CHARS[sec.choice.heroA].name) || sec.choice.heroA}</b> + <b>${(CHARS[sec.choice.heroB] && CHARS[sec.choice.heroB].name) || sec.choice.heroB}</b>`;
-      if (variant.__authored) {
-        s.run._ackedResonances[key] = true;
-        log(`<i>${names} resonate — <b>${variant.combo.name}</b> rings true.</i>`);
-      } else {
-        s.run.chosenResonances[key] = variant;
-        log(`<i>${names} learn <b>${variant.name}</b>.</i>`);
-      }
-      resolvedKeys.add(key);
+      log(`<i>${names} · Level ${level} kizuna — <b>${variant.name}</b>.</i>`);
+      resolved.push({ baseKey, level });
     });
-    // Remove only the entries the player just resolved.  Any pending
-    // entry that failed to build (and so never made it into sections)
-    // stays queued so the reconcile pass can retry it next time.
+    // Remove only the (pair, level) entries the player just resolved.
     if (s.run) {
       s.run._pendingResonanceChoices = (s.run._pendingResonanceChoices || []).filter(c => {
-        const k = c.kind === 'trio' ? c.trioKey : c.pairKey;
-        return !resolvedKeys.has(k);
+        const baseKey = c.kind === 'trio' ? c.trioKey : c.pairKey;
+        const lvl = c.level || 1;
+        return !resolved.some(r => r.baseKey === baseKey && r.level === lvl);
       });
     }
     hideOverlay();

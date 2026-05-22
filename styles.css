@@ -10037,13 +10037,57 @@ button.path-node { cursor: pointer; }
   gap: 8px;
 }
 .reso-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
   font-size: 10px;
-  letter-spacing: 0.34em;
+  letter-spacing: 0.28em;
   text-transform: uppercase;
   color: var(--gold-pale);
   text-align: center;
-  padding: 2px 0 6px;
+  padding: 4px 0 8px;
   border-bottom: 1px solid rgba(212, 200, 168, 0.18);
+}
+.reso-section-header .reso-section-heroes {
+  color: var(--gold-pale);
+  font-weight: 600;
+}
+.reso-section-header .reso-section-trig {
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  color: var(--ink-dim);
+  padding: 2px 6px;
+  border: 1px solid rgba(212, 200, 168, 0.22);
+  border-radius: 2px;
+}
+/* Level tag — color-codes which Kizuna level this picker is for so
+   the player learns the L1 → L2 → L3 ladder over the run. */
+.reso-section-header .reso-level-tag {
+  display: inline-block;
+  font-size: 9px;
+  letter-spacing: 0.24em;
+  padding: 2px 7px;
+  border-radius: 2px;
+  border: 1px solid;
+  font-weight: 700;
+}
+.reso-section-header .reso-level-1 {
+  color: #c8b890;
+  border-color: rgba(200, 184, 144, 0.55);
+  background: rgba(40, 32, 18, 0.6);
+}
+.reso-section-header .reso-level-2 {
+  color: #e0c890;
+  border-color: rgba(212, 180, 120, 0.7);
+  background: rgba(50, 36, 18, 0.7);
+}
+.reso-section-header .reso-level-3 {
+  color: var(--gold-bright);
+  border-color: var(--gold-bright);
+  background: rgba(60, 40, 20, 0.75);
+  text-shadow: 0 0 8px rgba(240, 212, 136, 0.5);
 }
 .reso-section-options {
   display: flex;
