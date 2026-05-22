@@ -499,14 +499,14 @@ body.on-title:has(#overlay:not(.hidden)) #stage-scale {
   display: inline-flex;
   align-items: center;
   font-size: 10px;
-  letter-spacing: 0.24em;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: var(--ink-dim);
-  opacity: 0.55;
-  padding: 7px 12px;
-  border: 1px dashed rgba(201,189,159,0.18);
+  color: var(--gold-pale);
+  opacity: 0.78;
+  padding: 8px 12px;
+  border: 1px dashed rgba(201,189,159,0.42);
   border-radius: 4px;
-  background: rgba(20,18,16,0.35);
+  background: rgba(28,22,16,0.55);
   white-space: nowrap;
   font-family: inherit;
 }
@@ -2955,6 +2955,19 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
   text-transform: uppercase;
   text-shadow: 0 1px 0 var(--shadow), 0 0 8px rgba(160,200,255,0.5);
 }
+.popup.queued {
+  /* Ally-target queue ack — a brief gold flag over the ally(ies) a
+     just-tapped tile will land on, so the player sees WHERE the heal /
+     buff is going without having to hold to preview.  Smaller and
+     dimmer than a damage / heal number so it reads as 'pending' not
+     'resolved'. */
+  color: var(--gold-pale);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  text-shadow: 0 1px 0 var(--shadow), 0 0 8px rgba(212,180,120,0.45);
+}
 .popup.synergy {
   color: var(--gold-bright);
   text-shadow: 0 1px 0 var(--shadow), 0 0 10px rgba(240,212,136,0.7);
@@ -3260,7 +3273,7 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
 }
 .starter-lineup {
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   justify-content: center;
   gap: 14px;
   flex-wrap: nowrap;
@@ -3283,20 +3296,21 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
 .starter-fig {
   flex: 1 1 0;
   min-width: 0;
-  max-width: 140px;
-  /* Portrait carries the moment; sized to leave room for the name +
-     start button below in the locked 405px canvas. */
-  height: clamp(150px, 56%, 220px);
+  max-width: 160px;
   background: transparent;
   border: none;
-  padding: 0;
+  padding: 4px 4px 6px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-end;
   position: relative;
-  transition: filter 0.18s, transform 0.12s;
+  transition: filter 0.18s, transform 0.12s, background 0.18s;
+  border-radius: 6px;
+}
+.starter-fig:hover, .starter-fig:active {
+  background: rgba(40,28,18,0.35);
 }
 .starter-fig:hover { filter: brightness(1.16); transform: translateY(-2px); }
 .starter-fig:active { transform: translateY(0); }
@@ -3351,12 +3365,60 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
   display: block;
   filter: drop-shadow(0 6px 16px rgba(0,0,0,0.7));
 }
+.starter-portrait {
+  /* Portrait fixed height so it doesn't squeeze the descriptive
+     rows below.  Was flex: 1 1 auto, which stole all the space and
+     let the new title / passive rows clip silently. */
+  flex: 0 0 auto;
+  height: 130px;
+}
 .starter-name {
   font-size: 11px;
   letter-spacing: 0.32em;
   text-transform: uppercase;
   color: var(--gold-pale);
   margin-top: 4px;
+}
+.starter-title {
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin-top: 2px;
+  text-align: center;
+  font-style: italic;
+}
+.starter-meta {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 8.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.starter-meta .starter-school {
+  color: var(--gold);
+  padding: 2px 5px;
+  border: 1px solid rgba(201,189,159,0.25);
+  border-radius: 2px;
+}
+.starter-meta .starter-hp {
+  color: var(--ink);
+  padding: 2px 5px;
+  border: 1px solid rgba(201,189,159,0.15);
+  border-radius: 2px;
+}
+.starter-passive {
+  margin-top: 5px;
+  font-size: 9px;
+  line-height: 1.35;
+  color: var(--ink);
+  text-align: center;
+  max-width: 150px;
+  letter-spacing: 0.02em;
+}
+.starter-passive b {
+  color: var(--gold-pale);
 }
 
 #starter-tooltip {
@@ -9357,14 +9419,22 @@ button.path-node { cursor: pointer; }
   min-width: 0;
   text-align: left;
 }
+.upgrade-from-label, .upgrade-to-label {
+  font-size: 8px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin-bottom: 1px;
+}
+.upgrade-to-label {
+  color: var(--gold-pale);
+}
 .upgrade-from-name {
   font-size: 10px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--ink-dim);
   font-style: italic;
-  text-decoration: line-through;
-  text-decoration-color: rgba(212,200,168,0.35);
 }
 .upgrade-from-desc {
   font-size: 9.5px;
@@ -9386,6 +9456,16 @@ button.path-node { cursor: pointer; }
   flex-direction: column;
   min-width: 0;
   text-align: left;
+}
+.upgrade-to-name {
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--gold-bright);
+  text-shadow: 0 0 10px rgba(240,212,136,0.5), 0 1px 0 rgba(0,0,0,0.9);
+  margin-bottom: 2px;
+  line-height: 1.15;
 }
 .upgrade-to-desc {
   font-size: 10.5px;
@@ -10473,6 +10553,31 @@ button.path-node:not(:disabled):hover {
           drop-shadow(0 0 14px rgba(255,150,60,0.18));
 }
 .rest-hero-right svg { transform: scaleX(-1); }
+.rest-hero-hp {
+  position: absolute;
+  bottom: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--ink);
+  background: rgba(10,7,5,0.7);
+  border: 1px solid rgba(201,189,159,0.25);
+  border-radius: 3px;
+  padding: 1px 6px;
+  white-space: nowrap;
+  font-family: inherit;
+  pointer-events: none;
+}
+.rest-hero-hurt .rest-hero-hp {
+  color: #e8c8a0;
+  border-color: rgba(232,200,160,0.45);
+}
+.rest-hero-low .rest-hero-hp {
+  color: #f0a0a0;
+  border-color: rgba(220,120,120,0.55);
+  text-shadow: 0 0 6px rgba(220,120,120,0.45);
+}
 .rest-hero::after {
   content: '';
   position: absolute;
@@ -12087,16 +12192,27 @@ body.party-fallen::before {
   margin: 0;
 }
 .ip-close {
-  background: transparent;
-  border: none;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(20,14,10,0.55);
+  border: 1px solid rgba(201,189,159,0.35);
+  border-radius: 4px;
   font-family: inherit;
-  font-size: 20px;
+  font-size: 22px;
   line-height: 1;
-  color: var(--ink-dim);
+  color: var(--gold-pale);
   cursor: pointer;
-  padding: 2px 6px;
+  padding: 0;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
-.ip-close:hover { color: var(--gold-pale); }
+.ip-close:hover, .ip-close:active {
+  background: rgba(40,28,18,0.85);
+  border-color: var(--gold-bright);
+  color: var(--gold-bright);
+}
 
 /* ===========================================================================
    BOSS FIGHT — body.boss-fight collapses the 3 enemy slots into a single
@@ -12672,6 +12788,30 @@ body.killing-blow::before {
   box-shadow: 0 24px 60px rgba(0,0,0,0.7), 0 0 24px rgba(201,189,159,0.12), 0 0 0 1px rgba(0,0,0,0.5) inset;
   padding: 22px 22px 18px;
   animation: gm-in 0.22s ease-out;
+}
+.gm-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(20,14,10,0.55);
+  border: 1px solid rgba(201,189,159,0.35);
+  border-radius: 4px;
+  color: var(--gold-pale);
+  font-family: inherit;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.gm-close:hover, .gm-close:active {
+  background: rgba(40,28,18,0.85);
+  border-color: var(--gold-bright);
+  color: var(--gold-bright);
 }
 @keyframes gm-in {
   from { opacity: 0; transform: translateY(-4px) scale(0.985); }
@@ -14432,9 +14572,11 @@ body.on-title #hud { display: none !important; }
   .upgrade-choice { width: 220px !important; padding: 10px 12px !important; gap: 6px !important; }
   .upgrade-choice .upgrade-avatar { width: 26px !important; height: 36px !important; }
   .upgrade-choice .upgrade-meta-label { font-size: 8.5px !important; letter-spacing: 0.18em !important; }
-  .upgrade-choice .upgrade-title { font-size: 12px !important; padding: 2px 0 4px !important; }
+  .upgrade-choice .upgrade-from-label,
+  .upgrade-choice .upgrade-to-label { font-size: 7.5px !important; letter-spacing: 0.22em !important; }
   .upgrade-choice .upgrade-from-name { font-size: 9px !important; }
   .upgrade-choice .upgrade-from-desc { font-size: 8.5px !important; }
+  .upgrade-choice .upgrade-to-name { font-size: 10.5px !important; padding: 0 !important; }
   .upgrade-choice .upgrade-to-desc { font-size: 9.5px !important; }
   .upgrade-choice .upgrade-chevron { font-size: 18px !important; padding: 0 2px !important; }
   .sigil-choice .enc-name { font-size: 11px !important; }

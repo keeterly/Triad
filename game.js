@@ -15648,7 +15648,7 @@ function renderSigilTray() {
     // No-sigils anchor — still draw a dim placeholder so the tray's spot
     // is visible on combat AND map.  Player can see WHERE sigils land
     // before they have any, instead of staring at empty space.
-    tray.innerHTML = `<span class="sigil-tray-empty" aria-label="No sigils bound yet">◇ NO SIGILS YET</span>`;
+    tray.innerHTML = `<span class="sigil-tray-empty" aria-label="No sigils bound yet" title="Sigils land here when you bind them from elite / event / boss rewards.">◇ SIGILS</span>`;
     return;
   }
   const ownedChips = owned.map(id => {
@@ -16951,14 +16951,46 @@ function makeTile(kind, charId, dir, tileCounts, teamLocked) {
   `;
 
   bindTileHold(t, {
-    onQueue: () => queueAdd({
-      kind, charId,
-      dir: dir,
-      label: preview.label,
-      desc: preview.desc,
-      atb: atbCost,
-      resolveCost: resolveCost,
-    }),
+    onQueue: () => {
+      // Snapshot queue length BEFORE add — queueAdd can reject (over
+      // cap / dup-kind / not enough ATB / Resolve) and we don't want to
+      // flash 'queued' on a rejected press.
+      const before = state.queue.length;
+      queueAdd({
+        kind, charId,
+        dir: dir,
+        label: preview.label,
+        desc: preview.desc,
+        atb: atbCost,
+        resolveCost: resolveCost,
+      });
+      if (state.queue.length === before) return; // rejected
+      // Ally-targeting feedback — without this, healing / self-buff
+      // tiles queue with audio + a checkmark on the tile but nothing
+      // happens on the battlefield, so the player doesn't see WHO the
+      // action will land on.  Spawn a brief 'queued' marker over the
+      // actor (for self-buffs) and any heal target so the cause →
+      // effect link reads even on tap (not just on hold preview).
+      try {
+        const tiles = previewTargetsForTile(kind, charId, dir);
+        const seen = new Set();
+        const flashAlly = (slot) => {
+          if (!slot || seen.has(slot)) return;
+          seen.add(slot);
+          const id = state.party.slots && state.party.slots[slot];
+          if (!id) return;
+          spawnPopupId(id, 'QUEUED', 'queued', 'party');
+        };
+        // Heal / buff targets surfaced by previewTargetsForTile.
+        (tiles.partySlots || []).forEach(flashAlly);
+        // Self-buffs / brace usually have no party targets but still need
+        // ack — flash the actor so the tap → battlefield link reads.
+        if (!seen.size) {
+          const actorSlot = slotOfChar(state, charId);
+          if (actorSlot) flashAlly(actorSlot);
+        }
+      } catch (_) {}
+    },
     onPreview: () => previewTargetsForTile(kind, charId, dir),
   });
   return t;
@@ -18490,6 +18522,7 @@ function showGameMenu() {
   root.innerHTML = `
     <div class="gm-backdrop" data-close="1"></div>
     <div class="gm-card" role="dialog" aria-label="Game menu">
+      <button type="button" class="gm-close" id="gm-close" aria-label="Close menu">×</button>
       <div class="gm-title">Menu</div>
       <div class="gm-rows">
         <button type="button" class="gm-row" data-action="resume">
@@ -18517,6 +18550,8 @@ function showGameMenu() {
   `;
   document.body.appendChild(root);
   const close = () => { root.remove(); };
+  const closeX = root.querySelector('#gm-close');
+  if (closeX) closeX.addEventListener('click', (e) => { e.stopPropagation(); Audio.ui(); close(); });
   root.addEventListener('click', (e) => {
     if (e.target.dataset && e.target.dataset.close === '1') { Audio.ui(); close(); }
   });
@@ -19602,7 +19637,18 @@ function showRestOverlay() {
   // Split heroes roughly evenly left/right of the fire so the composition reads.
   const left  = sceneIds.slice(0, Math.ceil(sceneIds.length / 2));
   const right = sceneIds.slice(Math.ceil(sceneIds.length / 2));
-  const mkHero = (id, side) => `<div class="rest-hero rest-hero-${side}">${PORTRAITS[id] || ''}</div>`;
+  // HP readout inline with each portrait — without it the player can't
+  // tell who's wounded enough to need the Rest charge.  Tints red when
+  // the hero is under half so the "heal half" choice reads as urgent.
+  const mkHero = (id, side) => {
+    const c = state.party.chars[id];
+    const pct = c.maxHp ? c.hp / c.maxHp : 1;
+    const lowClass = pct <= 0.34 ? ' rest-hero-low' : (pct <= 0.7 ? ' rest-hero-hurt' : '');
+    return `<div class="rest-hero rest-hero-${side}${lowClass}">
+      ${PORTRAITS[id] || ''}
+      <div class="rest-hero-hp">${c.hp}/${c.maxHp}</div>
+    </div>`;
+  };
   scene.innerHTML = `
     <div class="rest-row rest-row-left">${left.map(id => mkHero(id, 'left')).join('')}</div>
     <div class="rest-fire" aria-hidden="true">
@@ -19838,10 +19884,18 @@ function showEventOverlay(eventId) {
       <div class="sigil-desc">${ch.tag || ''}</div>
     `;
     card.addEventListener('click', () => {
-      ch.resolve(state);
+      // Close the event overlay FIRST so the toast track (which paints
+      // at a lower z-index than #overlay) is visible while ch.resolve
+      // spawns the affinity / affliction / sigil toast.  Without this
+      // gap, the resolver fires its toast and we immediately stack
+      // the map / next-scene overlay over it — the player sees the
+      // event commit silently.  Mirrors the Reflect rest fix.
       hideOverlay();
       choices.classList.remove('event-choices');
-      _completeNonCombatNode();
+      ch.resolve(state);
+      // Hold ~900ms so the toast is readable before the next overlay
+      // covers it.  Short enough that the player doesn't feel held up.
+      setTimeout(() => _completeNonCombatNode(), 900);
     });
     choices.appendChild(card);
   });
@@ -21762,14 +21816,16 @@ function showUpgradeOverlay(offers, onDone) {
         <div class="upgrade-avatar">${PORTRAITS[up.charId] || ''}</div>
         <div class="upgrade-meta-label">${char.name} · ${SLOT_LABELS[up.slot]} · ${up.kind === 'sig' ? 'Special' : 'Attack'}</div>
       </div>
-      <div class="upgrade-title">${up.name}</div>
       <div class="upgrade-delta">
         <div class="upgrade-from">
+          <span class="upgrade-from-label">Now</span>
           <span class="upgrade-from-name">${baseTech.name}</span>
           <span class="upgrade-from-desc">${baseTech.desc}</span>
         </div>
         <div class="upgrade-chevron" aria-hidden="true">›</div>
         <div class="upgrade-to">
+          <span class="upgrade-to-label">Becomes</span>
+          <span class="upgrade-to-name">${up.name}</span>
           <span class="upgrade-to-desc">${up.desc}</span>
         </div>
       </div>
@@ -22543,6 +22599,13 @@ function showStarterChooser(pool, onPick) {
   // Render the lineup as a single flexible row of standing silhouettes.
   const lineup = document.createElement('div');
   lineup.className = 'starter-lineup';
+  const schoolLabel = (sch) => {
+    if (sch === 'physical') return 'Physical';
+    if (sch === 'arcane')   return 'Arcane';
+    if (sch === 'holy')     return 'Holy';
+    if (sch === 'shadow')   return 'Shadow';
+    return sch || '';
+  };
   pool.forEach((id) => {
     const def = CHARS[id];
     const fig = document.createElement('button');
@@ -22552,6 +22615,12 @@ function showStarterChooser(pool, onPick) {
     fig.innerHTML = `
       <div class="starter-portrait">${PORTRAITS[id] || ''}</div>
       <div class="starter-name">${def.name}</div>
+      <div class="starter-title">${def.title || ''}</div>
+      <div class="starter-meta">
+        <span class="starter-school">${schoolLabel(def.school)}</span>
+        <span class="starter-hp">${def.maxHp} HP</span>
+      </div>
+      ${def.passive ? `<div class="starter-passive"><b>${def.passive.name}</b> — ${def.passive.desc}</div>` : ''}
     `;
     bindStarterHoldOrTap(fig, def, () => {
       hideOverlay();
@@ -22570,6 +22639,7 @@ function showStarterChooser(pool, onPick) {
     fig.innerHTML = `
       <div class="starter-portrait">${PORTRAITS[id] || ''}</div>
       <div class="starter-name">${def.name}</div>
+      <div class="starter-title">${def.title || ''}</div>
       <div class="starter-locked-tag">needs a partner</div>
     `;
     // Hold to read the hero detail card, same affordance as selectable
