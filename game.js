@@ -13429,49 +13429,53 @@ function _buildResonanceVariants(s, heroA, heroB) {
   ]);
   // School-pair template path — when both heroes have a school we
   // recognize, the kizuna fires the school-pair template's bespoke
-  // effect instead of the generic basic+sig+burst.  Each pair gets a
-  // mechanic themed to their two schools (Twin Steel, Sacred Hex,
-  // Veiled Curse, etc.), with a distinct Tier III variant when the
-  // bond reaches RESONANT.  The picker still offers two anchored
-  // variants (Kai anchors vs Hask anchors) — the mechanic is the
-  // same but the cinematic + naming follows the anchor hero.
+  // effect instead of the generic basic+sig+burst.  The two heroes'
+  // schools determine the mechanic (Twin Light, Sacred Hex, Veiled
+  // Curse, etc.) and the bond tier scales it; there's no meaningful
+  // mechanical choice between 'who anchors' for duos, so we return a
+  // SINGLE celebration card that the picker auto-selects.  Player
+  // just commits.  Trios still get anchor-pick (their anchor's sig
+  // fires differently — see _buildTrioResonanceVariants).
   const template = _schoolPairTemplate(a, b);
   if (template) {
     const bondName = bondNameForPair(a, b);
-    const buildAnchored = (anchorId, otherId, variantId) => {
-      const anchorName = (CHARS[anchorId] && CHARS[anchorId].name) || anchorId;
-      const otherName  = (CHARS[otherId]  && CHARS[otherId].name)  || otherId;
-      const vname = template.name(anchorName, otherName);
-      const t2desc = template.desc(anchorName, otherName, 2);
-      return {
-        id: `chosen_${pairKey}__${variantId}`,
-        name: vname,
-        tier: 'duo',
-        chosenResonance: true,
-        pairKey,
-        desc: t2desc,
-        requires: [
-          { heroId: a, kind: 'attack' },
-          { heroId: b, kind: 'attack' },
-        ],
-        fn: (s2) => {
-          const tier = getBondTier(s2, bondName);
-          template.fn(s2, anchorId, otherId, tier);
-        },
-        cinematic: cinematicFor(vname.toUpperCase(), (CHARS[anchorId] && CHARS[anchorId].school) || 'physical'),
-        _preview: {
-          aHero: anchorId, bHero: otherId,
-          aTech: { name: anchorName, desc: 'anchors the moment' },
-          bTech: { name: otherName,  desc: 'channels the bond'  },
-          kindA: 'attack', kindB: 'attack',
-          schoolPair: true,
-        },
-      };
+    // Anchor the cinematic on whichever hero's school the template's
+    // mechanic 'leans toward' — for cross-school templates that's the
+    // school listed first in the template name; for same-school it
+    // doesn't matter, default to alphabetical (a).  Either way the
+    // mechanic is identical.
+    const anchorId = a;
+    const otherId  = b;
+    const anchorName = (CHARS[anchorId] && CHARS[anchorId].name) || anchorId;
+    const otherName  = (CHARS[otherId]  && CHARS[otherId].name)  || otherId;
+    const vname = template.name(anchorName, otherName);
+    const t2desc = template.desc(anchorName, otherName, 2);
+    const variant = {
+      id: `chosen_${pairKey}__v1`,
+      name: vname,
+      tier: 'duo',
+      chosenResonance: true,
+      pairKey,
+      desc: t2desc,
+      requires: [
+        { heroId: a, kind: 'attack' },
+        { heroId: b, kind: 'attack' },
+      ],
+      fn: (s2) => {
+        const tier = getBondTier(s2, bondName);
+        template.fn(s2, anchorId, otherId, tier);
+      },
+      cinematic: cinematicFor(vname.toUpperCase(), (CHARS[anchorId] && CHARS[anchorId].school) || 'physical'),
+      _preview: {
+        aHero: anchorId, bHero: otherId,
+        aTech: { name: anchorName, desc: '' },
+        bTech: { name: otherName,  desc: '' },
+        kindA: 'attack', kindB: 'attack',
+        schoolPair: true,
+        autoSelect: true, // picker pre-selects this card so the player just commits
+      },
     };
-    return [
-      buildAnchored(a, b, 'v1'),
-      buildAnchored(b, a, 'v2'),
-    ];
+    return [variant];
   }
   // Fallback path — pairs whose schools don't map to a template (or
   // future schools we add) still get the basic+sig+kizuna burst.
@@ -22571,7 +22575,11 @@ function _showBatchResonanceChoice(s, choices, cont) {
       }
     } else {
       const variants = _buildResonanceVariants(s, ch.heroA, ch.heroB);
-      if (variants && variants.length === 2) {
+      // School-pair templates return a single auto-select card; the
+      // basic+sig+burst fallback returns the mirror-split pair (2).
+      // Either is valid here — sections.length === 0 is the only
+      // failure mode we treat as 'couldn't build'.
+      if (variants && variants.length >= 1) {
         sections.push({ choice: ch, variants, kind: 'duo' });
       } else {
         try { console.warn('[Resonance] duo variants failed to build', ch.heroA, ch.heroB); } catch (_) {}
@@ -22688,18 +22696,12 @@ function _showBatchResonanceChoice(s, choices, cont) {
         <div class="reso-pair reso-pair-template">
           <div class="reso-side">
             <div class="reso-portrait">${PORTRAITS[p.aHero] || ''}</div>
-            <div class="reso-tech">
-              <div class="reso-tech-hero">${aHero} · ${schoolA}</div>
-              <div class="reso-tech-name">anchors</div>
-            </div>
+            <div class="reso-tech-hero">${aHero} · ${schoolA}</div>
           </div>
           <div class="reso-arrow" aria-hidden="true">+</div>
           <div class="reso-side">
             <div class="reso-portrait">${PORTRAITS[p.bHero] || ''}</div>
-            <div class="reso-tech">
-              <div class="reso-tech-hero">${bHero} · ${schoolB}</div>
-              <div class="reso-tech-name">channels</div>
-            </div>
+            <div class="reso-tech-hero">${bHero} · ${schoolB}</div>
           </div>
         </div>
         ${triggerLine(variant.requires)}
@@ -22828,8 +22830,19 @@ function _showBatchResonanceChoice(s, choices, cont) {
       row.appendChild(card);
       selections[key] = { __authored: true, combo: sec.combo };
     } else {
+      // Single-variant sections (school-pair duo templates) auto-select.
+      // The variant flags itself with _preview.autoSelect = true so we
+      // know to pre-fill the selection AND drop the highlight class on
+      // render — same UX as authored celebration cards.  Multi-variant
+      // sections (trios, mirror-split fallback) keep the tap-to-select.
+      const autoSelect = sec.variants.length === 1
+        && sec.variants[0]._preview && sec.variants[0]._preview.autoSelect;
       sec.variants.forEach(variant => {
         const card = sec.kind === 'trio' ? buildTrioCard(variant) : buildDuoCard(variant);
+        if (autoSelect) {
+          card.classList.add('reso-card-selected');
+          selections[key] = variant;
+        }
         bindTapAsPointer(card, () => {
           Array.from(row.children).forEach(c => c.classList.remove('reso-card-selected'));
           card.classList.add('reso-card-selected');

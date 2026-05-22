@@ -9803,25 +9803,28 @@ button.path-node { cursor: pointer; }
   opacity: 0.85;
 }
 
-/* Trigger line — 'Resonates when: Kell Attack + Mira Attack' sits at
-   the bottom of every Resonance picker card so the player can tell
-   exactly which two (or three) actions complete the combo.  Reads
-   the variant.requires array, same source the matcher uses, so what
-   it says always matches what fires. */
+/* Trigger line — spells out exactly which actions the player needs
+   to queue to fire this kizuna.  Promoted from a small footnote to
+   a real callout: gold pill background, brighter type, sitting BELOW
+   the portraits as the primary instruction.  Reads variant.requires
+   directly so the label is always accurate. */
 .reso-trigger {
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--gold-pale);
   text-align: center;
-  padding: 6px 4px 0;
-  margin-top: 4px;
-  border-top: 1px dashed rgba(212,200,168,0.25);
-  opacity: 0.85;
+  padding: 7px 10px;
+  margin: 8px 4px 4px;
+  background: rgba(40, 28, 14, 0.55);
+  border: 1px solid rgba(212, 180, 120, 0.4);
+  border-radius: 3px;
+  line-height: 1.35;
 }
 .reso-trigger b {
   color: var(--gold-bright);
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: 0.18em;
 }
 
 /* Multi-section pager — shows one Resonance section at a time when
@@ -9887,6 +9890,45 @@ button.path-node { cursor: pointer; }
 }
 .reso-slide.reso-slide-active {
   display: block;
+}
+
+/* Resonance overlay layout — pin the Commit button to the bottom so
+   it stays visible no matter how tall the sections grow.  Without
+   this, the multi-section pager + tall cards pushed Commit below
+   the scroll line and the picker felt stuck. */
+#overlay.overlay-resonance #overlay-content {
+  display: flex;
+  flex-direction: column;
+  max-height: min(92vh, 92%);
+}
+#overlay.overlay-resonance #overlay-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+#overlay.overlay-resonance #overlay-choices {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  gap: 8px;
+  margin-bottom: 0;
+}
+#overlay.overlay-resonance #overlay-choices .reso-pager {
+  flex: 0 0 auto;
+}
+#overlay.overlay-resonance #overlay-choices .reso-sections {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+#overlay.overlay-resonance #overlay-choices .reso-continue {
+  flex: 0 0 auto;
+  margin-top: 8px;
 }
 @media (orientation: landscape) and (max-height: 520px) {
   .resonance-choice { width: 240px !important; padding: 8px 10px 10px !important; gap: 6px !important; }
