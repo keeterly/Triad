@@ -12967,13 +12967,17 @@ function _buildResonanceVariants(s, heroA, heroB) {
     { kind: 'resolve' },
     { kind: 'enemy-flash', targets: 'front', kind2: 'hit',       ms: 200 },
   ]);
-  // Variant runner — invokes each hero's tech, then layers a kizuna
-  // bonus on top so the Resonance feels MORE than the two source
-  // techs played in sequence.  The kizuna bonus is what makes the
-  // unlock worth chasing: +2 dmg on the front enemy AFTER both techs
-  // resolve, and stacks vuln 1 if the front is still alive (so the
-  // next hit after the Resonance also benefits).  Scales with the
-  // pair's bond tier — Tier III pairs get +4 dmg + vuln 2 instead.
+  // Variant runner — invokes each hero's tech, then layers a SUBSTANTIAL
+  // kizuna burst on top so the Resonance feels like a real payoff for
+  // the bond unlock, not 'the same two attacks but slightly bigger'.
+  // The burst:
+  //   - Tier II: +6 dmg + 2 VULN on the front, AND +3 dmg splash on
+  //     every other alive enemy (so back-line foes still get a tag).
+  //   - Tier III: +9 dmg + 3 VULN on the front, +4 splash, AND staggers
+  //     the front-most foe so the next damaging hit lands at 2x.
+  // Bond-tier scaling carries the 'deeper bonds hit harder' pitch —
+  // same heroes, same techs, much louder kizuna when you've fought
+  // together long enough.
   const runVariant = (kindA, kindB) => (s2) => {
     const front = enemyBySlot(s2, 'front')
       || aliveEnemies(s2)[0];
@@ -12988,24 +12992,41 @@ function _buildResonanceVariants(s, heroA, heroB) {
       try { t.fn(s2, targets); }
       finally { s2.currentActorId = null; s2.currentTechElement = null; }
     });
-    // Kizuna burst — the moment that makes the Resonance distinct.
-    // Reads the bond tier of the GATING bond (themed or Camaraderie)
-    // so deeper bonds hit harder.
+    // Kizuna burst — reads the gating bond tier (themed or Camaraderie).
     const bondName = bondNameForPair(a, b);
     const tier = getBondTier(s2, bondName);
-    const bonusDmg = (tier >= 3) ? 4 : 2;
-    const vulnAmt = (tier >= 3) ? 2 : 1;
+    const burstDmg  = (tier >= 3) ? 9 : 6;
+    const splashDmg = (tier >= 3) ? 4 : 3;
+    const vulnAmt   = (tier >= 3) ? 3 : 2;
+    const staggers  = tier >= 3;
     const finishTarget = (front && !front.dead) ? front : (aliveEnemies(s2)[0] || null);
     if (finishTarget && !finishTarget.dead) {
       s2.currentActorId = a;
       s2.currentTechElement = (CHARS[a] && CHARS[a].school) || null;
       try {
-        applyDmgToEnemy(s2, finishTarget, bonusDmg);
+        applyDmgToEnemy(s2, finishTarget, burstDmg);
         if (!finishTarget.dead) {
           finishTarget.vuln = (finishTarget.vuln || 0) + vulnAmt;
           spawnPopupId(finishTarget.id, `+${vulnAmt} VULN`, 'stagger', 'enemy');
+          if (staggers) {
+            finishTarget.staggered = true;
+            spawnPopupId(finishTarget.id, 'STAGGERED', 'stagger', 'enemy');
+          }
         }
       } finally { s2.currentActorId = null; s2.currentTechElement = null; }
+    }
+    // Splash — every OTHER alive enemy takes a chunk too.  Makes the
+    // Resonance feel like a real two-hero finisher, not a single-target
+    // sniper.
+    if (splashDmg > 0) {
+      const others = aliveEnemies(s2).filter(e => e && !e.dead && e !== finishTarget);
+      if (others.length) {
+        s2.currentActorId = b;
+        s2.currentTechElement = (CHARS[b] && CHARS[b].school) || null;
+        try {
+          others.forEach(e => { if (!e.dead) applyDmgToEnemy(s2, e, splashDmg); });
+        } finally { s2.currentActorId = null; s2.currentTechElement = null; }
+      }
     }
   };
   // Variant 1: A basic + B sig.  A sets up, B finishes.
@@ -13016,7 +13037,7 @@ function _buildResonanceVariants(s, heroA, heroB) {
     tier: 'duo',
     chosenResonance: true,
     pairKey,
-    desc: `${nameA}'s ${aBasic.name} into ${nameB}'s ${bSig.name}, then a kizuna burst (+2 dmg, +1 VULN).`,
+    desc: `${nameA}'s ${aBasic.name} into ${nameB}'s ${bSig.name}, then a kizuna burst: +6 dmg + 2 VULN front, +3 splash to every other foe.  RESONANT (Tier III): +9 dmg + 3 VULN + STAGGER front, +4 splash.`,
     requires: [
       { heroId: a, kind: 'attack'  },
       { heroId: b, kind: 'special' },
@@ -13035,7 +13056,7 @@ function _buildResonanceVariants(s, heroA, heroB) {
     tier: 'duo',
     chosenResonance: true,
     pairKey,
-    desc: `${nameB}'s ${bBasic.name} into ${nameA}'s ${aSig.name}, then a kizuna burst (+2 dmg, +1 VULN).`,
+    desc: `${nameB}'s ${bBasic.name} into ${nameA}'s ${aSig.name}, then a kizuna burst: +6 dmg + 2 VULN front, +3 splash to every other foe.  RESONANT (Tier III): +9 dmg + 3 VULN + STAGGER front, +4 splash.`,
     requires: [
       { heroId: a, kind: 'special' },
       { heroId: b, kind: 'attack'  },
@@ -13129,31 +13150,50 @@ function _buildTrioResonanceVariants(s, heroes) {
     };
     invoke(anchorId, 'sig');
     supporters.forEach(id => invoke(id, 'basic'));
-    // Kizuna burst — trio variant.  Lands AFTER all three techs so
-    // the burst's stagger primes the NEXT player turn for follow-up.
+    // Kizuna burst — trio variant.  Bigger payoff than the duo since
+    // three heroes coordinated.  Lands AFTER all three techs so the
+    // stagger + VULN primes the NEXT player turn for follow-up.
     const deepestTier = Math.max(
       getBondTier(s2, bondNameForPair(ids[0], ids[1])),
       getBondTier(s2, bondNameForPair(ids[1], ids[2])),
       getBondTier(s2, bondNameForPair(ids[0], ids[2])),
     );
-    const bonusDmg = (deepestTier >= 3) ? 5 : 3;
+    const burstDmg  = (deepestTier >= 3) ? 12 : 8;
+    const splashDmg = (deepestTier >= 3) ? 6  : 4;
+    const vulnAmt   = (deepestTier >= 3) ? 3  : 2;
+    const healAmt   = (deepestTier >= 3) ? 5  : 3;
     const finishTarget = (front && !front.dead) ? front : (aliveEnemies(s2)[0] || null);
     if (finishTarget && !finishTarget.dead) {
       s2.currentActorId = anchorId;
       s2.currentTechElement = (CHARS[anchorId] && CHARS[anchorId].school) || null;
       try {
-        applyDmgToEnemy(s2, finishTarget, bonusDmg);
+        applyDmgToEnemy(s2, finishTarget, burstDmg);
         if (!finishTarget.dead) {
           finishTarget.staggered = true;
           spawnPopupId(finishTarget.id, 'STAGGERED', 'stagger', 'enemy');
+          finishTarget.vuln = (finishTarget.vuln || 0) + vulnAmt;
+          spawnPopupId(finishTarget.id, `+${vulnAmt} VULN`, 'stagger', 'enemy');
         }
       } finally { s2.currentActorId = null; s2.currentTechElement = null; }
     }
-    // Anchor heal — the trio rallies around their finisher.
+    // Splash — every other alive enemy takes a chunk.  Trio kizuna
+    // hits like an AoE, not a sniper.
+    if (splashDmg > 0) {
+      const others = aliveEnemies(s2).filter(e => e && !e.dead && e !== finishTarget);
+      if (others.length) {
+        s2.currentActorId = anchorId;
+        s2.currentTechElement = (CHARS[anchorId] && CHARS[anchorId].school) || null;
+        try {
+          others.forEach(e => { if (!e.dead) applyDmgToEnemy(s2, e, splashDmg); });
+        } finally { s2.currentActorId = null; s2.currentTechElement = null; }
+      }
+    }
+    // Anchor heal — the trio rallies around their finisher.  Bigger
+    // heal at Tier III so the resonant trio also restores the line.
     const anchor = s2.party && s2.party.chars && s2.party.chars[anchorId];
     if (anchor && !anchor.downed) {
       const before = anchor.hp;
-      anchor.hp = Math.min(anchor.maxHp, anchor.hp + 2);
+      anchor.hp = Math.min(anchor.maxHp, anchor.hp + healAmt);
       if (anchor.hp > before) spawnPopupId(anchorId, `+${anchor.hp - before}`, 'heal', 'party');
     }
   };
@@ -13175,7 +13215,7 @@ function _buildTrioResonanceVariants(s, heroes) {
       tier: 'triple',
       chosenResonance: true,
       trioKey: ids.join('+'),
-      desc: `${anchorName} fires ${anchorSig.name} while ${supNames.join(' and ')} support, then a kizuna burst (+3 dmg, STAGGERED, ${anchorName} heals 2).`,
+      desc: `${anchorName} fires ${anchorSig.name} while ${supNames.join(' and ')} support, then a kizuna burst: +8 dmg + 2 VULN + STAGGER front, +4 splash, ${anchorName} heals 3.  RESONANT (Tier III): +12/+6/+3 VULN, heals 5.`,
       requires: [
         { heroId: anchorId, kind: 'special' },
         ...supporters.map(id => ({ heroId: id, kind: 'attack' })),

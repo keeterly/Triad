@@ -3544,9 +3544,23 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
 }
 
 @media (max-height: 480px) {
-  .starter-fig { max-width: 120px; height: clamp(140px, 32vh, 220px); }
+  /* Mobile landscape — the old rule clamped the card to a fixed
+     short height + narrower width that worked when each starter-fig
+     was just portrait + name.  After we added title / school+HP /
+     passive rows, that clamp made the content overflow OUT of the
+     card and collide with the locked-strip below.  Width drops a
+     hair, height goes back to auto so the card stretches to fit. */
+  .starter-fig { width: 124px; height: auto; }
+  .starter-portrait { height: 96px; }
   .starter-name { font-size: 9.5px; letter-spacing: 0.24em; }
+  .starter-title { font-size: 8.5px; }
+  .starter-meta { font-size: 8px; }
+  .starter-passive { font-size: 8.5px; line-height: 1.32; }
   .starter-flavor { font-size: 10.5px; }
+  .starter-locked-header { font-size: 8px; margin: 10px 0 4px; }
+  .starter-fig-mini { width: 46px; }
+  .starter-mini-portrait { height: 50px; }
+  .starter-mini-name { font-size: 7.5px; }
 }
 
 /* ===========================================================================
