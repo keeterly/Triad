@@ -9995,7 +9995,13 @@ button.path-node { cursor: pointer; }
   margin-top: 8px;
   /* Sticky bottom band so the Commit button is unmistakable on the
      last slide even when the cards above it scroll.  Gold outline +
-     slightly larger hit area separate it from the cards visually. */
+     slightly larger hit area separate it from the cards visually.
+     position: sticky + bottom: 0 + z-index pins the button to the
+     bottom of the choices region so it stays visible even when the
+     sections region's internal scroll falls back to outer scroll. */
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
   border: 2px solid var(--gold-bright);
   background: linear-gradient(180deg, rgba(70, 50, 24, 0.95) 0%, rgba(28, 20, 12, 0.95) 100%);
   padding: 12px 32px;

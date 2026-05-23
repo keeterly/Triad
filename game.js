@@ -14840,6 +14840,14 @@ function startTurn(s) {
 function simulateSlotsThrough(s, upto, fromIdx, opts) {
   const start = (typeof fromIdx === 'number' && fromIdx > 0) ? fromIdx : 0;
   const includeMoves = !!(opts && (opts.includeMoves || opts.includeEmbedded));
+  // Embedded moves (tech.move on attack/special tiles) only project
+  // when explicitly opted in.  Without this gate, queueing 'Quick Cut
+  // · advance' would pop the figure forward the moment the action was
+  // queued — players reported this as 'the move fires before I press
+  // FIGHT'.  Now the explicit Move TILE still projects (the player
+  // chose to move so it shows immediately), but embedded moves wait
+  // until the tech's effect actually lands.
+  const includeEmbedded = !!(opts && opts.includeEmbedded);
   const sim = { ...s.party.slots };
   // During execution we always project the remaining queue forward
   // from executingIdx so the hero stays at their planned position
@@ -14866,6 +14874,10 @@ function simulateSlotsThrough(s, upto, fromIdx, opts) {
       continue;
     }
     if (item.kind === 'attack' || item.kind === 'special') {
+      // Embedded move — only project when caller opts in.  Default
+      // behaviour during play (queue-building, execution): figure
+      // stays put until the tech's effect actually fires.
+      if (!includeEmbedded) continue;
       const cur = Object.keys(sim).find(sl => sim[sl] === item.charId);
       if (!cur) continue;
       const techKind = item.kind === 'special' ? 'sig' : 'basic';
