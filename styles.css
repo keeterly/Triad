@@ -11730,13 +11730,54 @@ body.cine-stage-open #stage::after {
   0%, 100% { box-shadow: inset 0 0 20px rgba(240,212,136,0.2),  0 6px 18px rgba(0,0,0,0.6), 0 0 18px rgba(240,212,136,0.22); }
   50%      { box-shadow: inset 0 0 30px rgba(240,212,136,0.42), 0 6px 18px rgba(0,0,0,0.6), 0 0 30px rgba(240,212,136,0.44); }
 }
+/* Portrait strip on resonance chips — small circular hero portraits
+   that identify WHO the kizuna belongs to.  Replaces the verbose
+   'ELIN LEADS · HEALS + CLEANSES' name with the two (or three) hero
+   faces, freeing the label row for the kizuna's flavor / mechanic. */
+.resonance-chip .rc-portraits {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+  margin-bottom: 2px;
+}
+.resonance-chip .rc-portrait {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 1px solid rgba(212, 200, 168, 0.4);
+  background: radial-gradient(ellipse at 50% 30%, rgba(34,26,18,0.92) 0%, rgba(12,10,8,0.92) 75%);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.resonance-chip .rc-portrait svg {
+  width: 30px;
+  height: 30px;
+  display: block;
+  margin-top: 4px; /* shift portrait so the head is centered in the round frame */
+}
+.resonance-chip .rc-portrait-missing {
+  border-color: var(--gold-bright);
+  box-shadow: 0 0 8px rgba(240, 212, 136, 0.6);
+  animation: rc-portrait-pulse 1.6s ease-in-out infinite;
+}
+.resonance-chip .rc-portrait-ready {
+  opacity: 0.45;
+  filter: grayscale(0.5) brightness(0.7);
+}
+@keyframes rc-portrait-pulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(240, 212, 136, 0.4); }
+  50%      { box-shadow: 0 0 14px rgba(240, 212, 136, 0.8); }
+}
 .resonance-chip .rc-label {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  font-size: 12.5px;
-  letter-spacing: 0.22em;
+  font-size: 11.5px;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--gold-pale);
   text-shadow: 0 0 10px rgba(240,212,136,0.45);

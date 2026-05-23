@@ -17923,6 +17923,30 @@ function renderTeamSpecial() {
       });
     }, 400);
   }
+  // Build the portrait strip for a combo — small circular portraits for
+  // each hero in the kizuna so the chip identifies who without spending
+  // a row on a long 'ELIN LEADS · HEALS + CLEANSES' caption.  The
+  // chip's label drops the hero names entirely (the portraits ARE the
+  // identification), leaving just the kizuna mechanic + tier.
+  const portraitStrip = (combo) => {
+    if (!combo || !Array.isArray(combo.requires)) return '';
+    const heroIds = combo.requires.map(r => r.heroId);
+    return `<span class="rc-portraits">${heroIds.map(id =>
+      `<span class="rc-portrait" title="${(CHARS[id] && CHARS[id].name) || id}">${PORTRAITS[id] || ''}</span>`
+    ).join('')}</span>`;
+  };
+  // The mechanic-only label — strip leading 'HeroName leads · ' or
+  // 'HeroName anchors · ' prefixes so the chip reads as the combo's
+  // FLAVOR (Heals + Cleanses, Bursts + Hexes, etc.) instead of
+  // repeating the hero name the portrait already shows.
+  const chipLabel = (combo) => {
+    if (!combo || !combo.name) return '';
+    let name = combo.name;
+    name = name.replace(/^[A-Z][a-z]+ leads · /i, '');
+    name = name.replace(/^[A-Z][a-z]+ anchors · /i, '');
+    name = name.replace(/ · RESONANT$/i, '');
+    return name;
+  };
   matches.forEach(({ combo }) => {
     const btn = document.createElement('button');
     btn.type = 'button';
@@ -17930,8 +17954,10 @@ function renderTeamSpecial() {
     const tierLabel = combo.sigTier
       ? (combo.tier === 'triple' ? 'SIG TRIPLE' : 'SIG DUO')
       : (combo.tier === 'triple' ? 'TRIPLE' : 'DUO');
+    const resonantSuffix = /resonant/i.test(combo.name) ? ' · RESONANT' : '';
     btn.innerHTML = `
-      <span class="rc-label">${combo.name}</span>
+      ${portraitStrip(combo)}
+      <span class="rc-label">${chipLabel(combo)}${resonantSuffix}</span>
       <span class="rc-tier">${tierLabel}</span>
       <span class="rc-desc">${combo.desc}</span>
     `;
@@ -17988,8 +18014,18 @@ function renderTeamSpecial() {
     const tierLabel = combo.sigTier
       ? (combo.tier === 'triple' ? 'SIG TRIPLE' : 'SIG DUO')
       : (combo.tier === 'triple' ? 'TRIPLE' : 'DUO');
+    const resonantSuffix = /resonant/i.test(combo.name) ? ' · RESONANT' : '';
+    // Highlight the missing hero's portrait so the player sees who
+    // they still need to queue — the others dim down to 'already
+    // committed' status.
+    const heroIds = (combo.requires || []).map(r => r.heroId);
+    const portraitMissing = `<span class="rc-portraits">${heroIds.map(id => {
+      const cls = id === missing.heroId ? 'rc-portrait rc-portrait-missing' : 'rc-portrait rc-portrait-ready';
+      return `<span class="${cls}" title="${(CHARS[id] && CHARS[id].name) || id}">${PORTRAITS[id] || ''}</span>`;
+    }).join('')}</span>`;
     chip.innerHTML = `
-      <span class="rc-label">${combo.name}</span>
+      ${portraitMissing}
+      <span class="rc-label">${chipLabel(combo)}${resonantSuffix}</span>
       <span class="rc-tier">${tierLabel}</span>
       <span class="rc-desc">+ ${heroName} ${kindLabel}</span>
     `;
