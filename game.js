@@ -23228,6 +23228,12 @@ function _showBatchResonanceChoice(s, choices, cont) {
     }).join('');
     const card = document.createElement('button');
     card.className = 'encounter-choice resonance-choice resonance-choice-trio';
+    // Inline width — the CSS rule keeps losing the cascade in some
+    // embedded webviews and trio cards render at 600px+, overflowing
+    // the picker.  Force here with inline style so it always lands.
+    card.style.maxWidth = '300px';
+    card.style.width = '100%';
+    card.style.boxSizing = 'border-box';
     card.innerHTML = `
       <div class="reso-title">${variant.name}</div>
       <div class="reso-trio-anchor">
@@ -23307,8 +23313,15 @@ function _showBatchResonanceChoice(s, choices, cont) {
     // Trio rows stack vertically instead of side-by-side — two trio
     // cards in a row overflow the picker container.  Tag the row
     // explicitly so a JS-applied class can flex-direction: column
-    // (avoiding :has() compatibility quirks).
-    if (sec.kind === 'trio') row.classList.add('reso-section-options-trio');
+    // (avoiding :has() compatibility quirks).  Also set inline
+    // styles for robustness in embedded webviews where the cascade
+    // doesn't always cooperate.
+    if (sec.kind === 'trio') {
+      row.classList.add('reso-section-options-trio');
+      row.style.flexDirection = 'column';
+      row.style.alignItems = 'center';
+      row.style.width = '100%';
+    }
     if (sec.authored) {
       const card = buildAuthoredCard(sec.combo, sec);
       row.appendChild(card);
@@ -23572,6 +23585,12 @@ function _showTrioChoice(s, next, cont) {
     }).join('');
     const card = document.createElement('button');
     card.className = 'encounter-choice resonance-choice resonance-choice-trio';
+    // Inline width — the CSS rule keeps losing the cascade in some
+    // embedded webviews and trio cards render at 600px+, overflowing
+    // the picker.  Force here with inline style so it always lands.
+    card.style.maxWidth = '300px';
+    card.style.width = '100%';
+    card.style.boxSizing = 'border-box';
     card.innerHTML = `
       <div class="reso-title">${v.name}</div>
       <div class="reso-trio-anchor">
