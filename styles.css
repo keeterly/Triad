@@ -9952,6 +9952,14 @@ button.path-node { cursor: pointer; }
   display: flex;
   flex-direction: column;
   max-height: min(92vh, 92%);
+  /* Lock the outer container's scroll OFF — only .reso-sections is
+     allowed to scroll internally.  Without this, both the outer
+     overlay-content (which has overflow-y: auto by default) AND the
+     inner sections compete for the scroll, and on tall slides the
+     Commit button got pushed below the fold because the flex
+     layout fell back to natural content height instead of the
+     constrained one. */
+  overflow: hidden !important;
 }
 /* Title + subtitle shrink to fit their own content; the picker
    region (#overlay-choices) takes the remaining height and scrolls
@@ -9985,6 +9993,18 @@ button.path-node { cursor: pointer; }
 #overlay.overlay-resonance #overlay-choices .reso-continue {
   flex: 0 0 auto;
   margin-top: 8px;
+  /* Sticky bottom band so the Commit button is unmistakable on the
+     last slide even when the cards above it scroll.  Gold outline +
+     slightly larger hit area separate it from the cards visually. */
+  border: 2px solid var(--gold-bright);
+  background: linear-gradient(180deg, rgba(70, 50, 24, 0.95) 0%, rgba(28, 20, 12, 0.95) 100%);
+  padding: 12px 32px;
+  box-shadow: 0 0 18px rgba(240, 212, 136, 0.25), 0 6px 16px rgba(0, 0, 0, 0.6);
+}
+#overlay.overlay-resonance #overlay-choices .reso-continue:disabled {
+  border-color: rgba(212, 200, 168, 0.35);
+  background: linear-gradient(180deg, rgba(50, 40, 24, 0.7) 0%, rgba(20, 16, 10, 0.85) 100%);
+  box-shadow: none;
 }
 @media (orientation: landscape) and (max-height: 520px) {
   .resonance-choice { width: 240px !important; padding: 8px 10px 10px !important; gap: 6px !important; }
