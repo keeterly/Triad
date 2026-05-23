@@ -17999,6 +17999,11 @@ function renderTeamSpecial() {
       if (state.executing || state.over) return;
       cancelHoldTimer();
       clearChipPreview();
+      // Flash a 'pressed' class so the player gets visible feedback
+      // even on a fast tap (CSS :active is too brief to register on
+      // some touch devices, and the chip's re-render after
+      // commitCombo wipes the inline state).
+      btn.classList.add('pressed');
       commitCombo(combo.id);
     });
     area.appendChild(btn);

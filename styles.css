@@ -11726,6 +11726,21 @@ body.cine-stage-open #stage::after {
     0 6px 18px rgba(0,0,0,0.6),
     0 0 28px rgba(240,212,136,0.42);
 }
+/* Pressed state — the chip used to flash gold on tap but the player
+   was tapping the inner portrait SVGs, which intercepted the press
+   so :active never lit up.  Now the portraits are pointer-events:
+   none so the press always lands on the button, and this rule makes
+   the depression unmistakable: brighter gold inset + scale down a
+   touch.  Works on both mouse and touch. */
+.resonance-chip:active,
+.resonance-chip.pressed {
+  transform: scale(0.96);
+  filter: brightness(1.32);
+  box-shadow:
+    inset 0 0 32px rgba(240,212,136,0.55),
+    0 4px 10px rgba(0,0,0,0.7),
+    0 0 26px rgba(240,212,136,0.55);
+}
 @keyframes resonance-pulse {
   0%, 100% { box-shadow: inset 0 0 20px rgba(240,212,136,0.2),  0 6px 18px rgba(0,0,0,0.6), 0 0 18px rgba(240,212,136,0.22); }
   50%      { box-shadow: inset 0 0 30px rgba(240,212,136,0.42), 0 6px 18px rgba(0,0,0,0.6), 0 0 30px rgba(240,212,136,0.44); }
@@ -11733,12 +11748,16 @@ body.cine-stage-open #stage::after {
 /* Portrait strip on resonance chips — small circular hero portraits
    that identify WHO the kizuna belongs to.  Replaces the verbose
    'ELIN LEADS · HEALS + CLEANSES' name with the two (or three) hero
-   faces, freeing the label row for the kizuna's flavor / mechanic. */
+   faces, freeing the label row for the kizuna's flavor / mechanic.
+   pointer-events: none so the portraits never intercept taps the
+   chip's tap-to-commit handler needs — clicks always reach the
+   parent button. */
 .resonance-chip .rc-portraits {
   display: flex;
   gap: 2px;
   align-items: center;
   margin-bottom: 2px;
+  pointer-events: none;
 }
 .resonance-chip .rc-portrait {
   width: 24px;
@@ -11751,12 +11770,14 @@ body.cine-stage-open #stage::after {
   display: flex;
   align-items: center;
   justify-content: center;
+  pointer-events: none;
 }
 .resonance-chip .rc-portrait svg {
   width: 30px;
   height: 30px;
   display: block;
   margin-top: 4px; /* shift portrait so the head is centered in the round frame */
+  pointer-events: none;
 }
 .resonance-chip .rc-portrait-missing {
   border-color: var(--gold-bright);
