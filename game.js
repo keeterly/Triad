@@ -9865,7 +9865,7 @@ const ADJ = {
       name: 'Coordinated Strike',
       tier: 'duo',
       generic: true,
-      desc: 'Two heroes strike together — combined basic damage + a +2 kizuna burst on the front-most foe.',
+      desc: 'Two heroes strike together — combined basic damage + a +2 Resonance burst on the front-most foe.',
       requires: [
         { heroId: ids[0], kind: 'attack' },
         { heroId: ids[1], kind: 'attack' },
@@ -9924,7 +9924,7 @@ const ADJ = {
       name: 'Triad Resonance',
       tier: 'triple',
       generic: true,
-      desc: 'Three heroes strike as one — combined basic damage + a kizuna burst that STAGGERS the front-most foe.',
+      desc: 'Three heroes strike as one — combined basic damage + a Resonance burst that STAGGERS the front-most foe.',
       requires: ids.map(h => ({ heroId: h, kind: 'attack' })),
       fn: (s) => {
         const front = enemiesInReach(s, ['front', 'mid', 'back'])[0] || enemyBySlot(s, 'front');
@@ -13989,7 +13989,7 @@ function _buildResonanceVariants(s, heroA, heroB) {
     tier: 'duo',
     chosenResonance: true,
     pairKey,
-    desc: `${nameA}'s ${aBasic.name} into ${nameB}'s ${bSig.name}, then a kizuna burst: +6 dmg + 2 VULN front, +3 splash to every other foe.  RESONANT (Tier III): +9 dmg + 3 VULN + STAGGER front, +4 splash.`,
+    desc: `${nameA}'s ${aBasic.name} into ${nameB}'s ${bSig.name}, then a Resonance burst: +6 dmg + 2 VULN front, +3 splash to every other foe.  RESONANT (Tier III): +9 dmg + 3 VULN + STAGGER front, +4 splash.`,
     requires: [
       { heroId: a, kind: 'attack'  },
       { heroId: b, kind: 'special' },
@@ -14008,7 +14008,7 @@ function _buildResonanceVariants(s, heroA, heroB) {
     tier: 'duo',
     chosenResonance: true,
     pairKey,
-    desc: `${nameB}'s ${bBasic.name} into ${nameA}'s ${aSig.name}, then a kizuna burst: +6 dmg + 2 VULN front, +3 splash to every other foe.  RESONANT (Tier III): +9 dmg + 3 VULN + STAGGER front, +4 splash.`,
+    desc: `${nameB}'s ${bBasic.name} into ${nameA}'s ${aSig.name}, then a Resonance burst: +6 dmg + 2 VULN front, +3 splash to every other foe.  RESONANT (Tier III): +9 dmg + 3 VULN + STAGGER front, +4 splash.`,
     requires: [
       { heroId: a, kind: 'special' },
       { heroId: b, kind: 'attack'  },
@@ -14167,7 +14167,7 @@ function _buildTrioResonanceVariants(s, heroes) {
       tier: 'triple',
       chosenResonance: true,
       trioKey: ids.join('+'),
-      desc: `${anchorName} fires ${anchorSig.name} while ${supNames.join(' and ')} support, then a kizuna burst: +8 dmg + 2 VULN + STAGGER front, +4 splash, ${anchorName} heals 3.  RESONANT (Tier III): +12/+6/+3 VULN, heals 5.`,
+      desc: `${anchorName} fires ${anchorSig.name} while ${supNames.join(' and ')} support, then a Resonance burst: +8 dmg + 2 VULN + STAGGER front, +4 splash, ${anchorName} heals 3.  RESONANT (Tier III): +12/+6/+3 VULN, heals 5.`,
       requires: [
         { heroId: anchorId, kind: 'special' },
         ...supporters.map(id => ({ heroId: id, kind: 'attack' })),
@@ -14538,8 +14538,8 @@ function fireSynergyFeedback(s, name, receiverId, effectText, effectType) {
         name: `${name} ${tierRoman}`,
         flavor: partnerNames,
         desc: clause ? clause.text : (levelAfter === 3
-          ? 'Their kizuna rings true. A resonant clause now fires on every bond beat.'
-          : 'Their bond deepens. The kizuna burst hits harder from here on.'),
+          ? 'Their bond rings true. A resonant clause now fires on every bond beat.'
+          : 'Their bond deepens. The Resonance Skill hits harder from here on.'),
         portraitId: partnerIds[0] || receiverId,
       });
     }, 360);
@@ -15597,8 +15597,8 @@ function tickCamaraderie(s, committedQueue) {
           name: `${nameA} + ${nameB}`,
           flavor: 'Camaraderie',
           desc: tierAfter === 3
-            ? 'Their kizuna rings true.  The resonance hits harder from here.'
-            : 'Their bond deepens.  The kizuna burst hits harder from here on.',
+            ? 'Their bond rings true.  The Resonance Skill hits harder from here.'
+            : 'Their bond deepens.  The Resonance Skill hits harder from here on.',
           portraitId: portraitAnchor,
         });
       }
@@ -17937,7 +17937,7 @@ function renderTeamSpecial() {
       showCoachmark('cm_resonance', {
         anchor: '#ts-area .resonance-chip',
         place: 'above',
-        text: 'A <b>Kizuna</b> lit up — your queued actions line up into a team move.  Tap to commit, or <b>press &amp; hold</b> to preview targets.',
+        text: 'A <b>Resonance Skill</b> lit up — your queued actions line up into a team move.  Tap to commit, or <b>press &amp; hold</b> to preview targets.',
       });
     }, 400);
   }
@@ -23144,22 +23144,22 @@ function _showBatchResonanceChoice(s, choices, cont) {
   const allAuthored = sections.every(sec =>
     sec.variants && sec.variants.length === 1 && sec.variants[0]._preview && sec.variants[0]._preview.authored);
   const titleLevelLabel = (sections.length === 1)
-    ? `Level ${sections[0].level || 1} Kizuna`
-    : `${sections.length} new kizuna`;
+    ? `Bond Level ${sections[0].level || 1}`
+    : `${sections.length} bonds deepened`;
   const title = (sections.length === 1)
     ? (sections[0].kind === 'trio'
-        ? `Triad resonant L${sections[0].level || 1} — ${sections[0].choice.heroes.map(id => (CHARS[id] && CHARS[id].name) || id).join(' + ')}`
+        ? `Triad bond L${sections[0].level || 1} — ${sections[0].choice.heroes.map(id => (CHARS[id] && CHARS[id].name) || id).join(' + ')}`
         : `${titleLevelLabel} — ${(CHARS[sections[0].choice.heroA] && CHARS[sections[0].choice.heroA].name) || ''} + ${(CHARS[sections[0].choice.heroB] && CHARS[sections[0].choice.heroB].name) || ''}`)
-    : `Kizuna deepened — ${sections.length} new resonances`;
+    : `Bonds deepened — ${sections.length} new Resonance Skills`;
   const triggerSubtitle = (lvl) =>
     lvl === 1 ? 'Triggered when both heroes ATTACK.'
     : lvl === 2 ? 'Triggered by ATTACK + SPECIAL.'
     : 'Triggered when both heroes SPECIAL.';
   const subtitle = (sections.length === 1)
     ? (sections[0].variants && sections[0].variants[0]._preview && sections[0].variants[0]._preview.authored
-        ? 'Their bond rings true — a named kizuna locks in.'
-        : `${triggerSubtitle(sections[0].level || 1)}  Pick who leads — the choice locks in for the rest of the run.`)
-    : 'Multiple kizuna unlocked.  Step through and pick how each fires.';
+        ? 'Their bond rings true — a named Resonance Skill locks in.'
+        : `${triggerSubtitle(sections[0].level || 1)}  Pick a Resonance Skill — the choice locks in for the rest of the run.`)
+    : 'Multiple bonds deepened.  Step through and pick a Resonance Skill for each.';
   $('#overlay-title').textContent = title;
   $('#overlay-body').textContent = subtitle;
   const choicesEl = $('#overlay-choices');
@@ -23538,7 +23538,7 @@ function _showBatchResonanceChoice(s, choices, cont) {
       const names = sec.kind === 'trio'
         ? sec.choice.heroes.map(id => `<b>${(CHARS[id] && CHARS[id].name) || id}</b>`).join(' + ')
         : `<b>${(CHARS[sec.choice.heroA] && CHARS[sec.choice.heroA].name) || sec.choice.heroA}</b> + <b>${(CHARS[sec.choice.heroB] && CHARS[sec.choice.heroB].name) || sec.choice.heroB}</b>`;
-      log(`<i>${names} · Level ${level} kizuna — <b>${variant.name}</b>.</i>`);
+      log(`<i>${names} · Bond Level ${level} Resonance Skill — <b>${variant.name}</b>.</i>`);
       resolved.push({ baseKey, level });
     });
     // Remove only the (pair, level) entries the player just resolved.
@@ -23560,16 +23560,16 @@ function _showBatchResonanceChoice(s, choices, cont) {
   choicesEl.classList.remove('hidden');
   $overlay.classList.remove('hidden');
   // First-run tutorial — the very first time the picker opens, surface
-  // a one-shot explainer for the 3-level Kizuna system.  Anchored to
-  // the first card so the player's eye is already in the right place
-  // when the hint lands.
-  if (!hasSeenCoachmark('cm_kizuna_levels')) {
+  // a one-shot explainer for the 3-level bond system.  Anchored to the
+  // first card so the player's eye is already in the right place when
+  // the hint lands.
+  if (!hasSeenCoachmark('cm_bond_levels')) {
     setTimeout(() => {
-      showCoachmark('cm_kizuna_levels', {
+      showCoachmark('cm_bond_levels', {
         anchor: '#overlay-choices .resonance-choice, #overlay-choices .resonance-choice-template',
         place: 'above',
         allowOverlay: true,
-        text: 'Bonds <b>DEEPEN</b> in three steps: <b>L1</b> (Attack + Attack), <b>L2</b> (Attack + Special), <b>L3</b> (Special + Special).  Pick a variant — your choice locks in for the rest of the run.',
+        text: 'Bonds <b>DEEPEN</b> in three steps — <b>L1</b> (Attack + Attack), <b>L2</b> (Attack + Special), <b>L3</b> (Special + Special).  Each step unlocks a <b>Resonance Skill</b>.  Pick one — your choice locks in for the run.',
       });
     }, 450);
   }
@@ -23588,8 +23588,8 @@ function _showDuoChoice(s, next, cont) {
   const $overlay = $('#overlay');
   $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-sigil','overlay-cinematic','overlay-starter','overlay-boon','overlay-upgrade');
   $overlay.classList.add('overlay-full','overlay-event','overlay-resonance');
-  $('#overlay-title').textContent = `Kizuna deepened — ${nameA} + ${nameB}`;
-  $('#overlay-body').textContent = 'Their bond rings out.  Choose how they fight as one — this Resonance locks in for the rest of the run.';
+  $('#overlay-title').textContent = `Bond deepened — ${nameA} + ${nameB}`;
+  $('#overlay-body').textContent = 'Their bond rings out.  Choose how they fight as one — this Resonance Skill locks in for the rest of the run.';
   const choices = $('#overlay-choices');
   choices.innerHTML = '';
   const finishPick = (variant) => {
@@ -25714,7 +25714,7 @@ function _renderCodexBonds(_bonds) {
     <div class="codex-bond-intro">
       <span class="codex-bond-intro-icon">✦</span>
       <span class="codex-bond-intro-text">
-        Adjacent heroes share <b>kizuna</b>.  Every time a bond fires it ticks up;
+        Adjacent heroes form <b>bonds</b>.  Every time a Resonance Skill fires the bond ticks up;
         at <b>3 fires</b> the bond deepens (<b>II</b>, +1 amt), at <b>8 fires</b> it
         becomes <b>RESONANT</b> (<b>III</b>) and unlocks a unique clause —
         cleanse, +1 Resolve, heal, etc.  Per run only.
