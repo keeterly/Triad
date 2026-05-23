@@ -13576,14 +13576,44 @@ function _runSchoolVariant(s, anchorId, otherId, level) {
   const anchorSig = SCHOOL_SIGNATURE[anchorSchool];
   const otherSig  = SCHOOL_SIGNATURE[otherSchool];
   if (anchorSig && typeof anchorSig.primary === 'function') anchorSig.primary(s, anchorId, level);
-  // Same-school pairs — skip the support pass to avoid double-firing
-  // the same effect family.  The kizuna ALREADY hit hard via the
-  // primary; a second 'support' of the same school would feel like a
-  // single effect blown up twice.  Cross-school keeps the support
-  // contribution so the other hero's identity reads through.
   if (anchorSchool !== otherSchool && otherSig && typeof otherSig.support === 'function') {
     otherSig.support(s, otherId, level);
+  } else if (anchorSchool === otherSchool) {
+    // Same-school pairs — the two anchored variants would otherwise
+    // produce identical effects (heal+armor vs heal+armor), so the
+    // pick reads as flavor-only.  Add a 'leader's bonus' keyed on
+    // the anchor's HOME slot so each variant differs tactically:
+    //   front-home anchor → +armor party
+    //   mid-home anchor   → +VULN on front foe
+    //   back-home anchor  → +Resolve
+    // The other hero's home swaps the bonus when THEY lead, so the
+    // two variants of the pair feel mechanically distinct.
+    _sameSchoolLeaderBonus(s, anchorId, level);
   }
+}
+
+function _sameSchoolLeaderBonus(s, anchorId, level) {
+  const home = (CHARS[anchorId] && CHARS[anchorId].home) || 'mid';
+  if (home === 'front') {
+    partyArmor(s, level >= 3 ? 3 : 2);
+  } else if (home === 'mid') {
+    const front = enemyBySlot(s, 'front') || aliveEnemies(s)[0];
+    if (front && !front.dead) {
+      const amt = level >= 3 ? 2 : 1;
+      front.vuln = (front.vuln || 0) + amt;
+      spawnPopupId(front.id, `+${amt} VULN`, 'stagger', 'enemy');
+    }
+  } else if (home === 'back') {
+    gainResolve(s, level >= 3 ? 2 : 1);
+  }
+}
+
+function _sameSchoolBonusDesc(anchorId, level) {
+  const home = (CHARS[anchorId] && CHARS[anchorId].home) || 'mid';
+  if (home === 'front') return ` Front-home anchor: party +${level >= 3 ? 3 : 2} armor.`;
+  if (home === 'mid')   return ` Mid-home anchor: +${level >= 3 ? 2 : 1} VULN on front.`;
+  if (home === 'back')  return ` Back-home anchor: +${level >= 3 ? 2 : 1} Resolve.`;
+  return '';
 }
 
 // Variant description — explicitly spells out what the anchor brings
@@ -13596,7 +13626,7 @@ function _schoolVariantDesc(anchorId, otherId, level) {
   const otherName  = (CHARS[otherId]  && CHARS[otherId].name)  || otherId;
   const aDesc = (SCHOOL_SIGNATURE[anchorSchool] && SCHOOL_SIGNATURE[anchorSchool].desc(level)) || '';
   if (anchorSchool === otherSchool) {
-    return `${anchorName} leads: ${aDesc}`;
+    return `${anchorName} leads: ${aDesc}${_sameSchoolBonusDesc(anchorId, level)}`;
   }
   const supportLine = ({
     physical: `${otherName}: +1 atk pending`,
@@ -23274,6 +23304,11 @@ function _showBatchResonanceChoice(s, choices, cont) {
     }
     const row = document.createElement('div');
     row.className = 'reso-section-options';
+    // Trio rows stack vertically instead of side-by-side — two trio
+    // cards in a row overflow the picker container.  Tag the row
+    // explicitly so a JS-applied class can flex-direction: column
+    // (avoiding :has() compatibility quirks).
+    if (sec.kind === 'trio') row.classList.add('reso-section-options-trio');
     if (sec.authored) {
       const card = buildAuthoredCard(sec.combo, sec);
       row.appendChild(card);

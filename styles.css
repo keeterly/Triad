@@ -10178,12 +10178,18 @@ button.path-node { cursor: pointer; }
   max-width: 280px !important;
 }
 /* Stack trio variants vertically — two trio cards side-by-side
-   always overflowed the picker container.  A single column keeps
-   each card readable and the slide compact. */
-.reso-section-options:has(.resonance-choice-trio) {
+   always overflowed the picker container.  JS adds this class
+   explicitly on trio sections (avoids :has() inconsistency in
+   some embedded webviews). */
+.reso-section-options-trio {
   flex-direction: column !important;
   align-items: center !important;
   gap: 10px !important;
+  max-width: 100% !important;
+}
+.reso-section-options-trio .resonance-choice-trio {
+  width: auto !important;
+  max-width: 320px !important;
 }
 /* Selected card — a small affordance so the player knows the row's
    pick is committed.  Stronger border + gold inner glow.  Only shows
