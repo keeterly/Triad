@@ -7828,6 +7828,19 @@ function _showAwardBackdrop({ cls, eyebrow, name, reason, flavor, desc, portrait
   const dismiss = () => {
     if (dismissed || !backdrop.isConnected) return;
     dismissed = true;
+    // Fire the parked next-scene FIRST so the next overlay opens
+    // before the backdrop's fade-out reveals the combat scene
+    // underneath.  Previously a 200ms 'grace' setTimeout caused a
+    // brief flicker where the player saw the combat field appear
+    // between the celebration and the map.  Firing cont
+    // synchronously means the next overlay paints over the combat
+    // immediately; the backdrop fades on top of it instead of
+    // revealing it.
+    if (_pendingAfterAward) {
+      const cb = _pendingAfterAward;
+      _pendingAfterAward = null;
+      try { cb(); } catch (_) {}
+    }
     backdrop.dataset.awardDismissing = '1';
     backdrop.classList.add('qa-out');
     setTimeout(() => {
@@ -7839,13 +7852,6 @@ function _showAwardBackdrop({ cls, eyebrow, name, reason, flavor, desc, portrait
         setTimeout(() => _showAwardBackdrop(next), 180);
       }
     }, 450);
-    // Drain the post-award continuation if any caller parked one — small
-    // grace lets the fade-out start before the next scene paints.
-    if (_pendingAfterAward) {
-      const cb = _pendingAfterAward;
-      _pendingAfterAward = null;
-      setTimeout(cb, 200);
-    }
   };
   // Tap anywhere on the backdrop OR the explicit Continue button to
   // advance.  The Continue button is the discoverable affordance — the
