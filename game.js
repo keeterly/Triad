@@ -22137,6 +22137,13 @@ function hideOverlay() {
     ch.classList.remove('path-map', 'party-inspect', 'event-choices',
                         'vignette-choices', 'starter-choices', 'title-choices',
                         'boon-sub');
+    // Clear inline layout styles the resonance picker set so the
+    // next overlay opens with its own CSS-driven layout instead of
+    // inheriting flex-column.
+    ch.style.display = '';
+    ch.style.flexDirection = '';
+    ch.style.alignItems = '';
+    ch.style.width = '';
     ch.innerHTML = '';
   }
 }
@@ -23086,6 +23093,14 @@ function _showBatchResonanceChoice(s, choices, cont) {
     'starter-choices', 'title-choices', 'boon-sub'
   );
   choicesEl.classList.remove('hidden');
+  // Force flex-column layout via inline style — the CSS rule keeps
+  // losing the cascade on multi-section pickers, especially the trio
+  // slides, and the row layout pushed the pager left while cards
+  // bled off the right.  Inline beats every rule.
+  choicesEl.style.display = 'flex';
+  choicesEl.style.flexDirection = 'column';
+  choicesEl.style.alignItems = 'stretch';
+  choicesEl.style.width = '100%';
   choicesEl.innerHTML = '';
   // Selections — keyed by pairKey/trioKey, value is the chosen
   // variant object.  Continue button enables when every section has
@@ -23981,6 +23996,10 @@ function init() {
   };
   const proceed = (starterId) => {
     state = newState(starterId);
+    // Rebuild Kizuna variant closures lost across the layer-carry's
+    // JSON round-trip — without this, combos chosen on a previous
+    // layer fire their cinematic but apply no effect.
+    _rehydrateChosenResonances(state);
     afterStart();
   };
   // Show the chooser whenever the player has any meaningful agency over
@@ -24331,10 +24350,91 @@ function loadStateOrNull() {
     // A snapshot taken mid-cinematic shouldn't keep the queue-pacing hint
     if (snap._cineHoldUntil !== undefined) delete snap._cineHoldUntil;
     if (snap._wardenSaveUsed === undefined) snap._wardenSaveUsed = false;
+    // Rehydrate the chosen Kizuna variants — JSON serialization drops
+    // their .fn closures, so when the saved state loads back the combos
+    // fire their cinematic but the effect call does nothing (and quietly
+    // throws inside a setTimeout where the error is unreachable to the
+    // player).  Rebuilds each variant from its id.
+    _rehydrateChosenResonances(snap);
     return snap;
   } catch (_) { return null; }
 }
 function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch (_) {} }
+
+// Rebuild the .fn closures on chosen Kizuna variants after a state has
+// been deserialised (Continue from title OR carry-across-layers).
+// Variants under chosenResonances[key][LN] lose their function on
+// JSON.stringify; without this rehydration the combos visibly fire but
+// apply no damage / heal / status — the rail entry is a no-op.
+//
+// Strategy:
+//   - For authored L3 variants whose id matches an entry in COMBOS,
+//     copy fn/cinematic from the authored combo.
+//   - For school-signature variants (chosen_<pairKey>_LN_X), rebuild
+//     via _buildLevelVariants(s, a, b, level) and replace the entry.
+//   - For trio variants (legacy _buildTrioResonanceVariants shape),
+//     rebuild via that builder.
+//   - Legacy single-variant shape (chosenResonances[key] = variant)
+//     also handled.
+function _rehydrateChosenResonances(s) {
+  if (!s || !s.run || !s.run.chosenResonances) return;
+  const cr = s.run.chosenResonances;
+  Object.keys(cr).forEach(key => {
+    const entry = cr[key];
+    if (!entry || typeof entry !== 'object') return;
+    // Legacy single-variant shape — entry is the variant directly.
+    if (entry.id && !entry.L1 && !entry.L2 && !entry.L3) {
+      _rehydrateOneVariant(s, key, null, entry);
+      return;
+    }
+    // New per-level shape.
+    ['L1', 'L2', 'L3'].forEach(lk => {
+      const v = entry[lk];
+      if (!v || typeof v.fn === 'function') return;
+      _rehydrateOneVariant(s, key, lk, v);
+    });
+  });
+}
+
+function _rehydrateOneVariant(s, key, lk, v) {
+  // Authored combo passthrough — variant id matches an authored
+  // entry in COMBOS.  Copy fn + cinematic so the effect lands.
+  if (COMBOS[v.id]) {
+    v.fn = COMBOS[v.id].fn;
+    if (!v.cinematic && COMBOS[v.id].cinematic) v.cinematic = COMBOS[v.id].cinematic;
+    return;
+  }
+  // School-signature pair variant — rebuild from _buildLevelVariants.
+  const heroes = key.split('+');
+  if (heroes.length === 2 && lk) {
+    const level = parseInt(lk.slice(1), 10);
+    if (level >= 1 && level <= 3) {
+      try {
+        const variants = _buildLevelVariants(s, heroes[0], heroes[1], level);
+        if (variants) {
+          const match = variants.find(vv => vv.id === v.id);
+          if (match) {
+            v.fn = match.fn;
+            if (!v.cinematic && match.cinematic) v.cinematic = match.cinematic;
+          }
+        }
+      } catch (_) {}
+    }
+  }
+  // Trio variant — rebuild from the legacy trio builder.
+  if (heroes.length === 3) {
+    try {
+      const variants = _buildTrioResonanceVariants(s, heroes);
+      if (variants) {
+        const match = variants.find(vv => vv.id === v.id);
+        if (match) {
+          v.fn = match.fn;
+          if (!v.cinematic && match.cinematic) v.cinematic = match.cinematic;
+        }
+      }
+    } catch (_) {}
+  }
+}
 
 // ============================================================================
 // TITLE SCREEN — KIZUNA | Resonance
