@@ -17885,13 +17885,28 @@ function renderTeamSpecial() {
   if (state.executing || state.over) { area.classList.add('hidden'); return; }
   const matches = matchingCombos(state.queue);
   // Sort partials by tier weight too so the rarer "one-away" hints sit on
-  // top of the partial section.  Cap raised from 3 to 5 — with 23 combos
-  // a 2-action queue can be one step from many; surfacing more keeps the
-  // planning loop honest without flooding the rail (CSS handles wrap).
+  // top of the partial section.  With multiple Kizuna levels chosen per
+  // pair (L1 + L2 + L3 each surface as a separate combo on the rail),
+  // the partial list explodes — 9 chosen variants meant up to 9 partial
+  // chips fighting for space.  Dedupe per pair / trio (keep only the
+  // best partial for each kizuna key) and cap to 3 so the rail stays
+  // readable.  Also keep matches the priority — those are the chips
+  // the player should actually tap right now.
   const partialTierWeight = (c) => (c.tier === 'triple' ? 30 : 0) + (c.sigTier ? 10 : 0);
+  const _partialKey = (c) => {
+    if (!c || !Array.isArray(c.requires)) return c && c.id;
+    return c.requires.map(r => r.heroId).slice().sort().join('+');
+  };
+  const _seenPairs = new Set();
   const partials = partialCombos(state.queue)
     .sort((a, b) => partialTierWeight(b.combo) - partialTierWeight(a.combo))
-    .slice(0, 5);
+    .filter(p => {
+      const k = _partialKey(p.combo);
+      if (!k || _seenPairs.has(k)) return false;
+      _seenPairs.add(k);
+      return true;
+    })
+    .slice(0, 3);
   if (matches.length === 0 && partials.length === 0) { area.classList.add('hidden'); return; }
   area.classList.remove('hidden');
   area.classList.add('resonance-rail');
