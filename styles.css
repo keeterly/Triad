@@ -10766,6 +10766,10 @@ button.path-node:not(:disabled):hover {
   pointer-events: auto;
   cursor: pointer;
 }
+/* Hints that fire while a picker overlay is open (e.g. the Kizuna
+   level explainer) need to sit ABOVE #overlay (z-index 260) so they
+   aren't buried behind the screen they're trying to explain. */
+.coachmark.coachmark-on-overlay { z-index: 320; }
 .coachmark.coachmark-out { animation: coachmark-out 0.24s ease-in forwards; }
 @keyframes coachmark-in {
   from { opacity: 0; transform: translateY(6px); }

@@ -17937,7 +17937,7 @@ function renderTeamSpecial() {
       showCoachmark('cm_resonance', {
         anchor: '#ts-area .resonance-chip',
         place: 'above',
-        text: 'A <b>Resonance</b> lit up — your queue lines up into a team move.  Tap to commit, or <b>press &amp; hold</b> to preview targets.',
+        text: 'A <b>Kizuna</b> lit up — your queued actions line up into a team move.  Tap to commit, or <b>press &amp; hold</b> to preview targets.',
       });
     }, 400);
   }
@@ -18750,11 +18750,15 @@ const _coachmarkQueue = [];
 function showCoachmark(id, opts) {
   if (typeof __simulating !== 'undefined' && __simulating) return;
   if (hasSeenCoachmark(id)) return;
+  // Some hints (e.g., the Kizuna picker explainer) anchor INTO an
+  // overlay's own content and must fire while that overlay is up.
+  // Setting opts.allowOverlay bypasses the overlay-defer below.
+  const allowOverlay = !!(opts && opts.allowOverlay);
   // Don't compete with full-screen overlays (boss intro, vignette, map,
   // recruit, etc.) or combo cinematics — the hint would either fight for
   // attention or anchor to an element that's covered.  Queue and retry
   // shortly so the hint still surfaces once the overlay closes.
-  const overlayUp = !!document.querySelector('#overlay:not(.hidden), #boss-intro:not(.hidden), #title-screen:not(.hidden)');
+  const overlayUp = !allowOverlay && !!document.querySelector('#overlay:not(.hidden), #boss-intro:not(.hidden), #title-screen:not(.hidden)');
   const cineUp    = document.body.classList.contains('cine-playing');
   if (overlayUp || cineUp) {
     if (!_coachmarkQueue.find(q => q.id === id)) _coachmarkQueue.push({ id, opts });
@@ -18784,7 +18788,7 @@ function showCoachmark(id, opts) {
   const place = (opts && opts.place) || 'above';  // 'above' | 'below' | 'left' | 'right'
 
   const card = document.createElement('div');
-  card.className = `coachmark coachmark-${place}`;
+  card.className = `coachmark coachmark-${place}${allowOverlay ? ' coachmark-on-overlay' : ''}`;
   card.setAttribute('role', 'status');
   card.innerHTML = `
     <div class="coachmark-body">${text}</div>
@@ -23555,6 +23559,20 @@ function _showBatchResonanceChoice(s, choices, cont) {
   if (btn) btn.classList.add('hidden');
   choicesEl.classList.remove('hidden');
   $overlay.classList.remove('hidden');
+  // First-run tutorial — the very first time the picker opens, surface
+  // a one-shot explainer for the 3-level Kizuna system.  Anchored to
+  // the first card so the player's eye is already in the right place
+  // when the hint lands.
+  if (!hasSeenCoachmark('cm_kizuna_levels')) {
+    setTimeout(() => {
+      showCoachmark('cm_kizuna_levels', {
+        anchor: '#overlay-choices .resonance-choice, #overlay-choices .resonance-choice-template',
+        place: 'above',
+        allowOverlay: true,
+        text: 'Bonds <b>DEEPEN</b> in three steps: <b>L1</b> (Attack + Attack), <b>L2</b> (Attack + Special), <b>L3</b> (Special + Special).  Pick a variant — your choice locks in for the rest of the run.',
+      });
+    }, 450);
+  }
 }
 
 function _showDuoChoice(s, next, cont) {
