@@ -15660,6 +15660,14 @@ function resolveQueueStep(i) {
   if (item.charId) flashCardId(item.charId, 'hit', 'party');
   setTimeout(() => {
     executeQueueItem(s, item);
+    // Advance executingIdx past the resolved step BEFORE the next
+    // render — otherwise renderBattlefield's simulateSlotsThrough
+    // starts from this still-pending index and re-applies the just-
+    // executed move on top of the already-mutated slots, making the
+    // hero appear to step twice (drag back→mid would visually land
+    // on FRONT for a frame before settling).  After bump, sim starts
+    // at i+1 which contains only genuinely pending items.
+    s.executingIdx = i + 1;
     // If this action ended the fight (last enemy killed mid-queue),
     // wipe the remaining unresolved items so the queue strip doesn't
     // keep painting them through the post-victory cascade.  Previously
