@@ -23219,7 +23219,7 @@ function _showBatchResonanceChoice(s, choices, cont) {
     ? (sections[0].kind === 'trio'
         ? `Triad bond L${sections[0].level || 1} — ${sections[0].choice.heroes.map(id => (CHARS[id] && CHARS[id].name) || id).join(' + ')}`
         : `${titleLevelLabel} — ${(CHARS[sections[0].choice.heroA] && CHARS[sections[0].choice.heroA].name) || ''} + ${(CHARS[sections[0].choice.heroB] && CHARS[sections[0].choice.heroB].name) || ''}`)
-    : `Bonds deepened — ${sections.length} new Resonance Skills`;
+    : `Bonds deepened ×${sections.length}`;
   const triggerSubtitle = (lvl) =>
     lvl === 1 ? 'Triggered when both heroes ATTACK.'
     : lvl === 2 ? 'Triggered by ATTACK + SPECIAL.'
@@ -23228,9 +23228,9 @@ function _showBatchResonanceChoice(s, choices, cont) {
     ? (sections[0].variants && sections[0].variants[0]._preview && sections[0].variants[0]._preview.authored
         ? 'Their bond rings true — a named Resonance Skill locks in.'
         : `${triggerSubtitle(sections[0].level || 1)}  Pick a Resonance Skill — the choice locks in for the rest of the run.`)
-    : 'Multiple bonds deepened.  Step through and pick a Resonance Skill for each.';
+    : `Step through each slide and pick a Resonance Skill — ${sections.length} unlocks waiting.  A first pick is pre-selected so you can tap <b>Commit</b> straight away.`;
   $('#overlay-title').textContent = title;
-  $('#overlay-body').textContent = subtitle;
+  $('#overlay-body').innerHTML = subtitle;
   const choicesEl = $('#overlay-choices');
   // Scrub the choices container's classList — previous screens (map,
   // events, vignettes, starter) leave their layout class on this
@@ -23490,17 +23490,20 @@ function _showBatchResonanceChoice(s, choices, cont) {
       selections[key] = { __authored: true, combo: sec.combo };
     } else {
       // Single-variant sections (school-pair duo templates) auto-select.
-      // The variant flags itself with _preview.autoSelect = true so we
-      // know to pre-fill the selection AND drop the highlight class on
-      // render — same UX as authored celebration cards.  Multi-variant
-      // sections (trios, mirror-split fallback) keep the tap-to-select.
+      // Multi-variant sections (trios, mirror-split fallback) pre-select
+      // the FIRST variant so the Commit button enables immediately —
+      // players reported being stuck on the picker because they only
+      // tapped on the slide they happened to be looking at and didn't
+      // realize OTHER slides also needed a tap.  With first-variant
+      // pre-selection, every slide arrives valid; tapping a different
+      // card just changes the pick.
       const autoSelect = sec.variants.length === 1
         && sec.variants[0]._preview && sec.variants[0]._preview.autoSelect;
-      sec.variants.forEach(variant => {
+      sec.variants.forEach((variant, vi) => {
         const card = sec.kind === 'trio' ? buildTrioCard(variant) : buildDuoCard(variant);
-        if (autoSelect) {
+        if (autoSelect || vi === 0) {
           card.classList.add('reso-card-selected');
-          selections[key] = variant;
+          if (vi === 0 || autoSelect) selections[key] = variant;
         }
         bindTapAsPointer(card, () => {
           Array.from(row.children).forEach(c => c.classList.remove('reso-card-selected'));
