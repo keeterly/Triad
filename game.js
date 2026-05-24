@@ -23191,8 +23191,8 @@ function _showBatchResonanceChoice(s, choices, cont) {
   // only needs to know about the player-pick subset.
   sections = pickerSections;
   const $overlay = $('#overlay');
-  $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-sigil','overlay-cinematic','overlay-starter','overlay-boon','overlay-upgrade','overlay-resonance-trio');
-  $overlay.classList.add('overlay-full','overlay-event','overlay-resonance');
+  $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-sigil','overlay-cinematic','overlay-starter','overlay-boon','overlay-upgrade','overlay-resonance-trio','overlay-full');
+  $overlay.classList.add('overlay-event','overlay-resonance');
   if (sections.some(s2 => s2.kind === 'trio')) $overlay.classList.add('overlay-resonance-trio');
   // Authored detection still used by Continue button labelling — a
   // section is 'authored' when its only variant carries _preview.authored
