@@ -9948,7 +9948,8 @@ button.path-node { cursor: pointer; }
    it stays visible no matter how tall the sections grow.  Without
    this, the multi-section pager + tall cards pushed Commit below
    the scroll line and the picker felt stuck. */
-#overlay.overlay-resonance #overlay-content {
+#overlay.overlay-resonance #overlay-content,
+#overlay.overlay-event.overlay-resonance #overlay-content {
   display: flex;
   flex-direction: column;
   max-height: min(92vh, 92%);
@@ -9958,7 +9959,10 @@ button.path-node { cursor: pointer; }
      HUD buttons and the centered card looked off-axis against the
      empty width.  Cap the picker at a sensible vertical-card width
      so the title stays inside the modal and the card sits centered
-     within a tight column. */
+     within a tight column.  The compound `.overlay-event.overlay-
+     resonance` selector bumps specificity past the standalone
+     `.overlay-event` rule in case the cascade tie resolves
+     unexpectedly in some browsers. */
   max-width: min(540px, 94vw) !important;
   /* Lock the outer container's scroll OFF — only .reso-sections is
      allowed to scroll internally.  Without this, both the outer
@@ -9977,6 +9981,11 @@ button.path-node { cursor: pointer; }
 #overlay.overlay-resonance #overlay-title,
 #overlay.overlay-resonance #overlay-body {
   flex: 0 0 auto;
+  /* Defensive — keep the title fully inside the (now narrow) modal so
+     a 6+ word title can never bleed past the gold frame and visually
+     overlap with HUD elements rendered above the backdrop. */
+  max-width: 100%;
+  word-wrap: break-word;
 }
 #overlay.overlay-resonance #overlay-choices {
   display: flex;

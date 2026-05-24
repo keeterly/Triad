@@ -22218,6 +22218,10 @@ function hideOverlay() {
                       'overlay-resonance', 'overlay-resonance-trio',
                       'overlay-wanderer', 'overlay-forge',
                       'overlay-dismissable');
+  // Clear any inline max-width the resonance picker forced so the
+  // next overlay opens with its own CSS-driven sizing.
+  const ovc = $('#overlay-content');
+  if (ovc) ovc.style.removeProperty('max-width');
   const ch = $('#overlay-choices');
   if (ch) {
     ch.classList.remove('path-map', 'party-inspect', 'event-choices',
@@ -23191,9 +23195,18 @@ function _showBatchResonanceChoice(s, choices, cont) {
   // only needs to know about the player-pick subset.
   sections = pickerSections;
   const $overlay = $('#overlay');
-  $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-sigil','overlay-cinematic','overlay-starter','overlay-boon','overlay-upgrade','overlay-resonance-trio','overlay-full');
+  $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-sigil','overlay-cinematic','overlay-starter','overlay-boon','overlay-upgrade','overlay-resonance-trio','overlay-full','overlay-wanderer','overlay-wanderer-duel','overlay-forge','overlay-oath','overlay-swap');
   $overlay.classList.add('overlay-event','overlay-resonance');
   if (sections.some(s2 => s2.kind === 'trio')) $overlay.classList.add('overlay-resonance-trio');
+  // Force-cap the modal width inline — the CSS .overlay-resonance rule
+  // SHOULD win the cascade, but multiple identical-specificity
+  // !important rules on #overlay-content (overlay-event 1100px,
+  // overlay-full 960px before its removal, etc.) make this fragile.
+  // Inline style with !important wins over every CSS rule, period.
+  const $content = $('#overlay-content');
+  if ($content) {
+    $content.style.setProperty('max-width', 'min(540px, 94vw)', 'important');
+  }
   // Authored detection still used by Continue button labelling — a
   // section is 'authored' when its only variant carries _preview.authored
   // (the L3 celebration card for pairs with bespoke combos).
@@ -23642,8 +23655,8 @@ function _showDuoChoice(s, next, cont) {
   const nameA = (CHARS[next.heroA] && CHARS[next.heroA].name) || next.heroA;
   const nameB = (CHARS[next.heroB] && CHARS[next.heroB].name) || next.heroB;
   const $overlay = $('#overlay');
-  $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-sigil','overlay-cinematic','overlay-starter','overlay-boon','overlay-upgrade');
-  $overlay.classList.add('overlay-full','overlay-event','overlay-resonance');
+  $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-sigil','overlay-cinematic','overlay-starter','overlay-boon','overlay-upgrade','overlay-full');
+  $overlay.classList.add('overlay-event','overlay-resonance');
   $('#overlay-title').textContent = `Bond deepened — ${nameA} + ${nameB}`;
   $('#overlay-body').textContent = 'Their bond rings out.  Choose how they fight as one — this Resonance Skill locks in for the rest of the run.';
   const choices = $('#overlay-choices');
@@ -23709,8 +23722,8 @@ function _showTrioChoice(s, next, cont) {
   }
   const heroNames = next.heroes.map(id => (CHARS[id] && CHARS[id].name) || id);
   const $overlay = $('#overlay');
-  $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-sigil','overlay-cinematic','overlay-starter','overlay-boon','overlay-upgrade');
-  $overlay.classList.add('overlay-full','overlay-event','overlay-resonance','overlay-resonance-trio');
+  $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-sigil','overlay-cinematic','overlay-starter','overlay-boon','overlay-upgrade','overlay-full');
+  $overlay.classList.add('overlay-event','overlay-resonance','overlay-resonance-trio');
   $('#overlay-title').textContent = `Triad resonant — ${heroNames.join(' + ')}`;
   $('#overlay-body').textContent = 'The three move as one.  Choose who anchors the moment — they fire their signature while the other two support.';
   const choices = $('#overlay-choices');
