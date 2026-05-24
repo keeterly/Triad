@@ -23110,7 +23110,7 @@ function _showBatchResonanceChoice(s, choices, cont) {
   // entry carries a `level` field (1 / 2 / 3) and we route to the
   // right builder.  Variants for the same pair at different levels
   // are independent sections — the player picks one per level.
-  const sections = [];
+  let sections = [];
   choices.forEach(ch => {
     if (ch.kind === 'trio') {
       // Trio L1/L2/L3 fall back to the legacy 2-variant builder for
@@ -23142,6 +23142,54 @@ function _showBatchResonanceChoice(s, choices, cont) {
     cont();
     return;
   }
+  // Streamline pass — sections whose only variant is flagged
+  // _preview.autoSelect (school-pair templates, authored L3 climaxes)
+  // have no actual choice for the player to make.  Commit them
+  // silently up front so the pager only shows slides with a genuine
+  // pick.  A run that deepens 7 bonds at once often has 4-5 of these
+  // auto-commits; surfacing 7 slides where 5 are click-past-only made
+  // the screen feel like grinding.
+  s.run.chosenResonances = s.run.chosenResonances || {};
+  const autoResolved = [];
+  const pickerSections = [];
+  sections.forEach(sec => {
+    const isAuto = sec.variants.length === 1
+      && sec.variants[0]._preview && sec.variants[0]._preview.autoSelect;
+    if (isAuto) {
+      const variant = sec.variants[0];
+      const baseKey = sec.kind === 'trio' ? sec.choice.trioKey : sec.choice.pairKey;
+      const level = sec.level || 1;
+      const lkey = `L${level}`;
+      s.run.chosenResonances[baseKey] = s.run.chosenResonances[baseKey] || {};
+      s.run.chosenResonances[baseKey][lkey] = variant;
+      const names = sec.kind === 'trio'
+        ? sec.choice.heroes.map(id => `<b>${(CHARS[id] && CHARS[id].name) || id}</b>`).join(' + ')
+        : `<b>${(CHARS[sec.choice.heroA] && CHARS[sec.choice.heroA].name) || sec.choice.heroA}</b> + <b>${(CHARS[sec.choice.heroB] && CHARS[sec.choice.heroB].name) || sec.choice.heroB}</b>`;
+      log(`<i>${names} · Bond Level ${level} Resonance Skill — <b>${variant.name}</b>.</i>`);
+      autoResolved.push({ baseKey, level });
+    } else {
+      pickerSections.push(sec);
+    }
+  });
+  // Remove the auto-resolved entries from the pending queue so they
+  // don't loop back through the picker on next reconcile.
+  if (autoResolved.length && s.run) {
+    s.run._pendingResonanceChoices = (s.run._pendingResonanceChoices || []).filter(c => {
+      const baseKey = c.kind === 'trio' ? c.trioKey : c.pairKey;
+      const lvl = c.level || 1;
+      return !autoResolved.some(r => r.baseKey === baseKey && r.level === lvl);
+    });
+  }
+  // If every section auto-committed, skip the picker entirely.  The
+  // log lines above tell the player what just landed; no overlay
+  // needed.  Continue to whatever comes next.
+  if (!pickerSections.length) {
+    cont();
+    return;
+  }
+  // Shadow `sections` with the filtered list — the rest of the picker
+  // only needs to know about the player-pick subset.
+  sections = pickerSections;
   const $overlay = $('#overlay');
   $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-sigil','overlay-cinematic','overlay-starter','overlay-boon','overlay-upgrade','overlay-resonance-trio');
   $overlay.classList.add('overlay-full','overlay-event','overlay-resonance');

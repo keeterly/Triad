@@ -9952,6 +9952,14 @@ button.path-node { cursor: pointer; }
   display: flex;
   flex-direction: column;
   max-height: min(92vh, 92%);
+  /* The .overlay-event base sets max-width 1100px, which is right for
+     run summaries and path maps but way too wide for the picker — on
+     landscape phones the title sprawled all the way under the corner
+     HUD buttons and the centered card looked off-axis against the
+     empty width.  Cap the picker at a sensible vertical-card width
+     so the title stays inside the modal and the card sits centered
+     within a tight column. */
+  max-width: min(540px, 94vw) !important;
   /* Lock the outer container's scroll OFF — only .reso-sections is
      allowed to scroll internally.  Without this, both the outer
      overlay-content (which has overflow-y: auto by default) AND the
