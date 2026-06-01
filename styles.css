@@ -10040,6 +10040,51 @@ button.path-node { cursor: pointer; }
   .resonance-choice-trio { width: 210px !important; }
   .resonance-choice-trio .reso-trio-anchor-badge { font-size: 7.5px !important; }
   .resonance-choice-trio .reso-portrait-sm { width: 20px !important; height: 28px !important; }
+
+  /* Landscape phones (≈390-430px tall) couldn't fit title + intro text +
+     pager + section header + two side-by-side cards + Commit button
+     inside the 92vh modal cap, so the Commit button — last in the flex
+     column — fell below the viewport and players had no way to advance.
+     The title was also rendering through the HUD bar because the modal
+     stretched past the visible area.
+
+     Trim the top fluff so the Commit button always lands inside:
+       - hide the intro #overlay-body (the pager UI + pre-selected first
+         pick already make the flow self-evident)
+       - shrink the title and remove its bottom rule
+       - collapse pager/section-header vertical padding
+       - tighten Commit button padding so the sticky footer is compact */
+  #overlay.overlay-resonance #overlay-body {
+    display: none !important;
+  }
+  #overlay.overlay-resonance #overlay-title {
+    font-size: 13px !important;
+    letter-spacing: 0.22em !important;
+    margin-bottom: 2px !important;
+    padding-bottom: 4px !important;
+  }
+  #overlay.overlay-event.overlay-resonance #overlay-content {
+    padding: 8px 16px 10px !important;
+    /* dvh accounts for iOS Safari's dynamic browser chrome — vh in
+       landscape sometimes resolves to the largest possible viewport
+       (chrome hidden) and pushes content below the visible area. */
+    max-height: min(96dvh, 96%) !important;
+  }
+  #overlay.overlay-resonance #overlay-choices { gap: 4px !important; }
+  .reso-pager { padding: 2px 0 4px !important; gap: 10px !important; }
+  .reso-pager-arrow { width: 32px !important; height: 32px !important; font-size: 20px !important; }
+  .reso-section-header {
+    font-size: 9px !important;
+    letter-spacing: 0.2em !important;
+    padding: 2px 0 4px !important;
+    gap: 6px !important;
+  }
+  #overlay.overlay-resonance #overlay-choices .reso-continue {
+    padding: 8px 22px !important;
+    font-size: 10.5px !important;
+    letter-spacing: 0.26em !important;
+    margin-top: 4px !important;
+  }
 }
 
 /* Portrait phones — the desktop card is hard-pinned at width: 280px, so
