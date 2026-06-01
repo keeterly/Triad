@@ -1,0 +1,93 @@
+TRIAD — CHARACTER ROSTER (17 total)
+Source: game.js (CHARS constant, lines 1637–2328)
+
+A character's RPG identity = name, title, school, role/home slot, HP,
+passive, and signature techniques. Existing SVG portraits live in the
+PORTRAITS constant (game.js line 14).
+
+Schools (combat/visual flavor): Physical · Holy · Arcane · Ranged · Stealth
+Role by home slot: Front = tank/bruiser · Mid = skirmisher/flex · Back = support/caster/ranged
+
+===============================================================================
+
+1. CASSIA — Disgraced Knight
+   School: Physical | Role: Front (tank) | HP: 26
+   Flavor: Greatsword, holy "Sunder," redirects hits, banners/rally
+
+2. ELIN — Sister of the Veil
+   School: Holy | Role: Mid (healer) | HP: 19
+   Flavor: Veil-step phasing, mending light, sanctuary armor
+
+3. BRANWEN — Outlaw Archer
+   School: Ranged | Role: Back (DPS) | HP: 20
+   Flavor: Bleed arrows, vanish shots, arrow storms
+
+4. KORIN — Bloodbound Reaver
+   School: Physical | Role: Front (berserker) | HP: 22
+   Flavor: Self-damage rage, reckless cleaves, blood fury
+
+5. ASH — Veil-Touched Mage
+   School: Arcane | Role: Mid (mage) | HP: 19
+   Flavor: Fire/lightning, vuln-stacking, pyroclasm
+
+6. MIRA — Shadow Reaver
+   School: Stealth | Role: Back (assassin) | HP: 21
+   Flavor: Twin daggers, backstabs, poison/shadow, bleed
+
+7. KAI — Awakened in the Abyss   [solo starter]
+   School: Physical | Role: Mid (solo hero) | HP: 28
+   Flavor: Lone-survivor power, ripostes, crossblade
+
+8. GARRON — Warden of the Gate
+   School: Physical | Role: Front (guardian) | HP: 30
+   Flavor: Tower shield, taunts, self-sacrifice saves
+
+9. LIRIEN — Songbinder
+   School: Arcane | Role: Back (bard) | HP: 18
+   Flavor: Music magic, vuln aura, buffs/crescendo
+
+10. VASHA — Lightspeaker
+    School: Holy | Role: Back (cleric) | HP: 19
+    Flavor: Preaching, hymns, party heal/resolve
+
+11. HASK — Frostling
+    School: Arcane | Role: Front (frost) | HP: 22
+    Flavor: Ice claws, glacier crush, frost-lock, staggers
+
+12. VEYR — The Last Witness
+    School: Stealth | Role: Back (fragile rogue) | HP: 14
+    Flavor: Wraith-cuts, grows stronger as allies fall
+
+13. KELL — The Open Hand
+    School: Holy | Role: Front (monk) | HP: 22
+    Flavor: Unarmed holy strikes, flurries, meditation
+
+14. NIRA — Old Hex
+    School: Arcane | Role: Back (witch/hexer) | HP: 18
+    Flavor: Curses, bleed/burn/dulled DoT, heals on hex
+
+15. JORAN — The Long-eye
+    School: Ranged | Role: Mid (marksman) | HP: 20
+    Flavor: Precision shots, heartshot, vuln exploitation
+
+16. TARN — Stonebound
+    School: Physical | Role: Back (earth) | HP: 23
+    Flavor: Thrown stones, boulders, armor-granting, avalanche
+
+17. KIKI — Loyal   [recruit-only, dog companion]
+    School: Stealth | Role: Front (dog companion) | HP: 17
+    Flavor: Loyal hound — bites, lunges, howls
+
+===============================================================================
+
+NOTES FOR ART GENERATION
+- Kai (#7) is the solo-mode starter hero.
+- Kiki (#17) is a dog companion, not humanoid — design accordingly.
+- Existing portraits live in the PORTRAITS SVG constant (game.js line 14)
+  if you want to match current art direction.
+- School is your best palette/element cue:
+    Holy     = light/gold
+    Arcane   = arcane purple / fire / frost
+    Stealth  = shadow/dark
+    Ranged   = leather/woodsy
+    Physical = steel/armor
