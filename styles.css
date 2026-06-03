@@ -9776,6 +9776,40 @@ button.path-node { cursor: pointer; }
   padding-top: 6px;
 }
 
+/* L3 ultimate cards — the defining-moment pick. Both heroes stand as
+   equals (no lead/support), and a warmer gold frame marks this as the
+   climactic Resonance Ability rather than a routine synergy. Reuses the
+   template card's plus-arrow + bottom-description layout. */
+.resonance-choice-ultimate {
+  border: 1px solid rgba(212,180,110,0.55);
+  box-shadow: 0 0 18px rgba(212,180,110,0.18), inset 0 0 24px rgba(212,180,110,0.06);
+}
+.resonance-choice-ultimate.reso-card-selected {
+  border-color: var(--gold-pale);
+  box-shadow: 0 0 26px rgba(212,180,110,0.34), inset 0 0 28px rgba(212,180,110,0.10);
+}
+.resonance-choice-ultimate .reso-pair-template .reso-arrow {
+  color: var(--gold-pale);
+  font-size: 18px;
+  opacity: 0.85;
+}
+.resonance-choice-ultimate .reso-tech-hero {
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--gold-pale);
+  opacity: 0.9;
+}
+.resonance-choice-ultimate .reso-template-desc {
+  text-align: center;
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--ink);
+  padding: 6px 4px 0;
+  border-top: 1px solid rgba(212,180,110,0.28);
+  margin-top: 6px;
+  letter-spacing: 0.02em;
+}
+
 /* School-pair template cards — used when a chosen Resonance variant
    fires a bespoke school-pair mechanic instead of basic+sig+burst.
    Slightly different framing from the standard mirror-split card:

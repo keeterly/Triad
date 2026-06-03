@@ -13708,7 +13708,6 @@ function _buildLevelVariants(s, heroA, heroB, level) {
   const nameA = (CHARS[a] && CHARS[a].name) || a;
   const nameB = (CHARS[b] && CHARS[b].name) || b;
   const pairKey = adjKey(a, b);
-  const bondName = bondNameForPair(a, b);
   // Cinematic shared shape.  Anchor's school tints the stage.
   const cinematicFor = (text, anchorId) => ([
     { kind: 'stage',       school: (CHARS[anchorId] && CHARS[anchorId].school) || 'physical', ms: 200 },
@@ -13719,140 +13718,194 @@ function _buildLevelVariants(s, heroA, heroB, level) {
     { kind: 'resolve' },
     { kind: 'enemy-flash', targets: 'front', kind2: 'hit', ms: 200 },
   ]);
-  // Variant runner — anchor's school signature is the PRIMARY effect;
-  // other hero's school contributes a smaller SUPPORT effect.  Swapping
-  // the anchor flips which school dominates, so the two picker cards
-  // actually feel different at the table.
-  const runVariant = (anchorId, otherId) => (s2) => {
-    _runSchoolVariant(s2, anchorId, otherId, level);
-  };
-  // Variant name leads with the anchor's identity so the player sees
-  // 'KELL leads' vs 'MIRA leads' at a glance, not the same template name.
-  const variantName = (anchorId, otherId) => {
-    const aN = (CHARS[anchorId] && CHARS[anchorId].name) || anchorId;
-    const aSchool = (CHARS[anchorId] && CHARS[anchorId].school) || 'physical';
-    const lbl = (SCHOOL_SIGNATURE[aSchool] && SCHOOL_SIGNATURE[aSchool].label) || '';
-    return `${aN} leads · ${lbl}`;
-  };
-  // ===== LEVEL 1 — both attack =====
-  if (level === 1) {
-    const mkV = (anchorId, otherId, variantId) => {
-      const vname = variantName(anchorId, otherId);
-      return {
-        id: `chosen_${pairKey}_L1_${variantId}`,
-        name: vname,
-        tier: 'duo',
-        chosenResonance: true,
-        kizunaLevel: 1,
-        pairKey,
-        desc: _schoolVariantDesc(anchorId, otherId, 1),
-        requires: [
-          { heroId: a, kind: 'attack' },
-          { heroId: b, kind: 'attack' },
-        ],
-        fn: runVariant(anchorId, otherId),
-        cinematic: cinematicFor(vname.toUpperCase(), anchorId),
-        _preview: {
-          aHero: anchorId, bHero: otherId,
-          schoolPair: true, level: 1,
-        },
-      };
-    };
-    return [
-      mkV(a, b, 'A'),
-      mkV(b, a, 'B'),
-    ];
+
+  // ============================================================
+  // L1 / L2 — SYNERGY SKILL.  One ability per pair that DEEPENS.
+  // No player choice: the bond reaching L1 grants the synergy, and
+  // L2 upgrades the same ability.  Anchor is deterministic (the
+  // alphabetically-first hero), so the synergy reads as a single
+  // joint move, not a 'who leads' quiz.  These auto-commit on the
+  // picker (autoSelect) and simply announce themselves — the
+  // relationship beats accrue quietly while you survive together.
+  // ============================================================
+  if (level === 1 || level === 2) {
+    const synName = _synergyName(a, b, level);
+    // L1 fires when both ATTACK; L2 when the anchor SPECIALs and the
+    // partner ATTACKs — the natural escalation from the bond ladder.
+    const requires = level === 1
+      ? [{ heroId: a, kind: 'attack' }, { heroId: b, kind: 'attack' }]
+      : [{ heroId: a, kind: 'special' }, { heroId: b, kind: 'attack' }];
+    return [{
+      id: `chosen_${pairKey}_L${level}`,
+      name: synName,
+      tier: 'duo',
+      chosenResonance: true,
+      kizunaLevel: level,
+      pairKey,
+      desc: _synergyDesc(a, b, level),
+      requires,
+      fn: (s2) => _runSchoolVariant(s2, a, b, level),
+      cinematic: cinematicFor(synName.toUpperCase(), a),
+      _preview: {
+        aHero: a, bHero: b,
+        schoolPair: true, level,
+        autoSelect: true, // silent commit — announced in the log, no modal
+      },
+    }];
   }
-  // ===== LEVEL 2 — attack + special, mixed direction =====
-  if (level === 2) {
-    const mkV = (specialId, attackerId, variantId) => {
-      const vname = variantName(specialId, attackerId);
-      return {
-        id: `chosen_${pairKey}_L2_${variantId}`,
-        name: vname,
-        tier: 'duo',
-        chosenResonance: true,
-        kizunaLevel: 2,
-        pairKey,
-        desc: _schoolVariantDesc(specialId, attackerId, 2),
-        // requires direction matters at L2 — picker variant locks in
-        // which hero specials.
-        requires: specialId === a
-          ? [{ heroId: a, kind: 'special' }, { heroId: b, kind: 'attack' }]
-          : [{ heroId: a, kind: 'attack' }, { heroId: b, kind: 'special' }],
-        fn: runVariant(specialId, attackerId),
-        cinematic: cinematicFor(vname.toUpperCase(), specialId),
-        _preview: {
-          aHero: specialId, bHero: attackerId,
-          schoolPair: true, level: 2,
-        },
-      };
-    };
-    return [
-      mkV(a, b, 'A'),
-      mkV(b, a, 'B'),
-    ];
+
+  // ============================================================
+  // L3 — THE DEFINING MOMENT.  Pick 1 of 2 distinct ultimates.
+  // The two options are genuinely different FANTASIES (not the old
+  // anchor-mirror): an authored pair ultimate when one exists, plus
+  // a generated archetype to fill the second slot.  Pairs with two
+  // authored combos offer both.  Always fires on SPECIAL + SPECIAL.
+  // ============================================================
+  const l3Requires = [
+    { heroId: a, kind: 'special' },
+    { heroId: b, kind: 'special' },
+  ];
+  const options = [];
+  // 1) Authored ultimates for this pair (Twin Steel, Banner Fire, …).
+  //    Override requires to special+special and normalise any 'sig'
+  //    kinds to the queue's 'special' so the climax actually fires.
+  _authoredDuosFor(a, b).forEach(authored => {
+    if (options.length >= 2) return;
+    options.push({
+      id: authored.id, // reuse so cinematic / sound assets line up
+      name: authored.name,
+      tier: 'duo',
+      chosenResonance: true,
+      kizunaLevel: 3,
+      pairKey,
+      authoredId: authored.id,
+      desc: authored.desc || '',
+      requires: l3Requires.slice(),
+      fn: authored.fn,
+      cinematic: authored.cinematic || cinematicFor(String(authored.name || '').toUpperCase(), a),
+      _preview: {
+        aHero: a, bHero: b,
+        ultimate: true, level: 3, authored: true,
+      },
+    });
+  });
+  // 2) Generated archetypes — fill until two distinct ultimates exist.
+  //    'onslaught' = both heroes unleash (burst); 'aegis' = they shield
+  //    each other and the party (survival/control).  Two clearly
+  //    different decisions, themed to the pair.
+  const archetypes = [
+    { key: 'onslaught', name: 'Onslaught', desc: _ultimateDesc(a, b, 'onslaught') },
+    { key: 'aegis',     name: 'Aegis',     desc: _ultimateDesc(a, b, 'aegis') },
+  ];
+  for (const arch of archetypes) {
+    if (options.length >= 2) break;
+    const uname = `${_bondLabel(a, b)} · ${arch.name}`;
+    options.push({
+      id: `chosen_${pairKey}_L3_${arch.key}`,
+      name: uname,
+      tier: 'duo',
+      chosenResonance: true,
+      kizunaLevel: 3,
+      pairKey,
+      desc: arch.desc,
+      requires: l3Requires.slice(),
+      fn: (s2) => _runUltimateArchetype(s2, a, b, arch.key),
+      cinematic: cinematicFor(uname.toUpperCase(), arch.key === 'aegis' ? b : a),
+      _preview: {
+        aHero: a, bHero: b,
+        ultimate: true, level: 3, archetype: arch.key,
+      },
+    });
   }
-  // ===== LEVEL 3 — both special =====
-  if (level === 3) {
-    const authored = _authoredDuoFor(a, b);
-    if (authored) {
-      // Authored combo IS the L3 climax.  Single celebration card
-      // (auto-selected on render so Commit fires immediately).  Stamp
-      // it with kizunaLevel + pairKey so the combo lookup knows it
-      // belongs to this pair's L3 slot.
-      const climax = {
-        id: authored.id, // reuse the authored id so the cinematic / sound assets line up
-        name: authored.name,
-        tier: 'duo',
-        chosenResonance: true,
-        kizunaLevel: 3,
-        pairKey,
-        authoredId: authored.id,
-        desc: authored.desc || '',
-        requires: authored.requires
-          ? authored.requires.slice()
-          : [{ heroId: a, kind: 'special' }, { heroId: b, kind: 'special' }],
-        fn: authored.fn,
-        cinematic: authored.cinematic,
-        _preview: {
-          aHero: a, bHero: b,
-          schoolPair: false, level: 3, authored: true,
-          aTech: { name: nameA, desc: '' },
-          bTech: { name: nameB, desc: '' },
-          autoSelect: true,
-        },
-      };
-      return [climax];
+  return options.slice(0, 2);
+}
+
+// All authored duo combos for a pair (a pair can have more than one —
+// e.g. an attack combo and a sig-tier combo — and both become L3
+// ultimate options).  Returns [] when the pair has no bespoke combo.
+function _authoredDuosFor(a, b) {
+  const key = adjKey(a, b);
+  return Object.values(COMBOS).filter(c =>
+    !c.generic && !c.chosenResonance && c.tier === 'duo' && c.requires && c.requires.length === 2 &&
+    c.requires.map(r => r.heroId).slice().sort().join('+') === key);
+}
+
+// Display label for a pair's bond — the authored ADJ name when present
+// ("Iron Bond"), otherwise the two hero names ("Joran & Kai").
+function _bondLabel(a, b) {
+  const bn = bondNameForPair(a, b);
+  if (bn && bn.indexOf('Camaraderie:') !== 0) return bn;
+  const nA = (CHARS[a] && CHARS[a].name) || a;
+  const nB = (CHARS[b] && CHARS[b].name) || b;
+  return `${nA} & ${nB}`;
+}
+
+// Name for the L1/L2 synergy skill — the bond label plus a deepening
+// marker so L2 reads as the upgraded form of the same ability.
+function _synergyName(a, b, level) {
+  return `${_bondLabel(a, b)} · Resonance${level >= 2 ? ' II' : ''}`;
+}
+
+// Synergy skill description — the combined joint effect, with NO 'X
+// leads' framing (the anchor is fixed and invisible to the player).
+function _synergyDesc(a, b, level) {
+  const aSchool = (CHARS[a] && CHARS[a].school) || 'physical';
+  const bSchool = (CHARS[b] && CHARS[b].school) || 'physical';
+  const nameB = (CHARS[b] && CHARS[b].name) || b;
+  const aDesc = (SCHOOL_SIGNATURE[aSchool] && SCHOOL_SIGNATURE[aSchool].desc(level)) || '';
+  if (aSchool === bSchool) {
+    return `${aDesc}${_sameSchoolBonusDesc(a, level)}`;
+  }
+  const supportLine = ({
+    physical: `${nameB}: +1 atk pending`,
+    holy:     `${nameB}: heals self ${level >= 3 ? 3 : 2}`,
+    arcane:   `${nameB}: +${level >= 3 ? 2 : 1} Resolve`,
+    ranged:   `${nameB}: +${level >= 3 ? 2 : 1} bleed on front`,
+    stealth:  `${nameB}: +${level >= 3 ? 2 : 1} VULN all`,
+  })[bSchool] || '';
+  return `${aDesc}${supportLine ? `  ${supportLine}.` : ''}`;
+}
+
+// L3 ultimate archetype effect.  'onslaught' fires BOTH heroes' school
+// signatures at resonant power (a glass-cannon burst); 'aegis' is a
+// protective payoff — heal, armour, full cleanse, and a control stagger
+// — the 'we survive together' fantasy that fits a roguelite about bonds.
+function _runUltimateArchetype(s, a, b, key) {
+  const aSchool = (CHARS[a] && CHARS[a].school) || 'physical';
+  const bSchool = (CHARS[b] && CHARS[b].school) || 'physical';
+  if (key === 'aegis') {
+    aliveParty(s).forEach(c => {
+      const before = c.hp;
+      c.hp = Math.min(c.maxHp, c.hp + 8);
+      if (c.hp > before) spawnPopupId(c.id, `+${c.hp - before}`, 'heal', 'party');
+      c.bleed = 0; c.dulled = 0; c.vuln = Math.max(0, (c.vuln || 0) - 2);
+    });
+    partyArmor(s, 6);
+    const front = enemyBySlot(s, 'front') || aliveEnemies(s)[0];
+    if (front && !front.dead) {
+      front.staggered = true; front.staggerTurnsLeft = 2;
+      spawnPopupId(front.id, 'STAGGERED', 'stagger', 'enemy');
     }
-    const mkV = (anchorId, otherId, variantId) => {
-      const vname = variantName(anchorId, otherId) + ' · RESONANT';
-      return {
-        id: `chosen_${pairKey}_L3_${variantId}`,
-        name: vname,
-        tier: 'duo',
-        chosenResonance: true,
-        kizunaLevel: 3,
-        pairKey,
-        desc: _schoolVariantDesc(anchorId, otherId, 3),
-        requires: [
-          { heroId: a, kind: 'special' },
-          { heroId: b, kind: 'special' },
-        ],
-        fn: runVariant(anchorId, otherId),
-        cinematic: cinematicFor(vname.toUpperCase(), anchorId),
-        _preview: {
-          aHero: anchorId, bHero: otherId,
-          schoolPair: true, level: 3,
-        },
-      };
-    };
-    return [
-      mkV(a, b, 'A'),
-      mkV(b, a, 'B'),
-    ];
+    return;
   }
-  return null;
+  // onslaught — both school primaries at full power.
+  const aSig = SCHOOL_SIGNATURE[aSchool];
+  const bSig = SCHOOL_SIGNATURE[bSchool];
+  if (aSig && typeof aSig.primary === 'function') aSig.primary(s, a, 3);
+  if (bSig && typeof bSig.primary === 'function') bSig.primary(s, b, 3);
+}
+
+// Description for an L3 ultimate archetype.
+function _ultimateDesc(a, b, key) {
+  if (key === 'aegis') {
+    return 'Party heal 8, +6 armor, cleanse ALL debuffs, STAGGER front.';
+  }
+  const aSchool = (CHARS[a] && CHARS[a].school) || 'physical';
+  const bSchool = (CHARS[b] && CHARS[b].school) || 'physical';
+  const aDesc = (SCHOOL_SIGNATURE[aSchool] && SCHOOL_SIGNATURE[aSchool].desc(3)) || '';
+  const bDesc = (SCHOOL_SIGNATURE[bSchool] && SCHOOL_SIGNATURE[bSchool].desc(3)) || '';
+  if (aSchool === bSchool) return `Both unleash at full power. ${aDesc}`;
+  return `Both unleash at full power. ${aDesc} ${bDesc}`;
 }
 
 // Build the two mirror-split Resonance variants for a pair when their
@@ -23331,6 +23384,30 @@ function _showBatchResonanceChoice(s, choices, cont) {
     const bTechDesc = (p.bTech && p.bTech.desc) || '';
     const card = document.createElement('button');
     card.className = 'encounter-choice resonance-choice';
+    // L3 ultimate card (the defining moment).  Clean layout: the
+    // ultimate's name, both heroes side by side as equals (no
+    // leads/supports), and the full payoff text below.  Both L3 options
+    // render this way so the choice reads as 'which ultimate', not
+    // 'which anchor'.
+    if (p.ultimate) {
+      card.classList.add('resonance-choice-ultimate');
+      card.innerHTML = `
+        <div class="reso-title">${variant.name}</div>
+        <div class="reso-pair reso-pair-template">
+          <div class="reso-side">
+            <div class="reso-portrait">${PORTRAITS[p.aHero] || ''}</div>
+            <div class="reso-tech-hero">${aHero}</div>
+          </div>
+          <div class="reso-arrow" aria-hidden="true">+</div>
+          <div class="reso-side">
+            <div class="reso-portrait">${PORTRAITS[p.bHero] || ''}</div>
+            <div class="reso-tech-hero">${bHero}</div>
+          </div>
+        </div>
+        <div class="reso-template-desc">${variant.desc || ''}</div>
+      `;
+      return card;
+    }
     // School-pair variants don't bind to specific basic / sig techs —
     // they fire a hand-crafted template (Twin Steel, Sacred Hex, etc.)
     // anchored on one of the two heroes.  Render a leaner card: two
@@ -23659,7 +23736,7 @@ function _showBatchResonanceChoice(s, choices, cont) {
         anchor: '#overlay-choices .resonance-choice, #overlay-choices .resonance-choice-template',
         place: 'above',
         allowOverlay: true,
-        text: 'Bonds <b>DEEPEN</b> in three steps — <b>L1</b> (Attack + Attack), <b>L2</b> (Attack + Special), <b>L3</b> (Special + Special).  Each step unlocks a <b>Resonance Skill</b>.  Pick one — your choice locks in for the run.',
+        text: 'Bonds <b>DEEPEN</b> as a pair survives and fights together. <b>L1</b> and <b>L2</b> grant Synergy Skills automatically.  This is the <b>L3 defining moment</b> — choose the pair\'s <b>Resonance Ability</b>.  Your choice locks in for the run.',
       });
     }, 450);
   }
