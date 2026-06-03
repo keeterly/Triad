@@ -8415,6 +8415,244 @@ const COMBOS = {
       { kind: 'burst',       at: 'enemy-all', school: 'stealth', count: 10, ms: 200 },
     ],
   },
+
+  // ============================================================
+  // KAI L3 ULTIMATES — bespoke "defining moment" Resonance
+  // Abilities for the default starter's signature bonds.  Each bond
+  // offers TWO distinct ultimates (an aggressive line and a
+  // protective / empowering line) so the L3 pick is a real fork that
+  // reads as handcrafted for that pair, not a school template.
+  // These stay hidden from the rail (authored duos are gated out of
+  // _comboLookupList) until chosen at the L3 defining moment, where
+  // _authoredDuosFor surfaces both options.  requires use 'sig' but
+  // _buildLevelVariants overrides them to the L3 special+special
+  // trigger, so the kinds here are illustrative only.
+  // ============================================================
+
+  // --- Cassia + Kai · "Sword and Banner" (shield + blade) ---
+  sb_shieldbreaker: {
+    id: 'sb_shieldbreaker', name: 'Shield Breaker', tier: 'duo', sigTier: true,
+    desc: 'Cassia pries the guard open — Kai drives through front for 22 (ignore armor), +3 VULN.',
+    requires: [ { heroId: 'cassia', kind: 'sig' }, { heroId: 'kai', kind: 'sig' } ],
+    fn: (s) => {
+      const front = enemyBySlot(s, 'front') || aliveEnemies(s)[0];
+      if (!front || front.dead) return;
+      const wasIgnore = s.ignoreArmor; s.ignoreArmor = true;
+      s.currentActorId = 'kai'; s.currentTechElement = 'physical';
+      try {
+        applyDmgToEnemy(s, front, 22);
+        if (!front.dead) { front.vuln = (front.vuln || 0) + 3; spawnPopupId(front.id, '+3 VULN', 'stagger', 'enemy'); }
+      } finally { s.currentActorId = null; s.currentTechElement = null; s.ignoreArmor = wasIgnore; }
+    },
+    cinematic: [
+      { kind: 'stage',       school: 'physical',                          ms: 200 },
+      { kind: 'hero-big',    heroes: ['cassia','kai'], pose: 'guard',     ms: 400 },
+      { kind: 'banner',      text: 'SHIELD BREAKER', size: 'md', subtitle: 'she opens · he ends', ms: 380 },
+      { kind: 'punch',                                                    ms: 400 },
+      { kind: 'resolve' },
+      { kind: 'shake',       intensity: 3 },
+      { kind: 'enemy-flash', targets: 'front', kind2: 'hit',             ms: 200 },
+      { kind: 'burst',       at: 'enemy-front', school: 'physical', count: 14, ms: 250 },
+    ],
+  },
+  sb_bannerwall: {
+    id: 'sb_bannerwall', name: 'Banner Wall', tier: 'duo', sigTier: true,
+    desc: 'Party +8 armor; Kai TAUNTS + retaliate 4; front STAGGERED.',
+    requires: [ { heroId: 'cassia', kind: 'sig' }, { heroId: 'kai', kind: 'sig' } ],
+    fn: (s) => {
+      partyArmor(s, 8);
+      const k = s.party.chars.kai;
+      if (k && !k.downed) { k.taunt = true; k.retaliate = (k.retaliate || 0) + 4; spawnPassivePopup('kai', 'WALL'); }
+      const front = enemyBySlot(s, 'front') || aliveEnemies(s)[0];
+      if (front && !front.dead) { front.staggered = true; front.staggerTurnsLeft = 2; spawnPopupId(front.id, 'STAGGERED', 'stagger', 'enemy'); }
+    },
+    cinematic: [
+      { kind: 'stage',       school: 'physical',                          ms: 200 },
+      { kind: 'hero-big',    heroes: ['cassia','kai'], pose: 'guard',     ms: 420 },
+      { kind: 'banner',      text: 'BANNER WALL', size: 'md', subtitle: 'stand · hold · do not break', ms: 380 },
+      { kind: 'punch',                                                    ms: 360 },
+      { kind: 'resolve' },
+    ],
+  },
+
+  // --- Elin + Kai · "First Mercy" (healer + sword) ---
+  fm_secondwind: {
+    id: 'fm_secondwind', name: 'Second Wind', tier: 'duo', sigTier: true,
+    desc: 'Party heal 7 + cleanse one debuff each; Kai gains +3 atk; revive one fallen ally at 30% HP.',
+    requires: [ { heroId: 'elin', kind: 'sig' }, { heroId: 'kai', kind: 'sig' } ],
+    fn: (s) => {
+      aliveParty(s).forEach(c => {
+        const before = c.hp; c.hp = Math.min(c.maxHp, c.hp + 7);
+        if (c.hp > before) spawnPopupId(c.id, `+${c.hp - before}`, 'heal', 'party');
+        c.bleed = 0; c.dulled = 0; c.vuln = Math.max(0, (c.vuln || 0) - 1);
+      });
+      const k = s.party.chars.kai;
+      if (k && !k.downed && !k.pendingEffects.some(e => e.source === 'second-wind')) {
+        k.pendingEffects.push({ kind: 'attackBonus', amt: 3, source: 'second-wind' });
+        spawnPopupId('kai', '+3 atk', 'armor', 'party');
+      }
+      const fallen = Object.values(s.party.chars).find(c => c && c.downed);
+      if (fallen) {
+        fallen.downed = false; fallen.hp = Math.max(1, Math.ceil(fallen.maxHp * 0.30)); fallen.pendingEffects = [];
+        spawnPopupId(fallen.id, 'REVIVED', 'heal', 'party');
+        log(`<b>${CHARS[fallen.id].name}</b> draws a second breath — First Mercy.`);
+      }
+    },
+    cinematic: [
+      { kind: 'stage',       school: 'holy',                              ms: 240 },
+      { kind: 'hero-big',    heroes: ['elin','kai'], pose: 'rise',        ms: 420 },
+      { kind: 'banner',      text: 'SECOND WIND', size: 'md', subtitle: 'get up · the fight is not done', ms: 380 },
+      { kind: 'punch',                                                    ms: 360 },
+      { kind: 'resolve' },
+      { kind: 'burst',       at: 'party-all', school: 'holy', count: 14, ms: 360 },
+    ],
+  },
+  fm_mercysedge: {
+    id: 'fm_mercysedge', name: "Mercy's Edge", tier: 'duo', sigTier: true,
+    desc: 'Heal lowest ally 8; Kai strikes front for 14, +4 per wounded ally (below half HP).',
+    requires: [ { heroId: 'elin', kind: 'sig' }, { heroId: 'kai', kind: 'sig' } ],
+    fn: (s) => {
+      const party = aliveParty(s);
+      const low = party.slice().sort((a, b) => a.hp - b.hp)[0];
+      if (low) {
+        const before = low.hp; low.hp = Math.min(low.maxHp, low.hp + 8);
+        if (low.hp > before) spawnPopupId(low.id, `+${low.hp - before}`, 'heal', 'party');
+      }
+      const wounded = party.filter(c => c.hp < c.maxHp * 0.5).length;
+      const front = enemyBySlot(s, 'front') || aliveEnemies(s)[0];
+      if (front && !front.dead) {
+        s.currentActorId = 'kai'; s.currentTechElement = 'physical';
+        try { applyDmgToEnemy(s, front, 14 + wounded * 4); }
+        finally { s.currentActorId = null; s.currentTechElement = null; }
+      }
+    },
+    cinematic: [
+      { kind: 'stage',       school: 'physical',                          ms: 200 },
+      { kind: 'hero-big',    heroes: ['elin','kai'], pose: 'rise',        ms: 400 },
+      { kind: 'banner',      text: "MERCY'S EDGE", size: 'md', subtitle: 'her mercy · his vengeance', ms: 380 },
+      { kind: 'punch',                                                    ms: 400 },
+      { kind: 'resolve' },
+      { kind: 'enemy-flash', targets: 'front', kind2: 'hit',             ms: 200 },
+      { kind: 'burst',       at: 'enemy-front', school: 'physical', count: 12, ms: 250 },
+    ],
+  },
+
+  // --- Kai + Korin · "Same Edge" (two warriors, one path) ---
+  se_twinfrenzy: {
+    id: 'se_twinfrenzy', name: 'Twin Frenzy', tier: 'duo', sigTier: true,
+    desc: 'Kai and Korin both tear into front: 10 then 10, +2 bleed.',
+    requires: [ { heroId: 'kai', kind: 'sig' }, { heroId: 'korin', kind: 'sig' } ],
+    fn: (s) => {
+      const front = enemyBySlot(s, 'front') || aliveEnemies(s)[0];
+      if (!front || front.dead) return;
+      [['kai', 10], ['korin', 10]].forEach(([who, dmg]) => {
+        if (front.dead) return;
+        s.currentActorId = who; s.currentTechElement = 'physical';
+        try { applyDmgToEnemy(s, front, dmg); if (!front.dead) front.bleed = (front.bleed || 0) + 2; }
+        finally { s.currentActorId = null; s.currentTechElement = null; }
+      });
+    },
+    cinematic: [
+      { kind: 'stage',       school: 'physical',                          ms: 200 },
+      { kind: 'hero-big',    heroes: ['kai','korin'], pose: 'rise',       ms: 400 },
+      { kind: 'banner',      text: 'TWIN FRENZY', size: 'md', subtitle: 'same edge · same blood', ms: 380 },
+      { kind: 'punch',                                                    ms: 400 },
+      { kind: 'resolve' },
+      { kind: 'shake',       intensity: 3 },
+      { kind: 'enemy-flash', targets: 'front', kind2: 'hit',             ms: 200 },
+      { kind: 'burst',       at: 'enemy-front', school: 'physical', count: 14, ms: 250 },
+    ],
+  },
+  se_bloodpact: {
+    id: 'se_bloodpact', name: 'Blood Pact', tier: 'duo', sigTier: true,
+    desc: 'Kai and Korin each gain +4 atk and +3 armor; the rest of the party +1 atk.',
+    requires: [ { heroId: 'kai', kind: 'sig' }, { heroId: 'korin', kind: 'sig' } ],
+    fn: (s) => {
+      ['kai', 'korin'].forEach(id => {
+        const c = s.party.chars[id];
+        if (!c || c.downed) return;
+        if (!c.pendingEffects.some(e => e.source === 'blood-pact')) {
+          c.pendingEffects.push({ kind: 'attackBonus', amt: 4, source: 'blood-pact' });
+          spawnPopupId(id, '+4 atk', 'armor', 'party');
+        }
+        c.armor = (c.armor || 0) + 3; spawnPopupId(id, '+3⛨', 'armor', 'party');
+      });
+      aliveParty(s).forEach(c => {
+        if (c.id === 'kai' || c.id === 'korin' || c.downed) return;
+        if (!c.pendingEffects.some(e => e.source === 'blood-pact')) {
+          c.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'blood-pact' });
+        }
+      });
+    },
+    cinematic: [
+      { kind: 'stage',       school: 'physical',                          ms: 200 },
+      { kind: 'hero-big',    heroes: ['kai','korin'], pose: 'guard',      ms: 420 },
+      { kind: 'banner',      text: 'BLOOD PACT', size: 'md', subtitle: 'your fight is mine', ms: 380 },
+      { kind: 'punch',                                                    ms: 360 },
+      { kind: 'resolve' },
+    ],
+  },
+
+  // --- Ash + Kai · "Steel and Spark" (arcane + blade) ---
+  ss_overload: {
+    id: 'ss_overload', name: 'Overload', tier: 'duo', sigTier: true,
+    desc: 'Ash bursts ALL for 8 (ignore armor) +3 VULN; Kai detonates front for +10.',
+    requires: [ { heroId: 'ash', kind: 'sig' }, { heroId: 'kai', kind: 'sig' } ],
+    fn: (s) => {
+      const wasIgnore = s.ignoreArmor; s.ignoreArmor = true;
+      s.currentActorId = 'ash'; s.currentTechElement = 'arcane';
+      try {
+        aliveEnemies(s).forEach(e => {
+          if (e.dead) return;
+          applyDmgToEnemy(s, e, 8);
+          if (!e.dead) { e.vuln = (e.vuln || 0) + 3; }
+        });
+      } finally { s.currentActorId = null; s.currentTechElement = null; s.ignoreArmor = wasIgnore; }
+      const front = enemyBySlot(s, 'front') || aliveEnemies(s)[0];
+      if (front && !front.dead) {
+        s.currentActorId = 'kai'; s.currentTechElement = 'physical';
+        try { applyDmgToEnemy(s, front, 10); }
+        finally { s.currentActorId = null; s.currentTechElement = null; }
+      }
+    },
+    cinematic: [
+      { kind: 'stage',       school: 'arcane',                            ms: 220 },
+      { kind: 'hero-big',    heroes: ['ash','kai'], pose: 'rise',         ms: 400 },
+      { kind: 'banner',      text: 'OVERLOAD', size: 'md', subtitle: 'spark · then steel', ms: 380 },
+      { kind: 'punch',                                                    ms: 400 },
+      { kind: 'resolve' },
+      { kind: 'burst',       at: 'enemy-all', school: 'arcane', count: 12, ms: 260 },
+      { kind: 'enemy-flash', targets: 'all', kind2: 'hit',               ms: 180 },
+    ],
+  },
+  ss_flashfreeze: {
+    id: 'ss_flashfreeze', name: 'Flashfreeze', tier: 'duo', sigTier: true,
+    desc: 'STAGGER all foes, +3 VULN each, chip 4 to all — lock the board down.',
+    requires: [ { heroId: 'ash', kind: 'sig' }, { heroId: 'kai', kind: 'sig' } ],
+    fn: (s) => {
+      s.currentActorId = 'ash'; s.currentTechElement = 'arcane';
+      try {
+        aliveEnemies(s).forEach(e => {
+          if (e.dead) return;
+          applyDmgToEnemy(s, e, 4);
+          if (!e.dead) {
+            e.vuln = (e.vuln || 0) + 3;
+            e.staggered = true; e.staggerTurnsLeft = 2;
+            spawnPopupId(e.id, 'STAGGERED', 'stagger', 'enemy');
+          }
+        });
+      } finally { s.currentActorId = null; s.currentTechElement = null; }
+    },
+    cinematic: [
+      { kind: 'stage',       school: 'arcane',                            ms: 220 },
+      { kind: 'hero-big',    heroes: ['ash','kai'], pose: 'guard',        ms: 400 },
+      { kind: 'banner',      text: 'FLASHFREEZE', size: 'md', subtitle: 'the world holds still', ms: 380 },
+      { kind: 'punch',                                                    ms: 360 },
+      { kind: 'resolve' },
+      { kind: 'enemy-flash', targets: 'all', kind2: 'warn',              ms: 200 },
+    ],
+  },
+
   sister_mend: {
     id: 'sister_mend', name: "Sister's Mend", tier: 'duo',
     desc: 'Heal 8 all + cleanse · revive one downed ally at 4 HP (only in-fight revive)',
