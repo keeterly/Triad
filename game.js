@@ -25827,12 +25827,70 @@ function markLayerCleared(layerId) {
 // ============================================================================
 const FORGE_UNLOCK_LAYER = 3;
 const OATH_UNLOCK_LAYER  = 6;
-function isForgeUnlocked() {
-  return getClearedLayers().some(id => id >= FORGE_UNLOCK_LAYER);
+
+// ============================================================================
+// FEATURE UNLOCKS — Hades "House Contractor" style.  Game-defining systems
+// (the Forge, Oaths, and any future systems) are unlocked by deliberately
+// SPENDING banked Embers, not by progression.  This is an extensible
+// framework: add an entry here and gate the feature behind
+// isFeatureUnlocked('<id>').  `grandfatherLayer` keeps faith with existing
+// saves — a player who already cleared that layer is granted the feature
+// free on load (see _grandfatherFeatures, called at boot).
+// ============================================================================
+const FEATURE_UNLOCKS = {
+  forge: {
+    name: 'The Forge', glyph: '⚒', cost: 150,
+    flavor: 'An anvil driven into the floor of the world.  Burn a sigil; forge a hero a boon that never fades.',
+    desc: 'Forge nodes may appear on the abyss map.',
+    grandfatherLayer: FORGE_UNLOCK_LAYER,
+  },
+  oath: {
+    name: 'Oaths', glyph: '◈', cost: 200,
+    flavor: 'Some strength is only paid for in promises — and promises bind.',
+    desc: 'Heroes may speak permanent Oaths at rest nodes.',
+    grandfatherLayer: OATH_UNLOCK_LAYER,
+  },
+};
+const FEATURES_KEY = 'kizuna.featuresUnlocked';
+function getUnlockedFeatures() {
+  try { const raw = localStorage.getItem(FEATURES_KEY); if (raw) { const a = JSON.parse(raw); if (Array.isArray(a)) return a; } }
+  catch (_) {}
+  return [];
 }
-function isOathUnlocked() {
-  return getClearedLayers().some(id => id >= OATH_UNLOCK_LAYER);
+function _setUnlockedFeatures(arr) {
+  try { localStorage.setItem(FEATURES_KEY, JSON.stringify(arr)); } catch (_) {}
 }
+function isFeatureUnlocked(id) { return getUnlockedFeatures().includes(id); }
+// Spend banked Embers to unlock a feature permanently.  Returns true on
+// success.  One-time (no tiers, no equip slot) — like hero / charm buys.
+function purchaseFeatureUnlock(id) {
+  const def = FEATURE_UNLOCKS[id];
+  if (!def || isFeatureUnlocked(id)) return false;
+  const bal = getEmbersBalance();
+  if (bal < def.cost) return false;
+  _setEmbersBalance(bal - def.cost);
+  const cur = getUnlockedFeatures();
+  cur.push(id);
+  _setUnlockedFeatures(cur);
+  return true;
+}
+// One-time migration so converting these gates from progression to
+// purchase doesn't strip the feature from players who already earned it
+// the old way.  Called once at startup.
+function _grandfatherFeatures() {
+  const cleared = getClearedLayers();
+  const cur = getUnlockedFeatures();
+  let changed = false;
+  Object.keys(FEATURE_UNLOCKS).forEach(id => {
+    const def = FEATURE_UNLOCKS[id];
+    if (def.grandfatherLayer && !cur.includes(id) && cleared.some(l => l >= def.grandfatherLayer)) {
+      cur.push(id); changed = true;
+    }
+  });
+  if (changed) _setUnlockedFeatures(cur);
+}
+function isForgeUnlocked() { return isFeatureUnlocked('forge'); }
+function isOathUnlocked()  { return isFeatureUnlocked('oath'); }
 
 // Party persistence across layers — when ascending, snapshot the current
 // team so the next layer's run starts with the same heroes (HP / quirks /
@@ -26312,7 +26370,7 @@ function showSettingsScreen() {
           setTimeout(() => { hideOverlay(); showTitleScreen(); }, 600);
         });
       } else if (action === 'resetprogress') {
-        confirmDestructive('Reset meta progression?', 'Starter unlocks, world-map progress, the cleared-layer chain, Embers banked, codex, and achievements will be wiped.', () => {
+        confirmDestructive('Reset meta progression?', 'Starter unlocks, world-map progress, the cleared-layer chain, feature unlocks (Forge / Oaths), Embers banked, codex, and achievements will be wiped.', () => {
           try { localStorage.removeItem(UNLOCKED_KEY); } catch (_) {}
           try { localStorage.removeItem(LAYER_KEY); } catch (_) {}
           try { localStorage.removeItem(CLEARED_KEY); } catch (_) {}
@@ -26320,6 +26378,7 @@ function showSettingsScreen() {
           try { localStorage.removeItem(EMBERS_UNLOCKS_KEY); } catch (_) {}
           try { localStorage.removeItem(EMBERS_PENDING_KEY); } catch (_) {}
           try { localStorage.removeItem(EMBERS_ACTIVE_KEY); } catch (_) {}
+          try { localStorage.removeItem(FEATURES_KEY); } catch (_) {}
           resetCodex();
           resetAchievements();
           resetBonds();
@@ -27100,6 +27159,37 @@ function _renderEmbersScreen() {
       </div>
     `;
   }).join('');
+  // Feature unlocks — Hades House-Contractor style.  Big, deliberate
+  // one-time purchases that switch on game-defining systems (Forge,
+  // Oaths).  Placed up top so the marquee unlocks read as aspirational
+  // even before the player can afford them.
+  const featuresHtml = Object.entries(FEATURE_UNLOCKS).map(([id, def]) => {
+    const owned = isFeatureUnlocked(id);
+    const affordable = balance >= def.cost;
+    let actionHtml;
+    if (owned) {
+      actionHtml = `<div class="embers-feature-owned">✓ Unlocked</div>`;
+    } else {
+      actionHtml = `<button type="button" class="embers-feature-buy${affordable ? '' : ' embers-feature-buy-disabled'}" data-feature-buy="${id}" ${affordable ? '' : 'disabled'}>
+        <span class="embers-feature-cost">✦ ${def.cost}</span>
+        <span class="embers-feature-buy-label">Unlock</span>
+      </button>`;
+    }
+    return `<div class="embers-feature${owned ? ' embers-feature-unlocked' : ''}">
+      <div class="embers-feature-glyph">${def.glyph}</div>
+      <div class="embers-feature-body">
+        <div class="embers-feature-name">${def.name}</div>
+        <div class="embers-feature-desc">${def.desc}</div>
+        <div class="embers-feature-flavor">${def.flavor}</div>
+      </div>
+      <div class="embers-feature-action">${actionHtml}</div>
+    </div>`;
+  }).join('');
+  const _featuresOwned = Object.keys(FEATURE_UNLOCKS).filter(id => isFeatureUnlocked(id)).length;
+  const featuresSection = `
+    <div class="embers-section-head">The Deep Opens <span class="embers-section-sub">${_featuresOwned} / ${Object.keys(FEATURE_UNLOCKS).length} systems unlocked</span></div>
+    <div class="embers-features">${featuresHtml}</div>
+  `;
   // Sealed-heroes section — pay Embers to unseal heroes directly
   // instead of waiting to recruit them on the road.  Lives on this
   // screen (not the Codex) since this is the spend surface.  Hidden
@@ -27171,6 +27261,7 @@ function _renderEmbersScreen() {
   const _prevScroll = body.scrollTop;
   body.innerHTML = `
     ${headerHtml}
+    ${featuresSection}
     ${heroesHtml}
     ${charmsSection}
     <div class="embers-section-head">Perks <span class="embers-section-sub">${active.length} / ${EMBERS_ACTIVE_CAP} equipped</span></div>
@@ -27200,6 +27291,22 @@ function _renderEmbersScreen() {
       else equipEmberUnlock(id);
       Audio.ui();
       _renderEmbersScreen();
+    };
+  });
+  body.querySelectorAll('.embers-feature-buy[data-feature-buy]').forEach(btn => {
+    btn.onclick = () => {
+      if (btn.disabled) return;
+      btn.disabled = true;
+      const id = btn.dataset.featureBuy;
+      if (purchaseFeatureUnlock(id)) {
+        Audio.ui();
+        const def = FEATURE_UNLOCKS[id];
+        try { log(`<i><b>${def.name} unlocked.</b>  ${def.desc}</i>`); } catch (_) {}
+        _renderEmbersScreen();
+        _refreshTitleIfShown();
+      } else {
+        btn.disabled = false;
+      }
     };
   });
   body.querySelectorAll('.embers-hero[data-unseal]').forEach(btn => {
@@ -27390,6 +27497,9 @@ function bootGame() {
   }
   bindUI();
   setupStatusTooltips();
+  // One-time: grandfather feature unlocks (Forge / Oaths) for players who
+  // already cleared the old progression gates before these became purchases.
+  try { _grandfatherFeatures(); } catch (_) {}
   // Title screen on every load.  "Continue" is enabled iff a save exists.
   showTitleScreen();
 }
