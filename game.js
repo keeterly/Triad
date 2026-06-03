@@ -14646,136 +14646,173 @@ function _trioHasAuthoredCombo(heroes) {
 // damage potential — the heroes whose signature actually hits hard
 // surface as the meaningful anchors; a healer / utility-sig hero
 // drops to the supporter role in both variants.
-function _buildTrioResonanceVariants(s, heroes) {
+function _buildTrioResonanceVariants(s, heroes, level) {
+  const lvl = (level >= 1 && level <= 3) ? level : 1;
   const ids = heroes.slice().sort();
-  // Score each hero's sig damage potential (dmg × hits, 0 for non-
-  // damaging sigs).  Pick the top two as anchor candidates.  Ties
-  // break alphabetically so the same trio reliably surfaces the same
-  // two anchors across runs.
+  if (ids.length !== 3) return null;
+  if (ids.some(id => !slotOfChar(s, id))) {
+    try { console.warn('[Kizuna] trio missing slot', ids, lvl); } catch (_) {}
+    return null;
+  }
+  const trioKey = ids.join('+');
+  const names = ids.map(id => (CHARS[id] && CHARS[id].name) || id);
+  // Rank by sig damage so the special-casters in the L2/L3 triggers are
+  // the heroes whose signatures actually hit — deterministic (ties break
+  // alphabetically) so the same trio always asks for the same actions.
   const ranked = ids.map(id => {
     const slot = slotOfChar(s, id);
-    if (!slot) return { id, score: -1 };
-    const sig = getTech(s, id, slot, 'sig');
+    const sig = slot && getTech(s, id, slot, 'sig');
     const score = (sig && typeof sig.dmg === 'number') ? sig.dmg * (sig.hits || 1) : 0;
     return { id, score };
-  }).sort((a, b) => {
-    if (b.score !== a.score) return b.score - a.score;
-    return a.id < b.id ? -1 : 1;
-  });
-  if (ranked[0].score < 0) return null; // missing slots — bail
-  const anchors = [ranked[0].id, ranked[1].id];
-  // Shared cinematic shape — slogans personalize per anchor.
-  const cinematicFor = (text, anchorId) => ([
-    { kind: 'stage',       school: (CHARS[anchorId] && CHARS[anchorId].school) || 'physical', ms: 220 },
+  }).sort((a, b) => (b.score !== a.score ? b.score - a.score : (a.id < b.id ? -1 : 1)));
+  const lead = ranked[0].id, second = ranked[1].id, third = ranked[2].id;
+  const cinematicFor = (text, tintId) => ([
+    { kind: 'stage',       school: (CHARS[tintId] && CHARS[tintId].school) || 'physical', ms: 220 },
     { kind: 'hero-big',    heroes: ids, pose: 'rise',           ms: 400 },
     { kind: 'banner',      text, size: 'md',                    ms: 340 },
-    { kind: 'slogan',      text: `${(CHARS[anchorId] && CHARS[anchorId].name) || anchorId} anchors`, ms: 240 },
+    { kind: 'slogan',      text: 'kizuna',                      ms: 240 },
     { kind: 'punch',                                              ms: 380 },
     { kind: 'resolve' },
     { kind: 'enemy-flash', targets: 'front', kind2: 'hit',       ms: 200 },
-    { kind: 'burst',       at: 'enemy-front', school: 'holy', count: 10, ms: 280 },
   ]);
-  // Variant runner — anchor invokes their sig, then each supporter
-  // invokes their basic, then a kizuna burst lands on the front
-  // enemy: +3 dmg (+5 at Tier III for any of the involved bonds),
-  // applies STAGGER 1 if still alive, AND heals the anchor for 2
-  // (the trio rallies around their finisher).  Reads the deepest
-  // tier among the three pair-bonds so trios that have built ALL
-  // their bonds reap the strongest payoff.
-  const runVariant = (anchorId, supporters) => (s2) => {
-    const front = enemyBySlot(s2, 'front') || aliveEnemies(s2)[0];
-    const targets = (front && !front.dead) ? [front] : [];
-    const invoke = (id, kind) => {
-      const sl = slotOfChar(s2, id);
-      if (!sl) return;
-      const t = getTech(s2, id, sl, kind);
-      if (!t || typeof t.fn !== 'function') return;
-      s2.currentActorId = id;
-      s2.currentTechElement = t.element || (CHARS[id] && CHARS[id].school) || null;
-      try { t.fn(s2, targets); }
-      finally { s2.currentActorId = null; s2.currentTechElement = null; }
-    };
-    invoke(anchorId, 'sig');
-    supporters.forEach(id => invoke(id, 'basic'));
-    // Kizuna burst — trio variant.  Bigger payoff than the duo since
-    // three heroes coordinated.  Lands AFTER all three techs so the
-    // stagger + VULN primes the NEXT player turn for follow-up.
-    const deepestTier = Math.max(
-      getBondTier(s2, bondNameForPair(ids[0], ids[1])),
-      getBondTier(s2, bondNameForPair(ids[1], ids[2])),
-      getBondTier(s2, bondNameForPair(ids[0], ids[2])),
-    );
-    const burstDmg  = (deepestTier >= 3) ? 12 : 8;
-    const splashDmg = (deepestTier >= 3) ? 6  : 4;
-    const vulnAmt   = (deepestTier >= 3) ? 3  : 2;
-    const healAmt   = (deepestTier >= 3) ? 5  : 3;
-    const finishTarget = (front && !front.dead) ? front : (aliveEnemies(s2)[0] || null);
-    if (finishTarget && !finishTarget.dead) {
-      s2.currentActorId = anchorId;
-      s2.currentTechElement = (CHARS[anchorId] && CHARS[anchorId].school) || null;
-      try {
-        applyDmgToEnemy(s2, finishTarget, burstDmg);
-        if (!finishTarget.dead) {
-          finishTarget.staggered = true;
-          spawnPopupId(finishTarget.id, 'STAGGERED', 'stagger', 'enemy');
-          finishTarget.vuln = (finishTarget.vuln || 0) + vulnAmt;
-          spawnPopupId(finishTarget.id, `+${vulnAmt} VULN`, 'stagger', 'enemy');
-        }
-      } finally { s2.currentActorId = null; s2.currentTechElement = null; }
-    }
-    // Splash — every other alive enemy takes a chunk.  Trio kizuna
-    // hits like an AoE, not a sniper.
-    if (splashDmg > 0) {
-      const others = aliveEnemies(s2).filter(e => e && !e.dead && e !== finishTarget);
-      if (others.length) {
-        s2.currentActorId = anchorId;
-        s2.currentTechElement = (CHARS[anchorId] && CHARS[anchorId].school) || null;
-        try {
-          others.forEach(e => { if (!e.dead) applyDmgToEnemy(s2, e, splashDmg); });
-        } finally { s2.currentActorId = null; s2.currentTechElement = null; }
-      }
-    }
-    // Anchor heal — the trio rallies around their finisher.  Bigger
-    // heal at Tier III so the resonant trio also restores the line.
-    const anchor = s2.party && s2.party.chars && s2.party.chars[anchorId];
-    if (anchor && !anchor.downed) {
-      const before = anchor.hp;
-      anchor.hp = Math.min(anchor.maxHp, anchor.hp + healAmt);
-      if (anchor.hp > before) spawnPopupId(anchorId, `+${anchor.hp - before}`, 'heal', 'party');
-    }
-  };
-  const makeVariant = (anchorId, variantId) => {
-    const slot = slotOfChar(s, anchorId);
-    const anchorSig = slot && getTech(s, anchorId, slot, 'sig');
-    if (!anchorSig) return null;
-    const supporters = ids.filter(id => id !== anchorId);
-    const supTechs = supporters.map(id => ({
-      id,
-      tech: slotOfChar(s, id) && getTech(s, id, slotOfChar(s, id), 'basic'),
-    }));
-    const anchorName = (CHARS[anchorId] && CHARS[anchorId].name) || anchorId;
-    const supNames = supporters.map(id => (CHARS[id] && CHARS[id].name) || id);
-    const name = `${anchorName} anchors · ${anchorSig.name}`;
-    return {
-      id: `chosen_trio_${ids.join('+')}__${variantId}`,
+
+  // ===== L1 / L2 — auto trio synergy (no anchor pick, deepens) =====
+  // The three reaching a bond level grants ONE synergy; L2 upgrades it.
+  // Auto-committed (announced in the log, no modal), exactly like duos.
+  if (lvl === 1 || lvl === 2) {
+    const requires = lvl === 1
+      ? ids.map(id => ({ heroId: id, kind: 'attack' }))
+      : [{ heroId: lead, kind: 'special' }, ...ids.filter(id => id !== lead).map(id => ({ heroId: id, kind: 'attack' }))];
+    const name = `${names.join(' & ')} · Resonance${lvl >= 2 ? ' II' : ''}`;
+    return [{
+      id: `chosen_trio_${trioKey}_L${lvl}`,
       name,
       tier: 'triple',
       chosenResonance: true,
-      trioKey: ids.join('+'),
-      desc: `${anchorName} fires ${anchorSig.name} while ${supNames.join(' and ')} support, then a Resonance burst: +8 dmg + 2 VULN + STAGGER front, +4 splash, ${anchorName} heals 3.  RESONANT (Tier III): +12/+6/+3 VULN, heals 5.`,
-      requires: [
-        { heroId: anchorId, kind: 'special' },
-        ...supporters.map(id => ({ heroId: id, kind: 'attack' })),
-      ],
-      fn: runVariant(anchorId, supporters),
-      cinematic: cinematicFor(name.toUpperCase(), anchorId),
-      _preview: { anchor: anchorId, anchorTech: anchorSig, supporters: supTechs },
-    };
-  };
-  const v1 = makeVariant(anchors[0], 'v1');
-  const v2 = makeVariant(anchors[1], 'v2');
-  if (!v1 || !v2) return null;
-  return [v1, v2];
+      trioKey,
+      kizunaLevel: lvl,
+      desc: _trioSynergyDesc(lvl),
+      requires,
+      fn: (s2) => _runTrioSynergy(s2, ids, lvl),
+      cinematic: cinematicFor(name.toUpperCase(), lead),
+      _preview: { heroes: ids, ultimate: false, autoSelect: true, level: lvl },
+    }];
+  }
+
+  // ===== L3 — the defining moment: pick 1 of 2 distinct trio ultimates =====
+  // Authored trio combos (Sacred Triad, Three Blades, Front Phalanx, …)
+  // become options; generated archetypes fill the rest.  Fires on two
+  // SPECIAL + one ATTACK (the hard-hitting pair specials + the third).
+  const l3Requires = [
+    { heroId: lead,   kind: 'special' },
+    { heroId: second, kind: 'special' },
+    { heroId: third,  kind: 'attack' },
+  ];
+  const options = [];
+  _authoredTriosFor(ids).forEach(authored => {
+    if (options.length >= 2) return;
+    options.push({
+      id: authored.id,
+      name: authored.name,
+      tier: 'triple',
+      chosenResonance: true,
+      trioKey,
+      kizunaLevel: 3,
+      authoredId: authored.id,
+      desc: authored.desc || '',
+      requires: l3Requires.slice(),
+      fn: authored.fn,
+      cinematic: authored.cinematic || cinematicFor(String(authored.name || '').toUpperCase(), lead),
+      _preview: { heroes: ids, ultimate: true, authored: true, level: 3 },
+    });
+  });
+  const archetypes = [
+    { key: 'onslaught', name: 'Onslaught', desc: _trioUltimateDesc('onslaught') },
+    { key: 'aegis',     name: 'Aegis',     desc: _trioUltimateDesc('aegis') },
+  ];
+  for (const arch of archetypes) {
+    if (options.length >= 2) break;
+    const uname = `${names.join(' & ')} · ${arch.name}`;
+    options.push({
+      id: `chosen_trio_${trioKey}_L3_${arch.key}`,
+      name: uname,
+      tier: 'triple',
+      chosenResonance: true,
+      trioKey,
+      kizunaLevel: 3,
+      desc: arch.desc,
+      requires: l3Requires.slice(),
+      fn: (s2) => _runTrioArchetype(s2, ids, arch.key),
+      cinematic: cinematicFor(uname.toUpperCase(), arch.key === 'aegis' ? second : lead),
+      _preview: { heroes: ids, ultimate: true, archetype: arch.key, level: 3 },
+    });
+  }
+  return options.slice(0, 2);
+}
+
+// All authored trio combos for a set of three heroes.
+function _authoredTriosFor(heroes) {
+  const key = heroes.slice().sort().join('+');
+  return Object.values(COMBOS).filter(c =>
+    !c.generic && !c.chosenResonance && c.tier === 'triple' && c.requires && c.requires.length === 3 &&
+    c.requires.map(r => r.heroId).slice().sort().join('+') === key);
+}
+
+// L1/L2 trio synergy — a clean coordinated burst (no anchor, no tech
+// re-fire): front damage + VULN, splash to the rest, and a party heal.
+function _runTrioSynergy(s, ids, level) {
+  const frontDmg = level >= 2 ? 10 : 7;
+  const splash   = level >= 2 ? 4 : 3;
+  const healAmt  = level >= 2 ? 4 : 3;
+  const tintId = ids[0];
+  const front = enemyBySlot(s, 'front') || aliveEnemies(s)[0];
+  if (front && !front.dead) {
+    s.currentActorId = tintId; s.currentTechElement = (CHARS[tintId] && CHARS[tintId].school) || null;
+    try { applyDmgToEnemy(s, front, frontDmg); if (!front.dead) { front.vuln = (front.vuln || 0) + 2; spawnPopupId(front.id, '+2 VULN', 'stagger', 'enemy'); } }
+    finally { s.currentActorId = null; s.currentTechElement = null; }
+  }
+  aliveEnemies(s).forEach(e => { if (e.dead || e === front) return; applyDmgToEnemy(s, e, splash); });
+  aliveParty(s).forEach(c => { const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + healAmt); if (c.hp > b) spawnPopupId(c.id, `+${c.hp - b}`, 'heal', 'party'); });
+}
+
+function _trioSynergyDesc(level) {
+  return `Front ${level >= 2 ? 10 : 7} dmg + 2 VULN; splash ${level >= 2 ? 4 : 3} to others; party heal ${level >= 2 ? 4 : 3}.`;
+}
+
+// L3 trio ultimate archetypes — 'onslaught' breaks the enemy line;
+// 'aegis' is the protective finisher (heal, armour, cleanse, revive).
+function _runTrioArchetype(s, ids, key) {
+  if (key === 'aegis') {
+    aliveParty(s).forEach(c => {
+      const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 10);
+      if (c.hp > b) spawnPopupId(c.id, `+${c.hp - b}`, 'heal', 'party');
+      c.bleed = 0; c.dulled = 0; c.vuln = Math.max(0, (c.vuln || 0) - 2);
+    });
+    partyArmor(s, 6);
+    const front = enemyBySlot(s, 'front') || aliveEnemies(s)[0];
+    if (front && !front.dead) { front.staggered = true; front.staggerTurnsLeft = 2; spawnPopupId(front.id, 'STAGGERED', 'stagger', 'enemy'); }
+    const fallen = Object.values(s.party.chars).find(c => c && c.downed);
+    if (fallen) {
+      fallen.downed = false; fallen.hp = Math.max(1, Math.ceil(fallen.maxHp * 0.30)); fallen.pendingEffects = [];
+      spawnPopupId(fallen.id, 'REVIVED', 'heal', 'party');
+      log(`<b>${CHARS[fallen.id].name}</b> rises — the three will not let them fall.`);
+    }
+    return;
+  }
+  // onslaught
+  const tintId = ids[0];
+  const front = enemyBySlot(s, 'front') || aliveEnemies(s)[0];
+  if (front && !front.dead) {
+    s.currentActorId = tintId; s.currentTechElement = (CHARS[tintId] && CHARS[tintId].school) || null;
+    try { applyDmgToEnemy(s, front, 16); if (!front.dead) { front.staggered = true; front.staggerTurnsLeft = 2; spawnPopupId(front.id, 'STAGGERED', 'stagger', 'enemy'); } }
+    finally { s.currentActorId = null; s.currentTechElement = null; }
+  }
+  aliveEnemies(s).forEach(e => { if (e.dead || e === front) return; applyDmgToEnemy(s, e, 8); if (!e.dead) e.vuln = (e.vuln || 0) + 2; });
+}
+
+function _trioUltimateDesc(key) {
+  if (key === 'aegis') return 'Party heal 10, +6 armor, cleanse all; STAGGER front; revive one fallen at 30% HP.';
+  return 'Front 16 + STAGGER; all others 8 + 2 VULN — the three break the line together.';
 }
 
 // Queue a Resonance unlock choice for this pair when their bond crosses
@@ -23715,7 +23752,7 @@ function _showBatchResonanceChoice(s, choices, cont) {
       // Trio L1/L2/L3 fall back to the legacy 2-variant builder for
       // now (the trio mechanics already differ by anchor).  Will
       // separate into level-specific entries in a follow-up.
-      const variants = _buildTrioResonanceVariants(s, ch.heroes);
+      const variants = _buildTrioResonanceVariants(s, ch.heroes, ch.level || 1);
       if (variants && variants.length >= 1) {
         sections.push({ choice: ch, variants, kind: 'trio', level: ch.level || 1 });
       } else {
@@ -23815,14 +23852,20 @@ function _showBatchResonanceChoice(s, choices, cont) {
         ? `Triad bond L${sections[0].level || 1} — ${sections[0].choice.heroes.map(id => (CHARS[id] && CHARS[id].name) || id).join(' + ')}`
         : `${titleLevelLabel} — ${(CHARS[sections[0].choice.heroA] && CHARS[sections[0].choice.heroA].name) || ''} + ${(CHARS[sections[0].choice.heroB] && CHARS[sections[0].choice.heroB].name) || ''}`)
     : `Bonds deepened ×${sections.length}`;
-  const triggerSubtitle = (lvl) =>
-    lvl === 1 ? 'Triggered when both heroes ATTACK.'
-    : lvl === 2 ? 'Triggered by ATTACK + SPECIAL.'
-    : 'Triggered when both heroes SPECIAL.';
+  const triggerSubtitle = (lvl, kind) => {
+    if (kind === 'trio') {
+      return lvl === 1 ? 'Triggered when all three ATTACK.'
+        : lvl === 2 ? 'Triggered by one SPECIAL + two ATTACK.'
+        : 'Triggered by two SPECIAL + one ATTACK.';
+    }
+    return lvl === 1 ? 'Triggered when both heroes ATTACK.'
+      : lvl === 2 ? 'Triggered by ATTACK + SPECIAL.'
+      : 'Triggered when both heroes SPECIAL.';
+  };
   const subtitle = (sections.length === 1)
     ? (sections[0].variants && sections[0].variants[0]._preview && sections[0].variants[0]._preview.authored
         ? 'Their bond rings true — a named Resonance Skill locks in.'
-        : `${triggerSubtitle(sections[0].level || 1)}  Pick a Resonance Skill — the choice locks in for the rest of the run.`)
+        : `${triggerSubtitle(sections[0].level || 1, sections[0].kind)}  Pick a Resonance Skill — the choice locks in for the rest of the run.`)
     : `Step through each slide and pick a Resonance Skill — ${sections.length} unlocks waiting.  A first pick is pre-selected so you can tap <b>Commit</b> straight away.`;
   $('#overlay-title').textContent = title;
   $('#overlay-body').innerHTML = subtitle;
@@ -24015,6 +24058,22 @@ function _showBatchResonanceChoice(s, choices, cont) {
     card.style.maxWidth = '300px';
     card.style.width = '100%';
     card.style.boxSizing = 'border-box';
+    // L3 trio ultimate (the defining moment).  All three heroes stand as
+    // equals — no anchor/supporter framing — with the ultimate's name and
+    // full payoff, plus the exact trigger.
+    if (p.ultimate) {
+      card.classList.add('resonance-choice-ultimate');
+      const trio = (p.heroes || []).map(id =>
+        `<div class="reso-side"><div class="reso-portrait reso-portrait-sm">${PORTRAITS[id] || ''}</div><div class="reso-tech-hero">${(CHARS[id] && CHARS[id].name) || id}</div></div>`
+      ).join('<div class="reso-arrow" aria-hidden="true">+</div>');
+      card.innerHTML = `
+        <div class="reso-title">${variant.name}</div>
+        <div class="reso-pair reso-pair-template">${trio}</div>
+        <div class="reso-template-desc">${variant.desc || ''}</div>
+        ${triggerLine(variant.requires)}
+      `;
+      return card;
+    }
     card.innerHTML = `
       <div class="reso-title">${variant.name}</div>
       <div class="reso-trio-anchor">
@@ -25204,10 +25263,11 @@ function _rehydrateOneVariant(s, key, lk, v) {
       } catch (_) {}
     }
   }
-  // Trio variant — rebuild from the legacy trio builder.
+  // Trio variant — rebuild from the trio builder at the right level.
   if (heroes.length === 3) {
     try {
-      const variants = _buildTrioResonanceVariants(s, heroes);
+      const trioLevel = lk ? parseInt(lk.slice(1), 10) : 1;
+      const variants = _buildTrioResonanceVariants(s, heroes, trioLevel);
       if (variants) {
         const match = variants.find(vv => vv.id === v.id);
         if (match) {
