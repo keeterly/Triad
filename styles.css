@@ -9780,6 +9780,95 @@ button.path-node { cursor: pointer; }
    equals (no lead/support), and a warmer gold frame marks this as the
    climactic Resonance Ability rather than a routine synergy. Reuses the
    template card's plus-arrow + bottom-description layout. */
+/* Bond-deepened cutscene — the post-combat acknowledgment beat where the
+   heroes speak to their deepening bond.  Two portraits + chat bubbles,
+   a level eyebrow, and the skill they learned. */
+.bond-cut-eyebrow {
+  display: inline-block;
+  font-size: 12px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--gold-pale);
+  padding: 3px 12px;
+  border: 1px solid rgba(212,180,110,0.45);
+  border-radius: 4px;
+}
+.bond-cut-eyebrow-l1 { color: #cdbb8a; border-color: rgba(205,187,138,0.40); }
+.bond-cut-eyebrow-l2 { color: #e0c884; border-color: rgba(224,200,132,0.55); }
+.bond-cut-eyebrow-l3 {
+  color: #f3dca0; border-color: rgba(243,220,160,0.8);
+  box-shadow: 0 0 16px rgba(243,220,160,0.28);
+}
+.bond-cut-pair {
+  font-size: 15px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink);
+  opacity: 0.92;
+}
+.bond-cut-stage {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  padding: 6px 2px 2px;
+}
+.bond-cut-speaker {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.bond-cut-speaker:nth-child(2) { flex-direction: row-reverse; text-align: right; }
+.bond-cut-portrait {
+  flex: 0 0 auto;
+  width: 64px; height: 64px;
+  display: flex; align-items: center; justify-content: center;
+}
+.bond-cut-portrait svg, .bond-cut-portrait img { width: 100%; height: 100%; object-fit: contain; }
+.bond-cut-portrait-sm { width: 40px; height: 40px; }
+.bond-cut-bubble {
+  position: relative;
+  flex: 1 1 auto;
+  background: rgba(28,24,18,0.85);
+  border: 1px solid rgba(212,180,110,0.30);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: #efe6d2;
+  font-style: italic;
+}
+.bond-cut-speaker-name {
+  font-style: normal;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gold-pale);
+  opacity: 0.8;
+  margin-bottom: 3px;
+}
+.bond-cut-third {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  opacity: 0.65;
+}
+.bond-cut-third-name {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--ink);
+  font-style: italic;
+}
+.bond-cut-learned {
+  text-align: center;
+  font-size: 13px;
+  color: #f3dca0;
+  padding-top: 10px;
+  margin-top: 4px;
+  border-top: 1px solid rgba(212,180,110,0.22);
+}
+
 .resonance-choice-ultimate {
   border: 1px solid rgba(212,180,110,0.55);
   box-shadow: 0 0 18px rgba(212,180,110,0.18), inset 0 0 24px rgba(212,180,110,0.06);

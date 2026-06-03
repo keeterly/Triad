@@ -23725,6 +23725,120 @@ function commitUpgrade(upgradeId, onDone) {
 // hero's sig (A.basic + B.sig vs A.sig + B.basic) — same cost, same
 // total damage potential, different character moment.
 //
+// ===========================================================================
+// BOND-DEEPENED CUTSCENE — the post-combat acknowledgment beat.  When a
+// pair / trio reaches a new bond level (L1/L2/L3) the heroes involved
+// speak to it: their bond deepened, their synergy sharpened.  Plays
+// after the fight (after the L3 pick commits, or right after an auto
+// L1/L2 grant), one short tap-to-continue beat per level-up.
+// ===========================================================================
+
+// Per-hero bond lines, escalating L1 → L2 → L3.  Written in each hero's
+// established voice (mirror of AFFINITY_BARKS) so a deepening reads as a
+// real character moment, not a system toast.  Index = level - 1.
+const BOND_DEEPEN_BARKS = {
+  kai:     ["I see your moves now.", "We don't get in each other's way anymore.", "Same fight, same blade. We're one."],
+  cassia:  ["The line holds with you beside it.", "I trust your timing now.", "We are one front. Let them come."],
+  elin:    ["I know where you'll be.", "My light finds you faster now.", "Wherever you fall, I am already there."],
+  branwen: ["I read your shot before you take it.", "We hunt the same line now.", "One breath, one loose — together."],
+  korin:   ["(He plants his shield beside yours.)", "I'll hold while you swing.", "Two shields, one line. Unbroken."],
+  ash:     ["...I'm learning your rhythm.", "We move in the same silence.", "Spark and shadow — one current now."],
+  mira:    ["You keep up. Good.", "I cut where you open.", "We finish the same thought now."],
+  garron:  ["Wider wall with you here.", "I'll hold your flank.", "Two shields, one line. Unbreakable."],
+  lirien:  ["A new note between us.", "Our chord is finding itself.", "We resonate now — truly."],
+  vasha:   ["The light marks us both.", "I see your worth clearer now.", "We shine as one. Remembered."],
+  hask:    ["...colder, together.", "We freeze the same ground.", "One frost. One front."],
+  veyr:    ["(She watches you a beat longer.)", "I'll remember your moves.", "The dark holds us both now."],
+  kell:    ["My hand opens beside yours.", "I'm ready when you are.", "Empty hands, one purpose."],
+  nira:    ["The rot spreads where you point.", "We hex as one now.", "Bound edge, bound fate."],
+  joran:   ["I steady when you call the line.", "Our aim runs true together.", "One sight, one shot. Always."],
+  tarn:    ["Stone settles with you near.", "I'll bear what you can't.", "Two stones, one wall. We hold."],
+  kiki:    ["I caught your scent in the fight!", "We move like a pack now!", "Same trail, same hunt — together!"],
+};
+const _bondDeepenFallback = ["We fight better together now.", "Our timing is sharper.", "We move as one."];
+function _bondDeepenLine(heroId, level) {
+  const bank = BOND_DEEPEN_BARKS[heroId] || _bondDeepenFallback;
+  return bank[Math.max(0, Math.min(bank.length - 1, (level || 1) - 1))];
+}
+
+// Show ONE bond-deepened cutscene beat, then call onDone.  ev = {
+// heroes:[ids], level, skillName }.  Tap the backdrop or Continue to
+// advance.  No-op during simulation.
+function _showBondDeepenedCutscene(s, ev, onDone) {
+  const done = (typeof onDone === 'function') ? onDone : (() => {});
+  if ((typeof __simulating !== 'undefined' && __simulating) || !ev || !Array.isArray(ev.heroes) || !ev.heroes.length) { done(); return; }
+  const heroes = ev.heroes;
+  const level = ev.level || 1;
+  const names = heroes.map(id => (CHARS[id] && CHARS[id].name) || id);
+  const eyebrow = level === 1 ? 'BOND FORGED' : level === 2 ? 'BOND DEEPENED' : 'BOND RESONANT';
+  // Two speakers carry the exchange — first two heroes for a trio.  Each
+  // gets a portrait + their level-appropriate line in a chat bubble.
+  const speakers = heroes.slice(0, 2);
+  const speakerRows = speakers.map(id => `
+    <div class="bond-cut-speaker">
+      <div class="bond-cut-portrait">${PORTRAITS[id] || ''}</div>
+      <div class="bond-cut-bubble"><div class="bond-cut-speaker-name">${(CHARS[id] && CHARS[id].name) || id}</div>${_bondDeepenLine(id, level)}</div>
+    </div>`).join('');
+  // Trio: show the third hero's portrait as a silent presence.
+  const thirdRow = heroes.length > 2
+    ? `<div class="bond-cut-third"><div class="bond-cut-portrait bond-cut-portrait-sm">${PORTRAITS[heroes[2]] || ''}</div><div class="bond-cut-third-name">${(CHARS[heroes[2]] && CHARS[heroes[2]].name) || heroes[2]} stands with them.</div></div>`
+    : '';
+  const $overlay = $('#overlay');
+  $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-sigil','overlay-cinematic','overlay-starter','overlay-boon','overlay-upgrade','overlay-resonance','overlay-resonance-trio','overlay-full','overlay-wanderer','overlay-wanderer-duel','overlay-forge','overlay-oath','overlay-swap');
+  $overlay.classList.add('overlay-event','overlay-bond-cut');
+  const $content = $('#overlay-content');
+  if ($content) $content.style.setProperty('max-width', 'min(520px, 94vw)', 'important');
+  $('#overlay-title').innerHTML = `<span class="bond-cut-eyebrow bond-cut-eyebrow-l${level}">${eyebrow} · LEVEL ${level}</span>`;
+  $('#overlay-body').innerHTML = `<span class="bond-cut-pair">${names.join(' & ')}</span>`;
+  const choicesEl = $('#overlay-choices');
+  choicesEl.className = '';
+  choicesEl.classList.remove('hidden');
+  // Clear inline flex styles a prior picker may have stamped on this
+  // shared element so the cutscene lays out predictably.
+  choicesEl.style.display = 'block';
+  choicesEl.style.flexDirection = '';
+  choicesEl.style.alignItems = '';
+  choicesEl.style.width = '';
+  choicesEl.innerHTML = `
+    <div class="bond-cut-stage">
+      ${speakerRows}
+      ${thirdRow}
+      ${ev.skillName ? `<div class="bond-cut-learned"><b>${ev.skillName}</b> — your synergy sharpens.</div>` : ''}
+    </div>
+  `;
+  const continueBtn = document.createElement('button');
+  continueBtn.className = 'reso-continue';
+  continueBtn.type = 'button';
+  continueBtn.textContent = 'Continue';
+  choicesEl.appendChild(continueBtn);
+  const finish = () => { hideOverlay(); resetOverlayBtn(); if ($content) $content.style.removeProperty('max-width'); done(); };
+  bindTapAsPointer(continueBtn, finish);
+  const btn = $('#overlay-btn');
+  if (btn) btn.classList.add('hidden');
+  $overlay.classList.remove('hidden');
+}
+
+// Play a queue of bond-deepened cutscenes in sequence, then call done.
+function _playBondCutscenes(s, queue, done) {
+  const fin = (typeof done === 'function') ? done : (() => {});
+  if ((typeof __simulating !== 'undefined' && __simulating) || !Array.isArray(queue) || !queue.length) { fin(); return; }
+  let i = 0;
+  const next = () => {
+    if (i >= queue.length) { fin(); return; }
+    const ev = queue[i++];
+    _showBondDeepenedCutscene(s, ev, () => setTimeout(next, 120));
+  };
+  next();
+}
+
+// Build a cutscene event from a committed section + its chosen variant.
+function _bondCutsceneEvent(sec, variant) {
+  const heroes = sec.kind === 'trio'
+    ? sec.choice.heroes.slice()
+    : [sec.choice.heroA, sec.choice.heroB];
+  return { heroes, level: sec.level || 1, skillName: variant && variant.name };
+}
+
 // Drains one pending choice per call; if more choices queued, the
 // onDone callback re-invokes showResonanceChoice so the player works
 // through all pending unlocks before combat resumes.
@@ -23788,6 +23902,10 @@ function _showBatchResonanceChoice(s, choices, cont) {
   s.run.chosenResonances = s.run.chosenResonances || {};
   const autoResolved = [];
   const pickerSections = [];
+  // Cutscene queue — every level-up (auto L1/L2 grants AND L3 picks)
+  // gets a post-combat acknowledgment beat.  Auto grants are pushed
+  // here now; L3 picks are appended when the player commits below.
+  const cutsceneQueue = [];
   sections.forEach(sec => {
     const isAuto = sec.variants.length === 1
       && sec.variants[0]._preview && sec.variants[0]._preview.autoSelect;
@@ -23802,6 +23920,7 @@ function _showBatchResonanceChoice(s, choices, cont) {
         ? sec.choice.heroes.map(id => `<b>${(CHARS[id] && CHARS[id].name) || id}</b>`).join(' + ')
         : `<b>${(CHARS[sec.choice.heroA] && CHARS[sec.choice.heroA].name) || sec.choice.heroA}</b> + <b>${(CHARS[sec.choice.heroB] && CHARS[sec.choice.heroB].name) || sec.choice.heroB}</b>`;
       log(`<i>${names} · Bond Level ${level} Resonance Skill — <b>${variant.name}</b>.</i>`);
+      cutsceneQueue.push(_bondCutsceneEvent(sec, variant));
       autoResolved.push({ baseKey, level });
     } else {
       pickerSections.push(sec);
@@ -23816,11 +23935,11 @@ function _showBatchResonanceChoice(s, choices, cont) {
       return !autoResolved.some(r => r.baseKey === baseKey && r.level === lvl);
     });
   }
-  // If every section auto-committed, skip the picker entirely.  The
-  // log lines above tell the player what just landed; no overlay
-  // needed.  Continue to whatever comes next.
+  // If every section auto-committed, skip the picker entirely — but
+  // still play the bond-deepened acknowledgment cutscenes for what just
+  // landed, then continue.
   if (!pickerSections.length) {
-    cont();
+    _playBondCutscenes(s, cutsceneQueue, cont);
     return;
   }
   // Shadow `sections` with the filtered list — the rest of the picker
@@ -24289,6 +24408,7 @@ function _showBatchResonanceChoice(s, choices, cont) {
         ? sec.choice.heroes.map(id => `<b>${(CHARS[id] && CHARS[id].name) || id}</b>`).join(' + ')
         : `<b>${(CHARS[sec.choice.heroA] && CHARS[sec.choice.heroA].name) || sec.choice.heroA}</b> + <b>${(CHARS[sec.choice.heroB] && CHARS[sec.choice.heroB].name) || sec.choice.heroB}</b>`;
       log(`<i>${names} · Bond Level ${level} Resonance Skill — <b>${variant.name}</b>.</i>`);
+      cutsceneQueue.push(_bondCutsceneEvent(sec, variant));
       resolved.push({ baseKey, level });
     });
     // Remove only the (pair, level) entries the player just resolved.
@@ -24301,7 +24421,9 @@ function _showBatchResonanceChoice(s, choices, cont) {
     }
     hideOverlay();
     resetOverlayBtn();
-    cont();
+    // Acknowledgment beats — auto L1/L2 grants (queued earlier) plus the
+    // L3 pick just committed, played in sequence before combat resumes.
+    _playBondCutscenes(s, cutsceneQueue, cont);
   });
   // Hide the shared overlay button — we use our own Continue inside
   // the choices region so it sits next to the picker UI.
