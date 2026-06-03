@@ -8653,6 +8653,292 @@ const COMBOS = {
     ],
   },
 
+  // --- Branwen + Kai · "Long Hunt" (mark + finish) ---
+  // Branwen+Kai already has Wakeling Volley (AoE); this is the focused
+  // execution line so the pair's two L3 options read offense-wide vs
+  // offense-single-target.
+  lh_killingline: {
+    id: 'lh_killingline', name: 'Killing Line', tier: 'duo', sigTier: true,
+    desc: 'Branwen marks, Kai finishes — front takes 20 (+8 if below 40% HP), +3 bleed.',
+    requires: [ { heroId: 'branwen', kind: 'sig' }, { heroId: 'kai', kind: 'sig' } ],
+    fn: (s) => {
+      const front = enemyBySlot(s, 'front') || aliveEnemies(s)[0];
+      if (!front || front.dead) return;
+      let dmg = 20;
+      if (front.maxHp && front.hp < front.maxHp * 0.4) dmg += 8;
+      s.currentActorId = 'kai'; s.currentTechElement = 'physical';
+      try { applyDmgToEnemy(s, front, dmg); if (!front.dead) front.bleed = (front.bleed || 0) + 3; }
+      finally { s.currentActorId = null; s.currentTechElement = null; }
+    },
+    cinematic: [
+      { kind: 'stage',       school: 'ranged',                            ms: 200 },
+      { kind: 'hero-big',    heroes: ['branwen','kai'], pose: 'rise',     ms: 400 },
+      { kind: 'banner',      text: 'KILLING LINE', size: 'md', subtitle: 'she names it · he ends it', ms: 380 },
+      { kind: 'punch',                                                    ms: 400 },
+      { kind: 'resolve' },
+      { kind: 'enemy-flash', targets: 'front', kind2: 'hit',             ms: 200 },
+      { kind: 'burst',       at: 'enemy-front', school: 'physical', count: 14, ms: 250 },
+    ],
+  },
+
+  // --- Kai + Mira · "Quiet Strike" (open + press) ---
+  // Pairs with Crossblade Dance; this is the assassination line.
+  qs_throatcut: {
+    id: 'qs_throatcut', name: 'Throat Cut', tier: 'duo', sigTier: true,
+    desc: 'Mira opens the throat, Kai presses — lowest foe takes 18, +4 bleed, STAGGER.',
+    requires: [ { heroId: 'kai', kind: 'sig' }, { heroId: 'mira', kind: 'sig' } ],
+    fn: (s) => {
+      const t = aliveEnemies(s).slice().sort((a, b) => a.hp - b.hp)[0];
+      if (!t || t.dead) return;
+      s.currentActorId = 'mira'; s.currentTechElement = 'stealth';
+      try {
+        applyDmgToEnemy(s, t, 18);
+        if (!t.dead) { t.bleed = (t.bleed || 0) + 4; t.staggered = true; t.staggerTurnsLeft = 2; spawnPopupId(t.id, 'STAGGERED', 'stagger', 'enemy'); }
+      } finally { s.currentActorId = null; s.currentTechElement = null; }
+    },
+    cinematic: [
+      { kind: 'stage',       school: 'stealth',                           ms: 220 },
+      { kind: 'hero-big',    heroes: ['kai','mira'], pose: 'whisper',     ms: 400 },
+      { kind: 'banner',      text: 'THROAT CUT', size: 'md', subtitle: 'one breath · then none', ms: 380 },
+      { kind: 'punch',                                                    ms: 400 },
+      { kind: 'resolve' },
+      { kind: 'enemy-flash', targets: 'lowest', kind2: 'hit',            ms: 200 },
+    ],
+  },
+
+  // --- Branwen + Cassia · "Old Rivalry" (each tries to outdo the other) ---
+  or_oneupmanship: {
+    id: 'or_oneupmanship', name: 'One-Upmanship', tier: 'duo', sigTier: true,
+    desc: 'They race to outdo each other — Cassia smashes front 14; Branwen volleys all for 5 + 1 bleed.',
+    requires: [ { heroId: 'branwen', kind: 'sig' }, { heroId: 'cassia', kind: 'sig' } ],
+    fn: (s) => {
+      const front = enemyBySlot(s, 'front') || aliveEnemies(s)[0];
+      if (front && !front.dead) {
+        s.currentActorId = 'cassia'; s.currentTechElement = 'physical';
+        try { applyDmgToEnemy(s, front, 14); } finally { s.currentActorId = null; s.currentTechElement = null; }
+      }
+      s.currentActorId = 'branwen'; s.currentTechElement = 'ranged';
+      try { aliveEnemies(s).forEach(e => { if (e.dead) return; applyDmgToEnemy(s, e, 5); if (!e.dead) e.bleed = (e.bleed || 0) + 1; }); }
+      finally { s.currentActorId = null; s.currentTechElement = null; }
+    },
+    cinematic: [
+      { kind: 'stage',       school: 'physical',                          ms: 200 },
+      { kind: 'hero-big',    heroes: ['branwen','cassia'], pose: 'rise',  ms: 400 },
+      { kind: 'banner',      text: 'ONE-UPMANSHIP', size: 'md', subtitle: 'anything you can do', ms: 380 },
+      { kind: 'punch',                                                    ms: 380 },
+      { kind: 'resolve' },
+      { kind: 'burst',       at: 'enemy-all', school: 'ranged', count: 10, ms: 240 },
+      { kind: 'enemy-flash', targets: 'all', kind2: 'hit',               ms: 180 },
+    ],
+  },
+
+  // --- Branwen + Elin · "Spirit Arrow" (ranged + holy) ---
+  sa_blessedvolley: {
+    id: 'sa_blessedvolley', name: 'Blessed Volley', tier: 'duo', sigTier: true,
+    desc: 'Branwen looses a blessed volley — all foes 7 + 1 bleed; party heals 4.',
+    requires: [ { heroId: 'branwen', kind: 'sig' }, { heroId: 'elin', kind: 'sig' } ],
+    fn: (s) => {
+      s.currentActorId = 'branwen'; s.currentTechElement = 'ranged';
+      try { aliveEnemies(s).forEach(e => { if (e.dead) return; applyDmgToEnemy(s, e, 7); if (!e.dead) e.bleed = (e.bleed || 0) + 1; }); }
+      finally { s.currentActorId = null; s.currentTechElement = null; }
+      aliveParty(s).forEach(c => { const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 4); if (c.hp > b) spawnPopupId(c.id, `+${c.hp - b}`, 'heal', 'party'); });
+    },
+    cinematic: [
+      { kind: 'stage',       school: 'holy',                              ms: 220 },
+      { kind: 'hero-big',    heroes: ['branwen','elin'], pose: 'rise',    ms: 400 },
+      { kind: 'banner',      text: 'BLESSED VOLLEY', size: 'md', subtitle: 'each arrow a prayer', ms: 380 },
+      { kind: 'punch',                                                    ms: 360 },
+      { kind: 'resolve' },
+      { kind: 'burst',       at: 'enemy-all', school: 'ranged', count: 10, ms: 240 },
+    ],
+  },
+  sa_guidinglight: {
+    id: 'sa_guidinglight', name: 'Guiding Light', tier: 'duo', sigTier: true,
+    desc: 'Elin lights the line — party heal 6 + cleanse + 1 atk; front +4 VULN.',
+    requires: [ { heroId: 'branwen', kind: 'sig' }, { heroId: 'elin', kind: 'sig' } ],
+    fn: (s) => {
+      aliveParty(s).forEach(c => {
+        const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 6);
+        if (c.hp > b) spawnPopupId(c.id, `+${c.hp - b}`, 'heal', 'party');
+        c.bleed = 0; c.dulled = 0;
+        if (!c.downed && !c.pendingEffects.some(e => e.source === 'guiding-light')) c.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'guiding-light' });
+      });
+      const front = enemyBySlot(s, 'front') || aliveEnemies(s)[0];
+      if (front && !front.dead) { front.vuln = (front.vuln || 0) + 4; spawnPopupId(front.id, '+4 VULN', 'stagger', 'enemy'); }
+    },
+    cinematic: [
+      { kind: 'stage',       school: 'holy',                              ms: 240 },
+      { kind: 'hero-big',    heroes: ['branwen','elin'], pose: 'guard',   ms: 420 },
+      { kind: 'banner',      text: 'GUIDING LIGHT', size: 'md', subtitle: 'see · and be seen home', ms: 380 },
+      { kind: 'punch',                                                    ms: 360 },
+      { kind: 'resolve' },
+      { kind: 'burst',       at: 'party-all', school: 'holy', count: 12, ms: 320 },
+    ],
+  },
+
+  // --- Branwen + Korin · "Wild Hunt" (ranged + physical) ---
+  wh_rundown: {
+    id: 'wh_rundown', name: 'Run Down', tier: 'duo', sigTier: true,
+    desc: 'Korin runs front down for 14; Branwen volleys all for 5 + 2 bleed.',
+    requires: [ { heroId: 'branwen', kind: 'sig' }, { heroId: 'korin', kind: 'sig' } ],
+    fn: (s) => {
+      const front = enemyBySlot(s, 'front') || aliveEnemies(s)[0];
+      if (front && !front.dead) {
+        s.currentActorId = 'korin'; s.currentTechElement = 'physical';
+        try { applyDmgToEnemy(s, front, 14); } finally { s.currentActorId = null; s.currentTechElement = null; }
+      }
+      s.currentActorId = 'branwen'; s.currentTechElement = 'ranged';
+      try { aliveEnemies(s).forEach(e => { if (e.dead) return; applyDmgToEnemy(s, e, 5); if (!e.dead) e.bleed = (e.bleed || 0) + 2; }); }
+      finally { s.currentActorId = null; s.currentTechElement = null; }
+    },
+    cinematic: [
+      { kind: 'stage',       school: 'physical',                          ms: 200 },
+      { kind: 'hero-big',    heroes: ['branwen','korin'], pose: 'rise',   ms: 400 },
+      { kind: 'banner',      text: 'RUN DOWN', size: 'md', subtitle: 'the hunt does not tire', ms: 380 },
+      { kind: 'punch',                                                    ms: 400 },
+      { kind: 'resolve' },
+      { kind: 'shake',       intensity: 2 },
+      { kind: 'enemy-flash', targets: 'all', kind2: 'hit',               ms: 200 },
+    ],
+  },
+  wh_packtactics: {
+    id: 'wh_packtactics', name: 'Pack Tactics', tier: 'duo', sigTier: true,
+    desc: 'Korin taunts + retaliate 3; Branwen marks lowest (+4 VULN, +2 bleed); party +2 armor.',
+    requires: [ { heroId: 'branwen', kind: 'sig' }, { heroId: 'korin', kind: 'sig' } ],
+    fn: (s) => {
+      const k = s.party.chars.korin;
+      if (k && !k.downed) { k.taunt = true; k.retaliate = (k.retaliate || 0) + 3; spawnPassivePopup('korin', 'WALL'); }
+      const low = aliveEnemies(s).slice().sort((a, b) => a.hp - b.hp)[0];
+      if (low && !low.dead) { low.vuln = (low.vuln || 0) + 4; low.bleed = (low.bleed || 0) + 2; spawnPopupId(low.id, '+4 VULN', 'stagger', 'enemy'); }
+      partyArmor(s, 2);
+    },
+    cinematic: [
+      { kind: 'stage',       school: 'physical',                          ms: 200 },
+      { kind: 'hero-big',    heroes: ['branwen','korin'], pose: 'guard',  ms: 420 },
+      { kind: 'banner',      text: 'PACK TACTICS', size: 'md', subtitle: 'corner it · together', ms: 380 },
+      { kind: 'punch',                                                    ms: 360 },
+      { kind: 'resolve' },
+    ],
+  },
+
+  // --- Branwen + Mira · "Sisters of Shadow" (ranged + stealth) ---
+  // Pairs with Twin Strike; this is the from-cover board line.
+  sos_blackvolley: {
+    id: 'sos_blackvolley', name: 'Black Volley', tier: 'duo', sigTier: true,
+    desc: 'From cover — all foes 5 + 2 bleed; lowest +3 VULN; party gains VEIL (first hit misses).',
+    requires: [ { heroId: 'branwen', kind: 'sig' }, { heroId: 'mira', kind: 'sig' } ],
+    fn: (s) => {
+      s.currentActorId = 'branwen'; s.currentTechElement = 'ranged';
+      try { aliveEnemies(s).forEach(e => { if (e.dead) return; applyDmgToEnemy(s, e, 5); if (!e.dead) e.bleed = (e.bleed || 0) + 2; }); }
+      finally { s.currentActorId = null; s.currentTechElement = null; }
+      const low = aliveEnemies(s).slice().sort((a, b) => a.hp - b.hp)[0];
+      if (low && !low.dead) { low.vuln = (low.vuln || 0) + 3; spawnPopupId(low.id, '+3 VULN', 'stagger', 'enemy'); }
+      aliveParty(s).forEach(c => { c._veil = true; spawnPopupId(c.id, 'VEIL', 'armor', 'party'); });
+    },
+    cinematic: [
+      { kind: 'stage',       school: 'stealth',                           ms: 220 },
+      { kind: 'hero-big',    heroes: ['branwen','mira'], pose: 'whisper', ms: 400 },
+      { kind: 'banner',      text: 'BLACK VOLLEY', size: 'md', subtitle: 'never where they look', ms: 380 },
+      { kind: 'punch',                                                    ms: 360 },
+      { kind: 'resolve' },
+      { kind: 'burst',       at: 'enemy-all', school: 'stealth', count: 10, ms: 240 },
+    ],
+  },
+
+  // --- Cassia + Mira · "Hollow Vow" (physical + stealth) ---
+  hv_bladeandshadow: {
+    id: 'hv_bladeandshadow', name: 'Blade and Shadow', tier: 'duo', sigTier: true,
+    desc: 'Cassia crushes front 12; Mira guts lowest 4 + 4 bleed + 3 VULN + STAGGER.',
+    requires: [ { heroId: 'cassia', kind: 'sig' }, { heroId: 'mira', kind: 'sig' } ],
+    fn: (s) => {
+      const front = enemyBySlot(s, 'front') || aliveEnemies(s)[0];
+      if (front && !front.dead) {
+        s.currentActorId = 'cassia'; s.currentTechElement = 'physical';
+        try { applyDmgToEnemy(s, front, 12); } finally { s.currentActorId = null; s.currentTechElement = null; }
+      }
+      const low = aliveEnemies(s).slice().sort((a, b) => a.hp - b.hp)[0];
+      if (low && !low.dead) {
+        s.currentActorId = 'mira'; s.currentTechElement = 'stealth';
+        try { applyDmgToEnemy(s, low, 4); } finally { s.currentActorId = null; s.currentTechElement = null; }
+        if (!low.dead) { low.bleed = (low.bleed || 0) + 4; low.vuln = (low.vuln || 0) + 3; low.staggered = true; low.staggerTurnsLeft = 2; spawnPopupId(low.id, 'STAGGERED', 'stagger', 'enemy'); }
+      }
+    },
+    cinematic: [
+      { kind: 'stage',       school: 'stealth',                           ms: 220 },
+      { kind: 'hero-big',    heroes: ['cassia','mira'], pose: 'rise',     ms: 400 },
+      { kind: 'banner',      text: 'BLADE AND SHADOW', size: 'md', subtitle: 'what the light forgot', ms: 380 },
+      { kind: 'punch',                                                    ms: 400 },
+      { kind: 'resolve' },
+      { kind: 'enemy-flash', targets: 'lowest', kind2: 'hit',            ms: 200 },
+    ],
+  },
+  hv_brokentrust: {
+    id: 'hv_brokentrust', name: 'Broken Trust', tier: 'duo', sigTier: true,
+    desc: 'A vow turned shield — all foes +4 VULN; party +6 armor + cleanse.',
+    requires: [ { heroId: 'cassia', kind: 'sig' }, { heroId: 'mira', kind: 'sig' } ],
+    fn: (s) => {
+      aliveEnemies(s).forEach(e => { if (e.dead) return; e.vuln = (e.vuln || 0) + 4; spawnPopupId(e.id, '+4 VULN', 'stagger', 'enemy'); });
+      partyArmor(s, 6);
+      aliveParty(s).forEach(c => { c.bleed = 0; c.dulled = 0; });
+    },
+    cinematic: [
+      { kind: 'stage',       school: 'physical',                          ms: 200 },
+      { kind: 'hero-big',    heroes: ['cassia','mira'], pose: 'guard',    ms: 420 },
+      { kind: 'banner',      text: 'BROKEN TRUST', size: 'md', subtitle: 'turned outward, at last', ms: 380 },
+      { kind: 'punch',                                                    ms: 360 },
+      { kind: 'resolve' },
+    ],
+  },
+
+  // --- Korin + Mira · "Crossed Oaths" (physical + stealth) ---
+  co_bloodoath: {
+    id: 'co_bloodoath', name: 'Blood Oath', tier: 'duo', sigTier: true,
+    desc: 'Korin batters front 13; Mira opens lowest for 8 + 3 bleed + 3 VULN.',
+    requires: [ { heroId: 'korin', kind: 'sig' }, { heroId: 'mira', kind: 'sig' } ],
+    fn: (s) => {
+      const front = enemyBySlot(s, 'front') || aliveEnemies(s)[0];
+      if (front && !front.dead) {
+        s.currentActorId = 'korin'; s.currentTechElement = 'physical';
+        try { applyDmgToEnemy(s, front, 13); } finally { s.currentActorId = null; s.currentTechElement = null; }
+      }
+      const low = aliveEnemies(s).slice().sort((a, b) => a.hp - b.hp)[0];
+      if (low && !low.dead) {
+        s.currentActorId = 'mira'; s.currentTechElement = 'stealth';
+        try { applyDmgToEnemy(s, low, 8); } finally { s.currentActorId = null; s.currentTechElement = null; }
+        if (!low.dead) { low.bleed = (low.bleed || 0) + 3; low.vuln = (low.vuln || 0) + 3; }
+      }
+    },
+    cinematic: [
+      { kind: 'stage',       school: 'physical',                          ms: 200 },
+      { kind: 'hero-big',    heroes: ['korin','mira'], pose: 'rise',      ms: 400 },
+      { kind: 'banner',      text: 'BLOOD OATH', size: 'md', subtitle: 'sworn in the same red', ms: 380 },
+      { kind: 'punch',                                                    ms: 400 },
+      { kind: 'resolve' },
+      { kind: 'shake',       intensity: 2 },
+      { kind: 'enemy-flash', targets: 'front', kind2: 'hit',             ms: 200 },
+    ],
+  },
+  co_severance: {
+    id: 'co_severance', name: 'Severance', tier: 'duo', sigTier: true,
+    desc: 'Oaths cut both ways — STAGGER front and lowest, +2 VULN each; Korin retaliate 3; party +2 armor.',
+    requires: [ { heroId: 'korin', kind: 'sig' }, { heroId: 'mira', kind: 'sig' } ],
+    fn: (s) => {
+      const front = enemyBySlot(s, 'front');
+      const low = aliveEnemies(s).slice().sort((a, b) => a.hp - b.hp)[0];
+      [front, low].forEach(e => { if (e && !e.dead) { e.staggered = true; e.staggerTurnsLeft = 2; e.vuln = (e.vuln || 0) + 2; spawnPopupId(e.id, 'STAGGERED', 'stagger', 'enemy'); } });
+      const k = s.party.chars.korin;
+      if (k && !k.downed) k.retaliate = (k.retaliate || 0) + 3;
+      partyArmor(s, 2);
+    },
+    cinematic: [
+      { kind: 'stage',       school: 'stealth',                           ms: 220 },
+      { kind: 'hero-big',    heroes: ['korin','mira'], pose: 'guard',     ms: 420 },
+      { kind: 'banner',      text: 'SEVERANCE', size: 'md', subtitle: 'every oath has an edge', ms: 380 },
+      { kind: 'punch',                                                    ms: 360 },
+      { kind: 'resolve' },
+    ],
+  },
+
   sister_mend: {
     id: 'sister_mend', name: "Sister's Mend", tier: 'duo',
     desc: 'Heal 8 all + cleanse · revive one downed ally at 4 HP (only in-fight revive)',
