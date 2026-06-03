@@ -23771,24 +23771,45 @@ function _showBondDeepenedCutscene(s, ev, onDone) {
   const level = ev.level || 1;
   const names = heroes.map(id => (CHARS[id] && CHARS[id].name) || id);
   const eyebrow = level === 1 ? 'BOND FORGED' : level === 2 ? 'BOND DEEPENED' : 'BOND RESONANT';
+  // L3 is the defining moment — gets the aura, flourish, and resonant
+  // stinger below; L1/L2 stay quiet.  Declared up here because the skill
+  // panel copy reads it.
+  const isClimax = level === 3;
   // Two speakers carry the exchange — first two heroes for a trio.  Each
-  // gets a portrait + their level-appropriate line in a chat bubble.
+  // gets a portrait + their level-appropriate line in a chat bubble.  The
+  // second sits mirrored (portrait on the right) via an explicit class so
+  // the L3 aura/flourish nodes don't shift nth-child targeting.
   const speakers = heroes.slice(0, 2);
-  const speakerRows = speakers.map(id => `
-    <div class="bond-cut-speaker">
-      <div class="bond-cut-portrait">${PORTRAITS[id] || ''}</div>
+  const speakerRowArr = speakers.map((id, idx) => `
+    <div class="bond-cut-speaker${idx === 1 ? ' bond-cut-speaker-right' : ''}">
+      <div class="bond-cut-portrait"><span class="bond-cut-portrait-ring"></span>${PORTRAITS[id] || ''}</div>
       <div class="bond-cut-bubble"><div class="bond-cut-speaker-name">${(CHARS[id] && CHARS[id].name) || id}</div>${_bondDeepenLine(id, level)}</div>
-    </div>`).join('');
+    </div>`);
+  // A bond thread between the two speakers — a thin line with a diamond
+  // node, the visual signature of the kizuna drawing tight.
+  const thread = '<div class="bond-cut-thread" aria-hidden="true"><span class="bond-cut-thread-node">◆</span></div>';
+  const exchangeInner = speakerRowArr.length === 2
+    ? `${speakerRowArr[0]}${thread}${speakerRowArr[1]}`
+    : speakerRowArr.join('');
   // Trio: show the third hero's portrait as a silent presence.
   const thirdRow = heroes.length > 2
     ? `<div class="bond-cut-third"><div class="bond-cut-portrait bond-cut-portrait-sm">${PORTRAITS[heroes[2]] || ''}</div><div class="bond-cut-third-name">${(CHARS[heroes[2]] && CHARS[heroes[2]].name) || heroes[2]} stands with them.</div></div>`
     : '';
+  // New-skill panel — names the Resonance Skill AND what it does, so the
+  // beat acknowledges a concrete gain.  When multiple levels landed at
+  // once (coalesced), the lower-level abilities are listed below.
+  const also = Array.isArray(ev.also) ? ev.also.filter(Boolean) : [];
+  const skillLabel = isClimax ? 'RESONANCE ABILITY' : 'NEW RESONANCE SKILL';
+  const skillPanel = ev.skillName ? `
+    <div class="bond-cut-skill">
+      <div class="bond-cut-skill-label">${skillLabel}</div>
+      <div class="bond-cut-skill-name">${ev.skillName}</div>
+      ${ev.skillDesc ? `<div class="bond-cut-skill-desc">${ev.skillDesc}</div>` : ''}
+      ${also.length ? `<div class="bond-cut-skill-also">Also learned: ${also.join(' · ')}</div>` : ''}
+    </div>` : '';
   const $overlay = $('#overlay');
   $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-sigil','overlay-cinematic','overlay-starter','overlay-boon','overlay-upgrade','overlay-resonance','overlay-resonance-trio','overlay-full','overlay-wanderer','overlay-wanderer-duel','overlay-forge','overlay-oath','overlay-swap','overlay-bond-cut-l3');
   $overlay.classList.add('overlay-event','overlay-bond-cut');
-  // L3 is the defining moment — give it real weight: a pulsing aura, a
-  // kizuna flourish, and the resonant combo stinger.  L1/L2 stay quiet.
-  const isClimax = level === 3;
   if (isClimax) $overlay.classList.add('overlay-bond-cut-l3');
   const $content = $('#overlay-content');
   if ($content) $content.style.setProperty('max-width', 'min(520px, 94vw)', 'important');
@@ -23806,9 +23827,9 @@ function _showBondDeepenedCutscene(s, ev, onDone) {
   choicesEl.innerHTML = `
     <div class="bond-cut-stage">
       ${isClimax ? '<div class="bond-cut-aura" aria-hidden="true"></div><div class="bond-cut-flourish">✦ kizuna ✦</div>' : ''}
-      ${speakerRows}
+      <div class="bond-cut-exchange">${exchangeInner}</div>
       ${thirdRow}
-      ${ev.skillName ? `<div class="bond-cut-learned"><b>${ev.skillName}</b> — ${isClimax ? 'their bond rings true.' : 'your synergy sharpens.'}</div>` : ''}
+      ${skillPanel}
     </div>
   `;
   const continueBtn = document.createElement('button');
@@ -23837,10 +23858,38 @@ function _showBondDeepenedCutscene(s, ev, onDone) {
   } catch (_) {}
 }
 
+// Coalesce a queue so each set of characters plays only ONE beat — the
+// highest level reached this batch.  Lower-level abilities still landed
+// in chosenResonances (granting is independent of the cutscene); their
+// names are folded into the kept beat's `also` list so the scene
+// acknowledges every ability gained.  Order follows first appearance.
+function _dedupeBondCutscenes(queue) {
+  const groups = new Map();
+  queue.forEach(ev => {
+    const key = (ev.heroes || []).slice().sort().join('+');
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(ev);
+  });
+  const seen = new Set();
+  const out = [];
+  queue.forEach(ev => {
+    const key = (ev.heroes || []).slice().sort().join('+');
+    if (seen.has(key)) return;
+    seen.add(key);
+    const group = groups.get(key).slice().sort((a, b) => (a.level || 1) - (b.level || 1));
+    const top = group[group.length - 1];
+    const also = group.slice(0, -1).map(e => e.skillName).filter(Boolean);
+    out.push(Object.assign({}, top, { also }));
+  });
+  return out;
+}
+
 // Play a queue of bond-deepened cutscenes in sequence, then call done.
-function _playBondCutscenes(s, queue, done) {
+// Same-character sets collapse to their highest-level beat.
+function _playBondCutscenes(s, rawQueue, done) {
   const fin = (typeof done === 'function') ? done : (() => {});
-  if ((typeof __simulating !== 'undefined' && __simulating) || !Array.isArray(queue) || !queue.length) { fin(); return; }
+  const queue = _dedupeBondCutscenes(Array.isArray(rawQueue) ? rawQueue : []);
+  if ((typeof __simulating !== 'undefined' && __simulating) || !queue.length) { fin(); return; }
   let i = 0;
   const next = () => {
     if (i >= queue.length) { fin(); return; }
@@ -23855,7 +23904,7 @@ function _bondCutsceneEvent(sec, variant) {
   const heroes = sec.kind === 'trio'
     ? sec.choice.heroes.slice()
     : [sec.choice.heroA, sec.choice.heroB];
-  return { heroes, level: sec.level || 1, skillName: variant && variant.name };
+  return { heroes, level: sec.level || 1, skillName: variant && variant.name, skillDesc: variant && variant.desc };
 }
 
 // Drains one pending choice per call; if more choices queued, the
