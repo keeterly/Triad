@@ -1583,6 +1583,24 @@ const PORTRAITS = {
 </svg>`,
 };
 
+// ----------------------------------------------------------------------------
+// CHARACTER ART OVERRIDE
+// Heroes with hand-drawn combat art (PNGs in /art) render that art instead of
+// the stand-in SVG bust.  Each PNG is wrapped in an <svg> with the same
+// 100x130 viewBox so every existing portrait rule keeps working unchanged —
+// sizing, idle-breathe animation, enemy scaleX(-1) mirror, shade/fallen
+// filters, circular avatar clipping, etc.  preserveAspectRatio="slice" on the
+// inner <image> cover-fits the ~3:4 art into the frame.  To fall back to the
+// SVG bust for any hero, just remove its id from ART_HEROES.
+// ----------------------------------------------------------------------------
+const ART_HEROES = ['cassia', 'elin', 'branwen', 'korin', 'ash', 'mira', 'kai', 'garron', 'lirien', 'vasha', 'kell'];
+ART_HEROES.forEach(id => {
+  PORTRAITS[id] = `
+<svg viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" preserveAspectRatio="xMidYMid meet">
+  <image href="art/${id}.png" xlink:href="art/${id}.png" x="0" y="0" width="100" height="130" preserveAspectRatio="xMidYMid slice"/>
+</svg>`;
+});
+
 // ============================================================================
 // CONSTANTS
 // ============================================================================
