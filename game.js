@@ -6672,6 +6672,18 @@ function generateMap(layerOverride) {
       }
     }
 
+    // Shop slot — ~30% chance in layers 2+ to convert an event (or a
+    // combat if no event) into the Ember Stall.  Skipped on boss / final-
+    // gate levels.  At most one per stretch.  Gives the pending-Embers
+    // economy an in-run sink and a variance release valve.
+    if (lvl >= 2 && lvl !== numLevels && lvl !== numLevels - 1) {
+      if (countAndTypes && Math.random() < 0.30 && countAndTypes.indexOf('shop') === -1) {
+        let si = countAndTypes.indexOf('event');
+        if (si === -1) si = countAndTypes.indexOf('combat');
+        if (si !== -1) countAndTypes[si] = 'shop';
+      }
+    }
+
     const ids = [];
     countAndTypes.forEach((type, i) => {
       const id = `n${idCounter++}`;
@@ -11486,6 +11498,9 @@ function newState(forcedStarter) {
       synergyCounts: (carried && carried.synergyCounts && typeof carried.synergyCounts === 'object') ? { ...carried.synergyCounts } : {},
       chosenResonances: (carried && carried.chosenResonances && typeof carried.chosenResonances === 'object') ? { ...carried.chosenResonances } : {},
       _ackedResonances: (carried && carried.ackedResonances && typeof carried.ackedResonances === 'object') ? { ...carried.ackedResonances } : {},
+      // One-time consumables bought at shops.  Plain ids; carried across
+      // layers so a stockpile survives the ascend (like sigils).
+      inventory: (carried && Array.isArray(carried.inventory)) ? carried.inventory.slice() : [],
     },
 
     // Solo start: starter goes in their HOME slot; the other two slots are empty.
@@ -17279,6 +17294,7 @@ function render() {
   renderQueue();
   renderTeamSpecial();
   renderFightButton();
+  try { renderPouch(); } catch (_) {}
   if (!__simulating && _flipBefore.size > 0) {
     // Compute stage scale so translate deltas (which are in viewport
     // pixels post-#stage-scale transform) map to local design-canvas
@@ -19839,8 +19855,9 @@ function showNodeTooltip(anchorEl, node) {
              : node.type === 'event'    ? (EVENTS[node.eventId]?.name || 'Strange Encounter')
              : node.type === 'wanderer' ? (wandererHero ? wandererHero.name : 'A figure on the path')
              : node.type === 'forge'    ? 'The Forge'
+             : node.type === 'shop'     ? 'The Ember Stall'
              : (enc?.name || node.type);
-  const enemyChips = (node.type === 'rest' || node.type === 'event' || node.type === 'wanderer' || node.type === 'forge')
+  const enemyChips = (node.type === 'rest' || node.type === 'event' || node.type === 'wanderer' || node.type === 'forge' || node.type === 'shop')
     ? ''
     : SLOTS.map(sl => {
         const eid = enc && enc.slots ? enc.slots[sl] : null;
@@ -19857,6 +19874,7 @@ function showNodeTooltip(anchorEl, node) {
     : node.type === 'event' ? 'Choice with consequences.'
     : node.type === 'wanderer' ? (wandererHero ? `${wandererHero.title || 'A hero on the road'}.  Trade, fight, or walk past.` : 'A meeting on the road.')
     : node.type === 'forge'    ? 'Burn a sigil to forge a hero a permanent boon.'
+    : node.type === 'shop'     ? 'Spend pending Embers on one-time consumables.'
     : node.type === 'boss' ? `${bossName}.  No escape but through.`
     : node.type === 'elite' ? `Tech upgrade.${sigilCat ? ` Themed: ${sigilCat}.` : ''}`
     : 'Affinity progression.';
@@ -20328,6 +20346,7 @@ const _AudioLegacy = (() => {
 
 function bindUI() {
   $('#btn-fight').addEventListener('click', () => onFight());
+  { const pb = document.getElementById('pouch-btn'); if (pb) pb.addEventListener('click', () => { try { showPouchOverlay(); } catch (_) {} }); }
   $('#btn-clear').addEventListener('click', () => clearQueue());
   // queue-slot click handlers are attached inside renderQueue (items are dynamic)
   // overlay-btn handler is reassigned by overlay flows (recruit/swap) so we use
@@ -21151,6 +21170,7 @@ function renderMap() {
         event:    '?',
         wanderer: '☉',
         forge:    '⚒',
+        shop:     '✦',
       })[node.type] || '⚔';
       const typeLabel = ({
         elite:    'ELITE',
@@ -21160,6 +21180,7 @@ function renderMap() {
         event:    'EVENT',
         wanderer: 'WANDER',
         forge:    'FORGE',
+        shop:     'STALL',
       })[node.type] || 'FIGHT';
       // Compact icon-node markup: a glyph in a tinted dot + a labelled
       // strap underneath so the player can read elite/event/regular at a
@@ -21182,6 +21203,7 @@ function renderMap() {
         if (node.type === 'event')       return showEventOverlay(node.eventId);
         if (node.type === 'wanderer')    return showWandererOverlay(node.wandererId);
         if (node.type === 'forge')       return showForgeOverlay();
+        if (node.type === 'shop')        return showShopOverlay();
         if (node.type === 'boss') {
           const layerInfo = LAYER_CONTENT[state.run.layer] || LAYER_CONTENT[1];
           const startBoss = () => showBossIntro({
@@ -22230,7 +22252,275 @@ function _organicColumnDrift(lvl) {
 }
 
 // ============================================================================
-// FORGE MAP NODE — burn a sigil for a permanent per-hero upgrade.  Three-
+// CONSUMABLES — one-time items bought at shops (spend pending-run Embers)
+// and used REACTIVELY mid-combat, Slay-the-Spire style.  Single-use,
+// instant (don't cost an action), consumed on use.  Stored as plain ids
+// in state.run.inventory so save/load needs no rehydration; effects are
+// looked up from this table at use time.
+//
+//   target: 'ally'  → player picks a living hero before the effect fires
+//           'enemy' → player picks a living enemy
+//           null    → no target, fires immediately
+//   combatOnly: true → only usable while enemies are alive (default)
+// ============================================================================
+const CONSUMABLES = {
+  salve:      { name: 'Salve',           glyph: '✚', price: 6,  target: 'ally',
+                desc: 'Heal a hero 12.',
+                use: (s, t) => { if (t && !t.downed) { const b = t.hp; t.hp = Math.min(t.maxHp, t.hp + 12); if (t.hp > b) spawnPopupId(t.id, `+${t.hp - b}`, 'heal', 'party'); } } },
+  cleanse:    { name: 'Cleanse Vial',     glyph: '❖', price: 5,  target: 'ally',
+                desc: 'Clear bleed, dull & vuln from a hero.',
+                use: (s, t) => { if (t && !t.downed) { t.bleed = 0; t.dulled = 0; t.vuln = 0; spawnPopupId(t.id, 'CLEANSED', 'heal', 'party'); } } },
+  tonic:      { name: 'Tonic',            glyph: '◈', price: 5,  target: null,
+                desc: '+2 Resolve now.',
+                use: (s) => { gainResolve(s, 2); } },
+  bulwark:    { name: 'Bulwark Draught',  glyph: '⛨', price: 7,  target: null,
+                desc: 'Party gains +4 armor.',
+                use: (s) => { partyArmor(s, 4); } },
+  firebomb:   { name: 'Firebomb',         glyph: '✸', price: 8,  target: null,
+                desc: '10 dmg to front foe, 6 splash to the rest.',
+                use: (s) => {
+                  const front = enemyBySlot(s, 'front') || aliveEnemies(s)[0];
+                  if (front && !front.dead) applyDmgToEnemy(s, front, 10);
+                  aliveEnemies(s).forEach(e => { if (!e.dead && e !== front) applyDmgToEnemy(s, e, 6); });
+                } },
+  adrenaline: { name: 'Adrenaline',       glyph: '⚡', price: 7,  target: null,
+                desc: '+1 ATB this turn.',
+                use: (s) => { s.bonusAtb = (s.bonusAtb || 0) + 1; } },
+};
+
+// Pending-run Embers are the shop's currency (the spend-now vs bank-for-
+// meta tension).  Returns true if the spend succeeded.
+function spendPendingEmbers(amt) {
+  const have = _getPendingEmbers();
+  if (amt > have) return false;
+  _setPendingEmbers(have - amt);
+  return true;
+}
+
+function _runInventory() {
+  if (!state.run) return [];
+  if (!Array.isArray(state.run.inventory)) state.run.inventory = [];
+  return state.run.inventory;
+}
+
+// ============================================================================
+// SHOP MAP NODE — spend pending-run Embers on one-time consumables.
+// Stocks 4 random consumables; buy any you can afford, then leave.
+// ============================================================================
+function showShopOverlay() {
+  // Lock the stock for this node so re-opening (if the player backs out)
+  // shows the same wares.  Keyed by node id on the run.
+  const nodeId = state.run.currentNodeId || 'shop';
+  state.run._shopStock = state.run._shopStock || {};
+  if (!Array.isArray(state.run._shopStock[nodeId])) {
+    const ids = _shuffle(Object.keys(CONSUMABLES)).slice(0, 4);
+    // Stock entries carry a per-item price jitter (±1) so two shops feel
+    // a little different, and a `sold` flag.
+    state.run._shopStock[nodeId] = ids.map(id => ({
+      id,
+      price: Math.max(2, CONSUMABLES[id].price + (Math.random() < 0.4 ? (Math.random() < 0.5 ? -1 : 1) : 0)),
+      sold: false,
+    }));
+  }
+  _renderShop(nodeId);
+}
+
+function _renderShop(nodeId) {
+  const stock = (state.run._shopStock && state.run._shopStock[nodeId]) || [];
+  const $overlay = $('#overlay');
+  $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-sigil','overlay-cinematic','overlay-starter','overlay-boon','overlay-upgrade','overlay-resonance','overlay-resonance-trio','overlay-bond-cut','overlay-bond-cut-l3','overlay-full','overlay-wanderer','overlay-wanderer-duel','overlay-forge','overlay-oath','overlay-swap');
+  $overlay.classList.add('overlay-event','overlay-shop');
+  const $content = $('#overlay-content');
+  if ($content) $content.style.setProperty('max-width', 'min(560px, 95vw)', 'important');
+  const purse = _getPendingEmbers();
+  const invCount = _runInventory().length;
+  $('#overlay-title').innerHTML = `<span class="shop-eyebrow">✦ THE EMBER STALL</span>`;
+  $('#overlay-body').innerHTML = `Spend <b>pending Embers</b> on one-time wares — but Embers you spend here won't bank toward your unlocks.  <span class="shop-purse">Purse: <b>${purse}</b> ◆ · Satchel: <b>${invCount}</b></span>`;
+  const choicesEl = $('#overlay-choices');
+  choicesEl.className = '';
+  choicesEl.classList.remove('hidden');
+  choicesEl.style.display = 'block';
+  choicesEl.style.flexDirection = '';
+  choicesEl.style.alignItems = '';
+  choicesEl.style.width = '';
+  const cards = stock.map((entry, idx) => {
+    const def = CONSUMABLES[entry.id];
+    if (!def) return '';
+    const afford = purse >= entry.price;
+    const cls = entry.sold ? 'shop-item shop-item-sold' : (afford ? 'shop-item' : 'shop-item shop-item-poor');
+    return `
+      <button class="${cls}" data-idx="${idx}" type="button" ${(entry.sold || !afford) ? 'disabled' : ''}>
+        <span class="shop-item-glyph">${def.glyph}</span>
+        <span class="shop-item-body">
+          <span class="shop-item-name">${def.name}</span>
+          <span class="shop-item-desc">${def.desc}</span>
+        </span>
+        <span class="shop-item-price">${entry.sold ? 'SOLD' : `${entry.price} ◆`}</span>
+      </button>`;
+  }).join('');
+  const leaveBtn = '<button class="reso-continue shop-leave" type="button">Leave the stall</button>';
+  choicesEl.innerHTML = `<div class="shop-grid">${cards}</div>${leaveBtn}`;
+  stock.forEach((entry, idx) => {
+    if (entry.sold || purse < entry.price) return;
+    const btn = choicesEl.querySelector(`.shop-item[data-idx="${idx}"]`);
+    if (!btn) return;
+    bindTapAsPointer(btn, () => {
+      if (entry.sold) return;
+      if (!spendPendingEmbers(entry.price)) { flashMsg('Not enough Embers.'); return; }
+      entry.sold = true;
+      _runInventory().push(entry.id);
+      try { if (Audio && typeof Audio.queue === 'function') Audio.queue(); } catch (_) {}
+      log(`<i>Bought <b>${CONSUMABLES[entry.id].name}</b> at the Ember Stall.</i>`);
+      _renderShop(nodeId); // re-render to update purse + sold state
+    });
+  });
+  const leave = choicesEl.querySelector('.shop-leave');
+  if (leave) bindTapAsPointer(leave, () => {
+    hideOverlay(); resetOverlayBtn();
+    if ($content) $content.style.removeProperty('max-width');
+    _completeNonCombatNode();
+  });
+  const obtn = $('#overlay-btn');
+  if (obtn) obtn.classList.add('hidden');
+  $overlay.classList.remove('hidden');
+}
+
+// ============================================================================
+// COMBAT POUCH — the in-fight satchel.  A HUD button shows the owned
+// consumables; tapping opens a use overlay.  Items fire instantly (no
+// ATB / turn cost) and only during the planning phase.
+// ============================================================================
+function renderPouch() {
+  const btn = document.getElementById('pouch-btn');
+  if (!btn) return;
+  const inv = (state && state.run && Array.isArray(state.run.inventory)) ? state.run.inventory : [];
+  const inCombat = !!(state && !state.over && state.enemies && state.enemies.chars && aliveEnemies(state).length > 0);
+  if (!inv.length || !inCombat) { btn.classList.add('hidden'); return; }
+  btn.classList.remove('hidden');
+  btn.innerHTML = `<span class="pouch-glyph">🜍</span><span class="pouch-count">${inv.length}</span>`;
+  btn.disabled = !!state.executing;
+}
+
+function showPouchOverlay() {
+  if (!state || state.over || state.executing) return;
+  const inv = _runInventory();
+  if (!inv.length) return;
+  const $overlay = $('#overlay');
+  $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-sigil','overlay-cinematic','overlay-starter','overlay-boon','overlay-upgrade','overlay-resonance','overlay-resonance-trio','overlay-bond-cut','overlay-bond-cut-l3','overlay-full','overlay-wanderer','overlay-wanderer-duel','overlay-forge','overlay-oath','overlay-swap','overlay-shop');
+  $overlay.classList.add('overlay-event','overlay-pouch');
+  const $content = $('#overlay-content');
+  if ($content) $content.style.setProperty('max-width', 'min(500px, 94vw)', 'important');
+  $('#overlay-title').innerHTML = `<span class="shop-eyebrow">🜍 SATCHEL</span>`;
+  $('#overlay-body').innerHTML = 'Use a one-time consumable — instant, no action cost.';
+  const choicesEl = $('#overlay-choices');
+  choicesEl.className = '';
+  choicesEl.classList.remove('hidden');
+  choicesEl.style.display = 'block';
+  choicesEl.style.flexDirection = '';
+  choicesEl.style.alignItems = '';
+  choicesEl.style.width = '';
+  // Count duplicates so the satchel reads "Salve ×2" rather than two rows.
+  const counts = {};
+  inv.forEach(id => { counts[id] = (counts[id] || 0) + 1; });
+  const rows = Object.keys(counts).map(id => {
+    const def = CONSUMABLES[id];
+    if (!def) return '';
+    return `
+      <button class="shop-item" data-id="${id}" type="button">
+        <span class="shop-item-glyph">${def.glyph}</span>
+        <span class="shop-item-body">
+          <span class="shop-item-name">${def.name}${counts[id] > 1 ? ` ×${counts[id]}` : ''}</span>
+          <span class="shop-item-desc">${def.desc}</span>
+        </span>
+        <span class="shop-item-price">USE</span>
+      </button>`;
+  }).join('');
+  const closeBtn = '<button class="reso-continue shop-leave" type="button">Close</button>';
+  choicesEl.innerHTML = `<div class="shop-grid">${rows}</div>${closeBtn}`;
+  Object.keys(counts).forEach(id => {
+    const btn = choicesEl.querySelector(`.shop-item[data-id="${id}"]`);
+    if (!btn) return;
+    bindTapAsPointer(btn, () => _beginConsumableUse(id));
+  });
+  const close = choicesEl.querySelector('.shop-leave');
+  if (close) bindTapAsPointer(close, () => { _closePouch(); });
+  const obtn = $('#overlay-btn');
+  if (obtn) obtn.classList.add('hidden');
+  $overlay.classList.remove('hidden');
+}
+
+function _closePouch() {
+  hideOverlay(); resetOverlayBtn();
+  const $content = $('#overlay-content');
+  if ($content) $content.style.removeProperty('max-width');
+  render();
+}
+
+// Resolve targeting, then apply + consume one instance of the consumable.
+function _beginConsumableUse(id) {
+  const def = CONSUMABLES[id];
+  if (!def) return;
+  if (def.target === 'ally') {
+    _renderConsumableTargets(id, 'ally');
+  } else if (def.target === 'enemy') {
+    _renderConsumableTargets(id, 'enemy');
+  } else {
+    _applyConsumable(id, null);
+  }
+}
+
+function _renderConsumableTargets(id, side) {
+  const def = CONSUMABLES[id];
+  const choicesEl = $('#overlay-choices');
+  $('#overlay-title').innerHTML = `<span class="shop-eyebrow">${def.glyph} ${def.name.toUpperCase()}</span>`;
+  $('#overlay-body').innerHTML = `Choose a ${side === 'ally' ? 'hero' : 'foe'}.`;
+  const targets = side === 'ally'
+    ? aliveParty(state)
+    : aliveEnemies(state);
+  const rows = targets.map(t => {
+    const name = side === 'ally' ? ((CHARS[t.id] && CHARS[t.id].name) || t.id) : ((ENEMIES[t.id] && ENEMIES[t.id].name) || t.id);
+    const hp = `${Math.max(0, Math.round(t.hp))}/${t.maxHp}`;
+    return `
+      <button class="shop-item" data-tid="${t.id}" type="button">
+        <span class="shop-item-glyph">${side === 'ally' ? (PORTRAITS[t.id] || '◈') : '☠'}</span>
+        <span class="shop-item-body">
+          <span class="shop-item-name">${name}</span>
+          <span class="shop-item-desc">HP ${hp}</span>
+        </span>
+        <span class="shop-item-price">PICK</span>
+      </button>`;
+  }).join('');
+  const backBtn = '<button class="reso-continue shop-leave" type="button">Back</button>';
+  choicesEl.innerHTML = `<div class="shop-grid">${rows}</div>${backBtn}`;
+  targets.forEach(t => {
+    const btn = choicesEl.querySelector(`.shop-item[data-tid="${t.id}"]`);
+    if (!btn) return;
+    bindTapAsPointer(btn, () => _applyConsumable(id, t));
+  });
+  const back = choicesEl.querySelector('.shop-leave');
+  if (back) bindTapAsPointer(back, () => showPouchOverlay());
+}
+
+function _applyConsumable(id, target) {
+  const def = CONSUMABLES[id];
+  if (!def) { _closePouch(); return; }
+  // Remove ONE instance from inventory.
+  const inv = _runInventory();
+  const at = inv.indexOf(id);
+  if (at >= 0) inv.splice(at, 1);
+  try { def.use(state, target); } catch (e) { try { console.warn('[Consumable] use failed', id, e); } catch (_) {} }
+  const tname = target ? ((CHARS[target.id] && CHARS[target.id].name) || (ENEMIES[target.id] && ENEMIES[target.id].name) || '') : '';
+  log(`<i>Used <b>${def.name}</b>${tname ? ` on <b>${tname}</b>` : ''}.</i>`);
+  try { if (Audio && typeof Audio.heal === 'function') Audio.heal(); } catch (_) {}
+  // Back to combat — re-render reflects the effect, and reopen the satchel
+  // if items remain so the player can chain uses.
+  hideOverlay(); resetOverlayBtn();
+  const $content = $('#overlay-content');
+  if ($content) $content.style.removeProperty('max-width');
+  render();
+}
+
+
 // step in-modal state machine that mirrors the wanderer modal pattern:
 // hero pick → sigil burn → confirm.  Reuses event-style choice rails so
 // the layout is mobile-friendly and consistent with the rest of the UI.
@@ -25602,7 +25892,10 @@ function saveCarriedParty(s) {
     // across layers too — otherwise the picker would re-fire the same
     // 'Banner Volley unlocked' celebration on every ascend.
     const ackedResonances = { ...((s.run && s.run._ackedResonances) || {}) };
-    const data = { chars, slots, sigils, lockedOutHeroes, sigilLevels, resolveMaxBonus, synergyCounts, chosenResonances, ackedResonances };
+    // Consumables carry across layers like sigils — a stockpile shouldn't
+    // reset on every boss-clear.
+    const inventory = ((s.run && s.run.inventory) || []).slice();
+    const data = { chars, slots, sigils, lockedOutHeroes, sigilLevels, resolveMaxBonus, synergyCounts, chosenResonances, ackedResonances, inventory };
     localStorage.setItem(CARRIED_KEY, JSON.stringify(data));
   } catch (_) {}
 }
