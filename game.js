@@ -23784,8 +23784,12 @@ function _showBondDeepenedCutscene(s, ev, onDone) {
     ? `<div class="bond-cut-third"><div class="bond-cut-portrait bond-cut-portrait-sm">${PORTRAITS[heroes[2]] || ''}</div><div class="bond-cut-third-name">${(CHARS[heroes[2]] && CHARS[heroes[2]].name) || heroes[2]} stands with them.</div></div>`
     : '';
   const $overlay = $('#overlay');
-  $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-sigil','overlay-cinematic','overlay-starter','overlay-boon','overlay-upgrade','overlay-resonance','overlay-resonance-trio','overlay-full','overlay-wanderer','overlay-wanderer-duel','overlay-forge','overlay-oath','overlay-swap');
+  $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-sigil','overlay-cinematic','overlay-starter','overlay-boon','overlay-upgrade','overlay-resonance','overlay-resonance-trio','overlay-full','overlay-wanderer','overlay-wanderer-duel','overlay-forge','overlay-oath','overlay-swap','overlay-bond-cut-l3');
   $overlay.classList.add('overlay-event','overlay-bond-cut');
+  // L3 is the defining moment — give it real weight: a pulsing aura, a
+  // kizuna flourish, and the resonant combo stinger.  L1/L2 stay quiet.
+  const isClimax = level === 3;
+  if (isClimax) $overlay.classList.add('overlay-bond-cut-l3');
   const $content = $('#overlay-content');
   if ($content) $content.style.setProperty('max-width', 'min(520px, 94vw)', 'important');
   $('#overlay-title').innerHTML = `<span class="bond-cut-eyebrow bond-cut-eyebrow-l${level}">${eyebrow} · LEVEL ${level}</span>`;
@@ -23801,9 +23805,10 @@ function _showBondDeepenedCutscene(s, ev, onDone) {
   choicesEl.style.width = '';
   choicesEl.innerHTML = `
     <div class="bond-cut-stage">
+      ${isClimax ? '<div class="bond-cut-aura" aria-hidden="true"></div><div class="bond-cut-flourish">✦ kizuna ✦</div>' : ''}
       ${speakerRows}
       ${thirdRow}
-      ${ev.skillName ? `<div class="bond-cut-learned"><b>${ev.skillName}</b> — your synergy sharpens.</div>` : ''}
+      ${ev.skillName ? `<div class="bond-cut-learned"><b>${ev.skillName}</b> — ${isClimax ? 'their bond rings true.' : 'your synergy sharpens.'}</div>` : ''}
     </div>
   `;
   const continueBtn = document.createElement('button');
@@ -23811,11 +23816,25 @@ function _showBondDeepenedCutscene(s, ev, onDone) {
   continueBtn.type = 'button';
   continueBtn.textContent = 'Continue';
   choicesEl.appendChild(continueBtn);
-  const finish = () => { hideOverlay(); resetOverlayBtn(); if ($content) $content.style.removeProperty('max-width'); done(); };
+  const finish = () => {
+    hideOverlay(); resetOverlayBtn();
+    $overlay.classList.remove('overlay-bond-cut', 'overlay-bond-cut-l3');
+    if ($content) $content.style.removeProperty('max-width');
+    done();
+  };
   bindTapAsPointer(continueBtn, finish);
   const btn = $('#overlay-btn');
   if (btn) btn.classList.add('hidden');
   $overlay.classList.remove('hidden');
+  // Sound — the resonant chord for the L3 climax, a soft chime for L1/L2.
+  try {
+    if (isClimax) {
+      if (Audio && typeof Audio.comboStinger === 'function') Audio.comboStinger('holy', true);
+      if (Audio && typeof Audio.comboImpact === 'function') setTimeout(() => Audio.comboImpact(), 120);
+    } else if (Audio && typeof Audio.heal === 'function') {
+      Audio.heal();
+    }
+  } catch (_) {}
 }
 
 // Play a queue of bond-deepened cutscenes in sequence, then call done.

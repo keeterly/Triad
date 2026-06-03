@@ -9869,6 +9869,75 @@ button.path-node { cursor: pointer; }
   border-top: 1px solid rgba(212,180,110,0.22);
 }
 
+/* ===== L3 climax flourish — the defining moment reads bigger ===== */
+.bond-cut-stage { position: relative; }
+.overlay-bond-cut-l3 .bond-cut-stage { z-index: 0; }
+/* Pulsing radial aura behind the speakers. */
+.bond-cut-aura {
+  position: absolute;
+  left: 50%; top: 46%;
+  width: 140%; height: 140%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: -1;
+  background: radial-gradient(ellipse at center, rgba(243,220,160,0.28) 0%, rgba(243,220,160,0.10) 32%, rgba(243,220,160,0) 62%);
+  animation: bondAuraPulse 2.4s ease-in-out infinite;
+}
+/* A slow sweeping ray layer for extra shimmer. */
+.bond-cut-aura::after {
+  content: '';
+  position: absolute; inset: -20%;
+  background: conic-gradient(from 0deg, rgba(243,220,160,0) 0deg, rgba(243,220,160,0.10) 40deg, rgba(243,220,160,0) 80deg, rgba(243,220,160,0) 180deg, rgba(243,220,160,0.10) 220deg, rgba(243,220,160,0) 260deg);
+  animation: bondRaySpin 9s linear infinite;
+  border-radius: 50%;
+}
+@keyframes bondAuraPulse {
+  0%, 100% { opacity: 0.55; transform: translate(-50%, -50%) scale(0.96); }
+  50%      { opacity: 1;    transform: translate(-50%, -50%) scale(1.06); }
+}
+@keyframes bondRaySpin { to { transform: rotate(360deg); } }
+.bond-cut-flourish {
+  text-align: center;
+  font-size: 12px;
+  letter-spacing: 0.42em;
+  text-transform: uppercase;
+  color: #f3dca0;
+  text-shadow: 0 0 14px rgba(243,220,160,0.6);
+  animation: bondFlourish 2.6s ease-in-out infinite;
+  margin-bottom: 2px;
+}
+@keyframes bondFlourish {
+  0%, 100% { opacity: 0.5; letter-spacing: 0.42em; }
+  50%      { opacity: 1;   letter-spacing: 0.5em; }
+}
+/* Climax eyebrow gets a steady glow pulse. */
+.overlay-bond-cut-l3 .bond-cut-eyebrow-l3 { animation: bondEyebrowGlow 2.2s ease-in-out infinite; }
+@keyframes bondEyebrowGlow {
+  0%, 100% { box-shadow: 0 0 12px rgba(243,220,160,0.22); }
+  50%      { box-shadow: 0 0 22px rgba(243,220,160,0.5); }
+}
+/* Speakers shimmer in, and their bubbles get a warmer gold frame. */
+.overlay-bond-cut-l3 .bond-cut-speaker { animation: bondSpeakerIn 0.5s ease-out both; }
+.overlay-bond-cut-l3 .bond-cut-speaker:nth-child(3) { animation-delay: 0.12s; }
+.overlay-bond-cut-l3 .bond-cut-bubble {
+  border-color: rgba(243,220,160,0.55);
+  box-shadow: 0 0 18px rgba(243,220,160,0.14);
+}
+.overlay-bond-cut-l3 .bond-cut-portrait { animation: bondPortraitGlow 2.4s ease-in-out infinite; }
+@keyframes bondSpeakerIn {
+  0%   { opacity: 0; transform: translateY(8px) scale(0.97); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes bondPortraitGlow {
+  0%, 100% { filter: drop-shadow(0 0 4px rgba(243,220,160,0.25)); }
+  50%      { filter: drop-shadow(0 0 12px rgba(243,220,160,0.55)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bond-cut-aura, .bond-cut-aura::after, .bond-cut-flourish,
+  .overlay-bond-cut-l3 .bond-cut-eyebrow-l3, .overlay-bond-cut-l3 .bond-cut-speaker,
+  .overlay-bond-cut-l3 .bond-cut-portrait { animation: none; }
+}
+
 .resonance-choice-ultimate {
   border: 1px solid rgba(212,180,110,0.55);
   box-shadow: 0 0 18px rgba(212,180,110,0.18), inset 0 0 24px rgba(212,180,110,0.06);
