@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Triad · Sprite Forge</title>
+<style>
+  :root{
+    --bg:#0b0b12; --panel:#14141f; --panel2:#1c1c2b; --ink:#e8e6df;
+    --muted:#9a96a8; --line:#2a2a3d; --gold:#c8a24a; --accent:#8a6cff;
+    --ok:#5fbf7a;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:
+      radial-gradient(120% 80% at 50% -10%, #1a1726 0%, var(--bg) 55%) fixed;
+    color:var(--ink); font:15px/1.5 "Iowan Old Style","Palatino Linotype",Georgia,serif;
+    -webkit-font-smoothing:antialiased; padding:32px 20px 80px;
+  }
+  .wrap{max-width:980px;margin:0 auto}
+  h1{font-size:30px;letter-spacing:.04em;margin:0 0 2px}
+  h1 .sub{color:var(--gold)}
+  .lede{color:var(--muted);margin:0 0 24px;max-width:62ch}
+  .lede code{color:var(--ink);background:#000;padding:1px 5px;border-radius:4px;font-size:12px}
+  .controls{
+    display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;
+    background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    padding:16px;margin-bottom:18px;
+  }
+  .field{display:flex;flex-direction:column;gap:5px}
+  label{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+  select,input[type=number]{
+    background:var(--panel2);color:var(--ink);border:1px solid var(--line);
+    border-radius:9px;padding:9px 11px;font:inherit;font-size:14px;min-width:150px;
+  }
+  input[type=number]{min-width:96px}
+  .seedrow{display:flex;gap:6px;align-items:center}
+  button{
+    font:inherit;cursor:pointer;border:1px solid var(--line);border-radius:9px;
+    background:var(--panel2);color:var(--ink);padding:9px 14px;transition:.12s;
+  }
+  button:hover{border-color:var(--gold);color:#fff}
+  button.primary{background:linear-gradient(180deg,#3a2e5e,#241c3d);border-color:var(--accent)}
+  button.dice{padding:9px 11px}
+  .cards{display:grid;grid-template-columns:1fr;gap:16px}
+  .card{
+    background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    overflow:hidden;
+  }
+  .card.hidden{display:none}
+  .card-head{
+    display:flex;align-items:baseline;gap:10px;justify-content:space-between;
+    padding:14px 16px;border-bottom:1px solid var(--line);background:var(--panel2);
+  }
+  .card-head .who{font-size:19px;letter-spacing:.03em}
+  .card-head .title{color:var(--muted);font-size:13px;font-style:italic}
+  .chip{
+    font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#0b0b12;
+    padding:3px 8px;border-radius:20px;font-family:system-ui,sans-serif;font-weight:700;
+  }
+  .card-body{display:grid;grid-template-columns:160px 1fr;gap:16px;padding:16px}
+  .frame{
+    width:160px;aspect-ratio:10/13;border:1px dashed var(--line);border-radius:10px;
+    background:
+      repeating-linear-gradient(45deg,#0e0e16,#0e0e16 8px,#101018 8px,#101018 16px);
+    display:flex;align-items:center;justify-content:center;text-align:center;
+    color:var(--muted);font-size:11px;padding:10px;position:relative;overflow:hidden;
+  }
+  .frame img{width:100%;height:100%;object-fit:contain;display:block}
+  .frame .drop{pointer-events:none}
+  .promptbox{display:flex;flex-direction:column;gap:10px;min-width:0}
+  textarea{
+    width:100%;min-height:150px;resize:vertical;background:#0a0a12;color:var(--ink);
+    border:1px solid var(--line);border-radius:10px;padding:12px;font:13px/1.55 ui-monospace,
+    "SF Mono",Menlo,Consolas,monospace;
+  }
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .row .grow{flex:1}
+  .copied{color:var(--ok);font-size:12px;font-family:system-ui,sans-serif}
+  .hint{color:var(--muted);font-size:12px;font-family:system-ui,sans-serif}
+  details{margin-top:18px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:0 16px}
+  summary{cursor:pointer;padding:14px 0;letter-spacing:.03em}
+  details pre{background:#0a0a12;border:1px solid var(--line);border-radius:10px;padding:12px;overflow:auto;font-size:12px;color:var(--muted);white-space:pre-wrap}
+  .foot{margin-top:26px;color:var(--muted);font-size:12px;font-family:system-ui,sans-serif}
+  .foot code{color:var(--ink)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Sprite <span class="sub">Forge</span></h1>
+  <p class="lede">
+    Builds <em>style-locked</em> prompts so every Triad character comes out of your
+    image model as one matched set. The style block is identical for everyone — only
+    the subject changes. <strong>Lock one seed</strong> and reuse it for the whole batch.
+    Finished art goes to <code>assets/sprites/&lt;id&gt;.png</code>; uncomment the
+    matching line in <code>game.js → SPRITES</code> to swap it in. Full spec in
+    <code>tools/STYLE.md</code>.
+  </p>
+
+  <div class="controls">
+    <div class="field">
+      <label for="model">Model preset</label>
+      <select id="model">
+        <option value="generic">Generic / DALL·E / SD</option>
+        <option value="mj">Midjourney (adds --ar / --style raw)</option>
+        <option value="sd">Stable Diffusion (adds negative)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="frame">Framing</label>
+      <select id="frame">
+        <option value="sheet">Full-body sheet — 2:3 (roster art)</option>
+        <option value="crop">In-game crop — 10:13 (card portrait)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="pose">Pose</label>
+      <select id="pose">
+        <option value="neutral">Neutral standing, weapon ready</option>
+        <option value="hero">Heroic, three-quarter turn</option>
+        <option value="guard">Guarded / combat stance</option>
+        <option value="calm">Calm, weapon lowered</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="seed">Seed (lock it)</label>
+      <div class="seedrow">
+        <input id="seed" type="number" value="73019" min="0" />
+        <button class="dice" id="reseed" title="New random seed">🎲</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>&nbsp;</label>
+      <button class="primary" id="copyAll">Copy all prompts</button>
+    </div>
+  </div>
+
+  <div class="cards" id="cards"></div>
+
+  <details>
+    <summary>Locked style anchor &amp; negative (what every card shares)</summary>
+    <pre id="anchorDump"></pre>
+  </details>
+
+  <p class="foot">
+    Consistency comes from three things: <code>same seed</code> +
+    <code>identical style block</code> + <code>one accent per character</code>.
+    Tweak the subject seeds in <code>tools/STYLE.md</code> and mirror them in this
+    file's <code>HEROES</code> array if you re-cast anyone.
+  </p>
+</div>
+
+<script>
+// ---- Locked style anchor (mirror of tools/STYLE.md) -----------------------
+const STYLE_ANCHOR =
+  "anime fantasy key-art illustration, dark-fantasy RPG character class portrait, " +
+  "full-body single character, painterly cel rendering with clean fine linework, " +
+  "high detail, weathered ornate gear, tattered layered cloaks and capes with frayed " +
+  "edges, tarnished gold and bronze filigree, muted earthen palette of deep blacks, " +
+  "charcoal, aged leather brown and bone white, ACCENT, soft top-left key light with " +
+  "gentle rim light, cinematic but flat illustration (not 3D render, not photo), " +
+  "readable silhouette, centered standing pose, aged parchment off-white textured " +
+  "background with soft vignette, subtle grounded contact shadow under the feet";
+
+const NEGATIVE =
+  "text, letters, watermark, signature, logo, UI, frame, border, multiple characters, " +
+  "cropped limbs, extra limbs, extra fingers, chibi, super-deformed, 3D render, " +
+  "photorealism, harsh studio photo, modern clothing, sci-fi tech, bright saturated " +
+  "cartoon, busy background, scenery, landscape";
+
+const POSES = {
+  neutral: "neutral standing pose, weapon ready, facing viewer",
+  hero:    "heroic confident pose, slight three-quarter turn, weapon presented",
+  guard:   "guarded combat stance, weight set, weapon raised",
+  calm:    "calm at-rest pose, weapon lowered, quiet expression",
+};
+
+const FRAMES = {
+  sheet: { txt: "full body head-to-toe, standing on the parchment, full character sheet framing", ar: "2:3" },
+  crop:  { txt: "head-and-shoulders bust crop, tight portrait framing for a character card", ar: "10:13" },
+};
+
+// ---- Roster (mirror of STYLE.md subject seeds) ----------------------------
+const HEROES = [
+  { id:"cassia", name:"Cassia", title:"Disgraced Knight", school:"physical",
+    accent:"steel-blue and crimson accent glow", chip:"#7f93b8",
+    subject:"a fallen-from-grace human knight, battered ornate full plate over a torn tabard, "+
+      "a long heavy greatsword held point-down, tattered crimson cape, tarnished gold trim, "+
+      "weary resolute expression" },
+  { id:"elin", name:"Elin", title:"Sister of the Veil", school:"holy",
+    accent:"warm gold candle-light accent with a faint violet undertone", chip:"#c8a24a",
+    subject:"a veiled cleric-sister in pale layered robes and a deep hood, faint golden halo "+
+      "motif behind her, holding a simple holy emblem, serene downcast eyes" },
+  { id:"branwen", name:"Branwen", title:"Outlaw Archer", school:"ranged",
+    accent:"mossy green and amber accent", chip:"#7fa05a",
+    subject:"a hooded outlaw archer, weathered green and brown leather and a frayed traveling "+
+      "cloak, a recurved longbow and a back quiver of arrows, sharp wary gaze" },
+  { id:"veyr", name:"Veyr", title:"The Last Witness", school:"stealth",
+    accent:"violet-black smoke accent", chip:"#9a7fd0",
+    subject:"a gaunt veiled wraith-like figure wrapped in dark tattered layered shrouds, face "+
+      "mostly hidden, hollow pale glowing eyes, thin curved dagger, wisps of violet-black "+
+      "smoke rising from the hem, haunted stillness" },
+];
+
+// ---- Prompt assembly ------------------------------------------------------
+function buildPrompt(hero){
+  const model = document.getElementById('model').value;
+  const frame = FRAMES[document.getElementById('frame').value];
+  const pose  = POSES[document.getElementById('pose').value];
+  const seed  = document.getElementById('seed').value.trim();
+
+  const style = STYLE_ANCHOR.replace("ACCENT", hero.accent);
+  let body = `${hero.subject}, ${pose}, ${frame.txt}. ${style}.`;
+
+  if (model === "mj"){
+    return `${body} --ar ${frame.ar} --style raw --seed ${seed} --no ${NEGATIVE.split(", ").slice(0,12).join(", ")}`;
+  }
+  if (model === "sd"){
+    return `${body}\n\nNegative prompt: ${NEGATIVE}\nSeed: ${seed}`;
+  }
+  // generic / DALL·E
+  return `${body}\n\nAvoid: ${NEGATIVE}.\n(Use seed ${seed} for every character in the set so the style matches.)`;
+}
+
+// ---- Render ---------------------------------------------------------------
+const cardsEl = document.getElementById('cards');
+
+function render(){
+  cardsEl.innerHTML = "";
+  HEROES.forEach(hero => {
+    const card = document.createElement('div');
+    card.className = "card";
+    card.innerHTML = `
+      <div class="card-head">
+        <div><span class="who">${hero.name}</span>
+          <span class="title">· ${hero.title}</span></div>
+        <span class="chip" style="background:${hero.chip}">${hero.school}</span>
+      </div>
+      <div class="card-body">
+        <label class="frame" title="Preview a generated image at the in-game card ratio">
+          <span class="drop">drop / pick<br>preview<br><small>(10:13)</small></span>
+          <input type="file" accept="image/*" hidden>
+        </label>
+        <div class="promptbox">
+          <textarea spellcheck="false">${buildPrompt(hero)}</textarea>
+          <div class="row">
+            <button data-act="copy">Copy prompt</button>
+            <span class="hint">→ <code>assets/sprites/${hero.id}.png</code></span>
+            <span class="grow"></span>
+            <span class="copied" hidden>copied ✓</span>
+          </div>
+        </div>
+      </div>`;
+
+    const ta = card.querySelector('textarea');
+    const copied = card.querySelector('.copied');
+    card.querySelector('[data-act=copy]').onclick = () => {
+      navigator.clipboard.writeText(ta.value).then(()=>{
+        copied.hidden = false; setTimeout(()=>copied.hidden=true, 1400);
+      });
+    };
+
+    // local-only image preview at the in-game portrait ratio
+    const frame = card.querySelector('.frame');
+    const file  = frame.querySelector('input[type=file]');
+    file.onchange = e => {
+      const f = e.target.files[0]; if(!f) return;
+      const url = URL.createObjectURL(f);
+      frame.innerHTML = `<img src="${url}" alt="${hero.id} preview">`;
+    };
+
+    cardsEl.appendChild(card);
+  });
+  document.getElementById('anchorDump').textContent =
+    "STYLE (ACCENT swapped per character):\n" + STYLE_ANCHOR + "\n\nNEGATIVE:\n" + NEGATIVE;
+}
+
+// ---- Wiring ---------------------------------------------------------------
+['model','frame','pose','seed'].forEach(id =>
+  document.getElementById(id).addEventListener('input', render));
+
+document.getElementById('reseed').onclick = () => {
+  document.getElementById('seed').value = Math.floor(Math.random()*1e6);
+  render();
+};
+
+document.getElementById('copyAll').onclick = () => {
+  const all = HEROES.map(h => `### ${h.name} — ${h.title}\n${buildPrompt(h)}`).join("\n\n");
+  navigator.clipboard.writeText(all).then(()=>{
+    const b = document.getElementById('copyAll');
+    const t = b.textContent; b.textContent = "Copied all ✓";
+    setTimeout(()=>b.textContent=t, 1400);
+  });
+};
+
+render();
+</script>
+</body>
+</html>

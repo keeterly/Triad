@@ -1584,6 +1584,31 @@ const PORTRAITS = {
 };
 
 // ============================================================================
+// SPRITE OVERRIDES  (AI-generated raster art)
+// ----------------------------------------------------------------------------
+// Drop a finished sprite into assets/sprites/ and register its path here to
+// override the hand-built inline-SVG portrait above for that actor id.  The
+// raster is wrapped so it fills whatever portrait container it lands in — cards,
+// toasts, cinematics, award backdrops — exactly like the SVG it replaces
+// (object-fit:contain mirrors the SVG's preserveAspectRatio="…meet").
+// Generate matching art with tools/sprite-forge.html so every character shares
+// one locked style.  Leave an entry commented out to keep the SVG fallback.
+// ============================================================================
+const SPRITES = {
+  // cassia:  'assets/sprites/cassia.png',
+  // elin:    'assets/sprites/elin.png',
+  // branwen: 'assets/sprites/branwen.png',
+  // veyr:    'assets/sprites/veyr.png',
+};
+Object.keys(SPRITES).forEach(id => {
+  const src = SPRITES[id];
+  if (!src) return;
+  PORTRAITS[id] =
+    `<img class="sprite-portrait" src="${src}" alt="${id} portrait" loading="lazy" ` +
+    `style="width:100%;height:100%;object-fit:contain;display:block;" />`;
+});
+
+// ============================================================================
 // CONSTANTS
 // ============================================================================
 
