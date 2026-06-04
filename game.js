@@ -25892,6 +25892,39 @@ function _grandfatherFeatures() {
 function isForgeUnlocked() { return isFeatureUnlocked('forge'); }
 function isOathUnlocked()  { return isFeatureUnlocked('oath'); }
 
+// Ceremonial reveal when a feature is purchased — a deliberate
+// game-defining unlock deserves a moment, not a silent button flip.
+// Mirrors confirmDestructive's body-appended modal so it layers over the
+// Embers / title screen regardless of their stacking context.
+function _showFeatureUnlockFlourish(id, onDone) {
+  const def = FEATURE_UNLOCKS[id];
+  const done = (typeof onDone === 'function') ? onDone : (() => {});
+  if (!def) { done(); return; }
+  const old = document.getElementById('feature-flourish');
+  if (old) old.remove();
+  const m = document.createElement('div');
+  m.id = 'feature-flourish';
+  m.innerHTML = `
+    <div class="ff-card">
+      <div class="ff-aura" aria-hidden="true"></div>
+      <div class="ff-eyebrow">✦ THE DEEP OPENS ✦</div>
+      <div class="ff-glyph">${def.glyph}</div>
+      <div class="ff-name">${def.name}</div>
+      <div class="ff-desc">${def.desc}</div>
+      <div class="ff-flavor">${def.flavor}</div>
+      <button type="button" class="ff-continue">Continue</button>
+    </div>`;
+  document.body.appendChild(m);
+  const close = () => { m.remove(); done(); };
+  const btn = m.querySelector('.ff-continue');
+  if (btn) btn.addEventListener('click', () => { try { if (Audio && Audio.ui) Audio.ui(); } catch (_) {} close(); });
+  m.addEventListener('click', (e) => { if (e.target === m) close(); });
+  try {
+    if (Audio && typeof Audio.comboStinger === 'function') Audio.comboStinger('holy', true);
+    if (Audio && typeof Audio.comboImpact === 'function') setTimeout(() => Audio.comboImpact(), 130);
+  } catch (_) {}
+}
+
 // Party persistence across layers — when ascending, snapshot the current
 // team so the next layer's run starts with the same heroes (HP / quirks /
 // upgrades intact).  consumeCarriedParty() reads + clears the snapshot.
@@ -27300,10 +27333,9 @@ function _renderEmbersScreen() {
       const id = btn.dataset.featureBuy;
       if (purchaseFeatureUnlock(id)) {
         Audio.ui();
-        const def = FEATURE_UNLOCKS[id];
-        try { log(`<i><b>${def.name} unlocked.</b>  ${def.desc}</i>`); } catch (_) {}
         _renderEmbersScreen();
         _refreshTitleIfShown();
+        _showFeatureUnlockFlourish(id);
       } else {
         btn.disabled = false;
       }

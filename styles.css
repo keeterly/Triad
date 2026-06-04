@@ -14478,6 +14478,96 @@ body.killing-blow::before {
 /* ===========================================================================
    CONFIRM MODAL
    =========================================================================== */
+/* Feature-unlock flourish — the ceremonial reveal when a game-defining
+   system is purchased.  Body-appended like #confirm-modal so it layers
+   over the Embers / title screen. */
+#feature-flourish {
+  position: fixed;
+  inset: 0;
+  z-index: 955;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(ellipse at center, rgba(20,12,4,0.88) 0%, rgba(0,0,0,0.97) 72%);
+  animation: cm-bg-in 0.25s ease-out;
+}
+#feature-flourish .ff-card {
+  position: relative;
+  max-width: 420px;
+  width: 88%;
+  padding: 30px 26px 22px;
+  text-align: center;
+  border: 1px solid rgba(243,220,160,0.55);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(30,24,14,0.96) 0%, rgba(12,9,6,0.98) 100%);
+  box-shadow: 0 0 40px rgba(243,220,160,0.22), inset 0 0 30px rgba(243,220,160,0.06);
+  animation: ff-card-in 0.4s cubic-bezier(0.2,0.9,0.3,1.2) both;
+  overflow: hidden;
+}
+@keyframes ff-card-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.ff-aura {
+  position: absolute;
+  left: 50%; top: 34%;
+  width: 150%; height: 150%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 0;
+  background: radial-gradient(ellipse at center, rgba(243,220,160,0.26) 0%, rgba(243,220,160,0.08) 36%, rgba(243,220,160,0) 64%);
+  animation: ff-aura-pulse 2.6s ease-in-out infinite;
+}
+@keyframes ff-aura-pulse {
+  0%, 100% { opacity: 0.6; transform: translate(-50%,-50%) scale(0.95); }
+  50%      { opacity: 1;   transform: translate(-50%,-50%) scale(1.08); }
+}
+.ff-card > * { position: relative; z-index: 1; }
+.ff-eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: #f3dca0;
+  text-shadow: 0 0 14px rgba(243,220,160,0.5);
+}
+.ff-glyph {
+  font-size: 56px;
+  line-height: 1;
+  color: #f3dca0;
+  margin: 14px 0 6px;
+  text-shadow: 0 0 22px rgba(243,220,160,0.6);
+  animation: ff-glyph-glow 2.6s ease-in-out infinite;
+}
+@keyframes ff-glyph-glow {
+  0%, 100% { text-shadow: 0 0 18px rgba(243,220,160,0.45); }
+  50%      { text-shadow: 0 0 30px rgba(243,220,160,0.8); }
+}
+.ff-name {
+  font-size: 24px;
+  letter-spacing: 0.04em;
+  color: #f6e6b8;
+  margin-bottom: 6px;
+}
+.ff-desc { font-size: 13px; color: #d9cfb8; margin-bottom: 8px; }
+.ff-flavor { font-size: 12px; font-style: italic; color: #a99e84; line-height: 1.5; margin-bottom: 18px; }
+.ff-continue {
+  padding: 9px 28px;
+  border: 1px solid rgba(243,220,160,0.6);
+  border-radius: 8px;
+  background: rgba(48,38,22,0.8);
+  color: #f3dca0;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s, transform 0.08s;
+}
+.ff-continue:hover { border-color: #f3dca0; background: rgba(64,50,28,0.9); }
+.ff-continue:active { transform: scale(0.97); }
+@media (prefers-reduced-motion: reduce) {
+  .ff-aura, .ff-glyph, .ff-card { animation: none; }
+}
+
 #confirm-modal {
   position: fixed;
   inset: 0;
