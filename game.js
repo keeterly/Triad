@@ -4583,8 +4583,17 @@ function _rollSurvivorQuirk(s, polarity) {
   const verb = polarity === 'positive' ? 'gains' : 'is afflicted with';
   log(`<i><b>${CHARS[target.id].name}</b> ${verb} <b>${q.name}</b>.</i>`);
 }
+// Offer pool — wraps availableSigils with a rarity down-weight so flagged
+// `rare` sigils (e.g. Crown of Quickening, a 5-ATB swing) only clear the
+// gate ~1 offer in 3.  Keeps them a scarce, aspirational pick instead of a
+// common grab.  Falls back to the full pool if the filter empties it.
+function _sigilOfferPool(s) {
+  const all = availableSigils(s);
+  const filtered = all.filter(sg => !sg.rare || Math.random() < 0.33);
+  return filtered.length ? filtered : all;
+}
 function _grantRandomSigil(s) {
-  const pool = availableSigils(s);
+  const pool = _sigilOfferPool(s);
   if (!pool.length) return;
   const sg = pool[Math.floor(Math.random() * pool.length)];
   bindSigil(s, sg.id);
@@ -7225,8 +7234,8 @@ function availableUpgrades(s) {
 //   defense  — staying alive (armor, healing)
 //   resource — economy (ATB, Resolve, Team Special cost)
 const SIGILS = {
-  quickening: { id: 'quickening', name: 'Crown of Quickening', icon: '⚡', category: 'resource', desc: '+1 ATB per turn (5 total instead of 4).' },
-  pact:       { id: 'pact',       name: 'Sigil of the Pact',   icon: '✦', category: 'resource', desc: 'Gain +1 Resolve per turn for each active bond between party members.' },
+  quickening: { id: 'quickening', name: 'Crown of Quickening', icon: '⚡', category: 'resource', rare: true, desc: '+1 ATB per turn (5 total instead of 4).' },
+  pact:       { id: 'pact',       name: 'Sigil of the Pact',   icon: '✦', category: 'resource', desc: 'Gain +1 Resolve per turn while any bond is active.' },
   wrath:      { id: 'wrath',      name: 'Ember of Wrath',      icon: '✕', category: 'combat',   desc: 'Vulnerable enemies take an extra +2 damage from all attacks.' },
   mending:    { id: 'mending',    name: 'Sigil of Mending',    icon: '✚', category: 'defense',  desc: 'At the end of your turn, your lowest-HP ally heals 2.' },
   bloodborne: { id: 'bloodborne', name: 'Bloodborne Sigil',    icon: '✤', category: 'combat',   desc: 'Bleed ticks deal +1 each turn.' },
@@ -7241,7 +7250,7 @@ const SIGILS = {
   aegis:      { id: 'aegis',      name: 'Sigil of Aegis',      icon: '◈', category: 'defense',  desc: 'Each incoming hit deals 1 less HP damage after armor.' },
   mercy:      { id: 'mercy',      name: 'Crown of Mercy',      icon: '✚', category: 'defense',  desc: 'When any ally heals, every other ally heals +1.' },
   vigil:      { id: 'vigil',      name: 'Vow of Vigil',        icon: '↻', category: 'defense',  desc: 'Retaliate strikes deal +2 damage.' },
-  stillness:  { id: 'stillness',  name: 'Mantra of Stillness', icon: '★', category: 'resource', desc: 'Specials cost 0 Resolve (down from 1).' },
+  stillness:  { id: 'stillness',  name: 'Mantra of Stillness', icon: '★', category: 'resource', desc: 'Specials cost 0 Resolve (down from 2).' },
   memory:     { id: 'memory',     name: 'Coin of Memory',      icon: '◆', category: 'resource', desc: 'Carry up to 4 Resolve between fights (instead of 3).' },
   vigor:      { id: 'vigor',      name: 'Pact of Vigor',       icon: '⚡', category: 'resource', desc: 'Killing an enemy refunds 1 ATB this turn.' },
   vowiron:    { id: 'vowiron',    name: 'Vow of Iron',         icon: '⌖', category: 'defense',  desc: 'The Front slot starts each fight with Taunt for the first turn.' },
@@ -7269,6 +7278,7 @@ const SIGIL_TIERS = {
   // --- newly tiered: previously flat sigils that scale naturally with
   // their printed magnitude.  Picked the ones whose effects compose
   // safely (no per-turn / per-bond multiplier blowups). ---
+  pact:       [1, 2, 3],   // flat Resolve/turn while any bond is active
   echo:       [1, 2, 3],   // Team Special resolve discount (floor 0)
   cinders:    [1, 2, 3],   // bleed amount applied to surviving enemies on kill
   vigor:      [1, 2, 2],   // ATB refunded per kill (capped to keep stagger chains sane)
@@ -15488,12 +15498,16 @@ function startTurn(s) {
     const armorPer = oathValue(c, 'exile', 'armorPerTurn');
     if (armorPer > 0) c.armor = (c.armor || 0) + armorPer;
   });
-  // Sigil of the Pact — +1 Resolve per active bond
+  // Sigil of the Pact — flat +1 Resolve/turn (scaling with tier) while the
+  // party holds ANY active bond.  Previously +1 PER bond, which flooded
+  // Resolve in a full party and let Resonances fire every turn, defeating
+  // the flat-premium scarcity.
   if (hasSigil(s, 'pact')) {
-    const bondCount = getAdjacencyPairs(s).filter(p => p.synergy.type === 'bond').length;
-    if (bondCount > 0) {
-      gainResolve(s, bondCount);
-      log(`<i>Sigil of the Pact stirs — +${bondCount} Resolve.</i>`);
+    const hasBond = getAdjacencyPairs(s).some(p => p.synergy.type === 'bond');
+    if (hasBond) {
+      const amt = sigilBonus(s, 'pact');
+      gainResolve(s, amt);
+      log(`<i>Sigil of the Pact stirs — +${amt} Resolve.</i>`);
     }
   }
   // Squad Sigil — Old Edge (Kai + Cassia + Elin together) — extra Resolve drip
@@ -23765,7 +23779,7 @@ function offerUpgradeOrPath() {
 
 // Direct sigil offer — invoked from rest nodes and events, not from combat.
 function offerSigilFromNode(onDone) {
-  let pool = availableSigils(state);
+  let pool = _sigilOfferPool(state);
   if (pool.length === 0) { onDone && onDone(); return; }
   const count = 3;
   const shuffled = pool.slice().sort(() => Math.random() - 0.5);
@@ -23782,7 +23796,7 @@ function offerWandererSigil(wandererId, onDone) {
   const w = WANDERERS[wandererId];
   const heroDef = w && w.kind === 'hero' && CHARS[w.heroId];
   const heroName = heroDef ? heroDef.name : 'They';
-  const pool = availableSigils(state);
+  const pool = _sigilOfferPool(state);
   if (!pool.length) { cont(); return; }
   const offers = pool.slice().sort(() => Math.random() - 0.5).slice(0, Math.min(3, pool.length));
   showSigilOverlay(offers, cont, {
