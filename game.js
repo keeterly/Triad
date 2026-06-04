@@ -1643,13 +1643,24 @@ const RESOLVE_MAX = 4;      // Raised from 3 in lockstep with ATB_MAX: queuing
                            // cap of 3.  Also gives the new flat-premium
                            // Resonance economy room to bank toward a climax.
 const RESOLVE_DRIP = 1;     // Resolve regenerated automatically each turn
-// Encounter-difficulty compensation for the 3→4 ATB/Resolve player turn
-// (the party is now ~25-33% stronger).  Single knobs that scale enemy HP
-// and incoming enemy damage so fights stay tense without re-tuning every
-// encounter by hand.  Tune these two numbers.
-const ENEMY_HP_SCALE  = 1.25;  // +25% enemy max HP
-const ENEMY_DMG_SCALE = 1.10;  // +10% incoming enemy damage
-function _scaleEnemyDmg(amt) { return Math.round((amt || 0) * ENEMY_DMG_SCALE); }
+// Encounter-difficulty compensation for the 3→4 ATB/Resolve player turn.
+// The extra ATB mostly pays off with a FULL party (more heroes to spend
+// actions across) — a solo hero gains almost nothing from it, so applying
+// the full enemy buff to a solo early-game run makes it brutally hard.
+// So the buff scales with party size: a solo hero faces baseline (no
+// buff), a full trio faces the full buff.  Tune the two ceilings.
+const ENEMY_HP_SCALE  = 1.25;  // +25% enemy max HP at a FULL party
+const ENEMY_DMG_SCALE = 1.10;  // +10% incoming enemy damage at a FULL party
+// 1 hero → 0 (baseline difficulty), 2 → 0.5, 3+ → 1 (full compensation).
+function _enemyScaleFactor(s) {
+  const n = (s && s.party && s.party.chars) ? Object.keys(s.party.chars).length : 3;
+  return Math.max(0, Math.min(1, (n - 1) / 2));
+}
+function _enemyHpScale(s)  { return 1 + (ENEMY_HP_SCALE  - 1) * _enemyScaleFactor(s); }
+function _scaleEnemyDmg(amt) {
+  const scale = 1 + (ENEMY_DMG_SCALE - 1) * _enemyScaleFactor(typeof state !== 'undefined' ? state : null);
+  return Math.round((amt || 0) * scale);
+}
 const KILL_RESOLVE = 1;     // Resolve gained per enemy killed (tuned down so Team Special is a real save-up)
 
 // stagger / chain
@@ -11880,8 +11891,9 @@ function newEnemyState(id) {
   const bonus = (typeof state !== 'undefined' && state && state.run && LAYER_CONTENT[state.run.layer])
     ? (def.boss ? LAYER_CONTENT[state.run.layer].hpBonus * 4 : LAYER_CONTENT[state.run.layer].hpBonus)
     : 0;
-  // Global enemy-HP scale compensates for the stronger 4-ATB player turn.
-  const mhp = Math.round((def.maxHp + bonus) * ENEMY_HP_SCALE);
+  // Enemy-HP scale compensates for the stronger 4-ATB player turn, but
+  // only in proportion to party size (a solo hero faces baseline HP).
+  const mhp = Math.round((def.maxHp + bonus) * _enemyHpScale(typeof state !== 'undefined' ? state : null));
   return {
     id, hp: mhp, maxHp: mhp,
     armor: 0, bleed: 0, vuln: 0, dulled: 0,
