@@ -23151,6 +23151,7 @@ function hideOverlay() {
                       'overlay-wanderer', 'overlay-forge',
                       'overlay-shop', 'overlay-pouch',
                       'overlay-bond-cut', 'overlay-bond-cut-l3',
+                      'overlay-bond-scene', 'overlay-bond-climax',
                       'overlay-dismissable');
   // Screens that use a custom in-content button (picker / cutscene / shop /
   // pouch) hide the shared #overlay-btn.  Restore it on close so a later
@@ -24068,102 +24069,66 @@ function _bondDeepenLine(heroId, level) {
   return bank[Math.max(0, Math.min(bank.length - 1, (level || 1) - 1))];
 }
 
-// Show ONE bond-deepened cutscene beat, then call onDone.  ev = {
-// heroes:[ids], level, skillName }.  Tap the backdrop or Continue to
-// advance.  No-op during simulation.
+// Show ONE bond-deepened beat, then call onDone.  Renders through the
+// SAME cinematic VN stage as every other narrative scene (showVignette):
+// portraits standing at the bottom, a dialogue rail, full-bleed framing —
+// so a bond deepening reads as a story beat, not a UI form.  ev = {
+// heroes:[ids], level, skillName, skillDesc, also:[names] }.  No-op in sim.
 function _showBondDeepenedCutscene(s, ev, onDone) {
   const done = (typeof onDone === 'function') ? onDone : (() => {});
   if ((typeof __simulating !== 'undefined' && __simulating) || !ev || !Array.isArray(ev.heroes) || !ev.heroes.length) { done(); return; }
   const heroes = ev.heroes;
   const level = ev.level || 1;
-  const names = heroes.map(id => (CHARS[id] && CHARS[id].name) || id);
-  const eyebrow = level === 1 ? 'BOND FORGED' : level === 2 ? 'BOND DEEPENED' : 'BOND RESONANT';
-  // L3 is the defining moment — gets the aura, flourish, and resonant
-  // stinger below; L1/L2 stay quiet.  Declared up here because the skill
-  // panel copy reads it.
   const isClimax = level === 3;
-  // Two speakers carry the exchange — first two heroes for a trio.  Each
-  // gets a portrait + their level-appropriate line in a chat bubble.  The
-  // second sits mirrored (portrait on the right) via an explicit class so
-  // the L3 aura/flourish nodes don't shift nth-child targeting.
-  const speakers = heroes.slice(0, 2);
-  const speakerRowArr = speakers.map((id, idx) => `
-    <div class="bond-cut-speaker${idx === 1 ? ' bond-cut-speaker-right' : ''}">
-      <div class="bond-cut-portrait"><span class="bond-cut-portrait-ring"></span>${PORTRAITS[id] || ''}</div>
-      <div class="bond-cut-bubble"><div class="bond-cut-speaker-name">${(CHARS[id] && CHARS[id].name) || id}</div>${_bondDeepenLine(id, level)}</div>
-    </div>`);
-  // A bond thread between the two speakers — a thin line with a diamond
-  // node, the visual signature of the kizuna drawing tight.
-  const thread = '<div class="bond-cut-thread" aria-hidden="true"><span class="bond-cut-thread-node">◆</span></div>';
-  const exchangeInner = speakerRowArr.length === 2
-    ? `${speakerRowArr[0]}${thread}${speakerRowArr[1]}`
-    : speakerRowArr.join('');
-  // Trio: show the third hero's portrait as a silent presence.
-  const thirdRow = heroes.length > 2
-    ? `<div class="bond-cut-third"><div class="bond-cut-portrait bond-cut-portrait-sm">${PORTRAITS[heroes[2]] || ''}</div><div class="bond-cut-third-name">${(CHARS[heroes[2]] && CHARS[heroes[2]].name) || heroes[2]} stands with them.</div></div>`
-    : '';
-  // New-skill panel — names the Resonance Skill AND what it does, so the
-  // beat acknowledges a concrete gain.  When multiple levels landed at
-  // once (coalesced), the lower-level abilities are listed below.
+  const names = heroes.map(id => (CHARS[id] && CHARS[id].name) || id);
+  const eyebrow = level === 1 ? 'Bond Forged' : level === 2 ? 'Bond Deepened' : 'Bond Resonant';
   const also = Array.isArray(ev.also) ? ev.also.filter(Boolean) : [];
-  const skillLabel = isClimax ? 'RESONANCE ABILITY' : 'NEW RESONANCE SKILL';
-  // Render the panel if there's a named skill OR any coalesced abilities,
-  // so a nameless top beat never silently swallows the 'Also learned' list.
-  const skillPanel = (ev.skillName || also.length) ? `
-    <div class="bond-cut-skill">
-      ${ev.skillName ? `<div class="bond-cut-skill-label">${skillLabel}</div><div class="bond-cut-skill-name">${ev.skillName}</div>` : ''}
-      ${ev.skillDesc ? `<div class="bond-cut-skill-desc">${ev.skillDesc}</div>` : ''}
-      ${also.length ? `<div class="bond-cut-skill-also">Also learned: ${also.join(' · ')}</div>` : ''}
-    </div>` : '';
-  const $overlay = $('#overlay');
-  $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-sigil','overlay-cinematic','overlay-starter','overlay-boon','overlay-upgrade','overlay-resonance','overlay-resonance-trio','overlay-full','overlay-wanderer','overlay-wanderer-duel','overlay-forge','overlay-oath','overlay-swap','overlay-bond-cut-l3');
-  $overlay.classList.add('overlay-event','overlay-bond-cut');
-  if (isClimax) $overlay.classList.add('overlay-bond-cut-l3');
-  const $content = $('#overlay-content');
-  if ($content) $content.style.setProperty('max-width', 'min(520px, 94vw)', 'important');
-  $('#overlay-title').innerHTML = `<span class="bond-cut-eyebrow bond-cut-eyebrow-l${level}">${eyebrow} · LEVEL ${level}</span>`;
-  $('#overlay-body').innerHTML = `<span class="bond-cut-pair">${names.join(' & ')}</span>`;
-  const choicesEl = $('#overlay-choices');
-  choicesEl.className = '';
-  choicesEl.classList.remove('hidden');
-  // Clear inline flex styles a prior picker may have stamped on this
-  // shared element so the cutscene lays out predictably.
-  choicesEl.style.display = 'block';
-  choicesEl.style.flexDirection = '';
-  choicesEl.style.alignItems = '';
-  choicesEl.style.width = '';
-  choicesEl.innerHTML = `
-    <div class="bond-cut-stage">
-      ${isClimax ? '<div class="bond-cut-aura" aria-hidden="true"></div><div class="bond-cut-flourish">✦ kizuna ✦</div>' : ''}
-      <div class="bond-cut-exchange">${exchangeInner}</div>
-      ${thirdRow}
-      ${skillPanel}
-    </div>
-  `;
-  const continueBtn = document.createElement('button');
-  continueBtn.className = 'reso-continue';
-  continueBtn.type = 'button';
-  continueBtn.textContent = 'Continue';
-  choicesEl.appendChild(continueBtn);
-  const finish = () => {
-    hideOverlay(); resetOverlayBtn();
-    $overlay.classList.remove('overlay-bond-cut', 'overlay-bond-cut-l3');
-    if ($content) $content.style.removeProperty('max-width');
-    done();
+
+  // Build the beat as a one-choice vignette.
+  const lines = [];
+  lines.push({ who: null, text: _bondSceneOpener(heroes, level) });
+  heroes.forEach(id => lines.push({ who: id, text: _bondDeepenLine(id, level) }));
+  // Closing narration — names the skill + what it does, woven as prose
+  // rather than boxed in a panel.
+  let closing;
+  const tail = isClimax ? 'Their bond rings true.' : 'Their synergy sharpens.';
+  closing = ev.skillName ? `<b>${ev.skillName}</b> — ${tail}` : tail;
+  if (ev.skillDesc) closing += ` <span class="bond-scene-fx">${ev.skillDesc}</span>`;
+  if (also.length) closing += ` <span class="bond-scene-also">Also learned: ${also.join(' · ')}.</span>`;
+  lines.push({ who: null, text: closing });
+
+  const vig = {
+    title: `${eyebrow} — ${names.join(' & ')}`,
+    speaker: heroes[0],
+    lines,
+    choices: [{ label: 'Continue', tag: '', resolve: () => {} }],
   };
-  bindTapAsPointer(continueBtn, finish);
-  const btn = $('#overlay-btn');
-  if (btn) btn.classList.add('hidden');
-  $overlay.classList.remove('hidden');
-  // Sound — the resonant chord for the L3 climax, a soft chime for L1/L2.
+  // Sound — resonant chord for the L3 climax, a soft chime for L1/L2.
   try {
     if (isClimax) {
       if (Audio && typeof Audio.comboStinger === 'function') Audio.comboStinger('holy', true);
-      if (Audio && typeof Audio.comboImpact === 'function') setTimeout(() => Audio.comboImpact(), 120);
-    } else if (Audio && typeof Audio.heal === 'function') {
-      Audio.heal();
-    }
+      if (Audio && typeof Audio.comboImpact === 'function') setTimeout(() => Audio.comboImpact(), 130);
+    } else if (Audio && typeof Audio.heal === 'function') { Audio.heal(); }
   } catch (_) {}
+  showVignette(vig, { alive: heroes.slice() }, () => {
+    $('#overlay').classList.remove('overlay-bond-scene', 'overlay-bond-climax');
+    done();
+  });
+  // Tag the overlay so the L3 climax can glow over the standard vignette
+  // frame without altering the shared vignette styling.
+  const ov = $('#overlay');
+  ov.classList.add('overlay-bond-scene');
+  if (isClimax) ov.classList.add('overlay-bond-climax');
+}
+
+// Atmospheric opening narration for a bond beat, keyed to the level so
+// the moment escalates L1 → L2 → L3.
+function _bondSceneOpener(heroes, level) {
+  const names = heroes.map(id => (CHARS[id] && CHARS[id].name) || id);
+  const who = names.length > 2 ? 'the three of them' : 'them';
+  if (level === 1) return `Between the bones, something settles between ${who} — the first thread of a bond, drawn taut.`;
+  if (level === 2) return `They have bled the same ground too long to move as strangers now. The thread between ${who} pulls tighter.`;
+  return `Something old and certain locks into place. The kizuna binding ${who} rings true.`;
 }
 
 // Coalesce a queue so each set of characters plays only ONE beat — the

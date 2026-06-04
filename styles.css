@@ -13080,6 +13080,30 @@ body.party-fallen::before {
   font-size: 12.5px;
   letter-spacing: 0.06em;
 }
+/* Bond-beat closing narration — the learned ability + effect, woven into
+   the final thought line rather than boxed in a panel. */
+.bond-scene-fx { display: block; margin-top: 3px; font-style: normal; color: #d9cfb8; font-size: 11.5px; }
+.bond-scene-also { display: block; margin-top: 3px; color: var(--gold-pale); opacity: 0.78; font-size: 11px; }
+/* L3 climax — a soft gold aura behind the VN stage so the defining
+   moment reads bigger than L1/L2, without changing the shared layout. */
+.overlay-bond-climax #overlay-content::before {
+  content: '';
+  position: absolute;
+  left: 50%; top: 42%;
+  width: 120%; height: 90%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 0;
+  background: radial-gradient(ellipse at center, rgba(243,220,160,0.16) 0%, rgba(243,220,160,0.05) 38%, rgba(243,220,160,0) 66%);
+  animation: bondClimaxPulse 2.6s ease-in-out infinite;
+}
+@keyframes bondClimaxPulse {
+  0%, 100% { opacity: 0.6; }
+  50%      { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .overlay-bond-climax #overlay-content::before { animation: none; }
+}
 
 /* Portrait row at the bottom.  One portrait centered for solo scenes,
    two side-by-side for conversations. */
