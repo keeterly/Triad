@@ -7250,7 +7250,7 @@ const SIGILS = {
   aegis:      { id: 'aegis',      name: 'Sigil of Aegis',      icon: '◈', category: 'defense',  desc: 'Each incoming hit deals 1 less HP damage after armor.' },
   mercy:      { id: 'mercy',      name: 'Crown of Mercy',      icon: '✚', category: 'defense',  desc: 'When any ally heals, every other ally heals +1.' },
   vigil:      { id: 'vigil',      name: 'Vow of Vigil',        icon: '↻', category: 'defense',  desc: 'Retaliate strikes deal +2 damage.' },
-  stillness:  { id: 'stillness',  name: 'Mantra of Stillness', icon: '★', category: 'resource', desc: 'Specials cost 0 Resolve (down from 2).' },
+  stillness:  { id: 'stillness',  name: 'Mantra of Stillness', icon: '★', category: 'resource', desc: 'Specials cost 1 less Resolve (2 → 1).' },
   memory:     { id: 'memory',     name: 'Coin of Memory',      icon: '◆', category: 'resource', desc: 'Carry up to 4 Resolve between fights (instead of 3).' },
   vigor:      { id: 'vigor',      name: 'Pact of Vigor',       icon: '⚡', category: 'resource', desc: 'Killing an enemy refunds 1 ATB this turn.' },
   vowiron:    { id: 'vowiron',    name: 'Vow of Iron',         icon: '⌖', category: 'defense',  desc: 'The Front slot starts each fight with Taunt for the first turn.' },
@@ -7279,6 +7279,7 @@ const SIGIL_TIERS = {
   // their printed magnitude.  Picked the ones whose effects compose
   // safely (no per-turn / per-bond multiplier blowups). ---
   pact:       [1, 2, 3],   // flat Resolve/turn while any bond is active
+  stillness:  [1, 2],      // Special Resolve discount: -1 (cost 1) at base, -2 (free) when upgraded
   echo:       [1, 2, 3],   // Team Special resolve discount (floor 0)
   cinders:    [1, 2, 3],   // bleed amount applied to surviving enemies on kill
   vigor:      [1, 2, 2],   // ATB refunded per kill (capped to keep stagger chains sane)
@@ -9750,11 +9751,17 @@ function commitCombo(comboId) {
 }
 
 function getSpecialCost(s, tech, charId) {
-  // Mantra of Stillness drops Specials to 0 Resolve regardless of base cost
-  if (hasSigil(s, 'stillness')) return 0;
   // Per-tech cost override — sigs can declare `cost: 1 | 2 | 3` for variety.
   // Cheap sigs are utility/support; expensive sigs are the showy payoffs.
   let cost = (tech && typeof tech.cost === 'number') ? tech.cost : SPECIAL_COST;
+  // Mantra of Stillness — discounts Specials by a tiered amount (-1 / -2 / -3)
+  // rather than zeroing them outright.  A flat 0 made specials free, which
+  // let you assemble Resonance triggers every turn for nothing and hollowed
+  // out the Resolve economy; now base Stillness halves the cost and only a
+  // maxed Stillness reaches free.
+  if (hasSigil(s, 'stillness')) {
+    cost = Math.max(0, cost - sigilBonus(s, 'stillness'));
+  }
   // Vasha Conviction — armed by an ally dropping to 1 HP, her next sig
   // costs 1 less.  Discount is read at queue-time (charId from the queue
   // build path) and consumed on cast in executeQueueItem.
@@ -19220,7 +19227,7 @@ function relevantSigilsForPreview(s, kind, charId, enemyHits, partyHeals, weakne
   if (heals.length) {
     if (has('mercy')) result.add('mercy');
   }
-  // Special-kind actions → echo (cost -1) + stillness (cost 0).
+  // Special-kind actions → echo (cost -1) + stillness (Special discount).
   if (kind === 'special') {
     if (has('echo'))      result.add('echo');
     if (has('stillness')) result.add('stillness');
