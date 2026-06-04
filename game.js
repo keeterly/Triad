@@ -1643,6 +1643,13 @@ const RESOLVE_MAX = 4;      // Raised from 3 in lockstep with ATB_MAX: queuing
                            // cap of 3.  Also gives the new flat-premium
                            // Resonance economy room to bank toward a climax.
 const RESOLVE_DRIP = 1;     // Resolve regenerated automatically each turn
+// Encounter-difficulty compensation for the 3→4 ATB/Resolve player turn
+// (the party is now ~25-33% stronger).  Single knobs that scale enemy HP
+// and incoming enemy damage so fights stay tense without re-tuning every
+// encounter by hand.  Tune these two numbers.
+const ENEMY_HP_SCALE  = 1.25;  // +25% enemy max HP
+const ENEMY_DMG_SCALE = 1.10;  // +10% incoming enemy damage
+function _scaleEnemyDmg(amt) { return Math.round((amt || 0) * ENEMY_DMG_SCALE); }
 const KILL_RESOLVE = 1;     // Resolve gained per enemy killed (tuned down so Team Special is a real save-up)
 
 // stagger / chain
@@ -11873,7 +11880,8 @@ function newEnemyState(id) {
   const bonus = (typeof state !== 'undefined' && state && state.run && LAYER_CONTENT[state.run.layer])
     ? (def.boss ? LAYER_CONTENT[state.run.layer].hpBonus * 4 : LAYER_CONTENT[state.run.layer].hpBonus)
     : 0;
-  const mhp = def.maxHp + bonus;
+  // Global enemy-HP scale compensates for the stronger 4-ATB player turn.
+  const mhp = Math.round((def.maxHp + bonus) * ENEMY_HP_SCALE);
   return {
     id, hp: mhp, maxHp: mhp,
     armor: 0, bleed: 0, vuln: 0, dulled: 0,
@@ -13271,34 +13279,36 @@ function _enemyAttackerBonus(s) {
   return bonus;
 }
 function dmgPartyAt(s, slot, amt) {
-  amt = amt + _layerIntentBonus(s) + _enemyAttackerBonus(s);
+  amt = _scaleEnemyDmg(amt) + _layerIntentBonus(s) + _enemyAttackerBonus(s);
   const tauntee = aliveParty(s).find(c => c.taunt);
   let target = tauntee || charBySlot(s, slot);
   if (!target || target.downed) target = aliveParty(s)[0];
   if (target) applyDmgToParty(s, target, amt);
 }
 function dmgLowestParty(s, amt) {
-  amt = amt + _layerIntentBonus(s) + _enemyAttackerBonus(s);
+  amt = _scaleEnemyDmg(amt) + _layerIntentBonus(s) + _enemyAttackerBonus(s);
   const tauntee = aliveParty(s).find(c => c.taunt);
   if (tauntee) return applyDmgToParty(s, tauntee, amt);
   const alive = aliveParty(s); if (alive.length === 0) return;
   alive.sort((a, b) => a.hp - b.hp);
   applyDmgToParty(s, alive[0], amt);
 }
-function dmgAllParty(s, amt) { const a = amt + _layerIntentBonus(s) + _enemyAttackerBonus(s); aliveParty(s).forEach(c => applyDmgToParty(s, c, a)); }
+function dmgAllParty(s, amt) { const a = _scaleEnemyDmg(amt) + _layerIntentBonus(s) + _enemyAttackerBonus(s); aliveParty(s).forEach(c => applyDmgToParty(s, c, a)); }
 // Line Caster: hit both slots in a Front-Mid or Mid-Back line. AoE-style — bypasses taunt redirect.
 function dmgLinePair(s, line, amt) {
+  const a = _scaleEnemyDmg(amt);
   const slots = line === 'fm' ? ['front', 'mid'] : ['mid', 'back'];
   slots.forEach(slot => {
     const c = charBySlot(s, slot);
-    if (c && !c.downed) applyDmgToParty(s, c, amt);
+    if (c && !c.downed) applyDmgToParty(s, c, a);
   });
 }
 // Sniper Pierce: ignores front, hits mid and back. AoE-style.
 function dmgPierce(s, amt) {
+  const a = _scaleEnemyDmg(amt);
   ['mid', 'back'].forEach(slot => {
     const c = charBySlot(s, slot);
-    if (c && !c.downed) applyDmgToParty(s, c, amt);
+    if (c && !c.downed) applyDmgToParty(s, c, a);
   });
 }
 function dullSlot(s, slot, amt) {
