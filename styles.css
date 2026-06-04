@@ -12251,6 +12251,22 @@ body.cine-stage-open #stage::after {
   color: var(--ink-dim);
   line-height: 1.4;
 }
+/* Resolve cost badge on a Resonance chip — flat premium by tier. */
+.resonance-chip .rc-cost {
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: #cdb6f0;
+  padding: 1px 6px;
+  background: rgba(0,0,0,0.55);
+  border-radius: 3px;
+}
+/* Can't afford the premium — dim the chip and flag the cost red. */
+.resonance-chip.resonance-chip-poor {
+  opacity: 0.5;
+  filter: grayscale(0.5);
+}
+.resonance-chip.resonance-chip-poor .rc-cost { color: #e0938a; }
 .resonance-chip.resonance-triple {
   background: linear-gradient(180deg,
                               rgba(120,40,30,0.9) 0%,

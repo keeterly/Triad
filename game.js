@@ -1612,7 +1612,12 @@ const PARTY_DISPLAY_ORDER = ['back', 'mid', 'front'];
 const ENEMY_DISPLAY_ORDER = ['front', 'mid', 'back'];
 
 // queue / costs
-const ATB_MAX = 3;            // total action-cost budget per turn
+const ATB_MAX = 4;            // total action-cost budget per turn.  Bumped
+                             // from 3 so a sig+sig (2+2) Resonance trigger
+                             // fits in one turn — the L3 climax was
+                             // otherwise uncastable.  Enemies are tuned to
+                             // the old 3-ATB turn, so this wants a balance
+                             // pass on encounter difficulty.
 const ACTIONS_PER_CHAR = 3;   // each character can queue up to N distinct actions per turn (no duplicates)
 const ACTION_ATB = {
   attack:  1,                 // basic
@@ -1632,7 +1637,11 @@ const BRACE_ARMOR = 3;
 // before they cash it for +2/hit.
 const BRACE_VULN_CLEAR = 1;
 
-const RESOLVE_MAX = 3;
+const RESOLVE_MAX = 4;      // Raised from 3 in lockstep with ATB_MAX: queuing
+                           // two sigs RESERVES 2+2 = 4 Resolve, so the L3
+                           // sig+sig trigger can't even be assembled at a
+                           // cap of 3.  Also gives the new flat-premium
+                           // Resonance economy room to bank toward a climax.
 const RESOLVE_DRIP = 1;     // Resolve regenerated automatically each turn
 const KILL_RESOLVE = 1;     // Resolve gained per enemy killed (tuned down so Team Special is a real save-up)
 
@@ -7198,7 +7207,7 @@ function availableUpgrades(s) {
 //   defense  — staying alive (armor, healing)
 //   resource — economy (ATB, Resolve, Team Special cost)
 const SIGILS = {
-  quickening: { id: 'quickening', name: 'Crown of Quickening', icon: '⚡', category: 'resource', desc: '+1 ATB per turn (4 total instead of 3).' },
+  quickening: { id: 'quickening', name: 'Crown of Quickening', icon: '⚡', category: 'resource', desc: '+1 ATB per turn (5 total instead of 4).' },
   pact:       { id: 'pact',       name: 'Sigil of the Pact',   icon: '✦', category: 'resource', desc: 'Gain +1 Resolve per turn for each active bond between party members.' },
   wrath:      { id: 'wrath',      name: 'Ember of Wrath',      icon: '✕', category: 'combat',   desc: 'Vulnerable enemies take an extra +2 damage from all attacks.' },
   mending:    { id: 'mending',    name: 'Sigil of Mending',    icon: '✚', category: 'defense',  desc: 'At the end of your turn, your lowest-HP ally heals 2.' },
@@ -9639,32 +9648,57 @@ function partialCombos(queue) {
   return out;
 }
 
+// Flat Resolve premium a Resonance costs to fire, by bond tier:
+// L1 = 1, L2 = 2, L3 = 3.  Reads the chosen variant's kizunaLevel
+// (every combo that reaches the rail is a chosen L1/L2/L3 variant);
+// falls back to 2 for any unleveled legacy combo.
+function resonancePremium(combo) {
+  const lvl = combo && typeof combo.kizunaLevel === 'number' ? combo.kizunaLevel
+            : (combo && combo.tier === 'triple' ? 3 : 2);
+  return Math.max(1, Math.min(3, lvl));
+}
+
 function commitCombo(comboId) {
   const s = state;
   if (s.executing || s.over) return;
   const match = matchingCombos(s.queue).find(m => m.combo.id === comboId);
   if (!match) return;
-  // Sum the costs of the consumed items so the combo is cost-neutral.
+  // Sum the ATB / Resolve of the consumed trigger actions.
   let atbTotal = 0, resolveTotal = 0;
   match.indices.forEach(i => {
     atbTotal += s.queue[i].atb || 0;
     resolveTotal += s.queue[i].resolveCost || 0;
   });
+  // Resonances now cost a FLAT Resolve premium by bond tier instead of
+  // being cost-neutral — so they're always a deliberate resource spend,
+  // not a free repeatable.  The premium REPLACES the triggers' Resolve
+  // cost (the triggers are spliced out below), so firing a Resonance
+  // costs `premium` Resolve total, not premium + trigger cost.
+  const premium = resonancePremium(match.combo);
+  // Affordability — if the premium needs MORE Resolve than the triggers
+  // freed up (e.g. an L1 fused from two free basics: 0 → 1), the extra
+  // must be available now.  Reject the fuse otherwise so Resolve can't
+  // go negative on Fight.
+  const projectedReserved = queueReservedResolve() - resolveTotal + premium;
+  if (projectedReserved > s.resolve) {
+    flashMsg(`Not enough Resolve for ${match.combo.name}.`);
+    return;
+  }
   // Splice out the matched indices in descending order so earlier indices stay valid.
   const drop = match.indices.slice().sort((a, b) => b - a);
   drop.forEach(i => s.queue.splice(i, 1));
-  // Push the combo item.  It cost-neutrally replaces the inputs.  Stash
-  // the heroes that contributed so the end-of-turn Camaraderie tick can
-  // credit each pair that fired into this resonance (combos splice their
-  // inputs out of s.queue, so without this list those heroes wouldn't
-  // be visible in the committed snapshot).
+  // Push the combo item.  ATB stays the sum of the inputs (you paid that
+  // to assemble them); Resolve becomes the flat tier premium.  Stash the
+  // contributing heroes so the end-of-turn Camaraderie tick can credit
+  // each pair (combos splice their inputs out of s.queue, so without this
+  // list those heroes wouldn't be visible in the committed snapshot).
   s.queue.push({
     kind: 'combo',
     comboId,
     label: match.combo.name,
     desc: match.combo.desc,
     atb: atbTotal,
-    resolveCost: resolveTotal,
+    resolveCost: premium,
     heroes: match.combo.requires.map(r => r.heroId),
   });
   // Lock the combo for the rest of the encounter — first echo lands, no
@@ -18621,10 +18655,15 @@ function renderTeamSpecial() {
     name = name.replace(/ · RESONANT$/i, '');
     return name;
   };
-  matches.forEach(({ combo }) => {
+  matches.forEach(({ combo, indices }) => {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = `resonance-chip resonance-${combo.tier}${combo.sigTier ? ' resonance-sig' : ''}`;
+    // Flat Resolve premium to fire, and whether the player can afford it
+    // (the premium replaces the triggers' Resolve when fused).
+    const premium = resonancePremium(combo);
+    const triggerResolve = indices.reduce((sum, i) => sum + ((state.queue[i] && state.queue[i].resolveCost) || 0), 0);
+    const affordable = (queueReservedResolve() - triggerResolve + premium) <= state.resolve;
+    btn.className = `resonance-chip resonance-${combo.tier}${combo.sigTier ? ' resonance-sig' : ''}${affordable ? '' : ' resonance-chip-poor'}`;
     const tierLabel = combo.sigTier
       ? (combo.tier === 'triple' ? 'SIG TRIPLE' : 'SIG DUO')
       : (combo.tier === 'triple' ? 'TRIPLE' : 'DUO');
@@ -18633,9 +18672,10 @@ function renderTeamSpecial() {
       ${portraitStrip(combo)}
       <span class="rc-label">${chipLabel(combo)}${resonantSuffix}</span>
       <span class="rc-tier">${tierLabel}</span>
+      <span class="rc-cost" title="Resolve cost">◈ ${premium}</span>
       <span class="rc-desc">${combo.desc}</span>
     `;
-    btn.title = `Resonance · ${combo.name}: ${combo.desc}`;
+    btn.title = `Resonance · ${combo.name} — costs ${premium} Resolve: ${combo.desc}`;
     // Tap commits (via bindTapAsPointer, same belt-and-suspenders path
     // every other choice button uses now).  Press-and-hold (>320ms)
     // surfaces the figure-highlight preview while the finger is down.
