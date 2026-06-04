@@ -6659,12 +6659,12 @@ function generateMap(layerOverride) {
         if (evIdx !== -1) countAndTypes[evIdx] = 'wanderer';
       }
     }
-    // Forge slot — 18% chance in layers 2+, converts an event (or combat
-    // if there's no event) into a forge node.  Skipped on boss / final-
-    // gate levels.  At most one forge per stretch.  Gated behind the
-    // Layer 3 mega-boss kill (isForgeUnlocked); the node simply never
-    // spawns for new players, instead of teasing them with locked UI.
-    if (lvl >= 2 && lvl !== numLevels && lvl !== numLevels - 1 && isForgeUnlocked()) {
+    // Forge slot — 18% chance, converts an event (or combat if there's no
+    // event) into a forge node.  Skipped on boss / final-gate levels.  At
+    // most one forge per stretch.  Gated behind the Ember purchase
+    // (isForgeUnlocked); also kept off Abyss layer 1, where a fresh
+    // purchaser has no sigils yet and the forge would be a dead-end node.
+    if (lvl >= 2 && lvl !== numLevels && lvl !== numLevels - 1 && layer >= 2 && isForgeUnlocked()) {
       if (countAndTypes && Math.random() < 0.18) {
         let fi = countAndTypes.indexOf('event');
         if (fi === -1) fi = countAndTypes.indexOf('combat');
@@ -18737,14 +18737,17 @@ function makeTile(kind, charId, dir, tileCounts, teamLocked) {
   // attack whose reach holds only empty slots).  Still clickable.
   if (preview.noEffect && !t.disabled) t.classList.add('no-effect');
   // Combo-ready signal — queueing THIS tile would complete a fresh
-  // Resonance that isn't already on offer.  Maps tile.kind to combo.kind:
-  //   attack → 'attack', special → 'sig'.  Move/brace never trigger.
+  // Resonance that isn't already on offer.  The simulated action must use
+  // the SAME kind the live queue stores ('attack' / 'special') so it
+  // matches the rail combos' `requires` — the chosen Resonance variants
+  // all require 'special', so simulating a Special as 'sig' here would
+  // never match and the badge would never light for L2/L3 bonds.
   // Captured into variables so we can render an INLINE combo badge inside
   // the tile (decodable at a glance), not just a floating ribbon above.
   let comboName = null;
   let comboIsSig = false;
   if (!t.disabled && (kind === 'attack' || kind === 'special')) {
-    const comboKind = kind === 'special' ? 'sig' : 'attack';
+    const comboKind = kind;
     const simulated = state.queue.concat([{ charId, kind: comboKind, atb: atbCost }]);
     const existingIds = new Set(matchingCombos(state.queue).map(m => m.combo.id));
     const wouldComplete = matchingCombos(simulated).filter(m => !existingIds.has(m.combo.id));
@@ -22477,11 +22480,14 @@ function _renderConsumableTargets(id, side) {
   const targets = side === 'ally'
     ? aliveParty(state)
     : aliveEnemies(state);
-  const rows = targets.map(t => {
+  // Bind by INDEX, not id — enemy .id is the template id, so duplicate
+  // enemies (two of the same type) would share a data-id and the second
+  // button would never resolve to the right instance.
+  const rows = targets.map((t, ti) => {
     const name = side === 'ally' ? ((CHARS[t.id] && CHARS[t.id].name) || t.id) : ((ENEMIES[t.id] && ENEMIES[t.id].name) || t.id);
     const hp = `${Math.max(0, Math.round(t.hp))}/${t.maxHp}`;
     return `
-      <button class="shop-item" data-tid="${t.id}" type="button">
+      <button class="shop-item" data-tidx="${ti}" type="button">
         <span class="shop-item-glyph">${side === 'ally' ? (PORTRAITS[t.id] || '◈') : '☠'}</span>
         <span class="shop-item-body">
           <span class="shop-item-name">${name}</span>
@@ -22492,8 +22498,8 @@ function _renderConsumableTargets(id, side) {
   }).join('');
   const backBtn = '<button class="reso-continue shop-leave" type="button">Back</button>';
   choicesEl.innerHTML = `<div class="shop-grid">${rows}</div>${backBtn}`;
-  targets.forEach(t => {
-    const btn = choicesEl.querySelector(`.shop-item[data-tid="${t.id}"]`);
+  targets.forEach((t, ti) => {
+    const btn = choicesEl.querySelector(`.shop-item[data-tidx="${ti}"]`);
     if (!btn) return;
     bindTapAsPointer(btn, () => _applyConsumable(id, t));
   });
@@ -22512,11 +22518,15 @@ function _applyConsumable(id, target) {
   const tname = target ? ((CHARS[target.id] && CHARS[target.id].name) || (ENEMIES[target.id] && ENEMIES[target.id].name) || '') : '';
   log(`<i>Used <b>${def.name}</b>${tname ? ` on <b>${tname}</b>` : ''}.</i>`);
   try { if (Audio && typeof Audio.heal === 'function') Audio.heal(); } catch (_) {}
-  // Back to combat — re-render reflects the effect, and reopen the satchel
-  // if items remain so the player can chain uses.
+  // Back to combat.  Close the satchel; the player reopens it to chain.
   hideOverlay(); resetOverlayBtn();
   const $content = $('#overlay-content');
   if ($content) $content.style.removeProperty('max-width');
+  // A damaging consumable can clear the board during the planning phase
+  // (e.g. Firebomb on the last foe).  checkEnd registers the win AND
+  // fires the full victory cascade, so the fight doesn't soft-stall with
+  // no enemies and a disabled Fight button.
+  try { if (typeof checkEnd === 'function') checkEnd(state); } catch (_) {}
   render();
 }
 
@@ -23139,7 +23149,14 @@ function hideOverlay() {
                       'overlay-starter', 'overlay-event', 'overlay-boon',
                       'overlay-resonance', 'overlay-resonance-trio',
                       'overlay-wanderer', 'overlay-forge',
+                      'overlay-shop', 'overlay-pouch',
+                      'overlay-bond-cut', 'overlay-bond-cut-l3',
                       'overlay-dismissable');
+  // Screens that use a custom in-content button (picker / cutscene / shop /
+  // pouch) hide the shared #overlay-btn.  Restore it on close so a later
+  // overlay that relies on the default button isn't left without one.
+  const obtn = $('#overlay-btn');
+  if (obtn) obtn.classList.remove('hidden');
   // Clear any inline max-width the resonance picker forced so the
   // next overlay opens with its own CSS-driven sizing.
   const ovc = $('#overlay-content');
@@ -24090,10 +24107,11 @@ function _showBondDeepenedCutscene(s, ev, onDone) {
   // once (coalesced), the lower-level abilities are listed below.
   const also = Array.isArray(ev.also) ? ev.also.filter(Boolean) : [];
   const skillLabel = isClimax ? 'RESONANCE ABILITY' : 'NEW RESONANCE SKILL';
-  const skillPanel = ev.skillName ? `
+  // Render the panel if there's a named skill OR any coalesced abilities,
+  // so a nameless top beat never silently swallows the 'Also learned' list.
+  const skillPanel = (ev.skillName || also.length) ? `
     <div class="bond-cut-skill">
-      <div class="bond-cut-skill-label">${skillLabel}</div>
-      <div class="bond-cut-skill-name">${ev.skillName}</div>
+      ${ev.skillName ? `<div class="bond-cut-skill-label">${skillLabel}</div><div class="bond-cut-skill-name">${ev.skillName}</div>` : ''}
       ${ev.skillDesc ? `<div class="bond-cut-skill-desc">${ev.skillDesc}</div>` : ''}
       ${also.length ? `<div class="bond-cut-skill-also">Also learned: ${also.join(' · ')}</div>` : ''}
     </div>` : '';
@@ -24186,7 +24204,12 @@ function _playBondCutscenes(s, rawQueue, done) {
     const ev = queue[i++];
     _showBondDeepenedCutscene(s, ev, () => setTimeout(next, 120));
   };
-  next();
+  // Defer the FIRST beat by a tick.  The picker's Commit handler runs on
+  // pointerdown and swaps in this cutscene synchronously; without the
+  // delay, the same tap's trailing click lands on the freshly-created
+  // Continue button (bindTapAsPointer also binds click) and auto-skips
+  // the first beat.  The inter-beat 120ms delay already protects the rest.
+  setTimeout(next, 80);
 }
 
 // Build a cutscene event from a committed section + its chosen variant.
