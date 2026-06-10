@@ -22461,11 +22461,27 @@ function _renderShop(nodeId) {
     });
   });
   const leave = choicesEl.querySelector('.shop-leave');
-  if (leave) bindTapAsPointer(leave, () => {
+  const _leaveStall = () => {
     hideOverlay(); resetOverlayBtn();
     if ($content) $content.style.removeProperty('max-width');
     _completeNonCombatNode();
-  });
+  };
+  if (leave) bindTapAsPointer(leave, _leaveStall);
+  // Backdrop tap also leaves the stall — a guaranteed escape on small /
+  // Android-scaled viewports where the Leave button might still be awkward
+  // to reach.  Bound once; only acts while the shop overlay is open and the
+  // tap lands outside the card.
+  if (!$overlay._shopDismissBound) {
+    $overlay._shopDismissBound = true;
+    $overlay.addEventListener('pointerdown', (e) => {
+      if (!$overlay.classList.contains('overlay-shop')) return;
+      const content = $overlay.querySelector('#overlay-content');
+      if (content && content.contains(e.target)) return;
+      hideOverlay(); resetOverlayBtn();
+      const c = $('#overlay-content'); if (c) c.style.removeProperty('max-width');
+      _completeNonCombatNode();
+    });
+  }
   const obtn = $('#overlay-btn');
   if (obtn) obtn.classList.add('hidden');
   $overlay.classList.remove('hidden');

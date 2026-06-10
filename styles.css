@@ -10121,7 +10121,18 @@ button.path-node { cursor: pointer; }
 .shop-item-poor .shop-item-price { color: #c98a7a; }
 .shop-item-sold { opacity: 0.4; filter: grayscale(0.6); cursor: default; }
 .shop-item-sold .shop-item-price { color: #9a9183; }
-.shop-leave { margin-top: 2px; }
+/* Pin the leave/close/back button to the bottom of the (scrolling) overlay
+   so it's always reachable — on small / Android-scaled viewports the shop
+   content could push it off-screen with no obvious way to scroll to it,
+   trapping the player at the stall. */
+.shop-leave {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  margin-top: 8px;
+  width: 100%;
+  box-shadow: 0 -10px 14px -6px rgba(8,6,4,0.95);
+}
 
 /* HUD satchel button */
 #pouch-btn {
@@ -12108,6 +12119,7 @@ body.cine-stage-open #stage::after {
 .resonance-chip {
   display: inline-flex;
   flex-direction: column;
+  position: relative;  /* anchor for the absolute .rc-cost badge */
   gap: 2px;
   min-width: 180px;
   max-width: 320px;
@@ -12251,15 +12263,21 @@ body.cine-stage-open #stage::after {
   color: var(--ink-dim);
   line-height: 1.4;
 }
-/* Resolve cost badge on a Resonance chip — flat premium by tier. */
+/* Resolve cost badge on a Resonance chip — flat premium by tier.  Floated
+   into the top-right corner (absolute) so it does NOT add a row to the
+   chip's column layout — otherwise the taller chip, anchored to the rail's
+   bottom and growing upward, climbs into the battlefield. */
 .resonance-chip .rc-cost {
-  font-size: 9.5px;
+  position: absolute;
+  top: 3px; right: 4px;
+  font-size: 9px;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.04em;
   color: #cdb6f0;
-  padding: 1px 6px;
-  background: rgba(0,0,0,0.55);
+  padding: 1px 5px;
+  background: rgba(0,0,0,0.6);
   border-radius: 3px;
+  pointer-events: none;
 }
 /* Can't afford the premium — dim the chip and flag the cost red. */
 .resonance-chip.resonance-chip-poor {
