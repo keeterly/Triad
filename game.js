@@ -17380,6 +17380,14 @@ function render() {
   renderTeamSpecial();
   renderFightButton();
   try { renderPouch(); } catch (_) {}
+  // First time statuses show in combat, teach the player they can read them.
+  if (!__simulating && !hasSeenCoachmark('cm_status_hold') && document.querySelector('#battlefield .status-chip')) {
+    showCoachmark('cm_status_hold', {
+      anchor: '#battlefield .status-chip',
+      place: 'above',
+      text: 'These are <b>status effects</b>.  <b>Press &amp; hold</b> any icon to read what it does — or open the <b>Guide</b> tab in the Codex for the full list.',
+    });
+  }
   if (!__simulating && _flipBefore.size > 0) {
     // Compute stage scale so translate deltas (which are in viewport
     // pixels post-#stage-scale transform) map to local design-canvas
@@ -26942,6 +26950,7 @@ function _renderCodex(body) {
     { id: 'sigils',       label: 'Sigils',       count: Object.keys(codex.sigils).length,                                total: Object.keys(SIGILS).length },
     { id: 'resonances',   label: 'Resonances',   count: Object.keys(codex.combos).length,                                total: Object.keys(COMBOS).length },
     { id: 'bonds',        label: 'Bonds',        count: 0,                                                                total: 0, hideCount: true },
+    { id: 'keywords',     label: 'Guide',        count: 0,                                                                total: 0, hideCount: true },
     { id: 'achievements', label: 'Achievements', count: Object.keys(earned).length,                                       total: Object.keys(ACHIEVEMENTS).length },
   ];
   // NEW dot — surfaced on tabs the player has never opened.  Cleared
@@ -26967,6 +26976,7 @@ function _renderCodex(body) {
   else if (_codexActiveTab === 'sigils')        listHtml = _renderCodexSigils(codex);
   else if (_codexActiveTab === 'resonances')    listHtml = _renderCodexResonances(codex);
   else if (_codexActiveTab === 'bonds')         listHtml = _renderCodexBonds(bonds);
+  else if (_codexActiveTab === 'keywords')      listHtml = _renderCodexKeywords();
   else if (_codexActiveTab === 'achievements')  listHtml = _renderCodexAchievements(earned);
   body.innerHTML = `
     <nav class="codex-tabs">${nav}</nav>
@@ -26984,6 +26994,57 @@ function _renderCodex(body) {
 // Shared school glyph map — duplicated locally so the codex can render
 // weakness even when combat code isn't loaded into view.
 const _CODEX_SCHOOL_GLYPH = { physical: '⚔', holy: '✦', arcane: '✶', ranged: '➳', stealth: '◐' };
+
+// Plain-language reference for everything that confuses new players:
+// attack types, status effects, and core mechanics.  Status text reuses
+// STATUS_TOOLTIPS so the in-combat hold-tooltip and this Guide never drift.
+function _renderCodexKeywords() {
+  const st = (typeof STATUS_TOOLTIPS !== 'undefined') ? STATUS_TOOLTIPS : {};
+  const entry = (glyph, name, desc, cls) =>
+    `<div class="kw-entry">
+       <span class="kw-entry-glyph${cls ? ' ' + cls : ''}">${glyph}</span>
+       <div class="kw-entry-body"><div class="kw-entry-name">${name}</div><div class="kw-entry-desc">${desc}</div></div>
+     </div>`;
+  const section = (title, rows) =>
+    `<div class="kw-section"><div class="kw-section-head">${title}</div>${rows.join('')}</div>`;
+
+  const attackTypes = section('Attack Types', [
+    entry('⚔', 'Melee · Physical', 'Close-range blade and blunt strikes. Lands as a <b>slash</b>.', 'kw-school-physical'),
+    entry('➳', 'Ranged', 'Arrows and bolts from the back line. Lands as a <b>pierce</b> and can reach past the front row.', 'kw-school-ranged'),
+    entry('✶', 'Arcane · Magic', 'Spell damage. Lands as a <b>burst</b> and often ignores armor.', 'kw-school-arcane'),
+    entry('✦', 'Holy · Magic', 'Sacred light — damage plus healing and cleansing. Lands as a <b>burst</b>.', 'kw-school-holy'),
+    entry('◐', 'Stealth', 'Daggers from the shadows. A quick <b>double-cut</b> that hunts the weakest foe.', 'kw-school-stealth'),
+  ]);
+
+  const sv = (id) => (st[id] && st[id].text) || '';
+  const statuses = section('Status Effects', [
+    entry('⛨', 'Armor', sv('armor'), 'kw-st-armor'),
+    entry('⊕', 'Vulnerable', sv('vuln'), 'kw-st-vuln'),
+    entry('✤', 'Bleed', sv('bleed'), 'kw-st-bleed'),
+    entry('≋', 'Burn', sv('burn'), 'kw-st-burn'),
+    entry('↓', 'Dulled', sv('dulled'), 'kw-st-dulled'),
+    entry('⌖', 'Taunt', sv('taunt'), 'kw-st-taunt'),
+    entry('↻', 'Retaliate', sv('retal'), 'kw-st-retal'),
+    entry('◐', 'Veil', sv('veil'), 'kw-st-veil'),
+    entry('⛨', 'Wall', sv('wall'), 'kw-st-wall'),
+    entry('✦', 'Divine Guard', sv('guard'), 'kw-st-guard'),
+    entry('⌖', 'Weakened', 'Hit a foe with the element it is weak to, then hit it AGAIN with that element to <b>Stagger</b> it. Lasts about two turns.', 'kw-st-weak'),
+    entry('⚡', 'Staggered', 'The next damaging hit deals <b>double</b> damage, then the Stagger clears. Your window to cash in.', 'kw-st-stagger'),
+  ]);
+
+  const mechanics = section('Core Mechanics', [
+    entry('▰', 'ATB', 'Your action budget each turn — <b>4 points</b>. An Attack costs 1, a Special costs 2, a Move/Brace costs 1.'),
+    entry('◈', 'Resolve', 'The resource for Specials and Resonances. You drip <b>+1 each turn</b> and <b>+1 per kill</b>, up to 4. Spend it deliberately.'),
+    entry('◆', 'Resonance', 'When two bonded heroes act together, their queued actions fuse into a <b>team Resonance Skill</b>. It costs Resolve (1/2/3 by bond level) and fires once per fight.'),
+    entry('▶', 'Advance / Retreat', 'Move a hero one slot toward the <b>front</b> (▶) or <b>back</b> (◀). Position changes which techs they can use and who the enemy can reach.'),
+    entry('✦', 'Bonds (Kizuna)', 'The longer two heroes survive and fight together, the deeper their bond grows (L1→L3), unlocking stronger Resonance Skills.'),
+  ]);
+
+  return `<div class="kw-guide">
+    <p class="kw-guide-intro">Hold any status icon on a fighter to read it in combat. Everything is collected here.</p>
+    ${attackTypes}${statuses}${mechanics}
+  </div>`;
+}
 
 function _renderCodexBestiary(codex) {
   // Show every enemy in the ENEMIES table — known ones get their full
