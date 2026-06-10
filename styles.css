@@ -1594,27 +1594,41 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
    gold glow + slow blink hint that the card is a long-press target. */
 .fig-hold-hint {
   position: absolute;
-  bottom: -10px;
+  bottom: -11px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 7px;
+  font-size: 8px;
   font-weight: bold;
-  letter-spacing: 0.32em;
+  letter-spacing: 0.12em;
   color: var(--gold-bright);
-  text-shadow:
-    0 1px 0 rgba(0,0,0,0.95),
-    0 0 6px rgba(240,212,136,0.6);
+  background: rgba(34,24,12,0.92);
+  border: 1px solid rgba(240,212,136,0.5);
+  border-radius: 8px;
+  padding: 1.5px 7px;
+  text-shadow: 0 1px 0 rgba(0,0,0,0.95);
+  box-shadow: 0 0 8px rgba(240,212,136,0.35);
   pointer-events: none;
   z-index: 6;
-  opacity: 0.78;
-  animation: fig-hold-blink 2.2s ease-in-out infinite;
+  opacity: 0.95;
+  animation: fig-hold-blink 1.8s ease-in-out infinite;
   white-space: nowrap;
 }
 @keyframes fig-hold-blink {
-  0%, 100% { opacity: 0.45; transform: translateX(-50%) scale(0.98); }
-  50%      { opacity: 0.95; transform: translateX(-50%) scale(1.02); }
+  0%, 100% { opacity: 0.7;  transform: translateX(-50%) translateY(0) scale(0.99); }
+  50%      { opacity: 1;    transform: translateX(-50%) translateY(1.5px) scale(1.02); }
 }
 .figure.inspecting .fig-hold-hint { opacity: 0; }
+/* One-time first-turn nudge — a gentle wobble so new players notice the
+   heroes can be grabbed and dragged. */
+.figure-drag-nudge { animation: figure-drag-nudge 0.5s ease-in-out 3; }
+@keyframes figure-drag-nudge {
+  0%, 100% { transform: translateX(0) rotate(0); }
+  25%      { transform: translateX(-3px) rotate(-2deg); }
+  75%      { transform: translateX(3px) rotate(2deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .figure-drag-nudge { animation: none; }
+}
 
 /* HP bar reuses .hp-bar / .hp-fill / .hp-text from below — keep it the same look but constrained to the info width */
 /* Minimal HP readout, anchored just above the figure's head.
@@ -2951,94 +2965,109 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
 .hit-fx.hit-fx-ranged   { color: #b6e2a6; }
 .hit-fx.hit-fx-stealth  { color: #b8ccff; }
 
-/* SLASH — a diagonal stroke that sweeps across the target. */
+/* SLASH — a big diagonal stroke that cleaves across the target. */
 .hit-fx-slash::before {
   content: '';
-  position: absolute; left: -38px; top: -3px;
-  width: 76px; height: 6px; border-radius: 4px;
-  background: linear-gradient(90deg, transparent, currentColor 45%, #fff 50%, currentColor 55%, transparent);
-  box-shadow: 0 0 12px currentColor;
+  position: absolute; left: -62px; top: -5px;
+  width: 124px; height: 10px; border-radius: 6px;
+  background: linear-gradient(90deg, transparent, currentColor 40%, #fff 50%, currentColor 60%, transparent);
+  box-shadow: 0 0 20px currentColor, 0 0 6px #fff;
   transform-origin: center;
-  animation: hitSlashA 0.34s cubic-bezier(0.2,0.7,0.3,1) forwards;
+  animation: hitSlashA 0.36s cubic-bezier(0.15,0.75,0.3,1) forwards;
 }
-/* Stealth: a crossing second cut. */
+/* Stealth: a crossing second cut for an X. */
 .hit-fx-double::after {
   content: '';
-  position: absolute; left: -32px; top: -2px;
-  width: 64px; height: 4px; border-radius: 4px;
-  background: linear-gradient(90deg, transparent, currentColor 50%, transparent);
-  box-shadow: 0 0 10px currentColor;
+  position: absolute; left: -52px; top: -3.5px;
+  width: 104px; height: 7px; border-radius: 5px;
+  background: linear-gradient(90deg, transparent, currentColor 50%, #fff 52%, currentColor 54%, transparent);
+  box-shadow: 0 0 16px currentColor;
   transform-origin: center;
-  animation: hitSlashB 0.34s 0.05s cubic-bezier(0.2,0.7,0.3,1) forwards;
+  animation: hitSlashB 0.36s 0.06s cubic-bezier(0.15,0.75,0.3,1) forwards;
 }
 @keyframes hitSlashA {
-  0%   { transform: rotate(-42deg) scaleX(0);   opacity: 0; }
-  40%  { transform: rotate(-42deg) scaleX(0.6); opacity: 1; }
-  65%  { transform: rotate(-42deg) scaleX(1);   opacity: 1; }
-  100% { transform: rotate(-42deg) scaleX(1);   opacity: 0; }
+  0%   { transform: rotate(-42deg) scaleX(0);    opacity: 0; }
+  35%  { transform: rotate(-42deg) scaleX(0.55); opacity: 1; }
+  60%  { transform: rotate(-42deg) scaleX(1.08); opacity: 1; }
+  100% { transform: rotate(-42deg) scaleX(1.08); opacity: 0; }
 }
 @keyframes hitSlashB {
-  0%   { transform: rotate(46deg) scaleX(0);   opacity: 0; }
-  45%  { transform: rotate(46deg) scaleX(0.7); opacity: 1; }
-  70%  { transform: rotate(46deg) scaleX(1);   opacity: 1; }
-  100% { transform: rotate(46deg) scaleX(1);   opacity: 0; }
+  0%   { transform: rotate(48deg) scaleX(0);    opacity: 0; }
+  40%  { transform: rotate(48deg) scaleX(0.6);  opacity: 1; }
+  65%  { transform: rotate(48deg) scaleX(1.08); opacity: 1; }
+  100% { transform: rotate(48deg) scaleX(1.08); opacity: 0; }
 }
 
-/* PIERCE — a thin streak that shoots through the target. */
+/* PIERCE — a long spear-thrust that shoots clean through the target. */
 .hit-fx-pierce::before {
   content: '';
-  position: absolute; left: -52px; top: -1.5px;
-  width: 54px; height: 3px; border-radius: 3px;
-  background: linear-gradient(90deg, transparent, currentColor);
-  box-shadow: 0 0 9px currentColor;
-  animation: hitPierce 0.30s ease-out forwards;
+  position: absolute; left: -70px; top: -2.5px;
+  width: 96px; height: 5px; border-radius: 4px;
+  background: linear-gradient(90deg, transparent, currentColor 60%, #fff);
+  box-shadow: 0 0 14px currentColor;
+  animation: hitPierce 0.30s cubic-bezier(0.3,0,0.2,1) forwards;
 }
 .hit-fx-pierce::after {
   content: '';
   position: absolute; left: 50%; top: 50%;
-  width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; border-radius: 50%;
-  background: #fff; box-shadow: 0 0 12px 3px currentColor;
+  width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%;
+  background: #fff; box-shadow: 0 0 18px 5px currentColor;
   opacity: 0; animation: hitPierceTip 0.30s ease-out forwards;
 }
 @keyframes hitPierce {
-  0%   { transform: translateX(-12px); opacity: 0; }
-  30%  { opacity: 1; }
-  100% { transform: translateX(64px); opacity: 0; }
+  0%   { transform: translateX(-16px) scaleX(0.7); opacity: 0; }
+  25%  { opacity: 1; }
+  100% { transform: translateX(96px) scaleX(1.1);  opacity: 0; }
 }
 @keyframes hitPierceTip {
-  0%, 45% { opacity: 0; transform: scale(0.4); }
-  60%     { opacity: 1; transform: scale(1.2); }
-  100%    { opacity: 0; transform: scale(1.6); }
+  0%, 40% { opacity: 0; transform: scale(0.4); }
+  58%     { opacity: 1; transform: scale(1.4); }
+  100%    { opacity: 0; transform: scale(2); }
 }
 
-/* BURST — an expanding ring + central flash for magic. */
+/* BURST — a magic starburst: bright core + expanding ring + radial spokes. */
 .hit-fx-burst::before {
   content: '';
   position: absolute; left: 50%; top: 50%;
-  width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%;
+  width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%;
   background: #fff;
-  box-shadow: 0 0 22px 7px currentColor;
-  animation: hitBurstCore 0.34s ease-out forwards;
+  box-shadow: 0 0 34px 11px currentColor;
+  animation: hitBurstCore 0.36s ease-out forwards;
+}
+.hit-fx-burst::after {
+  content: '';
+  position: absolute; left: 50%; top: 50%;
+  width: 96px; height: 96px; margin: -48px 0 0 -48px; border-radius: 50%;
+  background: repeating-conic-gradient(currentColor 0deg 5deg, transparent 5deg 36deg);
+  -webkit-mask: radial-gradient(circle, #000 14%, transparent 56%);
+          mask: radial-gradient(circle, #000 14%, transparent 56%);
+  opacity: 0;
+  animation: hitBurstSpokes 0.42s ease-out forwards;
 }
 .hit-fx-burst .hit-fx-ring {
   position: absolute; left: 50%; top: 50%;
-  width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%;
-  border: 2.5px solid currentColor;
-  box-shadow: 0 0 14px currentColor, inset 0 0 8px currentColor;
-  animation: hitBurstRing 0.44s ease-out forwards;
+  width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%;
+  border: 3px solid currentColor;
+  box-shadow: 0 0 18px currentColor, inset 0 0 10px currentColor;
+  animation: hitBurstRing 0.46s ease-out forwards;
 }
 @keyframes hitBurstCore {
   0%   { transform: scale(0.4); opacity: 1; }
-  100% { transform: scale(1.5); opacity: 0; }
+  100% { transform: scale(1.8); opacity: 0; }
 }
 @keyframes hitBurstRing {
   0%   { transform: scale(0.3); opacity: 0.95; }
-  100% { transform: scale(3.4); opacity: 0; }
+  100% { transform: scale(4.4); opacity: 0; }
+}
+@keyframes hitBurstSpokes {
+  0%   { opacity: 0;   transform: scale(0.2) rotate(0deg); }
+  30%  { opacity: 0.85; }
+  100% { opacity: 0;   transform: scale(1.35) rotate(16deg); }
 }
 @media (prefers-reduced-motion: reduce) {
   .hit-fx-slash::before, .hit-fx-double::after,
   .hit-fx-pierce::before, .hit-fx-pierce::after,
-  .hit-fx-burst::before, .hit-fx-burst .hit-fx-ring { animation-duration: 0.12s; }
+  .hit-fx-burst::before, .hit-fx-burst::after, .hit-fx-burst .hit-fx-ring { animation-duration: 0.12s; }
 }
 .popup.synergy,
 .popup.bond,

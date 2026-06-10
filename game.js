@@ -15346,7 +15346,14 @@ function startTurn(s) {
         showCoachmark('cm_move_action', {
           anchor: '#party-half .figure:not(.empty):not(.downed)',
           place: 'above',
-          text: '<b>Move</b> a hero: <b>press &amp; hold</b> their card, then <b>drag</b> it onto another slot.  Drop on another ally to swap; drop on an empty slot to relocate.  Costs 1 ATB per step.',
+          text: '<b>Drag a hero</b> to reposition them — the figure follows your finger.  Drop on an empty slot to relocate, or onto another ally to swap.  Front / Mid / Back change which techs they can use.  Costs 1 ATB.',
+        });
+        // One-time wiggle so the eye catches that the heroes are grabbable.
+        document.querySelectorAll('#party-half .figure:not(.empty):not(.downed)').forEach((f, i) => {
+          setTimeout(() => {
+            f.classList.add('figure-drag-nudge');
+            setTimeout(() => f.classList.remove('figure-drag-nudge'), 1500);
+          }, i * 140);
         });
       }
     }, 700);
@@ -18077,7 +18084,7 @@ function makePartyCard(c, slot, threatened, adjMap, incoming) {
     ${canMoveBack  ? `<button class="move-arrow move-arrow-left"  data-dir="1"  aria-label="Move toward back">‹</button>`  : ''}
     ${canMoveFront ? `<button class="move-arrow move-arrow-right" data-dir="-1" aria-label="Move toward front">›</button>` : ''}
     ${queuedMove ? `<div class="figure-queued-move">${queuedMoveGlyph}</div>` : ''}
-    ${!hasHeldHero() ? `<div class="fig-hold-hint" aria-hidden="true">· HOLD ·</div>` : ''}
+    ${!hasHeldHero() ? `<div class="fig-hold-hint" aria-hidden="true">⠿ DRAG TO MOVE</div>` : ''}
     ${slotLabelHtml}
   `;
 
@@ -19900,7 +19907,7 @@ function spawnHitFx(id, side, school) {
   if (sch === 'stealth') fx.classList.add('hit-fx-double');
   if (arch === 'burst') fx.innerHTML = '<span class="hit-fx-ring"></span>';
   layer.appendChild(fx);
-  setTimeout(() => fx.remove(), 520);
+  setTimeout(() => fx.remove(), 600);
 }
 
 function flashCardId(id, type, side) {
