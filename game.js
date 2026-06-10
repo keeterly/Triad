@@ -1689,26 +1689,35 @@ const CHARS = {
     home: 'front',
     passive: { name: 'Held Gate', desc: 'While Cassia holds Front, the first incoming hit each turn is redirected to her.' },
     techs: {
+      // FRONT — Hold the line.  Cassia soaks: her basic draws fire (Taunt)
+      // on top of Held Gate, so standing front lets the rest of the party
+      // dodge while she eats the hits.  Taunt overrides enemy slot-aim, the
+      // deliberate counterpart to the move-to-dodge mechanic.
       front: {
-        basic: { name: 'Greatsword Cleave', desc: '8 dmg + vuln', dmg: 8,
+        basic: { name: 'Greatsword Cleave', desc: '8 dmg + vuln · Taunt', dmg: 8,
           reach: ['front'], pattern: 'front-most',
-          fn: (s, t) => { if (!t[0]) return; applyDmgToEnemy(s, t[0], 8); if (!t[0].dead) t[0].vuln += 1; } },
-        sig:   { name: 'Sunder', desc: '3♦ · 14 holy dmg + strip armor + 2 vuln', cost: 3, dmg: 14, element: 'holy',
+          fn: (s, t) => { if (!t[0]) return; applyDmgToEnemy(s, t[0], 8); if (!t[0].dead) t[0].vuln += 1; const cas = s.party.chars.cassia; if (cas && !cas.downed) cas.taunt = true; } },
+        sig:   { name: 'Sunder', desc: '3♦ · 14 holy dmg + strip armor + 2 vuln · Taunt', cost: 3, dmg: 14, element: 'holy',
           reach: ['front'], pattern: 'front-most',
-          fn: (s, t) => { if (!t[0]) return; applyDmgToEnemy(s, t[0], 14); if (!t[0].dead) { t[0].armor = 0; t[0].vuln += 2; } } },
+          fn: (s, t) => { if (!t[0]) return; applyDmgToEnemy(s, t[0], 14); if (!t[0].dead) { t[0].armor = 0; t[0].vuln += 2; } const cas = s.party.chars.cassia; if (cas && !cas.downed) cas.taunt = true; } },
       },
+      // MID — Shield advance.  A mobile shieldwall that armors the PARTY as
+      // it pushes (feeds her armor-bonds: Sword and Banner, Iron Bond).
       mid: {
-        basic: { name: 'Vanguard', desc: '5 dmg front + advance', dmg: 5, move: 'advance',
+        basic: { name: 'Vanguard', desc: '5 dmg front + advance + 2 armor', dmg: 5, move: 'advance',
           reach: ['front'], pattern: 'front-most',
-          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 5); advance(s, 'cassia'); } },
-        sig:   { name: 'Heroic Charge', desc: '9 dmg front + advance + 3 armor', dmg: 9, move: 'advance',
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 5); advance(s, 'cassia'); addArmor(s, 'cassia', 2); } },
+        sig:   { name: 'Heroic Charge', desc: '9 dmg front + advance + 3 party armor', dmg: 9, move: 'advance',
           reach: ['front'], pattern: 'front-most',
-          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 9); advance(s, 'cassia'); addArmor(s, 'cassia', 3); } },
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 9); advance(s, 'cassia'); partyArmor(s, 3); } },
       },
+      // BACK — Bulwark.  Anchored team fortress (no advance): the strongest
+      // party-defense option, shielding the line from safety.
       back: {
-        basic: { name: 'Banner', desc: '+2 armor party · advance', move: 'advance',
-          fn: (s) => { partyArmor(s, 2); advance(s, 'cassia'); } },
-        sig:   { name: 'Rally',  desc: '1♦ · Heal 4 to party', cost: 1, fn: (s) => partyHeal(s, 4) },
+        basic: { name: 'Banner', desc: '+3 armor party · front ally +2 retaliate',
+          fn: (s) => { partyArmor(s, 3); const f = charBySlot(s, 'front'); if (f && !f.downed && f.id !== 'cassia') f.retaliate = (f.retaliate || 0) + 2; } },
+        sig:   { name: 'Rally',  desc: '1♦ · Heal 4 party + cleanse + 2 armor', cost: 1,
+          fn: (s) => { partyHeal(s, 4); aliveParty(s).forEach(c => { c.bleed = 0; c.dulled = 0; }); partyArmor(s, 2); } },
       },
     },
   },
@@ -1892,25 +1901,37 @@ const CHARS = {
     home: 'mid',
     passive: { name: 'Last Stand', desc: 'When Kai is the only ally still standing, each attack deals +3 and each kill heals 4.' },
     techs: {
+      // FRONT — Duelist.  Trade blows up front and punish: Riposte leaves a
+      // counter (retaliate) so being exposed bites back.
       front: {
         basic: { name: 'Slash', desc: '7 dmg front', dmg: 7,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 7); } },
-        sig:   { name: 'Riposte', desc: '11 dmg front + 2 armor', dmg: 11,
+        sig:   { name: 'Riposte', desc: '11 dmg front + 2 armor + 2 retaliate', dmg: 11,
           reach: ['front'], pattern: 'front-most',
-          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 11); addArmor(s, 'kai', 2); } },
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 11); addArmor(s, 'kai', 2); const c = s.party.chars.kai; if (c && !c.downed) c.retaliate = (c.retaliate || 0) + 2; } },
       },
+      // MID (home) — Flow.  His sweet spot: the multi-hit Crossblade snowballs
+      // — a kill heals Kai, reinforcing the aggressive Last Stand fantasy and
+      // rewarding staying in his home slot.
       mid: {
         basic: { name: 'Quick Cut', desc: '5 dmg lowest + bleed 1 · advance', dmg: 5, move: 'advance',
           reach: ['front','mid'], pattern: 'lowest',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 5); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 1); } advance(s, 'kai'); } },
-        sig:   { name: 'Crossblade', desc: '4 dmg twice (lowest)', dmg: 4, hits: 2,
+        sig:   { name: 'Crossblade', desc: '4 dmg twice (lowest) · a kill heals Kai 3', dmg: 4, hits: 2,
           reach: ['front','mid'], pattern: 'lowest',
-          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 4); if (!t[0].dead) applyDmgToEnemy(s, t[0], 4); } } },
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 4); if (!t[0].dead) applyDmgToEnemy(s, t[0], 4); if (t[0].dead) { const c = s.party.chars.kai; if (c && !c.downed) { const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 3); if (c.hp > b) spawnPopupId('kai', `+${c.hp - b}`, 'heal', 'party'); } } } } },
       },
+      // BACK — Recover.  Support from safety: the edge buff now also sharpens
+      // an adjacent ally, so falling back still helps the team.
       back: {
-        basic: { name: 'Whetstone', desc: '+1 atk next turn (self)',
-          fn: (s) => { const c = s.party.chars.kai; if (c) c.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'whetstone' }); } },
+        basic: { name: 'Whetstone', desc: '+1 atk next turn (self + adjacent ally)',
+          fn: (s) => {
+            const c = s.party.chars.kai;
+            if (c) c.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'whetstone' });
+            const mid = charBySlot(s, 'mid');
+            if (mid && !mid.downed && mid.id !== 'kai') mid.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'whetstone-ally' });
+          } },
         sig:   { name: 'Patch Up',  desc: '1♦ · Heal 5 self', cost: 1,
           fn: (s) => { const c = s.party.chars.kai; if (c) { c.hp = Math.min(c.maxHp, c.hp + 5); } } },
       },
