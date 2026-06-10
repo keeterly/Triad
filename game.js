@@ -12701,7 +12701,10 @@ function applyDmgToEnemy(s, e, baseAmt) {
   // Per-school hit colour: physical thud, stealth hiss, ranged twang,
   // arcane chime, holy bell.
   const actorSchool = s.currentActorId && CHARS[s.currentActorId] && CHARS[s.currentActorId].school;
-  Audio.hitSchool(Math.min(2, 0.6 + toHp / 8), actorSchool);
+  const hitType = s.currentTechElement || actorSchool;
+  Audio.hitSchool(Math.min(2, 0.6 + toHp / 8), hitType);
+  // Attack-type flourish — slash / pierce / burst so it's clear what landed.
+  spawnHitFx(e.id, 'enemy', hitType);
   // Attacker lunges toward the target for a beat
   if (s.currentActorId) lungeCardId(s.currentActorId, 'party');
   log(`<b>${ENEMIES[e.id].name}</b> takes ${toHp} damage${schoolBadge ? ` — ${schoolBadge.toLowerCase()}` : ''}.`);
@@ -12964,7 +12967,12 @@ function applyDmgToParty(s, c, amt) {
   flashCardId(c.id, 'hit', 'party');
   shakeCardId(c.id, 'party', toHp);
   if (toHp >= 5) shakeScreen(toHp >= 9 ? 3 : 2);
-  Audio.hit(Math.min(2, 0.6 + toHp / 8));
+  // Enemy attack type — abilities set s.currentTechElement; basic strikes
+  // fall back to physical.  Drives both the per-type sound and the hit FX
+  // so the player can read what hit them (a magic blast vs a melee swing).
+  const enemyType = s.currentTechElement || 'physical';
+  Audio.hitSchool(Math.min(2, 0.6 + toHp / 8), enemyType);
+  spawnHitFx(c.id, 'party', enemyType);
   log(`<b>${CHARS[c.id].name}</b> takes ${toHp} damage.`);
 
   if (s.fightStats && toHp > 0) {
@@ -19858,6 +19866,33 @@ function spawnPopup(cardEl, text, type='dmg') {
     setTimeout(() => el.remove(), ttl);
   };
   if (delay <= 0) fire(); else setTimeout(fire, delay);
+}
+
+// Per-attack-type hit flourish — a quick visual on the struck figure that
+// reads the ATTACK TYPE at a glance (FF-style): a SLASH for melee, a
+// PIERCE streak for ranged, a BURST for magic.  Mounted on #popup-layer
+// (a sibling over the battlefield) so it isn't clipped by the figure.
+// Tinted by the attacking school.  No-op during simulation.
+const HIT_FX_ARCHETYPE = { physical: 'slash', stealth: 'slash', ranged: 'pierce', arcane: 'burst', holy: 'burst' };
+function spawnHitFx(id, side, school) {
+  if (__simulating) return;
+  const sel = `#${side === 'enemy' ? 'enemy' : 'party'}-half [data-id="${id}"]`;
+  const cardEl = document.querySelector(sel) || document.querySelector(`#battlefield [data-id="${id}"]`);
+  const layer = $('#popup-layer'); const stage = $('#stage');
+  if (!cardEl || !layer || !stage) return;
+  const sch = school || 'physical';
+  const arch = HIT_FX_ARCHETYPE[sch] || 'slash';
+  const r = cardEl.getBoundingClientRect();
+  const s = stage.getBoundingClientRect();
+  const fx = document.createElement('div');
+  fx.className = `hit-fx hit-fx-${arch} hit-fx-${sch}`;
+  fx.style.left = (r.left + r.width / 2 - s.left) + 'px';
+  fx.style.top  = (r.top + r.height / 2 - s.top) + 'px';
+  // Stealth reads as a double-cut; burst carries an expanding ring.
+  if (sch === 'stealth') fx.classList.add('hit-fx-double');
+  if (arch === 'burst') fx.innerHTML = '<span class="hit-fx-ring"></span>';
+  layer.appendChild(fx);
+  setTimeout(() => fx.remove(), 520);
 }
 
 function flashCardId(id, type, side) {

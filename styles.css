@@ -2934,6 +2934,112 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
   text-shadow: 0 0 14px var(--stagger), 0 2px 0 var(--shadow);
   letter-spacing: 0.2em;
 }
+
+/* ===== Attack-type hit FX — read at a glance WHAT kind of attack landed:
+   a SLASH (melee), a PIERCE streak (ranged), or a BURST (magic).  Mounted
+   on #popup-layer over the struck figure, tinted by the attacking school. */
+.hit-fx {
+  position: absolute;
+  z-index: 40;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  color: #f0dcb0;
+}
+.hit-fx.hit-fx-physical { color: #f3deb2; }
+.hit-fx.hit-fx-holy     { color: #ffe9a6; }
+.hit-fx.hit-fx-arcane   { color: #d7b6ff; }
+.hit-fx.hit-fx-ranged   { color: #b6e2a6; }
+.hit-fx.hit-fx-stealth  { color: #b8ccff; }
+
+/* SLASH — a diagonal stroke that sweeps across the target. */
+.hit-fx-slash::before {
+  content: '';
+  position: absolute; left: -38px; top: -3px;
+  width: 76px; height: 6px; border-radius: 4px;
+  background: linear-gradient(90deg, transparent, currentColor 45%, #fff 50%, currentColor 55%, transparent);
+  box-shadow: 0 0 12px currentColor;
+  transform-origin: center;
+  animation: hitSlashA 0.34s cubic-bezier(0.2,0.7,0.3,1) forwards;
+}
+/* Stealth: a crossing second cut. */
+.hit-fx-double::after {
+  content: '';
+  position: absolute; left: -32px; top: -2px;
+  width: 64px; height: 4px; border-radius: 4px;
+  background: linear-gradient(90deg, transparent, currentColor 50%, transparent);
+  box-shadow: 0 0 10px currentColor;
+  transform-origin: center;
+  animation: hitSlashB 0.34s 0.05s cubic-bezier(0.2,0.7,0.3,1) forwards;
+}
+@keyframes hitSlashA {
+  0%   { transform: rotate(-42deg) scaleX(0);   opacity: 0; }
+  40%  { transform: rotate(-42deg) scaleX(0.6); opacity: 1; }
+  65%  { transform: rotate(-42deg) scaleX(1);   opacity: 1; }
+  100% { transform: rotate(-42deg) scaleX(1);   opacity: 0; }
+}
+@keyframes hitSlashB {
+  0%   { transform: rotate(46deg) scaleX(0);   opacity: 0; }
+  45%  { transform: rotate(46deg) scaleX(0.7); opacity: 1; }
+  70%  { transform: rotate(46deg) scaleX(1);   opacity: 1; }
+  100% { transform: rotate(46deg) scaleX(1);   opacity: 0; }
+}
+
+/* PIERCE — a thin streak that shoots through the target. */
+.hit-fx-pierce::before {
+  content: '';
+  position: absolute; left: -52px; top: -1.5px;
+  width: 54px; height: 3px; border-radius: 3px;
+  background: linear-gradient(90deg, transparent, currentColor);
+  box-shadow: 0 0 9px currentColor;
+  animation: hitPierce 0.30s ease-out forwards;
+}
+.hit-fx-pierce::after {
+  content: '';
+  position: absolute; left: 50%; top: 50%;
+  width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; border-radius: 50%;
+  background: #fff; box-shadow: 0 0 12px 3px currentColor;
+  opacity: 0; animation: hitPierceTip 0.30s ease-out forwards;
+}
+@keyframes hitPierce {
+  0%   { transform: translateX(-12px); opacity: 0; }
+  30%  { opacity: 1; }
+  100% { transform: translateX(64px); opacity: 0; }
+}
+@keyframes hitPierceTip {
+  0%, 45% { opacity: 0; transform: scale(0.4); }
+  60%     { opacity: 1; transform: scale(1.2); }
+  100%    { opacity: 0; transform: scale(1.6); }
+}
+
+/* BURST — an expanding ring + central flash for magic. */
+.hit-fx-burst::before {
+  content: '';
+  position: absolute; left: 50%; top: 50%;
+  width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 22px 7px currentColor;
+  animation: hitBurstCore 0.34s ease-out forwards;
+}
+.hit-fx-burst .hit-fx-ring {
+  position: absolute; left: 50%; top: 50%;
+  width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%;
+  border: 2.5px solid currentColor;
+  box-shadow: 0 0 14px currentColor, inset 0 0 8px currentColor;
+  animation: hitBurstRing 0.44s ease-out forwards;
+}
+@keyframes hitBurstCore {
+  0%   { transform: scale(0.4); opacity: 1; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+@keyframes hitBurstRing {
+  0%   { transform: scale(0.3); opacity: 0.95; }
+  100% { transform: scale(3.4); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hit-fx-slash::before, .hit-fx-double::after,
+  .hit-fx-pierce::before, .hit-fx-pierce::after,
+  .hit-fx-burst::before, .hit-fx-burst .hit-fx-ring { animation-duration: 0.12s; }
+}
 .popup.synergy,
 .popup.bond,
 .popup.friction {
