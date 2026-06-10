@@ -13317,10 +13317,29 @@ function _enemyAttackerBonus(s) {
 }
 function dmgPartyAt(s, slot, amt) {
   amt = _scaleEnemyDmg(amt) + _layerIntentBonus(s) + _enemyAttackerBonus(s);
+  // Taunt always pulls single-target attacks, wherever the taunter stands.
   const tauntee = aliveParty(s).find(c => c.taunt);
-  let target = tauntee || charBySlot(s, slot);
-  if (!target || target.downed) target = aliveParty(s)[0];
-  if (target) applyDmgToParty(s, target, amt);
+  if (tauntee && !tauntee.downed) { applyDmgToParty(s, tauntee, amt); return; }
+  const target = charBySlot(s, slot);
+  if (target && !target.downed) { applyDmgToParty(s, target, amt); return; }
+  // No live target in the slot.  The strike whiffs either way (previously it
+  // redirected to an arbitrary ally, which quietly defeated the whole point
+  // of repositioning).  Only reward it as a DODGE when the slot is genuinely
+  // empty — i.e. the player moved the hero out — not when a downed hero is
+  // lying in it (no skill, and it'd be a free-Resolve soak).
+  if (!s.party.slots[slot]) _registerDodge(s, slot);
+}
+// Clean-dodge payoff — the telegraphed single-target attack found an empty
+// slot.  Grant a little Resolve and a clear "DODGED" beat.
+function _registerDodge(s, slot) {
+  gainResolve(s, 1);
+  if (typeof __simulating !== 'undefined' && __simulating) return;
+  try { log(`<i>The strike finds only empty air — <b>dodged!</b>  +1 Resolve.</i>`); } catch (_) {}
+  try {
+    const slotEl = document.querySelector(`#party-half .figure[data-slot="${slot}"]`);
+    if (slotEl && typeof spawnPopup === 'function') spawnPopup(slotEl, 'DODGED', 'miss');
+  } catch (_) {}
+  try { if (Audio && typeof Audio.queue === 'function') Audio.queue(); } catch (_) {}
 }
 function dmgLowestParty(s, amt) {
   amt = _scaleEnemyDmg(amt) + _layerIntentBonus(s) + _enemyAttackerBonus(s);
