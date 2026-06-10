@@ -2090,8 +2090,36 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
   0%, 100% { transform: translateX(-50%) scale(1.02); box-shadow: 0 0 14px rgba(255,58,58,0.7); }
   50%      { transform: translateX(-50%) scale(1.13); box-shadow: 0 0 26px rgba(255,58,58,1); }
 }
+/* Confirmed dodge — an enemy aims at this slot but it's empty (the player
+   moved the hero out), so the strike whiffs.  Positive green marker. */
+.threat-dodge {
+  position: absolute;
+  top: -7px; left: 50%;
+  transform: translateX(-50%);
+  z-index: 9;
+  padding: 1px 7px;
+  border-radius: 9px;
+  background: rgba(14,42,16,0.95);
+  border: 1.5px solid #6fcf6a;
+  color: #c2f0ba;
+  font-size: 10px; font-weight: 800; letter-spacing: 0.06em;
+  text-shadow: 0 1px 0 rgba(0,0,0,0.9);
+  box-shadow: 0 0 12px rgba(110,206,106,0.5);
+  pointer-events: none; white-space: nowrap;
+  animation: threat-dodge-pop 0.28s ease-out;
+}
+@keyframes threat-dodge-pop {
+  0%   { opacity: 0; transform: translateX(-50%) scale(0.6); }
+  100% { opacity: 1; transform: translateX(-50%) scale(1); }
+}
+.figure.empty.slot-dodged .slot-label {
+  opacity: 1 !important;
+  color: #8fe089;
+  text-shadow: 0 1px 0 rgba(0,0,0,0.9), 0 0 6px rgba(110,206,106,0.6);
+}
 @media (prefers-reduced-motion: reduce) {
   .threat-incoming, .threat-incoming-lethal { animation: none; }
+  .threat-dodge { animation: none; }
 }
 
 /* predicted incoming damage chip — top-left of party figure, opposite figure-statuses */

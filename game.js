@@ -18008,7 +18008,17 @@ function makePartyCard(c, slot, threatened, adjMap, incoming) {
   const slotLabelHtml = `<span class="slot-label">${SLOT_NAME[slot] || ''}</span>`;
   if (!c) {
     fig.classList.add('empty');
-    fig.innerHTML = `<div class="figure-portrait"></div><div class="figure-shadow"></div><div class="figure-info"><div class="figure-name">—</div></div>${slotLabelHtml}`;
+    // Threatened-but-empty slot = a confirmed DODGE — the enemy aims here
+    // but no one stands in it, so a single-target strike whiffs.  Positive
+    // green confirmation closes the dodge feedback loop while planning.
+    // Suppressed if any ally has Taunt (single-target attacks redirect to
+    // them instead, so the slot wouldn't actually be safe).
+    const tauntActive = Object.values(state.party.chars).some(h => h.taunt && !h.downed);
+    const dodgeMarker = (threatened && !tauntActive)
+      ? `<div class="threat-dodge" aria-hidden="true" title="No one stands here — a single-target strike on this slot whiffs.">✓ DODGE</div>`
+      : '';
+    if (threatened && !tauntActive) fig.classList.add('slot-dodged');
+    fig.innerHTML = `${dodgeMarker}<div class="figure-portrait"></div><div class="figure-shadow"></div><div class="figure-info"><div class="figure-name">—</div></div>${slotLabelHtml}`;
     return fig;
   }
   fig.dataset.id = c.id;
