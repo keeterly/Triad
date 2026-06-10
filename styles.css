@@ -2046,6 +2046,53 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
       drop-shadow(0 0 44px rgba(212,69,69,0.7));
   }
 }
+/* Threatened slot also surfaces its FRONT/MID/BACK label in red so the
+   spatial read ("my Front hero is the one in danger") is unmistakable. */
+.figure.targeted-by-enemy .slot-label {
+  opacity: 1 !important;
+  color: #ff9079;
+  text-shadow: 0 1px 0 rgba(0,0,0,0.9), 0 0 7px rgba(224,70,70,0.7);
+}
+
+/* Incoming-attack marker — the predicted damage on a threatened hero so
+   the dodge mechanic is legible: move them out of this slot, or Brace. */
+.threat-incoming {
+  position: absolute;
+  top: -7px; left: 50%;
+  transform: translateX(-50%);
+  z-index: 9;
+  display: inline-flex; align-items: center; gap: 2px;
+  padding: 1px 7px;
+  border-radius: 9px;
+  background: rgba(58,12,10,0.96);
+  border: 1.5px solid #e05050;
+  color: #ffb0a2;
+  font-size: 11px; font-weight: 800;
+  text-shadow: 0 1px 0 rgba(0,0,0,0.9);
+  box-shadow: 0 0 12px rgba(224,70,70,0.55);
+  pointer-events: none; white-space: nowrap;
+  animation: threat-incoming-pulse 1.2s ease-in-out infinite;
+}
+.threat-incoming-num { color: #ff6a5a; }
+.threat-incoming-warn { font-size: 13px; padding: 0 6px; }
+.threat-incoming-lethal {
+  background: rgba(82,8,8,0.97);
+  border-color: #ff3a3a;
+  color: #fff;
+  animation: threat-incoming-lethal 0.66s ease-in-out infinite;
+}
+.threat-incoming-lethal .threat-incoming-num { color: #ff5848; }
+@keyframes threat-incoming-pulse {
+  0%, 100% { transform: translateX(-50%) scale(1);    box-shadow: 0 0 10px rgba(224,70,70,0.5); }
+  50%      { transform: translateX(-50%) scale(1.06); box-shadow: 0 0 17px rgba(224,70,70,0.85); }
+}
+@keyframes threat-incoming-lethal {
+  0%, 100% { transform: translateX(-50%) scale(1.02); box-shadow: 0 0 14px rgba(255,58,58,0.7); }
+  50%      { transform: translateX(-50%) scale(1.13); box-shadow: 0 0 26px rgba(255,58,58,1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .threat-incoming, .threat-incoming-lethal { animation: none; }
+}
 
 /* predicted incoming damage chip — top-left of party figure, opposite figure-statuses */
 .incoming-chip {

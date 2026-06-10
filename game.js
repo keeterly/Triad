@@ -18066,7 +18066,22 @@ function makePartyCard(c, slot, threatened, adjMap, incoming) {
     ? `<span class="fig-mastery" title="Mastery: ${c.mastery.name} — ${c.mastery.desc}" data-tip="Mastery: ${c.mastery.name} — ${c.mastery.desc}">♕</span>`
     : '';
 
+  // Incoming-attack telegraph — the dodge mechanic only works if the
+  // player can SEE which slot is about to be hit and for how much.  A
+  // bold marker sits over a threatened hero: predicted HP damage (red),
+  // a skull when it would KO, or a plain warning for a debuff-only intent.
+  let threatBadge = '';
+  if (threatened && !c.downed) {
+    if (incoming && incoming.total > 0) {
+      const lethal = !!incoming.lethal;
+      threatBadge = `<div class="threat-incoming${lethal ? ' threat-incoming-lethal' : ''}" aria-hidden="true" title="Incoming: ${incoming.total} damage next turn${lethal ? ' — would KO this hero!' : ''}.  Drag them out of this slot, or Brace.">${lethal ? '☠' : '⚠'}<span class="threat-incoming-num">−${incoming.total}</span></div>`;
+    } else {
+      threatBadge = `<div class="threat-incoming threat-incoming-warn" aria-hidden="true" title="This slot is targeted next turn.  Drag this hero out, or Brace.">⚠</div>`;
+    }
+  }
+
   fig.innerHTML = `
+    ${threatBadge}
     ${synStack}
     <div class="figure-portrait">
       ${PORTRAITS[c.id] || ''}
