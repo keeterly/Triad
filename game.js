@@ -2217,7 +2217,7 @@ const CHARS = {
     school: 'arcane',
     maxHp: 18,
     home: 'back',
-    passive: { name: 'Old Hex', desc: "When Nira applies bleed, burn, or dulled, she heals 1 HP." },
+    passive: { name: 'Old Hex', desc: "When Nira applies bleed or dulled, she heals 1 HP." },
     techs: {
       front: {
         basic: { name: 'Curse-bite', desc: '3 arc dmg + dulled 1 + retreat', dmg: 3, element: 'arcane', move: 'retreat',
@@ -2245,10 +2245,10 @@ const CHARS = {
           fn: (s, t) => { let any = false; t.forEach(e => { applyDmgToEnemy(s, e, 2);
             if (!e.dead) { e.bleed = (e.bleed || 0) + 1; any = true; } });
             if (any) _niraOldHexTick(s); } },
-        sig:   { name: "Coven's Pyre", desc: '3♦ · 3 arc dmg all + burn 2 all', cost: 3, dmg: 3, element: 'arcane',
+        sig:   { name: "Coven's Pyre", desc: '3♦ · 3 arc dmg all + bleed 2 all', cost: 3, dmg: 3, element: 'arcane',
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { let any = false; t.forEach(e => { applyDmgToEnemy(s, e, 3);
-            if (!e.dead) { e.burn = (e.burn || 0) + 2; any = true; } });
+            if (!e.dead) { e.bleed = (e.bleed || 0) + 2; any = true; } });
             if (any) _niraOldHexTick(s); } },
       },
     },
@@ -8423,7 +8423,7 @@ const COMBOS = {
       if (k && !k.downed) {
         k.taunt = true;
         k.retaliate = (k.retaliate || 0) + 3;
-        k.armorAbsorb = (k.armorAbsorb || 0) + 1;
+        k.guard = (k.guard || 0) + 1;
         spawnPassivePopup('korin', 'WALL');
       }
     },
@@ -8448,7 +8448,7 @@ const COMBOS = {
     ],
     fn: (s) => {
       dmgAllEnemies(s, 3);
-      aliveParty(s).forEach(c => { c._veil = true; spawnPopupId(c.id, 'VEIL', 'armor', 'party'); });
+      aliveParty(s).forEach(c => { c.guard = (c.guard || 0) + 1; spawnPopupId(c.id, 'GUARD', 'armor', 'party'); });
     },
     cinematic: [
       { kind: 'stage',       school: 'stealth',                          ms: 220 },
@@ -8904,7 +8904,7 @@ const COMBOS = {
       finally { s.currentActorId = null; s.currentTechElement = null; }
       const low = aliveEnemies(s).slice().sort((a, b) => a.hp - b.hp)[0];
       if (low && !low.dead) { low.vuln = (low.vuln || 0) + 3; spawnPopupId(low.id, '+3 VULN', 'stagger', 'enemy'); }
-      aliveParty(s).forEach(c => { c._veil = true; spawnPopupId(c.id, 'VEIL', 'armor', 'party'); });
+      aliveParty(s).forEach(c => { c.guard = (c.guard || 0) + 1; spawnPopupId(c.id, 'GUARD', 'armor', 'party'); });
     },
     cinematic: [
       { kind: 'stage',       school: 'stealth',                           ms: 220 },
@@ -9051,7 +9051,7 @@ const COMBOS = {
     ],
     fn: (s) => {
       aliveParty(s).forEach(c => { c.bleed = 0; c.dulled = 0; c.vuln = Math.max(0, c.vuln - 2); });
-      aliveEnemies(s).forEach(e => { e.burn = Math.max(e.burn, 3); spawnPopupId(e.id, 'BURN', 'stagger', 'enemy'); });
+      aliveEnemies(s).forEach(e => { e.bleed = Math.max(e.bleed, 3); spawnPopupId(e.id, 'BLEED', 'stagger', 'enemy'); });
       dmgAllEnemies(s, 2);
     },
     cinematic: [
@@ -9080,7 +9080,7 @@ const COMBOS = {
         const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 5);
         if (c.hp > b) spawnPopupId(c.id, `+${c.hp - b}`, 'heal', 'party');
         c.bleed = 0; c.dulled = 0;
-        c.divineGuard = true;
+        c.guard = (c.guard || 0) + 1;
         spawnPopupId(c.id, 'GUARD', 'armor', 'party');
       });
     },
@@ -9165,7 +9165,7 @@ const COMBOS = {
         const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 6);
         if (c.hp > b) spawnPopupId(c.id, `+${c.hp - b}`, 'heal', 'party');
         c.bleed = 0; c.dulled = 0;
-        c._veil = true;
+        c.guard = (c.guard || 0) + 1;
       });
     },
     cinematic: [
@@ -9200,7 +9200,7 @@ const COMBOS = {
         }
         s.ignoreArmor = wasIgnore;
       }
-      aliveParty(s).forEach(c => { c._veil = true; });
+      aliveParty(s).forEach(c => { c.guard = (c.guard || 0) + 1; });
     },
     cinematic: [
       { kind: 'stage',       school: 'stealth',                         ms: 320 },
@@ -9235,7 +9235,7 @@ const COMBOS = {
       if (k && !k.downed) {
         k.taunt = true;
         k.retaliate = (k.retaliate || 0) + 4;
-        k.armorAbsorb = (k.armorAbsorb || 0) + 1;
+        k.guard = (k.guard || 0) + 1;
       }
       aliveParty(s).forEach(c => { c.armor += 3; });
     },
@@ -9313,7 +9313,7 @@ const COMBOS = {
           if (c.hp > b) spawnPopupId(c.id, `+${c.hp - b}`, 'heal', 'party');
         }
         c.bleed = 0; c.dulled = 0; c.vuln = 0;
-        c._veil = true;
+        c.guard = (c.guard || 0) + 1;
       });
       dmgAllEnemies(s, 8);
       gainResolve(s, 2);
@@ -9344,7 +9344,7 @@ const COMBOS = {
       { heroId: 'vasha',  kind: 'attack' },
     ],
     fn: (s) => {
-      aliveParty(s).forEach(c => { c._veil = true; });
+      aliveParty(s).forEach(c => { c.guard = (c.guard || 0) + 1; });
       const alive = aliveParty(s).slice().sort((a,b) => (a.hp/a.maxHp) - (b.hp/b.maxHp));
       const lowest = alive[0];
       if (lowest) {
@@ -9376,7 +9376,7 @@ const COMBOS = {
       aliveEnemies(s).forEach(e => {
         if (e.dead) return;
         e.vuln += 3;
-        e.burn = Math.max(e.burn, 1);
+        e.bleed = Math.max(e.bleed, 1);
         spawnPopupId(e.id, 'VULN +3', 'stagger', 'enemy');
       });
     },
@@ -9533,7 +9533,7 @@ const COMBOS = {
       { heroId: 'korin',  kind: 'attack' },
     ],
     fn: (s) => {
-      aliveParty(s).forEach(c => { c.armorAbsorb = (c.armorAbsorb || 0) + 1; });
+      aliveParty(s).forEach(c => { c.guard = (c.guard || 0) + 1; });
       const front = enemyBySlot(s, 'front');
       if (front && !front.dead) {
         if (!front.weaknessRevealed) { front.weaknessRevealed = true; front._weaknessJustRevealed = true; }
@@ -11901,13 +11901,12 @@ function newCharState(id) {
     namedArrowUsed: false, _namedArrowPaid: false, _heldGateUsed: false,
     // Once-per-fight passive flags (reset in startEncounter)
     _mercyDeathSaveUsed: false, convictionArmed: false,
-    // Combo-granted one-shot defensive states.  _veil evades the next hit
-    // entirely (Quiet Volley / Hallowed Cleave / Phantom Crescent / Sacred
-    // Wakening).  armorAbsorb eats a full incoming hit per stack (Wall
-    // Charge / Stormwall).  divineGuard clamps the next hit to 1 damage
-    // (Sacred Triad).  All clear at the start of the next player turn or
-    // when consumed in applyDmgToParty — whichever comes first.
-    _veil: false, armorAbsorb: 0, divineGuard: false,
+    // Combo-granted one-shot defensive ward.  Each Guard stack fully negates
+    // the next incoming hit (granted by Quiet Volley, Wall Charge, Stormwall,
+    // Sacred Triad, Hallowed Cleave, Phantom Crescent, Sacred Wakening, the
+    // Wall passive, …).  Clears at the start of the next player turn or when
+    // consumed in applyDmgToParty — whichever comes first.
+    guard: 0,
     // Darkest-Dungeon-style affinity quirks — persistent run-wide modifiers.
     // Earned from victories; positive quirks buff combat output, negative
     // quirks penalize.  Capped at QUIRK_CAP per side.
@@ -11945,10 +11944,6 @@ function newEnemyState(id) {
     // tech.
     weaknessRevealed: false, weakened: false, weakenedTurnsLeft: 0, staggered: false, staggerBonusUsed: false,
     _shadowCutHeld: false,
-    // Burn — Veiled Flame applies it.  Bleed-class DOT that ignores armor
-    // and ticks 2/turn for as many stacks as remain.  Tracked separately
-    // from bleed so cleanses, stagger interactions etc. don't double-fire.
-    burn: 0,
     dead: false, intentIdx: 0,
   };
 }
@@ -12922,28 +12917,24 @@ function enemyAdvanceFill(s) {
 function applyDmgToParty(s, c, amt) {
   if (!c || c.downed) return;
   // Charm — Hearth Coal: first incoming attack each fight reduced by 3.
-  // Sits BEFORE the absorb-style passives below so the reduction shrinks
-  // the hit BEFORE Wall / Veil consume; that way a small first hit might
-  // not even need the absorb.  Consumed on the first non-zero hit.
+  // Sits BEFORE the Guard ward below so the reduction shrinks the hit
+  // first; a small first hit might not even need the ward.  Consumed on
+  // the first non-zero hit.
   if (s.run && s.run._charmFirstShieldPending && amt > 0) {
     amt = Math.max(0, amt - 3);
     s.run._charmFirstShieldPending = false;
   }
-  // Veil — Quiet Volley / Phantom Crescent / Hallowed Cleave / Sacred
-  // Wakening grant a one-shot evade.  First incoming hit fizzles entirely
-  // and the flag clears.  Sits at the very top: nothing else processes.
-  if (c._veil) {
-    c._veil = false;
-    spawnPopupId(c.id, 'VEIL', 'miss', 'party');
-    log(`<b>${CHARS[c.id].name}</b> slips the strike — Veil.`);
-    return;
-  }
-  // Wall — Wall Charge / Stormwall grant Korin (or whoever) an absorb
-  // bubble that eats one full hit, armor and HP both untouched.
-  if (c.armorAbsorb > 0) {
-    c.armorAbsorb -= 1;
-    spawnPopupId(c.id, 'WALL', 'armor', 'party');
-    log(`<b>${CHARS[c.id].name}</b> turns the blow aside — Wall.`);
+  // Guard — a one-shot ward that fully negates the next incoming hit.
+  // Unifies the former Veil / Wall / Divine Guard one-shots (Quiet Volley,
+  // Wall Charge, Stormwall, Sacred Triad, Hallowed Cleave, Phantom Crescent,
+  // Sacred Wakening, the Wall passive, …).  Stacks: each incoming hit
+  // consumes one Guard and deals 0 — armor and HP both untouched.  Sits at
+  // the very top: nothing else processes.  Clears at the start of the next
+  // player turn or when consumed, whichever comes first.
+  if (c.guard > 0 && amt > 0) {
+    c.guard -= 1;
+    spawnPopupId(c.id, 'GUARD', 'armor', 'party');
+    log(`<b>${CHARS[c.id].name}</b> wards the blow — Guard.`);
     return;
   }
   // Cassia Held Gate — once per turn, while Cassia holds Front, the first
@@ -12962,15 +12953,6 @@ function applyDmgToParty(s, c, amt) {
   if (hasRunModifier(s, 'hunger') && slotOfChar(s, c.id) === 'front') amt += 1;
   // Vulnerable on party
   if (c.vuln > 0 && amt > 0) { amt += 2; c.vuln = Math.max(0, c.vuln - 1); }
-  // Divine Guard — Sacred Triad clamps the next hit to 1 damage.  Caps
-  // catastrophic AoE while keeping bleed/burn chip honest.  Applied after
-  // vuln so the math still incorporates the threat shape, then floored.
-  if (c.divineGuard && amt > 1) {
-    amt = 1;
-    c.divineGuard = false;
-    spawnPassivePopup(c.id, 'GUARD');
-  }
-
   const absorbed = Math.min(c.armor, amt);
   c.armor = Math.max(0, c.armor - amt);
   let toHp = amt - absorbed;
@@ -15402,7 +15384,7 @@ function startTurn(s) {
   s.bonusAtb = Math.min(1, s.pendingBonusAtb || 0);
   s.pendingBonusAtb = 0;
   // clear single-turn buffs that survived the enemy phase
-  aliveParty(s).forEach(c => { c.taunt = false; c.retaliate = 0; c.firstAttackUsed = false; c.shadowVeilUsed = false; c.lingeringUsed = false; c._silentVolleyUsed = false; c.namedArrowUsed = false; c._namedArrowCount = 0; c._namedArrowPaid = false; c._heldGateUsed = false; c._heldGateUses = 0; c._veil = false; c.divineGuard = false; c.armorAbsorb = 0; c._ironTossUsed = false; c._heelUsed = 0; });
+  aliveParty(s).forEach(c => { c.taunt = false; c.retaliate = 0; c.firstAttackUsed = false; c.shadowVeilUsed = false; c.lingeringUsed = false; c._silentVolleyUsed = false; c.namedArrowUsed = false; c._namedArrowCount = 0; c._namedArrowPaid = false; c._heldGateUsed = false; c._heldGateUses = 0; c.guard = 0; c._ironTossUsed = false; c._heelUsed = 0; });
   // Weakness/stagger state decay at the top of each player turn:
   //   - weakened lingers for 2 player turns (so the follow-up weakness
   //     hit doesn't have to land same-turn).  weakenedTurnsLeft ticks
@@ -15530,18 +15512,6 @@ function startTurn(s) {
       else                  { e.bleed -= 1; }
       if (dmg > 0) { spawnPopupId(e.id, `-${dmg}`, 'dmg', 'enemy'); flashCardId(e.id, 'hit', 'enemy'); }
       log(`<b>${ENEMIES[e.id].name}</b> bleeds (${dmg}).`);
-      if (e.hp === 0) killEnemy(s, e);
-    }
-    // Burn — Veiled Flame applies it.  Bleed-class status but ignores
-    // armor entirely (it's the heat passing through, not the cut) and
-    // hits harder per tick (2) for fewer turns.  Decays by 1 each tick.
-    if (!e.dead && e.burn > 0) {
-      const burnDmg = 2;
-      e.hp = Math.max(0, e.hp - burnDmg);
-      e.burn -= 1;
-      spawnPopupId(e.id, `-${burnDmg}`, 'crit', 'enemy');
-      flashCardId(e.id, 'hit', 'enemy');
-      log(`<b>${ENEMIES[e.id].name}</b> burns (${burnDmg}).`);
       if (e.hp === 0) killEnemy(s, e);
     }
   });
@@ -18412,13 +18382,10 @@ function renderStatuses(ent, sForAuras) {
   if (ent.armor > 0)     push(10, 'armor', '⛨', ent.armor,    `Armor ${ent.armor} — absorbs ${ent.armor} damage before HP. Wears off as it absorbs.`);
   if (ent.vuln > 0)      push(20, 'vuln',  '⊕', ent.vuln,     `Vulnerable ${ent.vuln} — next ${ent.vuln} incoming attacks deal +2 damage (+4 with Ember of Wrath Sigil) and consume one stack.`);
   if (ent.bleed > 0)     push(30, 'bleed', '✤', ent.bleed,    `Bleed ${ent.bleed} — takes 2 damage at the start of each turn (3 with Bloodborne Sigil), then the stack decreases by 1.`);
-  if (ent.burn > 0)      push(40, 'burn',  '≋', ent.burn,    `Burn ${ent.burn} — takes 2 damage at start of each turn, ignores armor. Decays 1/turn.`);
   if (ent.dulled > 0)    push(50, 'dulled', '↓', ent.dulled, `Dulled ${ent.dulled} — this character's outgoing damage is reduced by 2 for the next ${ent.dulled} attack(s).`);
   if (ent.taunt)         push(60, 'taunt', '⌖', null,         'Taunt — enemies single-target attacks redirect to this character instead of the original slot.');
   if (ent.retaliate > 0) push(70, 'retal', '↻', ent.retaliate,`Retaliate ${ent.retaliate} — when hit, counter-attack the front-most enemy for ${ent.retaliate} damage.`);
-  if (ent.armorAbsorb > 0) push(75, 'wall', '⛨', ent.armorAbsorb, `Wall ${ent.armorAbsorb} — next ${ent.armorAbsorb} incoming hit(s) absorbed entirely (no HP or armor cost).`);
-  if (ent._veil)         push(80, 'veil', '◐', null,          "Veil — first incoming hit this turn misses.");
-  if (ent.divineGuard)   push(85, 'guard', '✦', null,         "Divine Guard — next incoming hit is clamped to 1 damage.");
+  if (ent.guard > 0)     push(80, 'guard', '⛨', ent.guard,    `Guard ${ent.guard} — the next ${ent.guard} incoming hit(s) are negated entirely (no HP or armor cost).`);
   if (ent.pendingEffects) ent.pendingEffects.forEach(e => {
     // Pending one-shots get the 'pending' status class which CSS pulses
     // gold so the player remembers to actually USE them next turn.
@@ -18584,10 +18551,7 @@ const STATUS_TOOLTIPS = {
   vuln:     { name: 'Vulnerable',  text: 'Incoming hits deal +2 damage per stack (+2 more with Ember of Wrath). One stack is consumed per hit (unless Brand of Doom).' },
   retal:    { name: 'Retaliate',   text: 'When hit, counter-attacks the front-most enemy for this value (+2 with Vow of Vigil). Clears at the start of the next turn.' },
   pending:  { name: 'Pending',     text: 'A one-shot bonus from a synergy. Consumed by the next matching action.' },
-  burn:     { name: 'Burn',          text: 'Takes 2 damage at the start of each turn, ignores armor. Decays by 1 per turn.' },
-  veil:     { name: 'Veil',          text: 'First incoming hit this turn misses entirely. Cleared at the start of the next player turn.' },
-  wall:     { name: 'Wall',          text: 'Next incoming hit is absorbed entirely — no HP loss, no armor loss. Each stack covers one hit.' },
-  guard:    { name: 'Divine Guard',  text: 'Next incoming hit is clamped to 1 damage. Single-use shield from Sacred Triad.' },
+  guard:    { name: 'Guard',         text: 'Each stack fully negates the next incoming hit — no HP loss, no armor loss. Cleared at the start of the next player turn.' },
   heldgate: { name: 'Held Gate',     text: "While Cassia holds Front, the first incoming hit each turn against an ally is redirected to her. Lifts once she takes the redirect or leaves Front." },
   warden:   { name: "Warden's Word", text: "While Garron holds Front, the first ally who would fall each fight is clamped to 1 HP and Garron loses 4 HP. Once per fight." },
   redtally: { name: 'Red Tally',     text: "Each time Korin takes self-damage, his next attack carries +3 and bleed 1. Stacks — the wounds tally up." },
@@ -19129,7 +19093,7 @@ function previewComboTargets(comboId) {
     if (e && !e.dead) {
       enemyBefore[sl] = {
         hp: e.hp, armor: e.armor || 0, vuln: e.vuln || 0,
-        bleed: e.bleed || 0, burn: e.burn || 0, dulled: e.dulled || 0,
+        bleed: e.bleed || 0, dulled: e.dulled || 0,
         weakened: !!e.weakened, staggered: !!e.staggered,
       };
     }
@@ -19166,7 +19130,6 @@ function previewComboTargets(comboId) {
     const debuffed = !!(
       (after.vuln || 0)  > before.vuln  ||
       (after.bleed || 0) > before.bleed ||
-      (after.burn || 0)  > before.burn  ||
       (after.dulled || 0)> before.dulled ||
       (after.weakened && !before.weakened) ||
       (after.staggered && !before.staggered)
@@ -21781,7 +21744,6 @@ function showRestOverlay() {
       target.armor = 0;
       target.vuln = 0;
       target.bleed = 0;
-      target.burn = 0;
       target.dulled = 0;
       target.weakened = false;
       target.staggered = false;
@@ -25861,15 +25823,9 @@ function loadStateOrNull() {
       if (c._heldGateUsed === undefined)      c._heldGateUsed = false;
       if (c._mercyDeathSaveUsed === undefined) c._mercyDeathSaveUsed = false;
       if (c.convictionArmed === undefined)    c.convictionArmed = false;
-      // Combo-granted defensive states (Resonance refresh)
-      if (c._veil === undefined)              c._veil = false;
-      if (c.armorAbsorb === undefined)        c.armorAbsorb = 0;
-      if (c.divineGuard === undefined)        c.divineGuard = false;
+      // Combo-granted defensive ward (Resonance refresh)
+      if (c.guard === undefined)              c.guard = 0;
       delete c.bleedKillUsed;
-    });
-    Object.values((snap.enemies && snap.enemies.chars) || {}).forEach(e => {
-      if (!e) return;
-      if (e.burn === undefined) e.burn = 0;
     });
     // A snapshot taken mid-cinematic shouldn't keep the queue-pacing hint
     if (snap._cineHoldUntil !== undefined) delete snap._cineHoldUntil;
@@ -27093,13 +27049,10 @@ function _renderCodexKeywords() {
     entry('⛨', 'Armor', sv('armor'), 'kw-st-armor'),
     entry('⊕', 'Vulnerable', sv('vuln'), 'kw-st-vuln'),
     entry('✤', 'Bleed', sv('bleed'), 'kw-st-bleed'),
-    entry('≋', 'Burn', sv('burn'), 'kw-st-burn'),
     entry('↓', 'Dulled', sv('dulled'), 'kw-st-dulled'),
     entry('⌖', 'Taunt', sv('taunt'), 'kw-st-taunt'),
     entry('↻', 'Retaliate', sv('retal'), 'kw-st-retal'),
-    entry('◐', 'Veil', sv('veil'), 'kw-st-veil'),
-    entry('⛨', 'Wall', sv('wall'), 'kw-st-wall'),
-    entry('✦', 'Divine Guard', sv('guard'), 'kw-st-guard'),
+    entry('⛨', 'Guard', sv('guard'), 'kw-st-guard'),
     entry('⌖', 'Weakened', 'Hit a foe with the element it is weak to, then hit it AGAIN with that element to <b>Stagger</b> it. Lasts about two turns.', 'kw-st-weak'),
     entry('⚡', 'Staggered', 'The next damaging hit deals <b>double</b> damage, then the Stagger clears. Your window to cash in.', 'kw-st-stagger'),
   ]);
