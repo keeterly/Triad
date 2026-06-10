@@ -12265,6 +12265,45 @@ function previewMultiHit(s, e, baseAmt, actorId, hits, techElement) {
   return { dmg: totalHp, badge, topBonus };
 }
 
+// ---- Reactions (Model A — party-driven status detonations) ----------------
+// A "primer" status on the enemy + a matching attack ELEMENT triggers a
+// Reaction: a one-hit burst that consumes/transforms the status.  This is the
+// Clair-Obscur / Mass-Effect "prime → detonate" fantasy — one hero sets the
+// condition, another hero's attack type cashes it in, so diverse parties (a
+// bleeder + a slasher) gain real synergy in every hit, not just queued combos.
+//
+// Kept as an explicit, sparse table (few memorable combos, not a 5×N grid) so
+// it adds depth without re-inflating the status vocabulary.  Returns
+// { name, bonus } when a reaction fires (side effects already applied), else
+// null.  Deliberately structured so the weakness/stagger layer can later fold
+// into this same "interaction" model.
+function resolveReaction(s, e, element) {
+  if (!e || e.dead || !element) return null;
+  // RUPTURE — Physical on a Bleeding enemy.  The blade tears the wound wide:
+  // consume ALL bleed for an instant burst (3 per stack).  Strictly better
+  // than letting it tick (2/turn), so detonating always feels like a reward
+  // rather than a tax on your own setup.
+  if (element === 'physical' && e.bleed > 0) {
+    const stacks = e.bleed;
+    e.bleed = 0;
+    return { name: 'RUPTURE!', bonus: stacks * 3 };
+  }
+  // WILDFIRE — Arcane on a Bleeding enemy.  The blood catches and leaps: a
+  // smaller burst (2 per stack) on the target, then the fire spreads bleed 1
+  // to every OTHER living enemy — turning one primer into a board-wide one.
+  if (element === 'arcane' && e.bleed > 0) {
+    const stacks = e.bleed;
+    e.bleed = 0;
+    aliveEnemies(s).forEach(o => {
+      if (o === e || o.dead) return;
+      o.bleed = Math.max(o.bleed || 0, 1);
+      spawnPopupId(o.id, 'BLEED', 'stagger', 'enemy');
+    });
+    return { name: 'WILDFIRE!', bonus: stacks * 2 };
+  }
+  return null;
+}
+
 function applyDmgToEnemy(s, e, baseAmt) {
   if (!e || e.dead) return;
   // Untargetable enemies absorb the strike without taking damage — used by
@@ -12400,6 +12439,7 @@ function applyDmgToEnemy(s, e, baseAmt) {
   // even though Kai is physical-school).
   let schoolBadge = null;
   let isWeaknessHit = false;
+  let reactionName = null;
   const actorDef = s.currentActorId ? CHARS[s.currentActorId] : null;
   let element = s.currentTechElement || (actorDef && actorDef.school);
   // Silent Volley (Branwen+Veyr mid-back) — Branwen's first attack each
@@ -12457,6 +12497,20 @@ function applyDmgToEnemy(s, e, baseAmt) {
     // chromatic flash so the hit lands as a MOMENT instead of a
     // normal popup.  No-op during simulation.
     playStaggerHit();
+  }
+
+  // Reactions — a primer status + matching attack element detonates for a
+  // one-hit burst.  Sits after the weakness/stagger multipliers so the burst
+  // rides on the already-boosted hit, and reuses the WEAK!/STG! badge + the
+  // payoff slow-mo flash so it reads as a MOMENT.
+  if (element && amt > 0) {
+    const rx = resolveReaction(s, e, element);
+    if (rx) {
+      amt += rx.bonus;
+      reactionName = rx.name;
+      schoolBadge = rx.name;
+      playStaggerHit();
+    }
   }
 
   amt = Math.max(0, amt);
@@ -12688,10 +12742,13 @@ function applyDmgToEnemy(s, e, baseAmt) {
     }
   }
 
-  const popupType = (schoolBadge === 'WEAK!' || schoolBadge === 'STG!') ? 'crit' : 'dmg';
+  // Reactions read as crit-tier hits, same as WEAK!/STG! — hot popup, gold
+  // badge, and the weakness shimmer.
+  const hotBadge = (schoolBadge === 'WEAK!' || schoolBadge === 'STG!' || !!reactionName);
+  const popupType = hotBadge ? 'crit' : 'dmg';
   spawnPopupId(e.id, `-${toHp}`, popupType, 'enemy');
   if (schoolBadge) {
-    const badgeType = (schoolBadge === 'WEAK!' || schoolBadge === 'STG!') ? 'crit' : 'miss';
+    const badgeType = hotBadge ? 'crit' : 'miss';
     setTimeout(() => spawnPopupId(e.id, schoolBadge, badgeType, 'enemy'), 80);
     // WEAK!/STG! shimmer — brief gold pulse on the struck figure so
     // the elemental-matchup payoff has a visible beat beyond the
@@ -12700,7 +12757,7 @@ function applyDmgToEnemy(s, e, baseAmt) {
     if (!__simulating) {
       const shEl = document.querySelector(`#enemy-half [data-id="${e.id}"]`);
       if (shEl) {
-        const cls = (schoolBadge === 'WEAK!' || schoolBadge === 'STG!')
+        const cls = hotBadge
           ? 'weak-shimmer'
           : (schoolBadge === 'RESIST' ? 'resist-dim' : null);
         if (cls) {
@@ -18545,7 +18602,7 @@ function formatDesc(text) {
 // once at boot via event delegation so re-renders don't need rebinding.
 const STATUS_TOOLTIPS = {
   armor:    { name: 'Armor',       text: 'Absorbs incoming damage 1:1 before HP. Wears off as it absorbs. Does not regenerate.' },
-  bleed:    { name: 'Bleed',       text: 'Takes 2 damage at the start of each turn (+1 with Bloodborne / Bone Tide). Decays by 1 per turn. Ignores armor.' },
+  bleed:    { name: 'Bleed',       text: 'Takes 2 damage at the start of each turn (+1 with Bloodborne / Bone Tide). Decays by 1 per turn. Ignores armor. REACTION — on a bleeding enemy, a Physical hit RUPTURES it (consumes the bleed for a burst), an Arcane hit sparks WILDFIRE (burst + spreads bleed to other enemies).' },
   taunt:    { name: 'Taunt',       text: 'Enemy single-target attacks redirect to this hero. Clears at the start of the next turn.' },
   dulled:   { name: 'Dulled',      text: 'Outgoing attacks deal -2 damage. Consumes 1 stack per attack.' },
   vuln:     { name: 'Vulnerable',  text: 'Incoming hits deal +2 damage per stack (+2 more with Ember of Wrath). One stack is consumed per hit (unless Brand of Doom).' },
