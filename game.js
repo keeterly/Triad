@@ -1646,6 +1646,9 @@ const RESOLVE_DRIP = 1;     // Resolve regenerated automatically each turn
 // Physical Momentum — banked by physical basics, spent by a physical sig.
 const MOMENTUM_CAP = 5;     // pips; a full bank empowers the next sig hard
 const MOMENTUM_PER = 2;     // bonus damage per Momentum point spent
+// Ember Stall (shop) map node — disabled for now while we evaluate it.
+// Flip to true to bring the in-run consumable shop back.
+const SHOP_NODES_ENABLED = false;
 // Encounter-difficulty compensation for the 3→4 ATB/Resolve player turn.
 // The extra ATB mostly pays off with a FULL party (more heroes to spend
 // actions across) — a solo hero gains almost nothing from it, so applying
@@ -6736,7 +6739,7 @@ function generateMap(layerOverride) {
     // combat if no event) into the Ember Stall.  Skipped on boss / final-
     // gate levels.  At most one per stretch.  Gives the pending-Embers
     // economy an in-run sink and a variance release valve.
-    if (lvl >= 2 && lvl !== numLevels && lvl !== numLevels - 1) {
+    if (SHOP_NODES_ENABLED && lvl >= 2 && lvl !== numLevels && lvl !== numLevels - 1) {
       if (countAndTypes && Math.random() < 0.30 && countAndTypes.indexOf('shop') === -1) {
         let si = countAndTypes.indexOf('event');
         if (si === -1) si = countAndTypes.indexOf('combat');
@@ -15116,6 +15119,10 @@ function fireSynergyFeedback(s, name, receiverId, effectText, effectType) {
     const eyebrow = levelAfter === 3 ? '✦ RESONANT' : '✦ DEEPENED';
     const partnerIds = pair && Array.isArray(pair.ids) ? pair.ids : [receiverId];
     const partnerNames = partnerIds.map(id => (CHARS[id] && CHARS[id].name) || id).join(' + ');
+    // Centered cinematic beat — the portraits converge as the bond deepens.
+    if (partnerIds.length === 2) {
+      setTimeout(() => playBondDeepen(partnerIds[0], partnerIds[1], levelAfter), 260);
+    }
     setTimeout(() => {
       spawnToast({
         category: 'bond',
@@ -20326,6 +20333,45 @@ function playFirstResonanceOfRun(comboName) {
   setTimeout(() => {
     if (stage) stage.classList.remove('first-resonance');
   }, 700);
+}
+
+// Cinematic beat for a bond DEEPENING — the two heroes' portraits converge
+// with a kizuna spark and a banner the moment their bond crosses a level.
+// Scaled up (gold, longer, brighter) for the RESONANT L3 unlock.  A centered
+// flourish that makes the level-up land as a MOMENT, distinct from the small
+// side-toast that records it.  No-op during simulation.
+let _bondDeepenTimer = null;
+function playBondDeepen(idA, idB, levelAfter) {
+  if (__simulating) return;
+  const nameA = (CHARS[idA] && CHARS[idA].name) || idA || '';
+  const nameB = (CHARS[idB] && CHARS[idB].name) || idB || '';
+  const roman = (typeof BOND_TIER_ROMAN !== 'undefined' && BOND_TIER_ROMAN[levelAfter]) || '';
+  const resonant = levelAfter >= 3;
+  let el = document.getElementById('bond-deepen');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'bond-deepen';
+    el.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(el);
+  }
+  el.className = resonant ? 'resonant' : '';
+  el.innerHTML = `
+    <div class="bd-tint"></div>
+    <div class="bd-row">
+      <div class="bd-hero bd-a">${PORTRAITS[idA] || ''}</div>
+      <div class="bd-link"><span class="bd-spark"></span></div>
+      <div class="bd-hero bd-b">${PORTRAITS[idB] || ''}</div>
+    </div>
+    <div class="bd-banner">
+      <div class="bd-eyebrow">${resonant ? '✦ RESONANT' : '✦ KIZUNA DEEPENS'}</div>
+      <div class="bd-name">${nameA} &amp; ${nameB}${roman ? ` ${roman}` : ''}</div>
+    </div>`;
+  el.classList.remove('go');
+  void el.offsetWidth;
+  el.classList.add('go');
+  if (resonant) shakeScreen(2);
+  clearTimeout(_bondDeepenTimer);
+  _bondDeepenTimer = setTimeout(() => el.classList.remove('go'), resonant ? 2000 : 1400);
 }
 
 // Boss death slow-mo: dim the screen, slow CSS animations, brief flash.
