@@ -1424,8 +1424,48 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
 }
 .figure.body-status-dulled .figure-portrait svg { filter: saturate(.55) brightness(.93); }
 
+/* ----- Behavioural tells (posture) layered on the particles -----
+   The afflicted body's idle is REPLACED (not composed) so the breathe and
+   the tell live on one timeline — no transform clobbering, and only the SVG
+   moves (the HP bar / chips stay put).  Enemy SVGs are flipped, so each tell
+   carries a -mirror twin with scaleX negated throughout.
+     bleed  — breathes, then a sharp wince every cycle
+     dulled — sags lower, slower, shallower (drained posture) */
+.figure.body-status-bleed  .figure-portrait svg { animation: idle-bleed 3.6s ease-in-out infinite; }
+#enemy-half .figure.body-status-bleed  .figure-portrait svg { animation: idle-bleed-mirror 3.6s ease-in-out infinite; }
+.figure.body-status-dulled .figure-portrait svg { animation: idle-slump 7.2s ease-in-out infinite; }
+#enemy-half .figure.body-status-dulled .figure-portrait svg { animation: idle-slump-mirror 7.2s ease-in-out infinite; }
+
+@keyframes idle-bleed {
+  0%, 72%, 100% { transform: scale(1,1)         translate(0,0)         rotate(0deg); }
+  40%           { transform: scale(1.016,1.012) translate(0,-0.5px)    rotate(0deg); }
+  79%           { transform: scale(1.012,0.99)  translate(-1.6px,-1px) rotate(-1.5deg); }
+  83%           { transform: scale(1.012,0.99)  translate(1.3px,0)     rotate(1.1deg);  }
+  87%           { transform: scale(1,1)         translate(-0.7px,0)    rotate(-0.4deg); }
+  91%           { transform: scale(1,1)         translate(0.3px,0)     rotate(0.2deg);  }
+}
+@keyframes idle-bleed-mirror {
+  0%, 72%, 100% { transform: scaleX(-1)     scaleY(1)     translate(0,0)         rotate(0deg); }
+  40%           { transform: scaleX(-1.016) scaleY(1.012) translate(0,-0.5px)    rotate(0deg); }
+  79%           { transform: scaleX(-1.012) scaleY(0.99)  translate(-1.6px,-1px) rotate(-1.5deg); }
+  83%           { transform: scaleX(-1.012) scaleY(0.99)  translate(1.3px,0)     rotate(1.1deg);  }
+  87%           { transform: scaleX(-1)     scaleY(1)     translate(-0.7px,0)    rotate(-0.4deg); }
+  91%           { transform: scaleX(-1)     scaleY(1)     translate(0.3px,0)     rotate(0.2deg);  }
+}
+@keyframes idle-slump {
+  0%, 100% { transform: scale(1,0.978)     translateY(2.5px) rotate(-1.2deg); }
+  50%      { transform: scale(1.006,0.984) translateY(1.6px) rotate(-1deg);   }
+}
+@keyframes idle-slump-mirror {
+  0%, 100% { transform: scaleX(-1)     scaleY(0.978) translateY(2.5px) rotate(-1.2deg); }
+  50%      { transform: scaleX(-1.006) scaleY(0.984) translateY(1.6px) rotate(-1deg);   }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .body-particles i { animation-duration: 0s; opacity: 0; }
+  .figure.body-status-bleed  .figure-portrait svg,
+  #enemy-half .figure.body-status-bleed  .figure-portrait svg { animation-name: idle-breathe; }
+  #enemy-half .figure.body-status-bleed  .figure-portrait svg { animation-name: idle-breathe-mirror; }
 }
 /* soft ground shadow ellipse under each figure */
 .figure-shadow {
