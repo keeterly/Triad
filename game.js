@@ -12793,7 +12793,11 @@ function applyDmgToEnemy(s, e, baseAmt) {
   // badge, and the weakness shimmer.
   const hotBadge = (schoolBadge === 'WEAK!' || schoolBadge === 'STG!' || !!reactionName);
   const popupType = hotBadge ? 'crit' : 'dmg';
-  spawnPopupId(e.id, `-${toHp}`, popupType, 'enemy');
+  // Octopath-style number drama — the bigger the blow, the bigger the
+  // number.  A heavy hit punches up to `big`, a massive one to `huge`,
+  // so damage reads as a felt magnitude, not just a value.
+  const sizeClass = toHp >= 14 ? ' huge' : toHp >= 8 ? ' big' : '';
+  spawnPopupId(e.id, `-${toHp}`, popupType + sizeClass, 'enemy');
   if (schoolBadge) {
     // Reactions DETONATE — give them their own burst popup (a ✺ glyph + the
     // punchier 'pop' animation) so the moment reads as an explosion.  In the
@@ -12825,6 +12829,20 @@ function applyDmgToEnemy(s, e, baseAmt) {
   // Game feel: shake the struck card; screen shake on big hits; SFX
   shakeCardId(e.id, 'enemy', toHp);
   if (toHp >= 6) shakeScreen(toHp >= 10 ? 3 : 2);
+  // Octopath "impact" beat — crit-tier hits (a weakness / stagger /
+  // detonation proc) and heavy blows freeze the resolution clock for a
+  // moment, kick the screen harder, and pop a white flash on the struck
+  // figure.  The freeze (hitPause) is consumed by the resolution loop
+  // before the next step, so multi-hit combos visibly stutter on the big
+  // one instead of blurring past it.
+  const critTier = hotBadge || toHp >= 12;
+  if (critTier) {
+    hitPause(hotBadge ? 150 : 110);
+    shakeScreen(3);
+    critFlash(e.id, 'enemy');
+  } else if (toHp >= 8) {
+    hitPause(70);
+  }
   // Per-school hit colour: physical thud, stealth hiss, ranged twang,
   // arcane chime, holy bell.
   const actorSchool = s.currentActorId && CHARS[s.currentActorId] && CHARS[s.currentActorId].school;
@@ -13077,10 +13095,16 @@ function applyDmgToParty(s, c, amt) {
   }
   c.hp = Math.max(0, c.hp - toHp);
 
-  spawnPopupId(c.id, `-${toHp}`, 'dmg', 'party');
+  // Number drama on incoming hits too — a heavy enemy blow lands as a big
+  // red number with a sharp impact, so a dangerous swing reads as a felt
+  // moment rather than a routine tick.
+  const pSizeClass = toHp >= 12 ? ' huge' : toHp >= 7 ? ' big' : '';
+  spawnPopupId(c.id, `-${toHp}`, 'dmg' + pSizeClass, 'party');
   flashCardId(c.id, 'hit', 'party');
   shakeCardId(c.id, 'party', toHp);
   if (toHp >= 5) shakeScreen(toHp >= 9 ? 3 : 2);
+  if (toHp >= 10) { hitPause(110); shakeScreen(3); critFlash(c.id, 'party'); }
+  else if (toHp >= 6) hitPause(60);
   // Enemy attack type — abilities set s.currentTechElement; basic strikes
   // fall back to physical.  Drives both the per-type sound and the hit FX
   // so the player can read what hit them (a magic blast vs a melee swing).
@@ -20242,6 +20266,22 @@ function flashCardId(id, type, side) {
   if (!cardEl) return;
   cardEl.classList.add(`${type}-flash`);
   setTimeout(() => cardEl.classList.remove(`${type}-flash`), 600);
+}
+
+// Crit "impact" pop — a fast white flash + scale-punch on the struck
+// figure's portrait the instant a crit-tier hit lands.  Animates the
+// portrait (a child of .figure) so it composes with the gold weak-shimmer
+// on the parent instead of clobbering it.  No-op during simulation.
+function critFlash(id, side) {
+  if (__simulating) return;
+  let cardEl;
+  if (side) cardEl = document.querySelector(`#${side === 'enemy' ? 'enemy' : 'party'}-half [data-id="${id}"]`);
+  if (!cardEl) cardEl = document.querySelector(`#battlefield [data-id="${id}"]`);
+  if (!cardEl) return;
+  cardEl.classList.remove('crit-impact');
+  void cardEl.offsetWidth;  // restart the animation if it's already running
+  cardEl.classList.add('crit-impact');
+  setTimeout(() => cardEl.classList.remove('crit-impact'), 380);
 }
 
 // Paint the active biome layer.  Reads state.run.modifier and applies one
