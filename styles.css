@@ -3263,17 +3263,82 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
   100% { transform: translate(-50%, -70px) scale(0.92);opacity: 0; }
 }
 
-/* Crit impact — the struck figure's portrait snaps bright + scales up for
-   a beat the instant a crit-tier hit lands.  Targets the portrait child so
-   it layers under the parent's weak-shimmer (filter on .figure). */
+/* Crit impact — the struck figure's portrait snaps bright, scales up, and
+   recoils AWAY from the attacker before settling, the instant a crit-tier
+   hit lands.  Targets the portrait child so it layers under the parent's
+   weak-shimmer (filter on .figure).  Direction is mirrored per board half
+   so enemies knock right and party knock left. */
 .figure.crit-impact .figure-portrait {
-  animation: crit-impact 0.36s cubic-bezier(.2,.85,.3,1);
-  transform-origin: 50% 80%;
+  animation: crit-impact 0.46s cubic-bezier(.2,.85,.3,1);
+  transform-origin: 50% 82%;
 }
 @keyframes crit-impact {
-  0%   { transform: scale(1);    filter: brightness(1); }
-  16%  { transform: scale(1.13); filter: brightness(2.3) contrast(1.12) drop-shadow(0 0 14px #fff); }
-  100% { transform: scale(1);    filter: brightness(1); }
+  0%   { transform: scale(1)    translateX(0);    filter: brightness(1); }
+  9%   { transform: scale(1.18) translateX(0);    filter: brightness(2.7) contrast(1.18) drop-shadow(0 0 20px #fff); }
+  26%  { transform: scale(1.07) translateX(var(--knock, 9px)); filter: brightness(1.45); }
+  44%  { transform: scale(1.0)  translateX(calc(var(--knock, 9px) * -0.4)); }
+  68%  { transform: scale(1.0)  translateX(calc(var(--knock, 9px) * 0.18)); }
+  100% { transform: scale(1)    translateX(0);    filter: brightness(1); }
+}
+#enemy-half .figure.crit-impact .figure-portrait { --knock: 11px; }
+#party-half .figure.crit-impact .figure-portrait { --knock: -11px; }
+
+/* ===== Cinematic impact layer — full-viewport flash + heavy vignette
+   pulse on crit-tier hits (Darkest-Dungeon weight).  Sits above the stage,
+   never intercepts input.  fx-1/2/3 scale the intensity; fx-go runs it. */
+#fx-cinematic {
+  position: fixed; inset: 0;
+  pointer-events: none;
+  z-index: 9000;
+  opacity: 0;
+}
+#fx-cinematic.fx-go { opacity: 1; }
+#fx-cinematic .fx-flash,
+#fx-cinematic .fx-vignette {
+  position: absolute; inset: 0;
+  opacity: 0;
+}
+/* The flash — a fast bright bloom that slams in and falls off. */
+#fx-cinematic .fx-flash {
+  background: radial-gradient(ellipse at center, rgba(255,250,235,0.5) 0%, rgba(255,240,210,0.16) 38%, transparent 66%);
+}
+/* The vignette — edges crush dark to frame the hit, pulsing in and out. */
+#fx-cinematic .fx-vignette {
+  background: radial-gradient(ellipse at center, transparent 38%, rgba(8,4,6,0.55) 86%, rgba(4,2,3,0.82) 100%);
+}
+#fx-cinematic.fx-go .fx-flash    { animation: fx-flash 0.34s ease-out forwards; }
+#fx-cinematic.fx-go .fx-vignette { animation: fx-vignette 0.50s cubic-bezier(.2,.8,.3,1) forwards; }
+/* Intensity tiers — heavier hits flash hotter and crush the vignette darker. */
+#fx-cinematic.fx-1 .fx-flash    { animation-name: fx-flash-soft; }
+#fx-cinematic.fx-1 .fx-vignette { animation-name: fx-vignette-soft; }
+#fx-cinematic.fx-3 .fx-flash    { animation-name: fx-flash-hard; }
+#fx-cinematic.fx-3 .fx-vignette { animation-name: fx-vignette-hard; }
+@keyframes fx-flash      { 0% { opacity: 0; } 10% { opacity: 0.9; } 100% { opacity: 0; } }
+@keyframes fx-flash-soft { 0% { opacity: 0; } 12% { opacity: 0.45; } 100% { opacity: 0; } }
+@keyframes fx-flash-hard { 0% { opacity: 0; } 8%  { opacity: 1; }   100% { opacity: 0; } }
+@keyframes fx-vignette      { 0% { opacity: 0; } 22% { opacity: 0.85; } 100% { opacity: 0; } }
+@keyframes fx-vignette-soft { 0% { opacity: 0; } 26% { opacity: 0.5; }  100% { opacity: 0; } }
+@keyframes fx-vignette-hard { 0% { opacity: 0; } 18% { opacity: 1; }    100% { opacity: 0; } }
+
+/* Camera punch — a quick scale-in on the battlefield (its own element, so
+   it composes with the #stage screen-shake).  Hard variant for the biggest
+   payoffs pushes further. */
+#battlefield.cam-punch      { animation: cam-punch 0.36s cubic-bezier(.2,.8,.3,1); }
+#battlefield.cam-punch-hard { animation: cam-punch-hard 0.40s cubic-bezier(.2,.8,.3,1); }
+@keyframes cam-punch {
+  0%   { transform: scale(1); }
+  20%  { transform: scale(1.035); }
+  100% { transform: scale(1); }
+}
+@keyframes cam-punch-hard {
+  0%   { transform: scale(1); }
+  16%  { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #fx-cinematic .fx-flash, #fx-cinematic .fx-vignette,
+  #battlefield.cam-punch, #battlefield.cam-punch-hard,
+  .figure.crit-impact .figure-portrait { animation: none !important; }
 }
 /* RESIST word-banner — the only non-detonation badge (WEAK!/STG! now ride
    the ✺ reaction burst).  Dim/italic, routed through the serialized banner
