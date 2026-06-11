@@ -16507,7 +16507,7 @@ function resolveQueueStep(i) {
     // before the enemy even responded.  Now the queued choices
     // accumulate during combat and surface AFTER the fight clears
     // (see runPostKillCascade in checkEnd → onVictoryCascade).
-    setTimeout(() => resolveEnemyTurn(s), 320);
+    setTimeout(() => resolveEnemyTurn(s), 140);
     return;
   }
   const item = s.queue[i];
@@ -16556,8 +16556,8 @@ function resolveQueueStep(i) {
       return;
     }
     render();
-    setTimeout(() => resolveQueueStep(i + 1), 720 + consumeHitPause());
-  }, 200);
+    setTimeout(() => resolveQueueStep(i + 1), 480 + consumeHitPause());
+  }, 140);
 }
 
 function executeQueueItem(s, item) {
@@ -17190,8 +17190,8 @@ function resolveEnemyStep(s, i) {
     if (checkEnd(s)) { s.executing = false; render(); return; }
     e.intentIdx = (e.intentIdx + 1) % def.intents.length;
     render();
-    setTimeout(() => resolveEnemyStep(s, i + 1), 700 + consumeHitPause());
-  }, 240);
+    setTimeout(() => resolveEnemyStep(s, i + 1), 460 + consumeHitPause());
+  }, 150);
 }
 
 function checkEnd(s) {
