@@ -3323,16 +3323,20 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
 /* Camera punch — a quick scale-in on the battlefield (its own element, so
    it composes with the #stage screen-shake).  Hard variant for the biggest
    payoffs pushes further. */
-#battlefield.cam-punch      { animation: cam-punch 0.36s cubic-bezier(.2,.8,.3,1); }
-#battlefield.cam-punch-hard { animation: cam-punch-hard 0.40s cubic-bezier(.2,.8,.3,1); }
+#battlefield.cam-punch      { animation: cam-punch 0.52s cubic-bezier(.18,.85,.28,1); transform-origin: var(--cam-x, 50%) 50%; }
+#battlefield.cam-punch-hard { animation: cam-punch-hard 0.62s cubic-bezier(.16,.9,.26,1); transform-origin: var(--cam-x, 50%) 50%; }
+/* Snap in fast, HOLD the zoom for a beat, then ease back out — the hold is
+   what reads as weight rather than a quick bounce. */
 @keyframes cam-punch {
   0%   { transform: scale(1); }
-  20%  { transform: scale(1.035); }
+  14%  { transform: scale(1.085); }
+  55%  { transform: scale(1.07); }   /* hold */
   100% { transform: scale(1); }
 }
 @keyframes cam-punch-hard {
   0%   { transform: scale(1); }
-  16%  { transform: scale(1.06); }
+  11%  { transform: scale(1.15); }
+  52%  { transform: scale(1.125); }  /* hold */
   100% { transform: scale(1); }
 }
 @media (prefers-reduced-motion: reduce) {
