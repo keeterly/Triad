@@ -15453,10 +15453,31 @@ function consumePendingBonus(s, charId, kind) {
 // TURN FLOW
 // ============================================================================
 
+// Unified status model — every stacking ailment shares one cap so the
+// numbers stay readable and the per-stack visual intensity (1→3) maps
+// cleanly.  vuln/dulled stack additively at their call sites; bleed
+// refreshes to its highest pending value.  clampStatuses is the single
+// chokepoint that enforces the ceiling regardless of how a card piled
+// stacks on, and it runs both at turn start and on every render.
+const STATUS_CAP = 3;
+function clampStatuses(s) {
+  if (!s) return;
+  const clamp = u => {
+    if (!u) return;
+    if (u.vuln   > STATUS_CAP) u.vuln   = STATUS_CAP;
+    if (u.bleed  > STATUS_CAP) u.bleed  = STATUS_CAP;
+    if (u.dulled > STATUS_CAP) u.dulled = STATUS_CAP;
+  };
+  if (s.enemies && s.enemies.chars) Object.values(s.enemies.chars).forEach(clamp);
+  if (s.party   && s.party.chars)   Object.values(s.party.chars).forEach(clamp);
+}
+
 function startTurn(s) {
   s.messages = [];
   s.executing = false;
   s.queue = [];
+  // Enforce the stack ceiling before anything reads it this turn.
+  clampStatuses(s);
   // Reset per-turn achievement counters (staggersThisTurn → triple-stagger).
   if (s.fightStats) s.fightStats.staggersThisTurn = 0;
   // First-fight tutorial — surface the "hold to preview" hint once the
@@ -15597,7 +15618,15 @@ function startTurn(s) {
     });
   }
   aliveParty(s).forEach(c => {
-    if (c.bleed > 0) {
+    // Guaranteed detonate window: a bleed that was applied/refreshed since
+    // last turn (bleed grew above the value it settled at) "festers" for
+    // one turn — it stays on the board (primed, detonatable) but doesn't
+    // tick or decay yet.  This stops a freshly-applied bleed from
+    // vanishing before its controller gets a turn to act on it.  The
+    // _bleedSeen snapshot (recorded at the end of this pass) is how we
+    // tell a fresh stack from an aging one.
+    const cFresh = c.bleed > (c._bleedSeen || 0);
+    if (c.bleed > 0 && !cFresh) {
       c.hp = Math.max(0, c.hp - bleedTick); c.bleed -= 1;
       spawnPopupId(c.id, `-${bleedTick}`, 'dmg', 'party');
       flashCardId(c.id, 'hit', 'party');
@@ -15612,10 +15641,19 @@ function startTurn(s) {
       }
       if (c.hp === 0) { c.downed = true; c.pendingEffects = []; if (s.fightStats) { s.fightStats.downed = s.fightStats.downed || []; if (!s.fightStats.downed.includes(c.id)) s.fightStats.downed.push(c.id); } log(`<b>${CHARS[c.id].name}</b> falls.`); }
     }
+    // Snapshot the settled bleed so next turn can tell a fresh stack
+    // (bleed > _bleedSeen) from one that's already aged on the board.
+    c._bleedSeen = c.bleed;
   });
   const cinderTrail = hasSquadSigil(s, 'cinderTrail');
   aliveEnemies(s).forEach(e => {
-    if (e.bleed > 0) {
+    // Same guaranteed detonate window as the party: a bleed applied or
+    // refreshed since last turn festers for one turn (stays primed and
+    // detonatable) instead of ticking down to nothing before the player
+    // can hit it with a matching element.  This is the core fix for
+    // "bleed disappears after 1 round so there's no way to detonate it."
+    const eFresh = e.bleed > (e._bleedSeen || 0);
+    if (e.bleed > 0 && !eFresh) {
       const dmg = Math.max(0, enemyBleedTick - (s.ignoreArmor ? 0 : e.armor));
       e.hp = Math.max(0, e.hp - dmg);
       // Squad Sigil — Cinder Trail (Branwen + Hask) — bleed ticks also
@@ -15629,6 +15667,7 @@ function startTurn(s) {
       log(`<b>${ENEMIES[e.id].name}</b> bleeds (${dmg}).`);
       if (e.hp === 0) killEnemy(s, e);
     }
+    e._bleedSeen = e.bleed;
   });
 
   gainResolve(s, RESOLVE_DRIP);
@@ -17491,6 +17530,10 @@ const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
 
 function render() {
+  // Keep every status stack within the shared ceiling before we draw it,
+  // so the chips, the particle intensity, and any read that happens after
+  // a card piled on stacks all agree on the capped value.
+  clampStatuses(state);
   // FLIP — capture each party figure's pre-render bounding rect (keyed
   // by data-id), then after the battlefield re-renders, compute the
   // delta and animate each figure FROM the old position TO the new.
@@ -18366,8 +18409,14 @@ function makeEnemyCard(e, slot) {
   if (bodyStatus) fig.classList.add('has-body-status', `body-status-${bodyStatus}`);
   // Particle emitter overlay for the dominant ailment (CSS drives the
   // motion/colour off the bp-* class); empty string when unafflicted.
+  // Intensity scales with the stack count (capped at 3): level 1 is a
+  // sparse, small wisp; level 2 fills in; level 3 is the full, biggest
+  // eruption — so the threat level reads off the FX density alone,
+  // without having to parse the chip number.
+  const bodyLvl = bodyStatus ? Math.min(3, Math.max(1, e[bodyStatus] || 1)) : 0;
+  const bodyFxCount = bodyLvl === 1 ? 5 : bodyLvl === 2 ? 9 : 14;
   const bodyFx = bodyStatus
-    ? `<div class="body-particles bp-${bodyStatus}">${'<i></i>'.repeat(14)}</div>`
+    ? `<div class="body-particles bp-${bodyStatus} bp-lvl-${bodyLvl}">${'<i></i>'.repeat(bodyFxCount)}</div>`
     : '';
   if (e._charging) {
     fig.classList.add('e-charging');
@@ -18579,8 +18628,8 @@ function renderStatuses(ent, sForAuras) {
   // resolve its explanation from STATUS_TOOLTIPS without re-parsing classes.
   if (weakChip)          push(15, 'weak', weakChip.icon, null, weakChip.title, weakChip.cls);
   if (ent.armor > 0)     push(10, 'armor', '⛨', ent.armor,    `Armor ${ent.armor} — absorbs ${ent.armor} damage before HP. Wears off as it absorbs.`);
-  if (ent.vuln > 0)      push(20, 'vuln',  '⊕', ent.vuln,     `Vulnerable ${ent.vuln} — next ${ent.vuln} incoming attacks deal +2 damage (+4 with Ember of Wrath Sigil) and consume one stack.`, primed(detVuln));
-  if (ent.bleed > 0)     push(30, 'bleed', '✤', ent.bleed,    `Bleed ${ent.bleed} — takes 2 damage at the start of each turn (3 with Bloodborne Sigil), then the stack decreases by 1.`, primed(detBleed));
+  if (ent.vuln > 0)      push(20, 'vuln',  '⊕', ent.vuln,     `Vulnerable ${ent.vuln} — next ${ent.vuln} incoming attacks deal +2 damage (+4 with Ember of Wrath Sigil) and consume one stack. Stacks up to 3.`, primed(detVuln));
+  if (ent.bleed > 0)     push(30, 'bleed', '✤', ent.bleed,    `Bleed ${ent.bleed} — takes 2 damage at the start of each turn (3 with Bloodborne Sigil), then the stack decreases by 1. A freshly applied stack holds one turn so you always get a chance to detonate it. Stacks up to 3.`, primed(detBleed));
   if (ent.dulled > 0)    push(50, 'dulled', '↓', ent.dulled, `Dulled ${ent.dulled} — this character's outgoing damage is reduced by 2 for the next ${ent.dulled} attack(s).`, primed(detDulled));
   if (ent.taunt)         push(60, 'taunt', '⌖', null,         'Taunt — enemies single-target attacks redirect to this character instead of the original slot.');
   if (ent.retaliate > 0) push(70, 'retal', '↻', ent.retaliate,`Retaliate ${ent.retaliate} — when hit, counter-attack the front-most enemy for ${ent.retaliate} damage.`);
@@ -18750,10 +18799,10 @@ function formatDesc(text) {
 const STATUS_TOOLTIPS = {
   armor:    { name: 'Armor',       text: 'Absorbs incoming damage 1:1 before HP. Wears off as it absorbs. Does not regenerate.' },
   weak:     { name: 'Weakness — Primer', text: 'A primer baked into this enemy. The glyph shows the element it is weak to; a "?" means undiscovered — hit it with different elements (or use a scout) to reveal it. DETONATE by attacking with that element for bonus damage; detonate again to STAGGER, and the next hit after lands ×2.' },
-  bleed:    { name: 'Bleed — Primer', text: 'Takes 2 damage at the start of each turn (+1 with Bloodborne / Bone Tide). Decays by 1 per turn. Ignores armor. DETONATE — a Physical hit RUPTURES it (consume bleed for a big burst); a Stealth hit causes HEMORRHAGE (burst, but reopens bleed 1 to keep the wound alive).' },
+  bleed:    { name: 'Bleed — Primer', text: 'Takes 2 damage at the start of each turn (+1 with Bloodborne / Bone Tide). Decays by 1 per turn, but a freshly applied stack holds one turn first — so it never vanishes before you get a chance to detonate it. Stacks up to 3 (more stacks = more particles). Ignores armor. DETONATE — a Physical hit RUPTURES it (consume bleed for a big burst); a Stealth hit causes HEMORRHAGE (burst, but reopens bleed 1 to keep the wound alive).' },
   taunt:    { name: 'Taunt',       text: 'Enemy single-target attacks redirect to this hero. Clears at the start of the next turn.' },
   dulled:   { name: 'Dulled — Primer', text: 'Outgoing attacks deal -2 damage. Consumes 1 stack per attack. DETONATE — a Physical or Stealth hit SUNDERS it (consume all dulled for a burst and leave it Vulnerable 1).' },
-  vuln:     { name: 'Vulnerable — Primer', text: 'Incoming hits deal +2 damage per stack (+2 more with Ember of Wrath). One stack is consumed per hit (unless Brand of Doom). DETONATE — a Ranged hit PUNCTURES it, an Arcane hit DISCHARGES it (burst + spreads vuln to other enemies), a Holy hit SMITES it (burst + heals the party). All consume the vuln.' },
+  vuln:     { name: 'Vulnerable — Primer', text: 'Incoming hits deal +2 damage per stack (+2 more with Ember of Wrath). One stack is consumed per hit (unless Brand of Doom). Stacks up to 3 (more stacks = more particles). DETONATE — a Ranged hit PUNCTURES it, an Arcane hit DISCHARGES it (burst + spreads vuln to other enemies), a Holy hit SMITES it (burst + heals the party). All consume the vuln.' },
   retal:    { name: 'Retaliate',   text: 'When hit, counter-attacks the front-most enemy for this value (+2 with Vow of Vigil). Clears at the start of the next turn.' },
   pending:  { name: 'Pending',     text: 'A one-shot bonus from a synergy. Consumed by the next matching action.' },
   guard:    { name: 'Guard',         text: 'Each stack fully negates the next incoming hit — no HP loss, no armor loss. Cleared at the start of the next player turn.' },
