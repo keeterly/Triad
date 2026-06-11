@@ -18337,9 +18337,9 @@ function renderStatuses(ent, sForAuras) {
   // resolve its explanation from STATUS_TOOLTIPS without re-parsing classes.
   if (weakChip)          push(15, 'weak', weakChip.icon, null, weakChip.title, weakChip.cls);
   if (ent.armor > 0)     push(10, 'armor', '⛨', ent.armor,    `Armor ${ent.armor} — absorbs ${ent.armor} damage before HP. Wears off as it absorbs.`);
-  if (ent.vuln > 0)      push(20, 'vuln',  '⊕', ent.vuln,     `Vulnerable ${ent.vuln} — next ${ent.vuln} incoming attacks deal +2 damage (+4 with Ember of Wrath Sigil) and consume one stack. Stacks up to 3.`, primed(detVuln));
-  if (ent.bleed > 0)     push(30, 'bleed', '✤', ent.bleed,    `Bleed ${ent.bleed} — takes 2 damage at the start of each turn (3 with Bloodborne Sigil), then the stack decreases by 1. A freshly applied stack holds one turn so you always get a chance to detonate it. Stacks up to 3.`, primed(detBleed));
-  if (ent.dulled > 0)    push(50, 'dulled', '↓', ent.dulled, `Dulled ${ent.dulled} — this character's outgoing damage is reduced by 2 for the next ${ent.dulled} attack(s).`, primed(detDulled));
+  if (ent.vuln > 0)      push(20, 'vuln',  '⊕', ent.vuln,     `Vulnerable ${ent.vuln} — +2 dmg per incoming hit, consumes a stack. Cap 3.`, primed(detVuln));
+  if (ent.bleed > 0)     push(30, 'bleed', '✤', ent.bleed,    `Bleed ${ent.bleed} — 2 dmg/turn then −1; a fresh stack holds one turn. Cap 3.`, primed(detBleed));
+  if (ent.dulled > 0)    push(50, 'dulled', '↓', ent.dulled, `Dulled ${ent.dulled} — −2 outgoing dmg for the next ${ent.dulled} hit(s). Cap 3.`, primed(detDulled));
   if (ent.taunt)         push(60, 'taunt', '⌖', null,         'Taunt — enemies single-target attacks redirect to this character instead of the original slot.');
   if (ent.retaliate > 0) push(70, 'retal', '↻', ent.retaliate,`Retaliate ${ent.retaliate} — when hit, counter-attack the front-most enemy for ${ent.retaliate} damage.`);
   if (ent.guard > 0)     push(80, 'guard', '⛨', ent.guard,    `Guard ${ent.guard} — the next ${ent.guard} incoming hit(s) are negated entirely (no HP or armor cost).`);
@@ -18507,11 +18507,11 @@ function formatDesc(text) {
 // once at boot via event delegation so re-renders don't need rebinding.
 const STATUS_TOOLTIPS = {
   armor:    { name: 'Armor',       text: 'Absorbs incoming damage 1:1 before HP. Wears off as it absorbs. Does not regenerate.' },
-  weak:     { name: 'Weakness — Primer', text: 'A primer baked into this enemy. The glyph shows the element it is weak to; a "?" means undiscovered — hit it with different elements (or use a scout) to reveal it. DETONATE by attacking with that element for bonus damage; detonate again to STAGGER, and the next hit after lands ×2.' },
-  bleed:    { name: 'Bleed — Primer', text: 'Takes 2 damage at the start of each turn (+1 with Bloodborne / Bone Tide). Decays by 1 per turn, but a freshly applied stack holds one turn first — so it never vanishes before you get a chance to detonate it. Stacks up to 3 (more stacks = more particles). Ignores armor. DETONATE — a Physical hit RUPTURES it (consume bleed for a big burst); a Stealth hit causes HEMORRHAGE (burst, but reopens bleed 1 to keep the wound alive). Detonating with a RESONANCE doubles the burst — bank primers, then unleash a combo for the payoff.' },
+  weak:     { name: 'Weakness — Primer', text: 'The glyph shows the element this enemy is weak to ("?" = undiscovered; hit it with different elements to reveal). Hit that element to DETONATE for bonus damage; again to STAGGER (next hit ×2).' },
+  bleed:    { name: 'Bleed — Primer', text: '2 dmg at each turn start (+1 with Bloodborne / Bone Tide), then −1. A fresh stack holds one turn so you can always detonate it. Ignores armor. Cap 3. DETONATE: Physical = RUPTURE, Stealth = HEMORRHAGE (reopens bleed 1). Resonance detonations hit double.' },
   taunt:    { name: 'Taunt',       text: 'Enemy single-target attacks redirect to this hero. Clears at the start of the next turn.' },
-  dulled:   { name: 'Dulled — Primer', text: 'Outgoing attacks deal -2 damage. Consumes 1 stack per attack. DETONATE — a Physical or Stealth hit SUNDERS it (consume all dulled for a burst and leave it Vulnerable 1).' },
-  vuln:     { name: 'Vulnerable — Primer', text: 'Incoming hits deal +2 damage per stack (+2 more with Ember of Wrath). One stack is consumed per hit (unless Brand of Doom). Stacks up to 3 (more stacks = more particles). DETONATE — a Ranged hit PUNCTURES it, an Arcane hit DISCHARGES it (burst + spreads vuln to other enemies), a Holy hit SMITES it (burst + heals the party). All consume the vuln. Detonating with a RESONANCE doubles the burst — bank primers, then unleash a combo for the payoff.' },
+  dulled:   { name: 'Dulled — Primer', text: 'Outgoing attacks deal −2, one stack per attack. Cap 3. DETONATE: Physical / Stealth = SUNDER (burst + leaves Vulnerable 1).' },
+  vuln:     { name: 'Vulnerable — Primer', text: 'Incoming hits deal +2 dmg per stack, consuming one. Cap 3. DETONATE: Ranged = PUNCTURE, Arcane = DISCHARGE (spreads vuln), Holy = SMITE (heals party). Resonance detonations hit double.' },
   retal:    { name: 'Retaliate',   text: 'When hit, counter-attacks the front-most enemy for this value (+2 with Vow of Vigil). Clears at the start of the next turn.' },
   pending:  { name: 'Pending',     text: 'A one-shot bonus from a synergy. Consumed by the next matching action.' },
   guard:    { name: 'Guard',         text: 'Each stack fully negates the next incoming hit — no HP loss, no armor loss. Cleared at the start of the next player turn.' },
@@ -24566,8 +24566,8 @@ function _showBatchResonanceChoice(s, choices, cont) {
   const subtitle = (sections.length === 1)
     ? (sections[0].variants && sections[0].variants[0]._preview && sections[0].variants[0]._preview.authored
         ? 'Their bond rings true — a named Resonance Skill locks in.'
-        : `${triggerSubtitle(sections[0].level || 1, sections[0].kind)}  Pick a Resonance Skill — the choice locks in for the rest of the run.`)
-    : `Step through each slide and pick a Resonance Skill — ${sections.length} unlocks waiting.  A first pick is pre-selected so you can tap <b>Commit</b> straight away.`;
+        : `${triggerSubtitle(sections[0].level || 1, sections[0].kind)}  Pick one — it locks in for the run.`)
+    : `${sections.length} unlocks — pick one per slide. A default is pre-selected; tap <b>Commit</b> to take it.`;
   $('#overlay-title').textContent = title;
   $('#overlay-body').innerHTML = subtitle;
   const choicesEl = $('#overlay-choices');
