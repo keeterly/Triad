@@ -3320,11 +3320,50 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
 @keyframes fx-vignette-soft { 0% { opacity: 0; } 26% { opacity: 0.5; }  100% { opacity: 0; } }
 @keyframes fx-vignette-hard { 0% { opacity: 0; } 18% { opacity: 1; }    100% { opacity: 0; } }
 
+/* ---- Tier 4: RESONANT DETONATION — the showpiece.  A Resonance combo
+   paying off a primer gets the hottest, gold-tinged flash, the deepest
+   and longest vignette crush, and a shockwave ring punching outward. ---- */
+#fx-cinematic.fx-4 .fx-flash {
+  background: radial-gradient(ellipse at center, rgba(255,236,180,0.62) 0%, rgba(255,205,120,0.24) 40%, transparent 68%);
+  animation: fx-flash-max 0.46s ease-out forwards;
+}
+#fx-cinematic.fx-4 .fx-vignette {
+  background: radial-gradient(ellipse at center, transparent 30%, rgba(40,8,10,0.6) 80%, rgba(6,2,3,0.95) 100%);
+  animation: fx-vignette-max 0.74s cubic-bezier(.2,.8,.3,1) forwards;
+}
+@keyframes fx-flash-max    { 0% { opacity: 0; } 7%  { opacity: 1; } 30% { opacity: 0.5; } 100% { opacity: 0; } }
+@keyframes fx-vignette-max { 0% { opacity: 0; } 16% { opacity: 1; } 60% { opacity: 0.8; } 100% { opacity: 0; } }
+
+/* Shockwave ring — a bright expanding circle from the screen centre on the
+   biggest payoffs (tiers 3 and 4).  Hidden otherwise. */
+#fx-cinematic .fx-ring {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 14vmax; height: 14vmax;
+  border-radius: 50%;
+  border: 3px solid rgba(255,238,200,0.0);
+  transform: translate(-50%, -50%) scale(0.2);
+  opacity: 0;
+}
+#fx-cinematic.fx-3.fx-go .fx-ring { animation: fx-ring 0.5s ease-out forwards; }
+#fx-cinematic.fx-4.fx-go .fx-ring { animation: fx-ring-max 0.62s cubic-bezier(.15,.85,.3,1) forwards; }
+@keyframes fx-ring {
+  0%   { opacity: 0;   border-color: rgba(255,238,200,0.0); transform: translate(-50%,-50%) scale(0.2); }
+  16%  { opacity: 0.7; border-color: rgba(255,238,200,0.8); }
+  100% { opacity: 0;   border-width: 1px; transform: translate(-50%,-50%) scale(1.7); }
+}
+@keyframes fx-ring-max {
+  0%   { opacity: 0;   border-width: 6px; border-color: rgba(255,232,170,0.0); transform: translate(-50%,-50%) scale(0.15); }
+  12%  { opacity: 1;   border-color: rgba(255,232,170,1); box-shadow: 0 0 40px rgba(255,210,120,0.7); }
+  100% { opacity: 0;   border-width: 1px; transform: translate(-50%,-50%) scale(2.3); }
+}
+
 /* Camera punch — a quick scale-in on the battlefield (its own element, so
    it composes with the #stage screen-shake).  Hard variant for the biggest
    payoffs pushes further. */
 #battlefield.cam-punch      { animation: cam-punch 0.52s cubic-bezier(.18,.85,.28,1); transform-origin: var(--cam-x, 50%) 50%; }
 #battlefield.cam-punch-hard { animation: cam-punch-hard 0.62s cubic-bezier(.16,.9,.26,1); transform-origin: var(--cam-x, 50%) 50%; }
+#battlefield.cam-punch-max  { animation: cam-punch-max 0.78s cubic-bezier(.14,.92,.24,1); transform-origin: var(--cam-x, 50%) 50%; }
 /* Snap in fast, HOLD the zoom for a beat, then ease back out — the hold is
    what reads as weight rather than a quick bounce. */
 @keyframes cam-punch {
@@ -3339,9 +3378,16 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
   52%  { transform: scale(1.125); }  /* hold */
   100% { transform: scale(1); }
 }
+/* Resonant-detonation punch — deepest push, longest hold. */
+@keyframes cam-punch-max {
+  0%   { transform: scale(1); }
+  9%   { transform: scale(1.2); }
+  58%  { transform: scale(1.17); }   /* hold longer */
+  100% { transform: scale(1); }
+}
 @media (prefers-reduced-motion: reduce) {
-  #fx-cinematic .fx-flash, #fx-cinematic .fx-vignette,
-  #battlefield.cam-punch, #battlefield.cam-punch-hard,
+  #fx-cinematic .fx-flash, #fx-cinematic .fx-vignette, #fx-cinematic .fx-ring,
+  #battlefield.cam-punch, #battlefield.cam-punch-hard, #battlefield.cam-punch-max,
   .figure.crit-impact .figure-portrait { animation: none !important; }
 }
 /* RESIST word-banner — the only non-detonation badge (WEAK!/STG! now ride
