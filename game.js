@@ -18367,7 +18367,7 @@ function makeEnemyCard(e, slot) {
   // Particle emitter overlay for the dominant ailment (CSS drives the
   // motion/colour off the bp-* class); empty string when unafflicted.
   const bodyFx = bodyStatus
-    ? `<div class="body-particles bp-${bodyStatus}"><i></i><i></i><i></i><i></i><i></i><i></i></div>`
+    ? `<div class="body-particles bp-${bodyStatus}">${'<i></i>'.repeat(14)}</div>`
     : '';
   if (e._charging) {
     fig.classList.add('e-charging');

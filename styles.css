@@ -1370,60 +1370,69 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
 }
 .body-particles i {
   position: absolute;
-  bottom: 44%;
-  width: 5px; height: 5px;
+  bottom: 46%;
+  width: 9px; height: 9px;
   opacity: 0;
   will-change: transform, opacity;
 }
-/* horizontal spread + staggered timing so emission feels continuous and
-   organic rather than a synchronised pulse */
-.body-particles i:nth-child(1) { left: 30%; animation-delay: 0s;    }
-.body-particles i:nth-child(2) { left: 43%; animation-delay: .45s;  }
-.body-particles i:nth-child(3) { left: 53%; animation-delay: 1.1s;  }
-.body-particles i:nth-child(4) { left: 63%; animation-delay: .8s;   }
-.body-particles i:nth-child(5) { left: 47%; animation-delay: 1.55s; }
-.body-particles i:nth-child(6) { left: 37%; animation-delay: 2.0s;  }
+/* 14 emitters spread across the body width with staggered delays + a
+   per-particle horizontal drift (--dx, used by vuln's radial burst) so the
+   effect is dense and continuous — bold enough to read at a glance. */
+.body-particles i:nth-child(1)  { left: 16%; --dx: -26px; animation-delay: 0s;    }
+.body-particles i:nth-child(2)  { left: 26%; --dx: -16px; animation-delay: .55s;  }
+.body-particles i:nth-child(3)  { left: 36%; --dx: -8px;  animation-delay: 1.1s;  }
+.body-particles i:nth-child(4)  { left: 46%; --dx: -2px;  animation-delay: .3s;   }
+.body-particles i:nth-child(5)  { left: 54%; --dx: 2px;   animation-delay: .85s;  }
+.body-particles i:nth-child(6)  { left: 64%; --dx: 8px;   animation-delay: 1.4s;  }
+.body-particles i:nth-child(7)  { left: 74%; --dx: 16px;  animation-delay: .15s;  }
+.body-particles i:nth-child(8)  { left: 84%; --dx: 26px;  animation-delay: .7s;   }
+.body-particles i:nth-child(9)  { left: 22%; --dx: -20px; animation-delay: 1.25s; }
+.body-particles i:nth-child(10) { left: 40%; --dx: -6px;  animation-delay: .5s;   }
+.body-particles i:nth-child(11) { left: 50%; --dx: 0px;   animation-delay: 1.6s;  }
+.body-particles i:nth-child(12) { left: 60%; --dx: 6px;   animation-delay: .95s;  }
+.body-particles i:nth-child(13) { left: 70%; --dx: 18px;  animation-delay: .4s;   }
+.body-particles i:nth-child(14) { left: 30%; --dx: -14px; animation-delay: 1.5s;  }
 
-/* bleed — teardrops fall and fade */
+/* bleed — fat teardrops rain down off the body */
 .bp-bleed i {
-  width: 7px; height: 10px;
-  border-radius: 50% 50% 50% 50% / 38% 38% 62% 62%;
-  background: radial-gradient(circle at 42% 30%, #ff8a8a, #c81e1e 72%);
-  box-shadow: 0 0 6px rgba(230,40,40,.85);
-  animation: bp-fall 2.4s linear infinite;
+  width: 8px; height: 12px;
+  border-radius: 50% 50% 50% 50% / 36% 36% 64% 64%;
+  background: radial-gradient(circle at 42% 28%, #ff9a9a, #c01818 72%);
+  box-shadow: 0 0 8px rgba(235,40,40,.9);
+  animation: bp-fall 1.9s linear infinite;
 }
 @keyframes bp-fall {
-  0%   { transform: translateY(-4px) scale(.85); opacity: 0; }
-  16%  { opacity: 1; }
-  82%  { opacity: .9; }
-  100% { transform: translateY(48px) scale(1); opacity: 0; }
+  0%   { transform: translateY(-6px) scale(.8);   opacity: 0; }
+  14%  { opacity: 1; }
+  85%  { opacity: .95; }
+  100% { transform: translateY(58px) scale(1.05); opacity: 0; }
 }
 
-/* vuln — angular shards pop up/outward and spin off */
+/* vuln — big bright shards burst up-and-outward (radial via --dx) */
 .bp-vuln i {
-  bottom: 47%;
-  width: 8px; height: 8px;
-  border-radius: 1px;
-  background: linear-gradient(135deg, #ffb0d0, #ff2f76);
-  box-shadow: 0 0 7px rgba(255,80,150,.9);
-  animation: bp-shard 2.1s ease-out infinite;
+  bottom: 50%;
+  width: 11px; height: 11px;
+  border-radius: 2px;
+  background: linear-gradient(135deg, #ffc2dc, #ff1f6e);
+  box-shadow: 0 0 10px rgba(255,70,150,1);
+  animation: bp-shard 1.7s ease-out infinite;
 }
 @keyframes bp-shard {
-  0%   { transform: translateY(0) scale(.4) rotate(0deg);    opacity: 0; }
-  22%  { opacity: 1; }
-  100% { transform: translateY(-38px) scale(1) rotate(155deg); opacity: 0; }
+  0%   { transform: translate(0,0) scale(.3) rotate(0deg);              opacity: 0; }
+  18%  { opacity: 1; }
+  100% { transform: translate(var(--dx,0), -44px) scale(1.05) rotate(170deg); opacity: 0; }
 }
 
-/* dulled — fine grey ash sinks slowly; body itself drains to grey */
+/* dulled — dense grey ash sinks; body itself drains to grey */
 .bp-dulled i {
-  width: 5px; height: 5px;
+  width: 7px; height: 7px;
   border-radius: 50%;
-  background: radial-gradient(circle, #ccd4e0, #6c7686 72%);
-  box-shadow: 0 0 4px rgba(180,190,210,.6);
-  filter: blur(.3px);
-  animation: bp-fall 3.8s ease-in infinite;
+  background: radial-gradient(circle, #d4dce8, #69737f 72%);
+  box-shadow: 0 0 5px rgba(190,200,220,.7);
+  filter: blur(.4px);
+  animation: bp-fall 3.0s ease-in infinite;
 }
-.figure.body-status-dulled .figure-portrait svg { filter: saturate(.55) brightness(.93); }
+.figure.body-status-dulled .figure-portrait svg { filter: saturate(.5) brightness(.9); }
 
 /* ----- Behavioural tells (posture) layered on the particles -----
    The afflicted body's idle is REPLACED (not composed) so the breathe and
