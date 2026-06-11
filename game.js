@@ -16225,6 +16225,9 @@ function tickCamaraderie(s, committedQueue) {
         const nameB = (CHARS[b] && CHARS[b].name) || b;
         const ca = s.party.chars[a], cb = s.party.chars[b];
         const portraitAnchor = (ca && cb && (ca.hp / ca.maxHp) <= (cb.hp / cb.maxHp)) ? a : b;
+        // Centered cinematic beat (queued — multiple bonds can deepen in the
+        // same Camaraderie sweep).
+        playBondDeepen(a, b, levelAfter);
         spawnToast({
           category: 'bond',
           cls: tierAfter === 3 ? 'qa-bond-resonant' : 'qa-bond-deepened',
@@ -20345,8 +20348,31 @@ function playFirstResonanceOfRun(comboName) {
 // flourish that makes the level-up land as a MOMENT, distinct from the small
 // side-toast that records it.  No-op during simulation.
 let _bondDeepenTimer = null;
+let _bondDeepenQueue = [];
+let _bondDeepenBusy = false;
+// Public entry — queues a deepen beat.  Multiple bonds can cross a level in
+// the same tick (the Camaraderie sweep); queueing plays them one after another
+// instead of clobbering the single overlay (the cause of "only sometimes
+// triggers").  Cap the burst so a pathological turn can't stall for ages;
+// keep the highest-level (most dramatic) entries.
 function playBondDeepen(idA, idB, levelAfter) {
   if (__simulating) return;
+  _bondDeepenQueue.push({ idA, idB, levelAfter });
+  if (_bondDeepenQueue.length > 3) {
+    _bondDeepenQueue.sort((x, y) => y.levelAfter - x.levelAfter);
+    _bondDeepenQueue.length = 3;
+  }
+  _drainBondDeepen();
+}
+function _drainBondDeepen() {
+  if (_bondDeepenBusy) return;
+  const next = _bondDeepenQueue.shift();
+  if (!next) return;
+  _bondDeepenBusy = true;
+  const dur = _renderBondDeepen(next.idA, next.idB, next.levelAfter);
+  setTimeout(() => { _bondDeepenBusy = false; _drainBondDeepen(); }, dur + 180);
+}
+function _renderBondDeepen(idA, idB, levelAfter) {
   const nameA = (CHARS[idA] && CHARS[idA].name) || idA || '';
   const nameB = (CHARS[idB] && CHARS[idB].name) || idB || '';
   const roman = (typeof BOND_TIER_ROMAN !== 'undefined' && BOND_TIER_ROMAN[levelAfter]) || '';
@@ -20387,6 +20413,7 @@ function playBondDeepen(idA, idB, levelAfter) {
   setTimeout(() => shakeScreen(resonant ? 3 : 2), Math.round(dur * 0.4));
   clearTimeout(_bondDeepenTimer);
   _bondDeepenTimer = setTimeout(() => el.classList.remove('go'), dur);
+  return dur;
 }
 
 // Boss death slow-mo: dim the screen, slow CSS animations, brief flash.
@@ -27811,16 +27838,25 @@ function showPasswordGate(onUnlock) {
 (function () {
   const DESIGN_W = 720;
   const DESIGN_H = 405;
-  let raf = 0;
+  let raf = 0, lastW = 0, lastH = 0;
+  // Use the LAYOUT viewport (documentElement.clientW/H) as the primary source.
+  // It's stable — unlike visualViewport it doesn't shrink for the keyboard or
+  // pinch-zoom — and it's what CSS vh/vw resolve against, so the scaled stage
+  // stays consistent with the rest of the layout.  Fallbacks cover the rare
+  // pre-layout window where it reads 0.
+  function readVW() {
+    return document.documentElement.clientWidth || window.innerWidth ||
+           (window.visualViewport && window.visualViewport.width) || 0;
+  }
+  function readVH() {
+    return document.documentElement.clientHeight || window.innerHeight ||
+           (window.visualViewport && window.visualViewport.height) || 0;
+  }
   function applyScale() {
     raf = 0;
-    // Prefer visualViewport — on mobile / PWA / iOS it reports the ACTUAL
-    // visible area (after URL-bar collapse, safe-area insets, standalone
-    // chrome), where innerWidth/innerHeight can lag a beat behind on load.
-    const vp = window.visualViewport;
-    const vw = (vp && vp.width)  || window.innerWidth  || document.documentElement.clientWidth;
-    const vh = (vp && vp.height) || window.innerHeight || document.documentElement.clientHeight;
+    const vw = readVW(), vh = readVH();
     if (!vw || !vh) return;
+    lastW = vw; lastH = vh;
     const scale = Math.min(vw / DESIGN_W, vh / DESIGN_H);
     document.documentElement.style.setProperty('--ui-scale', scale.toFixed(4));
   }
@@ -27830,34 +27866,41 @@ function showPasswordGate(onUnlock) {
   }
   window.addEventListener('resize', schedule);
   window.addEventListener('orientationchange', () => {
-    // Orientation dimensions settle a beat AFTER the event fires — recompute
-    // immediately and again shortly after so the new framing is correct.
+    // Orientation dimensions settle a beat AFTER the event fires.
     schedule();
-    setTimeout(applyScale, 120);
-    setTimeout(applyScale, 350);
+    [120, 350, 700].forEach(ms => setTimeout(applyScale, ms));
   });
-  // visualViewport fires when the Android URL bar collapses or iOS keyboard
-  // opens — keeps the scale accurate through those transitions.
   if (window.visualViewport) {
     window.visualViewport.addEventListener('resize', schedule);
     window.visualViewport.addEventListener('scroll', schedule);
   }
+  // ResizeObserver — the most reliable signal: it fires AFTER the layout box
+  // actually changes (PWA chrome, URL-bar collapse, late settle), not just on
+  // an event that may precede the layout update.
+  if (typeof ResizeObserver !== 'undefined') {
+    try { new ResizeObserver(schedule).observe(document.documentElement); } catch (_) {}
+  }
   // pageshow covers PWA / bfcache restores where load may not re-fire.
   window.addEventListener('pageshow', () => { schedule(); setTimeout(applyScale, 100); });
-  applyScale();
   document.addEventListener('DOMContentLoaded', applyScale);
   window.addEventListener('load', () => {
     applyScale();
-    // The viewport keeps settling for a moment after load on mobile / PWA
-    // (URL-bar collapse, safe-area insets, standalone chrome).  Re-fit a few
-    // times so the INITIAL framing matches what a rotate would produce —
-    // this is the fix for "framing wrong on load, correct after a rotate".
     [60, 180, 360, 700, 1200].forEach(ms => setTimeout(applyScale, ms));
   });
-  // Webfonts can shift metrics once they load — re-fit when they're ready.
   if (document.fonts && document.fonts.ready) {
     document.fonts.ready.then(applyScale).catch(() => {});
   }
+  // Guaranteed-convergence safety net: poll for the first ~3s and re-fit
+  // whenever the dimensions actually change.  Catches any late viewport
+  // settle that no single event reported, so the INITIAL framing always
+  // lands correctly without the user needing to rotate the device.
+  let polls = 0;
+  const pollId = setInterval(() => {
+    const vw = readVW(), vh = readVH();
+    if (vw && vh && (vw !== lastW || vh !== lastH)) applyScale();
+    if (++polls >= 20) clearInterval(pollId);  // 20 × 160ms ≈ 3.2s
+  }, 160);
+  applyScale();
 })();
 
 function bootGame() {
