@@ -1386,10 +1386,10 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
 
 /* bleed — teardrops fall and fade */
 .bp-bleed i {
-  width: 5px; height: 7px;
+  width: 7px; height: 10px;
   border-radius: 50% 50% 50% 50% / 38% 38% 62% 62%;
-  background: radial-gradient(circle at 42% 30%, #ff7a7a, #c81e1e 72%);
-  box-shadow: 0 0 3px rgba(214,40,40,.55);
+  background: radial-gradient(circle at 42% 30%, #ff8a8a, #c81e1e 72%);
+  box-shadow: 0 0 6px rgba(230,40,40,.85);
   animation: bp-fall 2.4s linear infinite;
 }
 @keyframes bp-fall {
@@ -1402,23 +1402,24 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
 /* vuln — angular shards pop up/outward and spin off */
 .bp-vuln i {
   bottom: 47%;
-  width: 5px; height: 5px;
+  width: 8px; height: 8px;
   border-radius: 1px;
-  background: linear-gradient(135deg, #ff9cc2, #ff2f76);
-  box-shadow: 0 0 4px rgba(255,90,150,.6);
+  background: linear-gradient(135deg, #ffb0d0, #ff2f76);
+  box-shadow: 0 0 7px rgba(255,80,150,.9);
   animation: bp-shard 2.1s ease-out infinite;
 }
 @keyframes bp-shard {
   0%   { transform: translateY(0) scale(.4) rotate(0deg);    opacity: 0; }
   22%  { opacity: 1; }
-  100% { transform: translateY(-34px) scale(1) rotate(155deg); opacity: 0; }
+  100% { transform: translateY(-38px) scale(1) rotate(155deg); opacity: 0; }
 }
 
 /* dulled — fine grey ash sinks slowly; body itself drains to grey */
 .bp-dulled i {
-  width: 4px; height: 4px;
+  width: 5px; height: 5px;
   border-radius: 50%;
-  background: radial-gradient(circle, #c4ccd8, #6c7686 72%);
+  background: radial-gradient(circle, #ccd4e0, #6c7686 72%);
+  box-shadow: 0 0 4px rgba(180,190,210,.6);
   filter: blur(.3px);
   animation: bp-fall 3.8s ease-in infinite;
 }
@@ -1433,6 +1434,8 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
      dulled — sags lower, slower, shallower (drained posture) */
 .figure.body-status-bleed  .figure-portrait svg { animation: idle-bleed 3.6s ease-in-out infinite; }
 #enemy-half .figure.body-status-bleed  .figure-portrait svg { animation: idle-bleed-mirror 3.6s ease-in-out infinite; }
+.figure.body-status-vuln   .figure-portrait svg { animation: idle-vuln 3.0s ease-in-out infinite; }
+#enemy-half .figure.body-status-vuln   .figure-portrait svg { animation: idle-vuln-mirror 3.0s ease-in-out infinite; }
 .figure.body-status-dulled .figure-portrait svg { animation: idle-slump 7.2s ease-in-out infinite; }
 #enemy-half .figure.body-status-dulled .figure-portrait svg { animation: idle-slump-mirror 7.2s ease-in-out infinite; }
 
@@ -1460,12 +1463,29 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
   0%, 100% { transform: scaleX(-1)     scaleY(0.978) translateY(2.5px) rotate(-1.2deg); }
   50%      { transform: scaleX(-1.006) scaleY(0.984) translateY(1.6px) rotate(-1deg);   }
 }
+/* vuln — body tips off-balance (exposed/reeling) then rights itself */
+@keyframes idle-vuln {
+  0%, 58%, 100% { transform: scale(1,1)       rotate(0deg)    translateX(0); }
+  70%           { transform: scale(1.006,0.997) rotate(2.6deg)  translateX(1.2px); }
+  82%           { transform: scale(1.006,0.997) rotate(-2.8deg) translateX(-1.6px); }
+  92%           { transform: scale(1,1)       rotate(1deg)    translateX(0.4px); }
+}
+@keyframes idle-vuln-mirror {
+  0%, 58%, 100% { transform: scaleX(-1)     scaleY(1)     rotate(0deg)    translateX(0); }
+  70%           { transform: scaleX(-1.006) scaleY(0.997) rotate(2.6deg)  translateX(1.2px); }
+  82%           { transform: scaleX(-1.006) scaleY(0.997) rotate(-2.8deg) translateX(-1.6px); }
+  92%           { transform: scaleX(-1)     scaleY(1)     rotate(1deg)    translateX(0.4px); }
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .body-particles i { animation-duration: 0s; opacity: 0; }
+  /* Keep the read, drop the motion: particles freeze as a small static
+     cluster of coloured marks; flinch/rock/slump revert to the plain idle. */
+  .body-particles i { animation: none; opacity: .92; }
   .figure.body-status-bleed  .figure-portrait svg,
-  #enemy-half .figure.body-status-bleed  .figure-portrait svg { animation-name: idle-breathe; }
-  #enemy-half .figure.body-status-bleed  .figure-portrait svg { animation-name: idle-breathe-mirror; }
+  .figure.body-status-vuln   .figure-portrait svg { animation-name: idle-breathe; }
+  #enemy-half .figure.body-status-bleed  .figure-portrait svg,
+  #enemy-half .figure.body-status-vuln   .figure-portrait svg,
+  #enemy-half .figure.body-status-dulled .figure-portrait svg { animation-name: idle-breathe-mirror; }
 }
 /* soft ground shadow ellipse under each figure */
 .figure-shadow {
