@@ -8411,7 +8411,7 @@ const COMBOS = {
   },
   wall_charge: {
     id: 'wall_charge', name: 'Wall Charge', tier: 'duo',
-    desc: 'Defensive setup — Korin Taunt + Retaliate + a one-hit Wall absorb',
+    desc: 'Defensive setup — Korin Taunt + Retaliate + a one-hit Guard (negates the next hit)',
     requires: [
       { heroId: 'cassia', kind: 'attack' },
       { heroId: 'korin', kind: 'attack' },
@@ -8441,7 +8441,7 @@ const COMBOS = {
   },
   quiet_volley: {
     id: 'quiet_volley', name: 'Quiet Volley', tier: 'duo',
-    desc: 'AoE chip + Veil on every ally — first enemy hit this turn misses',
+    desc: 'AoE chip + Guard on every ally — negates the next hit each takes',
     requires: [
       { heroId: 'ash', kind: 'attack' },
       { heroId: 'branwen', kind: 'attack' },
@@ -8896,7 +8896,7 @@ const COMBOS = {
   // Pairs with Twin Strike; this is the from-cover board line.
   sos_blackvolley: {
     id: 'sos_blackvolley', name: 'Black Volley', tier: 'duo', sigTier: true,
-    desc: 'From cover — all foes 5 + 2 bleed; lowest +3 VULN; party gains VEIL (first hit misses).',
+    desc: 'From cover — all foes 5 + 2 bleed; lowest +3 VULN; party gains GUARD (next hit negated).',
     requires: [ { heroId: 'branwen', kind: 'sig' }, { heroId: 'mira', kind: 'sig' } ],
     fn: (s) => {
       s.currentActorId = 'branwen'; s.currentTechElement = 'ranged';
@@ -9044,7 +9044,7 @@ const COMBOS = {
   },
   veiled_flame: {
     id: 'veiled_flame', name: 'Veiled Flame', tier: 'duo',
-    desc: 'Cleanse party · Burn 3 to all enemies — armor-piercing DOT, only off-school DOT',
+    desc: 'Cleanse party · bleed 3 to all enemies — primes the whole board for Rupture',
     requires: [
       { heroId: 'ash', kind: 'attack' },
       { heroId: 'elin', kind: 'attack' },
@@ -9069,7 +9069,7 @@ const COMBOS = {
   // ---- Triples ----
   sacred_triad: {
     id: 'sacred_triad', name: 'Sacred Triad', tier: 'triple',
-    desc: 'Heal 5 + cleanse · Divine Guard (next hit clamped to 1) — purely defensive',
+    desc: 'Heal 5 + cleanse · Guard to all (negates the next hit) — purely defensive',
     requires: [
       { heroId: 'cassia', kind: 'attack' },
       { heroId: 'elin', kind: 'attack' },
@@ -9153,7 +9153,7 @@ const COMBOS = {
   // slower, rarer, and showier than attack-tier resonance.
   hallowed_cleave: {
     id: 'hallowed_cleave', name: 'Hallowed Cleave', tier: 'duo', sigTier: true,
-    desc: 'Strip + 8 dmg + vuln 3 front · heal 6 all + cleanse · Veil to all',
+    desc: 'Strip + 8 dmg + vuln 3 front · heal 6 all + cleanse · Guard to all',
     requires: [
       { heroId: 'cassia', kind: 'sig' },
       { heroId: 'elin',   kind: 'sig' },
@@ -9183,7 +9183,7 @@ const COMBOS = {
   },
   phantom_crescent: {
     id: 'phantom_crescent', name: 'Phantom Crescent', tier: 'duo', sigTier: true,
-    desc: '5 dmg ×3 lowest (ignore armor) — each hit stacks vuln · Veil to all',
+    desc: '5 dmg ×3 lowest (ignore armor) — each hit stacks vuln · Guard to all',
     requires: [
       { heroId: 'mira', kind: 'sig' },
       { heroId: 'ash',  kind: 'sig' },
@@ -9218,7 +9218,7 @@ const COMBOS = {
   },
   stormwall: {
     id: 'stormwall', name: 'Stormwall', tier: 'duo', sigTier: true,
-    desc: 'Shove front to back · 6 dmg new front + strip + vuln 2 · Korin Wall',
+    desc: 'Shove front to back · 6 dmg new front + strip + vuln 2 · Korin Guard',
     requires: [
       { heroId: 'korin',  kind: 'sig' },
       { heroId: 'cassia', kind: 'sig' },
@@ -9294,7 +9294,7 @@ const COMBOS = {
   },
   sacred_wakening: {
     id: 'sacred_wakening', name: 'Sacred Wakening', tier: 'triple', sigTier: true,
-    desc: 'Revive all downed at half · party to full + cleanse · 8 AoE · Veil all · +2 Resolve',
+    desc: 'Revive all downed at half · party to full + cleanse · 8 AoE · Guard all · +2 Resolve',
     requires: [
       { heroId: 'cassia',  kind: 'sig' },
       { heroId: 'elin',    kind: 'sig' },
@@ -9338,7 +9338,7 @@ const COMBOS = {
   // covered before AND pairs heroes whose passives complement each other.
   litany_of_the_gate: {
     id: 'litany_of_the_gate', name: 'Litany of the Gate', tier: 'duo',
-    desc: 'Tank+heal without Cassia/Elin — Veil all, heal lowest 4, Garron retal',
+    desc: 'Tank+heal without Cassia/Elin — Guard all, heal lowest 4, Garron retal',
     requires: [
       { heroId: 'garron', kind: 'attack' },
       { heroId: 'vasha',  kind: 'attack' },
@@ -9366,7 +9366,7 @@ const COMBOS = {
   },
   double_verse: {
     id: 'double_verse', name: 'Double Verse', tier: 'duo',
-    desc: 'Double-arcane vuln stack — 3 dmg all + vuln 3 all + Burn 1 all',
+    desc: 'Double-arcane vuln stack — 3 dmg all + vuln 3 all + bleed 1 all',
     requires: [
       { heroId: 'lirien', kind: 'attack' },
       { heroId: 'ash',    kind: 'attack' },
@@ -9526,7 +9526,7 @@ const COMBOS = {
   // ---- Triple coverage-fill ----
   wall_of_walls: {
     id: 'wall_of_walls', name: 'Wall of Walls', tier: 'triple',
-    desc: 'Front-trio defense — party Wall 1 all · STAGGER front sin · 4 AoE',
+    desc: 'Front-trio defense — party Guard 1 all · STAGGER front sin · 4 AoE',
     requires: [
       { heroId: 'garron', kind: 'attack' },
       { heroId: 'hask',   kind: 'attack' },
@@ -12312,9 +12312,10 @@ function resolveReaction(s, e, element) {
       e.vuln = 0;
       return { name: 'PUNCTURE!', bonus: stacks * 2 };
     }
-    // OVERLOAD — Arcane.  The mage detonates the opening and it chains: burst
+    // DISCHARGE — Arcane.  The mage detonates the opening and it chains: burst
     // (2 per stack), then spread vuln 1 to every OTHER living enemy — one
-    // exposed target primes the whole board.
+    // exposed target primes the whole board.  (Named to avoid colliding with
+    // the 'Overload' Resonance combo.)
     if (element === 'arcane') {
       const stacks = Math.min(e.vuln, REACTION_STACK_CAP);
       e.vuln = 0;
@@ -12323,7 +12324,7 @@ function resolveReaction(s, e, element) {
         o.vuln = (o.vuln || 0) + 1;
         spawnPopupId(o.id, 'VULN', 'stagger', 'enemy');
       });
-      return { name: 'OVERLOAD!', bonus: stacks * 2 };
+      return { name: 'DISCHARGE!', bonus: stacks * 2 };
     }
     // SMITE — Holy.  Judgment through the broken guard: burst (2 per stack)
     // AND mend the party 2 — the only reaction that heals.
@@ -18599,7 +18600,7 @@ function renderStatuses(ent, sForAuras) {
     if (ent.vuln > 0) {
       const d = [];
       if (schools.has('ranged')) d.push('Ranged PUNCTURE');
-      if (schools.has('arcane')) d.push('Arcane OVERLOAD');
+      if (schools.has('arcane')) d.push('Arcane DISCHARGE');
       if (schools.has('holy'))   d.push('Holy SMITE');
       if (d.length) parts.push('Vuln → ' + d.join(' / '));
     }
@@ -18687,7 +18688,7 @@ const STATUS_TOOLTIPS = {
   bleed:    { name: 'Bleed',       text: 'Takes 2 damage at the start of each turn (+1 with Bloodborne / Bone Tide). Decays by 1 per turn. Ignores armor. REACTION — on a bleeding enemy: a Physical hit RUPTURES it (consume bleed for a big burst), a Stealth hit causes HEMORRHAGE (burst, but reopens bleed 1 to keep the wound alive).' },
   taunt:    { name: 'Taunt',       text: 'Enemy single-target attacks redirect to this hero. Clears at the start of the next turn.' },
   dulled:   { name: 'Dulled',      text: 'Outgoing attacks deal -2 damage. Consumes 1 stack per attack. REACTION — on a dulled enemy, a Physical or Stealth hit SUNDERS it (consume all dulled for a burst and leave it Vulnerable 1).' },
-  vuln:     { name: 'Vulnerable',  text: 'Incoming hits deal +2 damage per stack (+2 more with Ember of Wrath). One stack is consumed per hit (unless Brand of Doom). REACTION — on a vulnerable enemy, a Ranged hit PUNCTURES it, an Arcane hit OVERLOADS it (burst + spreads vuln to other enemies), and a Holy hit SMITES it (burst + heals the party). All consume the vuln.' },
+  vuln:     { name: 'Vulnerable',  text: 'Incoming hits deal +2 damage per stack (+2 more with Ember of Wrath). One stack is consumed per hit (unless Brand of Doom). REACTION — on a vulnerable enemy, a Ranged hit PUNCTURES it, an Arcane hit DISCHARGES it (burst + spreads vuln to other enemies), and a Holy hit SMITES it (burst + heals the party). All consume the vuln.' },
   retal:    { name: 'Retaliate',   text: 'When hit, counter-attacks the front-most enemy for this value (+2 with Vow of Vigil). Clears at the start of the next turn.' },
   pending:  { name: 'Pending',     text: 'A one-shot bonus from a synergy. Consumed by the next matching action.' },
   guard:    { name: 'Guard',         text: 'Each stack fully negates the next incoming hit — no HP loss, no armor loss. Cleared at the start of the next player turn.' },
