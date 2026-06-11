@@ -8825,7 +8825,7 @@ const COMBOS = {
   },
   sa_guidinglight: {
     id: 'sa_guidinglight', name: 'Guiding Light', tier: 'duo', sigTier: true,
-    desc: 'Elin lights the line — DETONATE all VULN; party heal 6 + cleanse + 1 atk; front +3 VULN.',
+    desc: 'Heal party 6 + cleanse + 1 atk; front +3 VULN · DETONATE VULN.',
     requires: [ { heroId: 'branwen', kind: 'sig' }, { heroId: 'elin', kind: 'sig' } ],
     fn: (s) => {
       // The light erupts every exposed weakness it touches (SMITE), then
@@ -8877,7 +8877,7 @@ const COMBOS = {
   },
   wh_packtactics: {
     id: 'wh_packtactics', name: 'Pack Tactics', tier: 'duo', sigTier: true,
-    desc: 'DETONATE all bleed + VULN the pack has run down; Korin taunts + retaliate 3; Branwen marks lowest (+3 VULN, +2 bleed); party +2 armor.',
+    desc: 'Korin taunts + retaliate 3; mark lowest (+3 VULN, +2 bleed); +2 armor · DETONATE bleed + VULN.',
     requires: [ { heroId: 'branwen', kind: 'sig' }, { heroId: 'korin', kind: 'sig' } ],
     fn: (s) => {
       // The pack cashes everything it's run down, then re-marks the weakest.
@@ -8950,7 +8950,7 @@ const COMBOS = {
   },
   hv_brokentrust: {
     id: 'hv_brokentrust', name: 'Broken Trust', tier: 'duo', sigTier: true,
-    desc: 'A vow turned shield — DETONATE all VULN, then expose every foe +3 VULN; party +6 armor + cleanse.',
+    desc: 'All foes +3 VULN; party +6 armor + cleanse · DETONATE VULN.',
     requires: [ { heroId: 'cassia', kind: 'sig' }, { heroId: 'mira', kind: 'sig' } ],
     fn: (s) => {
       // The betrayed trust turns outward — erupt every exposed foe, then
@@ -8999,7 +8999,7 @@ const COMBOS = {
   },
   co_severance: {
     id: 'co_severance', name: 'Severance', tier: 'duo', sigTier: true,
-    desc: 'Oaths cut both ways — DETONATE all bleed + VULN; STAGGER front and lowest, +2 VULN each; Korin retaliate 3; party +2 armor.',
+    desc: 'STAGGER front + lowest (+2 VULN); Korin retaliate 3; +2 armor · DETONATE bleed + VULN.',
     requires: [ { heroId: 'korin', kind: 'sig' }, { heroId: 'mira', kind: 'sig' } ],
     fn: (s) => {
       // The severing cut erupts every wound and opening first.
@@ -9504,7 +9504,7 @@ const COMBOS = {
   // ---- Sig-tier coverage-fill ----
   choral_verse: {
     id: 'choral_verse', name: 'Choral Verse', tier: 'duo', sigTier: true,
-    desc: 'Back-row caster pair — heal 8 all + cleanse · DETONATE all VULN · vuln 2 all · arm Conviction · +1 Resolve',
+    desc: 'Heal 8 all + cleanse; +2 VULN all; arm Conviction; +1 Resolve · DETONATE VULN.',
     requires: [
       { heroId: 'lirien', kind: 'sig' },
       { heroId: 'vasha',  kind: 'sig' },
@@ -9540,7 +9540,7 @@ const COMBOS = {
   // Garron + Kell · "Gatewardens" (physical + holy, two front-line wardens).
   gk_gatewardens: {
     id: 'gk_gatewardens', name: 'Gatewardens', tier: 'duo', sigTier: true,
-    desc: 'Two wardens hold the gate — Garron smashes front 16 (RUPTURE on impact) + STAGGER, DETONATE all bleed + dulled; Kell heals party 7 + cleanse + 4 armor.',
+    desc: 'Garron smashes front 16 + STAGGER; Kell heals 7 + 4 armor · DETONATE bleed + dulled.',
     requires: [ { heroId: 'garron', kind: 'sig' }, { heroId: 'kell', kind: 'sig' } ],
     fn: (s) => {
       const front = enemyBySlot(s, 'front') || aliveEnemies(s)[0];
@@ -9570,7 +9570,7 @@ const COMBOS = {
   // Joran + Nira · "Hexed Volley" (ranged + arcane, hex then rake).
   jn_hexedvolley: {
     id: 'jn_hexedvolley', name: 'Hexed Volley', tier: 'duo', sigTier: true,
-    desc: "Nira hexes the board (5 arcane all + 3 VULN), Joran rakes it (6 ranged all) — DISCHARGE then PUNCTURE detonate every VULN as it lands.",
+    desc: "Nira hexes all (5 + 3 VULN); Joran rakes all (6) · DETONATE VULN.",
     requires: [ { heroId: 'joran', kind: 'sig' }, { heroId: 'nira', kind: 'sig' } ],
     fn: (s) => {
       const wasIgnore = s.ignoreArmor; s.ignoreArmor = true;
@@ -9594,7 +9594,7 @@ const COMBOS = {
   // Kiki + Tarn · "Anvil and Edge" (stealth + physical, hammer and blade).
   kt_anviledge: {
     id: 'kt_anviledge', name: 'Anvil and Edge', tier: 'duo', sigTier: true,
-    desc: 'Tarn hammers front 14 (physical), Kiki opens the lowest (8 + 3 bleed, stealth) — RUPTURE/HEMORRHAGE on impact, then DETONATE all bleed.',
+    desc: 'Tarn hammers front 14; Kiki bleeds lowest (8 + 3) · DETONATE bleed.',
     requires: [ { heroId: 'kiki', kind: 'sig' }, { heroId: 'tarn', kind: 'sig' } ],
     fn: (s) => {
       const front = enemyBySlot(s, 'front') || aliveEnemies(s)[0];
@@ -9625,7 +9625,7 @@ const COMBOS = {
   // Cassia + Vasha · "Oath and Aegis" (physical + holy).
   cv_oathaegis: {
     id: 'cv_oathaegis', name: 'Oath and Aegis', tier: 'duo', sigTier: true,
-    desc: 'Cassia shatters front 15 (RUPTURE on impact); Vasha’s judgment DETONATES all VULN, heals party 8 + cleanse + 4 armor.',
+    desc: 'Cassia shatters front 15; Vasha heals 8 + 4 armor · DETONATE VULN.',
     requires: [ { heroId: 'cassia', kind: 'sig' }, { heroId: 'vasha', kind: 'sig' } ],
     fn: (s) => {
       const front = enemyBySlot(s, 'front') || aliveEnemies(s)[0];
@@ -9653,7 +9653,7 @@ const COMBOS = {
   // Mira + Veyr · "Twin Shadows" (stealth + stealth).
   mv_twinshadows: {
     id: 'mv_twinshadows', name: 'Twin Shadows', tier: 'duo', sigTier: true,
-    desc: 'Two blades open every wound — DETONATE all bleed, then mark the two lowest foes (8 + 3 bleed each, stealth).',
+    desc: 'Mark the two lowest (8 + 3 bleed each) · DETONATE bleed.',
     requires: [ { heroId: 'mira', kind: 'sig' }, { heroId: 'veyr', kind: 'sig' } ],
     fn: (s) => {
       detonateEnemyPrimers(s, ['bleed']);
@@ -9679,7 +9679,7 @@ const COMBOS = {
   // Branwen + Joran · "Arrowstorm" (ranged + ranged).
   bj_arrowstorm: {
     id: 'bj_arrowstorm', name: 'Arrowstorm', tier: 'duo', sigTier: true,
-    desc: 'Both archers rake ALL foes for 6 TWICE (ranged) — PUNCTURE every VULN as the arrows land; +1 bleed each.',
+    desc: 'Both archers rake all 6 twice + bleed · DETONATE VULN.',
     requires: [ { heroId: 'branwen', kind: 'sig' }, { heroId: 'joran', kind: 'sig' } ],
     fn: (s) => {
       ['branwen', 'joran'].forEach(hid => {
@@ -9700,7 +9700,7 @@ const COMBOS = {
   // Ash + Nira · "Doomtide" (arcane + arcane).
   an_doomtide: {
     id: 'an_doomtide', name: 'Doomtide', tier: 'duo', sigTier: true,
-    desc: 'A rising tide of hex — ALL foes take 7 arcane (ignore armor) + 3 VULN, then DISCHARGE detonates every VULN across the board.',
+    desc: 'All foes take 7 arcane + 3 VULN · DETONATE VULN.',
     requires: [ { heroId: 'ash', kind: 'sig' }, { heroId: 'nira', kind: 'sig' } ],
     fn: (s) => {
       const wasIgnore = s.ignoreArmor; s.ignoreArmor = true;
@@ -9722,7 +9722,7 @@ const COMBOS = {
   // Garron + Korin · "Breakwall" (physical + physical, two front bruisers).
   gk_breakwall: {
     id: 'gk_breakwall', name: 'Breakwall', tier: 'duo', sigTier: true,
-    desc: 'Two walls become a hammer — front takes 18 (RUPTURE/SUNDER) + STAGGER, DETONATE all bleed + dulled; party +4 armor.',
+    desc: 'Front takes 18 + STAGGER; party +4 armor · DETONATE bleed + dulled.',
     requires: [ { heroId: 'garron', kind: 'sig' }, { heroId: 'korin', kind: 'sig' } ],
     fn: (s) => {
       const front = enemyBySlot(s, 'front') || aliveEnemies(s)[0];
@@ -9747,7 +9747,7 @@ const COMBOS = {
   // Hask + Kai · "Spellfury" (arcane + physical).
   hk_spellfury: {
     id: 'hk_spellfury', name: 'Spellfury', tier: 'duo', sigTier: true,
-    desc: 'Steel through sorcery — Hask burns ALL for 6 arcane (ignore armor) + 2 VULN, Kai caves the front for 14, then DETONATE every primer on the board.',
+    desc: 'Hask burns all (6 + 2 VULN); Kai caves front 14 · DETONATE all.',
     requires: [ { heroId: 'hask', kind: 'sig' }, { heroId: 'kai', kind: 'sig' } ],
     fn: (s) => {
       const wasIgnore = s.ignoreArmor; s.ignoreArmor = true;
@@ -14539,18 +14539,14 @@ function _runUltimateArchetype(s, a, b, key) {
   detonateEnemyPrimers(s);
 }
 
-// Description for an L3 ultimate archetype.
+// Description for an L3 ultimate archetype.  Kept to a single scannable line
+// — the cinematic and the numbers on the board carry the detail; the card
+// just states the fantasy.
 function _ultimateDesc(a, b, key) {
   if (key === 'aegis') {
-    return 'Party heal 8, +6 armor, cleanse ALL debuffs, DETONATE all VULN, STAGGER front.';
+    return 'Shield & heal the party, cleanse all · DETONATE VULN · STAGGER front.';
   }
-  const aSchool = (CHARS[a] && CHARS[a].school) || 'physical';
-  const bSchool = (CHARS[b] && CHARS[b].school) || 'physical';
-  const aDesc = (SCHOOL_SIGNATURE[aSchool] && SCHOOL_SIGNATURE[aSchool].desc(3)) || '';
-  const bDesc = (SCHOOL_SIGNATURE[bSchool] && SCHOOL_SIGNATURE[bSchool].desc(3)) || '';
-  const tail = '  Then DETONATE every primer on the board.';
-  if (aSchool === bSchool) return `Both unleash at full power. ${aDesc}${tail}`;
-  return `Both unleash at full power. ${aDesc} ${bDesc}${tail}`;
+  return 'Both schools unleash at full power · DETONATE every primer on the board.';
 }
 
 
@@ -21340,31 +21336,13 @@ function renderMap() {
   $('#overlay').classList.remove('overlay-vignette', 'overlay-runsummary');
   $('#overlay').classList.add('overlay-full', 'overlay-path');
   $('#overlay-title').textContent = 'The Path';
-  // Subtitle + kizuna strip — shows the top 2 bonds fired this run
-  // with their current tier so the kizuna progression stays visible
-  // between encounters, not just on the long-press inspector.  Skipped
-  // silently if no bonds have fired (solo runs, first-encounter maps).
+  // Subtitle only.  Kizuna/bond progression lives on the long-press
+  // inspector and the run-summary recap — it doesn't need to clutter the
+  // map between encounters.
   const _pathSubtitle = (state.run.completedNodes || []).length === 0
     ? 'Pick your entry point.'
     : 'Choose the next stretch.';
-  const _sc = (state.run && state.run.synergyCounts) || {};
-  const _topBonds = Object.entries(_sc)
-    .filter(([name, count]) => count > 0 && !(/^Old |^Hollow |^Crossed |^Tangled |^Stained /.test(name)))
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 2);
-  let _kizunaStrip = '';
-  if (_topBonds.length) {
-    const chips = _topBonds.map(([name, count]) => {
-      const tier = getBondTier(state, name, count);
-      const roman = BOND_TIER_ROMAN[tier] || '';
-      return `<span class="path-kizuna-chip" data-tier="${tier}">
-        <span class="path-kizuna-name">${name}${tier > 1 ? ` ${roman}` : ''}</span>
-        <span class="path-kizuna-count">${count}×</span>
-      </span>`;
-    }).join('');
-    _kizunaStrip = `<div class="path-kizuna"><span class="path-kizuna-label">Kizuna</span>${chips}</div>`;
-  }
-  $('#overlay-body').innerHTML = `<span class="path-subtitle">${_pathSubtitle}</span>${_kizunaStrip}`;
+  $('#overlay-body').innerHTML = `<span class="path-subtitle">${_pathSubtitle}</span>`;
   const choices = $('#overlay-choices');
   choices.innerHTML = '';
   choices.classList.add('path-map');
