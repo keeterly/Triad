@@ -3427,66 +3427,92 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
   position: fixed; inset: 0; z-index: 8500;
   pointer-events: none; opacity: 0;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 14px;
+  gap: 18px;
 }
-#bond-deepen.go { animation: bd-show 1.4s ease-out forwards; }
-#bond-deepen.resonant.go { animation: bd-show 2s ease-out forwards; }
-@keyframes bd-show { 0% { opacity: 0; } 8% { opacity: 1; } 82% { opacity: 1; } 100% { opacity: 0; } }
+/* Container fades in, HOLDS, then fades out — children hold their end state
+   so nothing vanishes mid-beat; this envelope alone handles the exit. */
+#bond-deepen.go { animation: bd-show 2.4s ease-out forwards; }
+#bond-deepen.resonant.go { animation: bd-show 3.2s ease-out forwards; }
+@keyframes bd-show { 0% { opacity: 0; } 6% { opacity: 1; } 86% { opacity: 1; } 100% { opacity: 0; } }
+/* A real darkening backdrop so the moment reads as a dedicated beat, not a
+   faint overlay flickering over a busy board. */
 #bond-deepen .bd-tint {
   position: absolute; inset: 0;
-  background: radial-gradient(ellipse at center, rgba(120,150,255,0.12) 0%, transparent 58%);
+  background: radial-gradient(ellipse at center, rgba(24,32,64,0.42) 0%, rgba(4,6,12,0.74) 100%);
+  backdrop-filter: blur(1px);
 }
 #bond-deepen.resonant .bd-tint {
-  background: radial-gradient(ellipse at center, rgba(255,210,120,0.2) 0%, rgba(40,20,8,0.35) 70%, transparent 100%);
+  background: radial-gradient(ellipse at center, rgba(70,46,14,0.5) 0%, rgba(6,3,2,0.82) 100%);
 }
 #bond-deepen .bd-row {
   position: relative; display: flex; align-items: center; justify-content: center; gap: 0;
 }
 #bond-deepen .bd-hero {
-  width: 116px; height: 116px;
-  filter: drop-shadow(0 6px 16px rgba(0,0,0,0.7));
+  width: 132px; height: 132px;
+  filter: drop-shadow(0 8px 20px rgba(0,0,0,0.8));
 }
-#bond-deepen.resonant .bd-hero { width: 138px; height: 138px; }
+#bond-deepen.resonant .bd-hero { width: 158px; height: 158px; }
 #bond-deepen .bd-hero svg { width: 100%; height: 100%; }
-#bond-deepen.go .bd-a { animation: bd-slide-l 1.2s cubic-bezier(.16,.84,.3,1) both; }
-#bond-deepen.go .bd-b { animation: bd-slide-r 1.2s cubic-bezier(.16,.84,.3,1) both; }
-@keyframes bd-slide-l { 0% { transform: translateX(-120px) scale(.8); opacity: 0; } 40% { opacity: 1; } 100% { transform: translateX(-12px) scale(1); opacity: 1; } }
-@keyframes bd-slide-r { 0% { transform: translateX( 120px) scale(.8); opacity: 0; } 40% { opacity: 1; } 100% { transform: translateX( 12px) scale(1); opacity: 1; } }
-#bond-deepen .bd-link {
-  position: relative; width: 0; height: 0; z-index: 2;
+/* Slide in over the first ~40% of the beat, then HOLD (forwards) at the
+   converged position for the rest. */
+#bond-deepen.go .bd-a { animation: bd-slide-l 2.4s cubic-bezier(.16,.84,.3,1) forwards; }
+#bond-deepen.go .bd-b { animation: bd-slide-r 2.4s cubic-bezier(.16,.84,.3,1) forwards; }
+#bond-deepen.resonant.go .bd-a { animation-duration: 3.2s; }
+#bond-deepen.resonant.go .bd-b { animation-duration: 3.2s; }
+@keyframes bd-slide-l {
+  0% { transform: translateX(-160px) scale(.7); opacity: 0; }
+  20% { opacity: 1; }
+  40%, 100% { transform: translateX(-14px) scale(1); opacity: 1; }
 }
+@keyframes bd-slide-r {
+  0% { transform: translateX( 160px) scale(.7); opacity: 0; }
+  20% { opacity: 1; }
+  40%, 100% { transform: translateX( 14px) scale(1); opacity: 1; }
+}
+#bond-deepen .bd-link { position: relative; width: 0; height: 0; z-index: 2; }
 #bond-deepen .bd-spark {
   position: absolute; left: 0; top: 0; transform: translate(-50%, -50%);
-  width: 14px; height: 14px; border-radius: 50%;
+  width: 16px; height: 16px; border-radius: 50%;
   background: radial-gradient(circle, #fff 0%, #bcd2ff 45%, transparent 70%);
   opacity: 0;
 }
 #bond-deepen.resonant .bd-spark { background: radial-gradient(circle, #fff 0%, #ffe6a6 45%, transparent 72%); }
-#bond-deepen.go .bd-spark { animation: bd-spark 1.4s ease-out 0.5s both; }
+/* The convergence spark blooms right as the portraits meet (~38% in). */
+#bond-deepen.go .bd-spark { animation: bd-spark 2.4s ease-out forwards; }
+#bond-deepen.resonant.go .bd-spark { animation-duration: 3.2s; }
 @keyframes bd-spark {
-  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.2); }
-  30% { opacity: 1; transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 24px 8px rgba(190,210,255,0.8); }
-  100% { opacity: 0; transform: translate(-50%, -50%) scale(3.2); box-shadow: 0 0 40px 14px rgba(190,210,255,0); }
+  0%, 30% { opacity: 0; transform: translate(-50%, -50%) scale(0.2); }
+  42% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); box-shadow: 0 0 30px 10px rgba(190,210,255,0.85); }
+  64% { opacity: 0.7; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(3.4); box-shadow: 0 0 48px 16px rgba(190,210,255,0); }
 }
 #bond-deepen .bd-banner { text-align: center; position: relative; z-index: 2; }
-#bond-deepen.go .bd-banner { animation: bd-banner 1.4s cubic-bezier(.2,.8,.3,1) 0.35s both; }
-@keyframes bd-banner { 0% { opacity: 0; transform: translateY(10px); } 30% { opacity: 1; transform: translateY(0); } 85% { opacity: 1; } 100% { opacity: 0; } }
+/* Banner rises in then HOLDS (forwards); the container envelope fades it. */
+#bond-deepen.go .bd-banner { animation: bd-banner 2.4s cubic-bezier(.2,.8,.3,1) forwards; }
+#bond-deepen.resonant.go .bd-banner { animation-duration: 3.2s; }
+@keyframes bd-banner {
+  0% { opacity: 0; transform: translateY(14px); letter-spacing: 0; }
+  18% { opacity: 0; }
+  34% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 1; transform: translateY(0); }
+}
 #bond-deepen .bd-eyebrow {
   font-size: 12px; letter-spacing: 0.42em; text-transform: uppercase;
-  color: #bcd2ff; opacity: 0.9; margin-bottom: 4px;
+  color: #bcd2ff; opacity: 0.9; margin-bottom: 5px;
 }
 #bond-deepen.resonant .bd-eyebrow { color: var(--gold-bright); }
 #bond-deepen .bd-name {
-  font-size: 26px; font-weight: 800; letter-spacing: 0.04em;
+  font-size: 28px; font-weight: 800; letter-spacing: 0.04em;
   color: #eef3ff; text-shadow: 0 1px 0 var(--shadow), 0 0 18px rgba(150,180,255,0.7);
 }
 #bond-deepen.resonant .bd-name {
-  font-size: 32px; color: #fff7e0;
-  text-shadow: 0 1px 0 var(--shadow), 0 0 24px var(--gold-bright), 0 0 9px #fff7e0;
+  font-size: 36px; color: #fff7e0;
+  text-shadow: 0 1px 0 var(--shadow), 0 0 26px var(--gold-bright), 0 0 9px #fff7e0;
 }
 @media (prefers-reduced-motion: reduce) {
   #bond-deepen.go, #bond-deepen.go .bd-a, #bond-deepen.go .bd-b,
-  #bond-deepen.go .bd-spark, #bond-deepen.go .bd-banner { animation-duration: 0.01s !important; }
+  #bond-deepen.go .bd-spark, #bond-deepen.go .bd-banner { animation: none !important; opacity: 1 !important; }
+  #bond-deepen.go { animation: bd-show 1.6s steps(2) forwards !important; }
 }
 /* RESIST word-banner — the only non-detonation badge (WEAK!/STG! now ride
    the ✺ reaction burst).  Dim/italic, routed through the serialized banner

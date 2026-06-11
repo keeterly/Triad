@@ -15120,8 +15120,12 @@ function fireSynergyFeedback(s, name, receiverId, effectText, effectType) {
     const partnerIds = pair && Array.isArray(pair.ids) ? pair.ids : [receiverId];
     const partnerNames = partnerIds.map(id => (CHARS[id] && CHARS[id].name) || id).join(' + ');
     // Centered cinematic beat — the portraits converge as the bond deepens.
+    // Freeze the resolution clock so the action holds for the beat instead of
+    // blowing past it (the resolveQueueStep loop consumes this pause before
+    // its next step).
     if (partnerIds.length === 2) {
-      setTimeout(() => playBondDeepen(partnerIds[0], partnerIds[1], levelAfter), 260);
+      hitPause(levelAfter >= 3 ? 1600 : 1100);
+      playBondDeepen(partnerIds[0], partnerIds[1], levelAfter);
     }
     setTimeout(() => {
       spawnToast({
@@ -20371,7 +20375,7 @@ function playBondDeepen(idA, idB, levelAfter) {
   el.classList.add('go');
   if (resonant) shakeScreen(2);
   clearTimeout(_bondDeepenTimer);
-  _bondDeepenTimer = setTimeout(() => el.classList.remove('go'), resonant ? 2000 : 1400);
+  _bondDeepenTimer = setTimeout(() => el.classList.remove('go'), resonant ? 3200 : 2400);
 }
 
 // Boss death slow-mo: dim the screen, slow CSS animations, brief flash.
