@@ -3418,6 +3418,76 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
   #battlefield.cam-punch, #battlefield.cam-punch-hard, #battlefield.cam-punch-max,
   .figure.crit-impact .figure-portrait { animation: none !important; }
 }
+
+/* ===== Bond-deepen cinematic — the two heroes' portraits converge with a
+   kizuna spark and a banner the moment their bond crosses a level.  Centered,
+   full-viewport, never intercepts input.  .resonant (L3) goes gold + bigger
+   + longer.  Driven by JS toggling .go. ===== */
+#bond-deepen {
+  position: fixed; inset: 0; z-index: 8500;
+  pointer-events: none; opacity: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 14px;
+}
+#bond-deepen.go { animation: bd-show 1.4s ease-out forwards; }
+#bond-deepen.resonant.go { animation: bd-show 2s ease-out forwards; }
+@keyframes bd-show { 0% { opacity: 0; } 8% { opacity: 1; } 82% { opacity: 1; } 100% { opacity: 0; } }
+#bond-deepen .bd-tint {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at center, rgba(120,150,255,0.12) 0%, transparent 58%);
+}
+#bond-deepen.resonant .bd-tint {
+  background: radial-gradient(ellipse at center, rgba(255,210,120,0.2) 0%, rgba(40,20,8,0.35) 70%, transparent 100%);
+}
+#bond-deepen .bd-row {
+  position: relative; display: flex; align-items: center; justify-content: center; gap: 0;
+}
+#bond-deepen .bd-hero {
+  width: 116px; height: 116px;
+  filter: drop-shadow(0 6px 16px rgba(0,0,0,0.7));
+}
+#bond-deepen.resonant .bd-hero { width: 138px; height: 138px; }
+#bond-deepen .bd-hero svg { width: 100%; height: 100%; }
+#bond-deepen.go .bd-a { animation: bd-slide-l 1.2s cubic-bezier(.16,.84,.3,1) both; }
+#bond-deepen.go .bd-b { animation: bd-slide-r 1.2s cubic-bezier(.16,.84,.3,1) both; }
+@keyframes bd-slide-l { 0% { transform: translateX(-120px) scale(.8); opacity: 0; } 40% { opacity: 1; } 100% { transform: translateX(-12px) scale(1); opacity: 1; } }
+@keyframes bd-slide-r { 0% { transform: translateX( 120px) scale(.8); opacity: 0; } 40% { opacity: 1; } 100% { transform: translateX( 12px) scale(1); opacity: 1; } }
+#bond-deepen .bd-link {
+  position: relative; width: 0; height: 0; z-index: 2;
+}
+#bond-deepen .bd-spark {
+  position: absolute; left: 0; top: 0; transform: translate(-50%, -50%);
+  width: 14px; height: 14px; border-radius: 50%;
+  background: radial-gradient(circle, #fff 0%, #bcd2ff 45%, transparent 70%);
+  opacity: 0;
+}
+#bond-deepen.resonant .bd-spark { background: radial-gradient(circle, #fff 0%, #ffe6a6 45%, transparent 72%); }
+#bond-deepen.go .bd-spark { animation: bd-spark 1.4s ease-out 0.5s both; }
+@keyframes bd-spark {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.2); }
+  30% { opacity: 1; transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 24px 8px rgba(190,210,255,0.8); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(3.2); box-shadow: 0 0 40px 14px rgba(190,210,255,0); }
+}
+#bond-deepen .bd-banner { text-align: center; position: relative; z-index: 2; }
+#bond-deepen.go .bd-banner { animation: bd-banner 1.4s cubic-bezier(.2,.8,.3,1) 0.35s both; }
+@keyframes bd-banner { 0% { opacity: 0; transform: translateY(10px); } 30% { opacity: 1; transform: translateY(0); } 85% { opacity: 1; } 100% { opacity: 0; } }
+#bond-deepen .bd-eyebrow {
+  font-size: 12px; letter-spacing: 0.42em; text-transform: uppercase;
+  color: #bcd2ff; opacity: 0.9; margin-bottom: 4px;
+}
+#bond-deepen.resonant .bd-eyebrow { color: var(--gold-bright); }
+#bond-deepen .bd-name {
+  font-size: 26px; font-weight: 800; letter-spacing: 0.04em;
+  color: #eef3ff; text-shadow: 0 1px 0 var(--shadow), 0 0 18px rgba(150,180,255,0.7);
+}
+#bond-deepen.resonant .bd-name {
+  font-size: 32px; color: #fff7e0;
+  text-shadow: 0 1px 0 var(--shadow), 0 0 24px var(--gold-bright), 0 0 9px #fff7e0;
+}
+@media (prefers-reduced-motion: reduce) {
+  #bond-deepen.go, #bond-deepen.go .bd-a, #bond-deepen.go .bd-b,
+  #bond-deepen.go .bd-spark, #bond-deepen.go .bd-banner { animation-duration: 0.01s !important; }
+}
 /* RESIST word-banner — the only non-detonation badge (WEAK!/STG! now ride
    the ✺ reaction burst).  Dim/italic, routed through the serialized banner
    queue (see BANNER_TYPES in game.js) so it never collides with a proc. */
