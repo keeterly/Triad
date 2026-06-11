@@ -12797,8 +12797,11 @@ function applyDmgToEnemy(s, e, baseAmt) {
   if (schoolBadge) {
     // Reactions DETONATE — give them their own burst popup (a ✺ glyph + the
     // punchier 'pop' animation) so the moment reads as an explosion, not just
-    // another gold label.  WEAK!/STG! stay crit; RESIST stays a dim miss.
-    const badgeType = reactionName ? 'reaction' : (hotBadge ? 'crit' : 'miss');
+    // another gold label.  WEAK!/STG! ride the 'badge' word; RESIST stays a
+    // dim 'badge-dim'.  All three are word-banners — they go through the
+    // serialized banner queue in spawnPopup so a row of AoE procs reads
+    // one-at-a-time instead of stamping on the same frame.
+    const badgeType = reactionName ? 'reaction' : (hotBadge ? 'badge' : 'badge-dim');
     const badgeText = reactionName ? `✺ ${schoolBadge}` : schoolBadge;
     setTimeout(() => spawnPopupId(e.id, badgeText, badgeType, 'enemy'), 80);
     // WEAK!/STG! shimmer — brief gold pulse on the struck figure so
@@ -20068,8 +20071,20 @@ function spawnSigilPopup(id, sigilId) {
 // Also dedupe — if the same text was just spawned on the same target
 // (e.g., a synergy that fires once per ally hit, applied 3x to the same
 // character), suppress the repeats within a short window.
+// Big word-banners — detonation names (PUNCTURE!/HEMORRHAGE!/…), WEAK!/STG!,
+// and STAGGERED — are the dramatic payoff beats: large and centered on the
+// struck card.  When an AoE hits a whole enemy row, several fire on the same
+// frame and collide horizontally (the "HEMORRHAGE.TURE" pile-up).  They get
+// their OWN global queue: one on screen at a time, each held long enough to
+// read, so the payoffs play out as a legible sequence instead of a stack.
+// Plain damage numbers stay on the fast per-card stagger so the hit still
+// registers instantly on its target.
+const BANNER_TYPES = new Set(['reaction', 'badge', 'badge-dim', 'stagger']);
 let _popupNextDue = 0;
+let _bannerNextDue = 0;
 const POPUP_STAGGER_MS = 130;
+const BANNER_GAP_MS = 680;       // spacing between consecutive word-banners
+const BANNER_MAX_LAG_MS = 2200;  // never let banners trail the action further
 const POPUP_DEDUP_MS = 900;
 const _popupRecent = new Map(); // key: `${id}|${text}` -> last fire timestamp
 function spawnPopup(cardEl, text, type='dmg') {
@@ -20091,8 +20106,19 @@ function spawnPopup(cardEl, text, type='dmg') {
 
   const r = cardEl.getBoundingClientRect();
   const s = stage.getBoundingClientRect();
-  const due = Math.max(_popupNextDue, now);
-  _popupNextDue = due + POPUP_STAGGER_MS;
+  // Banners serialize on their own channel; numbers/heals keep the light
+  // per-card stagger.  Each fires off whichever queue it belongs to.
+  let due;
+  if (BANNER_TYPES.has(type)) {
+    due = Math.max(_bannerNextDue, now);
+    // If the queue has drifted too far behind the action, compress it so
+    // the banners never narrate a turn that already finished.
+    if (due - now > BANNER_MAX_LAG_MS) due = now + BANNER_MAX_LAG_MS;
+    _bannerNextDue = due + BANNER_GAP_MS;
+  } else {
+    due = Math.max(_popupNextDue, now);
+    _popupNextDue = due + POPUP_STAGGER_MS;
+  }
   const delay = due - now;
   // Snapshot positions NOW so a card that moves/dies during the delay
   // doesn't drag the popup off-screen.
