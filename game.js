@@ -18354,6 +18354,16 @@ function makeEnemyCard(e, slot) {
   }
   if (e.staggered)     fig.classList.add('state-staggered');
   else if (e.weakened) fig.classList.add('state-weakened');
+  // Full-body status overlay — the dominant persistent ailment tints the
+  // whole figure with a coloured aura that hugs the body silhouette, so the
+  // condition reads from across the board (Persona/FF-style) instead of
+  // living only in the small chip glyphs.  One at a time by priority; the
+  // chips still carry the exact stacks for the detail read.
+  const bodyStatus = e.bleed > 0 ? 'bleed'
+    : e.vuln > 0 ? 'vuln'
+    : e.dulled > 0 ? 'dulled'
+    : null;
+  if (bodyStatus) fig.classList.add('has-body-status', `body-status-${bodyStatus}`);
   if (e._charging) {
     fig.classList.add('e-charging');
     fig.dataset.releaseIn = e._charging.releaseIn;

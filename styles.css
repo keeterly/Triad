@@ -1351,6 +1351,26 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
 }
 #enemy-half .figure-portrait svg { animation-name: idle-breathe-mirror; transform: scaleX(-1); }
 
+/* ===== FULL-BODY STATUS OVERLAY =====
+   The dominant persistent ailment tints the whole figure with a coloured
+   aura that hugs the body silhouette (the SVG is alpha-masked, so a
+   drop-shadow follows its shape).  Reads from across the board, Persona/FF
+   style.  Driven by --aura (rgb triplet) + --aura-sat set per ailment, so a
+   single pulse keyframe covers all of them.  Composed WITH idle-breathe so
+   the figure keeps breathing while it's afflicted. */
+.figure.body-status-bleed  { --aura: 214,56,56;   --aura-sat: 1.32; }
+.figure.body-status-vuln   { --aura: 255,98,150;  --aura-sat: 1.22; }
+.figure.body-status-dulled { --aura: 150,160,182; --aura-sat: 0.5;  }
+.figure.has-body-status .figure-portrait svg {
+  animation: idle-breathe 5.4s ease-in-out infinite, body-status-pulse 1.7s ease-in-out infinite;
+}
+#enemy-half .figure.has-body-status .figure-portrait svg {
+  animation: idle-breathe-mirror 5.4s ease-in-out infinite, body-status-pulse 1.7s ease-in-out infinite;
+}
+@keyframes body-status-pulse {
+  0%, 100% { filter: drop-shadow(0 0 4px  rgba(var(--aura), 0.45)) saturate(var(--aura-sat)); }
+  50%      { filter: drop-shadow(0 0 16px rgba(var(--aura), 0.92)) saturate(var(--aura-sat)) brightness(1.04); }
+}
 /* soft ground shadow ellipse under each figure */
 .figure-shadow {
   width: 70%;
