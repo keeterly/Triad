@@ -12835,18 +12835,36 @@ function applyDmgToEnemy(s, e, baseAmt) {
   // figure.  The freeze (hitPause) is consumed by the resolution loop
   // before the next step, so multi-hit combos visibly stutter on the big
   // one instead of blurring past it.
+  // Feedback ladder — every hit gets a beat, and the payoff escalates:
+  //   regular → heavy → crit/weakness → detonation → resonant detonation.
+  // A "resonant detonation" (a Resonance combo paying off a primer) is the
+  // showpiece and gets the most dramatic treatment in the game.
+  const isDetonation = !!reactionName;
+  const resonantDetonation = isDetonation && s._currentIsResonance;
   const critTier = hotBadge || toHp >= 12;
-  if (critTier) {
-    // The biggest payoffs (a detonation, a stagger ×2, or a truly massive
-    // blow) get the heaviest, longest freeze + the darkest cinematic pulse.
-    const massive = !!reactionName || schoolBadge === 'STG!' || toHp >= 18;
-    hitPause(massive ? 430 : hotBadge ? 320 : 230);
+  if (resonantDetonation) {
+    hitPause(560);
     shakeScreen(3);
     critFlash(e.id, 'enemy');
-    cinematicImpact(massive ? 3 : 2, 'enemy');
+    cinematicImpact(4, 'enemy');
+  } else if (isDetonation || schoolBadge === 'STG!' || toHp >= 18) {
+    hitPause(420);
+    shakeScreen(3);
+    critFlash(e.id, 'enemy');
+    cinematicImpact(3, 'enemy');
+  } else if (critTier) {
+    hitPause(260);
+    shakeScreen(3);
+    critFlash(e.id, 'enemy');
+    cinematicImpact(2, 'enemy');
   } else if (toHp >= 8) {
     hitPause(150);
     cinematicImpact(1, 'enemy');
+  } else if (toHp > 0) {
+    // Regular hit — a short freeze + a soft screen kick so even a small
+    // strike has tactile feedback instead of just sliding past.
+    hitPause(55);
+    if (toHp >= 3) shakeScreen(1);
   }
   // Per-school hit colour: physical thud, stealth hiss, ranged twang,
   // arcane chime, holy bell.
@@ -13110,6 +13128,7 @@ function applyDmgToParty(s, c, amt) {
   if (toHp >= 5) shakeScreen(toHp >= 9 ? 3 : 2);
   if (toHp >= 10) { hitPause(toHp >= 16 ? 400 : 270); shakeScreen(3); critFlash(c.id, 'party'); cinematicImpact(toHp >= 16 ? 3 : 2, 'party'); }
   else if (toHp >= 6) { hitPause(140); cinematicImpact(1, 'party'); }
+  else if (toHp > 0) { hitPause(50); if (toHp >= 3) shakeScreen(1); }
   // Enemy attack type — abilities set s.currentTechElement; basic strikes
   // fall back to physical.  Drives both the per-type sound and the hit FX
   // so the player can read what hit them (a magic blast vs a melee swing).
@@ -16834,8 +16853,9 @@ const SCHOOL_GLYPH_CINE = { physical: '⚔', holy: '✦', arcane: '✶', ranged:
 function playComboCinematic(s, combo, onDone) {
   // Bot/sim mode: no DOM.  Fire the effect synchronously and return.
   if (typeof __simulating !== 'undefined' && __simulating) {
+    s._currentIsResonance = true;
     try { combo.fn(s); }
-    finally { s.outgoingDmgMod = 0; s.ignoreArmor = false; s.currentActorId = null; s.currentTechElement = null; }
+    finally { s.outgoingDmgMod = 0; s.ignoreArmor = false; s.currentActorId = null; s.currentTechElement = null; s._currentIsResonance = false; }
     if (typeof onDone === 'function') onDone();
     return;
   }
@@ -16850,8 +16870,11 @@ function playComboCinematic(s, combo, onDone) {
     resolved = true;
     s.currentActorId = null;
     s.currentTechElement = null;
+    // Mark the resolution window as a Resonance so a primer detonation that
+    // fires inside this combo gets the top-tier "resonant detonation" juice.
+    s._currentIsResonance = true;
     try { combo.fn(s); }
-    finally { s.outgoingDmgMod = 0; s.ignoreArmor = false; s.currentActorId = null; s.currentTechElement = null; }
+    finally { s.outgoingDmgMod = 0; s.ignoreArmor = false; s.currentActorId = null; s.currentTechElement = null; s._currentIsResonance = false; }
     try { render(); } catch (_) {}
   };
   const cleanup = () => {
@@ -20298,14 +20321,14 @@ function critFlash(id, side) {
 let _fxCinematicTimer = null;
 function cinematicImpact(level, side) {
   if (__simulating) return;
-  const lvl = Math.max(1, Math.min(3, level || 1));
+  const lvl = Math.max(1, Math.min(4, level || 1));
   const fx = document.getElementById('fx-cinematic');
   if (fx) {
-    fx.classList.remove('fx-go', 'fx-1', 'fx-2', 'fx-3');
+    fx.classList.remove('fx-go', 'fx-1', 'fx-2', 'fx-3', 'fx-4');
     void fx.offsetWidth;
     fx.classList.add('fx-go', `fx-${lvl}`);
     clearTimeout(_fxCinematicTimer);
-    _fxCinematicTimer = setTimeout(() => fx.classList.remove('fx-go', 'fx-1', 'fx-2', 'fx-3'), 560);
+    _fxCinematicTimer = setTimeout(() => fx.classList.remove('fx-go', 'fx-1', 'fx-2', 'fx-3', 'fx-4'), lvl >= 4 ? 780 : 560);
   }
   // Camera punch — a quick scale-in on the battlefield element (separate
   // from #stage, so it layers under the screen shake instead of fighting
@@ -20315,11 +20338,11 @@ function cinematicImpact(level, side) {
     // Focus the zoom toward the struck combatant (enemies right, party
     // left) so the punch-in feels aimed, not generic.
     bf.style.setProperty('--cam-x', side === 'party' ? '32%' : side === 'enemy' ? '68%' : '50%');
-    const cls = lvl >= 3 ? 'cam-punch-hard' : 'cam-punch';
-    bf.classList.remove('cam-punch', 'cam-punch-hard');
+    const cls = lvl >= 4 ? 'cam-punch-max' : lvl >= 3 ? 'cam-punch-hard' : 'cam-punch';
+    bf.classList.remove('cam-punch', 'cam-punch-hard', 'cam-punch-max');
     void bf.offsetWidth;
     bf.classList.add(cls);
-    setTimeout(() => bf.classList.remove(cls), 640);
+    setTimeout(() => bf.classList.remove(cls), lvl >= 4 ? 780 : 640);
   }
 }
 
