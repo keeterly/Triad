@@ -20361,21 +20361,32 @@ function playBondDeepen(idA, idB, levelAfter) {
   el.className = resonant ? 'resonant' : '';
   el.innerHTML = `
     <div class="bd-tint"></div>
+    <div class="bd-rays"></div>
+    <div class="bd-flash"></div>
     <div class="bd-row">
-      <div class="bd-hero bd-a">${PORTRAITS[idA] || ''}</div>
-      <div class="bd-link"><span class="bd-spark"></span></div>
-      <div class="bd-hero bd-b">${PORTRAITS[idB] || ''}</div>
+      <div class="bd-hero bd-a">
+        <div class="bd-portrait">${PORTRAITS[idA] || ''}</div>
+        <div class="bd-hero-name">${nameA}</div>
+      </div>
+      <div class="bd-link"><div class="bd-thread"></div><span class="bd-spark"></span></div>
+      <div class="bd-hero bd-b">
+        <div class="bd-portrait">${PORTRAITS[idB] || ''}</div>
+        <div class="bd-hero-name">${nameB}</div>
+      </div>
     </div>
     <div class="bd-banner">
       <div class="bd-eyebrow">${resonant ? '✦ RESONANT' : '✦ KIZUNA DEEPENS'}</div>
-      <div class="bd-name">${nameA} &amp; ${nameB}${roman ? ` ${roman}` : ''}</div>
+      <div class="bd-name">${resonant ? 'RESONANCE' : 'KIZUNA'}${roman ? ` ${roman}` : ''}</div>
     </div>`;
   el.classList.remove('go');
   void el.offsetWidth;
   el.classList.add('go');
-  if (resonant) shakeScreen(2);
+  const dur = resonant ? 3200 : 2400;
+  // Punch the screen at the convergence moment (~40% in), when the two
+  // threads meet and the spark blooms — the dramatic beat of the cut.
+  setTimeout(() => shakeScreen(resonant ? 3 : 2), Math.round(dur * 0.4));
   clearTimeout(_bondDeepenTimer);
-  _bondDeepenTimer = setTimeout(() => el.classList.remove('go'), resonant ? 3200 : 2400);
+  _bondDeepenTimer = setTimeout(() => el.classList.remove('go'), dur);
 }
 
 // Boss death slow-mo: dim the screen, slow CSS animations, brief flash.
