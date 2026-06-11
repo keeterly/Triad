@@ -6482,7 +6482,7 @@ function buildDefeatVignette(s) {
   // 4. Notable bond — if a kizuna deepened to II or rang RESONANT.
   if (topBond) {
     const [bondName, count] = topBond;
-    const tier = getBondTier(s, bondName, count);
+    const tier = getBondLevel(s, bondName, count);
     if (tier >= 3) {
       lines.push({ who: null, text: `${bondName} rang true — ${count}× before the end.` });
     } else if (tier === 2) {
@@ -10788,7 +10788,7 @@ const ADJ = {
         // variants get.  Scales with the pair's bond tier so deeper
         // bonds hit harder even on the default generic.
         if (!front.dead) {
-          const tier = getBondTier(s, bondNameForPair(ids[0], ids[1]));
+          const tier = getBondLevel(s, bondNameForPair(ids[0], ids[1]));
           const bonusDmg = (tier >= 3) ? 4 : 2;
           const vulnAmt = (tier >= 3) ? 2 : 1;
           s.currentActorId = ids[0];
@@ -10845,9 +10845,9 @@ const ADJ = {
         // player turn for a 2× hit.
         if (!front.dead) {
           const deepest = Math.max(
-            getBondTier(s, bondNameForPair(ids[0], ids[1])),
-            getBondTier(s, bondNameForPair(ids[1], ids[2])),
-            getBondTier(s, bondNameForPair(ids[0], ids[2])),
+            getBondLevel(s, bondNameForPair(ids[0], ids[1])),
+            getBondLevel(s, bondNameForPair(ids[1], ids[2])),
+            getBondLevel(s, bondNameForPair(ids[0], ids[2])),
           );
           const bonusDmg = (deepest >= 3) ? 5 : 3;
           s.currentActorId = ids[0];
@@ -11365,8 +11365,8 @@ function resetAchievements() {
 
 // ============================================================================
 // (Cross-run shared-fight tracking lived here.  Removed when bonds
-// collapsed to per-run only — see s.run.synergyCounts + getBondTier
-// for the in-run Tier I/II/III system.  Charms moved to the Embers
+// collapsed to per-run only — see s.run.synergyCounts + getBondLevel
+// for the in-run Level 0–3 bond ladder.  Charms moved to the Embers
 // store; isCharmUnlocked now reads kizuna.charmsPurchased.)
 // resetBonds() left as a no-op so any legacy reset menu doesn't crash.
 function resetBonds() {
@@ -13952,42 +13952,26 @@ function fireAdjacencyHook(s, hookName, ...args) {
 // that fires every Tier III resonance.  The kizuna pitch made real:
 // the longer you walk with someone, the louder the resonance.
 //
-// Thresholds are run-scoped (reset between runs).  Tier I is the base
-// effect; Tier II unlocks at 2 fires (+1 amt); Tier III at 5 fires
-// (+2 amt and unlocks the resonant clause).  bondTierBonus PRE-INCREMENTS
-// the count so the fire that triggers a tier-up is the one that feels
-// the new amplification — not the fire after.
-//
-// Thresholds tuned down from [3, 8] → [2, 5] because real runs were
-// only firing each bond 1–3 times before the boss, so most players
-// never saw a tier-up.  At [2, 5] the second fire of a bond hits
-// Tier II reliably, and a player leaning into one pair for a full
-// run can plausibly reach Tier III resonance.
-// Bond progression — every pair walks a 4-step ladder over the run:
+// Bond progression — every pair walks one 4-step ladder over the run
+// (run-scoped, reset between runs).  Thresholds are LEVELS, not the old
+// "tier" vocabulary, which has been removed:
 //   Level 0 → no kizuna yet (under 2 fires)
-//   Level 1 → unlocked at 2 fires.  Trigger: both heroes ATTACK.
-//             Player picks a mechanical variant at the level-up screen.
-//   Level 2 → unlocked at 4 fires.  Trigger: attack + special (either
-//             direction; the variant the player picks decides which
-//             hero attacks vs specials).
-//   Level 3 → unlocked at 6 fires.  Trigger: both heroes SPECIAL.
-//             Pairs with an authored combo (Banner Volley, Sacred
-//             Triad, etc.) surface that here as the climactic kizuna;
-//             the rest get school-pair-template climax variants.
-//
-// Each level-up surfaces the Kizuna picker; the player commits a
-// variant and it locks into chosenResonances[pairKey][LN] for the run.
-// BOND_TIER_THRESHOLDS / getBondTier / BOND_TIER_ROMAN stay as
-// aliases so legacy code paths (run-info panel, vignette catalysts,
-// run-summary kizuna recap) keep reading the same numbers — they
-// look at the SAME synergyCounts, just with one more rung.
+//   Level 1 → 2 fires.  Trigger: both heroes ATTACK.  Player picks a
+//             mechanical variant at the level-up screen.
+//   Level 2 → 4 fires.  Trigger: attack + special (either direction).
+//   Level 3 → 6 fires (RESONANT).  Trigger: both heroes SPECIAL.  Pairs
+//             with an authored combo surface it here as the climactic
+//             kizuna; the rest get generated school-pair ultimates.
+// Each level-up surfaces the Kizuna picker; the player commits a variant
+// that locks into chosenResonances[pairKey][LN] for the run.
+// bondTierBonus PRE-INCREMENTS the count so the fire that crosses a level
+// is itself the first amplified hit, not the fire after.
+// One bond ladder, one vocabulary: a pair's bond is a LEVEL 0–3.
+//   level 0 = not yet bonded · 1 = I (2 fires) · 2 = II (4) · 3 = III (6, RESONANT)
+// (The old parallel "tier" vocabulary — getBondTier / BOND_TIER_* — has been
+// folded into this; level is the single source of truth everywhere now.)
 const BOND_LEVEL_THRESHOLDS = [2, 4, 6];
 const BOND_LEVEL_ROMAN = ['', 'I', 'II', 'III'];
-// Legacy aliases — old code reads BOND_TIER_*; map them to the new
-// ladder so we don't have to touch a dozen files at once.  Tier I/II/III
-// in the old vocabulary lines up with Level 1/2/3 in the new.
-const BOND_TIER_THRESHOLDS = BOND_LEVEL_THRESHOLDS.slice(1); // [4, 6] — old Tier II = new L2, Tier III = new L3
-const BOND_TIER_ROMAN = BOND_LEVEL_ROMAN;
 
 function getBondLevel(s, name, count) {
   const n = count !== undefined
@@ -13998,20 +13982,14 @@ function getBondLevel(s, name, count) {
   if (n >= BOND_LEVEL_THRESHOLDS[0]) return 1;
   return 0;
 }
-// Legacy alias — old call sites pass 'tier' to mean 'level'.  Map
-// 0→1, 1→1, 2→2, 3→3 so callers that used to assume tier 1 as the
-// 'no kizuna' baseline still read meaningful values.
-function getBondTier(s, name, count) {
-  const lvl = getBondLevel(s, name, count);
-  return lvl === 0 ? 1 : lvl;
-}
 function bondTierBonus(s, name, baseAmt) {
-  // Tier scaling reads the count AS IF this fire has already counted —
+  // Level scaling reads the count AS IF this fire has already counted —
   // so the fire that crosses into a new level is itself the first
-  // amplified hit, not the fire after.
+  // amplified hit, not the fire after.  Floor at 1 so an active-but-not-yet
+  // L1 bond (level 0) contributes +0, not −1.
   const cur = (s && s.run && s.run.synergyCounts && s.run.synergyCounts[name]) || 0;
-  const tier = getBondTier(s, name, cur + 1);
-  return baseAmt + (tier - 1);
+  const lvl = Math.max(1, getBondLevel(s, name, cur + 1));
+  return baseAmt + (lvl - 1);
 }
 
 // Return the bond name that gates the pair (heroA, heroB).  Themed
@@ -14962,7 +14940,7 @@ function isComboUnlocked(s, combo) {
   const tested = reqs.map(req => {
     const count = (s && s.run && s.run.synergyCounts && s.run.synergyCounts[req.bond]) || 0;
     const t = req.tier || 2;
-    const threshold = (t === 3) ? BOND_TIER_THRESHOLDS[1] : BOND_TIER_THRESHOLDS[0];
+    const threshold = (t === 3) ? BOND_LEVEL_THRESHOLDS[2] : BOND_LEVEL_THRESHOLDS[1];
     return count >= threshold;
   });
   if (mode === 'any')   return tested.some(Boolean);
@@ -15055,7 +15033,7 @@ const BOND_TIER3_CLAUSES = {
 // fireSynergyFeedback (which increments the count and fires the popup).
 function applyBondTier3Clause(s, name) {
   const cur = (s && s.run && s.run.synergyCounts && s.run.synergyCounts[name]) || 0;
-  const tier = getBondTier(s, name, cur + 1);
+  const tier = getBondLevel(s, name, cur + 1);
   if (tier < 3) return null;
   const clause = BOND_TIER3_CLAUSES[name];
   if (!clause) return null;
@@ -16049,16 +16027,16 @@ function _buildFigureInspector(fig, id, isParty) {
     const pairs = getAdjacencyPairs(state).filter(p => p.ids.includes(id));
     const seen = new Set();
     const items = [];
-    const t2 = BOND_TIER_THRESHOLDS[0];
-    const t3 = BOND_TIER_THRESHOLDS[1];
+    const t2 = BOND_LEVEL_THRESHOLDS[1];
+    const t3 = BOND_LEVEL_THRESHOLDS[2];
     pairs.forEach(p => {
       const syn = p.synergy;
       if (!syn || syn.type === 'friction') return;
       if (seen.has(syn.name)) return;
       seen.add(syn.name);
       const count = (state.run && state.run.synergyCounts && state.run.synergyCounts[syn.name]) || 0;
-      const tier = getBondTier(state, syn.name, count);
-      const tierRoman = BOND_TIER_ROMAN[tier] || '';
+      const tier = getBondLevel(state, syn.name, count);
+      const tierRoman = BOND_LEVEL_ROMAN[tier] || '';
       let progress;
       if (tier === 1)      progress = `${count}× fired · ${t2 - count} to II`;
       else if (tier === 2) progress = `${count}× fired · ${t3 - count} to III`;
@@ -20375,7 +20353,7 @@ function _drainBondDeepen() {
 function _renderBondDeepen(idA, idB, levelAfter) {
   const nameA = (CHARS[idA] && CHARS[idA].name) || idA || '';
   const nameB = (CHARS[idB] && CHARS[idB].name) || idB || '';
-  const roman = (typeof BOND_TIER_ROMAN !== 'undefined' && BOND_TIER_ROMAN[levelAfter]) || '';
+  const roman = (typeof BOND_LEVEL_ROMAN !== 'undefined' && BOND_LEVEL_ROMAN[levelAfter]) || '';
   const resonant = levelAfter >= 3;
   let el = document.getElementById('bond-deepen');
   if (!el) {
@@ -21113,9 +21091,9 @@ function showRunInfoPanel() {
         let tierStrip = '';
         if (p.synergy.type !== 'friction') {
           const count = (state.run && state.run.synergyCounts && state.run.synergyCounts[p.synergy.name]) || 0;
-          const tier = getBondTier(state, p.synergy.name, count);
-          const tierRoman = BOND_TIER_ROMAN[tier] || '';
-          const t2 = BOND_TIER_THRESHOLDS[0], t3 = BOND_TIER_THRESHOLDS[1];
+          const tier = getBondLevel(state, p.synergy.name, count);
+          const tierRoman = BOND_LEVEL_ROMAN[tier] || '';
+          const t2 = BOND_LEVEL_THRESHOLDS[1], t3 = BOND_LEVEL_THRESHOLDS[2];
           let next;
           if (tier === 1)      next = `${t2 - count} to II`;
           else if (tier === 2) next = `${t3 - count} to III`;
@@ -23791,13 +23769,13 @@ function showRunSummary(outcome, opts) {
         // Display name — Camaraderie:cassia+mira renders as 'Camaraderie'
         // (the prefix is just routing; the suffix is the pair-key).
         const displayName = (bondName) => bondName.startsWith('Camaraderie:') ? 'Camaraderie' : bondName;
-        const resonantBonds = sortedBonds.filter(([n, c]) => c >= BOND_TIER_THRESHOLDS[1]);
+        const resonantBonds = sortedBonds.filter(([n, c]) => c >= BOND_LEVEL_THRESHOLDS[2]);
         const headlineLine = resonantBonds.length
           ? `<div class="rs-kizuna-headline">${displayName(resonantBonds[0][0])} <b>RESONANT</b> · the bond rang true.</div>`
           : '';
         const rows = sortedBonds.map(([name, count]) => {
-          const tier = getBondTier(state, name, count);
-          const roman = BOND_TIER_ROMAN[tier] || '';
+          const tier = getBondLevel(state, name, count);
+          const roman = BOND_LEVEL_ROMAN[tier] || '';
           const tierClass = `rs-kizuna-tier-${tier}`;
           const clause = (tier === 3 && BOND_TIER3_CLAUSES[name]) ? ` + ${BOND_TIER3_CLAUSES[name].text}` : '';
           const pair = pairLabel(name);
