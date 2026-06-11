@@ -12837,11 +12837,16 @@ function applyDmgToEnemy(s, e, baseAmt) {
   // one instead of blurring past it.
   const critTier = hotBadge || toHp >= 12;
   if (critTier) {
-    hitPause(hotBadge ? 150 : 110);
+    // The biggest payoffs (a detonation, a stagger ×2, or a truly massive
+    // blow) get the heaviest, longest freeze + the darkest cinematic pulse.
+    const massive = !!reactionName || schoolBadge === 'STG!' || toHp >= 18;
+    hitPause(massive ? 240 : hotBadge ? 175 : 130);
     shakeScreen(3);
     critFlash(e.id, 'enemy');
+    cinematicImpact(massive ? 3 : 2);
   } else if (toHp >= 8) {
-    hitPause(70);
+    hitPause(80);
+    cinematicImpact(1);
   }
   // Per-school hit colour: physical thud, stealth hiss, ranged twang,
   // arcane chime, holy bell.
@@ -13103,8 +13108,8 @@ function applyDmgToParty(s, c, amt) {
   flashCardId(c.id, 'hit', 'party');
   shakeCardId(c.id, 'party', toHp);
   if (toHp >= 5) shakeScreen(toHp >= 9 ? 3 : 2);
-  if (toHp >= 10) { hitPause(110); shakeScreen(3); critFlash(c.id, 'party'); }
-  else if (toHp >= 6) hitPause(60);
+  if (toHp >= 10) { hitPause(toHp >= 16 ? 210 : 140); shakeScreen(3); critFlash(c.id, 'party'); cinematicImpact(toHp >= 16 ? 3 : 2); }
+  else if (toHp >= 6) { hitPause(70); cinematicImpact(1); }
   // Enemy attack type — abilities set s.currentTechElement; basic strikes
   // fall back to physical.  Drives both the per-type sound and the hit FX
   // so the player can read what hit them (a magic blast vs a melee swing).
@@ -20281,7 +20286,38 @@ function critFlash(id, side) {
   cardEl.classList.remove('crit-impact');
   void cardEl.offsetWidth;  // restart the animation if it's already running
   cardEl.classList.add('crit-impact');
-  setTimeout(() => cardEl.classList.remove('crit-impact'), 380);
+  setTimeout(() => cardEl.classList.remove('crit-impact'), 460);
+}
+
+// Cinematic impact — Darkest-Dungeon-style weight on the heaviest hits.
+// Fires a full-screen flash + a heavy vignette pulse and a quick camera
+// punch-in on the battlefield.  level 1 = heavy blow, 2 = crit (weakness /
+// stagger / detonation), 3 = massive crit (the biggest payoffs) — darker,
+// longer, harder.  All three layers compose with the existing card/screen
+// shake.  No-op during simulation.
+let _fxCinematicTimer = null;
+function cinematicImpact(level) {
+  if (__simulating) return;
+  const lvl = Math.max(1, Math.min(3, level || 1));
+  const fx = document.getElementById('fx-cinematic');
+  if (fx) {
+    fx.classList.remove('fx-go', 'fx-1', 'fx-2', 'fx-3');
+    void fx.offsetWidth;
+    fx.classList.add('fx-go', `fx-${lvl}`);
+    clearTimeout(_fxCinematicTimer);
+    _fxCinematicTimer = setTimeout(() => fx.classList.remove('fx-go', 'fx-1', 'fx-2', 'fx-3'), 560);
+  }
+  // Camera punch — a quick scale-in on the battlefield element (separate
+  // from #stage, so it layers under the screen shake instead of fighting
+  // it for the transform).
+  const bf = document.getElementById('battlefield');
+  if (bf) {
+    const cls = lvl >= 3 ? 'cam-punch-hard' : 'cam-punch';
+    bf.classList.remove('cam-punch', 'cam-punch-hard');
+    void bf.offsetWidth;
+    bf.classList.add(cls);
+    setTimeout(() => bf.classList.remove(cls), 380);
+  }
 }
 
 // Paint the active biome layer.  Reads state.run.modifier and applies one
