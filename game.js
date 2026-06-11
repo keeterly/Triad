@@ -12279,27 +12279,59 @@ function previewMultiHit(s, e, baseAmt, actorId, hits, techElement) {
 // into this same "interaction" model.
 function resolveReaction(s, e, element) {
   if (!e || e.dead || !element) return null;
-  // RUPTURE — Physical on a Bleeding enemy.  The blade tears the wound wide:
-  // consume ALL bleed for an instant burst (3 per stack).  Strictly better
-  // than letting it tick (2/turn), so detonating always feels like a reward
-  // rather than a tax on your own setup.
-  if (element === 'physical' && e.bleed > 0) {
-    const stacks = e.bleed;
-    e.bleed = 0;
-    return { name: 'RUPTURE!', bonus: stacks * 3 };
+  // ---- Bleed primers (cutting / burning elements detonate the wound) ----
+  if (e.bleed > 0) {
+    // RUPTURE — Physical.  The blade tears the wound wide: consume ALL bleed
+    // for a big single-target burst (3 per stack).  Strictly better than
+    // letting it tick (2/turn), so detonating always feels like a reward
+    // rather than a tax on your own setup.
+    if (element === 'physical') {
+      const stacks = e.bleed;
+      e.bleed = 0;
+      return { name: 'RUPTURE!', bonus: stacks * 3 };
+    }
+    // WILDFIRE — Arcane.  The blood catches and leaps: a smaller burst (2 per
+    // stack), then the fire spreads bleed 1 to every OTHER living enemy —
+    // turning one primer into a board-wide one.
+    if (element === 'arcane') {
+      const stacks = e.bleed;
+      e.bleed = 0;
+      aliveEnemies(s).forEach(o => {
+        if (o === e || o.dead) return;
+        o.bleed = Math.max(o.bleed || 0, 1);
+        spawnPopupId(o.id, 'BLEED', 'stagger', 'enemy');
+      });
+      return { name: 'WILDFIRE!', bonus: stacks * 2 };
+    }
+    // HEMORRHAGE — Stealth.  The assassin works the wound DEEPER: this is a
+    // setter, not a detonator — it does NOT consume bleed, it ADDS a stack and
+    // chips bonus damage equal to the current depth.  Stealth builds the pile;
+    // a Physical RUPTURE (or the bleed ticks) cash it later.  The only
+    // reaction that grows a status instead of spending it.
+    if (element === 'stealth') {
+      const stacks = e.bleed;
+      e.bleed = stacks + 1;
+      return { name: 'HEMORRHAGE!', bonus: stacks };
+    }
   }
-  // WILDFIRE — Arcane on a Bleeding enemy.  The blood catches and leaps: a
-  // smaller burst (2 per stack) on the target, then the fire spreads bleed 1
-  // to every OTHER living enemy — turning one primer into a board-wide one.
-  if (element === 'arcane' && e.bleed > 0) {
-    const stacks = e.bleed;
-    e.bleed = 0;
-    aliveEnemies(s).forEach(o => {
-      if (o === e || o.dead) return;
-      o.bleed = Math.max(o.bleed || 0, 1);
-      spawnPopupId(o.id, 'BLEED', 'stagger', 'enemy');
-    });
-    return { name: 'WILDFIRE!', bonus: stacks * 2 };
+  // ---- Vuln primers (piercing / radiant elements detonate the opening) ----
+  if (e.vuln > 0) {
+    // PUNCTURE — Ranged.  A precise shot into the exposed gap: consume ALL
+    // vuln for a burst (2 per stack).
+    if (element === 'ranged') {
+      const stacks = e.vuln;
+      e.vuln = 0;
+      return { name: 'PUNCTURE!', bonus: stacks * 2 };
+    }
+    // SMITE — Holy.  Judgment through the broken guard: consume ALL vuln for a
+    // burst (2 per stack) AND mend the party 2.  The only reaction that heals
+    // — a radiant kizuna payoff that rewards a holy hero for closing the loop.
+    if (element === 'holy') {
+      const stacks = e.vuln;
+      e.vuln = 0;
+      partyHeal(s, 2);
+      return { name: 'SMITE!', bonus: stacks * 2 };
+    }
   }
   return null;
 }
@@ -18602,10 +18634,10 @@ function formatDesc(text) {
 // once at boot via event delegation so re-renders don't need rebinding.
 const STATUS_TOOLTIPS = {
   armor:    { name: 'Armor',       text: 'Absorbs incoming damage 1:1 before HP. Wears off as it absorbs. Does not regenerate.' },
-  bleed:    { name: 'Bleed',       text: 'Takes 2 damage at the start of each turn (+1 with Bloodborne / Bone Tide). Decays by 1 per turn. Ignores armor. REACTION — on a bleeding enemy, a Physical hit RUPTURES it (consumes the bleed for a burst), an Arcane hit sparks WILDFIRE (burst + spreads bleed to other enemies).' },
+  bleed:    { name: 'Bleed',       text: 'Takes 2 damage at the start of each turn (+1 with Bloodborne / Bone Tide). Decays by 1 per turn. Ignores armor. REACTION — on a bleeding enemy: a Physical hit RUPTURES it (consume bleed for a burst), an Arcane hit sparks WILDFIRE (burst + spreads bleed), a Stealth hit causes HEMORRHAGE (deepens the wound — adds a stack instead of spending it).' },
   taunt:    { name: 'Taunt',       text: 'Enemy single-target attacks redirect to this hero. Clears at the start of the next turn.' },
   dulled:   { name: 'Dulled',      text: 'Outgoing attacks deal -2 damage. Consumes 1 stack per attack.' },
-  vuln:     { name: 'Vulnerable',  text: 'Incoming hits deal +2 damage per stack (+2 more with Ember of Wrath). One stack is consumed per hit (unless Brand of Doom).' },
+  vuln:     { name: 'Vulnerable',  text: 'Incoming hits deal +2 damage per stack (+2 more with Ember of Wrath). One stack is consumed per hit (unless Brand of Doom). REACTION — on a vulnerable enemy, a Ranged hit PUNCTURES it and a Holy hit SMITES it (both consume all vuln for a burst; Smite also heals the party).' },
   retal:    { name: 'Retaliate',   text: 'When hit, counter-attacks the front-most enemy for this value (+2 with Vow of Vigil). Clears at the start of the next turn.' },
   pending:  { name: 'Pending',     text: 'A one-shot bonus from a synergy. Consumed by the next matching action.' },
   guard:    { name: 'Guard',         text: 'Each stack fully negates the next incoming hit — no HP loss, no armor loss. Cleared at the start of the next player turn.' },
