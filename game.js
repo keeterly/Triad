@@ -12277,11 +12277,10 @@ function previewMultiHit(s, e, baseAmt, actorId, hits, techElement) {
 // { name, bonus } when a reaction fires (side effects already applied), else
 // null.  Deliberately structured so the weakness/stagger layer can later fold
 // into this same "interaction" model.
-// Reaction bursts scale per stack but cap the COUNTED stacks so a degenerate
-// pile (e.g. Nira stacking bleed to 8) can't produce an absurd flat burst.
-// The status is still fully consumed — the cap only limits the damage math, so
-// normal play (2-4 stacks) is unaffected and only heavy investment hits the
-// ceiling (Rupture ≤15, others ≤10).
+// Reaction bursts scale per stack.  Stacks are clamped to STATUS_CAP (3) by
+// clampStatuses, so this counted-stack cap is a belt-and-suspenders guard that
+// no longer binds in normal play.  Per-stack burst: Rupture 3, others 2 — so a
+// full 3-stack detonation is ≤9 base (≤18 doubled inside a Resonance).
 const REACTION_STACK_CAP = 5;
 // A detonation fired inside a Resonance combo erupts for this multiple of the
 // base burst — the payoff that makes "bank primers, then unleash a Resonance"
@@ -12361,6 +12360,38 @@ function resolveReaction(s, e, element) {
     return { name: 'SUNDER!', bonus: stacks * 2 * rMult };
   }
   return null;
+}
+
+// Module-scope board detonation — erupts the chosen primers (default: all) on
+// every living enemy at once.  This is the L3 Resonance CAPSTONE: it cashes
+// the primers the party has BANKED over prior turns for a big eruption,
+// doubled inside a Resonance (RESONANCE_DETONATE_MULT) and presented with the
+// tier-4 cinematic so the payoff is the showpiece.  Uses STATUS_CAP (the real
+// 3-stack ceiling) for the burst math — not the dead REACTION_STACK_CAP of 5.
+// (The older detonateBoard lives inside the now-unused SCHOOL_PAIR_TEMPLATES
+// closure; this is the live, reusable version.)
+function detonateEnemyPrimers(s, types) {
+  const want = (k) => !types || types.includes(k);
+  const m = s._currentIsResonance ? RESONANCE_DETONATE_MULT : 1;
+  let any = false;
+  aliveEnemies(s).forEach(e => {
+    if (e.dead) return;
+    let burst = 0;
+    if (want('bleed')  && e.bleed  > 0) { burst += Math.min(e.bleed,  STATUS_CAP) * 3 * m; e.bleed  = 0; }
+    if (want('vuln')   && e.vuln   > 0) { burst += Math.min(e.vuln,   STATUS_CAP) * 2 * m; e.vuln   = 0; }
+    if (want('dulled') && e.dulled > 0) { burst += Math.min(e.dulled, STATUS_CAP) * 2 * m; e.dulled = 0; }
+    if (burst > 0) {
+      any = true;
+      e.hp = Math.max(0, e.hp - burst);
+      spawnPopupId(e.id, 'DETONATE', 'crit', 'enemy');
+      spawnPopupId(e.id, `-${burst}`, 'crit' + (burst >= 14 ? ' huge' : burst >= 8 ? ' big' : ''), 'enemy');
+      flashCardId(e.id, 'hit', 'enemy');
+      critFlash(e.id, 'enemy');
+      if (e.hp === 0) killEnemy(s, e);
+    }
+  });
+  if (any && !__simulating) { playStaggerHit(); cinematicImpact(4, 'enemy'); hitPause(480); }
+  return any;
 }
 
 function applyDmgToEnemy(s, e, baseAmt) {
@@ -14279,6 +14310,10 @@ const SCHOOL_SIGNATURE = {
       });
       partyArmor(s, armor);
       if (level === 3) {
+        // RESONANT: judgment through the broken guard — erupt every VULN the
+        // party has banked on the board (the SMITE payoff), so holy finally
+        // closes the prime→detonate loop instead of only ever healing.
+        detonateEnemyPrimers(s, ['vuln']);
         // RESONANT: revive one fallen at 30% if any
         const fallen = Object.values(s.party.chars).find(c => c && c.downed);
         if (fallen) {
@@ -14298,13 +14333,13 @@ const SCHOOL_SIGNATURE = {
         if (c.hp > before) spawnPopupId(c.id, `+${c.hp - before}`, 'heal', 'party');
       }
     },
-    desc: (level) => `Party heal ${level === 3 ? 10 : level === 2 ? 7 : 4}, +${level === 3 ? 4 : level === 2 ? 3 : 2} armor${level >= 2 ? ', cleanse one debuff each' : ''}${level === 3 ? '.  RESONANT: revive one fallen ally at 30% HP' : ''}.`,
+    desc: (level) => `Party heal ${level === 3 ? 10 : level === 2 ? 7 : 4}, +${level === 3 ? 4 : level === 2 ? 3 : 2} armor${level >= 2 ? ', cleanse one debuff each' : ''}${level === 3 ? '.  RESONANT: DETONATE all VULN on the board + revive one fallen ally at 30% HP' : ''}.`,
   },
   arcane: {
     label: 'BURSTS + HEXES',
     primary: (s, anchorId, level) => {
       const dmg  = level === 3 ? 9 : level === 2 ? 6 : 4;
-      const vuln = level === 3 ? 4 : level === 2 ? 3 : 2;
+      const vuln = level === 3 ? 3 : level === 2 ? 3 : 2;
       const wasIgnore = s.ignoreArmor;
       s.ignoreArmor = true;
       s.currentActorId = anchorId; s.currentTechElement = 'arcane';
@@ -14323,7 +14358,7 @@ const SCHOOL_SIGNATURE = {
       // Small support: +1 Resolve, scales with level.
       gainResolve(s, level >= 3 ? 2 : 1);
     },
-    desc: (level) => `All foes take ${level === 3 ? 9 : level === 2 ? 6 : 4} arcane dmg (ignore armor), +${level === 3 ? 4 : level === 2 ? 3 : 2} VULN${level === 3 ? '.  RESONANT: STAGGER all' : ''}.`,
+    desc: (level) => `All foes take ${level === 3 ? 9 : level === 2 ? 6 : 4} arcane dmg (ignore armor), +${level >= 2 ? 3 : 2} VULN${level === 3 ? '.  RESONANT: DISCHARGE detonates banked VULN + STAGGER all' : ''}.`,
   },
   ranged: {
     label: 'VOLLEYS + BLEEDS',
@@ -14354,10 +14389,14 @@ const SCHOOL_SIGNATURE = {
     primary: (s, anchorId, level) => {
       const dmg   = level === 3 ? 14 : level === 2 ? 10 : 7;
       const bleed = level === 3 ? 3  : level === 2 ? 3  : 2;
-      const vuln  = level === 3 ? 4  : level === 2 ? 3  : 2;
+      const vuln  = level === 3 ? 3  : level === 2 ? 3  : 2;
       const alive = aliveEnemies(s);
       if (!alive.length) return;
       const target = alive.slice().sort((a, b) => a.hp - b.hp)[0];
+      // RESONANT: open every wound on the board at once — cash the bleed the
+      // party has banked across all enemies BEFORE re-marking the lowest, so
+      // the eruption rewards setup and then primes the next loop.
+      if (level === 3) detonateEnemyPrimers(s, ['bleed']);
       s.currentActorId = anchorId; s.currentTechElement = 'stealth';
       try {
         applyDmgToEnemy(s, target, dmg);
@@ -14378,7 +14417,7 @@ const SCHOOL_SIGNATURE = {
         e.vuln = (e.vuln || 0) + (level >= 3 ? 2 : 1);
       });
     },
-    desc: (level) => `Lowest-HP foe takes ${level === 3 ? 14 : level === 2 ? 10 : 7} dmg + ${level === 3 ? 3 : level === 2 ? 3 : 2} bleed + ${level === 3 ? 4 : level === 2 ? 3 : 2} VULN${level === 3 ? ', STAGGER' : ''}.`,
+    desc: (level) => `Lowest-HP foe takes ${level === 3 ? 14 : level === 2 ? 10 : 7} dmg + ${level >= 2 ? 3 : 2} bleed + ${level >= 2 ? 3 : 2} VULN${level === 3 ? '.  RESONANT: DETONATE all bleed on the board, STAGGER' : ''}.`,
   },
 };
 
