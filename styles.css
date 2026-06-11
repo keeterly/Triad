@@ -13662,6 +13662,22 @@ body.party-fallen::before {
 }
 .figure.party-figure.lunging  { animation: figure-lunge       0.32s cubic-bezier(.18,.89,.32,1); }
 .figure.enemy-figure.lunging  { animation: figure-lunge-enemy 0.32s cubic-bezier(.18,.89,.32,1); }
+/* Hard lunge — a deeper, faster commit on the bigger hits so the attacker
+   visibly throws its weight into the strike (cause scales with effect). */
+@keyframes figure-lunge-hard {
+  0%   { transform: translate(0, 0); }
+  22%  { transform: translate(20px, -7px) scale(1.06); }
+  55%  { transform: translate(14px, -3px) scale(1.03); }
+  100% { transform: translate(0, 0); }
+}
+@keyframes figure-lunge-hard-enemy {
+  0%   { transform: translate(0, 0); }
+  22%  { transform: translate(-20px, -7px) scale(1.06); }
+  55%  { transform: translate(-14px, -3px) scale(1.03); }
+  100% { transform: translate(0, 0); }
+}
+.figure.party-figure.lunging-hard { animation: figure-lunge-hard       0.40s cubic-bezier(.16,.9,.3,1); }
+.figure.enemy-figure.lunging-hard { animation: figure-lunge-hard-enemy 0.40s cubic-bezier(.16,.9,.3,1); }
 
 /* ===========================================================================
    VIGNETTE — VN-style two-actor stage.

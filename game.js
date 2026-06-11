@@ -12826,46 +12826,19 @@ function applyDmgToEnemy(s, e, baseAmt) {
     }
   }
   flashCardId(e.id, 'hit', 'enemy');
-  // Game feel: shake the struck card; screen shake on big hits; SFX
-  shakeCardId(e.id, 'enemy', toHp);
-  if (toHp >= 6) shakeScreen(toHp >= 10 ? 3 : 2);
-  // Octopath "impact" beat — crit-tier hits (a weakness / stagger /
-  // detonation proc) and heavy blows freeze the resolution clock for a
-  // moment, kick the screen harder, and pop a white flash on the struck
-  // figure.  The freeze (hitPause) is consumed by the resolution loop
-  // before the next step, so multi-hit combos visibly stutter on the big
-  // one instead of blurring past it.
   // Feedback ladder — every hit gets a beat, and the payoff escalates:
   //   regular → heavy → crit/weakness → detonation → resonant detonation.
   // A "resonant detonation" (a Resonance combo paying off a primer) is the
-  // showpiece and gets the most dramatic treatment in the game.
+  // showpiece and gets the most dramatic treatment in the game.  All of the
+  // intensity numbers live in impactFeedback / IMPACT_TIERS.
   const isDetonation = !!reactionName;
-  const resonantDetonation = isDetonation && s._currentIsResonance;
-  const critTier = hotBadge || toHp >= 12;
-  if (resonantDetonation) {
-    hitPause(560);
-    shakeScreen(3);
-    critFlash(e.id, 'enemy');
-    cinematicImpact(4, 'enemy');
-  } else if (isDetonation || schoolBadge === 'STG!' || toHp >= 18) {
-    hitPause(420);
-    shakeScreen(3);
-    critFlash(e.id, 'enemy');
-    cinematicImpact(3, 'enemy');
-  } else if (critTier) {
-    hitPause(260);
-    shakeScreen(3);
-    critFlash(e.id, 'enemy');
-    cinematicImpact(2, 'enemy');
-  } else if (toHp >= 8) {
-    hitPause(150);
-    cinematicImpact(1, 'enemy');
-  } else if (toHp > 0) {
-    // Regular hit — a short freeze + a soft screen kick so even a small
-    // strike has tactile feedback instead of just sliding past.
-    hitPause(55);
-    if (toHp >= 3) shakeScreen(1);
-  }
+  let impactT;
+  if (isDetonation && s._currentIsResonance)              impactT = 4;
+  else if (isDetonation || schoolBadge === 'STG!' || toHp >= 18) impactT = 3;
+  else if (hotBadge || toHp >= 12)                        impactT = 2;
+  else if (toHp >= 8)                                     impactT = 1;
+  else                                                    impactT = 0;
+  impactFeedback('enemy', e.id, impactT, toHp, s.currentActorId, 'party');
   // Per-school hit colour: physical thud, stealth hiss, ranged twang,
   // arcane chime, holy bell.
   const actorSchool = s.currentActorId && CHARS[s.currentActorId] && CHARS[s.currentActorId].school;
@@ -12873,8 +12846,6 @@ function applyDmgToEnemy(s, e, baseAmt) {
   Audio.hitSchool(Math.min(2, 0.6 + toHp / 8), hitType);
   // Attack-type flourish — slash / pierce / burst so it's clear what landed.
   spawnHitFx(e.id, 'enemy', hitType);
-  // Attacker lunges toward the target for a beat
-  if (s.currentActorId) lungeCardId(s.currentActorId, 'party');
   log(`<b>${ENEMIES[e.id].name}</b> takes ${toHp} damage${schoolBadge ? ` — ${reactionName ? '✺ ' : ''}${schoolBadge.toLowerCase()}` : ''}.`);
   if (s.currentActorId && toHp > 0) fireAdjacencyHook(s, 'onAttack', s.currentActorId, e, toHp);
   if (s.fightStats && s.currentActorId && toHp > 0) {
@@ -13120,15 +13091,13 @@ function applyDmgToParty(s, c, amt) {
 
   // Number drama on incoming hits too — a heavy enemy blow lands as a big
   // red number with a sharp impact, so a dangerous swing reads as a felt
-  // moment rather than a routine tick.
+  // moment rather than a routine tick.  Same ladder as outgoing hits, scaled
+  // off raw damage (enemies have no weakness/detonation tiers against us).
   const pSizeClass = toHp >= 12 ? ' huge' : toHp >= 7 ? ' big' : '';
   spawnPopupId(c.id, `-${toHp}`, 'dmg' + pSizeClass, 'party');
   flashCardId(c.id, 'hit', 'party');
-  shakeCardId(c.id, 'party', toHp);
-  if (toHp >= 5) shakeScreen(toHp >= 9 ? 3 : 2);
-  if (toHp >= 10) { hitPause(toHp >= 16 ? 400 : 270); shakeScreen(3); critFlash(c.id, 'party'); cinematicImpact(toHp >= 16 ? 3 : 2, 'party'); }
-  else if (toHp >= 6) { hitPause(140); cinematicImpact(1, 'party'); }
-  else if (toHp > 0) { hitPause(50); if (toHp >= 3) shakeScreen(1); }
+  const pTier = toHp >= 16 ? 3 : toHp >= 10 ? 2 : toHp >= 6 ? 1 : 0;
+  impactFeedback('party', c.id, pTier, toHp);
   // Enemy attack type — abilities set s.currentTechElement; basic strikes
   // fall back to physical.  Drives both the per-type sound and the hit FX
   // so the player can read what hit them (a magic blast vs a melee swing).
@@ -13588,14 +13557,15 @@ function swapEnemySlots(s, slotA, slotB) {
   }
 }
 // Lunge-on-attack: triggered from applyDmgToEnemy via lungeCardId helper.
-function lungeCardId(id, side) {
+function lungeCardId(id, side, strength) {
   if (__simulating) return;
   const cardEl = document.querySelector(`#${side === 'enemy' ? 'enemy' : 'party'}-half [data-id="${id}"]`);
   if (!cardEl) return;
-  cardEl.classList.remove('lunging');
+  const cls = strength === 'hard' ? 'lunging-hard' : 'lunging';
+  cardEl.classList.remove('lunging', 'lunging-hard');
   void cardEl.offsetWidth;
-  cardEl.classList.add('lunging');
-  setTimeout(() => cardEl.classList.remove('lunging'), 360);
+  cardEl.classList.add(cls);
+  setTimeout(() => cardEl.classList.remove(cls), 420);
 }
 function advance(s, charId) {
   const slot = slotOfChar(s, charId);
@@ -20346,9 +20316,32 @@ function cinematicImpact(level, side) {
   }
 }
 
-// Paint the active biome layer.  Reads state.run.modifier and applies one
-// of the biome-* classes; null modifier wipes the layer.  Safe to call
-// repeatedly (idempotent).
+// Central impact-feedback ladder — the single source of truth for how a hit
+// FEELS when it lands.  tier 0 = regular, 1 = heavy, 2 = crit/weakness,
+// 3 = detonation / stagger ×2 / massive, 4 = resonant detonation (showpiece).
+// Both the enemy and party damage paths route through here so the feel stays
+// consistent and every timing/intensity number lives in one place to tune.
+const IMPACT_TIERS = {
+  0: { pause: 40,  cine: 0, flash: false, lunge: false },
+  1: { pause: 150, cine: 1, flash: false, lunge: false },
+  2: { pause: 260, cine: 2, flash: true,  lunge: true  },
+  3: { pause: 430, cine: 3, flash: true,  lunge: true  },
+  4: { pause: 560, cine: 4, flash: true,  lunge: true  },
+};
+function impactFeedback(side, id, tier, toHp, attackerId, attackerSide) {
+  if (__simulating) return;
+  const t = IMPACT_TIERS[tier] || IMPACT_TIERS[0];
+  // Struck-card shake + screen kick, scaled by tier then by raw damage.
+  shakeCardId(id, side, toHp);
+  if (t.pause) hitPause(t.pause);
+  if (tier >= 2)        shakeScreen(3);
+  else if (toHp >= 6)   shakeScreen(toHp >= 10 ? 3 : 2);
+  else if (toHp >= 3)   shakeScreen(1);
+  if (t.flash) critFlash(id, side);
+  if (t.cine)  cinematicImpact(t.cine, side);
+  // Attacker commits harder on the bigger hits — cause scales with effect.
+  if (attackerId) lungeCardId(attackerId, attackerSide || 'party', t.lunge ? 'hard' : '');
+}
 // Press-and-hold detection for map nodes.  Holding for 350ms surfaces a
 // tooltip with the node's details and SUPPRESSES the tap (so the player
 // doesn't accidentally commit while browsing the path).  A short tap
