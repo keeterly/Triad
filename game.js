@@ -13775,6 +13775,32 @@ const SCHOOL_PAIR_TEMPLATES = (() => {
     }
     return front;
   };
+  // Board-wide detonation — the prime→detonate cascade as a Tier III capstone.
+  // Fires the per-hit Reactions (Rupture/Puncture/Sunder) ALL AT ONCE across
+  // every living enemy: consume each primer for its burst, armor-ignored (it's
+  // the enemy's own wounds and openings erupting).  Uses the same REACTION_
+  // STACK_CAP so it can't run away off a degenerate pile.  Returns true if
+  // anything detonated.
+  const detonateBoard = (s) => {
+    let any = false;
+    aliveEnemies(s).forEach(e => {
+      if (e.dead) return;
+      let burst = 0;
+      if (e.bleed  > 0) { burst += Math.min(e.bleed,  REACTION_STACK_CAP) * 3; e.bleed  = 0; }
+      if (e.vuln   > 0) { burst += Math.min(e.vuln,   REACTION_STACK_CAP) * 2; e.vuln   = 0; }
+      if (e.dulled > 0) { burst += Math.min(e.dulled, REACTION_STACK_CAP) * 2; e.dulled = 0; }
+      if (burst > 0) {
+        any = true;
+        e.hp = Math.max(0, e.hp - burst);
+        spawnPopupId(e.id, 'DETONATE', 'crit', 'enemy');
+        spawnPopupId(e.id, `-${burst}`, 'crit', 'enemy');
+        flashCardId(e.id, 'hit', 'enemy');
+        if (e.hp === 0) killEnemy(s, e);
+      }
+    });
+    if (any) playStaggerHit();
+    return any;
+  };
   const T = {
     // ---- PHYSICAL × PHYSICAL — Twin Steel -----------------------------
     // Two physical fighters lock the front down.  Front-focused power
@@ -13920,7 +13946,7 @@ const SCHOOL_PAIR_TEMPLATES = (() => {
     // ---- PHYSICAL × ARCANE — Steel and Spark --------------------------
     physical_arcane: {
       name: (a, b) => `${a}'s Steel · ${b}'s Spark`,
-      desc: (a, b, t) => `Physical hits front for ${t >= 3 ? 12 : 8}, arcane burst hits ALL for ${t >= 3 ? 6 : 4} (ignore armor), +${t >= 3 ? 3 : 2} VULN each.  RESONANT: stagger front.`,
+      desc: (a, b, t) => `Physical hits front for ${t >= 3 ? 12 : 8}, arcane burst hits ALL for ${t >= 3 ? 6 : 4} (ignore armor), +${t >= 3 ? 3 : 2} VULN each.  RESONANT: DETONATE every primer (bleed / vuln / dulled) on all enemies at once.`,
       fn: (s, anchorId, otherId, tier) => {
         const physId = (CHARS[anchorId] && CHARS[anchorId].school) === 'physical' ? anchorId : otherId;
         const arcId  = physId === anchorId ? otherId : anchorId;
@@ -13938,10 +13964,9 @@ const SCHOOL_PAIR_TEMPLATES = (() => {
           });
         });
         s.ignoreArmor = wasIgnore;
-        if (tier >= 3 && front && !front.dead) {
-          front.staggered = true;
-          spawnPopupId(front.id, 'STAGGERED', 'stagger', 'enemy');
-        }
+        // Tier III capstone — the Spark exposes the whole board (+vuln above),
+        // then everything the party has primed all fight erupts at once.
+        if (tier >= 3) detonateBoard(s);
       },
     },
     // ---- PHYSICAL × RANGED — Volley and Charge ------------------------
