@@ -1351,6 +1351,151 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
 }
 #enemy-half .figure-portrait svg { animation-name: idle-breathe-mirror; transform: scaleX(-1); }
 
+/* ===== EMITTED-PARTICLE STATUS OVERLAY =====
+   The dominant persistent ailment emits a small field of animated particles
+   off the body, so the condition reads from across the board without
+   parsing the chip glyphs.  Each ailment has its own motion + colour so
+   they're instantly distinguishable:
+     bleed  — red droplets dripping DOWN off the silhouette
+     vuln   — hot-pink fracture shards flaking UP/outward
+     dulled — grey ash sifting slowly down (+ the body drains to grey, since
+              ash alone wouldn't read on a full-colour figure)
+   Particles live in a non-interactive overlay inside .figure-portrait; the
+   figure itself keeps its idle-breathe untouched. */
+.body-particles {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  overflow: visible;
+  z-index: 3;
+}
+.body-particles i {
+  position: absolute;
+  bottom: 46%;
+  width: 9px; height: 9px;
+  opacity: 0;
+  will-change: transform, opacity;
+}
+/* 14 emitters spread across the body width with staggered delays + a
+   per-particle horizontal drift (--dx, used by vuln's radial burst) so the
+   effect is dense and continuous — bold enough to read at a glance. */
+.body-particles i:nth-child(1)  { left: 16%; --dx: -26px; animation-delay: 0s;    }
+.body-particles i:nth-child(2)  { left: 26%; --dx: -16px; animation-delay: .55s;  }
+.body-particles i:nth-child(3)  { left: 36%; --dx: -8px;  animation-delay: 1.1s;  }
+.body-particles i:nth-child(4)  { left: 46%; --dx: -2px;  animation-delay: .3s;   }
+.body-particles i:nth-child(5)  { left: 54%; --dx: 2px;   animation-delay: .85s;  }
+.body-particles i:nth-child(6)  { left: 64%; --dx: 8px;   animation-delay: 1.4s;  }
+.body-particles i:nth-child(7)  { left: 74%; --dx: 16px;  animation-delay: .15s;  }
+.body-particles i:nth-child(8)  { left: 84%; --dx: 26px;  animation-delay: .7s;   }
+.body-particles i:nth-child(9)  { left: 22%; --dx: -20px; animation-delay: 1.25s; }
+.body-particles i:nth-child(10) { left: 40%; --dx: -6px;  animation-delay: .5s;   }
+.body-particles i:nth-child(11) { left: 50%; --dx: 0px;   animation-delay: 1.6s;  }
+.body-particles i:nth-child(12) { left: 60%; --dx: 6px;   animation-delay: .95s;  }
+.body-particles i:nth-child(13) { left: 70%; --dx: 18px;  animation-delay: .4s;   }
+.body-particles i:nth-child(14) { left: 30%; --dx: -14px; animation-delay: 1.5s;  }
+
+/* bleed — fat teardrops rain down off the body */
+.bp-bleed i {
+  width: 8px; height: 12px;
+  border-radius: 50% 50% 50% 50% / 36% 36% 64% 64%;
+  background: radial-gradient(circle at 42% 28%, #ff9a9a, #c01818 72%);
+  box-shadow: 0 0 8px rgba(235,40,40,.9);
+  animation: bp-fall 1.9s linear infinite;
+}
+@keyframes bp-fall {
+  0%   { transform: translateY(-6px) scale(.8);   opacity: 0; }
+  14%  { opacity: 1; }
+  85%  { opacity: .95; }
+  100% { transform: translateY(58px) scale(1.05); opacity: 0; }
+}
+
+/* vuln — big bright shards burst up-and-outward (radial via --dx) */
+.bp-vuln i {
+  bottom: 50%;
+  width: 11px; height: 11px;
+  border-radius: 2px;
+  background: linear-gradient(135deg, #ffc2dc, #ff1f6e);
+  box-shadow: 0 0 10px rgba(255,70,150,1);
+  animation: bp-shard 1.7s ease-out infinite;
+}
+@keyframes bp-shard {
+  0%   { transform: translate(0,0) scale(.3) rotate(0deg);              opacity: 0; }
+  18%  { opacity: 1; }
+  100% { transform: translate(var(--dx,0), -44px) scale(1.05) rotate(170deg); opacity: 0; }
+}
+
+/* dulled — dense grey ash sinks; body itself drains to grey */
+.bp-dulled i {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #d4dce8, #69737f 72%);
+  box-shadow: 0 0 5px rgba(190,200,220,.7);
+  filter: blur(.4px);
+  animation: bp-fall 3.0s ease-in infinite;
+}
+.figure.body-status-dulled .figure-portrait svg { filter: saturate(.5) brightness(.9); }
+
+/* ----- Behavioural tells (posture) layered on the particles -----
+   The afflicted body's idle is REPLACED (not composed) so the breathe and
+   the tell live on one timeline — no transform clobbering, and only the SVG
+   moves (the HP bar / chips stay put).  Enemy SVGs are flipped, so each tell
+   carries a -mirror twin with scaleX negated throughout.
+     bleed  — breathes, then a sharp wince every cycle
+     dulled — sags lower, slower, shallower (drained posture) */
+.figure.body-status-bleed  .figure-portrait svg { animation: idle-bleed 3.6s ease-in-out infinite; }
+#enemy-half .figure.body-status-bleed  .figure-portrait svg { animation: idle-bleed-mirror 3.6s ease-in-out infinite; }
+.figure.body-status-vuln   .figure-portrait svg { animation: idle-vuln 3.0s ease-in-out infinite; }
+#enemy-half .figure.body-status-vuln   .figure-portrait svg { animation: idle-vuln-mirror 3.0s ease-in-out infinite; }
+.figure.body-status-dulled .figure-portrait svg { animation: idle-slump 7.2s ease-in-out infinite; }
+#enemy-half .figure.body-status-dulled .figure-portrait svg { animation: idle-slump-mirror 7.2s ease-in-out infinite; }
+
+@keyframes idle-bleed {
+  0%, 72%, 100% { transform: scale(1,1)         translate(0,0)         rotate(0deg); }
+  40%           { transform: scale(1.016,1.012) translate(0,-0.5px)    rotate(0deg); }
+  79%           { transform: scale(1.012,0.99)  translate(-1.6px,-1px) rotate(-1.5deg); }
+  83%           { transform: scale(1.012,0.99)  translate(1.3px,0)     rotate(1.1deg);  }
+  87%           { transform: scale(1,1)         translate(-0.7px,0)    rotate(-0.4deg); }
+  91%           { transform: scale(1,1)         translate(0.3px,0)     rotate(0.2deg);  }
+}
+@keyframes idle-bleed-mirror {
+  0%, 72%, 100% { transform: scaleX(-1)     scaleY(1)     translate(0,0)         rotate(0deg); }
+  40%           { transform: scaleX(-1.016) scaleY(1.012) translate(0,-0.5px)    rotate(0deg); }
+  79%           { transform: scaleX(-1.012) scaleY(0.99)  translate(-1.6px,-1px) rotate(-1.5deg); }
+  83%           { transform: scaleX(-1.012) scaleY(0.99)  translate(1.3px,0)     rotate(1.1deg);  }
+  87%           { transform: scaleX(-1)     scaleY(1)     translate(-0.7px,0)    rotate(-0.4deg); }
+  91%           { transform: scaleX(-1)     scaleY(1)     translate(0.3px,0)     rotate(0.2deg);  }
+}
+@keyframes idle-slump {
+  0%, 100% { transform: scale(1,0.978)     translateY(2.5px) rotate(-1.2deg); }
+  50%      { transform: scale(1.006,0.984) translateY(1.6px) rotate(-1deg);   }
+}
+@keyframes idle-slump-mirror {
+  0%, 100% { transform: scaleX(-1)     scaleY(0.978) translateY(2.5px) rotate(-1.2deg); }
+  50%      { transform: scaleX(-1.006) scaleY(0.984) translateY(1.6px) rotate(-1deg);   }
+}
+/* vuln — body tips off-balance (exposed/reeling) then rights itself */
+@keyframes idle-vuln {
+  0%, 58%, 100% { transform: scale(1,1)       rotate(0deg)    translateX(0); }
+  70%           { transform: scale(1.006,0.997) rotate(2.6deg)  translateX(1.2px); }
+  82%           { transform: scale(1.006,0.997) rotate(-2.8deg) translateX(-1.6px); }
+  92%           { transform: scale(1,1)       rotate(1deg)    translateX(0.4px); }
+}
+@keyframes idle-vuln-mirror {
+  0%, 58%, 100% { transform: scaleX(-1)     scaleY(1)     rotate(0deg)    translateX(0); }
+  70%           { transform: scaleX(-1.006) scaleY(0.997) rotate(2.6deg)  translateX(1.2px); }
+  82%           { transform: scaleX(-1.006) scaleY(0.997) rotate(-2.8deg) translateX(-1.6px); }
+  92%           { transform: scaleX(-1)     scaleY(1)     rotate(1deg)    translateX(0.4px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Keep the read, drop the motion: particles freeze as a small static
+     cluster of coloured marks; flinch/rock/slump revert to the plain idle. */
+  .body-particles i { animation: none; opacity: .92; }
+  .figure.body-status-bleed  .figure-portrait svg,
+  .figure.body-status-vuln   .figure-portrait svg { animation-name: idle-breathe; }
+  #enemy-half .figure.body-status-bleed  .figure-portrait svg,
+  #enemy-half .figure.body-status-vuln   .figure-portrait svg,
+  #enemy-half .figure.body-status-dulled .figure-portrait svg { animation-name: idle-breathe-mirror; }
+}
 /* soft ground shadow ellipse under each figure */
 .figure-shadow {
   width: 70%;
@@ -3086,6 +3231,10 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
   100% { transform: translate(-50%, -66px) scale(0.9);  opacity: 0; }
 }
 .popup.crit  { color: var(--gold-bright); font-size: 24px; text-shadow: 0 1px 0 var(--shadow), 0 0 16px var(--gold-bright); }
+/* RESIST word-banner — the only non-detonation badge (WEAK!/STG! now ride
+   the ✺ reaction burst).  Dim/italic, routed through the serialized banner
+   queue (see BANNER_TYPES in game.js) so it never collides with a proc. */
+.popup.badge-dim { color: var(--ink-dim); font-size: 14px; font-style: italic; text-shadow: 0 1px 0 var(--shadow); }
 .popup.stagger {
   color: var(--stagger);
   font-size: 26px;
@@ -15895,6 +16044,19 @@ body.on-title #hud { display: none !important; }
   text-transform: uppercase;
   color: var(--gold);
   opacity: 0.85;
+}
+
+/* Build number — fixed in the title-screen corner for at-a-glance deploy
+   verification. */
+.ts-build {
+  position: absolute;
+  right: 12px; bottom: 10px;
+  z-index: 5;
+  font: 700 10px/1 ui-monospace, monospace;
+  letter-spacing: 0.18em;
+  color: #7fd0ff;
+  opacity: 0.55;
+  pointer-events: none;
 }
 
 /* Hero — silhouette standing in the abyss.  The SVG portrait scales

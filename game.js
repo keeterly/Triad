@@ -12796,10 +12796,13 @@ function applyDmgToEnemy(s, e, baseAmt) {
   spawnPopupId(e.id, `-${toHp}`, popupType, 'enemy');
   if (schoolBadge) {
     // Reactions DETONATE — give them their own burst popup (a ✺ glyph + the
-    // punchier 'pop' animation) so the moment reads as an explosion, not just
-    // another gold label.  WEAK!/STG! stay crit; RESIST stays a dim miss.
-    const badgeType = reactionName ? 'reaction' : (hotBadge ? 'crit' : 'miss');
-    const badgeText = reactionName ? `✺ ${schoolBadge}` : schoolBadge;
+    // punchier 'pop' animation) so the moment reads as an explosion.  In the
+    // unified primer/detonate model a WEAK!/STG! hit IS a detonation too (the
+    // element/stagger consuming its primer), so it rides the SAME ✺ burst —
+    // weakness and status payoffs now look identical at the moment of impact.
+    // RESIST is the only non-detonation badge; it stays a dim 'badge-dim'.
+    const badgeType = hotBadge ? 'reaction' : 'badge-dim';
+    const badgeText = hotBadge ? `✺ ${schoolBadge}` : schoolBadge;
     setTimeout(() => spawnPopupId(e.id, badgeText, badgeType, 'enemy'), 80);
     // WEAK!/STG! shimmer — brief gold pulse on the struck figure so
     // the elemental-matchup payoff has a visible beat beyond the
@@ -18351,6 +18354,21 @@ function makeEnemyCard(e, slot) {
   }
   if (e.staggered)     fig.classList.add('state-staggered');
   else if (e.weakened) fig.classList.add('state-weakened');
+  // Full-body status overlay — the dominant persistent ailment tints the
+  // whole figure with a coloured aura that hugs the body silhouette, so the
+  // condition reads from across the board (Persona/FF-style) instead of
+  // living only in the small chip glyphs.  One at a time by priority; the
+  // chips still carry the exact stacks for the detail read.
+  const bodyStatus = e.bleed > 0 ? 'bleed'
+    : e.vuln > 0 ? 'vuln'
+    : e.dulled > 0 ? 'dulled'
+    : null;
+  if (bodyStatus) fig.classList.add('has-body-status', `body-status-${bodyStatus}`);
+  // Particle emitter overlay for the dominant ailment (CSS drives the
+  // motion/colour off the bp-* class); empty string when unafflicted.
+  const bodyFx = bodyStatus
+    ? `<div class="body-particles bp-${bodyStatus}">${'<i></i>'.repeat(14)}</div>`
+    : '';
   if (e._charging) {
     fig.classList.add('e-charging');
     fig.dataset.releaseIn = e._charging.releaseIn;
@@ -18459,6 +18477,7 @@ function makeEnemyCard(e, slot) {
   fig.innerHTML = `
     <div class="figure-portrait">
       ${_portraitFor(e.heroId || e.id)}
+      ${bodyFx}
       <div class="figure-statuses">${renderStatuses(e)}</div>
       <div class="figure-hp">
         <div class="hp-fill ${hpPct < 35 ? 'low' : ''}" style="width:${hpPct}%"></div>
@@ -20068,8 +20087,20 @@ function spawnSigilPopup(id, sigilId) {
 // Also dedupe — if the same text was just spawned on the same target
 // (e.g., a synergy that fires once per ally hit, applied 3x to the same
 // character), suppress the repeats within a short window.
+// Big word-banners — detonation names (PUNCTURE!/HEMORRHAGE!/…), WEAK!/STG!,
+// and STAGGERED — are the dramatic payoff beats: large and centered on the
+// struck card.  When an AoE hits a whole enemy row, several fire on the same
+// frame and collide horizontally (the "HEMORRHAGE.TURE" pile-up).  They get
+// their OWN global queue: one on screen at a time, each held long enough to
+// read, so the payoffs play out as a legible sequence instead of a stack.
+// Plain damage numbers stay on the fast per-card stagger so the hit still
+// registers instantly on its target.
+const BANNER_TYPES = new Set(['reaction', 'badge-dim', 'stagger']);
 let _popupNextDue = 0;
+let _bannerNextDue = 0;
 const POPUP_STAGGER_MS = 130;
+const BANNER_GAP_MS = 680;       // spacing between consecutive word-banners
+const BANNER_MAX_LAG_MS = 2200;  // never let banners trail the action further
 const POPUP_DEDUP_MS = 900;
 const _popupRecent = new Map(); // key: `${id}|${text}` -> last fire timestamp
 function spawnPopup(cardEl, text, type='dmg') {
@@ -20091,8 +20122,19 @@ function spawnPopup(cardEl, text, type='dmg') {
 
   const r = cardEl.getBoundingClientRect();
   const s = stage.getBoundingClientRect();
-  const due = Math.max(_popupNextDue, now);
-  _popupNextDue = due + POPUP_STAGGER_MS;
+  // Banners serialize on their own channel; numbers/heals keep the light
+  // per-card stagger.  Each fires off whichever queue it belongs to.
+  let due;
+  if (BANNER_TYPES.has(type)) {
+    due = Math.max(_bannerNextDue, now);
+    // If the queue has drifted too far behind the action, compress it so
+    // the banners never narrate a turn that already finished.
+    if (due - now > BANNER_MAX_LAG_MS) due = now + BANNER_MAX_LAG_MS;
+    _bannerNextDue = due + BANNER_GAP_MS;
+  } else {
+    due = Math.max(_popupNextDue, now);
+    _popupNextDue = due + POPUP_STAGGER_MS;
+  }
   const delay = due - now;
   // Snapshot positions NOW so a card that moves/dies during the delay
   // doesn't drag the popup off-screen.
