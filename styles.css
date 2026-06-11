@@ -2822,6 +2822,17 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
 .status-dulled  { color: var(--weak);        border-color: var(--weak); }
 .status-retal   { color: var(--gold);        border-color: var(--gold); }
 .status-vuln    { color: #ff8a8a;            border-color: var(--bleed); background: rgba(196,56,56,0.25); }
+/* Weakness — the enemy's intrinsic primer, shown in the same chip row.  Amber
+   (the weakness/WEAK! family colour) so it reads as "exploit me".  The icon is
+   the weak element's glyph; the .status-detonatable pulse layers on when the
+   party can actually hit it. */
+.status-weak    { color: #ffcf7a;            border-color: #e0a64a; background: rgba(120,84,24,0.28); }
+/* Undiscovered weakness — a dim, dashed "?" that invites scouting without
+   demanding attention.  No pulse (you can't detonate what you can't see yet). */
+.status-weak-unknown {
+  color: var(--ink-dim); border-color: rgba(150,150,160,0.4);
+  border-style: dashed; opacity: 0.7;
+}
 .status-pending {
   color: var(--gold-bright); border-color: var(--gold-bright);
   background: rgba(240,212,136,0.22);
@@ -7325,6 +7336,22 @@ body.party-critical::after {
   text-shadow: 0 1px 0 var(--shadow);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0;
+}
+/* Detonation hint — this action's element would pop a primer (status or
+   weakness) on a target it hits.  Cyan ✺ that pulses, matching the detonatable
+   chip pulse and the ✺ burst popup, so the whole prime/detonate loop speaks
+   one colour + one glyph: see cyan ✺ on the chip AND the action that pops it. */
+.tile .tile-detonate {
+  color: #8fe8ff;
+  font-size: 12px; font-weight: 900;
+  line-height: 1;
+  margin-left: 1px;
+  text-shadow: 0 0 6px rgba(143,232,255,0.8), 0 1px 0 var(--shadow);
+  animation: tile-detonate-pulse 1.2s ease-in-out infinite;
+}
+@keyframes tile-detonate-pulse {
+  0%, 100% { opacity: 0.7; transform: scale(0.92); }
+  50%      { opacity: 1;   transform: scale(1.12); }
 }
 /* Resolve diamond pip — gold variant */
 .tile .tile-cost {

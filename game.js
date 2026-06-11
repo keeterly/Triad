@@ -18485,6 +18485,29 @@ function makeEnemyCard(e, slot) {
   return fig;
 }
 
+// Unified PRIMER model — in combat there is ONE elemental-payoff idea: a
+// "primer" you DETONATE by hitting it with a matching element.  Two kinds of
+// primer share this model: applied statuses (bleed/vuln/dulled) and the
+// enemy's intrinsic weakness (once revealed).  This is the single source of
+// truth for the enemy chip pulse AND the hero action-detonation hint, so the
+// UI never disagrees with what resolveReaction / the weakness math actually do.
+function primerDetonationsFor(e, element) {
+  if (!e || e.dead || !element) return [];
+  const out = [];
+  if (e.bleed  > 0 && element === 'physical') out.push('Rupture');
+  if (e.bleed  > 0 && element === 'stealth')  out.push('Hemorrhage');
+  if (e.vuln   > 0 && element === 'ranged')   out.push('Puncture');
+  if (e.vuln   > 0 && element === 'arcane')   out.push('Discharge');
+  if (e.vuln   > 0 && element === 'holy')     out.push('Smite');
+  if (e.dulled > 0 && (element === 'physical' || element === 'stealth')) out.push('Sunder');
+  if (e.weaknessRevealed) {
+    const w = ENEMIES[e.id] && ENEMIES[e.id].weakness;
+    const arr = Array.isArray(w) ? w : (w ? [w] : []);
+    if (arr.includes(element)) out.push(e.staggered ? 'Stagger ×2' : (e.weakened ? 'Stagger' : 'Weakness'));
+  }
+  return out;
+}
+
 function renderStatuses(ent, sForAuras) {
   // Status chips are collected with explicit priority so we can cap the
   // visible count at 4 and roll the rest into a single overflow chip.
@@ -18501,6 +18524,7 @@ function renderStatuses(ent, sForAuras) {
   // LIVING party can actually detonate, so the bleed/vuln/dulled chip itself
   // pulses (the "primed" cue is folded INTO the chip instead of a separate ⚡).
   let detBleed = false, detVuln = false, detDulled = false;
+  let weakChip = null;  // the enemy's intrinsic primer (weakness), in the same row
   if (!sForAuras) {
     const schools = new Set();
     const chars = (state && state.party && state.party.chars) || {};
@@ -18508,10 +18532,33 @@ function renderStatuses(ent, sForAuras) {
     detBleed  = schools.has('physical') || schools.has('stealth');
     detVuln   = schools.has('ranged') || schools.has('arcane') || schools.has('holy');
     detDulled = schools.has('physical') || schools.has('stealth');
+    // Weakness as a first-class primer (the merge): one chip in the status row.
+    // Hidden until discovered — a dim "?" invites you to find it; once revealed
+    // it shows the element glyph(s) and pulses when the party can detonate it.
+    const wk = ENEMIES[ent.id] && ENEMIES[ent.id].weakness;
+    const wkArr = Array.isArray(wk) ? wk : (wk ? [wk] : []);
+    if (wkArr.length) {
+      const G = { physical: '⚔', holy: '✦', arcane: '✶', ranged: '➳', stealth: '◐' };
+      if (ent.weaknessRevealed) {
+        const det = wkArr.some(w => schools.has(w));
+        weakChip = {
+          icon: wkArr.map(w => G[w] || '?').join(''),
+          title: `Weak to ${wkArr.join(' / ')} — a primer baked into this enemy. Detonate it by hitting with ${wkArr.length > 1 ? 'one of those elements' : 'that element'} for bonus damage; detonate again to STAGGER (next hit deals ×2).`,
+          cls: det ? 'status-detonatable' : '',
+        };
+      } else {
+        weakChip = {
+          icon: '?',
+          title: 'Hidden weakness — a primer baked into this enemy. Strike with different elements (or use a scout) to reveal which element detonates it.',
+          cls: 'status-weak-unknown',
+        };
+      }
+    }
   }
   const primed = (on) => (on ? 'status-detonatable' : '');
   // Each chip carries data-status so the press-and-hold tooltip handler can
   // resolve its explanation from STATUS_TOOLTIPS without re-parsing classes.
+  if (weakChip)          push(15, 'weak', weakChip.icon, null, weakChip.title, weakChip.cls);
   if (ent.armor > 0)     push(10, 'armor', '⛨', ent.armor,    `Armor ${ent.armor} — absorbs ${ent.armor} damage before HP. Wears off as it absorbs.`);
   if (ent.vuln > 0)      push(20, 'vuln',  '⊕', ent.vuln,     `Vulnerable ${ent.vuln} — next ${ent.vuln} incoming attacks deal +2 damage (+4 with Ember of Wrath Sigil) and consume one stack.`, primed(detVuln));
   if (ent.bleed > 0)     push(30, 'bleed', '✤', ent.bleed,    `Bleed ${ent.bleed} — takes 2 damage at the start of each turn (3 with Bloodborne Sigil), then the stack decreases by 1.`, primed(detBleed));
@@ -18683,10 +18730,11 @@ function formatDesc(text) {
 // once at boot via event delegation so re-renders don't need rebinding.
 const STATUS_TOOLTIPS = {
   armor:    { name: 'Armor',       text: 'Absorbs incoming damage 1:1 before HP. Wears off as it absorbs. Does not regenerate.' },
-  bleed:    { name: 'Bleed',       text: 'Takes 2 damage at the start of each turn (+1 with Bloodborne / Bone Tide). Decays by 1 per turn. Ignores armor. REACTION — on a bleeding enemy: a Physical hit RUPTURES it (consume bleed for a big burst), a Stealth hit causes HEMORRHAGE (burst, but reopens bleed 1 to keep the wound alive).' },
+  weak:     { name: 'Weakness — Primer', text: 'A primer baked into this enemy. The glyph shows the element it is weak to; a "?" means undiscovered — hit it with different elements (or use a scout) to reveal it. DETONATE by attacking with that element for bonus damage; detonate again to STAGGER, and the next hit after lands ×2.' },
+  bleed:    { name: 'Bleed — Primer', text: 'Takes 2 damage at the start of each turn (+1 with Bloodborne / Bone Tide). Decays by 1 per turn. Ignores armor. DETONATE — a Physical hit RUPTURES it (consume bleed for a big burst); a Stealth hit causes HEMORRHAGE (burst, but reopens bleed 1 to keep the wound alive).' },
   taunt:    { name: 'Taunt',       text: 'Enemy single-target attacks redirect to this hero. Clears at the start of the next turn.' },
-  dulled:   { name: 'Dulled',      text: 'Outgoing attacks deal -2 damage. Consumes 1 stack per attack. REACTION — on a dulled enemy, a Physical or Stealth hit SUNDERS it (consume all dulled for a burst and leave it Vulnerable 1).' },
-  vuln:     { name: 'Vulnerable',  text: 'Incoming hits deal +2 damage per stack (+2 more with Ember of Wrath). One stack is consumed per hit (unless Brand of Doom). REACTION — on a vulnerable enemy, a Ranged hit PUNCTURES it, an Arcane hit DISCHARGES it (burst + spreads vuln to other enemies), and a Holy hit SMITES it (burst + heals the party). All consume the vuln.' },
+  dulled:   { name: 'Dulled — Primer', text: 'Outgoing attacks deal -2 damage. Consumes 1 stack per attack. DETONATE — a Physical or Stealth hit SUNDERS it (consume all dulled for a burst and leave it Vulnerable 1).' },
+  vuln:     { name: 'Vulnerable — Primer', text: 'Incoming hits deal +2 damage per stack (+2 more with Ember of Wrath). One stack is consumed per hit (unless Brand of Doom). DETONATE — a Ranged hit PUNCTURES it, an Arcane hit DISCHARGES it (burst + spreads vuln to other enemies), a Holy hit SMITES it (burst + heals the party). All consume the vuln.' },
   retal:    { name: 'Retaliate',   text: 'When hit, counter-attacks the front-most enemy for this value (+2 with Vow of Vigil). Clears at the start of the next turn.' },
   pending:  { name: 'Pending',     text: 'A one-shot bonus from a synergy. Consumed by the next matching action.' },
   guard:    { name: 'Guard',         text: 'Each stack fully negates the next incoming hit — no HP loss, no armor loss. Cleared at the start of the next player turn.' },
@@ -19052,12 +19100,27 @@ function makeTile(kind, charId, dir, tileCounts, teamLocked) {
   // clipped by the tile's tight vertical padding or overlap the bottom-row
   // reach label.  Tinted per school via tile-element-<school>.
   const SCHOOL_GLYPH_TILE = { physical: '⚔', holy: '✦', arcane: '✶', ranged: '➳', stealth: '◐' };
+  // Detonation hint — would this action's element pop a primer (applied status
+  // OR revealed weakness) on an enemy it actually hits?  Aggregate the distinct
+  // payoffs across all hit targets so the tile shows a ✺ the player can trust.
+  let detLabels = [];
+  if (kind === 'attack' || kind === 'special') {
+    const tgt = previewTargetsForTile(kind, charId, dir);
+    const seen = new Set();
+    (tgt.enemyHits || []).forEach(h => (h.det || []).forEach(l => seen.add(l)));
+    detLabels = [...seen];
+  }
+  if (detLabels.length) t.classList.add('tile-detonates');
+  const detBadge = detLabels.length
+    ? `<span class="tile-detonate" title="Detonates ${detLabels.join(' / ')} — this hit pops a primer on a target it lands on.">✺</span>`
+    : '';
+
   const elBadge = preview.element
     ? `<span class="tile-element tile-element-${preview.element}" title="Element: ${preview.element}">${SCHOOL_GLYPH_TILE[preview.element] || ''}</span> `
     : '';
 
   t.innerHTML = `
-    <span class="tile-badges">${costBadges.join('')}</span>
+    <span class="tile-badges">${costBadges.join('')}${detBadge}</span>
     ${comboName ? `<span class="tile-combo-badge${comboIsSig ? ' sig' : ''}" title="Queueing this would complete: ${comboName}">+ ${comboName}</span>` : ''}
     <span class="tile-name-row">
       <span class="tile-name">${elBadge}${preview.label || '—'}</span>
@@ -19318,13 +19381,19 @@ function previewTargetsForTile(kind, charId, dir) {
     if (!slot) return { enemySlots: [], partySlots: [], enemyHits: [], partyHeals: [], moveSlots: [], weaknessSlots: [], staggerSlots: [], element: null };
     const variant = getTech(s, charId, slot, kind === 'special' ? 'sig' : 'basic');
     const targets = resolveTargets(s, variant) || [];
+    // Element this tile lands as — used for both the detonation hint and the
+    // weakness/stagger highlight rings below.
+    const tileElement = (typeof variant.dmg === 'number')
+      ? (variant.element || (CHARS[charId] && CHARS[charId].school) || null) : null;
     const enemyHits = targets.map(e => {
       const sl = slotOfEnemy(s, e);
       if (!sl) return null;
       if (typeof variant.dmg !== 'number') return { slot: sl };
       const r = previewMultiHit(s, e, variant.dmg, charId, variant.hits || 1, variant.element);
       const kill = !e.dead && r.dmg >= e.hp;
-      return { slot: sl, dmg: r.dmg, badge: r.badge, kill, topBonus: r.topBonus };
+      // Unified primer check — would this hit detonate a primer (status or
+      // revealed weakness) on the target?  Drives the tile's ✺ hint.
+      return { slot: sl, dmg: r.dmg, badge: r.badge, kill, topBonus: r.topBonus, det: primerDetonationsFor(e, tileElement) };
     }).filter(Boolean);
     const enemySlots = enemyHits.map(h => h.slot);
     const partyHeals = resolveHealTargets(s, variant, charId).map(c => {
@@ -19346,10 +19415,8 @@ function previewTargetsForTile(kind, charId, dir) {
     // to reposition before committing.
     const weaknessSlots = [];
     const staggerSlots = [];
-    let element = null;
+    let element = tileElement;
     if (typeof variant.dmg === 'number') {
-      const heroSchool = CHARS[charId] && CHARS[charId].school;
-      element = variant.element || heroSchool || null;
       const asArr = x => Array.isArray(x) ? x : (x ? [x] : []);
       aliveEnemies(s).forEach(e => {
         const sl = slotOfEnemy(s, e);
