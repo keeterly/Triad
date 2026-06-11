@@ -12796,13 +12796,13 @@ function applyDmgToEnemy(s, e, baseAmt) {
   spawnPopupId(e.id, `-${toHp}`, popupType, 'enemy');
   if (schoolBadge) {
     // Reactions DETONATE — give them their own burst popup (a ✺ glyph + the
-    // punchier 'pop' animation) so the moment reads as an explosion, not just
-    // another gold label.  WEAK!/STG! ride the 'badge' word; RESIST stays a
-    // dim 'badge-dim'.  All three are word-banners — they go through the
-    // serialized banner queue in spawnPopup so a row of AoE procs reads
-    // one-at-a-time instead of stamping on the same frame.
-    const badgeType = reactionName ? 'reaction' : (hotBadge ? 'badge' : 'badge-dim');
-    const badgeText = reactionName ? `✺ ${schoolBadge}` : schoolBadge;
+    // punchier 'pop' animation) so the moment reads as an explosion.  In the
+    // unified primer/detonate model a WEAK!/STG! hit IS a detonation too (the
+    // element/stagger consuming its primer), so it rides the SAME ✺ burst —
+    // weakness and status payoffs now look identical at the moment of impact.
+    // RESIST is the only non-detonation badge; it stays a dim 'badge-dim'.
+    const badgeType = hotBadge ? 'reaction' : 'badge-dim';
+    const badgeText = hotBadge ? `✺ ${schoolBadge}` : schoolBadge;
     setTimeout(() => spawnPopupId(e.id, badgeText, badgeType, 'enemy'), 80);
     // WEAK!/STG! shimmer — brief gold pulse on the struck figure so
     // the elemental-matchup payoff has a visible beat beyond the
@@ -20079,7 +20079,7 @@ function spawnSigilPopup(id, sigilId) {
 // read, so the payoffs play out as a legible sequence instead of a stack.
 // Plain damage numbers stay on the fast per-card stagger so the hit still
 // registers instantly on its target.
-const BANNER_TYPES = new Set(['reaction', 'badge', 'badge-dim', 'stagger']);
+const BANNER_TYPES = new Set(['reaction', 'badge-dim', 'stagger']);
 let _popupNextDue = 0;
 let _bannerNextDue = 0;
 const POPUP_STAGGER_MS = 130;

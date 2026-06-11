@@ -3086,11 +3086,9 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
   100% { transform: translate(-50%, -66px) scale(0.9);  opacity: 0; }
 }
 .popup.crit  { color: var(--gold-bright); font-size: 24px; text-shadow: 0 1px 0 var(--shadow), 0 0 16px var(--gold-bright); }
-/* WEAK! / STG! word-banner — gold crit weight, but routed through the
-   serialized banner queue (see BANNER_TYPES in game.js) so a row of weakness
-   procs reads one-at-a-time instead of stamping on the same frame. */
-.popup.badge     { color: var(--gold-bright); font-size: 24px; font-weight: 800; text-shadow: 0 1px 0 var(--shadow), 0 0 16px var(--gold-bright); }
-/* RESIST word-banner — dim/italic, same channel so it doesn't collide. */
+/* RESIST word-banner — the only non-detonation badge (WEAK!/STG! now ride
+   the ✺ reaction burst).  Dim/italic, routed through the serialized banner
+   queue (see BANNER_TYPES in game.js) so it never collides with a proc. */
 .popup.badge-dim { color: var(--ink-dim); font-size: 14px; font-style: italic; text-shadow: 0 1px 0 var(--shadow); }
 .popup.stagger {
   color: var(--stagger);
