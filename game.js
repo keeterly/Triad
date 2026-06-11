@@ -9536,6 +9536,91 @@ const COMBOS = {
     ],
   },
 
+  // ---- Bespoke ultimates for the previously-uncovered cast ----
+  // Garron + Kell · "Gatewardens" (physical + holy, two front-line wardens).
+  gk_gatewardens: {
+    id: 'gk_gatewardens', name: 'Gatewardens', tier: 'duo', sigTier: true,
+    desc: 'Two wardens hold the gate — Garron smashes front 16 (RUPTURE on impact) + STAGGER, DETONATE all bleed + dulled; Kell heals party 7 + cleanse + 4 armor.',
+    requires: [ { heroId: 'garron', kind: 'sig' }, { heroId: 'kell', kind: 'sig' } ],
+    fn: (s) => {
+      const front = enemyBySlot(s, 'front') || aliveEnemies(s)[0];
+      if (front && !front.dead) {
+        s.currentActorId = 'garron'; s.currentTechElement = 'physical';
+        try { applyDmgToEnemy(s, front, 16); } finally { s.currentActorId = null; s.currentTechElement = null; }
+        if (!front.dead) { front.staggered = true; front.staggerTurnsLeft = 2; spawnPopupId(front.id, 'STAGGERED', 'stagger', 'enemy'); }
+      }
+      detonateEnemyPrimers(s, ['bleed', 'dulled']);
+      aliveParty(s).forEach(c => {
+        const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 7);
+        if (c.hp > b) spawnPopupId(c.id, `+${c.hp - b}`, 'heal', 'party');
+        c.bleed = 0; c.dulled = 0;
+      });
+      partyArmor(s, 4);
+    },
+    cinematic: [
+      { kind: 'stage',    school: 'holy',                            ms: 220 },
+      { kind: 'hero-big', heroes: ['garron','kell'], pose: 'guard', ms: 420 },
+      { kind: 'banner',   text: 'GATEWARDENS', size: 'md', subtitle: 'none pass the two of us', ms: 380 },
+      { kind: 'punch',                                               ms: 380 },
+      { kind: 'resolve' },
+      { kind: 'shake',    intensity: 3 },
+      { kind: 'enemy-flash', targets: 'front', kind2: 'hit',         ms: 200 },
+    ],
+  },
+  // Joran + Nira · "Hexed Volley" (ranged + arcane, hex then rake).
+  jn_hexedvolley: {
+    id: 'jn_hexedvolley', name: 'Hexed Volley', tier: 'duo', sigTier: true,
+    desc: "Nira hexes the board (5 arcane all + 3 VULN), Joran rakes it (6 ranged all) — DISCHARGE then PUNCTURE detonate every VULN as it lands.",
+    requires: [ { heroId: 'joran', kind: 'sig' }, { heroId: 'nira', kind: 'sig' } ],
+    fn: (s) => {
+      const wasIgnore = s.ignoreArmor; s.ignoreArmor = true;
+      s.currentActorId = 'nira'; s.currentTechElement = 'arcane';
+      try { aliveEnemies(s).forEach(e => { if (e.dead) return; applyDmgToEnemy(s, e, 5); if (!e.dead) e.vuln = (e.vuln || 0) + 3; }); }
+      finally { s.currentActorId = null; s.currentTechElement = null; s.ignoreArmor = wasIgnore; }
+      s.currentActorId = 'joran'; s.currentTechElement = 'ranged';
+      try { aliveEnemies(s).forEach(e => { if (e.dead) return; applyDmgToEnemy(s, e, 6); }); }
+      finally { s.currentActorId = null; s.currentTechElement = null; }
+    },
+    cinematic: [
+      { kind: 'stage',    school: 'arcane',                          ms: 240 },
+      { kind: 'hero-big', heroes: ['joran','nira'], pose: 'rise',   ms: 420 },
+      { kind: 'banner',   text: 'HEXED VOLLEY', size: 'md', subtitle: 'marked · then struck', ms: 380 },
+      { kind: 'punch',                                               ms: 360 },
+      { kind: 'resolve' },
+      { kind: 'burst',    at: 'enemy-all', school: 'arcane', count: 12, ms: 240 },
+      { kind: 'enemy-flash', targets: 'all', kind2: 'hit',           ms: 200 },
+    ],
+  },
+  // Kiki + Tarn · "Anvil and Edge" (stealth + physical, hammer and blade).
+  kt_anviledge: {
+    id: 'kt_anviledge', name: 'Anvil and Edge', tier: 'duo', sigTier: true,
+    desc: 'Tarn hammers front 14 (physical), Kiki opens the lowest (8 + 3 bleed, stealth) — RUPTURE/HEMORRHAGE on impact, then DETONATE all bleed.',
+    requires: [ { heroId: 'kiki', kind: 'sig' }, { heroId: 'tarn', kind: 'sig' } ],
+    fn: (s) => {
+      const front = enemyBySlot(s, 'front') || aliveEnemies(s)[0];
+      if (front && !front.dead) {
+        s.currentActorId = 'tarn'; s.currentTechElement = 'physical';
+        try { applyDmgToEnemy(s, front, 14); } finally { s.currentActorId = null; s.currentTechElement = null; }
+      }
+      const low = aliveEnemies(s).slice().sort((a, b) => a.hp - b.hp)[0];
+      if (low && !low.dead) {
+        s.currentActorId = 'kiki'; s.currentTechElement = 'stealth';
+        try { applyDmgToEnemy(s, low, 8); } finally { s.currentActorId = null; s.currentTechElement = null; }
+        if (!low.dead) low.bleed = (low.bleed || 0) + 3;
+      }
+      detonateEnemyPrimers(s, ['bleed']);
+    },
+    cinematic: [
+      { kind: 'stage',    school: 'physical',                        ms: 220 },
+      { kind: 'hero-big', heroes: ['tarn','kiki'], pose: 'rise',    ms: 420 },
+      { kind: 'banner',   text: 'ANVIL AND EDGE', size: 'md', subtitle: 'one breaks · one bleeds', ms: 380 },
+      { kind: 'punch',                                               ms: 400 },
+      { kind: 'resolve' },
+      { kind: 'shake',    intensity: 3 },
+      { kind: 'enemy-flash', targets: 'front', kind2: 'hit',         ms: 200 },
+    ],
+  },
+
   // ---- Triple coverage-fill ----
   wall_of_walls: {
     id: 'wall_of_walls', name: 'Wall of Walls', tier: 'triple',
@@ -14637,8 +14722,8 @@ function _buildLevelVariants(s, heroA, heroB, level) {
   //    each other and the party (survival/control).  Two clearly
   //    different decisions, themed to the pair.
   const archetypes = [
-    { key: 'onslaught', name: 'Onslaught', desc: _ultimateDesc(a, b, 'onslaught') },
-    { key: 'aegis',     name: 'Aegis',     desc: _ultimateDesc(a, b, 'aegis') },
+    { key: 'onslaught', name: _pairUltName(a, b, 'offense'), desc: _ultimateDesc(a, b, 'onslaught') },
+    { key: 'aegis',     name: _pairUltName(a, b, 'support'), desc: _ultimateDesc(a, b, 'aegis') },
   ];
   for (const arch of archetypes) {
     if (options.length >= 2) break;
@@ -14709,10 +14794,41 @@ function _synergyDesc(a, b, level) {
   return `${aDesc}${supportLine ? `  ${supportLine}.` : ''}`;
 }
 
+// Evocative names for the GENERATED pair ultimates, keyed by the two heroes'
+// schools (sorted).  A pairing with no hand-authored combo still fires a
+// NAMED, themed ultimate instead of a flavourless "Onslaught/Aegis" — two
+// leans per school-pair: an aggressive payoff and a protective one.  (Hero-
+// specific bespoke ultimates always take priority over these; this is the
+// designed FLOOR for the long tail of pairings.)
+const _PAIR_ULT_NAMES = {
+  physical_physical: { offense: 'Twin Steel',        support: 'Shield Wall'     },
+  holy_holy:         { offense: 'Twin Light',        support: 'Sanctuary'       },
+  arcane_arcane:     { offense: 'Double Hex',        support: 'Warding Veil'    },
+  ranged_ranged:     { offense: 'Crossfire',         support: 'Covering Fire'   },
+  stealth_stealth:   { offense: 'Twin Cuts',         support: 'Vanishing Act'   },
+  arcane_physical:   { offense: 'Steel and Spark',   support: 'Runed Bulwark'   },
+  holy_physical:     { offense: 'Hallowed Strike',   support: 'Consecrate'      },
+  physical_ranged:   { offense: 'Charge and Volley', support: 'Phalanx'         },
+  physical_stealth:  { offense: 'Shadow Cleave',     support: 'Cloak and Blade' },
+  arcane_holy:       { offense: 'Sacred Hex',        support: 'Litany'          },
+  holy_ranged:       { offense: 'Blessed Arrow',     support: 'Guardian Volley' },
+  holy_stealth:      { offense: 'Veil and Vow',      support: 'Quiet Mercy'     },
+  arcane_ranged:     { offense: 'Hex Arrow',         support: 'Spellscreen'     },
+  arcane_stealth:    { offense: 'Veiled Curse',      support: 'Hexed Shadow'    },
+  ranged_stealth:    { offense: 'Silent Volley',     support: 'Ghost Shot'      },
+};
+function _pairUltName(a, b, mode) {
+  const sa = (CHARS[a] && CHARS[a].school) || 'physical';
+  const sb = (CHARS[b] && CHARS[b].school) || 'physical';
+  const entry = _PAIR_ULT_NAMES[[sa, sb].sort().join('_')];
+  return (entry && entry[mode]) || (mode === 'support' ? 'Aegis' : 'Onslaught');
+}
+
 // L3 ultimate archetype effect.  'onslaught' fires BOTH heroes' school
-// signatures at resonant power (a glass-cannon burst); 'aegis' is a
-// protective payoff — heal, armour, full cleanse, and a control stagger
-// — the 'we survive together' fantasy that fits a roguelite about bonds.
+// signatures at resonant power then ERUPTS every primer on the board (the
+// full prime→detonate payoff); 'aegis' is the protective lean — heal,
+// armour, cleanse, control stagger — AND a SMITE that cashes banked vuln, so
+// even the survival ultimate pays off the loop the team has been building.
 function _runUltimateArchetype(s, a, b, key) {
   const aSchool = (CHARS[a] && CHARS[a].school) || 'physical';
   const bSchool = (CHARS[b] && CHARS[b].school) || 'physical';
@@ -14724,6 +14840,8 @@ function _runUltimateArchetype(s, a, b, key) {
       c.bleed = 0; c.dulled = 0; c.vuln = Math.max(0, (c.vuln || 0) - 2);
     });
     partyArmor(s, 6);
+    // Judgment as the shields lock — erupt every exposed foe.
+    detonateEnemyPrimers(s, ['vuln']);
     const front = enemyBySlot(s, 'front') || aliveEnemies(s)[0];
     if (front && !front.dead) {
       front.staggered = true; front.staggerTurnsLeft = 2;
@@ -14731,24 +14849,27 @@ function _runUltimateArchetype(s, a, b, key) {
     }
     return;
   }
-  // onslaught — both school primaries at full power.
+  // onslaught — both school primaries at full power, then the whole board's
+  // primers erupt at once as the capstone.
   const aSig = SCHOOL_SIGNATURE[aSchool];
   const bSig = SCHOOL_SIGNATURE[bSchool];
   if (aSig && typeof aSig.primary === 'function') aSig.primary(s, a, 3);
   if (bSig && typeof bSig.primary === 'function') bSig.primary(s, b, 3);
+  detonateEnemyPrimers(s);
 }
 
 // Description for an L3 ultimate archetype.
 function _ultimateDesc(a, b, key) {
   if (key === 'aegis') {
-    return 'Party heal 8, +6 armor, cleanse ALL debuffs, STAGGER front.';
+    return 'Party heal 8, +6 armor, cleanse ALL debuffs, DETONATE all VULN, STAGGER front.';
   }
   const aSchool = (CHARS[a] && CHARS[a].school) || 'physical';
   const bSchool = (CHARS[b] && CHARS[b].school) || 'physical';
   const aDesc = (SCHOOL_SIGNATURE[aSchool] && SCHOOL_SIGNATURE[aSchool].desc(3)) || '';
   const bDesc = (SCHOOL_SIGNATURE[bSchool] && SCHOOL_SIGNATURE[bSchool].desc(3)) || '';
-  if (aSchool === bSchool) return `Both unleash at full power. ${aDesc}`;
-  return `Both unleash at full power. ${aDesc} ${bDesc}`;
+  const tail = '  Then DETONATE every primer on the board.';
+  if (aSchool === bSchool) return `Both unleash at full power. ${aDesc}${tail}`;
+  return `Both unleash at full power. ${aDesc} ${bDesc}${tail}`;
 }
 
 // Build the two mirror-split Resonance variants for a pair when their
@@ -15046,8 +15167,8 @@ function _buildTrioResonanceVariants(s, heroes, level) {
     });
   });
   const archetypes = [
-    { key: 'onslaught', name: 'Onslaught', desc: _trioUltimateDesc('onslaught') },
-    { key: 'aegis',     name: 'Aegis',     desc: _trioUltimateDesc('aegis') },
+    { key: 'onslaught', name: 'Convergence', desc: _trioUltimateDesc('onslaught') },
+    { key: 'aegis',     name: 'Bastion',     desc: _trioUltimateDesc('aegis') },
   ];
   for (const arch of archetypes) {
     if (options.length >= 2) break;
@@ -15108,6 +15229,7 @@ function _runTrioArchetype(s, ids, key) {
       c.bleed = 0; c.dulled = 0; c.vuln = Math.max(0, (c.vuln || 0) - 2);
     });
     partyArmor(s, 6);
+    detonateEnemyPrimers(s, ['vuln']);
     const front = enemyBySlot(s, 'front') || aliveEnemies(s)[0];
     if (front && !front.dead) { front.staggered = true; front.staggerTurnsLeft = 2; spawnPopupId(front.id, 'STAGGERED', 'stagger', 'enemy'); }
     const fallen = Object.values(s.party.chars).find(c => c && c.downed);
@@ -15127,11 +15249,13 @@ function _runTrioArchetype(s, ids, key) {
     finally { s.currentActorId = null; s.currentTechElement = null; }
   }
   aliveEnemies(s).forEach(e => { if (e.dead || e === front) return; applyDmgToEnemy(s, e, 8); if (!e.dead) e.vuln = (e.vuln || 0) + 2; });
+  // The three converge — erupt every primer on the board as the capstone.
+  detonateEnemyPrimers(s);
 }
 
 function _trioUltimateDesc(key) {
-  if (key === 'aegis') return 'Party heal 10, +6 armor, cleanse all; STAGGER front; revive one fallen at 30% HP.';
-  return 'Front 16 + STAGGER; all others 8 + 2 VULN — the three break the line together.';
+  if (key === 'aegis') return 'Party heal 10, +6 armor, cleanse all, DETONATE all VULN; STAGGER front; revive one fallen at 30% HP.';
+  return 'Front 16 + STAGGER; all others 8 + 2 VULN; DETONATE every primer — the three break the line together.';
 }
 
 // Queue a Resonance unlock choice for this pair when their bond crosses
