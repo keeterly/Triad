@@ -9621,6 +9621,157 @@ const COMBOS = {
     ],
   },
 
+  // ---- Bespoke conversions (second-wave cast into signature pairings) ----
+  // Cassia + Vasha · "Oath and Aegis" (physical + holy).
+  cv_oathaegis: {
+    id: 'cv_oathaegis', name: 'Oath and Aegis', tier: 'duo', sigTier: true,
+    desc: 'Cassia shatters front 15 (RUPTURE on impact); Vasha’s judgment DETONATES all VULN, heals party 8 + cleanse + 4 armor.',
+    requires: [ { heroId: 'cassia', kind: 'sig' }, { heroId: 'vasha', kind: 'sig' } ],
+    fn: (s) => {
+      const front = enemyBySlot(s, 'front') || aliveEnemies(s)[0];
+      if (front && !front.dead) {
+        s.currentActorId = 'cassia'; s.currentTechElement = 'physical';
+        try { applyDmgToEnemy(s, front, 15); } finally { s.currentActorId = null; s.currentTechElement = null; }
+      }
+      detonateEnemyPrimers(s, ['vuln']);
+      aliveParty(s).forEach(c => {
+        const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 8);
+        if (c.hp > b) spawnPopupId(c.id, `+${c.hp - b}`, 'heal', 'party');
+        c.bleed = 0; c.dulled = 0;
+      });
+      partyArmor(s, 4);
+    },
+    cinematic: [
+      { kind: 'stage',    school: 'holy',                            ms: 220 },
+      { kind: 'hero-big', heroes: ['cassia','vasha'], pose: 'guard', ms: 420 },
+      { kind: 'banner',   text: 'OATH AND AEGIS', size: 'md', subtitle: 'the shield and the word', ms: 380 },
+      { kind: 'punch',                                               ms: 380 },
+      { kind: 'resolve' },
+      { kind: 'enemy-flash', targets: 'front', kind2: 'hit',         ms: 200 },
+    ],
+  },
+  // Mira + Veyr · "Twin Shadows" (stealth + stealth).
+  mv_twinshadows: {
+    id: 'mv_twinshadows', name: 'Twin Shadows', tier: 'duo', sigTier: true,
+    desc: 'Two blades open every wound — DETONATE all bleed, then mark the two lowest foes (8 + 3 bleed each, stealth).',
+    requires: [ { heroId: 'mira', kind: 'sig' }, { heroId: 'veyr', kind: 'sig' } ],
+    fn: (s) => {
+      detonateEnemyPrimers(s, ['bleed']);
+      const alive = aliveEnemies(s).slice().sort((a, b) => a.hp - b.hp);
+      ['mira', 'veyr'].forEach((hid, i) => {
+        const t = alive[i];
+        if (t && !t.dead) {
+          s.currentActorId = hid; s.currentTechElement = 'stealth';
+          try { applyDmgToEnemy(s, t, 8); } finally { s.currentActorId = null; s.currentTechElement = null; }
+          if (!t.dead) t.bleed = (t.bleed || 0) + 3;
+        }
+      });
+    },
+    cinematic: [
+      { kind: 'stage',    school: 'stealth',                         ms: 240 },
+      { kind: 'hero-big', heroes: ['mira','veyr'], pose: 'cross',   ms: 420 },
+      { kind: 'banner',   text: 'TWIN SHADOWS', size: 'md', subtitle: 'two cuts · one dark', ms: 380 },
+      { kind: 'punch',                                               ms: 360 },
+      { kind: 'resolve' },
+      { kind: 'burst',    at: 'enemy-all', school: 'stealth', count: 12, ms: 240 },
+    ],
+  },
+  // Branwen + Joran · "Arrowstorm" (ranged + ranged).
+  bj_arrowstorm: {
+    id: 'bj_arrowstorm', name: 'Arrowstorm', tier: 'duo', sigTier: true,
+    desc: 'Both archers rake ALL foes for 6 TWICE (ranged) — PUNCTURE every VULN as the arrows land; +1 bleed each.',
+    requires: [ { heroId: 'branwen', kind: 'sig' }, { heroId: 'joran', kind: 'sig' } ],
+    fn: (s) => {
+      ['branwen', 'joran'].forEach(hid => {
+        s.currentActorId = hid; s.currentTechElement = 'ranged';
+        try { aliveEnemies(s).forEach(e => { if (e.dead) return; applyDmgToEnemy(s, e, 6); if (!e.dead) e.bleed = Math.max(e.bleed, 1); }); }
+        finally { s.currentActorId = null; s.currentTechElement = null; }
+      });
+    },
+    cinematic: [
+      { kind: 'stage',    school: 'ranged',                          ms: 220 },
+      { kind: 'hero-big', heroes: ['branwen','joran'], pose: 'rise', ms: 420 },
+      { kind: 'banner',   text: 'ARROWSTORM', size: 'md', subtitle: 'darken the sky', ms: 380 },
+      { kind: 'punch',                                               ms: 360 },
+      { kind: 'resolve' },
+      { kind: 'enemy-flash', targets: 'all', kind2: 'hit',           ms: 200 },
+    ],
+  },
+  // Ash + Nira · "Doomtide" (arcane + arcane).
+  an_doomtide: {
+    id: 'an_doomtide', name: 'Doomtide', tier: 'duo', sigTier: true,
+    desc: 'A rising tide of hex — ALL foes take 7 arcane (ignore armor) + 3 VULN, then DISCHARGE detonates every VULN across the board.',
+    requires: [ { heroId: 'ash', kind: 'sig' }, { heroId: 'nira', kind: 'sig' } ],
+    fn: (s) => {
+      const wasIgnore = s.ignoreArmor; s.ignoreArmor = true;
+      s.currentActorId = 'ash'; s.currentTechElement = 'arcane';
+      try { aliveEnemies(s).forEach(e => { if (e.dead) return; applyDmgToEnemy(s, e, 7); if (!e.dead) e.vuln = (e.vuln || 0) + 3; }); }
+      finally { s.currentActorId = null; s.currentTechElement = null; s.ignoreArmor = wasIgnore; }
+      detonateEnemyPrimers(s, ['vuln']);
+    },
+    cinematic: [
+      { kind: 'stage',    school: 'arcane',                          ms: 260 },
+      { kind: 'hero-big', heroes: ['ash','nira'], pose: 'whisper',  ms: 460 },
+      { kind: 'banner',   text: 'DOOMTIDE', size: 'md', subtitle: 'the hex that rises', ms: 380 },
+      { kind: 'punch',                                               ms: 380 },
+      { kind: 'resolve' },
+      { kind: 'burst',    at: 'enemy-all', school: 'arcane', count: 14, ms: 260 },
+      { kind: 'shake',    intensity: 2 },
+    ],
+  },
+  // Garron + Korin · "Breakwall" (physical + physical, two front bruisers).
+  gk_breakwall: {
+    id: 'gk_breakwall', name: 'Breakwall', tier: 'duo', sigTier: true,
+    desc: 'Two walls become a hammer — front takes 18 (RUPTURE/SUNDER) + STAGGER, DETONATE all bleed + dulled; party +4 armor.',
+    requires: [ { heroId: 'garron', kind: 'sig' }, { heroId: 'korin', kind: 'sig' } ],
+    fn: (s) => {
+      const front = enemyBySlot(s, 'front') || aliveEnemies(s)[0];
+      if (front && !front.dead) {
+        s.currentActorId = 'korin'; s.currentTechElement = 'physical';
+        try { applyDmgToEnemy(s, front, 18); } finally { s.currentActorId = null; s.currentTechElement = null; }
+        if (!front.dead) { front.staggered = true; front.staggerTurnsLeft = 2; spawnPopupId(front.id, 'STAGGERED', 'stagger', 'enemy'); }
+      }
+      detonateEnemyPrimers(s, ['bleed', 'dulled']);
+      partyArmor(s, 4);
+    },
+    cinematic: [
+      { kind: 'stage',    school: 'physical',                        ms: 220 },
+      { kind: 'hero-big', heroes: ['garron','korin'], pose: 'guard', ms: 420 },
+      { kind: 'banner',   text: 'BREAKWALL', size: 'md', subtitle: 'the wall that walks', ms: 380 },
+      { kind: 'punch',                                               ms: 420 },
+      { kind: 'resolve' },
+      { kind: 'shake',    intensity: 3 },
+      { kind: 'enemy-flash', targets: 'front', kind2: 'hit',         ms: 200 },
+    ],
+  },
+  // Hask + Kai · "Spellfury" (arcane + physical).
+  hk_spellfury: {
+    id: 'hk_spellfury', name: 'Spellfury', tier: 'duo', sigTier: true,
+    desc: 'Steel through sorcery — Hask burns ALL for 6 arcane (ignore armor) + 2 VULN, Kai caves the front for 14, then DETONATE every primer on the board.',
+    requires: [ { heroId: 'hask', kind: 'sig' }, { heroId: 'kai', kind: 'sig' } ],
+    fn: (s) => {
+      const wasIgnore = s.ignoreArmor; s.ignoreArmor = true;
+      s.currentActorId = 'hask'; s.currentTechElement = 'arcane';
+      try { aliveEnemies(s).forEach(e => { if (e.dead) return; applyDmgToEnemy(s, e, 6); if (!e.dead) e.vuln = (e.vuln || 0) + 2; }); }
+      finally { s.currentActorId = null; s.currentTechElement = null; s.ignoreArmor = wasIgnore; }
+      const front = enemyBySlot(s, 'front') || aliveEnemies(s)[0];
+      if (front && !front.dead) {
+        s.currentActorId = 'kai'; s.currentTechElement = 'physical';
+        try { applyDmgToEnemy(s, front, 14); } finally { s.currentActorId = null; s.currentTechElement = null; }
+      }
+      detonateEnemyPrimers(s);
+    },
+    cinematic: [
+      { kind: 'stage',    school: 'arcane',                          ms: 240 },
+      { kind: 'hero-big', heroes: ['hask','kai'], pose: 'rise',     ms: 420 },
+      { kind: 'banner',   text: 'SPELLFURY', size: 'md', subtitle: 'steel through sorcery', ms: 380 },
+      { kind: 'punch',                                               ms: 400 },
+      { kind: 'resolve' },
+      { kind: 'shake',    intensity: 3 },
+      { kind: 'enemy-flash', targets: 'all', kind2: 'hit',           ms: 200 },
+    ],
+  },
+
   // ---- Triple coverage-fill ----
   wall_of_walls: {
     id: 'wall_of_walls', name: 'Wall of Walls', tier: 'triple',
