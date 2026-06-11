@@ -12283,8 +12283,20 @@ function previewMultiHit(s, e, baseAmt, actorId, hits, techElement) {
 // normal play (2-4 stacks) is unaffected and only heavy investment hits the
 // ceiling (Rupture ≤15, others ≤10).
 const REACTION_STACK_CAP = 5;
+// A detonation fired inside a Resonance combo erupts for this multiple of the
+// base burst — the payoff that makes "bank primers, then unleash a Resonance"
+// the run-defining play.  Tuned alongside the tier-4 cinematic so the hit
+// looks AND hits like the showpiece it is.
+const RESONANCE_DETONATE_MULT = 2;
 function resolveReaction(s, e, element) {
   if (!e || e.dead || !element) return null;
+  // Resonance payoff — a primer detonated INSIDE a Resonance combo erupts for
+  // DOUBLE the burst.  This is the heart of the prime→detonate loop now: bank
+  // primers across the board with setup turns, then unleash a Resonance to
+  // cash them all at once for a run-defining hit.  A plain attack still
+  // detonates for the base burst, so the loop works at every level — the
+  // Resonance is just the showpiece finisher that makes the payoff land.
+  const rMult = s._currentIsResonance ? RESONANCE_DETONATE_MULT : 1;
   // ---- Bleed primers (martial / precise elements detonate the wound) ----
   if (e.bleed > 0) {
     // RUPTURE — Physical.  The blade tears the wound wide: consume ALL bleed
@@ -12292,7 +12304,7 @@ function resolveReaction(s, e, element) {
     if (element === 'physical') {
       const stacks = Math.min(e.bleed, REACTION_STACK_CAP);
       e.bleed = 0;
-      return { name: 'RUPTURE!', bonus: stacks * 3 };
+      return { name: 'RUPTURE!', bonus: stacks * 3 * rMult };
     }
     // HEMORRHAGE — Stealth.  The assassin reopens the wound: consume the
     // bleed for a burst (2 per stack) but leave a fresh bleed 1 behind — a
@@ -12300,7 +12312,7 @@ function resolveReaction(s, e, element) {
     if (element === 'stealth') {
       const stacks = Math.min(e.bleed, REACTION_STACK_CAP);
       e.bleed = 1;
-      return { name: 'HEMORRHAGE!', bonus: stacks * 2 };
+      return { name: 'HEMORRHAGE!', bonus: stacks * 2 * rMult };
     }
   }
   // ---- Vuln primers (piercing / arcane / radiant elements detonate it) ----
@@ -12310,7 +12322,7 @@ function resolveReaction(s, e, element) {
     if (element === 'ranged') {
       const stacks = Math.min(e.vuln, REACTION_STACK_CAP);
       e.vuln = 0;
-      return { name: 'PUNCTURE!', bonus: stacks * 2 };
+      return { name: 'PUNCTURE!', bonus: stacks * 2 * rMult };
     }
     // DISCHARGE — Arcane.  The mage detonates the opening and it chains: burst
     // (2 per stack), then spread vuln 1 to every OTHER living enemy — one
@@ -12324,15 +12336,15 @@ function resolveReaction(s, e, element) {
         o.vuln = (o.vuln || 0) + 1;
         spawnPopupId(o.id, 'VULN', 'stagger', 'enemy');
       });
-      return { name: 'DISCHARGE!', bonus: stacks * 2 };
+      return { name: 'DISCHARGE!', bonus: stacks * 2 * rMult };
     }
     // SMITE — Holy.  Judgment through the broken guard: burst (2 per stack)
     // AND mend the party 2 — the only reaction that heals.
     if (element === 'holy') {
       const stacks = Math.min(e.vuln, REACTION_STACK_CAP);
       e.vuln = 0;
-      partyHeal(s, 2);
-      return { name: 'SMITE!', bonus: stacks * 2 };
+      partyHeal(s, s._currentIsResonance ? 4 : 2);
+      return { name: 'SMITE!', bonus: stacks * 2 * rMult };
     }
   }
   // ---- Dulled primer (martial elements crush the numbed guard) ----
@@ -12346,7 +12358,7 @@ function resolveReaction(s, e, element) {
     e.dulled = 0;
     e.vuln = (e.vuln || 0) + 1;
     spawnPopupId(e.id, 'VULN', 'stagger', 'enemy');
-    return { name: 'SUNDER!', bonus: stacks * 2 };
+    return { name: 'SUNDER!', bonus: stacks * 2 * rMult };
   }
   return null;
 }
@@ -13810,23 +13822,27 @@ const SCHOOL_PAIR_TEMPLATES = (() => {
   // if anything detonated.
   const detonateBoard = (s, types) => {
     const want = (k) => !types || types.includes(k);
+    // Board-wide detonation is a Resonance capstone, so it erupts at the same
+    // doubled Resonance payoff as a single-target Resonance detonation.
+    const m = RESONANCE_DETONATE_MULT;
     let any = false;
     aliveEnemies(s).forEach(e => {
       if (e.dead) return;
       let burst = 0;
-      if (want('bleed')  && e.bleed  > 0) { burst += Math.min(e.bleed,  REACTION_STACK_CAP) * 3; e.bleed  = 0; }
-      if (want('vuln')   && e.vuln   > 0) { burst += Math.min(e.vuln,   REACTION_STACK_CAP) * 2; e.vuln   = 0; }
-      if (want('dulled') && e.dulled > 0) { burst += Math.min(e.dulled, REACTION_STACK_CAP) * 2; e.dulled = 0; }
+      if (want('bleed')  && e.bleed  > 0) { burst += Math.min(e.bleed,  REACTION_STACK_CAP) * 3 * m; e.bleed  = 0; }
+      if (want('vuln')   && e.vuln   > 0) { burst += Math.min(e.vuln,   REACTION_STACK_CAP) * 2 * m; e.vuln   = 0; }
+      if (want('dulled') && e.dulled > 0) { burst += Math.min(e.dulled, REACTION_STACK_CAP) * 2 * m; e.dulled = 0; }
       if (burst > 0) {
         any = true;
         e.hp = Math.max(0, e.hp - burst);
         spawnPopupId(e.id, 'DETONATE', 'crit', 'enemy');
-        spawnPopupId(e.id, `-${burst}`, 'crit', 'enemy');
+        spawnPopupId(e.id, `-${burst}`, 'crit' + (burst >= 14 ? ' huge' : burst >= 8 ? ' big' : ''), 'enemy');
         flashCardId(e.id, 'hit', 'enemy');
+        critFlash(e.id, 'enemy');
         if (e.hp === 0) killEnemy(s, e);
       }
     });
-    if (any) playStaggerHit();
+    if (any) { playStaggerHit(); cinematicImpact(4, 'enemy'); hitPause(520); }
     return any;
   };
   const T = {
@@ -18821,10 +18837,10 @@ function formatDesc(text) {
 const STATUS_TOOLTIPS = {
   armor:    { name: 'Armor',       text: 'Absorbs incoming damage 1:1 before HP. Wears off as it absorbs. Does not regenerate.' },
   weak:     { name: 'Weakness — Primer', text: 'A primer baked into this enemy. The glyph shows the element it is weak to; a "?" means undiscovered — hit it with different elements (or use a scout) to reveal it. DETONATE by attacking with that element for bonus damage; detonate again to STAGGER, and the next hit after lands ×2.' },
-  bleed:    { name: 'Bleed — Primer', text: 'Takes 2 damage at the start of each turn (+1 with Bloodborne / Bone Tide). Decays by 1 per turn, but a freshly applied stack holds one turn first — so it never vanishes before you get a chance to detonate it. Stacks up to 3 (more stacks = more particles). Ignores armor. DETONATE — a Physical hit RUPTURES it (consume bleed for a big burst); a Stealth hit causes HEMORRHAGE (burst, but reopens bleed 1 to keep the wound alive).' },
+  bleed:    { name: 'Bleed — Primer', text: 'Takes 2 damage at the start of each turn (+1 with Bloodborne / Bone Tide). Decays by 1 per turn, but a freshly applied stack holds one turn first — so it never vanishes before you get a chance to detonate it. Stacks up to 3 (more stacks = more particles). Ignores armor. DETONATE — a Physical hit RUPTURES it (consume bleed for a big burst); a Stealth hit causes HEMORRHAGE (burst, but reopens bleed 1 to keep the wound alive). Detonating with a RESONANCE doubles the burst — bank primers, then unleash a combo for the payoff.' },
   taunt:    { name: 'Taunt',       text: 'Enemy single-target attacks redirect to this hero. Clears at the start of the next turn.' },
   dulled:   { name: 'Dulled — Primer', text: 'Outgoing attacks deal -2 damage. Consumes 1 stack per attack. DETONATE — a Physical or Stealth hit SUNDERS it (consume all dulled for a burst and leave it Vulnerable 1).' },
-  vuln:     { name: 'Vulnerable — Primer', text: 'Incoming hits deal +2 damage per stack (+2 more with Ember of Wrath). One stack is consumed per hit (unless Brand of Doom). Stacks up to 3 (more stacks = more particles). DETONATE — a Ranged hit PUNCTURES it, an Arcane hit DISCHARGES it (burst + spreads vuln to other enemies), a Holy hit SMITES it (burst + heals the party). All consume the vuln.' },
+  vuln:     { name: 'Vulnerable — Primer', text: 'Incoming hits deal +2 damage per stack (+2 more with Ember of Wrath). One stack is consumed per hit (unless Brand of Doom). Stacks up to 3 (more stacks = more particles). DETONATE — a Ranged hit PUNCTURES it, an Arcane hit DISCHARGES it (burst + spreads vuln to other enemies), a Holy hit SMITES it (burst + heals the party). All consume the vuln. Detonating with a RESONANCE doubles the burst — bank primers, then unleash a combo for the payoff.' },
   retal:    { name: 'Retaliate',   text: 'When hit, counter-attacks the front-most enemy for this value (+2 with Vow of Vigil). Clears at the start of the next turn.' },
   pending:  { name: 'Pending',     text: 'A one-shot bonus from a synergy. Consumed by the next matching action.' },
   guard:    { name: 'Guard',         text: 'Each stack fully negates the next incoming hit — no HP loss, no armor loss. Cleared at the start of the next player turn.' },
