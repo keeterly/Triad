@@ -12277,6 +12277,12 @@ function previewMultiHit(s, e, baseAmt, actorId, hits, techElement) {
 // { name, bonus } when a reaction fires (side effects already applied), else
 // null.  Deliberately structured so the weakness/stagger layer can later fold
 // into this same "interaction" model.
+// Reaction bursts scale per stack but cap the COUNTED stacks so a degenerate
+// pile (e.g. Nira stacking bleed to 8) can't produce an absurd flat burst.
+// The status is still fully consumed — the cap only limits the damage math, so
+// normal play (2-4 stacks) is unaffected and only heavy investment hits the
+// ceiling (Rupture ≤15, others ≤10).
+const REACTION_STACK_CAP = 5;
 function resolveReaction(s, e, element) {
   if (!e || e.dead || !element) return null;
   // ---- Bleed primers (martial / precise elements detonate the wound) ----
@@ -12284,7 +12290,7 @@ function resolveReaction(s, e, element) {
     // RUPTURE — Physical.  The blade tears the wound wide: consume ALL bleed
     // for a big single-target burst (3 per stack).
     if (element === 'physical') {
-      const stacks = e.bleed;
+      const stacks = Math.min(e.bleed, REACTION_STACK_CAP);
       e.bleed = 0;
       return { name: 'RUPTURE!', bonus: stacks * 3 };
     }
@@ -12292,7 +12298,7 @@ function resolveReaction(s, e, element) {
     // bleed for a burst (2 per stack) but leave a fresh bleed 1 behind — a
     // sustained detonation that keeps a primer alive for the next hit.
     if (element === 'stealth') {
-      const stacks = e.bleed;
+      const stacks = Math.min(e.bleed, REACTION_STACK_CAP);
       e.bleed = 1;
       return { name: 'HEMORRHAGE!', bonus: stacks * 2 };
     }
@@ -12302,7 +12308,7 @@ function resolveReaction(s, e, element) {
     // PUNCTURE — Ranged.  A precise shot into the exposed gap: consume ALL
     // vuln for a burst (2 per stack).
     if (element === 'ranged') {
-      const stacks = e.vuln;
+      const stacks = Math.min(e.vuln, REACTION_STACK_CAP);
       e.vuln = 0;
       return { name: 'PUNCTURE!', bonus: stacks * 2 };
     }
@@ -12310,7 +12316,7 @@ function resolveReaction(s, e, element) {
     // (2 per stack), then spread vuln 1 to every OTHER living enemy — one
     // exposed target primes the whole board.
     if (element === 'arcane') {
-      const stacks = e.vuln;
+      const stacks = Math.min(e.vuln, REACTION_STACK_CAP);
       e.vuln = 0;
       aliveEnemies(s).forEach(o => {
         if (o === e || o.dead) return;
@@ -12322,7 +12328,7 @@ function resolveReaction(s, e, element) {
     // SMITE — Holy.  Judgment through the broken guard: burst (2 per stack)
     // AND mend the party 2 — the only reaction that heals.
     if (element === 'holy') {
-      const stacks = e.vuln;
+      const stacks = Math.min(e.vuln, REACTION_STACK_CAP);
       e.vuln = 0;
       partyHeal(s, 2);
       return { name: 'SMITE!', bonus: stacks * 2 };
@@ -12335,7 +12341,7 @@ function resolveReaction(s, e, element) {
   // reactions (Puncture / Overload / Smite).  Turns dulled — previously a
   // purely defensive debuff on enemies — into an offensive setup.
   if (e.dulled > 0 && (element === 'physical' || element === 'stealth')) {
-    const stacks = e.dulled;
+    const stacks = Math.min(e.dulled, REACTION_STACK_CAP);
     e.dulled = 0;
     e.vuln = (e.vuln || 0) + 1;
     spawnPopupId(e.id, 'VULN', 'stagger', 'enemy');
@@ -18575,11 +18581,35 @@ function renderStatuses(ent, sForAuras) {
   // tooltip names exactly which element triggers what, tailored to the
   // primers actually present.
   if (!sForAuras) {
-    const hints = [];
-    if (ent.bleed > 0)  hints.push('Bleed → Physical RUPTURE / Stealth HEMORRHAGE');
-    if (ent.vuln > 0)   hints.push('Vuln → Ranged PUNCTURE / Arcane OVERLOAD / Holy SMITE');
-    if (ent.dulled > 0) hints.push('Dulled → Physical / Stealth SUNDER');
-    if (hints.length) push(5, 'primed', '⚡', null, 'Primed for a Reaction — ' + hints.join('   ·   '));
+    // Party-aware: only surface detonations the LIVING party can actually
+    // pull off, and name just the elements you have — so the cue marks a real
+    // opening, not a hypothetical one.  Reads the global party state.
+    const schools = new Set();
+    const chars = (state && state.party && state.party.chars) || {};
+    Object.values(chars).forEach(c => {
+      if (c && !c.downed && CHARS[c.id]) schools.add(CHARS[c.id].school);
+    });
+    const parts = [];
+    if (ent.bleed > 0) {
+      const d = [];
+      if (schools.has('physical')) d.push('Physical RUPTURE');
+      if (schools.has('stealth'))  d.push('Stealth HEMORRHAGE');
+      if (d.length) parts.push('Bleed → ' + d.join(' / '));
+    }
+    if (ent.vuln > 0) {
+      const d = [];
+      if (schools.has('ranged')) d.push('Ranged PUNCTURE');
+      if (schools.has('arcane')) d.push('Arcane OVERLOAD');
+      if (schools.has('holy'))   d.push('Holy SMITE');
+      if (d.length) parts.push('Vuln → ' + d.join(' / '));
+    }
+    if (ent.dulled > 0) {
+      const d = [];
+      if (schools.has('physical')) d.push('Physical');
+      if (schools.has('stealth'))  d.push('Stealth');
+      if (d.length) parts.push('Dulled → ' + d.join(' / ') + ' SUNDER');
+    }
+    if (parts.length) push(5, 'primed', '⚡', null, 'Primed for a Reaction — ' + parts.join('   ·   '));
   }
   // Sort by priority and cap to the visible budget.  Anything past the cap
   // rolls into a single overflow chip whose tooltip lists every collapsed
