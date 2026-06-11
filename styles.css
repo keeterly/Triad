@@ -1351,25 +1351,81 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
 }
 #enemy-half .figure-portrait svg { animation-name: idle-breathe-mirror; transform: scaleX(-1); }
 
-/* ===== FULL-BODY STATUS OVERLAY =====
-   The dominant persistent ailment tints the whole figure with a coloured
-   aura that hugs the body silhouette (the SVG is alpha-masked, so a
-   drop-shadow follows its shape).  Reads from across the board, Persona/FF
-   style.  Driven by --aura (rgb triplet) + --aura-sat set per ailment, so a
-   single pulse keyframe covers all of them.  Composed WITH idle-breathe so
-   the figure keeps breathing while it's afflicted. */
-.figure.body-status-bleed  { --aura: 214,56,56;   --aura-sat: 1.32; }
-.figure.body-status-vuln   { --aura: 255,98,150;  --aura-sat: 1.22; }
-.figure.body-status-dulled { --aura: 150,160,182; --aura-sat: 0.5;  }
-.figure.has-body-status .figure-portrait svg {
-  animation: idle-breathe 5.4s ease-in-out infinite, body-status-pulse 1.7s ease-in-out infinite;
+/* ===== EMITTED-PARTICLE STATUS OVERLAY =====
+   The dominant persistent ailment emits a small field of animated particles
+   off the body, so the condition reads from across the board without
+   parsing the chip glyphs.  Each ailment has its own motion + colour so
+   they're instantly distinguishable:
+     bleed  — red droplets dripping DOWN off the silhouette
+     vuln   — hot-pink fracture shards flaking UP/outward
+     dulled — grey ash sifting slowly down (+ the body drains to grey, since
+              ash alone wouldn't read on a full-colour figure)
+   Particles live in a non-interactive overlay inside .figure-portrait; the
+   figure itself keeps its idle-breathe untouched. */
+.body-particles {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  overflow: visible;
+  z-index: 3;
 }
-#enemy-half .figure.has-body-status .figure-portrait svg {
-  animation: idle-breathe-mirror 5.4s ease-in-out infinite, body-status-pulse 1.7s ease-in-out infinite;
+.body-particles i {
+  position: absolute;
+  bottom: 44%;
+  width: 5px; height: 5px;
+  opacity: 0;
+  will-change: transform, opacity;
 }
-@keyframes body-status-pulse {
-  0%, 100% { filter: drop-shadow(0 0 4px  rgba(var(--aura), 0.45)) saturate(var(--aura-sat)); }
-  50%      { filter: drop-shadow(0 0 16px rgba(var(--aura), 0.92)) saturate(var(--aura-sat)) brightness(1.04); }
+/* horizontal spread + staggered timing so emission feels continuous and
+   organic rather than a synchronised pulse */
+.body-particles i:nth-child(1) { left: 30%; animation-delay: 0s;    }
+.body-particles i:nth-child(2) { left: 43%; animation-delay: .45s;  }
+.body-particles i:nth-child(3) { left: 53%; animation-delay: 1.1s;  }
+.body-particles i:nth-child(4) { left: 63%; animation-delay: .8s;   }
+.body-particles i:nth-child(5) { left: 47%; animation-delay: 1.55s; }
+.body-particles i:nth-child(6) { left: 37%; animation-delay: 2.0s;  }
+
+/* bleed — teardrops fall and fade */
+.bp-bleed i {
+  width: 5px; height: 7px;
+  border-radius: 50% 50% 50% 50% / 38% 38% 62% 62%;
+  background: radial-gradient(circle at 42% 30%, #ff7a7a, #c81e1e 72%);
+  box-shadow: 0 0 3px rgba(214,40,40,.55);
+  animation: bp-fall 2.4s linear infinite;
+}
+@keyframes bp-fall {
+  0%   { transform: translateY(-4px) scale(.85); opacity: 0; }
+  16%  { opacity: 1; }
+  82%  { opacity: .9; }
+  100% { transform: translateY(48px) scale(1); opacity: 0; }
+}
+
+/* vuln — angular shards pop up/outward and spin off */
+.bp-vuln i {
+  bottom: 47%;
+  width: 5px; height: 5px;
+  border-radius: 1px;
+  background: linear-gradient(135deg, #ff9cc2, #ff2f76);
+  box-shadow: 0 0 4px rgba(255,90,150,.6);
+  animation: bp-shard 2.1s ease-out infinite;
+}
+@keyframes bp-shard {
+  0%   { transform: translateY(0) scale(.4) rotate(0deg);    opacity: 0; }
+  22%  { opacity: 1; }
+  100% { transform: translateY(-34px) scale(1) rotate(155deg); opacity: 0; }
+}
+
+/* dulled — fine grey ash sinks slowly; body itself drains to grey */
+.bp-dulled i {
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #c4ccd8, #6c7686 72%);
+  filter: blur(.3px);
+  animation: bp-fall 3.8s ease-in infinite;
+}
+.figure.body-status-dulled .figure-portrait svg { filter: saturate(.55) brightness(.93); }
+
+@media (prefers-reduced-motion: reduce) {
+  .body-particles i { animation-duration: 0s; opacity: 0; }
 }
 /* soft ground shadow ellipse under each figure */
 .figure-shadow {

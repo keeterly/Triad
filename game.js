@@ -18364,6 +18364,11 @@ function makeEnemyCard(e, slot) {
     : e.dulled > 0 ? 'dulled'
     : null;
   if (bodyStatus) fig.classList.add('has-body-status', `body-status-${bodyStatus}`);
+  // Particle emitter overlay for the dominant ailment (CSS drives the
+  // motion/colour off the bp-* class); empty string when unafflicted.
+  const bodyFx = bodyStatus
+    ? `<div class="body-particles bp-${bodyStatus}"><i></i><i></i><i></i><i></i><i></i><i></i></div>`
+    : '';
   if (e._charging) {
     fig.classList.add('e-charging');
     fig.dataset.releaseIn = e._charging.releaseIn;
@@ -18472,6 +18477,7 @@ function makeEnemyCard(e, slot) {
   fig.innerHTML = `
     <div class="figure-portrait">
       ${_portraitFor(e.heroId || e.id)}
+      ${bodyFx}
       <div class="figure-statuses">${renderStatuses(e)}</div>
       <div class="figure-hp">
         <div class="hp-fill ${hpPct < 35 ? 'low' : ''}" style="width:${hpPct}%"></div>
