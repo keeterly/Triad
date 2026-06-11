@@ -16046,6 +16046,19 @@ body.on-title #hud { display: none !important; }
   opacity: 0.85;
 }
 
+/* Build number — fixed in the title-screen corner for at-a-glance deploy
+   verification. */
+.ts-build {
+  position: absolute;
+  right: 12px; bottom: 10px;
+  z-index: 5;
+  font: 700 10px/1 ui-monospace, monospace;
+  letter-spacing: 0.18em;
+  color: #7fd0ff;
+  opacity: 0.55;
+  pointer-events: none;
+}
+
 /* Hero — silhouette standing in the abyss.  The SVG portrait scales
    to the available middle row, anchored to the bottom so the feet
    meet the floor-glow. */
