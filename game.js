@@ -12840,13 +12840,13 @@ function applyDmgToEnemy(s, e, baseAmt) {
     // The biggest payoffs (a detonation, a stagger ×2, or a truly massive
     // blow) get the heaviest, longest freeze + the darkest cinematic pulse.
     const massive = !!reactionName || schoolBadge === 'STG!' || toHp >= 18;
-    hitPause(massive ? 240 : hotBadge ? 175 : 130);
+    hitPause(massive ? 430 : hotBadge ? 320 : 230);
     shakeScreen(3);
     critFlash(e.id, 'enemy');
-    cinematicImpact(massive ? 3 : 2);
+    cinematicImpact(massive ? 3 : 2, 'enemy');
   } else if (toHp >= 8) {
-    hitPause(80);
-    cinematicImpact(1);
+    hitPause(150);
+    cinematicImpact(1, 'enemy');
   }
   // Per-school hit colour: physical thud, stealth hiss, ranged twang,
   // arcane chime, holy bell.
@@ -13108,8 +13108,8 @@ function applyDmgToParty(s, c, amt) {
   flashCardId(c.id, 'hit', 'party');
   shakeCardId(c.id, 'party', toHp);
   if (toHp >= 5) shakeScreen(toHp >= 9 ? 3 : 2);
-  if (toHp >= 10) { hitPause(toHp >= 16 ? 210 : 140); shakeScreen(3); critFlash(c.id, 'party'); cinematicImpact(toHp >= 16 ? 3 : 2); }
-  else if (toHp >= 6) { hitPause(70); cinematicImpact(1); }
+  if (toHp >= 10) { hitPause(toHp >= 16 ? 400 : 270); shakeScreen(3); critFlash(c.id, 'party'); cinematicImpact(toHp >= 16 ? 3 : 2, 'party'); }
+  else if (toHp >= 6) { hitPause(140); cinematicImpact(1, 'party'); }
   // Enemy attack type — abilities set s.currentTechElement; basic strikes
   // fall back to physical.  Drives both the per-type sound and the hit FX
   // so the player can read what hit them (a magic blast vs a melee swing).
@@ -20296,7 +20296,7 @@ function critFlash(id, side) {
 // longer, harder.  All three layers compose with the existing card/screen
 // shake.  No-op during simulation.
 let _fxCinematicTimer = null;
-function cinematicImpact(level) {
+function cinematicImpact(level, side) {
   if (__simulating) return;
   const lvl = Math.max(1, Math.min(3, level || 1));
   const fx = document.getElementById('fx-cinematic');
@@ -20312,11 +20312,14 @@ function cinematicImpact(level) {
   // it for the transform).
   const bf = document.getElementById('battlefield');
   if (bf) {
+    // Focus the zoom toward the struck combatant (enemies right, party
+    // left) so the punch-in feels aimed, not generic.
+    bf.style.setProperty('--cam-x', side === 'party' ? '32%' : side === 'enemy' ? '68%' : '50%');
     const cls = lvl >= 3 ? 'cam-punch-hard' : 'cam-punch';
     bf.classList.remove('cam-punch', 'cam-punch-hard');
     void bf.offsetWidth;
     bf.classList.add(cls);
-    setTimeout(() => bf.classList.remove(cls), 380);
+    setTimeout(() => bf.classList.remove(cls), 640);
   }
 }
 
