@@ -1643,6 +1643,9 @@ const RESOLVE_MAX = 4;      // Raised from 3 in lockstep with ATB_MAX: queuing
                            // cap of 3.  Also gives the new flat-premium
                            // Resonance economy room to bank toward a climax.
 const RESOLVE_DRIP = 1;     // Resolve regenerated automatically each turn
+// Physical Momentum — banked by physical basics, spent by a physical sig.
+const MOMENTUM_CAP = 5;     // pips; a full bank empowers the next sig hard
+const MOMENTUM_PER = 2;     // bonus damage per Momentum point spent
 // Encounter-difficulty compensation for the 3→4 ATB/Resolve player turn.
 // The extra ATB mostly pays off with a FULL party (more heroes to spend
 // actions across) — a solo hero gains almost nothing from it, so applying
@@ -11992,6 +11995,11 @@ function startEncounter(encSpec) {
   state.over = false;
   state.outgoingDmgMod = 0;
   state.ignoreArmor = false;
+  // Physical school identity — Momentum.  A shared pool that physical
+  // heroes BUILD with basics and a physical signature SPENDS for a payoff.
+  // Resets each fight; banks across turns within a fight.
+  state.momentum = 0;
+  state._momentumBonus = 0;
   state.currentActorId = null;
   state.firedSynergies = new Set();
   // Encounter objective (Ringleader / etc) — copied off the encSpec so the
@@ -12834,6 +12842,14 @@ function applyDmgToEnemy(s, e, baseAmt) {
     // chromatic flash so the hit lands as a MOMENT instead of a
     // normal popup.  No-op during simulation.
     playStaggerHit();
+  }
+
+  // Physical Momentum — a spent bank empowers the FIRST damaging hit of the
+  // signature.  Added flat (after the weakness/stagger multipliers so it
+  // isn't doubled) and consumed once, then the reaction burst rides on top.
+  if (s._momentumBonus && amt > 0) {
+    amt += s._momentumBonus;
+    s._momentumBonus = 0;
   }
 
   // Reactions — a primer status + matching attack element detonates for a
@@ -16375,6 +16391,19 @@ function executeQueueItem(s, item) {
     // a tech can declare its own `element` so a hero gets coverage of
     // more than one weakness school.  Read in applyDmgToEnemy / preview.
     s.currentTechElement = variant.element || null;
+    // Physical Momentum — a physical SIGNATURE spends the banked pool to
+    // empower its strike (the bonus is applied to its first damaging hit in
+    // applyDmgToEnemy).  Physical BASICS build the pool (handled after the
+    // tech resolves).  Gated to the physical school so it stays one school's
+    // identity, not a universal tax.
+    const _actorSchool = CHARS[item.charId] && CHARS[item.charId].school;
+    const _physAtk = _actorSchool === 'physical' && variant.dmg > 0;
+    s._momentumBonus = 0;
+    if (_physAtk && item.kind === 'special' && s.momentum > 0) {
+      s._momentumBonus = s.momentum * MOMENTUM_PER;
+      spawnPopupId(item.charId, `MOMENTUM ×${s.momentum}`, 'crit', 'party');
+      s.momentum = 0;
+    }
     try {
       if (variant.reach) {
         const targets = resolveTargets(s, variant);
@@ -16401,7 +16430,15 @@ function executeQueueItem(s, item) {
         }
       }
     }
-    finally { s.outgoingDmgMod = 0; s.ignoreArmor = false; s.currentActorId = null; s.currentTechElement = null; }
+    finally {
+      // A damaging physical basic banks a point of Momentum; clear any
+      // unspent sig bonus.
+      if (_physAtk && item.kind === 'attack') {
+        s.momentum = Math.min(MOMENTUM_CAP, (s.momentum || 0) + 1);
+      }
+      s._momentumBonus = 0;
+      s.outgoingDmgMod = 0; s.ignoreArmor = false; s.currentActorId = null; s.currentTechElement = null;
+    }
     if (c.dulled > 0) c.dulled = Math.max(0, c.dulled - 1);
     return;
   }
@@ -17351,6 +17388,25 @@ function renderHUD() {
   if (hudResolve) {
     if (reserved > 0) hudResolve.classList.add('has-reserved');
     else hudResolve.classList.remove('has-reserved');
+  }
+  // Momentum meter — the physical school resource.  Shown only when the
+  // party fields a physical hero, so non-physical comps don't see an empty
+  // meter.  Pips fill with the banked pool; the meter pulses when full.
+  const momEl = $('#momentum-meter');
+  if (momEl) {
+    const hasPhysical = Object.values(state.party.chars)
+      .some(c => c && !c.downed && CHARS[c.id] && CHARS[c.id].school === 'physical');
+    if (hasPhysical) {
+      momEl.classList.remove('hidden');
+      const m = Math.min(MOMENTUM_CAP, state.momentum || 0);
+      momEl.classList.toggle('full', m >= MOMENTUM_CAP);
+      let html = '<span class="mom-glyph" aria-hidden="true">⚡</span>';
+      for (let i = 0; i < MOMENTUM_CAP; i++) html += `<div class="mpip${i < m ? ' filled' : ''}"></div>`;
+      momEl.innerHTML = html;
+    } else {
+      momEl.classList.add('hidden');
+      momEl.innerHTML = '';
+    }
   }
   renderSigilTray();
   renderRunModifier();
