@@ -13779,16 +13779,19 @@ const SCHOOL_PAIR_TEMPLATES = (() => {
   // Fires the per-hit Reactions (Rupture/Puncture/Sunder) ALL AT ONCE across
   // every living enemy: consume each primer for its burst, armor-ignored (it's
   // the enemy's own wounds and openings erupting).  Uses the same REACTION_
-  // STACK_CAP so it can't run away off a degenerate pile.  Returns true if
-  // anything detonated.
-  const detonateBoard = (s) => {
+  // STACK_CAP so it can't run away off a degenerate pile.  `types` optionally
+  // restricts which primers detonate (e.g. ['vuln']) so specialist pairings
+  // erupt their signature status; default detonates everything.  Returns true
+  // if anything detonated.
+  const detonateBoard = (s, types) => {
+    const want = (k) => !types || types.includes(k);
     let any = false;
     aliveEnemies(s).forEach(e => {
       if (e.dead) return;
       let burst = 0;
-      if (e.bleed  > 0) { burst += Math.min(e.bleed,  REACTION_STACK_CAP) * 3; e.bleed  = 0; }
-      if (e.vuln   > 0) { burst += Math.min(e.vuln,   REACTION_STACK_CAP) * 2; e.vuln   = 0; }
-      if (e.dulled > 0) { burst += Math.min(e.dulled, REACTION_STACK_CAP) * 2; e.dulled = 0; }
+      if (want('bleed')  && e.bleed  > 0) { burst += Math.min(e.bleed,  REACTION_STACK_CAP) * 3; e.bleed  = 0; }
+      if (want('vuln')   && e.vuln   > 0) { burst += Math.min(e.vuln,   REACTION_STACK_CAP) * 2; e.vuln   = 0; }
+      if (want('dulled') && e.dulled > 0) { burst += Math.min(e.dulled, REACTION_STACK_CAP) * 2; e.dulled = 0; }
       if (burst > 0) {
         any = true;
         e.hp = Math.max(0, e.hp - burst);
@@ -13852,7 +13855,7 @@ const SCHOOL_PAIR_TEMPLATES = (() => {
     // ---- ARCANE × ARCANE — Double Hex ---------------------------------
     arcane_arcane: {
       name: (a, b) => `${a} and ${b} · Double Hex`,
-      desc: (a, b, t) => `Arcane burst hits ALL for ${t >= 3 ? 9 : 6} (ignore armor), +${t >= 3 ? 4 : 3} VULN each.  RESONANT: stagger every foe.`,
+      desc: (a, b, t) => `Arcane burst hits ALL for ${t >= 3 ? 9 : 6} (ignore armor), +${t >= 3 ? 4 : 3} VULN each.  RESONANT: DETONATE every VULN stack on the board.`,
       fn: (s, anchorId, otherId, tier) => {
         const dmg = tier >= 3 ? 9 : 6;
         const vuln = tier >= 3 ? 4 : 3;
@@ -13862,13 +13865,12 @@ const SCHOOL_PAIR_TEMPLATES = (() => {
           aliveEnemies(s).forEach(e => {
             if (e.dead) return;
             applyDmgToEnemy(s, e, dmg);
-            if (!e.dead) {
-              e.vuln = (e.vuln || 0) + vuln;
-              if (tier >= 3) { e.staggered = true; }
-            }
+            if (!e.dead) e.vuln = (e.vuln || 0) + vuln;
           });
         });
         s.ignoreArmor = wasIgnore;
+        // Tier III — the doubled hex erupts every vuln stack on the board.
+        if (tier >= 3) detonateBoard(s, ['vuln']);
       },
     },
     // ---- RANGED × RANGED — Crossfire ----------------------------------
@@ -13894,7 +13896,7 @@ const SCHOOL_PAIR_TEMPLATES = (() => {
     // ---- STEALTH × STEALTH — Twin Cuts --------------------------------
     stealth_stealth: {
       name: (a, b) => `${a} and ${b} · Twin Cuts`,
-      desc: (a, b, t) => `Lowest-HP foe takes ${t >= 3 ? 14 : 10} dmg, gains +${t >= 3 ? 3 : 2} bleed, +${t >= 3 ? 3 : 2} VULN.  RESONANT: detonate bleed for +1 dmg per stack, spread to adjacent.`,
+      desc: (a, b, t) => `Lowest-HP foe takes ${t >= 3 ? 14 : 10} dmg, gains +${t >= 3 ? 3 : 2} bleed, +${t >= 3 ? 3 : 2} VULN.  RESONANT: DETONATE every bleed on the board (3 dmg/stack).`,
       fn: (s, anchorId, otherId, tier) => {
         const dmg = tier >= 3 ? 14 : 10;
         const bleedAmt = tier >= 3 ? 3 : 2;
@@ -13910,15 +13912,8 @@ const SCHOOL_PAIR_TEMPLATES = (() => {
             spawnPopupId(target.id, `+${vulnAmt} VULN`, 'stagger', 'enemy');
           }
         });
-        if (tier >= 3) {
-          asHero(s, otherId, () => {
-            aliveEnemies(s).forEach(e => {
-              if (e.dead) return;
-              const bleed = e.bleed || 0;
-              if (bleed > 0) applyDmgToEnemy(s, e, bleed);
-            });
-          });
-        }
+        // Tier III — both blades open every wound on the board at once.
+        if (tier >= 3) detonateBoard(s, ['bleed']);
       },
     },
     // ---- PHYSICAL × HOLY — Hallowed Strike ----------------------------
@@ -14132,7 +14127,7 @@ const SCHOOL_PAIR_TEMPLATES = (() => {
     // ---- ARCANE × STEALTH — Veiled Curse ------------------------------
     arcane_stealth: {
       name: (a, b) => `${a}'s Curse · ${b}'s Veil`,
-      desc: (a, b, t) => `Stealth bleeds + marks lowest (+${t >= 3 ? 4 : 3} bleed, +${t >= 3 ? 3 : 2} VULN).  Arcane detonates: every existing VULN stack on ANY foe deals ${t >= 3 ? 3 : 2} dmg each.  RESONANT: vuln spreads to neighbours.`,
+      desc: (a, b, t) => `Stealth bleeds + marks lowest (+${t >= 3 ? 4 : 3} bleed, +${t >= 3 ? 3 : 2} VULN).  Then the curse erupts every VULN stack on the board.  RESONANT: DETONATE every primer (bleed / vuln / dulled) on all enemies.`,
       fn: (s, anchorId, otherId, tier) => {
         const arcId = (CHARS[anchorId] && CHARS[anchorId].school) === 'arcane' ? anchorId : otherId;
         const sthId = arcId === anchorId ? otherId : anchorId;
@@ -14145,29 +14140,13 @@ const SCHOOL_PAIR_TEMPLATES = (() => {
             spawnPopupId(lowest.id, `+${tier >= 3 ? 3 : 2} VULN`, 'stagger', 'enemy');
           });
         }
-        // Detonate: each existing VULN stack on each enemy = N damage.
-        const perStack = tier >= 3 ? 3 : 2;
+        // Curse·Veil is the multi-status pairing (Nira-flavoured) — at Tier III
+        // it erupts EVERYTHING it and the party have layered on; below that, it
+        // detonates the vuln it specializes in.
         asHero(s, arcId, () => {
-          aliveEnemies(s).forEach(e => {
-            if (e.dead) return;
-            const stacks = e.vuln || 0;
-            if (stacks > 0) applyDmgToEnemy(s, e, stacks * perStack);
-          });
+          if (tier >= 3) detonateBoard(s);
+          else           detonateBoard(s, ['vuln']);
         });
-        if (tier >= 3) {
-          // Vuln spreads — every enemy with vuln transfers +1 to every
-          // other alive enemy.  Reads like a curse rippling outward.
-          const enemies = aliveEnemies(s);
-          const carriers = enemies.filter(e => (e.vuln || 0) > 0);
-          if (carriers.length) {
-            enemies.forEach(e => {
-              if (e.dead) return;
-              if (carriers.includes(e)) return;
-              e.vuln = (e.vuln || 0) + 1;
-              spawnPopupId(e.id, '+1 VULN', 'stagger', 'enemy');
-            });
-          }
-        }
       },
     },
     // ---- RANGED × STEALTH — Silent Volley -----------------------------
