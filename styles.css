@@ -16323,13 +16323,15 @@ body.on-title #hud { display: none !important; }
    verification. */
 .ts-build {
   position: absolute;
-  right: 12px; bottom: 10px;
+  right: max(14px, env(safe-area-inset-right, 0px));
+  bottom: max(12px, env(safe-area-inset-bottom, 0px));
   z-index: 5;
   font: 700 10px/1 ui-monospace, monospace;
   letter-spacing: 0.18em;
   color: #7fd0ff;
   opacity: 0.55;
   pointer-events: none;
+  white-space: nowrap;
 }
 
 /* Hero — silhouette standing in the abyss.  The SVG portrait scales

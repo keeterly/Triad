@@ -27799,8 +27799,12 @@ function showPasswordGate(onUnlock) {
   let raf = 0;
   function applyScale() {
     raf = 0;
-    const vw = window.innerWidth  || document.documentElement.clientWidth;
-    const vh = window.innerHeight || document.documentElement.clientHeight;
+    // Prefer visualViewport — on mobile / PWA / iOS it reports the ACTUAL
+    // visible area (after URL-bar collapse, safe-area insets, standalone
+    // chrome), where innerWidth/innerHeight can lag a beat behind on load.
+    const vp = window.visualViewport;
+    const vw = (vp && vp.width)  || window.innerWidth  || document.documentElement.clientWidth;
+    const vh = (vp && vp.height) || window.innerHeight || document.documentElement.clientHeight;
     if (!vw || !vh) return;
     const scale = Math.min(vw / DESIGN_W, vh / DESIGN_H);
     document.documentElement.style.setProperty('--ui-scale', scale.toFixed(4));
@@ -27810,16 +27814,35 @@ function showPasswordGate(onUnlock) {
     raf = requestAnimationFrame(applyScale);
   }
   window.addEventListener('resize', schedule);
-  window.addEventListener('orientationchange', schedule);
+  window.addEventListener('orientationchange', () => {
+    // Orientation dimensions settle a beat AFTER the event fires — recompute
+    // immediately and again shortly after so the new framing is correct.
+    schedule();
+    setTimeout(applyScale, 120);
+    setTimeout(applyScale, 350);
+  });
   // visualViewport fires when the Android URL bar collapses or iOS keyboard
   // opens — keeps the scale accurate through those transitions.
   if (window.visualViewport) {
     window.visualViewport.addEventListener('resize', schedule);
+    window.visualViewport.addEventListener('scroll', schedule);
   }
+  // pageshow covers PWA / bfcache restores where load may not re-fire.
+  window.addEventListener('pageshow', () => { schedule(); setTimeout(applyScale, 100); });
   applyScale();
-  // Run again after first paint in case fonts / safe-area insets settle.
   document.addEventListener('DOMContentLoaded', applyScale);
-  window.addEventListener('load', applyScale);
+  window.addEventListener('load', () => {
+    applyScale();
+    // The viewport keeps settling for a moment after load on mobile / PWA
+    // (URL-bar collapse, safe-area insets, standalone chrome).  Re-fit a few
+    // times so the INITIAL framing matches what a rotate would produce —
+    // this is the fix for "framing wrong on load, correct after a rotate".
+    [60, 180, 360, 700, 1200].forEach(ms => setTimeout(applyScale, ms));
+  });
+  // Webfonts can shift metrics once they load — re-fit when they're ready.
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(applyScale).catch(() => {});
+  }
 })();
 
 function bootGame() {
