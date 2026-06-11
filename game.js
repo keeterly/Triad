@@ -8825,9 +8825,12 @@ const COMBOS = {
   },
   sa_guidinglight: {
     id: 'sa_guidinglight', name: 'Guiding Light', tier: 'duo', sigTier: true,
-    desc: 'Elin lights the line — party heal 6 + cleanse + 1 atk; front +4 VULN.',
+    desc: 'Elin lights the line — DETONATE all VULN; party heal 6 + cleanse + 1 atk; front +3 VULN.',
     requires: [ { heroId: 'branwen', kind: 'sig' }, { heroId: 'elin', kind: 'sig' } ],
     fn: (s) => {
+      // The light erupts every exposed weakness it touches (SMITE), then
+      // re-marks the front so the team can keep the chain going.
+      detonateEnemyPrimers(s, ['vuln']);
       aliveParty(s).forEach(c => {
         const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 6);
         if (c.hp > b) spawnPopupId(c.id, `+${c.hp - b}`, 'heal', 'party');
@@ -8835,7 +8838,7 @@ const COMBOS = {
         if (!c.downed && !c.pendingEffects.some(e => e.source === 'guiding-light')) c.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'guiding-light' });
       });
       const front = enemyBySlot(s, 'front') || aliveEnemies(s)[0];
-      if (front && !front.dead) { front.vuln = (front.vuln || 0) + 4; spawnPopupId(front.id, '+4 VULN', 'stagger', 'enemy'); }
+      if (front && !front.dead) { front.vuln = (front.vuln || 0) + 3; spawnPopupId(front.id, '+3 VULN', 'stagger', 'enemy'); }
     },
     cinematic: [
       { kind: 'stage',       school: 'holy',                              ms: 240 },
@@ -8874,13 +8877,15 @@ const COMBOS = {
   },
   wh_packtactics: {
     id: 'wh_packtactics', name: 'Pack Tactics', tier: 'duo', sigTier: true,
-    desc: 'Korin taunts + retaliate 3; Branwen marks lowest (+4 VULN, +2 bleed); party +2 armor.',
+    desc: 'DETONATE all bleed + VULN the pack has run down; Korin taunts + retaliate 3; Branwen marks lowest (+3 VULN, +2 bleed); party +2 armor.',
     requires: [ { heroId: 'branwen', kind: 'sig' }, { heroId: 'korin', kind: 'sig' } ],
     fn: (s) => {
+      // The pack cashes everything it's run down, then re-marks the weakest.
+      detonateEnemyPrimers(s, ['bleed', 'vuln']);
       const k = s.party.chars.korin;
       if (k && !k.downed) { k.taunt = true; k.retaliate = (k.retaliate || 0) + 3; spawnPassivePopup('korin', 'WALL'); }
       const low = aliveEnemies(s).slice().sort((a, b) => a.hp - b.hp)[0];
-      if (low && !low.dead) { low.vuln = (low.vuln || 0) + 4; low.bleed = (low.bleed || 0) + 2; spawnPopupId(low.id, '+4 VULN', 'stagger', 'enemy'); }
+      if (low && !low.dead) { low.vuln = (low.vuln || 0) + 3; low.bleed = (low.bleed || 0) + 2; spawnPopupId(low.id, '+3 VULN', 'stagger', 'enemy'); }
       partyArmor(s, 2);
     },
     cinematic: [
@@ -8945,10 +8950,13 @@ const COMBOS = {
   },
   hv_brokentrust: {
     id: 'hv_brokentrust', name: 'Broken Trust', tier: 'duo', sigTier: true,
-    desc: 'A vow turned shield — all foes +4 VULN; party +6 armor + cleanse.',
+    desc: 'A vow turned shield — DETONATE all VULN, then expose every foe +3 VULN; party +6 armor + cleanse.',
     requires: [ { heroId: 'cassia', kind: 'sig' }, { heroId: 'mira', kind: 'sig' } ],
     fn: (s) => {
-      aliveEnemies(s).forEach(e => { if (e.dead) return; e.vuln = (e.vuln || 0) + 4; spawnPopupId(e.id, '+4 VULN', 'stagger', 'enemy'); });
+      // The betrayed trust turns outward — erupt every exposed foe, then
+      // crack the whole line open again behind the shield wall.
+      detonateEnemyPrimers(s, ['vuln']);
+      aliveEnemies(s).forEach(e => { if (e.dead) return; e.vuln = (e.vuln || 0) + 3; spawnPopupId(e.id, '+3 VULN', 'stagger', 'enemy'); });
       partyArmor(s, 6);
       aliveParty(s).forEach(c => { c.bleed = 0; c.dulled = 0; });
     },
@@ -8991,9 +8999,11 @@ const COMBOS = {
   },
   co_severance: {
     id: 'co_severance', name: 'Severance', tier: 'duo', sigTier: true,
-    desc: 'Oaths cut both ways — STAGGER front and lowest, +2 VULN each; Korin retaliate 3; party +2 armor.',
+    desc: 'Oaths cut both ways — DETONATE all bleed + VULN; STAGGER front and lowest, +2 VULN each; Korin retaliate 3; party +2 armor.',
     requires: [ { heroId: 'korin', kind: 'sig' }, { heroId: 'mira', kind: 'sig' } ],
     fn: (s) => {
+      // The severing cut erupts every wound and opening first.
+      detonateEnemyPrimers(s, ['bleed', 'vuln']);
       const front = enemyBySlot(s, 'front');
       const low = aliveEnemies(s).slice().sort((a, b) => a.hp - b.hp)[0];
       [front, low].forEach(e => { if (e && !e.dead) { e.staggered = true; e.staggerTurnsLeft = 2; e.vuln = (e.vuln || 0) + 2; spawnPopupId(e.id, 'STAGGERED', 'stagger', 'enemy'); } });
@@ -9494,7 +9504,7 @@ const COMBOS = {
   // ---- Sig-tier coverage-fill ----
   choral_verse: {
     id: 'choral_verse', name: 'Choral Verse', tier: 'duo', sigTier: true,
-    desc: 'Back-row caster pair — heal 8 all + cleanse · vuln 2 all · arm Conviction · +1 Resolve',
+    desc: 'Back-row caster pair — heal 8 all + cleanse · DETONATE all VULN · vuln 2 all · arm Conviction · +1 Resolve',
     requires: [
       { heroId: 'lirien', kind: 'sig' },
       { heroId: 'vasha',  kind: 'sig' },
@@ -9505,6 +9515,9 @@ const COMBOS = {
         if (c.hp > b) spawnPopupId(c.id, `+${c.hp - b}`, 'heal', 'party');
         c.bleed = 0; c.dulled = 0;
       });
+      // The verse that NAMES — every exposed foe erupts, then the chord
+      // re-opens the whole line.
+      detonateEnemyPrimers(s, ['vuln']);
       aliveEnemies(s).forEach(e => { if (!e.dead) { e.vuln += 2; spawnPopupId(e.id, 'VULN +2', 'stagger', 'enemy'); } });
       const v = s.party.chars.vasha;
       if (v && !v.downed) { v.convictionArmed = true; spawnPassivePopup('vasha', 'CONVICTION'); }
