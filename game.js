@@ -12328,6 +12328,19 @@ function resolveReaction(s, e, element) {
       return { name: 'SMITE!', bonus: stacks * 2 };
     }
   }
+  // ---- Dulled primer (martial elements crush the numbed guard) ----
+  // Lower priority than bleed/vuln: a martial hit prefers Rupture/Hemorrhage,
+  // but on a dulled-but-unbled foe it SUNDERS — consume all dulled for a burst
+  // AND leave the enemy reeling (vuln 1), which then chains into the vuln
+  // reactions (Puncture / Overload / Smite).  Turns dulled — previously a
+  // purely defensive debuff on enemies — into an offensive setup.
+  if (e.dulled > 0 && (element === 'physical' || element === 'stealth')) {
+    const stacks = e.dulled;
+    e.dulled = 0;
+    e.vuln = (e.vuln || 0) + 1;
+    spawnPopupId(e.id, 'VULN', 'stagger', 'enemy');
+    return { name: 'SUNDER!', bonus: stacks * 2 };
+  }
   return null;
 }
 
@@ -18556,6 +18569,18 @@ function renderStatuses(ent, sForAuras) {
       }
     }
   }
+  // Reaction "primed" cue — enemies only.  When an enemy carries a detonatable
+  // status, flag it with ⚡ so the player can ANTICIPATE the reaction and bring
+  // the matching attack type, instead of discovering it only on the hit.  The
+  // tooltip names exactly which element triggers what, tailored to the
+  // primers actually present.
+  if (!sForAuras) {
+    const hints = [];
+    if (ent.bleed > 0)  hints.push('Bleed → Physical RUPTURE / Stealth HEMORRHAGE');
+    if (ent.vuln > 0)   hints.push('Vuln → Ranged PUNCTURE / Arcane OVERLOAD / Holy SMITE');
+    if (ent.dulled > 0) hints.push('Dulled → Physical / Stealth SUNDER');
+    if (hints.length) push(5, 'primed', '⚡', null, 'Primed for a Reaction — ' + hints.join('   ·   '));
+  }
   // Sort by priority and cap to the visible budget.  Anything past the cap
   // rolls into a single overflow chip whose tooltip lists every collapsed
   // status, so nothing disappears — it just gets compressed when the row
@@ -18631,7 +18656,7 @@ const STATUS_TOOLTIPS = {
   armor:    { name: 'Armor',       text: 'Absorbs incoming damage 1:1 before HP. Wears off as it absorbs. Does not regenerate.' },
   bleed:    { name: 'Bleed',       text: 'Takes 2 damage at the start of each turn (+1 with Bloodborne / Bone Tide). Decays by 1 per turn. Ignores armor. REACTION — on a bleeding enemy: a Physical hit RUPTURES it (consume bleed for a big burst), a Stealth hit causes HEMORRHAGE (burst, but reopens bleed 1 to keep the wound alive).' },
   taunt:    { name: 'Taunt',       text: 'Enemy single-target attacks redirect to this hero. Clears at the start of the next turn.' },
-  dulled:   { name: 'Dulled',      text: 'Outgoing attacks deal -2 damage. Consumes 1 stack per attack.' },
+  dulled:   { name: 'Dulled',      text: 'Outgoing attacks deal -2 damage. Consumes 1 stack per attack. REACTION — on a dulled enemy, a Physical or Stealth hit SUNDERS it (consume all dulled for a burst and leave it Vulnerable 1).' },
   vuln:     { name: 'Vulnerable',  text: 'Incoming hits deal +2 damage per stack (+2 more with Ember of Wrath). One stack is consumed per hit (unless Brand of Doom). REACTION — on a vulnerable enemy, a Ranged hit PUNCTURES it, an Arcane hit OVERLOADS it (burst + spreads vuln to other enemies), and a Holy hit SMITES it (burst + heals the party). All consume the vuln.' },
   retal:    { name: 'Retaliate',   text: 'When hit, counter-attacks the front-most enemy for this value (+2 with Vow of Vigil). Clears at the start of the next turn.' },
   pending:  { name: 'Pending',     text: 'A one-shot bonus from a synergy. Consumed by the next matching action.' },
