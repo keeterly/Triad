@@ -1704,9 +1704,9 @@ const CHARS = {
       // MID — Shield advance.  A mobile shieldwall that armors the PARTY as
       // it pushes (feeds her armor-bonds: Sword and Banner, Iron Bond).
       mid: {
-        basic: { name: 'Vanguard', desc: '5 dmg front + advance + 2 armor', dmg: 5, move: 'advance',
+        basic: { name: 'Vanguard', desc: '5 dmg front + bleed 1 + advance + 2 armor', dmg: 5, move: 'advance',
           reach: ['front'], pattern: 'front-most',
-          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 5); advance(s, 'cassia'); addArmor(s, 'cassia', 2); } },
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 5); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 1); } advance(s, 'cassia'); addArmor(s, 'cassia', 2); } },
         sig:   { name: 'Heroic Charge', desc: '9 dmg front + advance + 3 party armor', dmg: 9, move: 'advance',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 9); advance(s, 'cassia'); partyArmor(s, 3); } },
@@ -1731,9 +1731,9 @@ const CHARS = {
     passive: { name: 'Last Mercy', desc: 'The first time Elin would fall each fight, she stays at 1 HP instead and the lowest ally heals 4.' },
     techs: {
       front: {
-        basic: { name: 'Phase Step', desc: '3 dmg + retreat to Mid', dmg: 3, move: 'retreat',
+        basic: { name: 'Phase Step', desc: '3 dmg + vuln 1 + retreat to Mid', dmg: 3, move: 'retreat',
           reach: ['front'], pattern: 'front-most',
-          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 3); retreat(s, 'elin'); } },
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 3); if (!t[0].dead) t[0].vuln += 1; } retreat(s, 'elin'); } },
         sig:   { name: 'Veil Step', desc: '6 arcane dmg + retreat + 2 armor', dmg: 6, move: 'retreat', element: 'arcane',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 6); retreat(s, 'elin'); addArmor(s, 'elin', 2); } },
@@ -1952,9 +1952,9 @@ const CHARS = {
     passive: { name: "Warden's Word", desc: 'While Garron holds Front, the first ally who would fall each fight is clamped to 1 HP and Garron loses 4 HP for the save.' },
     techs: {
       front: {
-        basic: { name: 'Halt', desc: '5 dmg + self-taunt this turn', dmg: 5,
+        basic: { name: 'Halt', desc: '5 dmg + bleed 1 + self-taunt this turn', dmg: 5,
           reach: ['front'], pattern: 'front-most',
-          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 5); const g = s.party.chars.garron; if (g && !g.downed) g.taunt = true; } },
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 5); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 1); } const g = s.party.chars.garron; if (g && !g.downed) g.taunt = true; } },
         sig:   { name: 'Bulwark', desc: '4 dmg + Party +3⛨ + self-taunt', dmg: 4,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 4); partyArmor(s, 3); const g = s.party.chars.garron; if (g && !g.downed) g.taunt = true; } },
@@ -2184,9 +2184,9 @@ const CHARS = {
             for (let i = 0; i < 4; i++) { if (t[0].dead) break; applyDmgToEnemy(s, t[0], 3); } } },
       },
       mid: {
-        basic: { name: 'Inner Step', desc: '4 holy dmg + advance', dmg: 4, element: 'holy', move: 'advance',
+        basic: { name: 'Inner Step', desc: '4 holy dmg + vuln 1 + advance', dmg: 4, element: 'holy', move: 'advance',
           reach: ['front'], pattern: 'front-most',
-          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 4); advance(s, 'kell'); } },
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 4); if (!t[0].dead) t[0].vuln += 1; } advance(s, 'kell'); } },
         sig:   { name: 'Five-Stance', desc: '2♦ · 7 holy dmg + 2 armor self', cost: 2, dmg: 7, element: 'holy',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 7); addArmor(s, 'kell', 2); } },
@@ -2312,9 +2312,9 @@ const CHARS = {
     passive: { name: 'Iron Toss', desc: "Tarn's first attack each turn grants the front-most ally +1 armor." },
     techs: {
       front: {
-        basic: { name: 'Wedge', desc: '5 dmg + 1 armor self', dmg: 5,
+        basic: { name: 'Wedge', desc: '5 dmg + bleed 1 + 1 armor self', dmg: 5,
           reach: ['front'], pattern: 'front-most',
-          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 5); addArmor(s, 'tarn', 1); } },
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 5); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 1); } addArmor(s, 'tarn', 1); } },
         sig:   { name: 'Standing Stone', desc: '6 dmg + Party +2 armor + self-taunt', dmg: 6,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => {
@@ -12279,42 +12279,25 @@ function previewMultiHit(s, e, baseAmt, actorId, hits, techElement) {
 // into this same "interaction" model.
 function resolveReaction(s, e, element) {
   if (!e || e.dead || !element) return null;
-  // ---- Bleed primers (cutting / burning elements detonate the wound) ----
+  // ---- Bleed primers (martial / precise elements detonate the wound) ----
   if (e.bleed > 0) {
     // RUPTURE — Physical.  The blade tears the wound wide: consume ALL bleed
-    // for a big single-target burst (3 per stack).  Strictly better than
-    // letting it tick (2/turn), so detonating always feels like a reward
-    // rather than a tax on your own setup.
+    // for a big single-target burst (3 per stack).
     if (element === 'physical') {
       const stacks = e.bleed;
       e.bleed = 0;
       return { name: 'RUPTURE!', bonus: stacks * 3 };
     }
-    // WILDFIRE — Arcane.  The blood catches and leaps: a smaller burst (2 per
-    // stack), then the fire spreads bleed 1 to every OTHER living enemy —
-    // turning one primer into a board-wide one.
-    if (element === 'arcane') {
-      const stacks = e.bleed;
-      e.bleed = 0;
-      aliveEnemies(s).forEach(o => {
-        if (o === e || o.dead) return;
-        o.bleed = Math.max(o.bleed || 0, 1);
-        spawnPopupId(o.id, 'BLEED', 'stagger', 'enemy');
-      });
-      return { name: 'WILDFIRE!', bonus: stacks * 2 };
-    }
-    // HEMORRHAGE — Stealth.  The assassin works the wound DEEPER: this is a
-    // setter, not a detonator — it does NOT consume bleed, it ADDS a stack and
-    // chips bonus damage equal to the current depth.  Stealth builds the pile;
-    // a Physical RUPTURE (or the bleed ticks) cash it later.  The only
-    // reaction that grows a status instead of spending it.
+    // HEMORRHAGE — Stealth.  The assassin reopens the wound: consume the
+    // bleed for a burst (2 per stack) but leave a fresh bleed 1 behind — a
+    // sustained detonation that keeps a primer alive for the next hit.
     if (element === 'stealth') {
       const stacks = e.bleed;
-      e.bleed = stacks + 1;
-      return { name: 'HEMORRHAGE!', bonus: stacks };
+      e.bleed = 1;
+      return { name: 'HEMORRHAGE!', bonus: stacks * 2 };
     }
   }
-  // ---- Vuln primers (piercing / radiant elements detonate the opening) ----
+  // ---- Vuln primers (piercing / arcane / radiant elements detonate it) ----
   if (e.vuln > 0) {
     // PUNCTURE — Ranged.  A precise shot into the exposed gap: consume ALL
     // vuln for a burst (2 per stack).
@@ -12323,9 +12306,21 @@ function resolveReaction(s, e, element) {
       e.vuln = 0;
       return { name: 'PUNCTURE!', bonus: stacks * 2 };
     }
-    // SMITE — Holy.  Judgment through the broken guard: consume ALL vuln for a
-    // burst (2 per stack) AND mend the party 2.  The only reaction that heals
-    // — a radiant kizuna payoff that rewards a holy hero for closing the loop.
+    // OVERLOAD — Arcane.  The mage detonates the opening and it chains: burst
+    // (2 per stack), then spread vuln 1 to every OTHER living enemy — one
+    // exposed target primes the whole board.
+    if (element === 'arcane') {
+      const stacks = e.vuln;
+      e.vuln = 0;
+      aliveEnemies(s).forEach(o => {
+        if (o === e || o.dead) return;
+        o.vuln = (o.vuln || 0) + 1;
+        spawnPopupId(o.id, 'VULN', 'stagger', 'enemy');
+      });
+      return { name: 'OVERLOAD!', bonus: stacks * 2 };
+    }
+    // SMITE — Holy.  Judgment through the broken guard: burst (2 per stack)
+    // AND mend the party 2 — the only reaction that heals.
     if (element === 'holy') {
       const stacks = e.vuln;
       e.vuln = 0;
@@ -18634,10 +18629,10 @@ function formatDesc(text) {
 // once at boot via event delegation so re-renders don't need rebinding.
 const STATUS_TOOLTIPS = {
   armor:    { name: 'Armor',       text: 'Absorbs incoming damage 1:1 before HP. Wears off as it absorbs. Does not regenerate.' },
-  bleed:    { name: 'Bleed',       text: 'Takes 2 damage at the start of each turn (+1 with Bloodborne / Bone Tide). Decays by 1 per turn. Ignores armor. REACTION — on a bleeding enemy: a Physical hit RUPTURES it (consume bleed for a burst), an Arcane hit sparks WILDFIRE (burst + spreads bleed), a Stealth hit causes HEMORRHAGE (deepens the wound — adds a stack instead of spending it).' },
+  bleed:    { name: 'Bleed',       text: 'Takes 2 damage at the start of each turn (+1 with Bloodborne / Bone Tide). Decays by 1 per turn. Ignores armor. REACTION — on a bleeding enemy: a Physical hit RUPTURES it (consume bleed for a big burst), a Stealth hit causes HEMORRHAGE (burst, but reopens bleed 1 to keep the wound alive).' },
   taunt:    { name: 'Taunt',       text: 'Enemy single-target attacks redirect to this hero. Clears at the start of the next turn.' },
   dulled:   { name: 'Dulled',      text: 'Outgoing attacks deal -2 damage. Consumes 1 stack per attack.' },
-  vuln:     { name: 'Vulnerable',  text: 'Incoming hits deal +2 damage per stack (+2 more with Ember of Wrath). One stack is consumed per hit (unless Brand of Doom). REACTION — on a vulnerable enemy, a Ranged hit PUNCTURES it and a Holy hit SMITES it (both consume all vuln for a burst; Smite also heals the party).' },
+  vuln:     { name: 'Vulnerable',  text: 'Incoming hits deal +2 damage per stack (+2 more with Ember of Wrath). One stack is consumed per hit (unless Brand of Doom). REACTION — on a vulnerable enemy, a Ranged hit PUNCTURES it, an Arcane hit OVERLOADS it (burst + spreads vuln to other enemies), and a Holy hit SMITES it (burst + heals the party). All consume the vuln.' },
   retal:    { name: 'Retaliate',   text: 'When hit, counter-attacks the front-most enemy for this value (+2 with Vow of Vigil). Clears at the start of the next turn.' },
   pending:  { name: 'Pending',     text: 'A one-shot bonus from a synergy. Consumed by the next matching action.' },
   guard:    { name: 'Guard',         text: 'Each stack fully negates the next incoming hit — no HP loss, no armor loss. Cleared at the start of the next player turn.' },
