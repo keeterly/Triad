@@ -12795,8 +12795,12 @@ function applyDmgToEnemy(s, e, baseAmt) {
   const popupType = hotBadge ? 'crit' : 'dmg';
   spawnPopupId(e.id, `-${toHp}`, popupType, 'enemy');
   if (schoolBadge) {
-    const badgeType = hotBadge ? 'crit' : 'miss';
-    setTimeout(() => spawnPopupId(e.id, schoolBadge, badgeType, 'enemy'), 80);
+    // Reactions DETONATE — give them their own burst popup (a ✺ glyph + the
+    // punchier 'pop' animation) so the moment reads as an explosion, not just
+    // another gold label.  WEAK!/STG! stay crit; RESIST stays a dim miss.
+    const badgeType = reactionName ? 'reaction' : (hotBadge ? 'crit' : 'miss');
+    const badgeText = reactionName ? `✺ ${schoolBadge}` : schoolBadge;
+    setTimeout(() => spawnPopupId(e.id, badgeText, badgeType, 'enemy'), 80);
     // WEAK!/STG! shimmer — brief gold pulse on the struck figure so
     // the elemental-matchup payoff has a visible beat beyond the
     // popup text.  RESIST gets a cool blue dim to telegraph the
@@ -12827,7 +12831,7 @@ function applyDmgToEnemy(s, e, baseAmt) {
   spawnHitFx(e.id, 'enemy', hitType);
   // Attacker lunges toward the target for a beat
   if (s.currentActorId) lungeCardId(s.currentActorId, 'party');
-  log(`<b>${ENEMIES[e.id].name}</b> takes ${toHp} damage${schoolBadge ? ` — ${schoolBadge.toLowerCase()}` : ''}.`);
+  log(`<b>${ENEMIES[e.id].name}</b> takes ${toHp} damage${schoolBadge ? ` — ${reactionName ? '✺ ' : ''}${schoolBadge.toLowerCase()}` : ''}.`);
   if (s.currentActorId && toHp > 0) fireAdjacencyHook(s, 'onAttack', s.currentActorId, e, toHp);
   if (s.fightStats && s.currentActorId && toHp > 0) {
     s.fightStats.damageDealt[s.currentActorId] = (s.fightStats.damageDealt[s.currentActorId] || 0) + toHp;
