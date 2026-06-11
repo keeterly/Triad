@@ -18482,15 +18482,28 @@ function renderStatuses(ent, sForAuras) {
   // overflow chip ("+N") expands the full list on tap (handled by the
   // chip-tooltip layer, same as every other status chip).
   const items = [];
-  const push = (priority, statusId, icon, num, title) => {
-    items.push({ priority, statusId, icon, num, title });
+  const push = (priority, statusId, icon, num, title, extraClass) => {
+    items.push({ priority, statusId, icon, num, title, extraClass });
   };
+  // Party-aware detonation flags — for ENEMIES, work out which primer the
+  // LIVING party can actually detonate, so the bleed/vuln/dulled chip itself
+  // pulses (the "primed" cue is folded INTO the chip instead of a separate ⚡).
+  let detBleed = false, detVuln = false, detDulled = false;
+  if (!sForAuras) {
+    const schools = new Set();
+    const chars = (state && state.party && state.party.chars) || {};
+    Object.values(chars).forEach(c => { if (c && !c.downed && CHARS[c.id]) schools.add(CHARS[c.id].school); });
+    detBleed  = schools.has('physical') || schools.has('stealth');
+    detVuln   = schools.has('ranged') || schools.has('arcane') || schools.has('holy');
+    detDulled = schools.has('physical') || schools.has('stealth');
+  }
+  const primed = (on) => (on ? 'status-detonatable' : '');
   // Each chip carries data-status so the press-and-hold tooltip handler can
   // resolve its explanation from STATUS_TOOLTIPS without re-parsing classes.
   if (ent.armor > 0)     push(10, 'armor', '⛨', ent.armor,    `Armor ${ent.armor} — absorbs ${ent.armor} damage before HP. Wears off as it absorbs.`);
-  if (ent.vuln > 0)      push(20, 'vuln',  '⊕', ent.vuln,     `Vulnerable ${ent.vuln} — next ${ent.vuln} incoming attacks deal +2 damage (+4 with Ember of Wrath Sigil) and consume one stack.`);
-  if (ent.bleed > 0)     push(30, 'bleed', '✤', ent.bleed,    `Bleed ${ent.bleed} — takes 2 damage at the start of each turn (3 with Bloodborne Sigil), then the stack decreases by 1.`);
-  if (ent.dulled > 0)    push(50, 'dulled', '↓', ent.dulled, `Dulled ${ent.dulled} — this character's outgoing damage is reduced by 2 for the next ${ent.dulled} attack(s).`);
+  if (ent.vuln > 0)      push(20, 'vuln',  '⊕', ent.vuln,     `Vulnerable ${ent.vuln} — next ${ent.vuln} incoming attacks deal +2 damage (+4 with Ember of Wrath Sigil) and consume one stack.`, primed(detVuln));
+  if (ent.bleed > 0)     push(30, 'bleed', '✤', ent.bleed,    `Bleed ${ent.bleed} — takes 2 damage at the start of each turn (3 with Bloodborne Sigil), then the stack decreases by 1.`, primed(detBleed));
+  if (ent.dulled > 0)    push(50, 'dulled', '↓', ent.dulled, `Dulled ${ent.dulled} — this character's outgoing damage is reduced by 2 for the next ${ent.dulled} attack(s).`, primed(detDulled));
   if (ent.taunt)         push(60, 'taunt', '⌖', null,         'Taunt — enemies single-target attacks redirect to this character instead of the original slot.');
   if (ent.retaliate > 0) push(70, 'retal', '↻', ent.retaliate,`Retaliate ${ent.retaliate} — when hit, counter-attack the front-most enemy for ${ent.retaliate} damage.`);
   if (ent.guard > 0)     push(80, 'guard', '⛨', ent.guard,    `Guard ${ent.guard} — the next ${ent.guard} incoming hit(s) are negated entirely (no HP or armor cost).`);
@@ -18585,37 +18598,6 @@ function renderStatuses(ent, sForAuras) {
   // the matching attack type, instead of discovering it only on the hit.  The
   // tooltip names exactly which element triggers what, tailored to the
   // primers actually present.
-  if (!sForAuras) {
-    // Party-aware: only surface detonations the LIVING party can actually
-    // pull off, and name just the elements you have — so the cue marks a real
-    // opening, not a hypothetical one.  Reads the global party state.
-    const schools = new Set();
-    const chars = (state && state.party && state.party.chars) || {};
-    Object.values(chars).forEach(c => {
-      if (c && !c.downed && CHARS[c.id]) schools.add(CHARS[c.id].school);
-    });
-    const parts = [];
-    if (ent.bleed > 0) {
-      const d = [];
-      if (schools.has('physical')) d.push('Physical RUPTURE');
-      if (schools.has('stealth'))  d.push('Stealth HEMORRHAGE');
-      if (d.length) parts.push('Bleed → ' + d.join(' / '));
-    }
-    if (ent.vuln > 0) {
-      const d = [];
-      if (schools.has('ranged')) d.push('Ranged PUNCTURE');
-      if (schools.has('arcane')) d.push('Arcane DISCHARGE');
-      if (schools.has('holy'))   d.push('Holy SMITE');
-      if (d.length) parts.push('Vuln → ' + d.join(' / '));
-    }
-    if (ent.dulled > 0) {
-      const d = [];
-      if (schools.has('physical')) d.push('Physical');
-      if (schools.has('stealth'))  d.push('Stealth');
-      if (d.length) parts.push('Dulled → ' + d.join(' / ') + ' SUNDER');
-    }
-    if (parts.length) push(5, 'primed', '⚡', null, 'Primed for a Reaction — ' + parts.join('   ·   '));
-  }
   // Sort by priority and cap to the visible budget.  Anything past the cap
   // rolls into a single overflow chip whose tooltip lists every collapsed
   // status, so nothing disappears — it just gets compressed when the row
@@ -18625,7 +18607,7 @@ function renderStatuses(ent, sForAuras) {
   const visible = items.slice(0, VISIBLE_CAP);
   const overflow = items.slice(VISIBLE_CAP);
   const renderChip = (it) =>
-    `<span class="status-chip status-${it.statusId}" data-status="${it.statusId}"${it.num != null ? ` data-value="${it.num}"` : ''} title="${it.title}"><span class="status-icon">${it.icon}</span>${it.num != null ? `<span class="status-num">${it.num}</span>` : ''}</span>`;
+    `<span class="status-chip status-${it.statusId}${it.extraClass ? ' ' + it.extraClass : ''}" data-status="${it.statusId}"${it.num != null ? ` data-value="${it.num}"` : ''} title="${it.title}"><span class="status-icon">${it.icon}</span>${it.num != null ? `<span class="status-num">${it.num}</span>` : ''}</span>`;
   let html = visible.map(renderChip).join('');
   if (overflow.length) {
     // One condensed line per collapsed status so the tooltip remains

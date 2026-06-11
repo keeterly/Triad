@@ -2816,18 +2816,17 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
 .status-veil    { color: #c0d8ff;            border-color: #c0d8ff;       background: rgba(60,90,140,0.28); }
 .status-wall    { color: #ffd098;            border-color: #ffd098;       background: rgba(120,80,40,0.28); }
 .status-guard   { color: #ffe896;            border-color: #ffe896;       background: rgba(140,110,50,0.28); }
-/* Primed cue — an enemy carrying a detonatable status (bleed/vuln/dulled).
-   Electric-cyan pulse because it marks an OPPORTUNITY: hit it with the right
-   attack type and a Reaction fires.  Pulses like the pending chip so the eye
-   is pulled to the opening. */
-.status-primed  {
-  color: #8fe8ff; border-color: #8fe8ff;
-  background: rgba(40,120,150,0.28);
-  animation: status-primed-pulse 1.2s ease-in-out infinite;
+/* Detonatable cue — a primer chip (bleed/vuln/dulled) on an enemy the LIVING
+   party can detonate.  Folded INTO the chip (no separate ⚡): a cyan ring +
+   pulse layered over the chip's own colour marks it as an opening without
+   adding another element to the row. */
+.status-chip.status-detonatable {
+  box-shadow: 0 0 0 1.5px #8fe8ff inset, 0 1px 4px rgba(0,0,0,0.75);
+  animation: status-detonatable-pulse 1.2s ease-in-out infinite;
 }
-@keyframes status-primed-pulse {
-  0%, 100% { box-shadow: 0 1px 4px rgba(0,0,0,0.75), 0 0 0 0 rgba(143,232,255,0); }
-  50%      { box-shadow: 0 1px 4px rgba(0,0,0,0.75), 0 0 11px 2px rgba(143,232,255,0.6); }
+@keyframes status-detonatable-pulse {
+  0%, 100% { box-shadow: 0 0 0 1.5px rgba(143,232,255,0.5) inset, 0 1px 4px rgba(0,0,0,0.75), 0 0 0 0 rgba(143,232,255,0); }
+  50%      { box-shadow: 0 0 0 1.5px rgba(143,232,255,0.95) inset, 0 1px 4px rgba(0,0,0,0.75), 0 0 9px 1px rgba(143,232,255,0.5); }
 }
 /* Position-derived aura chips — make Garron Sentinel and Cassia Steadfast
    visible so the player can see *why* damage on this card is being softened. */
