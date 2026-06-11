@@ -18208,7 +18208,15 @@ function makePartyCard(c, slot, threatened, adjMap, incoming) {
     }
   }
 
+  // Big red pulse filling the slot when an enemy intent targets this hero — a
+  // spatial "THIS slot is getting hit" cue so the player doesn't have to decode
+  // the intent's "→ F" tag and map it to a position.  (Empty threatened slots
+  // show the green DODGE marker instead, handled in the !c branch above.)
+  const threatPulse = (threatened && !c.downed)
+    ? `<div class="slot-threat${incoming && incoming.lethal ? ' slot-threat-lethal' : ''}" aria-hidden="true"></div>`
+    : '';
   fig.innerHTML = `
+    ${threatPulse}
     ${threatBadge}
     ${synStack}
     <div class="figure-portrait">

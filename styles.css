@@ -2046,6 +2046,35 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
       drop-shadow(0 0 44px rgba(212,69,69,0.7));
   }
 }
+/* Big red pulse FILLING the targeted slot — the primary "this slot is getting
+   hit" cue.  Sits behind the portrait/info (z-index below) so the character
+   still reads clearly; a radial wash + ring that breathes red.  The lethal
+   variant burns brighter and faster.  Empty threatened slots get the green
+   DODGE marker instead, so red here always means "a hero here takes the hit". */
+.slot-threat {
+  position: absolute;
+  inset: 4% 6%;
+  z-index: 0;
+  border-radius: 16px;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center,
+    rgba(224,70,70,0.42) 0%, rgba(224,70,70,0.18) 48%, rgba(224,70,70,0) 72%);
+  box-shadow: inset 0 0 0 2px rgba(224,70,70,0.55);
+  animation: slot-threat-pulse 1.3s ease-in-out infinite;
+}
+.slot-threat-lethal {
+  background: radial-gradient(ellipse at center,
+    rgba(255,70,70,0.6) 0%, rgba(224,50,50,0.26) 48%, rgba(224,50,50,0) 72%);
+  box-shadow: inset 0 0 0 2.5px rgba(255,80,80,0.85);
+  animation: slot-threat-pulse 0.66s ease-in-out infinite;
+}
+@keyframes slot-threat-pulse {
+  0%, 100% { opacity: 0.45; transform: scale(0.97); }
+  50%      { opacity: 1;    transform: scale(1.03); }
+}
+/* Keep the character art and name plate above the pulse wash. */
+.figure.targeted-by-enemy .figure-portrait,
+.figure.targeted-by-enemy .figure-info { position: relative; z-index: 1; }
 /* Threatened slot also surfaces its FRONT/MID/BACK label in red so the
    spatial read ("my Front hero is the one in danger") is unmistakable. */
 .figure.targeted-by-enemy .slot-label {
