@@ -2991,6 +2991,14 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
   color: var(--ink-dim); border-color: rgba(150,150,160,0.4);
   border-style: dashed; opacity: 0.7;
 }
+/* First-reveal pop — one-shot when a hidden weakness flips to known, played in
+   the chip row (where weakness now lives) instead of the old bottom badge. */
+.status-chip.status-weak.fresh { animation: status-weak-reveal 0.85s ease-out 1; }
+@keyframes status-weak-reveal {
+  0%   { transform: scale(1);    box-shadow: 0 0 0 0 rgba(255,207,122,0); }
+  30%  { transform: scale(1.35); box-shadow: 0 0 12px 3px rgba(255,207,122,0.85); }
+  100% { transform: scale(1);    box-shadow: 0 0 0 0 rgba(255,207,122,0); }
+}
 .status-pending {
   color: var(--gold-bright); border-color: var(--gold-bright);
   background: rgba(240,212,136,0.22);

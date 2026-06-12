@@ -13062,7 +13062,7 @@ function applyDmgToEnemy(s, e, baseAmt) {
             ? `#enemy-half .figure[data-slot="${targetEnemyKey}"]`
             : '#enemy-half .figure:not(.empty)',
           place: 'above',
-          text: 'You found their <b>weakness</b> (the glyph under their bar).  Hit this element again to <b>STAGGER</b> them.',
+          text: 'You found their <b>weakness</b> — the amber <b>primer chip</b> on their card (same row as bleed/vuln).  It detonates like any primer: hit this element again to <b>STAGGER</b> them.',
         });
       }, 900);
     }
@@ -18363,13 +18363,12 @@ function makeEnemyCard(e, slot) {
       : 'hit their weakness school again to stagger';
     const wkTip = `WEAKENED (${turnsLeft || 1} turn${(turnsLeft || 1) === 1 ? '' : 's'} left) — ${schoolHint}.  The window persists across turns, so the follow-up doesn't have to land this turn.`;
     stateStrip = `<div class="state-strip state-strip-weakened" title="${wkTip}" data-tip="${wkTip}">⌖ WEAKENED</div>`;
-  } else if (e.weaknessRevealed && weakSchool) {
-    const glyph = SCHOOL_GLYPH[weakSchool] || '?';
-    const wkTip = `Weak to ${weakSchool.toUpperCase()} — match this element to apply WEAKENED, then again to STAGGER for 2× damage.`;
-    // Minimal: just the school glyph in a small tinted badge.  Players who
-    // need the full name press-and-hold for the tooltip.
-    stateStrip = `<div class="state-strip state-strip-weakness weakness-${weakSchool}" title="${wkTip}" data-tip="${wkTip}">${glyph}</div>`;
   }
+  // NOTE: the plain "weakness revealed" badge that used to sit here is gone —
+  // weakness now lives as a first-class PRIMER CHIP in the status row (built in
+  // renderStatuses), so it reads identically to bleed/vuln/dulled.  Only the
+  // WEAKENED / STAGGERED escalation states still get a prominent bottom strip,
+  // since the ×2 payoff window deserves the call-out.
 
   fig.innerHTML = `
     <div class="figure-portrait">
@@ -18389,12 +18388,13 @@ function makeEnemyCard(e, slot) {
     </div>
   `;
   bindFigureHold(fig, e.id, false);
-  // If the weakness just flipped to revealed this tick, play the reveal
-  // pulse on the bottom info-strip (which now carries the weakness label).
+  // If the weakness just flipped to revealed this tick, pulse the weakness
+  // PRIMER CHIP in the status row (where weakness now lives) so the reveal
+  // reads in the same place the player tracks every other primer.
   if (e._weaknessJustRevealed) {
     e._weaknessJustRevealed = false;
     requestAnimationFrame(() => {
-      const ic = fig.querySelector('.state-strip-weakness');
+      const ic = fig.querySelector('.figure-statuses .status-weak');
       if (ic) ic.classList.add('fresh');
     });
   }
