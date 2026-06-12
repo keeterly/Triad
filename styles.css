@@ -12979,6 +12979,42 @@ body.cine-stage-open #stage::after {
   padding: 0 4px 6px;
 }
 #ts-area.hidden { display: none; }
+
+/* ===== Spend-to-fire unique-action chips — compact horizontal pills in a
+   single clean row, replacing the old wide multi-line resonance bubbles
+   that crowded the board.  Portraits + name + Resolve cost, nothing else. */
+#ts-area.unique-rail {
+  flex-wrap: nowrap;
+  justify-content: center;
+  gap: 6px;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.unique-chip {
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 8px;
+  min-width: 0 !important;
+  max-width: none !important;
+  padding: 6px 12px 6px 8px !important;
+  white-space: nowrap;
+}
+.unique-chip::after { display: none !important; }   /* drop the chat-bubble tail */
+.unique-chip .rc-portraits { flex: 0 0 auto; margin: 0; }
+.unique-chip .rc-label {
+  flex: 0 1 auto; font-size: 13px; font-weight: 700;
+  overflow: hidden; text-overflow: ellipsis; max-width: 30ch;
+}
+.unique-chip .rc-cost {
+  position: static !important;
+  flex: 0 0 auto;
+  font: 800 13px/1 ui-monospace, monospace;
+  color: var(--gold-bright);
+}
+.unique-chip.resonance-chip-poor { opacity: 0.45; filter: saturate(0.5); }
+.unique-chip:disabled { cursor: default; }
+
 .resonance-chip {
   display: inline-flex;
   flex-direction: column;
