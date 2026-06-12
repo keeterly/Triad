@@ -15728,8 +15728,18 @@ body.killing-blow::before {
     0 0 12px rgba(220,80,80,0.8);
 }
 .intent-bubble.threat-lethal {
-  animation: intent-lethal-pulse 1.6s ease-in-out infinite;
+  animation: intent-lethal-pulse 1.05s ease-in-out infinite;
+  border-color: var(--blood-bright) !important;
+  box-shadow: 0 0 12px rgba(220,80,80,0.5);
 }
+/* Unmistakable KILL marker — a skull so a lethal intent never reads as merely
+   'heavy'.  The player must answer it. */
+.intent-bubble.threat-lethal .intent-skull {
+  color: #ff7a6a; font-size: 12px; margin-right: 2px;
+  filter: drop-shadow(0 0 6px rgba(220,80,80,0.9));
+  animation: intent-skull-blink 0.7s steps(2, jump-none) infinite;
+}
+@keyframes intent-skull-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
 .intent-bubble.threat-lethal .intent-icon {
   filter:
     drop-shadow(0 1px 0 rgba(0,0,0,0.95))
