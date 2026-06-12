@@ -16271,8 +16271,9 @@ function tickCamaraderie(s, committedQueue) {
         const portraitAnchor = (ca && cb && (ca.hp / ca.maxHp) <= (cb.hp / cb.maxHp)) ? a : b;
         const themed = !bondName.startsWith('Camaraderie:');
         // Centered cinematic beat (queued — multiple bonds can deepen in the
-        // same end-of-turn sweep).
-        playBondDeepen(a, b, levelAfter);
+        // same end-of-turn sweep).  Interactive: held as a tap-to-Continue
+        // beat that gates the enemy turn so the level-up is readable.
+        playBondDeepen(a, b, levelAfter, true);
         spawnToast({
           category: 'bond',
           cls: levelAfter === 3 ? 'qa-bond-resonant' : 'qa-bond-deepened',
@@ -16320,7 +16321,12 @@ function resolveQueueStep(i) {
         }
       }
     }
-    if (checkEnd(s)) { s.executing = false; s.executingIdx = -1; render(); return; }
+    if (checkEnd(s)) {
+      // Fight ended — the post-fight cutscenes show the detailed deepen, so
+      // drop any queued mid-combat Continue beats (they'd be redundant).
+      _bondDeepenInteractiveQueue = [];
+      s.executing = false; s.executingIdx = -1; render(); return;
+    }
     render();
     // Resonance unlock choices were originally drained here (between
     // the player phase and the enemy phase), but the overlay landing
@@ -16329,7 +16335,9 @@ function resolveQueueStep(i) {
     // before the enemy even responded.  Now the queued choices
     // accumulate during combat and surface AFTER the fight clears
     // (see runPostKillCascade in checkEnd → onVictoryCascade).
-    setTimeout(() => resolveEnemyTurn(s), 140);
+    // Hold the enemy turn behind any turn-end bond-deepen Continue beats so
+    // the player reads the level-up before the board moves again.
+    drainBondDeepensInteractive(() => setTimeout(() => resolveEnemyTurn(s), 140));
     return;
   }
   const item = s.queue[i];
@@ -20451,14 +20459,27 @@ function playFirstResonanceOfRun(comboName) {
 // side-toast that records it.  No-op during simulation.
 let _bondDeepenTimer = null;
 let _bondDeepenQueue = [];
+let _bondDeepenInteractiveQueue = [];
 let _bondDeepenBusy = false;
 // Public entry — queues a deepen beat.  Multiple bonds can cross a level in
 // the same tick (the Camaraderie sweep); queueing plays them one after another
 // instead of clobbering the single overlay (the cause of "only sometimes
 // triggers").  Cap the burst so a pathological turn can't stall for ages;
 // keep the highest-level (most dramatic) entries.
-function playBondDeepen(idA, idB, levelAfter) {
+function playBondDeepen(idA, idB, levelAfter, interactive) {
   if (__simulating) return;
+  if (interactive) {
+    // Turn-end deepen — held as a tap-to-Continue beat by the turn flow
+    // (drainBondDeepensInteractive gates the enemy turn on it), so the player
+    // can actually READ the level-up instead of it flashing past.
+    _bondDeepenInteractiveQueue.push({ idA, idB, levelAfter });
+    if (_bondDeepenInteractiveQueue.length > 4) {
+      _bondDeepenInteractiveQueue.sort((x, y) => y.levelAfter - x.levelAfter);
+      _bondDeepenInteractiveQueue.length = 4;
+    }
+    return;
+  }
+  // Mid-action flourish (rare adjacency hook) — timed auto-drain, no gating.
   _bondDeepenQueue.push({ idA, idB, levelAfter });
   if (_bondDeepenQueue.length > 3) {
     _bondDeepenQueue.sort((x, y) => y.levelAfter - x.levelAfter);
@@ -20474,11 +20495,26 @@ function _drainBondDeepen() {
   const dur = _renderBondDeepen(next.idA, next.idB, next.levelAfter);
   setTimeout(() => { _bondDeepenBusy = false; _drainBondDeepen(); }, dur + 180);
 }
-function _renderBondDeepen(idA, idB, levelAfter) {
+// Drain the turn-end deepen beats one at a time, each waiting for a Continue
+// tap; when all are acknowledged, `done` fires (enemy turn resumes).  Always
+// terminates (empty queue → immediate done; a long fallback timer guarantees
+// progress even if a tap is missed) so combat can never get stuck here.
+function drainBondDeepensInteractive(done) {
+  const fin = (typeof done === 'function') ? done : (() => {});
+  if (__simulating || !_bondDeepenInteractiveQueue.length) { fin(); return; }
+  const step = () => {
+    const ev = _bondDeepenInteractiveQueue.shift();
+    if (!ev) { fin(); return; }
+    _renderBondDeepen(ev.idA, ev.idB, ev.levelAfter, step);
+  };
+  step();
+}
+function _renderBondDeepen(idA, idB, levelAfter, onContinue) {
   const nameA = (CHARS[idA] && CHARS[idA].name) || idA || '';
   const nameB = (CHARS[idB] && CHARS[idB].name) || idB || '';
   const roman = (typeof BOND_LEVEL_ROMAN !== 'undefined' && BOND_LEVEL_ROMAN[levelAfter]) || '';
   const resonant = levelAfter >= 3;
+  const interactive = typeof onContinue === 'function';
   let el = document.getElementById('bond-deepen');
   if (!el) {
     el = document.createElement('div');
@@ -20486,7 +20522,7 @@ function _renderBondDeepen(idA, idB, levelAfter) {
     el.setAttribute('aria-hidden', 'true');
     document.body.appendChild(el);
   }
-  el.className = resonant ? 'resonant' : '';
+  el.className = (resonant ? 'resonant' : '') + (interactive ? ' interactive' : '');
   el.innerHTML = `
     <div class="bd-tint"></div>
     <div class="bd-rays"></div>
@@ -20505,7 +20541,9 @@ function _renderBondDeepen(idA, idB, levelAfter) {
     <div class="bd-banner">
       <div class="bd-eyebrow">${resonant ? '✦ RESONANT' : '✦ KIZUNA DEEPENS'}</div>
       <div class="bd-name">${resonant ? 'RESONANCE' : 'KIZUNA'}${roman ? ` ${roman}` : ''}</div>
-    </div>`;
+      <div class="bd-sub">${nameA} &amp; ${nameB} — their team attack ${resonant ? 'rings true' : 'sharpens'}.</div>
+    </div>
+    ${interactive ? '<button type="button" class="bd-continue">Continue</button>' : ''}`;
   el.classList.remove('go');
   void el.offsetWidth;
   el.classList.add('go');
@@ -20514,6 +20552,21 @@ function _renderBondDeepen(idA, idB, levelAfter) {
   // threads meet and the spark blooms — the dramatic beat of the cut.
   setTimeout(() => shakeScreen(resonant ? 3 : 2), Math.round(dur * 0.4));
   clearTimeout(_bondDeepenTimer);
+  if (interactive) {
+    // Hold until the player taps Continue (with a generous fallback so the
+    // turn can never stall if the tap is missed).
+    let done = false;
+    const finish = () => {
+      if (done) return; done = true;
+      clearTimeout(_bondDeepenTimer);
+      el.classList.remove('go');
+      setTimeout(onContinue, 220);
+    };
+    const btn = el.querySelector('.bd-continue');
+    if (btn) bindTapAsPointer(btn, finish);
+    _bondDeepenTimer = setTimeout(finish, 9000);
+    return dur;
+  }
   _bondDeepenTimer = setTimeout(() => el.classList.remove('go'), dur);
   return dur;
 }

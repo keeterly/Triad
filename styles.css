@@ -3408,6 +3408,8 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
   pointer-events: none; opacity: 0;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 18px;
+  /* Smooth the dismissal when JS removes .go (interactive Continue path). */
+  transition: opacity 0.22s ease-out;
 }
 /* Container fades in, HOLDS, then fades out — children hold their end state
    so nothing vanishes mid-beat; this envelope alone handles the exit. */
@@ -3424,6 +3426,37 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
 #bond-deepen.resonant .bd-tint {
   background: radial-gradient(ellipse at center, rgba(70,46,14,0.5) 0%, rgba(6,3,2,0.82) 100%);
 }
+
+/* Interactive (tap-to-Continue) deepen — captures input and HOLDS open until
+   the player acknowledges (the container fade-out is suppressed; JS removes
+   .go on Continue).  Dims the board harder so the moment reads as its own
+   beat instead of competing with the combat behind it. */
+#bond-deepen.interactive { pointer-events: auto; }
+#bond-deepen.interactive.go,
+#bond-deepen.resonant.interactive.go { animation: bd-show-hold 0.5s ease-out forwards; }
+@keyframes bd-show-hold { 0% { opacity: 0; } 100% { opacity: 1; } }
+#bond-deepen.interactive .bd-tint {
+  background: radial-gradient(ellipse at center, rgba(18,26,54,0.66) 0%, rgba(2,3,8,0.93) 100%);
+  backdrop-filter: blur(3px);
+}
+#bond-deepen.resonant.interactive .bd-tint {
+  background: radial-gradient(ellipse at center, rgba(58,38,12,0.62) 0%, rgba(4,2,1,0.95) 100%);
+}
+#bond-deepen .bd-sub {
+  margin-top: 9px; font-size: 12.5px; color: var(--ink-dim); opacity: 0.92;
+  font-style: italic; position: relative; z-index: 2;
+}
+#bond-deepen .bd-continue {
+  position: relative; z-index: 3; margin-top: 8px;
+  padding: 9px 32px; border: 1px solid var(--gold); border-radius: 8px;
+  background: linear-gradient(rgba(60,46,20,0.72), rgba(30,22,10,0.72));
+  color: var(--gold-bright); font: 700 13px/1 inherit;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  cursor: pointer; pointer-events: auto; opacity: 0;
+}
+#bond-deepen.interactive.go .bd-continue { animation: bd-continue-in 0.4s ease-out 0.5s forwards; }
+@keyframes bd-continue-in { 0% { opacity: 0; transform: translateY(6px); } 100% { opacity: 1; transform: translateY(0); } }
+#bond-deepen .bd-continue:hover { border-color: var(--gold-bright); box-shadow: 0 0 14px rgba(240,200,110,0.4); }
 /* Radiating light rays behind the heroes — a slow rotating burst that fades
    in with the moment.  Conic 'spokes' via a repeating gradient. */
 #bond-deepen .bd-rays {
