@@ -17085,3 +17085,63 @@ body.on-title #hud { display: none !important; }
 /* Upgraded-tech marker in party inspect. */
 .hip-tech-upgraded { color: var(--gold-bright); font-size: 0.8em; text-shadow: 0 0 6px rgba(240,200,110,0.7); }
 .hip-tech-row.upgraded .hip-tech-name { color: #fff3d6; }
+
+/* ===== Resonant Skills — single launcher button + panel (replaces per-skill pills) ===== */
+#ts-area.resonant-launch { justify-content: center; align-items: flex-end; }
+.resonant-skills-btn {
+  pointer-events: auto;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 7px 16px; border-radius: 999px;
+  border: 1px solid var(--gold);
+  background: linear-gradient(rgba(60,46,20,0.9), rgba(34,24,10,0.9));
+  color: var(--gold-bright); font-size: 13px; font-weight: 700; letter-spacing: 0.04em;
+  cursor: pointer; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+  transition: box-shadow 0.15s, border-color 0.15s, transform 0.1s;
+}
+.resonant-skills-btn .rsb-glyph { font-size: 14px; }
+.resonant-skills-btn .rsb-count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px;
+  background: var(--gold); color: #1a1206; font-size: 11px; font-weight: 800;
+}
+.resonant-skills-btn.ready { animation: rsb-pulse 1.8s ease-in-out infinite; }
+@keyframes rsb-pulse {
+  0%, 100% { box-shadow: 0 2px 8px rgba(0,0,0,0.5), 0 0 0 0 rgba(240,200,110,0); }
+  50%      { box-shadow: 0 2px 8px rgba(0,0,0,0.5), 0 0 12px 2px rgba(240,200,110,0.5); }
+}
+.resonant-skills-btn.ready:hover { border-color: var(--gold-bright); transform: translateY(-1px); }
+.resonant-skills-btn.poor { opacity: 0.6; border-color: var(--gold-dim); }
+.resonant-skills-btn.poor .rsb-count { background: var(--gold-dim); }
+
+#resonant-panel { position: fixed; inset: 0; z-index: 8400; opacity: 0; pointer-events: none; transition: opacity 0.18s ease-out; }
+#resonant-panel.open { opacity: 1; pointer-events: auto; }
+#resonant-panel .rp-backdrop { position: absolute; inset: 0; background: rgba(2,3,8,0.7); backdrop-filter: blur(2px); }
+#resonant-panel .rp-sheet {
+  position: absolute; left: 50%; bottom: 92px; transform: translateX(-50%);
+  width: min(560px, 92vw); max-height: 60vh; overflow-y: auto;
+  background: linear-gradient(rgba(28,22,14,0.98), rgba(18,14,9,0.98));
+  border: 1px solid var(--gold); border-radius: 14px; box-shadow: 0 12px 40px rgba(0,0,0,0.7); padding: 12px;
+}
+#resonant-panel.open .rp-sheet { animation: rp-rise 0.22s cubic-bezier(.2,.8,.3,1); }
+@keyframes rp-rise { 0% { opacity: 0; transform: translateX(-50%) translateY(12px); } 100% { opacity: 1; transform: translateX(-50%) translateY(0); } }
+#resonant-panel .rp-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; padding: 0 2px; }
+#resonant-panel .rp-title { color: var(--gold-bright); font-size: 14px; font-weight: 800; letter-spacing: 0.06em; }
+#resonant-panel .rp-close { width: 28px; height: 28px; border-radius: 6px; border: 1px solid var(--gold-dim); background: transparent; color: var(--ink); font-size: 18px; line-height: 1; cursor: pointer; }
+#resonant-panel .rp-list { display: flex; flex-direction: column; gap: 6px; }
+#resonant-panel .rp-row {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border-radius: 9px;
+  border: 1px solid rgba(240,200,110,0.35); background: linear-gradient(rgba(48,36,18,0.6), rgba(28,20,10,0.6));
+  color: var(--ink); text-align: left; cursor: pointer; transition: border-color 0.12s, box-shadow 0.12s;
+}
+#resonant-panel .rp-row:not(.poor):hover { border-color: var(--gold-bright); box-shadow: 0 0 10px rgba(240,200,110,0.3); }
+#resonant-panel .rp-row.poor { opacity: 0.45; cursor: default; }
+#resonant-panel .rp-portraits { display: flex; flex: 0 0 auto; }
+#resonant-panel .rp-portrait { width: 30px; height: 30px; border-radius: 50%; overflow: hidden; border: 1px solid var(--gold-dim); margin-left: -6px; background: var(--parchment-deep); }
+#resonant-panel .rp-portrait:first-child { margin-left: 0; }
+#resonant-panel .rp-portrait svg { width: 100%; height: 100%; }
+#resonant-panel .rp-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+#resonant-panel .rp-name { font-size: 13px; font-weight: 700; color: #fff3d6; display: flex; align-items: center; gap: 6px; }
+#resonant-panel .rp-tier { font-size: 9px; letter-spacing: 0.1em; color: var(--gold-dim); border: 1px solid var(--gold-dim); border-radius: 3px; padding: 0 3px; }
+#resonant-panel .rp-desc { font-size: 11px; color: #d9cfb8; line-height: 1.3; }
+#resonant-panel .rp-cost { flex: 0 0 auto; font: 800 14px ui-monospace, monospace; color: var(--gold-bright); }
+#resonant-panel .rp-hint { margin-top: 10px; font-size: 10.5px; color: var(--ink-dim); opacity: 0.8; text-align: center; }

@@ -18727,16 +18727,8 @@ function renderQueue() {
 // Resonance Rail — surfaces any Combos available from the current queue.
 // Each chip is a tap-to-fuse button.  When the queue is empty or has no
 // matches, the rail is hidden so it never crowds combat.
-function renderTeamSpecial() {
-  const area = $('#ts-area');
-  if (!area) return;
-  area.innerHTML = '';
-  if (state.executing || state.over) { area.classList.add('hidden'); return; }
-  // The floating rail is TEAM attacks only now — per-hero Unleash lives in
-  // each hero's action column (renderTiles), so this band stays short and
-  // doesn't crowd the battlefield.  And we collapse to ONE pill per pair:
-  // the highest unlocked kizuna level (the climax), so a pair never stacks
-  // L1+L2+L3 chips fighting for space.
+// Collapse the available team attacks to ONE per pair (highest kizuna level).
+function availableTeamUniques() {
   const kLevel = (c) => (typeof c.kizunaLevel === 'number' ? c.kizunaLevel : (c.tier === 'triple' ? 3 : 2));
   const pairKey = (c) => (c.requires || []).map(r => r.heroId).slice().sort().join('+');
   const bestPerPair = new Map();
@@ -18745,71 +18737,100 @@ function renderTeamSpecial() {
     const cur = bestPerPair.get(k);
     if (!cur || kLevel(c) > kLevel(cur)) bestPerPair.set(k, c);
   });
-  const teamUniques = Array.from(bestPerPair.values());
-  if (!teamUniques.length) { area.classList.add('hidden'); return; }
-  area.classList.remove('hidden');
-  area.classList.add('resonance-rail', 'unique-rail');
+  return Array.from(bestPerPair.values());
+}
+
+// Resonant-skill presentation: instead of a pill PER team attack crowding the
+// board, show ONE launcher button when any are available.  Tapping it opens a
+// panel listing them all (tap to fire).  Keeps the combat screen clean.
+function renderTeamSpecial() {
+  const area = $('#ts-area');
+  if (!area) return;
+  area.innerHTML = '';
+  if (state.executing || state.over) { area.classList.add('hidden'); closeResonantPanel(); return; }
+  const teamUniques = availableTeamUniques();
+  if (!teamUniques.length) { area.classList.add('hidden'); closeResonantPanel(); return; }
+  area.classList.remove('hidden', 'unique-rail');
+  area.classList.add('resonance-rail', 'resonant-launch');
   if (!hasSeenCoachmark('cm_resonance')) {
     setTimeout(() => {
       showCoachmark('cm_resonance', {
-        anchor: '#ts-area .resonance-chip',
+        anchor: '#ts-area .resonant-skills-btn',
         place: 'above',
-        text: 'A <b>team attack</b> is ready — spend <b>Resolve</b> (banked by detonating primers) to fire it.  Press &amp; hold to preview its targets.',
+        text: 'A <b>Resonant Skill</b> is ready.  Tap to open the list and spend <b>Resolve</b> to unleash a team move.',
       });
     }, 400);
   }
   const resolveAvail = state.resolve - queueReservedResolve();
+  const anyAffordable = teamUniques.some(c => uniqueActionCost(c) <= resolveAvail && UNIQUE_ATB <= queueAtbAvailable());
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = `resonant-skills-btn${anyAffordable ? ' ready' : ' poor'}`;
+  btn.innerHTML = `<span class="rsb-glyph">✦</span><span class="rsb-label">Resonant Skills</span><span class="rsb-count">${teamUniques.length}</span>`;
+  btn.title = `${teamUniques.length} resonant skill${teamUniques.length === 1 ? '' : 's'} available — tap to choose.`;
+  bindTapAsPointer(btn, () => { if (!state.executing && !state.over) openResonantPanel(); });
+  area.appendChild(btn);
+}
+
+let _resonantPanelOpen = false;
+function closeResonantPanel() {
+  if (!_resonantPanelOpen && !document.getElementById('resonant-panel')) return;
+  _resonantPanelOpen = false;
+  clearPreviewHighlight();
+  const el = document.getElementById('resonant-panel');
+  if (el) { el.classList.remove('open'); el.setAttribute('aria-hidden', 'true'); }
+}
+function openResonantPanel() {
+  const list = availableTeamUniques();
+  if (!list.length) { closeResonantPanel(); return; }
+  _resonantPanelOpen = true;
+  let el = document.getElementById('resonant-panel');
+  if (!el) { el = document.createElement('div'); el.id = 'resonant-panel'; el.setAttribute('aria-hidden', 'true'); document.body.appendChild(el); }
+  const resolveAvail = state.resolve - queueReservedResolve();
   const atbAvail = queueAtbAvailable();
-  const chipLabel = (combo) => {
-    if (!combo || !combo.name) return '';
-    return combo.name
-      .replace(/^[A-Z][a-z]+ leads · /i, '')
-      .replace(/^[A-Z][a-z]+ anchors · /i, '')
-      .replace(/ · RESONANT$/i, '');
-  };
-  // Shared chip factory — portraits + label + ◈ cost, affordable/disabled
-  // state, press-hold preview, tap to fire.
-  const addChip = ({ portraitsHtml, label, cost, extraCls, title, onPreview, onFire }) => {
+  const chipLabel = (combo) => (combo.name || '')
+    .replace(/^[A-Z][a-z]+ leads · /i, '').replace(/^[A-Z][a-z]+ anchors · /i, '').replace(/ · RESONANT$/i, '');
+  const rows = list.map(combo => {
+    const cost = uniqueActionCost(combo);
     const affordable = cost <= resolveAvail && UNIQUE_ATB <= atbAvail;
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.disabled = !affordable;
-    btn.className = `resonance-chip unique-chip ${extraCls || ''}${affordable ? '' : ' resonance-chip-poor'}`;
-    btn.innerHTML = `${portraitsHtml}<span class="rc-label">${label}</span><span class="rc-cost" title="Resolve cost">◈ ${cost}</span>`;
-    btn.title = title;
-    let holdTimer = null, leftWhileDown = false;
-    const cancelHoldTimer = () => { if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; } };
-    const clearChipPreview = () => { clearPreviewHighlight(); btn.classList.remove('previewing'); };
-    btn.addEventListener('pointerdown', () => {
-      leftWhileDown = false;
-      if (onPreview) holdTimer = setTimeout(() => { btn.classList.add('previewing'); onPreview(); }, 320);
-    });
-    btn.addEventListener('pointerup', cancelHoldTimer);
-    btn.addEventListener('pointerleave', () => { cancelHoldTimer(); leftWhileDown = true; setTimeout(clearChipPreview, 180); });
-    btn.addEventListener('pointercancel', () => { cancelHoldTimer(); clearChipPreview(); });
-    bindTapAsPointer(btn, () => {
-      if (leftWhileDown) { leftWhileDown = false; clearChipPreview(); return; }
-      if (state.executing || state.over) return;
-      cancelHoldTimer();
-      clearChipPreview();
-      btn.classList.add('pressed');
-      onFire();
-    });
-    area.appendChild(btn);
-  };
-  teamUniques.forEach(combo => {
     const heroIds = combo.requires.map(r => r.heroId);
-    const portraitsHtml = `<span class="rc-portraits">${heroIds.map(id =>
-      `<span class="rc-portrait" title="${(CHARS[id] && CHARS[id].name) || id}">${PORTRAITS[id] || ''}</span>`).join('')}</span>`;
+    const portraits = heroIds.map(id => `<span class="rp-portrait" title="${(CHARS[id] && CHARS[id].name) || id}">${PORTRAITS[id] || ''}</span>`).join('');
     const resonantSuffix = /resonant/i.test(combo.name) ? ' · RESONANT' : '';
-    addChip({
-      portraitsHtml,
-      label: chipLabel(combo) + resonantSuffix,
-      cost: uniqueActionCost(combo),
-      extraCls: `resonance-${combo.tier}${combo.sigTier ? ' resonance-sig' : ''}`,
-      title: `Team attack · ${combo.name} — spend ${uniqueActionCost(combo)} Resolve: ${combo.desc}`,
-      onPreview: () => applyPreviewHighlight(previewComboTargets(combo.id)),
-      onFire: () => commitUnique(combo.id),
+    const tierLabel = combo.tier === 'triple' ? 'TRIO' : 'DUO';
+    return `<button type="button" class="rp-row${affordable ? '' : ' poor'}" data-combo="${combo.id}"${affordable ? '' : ' disabled'}>
+      <span class="rp-portraits">${portraits}</span>
+      <span class="rp-body"><span class="rp-name">${chipLabel(combo)}${resonantSuffix} <span class="rp-tier">${tierLabel}</span></span><span class="rp-desc">${combo.desc}</span></span>
+      <span class="rp-cost" title="Resolve cost">◈ ${cost}</span>
+    </button>`;
+  }).join('');
+  el.innerHTML = `
+    <div class="rp-backdrop"></div>
+    <div class="rp-sheet">
+      <div class="rp-head"><span class="rp-title">✦ Resonant Skills</span><button type="button" class="rp-close" aria-label="Close">×</button></div>
+      <div class="rp-list">${rows}</div>
+      <div class="rp-hint">Spend Resolve (banked by detonating primers) to unleash a team move. Press &amp; hold a skill to preview its targets.</div>
+    </div>`;
+  el.classList.add('open');
+  el.setAttribute('aria-hidden', 'false');
+  bindTapAsPointer(el.querySelector('.rp-backdrop'), closeResonantPanel);
+  bindTapAsPointer(el.querySelector('.rp-close'), closeResonantPanel);
+  el.querySelectorAll('.rp-row').forEach(row => {
+    const id = row.dataset.combo;
+    let holdTimer = null, leftWhileDown = false;
+    const cancelHold = () => { if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; } };
+    row.addEventListener('pointerdown', () => {
+      leftWhileDown = false;
+      holdTimer = setTimeout(() => { row.classList.add('previewing'); applyPreviewHighlight(previewComboTargets(id)); }, 300);
+    });
+    row.addEventListener('pointerup', cancelHold);
+    row.addEventListener('pointerleave', () => { cancelHold(); leftWhileDown = true; row.classList.remove('previewing'); clearPreviewHighlight(); });
+    row.addEventListener('pointercancel', () => { cancelHold(); row.classList.remove('previewing'); clearPreviewHighlight(); });
+    bindTapAsPointer(row, () => {
+      if (leftWhileDown) { leftWhileDown = false; clearPreviewHighlight(); return; }
+      if (row.disabled || state.executing || state.over) return;
+      cancelHold();
+      closeResonantPanel();
+      commitUnique(id);
     });
   });
 }
