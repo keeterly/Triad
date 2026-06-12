@@ -15062,18 +15062,16 @@ function fireSynergyFeedback(s, name, receiverId, effectText, effectType) {
     s.firedSynergies.add(name);
     if (s.fightStats) s.fightStats.synergies.push(name);
   }
-  let levelBefore = 0, levelAfter = 0;
-  if (s.run) {
-    s.run.synergyCounts = s.run.synergyCounts || {};
-    const before = s.run.synergyCounts[name] || 0;
-    levelBefore = getBondLevel(s, name, before);
-    s.run.synergyCounts[name] = before + 1;
-    levelAfter = getBondLevel(s, name, before + 1);
-  }
-  // Roman / tier wording for legacy popups + run-info readouts.  Level
-  // 0 reads as bare bond name, levels 1-3 add the roman.
-  const tierAfter = levelAfter === 0 ? 1 : levelAfter; // legacy mapping for older code paths
-  const tierBefore = levelBefore === 0 ? 1 : levelBefore;
+  // The bond COUNT and the level-up moment (picker / cinematic / toast) are
+  // owned by tickCamaraderie now — ONE accrual rule for every pair, themed or
+  // not.  Here we only read the CURRENT level to render this proc's
+  // mid-combat feedback.  Setting before == after makes the legacy level-up
+  // branch below inert (it never crosses), so the deepen beat fires from a
+  // single place.
+  const _curLvl = getBondLevel(s, name);
+  const levelBefore = _curLvl, levelAfter = _curLvl;
+  const tierAfter = levelAfter === 0 ? 1 : levelAfter;
+  const tierBefore = tierAfter;
   const tierRoman = BOND_LEVEL_ROMAN[levelAfter] || '';
   const nameWithTier = levelAfter >= 1 ? `${name} ${tierRoman}` : name;
   // Look up bond/friction type from the active adjacency pair
@@ -16177,42 +16175,37 @@ function tickCamaraderie(s, committedQueue) {
     for (let j = i + 1; j < actedList.length; j++) {
       const a = actedList[i];
       const b = actedList[j];
-      const key = adjKey(a, b);
-      // Themed pair?  Skip — their bond builds via its own hooks.
-      if (ADJ[key]) continue;
-      const bondName = `Camaraderie:${key}`;
+      // ONE accrual rule: every co-acting pair builds its single canonical
+      // bond — the themed name when the pair has one, else Camaraderie:<key>.
+      // (Previously themed pairs were skipped here and accrued via their own
+      // mid-combat hooks at a different rate; now everyone walks one ladder.)
+      const bondName = bondNameForPair(a, b);
       const before = s.run.synergyCounts[bondName] || 0;
       const levelBefore = getBondLevel(s, bondName, before);
       s.run.synergyCounts[bondName] = before + 1;
       const levelAfter = getBondLevel(s, bondName, before + 1);
-      // Level transition — queue the picker for every newly-crossed
-      // level (usually one, but reconcile can stack).
       if (levelAfter > levelBefore) {
         const newLevels = [];
         for (let l = levelBefore + 1; l <= levelAfter; l++) newLevels.push(l);
         _queueResonanceChoice(s, a, b, newLevels);
       }
-      // Legacy tier vocabulary for the toast / popup paths below.
-      const tierBefore = levelBefore === 0 ? 1 : levelBefore;
-      const tierAfter = levelAfter === 0 ? 1 : levelAfter;
-      // Level-up fanfare — side toast.  No fanfare at Level 0 (just
-      // 'they cooperated once').
+      // Level-up fanfare — cinematic beat + side toast.  None at Level 0.
       if (levelAfter > levelBefore && levelAfter >= 1) {
-        const word = levelAfter === 3 ? 'RESONANT' : 'DEEPENED';
         const nameA = (CHARS[a] && CHARS[a].name) || a;
         const nameB = (CHARS[b] && CHARS[b].name) || b;
         const ca = s.party.chars[a], cb = s.party.chars[b];
         const portraitAnchor = (ca && cb && (ca.hp / ca.maxHp) <= (cb.hp / cb.maxHp)) ? a : b;
+        const themed = !bondName.startsWith('Camaraderie:');
         // Centered cinematic beat (queued — multiple bonds can deepen in the
-        // same Camaraderie sweep).
+        // same end-of-turn sweep).
         playBondDeepen(a, b, levelAfter);
         spawnToast({
           category: 'bond',
-          cls: tierAfter === 3 ? 'qa-bond-resonant' : 'qa-bond-deepened',
-          eyebrow: tierAfter === 3 ? '✦ RESONANT' : '✦ DEEPENED',
-          name: `${nameA} + ${nameB}`,
-          flavor: 'Camaraderie',
-          desc: tierAfter === 3
+          cls: levelAfter === 3 ? 'qa-bond-resonant' : 'qa-bond-deepened',
+          eyebrow: levelAfter === 3 ? '✦ RESONANT' : '✦ DEEPENED',
+          name: themed ? bondName : `${nameA} + ${nameB}`,
+          flavor: themed ? `${nameA} + ${nameB}` : 'Camaraderie',
+          desc: levelAfter === 3
             ? 'Their bond rings true.  The Resonance Skill hits harder from here.'
             : 'Their bond deepens.  The Resonance Skill hits harder from here on.',
           portraitId: portraitAnchor,
