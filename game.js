@@ -13935,7 +13935,16 @@ function getAdjacencyPairs(s) {
   });
   return pairs;
 }
+// Stage-3 unification: each pair is now ONE relationship — a bond that
+// deepens into a Resonance.  The old SEPARATE always-on passive procs
+// (themed ADJ pairs granting +atk/armor/etc. mid-combat, plus their L3
+// clauses and mid-combat "✨ bond fired" feedback) are folded away so the
+// player tracks one thing per pair, not a proc layered with a Resonance.
+// Toggle back on to restore the passive-proc layer.  (Frictions are a
+// separate positional dmgMod, not a hook, so they're unaffected.)
+const BOND_PROCS_ENABLED = false;
 function fireAdjacencyHook(s, hookName, ...args) {
+  if (!BOND_PROCS_ENABLED) return;
   getAdjacencyPairs(s).forEach(p => {
     const fn = p.synergy[hookName];
     if (typeof fn === 'function') fn(s, ...args);
