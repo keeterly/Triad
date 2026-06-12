@@ -12891,6 +12891,11 @@ function applyDmgToEnemy(s, e, baseAmt) {
   let schoolBadge = null;
   let isWeaknessHit = false;
   let reactionName = null;
+  // One detonation slow-mo per hit — weakness, stagger-consume, and primer
+  // bursts are ALL detonations now (one unified system), so they share a
+  // single impact flash instead of stacking three.
+  let _detonated = false;
+  const detonateFx = () => { if (!_detonated) { _detonated = true; playStaggerHit(); } };
   const actorDef = s.currentActorId ? CHARS[s.currentActorId] : null;
   let element = s.currentTechElement || (actorDef && actorDef.school);
   // Silent Volley (Branwen+Veyr mid-back) — Branwen's first attack each
@@ -12911,17 +12916,23 @@ function applyDmgToEnemy(s, e, baseAmt) {
     const weaks = asArr(enemyDef && enemyDef.weakness);
     const resists = asArr(enemyDef && enemyDef.resistance);
     if (weaks.includes(element)) {
+      // Weakness is the enemy's INTRINSIC primer — hitting its element
+      // DETONATES it.  Same detonation framework as bleed/vuln/dulled:
+      // a burst (here a ×1.5 amp), the ✺ reaction treatment, the impact
+      // flash, and banked Resolve.  Detonate it twice → STAGGER (below).
       amt = Math.round(amt * 1.5);
       schoolBadge = 'WEAK!';
+      reactionName = reactionName || 'WEAK!';
       isWeaknessHit = true;
+      detonateFx();
       // Per-turn flag for the Ticking Threat objective — if the catalyst
       // was struck on its weakness this turn, the charge holds even if
       // the stagger consume cleared the staggered state.
       e._weaknessHitThisTurn = true;
       // press-turn loop: weakness hit banks +1 ATB for next turn (capped at +1)
       s.pendingBonusAtb = Math.min(1, (s.pendingBonusAtb || 0) + 1);
-      // ...and BANKS Resolve toward the unique/team actions.
-      if (!__simulating) gainResolve(s, WEAKNESS_RESOLVE);
+      // ...and BANKS Resolve like every detonation.
+      if (!__simulating) gainResolve(s, DETONATE_RESOLVE);
       // Embers + achievement bookkeeping — every weakness exploit pays
       // 1 Ember and tallies toward Pressed Turns (5 in a fight).
       earnEmbers(1, 'weakness-exploit');
@@ -12944,12 +12955,12 @@ function applyDmgToEnemy(s, e, baseAmt) {
     amt *= stgMult;
     e.staggerBonusUsed = true;
     schoolBadge = schoolBadge || 'STG!';
+    reactionName = reactionName || 'STG!';
     pendingStaggerClear = true;
-    // Power-spike — the 2× (or 3× with Hunt) stagger consume is the
-    // payoff of the whole weakness loop.  Plays a brief slow-mo +
-    // chromatic flash so the hit lands as a MOMENT instead of a
-    // normal popup.  No-op during simulation.
-    playStaggerHit();
+    // Power-spike — the 2× (or 3× with Hunt) stagger consume is the PEAK
+    // detonation of the unified loop (the intrinsic primer fully popped).
+    // Shares the one-per-hit impact flash.
+    detonateFx();
   }
 
   // Reactions — a primer status + matching attack element detonates for a
@@ -12965,7 +12976,7 @@ function applyDmgToEnemy(s, e, baseAmt) {
       // Detonating a primer BANKS Resolve — the prime→detonate loop is the
       // engine that fuels the unique/team actions.
       if (!__simulating) gainResolve(s, DETONATE_RESOLVE);
-      playStaggerHit();
+      detonateFx();
     }
   }
 
