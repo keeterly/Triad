@@ -1644,12 +1644,11 @@ const BRACE_ARMOR = 3;
 // before they cash it for +2/hit.
 const BRACE_VULN_CLEAR = 1;
 
-const RESOLVE_MAX = 4;      // Raised from 3 in lockstep with ATB_MAX: queuing
-                           // two sigs RESERVES 2+2 = 4 Resolve, so the L3
-                           // sig+sig trigger can't even be assembled at a
-                           // cap of 3.  Also gives the new flat-premium
-                           // Resonance economy room to bank toward a climax.
-const RESOLVE_DRIP = 1;     // Resolve regenerated automatically each turn
+const RESOLVE_MAX = 6;      // Economy redesign — a bigger bank so the top
+                           // unique/team actions are a real save-up, fed by
+                           // detonations.  (Was 4.)
+const UNIQUE_ATB = 2;      // ATB a spend-to-fire unique/team action occupies
+const RESOLVE_DRIP = 1;     // Resolve regenerated automatically each turn (floor)
 // Physical Momentum — banked by physical basics, spent by a physical sig.
 const MOMENTUM_CAP = 5;     // pips; a full bank empowers the next sig hard
 const MOMENTUM_PER = 2;     // bonus damage per Momentum point spent
@@ -9970,6 +9969,15 @@ function resonancePremium(combo) {
   return Math.max(1, Math.min(3, lvl));
 }
 
+// Spend-to-fire cost of a unique/team action, by kizuna level — a real
+// save-up gradient so the top team attacks are a banked climax, not a
+// per-turn freebie.  L1 = 3, L2 = 4, L3 / trio = 6 (a near-full bank).
+function uniqueActionCost(combo) {
+  const lvl = combo && typeof combo.kizunaLevel === 'number' ? combo.kizunaLevel
+            : (combo && combo.tier === 'triple' ? 3 : 2);
+  return ({ 1: 3, 2: 4, 3: 6 })[Math.max(1, Math.min(3, lvl))] || 4;
+}
+
 function commitCombo(comboId) {
   const s = state;
   if (s.executing || s.over) return;
@@ -10028,6 +10036,54 @@ function commitCombo(comboId) {
   }
   // Codex — record the first-fire and bump the count so the player can
   // see across runs which Resonances they actually use.
+  recordCodexCombo(comboId);
+  Audio.ui();
+  render();
+}
+
+// Spend-to-fire model: a unique/team action is AVAILABLE whenever its kizuna
+// is unlocked and all its heroes are alive on the board — no queued action
+// sequence required.  You bank Resolve (from detonations) and tap to spend it.
+function availableUniques(s) {
+  if (!s || !s.party) return [];
+  const spent = s.usedCombos || new Set();
+  const slotIds = Object.values(s.party.slots || {});
+  const inPlay = (id) => {
+    const c = s.party.chars[id];
+    return !!c && !c.downed && slotIds.includes(id);
+  };
+  return _comboLookupList().filter(combo => {
+    if (!combo || !Array.isArray(combo.requires)) return false;
+    if (spent.has(combo.id)) return false;
+    if (!isComboUnlocked(s, combo)) return false;
+    return combo.requires.every(r => inPlay(r.heroId));
+  });
+}
+
+function commitUnique(comboId) {
+  const s = state;
+  if (s.executing || s.over) return;
+  const combo = availableUniques(s).find(c => c.id === comboId);
+  if (!combo) return;
+  const cost = uniqueActionCost(combo);
+  if (cost > (s.resolve - queueReservedResolve())) { flashMsg(`Not enough Resolve for ${combo.name}.`); return; }
+  if (UNIQUE_ATB > queueAtbAvailable()) { flashMsg(`Not enough ATB this turn.`); return; }
+  s.queue.push({
+    kind: 'combo',
+    comboId,
+    label: combo.name,
+    desc: combo.desc,
+    atb: UNIQUE_ATB,
+    resolveCost: cost,
+    heroes: combo.requires.map(r => r.heroId),
+  });
+  if (!s.usedCombos) s.usedCombos = new Set();
+  s.usedCombos.add(comboId);
+  if (!s.run._comboIdsFiredThisRun) s.run._comboIdsFiredThisRun = new Set();
+  if (!s.run._comboIdsFiredThisRun.has(comboId)) {
+    s.run._comboIdsFiredThisRun.add(comboId);
+    playFirstResonanceOfRun(combo.name);
+  }
   recordCodexCombo(comboId);
   Audio.ui();
   render();
@@ -18709,6 +18765,82 @@ function renderQueue() {
 // Each chip is a tap-to-fuse button.  When the queue is empty or has no
 // matches, the rail is hidden so it never crowds combat.
 function renderTeamSpecial() {
+  const area = $('#ts-area');
+  if (!area) return;
+  area.innerHTML = '';
+  if (state.executing || state.over) { area.classList.add('hidden'); return; }
+  // Spend-to-fire: show the unlocked unique/team actions as a clean, compact
+  // list.  No queued-sequence matching, no near-miss partials — just the
+  // moves you've earned, their Resolve cost, and whether you can afford them.
+  const uniques = availableUniques(state);
+  if (!uniques.length) { area.classList.add('hidden'); return; }
+  area.classList.remove('hidden');
+  area.classList.add('resonance-rail', 'unique-rail');
+  if (!hasSeenCoachmark('cm_resonance')) {
+    setTimeout(() => {
+      showCoachmark('cm_resonance', {
+        anchor: '#ts-area .resonance-chip',
+        place: 'above',
+        text: 'A <b>Unique Action</b> is ready — your bonds unlocked a team move.  Tap to spend <b>Resolve</b> (banked by detonating primers) and queue it; press &amp; hold to preview.',
+      });
+    }, 400);
+  }
+  const resolveAvail = state.resolve - queueReservedResolve();
+  const atbAvail = queueAtbAvailable();
+  const portraitStrip = (combo) => {
+    if (!combo || !Array.isArray(combo.requires)) return '';
+    const heroIds = combo.requires.map(r => r.heroId);
+    return `<span class="rc-portraits">${heroIds.map(id =>
+      `<span class="rc-portrait" title="${(CHARS[id] && CHARS[id].name) || id}">${PORTRAITS[id] || ''}</span>`
+    ).join('')}</span>`;
+  };
+  const chipLabel = (combo) => {
+    if (!combo || !combo.name) return '';
+    return combo.name
+      .replace(/^[A-Z][a-z]+ leads · /i, '')
+      .replace(/^[A-Z][a-z]+ anchors · /i, '')
+      .replace(/ · RESONANT$/i, '');
+  };
+  uniques.forEach(combo => {
+    const cost = uniqueActionCost(combo);
+    const affordable = cost <= resolveAvail && UNIQUE_ATB <= atbAvail;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.disabled = !affordable;
+    btn.className = `resonance-chip unique-chip resonance-${combo.tier}${combo.sigTier ? ' resonance-sig' : ''}${affordable ? '' : ' resonance-chip-poor'}`;
+    const resonantSuffix = /resonant/i.test(combo.name) ? ' · RESONANT' : '';
+    btn.innerHTML = `
+      ${portraitStrip(combo)}
+      <span class="rc-label">${chipLabel(combo)}${resonantSuffix}</span>
+      <span class="rc-cost" title="Resolve cost">◈ ${cost}</span>
+    `;
+    btn.title = `Unique Action · ${combo.name} — spend ${cost} Resolve: ${combo.desc}`;
+    let holdTimer = null, leftWhileDown = false;
+    const cancelHoldTimer = () => { if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; } };
+    const clearChipPreview = () => { clearPreviewHighlight(); btn.classList.remove('previewing'); };
+    btn.addEventListener('pointerdown', () => {
+      leftWhileDown = false;
+      holdTimer = setTimeout(() => {
+        btn.classList.add('previewing');
+        applyPreviewHighlight(previewComboTargets(combo.id));
+      }, 320);
+    });
+    btn.addEventListener('pointerup', cancelHoldTimer);
+    btn.addEventListener('pointerleave', () => { cancelHoldTimer(); leftWhileDown = true; setTimeout(clearChipPreview, 180); });
+    btn.addEventListener('pointercancel', () => { cancelHoldTimer(); clearChipPreview(); });
+    bindTapAsPointer(btn, () => {
+      if (leftWhileDown) { leftWhileDown = false; clearChipPreview(); return; }
+      if (state.executing || state.over) return;
+      cancelHoldTimer();
+      clearChipPreview();
+      btn.classList.add('pressed');
+      commitUnique(combo.id);
+    });
+    area.appendChild(btn);
+  });
+}
+
+function _renderTeamSpecial_legacy() {
   const area = $('#ts-area');
   if (!area) return;
   area.innerHTML = '';
