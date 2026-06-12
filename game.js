@@ -1648,6 +1648,10 @@ const RESOLVE_MAX = 6;      // Economy redesign — a bigger bank so the top
                            // unique/team actions are a real save-up, fed by
                            // detonations.  (Was 4.)
 const UNIQUE_ATB = 2;      // ATB a spend-to-fire unique/team action occupies
+const UNLEASH_COST = 3;    // Resolve to fire a per-hero Unleash (the always-
+                           // available sink — a powered school attack).
+// School-themed Unleash names so the per-hero unique reads with flavour.
+const UNLEASH_NAMES = { physical: 'Onslaught', holy: 'Benediction', arcane: 'Overload', ranged: 'Barrage', stealth: 'Eclipse' };
 const RESOLVE_DRIP = 1;     // Resolve regenerated automatically each turn (floor)
 // Physical Momentum — banked by physical basics, spent by a physical sig.
 const MOMENTUM_CAP = 5;     // pips; a full bank empowers the next sig hard
@@ -10060,6 +10064,45 @@ function availableUniques(s) {
   });
 }
 
+// Per-hero Unleash — the always-available Resolve sink.  Every alive hero on
+// the board can spend Resolve to UNLEASH their school at full power (the
+// SCHOOL_SIGNATURE L3 primary: a big hit + board detonation).  This is what
+// you spend banked Resolve on when no team attack is unlocked yet.
+function availableUnleashes(s) {
+  if (!s || !s.party) return [];
+  const slotIds = Object.values(s.party.slots || {});
+  return slotIds.filter(id => {
+    const c = id && s.party.chars[id];
+    return !!c && !c.downed;
+  }).map(id => ({
+    id: `unleash:${id}`,
+    charId: id,
+    name: UNLEASH_NAMES[(CHARS[id] && CHARS[id].school) || 'physical'] || 'Unleash',
+    cost: UNLEASH_COST,
+  }));
+}
+
+function commitUnleash(charId) {
+  const s = state;
+  if (s.executing || s.over) return;
+  const c = charId && s.party.chars[charId];
+  if (!c || c.downed) return;
+  // One Unleash per hero per turn.
+  if (s.queue.some(q => q.kind === 'unleash' && q.charId === charId)) return;
+  if (UNLEASH_COST > (s.resolve - queueReservedResolve())) { flashMsg('Not enough Resolve.'); return; }
+  if (UNIQUE_ATB > queueAtbAvailable()) { flashMsg('Not enough ATB this turn.'); return; }
+  const school = (CHARS[charId] && CHARS[charId].school) || 'physical';
+  s.queue.push({
+    kind: 'unleash',
+    charId,
+    label: `${(CHARS[charId] && CHARS[charId].name) || charId} · ${UNLEASH_NAMES[school] || 'Unleash'}`,
+    atb: UNIQUE_ATB,
+    resolveCost: UNLEASH_COST,
+  });
+  Audio.ui();
+  render();
+}
+
 function commitUnique(comboId) {
   const s = state;
   if (s.executing || s.over) return;
@@ -16393,6 +16436,22 @@ function executeQueueItem(s, item) {
   // can branch on it (Husk Garden's Blooms detonate only when killed by
   // a Special; Sundering Choir's invuln-while-Voices uses this path too).
   s._currentActionKind = item && item.kind ? item.kind : null;
+  if (item.kind === 'unleash') {
+    const uc = item.charId && s.party.chars[item.charId];
+    if (!uc || uc.downed) return;
+    const school = (CHARS[item.charId] && CHARS[item.charId].school) || 'physical';
+    const sig = SCHOOL_SIGNATURE[school];
+    log(`<span class="msg-strong">✦ ${item.label || 'Unleash'} ✦</span>`);
+    if (!__simulating) flashCardId(item.charId, 'hit', 'party');
+    s.currentActorId = item.charId;
+    s.currentTechElement = school;
+    // Treat an Unleash as a resonant spend so its L3 detonation pays off
+    // double — the banked-Resolve payoff should hit like one.
+    s._currentIsResonance = true;
+    try { if (sig && typeof sig.primary === 'function') sig.primary(s, item.charId, 3); }
+    finally { s.currentActorId = null; s.currentTechElement = null; s._currentIsResonance = false; }
+    return;
+  }
   if (item.kind === 'combo') {
     // Chosen Resonance variants live in state.run.chosenResonances
     // (per-pair / per-trio picks the player made at Tier II unlock)
@@ -18772,8 +18831,9 @@ function renderTeamSpecial() {
   // Spend-to-fire: show the unlocked unique/team actions as a clean, compact
   // list.  No queued-sequence matching, no near-miss partials — just the
   // moves you've earned, their Resolve cost, and whether you can afford them.
-  const uniques = availableUniques(state);
-  if (!uniques.length) { area.classList.add('hidden'); return; }
+  const teamUniques = availableUniques(state);
+  const unleashes = availableUnleashes(state);
+  if (!teamUniques.length && !unleashes.length) { area.classList.add('hidden'); return; }
   area.classList.remove('hidden');
   area.classList.add('resonance-rail', 'unique-rail');
   if (!hasSeenCoachmark('cm_resonance')) {
@@ -18781,19 +18841,12 @@ function renderTeamSpecial() {
       showCoachmark('cm_resonance', {
         anchor: '#ts-area .resonance-chip',
         place: 'above',
-        text: 'A <b>Unique Action</b> is ready — your bonds unlocked a team move.  Tap to spend <b>Resolve</b> (banked by detonating primers) and queue it; press &amp; hold to preview.',
+        text: 'These are <b>Unique Actions</b> — spend <b>Resolve</b> (banked by detonating primers) to fire them.  A hero <b>Unleash</b> is always available; <b>team attacks</b> unlock as bonds deepen.',
       });
     }, 400);
   }
   const resolveAvail = state.resolve - queueReservedResolve();
   const atbAvail = queueAtbAvailable();
-  const portraitStrip = (combo) => {
-    if (!combo || !Array.isArray(combo.requires)) return '';
-    const heroIds = combo.requires.map(r => r.heroId);
-    return `<span class="rc-portraits">${heroIds.map(id =>
-      `<span class="rc-portrait" title="${(CHARS[id] && CHARS[id].name) || id}">${PORTRAITS[id] || ''}</span>`
-    ).join('')}</span>`;
-  };
   const chipLabel = (combo) => {
     if (!combo || !combo.name) return '';
     return combo.name
@@ -18801,29 +18854,22 @@ function renderTeamSpecial() {
       .replace(/^[A-Z][a-z]+ anchors · /i, '')
       .replace(/ · RESONANT$/i, '');
   };
-  uniques.forEach(combo => {
-    const cost = uniqueActionCost(combo);
+  // Shared chip factory — portraits + label + ◈ cost, affordable/disabled
+  // state, press-hold preview, tap to fire.
+  const addChip = ({ portraitsHtml, label, cost, extraCls, title, onPreview, onFire }) => {
     const affordable = cost <= resolveAvail && UNIQUE_ATB <= atbAvail;
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.disabled = !affordable;
-    btn.className = `resonance-chip unique-chip resonance-${combo.tier}${combo.sigTier ? ' resonance-sig' : ''}${affordable ? '' : ' resonance-chip-poor'}`;
-    const resonantSuffix = /resonant/i.test(combo.name) ? ' · RESONANT' : '';
-    btn.innerHTML = `
-      ${portraitStrip(combo)}
-      <span class="rc-label">${chipLabel(combo)}${resonantSuffix}</span>
-      <span class="rc-cost" title="Resolve cost">◈ ${cost}</span>
-    `;
-    btn.title = `Unique Action · ${combo.name} — spend ${cost} Resolve: ${combo.desc}`;
+    btn.className = `resonance-chip unique-chip ${extraCls || ''}${affordable ? '' : ' resonance-chip-poor'}`;
+    btn.innerHTML = `${portraitsHtml}<span class="rc-label">${label}</span><span class="rc-cost" title="Resolve cost">◈ ${cost}</span>`;
+    btn.title = title;
     let holdTimer = null, leftWhileDown = false;
     const cancelHoldTimer = () => { if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; } };
     const clearChipPreview = () => { clearPreviewHighlight(); btn.classList.remove('previewing'); };
     btn.addEventListener('pointerdown', () => {
       leftWhileDown = false;
-      holdTimer = setTimeout(() => {
-        btn.classList.add('previewing');
-        applyPreviewHighlight(previewComboTargets(combo.id));
-      }, 320);
+      if (onPreview) holdTimer = setTimeout(() => { btn.classList.add('previewing'); onPreview(); }, 320);
     });
     btn.addEventListener('pointerup', cancelHoldTimer);
     btn.addEventListener('pointerleave', () => { cancelHoldTimer(); leftWhileDown = true; setTimeout(clearChipPreview, 180); });
@@ -18834,9 +18880,37 @@ function renderTeamSpecial() {
       cancelHoldTimer();
       clearChipPreview();
       btn.classList.add('pressed');
-      commitUnique(combo.id);
+      onFire();
     });
     area.appendChild(btn);
+  };
+  // Per-hero Unleash pills first (the always-available sink), then team attacks.
+  unleashes.forEach(u => {
+    const already = state.queue.some(q => q.kind === 'unleash' && q.charId === u.charId);
+    if (already) return;
+    addChip({
+      portraitsHtml: `<span class="rc-portraits"><span class="rc-portrait" title="${(CHARS[u.charId] && CHARS[u.charId].name) || u.charId}">${PORTRAITS[u.charId] || ''}</span></span>`,
+      label: u.name,
+      cost: u.cost,
+      extraCls: 'unleash-chip',
+      title: `Unleash · ${(CHARS[u.charId] && CHARS[u.charId].name) || u.charId} unleashes their school at full power — spend ${u.cost} Resolve.`,
+      onFire: () => commitUnleash(u.charId),
+    });
+  });
+  teamUniques.forEach(combo => {
+    const heroIds = combo.requires.map(r => r.heroId);
+    const portraitsHtml = `<span class="rc-portraits">${heroIds.map(id =>
+      `<span class="rc-portrait" title="${(CHARS[id] && CHARS[id].name) || id}">${PORTRAITS[id] || ''}</span>`).join('')}</span>`;
+    const resonantSuffix = /resonant/i.test(combo.name) ? ' · RESONANT' : '';
+    addChip({
+      portraitsHtml,
+      label: chipLabel(combo) + resonantSuffix,
+      cost: uniqueActionCost(combo),
+      extraCls: `resonance-${combo.tier}${combo.sigTier ? ' resonance-sig' : ''}`,
+      title: `Team attack · ${combo.name} — spend ${uniqueActionCost(combo)} Resolve: ${combo.desc}`,
+      onPreview: () => applyPreviewHighlight(previewComboTargets(combo.id)),
+      onFire: () => commitUnique(combo.id),
+    });
   });
 }
 
