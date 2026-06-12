@@ -18758,10 +18758,13 @@ function renderTeamSpecial() {
   const crest = document.createElement('button');
   crest.type = 'button';
   crest.className = `resonant-crest${anyAffordable ? ' ready' : ' poor'}`;
-  crest.innerHTML = `<span class="rcr-top"><span class="rcr-glyph">✦</span><span class="rcr-count">${teamUniques.length}</span></span><span class="rcr-label">Resonant</span>`;
+  crest.innerHTML = `<span class="rcr-glyph">✦</span><span class="rcr-label">Resonant</span><span class="rcr-count">${teamUniques.length}</span>`;
   crest.title = `${teamUniques.length} resonant skill${teamUniques.length === 1 ? '' : 's'} available — tap to choose.`;
   bindTapAsPointer(crest, () => { if (!state.executing && !state.over) openResonantPanel(); });
-  host.insertBefore(crest, host.firstChild);
+  // Dock it directly ABOVE the FIGHT button (after the Resolve pips) so the
+  // two action controls read as a clean stacked pair.
+  const fightBtn = host.querySelector('#btn-fight') || host.querySelector('.fight-btn');
+  host.insertBefore(crest, fightBtn || null);
 }
 
 let _resonantPanelOpen = false;
