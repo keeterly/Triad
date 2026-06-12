@@ -20633,7 +20633,7 @@ function shakeScreen(intensity) {
 // Game-speed setting — scales every combat-resolution delay.  'fast' is the
 // original cadence; 'normal' (default) and 'slow' give the turn more room to
 // breathe.  Read live so a change in Settings takes effect immediately.
-const GAME_SPEEDS = { fast: 1.0, normal: 1.4, slow: 1.9 };
+const GAME_SPEEDS = { fast: 1.0, normal: 1.68, slow: 2.1 };
 const GAME_SPEED_ORDER = ['slow', 'normal', 'fast'];
 function getGameSpeed() {
   try { const v = localStorage.getItem('kizuna.gameSpeed'); if (v && GAME_SPEEDS[v]) return v; } catch (_) {}
@@ -23999,7 +23999,12 @@ function showRunSummary(outcome, opts) {
   const devLabel = !!(state && state._isDevRun);
   btn.textContent = (opts && opts.afterClose && !devLabel) ? 'Ascend' : 'Return to Title';
   btn.classList.remove('hidden');
+  let _ascendBusy = false;
   btn.onclick = () => {
+    // Guard against a double-tap firing the handler twice (the cause of the
+    // "glitchy" ascend — the cinematic + carry handoff would run twice).
+    if (_ascendBusy) return;
+    _ascendBusy = true;
     // Ascend cinematic — on boss win the survivors' silhouettes rise up
     // the stairway behind them, the stats fade out, then the world map
     // appears.  The summary itself becomes the carry-over transition

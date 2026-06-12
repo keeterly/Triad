@@ -17127,7 +17127,14 @@ body.on-title #hud { display: none !important; }
   50%      { box-shadow: 0 0 22px rgba(230,218,178,0.4), inset 0 0 16px rgba(230,218,178,0.12); }
 }
 .resonant-skills-btn.ready:hover { transform: translateY(-1px); border-color: #fff3d6; }
-.resonant-skills-btn.poor { opacity: 0.5; border-color: var(--gold-dim); color: var(--gold-dim); box-shadow: none; text-shadow: none; }
+/* Unaffordable — stays SOLID (so the bright figure behind it can't bleed
+   through) but reads as dimmed: muted gold foreground, no glow.  Was opacity
+   0.5, which made the whole button translucent and ghostly over the board. */
+.resonant-skills-btn.poor {
+  background: linear-gradient(180deg, rgba(28,21,13,0.97) 0%, rgba(12,9,6,0.97) 100%);
+  border-color: var(--gold-dim); color: var(--gold-dim); box-shadow: none; text-shadow: none;
+}
+.resonant-skills-btn.poor .rsb-glyph { text-shadow: none; }
 .resonant-skills-btn.poor .rsb-count { background: var(--gold-dim); color: #14100a; }
 
 #resonant-panel { position: fixed; inset: 0; z-index: 8400; opacity: 0; pointer-events: none; transition: opacity 0.18s ease-out; }
