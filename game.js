@@ -21689,13 +21689,16 @@ function renderMap() {
   // (hold for tooltip).  Deferred to next frame so the map DOM exists
   // by the time we query for the anchor.
   if (!hasSeenCoachmark('cm_map_navigate')) {
+    // Fire promptly (was 800ms — long enough to read as lag) so the first-map
+    // hint feels like guidance, not a delayed pop.  Short beat lets the nodes
+    // paint + the path connectors settle first.
     setTimeout(() => {
       showCoachmark('cm_map_navigate', {
         anchor: '#overlay-choices .path-node',
         place: 'below',
         text: '<b>Tap</b> a node to enter.  <b>Press &amp; hold</b> to inspect what\'s there before you commit.',
       });
-    }, 800);
+    }, 320);
   }
   // Refresh the HUD strip so the sigil tray + run modifier chip reflect
   // anything bound on the previous node (events, rests, victory rewards).
