@@ -7268,7 +7268,7 @@ function availableUpgrades(s) {
 const SIGILS = {
   quickening: { id: 'quickening', name: 'Crown of Quickening', icon: '⚡', category: 'resource', rare: true, desc: '+1 ATB per turn (5 total instead of 4).' },
   pact:       { id: 'pact',       name: 'Sigil of the Pact',   icon: '✦', category: 'resource', desc: 'Gain +1 Resolve per turn while any bond is active.' },
-  wrath:      { id: 'wrath',      name: 'Ember of Wrath',      icon: '✕', category: 'combat',   desc: 'Vulnerable enemies take an extra +2 damage from all attacks.' },
+  wrath:      { id: 'wrath',      name: 'Ember of Wrath',      icon: '✕', category: 'combat',   desc: 'Vulnerable enemies take an extra +1 damage from all attacks.' },
   mending:    { id: 'mending',    name: 'Sigil of Mending',    icon: '✚', category: 'defense',  desc: 'At the end of your turn, your lowest-HP ally heals 2.' },
   bloodborne: { id: 'bloodborne', name: 'Bloodborne Sigil',    icon: '✤', category: 'combat',   desc: 'Bleed ticks deal +1 each turn.' },
   steel:      { id: 'steel',      name: 'Sigil of Steel',      icon: '⛨', category: 'defense',  desc: 'Start every fight with +2 armor on each party member.' },
@@ -7288,8 +7288,8 @@ const SIGILS = {
   vowiron:    { id: 'vowiron',    name: 'Vow of Iron',         icon: '⌖', category: 'defense',  desc: 'The Front slot starts each fight with Taunt for the first turn.' },
 
   // --- additions filling slot-based and conditional-defense gaps ---
-  reach:      { id: 'reach',      name: 'Sigil of Reach',      icon: '➤', category: 'combat',   desc: 'Attacks from the Back slot deal +1 damage.' },
-  triage:     { id: 'triage',     name: 'Sigil of Triage',     icon: '✚', category: 'defense',  desc: 'Allies at half HP or below take 1 less damage from incoming hits.' },
+  reach:      { id: 'reach',      name: 'Sigil of Reach',      icon: '➤', category: 'combat',   desc: 'Attacks from the Back slot deal +2 damage.' },
+  triage:     { id: 'triage',     name: 'Sigil of Triage',     icon: '✚', category: 'defense',  desc: 'Allies at half HP or below take 2 less damage from incoming hits.' },
 };
 
 // Sigil tiers — when the player binds a sigil they already own, it
@@ -7298,26 +7298,26 @@ const SIGILS = {
 // index 2 = lvl 3 (max).  Sigils without an entry here stay at level 1
 // (and level-up offers won't appear for them).
 const SIGIL_TIERS = {
-  wrath:      [2, 3, 4],   // bonus damage to Vulnerable enemies
+  // BALANCE PASS — even out the outliers: wrath/aegis were the strongest
+  // unconditional combat/defense scalers, so they come down a notch; the
+  // slot/condition-gated reach & triage come up to stay relevant.
+  wrath:      [1, 2, 3],   // bonus damage to Vulnerable enemies (was [2,3,4] — top-tier unconditional)
   bloodborne: [1, 2, 3],   // bleed-tick damage bonus
   steel:      [2, 3, 4],   // fight-start armor per hero
   reaver:     [1, 2, 3],   // kill-resolve bonus
-  aegis:      [1, 2, 3],   // hp damage absorbed per incoming hit
+  aegis:      [1, 1, 2],   // hp absorbed per incoming hit (was [1,2,3] — scaled too hard in long fights)
   vigil:      [2, 3, 4],   // retaliate damage bonus
   mercy:      [1, 2, 3],   // splash heal to other allies on heal
   mending:    [2, 3, 4],   // end-of-turn heal to lowest-HP ally
   memory:     [1, 2, 3],   // extra resolve carry between fights
-  // --- newly tiered: previously flat sigils that scale naturally with
-  // their printed magnitude.  Picked the ones whose effects compose
-  // safely (no per-turn / per-bond multiplier blowups). ---
   pact:       [1, 2, 3],   // flat Resolve/turn while any bond is active
-  stillness:  [1, 2],      // Special Resolve discount: -1 (cost 1) at base, -2 (free) when upgraded
+  // stillness intentionally NOT tiered now — a flat −1 Special discount.
+  // Tier-2 "free Specials" was a Resolve-economy outlier.
   echo:       [1, 2, 3],   // Team Special resolve discount (floor 0)
   cinders:    [1, 2, 3],   // bleed amount applied to surviving enemies on kill
   vigor:      [1, 2, 2],   // ATB refunded per kill (capped to keep stagger chains sane)
-  // --- new sigils introduced in this pass ---
-  reach:      [1, 2, 3],   // bonus damage for Back-slot attacks
-  triage:     [1, 2, 3],   // incoming-damage reduction while ally is at half HP or below
+  reach:      [2, 3, 4],   // Back-slot attack damage (was [1,2,3] — slot-gated, needed to matter)
+  triage:     [2, 3, 4],   // incoming-damage reduction while ally ≤ half HP (was [1,2,3] — conditional, can run higher)
 };
 function maxSigilTier(id) { return (SIGIL_TIERS[id] || []).length || 1; }
 function getSigilLevel(s, id) {
