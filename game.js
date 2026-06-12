@@ -1626,8 +1626,15 @@ const ACTION_ATB = {
   brace:   1,                 // armor up
 };
 const TEAM_SPECIAL_ATB = ATB_MAX;
-const SPECIAL_COST = 2;       // Resolve cost of an individual special
+const SPECIAL_COST = 2;       // (legacy) Resolve cost of an individual special
 const TEAM_SPECIAL_COST = 3;  // Resolve cost of a team special
+// Economy redesign: basics AND signatures cost ATB only — Resolve is the
+// currency for UNIQUE/TEAM actions, BANKED by detonating primers and
+// exploiting weaknesses (the prime→detonate loop fuels the big plays).
+// Flip SIG_COSTS_RESOLVE back to true to restore Resolve-priced signatures.
+const SIG_COSTS_RESOLVE = false;
+const DETONATE_RESOLVE = 1;   // Resolve banked when a primer detonates
+const WEAKNESS_RESOLVE = 1;   // Resolve banked when a weakness is exploited
 const BRACE_ARMOR = 3;
 // How many stacks of vuln Brace clears from the actor.  Brace was the
 // dead button before — same Resolve-free 1-ATB cost as a basic attack
@@ -10027,6 +10034,9 @@ function commitCombo(comboId) {
 }
 
 function getSpecialCost(s, tech, charId) {
+  // Economy redesign — signatures cost ATB only; Resolve is reserved for the
+  // unique/team actions.  Flip SIG_COSTS_RESOLVE to restore the old pricing.
+  if (!SIG_COSTS_RESOLVE) return 0;
   // Per-tech cost override — sigs can declare `cost: 1 | 2 | 3` for variety.
   // Cheap sigs are utility/support; expensive sigs are the showy payoffs.
   let cost = (tech && typeof tech.cost === 'number') ? tech.cost : SPECIAL_COST;
@@ -12817,6 +12827,8 @@ function applyDmgToEnemy(s, e, baseAmt) {
       e._weaknessHitThisTurn = true;
       // press-turn loop: weakness hit banks +1 ATB for next turn (capped at +1)
       s.pendingBonusAtb = Math.min(1, (s.pendingBonusAtb || 0) + 1);
+      // ...and BANKS Resolve toward the unique/team actions.
+      if (!__simulating) gainResolve(s, WEAKNESS_RESOLVE);
       // Embers + achievement bookkeeping — every weakness exploit pays
       // 1 Ember and tallies toward Pressed Turns (5 in a fight).
       earnEmbers(1, 'weakness-exploit');
@@ -12865,6 +12877,9 @@ function applyDmgToEnemy(s, e, baseAmt) {
       amt += rx.bonus;
       reactionName = rx.name;
       schoolBadge = rx.name;
+      // Detonating a primer BANKS Resolve — the prime→detonate loop is the
+      // engine that fuels the unique/team actions.
+      if (!__simulating) gainResolve(s, DETONATE_RESOLVE);
       playStaggerHit();
     }
   }
