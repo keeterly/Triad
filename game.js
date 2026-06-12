@@ -11395,19 +11395,9 @@ const ACHIEVEMENTS = {
 // achievements no-op.  Grants the Embers reward and surfaces a small
 // fanfare (deferred to next paint so it doesn't fight combat popups).
 function tryUnlockAchievement(id, _reason) {
-  if (!id || !ACHIEVEMENTS[id]) return false;
-  if (typeof __simulating !== 'undefined' && __simulating) return false;
-  if (typeof state !== 'undefined' && state && state._isDevRun) return false;
-  if (hasAchievement(id)) return false;
-  const def = ACHIEVEMENTS[id];
-  const cur = getAchievementsEarned();
-  cur[id] = Date.now();
-  _setAchievementsEarned(cur);
-  if (def.embers) earnEmbers(def.embers, `achievement:${id}`);
-  // Surface a brief fanfare so the player sees the unlock.  Falls
-  // back gracefully if showCoachmark / spawn helpers aren't ready.
-  setTimeout(() => _showAchievementFanfare(def), 200);
-  return true;
+  // Achievements removed — this is now a no-op so the many call sites stay
+  // harmless without each needing to be torn out.  The codex tab is gone too.
+  return false;
 }
 
 function _showAchievementFanfare(def) {
@@ -23840,7 +23830,7 @@ function showRunSummary(outcome, opts) {
     unlocks.push({
       mark: '◆',
       label: 'The Codex opens',
-      desc: 'A record of what you\'ve discovered — heroes, sigils, bonds, achievements — now waits on the title.',
+      desc: 'A record of what you\'ve discovered — heroes, sigils, bonds — now waits on the title.',
     });
   }
   if (opts && opts.forgeJustUnlocked) {
@@ -27364,8 +27354,10 @@ function _renderCodex(body) {
     { id: 'resonances',   label: 'Resonances',   count: Object.keys(codex.combos).length,                                total: Object.keys(COMBOS).length },
     { id: 'bonds',        label: 'Bonds',        count: 0,                                                                total: 0, hideCount: true },
     { id: 'keywords',     label: 'Guide',        count: 0,                                                                total: 0, hideCount: true },
-    { id: 'achievements', label: 'Achievements', count: Object.keys(earned).length,                                       total: Object.keys(ACHIEVEMENTS).length },
   ];
+  // Achievements tab was removed — guard against a stale active tab landing
+  // on a view that no longer has a button.
+  if (!tabs.some(t => t.id === _codexActiveTab)) _codexActiveTab = 'heroes';
   // NEW dot — surfaced on tabs the player has never opened.  Cleared
   // the moment the tab is activated.
   const seenTabs = _getSeenCodexTabs();
