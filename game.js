@@ -16337,7 +16337,7 @@ function resolveQueueStep(i) {
     // (see runPostKillCascade in checkEnd → onVictoryCascade).
     // Hold the enemy turn behind any turn-end bond-deepen Continue beats so
     // the player reads the level-up before the board moves again.
-    drainBondDeepensInteractive(() => setTimeout(() => resolveEnemyTurn(s), 140));
+    drainBondDeepensInteractive(() => setTimeout(() => resolveEnemyTurn(s), pace(140)));
     return;
   }
   const item = s.queue[i];
@@ -16388,8 +16388,8 @@ function resolveQueueStep(i) {
     render();
     // Base inter-action cadence raised (480→560) so the turn breathes; the
     // per-hit hit-stop (consumeHitPause) stacks on top to emphasize big hits.
-    setTimeout(() => resolveQueueStep(i + 1), 560 + consumeHitPause());
-  }, 160);
+    setTimeout(() => resolveQueueStep(i + 1), pace(560 + consumeHitPause()));
+  }, pace(160));
 }
 
 function executeQueueItem(s, item) {
@@ -16956,7 +16956,7 @@ function resolveEnemyStep(s, i) {
       spawnPopupId(e.id, 'INTERRUPTED', 'crit', 'enemy');
       e._charging = null;
       render();
-      setTimeout(() => resolveEnemyStep(s, i + 1), 600);
+      setTimeout(() => resolveEnemyStep(s, i + 1), pace(600));
       return;
     }
     e._charging.releaseIn = Math.max(0, (e._charging.releaseIn || 0) - 1);
@@ -16973,13 +16973,13 @@ function resolveEnemyStep(s, i) {
         e._charging = null;
         if (checkEnd(s)) { s.executing = false; render(); return; }
         render();
-        setTimeout(() => resolveEnemyStep(s, i + 1), 700 + consumeHitPause());
-      }, 280);
+        setTimeout(() => resolveEnemyStep(s, i + 1), pace(700 + consumeHitPause()));
+      }, pace(280));
       return;
     }
     log(`<b>${def.name}</b> winds up <b>${e._charging.name}</b> — ${e._charging.releaseIn} turn(s) until release.`);
     render();
-    setTimeout(() => resolveEnemyStep(s, i + 1), 600);
+    setTimeout(() => resolveEnemyStep(s, i + 1), pace(600));
     return;
   }
 
@@ -16998,7 +16998,7 @@ function resolveEnemyStep(s, i) {
     flashCardId(e.id, 'warn', 'enemy');
     e.intentIdx = (e.intentIdx + 1) % def.intents.length;
     render();
-    setTimeout(() => resolveEnemyStep(s, i + 1), 700);
+    setTimeout(() => resolveEnemyStep(s, i + 1), pace(700));
     return;
   }
 
@@ -17028,8 +17028,8 @@ function resolveEnemyStep(s, i) {
     if (checkEnd(s)) { s.executing = false; render(); return; }
     e.intentIdx = (e.intentIdx + 1) % def.intents.length;
     render();
-    setTimeout(() => resolveEnemyStep(s, i + 1), 460 + consumeHitPause());
-  }, 150);
+    setTimeout(() => resolveEnemyStep(s, i + 1), pace(460 + consumeHitPause()));
+  }, pace(150));
 }
 
 function checkEnd(s) {
@@ -20602,6 +20602,19 @@ function shakeScreen(intensity) {
   stage.classList.add(cls);
   setTimeout(() => stage.classList.remove(cls), 360);
 }
+
+// Game-speed setting — scales every combat-resolution delay.  'fast' is the
+// original cadence; 'normal' (default) and 'slow' give the turn more room to
+// breathe.  Read live so a change in Settings takes effect immediately.
+const GAME_SPEEDS = { fast: 1.0, normal: 1.4, slow: 1.9 };
+const GAME_SPEED_ORDER = ['slow', 'normal', 'fast'];
+function getGameSpeed() {
+  try { const v = localStorage.getItem('kizuna.gameSpeed'); if (v && GAME_SPEEDS[v]) return v; } catch (_) {}
+  return 'normal';
+}
+function setGameSpeed(v) { if (GAME_SPEEDS[v]) { try { localStorage.setItem('kizuna.gameSpeed', v); } catch (_) {} } }
+// Scale a combat delay by the chosen speed.
+function pace(ms) { return Math.round((ms || 0) * (GAME_SPEEDS[getGameSpeed()] || 1)); }
 
 // Hit-pause — briefly freeze the resolution clock for a beat after a lethal
 // or massive hit so the moment lands.  Resolution loops respect this by
@@ -26786,6 +26799,10 @@ function showSettingsScreen() {
   body.innerHTML = `
     <div class="settings-grid">
       ${_ascRowHtml}
+      <button type="button" class="settings-row" data-action="gamespeed">
+        <span class="settings-label">Game speed</span>
+        <span class="settings-value">${({ slow: 'Slow', normal: 'Normal', fast: 'Fast' })[getGameSpeed()]} · tap to change</span>
+      </button>
       <button type="button" class="settings-row" data-action="tutorial">
         <span class="settings-label">First-run tutorial</span>
         <span class="settings-value">Show again on next run</span>
@@ -26811,6 +26828,16 @@ function showSettingsScreen() {
   body.querySelectorAll('.settings-row').forEach(btn => {
     btn.addEventListener('click', () => {
       const action = btn.dataset.action;
+      if (action === 'gamespeed') {
+        // Cycle slow → normal → fast → slow and re-render the row in place.
+        const cur = getGameSpeed();
+        const idx = GAME_SPEED_ORDER.indexOf(cur);
+        const nextSpeed = GAME_SPEED_ORDER[(idx + 1) % GAME_SPEED_ORDER.length];
+        setGameSpeed(nextSpeed);
+        const val = btn.querySelector('.settings-value');
+        if (val) val.textContent = `${({ slow: 'Slow', normal: 'Normal', fast: 'Fast' })[nextSpeed]} · tap to change`;
+        return;
+      }
       if (action === 'tutorial') {
         // Wipe both the legacy tutorial-toast flag AND the new
         // coachmark dictionary so every hint can fire fresh next run.
