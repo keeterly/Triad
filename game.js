@@ -11985,6 +11985,7 @@ newState = function(forcedStarter) {
 // a spec (built by genBossEncounter).
 function startEncounter(encSpec) {
   if (!encSpec || !encSpec.slots) return;
+  flowScrim(false);   // combat begins — lift the transition scrim
   const isFirstFight = !state.run.currentEnc;
   // Clear cross-fight transient sets that don't survive an encounter.
   // pendingSlideIds tracks figures that should slide-in on next render;
@@ -23745,7 +23746,28 @@ function showPartyInspect() {
   $('#overlay').classList.remove('hidden');
 }
 
+// Transition scrim — a dark layer (z just below #overlay) that masks the
+// gap when one overlay closes (display:none) and the next fades in, so the
+// bright battlefield never flashes through between chained overlays.  It
+// stays up across every overlay swap and only lifts when combat / title
+// resumes (see startEncounter / showTitleScreen).
+let _flowScrimEl = null;
+function flowScrim(on) {
+  if (typeof __simulating !== 'undefined' && __simulating) return;
+  if (!_flowScrimEl) {
+    _flowScrimEl = document.createElement('div');
+    _flowScrimEl.id = 'flow-scrim';
+    _flowScrimEl.setAttribute('aria-hidden', 'true');
+    // Inside #stage so it shares the overlay's stacking context (sits just
+    // below #overlay, above the battlefield).
+    (document.getElementById('stage') || document.body).appendChild(_flowScrimEl);
+  }
+  _flowScrimEl.classList.toggle('on', !!on);
+}
+
 function hideOverlay() {
+  // Keep the screen dark through the close→open gap of a chained transition.
+  flowScrim(true);
   const ov = $('#overlay');
   ov.classList.add('hidden');
   ov.classList.remove('overlay-full', 'overlay-cinematic',
@@ -26700,6 +26722,7 @@ function showTitleScreen() {
   if (Audio && typeof Audio.startAmbient === 'function') Audio.startAmbient('title');
   // Ensure the in-game overlay isn't competing
   hideOverlay();
+  flowScrim(false);   // title screen is its own full-bleed surface
   // Drain any queued affinity / mastery / recruit fanfare backdrops so
   // they don't keep firing OVER the title screen after the player
   // returns from a run.  Boss-spoils queues up to 3 vignettes that
