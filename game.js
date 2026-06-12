@@ -20102,9 +20102,11 @@ function spawnHitFx(id, side, school) {
   fx.className = `hit-fx hit-fx-${arch} hit-fx-${sch}`;
   fx.style.left = (r.left + r.width / 2 - s.left) + 'px';
   fx.style.top  = (r.top + r.height / 2 - s.top) + 'px';
-  // Stealth reads as a double-cut; burst carries an expanding ring.
+  // Stealth reads as a double-cut; burst carries an expanding ring; a slash
+  // carries a contact FLASH that pops the instant the edge lands (weight).
   if (sch === 'stealth') fx.classList.add('hit-fx-double');
   if (arch === 'burst') fx.innerHTML = '<span class="hit-fx-ring"></span>';
+  else if (arch === 'slash') fx.innerHTML = '<span class="hit-fx-flash"></span>';
   layer.appendChild(fx);
   setTimeout(() => fx.remove(), 600);
 }
