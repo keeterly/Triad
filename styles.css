@@ -17094,48 +17094,43 @@ body.on-title #hud { display: none !important; }
 .hip-tech-upgraded { color: var(--gold-bright); font-size: 0.8em; text-shadow: 0 0 6px rgba(240,200,110,0.7); }
 .hip-tech-row.upgraded .hip-tech-name { color: #fff3d6; }
 
-/* ===== Resonant Skills — launcher + panel, styled to the game's NieR-gothic
-   palette: notched-corner frames, bone-gold on near-black, serif, glow. ===== */
-#ts-area.resonant-launch { justify-content: center; align-items: flex-end; }
-.resonant-skills-btn {
-  pointer-events: auto;
-  display: inline-flex; align-items: center; gap: 10px;
-  padding: 8px 18px;
-  background: linear-gradient(180deg, rgba(40,28,16,0.96) 0%, rgba(14,10,7,0.96) 100%);
+/* ===== Resonant Skills — a compact CREST docked in the commit zone (above the
+   Resolve pips, beside FIGHT), off the battlefield.  An emblem ✦ + count over
+   a small-caps label, in the game's bone-gold-on-black serif language. ===== */
+.resonant-crest {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  width: 100%; padding: 5px 4px;
+  background: linear-gradient(180deg, rgba(36,26,15,0.95) 0%, rgba(13,9,6,0.95) 100%);
   border: 1px solid var(--gold-bright);
   color: var(--gold-bright);
-  font-family: inherit; font-size: 14px; font-weight: 700;
-  letter-spacing: 0.2em; text-transform: uppercase;
-  text-shadow: 0 0 10px rgba(230,218,178,0.35), 0 1px 0 rgba(0,0,0,0.85);
-  cursor: pointer; white-space: nowrap;
-  box-shadow: 0 0 16px rgba(230,218,178,0.18), inset 0 0 14px rgba(230,218,178,0.07);
-  /* NieR notched corners, same language as the FIGHT button. */
-  clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px);
+  font-family: inherit; cursor: pointer; line-height: 1;
+  /* Same notched-corner language as FIGHT, scaled down. */
+  clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
+  box-shadow: 0 0 12px rgba(230,218,178,0.16), inset 0 0 10px rgba(230,218,178,0.05);
   transition: box-shadow 0.15s, border-color 0.15s, transform 0.1s, color 0.15s;
 }
-.resonant-skills-btn .rsb-glyph { font-size: 15px; text-shadow: 0 0 9px rgba(230,218,178,0.6); }
-.resonant-skills-btn .rsb-count {
+.resonant-crest .rcr-top { display: inline-flex; align-items: center; gap: 5px; }
+.resonant-crest .rcr-glyph { font-size: 15px; text-shadow: 0 0 9px rgba(230,218,178,0.6); }
+.resonant-crest .rcr-count {
   display: inline-flex; align-items: center; justify-content: center;
-  min-width: 19px; height: 19px; padding: 0 5px;
-  background: var(--gold-bright); color: #14100a;
-  font-size: 11px; font-weight: 800; letter-spacing: 0;
-  clip-path: polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px);
+  min-width: 15px; height: 15px; padding: 0 3px;
+  background: var(--gold-bright); color: #14100a; font-size: 9.5px; font-weight: 800;
+  clip-path: polygon(3px 0, 100% 0, 100% calc(100% - 3px), calc(100% - 3px) 100%, 0 100%, 0 3px);
 }
-.resonant-skills-btn.ready { animation: rsb-pulse 2s ease-in-out infinite; }
+.resonant-crest .rcr-label {
+  font-size: 8px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--gold-pale); margin-top: 1px;
+}
+.resonant-crest.ready { animation: rsb-pulse 2.2s ease-in-out infinite; }
 @keyframes rsb-pulse {
-  0%, 100% { box-shadow: 0 0 16px rgba(230,218,178,0.18), inset 0 0 14px rgba(230,218,178,0.07); }
-  50%      { box-shadow: 0 0 22px rgba(230,218,178,0.4), inset 0 0 16px rgba(230,218,178,0.12); }
+  0%, 100% { box-shadow: 0 0 12px rgba(230,218,178,0.16), inset 0 0 10px rgba(230,218,178,0.05); }
+  50%      { box-shadow: 0 0 20px rgba(230,218,178,0.38), inset 0 0 12px rgba(230,218,178,0.1); }
 }
-.resonant-skills-btn.ready:hover { transform: translateY(-1px); border-color: #fff3d6; }
-/* Unaffordable — stays SOLID (so the bright figure behind it can't bleed
-   through) but reads as dimmed: muted gold foreground, no glow.  Was opacity
-   0.5, which made the whole button translucent and ghostly over the board. */
-.resonant-skills-btn.poor {
-  background: linear-gradient(180deg, rgba(28,21,13,0.97) 0%, rgba(12,9,6,0.97) 100%);
-  border-color: var(--gold-dim); color: var(--gold-dim); box-shadow: none; text-shadow: none;
-}
-.resonant-skills-btn.poor .rsb-glyph { text-shadow: none; }
-.resonant-skills-btn.poor .rsb-count { background: var(--gold-dim); color: #14100a; }
+.resonant-crest.ready:hover { transform: translateY(-1px); border-color: #fff3d6; }
+.resonant-crest.poor { border-color: var(--gold-dim); color: var(--gold-dim); box-shadow: none; animation: none; }
+.resonant-crest.poor .rcr-glyph { text-shadow: none; }
+.resonant-crest.poor .rcr-label { color: var(--gold-dim); }
+.resonant-crest.poor .rcr-count { background: var(--gold-dim); color: #14100a; }
 
 #resonant-panel { position: fixed; inset: 0; z-index: 8400; opacity: 0; pointer-events: none; transition: opacity 0.18s ease-out; }
 #resonant-panel.open { opacity: 1; pointer-events: auto; }
