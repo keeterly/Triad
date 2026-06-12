@@ -18997,30 +18997,9 @@ function makeTile(kind, charId, dir, tileCounts, teamLocked) {
   // De-emphasize when the action would land but produce no effect (e.g. an
   // attack whose reach holds only empty slots).  Still clickable.
   if (preview.noEffect && !t.disabled) t.classList.add('no-effect');
-  // Combo-ready signal — queueing THIS tile would complete a fresh
-  // Resonance that isn't already on offer.  The simulated action must use
-  // the SAME kind the live queue stores ('attack' / 'special') so it
-  // matches the rail combos' `requires` — the chosen Resonance variants
-  // all require 'special', so simulating a Special as 'sig' here would
-  // never match and the badge would never light for L2/L3 bonds.
-  // Captured into variables so we can render an INLINE combo badge inside
-  // the tile (decodable at a glance), not just a floating ribbon above.
-  let comboName = null;
-  let comboIsSig = false;
-  if (!t.disabled && (kind === 'attack' || kind === 'special')) {
-    const comboKind = kind;
-    const simulated = state.queue.concat([{ charId, kind: comboKind, atb: atbCost }]);
-    const existingIds = new Set(matchingCombos(state.queue).map(m => m.combo.id));
-    const wouldComplete = matchingCombos(simulated).filter(m => !existingIds.has(m.combo.id));
-    if (wouldComplete.length) {
-      const combo = wouldComplete[0].combo;
-      comboName = combo.name;
-      comboIsSig = !!combo.sigTier;
-      t.classList.add('tile-combo-ready');
-      if (comboIsSig) t.classList.add('tile-combo-sig');
-      t.dataset.combo = combo.name;
-    }
-  }
+  // (The old "queueing this completes a Resonance" tile badge is gone — team
+  // attacks are spend-to-fire from their own pill now, so the inline badge
+  // just duplicated the pill on the tile.)
   t.dataset.kind = kind;
   t.dataset.charId = charId;
   if (dir !== null && dir !== undefined) t.dataset.dir = dir;
@@ -19061,7 +19040,6 @@ function makeTile(kind, charId, dir, tileCounts, teamLocked) {
 
   t.innerHTML = `
     <span class="tile-badges">${costBadges.join('')}${detBadge}</span>
-    ${comboName ? `<span class="tile-combo-badge${comboIsSig ? ' sig' : ''}" title="Queueing this would complete: ${comboName}">+ ${comboName}</span>` : ''}
     <span class="tile-name-row">
       <span class="tile-name">${elBadge}${preview.label || '—'}</span>
       ${reachLabel ? `<span class="tile-reach">${reachLabel}</span>` : ''}
@@ -20458,13 +20436,15 @@ let _bondDeepenBusy = false;
 function playBondDeepen(idA, idB, levelAfter, interactive) {
   if (__simulating) return;
   if (interactive) {
-    // Turn-end deepen — held as a tap-to-Continue beat by the turn flow
-    // (drainBondDeepensInteractive gates the enemy turn on it), so the player
-    // can actually READ the level-up instead of it flashing past.
+    // Turn-end deepen — held as a tap-to-Continue beat by the turn flow.
+    // Cap to ONE per turn (keep the highest-level / most dramatic) so a turn
+    // where several bonds tick at once can't flood the player with a stack of
+    // Continue screens.  The others still record via their side toast, and
+    // any that trigger a Resonance choice resurface in the post-fight modal.
     _bondDeepenInteractiveQueue.push({ idA, idB, levelAfter });
-    if (_bondDeepenInteractiveQueue.length > 4) {
+    if (_bondDeepenInteractiveQueue.length > 1) {
       _bondDeepenInteractiveQueue.sort((x, y) => y.levelAfter - x.levelAfter);
-      _bondDeepenInteractiveQueue.length = 4;
+      _bondDeepenInteractiveQueue.length = 1;
     }
     return;
   }
