@@ -1674,7 +1674,9 @@ function _scaleEnemyDmg(amt) {
   const scale = 1 + (ENEMY_DMG_SCALE - 1) * _enemyScaleFactor(typeof state !== 'undefined' ? state : null);
   return Math.round((amt || 0) * scale);
 }
-const KILL_RESOLVE = 1;     // Resolve gained per enemy killed (tuned down so Team Special is a real save-up)
+const KILL_RESOLVE = 0;     // Economy consolidation — Resolve now comes from the
+                           // exploit loop (detonate / weakness / stagger), not
+                           // from incidental kills.  Reaver sigil still pays out.
 
 // stagger / chain
 // Stagger is now a state-based flow (WEAKENED → STAGGERED → 2× consume),
@@ -13868,9 +13870,9 @@ function dmgPartyAt(s, slot, amt) {
   if (!s.party.slots[slot]) _registerDodge(s, slot);
 }
 // Clean-dodge payoff — the telegraphed single-target attack found an empty
-// slot.  Grant a little Resolve and a clear "DODGED" beat.
+// slot.  A clear "DODGED" beat (the avoided damage is its own reward; Resolve
+// now comes from the exploit loop, not incidental positioning).
 function _registerDodge(s, slot) {
-  gainResolve(s, 1);
   if (typeof __simulating !== 'undefined' && __simulating) return;
   try { log(`<i>The strike finds only empty air — <b>dodged!</b>  +1 Resolve.</i>`); } catch (_) {}
   try {
