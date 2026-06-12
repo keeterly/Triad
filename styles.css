@@ -2233,13 +2233,10 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
 /* Keep the character art and name plate above the pulse wash. */
 .figure.targeted-by-enemy .figure-portrait,
 .figure.targeted-by-enemy .figure-info { position: relative; z-index: 1; }
-/* Threatened slot also surfaces its FRONT/MID/BACK label in red so the
-   spatial read ("my Front hero is the one in danger") is unmistakable. */
-.figure.targeted-by-enemy .slot-label {
-  opacity: 1 !important;
-  color: #ff9079;
-  text-shadow: 0 1px 0 rgba(0,0,0,0.9), 0 0 7px rgba(224,70,70,0.7);
-}
+/* Slot label decoupled from threat: the FRONT/MID/BACK tag is now ONLY a
+   drag-time slot-identity cue (consistent place + neutral colour).  Threat is
+   read from the red figure border + the ⚠ damage badge instead, so the label
+   no longer recolours/re-shows on its own and reads consistently. */
 
 /* Incoming-attack marker — the predicted damage on a threatened hero so
    the dodge mechanic is legible: move them out of this slot, or Brace. */
@@ -2299,11 +2296,8 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
   0%   { opacity: 0; transform: translateX(-50%) scale(0.6); }
   100% { opacity: 1; transform: translateX(-50%) scale(1); }
 }
-.figure.empty.slot-dodged .slot-label {
-  opacity: 1 !important;
-  color: #8fe089;
-  text-shadow: 0 1px 0 rgba(0,0,0,0.9), 0 0 6px rgba(110,206,106,0.6);
-}
+/* (Dodged empty slot keeps its ✓ DODGE marker; the slot-name label no longer
+   turns green here — that conflated slot identity with the dodge cue.) */
 @media (prefers-reduced-motion: reduce) {
   .threat-incoming, .threat-incoming-lethal { animation: none; }
   .threat-dodge { animation: none; }
@@ -17098,28 +17092,27 @@ body.on-title #hud { display: none !important; }
    Resolve pips, beside FIGHT), off the battlefield.  An emblem ✦ + count over
    a small-caps label, in the game's bone-gold-on-black serif language. ===== */
 .resonant-crest {
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
-  width: 100%; padding: 5px 4px;
+  display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 4px;
+  width: 100%; min-height: 29px; padding: 4px 5px; white-space: nowrap;
   background: linear-gradient(180deg, rgba(36,26,15,0.95) 0%, rgba(13,9,6,0.95) 100%);
   border: 1px solid var(--gold-bright);
   color: var(--gold-bright);
   font-family: inherit; cursor: pointer; line-height: 1;
-  /* Same notched-corner language as FIGHT, scaled down. */
-  clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
+  /* Same notched-corner language as FIGHT — a clean stacked pair above it. */
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
   box-shadow: 0 0 12px rgba(230,218,178,0.16), inset 0 0 10px rgba(230,218,178,0.05);
   transition: box-shadow 0.15s, border-color 0.15s, transform 0.1s, color 0.15s;
 }
-.resonant-crest .rcr-top { display: inline-flex; align-items: center; gap: 5px; }
-.resonant-crest .rcr-glyph { font-size: 15px; text-shadow: 0 0 9px rgba(230,218,178,0.6); }
-.resonant-crest .rcr-count {
-  display: inline-flex; align-items: center; justify-content: center;
-  min-width: 15px; height: 15px; padding: 0 3px;
-  background: var(--gold-bright); color: #14100a; font-size: 9.5px; font-weight: 800;
-  clip-path: polygon(3px 0, 100% 0, 100% calc(100% - 3px), calc(100% - 3px) 100%, 0 100%, 0 3px);
-}
+.resonant-crest .rcr-glyph { font-size: 12px; flex: 0 0 auto; text-shadow: 0 0 9px rgba(230,218,178,0.6); }
 .resonant-crest .rcr-label {
-  font-size: 8px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase;
-  color: var(--gold-pale); margin-top: 1px;
+  font-size: 9.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--gold-bright); text-shadow: 0 0 8px rgba(230,218,178,0.3), 0 1px 0 rgba(0,0,0,0.85);
+}
+.resonant-crest .rcr-count {
+  display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto;
+  min-width: 14px; height: 14px; padding: 0 2px;
+  background: var(--gold-bright); color: #14100a; font-size: 9px; font-weight: 800;
+  clip-path: polygon(3px 0, 100% 0, 100% calc(100% - 3px), calc(100% - 3px) 100%, 0 100%, 0 3px);
 }
 .resonant-crest.ready { animation: rsb-pulse 2.2s ease-in-out infinite; }
 @keyframes rsb-pulse {
