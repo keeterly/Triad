@@ -20553,17 +20553,22 @@ function _renderBondDeepen(idA, idB, levelAfter, onContinue) {
   setTimeout(() => shakeScreen(resonant ? 3 : 2), Math.round(dur * 0.4));
   clearTimeout(_bondDeepenTimer);
   if (interactive) {
-    // Hold until the player taps Continue (with a generous fallback so the
-    // turn can never stall if the tap is missed).
+    // Hold until the player taps Continue (or anywhere), with a generous
+    // fallback so the turn can never stall if the tap is missed.
     let done = false;
     const finish = () => {
       if (done) return; done = true;
       clearTimeout(_bondDeepenTimer);
-      el.classList.remove('go');
+      // CRITICAL: drop 'interactive' too — it's what sets pointer-events:auto
+      // on this full-screen fixed overlay.  Leaving it on (e.g. after the
+      // fallback fires during a device rotation) makes the now-invisible
+      // overlay swallow every battlefield tap.
+      el.classList.remove('go', 'interactive', 'resonant');
       setTimeout(onContinue, 220);
     };
     const btn = el.querySelector('.bd-continue');
     if (btn) bindTapAsPointer(btn, finish);
+    bindTapAsPointer(el, finish);   // tap anywhere also continues (safety net)
     _bondDeepenTimer = setTimeout(finish, 9000);
     return dur;
   }
