@@ -7417,6 +7417,18 @@ body.party-critical::after {
   min-height: 0;
   border-bottom: 1px solid rgba(212,200,168,0.08);
 }
+/* Passive auras — the hero's active kit traits, docked at the right of their
+   column header (moved off the figure).  Compact chips; press-hold for the
+   explanation via the shared status-chip tooltip layer. */
+.char-col-head .cch-passives {
+  margin-left: auto;
+  display: flex; align-items: center; gap: 3px;
+  flex-wrap: nowrap; overflow: hidden;
+}
+.char-col-head .cch-aura {
+  transform: scale(0.82); transform-origin: right center;
+  flex: 0 0 auto;
+}
 .char-col-head .cch-portrait {
   width: 26px; height: 26px;
   flex-shrink: 0;

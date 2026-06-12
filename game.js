@@ -17861,6 +17861,60 @@ function renderBattlefield() {
 
 // Bottom action row — one column per party character, rendered in
 // PARTY_DISPLAY_ORDER so each column sits beneath its matching card above.
+// A hero's currently-active PASSIVE auras (formation/kit traits).  Pulled out
+// of the figure status row so the board shows only live combat state; these
+// surface in the hero's action column instead.  [{statusId, icon, num, title}]
+function heroPassiveAuras(s, heroId) {
+  if (!s || !heroId || !s.party) return [];
+  const out = [];
+  const add = (statusId, icon, num, title) => out.push({ statusId, icon, num, title });
+  const me = s.party.chars[heroId];
+  if (heroId === 'cassia' && slotOfChar(s, 'cassia') === 'front') {
+    const cas = s.party.chars.cassia;
+    if (cas && !cas._heldGateUsed) add('heldgate', '⛨', '◄', "Held Gate — first incoming hit this turn redirects to Cassia.");
+  }
+  if (heroId === 'korin') {
+    const k = s.party.chars.korin;
+    if (k && Array.isArray(k.pendingEffects)) {
+      const stacks = k.pendingEffects.filter(eff => eff.source === 'red-tally' && eff.kind === 'attackBonus').length;
+      if (stacks > 0) add('redtally', '⚔', `+${3 * stacks}`, `Red Tally — Korin's next attack carries +${3 * stacks} damage and bleed 1.`);
+    }
+  }
+  if (heroId === 'ash' && aliveEnemies(s).some(e => e.vuln > 0)) {
+    add('veilecho', '⊕', '◌', "Veil Echo — Ash's attacks don't consume vuln stacks.");
+  }
+  const lir = s.party.chars.lirien;
+  if (lir && !lir.downed && me && !me.lingeringUsed) {
+    add('refrain', '⊕', '+1', "Refrain — first attack this turn applies vuln 1 (Lirien is singing).");
+  }
+  if (heroId === 'kai' && aliveParty(s).length === 1) {
+    add('laststand', '⚔', '+3', 'Last Stand — Kai is the only one upright: +3 damage, +4 heal on kill.');
+  }
+  if (heroId === 'veyr') {
+    const downed = Object.values(s.party.chars).filter(x => x.downed).length;
+    if (downed > 0) add('witness', '⚔', `+${2 * downed}`, `Last Witness — Veyr's edge sharpens with each fallen ally (+${2 * downed} damage).`);
+  }
+  if (heroId === 'branwen') {
+    const b = s.party.chars.branwen;
+    if (b && !b.namedArrowUsed) add('namedarrow', '✤', '+1', 'Named Arrow — her first attack this turn applies bleed 1; a kill on it buffs the next ally.');
+  }
+  if (heroId === 'mira' && aliveEnemies(s).some(e => e.bleed > 0)) {
+    add('shadowcut', '✤', '∞', "Shadow's Cut — her hit on a bleeding enemy holds the bleed through next turn's decay.");
+  }
+  if (heroId === 'elin') {
+    const el = s.party.chars.elin;
+    if (el && !el._mercyDeathSaveUsed && !el.downed) add('lastmercy', '✚', '◇', 'Last Mercy — first lethal hit this fight clamps Elin to 1 HP and heals the lowest ally 4.');
+  }
+  if (heroId === 'garron' && slotOfChar(s, 'garron') === 'front' && !s._wardenSaveUsed) {
+    add('warden', '⛨', '◇', "Warden's Word — first ally to fall this fight is held at 1 HP (Garron loses 4 HP).");
+  }
+  if (heroId === 'vasha') {
+    const v = s.party.chars.vasha;
+    if (v && v.convictionArmed) add('conviction', '✦', '−1♦', 'Conviction — next sig costs 1 less Resolve and heals the party 3 on cast.');
+  }
+  return out;
+}
+
 function renderTiles() {
   const grid = $('#tile-grid');
   if (!grid) return;
@@ -17910,12 +17964,22 @@ function renderTiles() {
     const schoolGlyph = heroSchool
       ? `<span class="cch-school cch-school-${heroSchool}" title="School: ${heroSchool}" data-tip="School: ${heroSchool.toUpperCase()} — match to an enemy's weakness icon to trigger WEAKENED / STAGGERED.">${SCHOOL_GLYPH_COL[heroSchool] || ''}</span>`
       : '';
+    // Active passive auras — the hero's kit traits, shown HERE (in their
+    // column) instead of cluttering the figure.  Press-hold a chip for the
+    // full explanation via the shared status-chip tooltip layer.
+    const auras = heroPassiveAuras(state, charId);
+    const aurasHtml = auras.length
+      ? `<div class="cch-passives">${auras.map(a =>
+          `<span class="status-chip status-${a.statusId} cch-aura" data-status="${a.statusId}" title="${a.title}"><span class="status-icon">${a.icon}</span>${a.num != null ? `<span class="status-num">${a.num}</span>` : ''}</span>`
+        ).join('')}</div>`
+      : '';
     head.innerHTML = `
       <div class="cch-portrait" aria-hidden="true">${PORTRAITS[charId] || ''}</div>
       <div class="cch-meta">
         <span class="cch-name">${schoolGlyph}${def.name}</span>
         <span class="cch-slot">${SLOT_LABELS[simSlot] || '—'}</span>
       </div>
+      ${aurasHtml}
     `;
     col.appendChild(head);
 
@@ -18437,85 +18501,10 @@ function renderStatuses(ent, sForAuras) {
     else if (e.kind === 'healBonus')   push(90, 'pending', '✚', `+${e.amt}`, `Next heal +${e.amt} (one-shot, consumed on use).`);
     else                                push(90, 'pending', '✦', `+${e.amt}`, `Pending +${e.amt}`);
   });
-  // Position-derived passive auras — these are derived from the current
-  // formation (not stored on the entity) so the player can see at a glance
-  // *why* damage on this card is being softened.  Only applied for party
-  // members (sForAuras passed); enemies don't carry these.  Aura chips
-  // sit at priority 100+ so they're the first to collapse when the row
-  // would otherwise overflow.
-  if (sForAuras && ent.id) {
-    // Cassia Held Gate — once-per-turn ally redirect while she holds Front.
-    if (ent.id === 'cassia' && slotOfChar(sForAuras, 'cassia') === 'front') {
-      const cas = sForAuras.party.chars.cassia;
-      if (cas && !cas._heldGateUsed) {
-        push(100, 'heldgate', '⛨', '◄', "Held Gate — first incoming hit this turn redirects to Cassia.");
-      }
-    }
-    // Korin Red Tally — pending +3 attack bonus from self-damage.
-    if (ent.id === 'korin') {
-      const k = sForAuras.party.chars.korin;
-      if (k && Array.isArray(k.pendingEffects)) {
-        const stacks = k.pendingEffects.filter(eff => eff.source === 'red-tally' && eff.kind === 'attackBonus').length;
-        if (stacks > 0) {
-          push(100, 'redtally', '⚔', `+${3 * stacks}`, `Red Tally — Korin's next attack carries +${3 * stacks} damage and bleed 1.`);
-        }
-      }
-    }
-    // Ash Veil Echo — visible when there's a vuln stack she can preserve.
-    if (ent.id === 'ash' && aliveEnemies(sForAuras).some(e => e.vuln > 0)) {
-      push(100, 'veilecho', '⊕', '◌', "Veil Echo — Ash's attacks don't consume vuln stacks.");
-    }
-    // Lirien Refrain — every ally's first attack each turn applies vuln 1
-    // while Lirien is alive.  Shown on each ally that still has the opener.
-    const lir = sForAuras.party.chars.lirien;
-    if (lir && !lir.downed) {
-      const me = sForAuras.party.chars[ent.id];
-      if (me && !me.lingeringUsed) {
-        push(100, 'refrain', '⊕', '+1', "Refrain — first attack this turn applies vuln 1 (Lirien is singing).");
-      }
-    }
-    // Kai Last Stand — alone-survivor: +3 attacks, +4 heal on kill.
-    if (ent.id === 'kai' && aliveParty(sForAuras).length === 1) {
-      push(100, 'laststand', '⚔', '+3', 'Last Stand — Kai is the only one upright: +3 damage, +4 heal on kill.');
-    }
-    // Veyr Last Witness — +2 damage per downed party member.
-    if (ent.id === 'veyr') {
-      const downed = Object.values(sForAuras.party.chars).filter(x => x.downed).length;
-      if (downed > 0) {
-        const bump = 2 * downed;
-        push(100, 'witness', '⚔', `+${bump}`, `Last Witness — Veyr's edge sharpens with each fallen ally (+${bump} damage).`);
-      }
-    }
-    // Branwen Named Arrow — first attack each turn auto-bleeds.
-    if (ent.id === 'branwen') {
-      const b = sForAuras.party.chars.branwen;
-      if (b && !b.namedArrowUsed) {
-        push(100, 'namedarrow', '✤', '+1', 'Named Arrow — her first attack this turn applies bleed 1; a kill on it buffs the next ally.');
-      }
-    }
-    // Mira Shadow's Cut — bleed she touches holds through the next decay tick.
-    if (ent.id === 'mira' && aliveEnemies(sForAuras).some(e => e.bleed > 0)) {
-      push(100, 'shadowcut', '✤', '∞', "Shadow's Cut — her hit on a bleeding enemy holds the bleed through next turn's decay.");
-    }
-    // Elin Last Mercy — once per fight death-save (visible until consumed).
-    if (ent.id === 'elin') {
-      const el = sForAuras.party.chars.elin;
-      if (el && !el._mercyDeathSaveUsed && !el.downed) {
-        push(100, 'lastmercy', '✚', '◇', 'Last Mercy — first lethal hit this fight clamps Elin to 1 HP and heals the lowest ally 4.');
-      }
-    }
-    // Garron Warden's Word — once per fight ally death-save while Front.
-    if (ent.id === 'garron' && slotOfChar(sForAuras, 'garron') === 'front' && !sForAuras._wardenSaveUsed) {
-      push(100, 'warden', '⛨', '◇', "Warden's Word — first ally to fall this fight is held at 1 HP (Garron loses 4 HP).");
-    }
-    // Vasha Conviction — armed by an ally hitting 1 HP.
-    if (ent.id === 'vasha') {
-      const v = sForAuras.party.chars.vasha;
-      if (v && v.convictionArmed) {
-        push(100, 'conviction', '✦', '−1♦', 'Conviction — next sig costs 1 less Resolve and heals the party 3 on cast.');
-      }
-    }
-  }
+  // Position-derived passive auras used to render here as priority-100 chips,
+  // but they read as cryptic always-on noise next to temporary combat
+  // statuses.  They now live in the hero's ACTION COLUMN (renderTiles via
+  // heroPassiveAuras) so the figure shows only LIVE combat state.
   // Reaction "primed" cue — enemies only.  When an enemy carries a detonatable
   // status, flag it with ⚡ so the player can ANTICIPATE the reaction and bring
   // the matching attack type, instead of discovering it only on the hit.  The
