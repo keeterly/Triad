@@ -3502,6 +3502,11 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
 #bond-deepen .bd-row {
   position: relative; display: flex; align-items: center; justify-content: center; gap: 0;
   z-index: 2;
+  /* The hero names are absolutely positioned BELOW the portraits (top:100%+6px)
+     so they don't shift the spark off-centre — which means they sit outside
+     this row's box.  Reserve room for them here so the banner's eyebrow can't
+     land on top of ASH / LIRIEN. */
+  margin-bottom: 36px;
 }
 #bond-deepen .bd-hero { position: relative; }
 #bond-deepen .bd-portrait {
@@ -3679,23 +3684,23 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
   opacity: 0;
   animation: hitSlashFlash 0.42s linear forwards;
 }
+/* Fixed angle (no spin — a blade holds its line through a cut).  The MOMENTUM
+   comes from the DRAW accelerating: a slow, dim wind-up (scaleX barely open),
+   then an explosive fast draw to a slight over-stretch at the strike, then a
+   short follow-through drift along the blade's own diagonal as it fades. */
 @keyframes hitSlashA {
-  /* wind-up — pulled back, steep, thin, dim */
-  0%   { transform: rotate(-54deg) translate(-30px,-24px) scaleX(0.10); opacity: 0; }
-  24%  { transform: rotate(-51deg) translate(-25px,-20px) scaleX(0.22); opacity: 0.5; }
-  /* STRIKE — explosive sweep through the target (big delta, ~18% of timeline) */
-  42%  { transform: rotate(-40deg) translate(6px,2px)    scaleX(1.28); opacity: 1; }
-  /* contact snap */
-  54%  { transform: rotate(-36deg) translate(13px,6px)   scaleX(1.04); opacity: 1; }
-  /* follow-through — edge rotates out of the swing, fades */
-  100% { transform: rotate(-28deg) translate(42px,24px)  scaleX(0.92); opacity: 0; }
+  0%   { transform: rotate(-42deg) translate(-7px,-6px) scaleX(0.10); opacity: 0; }
+  28%  { transform: rotate(-42deg) translate(-5px,-4px) scaleX(0.26); opacity: 0.5; }
+  46%  { transform: rotate(-42deg) translate(3px,3px)   scaleX(1.32); opacity: 1; }
+  60%  { transform: rotate(-42deg) translate(6px,5px)   scaleX(1.06); opacity: 1; }
+  100% { transform: rotate(-42deg) translate(15px,13px) scaleX(1.0);  opacity: 0; }
 }
 @keyframes hitSlashB {
-  0%   { transform: rotate(52deg)  translate(-26px,22px) scaleX(0.10); opacity: 0; }
-  26%  { transform: rotate(49deg)  translate(-21px,18px) scaleX(0.22); opacity: 0.5; }
-  44%  { transform: rotate(40deg)  translate(6px,-2px)   scaleX(1.26); opacity: 1; }
-  56%  { transform: rotate(36deg)  translate(13px,-6px)  scaleX(1.04); opacity: 1; }
-  100% { transform: rotate(28deg)  translate(40px,-22px) scaleX(0.92); opacity: 0; }
+  0%   { transform: rotate(42deg) translate(-7px,6px) scaleX(0.10); opacity: 0; }
+  30%  { transform: rotate(42deg) translate(-5px,4px) scaleX(0.26); opacity: 0.5; }
+  48%  { transform: rotate(42deg) translate(3px,-3px) scaleX(1.30); opacity: 1; }
+  62%  { transform: rotate(42deg) translate(6px,-5px) scaleX(1.06); opacity: 1; }
+  100% { transform: rotate(42deg) translate(15px,-13px) scaleX(1.0); opacity: 0; }
 }
 @keyframes hitSlashFlash {
   0%, 36% { opacity: 0; transform: scale(0.25); }
