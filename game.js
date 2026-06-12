@@ -18730,22 +18730,24 @@ function availableTeamUniques() {
   return Array.from(bestPerPair.values());
 }
 
-// Resonant-skill presentation: instead of a pill PER team attack crowding the
-// board, show ONE launcher button when any are available.  Tapping it opens a
-// panel listing them all (tap to fire).  Keeps the combat screen clean.
+// Resonant-skill presentation: a compact, elegant CREST docked in the commit
+// zone (beside FIGHT, off the battlefield) appears when any team attack is
+// available.  Tapping it opens the panel listing them all.  Keeps the board
+// clean and the launcher out of the figures.
 function renderTeamSpecial() {
+  // The old floating rail host (#ts-area) is no longer used for the launcher.
   const area = $('#ts-area');
-  if (!area) return;
-  area.innerHTML = '';
-  if (state.executing || state.over) { area.classList.add('hidden'); closeResonantPanel(); return; }
+  if (area) { area.innerHTML = ''; area.classList.add('hidden'); }
+  const host = $('#commit-zone');
+  const existing = host && host.querySelector('.resonant-crest');
+  if (existing) existing.remove();
+  if (!host || state.executing || state.over) { closeResonantPanel(); return; }
   const teamUniques = availableTeamUniques();
-  if (!teamUniques.length) { area.classList.add('hidden'); closeResonantPanel(); return; }
-  area.classList.remove('hidden', 'unique-rail');
-  area.classList.add('resonance-rail', 'resonant-launch');
+  if (!teamUniques.length) { closeResonantPanel(); return; }
   if (!hasSeenCoachmark('cm_resonance')) {
     setTimeout(() => {
       showCoachmark('cm_resonance', {
-        anchor: '#ts-area .resonant-skills-btn',
+        anchor: '#commit-zone .resonant-crest',
         place: 'above',
         text: 'A <b>Resonant Skill</b> is ready.  Tap to open the list and spend <b>Resolve</b> to unleash a team move.',
       });
@@ -18753,13 +18755,13 @@ function renderTeamSpecial() {
   }
   const resolveAvail = state.resolve - queueReservedResolve();
   const anyAffordable = teamUniques.some(c => uniqueActionCost(c) <= resolveAvail && UNIQUE_ATB <= queueAtbAvailable());
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = `resonant-skills-btn${anyAffordable ? ' ready' : ' poor'}`;
-  btn.innerHTML = `<span class="rsb-glyph">✦</span><span class="rsb-label">Resonant Skills</span><span class="rsb-count">${teamUniques.length}</span>`;
-  btn.title = `${teamUniques.length} resonant skill${teamUniques.length === 1 ? '' : 's'} available — tap to choose.`;
-  bindTapAsPointer(btn, () => { if (!state.executing && !state.over) openResonantPanel(); });
-  area.appendChild(btn);
+  const crest = document.createElement('button');
+  crest.type = 'button';
+  crest.className = `resonant-crest${anyAffordable ? ' ready' : ' poor'}`;
+  crest.innerHTML = `<span class="rcr-top"><span class="rcr-glyph">✦</span><span class="rcr-count">${teamUniques.length}</span></span><span class="rcr-label">Resonant</span>`;
+  crest.title = `${teamUniques.length} resonant skill${teamUniques.length === 1 ? '' : 's'} available — tap to choose.`;
+  bindTapAsPointer(crest, () => { if (!state.executing && !state.over) openResonantPanel(); });
+  host.insertBefore(crest, host.firstChild);
 }
 
 let _resonantPanelOpen = false;
