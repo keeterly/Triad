@@ -3612,40 +3612,63 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
 .hit-fx.hit-fx-ranged   { color: #b6e2a6; }
 .hit-fx.hit-fx-stealth  { color: #b8ccff; }
 
-/* SLASH — a thin, tapered blade-stroke that SWEEPS across the target (not a
-   fat bar scaling from the centre).  Pointed ends (border-radius:50% on a
-   3px-tall sliver) + a sharp white core read as an edge, and the diagonal
-   translate gives it the motion of a cut following through. */
+/* SLASH — a blade that ARCS through the target with real momentum: a slow
+   wind-up (pulled back along a steep angle), an EXPLOSIVE strike-through
+   (huge delta in a short slice of the timeline), then a follow-through that
+   rotates the edge out of the swing.  Timing fn is linear so the keyframes
+   OWN the speed profile (an overall ease would flatten the wind-up→snap).
+   A contact flash (.hit-fx-flash) pops at the moment of impact for weight. */
 .hit-fx-slash::before {
   content: '';
-  position: absolute; left: -74px; top: -1.5px;
-  width: 148px; height: 3px; border-radius: 50%;
-  background: linear-gradient(90deg, transparent 0%, currentColor 24%, #fff 50%, currentColor 76%, transparent 100%);
-  box-shadow: 0 0 13px currentColor, 0 0 4px #fff;
+  position: absolute; left: -78px; top: -1.5px;
+  width: 156px; height: 3px; border-radius: 50%;
+  background: linear-gradient(90deg, transparent 0%, currentColor 20%, #fff 50%, currentColor 80%, transparent 100%);
+  box-shadow: 0 0 14px currentColor, 0 0 4px #fff;
   transform-origin: center;
-  animation: hitSlashA 0.28s cubic-bezier(0.2,0.85,0.25,1) forwards;
+  animation: hitSlashA 0.42s linear forwards;
 }
-/* Stealth: a crossing second cut for an X. */
+/* Stealth: a crossing second cut for an X, same momentum profile. */
 .hit-fx-double::after {
   content: '';
-  position: absolute; left: -62px; top: -1.25px;
-  width: 124px; height: 2.5px; border-radius: 50%;
-  background: linear-gradient(90deg, transparent 0%, currentColor 26%, #fff 51%, currentColor 74%, transparent 100%);
+  position: absolute; left: -64px; top: -1.25px;
+  width: 128px; height: 2.5px; border-radius: 50%;
+  background: linear-gradient(90deg, transparent 0%, currentColor 22%, #fff 51%, currentColor 78%, transparent 100%);
   box-shadow: 0 0 11px currentColor, 0 0 3px #fff;
   transform-origin: center;
-  animation: hitSlashB 0.28s 0.07s cubic-bezier(0.2,0.85,0.25,1) forwards;
+  animation: hitSlashB 0.40s 0.10s linear forwards;
+}
+/* Contact flash — the bright burst at the edge's landing point.  Timed so it
+   blooms right at the strike (≈44% of the slash), giving the hit weight. */
+.hit-fx-slash .hit-fx-flash {
+  position: absolute; left: 50%; top: 50%;
+  width: 30px; height: 30px; margin: -15px 0 0 -15px; border-radius: 50%;
+  background: radial-gradient(circle, #fff 0%, currentColor 38%, transparent 70%);
+  opacity: 0;
+  animation: hitSlashFlash 0.42s linear forwards;
 }
 @keyframes hitSlashA {
-  0%   { transform: rotate(-40deg) translateX(-36px) scaleX(0.3); opacity: 0; }
-  22%  { opacity: 1; }
-  55%  { transform: rotate(-40deg) translateX(8px)   scaleX(1.05); opacity: 1; }
-  100% { transform: rotate(-40deg) translateX(38px)  scaleX(1.12); opacity: 0; }
+  /* wind-up — pulled back, steep, thin, dim */
+  0%   { transform: rotate(-54deg) translate(-30px,-24px) scaleX(0.10); opacity: 0; }
+  24%  { transform: rotate(-51deg) translate(-25px,-20px) scaleX(0.22); opacity: 0.5; }
+  /* STRIKE — explosive sweep through the target (big delta, ~18% of timeline) */
+  42%  { transform: rotate(-40deg) translate(6px,2px)    scaleX(1.28); opacity: 1; }
+  /* contact snap */
+  54%  { transform: rotate(-36deg) translate(13px,6px)   scaleX(1.04); opacity: 1; }
+  /* follow-through — edge rotates out of the swing, fades */
+  100% { transform: rotate(-28deg) translate(42px,24px)  scaleX(0.92); opacity: 0; }
 }
 @keyframes hitSlashB {
-  0%   { transform: rotate(46deg) translateX(-32px) scaleX(0.3); opacity: 0; }
-  25%  { opacity: 1; }
-  60%  { transform: rotate(46deg) translateX(8px)   scaleX(1.05); opacity: 1; }
-  100% { transform: rotate(46deg) translateX(32px)  scaleX(1.12); opacity: 0; }
+  0%   { transform: rotate(52deg)  translate(-26px,22px) scaleX(0.10); opacity: 0; }
+  26%  { transform: rotate(49deg)  translate(-21px,18px) scaleX(0.22); opacity: 0.5; }
+  44%  { transform: rotate(40deg)  translate(6px,-2px)   scaleX(1.26); opacity: 1; }
+  56%  { transform: rotate(36deg)  translate(13px,-6px)  scaleX(1.04); opacity: 1; }
+  100% { transform: rotate(28deg)  translate(40px,-22px) scaleX(0.92); opacity: 0; }
+}
+@keyframes hitSlashFlash {
+  0%, 36% { opacity: 0; transform: scale(0.25); }
+  46%     { opacity: 0.95; transform: scale(1.25); }
+  72%     { opacity: 0; transform: scale(1.9); }
+  100%    { opacity: 0; transform: scale(2); }
 }
 
 /* PIERCE — a long spear-thrust that shoots clean through the target. */
@@ -7527,7 +7550,7 @@ body.party-critical::after {
   display: flex; align-items: center; justify-content: center;
   text-shadow: 0 0 4px var(--gold-bright);
 }
-.queue-slot .qs-name { font-weight: bold; color: var(--gold-pale); font-size: 11px; letter-spacing: 0.05em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.queue-slot .qs-name { font-weight: 700; color: #f4ead0; font-size: 12px; letter-spacing: 0.03em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px rgba(0,0,0,0.85); }
 .queue-slot .qs-desc { color: var(--ink-dim); font-size: 9px; margin-left: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-style: italic; }
 .queue-slot.filled {
   background:
