@@ -12914,6 +12914,11 @@ function applyDmgToEnemy(s, e, baseAmt) {
       amt = Math.round(amt * 1.5);
       schoolBadge = 'WEAK!';
       isWeaknessHit = true;
+      // Unify the two exploit loops: a weakness hit also EXPOSES the foe
+      // (applies a vuln primer, capped), so exploiting a weakness FEEDS the
+      // prime→detonate system instead of being a parallel mechanic — one
+      // coherent loop (expose → detonate) with two ways to start it.
+      if (!e.dead) e.vuln = Math.min(STATUS_CAP, (e.vuln || 0) + 1);
       // Per-turn flag for the Ticking Threat objective — if the catalyst
       // was struck on its weakness this turn, the charge holds even if
       // the stagger consume cleared the staggered state.
@@ -18635,7 +18640,7 @@ function formatDesc(text) {
 // once at boot via event delegation so re-renders don't need rebinding.
 const STATUS_TOOLTIPS = {
   armor:    { name: 'Armor',       text: 'Absorbs incoming damage 1:1 before HP. Wears off as it absorbs. Does not regenerate.' },
-  weak:     { name: 'Weakness — Primer', text: 'The glyph shows the element this enemy is weak to ("?" = undiscovered; hit it with different elements to reveal). Hit that element to DETONATE for bonus damage; again to STAGGER (next hit ×2).' },
+  weak:     { name: 'Weakness — Primer', text: 'The glyph shows the element this enemy is weak to ("?" = undiscovered; hit it with different elements to reveal). Hitting it deals +50% damage, EXPOSES the foe (+1 VULN to detonate), and banks Resolve; hit again to STAGGER (next hit ×2).' },
   bleed:    { name: 'Bleed — Primer', text: '2 dmg at each turn start (+1 with Bloodborne / Bone Tide), then −1. A fresh stack holds one turn so you can always detonate it. Ignores armor. Cap 3. DETONATE: Physical = RUPTURE, Stealth = HEMORRHAGE (reopens bleed 1). Resonance detonations hit double.' },
   taunt:    { name: 'Taunt',       text: 'Enemy single-target attacks redirect to this hero. Clears at the start of the next turn.' },
   dulled:   { name: 'Dulled — Primer', text: 'Outgoing attacks deal −2, one stack per attack. Cap 3. DETONATE: Physical / Stealth = SUNDER (burst + leaves Vulnerable 1).' },
