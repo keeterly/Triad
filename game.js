@@ -24568,13 +24568,21 @@ function _showBondDeepenedCutscene(s, ev, onDone) {
   const lines = [];
   lines.push({ who: null, text: _bondSceneOpener(heroes, level) });
   heroes.forEach(id => lines.push({ who: id, text: _bondDeepenLine(id, level) }));
-  // Closing narration — names the skill + what it does, woven as prose
-  // rather than boxed in a panel.
-  let closing;
+  // Closing beat — a CLEAR unlock callout so the level-up teaches, not just
+  // celebrates: what team attack you got, exactly what it does, and what it
+  // costs to fire.  Stacked block-spans inside the final narration bubble.
+  const roman = ['I', 'II', 'III'][Math.max(0, Math.min(2, level - 1))];
   const tail = isClimax ? 'Their bond rings true.' : 'Their synergy sharpens.';
-  closing = ev.skillName ? `<b>${ev.skillName}</b> — ${tail}` : tail;
-  if (ev.skillDesc) closing += ` <span class="bond-scene-fx">${ev.skillDesc}</span>`;
-  if (also.length) closing += ` <span class="bond-scene-also">Also learned: ${also.join(' · ')}.</span>`;
+  let closing = `<span class="bond-scene-tail">${tail}</span>`;
+  if (ev.skillName) {
+    closing += `<span class="bond-unlock${isClimax ? ' resonant' : ''}">`
+      + `<span class="bul-eyebrow">${isClimax ? '✦ RESONANT TEAM ATTACK' : `✦ TEAM ATTACK · RESONANCE ${roman}`}</span>`
+      + `<span class="bul-name">${ev.skillName}</span>`
+      + (ev.skillDesc ? `<span class="bul-desc">${ev.skillDesc}</span>` : '')
+      + (ev.cost != null ? `<span class="bul-cost">◈ ${ev.cost} Resolve to fire · tap its pill above the FIGHT button</span>` : '')
+      + `</span>`;
+  }
+  if (also.length) closing += `<span class="bond-scene-also">Also learned: ${also.join(' · ')}.</span>`;
   lines.push({ who: null, text: closing });
 
   const vig = {
@@ -24662,7 +24670,12 @@ function _bondCutsceneEvent(sec, variant) {
   const heroes = sec.kind === 'trio'
     ? sec.choice.heroes.slice()
     : [sec.choice.heroA, sec.choice.heroB];
-  return { heroes, level: sec.level || 1, skillName: variant && variant.name, skillDesc: variant && variant.desc };
+  return {
+    heroes, level: sec.level || 1,
+    skillName: variant && variant.name,
+    skillDesc: variant && variant.desc,
+    cost: variant ? uniqueActionCost(variant) : null,
+  };
 }
 
 // Drains one pending choice per call; if more choices queued, the

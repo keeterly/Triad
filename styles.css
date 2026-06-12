@@ -14015,7 +14015,37 @@ body.party-fallen::before {
 /* Bond-beat closing narration — the learned ability + effect, woven into
    the final thought line rather than boxed in a panel. */
 .bond-scene-fx { display: block; margin-top: 3px; font-style: normal; color: #d9cfb8; font-size: 11.5px; }
-.bond-scene-also { display: block; margin-top: 3px; color: var(--gold-pale); opacity: 0.78; font-size: 11px; }
+.bond-scene-also { display: block; margin-top: 5px; color: var(--gold-pale); opacity: 0.78; font-size: 11px; }
+.bond-scene-tail { display: block; font-style: italic; opacity: 0.82; }
+
+/* Unlock callout — the level-up's payoff, made legible: a bordered card that
+   names the team attack, spells out exactly what it does, and what it costs.
+   Gold for a deepen, brighter + warmer for the RESONANT climax. */
+.bond-unlock {
+  display: block; margin-top: 8px; padding: 8px 12px;
+  border: 1px solid rgba(224,182,90,0.5); border-radius: 8px;
+  background: linear-gradient(rgba(60,46,20,0.5), rgba(34,26,12,0.5));
+  text-align: left;
+}
+.bond-unlock.resonant {
+  border-color: rgba(255,222,140,0.85);
+  background: linear-gradient(rgba(86,60,18,0.6), rgba(48,32,10,0.55));
+  box-shadow: 0 0 16px rgba(240,200,110,0.3);
+}
+.bond-unlock .bul-eyebrow {
+  display: block; font-size: 9.5px; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--gold-bright); opacity: 0.9;
+}
+.bond-unlock .bul-name {
+  display: block; margin-top: 2px; font-size: 16px; font-weight: 800;
+  color: #fff3d6; letter-spacing: 0.01em;
+}
+.bond-unlock.resonant .bul-name { text-shadow: 0 0 10px rgba(255,210,120,0.6); }
+.bond-unlock .bul-desc { display: block; margin-top: 4px; font-size: 12px; color: #e6dcc4; line-height: 1.35; }
+.bond-unlock .bul-cost {
+  display: block; margin-top: 6px; font: 700 11px ui-monospace, monospace;
+  color: #ffe6a8; opacity: 0.92;
+}
 /* L3 climax — a soft gold aura behind the VN stage so the defining
    moment reads bigger than L1/L2, without changing the shared layout. */
 .overlay-bond-climax #overlay-content::before {
