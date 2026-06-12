@@ -1626,13 +1626,14 @@ const ACTION_ATB = {
   brace:   1,                 // armor up
 };
 const TEAM_SPECIAL_ATB = ATB_MAX;
-const SPECIAL_COST = 2;       // (legacy) Resolve cost of an individual special
+const SPECIAL_COST = 2;       // Resolve cost of an individual special (signature)
 const TEAM_SPECIAL_COST = 3;  // Resolve cost of a team special
-// Economy redesign: basics AND signatures cost ATB only — Resolve is the
-// currency for UNIQUE/TEAM actions, BANKED by detonating primers and
-// exploiting weaknesses (the prime→detonate loop fuels the big plays).
-// Flip SIG_COSTS_RESOLVE back to true to restore Resolve-priced signatures.
-const SIG_COSTS_RESOLVE = false;
+// Economy: basics cost ATB; SIGNATURES cost ATB + Resolve (the per-hero
+// Resolve sink); team attacks cost Resolve (spend-to-fire).  Resolve is
+// BANKED by detonating primers / exploiting weakness.  (The short-lived
+// "signatures free + per-hero Unleash" model was removed — the signature IS
+// the Resolve spend now, which keeps the board uncluttered.)
+const SIG_COSTS_RESOLVE = true;
 const DETONATE_RESOLVE = 1;   // Resolve banked when a primer detonates
 const WEAKNESS_RESOLVE = 1;   // Resolve banked when a weakness is exploited
 const BRACE_ARMOR = 3;
@@ -1644,14 +1645,9 @@ const BRACE_ARMOR = 3;
 // before they cash it for +2/hit.
 const BRACE_VULN_CLEAR = 1;
 
-const RESOLVE_MAX = 6;      // Economy redesign — a bigger bank so the top
-                           // unique/team actions are a real save-up, fed by
-                           // detonations.  (Was 4.)
-const UNIQUE_ATB = 2;      // ATB a spend-to-fire unique/team action occupies
-const UNLEASH_COST = 3;    // Resolve to fire a per-hero Unleash (the always-
-                           // available sink — a powered school attack).
-// School-themed Unleash names so the per-hero unique reads with flavour.
-const UNLEASH_NAMES = { physical: 'Onslaught', holy: 'Benediction', arcane: 'Overload', ranged: 'Barrage', stealth: 'Eclipse' };
+const RESOLVE_MAX = 4;      // Resolve bank cap — sized so two signatures (2 each)
+                           // OR one team attack is a turn's worth of spend.
+const UNIQUE_ATB = 2;      // ATB a spend-to-fire team action occupies
 const RESOLVE_DRIP = 1;     // Resolve regenerated automatically each turn (floor)
 // Ember Stall (shop) map node — disabled for now while we evaluate it.
 // Flip to true to bring the in-run consumable shop back.
@@ -9972,13 +9968,10 @@ function resonancePremium(combo) {
   return Math.max(1, Math.min(3, lvl));
 }
 
-// Spend-to-fire cost of a unique/team action, by kizuna level — a real
-// save-up gradient so the top team attacks are a banked climax, not a
-// per-turn freebie.  L1 = 3, L2 = 4, L3 / trio = 6 (a near-full bank).
+// Spend-to-fire cost of a team action — a premium over a signature (2) so it's
+// a deliberate save-up, but inside the Resolve cap (4): duo 3, trio 4.
 function uniqueActionCost(combo) {
-  const lvl = combo && typeof combo.kizunaLevel === 'number' ? combo.kizunaLevel
-            : (combo && combo.tier === 'triple' ? 3 : 2);
-  return ({ 1: 3, 2: 4, 3: 6 })[Math.max(1, Math.min(3, lvl))] || 4;
+  return (combo && combo.tier === 'triple') ? 4 : 3;
 }
 
 function commitCombo(comboId) {
@@ -10061,45 +10054,6 @@ function availableUniques(s) {
     if (!isComboUnlocked(s, combo)) return false;
     return combo.requires.every(r => inPlay(r.heroId));
   });
-}
-
-// Per-hero Unleash — the always-available Resolve sink.  Every alive hero on
-// the board can spend Resolve to UNLEASH their school at full power (the
-// SCHOOL_SIGNATURE L3 primary: a big hit + board detonation).  This is what
-// you spend banked Resolve on when no team attack is unlocked yet.
-function availableUnleashes(s) {
-  if (!s || !s.party) return [];
-  const slotIds = Object.values(s.party.slots || {});
-  return slotIds.filter(id => {
-    const c = id && s.party.chars[id];
-    return !!c && !c.downed;
-  }).map(id => ({
-    id: `unleash:${id}`,
-    charId: id,
-    name: UNLEASH_NAMES[(CHARS[id] && CHARS[id].school) || 'physical'] || 'Unleash',
-    cost: UNLEASH_COST,
-  }));
-}
-
-function commitUnleash(charId) {
-  const s = state;
-  if (s.executing || s.over) return;
-  const c = charId && s.party.chars[charId];
-  if (!c || c.downed) return;
-  // One Unleash per hero per turn.
-  if (s.queue.some(q => q.kind === 'unleash' && q.charId === charId)) return;
-  if (UNLEASH_COST > (s.resolve - queueReservedResolve())) { flashMsg('Not enough Resolve.'); return; }
-  if (UNIQUE_ATB > queueAtbAvailable()) { flashMsg('Not enough ATB this turn.'); return; }
-  const school = (CHARS[charId] && CHARS[charId].school) || 'physical';
-  s.queue.push({
-    kind: 'unleash',
-    charId,
-    label: `${(CHARS[charId] && CHARS[charId].name) || charId} · ${UNLEASH_NAMES[school] || 'Unleash'}`,
-    atb: UNIQUE_ATB,
-    resolveCost: UNLEASH_COST,
-  });
-  Audio.ui();
-  render();
 }
 
 function commitUnique(comboId) {
@@ -16433,22 +16387,6 @@ function executeQueueItem(s, item) {
   // can branch on it (Husk Garden's Blooms detonate only when killed by
   // a Special; Sundering Choir's invuln-while-Voices uses this path too).
   s._currentActionKind = item && item.kind ? item.kind : null;
-  if (item.kind === 'unleash') {
-    const uc = item.charId && s.party.chars[item.charId];
-    if (!uc || uc.downed) return;
-    const school = (CHARS[item.charId] && CHARS[item.charId].school) || 'physical';
-    const sig = SCHOOL_SIGNATURE[school];
-    log(`<span class="msg-strong">✦ ${item.label || 'Unleash'} ✦</span>`);
-    if (!__simulating) flashCardId(item.charId, 'hit', 'party');
-    s.currentActorId = item.charId;
-    s.currentTechElement = school;
-    // Treat an Unleash as a resonant spend so its L3 detonation pays off
-    // double — the banked-Resolve payoff should hit like one.
-    s._currentIsResonance = true;
-    try { if (sig && typeof sig.primary === 'function') sig.primary(s, item.charId, 3); }
-    finally { s.currentActorId = null; s.currentTechElement = null; s._currentIsResonance = false; }
-    return;
-  }
   if (item.kind === 'combo') {
     // Chosen Resonance variants live in state.run.chosenResonances
     // (per-pair / per-trio picks the player made at Tier II unlock)
@@ -17973,48 +17911,10 @@ function renderTiles() {
 
     col.appendChild(makeTile('attack', charId, null, tileCounts, teamLocked));
     col.appendChild(makeTile('special', charId, null, tileCounts, teamLocked));
-    // Per-hero Unleash — the Resolve sink, now docked in the hero's own
-    // column (a slim bar under their two tiles) instead of the floating rail,
-    // so it reads as a hero action and the battlefield stays uncluttered.
-    col.appendChild(makeUnleashControl(charId, teamLocked));
     // Move action is handled by tap-the-figure drag-drop on the battlefield, not a tile.
 
     grid.appendChild(col);
   });
-}
-
-// Per-hero Unleash — rendered as a THIRD action tile (same structure as the
-// attack/special tiles) so it explains itself the same way everything else
-// does: element glyph, ✺ detonation hint, and an inline effect description
-// pulled from the school's own desc().  Spends UNLEASH_COST Resolve + UNIQUE_ATB.
-function makeUnleashControl(charId, teamLocked) {
-  const c = state.party.chars[charId];
-  const school = (CHARS[charId] && CHARS[charId].school) || 'physical';
-  const name = UNLEASH_NAMES[school] || 'Unleash';
-  const sig = SCHOOL_SIGNATURE[school];
-  const desc = (sig && typeof sig.desc === 'function') ? sig.desc(3) : 'Unleash this hero\'s school at full power.';
-  const t = document.createElement('button');
-  t.type = 'button';
-  t.className = 'tile kind-unleash';
-  const already = state.queue.some(q => q.kind === 'unleash' && q.charId === charId);
-  const resolveAvail = state.resolve - queueReservedResolve();
-  const affordable = UNLEASH_COST <= resolveAvail && UNIQUE_ATB <= queueAtbAvailable();
-  t.disabled = !!(c.downed || state.executing || state.over || teamLocked || already || !affordable);
-  if (already) t.classList.add('queued');
-  const SCHOOL_GLYPH_TILE = { physical: '⚔', holy: '✦', arcane: '✶', ranged: '➳', stealth: '◐' };
-  const elBadge = `<span class="tile-element tile-element-${school}" title="Element: ${school}">${SCHOOL_GLYPH_TILE[school] || ''}</span> `;
-  t.innerHTML = `
-    <span class="tile-badges"><span class="tile-atb">${UNIQUE_ATB}</span><span class="tile-cost">${UNLEASH_COST}♦</span><span class="tile-detonate" title="Unleash detonates primers across the board">✺</span></span>
-    <span class="tile-name-row">
-      <span class="tile-name">${elBadge}${name}</span>
-      <span class="tile-reach"><span class="rch-label rch-unleash" title="A Resolve-fuelled team action">UNLEASH</span></span>
-    </span>
-    <span class="tile-desc">${formatDesc(desc) || ''}</span>
-    ${already ? '<span class="tile-queued-mark" title="Queued this turn">✓</span>' : ''}
-  `;
-  t.title = `Unleash · ${name} — ${desc}  Costs ${UNLEASH_COST} Resolve + ${UNIQUE_ATB} ATB.`;
-  bindTapAsPointer(t, () => { if (!t.disabled && !state.executing && !state.over) commitUnleash(charId); });
-  return t;
 }
 
 function cornerBrackets() {

@@ -7335,29 +7335,11 @@ body.party-critical::after {
 }
 .char-col {
   display: grid;
-  /* head · attack · special · unleash — three EVEN action tiles so the column
-     reads as one consistent stack (no odd slim bar throwing off the rhythm). */
-  grid-template-rows: auto 1fr 1fr 1fr;
+  grid-template-rows: auto 1fr 1fr;
   gap: 4px;
   min-height: 0;
   min-width: 0;
   height: 100%;
-}
-/* Per-hero Unleash — a third action tile (inherits the .tile base) with a
-   cool-blue accent so it reads as the Resolve "big spend", distinct from the
-   amber attack/special tiles. */
-.tile.kind-unleash {
-  border-color: rgba(150,180,255,0.5);
-  background: linear-gradient(rgba(40,52,84,0.42), rgba(22,28,48,0.42));
-}
-.tile.kind-unleash .tile-name { color: #d6e4ff; }
-.tile.kind-unleash .rch-unleash {
-  color: #bcd2ff; border: 1px solid rgba(150,180,255,0.5);
-  border-radius: 3px; padding: 0 4px; font-size: 8px; letter-spacing: 0.08em;
-}
-.tile.kind-unleash:not(:disabled):hover {
-  border-color: rgba(175,200,255,0.85);
-  box-shadow: 0 0 9px rgba(120,150,255,0.4);
 }
 .char-col.downed { opacity: 0.4; pointer-events: none; }
 /* Small portrait + name header above each hero's moveset.  Sits above the
@@ -13012,11 +12994,6 @@ body.cine-stage-open #stage::after {
 }
 .unique-chip.resonance-chip-poor { opacity: 0.45; filter: saturate(0.5); }
 .unique-chip:disabled { cursor: default; }
-/* Per-hero Unleash — the always-available Resolve sink.  A cooler, calmer
-   accent so it reads as distinct from the gold team-attack chips. */
-.unleash-chip { border-color: rgba(150,180,255,0.5); }
-.unleash-chip .rc-label { color: #cfe0ff; }
-.unleash-chip .rc-cost { color: #bcd2ff; }
 
 .resonance-chip {
   display: inline-flex;
