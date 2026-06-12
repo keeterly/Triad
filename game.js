@@ -18381,7 +18381,8 @@ function makeEnemyCard(e, slot) {
     // becomes 'LOW' which is meaningful; pure self-buffs have no
     // targetSlot and the tag is hidden).
     intentBubble = `
-      <div class="intent-bubble ${intentClass} threat-${threat}" title="${intent.name}: ${intent.tag} → ${targetTag}">
+      <div class="intent-bubble ${intentClass} threat-${threat}" title="${threat === 'lethal' ? 'LETHAL — ' : ''}${intent.name}: ${intent.tag} → ${targetTag}${threat === 'lethal' ? '  (would DOWN a hero — answer it: move, heal, block, or kill first)' : ''}">
+        ${threat === 'lethal' ? '<span class="intent-skull" aria-label="lethal">☠</span>' : ''}
         <span class="intent-icon">${icon}</span>
         ${num ? `<span class="intent-num">${num}</span>` : ''}
         ${targetTag ? `<span class="intent-target">→ ${targetTag}</span>` : ''}
