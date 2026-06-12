@@ -12119,6 +12119,20 @@ function startEncounter(encSpec) {
   // Apply biome modifier seasoning to fresh enemies
   if (hasRunModifier(state, 'veiled'))    Object.values(state.enemies.chars).forEach(e => { e.vuln += 1; });
   if (hasRunModifier(state, 'fortified')) Object.values(state.enemies.chars).forEach(e => { e.armor += 2; });
+  // Make that seasoning OBVIOUS: once the board has rendered, pop the applied
+  // status on each affected enemy AND surface a named toast, so the player
+  // sees WHY enemies begin with vuln/armor instead of being surprised by it.
+  const _modSeasoning = hasRunModifier(state, 'veiled')    ? { label: 'VULN',     id: 'veiled' }
+                      : hasRunModifier(state, 'fortified') ? { label: '+2 ARMOR', id: 'fortified' }
+                      : null;
+  if (_modSeasoning) {
+    const md = RUN_MODIFIERS[_modSeasoning.id];
+    setTimeout(() => {
+      if (!state || state.over) return;
+      Object.values(state.enemies.chars).forEach(e => { if (e && !e.dead) spawnPopupId(e.id, _modSeasoning.label, 'stagger', 'enemy'); });
+      spawnToast({ category: 'info', glyph: '✦', eyebrow: md.name, name: md.desc });
+    }, 700);
+  }
 
   if (!isFirstFight) {
     const cap = RESOLVE_CARRY_CAP + sigilBonus(state, 'memory');
