@@ -13014,6 +13014,11 @@ body.cine-stage-open #stage::after {
 }
 .unique-chip.resonance-chip-poor { opacity: 0.45; filter: saturate(0.5); }
 .unique-chip:disabled { cursor: default; }
+/* Per-hero Unleash — the always-available Resolve sink.  A cooler, calmer
+   accent so it reads as distinct from the gold team-attack chips. */
+.unleash-chip { border-color: rgba(150,180,255,0.5); }
+.unleash-chip .rc-label { color: #cfe0ff; }
+.unleash-chip .rc-cost { color: #bcd2ff; }
 
 .resonance-chip {
   display: inline-flex;
