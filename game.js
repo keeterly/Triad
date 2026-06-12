@@ -20431,10 +20431,16 @@ function playKillingBlowHold() {
   if (stage) stage.classList.add('kill-slowmo');
   document.body.classList.add('killing-blow');
   shakeScreen(2);
-  setTimeout(() => {
+  // Trimmed (1200→850) and tap-to-skip so the win doesn't sit frozen.
+  let done = false;
+  const end = () => {
+    if (done) return; done = true;
+    clearTimeout(t); document.removeEventListener('pointerdown', end, true);
     if (stage) stage.classList.remove('kill-slowmo');
     document.body.classList.remove('killing-blow');
-  }, 1200);
+  };
+  const t = setTimeout(end, 850);
+  setTimeout(() => document.addEventListener('pointerdown', end, true), 200);
 }
 
 // Power-spike — fires when the 2× stagger-consume hit lands.  Brief
@@ -20598,11 +20604,42 @@ function playBossDeath(then) {
   const stage = $('#stage');
   if (stage) stage.classList.add('boss-slowmo');
   document.body.classList.add('boss-killed');
-  setTimeout(() => {
+  // Trimmed (1400→1000) and tap-to-skip — a boss death should feel like a
+  // payoff you can lean into, not a fixed pause you wait out.
+  let done = false;
+  const end = () => {
+    if (done) return; done = true;
+    clearTimeout(t); document.removeEventListener('pointerdown', end, true);
     if (stage) stage.classList.remove('boss-slowmo');
     document.body.classList.remove('boss-killed');
     if (then) then();
-  }, 1400);
+  };
+  const t = setTimeout(end, 1000);
+  setTimeout(() => document.addEventListener('pointerdown', end, true), 220);
+}
+
+// Layer-entry breath — a brief centred "Deeper still · Layer N" beat shown
+// when a carried party resumes on a new layer, so the descent reads as a
+// moment instead of a hard cut to the map.  Tap (or auto) to continue.
+function playLayerTitle(then) {
+  const fin = (typeof then === 'function') ? then : (() => {});
+  if (typeof __simulating !== 'undefined' && __simulating) { fin(); return; }
+  const layer = (state.run && state.run.layer) || 1;
+  const mod = state.run && state.run.modifier;
+  const modName = (mod && RUN_MODIFIERS[mod] && RUN_MODIFIERS[mod].name) || '';
+  let el = document.getElementById('layer-title');
+  if (!el) { el = document.createElement('div'); el.id = 'layer-title'; el.setAttribute('aria-hidden', 'true'); document.body.appendChild(el); }
+  el.innerHTML = `<div class="lt-inner"><div class="lt-eyebrow">✦ Deeper still</div><div class="lt-name">Layer ${layer}</div>${modName ? `<div class="lt-sub">${modName}</div>` : ''}</div>`;
+  el.classList.remove('go'); void el.offsetWidth; el.classList.add('go');
+  let done = false;
+  const end = () => {
+    if (done) return; done = true;
+    clearTimeout(t); document.removeEventListener('pointerdown', end, true);
+    el.classList.remove('go');
+    setTimeout(fin, 260);
+  };
+  const t = setTimeout(end, 1900);
+  setTimeout(() => document.addEventListener('pointerdown', end, true), 320);
 }
 
 function applyBiomeBackground() {
@@ -25854,6 +25891,14 @@ function init() {
       if (matches.length) {
         const pick = matches[Math.floor(Math.random() * matches.length)];
         showVignette(pick, ctx, () => resolveOpeningBoon(() => renderMap()));
+        return;
+      }
+      // Layer breath — when a carried party resumes on a deeper layer and no
+      // opening vignette plays, give the descent a brief beat instead of hard-
+      // cutting to the next map.  First layer of a fresh run skips it.
+      const layerNow = (state.run && state.run.layer) || 1;
+      if (hasCarry || layerNow > 1) {
+        playLayerTitle(() => renderMap());
         return;
       }
       renderMap();

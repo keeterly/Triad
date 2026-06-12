@@ -17164,3 +17164,29 @@ body.on-title #hud { display: none !important; }
 #resonant-panel .rp-desc { font-size: 11.5px; color: #c9bfa6; line-height: 1.35; }
 #resonant-panel .rp-cost { flex: 0 0 auto; font: 800 15px 'Iowan Old Style', Georgia, serif; color: var(--gold-bright); text-shadow: 0 0 8px rgba(230,218,178,0.4); }
 #resonant-panel .rp-hint { margin-top: 12px; padding-top: 9px; border-top: 1px solid rgba(230,218,178,0.12); font-size: 10.5px; color: var(--gold-dim); text-align: center; font-style: italic; }
+
+/* ===== Layer-entry breath — "Deeper still · Layer N" beat between layers ===== */
+#layer-title {
+  position: fixed; inset: 0; z-index: 8550;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(10,8,14,0.7) 0%, rgba(2,2,4,0.92) 100%);
+  transition: opacity 0.3s ease-out;
+}
+#layer-title.go { opacity: 1; pointer-events: auto; }
+#layer-title .lt-inner { text-align: center; }
+#layer-title.go .lt-inner { animation: lt-rise 0.6s cubic-bezier(.2,.8,.3,1) both; }
+@keyframes lt-rise { 0% { opacity: 0; transform: translateY(16px); } 100% { opacity: 1; transform: translateY(0); } }
+#layer-title .lt-eyebrow {
+  font-size: 12px; letter-spacing: 0.34em; text-transform: uppercase;
+  color: var(--gold-bright); opacity: 0.85;
+}
+#layer-title .lt-name {
+  font-family: 'Iowan Old Style', Georgia, serif;
+  font-size: 46px; font-weight: 800; color: #fff3d6; margin-top: 6px;
+  letter-spacing: 0.04em; text-shadow: 0 0 24px rgba(255,210,120,0.4), 0 2px 0 rgba(0,0,0,0.8);
+}
+#layer-title .lt-sub {
+  margin-top: 8px; font-size: 13px; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--gold-pale); opacity: 0.75;
+}
