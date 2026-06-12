@@ -17983,26 +17983,38 @@ function renderTiles() {
   });
 }
 
-// Slim per-hero Unleash bar — docked under a hero's two action tiles.  Spends
-// Resolve (UNLEASH_COST) + ATB to fire their school at full power.  Disabled
-// when downed / unaffordable / already queued this turn, so it reads its own
-// availability without crowding the floating team-attack rail.
+// Per-hero Unleash — rendered as a THIRD action tile (same structure as the
+// attack/special tiles) so it explains itself the same way everything else
+// does: element glyph, ✺ detonation hint, and an inline effect description
+// pulled from the school's own desc().  Spends UNLEASH_COST Resolve + UNIQUE_ATB.
 function makeUnleashControl(charId, teamLocked) {
   const c = state.party.chars[charId];
   const school = (CHARS[charId] && CHARS[charId].school) || 'physical';
   const name = UNLEASH_NAMES[school] || 'Unleash';
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = 'unleash-tile';
+  const sig = SCHOOL_SIGNATURE[school];
+  const desc = (sig && typeof sig.desc === 'function') ? sig.desc(3) : 'Unleash this hero\'s school at full power.';
+  const t = document.createElement('button');
+  t.type = 'button';
+  t.className = 'tile kind-unleash';
   const already = state.queue.some(q => q.kind === 'unleash' && q.charId === charId);
   const resolveAvail = state.resolve - queueReservedResolve();
   const affordable = UNLEASH_COST <= resolveAvail && UNIQUE_ATB <= queueAtbAvailable();
-  btn.disabled = !!(c.downed || state.executing || state.over || teamLocked || already || !affordable);
-  if (already) btn.classList.add('queued');
-  btn.innerHTML = `<span class="ut-name">✦ ${name}</span><span class="ut-cost">◈ ${UNLEASH_COST}</span>`;
-  btn.title = `Unleash · ${name} — spend ${UNLEASH_COST} Resolve + ${UNIQUE_ATB} ATB for a full-power school strike (big hit + board detonation).`;
-  bindTapAsPointer(btn, () => { if (!btn.disabled && !state.executing && !state.over) commitUnleash(charId); });
-  return btn;
+  t.disabled = !!(c.downed || state.executing || state.over || teamLocked || already || !affordable);
+  if (already) t.classList.add('queued');
+  const SCHOOL_GLYPH_TILE = { physical: '⚔', holy: '✦', arcane: '✶', ranged: '➳', stealth: '◐' };
+  const elBadge = `<span class="tile-element tile-element-${school}" title="Element: ${school}">${SCHOOL_GLYPH_TILE[school] || ''}</span> `;
+  t.innerHTML = `
+    <span class="tile-badges"><span class="tile-atb">${UNIQUE_ATB}</span><span class="tile-cost">${UNLEASH_COST}♦</span><span class="tile-detonate" title="Unleash detonates primers across the board">✺</span></span>
+    <span class="tile-name-row">
+      <span class="tile-name">${elBadge}${name}</span>
+      <span class="tile-reach"><span class="rch-label rch-unleash" title="A Resolve-fuelled team action">UNLEASH</span></span>
+    </span>
+    <span class="tile-desc">${formatDesc(desc) || ''}</span>
+    ${already ? '<span class="tile-queued-mark" title="Queued this turn">✓</span>' : ''}
+  `;
+  t.title = `Unleash · ${name} — ${desc}  Costs ${UNLEASH_COST} Resolve + ${UNIQUE_ATB} ATB.`;
+  bindTapAsPointer(t, () => { if (!t.disabled && !state.executing && !state.over) commitUnleash(charId); });
+  return t;
 }
 
 function cornerBrackets() {
