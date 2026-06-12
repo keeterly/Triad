@@ -16378,8 +16378,10 @@ function resolveQueueStep(i) {
       return;
     }
     render();
-    setTimeout(() => resolveQueueStep(i + 1), 480 + consumeHitPause());
-  }, 140);
+    // Base inter-action cadence raised (480→560) so the turn breathes; the
+    // per-hit hit-stop (consumeHitPause) stacks on top to emphasize big hits.
+    setTimeout(() => resolveQueueStep(i + 1), 560 + consumeHitPause());
+  }, 160);
 }
 
 function executeQueueItem(s, item) {
@@ -20172,12 +20174,16 @@ function cinematicImpact(level, side) {
 // 3 = detonation / stagger ×2 / massive, 4 = resonant detonation (showpiece).
 // Both the enemy and party damage paths route through here so the feel stays
 // consistent and every timing/intensity number lives in one place to tune.
+// Hit-stop (pause) values bumped to give combat WEIGHT — the bigger the hit,
+// the longer the freeze before the next action, so detonations / staggers /
+// resonant payoffs LAND instead of flying by.  The differential matters as
+// much as the absolute: trivial hits stay snappy, payoffs hang.
 const IMPACT_TIERS = {
-  0: { pause: 40,  cine: 0, flash: false, lunge: false },
-  1: { pause: 150, cine: 1, flash: false, lunge: false },
-  2: { pause: 260, cine: 2, flash: true,  lunge: true  },
-  3: { pause: 430, cine: 3, flash: true,  lunge: true  },
-  4: { pause: 560, cine: 4, flash: true,  lunge: true  },
+  0: { pause: 60,  cine: 0, flash: false, lunge: false },
+  1: { pause: 210, cine: 1, flash: false, lunge: false },
+  2: { pause: 360, cine: 2, flash: true,  lunge: true  },
+  3: { pause: 620, cine: 3, flash: true,  lunge: true  },
+  4: { pause: 860, cine: 4, flash: true,  lunge: true  },
 };
 function impactFeedback(side, id, tier, toHp, attackerId, attackerSide) {
   if (__simulating) return;
@@ -20416,10 +20422,10 @@ function playStaggerHit() {
   if (__simulating) return;
   const stage = $('#stage');
   if (stage) stage.classList.add('stagger-hit');
-  shakeScreen(2);
+  shakeScreen(3);
   setTimeout(() => {
     if (stage) stage.classList.remove('stagger-hit');
-  }, 380);
+  }, 480);
 }
 
 // Power-spike — fires when a Resonance is committed for the very
