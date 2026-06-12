@@ -7335,12 +7335,32 @@ body.party-critical::after {
 }
 .char-col {
   display: grid;
-  grid-template-rows: auto 1fr 1fr;
+  /* head · attack · special · unleash (slim).  The Unleash bar is auto-height
+     so it docks under the two tiles without shrinking them. */
+  grid-template-rows: auto 1fr 1fr auto;
   gap: 4px;
   min-height: 0;
   min-width: 0;
   height: 100%;
 }
+/* Per-hero Unleash bar — the Resolve sink, docked under the two action tiles.
+   Cool-blue accent so it reads as the "big spend" (distinct from the amber
+   tiles), and dims when it can't be fired. */
+.unleash-tile {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 6px; padding: 3px 8px;
+  border: 1px solid rgba(150,180,255,0.45);
+  border-radius: 6px;
+  background: linear-gradient(rgba(40,52,84,0.5), rgba(24,30,52,0.5));
+  color: #cfe0ff; font-size: 11px; font-weight: 700;
+  cursor: pointer; min-height: 0;
+  transition: opacity 0.15s, box-shadow 0.15s, border-color 0.15s;
+}
+.unleash-tile .ut-name { letter-spacing: 0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.unleash-tile .ut-cost { flex: 0 0 auto; font-family: ui-monospace, monospace; color: #bcd2ff; }
+.unleash-tile:not(:disabled):hover { border-color: rgba(170,200,255,0.8); box-shadow: 0 0 8px rgba(120,150,255,0.35); }
+.unleash-tile:disabled { opacity: 0.4; cursor: default; }
+.unleash-tile.queued { opacity: 0.7; border-color: #9ec0ff; box-shadow: 0 0 7px rgba(140,180,255,0.5) inset; }
 .char-col.downed { opacity: 0.4; pointer-events: none; }
 /* Small portrait + name header above each hero's moveset.  Sits above the
    two action tiles in a compact row so the player can read who-owns-what
