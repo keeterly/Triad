@@ -17973,10 +17973,36 @@ function renderTiles() {
 
     col.appendChild(makeTile('attack', charId, null, tileCounts, teamLocked));
     col.appendChild(makeTile('special', charId, null, tileCounts, teamLocked));
+    // Per-hero Unleash — the Resolve sink, now docked in the hero's own
+    // column (a slim bar under their two tiles) instead of the floating rail,
+    // so it reads as a hero action and the battlefield stays uncluttered.
+    col.appendChild(makeUnleashControl(charId, teamLocked));
     // Move action is handled by tap-the-figure drag-drop on the battlefield, not a tile.
 
     grid.appendChild(col);
   });
+}
+
+// Slim per-hero Unleash bar — docked under a hero's two action tiles.  Spends
+// Resolve (UNLEASH_COST) + ATB to fire their school at full power.  Disabled
+// when downed / unaffordable / already queued this turn, so it reads its own
+// availability without crowding the floating team-attack rail.
+function makeUnleashControl(charId, teamLocked) {
+  const c = state.party.chars[charId];
+  const school = (CHARS[charId] && CHARS[charId].school) || 'physical';
+  const name = UNLEASH_NAMES[school] || 'Unleash';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'unleash-tile';
+  const already = state.queue.some(q => q.kind === 'unleash' && q.charId === charId);
+  const resolveAvail = state.resolve - queueReservedResolve();
+  const affordable = UNLEASH_COST <= resolveAvail && UNIQUE_ATB <= queueAtbAvailable();
+  btn.disabled = !!(c.downed || state.executing || state.over || teamLocked || already || !affordable);
+  if (already) btn.classList.add('queued');
+  btn.innerHTML = `<span class="ut-name">✦ ${name}</span><span class="ut-cost">◈ ${UNLEASH_COST}</span>`;
+  btn.title = `Unleash · ${name} — spend ${UNLEASH_COST} Resolve + ${UNIQUE_ATB} ATB for a full-power school strike (big hit + board detonation).`;
+  bindTapAsPointer(btn, () => { if (!btn.disabled && !state.executing && !state.over) commitUnleash(charId); });
+  return btn;
 }
 
 function cornerBrackets() {
@@ -18787,12 +18813,21 @@ function renderTeamSpecial() {
   if (!area) return;
   area.innerHTML = '';
   if (state.executing || state.over) { area.classList.add('hidden'); return; }
-  // Spend-to-fire: show the unlocked unique/team actions as a clean, compact
-  // list.  No queued-sequence matching, no near-miss partials — just the
-  // moves you've earned, their Resolve cost, and whether you can afford them.
-  const teamUniques = availableUniques(state);
-  const unleashes = availableUnleashes(state);
-  if (!teamUniques.length && !unleashes.length) { area.classList.add('hidden'); return; }
+  // The floating rail is TEAM attacks only now — per-hero Unleash lives in
+  // each hero's action column (renderTiles), so this band stays short and
+  // doesn't crowd the battlefield.  And we collapse to ONE pill per pair:
+  // the highest unlocked kizuna level (the climax), so a pair never stacks
+  // L1+L2+L3 chips fighting for space.
+  const kLevel = (c) => (typeof c.kizunaLevel === 'number' ? c.kizunaLevel : (c.tier === 'triple' ? 3 : 2));
+  const pairKey = (c) => (c.requires || []).map(r => r.heroId).slice().sort().join('+');
+  const bestPerPair = new Map();
+  availableUniques(state).forEach(c => {
+    const k = pairKey(c);
+    const cur = bestPerPair.get(k);
+    if (!cur || kLevel(c) > kLevel(cur)) bestPerPair.set(k, c);
+  });
+  const teamUniques = Array.from(bestPerPair.values());
+  if (!teamUniques.length) { area.classList.add('hidden'); return; }
   area.classList.remove('hidden');
   area.classList.add('resonance-rail', 'unique-rail');
   if (!hasSeenCoachmark('cm_resonance')) {
@@ -18800,7 +18835,7 @@ function renderTeamSpecial() {
       showCoachmark('cm_resonance', {
         anchor: '#ts-area .resonance-chip',
         place: 'above',
-        text: 'These are <b>Unique Actions</b> — spend <b>Resolve</b> (banked by detonating primers) to fire them.  A hero <b>Unleash</b> is always available; <b>team attacks</b> unlock as bonds deepen.',
+        text: 'A <b>team attack</b> is ready — spend <b>Resolve</b> (banked by detonating primers) to fire it.  Press &amp; hold to preview its targets.',
       });
     }, 400);
   }
@@ -18843,19 +18878,6 @@ function renderTeamSpecial() {
     });
     area.appendChild(btn);
   };
-  // Per-hero Unleash pills first (the always-available sink), then team attacks.
-  unleashes.forEach(u => {
-    const already = state.queue.some(q => q.kind === 'unleash' && q.charId === u.charId);
-    if (already) return;
-    addChip({
-      portraitsHtml: `<span class="rc-portraits"><span class="rc-portrait" title="${(CHARS[u.charId] && CHARS[u.charId].name) || u.charId}">${PORTRAITS[u.charId] || ''}</span></span>`,
-      label: u.name,
-      cost: u.cost,
-      extraCls: 'unleash-chip',
-      title: `Unleash · ${(CHARS[u.charId] && CHARS[u.charId].name) || u.charId} unleashes their school at full power — spend ${u.cost} Resolve.`,
-      onFire: () => commitUnleash(u.charId),
-    });
-  });
   teamUniques.forEach(combo => {
     const heroIds = combo.requires.map(r => r.heroId);
     const portraitsHtml = `<span class="rc-portraits">${heroIds.map(id =>
