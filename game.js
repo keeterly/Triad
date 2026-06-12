@@ -7242,6 +7242,14 @@ function getTech(s, charId, slot, kind) {
   return CHARS[charId]?.techs?.[slot]?.[kind] || null;
 }
 
+// Has this hero's tech at (slot, kind) been upgraded?  Drives the persistent
+// ✦ marker on the action tile + party inspect so an upgrade reads as the
+// permanent change it is, every turn — not just at the moment you pick it.
+function isTechUpgraded(s, charId, slot, kind) {
+  const c = s && s.party && s.party.chars && s.party.chars[charId];
+  return !!(c && c.upgrades && c.upgrades[`${slot}.${kind}`]);
+}
+
 // Build the list of upgrades the player can be offered right now: charId must be
 // in the current party, and that tech slot must not already be upgraded.
 function availableUpgrades(s) {
@@ -19038,8 +19046,16 @@ function makeTile(kind, charId, dir, tileCounts, teamLocked) {
     ? `<span class="tile-element tile-element-${preview.element}" title="Element: ${preview.element}">${SCHOOL_GLYPH_TILE[preview.element] || ''}</span> `
     : '';
 
+  // Persistent upgrade marker — a ✦ on a forged tech so the permanent change
+  // reads every turn, not just at the pick screen.
+  const techKind = kind === 'special' ? 'sig' : (kind === 'attack' ? 'basic' : null);
+  const heroSlot = slotOfChar(state, charId);
+  const upgraded = techKind && heroSlot && isTechUpgraded(state, charId, heroSlot, techKind);
+  if (upgraded) t.classList.add('tile-upgraded');
+  const upBadge = upgraded ? '<span class="tile-upgraded-mark" title="Forged — this technique has been upgraded.">✦</span>' : '';
+
   t.innerHTML = `
-    <span class="tile-badges">${costBadges.join('')}${detBadge}</span>
+    <span class="tile-badges">${costBadges.join('')}${detBadge}${upBadge}</span>
     <span class="tile-name-row">
       <span class="tile-name">${elBadge}${preview.label || '—'}</span>
       ${reachLabel ? `<span class="tile-reach">${reachLabel}</span>` : ''}
@@ -23548,10 +23564,11 @@ function showPartyInspect() {
   const stripEl  = layout.querySelector('.hip-strip');
   const infoEl   = layout.querySelector('.hip-focus-info');
 
-  const techRow = (kind, tech) => {
+  const techRow = (kind, tech, upgraded) => {
     if (!tech) return '';
     const label = kind === 'sig' ? 'S' : 'A';
-    return `<div class="hip-tech-row${kind === 'sig' ? ' sig' : ''}"><span class="hip-tech-kind${kind === 'sig' ? ' sig' : ''}">${label}</span><div class="hip-tech-body"><div class="hip-tech-name">${tech.name}</div><div class="hip-tech-desc">${formatDesc(tech.desc)}</div></div></div>`;
+    const mark = upgraded ? ' <span class="hip-tech-upgraded" title="Forged — upgraded technique">✦</span>' : '';
+    return `<div class="hip-tech-row${kind === 'sig' ? ' sig' : ''}${upgraded ? ' upgraded' : ''}"><span class="hip-tech-kind${kind === 'sig' ? ' sig' : ''}">${label}</span><div class="hip-tech-body"><div class="hip-tech-name">${tech.name}${mark}</div><div class="hip-tech-desc">${formatDesc(tech.desc)}</div></div></div>`;
   };
   const techSection = (id, def, pos) => {
     const basic = getTech(state, id, pos, 'basic');
@@ -23560,8 +23577,8 @@ function showPartyInspect() {
     return `
       <div class="hip-tech-col${isHome ? ' home' : ''}">
         <div class="hip-tech-pos">${pos.toUpperCase()}${isHome ? ' <span class="hip-home-mark">◆</span>' : ''}</div>
-        ${techRow('basic', basic)}
-        ${techRow('sig', sig)}
+        ${techRow('basic', basic, isTechUpgraded(state, id, pos, 'basic'))}
+        ${techRow('sig', sig, isTechUpgraded(state, id, pos, 'sig'))}
       </div>`;
   };
 
@@ -24546,7 +24563,50 @@ function commitUpgrade(upgradeId, onDone) {
   log(`<b>${CHARS[up.charId].name}</b> learns <b>${up.name}</b>.`);
   hideOverlay();
   resetOverlayBtn();
-  if (typeof onDone === 'function') onDone(); else renderMap();
+  // A forged technique is a permanent power spike — give it a MOMENT before
+  // returning to the map, then continue.
+  playTechForged(up, () => { if (typeof onDone === 'function') onDone(); else renderMap(); });
+}
+
+// Forge celebration — a centered beat the instant an upgrade commits, so a
+// permanent ability change LANDS instead of quietly logging.  Tap (anywhere
+// or Continue) to proceed; a fallback timer guarantees it never stalls.
+function playTechForged(up, then) {
+  const fin = (typeof then === 'function') ? then : (() => {});
+  if (typeof __simulating !== 'undefined' && __simulating || !up) { fin(); return; }
+  const heroName = (CHARS[up.charId] && CHARS[up.charId].name) || up.charId;
+  const slotLabel = (typeof SLOT_LABELS !== 'undefined' && SLOT_LABELS[up.slot]) || (up.slot || '').toUpperCase();
+  const kindLabel = up.kind === 'sig' ? 'Signature' : 'Basic';
+  let el = document.getElementById('tech-forged');
+  if (!el) { el = document.createElement('div'); el.id = 'tech-forged'; el.setAttribute('aria-hidden', 'true'); document.body.appendChild(el); }
+  el.className = '';
+  el.innerHTML = `
+    <div class="tf-tint"></div>
+    <div class="tf-rays"></div>
+    <div class="tf-card">
+      <div class="tf-portrait">${PORTRAITS[up.charId] || ''}</div>
+      <div class="tf-eyebrow">✦ TECHNIQUE FORGED ✦</div>
+      <div class="tf-name">${up.name}</div>
+      <div class="tf-meta">${heroName} · ${slotLabel} · ${kindLabel}</div>
+      <div class="tf-desc">${formatDesc(up.desc) || ''}</div>
+      <button type="button" class="tf-continue">Continue</button>
+    </div>`;
+  void el.offsetWidth;
+  el.classList.add('go');
+  shakeScreen(2);
+  try { if (Audio && typeof Audio.comboStinger === 'function') Audio.comboStinger('holy', true); } catch (_) {}
+  let done = false;
+  let t = null;
+  const finish = () => {
+    if (done) return; done = true;
+    if (t) clearTimeout(t);
+    el.classList.remove('go');
+    setTimeout(fin, 220);
+  };
+  const btn = el.querySelector('.tf-continue');
+  if (btn) bindTapAsPointer(btn, finish);
+  bindTapAsPointer(el, finish);
+  t = setTimeout(finish, 8000);
 }
 
 // Resonance unlock — when a bond crosses Tier II for a pair that has
