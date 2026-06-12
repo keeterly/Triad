@@ -7425,10 +7425,18 @@ body.party-critical::after {
   display: flex; align-items: center; gap: 3px;
   flex-wrap: nowrap; overflow: hidden;
 }
+/* Fixed, uniform chip size — every aura is the SAME box regardless of whether
+   it carries a number, so the header icon never appears to change size as the
+   active aura changes turn to turn.  (No scale transform — that was the cause
+   of the jitter.) */
 .char-col-head .cch-aura {
-  transform: scale(0.82); transform-origin: right center;
   flex: 0 0 auto;
+  height: 17px; min-width: 17px; padding: 0 4px; margin: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: 2px; transform: none;
 }
+.char-col-head .cch-aura .status-icon { font-size: 10px; line-height: 1; }
+.char-col-head .cch-aura .status-num { font-size: 9px; line-height: 1; }
 .char-col-head .cch-portrait {
   width: 26px; height: 26px;
   flex-shrink: 0;
@@ -17086,62 +17094,78 @@ body.on-title #hud { display: none !important; }
 .hip-tech-upgraded { color: var(--gold-bright); font-size: 0.8em; text-shadow: 0 0 6px rgba(240,200,110,0.7); }
 .hip-tech-row.upgraded .hip-tech-name { color: #fff3d6; }
 
-/* ===== Resonant Skills — single launcher button + panel (replaces per-skill pills) ===== */
+/* ===== Resonant Skills — launcher + panel, styled to the game's NieR-gothic
+   palette: notched-corner frames, bone-gold on near-black, serif, glow. ===== */
 #ts-area.resonant-launch { justify-content: center; align-items: flex-end; }
 .resonant-skills-btn {
   pointer-events: auto;
-  display: inline-flex; align-items: center; gap: 8px;
-  padding: 7px 16px; border-radius: 999px;
-  border: 1px solid var(--gold);
-  background: linear-gradient(rgba(60,46,20,0.9), rgba(34,24,10,0.9));
-  color: var(--gold-bright); font-size: 13px; font-weight: 700; letter-spacing: 0.04em;
-  cursor: pointer; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,0.5);
-  transition: box-shadow 0.15s, border-color 0.15s, transform 0.1s;
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 8px 18px;
+  background: linear-gradient(180deg, rgba(40,28,16,0.96) 0%, rgba(14,10,7,0.96) 100%);
+  border: 1px solid var(--gold-bright);
+  color: var(--gold-bright);
+  font-family: inherit; font-size: 14px; font-weight: 700;
+  letter-spacing: 0.2em; text-transform: uppercase;
+  text-shadow: 0 0 10px rgba(230,218,178,0.35), 0 1px 0 rgba(0,0,0,0.85);
+  cursor: pointer; white-space: nowrap;
+  box-shadow: 0 0 16px rgba(230,218,178,0.18), inset 0 0 14px rgba(230,218,178,0.07);
+  /* NieR notched corners, same language as the FIGHT button. */
+  clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px);
+  transition: box-shadow 0.15s, border-color 0.15s, transform 0.1s, color 0.15s;
 }
-.resonant-skills-btn .rsb-glyph { font-size: 14px; }
+.resonant-skills-btn .rsb-glyph { font-size: 15px; text-shadow: 0 0 9px rgba(230,218,178,0.6); }
 .resonant-skills-btn .rsb-count {
   display: inline-flex; align-items: center; justify-content: center;
-  min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px;
-  background: var(--gold); color: #1a1206; font-size: 11px; font-weight: 800;
+  min-width: 19px; height: 19px; padding: 0 5px;
+  background: var(--gold-bright); color: #14100a;
+  font-size: 11px; font-weight: 800; letter-spacing: 0;
+  clip-path: polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px);
 }
-.resonant-skills-btn.ready { animation: rsb-pulse 1.8s ease-in-out infinite; }
+.resonant-skills-btn.ready { animation: rsb-pulse 2s ease-in-out infinite; }
 @keyframes rsb-pulse {
-  0%, 100% { box-shadow: 0 2px 8px rgba(0,0,0,0.5), 0 0 0 0 rgba(240,200,110,0); }
-  50%      { box-shadow: 0 2px 8px rgba(0,0,0,0.5), 0 0 12px 2px rgba(240,200,110,0.5); }
+  0%, 100% { box-shadow: 0 0 16px rgba(230,218,178,0.18), inset 0 0 14px rgba(230,218,178,0.07); }
+  50%      { box-shadow: 0 0 22px rgba(230,218,178,0.4), inset 0 0 16px rgba(230,218,178,0.12); }
 }
-.resonant-skills-btn.ready:hover { border-color: var(--gold-bright); transform: translateY(-1px); }
-.resonant-skills-btn.poor { opacity: 0.6; border-color: var(--gold-dim); }
-.resonant-skills-btn.poor .rsb-count { background: var(--gold-dim); }
+.resonant-skills-btn.ready:hover { transform: translateY(-1px); border-color: #fff3d6; }
+.resonant-skills-btn.poor { opacity: 0.5; border-color: var(--gold-dim); color: var(--gold-dim); box-shadow: none; text-shadow: none; }
+.resonant-skills-btn.poor .rsb-count { background: var(--gold-dim); color: #14100a; }
 
 #resonant-panel { position: fixed; inset: 0; z-index: 8400; opacity: 0; pointer-events: none; transition: opacity 0.18s ease-out; }
 #resonant-panel.open { opacity: 1; pointer-events: auto; }
-#resonant-panel .rp-backdrop { position: absolute; inset: 0; background: rgba(2,3,8,0.7); backdrop-filter: blur(2px); }
+#resonant-panel .rp-backdrop { position: absolute; inset: 0; background: rgba(2,2,4,0.74); backdrop-filter: blur(2px); }
 #resonant-panel .rp-sheet {
-  position: absolute; left: 50%; bottom: 92px; transform: translateX(-50%);
-  width: min(560px, 92vw); max-height: 60vh; overflow-y: auto;
-  background: linear-gradient(rgba(28,22,14,0.98), rgba(18,14,9,0.98));
-  border: 1px solid var(--gold); border-radius: 14px; box-shadow: 0 12px 40px rgba(0,0,0,0.7); padding: 12px;
+  position: absolute; left: 50%; bottom: 90px; transform: translateX(-50%);
+  width: min(580px, 92vw); max-height: 62vh; overflow-y: auto;
+  background: linear-gradient(180deg, rgba(26,19,12,0.99), rgba(10,8,6,0.99));
+  border: 1px solid var(--gold-bright);
+  box-shadow: 0 14px 44px rgba(0,0,0,0.82), inset 0 0 26px rgba(230,218,178,0.05);
+  padding: 16px 16px 14px;
+  clip-path: polygon(16px 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%, 0 16px);
 }
 #resonant-panel.open .rp-sheet { animation: rp-rise 0.22s cubic-bezier(.2,.8,.3,1); }
 @keyframes rp-rise { 0% { opacity: 0; transform: translateX(-50%) translateY(12px); } 100% { opacity: 1; transform: translateX(-50%) translateY(0); } }
-#resonant-panel .rp-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; padding: 0 2px; }
-#resonant-panel .rp-title { color: var(--gold-bright); font-size: 14px; font-weight: 800; letter-spacing: 0.06em; }
-#resonant-panel .rp-close { width: 28px; height: 28px; border-radius: 6px; border: 1px solid var(--gold-dim); background: transparent; color: var(--ink); font-size: 18px; line-height: 1; cursor: pointer; }
-#resonant-panel .rp-list { display: flex; flex-direction: column; gap: 6px; }
+#resonant-panel .rp-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid rgba(230,218,178,0.18); }
+#resonant-panel .rp-title { color: var(--gold-bright); font-family: inherit; font-size: 16px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; text-shadow: 0 0 10px rgba(230,218,178,0.3); }
+#resonant-panel .rp-close { width: 28px; height: 28px; border: 1px solid var(--gold-dim); background: transparent; color: var(--gold-bright); font-size: 17px; line-height: 1; cursor: pointer; clip-path: polygon(5px 0,100% 0,100% calc(100% - 5px),calc(100% - 5px) 100%,0 100%,0 5px); }
+#resonant-panel .rp-close:hover { border-color: var(--gold-bright); }
+#resonant-panel .rp-list { display: flex; flex-direction: column; gap: 7px; }
 #resonant-panel .rp-row {
-  display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border-radius: 9px;
-  border: 1px solid rgba(240,200,110,0.35); background: linear-gradient(rgba(48,36,18,0.6), rgba(28,20,10,0.6));
-  color: var(--ink); text-align: left; cursor: pointer; transition: border-color 0.12s, box-shadow 0.12s;
+  display: flex; align-items: center; gap: 11px; width: 100%; padding: 9px 12px;
+  border: 1px solid rgba(230,218,178,0.3);
+  background: linear-gradient(180deg, rgba(38,28,16,0.7), rgba(18,13,8,0.7));
+  color: var(--ink); text-align: left; cursor: pointer; font-family: inherit;
+  clip-path: polygon(7px 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%,0 7px);
+  transition: border-color 0.12s, box-shadow 0.12s, background 0.12s;
 }
-#resonant-panel .rp-row:not(.poor):hover { border-color: var(--gold-bright); box-shadow: 0 0 10px rgba(240,200,110,0.3); }
-#resonant-panel .rp-row.poor { opacity: 0.45; cursor: default; }
+#resonant-panel .rp-row:not(.poor):hover { border-color: var(--gold-bright); box-shadow: 0 0 12px rgba(230,218,178,0.22), inset 0 0 12px rgba(230,218,178,0.05); }
+#resonant-panel .rp-row.poor { opacity: 0.42; cursor: default; }
 #resonant-panel .rp-portraits { display: flex; flex: 0 0 auto; }
-#resonant-panel .rp-portrait { width: 30px; height: 30px; border-radius: 50%; overflow: hidden; border: 1px solid var(--gold-dim); margin-left: -6px; background: var(--parchment-deep); }
+#resonant-panel .rp-portrait { width: 32px; height: 32px; border-radius: 50%; overflow: hidden; border: 1px solid var(--gold-dim); margin-left: -7px; background: var(--parchment-deep); }
 #resonant-panel .rp-portrait:first-child { margin-left: 0; }
 #resonant-panel .rp-portrait svg { width: 100%; height: 100%; }
-#resonant-panel .rp-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-#resonant-panel .rp-name { font-size: 13px; font-weight: 700; color: #fff3d6; display: flex; align-items: center; gap: 6px; }
-#resonant-panel .rp-tier { font-size: 9px; letter-spacing: 0.1em; color: var(--gold-dim); border: 1px solid var(--gold-dim); border-radius: 3px; padding: 0 3px; }
-#resonant-panel .rp-desc { font-size: 11px; color: #d9cfb8; line-height: 1.3; }
-#resonant-panel .rp-cost { flex: 0 0 auto; font: 800 14px ui-monospace, monospace; color: var(--gold-bright); }
-#resonant-panel .rp-hint { margin-top: 10px; font-size: 10.5px; color: var(--ink-dim); opacity: 0.8; text-align: center; }
+#resonant-panel .rp-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+#resonant-panel .rp-name { font-size: 14px; font-weight: 700; color: var(--gold-bright); letter-spacing: 0.04em; display: flex; align-items: center; gap: 7px; }
+#resonant-panel .rp-tier { font-size: 8.5px; letter-spacing: 0.12em; color: var(--gold-dim); border: 1px solid var(--gold-dim); padding: 1px 4px; clip-path: polygon(3px 0,100% 0,100% calc(100% - 3px),calc(100% - 3px) 100%,0 100%,0 3px); }
+#resonant-panel .rp-desc { font-size: 11.5px; color: #c9bfa6; line-height: 1.35; }
+#resonant-panel .rp-cost { flex: 0 0 auto; font: 800 15px 'Iowan Old Style', Georgia, serif; color: var(--gold-bright); text-shadow: 0 0 8px rgba(230,218,178,0.4); }
+#resonant-panel .rp-hint { margin-top: 12px; padding-top: 9px; border-top: 1px solid rgba(230,218,178,0.12); font-size: 10.5px; color: var(--gold-dim); text-align: center; font-style: italic; }
