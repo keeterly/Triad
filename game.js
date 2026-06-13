@@ -1649,6 +1649,13 @@ const BRACE_ARMOR = 3;
 // before they cash it for +2/hit.
 const BRACE_VULN_CLEAR = 1;
 
+// Flow / Momentum — repositioning a hero charges them with Momentum: their NEXT
+// damaging hit this turn deals +MOMENTUM_BONUS.  This is the universal reward
+// that makes movement worth an action even before a hero's prime-here /
+// detonate-there kit comes into play — you move, you hit harder.  Cleared at
+// the start of each turn (no cross-turn banking); consumed by the first hit.
+const MOMENTUM_BONUS = 3;
+
 const RESOLVE_MAX = 4;      // Resolve bank cap — sized so two signatures (2 each)
                            // OR one team attack is a turn's worth of spend.
 const UNIQUE_ATB = 2;      // ATB a spend-to-fire team action occupies
@@ -1711,30 +1718,32 @@ const CHARS = {
       // on top of Held Gate, so standing front lets the rest of the party
       // dodge while she eats the hits.  Taunt overrides enemy slot-aim, the
       // deliberate counterpart to the move-to-dodge mechanic.
+      // FRONT — DETONATE row.  Cassia is physical, so her front blows RUPTURE
+      // any bleed she (or an ally) primed — step up to front and cash the wound.
       front: {
-        basic: { name: 'Greatsword Cleave', desc: '8 dmg + vuln · Taunt', dmg: 8,
+        basic: { name: 'Greatsword Cleave', desc: '8 dmg · detonates BLEED (Rupture) · +vuln 1 · Taunt', dmg: 8,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (!t[0]) return; applyDmgToEnemy(s, t[0], 8); if (!t[0].dead) t[0].vuln += 1; const cas = s.party.chars.cassia; if (cas && !cas.downed) cas.taunt = true; } },
-        sig:   { name: 'Sunder', desc: '3♦ · 14 holy dmg + strip armor + 2 vuln · Taunt', cost: 3, dmg: 14, element: 'holy',
+        sig:   { name: 'Sunder', desc: '14 physical dmg · RUPTURES bleed hard · strip armor + 2 vuln · Taunt', cost: 1, dmg: 14, element: 'physical',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (!t[0]) return; applyDmgToEnemy(s, t[0], 14); if (!t[0].dead) { t[0].armor = 0; t[0].vuln += 2; } const cas = s.party.chars.cassia; if (cas && !cas.downed) cas.taunt = true; } },
       },
-      // MID — Shield advance.  A mobile shieldwall that armors the PARTY as
-      // it pushes (feeds her armor-bonds: Sword and Banner, Iron Bond).
+      // MID — PRIME row.  A mobile shieldwall that opens bleed wounds AND
+      // advances her to Front to detonate them next — the heart of her flow.
       mid: {
-        basic: { name: 'Vanguard', desc: '5 dmg front + bleed 1 + advance + 2 armor', dmg: 5, move: 'advance',
+        basic: { name: 'Vanguard', desc: '5 dmg + bleed 1 (prime) + advance to Front + 2 armor', dmg: 5, move: 'advance',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 5); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 1); } advance(s, 'cassia'); addArmor(s, 'cassia', 2); } },
-        sig:   { name: 'Heroic Charge', desc: '9 dmg front + advance + 3 party armor', dmg: 9, move: 'advance',
+        sig:   { name: 'Heroic Charge', desc: '9 dmg + bleed 2 (prime) + advance to Front + 3 party armor', dmg: 9, move: 'advance',
           reach: ['front'], pattern: 'front-most',
-          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 9); advance(s, 'cassia'); partyArmor(s, 3); } },
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 9); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 2); } advance(s, 'cassia'); partyArmor(s, 3); } },
       },
       // BACK — Bulwark.  Anchored team fortress (no advance): the strongest
       // party-defense option, shielding the line from safety.
       back: {
         basic: { name: 'Banner', desc: '+3 armor party · front ally +2 retaliate',
           fn: (s) => { partyArmor(s, 3); const f = charBySlot(s, 'front'); if (f && !f.downed && f.id !== 'cassia') f.retaliate = (f.retaliate || 0) + 2; } },
-        sig:   { name: 'Rally',  desc: '1♦ · Heal 4 party + cleanse + 2 armor', cost: 1,
+        sig:   { name: 'Rally',  desc: 'Heal 4 party + cleanse + 2 armor', cost: 0,
           fn: (s) => { partyHeal(s, 4); aliveParty(s).forEach(c => { c.bleed = 0; c.dulled = 0; }); partyArmor(s, 2); } },
       },
     },
@@ -1748,21 +1757,27 @@ const CHARS = {
     home: 'mid',
     passive: { name: 'Last Mercy', desc: 'The first time Elin would fall each fight, she stays at 1 HP instead and the lowest ally heals 4.' },
     techs: {
+      // FRONT — DETONATE + PRIME row.  Elin is holy, so a front strike SMITES
+      // any vuln (bursting it AND healing the party), marks a fresh vuln, then
+      // veils back to Mid.  Her sig DISCHARGES vuln arcane-wide instead.
       front: {
-        basic: { name: 'Phase Step', desc: '3 dmg + vuln 1 + retreat to Mid', dmg: 3, move: 'retreat',
+        basic: { name: 'Phase Step', desc: '3 holy dmg · SMITES vuln (heal party) · +vuln 1 · retreat to Mid', dmg: 3, move: 'retreat',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 3); if (!t[0].dead) t[0].vuln += 1; } retreat(s, 'elin'); } },
-        sig:   { name: 'Veil Step', desc: '6 arcane dmg + retreat + 2 armor', dmg: 6, move: 'retreat', element: 'arcane',
+        sig:   { name: 'Veil Step', desc: '6 arcane dmg · DISCHARGES vuln (spread) · retreat to Mid + 2 armor', cost: 1, dmg: 6, move: 'retreat', element: 'arcane',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 6); retreat(s, 'elin'); addArmor(s, 'elin', 2); } },
       },
+      // MID — heal home.
       mid: {
         basic: { name: 'Mend',         desc: 'Heal 6 lowest + cleanse', heal: 6, healTarget: 'lowest', fn: (s) => { healLowest(s, 6); cleanseLowest(s); } },
-        sig:   { name: 'Greater Mend', desc: '3♦ · Heal 12 lowest + cleanse + 2 armor', cost: 3, heal: 12, healTarget: 'lowest', fn: (s) => { const c = healLowest(s, 12); cleanseLowest(s); if (c) c.armor += 2; } },
+        sig:   { name: 'Greater Mend', desc: 'Heal 12 lowest + cleanse + 2 armor', cost: 1, heal: 12, healTarget: 'lowest', fn: (s) => { const c = healLowest(s, 12); cleanseLowest(s); if (c) c.armor += 2; } },
       },
+      // BACK — quiet support.  Prayer no longer mints Resolve (detonation-only
+      // economy) — it mends and cleanses; Elin earns Resolve by SMITING vuln.
       back: {
-        basic: { name: 'Prayer',    desc: '+2 Resolve, heal 3 lowest', heal: 3, healTarget: 'lowest', fn: (s) => { gainResolve(s, 2); healLowest(s, 3); } },
-        sig:   { name: 'Sanctuary', desc: '+4 armor to party', fn: (s) => partyArmor(s, 4) },
+        basic: { name: 'Prayer',    desc: 'Heal 4 lowest + cleanse', heal: 4, healTarget: 'lowest', fn: (s) => { healLowest(s, 4); cleanseLowest(s); } },
+        sig:   { name: 'Sanctuary', desc: '+4 armor to party', cost: 0, fn: (s) => partyArmor(s, 4) },
       },
     },
   },
@@ -1775,30 +1790,33 @@ const CHARS = {
     home: 'back',
     passive: { name: 'Named Arrow', desc: "Branwen's first attack each turn applies bleed 1.  If that arrow kills, the next ally gets +2 on their next attack." },
     techs: {
+      // FRONT — PRIME row.  Shoved up close, she marks the gap (vuln) and falls
+      // back to her sweet spot in one motion — set up the shot, then take it.
       front: {
-        // close-range when shoved to Front: melee shots
-        basic: { name: 'Backstep Shot', desc: '4 dmg + bleed 1 + retreat', dmg: 4, move: 'retreatFull',
+        basic: { name: 'Backstep Shot', desc: '4 dmg + bleed 1 + vuln 1 (prime) + retreat to Back', dmg: 4, move: 'retreatFull',
           reach: ['front'], pattern: 'front-most',
-          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 4); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 1); } retreatFull(s, 'branwen'); } },
-        sig:   { name: 'Vanish Shot', desc: '7 dmg + bleed 2 + retreat + 1 vuln', dmg: 7, move: 'retreatFull',
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 4); if (!t[0].dead) { t[0].bleed = Math.max(t[0].bleed, 1); t[0].vuln += 1; } } retreatFull(s, 'branwen'); } },
+        sig:   { name: 'Vanish Shot', desc: '7 dmg + bleed 2 + vuln 1 (prime) + retreat to Back', dmg: 7, move: 'retreatFull',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 7); if (!t[0].dead) { t[0].bleed = Math.max(t[0].bleed, 2); t[0].vuln += 1; } } retreatFull(s, 'branwen'); } },
       },
+      // MID — DETONATE (single).  Mortar-lob snipes a mid/back target; her ranged
+      // shot PUNCTURES any vuln she or an ally opened.
       mid: {
-        // mortar-lob: skips the front line, snipes mid/back
-        basic: { name: 'Trick Shot', desc: '5 dmg lowest mid/back', dmg: 5,
+        basic: { name: 'Trick Shot', desc: '5 dmg lowest mid/back · detonates VULN (Puncture)', dmg: 5,
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 5); } },
-        sig:   { name: 'Pierce', desc: '8 dmg lowest mid/back + ignore armor', dmg: 8,
+        sig:   { name: 'Pierce', desc: '8 dmg lowest mid/back · ignore armor · PUNCTURES vuln', dmg: 8,
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => { if (!t[0]) return; s.ignoreArmor = true; applyDmgToEnemy(s, t[0], 8); s.ignoreArmor = false; } },
       },
+      // BACK — DETONATE (board).  Full-field reach: every ranged arrow PUNCTURES
+      // vuln on what it hits — her sweet spot for cashing primed wounds.
       back: {
-        // archer's sweet spot: full-field reach
-        basic: { name: 'Volley', desc: '4 dmg + bleed 1 all', dmg: 4,
+        basic: { name: 'Volley', desc: '4 dmg + bleed 1 all · detonates VULN (Puncture)', dmg: 4,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 4)); t.forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 1); }); } },
-        sig:   { name: 'Arrow Storm', desc: '3♦ · 7 dmg + bleed 2 all', cost: 3, dmg: 7,
+        sig:   { name: 'Arrow Storm', desc: '7 dmg + bleed 2 all · PUNCTURES vuln on every hit', cost: 1, dmg: 7,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 7)); t.forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 2); }); } },
       },
@@ -12857,6 +12875,16 @@ function applyDmgToEnemy(s, e, baseAmt) {
   // pending one-shot attack bonuses (Banner Fire, Wild Hunt, etc.)
   amt += consumePendingBonus(s, s.currentActorId, 'attackBonus');
   amt += s.outgoingDmgMod;
+  // Flow — spend Momentum on the first damaging hit after a reposition.  One
+  // shot, consumed here so a multi-hit / AoE action only cashes it once.
+  if (s.currentActorId && amt > 0) {
+    const ma = s.party.chars[s.currentActorId];
+    if (ma && ma.momentum > 0) {
+      amt += ma.momentum;
+      ma.momentum = 0;
+      if (!__simulating) spawnPassivePopup(s.currentActorId, 'MOMENTUM');
+    }
+  }
   // Charm — Banner Coal: first attack each fight gets +2 damage.
   // Flag is set by applyEquippedCharmFightStart and consumed here on
   // the first hit that actually deals damage.
@@ -15319,6 +15347,9 @@ function startTurn(s) {
   s.queue = [];
   // Enforce the stack ceiling before anything reads it this turn.
   clampStatuses(s);
+  // Flow — Momentum is a within-turn charge only; clear any unspent stacks so
+  // it never banks across turns (move-then-strike is the rewarded rhythm).
+  Object.values(s.party.chars).forEach(c => { if (c) c.momentum = 0; });
   // Reset per-turn achievement counters (staggersThisTurn → triple-stagger).
   if (s.fightStats) s.fightStats.staggersThisTurn = 0;
   // First-fight tutorial — surface the "hold to preview" hint once the
@@ -16585,6 +16616,12 @@ function executeQueueItem(s, item) {
     s.party.slots[slot] = other;
     s.party.slots[target] = item.charId;
     log(`<b>${CHARS[item.charId].name}</b> steps to ${SLOT_LABELS[target]}.`);
+    // Flow — charge the mover with Momentum (+dmg on their next hit this turn).
+    const mover = s.party.chars[item.charId];
+    if (mover && !mover.downed) {
+      mover.momentum = (mover.momentum || 0) + MOMENTUM_BONUS;
+      if (!__simulating) spawnPopupId(item.charId, 'MOMENTUM', 'synergy', 'party');
+    }
     return;
   }
 
