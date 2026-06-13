@@ -2616,6 +2616,9 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
    occupied slot. */
 .figure.move-displaced .figure-portrait { opacity: 0.4; filter: grayscale(0.55) brightness(0.68); transition: opacity 0.12s ease, filter 0.12s ease; }
 .figure.drop-target.move-displaced { filter: none !important; animation: none !important; outline: 1px dashed rgba(170,200,255,0.4); }
+/* Keep the slot's FRONT/MID/BACK label bright on a dimmed drop-target so the
+   player still reads which slot they're dropping onto. */
+.figure.move-displaced .slot-label { opacity: 1 !important; visibility: visible !important; color: var(--gold-bright); background: rgba(20,16,12,0.85); }
 .target-move-tag.move-tag-displaced { background: rgba(10,8,10,0.82); color: var(--gold-pale); opacity: 0.95; }
 .target-move-tag.move-tag-displaced .move-glyph { opacity: 0.85; }
 

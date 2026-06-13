@@ -15933,7 +15933,13 @@ function previewTile(kind, charId, dir) {
   const s = getPreviewState();
   const c = s.party.chars[charId];
   if (!c || c.downed) return { valid: false };
-  const slot = slotOfChar(s, charId);
+  // Which slot the hero ACTS from — projected via simulateSlotsThrough (pure,
+  // reliable) so it matches the action-column layout.  getPreviewState's clone
+  // can silently fall back to live state (if structuredClone throws), which
+  // would leave the moveset stuck on the un-moved slot after a queued move.
+  const startIdx = (state.executing && typeof state.executingIdx === 'number') ? Math.max(0, state.executingIdx) : 0;
+  const projSim = simulateSlotsThrough(state, state.queue.length, startIdx, { includeMoves: true });
+  const slot = SLOTS.find(sl => projSim[sl] === charId) || slotOfChar(s, charId);
   if (!slot) return { valid: false };
 
   const atb = ACTION_ATB[kind] || 0;
@@ -16301,18 +16307,14 @@ function bindFigureHold(fig, charId, isParty) {
     } else if (dropFig) {
       aimDropFig = dropFig;
       aimDropFig.classList.add('drop-target');
-      // Swap preview — if the drop slot holds another live hero, dim THEM and
-      // tag where they'll be displaced to (the dragged hero's current slot), so
-      // the focus stays on the hero being moved.
+      // Swap — if the drop slot holds another live hero, DIM them so focus stays
+      // on the hero you're dragging.  We don't add a "where they go" tag here:
+      // the slot keeps showing its own FRONT/MID/BACK label (the .slot-label,
+      // visible during any drag), which is the placement the player needs.
       const moverSlot = fig.dataset.slot;
       const occSlot = aimDropFig.dataset.slot;
       if (moverSlot && occSlot && occSlot !== moverSlot && !aimDropFig.classList.contains('empty')) {
         aimDropFig.classList.add('move-displaced');
-        const fromI = SLOTS.indexOf(occSlot), toI = SLOTS.indexOf(moverSlot);
-        const tag = document.createElement('div');
-        tag.className = 'target-move-tag move-tag-displaced';
-        tag.innerHTML = `<span class="move-glyph">${toI > fromI ? '‹' : '›'}</span><span class="move-text">${SLOT_LABELS[moverSlot] || ''}</span>`;
-        aimDropFig.appendChild(tag);
       }
     }
   };
@@ -18319,20 +18321,13 @@ function renderTiles() {
   const startIdx = (state.executing && typeof state.executingIdx === 'number')
     ? Math.max(0, state.executingIdx)
     : 0;
-  // Source the column layout from the SAME projected state the tiles read their
-  // techs from (getPreviewState), so a queued move re-homes the column AND its
-  // moveset together — they can never disagree.  (Previously the column used a
-  // separate slot projector while the techs used getPreviewState, so the column
-  // could move while the moveset didn't, or vice-versa.)  During execution
-  // getPreviewState returns live state mid-resolution, so fall back to the
-  // step-aware slot projector there.
-  let sim;
-  if (state.executing) {
-    sim = simulateSlotsThrough(state, state.queue.length, startIdx, { includeMoves: true });
-  } else {
-    const pv = getPreviewState();
-    sim = { ...(pv && pv.party && pv.party.slots) };
-  }
+  // Project explicit queued moves with simulateSlotsThrough — a PURE function
+  // (no clone).  getPreviewState() was unreliable here: it structuredClone()s
+  // the whole state and silently falls back to LIVE state if that throws (any
+  // non-cloneable field), which left the moveset stuck on the un-moved slot.
+  // previewTile() reads the tech from this SAME projector, so column + moveset
+  // always agree.
+  const sim = simulateSlotsThrough(state, state.queue.length, startIdx, { includeMoves: true });
   const teamLocked = state.queue.some(q => q.kind === 'team');
   const tileCounts = {};
   state.queue.forEach(q => {
@@ -18904,13 +18899,20 @@ function renderStatuses(ent, sForAuras) {
   if (ent.taunt)         push(60, 'taunt', '⌖', null,         'Taunt — enemies single-target attacks redirect to this character instead of the original slot.');
   if (ent.retaliate > 0) push(70, 'retal', '↻', ent.retaliate,`Retaliate ${ent.retaliate} — when hit, counter-attack the front-most enemy for ${ent.retaliate} damage.`);
   if (ent.guard > 0)     push(80, 'guard', '⛨', ent.guard,    `Guard ${ent.guard} — the next ${ent.guard} incoming hit(s) are negated entirely (no HP or armor cost).`);
-  if (ent.pendingEffects) ent.pendingEffects.forEach(e => {
-    // Pending one-shots get the 'pending' status class which CSS pulses
-    // gold so the player remembers to actually USE them next turn.
-    if (e.kind === 'attackBonus')      push(90, 'pending', '⚔', `+${e.amt}`, `Next attack +${e.amt} damage (one-shot, consumed on use).`);
-    else if (e.kind === 'healBonus')   push(90, 'pending', '✚', `+${e.amt}`, `Next heal +${e.amt} (one-shot, consumed on use).`);
-    else                                push(90, 'pending', '✦', `+${e.amt}`, `Pending +${e.amt}`);
-  });
+  // Pending one-shots — SUM by kind so several +1 buffs read as one "⚔ +3"
+  // chip instead of a row of identical +1s.  Pulses gold (the 'pending' class)
+  // so the player remembers to use them next turn.
+  if (ent.pendingEffects && ent.pendingEffects.length) {
+    let atkSum = 0, healSum = 0, otherSum = 0;
+    ent.pendingEffects.forEach(e => {
+      if (e.kind === 'attackBonus')    atkSum  += (e.amt || 0);
+      else if (e.kind === 'healBonus') healSum += (e.amt || 0);
+      else                             otherSum += (e.amt || 0);
+    });
+    if (atkSum)   push(90, 'pending', '⚔', `+${atkSum}`,  `Next attack +${atkSum} damage (one-shot, consumed on use).`);
+    if (healSum)  push(90, 'pending', '✚', `+${healSum}`, `Next heal +${healSum} (one-shot, consumed on use).`);
+    if (otherSum) push(90, 'pending', '✦', `+${otherSum}`, `Pending +${otherSum}.`);
+  }
   // Position-derived passive auras used to render here as priority-100 chips,
   // but they read as cryptic always-on noise next to temporary combat
   // statuses.  They now live in the hero's ACTION COLUMN (renderTiles via
