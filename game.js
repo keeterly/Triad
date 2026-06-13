@@ -12947,6 +12947,14 @@ function applyDmgToEnemy(s, e, baseAmt) {
     }
   }
 
+  // Combo FEEL — PURELY COSMETIC, no damage change.  Each detonation this turn
+  // escalates the screen energy + builds a combo meter, so a big multi-
+  // detonation turn reads as a climbing combo without touching any number.
+  if (_detonated && amt > 0 && !__simulating) {
+    s._detonCombo = (s._detonCombo || 0) + 1;
+    playComboDetonation(s._detonCombo);
+  }
+
   amt = Math.max(0, amt);
   if (amt === 0) {
     spawnPopupId(e.id, 'miss', 'miss', 'enemy');
@@ -16307,6 +16315,9 @@ function tickCamaraderie(s, committedQueue) {
 
 function resolveQueueStep(i) {
   const s = state;
+  // Reset the cosmetic detonation-combo counter at the start of each turn's
+  // resolution (visual only — no damage effect).
+  if (i === 0) s._detonCombo = 0;
   if (s.over) { s.executing = false; s.executingIdx = -1; s.queue = []; render(); return; }
   if (i >= s.queue.length) {
     s.executingIdx = -1;
@@ -20474,6 +20485,28 @@ function playStaggerHit() {
   setTimeout(() => {
     if (stage) stage.classList.remove('stagger-hit');
   }, 480);
+}
+
+// Cosmetic detonation-COMBO feel.  Each successive detonation in a turn adds
+// screen energy and climbs a combo meter (a fighting-game count, top-centre,
+// clearly separate from the red damage numbers so it never reads as a
+// damage multiplier).  No gameplay/damage effect whatsoever.
+let _comboMeterT = null;
+function playComboDetonation(combo) {
+  if (__simulating || combo < 2) return;   // the first pop is just a normal pop
+  // Energy climbs with the combo: a bit more shake, and from 3+ a growing
+  // cinematic flash so the turn visibly BUILDS.
+  shakeScreen(Math.min(4, 2 + Math.floor(combo / 2)));
+  if (combo >= 3) cinematicImpact(Math.min(4, combo - 1), 'enemy');
+  // Combo meter
+  let el = document.getElementById('combo-meter');
+  if (!el) { el = document.createElement('div'); el.id = 'combo-meter'; el.setAttribute('aria-hidden', 'true'); (document.getElementById('stage') || document.body).appendChild(el); }
+  el.className = combo >= 5 ? 'big' : '';
+  el.innerHTML = `<span class="cm-num">${combo}</span><span class="cm-word">COMBO</span>`;
+  el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop', 'show');
+  clearTimeout(_comboMeterT);
+  // Hold a touch longer at higher combos so the climb is legible.
+  _comboMeterT = setTimeout(() => { el.classList.remove('show'); }, 700 + Math.min(combo, 6) * 60);
 }
 
 // Power-spike — fires when a Resonance is committed for the very
