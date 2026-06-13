@@ -17088,9 +17088,22 @@ body.on-title #hud { display: none !important; }
 /* ===== Resonant Skills — a compact CREST docked in the commit zone (above the
    Resolve pips, beside FIGHT), off the battlefield.  An emblem ✦ + count over
    a small-caps label, in the game's bone-gold-on-black serif language. ===== */
+/* Resonant-Skill launcher docked in the floating band above the skill tiles.
+   #ts-area is pointer-events:none so it doesn't eat taps on the board; the
+   crest itself re-enables them.  Left-aligned, sized to content (not the old
+   full-width commit-zone column). */
+.reso-crest-host {
+  display: flex; flex-direction: row; align-items: flex-end;
+  justify-content: flex-start; pointer-events: none;
+}
+.reso-crest-host .resonant-crest {
+  pointer-events: auto;
+  width: auto; min-width: 0;
+  flex: 0 0 auto;
+}
 .resonant-crest {
   display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 4px;
-  width: 100%; min-height: 29px; padding: 4px 5px; white-space: nowrap;
+  width: 100%; min-height: 29px; padding: 4px 9px; white-space: nowrap;
   background: linear-gradient(180deg, rgba(36,26,15,0.95) 0%, rgba(13,9,6,0.95) 100%);
   border: 1px solid var(--gold-bright);
   color: var(--gold-bright);
