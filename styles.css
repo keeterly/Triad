@@ -17096,9 +17096,11 @@ body.on-title #hud { display: none !important; }
    #ts-area is pointer-events:none so it doesn't eat taps on the board; the
    crest itself re-enables them.  Left-aligned, sized to content (not the old
    full-width commit-zone column). */
+/* Centered, short, elegant — a quiet gold hairline chip rather than a heavy
+   notched button.  Sits centered in the floating band above the skills. */
 .reso-crest-host {
   display: flex; flex-direction: row; align-items: flex-end;
-  justify-content: flex-start; pointer-events: none;
+  justify-content: center; pointer-events: none;
 }
 .reso-crest-host .resonant-crest {
   pointer-events: auto;
@@ -17106,38 +17108,38 @@ body.on-title #hud { display: none !important; }
   flex: 0 0 auto;
 }
 .resonant-crest {
-  display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 4px;
-  width: 100%; min-height: 29px; padding: 4px 9px; white-space: nowrap;
-  background: linear-gradient(180deg, rgba(36,26,15,0.95) 0%, rgba(13,9,6,0.95) 100%);
-  border: 1px solid var(--gold-bright);
+  display: inline-flex; flex-direction: row; align-items: center; justify-content: center; gap: 8px;
+  width: auto; min-height: 22px; padding: 3px 15px; white-space: nowrap;
+  background: linear-gradient(180deg, rgba(26,20,12,0.82), rgba(11,8,6,0.82));
+  border: 1px solid var(--gold-dim);
   color: var(--gold-bright);
   font-family: inherit; cursor: pointer; line-height: 1;
-  /* Same notched-corner language as FIGHT — a clean stacked pair above it. */
-  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
-  box-shadow: 0 0 12px rgba(230,218,178,0.16), inset 0 0 10px rgba(230,218,178,0.05);
-  transition: box-shadow 0.15s, border-color 0.15s, transform 0.1s, color 0.15s;
+  border-radius: 2px;
+  box-shadow: 0 1px 7px rgba(0,0,0,0.42);
+  transition: box-shadow 0.18s, border-color 0.18s, transform 0.12s, color 0.18s;
 }
-.resonant-crest .rcr-glyph { font-size: 12px; flex: 0 0 auto; text-shadow: 0 0 9px rgba(230,218,178,0.6); }
+.resonant-crest .rcr-glyph { font-size: 11px; flex: 0 0 auto; opacity: 0.92; }
 .resonant-crest .rcr-label {
-  font-size: 9.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
-  color: var(--gold-bright); text-shadow: 0 0 8px rgba(230,218,178,0.3), 0 1px 0 rgba(0,0,0,0.85);
+  font-size: 9px; font-weight: 600; letter-spacing: 0.26em; text-transform: uppercase;
+  color: var(--gold-bright);
 }
 .resonant-crest .rcr-count {
   display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto;
-  min-width: 14px; height: 14px; padding: 0 2px;
-  background: var(--gold-bright); color: #14100a; font-size: 9px; font-weight: 800;
-  clip-path: polygon(3px 0, 100% 0, 100% calc(100% - 3px), calc(100% - 3px) 100%, 0 100%, 0 3px);
+  min-width: 13px; height: 13px; padding: 0 3px;
+  background: transparent; border: 1px solid var(--gold-dim);
+  color: var(--gold-bright); font-size: 8.5px; font-weight: 700;
+  border-radius: 7px; letter-spacing: 0;
 }
-.resonant-crest.ready { animation: rsb-pulse 2.2s ease-in-out infinite; }
+.resonant-crest.ready { border-color: var(--gold-bright); animation: rsb-pulse 2.6s ease-in-out infinite; }
 @keyframes rsb-pulse {
-  0%, 100% { box-shadow: 0 0 12px rgba(230,218,178,0.16), inset 0 0 10px rgba(230,218,178,0.05); }
-  50%      { box-shadow: 0 0 20px rgba(230,218,178,0.38), inset 0 0 12px rgba(230,218,178,0.1); }
+  0%, 100% { box-shadow: 0 1px 7px rgba(0,0,0,0.42); border-color: var(--gold-dim); }
+  50%      { box-shadow: 0 0 13px rgba(230,218,178,0.26); border-color: var(--gold-bright); }
 }
 .resonant-crest.ready:hover { transform: translateY(-1px); border-color: #fff3d6; }
-.resonant-crest.poor { border-color: var(--gold-dim); color: var(--gold-dim); box-shadow: none; animation: none; }
-.resonant-crest.poor .rcr-glyph { text-shadow: none; }
+.resonant-crest.poor { border-color: rgba(110,102,80,0.5); color: var(--gold-dim); box-shadow: none; animation: none; opacity: 0.72; }
+.resonant-crest.poor .rcr-glyph { opacity: 0.6; }
 .resonant-crest.poor .rcr-label { color: var(--gold-dim); }
-.resonant-crest.poor .rcr-count { background: var(--gold-dim); color: #14100a; }
+.resonant-crest.poor .rcr-count { border-color: var(--gold-dim); color: var(--gold-dim); }
 
 #resonant-panel { position: fixed; inset: 0; z-index: 8400; opacity: 0; pointer-events: none; transition: opacity 0.18s ease-out; }
 #resonant-panel.open { opacity: 1; pointer-events: auto; }
