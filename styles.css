@@ -17234,3 +17234,11 @@ body.on-title #hud { display: none !important; }
 }
 #combo-meter.pop .cm-num { animation: cm-pop 0.32s cubic-bezier(0.2,0.85,0.25,1); }
 @keyframes cm-pop { 0% { transform: scale(0.6); } 55% { transform: scale(1.32); } 100% { transform: scale(1); } }
+
+/* Mastery progress — affinities climbing toward a hero's Mastery payoff. */
+.info-hero-mastery-progress {
+  display: inline-flex; align-items: center; gap: 5px; margin: 2px 0 1px;
+  font-size: 10.5px; color: var(--gold-pale); opacity: 0.9;
+}
+.info-hero-mastery-progress .ihmp-mark { color: var(--gold-bright); font-size: 11px; }
+.info-hero-mastery-progress .ihmp-text { letter-spacing: 0.02em; }
