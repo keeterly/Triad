@@ -12888,10 +12888,15 @@ function applyDmgToEnemy(s, e, baseAmt) {
       // a burst (here a ×1.5 amp), the ✺ reaction treatment, the impact
       // flash, and banked Resolve.  Detonate it twice → STAGGER (below).
       amt = Math.round(amt * 1.5);
-      schoolBadge = 'WEAK!';
-      reactionName = reactionName || 'WEAK!';
       isWeaknessHit = true;
       detonateFx();
+      // Show the big "✺ WEAK!" banner only on the FIRST weakness hit (before
+      // they're weakened/staggered).  Repeat weakness hits escalate to
+      // STAGGERED, which shows its OWN banner — so we never double up 'WEAK!'.
+      if (!e.weakened && !e.staggered) {
+        schoolBadge = 'WEAK!';
+        reactionName = reactionName || 'WEAK!';
+      }
       // Per-turn flag for the Ticking Threat objective — if the catalyst
       // was struck on its weakness this turn, the charge holds even if
       // the stagger consume cleared the staggered state.
@@ -13090,7 +13095,8 @@ function applyDmgToEnemy(s, e, baseAmt) {
       // next to land the follow-up weakness hit and trigger stagger.
       // Tunes the loop so weakness isn't a same-turn-or-bust gamble.
       e.weakenedTurnsLeft = 2;
-      spawnPopupId(e.id, 'WEAKENED', 'stagger', 'enemy');
+      // (No 'WEAKENED' popup — the ✺ WEAK! banner + the WEAKENED state strip
+      // under the enemy already convey it; a popup here just doubled it up.)
     }
   }
   if (pendingStaggerClear) {
