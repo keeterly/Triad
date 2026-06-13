@@ -16150,7 +16150,9 @@ function bindFigureHold(fig, charId, isParty) {
       aimArrow = null;
     }
     if (aimDropFig) {
-      aimDropFig.classList.remove('drop-target');
+      const dt = aimDropFig.querySelector('.move-tag-displaced');
+      if (dt) dt.remove();
+      aimDropFig.classList.remove('drop-target', 'move-displaced');
       aimDropFig = null;
     }
   };
@@ -16285,6 +16287,19 @@ function bindFigureHold(fig, charId, isParty) {
     } else if (dropFig) {
       aimDropFig = dropFig;
       aimDropFig.classList.add('drop-target');
+      // Swap preview — if the drop slot holds another live hero, dim THEM and
+      // tag where they'll be displaced to (the dragged hero's current slot), so
+      // the focus stays on the hero being moved.
+      const moverSlot = fig.dataset.slot;
+      const occSlot = aimDropFig.dataset.slot;
+      if (moverSlot && occSlot && occSlot !== moverSlot && !aimDropFig.classList.contains('empty')) {
+        aimDropFig.classList.add('move-displaced');
+        const fromI = SLOTS.indexOf(occSlot), toI = SLOTS.indexOf(moverSlot);
+        const tag = document.createElement('div');
+        tag.className = 'target-move-tag move-tag-displaced';
+        tag.innerHTML = `<span class="move-glyph">${toI > fromI ? '‹' : '›'}</span><span class="move-text">${SLOT_LABELS[moverSlot] || ''}</span>`;
+        aimDropFig.appendChild(tag);
+      }
     }
   };
 
@@ -20032,14 +20047,19 @@ function applyPreviewHighlight({ enemySlots, partySlots, enemyHits, partyHeals, 
     const dest = document.querySelector(`#party-half .figure[data-slot="${to}"]`);
     if (dest) {
       dest.classList.add('move-dest');
-      const fromIdx = SLOTS.indexOf(from);
-      const toIdx = SLOTS.indexOf(to);
-      // back-display has back on left, so toIdx > fromIdx = visually moving left
-      const movingLeft = toIdx > fromIdx;
-      const glyph = movingLeft ? '‹' : '›';
+      // If the destination is occupied by another live hero, this is a SWAP:
+      // they're displaced back to `from`.  Dim them and tag THEIR new slot, so
+      // the focus stays on the hero that's actually moving (the floor halo still
+      // marks where the mover lands).  Otherwise tag the mover's destination.
+      const occupied = !!state.party.slots[to] && !dest.classList.contains('empty');
+      const tagSlot = occupied ? from : to;
+      if (occupied) dest.classList.add('move-displaced');
+      const tFromIdx = SLOTS.indexOf(occupied ? to : from);
+      const tToIdx = SLOTS.indexOf(tagSlot);
+      const glyph = tToIdx > tFromIdx ? '‹' : '›';
       const tag = document.createElement('div');
-      tag.className = 'target-move-tag';
-      tag.innerHTML = `<span class="move-glyph">${glyph}</span><span class="move-text">${SLOT_LABELS[to] || ''}</span>`;
+      tag.className = `target-move-tag${occupied ? ' move-tag-displaced' : ''}`;
+      tag.innerHTML = `<span class="move-glyph">${glyph}</span><span class="move-text">${SLOT_LABELS[tagSlot] || ''}</span>`;
       dest.appendChild(tag);
     }
     const src = document.querySelector(`#party-half .figure[data-slot="${from}"]`);
@@ -20061,6 +20081,7 @@ function applyPreviewHighlight({ enemySlots, partySlots, enemyHits, partyHeals, 
 function clearPreviewHighlight() {
   document.querySelectorAll('.target-marker').forEach(el => el.classList.remove('target-marker'));
   document.querySelectorAll('.move-dest').forEach(el => el.classList.remove('move-dest'));
+  document.querySelectorAll('.move-displaced').forEach(el => el.classList.remove('move-displaced'));
   document.querySelectorAll('.move-src').forEach(el => el.classList.remove('move-src'));
   document.querySelectorAll('.weakness-target').forEach(el => {
     el.classList.remove('weakness-target');
