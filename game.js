@@ -13211,7 +13211,9 @@ function applyDmgToEnemy(s, e, baseAmt) {
     // RESIST is the only non-detonation badge; it stays a dim 'badge-dim'.
     const badgeType = hotBadge ? 'reaction' : 'badge-dim';
     const badgeText = hotBadge ? `✺ ${schoolBadge}` : schoolBadge;
-    setTimeout(() => spawnPopupId(e.id, badgeText, badgeType, 'enemy'), 80);
+    // Stagger the big detonation banners so simultaneous AoE pops sequence
+    // instead of overlapping; small dim badges keep the quick 80ms beat.
+    setTimeout(() => spawnPopupId(e.id, badgeText, badgeType, 'enemy'), hotBadge ? nextReactionBannerDelay() : 80);
     // WEAK!/STG! shimmer — brief gold pulse on the struck figure so
     // the elemental-matchup payoff has a visible beat beyond the
     // popup text.  RESIST gets a cool blue dim to telegraph the
@@ -19883,6 +19885,21 @@ function resetCoachmarks() {
 // Global flag set during dry-run simulation (queue-aware previews) so
 // DOM-mutating helpers (popups, flashes) no-op without touching the page.
 let __simulating = false;
+
+// Reaction-banner anti-collision — the big "✺ RUPTURE! ×N" detonation banner
+// spans columns, so when an AoE pops several enemies in one sweep they'd all
+// fire at once and overlap into mush.  Hand out staggered delays so each
+// dramatic banner gets its own beat in sequence.  Resets between waves.
+let _rxBannerSlot = 0;
+let _rxBannerResetT = null;
+function nextReactionBannerDelay() {
+  const slot = Math.min(_rxBannerSlot, 5);
+  const d = 70 + slot * 180;
+  _rxBannerSlot++;
+  clearTimeout(_rxBannerResetT);
+  _rxBannerResetT = setTimeout(() => { _rxBannerSlot = 0; }, 750);
+  return d;
+}
 
 function spawnPopupId(id, text, type, side) {
   if (__simulating) return;

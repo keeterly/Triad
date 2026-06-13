@@ -3217,6 +3217,7 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
 .popup {
   position: absolute;
   font-size: 18px; font-weight: bold;
+  white-space: nowrap;
   text-shadow: 0 1px 0 var(--shadow), 0 0 10px rgba(0,0,0,0.9);
   animation: popup-rise 1s ease-out forwards;
   pointer-events: none;
