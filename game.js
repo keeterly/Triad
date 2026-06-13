@@ -1674,6 +1674,19 @@ const SHOP_NODES_ENABLED = false;
 // buff), a full trio faces the full buff.  Tune the two ceilings.
 const ENEMY_HP_SCALE  = 1.25;  // +25% enemy max HP at a FULL party
 const ENEMY_DMG_SCALE = 1.10;  // +10% incoming enemy damage at a FULL party
+// Flat difficulty buff applied to EVERY party size — the Flow/economy rework
+// (cheap specials, repeatable Unleash board-nukes, kill + detonation Resolve)
+// made the player much stronger, so enemies were dying too fast and not
+// threatening.  These lift base HP / damage across the board (lighter on bosses,
+// which were already tuned long).  First balance pass — tune to taste.
+const ENEMY_HP_BASE_MULT      = 1.4;   // +40% base HP for normal enemies
+const ENEMY_HP_BASE_MULT_BOSS = 1.12;  // +12% base HP for bosses
+const ENEMY_DMG_BASE_MULT     = 1.15;  // +15% base incoming damage
+// Unleash hits a flat +N harder per strike than their printed number, so a
+// single-hero Unleash (cost 2) clearly out-damages a special (cost ≤1) — the
+// middle rung of special < Unleash < team.  Applied for the whole Unleash
+// resolution window (see playComboCinematic), so each AoE strike gets it.
+const UNLEASH_DMG_BONUS = 3;
 // 1 hero → 0 (baseline difficulty), 2 → 0.5, 3+ → 1 (full compensation).
 function _enemyScaleFactor(s) {
   const n = (s && s.party && s.party.chars) ? Object.keys(s.party.chars).length : 3;
@@ -1682,7 +1695,7 @@ function _enemyScaleFactor(s) {
 function _enemyHpScale(s)  { return 1 + (ENEMY_HP_SCALE  - 1) * _enemyScaleFactor(s); }
 function _scaleEnemyDmg(amt) {
   const scale = 1 + (ENEMY_DMG_SCALE - 1) * _enemyScaleFactor(typeof state !== 'undefined' ? state : null);
-  return Math.round((amt || 0) * scale);
+  return Math.round((amt || 0) * scale * ENEMY_DMG_BASE_MULT);
 }
 const KILL_RESOLVE = 1;     // Defeating an enemy banks +1 Resolve — the kill is
                            // the payoff of the exploit loop (detonate / weakness /
@@ -10215,13 +10228,13 @@ function resonancePremium(combo) {
 // Spend-to-fire cost of a team action — a premium over a signature (2) so it's
 // a deliberate save-up, but inside the Resolve cap (4): duo 3, trio 4.
 function uniqueActionCost(combo) {
-  // Resonant-tier pricing: single-hero Unleash 1–2 (per-combo cost), team duo 2,
-  // L3 "RESONANT" duo 3, trio showpiece 4.
+  // Clear power/cost ladder so the tiers feel distinct:
+  //   special ≤1  <  Unleash 2  <  duo team 3  <  L3 / trio 4
   if (!combo) return 2;
-  if (combo.tier === 'unleash') return typeof combo.cost === 'number' ? combo.cost : 2;
-  if (combo.tier === 'triple') return 4;
-  if (combo.sigTier) return 3;
-  return 2;
+  if (combo.tier === 'unleash') return 2;   // single-hero ultimate — above any special
+  if (combo.tier === 'triple') return 4;    // trio showpiece
+  if (combo.sigTier) return 4;              // L3 "RESONANT" climax
+  return 3;                                  // duo team move
 }
 
 function commitCombo(comboId) {
@@ -12522,7 +12535,8 @@ function newEnemyState(id) {
     : 0;
   // Enemy-HP scale compensates for the stronger 4-ATB player turn, but
   // only in proportion to party size (a solo hero faces baseline HP).
-  const mhp = Math.round((def.maxHp + bonus) * _enemyHpScale(typeof state !== 'undefined' ? state : null));
+  const hpBaseMult = def.boss ? ENEMY_HP_BASE_MULT_BOSS : ENEMY_HP_BASE_MULT;
+  const mhp = Math.round((def.maxHp + bonus) * hpBaseMult * _enemyHpScale(typeof state !== 'undefined' ? state : null));
   return {
     id, hp: mhp, maxHp: mhp,
     armor: 0, bleed: 0, vuln: 0, dulled: 0,
@@ -16968,6 +16982,7 @@ function playComboCinematic(s, combo, onDone) {
   // Bot/sim mode: no DOM.  Fire the effect synchronously and return.
   if (typeof __simulating !== 'undefined' && __simulating) {
     s._currentIsResonance = true;
+    if (combo.tier === 'unleash') s.outgoingDmgMod = (s.outgoingDmgMod || 0) + UNLEASH_DMG_BONUS;
     try { combo.fn(s); }
     finally { s.outgoingDmgMod = 0; s.ignoreArmor = false; s.currentActorId = null; s.currentTechElement = null; s._currentIsResonance = false; }
     if (typeof onDone === 'function') onDone();
@@ -16991,6 +17006,7 @@ function playComboCinematic(s, combo, onDone) {
     // Mark the resolution window as a Resonance so a primer detonation that
     // fires inside this combo gets the top-tier "resonant detonation" juice.
     s._currentIsResonance = true;
+    if (combo.tier === 'unleash') s.outgoingDmgMod = (s.outgoingDmgMod || 0) + UNLEASH_DMG_BONUS;
     try { combo.fn(s); }
     finally { s.outgoingDmgMod = 0; s.ignoreArmor = false; s.currentActorId = null; s.currentTechElement = null; s._currentIsResonance = false; }
     try { render(); } catch (_) {}
