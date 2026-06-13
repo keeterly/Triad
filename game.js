@@ -1937,24 +1937,23 @@ const CHARS = {
     home: 'mid',
     passive: { name: 'Last Stand', desc: 'When Kai is the only ally still standing, each attack deals +3 and each kill heals 4.' },
     techs: {
-      // FRONT — Duelist.  Trade blows up front and punish: Riposte leaves a
-      // counter (retaliate) so being exposed bites back.
+      // FRONT — DETONATE row.  Kai is physical, so his front blows RUPTURE the
+      // bleed he opened from Mid — step up and cash the wound.
       front: {
-        basic: { name: 'Slash', desc: '7 dmg front', dmg: 7,
+        basic: { name: 'Slash', desc: '7 dmg · detonates BLEED (Rupture)', dmg: 7,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 7); } },
-        sig:   { name: 'Riposte', desc: '11 dmg front + 2 armor + 2 retaliate', dmg: 11,
+        sig:   { name: 'Riposte', desc: '11 dmg · RUPTURES bleed + 2 armor + 2 retaliate', dmg: 11,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 11); addArmor(s, 'kai', 2); const c = s.party.chars.kai; if (c && !c.downed) c.retaliate = (c.retaliate || 0) + 2; } },
       },
-      // MID (home) — Flow.  His sweet spot: the multi-hit Crossblade snowballs
-      // — a kill heals Kai, reinforcing the aggressive Last Stand fantasy and
-      // rewarding staying in his home slot.
+      // MID (home) — PRIME row.  Quick Cut opens bleed AND advances him to Front
+      // to detonate it; Crossblade's twin physical hits RUPTURE on the spot.
       mid: {
-        basic: { name: 'Quick Cut', desc: '5 dmg lowest + bleed 1 · advance', dmg: 5, move: 'advance',
+        basic: { name: 'Quick Cut', desc: '5 dmg + bleed 1 (prime) + advance to Front', dmg: 5, move: 'advance',
           reach: ['front','mid'], pattern: 'lowest',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 5); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 1); } advance(s, 'kai'); } },
-        sig:   { name: 'Crossblade', desc: '4 dmg twice (lowest) · a kill heals Kai 3', dmg: 4, hits: 2,
+        sig:   { name: 'Crossblade', desc: '4 dmg ×2 · RUPTURES bleed · a kill heals Kai 3', dmg: 4, hits: 2,
           reach: ['front','mid'], pattern: 'lowest',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 4); if (!t[0].dead) applyDmgToEnemy(s, t[0], 4); if (t[0].dead) { const c = s.party.chars.kai; if (c && !c.downed) { const b = c.hp; c.hp = Math.min(c.maxHp, c.hp + 3); if (c.hp > b) spawnPopupId('kai', `+${c.hp - b}`, 'heal', 'party'); } } } } },
       },
@@ -2347,10 +2346,13 @@ const CHARS = {
     home: 'back',
     passive: { name: 'Iron Toss', desc: "Tarn's first attack each turn grants the front-most ally +1 armor." },
     techs: {
+      // FRONT — PRIME row.  Tarn wedges in, opens bleed, and falls back to his
+      // throwing line to detonate it from range.  Standing Stone stays his
+      // defensive plant (hold the front + taunt).
       front: {
-        basic: { name: 'Wedge', desc: '5 dmg + bleed 1 + 1 armor self', dmg: 5,
+        basic: { name: 'Wedge', desc: '5 dmg + bleed 1 (prime) + retreat to Back + 1 armor', dmg: 5, move: 'retreatFull',
           reach: ['front'], pattern: 'front-most',
-          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 5); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 1); } addArmor(s, 'tarn', 1); } },
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 5); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 1); } retreatFull(s, 'tarn'); addArmor(s, 'tarn', 1); } },
         sig:   { name: 'Standing Stone', desc: '6 dmg + Party +2 armor + self-taunt', dmg: 6,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => {
@@ -2359,19 +2361,23 @@ const CHARS = {
             const ta = s.party.chars.tarn; if (ta && !ta.downed) ta.taunt = true;
           } },
       },
+      // MID — PRIME (dulled).  Cracker numbs the guard; a follow-up physical
+      // throw SUNDERS the dulled into vuln for the casters to cash.
       mid: {
-        basic: { name: 'Throw Iron', desc: '5 dmg lowest mid/back', dmg: 5,
+        basic: { name: 'Throw Iron', desc: '5 dmg lowest mid/back · detonates BLEED/DULLED', dmg: 5,
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 5); } },
-        sig:   { name: 'Cracker', desc: '9 dmg lowest + dulled 2', dmg: 9,
+        sig:   { name: 'Cracker', desc: '9 dmg lowest + dulled 2 (prime)', dmg: 9,
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 9); if (!t[0].dead) t[0].dulled = (t[0].dulled || 0) + 2; } } },
       },
+      // BACK (home) — DETONATE row.  His thrown stone is physical, so it
+      // RUPTURES bleed / SUNDERS dulled across the throwing line.
       back: {
-        basic: { name: 'Boulder', desc: '6 dmg lowest mid/back', dmg: 6,
+        basic: { name: 'Boulder', desc: '6 dmg lowest mid/back · detonates BLEED/DULLED', dmg: 6,
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 6); } },
-        sig:   { name: 'Avalanche', desc: '3♦ · 5 dmg all + Party +2 armor', cost: 3, dmg: 5,
+        sig:   { name: 'Avalanche', desc: '5 dmg all · RUPTURES all bleed + Party +2 armor', cost: 1, dmg: 5,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 5)); partyArmor(s, 2); } },
       },
@@ -10272,7 +10278,9 @@ function commitUnique(comboId) {
     heroes: combo.requires.map(r => r.heroId),
   });
   if (!s.usedCombos) s.usedCombos = new Set();
-  s.usedCombos.add(comboId);
+  // Unleash is a repeatable resource-spend — fire it again any time you can
+  // afford the Resolve.  Only TEAM combos lock to once-per-fight (usedCombos).
+  if (combo.tier !== 'unleash') s.usedCombos.add(comboId);
   if (!s.run._comboIdsFiredThisRun) s.run._comboIdsFiredThisRun = new Set();
   if (!s.run._comboIdsFiredThisRun.has(comboId)) {
     s.run._comboIdsFiredThisRun.add(comboId);
@@ -16876,6 +16884,25 @@ const CINE_BUDGET_MS = 2200;          // Duo/trio basic cap
 const CINE_BUDGET_SIG_MS = 3000;      // Sig-tier earns extra showtime
 const SCHOOL_GLYPH_CINE = { physical: '⚔', holy: '✦', arcane: '✶', ranged: '➳', stealth: '◐' };
 
+// Generated cinematic for single-hero Unleash ultimates — a compact but punchy
+// stage takeover themed by the hero's school, mirroring the authored duo specs
+// (stage → hero rise → banner → punch → fire → shake → flash → burst) so every
+// Unleash lands as a MOMENT with real impact, not a flat banner.
+function unleashCinematic(combo) {
+  const heroId = (combo.requires && combo.requires[0] && combo.requires[0].heroId) || null;
+  const school = (heroId && CHARS[heroId] && CHARS[heroId].school) || 'physical';
+  return [
+    { kind: 'stage',       school,                                       ms: 200 },
+    { kind: 'hero-big',    heroes: heroId ? [heroId] : [], pose: 'rise', ms: 380 },
+    { kind: 'banner',      text: (combo.name || '').toUpperCase(), size: 'md', ms: 380 },
+    { kind: 'punch',                                                     ms: 360 },
+    { kind: 'resolve' },
+    { kind: 'shake',       intensity: 3 },
+    { kind: 'enemy-flash', targets: 'front', kind2: 'hit',              ms: 200 },
+    { kind: 'burst',       at: 'enemy-front', school, count: 14,        ms: 260 },
+  ];
+}
+
 function playComboCinematic(s, combo, onDone) {
   // Bot/sim mode: no DOM.  Fire the effect synchronously and return.
   if (typeof __simulating !== 'undefined' && __simulating) {
@@ -16885,10 +16912,14 @@ function playComboCinematic(s, combo, onDone) {
     if (typeof onDone === 'function') onDone();
     return;
   }
-  // Default spec (legacy banner-only) when a combo lacks a cinematic.
+  // Default spec when a combo lacks a custom cinematic.  Unleash ultimates get
+  // a full stage-takeover + punch + shake + burst (real impact), not just a
+  // banner; everything else falls back to the legacy banner.
   const steps = (combo.cinematic && combo.cinematic.length)
     ? combo.cinematic.slice()
-    : [{ kind: 'banner', text: combo.name, size: 'md', ms: 1200 }, { kind: 'resolve' }];
+    : combo.tier === 'unleash'
+      ? unleashCinematic(combo)
+      : [{ kind: 'banner', text: combo.name, size: 'md', ms: 1200 }, { kind: 'resolve' }];
   let resolved = false;
   let skipped  = false;
   const fireEffect = () => {
