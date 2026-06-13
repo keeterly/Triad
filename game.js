@@ -1684,9 +1684,9 @@ function _scaleEnemyDmg(amt) {
   const scale = 1 + (ENEMY_DMG_SCALE - 1) * _enemyScaleFactor(typeof state !== 'undefined' ? state : null);
   return Math.round((amt || 0) * scale);
 }
-const KILL_RESOLVE = 0;     // Economy consolidation — Resolve now comes from the
-                           // exploit loop (detonate / weakness / stagger), not
-                           // from incidental kills.  Reaver sigil still pays out.
+const KILL_RESOLVE = 1;     // Defeating an enemy banks +1 Resolve — the kill is
+                           // the payoff of the exploit loop (detonate / weakness /
+                           // stagger), so it tops up the bank.  Reaver sigil adds more.
 
 // stagger / chain
 // Stagger is now a state-based flow (WEAKENED → STAGGERED → 2× consume),
@@ -13428,7 +13428,7 @@ function killEnemy(s, e) {
     shakeScreen(3);
     playBossDeath();
   }
-  gainResolve(s, KILL_RESOLVE + sigilBonus(s, 'reaver'));
+  if (!__simulating) gainResolve(s, KILL_RESOLVE + sigilBonus(s, 'reaver'));
   if (s.fightStats) {
     s.fightStats.kills += 1;
     // Per-actor kill tally for vignette triggers (who got the killing blow)
@@ -18093,7 +18093,13 @@ function renderTiles() {
   const startIdx = (state.executing && typeof state.executingIdx === 'number')
     ? Math.max(0, state.executingIdx)
     : 0;
-  const sim = simulateSlotsThrough(state, state.queue.length, startIdx);
+  // Pass includeMoves so a QUEUED explicit move re-homes the hero's action
+  // column to their destination slot immediately — the header slot label and
+  // the basic/special tiles all switch to the new slot's moveset (matching
+  // getPreviewState, which the tiles read their tech from).  Without this the
+  // column stayed at the live slot and the moveset never updated on a queued
+  // move.  Embedded tech-moves still wait (includeEmbedded is left off).
+  const sim = simulateSlotsThrough(state, state.queue.length, startIdx, { includeMoves: true });
   const teamLocked = state.queue.some(q => q.kind === 'team');
   const tileCounts = {};
   state.queue.forEach(q => {
