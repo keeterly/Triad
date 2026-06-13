@@ -1831,26 +1831,31 @@ const CHARS = {
     home: 'front',
     passive: { name: 'Red Tally', desc: 'Each time Korin takes self-damage, his next attack deals +3 and applies bleed 1.  Stacks.' },
     techs: {
+      // FRONT — DETONATE row.  Korin is physical: his front blows RUPTURE the
+      // bleed he opened from the back lines as every action advances him here.
       front: {
-        basic: { name: 'Reckless Strike', desc: '7 dmg + 2 self-dmg', dmg: 7,
+        basic: { name: 'Reckless Strike', desc: '7 dmg · detonates BLEED (Rupture) + 2 self-dmg', dmg: 7,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 7); applySelfDmg(s, 'korin', 2); } },
-        sig:   { name: 'Berserker Cleave', desc: '11 dmg + bleed 2 + 3 self-dmg', dmg: 11,
+        sig:   { name: 'Berserker Cleave', desc: '11 dmg · RUPTURES bleed + bleed 2 + 3 self-dmg', dmg: 11,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 11); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 2); } applySelfDmg(s, 'korin', 3); } },
       },
+      // MID — PRIME row.  Bloodfury opens bleed across the board AND advances
+      // him toward Front to cash it.
       mid: {
-        basic: { name: 'Wild Swing', desc: '4 dmg all · advance', dmg: 4, move: 'advance',
+        basic: { name: 'Wild Swing', desc: '4 dmg all · advance to Front', dmg: 4, move: 'advance',
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 4)); advance(s, 'korin'); } },
-        sig:   { name: 'Bloodfury', desc: '6 dmg all + bleed 1 all · advance', dmg: 6, move: 'advance',
+        sig:   { name: 'Bloodfury', desc: '6 dmg all + bleed 1 all (prime) · advance to Front', dmg: 6, move: 'advance',
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 6)); t.forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 1); }); advance(s, 'korin'); } },
       },
+      // BACK — wind up.  Build retaliate and stride toward the front.
       back: {
         basic: { name: 'Roar', desc: '+2 retaliate · advance', move: 'advance',
           fn: (s) => { const c = s.party.chars.korin; if (c && !c.downed) c.retaliate += 2; advance(s, 'korin'); } },
-        sig:   { name: 'Battle Trance', desc: '3♦ · +4 retaliate, +3 armor · advance', cost: 3, move: 'advance',
+        sig:   { name: 'Battle Trance', desc: '+4 retaliate, +3 armor · advance', cost: 1, move: 'advance',
           fn: (s) => { const c = s.party.chars.korin; if (c && !c.downed) { c.retaliate += 4; c.armor += 3; } advance(s, 'korin'); } },
       },
     },
@@ -1864,27 +1869,32 @@ const CHARS = {
     home: 'mid',
     passive: { name: 'Veil Echo', desc: "When Ash's attack would consume a vuln stack, the stack stays on the target." },
     techs: {
+      // FRONT — PRIME row.  Inferno opens vuln then veils him back to Mid; his
+      // arcane DISCHARGES it from range (Veil Echo keeps the stack alive to chain).
       front: {
-        basic: { name: 'Spark', desc: '3 dmg + retreat', dmg: 3, move: 'retreat',
+        basic: { name: 'Spark', desc: '3 arcane · DISCHARGES vuln + retreat to Mid', dmg: 3, move: 'retreat',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 3); retreat(s, 'ash'); } },
-        sig:   { name: 'Inferno Burst', desc: '5 dmg + 2 vuln + retreat', dmg: 5, move: 'retreat',
+        sig:   { name: 'Inferno Burst', desc: '5 arcane + vuln 2 (prime) · retreat to Mid', dmg: 5, move: 'retreat',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 5); if (!t[0].dead) t[0].vuln += 2; } retreat(s, 'ash'); } },
       },
+      // MID (home) — DETONATE.  Arcane shots DISCHARGE vuln (spread to the board)
+      // and re-stack it.
       mid: {
-        basic: { name: 'Fireball', desc: '6 dmg + 1 vuln', dmg: 6,
+        basic: { name: 'Fireball', desc: '6 arcane + vuln 1 · DISCHARGES vuln (spread)', dmg: 6,
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 6); if (!t[0].dead) t[0].vuln += 1; } } },
-        sig:   { name: 'Pyroclasm', desc: '9 dmg + 2 vuln', dmg: 9,
+        sig:   { name: 'Pyroclasm', desc: '9 arcane + vuln 2 · DISCHARGES vuln (spread)', dmg: 9,
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 9); if (!t[0].dead) t[0].vuln += 2; } } },
       },
+      // BACK — DETONATE (board).  Arcane sweep DISCHARGES every vuln at once.
       back: {
-        basic: { name: 'Arcane Bolts', desc: '4 dmg all', dmg: 4,
+        basic: { name: 'Arcane Bolts', desc: '4 arcane all · DISCHARGES vuln', dmg: 4,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => t.forEach(e => applyDmgToEnemy(s, e, 4)) },
-        sig:   { name: 'Lightning Storm', desc: '3♦ · 5 dmg all + 1 vuln all', cost: 3, dmg: 5,
+        sig:   { name: 'Lightning Storm', desc: '5 arcane all + vuln 1 all · DISCHARGES all vuln', cost: 1, dmg: 5,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 5)); t.forEach(e => { if (!e.dead) e.vuln += 1; }); } },
       },
@@ -1899,27 +1909,32 @@ const CHARS = {
     home: 'back',
     passive: { name: "Shadow's Cut", desc: "When Mira strikes a bleeding enemy, that bleed skips its decay tick this turn." },
     techs: {
+      // FRONT — PRIME + slip.  Open bleed and fade back to her line; her stealth
+      // strikes HEMORRHAGE bleed (burst, then leave bleed 1) for a sustained
+      // engine — Shadow's Cut keeps the wound from decaying.
       front: {
-        basic: { name: 'Backstab', desc: '6 dmg + bleed 1 + retreat', dmg: 6, move: 'retreat',
+        basic: { name: 'Backstab', desc: '6 stealth + bleed 1 · HEMORRHAGES bleed + retreat to Mid', dmg: 6, move: 'retreat',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 6); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 1); } retreat(s, 'mira'); } },
-        sig:   { name: 'Vanish Strike', desc: '9 dmg + bleed 2 + retreat full', dmg: 9, move: 'retreatFull',
+        sig:   { name: 'Vanish Strike', desc: '9 stealth + bleed 2 · HEMORRHAGES bleed + retreat to Back', dmg: 9, move: 'retreatFull',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 9); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 2); } retreatFull(s, 'mira'); } },
       },
+      // MID — DETONATE (single).  Stealth knives HEMORRHAGE the lowest target.
       mid: {
-        basic: { name: 'Shadow Knife', desc: '4 dmg lowest + bleed 1 · retreat', dmg: 4, move: 'retreat',
+        basic: { name: 'Shadow Knife', desc: '4 stealth + bleed 1 · HEMORRHAGES bleed · retreat', dmg: 4, move: 'retreat',
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 4); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 1); } retreat(s, 'mira'); } },
-        sig:   { name: 'Twin Daggers', desc: '5 dmg lowest twice + bleed 2 · retreat', dmg: 5, hits: 2, move: 'retreat',
+        sig:   { name: 'Twin Daggers', desc: '5 ×2 + bleed 2 · HEMORRHAGES bleed · retreat', dmg: 5, hits: 2, move: 'retreat',
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 5); if (!t[0].dead) applyDmgToEnemy(s, t[0], 5); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 2); } retreat(s, 'mira'); } },
       },
+      // BACK (home) — DETONATE (board).  Stealth cloud HEMORRHAGES every bleed.
       back: {
-        basic: { name: 'Poison Cloud', desc: '3 dmg all + bleed 1 all', dmg: 3,
+        basic: { name: 'Poison Cloud', desc: '3 all + bleed 1 all · HEMORRHAGES bleed', dmg: 3,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 3)); t.forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 1); }); } },
-        sig:   { name: 'Shadow Storm', desc: '3♦ · 4 dmg all + bleed 2 all', cost: 3, dmg: 4,
+        sig:   { name: 'Shadow Storm', desc: '4 all + bleed 2 all · HEMORRHAGES all bleed', cost: 1, dmg: 4,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 4)); t.forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 2); }); } },
       },
@@ -1986,19 +2001,23 @@ const CHARS = {
     home: 'front',
     passive: { name: "Warden's Word", desc: 'While Garron holds Front, the first ally who would fall each fight is clamped to 1 HP and Garron loses 4 HP for the save.' },
     techs: {
+      // FRONT — hold + PRIME/DETONATE.  Garron plants the gate (taunt) and his
+      // physical blows both open bleed and RUPTURE it as the wall grinds down.
       front: {
-        basic: { name: 'Halt', desc: '5 dmg + bleed 1 + self-taunt this turn', dmg: 5,
+        basic: { name: 'Halt', desc: '5 dmg + bleed 1 (prime) · detonates BLEED · self-taunt', dmg: 5,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 5); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 1); } const g = s.party.chars.garron; if (g && !g.downed) g.taunt = true; } },
         sig:   { name: 'Bulwark', desc: '4 dmg + Party +3⛨ + self-taunt', dmg: 4,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 4); partyArmor(s, 3); const g = s.party.chars.garron; if (g && !g.downed) g.taunt = true; } },
       },
+      // MID — DETONATE.  Tower Slam is holy (SMITES vuln + heals); Anchor caves
+      // the front and RUPTURES bleed.
       mid: {
-        basic: { name: 'Tower Slam', desc: '8 holy dmg front-most', dmg: 8, element: 'holy',
+        basic: { name: 'Tower Slam', desc: '8 holy · SMITES vuln (heal party)', dmg: 8, element: 'holy',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 8); } },
-        sig:   { name: 'Anchor', desc: '3♦ · 12 dmg front + 3 retaliate self', cost: 3, dmg: 12,
+        sig:   { name: 'Anchor', desc: '12 dmg · RUPTURES bleed + 3 retaliate self', cost: 1, dmg: 12,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 12); const g = s.party.chars.garron; if (g && !g.downed) g.retaliate += 3; } },
       },
@@ -2024,34 +2043,38 @@ const CHARS = {
     home: 'back',
     passive: { name: 'Refrain', desc: "While Lirien is alive, every ally's first attack each turn applies vuln 1 to its target." },
     techs: {
+      // FRONT — PRIME.  Discord opens vuln then drifts her back to the line; her
+      // arcane song DISCHARGES vuln across the board from range.
       front: {
-        basic: { name: 'Sharp Note', desc: '3 dmg front + retreat', dmg: 3, move: 'retreat',
+        basic: { name: 'Sharp Note', desc: '3 arcane · DISCHARGES vuln + retreat to Mid', dmg: 3, move: 'retreat',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 3); retreat(s, 'lirien'); } },
-        sig:   { name: 'Discord', desc: '5 dmg front + 2 vuln + retreat', dmg: 5, move: 'retreat',
+        sig:   { name: 'Discord', desc: '5 arcane + vuln 2 (prime) · retreat to Mid', dmg: 5, move: 'retreat',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 5); if (!t[0].dead) t[0].vuln += 2; } retreat(s, 'lirien'); } },
       },
       mid: {
-        basic: { name: 'Beguile', desc: '3 dmg lowest + +1 atk to lowest-HP ally', dmg: 3,
+        basic: { name: 'Beguile', desc: '3 arcane · DISCHARGES vuln + ally +1 atk', dmg: 3,
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => {
             if (t[0]) applyDmgToEnemy(s, t[0], 3);
             const ally = aliveParty(s).slice().sort((a, b) => a.hp - b.hp)[0];
             if (ally) ally.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'lirien-beguile' });
           } },
-        sig:   { name: 'Crescendo', desc: '3♦ · 4 dmg all + party +1 atk next attack', cost: 3, dmg: 4,
+        sig:   { name: 'Crescendo', desc: '4 arcane all · DISCHARGES vuln + party +1 atk', cost: 1, dmg: 4,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => {
             t.forEach(e => applyDmgToEnemy(s, e, 4));
             aliveParty(s).forEach(c => c.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'lirien-crescendo' }));
           } },
       },
+      // BACK (home) — DETONATE (board).  Arcane sweep DISCHARGES every vuln and
+      // re-stacks it for the next round.
       back: {
-        basic: { name: 'Lullaby', desc: '3 dmg all + 1 vuln all', dmg: 3,
+        basic: { name: 'Lullaby', desc: '3 all + vuln 1 all · DISCHARGES vuln', dmg: 3,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 3)); aliveEnemies(s).forEach(e => { e.vuln += 1; }); } },
-        sig:   { name: 'Aria', desc: '2♦ · 4 dmg all + Vuln 2 to all enemies', dmg: 4,
+        sig:   { name: 'Aria', desc: '4 all + vuln 2 all · DISCHARGES all vuln', cost: 1, dmg: 4,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 4)); aliveEnemies(s).forEach(e => { e.vuln += 2; }); } },
       },
@@ -2073,31 +2096,37 @@ const CHARS = {
     home: 'back',
     passive: { name: 'Conviction', desc: "When any ally's HP drops to 1, Vasha's next sig costs 1 less Resolve and heals the party 3 on cast." },
     techs: {
+      // FRONT — DETONATE.  Vasha is holy, so her strikes SMITE vuln (bursting it
+      // AND healing the party) then step her back to her line.
       front: {
-        basic: { name: 'Pulpit', desc: '4 dmg front + retreat', dmg: 4, move: 'retreat',
+        basic: { name: 'Pulpit', desc: '4 holy · SMITES vuln (heal party) + retreat to Mid', dmg: 4, move: 'retreat',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 4); retreat(s, 'vasha'); } },
-        sig:   { name: 'Hallowed Strike', desc: '6 dmg front + heal 2 self + retreat', dmg: 6, move: 'retreat',
+        sig:   { name: 'Hallowed Strike', desc: '6 holy · SMITES vuln + heal 2 self + retreat to Mid', dmg: 6, move: 'retreat',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 6); const v = s.party.chars.vasha; if (v && !v.downed) v.hp = Math.min(v.maxHp, v.hp + 2); retreat(s, 'vasha'); } },
       },
+      // MID — DETONATE + cleanse.  Holy hits SMITE vuln; Hymn no longer mints
+      // Resolve (detonation-only economy) — Vasha banks it by SMITING instead.
       mid: {
-        basic: { name: 'Recite', desc: '3 dmg lowest + cleanse one ally', dmg: 3,
+        basic: { name: 'Recite', desc: '3 holy · SMITES vuln + cleanse one ally', dmg: 3,
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => {
             if (t[0]) applyDmgToEnemy(s, t[0], 3);
             const ally = aliveParty(s).find(c => (c.bleed > 0 || c.dulled > 0 || c.vuln > 0));
             if (ally) { ally.bleed = 0; ally.dulled = 0; ally.vuln = 0; }
           } },
-        sig:   { name: 'Hymn of Light', desc: '5 dmg + +1 Resolve party', dmg: 5,
+        sig:   { name: 'Hymn of Light', desc: '5 holy · SMITES vuln + heal party 3', dmg: 5,
           reach: ['mid','back'], pattern: 'lowest',
-          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 5); gainResolve(s, 1); } },
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 5); partyHeal(s, 3); } },
       },
+      // BACK (home) — PRIME + DETONATE (board).  Bright sweep opens vuln and her
+      // holy light SMITES it across the field.
       back: {
-        basic: { name: 'Bright Word', desc: '3 dmg all', dmg: 3,
+        basic: { name: 'Bright Word', desc: '3 holy all · SMITES vuln', dmg: 3,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => t.forEach(e => applyDmgToEnemy(s, e, 3)) },
-        sig:   { name: "Sun's Decree", desc: '3♦ · 6 dmg all + 1 vuln all', cost: 3, dmg: 6,
+        sig:   { name: "Sun's Decree", desc: '6 all + vuln 1 all · SMITES all vuln', cost: 1, dmg: 6,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 6)); aliveEnemies(s).forEach(e => { e.vuln += 1; }); } },
       },
