@@ -17097,17 +17097,21 @@ body.on-title #hud { display: none !important; }
    crest itself re-enables them.  Left-aligned, sized to content (not the old
    full-width commit-zone column). */
 /* Centered, short, elegant — a quiet gold hairline chip rather than a heavy
-   notched button.  Sits centered in the floating band above the skills. */
-.reso-crest-host {
+   notched button.  Sits centered in the floating band above the skills.
+   Uses #ts-area.<class> to beat the base #ts-area { height:100%; align-items:
+   stretch } rules — otherwise the chip stretched into a tall box over the
+   battlefield. */
+#ts-area.reso-crest-host {
   display: flex; flex-direction: row; align-items: flex-end;
-  justify-content: center; pointer-events: none;
+  justify-content: center; height: auto; pointer-events: none;
 }
-.reso-crest-host .resonant-crest {
+#ts-area.reso-crest-host .resonant-crest {
   pointer-events: auto;
   width: auto; min-width: 0;
   flex: 0 0 auto;
 }
 .resonant-crest {
+  position: relative;
   display: inline-flex; flex-direction: row; align-items: center; justify-content: center; gap: 8px;
   width: auto; min-height: 22px; padding: 3px 15px; white-space: nowrap;
   background: linear-gradient(180deg, rgba(26,20,12,0.82), rgba(11,8,6,0.82));
@@ -17140,6 +17144,36 @@ body.on-title #hud { display: none !important; }
 .resonant-crest.poor .rcr-glyph { opacity: 0.6; }
 .resonant-crest.poor .rcr-label { color: var(--gold-dim); }
 .resonant-crest.poor .rcr-count { border-color: var(--gold-dim); color: var(--gold-dim); }
+
+/* Particle IN / OUT — gold motes converge as the chip forms, burst as it leaves
+   (e.g. on FIGHT).  Anchored to the crest centre; each mote flies a direction. */
+.rcr-particles { position: absolute; left: 50%; top: 50%; width: 0; height: 0; pointer-events: none; }
+.rcr-particles i {
+  position: absolute; left: 0; top: 0; width: 3px; height: 3px; margin: -1.5px;
+  border-radius: 50%; background: var(--gold-bright);
+  box-shadow: 0 0 5px rgba(240,224,182,0.7); opacity: 0;
+}
+.rcr-particles i:nth-child(1) { --dx: -26px; --dy: -9px; }
+.rcr-particles i:nth-child(2) { --dx:  26px; --dy: -9px; }
+.rcr-particles i:nth-child(3) { --dx: -31px; --dy:  7px; }
+.rcr-particles i:nth-child(4) { --dx:  31px; --dy:  7px; }
+.rcr-particles i:nth-child(5) { --dx: -12px; --dy:-17px; }
+.rcr-particles i:nth-child(6) { --dx:  12px; --dy: 17px; }
+.resonant-crest.crest-enter { animation: crest-in 0.44s cubic-bezier(.2,.8,.3,1) both; }
+@keyframes crest-in { 0% { opacity: 0; transform: translateY(5px) scale(0.9); } 100% { opacity: 1; transform: none; } }
+.resonant-crest.crest-enter .rcr-particles i { animation: rcr-in 0.52s ease-out both; }
+@keyframes rcr-in {
+  0%   { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0.5); }
+  45%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(0, 0) scale(1); }
+}
+.resonant-crest.crest-exit { animation: crest-out 0.34s ease-in both; pointer-events: none; }
+@keyframes crest-out { 0% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(3px) scale(0.9); } }
+.resonant-crest.crest-exit .rcr-particles i { animation: rcr-out 0.34s ease-out both; }
+@keyframes rcr-out {
+  0%   { opacity: 1; transform: translate(0, 0) scale(1); }
+  100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0.5); }
+}
 
 #resonant-panel { position: fixed; inset: 0; z-index: 8400; opacity: 0; pointer-events: none; transition: opacity 0.18s ease-out; }
 #resonant-panel.open { opacity: 1; pointer-events: auto; }
