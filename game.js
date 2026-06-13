@@ -17596,7 +17596,9 @@ function checkEnd(s) {
       // doesn't dwell.  Auto-dismiss timer on the affinity backdrop is
       // also halved in _showAwardBackdrop so the fade-out doesn't
       // outlast the cascade's next-scene fallback.
-      const KILL_HOLD = 520;
+      // Banner lands just AFTER the death dissolve (~0.55s) so the beat reads
+      // in order: dramatic hit → enemy dissolves → REACH CLEARED → conclude.
+      const KILL_HOLD = 560;
       const BANNER_HOLD = 650;
       // The post-kill cascade: reach banner → affinity fanfare →
       // vignette/recruit/upgrade flow.  Extracted into a local so the
@@ -18611,6 +18613,16 @@ function makeEnemyCard(e, slot) {
     if (obj.kind === 'ticking')   { fig.classList.add('ticking-target'); fig.dataset.chargeLeft = obj.charge; }
   }
   if (!e || e.dead) {
+    // A DEAD enemy still in its slot (the last kill of the fight) dissolves so
+    // the death actually PLAYS — the killing blow reads as "hit → they fall →
+    // victory" instead of the enemy blinking out and the win holding on empty
+    // space (which read as a weird delay).  Mid-fight kills get advance-filled
+    // out of their slot, so only the final corpse(s) render here.
+    if (e && e.dead && !__simulating) {
+      fig.classList.add('figure-dying');
+      fig.innerHTML = `<div class="figure-portrait">${_portraitFor(e.heroId || e.id)}</div><div class="figure-shadow"></div><div class="figure-info"><div class="figure-name">—</div></div>`;
+      return fig;
+    }
     fig.classList.add('empty');
     fig.innerHTML = `<div class="figure-portrait"></div><div class="figure-shadow"></div><div class="figure-info"><div class="figure-name">—</div></div>`;
     return fig;

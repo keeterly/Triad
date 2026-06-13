@@ -14716,6 +14716,18 @@ body.killing-blow::before {
   12%  { opacity: 1; transform: scale(1); }
   100% { opacity: 0; transform: scale(0.98); }
 }
+/* Enemy death — the final corpse dissolves (white-out flash → fade + sink) so
+   the killing blow plays as a real death beat instead of an instant blink-out
+   that left the win holding on empty space. */
+.figure.figure-dying { pointer-events: none; }
+.figure.figure-dying .figure-portrait { animation: enemy-dissolve 0.55s ease-in forwards; }
+.figure.figure-dying .figure-shadow   { animation: enemy-shadow-fade 0.55s ease-in forwards; }
+@keyframes enemy-dissolve {
+  0%   { opacity: 1; transform: scale(1) translateY(0);      filter: brightness(1.5) saturate(0.5); }
+  22%  { opacity: 1; transform: scale(1.04) translateY(-2px); filter: brightness(2.4) saturate(0); }
+  100% { opacity: 0; transform: scale(0.85) translateY(12px); filter: brightness(0.4) saturate(0); }
+}
+@keyframes enemy-shadow-fade { 0% { opacity: 0.55; } 100% { opacity: 0; } }
 
 /* ===========================================================================
    QUIRK DOTS — small affinity glyphs under each party hero's name.
