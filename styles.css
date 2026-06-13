@@ -3033,6 +3033,22 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
 .status-bhunt,
 .status-evis     { color: var(--gold-bright); border-color: var(--gold-bright); background: rgba(240,212,136,0.18); }
 .status-note     { color: #ff8a8a;            border-color: var(--bleed);       background: rgba(196,56,56,0.18); }
+/* Enemy STATE chips — staggered (the ×2 payoff window) reads as a solid gold
+   badge that pulses so it's unmissable in the unified status row; weakened is a
+   quieter blood-tinted lead-in to it. */
+.figure-statuses .status-chip.status-staggered {
+  color: #14100a; border-color: var(--gold-bright); background: var(--gold-bright);
+  animation: stg-chip-pulse 1.1s ease-in-out infinite;
+}
+.figure-statuses .status-chip.status-staggered .status-icon,
+.figure-statuses .status-chip.status-staggered .status-num { color: #14100a; }
+@keyframes stg-chip-pulse {
+  0%, 100% { box-shadow: 0 1px 4px rgba(0,0,0,0.7), 0 0 0 0 rgba(240,212,136,0); }
+  50%      { box-shadow: 0 1px 4px rgba(0,0,0,0.7), 0 0 10px 1px rgba(240,212,136,0.6); }
+}
+.figure-statuses .status-chip.status-weakened {
+  color: #f0c0c0; border-color: rgba(220,90,90,0.7); background: rgba(120,40,40,0.32);
+}
 
 /* ============ DESCRIPTION KEYWORD CHIPS ============
    Inline icon+word chips that appear inside tech tooltips and the hero
@@ -14671,9 +14687,16 @@ body.boss-killed::before {
    Gives the final hit a moment to breathe before the victory cascade.
    Body class is removed after ~1.2s by playKillingBlowHold. */
 #stage.kill-slowmo .figure-portrait svg { animation-duration: 6s !important; }
-body.killing-blow #stage {
-  filter: saturate(0.7) brightness(0.78);
-  transition: filter 0.45s ease-out;
+/* Killing blow — ONE clean, dramatic beat that plays in full inside the hold.
+   A fast gold-white bloom from centre + a quick brightness punch that snaps in
+   and settles.  (The old version dimmed the board gloomily and ran a 1.1s flash
+   that got cut off when the hold ended at ~600ms, so it read as "not playing".)
+   Both animations complete in ~0.55s, well within the 650ms hold. */
+body.killing-blow #stage { animation: kill-stage 0.6s ease-out both; }
+@keyframes kill-stage {
+  0%   { filter: saturate(1) brightness(1); }
+  13%  { filter: saturate(0.62) brightness(1.16); }
+  100% { filter: saturate(1) brightness(1); }
 }
 body.killing-blow::before {
   content: '';
@@ -14682,16 +14705,16 @@ body.killing-blow::before {
   z-index: 340;
   pointer-events: none;
   background: radial-gradient(ellipse at center,
-                              rgba(232,200,160,0.32) 0%,
-                              rgba(180,140,120,0.12) 40%,
-                              rgba(0,0,0,0) 70%);
-  animation: kill-flash 1.1s ease-out forwards;
+                              rgba(255,244,214,0.6) 0%,
+                              rgba(240,212,136,0.32) 32%,
+                              rgba(150,100,50,0.07) 60%,
+                              rgba(0,0,0,0) 78%);
+  animation: kill-flash 0.55s ease-out forwards;
 }
 @keyframes kill-flash {
-  0%   { opacity: 0; }
-  18%  { opacity: 0.95; }
-  60%  { opacity: 0.4; }
-  100% { opacity: 0; }
+  0%   { opacity: 0; transform: scale(1.07); }
+  12%  { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.98); }
 }
 
 /* ===========================================================================
@@ -17230,7 +17253,7 @@ body.on-title #hud { display: none !important; }
 }
 #resonant-panel .rp-tier { flex: 0 0 auto; font-size: 8px; letter-spacing: 0.16em; color: var(--gold-dim); border: 1px solid rgba(180,160,110,0.4); padding: 1px 5px; border-radius: 2px; }
 /* Full effect text — wraps freely, no ellipsis, so every skill reads completely. */
-#resonant-panel .rp-desc { font-size: 12px; color: #c3b99e; line-height: 1.4; letter-spacing: 0.01em; }
+#resonant-panel .rp-desc { font-size: 10.5px; color: #c3b99e; line-height: 1.38; letter-spacing: 0.01em; }
 #resonant-panel .rp-cost { flex: 0 0 auto; font: 700 16px 'Iowan Old Style', Georgia, serif; color: var(--gold-bright); }
 #resonant-panel .rp-hint { margin-top: 8px; padding-top: 6px; border-top: 1px solid rgba(220,205,160,0.1); font-size: 9px; color: var(--gold-dim); text-align: center; font-style: italic; letter-spacing: 0.02em; }
 

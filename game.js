@@ -18734,26 +18734,11 @@ function makeEnemyCard(e, slot) {
   // school-tinted when showing weakness.  Priority: STAGGERED > WEAKENED >
   // weakness-revealed.  Top-right corner of the figure is now empty so
   // the figure reads cleanly.
-  const SCHOOL_GLYPH = { physical: '⚔', holy: '✦', arcane: '✶', ranged: '➳', stealth: '◐' };
-  const weakDef = def.weakness;
-  const weakSchool = Array.isArray(weakDef) ? weakDef[0] : weakDef;
-  let stateStrip = '';
-  if (e.staggered) {
-    const stgTip = 'STAGGERED — the next damaging hit (any element) deals 2× damage, then they recover. State clears at end of turn if you don\'t follow up.';
-    stateStrip = `<div class="state-strip state-strip-staggered" title="${stgTip}" data-tip="${stgTip}">⚡ STAGGERED · ×2 NEXT HIT</div>`;
-  } else if (e.weakened) {
-    const turnsLeft = Math.max(0, e.weakenedTurnsLeft || 0);
-    const schoolHint = weakSchool
-      ? `hit them with ${SCHOOL_GLYPH[weakSchool] || '?'} ${weakSchool.toUpperCase()} again to stagger`
-      : 'hit their weakness school again to stagger';
-    const wkTip = `WEAKENED (${turnsLeft || 1} turn${(turnsLeft || 1) === 1 ? '' : 's'} left) — ${schoolHint}.  The window persists across turns, so the follow-up doesn't have to land this turn.`;
-    stateStrip = `<div class="state-strip state-strip-weakened" title="${wkTip}" data-tip="${wkTip}">⌖ WEAKENED</div>`;
-  }
-  // NOTE: the plain "weakness revealed" badge that used to sit here is gone —
-  // weakness now lives as a first-class PRIMER CHIP in the status row (built in
-  // renderStatuses), so it reads identically to bleed/vuln/dulled.  Only the
-  // WEAKENED / STAGGERED escalation states still get a prominent bottom strip,
-  // since the ×2 payoff window deserves the call-out.
+  // STAGGERED / WEAKENED + weakness reveal all now render as CHIPS in the
+  // status row (renderStatuses) — one unified place for every piece of enemy
+  // state — instead of a floating bottom strip that collided with the Resonant
+  // launcher's band.  No bottom strip anymore.
+  const stateStrip = '';
 
   fig.innerHTML = `
     <div class="figure-portrait">
@@ -18860,6 +18845,15 @@ function renderStatuses(ent, sForAuras) {
   // Each chip carries data-status so the press-and-hold tooltip handler can
   // resolve its explanation from STATUS_TOOLTIPS without re-parsing classes.
   if (weakChip)          push(15, 'weak', weakChip.icon, null, weakChip.title, weakChip.cls);
+  // STAGGERED / WEAKENED — the enemy's escalation STATE now lives in the chip
+  // row (unified with weakness + bleed/vuln/dulled) instead of a separate
+  // floating banner below the figure that drooped into the Resonant launcher's
+  // band.  Highest priority so it always reads at the front of the row.
+  if (!sForAuras && ent.staggered) {
+    push(4, 'staggered', '⚡', '×2', 'STAGGERED — the next damaging hit (any element) deals 2× damage, then they recover.  Clears at end of turn if you don\'t follow up.');
+  } else if (!sForAuras && ent.weakened) {
+    push(8, 'weakened', '⌖', null, 'WEAKENED — hit their weakness school again to STAGGER (next hit ×2).  The window persists across turns.');
+  }
   if (ent.armor > 0)     push(10, 'armor', '⛨', ent.armor,    `Armor ${ent.armor} — absorbs ${ent.armor} damage before HP. Wears off as it absorbs.`);
   if (ent.vuln > 0)      push(20, 'vuln',  '⊕', ent.vuln,     `Vulnerable ${ent.vuln} — +2 dmg per incoming hit, consumes a stack. Cap 3.`, primed(detVuln));
   if (ent.bleed > 0)     push(30, 'bleed', '✤', ent.bleed,    `Bleed ${ent.bleed} — 2 dmg/turn then −1; a fresh stack holds one turn. Cap 3.`, primed(detBleed));
@@ -18888,11 +18882,11 @@ function renderStatuses(ent, sForAuras) {
   // status, so nothing disappears — it just gets compressed when the row
   // would otherwise wrap into the HP bar / spill off the card.
   items.sort((a, b) => a.priority - b.priority);
-  // Cap 5 so an enemy can show ALL THREE primers (vuln + bleed + dulled) at once
-  // alongside its weakness and armor — only those two can precede the primers in
-  // priority, so primers are never pushed into overflow.  The status row doesn't
-  // wrap (chips overflow horizontally past the card), so 5 stays readable.
-  const VISIBLE_CAP = 5;
+  // Cap 6 so an enemy can show its STATE (staggered/weakened) + weakness + armor
+  // + ALL THREE primers (vuln + bleed + dulled) at once — every piece of enemy
+  // info in one unified row.  The row doesn't wrap (chips overflow horizontally
+  // past the card), so 6 stays readable.
+  const VISIBLE_CAP = 6;
   const visible = items.slice(0, VISIBLE_CAP);
   const overflow = items.slice(VISIBLE_CAP);
   const renderChip = (it) =>
@@ -20879,7 +20873,7 @@ function playKillingBlowHold() {
     if (stage) stage.classList.remove('kill-slowmo');
     document.body.classList.remove('killing-blow');
   };
-  const t = setTimeout(end, 600);
+  const t = setTimeout(end, 650);
   setTimeout(() => document.addEventListener('pointerdown', end, true), 180);
 }
 
