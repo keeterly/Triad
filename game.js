@@ -19129,30 +19129,72 @@ function renderTeamSpecial() {
   const cz = $('#commit-zone');
   const stale = cz && cz.querySelector('.resonant-crest');
   if (stale) stale.remove();
-  if (host) { host.innerHTML = ''; host.classList.remove('resonance-rail', 'unique-rail', 'reso-crest-host'); host.classList.add('hidden'); }
-  if (!host || state.executing || state.over) { closeResonantPanel(); return; }
-  const teamUniques = availableTeamUniques();
-  if (!teamUniques.length) { closeResonantPanel(); return; }
-  host.classList.remove('hidden');
-  host.classList.add('reso-crest-host');
-  if (!hasSeenCoachmark('cm_resonance')) {
-    setTimeout(() => {
-      showCoachmark('cm_resonance', {
-        anchor: '#ts-area .resonant-crest',
-        place: 'above',
-        text: 'A <b>Resonant Skill</b> is ready.  Tap to open the list and spend <b>Resolve</b> to unleash a team move.',
-      });
-    }, 400);
+  if (!host) { closeResonantPanel(); return; }
+
+  // The crest PERSISTS across renders (rather than being rebuilt each frame) so
+  // it can particle-animate IN when it first appears and OUT when it leaves
+  // (e.g. on FIGHT).  We update its count/affordability in place.
+  const shouldShow = !state.executing && !state.over && availableTeamUniques().length > 0;
+  let crest = host.querySelector('.resonant-crest');
+
+  // ---- Hide path: particle-burst OUT, then remove ----
+  if (!shouldShow) {
+    if (crest && !crest.dataset.exiting) {
+      crest.dataset.exiting = '1';
+      crest.classList.remove('crest-enter');
+      crest.classList.add('crest-exit');
+      const dying = crest;
+      setTimeout(() => {
+        if (dying && dying.parentNode && dying.dataset.exiting === '1') dying.remove();
+        if (host && !host.querySelector('.resonant-crest')) { host.classList.remove('reso-crest-host'); host.classList.add('hidden'); }
+      }, 360);
+    } else if (!crest) {
+      host.classList.remove('reso-crest-host'); host.classList.add('hidden');
+    }
+    closeResonantPanel();
+    return;
   }
+
+  // ---- Show path ----
+  const teamUniques = availableTeamUniques();
+  host.classList.remove('hidden', 'resonance-rail', 'unique-rail');
+  host.classList.add('reso-crest-host');
   const resolveAvail = state.resolve - queueReservedResolve();
   const anyAffordable = teamUniques.some(c => uniqueActionCost(c) <= resolveAvail && UNIQUE_ATB <= queueAtbAvailable());
-  const crest = document.createElement('button');
-  crest.type = 'button';
-  crest.className = `resonant-crest${anyAffordable ? ' ready' : ' poor'}`;
-  crest.innerHTML = `<span class="rcr-glyph">✦</span><span class="rcr-label">Resonant Skill</span><span class="rcr-count">${teamUniques.length}</span>`;
+
+  if (!crest) {
+    // First appearance — build it and particle-animate IN.
+    crest = document.createElement('button');
+    crest.type = 'button';
+    crest.className = 'resonant-crest';
+    crest.innerHTML =
+      '<span class="rcr-particles" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span>'
+      + '<span class="rcr-glyph">✦</span><span class="rcr-label">Resonant Skill</span><span class="rcr-count"></span>';
+    bindTapAsPointer(crest, () => { if (!state.executing && !state.over) openResonantPanel(); });
+    host.appendChild(crest);
+    crest.classList.add('crest-enter');
+    const born = crest;
+    setTimeout(() => { if (born) born.classList.remove('crest-enter'); }, 560);
+    if (!hasSeenCoachmark('cm_resonance')) {
+      setTimeout(() => {
+        showCoachmark('cm_resonance', {
+          anchor: '#ts-area .resonant-crest', place: 'above',
+          text: 'A <b>Resonant Skill</b> is ready.  Tap to open the list and spend <b>Resolve</b> to unleash a team move.',
+        });
+      }, 400);
+    }
+  } else if (crest.dataset.exiting) {
+    // Was mid-fade-out but became available again — cancel the exit.
+    delete crest.dataset.exiting;
+    crest.classList.remove('crest-exit');
+  }
+
+  // Update affordability + count in place (no re-trigger of the enter anim).
+  crest.classList.toggle('ready', anyAffordable);
+  crest.classList.toggle('poor', !anyAffordable);
+  const cnt = crest.querySelector('.rcr-count');
+  if (cnt) cnt.textContent = teamUniques.length;
   crest.title = `${teamUniques.length} resonant skill${teamUniques.length === 1 ? '' : 's'} available — tap to choose.`;
-  bindTapAsPointer(crest, () => { if (!state.executing && !state.over) openResonantPanel(); });
-  host.appendChild(crest);
 }
 
 let _resonantPanelOpen = false;
