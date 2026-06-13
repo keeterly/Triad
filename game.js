@@ -18888,7 +18888,11 @@ function renderStatuses(ent, sForAuras) {
   // status, so nothing disappears — it just gets compressed when the row
   // would otherwise wrap into the HP bar / spill off the card.
   items.sort((a, b) => a.priority - b.priority);
-  const VISIBLE_CAP = 4;
+  // Cap 5 so an enemy can show ALL THREE primers (vuln + bleed + dulled) at once
+  // alongside its weakness and armor — only those two can precede the primers in
+  // priority, so primers are never pushed into overflow.  The status row doesn't
+  // wrap (chips overflow horizontally past the card), so 5 stays readable.
+  const VISIBLE_CAP = 5;
   const visible = items.slice(0, VISIBLE_CAP);
   const overflow = items.slice(VISIBLE_CAP);
   const renderChip = (it) =>
