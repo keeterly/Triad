@@ -16698,7 +16698,7 @@ function resolveQueueStep(i) {
     // (see runPostKillCascade in checkEnd → onVictoryCascade).
     // Hold the enemy turn behind any turn-end bond-deepen Continue beats so
     // the player reads the level-up before the board moves again.
-    drainBondDeepensInteractive(() => setTimeout(() => resolveEnemyTurn(s), pace(140)));
+    drainBondDeepensInteractive(() => setTimeout(() => resolveEnemyTurn(s), pace(360)));
     return;
   }
   const item = s.queue[i];
@@ -20658,7 +20658,7 @@ function cinematicImpact(level, side) {
     void fx.offsetWidth;
     fx.classList.add('fx-go', `fx-${lvl}`);
     clearTimeout(_fxCinematicTimer);
-    _fxCinematicTimer = setTimeout(() => fx.classList.remove('fx-go', 'fx-1', 'fx-2', 'fx-3', 'fx-4'), lvl >= 4 ? 780 : 560);
+    _fxCinematicTimer = setTimeout(() => fx.classList.remove('fx-go', 'fx-1', 'fx-2', 'fx-3', 'fx-4'), lvl >= 4 ? 980 : 700);
   }
   // Camera punch — a quick scale-in on the battlefield element (separate
   // from #stage, so it layers under the screen shake instead of fighting
@@ -20672,7 +20672,7 @@ function cinematicImpact(level, side) {
     bf.classList.remove('cam-punch', 'cam-punch-hard', 'cam-punch-max');
     void bf.offsetWidth;
     bf.classList.add(cls);
-    setTimeout(() => bf.classList.remove(cls), lvl >= 4 ? 780 : 640);
+    setTimeout(() => bf.classList.remove(cls), lvl >= 4 ? 960 : 760);
   }
 }
 
@@ -20686,11 +20686,11 @@ function cinematicImpact(level, side) {
 // resonant payoffs LAND instead of flying by.  The differential matters as
 // much as the absolute: trivial hits stay snappy, payoffs hang.
 const IMPACT_TIERS = {
-  0: { pause: 60,  cine: 0, flash: false, lunge: false },
-  1: { pause: 210, cine: 1, flash: false, lunge: false },
-  2: { pause: 360, cine: 2, flash: true,  lunge: true  },
-  3: { pause: 620, cine: 3, flash: true,  lunge: true  },
-  4: { pause: 860, cine: 4, flash: true,  lunge: true  },
+  0: { pause: 80,   cine: 0, flash: false, lunge: false },
+  1: { pause: 300,  cine: 1, flash: false, lunge: false },
+  2: { pause: 500,  cine: 2, flash: true,  lunge: true  },
+  3: { pause: 820,  cine: 3, flash: true,  lunge: true  },
+  4: { pause: 1180, cine: 4, flash: true,  lunge: true  },
 };
 function impactFeedback(side, id, tier, toHp, attackerId, attackerSide) {
   if (__simulating) return;
