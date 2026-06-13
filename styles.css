@@ -17177,43 +17177,54 @@ body.on-title #hud { display: none !important; }
 
 #resonant-panel { position: fixed; inset: 0; z-index: 8400; opacity: 0; pointer-events: none; transition: opacity 0.18s ease-out; }
 #resonant-panel.open { opacity: 1; pointer-events: auto; }
-#resonant-panel .rp-backdrop { position: absolute; inset: 0; background: rgba(2,2,4,0.74); backdrop-filter: blur(2px); }
+#resonant-panel .rp-backdrop { position: absolute; inset: 0; background: rgba(2,2,4,0.78); backdrop-filter: blur(2px); }
+/* Sheet sized to fit the whole list without scrolling in the common case
+   (compact rows + tall ceiling); overflow-y stays as a safety net for huge
+   parties.  Elegant dark-parchment card with a single quiet gold hairline. */
 #resonant-panel .rp-sheet {
-  position: absolute; left: 50%; bottom: 90px; transform: translateX(-50%);
-  width: min(580px, 92vw); max-height: 62vh; overflow-y: auto;
-  background: linear-gradient(180deg, rgba(26,19,12,0.99), rgba(10,8,6,0.99));
-  border: 1px solid var(--gold-bright);
-  box-shadow: 0 14px 44px rgba(0,0,0,0.82), inset 0 0 26px rgba(230,218,178,0.05);
-  padding: 16px 16px 14px;
-  clip-path: polygon(16px 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%, 0 16px);
+  position: absolute; left: 50%; bottom: 76px; transform: translateX(-50%);
+  width: min(560px, 94vw); max-height: 84vh; overflow-y: auto; overscroll-behavior: contain;
+  background: linear-gradient(180deg, rgba(22,17,11,0.985), rgba(9,7,5,0.985));
+  border: 1px solid var(--gold-dim);
+  box-shadow: 0 16px 46px rgba(0,0,0,0.85);
+  padding: 12px 14px 10px;
+  border-radius: 3px;
 }
 #resonant-panel.open .rp-sheet { animation: rp-rise 0.22s cubic-bezier(.2,.8,.3,1); }
 @keyframes rp-rise { 0% { opacity: 0; transform: translateX(-50%) translateY(12px); } 100% { opacity: 1; transform: translateX(-50%) translateY(0); } }
-#resonant-panel .rp-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid rgba(230,218,178,0.18); }
-#resonant-panel .rp-title { color: var(--gold-bright); font-family: inherit; font-size: 16px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; text-shadow: 0 0 10px rgba(230,218,178,0.3); }
-#resonant-panel .rp-close { width: 28px; height: 28px; border: 1px solid var(--gold-dim); background: transparent; color: var(--gold-bright); font-size: 17px; line-height: 1; cursor: pointer; clip-path: polygon(5px 0,100% 0,100% calc(100% - 5px),calc(100% - 5px) 100%,0 100%,0 5px); }
-#resonant-panel .rp-close:hover { border-color: var(--gold-bright); }
-#resonant-panel .rp-list { display: flex; flex-direction: column; gap: 7px; }
-#resonant-panel .rp-row {
-  display: flex; align-items: center; gap: 11px; width: 100%; padding: 9px 12px;
-  border: 1px solid rgba(230,218,178,0.3);
-  background: linear-gradient(180deg, rgba(38,28,16,0.7), rgba(18,13,8,0.7));
-  color: var(--ink); text-align: left; cursor: pointer; font-family: inherit;
-  clip-path: polygon(7px 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%,0 7px);
-  transition: border-color 0.12s, box-shadow 0.12s, background 0.12s;
+#resonant-panel .rp-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 9px; padding-bottom: 7px; border-bottom: 1px solid rgba(220,205,160,0.14); }
+#resonant-panel .rp-title {
+  color: var(--gold-bright); font-family: 'Iowan Old Style','Palatino Linotype',Georgia,serif;
+  font-size: 12.5px; font-weight: 400; letter-spacing: 0.28em; text-transform: uppercase;
 }
-#resonant-panel .rp-row:not(.poor):hover { border-color: var(--gold-bright); box-shadow: 0 0 12px rgba(230,218,178,0.22), inset 0 0 12px rgba(230,218,178,0.05); }
-#resonant-panel .rp-row.poor { opacity: 0.42; cursor: default; }
+#resonant-panel .rp-close { width: 25px; height: 25px; border: 1px solid var(--gold-dim); background: transparent; color: var(--gold-bright); font-size: 15px; line-height: 1; cursor: pointer; border-radius: 2px; }
+#resonant-panel .rp-close:hover { border-color: var(--gold-bright); }
+#resonant-panel .rp-list { display: flex; flex-direction: column; gap: 5px; touch-action: pan-y; }
+#resonant-panel .rp-row {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 6px 11px;
+  border: 1px solid rgba(220,205,160,0.18);
+  background: linear-gradient(180deg, rgba(30,23,14,0.5), rgba(15,11,7,0.5));
+  color: var(--ink); text-align: left; cursor: pointer; font-family: inherit;
+  border-radius: 2px;
+  transition: border-color 0.12s, background 0.12s;
+}
+#resonant-panel .rp-row:not(.poor):hover,
+#resonant-panel .rp-row.previewing { border-color: var(--gold-bright); background: linear-gradient(180deg, rgba(46,34,20,0.72), rgba(21,15,9,0.72)); }
+#resonant-panel .rp-row.poor { opacity: 0.4; cursor: default; }
 #resonant-panel .rp-portraits { display: flex; flex: 0 0 auto; }
-#resonant-panel .rp-portrait { width: 32px; height: 32px; border-radius: 50%; overflow: hidden; border: 1px solid var(--gold-dim); margin-left: -7px; background: var(--parchment-deep); }
+#resonant-panel .rp-portrait { width: 26px; height: 26px; border-radius: 50%; overflow: hidden; border: 1px solid var(--gold-dim); margin-left: -8px; background: var(--parchment-deep); }
 #resonant-panel .rp-portrait:first-child { margin-left: 0; }
 #resonant-panel .rp-portrait svg { width: 100%; height: 100%; }
-#resonant-panel .rp-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-#resonant-panel .rp-name { font-size: 14px; font-weight: 700; color: var(--gold-bright); letter-spacing: 0.04em; display: flex; align-items: center; gap: 7px; }
-#resonant-panel .rp-tier { font-size: 8.5px; letter-spacing: 0.12em; color: var(--gold-dim); border: 1px solid var(--gold-dim); padding: 1px 4px; clip-path: polygon(3px 0,100% 0,100% calc(100% - 3px),calc(100% - 3px) 100%,0 100%,0 3px); }
-#resonant-panel .rp-desc { font-size: 11.5px; color: #c9bfa6; line-height: 1.35; }
-#resonant-panel .rp-cost { flex: 0 0 auto; font: 800 15px 'Iowan Old Style', Georgia, serif; color: var(--gold-bright); text-shadow: 0 0 8px rgba(230,218,178,0.4); }
-#resonant-panel .rp-hint { margin-top: 12px; padding-top: 9px; border-top: 1px solid rgba(230,218,178,0.12); font-size: 10.5px; color: var(--gold-dim); text-align: center; font-style: italic; }
+#resonant-panel .rp-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+#resonant-panel .rp-name {
+  font-family: 'Iowan Old Style','Palatino Linotype',Georgia,serif;
+  font-size: 12.5px; font-weight: 600; color: var(--gold-bright); letter-spacing: 0.05em;
+  display: flex; align-items: center; gap: 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#resonant-panel .rp-tier { flex: 0 0 auto; font-size: 7.5px; letter-spacing: 0.16em; color: var(--gold-dim); border: 1px solid rgba(180,160,110,0.4); padding: 1px 4px; border-radius: 2px; }
+#resonant-panel .rp-desc { font-size: 10px; color: #b9af96; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.01em; }
+#resonant-panel .rp-cost { flex: 0 0 auto; font: 700 14px 'Iowan Old Style', Georgia, serif; color: var(--gold-bright); }
+#resonant-panel .rp-hint { margin-top: 8px; padding-top: 6px; border-top: 1px solid rgba(220,205,160,0.1); font-size: 9px; color: var(--gold-dim); text-align: center; font-style: italic; letter-spacing: 0.02em; }
 
 /* ===== Layer-entry breath — "Deeper still · Layer N" beat between layers ===== */
 #layer-title {
