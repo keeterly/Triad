@@ -21464,13 +21464,20 @@ function showRunInfoPanel() {
     const masteryHtml = (c.mastery && c.mastery.name)
       ? `<div class="info-hero-mastery" title="Mastery: ${c.mastery.name} — ${c.mastery.desc}" data-tip="Mastery: ${c.mastery.name} — ${c.mastery.desc}"><span class="info-hero-mastery-mark">♕</span><span class="info-hero-mastery-name">${c.mastery.name}</span></div>`
       : '';
+    // Mastery PROGRESS — when the hero hasn't awakened yet but is stacking
+    // positive affinities toward one, show the climb so affinities read as a
+    // build arc toward a payoff (not scattered stat noise).
+    const heroMastery = (typeof HERO_MASTERIES !== 'undefined') && HERO_MASTERIES[id];
+    const masteryProgressHtml = (!c.mastery && heroMastery && pos.length > 0)
+      ? `<div class="info-hero-mastery-progress" title="Awaken ${heroMastery.name} by stacking ${QUIRK_CAP} positive affinities — ${heroMastery.desc}" data-tip="Awaken ${heroMastery.name} by stacking ${QUIRK_CAP} positive affinities — ${heroMastery.desc}"><span class="ihmp-mark">✦</span><span class="ihmp-text">${pos.length} / ${QUIRK_CAP} affinities → ${heroMastery.name}</span></div>`
+      : '';
     return `
       <div class="info-hero ${c.downed ? 'info-hero-downed' : ''}">
         <div class="info-hero-portrait">${PORTRAITS[id] || ''}</div>
         <div class="info-hero-body">
           <div class="info-hero-name">${def.name}${c.downed ? ' · downed' : ''}</div>
           <div class="info-hero-hp">HP ${c.hp} / ${c.maxHp}</div>
-          ${masteryHtml}
+          ${masteryHtml}${masteryProgressHtml}
           ${chips ? `<div class="info-hero-quirks">${chips}</div>` : `<div class="info-hero-quirks info-hero-quirks-empty">No affinities yet.</div>`}
         </div>
       </div>`;
