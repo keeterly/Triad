@@ -1626,8 +1626,12 @@ const ACTION_ATB = {
   brace:   1,                 // armor up
 };
 const TEAM_SPECIAL_ATB = ATB_MAX;
-const SPECIAL_COST = 2;       // Resolve cost of an individual special (signature)
-const TEAM_SPECIAL_COST = 3;  // Resolve cost of a team special
+const SPECIAL_COST = 1;       // Resolve cost of an individual special (signature).
+                              // Specials are now the cheap everyday tool (0–1) —
+                              // the Resolve SINK is the Resonant tier (team 2–4,
+                              // per-hero Unleash 1–2).  getSpecialCost clamps ≤1.
+const TEAM_SPECIAL_COST = 3;  // (legacy path getTeamSpecialCost) — active team
+                              // cost is uniqueActionCost: duo 2 / L3 3 / trio 4.
 // Economy: basics cost ATB; SIGNATURES cost ATB + Resolve (the per-hero
 // Resolve sink); team attacks cost Resolve (spend-to-fire).  Resolve is
 // BANKED by detonating primers / exploiting weakness.  (The short-lived
@@ -1648,7 +1652,10 @@ const BRACE_VULN_CLEAR = 1;
 const RESOLVE_MAX = 4;      // Resolve bank cap — sized so two signatures (2 each)
                            // OR one team attack is a turn's worth of spend.
 const UNIQUE_ATB = 2;      // ATB a spend-to-fire team action occupies
-const RESOLVE_DRIP = 1;     // Resolve regenerated automatically each turn (floor)
+const RESOLVE_DRIP = 0;     // Detonation-only economy — Resolve is earned ONLY by
+                           // detonating primers (the exploit loop), never as a
+                           // passive per-turn drip.  A one-time fight-start seed
+                           // (see startEncounter) keeps the opening turn alive.
 // Ember Stall (shop) map node — disabled for now while we evaluate it.
 // Flip to true to bring the in-run consumable shop back.
 const SHOP_NODES_ENABLED = false;
@@ -9979,7 +9986,12 @@ function resonancePremium(combo) {
 // Spend-to-fire cost of a team action — a premium over a signature (2) so it's
 // a deliberate save-up, but inside the Resolve cap (4): duo 3, trio 4.
 function uniqueActionCost(combo) {
-  return (combo && combo.tier === 'triple') ? 4 : 3;
+  // Resonant-tier pricing (2–4): a trio is the showpiece (4), an L3 "RESONANT"
+  // duo is the climax (3), and a plain duo is the entry-point team move (2).
+  if (!combo) return 2;
+  if (combo.tier === 'triple') return 4;
+  if (combo.sigTier) return 3;
+  return 2;
 }
 
 function commitCombo(comboId) {
@@ -10099,7 +10111,9 @@ function getSpecialCost(s, tech, charId) {
   if (!SIG_COSTS_RESOLVE) return 0;
   // Per-tech cost override — sigs can declare `cost: 1 | 2 | 3` for variety.
   // Cheap sigs are utility/support; expensive sigs are the showy payoffs.
-  let cost = (tech && typeof tech.cost === 'number') ? tech.cost : SPECIAL_COST;
+  // Specials are capped at the new tier ceiling of 1 — a tech may still
+  // declare cost: 0 for a free utility sig, but nothing costs more than 1.
+  let cost = Math.min(1, (tech && typeof tech.cost === 'number') ? tech.cost : SPECIAL_COST);
   // Mantra of Stillness — discounts Specials by a tiered amount (-1 / -2 / -3)
   // rather than zeroing them outright.  A flat 0 made specials free, which
   // let you assemble Resonance triggers every turn for nothing and hollowed
@@ -12139,6 +12153,11 @@ function startEncounter(encSpec) {
     const cap = RESOLVE_CARRY_CAP + sigilBonus(state, 'memory');
     state.resolve = Math.min(cap, state.resolve);
   }
+  // Detonation-only economy seed — with the per-turn drip gone, open every
+  // fight with a one-time starting hand of 1 Resolve so turn 1 isn't a dead
+  // "basics-only" turn while you set up your first detonation.  Per-FIGHT seed,
+  // not a per-turn drip, so it never competes with the detonate loop.
+  state.resolve = Math.max(state.resolve, 1);
   // Crown of Patience — start every fight with at least 3 Resolve (enough to
   // open with a signature or a duo team attack).
   if (hasSigil(state, 'patience')) state.resolve = Math.max(state.resolve, 3);
@@ -15679,7 +15698,9 @@ function previewTile(kind, charId, dir) {
     const target = SLOTS[ti];
     const otherId = s.party.slots[target];
     const otherName = otherId ? CHARS[otherId].name : '—';
-    return { kind, valid: true, label: `→ ${SLOT_LABELS[target]}`, desc: `swap w/ ${otherName}`, atb, resolveCost: 0, slot, target };
+    // First reposition each turn is free (mirrors pickMoveDir) — show 0 ATB.
+    const freeMove = !s.queue.some(q => q && q.kind === 'move');
+    return { kind, valid: true, label: `→ ${SLOT_LABELS[target]}${freeMove ? ' ·free' : ''}`, desc: `swap w/ ${otherName}`, atb: freeMove ? 0 : atb, resolveCost: 0, slot, target };
   }
   if (kind === 'brace') {
     const c = s.party.chars[charId];
@@ -15822,13 +15843,18 @@ function pickMoveDir(charId, dir) {
   const target = SLOTS[ti];
   const otherId = sim[target];
   const otherName = otherId ? CHARS[otherId].name : '—';
+  // Flow economy — the FIRST reposition each turn is free (0 ATB) so movement
+  // isn't a tax that competes with attacking.  Repositioning is how you line up
+  // prime-here / detonate-there, so beginning to flow shouldn't cost an action;
+  // only a SECOND move in the same turn spends ATB.
+  const freeMove = !s.queue.some(q => q && q.kind === 'move');
   queueAdd({
     kind: 'move',
     charId,
     dir,
-    label: `→ ${SLOT_LABELS[target]}`,
+    label: `→ ${SLOT_LABELS[target]}${freeMove ? ' ·free' : ''}`,
     desc: `swap with ${otherName}`,
-    atb: ACTION_ATB.move,
+    atb: freeMove ? 0 : ACTION_ATB.move,
     resolveCost: 0,
   });
 }
@@ -18793,19 +18819,25 @@ function availableTeamUniques() {
 // available.  Tapping it opens the panel listing them all.  Keeps the board
 // clean and the launcher out of the figures.
 function renderTeamSpecial() {
-  // The old floating rail host (#ts-area) is no longer used for the launcher.
-  const area = $('#ts-area');
-  if (area) { area.innerHTML = ''; area.classList.add('hidden'); }
-  const host = $('#commit-zone');
-  const existing = host && host.querySelector('.resonant-crest');
-  if (existing) existing.remove();
+  // The Resonant-Skill launcher docks ABOVE THE SKILLS (in the floating #ts-area
+  // band over the tile grid) rather than beside FIGHT — it reads as "these are
+  // the moves your queued skills unlock", and keeps the commit cluster to the
+  // pure FIGHT/Resolve controls.  Hidden whenever no team skill is available.
+  const host = $('#ts-area');
+  // Clean up any legacy crest left docked in the commit-zone by older layouts.
+  const cz = $('#commit-zone');
+  const stale = cz && cz.querySelector('.resonant-crest');
+  if (stale) stale.remove();
+  if (host) { host.innerHTML = ''; host.classList.remove('resonance-rail', 'unique-rail', 'reso-crest-host'); host.classList.add('hidden'); }
   if (!host || state.executing || state.over) { closeResonantPanel(); return; }
   const teamUniques = availableTeamUniques();
   if (!teamUniques.length) { closeResonantPanel(); return; }
+  host.classList.remove('hidden');
+  host.classList.add('reso-crest-host');
   if (!hasSeenCoachmark('cm_resonance')) {
     setTimeout(() => {
       showCoachmark('cm_resonance', {
-        anchor: '#commit-zone .resonant-crest',
+        anchor: '#ts-area .resonant-crest',
         place: 'above',
         text: 'A <b>Resonant Skill</b> is ready.  Tap to open the list and spend <b>Resolve</b> to unleash a team move.',
       });
@@ -18816,13 +18848,10 @@ function renderTeamSpecial() {
   const crest = document.createElement('button');
   crest.type = 'button';
   crest.className = `resonant-crest${anyAffordable ? ' ready' : ' poor'}`;
-  crest.innerHTML = `<span class="rcr-glyph">✦</span><span class="rcr-label">Resonant</span><span class="rcr-count">${teamUniques.length}</span>`;
+  crest.innerHTML = `<span class="rcr-glyph">✦</span><span class="rcr-label">Resonant Skill</span><span class="rcr-count">${teamUniques.length}</span>`;
   crest.title = `${teamUniques.length} resonant skill${teamUniques.length === 1 ? '' : 's'} available — tap to choose.`;
   bindTapAsPointer(crest, () => { if (!state.executing && !state.over) openResonantPanel(); });
-  // Dock it directly ABOVE the FIGHT button (after the Resolve pips) so the
-  // two action controls read as a clean stacked pair.
-  const fightBtn = host.querySelector('#btn-fight') || host.querySelector('.fight-btn');
-  host.insertBefore(crest, fightBtn || null);
+  host.appendChild(crest);
 }
 
 let _resonantPanelOpen = false;
