@@ -7281,19 +7281,19 @@ const SIGILS = {
   bloodborne: { id: 'bloodborne', name: 'Bloodborne Sigil',    icon: '✤', category: 'combat',   desc: 'Bleed ticks deal +1 each turn.' },
   steel:      { id: 'steel',      name: 'Sigil of Steel',      icon: '⛨', category: 'defense',  desc: 'Start every fight with +2 armor on each party member.' },
   echo:       { id: 'echo',       name: 'Echo Sigil',          icon: '⚔', category: 'resource', desc: 'Team Special costs 1 less Resolve.' },
-  patience:   { id: 'patience',   name: 'Crown of Patience',   icon: '◆', category: 'resource', desc: 'Start every fight with at least 2 Resolve.' },
+  patience:   { id: 'patience',   name: 'Crown of Patience',   icon: '◆', category: 'resource', desc: 'Start every fight with at least 3 Resolve.' },
   reaver:     { id: 'reaver',     name: 'Sigil of the Reaver', icon: '☠', category: 'combat',   desc: 'Killing an enemy grants +1 additional Resolve.' },
   // === new pool ===
   hunt:       { id: 'hunt',       name: 'Mark of the Hunt',    icon: '➤', category: 'combat',   desc: 'Weakness hits also apply Vuln 1. Stagger consumes deal 3× instead of 2×.' },
   cinders:    { id: 'cinders',    name: 'Pact of Cinders',     icon: '🜂', category: 'combat',   desc: 'Killing an enemy applies bleed 1 to all remaining enemies.' },
-  doom:       { id: 'doom',       name: 'Brand of Doom',       icon: '⊕', category: 'combat',   desc: "Vulnerable stacks aren't consumed by attacks." },
+  doom:       { id: 'doom',       name: 'Brand of Doom',       icon: '⊕', category: 'combat',   desc: "Vulnerable stacks aren't consumed by attacks (they fade 1 per turn instead)." },
   aegis:      { id: 'aegis',      name: 'Sigil of Aegis',      icon: '◈', category: 'defense',  desc: 'Each incoming hit deals 1 less HP damage after armor.' },
   mercy:      { id: 'mercy',      name: 'Crown of Mercy',      icon: '✚', category: 'defense',  desc: 'When any ally heals, every other ally heals +1.' },
-  vigil:      { id: 'vigil',      name: 'Vow of Vigil',        icon: '↻', category: 'defense',  desc: 'Retaliate strikes deal +2 damage.' },
+  vigil:      { id: 'vigil',      name: 'Vow of Vigil',        icon: '↻', category: 'defense',  desc: 'Front & Mid start each fight with Retaliate 2; retaliate strikes deal +2 damage.' },
   stillness:  { id: 'stillness',  name: 'Mantra of Stillness', icon: '★', category: 'resource', desc: 'Specials cost 1 less Resolve (2 → 1).' },
   memory:     { id: 'memory',     name: 'Coin of Memory',      icon: '◆', category: 'resource', desc: 'Carry up to 4 Resolve between fights (instead of 3).' },
   vigor:      { id: 'vigor',      name: 'Pact of Vigor',       icon: '⚡', category: 'resource', desc: 'Killing an enemy refunds 1 ATB this turn.' },
-  vowiron:    { id: 'vowiron',    name: 'Vow of Iron',         icon: '⌖', category: 'defense',  desc: 'The Front slot starts each fight with Taunt for the first turn.' },
+  vowiron:    { id: 'vowiron',    name: 'Vow of Iron',         icon: '⌖', category: 'defense',  desc: 'The Front slot starts each fight with Taunt + 2 armor for the first turn.' },
 
   // --- additions filling slot-based and conditional-defense gaps ---
   reach:      { id: 'reach',      name: 'Sigil of Reach',      icon: '➤', category: 'combat',   desc: 'Attacks from the Back slot deal +2 damage.' },
@@ -12139,8 +12139,9 @@ function startEncounter(encSpec) {
     const cap = RESOLVE_CARRY_CAP + sigilBonus(state, 'memory');
     state.resolve = Math.min(cap, state.resolve);
   }
-  // Crown of Patience — start every fight with at least 2 Resolve
-  if (hasSigil(state, 'patience')) state.resolve = Math.max(state.resolve, 2);
+  // Crown of Patience — start every fight with at least 3 Resolve (enough to
+  // open with a signature or a duo team attack).
+  if (hasSigil(state, 'patience')) state.resolve = Math.max(state.resolve, 3);
   // Consume event/vignette bonuses queued for the next fight start.  These
   // were granted by events ("the note follows", "the spirit nods") and
   // had been silently dropping on the floor — now plumbed through so the
@@ -12185,6 +12186,16 @@ function startEncounter(encSpec) {
       const id = state.party.slots[sl];
       const c = id && state.party.chars[id];
       if (c && !c.downed) c.retaliate = (c.retaliate || 0) + 3;
+    });
+  }
+  // Vow of Vigil — gives the player their OWN Retaliate source so the sigil
+  // isn't dead without one: front + mid start each fight with Retaliate 2 (the
+  // sigil's +damage bonus then makes those counters bite).
+  if (hasSigil(state, 'vigil')) {
+    ['front', 'mid'].forEach(sl => {
+      const id = state.party.slots[sl];
+      const c = id && state.party.chars[id];
+      if (c && !c.downed) c.retaliate = (c.retaliate || 0) + 2;
     });
   }
   // Vow of Iron — front slot wakes the fight with Taunt for turn 1.  The
@@ -15402,12 +15413,24 @@ function startTurn(s) {
     const front = frontId && s.party.chars[frontId];
     if (front && !front.downed) {
       front.taunt = true;
+      // ...and +2 armor, so the taunt turn is a real ANCHOR (eat the redirected
+      // hits behind armor) instead of just drawing fire bare.
+      front.armor = (front.armor || 0) + 2;
       spawnSigilPopup(frontId, 'vowiron');
     }
     s._vowIronPending = false;
   }
   log(`<span class="msg-strong">— Turn ${s.turn} —</span>`);
   if (s.bonusAtb > 0) log(`<i>Weakness exploited — +${s.bonusAtb} ATB this turn.</i>`);
+
+  // Brand of Doom — vuln isn't consumed by hits (so a multi-hit turn amps
+  // every strike), but it FADES 1 per turn instead of lasting forever.  This
+  // keeps Doom's combo-turn power while removing the set-and-forget permanent
+  // amp that made it warp whole runs.  (Decays at turn start so vuln applied
+  // this turn still lands at full value.)
+  if (hasSigil(s, 'doom')) {
+    aliveEnemies(s).forEach(e => { if (e.vuln > 0) e.vuln = Math.max(0, e.vuln - 1); });
+  }
 
   // bleed tick — base 2 per turn, +1 if Bloodborne Sigil owned, +1 if Bone Tide modifier
   const bleedTick = 2 + sigilBonus(s, 'bloodborne') + (hasRunModifier(s, 'bonetide') ? 1 : 0);
