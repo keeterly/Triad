@@ -19222,9 +19222,12 @@ function openResonantPanel() {
     const portraits = heroIds.map(id => `<span class="rp-portrait" title="${(CHARS[id] && CHARS[id].name) || id}">${PORTRAITS[id] || ''}</span>`).join('');
     const resonantSuffix = /resonant/i.test(combo.name) ? ' · RESONANT' : '';
     const tierLabel = combo.tier === 'unleash' ? 'UNLEASH' : combo.tier === 'triple' ? 'TRIO' : 'DUO';
+    // Strip the redundant leading "Hero · " from the effect line (the portrait
+    // already names the hero), keeping each row to a single compact line.
+    const shortDesc = (combo.desc || '').replace(/^[A-Z][a-zA-Z]+ · /, '');
     return `<button type="button" class="rp-row${affordable ? '' : ' poor'}" data-combo="${combo.id}"${affordable ? '' : ' disabled'}>
       <span class="rp-portraits">${portraits}</span>
-      <span class="rp-body"><span class="rp-name">${chipLabel(combo)}${resonantSuffix} <span class="rp-tier">${tierLabel}</span></span><span class="rp-desc">${combo.desc}</span></span>
+      <span class="rp-body"><span class="rp-name">${chipLabel(combo)}${resonantSuffix}<span class="rp-tier">${tierLabel}</span></span><span class="rp-desc">${shortDesc}</span></span>
       <span class="rp-cost" title="Resolve cost">◈ ${cost}</span>
     </button>`;
   }).join('');
@@ -19241,22 +19244,27 @@ function openResonantPanel() {
   bindTapAsPointer(el.querySelector('.rp-close'), closeResonantPanel);
   el.querySelectorAll('.rp-row').forEach(row => {
     const id = row.dataset.combo;
-    let holdTimer = null, leftWhileDown = false;
+    // Movement-aware tap: a scroll DRAG (pointer moves past a small threshold)
+    // cancels the tap, so swiping the list never fires a skill — only a clean
+    // press commits.  Press-and-hold (no movement) previews targets.
+    let holdTimer = null, moved = false, sx = 0, sy = 0;
     const cancelHold = () => { if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; } };
-    row.addEventListener('pointerdown', () => {
-      leftWhileDown = false;
-      holdTimer = setTimeout(() => { row.classList.add('previewing'); applyPreviewHighlight(previewComboTargets(id)); }, 300);
+    const clearPrev = () => { row.classList.remove('previewing'); clearPreviewHighlight(); };
+    row.addEventListener('pointerdown', (e) => {
+      moved = false; sx = e.clientX; sy = e.clientY;
+      holdTimer = setTimeout(() => { if (!moved) { row.classList.add('previewing'); applyPreviewHighlight(previewComboTargets(id)); } }, 300);
     });
-    row.addEventListener('pointerup', cancelHold);
-    row.addEventListener('pointerleave', () => { cancelHold(); leftWhileDown = true; row.classList.remove('previewing'); clearPreviewHighlight(); });
-    row.addEventListener('pointercancel', () => { cancelHold(); row.classList.remove('previewing'); clearPreviewHighlight(); });
-    bindTapAsPointer(row, () => {
-      if (leftWhileDown) { leftWhileDown = false; clearPreviewHighlight(); return; }
+    row.addEventListener('pointermove', (e) => {
+      if (!moved && (Math.abs(e.clientX - sx) > 9 || Math.abs(e.clientY - sy) > 9)) { moved = true; cancelHold(); clearPrev(); }
+    });
+    row.addEventListener('pointerup', () => {
+      cancelHold(); clearPrev();
+      if (moved) { moved = false; return; }
       if (row.disabled || state.executing || state.over) return;
-      cancelHold();
       closeResonantPanel();
       commitUnique(id);
     });
+    row.addEventListener('pointercancel', () => { cancelHold(); moved = false; clearPrev(); });
   });
 }
 
