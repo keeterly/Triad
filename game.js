@@ -2151,27 +2151,31 @@ const CHARS = {
     // Shatter passive still grants Resolve when any stagger lands.
     passive: { name: 'Frostbreak', desc: "Hask's attacks reveal an enemy's weakness on hit.  When an enemy is staggered, gain +1 Resolve." },
     techs: {
+      // FRONT (home) — DETONATE.  Hask is arcane: his frost blows DISCHARGE the
+      // vuln he froze on from the back line.
       front: {
-        basic: { name: 'Frost-Claw', desc: '6 dmg front', dmg: 6,
+        basic: { name: 'Frost-Claw', desc: '6 arcane · DISCHARGES vuln', dmg: 6,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 6); } },
-        sig:   { name: 'Glacier Crush', desc: '10 dmg front', dmg: 10,
+        sig:   { name: 'Glacier Crush', desc: '10 arcane · DISCHARGES vuln', dmg: 10,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 10); } },
       },
       mid: {
-        basic: { name: 'Ice Bolt', desc: '5 dmg lowest', dmg: 5,
+        basic: { name: 'Ice Bolt', desc: '5 arcane lowest · DISCHARGES vuln', dmg: 5,
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 5); } },
-        sig:   { name: 'Hailstorm', desc: '3♦ · 5 dmg all', cost: 3, dmg: 5,
+        sig:   { name: 'Hailstorm', desc: '5 arcane all · DISCHARGES vuln', cost: 1, dmg: 5,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 5)); } },
       },
+      // BACK — PRIME.  Chill / Frost-Lock freeze vuln onto the board for his
+      // arcane to DISCHARGE.
       back: {
-        basic: { name: 'Chill Mist', desc: '2 dmg all + vuln 1 all', dmg: 2,
+        basic: { name: 'Chill Mist', desc: '2 all + vuln 1 all (prime) · DISCHARGES vuln', dmg: 2,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 2)); aliveEnemies(s).forEach(e => { e.vuln += 1; }); } },
-        sig:   { name: 'Frost-Lock', desc: '1♦ · 6 dmg lowest + vuln 2 all', cost: 1, dmg: 6,
+        sig:   { name: 'Frost-Lock', desc: '6 lowest + vuln 2 all (prime)', cost: 1, dmg: 6,
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => {
             if (t[0]) applyDmgToEnemy(s, t[0], 6);
@@ -2194,26 +2198,28 @@ const CHARS = {
     passive: { name: 'Last Witness', desc: 'For each downed ally, Veyr deals +2 damage on attacks.' },
     techs: {
       front: {
-        basic: { name: 'Wraithcut', desc: '3 stealth dmg front + retreat', dmg: 3, move: 'retreat', element: 'stealth',
+        basic: { name: 'Wraithcut', desc: '3 stealth · HEMORRHAGES bleed + retreat to Mid', dmg: 3, move: 'retreat', element: 'stealth',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 3); retreat(s, 'veyr'); } },
-        sig:   { name: 'Last Mercy', desc: '1♦ · 6 stealth dmg front + retreat full', cost: 1, dmg: 6, move: 'retreatFull', element: 'stealth',
+        sig:   { name: 'Last Mercy', desc: '6 stealth · HEMORRHAGES bleed + retreat to Back', cost: 1, dmg: 6, move: 'retreatFull', element: 'stealth',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 6); retreatFull(s, 'veyr'); } },
       },
+      // MID — PRIME (bleed) + mark vuln for allies.
       mid: {
-        basic: { name: 'Slip Knife', desc: '4 dmg + bleed 1 (lowest)', dmg: 4,
+        basic: { name: 'Slip Knife', desc: '4 + bleed 1 (prime) lowest', dmg: 4,
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 4); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 1); } } },
-        sig:   { name: 'Dark Tally', desc: '2♦ · 6 dmg + vuln 1 + retreat', cost: 2, dmg: 6, move: 'retreat',
+        sig:   { name: 'Dark Tally', desc: '6 + vuln 1 + retreat', cost: 1, dmg: 6, move: 'retreat',
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 6); if (!t[0].dead) t[0].vuln += 1; } retreat(s, 'veyr'); } },
       },
+      // BACK (home) — DETONATE.  Her stealth bolts HEMORRHAGE bleed from range.
       back: {
-        basic: { name: 'Witness Bolt', desc: '5 stealth dmg lowest mid/back', dmg: 5, element: 'stealth',
+        basic: { name: 'Witness Bolt', desc: '5 stealth lowest · HEMORRHAGES bleed', dmg: 5, element: 'stealth',
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 5); } },
-        sig:   { name: 'Final Reckoning', desc: '3♦ · 4 stealth dmg × 2 all + bleed 1 all', cost: 3, dmg: 4, hits: 2, element: 'stealth',
+        sig:   { name: 'Final Reckoning', desc: '4 stealth ×2 all + bleed 1 all · HEMORRHAGES bleed', cost: 1, dmg: 4, hits: 2, element: 'stealth',
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => {
             t.forEach(e => applyDmgToEnemy(s, e, 4));
@@ -2238,20 +2244,23 @@ const CHARS = {
     home: 'front',
     passive: { name: 'Empty Hand', desc: "When Kell has 0 armor at the moment he attacks, his hit deals +2 damage." },
     techs: {
+      // FRONT (home) — DETONATE.  Kell is holy: his open-hand strikes SMITE the
+      // vuln he opened from Mid (and heal the party for it).
       front: {
-        basic: { name: 'Palm Strike', desc: '6 holy dmg', dmg: 6, element: 'holy',
+        basic: { name: 'Palm Strike', desc: '6 holy · SMITES vuln (heal party)', dmg: 6, element: 'holy',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 6); } },
-        sig:   { name: 'Hundred Hands', desc: '2♦ · 3 holy dmg × 4', cost: 2, dmg: 3, hits: 4, element: 'holy',
+        sig:   { name: 'Hundred Hands', desc: '3 holy ×4 · SMITES vuln', cost: 1, dmg: 3, hits: 4, element: 'holy',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (!t[0]) return;
             for (let i = 0; i < 4; i++) { if (t[0].dead) break; applyDmgToEnemy(s, t[0], 3); } } },
       },
+      // MID — PRIME.  Inner Step opens vuln and advances him to Front to SMITE.
       mid: {
-        basic: { name: 'Inner Step', desc: '4 holy dmg + vuln 1 + advance', dmg: 4, element: 'holy', move: 'advance',
+        basic: { name: 'Inner Step', desc: '4 holy + vuln 1 (prime) · advance to Front', dmg: 4, element: 'holy', move: 'advance',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 4); if (!t[0].dead) t[0].vuln += 1; } advance(s, 'kell'); } },
-        sig:   { name: 'Five-Stance', desc: '2♦ · 7 holy dmg + 2 armor self', cost: 2, dmg: 7, element: 'holy',
+        sig:   { name: 'Five-Stance', desc: '7 holy · SMITES vuln + 2 armor self', cost: 1, dmg: 7, element: 'holy',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 7); addArmor(s, 'kell', 2); } },
       },
@@ -2260,7 +2269,7 @@ const CHARS = {
           fn: (s) => { const c = s.party.chars.kell;
             if (c && !c.downed) { const before = c.hp; c.hp = Math.min(c.maxHp, c.hp + 2);
               if (c.hp > before) spawnPopupId('kell', `+${c.hp - before}`, 'heal', 'party'); } } },
-        sig:   { name: 'Centered', desc: '2♦ · Heal 5 self + cleanse self', cost: 2, heal: 5, healTarget: 'self',
+        sig:   { name: 'Centered', desc: 'Heal 5 self + cleanse self', cost: 1, heal: 5, healTarget: 'self',
           fn: (s) => { const c = s.party.chars.kell;
             if (c && !c.downed) { const before = c.hp; c.hp = Math.min(c.maxHp, c.hp + 5);
               if (c.hp > before) spawnPopupId('kell', `+${c.hp - before}`, 'heal', 'party');
@@ -2284,32 +2293,34 @@ const CHARS = {
     passive: { name: 'Old Hex', desc: "When Nira applies bleed or dulled, she heals 1 HP." },
     techs: {
       front: {
-        basic: { name: 'Curse-bite', desc: '3 arc dmg + dulled 1 + retreat', dmg: 3, element: 'arcane', move: 'retreat',
+        basic: { name: 'Curse-bite', desc: '3 arcane + dulled 1 · DISCHARGES vuln + retreat to Mid', dmg: 3, element: 'arcane', move: 'retreat',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 3); if (!t[0].dead) { t[0].dulled = (t[0].dulled || 0) + 1; _niraOldHexTick(s); } } retreat(s, 'nira'); } },
-        sig:   { name: 'Withering', desc: '2♦ · 5 arc dmg + bleed 1 + dulled 1 + retreat', cost: 2, dmg: 5, element: 'arcane', move: 'retreat',
+        sig:   { name: 'Withering', desc: '5 arcane + bleed 1 + dulled 1 + retreat to Mid', cost: 1, dmg: 5, element: 'arcane', move: 'retreat',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 5);
             if (!t[0].dead) { t[0].bleed = (t[0].bleed || 0) + 1; t[0].dulled = (t[0].dulled || 0) + 1; _niraOldHexTick(s); } }
             retreat(s, 'nira'); } },
       },
+      // MID — PRIME (vuln).  Marking Curse opens vuln so her arcane DISCHARGES it.
       mid: {
-        basic: { name: 'Marking Curse', desc: '4 arc dmg lowest + bleed 1 + 1 vuln', dmg: 4, element: 'arcane',
+        basic: { name: 'Marking Curse', desc: '4 arcane + bleed 1 + vuln 1 (prime) · DISCHARGES vuln', dmg: 4, element: 'arcane',
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 4);
             if (!t[0].dead) { t[0].bleed = (t[0].bleed || 0) + 1; t[0].vuln = (t[0].vuln || 0) + 1; _niraOldHexTick(s); } } } },
-        sig:   { name: 'Layered Curse', desc: '2♦ · 6 arc dmg lowest + bleed 2 + dulled 1', cost: 2, dmg: 6, element: 'arcane',
+        sig:   { name: 'Layered Curse', desc: '6 arcane + bleed 2 + dulled 1 · DISCHARGES vuln', cost: 1, dmg: 6, element: 'arcane',
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 6);
             if (!t[0].dead) { t[0].bleed = (t[0].bleed || 0) + 2; t[0].dulled = (t[0].dulled || 0) + 1; _niraOldHexTick(s); } } } },
       },
+      // BACK (home) — board DoT + DISCHARGE.
       back: {
-        basic: { name: 'Spores', desc: '2 arc dmg all + bleed 1 all', dmg: 2, element: 'arcane',
+        basic: { name: 'Spores', desc: '2 all + bleed 1 all · DISCHARGES vuln', dmg: 2, element: 'arcane',
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { let any = false; t.forEach(e => { applyDmgToEnemy(s, e, 2);
             if (!e.dead) { e.bleed = (e.bleed || 0) + 1; any = true; } });
             if (any) _niraOldHexTick(s); } },
-        sig:   { name: "Coven's Pyre", desc: '3♦ · 3 arc dmg all + bleed 2 all', cost: 3, dmg: 3, element: 'arcane',
+        sig:   { name: "Coven's Pyre", desc: '3 all + bleed 2 all · DISCHARGES vuln', cost: 1, dmg: 3, element: 'arcane',
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { let any = false; t.forEach(e => { applyDmgToEnemy(s, e, 3);
             if (!e.dead) { e.bleed = (e.bleed || 0) + 2; any = true; } });
@@ -2331,27 +2342,30 @@ const CHARS = {
     home: 'mid',
     passive: { name: 'Long Eye', desc: "Joran's attacks deal +1 damage per vuln stack on the target (max +3)." },
     techs: {
+      // FRONT — PRIME-adjacent + slip back to his firing line.
       front: {
-        basic: { name: 'Pommel', desc: '4 dmg + retreat', dmg: 4, move: 'retreat',
+        basic: { name: 'Pommel', desc: '4 · detonates VULN + retreat to Mid', dmg: 4, move: 'retreat',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 4); retreat(s, 'joran'); } },
-        sig:   { name: 'Snap Shot', desc: '7 dmg + retreat full', dmg: 7, move: 'retreatFull',
+        sig:   { name: 'Snap Shot', desc: '7 ranged · PUNCTURES vuln + retreat to Back', dmg: 7, move: 'retreatFull',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 7); retreatFull(s, 'joran'); } },
       },
+      // MID (home) — PRIME + DETONATE.  Heartshot marks vuln; his ranged shots
+      // PUNCTURE it (and Long Eye makes every vuln stack hit harder).
       mid: {
-        basic: { name: 'Aim and Shoot', desc: '6 dmg lowest mid/back', dmg: 6,
+        basic: { name: 'Aim and Shoot', desc: '6 ranged lowest · PUNCTURES vuln', dmg: 6,
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 6); } },
-        sig:   { name: 'Heartshot', desc: '10 dmg lowest + 1 vuln', dmg: 10,
+        sig:   { name: 'Heartshot', desc: '10 ranged + vuln 1 (prime) · PUNCTURES vuln', dmg: 10,
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 10); if (!t[0].dead) t[0].vuln += 1; } } },
       },
       back: {
-        basic: { name: 'Spread Fire', desc: '3 dmg all', dmg: 3,
+        basic: { name: 'Spread Fire', desc: '3 ranged all · PUNCTURES vuln', dmg: 3,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => t.forEach(e => applyDmgToEnemy(s, e, 3)) },
-        sig:   { name: 'Hail Shot', desc: '3♦ · 5 dmg all + 1 vuln lowest', cost: 3, dmg: 5,
+        sig:   { name: 'Hail Shot', desc: '5 all + vuln 1 lowest · PUNCTURES vuln', cost: 1, dmg: 5,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => {
             t.forEach(e => applyDmgToEnemy(s, e, 5));
@@ -2428,28 +2442,31 @@ const CHARS = {
     home: 'front',
     passive: { name: 'Heel', desc: "When another ally takes damage, Kiki snaps at the front-most enemy for 2 dmg.  Once per turn." },
     techs: {
+      // FRONT (home) — DETONATE.  Kiki is stealth: her bites HEMORRHAGE bleed
+      // and SUNDER the dulled she howls onto the pack.
       front: {
-        basic: { name: 'Nip', desc: '4 stl dmg front', dmg: 4, element: 'stealth',
+        basic: { name: 'Nip', desc: '4 stealth · HEMORRHAGES bleed / SUNDERS dulled', dmg: 4, element: 'stealth',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 4); } },
-        sig:   { name: 'Lunge!', desc: '2♦ · 7 stl dmg + bleed 1', cost: 2, dmg: 7, element: 'stealth',
+        sig:   { name: 'Lunge!', desc: '7 stealth + bleed 1 (prime) · HEMORRHAGES bleed', cost: 1, dmg: 7, element: 'stealth',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 7); if (!t[0].dead) t[0].bleed = (t[0].bleed || 0) + 1; } } },
       },
       mid: {
-        basic: { name: 'Snap', desc: '5 stl dmg lowest mid/back', dmg: 5, element: 'stealth',
+        basic: { name: 'Snap', desc: '5 stealth lowest · HEMORRHAGES bleed', dmg: 5, element: 'stealth',
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 5); } },
-        sig:   { name: 'Tear', desc: '2♦ · 8 stl dmg lowest + bleed 2', cost: 2, dmg: 8, element: 'stealth',
+        sig:   { name: 'Tear', desc: '8 stealth + bleed 2 (prime) · HEMORRHAGES bleed', cost: 1, dmg: 8, element: 'stealth',
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 8); if (!t[0].dead) t[0].bleed = (t[0].bleed || 0) + 2; } } },
       },
+      // BACK — PRIME (dulled).  Howl numbs the whole pack for her stealth to SUNDER.
       back: {
-        basic: { name: 'Howl', desc: 'Dulled 1 all enemies', dmg: 0,
+        basic: { name: 'Howl', desc: 'Dulled 1 all (prime)', dmg: 0,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { t.forEach(e => { if (!e.dead) e.dulled = (e.dulled || 0) + 1; });
             spawnPassivePopup('kiki', 'HOWL'); } },
-        sig:   { name: 'Pack Cry', desc: '2♦ · Dulled 2 all + party +1 atk pending', cost: 2, dmg: 0,
+        sig:   { name: 'Pack Cry', desc: 'Dulled 2 all (prime) + party +1 atk', cost: 1, dmg: 0,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => {
             t.forEach(e => { if (!e.dead) e.dulled = (e.dulled || 0) + 2; });
