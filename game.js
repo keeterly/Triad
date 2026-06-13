@@ -8374,6 +8374,49 @@ function getTeamSpecialCost(s) {
 // utility (armor strip, AoE pressure, defensive setup, healing).  Players
 // should sometimes choose NOT to fuse — that's the whole point.
 const COMBOS = {
+  // ---- Unleash (single-hero Resonant ultimates) ----
+  // These live in the Resonant group alongside team attacks but require only
+  // ONE hero in play (no bond gate — tier 'unleash' bypasses isComboUnlocked).
+  // They cost 1–2 Resolve and pay off a primed board: each strikes with the
+  // hero's element so it auto-detonates the matching primer (and re-banks the
+  // detonation Resolve), inside the doubled Resonance window.  Once per fight.
+  cassia_unleash: {
+    id: 'cassia_unleash', name: 'Breaking Wave', tier: 'unleash', cost: 2,
+    desc: 'Cassia · 8 physical to ALL — RUPTURE every bleed on the board · Taunt',
+    requires: [{ heroId: 'cassia' }],
+    fn: (s) => {
+      s.currentActorId = 'cassia'; s.currentTechElement = 'physical';
+      try {
+        aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 8));
+        const c = s.party.chars.cassia; if (c && !c.downed) c.taunt = true;
+      } finally { s.currentActorId = null; s.currentTechElement = null; }
+    },
+  },
+  branwen_unleash: {
+    id: 'branwen_unleash', name: 'Rain of Arrows', tier: 'unleash', cost: 2,
+    desc: 'Branwen · 7 ranged to ALL — PUNCTURE every vuln on the board + bleed 2 all',
+    requires: [{ heroId: 'branwen' }],
+    fn: (s) => {
+      s.currentActorId = 'branwen'; s.currentTechElement = 'ranged';
+      try {
+        aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 7));
+        aliveEnemies(s).forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed || 0, 2); });
+      } finally { s.currentActorId = null; s.currentTechElement = null; }
+    },
+  },
+  elin_unleash: {
+    id: 'elin_unleash', name: 'Benediction', tier: 'unleash', cost: 1,
+    desc: 'Elin · 5 holy to ALL — SMITE every vuln (heal party per hit) + heal party 6 + cleanse all',
+    requires: [{ heroId: 'elin' }],
+    fn: (s) => {
+      s.currentActorId = 'elin'; s.currentTechElement = 'holy';
+      try {
+        aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 5));
+        partyHeal(s, 6);
+        aliveParty(s).forEach(c => { if (c && !c.downed) { c.bleed = 0; c.dulled = 0; } });
+      } finally { s.currentActorId = null; s.currentTechElement = null; }
+    },
+  },
   // ---- Duos ----
   banner_volley: {
     id: 'banner_volley', name: 'Banner Volley', tier: 'duo',
@@ -10004,9 +10047,10 @@ function resonancePremium(combo) {
 // Spend-to-fire cost of a team action — a premium over a signature (2) so it's
 // a deliberate save-up, but inside the Resolve cap (4): duo 3, trio 4.
 function uniqueActionCost(combo) {
-  // Resonant-tier pricing (2–4): a trio is the showpiece (4), an L3 "RESONANT"
-  // duo is the climax (3), and a plain duo is the entry-point team move (2).
+  // Resonant-tier pricing: single-hero Unleash 1–2 (per-combo cost), team duo 2,
+  // L3 "RESONANT" duo 3, trio showpiece 4.
   if (!combo) return 2;
+  if (combo.tier === 'unleash') return typeof combo.cost === 'number' ? combo.cost : 2;
   if (combo.tier === 'triple') return 4;
   if (combo.sigTier) return 3;
   return 2;
@@ -15081,6 +15125,10 @@ function _reconcileResonanceUnlocks(s) {
 // (authored AND generic) let the derive helper compute the gate.
 function isComboUnlocked(s, combo) {
   if (!combo) return true;
+  // Single-hero Unleash ultimates have no bond gate — they're available
+  // whenever the hero is in play (the heroes-in-play check lives in
+  // availableUniques).  Always "unlocked" here.
+  if (combo.tier === 'unleash') return true;
   // Chosen Resonance variants ARE the unlock — they only exist in
   // state.run.chosenResonances after the player picked them at the
   // bond's Tier II crossing.  Skip the derive-from-requires check.
@@ -18915,7 +18963,7 @@ function openResonantPanel() {
     const heroIds = combo.requires.map(r => r.heroId);
     const portraits = heroIds.map(id => `<span class="rp-portrait" title="${(CHARS[id] && CHARS[id].name) || id}">${PORTRAITS[id] || ''}</span>`).join('');
     const resonantSuffix = /resonant/i.test(combo.name) ? ' · RESONANT' : '';
-    const tierLabel = combo.tier === 'triple' ? 'TRIO' : 'DUO';
+    const tierLabel = combo.tier === 'unleash' ? 'UNLEASH' : combo.tier === 'triple' ? 'TRIO' : 'DUO';
     return `<button type="button" class="rp-row${affordable ? '' : ' poor'}" data-combo="${combo.id}"${affordable ? '' : ' disabled'}>
       <span class="rp-portraits">${portraits}</span>
       <span class="rp-body"><span class="rp-name">${chipLabel(combo)}${resonantSuffix} <span class="rp-tier">${tierLabel}</span></span><span class="rp-desc">${combo.desc}</span></span>
