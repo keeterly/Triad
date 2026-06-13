@@ -2144,24 +2144,10 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
 .figure.e-charging .figure-shadow {
   box-shadow: 0 0 24px 5px rgba(220,80,80,0.55);
 }
-.figure.e-charging::after {
-  content: 'WIND-UP ' attr(data-release-in);
-  position: absolute;
-  top: -24px; left: 50%;
-  transform: translateX(-50%);
-  font-size: 7.5px;
-  font-weight: 800;
-  letter-spacing: 0.24em;
-  color: #ffd2c2;
-  background: linear-gradient(180deg, rgba(120,30,30,0.95) 0%, rgba(40,10,10,0.95) 100%);
-  border: 1px solid var(--blood-bright);
-  padding: 2px 7px;
-  text-shadow: 0 0 8px rgba(220,80,80,0.7), 0 1px 0 rgba(0,0,0,0.95);
-  z-index: 8;
-  pointer-events: none;
-  animation: e-charging-strap-pulse 0.85s ease-in-out infinite alternate;
-  white-space: nowrap;
-}
+/* The "WIND-UP N" strap was removed — it duplicated the charge intent bubble
+   (⏳ N → target), which already shows the countdown AND the release target.
+   The red figure-glow above carries the urgency. */
+.figure.e-charging::after { display: none; }
 @keyframes e-charging-strap-pulse {
   from { filter: brightness(1);    box-shadow: 0 0 6px rgba(220,80,80,0.4); }
   to   { filter: brightness(1.25); box-shadow: 0 0 14px rgba(220,80,80,0.85); }
@@ -17203,9 +17189,11 @@ body.on-title #hud { display: none !important; }
 }
 
 /* Transition scrim — masks the bright-battlefield flash between chained
-   overlays.  z 259 = just under #overlay (260), above the battlefield. */
+   overlays.  z 49 sits ABOVE the combat UI (z 2–40) but BELOW the toast track
+   (z 50) and #overlay (z 260), so it hides the board during an overlay swap
+   WITHOUT covering toasts (e.g. the campfire Reflect result) or overlays. */
 #flow-scrim {
-  position: absolute; inset: 0; z-index: 259; pointer-events: none;
+  position: absolute; inset: 0; z-index: 49; pointer-events: none;
   background: radial-gradient(ellipse at center, rgba(15,8,4,0.85) 0%, rgba(5,3,2,0.96) 70%);
   opacity: 0; transition: opacity 0.25s ease-out;
 }
