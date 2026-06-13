@@ -17231,40 +17231,41 @@ body.on-title #hud { display: none !important; }
 .info-hero-mastery-progress .ihmp-mark { color: var(--gold-bright); font-size: 11px; }
 .info-hero-mastery-progress .ihmp-text { letter-spacing: 0.02em; }
 
-/* ============ Minimalist-fantasy polish — bond / resonance screens ============ */
-/* FFXIV-style titles: clean light sans, wide tracking, single soft warm-gold
-   tone (no heavy metallic serif / foil gradient). Understated & elegant. */
+/* ============ Bond / resonance screens — unified game style ============ */
+/* FFXVI dark-fantasy register: same refined serif + gold glow the rest of the
+   game uses (base #overlay-title, .ts-title, .bi-name). No bespoke sans, no
+   metallic foil — just the house title treatment with a touch more tracking
+   for the cinematic moment, and a quiet gold hairline. */
 #overlay.overlay-resonance #overlay-title,
 #overlay.overlay-bond-scene #overlay-title,
 #overlay.overlay-bond-climax #overlay-title {
-  font-family: 'Optima', 'Avenir Next', 'Segoe UI', system-ui, sans-serif !important;
-  font-weight: 300; letter-spacing: 0.30em; text-indent: 0.30em;
+  font-family: 'Iowan Old Style', 'Palatino Linotype', Georgia, serif !important;
+  font-weight: 400; letter-spacing: 0.26em;
   text-transform: uppercase;
   background: none; -webkit-background-clip: initial; background-clip: initial;
   -webkit-text-fill-color: currentColor;
-  color: #ece3c8;
-  text-shadow: 0 1px 8px rgba(0,0,0,0.45);
+  color: var(--gold-bright);
+  text-shadow: 0 0 18px rgba(240,212,136,0.45), 0 2px 0 var(--shadow);
   filter: none;
 }
 /* Thin understated rule beneath the title — quiet warm-gold hairline. */
 #overlay.overlay-resonance #overlay-title::after,
 #overlay.overlay-bond-scene #overlay-title::after,
 #overlay.overlay-bond-climax #overlay-title::after {
-  content: ''; display: block; height: 1px; width: 46%; margin: 11px auto 0;
-  text-indent: 0;
+  content: ''; display: block; height: 1px; width: 46%; margin: 10px auto 0;
   -webkit-text-fill-color: initial;
-  background: linear-gradient(90deg, transparent, rgba(220,205,160,0.55) 50%, transparent);
+  background: linear-gradient(90deg, transparent, rgba(230,205,133,0.55) 50%, transparent);
   filter: none;
 }
-/* COMMIT / continue button — notched, light tracked sans. */
+/* COMMIT / continue button — notched, house serif, wide tracking. */
 #overlay.overlay-resonance #overlay-choices .reso-continue {
-  font-family: 'Optima', 'Avenir Next', 'Segoe UI', system-ui, sans-serif;
-  letter-spacing: 0.28em; text-transform: uppercase; font-weight: 500;
+  font-family: 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
+  letter-spacing: 0.26em; text-transform: uppercase; font-weight: 600;
   clip-path: polygon(11px 0, 100% 0, 100% calc(100% - 11px), calc(100% - 11px) 100%, 0 100%, 0 11px);
 }
-/* Pair / trio name in each card header — soft gold, light & wide. */
+/* Pair / trio name in each card header — house serif, soft gold, wide. */
 .reso-section-heroes {
-  font-family: 'Optima', 'Avenir Next', 'Segoe UI', system-ui, sans-serif;
-  color: var(--gold-bright); letter-spacing: 0.14em; font-weight: 400;
+  font-family: 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
+  color: var(--gold-bright); letter-spacing: 0.16em; font-weight: 600;
   text-transform: uppercase;
 }
