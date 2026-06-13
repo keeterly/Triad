@@ -17596,7 +17596,7 @@ function checkEnd(s) {
       // doesn't dwell.  Auto-dismiss timer on the affinity backdrop is
       // also halved in _showAwardBackdrop so the fade-out doesn't
       // outlast the cascade's next-scene fallback.
-      const KILL_HOLD = 800;
+      const KILL_HOLD = 520;
       const BANNER_HOLD = 650;
       // The post-kill cascade: reach banner → affinity fanfare →
       // vignette/recruit/upgrade flow.  Extracted into a local so the
@@ -20869,8 +20869,9 @@ function playKillingBlowHold() {
   const stage = $('#stage');
   if (stage) stage.classList.add('kill-slowmo');
   document.body.classList.add('killing-blow');
-  shakeScreen(2);
-  // Trimmed (1200→850) and tap-to-skip so the win doesn't sit frozen.
+  // No extra shake here — the killing blow (killEnemy / its detonation) already
+  // shook + flashed; a second shake on the now-empty board read as a "weird"
+  // stacked impact.  Just a brief slow-mo hold, tap-to-skip.
   let done = false;
   const end = () => {
     if (done) return; done = true;
@@ -20878,8 +20879,8 @@ function playKillingBlowHold() {
     if (stage) stage.classList.remove('kill-slowmo');
     document.body.classList.remove('killing-blow');
   };
-  const t = setTimeout(end, 850);
-  setTimeout(() => document.addEventListener('pointerdown', end, true), 200);
+  const t = setTimeout(end, 600);
+  setTimeout(() => document.addEventListener('pointerdown', end, true), 180);
 }
 
 // Power-spike — fires when the 2× stagger-consume hit lands.  Brief
