@@ -8417,6 +8417,122 @@ const COMBOS = {
       } finally { s.currentActorId = null; s.currentTechElement = null; }
     },
   },
+  // ---- Unleash (rest of the roster) — same template, themed by school:
+  //   physical → RUPTURE bleed · ranged → PUNCTURE vuln · holy → SMITE vuln +heal
+  //   arcane → DISCHARGE vuln · stealth → HEMORRHAGE bleed.  Each strikes ALL,
+  //   auto-detonating its matching primer inside the doubled Resonance window.
+  korin_unleash: {
+    id: 'korin_unleash', name: 'Bloodstorm', tier: 'unleash', cost: 2,
+    desc: 'Korin · 8 physical to ALL — RUPTURE every bleed + Korin heals 4',
+    requires: [{ heroId: 'korin' }],
+    fn: (s) => { s.currentActorId = 'korin'; s.currentTechElement = 'physical';
+      try { aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 8)); const c = s.party.chars.korin; if (c && !c.downed) c.hp = Math.min(c.maxHp, c.hp + 4); }
+      finally { s.currentActorId = null; s.currentTechElement = null; } },
+  },
+  kai_unleash: {
+    id: 'kai_unleash', name: 'Final Cut', tier: 'unleash', cost: 2,
+    desc: 'Kai · 9 physical to ALL — RUPTURE every bleed on the board',
+    requires: [{ heroId: 'kai' }],
+    fn: (s) => { s.currentActorId = 'kai'; s.currentTechElement = 'physical';
+      try { aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 9)); }
+      finally { s.currentActorId = null; s.currentTechElement = null; } },
+  },
+  garron_unleash: {
+    id: 'garron_unleash', name: 'Earthbreaker', tier: 'unleash', cost: 2,
+    desc: 'Garron · 7 physical to ALL — RUPTURE every bleed + party +3 armor',
+    requires: [{ heroId: 'garron' }],
+    fn: (s) => { s.currentActorId = 'garron'; s.currentTechElement = 'physical';
+      try { aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 7)); partyArmor(s, 3); }
+      finally { s.currentActorId = null; s.currentTechElement = null; } },
+  },
+  tarn_unleash: {
+    id: 'tarn_unleash', name: 'Avalanche', tier: 'unleash', cost: 2,
+    desc: 'Tarn · 7 physical to ALL — RUPTURE every bleed + bleed 1 all',
+    requires: [{ heroId: 'tarn' }],
+    fn: (s) => { s.currentActorId = 'tarn'; s.currentTechElement = 'physical';
+      try { aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 7)); aliveEnemies(s).forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed || 0, 1); }); }
+      finally { s.currentActorId = null; s.currentTechElement = null; } },
+  },
+  joran_unleash: {
+    id: 'joran_unleash', name: 'Long Volley', tier: 'unleash', cost: 2,
+    desc: 'Joran · 7 ranged to ALL — PUNCTURE every vuln + vuln 1 all',
+    requires: [{ heroId: 'joran' }],
+    fn: (s) => { s.currentActorId = 'joran'; s.currentTechElement = 'ranged';
+      try { aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 7)); aliveEnemies(s).forEach(e => { if (!e.dead) e.vuln = (e.vuln || 0) + 1; }); }
+      finally { s.currentActorId = null; s.currentTechElement = null; } },
+  },
+  ash_unleash: {
+    id: 'ash_unleash', name: 'Arc Cascade', tier: 'unleash', cost: 2,
+    desc: 'Ash · 7 arcane to ALL — DISCHARGE every vuln (spread) + vuln 1 all',
+    requires: [{ heroId: 'ash' }],
+    fn: (s) => { s.currentActorId = 'ash'; s.currentTechElement = 'arcane';
+      try { aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 7)); aliveEnemies(s).forEach(e => { if (!e.dead) e.vuln = (e.vuln || 0) + 1; }); }
+      finally { s.currentActorId = null; s.currentTechElement = null; } },
+  },
+  lirien_unleash: {
+    id: 'lirien_unleash', name: 'Requiem', tier: 'unleash', cost: 2,
+    desc: 'Lirien · 6 arcane to ALL — DISCHARGE every vuln + vuln 2 all',
+    requires: [{ heroId: 'lirien' }],
+    fn: (s) => { s.currentActorId = 'lirien'; s.currentTechElement = 'arcane';
+      try { aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 6)); aliveEnemies(s).forEach(e => { if (!e.dead) e.vuln = (e.vuln || 0) + 2; }); }
+      finally { s.currentActorId = null; s.currentTechElement = null; } },
+  },
+  hask_unleash: {
+    id: 'hask_unleash', name: 'Whiteout', tier: 'unleash', cost: 2,
+    desc: 'Hask · 7 arcane to ALL — DISCHARGE every vuln + dulled 1 all',
+    requires: [{ heroId: 'hask' }],
+    fn: (s) => { s.currentActorId = 'hask'; s.currentTechElement = 'arcane';
+      try { aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 7)); aliveEnemies(s).forEach(e => { if (!e.dead) e.dulled = (e.dulled || 0) + 1; }); }
+      finally { s.currentActorId = null; s.currentTechElement = null; } },
+  },
+  nira_unleash: {
+    id: 'nira_unleash', name: 'Hexbloom', tier: 'unleash', cost: 2,
+    desc: 'Nira · 6 arcane to ALL — DISCHARGE every vuln (spread) + vuln 1 all',
+    requires: [{ heroId: 'nira' }],
+    fn: (s) => { s.currentActorId = 'nira'; s.currentTechElement = 'arcane';
+      try { aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 6)); aliveEnemies(s).forEach(e => { if (!e.dead) e.vuln = (e.vuln || 0) + 1; }); }
+      finally { s.currentActorId = null; s.currentTechElement = null; } },
+  },
+  mira_unleash: {
+    id: 'mira_unleash', name: 'Shadefall', tier: 'unleash', cost: 2,
+    desc: 'Mira · 7 stealth to ALL — HEMORRHAGE every bleed + bleed 1 all',
+    requires: [{ heroId: 'mira' }],
+    fn: (s) => { s.currentActorId = 'mira'; s.currentTechElement = 'stealth';
+      try { aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 7)); aliveEnemies(s).forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed || 0, 1); }); }
+      finally { s.currentActorId = null; s.currentTechElement = null; } },
+  },
+  veyr_unleash: {
+    id: 'veyr_unleash', name: 'Last Witness', tier: 'unleash', cost: 2,
+    desc: 'Veyr · 7 stealth to ALL — HEMORRHAGE every bleed + bleed 1 all',
+    requires: [{ heroId: 'veyr' }],
+    fn: (s) => { s.currentActorId = 'veyr'; s.currentTechElement = 'stealth';
+      try { aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 7)); aliveEnemies(s).forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed || 0, 1); }); }
+      finally { s.currentActorId = null; s.currentTechElement = null; } },
+  },
+  kiki_unleash: {
+    id: 'kiki_unleash', name: 'Knife Flurry', tier: 'unleash', cost: 2,
+    desc: 'Kiki · 6 stealth to ALL — HEMORRHAGE every bleed + bleed 1 all',
+    requires: [{ heroId: 'kiki' }],
+    fn: (s) => { s.currentActorId = 'kiki'; s.currentTechElement = 'stealth';
+      try { aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 6)); aliveEnemies(s).forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed || 0, 1); }); }
+      finally { s.currentActorId = null; s.currentTechElement = null; } },
+  },
+  vasha_unleash: {
+    id: 'vasha_unleash', name: 'Dawnsong', tier: 'unleash', cost: 1,
+    desc: 'Vasha · 5 holy to ALL — SMITE every vuln (heal per hit) + heal party 6',
+    requires: [{ heroId: 'vasha' }],
+    fn: (s) => { s.currentActorId = 'vasha'; s.currentTechElement = 'holy';
+      try { aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 5)); partyHeal(s, 6); }
+      finally { s.currentActorId = null; s.currentTechElement = null; } },
+  },
+  kell_unleash: {
+    id: 'kell_unleash', name: 'Hundred Palms', tier: 'unleash', cost: 2,
+    desc: 'Kell · 6 holy to ALL — SMITE every vuln (heal per hit) + heal party 4',
+    requires: [{ heroId: 'kell' }],
+    fn: (s) => { s.currentActorId = 'kell'; s.currentTechElement = 'holy';
+      try { aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 6)); partyHeal(s, 4); }
+      finally { s.currentActorId = null; s.currentTechElement = null; } },
+  },
   // ---- Duos ----
   banner_volley: {
     id: 'banner_volley', name: 'Banner Volley', tier: 'duo',
@@ -18093,13 +18209,20 @@ function renderTiles() {
   const startIdx = (state.executing && typeof state.executingIdx === 'number')
     ? Math.max(0, state.executingIdx)
     : 0;
-  // Pass includeMoves so a QUEUED explicit move re-homes the hero's action
-  // column to their destination slot immediately — the header slot label and
-  // the basic/special tiles all switch to the new slot's moveset (matching
-  // getPreviewState, which the tiles read their tech from).  Without this the
-  // column stayed at the live slot and the moveset never updated on a queued
-  // move.  Embedded tech-moves still wait (includeEmbedded is left off).
-  const sim = simulateSlotsThrough(state, state.queue.length, startIdx, { includeMoves: true });
+  // Source the column layout from the SAME projected state the tiles read their
+  // techs from (getPreviewState), so a queued move re-homes the column AND its
+  // moveset together — they can never disagree.  (Previously the column used a
+  // separate slot projector while the techs used getPreviewState, so the column
+  // could move while the moveset didn't, or vice-versa.)  During execution
+  // getPreviewState returns live state mid-resolution, so fall back to the
+  // step-aware slot projector there.
+  let sim;
+  if (state.executing) {
+    sim = simulateSlotsThrough(state, state.queue.length, startIdx, { includeMoves: true });
+  } else {
+    const pv = getPreviewState();
+    sim = { ...(pv && pv.party && pv.party.slots) };
+  }
   const teamLocked = state.queue.some(q => q.kind === 'team');
   const tileCounts = {};
   state.queue.forEach(q => {
@@ -18839,7 +18962,13 @@ function renderQueue() {
   // Queue strip is a grid of getAtbMax(state) columns; items span by their atb cost.
   // dataset.atbMax drives CSS so the strip can be 3- or 4-wide (Crown of Quickening).
   const atbMax = getAtbMax(state);
-  strip.dataset.atbMax = String(atbMax);
+  // Free (0-ATB) items — the first reposition each turn — still need a visible
+  // cell, but they consume no ATB budget.  Widen the grid by the free-item
+  // count so each free move gets its OWN column instead of overflowing the
+  // fixed atbMax grid (which wrapped/overlapped the strip).  The placeholder
+  // count below stays atbMax-used, so all real ATB cells still show.
+  const freeCells = state.queue.filter(it => (it.atb || 0) === 0).length;
+  strip.dataset.atbMax = String(atbMax + freeCells);
   // Combo-eligibility highlight: pull the union of matched-item indices
   // across every available combo so the queue can glow them gold.
   const matchedIdx = new Set();
@@ -18860,7 +18989,7 @@ function renderQueue() {
       ? '<svg class="qs-team" viewBox="0 0 24 24" aria-hidden="true"><path d="M 12 3 L 21 12 L 12 21 L 3 12 Z" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" fill="none"/></svg>'
       : '';
     el.innerHTML = `
-      <span class="qs-cost">${item.atb}</span>
+      <span class="qs-cost">${(item.atb || 0) > 0 ? item.atb : '·'}</span>
       <span class="qs-avatar">${portraitSvg}${teamGlyph}</span>
       <span class="qs-name">${item.label || ''}</span>
     `;

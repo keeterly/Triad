@@ -7330,8 +7330,12 @@ body.party-critical::after {
   min-width: 0;
   height: 16px;
 }
-#queue-strip[data-atb-max="4"] { grid-template-columns: 1fr 1fr 1fr 1fr; }
-#queue-strip[data-atb-max="5"] { grid-template-columns: 1fr 1fr 1fr 1fr 1fr; }
+#queue-strip[data-atb-max="4"] { grid-template-columns: repeat(4, 1fr); }
+#queue-strip[data-atb-max="5"] { grid-template-columns: repeat(5, 1fr); }
+/* +1/+2 wider when a free (0-ATB) move is queued — it gets its own cell
+   without stealing one of the real ATB cells. */
+#queue-strip[data-atb-max="6"] { grid-template-columns: repeat(6, 1fr); }
+#queue-strip[data-atb-max="7"] { grid-template-columns: repeat(7, 1fr); }
 
 /* bonus ATB cells (earned via weakness exploitation last turn) glow gold */
 .queue-slot.placeholder.bonus {
