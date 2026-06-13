@@ -2610,6 +2610,14 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
    ones).  Force the bracketed slot label visible on empty destinations so EVERY
    move preview — built-in tech move OR explicit move — shows the same label. */
 .figure.empty .target-move-tag { visibility: visible; }
+/* SWAP — the hero displaced out of the destination slot dims (portrait only) so
+   the hero you're actually moving stays the focus; their bracketed tag shows
+   where they'll be pushed to.  Overrides the bright drop-target glow on an
+   occupied slot. */
+.figure.move-displaced .figure-portrait { opacity: 0.4; filter: grayscale(0.55) brightness(0.68); transition: opacity 0.12s ease, filter 0.12s ease; }
+.figure.drop-target.move-displaced { filter: none !important; animation: none !important; outline: 1px dashed rgba(170,200,255,0.4); }
+.target-move-tag.move-tag-displaced { background: rgba(10,8,10,0.82); color: var(--gold-pale); opacity: 0.95; }
+.target-move-tag.move-tag-displaced .move-glyph { opacity: 0.85; }
 
 .target-dmg-label .dmg-num { font-size: 19px; }
 .target-dmg-label .dmg-sub {
@@ -17260,13 +17268,13 @@ body.on-title #hud { display: none !important; }
 #resonant-panel .rp-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 #resonant-panel .rp-name {
   font-family: 'Iowan Old Style','Palatino Linotype',Georgia,serif;
-  font-size: 14px; font-weight: 600; color: var(--gold-bright); letter-spacing: 0.05em;
-  display: flex; align-items: center; gap: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-size: 12.5px; font-weight: 600; color: var(--gold-bright); letter-spacing: 0.05em;
+  display: flex; align-items: center; gap: 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-#resonant-panel .rp-tier { flex: 0 0 auto; font-size: 8px; letter-spacing: 0.16em; color: var(--gold-dim); border: 1px solid rgba(180,160,110,0.4); padding: 1px 5px; border-radius: 2px; }
+#resonant-panel .rp-tier { flex: 0 0 auto; font-size: 7.5px; letter-spacing: 0.16em; color: var(--gold-dim); border: 1px solid rgba(180,160,110,0.4); padding: 1px 5px; border-radius: 2px; }
 /* Full effect text — wraps freely, no ellipsis, so every skill reads completely. */
-#resonant-panel .rp-desc { font-size: 10.5px; color: #c3b99e; line-height: 1.38; letter-spacing: 0.01em; }
-#resonant-panel .rp-cost { flex: 0 0 auto; font: 700 16px 'Iowan Old Style', Georgia, serif; color: var(--gold-bright); }
+#resonant-panel .rp-desc { font-size: 9.5px; color: #c3b99e; line-height: 1.36; letter-spacing: 0.01em; }
+#resonant-panel .rp-cost { flex: 0 0 auto; font: 700 15px 'Iowan Old Style', Georgia, serif; color: var(--gold-bright); }
 #resonant-panel .rp-hint { margin-top: 8px; padding-top: 6px; border-top: 1px solid rgba(220,205,160,0.1); font-size: 9px; color: var(--gold-dim); text-align: center; font-style: italic; letter-spacing: 0.02em; }
 
 /* ===== Layer-entry breath — "Deeper still · Layer N" beat between layers ===== */
