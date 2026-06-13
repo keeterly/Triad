@@ -1636,10 +1636,6 @@ const TEAM_SPECIAL_COST = 3;  // Resolve cost of a team special
 const SIG_COSTS_RESOLVE = true;
 const DETONATE_RESOLVE = 1;   // Resolve banked when a primer detonates
 const WEAKNESS_RESOLVE = 1;   // Resolve banked when a weakness is exploited
-// Detonation CHAIN — each detonation AFTER the first in a single turn deals
-// +DETON_CHAIN_STEP bonus damage per prior detonation, so a planned multi-
-// detonation turn builds to a climax (rewards setup + the big combo turn).
-const DETON_CHAIN_STEP = 3;
 const BRACE_ARMOR = 3;
 // How many stacks of vuln Brace clears from the actor.  Brace was the
 // dead button before — same Resolve-free 1-ATB cost as a basic attack
@@ -12951,19 +12947,6 @@ function applyDmgToEnemy(s, e, baseAmt) {
     }
   }
 
-  // Detonation CHAIN — once per HIT that detonated anything (weakness / stagger
-  // / primer burst), escalate by the number of detonations already landed this
-  // turn.  Planning a turn that pops several in a row pays off harder and
-  // harder; the badge shows the ×N so the climb reads.
-  if (_detonated && amt > 0) {
-    const chain = s._detonChain || 0;
-    if (chain > 0) {
-      amt += chain * DETON_CHAIN_STEP;
-      if (reactionName) schoolBadge = `${reactionName} ×${chain + 1}`;
-    }
-    s._detonChain = chain + 1;
-  }
-
   amt = Math.max(0, amt);
   if (amt === 0) {
     spawnPopupId(e.id, 'miss', 'miss', 'enemy');
@@ -16324,9 +16307,6 @@ function tickCamaraderie(s, committedQueue) {
 
 function resolveQueueStep(i) {
   const s = state;
-  // Reset the detonation chain at the start of each turn's resolution so it
-  // counts THIS turn's combo, not the whole fight.
-  if (i === 0) s._detonChain = 0;
   if (s.over) { s.executing = false; s.executingIdx = -1; s.queue = []; render(); return; }
   if (i >= s.queue.length) {
     s.executingIdx = -1;
