@@ -16947,16 +16947,23 @@ function executeQueueItem(s, item) {
 // Resonance combo system above — see COMBOS and matchingCombos.)
 // ============================================================================
 // Banner reveal used by Resonance combos when they fire.
-// Brief 'REACH CLEARED' callout that flashes after the last enemy falls,
-// before the victory summary opens.  Gives the kill a moment to land
-// instead of jumping straight to a stats overlay.
-function showReachClearedBanner() {
+// Brief survival callout that flashes after the last enemy falls, before the
+// victory summary opens.  The game is about enduring and escaping the abyss,
+// not conquering a level — so the wording frames the win as making it through
+// alive rather than "clearing" anything.  Variant tunes the line to the stakes:
+//   boss  → a named horror is put down
+//   elite → the dark recoils a step
+//   else  → the party simply lives to descend further
+function showReachClearedBanner(variant) {
   if (typeof __simulating !== 'undefined' && __simulating) return;
   const old = document.getElementById('reach-banner');
   if (old) old.remove();
   const b = document.createElement('div');
   b.id = 'reach-banner';
-  b.innerHTML = `<span class="rb-flank">⚔</span><span class="rb-name">REACH CLEARED</span><span class="rb-flank">⚔</span>`;
+  const label = variant === 'boss' ? 'A SIN FALLS'
+    : variant === 'elite' ? 'THE DARK RECOILS'
+    : 'STILL BREATHING';
+  b.innerHTML = `<span class="rb-flank">⚔</span><span class="rb-name">${label}</span><span class="rb-flank">⚔</span>`;
   document.body.appendChild(b);
   // Removed earlier (was 1100ms) so it fades in step with the tightened
   // BANNER_HOLD cascade — leaves the screen ~150ms after the next beat
@@ -17686,7 +17693,7 @@ function checkEnd(s) {
       // vignette/recruit/upgrade flow.  Extracted into a local so the
       // wanderer-fall interlude can park it behind the cinematic beat.
       const runPostKillCascade = () => {
-        showReachClearedBanner();
+        showReachClearedBanner(isBoss ? 'boss' : (s.run.lastVictoryElite ? 'elite' : null));
         setTimeout(() => {
           const awarded = awardQuirkAfterWin(s, completedNode);
           const backdropUp = !!document.getElementById('quirk-award-backdrop');
@@ -24761,7 +24768,7 @@ function showVictorySummary(completedEnc, onContinue) {
   const encName = completedEnc?.name || 'The Reach';
   const isBoss = !!(completedEnc && completedEnc.boss);
   const isElite = !!(completedEnc && completedEnc.elite);
-  const subtitle = isBoss ? 'Boss reach cleared' : (isElite ? 'Elite reach cleared' : 'Reach cleared');
+  const subtitle = isBoss ? 'A sin falls' : (isElite ? 'The dark recoils' : 'Still breathing');
 
   $('#overlay-title').textContent = encName;
   const body = $('#overlay-body');
