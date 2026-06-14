@@ -13557,6 +13557,7 @@ function applyDmgToEnemy(s, e, baseAmt) {
 
 function killEnemy(s, e) {
   e.dead = true;
+  e._diedAt = Date.now();   // gate the death-dissolve to a short window (see makeEnemyCard)
   // Charm — Shadow Coal: first kill each fight grants +1 bonus Resolve.
   if (s.run && s.run._charmFirstKillPending) {
     s.run._charmFirstKillPending = false;
@@ -18643,8 +18644,11 @@ function makeEnemyCard(e, slot) {
     // the death actually PLAYS — the killing blow reads as "hit → they fall →
     // victory" instead of the enemy blinking out and the win holding on empty
     // space (which read as a weird delay).  Mid-fight kills get advance-filled
-    // out of their slot, so only the final corpse(s) render here.
-    if (e && e.dead && !__simulating) {
+    // out of their slot, so only the final corpse(s) render here.  Gate to a
+    // short window after death so a re-render AFTER the dissolve finished
+    // doesn't re-draw the corpse (it looked like the enemy "popped up" again
+    // post-combat) — past the window it renders as a plain empty slot.
+    if (e && e.dead && !__simulating && e._diedAt && (Date.now() - e._diedAt) < 1000) {
       fig.classList.add('figure-dying');
       fig.innerHTML = `<div class="figure-portrait">${_portraitFor(e.heroId || e.id)}</div><div class="figure-shadow"></div><div class="figure-info"><div class="figure-name">—</div></div>`;
       return fig;
@@ -18955,8 +18959,20 @@ function renderStatuses(ent, sForAuras) {
 // etc.  Uses a placeholder pass so a replacement's own text (e.g. "kw-armor"
 // inside a class attribute) can't be re-matched by a later rule.
 const DESC_SCHOOL_GLYPH = { physical: '⚔', holy: '✦', arcane: '✶', ranged: '➳', stealth: '◐' };
+const _DESC_DET_ICON = { bleed: '✤', vuln: '⊕', dulled: '↓' };
 const DESC_KEYWORDS = [
   // longer phrases first so they win over shorter sub-matches
+  // Detonation shorthand — collapse "detonates BLEED (Rupture)" / "RUPTURES
+  // bleed" / "PUNCTURES vuln" / "SMITES every vuln (heal party)" etc. into ONE
+  // compact "✺<primer>" chip.  The idea reads at a glance: this attack POPS that
+  // status for bonus damage; the reaction-name jargon lives in the status chip's
+  // own tooltip.  Runs first so it claims the phrase before the bleed/vuln rules.
+  { re: /\b(?:detonates?|ruptures?|hemorrhages?|punctures?|discharges?|smites?|sunders?)\s+(?:every\s+|all\s+|the\s+)?(bleed|vuln|dulled)(?:\s*\/\s*(bleed|vuln|dulled))?(?:\s+(?:hard|on the board|on every hit|per hit))?(?:\s*→\s*[A-Za-z]+)?(?:\s*\([^)]*\))?/gi,
+    html: (_m, p1, p2) => {
+      const chip = (p) => { const k = p.toLowerCase();
+        return `<span class="kw kw-det kw-det-${k}" data-tip="Detonate — strike a foe that already has this status to burst it for bonus damage and bank Resolve.">✺${_DESC_DET_ICON[k] || ''}</span>`; };
+      return p2 ? `${chip(p1)} ${chip(p2)}` : chip(p1);
+    } },
   { re: /\bretreat full\b/gi,
     html: () => '<span class="kw kw-retreat">◀◀ retreat full</span>' },
   { re: /\bself-taunt\b/gi,

@@ -3075,6 +3075,12 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
 .kw-retreat        { color: var(--frost); }
 .kw-bleed          { color: #e07a6a; }
 .kw-vuln           { color: #ff8a8a; }
+/* Detonation chip — burst glyph + the primer it pops, in the primer's colour.
+   Reads as "this attack combines with that status" without the long wording. */
+.kw-det            { font-weight: 800; letter-spacing: 0; }
+.kw-det-bleed      { color: #ef8676; }
+.kw-det-vuln       { color: #ff9a9a; }
+.kw-det-dulled     { color: #c2c8d2; }
 .kw-armor          { color: var(--armor); }
 .kw-taunt          { color: var(--taunt); }
 .kw-retal          { color: var(--gold-bright); }
@@ -7897,7 +7903,9 @@ body.party-critical::after {
   font-style: italic;
   white-space: normal;
   text-align: center;
-  z-index: 50;
+  /* Above the Resonant-Skill crest band (#ts-area) so the held-action tooltip
+     is never half-hidden behind it. */
+  z-index: 95;
   box-shadow:
     0 10px 30px rgba(0,0,0,0.85),
     0 0 24px rgba(200,164,100,0.18),
@@ -14403,6 +14411,15 @@ body.boss-fight #enemy-half .figure-name {
   color: var(--blood-bright);
   text-shadow: 0 0 12px rgba(220,80,80,0.4);
 }
+/* De-clutter the boss readout — the status-chip row used to sit at the very top
+   (2px) and overlapped the HP text (-18px above the bar at 32px), so armour /
+   weakness / primer chips piled onto the HP numbers.  Float the chip row BELOW
+   the wide HP bar instead, giving a clean top-down read: HP text → HP bar →
+   status chips → intent. */
+body.boss-fight #enemy-half .figure-statuses {
+  top: 46px;
+  gap: 5px;
+}
 
 /* ===========================================================================
    MULTI-ACTOR BOSS FIGHT — Sundering Choir (Voices), Husk Garden (Blooms),
@@ -17157,6 +17174,9 @@ body.on-title #hud { display: none !important; }
 #ts-area.reso-crest-host {
   display: flex; flex-direction: row; align-items: flex-end;
   justify-content: center; height: auto; pointer-events: none;
+  /* Sit below a held-action tooltip (.tile-desc z 95) so the tooltip is never
+     half-hidden behind the crest. */
+  z-index: 8;
 }
 #ts-area.reso-crest-host .resonant-crest {
   pointer-events: auto;
