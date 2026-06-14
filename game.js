@@ -16665,17 +16665,19 @@ function tickCamaraderie(s, committedQueue) {
         for (let l = levelBefore + 1; l <= levelAfter; l++) newLevels.push(l);
         _queueResonanceChoice(s, a, b, newLevels);
       }
-      // Level-up fanfare — cinematic beat + side toast.  None at Level 0.
+      // Level-up signal.  DURING combat a deepen is announced ONLY by a
+      // non-blocking side toast — the full cinematic beat (and any Resonance
+      // variant pick) is deferred to the post-fight cascade via the choice
+      // queued above.  Kizuna used to wedge a tap-to-Continue card between the
+      // player and enemy phases here; that read as a mid-turn interruption.
+      // Now it lands as a post-fight reward instead (see _showBatchResonance
+      // Choice → _playBondCutscenes).
       if (levelAfter > levelBefore && levelAfter >= 1) {
         const nameA = (CHARS[a] && CHARS[a].name) || a;
         const nameB = (CHARS[b] && CHARS[b].name) || b;
         const ca = s.party.chars[a], cb = s.party.chars[b];
         const portraitAnchor = (ca && cb && (ca.hp / ca.maxHp) <= (cb.hp / cb.maxHp)) ? a : b;
         const themed = !bondName.startsWith('Camaraderie:');
-        // Centered cinematic beat (queued — multiple bonds can deepen in the
-        // same end-of-turn sweep).  Interactive: held as a tap-to-Continue
-        // beat that gates the enemy turn so the level-up is readable.
-        playBondDeepen(a, b, levelAfter, true);
         spawnToast({
           category: 'bond',
           cls: levelAfter === 3 ? 'qa-bond-resonant' : 'qa-bond-deepened',
@@ -16733,16 +16735,14 @@ function resolveQueueStep(i) {
       s.executing = false; s.executingIdx = -1; render(); return;
     }
     render();
-    // Resonance unlock choices were originally drained here (between
-    // the player phase and the enemy phase), but the overlay landing
-    // mid-fight broke combat flow — the player would just queue
-    // actions, hit Fight, and get yanked into a Resonance picker
-    // before the enemy even responded.  Now the queued choices
-    // accumulate during combat and surface AFTER the fight clears
-    // (see runPostKillCascade in checkEnd → onVictoryCascade).
-    // Hold the enemy turn behind any turn-end bond-deepen Continue beats so
-    // the player reads the level-up before the board moves again.
-    drainBondDeepensInteractive(() => setTimeout(() => resolveEnemyTurn(s), pace(360)));
+    // Kizuna no longer interrupts the turn cycle.  BOTH the Resonance variant
+    // picks AND the cinematic bond-deepen beats accumulate during combat and
+    // surface AFTER the fight clears (post-fight cascade: banner → affinity →
+    // bond cutscenes / Resonance picker — see runPostKillCascade and
+    // _showBatchResonanceChoice → _playBondCutscenes).  Mid-fight a deepen is
+    // signalled only by a non-blocking side toast, so the enemy phase follows
+    // the player phase directly with no Continue card wedged between them.
+    setTimeout(() => resolveEnemyTurn(s), pace(360));
     return;
   }
   const item = s.queue[i];
