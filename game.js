@@ -22804,6 +22804,54 @@ function showRestOverlay() {
     }, 'reflect');
   }
 
+  // 6. Deepen a bond — bump a party pair's kizuna toward its next tier.
+  // +2 fire-count advances roughly one band (thresholds 2/4/6); combat reads
+  // synergyCounts live, so it lands immediately.  One pair per fire; only
+  // adjacent, both-alive pairs that aren't already at L3 are offered.
+  if (!used.bond) {
+    const sc = state.run.synergyCounts = state.run.synergyCounts || {};
+    [['front', 'mid'], ['mid', 'back']].forEach(([sa, sb]) => {
+      const a = state.party.slots[sa], b = state.party.slots[sb];
+      if (!a || !b || state.party.chars[a].downed || state.party.chars[b].downed) return;
+      const name = bondNameForPair(a, b);
+      const curTier = getBondLevel(state, name);
+      if (curTier >= 3) return;
+      const nextTier = getBondLevel(state, name, (sc[name] || 0) + 2);
+      const label = name.startsWith('Camaraderie:') ? `${CHARS[a].name} & ${CHARS[b].name}` : name;
+      const tag = nextTier > curTier ? `${label} → ${BOND_LEVEL_ROMAN[nextTier]}` : `${label} · deepen`;
+      mkChoice('Deepen a bond', tag, () => {
+        sc[name] = (sc[name] || 0) + 2;
+        log(`<i><b>${label}</b> deepens by the fire.</i>`);
+        used.bond = true;
+        reopen();
+      }, 'bond');
+    });
+  }
+
+  // 7. Raise the camp — spend Kindling to build a camp upgrade mid-run.  Same
+  // upgrades as the between-descents Camp screen; the effect lands from the
+  // next fight (startEncounter reads the camp record).  One per fire; only
+  // affordable, gate-met, not-yet-built (and not "coming") upgrades show.
+  if (!used.camp) {
+    const camp = getCamp();
+    const gateMet = (u) => !u.requires || u.requires.roster.some(id => camp.roster.includes(id));
+    CAMP_UPGRADES.forEach(u => {
+      if (u.coming || (camp.upgrades && camp.upgrades[u.id]) || !gateMet(u)) return;
+      if (getEmbersBalance() < u.cost) return;
+      mkChoice('Raise the camp', `${u.name} · ✦ ${u.cost}`, () => {
+        if (getEmbersBalance() < u.cost) return;
+        _setEmbersBalance(getEmbersBalance() - u.cost);
+        const cc = getCamp();
+        cc.upgrades = cc.upgrades || {};
+        cc.upgrades[u.id] = true;
+        saveCamp(cc);
+        log(`<i>The party raises <b>${u.name}</b> by the fire.</i>`);
+        used.camp = true;
+        reopen();
+      }, 'camp');
+    });
+  }
+
   resetOverlayBtn();
   // Leave the fire — the only way out of the on-demand campfire; returns to
   // the world map (no node to complete, since the fire isn't a map node).
@@ -24371,14 +24419,16 @@ function showRunSummary(outcome, opts) {
   // the run's haul BEFORE banking so the summary can show it; the bank
   // happens immediately after so a crash-after-summary still preserves
   // the payout.
-  const _embersThisRun = (state && state._isDevRun) ? 0 : _getPendingEmbers();
+  const _pendingThisRun = (state && state._isDevRun) ? 0 : _getPendingEmbers();
   if (state && state._isDevRun) discardPendingEmbers();
   else commitEmbersForRun();
 
-  // Fold this finished run into the Camp record (salvage gathered, who walked
-  // out, who fell, and — on a wipe — the camp left behind for a future party
-  // to find).  Additive; doesn't touch the existing summary/ascend flow.
-  recordExpeditionToCamp(outcome);
+  // Fold this finished run into the Camp record (who walked out, who fell, and
+  // — on a wipe — the camp left behind for a future party).  The salvage haul
+  // banks straight into Kindling; capture it so the summary "+N banked" line
+  // reflects everything earned this descent (in-run payouts + the haul).
+  const _haulThisRun = recordExpeditionToCamp(outcome);
+  const _embersThisRun = _pendingThisRun + (_haulThisRun || 0);
 
   let title, flavor, outcomeClass;
   if (outcome === 'boss') { title = 'The Wakeling Falls'; flavor = 'The Sin of Dawn is unmade.  The triad endures, and the world breathes again.'; outcomeClass = 'rs-boss'; }

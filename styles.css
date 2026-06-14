@@ -12511,6 +12511,8 @@ button.path-node:not(:disabled):hover {
 .rest-choice-heal  { border-left: 3px solid var(--heal); }
 .rest-choice-hone  { border-left: 3px solid var(--gold-bright); }
 .rest-choice-sigil { border-left: 3px solid #aacfff; }
+.rest-choice-bond  { border-left: 3px solid #d98fb0; }
+.rest-choice-camp  { border-left: 3px solid #c89858; }
 /* Revive — soft pulsing gold accent on the left border so the
    choice reads as a 'rare second chance' beat when it's available
    (only shows when a hero is down).  Pulse keeps the eye drawn to
