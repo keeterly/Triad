@@ -12448,6 +12448,18 @@ function startEncounter(encSpec) {
     state.pendingBonusAtb = (state.pendingBonusAtb || 0) + state.run.bonusAtbNextFight;
     state.run.bonusAtbNextFight = 0;
   }
+  // The Camp — upgrades the party has RAISED between descents carry into
+  // every fight.  Read from the persistent camp record so meta-progression
+  // is felt in-run.  Hearth: +1 Resolve.  Healer's Tent: +2 armor each.
+  try {
+    const _camp = getCamp();
+    if (_camp.upgrades && _camp.upgrades.hearth) {
+      state.resolve = Math.min(RESOLVE_MAX + sigilBonus(state, 'memory'), state.resolve + 1);
+    }
+    if (_camp.upgrades && _camp.upgrades.infirmary) {
+      Object.values(state.party.chars).forEach(c => { if (!c.downed) c.armor += 2; });
+    }
+  } catch (_) {}
   // Sigil of Steel — start each fight with +2 armor on each party
   // member (scales with sigil level: 2 / 3 / 4 at I / II / III).
   if (hasSigil(state, 'steel')) {
@@ -27476,7 +27488,14 @@ function _normalizeCamp(p) {
     expeditions: Math.max(0, parseInt(p.expeditions, 10) || 0),
     stores: Math.max(0, parseInt(p.stores, 10) || 0),
     lastSurvivors: Array.isArray(p.lastSurvivors) ? p.lastSurvivors.filter(x => typeof x === 'string') : [],
+    // Every hero who has ever walked out of a descent alive.  This is the camp's
+    // permanent builder roster — each one adds a fixture (narrative) and raises
+    // the supply the camp can carry back (mechanical).  Distinct from
+    // lastSurvivors, which is only the most recent descent.
+    roster: Array.isArray(p.roster) ? Array.from(new Set(p.roster.filter(x => typeof x === 'string'))) : [],
     fallen: Array.isArray(p.fallen) ? p.fallen.filter(x => typeof x === 'string') : [],
+    // Camp upgrades the party has RAISED (built).  Map of upgrade id → true.
+    // Read at fight start so a raised upgrade carries into every descent.
     upgrades: (p.upgrades && typeof p.upgrades === 'object') ? p.upgrades : {},
     // Ghost camp left by the last party that died — what a future party would
     // find on its campsite node.  null until a party falls.
@@ -27509,12 +27528,19 @@ function recordExpeditionToCamp(outcome) {
     c.expeditions += 1;
     const layer = (state.run && typeof state.run.layer === 'number') ? state.run.layer : 1;
     // Salvage scales with how deep the party reached; a boss kill gathers more.
-    const haul = outcome === 'boss' ? layer * 4 + 6 : layer * 3;
+    const baseHaul = outcome === 'boss' ? layer * 4 + 6 : layer * 3;
+    // Camp supply — every hand the camp already has brings back more (+10% each,
+    // capped at +100%).  Computed from the roster as it stood BEFORE this
+    // descent's survivors are folded in, so it reads as "the camp's standing".
+    const supplyMult = 1 + Math.min(1, (c.roster.length || 0) * 0.1);
+    const haul = Math.round(baseHaul * supplyMult);
     c.stores += haul;
     const ids = Object.keys((state.party && state.party.chars) || {});
     const survivors = ids.filter(id => state.party.chars[id] && !state.party.chars[id].downed);
     const fell = ids.filter(id => state.party.chars[id] && state.party.chars[id].downed);
     c.lastSurvivors = survivors;
+    // Fold survivors into the permanent builder roster (each adds a fixture).
+    survivors.forEach(id => { if (!c.roster.includes(id)) c.roster.push(id); });
     fell.forEach(id => { if (!c.fallen.includes(id)) c.fallen.push(id); });
     // A wipe (no survivors, not a boss clear) leaves the camp in the dark.
     if (outcome !== 'boss' && !survivors.length) {
@@ -27525,16 +27551,46 @@ function recordExpeditionToCamp(outcome) {
   } catch (_) { return 0; }
 }
 
-// Camp upgrades — things the party raises around the fire as it grows.
-// Prototype: shown as sealed goals (cost in Salvage) so the direction is
-// legible; each telegraphs a system from the wider design (Resolve economy,
-// survival/escape, Kizuna persistence, the affinity layer).  Not yet buildable.
+// Heroes whose kit mends — they can raise the Healer's Tent.  Elin heals the
+// lowest ally, Cassia's Rally heals the party, Garron clamps a falling ally to
+// 1 HP.  Any one of them at the fire unlocks the Tent.
+const CAMP_MENDERS = ['elin', 'cassia', 'garron'];
+
+// Camp upgrades — things the party RAISES around the fire as it grows.  Spend
+// Salvage to build one; a raised upgrade then carries into every descent
+// (effects applied at fight start, read from the camp record).
+//   built:    none yet — set in camp.upgrades[id] when raised.
+//   requires: an optional gate — a marquee upgrade stays sealed until the
+//             right hero has joined the builder roster.
+//   coming:   telegraphed goal — legible direction, not yet buildable.
 const CAMP_UPGRADES = [
-  { id: 'hearth',    name: 'The Hearth',    cost: 20, desc: 'A proper fire — the party begins each descent with +1 Resolve.' },
-  { id: 'infirmary', name: 'The Healer’s Tent', cost: 35, desc: 'Tend the wounded between descents — the fallen are carried out, not left to the dark.' },
-  { id: 'shrine',    name: 'Bond Shrine',   cost: 30, desc: 'One Kizuna bond endures from one descent to the next.' },
-  { id: 'reliquary', name: 'The Reliquary', cost: 45, desc: 'Afflictions you survive harden into affinities.' },
+  { id: 'hearth',    name: 'The Hearth',    cost: 20,
+    desc: 'A proper fire — begin every fight with +1 Resolve.' },
+  { id: 'infirmary', name: 'The Healer’s Tent', cost: 35,
+    desc: 'A mender’s tent — each hero wakes every fight with +2 armor.',
+    requires: { roster: CAMP_MENDERS, label: 'a healer at the fire' } },
+  { id: 'shrine',    name: 'Bond Shrine',   cost: 30, coming: true,
+    desc: 'One Kizuna bond endures from one descent to the next.' },
+  { id: 'reliquary', name: 'The Reliquary', cost: 45, coming: true,
+    desc: 'Afflictions you survive harden into affinities.' },
 ];
+
+// A fixture each hero plants around the fire when they first walk out alive.
+// Narrative half of contribution — the camp visibly fills in as the cast grows.
+const CAMP_FIXTURES = {
+  kai:    { glyph: '⚔', text: 'a whetstone, worn smooth by the fire' },
+  cassia: { glyph: '⚑', text: 'a banner planted in the ash' },
+  garron: { glyph: '⛨', text: 'a warden’s shield set against the stone' },
+  korin:  { glyph: '⌖', text: 'a tally-post, notched in red' },
+  ash:    { glyph: '❖', text: 'a veil-charm strung from a branch' },
+  lirien: { glyph: '♪', text: 'a songbook, its pages curling' },
+  mira:   { glyph: '✜', text: 'throwing-knives sunk in a stump' },
+  elin:   { glyph: '✚', text: 'a mending-kit and dried herbs' },
+  veyr:   { glyph: '†', text: 'a row of small grave-markers' },
+};
+function campFixtureFor(id) {
+  return CAMP_FIXTURES[id] || { glyph: '◈', text: 'a bedroll laid out by the fire' };
+}
 
 function buildCampContainer() {
   const root = document.createElement('div');
@@ -27553,10 +27609,11 @@ function buildCampContainer() {
         <span class="cmp-stores-glyph">⛬</span>
         <b class="cmp-stores-val">0</b>
         <span class="cmp-stores-label">Salvage gathered</span>
+        <span class="cmp-supply" id="cmp-supply"></span>
       </div>
       <section class="cmp-fireside" id="cmp-abandoned"></section>
       <section class="cmp-roster">
-        <h3 class="cmp-section-title">Around the Fire <span class="cmp-section-sub">· who walked out</span></h3>
+        <h3 class="cmp-section-title">Around the Fire <span class="cmp-section-sub">· who built this camp</span></h3>
         <div class="cmp-survivors" id="cmp-survivors"></div>
       </section>
       <section class="cmp-upgrades">
@@ -27583,6 +27640,14 @@ function showCamp() {
     ? `Descent <b>${c.expeditions}</b> · the fire still burns`
     : `No one has descended yet · the fire waits`;
   root.querySelector('.cmp-stores-val').textContent = c.stores;
+  // Supply multiplier — each hand at the fire brings back more salvage.
+  const supplyMult = 1 + Math.min(1, (c.roster.length || 0) * 0.1);
+  const supplyEl = root.querySelector('#cmp-supply');
+  if (supplyEl) {
+    supplyEl.innerHTML = c.roster.length
+      ? `<b>×${supplyMult.toFixed(1)}</b> supply · ${c.roster.length} hand${c.roster.length === 1 ? '' : 's'} at the fire`
+      : '';
+  }
 
   // Abandoned campsite — the ghost camp a future party would find.  Prototype
   // teaser: surfaced here so the mechanic reads even before the map node ships.
@@ -27604,32 +27669,78 @@ function showCamp() {
     abEl.classList.add('hidden');
   }
 
-  // Around the fire — who walked out of the last descent.
+  // Around the fire — the full builder roster, each with the fixture they
+  // planted.  Heroes who walked out of the LAST descent are marked "present".
   const survEl = root.querySelector('#cmp-survivors');
-  if (c.lastSurvivors.length) {
-    survEl.innerHTML = c.lastSurvivors.map(id => `
-      <div class="cmp-survivor">
+  const present = new Set(c.lastSurvivors);
+  if (c.roster.length) {
+    survEl.innerHTML = c.roster.map(id => {
+      const fx = campFixtureFor(id);
+      return `
+      <div class="cmp-survivor${present.has(id) ? ' cmp-survivor-present' : ''}">
         <div class="cmp-survivor-portrait">${PORTRAITS[id] || ''}</div>
         <span class="cmp-survivor-name">${(CHARS[id] && CHARS[id].name) || id}</span>
-      </div>`).join('');
+        <span class="cmp-survivor-fixture"><span class="cmp-fixture-glyph">${fx.glyph}</span> ${fx.text}</span>
+      </div>`;
+    }).join('');
   } else {
     survEl.innerHTML = `<p class="cmp-empty">No one sits at the fire.  Send a party into the abyss and bring them home.</p>`;
   }
 
-  // Camp upgrades — sealed goal cards (prototype, not yet buildable).
+  // Camp upgrades — raise one by spending Salvage.  Four states: already
+  // raised, telegraphed-but-not-yet (coming), gated on a hero, or buildable.
   const upEl = root.querySelector('#cmp-upgrade-grid');
+  const gateMet = (u) => !u.requires || u.requires.roster.some(id => c.roster.includes(id));
   upEl.innerHTML = CAMP_UPGRADES.map(u => {
+    const built = !!(c.upgrades && c.upgrades[u.id]);
+    const met = gateMet(u);
     const affordable = c.stores >= u.cost;
+    const buildable = !built && !u.coming && met && affordable;
+    let cls, mark, foot;
+    if (built) {
+      cls = 'cmp-upgrade-built'; mark = '✦';
+      foot = `<div class="cmp-upgrade-raised">Raised</div>`;
+    } else if (u.coming) {
+      cls = 'cmp-upgrade-sealed'; mark = '🔒';
+      foot = `<div class="cmp-upgrade-cost cmp-upgrade-soon">stirring — not yet</div>`;
+    } else if (!met) {
+      cls = 'cmp-upgrade-locked'; mark = '🔒';
+      foot = `<div class="cmp-upgrade-cost cmp-upgrade-gate">Needs ${u.requires.label}</div>`;
+    } else if (buildable) {
+      cls = 'cmp-upgrade-ready'; mark = '◇';
+      foot = `<button type="button" class="cmp-raise-btn" data-up="${u.id}">Raise · <span class="cmp-upgrade-cost-glyph">⛬</span> ${u.cost}</button>`;
+    } else {
+      cls = 'cmp-upgrade-sealed'; mark = '🔒';
+      foot = `<div class="cmp-upgrade-cost"><span class="cmp-upgrade-cost-glyph">⛬</span> ${u.cost}</div>`;
+    }
     return `
-      <div class="cmp-upgrade ${affordable ? 'cmp-upgrade-ready' : 'cmp-upgrade-sealed'}">
-        <div class="cmp-upgrade-lock">${affordable ? '◇' : '🔒'}</div>
+      <div class="cmp-upgrade ${cls}">
+        <div class="cmp-upgrade-lock">${mark}</div>
         <div class="cmp-upgrade-body">
           <div class="cmp-upgrade-name">${u.name}</div>
           <div class="cmp-upgrade-desc">${u.desc}</div>
         </div>
-        <div class="cmp-upgrade-cost"><span class="cmp-upgrade-cost-glyph">⛬</span> ${u.cost}</div>
+        ${foot}
       </div>`;
   }).join('');
+  // Wire the Raise buttons — spend the salvage, mark the upgrade raised, and
+  // re-render so the card flips to "Raised" and the new effect is banked.
+  upEl.querySelectorAll('.cmp-raise-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = btn.getAttribute('data-up');
+      const u = CAMP_UPGRADES.find(x => x.id === id);
+      if (!u) return;
+      const camp = getCamp();
+      if (camp.stores < u.cost || (camp.upgrades && camp.upgrades[id])) return;
+      camp.stores -= u.cost;
+      camp.upgrades = camp.upgrades || {};
+      camp.upgrades[id] = true;
+      saveCamp(camp);
+      Audio.ui();
+      showCamp();
+    });
+  });
 
   // The Lost — cumulative memorial of heroes who never returned.
   const memEl = root.querySelector('#cmp-memorial');
