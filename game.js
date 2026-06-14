@@ -22102,10 +22102,15 @@ function renderMap() {
   const _fireAfford = getEmbersBalance() >= _fireCost;
   $('#overlay-body').innerHTML = `<span class="path-subtitle">${_pathSubtitle}</span>` +
     `<button type="button" id="map-campfire-btn" class="map-campfire${_fireAfford ? '' : ' map-campfire-poor'}"${_fireAfford ? '' : ' disabled'} ` +
-    `title="Light a campfire — rest, revive, hone, deepen a bond, or raise the camp" ` +
-    `data-tip="Light a campfire — rest, revive, hone, deepen a bond, or raise the camp">` +
-    `<span class="mcf-icon" aria-hidden="true">⌂</span><span class="mcf-label">Light a campfire</span>` +
-    `<span class="mcf-cost">✦ ${_fireCost}</span></button>`;
+    `title="Light a campfire — heal, revive, hone, deepen a bond, or raise the camp" ` +
+    `data-tip="Light a campfire — heal, revive, hone, deepen a bond, or raise the camp">` +
+    `<span class="mcf-fire" aria-hidden="true">` +
+      `<span class="mcf-flame"></span><span class="mcf-flame mcf-flame-2"></span>` +
+      `<span class="mcf-ember"></span><span class="mcf-ember mcf-ember-2"></span><span class="mcf-ember mcf-ember-3"></span>` +
+    `</span>` +
+    `<span class="mcf-text"><span class="mcf-label">Light a campfire</span>` +
+      `<span class="mcf-sub">heal · revive · hone · bond · camp</span></span>` +
+    `<span class="mcf-cost"><span class="mcf-cost-glyph">✦</span> ${_fireCost}</span></button>`;
   const choices = $('#overlay-choices');
   choices.innerHTML = '';
   choices.classList.add('path-map');
@@ -22237,7 +22242,6 @@ function renderMap() {
       if (getEmbersBalance() < cost) { flashMsg('Not enough Kindling.'); return; }
       _setEmbersBalance(getEmbersBalance() - cost);
       state.run.firesLit = (state.run.firesLit || 0) + 1;
-      state.run._fireUsed = {};
       Audio.ui();
       hideOverlay();
       choices.classList.remove('path-map');
@@ -22604,22 +22608,19 @@ function campfireCost(s) {
   return CAMPFIRE_BASE_COST + lit * CAMPFIRE_STEP_COST;
 }
 
-// The on-demand campfire hub.  Lit from the world map (paying Kindling), it's
-// a multi-action fire: Rest / Revive / Hone / Oath / Reflect — do as many as
-// apply, then "Leave the fire" to return to the map.  (No longer a map node;
-// the fixed Rest node was retired in favour of player-timed fires.)
+// The on-demand campfire.  Lit from the world map (paying Kindling), it offers
+// the party ONE thing before they climb on: Rest / Revive / Hone / Oath /
+// Reflect / Deepen a bond / Raise the camp.  Taking any action — or leaving —
+// returns to the map.  (No longer a map node; the fixed Rest node was retired.)
 function showRestOverlay() {
   $('#overlay-title').textContent = 'Campfire';
   $('#overlay').classList.remove('overlay-path', 'overlay-vignette', 'overlay-runsummary');
   $('#overlay').classList.add('overlay-full', 'overlay-rest');
-  // On-demand campfire hub: the player lit this fire from the world map
-  // (paying Kindling), so each action returns to the FIRE (re-render) rather
-  // than completing a node — do several things, then "Leave the fire".
-  // _fireUsed tracks the one-shot actions spent at THIS fire; it's reset when
-  // a new fire is lit (see the map's Light-a-campfire handler) and on leave.
-  const used = state.run._fireUsed = state.run._fireUsed || {};
-  const reopen = () => showRestOverlay();
-  const leave = () => { state.run._fireUsed = {}; renderMap(); };
+  // One action per fire: taking any action — or leaving — returns to the map.
+  // hideOverlay first so the 'overlay-rest' class (and the campfire scene) is
+  // cleared before renderMap re-dresses the overlay as the map; without it the
+  // map would inherit campfire styling.
+  const done = () => { hideOverlay(); renderMap(); };
   const body = $('#overlay-body');
   body.classList.remove('victory-summary-body', 'welcome-body', 'run-summary-body');
   body.innerHTML = '';
@@ -22659,7 +22660,7 @@ function showRestOverlay() {
 
   const flavor = document.createElement('p');
   flavor.className = 'event-flavor rest-flavor';
-  flavor.textContent = 'The fire holds back the dark.  Take what you need — then leave the fire when you are ready to climb on.';
+  flavor.textContent = 'The fire holds back the dark a while.  Choose one thing it can give — then climb on.';
   body.appendChild(flavor);
 
   const choices = $('#overlay-choices');
@@ -22667,20 +22668,23 @@ function showRestOverlay() {
   choices.classList.remove('path-map', 'party-inspect');
   choices.classList.add('event-choices');
 
-  const mkChoice = (label, tag, fn, kind) => {
+  let _choiceIdx = 0;
+  const mkChoice = (label, tag, fn, kind, icon) => {
     const card = document.createElement('button');
-    card.className = `encounter-choice event-choice${kind ? ` rest-choice-${kind}` : ''}`;
-    card.innerHTML = `<div class="enc-name">${label}</div><div class="sigil-desc">${tag}</div>`;
+    card.className = `encounter-choice event-choice rest-choice${kind ? ` rest-choice-${kind}` : ''}`;
+    // Stagger index drives the entrance animation delay (see .rest-choice CSS).
+    card.style.setProperty('--ci', _choiceIdx++);
+    card.innerHTML = `<span class="rest-choice-icon" aria-hidden="true">${icon || '✦'}</span>` +
+      `<span class="rest-choice-text"><span class="enc-name">${label}</span><span class="sigil-desc">${tag}</span></span>`;
     card.addEventListener('click', fn);
     choices.appendChild(card);
   };
 
-  // 1. Rest — heal half of all missing HP across the party.  One-shot per
-  // fire (tracked in _fireUsed) so it can't be spammed up to full.  Shown
-  // only while someone is actually wounded.
+  // 1. Rest — heal half of all missing HP across the party.  Shown only while
+  // someone is actually wounded (pick-one fire, so no spam concern).
   const anyHurt = aliveParty(state).some(c => c.hp < c.maxHp);
-  if (!used.rest && anyHurt) {
-    mkChoice('Rest', 'Heal half', () => {
+  if (anyHurt) {
+    mkChoice('Rest', 'Heal half the missing HP across the party', () => {
       const lines = [];
       aliveParty(state).forEach(c => {
         const missing = c.maxHp - c.hp;
@@ -22688,9 +22692,8 @@ function showRestOverlay() {
         if (heal > 0) { c.hp = Math.min(c.maxHp, c.hp + heal); lines.push(`<b>${CHARS[c.id].name}</b> +${heal} HP`); }
       });
       if (lines.length) log(lines.join(' · '));
-      used.rest = true;
-      reopen();
-    }, 'heal');
+      done();
+    }, 'heal', '✚');
   }
 
   // 1b. Revive — bring a fallen hero back at 25% of their max HP.
@@ -22722,21 +22725,19 @@ function showRestOverlay() {
       target.staggered = false;
       target.pendingEffects = [];
       log(`<i><b>${heroName}</b> draws breath again — back at <b>${revHp}</b> HP.</i>`);
-      // No used-flag: revive naturally vanishes once no one is downed, so a
-      // fire can raise more than one fallen, one at a time.
-      reopen();
-    }, 'revive');
+      done();
+    }, 'revive', '❖');
   }
 
   // 2. Hone — upgrade one tech.  Only shown if any upgrades remain.
   const upPool = availableUpgrades(state);
-  if (!used.hone && upPool.length > 0) {
+  if (upPool.length > 0) {
     mkChoice('Hone the edge', 'Choose a tech upgrade', () => {
       choices.classList.remove('event-choices');
       const shuffled = upPool.slice().sort(() => Math.random() - 0.5);
       const offers = shuffled.slice(0, Math.min(2, shuffled.length));
-      showUpgradeOverlay(offers, () => { used.hone = true; reopen(); });
-    }, 'hone');
+      showUpgradeOverlay(offers, () => done());
+    }, 'hone', '⚒');
   }
 
   // (Sigils intentionally removed from the rest menu — the sigil
@@ -22748,11 +22749,11 @@ function showRestOverlay() {
   // single hero, permanent for the run.  Hidden entirely until the
   // player has downed the Layer 6 mega-boss at least once (see
   // isOathUnlocked); deep-build complexity locked behind real progress.
-  if (!used.oath && aliveParty(state).length > 0 && isOathUnlocked()) {
+  if (aliveParty(state).length > 0 && isOathUnlocked()) {
     mkChoice('Speak an Oath', 'Trade something away for power', () => {
       choices.classList.remove('event-choices');
-      showOathOverlay(() => { used.oath = true; reopen(); });
-    }, 'oath');
+      showOathOverlay(() => done());
+    }, 'oath', '⌖');
   }
 
   // 4. Reflect — context-aware introspection.  Shed an ailment if anyone
@@ -22762,8 +22763,8 @@ function showRestOverlay() {
   const aliveHeroes = aliveParty(state);
   const negCarriers = aliveHeroes.filter(c => c.quirks && c.quirks.negative && c.quirks.negative.length > 0);
   const posRoom = aliveHeroes.filter(c => c.quirks && (c.quirks.positive || []).length < QUIRK_CAP);
-  if (!used.reflect && negCarriers.length > 0) {
-    mkChoice('Reflect on regret', 'Shed one ailment from the party', () => {
+  if (negCarriers.length > 0) {
+    mkChoice('Reflect on regret', 'Shed one negative quirk from the party', () => {
       // Pick the hero with the most negatives, then their first negative
       // quirk.  Simple and predictable — no extra picker UI needed.
       const tgt = negCarriers.slice().sort((a, b) => b.quirks.negative.length - a.quirks.negative.length)[0];
@@ -22780,13 +22781,13 @@ function showRestOverlay() {
         showQuirkLost(tgt.id, qid);
         log(`<i><b>${CHARS[tgt.id].name}</b> lets go of <b>${q.name}</b>.</i>`);
       }
-      // Hold the gap so the toast is visible before the fire re-renders
-      // over it.  900ms is enough to read the quirk name + the bark; the
-      // toast auto-fades on its own timer once the fire is back up.
-      setTimeout(() => { used.reflect = true; reopen(); }, 900);
-    }, 'reflect');
-  } else if (!used.reflect && posRoom.length > 0) {
-    mkChoice('Reflect on triumph', 'Grant a quirk to a hero', () => {
+      // Hold the gap so the toast is visible before the map covers it again.
+      // 900ms is enough to read the quirk name + the bark; the toast auto-
+      // fades on its own timer once the map is up.
+      setTimeout(() => done(), 900);
+    }, 'reflect', '❂');
+  } else if (posRoom.length > 0) {
+    mkChoice('Reflect on triumph', 'Grant a positive quirk to a hero', () => {
       // Pick a hero with the most empty positive slots.  Hero-locked
       // affinities prefer their named owner.
       const tgt = posRoom.slice().sort((a, b) => a.quirks.positive.length - b.quirks.positive.length)[0];
@@ -22803,15 +22804,15 @@ function showRestOverlay() {
         grantQuirk(state, tgt.id, q.id);
         log(`<i><b>${CHARS[tgt.id].name}</b> reflects and grows — <b>${q.name}</b>.</i>`);
       }
-      setTimeout(() => { used.reflect = true; reopen(); }, 900);
-    }, 'reflect');
+      setTimeout(() => done(), 900);
+    }, 'reflect', '❂');
   }
 
   // 6. Deepen a bond — bump a party pair's kizuna toward its next tier.
   // +2 fire-count advances roughly one band (thresholds 2/4/6); combat reads
   // synergyCounts live, so it lands immediately.  One pair per fire; only
   // adjacent, both-alive pairs that aren't already at L3 are offered.
-  if (!used.bond) {
+  {
     const sc = state.run.synergyCounts = state.run.synergyCounts || {};
     [['front', 'mid'], ['mid', 'back']].forEach(([sa, sb]) => {
       const a = state.party.slots[sa], b = state.party.slots[sb];
@@ -22825,9 +22826,8 @@ function showRestOverlay() {
       mkChoice('Deepen a bond', tag, () => {
         sc[name] = (sc[name] || 0) + 2;
         log(`<i><b>${label}</b> deepens by the fire.</i>`);
-        used.bond = true;
-        reopen();
-      }, 'bond');
+        done();
+      }, 'bond', '♡');
     });
   }
 
@@ -22835,7 +22835,7 @@ function showRestOverlay() {
   // upgrades as the between-descents Camp screen; the effect lands from the
   // next fight (startEncounter reads the camp record).  One per fire; only
   // affordable, gate-met, not-yet-built (and not "coming") upgrades show.
-  if (!used.camp) {
+  {
     const camp = getCamp();
     const gateMet = (u) => !u.requires || u.requires.roster.some(id => camp.roster.includes(id));
     CAMP_UPGRADES.forEach(u => {
@@ -22849,18 +22849,16 @@ function showRestOverlay() {
         cc.upgrades[u.id] = true;
         saveCamp(cc);
         log(`<i>The party raises <b>${u.name}</b> by the fire.</i>`);
-        used.camp = true;
-        reopen();
-      }, 'camp');
+        done();
+      }, 'camp', '⌂');
     });
   }
 
   resetOverlayBtn();
-  // Leave the fire — the only way out of the on-demand campfire; returns to
-  // the world map (no node to complete, since the fire isn't a map node).
+  // Leave the fire — climb on without taking anything (the fire is spent).
   const _leaveBtn = $('#overlay-btn');
   _leaveBtn.textContent = 'Leave the fire';
-  _leaveBtn.onclick = leave;
+  _leaveBtn.onclick = done;
   _leaveBtn.classList.remove('hidden');
   choices.classList.remove('hidden');
   $('#overlay').classList.remove('hidden');
