@@ -11966,7 +11966,10 @@ function newState(forcedStarter) {
     run: {
       currentNodeId: null,   // id of the node player is currently fighting (or null between fights)
       completedNodes: [],    // ids of cleared map nodes, in completion order
-      firesLit: 0,           // on-demand campfires lit this run — drives the escalating Kindling cost
+      // On-demand campfires lit this DESCENT — drives the escalating Kindling
+      // cost.  Carries across layers (see saveCarriedParty) and resets to 0
+      // only when the team wipes and the carried record is cleared.
+      firesLit: (carried && typeof carried.firesLit === 'number') ? carried.firesLit : 0,
       currentEnc: null,      // spec of the active encounter (set by startEncounter)
       sigils: (carried && Array.isArray(carried.sigils)) ? carried.sigils.slice() : [],            // ids of acquired sigils (run-wide modifiers) — carried across layers
       sigilLevels: (carried && carried.sigilLevels && typeof carried.sigilLevels === 'object') ? { ...carried.sigilLevels } : {}, // per-sigil tier — duplicate binds level them up
@@ -27204,7 +27207,11 @@ function saveCarriedParty(s) {
     // Consumables carry across layers like sigils — a stockpile shouldn't
     // reset on every boss-clear.
     const inventory = ((s.run && s.run.inventory) || []).slice();
-    const data = { chars, slots, sigils, lockedOutHeroes, sigilLevels, resolveMaxBonus, synergyCounts, chosenResonances, ackedResonances, inventory };
+    // Campfire count carries across the whole descent so the escalating fire
+    // cost keeps climbing layer to layer — it only resets when the team dies
+    // (a wipe clears the carried record, so the next descent starts at 0).
+    const firesLit = (s.run && s.run.firesLit) || 0;
+    const data = { chars, slots, sigils, lockedOutHeroes, sigilLevels, resolveMaxBonus, synergyCounts, chosenResonances, ackedResonances, inventory, firesLit };
     localStorage.setItem(CARRIED_KEY, JSON.stringify(data));
   } catch (_) {}
 }
