@@ -6942,15 +6942,24 @@ function isMapNodeReachable(s, nodeId) {
   const last = s.run.map.nodes[completed[completed.length - 1]];
   return !!(last && last.next.includes(nodeId));
 }
-// Fog of war — a node is DISCERNIBLE (its type/details shown) only if it's
-// already cleared, an immediate next choice, or the boss (the destination is
-// always visible).  Everything further down the path reads as an unknown until
-// the player steps closer.
-function mapNodeRevealed(s, node) {
-  if (!node) return false;
-  if (node.type === 'boss') return true;
+// Fog of war — three tiers of visibility from where the player stands:
+//   'full'   — cleared nodes + the boss (the destination is always visible).
+//   'faint'  — the immediate next choices (one node ahead): you can make out
+//              what they are, but only dimly.
+//   'fogged' — everything further down the path: an unknown "?" until you step
+//              closer.
+function mapNodeVisibility(s, node) {
+  if (!node) return 'fogged';
+  if (node.type === 'boss') return 'full';
   const st = mapNodeStatus(s, node.id);
-  return st === 'completed' || st === 'reachable';
+  if (st === 'completed') return 'full';
+  if (st === 'reachable') return 'faint';
+  return 'fogged';
+}
+// Discernible — its type/details may be shown (on the map and on inspect).
+// Faint (one-ahead) counts; only fully-fogged nodes hide their identity.
+function mapNodeRevealed(s, node) {
+  return mapNodeVisibility(s, node) !== 'fogged';
 }
 function mapEdges() {
   const map = _runMap();
@@ -22177,10 +22186,14 @@ function renderMap() {
       const status = mapNodeStatus(state, node.id);
       const enc = node.enc;
       const isClickable = status === 'reachable';
-      const revealed = mapNodeRevealed(state, node);
+      const vis = mapNodeVisibility(state, node);
+      const fogged = vis === 'fogged';
+      const faint = vis === 'faint';
       const el = document.createElement(isClickable ? 'button' : 'div');
-      // Fogged nodes drop their type class so CSS can't colour-hint what they are.
-      el.className = `path-node node-${revealed ? node.type : 'fogged'} node-${status}${revealed ? '' : ' node-fogged'}`;
+      // Fogged nodes drop their type class so CSS can't colour-hint what they
+      // are; faint nodes (one ahead) keep their type but render dimmed.
+      el.className = `path-node node-${fogged ? 'fogged' : node.type} node-${status}` +
+        `${fogged ? ' node-fogged' : ''}${faint ? ' node-faint' : ''}`;
       el.dataset.nodeId = node.id;
       // Per-node jitter — tiny stable offset so nodes don't perfectly
       // line up column-to-column.  Boss is the destination and stays
@@ -22216,8 +22229,8 @@ function renderMap() {
       // glance.  Pulse ring renders only on reachable nodes (CSS-side).
       el.innerHTML = `
         <span class="pn-pulse" aria-hidden="true"></span>
-        <span class="pn-icon">${revealed ? typeGlyph : '?'}</span>
-        <span class="pn-label">${revealed ? typeLabel : '???'}</span>
+        <span class="pn-icon">${fogged ? '?' : typeGlyph}</span>
+        <span class="pn-label">${fogged ? '???' : typeLabel}</span>
         ${status === 'completed' ? '<span class="pn-check" aria-hidden="true">✓</span>' : ''}
       `;
 

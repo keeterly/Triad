@@ -9466,6 +9466,12 @@ button.path-node { cursor: pointer; }
   letter-spacing: 0.32em;
 }
 .path-node.node-fogged .pn-pulse { display: none; }
+/* Faint — the immediate next choices (one node ahead): their type stays legible
+   but dimmed, so the next step reads as a faint glimpse, not a bright beacon.
+   They're still the tappable nodes, so a soft pulse remains. */
+.path-node.node-faint { opacity: 0.62; }
+.path-node.node-faint .pn-pulse { opacity: 0.45; }
+.path-node.node-faint:hover { opacity: 0.85; }
 .path-node.node-elite { border-color: rgba(255,185,104,0.55); }
 .path-node.node-boss  { border-color: rgba(255,120,104,0.65); }
 .path-node.node-rest  { border-color: rgba(152,216,120,0.45); }
