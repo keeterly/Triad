@@ -2510,7 +2510,7 @@ const ENEMIES = {
   },
   cultist: {
     id: 'cultist', name: 'Cultist', title: 'Sin of Whispers', maxHp: 13,
-    weakness: 'physical', resistance: 'arcane',
+    weakness: 'physical', resistance: 'arcane', school: 'arcane',
     intents: [
       { name: 'Curse',     tag: 'DULL 2',         targetSlot: 'front', kind: 'debuff', fn: (s) => dullSlot(s, 'front', 2) },
       { name: 'Hex',       tag: 'ATK 2 + dull',   targetSlot: 'front', kind: 'atk',    dmg: 2, fn: (s) => { dmgPartyAt(s, 'front', 2); dullSlot(s, 'front', 1); } },
@@ -2519,7 +2519,7 @@ const ENEMIES = {
   },
   wraith: {
     id: 'wraith', name: 'Wraith', title: 'Sin of Sorrow', maxHp: 12,
-    weakness: 'arcane', resistance: 'physical',
+    weakness: 'arcane', resistance: 'physical', school: 'arcane',
     intents: [
       { name: 'Spectral Bolt', tag: 'ATK 5',     targetSlot: 'back', kind: 'atk', dmg: 5, fn: (s) => dmgPartyAt(s, 'back', 5) },
       { name: 'Wail',          tag: 'ATK 2 all', targetSlot: 'all',  kind: 'aoe', dmg: 2, fn: (s) => dmgAllParty(s, 2) },
@@ -2528,7 +2528,7 @@ const ENEMIES = {
   },
   lineCaster: {
     id: 'lineCaster', name: 'Line Caster', title: 'Sin of Voices', maxHp: 16,
-    weakness: 'ranged', resistance: 'arcane',
+    weakness: 'ranged', resistance: 'arcane', school: 'arcane',
     intents: [
       { name: 'Verse of Faces',   tag: 'ATK 3 F+M', targetSlot: 'fm',  kind: 'aoe', dmg: 3, fn: (s) => dmgLinePair(s, 'fm', 3) },
       { name: 'Discord',          tag: 'ATK 4 + vuln', targetSlot: 'mid', kind: 'atk', dmg: 4, fn: (s) => { dmgPartyAt(s, 'mid', 4); applyVulnParty(s, 'mid', 1); } },
@@ -2537,7 +2537,7 @@ const ENEMIES = {
   },
   sniper: {
     id: 'sniper', name: 'Sniper', title: 'Sin of Distance', maxHp: 14,
-    weakness: 'stealth', resistance: 'ranged',
+    weakness: 'stealth', resistance: 'ranged', school: 'ranged',
     intents: [
       { name: 'Aimed Shot',       tag: 'ATK 6',        targetSlot: 'back',   kind: 'atk',    dmg: 6, fn: (s) => dmgPartyAt(s, 'back', 6) },
       { name: 'Pierce',           tag: 'ATK 3 M+B',    targetSlot: 'pierce', kind: 'aoe',    dmg: 3, fn: (s) => dmgPierce(s, 3) },
@@ -12893,6 +12893,33 @@ const REACTION_STACK_CAP = 5;
 // the run-defining play.  Tuned alongside the tier-4 cinematic so the hit
 // looks AND hits like the showpiece it is.
 const RESONANCE_DETONATE_MULT = 2;
+// Player-side detonation — the bidirectional, Persona-style CRIT.  When an enemy
+// strikes a hero carrying a primer that its element pops, the blow ERUPTS for
+// bonus damage and consumes the primer.  Mirrors resolveReaction, but now the
+// enemy is the one exploiting YOUR exposed state.  Returns { name, bonus } | null.
+function resolvePlayerReaction(s, c, element) {
+  if (!c || c.downed || !element) return null;
+  const cap = STATUS_CAP;
+  // Bleed — physical reopens it, stealth tears it (leaving a fresh wound).
+  if (c.bleed > 0 && (element === 'physical' || element === 'stealth')) {
+    const stacks = Math.min(c.bleed, cap);
+    c.bleed = (element === 'stealth') ? 1 : 0;
+    return { name: 'RUPTURED!', bonus: stacks * 3 };
+  }
+  // Vuln — the cracked guard; ranged / arcane / holy blow it wide open.
+  if (c.vuln > 0 && (element === 'ranged' || element === 'arcane' || element === 'holy')) {
+    const stacks = Math.min(c.vuln, cap);
+    c.vuln = 0;
+    return { name: 'EXPOSED!', bonus: stacks * 2 };
+  }
+  // Dulled — a numbed guard caves to martial blows.
+  if (c.dulled > 0 && (element === 'physical' || element === 'stealth')) {
+    const stacks = Math.min(c.dulled, cap);
+    c.dulled = 0;
+    return { name: 'SUNDERED!', bonus: stacks * 2 };
+  }
+  return null;
+}
 function resolveReaction(s, e, element) {
   if (!e || e.dead || !element) return null;
   // Resonance payoff — a primer detonated INSIDE a Resonance combo erupts for
@@ -13764,7 +13791,16 @@ function applyDmgToParty(s, c, amt) {
   }
   // Run modifier — "Hunger" twists Front-position damage taken upward
   if (hasRunModifier(s, 'hunger') && slotOfChar(s, c.id) === 'front') amt += 1;
-  // Vulnerable on party
+  // Enemy exploit — the bidirectional detonation (Persona-style crit).  If the
+  // enemy's element pops a primer this hero carries, the blow erupts for bonus
+  // damage and consumes the primer.  Resolved BEFORE the universal vuln amp so a
+  // vuln-detonation eats the stack itself (no double-count).
+  let _pReaction = null;
+  if (amt > 0) {
+    _pReaction = resolvePlayerReaction(s, c, s.currentTechElement || 'physical');
+    if (_pReaction) amt += _pReaction.bonus;
+  }
+  // Vulnerable on party — universal amp (skipped if a vuln-detonation ate it).
   if (c.vuln > 0 && amt > 0) { amt += 2; c.vuln = Math.max(0, c.vuln - 1); }
   const absorbed = Math.min(c.armor, amt);
   c.armor = Math.max(0, c.armor - amt);
@@ -13782,11 +13818,18 @@ function applyDmgToParty(s, c, amt) {
   // Number drama on incoming hits too — a heavy enemy blow lands as a big
   // red number with a sharp impact, so a dangerous swing reads as a felt
   // moment rather than a routine tick.  Same ladder as outgoing hits, scaled
-  // off raw damage (enemies have no weakness/detonation tiers against us).
+  // off raw damage — and now an enemy DETONATION lands as a crit-tier moment.
   const pSizeClass = toHp >= 12 ? ' huge' : toHp >= 7 ? ' big' : '';
   spawnPopupId(c.id, `-${toHp}`, 'dmg' + pSizeClass, 'party');
   flashCardId(c.id, 'hit', 'party');
-  const pTier = toHp >= 16 ? 3 : toHp >= 10 ? 2 : toHp >= 6 ? 1 : 0;
+  let pTier = toHp >= 16 ? 3 : toHp >= 10 ? 2 : toHp >= 6 ? 1 : 0;
+  if (_pReaction && !__simulating) {
+    // The exploit always reads as a crit — a threatening red callout + the
+    // heavier impact tier so being primed FEELS dangerous.
+    pTier = Math.max(pTier, 3);
+    spawnPopupId(c.id, _pReaction.name, 'enemy-crit', 'party');
+    log(`<b>${CHARS[c.id].name}</b> is exploited — <b>${_pReaction.name}</b>`);
+  }
   impactFeedback('party', c.id, pTier, toHp);
   // Enemy attack type — abilities set s.currentTechElement; basic strikes
   // fall back to physical.  Drives both the per-type sound and the hit FX
@@ -17413,10 +17456,15 @@ function resolveEnemyStep(s, i) {
     // damage would be wrongly attributed to the dead/stale actor
     // (Mirror Shard's enrage bonus would leak into other enemies).
     s._currentEnemyActor = e;
+    // The enemy's attack carries an ELEMENT (intent override → enemy school →
+    // physical), so the bidirectional detonation can match it against a primer
+    // the target hero carries — and the hit FX reads the element too.
+    s.currentTechElement = intent.element || (ENEMIES[e.id] && ENEMIES[e.id].school) || 'physical';
     try {
       intent.fn(s);
     } finally {
       s._currentEnemyActor = null;
+      s.currentTechElement = null;
     }
     if (checkEnd(s)) { s.executing = false; render(); return; }
     e.intentIdx = (e.intentIdx + 1) % def.intents.length;

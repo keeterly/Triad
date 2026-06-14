@@ -3265,6 +3265,15 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
   text-shadow: 0 1px 0 var(--shadow), 0 0 24px var(--gold-bright), 0 0 9px #fff7e0;
   animation: popup-burst 1s cubic-bezier(0.2, 0.85, 0.25, 1) forwards;
 }
+/* Enemy DETONATION — the exploit landing on a HERO.  Red + heavy, the
+   threatening mirror of the gold player-side reaction (RUPTURED!/EXPOSED!/…). */
+.popup.enemy-crit {
+  color: var(--blood-bright);
+  font-size: 26px; font-weight: 900;
+  letter-spacing: 0.04em;
+  text-shadow: 0 1px 0 var(--shadow), 0 0 22px rgba(220,40,40,0.9), 0 0 9px #ff7a7a;
+  animation: popup-burst 1s cubic-bezier(0.2, 0.85, 0.25, 1) forwards;
+}
 @keyframes popup-burst {
   0%   { transform: translate(-50%, 2px)  scale(0.35); opacity: 0; }
   13%  { transform: translate(-50%, -6px) scale(1.55); opacity: 1; }  /* the BANG */
