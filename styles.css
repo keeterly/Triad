@@ -4308,6 +4308,12 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
   .cmp-survivor { width: 54px; }
   .cmp-upgrade-grid { grid-template-columns: 1fr; }
 }
+/* Campsite node overlay — a dead party's cold camp.  Reuses the rest scene
+   layout; ghosts read as dimmed, the fire is long out. */
+.overlay-campsite .campsite-ghost { opacity: 0.5; filter: grayscale(0.55) brightness(0.85); }
+.overlay-campsite .campsite-ghost-name { color: var(--ink-faint); letter-spacing: 0.08em; }
+.overlay-campsite .campsite-deadfire { opacity: 0.55; filter: grayscale(0.4); }
+.overlay-campsite .campsite-deadfire .ts-fire-logs { box-shadow: 0 0 18px rgba(80,60,50,0.3); }
 
 /* ===========================================================================
    STARTER CHOOSER — horizontal lineup of standing silhouettes.
