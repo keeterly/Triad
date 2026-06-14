@@ -20901,7 +20901,7 @@ function showNodeTooltip(anchorEl, node) {
     : node.type === 'wanderer' ? (wandererHero ? `${wandererHero.title || 'A hero on the road'}.  Trade, fight, or walk past.` : 'A meeting on the road.')
     : node.type === 'forge'    ? 'Burn a sigil to forge a hero a permanent boon.'
     : node.type === 'shop'     ? 'Spend pending Embers on one-time consumables.'
-    : node.type === 'campsite' ? 'A fallen party’s last camp.  Claim the salvage they left.'
+    : node.type === 'campsite' ? 'A fallen party’s last camp.  Loot it for salvage — or rest at the fire.'
     : node.type === 'boss' ? `${bossName}.  No escape but through.`
     : node.type === 'elite' ? `Tech upgrade.${sigilCat ? ` Themed: ${sigilCat}.` : ''}`
     : 'Affinity progression.';
@@ -22746,27 +22746,59 @@ function showCampsiteOverlay(node) {
   choices.classList.remove('path-map', 'party-inspect');
   choices.classList.add('event-choices');
 
-  const finish = () => {
-    // Claim the salvage into the persistent camp stores and clear the ghost
-    // record so this campsite can never be found again.
+  // Clear the ghost record (the camp is found either way) and close out the
+  // node.  Salvage banks into the persistent camp stores only when looted.
+  const settle = (claimedSalvage) => {
     try {
       const c = getCamp();
-      c.stores += gained;
+      if (claimedSalvage) c.stores += gained;
       c.abandoned = null;
       saveCamp(c);
     } catch (_) {}
-    if (gained > 0) log(`<i>You gather <b>${gained}</b> salvage from the cold camp.</i>`);
     hideOverlay();
     choices.classList.remove('event-choices');
     $('#overlay').classList.remove('overlay-campsite');
     _completeNonCombatNode();
   };
 
-  const claim = document.createElement('button');
-  claim.className = 'encounter-choice event-choice rest-choice-heal';
-  claim.innerHTML = `<div class="enc-name">Claim the salvage</div><div class="sigil-desc">${gained > 0 ? `+${gained} salvage to your camp` : 'pay your respects'}</div>`;
-  claim.addEventListener('click', finish);
-  choices.appendChild(claim);
+  // LOOT — take everything they left, but the dark may have noticed.  ~45%
+  // chance something was nesting in the ash: a random survivor is bitten
+  // (capped so it can't drop them) and left bleeding.  Greed vs. caution.
+  const loot = document.createElement('button');
+  loot.className = 'encounter-choice event-choice rest-choice-heal';
+  loot.innerHTML = `<div class="enc-name">Loot the camp</div><div class="sigil-desc">${gained > 0 ? `+${gained} salvage` : 'pick the bones'} · the dark may stir</div>`;
+  loot.addEventListener('click', () => {
+    if (gained > 0) log(`<i>You strip the cold camp — <b>${gained}</b> salvage.</i>`);
+    const alive = aliveParty(state);
+    if (alive.length && Math.random() < 0.45) {
+      const victim = alive[Math.floor(Math.random() * alive.length)];
+      const bite = Math.min(Math.max(1, victim.hp - 1), Math.ceil(victim.maxHp * 0.25));
+      victim.hp = Math.max(1, victim.hp - bite);
+      victim.bleed = Math.max(victim.bleed || 0, 2);
+      log(`<i>Something was nesting in the ash — <b>${CHARS[victim.id].name}</b> takes ${bite} and starts bleeding.</i>`);
+      try { spawnPopupId(victim.id, `-${bite}`, 'dmg', 'party'); } catch (_) {}
+    } else {
+      log('<i>Nothing stirs.  You take what you need and move on.</i>');
+    }
+    settle(true);
+  });
+  choices.appendChild(loot);
+
+  // REST — relight their fire instead of robbing it; heal the party half
+  // their missing HP (a Hollow Rest's worth) and leave the salvage behind.
+  const rest = document.createElement('button');
+  rest.className = 'encounter-choice event-choice rest-choice-revive';
+  rest.innerHTML = `<div class="enc-name">Rest at the fire</div><div class="sigil-desc">Heal half · leave the salvage</div>`;
+  rest.addEventListener('click', () => {
+    const lines = [];
+    aliveParty(state).forEach(c => {
+      const heal = Math.ceil((c.maxHp - c.hp) * 0.5);
+      if (heal > 0) { c.hp = Math.min(c.maxHp, c.hp + heal); lines.push(`<b>${CHARS[c.id].name}</b> +${heal}`); }
+    });
+    log(lines.length ? `<i>You relight their fire and breathe.  ${lines.join(' · ')}</i>` : '<i>You relight their fire and sit a while.</i>');
+    settle(false);
+  });
+  choices.appendChild(rest);
 
   resetOverlayBtn();
   $('#overlay-btn').classList.add('hidden');
