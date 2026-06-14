@@ -2014,12 +2014,13 @@ const CHARS = {
     home: 'front',
     passive: { name: "Warden's Word", desc: 'While Garron holds Front, the first ally who would fall each fight is clamped to 1 HP and Garron loses 4 HP for the save.' },
     techs: {
-      // FRONT — hold + PRIME/DETONATE.  Garron plants the gate (taunt) and his
-      // physical blows both open bleed and RUPTURE it as the wall grinds down.
+      // FRONT — hold + PRIME (DULLED)/DETONATE.  Garron plants the gate (taunt);
+      // his heavy halt NUMBS (dulled) the foe, and his physical blows RUPTURE
+      // ally-bleed AND SUNDER dulled as the wall grinds down.
       front: {
-        basic: { name: 'Halt', desc: '5 dmg + bleed 1 (prime) · detonates BLEED · self-taunt', dmg: 5,
+        basic: { name: 'Halt', desc: '5 dmg + dulled 1 (prime) · detonates BLEED/DULLED · self-taunt', dmg: 5,
           reach: ['front'], pattern: 'front-most',
-          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 5); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 1); } const g = s.party.chars.garron; if (g && !g.downed) g.taunt = true; } },
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 5); if (!t[0].dead) t[0].dulled = (t[0].dulled || 0) + 1; } const g = s.party.chars.garron; if (g && !g.downed) g.taunt = true; } },
         sig:   { name: 'Bulwark', desc: '4 dmg + Party +3⛨ + self-taunt', dmg: 4,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 4); partyArmor(s, 3); const g = s.party.chars.garron; if (g && !g.downed) g.taunt = true; } },
@@ -2182,17 +2183,18 @@ const CHARS = {
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 5)); } },
       },
-      // BACK — PRIME.  Chill / Frost-Lock freeze vuln onto the board for his
-      // arcane to DISCHARGE.
+      // BACK — PRIME (DULLED).  Frost numbs: Chill / Frost-Lock freeze DULLED
+      // onto the board for the team's physical/stealth blows to SUNDER.  (Hask's
+      // arcane front/mid moves still DISCHARGE any vuln an ally set up.)
       back: {
-        basic: { name: 'Chill Mist', desc: '2 all + vuln 1 front (prime) · DISCHARGES vuln', dmg: 2,
+        basic: { name: 'Chill Mist', desc: '2 all + dulled 1 front (prime) · DISCHARGES vuln', dmg: 2,
           reach: ['front','mid','back'], pattern: 'all',
-          fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 2)); if (t[0] && !t[0].dead) t[0].vuln += 1; } },
-        sig:   { name: 'Frost-Lock', desc: '6 lowest + vuln 2 all (prime)', cost: 1, dmg: 6,
+          fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 2)); if (t[0] && !t[0].dead) t[0].dulled = (t[0].dulled || 0) + 1; } },
+        sig:   { name: 'Frost-Lock', desc: '6 lowest + dulled 2 all (prime)', cost: 1, dmg: 6,
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => {
             if (t[0]) applyDmgToEnemy(s, t[0], 6);
-            aliveEnemies(s).forEach(e => { if (!e.dead) e.vuln += 2; });
+            aliveEnemies(s).forEach(e => { if (!e.dead) e.dulled = (e.dulled || 0) + 2; });
           } },
       },
     },
