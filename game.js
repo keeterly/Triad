@@ -6760,6 +6760,12 @@ function generateMap(layerOverride) {
   const levels = [];
   const nodes = {};
   let idCounter = 0;
+  // Abandoned campsite — if a previous party wiped, their cold camp can be
+  // FOUND once somewhere in this descent: a mid-layer event slot becomes a
+  // 'campsite' node the new party can claim for the salvage left behind.
+  // Read the ghost record up front; a closure flag keeps it to one placement.
+  const _abandonedCamp = (typeof getCamp === 'function') ? getCamp().abandoned : null;
+  let _campsitePlaced = false;
   // Filter out hidden / secret events whose `when(state)` predicate
   // doesn't match the current run.  Open events are always in the pool;
   // secrets unlock based on layer, party comp, sigil count, etc.
@@ -6842,6 +6848,17 @@ function generateMap(layerOverride) {
       }
     }
 
+    // Campsite slot — a previously-wiped party's abandoned camp surfaces once
+    // per descent (guaranteed when a ghost camp exists), converting a mid-
+    // layer event slot (or a combat if none is free).  Skipped on boss /
+    // final-gate levels.  Visiting it claims the salvage they left behind.
+    if (_abandonedCamp && _abandonedCamp.members && _abandonedCamp.members.length
+        && !_campsitePlaced && lvl >= 2 && lvl !== numLevels && lvl !== numLevels - 1) {
+      let pi = countAndTypes.indexOf('event');
+      if (pi === -1) pi = countAndTypes.indexOf('combat');
+      if (pi !== -1) { countAndTypes[pi] = 'campsite'; _campsitePlaced = true; }
+    }
+
     const ids = [];
     countAndTypes.forEach((type, i) => {
       const id = `n${idCounter++}`;
@@ -6863,6 +6880,7 @@ function generateMap(layerOverride) {
           node.eventId = eventPool[(i + lvl) % eventPool.length];
         }
       }
+      else if (type === 'campsite') node.camp = _abandonedCamp;
       // forge nodes need no extra data — the modal reads current run
       // state at tap time to know which sigils are burnable
       // rest nodes need no extra data
@@ -20853,6 +20871,7 @@ function showNodeTooltip(anchorEl, node) {
     event:    'Event',
     wanderer: 'Wanderer',
     forge:    'Forge',
+    campsite: 'Camp',
   })[node.type] || node.type;
   const sigilCat = node.type === 'elite' && enc && enc.sigilCategory ? enc.sigilCategory : null;
   const wandererDef = node.type === 'wanderer' && node.wandererId ? WANDERERS[node.wandererId] : null;
@@ -20862,8 +20881,9 @@ function showNodeTooltip(anchorEl, node) {
              : node.type === 'wanderer' ? (wandererHero ? wandererHero.name : 'A figure on the path')
              : node.type === 'forge'    ? 'The Forge'
              : node.type === 'shop'     ? 'The Ember Stall'
+             : node.type === 'campsite' ? 'A Cold Camp'
              : (enc?.name || node.type);
-  const enemyChips = (node.type === 'rest' || node.type === 'event' || node.type === 'wanderer' || node.type === 'forge' || node.type === 'shop')
+  const enemyChips = (node.type === 'rest' || node.type === 'event' || node.type === 'wanderer' || node.type === 'forge' || node.type === 'shop' || node.type === 'campsite')
     ? ''
     : SLOTS.map(sl => {
         const eid = enc && enc.slots ? enc.slots[sl] : null;
@@ -20881,6 +20901,7 @@ function showNodeTooltip(anchorEl, node) {
     : node.type === 'wanderer' ? (wandererHero ? `${wandererHero.title || 'A hero on the road'}.  Trade, fight, or walk past.` : 'A meeting on the road.')
     : node.type === 'forge'    ? 'Burn a sigil to forge a hero a permanent boon.'
     : node.type === 'shop'     ? 'Spend pending Embers on one-time consumables.'
+    : node.type === 'campsite' ? 'A fallen party’s last camp.  Claim the salvage they left.'
     : node.type === 'boss' ? `${bossName}.  No escape but through.`
     : node.type === 'elite' ? `Tech upgrade.${sigilCat ? ` Themed: ${sigilCat}.` : ''}`
     : 'Affinity progression.';
@@ -22368,6 +22389,7 @@ function renderMap() {
         wanderer: '☉',
         forge:    '⚒',
         shop:     '✦',
+        campsite: '⛬',
       })[node.type] || '⚔';
       const typeLabel = ({
         elite:    'ELITE',
@@ -22378,6 +22400,7 @@ function renderMap() {
         wanderer: 'WANDER',
         forge:    'FORGE',
         shop:     'STALL',
+        campsite: 'CAMP',
       })[node.type] || 'FIGHT';
       // Compact icon-node markup: a glyph in a tinted dot + a labelled
       // strap underneath so the player can read elite/event/regular at a
@@ -22401,6 +22424,7 @@ function renderMap() {
         if (node.type === 'wanderer')    return showWandererOverlay(node.wandererId);
         if (node.type === 'forge')       return showForgeOverlay();
         if (node.type === 'shop')        return showShopOverlay();
+        if (node.type === 'campsite')    return showCampsiteOverlay(node);
         if (node.type === 'boss') {
           const layerInfo = LAYER_CONTENT[state.run.layer] || LAYER_CONTENT[1];
           const startBoss = () => showBossIntro({
@@ -22674,6 +22698,79 @@ function _completeNonCombatNode() {
     _qaWarn('strangerRecruit', 'no pickable heroes (full roster already recruited)');
   }
   renderMap();
+}
+
+// CAMPSITE overlay — a previously-wiped party's cold camp, found mid-descent.
+// The new party claims the salvage left behind; the ghost record is cleared
+// so the camp isn't found twice.  Reuses the rest overlay's campfire styling.
+function showCampsiteOverlay(node) {
+  const ghost = (node && node.camp) || null;
+  const members = (ghost && Array.isArray(ghost.members)) ? ghost.members : [];
+  const gained = Math.max(0, (ghost && parseInt(ghost.stores, 10)) || 0);
+
+  $('#overlay-title').textContent = 'A Cold Camp';
+  $('#overlay').classList.remove('overlay-path', 'overlay-vignette', 'overlay-runsummary');
+  $('#overlay').classList.add('overlay-full', 'overlay-rest', 'overlay-campsite');
+  const body = $('#overlay-body');
+  body.classList.remove('victory-summary-body', 'welcome-body', 'run-summary-body');
+  body.innerHTML = '';
+
+  // Scene: a dead fire ringed by the ghost party's dimmed portraits.
+  const scene = document.createElement('div');
+  scene.className = 'rest-scene campsite-scene';
+  const left  = members.slice(0, Math.ceil(members.length / 2));
+  const right = members.slice(Math.ceil(members.length / 2));
+  const mkGhost = (id, side) => `<div class="rest-hero campsite-ghost rest-hero-${side}">
+      ${PORTRAITS[id] || ''}
+      <div class="rest-hero-hp campsite-ghost-name">${((CHARS[id] && CHARS[id].name) || id)}</div>
+    </div>`;
+  scene.innerHTML = `
+    <div class="rest-row rest-row-left">${left.map(id => mkGhost(id, 'left')).join('')}</div>
+    <div class="rest-fire campsite-deadfire" aria-hidden="true">
+      <div class="ts-fire-logs"></div>
+    </div>
+    <div class="rest-row rest-row-right">${right.map(id => mkGhost(id, 'right')).join('')}</div>
+  `;
+  body.appendChild(scene);
+
+  const flavor = document.createElement('p');
+  flavor.className = 'event-flavor rest-flavor';
+  const names = members.map(id => (CHARS[id] && CHARS[id].name) || id).join(', ');
+  flavor.innerHTML = members.length
+    ? `Ash, cold for a long while.  A party fell here on a descent before yours — ${names}.  What they carried, they no longer need.`
+    : `Ash, cold for a long while.  Someone made their last camp here.`;
+  body.appendChild(flavor);
+
+  const choices = $('#overlay-choices');
+  choices.innerHTML = '';
+  choices.classList.remove('path-map', 'party-inspect');
+  choices.classList.add('event-choices');
+
+  const finish = () => {
+    // Claim the salvage into the persistent camp stores and clear the ghost
+    // record so this campsite can never be found again.
+    try {
+      const c = getCamp();
+      c.stores += gained;
+      c.abandoned = null;
+      saveCamp(c);
+    } catch (_) {}
+    if (gained > 0) log(`<i>You gather <b>${gained}</b> salvage from the cold camp.</i>`);
+    hideOverlay();
+    choices.classList.remove('event-choices');
+    $('#overlay').classList.remove('overlay-campsite');
+    _completeNonCombatNode();
+  };
+
+  const claim = document.createElement('button');
+  claim.className = 'encounter-choice event-choice rest-choice-heal';
+  claim.innerHTML = `<div class="enc-name">Claim the salvage</div><div class="sigil-desc">${gained > 0 ? `+${gained} salvage to your camp` : 'pay your respects'}</div>`;
+  claim.addEventListener('click', finish);
+  choices.appendChild(claim);
+
+  resetOverlayBtn();
+  $('#overlay-btn').classList.add('hidden');
+  $('#overlay').classList.remove('hidden');
 }
 
 // REST overlay — heals the alive party for half their missing HP and returns
