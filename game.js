@@ -20584,7 +20584,10 @@ function spawnPopup(cardEl, text, type='dmg') {
   // Snapshot positions NOW so a card that moves/dies during the delay
   // doesn't drag the popup off-screen.
   const left = (r.left + r.width / 2 - s.left);
-  const top  = (r.top - s.top + Math.max(36, r.height * 0.22));
+  // Land popups on the figure BODY (lower) rather than near the top, so the
+  // rising damage numbers don't float up through the enemy's info header
+  // (HP bar / armour + weakness chips / intent telegraph) and crowd it.
+  const top  = (r.top - s.top + Math.max(52, r.height * 0.44));
   const fire = () => {
     const el = document.createElement('div');
     el.className = `popup ${type}`;

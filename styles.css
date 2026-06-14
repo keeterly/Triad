@@ -7339,9 +7339,9 @@ body.party-critical::after {
 
 @keyframes popup-rise {
   0%   { transform: translate(-50%, 0)    scale(0.6); opacity: 0; }
-  15%  { transform: translate(-50%, -10px) scale(1.2); opacity: 1; }
-  85%  { transform: translate(-50%, -42px) scale(1); opacity: 1; }
-  100% { transform: translate(-50%, -60px) scale(0.9); opacity: 0; }
+  15%  { transform: translate(-50%, -9px)  scale(1.2); opacity: 1; }
+  85%  { transform: translate(-50%, -30px) scale(1); opacity: 1; }
+  100% { transform: translate(-50%, -44px) scale(0.9); opacity: 0; }
 }
 
 /* ============ ATB ROW (row 2): slim queue strip above battlefield ============ */
@@ -14411,14 +14411,16 @@ body.boss-fight #enemy-half .figure-name {
   color: var(--blood-bright);
   text-shadow: 0 0 12px rgba(220,80,80,0.4);
 }
-/* De-clutter the boss readout — the status-chip row used to sit at the very top
-   (2px) and overlapped the HP text (-18px above the bar at 32px), so armour /
-   weakness / primer chips piled onto the HP numbers.  Float the chip row BELOW
-   the wide HP bar instead, giving a clean top-down read: HP text → HP bar →
-   status chips → intent. */
+/* De-clutter the boss readout — a clean top-down stack so armour/weakness chips
+   and the intent telegraph never pile onto each other or the HP numbers:
+     HP text → HP bar → status chips → intent.  Transient damage popups land on
+   the figure body below all of it (see spawnPopup). */
 body.boss-fight #enemy-half .figure-statuses {
-  top: 46px;
+  top: 44px;
   gap: 5px;
+}
+body.boss-fight #enemy-half .intent-bubble {
+  top: 74px;
 }
 
 /* ===========================================================================
