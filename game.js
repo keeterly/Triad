@@ -6787,8 +6787,9 @@ function generateMap(layerOverride) {
     if (lvl === numLevels) {
       countAndTypes = ['boss'];
     } else if (lvl === numLevels - 1) {
-      // Gate level: 1 elite + 1 rest (player heals OR risks more reward)
-      countAndTypes = Math.random() < 0.5 ? ['elite', 'rest'] : ['rest', 'elite'];
+      // Gate level before the boss: elite vs event — the breather is now the
+      // player's call (light a campfire), not a guaranteed Rest node.
+      countAndTypes = _shuffle(['elite', 'event']);
     } else if (lvl === 1) {
       const c = 2 + Math.floor(Math.random() * 2);   // 2-3
       countAndTypes = Array(c).fill('combat');
@@ -6796,15 +6797,15 @@ function generateMap(layerOverride) {
       // L2: 2 combat + 1 event (variety)
       countAndTypes = _shuffle(['combat', 'combat', 'event']);
     } else if (lvl === 3) {
-      // L3: elite + combat + (event or rest) — three-way choice
-      const extra = Math.random() < 0.5 ? 'event' : 'rest';
+      // L3: elite + combat + (event or combat) — three-way choice
+      const extra = Math.random() < 0.5 ? 'event' : 'combat';
       countAndTypes = _shuffle(['elite', 'combat', extra]);
     } else if (lvl === 4 && numLevels >= 7) {
       // New mid-layer bend in deeper runs — give the player another
       // event/elite branch instead of plain combat.
       const mix = Math.random() < 0.5
         ? ['combat', 'elite', 'event']
-        : ['combat', 'event', 'rest'];
+        : ['combat', 'event', 'combat'];
       countAndTypes = _shuffle(mix);
     } else if (lvl === 5 && numLevels >= 8) {
       // Deepest runs get one more mixed bend before the gate-rest-boss
@@ -11965,6 +11966,7 @@ function newState(forcedStarter) {
     run: {
       currentNodeId: null,   // id of the node player is currently fighting (or null between fights)
       completedNodes: [],    // ids of cleared map nodes, in completion order
+      firesLit: 0,           // on-demand campfires lit this run — drives the escalating Kindling cost
       currentEnc: null,      // spec of the active encounter (set by startEncounter)
       sigils: (carried && Array.isArray(carried.sigils)) ? carried.sigils.slice() : [],            // ids of acquired sigils (run-wide modifiers) — carried across layers
       sigilLevels: (carried && carried.sigilLevels && typeof carried.sigilLevels === 'object') ? { ...carried.sigilLevels } : {}, // per-sigil tier — duplicate binds level them up
@@ -22091,7 +22093,16 @@ function renderMap() {
   const _pathSubtitle = (state.run.completedNodes || []).length === 0
     ? 'Pick your entry point.'
     : 'Choose the next stretch.';
-  $('#overlay-body').innerHTML = `<span class="path-subtitle">${_pathSubtitle}</span>`;
+  // Light-a-campfire control — always available on the map (resource-gated).
+  // Spends banked Kindling at an escalating cost; opens the campfire hub.
+  const _fireCost = campfireCost(state);
+  const _fireAfford = getEmbersBalance() >= _fireCost;
+  $('#overlay-body').innerHTML = `<span class="path-subtitle">${_pathSubtitle}</span>` +
+    `<button type="button" id="map-campfire-btn" class="map-campfire${_fireAfford ? '' : ' map-campfire-poor'}"${_fireAfford ? '' : ' disabled'} ` +
+    `title="Light a campfire — rest, revive, hone, deepen a bond, or raise the camp" ` +
+    `data-tip="Light a campfire — rest, revive, hone, deepen a bond, or raise the camp">` +
+    `<span class="mcf-icon" aria-hidden="true">⌂</span><span class="mcf-label">Light a campfire</span>` +
+    `<span class="mcf-cost">✦ ${_fireCost}</span></button>`;
   const choices = $('#overlay-choices');
   choices.innerHTML = '';
   choices.classList.add('path-map');
@@ -22212,6 +22223,24 @@ function renderMap() {
   btn.onclick = showPartyInspect;
   btn.classList.remove('hidden');
   $('#overlay').classList.remove('hidden');
+
+  // Wire the Light-a-campfire control — spend banked Kindling, bump the
+  // per-run fire count (raises the next fire's cost), reset the fire's
+  // one-shot tracker, and open the campfire hub.
+  const fireBtn = document.getElementById('map-campfire-btn');
+  if (fireBtn) {
+    fireBtn.onclick = () => {
+      const cost = campfireCost(state);
+      if (getEmbersBalance() < cost) { flashMsg('Not enough Kindling.'); return; }
+      _setEmbersBalance(getEmbersBalance() - cost);
+      state.run.firesLit = (state.run.firesLit || 0) + 1;
+      state.run._fireUsed = {};
+      Audio.ui();
+      hideOverlay();
+      choices.classList.remove('path-map');
+      showRestOverlay();
+    };
+  }
 
   // Defer connector lines to next frame so layout positions are settled
   requestAnimationFrame(() => drawMapConnectors(choices));
@@ -22562,12 +22591,32 @@ function showCampsiteOverlay(node) {
 
 // REST overlay — heals the alive party for half their missing HP and returns
 // to the map.  No choice; tap Continue.
-// Rest node — pick ONE thing to do here.  Heal sits next to upgrade and
-// sigil so the choice is a real one and not just "tap Continue".
+// Cost to light an on-demand campfire — escalates each time one is lit this
+// run so a fire is a real Kindling decision, not a free spam.  Base 12, +8 per
+// prior fire (1st 12, 2nd 20, 3rd 28...).
+const CAMPFIRE_BASE_COST = 12;
+const CAMPFIRE_STEP_COST = 8;
+function campfireCost(s) {
+  const lit = (s && s.run && s.run.firesLit) || 0;
+  return CAMPFIRE_BASE_COST + lit * CAMPFIRE_STEP_COST;
+}
+
+// The on-demand campfire hub.  Lit from the world map (paying Kindling), it's
+// a multi-action fire: Rest / Revive / Hone / Oath / Reflect — do as many as
+// apply, then "Leave the fire" to return to the map.  (No longer a map node;
+// the fixed Rest node was retired in favour of player-timed fires.)
 function showRestOverlay() {
-  $('#overlay-title').textContent = 'Hollow Rest';
+  $('#overlay-title').textContent = 'Campfire';
   $('#overlay').classList.remove('overlay-path', 'overlay-vignette', 'overlay-runsummary');
   $('#overlay').classList.add('overlay-full', 'overlay-rest');
+  // On-demand campfire hub: the player lit this fire from the world map
+  // (paying Kindling), so each action returns to the FIRE (re-render) rather
+  // than completing a node — do several things, then "Leave the fire".
+  // _fireUsed tracks the one-shot actions spent at THIS fire; it's reset when
+  // a new fire is lit (see the map's Light-a-campfire handler) and on leave.
+  const used = state.run._fireUsed = state.run._fireUsed || {};
+  const reopen = () => showRestOverlay();
+  const leave = () => { state.run._fireUsed = {}; renderMap(); };
   const body = $('#overlay-body');
   body.classList.remove('victory-summary-body', 'welcome-body', 'run-summary-body');
   body.innerHTML = '';
@@ -22607,7 +22656,7 @@ function showRestOverlay() {
 
   const flavor = document.createElement('p');
   flavor.className = 'event-flavor rest-flavor';
-  flavor.textContent = 'You set down your weight.  Breath returns.  But you can only do one of these things before the climb resumes.';
+  flavor.textContent = 'The fire holds back the dark.  Take what you need — then leave the fire when you are ready to climb on.';
   body.appendChild(flavor);
 
   const choices = $('#overlay-choices');
@@ -22623,19 +22672,23 @@ function showRestOverlay() {
     choices.appendChild(card);
   };
 
-  // 1. Rest — heal half of all missing HP across the party.
-  mkChoice('Rest', 'Heal half', () => {
-    const lines = [];
-    aliveParty(state).forEach(c => {
-      const missing = c.maxHp - c.hp;
-      const heal = Math.ceil(missing * 0.5);
-      if (heal > 0) { c.hp = Math.min(c.maxHp, c.hp + heal); lines.push(`<b>${CHARS[c.id].name}</b> +${heal} HP`); }
-    });
-    if (lines.length) log(lines.join(' · '));
-    hideOverlay();
-    choices.classList.remove('event-choices');
-    _completeNonCombatNode();
-  }, 'heal');
+  // 1. Rest — heal half of all missing HP across the party.  One-shot per
+  // fire (tracked in _fireUsed) so it can't be spammed up to full.  Shown
+  // only while someone is actually wounded.
+  const anyHurt = aliveParty(state).some(c => c.hp < c.maxHp);
+  if (!used.rest && anyHurt) {
+    mkChoice('Rest', 'Heal half', () => {
+      const lines = [];
+      aliveParty(state).forEach(c => {
+        const missing = c.maxHp - c.hp;
+        const heal = Math.ceil(missing * 0.5);
+        if (heal > 0) { c.hp = Math.min(c.maxHp, c.hp + heal); lines.push(`<b>${CHARS[c.id].name}</b> +${heal} HP`); }
+      });
+      if (lines.length) log(lines.join(' · '));
+      used.rest = true;
+      reopen();
+    }, 'heal');
+  }
 
   // 1b. Revive — bring a fallen hero back at 25% of their max HP.
   // Shown only when at least one party member is currently downed.
@@ -22666,21 +22719,20 @@ function showRestOverlay() {
       target.staggered = false;
       target.pendingEffects = [];
       log(`<i><b>${heroName}</b> draws breath again — back at <b>${revHp}</b> HP.</i>`);
-      hideOverlay();
-      choices.classList.remove('event-choices');
-      _completeNonCombatNode();
+      // No used-flag: revive naturally vanishes once no one is downed, so a
+      // fire can raise more than one fallen, one at a time.
+      reopen();
     }, 'revive');
   }
 
   // 2. Hone — upgrade one tech.  Only shown if any upgrades remain.
   const upPool = availableUpgrades(state);
-  if (upPool.length > 0) {
+  if (!used.hone && upPool.length > 0) {
     mkChoice('Hone the edge', 'Choose a tech upgrade', () => {
-      hideOverlay();
       choices.classList.remove('event-choices');
       const shuffled = upPool.slice().sort(() => Math.random() - 0.5);
       const offers = shuffled.slice(0, Math.min(2, shuffled.length));
-      showUpgradeOverlay(offers, () => _completeNonCombatNode());
+      showUpgradeOverlay(offers, () => { used.hone = true; reopen(); });
     }, 'hone');
   }
 
@@ -22693,11 +22745,10 @@ function showRestOverlay() {
   // single hero, permanent for the run.  Hidden entirely until the
   // player has downed the Layer 6 mega-boss at least once (see
   // isOathUnlocked); deep-build complexity locked behind real progress.
-  if (aliveParty(state).length > 0 && isOathUnlocked()) {
+  if (!used.oath && aliveParty(state).length > 0 && isOathUnlocked()) {
     mkChoice('Speak an Oath', 'Trade something away for power', () => {
-      hideOverlay();
       choices.classList.remove('event-choices');
-      showOathOverlay(() => _completeNonCombatNode());
+      showOathOverlay(() => { used.oath = true; reopen(); });
     }, 'oath');
   }
 
@@ -22708,7 +22759,7 @@ function showRestOverlay() {
   const aliveHeroes = aliveParty(state);
   const negCarriers = aliveHeroes.filter(c => c.quirks && c.quirks.negative && c.quirks.negative.length > 0);
   const posRoom = aliveHeroes.filter(c => c.quirks && (c.quirks.positive || []).length < QUIRK_CAP);
-  if (negCarriers.length > 0) {
+  if (!used.reflect && negCarriers.length > 0) {
     mkChoice('Reflect on regret', 'Shed one ailment from the party', () => {
       // Pick the hero with the most negatives, then their first negative
       // quirk.  Simple and predictable — no extra picker UI needed.
@@ -22726,13 +22777,12 @@ function showRestOverlay() {
         showQuirkLost(tgt.id, qid);
         log(`<i><b>${CHARS[tgt.id].name}</b> lets go of <b>${q.name}</b>.</i>`);
       }
-      // Hold the gap so the toast is visible before the map overlay
-      // covers it again.  900ms is enough to read the affliction
-      // name + the bark; the toast itself still auto-fades on its
-      // own normal timer once the map is up.
-      setTimeout(() => _completeNonCombatNode(), 900);
+      // Hold the gap so the toast is visible before the fire re-renders
+      // over it.  900ms is enough to read the quirk name + the bark; the
+      // toast auto-fades on its own timer once the fire is back up.
+      setTimeout(() => { used.reflect = true; reopen(); }, 900);
     }, 'reflect');
-  } else if (posRoom.length > 0) {
+  } else if (!used.reflect && posRoom.length > 0) {
     mkChoice('Reflect on triumph', 'Grant a quirk to a hero', () => {
       // Pick a hero with the most empty positive slots.  Hero-locked
       // affinities prefer their named owner.
@@ -22750,12 +22800,17 @@ function showRestOverlay() {
         grantQuirk(state, tgt.id, q.id);
         log(`<i><b>${CHARS[tgt.id].name}</b> reflects and grows — <b>${q.name}</b>.</i>`);
       }
-      setTimeout(() => _completeNonCombatNode(), 900);
+      setTimeout(() => { used.reflect = true; reopen(); }, 900);
     }, 'reflect');
   }
 
   resetOverlayBtn();
-  $('#overlay-btn').classList.add('hidden');
+  // Leave the fire — the only way out of the on-demand campfire; returns to
+  // the world map (no node to complete, since the fire isn't a map node).
+  const _leaveBtn = $('#overlay-btn');
+  _leaveBtn.textContent = 'Leave the fire';
+  _leaveBtn.onclick = leave;
+  _leaveBtn.classList.remove('hidden');
   choices.classList.remove('hidden');
   $('#overlay').classList.remove('hidden');
 }
