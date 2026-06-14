@@ -3870,13 +3870,13 @@ const EVENTS = {
       // ranks: every existing hero gains +1 max HP (the bond tightens
       // around the people already with you), AND there's a small chance
       // someone takes a hit of doubt — a random alive hero may pick up
-      // a negative affinity for the cold shoulder.
+      // a negative quirk for the cold shoulder.
       { label: 'Keep walking',  tag: '+1 max HP each · risk: one hero feels the chill',
         resolve: (s) => {
           aliveParty(s).forEach(c => { c.maxHp += 1; c.hp = Math.min(c.maxHp, c.hp + 1); });
           log('The footsteps fade behind you.  The party closes a little tighter.');
           // 35% chance the cold shoulder leaves a mark — a random alive
-          // hero gains a negative affinity.  Small enough that "walk on"
+          // hero gains a negative quirk.  Small enough that "walk on"
           // is still viable, real enough that the choice carries weight.
           if (Math.random() < 0.35) _rollEventQuirk(s, 'negative');
         } },
@@ -3967,7 +3967,7 @@ const EVENTS = {
     name: 'Bone Altar',
     flavor: 'A bone altar coughs grey ash into the wind. It hungers.',
     choices: [
-      { label: 'Bleed for a boon', tag: '−5 HP, gain a positive affinity',
+      { label: 'Bleed for a boon', tag: '−5 HP, gain a positive quirk',
         resolve: (s) => { _hurtRandomAlive(s, 5); _rollEventQuirk(s, 'positive'); } },
       { label: 'Walk on', tag: '+1 Resolve next fight · unbleeding',
         resolve: (s) => {
@@ -3995,7 +3995,7 @@ const EVENTS = {
     name: "Wraith's Whisper",
     flavor: 'A wraith whispers — promises wrapped in ash.',
     choices: [
-      { label: 'Listen', tag: '+positive AND +negative affinity',
+      { label: 'Listen', tag: '+positive AND +negative quirk',
         resolve: (s) => { _rollEventQuirk(s, 'positive'); _rollEventQuirk(s, 'negative'); } },
       { label: 'Refuse', tag: '+1 max HP each · the whisper stays a whisper',
         resolve: (s) => {
@@ -4040,7 +4040,7 @@ const EVENTS = {
     name: 'Shrine of Lost Names',
     flavor: 'A small shrine carved into the wall, names eroded.  Wind has been arguing with this stone for a long time.',
     choices: [
-      { label: 'Speak a name', tag: '+positive affinity · −2 HP each',
+      { label: 'Speak a name', tag: '+positive quirk · −2 HP each',
         resolve: (s) => { aliveParty(s).forEach(c => { c.hp = Math.max(1, c.hp - 2); }); _rollEventQuirk(s, 'positive'); } },
       { label: 'Carve another',tag: 'gain Coin of Memory (sigil)',
         resolve: (s) => { bindSigil(s, 'memory'); } },
@@ -4083,7 +4083,7 @@ const EVENTS = {
     name: "A Child's Mask",
     flavor: 'A wooden mask sits at the edge of a chasm.  Painted to look surprised.  Around its eyes, the wood is wet.',
     choices: [
-      { label: 'Wear it briefly', tag: 'Random sigil · negative affinity',
+      { label: 'Wear it briefly', tag: 'Random sigil · negative quirk',
         resolve: (s) => { _grantRandomSigil(s); _rollEventQuirk(s, 'negative'); } },
       { label: 'Bury it',         tag: 'party +1 Resolve next fight · cleanse',
         resolve: (s) => { aliveParty(s).forEach(c => { c.bleed = 0; c.dulled = 0; }); s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1; } },
@@ -4123,7 +4123,7 @@ const EVENTS = {
     choices: [
       { label: 'Ask about the Sin',  tag: 'next fight: bonus ATB this turn',
         resolve: (s) => { s.run.bonusAtbNextFight = (s.run.bonusAtbNextFight || 0) + 1; log('The Oracle whispers the shape of the next reach.'); } },
-      { label: 'Ask about yourself', tag: '+positive affinity to a hero',
+      { label: 'Ask about yourself', tag: '+positive quirk to a hero',
         resolve: (s) => { _rollEventQuirk(s, 'positive'); } },
       { label: 'Ask nothing',        tag: 'heal party 4 · the Oracle smiles',
         resolve: (s) => { aliveParty(s).forEach(c => { c.hp = Math.min(c.maxHp, c.hp + 4); }); log('The Oracle nods, slow.'); } },
@@ -4209,7 +4209,7 @@ const EVENTS = {
           tgt.maxHp += 5; tgt.hp = Math.min(tgt.maxHp, tgt.hp + 5);
           log(`<b>${CHARS[tgt.id].name}</b> stands taller.  Iron sits behind their teeth.`);
         } },
-      { label: 'Drink the salt stream', tag: 'one hero +affinity',
+      { label: 'Drink the salt stream', tag: 'one hero +quirk',
         resolve: (s) => { _rollEventQuirk(s, 'positive'); } },
     ],
   },
@@ -4677,7 +4677,7 @@ function _rollEventQuirk(s, polarity) {
     if (!pool.length) continue;
     const q = pool[Math.floor(Math.random() * pool.length)];
     grantQuirk(s, targetId, q.id);
-    const verb = polarity === 'positive' ? 'gains' : 'is afflicted with';
+    const verb = 'gains';
     log(`<i><b>${CHARS[targetId].name}</b> ${verb} <b>${q.name}</b>.</i>`);
     return;
   }
@@ -4702,7 +4702,7 @@ function _rollSurvivorQuirk(s, polarity) {
   if (!pool.length) return;
   const q = pool[Math.floor(Math.random() * pool.length)];
   grantQuirk(s, target.id, q.id);
-  const verb = polarity === 'positive' ? 'gains' : 'is afflicted with';
+  const verb = 'gains';
   log(`<i><b>${CHARS[target.id].name}</b> ${verb} <b>${q.name}</b>.</i>`);
 }
 // Offer pool — wraps availableSigils with a rarity down-weight so flagged
@@ -5332,7 +5332,7 @@ const VIGNETTES = {
       // 'Walk home' was the wrong frame; the run is an ascent, not a retreat.
       { label: 'Take its silence', tag: "Bind a sigil from the Wakeling's residue",
         resolve: (s) => { _grantRandomSigil(s); } },
-      { label: 'Take its name',    tag: 'A survivor gains a positive affinity',
+      { label: 'Take its name',    tag: 'A survivor gains a positive quirk',
         resolve: (s) => { _rollSurvivorQuirk(s, 'positive'); } },
       { label: 'Take a breath',    tag: 'Survivors gain +5 max HP',
         resolve: (s) => {
@@ -5697,7 +5697,7 @@ const VIGNETTES = {
       { label: 'Spare them',  tag: 'Heal party 4 · +1 Resolve next',
         resolve: (s) => { aliveParty(s).forEach(c => { c.hp = Math.min(c.maxHp, c.hp + 4); }); s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1; log('A bandage finds its way around the survivor.'); } },
       // Walking on after a moment of mercy carries weight — a random
-      // hero may pick up a negative affinity for the path not taken.
+      // hero may pick up a negative quirk for the path not taken.
       { label: 'Walk on',     tag: 'risk: someone carries the regret',
         resolve: (s) => {
           log('You walk on.  No one says anything for a while.');
@@ -5847,7 +5847,7 @@ const VIGNETTES = {
       // chime' both did nothing before.
       { label: 'Take her chime', tag: "Bind a sigil from the Listener's silence",
         resolve: (s) => { _grantRandomSigil(s); } },
-      { label: 'Take a name',    tag: 'A survivor gains a positive affinity',
+      { label: 'Take a name',    tag: 'A survivor gains a positive quirk',
         resolve: (s) => { _rollSurvivorQuirk(s, 'positive'); } },
       { label: 'Take the veil',  tag: 'Survivors gain +4 max HP',
         resolve: (s) => {
@@ -5899,7 +5899,7 @@ const VIGNETTES = {
     choices: [
       { label: 'Step through it', tag: '+1 Resolve next fight',
         resolve: (s) => { s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1; log('You pass through your reflection.'); } },
-      { label: 'Take its scar',   tag: 'A survivor gains a positive affinity',
+      { label: 'Take its scar',   tag: 'A survivor gains a positive quirk',
         resolve: (s) => { _rollSurvivorQuirk(s, 'positive'); } },
     ],
   },
@@ -5957,7 +5957,7 @@ const VIGNETTES = {
           s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 1;
           log('The party braces against the rising hymn.');
         } },
-      { label: 'Sing back',               tag: 'A survivor gains a positive affinity',
+      { label: 'Sing back',               tag: 'A survivor gains a positive quirk',
         resolve: (s) => { _rollSurvivorQuirk(s, 'positive'); } },
     ],
   },
@@ -5997,7 +5997,7 @@ const VIGNETTES = {
       },
     ],
     choices: [
-      { label: "Burn what's already buried", tag: 'A survivor gains a positive affinity',
+      { label: "Burn what's already buried", tag: 'A survivor gains a positive quirk',
         resolve: (s) => { _rollSurvivorQuirk(s, 'positive'); } },
       { label: 'Plant your boot',            tag: 'Survivors gain +3 max HP',
         resolve: (s) => {
@@ -6056,7 +6056,7 @@ const VIGNETTES = {
       },
     ],
     choices: [
-      { label: 'Re-swear what matters',     tag: 'A survivor gains a positive affinity',
+      { label: 'Re-swear what matters',     tag: 'A survivor gains a positive quirk',
         resolve: (s) => { _rollSurvivorQuirk(s, 'positive'); } },
       { label: 'Burn what you broke',       tag: 'Survivors heal to full · +1 Resolve next fight',
         resolve: (s) => {
@@ -6111,7 +6111,7 @@ const VIGNETTES = {
     choices: [
       { label: 'Walk close',             tag: 'Survivors heal to full',
         resolve: (s) => { aliveParty(s).forEach(c => { c.hp = c.maxHp; }); log('The party draws in tight.  Full HP.'); } },
-      { label: 'Listen for the silence', tag: 'A survivor gains a positive affinity',
+      { label: 'Listen for the silence', tag: 'A survivor gains a positive quirk',
         resolve: (s) => { _rollSurvivorQuirk(s, 'positive'); } },
     ],
   },
@@ -6151,7 +6151,7 @@ const VIGNETTES = {
           s.run.bonusResolveNextFight = (s.run.bonusResolveNextFight || 0) + 2;
           log('The party stops waiting.  +2 Resolve carry.');
         } },
-      { label: "Wake what wouldn't",       tag: 'A survivor gains a positive affinity',
+      { label: "Wake what wouldn't",       tag: 'A survivor gains a positive quirk',
         resolve: (s) => { _rollSurvivorQuirk(s, 'positive'); } },
     ],
   },
@@ -6226,7 +6226,7 @@ const VIGNETTES = {
     choices: [
       { label: 'Take its mirror', tag: "Bind a sigil from the Twin's surface",
         resolve: (s) => { _grantRandomSigil(s); } },
-      { label: 'Take its eye',    tag: 'A survivor gains a positive affinity',
+      { label: 'Take its eye',    tag: 'A survivor gains a positive quirk',
         resolve: (s) => { _rollSurvivorQuirk(s, 'positive'); } },
       { label: 'Take its shape',  tag: 'Survivors gain +4 max HP',
         resolve: (s) => {
@@ -6273,7 +6273,7 @@ const VIGNETTES = {
     choices: [
       { label: 'Take its hymn',   tag: 'Bind a sigil from the unsung verse',
         resolve: (s) => { _grantRandomSigil(s); } },
-      { label: 'Take a note',     tag: 'A survivor gains a positive affinity',
+      { label: 'Take a note',     tag: 'A survivor gains a positive quirk',
         resolve: (s) => { _rollSurvivorQuirk(s, 'positive'); } },
       { label: 'Take its breath', tag: 'Survivors heal to full · +4 max HP',
         resolve: (s) => {
@@ -6320,7 +6320,7 @@ const VIGNETTES = {
     choices: [
       { label: 'Take its root',   tag: 'Bind a sigil from the buried fire',
         resolve: (s) => { _grantRandomSigil(s); } },
-      { label: 'Take its season', tag: 'A survivor gains a positive affinity',
+      { label: 'Take its season', tag: 'A survivor gains a positive quirk',
         resolve: (s) => { _rollSurvivorQuirk(s, 'positive'); } },
       { label: 'Take its ash',    tag: 'Survivors gain +5 max HP',
         resolve: (s) => {
@@ -6421,7 +6421,7 @@ const BOSS_PREP_MOODS = {
     ],
     choices: [
       { label: 'Forgive a wound',
-        tag: 'Shed one ailment from the most-afflicted hero',
+        tag: 'Shed one negative quirk from the most-burdened hero',
         resolve: (s) => {
           const carriers = aliveParty(s).filter(c => c.quirks && (c.quirks.negative || []).length > 0);
           if (!carriers.length) { log('<i>Nothing left to forgive.</i>'); return; }
@@ -7487,7 +7487,7 @@ function oathValue(c, oathId, key) {
 
 // ============================================================================
 // HERO MASTERIES — hand-authored hero-specific bonuses unlocked when
-// a hero stacks 2 positive quirks (the QUIRK_CAP).  Read by combat
+// a hero stacks QUIRK_CAP positive quirks.  Read by combat
 // passives; persists across layers via the carried-party snapshot.
 // ============================================================================
 const HERO_MASTERIES = {
@@ -7802,7 +7802,7 @@ function showQuirkAward(charId, quirkId) {
   spawnToast({
     category: q.positive ? 'affinity' : 'affliction',
     cls: q.positive ? 'qa-positive' : 'qa-negative',
-    eyebrow: q.positive ? '+ AFFINITY GAINED' : '− AFFLICTION GAINED',
+    eyebrow: q.positive ? '+ QUIRK GAINED' : '− QUIRK GAINED',
     name: `${def.name} · ${q.name}`,
     reason,
     flavor: q.flavor,
@@ -7825,7 +7825,7 @@ function showQuirkLost(charId, quirkId) {
   spawnToast({
     category: 'shed',
     cls: 'qa-shed',
-    eyebrow: '− AFFLICTION SHED',
+    eyebrow: '− QUIRK SHED',
     name: `${def.name} · ${q.name}`,
     flavor: 'Released by the fire.  The weight does not return.',
     desc: q.desc,
@@ -8110,7 +8110,7 @@ function randomQuirk(polarity) {
 // Heals every surviving hero to full, grants each one a positive quirk
 // (subject to QUIRK_CAP / hero-locked eligibility), then offers a free
 // sigil choice.  Calls onDone when the player commits the sigil.
-// Silently grant a post-boss positive affinity to each surviving hero
+// Silently grant a post-boss positive quirk to each surviving hero
 // (subject to QUIRK_CAP + hero-lock eligibility).  Returns the list of
 // {charId, quirkId} grants so the sigil/boon overlay can render them
 // inline as a single consolidated "the triad earns" row, instead of
@@ -8385,7 +8385,7 @@ function awardQuirkAfterWin(s, completedNode) {
     s._pendingAffinityReason = reason;
     grantQuirk(s, targetId, q.id);
     s._pendingAffinityReason = null;
-    const verb = polarity === 'positive' ? 'gains' : 'is afflicted with';
+    const verb = 'gains';
     log(`<i><b>${CHARS[targetId].name}</b> ${verb} <b>${q.name}</b> — ${q.desc}</i>`);
     return { charId: targetId, quirkId: q.id, reason };
   }
@@ -11703,198 +11703,14 @@ function resetAchievements() {
 // ============================================================================
 // (Cross-run shared-fight tracking lived here.  Removed when bonds
 // collapsed to per-run only — see s.run.synergyCounts + getBondLevel
-// for the in-run Level 0–3 bond ladder.  Charms moved to the Embers
-// store; isCharmUnlocked now reads kizuna.charmsPurchased.)
+// for the in-run Level 0–3 bond ladder.)
 // resetBonds() left as a no-op so any legacy reset menu doesn't crash.
 function resetBonds() {
   try { localStorage.removeItem('kizuna.bonds.v1'); } catch (_) {}
 }
 
-// ============================================================================
-// CHARMS — keepsakes tied to hero pairs.  Each charm unlocks when its
-// pair reaches Bond tier 2 (Kindred / 10 shared fights).  The player
-// equips ONE charm before a run; the run gets a small permanent buff
-// for the climb.  Equip surface lives in the Codex Bonds tab.
-// Persistent: kizuna.equippedCharm = charmId | null.
-// ============================================================================
-const CHARM_KEY = 'kizuna.equippedCharm';
-const CHARMS = {
-  sisters_coal: {
-    name: "Sister's Coal",
-    pairKey: 'cassia+elin',
-    flavor: 'A coal from the watch-fire Cassia and Elin lit together.',
-    effect: '+2 max HP to every party hero at run start',
-    applyAtRunStart: (s) => {
-      Object.values(s.party.chars).forEach(c => {
-        if (c) { c.maxHp += 2; c.hp = Math.min(c.maxHp, c.hp + 2); }
-      });
-    },
-  },
-  iron_coal: {
-    name: 'Iron Coal',
-    pairKey: 'cassia+korin',
-    flavor: 'The pact between sword and oath, fused into a single ember.',
-    effect: 'Every hero starts each fight with +2 armor',
-    applyAtFightStart: (s) => {
-      aliveParty(s).forEach(c => { c.armor = (c.armor || 0) + 2; });
-    },
-  },
-  banner_coal: {
-    name: 'Banner Coal',
-    pairKey: 'branwen+cassia',
-    flavor: 'When the banner went up and the arrow went out — two beats, one moment.',
-    effect: 'First attack each fight deals +2 damage',
-    // Applied in applyDmgToEnemy by reading s.run._charmFirstAttackPending.
-    applyAtFightStart: (s) => { if (s.run) s.run._charmFirstAttackPending = true; },
-  },
-  shadow_coal: {
-    name: 'Shadow Coal',
-    pairKey: 'branwen+mira',
-    flavor: 'Two hunters share a kill and the same breath.',
-    effect: 'First kill each fight grants +1 bonus Resolve',
-    applyAtFightStart: (s) => { if (s.run) s.run._charmFirstKillPending = true; },
-  },
-  spirit_coal: {
-    name: 'Spirit Coal',
-    pairKey: 'branwen+elin',
-    flavor: 'A coal the arrows pass over — and the wound after closes deeper.',
-    effect: 'First heal each fight is +2',
-    applyAtFightStart: (s) => { if (s.run) s.run._charmFirstHealPending = true; },
-  },
-  hearth_coal: {
-    name: 'Hearth Coal',
-    pairKey: 'ash+elin',
-    flavor: 'Flame and mercy warmed at the same fire.  The cold cannot stay long.',
-    effect: 'First incoming attack each fight is reduced by 3',
-    applyAtFightStart: (s) => { if (s.run) s.run._charmFirstShieldPending = true; },
-  },
-  wild_coal: {
-    name: 'Wild Coal',
-    pairKey: 'branwen+korin',
-    flavor: 'A coal from the kindling they shared on the long hunt.',
-    effect: 'Every hero starts each fight with +1 retaliate',
-    applyAtFightStart: (s) => {
-      aliveParty(s).forEach(c => { c.retaliate = (c.retaliate || 0) + 1; });
-    },
-  },
-  twin_coal: {
-    name: 'Twin Coal',
-    pairKey: 'mira+veyr',
-    flavor: 'Two shadows over the same coal.  One steps; the other follows.',
-    effect: 'First attack each fight applies bleed 1 to its target',
-    // Consumed by applyDmgToEnemy on the first damaging hit each
-    // fight — adds bleed 1 to the target if the hit lands and the
-    // enemy survives.
-    applyAtFightStart: (s) => { if (s.run) s.run._charmFirstBleedPending = true; },
-  },
-  frost_coal: {
-    name: 'Frost Coal',
-    pairKey: 'hask+veyr',
-    flavor: 'A coal that does not warm.  It teaches the eye what is cold.',
-    effect: 'Every enemy starts each fight with their weakness revealed',
-    applyAtFightStart: (s) => {
-      Object.values(s.enemies.chars).forEach(e => {
-        if (e && !e.dead) { e.weaknessRevealed = true; e._weaknessJustRevealed = true; }
-      });
-    },
-  },
-  silent_coal: {
-    name: 'Silent Coal',
-    pairKey: 'branwen+veyr',
-    flavor: 'A coal that does not crackle.  Aim is what it teaches.',
-    effect: '+1 Resolve at fight start if Branwen or Veyr is in the party',
-    applyAtFightStart: (s) => {
-      const has = (id) => s.party.chars[id] && !s.party.chars[id].downed;
-      if (has('branwen') || has('veyr')) gainResolve(s, 1);
-    },
-  },
-};
-// Charms are now permanent purchases from the Embers store.  Each
-// charm costs CHARM_UNLOCK_COST embers to buy; once purchased it
-// joins kizuna.charmsPurchased and stays available across all runs.
-// Equip up to one at a time (kizuna.equippedCharm).  The old per-
-// pair Kindred unlock route was retired alongside the cross-run
-// bond tracking.
-const CHARMS_PURCHASED_KEY = 'kizuna.charmsPurchased';
-const CHARM_UNLOCK_COST = 40;
-function getPurchasedCharms() {
-  try {
-    const raw = localStorage.getItem(CHARMS_PURCHASED_KEY);
-    if (raw) return new Set(JSON.parse(raw) || []);
-    // Migration — players who had a charm equipped under the old
-    // Kindred-unlock system get that charm granted as purchased so
-    // they don't lose the keepsake they already earned.  Runs once
-    // per device: writes the migrated set back so subsequent reads
-    // skip this branch.
-    const legacyEquipped = localStorage.getItem(CHARM_KEY);
-    if (legacyEquipped && CHARMS[legacyEquipped]) {
-      const migrated = new Set([legacyEquipped]);
-      try {
-        localStorage.setItem(CHARMS_PURCHASED_KEY, JSON.stringify(Array.from(migrated)));
-      } catch (_) {}
-      return migrated;
-    }
-    // Persist an empty set so the migration check doesn't re-run every
-    // call.  Without this, a player with no equipped charm hits the
-    // legacyEquipped path every render.
-    try { localStorage.setItem(CHARMS_PURCHASED_KEY, JSON.stringify([])); } catch (_) {}
-    return new Set();
-  } catch (_) { return new Set(); }
-}
-function _savePurchasedCharms(set) {
-  try { localStorage.setItem(CHARMS_PURCHASED_KEY, JSON.stringify(Array.from(set))); }
-  catch (_) {}
-}
-function isCharmUnlocked(charmId) {
-  if (!charmId || !CHARMS[charmId]) return false;
-  return getPurchasedCharms().has(charmId);
-}
-function purchaseCharm(charmId) {
-  if (!CHARMS[charmId]) return false;
-  const owned = getPurchasedCharms();
-  if (owned.has(charmId)) return false;
-  const bal = getEmbersBalance();
-  if (bal < CHARM_UNLOCK_COST) return false;
-  _setEmbersBalance(bal - CHARM_UNLOCK_COST);
-  owned.add(charmId);
-  _savePurchasedCharms(owned);
-  return true;
-}
-function getEquippedCharmId() {
-  try { return localStorage.getItem(CHARM_KEY) || null; }
-  catch (_) { return null; }
-}
-function setEquippedCharm(id) {
-  // Refuse to equip a charm the player hasn't purchased (defensive —
-  // the Embers screen disables un-purchased Equip buttons already).
-  try {
-    if (id && CHARMS[id] && isCharmUnlocked(id)) localStorage.setItem(CHARM_KEY, id);
-    else localStorage.removeItem(CHARM_KEY);
-  } catch (_) {}
-}
-function getEquippedCharm() {
-  const id = getEquippedCharmId();
-  if (!id || !isCharmUnlocked(id)) return null;
-  return CHARMS[id] || null;
-}
-// Apply the equipped charm at the appropriate moment.  Two hook
-// stages — run start (HP bumps, etc.) and fight start (per-encounter
-// buffs).  Caller responsible for calling at the right time.
-function applyEquippedCharmRunStart(s) {
-  const c = getEquippedCharm();
-  if (c && typeof c.applyAtRunStart === 'function') {
-    try { c.applyAtRunStart(s); } catch (_) {}
-  }
-}
-function applyEquippedCharmFightStart(s) {
-  const c = getEquippedCharm();
-  if (c && typeof c.applyAtFightStart === 'function') {
-    try { c.applyAtFightStart(s); } catch (_) {}
-  }
-}
-function resetCharms() {
-  try { localStorage.removeItem(CHARM_KEY); } catch (_) {}
-}
+// (CHARMS removed — the pair-keepsake meta-item was cut.  Bonds remain
+// the cross-run relational track; the Embers store no longer sells charms.)
 
 // ============================================================================
 // ASCENSIONS — post-clear difficulty ladder.  Unlocks one rung at a
@@ -11959,8 +11775,8 @@ function getAscensionEmberMult() {
   return 1 + lvl * 0.25;
 }
 // Apply the modifiers for the current ascension level to a fresh
-// state.  Called from the newState wrapper after Embers + Charm
-// hooks so per-run penalties land BEFORE startEncounter reads them.
+// state.  Called from the newState wrapper after Embers unlocks
+// so per-run penalties land BEFORE startEncounter reads them.
 function applyAscensionToState(s) {
   const lvl = getAscensionLevel();
   if (!s || !s.run || lvl <= 0) return;
@@ -12232,11 +12048,6 @@ const _newStateRaw = newState;
 newState = function(forcedStarter) {
   const s = _newStateRaw(forcedStarter);
   try { applyEmbersUnlocks(s); } catch (_) {}
-  // Charm — equipped pair-keepsake applies its run-start hook BEFORE
-  // baseline reroll wiring so HP/Resolve bumps are visible at first
-  // render.  Per-fight charm hooks fire from startEncounter.
-  if (s.run) s.run.charmId = getEquippedCharmId();
-  try { applyEquippedCharmRunStart(s); } catch (_) {}
   // Ascension modifiers — penalty stack applied AFTER perks land so
   // the player feels the trade clearly (e.g., Embers +HP minus
   // Ascension -3 HP nets correctly).
@@ -12358,19 +12169,7 @@ function startEncounter(encSpec) {
     flawless: true,
   };
   state.run.currentEnc = encSpec;
-  // Clear per-fight charm flags before applying the equipped charm so
-  // the new fight starts with a clean slate (e.g., first-attack bonus
-  // re-arms each encounter, not just the first one).
-  if (state.run) {
-    state.run._charmFirstAttackPending = false;
-    state.run._charmFirstKillPending = false;
-    state.run._charmFirstHealPending = false;
-    state.run._charmFirstShieldPending = false;
-    state.run._charmFirstBleedPending = false;
-  }
-  try { applyEquippedCharmFightStart(state); } catch (_) {}
-  // Ascension fight-start penalties — applied AFTER charm so the
-  // enemy armor / boss HP bumps land on the final spawn numbers.
+  // Ascension fight-start penalties — applied to the final spawn numbers.
   if (state.run && state.run.ascEnemyArmorBump > 0) {
     const bump = state.run.ascEnemyArmorBump;
     Object.values(state.enemies.chars).forEach(e => {
@@ -12711,7 +12510,7 @@ function previewDamage(s, e, baseAmt, actorId, techElement) {
   });
   // Affinity quirks
   const qMod = getQuirkDmgMod(s, actorId);
-  if (qMod) { amt += qMod; bonuses.push({ label: 'Affinity', amt: qMod }); }
+  if (qMod) { amt += qMod; bonuses.push({ label: 'Quirk', amt: qMod }); }
   // Kai Last Stand — +3 attack while he's the only ally upright.  Mirror
   // of the live-hook bump in applyDmgToEnemy so tile previews read right.
   if (actorId === 'kai' && aliveParty(s).length === 1) { amt += 3; bonuses.push({ label: 'Last Stand', amt: 3 }); }
@@ -13170,23 +12969,6 @@ function applyDmgToEnemy(s, e, baseAmt) {
       if (!__simulating) spawnPassivePopup(s.currentActorId, 'MOMENTUM');
     }
   }
-  // Charm — Banner Coal: first attack each fight gets +2 damage.
-  // Flag is set by applyEquippedCharmFightStart and consumed here on
-  // the first hit that actually deals damage.
-  if (s.run && s.run._charmFirstAttackPending && amt > 0) {
-    amt += 2;
-    s.run._charmFirstAttackPending = false;
-  }
-  // Charm — Twin Coal: first damaging hit each fight also applies
-  // bleed 1.  Consumed alongside the hit; the bleed itself is
-  // applied AFTER the damage subtract so a survivor takes the bleed.
-  // Stash a flag here and let the post-damage block apply it.
-  let _applyTwinBleed = false;
-  if (s.run && s.run._charmFirstBleedPending && amt > 0) {
-    _applyTwinBleed = true;
-    s.run._charmFirstBleedPending = false;
-  }
-
   // vulnerable adds +2 per stack consumed (1 stack per hit); Ember of Wrath sigil adds +2 more
   let vulnConsumed = 0;
   if (e.vuln > 0 && amt > 0) {
@@ -13330,12 +13112,6 @@ function applyDmgToEnemy(s, e, baseAmt) {
     }
   }
   e.hp = Math.max(0, e.hp - toHp);
-  // Twin Coal charm — apply bleed 1 to the target if the hit landed
-  // and the enemy survives.  Consumed once per fight; the flag was
-  // captured above before the HP subtract.
-  if (_applyTwinBleed && e.hp > 0) {
-    e.bleed = Math.max(e.bleed || 0, 1);
-  }
   // Brand of Doom — vuln stacks aren't consumed by attacks.
   // Ash Veil Echo — Ash's own attacks don't consume the stack either; the
   // mage keeps the chain alive for the rest of the party.
@@ -13615,11 +13391,6 @@ function applyDmgToEnemy(s, e, baseAmt) {
 function killEnemy(s, e) {
   e.dead = true;
   e._diedAt = Date.now();   // gate the death-dissolve to a short window (see makeEnemyCard)
-  // Charm — Shadow Coal: first kill each fight grants +1 bonus Resolve.
-  if (s.run && s.run._charmFirstKillPending) {
-    s.run._charmFirstKillPending = false;
-    gainResolve(s, 1);
-  }
   // Bestiary kill count — bumps the codex tally for the enemy's TEMPLATE
   // id (not the per-instance slot key like "shade#1"), since the codex
   // groups by template.  Simulating short-circuits inside recordCodexEnemy.
@@ -13786,14 +13557,6 @@ function enemyAdvanceFill(s) {
 
 function applyDmgToParty(s, c, amt) {
   if (!c || c.downed) return;
-  // Charm — Hearth Coal: first incoming attack each fight reduced by 3.
-  // Sits BEFORE the Guard ward below so the reduction shrinks the hit
-  // first; a small first hit might not even need the ward.  Consumed on
-  // the first non-zero hit.
-  if (s.run && s.run._charmFirstShieldPending && amt > 0) {
-    amt = Math.max(0, amt - 3);
-    s.run._charmFirstShieldPending = false;
-  }
   // Guard — a one-shot ward that fully negates the next incoming hit.
   // Unifies the former Veil / Wall / Divine Guard one-shots (Quiet Volley,
   // Wall Charge, Stormwall, Sacred Triad, Hallowed Cleave, Phantom Crescent,
@@ -14072,14 +13835,7 @@ function partyHeal(s, amt) {
   // Squad Sigil — Mercy Doubled (Cassia + Elin together) bumps every
   // party heal by +1.
   const squadHeal = hasSquadSigil(s, 'mercyDoubled') ? 1 : 0;
-  // Charm — Spirit Coal: first heal each fight is +2.  Consumed on
-  // first use; flag re-arms at startEncounter.
-  let charmBump = 0;
-  if (s.run && s.run._charmFirstHealPending && amt > 0) {
-    charmBump = 2;
-    s.run._charmFirstHealPending = false;
-  }
-  const total = amt + bonus + casterMod + witherMod + squadHeal + charmBump;
+  const total = amt + bonus + casterMod + witherMod + squadHeal;
   aliveParty(s).forEach(c => {
     const recvMod = getQuirkHealMod(s, c.id);
     const heal = Math.max(0, total + recvMod);
@@ -17933,18 +17689,6 @@ function renderRunModifier() {
   // layer; falls back to 1 between runs.
   const layer = (state && state.run && state.run.layer) || 1;
   const layerBadge = `<span class="run-layer-badge" title="Abyss Layer ${layer}" aria-label="Layer ${layer}">L${layer}</span>`;
-  // Equipped charm chip — surfaces what the player chose pre-run so
-  // they can read their loadout at a glance without opening Codex.
-  // Reads from state.run.charmId (snapshotted at newState) so a mid-
-  // run setting change doesn't desync.
-  const charmId = state && state.run && state.run.charmId;
-  const charm = charmId && CHARMS[charmId];
-  const charmChip = charm
-    ? `<button type="button" class="run-charm-chip" title="${charm.name} — ${charm.effect}" aria-label="${charm.name}" data-tip="${charm.name} — ${charm.effect}">
-        <span class="run-charm-icon">✦</span>
-        <span class="run-charm-name">${charm.name.replace(/'s? Coal$/, '')}</span>
-      </button>`
-    : '';
   // Ascension chip — only shown when running at A1+, so a base-
   // difficulty run reads clean.  Carries the level label so the
   // player knows what difficulty they opted into.
@@ -17954,14 +17698,14 @@ function renderRunModifier() {
     : '';
   if (!mod) {
     el.classList.remove('empty');
-    el.innerHTML = `${layerBadge}${ascChip}${charmChip}`;
+    el.innerHTML = `${layerBadge}${ascChip}`;
     return;
   }
   el.classList.remove('empty');
   el.innerHTML = `${layerBadge}${ascChip}<button type="button" class="run-mod-chip" title="${mod.name} — ${mod.desc}" aria-label="${mod.name}">
     <span class="run-mod-icon">◈</span>
     <span class="run-mod-name">${mod.name}</span>
-  </button>${charmChip}`;
+  </button>`;
 }
 
 // Slay-the-Spire-style persistent sigil tray.  One chip per acquired sigil,
@@ -20916,7 +20660,7 @@ function showNodeTooltip(anchorEl, node) {
     : node.type === 'campsite' ? 'A fallen party’s last camp.  Loot it for salvage — or rest at the fire.'
     : node.type === 'boss' ? `${bossName}.  No escape but through.`
     : node.type === 'elite' ? `Tech upgrade.${sigilCat ? ` Themed: ${sigilCat}.` : ''}`
-    : 'Affinity progression.';
+    : 'Quirk progression.';
   tt.innerHTML = `
     <div class="nt-name">${name}</div>
     <div class="nt-type">${typeLabel}${status !== 'reachable' ? ` · ${status}` : ''}</div>
@@ -21950,8 +21694,7 @@ function showRunInfoPanel() {
   // Active bonds + frictions — surfaces the synergies the current
   // formation has unlocked, with each row's effect glyph + the per-run
   // TIER + fire count so the player can read kizuna progress without
-  // long-pressing.  No cross-run charm strip — charms live in the
-  // Embers store now (separate progression).
+  // long-pressing.
   const bondPairs = getAdjacencyPairs(state);
   const bondBlock = bondPairs.length
     ? `<div class="info-bonds">${bondPairs.map(p => {
@@ -22034,11 +21777,11 @@ function showRunInfoPanel() {
       ? `<div class="info-hero-mastery" title="Mastery: ${c.mastery.name} — ${c.mastery.desc}" data-tip="Mastery: ${c.mastery.name} — ${c.mastery.desc}"><span class="info-hero-mastery-mark">♕</span><span class="info-hero-mastery-name">${c.mastery.name}</span></div>`
       : '';
     // Mastery PROGRESS — when the hero hasn't awakened yet but is stacking
-    // positive affinities toward one, show the climb so affinities read as a
+    // positive quirks toward one, show the climb so affinities read as a
     // build arc toward a payoff (not scattered stat noise).
     const heroMastery = (typeof HERO_MASTERIES !== 'undefined') && HERO_MASTERIES[id];
     const masteryProgressHtml = (!c.mastery && heroMastery && pos.length > 0)
-      ? `<div class="info-hero-mastery-progress" title="Awaken ${heroMastery.name} by stacking ${QUIRK_CAP} positive affinities — ${heroMastery.desc}" data-tip="Awaken ${heroMastery.name} by stacking ${QUIRK_CAP} positive affinities — ${heroMastery.desc}"><span class="ihmp-mark">✦</span><span class="ihmp-text">${pos.length} / ${QUIRK_CAP} affinities → ${heroMastery.name}</span></div>`
+      ? `<div class="info-hero-mastery-progress" title="Awaken ${heroMastery.name} by stacking ${QUIRK_CAP} positive quirks — ${heroMastery.desc}" data-tip="Awaken ${heroMastery.name} by stacking ${QUIRK_CAP} positive quirks — ${heroMastery.desc}"><span class="ihmp-mark">✦</span><span class="ihmp-text">${pos.length} / ${QUIRK_CAP} quirks → ${heroMastery.name}</span></div>`
       : '';
     return `
       <div class="info-hero ${c.downed ? 'info-hero-downed' : ''}">
@@ -22047,7 +21790,7 @@ function showRunInfoPanel() {
           <div class="info-hero-name">${def.name}${c.downed ? ' · downed' : ''}</div>
           <div class="info-hero-hp">HP ${c.hp} / ${c.maxHp}</div>
           ${masteryHtml}${masteryProgressHtml}
-          ${chips ? `<div class="info-hero-quirks">${chips}</div>` : `<div class="info-hero-quirks info-hero-quirks-empty">No affinities yet.</div>`}
+          ${chips ? `<div class="info-hero-quirks">${chips}</div>` : `<div class="info-hero-quirks info-hero-quirks-empty">No quirks yet.</div>`}
         </div>
       </div>`;
   }).join('');
@@ -22231,7 +21974,7 @@ function showTutorialToast(html, onDismiss) {
 // to surface its explanation. Capture-phase so the figure's setPointerCapture
 // (pickup gesture) doesn't swallow the tap.
 function bindChipExplainers() {
-  const CHIP_SEL = '.status-chip, .affinity-chip, .adj-chip, .incoming-chip, .sigil-chip, .hero-quirk, .run-mod-chip, .run-charm-chip, .run-asc-chip, .fig-quirk, .fig-mastery, .info-hero-mastery, .state-strip, .weakness-icon, .cch-school';
+  const CHIP_SEL = '.status-chip, .affinity-chip, .adj-chip, .incoming-chip, .sigil-chip, .hero-quirk, .run-mod-chip, .run-asc-chip, .fig-quirk, .fig-mastery, .info-hero-mastery, .state-strip, .weakness-icon, .cch-school';
   document.addEventListener('pointerdown', (e) => {
     const chip = e.target.closest(CHIP_SEL);
     if (chip && chip.getAttribute('title')) {
@@ -22990,7 +22733,7 @@ function showRestOverlay() {
       setTimeout(() => _completeNonCombatNode(), 900);
     }, 'reflect');
   } else if (posRoom.length > 0) {
-    mkChoice('Reflect on triumph', 'Grant an affinity to a hero', () => {
+    mkChoice('Reflect on triumph', 'Grant a quirk to a hero', () => {
       // Pick a hero with the most empty positive slots.  Hero-locked
       // affinities prefer their named owner.
       const tgt = posRoom.slice().sort((a, b) => a.quirks.positive.length - b.quirks.positive.length)[0];
@@ -24433,7 +24176,7 @@ function showPartyInspect() {
         </div>` : ''}
       ${hasAffinities ? `
         <div class="hip-section">
-          <div class="hip-section-label">Affinities</div>
+          <div class="hip-section-label">Quirks</div>
           <div class="hip-affinities">${pos.map(qid => quirkChip(qid, 'positive')).join('')}${neg.map(qid => quirkChip(qid, 'negative')).join('')}</div>
         </div>` : ''}
       <div class="hip-section">
@@ -27232,7 +26975,7 @@ function _setUnlockedFeatures(arr) {
 }
 function isFeatureUnlocked(id) { return getUnlockedFeatures().includes(id); }
 // Spend banked Embers to unlock a feature permanently.  Returns true on
-// success.  One-time (no tiers, no equip slot) — like hero / charm buys.
+// success.  One-time (no tiers, no equip slot) — like hero buys.
 function purchaseFeatureUnlock(id) {
   const def = FEATURE_UNLOCKS[id];
   if (!def || isFeatureUnlocked(id)) return false;
@@ -28119,7 +27862,6 @@ function showSettingsScreen() {
           resetCodex();
           resetAchievements();
           resetBonds();
-          resetCharms();
           resetAscensions();
           _disableDevTools();
           clearCarriedParty();
@@ -28371,7 +28113,7 @@ function showHeroCodex() {
           ${def.passive ? `<div class="hc-passive"><b>${def.passive.name}</b> · ${def.passive.desc}</div>` : ''}
           ${(() => {
             // Mastery — the awakened upgrade to this hero's passive.
-            // Earned in-run by filling positive affinities to the cap.
+            // Earned in-run by filling positive quirks to the cap.
             // Surfaced here as the "end goal" of the hero's growth
             // arc so players see what they're playing toward — not
             // just visible once in the unlock cinematic.
@@ -28427,7 +28169,7 @@ function showHeroCodex() {
             }).join('');
             return `<div class="hc-section">Resonances (${combos.length})</div><div class="hc-combos">${items}</div>`;
           })()}
-          ${quirkList ? `<div class="hc-section">Affinities</div>${quirkList}` : ''}
+          ${quirkList ? `<div class="hc-section">Quirks</div>${quirkList}` : ''}
         ` : `
           <div class="hc-locked-hint">Walk with this hero in a run to remember them.</div>
         `}
@@ -28775,7 +28517,7 @@ function _renderCodexBonds(_bonds) {
   // (Tier I/II/III via s.run.synergyCounts).  This screen lists every
   // named bond authored in ADJ so the player can browse pair effects
   // ahead of building their party — same role the catalog tab serves
-  // for Sigils / Resonances.  Charms live in the Embers store now.
+  // for Sigils / Resonances.
   const _alreadyShown = new Set();
   const bondEntries = [];
   Object.entries(ADJ).forEach(([pairKey, lines]) => {
@@ -28903,7 +28645,7 @@ function _renderEmbersScreen() {
       <span class="embers-balance-num">${balance}</span>
       <span class="embers-balance-label">Embers banked</span>
     </div>
-    <p class="embers-flavor">Every breath beneath the abyss leaves a coal.  Spend on heroes, charms, or perks — what you carry forward shapes the next climb.</p>
+    <p class="embers-flavor">Every breath beneath the abyss leaves a coal.  Spend on heroes or perks — what you carry forward shapes the next climb.</p>
   `;
   const rows = Object.entries(EMBER_UNLOCKS).map(([id, def]) => {
     const owned = getEmbersUnlockTier(id);
@@ -29001,58 +28743,19 @@ function _renderEmbersScreen() {
       }).join('')}
     </div>
   ` : '';
-  // Charms section — buy with Embers, equip one per run.  Replaces
-  // the old per-pair Kindred unlock route; the kizuna meta-track
-  // is now Embers-driven so the player has a predictable path to
-  // every charm regardless of which heroes they pair on the road.
-  const _purchasedCharms = getPurchasedCharms();
-  const _equippedCharmId = getEquippedCharmId();
-  const charmsHtml = Object.entries(CHARMS).map(([id, def]) => {
-    const owned = _purchasedCharms.has(id);
-    const isEquipped = owned && _equippedCharmId === id;
-    const affordable = balance >= CHARM_UNLOCK_COST;
-    const a = def.pairKey.split('+')[0];
-    const b = def.pairKey.split('+')[1];
-    const pairNames = `${(CHARS[a] && CHARS[a].name) || a} + ${(CHARS[b] && CHARS[b].name) || b}`;
-    let actionHtml;
-    if (owned) {
-      actionHtml = `<button type="button" class="embers-charm-equip${isEquipped ? ' embers-charm-equip-active' : ''}" data-charm-equip="${id}">${isEquipped ? 'Equipped' : 'Equip'}</button>`;
-    } else {
-      actionHtml = `<button type="button" class="embers-charm-buy${affordable ? '' : ' embers-charm-buy-disabled'}" data-charm-buy="${id}" ${affordable ? '' : 'disabled'}>
-        <span class="embers-charm-cost">✦ ${CHARM_UNLOCK_COST}</span>
-        <span class="embers-charm-buy-label">Buy</span>
-      </button>`;
-    }
-    return `<div class="embers-charm${owned ? ' embers-charm-owned' : ''}${isEquipped ? ' embers-charm-equipped' : ''}">
-      <div class="embers-charm-head">
-        <span class="embers-charm-name">${def.name}</span>
-        <span class="embers-charm-pair">${pairNames}</span>
-      </div>
-      <div class="embers-charm-effect">${def.effect}</div>
-      <div class="embers-charm-flavor">${def.flavor}</div>
-      <div class="embers-charm-actions">${actionHtml}</div>
-    </div>`;
-  }).join('');
-  const charmsSection = `
-    <div class="embers-section-head">Charms <span class="embers-section-sub">${_purchasedCharms.size} / ${Object.keys(CHARMS).length} purchased · one equipped per run</span></div>
-    <div class="embers-charms">${charmsHtml}</div>
-  `;
   // Preserve the scroll position across re-renders so an unseal / equip /
   // purchase doesn't jump the player back to the top — they're often
   // mid-list working through choices and the snap-to-top is disorienting.
   //
   // Section order is intentional: Heroes first (the most onboarding-friendly
-  // spend — unlocks variety for the player's next run), then Charms (small
-  // pre-run buffs that compound with any team), then Perks (deep multi-tier
-  // upgrades that pay off after the player has internalized the meta).
-  // Reordered from the previous Perks-first layout because the spend
-  // priority for a new player is clearly Heroes → Charms → Perks.
+  // spend — unlocks variety for the player's next run), then Perks (deep
+  // multi-tier upgrades that pay off after the player has internalized the
+  // meta).
   const _prevScroll = body.scrollTop;
   body.innerHTML = `
     ${headerHtml}
     ${featuresSection}
     ${heroesHtml}
-    ${charmsSection}
     <div class="embers-section-head">Perks <span class="embers-section-sub">${active.length} / ${EMBERS_ACTIVE_CAP} equipped</span></div>
     <div class="embers-rows">${rows}</div>
   `;
@@ -29109,32 +28812,6 @@ function _renderEmbersScreen() {
       } else {
         btn.disabled = false;
       }
-    };
-  });
-  // Buy a charm — costs CHARM_UNLOCK_COST embers, then the row
-  // flips to an Equip button on next render.
-  body.querySelectorAll('.embers-charm-buy[data-charm-buy]').forEach(btn => {
-    btn.onclick = () => {
-      if (btn.disabled) return;
-      btn.disabled = true;
-      const id = btn.dataset.charmBuy;
-      if (purchaseCharm(id)) {
-        Audio.ui();
-        _renderEmbersScreen();
-      } else {
-        btn.disabled = false;
-      }
-    };
-  });
-  // Equip / unequip a charm — only one equipped per run.  Toggle:
-  // clicking the currently-equipped charm unequips it.
-  body.querySelectorAll('.embers-charm-equip[data-charm-equip]').forEach(btn => {
-    btn.onclick = () => {
-      const id = btn.dataset.charmEquip;
-      const current = getEquippedCharmId();
-      setEquippedCharm(current === id ? null : id);
-      Audio.ui();
-      _renderEmbersScreen();
     };
   });
 }

@@ -332,47 +332,6 @@ body.on-title:has(#overlay:not(.hidden)) #stage-scale {
   cursor: help;
 }
 
-/* Equipped-charm chip — surfaces the keepsake the player chose
-   pre-run so they can read their loadout at a glance.  Sits to the
-   right of the biome chip.  Hidden when no charm is equipped. */
-.run-charm-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 4px 11px 4px 9px;
-  font-family: inherit;
-  font-size: 10px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  font-weight: 600;
-  color: var(--gold-bright);
-  background: rgba(40,28,14,0.72);
-  border: 1px solid rgba(240,212,136,0.45);
-  border-radius: 14px;
-  min-height: 28px;
-  cursor: help;
-  box-shadow: 0 0 10px rgba(240,212,136,0.18), inset 0 0 6px rgba(0,0,0,0.35);
-  flex-shrink: 0;
-}
-.run-charm-chip:hover { filter: brightness(1.18); }
-.run-charm-icon {
-  font-size: 12px;
-  color: var(--gold-bright);
-  text-shadow: 0 0 6px rgba(240,212,136,0.5);
-}
-.run-charm-name {
-  font-size: 9.5px;
-  letter-spacing: 0.12em;
-}
-/* On narrow screens (sub-720px design canvas, or scaled-down mobile)
-   collapse the charm chip to glyph-only so the run-modifier strip
-   doesn't overflow into the sigil tray.  Press-and-hold still
-   reveals the full name + effect via the chip-tooltip layer. */
-@media (max-width: 600px) {
-  .run-charm-name { display: none; }
-  .run-charm-chip { padding: 4px 8px; }
-}
-
 /* NEW dot on title menu buttons — pulses gold to draw the eye to
    newly-unlocked top-level entries (Codex on first L1 clear).
    Currently only used on the Codex button until the player opens
@@ -457,16 +416,6 @@ body.on-title:has(#overlay:not(.hidden)) #stage-scale {
   color: var(--gold-bright);
   text-shadow: 0 0 14px rgba(240,212,136,0.65);
   font-weight: 600;
-}
-.bond-fanfare-charm {
-  margin-top: 6px;
-  padding-top: 6px;
-  border-top: 1px solid rgba(240,212,136,0.25);
-  font-size: 10px;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--gold-bright);
-  font-style: italic;
 }
 #hud::after {
   /* Faint hairline at the bottom of the HUD so it reads as a strip */
@@ -5397,18 +5346,6 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
   border-left: 2px solid var(--gold-dim);
 }
 
-/* ===========================================================================
-   CHARMS — pre-run keepsakes purchased with Embers.  Each card shows the
-   charm name, its pair-of-origin, the effect line, a flavor line, and a
-   Buy / Equip action.  Owned charms get a brighter border; the equipped
-   one pulses gold so the player can see their loadout choice at a glance.
-   =========================================================================== */
-.embers-charms {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 0 12px 12px;
-}
 /* The Deep Opens — feature unlocks (Forge / Oaths), marquee purchases. */
 .embers-features { display: flex; flex-direction: column; gap: 10px; }
 .embers-feature {
@@ -5464,97 +5401,6 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
 .embers-feature-buy-label { font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; opacity: 0.85; }
 .embers-feature-buy-disabled { opacity: 0.45; cursor: not-allowed; }
 
-.embers-charm {
-  padding: 8px 10px;
-  background: linear-gradient(180deg, rgba(20,18,14,0.5) 0%, rgba(8,6,6,0.65) 100%);
-  border-left: 2px solid rgba(212,200,168,0.18);
-  border-radius: 0 2px 2px 0;
-}
-.embers-charm-owned {
-  border-left-color: var(--gold-dim);
-  background: linear-gradient(180deg, rgba(28,22,14,0.6) 0%, rgba(12,8,6,0.75) 100%);
-}
-.embers-charm-equipped {
-  border-left-color: var(--gold-bright);
-  box-shadow: inset 0 0 14px rgba(240,212,136,0.16);
-  animation: embers-charm-equipped-pulse 2.4s ease-in-out infinite;
-}
-@keyframes embers-charm-equipped-pulse {
-  0%, 100% { box-shadow: inset 0 0 14px rgba(240,212,136,0.16); }
-  50%      { box-shadow: inset 0 0 20px rgba(240,212,136,0.28); }
-}
-.embers-charm-head {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  margin-bottom: 2px;
-}
-.embers-charm-name {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--gold-bright);
-  letter-spacing: 0.08em;
-}
-.embers-charm-pair {
-  font-size: 9px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-  margin-left: auto;
-}
-.embers-charm-effect {
-  font-size: 11px;
-  color: var(--ink);
-  margin-bottom: 2px;
-}
-.embers-charm-flavor {
-  font-size: 9.5px;
-  font-style: italic;
-  color: var(--ink-dim);
-  margin-bottom: 6px;
-}
-.embers-charm-actions {
-  display: flex;
-  justify-content: flex-end;
-}
-.embers-charm-buy,
-.embers-charm-equip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--gold-bright);
-  background: linear-gradient(180deg, rgba(48,32,18,0.7) 0%, rgba(16,10,6,0.85) 100%);
-  border: 1px solid var(--gold-dim);
-  border-radius: 2px;
-  cursor: pointer;
-  transition: border-color 0.14s, box-shadow 0.14s;
-}
-.embers-charm-buy:not(.embers-charm-buy-disabled):hover,
-.embers-charm-equip:hover {
-  border-color: var(--gold-bright);
-  box-shadow: 0 0 10px rgba(240,212,136,0.3);
-}
-.embers-charm-buy-disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-.embers-charm-equip-active {
-  background: linear-gradient(180deg, rgba(80,56,22,0.85) 0%, rgba(40,28,12,0.95) 100%);
-  border-color: var(--gold-bright);
-  color: #ffeec0;
-}
-.embers-charm-cost {
-  color: var(--gold-bright);
-  font-variant-numeric: tabular-nums;
-}
-.embers-charm-buy-label {
-  color: var(--ink);
-}
 .embers-row-head {
   display: flex;
   justify-content: space-between;
@@ -6899,133 +6745,6 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
 .codex-hero-unseal-label {
   color: var(--ink);
   letter-spacing: 0.22em;
-}
-
-/* Equipped-charm banner at the top of the Codex Bonds tab.  Surfaces
-   what's locked in for the next run so the player can read their
-   loadout at a glance.  Empty state explains how to unlock charms. */
-.codex-charm-equipped {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  padding: 8px 10px;
-  margin-bottom: 8px;
-  background: linear-gradient(180deg, rgba(40,30,18,0.72) 0%, rgba(14,10,8,0.85) 100%);
-  border: 1px solid var(--gold-dim);
-}
-.codex-charm-equipped-label {
-  font-size: 8.5px;
-  letter-spacing: 0.32em;
-  text-transform: uppercase;
-  color: var(--gold-pale);
-}
-.codex-charm-equipped-name {
-  font-size: 11.5px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--gold-bright);
-  text-shadow: 0 0 8px rgba(240,212,136,0.5);
-}
-.codex-charm-equipped-effect {
-  font-size: 10px;
-  font-style: italic;
-  color: var(--ink);
-  letter-spacing: 0.02em;
-}
-.codex-charm-equipped-empty {
-  font-size: 10px;
-  font-style: italic;
-  color: var(--ink-faint);
-  flex: 1 1 100%;
-}
-.codex-charm-unequip {
-  margin-left: auto;
-  background: transparent;
-  border: 1px solid var(--gold-dim);
-  color: var(--gold-pale);
-  font-family: inherit;
-  font-size: 9px;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  padding: 3px 10px;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.codex-charm-unequip:hover {
-  color: var(--gold-bright);
-  border-color: var(--gold-bright);
-  background: rgba(240,212,136,0.08);
-}
-
-/* Charm row inside each bond entry — shows the pair's keepsake +
-   Equip button when unlocked, locked hint until Kindred. */
-.codex-bond-charm {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 4px;
-  padding: 5px 8px;
-  background: rgba(0,0,0,0.32);
-  border-left: 2px solid rgba(240,212,136,0.4);
-}
-.codex-bond-charm.codex-bond-charm-locked {
-  border-left-color: rgba(232,220,196,0.15);
-  opacity: 0.65;
-}
-.codex-bond-charm-info {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  flex: 1 1 auto;
-  min-width: 0;
-}
-.codex-bond-charm-name {
-  font-size: 10px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--gold-pale);
-}
-.codex-bond-charm.codex-bond-charm-locked .codex-bond-charm-name { color: var(--ink-faint); }
-.codex-bond-charm-effect {
-  font-size: 9px;
-  font-style: italic;
-  letter-spacing: 0.02em;
-  color: var(--ink-dim);
-  line-height: 1.4;
-}
-.codex-bond-charm-btn {
-  background: linear-gradient(180deg, rgba(60,40,18,0.7) 0%, rgba(20,12,8,0.85) 100%);
-  border: 1px solid var(--gold-dim);
-  color: var(--ink);
-  font-family: inherit;
-  font-size: 9px;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  padding: 3px 10px;
-  cursor: pointer;
-  transition: all 0.15s;
-  white-space: nowrap;
-}
-.codex-bond-charm-btn:hover {
-  filter: brightness(1.18);
-  border-color: var(--gold-bright);
-  box-shadow: 0 0 8px rgba(240,212,136,0.32);
-}
-.codex-bond-charm-btn.codex-bond-charm-btn-active {
-  background: linear-gradient(180deg, var(--gold) 0%, var(--gold-deep) 100%);
-  color: #1a0e04;
-  border-color: var(--gold-bright);
-  text-shadow: 0 1px 0 rgba(255,240,184,0.4);
-  box-shadow: 0 0 10px rgba(240,212,136,0.5);
-}
-.codex-bond-charm-lock {
-  font-size: 8.5px;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-  font-style: italic;
-  white-space: nowrap;
 }
 
 /* Bond row inside the codex — same as the dedicated Bonds screen but
@@ -15690,47 +15409,6 @@ body.killing-blow::before {
   background: rgba(80, 56, 22, 0.7);
   box-shadow: 0 0 8px rgba(240, 212, 136, 0.35);
 }
-/* Charm strip — surfaces the pair's keepsake.  Locked → quiet grey
-   with "X more shared fights".  Ready → bright gold pointing at
-   Codex › Bonds.  Equipped → green check. */
-.info-bond-charm {
-  display: inline-block;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  border-radius: 3px;
-  padding: 1px 5px;
-  margin-top: 2px;
-}
-.info-bond-charm.info-bond-charm-locked {
-  color: rgba(212, 200, 168, 0.5);
-  border: 1px solid rgba(212, 200, 168, 0.18);
-  background: rgba(20, 18, 14, 0.4);
-}
-.info-bond-charm.info-bond-charm-ready {
-  color: var(--gold-bright);
-  border: 1px solid rgba(240, 212, 136, 0.5);
-  background: rgba(50, 36, 14, 0.7);
-  animation: charm-ready-pulse 1.6s ease-in-out infinite;
-}
-@keyframes charm-ready-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(240, 212, 136, 0); }
-  50%      { box-shadow: 0 0 10px 1px rgba(240, 212, 136, 0.35); }
-}
-.info-bond-charm.info-bond-charm-equipped {
-  color: var(--heal);
-  border: 1px solid rgba(152, 216, 120, 0.45);
-  background: rgba(20, 36, 22, 0.6);
-}
-/* Bond-fanfare charm sub-line — small hint about where to equip */
-.bond-fanfare-charm-sub {
-  display: block;
-  font-size: 10px;
-  letter-spacing: 0.18em;
-  color: var(--ink-faint);
-  margin-top: 4px;
-}
-
 /* ===========================================================================
    RESONANCES — info panel section listing every combo the current party
    can build.  Each row shows the combo name + tier badge + requirement
