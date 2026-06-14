@@ -22141,11 +22141,9 @@ function renderMap() {
   $('#overlay').classList.remove('overlay-vignette', 'overlay-runsummary');
   $('#overlay').classList.add('overlay-full', 'overlay-path');
   $('#overlay-title').textContent = 'The Path';
-  // Show the player's banked Kindling here so they can read it against the
-  // campfire cost in the control bar below (no separate HUD readout on the map).
-  $('#overlay-body').innerHTML =
-    `<span class="path-kindling" title="Kindling banked — spend it on a campfire, or on heroes/perks between runs">` +
-    `<span class="pk-glyph">✦</span> <b>${getEmbersBalance()}</b> <span class="pk-label">Kindling</span></span>`;
+  // No centered readout — the node graph gets the vertical space.  Banked
+  // Kindling lives in a bottom-right corner chip, the controls at the bottom.
+  $('#overlay-body').innerHTML = '';
   const choices = $('#overlay-choices');
   choices.innerHTML = '';
   choices.classList.add('path-map');
@@ -22288,9 +22286,18 @@ function renderMap() {
       `<span class="map-ctl-label">Heroes</span>` +
     `</button>`;
   _obtn.parentNode.insertBefore(bar, _obtn.nextSibling);
+  // Banked-Kindling resource chip pinned to the bottom-right corner so it
+  // doesn't eat vertical space in the centre.  Torn down with the bar.
+  document.getElementById('kindling-chip')?.remove();
+  const kchip = document.createElement('div');
+  kchip.id = 'kindling-chip';
+  kchip.className = 'kindling-chip';
+  kchip.title = 'Kindling banked — spend on a campfire, or on heroes / perks between runs';
+  kchip.innerHTML = `<span class="kc-glyph">✦</span><b>${getEmbersBalance()}</b>`;
+  _obtn.parentNode.appendChild(kchip);
   $('#overlay').classList.remove('hidden');
 
-  bar.querySelector('#map-heroes-btn').onclick = () => { bar.remove(); showPartyInspect(); };
+  bar.querySelector('#map-heroes-btn').onclick = () => { bar.remove(); kchip.remove(); showPartyInspect(); };
   // Light-a-campfire — spend banked Kindling, bump the per-run fire count
   // (raises the next fire's cost), and open the campfire.
   const fireBtn = bar.querySelector('#map-campfire-btn');
@@ -24415,9 +24422,10 @@ function flowScrim(on) {
 function hideOverlay() {
   // Keep the screen dark through the close→open gap of a chained transition.
   flowScrim(true);
-  // Tear down the map's bottom control bar (campfire + heroes) so it can't
-  // linger over whatever screen opens next.  renderMap rebuilds it fresh.
+  // Tear down the map's bottom control bar (campfire + heroes) + the Kindling
+  // corner chip so they can't linger over whatever screen opens next.
   document.getElementById('map-controls')?.remove();
+  document.getElementById('kindling-chip')?.remove();
   const ov = $('#overlay');
   ov.classList.add('hidden');
   ov.classList.remove('overlay-full', 'overlay-cinematic',

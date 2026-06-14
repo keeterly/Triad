@@ -8484,7 +8484,9 @@ body.party-critical::after {
 }
 #overlay-content:has(#overlay-choices.path-map:not(.hidden)) {
   max-width: min(1040px, 97vw);
-  padding: 10px 30px 8px;
+  /* Extra bottom padding clears the absolutely-pinned control bar + Kindling
+     chip so the node graph never overlaps them. */
+  padding: 10px 30px 58px;
 }
 /* Party-inspect overlay is wider — three hero columns of dense info */
 #overlay-content:has(#overlay-choices.party-inspect:not(.hidden)) {
@@ -9143,18 +9145,24 @@ body.party-critical::after {
 
 /* World-map bottom controls — two minimal pill buttons side by side:
    Campfire (live little fire + cost) and Heroes (party trio + label). */
+/* Bottom control bar — pinned to the bottom-centre of the map overlay (out of
+   the node-graph flow) so it sits low with clear separation. */
 .map-controls {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
   display: flex;
   justify-content: center;
   align-items: stretch;
-  gap: 24px;
-  margin-top: 20px;
+  gap: 18px;
+  z-index: 4;
 }
 .map-ctl {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 22px;
+  gap: 9px;
+  padding: 8px 18px;
   font-family: inherit;
   color: var(--gold-bright);
   background: linear-gradient(180deg, rgba(34,24,14,0.78) 0%, rgba(14,10,7,0.9) 100%);
@@ -9163,7 +9171,25 @@ body.party-critical::after {
   cursor: pointer;
   transition: filter 0.14s, transform 0.14s, border-color 0.14s;
 }
-.map-ctl-label { font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
+.map-ctl-label { font-size: 9.5px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
+
+/* Banked-Kindling resource chip — pinned to the map's bottom-right corner. */
+.kindling-chip {
+  position: absolute;
+  right: 18px;
+  bottom: 16px;
+  z-index: 4;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 5px 12px;
+  background: linear-gradient(180deg, rgba(34,24,14,0.7), rgba(13,9,6,0.85));
+  border: 1px solid rgba(201,164,100,0.32);
+  border-radius: 13px;
+  letter-spacing: 0.05em;
+}
+.kindling-chip .kc-glyph { color: #ffd27a; font-size: 13px; }
+.kindling-chip b { color: var(--gold-bright); font-size: 14px; font-variant-numeric: tabular-nums; }
 /* Campfire control — warmer tint + a slow glow + the live flame. */
 .map-ctl-fire {
   border-color: rgba(240,180,90,0.5);
