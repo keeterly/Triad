@@ -19179,7 +19179,17 @@ function openResonantPanel() {
     row.addEventListener('pointercancel', endHold);
     row.addEventListener('click', () => {
       if (didPreview) { didPreview = false; return; }  // that press was a hold-preview, not a tap
-      if (row.disabled || state.executing || state.over) return;
+      if (row.disabled || row.classList.contains('poor') || state.executing || state.over) return;
+      // Two-tap commit — a Resonant Skill spends Resolve, so a single stray tap
+      // shouldn't fire it.  First tap ARMS the row (clearing any other), second
+      // tap on the armed row unleashes.
+      if (!row.classList.contains('armed')) {
+        el.querySelectorAll('.rp-row.armed').forEach(r => r.classList.remove('armed'));
+        row.classList.add('armed');
+        const hint = el.querySelector('.rp-hint');
+        if (hint) hint.textContent = 'Tap the highlighted skill again to unleash — or pick another.';
+        return;
+      }
       closeResonantPanel();
       commitUnique(id);
     });

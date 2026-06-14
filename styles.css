@@ -8483,8 +8483,8 @@ body.party-critical::after {
   padding: 24px 28px;
 }
 #overlay-content:has(#overlay-choices.path-map:not(.hidden)) {
-  max-width: min(820px, 96vw);
-  padding: 20px 22px 16px;
+  max-width: min(1040px, 97vw);
+  padding: 10px 30px 8px;
 }
 /* Party-inspect overlay is wider — three hero columns of dense info */
 #overlay-content:has(#overlay-choices.party-inspect:not(.hidden)) {
@@ -9114,8 +9114,8 @@ body.party-critical::after {
   flex-wrap: nowrap;
   justify-content: space-between;
   align-items: stretch;
-  gap: 12px;
-  margin-top: 6px;
+  gap: 22px;
+  margin-top: 10px;
   position: relative;
   width: 100%;
 }
@@ -9282,7 +9282,7 @@ body.party-critical::after {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 18px;
   flex: 1;
 }
 .path-node {
@@ -16413,14 +16413,19 @@ body:has(#world-map:not(.hidden)) #hud {
     flex-direction: row;
     flex-wrap: wrap;
     justify-content: center;
-    gap: 8px;
-    margin-top: 2px;
+    gap: 14px;
+    margin-top: 4px;
+    max-width: min(1100px, 96vw);
+    margin-left: auto;
+    margin-right: auto;
   }
+  /* Give each campfire card real room so the name doesn't wrap to 3 lines and
+     the effect line doesn't truncate; they wrap to a second row if needed. */
   .overlay-rest .event-choice {
-    flex: 1 1 0;
-    min-width: 0;
-    max-width: 240px;
-    text-align: center;
+    flex: 1 1 210px;
+    min-width: 200px;
+    max-width: 300px;
+    text-align: left;
   }
   .overlay-rest .rest-scene { min-height: 110px; margin: 2px 0 4px; }
   .overlay-rest .rest-hero { width: 56px; height: 90px; }
@@ -17321,7 +17326,7 @@ body.on-title #hud { display: none !important; }
    parties.  Elegant dark-parchment card with a single quiet gold hairline. */
 #resonant-panel .rp-sheet {
   position: absolute; left: 50%; bottom: 76px; transform: translateX(-50%);
-  width: min(560px, 94vw); max-height: 84vh; overflow-y: auto; overscroll-behavior: contain;
+  width: min(680px, 95vw); max-height: 84vh; overflow-y: auto; overscroll-behavior: contain;
   background: linear-gradient(180deg, rgba(22,17,11,0.985), rgba(9,7,5,0.985));
   border: 1px solid var(--gold-dim);
   box-shadow: 0 16px 46px rgba(0,0,0,0.85);
@@ -17337,18 +17342,33 @@ body.on-title #hud { display: none !important; }
 }
 #resonant-panel .rp-close { width: 25px; height: 25px; border: 1px solid var(--gold-dim); background: transparent; color: var(--gold-bright); font-size: 15px; line-height: 1; cursor: pointer; border-radius: 2px; }
 #resonant-panel .rp-close:hover { border-color: var(--gold-bright); }
-#resonant-panel .rp-list { display: flex; flex-direction: column; gap: 5px; touch-action: pan-y; }
+#resonant-panel .rp-list { display: flex; flex-direction: column; gap: 10px; touch-action: pan-y; }
 #resonant-panel .rp-row {
-  display: flex; align-items: center; gap: 11px; width: 100%; padding: 9px 13px;
+  position: relative;
+  display: flex; align-items: center; gap: 13px; width: 100%; padding: 14px 16px;
   border: 1px solid rgba(220,205,160,0.18);
   background: linear-gradient(180deg, rgba(30,23,14,0.5), rgba(15,11,7,0.5));
   color: var(--ink); text-align: left; cursor: pointer; font-family: inherit;
   border-radius: 2px;
-  transition: border-color 0.12s, background 0.12s;
+  transition: border-color 0.12s, background 0.12s, box-shadow 0.12s;
 }
 #resonant-panel .rp-row:not(.poor):hover,
 #resonant-panel .rp-row.previewing { border-color: var(--gold-bright); background: linear-gradient(180deg, rgba(46,34,20,0.72), rgba(21,15,9,0.72)); }
 #resonant-panel .rp-row.poor { opacity: 0.4; cursor: default; }
+/* Armed — first tap selects a skill; a second deliberate tap unleashes it, so a
+   stray touch can't spend Resolve.  The armed row glows and shows a confirm. */
+#resonant-panel .rp-row.armed {
+  border-color: var(--gold-bright);
+  background: linear-gradient(180deg, rgba(68,48,22,0.9), rgba(30,21,11,0.9));
+  box-shadow: 0 0 0 1px var(--gold-bright), 0 0 18px rgba(240,212,136,0.4);
+}
+#resonant-panel .rp-row.armed::after {
+  content: 'TAP AGAIN ✦';
+  position: absolute; top: -1px; right: -1px;
+  font-size: 8px; font-weight: 700; letter-spacing: 0.14em;
+  color: #1a1207; background: var(--gold-bright);
+  padding: 2px 6px; border-radius: 0 2px 0 6px;
+}
 #resonant-panel .rp-portraits { display: flex; flex: 0 0 auto; }
 #resonant-panel .rp-portrait { width: 30px; height: 30px; border-radius: 50%; overflow: hidden; border: 1px solid var(--gold-dim); margin-left: -9px; background: var(--parchment-deep); }
 #resonant-panel .rp-portrait:first-child { margin-left: 0; }
