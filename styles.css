@@ -9126,20 +9126,35 @@ body.party-critical::after {
    inspector.  Two chips max so the strip doesn't crowd the map. */
 .path-subtitle { display: block; }
 
+/* Banked-Kindling readout on the map — so the player can weigh the campfire
+   cost (shown on the control button) against what they actually have. */
+.path-kindling {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  margin-top: 2px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold-pale);
+}
+.path-kindling .pk-glyph { color: #ffd27a; font-size: 13px; }
+.path-kindling b { color: var(--gold-bright); font-size: 15px; font-variant-numeric: tabular-nums; }
+.path-kindling .pk-label { font-size: 10px; opacity: 0.7; }
+
 /* World-map bottom controls — two minimal pill buttons side by side:
    Campfire (live little fire + cost) and Heroes (party trio + label). */
 .map-controls {
   display: flex;
   justify-content: center;
   align-items: stretch;
-  gap: 10px;
-  margin-top: 6px;
+  gap: 24px;
+  margin-top: 20px;
 }
 .map-ctl {
   display: inline-flex;
   align-items: center;
-  gap: 9px;
-  padding: 7px 15px;
+  gap: 10px;
+  padding: 10px 22px;
   font-family: inherit;
   color: var(--gold-bright);
   background: linear-gradient(180deg, rgba(34,24,14,0.78) 0%, rgba(14,10,7,0.9) 100%);
@@ -9282,7 +9297,7 @@ body.party-critical::after {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 18px;
+  gap: 28px;
   flex: 1;
 }
 .path-node {
@@ -9403,6 +9418,28 @@ button.path-node { cursor: pointer; }
   border-color: rgba(200,164,100,0.16);
   animation: none;
 }
+/* Fog of war — nodes deeper on the path read as an obscured "?" until you step
+   closer.  The glyph is blurred and the type colour stripped so it isn't
+   discernible; the boss + immediate choices stay clear. */
+.path-node.node-fogged {
+  opacity: 0.5;
+  border-color: rgba(150,140,120,0.14);
+  border-style: dashed;
+  filter: none;
+  animation: none;
+}
+.path-node.node-fogged .pn-icon {
+  color: rgba(185,175,155,0.5);
+  filter: blur(1.5px);
+  background: radial-gradient(circle at 50% 40%, rgba(28,24,20,0.9) 0%, rgba(10,8,8,0.92) 75%);
+  border-color: rgba(150,140,120,0.18);
+  text-shadow: none;
+}
+.path-node.node-fogged .pn-label {
+  color: rgba(170,160,140,0.4);
+  letter-spacing: 0.32em;
+}
+.path-node.node-fogged .pn-pulse { display: none; }
 .path-node.node-elite { border-color: rgba(255,185,104,0.55); }
 .path-node.node-boss  { border-color: rgba(255,120,104,0.65); }
 .path-node.node-rest  { border-color: rgba(152,216,120,0.45); }

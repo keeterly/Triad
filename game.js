@@ -6942,6 +6942,16 @@ function isMapNodeReachable(s, nodeId) {
   const last = s.run.map.nodes[completed[completed.length - 1]];
   return !!(last && last.next.includes(nodeId));
 }
+// Fog of war — a node is DISCERNIBLE (its type/details shown) only if it's
+// already cleared, an immediate next choice, or the boss (the destination is
+// always visible).  Everything further down the path reads as an unknown until
+// the player steps closer.
+function mapNodeRevealed(s, node) {
+  if (!node) return false;
+  if (node.type === 'boss') return true;
+  const st = mapNodeStatus(s, node.id);
+  return st === 'completed' || st === 'reachable';
+}
 function mapEdges() {
   const map = _runMap();
   if (!map) return [];
@@ -20648,6 +20658,16 @@ function showNodeTooltip(anchorEl, node) {
   hideNodeTooltip();
   const tt = document.createElement('div');
   tt.id = 'node-tooltip';
+  // Fogged nodes don't reveal their type on inspect either — keep the mystery.
+  if (!mapNodeRevealed(state, node)) {
+    tt.classList.add('nt-fogged');
+    tt.innerHTML = `
+      <div class="nt-name">???</div>
+      <div class="nt-reward">The dark hides what waits here.  Step closer to see.</div>
+    `;
+    _placeNodeTooltip(tt, anchorEl);
+    return;
+  }
   const enc = node.enc;
   const status = mapNodeStatus(state, node.id);
   const typeLabel = ({
@@ -20698,6 +20718,11 @@ function showNodeTooltip(anchorEl, node) {
     ${enemyChips ? `<div class="nt-enemies">${enemyChips}</div>` : ''}
     <div class="nt-reward">${rewardLine}</div>
   `;
+  _placeNodeTooltip(tt, anchorEl);
+}
+// Append the node tooltip to the body, place it above (or below) the anchor
+// node, and wire its auto-dismiss.  Shared by the normal and fogged tooltips.
+function _placeNodeTooltip(tt, anchorEl) {
   document.body.appendChild(tt);
   const r = anchorEl.getBoundingClientRect();
   const ttRect = tt.getBoundingClientRect();
@@ -22116,9 +22141,11 @@ function renderMap() {
   $('#overlay').classList.remove('overlay-vignette', 'overlay-runsummary');
   $('#overlay').classList.add('overlay-full', 'overlay-path');
   $('#overlay-title').textContent = 'The Path';
-  // No subtitle — the title + the node graph speak for themselves.  The two
-  // map controls (campfire + heroes) live in a single bottom bar built below.
-  $('#overlay-body').innerHTML = '';
+  // Show the player's banked Kindling here so they can read it against the
+  // campfire cost in the control bar below (no separate HUD readout on the map).
+  $('#overlay-body').innerHTML =
+    `<span class="path-kindling" title="Kindling banked — spend it on a campfire, or on heroes/perks between runs">` +
+    `<span class="pk-glyph">✦</span> <b>${getEmbersBalance()}</b> <span class="pk-label">Kindling</span></span>`;
   const choices = $('#overlay-choices');
   choices.innerHTML = '';
   choices.classList.add('path-map');
@@ -22152,8 +22179,10 @@ function renderMap() {
       const status = mapNodeStatus(state, node.id);
       const enc = node.enc;
       const isClickable = status === 'reachable';
+      const revealed = mapNodeRevealed(state, node);
       const el = document.createElement(isClickable ? 'button' : 'div');
-      el.className = `path-node node-${node.type} node-${status}`;
+      // Fogged nodes drop their type class so CSS can't colour-hint what they are.
+      el.className = `path-node node-${revealed ? node.type : 'fogged'} node-${status}${revealed ? '' : ' node-fogged'}`;
       el.dataset.nodeId = node.id;
       // Per-node jitter — tiny stable offset so nodes don't perfectly
       // line up column-to-column.  Boss is the destination and stays
@@ -22189,8 +22218,8 @@ function renderMap() {
       // glance.  Pulse ring renders only on reachable nodes (CSS-side).
       el.innerHTML = `
         <span class="pn-pulse" aria-hidden="true"></span>
-        <span class="pn-icon">${typeGlyph}</span>
-        <span class="pn-label">${typeLabel}</span>
+        <span class="pn-icon">${revealed ? typeGlyph : '?'}</span>
+        <span class="pn-label">${revealed ? typeLabel : '???'}</span>
         ${status === 'completed' ? '<span class="pn-check" aria-hidden="true">✓</span>' : ''}
       `;
 
