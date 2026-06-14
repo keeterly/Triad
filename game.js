@@ -11684,7 +11684,7 @@ function _showAchievementFanfare(def) {
   // reward gets folded into the desc line so the toast stays
   // single-row by default; tap-to-expand opens the full desc.
   const desc = def.embers
-    ? `${def.desc}  <span class="ach-reward-inline">✦ +${def.embers} Embers</span>`
+    ? `${def.desc}  <span class="ach-reward-inline">✦ +${def.embers} Kindling</span>`
     : def.desc;
   spawnToast({
     category: 'achievement',
@@ -20636,7 +20636,7 @@ function showNodeTooltip(anchorEl, node) {
              : node.type === 'event'    ? (EVENTS[node.eventId]?.name || 'Strange Encounter')
              : node.type === 'wanderer' ? (wandererHero ? wandererHero.name : 'A figure on the path')
              : node.type === 'forge'    ? 'The Forge'
-             : node.type === 'shop'     ? 'The Ember Stall'
+             : node.type === 'shop'     ? 'The Kindling Stall'
              : node.type === 'campsite' ? 'A Cold Camp'
              : (enc?.name || node.type);
   const enemyChips = (node.type === 'rest' || node.type === 'event' || node.type === 'wanderer' || node.type === 'forge' || node.type === 'shop' || node.type === 'campsite')
@@ -20656,8 +20656,8 @@ function showNodeTooltip(anchorEl, node) {
     : node.type === 'event' ? 'Choice with consequences.'
     : node.type === 'wanderer' ? (wandererHero ? `${wandererHero.title || 'A hero on the road'}.  Trade, fight, or walk past.` : 'A meeting on the road.')
     : node.type === 'forge'    ? 'Burn a sigil to forge a hero a permanent boon.'
-    : node.type === 'shop'     ? 'Spend pending Embers on one-time consumables.'
-    : node.type === 'campsite' ? 'A fallen party’s last camp.  Loot it for salvage — or rest at the fire.'
+    : node.type === 'shop'     ? 'Spend pending Kindling on one-time consumables.'
+    : node.type === 'campsite' ? 'A fallen party’s last camp.  Loot it for Kindling — or rest at the fire.'
     : node.type === 'boss' ? `${bossName}.  No escape but through.`
     : node.type === 'elite' ? `Tech upgrade.${sigilCat ? ` Themed: ${sigilCat}.` : ''}`
     : 'Quirk progression.';
@@ -22502,11 +22502,11 @@ function showCampsiteOverlay(node) {
   choices.classList.add('event-choices');
 
   // Clear the ghost record (the camp is found either way) and close out the
-  // node.  Salvage banks into the persistent camp stores only when looted.
+  // node.  Looting banks the cold camp's Kindling into your stash.
   const settle = (claimedSalvage) => {
     try {
       const c = getCamp();
-      if (claimedSalvage) c.stores += gained;
+      if (claimedSalvage) _setEmbersBalance(getEmbersBalance() + gained);
       c.abandoned = null;
       saveCamp(c);
     } catch (_) {}
@@ -22521,9 +22521,9 @@ function showCampsiteOverlay(node) {
   // (capped so it can't drop them) and left bleeding.  Greed vs. caution.
   const loot = document.createElement('button');
   loot.className = 'encounter-choice event-choice rest-choice-heal';
-  loot.innerHTML = `<div class="enc-name">Loot the camp</div><div class="sigil-desc">${gained > 0 ? `+${gained} salvage` : 'pick the bones'} · the dark may stir</div>`;
+  loot.innerHTML = `<div class="enc-name">Loot the camp</div><div class="sigil-desc">${gained > 0 ? `+${gained} Kindling` : 'pick the bones'} · the dark may stir</div>`;
   loot.addEventListener('click', () => {
-    if (gained > 0) log(`<i>You strip the cold camp — <b>${gained}</b> salvage.</i>`);
+    if (gained > 0) log(`<i>You strip the cold camp — <b>${gained}</b> Kindling.</i>`);
     const alive = aliveParty(state);
     if (alive.length && Math.random() < 0.45) {
       const victim = alive[Math.floor(Math.random() * alive.length)];
@@ -22543,7 +22543,7 @@ function showCampsiteOverlay(node) {
   // their missing HP (a Hollow Rest's worth) and leave the salvage behind.
   const rest = document.createElement('button');
   rest.className = 'encounter-choice event-choice rest-choice-revive';
-  rest.innerHTML = `<div class="enc-name">Rest at the fire</div><div class="sigil-desc">Heal half · leave the salvage</div>`;
+  rest.innerHTML = `<div class="enc-name">Rest at the fire</div><div class="sigil-desc">Heal half · leave the Kindling</div>`;
   rest.addEventListener('click', () => {
     const lines = [];
     aliveParty(state).forEach(c => {
@@ -22869,7 +22869,7 @@ function _showEmptyPathEvent(wasLockedOut, heroId) {
   choices.classList.add('event-choices');
   const card = document.createElement('button');
   card.className = 'encounter-choice event-choice';
-  card.innerHTML = `<div class="enc-name">Walk on</div><div class="sigil-desc">+5 Embers</div>`;
+  card.innerHTML = `<div class="enc-name">Walk on</div><div class="sigil-desc">+5 Kindling</div>`;
   card.addEventListener('click', () => {
     earnEmbers(5, 'empty-path');
     hideOverlay();
@@ -23415,7 +23415,7 @@ function _renderShop(nodeId) {
   const purse = _getPendingEmbers();
   const invCount = _runInventory().length;
   $('#overlay-title').innerHTML = `<span class="shop-eyebrow">✦ THE EMBER STALL</span>`;
-  $('#overlay-body').innerHTML = `Spend <b>pending Embers</b> on one-time wares — but Embers you spend here won't bank toward your unlocks.  <span class="shop-purse">Purse: <b>${purse}</b> ◆ · Satchel: <b>${invCount}</b></span>`;
+  $('#overlay-body').innerHTML = `Spend <b>pending Kindling</b> on one-time wares — but Kindling you spend here won't bank toward your unlocks.  <span class="shop-purse">Purse: <b>${purse}</b> ✦ · Satchel: <b>${invCount}</b></span>`;
   const choicesEl = $('#overlay-choices');
   choicesEl.className = '';
   choicesEl.classList.remove('hidden');
@@ -23446,11 +23446,11 @@ function _renderShop(nodeId) {
     if (!btn) return;
     bindTapAsPointer(btn, () => {
       if (entry.sold) return;
-      if (!spendPendingEmbers(entry.price)) { flashMsg('Not enough Embers.'); return; }
+      if (!spendPendingEmbers(entry.price)) { flashMsg('Not enough Kindling.'); return; }
       entry.sold = true;
       _runInventory().push(entry.id);
       try { if (Audio && typeof Audio.queue === 'function') Audio.queue(); } catch (_) {}
-      log(`<i>Bought <b>${CONSUMABLES[entry.id].name}</b> at the Ember Stall.</i>`);
+      log(`<i>Bought <b>${CONSUMABLES[entry.id].name}</b> at the Kindling Stall.</i>`);
       _renderShop(nodeId); // re-render to update purse + sold state
     });
   });
@@ -24422,7 +24422,7 @@ function showRunSummary(outcome, opts) {
     unlocks.push({
       mark: '✦',
       label: `Ascension ${opts.newAscensionLevel} — ${(def && def.name) || ''}`,
-      desc: `${(def && def.desc) || ''}  Switch on in Settings to climb harder for more Embers.`,
+      desc: `${(def && def.desc) || ''}  Switch on in Settings to climb harder for more Kindling.`,
     });
   }
   const unlockHtml = unlocks.map(u => `
@@ -24554,7 +24554,7 @@ function showRunSummary(outcome, opts) {
           <div class="rs-kizuna-list">${rows}</div>
         </div>`;
       })()}
-      ${_embersThisRun > 0 ? `<div class="rs-embers"><span class="rs-embers-glyph">✦</span><b>+${_embersThisRun}</b> <em>Embers banked</em><span class="rs-embers-total">total · ${getEmbersBalance()}</span></div>` : ''}
+      ${_embersThisRun > 0 ? `<div class="rs-embers"><span class="rs-embers-glyph">✦</span><b>+${_embersThisRun}</b> <em>Kindling banked</em><span class="rs-embers-total">total · ${getEmbersBalance()}</span></div>` : ''}
       ${unlockHtml}
       ${memorialHtml}
       ${roadkillHtml}
@@ -27288,7 +27288,9 @@ function recordExpeditionToCamp(outcome) {
     // descent's survivors are folded in, so it reads as "the camp's standing".
     const supplyMult = 1 + Math.min(1, (c.roster.length || 0) * 0.1);
     const haul = Math.round(baseHaul * supplyMult);
-    c.stores += haul;
+    // Kindling is the single currency — the haul banks straight into it
+    // (the old camp.stores pool was merged away; see _migrateSalvageToKindling).
+    _setEmbersBalance(getEmbersBalance() + haul);
     const ids = Object.keys((state.party && state.party.chars) || {});
     const survivors = ids.filter(id => state.party.chars[id] && !state.party.chars[id].downed);
     const fell = ids.filter(id => state.party.chars[id] && state.party.chars[id].downed);
@@ -27303,6 +27305,21 @@ function recordExpeditionToCamp(outcome) {
     saveCamp(c);
     return haul;
   } catch (_) { return 0; }
+}
+
+// One-time merge: the old Salvage pool (camp.stores) folds into the single
+// Kindling currency (the banked-Embers balance — internal name kept for
+// save-compat).  After moving the salvage it zeroes camp.stores, so every
+// later boot is a no-op.  Called once from bootGame.
+function _migrateSalvageToKindling() {
+  try {
+    const c = getCamp();
+    if (c.stores > 0) {
+      _setEmbersBalance(getEmbersBalance() + c.stores);
+      c.stores = 0;
+      saveCamp(c);
+    }
+  } catch (_) {}
 }
 
 // Heroes whose kit mends — they can raise the Healer's Tent.  Elin heals the
@@ -27360,9 +27377,9 @@ function buildCampContainer() {
         <p class="cmp-expeditions"></p>
       </header>
       <div class="cmp-stores">
-        <span class="cmp-stores-glyph">⛬</span>
+        <span class="cmp-stores-glyph">✦</span>
         <b class="cmp-stores-val">0</b>
-        <span class="cmp-stores-label">Salvage gathered</span>
+        <span class="cmp-stores-label">Kindling</span>
         <span class="cmp-supply" id="cmp-supply"></span>
       </div>
       <section class="cmp-fireside" id="cmp-abandoned"></section>
@@ -27393,8 +27410,8 @@ function showCamp() {
   root.querySelector('.cmp-expeditions').innerHTML = c.expeditions
     ? `Descent <b>${c.expeditions}</b> · the fire still burns`
     : `No one has descended yet · the fire waits`;
-  root.querySelector('.cmp-stores-val').textContent = c.stores;
-  // Supply multiplier — each hand at the fire brings back more salvage.
+  root.querySelector('.cmp-stores-val').textContent = getEmbersBalance();
+  // Supply multiplier — each hand at the fire brings back more Kindling.
   const supplyMult = 1 + Math.min(1, (c.roster.length || 0) * 0.1);
   const supplyEl = root.querySelector('#cmp-supply');
   if (supplyEl) {
@@ -27413,7 +27430,7 @@ function showCamp() {
         <div class="cmp-abandoned-mark">☥</div>
         <div class="cmp-abandoned-body">
           <div class="cmp-abandoned-title">A camp lies cold in the dark</div>
-          <div class="cmp-abandoned-sub">Layer ${c.abandoned.layer} · ${names} · <b>${c.abandoned.stores}</b> salvage left behind</div>
+          <div class="cmp-abandoned-sub">Layer ${c.abandoned.layer} · ${names} · <b>${c.abandoned.stores}</b> Kindling left behind</div>
           <div class="cmp-abandoned-flavor">Those who descend after may yet stumble on this campsite.</div>
         </div>
       </div>`;
@@ -27441,14 +27458,14 @@ function showCamp() {
     survEl.innerHTML = `<p class="cmp-empty">No one sits at the fire.  Send a party into the abyss and bring them home.</p>`;
   }
 
-  // Camp upgrades — raise one by spending Salvage.  Four states: already
+  // Camp upgrades — raise one by spending Kindling.  Four states: already
   // raised, telegraphed-but-not-yet (coming), gated on a hero, or buildable.
   const upEl = root.querySelector('#cmp-upgrade-grid');
   const gateMet = (u) => !u.requires || u.requires.roster.some(id => c.roster.includes(id));
   upEl.innerHTML = CAMP_UPGRADES.map(u => {
     const built = !!(c.upgrades && c.upgrades[u.id]);
     const met = gateMet(u);
-    const affordable = c.stores >= u.cost;
+    const affordable = getEmbersBalance() >= u.cost;
     const buildable = !built && !u.coming && met && affordable;
     let cls, mark, foot;
     if (built) {
@@ -27462,10 +27479,10 @@ function showCamp() {
       foot = `<div class="cmp-upgrade-cost cmp-upgrade-gate">Needs ${u.requires.label}</div>`;
     } else if (buildable) {
       cls = 'cmp-upgrade-ready'; mark = '◇';
-      foot = `<button type="button" class="cmp-raise-btn" data-up="${u.id}">Raise · <span class="cmp-upgrade-cost-glyph">⛬</span> ${u.cost}</button>`;
+      foot = `<button type="button" class="cmp-raise-btn" data-up="${u.id}">Raise · <span class="cmp-upgrade-cost-glyph">✦</span> ${u.cost}</button>`;
     } else {
       cls = 'cmp-upgrade-sealed'; mark = '🔒';
-      foot = `<div class="cmp-upgrade-cost"><span class="cmp-upgrade-cost-glyph">⛬</span> ${u.cost}</div>`;
+      foot = `<div class="cmp-upgrade-cost"><span class="cmp-upgrade-cost-glyph">✦</span> ${u.cost}</div>`;
     }
     return `
       <div class="cmp-upgrade ${cls}">
@@ -27477,7 +27494,7 @@ function showCamp() {
         ${foot}
       </div>`;
   }).join('');
-  // Wire the Raise buttons — spend the salvage, mark the upgrade raised, and
+  // Wire the Raise buttons — spend the Kindling, mark the upgrade raised, and
   // re-render so the card flips to "Raised" and the new effect is banked.
   upEl.querySelectorAll('.cmp-raise-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
@@ -27486,8 +27503,8 @@ function showCamp() {
       const u = CAMP_UPGRADES.find(x => x.id === id);
       if (!u) return;
       const camp = getCamp();
-      if (camp.stores < u.cost || (camp.upgrades && camp.upgrades[id])) return;
-      camp.stores -= u.cost;
+      if (getEmbersBalance() < u.cost || (camp.upgrades && camp.upgrades[id])) return;
+      _setEmbersBalance(getEmbersBalance() - u.cost);
       camp.upgrades = camp.upgrades || {};
       camp.upgrades[id] = true;
       saveCamp(camp);
@@ -27528,7 +27545,7 @@ function showCamp() {
   // salvage tally so the "this carries between descents" idea lands.
   showCoachmark('cm_camp_first', {
     anchor: '.cmp-stores', place: 'below',
-    text: 'This is your <b>Camp</b> — it persists between descents. Salvage you carry back raises it, and every hero who walks out alive builds it up.'
+    text: 'This is your <b>Camp</b> — it persists between descents. Kindling you carry back raises it, and every hero who walks out alive builds it up.'
   });
 }
 
@@ -27628,7 +27645,7 @@ function showTitleScreen() {
   const _emb = getEmbersBalance();
   const _embersUnlocked = _emb > 0 || Object.keys(getEmbersUnlocks()).length > 0;
   if (_embersUnlocked) {
-    menuEl.appendChild(mkBtn(`Embers · ${_emb}`, () => showEmbersScreen()));
+    menuEl.appendChild(mkBtn(`Kindling · ${_emb}`, () => showEmbersScreen()));
   }
   // The Camp — the party's fire between descents.  Surfaces once any descent
   // has been recorded so a brand-new player isn't shown an empty hearth.
@@ -27730,7 +27747,7 @@ function showAscensionPicker() {
       mods.push(`<li class="asc-mod">${ASCENSIONS[i].desc}</li>`);
     }
     const mult = 1 + lvl * 0.25;
-    const multText = lvl > 0 ? `· ${mult.toFixed(2).replace(/\.00$/, '')}× Embers` : '· Base Ember rate';
+    const multText = lvl > 0 ? `· ${mult.toFixed(2).replace(/\.00$/, '')}× Kindling` : '· Base Kindling rate';
     const isCur = lvl === cur;
     rows.push(`<button type="button" class="asc-row${isCur ? ' asc-row-active' : ''}" data-asc="${lvl}">
       <div class="asc-row-head">
@@ -27742,7 +27759,7 @@ function showAscensionPicker() {
     </button>`);
   }
   body.innerHTML = `
-    <p class="asc-flavor">Climb the ladder.  Each rung pays more Embers per kill — and asks more of you.</p>
+    <p class="asc-flavor">Climb the ladder.  Each rung pays more Kindling per kill — and asks more of you.</p>
     <div class="asc-grid">${rows.join('')}</div>
     <p class="asc-foot">Higher rungs unlock by clearing Layer 9 at your current max.</p>
   `;
@@ -27850,7 +27867,7 @@ function showSettingsScreen() {
           setTimeout(() => { hideOverlay(); showTitleScreen(); }, 600);
         });
       } else if (action === 'resetprogress') {
-        confirmDestructive('Reset meta progression?', 'Starter unlocks, world-map progress, the cleared-layer chain, feature unlocks (Forge / Oaths), Embers banked, codex, and achievements will be wiped.', () => {
+        confirmDestructive('Reset meta progression?', 'Starter unlocks, world-map progress, the cleared-layer chain, feature unlocks (Forge / Oaths), Kindling banked, codex, and achievements will be wiped.', () => {
           try { localStorage.removeItem(UNLOCKED_KEY); } catch (_) {}
           try { localStorage.removeItem(LAYER_KEY); } catch (_) {}
           try { localStorage.removeItem(CLEARED_KEY); } catch (_) {}
@@ -28492,7 +28509,7 @@ function _renderCodexHeroes(unlocked) {
           <span class="codex-row-name">${u ? def.name : '???'}</span>
           <span class="codex-row-stat">${u ? `${(def.school || '').toUpperCase()} · ${SLOT_LABELS[def.home] || def.home || ''}` : 'sealed'}</span>
         </div>
-        <div class="codex-row-desc">${u ? (def.title || '') : 'Walk the road with them — or unseal them from the Embers screen.'}</div>
+        <div class="codex-row-desc">${u ? (def.title || '') : 'Walk the road with them — or unseal them from the Kindling screen.'}</div>
       </div>
     </div>`;
   }).join('');
@@ -28643,7 +28660,7 @@ function _renderEmbersScreen() {
     <div class="embers-balance">
       <span class="embers-balance-glyph">✦</span>
       <span class="embers-balance-num">${balance}</span>
-      <span class="embers-balance-label">Embers banked</span>
+      <span class="embers-balance-label">Kindling banked</span>
     </div>
     <p class="embers-flavor">Every breath beneath the abyss leaves a coal.  Spend on heroes or perks — what you carry forward shapes the next climb.</p>
   `;
@@ -28824,7 +28841,7 @@ function _buildEmbersContainer() {
     <div class="embers-bg"></div>
     <div class="embers-card">
       <header class="embers-header">
-        <h2 class="embers-title">EMBERS</h2>
+        <h2 class="embers-title">KINDLING</h2>
         <button type="button" class="embers-close" id="embers-close" aria-label="Close">×</button>
       </header>
       <div class="embers-body" id="embers-body"></div>
@@ -29004,6 +29021,8 @@ function bootGame() {
   // One-time: grandfather feature unlocks (Forge / Oaths) for players who
   // already cleared the old progression gates before these became purchases.
   try { _grandfatherFeatures(); } catch (_) {}
+  // One-time: fold the old Salvage pool into the unified Kindling currency.
+  try { _migrateSalvageToKindling(); } catch (_) {}
   // Title screen on every load.  "Continue" is enabled iff a save exists.
   showTitleScreen();
 }
