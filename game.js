@@ -25189,6 +25189,12 @@ function showSigilOverlay(offers, onDone, opts) {
   $overlay.classList.remove('overlay-path','overlay-vignette','overlay-runsummary','overlay-rest','overlay-recruit','overlay-upgrade','overlay-cinematic','overlay-event','overlay-starter','overlay-boon');
   $overlay.classList.add('overlay-full','overlay-event','overlay-sigil');
   $('#overlay-title').textContent = (opts && opts.title) || 'A sigil flickers into reach';
+  // First sigil ever — introduce the system once, on-screen.  Layered in here
+  // (not dumped at run start) so each meta system is met one at a time.
+  showCoachmark('cm_sigil_first', {
+    allowOverlay: true, anchor: '#overlay-title', place: 'below',
+    text: 'A <b>Sigil</b> binds to your whole run — a standing power that reshapes every fight. Choose one; it holds until the party falls.'
+  });
   // Cinematic body — party silhouettes watching the sigils emerge, plus
   // an atmospheric flavor line.  Mirrors the event-overlay shape.
   const body = $('#overlay-body');
@@ -25344,6 +25350,11 @@ function showUpgradeOverlay(offers, onDone) {
   $overlay.classList.add('overlay-full','overlay-event','overlay-upgrade');
   $('#overlay-title').textContent = 'Hone your edge';
   $('#overlay-body').textContent = 'Pick an upgrade — or pass.';
+  // First upgrade ever — introduce the system once, on-screen.
+  showCoachmark('cm_upgrade_first', {
+    allowOverlay: true, anchor: '#overlay-title', place: 'below',
+    text: 'An <b>upgrade</b> reforges one hero’s technique for the rest of the run — a sharper version of a move they already know.'
+  });
   const choices = $('#overlay-choices');
   choices.innerHTML = '';
   offers.forEach(up => {
@@ -27770,6 +27781,12 @@ function showCamp() {
   if (dBtn) dBtn.onclick = () => { Audio.ui(); descend(); };
   bindBackdropDismiss(root, '.cmp-content', close);
   root.classList.remove('hidden');
+  // First camp visit — introduce the persistent hub once, anchored to the
+  // salvage tally so the "this carries between descents" idea lands.
+  showCoachmark('cm_camp_first', {
+    anchor: '.cmp-stores', place: 'below',
+    text: 'This is your <b>Camp</b> — it persists between descents. Salvage you carry back raises it, and every hero who walks out alive builds it up.'
+  });
 }
 
 function showTitleScreen() {
