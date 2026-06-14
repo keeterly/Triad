@@ -24436,6 +24436,11 @@ function showRunSummary(outcome, opts) {
   if (state && state._isDevRun) discardPendingEmbers();
   else commitEmbersForRun();
 
+  // Fold this finished run into the Camp record (salvage gathered, who walked
+  // out, who fell, and — on a wipe — the camp left behind for a future party
+  // to find).  Additive; doesn't touch the existing summary/ascend flow.
+  recordExpeditionToCamp(outcome);
+
   let title, flavor, outcomeClass;
   if (outcome === 'boss') { title = 'The Wakeling Falls'; flavor = 'The Sin of Dawn is unmade.  The triad endures, and the world breathes again.'; outcomeClass = 'rs-boss'; }
   else if (outcome === 'victory') { title = 'Victory'; flavor = 'The reaches are quiet.  For a moment, the sins rest.'; outcomeClass = 'rs-victory'; }
@@ -27321,6 +27326,212 @@ function buildWorldMapContainer() {
   document.body.appendChild(root);
 }
 
+// ============================================================================
+// THE CAMP  (prototype)
+// ----------------------------------------------------------------------------
+// Not a town you return to — a CAMP the party builds around the fire as it
+// travels.  Each hero who joins adds to it; what they gather is theirs.  When
+// a party dies, the camp is left behind in the dark, and a LATER party may
+// stumble on the cold campsite as a node — inheriting their salvage, their
+// memory, maybe a survivor.  This first slice is deliberately ADDITIVE and
+// non-destructive: it owns its localStorage record and is reachable from the
+// title screen.  It does NOT yet reroute the run flow (Descend just opens the
+// World Map) and the abandoned-campsite NODE is recorded here but not yet
+// spawned on the map — that map hook, contributions-as-heroes-join, and
+// functional camp upgrades are the follow-up passes.
+const CAMP_KEY = 'kizuna.camp';
+function _normalizeCamp(p) {
+  p = (p && typeof p === 'object') ? p : {};
+  const ab = p.abandoned;
+  return {
+    expeditions: Math.max(0, parseInt(p.expeditions, 10) || 0),
+    stores: Math.max(0, parseInt(p.stores, 10) || 0),
+    lastSurvivors: Array.isArray(p.lastSurvivors) ? p.lastSurvivors.filter(x => typeof x === 'string') : [],
+    fallen: Array.isArray(p.fallen) ? p.fallen.filter(x => typeof x === 'string') : [],
+    upgrades: (p.upgrades && typeof p.upgrades === 'object') ? p.upgrades : {},
+    // Ghost camp left by the last party that died — what a future party would
+    // find on its campsite node.  null until a party falls.
+    abandoned: (ab && typeof ab === 'object') ? {
+      layer: Math.max(1, parseInt(ab.layer, 10) || 1),
+      members: Array.isArray(ab.members) ? ab.members.filter(x => typeof x === 'string') : [],
+      stores: Math.max(0, parseInt(ab.stores, 10) || 0),
+      expedition: Math.max(0, parseInt(ab.expedition, 10) || 0),
+    } : null,
+  };
+}
+function getCamp() {
+  try {
+    const raw = localStorage.getItem(CAMP_KEY);
+    if (raw) return _normalizeCamp(JSON.parse(raw));
+  } catch (_) {}
+  return _normalizeCamp({});
+}
+function saveCamp(c) {
+  try { localStorage.setItem(CAMP_KEY, JSON.stringify(_normalizeCamp(c))); } catch (_) {}
+}
+// Fold a finished run into the camp record — called from the run summary.
+// Banks salvage gathered, advances the expedition count, records who walked
+// out and who fell, and — on a wipe — leaves the camp behind as a cold site
+// a future party may find.  Dev playtests don't count.
+function recordExpeditionToCamp(outcome) {
+  if (typeof state === 'undefined' || !state || state._isDevRun) return 0;
+  try {
+    const c = getCamp();
+    c.expeditions += 1;
+    const layer = (state.run && typeof state.run.layer === 'number') ? state.run.layer : 1;
+    // Salvage scales with how deep the party reached; a boss kill gathers more.
+    const haul = outcome === 'boss' ? layer * 4 + 6 : layer * 3;
+    c.stores += haul;
+    const ids = Object.keys((state.party && state.party.chars) || {});
+    const survivors = ids.filter(id => state.party.chars[id] && !state.party.chars[id].downed);
+    const fell = ids.filter(id => state.party.chars[id] && state.party.chars[id].downed);
+    c.lastSurvivors = survivors;
+    fell.forEach(id => { if (!c.fallen.includes(id)) c.fallen.push(id); });
+    // A wipe (no survivors, not a boss clear) leaves the camp in the dark.
+    if (outcome !== 'boss' && !survivors.length) {
+      c.abandoned = { layer, members: ids, stores: haul, expedition: c.expeditions };
+    }
+    saveCamp(c);
+    return haul;
+  } catch (_) { return 0; }
+}
+
+// Camp upgrades — things the party raises around the fire as it grows.
+// Prototype: shown as sealed goals (cost in Salvage) so the direction is
+// legible; each telegraphs a system from the wider design (Resolve economy,
+// survival/escape, Kizuna persistence, the affinity layer).  Not yet buildable.
+const CAMP_UPGRADES = [
+  { id: 'hearth',    name: 'The Hearth',    cost: 20, desc: 'A proper fire — the party begins each descent with +1 Resolve.' },
+  { id: 'infirmary', name: 'The Healer’s Tent', cost: 35, desc: 'Tend the wounded between descents — the fallen are carried out, not left to the dark.' },
+  { id: 'shrine',    name: 'Bond Shrine',   cost: 30, desc: 'One Kizuna bond endures from one descent to the next.' },
+  { id: 'reliquary', name: 'The Reliquary', cost: 45, desc: 'Afflictions you survive harden into affinities.' },
+];
+
+function buildCampContainer() {
+  const root = document.createElement('div');
+  root.id = 'camp';
+  root.className = 'hidden';
+  root.innerHTML = `
+    <div class="cmp-bg"></div>
+    <div class="cmp-embers" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
+    <div class="cmp-content">
+      <header class="cmp-header">
+        <p class="cmp-eyebrow">— the fire between descents —</p>
+        <h2 class="cmp-name">The Camp</h2>
+        <p class="cmp-expeditions"></p>
+      </header>
+      <div class="cmp-stores">
+        <span class="cmp-stores-glyph">⛬</span>
+        <b class="cmp-stores-val">0</b>
+        <span class="cmp-stores-label">Salvage gathered</span>
+      </div>
+      <section class="cmp-fireside" id="cmp-abandoned"></section>
+      <section class="cmp-roster">
+        <h3 class="cmp-section-title">Around the Fire <span class="cmp-section-sub">· who walked out</span></h3>
+        <div class="cmp-survivors" id="cmp-survivors"></div>
+      </section>
+      <section class="cmp-upgrades">
+        <h3 class="cmp-section-title">What the Party Raises <span class="cmp-section-sub">· as the camp grows</span></h3>
+        <div class="cmp-upgrade-grid" id="cmp-upgrade-grid"></div>
+      </section>
+      <section class="cmp-memorial" id="cmp-memorial"></section>
+      <div class="cmp-actions">
+        <button type="button" class="cmp-btn cmp-btn-ghost" id="cmp-return">Return to Title</button>
+        <button type="button" class="cmp-btn cmp-btn-primary" id="cmp-descend">Descend ▾</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(root);
+}
+
+function showCamp() {
+  hideOverlay();
+  hideTitleScreen();
+  let root = document.getElementById('camp');
+  if (!root) { buildCampContainer(); root = document.getElementById('camp'); }
+  const c = getCamp();
+  root.querySelector('.cmp-expeditions').innerHTML = c.expeditions
+    ? `Descent <b>${c.expeditions}</b> · the fire still burns`
+    : `No one has descended yet · the fire waits`;
+  root.querySelector('.cmp-stores-val').textContent = c.stores;
+
+  // Abandoned campsite — the ghost camp a future party would find.  Prototype
+  // teaser: surfaced here so the mechanic reads even before the map node ships.
+  const abEl = root.querySelector('#cmp-abandoned');
+  if (c.abandoned && c.abandoned.members.length) {
+    const names = c.abandoned.members.map(id => (CHARS[id] && CHARS[id].name) || id).join(', ');
+    abEl.innerHTML = `
+      <div class="cmp-abandoned-card">
+        <div class="cmp-abandoned-mark">☥</div>
+        <div class="cmp-abandoned-body">
+          <div class="cmp-abandoned-title">A camp lies cold in the dark</div>
+          <div class="cmp-abandoned-sub">Layer ${c.abandoned.layer} · ${names} · <b>${c.abandoned.stores}</b> salvage left behind</div>
+          <div class="cmp-abandoned-flavor">Those who descend after may yet stumble on this campsite.</div>
+        </div>
+      </div>`;
+    abEl.classList.remove('hidden');
+  } else {
+    abEl.innerHTML = '';
+    abEl.classList.add('hidden');
+  }
+
+  // Around the fire — who walked out of the last descent.
+  const survEl = root.querySelector('#cmp-survivors');
+  if (c.lastSurvivors.length) {
+    survEl.innerHTML = c.lastSurvivors.map(id => `
+      <div class="cmp-survivor">
+        <div class="cmp-survivor-portrait">${PORTRAITS[id] || ''}</div>
+        <span class="cmp-survivor-name">${(CHARS[id] && CHARS[id].name) || id}</span>
+      </div>`).join('');
+  } else {
+    survEl.innerHTML = `<p class="cmp-empty">No one sits at the fire.  Send a party into the abyss and bring them home.</p>`;
+  }
+
+  // Camp upgrades — sealed goal cards (prototype, not yet buildable).
+  const upEl = root.querySelector('#cmp-upgrade-grid');
+  upEl.innerHTML = CAMP_UPGRADES.map(u => {
+    const affordable = c.stores >= u.cost;
+    return `
+      <div class="cmp-upgrade ${affordable ? 'cmp-upgrade-ready' : 'cmp-upgrade-sealed'}">
+        <div class="cmp-upgrade-lock">${affordable ? '◇' : '🔒'}</div>
+        <div class="cmp-upgrade-body">
+          <div class="cmp-upgrade-name">${u.name}</div>
+          <div class="cmp-upgrade-desc">${u.desc}</div>
+        </div>
+        <div class="cmp-upgrade-cost"><span class="cmp-upgrade-cost-glyph">⛬</span> ${u.cost}</div>
+      </div>`;
+  }).join('');
+
+  // The Lost — cumulative memorial of heroes who never returned.
+  const memEl = root.querySelector('#cmp-memorial');
+  if (c.fallen.length) {
+    memEl.innerHTML = `
+      <h3 class="cmp-section-title">The Lost <span class="cmp-section-sub">· the abyss keeps them</span></h3>
+      <div class="cmp-graves">${c.fallen.map(id => `
+        <div class="cmp-grave"><span class="cmp-grave-mark">+</span><span class="cmp-grave-name">${((CHARS[id] && CHARS[id].name) || id).toUpperCase()}</span></div>`).join('')}</div>`;
+    memEl.classList.remove('hidden');
+  } else {
+    memEl.innerHTML = '';
+    memEl.classList.add('hidden');
+  }
+
+  const close = () => { root.classList.add('hidden'); showTitleScreen(); };
+  const descend = () => {
+    root.classList.add('hidden');
+    // Fresh descent — same handoff as a New Game, then the World Map lets the
+    // player choose where in the abyss to drop in.
+    clearSave();
+    clearCarriedParty();
+    showWorldMap();
+  };
+  const rBtn = root.querySelector('#cmp-return');
+  const dBtn = root.querySelector('#cmp-descend');
+  if (rBtn) rBtn.onclick = () => { Audio.ui(); close(); };
+  if (dBtn) dBtn.onclick = () => { Audio.ui(); descend(); };
+  bindBackdropDismiss(root, '.cmp-content', close);
+  root.classList.remove('hidden');
+}
+
 function showTitleScreen() {
   if (Audio && typeof Audio.startAmbient === 'function') Audio.startAmbient('title');
   // Ensure the in-game overlay isn't competing
@@ -27418,6 +27629,14 @@ function showTitleScreen() {
   const _embersUnlocked = _emb > 0 || Object.keys(getEmbersUnlocks()).length > 0;
   if (_embersUnlocked) {
     menuEl.appendChild(mkBtn(`Embers · ${_emb}`, () => showEmbersScreen()));
+  }
+  // The Camp — the party's fire between descents.  Surfaces once any descent
+  // has been recorded so a brand-new player isn't shown an empty hearth.
+  {
+    const _camp = getCamp();
+    if (_camp.expeditions > 0 || _camp.fallen.length || _camp.abandoned) {
+      menuEl.appendChild(mkBtn('The Camp', () => showCamp()));
+    }
   }
   menuEl.appendChild(mkBtn('Settings', () => showSettingsScreen()));
 
