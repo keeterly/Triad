@@ -4120,6 +4120,196 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
 }
 
 /* ===========================================================================
+   THE CAMP  (prototype) — the party's fire between descents.  Warm, ember-lit
+   counterpoint to the cold World Map; mirrors its full-bleed surface pattern.
+   =========================================================================== */
+#camp {
+  position: fixed;
+  inset: 0;
+  z-index: 250;
+  overflow: hidden;
+  animation: wm-fade-in 0.6s ease-out;
+}
+#camp.hidden { display: none !important; }
+.cmp-bg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 46% 36% at 50% 78%,
+                    rgba(220,120,48,0.30) 0%, transparent 70%),
+    radial-gradient(ellipse 70% 60% at 50% 30%,
+                    rgba(22,12,10,0.96) 0%, rgba(0,0,0,1) 100%),
+    #060403;
+}
+.cmp-embers {
+  position: absolute; inset: 0; pointer-events: none; overflow: hidden;
+}
+.cmp-embers span {
+  position: absolute;
+  bottom: -6px;
+  width: 3px; height: 3px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,196,108,0.95) 0%, rgba(220,120,40,0) 70%);
+  animation: cmp-ember-rise linear infinite;
+}
+.cmp-embers span:nth-child(1) { left: 32%; animation-duration: 6.5s; animation-delay: 0s; }
+.cmp-embers span:nth-child(2) { left: 46%; animation-duration: 8s;   animation-delay: 1.4s; }
+.cmp-embers span:nth-child(3) { left: 54%; animation-duration: 7s;   animation-delay: 2.6s; }
+.cmp-embers span:nth-child(4) { left: 62%; animation-duration: 9s;   animation-delay: 0.8s; }
+.cmp-embers span:nth-child(5) { left: 40%; animation-duration: 7.6s; animation-delay: 3.4s; }
+@keyframes cmp-ember-rise {
+  0%   { transform: translateY(0) translateX(0); opacity: 0; }
+  12%  { opacity: 1; }
+  80%  { opacity: 0.7; }
+  100% { transform: translateY(-78vh) translateX(14px); opacity: 0; }
+}
+.cmp-content {
+  position: relative;
+  z-index: 2;
+  height: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 18px 18px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+}
+.cmp-header { text-align: center; }
+.cmp-eyebrow {
+  margin: 0 0 4px;
+  font-size: 9.5px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  font-style: italic;
+  color: var(--ink-dim);
+}
+.cmp-name {
+  font-size: 22px;
+  letter-spacing: 0.4em;
+  color: var(--gold-pale);
+  text-shadow: 0 0 20px rgba(248,180,96,0.4);
+  margin: 0;
+  font-weight: 400;
+}
+.cmp-expeditions {
+  margin: 5px 0 0;
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  font-style: italic;
+  color: var(--ink-dim);
+}
+.cmp-expeditions b { color: var(--gold-pale); font-style: normal; }
+.cmp-stores {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-top: 1px solid rgba(220,150,80,0.14);
+  border-bottom: 1px solid rgba(220,150,80,0.14);
+}
+.cmp-stores-glyph { font-size: 16px; color: var(--gold); filter: drop-shadow(0 0 6px rgba(240,160,80,0.5)); }
+.cmp-stores-val { font-size: 20px; color: var(--gold-bright); font-weight: 600; }
+.cmp-stores-label { font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-dim); }
+.cmp-section-title {
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--gold-pale);
+  margin: 2px 0 8px;
+  font-weight: 400;
+}
+.cmp-section-sub { color: var(--ink-faint); font-style: italic; text-transform: none; letter-spacing: 0.08em; font-size: 9.5px; }
+.cmp-survivors { display: flex; flex-wrap: wrap; gap: 12px; }
+.cmp-survivor { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 64px; }
+.cmp-survivor-portrait {
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 36%, rgba(60,44,32,0.7), rgba(10,8,8,0.9));
+  box-shadow: 0 0 12px rgba(240,160,80,0.22), inset 0 0 0 1px rgba(220,160,90,0.3);
+  display: flex; align-items: flex-end; justify-content: center;
+}
+.cmp-survivor-portrait svg, .cmp-survivor-portrait img { width: 100%; height: 100%; object-fit: cover; }
+.cmp-survivor-name { font-size: 9.5px; letter-spacing: 0.06em; color: var(--ink); text-align: center; }
+.cmp-empty { font-size: 11px; font-style: italic; color: var(--ink-faint); margin: 0; }
+.cmp-upgrade-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.cmp-upgrade {
+  display: grid;
+  grid-template-columns: 22px 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 9px 11px;
+  background: linear-gradient(180deg, rgba(28,20,16,0.6) 0%, rgba(10,7,7,0.7) 100%);
+  border: 1px solid rgba(180,120,70,0.14);
+  border-radius: 3px;
+}
+.cmp-upgrade-sealed { opacity: 0.6; }
+.cmp-upgrade-ready { border-color: rgba(240,180,96,0.4); box-shadow: 0 0 14px rgba(240,160,80,0.12); }
+.cmp-upgrade-lock { font-size: 13px; text-align: center; color: var(--ink-dim); }
+.cmp-upgrade-ready .cmp-upgrade-lock { color: var(--gold-bright); }
+.cmp-upgrade-name { font-size: 11.5px; letter-spacing: 0.06em; color: var(--gold-pale); }
+.cmp-upgrade-desc { font-size: 9.5px; line-height: 1.35; color: var(--ink-dim); margin-top: 2px; }
+.cmp-upgrade-cost { font-size: 11px; color: var(--gold); white-space: nowrap; }
+.cmp-upgrade-cost-glyph { opacity: 0.8; }
+/* Abandoned campsite — the ghost camp a future party may find. */
+.cmp-fireside.hidden, .cmp-memorial.hidden { display: none; }
+.cmp-abandoned-card {
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  gap: 12px;
+  align-items: center;
+  padding: 11px 13px;
+  background: linear-gradient(180deg, rgba(40,20,24,0.55) 0%, rgba(14,7,9,0.7) 100%);
+  border: 1px solid rgba(150,70,80,0.3);
+  border-radius: 3px;
+}
+.cmp-abandoned-mark { font-size: 22px; color: rgba(200,120,120,0.8); text-align: center; }
+.cmp-abandoned-title { font-size: 12px; letter-spacing: 0.1em; color: rgba(220,160,160,0.95); }
+.cmp-abandoned-sub { font-size: 9.5px; color: var(--ink-dim); margin-top: 3px; }
+.cmp-abandoned-sub b { color: var(--gold-pale); }
+.cmp-abandoned-flavor { font-size: 9.5px; font-style: italic; color: var(--ink-faint); margin-top: 3px; }
+.cmp-graves { display: flex; flex-wrap: wrap; gap: 8px; }
+.cmp-grave {
+  display: flex; align-items: center; gap: 5px;
+  padding: 4px 9px;
+  background: rgba(12,10,12,0.6);
+  border: 1px solid rgba(160,160,180,0.12);
+  border-radius: 2px;
+}
+.cmp-grave-mark { color: var(--ink-faint); font-size: 12px; }
+.cmp-grave-name { font-size: 9px; letter-spacing: 0.12em; color: var(--ink-dim); }
+.cmp-actions { display: flex; justify-content: center; gap: 14px; margin-top: 4px; padding-top: 4px; }
+.cmp-btn {
+  font-family: inherit;
+  cursor: pointer;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  font-size: 11px;
+  padding: 9px 20px;
+  border-radius: 3px;
+  transition: filter 0.18s, transform 0.12s, color 0.18s, box-shadow 0.18s;
+}
+.cmp-btn:active { transform: translateY(1px); }
+.cmp-btn-ghost { background: transparent; border: 1px solid rgba(200,180,150,0.2); color: var(--ink-dim); }
+.cmp-btn-ghost:hover { color: var(--ink); border-color: rgba(200,180,150,0.4); }
+.cmp-btn-primary {
+  background: linear-gradient(180deg, rgba(220,140,60,0.32), rgba(150,80,30,0.28));
+  border: 1px solid rgba(240,180,96,0.5);
+  color: var(--gold-bright);
+  box-shadow: 0 0 16px rgba(240,160,80,0.18);
+}
+.cmp-btn-primary:hover { filter: brightness(1.18); box-shadow: 0 0 22px rgba(240,170,90,0.3); }
+@media (max-height: 480px) {
+  .cmp-name { font-size: 18px; letter-spacing: 0.32em; }
+  .cmp-content { gap: 8px; padding: 12px 14px; }
+  .cmp-survivor-portrait { width: 46px; height: 46px; }
+  .cmp-survivor { width: 54px; }
+  .cmp-upgrade-grid { grid-template-columns: 1fr; }
+}
+
+/* ===========================================================================
    STARTER CHOOSER — horizontal lineup of standing silhouettes.
    Short tap selects; press-and-hold reveals a floating detail card.
    =========================================================================== */
@@ -15876,6 +16066,7 @@ body:has(#overlay.overlay-starter:not(.hidden)) #hud,
 body:has(#overlay.overlay-runsummary:not(.hidden)) #hud,
 body:has(#overlay.overlay-wanderer-duel:not(.hidden)) #hud,
 body:has(#title-screen:not(.hidden)) #hud,
+body:has(#camp:not(.hidden)) #hud,
 body:has(#world-map:not(.hidden)) #hud {
   visibility: hidden;
 }
