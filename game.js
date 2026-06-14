@@ -11252,7 +11252,11 @@ let state;
 // future starters.  Kai is the default starter (the one who awakens in
 // the Abyss).  Everyone else is unlocked by recruiting them in a run.
 const UNLOCKED_KEY = 'kizuna.unlockedStarters';
-const DEFAULT_STARTERS = ['kai'];
+// The first set of starting heroes deliberately covers all three primers so a
+// new player can build any detonation loop from turn one: Kai (BLEED), Cassia
+// (VULN), Hask (DULLED).  All three are solo-viable, so each can open a run.
+// Everyone else is unlocked with Kindling or recruited on the road.
+const DEFAULT_STARTERS = ['kai', 'cassia', 'hask'];
 
 // ============================================================================
 // EMBERS — meta-currency earned every run (win or lose) and spent at the
