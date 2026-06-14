@@ -4246,8 +4246,31 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
   border-radius: 3px;
 }
 .cmp-upgrade-sealed { opacity: 0.6; }
+.cmp-upgrade-locked { opacity: 0.78; border-style: dashed; }
 .cmp-upgrade-ready { border-color: rgba(240,180,96,0.4); box-shadow: 0 0 14px rgba(240,160,80,0.12); }
+.cmp-upgrade-built { border-color: rgba(150,220,150,0.4); box-shadow: 0 0 14px rgba(120,220,140,0.12); }
+.cmp-upgrade-built .cmp-upgrade-lock { color: #9fdc8f; }
 .cmp-upgrade-lock { font-size: 13px; text-align: center; color: var(--ink-dim); }
+/* Supply readout next to the salvage tally. */
+.cmp-supply { font-size: 10px; letter-spacing: 0.04em; color: var(--gold-pale); opacity: 0.85; margin-left: 8px; }
+.cmp-supply b { color: var(--gold-bright); font-weight: 600; }
+/* Per-hero fixture line under each roster portrait. */
+.cmp-survivor-fixture { font-size: 8.5px; line-height: 1.3; color: var(--ink-dim); text-align: center; opacity: 0.85; }
+.cmp-fixture-glyph { color: var(--gold); opacity: 0.9; }
+.cmp-survivor-present .cmp-survivor-portrait { box-shadow: 0 0 10px rgba(240,180,96,0.35); border-color: rgba(240,180,96,0.5); }
+/* Raise button + state footers. */
+.cmp-raise-btn {
+  font: inherit; font-size: 10.5px; letter-spacing: 0.05em; color: #0d0a08;
+  background: linear-gradient(180deg, var(--gold-bright) 0%, var(--gold) 100%);
+  border: none; border-radius: 3px; padding: 5px 9px; cursor: pointer; white-space: nowrap;
+  transition: filter 0.15s ease, transform 0.1s ease;
+}
+.cmp-raise-btn:hover { filter: brightness(1.12); }
+.cmp-raise-btn:active { transform: translateY(1px); }
+.cmp-raise-btn .cmp-upgrade-cost-glyph { color: #0d0a08; }
+.cmp-upgrade-raised { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: #9fdc8f; white-space: nowrap; }
+.cmp-upgrade-gate { font-size: 9px; color: var(--ink-dim); font-style: italic; white-space: nowrap; }
+.cmp-upgrade-soon { font-size: 9px; color: var(--ink-dim); font-style: italic; white-space: nowrap; }
 .cmp-upgrade-ready .cmp-upgrade-lock { color: var(--gold-bright); }
 .cmp-upgrade-name { font-size: 11.5px; letter-spacing: 0.06em; color: var(--gold-pale); }
 .cmp-upgrade-desc { font-size: 9.5px; line-height: 1.35; color: var(--ink-dim); margin-top: 2px; }
