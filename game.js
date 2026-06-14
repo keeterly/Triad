@@ -18288,7 +18288,12 @@ function makePartyCard(c, slot, threatened, adjMap, incoming) {
   const pBodyStatus = c.bleed > 0 ? 'bleed' : c.vuln > 0 ? 'vuln' : c.dulled > 0 ? 'dulled' : null;
   if (pBodyStatus) fig.classList.add('has-body-status', `body-status-${pBodyStatus}`);
   const pBodyLvl = pBodyStatus ? Math.min(3, Math.max(1, c[pBodyStatus] || 1)) : 0;
-  const pBodyFxCount = pBodyLvl === 1 ? 5 : pBodyLvl === 2 ? 9 : 14;
+  // Dulled uses fewer emitters than bleed/vuln — it's a subtle "drained" tell,
+  // and trimming the count keeps the frame budget sane when the whole board is
+  // dulled at once (the body FX re-render per entity adds up fast).
+  const pBodyFxCount = pBodyStatus === 'dulled'
+    ? (pBodyLvl === 1 ? 3 : pBodyLvl === 2 ? 5 : 7)
+    : (pBodyLvl === 1 ? 5 : pBodyLvl === 2 ? 9 : 14);
   const pBodyFx = pBodyStatus
     ? `<div class="body-particles bp-${pBodyStatus} bp-lvl-${pBodyLvl}">${'<i></i>'.repeat(pBodyFxCount)}</div>`
     : '';
@@ -18534,7 +18539,11 @@ function makeEnemyCard(e, slot) {
   // eruption — so the threat level reads off the FX density alone,
   // without having to parse the chip number.
   const bodyLvl = bodyStatus ? Math.min(3, Math.max(1, e[bodyStatus] || 1)) : 0;
-  const bodyFxCount = bodyLvl === 1 ? 5 : bodyLvl === 2 ? 9 : 14;
+  // Dulled gets fewer emitters than bleed/vuln (see makeCard) so a fully-dulled
+  // board stays cheap to paint.
+  const bodyFxCount = bodyStatus === 'dulled'
+    ? (bodyLvl === 1 ? 3 : bodyLvl === 2 ? 5 : 7)
+    : (bodyLvl === 1 ? 5 : bodyLvl === 2 ? 9 : 14);
   const bodyFx = bodyStatus
     ? `<div class="body-particles bp-${bodyStatus} bp-lvl-${bodyLvl}">${'<i></i>'.repeat(bodyFxCount)}</div>`
     : '';
@@ -22090,27 +22099,9 @@ function renderMap() {
   $('#overlay').classList.remove('overlay-vignette', 'overlay-runsummary');
   $('#overlay').classList.add('overlay-full', 'overlay-path');
   $('#overlay-title').textContent = 'The Path';
-  // Subtitle only.  Kizuna/bond progression lives on the long-press
-  // inspector and the run-summary recap — it doesn't need to clutter the
-  // map between encounters.
-  const _pathSubtitle = (state.run.completedNodes || []).length === 0
-    ? 'Pick your entry point.'
-    : 'Choose the next stretch.';
-  // Light-a-campfire control — always available on the map (resource-gated).
-  // Spends banked Kindling at an escalating cost; opens the campfire hub.
-  const _fireCost = campfireCost(state);
-  const _fireAfford = getEmbersBalance() >= _fireCost;
-  $('#overlay-body').innerHTML = `<span class="path-subtitle">${_pathSubtitle}</span>` +
-    `<button type="button" id="map-campfire-btn" class="map-campfire${_fireAfford ? '' : ' map-campfire-poor'}"${_fireAfford ? '' : ' disabled'} ` +
-    `title="Light a campfire — heal, revive, hone, deepen a bond, or raise the camp" ` +
-    `data-tip="Light a campfire — heal, revive, hone, deepen a bond, or raise the camp">` +
-    `<span class="mcf-fire" aria-hidden="true">` +
-      `<span class="mcf-flame"></span><span class="mcf-flame mcf-flame-2"></span>` +
-      `<span class="mcf-ember"></span><span class="mcf-ember mcf-ember-2"></span><span class="mcf-ember mcf-ember-3"></span>` +
-    `</span>` +
-    `<span class="mcf-text"><span class="mcf-label">Light a campfire</span>` +
-      `<span class="mcf-sub">heal · revive · hone · bond · camp</span></span>` +
-    `<span class="mcf-cost"><span class="mcf-cost-glyph">✦</span> ${_fireCost}</span></button>`;
+  // No subtitle — the title + the node graph speak for themselves.  The two
+  // map controls (campfire + heroes) live in a single bottom bar built below.
+  $('#overlay-body').innerHTML = '';
   const choices = $('#overlay-choices');
   choices.innerHTML = '';
   choices.classList.add('path-map');
@@ -22226,28 +22217,47 @@ function renderMap() {
 
   choices.classList.remove('hidden');
   resetOverlayBtn();
-  const btn = $('#overlay-btn');
-  btn.textContent = 'Heroes';
-  btn.onclick = showPartyInspect;
-  btn.classList.remove('hidden');
+  // Two minimal controls in one bottom bar — Campfire (left) + Heroes (right) —
+  // instead of a full-width button.  The default #overlay-btn is hidden on the
+  // map; the bar is injected as its sibling and rebuilt fresh each render
+  // (and torn down by hideOverlay, so it can't linger on other screens).
+  const _obtn = $('#overlay-btn');
+  _obtn.classList.add('hidden');
+  document.getElementById('map-controls')?.remove();
+  const _fireCost = campfireCost(state);
+  const _fireAfford = getEmbersBalance() >= _fireCost;
+  const _fireTip = 'Light a campfire — heal, revive, hone, deepen a bond, or raise the camp';
+  const bar = document.createElement('div');
+  bar.id = 'map-controls';
+  bar.className = 'map-controls';
+  bar.innerHTML =
+    `<button type="button" id="map-campfire-btn" class="map-ctl map-ctl-fire${_fireAfford ? '' : ' map-ctl-poor'}"${_fireAfford ? '' : ' disabled'} title="${_fireTip}" data-tip="${_fireTip}">` +
+      `<span class="mcf-fire" aria-hidden="true"><span class="mcf-flame"></span><span class="mcf-flame mcf-flame-2"></span>` +
+        `<span class="mcf-ember"></span><span class="mcf-ember mcf-ember-2"></span></span>` +
+      `<span class="map-ctl-label">Campfire</span>` +
+      `<span class="map-ctl-cost"><span class="mcf-cost-glyph">✦</span> ${_fireCost}</span>` +
+    `</button>` +
+    `<button type="button" id="map-heroes-btn" class="map-ctl map-ctl-heroes" title="Inspect your heroes" data-tip="Inspect your heroes">` +
+      `<span class="mctl-trio" aria-hidden="true"><span></span><span></span><span></span></span>` +
+      `<span class="map-ctl-label">Heroes</span>` +
+    `</button>`;
+  _obtn.parentNode.insertBefore(bar, _obtn.nextSibling);
   $('#overlay').classList.remove('hidden');
 
-  // Wire the Light-a-campfire control — spend banked Kindling, bump the
-  // per-run fire count (raises the next fire's cost), reset the fire's
-  // one-shot tracker, and open the campfire hub.
-  const fireBtn = document.getElementById('map-campfire-btn');
-  if (fireBtn) {
-    fireBtn.onclick = () => {
-      const cost = campfireCost(state);
-      if (getEmbersBalance() < cost) { flashMsg('Not enough Kindling.'); return; }
-      _setEmbersBalance(getEmbersBalance() - cost);
-      state.run.firesLit = (state.run.firesLit || 0) + 1;
-      Audio.ui();
-      hideOverlay();
-      choices.classList.remove('path-map');
-      showRestOverlay();
-    };
-  }
+  bar.querySelector('#map-heroes-btn').onclick = () => { bar.remove(); showPartyInspect(); };
+  // Light-a-campfire — spend banked Kindling, bump the per-run fire count
+  // (raises the next fire's cost), and open the campfire.
+  const fireBtn = bar.querySelector('#map-campfire-btn');
+  fireBtn.onclick = () => {
+    const cost = campfireCost(state);
+    if (getEmbersBalance() < cost) { flashMsg('Not enough Kindling.'); return; }
+    _setEmbersBalance(getEmbersBalance() - cost);
+    state.run.firesLit = (state.run.firesLit || 0) + 1;
+    Audio.ui();
+    hideOverlay();
+    choices.classList.remove('path-map');
+    showRestOverlay();
+  };
 
   // Defer connector lines to next frame so layout positions are settled
   requestAnimationFrame(() => drawMapConnectors(choices));
@@ -24359,6 +24369,9 @@ function flowScrim(on) {
 function hideOverlay() {
   // Keep the screen dark through the close→open gap of a chained transition.
   flowScrim(true);
+  // Tear down the map's bottom control bar (campfire + heroes) so it can't
+  // linger over whatever screen opens next.  renderMap rebuilds it fresh.
+  document.getElementById('map-controls')?.remove();
   const ov = $('#overlay');
   ov.classList.add('hidden');
   ov.classList.remove('overlay-full', 'overlay-cinematic',
@@ -27568,15 +27581,14 @@ function showCamp() {
     survEl.innerHTML = `<p class="cmp-empty">No one sits at the fire.  Send a party into the abyss and bring them home.</p>`;
   }
 
-  // Camp upgrades — raise one by spending Kindling.  Four states: already
-  // raised, telegraphed-but-not-yet (coming), gated on a hero, or buildable.
+  // Camp upgrades — this screen is now a READ-ONLY ledger of what the camp has
+  // raised and what's available.  Raising happens in-run at a campfire (the
+  // "Raise the camp" action), so there's no Buy button here — just status.
   const upEl = root.querySelector('#cmp-upgrade-grid');
   const gateMet = (u) => !u.requires || u.requires.roster.some(id => c.roster.includes(id));
   upEl.innerHTML = CAMP_UPGRADES.map(u => {
     const built = !!(c.upgrades && c.upgrades[u.id]);
     const met = gateMet(u);
-    const affordable = getEmbersBalance() >= u.cost;
-    const buildable = !built && !u.coming && met && affordable;
     let cls, mark, foot;
     if (built) {
       cls = 'cmp-upgrade-built'; mark = '✦';
@@ -27587,12 +27599,9 @@ function showCamp() {
     } else if (!met) {
       cls = 'cmp-upgrade-locked'; mark = '🔒';
       foot = `<div class="cmp-upgrade-cost cmp-upgrade-gate">Needs ${u.requires.label}</div>`;
-    } else if (buildable) {
-      cls = 'cmp-upgrade-ready'; mark = '◇';
-      foot = `<button type="button" class="cmp-raise-btn" data-up="${u.id}">Raise · <span class="cmp-upgrade-cost-glyph">✦</span> ${u.cost}</button>`;
     } else {
-      cls = 'cmp-upgrade-sealed'; mark = '🔒';
-      foot = `<div class="cmp-upgrade-cost"><span class="cmp-upgrade-cost-glyph">✦</span> ${u.cost}</div>`;
+      cls = 'cmp-upgrade-ready'; mark = '◇';
+      foot = `<div class="cmp-upgrade-cost"><span class="cmp-upgrade-cost-glyph">✦</span> ${u.cost} · <span class="cmp-upgrade-hint">raise at a campfire</span></div>`;
     }
     return `
       <div class="cmp-upgrade ${cls}">
@@ -27604,24 +27613,7 @@ function showCamp() {
         ${foot}
       </div>`;
   }).join('');
-  // Wire the Raise buttons — spend the Kindling, mark the upgrade raised, and
-  // re-render so the card flips to "Raised" and the new effect is banked.
-  upEl.querySelectorAll('.cmp-raise-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const id = btn.getAttribute('data-up');
-      const u = CAMP_UPGRADES.find(x => x.id === id);
-      if (!u) return;
-      const camp = getCamp();
-      if (getEmbersBalance() < u.cost || (camp.upgrades && camp.upgrades[id])) return;
-      _setEmbersBalance(getEmbersBalance() - u.cost);
-      camp.upgrades = camp.upgrades || {};
-      camp.upgrades[id] = true;
-      saveCamp(camp);
-      Audio.ui();
-      showCamp();
-    });
-  });
+  // (No Raise buttons here — camp upgrades are raised in-run at a campfire.)
 
   // The Lost — cumulative memorial of heroes who never returned.
   const memEl = root.querySelector('#cmp-memorial');

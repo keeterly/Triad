@@ -1372,13 +1372,15 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
   100% { transform: translate(var(--dx,0), -44px) scale(1.05) rotate(170deg); opacity: 0; }
 }
 
-/* dulled — dense grey ash sinks; body itself drains to grey */
+/* dulled — dense grey ash sinks; body itself drains to grey.
+   NOTE: no `filter: blur()` here — an animated filter forces a per-frame
+   repaint on every particle, which tanked the framerate once several
+   entities were dulled at once (3 heroes + 3 enemies = dozens of nodes). */
 .bp-dulled i {
   width: 7px; height: 7px;
   border-radius: 50%;
   background: radial-gradient(circle, #d4dce8, #69737f 72%);
-  box-shadow: 0 0 5px rgba(190,200,220,.7);
-  filter: blur(.4px);
+  box-shadow: 0 0 4px rgba(190,200,220,.6);
   animation: bp-fall 3.0s ease-in infinite;
 }
 
@@ -4218,6 +4220,9 @@ body:has(.figure.party-figure.inspecting) .figure.party-figure .slot-label {
 .cmp-raise-btn:active { transform: translateY(1px); }
 .cmp-raise-btn .cmp-upgrade-cost-glyph { color: #0d0a08; }
 .cmp-upgrade-raised { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: #9fdc8f; white-space: nowrap; }
+/* Camp upgrades are raised in-run at a campfire — this screen just shows the
+   cost + where to raise it. */
+.cmp-upgrade-hint { opacity: 0.66; font-style: italic; }
 .cmp-upgrade-gate { font-size: 9px; color: var(--ink-dim); font-style: italic; white-space: nowrap; }
 .cmp-upgrade-soon { font-size: 9px; color: var(--ink-dim); font-style: italic; white-space: nowrap; }
 .cmp-upgrade-ready .cmp-upgrade-lock { color: var(--gold-bright); }
@@ -9121,30 +9126,40 @@ body.party-critical::after {
    inspector.  Two chips max so the strip doesn't crowd the map. */
 .path-subtitle { display: block; }
 
-/* Light-a-campfire control on the world map — a live little fire you tap, not
-   a flat button.  Flickering flame + rising embers on the left, a two-line
-   label, and the Kindling cost on the right.  Poor state dims + stills it. */
-.map-campfire {
+/* World-map bottom controls — two minimal pill buttons side by side:
+   Campfire (live little fire + cost) and Heroes (party trio + label). */
+.map-controls {
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  gap: 10px;
+  margin-top: 6px;
+}
+.map-ctl {
   display: inline-flex;
   align-items: center;
-  gap: 11px;
-  margin-top: 10px;
-  padding: 7px 16px 7px 12px;
+  gap: 9px;
+  padding: 7px 15px;
   font-family: inherit;
   color: var(--gold-bright);
-  background: radial-gradient(120% 160% at 12% 55%, rgba(86,42,16,0.6) 0%, rgba(42,24,12,0.72) 40%, rgba(14,9,7,0.86) 100%);
-  border: 1px solid rgba(240,180,90,0.5);
-  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(34,24,14,0.78) 0%, rgba(14,10,7,0.9) 100%);
+  border: 1px solid rgba(201,164,100,0.4);
+  border-radius: 14px;
   cursor: pointer;
-  box-shadow: 0 0 14px rgba(240,160,70,0.16), inset 0 0 8px rgba(0,0,0,0.4);
-  transition: filter 0.16s, transform 0.16s, border-color 0.16s;
+  transition: filter 0.14s, transform 0.14s, border-color 0.14s;
+}
+.map-ctl-label { font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
+/* Campfire control — warmer tint + a slow glow + the live flame. */
+.map-ctl-fire {
+  border-color: rgba(240,180,90,0.5);
+  background: radial-gradient(120% 160% at 16% 55%, rgba(86,42,16,0.6) 0%, rgba(34,22,12,0.82) 46%, rgba(12,9,7,0.9) 100%);
   animation: mcf-glow 3.4s ease-in-out infinite;
 }
 @keyframes mcf-glow {
   0%, 100% { box-shadow: 0 0 14px rgba(240,160,70,0.16), inset 0 0 8px rgba(0,0,0,0.4); }
   50%      { box-shadow: 0 0 22px rgba(240,170,80,0.34), inset 0 0 8px rgba(0,0,0,0.4); }
 }
-.map-campfire:hover { filter: brightness(1.12); transform: translateY(-1px); border-color: rgba(255,210,130,0.75); }
+.map-ctl:hover { filter: brightness(1.12); transform: translateY(-1px); border-color: rgba(240,212,136,0.7); }
 
 .mcf-fire { position: relative; width: 16px; height: 22px; flex-shrink: 0; }
 .mcf-flame {
@@ -9178,22 +9193,29 @@ body.party-critical::after {
   100% { transform: translate(-50%, -18px) scale(0.4); opacity: 0; }
 }
 
-.mcf-text { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.18; }
-.mcf-label { font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
-.mcf-sub { font-size: 7.5px; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(232,210,170,0.55); }
-.mcf-cost { font-size: 12px; font-weight: 700; color: #ffeec0; font-variant-numeric: tabular-nums; letter-spacing: 0.04em; }
+.map-ctl-cost { font-size: 12px; font-weight: 700; color: #ffeec0; font-variant-numeric: tabular-nums; letter-spacing: 0.04em; }
 .mcf-cost-glyph { color: #ffd27a; }
 
-.map-campfire.map-campfire-poor {
+.map-ctl-fire.map-ctl-poor {
   opacity: 0.42;
   cursor: not-allowed;
   border-color: rgba(212,200,168,0.2);
   animation: none;
-  box-shadow: inset 0 0 8px rgba(0,0,0,0.4);
 }
-.map-campfire.map-campfire-poor .mcf-flame,
-.map-campfire.map-campfire-poor .mcf-flame-2,
-.map-campfire.map-campfire-poor .mcf-ember { animation-play-state: paused; opacity: 0.5; }
+.map-ctl-poor .mcf-flame,
+.map-ctl-poor .mcf-flame-2,
+.map-ctl-poor .mcf-ember { animation-play-state: paused; opacity: 0.5; }
+
+/* Heroes control — a little trio of "heads" as a minimal party icon. */
+.mctl-trio { display: inline-flex; align-items: flex-end; gap: 2px; height: 14px; }
+.mctl-trio span {
+  width: 5px; height: 9px;
+  background: linear-gradient(180deg, #d8c9a6 0%, #8c7a52 100%);
+  border-radius: 50% 50% 32% 32%;
+  box-shadow: 0 0 4px rgba(201,164,100,0.35);
+}
+.mctl-trio span:nth-child(2) { height: 12px; }
+.map-ctl-heroes:hover .mctl-trio span { filter: brightness(1.15); }
 .path-kizuna {
   display: inline-flex;
   align-items: center;
@@ -12535,12 +12557,23 @@ button.path-node:not(:disabled):hover {
   width: 84px;
   height: 130px;
   z-index: 3;
-  /* No border-radius / no big box-shadow — the previous oval halo was
-     leaking past the scene boundary on mobile.  Warmth is provided by
-     the flame elements themselves + a tighter inner glow. */
-  box-shadow:
-    0 -4px 20px 0 rgba(255,150,60,0.28),
-    0 -1px 10px 0 rgba(255,180,90,0.22);
+}
+/* Soft circular warmth behind the flames.  Replaces the old rectangular
+   box-shadow halo, which read as a visible glowing box around the fire. */
+.rest-fire::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  width: 108px;
+  height: 108px;
+  transform: translateX(-50%);
+  background: radial-gradient(circle at 50% 58%,
+    rgba(255,165,75,0.32) 0%,
+    rgba(255,150,60,0.15) 34%,
+    rgba(255,150,60,0) 70%);
+  pointer-events: none;
+  z-index: 0;
 }
 .rest-fire .ts-fire-logs { left: 50%; bottom: 6px; transform: translateX(-50%); width: 60px; height: 12px; z-index: 4; }
 .rest-fire .ts-fire-logs::before, .rest-fire .ts-fire-logs::after { width: 36px; height: 8px; }
