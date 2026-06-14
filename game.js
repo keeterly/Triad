@@ -18496,6 +18496,17 @@ function makePartyCard(c, slot, threatened, adjMap, incoming) {
   const isHome = def.home === slot;
   const hpPct = (c.hp / c.maxHp) * 100;
 
+  // Body-status FX on the HERO too — bleed drip / vuln aura / dulled slump — so
+  // a primed ally reads as clearly as a primed enemy (mirrors makeEnemyCard).
+  // Matters now that enemies can detonate YOUR primers for a crit.
+  const pBodyStatus = c.bleed > 0 ? 'bleed' : c.vuln > 0 ? 'vuln' : c.dulled > 0 ? 'dulled' : null;
+  if (pBodyStatus) fig.classList.add('has-body-status', `body-status-${pBodyStatus}`);
+  const pBodyLvl = pBodyStatus ? Math.min(3, Math.max(1, c[pBodyStatus] || 1)) : 0;
+  const pBodyFxCount = pBodyLvl === 1 ? 5 : pBodyLvl === 2 ? 9 : 14;
+  const pBodyFx = pBodyStatus
+    ? `<div class="body-particles bp-${pBodyStatus} bp-lvl-${pBodyLvl}">${'<i></i>'.repeat(pBodyFxCount)}</div>`
+    : '';
+
   // movement arrows: dir +1 (toward back in slot order) renders on the LEFT (because
   // PARTY_DISPLAY_ORDER puts back on the left); dir -1 (toward front) renders on the RIGHT.
   const slotIdx = SLOTS.indexOf(slot);
@@ -18580,6 +18591,7 @@ function makePartyCard(c, slot, threatened, adjMap, incoming) {
     ${synStack}
     <div class="figure-portrait">
       ${PORTRAITS[c.id] || ''}
+      ${pBodyFx}
       <div class="figure-statuses">${renderStatuses(c, state)}</div>
       <div class="figure-hp">
         <div class="hp-fill ${hpPct < 35 ? 'low' : ''}" style="width:${hpPct}%"></div>
