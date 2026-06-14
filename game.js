@@ -1826,9 +1826,9 @@ const CHARS = {
       // BACK — DETONATE (board).  Full-field reach: every ranged arrow PUNCTURES
       // vuln on what it hits — her sweet spot for cashing primed wounds.
       back: {
-        basic: { name: 'Volley', desc: '4 dmg + bleed 1 all · detonates VULN (Puncture)', dmg: 4,
+        basic: { name: 'Volley', desc: '4 dmg all + bleed 1 front · detonates VULN (Puncture)', dmg: 4,
           reach: ['front','mid','back'], pattern: 'all',
-          fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 4)); t.forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 1); }); } },
+          fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 4)); if (t[0] && !t[0].dead) t[0].bleed = Math.max(t[0].bleed, 1); } },
         sig:   { name: 'Arrow Storm', desc: '7 dmg + bleed 2 all · PUNCTURES vuln on every hit', cost: 1, dmg: 7,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 7)); t.forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 2); }); } },
@@ -1944,9 +1944,9 @@ const CHARS = {
       },
       // BACK (home) — DETONATE (board).  Stealth cloud HEMORRHAGES every bleed.
       back: {
-        basic: { name: 'Poison Cloud', desc: '3 all + bleed 1 all · HEMORRHAGES bleed', dmg: 3,
+        basic: { name: 'Poison Cloud', desc: '3 all + bleed 1 front · HEMORRHAGES bleed', dmg: 3,
           reach: ['front','mid','back'], pattern: 'all',
-          fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 3)); t.forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 1); }); } },
+          fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 3)); if (t[0] && !t[0].dead) t[0].bleed = Math.max(t[0].bleed, 1); } },
         sig:   { name: 'Shadow Storm', desc: '4 all + bleed 2 all · HEMORRHAGES all bleed', cost: 1, dmg: 4,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 4)); t.forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 2); }); } },
@@ -2084,9 +2084,9 @@ const CHARS = {
       // BACK (home) — DETONATE (board).  Arcane sweep DISCHARGES every vuln and
       // re-stacks it for the next round.
       back: {
-        basic: { name: 'Lullaby', desc: '3 all + vuln 1 all · DISCHARGES vuln', dmg: 3,
+        basic: { name: 'Lullaby', desc: '3 all + vuln 1 front · DISCHARGES vuln', dmg: 3,
           reach: ['front','mid','back'], pattern: 'all',
-          fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 3)); aliveEnemies(s).forEach(e => { e.vuln += 1; }); } },
+          fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 3)); if (t[0] && !t[0].dead) t[0].vuln += 1; } },
         sig:   { name: 'Aria', desc: '4 all + vuln 2 all · DISCHARGES all vuln', cost: 1, dmg: 4,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 4)); aliveEnemies(s).forEach(e => { e.vuln += 2; }); } },
@@ -2185,9 +2185,9 @@ const CHARS = {
       // BACK — PRIME.  Chill / Frost-Lock freeze vuln onto the board for his
       // arcane to DISCHARGE.
       back: {
-        basic: { name: 'Chill Mist', desc: '2 all + vuln 1 all (prime) · DISCHARGES vuln', dmg: 2,
+        basic: { name: 'Chill Mist', desc: '2 all + vuln 1 front (prime) · DISCHARGES vuln', dmg: 2,
           reach: ['front','mid','back'], pattern: 'all',
-          fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 2)); aliveEnemies(s).forEach(e => { e.vuln += 1; }); } },
+          fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 2)); if (t[0] && !t[0].dead) t[0].vuln += 1; } },
         sig:   { name: 'Frost-Lock', desc: '6 lowest + vuln 2 all (prime)', cost: 1, dmg: 6,
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => {
@@ -2328,10 +2328,11 @@ const CHARS = {
       },
       // BACK (home) — board DoT + DISCHARGE.
       back: {
-        basic: { name: 'Spores', desc: '2 all + bleed 1 all · DISCHARGES vuln', dmg: 2, element: 'arcane',
+        basic: { name: 'Spores', desc: '2 all + bleed 1 front · DISCHARGES vuln', dmg: 2, element: 'arcane',
           reach: ['front','mid','back'], pattern: 'all',
-          fn: (s, t) => { let any = false; t.forEach(e => { applyDmgToEnemy(s, e, 2);
-            if (!e.dead) { e.bleed = (e.bleed || 0) + 1; any = true; } });
+          fn: (s, t) => { t.forEach(e => { applyDmgToEnemy(s, e, 2); });
+            let any = false;
+            if (t[0] && !t[0].dead) { t[0].bleed = (t[0].bleed || 0) + 1; any = true; }
             if (any) _niraOldHexTick(s); } },
         sig:   { name: "Coven's Pyre", desc: '3 all + bleed 2 all · DISCHARGES vuln', cost: 1, dmg: 3, element: 'arcane',
           reach: ['front','mid','back'], pattern: 'all',
