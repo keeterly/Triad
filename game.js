@@ -19359,27 +19359,28 @@ function openResonantPanel() {
   bindTapAsPointer(el.querySelector('.rp-close'), closeResonantPanel);
   el.querySelectorAll('.rp-row').forEach(row => {
     const id = row.dataset.combo;
-    // Movement-aware tap: a scroll DRAG (pointer moves past a small threshold)
-    // cancels the tap, so swiping the list never fires a skill — only a clean
-    // press commits.  Press-and-hold (no movement) previews targets.
-    let holdTimer = null, moved = false, sx = 0, sy = 0;
-    const cancelHold = () => { if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; } };
-    const clearPrev = () => { row.classList.remove('previewing'); clearPreviewHighlight(); };
+    // Commit on the native CLICK — the browser already fires it for a clean tap
+    // and SUPPRESSES it after a scroll-drag, so a swipe never fires a skill and a
+    // tap always queues (the old pointerup + movement-threshold guard was eating
+    // legit taps on touch).  Pointer events only drive the press-hold preview.
+    let holdTimer = null, didPreview = false, sx = 0, sy = 0;
+    const endHold = () => { if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; } row.classList.remove('previewing'); clearPreviewHighlight(); };
     row.addEventListener('pointerdown', (e) => {
-      moved = false; sx = e.clientX; sy = e.clientY;
-      holdTimer = setTimeout(() => { if (!moved) { row.classList.add('previewing'); applyPreviewHighlight(previewComboTargets(id)); } }, 300);
+      didPreview = false; sx = e.clientX; sy = e.clientY;
+      holdTimer = setTimeout(() => { didPreview = true; row.classList.add('previewing'); applyPreviewHighlight(previewComboTargets(id)); }, 300);
     });
     row.addEventListener('pointermove', (e) => {
-      if (!moved && (Math.abs(e.clientX - sx) > 9 || Math.abs(e.clientY - sy) > 9)) { moved = true; cancelHold(); clearPrev(); }
+      if (holdTimer && (Math.abs(e.clientX - sx) > 10 || Math.abs(e.clientY - sy) > 10)) { clearTimeout(holdTimer); holdTimer = null; }
     });
-    row.addEventListener('pointerup', () => {
-      cancelHold(); clearPrev();
-      if (moved) { moved = false; return; }
+    row.addEventListener('pointerup', endHold);
+    row.addEventListener('pointerleave', endHold);
+    row.addEventListener('pointercancel', endHold);
+    row.addEventListener('click', () => {
+      if (didPreview) { didPreview = false; return; }  // that press was a hold-preview, not a tap
       if (row.disabled || state.executing || state.over) return;
       closeResonantPanel();
       commitUnique(id);
     });
-    row.addEventListener('pointercancel', () => { cancelHold(); moved = false; clearPrev(); });
   });
 }
 
