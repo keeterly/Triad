@@ -27863,7 +27863,9 @@ function showHowToPlay(onDone) {
     void stage.offsetWidth;            // reflow so the fade restarts each card
     stage.classList.add('howto-stage-in');
     dots.innerHTML = HOWTO_CARDS.map((_, i) => `<span class="howto-dot${i === idx ? ' on' : ''}"></span>`).join('');
-    backBtn.style.visibility = idx === 0 ? 'hidden' : 'visible';
+    // display:none (not visibility:hidden) so the flex slot collapses and
+    // Next fills the row on the first card instead of sitting half-width.
+    backBtn.style.display = idx === 0 ? 'none' : '';
     nextBtn.textContent = idx === HOWTO_CARDS.length - 1 ? 'Descend ▾' : 'Next';
   };
   const go = (d) => {
