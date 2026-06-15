@@ -8493,41 +8493,47 @@ const COMBOS = {
   // They cost 1–2 Resolve and pay off a primed board: each strikes with the
   // hero's element so it auto-detonates the matching primer (and re-banks the
   // detonation Resolve), inside the doubled Resonance window.  Once per fight.
+  // Role-ULTIMATES — each Unleash is the hero's defining moment, matched to
+  // their slot-roles, and it does NOT cash the board's primers: that big
+  // board-detonation is the Team Resonance climax's signature job.  Each still
+  // banks a ⚡ charge (handled in executeQueueItem).
   cassia_unleash: {
-    id: 'cassia_unleash', name: 'Breaking Wave', tier: 'unleash', cost: 2,
-    desc: 'Cassia · 8 physical to ALL — RUPTURE every bleed on the board · Taunt',
+    id: 'cassia_unleash', name: 'Last Bastion', tier: 'unleash', cost: 2,
+    desc: 'Cassia · Taunt ALL · +8 armor to the party · +8 more to Cassia — she becomes the wall',
     requires: [{ heroId: 'cassia' }],
     fn: (s) => {
-      s.currentActorId = 'cassia'; s.currentTechElement = 'physical';
-      try {
-        aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 8));
-        const c = s.party.chars.cassia; if (c && !c.downed) c.taunt = true;
-      } finally { s.currentActorId = null; s.currentTechElement = null; }
+      partyArmor(s, 8);
+      const c = s.party.chars.cassia; if (c && !c.downed) { c.taunt = true; addArmor(s, 'cassia', 8); }
     },
   },
   branwen_unleash: {
     id: 'branwen_unleash', name: 'Rain of Arrows', tier: 'unleash', cost: 2,
-    desc: 'Branwen · 7 ranged to ALL — PUNCTURE every vuln on the board + bleed 2 all',
+    desc: 'Branwen · 6 to ALL · marks the whole board — vuln 2 + bleed 2 all (sets up the team cash)',
     requires: [{ heroId: 'branwen' }],
     fn: (s) => {
-      s.currentActorId = 'branwen'; s.currentTechElement = 'ranged';
+      // element 'none' so the barrage lands damage but does NOT detonate —
+      // it BUILDS the board for the Team Resonance to cash.
+      s.currentActorId = 'branwen'; s.currentTechElement = 'none';
       try {
-        aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 7));
-        aliveEnemies(s).forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed || 0, 2); });
+        aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 6));
+        aliveEnemies(s).forEach(e => { if (!e.dead) { e.vuln = (e.vuln || 0) + 2; e.bleed = Math.max(e.bleed || 0, 2); } });
       } finally { s.currentActorId = null; s.currentTechElement = null; }
     },
   },
   elin_unleash: {
-    id: 'elin_unleash', name: 'Benediction', tier: 'unleash', cost: 1,
-    desc: 'Elin · 5 holy to ALL — SMITE every vuln (heal party per hit) + heal party 6 + cleanse all',
+    id: 'elin_unleash', name: 'Benediction', tier: 'unleash', cost: 2,
+    desc: 'Elin · heal party 8 + cleanse all · REVIVE one fallen ally at 30% HP',
     requires: [{ heroId: 'elin' }],
     fn: (s) => {
-      s.currentActorId = 'elin'; s.currentTechElement = 'holy';
-      try {
-        aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 5));
-        partyHeal(s, 6);
-        aliveParty(s).forEach(c => { if (c && !c.downed) { c.bleed = 0; c.dulled = 0; } });
-      } finally { s.currentActorId = null; s.currentTechElement = null; }
+      partyHeal(s, 8);
+      aliveParty(s).forEach(c => { if (c && !c.downed) { c.bleed = 0; c.dulled = 0; } });
+      const fallen = Object.values(s.party.chars).find(c => c && c.downed);
+      if (fallen) {
+        fallen.downed = false;
+        fallen.hp = Math.max(1, Math.ceil(fallen.maxHp * 0.3));
+        fallen.armor = 0; fallen.bleed = 0; fallen.vuln = 0; fallen.dulled = 0;
+        fallen.weakened = false; fallen.staggered = false; fallen.pendingEffects = [];
+      }
     },
   },
   // ---- Unleash (rest of the roster) — same template, themed by school:
@@ -29419,7 +29425,7 @@ function showPasswordGate(onUnlock) {
 // never get stuck in a reload loop against a stale cached game.js.  A
 // sessionStorage guard caps it at one reload attempt per detected build as a
 // belt-and-suspenders.
-const APP_BUILD = 318;
+const APP_BUILD = 319;
 (function () {
   const RELOADED_KEY = 'kizuna.autoReloadedFor';
   let reloading = false;
