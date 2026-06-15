@@ -29108,18 +29108,26 @@ function showPasswordGate(onUnlock) {
   const DESIGN_W = 720;
   const DESIGN_H = 405;
   let raf = 0, lastW = 0, lastH = 0;
-  // Use the LAYOUT viewport (documentElement.clientW/H) as the primary source.
-  // It's stable — unlike visualViewport it doesn't shrink for the keyboard or
-  // pinch-zoom — and it's what CSS vh/vw resolve against, so the scaled stage
-  // stays consistent with the rest of the layout.  Fallbacks cover the rare
-  // pre-layout window where it reads 0.
+  // Read the LARGEST reliable viewport dimension across the available sources.
+  // In a normal browser these agree (overflow is hidden, so no scrollbar gap)
+  // and this is a no-op.  In a STANDALONE PWA, documentElement.clientW/H can
+  // under-report the true drawable area (notch / viewport-fit:cover quirks) —
+  // fitting to that sub-region scales the stage down and leaves black bars on
+  // all four sides.  window.innerW/H reports the full standalone screen, so
+  // taking the max fills the display.  visualViewport only shrinks on pinch /
+  // keyboard, so max() naturally ignores those transients (we never want the
+  // stage to zoom in on a pinch).  Fallbacks cover the rare pre-layout 0.
   function readVW() {
-    return document.documentElement.clientWidth || window.innerWidth ||
-           (window.visualViewport && window.visualViewport.width) || 0;
+    const c = document.documentElement.clientWidth || 0;
+    const i = window.innerWidth || 0;
+    const v = (window.visualViewport && window.visualViewport.width) || 0;
+    return Math.max(c, i, v);
   }
   function readVH() {
-    return document.documentElement.clientHeight || window.innerHeight ||
-           (window.visualViewport && window.visualViewport.height) || 0;
+    const c = document.documentElement.clientHeight || 0;
+    const i = window.innerHeight || 0;
+    const v = (window.visualViewport && window.visualViewport.height) || 0;
+    return Math.max(c, i, v);
   }
   function applyScale() {
     raf = 0;
@@ -29158,6 +29166,12 @@ function showPasswordGate(onUnlock) {
   }
   // pageshow covers PWA / bfcache restores where load may not re-fire.
   window.addEventListener('pageshow', () => { schedule(); setTimeout(applyScale, 100); });
+  // Re-fit when a standalone PWA returns to the foreground — the drawable
+  // area may have changed while backgrounded (rotation, system UI), and the
+  // first correct dimension read sometimes only lands after resume.
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) { schedule(); [80, 250].forEach(ms => setTimeout(applyScale, ms)); }
+  });
   document.addEventListener('DOMContentLoaded', applyScale);
   window.addEventListener('load', () => {
     applyScale();
