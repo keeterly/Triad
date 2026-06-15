@@ -29321,6 +29321,48 @@ function showPasswordGate(onUnlock) {
   applyScale();
 })();
 
+// ============================================================================
+// AUTO-UPDATE — no service worker.  A standalone PWA resumed from the app
+// switcher won't re-fetch index.html on its own, so a deployed build can sit
+// unseen.  We periodically re-fetch index.html (cache: no-store), read the
+// live BUILD number, and reload when it's newer than the running build.
+//
+// APP_BUILD lives HERE (not just in index.html) on purpose: every build bumps
+// it, so game.js itself changes every build, so its ?v= cache-bust always
+// changes too — meaning the reload is guaranteed to pull fresh code and can
+// never get stuck in a reload loop against a stale cached game.js.  A
+// sessionStorage guard caps it at one reload attempt per detected build as a
+// belt-and-suspenders.
+const APP_BUILD = 310;
+(function () {
+  const RELOADED_KEY = 'kizuna.autoReloadedFor';
+  let reloading = false;
+  async function checkForUpdate() {
+    if (reloading || document.hidden) return;
+    try {
+      const res = await fetch('index.html?_cb=' + Date.now(), { cache: 'no-store' });
+      if (!res.ok) return;
+      const html = await res.text();
+      const m = html.match(/ts-build">\s*BUILD\s+(\d+)/i);
+      if (!m) return;
+      const latest = parseInt(m[1], 10);
+      if (!(latest > APP_BUILD)) return;
+      // Only auto-reload once per detected build per session — if a reload
+      // somehow doesn't advance the running build, don't loop forever.
+      let already = 0;
+      try { already = parseInt(sessionStorage.getItem(RELOADED_KEY) || '0', 10) || 0; } catch (_) {}
+      if (already >= latest) return;
+      try { sessionStorage.setItem(RELOADED_KEY, String(latest)); } catch (_) {}
+      reloading = true;
+      location.reload();
+    } catch (_) {}
+  }
+  setInterval(checkForUpdate, 60000);   // every 60s while open
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) checkForUpdate(); });
+  window.addEventListener('focus', checkForUpdate);
+  setTimeout(checkForUpdate, 4000);     // shortly after first load
+})();
+
 function bootGame() {
   // Password gate first — if locked, nothing else runs.
   if (!isUnlocked()) {
