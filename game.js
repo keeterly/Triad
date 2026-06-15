@@ -1679,8 +1679,9 @@ const ENEMY_DMG_SCALE = 1.10;  // +10% incoming enemy damage at a FULL party
 // made the player much stronger, so enemies were dying too fast and not
 // threatening.  These lift base HP / damage across the board (lighter on bosses,
 // which were already tuned long).  First balance pass — tune to taste.
-const ENEMY_HP_BASE_MULT      = 1.4;   // +40% base HP for normal enemies
-const ENEMY_HP_BASE_MULT_BOSS = 1.12;  // +12% base HP for bosses
+const ENEMY_HP_BASE_MULT      = 1.4;   // +40% base HP for normal (trash) enemies — stay fast
+const ENEMY_HP_BASE_MULT_BOSS = 1.45;  // bosses run LONG so the build-up reaches a Resonance climax
+const ENEMY_HP_ELITE_MULT     = 1.5;   // elites are the rare climax fights — extra HP on top of trash base
 const ENEMY_DMG_BASE_MULT     = 1.15;  // +15% base incoming damage
 // Unleash hits a flat +N harder per strike than their printed number, so a
 // single-hero Unleash (cost 2) clearly out-damages a special (cost ≤1) — the
@@ -1737,9 +1738,9 @@ const CHARS = {
         basic: { name: 'Greatsword Cleave', desc: '8 dmg · detonates BLEED (Rupture) · +vuln 1 · Taunt', dmg: 8,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (!t[0]) return; applyDmgToEnemy(s, t[0], 8); if (!t[0].dead) t[0].vuln += 1; const cas = s.party.chars.cassia; if (cas && !cas.downed) cas.taunt = true; } },
-        sig:   { name: 'Sunder', desc: '14 physical dmg · RUPTURES bleed hard · strip armor + 2 vuln · Taunt', cost: 1, dmg: 14, element: 'physical',
+        sig:   { name: 'Bulwark', desc: '4 dmg · strip armor + vuln 2 · Taunt · +6 armor to Cassia (she soaks the line)', cost: 1, dmg: 4, element: 'physical',
           reach: ['front'], pattern: 'front-most',
-          fn: (s, t) => { if (!t[0]) return; applyDmgToEnemy(s, t[0], 14); if (!t[0].dead) { t[0].armor = 0; t[0].vuln += 2; } const cas = s.party.chars.cassia; if (cas && !cas.downed) cas.taunt = true; } },
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 4); if (!t[0].dead) { t[0].armor = 0; t[0].vuln += 2; } } const cas = s.party.chars.cassia; if (cas && !cas.downed) { cas.taunt = true; addArmor(s, 'cassia', 6); } } },
       },
       // MID — PRIME row.  A mobile shieldwall that opens bleed wounds AND
       // advances her to Front to detonate them next — the heart of her flow.
@@ -1747,9 +1748,9 @@ const CHARS = {
         basic: { name: 'Vanguard', desc: '5 dmg + bleed 1 (prime) + advance to Front + 2 armor', dmg: 5, move: 'advance',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 5); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 1); } advance(s, 'cassia'); addArmor(s, 'cassia', 2); } },
-        sig:   { name: 'Heroic Charge', desc: '9 dmg + bleed 2 (prime) + advance to Front + 3 party armor', dmg: 9, move: 'advance',
+        sig:   { name: 'Shield Wall', desc: '4 dmg + advance to Front + 6 party armor · front ally +3 retaliate', cost: 1, dmg: 4, move: 'advance',
           reach: ['front'], pattern: 'front-most',
-          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 9); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 2); } advance(s, 'cassia'); partyArmor(s, 3); } },
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 4); advance(s, 'cassia'); partyArmor(s, 6); const f = charBySlot(s, 'front'); if (f && !f.downed) f.retaliate = (f.retaliate || 0) + 3; } },
       },
       // BACK — Bulwark.  Anchored team fortress (no advance): the strongest
       // party-defense option, shielding the line from safety.
@@ -1784,7 +1785,7 @@ const CHARS = {
       // MID — heal home.
       mid: {
         basic: { name: 'Mend',         desc: 'Heal 6 lowest + cleanse', heal: 6, healTarget: 'lowest', fn: (s) => { healLowest(s, 6); cleanseLowest(s); } },
-        sig:   { name: 'Greater Mend', desc: 'Heal 12 lowest + cleanse + 2 armor', cost: 1, heal: 12, healTarget: 'lowest', fn: (s) => { const c = healLowest(s, 12); cleanseLowest(s); if (c) c.armor += 2; } },
+        sig:   { name: 'Blessing', desc: "Heal 8 lowest + cleanse + 2 armor · that ally's next attack +4 dmg", cost: 1, heal: 8, healTarget: 'lowest', fn: (s) => { const c = healLowest(s, 8); cleanseLowest(s); if (c) { c.armor += 2; c.pendingEffects.push({ kind: 'attackBonus', amt: 4, source: 'blessing' }); } } },
       },
       // BACK — quiet support.  Prayer no longer mints Resolve (detonation-only
       // economy) — it mends and cleanses; Elin earns Resolve by SMITING vuln.
@@ -1809,9 +1810,9 @@ const CHARS = {
         basic: { name: 'Backstep Shot', desc: '4 dmg + bleed 1 + vuln 1 (prime) + retreat to Back', dmg: 4, move: 'retreatFull',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 4); if (!t[0].dead) { t[0].bleed = Math.max(t[0].bleed, 1); t[0].vuln += 1; } } retreatFull(s, 'branwen'); } },
-        sig:   { name: 'Vanish Shot', desc: '7 dmg + bleed 2 + vuln 1 (prime) + retreat to Back', dmg: 7, move: 'retreatFull',
+        sig:   { name: "Hunter's Mark", desc: "3 dmg + vuln 2 + bleed 1 · your allies' next hits +2 dmg · retreat to Back", cost: 1, dmg: 3, move: 'retreatFull',
           reach: ['front'], pattern: 'front-most',
-          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 7); if (!t[0].dead) { t[0].bleed = Math.max(t[0].bleed, 2); t[0].vuln += 1; } } retreatFull(s, 'branwen'); } },
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 3); if (!t[0].dead) { t[0].vuln += 2; t[0].bleed = Math.max(t[0].bleed, 1); } } aliveParty(s).forEach(a => { if (a.id !== 'branwen') a.pendingEffects.push({ kind: 'attackBonus', amt: 2, source: "hunter's-mark" }); }); retreatFull(s, 'branwen'); } },
       },
       // MID — DETONATE (single).  Mortar-lob snipes a mid/back target; her ranged
       // shot PUNCTURES any vuln she or an ally opened.
@@ -1819,9 +1820,9 @@ const CHARS = {
         basic: { name: 'Trick Shot', desc: '5 dmg lowest mid/back · detonates VULN (Puncture)', dmg: 5,
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 5); } },
-        sig:   { name: 'Pierce', desc: '8 dmg lowest mid/back · ignore armor · PUNCTURES vuln', dmg: 8,
+        sig:   { name: 'Cripple', desc: '3 dmg lowest mid/back · vuln 2 + DULLED 2 (control — weakens its hits)', cost: 1, dmg: 3,
           reach: ['mid','back'], pattern: 'lowest',
-          fn: (s, t) => { if (!t[0]) return; s.ignoreArmor = true; applyDmgToEnemy(s, t[0], 8); s.ignoreArmor = false; } },
+          fn: (s, t) => { if (!t[0]) return; applyDmgToEnemy(s, t[0], 3); if (!t[0].dead) { t[0].vuln += 2; t[0].dulled = Math.max(t[0].dulled || 0, 2); } } },
       },
       // BACK — DETONATE (board).  Full-field reach: every ranged arrow PUNCTURES
       // vuln on what it hits — her sweet spot for cashing primed wounds.
@@ -12446,7 +12447,13 @@ function newEnemyState(id) {
   // Enemy-HP scale compensates for the stronger 4-ATB player turn, but
   // only in proportion to party size (a solo hero faces baseline HP).
   const hpBaseMult = def.boss ? ENEMY_HP_BASE_MULT_BOSS : ENEMY_HP_BASE_MULT;
-  const mhp = Math.round((def.maxHp + bonus) * hpBaseMult * _enemyHpScale(typeof state !== 'undefined' ? state : null));
+  // Elite encounters run long (so the Resonance climax has room to build);
+  // trash stays fast.  Read the active encounter's elite flag — set before
+  // enemies are built in startEncounter.
+  const _isElite = !def.boss && typeof state !== 'undefined' && state && state.run
+    && state.run.currentEnc && state.run.currentEnc.elite;
+  const eliteMult = _isElite ? ENEMY_HP_ELITE_MULT : 1;
+  const mhp = Math.round((def.maxHp + bonus) * hpBaseMult * eliteMult * _enemyHpScale(typeof state !== 'undefined' ? state : null));
   return {
     id, hp: mhp, maxHp: mhp,
     armor: 0, bleed: 0, vuln: 0, dulled: 0,
@@ -29412,7 +29419,7 @@ function showPasswordGate(onUnlock) {
 // never get stuck in a reload loop against a stale cached game.js.  A
 // sessionStorage guard caps it at one reload attempt per detected build as a
 // belt-and-suspenders.
-const APP_BUILD = 316;
+const APP_BUILD = 317;
 (function () {
   const RELOADED_KEY = 'kizuna.autoReloadedFor';
   let reloading = false;
