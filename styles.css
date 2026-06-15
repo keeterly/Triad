@@ -10357,7 +10357,9 @@ button.path-node { cursor: pointer; }
   .path-tag { font-size: 8.5px; padding: 1px 4px; }
   #overlay-content:has(#overlay-choices.path-map:not(.hidden)) {
     max-width: 92vw;
-    padding: 16px 14px 14px;
+    /* Keep a reserved bottom band so the pinned Campfire / Heroes controls
+       never overlap the node graph. */
+    padding: 16px 14px 64px;
   }
 }
 
@@ -10418,13 +10420,18 @@ button.path-node { cursor: pointer; }
     max-height: 96vh;
   }
   #overlay-content:has(#overlay-choices.path-map:not(.hidden)) {
-    padding: 12px 16px 10px;
+    /* Reserve a clear bottom band for the pinned Campfire / Heroes controls
+       even on short landscape viewports — otherwise the node graph runs
+       straight under the buttons. */
+    padding: 12px 16px 64px;
     max-width: 96vw;
   }
   #overlay-choices { gap: 10px; margin-top: 6px; margin-bottom: 4px; flex-wrap: wrap; }
   #overlay-choices.path-map { gap: 8px; flex-wrap: nowrap; }
   .path-col-head { font-size: 8.5px; letter-spacing: 0.18em; }
-  .path-col-slots { gap: 6px; }
+  /* min-height:0 so the columns don't force-expand past the reserved band on
+     a short viewport (they spread within the available height instead). */
+  .path-col-slots { gap: 6px; min-height: 0; }
   .path-node { padding: 6px 6px 5px; font-size: 10px; }
   .path-name { font-size: 10px; letter-spacing: 0.06em; }
   .path-tag { font-size: 8px; }
@@ -12105,9 +12112,10 @@ button.path-node:not(:disabled):hover {
      own @media (max-height: 520px) — kept here only for choice padding. */
   .vignette-choice  { padding: 5px 10px !important; font-size: 11px !important; }
 
-  /* Path map nodes */
+  /* Path map nodes — keep a reserved bottom band for the pinned controls
+     even on the shortest viewports so the graph never runs under them. */
   #overlay-content:has(#overlay-choices.path-map:not(.hidden)) {
-    padding: 10px 14px 10px !important;
+    padding: 10px 14px 58px !important;
   }
   .path-node { padding: 4px 6px 4px !important; gap: 2px !important; font-size: 9.5px !important; }
   .path-name { font-size: 9.5px !important; letter-spacing: 0.06em !important; }
