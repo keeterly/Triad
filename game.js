@@ -26258,15 +26258,22 @@ function _showTrioChoice(s, next, cont) {
 // party that's mostly dead).  Returns null only when every slot has a
 // living hero in it.
 function findEmptySlotForRecruit(recruitId) {
-  const isFreeSlot = (sl) => {
+  const slotState = (sl) => {
     const id = state.party.slots[sl];
-    if (!id) return true;
+    if (!id) return 'empty';
     const c = state.party.chars[id];
-    return !!(c && c.downed);
+    return (c && c.downed) ? 'downed' : 'living';
   };
   const home = CHARS[recruitId].home;
-  if (isFreeSlot(home)) return home;
-  return ['front','mid','back'].find(isFreeSlot) || null;
+  const order = ['front', 'mid', 'back'];
+  // Prefer a genuinely EMPTY seat (home first) so a recruit never evicts a
+  // downed-but-revivable ally while an open seat is available.  Only when there
+  // is no empty seat does the recruit take a corpse's slot.
+  if (slotState(home) === 'empty') return home;
+  const empty = order.find(sl => slotState(sl) === 'empty');
+  if (empty) return empty;
+  if (slotState(home) === 'downed') return home;
+  return order.find(sl => slotState(sl) === 'downed') || null;
 }
 
 // Short greeting line per hero — used in the recruit overlay's chat bubble.
@@ -26553,6 +26560,13 @@ function commitRecruit(removeId, recruitId, onDone) {
   // and the recruit drops in without ejecting anyone.
   if (!removeId || ['front','mid','back'].includes(removeId)) {
     const slot = removeId || CHARS[recruitId].home;
+    // Evict a downed occupant if the chosen slot held a corpse — parity with the
+    // named/vignette paths; without it the dead hero leaks in party.chars.
+    const occupant = state.party.slots[slot];
+    if (occupant && state.party.chars[occupant] && state.party.chars[occupant].downed) {
+      log(`<i><b>${CHARS[occupant].name}</b> is laid to rest.</i>`);
+      delete state.party.chars[occupant];
+    }
     state.party.chars[recruitId] = newCharState(recruitId);
     state.party.slots[slot] = recruitId;
     if (rememberRecruited(recruitId)) log(`<i>${CHARS[recruitId].name} is now available as a starter for future runs.</i>`);
