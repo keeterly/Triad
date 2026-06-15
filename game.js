@@ -22679,9 +22679,9 @@ function showCampsiteOverlay(node) {
 // REST overlay — heals the alive party for half their missing HP and returns
 // to the map.  No choice; tap Continue.
 // Cost to light an on-demand campfire — escalates each time one is lit this
-// run so a fire is a real Kindling decision, not a free spam.  Base 12, +8 per
-// prior fire (1st 12, 2nd 20, 3rd 28...).
-const CAMPFIRE_BASE_COST = 12;
+// run so a fire is a real Kindling decision, not a free spam.  Base 4, +8 per
+// prior fire (1st 4, 2nd 12, 3rd 20...).
+const CAMPFIRE_BASE_COST = 4;
 const CAMPFIRE_STEP_COST = 8;
 function campfireCost(s) {
   const lit = (s && s.run && s.run.firesLit) || 0;
