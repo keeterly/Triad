@@ -22998,132 +22998,74 @@ function showRestOverlay() {
   };
   const _plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
-  // 1. Rest — heal half of all missing HP across the party.  Shown only while
-  // someone is actually wounded (pick-one fire, so no spam concern).
-  const anyHurt = aliveParty(state).some(c => c.hp < c.maxHp);
-  if (anyHurt) {
-    mkChoice('Rest', 'Heal half the missing HP across the party', () => {
+  // The fire offers up to THREE buckets so the menu never sprawls: Rest
+  // (recover), Hone (free prep), Spend Kindling (paid).  Each action is
+  // collected as an item; the buckets render below.  Pick-one still applies
+  // (every fn calls done()).
+  const restItems = [];
+  const honeItems = [];
+
+  // REST bucket — heal + revive.
+  if (aliveParty(state).some(c => c.hp < c.maxHp)) {
+    restItems.push({ label: 'Rest', tag: 'Heal half the missing HP across the party', kind: 'heal', icon: '✚', fn: () => {
       const lines = [];
-      aliveParty(state).forEach(c => {
-        const missing = c.maxHp - c.hp;
-        const heal = Math.ceil(missing * 0.5);
-        if (heal > 0) { c.hp = Math.min(c.maxHp, c.hp + heal); lines.push(`<b>${CHARS[c.id].name}</b> +${heal} HP`); }
-      });
+      aliveParty(state).forEach(c => { const missing = c.maxHp - c.hp; const heal = Math.ceil(missing * 0.5); if (heal > 0) { c.hp = Math.min(c.maxHp, c.hp + heal); lines.push(`<b>${CHARS[c.id].name}</b> +${heal} HP`); } });
       if (lines.length) log(lines.join(' · '));
       done();
-    }, 'heal', '✚');
+    } });
+  }
+  {
+    const fallen = ['front', 'mid', 'back'].map(sl => state.party.slots[sl]).filter(Boolean).map(id => state.party.chars[id]).filter(c => c && c.downed);
+    if (fallen.length > 0) {
+      const target = fallen[0];
+      const heroName = CHARS[target.id].name;
+      const revHp = Math.max(1, Math.ceil(target.maxHp * 0.25));
+      const subtitle = fallen.length === 1
+        ? `Bring back ${heroName} at ${revHp} HP (25%)`
+        : `Bring back ${heroName} at ${revHp} HP (25%) — other fallen stay down`;
+      restItems.push({ label: 'Revive a fallen', tag: subtitle, kind: 'revive', icon: '❖', fn: () => {
+        target.downed = false; target.hp = revHp; target.armor = 0; target.vuln = 0; target.bleed = 0; target.dulled = 0; target.weakened = false; target.staggered = false; target.pendingEffects = [];
+        log(`<i><b>${heroName}</b> draws breath again — back at <b>${revHp}</b> HP.</i>`);
+        done();
+      } });
+    }
   }
 
-  // 1b. Revive — bring a fallen hero back at 25% of their max HP.
-  // Shown only when at least one party member is currently downed.
-  // Picks the front-most fallen hero so the choice is predictable
-  // (no second picker required).  The revived hero comes back with
-  // a clean status sheet (vuln / bleed / pending effects cleared)
-  // since those would otherwise have applied on the turn they fell.
-  const fallen = ['front', 'mid', 'back']
-    .map(sl => state.party.slots[sl])
-    .filter(Boolean)
-    .map(id => state.party.chars[id])
-    .filter(c => c && c.downed);
-  if (fallen.length > 0) {
-    const target = fallen[0];
-    const heroName = CHARS[target.id].name;
-    const revHp = Math.max(1, Math.ceil(target.maxHp * 0.25));
-    const subtitle = fallen.length === 1
-      ? `Bring back ${heroName} at ${revHp} HP (25%)`
-      : `Bring back ${heroName} at ${revHp} HP (25%) — other fallen stay down`;
-    mkChoice('Revive a fallen', subtitle, () => {
-      target.downed = false;
-      target.hp = revHp;
-      target.armor = 0;
-      target.vuln = 0;
-      target.bleed = 0;
-      target.dulled = 0;
-      target.weakened = false;
-      target.staggered = false;
-      target.pendingEffects = [];
-      log(`<i><b>${heroName}</b> draws breath again — back at <b>${revHp}</b> HP.</i>`);
-      done();
-    }, 'revive', '❖');
-  }
-
-  // 2. Hone — upgrade one tech.  Only shown if any upgrades remain.
-  const upPool = availableUpgrades(state);
-  if (upPool.length > 0) {
-    mkChoice('Hone the edge', 'Choose a tech upgrade', () => {
-      choices.classList.remove('event-choices');
-      const shuffled = upPool.slice().sort(() => Math.random() - 0.5);
-      const offers = shuffled.slice(0, Math.min(2, shuffled.length));
-      showUpgradeOverlay(offers, () => done());
-    }, 'hone', '⚒');
-  }
-
-  // (Sigils intentionally removed from the rest menu — the sigil
-  // economy felt too inflationary when campfires were giving them out
-  // alongside elite / event / boss rewards.  Players still pick up
-  // sigils from elites, events, and boss rewards.)
-
-  // 5. Speak an Oath — voluntary debuff-for-buff trade.  Targeted at a
-  // single hero, permanent for the run.  Hidden entirely until the
-  // player has downed the Layer 6 mega-boss at least once (see
-  // isOathUnlocked); deep-build complexity locked behind real progress.
-  if (aliveParty(state).length > 0 && isOathUnlocked()) {
-    mkChoice('Speak an Oath', 'Trade something away for power', () => {
-      choices.classList.remove('event-choices');
-      showOathOverlay(() => done());
-    }, 'oath', '⌖');
-  }
-
-  // 4. Reflect — context-aware introspection.  Shed an ailment if anyone
-  // is currently carrying a negative quirk, otherwise grant a positive
-  // affinity to a hero who still has room.  Skipped entirely if neither
-  // applies (everyone's full of positives, no negatives to clear).
-  const aliveHeroes = aliveParty(state);
-  const negCarriers = aliveHeroes.filter(c => c.quirks && c.quirks.negative && c.quirks.negative.length > 0);
-  const posRoom = aliveHeroes.filter(c => c.quirks && (c.quirks.positive || []).length < QUIRK_CAP);
-  if (negCarriers.length > 0) {
-    mkChoice('Reflect on regret', 'Shed one negative quirk from the party', () => {
-      // Pick the hero with the most negatives, then their first negative
-      // quirk.  Simple and predictable — no extra picker UI needed.
-      const tgt = negCarriers.slice().sort((a, b) => b.quirks.negative.length - a.quirks.negative.length)[0];
-      const qid = tgt.quirks.negative[0];
-      const q = QUIRKS[qid];
-      tgt.quirks.negative = tgt.quirks.negative.filter(x => x !== qid);
-      // Hide overlay FIRST so the toast track (z-50, below #overlay's
-      // z-260) becomes visible — without this gap the player closes the
-      // rest overlay and the next-scene overlay opens before the toast
-      // ever paints, making Reflect feel like it silently passed.
-      hideOverlay();
-      choices.classList.remove('event-choices');
-      if (q) {
-        showQuirkLost(tgt.id, qid);
-        log(`<i><b>${CHARS[tgt.id].name}</b> lets go of <b>${q.name}</b>.</i>`);
-      }
-      // Hold the gap so the toast is visible before the map covers it again.
-      // 900ms is enough to read the quirk name + the bark; the toast auto-
-      // fades on its own timer once the map is up.
-      setTimeout(() => done(), 900);
-    }, 'reflect', '❂');
-  } else if (posRoom.length > 0) {
-    mkChoice('Reflect on triumph', 'Grant a positive quirk to a hero', () => {
-      // Pick a hero with the most empty positive slots.  Hero-locked
-      // affinities prefer their named owner.
-      const tgt = posRoom.slice().sort((a, b) => a.quirks.positive.length - b.quirks.positive.length)[0];
-      const taken = new Set([...tgt.quirks.positive, ...tgt.quirks.negative]);
-      const pool = Object.values(QUIRKS).filter(q =>
-        q.positive && !taken.has(q.id) && (!q.heroId || q.heroId === tgt.id));
-      // Hide overlay BEFORE spawning the toast so the toast track
-      // isn't hidden behind it; pause before the next-scene transition
-      // so the player gets a beat to read the affinity reveal.
-      hideOverlay();
-      choices.classList.remove('event-choices');
-      if (pool.length) {
-        const q = pool[Math.floor(Math.random() * pool.length)];
-        grantQuirk(state, tgt.id, q.id);
-        log(`<i><b>${CHARS[tgt.id].name}</b> reflects and grows — <b>${q.name}</b>.</i>`);
-      }
-      setTimeout(() => done(), 900);
-    }, 'reflect', '❂');
+  // HONE bucket — tech upgrade + reflect + (bonds, added below) + oath.  Free prep.
+  {
+    const upPool = availableUpgrades(state);
+    if (upPool.length > 0) {
+      honeItems.push({ label: 'Hone the edge', tag: 'Choose a tech upgrade', kind: 'hone', icon: '⚒', fn: () => {
+        choices.classList.remove('event-choices');
+        const shuffled = upPool.slice().sort(() => Math.random() - 0.5);
+        showUpgradeOverlay(shuffled.slice(0, Math.min(2, shuffled.length)), () => done());
+      } });
+    }
+    const aliveHeroes = aliveParty(state);
+    const negCarriers = aliveHeroes.filter(c => c.quirks && c.quirks.negative && c.quirks.negative.length > 0);
+    const posRoom = aliveHeroes.filter(c => c.quirks && (c.quirks.positive || []).length < QUIRK_CAP);
+    if (negCarriers.length > 0) {
+      honeItems.push({ label: 'Reflect on regret', tag: 'Shed one negative quirk from the party', kind: 'reflect', icon: '❂', fn: () => {
+        const tgt = negCarriers.slice().sort((a, b) => b.quirks.negative.length - a.quirks.negative.length)[0];
+        const qid = tgt.quirks.negative[0]; const q = QUIRKS[qid];
+        tgt.quirks.negative = tgt.quirks.negative.filter(x => x !== qid);
+        hideOverlay(); choices.classList.remove('event-choices');
+        if (q) { showQuirkLost(tgt.id, qid); log(`<i><b>${CHARS[tgt.id].name}</b> lets go of <b>${q.name}</b>.</i>`); }
+        setTimeout(() => done(), 900);
+      } });
+    } else if (posRoom.length > 0) {
+      honeItems.push({ label: 'Reflect on triumph', tag: 'Grant a positive quirk to a hero', kind: 'reflect', icon: '❂', fn: () => {
+        const tgt = posRoom.slice().sort((a, b) => a.quirks.positive.length - b.quirks.positive.length)[0];
+        const taken = new Set([...tgt.quirks.positive, ...tgt.quirks.negative]);
+        const pool = Object.values(QUIRKS).filter(q => q.positive && !taken.has(q.id) && (!q.heroId || q.heroId === tgt.id));
+        hideOverlay(); choices.classList.remove('event-choices');
+        if (pool.length) { const q = pool[Math.floor(Math.random() * pool.length)]; grantQuirk(state, tgt.id, q.id); log(`<i><b>${CHARS[tgt.id].name}</b> reflects and grows — <b>${q.name}</b>.</i>`); }
+        setTimeout(() => done(), 900);
+      } });
+    }
+    if (aliveHeroes.length > 0 && isOathUnlocked()) {
+      honeItems.push({ label: 'Speak an Oath', tag: 'Trade something away for power', kind: 'oath', icon: '⌖', fn: () => { choices.classList.remove('event-choices'); showOathOverlay(() => done()); } });
+    }
   }
 
   // 6. Deepen a bond — adjacent, both-alive pairs under L3.  Collected into a
@@ -23195,11 +23137,20 @@ function showRestOverlay() {
     } });
   });
 
-  // One button per multi-item category — tap to expand (see openGroup).
-  if (bondItems.length) mkChoice('Deepen a Bond', _plural(bondItems.length, 'pair can grow', 'pairs can grow'), () => openGroup(bondItems), 'bond', '♡');
-  if (campItems.length) mkChoice('Raise the Camp', _plural(campItems.length, 'upgrade', 'upgrades') + ' · ✦', () => openGroup(campItems), 'camp', '⌂');
-  if (perkItems.length) mkChoice('Bind a Perk', _plural(perkItems.length, 'perk', 'perks') + ' · ✦', () => openGroup(perkItems), 'perk', '✦');
-  if (featItems.length) mkChoice('Open the Deep', _plural(featItems.length, 'system', 'systems') + ' · ✦', () => openGroup(featItems), 'feature', '◈');
+  // Bonds fold into the Hone bucket; the three Kindling spends into one bucket.
+  bondItems.forEach(it => honeItems.push(it));
+  const kindleItems = campItems.concat(perkItems, featItems);
+
+  // Render up to THREE buckets.  A bucket with a single option fires it
+  // directly (one tap); with several it expands to a sub-list + Back.
+  const bucket = (name, icon, kind, items) => {
+    if (!items.length) return;
+    if (items.length === 1) { const it = items[0]; mkChoice(it.label, it.tag, it.fn, it.kind, it.icon); return; }
+    mkChoice(name, _plural(items.length, 'option', 'options'), () => openGroup(items), kind, icon);
+  };
+  bucket('Rest', '✚', 'heal', restItems);
+  bucket('Hone', '⚒', 'hone', honeItems);
+  bucket('Spend Kindling', '✦', 'perk', kindleItems);
 
   resetOverlayBtn();
   // Leave the fire — climb on without taking anything (the fire is spent).
@@ -29555,7 +29506,7 @@ function showPasswordGate(onUnlock) {
 // never get stuck in a reload loop against a stale cached game.js.  A
 // sessionStorage guard caps it at one reload attempt per detected build as a
 // belt-and-suspenders.
-const APP_BUILD = 321;
+const APP_BUILD = 322;
 (function () {
   const RELOADED_KEY = 'kizuna.autoReloadedFor';
   let reloading = false;
