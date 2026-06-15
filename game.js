@@ -19275,7 +19275,7 @@ function _renderTeamSpecial_legacy() {
       showCoachmark('cm_resonance', {
         anchor: '#ts-area .resonance-chip',
         place: 'above',
-        text: 'A <b>Resonance</b> lit up — a bonded pair\'s queued actions fuse into a team move.  Tap to commit (or <b>press &amp; hold</b> to preview).  Deeper bonds ask for more: both attack → attack + special → both special.',
+        text: 'A <b>Resonant Skill</b> is ready — a bonded pair can unleash a team move.  Tap the crest and <b>spend Resolve</b> to fire it (or <b>press &amp; hold</b> to preview targets).',
       });
     }, 400);
   }
@@ -21981,7 +21981,7 @@ const TUTORIAL_HINTS = [
   { id: 'move_v2',      text: '<b>Press and hold</b> a hero card, then <b>drag</b> it to another slot — the hero follows your finger.  Drop on an ally to swap, or on an empty slot to relocate.  Costs 1 ATB per step.' },
   { id: 'enemies',      text: 'Each enemy shows <b>intent</b> above their card — icon (↯ atk · ☽ debuff · ✷ aoe), damage, and a <b>→ slot</b> pill telling you who they\'ll hit.  Plan around it.' },
   { id: 'weakness',     text: 'Each hero\'s school is also their <b>element</b>.  Hit weakness once → <b>WEAKENED</b>; hit it again → <b>STAGGERED</b>.  The next attack of any element deals <b>2× damage</b>.' },
-  { id: 'resonance_v2', text: 'Queue both heroes of an adjacent <b>bonded pair</b> and a <b>Resonance</b> lights up the rail — tap it to fuse them into a stronger team move.  The combo scales with the bond: <b>both attack</b> → <b>attack + special</b> → <b>both special</b> (RESONANT).' },
+  { id: 'resonance_v2', text: 'When an adjacent <b>bonded pair</b> is in play, a <b>Resonant Skill</b> crest lights up above your action tiles.  Tap it, pick a skill, and <b>spend Resolve</b> (♦) to unleash a team move — once per fight.  Deeper bonds unlock stronger ones.' },
   // Bond progression — the kizuna pitch.  Per-run only; deepens via
   // fires within the same climb.
   { id: 'bonds',        text: '<b>Bonds</b> — adjacent heroes share a passive.  Every fire deepens it: <b>3 fires</b> → <b>II</b> (+1 amt), <b>8 fires</b> → <b>RESONANT III</b> (extra clause).  Long-press a hero to see their bonds.' },
@@ -27822,7 +27822,7 @@ const HOWTO_CARDS = [
   { icon: '▶', title: 'Take a Turn', body: 'Each turn you have <b>3 ATB</b>.  <b>Tap</b> actions to queue them (each costs 1–3 ATB), then tap <b>Play ▶</b> to commit the turn.  <b>Press &amp; hold</b> an action to preview exactly where it lands.' },
   { icon: '♦', title: 'Resolve &amp; Specials', body: 'Powerful <b>Specials</b> cost <b>Resolve (♦)</b> on top of ATB.  You earn ♦ from kills and synergies — up to 3 carry between fights.  Save it for the big swings.' },
   { icon: '⚔', title: 'Weakness → Stagger', body: 'Every hero\'s school is also an <b>element</b>.  Hit an enemy\'s weakness once → <b>WEAKENED</b>; hit it again → <b>STAGGERED</b>, and the next attack deals <b>2× damage</b>.  Read each enemy\'s <b>intent</b> (icon · damage · who they\'ll hit) and plan around it.' },
-  { icon: '♡', title: 'Bonds &amp; Resonance', body: 'Adjacent heroes form a <b>Bond</b>.  Have both act on the same turn and a <b>Resonance</b> lights up — a fused team move.  What they need scales as the bond grows: <b>both attack</b> → <b>attack + special</b> → <b>both special</b> (RESONANT).  Each Resonance deepens the bond; campfires deepen it too.' },
+  { icon: '♡', title: 'Bonds &amp; Resonance', body: 'Adjacent heroes form a <b>Bond</b> that deepens as you fight and rest.  When a bonded pair is on the board, their <b>Resonant Skill</b> crest lights up above your tiles — tap it and <b>spend Resolve</b> (♦) to unleash a fused team move.  Once per fight; deeper bonds unlock stronger skills.' },
   { icon: '✦', title: 'Kindling &amp; Campfires', body: 'Fights yield <b>Kindling (✦)</b> this descent — it does <b>not</b> carry between runs.  Light a <b>Campfire</b> anywhere to do <b>one</b> thing: heal, revive, hone, deepen a bond, <b>raise your camp</b>, or <b>bind a perk</b>.  Camp upgrades and perks are permanent.' },
   { icon: '⛺', title: 'Your Party Grows', body: 'You begin with a single hero and <b>recruit</b> more along the road.  Every hero who walks out alive builds up your <b>Camp</b> between descents.  Now — descend.' },
 ];
@@ -29335,7 +29335,7 @@ function showPasswordGate(onUnlock) {
 // never get stuck in a reload loop against a stale cached game.js.  A
 // sessionStorage guard caps it at one reload attempt per detected build as a
 // belt-and-suspenders.
-const APP_BUILD = 311;
+const APP_BUILD = 312;
 (function () {
   const RELOADED_KEY = 'kizuna.autoReloadedFor';
   let reloading = false;
