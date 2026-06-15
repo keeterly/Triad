@@ -11513,24 +11513,14 @@ function purchaseEmberUnlock(id) {
   return true;
 }
 
-// Hero starter unlock via Embers — alternative path to the "walk with
-// them in a run" recruit-to-unlock mechanic.  Some players never roll
-// the recruit event for specific heroes (Hask / Veyr / Lirien / Vasha);
-// this gives them a deterministic path to unlocking via the meta-
-// currency they're already earning.  Cost is a flat 30 Embers per
-// hero — substantial but achievable in 1-2 runs.
-const HERO_UNLOCK_COST = 30;
+// Heroes are unlocked exclusively by walking with them on the road —
+// the recruit-to-unlock mechanic (rememberRecruited → unlockStarter).
+// There is no currency path to a hero; the roster grows only through
+// play.  isHeroLocked() stays as a read-only helper for UI that wants
+// to distinguish met-vs-unmet heroes.
 function isHeroLocked(heroId) {
   if (!heroId || !ROSTER.includes(heroId)) return false;
   return !getUnlockedStarters().includes(heroId);
-}
-function purchaseHeroUnlock(heroId) {
-  if (!isHeroLocked(heroId)) return false;
-  const bal = getEmbersBalance();
-  if (bal < HERO_UNLOCK_COST) return false;
-  _setEmbersBalance(bal - HERO_UNLOCK_COST);
-  unlockStarter(heroId);
-  return true;
 }
 // Apply every ACTIVELY-EQUIPPED unlock to a fresh run state.  Called
 // from newState() right before the run is returned so the perks land
@@ -28695,7 +28685,7 @@ function _renderCodexHeroes(unlocked) {
           <span class="codex-row-name">${u ? def.name : '???'}</span>
           <span class="codex-row-stat">${u ? `${(def.school || '').toUpperCase()} · ${SLOT_LABELS[def.home] || def.home || ''}` : 'sealed'}</span>
         </div>
-        <div class="codex-row-desc">${u ? (def.title || '') : 'Walk the road with them — or unseal them from the Kindling screen.'}</div>
+        <div class="codex-row-desc">${u ? (def.title || '') : 'Walk the road with them to bring them into your camp.'}</div>
       </div>
     </div>`;
   }).join('');
@@ -28924,41 +28914,15 @@ function _renderEmbersScreen() {
     <div class="embers-section-head">The Deep Opens <span class="embers-section-sub">${_featuresOwned} / ${Object.keys(FEATURE_UNLOCKS).length} systems unlocked</span></div>
     <div class="embers-features">${featuresHtml}</div>
   `;
-  // Sealed-heroes section — pay Embers to unseal heroes directly
-  // instead of waiting to recruit them on the road.  Lives on this
-  // screen (not the Codex) since this is the spend surface.  Hidden
-  // when every hero is unlocked.
-  const _sealedIds = ROSTER.filter(id => isHeroLocked(id) && CHARS[id]);
-  const heroesHtml = _sealedIds.length ? `
-    <div class="embers-section-head">Sealed Heroes <span class="embers-section-sub">${_sealedIds.length} / ${ROSTER.length} still to unseal</span></div>
-    <div class="embers-heroes">
-      ${_sealedIds.map(id => {
-        const def = CHARS[id];
-        const affordable = balance >= HERO_UNLOCK_COST;
-        return `<button type="button" class="embers-hero${affordable ? '' : ' embers-hero-poor'}" data-unseal="${id}" ${affordable ? '' : 'disabled'} title="Unseal ${def.name} (${(def.school || '').toUpperCase()} · ${SLOT_LABELS[def.home] || def.home || ''})">
-          <div class="embers-hero-portrait">${PORTRAITS[id] || ''}</div>
-          <div class="embers-hero-meta">
-            <span class="embers-hero-name">${def.name}</span>
-            <span class="embers-hero-stat">${(def.school || '').toUpperCase()} · ${SLOT_LABELS[def.home] || def.home || ''}</span>
-          </div>
-          <span class="embers-hero-cost">✦ ${HERO_UNLOCK_COST}</span>
-        </button>`;
-      }).join('')}
-    </div>
-  ` : '';
-  // Preserve the scroll position across re-renders so an unseal / equip /
+  // Heroes are recruit-only — there is no unseal-for-currency section.
+  // The roster grows by walking with heroes on the road.
+  // Preserve the scroll position across re-renders so an equip /
   // purchase doesn't jump the player back to the top — they're often
   // mid-list working through choices and the snap-to-top is disorienting.
-  //
-  // Section order is intentional: Heroes first (the most onboarding-friendly
-  // spend — unlocks variety for the player's next run), then Perks (deep
-  // multi-tier upgrades that pay off after the player has internalized the
-  // meta).
   const _prevScroll = body.scrollTop;
   body.innerHTML = `
     ${headerHtml}
     ${featuresSection}
-    ${heroesHtml}
     <div class="embers-section-head">Perks <span class="embers-section-sub">${active.length} / ${EMBERS_ACTIVE_CAP} equipped</span></div>
     <div class="embers-rows">${rows}</div>
   `;
@@ -28998,20 +28962,6 @@ function _renderEmbersScreen() {
         _renderEmbersScreen();
         _refreshTitleIfShown();
         _showFeatureUnlockFlourish(id);
-      } else {
-        btn.disabled = false;
-      }
-    };
-  });
-  body.querySelectorAll('.embers-hero[data-unseal]').forEach(btn => {
-    btn.onclick = () => {
-      if (btn.disabled) return;
-      btn.disabled = true;
-      const id = btn.dataset.unseal;
-      if (purchaseHeroUnlock(id)) {
-        Audio.ui();
-        _renderEmbersScreen();
-        _refreshTitleIfShown();
       } else {
         btn.disabled = false;
       }
