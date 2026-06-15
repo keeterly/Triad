@@ -22980,7 +22980,23 @@ function showRestOverlay() {
       `<span class="rest-choice-text"><span class="enc-name">${label}</span><span class="sigil-desc">${tag}</span></span>`;
     card.addEventListener('click', fn);
     choices.appendChild(card);
+    return card;
   };
+
+  // Collapse a multi-item category (bonds / camp / perks / the deep) behind ONE
+  // button: tapping it hides the main menu and shows that category's items plus
+  // a Back option, so the fire never opens with a wall of buttons.
+  const openGroup = (items) => {
+    const main = Array.from(choices.children);
+    main.forEach(c => { c.style.display = 'none'; });
+    const made = [];
+    made.push(mkChoice('← Back', 'Other fireside choices', () => {
+      made.forEach(c => c.remove());
+      main.forEach(c => { c.style.display = ''; });
+    }, 'back', '↩'));
+    items.forEach(it => made.push(mkChoice(it.label, it.tag, it.fn, it.kind, it.icon)));
+  };
+  const _plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
   // 1. Rest — heal half of all missing HP across the party.  Shown only while
   // someone is actually wounded (pick-one fire, so no spam concern).
@@ -23110,10 +23126,9 @@ function showRestOverlay() {
     }, 'reflect', '❂');
   }
 
-  // 6. Deepen a bond — bump a party pair's kizuna toward its next tier.
-  // +2 fire-count advances roughly one band (thresholds 2/4/6); combat reads
-  // synergyCounts live, so it lands immediately.  One pair per fire; only
-  // adjacent, both-alive pairs that aren't already at L3 are offered.
+  // 6. Deepen a bond — adjacent, both-alive pairs under L3.  Collected into a
+  // group so the menu shows ONE "Deepen a Bond" button, not one per pair.
+  const bondItems = [];
   {
     const sc = state.run.synergyCounts = state.run.synergyCounts || {};
     [['front', 'mid'], ['mid', 'back']].forEach(([sa, sb]) => {
@@ -23125,25 +23140,23 @@ function showRestOverlay() {
       const nextTier = getBondLevel(state, name, (sc[name] || 0) + 2);
       const label = name.startsWith('Camaraderie:') ? `${CHARS[a].name} & ${CHARS[b].name}` : name;
       const tag = nextTier > curTier ? `${label} → ${BOND_LEVEL_ROMAN[nextTier]}` : `${label} · deepen`;
-      mkChoice('Deepen a bond', tag, () => {
+      bondItems.push({ label, tag, kind: 'bond', icon: '♡', fn: () => {
         sc[name] = (sc[name] || 0) + 2;
         log(`<i><b>${label}</b> deepens by the fire.</i>`);
         done();
-      }, 'bond', '♡');
+      } });
     });
   }
 
-  // 7. Raise the camp — spend Kindling to build a camp upgrade mid-run.  Same
-  // upgrades as the between-descents Camp screen; the effect lands from the
-  // next fight (startEncounter reads the camp record).  One per fire; only
-  // affordable, gate-met, not-yet-built (and not "coming") upgrades show.
+  // 7. Raise the camp — affordable, gate-met, not-yet-built upgrades.  Grouped.
+  const campItems = [];
   {
     const camp = getCamp();
     const gateMet = (u) => !u.requires || u.requires.roster.some(id => camp.roster.includes(id));
     CAMP_UPGRADES.forEach(u => {
       if (u.coming || (camp.upgrades && camp.upgrades[u.id]) || !gateMet(u)) return;
       if (getEmbersBalance() < u.cost) return;
-      mkChoice('Raise the camp', `${u.name} · ✦ ${u.cost}`, () => {
+      campItems.push({ label: u.name, tag: `✦ ${u.cost}`, kind: 'camp', icon: '⌂', fn: () => {
         if (getEmbersBalance() < u.cost) return;
         _setEmbersBalance(getEmbersBalance() - u.cost);
         const cc = getCamp();
@@ -23152,39 +23165,41 @@ function showRestOverlay() {
         saveCamp(cc);
         log(`<i>The party raises <b>${u.name}</b> by the fire.</i>`);
         done();
-      }, 'camp', '⌂');
+      } });
     });
   }
 
-  // 8. Bind a perk — spend Kindling on a permanent perk.  Perks PERSIST
-  // across descents (stored in the unlock record); the active-slot cap
-  // still governs how many provide their effect at once, and a first-tier
-  // buy auto-equips into a free slot.  Their start-of-run effects land on
-  // the next descent.  One per fire; only affordable next tiers show.
+  // 8. Bind a perk — affordable next tiers (perks persist across descents).  Grouped.
+  const perkItems = [];
   Object.keys(EMBER_UNLOCKS).forEach(id => {
     const cost = emberUnlockNextCost(id);
-    if (cost == null) return;                  // already maxed
-    if (getEmbersBalance() < cost) return;     // can't afford
+    if (cost == null || getEmbersBalance() < cost) return;
     const label = emberUnlockNextLabel(id) || EMBER_UNLOCKS[id].name;
-    mkChoice('Bind a perk', `${EMBER_UNLOCKS[id].name}: ${label} · ✦ ${cost}`, () => {
+    perkItems.push({ label: EMBER_UNLOCKS[id].name, tag: `${label} · ✦ ${cost}`, kind: 'perk', icon: '✦', fn: () => {
       if (purchaseEmberUnlock(id)) log(`<i>The party binds <b>${EMBER_UNLOCKS[id].name}</b> by the fire.</i>`);
       done();
-    }, 'perk', '✦');
+    } });
   });
 
-  // 9. Open the deep — spend Kindling to unlock a permanent system (Forge /
-  // Oaths).  One per fire; only affordable, not-yet-owned systems show.
+  // 9. Open the deep — affordable, not-yet-owned systems (Forge / Oaths).  Grouped.
+  const featItems = [];
   Object.keys(FEATURE_UNLOCKS).forEach(id => {
     if (isFeatureUnlocked(id)) return;
     const fdef = FEATURE_UNLOCKS[id];
     if (getEmbersBalance() < fdef.cost) return;
-    mkChoice('Open the deep', `${fdef.name} · ✦ ${fdef.cost}`, () => {
+    featItems.push({ label: fdef.name, tag: `✦ ${fdef.cost}`, kind: 'feature', icon: '◈', fn: () => {
       if (purchaseFeatureUnlock(id)) {
         log(`<i><b>${fdef.name}</b> opens to you by the fire.</i>`);
         _showFeatureUnlockFlourish(id, () => done());
       } else { done(); }
-    }, 'feature', '◈');
+    } });
   });
+
+  // One button per multi-item category — tap to expand (see openGroup).
+  if (bondItems.length) mkChoice('Deepen a Bond', _plural(bondItems.length, 'pair can grow', 'pairs can grow'), () => openGroup(bondItems), 'bond', '♡');
+  if (campItems.length) mkChoice('Raise the Camp', _plural(campItems.length, 'upgrade', 'upgrades') + ' · ✦', () => openGroup(campItems), 'camp', '⌂');
+  if (perkItems.length) mkChoice('Bind a Perk', _plural(perkItems.length, 'perk', 'perks') + ' · ✦', () => openGroup(perkItems), 'perk', '✦');
+  if (featItems.length) mkChoice('Open the Deep', _plural(featItems.length, 'system', 'systems') + ' · ✦', () => openGroup(featItems), 'feature', '◈');
 
   resetOverlayBtn();
   // Leave the fire — climb on without taking anything (the fire is spent).
@@ -29540,7 +29555,7 @@ function showPasswordGate(onUnlock) {
 // never get stuck in a reload loop against a stale cached game.js.  A
 // sessionStorage guard caps it at one reload attempt per detected build as a
 // belt-and-suspenders.
-const APP_BUILD = 320;
+const APP_BUILD = 321;
 (function () {
   const RELOADED_KEY = 'kizuna.autoReloadedFor';
   let reloading = false;

@@ -17687,20 +17687,20 @@ body.on-title #hud { display: none !important; }
   width: 100% !important; height: 100% !important;
   max-width: none !important; max-height: none !important;
   display: flex !important; flex-direction: column; align-items: stretch;
-  padding: 4px 16px 6px !important; box-sizing: border-box;
+  padding: 4px 16px 54px !important; box-sizing: border-box;
   background: none; border: none; box-shadow: none; overflow: hidden;
 }
 #overlay.overlay-path #overlay-title { flex: 0 0 auto; }
 #overlay.overlay-path #overlay-choices.path-map {
   flex: 1 1 auto; min-height: 0; margin: 2px 0 0 !important;
 }
-/* Controls flow at the BOTTOM of the column (in-flow), centred, at the edge. */
+/* Controls pinned to the bottom EDGE (centred), level with the Kindling chip. */
 #overlay.overlay-path .map-controls {
-  position: static; left: auto; bottom: auto; transform: none;
-  flex: 0 0 auto; align-self: center; margin-top: 4px;
+  position: absolute; left: 50%; bottom: 8px; right: auto; top: auto;
+  transform: translateX(-50%); flex: none; align-self: auto; margin: 0;
 }
-/* Kindling chip pinned to the bottom-right corner of the stage. */
-#overlay.overlay-path #kindling-chip { bottom: 6px; right: 8px; }
+/* Kindling chip pinned to the bottom-right corner — same bottom as the controls. */
+#overlay.overlay-path #kindling-chip { bottom: 8px; right: 8px; }
 
 /* Clickable (reachable) map node — a clearer "tap me" pulse: a breathing
    glow on the icon (drop-shadow, so it never fights hover's transform or the
