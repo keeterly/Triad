@@ -1745,12 +1745,12 @@ const CHARS = {
       // MID — PRIME row.  A mobile shieldwall that opens bleed wounds AND
       // advances her to Front to detonate them next — the heart of her flow.
       mid: {
-        basic: { name: 'Vanguard', desc: '5 dmg + bleed 1 (prime) + advance to Front + 2 armor', dmg: 5, move: 'advance',
+        basic: { name: 'Vanguard', desc: '6 dmg + bleed 1 (prime) + advance to Front', dmg: 6, move: 'advance',
           reach: ['front'], pattern: 'front-most',
-          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 5); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 1); } advance(s, 'cassia'); addArmor(s, 'cassia', 2); } },
-        sig:   { name: 'Shield Wall', desc: '4 dmg + advance to Front + 6 party armor · front ally +3 retaliate', cost: 1, dmg: 4, move: 'advance',
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 6); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 1); } advance(s, 'cassia'); } },
+        sig:   { name: 'Onslaught', desc: '11 dmg + bleed 2 (prime) + advance to Front', cost: 1, dmg: 11, move: 'advance',
           reach: ['front'], pattern: 'front-most',
-          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 4); advance(s, 'cassia'); partyArmor(s, 6); const f = charBySlot(s, 'front'); if (f && !f.downed) f.retaliate = (f.retaliate || 0) + 3; } },
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 11); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 2); } advance(s, 'cassia'); } },
       },
       // BACK — Bulwark.  Anchored team fortress (no advance): the strongest
       // party-defense option, shielding the line from safety.
@@ -1778,9 +1778,9 @@ const CHARS = {
         basic: { name: 'Phase Step', desc: '3 holy dmg · SMITES vuln (heal party) · +vuln 1 · retreat to Mid', dmg: 3, move: 'retreat',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 3); if (!t[0].dead) t[0].vuln += 1; } retreat(s, 'elin'); } },
-        sig:   { name: 'Veil Step', desc: '6 arcane dmg · DISCHARGES vuln (spread) · retreat to Mid + 2 armor', cost: 1, dmg: 6, move: 'retreat', element: 'arcane',
-          reach: ['front'], pattern: 'front-most',
-          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 6); retreat(s, 'elin'); addArmor(s, 'elin', 2); } },
+        sig:   { name: 'Radiance', desc: '5 holy dmg ALL · SMITES every vuln (heal party) · retreat to Mid', cost: 1, dmg: 5, move: 'retreat',
+          reach: ['front','mid','back'], pattern: 'all',
+          fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 5)); retreat(s, 'elin'); } },
       },
       // MID — heal home.
       mid: {
@@ -1790,8 +1790,8 @@ const CHARS = {
       // BACK — quiet support.  Prayer no longer mints Resolve (detonation-only
       // economy) — it mends and cleanses; Elin earns Resolve by SMITING vuln.
       back: {
-        basic: { name: 'Prayer',    desc: 'Heal 4 lowest + cleanse', heal: 4, healTarget: 'lowest', fn: (s) => { healLowest(s, 4); cleanseLowest(s); } },
-        sig:   { name: 'Sanctuary', desc: '+4 armor to party', cost: 0, fn: (s) => partyArmor(s, 4) },
+        basic: { name: 'Ward',      desc: '+3 armor to party', fn: (s) => partyArmor(s, 3) },
+        sig:   { name: 'Sanctuary', desc: '+5 armor to party + cleanse all', cost: 1, fn: (s) => { partyArmor(s, 5); aliveParty(s).forEach(c => { c.bleed = 0; c.dulled = 0; }); } },
       },
     },
   },
@@ -1820,9 +1820,9 @@ const CHARS = {
         basic: { name: 'Trick Shot', desc: '5 dmg lowest mid/back · detonates VULN (Puncture)', dmg: 5,
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 5); } },
-        sig:   { name: 'Cripple', desc: '3 dmg lowest mid/back · vuln 2 + DULLED 2 (control — weakens its hits)', cost: 1, dmg: 3,
+        sig:   { name: 'Killshot', desc: '11 dmg lowest mid/back · ignore armor · PUNCTURES vuln (sniper execute)', cost: 1, dmg: 11,
           reach: ['mid','back'], pattern: 'lowest',
-          fn: (s, t) => { if (!t[0]) return; applyDmgToEnemy(s, t[0], 3); if (!t[0].dead) { t[0].vuln += 2; t[0].dulled = Math.max(t[0].dulled || 0, 2); } } },
+          fn: (s, t) => { if (!t[0]) return; s.ignoreArmor = true; applyDmgToEnemy(s, t[0], 11); s.ignoreArmor = false; } },
       },
       // BACK — DETONATE (board).  Full-field reach: every ranged arrow PUNCTURES
       // vuln on what it hits — her sweet spot for cashing primed wounds.
@@ -29419,7 +29419,7 @@ function showPasswordGate(onUnlock) {
 // never get stuck in a reload loop against a stale cached game.js.  A
 // sessionStorage guard caps it at one reload attempt per detected build as a
 // belt-and-suspenders.
-const APP_BUILD = 317;
+const APP_BUILD = 318;
 (function () {
   const RELOADED_KEY = 'kizuna.autoReloadedFor';
   let reloading = false;
