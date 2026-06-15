@@ -27804,6 +27804,90 @@ function showCamp() {
   });
 }
 
+// ============================================================================
+// HOW TO PLAY — upfront explainer shown once before a player's first descent.
+// A short, skippable deck of cards that frames the whole loop, so first-time
+// players aren't relying solely on the just-in-time coachmarks.  Replayable
+// any time from the title menu.  The contextual hints still fire in-run as
+// reminders (this only adds the up-front overview).
+// ============================================================================
+const HOWTO_KEY = 'kizuna.howtoSeen.v1';
+function hasSeenHowTo() { try { return localStorage.getItem(HOWTO_KEY) === '1'; } catch (_) { return false; } }
+function markHowToSeen() { try { localStorage.setItem(HOWTO_KEY, '1'); } catch (_) {} }
+
+const HOWTO_CARDS = [
+  { icon: '⛰', title: 'The Descent', body: 'You lead a small party down the Abyss.  <b>The Path</b> branches stretch by stretch — pick a node, clear what\'s there, and climb toward the <b>boss</b> at the end.  Lose everyone and the descent ends, but your camp endures.' },
+  { icon: '▶', title: 'Take a Turn', body: 'Each turn you have <b>3 ATB</b>.  <b>Tap</b> actions to queue them (each costs 1–3 ATB), then tap <b>Play ▶</b> to commit the turn.  <b>Press &amp; hold</b> an action to preview exactly where it lands.' },
+  { icon: '♦', title: 'Resolve &amp; Specials', body: 'Powerful <b>Specials</b> cost <b>Resolve (♦)</b> on top of ATB.  You earn ♦ from kills and synergies — up to 3 carry between fights.  Save it for the big swings.' },
+  { icon: '⚔', title: 'Weakness → Stagger', body: 'Every hero\'s school is also an <b>element</b>.  Hit an enemy\'s weakness once → <b>WEAKENED</b>; hit it again → <b>STAGGERED</b>, and the next attack deals <b>2× damage</b>.  Read each enemy\'s <b>intent</b> (icon · damage · who they\'ll hit) and plan around it.' },
+  { icon: '♡', title: 'Bonds &amp; Resonance', body: 'Adjacent heroes share a <b>Bond</b> passive that deepens at campfires.  Queue actions whose <b>tags line up</b> and a <b>Resonance</b> chip lights up — tap it to fuse the queue into a stronger team move.  Once per fight.' },
+  { icon: '✦', title: 'Kindling &amp; Campfires', body: 'Fights yield <b>Kindling (✦)</b> this descent — it does <b>not</b> carry between runs.  Light a <b>Campfire</b> anywhere to do <b>one</b> thing: heal, revive, hone, deepen a bond, <b>raise your camp</b>, or <b>bind a perk</b>.  Camp upgrades and perks are permanent.' },
+  { icon: '⛺', title: 'Your Party Grows', body: 'You begin with a single hero and <b>recruit</b> more along the road.  Every hero who walks out alive builds up your <b>Camp</b> between descents.  Now — descend.' },
+];
+
+function showHowToPlay(onDone) {
+  const finish = () => {
+    markHowToSeen();
+    const el = document.getElementById('howto-screen');
+    if (el) { el.classList.add('howto-out'); setTimeout(() => el.remove(), 280); }
+    if (typeof onDone === 'function') onDone();
+  };
+  document.getElementById('howto-screen')?.remove();
+  let idx = 0;
+  const root = document.createElement('div');
+  root.id = 'howto-screen';
+  root.innerHTML = `
+    <div class="howto-bg"></div>
+    <div class="howto-card">
+      <button type="button" class="howto-skip" aria-label="Skip the guide">Skip</button>
+      <div class="howto-eyebrow">How to Play</div>
+      <div class="howto-stage" id="howto-stage"></div>
+      <div class="howto-dots" id="howto-dots"></div>
+      <div class="howto-nav">
+        <button type="button" class="howto-btn howto-back" id="howto-back">Back</button>
+        <button type="button" class="howto-btn howto-next" id="howto-next">Next</button>
+      </div>
+    </div>`;
+  document.body.appendChild(root);
+  const stage = root.querySelector('#howto-stage');
+  const dots = root.querySelector('#howto-dots');
+  const backBtn = root.querySelector('#howto-back');
+  const nextBtn = root.querySelector('#howto-next');
+  const render = () => {
+    const c = HOWTO_CARDS[idx];
+    stage.innerHTML =
+      `<div class="howto-icon" aria-hidden="true">${c.icon}</div>` +
+      `<h3 class="howto-title">${c.title}</h3>` +
+      `<p class="howto-body">${c.body}</p>`;
+    stage.classList.remove('howto-stage-in');
+    void stage.offsetWidth;            // reflow so the fade restarts each card
+    stage.classList.add('howto-stage-in');
+    dots.innerHTML = HOWTO_CARDS.map((_, i) => `<span class="howto-dot${i === idx ? ' on' : ''}"></span>`).join('');
+    backBtn.style.visibility = idx === 0 ? 'hidden' : 'visible';
+    nextBtn.textContent = idx === HOWTO_CARDS.length - 1 ? 'Descend ▾' : 'Next';
+  };
+  const go = (d) => {
+    const n = idx + d;
+    if (n < 0) return;
+    if (n >= HOWTO_CARDS.length) { finish(); return; }
+    idx = n;
+    try { Audio.ui(); } catch (_) {}
+    render();
+  };
+  backBtn.onclick = () => go(-1);
+  nextBtn.onclick = () => go(1);
+  root.querySelector('.howto-skip').onclick = () => { try { Audio.ui(); } catch (_) {} finish(); };
+  // Touch swipe between cards (buttons remain the primary control).
+  let sx = null;
+  stage.addEventListener('touchstart', (e) => { sx = e.touches[0].clientX; }, { passive: true });
+  stage.addEventListener('touchend', (e) => {
+    if (sx == null) return;
+    const dx = e.changedTouches[0].clientX - sx; sx = null;
+    if (Math.abs(dx) > 40) go(dx < 0 ? 1 : -1);
+  });
+  render();
+}
+
 function showTitleScreen() {
   if (Audio && typeof Audio.startAmbient === 'function') Audio.startAmbient('title');
   // Ensure the in-game overlay isn't competing
@@ -27857,17 +27941,23 @@ function showTitleScreen() {
   const _ascLvl = getAscensionLevel();
   const _ngLabel = _ascLvl > 0 ? `New Game · A${_ascLvl}` : 'New Game';
   menuEl.appendChild(mkBtn(_ngLabel, () => {
-    // Wipe both the in-flight save AND any layer-to-layer carry team.
-    // The carry only exists for the boss-win → ascend handoff; outside
-    // that path it must not silently pre-populate a "new" run.
-    clearSave();
-    clearCarriedParty();
-    // Always start a New Game from layer 1, ignoring meta-progression's
-    // current-layer pointer.  Cleared layers stay unlocked in the World
-    // Map — that's the path to start higher.
-    setCurrentLayer(1);
-    hideTitleScreen();
-    init();
+    const begin = () => {
+      // Wipe both the in-flight save AND any layer-to-layer carry team.
+      // The carry only exists for the boss-win → ascend handoff; outside
+      // that path it must not silently pre-populate a "new" run.
+      clearSave();
+      clearCarriedParty();
+      // Always start a New Game from layer 1, ignoring meta-progression's
+      // current-layer pointer.  Cleared layers stay unlocked in the World
+      // Map — that's the path to start higher.
+      setCurrentLayer(1);
+      hideTitleScreen();
+      init();
+    };
+    // First-ever descent: frame the whole loop with the How-to-Play deck
+    // before dropping the player in.  Skippable, and only shown once.
+    if (!hasSeenHowTo()) showHowToPlay(begin);
+    else begin();
   }));
   const canContinue = hasSave();
   menuEl.appendChild(mkBtn('Continue', () => {
@@ -27912,6 +28002,7 @@ function showTitleScreen() {
       menuEl.appendChild(mkBtn('The Camp', () => showCamp()));
     }
   }
+  menuEl.appendChild(mkBtn('How to Play', () => showHowToPlay()));
   menuEl.appendChild(mkBtn('Settings', () => showSettingsScreen()));
 
   // Unlocks badge — surface both meta-progression beats so returning
