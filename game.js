@@ -6794,8 +6794,10 @@ function generateMap(layerOverride) {
       // player's call (light a campfire), not a guaranteed Rest node.
       countAndTypes = _shuffle(['elite', 'event']);
     } else if (lvl === 1) {
-      const c = 2 + Math.floor(Math.random() * 2);   // 2-3
-      countAndTypes = Array(c).fill('combat');
+      // Single entry node — every descent begins at one fight, then the
+      // player chooses how to branch from Stretch 2 onward.  A clean funnel
+      // start reads better and keeps the early connectors from tangling.
+      countAndTypes = ['combat'];
     } else if (lvl === 2) {
       // L2: 2 combat + 1 event (variety)
       countAndTypes = _shuffle(['combat', 'combat', 'event']);
@@ -6912,10 +6914,14 @@ function generateMap(layerOverride) {
     });
     const reached = new Set();
     cur.forEach(id => nodes[id].next.forEach(nx => reached.add(nx)));
-    nxt.forEach(id => {
+    nxt.forEach((id, j) => {
       if (!reached.has(id)) {
-        const picker = cur[Math.floor(Math.random() * cur.length)];
-        if (!nodes[picker].next.includes(id)) nodes[picker].next.push(id);
+        // Attach an orphaned next-level node to its CLOSEST-column parent
+        // rather than a random one, so the patch edge doesn't slash a long
+        // diagonal across the board — keeps the connector graph readable.
+        const picker = cur.slice().sort((a, b) =>
+          Math.abs(cur.indexOf(a) - j) - Math.abs(cur.indexOf(b) - j))[0];
+        if (picker != null && !nodes[picker].next.includes(id)) nodes[picker].next.push(id);
       }
     });
   }
