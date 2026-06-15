@@ -25688,6 +25688,44 @@ function _bondDeepenLine(heroId, level) {
 // portraits standing at the bottom, a dialogue rail, full-bleed framing —
 // so a bond deepening reads as a story beat, not a UI form.  ev = {
 // heroes:[ids], level, skillName, skillDesc, also:[names] }.  No-op in sim.
+// A short, climactic flourish before a bond cutscene: the two heroes'
+// portraits sweep in from opposite edges and converge, a thread of light
+// snaps taut between them and bursts, and the BOND title slams in — so a
+// level-up reads as a MOMENT, not a popup.  Tap to skip; then onDone().
+function _playBondFlourish(heroes, level, onDone) {
+  const done = (typeof onDone === 'function') ? onDone : (() => {});
+  if ((typeof __simulating !== 'undefined' && __simulating) || !Array.isArray(heroes) || !heroes.length) { done(); return; }
+  const isClimax = level === 3;
+  const label = level === 1 ? 'BOND FORGED' : level === 2 ? 'BOND DEEPENED' : 'BOND RESONANT';
+  const a = heroes[0], b = heroes[1] || heroes[0];
+  document.getElementById('bond-flourish')?.remove();
+  const el = document.createElement('div');
+  el.id = 'bond-flourish';
+  el.className = `bond-flourish${isClimax ? ' bond-flourish-climax' : ''}`;
+  el.innerHTML =
+    `<div class="bf-rays" aria-hidden="true"></div>` +
+    `<div class="bf-flash" aria-hidden="true"></div>` +
+    `<div class="bf-stage">` +
+      `<div class="bf-hero bf-hero-l">${PORTRAITS[a] || ''}</div>` +
+      `<div class="bf-core" aria-hidden="true"><span class="bf-thread"></span><span class="bf-burst"></span><span class="bf-glyph">♥</span></div>` +
+      `<div class="bf-hero bf-hero-r">${PORTRAITS[b] || ''}</div>` +
+    `</div>` +
+    `<div class="bf-title">` +
+      `<span class="bf-eyebrow">✦ KIZUNA ✦</span>` +
+      `<span class="bf-label">${label}</span>` +
+      `<span class="bf-pair">${heroes.map(id => (CHARS[id] && CHARS[id].name) || id).join('  ·  ')}</span>` +
+    `</div>`;
+  document.body.appendChild(el);
+  try {
+    if (isClimax) { if (Audio && Audio.comboStinger) Audio.comboStinger('holy', true); if (Audio && Audio.comboImpact) setTimeout(() => Audio.comboImpact(), 480); }
+    else if (Audio && Audio.heal) Audio.heal();
+  } catch (_) {}
+  let finished = false;
+  const finish = () => { if (finished) return; finished = true; el.classList.add('bf-out'); setTimeout(() => { el.remove(); done(); }, 360); };
+  const timer = setTimeout(finish, isClimax ? 1900 : 1450);
+  el.addEventListener('click', () => { clearTimeout(timer); finish(); });
+}
+
 function _showBondDeepenedCutscene(s, ev, onDone) {
   const done = (typeof onDone === 'function') ? onDone : (() => {});
   if ((typeof __simulating !== 'undefined' && __simulating) || !ev || !Array.isArray(ev.heroes) || !ev.heroes.length) { done(); return; }
@@ -25725,22 +25763,20 @@ function _showBondDeepenedCutscene(s, ev, onDone) {
     lines,
     choices: [{ label: 'Continue', tag: '', resolve: () => {} }],
   };
-  // Sound — resonant chord for the L3 climax, a soft chime for L1/L2.
-  try {
-    if (isClimax) {
-      if (Audio && typeof Audio.comboStinger === 'function') Audio.comboStinger('holy', true);
-      if (Audio && typeof Audio.comboImpact === 'function') setTimeout(() => Audio.comboImpact(), 130);
-    } else if (Audio && typeof Audio.heal === 'function') { Audio.heal(); }
-  } catch (_) {}
-  showVignette(vig, { alive: heroes.slice() }, () => {
-    $('#overlay').classList.remove('overlay-bond-scene', 'overlay-bond-climax');
-    done();
-  });
-  // Tag the overlay so the L3 climax can glow over the standard vignette
-  // frame without altering the shared vignette styling.
-  const ov = $('#overlay');
-  ov.classList.add('overlay-bond-scene');
-  if (isClimax) ov.classList.add('overlay-bond-climax');
+  // Cinematic flourish first — portraits converge, a light-thread bursts, the
+  // BOND title slams in — THEN the celebration vignette plays.
+  const showScene = () => {
+    showVignette(vig, { alive: heroes.slice() }, () => {
+      $('#overlay').classList.remove('overlay-bond-scene', 'overlay-bond-climax');
+      done();
+    });
+    // Tag the overlay so the L3 climax can glow over the standard vignette
+    // frame without altering the shared vignette styling.
+    const ov = $('#overlay');
+    ov.classList.add('overlay-bond-scene');
+    if (isClimax) ov.classList.add('overlay-bond-climax');
+  };
+  _playBondFlourish(heroes, level, showScene);
 }
 
 // Atmospheric opening narration for a bond beat, keyed to the level so
@@ -29517,7 +29553,7 @@ function showPasswordGate(onUnlock) {
 // never get stuck in a reload loop against a stale cached game.js.  A
 // sessionStorage guard caps it at one reload attempt per detected build as a
 // belt-and-suspenders.
-const APP_BUILD = 323;
+const APP_BUILD = 324;
 (function () {
   const RELOADED_KEY = 'kizuna.autoReloadedFor';
   let reloading = false;
