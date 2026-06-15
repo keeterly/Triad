@@ -8488,6 +8488,9 @@ body.party-critical::after {
      chip so the node graph never overlaps them. */
   padding: 10px 30px 58px;
 }
+/* The map clears #overlay-body (Kindling moved to the corner chip); collapse
+   the empty <p> so it doesn't leave a gap between the title and the graph. */
+#overlay.overlay-path #overlay-body:empty { display: none; margin: 0; }
 /* Party-inspect overlay is wider — three hero columns of dense info */
 #overlay-content:has(#overlay-choices.party-inspect:not(.hidden)) {
   max-width: min(820px, 96vw);
@@ -9322,9 +9325,12 @@ body.party-critical::after {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 28px;
+  justify-content: space-around;
+  gap: 18px;
   flex: 1;
+  /* Tall columns + space-around make the nodes spread down the screen instead
+     of clustering in a thin central band, so the map fills the frame. */
+  min-height: 270px;
 }
 .path-node {
   position: relative;
@@ -13828,10 +13834,10 @@ body.cine-stage-open #stage::after {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
+  width: 46px;
+  height: 46px;
   border-radius: 50%;
-  font-size: 17px;
+  font-size: 20px;
   font-weight: 600;
   color: var(--ink-dim);
   background: radial-gradient(circle at 50% 40%,
