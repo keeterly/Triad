@@ -18250,6 +18250,13 @@ function renderTiles() {
   // always agree.
   const sim = simulateSlotsThrough(state, state.queue.length, startIdx, { includeMoves: true });
   const teamLocked = state.queue.some(q => q.kind === 'team');
+  // Heroes whose charge completes a READY pair/trio Resonance — their column
+  // header pulses (name + portrait) to advertise the available team-up.
+  const teamReadyIds = new Set();
+  availableUniques(state).forEach(cb => {
+    if (cb.tier === 'unleash') return;
+    if (comboTickReady(state, cb)) (cb.requires || []).forEach(r => teamReadyIds.add(r.heroId));
+  });
   const tileCounts = {};
   state.queue.forEach(q => {
     const key = `${q.kind}:${q.charId || ''}:${q.dir ?? ''}`;
@@ -18273,10 +18280,19 @@ function renderTiles() {
     if (c.downed) col.classList.add('downed');
     col.title = `${def.name} — ${SLOT_LABELS[simSlot] || '—'}${simSlot === def.home ? ' · home' : ''}`;
 
+    // Resonance charges live HERE now (by the name), not on the battlefield
+    // figure.  ⚡ pips show banked charges; the header pulses when this hero's
+    // charge completes a ready team Resonance.
+    const ticks = c.ticks || 0;
+    const ticksHtml = ticks > 0
+      ? `<span class="cch-ticks" title="Resonance charges — spend on a team Resonance">${'⚡'.repeat(ticks)}</span>`
+      : '';
+    const teamReady = teamReadyIds.has(charId);
+
     // Column header — small portrait + name + slot.  Makes it unmistakable
     // which moveset belongs to which hero when the action tray crowds up.
     const head = document.createElement('div');
-    head.className = 'char-col-head';
+    head.className = `char-col-head${teamReady ? ' cch-team-ready' : ''}`;
     // School glyph on the column header so the player can instantly tell
     // which hero matches a given enemy weakness icon.  Same glyph as the
     // weakness reveal under the enemy's HP bar.
@@ -18297,7 +18313,7 @@ function renderTiles() {
     head.innerHTML = `
       <div class="cch-portrait" aria-hidden="true">${PORTRAITS[charId] || ''}</div>
       <div class="cch-meta">
-        <span class="cch-name">${schoolGlyph}${def.name}</span>
+        <span class="cch-name">${schoolGlyph}${def.name}${ticksHtml}</span>
         <span class="cch-slot">${SLOT_LABELS[simSlot] || '—'}</span>
       </div>
       ${aurasHtml}
@@ -18462,17 +18478,10 @@ function makePartyCard(c, slot, threatened, adjMap, incoming) {
   const threatPulse = (threatened && !c.downed)
     ? `<div class="slot-threat${incoming && incoming.lethal ? ' slot-threat-lethal' : ''}" aria-hidden="true"></div>`
     : '';
-  // Resonance charges ("ticks") — banked by this hero's Unleash, spent by a
-  // pair/trio Resonance.  Only shown when the hero actually holds one, so a
-  // charged hero visibly reads as "ready to team up".
-  const ticksHtml = (c.ticks > 0 && !c.downed)
-    ? `<div class="figure-ticks" title="Resonance charges — spend on a pair/trio Resonance">${'⚡'.repeat(c.ticks)}</div>`
-    : '';
   fig.innerHTML = `
     ${threatPulse}
     ${threatBadge}
     ${synStack}
-    ${ticksHtml}
     <div class="figure-portrait">
       ${PORTRAITS[c.id] || ''}
       ${pBodyFx}
@@ -29391,7 +29400,7 @@ function showPasswordGate(onUnlock) {
 // never get stuck in a reload loop against a stale cached game.js.  A
 // sessionStorage guard caps it at one reload attempt per detected build as a
 // belt-and-suspenders.
-const APP_BUILD = 313;
+const APP_BUILD = 314;
 (function () {
   const RELOADED_KEY = 'kizuna.autoReloadedFor';
   let reloading = false;
