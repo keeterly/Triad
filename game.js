@@ -10274,14 +10274,41 @@ function resonancePremium(combo) {
 
 // Spend-to-fire cost of a team action — a premium over a signature (2) so it's
 // a deliberate save-up, but inside the Resolve cap (4): duo 3, trio 4.
+// ============================================================================
+// RESONANCE CHARGES ("ticks") — FF7-Rebirth-style synergy build-up.  A hero
+// banks a charge each time they fire their solo UNLEASH; a pair / trio
+// Resonance then SPENDS one charge from each of its heroes and costs no
+// Resolve.  So team-ups are set up by unleashing the participants first.
+// Charges are per-fight (reset in startEncounter) and capped low.
+// ============================================================================
+const TICK_CAP = 2;
+function heroTicks(s, id) {
+  const c = s && s.party && s.party.chars && s.party.chars[id];
+  return (c && c.ticks) || 0;
+}
+function addHeroTick(s, id) {
+  const c = s && s.party && s.party.chars && s.party.chars[id];
+  if (c) c.ticks = Math.min(TICK_CAP, (c.ticks || 0) + 1);
+}
+function spendHeroTick(s, id) {
+  const c = s && s.party && s.party.chars && s.party.chars[id];
+  if (c) c.ticks = Math.max(0, (c.ticks || 0) - 1);
+}
+// A multi-hero Resonance is "charged" only when every participant holds a
+// charge.  Solo Unleashes need none — they GENERATE the charges.
+function comboTickReady(s, combo) {
+  if (!combo) return false;
+  if (combo.tier === 'unleash') return true;
+  return (combo.requires || []).every(r => heroTicks(s, r.heroId) >= 1);
+}
+
 function uniqueActionCost(combo) {
-  // Clear power/cost ladder so the tiers feel distinct:
-  //   special ≤1  <  Unleash 2  <  duo team 3  <  L3 / trio 4
+  // Cost ladder: a solo Unleash spends Resolve (and banks a charge); a pair /
+  // trio Resonance is paid in CHARGES instead — one from each hero — so it
+  // costs no Resolve.  (ATB still applies via UNIQUE_ATB at commit.)
   if (!combo) return 2;
-  if (combo.tier === 'unleash') return 2;   // single-hero ultimate — above any special
-  if (combo.tier === 'triple') return 4;    // trio showpiece
-  if (combo.sigTier) return 4;              // L3 "RESONANT" climax
-  return 3;                                  // duo team move
+  if (combo.tier === 'unleash') return 2;   // single-hero ultimate
+  return 0;                                  // pair / trio — paid in charges
 }
 
 function commitCombo(comboId) {
@@ -10374,6 +10401,12 @@ function commitUnique(comboId) {
   const cost = uniqueActionCost(combo);
   if (cost > (s.resolve - queueReservedResolve())) { flashMsg(`Not enough Resolve for ${combo.name}.`); return; }
   if (UNIQUE_ATB > queueAtbAvailable()) { flashMsg(`Not enough ATB this turn.`); return; }
+  // Charge gate — a pair / trio Resonance spends one charge from EACH hero,
+  // banked only by that hero's solo Unleash.  Reject unless all are charged.
+  if (combo.tier !== 'unleash' && !comboTickReady(s, combo)) {
+    flashMsg(`${combo.name} needs a charge from each hero — Unleash them first.`);
+    return;
+  }
   s.queue.push({
     kind: 'combo',
     comboId,
@@ -10387,6 +10420,14 @@ function commitUnique(comboId) {
   // Unleash is a repeatable resource-spend — fire it again any time you can
   // afford the Resolve.  Only TEAM combos lock to once-per-fight (usedCombos).
   if (combo.tier !== 'unleash') s.usedCombos.add(comboId);
+  // Charge economy: a solo Unleash banks a charge on its hero; a pair / trio
+  // spends one from each.  Applied at commit so the panel + figure pips
+  // reflect immediately.
+  if (combo.tier === 'unleash') {
+    addHeroTick(s, combo.requires[0].heroId);
+  } else {
+    (combo.requires || []).forEach(r => spendHeroTick(s, r.heroId));
+  }
   if (!s.run._comboIdsFiredThisRun) s.run._comboIdsFiredThisRun = new Set();
   if (!s.run._comboIdsFiredThisRun.has(comboId)) {
     s.run._comboIdsFiredThisRun.add(comboId);
@@ -12156,6 +12197,7 @@ function startEncounter(encSpec) {
     c.vuln = 0;
     c.taunt = false;
     c.retaliate = 0;
+    c.ticks = 0;   // resonance charges reset each fight
     // Once-per-fight passive flags (Elin Last Mercy, Vasha Conviction)
     c._mercyDeathSaveUsed = false;
     c.convictionArmed = false;
@@ -18420,10 +18462,17 @@ function makePartyCard(c, slot, threatened, adjMap, incoming) {
   const threatPulse = (threatened && !c.downed)
     ? `<div class="slot-threat${incoming && incoming.lethal ? ' slot-threat-lethal' : ''}" aria-hidden="true"></div>`
     : '';
+  // Resonance charges ("ticks") — banked by this hero's Unleash, spent by a
+  // pair/trio Resonance.  Only shown when the hero actually holds one, so a
+  // charged hero visibly reads as "ready to team up".
+  const ticksHtml = (c.ticks > 0 && !c.downed)
+    ? `<div class="figure-ticks" title="Resonance charges — spend on a pair/trio Resonance">${'⚡'.repeat(c.ticks)}</div>`
+    : '';
   fig.innerHTML = `
     ${threatPulse}
     ${threatBadge}
     ${synStack}
+    ${ticksHtml}
     <div class="figure-portrait">
       ${PORTRAITS[c.id] || ''}
       ${pBodyFx}
@@ -19171,18 +19220,25 @@ function openResonantPanel() {
     .replace(/^[A-Z][a-z]+ leads · /i, '').replace(/^[A-Z][a-z]+ anchors · /i, '').replace(/ · RESONANT$/i, '');
   const rows = list.map(combo => {
     const cost = uniqueActionCost(combo);
-    const affordable = cost <= resolveAvail && UNIQUE_ATB <= atbAvail;
+    const isUnleash = combo.tier === 'unleash';
+    const ready = isUnleash || comboTickReady(state, combo);
+    const affordable = ready && cost <= resolveAvail && UNIQUE_ATB <= atbAvail;
     const heroIds = combo.requires.map(r => r.heroId);
     const portraits = heroIds.map(id => `<span class="rp-portrait" title="${(CHARS[id] && CHARS[id].name) || id}">${PORTRAITS[id] || ''}</span>`).join('');
     const resonantSuffix = /resonant/i.test(combo.name) ? ' · RESONANT' : '';
-    const tierLabel = combo.tier === 'unleash' ? 'UNLEASH' : combo.tier === 'triple' ? 'TRIO' : 'DUO';
+    const tierLabel = isUnleash ? 'UNLEASH' : combo.tier === 'triple' ? 'TRIO' : 'DUO';
     // Strip the redundant leading "Hero · " from the effect line (the portrait
     // already names the hero), keeping each row to a single compact line.
     const shortDesc = (combo.desc || '').replace(/^[A-Z][a-zA-Z]+ · /, '');
+    // Unleash shows its Resolve cost; a pair/trio shows the charge cost (one ⚡
+    // per hero) and reads as locked until every hero is charged.
+    const costHtml = isUnleash
+      ? `<span class="rp-cost" title="Resolve cost">◈ ${cost}</span>`
+      : `<span class="rp-cost rp-cost-ticks${ready ? ' ready' : ''}" title="Spends one charge from each hero — Unleash them first">${'⚡'.repeat(heroIds.length)}</span>`;
     return `<button type="button" class="rp-row${affordable ? '' : ' poor'}" data-combo="${combo.id}"${affordable ? '' : ' disabled'}>
       <span class="rp-portraits">${portraits}</span>
       <span class="rp-body"><span class="rp-name">${chipLabel(combo)}${resonantSuffix}<span class="rp-tier">${tierLabel}</span></span><span class="rp-desc">${shortDesc}</span></span>
-      <span class="rp-cost" title="Resolve cost">◈ ${cost}</span>
+      ${costHtml}
     </button>`;
   }).join('');
   el.innerHTML = `
@@ -19190,7 +19246,7 @@ function openResonantPanel() {
     <div class="rp-sheet">
       <div class="rp-head"><span class="rp-title">✦ Resonant Skills</span><button type="button" class="rp-close" aria-label="Close">×</button></div>
       <div class="rp-list">${rows}</div>
-      <div class="rp-hint">Spend Resolve (banked by detonating primers) to unleash a team move. Press &amp; hold a skill to preview its targets.</div>
+      <div class="rp-hint"><b>Unleash</b> a hero (spends Resolve) to bank a <b>⚡ charge</b>. A <b>pair / trio</b> Resonance spends one ⚡ from each hero — Unleash them first. Press &amp; hold to preview targets.</div>
     </div>`;
   el.classList.add('open');
   el.setAttribute('aria-hidden', 'false');
@@ -29335,7 +29391,7 @@ function showPasswordGate(onUnlock) {
 // never get stuck in a reload loop against a stale cached game.js.  A
 // sessionStorage guard caps it at one reload attempt per detected build as a
 // belt-and-suspenders.
-const APP_BUILD = 312;
+const APP_BUILD = 313;
 (function () {
   const RELOADED_KEY = 'kizuna.autoReloadedFor';
   let reloading = false;
