@@ -28023,6 +28023,11 @@ function showTitleScreen() {
       // that path it must not silently pre-populate a "new" run.
       clearSave();
       clearCarriedParty();
+      // A New Game starts with 0 Kindling — Kindling is per-run and carries
+      // only floor-to-floor, never into a fresh game.  Zero it explicitly so
+      // any leftover from a previous run can't seed the new one.
+      _setEmbersBalance(0);
+      discardPendingEmbers();
       // Always start a New Game from layer 1, ignoring meta-progression's
       // current-layer pointer.  Cleared layers stay unlocked in the World
       // Map — that's the path to start higher.
@@ -29407,7 +29412,7 @@ function showPasswordGate(onUnlock) {
 // never get stuck in a reload loop against a stale cached game.js.  A
 // sessionStorage guard caps it at one reload attempt per detected build as a
 // belt-and-suspenders.
-const APP_BUILD = 315;
+const APP_BUILD = 316;
 (function () {
   const RELOADED_KEY = 'kizuna.autoReloadedFor';
   let reloading = false;

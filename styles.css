@@ -17702,6 +17702,24 @@ body.on-title #hud { display: none !important; }
 /* Kindling chip pinned to the bottom-right corner of the stage. */
 #overlay.overlay-path #kindling-chip { bottom: 6px; right: 8px; }
 
+/* Clickable (reachable) map node — a clearer "tap me" pulse: a breathing
+   glow on the icon (drop-shadow, so it never fights hover's transform or the
+   per-type box-shadow), plus a stronger expanding ring. */
+button.path-node.node-reachable .pn-icon { animation: pn-ready-glow 1.7s ease-in-out infinite; }
+@keyframes pn-ready-glow {
+  0%, 100% { filter: drop-shadow(0 0 2px rgba(255,226,168,0.35)); }
+  50%      { filter: drop-shadow(0 0 9px rgba(255,226,168,0.95)); }
+}
+button.path-node.node-reachable .pn-pulse {
+  opacity: 1; box-shadow: 0 0 0 1.5px rgba(255,226,168,0.55);
+  animation: pn-pulse-strong 1.9s cubic-bezier(0,0,.2,1) infinite;
+}
+@keyframes pn-pulse-strong {
+  0%   { transform: scale(0.82); opacity: 0.9; box-shadow: 0 0 0 1.5px rgba(255,226,168,0.75); }
+  75%  { transform: scale(1.95); opacity: 0;   box-shadow: 0 0 0 1.5px rgba(255,226,168,0); }
+  100% { transform: scale(1.95); opacity: 0;   box-shadow: 0 0 0 1.5px rgba(255,226,168,0); }
+}
+
 /* ============ RESONANT-SKILL PANEL — reworked layout ============
    Compact card, tidy GRID rows (heroes · effect · cost-chip), clean
    name / effect / cost hierarchy, and a quiet hint. */
