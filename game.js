@@ -11401,17 +11401,24 @@ function earnEmbers(amt, _reason) {
   } else {
     mult = getAscensionEmberMult();
   }
-  _setPendingEmbers(_getPendingEmbers() + Math.floor(amt * mult));
+  // Single per-run pool.  Earnings land on the live balance so they're
+  // immediately spendable at the fire THIS descent.  `pending` is kept
+  // only as a gross "gathered this descent" tally for the run summary
+  // (never spent; reset to 0 when the next descent begins).
+  const earned = Math.floor(amt * mult);
+  _setEmbersBalance(getEmbersBalance() + earned);
+  _setPendingEmbers(_getPendingEmbers() + earned);
 }
-// Fold pending Embers into the banked total at run end.  Returns the
-// amount that was banked so the caller can surface it in the summary.
+// Kindling is a per-run pool — it does NOT bank between descents.  At run
+// end we report the gross gathered this descent (for the summary), then
+// spend the pool out: the balance is zeroed so between-descents screens
+// (the Camp, the Perks record) honestly read empty.  Kept under the old
+// name since several call sites reference it.
 function commitEmbersForRun() {
-  const pending = _getPendingEmbers();
-  if (pending > 0) {
-    _setEmbersBalance(getEmbersBalance() + pending);
-    _setPendingEmbers(0);
-  }
-  return pending;
+  const gathered = _getPendingEmbers();
+  _setEmbersBalance(0);
+  _setPendingEmbers(0);
+  return gathered;
 }
 // Discard pending Embers without banking — used by dev runs / aborted
 // state resets so partial loot doesn't leak into the real economy.
@@ -11965,6 +11972,13 @@ function newState(forcedStarter) {
   // party block and the run.sigils carry below, so the build climbs
   // intact across layers.
   const carried = consumeCarriedParty();
+  // Per-run Kindling: a FRESH descent (no carried party) starts the pool
+  // at zero — nothing banks between runs.  Layer transitions carry a
+  // snapshot, so the pool (like firesLit) survives the climb; a wipe
+  // clears the carry and the next descent resets here.  Page reloads
+  // restore via loadSave (not newState), so a mid-run refresh keeps the
+  // balance intact.
+  if (!carried) { _setEmbersBalance(0); _setPendingEmbers(0); }
 
   return {
     turn: 1,
@@ -22289,19 +22303,19 @@ function renderMap() {
       `<span class="map-ctl-label">Heroes</span>` +
     `</button>`;
   _obtn.parentNode.insertBefore(bar, _obtn.nextSibling);
-  // Banked-Kindling resource chip pinned to the bottom-right corner so it
+  // Per-run Kindling resource chip pinned to the bottom-right corner so it
   // doesn't eat vertical space in the centre.  Torn down with the bar.
   document.getElementById('kindling-chip')?.remove();
   const kchip = document.createElement('div');
   kchip.id = 'kindling-chip';
   kchip.className = 'kindling-chip';
-  kchip.title = 'Kindling banked — spend on a campfire, or on heroes / perks between runs';
+  kchip.title = 'Kindling gathered this descent — spend it at a campfire on rest, camp upgrades, perks, or opening the deep.  It does not carry between runs.';
   kchip.innerHTML = `<span class="kc-glyph">✦</span><b>${getEmbersBalance()}</b>`;
   _obtn.parentNode.appendChild(kchip);
   $('#overlay').classList.remove('hidden');
 
   bar.querySelector('#map-heroes-btn').onclick = () => { bar.remove(); kchip.remove(); showPartyInspect(); };
-  // Light-a-campfire — spend banked Kindling, bump the per-run fire count
+  // Light-a-campfire — spend this descent's Kindling, bump the per-run fire count
   // (raises the next fire's cost), and open the campfire.
   const fireBtn = bar.querySelector('#map-campfire-btn');
   fireBtn.onclick = () => {
@@ -22604,7 +22618,7 @@ function showCampsiteOverlay(node) {
   choices.classList.add('event-choices');
 
   // Clear the ghost record (the camp is found either way) and close out the
-  // node.  Looting banks the cold camp's Kindling into your stash.
+  // node.  Looting adds the cold camp's Kindling to this descent's purse.
   const settle = (claimedSalvage) => {
     try {
       const c = getCamp();
@@ -22919,6 +22933,36 @@ function showRestOverlay() {
       }, 'camp', '⌂');
     });
   }
+
+  // 8. Bind a perk — spend Kindling on a permanent perk.  Perks PERSIST
+  // across descents (stored in the unlock record); the active-slot cap
+  // still governs how many provide their effect at once, and a first-tier
+  // buy auto-equips into a free slot.  Their start-of-run effects land on
+  // the next descent.  One per fire; only affordable next tiers show.
+  Object.keys(EMBER_UNLOCKS).forEach(id => {
+    const cost = emberUnlockNextCost(id);
+    if (cost == null) return;                  // already maxed
+    if (getEmbersBalance() < cost) return;     // can't afford
+    const label = emberUnlockNextLabel(id) || EMBER_UNLOCKS[id].name;
+    mkChoice('Bind a perk', `${EMBER_UNLOCKS[id].name}: ${label} · ✦ ${cost}`, () => {
+      if (purchaseEmberUnlock(id)) log(`<i>The party binds <b>${EMBER_UNLOCKS[id].name}</b> by the fire.</i>`);
+      done();
+    }, 'perk', '✦');
+  });
+
+  // 9. Open the deep — spend Kindling to unlock a permanent system (Forge /
+  // Oaths).  One per fire; only affordable, not-yet-owned systems show.
+  Object.keys(FEATURE_UNLOCKS).forEach(id => {
+    if (isFeatureUnlocked(id)) return;
+    const fdef = FEATURE_UNLOCKS[id];
+    if (getEmbersBalance() < fdef.cost) return;
+    mkChoice('Open the deep', `${fdef.name} · ✦ ${fdef.cost}`, () => {
+      if (purchaseFeatureUnlock(id)) {
+        log(`<i><b>${fdef.name}</b> opens to you by the fire.</i>`);
+        _showFeatureUnlockFlourish(id, () => done());
+      } else { done(); }
+    }, 'feature', '◈');
+  });
 
   resetOverlayBtn();
   // Leave the fire — climb on without taking anything (the fire is spent).
@@ -23541,12 +23585,12 @@ const CONSUMABLES = {
                 use: (s) => { s.bonusAtb = (s.bonusAtb || 0) + 1; } },
 };
 
-// Pending-run Embers are the shop's currency (the spend-now vs bank-for-
-// meta tension).  Returns true if the spend succeeded.
+// The shop draws from the single per-run Kindling pool — the same balance
+// spent at the fire.  Returns true if the spend succeeded.
 function spendPendingEmbers(amt) {
-  const have = _getPendingEmbers();
+  const have = getEmbersBalance();
   if (amt > have) return false;
-  _setPendingEmbers(have - amt);
+  _setEmbersBalance(have - amt);
   return true;
 }
 
@@ -23585,10 +23629,10 @@ function _renderShop(nodeId) {
   $overlay.classList.add('overlay-event','overlay-shop');
   const $content = $('#overlay-content');
   if ($content) $content.style.setProperty('max-width', 'min(560px, 95vw)', 'important');
-  const purse = _getPendingEmbers();
+  const purse = getEmbersBalance();
   const invCount = _runInventory().length;
   $('#overlay-title').innerHTML = `<span class="shop-eyebrow">✦ THE EMBER STALL</span>`;
-  $('#overlay-body').innerHTML = `Spend <b>pending Kindling</b> on one-time wares — but Kindling you spend here won't bank toward your unlocks.  <span class="shop-purse">Purse: <b>${purse}</b> ✦ · Satchel: <b>${invCount}</b></span>`;
+  $('#overlay-body').innerHTML = `Spend <b>Kindling</b> on one-time wares — the same purse you carry to the fire.  <span class="shop-purse">Purse: <b>${purse}</b> ✦ · Satchel: <b>${invCount}</b></span>`;
   const choicesEl = $('#overlay-choices');
   choicesEl.className = '';
   choicesEl.classList.remove('hidden');
@@ -24482,25 +24526,24 @@ function showRunSummary(outcome, opts) {
   if (outcome === 'defeat' && state.fightStats) accumulateRunStats(state.fightStats);
   const rs = state.run.stats || { damageDealt: {}, damageTaken: {}, healingDone: {}, kills: 0, synergies: [], turns: 0, reaches: 0 };
   const partyIds = Object.keys(state.party.chars);
-  // Embers payout — fold in a "made it to layer N" bonus before banking
-  // the run total.  Layer reached is THIS run's current layer (the one
+  // Kindling payout — a "made it to layer N" bonus folds into the per-run
+  // pool's gross tally.  Layer reached is THIS run's current layer (the one
   // they were in when they died, or the layer they cleared on win).
   // Dev playtest runs short-circuit on the earn helper.
   if (state.run && typeof state.run.layer === 'number') {
     earnEmbers(state.run.layer * 5, 'layer-reached');
   }
-  // Dev runs discard pending Embers; everyone else banks.  We snapshot
-  // the run's haul BEFORE banking so the summary can show it; the bank
-  // happens immediately after so a crash-after-summary still preserves
-  // the payout.
+  // Kindling is per-run — nothing banks.  We just read the gross gathered
+  // this descent for the summary readout (commitEmbersForRun no longer
+  // moves anything; the pool zeroes when the next descent begins).
   const _pendingThisRun = (state && state._isDevRun) ? 0 : _getPendingEmbers();
   if (state && state._isDevRun) discardPendingEmbers();
   else commitEmbersForRun();
 
   // Fold this finished run into the Camp record (who walked out, who fell, and
   // — on a wipe — the camp left behind for a future party).  The salvage haul
-  // banks straight into Kindling; capture it so the summary "+N banked" line
-  // reflects everything earned this descent (in-run payouts + the haul).
+  // no longer banks (Kindling is per-run); we just capture it so the summary
+  // "gathered this descent" line reflects everything (in-run payouts + haul).
   const _haulThisRun = recordExpeditionToCamp(outcome);
   const _embersThisRun = _pendingThisRun + (_haulThisRun || 0);
 
@@ -24733,7 +24776,7 @@ function showRunSummary(outcome, opts) {
           <div class="rs-kizuna-list">${rows}</div>
         </div>`;
       })()}
-      ${_embersThisRun > 0 ? `<div class="rs-embers"><span class="rs-embers-glyph">✦</span><b>+${_embersThisRun}</b> <em>Kindling banked</em><span class="rs-embers-total">total · ${getEmbersBalance()}</span></div>` : ''}
+      ${_embersThisRun > 0 ? `<div class="rs-embers"><span class="rs-embers-glyph">✦</span><b>+${_embersThisRun}</b> <em>Kindling gathered this descent</em></div>` : ''}
       ${unlockHtml}
       ${memorialHtml}
       ${roadkillHtml}
@@ -27485,9 +27528,10 @@ function recordExpeditionToCamp(outcome) {
     // descent's survivors are folded in, so it reads as "the camp's standing".
     const supplyMult = 1 + Math.min(1, (c.roster.length || 0) * 0.1);
     const haul = Math.round(baseHaul * supplyMult);
-    // Kindling is the single currency — the haul banks straight into it
-    // (the old camp.stores pool was merged away; see _migrateSalvageToKindling).
-    _setEmbersBalance(getEmbersBalance() + haul);
+    // Kindling is per-run and does NOT bank — the run is over, so the haul
+    // is reported in the summary only.  A wipe still leaves the haul as the
+    // cold camp's `stores`, which a FUTURE party can loot in-run (see the
+    // campsite settle path), keeping the salvage meaningful without banking.
     const ids = Object.keys((state.party && state.party.chars) || {});
     const survivors = ids.filter(id => state.party.chars[id] && !state.party.chars[id].downed);
     const fell = ids.filter(id => state.party.chars[id] && state.party.chars[id].downed);
@@ -27805,9 +27849,9 @@ function showTitleScreen() {
   // still "sealed" until encountered; the catalog tab labels just
   // surface the structure so the player has a mental map.
   //
-  // EMBERS still gates on any banked — Embers is "every run pays
-  // out, failure is progress", so the entry surfaces the moment the
-  // player has currency to spend.
+  // The Perks record surfaces once the player owns anything to arrange
+  // (a bound perk or an opened system) — it is no longer gated on a
+  // Kindling balance, since Kindling is per-run and spent at the fire.
   {
     // NEW dot on the Codex menu button — pulses gold until the
     // player has opened the Codex for the first time.  Cleared by
@@ -27818,10 +27862,12 @@ function showTitleScreen() {
     if (!_codexOpened) _btn.classList.add('ts-menu-btn-new');
     menuEl.appendChild(_btn);
   }
-  const _emb = getEmbersBalance();
-  const _embersUnlocked = _emb > 0 || Object.keys(getEmbersUnlocks()).length > 0;
+  // Perks screen — a read-only record of perks/systems bound at the fire,
+  // plus the equip loadout.  No longer a spend surface, so it shows once
+  // the player owns anything to arrange (not gated on a Kindling balance).
+  const _embersUnlocked = Object.keys(getEmbersUnlocks()).length > 0 || getUnlockedFeatures().length > 0;
   if (_embersUnlocked) {
-    menuEl.appendChild(mkBtn(`Kindling · ${_emb}`, () => showEmbersScreen()));
+    menuEl.appendChild(mkBtn('Perks', () => showEmbersScreen()));
   }
   // The Camp — the party's fire between descents.  Surfaces once any descent
   // has been recorded so a brand-new player isn't shown an empty hearth.
@@ -28043,7 +28089,7 @@ function showSettingsScreen() {
           setTimeout(() => { hideOverlay(); showTitleScreen(); }, 600);
         });
       } else if (action === 'resetprogress') {
-        confirmDestructive('Reset meta progression?', 'Starter unlocks, world-map progress, the cleared-layer chain, feature unlocks (Forge / Oaths), Kindling banked, codex, and achievements will be wiped.', () => {
+        confirmDestructive('Reset meta progression?', 'Starter unlocks, world-map progress, the cleared-layer chain, feature unlocks (Forge / Oaths), perks bound at the fire, codex, and achievements will be wiped.', () => {
           try { localStorage.removeItem(UNLOCKED_KEY); } catch (_) {}
           try { localStorage.removeItem(LAYER_KEY); } catch (_) {}
           try { localStorage.removeItem(CLEARED_KEY); } catch (_) {}
@@ -28835,10 +28881,9 @@ function _renderEmbersScreen() {
   const headerHtml = `
     <div class="embers-balance">
       <span class="embers-balance-glyph">✦</span>
-      <span class="embers-balance-num">${balance}</span>
-      <span class="embers-balance-label">Kindling banked</span>
+      <span class="embers-balance-label">Kindling is gathered and spent at the campfire</span>
     </div>
-    <p class="embers-flavor">Every breath beneath the abyss leaves a coal.  Spend on heroes or perks — what you carry forward shapes the next climb.</p>
+    <p class="embers-flavor">What the party binds by the fire — perks and the systems of the deep — carries into every descent.  This is the record of what you carry; equip the perks you want to bring.</p>
   `;
   const rows = Object.entries(EMBER_UNLOCKS).map(([id, def]) => {
     const owned = getEmbersUnlockTier(id);
@@ -28863,11 +28908,13 @@ function _renderEmbersScreen() {
       const cls = isActive ? 'embers-equip embers-equip-active' : (canEquip ? 'embers-equip' : 'embers-equip embers-equip-disabled');
       equipHtml = `<button type="button" class="${cls}" data-equip="${id}" ${(!canEquip && !isActive) ? 'disabled' : ''}>${label}</button>`;
     }
+    // Read-only: perks are bought at the campfire (where the Kindling is).
+    // The next tier is shown as an at-the-fire hint, not a buy button.
     const buyHtml = next
-      ? `<button type="button" class="embers-buy${affordable ? '' : ' embers-buy-disabled'}" data-unlock="${id}" ${affordable ? '' : 'disabled'}>
+      ? `<div class="embers-buy embers-buy-readonly">
           <span class="embers-buy-cost">✦ ${nextCost}</span>
-          <span class="embers-buy-label">${nextLabel}</span>
-        </button>`
+          <span class="embers-buy-label">${nextLabel} · at the fire</span>
+        </div>`
       : `<div class="embers-buy embers-buy-maxed">Maxed</div>`;
     return `
       <div class="embers-row${isActive ? ' embers-row-active' : ''}">
@@ -28889,15 +28936,16 @@ function _renderEmbersScreen() {
   // even before the player can afford them.
   const featuresHtml = Object.entries(FEATURE_UNLOCKS).map(([id, def]) => {
     const owned = isFeatureUnlocked(id);
-    const affordable = balance >= def.cost;
     let actionHtml;
     if (owned) {
       actionHtml = `<div class="embers-feature-owned">✓ Unlocked</div>`;
     } else {
-      actionHtml = `<button type="button" class="embers-feature-buy${affordable ? '' : ' embers-feature-buy-disabled'}" data-feature-buy="${id}" ${affordable ? '' : 'disabled'}>
+      // Read-only: systems are opened at the campfire.  Show the cost as
+      // an at-the-fire hint rather than a buy button.
+      actionHtml = `<div class="embers-feature-owned embers-feature-locked">
         <span class="embers-feature-cost">✦ ${def.cost}</span>
-        <span class="embers-feature-buy-label">Unlock</span>
-      </button>`;
+        <span class="embers-feature-buy-label">at the fire</span>
+      </div>`;
     }
     return `<div class="embers-feature${owned ? ' embers-feature-unlocked' : ''}">
       <div class="embers-feature-glyph">${def.glyph}</div>
@@ -28933,16 +28981,9 @@ function _renderEmbersScreen() {
     const titleRoot = document.getElementById('title-screen');
     if (titleRoot && !titleRoot.classList.contains('hidden')) showTitleScreen();
   };
-  body.querySelectorAll('.embers-buy[data-unlock]').forEach(btn => {
-    btn.onclick = () => {
-      const id = btn.dataset.unlock;
-      if (purchaseEmberUnlock(id)) {
-        Audio.ui();
-        _renderEmbersScreen();
-        _refreshTitleIfShown();
-      }
-    };
-  });
+  // Perks and systems are PURCHASED at the campfire now — this screen is a
+  // read-only record.  The only interactive control left is equipping the
+  // perks you already own (choosing which provide their effect next run).
   body.querySelectorAll('.embers-equip[data-equip]').forEach(btn => {
     btn.onclick = () => {
       const id = btn.dataset.equip;
@@ -28950,21 +28991,6 @@ function _renderEmbersScreen() {
       else equipEmberUnlock(id);
       Audio.ui();
       _renderEmbersScreen();
-    };
-  });
-  body.querySelectorAll('.embers-feature-buy[data-feature-buy]').forEach(btn => {
-    btn.onclick = () => {
-      if (btn.disabled) return;
-      btn.disabled = true;
-      const id = btn.dataset.featureBuy;
-      if (purchaseFeatureUnlock(id)) {
-        Audio.ui();
-        _renderEmbersScreen();
-        _refreshTitleIfShown();
-        _showFeatureUnlockFlourish(id);
-      } else {
-        btn.disabled = false;
-      }
     };
   });
 }
@@ -28977,7 +29003,7 @@ function _buildEmbersContainer() {
     <div class="embers-bg"></div>
     <div class="embers-card">
       <header class="embers-header">
-        <h2 class="embers-title">KINDLING</h2>
+        <h2 class="embers-title">PERKS</h2>
         <button type="button" class="embers-close" id="embers-close" aria-label="Close">×</button>
       </header>
       <div class="embers-body" id="embers-body"></div>
