@@ -22287,7 +22287,7 @@ function renderMap() {
   document.getElementById('map-controls')?.remove();
   const _fireCost = campfireCost(state);
   const _fireAfford = getEmbersBalance() >= _fireCost;
-  const _fireTip = 'Light a campfire — heal, revive, hone, deepen a bond, or raise the camp';
+  const _fireTip = 'Light a campfire — heal, revive, hone, deepen a bond, raise the camp, or bind a perk';
   const bar = document.createElement('div');
   bar.id = 'map-controls';
   bar.className = 'map-controls';
@@ -22328,6 +22328,18 @@ function renderMap() {
     choices.classList.remove('path-map');
     showRestOverlay();
   };
+
+  // First-run: once the navigate hint is behind them, teach the Campfire +
+  // Kindling loop — the heart of the per-run economy.  Anchored to the fire
+  // control so the idea connects to the button they'll press.
+  if (hasSeenCoachmark('cm_map_navigate') && !hasSeenCoachmark('cm_campfire_intro')) {
+    setTimeout(() => {
+      showCoachmark('cm_campfire_intro', {
+        anchor: '#map-campfire-btn', place: 'above',
+        text: '<b>Kindling</b> (✦) is gathered this descent from fights — it doesn\'t carry between runs. Spend it at a <b>Campfire</b>: light one anywhere to do <b>one</b> thing — heal, revive, deepen a bond, raise your camp, or bind a perk.',
+      });
+    }, 360);
+  }
 
   // Defer connector lines to next frame so layout positions are settled
   requestAnimationFrame(() => drawMapConnectors(choices));
@@ -22679,10 +22691,10 @@ function showCampsiteOverlay(node) {
 // REST overlay — heals the alive party for half their missing HP and returns
 // to the map.  No choice; tap Continue.
 // Cost to light an on-demand campfire — escalates each time one is lit this
-// run so a fire is a real Kindling decision, not a free spam.  Base 4, +8 per
-// prior fire (1st 4, 2nd 12, 3rd 20...).
+// run so a fire is a real Kindling decision, not a free spam.  Base 4, +3 per
+// prior fire (1st 4, 2nd 7, 3rd 10...).
 const CAMPFIRE_BASE_COST = 4;
-const CAMPFIRE_STEP_COST = 8;
+const CAMPFIRE_STEP_COST = 3;
 function campfireCost(s) {
   const lit = (s && s.run && s.run.firesLit) || 0;
   return CAMPFIRE_BASE_COST + lit * CAMPFIRE_STEP_COST;
@@ -27771,11 +27783,12 @@ function showCamp() {
   if (dBtn) dBtn.onclick = () => { Audio.ui(); descend(); };
   bindBackdropDismiss(root, '.cmp-content', close);
   root.classList.remove('hidden');
-  // First camp visit — introduce the persistent hub once, anchored to the
-  // salvage tally so the "this carries between descents" idea lands.
+  // First camp visit — introduce the persistent hub once.  The Camp carries
+  // between descents even though Kindling does not: you raise it at campfires
+  // DURING a run, and every survivor adds to it.
   showCoachmark('cm_camp_first', {
     anchor: '.cmp-stores', place: 'below',
-    text: 'This is your <b>Camp</b> — it persists between descents. Kindling you carry back raises it, and every hero who walks out alive builds it up.'
+    text: 'This is your <b>Camp</b> — it persists between descents. You raise it at <b>campfires</b> during a run, and every hero who walks out alive builds it up.'
   });
 }
 
