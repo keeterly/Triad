@@ -8484,9 +8484,9 @@ body.party-critical::after {
 }
 #overlay-content:has(#overlay-choices.path-map:not(.hidden)) {
   max-width: min(1040px, 97vw);
-  /* Extra bottom padding clears the absolutely-pinned control bar + Kindling
-     chip so the node graph never overlaps them. */
-  padding: 10px 30px 58px;
+  /* Generous bottom padding reserves a clear band for the pinned control bar +
+     Kindling chip so the node graph never overlaps them. */
+  padding: 10px 30px 88px;
 }
 /* The map clears #overlay-body (Kindling moved to the corner chip); collapse
    the empty <p> so it doesn't leave a gap between the title and the graph. */
@@ -9328,9 +9328,9 @@ body.party-critical::after {
   justify-content: space-around;
   gap: 18px;
   flex: 1;
-  /* Tall columns + space-around make the nodes spread down the screen instead
-     of clustering in a thin central band, so the map fills the frame. */
-  min-height: 270px;
+  /* Tall columns + space-around spread the nodes down the frame, but capped so
+     the bottom row stays clear of the pinned control bar. */
+  min-height: 234px;
 }
 .path-node {
   position: relative;

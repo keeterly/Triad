@@ -23498,17 +23498,20 @@ function _organicNodeJitter(id) {
   const s = String(id || '');
   let h = 0;
   for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
-  // Map h into two small offsets:  dx ∈ [-7, +7], dy ∈ [-10, +10]
-  const dx = ((Math.abs(h)        % 15) - 7);
-  const dy = ((Math.abs(h >> 4)   % 21) - 10);
+  // Map h into two small offsets:  dx ∈ [-6, +6], dy ∈ [-6, +6].  Kept gentle
+  // so nodes read as a clean lattice (not a scatter) and bottom-row nodes don't
+  // drift down into the pinned control bar.
+  const dx = ((Math.abs(h)        % 13) - 6);
+  const dy = ((Math.abs(h >> 4)   % 13) - 6);
   return { dx, dy };
 }
 
 // Per-column drift — alternates up/down based on the level number so
 // the stretch columns form a gentle wave across the map.
 function _organicColumnDrift(lvl) {
-  // Sine-ish offset: small amplitude (±12px), period of ~3 columns.
-  return Math.round(Math.sin(lvl * 1.1) * 12);
+  // Sine-ish offset: gentle amplitude (±7px), period of ~3 columns — enough to
+  // soften the grid without the stretch headers reading as misaligned.
+  return Math.round(Math.sin(lvl * 1.1) * 7);
 }
 
 // ============================================================================
