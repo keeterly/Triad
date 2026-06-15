@@ -22496,17 +22496,26 @@ function renderMap() {
   _obtn.classList.add('hidden');
   document.getElementById('map-controls')?.remove();
   const _fireCost = campfireCost(state);
+  // One fire per spot — once lit, the campfire is spent until the party clears
+  // another node (moves on).  _fireAtProgress records the cleared-node count
+  // when the last fire was lit; it re-enables when that count advances.
+  const _fireUsedHere = state.run._fireAtProgress === (state.run.completedNodes || []).length;
   const _fireAfford = getEmbersBalance() >= _fireCost;
-  const _fireTip = 'Light a campfire — heal, revive, hone, deepen a bond, raise the camp, or bind a perk';
+  const _fireBlocked = !_fireAfford || _fireUsedHere;
+  const _fireTip = _fireUsedHere
+    ? 'Already rested here — clear a node to camp again'
+    : (_fireAfford ? 'Light a campfire — rest, hone, deepen a bond, raise the camp, or bind a perk' : 'Not enough Kindling for a campfire');
   const bar = document.createElement('div');
   bar.id = 'map-controls';
   bar.className = 'map-controls';
   bar.innerHTML =
-    `<button type="button" id="map-campfire-btn" class="map-ctl map-ctl-fire${_fireAfford ? '' : ' map-ctl-poor'}"${_fireAfford ? '' : ' disabled'} title="${_fireTip}" data-tip="${_fireTip}">` +
+    `<button type="button" id="map-campfire-btn" class="map-ctl map-ctl-fire${_fireBlocked ? ' map-ctl-poor' : ''}${_fireUsedHere ? ' map-ctl-spent' : ''}"${_fireBlocked ? ' disabled' : ''} title="${_fireTip}" data-tip="${_fireTip}">` +
       `<span class="mcf-fire" aria-hidden="true"><span class="mcf-flame"></span><span class="mcf-flame mcf-flame-2"></span>` +
         `<span class="mcf-ember"></span><span class="mcf-ember mcf-ember-2"></span></span>` +
       `<span class="map-ctl-label">Campfire</span>` +
-      `<span class="map-ctl-cost"><span class="mcf-cost-glyph">✦</span> ${_fireCost}</span>` +
+      (_fireUsedHere
+        ? `<span class="map-ctl-cost map-ctl-cost-spent">✓ rested</span>`
+        : `<span class="map-ctl-cost"><span class="mcf-cost-glyph">✦</span> ${_fireCost}</span>`) +
     `</button>` +
     `<button type="button" id="map-heroes-btn" class="map-ctl map-ctl-heroes" title="Inspect your heroes" data-tip="Inspect your heroes">` +
       `<span class="mctl-trio" aria-hidden="true"><span></span><span></span><span></span></span>` +
@@ -22529,10 +22538,12 @@ function renderMap() {
   // (raises the next fire's cost), and open the campfire.
   const fireBtn = bar.querySelector('#map-campfire-btn');
   fireBtn.onclick = () => {
+    if (_fireUsedHere) { flashMsg('Already rested here — clear a node first.'); return; }
     const cost = campfireCost(state);
     if (getEmbersBalance() < cost) { flashMsg('Not enough Kindling.'); return; }
     _setEmbersBalance(getEmbersBalance() - cost);
     state.run.firesLit = (state.run.firesLit || 0) + 1;
+    state.run._fireAtProgress = (state.run.completedNodes || []).length;   // one fire per spot
     Audio.ui();
     hideOverlay();
     choices.classList.remove('path-map');
@@ -29506,7 +29517,7 @@ function showPasswordGate(onUnlock) {
 // never get stuck in a reload loop against a stale cached game.js.  A
 // sessionStorage guard caps it at one reload attempt per detected build as a
 // belt-and-suspenders.
-const APP_BUILD = 322;
+const APP_BUILD = 323;
 (function () {
   const RELOADED_KEY = 'kizuna.autoReloadedFor';
   let reloading = false;
