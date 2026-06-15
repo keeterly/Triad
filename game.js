@@ -29136,7 +29136,14 @@ function showPasswordGate(onUnlock) {
     const vw = readVW(), vh = readVH();
     if (!vw || !vh) return;
     lastW = vw; lastH = vh;
-    const scale = Math.min(vw / DESIGN_W, vh / DESIGN_H);
+    // Adapt the canvas WIDTH to the device's aspect ratio so the stage fills the
+    // screen instead of letterboxing on wide phones.  Height stays fixed (405)
+    // so vertical proportions never change; width grows from the 720 baseline up
+    // to a 880 cap (≈2.17:1) so the 720-tuned layout only ever gets a bit more
+    // horizontal breathing room, never narrower and never extreme.
+    const designW = Math.round(Math.min(Math.max(DESIGN_H * (vw / vh), DESIGN_W), 880));
+    document.documentElement.style.setProperty('--design-w', designW + 'px');
+    const scale = Math.min(vw / designW, vh / DESIGN_H);
     document.documentElement.style.setProperty('--ui-scale', scale.toFixed(4));
   }
   function schedule() {
