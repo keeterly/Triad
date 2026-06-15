@@ -24217,14 +24217,23 @@ function drawMapConnectors(choices) {
   if (prev) prev.remove();
 
   const cRect = choices.getBoundingClientRect();
+  // The whole stage is rendered inside a `transform: scale(--ui-scale)`
+  // wrapper, so getBoundingClientRect() returns SCALED screen pixels — but
+  // this SVG is itself a child of that scaled wrapper, so its own coordinate
+  // space is the UNSCALED design space (the ancestor scale is applied to it
+  // too).  Dividing every measured screen length by the scale converts back
+  // to design units; otherwise the connectors are drawn ~scale× too large and
+  // detach from the nodes.  (At scale 1 this is a no-op, which is why it only
+  // broke once fit-to-screen scaling went in.)
+  const s = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ui-scale')) || 1;
   const svgNS = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(svgNS, 'svg');
   svg.setAttribute('class', 'map-connectors');
   svg.style.position = 'absolute';
   svg.style.left = '0';
   svg.style.top = '0';
-  svg.style.width = cRect.width + 'px';
-  svg.style.height = cRect.height + 'px';
+  svg.style.width = (cRect.width / s) + 'px';
+  svg.style.height = (cRect.height / s) + 'px';
   svg.style.pointerEvents = 'none';
   svg.style.zIndex = '0';
 
@@ -24243,10 +24252,11 @@ function drawMapConnectors(choices) {
     const bIcon = bEl.querySelector('.pn-icon') || bEl;
     const aR = aIcon.getBoundingClientRect();
     const bR = bIcon.getBoundingClientRect();
-    const cAx = aR.left + aR.width / 2 - cRect.left;
-    const cAy = aR.top  + aR.height / 2 - cRect.top;
-    const cBx = bR.left + bR.width / 2 - cRect.left;
-    const cBy = bR.top  + bR.height / 2 - cRect.top;
+    // All deltas divided by the stage scale → design-space coordinates.
+    const cAx = (aR.left + aR.width / 2 - cRect.left) / s;
+    const cAy = (aR.top  + aR.height / 2 - cRect.top) / s;
+    const cBx = (bR.left + bR.width / 2 - cRect.left) / s;
+    const cBy = (bR.top  + bR.height / 2 - cRect.top) / s;
     const dxC = cBx - cAx, dyC = cBy - cAy;
     const lenC = Math.sqrt(dxC * dxC + dyC * dyC) || 1;
     // Trim each end by the icon radius IN THE DIRECTION OF THE LINE
@@ -24254,8 +24264,8 @@ function drawMapConnectors(choices) {
     // at right-center / left-center (which only lands on the perimeter
     // for purely horizontal connections; diagonals previously ended
     // off the visible disc).
-    const aRadius = aR.width / 2;
-    const bRadius = bR.width / 2;
+    const aRadius = (aR.width / 2) / s;
+    const bRadius = (bR.width / 2) / s;
     const x1 = cAx + (dxC / lenC) * aRadius;
     const y1 = cAy + (dyC / lenC) * aRadius;
     const x2 = cBx - (dxC / lenC) * bRadius;
