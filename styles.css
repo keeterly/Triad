@@ -17703,24 +17703,37 @@ body.on-title #hud { display: none !important; }
 #overlay.overlay-path #kindling-chip { bottom: 6px; right: 8px; }
 
 /* ============ RESONANT-SKILL PANEL — reworked layout ============
-   Tighter, better-proportioned: a compact card, tidy rows with a clear
-   name / effect / cost hierarchy, and a quiet one-line hint. */
-#resonant-panel .rp-sheet { width: min(430px, 92vw); padding: 13px 15px 12px; bottom: 84px; }
-#resonant-panel .rp-head { margin-bottom: 11px; padding-bottom: 9px; }
-#resonant-panel .rp-title { font-size: 12px; letter-spacing: 0.24em; }
-#resonant-panel .rp-list { gap: 7px; }
-#resonant-panel .rp-row { gap: 12px; padding: 11px 13px; align-items: center; border-radius: 3px; }
-#resonant-panel .rp-portrait { width: 36px; height: 36px; margin-left: -11px; }
-#resonant-panel .rp-body { gap: 5px; }
-#resonant-panel .rp-name { font-size: 13.5px; gap: 7px; letter-spacing: 0.03em; }
-#resonant-panel .rp-tier {
-  font-size: 7px; letter-spacing: 0.14em; padding: 1px 5px; opacity: 0.85;
-  color: var(--gold-pale); border-color: rgba(180,160,110,0.45);
+   Compact card, tidy GRID rows (heroes · effect · cost-chip), clean
+   name / effect / cost hierarchy, and a quiet hint. */
+#resonant-panel .rp-sheet { width: min(440px, 92vw); padding: 14px 16px 13px; bottom: 84px; border-radius: 4px; }
+#resonant-panel .rp-head { margin-bottom: 12px; padding-bottom: 10px; }
+#resonant-panel .rp-title { font-size: 11.5px; letter-spacing: 0.26em; }
+#resonant-panel .rp-list { gap: 8px; }
+#resonant-panel .rp-row {
+  display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center;
+  gap: 13px; padding: 11px 13px; border-radius: 3px;
 }
-#resonant-panel .rp-desc { font-size: 11px; line-height: 1.42; color: #b9ae93; white-space: normal; }
-#resonant-panel .rp-cost { font-size: 15px; min-width: 30px; text-align: right; }
-#resonant-panel .rp-cost-ticks { font-size: 15px; min-width: 36px; }
+#resonant-panel .rp-portraits { align-self: center; }
+#resonant-panel .rp-portrait { width: 38px; height: 38px; margin-left: -12px; }
+#resonant-panel .rp-body { gap: 4px; min-width: 0; }
+#resonant-panel .rp-name { font-size: 13.5px; gap: 8px; letter-spacing: 0.03em; }
+#resonant-panel .rp-tier {
+  font-size: 7px; letter-spacing: 0.14em; padding: 2px 5px; opacity: 0.9; align-self: center;
+  color: var(--gold-pale); border-color: rgba(180,160,110,0.4); border-radius: 2px;
+}
+#resonant-panel .rp-desc { font-size: 11px; line-height: 1.45; color: #b3a888; white-space: normal; }
+/* Cost as a boxed key-chip on the right — clear, aligned, distinct per type. */
+#resonant-panel .rp-cost {
+  display: inline-flex; align-items: center; justify-content: center; gap: 3px;
+  min-width: 42px; padding: 4px 9px; border: 1px solid rgba(200,164,100,0.4);
+  border-radius: 3px; font: 600 13px 'Iowan Old Style', Georgia, serif;
+  color: var(--gold-bright); background: rgba(40,30,16,0.4); letter-spacing: 0;
+}
+#resonant-panel .rp-cost-ticks {
+  color: rgba(255,210,122,0.5); border-color: rgba(255,210,122,0.22); background: rgba(40,30,16,0.22);
+}
+#resonant-panel .rp-cost-ticks.ready { color: #ffd27a; border-color: rgba(255,210,122,0.6); text-shadow: 0 0 8px rgba(255,210,122,0.6); }
 #resonant-panel .rp-hint {
-  margin-top: 11px; padding-top: 9px; font-size: 9.5px; line-height: 1.5;
-  font-style: normal; opacity: 0.7; letter-spacing: 0.01em;
+  margin-top: 12px; padding-top: 10px; font-size: 9px; line-height: 1.55;
+  font-style: normal; opacity: 0.6; letter-spacing: 0.02em;
 }

@@ -10420,12 +10420,11 @@ function commitUnique(comboId) {
   // Unleash is a repeatable resource-spend — fire it again any time you can
   // afford the Resolve.  Only TEAM combos lock to once-per-fight (usedCombos).
   if (combo.tier !== 'unleash') s.usedCombos.add(comboId);
-  // Charge economy: a solo Unleash banks a charge on its hero; a pair / trio
-  // spends one from each.  Applied at commit so the panel + figure pips
-  // reflect immediately.
-  if (combo.tier === 'unleash') {
-    addHeroTick(s, combo.requires[0].heroId);
-  } else {
+  // Charge economy: a pair / trio SPENDS one charge from each hero at commit
+  // (it was gated on having them).  A solo Unleash's charge is banked only
+  // when it actually RESOLVES (see executeQueueItem) — so the pip appears
+  // after the Unleash fires, not the instant you queue it.
+  if (combo.tier !== 'unleash') {
     (combo.requires || []).forEach(r => spendHeroTick(s, r.heroId));
   }
   if (!s.run._comboIdsFiredThisRun) s.run._comboIdsFiredThisRun = new Set();
@@ -11456,14 +11455,13 @@ function earnEmbers(amt, _reason) {
   _setEmbersBalance(getEmbersBalance() + earned);
   _setPendingEmbers(_getPendingEmbers() + earned);
 }
-// Kindling is a per-run pool — it does NOT bank between descents.  At run
-// end we report the gross gathered this descent (for the summary), then
-// spend the pool out: the balance is zeroed so between-descents screens
-// (the Camp, the Perks record) honestly read empty.  Kept under the old
-// name since several call sites reference it.
+// Kindling carries across FLOORS within a descent (layer to layer), so this
+// no longer zeroes the spendable balance — only a fresh descent resets it
+// (see newState's !carried guard).  We still reset the per-floor gross tally
+// (`pending`) so each floor's run-summary reports what that floor gathered.
+// Kept under the old name since several call sites reference it.
 function commitEmbersForRun() {
   const gathered = _getPendingEmbers();
-  _setEmbersBalance(0);
   _setPendingEmbers(0);
   return gathered;
 }
@@ -16697,6 +16695,11 @@ function executeQueueItem(s, item) {
     };
     const combo = COMBOS[item.comboId] || findChosen(item.comboId);
     if (!combo) return;
+    // Resonance charge — a solo Unleash banks a charge on its hero, but only
+    // now that it has actually RESOLVED (not at commit time).
+    if (combo.tier === 'unleash' && Array.isArray(item.heroes) && item.heroes[0]) {
+      addHeroTick(s, item.heroes[0]);
+    }
     log(`<span class="msg-strong">★ ${combo.name} ★</span>`);
     if (__simulating) {
       // Headless sim — skip cinematic, just fire the effect.
@@ -24412,6 +24415,10 @@ function showPartyInspect() {
   choices.innerHTML = '';
   choices.classList.remove('path-map');
   choices.classList.add('party-inspect');
+  // Drop the map's 'overlay-path' class — otherwise the full-stage map layout
+  // (and its overflow:hidden) bleeds into this inspect view and clips the
+  // Back button.  renderMap re-adds it when we return.
+  $('#overlay').classList.remove('overlay-path');
 
   const charIds = Object.keys(state.party.chars || {});
   if (!charIds.length) {
@@ -29400,7 +29407,7 @@ function showPasswordGate(onUnlock) {
 // never get stuck in a reload loop against a stale cached game.js.  A
 // sessionStorage guard caps it at one reload attempt per detected build as a
 // belt-and-suspenders.
-const APP_BUILD = 314;
+const APP_BUILD = 315;
 (function () {
   const RELOADED_KEY = 'kizuna.autoReloadedFor';
   let reloading = false;
