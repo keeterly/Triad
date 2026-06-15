@@ -1845,32 +1845,35 @@ const CHARS = {
     home: 'front',
     passive: { name: 'Red Tally', desc: 'Each time Korin takes self-damage, his next attack deals +3 and applies bleed 1.  Stacks.' },
     techs: {
-      // FRONT — DETONATE row.  Korin is physical: his front blows RUPTURE the
-      // bleed he opened from the back lines as every action advances him here.
+      // FRONT — BRUISER.  basic cashes bleed for tempo; sig is a blood-rage
+      // wind-up: trade his own HP for a heavy stacking bleed prime + retaliate
+      // ramp (Red Tally) — distinct from the basic's clean detonate.
       front: {
         basic: { name: 'Reckless Strike', desc: '7 dmg · detonates BLEED (Rupture) + 2 self-dmg', dmg: 7,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 7); applySelfDmg(s, 'korin', 2); } },
-        sig:   { name: 'Berserker Cleave', desc: '11 dmg · RUPTURES bleed + bleed 2 + 3 self-dmg', dmg: 11,
+        sig:   { name: 'Blood Rage', desc: '4 dmg + bleed 3 (deep prime) + 4 self-dmg · +4 retaliate (Red Tally ramp)', cost: 1, dmg: 4,
           reach: ['front'], pattern: 'front-most',
-          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 11); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 2); } applySelfDmg(s, 'korin', 3); } },
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 4); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 3); } applySelfDmg(s, 'korin', 4); const c = s.party.chars.korin; if (c && !c.downed) c.retaliate += 4; } },
       },
-      // MID — PRIME row.  Bloodfury opens bleed across the board AND advances
-      // him toward Front to cash it.
+      // MID — STRIKER.  basic is a cheap board-sweep that advances; sig is a
+      // single-target executioner that ignores armor and feeds on bleed.
       mid: {
         basic: { name: 'Wild Swing', desc: '4 dmg all · advance to Front', dmg: 4, move: 'advance',
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 4)); advance(s, 'korin'); } },
-        sig:   { name: 'Bloodfury', desc: '6 dmg all + bleed 1 all (prime) · advance to Front', dmg: 6, move: 'advance',
-          reach: ['front','mid','back'], pattern: 'all',
-          fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 6)); t.forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 1); }); advance(s, 'korin'); } },
+        sig:   { name: 'Reaver Cut', desc: '10 dmg lowest · ignore armor · bleed 2 (execute) · advance', cost: 1, dmg: 10, move: 'advance',
+          reach: ['front','mid'], pattern: 'lowest',
+          fn: (s, t) => { if (t[0]) { s.ignoreArmor = true; applyDmgToEnemy(s, t[0], 10); s.ignoreArmor = false; if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 2); } advance(s, 'korin'); } },
       },
-      // BACK — wind up.  Build retaliate and stride toward the front.
+      // BACK — COMMANDER.  basic primes the board and strides up; sig is a
+      // warlord's cry that buffs the whole party's next hit and advances.
       back: {
-        basic: { name: 'Roar', desc: '+2 retaliate · advance', move: 'advance',
-          fn: (s) => { const c = s.party.chars.korin; if (c && !c.downed) c.retaliate += 2; advance(s, 'korin'); } },
-        sig:   { name: 'Battle Trance', desc: '+4 retaliate, +3 armor · advance', cost: 1, move: 'advance',
-          fn: (s) => { const c = s.party.chars.korin; if (c && !c.downed) { c.retaliate += 4; c.armor += 3; } advance(s, 'korin'); } },
+        basic: { name: 'Bloodfury', desc: '4 dmg all + bleed 1 all (prime) · advance to Front', dmg: 4, move: 'advance',
+          reach: ['front','mid','back'], pattern: 'all',
+          fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 4)); t.forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 1); }); advance(s, 'korin'); } },
+        sig:   { name: "Warlord's Cry", desc: "Party's next hits +3 dmg · +3 retaliate self · advance", cost: 1, move: 'advance',
+          fn: (s) => { aliveParty(s).forEach(a => a.pendingEffects.push({ kind: 'attackBonus', amt: 3, source: 'warlords-cry' })); const c = s.party.chars.korin; if (c && !c.downed) c.retaliate += 3; advance(s, 'korin'); } },
       },
     },
   },
@@ -1883,34 +1886,35 @@ const CHARS = {
     home: 'mid',
     passive: { name: 'Veil Echo', desc: "When Ash's attack would consume a vuln stack, the stack stays on the target." },
     techs: {
-      // FRONT — PRIME row.  Inferno opens vuln then veils him back to Mid; his
-      // arcane DISCHARGES it from range (Veil Echo keeps the stack alive to chain).
+      // FRONT — HEXER.  basic cashes vuln and veils back; sig is heavy single-
+      // target control — a big vuln + dulled lock (no burst), Veil Echo keeps it.
       front: {
         basic: { name: 'Spark', desc: '3 arcane · DISCHARGES vuln + retreat to Mid', dmg: 3, move: 'retreat',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 3); retreat(s, 'ash'); } },
-        sig:   { name: 'Inferno Burst', desc: '5 arcane + vuln 2 (prime) · retreat to Mid', dmg: 5, move: 'retreat',
+        sig:   { name: 'Hex Brand', desc: '2 arcane + vuln 3 + dulled 1 (lock) · retreat to Mid', cost: 1, dmg: 2, move: 'retreat',
           reach: ['front'], pattern: 'front-most',
-          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 5); if (!t[0].dead) t[0].vuln += 2; } retreat(s, 'ash'); } },
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 2); if (!t[0].dead) { t[0].vuln += 3; t[0].dulled = (t[0].dulled || 0) + 1; } } retreat(s, 'ash'); } },
       },
-      // MID (home) — DETONATE.  Arcane shots DISCHARGE vuln (spread to the board)
-      // and re-stack it.
+      // MID (home) — ARTILLERY.  basic is a reliable single-target shot; sig is
+      // a massive armor-ignoring nuke on one target — pure burst, not setup.
       mid: {
         basic: { name: 'Fireball', desc: '6 arcane + vuln 1 · DISCHARGES vuln (spread)', dmg: 6,
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 6); if (!t[0].dead) t[0].vuln += 1; } } },
-        sig:   { name: 'Pyroclasm', desc: '9 arcane + vuln 2 · DISCHARGES vuln (spread)', dmg: 9,
+        sig:   { name: 'Pyroclasm', desc: '13 arcane lowest · ignore armor · DISCHARGES vuln (artillery nuke)', cost: 1, dmg: 13,
           reach: ['mid','back'], pattern: 'lowest',
-          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 9); if (!t[0].dead) t[0].vuln += 2; } } },
+          fn: (s, t) => { if (t[0]) { s.ignoreArmor = true; applyDmgToEnemy(s, t[0], 13); s.ignoreArmor = false; } } },
       },
-      // BACK — DETONATE (board).  Arcane sweep DISCHARGES every vuln at once.
+      // BACK — CONTROLLER (board).  basic sweeps the field; sig blankets the
+      // whole board in vuln (mass setup) for a small splash — no detonate.
       back: {
         basic: { name: 'Arcane Bolts', desc: '4 arcane all · DISCHARGES vuln', dmg: 4,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => t.forEach(e => applyDmgToEnemy(s, e, 4)) },
-        sig:   { name: 'Lightning Storm', desc: '5 arcane all + vuln 1 all · DISCHARGES all vuln', cost: 1, dmg: 5,
+        sig:   { name: 'Lightning Storm', desc: '3 arcane all + vuln 2 all (mass setup) · DISCHARGES vuln', cost: 1, dmg: 3,
           reach: ['front','mid','back'], pattern: 'all',
-          fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 5)); t.forEach(e => { if (!e.dead) e.vuln += 1; }); } },
+          fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 3)); t.forEach(e => { if (!e.dead) e.vuln += 2; }); } },
       },
     },
   },
@@ -1923,34 +1927,35 @@ const CHARS = {
     home: 'back',
     passive: { name: "Shadow's Cut", desc: "When Mira strikes a bleeding enemy, that bleed skips its decay tick this turn." },
     techs: {
-      // FRONT — PRIME + slip.  Open bleed and fade back to her line; her stealth
-      // strikes HEMORRHAGE bleed (burst, then leave bleed 1) for a sustained
-      // engine — Shadow's Cut keeps the wound from decaying.
+      // FRONT — SKIRMISHER.  basic cashes bleed and slips back; sig is a hit-
+      // and-run: a deep cut that primes heavy bleed and vanishes fully to Back.
       front: {
         basic: { name: 'Backstab', desc: '6 stealth + bleed 1 · HEMORRHAGES bleed + retreat to Mid', dmg: 6, move: 'retreat',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 6); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 1); } retreat(s, 'mira'); } },
-        sig:   { name: 'Vanish Strike', desc: '9 stealth + bleed 2 · HEMORRHAGES bleed + retreat to Back', dmg: 9, move: 'retreatFull',
+        sig:   { name: 'Vanish Strike', desc: '5 stealth + bleed 3 (deep prime) · vanish to Back', cost: 1, dmg: 5, move: 'retreatFull',
           reach: ['front'], pattern: 'front-most',
-          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 9); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 2); } retreatFull(s, 'mira'); } },
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 5); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 3); } retreatFull(s, 'mira'); } },
       },
-      // MID — DETONATE (single).  Stealth knives HEMORRHAGE the lowest target.
+      // MID — DUELIST.  basic knifes a single target; sig is a twin-dagger
+      // execute that ignores armor — burst a focused kill, not board setup.
       mid: {
         basic: { name: 'Shadow Knife', desc: '4 stealth + bleed 1 · HEMORRHAGES bleed · retreat', dmg: 4, move: 'retreat',
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 4); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 1); } retreat(s, 'mira'); } },
-        sig:   { name: 'Twin Daggers', desc: '5 ×2 + bleed 2 · HEMORRHAGES bleed · retreat', dmg: 5, hits: 2, move: 'retreat',
+        sig:   { name: 'Twin Daggers', desc: '6 ×2 lowest · ignore armor · HEMORRHAGES bleed (execute)', cost: 1, dmg: 6, hits: 2,
           reach: ['mid','back'], pattern: 'lowest',
-          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 5); if (!t[0].dead) applyDmgToEnemy(s, t[0], 5); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 2); } retreat(s, 'mira'); } },
+          fn: (s, t) => { if (t[0]) { s.ignoreArmor = true; applyDmgToEnemy(s, t[0], 6); if (!t[0].dead) applyDmgToEnemy(s, t[0], 6); s.ignoreArmor = false; } } },
       },
-      // BACK (home) — DETONATE (board).  Stealth cloud HEMORRHAGES every bleed.
+      // BACK (home) — TRICKSTER.  basic cashes board bleed; sig is a smoke trap
+      // that primes heavy bleed across the field and blinds (dulled) — no cash.
       back: {
         basic: { name: 'Poison Cloud', desc: '3 all + bleed 1 front · HEMORRHAGES bleed', dmg: 3,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 3)); if (t[0] && !t[0].dead) t[0].bleed = Math.max(t[0].bleed, 1); } },
-        sig:   { name: 'Shadow Storm', desc: '4 all + bleed 2 all · HEMORRHAGES all bleed', cost: 1, dmg: 4,
+        sig:   { name: 'Smoke Trap', desc: '2 all + bleed 2 all + dulled 1 all (board snare)', cost: 1, dmg: 2,
           reach: ['front','mid','back'], pattern: 'all',
-          fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 4)); t.forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 2); }); } },
+          fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 2)); t.forEach(e => { if (!e.dead) { e.bleed = Math.max(e.bleed, 2); e.dulled = (e.dulled || 0) + 1; } }); } },
       },
     },
   },
@@ -1966,15 +1971,15 @@ const CHARS = {
     home: 'mid',
     passive: { name: 'Last Stand', desc: 'When Kai is the only ally still standing, each attack deals +3 and each kill heals 4.' },
     techs: {
-      // FRONT — DETONATE row.  Kai is physical, so his front blows RUPTURE the
-      // bleed he opened from Mid — step up and cash the wound.
+      // FRONT — DUELIST.  basic cashes bleed; sig is a counter-stance: modest
+      // damage but heavy armor + retaliate so Kai punishes the next incoming hit.
       front: {
         basic: { name: 'Slash', desc: '7 dmg · detonates BLEED (Rupture)', dmg: 7,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 7); } },
-        sig:   { name: 'Riposte', desc: '11 dmg · RUPTURES bleed + 2 armor + 2 retaliate', dmg: 11,
+        sig:   { name: 'Riposte', desc: '5 dmg · counter-stance: +4 armor + 5 retaliate', cost: 1, dmg: 5,
           reach: ['front'], pattern: 'front-most',
-          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 11); addArmor(s, 'kai', 2); const c = s.party.chars.kai; if (c && !c.downed) c.retaliate = (c.retaliate || 0) + 2; } },
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 5); addArmor(s, 'kai', 4); const c = s.party.chars.kai; if (c && !c.downed) c.retaliate = (c.retaliate || 0) + 5; } },
       },
       // MID (home) — PRIME row.  Quick Cut opens bleed AND advances him to Front
       // to detonate it; Crossblade's twin physical hits RUPTURE on the spot.
@@ -2026,20 +2031,23 @@ const CHARS = {
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 4); partyArmor(s, 3); const g = s.party.chars.garron; if (g && !g.downed) g.taunt = true; } },
       },
-      // MID — DETONATE.  Tower Slam is holy (SMITES vuln + heals); Anchor caves
-      // the front and RUPTURES bleed.
+      // MID — BRUISER.  Tower Slam is a reliable holy cash (SMITES vuln + heals);
+      // Sunder is a distinct guard-breaker — strip armor + dulled prime + a
+      // self-armor brace, trading the big number for control.
       mid: {
         basic: { name: 'Tower Slam', desc: '8 holy · SMITES vuln (heal party)', dmg: 8, element: 'holy',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 8); } },
-        sig:   { name: 'Anchor', desc: '12 dmg · RUPTURES bleed + 3 retaliate self', cost: 1, dmg: 12,
+        sig:   { name: 'Sunder', desc: '5 dmg · strip armor + dulled 2 (prime) · +4 armor self', cost: 1, dmg: 5,
           reach: ['front'], pattern: 'front-most',
-          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 12); const g = s.party.chars.garron; if (g && !g.downed) g.retaliate += 3; } },
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 5); if (!t[0].dead) { t[0].armor = 0; t[0].dulled = Math.max(t[0].dulled || 0, 2); } } addArmor(s, 'garron', 4); } },
       },
+      // BACK — WARDER.  Anchored party protection: shield the line from safety,
+      // the sig a full bulwark that cleanses and braces the whole party.
       back: {
-        basic: { name: 'Whistle', desc: '+2 armor party', fn: (s) => partyArmor(s, 2) },
-        sig:   { name: 'Last Words', desc: 'Heal 6 lowest + +2 armor party',
-          fn: (s) => { healLowest(s, 6); partyArmor(s, 2); } },
+        basic: { name: 'Whistle', desc: '+3 armor party', fn: (s) => partyArmor(s, 3) },
+        sig:   { name: 'Shield Wall', desc: '+5 armor party + cleanse all + heal 4 lowest', cost: 1,
+          fn: (s) => { partyArmor(s, 5); aliveParty(s).forEach(c => { c.bleed = 0; c.dulled = 0; }); healLowest(s, 4); } },
       },
     },
   },
@@ -2068,6 +2076,9 @@ const CHARS = {
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 5); if (!t[0].dead) t[0].vuln += 2; } retreat(s, 'lirien'); } },
       },
+      // MID — SUPPORT.  Beguile is the cash/tempo ping that nudges an ally's hit;
+      // Anthem is a distinct rally — no enemy damage, it empowers the whole party
+      // (big +atk) and cleanses, the buff-the-allies job.
       mid: {
         basic: { name: 'Beguile', desc: '3 arcane · DISCHARGES vuln + ally +1 atk', dmg: 3,
           reach: ['mid','back'], pattern: 'lowest',
@@ -2076,11 +2087,10 @@ const CHARS = {
             const ally = aliveParty(s).slice().sort((a, b) => a.hp - b.hp)[0];
             if (ally) ally.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'lirien-beguile' });
           } },
-        sig:   { name: 'Crescendo', desc: '4 arcane all · DISCHARGES vuln + party +1 atk', cost: 1, dmg: 4,
-          reach: ['front','mid','back'], pattern: 'all',
-          fn: (s, t) => {
-            t.forEach(e => applyDmgToEnemy(s, e, 4));
-            aliveParty(s).forEach(c => c.pendingEffects.push({ kind: 'attackBonus', amt: 1, source: 'lirien-crescendo' }));
+        sig:   { name: 'Anthem', desc: "Party's next hits +3 dmg + cleanse all (no enemy damage)", cost: 1,
+          reach: ['mid','back'], pattern: 'lowest',
+          fn: (s) => {
+            aliveParty(s).forEach(c => { c.pendingEffects.push({ kind: 'attackBonus', amt: 3, source: 'lirien-anthem' }); c.bleed = 0; c.dulled = 0; });
           } },
       },
       // BACK (home) — DETONATE (board).  Arcane sweep DISCHARGES every vuln and
@@ -2111,15 +2121,16 @@ const CHARS = {
     home: 'back',
     passive: { name: 'Conviction', desc: "When any ally's HP drops to 1, Vasha's next sig costs 1 less Resolve and heals the party 3 on cast." },
     techs: {
-      // FRONT — DETONATE.  Vasha is holy, so her strikes SMITE vuln (bursting it
-      // AND healing the party) then step her back to her line.
+      // FRONT — SMITER.  Pulpit is the cash/tempo smite (bursts vuln + heals the
+      // party); Consecrate is a distinct setup — marks heavy vuln and blesses an
+      // ally's next hit, trading damage for amplification.
       front: {
         basic: { name: 'Pulpit', desc: '4 holy · SMITES vuln (heal party) + retreat to Mid', dmg: 4, move: 'retreat',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 4); retreat(s, 'vasha'); } },
-        sig:   { name: 'Hallowed Strike', desc: '6 holy · SMITES vuln + heal 2 self + retreat to Mid', dmg: 6, move: 'retreat',
+        sig:   { name: 'Consecrate', desc: "3 holy + vuln 2 (prime) · lowest ally's next hit +4 dmg · retreat to Mid", cost: 1, dmg: 3, move: 'retreat',
           reach: ['front'], pattern: 'front-most',
-          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 6); const v = s.party.chars.vasha; if (v && !v.downed) v.hp = Math.min(v.maxHp, v.hp + 2); retreat(s, 'vasha'); } },
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 3); if (!t[0].dead) t[0].vuln += 2; } const ally = aliveParty(s).slice().sort((a, b) => a.hp - b.hp)[0]; if (ally) ally.pendingEffects.push({ kind: 'attackBonus', amt: 4, source: 'consecrate' }); retreat(s, 'vasha'); } },
       },
       // MID — DETONATE + cleanse.  Holy hits SMITE vuln; Hymn no longer mints
       // Resolve (detonation-only economy) — Vasha banks it by SMITING instead.
@@ -2135,15 +2146,16 @@ const CHARS = {
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 5); partyHeal(s, 3); } },
       },
-      // BACK (home) — PRIME + DETONATE (board).  Bright sweep opens vuln and her
-      // holy light SMITES it across the field.
+      // BACK (home) — ARTILLERY.  Bright Word is the board-sweep cash; Sunlance
+      // is a focused armor-piercing pillar of light on a single target — pure
+      // burst, the inverse of the sweep.
       back: {
         basic: { name: 'Bright Word', desc: '3 holy all · SMITES vuln', dmg: 3,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => t.forEach(e => applyDmgToEnemy(s, e, 3)) },
-        sig:   { name: "Sun's Decree", desc: '6 all + vuln 1 all · SMITES all vuln', cost: 1, dmg: 6,
-          reach: ['front','mid','back'], pattern: 'all',
-          fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 6)); aliveEnemies(s).forEach(e => { e.vuln += 1; }); } },
+        sig:   { name: 'Sunlance', desc: '12 holy lowest · ignore armor · SMITES vuln (artillery)', cost: 1, dmg: 12,
+          reach: ['mid','back'], pattern: 'lowest',
+          fn: (s, t) => { if (t[0]) { s.ignoreArmor = true; applyDmgToEnemy(s, t[0], 12); s.ignoreArmor = false; } } },
       },
     },
   },
@@ -2166,23 +2178,26 @@ const CHARS = {
     // Shatter passive still grants Resolve when any stagger lands.
     passive: { name: 'Frostbreak', desc: "Hask's attacks reveal an enemy's weakness on hit.  When an enemy is staggered, gain +1 Resolve." },
     techs: {
-      // FRONT (home) — DETONATE.  Hask is arcane: his frost blows DISCHARGE the
-      // vuln he froze on from the back line.
+      // FRONT (home) — BRUISER.  Frost-Claw is the cash/tempo blow that DISCHARGES
+      // vuln; Glacier Crush is a distinct guard-breaker — strip armor + a heavy
+      // dulled freeze (prime), trading raw burst for lockdown.
       front: {
         basic: { name: 'Frost-Claw', desc: '6 arcane · DISCHARGES vuln', dmg: 6,
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 6); } },
-        sig:   { name: 'Glacier Crush', desc: '10 arcane · DISCHARGES vuln', dmg: 10,
+        sig:   { name: 'Glacier Crush', desc: '5 arcane · strip armor + dulled 3 (deep prime)', cost: 1, dmg: 5,
           reach: ['front'], pattern: 'front-most',
-          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 10); } },
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 5); if (!t[0].dead) { t[0].armor = 0; t[0].dulled = Math.max(t[0].dulled || 0, 3); } } } },
       },
+      // MID — ARTILLERY.  Ice Bolt is the reliable single shot; Deep Freeze is a
+      // massive armor-ignoring nuke on one target — pure burst, not a sweep.
       mid: {
         basic: { name: 'Ice Bolt', desc: '5 arcane lowest · DISCHARGES vuln', dmg: 5,
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 5); } },
-        sig:   { name: 'Hailstorm', desc: '5 arcane all · DISCHARGES vuln', cost: 1, dmg: 5,
-          reach: ['front','mid','back'], pattern: 'all',
-          fn: (s, t) => { t.forEach(e => applyDmgToEnemy(s, e, 5)); } },
+        sig:   { name: 'Deep Freeze', desc: '13 arcane lowest · ignore armor · DISCHARGES vuln (artillery nuke)', cost: 1, dmg: 13,
+          reach: ['mid','back'], pattern: 'lowest',
+          fn: (s, t) => { if (t[0]) { s.ignoreArmor = true; applyDmgToEnemy(s, t[0], 13); s.ignoreArmor = false; } } },
       },
       // BACK — PRIME (DULLED).  Frost numbs: Chill / Frost-Lock freeze DULLED
       // onto the board for the team's physical/stealth blows to SUNDER.  (Hask's
@@ -2221,27 +2236,27 @@ const CHARS = {
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 6); retreatFull(s, 'veyr'); } },
       },
-      // MID — PRIME (bleed) + mark vuln for allies.
+      // MID — HEXER.  Slip Knife is the cash/tempo bleed prime; Dark Tally is a
+      // distinct lock — heavy vuln + dulled control on one target (no burst),
+      // then she slips back to her firing line.
       mid: {
         basic: { name: 'Slip Knife', desc: '4 + bleed 1 (prime) lowest', dmg: 4,
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 4); if (!t[0].dead) t[0].bleed = Math.max(t[0].bleed, 1); } } },
-        sig:   { name: 'Dark Tally', desc: '6 + vuln 1 + retreat', cost: 1, dmg: 6, move: 'retreat',
+        sig:   { name: 'Dark Tally', desc: '3 + vuln 3 + dulled 1 (lock) lowest · retreat to Back', cost: 1, dmg: 3, move: 'retreatFull',
           reach: ['mid','back'], pattern: 'lowest',
-          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 6); if (!t[0].dead) t[0].vuln += 1; } retreat(s, 'veyr'); } },
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 3); if (!t[0].dead) { t[0].vuln += 3; t[0].dulled = Math.max(t[0].dulled || 0, 1); } } retreatFull(s, 'veyr'); } },
       },
-      // BACK (home) — DETONATE.  Her stealth bolts HEMORRHAGE bleed from range.
+      // BACK (home) — SNIPER.  Witness Bolt is the reliable detonating shot;
+      // Final Reckoning is a focused armor-piercing kill-shot — single-target
+      // execute, sharpened further by Last Witness per fallen ally.
       back: {
         basic: { name: 'Witness Bolt', desc: '5 stealth lowest · HEMORRHAGES bleed', dmg: 5, element: 'stealth',
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 5); } },
-        sig:   { name: 'Final Reckoning', desc: '4 stealth ×2 all + bleed 1 all · HEMORRHAGES bleed', cost: 1, dmg: 4, hits: 2, element: 'stealth',
-          reach: ['front','mid','back'], pattern: 'all',
-          fn: (s, t) => {
-            t.forEach(e => applyDmgToEnemy(s, e, 4));
-            t.forEach(e => { if (!e.dead) applyDmgToEnemy(s, e, 4); });
-            aliveEnemies(s).forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed, 1); });
-          } },
+        sig:   { name: 'Final Reckoning', desc: '12 stealth lowest · ignore armor · HEMORRHAGES bleed (sniper execute)', cost: 1, dmg: 12, element: 'stealth',
+          reach: ['mid','back'], pattern: 'lowest',
+          fn: (s, t) => { if (t[0]) { s.ignoreArmor = true; applyDmgToEnemy(s, t[0], 12); s.ignoreArmor = false; } } },
       },
     },
   },
@@ -2271,25 +2286,26 @@ const CHARS = {
           fn: (s, t) => { if (!t[0]) return;
             for (let i = 0; i < 4; i++) { if (t[0].dead) break; applyDmgToEnemy(s, t[0], 3); } } },
       },
-      // MID — PRIME.  Inner Step opens vuln and advances him to Front to SMITE.
+      // MID — SMITER.  Inner Step is the cash/tempo smite-setup that advances;
+      // Five-Stance is a distinct payoff — it SMITES vuln, heals the party AND
+      // blesses an ally's next hit, trading the advance for support.
       mid: {
         basic: { name: 'Inner Step', desc: '4 holy + vuln 1 (prime) · advance to Front', dmg: 4, element: 'holy', move: 'advance',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 4); if (!t[0].dead) t[0].vuln += 1; } advance(s, 'kell'); } },
-        sig:   { name: 'Five-Stance', desc: '7 holy · SMITES vuln + 2 armor self', cost: 1, dmg: 7, element: 'holy',
+        sig:   { name: 'Five-Stance', desc: "5 holy · SMITES vuln + heal party 3 · lowest ally's next hit +3", cost: 1, dmg: 5, element: 'holy',
           reach: ['front'], pattern: 'front-most',
-          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 7); addArmor(s, 'kell', 2); } },
+          fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 5); partyHeal(s, 3); const ally = aliveParty(s).slice().sort((a, b) => a.hp - b.hp)[0]; if (ally) ally.pendingEffects.push({ kind: 'attackBonus', amt: 3, source: 'five-stance' }); } },
       },
+      // BACK — HEALER.  Meditate restores Kell from safety (no armor — Empty Hand
+      // stays armed); Centered is a party mend that cleanses the whole line.
       back: {
         basic: { name: 'Meditate', desc: 'Heal 2 self', heal: 2, healTarget: 'self',
           fn: (s) => { const c = s.party.chars.kell;
             if (c && !c.downed) { const before = c.hp; c.hp = Math.min(c.maxHp, c.hp + 2);
               if (c.hp > before) spawnPopupId('kell', `+${c.hp - before}`, 'heal', 'party'); } } },
-        sig:   { name: 'Centered', desc: 'Heal 5 self + cleanse self', cost: 1, heal: 5, healTarget: 'self',
-          fn: (s) => { const c = s.party.chars.kell;
-            if (c && !c.downed) { const before = c.hp; c.hp = Math.min(c.maxHp, c.hp + 5);
-              if (c.hp > before) spawnPopupId('kell', `+${c.hp - before}`, 'heal', 'party');
-              c.bleed = 0; c.dulled = 0; } } },
+        sig:   { name: 'Centered', desc: 'Heal 6 lowest + heal 2 party + cleanse all', cost: 1, heal: 6, healTarget: 'lowest',
+          fn: (s) => { healLowest(s, 6); partyHeal(s, 2); aliveParty(s).forEach(c => { c.bleed = 0; c.dulled = 0; }); } },
       },
     },
   },
@@ -2318,18 +2334,23 @@ const CHARS = {
             if (!t[0].dead) { t[0].bleed = (t[0].bleed || 0) + 1; t[0].dulled = (t[0].dulled || 0) + 1; _niraOldHexTick(s); } }
             retreat(s, 'nira'); } },
       },
-      // MID — PRIME (vuln).  Marking Curse opens vuln so her arcane DISCHARGES it.
+      // MID — CONTROLLER.  Marking Curse is the cash/tempo vuln-prime; Layered
+      // Curse is a distinct mass-setup — it drapes vuln + dulled across the WHOLE
+      // board (no burst) so the team can discharge the field.
       mid: {
         basic: { name: 'Marking Curse', desc: '4 arcane + bleed 1 + vuln 1 (prime) · DISCHARGES vuln', dmg: 4, element: 'arcane',
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 4);
             if (!t[0].dead) { t[0].bleed = (t[0].bleed || 0) + 1; t[0].vuln = (t[0].vuln || 0) + 1; _niraOldHexTick(s); } } } },
-        sig:   { name: 'Layered Curse', desc: '6 arcane + bleed 2 + dulled 1 · DISCHARGES vuln', cost: 1, dmg: 6, element: 'arcane',
-          reach: ['mid','back'], pattern: 'lowest',
-          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 6);
-            if (!t[0].dead) { t[0].bleed = (t[0].bleed || 0) + 2; t[0].dulled = (t[0].dulled || 0) + 1; _niraOldHexTick(s); } } } },
+        sig:   { name: 'Layered Curse', desc: '2 arcane all + vuln 2 all + dulled 1 all (mass setup)', cost: 1, dmg: 2, element: 'arcane',
+          reach: ['front','mid','back'], pattern: 'all',
+          fn: (s, t) => { let any = false; t.forEach(e => { applyDmgToEnemy(s, e, 2);
+            if (!e.dead) { e.vuln = (e.vuln || 0) + 2; e.dulled = (e.dulled || 0) + 1; any = true; } });
+            if (any) _niraOldHexTick(s); } },
       },
-      // BACK (home) — board DoT + DISCHARGE.
+      // BACK (home) — ARTILLERY.  Spores is the board-sweep DoT cash; Coven's Pyre
+      // is a focused plague bomb — a single target buried under heavy bleed +
+      // dulled, the inverse of the sweep.
       back: {
         basic: { name: 'Spores', desc: '2 all + bleed 1 front · DISCHARGES vuln', dmg: 2, element: 'arcane',
           reach: ['front','mid','back'], pattern: 'all',
@@ -2337,11 +2358,10 @@ const CHARS = {
             let any = false;
             if (t[0] && !t[0].dead) { t[0].bleed = (t[0].bleed || 0) + 1; any = true; }
             if (any) _niraOldHexTick(s); } },
-        sig:   { name: "Coven's Pyre", desc: '3 all + bleed 2 all · DISCHARGES vuln', cost: 1, dmg: 3, element: 'arcane',
-          reach: ['front','mid','back'], pattern: 'all',
-          fn: (s, t) => { let any = false; t.forEach(e => { applyDmgToEnemy(s, e, 3);
-            if (!e.dead) { e.bleed = (e.bleed || 0) + 2; any = true; } });
-            if (any) _niraOldHexTick(s); } },
+        sig:   { name: "Coven's Pyre", desc: '7 arcane lowest + bleed 3 + dulled 2 (plague bomb) · DISCHARGES vuln', cost: 1, dmg: 7, element: 'arcane',
+          reach: ['mid','back'], pattern: 'lowest',
+          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 7);
+            if (!t[0].dead) { t[0].bleed = (t[0].bleed || 0) + 3; t[0].dulled = (t[0].dulled || 0) + 2; _niraOldHexTick(s); } } } },
       },
     },
   },
@@ -2368,26 +2388,29 @@ const CHARS = {
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 7); retreatFull(s, 'joran'); } },
       },
-      // MID (home) — PRIME + DETONATE.  Heartshot marks vuln; his ranged shots
-      // PUNCTURE it (and Long Eye makes every vuln stack hit harder).
+      // MID (home) — SNIPER.  Aim and Shoot is the reliable detonating shot;
+      // Heartshot is a precision execute — armor-ignoring single hit that Long
+      // Eye sharpens further per vuln stack already on the target.
       mid: {
         basic: { name: 'Aim and Shoot', desc: '6 ranged lowest · PUNCTURES vuln', dmg: 6,
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 6); } },
-        sig:   { name: 'Heartshot', desc: '10 ranged + vuln 1 (prime) · PUNCTURES vuln', dmg: 10,
+        sig:   { name: 'Heartshot', desc: '11 ranged lowest · ignore armor · PUNCTURES vuln (sniper execute)', cost: 1, dmg: 11,
           reach: ['mid','back'], pattern: 'lowest',
-          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 10); if (!t[0].dead) t[0].vuln += 1; } } },
+          fn: (s, t) => { if (t[0]) { s.ignoreArmor = true; applyDmgToEnemy(s, t[0], 11); s.ignoreArmor = false; } } },
       },
+      // BACK — ARTILLERY.  Spread Fire is the board-sweep cash; Hail Shot is a
+      // heavier barrage that also marks the WHOLE field with vuln — mass setup
+      // for the next round of punctures, not a single-target shot.
       back: {
         basic: { name: 'Spread Fire', desc: '3 ranged all · PUNCTURES vuln', dmg: 3,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => t.forEach(e => applyDmgToEnemy(s, e, 3)) },
-        sig:   { name: 'Hail Shot', desc: '5 all + vuln 1 lowest · PUNCTURES vuln', cost: 1, dmg: 5,
+        sig:   { name: 'Hail Shot', desc: '5 all + vuln 2 all (mass setup) · PUNCTURES vuln', cost: 1, dmg: 5,
           reach: ['front','mid','back'], pattern: 'all',
           fn: (s, t) => {
             t.forEach(e => applyDmgToEnemy(s, e, 5));
-            const low = aliveEnemies(s).slice().sort((a, b) => a.hp - b.hp)[0];
-            if (low) low.vuln += 1;
+            aliveEnemies(s).forEach(e => { if (!e.dead) e.vuln = (e.vuln || 0) + 2; });
           } },
       },
     },
@@ -2459,23 +2482,26 @@ const CHARS = {
     home: 'front',
     passive: { name: 'Heel', desc: "When another ally takes damage, Kiki snaps at the front-most enemy for 2 dmg.  Once per turn." },
     techs: {
-      // FRONT (home) — DETONATE.  Kiki is stealth: her bites HEMORRHAGE bleed
-      // and SUNDER the dulled she howls onto the pack.
+      // FRONT (home) — STRIKER.  Nip is the cash/tempo bite; Lunge! is a flurry
+      // of snapping bites — three stealth hits that HEMORRHAGE bleed each time,
+      // a distinct multi-hit burst rather than one bigger bite.
       front: {
         basic: { name: 'Nip', desc: '4 stealth · HEMORRHAGES bleed / SUNDERS dulled', dmg: 4, element: 'stealth',
           reach: ['front'], pattern: 'front-most',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 4); } },
-        sig:   { name: 'Lunge!', desc: '7 stealth + bleed 1 (prime) · HEMORRHAGES bleed', cost: 1, dmg: 7, element: 'stealth',
+        sig:   { name: 'Lunge!', desc: '3 stealth ×3 · HEMORRHAGES bleed each hit', cost: 1, dmg: 3, hits: 3, element: 'stealth',
           reach: ['front'], pattern: 'front-most',
-          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 7); if (!t[0].dead) t[0].bleed = (t[0].bleed || 0) + 1; } } },
+          fn: (s, t) => { if (!t[0]) return; for (let i = 0; i < 3; i++) { if (t[0].dead) break; applyDmgToEnemy(s, t[0], 3); } } },
       },
+      // MID — DUELIST.  Snap is the cash/tempo strike; Tear is a focused throat-
+      // bite — an armor-ignoring execute on a single target, not a bigger Snap.
       mid: {
         basic: { name: 'Snap', desc: '5 stealth lowest · HEMORRHAGES bleed', dmg: 5, element: 'stealth',
           reach: ['mid','back'], pattern: 'lowest',
           fn: (s, t) => { if (t[0]) applyDmgToEnemy(s, t[0], 5); } },
-        sig:   { name: 'Tear', desc: '8 stealth + bleed 2 (prime) · HEMORRHAGES bleed', cost: 1, dmg: 8, element: 'stealth',
+        sig:   { name: 'Tear', desc: '9 stealth lowest · ignore armor · HEMORRHAGES bleed (execute)', cost: 1, dmg: 9, element: 'stealth',
           reach: ['mid','back'], pattern: 'lowest',
-          fn: (s, t) => { if (t[0]) { applyDmgToEnemy(s, t[0], 8); if (!t[0].dead) t[0].bleed = (t[0].bleed || 0) + 2; } } },
+          fn: (s, t) => { if (t[0]) { s.ignoreArmor = true; applyDmgToEnemy(s, t[0], 9); s.ignoreArmor = false; } } },
       },
       // BACK — PRIME (dulled).  Howl numbs the whole pack for her stealth to SUNDER.
       back: {
@@ -8536,121 +8562,210 @@ const COMBOS = {
       }
     },
   },
-  // ---- Unleash (rest of the roster) — same template, themed by school:
-  //   physical → RUPTURE bleed · ranged → PUNCTURE vuln · holy → SMITE vuln +heal
-  //   arcane → DISCHARGE vuln · stealth → HEMORRHAGE bleed.  Each strikes ALL,
-  //   auto-detonating its matching primer inside the doubled Resonance window.
+  // ---- Unleash (rest of the roster) — each is now a UNIQUE role-ultimate, NOT
+  //   a board cash.  The big board-detonation belongs to Team Resonances, so an
+  //   Unleash never auto-detonates: it either deals no enemy damage (pure tank/
+  //   heal/support), or sets currentTechElement='none' so its damage lands
+  //   without matching any primer — instead BUILDING the board (vuln/bleed/dulled
+  //   to all) or delivering a focused payoff (execute, fortress, mass-heal).
   korin_unleash: {
     id: 'korin_unleash', name: 'Bloodstorm', tier: 'unleash', cost: 2,
-    desc: 'Korin · 8 physical to ALL — RUPTURE every bleed + Korin heals 4',
+    desc: 'Korin · 6 to ALL (no detonate) · bleed 2 all (builds the board) · Korin heals 4 + party next hits +3',
     requires: [{ heroId: 'korin' }],
-    fn: (s) => { s.currentActorId = 'korin'; s.currentTechElement = 'physical';
-      try { aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 8)); const c = s.party.chars.korin; if (c && !c.downed) c.hp = Math.min(c.maxHp, c.hp + 4); }
-      finally { s.currentActorId = null; s.currentTechElement = null; } },
+    fn: (s) => {
+      // element 'none' — the storm BUILDS bleed for the team to cash, it does
+      // not auto-detonate.  The payoff is the warlord ramp, not the burst.
+      s.currentActorId = 'korin'; s.currentTechElement = 'none';
+      try {
+        aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 6));
+        aliveEnemies(s).forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed || 0, 2); });
+        const c = s.party.chars.korin; if (c && !c.downed) c.hp = Math.min(c.maxHp, c.hp + 4);
+        aliveParty(s).forEach(a => a.pendingEffects.push({ kind: 'attackBonus', amt: 3, source: 'bloodstorm' }));
+      } finally { s.currentActorId = null; s.currentTechElement = null; }
+    },
   },
   kai_unleash: {
     id: 'kai_unleash', name: 'Final Cut', tier: 'unleash', cost: 2,
-    desc: 'Kai · 9 physical to ALL — RUPTURE every bleed on the board',
+    desc: 'Kai · duelist execute: 18 to the lowest enemy · ignore armor (no detonate) · a kill heals Kai 6',
     requires: [{ heroId: 'kai' }],
-    fn: (s) => { s.currentActorId = 'kai'; s.currentTechElement = 'physical';
-      try { aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 9)); }
-      finally { s.currentActorId = null; s.currentTechElement = null; } },
+    fn: (s) => {
+      // element 'none' + single-target — the Duelist finisher, a focused
+      // armor-piercing execute, not a board cash.
+      s.currentActorId = 'kai'; s.currentTechElement = 'none';
+      try {
+        const low = aliveEnemies(s).slice().sort((a, b) => a.hp - b.hp)[0];
+        if (low) { s.ignoreArmor = true; applyDmgToEnemy(s, low, 18); s.ignoreArmor = false;
+          if (low.dead) { const c = s.party.chars.kai; if (c && !c.downed) c.hp = Math.min(c.maxHp, c.hp + 6); } }
+      } finally { s.currentActorId = null; s.currentTechElement = null; }
+    },
   },
   garron_unleash: {
-    id: 'garron_unleash', name: 'Earthbreaker', tier: 'unleash', cost: 2,
-    desc: 'Garron · 7 physical to ALL — RUPTURE every bleed + party +3 armor',
+    id: 'garron_unleash', name: 'Hold the Gate', tier: 'unleash', cost: 2,
+    desc: 'Garron · pure defense (no damage): Taunt ALL · +10 armor party · cleanse all · +6 more to Garron — the wall holds',
     requires: [{ heroId: 'garron' }],
-    fn: (s) => { s.currentActorId = 'garron'; s.currentTechElement = 'physical';
-      try { aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 7)); partyArmor(s, 3); }
-      finally { s.currentActorId = null; s.currentTechElement = null; } },
+    fn: (s) => {
+      // No enemy damage at all — the Warden's fortress.  Deals no damage so it
+      // never touches a primer; it is a wall, not a cash.
+      partyArmor(s, 10);
+      aliveParty(s).forEach(c => { c.bleed = 0; c.dulled = 0; });
+      const g = s.party.chars.garron; if (g && !g.downed) { g.taunt = true; addArmor(s, 'garron', 6); }
+    },
   },
   tarn_unleash: {
-    id: 'tarn_unleash', name: 'Avalanche', tier: 'unleash', cost: 2,
-    desc: 'Tarn · 7 physical to ALL — RUPTURE every bleed + bleed 1 all',
+    id: 'tarn_unleash', name: 'Rockslide', tier: 'unleash', cost: 2,
+    desc: 'Tarn · 5 to ALL (no detonate) · bleed 2 + dulled 2 all (buries the board) · party +6 armor',
     requires: [{ heroId: 'tarn' }],
-    fn: (s) => { s.currentActorId = 'tarn'; s.currentTechElement = 'physical';
-      try { aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 7)); aliveEnemies(s).forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed || 0, 1); }); }
-      finally { s.currentActorId = null; s.currentTechElement = null; } },
+    fn: (s) => {
+      // element 'none' — the Stonebound buries the field (bleed + dulled for the
+      // team to cash) while bracing the whole party.  No auto-detonate.
+      s.currentActorId = 'tarn'; s.currentTechElement = 'none';
+      try {
+        aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 5));
+        aliveEnemies(s).forEach(e => { if (!e.dead) { e.bleed = Math.max(e.bleed || 0, 2); e.dulled = Math.max(e.dulled || 0, 2); } });
+        partyArmor(s, 6);
+      } finally { s.currentActorId = null; s.currentTechElement = null; }
+    },
   },
   joran_unleash: {
-    id: 'joran_unleash', name: 'Long Volley', tier: 'unleash', cost: 2,
-    desc: 'Joran · 7 ranged to ALL — PUNCTURE every vuln + vuln 1 all',
+    id: 'joran_unleash', name: 'Long Shot', tier: 'unleash', cost: 2,
+    desc: 'Joran · sniper execute: 20 to the lowest enemy · ignore armor (no detonate) — Long Eye adds up to +3 per vuln stack',
     requires: [{ heroId: 'joran' }],
-    fn: (s) => { s.currentActorId = 'joran'; s.currentTechElement = 'ranged';
-      try { aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 7)); aliveEnemies(s).forEach(e => { if (!e.dead) e.vuln = (e.vuln || 0) + 1; }); }
-      finally { s.currentActorId = null; s.currentTechElement = null; } },
+    fn: (s) => {
+      // element 'none' + single-target — the Long-eye's perfect shot, an
+      // armor-piercing execute (Long Eye still scales it by vuln).  No board cash.
+      s.currentActorId = 'joran'; s.currentTechElement = 'none';
+      try {
+        const low = aliveEnemies(s).slice().sort((a, b) => a.hp - b.hp)[0];
+        if (low) { s.ignoreArmor = true; applyDmgToEnemy(s, low, 20); s.ignoreArmor = false; }
+      } finally { s.currentActorId = null; s.currentTechElement = null; }
+    },
   },
   ash_unleash: {
     id: 'ash_unleash', name: 'Arc Cascade', tier: 'unleash', cost: 2,
-    desc: 'Ash · 7 arcane to ALL — DISCHARGE every vuln (spread) + vuln 1 all',
+    desc: 'Ash · 5 to ALL (no detonate) · vuln 3 + dulled 1 all — the board is hexed open for the team to cash',
     requires: [{ heroId: 'ash' }],
-    fn: (s) => { s.currentActorId = 'ash'; s.currentTechElement = 'arcane';
-      try { aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 7)); aliveEnemies(s).forEach(e => { if (!e.dead) e.vuln = (e.vuln || 0) + 1; }); }
-      finally { s.currentActorId = null; s.currentTechElement = null; } },
+    fn: (s) => {
+      // element 'none' — Ash the Controller does not burst; she drapes the whole
+      // field in heavy vuln + a dulled lock for allies to discharge.
+      s.currentActorId = 'ash'; s.currentTechElement = 'none';
+      try {
+        aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 5));
+        aliveEnemies(s).forEach(e => { if (!e.dead) { e.vuln = (e.vuln || 0) + 3; e.dulled = Math.max(e.dulled || 0, 1); } });
+      } finally { s.currentActorId = null; s.currentTechElement = null; }
+    },
   },
   lirien_unleash: {
     id: 'lirien_unleash', name: 'Requiem', tier: 'unleash', cost: 2,
-    desc: 'Lirien · 6 arcane to ALL — DISCHARGE every vuln + vuln 2 all',
+    desc: 'Lirien · 4 to ALL (no detonate) · vuln 3 all (marks the board) · party next hits +3 — the song sets the team up',
     requires: [{ heroId: 'lirien' }],
-    fn: (s) => { s.currentActorId = 'lirien'; s.currentTechElement = 'arcane';
-      try { aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 6)); aliveEnemies(s).forEach(e => { if (!e.dead) e.vuln = (e.vuln || 0) + 2; }); }
-      finally { s.currentActorId = null; s.currentTechElement = null; } },
+    fn: (s) => {
+      // element 'none' — the Songbinder does not cash; she opens the whole field
+      // (heavy vuln) and amplifies the party for the team cash to follow.
+      s.currentActorId = 'lirien'; s.currentTechElement = 'none';
+      try {
+        aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 4));
+        aliveEnemies(s).forEach(e => { if (!e.dead) e.vuln = (e.vuln || 0) + 3; });
+        aliveParty(s).forEach(c => c.pendingEffects.push({ kind: 'attackBonus', amt: 3, source: 'requiem' }));
+      } finally { s.currentActorId = null; s.currentTechElement = null; }
+    },
   },
   hask_unleash: {
     id: 'hask_unleash', name: 'Whiteout', tier: 'unleash', cost: 2,
-    desc: 'Hask · 7 arcane to ALL — DISCHARGE every vuln + dulled 1 all',
+    desc: 'Hask · 5 to ALL (no detonate) · strip all armor + dulled 3 all + vuln 2 all — the board is frozen open',
     requires: [{ heroId: 'hask' }],
-    fn: (s) => { s.currentActorId = 'hask'; s.currentTechElement = 'arcane';
-      try { aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 7)); aliveEnemies(s).forEach(e => { if (!e.dead) e.dulled = (e.dulled || 0) + 1; }); }
-      finally { s.currentActorId = null; s.currentTechElement = null; } },
+    fn: (s) => {
+      // element 'none' — the Controller freezes the whole field: armor stripped,
+      // heavy dulled + vuln applied for the team to discharge.  No auto-cash.
+      s.currentActorId = 'hask'; s.currentTechElement = 'none';
+      try {
+        aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 5));
+        aliveEnemies(s).forEach(e => { if (!e.dead) { e.armor = 0; e.dulled = Math.max(e.dulled || 0, 3); e.vuln = (e.vuln || 0) + 2; } });
+      } finally { s.currentActorId = null; s.currentTechElement = null; }
+    },
   },
   nira_unleash: {
     id: 'nira_unleash', name: 'Hexbloom', tier: 'unleash', cost: 2,
-    desc: 'Nira · 6 arcane to ALL — DISCHARGE every vuln (spread) + vuln 1 all',
+    desc: 'Nira · 4 to ALL (no detonate) · bleed 3 + dulled 2 + vuln 2 all — the whole board rots (Old Hex heals her)',
     requires: [{ heroId: 'nira' }],
-    fn: (s) => { s.currentActorId = 'nira'; s.currentTechElement = 'arcane';
-      try { aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 6)); aliveEnemies(s).forEach(e => { if (!e.dead) e.vuln = (e.vuln || 0) + 1; }); }
-      finally { s.currentActorId = null; s.currentTechElement = null; } },
+    fn: (s) => {
+      // element 'none' — the Old Hex blooms across the field, layering every DoT
+      // for the team to cash.  Old Hex sips HP per status applied.
+      s.currentActorId = 'nira'; s.currentTechElement = 'none';
+      try {
+        aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 4));
+        aliveEnemies(s).forEach(e => { if (!e.dead) { e.bleed = (e.bleed || 0) + 3; e.dulled = (e.dulled || 0) + 2; e.vuln = (e.vuln || 0) + 2; } });
+        _niraOldHexTick(s);
+      } finally { s.currentActorId = null; s.currentTechElement = null; }
+    },
   },
   mira_unleash: {
     id: 'mira_unleash', name: 'Shadefall', tier: 'unleash', cost: 2,
-    desc: 'Mira · 7 stealth to ALL — HEMORRHAGE every bleed + bleed 1 all',
+    desc: 'Mira · 5 to ALL (no detonate) · bleed 3 + dulled 2 all — a smoke-shrouded board snare',
     requires: [{ heroId: 'mira' }],
-    fn: (s) => { s.currentActorId = 'mira'; s.currentTechElement = 'stealth';
-      try { aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 7)); aliveEnemies(s).forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed || 0, 1); }); }
-      finally { s.currentActorId = null; s.currentTechElement = null; } },
+    fn: (s) => {
+      // element 'none' — the Trickster does not cash; she chokes the whole field
+      // in deep bleed + a blinding dulled snare for the team to hemorrhage.
+      s.currentActorId = 'mira'; s.currentTechElement = 'none';
+      try {
+        aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 5));
+        aliveEnemies(s).forEach(e => { if (!e.dead) { e.bleed = Math.max(e.bleed || 0, 3); e.dulled = Math.max(e.dulled || 0, 2); } });
+      } finally { s.currentActorId = null; s.currentTechElement = null; }
+    },
   },
   veyr_unleash: {
     id: 'veyr_unleash', name: 'Last Witness', tier: 'unleash', cost: 2,
-    desc: 'Veyr · 7 stealth to ALL — HEMORRHAGE every bleed + bleed 1 all',
+    desc: 'Veyr · sniper execute: 20 to the lowest enemy · ignore armor (no detonate) — sharpened +2 per fallen ally by Last Witness',
     requires: [{ heroId: 'veyr' }],
-    fn: (s) => { s.currentActorId = 'veyr'; s.currentTechElement = 'stealth';
-      try { aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 7)); aliveEnemies(s).forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed || 0, 1); }); }
-      finally { s.currentActorId = null; s.currentTechElement = null; } },
+    fn: (s) => {
+      // element 'none' + single-target — a focused armor-piercing kill-shot, the
+      // Sniper finisher.  Last Witness still adds its per-fallen-ally damage.
+      s.currentActorId = 'veyr'; s.currentTechElement = 'none';
+      try {
+        const low = aliveEnemies(s).slice().sort((a, b) => a.hp - b.hp)[0];
+        if (low) { s.ignoreArmor = true; applyDmgToEnemy(s, low, 20); s.ignoreArmor = false; }
+      } finally { s.currentActorId = null; s.currentTechElement = null; }
+    },
   },
   kiki_unleash: {
-    id: 'kiki_unleash', name: 'Knife Flurry', tier: 'unleash', cost: 2,
-    desc: 'Kiki · 6 stealth to ALL — HEMORRHAGE every bleed + bleed 1 all',
+    id: 'kiki_unleash', name: 'The Whole Pack', tier: 'unleash', cost: 2,
+    desc: 'Kiki · 4 to ALL (no detonate) · bleed 2 + dulled 2 all (worries the pack down) · party next hits +3',
     requires: [{ heroId: 'kiki' }],
-    fn: (s) => { s.currentActorId = 'kiki'; s.currentTechElement = 'stealth';
-      try { aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 6)); aliveEnemies(s).forEach(e => { if (!e.dead) e.bleed = Math.max(e.bleed || 0, 1); }); }
-      finally { s.currentActorId = null; s.currentTechElement = null; } },
+    fn: (s) => {
+      // element 'none' — Kiki calls the whole pack: the field is harried with
+      // bleed + dulled for the team to cash, and the party is rallied.  No burst.
+      s.currentActorId = 'kiki'; s.currentTechElement = 'none';
+      try {
+        aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 4));
+        aliveEnemies(s).forEach(e => { if (!e.dead) { e.bleed = Math.max(e.bleed || 0, 2); e.dulled = Math.max(e.dulled || 0, 2); } });
+        aliveParty(s).forEach(c => c.pendingEffects.push({ kind: 'attackBonus', amt: 3, source: 'whole-pack' }));
+      } finally { s.currentActorId = null; s.currentTechElement = null; }
+    },
   },
   vasha_unleash: {
     id: 'vasha_unleash', name: 'Dawnsong', tier: 'unleash', cost: 1,
-    desc: 'Vasha · 5 holy to ALL — SMITE every vuln (heal per hit) + heal party 6',
+    desc: 'Vasha · pure light (no damage): heal party 10 + cleanse all + party next hits +2',
     requires: [{ heroId: 'vasha' }],
-    fn: (s) => { s.currentActorId = 'vasha'; s.currentTechElement = 'holy';
-      try { aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 5)); partyHeal(s, 6); }
-      finally { s.currentActorId = null; s.currentTechElement = null; } },
+    fn: (s) => {
+      // No enemy damage — the Lightspeaker's mass restoration.  Heals, cleanses
+      // and blesses; never touches a primer.
+      partyHeal(s, 10);
+      aliveParty(s).forEach(c => { c.bleed = 0; c.dulled = 0; c.pendingEffects.push({ kind: 'attackBonus', amt: 2, source: 'dawnsong' }); });
+    },
   },
   kell_unleash: {
     id: 'kell_unleash', name: 'Hundred Palms', tier: 'unleash', cost: 2,
-    desc: 'Kell · 6 holy to ALL — SMITE every vuln (heal per hit) + heal party 4',
+    desc: 'Kell · open-hand flurry: 5 ×4 to the lowest enemy · ignore armor (no detonate) + heal party 4',
     requires: [{ heroId: 'kell' }],
-    fn: (s) => { s.currentActorId = 'kell'; s.currentTechElement = 'holy';
-      try { aliveEnemies(s).forEach(e => applyDmgToEnemy(s, e, 6)); partyHeal(s, 4); }
-      finally { s.currentActorId = null; s.currentTechElement = null; } },
+    fn: (s) => {
+      // element 'none' + single-target flurry — the Open Hand finisher, four
+      // armor-piercing palms on one foe, plus a party mend.  No board cash.
+      s.currentActorId = 'kell'; s.currentTechElement = 'none';
+      try {
+        const low = aliveEnemies(s).slice().sort((a, b) => a.hp - b.hp)[0];
+        if (low) { s.ignoreArmor = true; for (let i = 0; i < 4; i++) { if (low.dead) break; applyDmgToEnemy(s, low, 5); } s.ignoreArmor = false; }
+        partyHeal(s, 4);
+      } finally { s.currentActorId = null; s.currentTechElement = null; }
+    },
   },
   // ---- Duos ----
   banner_volley: {
