@@ -17385,6 +17385,12 @@ function checkEnd(s) {
     const completedEnc = s.run.currentEnc;
     const completedNode = s.run.currentNodeId ? getMapNode(s.run.currentNodeId) : null;
     s.run.lastVictoryElite = !!(completedNode && completedNode.type === 'elite');
+    // Elite clears pay a Kindling bonus on top of the per-kill trickle —
+    // elites are the optional high-risk nodes, so the detour should fund a
+    // fire / perk / camp upgrade noticeably faster than a regular fight.
+    // Scales a little with depth so late-run elites stay worth it.  (Goes
+    // through earnEmbers, so the ascension multiplier still applies.)
+    if (s.run.lastVictoryElite) earnEmbers(10 + (s.run.layer || 1) * 2, 'elite-clear');
     // Dev-tools playtest skips the map entirely, so completedNode is
     // null — but we still want the boss-kill cascade (defeat vignette,
     // spoils overlay, run summary) to fire for playtest verification.
@@ -22691,10 +22697,10 @@ function showCampsiteOverlay(node) {
 // REST overlay — heals the alive party for half their missing HP and returns
 // to the map.  No choice; tap Continue.
 // Cost to light an on-demand campfire — escalates each time one is lit this
-// run so a fire is a real Kindling decision, not a free spam.  Base 4, +3 per
-// prior fire (1st 4, 2nd 7, 3rd 10...).
+// run so a fire is a real Kindling decision, not a free spam.  Base 4, +2 per
+// prior fire (1st 4, 2nd 6, 3rd 8...).
 const CAMPFIRE_BASE_COST = 4;
-const CAMPFIRE_STEP_COST = 3;
+const CAMPFIRE_STEP_COST = 2;
 function campfireCost(s) {
   const lit = (s && s.run && s.run.firesLit) || 0;
   return CAMPFIRE_BASE_COST + lit * CAMPFIRE_STEP_COST;
