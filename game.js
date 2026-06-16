@@ -12324,6 +12324,11 @@ function startEncounter(encSpec) {
   });
   // Once-per-fight state flag (Garron Warden's Word)
   state._wardenSaveUsed = false;
+  // Reset the per-fight bond-accrual guard.  Bonds now deepen at most ONCE per
+  // pair per fight (see tickCamaraderie) so fight LENGTH no longer matters — a
+  // long boss accrues the same single tick a short skirmish does, instead of
+  // dumping a level-up barrage at the boss's end.
+  if (state.run) state.run._bondFightGain = {};
 
   // rebuild enemies fresh from the encounter spec
   state.enemies.slots = { ...encSpec.slots };
@@ -16640,6 +16645,11 @@ function tickCamaraderie(s, committedQueue) {
   });
   if (acted.size < 2) return;
   s.run.synergyCounts = s.run.synergyCounts || {};
+  // Per-fight accrual guard: a pair builds its bond at most ONCE per fight, no
+  // matter how many turns they co-act.  This decouples bond pacing from fight
+  // length so a 10-turn boss no longer floods the post-fight cascade with
+  // multiple level-ups; every encounter is worth a single, even step.
+  s.run._bondFightGain = s.run._bondFightGain || {};
   const actedList = [...acted].filter(id => {
     const c = s.party.chars[id];
     return c && !c.downed;
@@ -16653,6 +16663,9 @@ function tickCamaraderie(s, committedQueue) {
       // (Previously themed pairs were skipped here and accrued via their own
       // mid-combat hooks at a different rate; now everyone walks one ladder.)
       const bondName = bondNameForPair(a, b);
+      // Already credited this fight?  Skip — one step per pair per encounter.
+      if (s.run._bondFightGain[bondName]) continue;
+      s.run._bondFightGain[bondName] = true;
       const before = s.run.synergyCounts[bondName] || 0;
       const levelBefore = getBondLevel(s, bondName, before);
       s.run.synergyCounts[bondName] = before + 1;
@@ -25717,12 +25730,13 @@ function _playBondFlourish(heroes, level, onDone) {
     `</div>`;
   document.body.appendChild(el);
   try {
-    if (isClimax) { if (Audio && Audio.comboStinger) Audio.comboStinger('holy', true); if (Audio && Audio.comboImpact) setTimeout(() => Audio.comboImpact(), 480); }
+    if (isClimax) { if (Audio && Audio.comboStinger) Audio.comboStinger('holy', true); if (Audio && Audio.comboImpact) setTimeout(() => Audio.comboImpact(), 720); }
     else if (Audio && Audio.heal) Audio.heal();
   } catch (_) {}
   let finished = false;
-  const finish = () => { if (finished) return; finished = true; el.classList.add('bf-out'); setTimeout(() => { el.remove(); done(); }, 360); };
-  const timer = setTimeout(finish, isClimax ? 1900 : 1450);
+  const finish = () => { if (finished) return; finished = true; el.classList.add('bf-out'); setTimeout(() => { el.remove(); done(); }, 420); };
+  // Slower, weightier — let the convergence land and the title linger.
+  const timer = setTimeout(finish, isClimax ? 3300 : 2600);
   el.addEventListener('click', () => { clearTimeout(timer); finish(); });
 }
 
@@ -29553,7 +29567,7 @@ function showPasswordGate(onUnlock) {
 // never get stuck in a reload loop against a stale cached game.js.  A
 // sessionStorage guard caps it at one reload attempt per detected build as a
 // belt-and-suspenders.
-const APP_BUILD = 324;
+const APP_BUILD = 325;
 (function () {
   const RELOADED_KEY = 'kizuna.autoReloadedFor';
   let reloading = false;
