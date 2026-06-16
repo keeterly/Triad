@@ -20848,6 +20848,29 @@ function impactFeedback(side, id, tier, toHp, attackerId, attackerSide) {
 // tooltip with the node's details and SUPPRESSES the tap (so the player
 // doesn't accidentally commit while browsing the path).  A short tap
 // triggers onCommit() if the node is reachable.
+// Ghost-tap shield.  A touch (or mouse) tap fires pointerdown → pointerup →
+// click.  Map nodes COMMIT on pointerup and synchronously swap in a new overlay
+// (event / rest / camp / wanderer choices); the trailing synthetic click then
+// lands on whatever button now sits under that same point and fires it — so
+// tapping an event node would "just move to the next node" because a choice got
+// ghost-clicked.  Arming the shield on commit installs a one-shot, capture-phase
+// swallow of the next click within a short window, killing the passthrough
+// without affecting deliberate taps (which come after the player reads the
+// scene, well outside the window).
+let _ghostTapShieldUntil = 0;
+function armGhostTapShield(ms) { _ghostTapShieldUntil = Date.now() + (ms || 400); }
+(function installGhostTapShield() {
+  try {
+    document.addEventListener('click', (e) => {
+      if (_ghostTapShieldUntil && Date.now() < _ghostTapShieldUntil) {
+        _ghostTapShieldUntil = 0;   // consume a single ghost click
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    }, true);                       // capture phase — intercept before targets
+  } catch (_) {}
+})();
+
 function bindNodeHoldOrTap(el, node, onCommit) {
   const HOLD_MS = 350;
   let timer = null;
@@ -20866,6 +20889,9 @@ function bindNodeHoldOrTap(el, node, onCommit) {
   el.addEventListener('pointerup', (e) => {
     cancelTimer();
     if (triggered) { e.preventDefault(); e.stopPropagation(); return; }
+    // Committing here swaps in a new overlay; arm the shield so this tap's
+    // trailing synthetic click can't ghost-fire a freshly-rendered choice.
+    armGhostTapShield();
     if (typeof onCommit === 'function') onCommit();
   });
   el.addEventListener('pointerleave', () => { cancelTimer(); });
