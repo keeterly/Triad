@@ -25813,6 +25813,244 @@ const BOND_ARCS = {
       { who: 'tarn', text: 'Two stones. One wall. Go on, pup — I’ve got the holding.' },
     ],
   },
+  // Cassia (banner) + Kai (sword) — Sword and Banner.
+  'cassia+kai': {
+    1: [
+      { who: 'kai', text: 'You plant that banner like the whole line lives or dies by it.' },
+      { who: 'cassia', text: 'It does. You’re the sword. I’m what tells the sword where to swing.' },
+      { who: 'kai', text: 'Huh. And here I thought I was the important one.' },
+      { who: 'cassia', text: 'Swing well enough and I’ll let you keep thinking it.' },
+    ],
+    2: [
+      { who: 'cassia', text: 'You held the breach alone so I could rally them. That was reckless.' },
+      { who: 'kai', text: 'You needed ten seconds. I bought you twelve.' },
+      { who: 'cassia', text: '…You counted.' },
+      { who: 'kai', text: 'I always count, when it’s your line.' },
+    ],
+    3: [
+      { who: null, text: 'Sword and banner — one advances, the other never falls. Where Cassia stands, Kai cuts the road open; where Kai bleeds, the banner does not waver.' },
+      { who: 'cassia', text: 'Raise the banner, Kai. They need to see it still flies.' },
+      { who: 'kai', text: 'Then keep it up where I can see it. I fight better with you at my back.' },
+    ],
+  },
+  // Elin (mercy) + Kai (blade) — First Mercy.
+  'elin+kai': {
+    1: [
+      { who: 'kai', text: 'You patched me up before I even hit the ground. How?' },
+      { who: 'elin', text: 'You always fall the same way. I just get there first.' },
+      { who: 'kai', text: '…That’s either very sweet or a little insulting.' },
+      { who: 'elin', text: 'It can be both.' },
+    ],
+    2: [
+      { who: 'elin', text: 'Stop throwing yourself in front of the others. I can’t mend everyone at once.' },
+      { who: 'kai', text: 'Then mend me last. I’ll keep till you’re done.' },
+      { who: 'elin', text: 'Kai—' },
+      { who: 'kai', text: 'I trust your hands more than my own guard. That’s not nothing.' },
+    ],
+    3: [
+      { who: null, text: 'The first mercy is the one that keeps the reckless alive long enough to learn. Elin has stopped scolding; she simply stays one step behind his charge.' },
+      { who: 'elin', text: 'Go. I’m already where you’ll fall.' },
+      { who: 'kai', text: 'I know. That’s why I can swing like I mean it.' },
+    ],
+  },
+  // Branwen (hunter) + Kai (blade) — Long Hunt.
+  'branwen+kai': {
+    1: [
+      { who: 'branwen', text: 'You charge. I cover. Crude, but the beast went down.' },
+      { who: 'kai', text: 'Crude wins fights. You should try it.' },
+      { who: 'branwen', text: 'I’ve put down more than you’ve ever swung at, swordsman. From a hundred paces.' },
+      { who: 'kai', text: '…Fine. You cover. I’ll charge. Truce?' },
+    ],
+    2: [
+      { who: 'kai', text: 'You called the kill before I closed the distance.' },
+      { who: 'branwen', text: 'I read tracks. You’re easy to read — you always go for the throat.' },
+      { who: 'kai', text: 'And you always loose half a breath before I get there.' },
+      { who: 'branwen', text: 'Long hunts teach patience. Even with you.' },
+    ],
+    3: [
+      { who: null, text: 'Arrow and blade run the same trail now — she drives the quarry, he ends it, and neither looks back to know the other is there.' },
+      { who: 'branwen', text: 'Flush them toward you?' },
+      { who: 'kai', text: 'Always. I’ll be where the trail ends.' },
+    ],
+  },
+  // Kai (edge) + Korin (guard) — Same Edge.
+  'kai+korin': {
+    1: [
+      { who: 'kai', text: 'You don’t say much, do you?' },
+      { who: 'korin', text: 'Shield doesn’t talk. Shield holds.' },
+      { who: 'kai', text: 'Then hold. I’ll do the talking and the swinging both.' },
+      { who: 'korin', text: '…Swing. I’ve got the rest.' },
+    ],
+    2: [
+      { who: 'korin', text: 'You stepped behind my shield without looking. You knew it’d be there.' },
+      { who: 'kai', text: 'It’s always there. You’re the one steady thing in this whole nightmare.' },
+      { who: 'korin', text: '…Steady. Yes.' },
+      { who: 'kai', text: 'Don’t get shy on me now, big man.' },
+    ],
+    3: [
+      { who: null, text: 'Edge and guard, one stance — Korin sets, Kai strikes from behind the wall, and the two move like a single armored thing.' },
+      { who: 'kai', text: 'Same edge?' },
+      { who: 'korin', text: 'Same edge. Go. I hold.' },
+    ],
+  },
+  // Ash (spark) + Kai (steel) — Steel and Spark.
+  'ash+kai': {
+    1: [
+      { who: 'kai', text: 'Your fire lit up right as I swung. Lucky timing.' },
+      { who: 'ash', text: '…Not luck. I watch your shoulders. They tell me when.' },
+      { who: 'kai', text: 'You watch my shoulders? Should I be flattered?' },
+      { who: 'ash', text: 'You should be on time. The spark won’t wait.' },
+    ],
+    2: [
+      { who: 'ash', text: 'Steel carries the spark farther. Your blade, my fire — it reaches now.' },
+      { who: 'kai', text: 'So I’m your delivery boy.' },
+      { who: 'ash', text: 'You’re the edge it rides. There’s a difference.' },
+      { who: 'kai', text: '…Yeah. I’ll take that one.' },
+    ],
+    3: [
+      { who: null, text: 'Steel and spark — one strike, two elements. Kai’s blade hums with Ash’s fire, and the dark gives way to both at once.' },
+      { who: 'ash', text: 'On your shoulders, then.' },
+      { who: 'kai', text: 'Light me up. Let’s burn a road through.' },
+    ],
+  },
+  // Branwen (hunter) + Cassia (commander) — Old Rivalry (friction → respect).
+  'branwen+cassia': {
+    1: [
+      { who: 'cassia', text: 'I gave an order back there. You ignored it.' },
+      { who: 'branwen', text: 'Your order would’ve gotten the flank killed. Mine didn’t.' },
+      { who: 'cassia', text: '…This time.' },
+      { who: 'branwen', text: 'Every time. But I’ll hear you out. Once.' },
+    ],
+    2: [
+      { who: 'branwen', text: 'You held the line when I expected you to break. I’ll admit that much.' },
+      { who: 'cassia', text: 'And you hit what I couldn’t reach. We’re still not friends, hunter.' },
+      { who: 'branwen', text: 'No. But I’d rather argue with you alive than agree with you dead.' },
+      { who: 'cassia', text: '…That’s the closest thing to a compliment you’ve got, isn’t it.' },
+    ],
+    3: [
+      { who: null, text: 'Old rivals stop fighting each other and start finishing each other’s sentences. The argument never ends — it just got faster, and deadlier.' },
+      { who: 'cassia', text: 'Left flank’s yours. Don’t make me say it twice.' },
+      { who: 'branwen', text: 'You won’t have to. I was already moving. Hold your line, Commander — I’ll hold mine.' },
+    ],
+  },
+  // Cassia (banner) + Mira (blade) — Hollow Vow (friction → grim trust).
+  'cassia+mira': {
+    1: [
+      { who: 'mira', text: 'You fight for a banner. I fight because I’m good at it. Don’t expect me to salute.' },
+      { who: 'cassia', text: 'I expect you to be where I need you. Salute or not.' },
+      { who: 'mira', text: '…That, I can do.' },
+    ],
+    2: [
+      { who: 'cassia', text: 'You took the killing blow meant for me. Why?' },
+      { who: 'mira', text: 'Don’t read into it. A dead commander is a lost fight. Strategy.' },
+      { who: 'cassia', text: 'Of course. Strategy.' },
+      { who: 'mira', text: '…Don’t make me regret it, Cassia.' },
+    ],
+    3: [
+      { who: null, text: 'A vow neither of them would say aloud holds firmer than any oath sworn at an altar. They do not trust easily — but they trust each other completely.' },
+      { who: 'mira', text: 'Still no salute.' },
+      { who: 'cassia', text: 'I never needed one. Just stand where you stand. That’s vow enough.' },
+    ],
+  },
+  // Korin (shield) + Mira (blade) — Crossed Oaths.
+  'korin+mira': {
+    1: [
+      { who: 'mira', text: 'You don’t flinch. Most people flinch when I get close.' },
+      { who: 'korin', text: '…Why would I flinch.' },
+      { who: 'mira', text: 'Hm. Good. Hold the line. I’ll clear what gets through.' },
+      { who: 'korin', text: 'Done.' },
+    ],
+    2: [
+      { who: 'korin', text: 'You killed three before they reached my shield.' },
+      { who: 'mira', text: 'You only had to hold against the ones I missed. You held.' },
+      { who: 'korin', text: 'Always will.' },
+      { who: 'mira', text: '…I know. That’s new, for me — knowing.' },
+    ],
+    3: [
+      { who: null, text: 'Two oaths cross and lock: the shield that will not fall, the blade that will not miss. Between them, nothing lives long enough to test which is stronger.' },
+      { who: 'mira', text: 'Hold.' },
+      { who: 'korin', text: 'Strike. I’ve got the wall.' },
+    ],
+  },
+  // Branwen (hunter) + Mira (assassin) — Sisters of Shadow.
+  'branwen+mira': {
+    1: [
+      { who: 'mira', text: 'You hunt loud. I hunt quiet. Strange that it works.' },
+      { who: 'branwen', text: 'Loud drives them. Quiet finishes them. Same trade, different ends.' },
+      { who: 'mira', text: '…Sisters of a sort, then.' },
+      { who: 'branwen', text: 'Don’t push it.' },
+    ],
+    2: [
+      { who: 'branwen', text: 'You vanished and the target just… fell. I didn’t even hear you.' },
+      { who: 'mira', text: 'You’re not supposed to. But you flushed it into my path. Clean.' },
+      { who: 'branwen', text: 'We don’t need words for this anymore, do we.' },
+      { who: 'mira', text: 'No. Just the kill, and who takes it.' },
+    ],
+    3: [
+      { who: null, text: 'Two shadows, one hunt. One drives, one ends — and the prey never knows there were two of them until it’s already over.' },
+      { who: 'branwen', text: 'I’ll make the noise.' },
+      { who: 'mira', text: 'And I’ll make the silence after. Go, sister.' },
+    ],
+  },
+  // Mira (blade) + Veyr (shadow) — Shadowtwin.
+  'mira+veyr': {
+    1: [
+      { who: 'veyr', text: 'You move like me. I don’t like seeing myself in someone else.' },
+      { who: 'mira', text: 'Then close your eyes. I’ll still be there when the killing’s done.' },
+      { who: 'veyr', text: '…Hm. At least you’re honest about it.' },
+    ],
+    2: [
+      { who: 'mira', text: 'You covered my blind side. I didn’t ask you to.' },
+      { who: 'veyr', text: 'Shadows cover each other. It’s the only loyalty I trust.' },
+      { who: 'mira', text: '…Then trust this: I’ll cover yours back.' },
+      { who: 'veyr', text: 'We’ll see.' },
+    ],
+    3: [
+      { who: null, text: 'Twin shadows, indistinguishable in the dark — where one steps out, the other steps in, and the enemy never strikes the same place twice.' },
+      { who: 'veyr', text: 'I used to work alone.' },
+      { who: 'mira', text: 'So did I. Funny how the dark feels less like a grave with two in it.' },
+    ],
+  },
+  // Cassia (shield-line) + Elin (mercy) — Veiled Vow.
+  'cassia+elin': {
+    1: [
+      { who: 'elin', text: 'You take every hit so the others don’t have to. Who takes yours?' },
+      { who: 'cassia', text: 'No one needs to. I hold.' },
+      { who: 'elin', text: '…Then I’ll be the one who does. Quietly.' },
+      { who: 'cassia', text: 'I won’t stop you.' },
+    ],
+    2: [
+      { who: 'cassia', text: 'You’ve been mending me before I even feel the wound.' },
+      { who: 'elin', text: 'Someone has to watch the one who watches everyone else.' },
+      { who: 'cassia', text: '…I’m not used to that.' },
+      { who: 'elin', text: 'Get used to it. I’m not going anywhere.' },
+    ],
+    3: [
+      { who: null, text: 'A vow kept beneath the noise of battle: the shield that guards the line, and the light that guards the shield. Neither speaks of it. Both depend on it.' },
+      { who: 'cassia', text: 'Hold the back. I’ll hold the front.' },
+      { who: 'elin', text: 'Always. Fall, and I’ll already be there to lift you.' },
+    ],
+  },
+  // Branwen (hunter) + Elin (mercy) — Spirit Arrow.
+  'branwen+elin': {
+    1: [
+      { who: 'branwen', text: 'You blessed my arrow before I loosed. It struck true through the fog.' },
+      { who: 'elin', text: 'Your aim was already true. I only gave it somewhere kind to land.' },
+      { who: 'branwen', text: '…Kind. Strange word for an arrow.' },
+      { who: 'elin', text: 'Strange company, you and I. It suits us.' },
+    ],
+    2: [
+      { who: 'elin', text: 'You waited until I’d healed her before you took the shot. You had the window early.' },
+      { who: 'branwen', text: 'The shot keeps. A life doesn’t. I learned that watching you.' },
+      { who: 'elin', text: '…You’ve gone soft, hunter.' },
+      { who: 'branwen', text: 'I’ve gone careful. There’s a difference. You taught me which.' },
+    ],
+    3: [
+      { who: null, text: 'Light rides the arrow now — every shot Branwen looses carries a little of Elin’s mercy, striking down what must fall and sparing what can still be saved.' },
+      { who: 'branwen', text: 'Bless the shot?' },
+      { who: 'elin', text: 'Already done. Loose, and let it carry us both.' },
+    ],
+  },
 };
 
 // Resolve the authored confidant beats for a PAIR at a given rank, or null if
@@ -29733,7 +29971,7 @@ function showPasswordGate(onUnlock) {
 // never get stuck in a reload loop against a stale cached game.js.  A
 // sessionStorage guard caps it at one reload attempt per detected build as a
 // belt-and-suspenders.
-const APP_BUILD = 326;
+const APP_BUILD = 327;
 (function () {
   const RELOADED_KEY = 'kizuna.autoReloadedFor';
   let reloading = false;
