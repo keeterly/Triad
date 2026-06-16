@@ -26051,6 +26051,286 @@ const BOND_ARCS = {
       { who: 'elin', text: 'Already done. Loose, and let it carry us both.' },
     ],
   },
+  // Branwen (hunter) + Korin (wall) — Wild Hunt.
+  'branwen+korin': {
+    1: [
+      { who: 'branwen', text: 'You’re too slow for a hunt, shield.' },
+      { who: 'korin', text: 'Then I’ll be where the hunt comes back to. Drive them to me.' },
+      { who: 'branwen', text: '…Huh. A wall to break them on. That could work.' },
+      { who: 'korin', text: 'It will. Run them down. I don’t move.' },
+    ],
+    2: [
+      { who: 'branwen', text: 'They scattered when they hit your shield. Right into my arrows.' },
+      { who: 'korin', text: 'That’s the idea. I’m the rock. You’re the river.' },
+      { who: 'branwen', text: 'Didn’t take you for a poet, Korin.' },
+      { who: 'korin', text: '…I’m not. Just hold the line and loose.' },
+    ],
+    3: [
+      { who: null, text: 'The wild hunt has an anvil now — Branwen drives the quarry howling into Korin’s wall, and what the shield stops, the arrow finishes.' },
+      { who: 'branwen', text: 'Driving them in!' },
+      { who: 'korin', text: 'Let them come. Nothing gets past. Take your shots.' },
+    ],
+  },
+  // Ash (flame) + Elin (mercy) — Veiled Flame.
+  'ash+elin': {
+    1: [
+      { who: 'elin', text: 'Your fire could burn the wounded as easily as the enemy. Be careful near them.' },
+      { who: 'ash', text: '…I know where the line is. The flame only goes where I send it.' },
+      { who: 'elin', text: 'Then send it true. I’ll mend whatever you spare.' },
+      { who: 'ash', text: 'Veiled, then. Fire that knows mercy.' },
+    ],
+    2: [
+      { who: 'ash', text: 'You stood in my fire to reach her. You trusted it not to take you.' },
+      { who: 'elin', text: 'I trusted you. The fire only does what you ask.' },
+      { who: 'ash', text: '…No one’s said that to me before.' },
+      { who: 'elin', text: 'Then it was past time someone did.' },
+    ],
+    3: [
+      { who: null, text: 'A veiled flame — warmth that heals as much as it harms. Ash burns the road clear; Elin walks it behind him, and the fire bends away from her like it knows her name.' },
+      { who: 'ash', text: 'Walk close. The flame won’t touch you.' },
+      { who: 'elin', text: 'I never doubted it. Light the way, Ash. I’m right behind.' },
+    ],
+  },
+  // Ash (spark) + Branwen (hunter) — Tangled Sight.
+  'ash+branwen': {
+    1: [
+      { who: 'branwen', text: 'Your fire ruins my night-eyes. I can’t track in the glare.' },
+      { who: 'ash', text: 'And the dark ruins my aim. So — you point, I light. Trade?' },
+      { who: 'branwen', text: '…Light where I point. Only there.' },
+      { who: 'ash', text: 'Only there. The spark listens.' },
+    ],
+    2: [
+      { who: 'ash', text: 'You loosed into the dark and hit it dead center. How?' },
+      { who: 'branwen', text: 'You lit it half a breath before. I just trusted the flash.' },
+      { who: 'ash', text: 'Our sight’s gotten tangled. I see where you aim now.' },
+      { who: 'branwen', text: 'And I shoot where you’ll light. Don’t lose the rhythm.' },
+    ],
+    3: [
+      { who: null, text: 'Two kinds of seeing braided into one — Branwen’s tracking eye and Ash’s sudden flame. Between them, nothing stays hidden in the dark for long.' },
+      { who: 'branwen', text: 'Light it.' },
+      { who: 'ash', text: 'Lit. Take the shot — I’ll show you exactly where it hides.' },
+    ],
+  },
+  // Hask (frost) + Veyr (shadow) — Frozen Witness.
+  'hask+veyr': {
+    1: [
+      { who: 'veyr', text: 'You don’t talk either. Good. The cold doesn’t need narrating.' },
+      { who: 'hask', text: '…Frost and dark. We’re the quiet end of every fight.' },
+      { who: 'veyr', text: 'The end no one sees coming. I can work with that.' },
+      { who: 'hask', text: 'Then watch. And freeze what I tell you to.' },
+    ],
+    2: [
+      { who: 'hask', text: 'You held them still in the shadow. My frost did the rest.' },
+      { who: 'veyr', text: 'They couldn’t run from what they couldn’t see. You finished it.' },
+      { who: 'hask', text: '…We don’t leave survivors. Witnesses talk.' },
+      { who: 'veyr', text: 'Then we’ll be the only two who remember. Fine by me.' },
+    ],
+    3: [
+      { who: null, text: 'A frozen witness leaves nothing behind — Veyr swallows them in shadow, Hask seals them in ice, and the silence afterward is total.' },
+      { who: 'veyr', text: 'No one walks away from us.' },
+      { who: 'hask', text: 'No one even sees us. Stay close to the cold, Veyr. It’s the only warm thing I’ve got.' },
+    ],
+  },
+  // Branwen (hunter) + Veyr (shadow) — Silent Volley.
+  'branwen+veyr': {
+    1: [
+      { who: 'veyr', text: 'You’re loud for a hunter.' },
+      { who: 'branwen', text: 'And you’re quiet for a person. We balance out.' },
+      { who: 'veyr', text: '…Loose when I move. They’ll never hear either of us.' },
+      { who: 'branwen', text: 'A silent volley. I like the sound of it. Or the lack of it.' },
+    ],
+    2: [
+      { who: 'branwen', text: 'Three arrows, no sound, no warning. You masked them all.' },
+      { who: 'veyr', text: 'Shadow eats noise. Your shots just… arrive.' },
+      { who: 'branwen', text: 'We’ve stopped needing to signal. I loose, you’ve already hidden it.' },
+      { who: 'veyr', text: 'That’s trust. Don’t waste it.' },
+    ],
+    3: [
+      { who: null, text: 'A volley with no sound — Veyr drinks the noise, Branwen fills the dark with arrows, and the enemy falls without ever knowing a fight had begun.' },
+      { who: 'branwen', text: 'Mask the loose.' },
+      { who: 'veyr', text: 'Already done. Empty your quiver. They’ll never hear the end coming.' },
+    ],
+  },
+  // Cassia (guard) + Kell (open hand) — Open Strike.
+  'cassia+kell': {
+    1: [
+      { who: 'kell', text: 'You armor yourself head to toe. I fight with open hands. We shouldn’t agree on anything.' },
+      { who: 'cassia', text: 'And yet you hit harder than men twice your size. Why?' },
+      { who: 'kell', text: 'Because nothing’s in the way. Not even fear. Try it sometime, Commander.' },
+      { who: 'cassia', text: '…I’ll keep the armor. But I’ll keep you closer.' },
+    ],
+    2: [
+      { who: 'cassia', text: 'You struck the opening the moment my shield made it. No hesitation.' },
+      { who: 'kell', text: 'An open hand needs an open door. You make the doors. I walk through.' },
+      { who: 'cassia', text: 'We’ve started thinking with one mind.' },
+      { who: 'kell', text: 'Empty minds, open hands. It’s quieter in here than you’d think.' },
+    ],
+    3: [
+      { who: null, text: 'Guard and open strike — Cassia’s wall makes the opening, Kell’s bare hand drives through it, and the gap closes before the enemy understands it was there.' },
+      { who: 'cassia', text: 'Opening — now.' },
+      { who: 'kell', text: 'Through it. Empty hands, one purpose. Hold the door, Cassia. I’ll do the rest.' },
+    ],
+  },
+  // Elin (mercy) + Kell (open hand) — Sister Hand.
+  'elin+kell': {
+    1: [
+      { who: 'elin', text: 'You mend with the same hands you fight with. Doesn’t that… blur?' },
+      { who: 'kell', text: 'Healing and striking are the same motion. Both close a distance. You know that better than anyone.' },
+      { who: 'elin', text: '…I’d never thought of it that way.' },
+      { who: 'kell', text: 'We think alike, sister. We just use different words for it.' },
+    ],
+    2: [
+      { who: 'kell', text: 'You caught the one I couldn’t reach. Pulled them back from the edge.' },
+      { who: 'elin', text: 'And you cleared the path so I could. We share the work without asking now.' },
+      { who: 'kell', text: 'Two hands of the same mercy. One mends, one shields the mending.' },
+      { who: 'elin', text: 'Sister hand. Yes. That’s exactly it.' },
+    ],
+    3: [
+      { who: null, text: 'One mercy, two hands — Elin mends what Kell guards, Kell guards what Elin mends, and between them no one falls who can still be saved.' },
+      { who: 'elin', text: 'I’ll hold them together.' },
+      { who: 'kell', text: 'And I’ll hold the room. Go, sister — we’ve got more to carry out of the dark.' },
+    ],
+  },
+  // Ash (flame) + Nira (rot) — Hex Compact.
+  'ash+nira': {
+    1: [
+      { who: 'nira', text: 'Your fire’s clean. Mine rots. Together we’d leave nothing standing.' },
+      { who: 'ash', text: '…That’s not a comfort, Nira.' },
+      { who: 'nira', text: 'It wasn’t meant to be one. It was meant to be a bargain. Burn what I curse?' },
+      { who: 'ash', text: '…A compact, then. Fine. Point me at the rot.' },
+    ],
+    2: [
+      { who: 'ash', text: 'Your hex spread through everything my fire touched. It… multiplied.' },
+      { who: 'nira', text: 'Rot loves heat. You feed it, it feeds you. That’s the compact working.' },
+      { who: 'ash', text: 'I don’t love how good we are at this.' },
+      { who: 'nira', text: 'Neither do I. But I love that it’s you, and not someone I’d have to fear.' },
+    ],
+    3: [
+      { who: null, text: 'A hex compact, sealed in fire and rot — what Ash burns, Nira curses; what Nira curses spreads where Ash burns. Whole fronts wither and ignite as one.' },
+      { who: 'nira', text: 'Curse laid.' },
+      { who: 'ash', text: 'Then it burns. Stay at my shoulder, witch — I’d rather your rot at my back than anywhere I can’t see it.' },
+    ],
+  },
+  // Kai (blade) + Nira (hex) — Bound Edge.
+  'kai+nira': {
+    1: [
+      { who: 'nira', text: 'Let me lay a curse on your blade, swordsman.' },
+      { who: 'kai', text: 'You want to put your creepy rot magic on my sword.' },
+      { who: 'nira', text: 'I want your sword to kill twice as much with half the effort. Squeamish?' },
+      { who: 'kai', text: '…Hand it over. But if my arm falls off, I’m blaming you.' },
+    ],
+    2: [
+      { who: 'kai', text: 'Everything I cut just… keeps dying. After I’ve moved on.' },
+      { who: 'nira', text: 'That’s the bound edge. You open the wound. My hex finishes the argument.' },
+      { who: 'kai', text: 'Remind me never to make you angry.' },
+      { who: 'nira', text: 'Stay on my side and you won’t have to. I rather like you whole, Kai.' },
+    ],
+    3: [
+      { who: null, text: 'A bound edge — Kai’s blade carries Nira’s curse into every wound, and what he cuts withers long after the swing. Steel and hex, one killing stroke.' },
+      { who: 'kai', text: 'Curse it up.' },
+      { who: 'nira', text: 'Bound. Now go be reckless — for once it suits the magic perfectly.' },
+    ],
+  },
+  // Joran (marksman) + Lirien (song) — Spotter.
+  'joran+lirien': {
+    1: [
+      { who: 'lirien', text: 'I’ll mark the rhythm of their movements. Loose on the beat I give you.' },
+      { who: 'joran', text: 'I don’t shoot to music, bard.' },
+      { who: 'lirien', text: 'You do now. Just listen. …There. Did you feel that opening?' },
+      { who: 'joran', text: '…I did. Huh. One sight, one song. We’ll try it your way.' },
+    ],
+    2: [
+      { who: 'joran', text: 'Your tune lines up with their breathing. The shot just… appears.' },
+      { who: 'lirien', text: 'Every army has a rhythm. I only sing it back to you. You’re the one who hits it.' },
+      { who: 'joran', text: 'Spotter and shot. Keep calling them. I’ll keep landing them.' },
+      { who: 'lirien', text: 'Then we’ll never miss a beat. Or a target.' },
+    ],
+    3: [
+      { who: null, text: 'A song that aims — Lirien reads the field’s rhythm, Joran looses on the downbeat, and every arrow lands exactly where the music said it would.' },
+      { who: 'lirien', text: 'On my mark…' },
+      { who: 'joran', text: 'Sing it. One sight, one shot, one song. Don’t stop playing — I won’t stop hitting.' },
+    ],
+  },
+  // Kai (blade) + Tarn (hammer) — Forge Brother.
+  'kai+tarn': {
+    1: [
+      { who: 'kai', text: 'You carry that hammer like it weighs nothing.' },
+      { who: 'tarn', text: 'It weighs everything. I just don’t let it show. You swing too light, boy.' },
+      { who: 'kai', text: 'Light and fast wins fights, old man.' },
+      { who: 'tarn', text: '…Heavy and sure ends them. Stand behind me. You’ll learn.' },
+    ],
+    2: [
+      { who: 'tarn', text: 'You took the hit so I could wind up. That’s not the reckless boy I met.' },
+      { who: 'kai', text: 'I’m learning heavy and sure. Slowly.' },
+      { who: 'tarn', text: '…Forge brother. That’s what we called the one who stood the anvil with you.' },
+      { who: 'kai', text: 'Then I’ll stand it. You bring the hammer, I’ll bring the edge.' },
+    ],
+    3: [
+      { who: null, text: 'Hammer and blade at the same forge — Tarn breaks them down, Kai cuts them apart, and the two old metals ring as one when they land.' },
+      { who: 'kai', text: 'Wind it up, brother.' },
+      { who: 'tarn', text: 'Already swinging. Get clear, then get in — we’ll finish this on the anvil together.' },
+    ],
+  },
+  // Elin (mercy) + Tarn (stone) — Mended Stone.
+  'elin+tarn': {
+    1: [
+      { who: 'elin', text: 'You’re hurt. You’ve been hurt a while, and you said nothing.' },
+      { who: 'tarn', text: 'Stone cracks quiet. No sense making noise about it.' },
+      { who: 'elin', text: 'Make noise. I can’t mend what I can’t hear breaking.' },
+      { who: 'tarn', text: '…Then I’ll let you listen. Just this once.' },
+    ],
+    2: [
+      { who: 'elin', text: 'Every fight you put yourself between them and us. Every fight I patch the cracks.' },
+      { who: 'tarn', text: 'And every fight the wall holds one more day because of you. Fair trade.' },
+      { who: 'elin', text: 'It’s not a trade, Tarn. It’s care. Let it be that.' },
+      { who: 'tarn', text: '…Mended stone. Stronger at the seam, they say. Maybe it’s true.' },
+    ],
+    3: [
+      { who: null, text: 'A wall that mends as it holds — Tarn bears the weight, Elin seals the cracks, and the old stone stands long past where it should have crumbled.' },
+      { who: 'tarn', text: 'I can hold a while longer.' },
+      { who: 'elin', text: 'I know. And I’ll be right here at the seam. Hold, Tarn — I’ve got the mending.' },
+    ],
+  },
+  // Elin (mercy) + Kiki (pup) — Faithful Heart.
+  'elin+kiki': {
+    1: [
+      { who: 'kiki', text: 'You smell like clean bandages and kindness! I like you!' },
+      { who: 'elin', text: '…Thank you? You’re very fast. And very loud.' },
+      { who: 'kiki', text: 'I run ahead and you patch me up after! It’s the BEST system!' },
+      { who: 'elin', text: 'It is not a system, Kiki. But… I’ll keep up. Try not to bite anything cursed.' },
+    ],
+    2: [
+      { who: 'elin', text: 'You came back hurt again. You always come back hurt.' },
+      { who: 'kiki', text: 'But I always come BACK! Because you’re here! That’s the deal, right?' },
+      { who: 'elin', text: '…Yes. That’s the deal. I’ll always be here. Stop scaring me.' },
+      { who: 'kiki', text: 'Aww. Faithful heart! That’s us!' },
+    ],
+    3: [
+      { who: null, text: 'A faithful heart runs ahead and a faithful heart waits to mend it — Kiki charges without fear because Elin is always, always behind her.' },
+      { who: 'kiki', text: 'I’ll go first!' },
+      { who: 'elin', text: 'Go. I’m already where you’ll land. Run, Kiki — I’ve got you. I always have you.' },
+    ],
+  },
+  // Kiki (pup) + Mira (assassin) — Pack Hunt.
+  'kiki+mira': {
+    1: [
+      { who: 'kiki', text: 'You’re scary! But you smell like a hunter, so we’re basically pack!' },
+      { who: 'mira', text: 'We are not pack.' },
+      { who: 'kiki', text: 'We hunt the same things! That’s pack! I drive, you pounce — see?!' },
+      { who: 'mira', text: '…Drive them to me, then. Don’t get in my way.' },
+    ],
+    2: [
+      { who: 'mira', text: 'You flushed it straight into my blade. Again.' },
+      { who: 'kiki', text: 'Because I KNOW where you’ll be now! Pack just knows!' },
+      { who: 'mira', text: '…You’re not wrong. I’ve stopped having to look for you.' },
+      { who: 'kiki', text: 'PACK! I knew it! Don’t fight it, Mira!' },
+    ],
+    3: [
+      { who: null, text: 'Loud and silent, the strangest pack — Kiki bays them into the open, Mira ends them in the quiet, and the two halves hunt as one creature with two sets of teeth.' },
+      { who: 'kiki', text: 'Driving them in!' },
+      { who: 'mira', text: '…Good girl. Go. I’ll take the throat — keep them running to me, packmate.' },
+    ],
+  },
 };
 
 // Resolve the authored confidant beats for a PAIR at a given rank, or null if
@@ -29971,7 +30251,7 @@ function showPasswordGate(onUnlock) {
 // never get stuck in a reload loop against a stale cached game.js.  A
 // sessionStorage guard caps it at one reload attempt per detected build as a
 // belt-and-suspenders.
-const APP_BUILD = 327;
+const APP_BUILD = 328;
 (function () {
   const RELOADED_KEY = 'kizuna.autoReloadedFor';
   let reloading = false;
