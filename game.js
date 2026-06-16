@@ -22664,6 +22664,7 @@ function showVignette(v, ctx, done) {
   // Dialogue rail
   const dlg = document.createElement('div');
   dlg.className = 'vn-dialogue';
+  const rowEls = [];
   visibleLines.forEach(line => {
     let whoId = resolveWho(line.who);
     if (whoId && !isOnStage(whoId) && line.altWho && isOnStage(line.altWho)) whoId = line.altWho;
@@ -22682,6 +22683,7 @@ function showVignette(v, ctx, done) {
       row.innerHTML = `<span class="vn-text">${line.text}</span>`;
     }
     dlg.appendChild(row);
+    rowEls.push(row);
   });
   stage.appendChild(dlg);
 
@@ -22700,35 +22702,69 @@ function showVignette(v, ctx, done) {
   stage.appendChild(portraitRow);
 
   bodyEl.appendChild(stage);
-  // Scroll the dialogue rail so the most recent line is fully visible.
-  // Without this, long bubbles can render with their top edge clipped
-  // above the rail when total content height exceeds the stage.
-  requestAnimationFrame(() => { dlg.scrollTop = dlg.scrollHeight; });
 
-  // Choices — slim, single row of text-link buttons.  Each is one chip:
-  // an action label with a small tag chip.
-  choicesEl.innerHTML = '';
-  choicesEl.classList.remove('path-map', 'party-inspect', 'event-choices');
-  choicesEl.classList.add('vignette-choices');
-  v.choices.forEach(ch => {
-    const card = document.createElement('button');
-    card.className = 'vignette-choice';
-    card.innerHTML = `
-      <span class="vc-label">${ch.label}</span>
-      ${ch.tag ? `<span class="vc-tag">${ch.tag}</span>` : ''}
-    `;
-    bindTapAsPointer(card, () => {
-      ch.resolve(state);
-      if (v.oneShot) markVignetteFired(v.id);
-      hideOverlay();
-      bodyEl.classList.remove('vignette-body');
-      choicesEl.classList.remove('vignette-choices');
-      if (typeof done === 'function') done();
+  // Sequential (cutscene) reveal — vignettes that set v.sequential play their
+  // dialogue ONE beat at a time (tap to advance) so they read as a real
+  // progression, instead of dumping the whole rail at once and auto-scrolling
+  // past the opening lines.  The choices appear only after the final beat.
+  const sequential = !!v.sequential && rowEls.length > 1;
+
+  // Choices — slim, single row of text-link buttons.  Built lazily so a
+  // sequential scene can withhold them until the conversation finishes.
+  const renderChoices = () => {
+    choicesEl.innerHTML = '';
+    choicesEl.classList.remove('path-map', 'party-inspect', 'event-choices', 'hidden');
+    choicesEl.classList.add('vignette-choices');
+    v.choices.forEach(ch => {
+      const card = document.createElement('button');
+      card.className = 'vignette-choice';
+      card.innerHTML = `
+        <span class="vc-label">${ch.label}</span>
+        ${ch.tag ? `<span class="vc-tag">${ch.tag}</span>` : ''}
+      `;
+      bindTapAsPointer(card, () => {
+        ch.resolve(state);
+        if (v.oneShot) markVignetteFired(v.id);
+        hideOverlay();
+        bodyEl.classList.remove('vignette-body');
+        choicesEl.classList.remove('vignette-choices');
+        if (typeof done === 'function') done();
+      });
+      choicesEl.appendChild(card);
     });
-    choicesEl.appendChild(card);
-  });
+  };
 
-  choicesEl.classList.remove('hidden');
+  if (sequential) {
+    // Hide every beat past the first; reveal the next on each tap of the
+    // stage.  When the last beat lands, drop the hint and surface the choices.
+    rowEls.forEach((r, idx) => { if (idx > 0) r.style.display = 'none'; });
+    const hint = document.createElement('div');
+    hint.className = 'vn-advance-hint';
+    hint.textContent = 'tap to continue ▸';
+    stage.appendChild(hint);
+    choicesEl.innerHTML = '';
+    choicesEl.classList.add('hidden');
+    requestAnimationFrame(() => { dlg.scrollTop = 0; });
+    let revealIdx = 0;
+    const advance = () => {
+      if (revealIdx >= rowEls.length - 1) return;
+      revealIdx++;
+      rowEls[revealIdx].style.display = '';
+      requestAnimationFrame(() => { dlg.scrollTop = dlg.scrollHeight; });
+      if (revealIdx >= rowEls.length - 1) {
+        hint.remove();
+        stage.removeEventListener('click', advance);
+        renderChoices();
+      }
+    };
+    stage.addEventListener('click', advance);
+  } else {
+    // Scroll the rail so the most recent line is fully visible (long bubbles
+    // would otherwise clip above the rail when content exceeds the stage).
+    requestAnimationFrame(() => { dlg.scrollTop = dlg.scrollHeight; });
+    renderChoices();
+  }
+
   resetOverlayBtn();
   $('#overlay-btn').classList.add('hidden');
   $('#overlay').classList.remove('hidden');
@@ -26459,6 +26495,9 @@ function _showBondDeepenedCutscene(s, ev, onDone) {
     title: `${eyebrow} — ${names.join(' & ')}`,
     speaker: heroes[0],
     lines,
+    // Play the confidant beat-by-beat (tap to advance) so it reads as a
+    // cutscene progression rather than a single scrollable wall of text.
+    sequential: true,
     choices: [{ label: 'Continue', tag: '', resolve: () => {} }],
   };
   // Cinematic flourish first — portraits converge, a light-thread bursts, the
@@ -30251,7 +30290,7 @@ function showPasswordGate(onUnlock) {
 // never get stuck in a reload loop against a stale cached game.js.  A
 // sessionStorage guard caps it at one reload attempt per detected build as a
 // belt-and-suspenders.
-const APP_BUILD = 328;
+const APP_BUILD = 329;
 (function () {
   const RELOADED_KEY = 'kizuna.autoReloadedFor';
   let reloading = false;

@@ -14258,6 +14258,18 @@ body.party-fallen::before {
   overflow-y: auto;
   min-height: 0;
 }
+/* Tap-to-advance affordance for sequential (cutscene) vignettes. */
+.vn-advance-hint {
+  margin-top: 6px;
+  text-align: center;
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gold-pale, #e7c98a);
+  pointer-events: none;
+  animation: vn-hint-pulse 1.4s ease-in-out infinite;
+}
+@keyframes vn-hint-pulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 0.85; } }
 .vn-line {
   /* Bumped from 56% so longer lines wrap less aggressively and don't push
      earlier bubbles off the top of the rail.  Padding + line-height
