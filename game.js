@@ -23107,9 +23107,23 @@ function showRestOverlay() {
       const label = name.startsWith('Camaraderie:') ? `${CHARS[a].name} & ${CHARS[b].name}` : name;
       const tag = nextTier > curTier ? `${label} → ${BOND_LEVEL_ROMAN[nextTier]}` : `${label} · deepen`;
       bondItems.push({ label, tag, kind: 'bond', icon: '♡', fn: () => {
-        sc[name] = (sc[name] || 0) + 2;
+        // Camp is the social-link "hangout" slot: spending the fire on a pair
+        // advances their bond a full rank (+2 = one tier on the 2/4/6 ladder)
+        // and plays that rank's authored confidant scene right here — then any
+        // Resonance Skill the rank unlocks is chosen at the fire, through the
+        // exact same scene → picker pipeline a combat level-up uses.
+        const before = sc[name] || 0;
+        const lvlBefore = getBondLevel(state, name, before);
+        sc[name] = before + 2;
+        const lvlAfter = getBondLevel(state, name, before + 2);
         log(`<i><b>${label}</b> deepens by the fire.</i>`);
-        done();
+        if (lvlAfter > lvlBefore) {
+          hideOverlay(); choices.classList.remove('event-choices');
+          _reconcileResonanceUnlocks(state);
+          showResonanceChoice(state, () => done());
+        } else {
+          done();
+        }
       } });
     });
   }
@@ -25668,6 +25682,151 @@ function playTechForged(up, then) {
 // L1/L2 grant), one short tap-to-continue beat per level-up.
 // ===========================================================================
 
+// ===========================================================================
+// BOND ARCS — per-PAIR confidant scenes (Persona social link / Fire Emblem
+// support).  Unlike BOND_DEEPEN_BARKS (two solo monologues), an arc is an
+// authored CONVERSATION between the two heroes that escalates across ranks:
+//   L1 = first trust   ·   L2 = shared history   ·   L3 = resonance capstone.
+// Keyed by adjKey(a,b) (alphabetical, '+').  Each level is an array of beats;
+// a beat is { who: heroId | null, text }, where who:null is scene narration.
+// Pairs without an authored arc fall back to the generic opener + solo barks
+// below, so EVERY pair always has a scene — bespoke arcs are filled in over
+// batches (named bonds first).  Beats render through the same VN stage as
+// every other cutscene (showVignette), so a deepening plays as a story beat.
+// ===========================================================================
+const BOND_ARCS = {
+  // Cassia (line-holder) + Korin (silent shieldbearer) — the wall.
+  'cassia+korin': {
+    1: [
+      { who: null, text: 'The first quiet after the fighting. Korin sets his shield down beside Cassia’s, a hand’s breadth apart.' },
+      { who: 'korin', text: 'Your line held. Mine too.' },
+      { who: 'cassia', text: 'Because they touched. A wall has no gaps — or it isn’t a wall.' },
+      { who: 'korin', text: '…Then we leave none.' },
+    ],
+    2: [
+      { who: 'cassia', text: 'You stepped into the blow meant for me back there.' },
+      { who: 'korin', text: 'You’d have done the same.' },
+      { who: 'cassia', text: 'I would. That’s the trouble with you — I’ve stopped checking whether you’ll be there.' },
+      { who: 'korin', text: 'Good. Checking slows the shield.' },
+    ],
+    3: [
+      { who: null, text: 'They no longer raise their shields in turn. They raise them as one motion — two halves of a single wall.' },
+      { who: 'korin', text: 'I don’t think of it as your line and mine anymore.' },
+      { who: 'cassia', text: 'No. Just the line. Let the dawn break itself on it.' },
+    ],
+  },
+  // Kai (cocky blade) + Mira (cold duelist) — twin edges.
+  'kai+mira': {
+    1: [
+      { who: 'mira', text: 'You swing wide. It works, somehow.' },
+      { who: 'kai', text: 'It works because you cover where I open up. Admit it — we’re good.' },
+      { who: 'mira', text: '…You don’t get in my way. That’s all.' },
+      { who: 'kai', text: 'From you, that’s practically a love letter.' },
+    ],
+    2: [
+      { who: 'kai', text: 'You smiled. Mid-fight. I saw it.' },
+      { who: 'mira', text: 'I did not.' },
+      { who: 'kai', text: 'We hit the same heartbeat back there. You felt it too.' },
+      { who: 'mira', text: '…Don’t make it strange. But — yes.' },
+    ],
+    3: [
+      { who: null, text: 'Two blades, one timing. They stop counting whose cut lands first; there is only the cut.' },
+      { who: 'mira', text: 'I used to fight to be the last one standing.' },
+      { who: 'kai', text: 'And now?' },
+      { who: 'mira', text: 'Now I just make sure it’s both of us.' },
+    ],
+  },
+  // Branwen (hunter) + Joran (marksman) — the marksman pair.
+  'branwen+joran': {
+    1: [
+      { who: 'joran', text: 'You loose on the inhale. I loose on the hold. We shouldn’t sync at all.' },
+      { who: 'branwen', text: 'And yet the quiver empties faster with you on the line.' },
+      { who: 'joran', text: 'Beginner’s luck.' },
+      { who: 'branwen', text: 'Three fights running? That’s not luck. That’s a pair.' },
+    ],
+    2: [
+      { who: 'branwen', text: 'Call your target before I call mine.' },
+      { who: 'joran', text: 'Why?' },
+      { who: 'branwen', text: 'So I take the one you don’t. We cover twice the field that way.' },
+      { who: 'joran', text: '…Spotter and shot. I like it.' },
+    ],
+    3: [
+      { who: null, text: 'Two strings draw as one. Neither calls the shot now — each simply knows where the other won’t be aiming.' },
+      { who: 'joran', text: 'One sight.' },
+      { who: 'branwen', text: 'One loose.' },
+      { who: 'joran', text: 'Together.' },
+    ],
+  },
+  // Elin (gentle mercy) + Vasha (zealous radiance) — mended faith.
+  'elin+vasha': {
+    1: [
+      { who: 'vasha', text: 'You spend your light on the dying. I spend mine on the fight. We are not the same.' },
+      { who: 'elin', text: 'No. But the wounded you leave standing are the ones I keep breathing.' },
+      { who: 'vasha', text: '…Then perhaps we are not opposed.' },
+    ],
+    2: [
+      { who: 'elin', text: 'You shielded me so I could reach the front. You didn’t have to.' },
+      { who: 'vasha', text: 'The Radiance remembers who is worth saving. Today it remembered you.' },
+      { who: 'elin', text: 'Careful, Vasha. That almost sounded like faith in a person.' },
+      { who: 'vasha', text: '…Almost.' },
+    ],
+    3: [
+      { who: null, text: 'Mercy and zeal, one light. Where Elin mends, Vasha guards the mending; where Vasha burns, Elin keeps the burned alive.' },
+      { who: 'vasha', text: 'I prayed only to be remembered.' },
+      { who: 'elin', text: 'You will be. By everyone you carried out of the dark — me first.' },
+    ],
+  },
+  // Ash (spark) + Veyr (shadow) — sisters of the same storm.
+  'ash+veyr': {
+    1: [
+      { who: null, text: 'Neither speaks much. Ash sparks a small flame; Veyr lets the shadows lean toward it.' },
+      { who: 'ash', text: '…You don’t flinch from the fire.' },
+      { who: 'veyr', text: 'Shadows need something to be cast from. I’ll take yours.' },
+    ],
+    2: [
+      { who: 'veyr', text: 'I watched you a long time before I trusted the light.' },
+      { who: 'ash', text: 'I know. I let you. The spark doesn’t mind being watched.' },
+      { who: 'veyr', text: '…Current and dark. We’re the same storm, aren’t we.' },
+    ],
+    3: [
+      { who: null, text: 'Spark and shadow stop fighting for the same air. They braid — light enough to see by, dark enough to hide in.' },
+      { who: 'ash', text: 'One current now.' },
+      { who: 'veyr', text: 'One storm. Let them try to find the edges.' },
+    ],
+  },
+  // Kiki (eager pup) + Tarn (old stone) — the odd wall.
+  'kiki+tarn': {
+    1: [
+      { who: 'kiki', text: 'You’re so SLOW, big guy! But nothing gets past you, huh?' },
+      { who: 'tarn', text: 'Stone doesn’t run. Stone stays.' },
+      { who: 'kiki', text: 'Then I’ll do the running for both of us! Deal?' },
+      { who: 'tarn', text: '…Deal, pup.' },
+    ],
+    2: [
+      { who: 'tarn', text: 'You darted under my guard to pull that one off me. Reckless.' },
+      { who: 'kiki', text: 'But it WORKED! You held, I bit, we won!' },
+      { who: 'tarn', text: '…Stone settles, with you near. Loud. But near.' },
+    ],
+    3: [
+      { who: null, text: 'The old wall and the young hunt move as one — Tarn plants, Kiki strikes from his shadow, and nothing breaks through either.' },
+      { who: 'kiki', text: 'Same trail, same hunt — TOGETHER!' },
+      { who: 'tarn', text: 'Two stones. One wall. Go on, pup — I’ve got the holding.' },
+    ],
+  },
+};
+
+// Resolve the authored confidant beats for a PAIR at a given rank, or null if
+// no bespoke arc exists (caller falls back to the generic opener + barks).
+// Trios (heroes.length > 2) never use a pair arc — they keep the generic beat.
+function _bondArcLines(heroes, level) {
+  if (!Array.isArray(heroes) || heroes.length !== 2) return null;
+  const arc = BOND_ARCS[adjKey(heroes[0], heroes[1])];
+  if (!arc) return null;
+  const lvl = Math.max(1, Math.min(3, level || 1));
+  const beats = arc[lvl];
+  return (Array.isArray(beats) && beats.length) ? beats.slice() : null;
+}
+
 // Per-hero bond lines, escalating L1 → L2 → L3.  Written in each hero's
 // established voice (mirror of AFFINITY_BARKS) so a deepening reads as a
 // real character moment, not a system toast.  Index = level - 1.
@@ -25750,10 +25909,17 @@ function _showBondDeepenedCutscene(s, ev, onDone) {
   const eyebrow = level === 1 ? 'Bond Forged' : level === 2 ? 'Bond Deepened' : 'Bond Resonant';
   const also = Array.isArray(ev.also) ? ev.also.filter(Boolean) : [];
 
-  // Build the beat as a one-choice vignette.
+  // Build the beat as a one-choice vignette.  Prefer the authored confidant
+  // arc for this pair+rank (a real back-and-forth conversation); only when no
+  // bespoke arc exists do we fall back to the generic opener + solo barks.
   const lines = [];
-  lines.push({ who: null, text: _bondSceneOpener(heroes, level) });
-  heroes.forEach(id => lines.push({ who: id, text: _bondDeepenLine(id, level) }));
+  const arcBeats = _bondArcLines(heroes, level);
+  if (arcBeats) {
+    arcBeats.forEach(b => lines.push(b));
+  } else {
+    lines.push({ who: null, text: _bondSceneOpener(heroes, level) });
+    heroes.forEach(id => lines.push({ who: id, text: _bondDeepenLine(id, level) }));
+  }
   // Closing beat — a CLEAR unlock callout so the level-up teaches, not just
   // celebrates: what team attack you got, exactly what it does, and what it
   // costs to fire.  Stacked block-spans inside the final narration bubble.
@@ -29567,7 +29733,7 @@ function showPasswordGate(onUnlock) {
 // never get stuck in a reload loop against a stale cached game.js.  A
 // sessionStorage guard caps it at one reload attempt per detected build as a
 // belt-and-suspenders.
-const APP_BUILD = 325;
+const APP_BUILD = 326;
 (function () {
   const RELOADED_KEY = 'kizuna.autoReloadedFor';
   let reloading = false;
