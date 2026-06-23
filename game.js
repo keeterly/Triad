@@ -6981,12 +6981,30 @@ function isMapNodeReachable(s, nodeId) {
 //              what they are, but only dimly.
 //   'fogged' — everything further down the path: an unknown "?" until you step
 //              closer.
+// Lowest level among the currently-reachable nodes — the player's "frontier".
+// Visibility is measured as how many stretches a node sits beyond it.
+function mapFrontierLevel(s) {
+  const map = s && s.run && s.run.map;
+  if (!map) return 1;
+  let lvl = Infinity;
+  Object.values(map.nodes).forEach(n => {
+    if (isMapNodeReachable(s, n.id) && n.level < lvl) lvl = n.level;
+  });
+  return isFinite(lvl) ? lvl : map.maxLevel;
+}
 function mapNodeVisibility(s, node) {
   if (!node) return 'fogged';
   if (node.type === 'boss') return 'full';
   const st = mapNodeStatus(s, node.id);
   if (st === 'completed') return 'full';
-  if (st === 'reachable') return 'faint';
+  // The immediate choices read clearly — they're what you're picking now.
+  if (st === 'reachable') return 'full';
+  // Hybrid fog: reveal the TYPE of nodes within one stretch of the frontier
+  // so the player can plan their NEXT pick; everything deeper shows only as
+  // legible STRUCTURE (a dim '?' dot + its connectors) — the route is
+  // visible, its contents aren't, until you step closer.
+  const front = mapFrontierLevel(s);
+  if ((node.level - front) <= 1) return 'faint';
   return 'fogged';
 }
 // Discernible — its type/details may be shown (on the map and on inspect).
@@ -30316,7 +30334,7 @@ function showPasswordGate(onUnlock) {
 // never get stuck in a reload loop against a stale cached game.js.  A
 // sessionStorage guard caps it at one reload attempt per detected build as a
 // belt-and-suspenders.
-const APP_BUILD = 331;
+const APP_BUILD = 332;
 (function () {
   const RELOADED_KEY = 'kizuna.autoReloadedFor';
   let reloading = false;
