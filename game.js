@@ -18488,6 +18488,21 @@ function renderTiles() {
 
     grid.appendChild(col);
   });
+
+  // Out-of-reach guidance.  Movement is drag-only (no Move tile), so if it's
+  // the player's turn with nothing queued and EVERY offensive tile is disabled
+  // — typically because the slots a hero can reach hold no living enemy — the
+  // action row goes fully dark and the screen can read as "stuck."  The fix is
+  // to reposition, which isn't a tile, so surface a one-line prompt pointing
+  // at the drag.  Only fires in that specific dead-end state; never otherwise.
+  if (!state.executing && !state.over && state.queue.length === 0
+      && aliveParty(state).length > 0
+      && !grid.querySelector('.tile.kind-attack:not([disabled]), .tile.kind-special:not([disabled])')) {
+    const hint = document.createElement('div');
+    hint.className = 'tile-reach-hint';
+    hint.innerHTML = '⠿ Out of reach — <b>drag a hero</b> to another slot to line up a target.';
+    grid.appendChild(hint);
+  }
 }
 
 function cornerBrackets() {
@@ -30334,7 +30349,7 @@ function showPasswordGate(onUnlock) {
 // never get stuck in a reload loop against a stale cached game.js.  A
 // sessionStorage guard caps it at one reload attempt per detected build as a
 // belt-and-suspenders.
-const APP_BUILD = 333;
+const APP_BUILD = 334;
 (function () {
   const RELOADED_KEY = 'kizuna.autoReloadedFor';
   let reloading = false;

@@ -7373,6 +7373,34 @@ body.party-critical::after {
   min-height: 0;
   min-width: 0;
   height: 100%;
+  position: relative;   /* anchor for the out-of-reach hint overlay */
+}
+/* Out-of-reach prompt — only shown when every offensive tile is disabled and
+   the player must reposition (drag) to act.  Absolutely placed so it overlays
+   the dimmed tiles without disturbing the 3-column grid. */
+.tile-reach-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 4px;
+  transform: translateX(-50%);
+  max-width: 94%;
+  white-space: nowrap;
+  text-align: center;
+  font-size: 9.5px;
+  letter-spacing: 0.01em;
+  color: var(--ink);
+  background: linear-gradient(90deg, transparent, rgba(10,8,10,0.92) 12%, rgba(10,8,10,0.92) 88%, transparent);
+  padding: 5px 16px;
+  border-radius: 999px;
+  pointer-events: none;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.92);
+  z-index: 5;
+  animation: reach-hint-in 0.18s ease-out;
+}
+.tile-reach-hint b { color: var(--gold-bright); }
+@keyframes reach-hint-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(5px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 .char-col {
   display: grid;
