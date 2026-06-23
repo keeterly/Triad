@@ -10366,8 +10366,11 @@ button.path-node { cursor: pointer; }
   animation: map-connector-flow 1.6s linear infinite;
 }
 .map-connector.locked {
-  stroke: rgba(200,164,100,0.18);
-  stroke-width: 1;
+  /* Distant route — legible enough to read the branch structure and plan
+     toward it, but dimmer/dashier than the active gold path so the eye still
+     tracks where you ARE. (Was 0.18/width-1, near-invisible.) */
+  stroke: rgba(200,164,100,0.32);
+  stroke-width: 1.3;
   stroke-dasharray: 3 6;
 }
 @keyframes map-connector-flow {
