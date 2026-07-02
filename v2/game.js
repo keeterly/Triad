@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 12;
+const V2_BUILD = 13;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -64,6 +64,12 @@ const SFX = (() => {
 // DATA — heroes.
 // ---------------------------------------------------------------------------
 const ROWS = ['front', 'mid', 'back'];
+// Schools — every hero's attacks carry their element; every enemy hides a
+// weakness (revealed the first time it takes damage).  Weakness hit ->
+// WEAKENED ⌖; second weakness hit the SAME TURN -> STAGGERED ⚡ (+1 EP,
+// once per turn); the next hit on a staggered enemy deals ×2.  A staggered
+// enemy whose turn comes up on a HEAVY intent is INTERRUPTED.
+const SCHOOL_GLYPH = { blade: '⚔', light: '✦', song: '♫', iron: '◆', frost: '❅' };
 const ROW_LABEL = { front: 'FRONT', mid: 'MID', back: 'BACK' };
 const STANCE = {
   front: { name: 'Blade Stance', tag: 'AGGRESSIVE' },
@@ -73,7 +79,7 @@ const STANCE = {
 
 const HEROES = {
   ash: {
-    name: 'ASH', cls: 'Ronin', tint: 'var(--ash-tint)', maxHp: 32,
+    school: 'blade', name: 'ASH', cls: 'Ronin', tint: 'var(--ash-tint)', maxHp: 32,
     cards: {
       front: {
         core: { name: 'Cleave',        cost: 1, target: 'frontmost', fx: { dmg: 6 },            desc: '6 damage to the nearest enemy.' },
@@ -90,7 +96,7 @@ const HEROES = {
     },
   },
   elin: {
-    name: 'ELIN', cls: 'Cleric', tint: 'var(--elin-tint)', maxHp: 24,
+    school: 'light', name: 'ELIN', cls: 'Cleric', tint: 'var(--elin-tint)', maxHp: 24,
     cards: {
       front: {
         core: { name: 'Smite',         cost: 1, target: 'frontmost', fx: { dmg: 4 },            desc: '4 holy damage to the nearest enemy.' },
@@ -107,7 +113,7 @@ const HEROES = {
     },
   },
   kiki: {
-    name: 'KIKI', cls: 'Bard', tint: 'var(--kiki-tint)', maxHp: 20,
+    school: 'song', name: 'KIKI', cls: 'Bard', tint: 'var(--kiki-tint)', maxHp: 20,
     cards: {
       front: {
         core: { name: 'Sharp Note',    cost: 1, target: 'frontmost', fx: { dmg: 3, lull: 1 },   desc: '3 damage · <span class="kw kw-chill">❄ CHILL</span> −1 next attack.' },
@@ -124,7 +130,7 @@ const HEROES = {
     },
   },
   cassia: {
-    name: 'CASSIA', cls: 'Guardian', tint: 'var(--cassia-tint)', maxHp: 34,
+    school: 'iron', name: 'CASSIA', cls: 'Guardian', tint: 'var(--cassia-tint)', maxHp: 34,
     cards: {
       front: {
         core: { name: 'Shield Bash',   cost: 1, target: 'frontmost', fx: { dmg: 4, guard: 2 },  desc: '4 damage · gain 2 guard.' },
@@ -141,7 +147,7 @@ const HEROES = {
     },
   },
   hask: {
-    name: 'HASK', cls: 'Mage', tint: 'var(--hask-tint)', maxHp: 22,
+    school: 'frost', name: 'HASK', cls: 'Mage', tint: 'var(--hask-tint)', maxHp: 22,
     cards: {
       front: {
         core: { name: 'Frost Touch',   cost: 1, target: 'frontmost', fx: { dmg: 4, lull: 1 },   desc: '4 frost damage · <span class="kw kw-chill">❄ CHILL</span> −1.' },
@@ -167,7 +173,7 @@ const ENEMY_DEFS = {
   husk: {
     // 18 HP: survives Cleave+Crashing Wave (17) so the FIRST fight forces one
     // real decision — eat the telegraphed hit, or learn to change stance.
-    name: 'HOLLOW HUSK', maxHp: 18,
+    weak: 'light', name: 'HOLLOW HUSK', maxHp: 18,
     intents: [
       { name: 'Claw',  dmg: 4, row: 'front' },
       { name: 'Lurch', dmg: 3, row: 'mid' },
@@ -175,7 +181,7 @@ const ENEMY_DEFS = {
     ],
   },
   wraith: {
-    name: 'PALE WRAITH', maxHp: 16,
+    weak: 'blade', name: 'PALE WRAITH', maxHp: 16,
     intents: [
       { name: 'Grasp Beyond', dmg: 5, row: 'back' },
       { name: 'Chill Wail',   dmg: 2, row: 'all', chill: 1 },
@@ -183,7 +189,7 @@ const ENEMY_DEFS = {
     ],
   },
   cultist: {
-    name: 'ASH CULTIST', maxHp: 15,
+    weak: 'song', name: 'ASH CULTIST', maxHp: 15,
     intents: [
       { name: 'Sacrificial Knife', dmg: 5, row: 'front' },
       { name: 'Blood Chant', kind: 'buff', desc: 'gathers power', powerSelf: 2 },
@@ -191,7 +197,7 @@ const ENEMY_DEFS = {
     ],
   },
   mourner: {
-    name: 'GRAVE MOURNER', maxHp: 18,
+    weak: 'frost', name: 'GRAVE MOURNER', maxHp: 18,
     intents: [
       { name: 'Dirge',     dmg: 3, row: 'all' },
       { name: 'Sorrowing', dmg: 5, row: 'mid' },
@@ -199,7 +205,7 @@ const ENEMY_DEFS = {
     ],
   },
   drone: {
-    name: 'HOLLOW DRONE', maxHp: 20,
+    weak: 'iron', name: 'HOLLOW DRONE', maxHp: 20,
     intents: [
       { name: 'Refrain',  dmg: 5, row: 'front' },
       { name: 'Dull Hum', dmg: 3, row: 'all' },
@@ -207,7 +213,7 @@ const ENEMY_DEFS = {
     ],
   },
   echoknight: {
-    name: 'THE ECHO KNIGHT', maxHp: 42, boss: true,
+    weak: 'song', name: 'THE ECHO KNIGHT', maxHp: 42, boss: true,
     intents: [
       { name: 'Returning Stroke', dmg: 6, row: 'front' },
       { name: 'Echoed Arc',       dmg: 4, row: 'mid' },
@@ -216,7 +222,7 @@ const ENEMY_DEFS = {
     ],
   },
   echoknight2: {
-    name: 'THE ECHO KNIGHT, REMEMBERED', maxHp: 60, boss: true, art: 'echoknight',
+    weak: 'song', name: 'THE ECHO KNIGHT, REMEMBERED', maxHp: 60, boss: true, art: 'echoknight',
     intents: [
       { name: 'Returning Stroke', dmg: 7, row: 'front' },
       { name: 'Gathers the Echo', kind: 'buff', desc: 'the echo swells', powerSelf: 2 },
@@ -453,6 +459,7 @@ function newBattle(node) {
     hp: ENEMY_DEFS[id].maxHp, maxHp: ENEMY_DEFS[id].maxHp,
     row: ['front', 'mid', 'back'][i] || 'mid',
     guard: 0, power: 0, mark: 0, lull: 0, intentIdx: 0, dead: false, acted: false,
+    weakRevealed: false, weakened: false, staggered: false,
   }));
   // Kindled bonds walk into battle already connected: the pair's thread is
   // pre-formed and the bond-guard applies from turn one.  The triad itself
@@ -530,6 +537,7 @@ function resonantHost() {
 function mkCard(h, kind, def) {
   return { kind, owner: h.id, ownerName: h.def.name, tint: h.def.tint,
     stance: STANCE[h.row].name, name: def.name, cost: def.cost, target: def.target, fx: def.fx, desc: def.desc,
+    school: (def.fx && def.fx.dmg) ? h.def.school : null,
     spent: S.used.has(h.id + ':' + kind) };
 }
 // Synthetic move "card" — never shown in hand; movement is a figure-drag
@@ -826,7 +834,7 @@ async function resolveCard(card, targetId) {
       const prev = hitters.length ? hitters[hitters.length - 1] : null;
       const isFollowUp = !!(owner && prev && prev !== owner.id);
       if (isFollowUp) amt += 2;
-      dealToEnemy(tgt, amt);
+      dealToEnemy(tgt, amt, owner ? owner.def.school : null);
       if (owner) hitters.push(owner.id);
       if (isFollowUp) {
         popupAt(figEl(owner.id), '⚡ FOLLOW-UP +2', 'info');
@@ -874,10 +882,41 @@ async function resolveCard(card, targetId) {
   await sleep(280);
 }
 
-function dealToEnemy(e, amt) {
+function dealToEnemy(e, amt, school) {
+  // STAGGER payoff: the next hit on a staggered enemy lands double.
+  if (e.staggered) {
+    amt *= 2;
+    e.staggered = false;
+    popupAt(figEl(e.uid), '×2!', 'dmg popup-big');
+    stageShake();
+  }
   let left = amt;
   if (e.guard > 0) { const g = Math.min(e.guard, left); e.guard -= g; left -= g; }
   e.hp = Math.max(0, e.hp - left);
+  // First blood reveals the hidden weakness.
+  if (!e.weakRevealed) {
+    e.weakRevealed = true;
+    flashNarrator(e.def.name + ' — weak to ' + (SCHOOL_GLYPH[e.def.weak] || '?') + ' ' + (e.def.weak || '').toUpperCase() + '.');
+  }
+  // Weakness state machine: WEAKENED, then STAGGERED on the same-turn repeat.
+  if (school && school === e.def.weak && e.hp > 0) {
+    if (e.weakened) {
+      e.weakened = false;
+      e.staggered = true;
+      popupAt(figEl(e.uid), '⚡ STAGGERED', 'info');
+      SFX.follow();
+      if (!S._pressUsed) {
+        S._pressUsed = true;
+        S.ep += 1;
+        pulseEp();
+        popupAt(figEl(e.uid), '+1 EP · PRESS ON', 'rally');
+      }
+    } else {
+      e.weakened = true;
+      popupAt(figEl(e.uid), '⌖ WEAKENED', 'info');
+      if (!S._weakTaught) { S._weakTaught = true; flashNarrator('Weakness! Hit ' + SCHOOL_GLYPH[e.def.weak] + ' again THIS turn to STAGGER.'); }
+    }
+  }
   const big = amt >= 8;
   popupAt(figEl(e.uid), '−' + amt, 'dmg' + (big ? ' popup-big' : ''));
   // (damagedHeroes bookkeeping lives in enemyPhase; kills resolve avenging
@@ -1024,7 +1063,8 @@ async function endTurn() {
     S.ep = S.maxEp;
     S.used = new Set();
     S.heroes.forEach(h => { h.guard = 0; h.counter = 0; h.invuln = false; h.exposed = 0; h._hitByE = []; });
-    S.enemies.forEach(e => { e.mark = 0; e.acted = false; e._hitBy = []; });
+    S.enemies.forEach(e => { e.mark = 0; e.acted = false; e._hitBy = []; e.staggered = false; });
+    S._pressUsed = false;
     S.executing = false;
     $('#stage').classList.remove('executing');
     turnBanner('TURN ' + S.turn, 'tb-player');
@@ -1044,6 +1084,9 @@ function turnBanner(text, cls) {
 
 async function enemyPhase() {
   turnBanner('ENEMY TURN', 'tb-enemy');
+  // WEAKENED expires if you didn't capitalize this turn; STAGGERED holds
+  // through the phase — a staggered enemy can be interrupted below.
+  livingEnemies().forEach(e => { e.weakened = false; });
   await sleep(620);
   for (const e of livingEnemies()) {
     if (S.over) break;
@@ -1051,6 +1094,18 @@ async function enemyPhase() {
     e.intentIdx++;
     e.acted = true;
     renderTimeline();
+    // INTERRUPT: a staggered enemy cannot release a HEAVY intent — the
+    // wind-up breaks (the Bloodborne moment: aggression stops the big hit).
+    if (e.staggered && intent.heavy) {
+      e.staggered = false;
+      popupAt(figEl(e.uid), 'INTERRUPTED', 'info');
+      flashNarrator(e.def.name + '’s ' + intent.name + ' is BROKEN by the stagger.');
+      SFX.kill();
+      stageShake();
+      renderAll();
+      await sleep(650);
+      continue;
+    }
     const lungeEl = figEl(e.uid);
     if (lungeEl && intent.kind !== 'buff') { lungeEl.classList.add('fig-lunge'); SFX.enemy(); }
     await sleep(400);
@@ -1586,6 +1641,9 @@ function renderBattlefield() {
         ${intentHtml}
         <div class="fig-art">${enemyArt(e)}</div>
         <div class="fig-chips">
+          <span class="chip weak" title="weakness">${e.weakRevealed ? (SCHOOL_GLYPH[e.def.weak] || '?') : '?'}</span>
+          ${e.weakened ? `<span class="chip mark">⌖</span>` : ''}
+          ${e.staggered ? `<span class="chip stagger">⚡</span>` : ''}
           ${e.guard ? `<span class="chip guard">⛨ ${e.guard}</span>` : ''}
           ${e.power ? `<span class="chip buff">▲ ${e.power}</span>` : ''}
           ${e.mark ? `<span class="chip mark">◎ ${e.mark}</span>` : ''}
@@ -1675,7 +1733,7 @@ function renderActionBar() {
         <span class="c-cost">${card.cost}</span>
         <span class="c-name">${card.name}</span>
       </div>
-      <div class="c-type t-${type}">${TYPE_LABEL[type]}</div>
+      <div class="c-type t-${type}">${TYPE_LABEL[type]}${card.school ? ` · <span class="c-school">${SCHOOL_GLYPH[card.school]}</span>` : ''}</div>
       <div class="c-desc">${card.desc}</div>
       <div class="c-owner"><span>${card.ownerName}</span><span class="c-stance">· ${card.stance}</span></div>
     `;

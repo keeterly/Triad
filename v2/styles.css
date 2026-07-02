@@ -607,3 +607,12 @@ body {
   animation: target-pulse 1.6s ease infinite;
 }
 .map-node { position: relative; }
+
+/* BUILD 13 — weakness/stagger (ported from v1) */
+.chip.weak { color: var(--ink-dim); border-color: rgba(232,220,196,0.3); }
+.chip.stagger {
+  color: var(--gold-bright); border-color: var(--gold-bright);
+  animation: target-pulse 0.7s ease infinite;
+  box-shadow: 0 0 8px rgba(240,212,136,0.4);
+}
+.c-school { color: var(--ink); }

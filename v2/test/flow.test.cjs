@@ -293,6 +293,42 @@ const QUICK = process.argv.includes('--quick');
     return !a[n] && typeof S !== 'undefined' && S && !S.over;
   }, fallenNode));
 
+  // ---------- WEAKNESS / STAGGER (ported from v1) ----------
+  console.log('--- STAGGER ---');
+  await J(() => {
+    hideOverlay();
+    startFight({ type: 'fight', chapter: 3, heroes: ['ash', 'elin', 'kiki'], enemies: ['wraith'], narrator: 'stagger drill' });
+    S.enemies[0].hp = S.enemies[0].maxHp = 40;   // survive the drill
+    renderAll();
+  });
+  await sleep(500);
+  check('weakness hidden before first blood (? chip)', await J(() => document.querySelector('.chip.weak')?.textContent.trim() === '?'));
+  await tapCard('Cleave'); await sleep(650);
+  check('first blood reveals the weakness (⚔ on the chip)', await J(() => S.enemies[0].weakRevealed && document.querySelector('.chip.weak')?.textContent.includes('⚔')));
+  check('BLADE on BLADE-weak -> WEAKENED ⌖', await J(() => S.enemies[0].weakened));
+  const epMid = await J(() => S.ep);
+  await tapCard('Crashing Wave'); await sleep(750);
+  check('same-turn repeat -> STAGGERED ⚡', await J(() => S.enemies[0].staggered));
+  check('press-turn: the stagger paid +1 EP', await J(() => S.ep) === epMid - 2 + 1, 'ep=' + await J(() => S.ep));
+  const hpMid = await J(() => S.enemies[0].hp);
+  await J(() => dealToEnemy(S.enemies[0], 5, null)); await sleep(300);
+  check('the next hit landed ×2 on the staggered enemy', await J(() => S.enemies[0].hp) === hpMid - 10, 'hp ' + hpMid + '->' + await J(() => S.enemies[0].hp));
+  check('stagger consumed by the payoff', await J(() => !S.enemies[0].staggered));
+  await shot('staggered');
+  // INTERRUPT — the Bloodborne moment
+  await J(() => {
+    hideOverlay();
+    startFight({ type: 'fight', chapter: 3, heroes: ['ash', 'elin', 'kiki'], enemies: ['echoknight2'], narrator: 'interrupt drill' });
+    S.enemies[0].intentIdx = 4;    // OBLIVION ECHO — heavy wind-up
+    S.enemies[0].staggered = true;
+    S.enemies[0].weakRevealed = true;
+    renderAll();
+  });
+  await sleep(400);
+  await endTurn();
+  check('INTERRUPT: the staggered boss’s heavy wind-up BROKE (party untouched)',
+    await J(() => S.heroes.every(h => h.hp === h.maxHp)));
+
   t.report();
   await t.browser.close();
 })().catch(e => { console.error('FATAL', e.message); process.exit(1); });
