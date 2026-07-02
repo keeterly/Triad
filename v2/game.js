@@ -126,7 +126,9 @@ const HEROES = {
 // ---------------------------------------------------------------------------
 const ENEMY_DEFS = {
   husk: {
-    name: 'HOLLOW HUSK', maxHp: 13,
+    // 18 HP: survives Cleave+Crashing Wave (17) so the FIRST fight forces one
+    // real decision — eat the telegraphed hit, or learn to change stance.
+    name: 'HOLLOW HUSK', maxHp: 18,
     intents: [
       { name: 'Claw',  dmg: 4, row: 'front' },
       { name: 'Lurch', dmg: 3, row: 'mid' },
@@ -652,6 +654,13 @@ async function addThread(a, b) {
   S.threads.add(key);
   renderThreads(key);
   flashNarrator('A thread forms — ' + HEROES[a].name + ' ─ ' + HEROES[b].name);
+  // The bond itself protects: both linked heroes steel by 2 guard the moment
+  // the thread forms.  Kizuna has immediate tactical weight, not just
+  // triad-progress bookkeeping.
+  [a, b].forEach(id => {
+    const h = S.heroes.find(x => x.id === id);
+    if (h && !h.downed) { h.guard += 2; popupAt(figEl(id), 'BOND ⛨2', 'guard'); }
+  });
   const live = livingHeroes();
   if (live.length >= 3 && !S.triadFormed) {
     const [x, y, z] = live.map(h => h.id);
@@ -802,9 +811,11 @@ function onVictory() {
   const isBoss = S.node.enemies.some(id => ENEMY_DEFS[id].boss);
   setTimeout(() => {
     if (S.node.mapId === 9) { onRunComplete(); return; }
+    const th = S.threads.size;
     showOverlay(`
       <div class="ov-eyebrow" style="color:var(--gold-bright)">VICTORY</div>
       <div class="ov-title" style="font-size:22px">${isBoss ? 'THE ECHO FADES' : 'THE ROAD HOLDS'}</div>
+      ${th ? `<div class="ov-sub">${th} thread${th > 1 ? 's' : ''} held${S.triadFormed ? ' · the triad answered' : ''}</div>` : ''}
       <button class="ov-btn primary" id="ov-next">CONTINUE</button>
     `);
     $('#ov-next').onclick = () => { hideOverlay(); S.node.mapId != null ? showMap() : advanceFlow(); };
@@ -1003,9 +1014,13 @@ function showPartySelect(onDone, mustInclude) {
     }).join('');
     const ready = picked.length === need;
     const r = ready ? triadEntryFor(picked) : null;
+    const orderHint = picked.length
+      ? picked.map((id, i) => HEROES[id].name + ' → ' + ['FRONT', 'MID', 'BACK'][i]).join(' · ')
+      : 'pick order sets the line: 1st → FRONT · 2nd → MID · 3rd → BACK';
     showOverlay(`
       <div class="ov-eyebrow">THE PARTY IS THE CHARACTER</div>
       <div class="ov-title" style="font-size:20px">WHO WALKS?</div>
+      <div class="ps-order">${orderHint}</div>
       <div class="ps-row">${figs}</div>
       <div class="ps-reso">${ready && picked.length === 3
         ? `this trio resonates as <b>✦ ${r.name}</b> — ${r.type}<br><span class="ps-reso-desc">${r.desc}</span>`

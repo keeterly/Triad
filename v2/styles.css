@@ -454,3 +454,5 @@ body {
 
 /* map screen shell tweak */
 #overlay.map-screen #overlay-inner { max-width: 720px; }
+
+.ps-order { font-size: 8.5px; letter-spacing: 0.14em; color: var(--ink-faint); margin: 2px 0 0; }
