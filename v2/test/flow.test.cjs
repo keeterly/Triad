@@ -394,6 +394,25 @@ const QUICK = process.argv.includes('--quick');
   check('HEAL FLOOR: healing a full-HP ally became guard, not wasted (+5 spill, +bond)',
     await J((g) => S.heroes[0].hp === S.heroes[0].maxHp && S.heroes[0].guard >= g + 5, gBefore));
 
+  // ---------- AIM: drag snaps to the target ----------
+  console.log('--- AIM ---');
+  await J(() => {
+    hideOverlay();
+    startFight({ type:'fight', chapter:3, heroes:['elin','hask','kiki'], enemies:['husk','wraith'], narrator:'aim drill' });
+    S.enemies[0].hp = S.enemies[0].maxHp = 30;
+    S.enemies[1].hp = S.enemies[1].maxHp = 30;
+    renderAll();
+  });
+  await sleep(400);
+  const wraithHp0 = await J(() => S.enemies[1].hp);
+  const huskHp0 = await J(() => S.enemies[0].hp);
+  // real pointer drag: Ice Bolt (Hask mid, ANY enemy) dragged onto the wraith
+  await t.drag('#hand .card[data-card-name="Ice Bolt"]', '[data-fig="wraith#1"]');
+  await sleep(400);
+  check('AIM: drag played the card on the SNAPPED target (wraith took 4, husk untouched)',
+    await J((o) => S.enemies[1].hp === o.w - 4 && S.enemies[0].hp === o.h, { w: wraithHp0, h: huskHp0 }),
+    await J(() => 'husk:'+S.enemies[0].hp+' wraith:'+S.enemies[1].hp));
+
   t.report();
   await t.browser.close();
 })().catch(e => { console.error('FATAL', e.message); process.exit(1); });

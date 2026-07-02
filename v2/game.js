@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 18;
+const V2_BUILD = 19;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -655,13 +655,59 @@ function onRowTap(row) {
 // movement past a threshold lifts the card and highlights valid targets;
 // release over a target (or over the battlefield, for untargeted cards)
 // plays it.  A short press-release without movement falls back to tap-play.
+// Aim helpers — StS-style targeting: the card lifts, an arrow curves to the
+// SNAPPED target (always the nearest valid one), and releasing anywhere in
+// the field plays on it.  Loose, precise, and unmistakable about where a
+// card lands.
+const _AIMNS = 'http://www.w3.org/2000/svg';
+function _sscale() { return ($('#stage').getBoundingClientRect().width / 760) || 1; }
+function enemyFigEls() { return livingEnemies().map(e => figEl(e.uid)).filter(Boolean); }
+function dragTargets(card) {
+  const fx = card.fx || {};
+  if (fx.resonant || fx.notToday || fx.bondPair) return { mode: 'field', els: [] };
+  switch (card.target) {
+    case 'enemy':     return { mode: 'enemy', els: enemyFigEls() };
+    case 'frontmost': { const f = frontmostEnemy(); return { mode: 'enemy', els: f ? [figEl(f.uid)].filter(Boolean) : [] }; }
+    case 'ally':      return { mode: 'ally',  els: livingHeroes().filter(h => h.id !== card.owner).map(h => figEl(h.id)).filter(Boolean) };
+    case 'allies':    return { mode: 'party', els: livingHeroes().map(h => figEl(h.id)).filter(Boolean) };
+    case 'self':      return { mode: 'self',  els: [figEl(card.owner)].filter(Boolean) };
+    default:          return { mode: 'field', els: [] };
+  }
+}
+function aimLayer() {
+  let svg = document.getElementById('aim-layer');
+  if (!svg) {
+    svg = document.createElementNS(_AIMNS, 'svg');
+    svg.id = 'aim-layer';
+    svg.setAttribute('viewBox', '0 0 760 430');
+    svg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:55;overflow:visible';
+    $('#stage').appendChild(svg);
+  }
+  return svg;
+}
+function aimClear() {
+  const s = document.getElementById('aim-layer'); if (s) s.innerHTML = '';
+  document.querySelectorAll('.fig-valid, .fig-snapped').forEach(f => f.classList.remove('fig-valid', 'fig-snapped'));
+}
+function aimDraw(fromEl, pt, snappedEl, valid, field) {
+  const svg = aimLayer(), sc = _sscale(), sr = $('#stage').getBoundingClientRect();
+  const fr = fromEl.getBoundingClientRect();
+  const x1 = (fr.left + fr.width / 2 - sr.left) / sc, y1 = (fr.top - sr.top) / sc + 2;
+  let x2, y2;
+  if (field) { x2 = x1; y2 = y1 - 155; }
+  else if (snappedEl) { const tr = snappedEl.getBoundingClientRect(); x2 = (tr.left + tr.width / 2 - sr.left) / sc; y2 = (tr.top + tr.height * 0.4 - sr.top) / sc; }
+  else { x2 = (pt.x - sr.left) / sc; y2 = (pt.y - sr.top) / sc; }
+  const midY = Math.min(y1, y2) - 40;
+  const cls = 'aim-path' + (valid ? '' : ' aim-invalid') + (field ? ' aim-field' : '');
+  svg.innerHTML = `<path d="M ${x1} ${y1} Q ${(x1 + x2) / 2} ${midY} ${x2} ${y2}" class="${cls}"/>`
+    + (valid ? `<circle cx="${x2}" cy="${y2}" r="${field ? 9 : 7}" class="aim-dot${field ? ' aim-field-dot' : ''}"/>` : '');
+}
+
 function attachDrag(el, card) {
-  let startX = 0, startY = 0, dragging = false, pid = null;
-  const scale = () => ($('#stage').getBoundingClientRect().width / 760) || 1;
+  let startX = 0, startY = 0, dragging = false, pid = null, snapped = null;
   el.addEventListener('pointerdown', (e) => {
     if (S.executing || S.over || card.spent || card.cost > S.ep) return;
-    pid = e.pointerId;
-    startX = e.clientX; startY = e.clientY; dragging = false;
+    pid = e.pointerId; startX = e.clientX; startY = e.clientY; dragging = false; snapped = null;
     try { el.setPointerCapture(pid); } catch (_) {}
     e.preventDefault();
   });
@@ -669,42 +715,39 @@ function attachDrag(el, card) {
     if (pid === null) return;
     const dx = e.clientX - startX, dy = e.clientY - startY;
     if (!dragging) {
-      if (Math.abs(dx) + Math.abs(dy) < 14) return;
+      if (Math.abs(dx) + Math.abs(dy) < 12) return;
       dragging = true;
       el.classList.add('card-dragging');
-      const spec = targetSpec(card);
-      if (card.kind === 'resonant' && S.ep < S.maxEp) { /* will be rejected on drop */ }
-      enterTargeting(card, spec.pick ? spec.validIds : ['__field__'], spec.hint || 'Drop on the field', { drag: true });
+      dragTargets(card).els.forEach(t => t.classList.add('fig-valid'));
     }
-    el.style.transform = `translate(${dx / scale()}px, ${dy / scale()}px) translateY(-14px)`;
+    el.style.transform = 'translateY(-48px) scale(1.05)';
+    const { mode, els } = dragTargets(card);
+    document.querySelectorAll('.fig-snapped').forEach(f => f.classList.remove('fig-snapped'));
+    if (mode === 'field') { snapped = '__field__'; aimDraw(el, null, null, true, true); return; }
+    let best = null, bd = Infinity;
+    els.forEach(t => { const r = t.getBoundingClientRect(); const d = (r.left + r.width / 2 - e.clientX) ** 2 + (r.top + r.height / 2 - e.clientY) ** 2; if (d < bd) { bd = d; best = t; } });
+    snapped = best;
+    if (best) best.classList.add('fig-snapped');
+    aimDraw(el, { x: e.clientX, y: e.clientY }, best, !!best, false);
   });
   const finish = (e) => {
     if (pid === null) return;
     try { el.releasePointerCapture(pid); } catch (_) {}
     pid = null;
-    if (!dragging) { targeting = null; $('#target-hint').classList.add('hidden'); onCardTap(card); return; }
+    if (!dragging) { onCardTap(card); return; }   // a tap, not a drag
     dragging = false;
-    el.classList.remove('card-dragging');
-    el.style.transform = '';
-    const wasTargeting = targeting; targeting = null;
-    $('#target-hint').classList.add('hidden');
-    // What's under the release point?
-    el.style.pointerEvents = 'none';
-    const under = document.elementFromPoint(e.clientX, e.clientY);
-    el.style.pointerEvents = '';
-    const fig = under && under.closest ? under.closest('[data-fig]') : null;
-    const slot = under && under.closest ? under.closest('.slot[data-row]') : null;
-    const field = under && under.closest ? under.closest('#battlefield') : null;
-    const spec = targetSpec(card);
-    if (spec.pick && spec.isRow) {
-      if (slot && spec.validIds.includes('row:' + slot.dataset.row)) { playCard(Object.assign({}, card, { toRow: slot.dataset.row }), null); return; }
-    } else if (spec.pick) {
-      if (fig && spec.validIds.includes(fig.dataset.fig)) { playCard(card, fig.dataset.fig); return; }
-    } else if (field) {
+    el.classList.remove('card-dragging'); el.style.transform = '';
+    aimClear();
+    // Must drag UP out of the hand to commit — release back in the hand cancels.
+    const handTop = $('#hand').getBoundingClientRect().top;
+    if (e.clientY > handTop - 8) { renderAll(); return; }
+    const { mode } = dragTargets(card);
+    if (mode === 'field') {
       if (card.kind === 'resonant' && S.ep < S.maxEp) { flashNarrator('The Vow needs your ENTIRE turn — play it first.'); renderAll(); return; }
       playCard(card, null); return;
     }
-    renderAll();  // cancelled — snap everything back
+    if (snapped && snapped.dataset) { playCard(card, snapped.dataset.fig); return; }
+    renderAll();   // no valid target in range — cancel
   };
   el.addEventListener('pointerup', finish);
   el.addEventListener('pointercancel', finish);
@@ -1910,14 +1953,18 @@ function renderActionBar() {
     if (fx.notToday) return `<span class="ic ic-move">⇄</span><span class="ic ic-heal">✚4</span><span class="ic ic-guard">⛨4</span><span class="ic ic-counter">↺2</span>`;
     return fxIconStr(fx);
   };
+  // Reach: a 3-cell front/mid/back diagram for enemy cards (filled = can hit),
+  // so 'nearest' vs 'any' reads without words; support targets stay labelled.
+  const reachPips = (cells) => `<span class="rch-pips" title="enemy reach — front · mid · back">${cells.map(c => `<i class="rp${c ? ' on' : ''}"></i>`).join('')}</span>`;
   const cardReach = (card) => {
     const fx = card.fx || {};
-    if (fx.resonant || fx.notToday || fx.bondPair) return `<span class="rch rch-t">TRIAD</span>`;
+    if (fx.resonant) return `<span class="rch rch-t">◈ ALL</span>`;
+    if (fx.notToday || fx.bondPair) return `<span class="rch rch-t">◇ BOND</span>`;
     switch (card.target) {
-      case 'frontmost': return `<span class="rch rch-e">NEAREST</span>`;
-      case 'enemy':     return `<span class="rch rch-e">ANY</span>`;
-      case 'ally':      return `<span class="rch rch-a">ALLY</span>`;
-      case 'allies':    return `<span class="rch rch-a">PARTY</span>`;
+      case 'frontmost': return `${reachPips([1, 0, 0])}<span class="rch-lbl">nearest</span>`;
+      case 'enemy':     return `${reachPips([1, 1, 1])}<span class="rch-lbl">any foe</span>`;
+      case 'ally':      return `<span class="rch rch-a">♥ ALLY</span>`;
+      case 'allies':    return `<span class="rch rch-a">♥ PARTY</span>`;
       case 'self':      return `<span class="rch rch-a">SELF</span>`;
       default:          return '';
     }

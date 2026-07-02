@@ -710,3 +710,33 @@ body {
 .card-channel:hover { transform: scale(1.15); box-shadow: 0 0 8px rgba(154,120,192,0.5); color: var(--gold-bright); border-color: var(--gold-bright); }
 /* on touch (no hover) the channel pip stays faintly visible so it's discoverable */
 @media (hover: none) { .card-channel { opacity: 0.7; } }
+
+/* ===========================================================================
+   BUILD 19 — StS-style aim arrow + snap, and front/mid/back reach pips
+   =========================================================================== */
+#aim-layer .aim-path {
+  stroke: var(--gold-bright); stroke-width: 3; fill: none; stroke-linecap: round;
+  filter: drop-shadow(0 0 6px rgba(240,212,136,0.6));
+}
+#aim-layer .aim-path.aim-invalid { stroke: var(--ink-dim); opacity: 0.5; stroke-dasharray: 4 6; }
+#aim-layer .aim-path.aim-field { stroke: var(--gold-bright); }
+#aim-layer .aim-dot { fill: var(--gold-bright); filter: drop-shadow(0 0 7px rgba(240,212,136,0.85)); }
+#aim-layer .aim-dot.aim-field-dot { animation: target-pulse 0.7s ease infinite; }
+/* target highlights while aiming */
+.figure.fig-valid::after {
+  content: ''; position: absolute; inset: -3px; border-radius: 12px;
+  border: 1.5px dashed rgba(240,212,136,0.45); pointer-events: none;
+}
+.figure.fig-snapped::after {
+  content: ''; position: absolute; inset: -5px; border-radius: 13px;
+  border: 2px solid var(--gold-bright);
+  box-shadow: 0 0 16px rgba(240,212,136,0.65); pointer-events: none;
+}
+/* reach pips: front · mid · back */
+.rch-pips { display: inline-flex; gap: 2px; vertical-align: middle; }
+.rch-pips .rp {
+  width: 6px; height: 6px; border-radius: 1.5px;
+  border: 1px solid rgba(212,69,69,0.5); background: transparent; display: inline-block;
+}
+.rch-pips .rp.on { background: var(--blood-bright); border-color: var(--blood-bright); box-shadow: 0 0 4px rgba(212,69,69,0.5); }
+.rch-lbl { font-size: 7px; letter-spacing: 0.14em; color: var(--ink-dim); margin-left: 4px; }
