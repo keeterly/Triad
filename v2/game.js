@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 23;
+const V2_BUILD = 24;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -1955,6 +1955,29 @@ function chipPop(who, key, val) {
 }
 function snapFx(who, obj) { who._fxPrev = obj; }
 
+// Status AURA — persistent particle/glow effects painted OVER the character
+// body so an active status reads as an atmosphere around the figure, not just
+// a pill.  fx flags: guard, rally, chill, exposed, counter, invuln (allies);
+// weak, stagger add for enemies.  CSS drives the looping motion; --i staggers
+// each particle so a field of them shimmers rather than pulsing in lockstep.
+function auraHTML(fx) {
+  const field = (cls, n) => {
+    let s = '';
+    for (let i = 0; i < n; i++) s += `<span class="ap ${cls}" style="--i:${i};--x:${Math.round(12 + (i + 0.5) * (76 / n))}"></span>`;
+    return `<div class="ap-field">${s}</div>`;
+  };
+  let html = '';
+  if (fx.invuln)  html += `<span class="aura-glow aura-invuln"></span>`;
+  if (fx.guard)   html += `<span class="aura-shield"></span>`;
+  if (fx.exposed) html += `<span class="aura-glow aura-expose"></span>`;
+  if (fx.weak)    html += `<span class="aura-glow aura-weak"></span>`;
+  if (fx.stagger) html += `<span class="aura-glow aura-stagger"></span>` + field('ap-stagger', 5);
+  if (fx.rally)   html += field('ap-rally', 5);
+  if (fx.chill)   html += `<span class="aura-glow aura-chill"></span>` + field('ap-chill', 5);
+  if (fx.counter) html += field('ap-counter', 4);
+  return html ? `<div class="fig-aura">${html}</div>` : '';
+}
+
 function renderAll() {
   if (!S) return;
   renderTimeline();
@@ -2019,7 +2042,7 @@ function renderBattlefield() {
       if (targetable) fig.classList.add('fig-targetable');
       fig.innerHTML = `
         ${solo ? `<span class="stance-tag">${STANCE[who.row].name.toUpperCase()}</span>` : ''}
-        <div class="fig-art">${V2PORTRAITS[who.id] || ''}</div>
+        <div class="fig-art">${V2PORTRAITS[who.id] || ''}${who.downed ? '' : auraHTML({ guard: who.guard, rally: who.buffDmg, chill: who.chill, exposed: who.exposed, counter: who.counter, invuln: who.invuln })}</div>
         <div class="fig-chips">
           ${who.invuln ? `<span class="chip buff${chipPop(who,'invuln',1)}">✦ INVULN</span>` : ''}
           ${who.guard ? `<span class="chip guard${chipPop(who,'guard',who.guard)}">⛨ ${who.guard}</span>` : ''}
@@ -2071,7 +2094,7 @@ function renderBattlefield() {
         : `<div class="intent${it.heavy ? ' intent-heavy' : ''}"><span>⚔</span><span class="i-dmg">${Math.max(0, (it.dmg || 0) + (e.power || 0) - (e.lull || 0))}</span>${it.chill ? '<span class="i-st kw-chill">❄</span>' : ''}${it.expose ? '<span class="i-st kw-exposed">◎</span>' : ''}<span class="i-row">→ ${it.row === 'all' ? 'ALL' : ROW_LABEL[it.row]}</span></div>`;
       fig.innerHTML = `
         ${intentHtml}
-        <div class="fig-art">${enemyArt(e)}</div>
+        <div class="fig-art">${enemyArt(e)}${e._justDied ? '' : auraHTML({ guard: e.guard, rally: e.power, chill: e.lull, exposed: e.mark, weak: e.weakened, stagger: e.staggered })}</div>
         <div class="fig-chips">
           <span class="chip weak" title="weakness">${e.weakRevealed ? (SCHOOL_GLYPH[e.def.weak] || '?') : '?'}</span>
           ${e.weakened ? `<span class="chip mark${chipPop(e,'weakened',1)}">⌖</span>` : ''}

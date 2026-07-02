@@ -860,3 +860,92 @@ body {
   animation: rc-flash 0.42s ease-out forwards;
 }
 @keyframes rc-flash { 0% { opacity: 0; } 18% { opacity: 1; } 100% { opacity: 0; } }
+
+/* ===========================================================================
+   BUILD 24 — status AURAS: particle/glow effects on the character body, so a
+   status reads as an atmosphere around the figure rather than only a pill.
+   =========================================================================== */
+.fig-aura { position: absolute; inset: 0; pointer-events: none; overflow: visible; z-index: 2; }
+.ap-field { position: absolute; inset: 0; overflow: visible; }
+.ap { position: absolute; left: calc(var(--x) * 1%); width: 5px; height: 5px; border-radius: 50%; }
+
+/* RALLY ▲ — embers rising off the body */
+.ap-rally {
+  bottom: 8px;
+  background: radial-gradient(circle, #ffe6a4 0%, #e0a83c 55%, transparent 76%);
+  box-shadow: 0 0 6px rgba(240,200,120,0.85);
+  animation: ap-rise 1.5s ease-in infinite;
+  animation-delay: calc(var(--i) * -0.3s);
+}
+@keyframes ap-rise {
+  0%   { opacity: 0; transform: translateY(0) scale(0.6); }
+  18%  { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-96px) translateX(4px) scale(0.2); }
+}
+/* CHILL ❄ — frost motes drifting down */
+.ap-chill {
+  top: -2px; width: 4px; height: 4px;
+  background: radial-gradient(circle, #ffffff 0%, #8ecbe8 60%, transparent 82%);
+  box-shadow: 0 0 5px rgba(142,203,232,0.8);
+  animation: ap-fall 2.3s linear infinite;
+  animation-delay: calc(var(--i) * -0.46s);
+}
+@keyframes ap-fall {
+  0%   { opacity: 0; transform: translateY(0) translateX(0); }
+  15%  { opacity: 0.95; }
+  100% { opacity: 0; transform: translateY(104px) translateX(7px); }
+}
+/* COUNTER ↺ — arcane motes orbiting the figure */
+.ap-counter {
+  left: 50%; top: 54px; width: 4px; height: 4px;
+  background: radial-gradient(circle, #e6d4ff 0%, #9a78c0 60%, transparent 82%);
+  box-shadow: 0 0 6px rgba(154,120,192,0.85);
+  transform-origin: 0 0;
+  animation: ap-orbit 2.6s linear infinite;
+  animation-delay: calc(var(--i) * -0.65s);
+}
+@keyframes ap-orbit {
+  from { transform: rotate(0deg) translateX(26px) rotate(0deg); }
+  to   { transform: rotate(360deg) translateX(26px) rotate(-360deg); }
+}
+/* STAGGER ⚡ — electric sparks jittering across the body */
+.ap-stagger {
+  top: 28px; width: 3px; height: 11px; border-radius: 2px;
+  background: linear-gradient(#fff6d8, #f0d488);
+  box-shadow: 0 0 6px rgba(240,212,136,0.9);
+  animation: ap-zap 0.46s steps(2, jump-none) infinite;
+  animation-delay: calc(var(--i) * -0.11s);
+}
+@keyframes ap-zap {
+  0%, 100% { opacity: 0; }
+  50%      { opacity: 1; transform: translateY(-5px) rotate(9deg); }
+}
+
+/* soft body glows (breathing radial tint centered on the torso) */
+.aura-glow {
+  position: absolute; left: 50%; top: 54px; transform: translate(-50%,-50%);
+  width: 80px; height: 104px; border-radius: 50%; pointer-events: none;
+}
+.aura-invuln  { background: radial-gradient(ellipse, rgba(255,246,216,0.36), transparent 68%); box-shadow: 0 0 22px rgba(255,246,216,0.4); animation: aura-breathe 1.8s ease-in-out infinite; }
+.aura-expose  { background: radial-gradient(ellipse, rgba(212,69,69,0.34), transparent 68%); animation: aura-breathe 1.05s ease-in-out infinite; }
+.aura-weak    { background: radial-gradient(ellipse, rgba(180,60,60,0.24), transparent 72%); animation: aura-breathe 1.6s ease-in-out infinite; }
+.aura-chill   { background: radial-gradient(ellipse, rgba(142,203,232,0.28), transparent 72%); animation: aura-breathe 2.0s ease-in-out infinite; }
+.aura-stagger { background: radial-gradient(ellipse, rgba(240,212,136,0.32), transparent 66%); animation: aura-flicker 0.42s steps(3) infinite; }
+@keyframes aura-breathe {
+  0%, 100% { opacity: 0.5; transform: translate(-50%,-50%) scale(0.9); }
+  50%      { opacity: 1;   transform: translate(-50%,-50%) scale(1.09); }
+}
+@keyframes aura-flicker { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.95; } }
+
+/* GUARD ⛨ — a shimmering shield bubble in front of the figure */
+.aura-shield {
+  position: absolute; left: 50%; top: 54px; transform: translate(-50%,-50%);
+  width: 88px; height: 108px; border-radius: 50%;
+  border: 2px solid rgba(168,200,232,0.5);
+  box-shadow: 0 0 16px rgba(168,200,232,0.4), inset 0 0 22px rgba(168,200,232,0.3);
+  background: linear-gradient(120deg, transparent 40%, rgba(168,200,232,0.16) 50%, transparent 60%);
+  background-size: 220% 220%;
+  animation: aura-shield-shimmer 2.4s linear infinite, aura-shield-pulse 2s ease-in-out infinite;
+}
+@keyframes aura-shield-shimmer { 0% { background-position: 160% 0; } 100% { background-position: -60% 0; } }
+@keyframes aura-shield-pulse { 0%, 100% { opacity: 0.62; } 50% { opacity: 1; } }
