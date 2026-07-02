@@ -218,13 +218,17 @@ body {
 
 /* ---- hand ---- */
 #hand {
-  flex: 1; display: flex; gap: 6px; align-items: stretch; justify-content: center;
+  flex: 1; display: flex; gap: 6px; align-items: flex-end; justify-content: center;
   min-height: 0; min-width: 0; padding: 2px 0;
   /* Without min-width:0 this flex item would expand to its content and the
      fan-overlap measurement in renderActionBar could never trigger. */
 }
 .card {
-  width: 118px; min-width: 96px; border-radius: 9px; padding: 6px 7px 5px;
+  /* LOCKED geometry: the fan may overlap and rotate cards, but never
+     reshape them — a card is always exactly this size. */
+  width: 118px; min-width: 118px; max-width: 118px; height: 158px; flex: none;
+  overflow: hidden;
+  border-radius: 9px; padding: 6px 7px 5px;
   border: 1px solid var(--edge); position: relative; cursor: pointer;
   background:
     linear-gradient(180deg, rgba(34,27,20,0.95) 0%, rgba(16,12,9,0.97) 100%);

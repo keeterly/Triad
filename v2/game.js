@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 11;
+const V2_BUILD = 12;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -407,6 +407,20 @@ const RUN_KEY = 'kizuna2.run';
 const ABYSS_KEY = 'kizuna2.abyss';   // nodeId -> memory of a fallen descent
 function loadAbyss() { try { return JSON.parse(localStorage.getItem(ABYSS_KEY) || '{}'); } catch (_) { return {}; } }
 function saveAbyss(a) { try { localStorage.setItem(ABYSS_KEY, JSON.stringify(a)); } catch (_) {} }
+// Vow ranks — every time a class-triangle actually speaks its vow, the vow
+// deepens.  PERSISTS ACROSS RUNS (and deaths): the trio remembers how to
+// fight together.  1 use -> rank II, 3 uses -> rank III (+2 to the vow's
+// numeric stages per rank above I).
+const VOWS_KEY = 'kizuna2.vows';
+function loadVows() { try { return JSON.parse(localStorage.getItem(VOWS_KEY) || '{}'); } catch (_) { return {}; } }
+function vowUses(classKey) { return loadVows()[classKey] || 0; }
+function vowRank(classKey) { const u = vowUses(classKey); return u >= 3 ? 3 : u >= 1 ? 2 : 1; }
+function recordVow(classKey) {
+  const v = loadVows(); v[classKey] = (v[classKey] || 0) + 1;
+  try { localStorage.setItem(VOWS_KEY, JSON.stringify(v)); } catch (_) {}
+}
+const ROMAN = ['', 'I', 'II', 'III'];
+function trioClassKey(ids) { return ids.map(id => HEROES[id].cls).sort().join('+'); }
 const UNLOCK_KEY = 'kizuna.unlocked';
 
 function newRun() {
@@ -536,10 +550,16 @@ function triadEntryFor(ids) {
 function triadEntry() { return triadEntryFor(livingHeroes().map(h => h.id)); }
 function mkResonantCard(host) {
   const r = triadEntry();
+  const key = trioClassKey(livingHeroes().map(h => h.id));
+  const rank = vowRank(key);
+  const uses = vowUses(key);
+  const toNext = rank === 1 ? 1 - uses : rank === 2 ? 3 - uses : 0;
   return { kind: 'resonant', owner: 'triad', ownerName: host ? host.def.name : 'THE TRIAD',
     tint: 'var(--gold-bright)',
-    stance: 'TEMPORARY', name: r.name, cost: S.maxEp, target: 'none', fx: { resonant: true },
-    desc: r.desc + '  Consumes your entire turn.  Temporary — this fight only.', spent: false };
+    stance: 'TEMPORARY', name: r.name + (rank > 1 ? ' ' + ROMAN[rank] : ''), cost: S.maxEp, target: 'none', fx: { resonant: true },
+    desc: r.desc + (rank > 1 ? `  <span class="kw kw-rally">DEEPENED ×${rank - 1}</span> — the vow remembers.` : '')
+      + (toNext > 0 ? `  (${toNext} more vow${toNext > 1 ? 's' : ''} deepens it)` : '')
+      + '  Consumes your entire turn.', spent: false };
 }
 
 // ---------------------------------------------------------------------------
@@ -813,6 +833,16 @@ async function resolveCard(card, targetId) {
         SFX.follow();
         await addThread(owner.id, prev);
       }
+      // AVENGE: cutting down an enemy that hurt an ally this fight forms a
+      // thread with the one you avenged — protective aggression bonds too.
+      if (tgt.dead && owner) {
+        const wounded = (tgt._damaged || []).filter(id => id !== owner.id && livingHeroes().some(h => h.id === id));
+        if (wounded.length) {
+          const avenged = wounded[wounded.length - 1];
+          popupAt(figEl(owner.id), '⚔ AVENGED', 'info');
+          await addThread(owner.id, avenged);
+        }
+      }
       if (tgt.dead) await sleep(140);   // hitstop: let the kill land
     } else {
       flashNarrator('No target in reach — the cut finds only air.');
@@ -850,6 +880,8 @@ function dealToEnemy(e, amt) {
   e.hp = Math.max(0, e.hp - left);
   const big = amt >= 8;
   popupAt(figEl(e.uid), '−' + amt, 'dmg' + (big ? ' popup-big' : ''));
+  // (damagedHeroes bookkeeping lives in enemyPhase; kills resolve avenging
+  // in resolveCard where the attacker is known)
   shake(figEl(e.uid));
   SFX.hit(big);
   if (big) stageShake();
@@ -924,7 +956,7 @@ async function triadCeremony() {
     </svg>
     <div class="triad-title">TRIAD FORMED</div>
     <div class="triad-names">${names}</div>
-    <div class="triad-cardname">✦ ${r.name} — ${r.type}</div>
+    <div class="triad-cardname">✦ ${r.name}${vowRank(trioClassKey(livingHeroes().map(h => h.id))) > 1 ? ' ' + ROMAN[vowRank(trioClassKey(livingHeroes().map(h => h.id)))] : ''} — ${r.type}</div>
     <div class="ov-tap">${HEROES[S.resonantHostId] ? HEROES[S.resonantHostId].name + '’s signature transforms' : 'a card transforms'} · tap to continue</div>
   `, 'triad-ceremony');
   await new Promise(res => { $('#overlay').onclick = () => { $('#overlay').onclick = null; res(); }; });
@@ -937,9 +969,18 @@ async function triadCeremony() {
 async function resolveResonant() {
   const r = triadEntry();
   S.resonantUsed = true;
+  const key = trioClassKey(livingHeroes().map(h => h.id));
+  const rankBonus = (vowRank(key) - 1) * 2;
+  recordVow(key);
+  flashNarrator('✦ The vow deepens — spoken ' + vowUses(key) + ' time' + (vowUses(key) > 1 ? 's' : '') + '.');
+  await sleep(500);
   for (const st of (r.stages || [])) {
     flashNarrator('✦ ' + st.text);
-    const fx = st.fx || {};
+    const fx = {};
+    Object.assign(fx, st.fx || {});
+    ['aoeDmg', 'hitFrontmost', 'healAll', 'guardAll', 'guardFront', 'buffAllDmg'].forEach(k => {
+      if (fx[k]) fx[k] += rankBonus;
+    });
     if (fx.aoeDmg) livingEnemies().forEach(e => dealToEnemy(e, fx.aoeDmg + (e.mark || 0)));
     if (fx.hitFrontmost) { const t = frontmostEnemy(); if (t) dealToEnemy(t, fx.hitFrontmost + (t.mark || 0)); }
     if (fx.healAll) livingHeroes().forEach(h => { h.hp = Math.min(h.maxHp, h.hp + fx.healAll); popupAt(figEl(h.id), '+' + fx.healAll, 'heal'); });
@@ -1054,6 +1095,7 @@ async function enemyPhase() {
           shake(figEl(h.id));
           SFX.hit(big);
           if (big) stageShake();
+          (e._damaged || (e._damaged = [])).push(h.id);   // remembered for AVENGE
         }
       }
       if (intent.chill)  { h.chill = (h.chill || 0) + intent.chill; popupAt(figEl(h.id), '❄ CHILL −' + intent.chill, 'chill'); }

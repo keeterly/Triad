@@ -70,7 +70,7 @@ async function boot(opts = {}) {
       if (!sessionStorage.getItem('__v2init')) {
         sessionStorage.setItem('__v2init', '1');
         if (init.flow != null) localStorage.setItem('kizuna2.flow', String(init.flow));
-        if (init.clearRun) { localStorage.removeItem('kizuna2.run'); localStorage.removeItem('kizuna2.abyss'); }
+        if (init.clearRun) { localStorage.removeItem('kizuna2.run'); localStorage.removeItem('kizuna2.abyss'); localStorage.removeItem('kizuna2.vows'); }
       }
     } catch (_) {}
   }, { flow: opts.flow, clearRun: opts.clearRun !== false });
