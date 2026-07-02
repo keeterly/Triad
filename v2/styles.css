@@ -122,7 +122,11 @@ body {
 }
 .slot.slot-telegraphed .slot-label { color: var(--blood-bright); }
 .slot-ring {
-  position: absolute; inset: 8px 2px 16px; border-radius: 10px;
+  /* Fixed-size box anchored where the figure stands — every row's indicator
+     reads identically (the old full-column inset stretched with the slot,
+     so BACK/MID/FRONT boxes were all different heights). */
+  position: absolute; left: 3px; right: 3px; bottom: 12px; height: 172px;
+  border-radius: 10px;
   border: 1px dashed transparent; pointer-events: none;
 }
 .slot.slot-telegraphed .slot-ring { border-color: rgba(212,69,69,0.4); }

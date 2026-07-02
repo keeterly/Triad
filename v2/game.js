@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 3;
+const V2_BUILD = 4;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -42,7 +42,7 @@ const HEROES = {
       },
       mid: {
         core: { name: 'Flowing Cut',   cost: 1, target: 'frontmost', fx: { dmg: 4, guard: 3 },  desc: '4 damage · gain 3 guard.' },
-        sig:  { name: 'Riposte',       cost: 2, target: 'self',      fx: { guard: 7, counter: 5 }, desc: 'Gain 7 guard · counter attackers for 5 this round.' },
+        sig:  { name: 'Crossguard',    cost: 2, target: 'ally',      fx: { guard: 5, counter: 3 }, desc: 'Stand for an ally: they gain 5 guard · counter attackers for 3 this round.' },
       },
       back: {
         core: { name: 'Thrown Edge',   cost: 1, target: 'enemy',     fx: { dmg: 4 },            desc: '4 damage to ANY enemy.' },
@@ -460,8 +460,8 @@ function mkResonantCard(host) {
   const r = triadEntry();
   return { kind: 'resonant', owner: 'triad', ownerName: host ? host.def.name : 'THE TRIAD',
     tint: 'var(--gold-bright)',
-    stance: r.type.toUpperCase(), name: r.name, cost: S.maxEp, target: 'none', fx: { resonant: true },
-    desc: r.desc + '  Consumes your entire turn.', spent: false };
+    stance: 'TEMPORARY', name: r.name, cost: S.maxEp, target: 'none', fx: { resonant: true },
+    desc: r.desc + '  Consumes your entire turn.  Temporary — this fight only.', spent: false };
 }
 
 // ---------------------------------------------------------------------------
@@ -1278,7 +1278,8 @@ function renderActionBar() {
   const handEl = $('#hand');
   handEl.innerHTML = '';
   if (S.over) return;
-  const TYPE_LABEL = { attack: '✕ ATTACK', guard: '⛨ GUARD', skill: '✦ SKILL', move: '⇄ MOVE', resonant: '✦ RESONANT' };
+  const TYPE_LABEL = { attack: '✕ ATTACK', guard: '⛨ GUARD', skill: '✦ SKILL', move: '⇄ MOVE',
+    resonant: '✦ RESONANCE · ' + (triadEntry().type || '').toUpperCase() };
   buildHand().forEach(card => {
     const type = cardType(card);
     const el = document.createElement('div');
