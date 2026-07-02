@@ -18,8 +18,46 @@
 
 'use strict';
 
-const V2_BUILD = 5;
+const V2_BUILD = 6;
 const $ = (sel) => document.querySelector(sel);
+
+// ---------------------------------------------------------------------------
+// SFX — tiny synthesized cues (no assets).  Volumes stay low; every cue is a
+// short envelope so rapid plays never smear.  Context wakes on first gesture.
+// ---------------------------------------------------------------------------
+const SFX = (() => {
+  let ctx = null;
+  const ac = () => {
+    if (!ctx) { try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (_) {} }
+    return ctx;
+  };
+  document.addEventListener('pointerdown', () => { const c = ac(); if (c && c.state === 'suspended') c.resume(); }, { capture: true });
+  function tone(freq, dur, type, vol, delay, slideTo) {
+    const c = ac(); if (!c || c.state !== 'running') return;
+    const t0 = c.currentTime + (delay || 0);
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = type || 'sine';
+    o.frequency.setValueAtTime(freq, t0);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t0 + dur);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(vol || 0.06, t0 + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g).connect(c.destination);
+    o.start(t0); o.stop(t0 + dur + 0.05);
+  }
+  return {
+    card:    () => tone(620, 0.07, 'triangle', 0.045),
+    move:    () => tone(360, 0.06, 'triangle', 0.04),
+    hit:     (big) => { tone(big ? 95 : 130, big ? 0.2 : 0.12, 'square', big ? 0.075 : 0.055, 0, big ? 55 : 90); },
+    kill:    () => { tone(180, 0.3, 'sawtooth', 0.06, 0, 55); tone(90, 0.35, 'square', 0.05, 0.05, 40); },
+    heal:    () => { tone(520, 0.14, 'sine', 0.05); tone(780, 0.18, 'sine', 0.035, 0.06); },
+    guard:   () => tone(290, 0.09, 'triangle', 0.055),
+    thread:  () => { tone(440, 0.35, 'sine', 0.05); tone(660, 0.4, 'sine', 0.04, 0.09); },
+    triad:   () => { [440, 554, 659, 880].forEach((f, i) => tone(f, 0.7, 'sine', 0.05, i * 0.09)); },
+    victory: () => { [523, 659, 784].forEach((f, i) => tone(f, 0.25, 'triangle', 0.05, i * 0.11)); },
+    enemy:   () => tone(220, 0.09, 'square', 0.04, 0, 180),
+  };
+})();
 
 // ---------------------------------------------------------------------------
 // DATA — heroes.
@@ -660,12 +698,43 @@ function attachHeroDrag(fig, hero) {
   fig.addEventListener('pointercancel', finish);
 }
 
+// Visual: the played card lifts out of the fan and flies toward its target
+// (or the field's center), shrinking and fading as the effect lands.
+function flyCard(cardName, targetEl) {
+  const el = document.querySelector(`#hand .card[data-card-name="${CSS.escape(cardName)}"]`);
+  if (!el) return;
+  const stage = $('#stage');
+  const sr = stage.getBoundingClientRect();
+  const scale = sr.width / 760 || 1;
+  const r = el.getBoundingClientRect();
+  const ghost = el.cloneNode(true);
+  ghost.className = el.className + ' card-ghost';
+  ghost.style.cssText = `position:absolute; margin:0; z-index:120; pointer-events:none;
+    left:${(r.left - sr.left) / scale}px; top:${(r.top - sr.top) / scale}px;
+    width:${r.width / scale}px; height:${r.height / scale}px; transform:none;`;
+  $('#popup-layer').appendChild(ghost);
+  const tr = (targetEl || $('#battlefield')).getBoundingClientRect();
+  const dx = (tr.left + tr.width / 2 - (r.left + r.width / 2)) / scale;
+  const dy = (tr.top + tr.height / 2 - (r.top + r.height / 2)) / scale;
+  requestAnimationFrame(() => {
+    ghost.style.transition = 'transform 0.42s cubic-bezier(0.3, 0.9, 0.4, 1), opacity 0.42s ease';
+    ghost.style.transform = `translate(${dx}px, ${dy}px) scale(0.28) rotate(4deg)`;
+    ghost.style.opacity = '0';
+  });
+  setTimeout(() => ghost.remove(), 480);
+}
+
 async function playCard(card, targetId) {
   if (S.executing || S.over) return;
   S.executing = true;
   $('#stage').classList.add('executing');
   S.ep -= card.cost;
   if (card.owner !== 'triad') S.used.add(card.owner + ':' + card.kind);
+  if (card.kind !== 'move') {
+    SFX.card();
+    flyCard(card.name, targetId ? figEl(targetId) : (card.target === 'frontmost' && frontmostEnemy() ? figEl(frontmostEnemy().uid) : null));
+  } else { SFX.move(); }
+  pulseEp();
   renderAll();
   await resolveCard(card, targetId);
   S.executing = false;
@@ -707,6 +776,7 @@ async function resolveCard(card, targetId) {
       if (owner && owner.buffDmg) { popupAt(figEl(owner.id), '+' + owner.buffDmg, 'guard'); owner.buffDmg = 0; }
       amt += tgt.mark || 0;
       dealToEnemy(tgt, amt);
+      if (tgt.dead) await sleep(140);   // hitstop: let the kill land
     } else {
       flashNarrator('No target in reach — the cut finds only air.');
     }
@@ -727,8 +797,8 @@ async function resolveCard(card, targetId) {
     if (card.target === 'frontmost' && fx.guard) receivers = [owner];
     for (const rc of receivers) {
       if (!rc || rc.downed) continue;
-      if (fx.heal)   { rc.hp = Math.min(rc.maxHp, rc.hp + fx.heal); popupAt(figEl(rc.id), '+' + fx.heal, 'heal'); }
-      if (fx.guard)  { rc.guard += fx.guard; popupAt(figEl(rc.id), '⛨ ' + fx.guard, 'guard'); }
+      if (fx.heal)   { rc.hp = Math.min(rc.maxHp, rc.hp + fx.heal); popupAt(figEl(rc.id), '+' + fx.heal, 'heal'); SFX.heal(); }
+      if (fx.guard)  { rc.guard += fx.guard; popupAt(figEl(rc.id), '⛨ ' + fx.guard, 'guard'); SFX.guard(); }
       if (fx.buffDmg){ rc.buffDmg += fx.buffDmg; popupAt(figEl(rc.id), '+' + fx.buffDmg + ' NEXT', 'guard'); }
       if (fx.counter){ rc.counter = Math.max(rc.counter, fx.counter); }
       if (owner && rc.id !== owner.id && card.target === 'ally') await addThread(owner.id, rc.id);
@@ -741,9 +811,30 @@ function dealToEnemy(e, amt) {
   let left = amt;
   if (e.guard > 0) { const g = Math.min(e.guard, left); e.guard -= g; left -= g; }
   e.hp = Math.max(0, e.hp - left);
-  popupAt(figEl(e.uid), '−' + amt, 'dmg');
+  const big = amt >= 8;
+  popupAt(figEl(e.uid), '−' + amt, 'dmg' + (big ? ' popup-big' : ''));
   shake(figEl(e.uid));
-  if (e.hp === 0) e.dead = true;
+  SFX.hit(big);
+  if (big) stageShake();
+  if (e.hp === 0 && !e.dead) {
+    e.dead = true;
+    e._justDied = true;
+    SFX.kill();
+    stageShake();
+    const el = figEl(e.uid);
+    if (el) el.classList.add('fig-dying');
+    setTimeout(() => { e._justDied = false; if (S && !S.over) renderAll(); }, 750);
+  }
+}
+// Micro screen-shake for weighty moments.
+function stageShake() {
+  const st = $('#stage');
+  st.classList.remove('stage-shake'); void st.offsetWidth; st.classList.add('stage-shake');
+}
+function pulseEp() {
+  const dial = $('#ep-dial');
+  if (!dial) return;
+  dial.classList.remove('ep-pulse'); void dial.offsetWidth; dial.classList.add('ep-pulse');
 }
 
 async function addThread(a, b) {
@@ -751,6 +842,7 @@ async function addThread(a, b) {
   if (S.threads.has(key)) { await checkTriad(a); return; }   // kindled threads awaken on any help
   S.threads.add(key);
   renderThreads(key);
+  SFX.thread();
   flashNarrator('A thread forms — ' + HEROES[a].name + ' ─ ' + HEROES[b].name);
   // The bond itself protects: both linked heroes steel by 2 guard the moment
   // the thread forms.  Kizuna has immediate tactical weight, not just
@@ -774,6 +866,7 @@ async function checkTriad(closer) {
 
 async function triadCeremony() {
   $('#stage').classList.add('frozen');
+  SFX.triad();
   await sleep(700);
   const r = triadEntry();
   const names = livingHeroes().map(h => h.def.name).join(' · ');
@@ -845,18 +938,33 @@ async function endTurn() {
     S.enemies.forEach(e => { e.mark = 0; e.acted = false; });
     S.executing = false;
     $('#stage').classList.remove('executing');
+    turnBanner('TURN ' + S.turn, 'tb-player');
     renderAll();
   }
 }
 
+// Slim center banner marking the turn handoff — combat reads as call and
+// response instead of popups appearing out of nowhere.
+function turnBanner(text, cls) {
+  const b = document.createElement('div');
+  b.className = 'turn-banner ' + (cls || '');
+  b.textContent = text;
+  $('#stage').appendChild(b);
+  setTimeout(() => b.remove(), 950);
+}
+
 async function enemyPhase() {
+  turnBanner('ENEMY TURN', 'tb-enemy');
+  await sleep(620);
   for (const e of livingEnemies()) {
     if (S.over) break;
     const intent = e.def.intents[e.intentIdx % e.def.intents.length];
     e.intentIdx++;
     e.acted = true;
     renderTimeline();
-    await sleep(430);
+    const lungeEl = figEl(e.uid);
+    if (lungeEl && intent.kind !== 'buff') { lungeEl.classList.add('fig-lunge'); SFX.enemy(); }
+    await sleep(400);
     if (intent.kind === 'buff') {
       if (intent.guardSelf) { e.guard += intent.guardSelf; popupAt(figEl(e.uid), '⛨ ' + intent.guardSelf, 'guard'); }
       if (intent.powerSelf) { e.power += intent.powerSelf; popupAt(figEl(e.uid), '+' + intent.powerSelf + ' ATK', 'info'); }
@@ -878,8 +986,11 @@ async function enemyPhase() {
         if (h.guard > 0) { const g = Math.min(h.guard, left); h.guard -= g; left -= g; popupAt(figEl(h.id), '⛨', 'guard'); }
         if (left > 0) {
           h.hp = Math.max(0, h.hp - left);
-          popupAt(figEl(h.id), '−' + left, 'dmg');
+          const big = left >= 7;
+          popupAt(figEl(h.id), '−' + left, 'dmg' + (big ? ' popup-big' : ''));
           shake(figEl(h.id));
+          SFX.hit(big);
+          if (big) stageShake();
         }
       }
       if (h.counter > 0 && !e.dead) { dealToEnemy(e, h.counter); flashNarrator(h.def.name + ' counters!'); }
@@ -920,6 +1031,7 @@ function onVictory() {
     saveRun();
   }
   const isBoss = S.node.enemies.some(id => ENEMY_DEFS[id].boss);
+  SFX.victory();
   setTimeout(() => {
     if (S.node.mapId === 9) { onRunComplete(); return; }
     const th = S.threads.size;
@@ -1258,11 +1370,11 @@ function renderBattlefield() {
     const slot = document.createElement('div');
     slot.className = 'slot';
     slot.dataset.row = row;
-    const e = S.enemies.find(x => x.row === row && !x.dead);
+    const e = S.enemies.find(x => x.row === row && (!x.dead || x._justDied));
     if (e) {
       const it = e.def.intents[e.intentIdx % e.def.intents.length];
       const fig = document.createElement('div');
-      fig.className = 'figure enemy';
+      fig.className = 'figure enemy' + (e._justDied ? ' fig-dying' : '');
       fig.dataset.fig = e.uid;
       const targetable = targeting && !targeting.isRow && targeting.validIds.includes(e.uid);
       if (targetable) fig.classList.add('fig-targetable');
@@ -1315,6 +1427,10 @@ function renderActionBar() {
   $('#ep-num').textContent = S.ep;
   $('#ep-max').textContent = '/' + S.maxEp;
   $('#btn-endturn').disabled = S.executing || S.over;
+  // When nothing is playable, softly pulse END TURN so the next step is obvious.
+  const anyPlayable = buildHand().some(c => !c.spent && c.cost <= S.ep)
+    || livingHeroes().some(h => canMove(h));
+  $('#btn-endturn').classList.toggle('et-nudge', !S.executing && !S.over && !anyPlayable);
 
   const handEl = $('#hand');
   handEl.innerHTML = '';

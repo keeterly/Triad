@@ -504,3 +504,59 @@ body {
 }
 .ps-bonds { font-size: 9px; letter-spacing: 0.12em; color: var(--ink-dim); min-height: 14px; margin: -4px 0 8px; }
 .ps-bond-sep { color: var(--ink-faint); }
+
+/* ===========================================================================
+   BUILD 6 — combat feel: deaths dissolve, cards fly, turns announce
+   themselves, impacts carry weight.
+   =========================================================================== */
+.figure.fig-dying {
+  animation: fig-dying 0.72s ease-in forwards;
+  pointer-events: none;
+}
+@keyframes fig-dying {
+  0%   { filter: brightness(2.4) saturate(0.4); }
+  30%  { filter: brightness(0.9) saturate(0.2); opacity: 0.9; }
+  100% { transform: translateY(16px) scale(0.92); opacity: 0; filter: brightness(0.3) saturate(0); }
+}
+.stage-shake { animation: stage-shake 0.24s ease; }
+@keyframes stage-shake {
+  0%, 100% { translate: 0 0; }
+  25% { translate: 3px 1px; }
+  50% { translate: -3px -1px; }
+  75% { translate: 2px 1px; }
+}
+.popup.popup-big { font-size: 23px; letter-spacing: 0.02em; text-shadow: 0 2px 4px #000, 0 0 14px rgba(212,69,69,0.5); }
+.turn-banner {
+  position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%);
+  z-index: 45; pointer-events: none;
+  font-size: 17px; letter-spacing: 0.5em; padding: 8px 30px 8px 36px;
+  color: var(--ink); background: linear-gradient(90deg, transparent, rgba(10,8,10,0.88) 18%, rgba(10,8,10,0.88) 82%, transparent);
+  animation: banner-in 0.95s ease forwards;
+}
+.turn-banner.tb-enemy { color: var(--blood-bright); }
+.turn-banner.tb-player { color: var(--gold-bright); }
+@keyframes banner-in {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scaleX(1.5); letter-spacing: 0.9em; }
+  18%  { opacity: 1; transform: translate(-50%, -50%) scaleX(1); }
+  78%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -50%) translateY(-8px); }
+}
+.figure.fig-lunge { animation: fig-lunge 0.4s ease; }
+#enemy-half .figure.fig-lunge { animation: fig-lunge-enemy 0.4s ease; }
+@keyframes fig-lunge-enemy {
+  0% { transform: translateX(0); }
+  35% { transform: translateX(-16px) scale(1.04); filter: brightness(1.25); }
+  100% { transform: translateX(0); }
+}
+#ep-dial.ep-pulse { animation: ep-pulse 0.4s ease; }
+@keyframes ep-pulse {
+  0% { transform: scale(1); box-shadow: 0 0 12px rgba(154,120,192,0.25); }
+  40% { transform: scale(1.12); box-shadow: 0 0 22px rgba(154,120,192,0.6); }
+  100% { transform: scale(1); }
+}
+#btn-endturn.et-nudge {
+  animation: et-nudge 1.3s ease infinite;
+  color: var(--gold-bright);
+}
+@keyframes et-nudge { 50% { box-shadow: 0 0 18px rgba(240,212,136,0.45); } }
+.card-ghost { border-width: 2px; }
