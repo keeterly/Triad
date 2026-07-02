@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 15;
+const V2_BUILD = 16;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -1649,18 +1649,33 @@ function renderAll() {
   renderActionBar();
 }
 
+// Combat no longer has an action-scripted / ATB order (your whole turn, then
+// theirs), so a turn-order strip would be dishonest.  This spot instead
+// carries a THREAT FORECAST: total enemy damage that would land on OCCUPIED
+// party rows next phase.  Vacate a telegraphed row and the number drops —
+// the forecast is the formation puzzle made numeric, and it drives the
+// guard / intercept / dodge decision.
 function renderTimeline() {
   const tl = $('#timeline');
   if (!S) { tl.innerHTML = ''; return; }
-  const bits = [];
-  livingHeroes().forEach(h => {
-    bits.push(`<div class="tl-diamond tl-hero"><div class="tl-art">${V2PORTRAITS[h.id] || ''}</div></div>`);
-  });
-  bits.push(`<div class="tl-turn"><span>${S.turn}</span></div>`);
+  const rowDmg = { front: 0, mid: 0, back: 0 };
   livingEnemies().forEach(e => {
-    bits.push(`<div class="tl-diamond tl-enemy${e.acted ? ' tl-acted' : ''}"><div class="tl-art">${enemyArt(e)}</div></div>`);
+    const it = e.def.intents[e.intentIdx % e.def.intents.length];
+    if (!it || it.kind === 'buff') return;
+    const dmg = Math.max(0, (it.dmg || 0) + (e.power || 0) - (e.lull || 0));
+    (it.row === 'all' ? ROWS.slice() : [it.row]).forEach(r => { rowDmg[r] += dmg; });
   });
-  tl.innerHTML = bits.join('');
+  let incoming = 0, lethal = false;
+  ROWS.forEach(r => {
+    const h = heroInRow(r);
+    if (!h) return;
+    incoming += rowDmg[r];
+    if (rowDmg[r] >= h.hp + h.guard && !h.invuln) lethal = true;
+  });
+  tl.innerHTML = `<span class="rd-round">ROUND ${S.turn}</span>`
+    + (incoming > 0
+        ? `<span class="rd-threat${lethal ? ' rd-lethal' : ''}"><span class="rd-i">⚔</span> ${incoming} incoming${lethal ? ' ☠' : ''}</span>`
+        : `<span class="rd-safe">— the line holds —</span>`);
 }
 
 function renderBattlefield() {

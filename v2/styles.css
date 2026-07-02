@@ -625,3 +625,19 @@ body {
 }
 .card.kind-temp .c-name { color: var(--gold-bright); }
 .card .c-type.t-temp { color: var(--gold-bright); }
+
+
+/* BUILD 16 — threat forecast replaces the vestigial turn-order strip */
+#timeline { gap: 10px; }
+.rd-round { font-size: 11px; letter-spacing: 0.32em; color: var(--ink-dim); }
+.rd-threat {
+  font-size: 12px; letter-spacing: 0.06em; color: var(--ink);
+  border: 1px solid rgba(212,69,69,0.4); border-radius: 999px; padding: 2px 12px;
+  background: rgba(24,10,10,0.6);
+}
+.rd-threat .rd-i { color: var(--blood-bright); }
+.rd-threat.rd-lethal {
+  color: var(--blood-bright); border-color: var(--blood-bright);
+  box-shadow: 0 0 10px rgba(212,69,69,0.4); animation: target-pulse 0.9s ease infinite;
+}
+.rd-safe { font-size: 10px; letter-spacing: 0.18em; color: var(--ink-faint); font-style: italic; }
