@@ -161,15 +161,20 @@ body {
 .hp-fill { height: 100%; background: linear-gradient(90deg, #7a5c30, var(--gold)); transition: width 0.3s ease; }
 .figure.enemy .hp-fill { background: linear-gradient(90deg, #6a2424, var(--blood-bright)); }
 .hp-num { font-size: 8.5px; color: var(--ink-dim); }
-.fig-chips { display: flex; gap: 3px; min-height: 12px; }
+.fig-chips { display: flex; gap: 3px; min-height: 14px; flex-wrap: wrap; justify-content: center; }
+/* Status chips: bigger, bolder glyph + a tinted fill so each status reads at a
+   glance on a phone.  The number sits in high-contrast white; the icon carries
+   the color.  (Chill's cyan snowflake was the legibility target to match.) */
 .chip {
-  font-size: 8px; padding: 0 5px; border-radius: 999px; letter-spacing: 0.06em;
-  border: 1px solid var(--edge); background: rgba(10,8,8,0.85); color: var(--ink);
+  font-size: 9.5px; font-weight: 700; line-height: 1.35;
+  padding: 0.5px 5px; border-radius: 6px; letter-spacing: 0.02em;
+  border: 1px solid var(--edge); background: rgba(10,8,8,0.9); color: #fff;
+  text-shadow: 0 1px 2px #000; display: inline-flex; align-items: center; gap: 2px;
 }
-.chip.guard { color: #a8c8e8; border-color: rgba(168,200,232,0.4); }
-.chip.buff { color: var(--gold-bright); border-color: rgba(240,212,136,0.4); }
-.chip.mark { color: var(--blood-bright); border-color: rgba(212,69,69,0.45); }
-.chip.counter { color: var(--arc); border-color: rgba(154,120,192,0.45); }
+.chip.guard   { color: #cfe4fb; border-color: rgba(168,200,232,0.7); background: rgba(38,58,84,0.9); }
+.chip.buff    { color: #ffe9ad; border-color: rgba(240,212,136,0.7); background: rgba(70,56,20,0.9); }
+.chip.mark    { color: #ffc0c0; border-color: rgba(212,69,69,0.7);  background: rgba(72,24,24,0.9); }
+.chip.counter { color: #e4d4ff; border-color: rgba(154,120,192,0.7); background: rgba(48,34,72,0.9); }
 
 /* intent bubble */
 .intent {
@@ -603,7 +608,7 @@ body {
 .kw-rally   { color: var(--gold-bright); }
 .kw-guard   { color: #a8c8e8; }
 .kw-counter { color: var(--arc); }
-.chip.chill { color: #8ecbe8; border-color: rgba(142,203,232,0.45); }
+.chip.chill { color: #bfe8fb; border-color: rgba(142,203,232,0.7); background: rgba(28,58,76,0.9); }
 .popup.chill { color: #8ecbe8; }
 .popup.rally { color: var(--gold-bright); }
 
@@ -949,3 +954,113 @@ body {
 }
 @keyframes aura-shield-shimmer { 0% { background-position: 160% 0; } 100% { background-position: -60% 0; } }
 @keyframes aura-shield-pulse { 0%, 100% { opacity: 0.62; } 50% { opacity: 1; } }
+
+/* ===========================================================================
+   BUILD 25 — attack-type impact VFX + directional hit/lunge feedback
+   =========================================================================== */
+/* attacker drives forward; heroes lunge right (toward foes), enemies left */
+#party-half .figure.fig-lunge-hero { animation: fig-lunge-hero 0.4s ease; }
+@keyframes fig-lunge-hero {
+  0% { transform: translateX(0); }
+  34% { transform: translateX(18px) scale(1.05); filter: brightness(1.3); }
+  100% { transform: translateX(0); }
+}
+/* target recoils AWAY from the blow + a bright flash on impact */
+.figure.fig-hit-l { animation: fig-hit-l 0.36s ease; }
+.figure.fig-hit-r { animation: fig-hit-r 0.36s ease; }
+@keyframes fig-hit-l {
+  0% { transform: translateX(0); filter: brightness(2.2); }
+  22% { transform: translateX(-9px); }
+  55% { transform: translateX(4px); }
+  100% { transform: translateX(0); }
+}
+@keyframes fig-hit-r {
+  0% { transform: translateX(0); filter: brightness(2.2); }
+  22% { transform: translateX(9px); }
+  55% { transform: translateX(-4px); }
+  100% { transform: translateX(0); }
+}
+
+/* impact anchor — children position around this centered point */
+.impact { position: absolute; width: 0; height: 0; transform: translate(-50%,-50%); pointer-events: none; z-index: 60; }
+.impact-big { transform: translate(-50%,-50%) scale(1.4); }
+@keyframes im-pop { 0% { opacity: 0; transform: scale(0.2); } 40% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.45); } }
+
+/* expanding rings (shared) */
+.im-ring { position: absolute; left: 0; top: 0; border-radius: 50%; border: 2px solid #fff; transform: translate(-50%,-50%); animation: im-ring 0.5s ease-out both; }
+@keyframes im-ring { 0% { width: 6px; height: 6px; opacity: 0.9; } 100% { width: 80px; height: 80px; opacity: 0; } }
+.im-ring.gold { border-color: rgba(240,212,136,0.9); }
+.im-ring.song { border-color: rgba(200,160,224,0.9); }
+.im-ring.iron { border-color: rgba(168,200,232,0.95); border-width: 3px; }
+.im-ring.frost { border-color: rgba(142,203,232,0.95); }
+.im-ring.phys { border-color: rgba(255,255,255,0.75); }
+.im-ring.song.r1 { animation-delay: 0s; }
+.im-ring.song.r2 { animation-delay: 0.12s; }
+.im-ring.song.r3 { animation-delay: 0.24s; }
+
+/* BLADE ⚔ — crossing slash streaks */
+.im-slash { position: absolute; left: -34px; top: -3px; width: 68px; height: 5px; border-radius: 3px;
+  background: linear-gradient(90deg, transparent, #fff 42%, #ffd2d2 56%, transparent);
+  box-shadow: 0 0 12px rgba(255,190,190,0.9); opacity: 0; }
+.im-slash.s1 { animation: im-slash1 0.36s ease-out forwards; }
+.im-slash.s2 { animation: im-slash2 0.36s ease-out 0.07s forwards; }
+@keyframes im-slash1 {
+  0% { opacity: 0; transform: rotate(40deg) translateX(-28px) scaleX(0.3); }
+  35% { opacity: 1; } 62% { opacity: 1; transform: rotate(40deg) translateX(0) scaleX(1); }
+  100% { opacity: 0; transform: rotate(40deg) translateX(22px) scaleX(1); }
+}
+@keyframes im-slash2 {
+  0% { opacity: 0; transform: rotate(-34deg) translateX(-28px) scaleX(0.3); }
+  35% { opacity: 1; } 62% { opacity: 1; transform: rotate(-34deg) translateX(0) scaleX(1); }
+  100% { opacity: 0; transform: rotate(-34deg) translateX(22px) scaleX(1); }
+}
+.im-spark { position: absolute; left: -8px; top: -8px; width: 16px; height: 16px; border-radius: 50%;
+  background: radial-gradient(circle, #fff, transparent 70%); animation: im-pop 0.3s ease-out; }
+.im-spark.iron { background: radial-gradient(circle, #dcecff, transparent 70%); }
+
+/* LIGHT ✦ — radiant flare + rays */
+.im-flare { position: absolute; left: -26px; top: -26px; width: 52px; height: 52px; border-radius: 50%;
+  background: radial-gradient(circle, #fff 0%, #ffe6a4 42%, transparent 72%); animation: im-pop 0.42s ease-out; }
+.im-rays { position: absolute; left: -42px; top: -42px; width: 84px; height: 84px;
+  background: repeating-conic-gradient(from 0deg, rgba(255,232,168,0.85) 0deg 4deg, transparent 4deg 26deg);
+  animation: im-rays 0.5s ease-out; }
+@keyframes im-rays { 0% { opacity: 0; transform: scale(0.3) rotate(0); } 40% { opacity: 0.9; } 100% { opacity: 0; transform: scale(1.3) rotate(28deg); } }
+
+/* IRON ◆ — heavy shockwave */
+.im-shock { position: absolute; left: 0; top: 0; border-radius: 50%; transform: translate(-50%,-50%);
+  box-shadow: 0 0 0 3px rgba(168,200,232,0.85); animation: im-shock 0.44s ease-out; }
+@keyframes im-shock { 0% { width: 10px; height: 10px; opacity: 1; } 100% { width: 72px; height: 72px; opacity: 0; } }
+
+/* FROST ❄ — shards shatter outward (echoes the chill look you liked) */
+.im-shatter { position: absolute; left: 0; top: 0; }
+.im-shatter i { position: absolute; left: -1.5px; top: 0; width: 3px; height: 13px;
+  background: linear-gradient(#ffffff, #8ecbe8); box-shadow: 0 0 7px rgba(142,203,232,0.95);
+  transform-origin: 50% 0; animation: im-shard 0.52s ease-out both; }
+.im-shatter i:nth-child(1) { --a: 0deg; }
+.im-shatter i:nth-child(2) { --a: 60deg; }
+.im-shatter i:nth-child(3) { --a: 120deg; }
+.im-shatter i:nth-child(4) { --a: 180deg; }
+.im-shatter i:nth-child(5) { --a: 240deg; }
+.im-shatter i:nth-child(6) { --a: 300deg; }
+@keyframes im-shard {
+  0% { opacity: 0; transform: rotate(var(--a)) translateY(0) scaleY(0.4); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: rotate(var(--a)) translateY(-36px) scaleY(1); }
+}
+
+/* ENEMY blow — red claw-strike */
+.im-claw { position: absolute; left: -28px; width: 58px; height: 4px; border-radius: 2px;
+  background: linear-gradient(90deg, transparent, #ff6a6a 46%, #d42020 60%, transparent);
+  box-shadow: 0 0 11px rgba(212,32,32,0.9); opacity: 0; }
+.im-claw.c1 { top: -13px; animation: im-claw 0.34s ease-out; }
+.im-claw.c2 { top: -1px;  animation: im-claw 0.34s ease-out 0.05s; }
+.im-claw.c3 { top: 11px;  animation: im-claw 0.34s ease-out 0.1s; }
+@keyframes im-claw {
+  0% { opacity: 0; transform: translateX(-14px) rotate(-18deg) scaleX(0.4); }
+  40% { opacity: 1; }
+  100% { opacity: 0; transform: translateX(15px) rotate(-18deg) scaleX(1); }
+}
+
+/* PHYSICAL / untyped — a plain burst */
+.im-burst { position: absolute; left: -14px; top: -14px; width: 28px; height: 28px; border-radius: 50%;
+  background: radial-gradient(circle, #fff, transparent 68%); animation: im-pop 0.34s ease-out; }

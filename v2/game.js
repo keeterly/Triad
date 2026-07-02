@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 24;
+const V2_BUILD = 25;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -92,7 +92,7 @@ const HEROES = {
       },
       back: {
         core: { name: 'Thrown Edge',   cost: 1, target: 'enemy',     fx: { dmg: 4, step: 'front' }, desc: '4 damage to ANY enemy, then close to FRONT.' },
-        sig:  { name: 'Marked Fate',   cost: 2, target: 'enemy',     fx: { dmg: 3, mark: 3 },   desc: '3 damage · <span class="kw kw-exposed">◎ EXPOSED</span>: +3 from EVERY hit this round.' },
+        sig:  { name: 'Marked Fate',   cost: 1, target: 'enemy',     fx: { dmg: 3, mark: 4 },   desc: '3 damage · <span class="kw kw-exposed">◎ EXPOSED 4</span>: +4 from EVERY hit. Fades by 1 each turn.' },
       },
     },
   },
@@ -121,7 +121,7 @@ const HEROES = {
         sig:  { name: 'Discord',       cost: 2, target: 'enemy',     fx: { dmg: 5, lull: 2 },   desc: '5 damage to ANY enemy · <span class="kw kw-chill">❄ CHILL</span> −2.' },
       },
       mid: {
-        core: { name: 'Inspire',       cost: 1, target: 'ally',      fx: { buffDmg: 3 },        desc: '<span class="kw kw-rally">▲ RALLY</span>: an ally’s next damaging card deals +3.' },
+        core: { name: 'Inspire',       cost: 1, target: 'ally',      fx: { buffDmg: 4 },        desc: '<span class="kw kw-rally">▲ RALLY</span>: an ally’s next damaging card deals +4.' },
         sig:  { name: 'Battle Hymn',   cost: 2, target: 'allies',    fx: { buffDmg: 2 },        desc: '<span class="kw kw-rally">▲ RALLY</span>: every ally’s next damaging card deals +2.' },
       },
       back: {
@@ -163,7 +163,7 @@ const HEROES = {
       },
       back: {
         core: { name: 'Deep Freeze',   cost: 1, target: 'enemy',     fx: { dmg: 5 },            desc: '5 frost damage to ANY enemy.' },
-        sig:  { name: 'Hasten',        cost: 2, target: 'ally',      fx: { buffDmg: 4 },        desc: '<span class="kw kw-rally">▲ RALLY</span>: an ally’s next damaging card deals +4.' },
+        sig:  { name: 'Hasten',        cost: 2, target: 'ally',      fx: { buffDmg: 6 },        desc: '<span class="kw kw-rally">▲ RALLY</span>: an ally’s next damaging card deals +6.' },
       },
     },
   },
@@ -1245,7 +1245,9 @@ function dealToEnemy(e, amt, school, byHeroId) {
   popupAt(figEl(e.uid), '−' + amt, 'dmg' + (big ? ' popup-big' : ''));
   // (damagedHeroes bookkeeping lives in enemyPhase; kills resolve avenging
   // in resolveCard where the attacker is known)
-  shake(figEl(e.uid));
+  if (byHeroId) lungeFig(figEl(byHeroId));       // the striker drives forward
+  impactFx(figEl(e.uid), school || 'phys', big); // school-typed blow lands
+  shake(figEl(e.uid), 'r');                       // enemy recoils away
   SFX.hit(big);
   if (big) stageShake();
   if (e.hp === 0 && !e.dead) {
@@ -1449,7 +1451,10 @@ async function endTurn() {
     S.ep = S.maxEp;
     S.used = new Set();
     S.heroes.forEach(h => { h.guard = 0; h.counter = 0; h.invuln = false; h.exposed = 0; h._hitByE = []; });
-    S.enemies.forEach(e => { e.mark = 0; e.acted = false; e._hitBy = []; e.staggered = false; });
+    // EXPOSED (mark) now survives the turn rollover but FADES by 1, so a mark
+    // laid down this turn still pays off next turn — making it a real setup,
+    // not a same-turn-only tax.
+    S.enemies.forEach(e => { e.mark = Math.max(0, (e.mark || 0) - 1); e.acted = false; e._hitBy = []; e.staggered = false; });
     S.tempCards = S.tempCards.filter(t => t.expiresTurn == null || t.expiresTurn >= S.turn);
     S._pressUsed = false;
     S.channelUsed = false;
@@ -1535,7 +1540,8 @@ async function enemyPhase() {
           h.hp = Math.max(0, h.hp - left);
           const big = left >= 7;
           popupAt(figEl(h.id), '−' + left, 'dmg' + (big ? ' popup-big' : ''));
-          shake(figEl(h.id));
+          impactFx(figEl(h.id), 'foe', big);   // red claw-strike on the hero
+          shake(figEl(h.id), 'l');              // hero recoils away from foes
           SFX.hit(big);
           if (big) stageShake();
           (e._damaged || (e._damaged = [])).push(h.id);   // remembered for AVENGE
@@ -2322,9 +2328,45 @@ function popupAt(el, text, cls) {
   layer.appendChild(p);
   setTimeout(() => p.remove(), 1050 + idx * 95);
 }
-function shake(el) {
+function shake(el, dir) {
   if (!el) return;
-  el.classList.remove('fig-hit'); void el.offsetWidth; el.classList.add('fig-hit');
+  const cls = dir === 'r' ? 'fig-hit-r' : dir === 'l' ? 'fig-hit-l' : 'fig-hit';
+  el.classList.remove('fig-hit', 'fig-hit-l', 'fig-hit-r'); void el.offsetWidth; el.classList.add(cls);
+}
+// A short forward lunge on the attacker — heroes drive right toward the enemy
+// line, enemies drive left toward the party (direction from the .party class).
+function lungeFig(el) {
+  if (!el) return;
+  const cls = el.classList.contains('enemy') ? 'fig-lunge' : 'fig-lunge-hero';
+  el.classList.remove('fig-lunge', 'fig-lunge-hero'); void el.offsetWidth; el.classList.add(cls);
+  setTimeout(() => el.classList.remove(cls), 420);
+}
+
+// ATTACK-TYPE IMPACT VFX — each school reads differently when it lands, so the
+// player feels WHAT kind of blow struck: a blade slashes, light bursts, song
+// rings out, iron shocks, frost shatters.  Enemy blows use a red claw-strike.
+const IMPACT_SVG = {
+  blade: `<span class="im-slash s1"></span><span class="im-slash s2"></span><span class="im-spark"></span>`,
+  light: `<span class="im-flare"></span><span class="im-rays"></span><span class="im-ring gold"></span>`,
+  song:  `<span class="im-ring song r1"></span><span class="im-ring song r2"></span><span class="im-ring song r3"></span>`,
+  iron:  `<span class="im-shock"></span><span class="im-ring iron"></span><span class="im-spark iron"></span>`,
+  frost: `<span class="im-shatter"><i></i><i></i><i></i><i></i><i></i><i></i></span><span class="im-ring frost"></span>`,
+  foe:   `<span class="im-claw c1"></span><span class="im-claw c2"></span><span class="im-claw c3"></span>`,
+  phys:  `<span class="im-burst"></span><span class="im-ring phys"></span>`,
+};
+function impactFx(el, school, big) {
+  if (!el) return;
+  const layer = $('#popup-layer');
+  const stageR = $('#stage').getBoundingClientRect();
+  const scale = stageR.width / 760;
+  const r = el.getBoundingClientRect();
+  const fx = document.createElement('div');
+  fx.className = 'impact impact-' + (school || 'phys') + (big ? ' impact-big' : '');
+  fx.style.left = ((r.left + r.width / 2 - stageR.left) / scale) + 'px';
+  fx.style.top = ((r.top + r.height * 0.42 - stageR.top) / scale) + 'px';
+  fx.innerHTML = IMPACT_SVG[school] || IMPACT_SVG.phys;
+  layer.appendChild(fx);
+  setTimeout(() => fx.remove(), 660);
 }
 let _narrTimer = null;
 function flashNarrator(text) {
