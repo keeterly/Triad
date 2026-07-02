@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 8;
+const V2_BUILD = 9;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -81,11 +81,11 @@ const HEROES = {
       },
       mid: {
         core: { name: 'Flowing Cut',   cost: 1, target: 'frontmost', fx: { dmg: 4, guard: 3 },  desc: '4 damage · gain 3 guard.' },
-        sig:  { name: 'Crossguard',    cost: 2, target: 'ally',      fx: { guard: 5, counter: 3 }, desc: 'Stand for an ally: they gain 5 guard · counter attackers for 3 this round.' },
+        sig:  { name: 'Crossguard',    cost: 2, target: 'ally',      fx: { guard: 5, counter: 3 }, desc: 'Stand for an ally: <span class="kw kw-guard">⛨ 5 guard</span> · <span class="kw kw-counter">↺ counter 3</span> this round.' },
       },
       back: {
         core: { name: 'Thrown Edge',   cost: 1, target: 'enemy',     fx: { dmg: 4 },            desc: '4 damage to ANY enemy.' },
-        sig:  { name: 'Marked Fate',   cost: 2, target: 'enemy',     fx: { dmg: 3, mark: 3 },   desc: '3 damage · EXPOSED: enemy takes +3 from EVERY hit this round.' },
+        sig:  { name: 'Marked Fate',   cost: 2, target: 'enemy',     fx: { dmg: 3, mark: 3 },   desc: '3 damage · <span class="kw kw-exposed">◎ EXPOSED</span>: +3 from EVERY hit this round.' },
       },
     },
   },
@@ -110,16 +110,16 @@ const HEROES = {
     name: 'KIKI', cls: 'Bard', tint: 'var(--kiki-tint)', maxHp: 20,
     cards: {
       front: {
-        core: { name: 'Sharp Note',    cost: 1, target: 'frontmost', fx: { dmg: 3, lull: 1 },   desc: '3 damage · CHILL: enemy deals −1 next attack.' },
-        sig:  { name: 'Discord',       cost: 2, target: 'enemy',     fx: { dmg: 5, lull: 2 },   desc: '5 damage to ANY enemy · CHILL −2.' },
+        core: { name: 'Sharp Note',    cost: 1, target: 'frontmost', fx: { dmg: 3, lull: 1 },   desc: '3 damage · <span class="kw kw-chill">❄ CHILL</span> −1 next attack.' },
+        sig:  { name: 'Discord',       cost: 2, target: 'enemy',     fx: { dmg: 5, lull: 2 },   desc: '5 damage to ANY enemy · <span class="kw kw-chill">❄ CHILL</span> −2.' },
       },
       mid: {
-        core: { name: 'Inspire',       cost: 1, target: 'ally',      fx: { buffDmg: 3 },        desc: 'RALLY: an ally’s next damaging card deals +3.' },
-        sig:  { name: 'Battle Hymn',   cost: 2, target: 'allies',    fx: { buffDmg: 2 },        desc: 'RALLY: every ally’s next damaging card deals +2.' },
+        core: { name: 'Inspire',       cost: 1, target: 'ally',      fx: { buffDmg: 3 },        desc: '<span class="kw kw-rally">▲ RALLY</span>: an ally’s next damaging card deals +3.' },
+        sig:  { name: 'Battle Hymn',   cost: 2, target: 'allies',    fx: { buffDmg: 2 },        desc: '<span class="kw kw-rally">▲ RALLY</span>: every ally’s next damaging card deals +2.' },
       },
       back: {
-        core: { name: 'Lullaby',       cost: 1, target: 'enemy',     fx: { lull: 2 },           desc: 'CHILL: an enemy deals −2 on its next attack.' },
-        sig:  { name: 'Crescendo',     cost: 2, target: 'ally',      fx: { buffDmg: 5 },        desc: 'RALLY: an ally’s next damaging card deals +5.' },
+        core: { name: 'Lullaby',       cost: 1, target: 'enemy',     fx: { lull: 2 },           desc: '<span class="kw kw-chill">❄ CHILL</span>: an enemy deals −2 on its next attack.' },
+        sig:  { name: 'Crescendo',     cost: 2, target: 'ally',      fx: { buffDmg: 5 },        desc: '<span class="kw kw-rally">▲ RALLY</span>: an ally’s next damaging card deals +5.' },
       },
     },
   },
@@ -128,15 +128,15 @@ const HEROES = {
     cards: {
       front: {
         core: { name: 'Shield Bash',   cost: 1, target: 'frontmost', fx: { dmg: 4, guard: 2 },  desc: '4 damage · gain 2 guard.' },
-        sig:  { name: 'Held Gate',     cost: 2, target: 'self',      fx: { guard: 9, counter: 3 }, desc: 'Gain 9 guard · counter attackers for 3 this round.' },
+        sig:  { name: 'Held Gate',     cost: 2, target: 'self',      fx: { guard: 9, counter: 3 }, desc: '<span class="kw kw-guard">⛨ 9 guard</span> · <span class="kw kw-counter">↺ counter 3</span> this round.' },
       },
       mid: {
         core: { name: 'Cover',         cost: 1, target: 'ally',      fx: { guard: 4 },          desc: 'An ally gains 4 guard.' },
         sig:  { name: 'Rampart',       cost: 2, target: 'allies',    fx: { guard: 3 },          desc: 'Every ally gains 3 guard.' },
       },
       back: {
-        core: { name: 'Thrown Shield', cost: 1, target: 'enemy',     fx: { dmg: 3, lull: 1 },   desc: '3 damage to ANY enemy · CHILL −1.' },
-        sig:  { name: 'Fortress Vow',  cost: 2, target: 'ally',      fx: { guard: 5, counter: 3 }, desc: 'An ally gains 5 guard · they counter for 3 this round.' },
+        core: { name: 'Thrown Shield', cost: 1, target: 'enemy',     fx: { dmg: 3, lull: 1 },   desc: '3 damage to ANY enemy · <span class="kw kw-chill">❄ CHILL</span> −1.' },
+        sig:  { name: 'Fortress Vow',  cost: 2, target: 'ally',      fx: { guard: 5, counter: 3 }, desc: 'An ally gains <span class="kw kw-guard">⛨ 5 guard</span> · <span class="kw kw-counter">↺ counter 3</span>.' },
       },
     },
   },
@@ -144,16 +144,16 @@ const HEROES = {
     name: 'HASK', cls: 'Mage', tint: 'var(--hask-tint)', maxHp: 22,
     cards: {
       front: {
-        core: { name: 'Frost Touch',   cost: 1, target: 'frontmost', fx: { dmg: 4, lull: 1 },   desc: '4 frost damage · CHILL −1.' },
+        core: { name: 'Frost Touch',   cost: 1, target: 'frontmost', fx: { dmg: 4, lull: 1 },   desc: '4 frost damage · <span class="kw kw-chill">❄ CHILL</span> −1.' },
         sig:  { name: 'Shatter',       cost: 2, target: 'frontmost', fx: { dmg: 9 },            desc: '9 frost damage to the nearest enemy.' },
       },
       mid: {
         core: { name: 'Ice Bolt',      cost: 1, target: 'enemy',     fx: { dmg: 4 },            desc: '4 frost damage to ANY enemy.' },
-        sig:  { name: 'Chill Ward',    cost: 2, target: 'ally',      fx: { guard: 4, counter: 2 }, desc: 'An ally gains 4 guard · they counter for 2 this round.' },
+        sig:  { name: 'Chill Ward',    cost: 2, target: 'ally',      fx: { guard: 4, counter: 2 }, desc: 'An ally gains <span class="kw kw-guard">⛨ 4 guard</span> · <span class="kw kw-counter">↺ counter 2</span>.' },
       },
       back: {
         core: { name: 'Deep Freeze',   cost: 1, target: 'enemy',     fx: { dmg: 5 },            desc: '5 frost damage to ANY enemy.' },
-        sig:  { name: 'Hasten',        cost: 2, target: 'ally',      fx: { buffDmg: 4 },        desc: 'RALLY: an ally’s next damaging card deals +4.' },
+        sig:  { name: 'Hasten',        cost: 2, target: 'ally',      fx: { buffDmg: 4 },        desc: '<span class="kw kw-rally">▲ RALLY</span>: an ally’s next damaging card deals +4.' },
       },
     },
   },
@@ -777,7 +777,7 @@ async function resolveCard(card, targetId) {
     else if (card.target === 'enemy') tgt = livingEnemies().find(e => e.uid === targetId) || frontmostEnemy();
     if (tgt) {
       let amt = fx.dmg + (owner ? owner.buffDmg : 0);
-      if (owner && owner.buffDmg) { popupAt(figEl(owner.id), 'RALLY +' + owner.buffDmg, 'guard'); owner.buffDmg = 0; }
+      if (owner && owner.buffDmg) { popupAt(figEl(owner.id), '▲ RALLY +' + owner.buffDmg, 'rally'); owner.buffDmg = 0; }
       amt += tgt.mark || 0;
       // FOLLOW-UP: striking an enemy an ally already hit this turn is a
       // combo — +2 damage, and fighting together forms a thread between
@@ -789,7 +789,7 @@ async function resolveCard(card, targetId) {
       dealToEnemy(tgt, amt);
       if (owner) hitters.push(owner.id);
       if (isFollowUp) {
-        popupAt(figEl(owner.id), 'FOLLOW-UP +2', 'info');
+        popupAt(figEl(owner.id), '⚡ FOLLOW-UP +2', 'info');
         SFX.follow();
         await addThread(owner.id, prev);
       }
@@ -800,11 +800,11 @@ async function resolveCard(card, targetId) {
   }
   if (fx.mark) {
     const tgt = livingEnemies().find(e => e.uid === targetId);
-    if (tgt) { tgt.mark = fx.mark; popupAt(figEl(tgt.uid), 'EXPOSED +' + fx.mark, 'info'); }
+    if (tgt) { tgt.mark = fx.mark; popupAt(figEl(tgt.uid), '◎ EXPOSED +' + fx.mark, 'info'); }
   }
   if (fx.lull) {
     const tgt = card.target === 'enemy' ? (livingEnemies().find(e => e.uid === targetId) || frontmostEnemy()) : frontmostEnemy();
-    if (tgt) { tgt.lull = (tgt.lull || 0) + fx.lull; popupAt(figEl(tgt.uid), 'CHILL −' + fx.lull, 'info'); }
+    if (tgt) { tgt.lull = (tgt.lull || 0) + fx.lull; popupAt(figEl(tgt.uid), '❄ CHILL −' + fx.lull, 'chill'); }
   }
   if (fx.heal || fx.guard || fx.buffDmg || fx.counter) {
     let receivers = [];
@@ -816,7 +816,7 @@ async function resolveCard(card, targetId) {
       if (!rc || rc.downed) continue;
       if (fx.heal)   { rc.hp = Math.min(rc.maxHp, rc.hp + fx.heal); popupAt(figEl(rc.id), '+' + fx.heal, 'heal'); SFX.heal(); }
       if (fx.guard)  { rc.guard += fx.guard; popupAt(figEl(rc.id), '⛨ ' + fx.guard, 'guard'); SFX.guard(); }
-      if (fx.buffDmg){ rc.buffDmg += fx.buffDmg; popupAt(figEl(rc.id), 'RALLY +' + fx.buffDmg, 'guard'); }
+      if (fx.buffDmg){ rc.buffDmg += fx.buffDmg; popupAt(figEl(rc.id), '▲ RALLY +' + fx.buffDmg, 'rally'); }
       if (fx.counter){ rc.counter = Math.max(rc.counter, fx.counter); }
       if (owner && rc.id !== owner.id && card.target === 'ally') await addThread(owner.id, rc.id);
     }
@@ -866,7 +866,7 @@ async function addThread(a, b) {
   // triad-progress bookkeeping.
   [a, b].forEach(id => {
     const h = S.heroes.find(x => x.id === id);
-    if (h && !h.downed) { h.guard += 2; popupAt(figEl(id), 'BOND ⛨2', 'guard'); }
+    if (h && !h.downed) { h.guard += 2; popupAt(figEl(id), '♡ BOND ⛨2', 'guard'); }
   });
   // Nudge: when only one link is missing, say so — the triangle should feel
   // one decision away, not hidden.
@@ -927,8 +927,8 @@ async function resolveResonant() {
     if (fx.guardFront) { const h = heroInRow('front'); if (h) { h.guard += fx.guardFront; popupAt(figEl(h.id), '⛨ ' + fx.guardFront, 'guard'); } }
     if (fx.buffAllDmg) livingHeroes().forEach(h => { h.buffDmg += fx.buffAllDmg; popupAt(figEl(h.id), '+' + fx.buffAllDmg + ' NEXT', 'guard'); });
     if (fx.counterAll) livingHeroes().forEach(h => { h.counter = Math.max(h.counter, fx.counterAll); });
-    if (fx.lullAll) livingEnemies().forEach(e => { e.lull = (e.lull || 0) + fx.lullAll; popupAt(figEl(e.uid), '−' + fx.lullAll + ' ATK', 'info'); });
-    if (fx.markAll) livingEnemies().forEach(e => { e.mark = fx.markAll; popupAt(figEl(e.uid), 'MARKED', 'info'); });
+    if (fx.lullAll) livingEnemies().forEach(e => { e.lull = (e.lull || 0) + fx.lullAll; popupAt(figEl(e.uid), '❄ CHILL −' + fx.lullAll, 'chill'); });
+    if (fx.markAll) livingEnemies().forEach(e => { e.mark = fx.markAll; popupAt(figEl(e.uid), '◎ EXPOSED +' + fx.markAll, 'info'); });
     if (fx.invulnFront) { const h = heroInRow('front'); if (h) { h.invuln = true; popupAt(figEl(h.id), 'INVULNERABLE', 'info'); } }
     if (fx.pushBack) {
       // Formation: shove the enemy line one row toward the back.  Processed
@@ -1366,7 +1366,7 @@ function renderBattlefield() {
         <div class="fig-chips">
           ${who.invuln ? `<span class="chip buff">✦ INVULN</span>` : ''}
           ${who.guard ? `<span class="chip guard">⛨ ${who.guard}</span>` : ''}
-          ${who.buffDmg ? `<span class="chip buff">+${who.buffDmg}</span>` : ''}
+          ${who.buffDmg ? `<span class="chip buff">▲ ${who.buffDmg}</span>` : ''}
           ${who.counter ? `<span class="chip counter">↺ ${who.counter}</span>` : ''}
         </div>
         <div class="hp-bar"><div class="hp-fill" style="width:${(who.hp / who.maxHp) * 100}%"></div></div>
@@ -1414,8 +1414,9 @@ function renderBattlefield() {
         <div class="fig-art">${enemyArt(e)}</div>
         <div class="fig-chips">
           ${e.guard ? `<span class="chip guard">⛨ ${e.guard}</span>` : ''}
-          ${e.power ? `<span class="chip buff">+${e.power}</span>` : ''}
-          ${e.mark ? `<span class="chip mark">✕ ${e.mark}</span>` : ''}
+          ${e.power ? `<span class="chip buff">▲ ${e.power}</span>` : ''}
+          ${e.mark ? `<span class="chip mark">◎ ${e.mark}</span>` : ''}
+          ${e.lull ? `<span class="chip chill">❄ ${e.lull}</span>` : ''}
         </div>
         <div class="hp-bar"><div class="hp-fill" style="width:${(e.hp / e.maxHp) * 100}%"></div></div>
         <div class="fig-name">${e.def.name} <span class="hp-num">${e.hp}/${e.maxHp}</span></div>

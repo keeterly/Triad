@@ -580,3 +580,14 @@ body {
   stroke-width: 1.2; stroke-dasharray: 2 7;
   filter: none; animation: none;
 }
+
+/* BUILD 9 — status icon language: ◎ EXPOSED · ❄ CHILL · ▲ RALLY */
+.kw { white-space: nowrap; font-weight: bold; }
+.kw-exposed { color: var(--blood-bright); }
+.kw-chill   { color: #8ecbe8; }
+.kw-rally   { color: var(--gold-bright); }
+.kw-guard   { color: #a8c8e8; }
+.kw-counter { color: var(--arc); }
+.chip.chill { color: #8ecbe8; border-color: rgba(142,203,232,0.45); }
+.popup.chill { color: #8ecbe8; }
+.popup.rally { color: var(--gold-bright); }
