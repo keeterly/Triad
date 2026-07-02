@@ -363,3 +363,93 @@ body {
 /* stage freeze during execution */
 #stage.executing #action-bar { pointer-events: none; opacity: 0.75; }
 #stage.frozen #battlefield { filter: saturate(0.4) brightness(0.8); transition: filter 0.4s ease; }
+
+/* ===========================================================================
+   BUILD 2 — the Descent map, party composition, recruits, drag-to-play.
+   =========================================================================== */
+:root {
+  --cassia-tint: #e8c878;
+  --hask-tint: #88b8e0;
+}
+
+/* dragged card */
+.card.card-dragging {
+  z-index: 200 !important;
+  box-shadow: 0 18px 40px rgba(0,0,0,0.8), 0 0 18px rgba(240,212,136,0.25);
+  transition: none;
+  cursor: grabbing;
+}
+.card { touch-action: none; }   /* pointer events own the gesture */
+
+/* ---- map screen ---- */
+.map-strip {
+  display: flex; align-items: center; justify-content: center; gap: 4px;
+  margin: 4px auto 14px; max-width: 700px; flex-wrap: nowrap;
+}
+.map-col { display: flex; flex-direction: column; gap: 8px; }
+.map-arrow { color: var(--ink-faint); font-size: 14px; padding: 0 1px; }
+.map-node {
+  font-family: inherit; cursor: default; text-align: center;
+  width: 74px; padding: 7px 3px 6px; border-radius: 9px;
+  border: 1px dashed rgba(232,220,196,0.2); background: rgba(16,12,9,0.85);
+  color: var(--ink-dim); display: flex; flex-direction: column; gap: 3px; align-items: center;
+}
+.map-node .mn-glyph { font-size: 15px; }
+.map-node .mn-label { font-size: 6.8px; letter-spacing: 0.14em; line-height: 1.3; }
+.map-node.mn-reach {
+  cursor: pointer; border-style: solid; border-color: rgba(240,212,136,0.55);
+  color: var(--ink); animation: map-pulse 1.6s ease infinite;
+}
+@keyframes map-pulse { 50% { box-shadow: 0 0 12px rgba(240,212,136,0.28); } }
+.map-node.mn-reach:hover { background: rgba(38,30,20,0.95); }
+.map-node.mn-done { opacity: 0.45; border-style: solid; }
+.map-node.mn-boss { border-color: rgba(212,69,69,0.5); }
+.map-node.mn-boss.mn-reach { border-color: var(--blood-bright); }
+.map-node.mn-boss .mn-glyph { color: var(--blood-bright); }
+.map-node.mn-camp .mn-glyph { color: var(--heal); }
+.map-node.mn-recruit .mn-glyph { color: var(--gold-bright); }
+
+.party-chip {
+  font-family: inherit; cursor: pointer; margin: 2px auto 0;
+  display: flex; align-items: center; gap: 8px; padding: 5px 14px;
+  border-radius: 999px; border: 1px solid rgba(240,212,136,0.4);
+  background: rgba(20,16,12,0.92); color: var(--ink-dim); font-size: 9.5px;
+  letter-spacing: 0.08em;
+}
+.party-chip:hover { border-color: var(--gold-bright); }
+.party-chip-fig { width: 26px; height: 26px; border-radius: 50%; overflow: hidden;
+  border: 1px solid var(--edge); display: inline-flex; align-items: flex-end; justify-content: center;
+  background: rgba(10,8,8,0.9); }
+.party-chip-fig svg, .party-chip-fig img { height: 34px; width: auto; }
+.party-chip-meta b { color: var(--gold-bright); }
+.party-chip-meta i { color: var(--ink-faint); font-style: normal; }
+
+/* ---- party select ---- */
+.ps-row { display: flex; gap: 10px; justify-content: center; margin: 10px 0 8px; }
+.ps-fig {
+  font-family: inherit; cursor: pointer; width: 92px; padding: 8px 4px 7px;
+  border-radius: 10px; border: 1.5px solid rgba(232,220,196,0.18);
+  background: rgba(14,11,9,0.9); color: var(--ink-dim);
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.ps-fig .ps-art { height: 74px; display: flex; align-items: flex-end; }
+.ps-fig .ps-art svg { height: 74px; width: auto; }
+.ps-fig .ps-name { font-size: 10px; letter-spacing: 0.2em; color: var(--ink); }
+.ps-fig .ps-cls { font-size: 8px; letter-spacing: 0.1em; }
+.ps-fig.ps-on {
+  border-color: var(--gold-bright);
+  box-shadow: 0 0 12px rgba(240,212,136,0.3);
+  color: var(--ink);
+}
+.ps-reso { font-size: 10.5px; color: var(--ink-dim); min-height: 34px; margin-bottom: 8px; line-height: 1.5; }
+.ps-reso b { color: var(--gold-bright); }
+.ps-reso-desc { font-size: 9px; color: var(--ink-faint); }
+.ov-btn:disabled { opacity: 0.35; cursor: default; }
+
+/* ---- recruit ---- */
+.recruit-fig { height: 110px; display: flex; align-items: flex-end; justify-content: center; margin: 4px 0 8px; }
+.recruit-fig svg { height: 110px; width: auto; filter: drop-shadow(0 8px 20px rgba(0,0,0,0.8)); }
+
+/* map screen shell tweak */
+#overlay.map-screen #overlay-inner { max-width: 720px; }
