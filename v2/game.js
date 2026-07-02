@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 16;
+const V2_BUILD = 17;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -90,7 +90,7 @@ const HEROES = {
         sig:  { name: 'Crossguard',    cost: 2, target: 'ally',      fx: { guard: 5, counter: 3 }, desc: 'Stand for an ally: <span class="kw kw-guard">⛨ 5 guard</span> · <span class="kw kw-counter">↺ counter 3</span> this round.' },
       },
       back: {
-        core: { name: 'Thrown Edge',   cost: 1, target: 'enemy',     fx: { dmg: 4 },            desc: '4 damage to ANY enemy.' },
+        core: { name: 'Thrown Edge',   cost: 1, target: 'enemy',     fx: { dmg: 4, step: 'front' }, desc: '4 damage to ANY enemy, then close to FRONT.' },
         sig:  { name: 'Marked Fate',   cost: 2, target: 'enemy',     fx: { dmg: 3, mark: 3 },   desc: '3 damage · <span class="kw kw-exposed">◎ EXPOSED</span>: +3 from EVERY hit this round.' },
       },
     },
@@ -939,6 +939,21 @@ async function resolveCard(card, targetId) {
       if (fx.buffDmg){ rc.buffDmg += fx.buffDmg; popupAt(figEl(rc.id), '▲ RALLY +' + fx.buffDmg, 'rally'); }
       if (fx.counter){ rc.counter = Math.max(rc.counter, fx.counter); }
       if (owner && rc.id !== owner.id && card.target === 'ally') await addThread(owner.id, rc.id);
+    }
+  }
+  // Movement built into the action: the caster repositions after resolving,
+  // free (no EP, no move-use).  The hand morphs to the new stance.
+  if (fx.step && owner && !owner.downed) {
+    const idx = ROWS.indexOf(owner.row);
+    const to = fx.step === 'front' ? ROWS[Math.max(0, idx - 1)] : ROWS[Math.min(2, idx + 1)];
+    if (to !== owner.row) {
+      const occ = livingHeroes().find(h => h.id !== owner.id && h.row === to);
+      const from = owner.row; owner.row = to; if (occ) occ.row = from;
+      S._morphHeroId = owner.id; if (occ) S._morphHeroId2 = occ.id;
+      renderAll();
+      popupAt(figEl(owner.id), '⇄ ' + STANCE[to].name.toUpperCase(), 'info');
+      SFX.move();
+      await sleep(320);
     }
   }
   await sleep(280);
@@ -1832,9 +1847,49 @@ function renderActionBar() {
   const handEl = $('#hand');
   handEl.innerHTML = '';
   if (S.over) return;
-  const TYPE_LABEL = { attack: '✕ ATTACK', guard: '⛨ GUARD', skill: '✦ SKILL', move: '⇄ MOVE',
-    temp: '✧ GENERATED',
-    resonant: '✦ RESONANCE · ' + (triadEntry().type || '').toUpperCase() };
+  // Icon-first card face — legibility over prose (mobile).  Full text lives
+  // in the card's title attribute for anyone who wants the detail.
+  const fxIconStr = (fx, hasAll) => {
+    const b = [];
+    const d = fx.dmg || fx.hitFrontmost;
+    if (fx.aoeDmg) b.push(`<span class="ic ic-dmg">⚔${fx.aoeDmg}<em>·ALL</em></span>`);
+    else if (d)    b.push(`<span class="ic ic-dmg">⚔${d}</span>`);
+    const heal = fx.heal || fx.healAll;
+    if (heal) b.push(`<span class="ic ic-heal">✚${heal}${fx.healAll ? '<em>·ALL</em>' : ''}</span>`);
+    const g = fx.guard || fx.guardAll || fx.guardFront;
+    if (g) b.push(`<span class="ic ic-guard">⛨${g}</span>`);
+    const r = fx.buffDmg || fx.buffAllDmg;
+    if (r) b.push(`<span class="ic ic-rally">▲${r}</span>`);
+    const co = fx.counter || fx.counterAll;
+    if (co) b.push(`<span class="ic ic-counter">↺${co}</span>`);
+    const l = fx.lull || fx.lullAll;
+    if (l) b.push(`<span class="ic ic-chill">❄${l}</span>`);
+    const m = fx.mark || fx.markAll;
+    if (m) b.push(`<span class="ic ic-exposed">◎${m}</span>`);
+    if (fx.invulnFront) b.push(`<span class="ic ic-guard">✦INV</span>`);
+    if (fx.pushBack) b.push(`<span class="ic ic-move">⇄PUSH</span>`);
+    if (fx.step) b.push(`<span class="ic ic-move">⇄</span>`);
+    return b.join('');
+  };
+  const cardIcons = (card) => {
+    const fx = card.fx || {};
+    if (fx.resonant) { const rfx = {}; (triadEntry().stages || []).forEach(st => Object.assign(rfx, st.fx || {})); return fxIconStr(rfx); }
+    if (fx.bondPair) return `<span class="ic ic-guard">⛨${fx.bondGuard}</span><span class="ic ic-rally">▲${fx.bondRally}</span>`;
+    if (fx.notToday) return `<span class="ic ic-move">⇄</span><span class="ic ic-heal">✚4</span><span class="ic ic-guard">⛨4</span><span class="ic ic-counter">↺2</span>`;
+    return fxIconStr(fx);
+  };
+  const cardReach = (card) => {
+    const fx = card.fx || {};
+    if (fx.resonant || fx.notToday || fx.bondPair) return `<span class="rch rch-t">TRIAD</span>`;
+    switch (card.target) {
+      case 'frontmost': return `<span class="rch rch-e">NEAREST</span>`;
+      case 'enemy':     return `<span class="rch rch-e">ANY</span>`;
+      case 'ally':      return `<span class="rch rch-a">ALLY</span>`;
+      case 'allies':    return `<span class="rch rch-a">PARTY</span>`;
+      case 'self':      return `<span class="rch rch-a">SELF</span>`;
+      default:          return '';
+    }
+  };
   buildHand().forEach(card => {
     const type = cardType(card);
     const el = document.createElement('div');
@@ -1847,13 +1902,17 @@ function renderActionBar() {
     el.dataset.cardName = card.name;
     el.dataset.target = card.target || 'none';
     el.dataset.kind = card.kind;
+    const isTemp = card.temp || card.kind === 'resonant';
+    el.title = card.name + ' — ' + card.desc.replace(/<[^>]+>/g, '');
     el.innerHTML = `
       <div class="c-top">
         <span class="c-cost">${card.cost}</span>
         <span class="c-name">${card.name}</span>
+        ${card.school ? `<span class="c-school">${SCHOOL_GLYPH[card.school]}</span>` : ''}
+        ${isTemp ? `<span class="c-temp-mark">✧</span>` : ''}
       </div>
-      <div class="c-type t-${type}">${TYPE_LABEL[type]}${card.school ? ` · <span class="c-school">${SCHOOL_GLYPH[card.school]}</span>` : ''}</div>
-      <div class="c-desc">${card.desc}</div>
+      <div class="c-fx">${cardIcons(card)}</div>
+      <div class="c-reach">${cardReach(card)}</div>
       <div class="c-owner"><span>${card.ownerName}</span><span class="c-stance">· ${card.stance}</span></div>
     `;
     attachDrag(el, card);

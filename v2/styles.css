@@ -641,3 +641,53 @@ body {
   box-shadow: 0 0 10px rgba(212,69,69,0.4); animation: target-pulse 0.9s ease infinite;
 }
 .rd-safe { font-size: 10px; letter-spacing: 0.18em; color: var(--ink-faint); font-style: italic; }
+
+/* ===========================================================================
+   BUILD 17 — icon-first card face + generated cards clearly temporary
+   =========================================================================== */
+.c-top { display: flex; align-items: center; gap: 4px; }
+.c-top .c-school { margin-left: auto; font-size: 12px; color: var(--ink); opacity: 0.85; }
+.c-temp-mark { font-size: 11px; color: var(--gold-bright); }
+/* the big icon strip — the card's meaning at a glance */
+.c-fx {
+  display: flex; flex-wrap: wrap; gap: 5px 7px; align-content: flex-start;
+  flex: 1; padding: 5px 1px 2px; min-height: 0;
+}
+.c-fx .ic {
+  font-size: 15px; font-weight: bold; letter-spacing: 0.02em;
+  display: inline-flex; align-items: baseline; line-height: 1;
+}
+.c-fx .ic em { font-size: 7px; font-style: normal; letter-spacing: 0.1em; opacity: 0.75; margin-left: 1px; }
+.ic-dmg { color: var(--blood-bright); }
+.ic-heal { color: var(--heal); }
+.ic-guard { color: #a8c8e8; }
+.ic-rally { color: var(--gold-bright); }
+.ic-counter { color: var(--arc); }
+.ic-chill { color: #8ecbe8; }
+.ic-exposed { color: var(--blood-bright); }
+.ic-move { color: var(--arc); }
+.c-reach { }
+.c-reach .rch { font-size: 7.5px; letter-spacing: 0.22em; padding: 1px 5px; border-radius: 4px; border: 1px solid var(--edge); }
+.rch-e { color: var(--blood-bright); border-color: rgba(212,69,69,0.4); }
+.rch-a { color: var(--heal); border-color: rgba(152,216,120,0.4); }
+.rch-t { color: var(--gold-bright); border-color: rgba(240,212,136,0.5); }
+
+/* GENERATED / RESONANT cards visibly shimmer — a temporary, otherworldly card */
+.card.kind-temp, .card.kind-resonant {
+  border-style: solid;
+  border-color: rgba(240,212,136,0.7);
+  background:
+    linear-gradient(180deg, rgba(58,48,26,0.92) 0%, rgba(20,15,10,0.95) 100%);
+  animation: temp-shimmer 2s ease-in-out infinite;
+}
+.card.kind-temp::before, .card.kind-resonant::before {
+  content: ''; position: absolute; inset: 0; border-radius: 9px; pointer-events: none;
+  background: linear-gradient(115deg, transparent 35%, rgba(240,212,136,0.14) 50%, transparent 65%);
+  background-size: 250% 250%;
+  animation: temp-sheen 2.6s linear infinite;
+}
+@keyframes temp-shimmer {
+  50% { box-shadow: 0 0 18px rgba(240,212,136,0.45), inset 0 0 12px rgba(240,212,136,0.12); }
+}
+@keyframes temp-sheen { 0% { background-position: 120% 0; } 100% { background-position: -60% 0; } }
+.card.kind-temp .c-name, .card.kind-resonant .c-name { color: var(--gold-bright); }
