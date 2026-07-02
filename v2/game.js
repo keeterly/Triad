@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 10;
+const V2_BUILD = 11;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -375,6 +375,15 @@ const MAP_NODES = [
   { id: 8, col: 7, type: 'camp',    label: 'LAST FIRE',      next: [9] },
   { id: 9, col: 8, type: 'boss',    label: 'THE REMEMBERED', enemies: ['echoknight2', 'cultist'], next: [] },
 ];
+// One voice per hero — camp scenes pair the two least-bonded companions.
+const CAMP_VOICES = {
+  ash:    '…I don’t talk much. But I’d notice if you were gone.',
+  elin:   'Hold still a moment. Even wounds no one can see want tending.',
+  kiki:   'I’m writing a song about us, you know. You’re the difficult verse.',
+  cassia: 'A wall is only as strong as who it shelters. Stand behind me tomorrow.',
+  hask:   'You’re warm. Sit closer. That’s strategy, not sentiment.',
+};
+
 const RECRUIT_LINES = {
   cassia: [
     { text: 'A knight holds a shattered gate alone, shield planted like a gravestone.' },
@@ -395,6 +404,9 @@ let RUN = null;             // descent run state
 let targeting = null;       // { card, validIds, drag? } while picking a target
 const PROGRESS_KEY = 'kizuna2.flow';
 const RUN_KEY = 'kizuna2.run';
+const ABYSS_KEY = 'kizuna2.abyss';   // nodeId -> memory of a fallen descent
+function loadAbyss() { try { return JSON.parse(localStorage.getItem(ABYSS_KEY) || '{}'); } catch (_) { return {}; } }
+function saveAbyss(a) { try { localStorage.setItem(ABYSS_KEY, JSON.stringify(a)); } catch (_) {} }
 const UNLOCK_KEY = 'kizuna.unlocked';
 
 function newRun() {
@@ -431,6 +443,12 @@ function newBattle(node) {
   // Kindled bonds walk into battle already connected: the pair's thread is
   // pre-formed and the bond-guard applies from turn one.  The triad itself
   // still needs ONE act of help this fight to awaken (see addThread).
+  // Sharpened steel from camp: the party opens this fight rallied.
+  if (node.useRunHp && RUN && RUN.campEdge) {
+    heroes.forEach(h => { h.buffDmg += 2; });
+    RUN.campEdge = false;
+    saveRun();
+  }
   const threads = new Set();
   if (node.useRunHp && RUN && RUN.bonds) {
     const ids = heroes.map(h => h.id);
@@ -1093,6 +1111,34 @@ function onVictory() {
   }, 700);
 }
 function onDefeat() {
+  // On the Descent, death is contribution: the run ends, and the Abyss
+  // stores a memory of who fell here — the next descent will find it.
+  if (S.node.mapId != null && RUN) {
+    const abyss = loadAbyss();
+    abyss[S.node.mapId] = {
+      trio: RUN.active.slice(),
+      threads: [...S.threads],
+      label: MAP_NODES[S.node.mapId].label,
+    };
+    saveAbyss(abyss);
+    try { localStorage.removeItem(RUN_KEY); } catch (_) {}
+    RUN = null;
+    const names = abyss[S.node.mapId].trio.map(id => HEROES[id].name).join(' · ');
+    setTimeout(() => {
+      showOverlay(`
+        <div class="ov-eyebrow">THE DESCENT ENDS</div>
+        <div class="ov-title" style="font-size:22px">THE THREAD FRAYS</div>
+        <div class="ov-lines" style="text-align:center; min-height:0">
+          <div class="ov-line">${names} fall at <b>${abyss[S.node.mapId].label}</b>.</div>
+          <div class="ov-line">But nothing here is wasted. <b>The Abyss remembers.</b></div>
+        </div>
+        <button class="ov-btn primary" id="ov-fallen">RETURN TO THE SURFACE</button>
+      `);
+      $('#ov-fallen').onclick = () => { hideOverlay(); showTitle(); };
+    }, 700);
+    return;
+  }
+  // Tutorial defeats stay forgiving: retry the same beat.
   setTimeout(() => {
     showOverlay(`
       <div class="ov-eyebrow">DEFEAT</div>
@@ -1100,11 +1146,7 @@ function onDefeat() {
       <div class="ov-sub">but does not break</div>
       <button class="ov-btn primary" id="ov-retry">TRY AGAIN</button>
     `);
-    $('#ov-retry').onclick = () => {
-      hideOverlay();
-      if (S.node.mapId != null) startMapFight(MAP_NODES[S.node.mapId]);
-      else startFlowNode();
-    };
+    $('#ov-retry').onclick = () => { hideOverlay(); startFlowNode(); };
   }, 700);
 }
 function onRunComplete() {
@@ -1161,7 +1203,8 @@ function showStory(node) {
       $('#ov-go').onclick = (ev) => {
         ev.stopPropagation();
         hideOverlay();
-        if (node.next === 'descent') startDescent();
+        if (node.campDone) showPartySelect(() => showMap());
+        else if (node.next === 'descent') startDescent();
         else advanceFlow();
       };
     } else {
@@ -1192,6 +1235,7 @@ function showMap() {
   const cols = {};
   MAP_NODES.forEach(n => { (cols[n.col] = cols[n.col] || []).push(n); });
   const glyph = { fight: '⚔', recruit: '☉', camp: '⌂', boss: '☠' };
+  const abyss = loadAbyss();
   const colHtml = Object.keys(cols).sort((a, b) => a - b).map(c => `
     <div class="map-col">
       ${cols[c].map(n => {
@@ -1199,6 +1243,7 @@ function showMap() {
         const reach = nodeReachable(n);
         return `<button class="map-node mn-${n.type}${done ? ' mn-done' : ''}${reach ? ' mn-reach' : ''}"
           data-node="${n.id}" ${reach ? '' : 'disabled'}>
+          ${abyss[n.id] ? '<span class="mn-mem" title="A previous descent fell here">♰</span>' : ''}
           <span class="mn-glyph">${done ? '✓' : glyph[n.type]}</span>
           <span class="mn-label">${n.label}</span>
         </button>`;
@@ -1222,9 +1267,40 @@ function showMap() {
 }
 function enterMapNode(n) {
   hideOverlay();
+  const abyss = loadAbyss();
+  if (abyss[n.id]) { showMemory(n, abyss[n.id]); return; }
   if (n.type === 'fight' || n.type === 'boss') startMapFight(n);
   else if (n.type === 'recruit') showRecruit(n);
   else if (n.type === 'camp') showCamp(n);
+}
+// Discovery of a fallen descent — take up their thread, and their bonds echo
+// into this run.  Consumed once found.
+function showMemory(n, mem) {
+  const names = mem.trio.map(id => (HEROES[id] || {}).name || id).join(' · ');
+  const th = (mem.threads || []).length;
+  showOverlay(`
+    <div class="ov-eyebrow">♰ ASHES OF A DESCENT</div>
+    <div class="ov-title" style="font-size:20px">SOMEONE FELL HERE</div>
+    <div class="ov-lines" style="text-align:center; min-height:0">
+      <div class="ov-line"><b>${names}</b> — they made it this far, once.</div>
+      <div class="ov-line">${th ? `Their ${th} thread${th > 1 ? 's' : ''} still hum in the cold air.` : 'The ashes are quiet, but still warm.'}</div>
+    </div>
+    <button class="ov-btn primary" id="ov-takeup">TAKE UP THEIR THREAD</button>
+    <div class="ov-hint">${th ? '+1 ♡ TO EACH BOND THEY HELD · ' : ''}THE PARTY HEALS 4 BY THEIR FIRE</div>
+  `);
+  $('#ov-takeup').onclick = () => {
+    RUN.bonds = RUN.bonds || {};
+    (mem.threads || []).forEach(k => { RUN.bonds[k] = (RUN.bonds[k] || 0) + 1; });
+    RUN.roster.forEach(id => { RUN.hp[id] = Math.min(HEROES[id].maxHp, (RUN.hp[id] || HEROES[id].maxHp) + 4); });
+    const abyss = loadAbyss();
+    delete abyss[n.id];
+    saveAbyss(abyss);
+    saveRun();
+    hideOverlay();
+    if (n.type === 'fight' || n.type === 'boss') startMapFight(n);
+    else if (n.type === 'recruit') showRecruit(n);
+    else if (n.type === 'camp') showCamp(n);
+  };
 }
 function startMapFight(n) {
   startFight({ type: 'fight', chapter: 3, heroes: RUN.active.slice(), enemies: n.enemies.slice(),
@@ -1261,11 +1337,45 @@ function showCamp(n) {
     <div class="ov-title" style="font-size:22px">${n.label}</div>
     <div class="ov-lines" style="text-align:center; min-height:0">
       <div class="ov-line">The fire holds back the dark a while. <b>Every wound closes.</b></div>
-      <div class="ov-line">Around it, the party re-forms — choose who walks the next stretch.</div>
+      <div class="ov-line">One evening, one choice — what does the party do with it?</div>
     </div>
-    <button class="ov-btn primary" id="camp-party">CHOOSE THE TRIO</button>
+    <button class="ov-btn primary" id="camp-fire">SHARE THE FIRE · deepen the weakest bond +1 ♡</button>
+    <button class="ov-btn" id="camp-steel">SHARPEN STEEL · open the next fight with ▲ RALLY +2</button>
   `);
-  $('#camp-party').onclick = () => showPartySelect(() => showMap());
+  $('#camp-fire').onclick = () => showCampScene(n);
+  $('#camp-steel').onclick = () => {
+    RUN.campEdge = true;
+    saveRun();
+    showPartySelect(() => showMap());
+  };
+}
+// A small scene by the fire between the two LEAST-bonded active companions —
+// where the numbers become people.
+function showCampScene(n) {
+  const ids = RUN.active.slice();
+  let pair = null, low = Infinity;
+  for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) {
+    const pts = bondPts(pairKey(ids[i], ids[j]));
+    if (pts < low) { low = pts; pair = [ids[i], ids[j]]; }
+  }
+  if (!pair) { showPartySelect(() => showMap()); return; }
+  const [a, b] = pair;
+  const key = pairKey(a, b);
+  const before = bondPts(key);
+  RUN.bonds = RUN.bonds || {};
+  RUN.bonds[key] = before + 1;
+  saveRun();
+  const kindledNow = before + 1 === BOND_KINDLED;
+  showStory({
+    type: 'story', chapter: 3, title: 'BY THE FIRE', eyebrow: n.label.toUpperCase(),
+    lines: [
+      { text: 'The pot is shared. The watch is set. Two of them sit a little apart from the dark.' },
+      { spk: HEROES[a].name, text: CAMP_VOICES[a] || '…' },
+      { spk: HEROES[b].name, text: CAMP_VOICES[b] || '…' },
+      { text: `The fire holds. <b>♡ ${HEROES[a].name} ─ ${HEROES[b].name}${kindledNow ? ' · KINDLED' : ' +1'}</b>${kindledNow ? ' — they will walk into every battle already connected.' : '.'}` },
+    ],
+    campDone: true,
+  });
 }
 // Party composition — pick exactly 3 (or all, if fewer).  The preview line
 // shows WHICH resonant this trio unlocks, so composition reads as a build.

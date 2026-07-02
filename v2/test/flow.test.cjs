@@ -217,13 +217,24 @@ const QUICK = process.argv.includes('--quick');
   check('phalanx fight won', await J(() => S.over && S.enemies.every(x => x.dead)));
   await sleep(900); await clickOverlayBtn('#ov-next'); await sleep(400);
 
-  // camp heals
+  // camp: heal + SHARE THE FIRE scene deepens the weakest bond
   await J(() => document.querySelector('.map-node.mn-camp.mn-reach')?.click()); await sleep(500);
-  if (await J(() => !!document.querySelector('#camp-party'))) {
-    check('camp full-heals the roster', await J(() => Object.keys(RUN.hp).every(id => RUN.hp[id] === HEROES[id].maxHp)));
-    await clickOverlayBtn('#camp-party'); await sleep(400);
-    await clickOverlayBtn('#ps-go'); await sleep(400);
-  }
+  check('camp full-heals the roster', await J(() => Object.keys(RUN.hp).every(id => RUN.hp[id] === HEROES[id].maxHp)));
+  const weakPair = await J(() => {
+    const ids = RUN.active.slice(); let best = null, low = Infinity;
+    for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) {
+      const k = pairKey(ids[i], ids[j]); const pts = bondPts(k);
+      if (pts < low) { low = pts; best = k; }
+    }
+    return { key: best, pts: low };
+  });
+  await clickOverlayBtn('#camp-fire'); await sleep(450);
+  for (let i = 0; i < 8; i++) { if (!await J(() => !!document.querySelector('.ov-tap'))) break; await J(() => document.querySelector('#overlay').click()); await sleep(220); }
+  await shot('camp-scene');
+  check('CAMP SCENE: the fire dialogue deepened the weakest bond +1',
+    await J((k) => bondPts(k), weakPair.key) === weakPair.pts + 1);
+  await clickOverlayBtn('#ov-go'); await sleep(450);
+  await clickOverlayBtn('#ps-go'); await sleep(450);
   check('back on map after camp', await J(() => !!document.querySelector('.map-strip')));
   await shot('map-after-camp');
 
@@ -253,6 +264,34 @@ const QUICK = process.argv.includes('--quick');
   check('LOOP: a single act of help AWAKENED the kindled triad', awoke);
   check('resonant hijacked the awakener’s signature', await J(() => !!document.querySelector('#hand .card.kind-resonant')));
   await shot('awakened');
+
+  // ---------- THE ABYSS REMEMBERS: death contributes ----------
+  console.log('--- ABYSS ---');
+  const fallenNode = await J(() => S.node.mapId);
+  await J(() => { S.heroes.forEach(h => { h.hp = 0; h.downed = true; }); checkEnd(); });
+  await sleep(1400);
+  check('LOOP: map defeat ends the run — the Abyss remembers', await J(() => document.body.innerText.includes('Abyss remembers')));
+  check('memory stored at the fallen node · run cleared', await J((n) => {
+    const a = JSON.parse(localStorage.getItem('kizuna2.abyss') || '{}');
+    return !!a[n] && !localStorage.getItem('kizuna2.run');
+  }, fallenNode));
+  await shot('abyss-fallen');
+  await clickOverlayBtn('#ov-fallen'); await sleep(500);
+  await clickOverlayBtn('#t-descent'); await sleep(500);
+  await J(() => { RUN.completed = [0, 1, 2, 3, 4, 5]; saveRun(); showMap(); }); await sleep(450);
+  check('next run: the map shows ♰ where they fell', await J((n) => !!document.querySelector(`.map-node[data-node="${n}"] .mn-mem`), fallenNode));
+  await J((n) => document.querySelector(`.map-node[data-node="${n}"]`).click(), fallenNode); await sleep(500);
+  check('discovery beat: ashes of a descent', await J(() => !!document.querySelector('#ov-takeup')));
+  await shot('abyss-memory');
+  await clickOverlayBtn('#ov-takeup'); await sleep(900);
+  check('LOOP: the fallen trio’s bonds echo into the new run', await J(() => {
+    const b = RUN.bonds || {};
+    return Object.keys(b).length >= 3 && Object.values(b).every(v => v >= 1);
+  }), await J(() => JSON.stringify(RUN.bonds)));
+  check('memory consumed · the fight begins over their ashes', await J((n) => {
+    const a = JSON.parse(localStorage.getItem('kizuna2.abyss') || '{}');
+    return !a[n] && typeof S !== 'undefined' && S && !S.over;
+  }, fallenNode));
 
   t.report();
   await t.browser.close();
