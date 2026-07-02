@@ -141,6 +141,20 @@ async function boot(opts = {}) {
       }
       return false;
     },
+    // real pointer drag between two selectors (cards, figures, slots)
+    drag: async (fromSel, toSel) => {
+      const pt = async (sel) => page.evaluate((q) => {
+        const el = document.querySelector(q);
+        const r = el.getBoundingClientRect();
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      }, sel);
+      const a = await pt(fromSel), b = await pt(toSel);
+      await page.mouse.move(a.x, a.y); await page.mouse.down();
+      await page.mouse.move(a.x, a.y - 30, { steps: 4 });
+      await page.mouse.move(b.x, b.y, { steps: 8 });
+      await page.mouse.up();
+      await page.waitForTimeout(550);
+    },
     clickOverlayBtn: async (id) => {
       await page.evaluate((i) => document.querySelector(i)?.click(), id);
       await page.waitForTimeout(450);

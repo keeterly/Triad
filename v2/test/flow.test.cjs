@@ -17,23 +17,21 @@ const QUICK = process.argv.includes('--quick');
   for (let i = 0; i < 6; i++) { if (!await J(() => !!document.querySelector('.ov-tap'))) break; await J(() => document.querySelector('#overlay').click()); await sleep(200); }
   await clickOverlayBtn('#ov-go');
   await sleep(300);
-  check('fight 1 opens with 3 cards / EP 3', await J(() => document.querySelectorAll('#hand .card').length === 3 && S.ep === 3));
+  check('fight 1 opens with 2 cards (no move card) / EP 3', await J(() => document.querySelectorAll('#hand .card').length === 2 && S.ep === 3));
   const hp0 = await J(() => S.enemies[0].hp);
   check('husk is 18 HP (fun tuning: no turn-1 alpha kill)', hp0 === 18, String(hp0));
   check('CONCEPT: full alpha (3 EP) cannot also afford the dodge — real decision', true, 'Cleave 1 + Crashing Wave 2 = all EP');
-  // T1 — the disciplined line: strike once, then DRAG the stance card to MID
+  // T1 — strike, then DRAG ASH HIMSELF to MID (movement is the hero, not a card)
   await tapCard('Cleave'); await sleep(500);
   check('tap-play works', await J(() => S.enemies[0].hp) === hp0 - 6);
-  const c = await J(() => { const r = document.querySelector('#hand .card[data-card-name="Shift Stance"]').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + 18 }; });
-  const m = await J(() => { const r = document.querySelector('#party-half .slot[data-row="mid"]').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
-  await t.page.mouse.move(c.x, c.y); await t.page.mouse.down();
-  await t.page.mouse.move(c.x, c.y - 40, { steps: 4 });
-  await t.page.mouse.move(m.x, m.y, { steps: 8 });
-  await t.page.mouse.up(); await sleep(600);
-  check('drag-to-row works (Ash in MID, Flow Stance cards)', await J(() => S.heroes[0].row === 'mid' && !!document.querySelector('#hand .card[data-card-name="Flowing Cut"]')));
+  await t.drag('[data-fig="ash"]', '#party-half .slot[data-row="mid"]');
+  check('HERO drag moved Ash to MID (1 EP)', await J(() => S.heroes[0].row === 'mid' && S.ep === 1));
+  check('CONCEPT: position rewrote the hand (Flowing Cut appeared)', await J(() => !!document.querySelector('#hand .card[data-card-name="Flowing Cut"]')));
+  check('CONCEPT: core slot stays spent across the move (no attack-dancing)',
+    await J(() => document.querySelector('#hand .card[data-card-name="Flowing Cut"]').classList.contains('card-spent')));
   await endTurn();
   check('dodge lesson: FRONT claw missed', await J(() => S.heroes[0].hp === 32));
-  // T2 — DRAG an attack onto the enemy figure; its self-guard then eats Lurch
+  // T2 — DRAG the fresh core onto the enemy figure; self-guard eats Lurch
   const c2 = await J(() => { const r = document.querySelector('#hand .card[data-card-name="Flowing Cut"]').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + 18 }; });
   const e2 = await J(() => { const r = document.querySelector('#enemy-half .figure').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
   await t.page.mouse.move(c2.x, c2.y); await t.page.mouse.down();
@@ -43,8 +41,7 @@ const QUICK = process.argv.includes('--quick');
   check('drag-to-figure works (husk 12 -> 8, +3 guard)', await J(() => S.enemies[0].hp === 8 && S.heroes[0].guard === 3));
   await endTurn();
   check('guard absorbed Lurch (hp intact)', await J(() => S.heroes[0].hp === 32));
-  // T3-T5 — finish (T3 end triggers Wither: husk banks 3 guard, so the kill
-  // takes one extra swing — enemy buff turns genuinely matter)
+  // T3-T5 — finish through the Wither guard turn
   await tapCard('Flowing Cut'); await sleep(600); await endTurn();
   await tapCard('Flowing Cut'); await sleep(600); await endTurn();
   check('Wither guard made it survive (husk still up)', await J(() => !S.over));
@@ -175,6 +172,8 @@ const QUICK = process.argv.includes('--quick');
     if (!gotCeremony) { await endTurn(); }
   }
   check('TRIAD ceremony fired for phalanx trio', gotCeremony);
+  check('HIJACK: resonant replaced the host’s signature (6 cards, one resonant)',
+    await J(() => document.querySelectorAll('#hand .card').length === 6 && !!document.querySelector('#hand .card.kind-resonant')));
   if (await J(() => S.ep < S.maxEp)) await endTurn();
   const rowsBefore = await J(() => S.enemies.filter(x => !x.dead).map(x => x.id + ':' + x.row).join(' '));
   await tapCard('Warsong Phalanx'); await sleep(2600);

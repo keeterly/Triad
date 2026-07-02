@@ -229,7 +229,12 @@ body {
   --tint: var(--gold);
   border-top: 2px solid var(--tint);
 }
-.card:hover { transform: translateY(-4px); box-shadow: 0 8px 18px rgba(0,0,0,0.55); }
+.card { transform: rotate(var(--fan-rot, 0deg)) translateY(var(--fan-y, 0px)); }
+.card:hover {
+  transform: rotate(0deg) translateY(-16px) scale(1.05);
+  box-shadow: 0 12px 24px rgba(0,0,0,0.6);
+  z-index: 99 !important;
+}
 .card.disabled { opacity: 0.42; cursor: default; }
 .card.disabled:hover { transform: none; box-shadow: none; }
 .card .c-top { display: flex; align-items: center; gap: 4px; }
@@ -456,3 +461,26 @@ body {
 #overlay.map-screen #overlay-inner { max-width: 720px; }
 
 .ps-order { font-size: 8.5px; letter-spacing: 0.14em; color: var(--ink-faint); margin: 2px 0 0; }
+
+
+/* ===========================================================================
+   BUILD 3 — arced hand fan, hero-drag movement, card morphing.
+   =========================================================================== */
+.figure.party.can-move { cursor: grab; }
+.figure.party.can-move:active { cursor: grabbing; }
+.figure.fig-dragging {
+  z-index: 60; cursor: grabbing;
+  filter: drop-shadow(0 14px 26px rgba(0,0,0,0.85)) brightness(1.1);
+}
+.slot.slot-droppable .slot-ring {
+  border-color: var(--gold-bright) !important;
+  animation: target-pulse 0.9s ease infinite;
+}
+/* position rewrote this hero's cards — flip them into their new forms */
+.card-morph { animation: card-morph 0.5s ease-out; }
+@keyframes card-morph {
+  0%   { transform: rotate(var(--fan-rot, 0deg)) translateY(var(--fan-y, 0px)) rotateY(88deg); filter: brightness(2.2); }
+  55%  { transform: rotate(var(--fan-rot, 0deg)) translateY(var(--fan-y, 0px)) rotateY(-12deg); }
+  100% { transform: rotate(var(--fan-rot, 0deg)) translateY(var(--fan-y, 0px)) rotateY(0deg); filter: none; }
+}
+#hand { perspective: 700px; }

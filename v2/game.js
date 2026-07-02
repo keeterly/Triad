@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 2;
+const V2_BUILD = 3;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -290,14 +290,14 @@ const FLOW = [
   { type: 'story', chapter: 1, title: 'ONE SURVIVOR', eyebrow: 'CHAPTER 1', lines: [
     { text: 'The first thing you understand is that everyone else is gone.' },
     { spk: 'ASH', text: '...then I carry it alone.' },
-    { text: 'You are <b>Ash</b>. One blade, three ways to hold it. Your <b>row is your stance</b> — Front cuts, Mid flows, Back strikes from the wind. Your cards change when you move.' },
+    { text: 'You are <b>Ash</b>. One blade, three ways to hold it. Your <b>row is your stance</b> — Front cuts, Mid flows, Back strikes from the wind. <b>Drag Ash himself</b> to another row and watch his cards transform.' },
   ]},
   { type: 'fight', chapter: 1, heroes: ['ash'], enemies: ['husk'],
-    narrator: 'Tap a card to play it — or DRAG it onto a target. END TURN when spent.' },
+    narrator: 'Tap or drag a card to play it. DRAG ASH HIMSELF to change rows (1 EP).' },
   { type: 'story', chapter: 1, title: 'THE STANCES', eyebrow: 'CHAPTER 1', lines: [
     { text: 'More of them ahead. Watch what each enemy <b>telegraphs</b>: the damage, and the <b>row</b> it will strike.' },
     { spk: 'ASH', text: 'If the blow falls on FRONT... I simply won’t be there.' },
-    { text: 'Use <b>Shift Stance</b> to change rows. An attack on an empty row hits nothing.' },
+    { text: '<b>Drag yourself</b> to another row to dodge. An attack on an empty row hits nothing.' },
   ]},
   { type: 'fight', chapter: 1, heroes: ['ash'], enemies: ['husk', 'wraith'],
     narrator: 'Dodge by standing elsewhere. The row they call is the row they strike.' },
@@ -305,7 +305,7 @@ const FLOW = [
     { text: 'A light in the ash-fog. A healer, kneeling over what’s left of her order.' },
     { spk: 'ELIN', text: 'You’re bleeding. Stand still.' },
     { spk: 'ASH', text: '...you’re coming with me.' },
-    { text: 'Two now. Movement becomes <b>swapping</b>. And watch what happens when one of you <b>helps</b> the other.' },
+    { text: 'Two now. Drag a hero onto an ally to <b>swap</b> rows. And watch what happens when one of you <b>helps</b> the other.' },
   ]},
   { type: 'fight', chapter: 2, heroes: ['ash', 'elin'], enemies: ['cultist', 'husk'],
     narrator: 'When Elin heals Ash, something forms between them. Watch.' },
@@ -414,37 +414,52 @@ function cardType(card) {
   return 'skill';
 }
 function buildHand() {
+  // 1 Core + 1 Signature per hero.  Movement is not a card — you drag the
+  // hero.  When the triad forms, the resonant card doesn't ADD to the hand:
+  // it HIJACKS the closing helper's signature slot (the card evolves).
   const hand = [];
+  const host = resonantHost();
   livingHeroes().forEach(h => {
     const set = h.def.cards[h.row];
     hand.push(mkCard(h, 'core', set.core));
-    hand.push(mkCard(h, 'sig', set.sig));
-    hand.push(mkMoveCard(h));
+    if (host === h.id) hand.push(mkResonantCard(h));
+    else hand.push(mkCard(h, 'sig', set.sig));
   });
-  if (S.triadFormed && !S.resonantUsed) hand.push(mkResonantCard());
   return hand;
+}
+// Whose signature is currently transformed?  The hero whose act of help
+// closed the triangle; falls back to any living hero if they went down.
+function resonantHost() {
+  if (!S.triadFormed || S.resonantUsed) return null;
+  const live = livingHeroes().map(h => h.id);
+  if (S.resonantHostId && live.includes(S.resonantHostId)) return S.resonantHostId;
+  return live[0] || null;
 }
 function mkCard(h, kind, def) {
   return { kind, owner: h.id, ownerName: h.def.name, tint: h.def.tint,
     stance: STANCE[h.row].name, name: def.name, cost: def.cost, target: def.target, fx: def.fx, desc: def.desc,
     spent: S.used.has(h.id + ':' + kind) };
 }
-function mkMoveCard(h) {
-  const solo = livingHeroes().length === 1;
+// Synthetic move "card" — never shown in hand; movement is a figure-drag
+// (or tap-the-hero, then tap a row).  Routed through playCard so EP cost,
+// once-per-turn use, and execution flow stay identical to real cards.
+function mkMoveAction(h) {
   return { kind: 'move', owner: h.id, ownerName: h.def.name, tint: h.def.tint,
-    stance: STANCE[h.row].name, name: solo ? 'Shift Stance' : 'Reposition', cost: 1, target: 'row',
-    desc: solo ? 'Move to another row — your cards change with your stance.'
-               : 'Move to another row (swap with whoever stands there).',
-    spent: S.used.has(h.id + ':move') };
+    stance: STANCE[h.row].name, name: 'Move', cost: 1, target: 'row',
+    desc: '', spent: S.used.has(h.id + ':move') };
+}
+function canMove(h) {
+  return !S.executing && !S.over && !h.downed && S.ep >= 1 && !S.used.has(h.id + ':move');
 }
 function triadEntryFor(ids) {
   const classes = ids.map(id => HEROES[id].cls).sort().join('+');
   return RESONANT_TABLE[classes] || RESONANT_FALLBACK;
 }
 function triadEntry() { return triadEntryFor(livingHeroes().map(h => h.id)); }
-function mkResonantCard() {
+function mkResonantCard(host) {
   const r = triadEntry();
-  return { kind: 'resonant', owner: 'triad', ownerName: 'THE TRIAD', tint: 'var(--gold-bright)',
+  return { kind: 'resonant', owner: 'triad', ownerName: host ? host.def.name : 'THE TRIAD',
+    tint: 'var(--gold-bright)',
     stance: r.type.toUpperCase(), name: r.name, cost: S.maxEp, target: 'none', fx: { resonant: true },
     desc: r.desc + '  Consumes your entire turn.', spent: false };
 }
@@ -565,6 +580,69 @@ function attachDrag(el, card) {
   el.addEventListener('pointercancel', finish);
 }
 
+// Drag a HERO to reposition them (1 EP, once per hero per turn).  A short
+// tap instead opens the tap-to-move row picker — unless a card is currently
+// targeting, in which case the tap is the target pick.
+function attachHeroDrag(fig, hero) {
+  let startX = 0, startY = 0, dragging = false, pid = null;
+  const scale = () => ($('#stage').getBoundingClientRect().width / 760) || 1;
+  const highlight = (on) => {
+    document.querySelectorAll('#party-half .slot').forEach(sl => {
+      sl.classList.toggle('slot-droppable', on && sl.dataset.row !== hero.row);
+    });
+    const hint = $('#target-hint');
+    if (on) { hint.textContent = 'Move ' + hero.def.name + ' — drop on a row'; hint.classList.remove('hidden'); }
+    else if (!targeting) hint.classList.add('hidden');
+  };
+  fig.addEventListener('pointerdown', (e) => {
+    if (targeting) return;                    // a card is picking targets — let the tap through
+    pid = e.pointerId;
+    startX = e.clientX; startY = e.clientY; dragging = false;
+    try { fig.setPointerCapture(pid); } catch (_) {}
+  });
+  fig.addEventListener('pointermove', (e) => {
+    if (pid === null) return;
+    const dx = e.clientX - startX, dy = e.clientY - startY;
+    if (!dragging) {
+      if (Math.abs(dx) + Math.abs(dy) < 14) return;
+      if (!canMove(hero)) { pid = null; flashNarrator(S.used.has(hero.id + ':move') ? hero.def.name + ' has already moved this turn.' : 'Not enough EP to move.'); return; }
+      dragging = true;
+      fig.classList.add('fig-dragging');
+      fig.style.transition = 'none';
+      highlight(true);
+    }
+    fig.style.transform = `translate(${dx / scale()}px, ${dy / scale()}px)`;
+  });
+  const finish = (e) => {
+    if (pid === null) return;
+    try { fig.releasePointerCapture(pid); } catch (_) {}
+    pid = null;
+    if (!dragging) {
+      // tap: target pick beats move; otherwise open the row picker
+      if (targeting) { onFigureTap(hero.id); return; }
+      if (!canMove(hero)) return;
+      enterTargeting(mkMoveAction(hero), ROWS.filter(r => r !== hero.row).map(r => 'row:' + r), 'Move ' + hero.def.name);
+      return;
+    }
+    dragging = false;
+    fig.classList.remove('fig-dragging');
+    fig.style.transition = '';
+    fig.style.transform = '';
+    highlight(false);
+    fig.style.pointerEvents = 'none';
+    const under = document.elementFromPoint(e.clientX, e.clientY);
+    fig.style.pointerEvents = '';
+    const slot = under && under.closest ? under.closest('#party-half .slot[data-row]') : null;
+    if (slot && slot.dataset.row !== hero.row && canMove(hero)) {
+      playCard(Object.assign({}, mkMoveAction(hero), { toRow: slot.dataset.row }), null);
+      return;
+    }
+    renderAll();
+  };
+  fig.addEventListener('pointerup', finish);
+  fig.addEventListener('pointercancel', finish);
+}
+
 async function playCard(card, targetId) {
   if (S.executing || S.over) return;
   S.executing = true;
@@ -590,6 +668,9 @@ async function resolveCard(card, targetId) {
     const occupant = livingHeroes().find(h => h.id !== owner.id && h.row === card.toRow);
     owner.row = card.toRow;
     if (occupant) occupant.row = from;
+    // The position rewrite is the point — let the hand visibly morph.
+    S._morphHeroId = owner.id;
+    if (occupant) S._morphHeroId2 = occupant.id;
     renderAll();
     popupAt(figEl(owner.id), STANCE[card.toRow].name.toUpperCase(), 'info');
     if (occupant) popupAt(figEl(occupant.id), 'SWAP', 'info');
@@ -666,6 +747,7 @@ async function addThread(a, b) {
     const [x, y, z] = live.map(h => h.id);
     if (S.threads.has(pairKey(x, y)) && S.threads.has(pairKey(y, z)) && S.threads.has(pairKey(x, z))) {
       S.triadFormed = true;
+      S.resonantHostId = a;   // the helper whose act closed the triangle
       await triadCeremony();
     }
   }
@@ -683,7 +765,7 @@ async function triadCeremony() {
     <div class="triad-title">TRIAD FORMED</div>
     <div class="triad-names">${names}</div>
     <div class="triad-cardname">✦ ${r.name} — ${r.type}</div>
-    <div class="ov-tap">a card burns into your hand · tap to continue</div>
+    <div class="ov-tap">${HEROES[S.resonantHostId] ? HEROES[S.resonantHostId].name + '’s signature transforms' : 'a card transforms'} · tap to continue</div>
   `, 'triad-ceremony');
   await new Promise(res => { $('#overlay').onclick = () => { $('#overlay').onclick = null; res(); }; });
   hideOverlay();
@@ -1109,7 +1191,12 @@ function renderBattlefield() {
         <div class="hp-bar"><div class="hp-fill" style="width:${(who.hp / who.maxHp) * 100}%"></div></div>
         <div class="fig-name">${who.def.name} <span class="hp-num">${who.hp}/${who.maxHp}</span></div>
       `;
-      fig.onclick = () => onFigureTap(who.id);
+      if (canMove(who)) fig.classList.add('can-move');
+      attachHeroDrag(fig, who);
+      // Click fallback for target-picking (synthetic clicks / accessibility
+      // tools).  Safe alongside the pointer path: onFigureTap no-ops once
+      // targeting clears, so a double-fire can't double-play.
+      fig.onclick = () => { if (targeting) onFigureTap(who.id); };
       slot.appendChild(fig);
     }
     const lbl = document.createElement('span');
@@ -1217,20 +1304,29 @@ function renderActionBar() {
   });
   if (S.resonantNew) S.resonantNew = false;
 
-  // Fan the hand when it outgrows the strip; hover/tap raises a card.
+  // Arc the hand like a held fan: slight rotation + parabolic lift around the
+  // center card, overlapping only when width demands it.  Hover/drag straightens
+  // the card.  Cards of a hero who just changed rows morph-flip into their new
+  // forms — position visibly rewrites the hand.
+  const morphIds = [S._morphHeroId, S._morphHeroId2].filter(Boolean);
+  S._morphHeroId = S._morphHeroId2 = null;
   requestAnimationFrame(() => {
     const kids = [...handEl.children];
-    if (kids.length < 2) return;
+    if (!kids.length) return;
     const avail = handEl.clientWidth;
     let total = 0;
     kids.forEach(k => { total += k.offsetWidth + 6; });
-    if (total > avail) {
-      const overlap = Math.min(86, (total - avail) / (kids.length - 1));
-      kids.forEach((k, i) => {
-        if (i > 0) k.style.marginLeft = (-overlap) + 'px';
-        k.style.zIndex = i + 1;
-      });
-    }
+    const overlap = total > avail ? Math.min(86, (total - avail) / Math.max(1, kids.length - 1)) : 0;
+    const mid = (kids.length - 1) / 2;
+    kids.forEach((k, i) => {
+      if (i > 0 && overlap) k.style.marginLeft = (-overlap) + 'px';
+      k.style.zIndex = i + 1;
+      const d = i - mid;
+      k.style.transformOrigin = '50% 130%';
+      k.style.setProperty('--fan-rot', (d * 3.4).toFixed(2) + 'deg');
+      k.style.setProperty('--fan-y', (d * d * 2.4).toFixed(1) + 'px');
+      if (morphIds.includes(k.dataset.owner)) k.classList.add('card-morph');
+    });
   });
 }
 
