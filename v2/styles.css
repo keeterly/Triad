@@ -616,3 +616,12 @@ body {
   box-shadow: 0 0 8px rgba(240,212,136,0.4);
 }
 .c-school { color: var(--ink); }
+
+/* BUILD 14 — generated cards: forged, bonded, fading */
+.card.kind-temp {
+  border-style: dashed;
+  border-color: rgba(240,212,136,0.55);
+  background: linear-gradient(180deg, rgba(46,38,24,0.95) 0%, rgba(16,12,9,0.97) 100%);
+}
+.card.kind-temp .c-name { color: var(--gold-bright); }
+.card .c-type.t-temp { color: var(--gold-bright); }

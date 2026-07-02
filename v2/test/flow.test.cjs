@@ -34,10 +34,11 @@ const QUICK = process.argv.includes('--quick');
   check('tap-play works', await J(() => S.enemies[0].hp) === hp0 - 6);
   await t.drag('[data-fig="ash"]', '#party-half .slot[data-row="mid"]');
   check('HERO drag moved Ash to MID (1 EP)', await J(() => S.heroes[0].row === 'mid' && S.ep === 1));
-  check('CLARITY: spent core LEAVES the fan, even across the move (1 card left)',
-    await J(() => document.querySelectorAll('#hand .card').length === 1 && !document.querySelector('#hand .card[data-card-name="Flowing Cut"]')));
+  check('GENERATED: the move left a fading echo (Echo: Cleave)',
+    await J(() => !document.querySelector('#hand .card[data-card-name="Flowing Cut"]') && !!document.querySelector('#hand .card[data-card-name="Echo: Cleave"]')));
   await endTurn();
   check('dodge lesson: FRONT claw missed', await J(() => S.heroes[0].hp === 32));
+  check('the echo faded with the turn', await J(() => !document.querySelector('#hand .card[data-card-name="Echo: Cleave"]')));
   check('CONCEPT: new turn, position rewrote the hand (Flowing Cut awaits)',
     await J(() => !!document.querySelector('#hand .card[data-card-name="Flowing Cut"]')));
   // T2 — DRAG the fresh core onto the enemy figure; self-guard eats Lurch
@@ -73,6 +74,12 @@ const QUICK = process.argv.includes('--quick');
   check('CONCEPT: bond steels both (+2 guard each)', await J(() => S.heroes.every(h => h.guard >= 2)),
     await J(() => S.heroes.map(h => h.id + ':' + h.guard).join(',')));
   check('thread line renders', await J(() => document.querySelectorAll('.thread-line').length === 1));
+  check('GENERATED: the first bond materialized ECHO BOND', await J(() => !!document.querySelector('#hand .card[data-card-name="Echo Bond"]')));
+  await tapCard('Echo Bond'); await sleep(550);
+  check('ECHO BOND: the pair moves as one (⛨5 · ▲2 each)',
+    await J(() => S.heroes.every(h => h.guard >= 5 && h.buffDmg >= 2)),
+    await J(() => S.heroes.map(h => h.id + ':' + h.guard + '/' + h.buffDmg).join(',')));
+  check('the bond card burned away on use', await J(() => !document.querySelector('#hand .card[data-card-name="Echo Bond"]')));
   await shot('ch2-thread');
 
   // ---------- DESCENT: map, recruit, composition, Formation resonant ----------
@@ -310,11 +317,14 @@ const QUICK = process.argv.includes('--quick');
   await tapCard('Crashing Wave'); await sleep(750);
   check('same-turn repeat -> STAGGERED ⚡', await J(() => S.enemies[0].staggered));
   check('press-turn: the stagger paid +1 EP', await J(() => S.ep) === epMid - 2 + 1, 'ep=' + await J(() => S.ep));
-  const hpMid = await J(() => S.enemies[0].hp);
-  await J(() => dealToEnemy(S.enemies[0], 5, null)); await sleep(300);
-  check('the next hit landed ×2 on the staggered enemy', await J(() => S.enemies[0].hp) === hpMid - 10, 'hp ' + hpMid + '->' + await J(() => S.enemies[0].hp));
-  check('stagger consumed by the payoff', await J(() => !S.enemies[0].staggered));
+  check('GENERATED: the stagger FORGED Coup de Grâce in Ash’s hand',
+    await J(() => !!document.querySelector('#hand .card[data-card-name="Coup de Grâce"]')));
   await shot('staggered');
+  const hpMid = await J(() => S.enemies[0].hp);
+  await tapCard('Coup de Grâce'); await sleep(250); await pickTarget(); await sleep(650);
+  check('the finisher cashed the ×2 (8 -> 16)', await J(() => S.enemies[0].hp) === hpMid - 16, 'hp ' + hpMid + '->' + await J(() => S.enemies[0].hp));
+  check('stagger consumed by the payoff', await J(() => !S.enemies[0].staggered));
+  check('the forged card burned away on use', await J(() => !document.querySelector('#hand .card[data-card-name="Coup de Grâce"]')));
   // INTERRUPT — the Bloodborne moment
   await J(() => {
     hideOverlay();

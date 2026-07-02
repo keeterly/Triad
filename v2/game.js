@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 13;
+const V2_BUILD = 14;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -486,9 +486,22 @@ function newBattle(node) {
     maxEp: 2 + heroes.length, ep: 2 + heroes.length,
     used: new Set(),
     threads,
+    tempCards: [], _tuid: 0,
     triadFormed: false, resonantUsed: false, resonantNew: false,
     executing: false, over: false, turn: 1,
   };
+}
+
+// Generated cards — skills forging skills.  Capped at 3 so the fan never
+// floods; each carries temp:true + a uid, and may expire at turn end.
+function genTempCard(card) {
+  if (S.tempCards.length >= 3) { flashNarrator('The moment passes — too many possibilities in hand.'); return; }
+  card.temp = true;
+  card.uid = ++S._tuid;
+  S.tempCards.push(card);
+  S._tempNew = card.uid;
+  SFX.card();
+  renderAll();
 }
 
 const pairKey = (a, b) => [a, b].sort().join('|');
@@ -503,6 +516,7 @@ const enemyArt = (e) => V2PORTRAITS[e.def.art || e.id] || '';
 // ---------------------------------------------------------------------------
 function cardType(card) {
   if (card.kind === 'resonant') return 'resonant';
+  if (card.kind === 'temp') return 'temp';
   if (card.kind === 'move') return 'move';
   const fx = card.fx || {};
   if (fx.dmg) return 'attack';
@@ -524,6 +538,7 @@ function buildHand() {
     if (host === h.id) hand.push(mkResonantCard(h));
     else { const sig = mkCard(h, 'sig', set.sig); if (!sig.spent) hand.push(sig); }
   });
+  S.tempCards.filter(t => t.expiresTurn == null || t.expiresTurn >= S.turn).forEach(t => hand.push(t));
   return hand;
 }
 // Whose signature is currently transformed?  The hero whose act of help
@@ -780,7 +795,8 @@ async function playCard(card, targetId) {
   S.executing = true;
   $('#stage').classList.add('executing');
   S.ep -= card.cost;
-  if (card.owner !== 'triad') S.used.add(card.owner + ':' + card.kind);
+  if (card.temp) S.tempCards = S.tempCards.filter(t => t.uid !== card.uid);
+  else if (card.owner !== 'triad') S.used.add(card.owner + ':' + card.kind);
   if (card.kind !== 'move') {
     SFX.card();
     flyCard(card.name, targetId ? figEl(targetId) : (card.target === 'frontmost' && frontmostEnemy() ? figEl(frontmostEnemy().uid) : null));
@@ -805,7 +821,17 @@ async function resolveCard(card, targetId) {
     const occupant = livingHeroes().find(h => h.id !== owner.id && h.row === card.toRow);
     owner.row = card.toRow;
     if (occupant) occupant.row = from;
-    // The position rewrite is the point — let the hand visibly morph.
+    // The departed stance lingers: a fading echo of its core, THIS TURN only.
+    // Movement converts tempo into an extra weaker action — and the echo
+    // keeps the OLD stance's strike, so stance-dancing can line up
+    // same-element pairs for staggers.
+    const oldCore = owner.def.cards[from].core;
+    if (oldCore.fx && oldCore.fx.dmg) {
+      genTempCard({ kind: 'temp', owner: owner.id, ownerName: owner.def.name, tint: owner.def.tint,
+        stance: 'FADING', name: 'Echo: ' + oldCore.name, cost: 1, target: oldCore.target,
+        school: owner.def.school, fx: { dmg: Math.max(2, oldCore.fx.dmg - 2) }, expiresTurn: S.turn,
+        desc: `${Math.max(2, oldCore.fx.dmg - 2)} damage. The old stance lingers — this turn only.` });
+    }
     S._morphHeroId = owner.id;
     if (occupant) S._morphHeroId2 = occupant.id;
     renderAll();
@@ -818,6 +844,18 @@ async function resolveCard(card, targetId) {
   if (card.kind === 'resonant') { await resolveResonant(); return; }
 
   const fx = card.fx || {};
+  if (fx.bondPair) {
+    fx.bondPair.forEach(id => {
+      const h = S.heroes.find(x => x.id === id);
+      if (!h || h.downed) return;
+      h.guard += fx.bondGuard;
+      h.buffDmg += fx.bondRally;
+      popupAt(figEl(id), '⛨ ' + fx.bondGuard + ' · ▲ ' + fx.bondRally, 'guard');
+    });
+    SFX.thread();
+    await sleep(300);
+    return;
+  }
   if (fx.dmg) {
     let tgt = null;
     if (card.target === 'frontmost') tgt = frontmostEnemy();
@@ -834,7 +872,7 @@ async function resolveCard(card, targetId) {
       const prev = hitters.length ? hitters[hitters.length - 1] : null;
       const isFollowUp = !!(owner && prev && prev !== owner.id);
       if (isFollowUp) amt += 2;
-      dealToEnemy(tgt, amt, owner ? owner.def.school : null);
+      dealToEnemy(tgt, amt, owner ? owner.def.school : null, owner ? owner.id : null);
       if (owner) hitters.push(owner.id);
       if (isFollowUp) {
         popupAt(figEl(owner.id), '⚡ FOLLOW-UP +2', 'info');
@@ -882,7 +920,7 @@ async function resolveCard(card, targetId) {
   await sleep(280);
 }
 
-function dealToEnemy(e, amt, school) {
+function dealToEnemy(e, amt, school, byHeroId) {
   // STAGGER payoff: the next hit on a staggered enemy lands double.
   if (e.staggered) {
     amt *= 2;
@@ -905,6 +943,15 @@ function dealToEnemy(e, amt, school) {
       e.staggered = true;
       popupAt(figEl(e.uid), '⚡ STAGGERED', 'info');
       SFX.follow();
+      // The stagger forges a finisher in the staggerer's hand — the reward
+      // for engineering the state is the card that cashes it.
+      if (byHeroId && HEROES[byHeroId]) {
+        const fh = S.heroes.find(x => x.id === byHeroId);
+        if (fh && !fh.downed) genTempCard({ kind: 'temp', owner: byHeroId, ownerName: fh.def.name, tint: fh.def.tint,
+          stance: 'FORGED', name: 'Coup de Grâce', cost: 1, target: 'enemy',
+          school: fh.def.school, fx: { dmg: 8 },
+          desc: '8 damage. Forged from the stagger — spend it while they reel.' });
+      }
       if (!S._pressUsed) {
         S._pressUsed = true;
         S.ep += 1;
@@ -951,6 +998,17 @@ async function addThread(a, b) {
   S.threads.add(key);
   renderThreads(key);
   SFX.thread();
+  // The fight's FIRST bond materializes an Echo Bond — a card the pair
+  // shares, stronger if the two are already kindled (progression made card).
+  if (!S._echoBondGiven) {
+    S._echoBondGiven = true;
+    const kindled = bondPts(key) >= BOND_KINDLED;
+    genTempCard({ kind: 'temp', owner: 'bond', ownerName: HEROES[a].name + ' + ' + HEROES[b].name,
+      tint: 'var(--gold-bright)', stance: kindled ? 'KINDLED BOND' : 'BOND',
+      name: 'Echo Bond', cost: 1, target: 'none',
+      fx: { bondPair: [a, b], bondGuard: kindled ? 4 : 3, bondRally: kindled ? 3 : 2 },
+      desc: `${HEROES[a].name} and ${HEROES[b].name} move as one: both gain <span class="kw kw-guard">⛨ ${kindled ? 4 : 3}</span> and <span class="kw kw-rally">▲ RALLY ${kindled ? 3 : 2}</span>.` });
+  }
   flashNarrator('A thread forms — ' + HEROES[a].name + ' ─ ' + HEROES[b].name);
   // The bond itself protects: both linked heroes steel by 2 guard the moment
   // the thread forms.  Kizuna has immediate tactical weight, not just
@@ -1064,6 +1122,7 @@ async function endTurn() {
     S.used = new Set();
     S.heroes.forEach(h => { h.guard = 0; h.counter = 0; h.invuln = false; h.exposed = 0; h._hitByE = []; });
     S.enemies.forEach(e => { e.mark = 0; e.acted = false; e._hitBy = []; e.staggered = false; });
+    S.tempCards = S.tempCards.filter(t => t.expiresTurn == null || t.expiresTurn >= S.turn);
     S._pressUsed = false;
     S.executing = false;
     $('#stage').classList.remove('executing');
@@ -1716,6 +1775,7 @@ function renderActionBar() {
   handEl.innerHTML = '';
   if (S.over) return;
   const TYPE_LABEL = { attack: '✕ ATTACK', guard: '⛨ GUARD', skill: '✦ SKILL', move: '⇄ MOVE',
+    temp: '✧ GENERATED',
     resonant: '✦ RESONANCE · ' + (triadEntry().type || '').toUpperCase() };
   buildHand().forEach(card => {
     const type = cardType(card);
@@ -1723,6 +1783,7 @@ function renderActionBar() {
     el.className = `card kind-${card.kind}`
       + (card.spent ? ' card-spent' : (card.cost > S.ep ? ' disabled' : ''));
     if (card.kind === 'resonant' && S.resonantNew) el.classList.add('card-burn-in');
+    if (card.temp && S._tempNew === card.uid) { el.classList.add('card-burn-in'); S._tempNew = null; }
     el.style.setProperty('--tint', card.tint);
     el.dataset.owner = card.owner;
     el.dataset.cardName = card.name;
