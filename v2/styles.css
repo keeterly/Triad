@@ -591,3 +591,6 @@ body {
 .chip.chill { color: #8ecbe8; border-color: rgba(142,203,232,0.45); }
 .popup.chill { color: #8ecbe8; }
 .popup.rally { color: var(--gold-bright); }
+
+/* BUILD 10 — enemies speak the grammar: status icons inside intent bubbles */
+.intent .i-st { font-size: 9px; margin: 0 1px; }

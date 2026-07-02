@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 9;
+const V2_BUILD = 10;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -178,7 +178,7 @@ const ENEMY_DEFS = {
     name: 'PALE WRAITH', maxHp: 16,
     intents: [
       { name: 'Grasp Beyond', dmg: 5, row: 'back' },
-      { name: 'Chill Wail',   dmg: 2, row: 'all' },
+      { name: 'Chill Wail',   dmg: 2, row: 'all', chill: 1 },
       { name: 'Drift',        dmg: 4, row: 'mid' },
     ],
   },
@@ -187,7 +187,7 @@ const ENEMY_DEFS = {
     intents: [
       { name: 'Sacrificial Knife', dmg: 5, row: 'front' },
       { name: 'Blood Chant', kind: 'buff', desc: 'gathers power', powerSelf: 2 },
-      { name: 'Hollow Verse', dmg: 4, row: 'mid' },
+      { name: 'Hollow Verse', dmg: 4, row: 'mid', expose: 2 },
     ],
   },
   mourner: {
@@ -195,7 +195,7 @@ const ENEMY_DEFS = {
     intents: [
       { name: 'Dirge',     dmg: 3, row: 'all' },
       { name: 'Sorrowing', dmg: 5, row: 'mid' },
-      { name: 'Keening', kind: 'buff', desc: 'keens louder', powerSelf: 2 },
+      { name: 'Keening', kind: 'buff', desc: 'keens the horde onward', powerAll: 1 },
     ],
   },
   drone: {
@@ -221,7 +221,7 @@ const ENEMY_DEFS = {
       { name: 'Returning Stroke', dmg: 7, row: 'front' },
       { name: 'Gathers the Echo', kind: 'buff', desc: 'the echo swells', powerSelf: 2 },
       { name: 'Echoed Arc',       dmg: 5, row: 'mid' },
-      { name: 'Remembered Blade', dmg: 6, row: 'back' },
+      { name: 'Remembered Blade', dmg: 6, row: 'back', expose: 2 },
       { name: 'OBLIVION ECHO',    dmg: 9, row: 'all', heavy: true },
     ],
   },
@@ -420,6 +420,7 @@ function newBattle(node) {
     maxHp: HEROES[id].maxHp,
     row: ['front', 'mid', 'back'][i] || 'front',
     guard: 0, buffDmg: 0, counter: 0, invuln: false, downed: false,
+    chill: 0, exposed: 0,
   }));
   const enemies = node.enemies.map((id, i) => ({
     id, def: ENEMY_DEFS[id], uid: id + '#' + i,
@@ -778,6 +779,7 @@ async function resolveCard(card, targetId) {
     if (tgt) {
       let amt = fx.dmg + (owner ? owner.buffDmg : 0);
       if (owner && owner.buffDmg) { popupAt(figEl(owner.id), '▲ RALLY +' + owner.buffDmg, 'rally'); owner.buffDmg = 0; }
+      if (owner && owner.chill) { amt = Math.max(0, amt - owner.chill); popupAt(figEl(owner.id), '❄ −' + owner.chill, 'chill'); owner.chill = 0; }
       amt += tgt.mark || 0;
       // FOLLOW-UP: striking an enemy an ally already hit this turn is a
       // combo — +2 damage, and fighting together forms a thread between
@@ -962,7 +964,7 @@ async function endTurn() {
     S.turn++;
     S.ep = S.maxEp;
     S.used = new Set();
-    S.heroes.forEach(h => { h.guard = 0; h.counter = 0; h.invuln = false; });
+    S.heroes.forEach(h => { h.guard = 0; h.counter = 0; h.invuln = false; h.exposed = 0; h._hitByE = []; });
     S.enemies.forEach(e => { e.mark = 0; e.acted = false; e._hitBy = []; });
     S.executing = false;
     $('#stage').classList.remove('executing');
@@ -994,8 +996,12 @@ async function enemyPhase() {
     if (lungeEl && intent.kind !== 'buff') { lungeEl.classList.add('fig-lunge'); SFX.enemy(); }
     await sleep(400);
     if (intent.kind === 'buff') {
-      if (intent.guardSelf) { e.guard += intent.guardSelf; popupAt(figEl(e.uid), '⛨ ' + intent.guardSelf, 'guard'); }
-      if (intent.powerSelf) { e.power += intent.powerSelf; popupAt(figEl(e.uid), '+' + intent.powerSelf + ' ATK', 'info'); }
+      if (intent.guardSelf) { e.guard += intent.guardSelf; popupAt(figEl(e.uid), '⛨ ' + intent.guardSelf, 'guard'); SFX.guard(); }
+      if (intent.powerSelf) { e.power += intent.powerSelf; popupAt(figEl(e.uid), '▲ +' + intent.powerSelf, 'rally'); }
+      if (intent.powerAll) {
+        livingEnemies().forEach(o => { o.power += intent.powerAll; popupAt(figEl(o.uid), '▲ +' + intent.powerAll, 'rally'); });
+        flashNarrator(e.def.name + ' rallies the horde.');
+      }
       renderAll();
       continue;
     }
@@ -1010,7 +1016,18 @@ async function enemyPhase() {
       if (h.invuln) {
         popupAt(figEl(h.id), 'INVULNERABLE', 'info');
       } else {
-        let left = dmg;
+        // Enemies fight by the player's grammar: EXPOSED heroes take more,
+        // and a second enemy striking the same hero this phase FOLLOWS UP.
+        let hitDmg = dmg + (h.exposed || 0);
+        const hby = h._hitByE || (h._hitByE = []);
+        const prevE = hby.length ? hby[hby.length - 1] : null;
+        if (prevE && prevE !== e.uid) {
+          hitDmg += 2;
+          popupAt(figEl(e.uid), '⚡ FOLLOW-UP +2', 'info');
+          SFX.follow();
+        }
+        hby.push(e.uid);
+        let left = hitDmg;
         if (h.guard > 0) { const g = Math.min(h.guard, left); h.guard -= g; left -= g; popupAt(figEl(h.id), '⛨', 'guard'); }
         if (left > 0) {
           h.hp = Math.max(0, h.hp - left);
@@ -1021,6 +1038,8 @@ async function enemyPhase() {
           if (big) stageShake();
         }
       }
+      if (intent.chill)  { h.chill = (h.chill || 0) + intent.chill; popupAt(figEl(h.id), '❄ CHILL −' + intent.chill, 'chill'); }
+      if (intent.expose) { h.exposed = (h.exposed || 0) + intent.expose; popupAt(figEl(h.id), '◎ EXPOSED +' + intent.expose, 'info'); }
       if (h.counter > 0 && !e.dead) { dealToEnemy(e, h.counter); flashNarrator(h.def.name + ' counters!'); }
       if (h.hp === 0) { h.downed = true; popupAt(figEl(h.id), 'DOWN', 'dmg'); }
     }
@@ -1368,6 +1387,8 @@ function renderBattlefield() {
           ${who.guard ? `<span class="chip guard">⛨ ${who.guard}</span>` : ''}
           ${who.buffDmg ? `<span class="chip buff">▲ ${who.buffDmg}</span>` : ''}
           ${who.counter ? `<span class="chip counter">↺ ${who.counter}</span>` : ''}
+          ${who.exposed ? `<span class="chip mark">◎ ${who.exposed}</span>` : ''}
+          ${who.chill ? `<span class="chip chill">❄ ${who.chill}</span>` : ''}
         </div>
         <div class="hp-bar"><div class="hp-fill" style="width:${(who.hp / who.maxHp) * 100}%"></div></div>
         <div class="fig-name">${who.def.name} <span class="hp-num">${who.hp}/${who.maxHp}</span></div>
@@ -1408,7 +1429,7 @@ function renderBattlefield() {
       if (targetable) fig.classList.add('fig-targetable');
       const intentHtml = it.kind === 'buff'
         ? `<div class="intent intent-buff"><span>◈</span><span class="i-row">${it.desc || 'gathers'}</span></div>`
-        : `<div class="intent${it.heavy ? ' intent-heavy' : ''}"><span>⚔</span><span class="i-dmg">${Math.max(0, (it.dmg || 0) + (e.power || 0) - (e.lull || 0))}</span><span class="i-row">→ ${it.row === 'all' ? 'ALL' : ROW_LABEL[it.row]}</span></div>`;
+        : `<div class="intent${it.heavy ? ' intent-heavy' : ''}"><span>⚔</span><span class="i-dmg">${Math.max(0, (it.dmg || 0) + (e.power || 0) - (e.lull || 0))}</span>${it.chill ? '<span class="i-st kw-chill">❄</span>' : ''}${it.expose ? '<span class="i-st kw-exposed">◎</span>' : ''}<span class="i-row">→ ${it.row === 'all' ? 'ALL' : ROW_LABEL[it.row]}</span></div>`;
       fig.innerHTML = `
         ${intentHtml}
         <div class="fig-art">${enemyArt(e)}</div>
