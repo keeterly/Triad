@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 21;
+const V2_BUILD = 22;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -57,6 +57,7 @@ const SFX = (() => {
     victory: () => { [523, 659, 784].forEach((f, i) => tone(f, 0.25, 'triangle', 0.05, i * 0.11)); },
     enemy:   () => tone(220, 0.09, 'square', 0.04, 0, 180),
     follow:  () => { tone(500, 0.07, 'triangle', 0.05); tone(750, 0.1, 'triangle', 0.05, 0.06); },
+    deny:    () => { tone(150, 0.08, 'square', 0.05, 0, 110); tone(120, 0.1, 'square', 0.045, 0.06, 90); },
   };
 })();
 
@@ -674,6 +675,22 @@ function dragTargets(card) {
     default:          return { mode: 'field', els: [] };
   }
 }
+// Which figures a field card (resonant vow / bond pair / Not Today) actually
+// touches — so the aim can light them up instead of pointing at empty air.
+function fieldTargets(card) {
+  const fx = card.fx || {};
+  if (fx.notToday)  return fx.notToday.map(id => figEl(id)).filter(Boolean);
+  if (fx.bondPair)  return fx.bondPair.map(id => figEl(id)).filter(Boolean);
+  if (fx.resonant) {
+    // The vow sweeps the whole board: rally the party, strike every foe.
+    const rfx = {}; (triadEntry().stages || []).forEach(st => Object.assign(rfx, st.fx || {}));
+    const hits = rfx.aoeDmg || rfx.dmg || rfx.hitFrontmost;
+    const els = livingHeroes().map(h => figEl(h.id)).filter(Boolean);
+    if (hits) enemyFigEls().forEach(e => els.push(e));
+    return els;
+  }
+  return [];
+}
 function aimLayer() {
   let svg = document.getElementById('aim-layer');
   if (!svg) {
@@ -730,6 +747,23 @@ function drawAimJRPG(fx, fy, ex, ey, valid, field, angle, color) {
     + `<path d="${path}" fill="none" stroke="#fff6d8" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="2 7" stroke-dashoffset="${-angle}" style="filter:drop-shadow(0 0 4px ${c})"/>`
     + ret;
 }
+// Field-card aim — a vow / bond touches MANY figures at once, so fan a thread
+// out to each affected figure and ring it, rather than beaming into the void.
+function drawAimField(fx, fy, pts, angle, color) {
+  const svg = aimLayer();
+  let s = '';
+  pts.forEach(p => {
+    const bow = Math.max(22, Math.abs(p.x - fx) * 0.14);
+    const midX = (fx + p.x) / 2, midY = Math.min(fy, p.y) - bow;
+    const path = `M ${fx} ${fy} Q ${midX} ${midY} ${p.x} ${p.y}`;
+    s += `<path d="${path}" fill="none" stroke="${color}" stroke-width="6" stroke-linecap="round" opacity="0.18" style="filter:blur(2.5px)"/>`
+       + `<path d="${path}" fill="none" stroke="${color}" stroke-width="2.4" stroke-linecap="round" opacity="0.55"/>`
+       + `<path d="${path}" fill="none" stroke="#fff6d8" stroke-width="1.2" stroke-linecap="round" stroke-dasharray="2 6" stroke-dashoffset="${-angle}" style="filter:drop-shadow(0 0 3px ${color})"/>`
+       + `<circle cx="${p.x}" cy="${p.y}" r="7" fill="none" stroke="${color}" stroke-width="1.8"><animate attributeName="r" values="6;10;6" dur="0.8s" repeatCount="indefinite"/></circle>`
+       + `<circle cx="${p.x}" cy="${p.y}" r="2.4" fill="#fff6d8" style="filter:drop-shadow(0 0 5px ${color})"/>`;
+  });
+  svg.innerHTML = s;
+}
 
 // Damped, finger-following card drag with a JRPG aim ribbon.  A RAF loop
 // eases the card toward the pointer (weighted tilt from velocity) and eases
@@ -742,7 +776,10 @@ function attachDrag(el, card) {
   const sc = () => _sscale();
 
   el.addEventListener('pointerdown', (e) => {
-    if (S.executing || S.over || card.spent || card.cost > S.ep) return;
+    if (S.executing || S.over || card.spent) return;
+    // Can't afford it — shake the card and say why, rather than silently
+    // swallowing the touch (the card also renders greyed via .disabled).
+    if (card.cost > S.ep) { denyCard(el, card); e.preventDefault(); return; }
     pid = e.pointerId; startX = e.clientX; startY = e.clientY; ptrX = e.clientX; ptrY = e.clientY; dragging = false;
     try { el.setPointerCapture(pid); } catch (_) {}
     e.preventDefault();
@@ -759,7 +796,14 @@ function attachDrag(el, card) {
       originX = r.left + r.width / 2; originY = r.top + r.height / 2;
       const sr = $('#stage').getBoundingClientRect();
       curTX = 0; curTY = 0; curEX = (ptrX - sr.left) / sc(); curEY = (ptrY - sr.top) / sc();
-      dragTargets(card).els.forEach(t => t.classList.add('fig-valid'));
+      const dt = dragTargets(card);
+      const lit = dt.mode === 'field' ? fieldTargets(card) : dt.els;
+      lit.forEach(t => t.classList.add('fig-valid'));
+      if (dt.mode === 'field') {
+        const hint = $('#target-hint');
+        hint.textContent = card.kind === 'resonant' ? 'RELEASE TO UNLEASH THE VOW' : 'RELEASE TO SEAL THE BOND';
+        hint.classList.remove('hidden');
+      }
       loop();
     }
   });
@@ -781,8 +825,17 @@ function attachDrag(el, card) {
     const cr = el.getBoundingClientRect();
     const fromX = (cr.left + cr.width / 2 - sr.left) / s, fromY = (cr.top - sr.top) / s + 2;
     if (mode === 'field') {
-      field = true; valid = true; snapped = '__field__';
-      ex = fromX; ey = fromY - 66;
+      // A field card touches many figures — thread the beam to each of them
+      // and ring them, rather than a lone arrow pointing at nothing.
+      snapped = '__field__';
+      const pts = fieldTargets(card).map(t => {
+        t.classList.add('fig-snapped');
+        const r = t.getBoundingClientRect();
+        return { x: (r.left + r.width / 2 - sr.left) / s, y: (r.top + r.height * 0.4 - sr.top) / s };
+      });
+      angle = (angle + 3) % 360;
+      drawAimField(fromX, fromY, pts, angle, aimColor(card));
+      return;
     } else {
       let best = null, bd = Infinity;
       els.forEach(t => { const r = t.getBoundingClientRect(); const d = (r.left + r.width / 2 - ptrX) ** 2 + (r.top + r.height / 2 - ptrY) ** 2; if (d < bd) { bd = d; best = t; } });
@@ -803,6 +856,7 @@ function attachDrag(el, card) {
     dragging = false;
     el.classList.remove('card-dragging');
     aimClear();
+    if (!targeting) $('#target-hint').classList.add('hidden');
     const handTop = $('#hand').getBoundingClientRect().top;
     const cancelled = e.clientY > handTop - 8;
     const { mode } = dragTargets(card);
@@ -815,6 +869,14 @@ function attachDrag(el, card) {
   };
   el.addEventListener('pointerup', finish);
   el.addEventListener('pointercancel', finish);
+}
+// Denial feedback for an unaffordable card — a short shake + a reason.
+function denyCard(el, card) {
+  el.classList.remove('card-deny'); void el.offsetWidth; el.classList.add('card-deny');
+  setTimeout(() => el.classList.remove('card-deny'), 400);
+  const need = card.cost - S.ep;
+  flashNarrator(`Not enough EP — ${card.name} needs ${card.cost} (${need} more).`);
+  try { SFX.deny && SFX.deny(); } catch (_) {}
 }
 // Spring the card back to its fan position, then re-render.
 function springBack(el) {
@@ -2083,24 +2145,36 @@ function renderActionBar() {
   // forms — position visibly rewrites the hand.
   const morphIds = [S._morphHeroId, S._morphHeroId2].filter(Boolean);
   S._morphHeroId = S._morphHeroId2 = null;
-  requestAnimationFrame(() => {
-    const kids = [...handEl.children];
-    if (!kids.length) return;
-    const avail = handEl.clientWidth;
+  // Lay the fan out SYNCHRONOUSLY, before the browser's first paint, so a
+  // fresh hand never flickers through its un-fanned (rotate 0) state on the
+  // way in.  Transitions are suppressed for this placement pass so a reshuffle
+  // snaps cleanly into shape instead of sliding in from center every render.
+  const kids = [...handEl.children];
+  if (kids.length) {
+    const avail = handEl.clientWidth || handEl.offsetWidth;
     let total = 0;
     kids.forEach(k => { total += k.offsetWidth + 6; });
     const overlap = total > avail ? Math.min(86, (total - avail) / Math.max(1, kids.length - 1)) : 0;
     const mid = (kids.length - 1) / 2;
     kids.forEach((k, i) => {
+      k.style.transition = 'none';
       if (i > 0 && overlap) k.style.marginLeft = (-overlap) + 'px';
       k.style.zIndex = i + 1;
       const d = i - mid;
       k.style.transformOrigin = '50% 130%';
       k.style.setProperty('--fan-rot', (d * 3.4).toFixed(2) + 'deg');
       k.style.setProperty('--fan-y', (d * d * 2.4).toFixed(1) + 'px');
-      if (morphIds.includes(k.dataset.owner)) k.classList.add('card-morph');
     });
-  });
+    // Force one reflow so the fanned transform is committed with transitions
+    // off, then restore the CSS transition (for hover/drag) on the next frame.
+    void handEl.offsetWidth;
+    requestAnimationFrame(() => {
+      kids.forEach(k => {
+        k.style.transition = '';
+        if (morphIds.includes(k.dataset.owner)) k.classList.add('card-morph');
+      });
+    });
+  }
 }
 
 // ---------------------------------------------------------------------------

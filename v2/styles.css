@@ -243,8 +243,18 @@ body {
   box-shadow: 0 12px 24px rgba(0,0,0,0.6);
   z-index: 99 !important;
 }
-.card.disabled { opacity: 0.42; cursor: default; }
-.card.disabled:hover { transform: none; box-shadow: none; }
+/* Unaffordable — clearly greyed out so it reads as "can't play this yet". */
+.card.disabled { opacity: 0.5; cursor: default; filter: grayscale(0.85) brightness(0.72); }
+.card.disabled:hover { transform: rotate(var(--fan-rot, 0deg)) translateY(var(--fan-y, 0px)); box-shadow: none; }
+.card.disabled .c-cost { background: #7a6a4a; color: #d8ccb0; }
+/* Denial shake — fired when an unaffordable card is grabbed. */
+.card.card-deny { animation: card-deny 0.36s cubic-bezier(0.36,0.07,0.19,0.97); }
+@keyframes card-deny {
+  10%, 90% { transform: rotate(var(--fan-rot,0deg)) translateY(var(--fan-y,0px)) translateX(-3px); }
+  20%, 80% { transform: rotate(var(--fan-rot,0deg)) translateY(var(--fan-y,0px)) translateX(4px); }
+  30%, 50%, 70% { transform: rotate(var(--fan-rot,0deg)) translateY(var(--fan-y,0px)) translateX(-6px); }
+  40%, 60% { transform: rotate(var(--fan-rot,0deg)) translateY(var(--fan-y,0px)) translateX(6px); }
+}
 .card .c-top { display: flex; align-items: center; gap: 4px; }
 .card .c-cost {
   min-width: 15px; height: 15px; border-radius: 50%; font-size: 9.5px;
