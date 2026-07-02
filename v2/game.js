@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 20;
+const V2_BUILD = 21;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -2013,7 +2013,7 @@ function renderActionBar() {
     if (m) b.push(`<span class="ic ic-exposed">◎${m}</span>`);
     if (fx.invulnFront) b.push(`<span class="ic ic-guard">✦INV</span>`);
     if (fx.pushBack) b.push(`<span class="ic ic-move">⇄PUSH</span>`);
-    if (fx.step) b.push(`<span class="ic ic-move">⇄</span>`);
+    if (fx.step) b.push(`<span class="ic ic-move">⇄${fx.step === 'front' ? 'F' : 'B'}</span>`);
     return b.join('');
   };
   const cardIcons = (card) => {
@@ -2063,6 +2063,7 @@ function renderActionBar() {
         ${isTemp ? `<span class="c-temp-mark">✧</span>` : ''}
       </div>
       <div class="c-fx">${cardIcons(card)}</div>
+      <div class="c-desc">${card.desc}</div>
       <div class="c-reach">${cardReach(card)}</div>
       <div class="c-owner"><span>${card.ownerName}</span><span class="c-stance">· ${card.stance}</span></div>
     `;
