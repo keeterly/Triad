@@ -8,6 +8,14 @@ const { boot } = require('./harness.cjs');
 const QUICK = process.argv.includes('--quick');
 
 (async () => {
+  // deploy guard: the version manifest must match the shipped build
+  const fs = require('fs'); const path = require('path');
+  const vjson = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../version.json'), 'utf8'));
+  const src = fs.readFileSync(path.resolve(__dirname, '../game.js'), 'utf8');
+  const build = parseInt((src.match(/const V2_BUILD = (\d+);/) || [])[1], 10);
+  console.log((vjson.v2 === build ? '  ✓ ' : '  ✗ ') + `version.json v2 (${vjson.v2}) matches V2_BUILD (${build})`);
+  if (vjson.v2 !== build) process.exitCode = 1;
+
   const t = await boot({ flow: 0 });
   const { J, shot, check, sleep, tapCard, pickTarget, endTurn, dismissCeremony, clickOverlayBtn } = t;
 

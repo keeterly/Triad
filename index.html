@@ -169,5 +169,29 @@
   </div>
 
   <script src="game.js?v=360"></script>
+  <!-- auto-update: GitHub Pages caches HTML ~10 min; poll the version
+       manifest (no-store) and offer a tap-to-reload past the cache. -->
+  <script id="update-check">
+  (function () {
+    var cur = 0;
+    try { cur = parseInt((document.querySelector('.ts-build') || {}).textContent.replace(/\D+/g, ''), 10) || 0; } catch (_) {}
+    function check() {
+      fetch('version.json?ts=' + Date.now(), { cache: 'no-store' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (v) {
+          if (!v || !(v.v1 > cur) || document.getElementById('update-chip-v1')) return;
+          var c = document.createElement('button');
+          c.id = 'update-chip-v1';
+          c.textContent = '\u2726 UPDATE READY \u00b7 BUILD ' + v.v1 + ' \u2014 TAP';
+          c.style.cssText = 'position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:99999;cursor:pointer;font-family:Georgia,serif;font-size:12px;letter-spacing:0.2em;padding:9px 24px;border-radius:999px;color:#1a1206;background:linear-gradient(180deg,#f0d488,#b09154);border:1px solid rgba(240,212,136,0.8);box-shadow:0 4px 18px rgba(0,0,0,0.6)';
+          c.onclick = function () { location.replace(location.pathname + '?u=' + v.v1); };
+          document.body.appendChild(c);
+        }).catch(function () {});
+    }
+    setInterval(check, 60000);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) check(); });
+    setTimeout(check, 2500);
+  })();
+  </script>
 </body>
 </html>

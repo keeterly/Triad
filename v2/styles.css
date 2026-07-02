@@ -560,3 +560,16 @@ body {
 }
 @keyframes et-nudge { 50% { box-shadow: 0 0 18px rgba(240,212,136,0.45); } }
 .card-ghost { border-width: 2px; }
+
+
+/* update chip — appears when a newer build is deployed */
+#update-chip {
+  position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
+  z-index: 500; cursor: pointer; font-family: inherit;
+  font-size: 11px; letter-spacing: 0.2em; padding: 8px 22px; border-radius: 999px;
+  color: #1a1206; background: linear-gradient(180deg, #f0d488, #b09154);
+  border: 1px solid rgba(240,212,136,0.8);
+  box-shadow: 0 4px 18px rgba(0,0,0,0.6), 0 0 20px rgba(240,212,136,0.35);
+  animation: update-in 0.5s cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+@keyframes update-in { from { transform: translateX(-50%) translateY(-30px); opacity: 0; } }

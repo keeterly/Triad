@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 6;
+const V2_BUILD = 7;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -1608,6 +1608,30 @@ document.addEventListener('pointerdown', (e) => {
 }, true);
 
 $('#btn-endturn').addEventListener('click', endTurn);
+
+// ---------------------------------------------------------------------------
+// AUTO-UPDATE — GitHub Pages caches HTML for ~10 minutes, so a fresh deploy
+// can sit invisible behind a stale index.html.  We poll a tiny version
+// manifest (cache: no-store beats the CDN), and when a newer build exists an
+// UPDATE chip appears; tapping it reloads with a cache-busting query so the
+// fresh HTML (and its fresh ?v= asset URLs) actually arrive.
+function checkForUpdate() {
+  fetch('../version.json?ts=' + Date.now(), { cache: 'no-store' })
+    .then(r => r.ok ? r.json() : null)
+    .then(v => {
+      if (!v || !(v.v2 > V2_BUILD)) return;
+      if (document.getElementById('update-chip')) return;
+      const chip = document.createElement('button');
+      chip.id = 'update-chip';
+      chip.textContent = '✦ UPDATE READY · BUILD ' + v.v2 + ' — TAP';
+      chip.onclick = () => location.replace(location.pathname + '?u=' + v.v2);
+      document.body.appendChild(chip);
+    })
+    .catch(() => {});
+}
+setInterval(checkForUpdate, 60000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) checkForUpdate(); });
+setTimeout(checkForUpdate, 2500);
 
 fitStage();
 let unlocked = false;
