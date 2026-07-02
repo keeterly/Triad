@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 19;
+const V2_BUILD = 20;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -689,68 +689,138 @@ function aimClear() {
   const s = document.getElementById('aim-layer'); if (s) s.innerHTML = '';
   document.querySelectorAll('.fig-valid, .fig-snapped').forEach(f => f.classList.remove('fig-valid', 'fig-snapped'));
 }
-function aimDraw(fromEl, pt, snappedEl, valid, field) {
-  const svg = aimLayer(), sc = _sscale(), sr = $('#stage').getBoundingClientRect();
-  const fr = fromEl.getBoundingClientRect();
-  const x1 = (fr.left + fr.width / 2 - sr.left) / sc, y1 = (fr.top - sr.top) / sc + 2;
-  let x2, y2;
-  if (field) { x2 = x1; y2 = y1 - 155; }
-  else if (snappedEl) { const tr = snappedEl.getBoundingClientRect(); x2 = (tr.left + tr.width / 2 - sr.left) / sc; y2 = (tr.top + tr.height * 0.4 - sr.top) / sc; }
-  else { x2 = (pt.x - sr.left) / sc; y2 = (pt.y - sr.top) / sc; }
-  const midY = Math.min(y1, y2) - 40;
-  const cls = 'aim-path' + (valid ? '' : ' aim-invalid') + (field ? ' aim-field' : '');
-  svg.innerHTML = `<path d="M ${x1} ${y1} Q ${(x1 + x2) / 2} ${midY} ${x2} ${y2}" class="${cls}"/>`
-    + (valid ? `<circle cx="${x2}" cy="${y2}" r="${field ? 9 : 7}" class="aim-dot${field ? ' aim-field-dot' : ''}"/>` : '');
+// School-tinted aim colour — the beam carries the card's element (JRPG flair).
+const SCHOOL_AIM = { blade: '#e05a5a', light: '#f0d488', song: '#c8a0e0', iron: '#a8c8e8', frost: '#8ecbe8' };
+function aimColor(card) {
+  const fx = card.fx || {};
+  if (fx.resonant) return '#f0d488';
+  if (card.school) return SCHOOL_AIM[card.school] || '#f0d488';
+  if (card.target === 'ally' || card.target === 'allies' || fx.heal || fx.guard || fx.bondPair || fx.notToday) return '#98d878';
+  return '#f0d488';
+}
+function _cornerPath(cx, cy, r) {
+  const L = 6;
+  return [
+    `M ${cx - r} ${cy - r + L} L ${cx - r} ${cy - r} L ${cx - r + L} ${cy - r}`,
+    `M ${cx + r - L} ${cy - r} L ${cx + r} ${cy - r} L ${cx + r} ${cy - r + L}`,
+    `M ${cx + r} ${cy + r - L} L ${cx + r} ${cy + r} L ${cx + r - L} ${cy + r}`,
+    `M ${cx - r + L} ${cy + r} L ${cx - r} ${cy + r} L ${cx - r} ${cy + r - L}`,
+  ].join(' ');
+}
+// A glowing energy ribbon (soft halo + bright core) ending in a rotating
+// JRPG targeting reticle — distinct from Slay-the-Spire's flat arrow.
+function drawAimJRPG(fx, fy, ex, ey, valid, field, angle, color) {
+  const svg = aimLayer();
+  const bow = Math.max(28, Math.abs(ex - fx) * 0.16);
+  const midX = (fx + ex) / 2, midY = Math.min(fy, ey) - bow;
+  const path = `M ${fx} ${fy} Q ${midX} ${midY} ${ex} ${ey}`;
+  const c = valid ? color : '#7a7060';
+  let ret = '';
+  if (valid && !field) {
+    const R = 16;
+    ret = `<g transform="rotate(${angle} ${ex} ${ey})"><rect x="${ex - R}" y="${ey - R}" width="${2 * R}" height="${2 * R}" rx="2" fill="none" stroke="${c}" stroke-width="1.6" opacity="0.85"/></g>`
+        + `<g transform="rotate(${-angle * 0.7} ${ex} ${ey})"><path d="${_cornerPath(ex, ey, R + 5)}" fill="none" stroke="#fff6d8" stroke-width="2.4" stroke-linecap="round" style="filter:drop-shadow(0 0 4px ${c})"/></g>`
+        + `<circle cx="${ex}" cy="${ey}" r="3" fill="#fff6d8" style="filter:drop-shadow(0 0 7px ${c})"/>`;
+  } else if (field) {
+    ret = `<circle cx="${ex}" cy="${ey}" r="9" fill="none" stroke="${c}" stroke-width="2"><animate attributeName="r" values="7;12;7" dur="0.8s" repeatCount="indefinite"/></circle>`;
+  }
+  svg.innerHTML =
+      `<path d="${path}" fill="none" stroke="${c}" stroke-width="9" stroke-linecap="round" opacity="0.22" style="filter:blur(3px)"/>`
+    + `<path d="${path}" fill="none" stroke="${c}" stroke-width="4" stroke-linecap="round" opacity="0.5"/>`
+    + `<path d="${path}" fill="none" stroke="#fff6d8" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="2 7" stroke-dashoffset="${-angle}" style="filter:drop-shadow(0 0 4px ${c})"/>`
+    + ret;
 }
 
+// Damped, finger-following card drag with a JRPG aim ribbon.  A RAF loop
+// eases the card toward the pointer (weighted tilt from velocity) and eases
+// the beam's endpoint toward the SNAPPED target — loose to aim, fluid to feel.
 function attachDrag(el, card) {
-  let startX = 0, startY = 0, dragging = false, pid = null, snapped = null;
+  let pid = null, dragging = false, startX = 0, startY = 0;
+  let ptrX = 0, ptrY = 0, originX = 0, originY = 0;
+  let curTX = 0, curTY = 0, curEX = 0, curEY = 0, vel = 0, angle = 0, raf = 0;
+  let snapped = null;
+  const sc = () => _sscale();
+
   el.addEventListener('pointerdown', (e) => {
     if (S.executing || S.over || card.spent || card.cost > S.ep) return;
-    pid = e.pointerId; startX = e.clientX; startY = e.clientY; dragging = false; snapped = null;
+    pid = e.pointerId; startX = e.clientX; startY = e.clientY; ptrX = e.clientX; ptrY = e.clientY; dragging = false;
     try { el.setPointerCapture(pid); } catch (_) {}
     e.preventDefault();
   });
   el.addEventListener('pointermove', (e) => {
     if (pid === null) return;
-    const dx = e.clientX - startX, dy = e.clientY - startY;
+    ptrX = e.clientX; ptrY = e.clientY;
     if (!dragging) {
-      if (Math.abs(dx) + Math.abs(dy) < 12) return;
+      if (Math.abs(e.clientX - startX) + Math.abs(e.clientY - startY) < 12) return;
       dragging = true;
       el.classList.add('card-dragging');
+      el.style.transition = 'none';
+      const r = el.getBoundingClientRect();
+      originX = r.left + r.width / 2; originY = r.top + r.height / 2;
+      const sr = $('#stage').getBoundingClientRect();
+      curTX = 0; curTY = 0; curEX = (ptrX - sr.left) / sc(); curEY = (ptrY - sr.top) / sc();
       dragTargets(card).els.forEach(t => t.classList.add('fig-valid'));
+      loop();
     }
-    el.style.transform = 'translateY(-48px) scale(1.05)';
+  });
+  function loop() {
+    raf = requestAnimationFrame(loop);
+    if (!dragging) return;
+    const sr = $('#stage').getBoundingClientRect(), s = sc();
+    // ease the card toward the finger
+    const tgtTX = (ptrX - originX) / s, tgtTY = (ptrY - originY) / s;
+    const nx = curTX + (tgtTX - curTX) * 0.26, ny = curTY + (tgtTY - curTY) * 0.26;
+    vel = vel * 0.72 + (nx - curTX) * 0.28;
+    curTX = nx; curTY = ny;
+    const tilt = Math.max(-15, Math.min(15, vel * 1.5));
+    el.style.transform = `translate(${curTX}px, ${curTY}px) rotate(${tilt}deg) scale(1.07)`;
+    // snapped target
     const { mode, els } = dragTargets(card);
     document.querySelectorAll('.fig-snapped').forEach(f => f.classList.remove('fig-snapped'));
-    if (mode === 'field') { snapped = '__field__'; aimDraw(el, null, null, true, true); return; }
-    let best = null, bd = Infinity;
-    els.forEach(t => { const r = t.getBoundingClientRect(); const d = (r.left + r.width / 2 - e.clientX) ** 2 + (r.top + r.height / 2 - e.clientY) ** 2; if (d < bd) { bd = d; best = t; } });
-    snapped = best;
-    if (best) best.classList.add('fig-snapped');
-    aimDraw(el, { x: e.clientX, y: e.clientY }, best, !!best, false);
-  });
+    let ex, ey, valid, field = false;
+    const cr = el.getBoundingClientRect();
+    const fromX = (cr.left + cr.width / 2 - sr.left) / s, fromY = (cr.top - sr.top) / s + 2;
+    if (mode === 'field') {
+      field = true; valid = true; snapped = '__field__';
+      ex = fromX; ey = fromY - 66;
+    } else {
+      let best = null, bd = Infinity;
+      els.forEach(t => { const r = t.getBoundingClientRect(); const d = (r.left + r.width / 2 - ptrX) ** 2 + (r.top + r.height / 2 - ptrY) ** 2; if (d < bd) { bd = d; best = t; } });
+      snapped = best; if (best) best.classList.add('fig-snapped');
+      valid = !!best;
+      if (best) { const r = best.getBoundingClientRect(); ex = (r.left + r.width / 2 - sr.left) / s; ey = (r.top + r.height * 0.4 - sr.top) / s; }
+      else { ex = (ptrX - sr.left) / s; ey = (ptrY - sr.top) / s; }
+    }
+    curEX += (ex - curEX) * 0.34; curEY += (ey - curEY) * 0.34;
+    angle = (angle + 3) % 360;
+    drawAimJRPG(fromX, fromY, curEX, curEY, valid, field, angle, aimColor(card));
+  }
   const finish = (e) => {
     if (pid === null) return;
     try { el.releasePointerCapture(pid); } catch (_) {}
-    pid = null;
-    if (!dragging) { onCardTap(card); return; }   // a tap, not a drag
+    pid = null; cancelAnimationFrame(raf);
+    if (!dragging) { onCardTap(card); return; }
     dragging = false;
-    el.classList.remove('card-dragging'); el.style.transform = '';
+    el.classList.remove('card-dragging');
     aimClear();
-    // Must drag UP out of the hand to commit — release back in the hand cancels.
     const handTop = $('#hand').getBoundingClientRect().top;
-    if (e.clientY > handTop - 8) { renderAll(); return; }
+    const cancelled = e.clientY > handTop - 8;
     const { mode } = dragTargets(card);
-    if (mode === 'field') {
-      if (card.kind === 'resonant' && S.ep < S.maxEp) { flashNarrator('The Vow needs your ENTIRE turn — play it first.'); renderAll(); return; }
+    if (!cancelled && mode === 'field') {
+      if (card.kind === 'resonant' && S.ep < S.maxEp) { flashNarrator('The Vow needs your ENTIRE turn — play it first.'); springBack(el); return; }
       playCard(card, null); return;
     }
-    if (snapped && snapped.dataset) { playCard(card, snapped.dataset.fig); return; }
-    renderAll();   // no valid target in range — cancel
+    if (!cancelled && snapped && snapped.dataset) { playCard(card, snapped.dataset.fig); return; }
+    springBack(el);   // released in the hand or on nothing — ease home
   };
   el.addEventListener('pointerup', finish);
   el.addEventListener('pointercancel', finish);
+}
+// Spring the card back to its fan position, then re-render.
+function springBack(el) {
+  el.style.transition = 'transform 0.26s cubic-bezier(0.34, 1.5, 0.5, 1)';
+  el.style.transform = '';
+  setTimeout(() => renderAll(), 240);
 }
 
 // Drag a HERO to reposition them (1 EP, once per hero per turn).  A short
