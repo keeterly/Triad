@@ -573,3 +573,10 @@ body {
   animation: update-in 0.5s cubic-bezier(0.2, 1.4, 0.4, 1);
 }
 @keyframes update-in { from { transform: translateX(-50%) translateY(-30px); opacity: 0; } }
+
+/* BUILD 8 — ghost links: the unformed sides of the triangle */
+.thread-line.thread-ghost {
+  stroke: rgba(200,190,170,0.22);
+  stroke-width: 1.2; stroke-dasharray: 2 7;
+  filter: none; animation: none;
+}

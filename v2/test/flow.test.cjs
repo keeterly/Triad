@@ -34,11 +34,12 @@ const QUICK = process.argv.includes('--quick');
   check('tap-play works', await J(() => S.enemies[0].hp) === hp0 - 6);
   await t.drag('[data-fig="ash"]', '#party-half .slot[data-row="mid"]');
   check('HERO drag moved Ash to MID (1 EP)', await J(() => S.heroes[0].row === 'mid' && S.ep === 1));
-  check('CONCEPT: position rewrote the hand (Flowing Cut appeared)', await J(() => !!document.querySelector('#hand .card[data-card-name="Flowing Cut"]')));
-  check('CONCEPT: core slot stays spent across the move (no attack-dancing)',
-    await J(() => document.querySelector('#hand .card[data-card-name="Flowing Cut"]').classList.contains('card-spent')));
+  check('CLARITY: spent core LEAVES the fan, even across the move (1 card left)',
+    await J(() => document.querySelectorAll('#hand .card').length === 1 && !document.querySelector('#hand .card[data-card-name="Flowing Cut"]')));
   await endTurn();
   check('dodge lesson: FRONT claw missed', await J(() => S.heroes[0].hp === 32));
+  check('CONCEPT: new turn, position rewrote the hand (Flowing Cut awaits)',
+    await J(() => !!document.querySelector('#hand .card[data-card-name="Flowing Cut"]')));
   // T2 — DRAG the fresh core onto the enemy figure; self-guard eats Lurch
   const c2 = await J(() => { const r = document.querySelector('#hand .card[data-card-name="Flowing Cut"]').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + 18 }; });
   const e2 = await J(() => { const r = document.querySelector('#enemy-half .figure').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
@@ -102,6 +103,7 @@ const QUICK = process.argv.includes('--quick');
       await sleep(250);
       if (await J(() => !!document.querySelector('.fig-targetable'))) await pickTarget();
       await sleep(300);
+      if (await J(() => !!document.querySelector('.triad-title'))) await dismissCeremony();
     }
     if (!await J(() => S.over)) await endTurn();
   }
@@ -180,8 +182,8 @@ const QUICK = process.argv.includes('--quick');
     if (!gotCeremony) { await endTurn(); }
   }
   check('TRIAD ceremony fired for phalanx trio', gotCeremony);
-  check('HIJACK: resonant replaced the host’s signature (6 cards, one resonant)',
-    await J(() => document.querySelectorAll('#hand .card').length === 6 && !!document.querySelector('#hand .card.kind-resonant')));
+  check('HIJACK: the resonant card occupies the host’s signature slot',
+    await J(() => !!document.querySelector('#hand .card.kind-resonant')));
   if (await J(() => S.ep < S.maxEp)) await endTurn();
   const rowsBefore = await J(() => S.enemies.filter(x => !x.dead).map(x => x.id + ':' + x.row).join(' '));
   await tapCard('Warsong Phalanx'); await sleep(2600);
@@ -208,6 +210,7 @@ const QUICK = process.argv.includes('--quick');
       await sleep(250);
       if (await J(() => !!document.querySelector('.fig-targetable'))) await pickTarget();
       await sleep(300);
+      if (await J(() => !!document.querySelector('.triad-title'))) await dismissCeremony();
     }
     if (!await J(() => S.over)) await endTurn();
   }

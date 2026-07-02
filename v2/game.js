@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 7;
+const V2_BUILD = 8;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -56,6 +56,7 @@ const SFX = (() => {
     triad:   () => { [440, 554, 659, 880].forEach((f, i) => tone(f, 0.7, 'sine', 0.05, i * 0.09)); },
     victory: () => { [523, 659, 784].forEach((f, i) => tone(f, 0.25, 'triangle', 0.05, i * 0.11)); },
     enemy:   () => tone(220, 0.09, 'square', 0.04, 0, 180),
+    follow:  () => { tone(500, 0.07, 'triangle', 0.05); tone(750, 0.1, 'triangle', 0.05, 0.06); },
   };
 })();
 
@@ -84,7 +85,7 @@ const HEROES = {
       },
       back: {
         core: { name: 'Thrown Edge',   cost: 1, target: 'enemy',     fx: { dmg: 4 },            desc: '4 damage to ANY enemy.' },
-        sig:  { name: 'Marked Fate',   cost: 2, target: 'enemy',     fx: { dmg: 3, mark: 3 },   desc: '3 damage · MARK: enemy takes +3 from every hit this round.' },
+        sig:  { name: 'Marked Fate',   cost: 2, target: 'enemy',     fx: { dmg: 3, mark: 3 },   desc: '3 damage · EXPOSED: enemy takes +3 from EVERY hit this round.' },
       },
     },
   },
@@ -109,16 +110,16 @@ const HEROES = {
     name: 'KIKI', cls: 'Bard', tint: 'var(--kiki-tint)', maxHp: 20,
     cards: {
       front: {
-        core: { name: 'Sharp Note',    cost: 1, target: 'frontmost', fx: { dmg: 3, lull: 1 },   desc: '3 damage · enemy deals −1 next attack.' },
-        sig:  { name: 'Discord',       cost: 2, target: 'enemy',     fx: { dmg: 5, lull: 2 },   desc: '5 damage to ANY enemy · −2 next attack.' },
+        core: { name: 'Sharp Note',    cost: 1, target: 'frontmost', fx: { dmg: 3, lull: 1 },   desc: '3 damage · CHILL: enemy deals −1 next attack.' },
+        sig:  { name: 'Discord',       cost: 2, target: 'enemy',     fx: { dmg: 5, lull: 2 },   desc: '5 damage to ANY enemy · CHILL −2.' },
       },
       mid: {
-        core: { name: 'Inspire',       cost: 1, target: 'ally',      fx: { buffDmg: 3 },        desc: 'An ally’s next damaging card deals +3.' },
-        sig:  { name: 'Battle Hymn',   cost: 2, target: 'allies',    fx: { buffDmg: 2 },        desc: 'Every ally’s next damaging card deals +2.' },
+        core: { name: 'Inspire',       cost: 1, target: 'ally',      fx: { buffDmg: 3 },        desc: 'RALLY: an ally’s next damaging card deals +3.' },
+        sig:  { name: 'Battle Hymn',   cost: 2, target: 'allies',    fx: { buffDmg: 2 },        desc: 'RALLY: every ally’s next damaging card deals +2.' },
       },
       back: {
-        core: { name: 'Lullaby',       cost: 1, target: 'enemy',     fx: { lull: 2 },           desc: 'An enemy deals −2 on its next attack.' },
-        sig:  { name: 'Crescendo',     cost: 2, target: 'ally',      fx: { buffDmg: 5 },        desc: 'An ally’s next damaging card deals +5.' },
+        core: { name: 'Lullaby',       cost: 1, target: 'enemy',     fx: { lull: 2 },           desc: 'CHILL: an enemy deals −2 on its next attack.' },
+        sig:  { name: 'Crescendo',     cost: 2, target: 'ally',      fx: { buffDmg: 5 },        desc: 'RALLY: an ally’s next damaging card deals +5.' },
       },
     },
   },
@@ -134,7 +135,7 @@ const HEROES = {
         sig:  { name: 'Rampart',       cost: 2, target: 'allies',    fx: { guard: 3 },          desc: 'Every ally gains 3 guard.' },
       },
       back: {
-        core: { name: 'Thrown Shield', cost: 1, target: 'enemy',     fx: { dmg: 3, lull: 1 },   desc: '3 damage to ANY enemy · −1 next attack.' },
+        core: { name: 'Thrown Shield', cost: 1, target: 'enemy',     fx: { dmg: 3, lull: 1 },   desc: '3 damage to ANY enemy · CHILL −1.' },
         sig:  { name: 'Fortress Vow',  cost: 2, target: 'ally',      fx: { guard: 5, counter: 3 }, desc: 'An ally gains 5 guard · they counter for 3 this round.' },
       },
     },
@@ -143,7 +144,7 @@ const HEROES = {
     name: 'HASK', cls: 'Mage', tint: 'var(--hask-tint)', maxHp: 22,
     cards: {
       front: {
-        core: { name: 'Frost Touch',   cost: 1, target: 'frontmost', fx: { dmg: 4, lull: 1 },   desc: '4 frost damage · enemy deals −1 next attack.' },
+        core: { name: 'Frost Touch',   cost: 1, target: 'frontmost', fx: { dmg: 4, lull: 1 },   desc: '4 frost damage · CHILL −1.' },
         sig:  { name: 'Shatter',       cost: 2, target: 'frontmost', fx: { dmg: 9 },            desc: '9 frost damage to the nearest enemy.' },
       },
       mid: {
@@ -152,7 +153,7 @@ const HEROES = {
       },
       back: {
         core: { name: 'Deep Freeze',   cost: 1, target: 'enemy',     fx: { dmg: 5 },            desc: '5 frost damage to ANY enemy.' },
-        sig:  { name: 'Hasten',        cost: 2, target: 'ally',      fx: { buffDmg: 4 },        desc: 'An ally’s next damaging card deals +4.' },
+        sig:  { name: 'Hasten',        cost: 2, target: 'ally',      fx: { buffDmg: 4 },        desc: 'RALLY: an ally’s next damaging card deals +4.' },
       },
     },
   },
@@ -472,13 +473,16 @@ function buildHand() {
   // 1 Core + 1 Signature per hero.  Movement is not a card — you drag the
   // hero.  When the triad forms, the resonant card doesn't ADD to the hand:
   // it HIJACKS the closing helper's signature slot (the card evolves).
+  // Played cards LEAVE the fan (they return next turn) — what remains is
+  // exactly what you can still do.
   const hand = [];
   const host = resonantHost();
   livingHeroes().forEach(h => {
     const set = h.def.cards[h.row];
-    hand.push(mkCard(h, 'core', set.core));
+    const core = mkCard(h, 'core', set.core);
+    if (!core.spent) hand.push(core);
     if (host === h.id) hand.push(mkResonantCard(h));
-    else hand.push(mkCard(h, 'sig', set.sig));
+    else { const sig = mkCard(h, 'sig', set.sig); if (!sig.spent) hand.push(sig); }
   });
   return hand;
 }
@@ -773,9 +777,22 @@ async function resolveCard(card, targetId) {
     else if (card.target === 'enemy') tgt = livingEnemies().find(e => e.uid === targetId) || frontmostEnemy();
     if (tgt) {
       let amt = fx.dmg + (owner ? owner.buffDmg : 0);
-      if (owner && owner.buffDmg) { popupAt(figEl(owner.id), '+' + owner.buffDmg, 'guard'); owner.buffDmg = 0; }
+      if (owner && owner.buffDmg) { popupAt(figEl(owner.id), 'RALLY +' + owner.buffDmg, 'guard'); owner.buffDmg = 0; }
       amt += tgt.mark || 0;
+      // FOLLOW-UP: striking an enemy an ally already hit this turn is a
+      // combo — +2 damage, and fighting together forms a thread between
+      // the two attackers (Concept 3: following up strengthens bonds).
+      const hitters = tgt._hitBy || (tgt._hitBy = []);
+      const prev = hitters.length ? hitters[hitters.length - 1] : null;
+      const isFollowUp = !!(owner && prev && prev !== owner.id);
+      if (isFollowUp) amt += 2;
       dealToEnemy(tgt, amt);
+      if (owner) hitters.push(owner.id);
+      if (isFollowUp) {
+        popupAt(figEl(owner.id), 'FOLLOW-UP +2', 'info');
+        SFX.follow();
+        await addThread(owner.id, prev);
+      }
       if (tgt.dead) await sleep(140);   // hitstop: let the kill land
     } else {
       flashNarrator('No target in reach — the cut finds only air.');
@@ -783,11 +800,11 @@ async function resolveCard(card, targetId) {
   }
   if (fx.mark) {
     const tgt = livingEnemies().find(e => e.uid === targetId);
-    if (tgt) { tgt.mark = fx.mark; popupAt(figEl(tgt.uid), 'MARKED', 'info'); }
+    if (tgt) { tgt.mark = fx.mark; popupAt(figEl(tgt.uid), 'EXPOSED +' + fx.mark, 'info'); }
   }
   if (fx.lull) {
     const tgt = card.target === 'enemy' ? (livingEnemies().find(e => e.uid === targetId) || frontmostEnemy()) : frontmostEnemy();
-    if (tgt) { tgt.lull = (tgt.lull || 0) + fx.lull; popupAt(figEl(tgt.uid), '−' + fx.lull + ' ATK', 'info'); }
+    if (tgt) { tgt.lull = (tgt.lull || 0) + fx.lull; popupAt(figEl(tgt.uid), 'CHILL −' + fx.lull, 'info'); }
   }
   if (fx.heal || fx.guard || fx.buffDmg || fx.counter) {
     let receivers = [];
@@ -799,7 +816,7 @@ async function resolveCard(card, targetId) {
       if (!rc || rc.downed) continue;
       if (fx.heal)   { rc.hp = Math.min(rc.maxHp, rc.hp + fx.heal); popupAt(figEl(rc.id), '+' + fx.heal, 'heal'); SFX.heal(); }
       if (fx.guard)  { rc.guard += fx.guard; popupAt(figEl(rc.id), '⛨ ' + fx.guard, 'guard'); SFX.guard(); }
-      if (fx.buffDmg){ rc.buffDmg += fx.buffDmg; popupAt(figEl(rc.id), '+' + fx.buffDmg + ' NEXT', 'guard'); }
+      if (fx.buffDmg){ rc.buffDmg += fx.buffDmg; popupAt(figEl(rc.id), 'RALLY +' + fx.buffDmg, 'guard'); }
       if (fx.counter){ rc.counter = Math.max(rc.counter, fx.counter); }
       if (owner && rc.id !== owner.id && card.target === 'ally') await addThread(owner.id, rc.id);
     }
@@ -851,6 +868,17 @@ async function addThread(a, b) {
     const h = S.heroes.find(x => x.id === id);
     if (h && !h.downed) { h.guard += 2; popupAt(figEl(id), 'BOND ⛨2', 'guard'); }
   });
+  // Nudge: when only one link is missing, say so — the triangle should feel
+  // one decision away, not hidden.
+  const live = livingHeroes();
+  if (!S.triadFormed && live.length >= 3 && !S._triangleNudged) {
+    const ids = live.map(h => h.id);
+    let missing = 0;
+    for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) {
+      if (!S.threads.has(pairKey(ids[i], ids[j]))) missing++;
+    }
+    if (missing === 1) { S._triangleNudged = true; flashNarrator('One more bond completes the triangle…'); }
+  }
   await checkTriad(a);
 }
 async function checkTriad(closer) {
@@ -935,7 +963,7 @@ async function endTurn() {
     S.ep = S.maxEp;
     S.used = new Set();
     S.heroes.forEach(h => { h.guard = 0; h.counter = 0; h.invuln = false; });
-    S.enemies.forEach(e => { e.mark = 0; e.acted = false; });
+    S.enemies.forEach(e => { e.mark = 0; e.acted = false; e._hitBy = []; });
     S.executing = false;
     $('#stage').classList.remove('executing');
     turnBanner('TURN ' + S.turn, 'tb-player');
@@ -1421,6 +1449,26 @@ function renderThreads(newKey) {
     path.setAttribute('class', 'thread-line' + (key === newKey ? ' thread-new' : ''));
     svg.appendChild(path);
   });
+  // Ghost the MISSING links once the first thread exists: the player sees
+  // the triangle taking shape and exactly which bond is still unformed.
+  const live = livingHeroes();
+  if (S.threads.size > 0 && !S.triadFormed && live.length >= 3) {
+    const ids = live.map(h => h.id);
+    for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) {
+      const k = pairKey(ids[i], ids[j]);
+      if (S.threads.has(k)) continue;
+      const ea = figEl(ids[i]), eb = figEl(ids[j]);
+      if (!ea || !eb) continue;
+      const ra = ea.getBoundingClientRect(), rb = eb.getBoundingClientRect();
+      const bf = $('#battlefield').getBoundingClientRect();
+      const x1 = (ra.left + ra.width / 2 - bf.left) / scale, y1 = (ra.top + ra.height * 0.45 - bf.top) / scale;
+      const x2 = (rb.left + rb.width / 2 - bf.left) / scale, y2 = (rb.top + rb.height * 0.45 - bf.top) / scale;
+      const g = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      g.setAttribute('d', `M ${x1} ${y1} Q ${(x1 + x2) / 2} ${Math.min(y1, y2) - 22} ${x2} ${y2}`);
+      g.setAttribute('class', 'thread-line thread-ghost');
+      svg.appendChild(g);
+    }
+  }
 }
 
 function renderActionBar() {
