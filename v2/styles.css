@@ -488,3 +488,19 @@ body {
   100% { transform: rotate(var(--fan-rot, 0deg)) translateY(var(--fan-y, 0px)) rotateY(0deg); filter: none; }
 }
 #hand { perspective: 700px; }
+
+/* ===========================================================================
+   BUILD 5 — bonds as the run's connective tissue.
+   =========================================================================== */
+.bond-growth {
+  display: flex; flex-direction: column; gap: 3px; align-items: center;
+  margin: 4px 0 14px;
+}
+.bg-line { font-size: 10px; letter-spacing: 0.18em; color: var(--ink-dim); }
+.bg-line.bg-kindled {
+  color: var(--gold-bright);
+  text-shadow: 0 0 8px rgba(240,212,136,0.45);
+  animation: triad-slam 0.5s cubic-bezier(0.2, 1.6, 0.4, 1);
+}
+.ps-bonds { font-size: 9px; letter-spacing: 0.12em; color: var(--ink-dim); min-height: 14px; margin: -4px 0 8px; }
+.ps-bond-sep { color: var(--ink-faint); }

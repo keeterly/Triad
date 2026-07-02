@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 4;
+const V2_BUILD = 5;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -363,10 +363,13 @@ function newRun() {
     roster: ['ash', 'elin', 'kiki'],
     active: ['ash', 'elin', 'kiki'],
     hp: { ash: HEROES.ash.maxHp, elin: HEROES.elin.maxHp, kiki: HEROES.kiki.maxHp },
+    bonds: {},          // pairKey -> points; a pair at 2+ is KINDLED
     completed: [],
     done: false,
   };
 }
+const BOND_KINDLED = 2;
+const bondPts = (k) => (RUN && RUN.bonds && RUN.bonds[k]) || 0;
 function saveRun() { try { localStorage.setItem(RUN_KEY, RUN ? JSON.stringify(RUN) : ''); } catch (_) {} }
 function loadRun() { try { const r = localStorage.getItem(RUN_KEY); return r ? JSON.parse(r) : null; } catch (_) { return null; } }
 
@@ -385,11 +388,25 @@ function newBattle(node) {
     row: ['front', 'mid', 'back'][i] || 'mid',
     guard: 0, power: 0, mark: 0, lull: 0, intentIdx: 0, dead: false, acted: false,
   }));
+  // Kindled bonds walk into battle already connected: the pair's thread is
+  // pre-formed and the bond-guard applies from turn one.  The triad itself
+  // still needs ONE act of help this fight to awaken (see addThread).
+  const threads = new Set();
+  if (node.useRunHp && RUN && RUN.bonds) {
+    const ids = heroes.map(h => h.id);
+    for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) {
+      const k = pairKey(ids[i], ids[j]);
+      if (bondPts(k) >= BOND_KINDLED) {
+        threads.add(k);
+        [ids[i], ids[j]].forEach(id => { const h = heroes.find(x => x.id === id); if (h) h.guard += 2; });
+      }
+    }
+  }
   return {
     node, heroes, enemies,
     maxEp: 2 + heroes.length, ep: 2 + heroes.length,
     used: new Set(),
-    threads: new Set(),
+    threads,
     triadFormed: false, resonantUsed: false, resonantNew: false,
     executing: false, over: false, turn: 1,
   };
@@ -731,7 +748,7 @@ function dealToEnemy(e, amt) {
 
 async function addThread(a, b) {
   const key = pairKey(a, b);
-  if (S.threads.has(key)) return;
+  if (S.threads.has(key)) { await checkTriad(a); return; }   // kindled threads awaken on any help
   S.threads.add(key);
   renderThreads(key);
   flashNarrator('A thread forms — ' + HEROES[a].name + ' ─ ' + HEROES[b].name);
@@ -742,14 +759,16 @@ async function addThread(a, b) {
     const h = S.heroes.find(x => x.id === id);
     if (h && !h.downed) { h.guard += 2; popupAt(figEl(id), 'BOND ⛨2', 'guard'); }
   });
+  await checkTriad(a);
+}
+async function checkTriad(closer) {
   const live = livingHeroes();
-  if (live.length >= 3 && !S.triadFormed) {
-    const [x, y, z] = live.map(h => h.id);
-    if (S.threads.has(pairKey(x, y)) && S.threads.has(pairKey(y, z)) && S.threads.has(pairKey(x, z))) {
-      S.triadFormed = true;
-      S.resonantHostId = a;   // the helper whose act closed the triangle
-      await triadCeremony();
-    }
+  if (live.length < 3 || S.triadFormed) return;
+  const [x, y, z] = live.map(h => h.id);
+  if (S.threads.has(pairKey(x, y)) && S.threads.has(pairKey(y, z)) && S.threads.has(pairKey(x, z))) {
+    S.triadFormed = true;
+    S.resonantHostId = closer;   // the helper whose act closed / awoke the triangle
+    await triadCeremony();
   }
 }
 
@@ -885,9 +904,19 @@ function checkEnd() {
 
 function onVictory() {
   // Write survivors' HP back into the run (downed heroes stagger up at 6).
+  let bondLines = [];
   if (S.node.useRunHp && RUN) {
     S.heroes.forEach(h => { RUN.hp[h.id] = h.downed ? 6 : h.hp; });
     if (S.node.mapId != null && !RUN.completed.includes(S.node.mapId)) RUN.completed.push(S.node.mapId);
+    // Fighting together with a thread held IS the reward: the pair grows.
+    RUN.bonds = RUN.bonds || {};
+    S.threads.forEach(k => {
+      const before = RUN.bonds[k] || 0;
+      RUN.bonds[k] = before + 1;
+      const [a, b] = k.split('|');
+      const name = HEROES[a].name + ' ─ ' + HEROES[b].name;
+      bondLines.push(before + 1 === BOND_KINDLED ? name + ' · KINDLED' : name + ' +1');
+    });
     saveRun();
   }
   const isBoss = S.node.enemies.some(id => ENEMY_DEFS[id].boss);
@@ -898,6 +927,7 @@ function onVictory() {
       <div class="ov-eyebrow" style="color:var(--gold-bright)">VICTORY</div>
       <div class="ov-title" style="font-size:22px">${isBoss ? 'THE ECHO FADES' : 'THE ROAD HOLDS'}</div>
       ${th ? `<div class="ov-sub">${th} thread${th > 1 ? 's' : ''} held${S.triadFormed ? ' · the triad answered' : ''}</div>` : ''}
+      ${bondLines.length ? `<div class="bond-growth">${bondLines.map(l => `<span class="bg-line${/KINDLED/.test(l) ? ' bg-kindled' : ''}">♡ ${l}</span>`).join('')}</div>` : ''}
       <button class="ov-btn primary" id="ov-next">CONTINUE</button>
     `);
     $('#ov-next').onclick = () => { hideOverlay(); S.node.mapId != null ? showMap() : advanceFlow(); };
@@ -1107,6 +1137,17 @@ function showPartySelect(onDone, mustInclude) {
       <div class="ps-reso">${ready && picked.length === 3
         ? `this trio resonates as <b>✦ ${r.name}</b> — ${r.type}<br><span class="ps-reso-desc">${r.desc}</span>`
         : `choose ${need}`}</div>
+      <div class="ps-bonds">${(() => {
+        if (picked.length < 2) return '';
+        const out = [];
+        for (let i = 0; i < picked.length; i++) for (let j = i + 1; j < picked.length; j++) {
+          const k = pairKey(picked[i], picked[j]);
+          const pts = bondPts(k);
+          if (pts >= BOND_KINDLED) out.push(`♡ ${HEROES[picked[i]].name} ─ ${HEROES[picked[j]].name} · kindled`);
+          else if (pts > 0) out.push(`♡ ${HEROES[picked[i]].name} ─ ${HEROES[picked[j]].name} · ${pts}/${BOND_KINDLED}`);
+        }
+        return out.join('<span class="ps-bond-sep"> · </span>');
+      })()}</div>
       <button class="ov-btn primary" id="ps-go" ${ready ? '' : 'disabled'}>WALK ON</button>
     `);
     document.querySelectorAll('.ps-fig').forEach(el => {

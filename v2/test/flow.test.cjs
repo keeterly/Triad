@@ -216,6 +216,33 @@ const QUICK = process.argv.includes('--quick');
   check('back on map after camp', await J(() => !!document.querySelector('.map-strip')));
   await shot('map-after-camp');
 
+  // ---------- BOND LOOP: fights grow pairs; kindled pairs pre-connect ----------
+  console.log('--- BONDS ---');
+  check('LOOP: victory accrued bond points for the held threads',
+    await J(() => ['ash|cassia', 'ash|kiki', 'cassia|kiki'].every(k => (RUN.bonds[k] || 0) >= 1)),
+    await J(() => JSON.stringify(RUN.bonds)));
+  // fast-forward: fully kindle the trio, open the next fight column
+  await J(() => {
+    ['ash|cassia', 'ash|kiki', 'cassia|kiki'].forEach(k => RUN.bonds[k] = 2);
+    RUN.active = ['ash', 'cassia', 'kiki'];
+    RUN.completed = [0, 1, 2, 3, 4, 5];
+    saveRun(); showMap();
+  });
+  await sleep(500);
+  check('picker/map path still healthy after seeding', await J(() => !!document.querySelector('.map-node.mn-fight.mn-reach')));
+  await J(() => document.querySelector('.map-node.mn-fight.mn-reach').click()); await sleep(900);
+  check('LOOP: kindled trio starts with all 3 threads PRE-FORMED (triad not yet awake)',
+    await J(() => S.threads.size === 3 && !S.triadFormed));
+  check('LOOP: bond-guard applied from turn one', await J(() => livingHeroes().every(h => h.guard >= 4)),
+    await J(() => S.heroes.map(h => h.id + ':' + h.guard).join(',')));
+  await shot('kindled-start');
+  // ONE act of help awakens the triad (early-run took three)
+  await tapCard('Cover'); await pickTarget('ash'); await sleep(700);
+  const awoke = await dismissCeremony();
+  check('LOOP: a single act of help AWAKENED the kindled triad', awoke);
+  check('resonant hijacked the awakener’s signature', await J(() => !!document.querySelector('#hand .card.kind-resonant')));
+  await shot('awakened');
+
   t.report();
   await t.browser.close();
 })().catch(e => { console.error('FATAL', e.message); process.exit(1); });
