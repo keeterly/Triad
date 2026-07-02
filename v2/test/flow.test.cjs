@@ -339,6 +339,31 @@ const QUICK = process.argv.includes('--quick');
   check('INTERRUPT: the staggered boss’s heavy wind-up BROKE (party untouched)',
     await J(() => S.heroes.every(h => h.hp === h.maxHp)));
 
+  // ---------- REACTIVE: 'NOT TODAY' — costed protection ----------
+  console.log('--- REACTIVE ---');
+  await J(() => {
+    hideOverlay();
+    startFight({ type: 'fight', chapter: 3, heroes: ['ash', 'elin', 'kiki'], enemies: ['cultist'], narrator: 'intercept drill' });
+    RUN.bonds = { 'ash|elin': 3 };            // Ash is Elin's strongest bond
+    S.heroes[1].hp = 13;                       // Elin one Hollow Verse from danger
+    S.enemies[0].intentIdx = 2;                // Hollow Verse -> MID (Elin)
+    renderAll();
+  });
+  await sleep(400);
+  await endTurn();
+  check('REACTIVE: Elin faltered — NOT TODAY forged in ASH’s hand',
+    await J(() => { const c = document.querySelector('#hand .card[data-card-name="Not Today"]'); return !!c && c.dataset.owner === 'ash'; }));
+  await shot('not-today');
+  const rowsBefore2 = await J(() => S.heroes.map(h => h.id + ':' + h.row).join(' '));
+  const elinHp = await J(() => S.heroes[1].hp);
+  await tapCard('Not Today'); await sleep(800);
+  check('the intercept moved bodies (Ash and Elin swapped rows)',
+    await J(() => S.heroes.map(h => h.id + ':' + h.row).join(' ')) !== rowsBefore2);
+  check('pros: Elin healed 4 · Ash ⛨4 ↺2 · thread formed',
+    await J((prev) => S.heroes[1].hp === prev + 4 && S.heroes[0].guard >= 4 && S.heroes[0].counter >= 2 && S.threads.has('ash|elin'), elinHp));
+  check('CONS: Ash overextended — ❄ CHILL 2 on his next strike', await J(() => S.heroes[0].chill >= 2));
+  check('one-shot: the card burned away', await J(() => !document.querySelector('#hand .card[data-card-name="Not Today"]')));
+
   t.report();
   await t.browser.close();
 })().catch(e => { console.error('FATAL', e.message); process.exit(1); });

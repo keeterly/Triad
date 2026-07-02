@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 14;
+const V2_BUILD = 15;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -844,6 +844,30 @@ async function resolveCard(card, targetId) {
   if (card.kind === 'resonant') { await resolveResonant(); return; }
 
   const fx = card.fx || {};
+  if (fx.notToday) {
+    const [prId, wdId] = fx.notToday;
+    const pr = S.heroes.find(x => x.id === prId);
+    const wd = S.heroes.find(x => x.id === wdId);
+    if (!pr || pr.downed || !wd || wd.downed) { flashNarrator('The moment has passed.'); return; }
+    // Bodies move: the protector steps into the fire.
+    const prRow = pr.row;
+    pr.row = wd.row;
+    wd.row = prRow;
+    S._morphHeroId = prId;
+    S._morphHeroId2 = wdId;
+    wd.hp = Math.min(wd.maxHp, wd.hp + 4);
+    pr.guard += 4;
+    pr.counter = Math.max(pr.counter, 2);
+    pr.chill = (pr.chill || 0) + 2;   // the cost: the next strike comes slower
+    renderAll();
+    popupAt(figEl(prId), 'NOT TODAY', 'info');
+    popupAt(figEl(wdId), '+4', 'heal');
+    popupAt(figEl(prId), '❄ OVEREXTENDED −2', 'chill');
+    SFX.guard();
+    await addThread(prId, wdId);   // protecting is a bond act
+    await sleep(400);
+    return;
+  }
   if (fx.bondPair) {
     fx.bondPair.forEach(id => {
       const h = S.heroes.find(x => x.id === id);
@@ -1214,6 +1238,25 @@ async function enemyPhase() {
       }
       if (intent.chill)  { h.chill = (h.chill || 0) + intent.chill; popupAt(figEl(h.id), '❄ CHILL −' + intent.chill, 'chill'); }
       if (intent.expose) { h.exposed = (h.exposed || 0) + intent.expose; popupAt(figEl(h.id), '◎ EXPOSED +' + intent.expose, 'info'); }
+      // REACTIVE: an ally in real danger summons their strongest bond.
+      // Costed on purpose — the intercept scrambles formation and chills
+      // the protector; declining it is as expressive as playing it.
+      if (h.hp > 0 && h.hp * 2 <= h.maxHp && !S._notTodayGiven) {
+        const protector = livingHeroes()
+          .filter(x => x.id !== h.id)
+          .map(x => ({ x, w: bondPts(pairKey(x.id, h.id)) + (S.threads.has(pairKey(x.id, h.id)) ? 1 : 0) }))
+          .filter(o => o.w > 0)
+          .sort((a, b) => b.w - a.w)[0];
+        if (protector) {
+          S._notTodayGiven = true;
+          const pr = protector.x;
+          genTempCard({ kind: 'temp', owner: pr.id, ownerName: pr.def.name, tint: pr.def.tint,
+            stance: 'REACTIVE', name: 'Not Today', cost: 1, target: 'none',
+            fx: { notToday: [pr.id, h.id] }, expiresTurn: S.turn + 1,
+            desc: `${pr.def.name} steps in: swap rows with ${h.def.name}, heal them 4, gain <span class="kw kw-guard">⛨ 4</span> <span class="kw kw-counter">↺ 2</span> — but overextends: <span class="kw kw-chill">❄ CHILL −2</span> on ${pr.def.name}’s next strike. Next turn only.` });
+          flashNarrator(pr.def.name + ' sees ' + h.def.name + ' falter — a card takes shape.');
+        }
+      }
       if (h.counter > 0 && !e.dead) { dealToEnemy(e, h.counter); flashNarrator(h.def.name + ' counters!'); }
       if (h.hp === 0) { h.downed = true; popupAt(figEl(h.id), 'DOWN', 'dmg'); }
     }
