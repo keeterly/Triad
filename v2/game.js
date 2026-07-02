@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 17;
+const V2_BUILD = 18;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -79,7 +79,7 @@ const STANCE = {
 
 const HEROES = {
   ash: {
-    school: 'blade', name: 'ASH', cls: 'Ronin', tint: 'var(--ash-tint)', maxHp: 32,
+    school: 'blade', tempo: 'steady', name: 'ASH', cls: 'Ronin', tint: 'var(--ash-tint)', maxHp: 32,
     cards: {
       front: {
         core: { name: 'Cleave',        cost: 1, target: 'frontmost', fx: { dmg: 6 },            desc: '6 damage to the nearest enemy.' },
@@ -96,7 +96,7 @@ const HEROES = {
     },
   },
   elin: {
-    school: 'light', name: 'ELIN', cls: 'Cleric', tint: 'var(--elin-tint)', maxHp: 24,
+    school: 'light', tempo: 'steady', name: 'ELIN', cls: 'Cleric', tint: 'var(--elin-tint)', maxHp: 24,
     cards: {
       front: {
         core: { name: 'Smite',         cost: 1, target: 'frontmost', fx: { dmg: 4 },            desc: '4 holy damage to the nearest enemy.' },
@@ -113,7 +113,7 @@ const HEROES = {
     },
   },
   kiki: {
-    school: 'song', name: 'KIKI', cls: 'Bard', tint: 'var(--kiki-tint)', maxHp: 20,
+    school: 'song', tempo: 'swift', name: 'KIKI', cls: 'Bard', tint: 'var(--kiki-tint)', maxHp: 20,
     cards: {
       front: {
         core: { name: 'Sharp Note',    cost: 1, target: 'frontmost', fx: { dmg: 3, lull: 1 },   desc: '3 damage · <span class="kw kw-chill">❄ CHILL</span> −1 next attack.' },
@@ -130,24 +130,27 @@ const HEROES = {
     },
   },
   cassia: {
-    school: 'iron', name: 'CASSIA', cls: 'Guardian', tint: 'var(--cassia-tint)', maxHp: 34,
+    // HEAVY: one card per stance — expensive, high-impact, slow.  Her whole
+    // turn is a single deliberate play (the guardian anchor).  MID card is
+    // ally-target so she can still weave threads from her natural position.
+    tempo: 'heavy', school: 'iron', name: 'CASSIA', cls: 'Guardian', tint: 'var(--cassia-tint)', maxHp: 34,
     cards: {
       front: {
-        core: { name: 'Shield Bash',   cost: 1, target: 'frontmost', fx: { dmg: 4, guard: 2 },  desc: '4 damage · gain 2 guard.' },
-        sig:  { name: 'Held Gate',     cost: 2, target: 'self',      fx: { guard: 9, counter: 3 }, desc: '<span class="kw kw-guard">⛨ 9 guard</span> · <span class="kw kw-counter">↺ counter 3</span> this round.' },
+        core: { name: 'Shield Bash', cost: 1, target: 'frontmost', fx: { dmg: 4, guard: 2 }, desc: '4 damage · 2 guard.' },
+        sig:  { name: 'Bulwark',     cost: 2, target: 'frontmost', fx: { dmg: 6, guard: 6 }, desc: '6 damage · gain 6 guard — an immovable wall.' },
       },
       mid: {
-        core: { name: 'Cover',         cost: 1, target: 'ally',      fx: { guard: 4 },          desc: 'An ally gains 4 guard.' },
-        sig:  { name: 'Rampart',       cost: 2, target: 'allies',    fx: { guard: 3 },          desc: 'Every ally gains 3 guard.' },
+        core: { name: 'Cover', cost: 1, target: 'ally', fx: { guard: 4 }, desc: 'An ally gains 4 guard.' },
+        sig:  { name: 'Aegis', cost: 2, target: 'ally', fx: { guard: 6, counter: 3 }, desc: 'Stand for an ally: <span class="kw kw-guard">⛨ 6</span> · <span class="kw kw-counter">↺ 3</span>.' },
       },
       back: {
-        core: { name: 'Thrown Shield', cost: 1, target: 'enemy',     fx: { dmg: 3, lull: 1 },   desc: '3 damage to ANY enemy · <span class="kw kw-chill">❄ CHILL</span> −1.' },
-        sig:  { name: 'Fortress Vow',  cost: 2, target: 'ally',      fx: { guard: 5, counter: 3 }, desc: 'An ally gains <span class="kw kw-guard">⛨ 5 guard</span> · <span class="kw kw-counter">↺ counter 3</span>.' },
+        core: { name: 'Thrown Shield',  cost: 1, target: 'enemy', fx: { dmg: 3, lull: 1 }, desc: '3 damage · <span class="kw kw-chill">❄ CHILL</span> −1.' },
+        sig:  { name: 'Sentinel Throw', cost: 2, target: 'enemy', fx: { dmg: 5, guard: 4 }, desc: '5 damage to ANY enemy · gain 4 guard.' },
       },
     },
   },
   hask: {
-    school: 'frost', name: 'HASK', cls: 'Mage', tint: 'var(--hask-tint)', maxHp: 22,
+    school: 'frost', tempo: 'steady', name: 'HASK', cls: 'Mage', tint: 'var(--hask-tint)', maxHp: 22,
     cards: {
       front: {
         core: { name: 'Frost Touch',   cost: 1, target: 'frontmost', fx: { dmg: 4, lull: 1 },   desc: '4 frost damage · <span class="kw kw-chill">❄ CHILL</span> −1.' },
@@ -486,7 +489,7 @@ function newBattle(node) {
     maxEp: 2 + heroes.length, ep: 2 + heroes.length,
     used: new Set(),
     threads,
-    tempCards: [], _tuid: 0,
+    tempCards: [], _tuid: 0, channelUsed: false,
     triadFormed: false, resonantUsed: false, resonantNew: false,
     executing: false, over: false, turn: 1,
   };
@@ -533,8 +536,11 @@ function buildHand() {
   const host = resonantHost();
   livingHeroes().forEach(h => {
     const set = h.def.cards[h.row];
-    const core = mkCard(h, 'core', set.core);
-    if (!core.spent) hand.push(core);
+    // HEAVY heroes contribute a single (expensive) card; others show two.
+    if ((h.def.tempo || 'steady') !== 'heavy') {
+      const core = mkCard(h, 'core', set.core);
+      if (!core.spent) hand.push(core);
+    }
     if (host === h.id) hand.push(mkResonantCard(h));
     else { const sig = mkCard(h, 'sig', set.sig); if (!sig.spent) hand.push(sig); }
   });
@@ -550,8 +556,11 @@ function resonantHost() {
   return live[0] || null;
 }
 function mkCard(h, kind, def) {
-  return { kind, owner: h.id, ownerName: h.def.name, tint: h.def.tint,
-    stance: STANCE[h.row].name, name: def.name, cost: def.cost, target: def.target, fx: def.fx, desc: def.desc,
+  const tempo = h.def.tempo || 'steady';
+  let cost = def.cost;
+  if (tempo === 'swift' && cost > 1) cost -= 1;   // fast heroes play cheap and often
+  return { kind, owner: h.id, ownerName: h.def.name, tint: h.def.tint, tempo,
+    stance: STANCE[h.row].name, name: def.name, cost, target: def.target, fx: def.fx, desc: def.desc,
     school: (def.fx && def.fx.dmg) ? h.def.school : null,
     spent: S.used.has(h.id + ':' + kind) };
 }
@@ -790,6 +799,22 @@ function flyCard(cardName, targetEl) {
   setTimeout(() => ghost.remove(), 480);
 }
 
+// CHANNEL — sacrifice any card for +1 EP (once per turn): the pressure valve
+// that means no card is ever truly dead.  A heal at full HP, a finisher with
+// nothing to finish — feed it to the fire and buy a better play.
+function channelCard(card) {
+  if (S.executing || S.over || S.channelUsed || card.spent) return;
+  if (card.kind === 'resonant') { flashNarrator('The vow cannot be spent for scraps.'); return; }
+  S.channelUsed = true;
+  if (card.temp) S.tempCards = S.tempCards.filter(t => t.uid !== card.uid);
+  else if (card.owner !== 'triad') S.used.add(card.owner + ':' + card.kind);
+  S.ep = Math.min(S.maxEp + 2, S.ep + 1);
+  pulseEp();
+  SFX.move();
+  flashNarrator(card.ownerName + ' channels ' + card.name + ' — +1 EP.');
+  renderAll();
+}
+
 async function playCard(card, targetId) {
   if (S.executing || S.over) return;
   S.executing = true;
@@ -934,7 +959,13 @@ async function resolveCard(card, targetId) {
     if (card.target === 'frontmost' && fx.guard) receivers = [owner];
     for (const rc of receivers) {
       if (!rc || rc.downed) continue;
-      if (fx.heal)   { rc.hp = Math.min(rc.maxHp, rc.hp + fx.heal); popupAt(figEl(rc.id), '+' + fx.heal, 'heal'); SFX.heal(); }
+      if (fx.heal) {
+        const room = rc.maxHp - rc.hp, healed = Math.min(room, fx.heal), spill = fx.heal - healed;
+        rc.hp += healed;
+        if (healed) popupAt(figEl(rc.id), '✚' + healed, 'heal');
+        if (spill) { rc.guard += spill; popupAt(figEl(rc.id), '⛨' + spill, 'guard'); }   // overheal shields
+        SFX.heal();
+      }
       if (fx.guard)  { rc.guard += fx.guard; popupAt(figEl(rc.id), '⛨ ' + fx.guard, 'guard'); SFX.guard(); }
       if (fx.buffDmg){ rc.buffDmg += fx.buffDmg; popupAt(figEl(rc.id), '▲ RALLY +' + fx.buffDmg, 'rally'); }
       if (fx.counter){ rc.counter = Math.max(rc.counter, fx.counter); }
@@ -1163,6 +1194,7 @@ async function endTurn() {
     S.enemies.forEach(e => { e.mark = 0; e.acted = false; e._hitBy = []; e.staggered = false; });
     S.tempCards = S.tempCards.filter(t => t.expiresTurn == null || t.expiresTurn >= S.turn);
     S._pressUsed = false;
+    S.channelUsed = false;
     S.executing = false;
     $('#stage').classList.remove('executing');
     turnBanner('TURN ' + S.turn, 'tb-player');
@@ -1904,9 +1936,11 @@ function renderActionBar() {
     el.dataset.kind = card.kind;
     const isTemp = card.temp || card.kind === 'resonant';
     el.title = card.name + ' — ' + card.desc.replace(/<[^>]+>/g, '');
+    const channelable = !card.spent && !S.channelUsed && !S.executing && !S.over && card.kind !== 'resonant';
     el.innerHTML = `
+      ${channelable ? `<button class="card-channel" title="Channel for +1 EP">↻</button>` : ''}
       <div class="c-top">
-        <span class="c-cost">${card.cost}</span>
+        <span class="c-cost tempo-${card.tempo || 'steady'}">${card.cost}</span>
         <span class="c-name">${card.name}</span>
         ${card.school ? `<span class="c-school">${SCHOOL_GLYPH[card.school]}</span>` : ''}
         ${isTemp ? `<span class="c-temp-mark">✧</span>` : ''}
@@ -1915,6 +1949,11 @@ function renderActionBar() {
       <div class="c-reach">${cardReach(card)}</div>
       <div class="c-owner"><span>${card.ownerName}</span><span class="c-stance">· ${card.stance}</span></div>
     `;
+    const chBtn = el.querySelector('.card-channel');
+    if (chBtn) {
+      chBtn.addEventListener('pointerdown', e => e.stopPropagation());
+      chBtn.addEventListener('click', e => { e.stopPropagation(); channelCard(card); });
+    }
     attachDrag(el, card);
     handEl.appendChild(el);
   });

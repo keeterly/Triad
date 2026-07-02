@@ -266,7 +266,7 @@ const QUICK = process.argv.includes('--quick');
     await J(() => S.heroes.map(h => h.id + ':' + h.guard).join(',')));
   await shot('kindled-start');
   // ONE act of help awakens the triad (early-run took three)
-  await tapCard('Cover'); await pickTarget('ash'); await sleep(700);
+  await tapCard('Aegis'); await pickTarget('ash'); await sleep(700);
   const awoke = await dismissCeremony();
   check('LOOP: a single act of help AWAKENED the kindled triad', awoke);
   check('resonant hijacked the awakener’s signature', await J(() => !!document.querySelector('#hand .card.kind-resonant')));
@@ -363,6 +363,36 @@ const QUICK = process.argv.includes('--quick');
     await J((prev) => S.heroes[1].hp === prev + 4 && S.heroes[0].guard >= 4 && S.heroes[0].counter >= 2 && S.threads.has('ash|elin'), elinHp));
   check('CONS: Ash overextended — ❄ CHILL 2 on his next strike', await J(() => S.heroes[0].chill >= 2));
   check('one-shot: the card burned away', await J(() => !document.querySelector('#hand .card[data-card-name="Not Today"]')));
+
+  // ---------- CARD ECONOMY: tempo profiles + channel + heal floor ----------
+  console.log('--- CARD ECONOMY ---');
+  await J(() => {
+    hideOverlay();
+    startFight({ type: 'fight', chapter: 3, heroes: ['ash', 'cassia', 'kiki'], enemies: ['husk'], narrator: 'economy drill' });
+    renderAll();
+  });
+  await sleep(400);
+  check('ASYMMETRY: HEAVY Cassia contributes ONE card; SWIFT+STEADY show two',
+    await J(() => {
+      const n = (id) => document.querySelectorAll(`#hand .card[data-owner="${id}"]`).length;
+      return n('cassia') === 1 && n('ash') === 2 && n('kiki') === 2;
+    }), await J(() => 'ash:'+document.querySelectorAll('#hand .card[data-owner="ash"]').length+' cassia:'+document.querySelectorAll('#hand .card[data-owner="cassia"]').length+' kiki:'+document.querySelectorAll('#hand .card[data-owner="kiki"]').length));
+  check('SWIFT: Kiki’s 2-cost signature is discounted to 1',
+    await J(() => { const c = [...document.querySelectorAll('#hand .card[data-owner="kiki"]')]; return c.some(x => x.querySelector('.c-cost').textContent === '1'); }));
+  // CHANNEL: sacrifice a card for +1 EP, once per turn
+  const epBefore = await J(() => S.ep);
+  await J(() => { const c = document.querySelector('#hand .card[data-owner="kiki"]'); const b = c.querySelector('.card-channel'); b.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+  await sleep(250);
+  check('CHANNEL: sacrificing a card gave +1 EP', await J(() => S.ep) === epBefore + 1, 'ep ' + epBefore + '->' + await J(() => S.ep));
+  check('CHANNEL: once per turn (no more channel pips)', await J(() => S.channelUsed && !document.querySelector('.card-channel')));
+  await shot('economy');
+  // HEAL FLOOR: mending a full-HP ally shields instead of wasting
+  await J(() => { hideOverlay(); startFight({ type:'fight', chapter:3, heroes:['ash','elin','kiki'], enemies:['husk'], narrator:'heal floor' }); renderAll(); });
+  await sleep(300);
+  const gBefore = await J(() => S.heroes[0].guard);
+  await tapCard('Mend'); await pickTarget('ash'); await sleep(500);
+  check('HEAL FLOOR: healing a full-HP ally became guard, not wasted (+5 spill, +bond)',
+    await J((g) => S.heroes[0].hp === S.heroes[0].maxHp && S.heroes[0].guard >= g + 5, gBefore));
 
   t.report();
   await t.browser.close();

@@ -691,3 +691,22 @@ body {
 }
 @keyframes temp-sheen { 0% { background-position: 120% 0; } 100% { background-position: -60% 0; } }
 .card.kind-temp .c-name, .card.kind-resonant .c-name { color: var(--gold-bright); }
+
+/* ===========================================================================
+   BUILD 18 — tempo profiles (cost-badge color) + channel button
+   =========================================================================== */
+.c-cost.tempo-swift { background: #8ecbe8; }        /* fast: cheap plays */
+.c-cost.tempo-heavy { background: var(--blood-bright); color: #fff; }  /* slow: big plays */
+.card-channel {
+  position: absolute; top: -7px; right: -7px; z-index: 5;
+  width: 19px; height: 19px; border-radius: 50%; cursor: pointer;
+  font-family: inherit; font-size: 11px; line-height: 1;
+  color: var(--arc); background: rgba(16,12,20,0.95);
+  border: 1px solid rgba(154,120,192,0.6);
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.card:hover .card-channel { opacity: 1; }
+.card-channel:hover { transform: scale(1.15); box-shadow: 0 0 8px rgba(154,120,192,0.5); color: var(--gold-bright); border-color: var(--gold-bright); }
+/* on touch (no hover) the channel pip stays faintly visible so it's discoverable */
+@media (hover: none) { .card-channel { opacity: 0.7; } }
