@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 22;
+const V2_BUILD = 23;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -974,19 +974,51 @@ function flyCard(cardName, targetEl) {
   setTimeout(() => ghost.remove(), 480);
 }
 
-// CHANNEL — sacrifice any card for +1 EP (once per turn): the pressure valve
+// Visual: a DISCARDED card burns away where it sat — desaturating to ash,
+// crumpling and drifting down with a warm ember glow — so channeling reads as
+// "this card is gone, spent for fuel," not a card that silently vanished.
+function dissolveCard(cardName) {
+  const el = document.querySelector(`#hand .card[data-card-name="${CSS.escape(cardName)}"]`);
+  if (!el) return;
+  const sr = $('#stage').getBoundingClientRect();
+  const scale = sr.width / 760 || 1;
+  const r = el.getBoundingClientRect();
+  const ghost = el.cloneNode(true);
+  const ch = ghost.querySelector('.card-channel'); if (ch) ch.remove();
+  ghost.className = el.className.replace('card-dragging', '') + ' card-dissolve';
+  ghost.style.cssText = `position:absolute; margin:0; z-index:118; pointer-events:none;
+    left:${(r.left - sr.left) / scale}px; top:${(r.top - sr.top) / scale}px;
+    width:${r.width / scale}px; height:${r.height / scale}px; transform:none;`;
+  const layer = $('#popup-layer');
+  layer.appendChild(ghost);
+  // A little rising ash so the eye follows the card out of play.
+  for (let i = 0; i < 5; i++) {
+    const em = document.createElement('span');
+    em.className = 'discard-ash';
+    em.style.left = ((r.left - sr.left) / scale + 20 + Math.random() * (r.width / scale - 40)) + 'px';
+    em.style.top = ((r.top - sr.top) / scale + 40 + Math.random() * 60) + 'px';
+    em.style.animationDelay = (i * 60) + 'ms';
+    layer.appendChild(em);
+    setTimeout(() => em.remove(), 900);
+  }
+  setTimeout(() => ghost.remove(), 640);
+}
+
+// CHANNEL — DISCARD any card for +1 EP (once per turn): the pressure valve
 // that means no card is ever truly dead.  A heal at full HP, a finisher with
 // nothing to finish — feed it to the fire and buy a better play.
 function channelCard(card) {
   if (S.executing || S.over || S.channelUsed || card.spent) return;
   if (card.kind === 'resonant') { flashNarrator('The vow cannot be spent for scraps.'); return; }
   S.channelUsed = true;
+  dissolveCard(card.name);            // burn the discarded card away, visibly
   if (card.temp) S.tempCards = S.tempCards.filter(t => t.uid !== card.uid);
   else if (card.owner !== 'triad') S.used.add(card.owner + ':' + card.kind);
   S.ep = Math.min(S.maxEp + 2, S.ep + 1);
   pulseEp();
   SFX.move();
-  flashNarrator(card.ownerName + ' channels ' + card.name + ' — +1 EP.');
+  flashNarrator(card.ownerName + ' DISCARDS ' + card.name + ' to the fire — +1 EP.');
+  popupAt($('#ep-dial'), '+1 EP', 'rally');
   renderAll();
 }
 
@@ -1308,14 +1340,59 @@ async function triadCeremony() {
   renderAll();
 }
 
+// The full-screen layer the resonant cinematic paints onto (created lazily).
+function cineLayer() {
+  let el = document.getElementById('resonant-cine');
+  if (!el) { el = document.createElement('div'); el.id = 'resonant-cine'; el.className = 'hidden'; $('#stage').appendChild(el); }
+  return el;
+}
+// A transient full-screen impact flash + shake — punctuates each vow stage.
+function cineFlash(color) {
+  const st = $('#stage');
+  const f = document.createElement('div');
+  f.className = 'rc-flash';
+  if (color) f.style.background = `radial-gradient(ellipse at 50% 45%, ${color} 0%, transparent 70%)`;
+  st.appendChild(f);
+  stageShake();
+  setTimeout(() => f.remove(), 420);
+}
+// JRPG banner: the trio's name slams in, the triangle draws itself, a light
+// sweeps the field.  Holds, then recedes so the stage impacts read clearly.
+async function resonantCineIntro(r, host, rank) {
+  $('#stage').classList.add('frozen');
+  const el = cineLayer();
+  el.classList.remove('hidden', 'rc-out');
+  el.innerHTML = `
+    <div class="rc-wash"></div>
+    <div class="rc-rays"></div>
+    <div class="rc-sweep"></div>
+    <svg class="rc-tri" viewBox="0 0 150 130"><path d="M 75 12 L 138 112 L 12 112 Z"/></svg>
+    <div class="rc-host">${host ? host.name + ' CALLS THE VOW' : 'THE TRIAD SPEAKS'}</div>
+    <div class="rc-name">✦ ${r.name}${rank > 1 ? ' ' + ROMAN[rank] : ''}</div>
+    <div class="rc-type">${r.type}</div>`;
+  SFX.triad();
+  cineFlash('rgba(240,212,136,0.5)');
+  await sleep(1250);
+  el.classList.add('rc-out');          // fade the banner, keep field clear
+  $('#stage').classList.remove('frozen');
+  await sleep(220);
+}
+function resonantCineEnd() {
+  const el = cineLayer();
+  el.classList.add('hidden'); el.classList.remove('rc-out'); el.innerHTML = '';
+  $('#stage').classList.remove('frozen');
+}
+
 async function resolveResonant() {
   const r = triadEntry();
   S.resonantUsed = true;
   const key = trioClassKey(livingHeroes().map(h => h.id));
-  const rankBonus = (vowRank(key) - 1) * 2;
+  const rank = vowRank(key);
+  const rankBonus = (rank - 1) * 2;
   recordVow(key);
+  const host = HEROES[S.resonantHostId];
+  await resonantCineIntro(r, host, rank);
   flashNarrator('✦ The vow deepens — spoken ' + vowUses(key) + ' time' + (vowUses(key) > 1 ? 's' : '') + '.');
-  await sleep(500);
   for (const st of (r.stages || [])) {
     flashNarrator('✦ ' + st.text);
     const fx = {};
@@ -1323,16 +1400,21 @@ async function resolveResonant() {
     ['aoeDmg', 'hitFrontmost', 'healAll', 'guardAll', 'guardFront', 'buffAllDmg'].forEach(k => {
       if (fx[k]) fx[k] += rankBonus;
     });
-    if (fx.aoeDmg) livingEnemies().forEach(e => dealToEnemy(e, fx.aoeDmg + (e.mark || 0)));
+    // Each stage lands as its own beat: an impact flash, then the numbers
+    // RIPPLE across the line (small gaps) so every hit stays readable.
+    const offensive = fx.aoeDmg || fx.hitFrontmost;
+    cineFlash(offensive ? 'rgba(212,69,69,0.5)' : 'rgba(240,212,136,0.45)');
+    await sleep(180);
+    if (fx.aoeDmg) { for (const e of livingEnemies()) { dealToEnemy(e, fx.aoeDmg + (e.mark || 0)); await sleep(150); } }
     if (fx.hitFrontmost) { const t = frontmostEnemy(); if (t) dealToEnemy(t, fx.hitFrontmost + (t.mark || 0)); }
-    if (fx.healAll) livingHeroes().forEach(h => { h.hp = Math.min(h.maxHp, h.hp + fx.healAll); popupAt(figEl(h.id), '+' + fx.healAll, 'heal'); });
-    if (fx.guardAll) livingHeroes().forEach(h => { h.guard += fx.guardAll; popupAt(figEl(h.id), '⛨ ' + fx.guardAll, 'guard'); });
+    if (fx.healAll) { for (const h of livingHeroes()) { h.hp = Math.min(h.maxHp, h.hp + fx.healAll); popupAt(figEl(h.id), '+' + fx.healAll, 'heal'); SFX.heal(); await sleep(110); } }
+    if (fx.guardAll) { for (const h of livingHeroes()) { h.guard += fx.guardAll; popupAt(figEl(h.id), '⛨ ' + fx.guardAll, 'guard'); await sleep(90); } }
     if (fx.guardFront) { const h = heroInRow('front'); if (h) { h.guard += fx.guardFront; popupAt(figEl(h.id), '⛨ ' + fx.guardFront, 'guard'); } }
-    if (fx.buffAllDmg) livingHeroes().forEach(h => { h.buffDmg += fx.buffAllDmg; popupAt(figEl(h.id), '+' + fx.buffAllDmg + ' NEXT', 'guard'); });
+    if (fx.buffAllDmg) { for (const h of livingHeroes()) { h.buffDmg += fx.buffAllDmg; popupAt(figEl(h.id), '▲ +' + fx.buffAllDmg + ' NEXT', 'rally'); await sleep(90); } }
     if (fx.counterAll) livingHeroes().forEach(h => { h.counter = Math.max(h.counter, fx.counterAll); });
-    if (fx.lullAll) livingEnemies().forEach(e => { e.lull = (e.lull || 0) + fx.lullAll; popupAt(figEl(e.uid), '❄ CHILL −' + fx.lullAll, 'chill'); });
-    if (fx.markAll) livingEnemies().forEach(e => { e.mark = fx.markAll; popupAt(figEl(e.uid), '◎ EXPOSED +' + fx.markAll, 'info'); });
-    if (fx.invulnFront) { const h = heroInRow('front'); if (h) { h.invuln = true; popupAt(figEl(h.id), 'INVULNERABLE', 'info'); } }
+    if (fx.lullAll) { for (const e of livingEnemies()) { e.lull = (e.lull || 0) + fx.lullAll; popupAt(figEl(e.uid), '❄ CHILL −' + fx.lullAll, 'chill'); await sleep(90); } }
+    if (fx.markAll) { for (const e of livingEnemies()) { e.mark = fx.markAll; popupAt(figEl(e.uid), '◎ EXPOSED +' + fx.markAll, 'info'); await sleep(90); } }
+    if (fx.invulnFront) { const h = heroInRow('front'); if (h) { h.invuln = true; popupAt(figEl(h.id), '✦ INVULNERABLE', 'info'); } }
     if (fx.pushBack) {
       // Formation: shove the enemy line one row toward the back.  Processed
       // back-to-front so a vacated row can receive the next enemy.
@@ -1347,9 +1429,10 @@ async function resolveResonant() {
       });
     }
     renderAll();
-    await sleep(820);
-    if (checkEnd()) return;
+    await sleep(560);
+    if (checkEnd()) { resonantCineEnd(); return; }
   }
+  resonantCineEnd();
 }
 
 // ---------------------------------------------------------------------------
@@ -1863,6 +1946,15 @@ function showPartySelect(onDone, mustInclude) {
 // ---------------------------------------------------------------------------
 function figEl(id) { return document.querySelector(`[data-fig="${id}"]`); }
 
+// Animated status chips (ported feel from v1): a chip whose value GREW since
+// the last render gets a one-shot pop-and-glow, so gaining guard / rally /
+// stagger visibly lands rather than silently appearing in the chip row.
+function chipPop(who, key, val) {
+  const prev = who._fxPrev || {};
+  return (val > (prev[key] || 0)) ? ' chip-pop' : '';
+}
+function snapFx(who, obj) { who._fxPrev = obj; }
+
 function renderAll() {
   if (!S) return;
   renderTimeline();
@@ -1929,16 +2021,17 @@ function renderBattlefield() {
         ${solo ? `<span class="stance-tag">${STANCE[who.row].name.toUpperCase()}</span>` : ''}
         <div class="fig-art">${V2PORTRAITS[who.id] || ''}</div>
         <div class="fig-chips">
-          ${who.invuln ? `<span class="chip buff">✦ INVULN</span>` : ''}
-          ${who.guard ? `<span class="chip guard">⛨ ${who.guard}</span>` : ''}
-          ${who.buffDmg ? `<span class="chip buff">▲ ${who.buffDmg}</span>` : ''}
-          ${who.counter ? `<span class="chip counter">↺ ${who.counter}</span>` : ''}
-          ${who.exposed ? `<span class="chip mark">◎ ${who.exposed}</span>` : ''}
-          ${who.chill ? `<span class="chip chill">❄ ${who.chill}</span>` : ''}
+          ${who.invuln ? `<span class="chip buff${chipPop(who,'invuln',1)}">✦ INVULN</span>` : ''}
+          ${who.guard ? `<span class="chip guard${chipPop(who,'guard',who.guard)}">⛨ ${who.guard}</span>` : ''}
+          ${who.buffDmg ? `<span class="chip buff${chipPop(who,'buffDmg',who.buffDmg)}">▲ ${who.buffDmg}</span>` : ''}
+          ${who.counter ? `<span class="chip counter${chipPop(who,'counter',who.counter)}">↺ ${who.counter}</span>` : ''}
+          ${who.exposed ? `<span class="chip mark${chipPop(who,'exposed',who.exposed)}">◎ ${who.exposed}</span>` : ''}
+          ${who.chill ? `<span class="chip chill${chipPop(who,'chill',who.chill)}">❄ ${who.chill}</span>` : ''}
         </div>
         <div class="hp-bar"><div class="hp-fill" style="width:${(who.hp / who.maxHp) * 100}%"></div></div>
         <div class="fig-name">${who.def.name} <span class="hp-num">${who.hp}/${who.maxHp}</span></div>
       `;
+      snapFx(who, { invuln: who.invuln ? 1 : 0, guard: who.guard, buffDmg: who.buffDmg, counter: who.counter, exposed: who.exposed, chill: who.chill });
       if (canMove(who)) fig.classList.add('can-move');
       attachHeroDrag(fig, who);
       // Click fallback for target-picking (synthetic clicks / accessibility
@@ -1981,16 +2074,17 @@ function renderBattlefield() {
         <div class="fig-art">${enemyArt(e)}</div>
         <div class="fig-chips">
           <span class="chip weak" title="weakness">${e.weakRevealed ? (SCHOOL_GLYPH[e.def.weak] || '?') : '?'}</span>
-          ${e.weakened ? `<span class="chip mark">⌖</span>` : ''}
-          ${e.staggered ? `<span class="chip stagger">⚡</span>` : ''}
-          ${e.guard ? `<span class="chip guard">⛨ ${e.guard}</span>` : ''}
-          ${e.power ? `<span class="chip buff">▲ ${e.power}</span>` : ''}
-          ${e.mark ? `<span class="chip mark">◎ ${e.mark}</span>` : ''}
-          ${e.lull ? `<span class="chip chill">❄ ${e.lull}</span>` : ''}
+          ${e.weakened ? `<span class="chip mark${chipPop(e,'weakened',1)}">⌖</span>` : ''}
+          ${e.staggered ? `<span class="chip stagger${chipPop(e,'staggered',1)}">⚡</span>` : ''}
+          ${e.guard ? `<span class="chip guard${chipPop(e,'guard',e.guard)}">⛨ ${e.guard}</span>` : ''}
+          ${e.power ? `<span class="chip buff${chipPop(e,'power',e.power)}">▲ ${e.power}</span>` : ''}
+          ${e.mark ? `<span class="chip mark${chipPop(e,'mark',e.mark)}">◎ ${e.mark}</span>` : ''}
+          ${e.lull ? `<span class="chip chill${chipPop(e,'lull',e.lull)}">❄ ${e.lull}</span>` : ''}
         </div>
         <div class="hp-bar"><div class="hp-fill" style="width:${(e.hp / e.maxHp) * 100}%"></div></div>
         <div class="fig-name">${e.def.name} <span class="hp-num">${e.hp}/${e.maxHp}</span></div>
       `;
+      snapFx(e, { weakened: e.weakened ? 1 : 0, staggered: e.staggered ? 1 : 0, guard: e.guard, power: e.power, mark: e.mark, lull: e.lull });
       fig.onclick = () => onFigureTap(e.uid);
       slot.appendChild(fig);
     }
@@ -2180,19 +2274,30 @@ function renderActionBar() {
 // ---------------------------------------------------------------------------
 // FX helpers
 // ---------------------------------------------------------------------------
+// Popups that land on the SAME figure within a short window cascade upward and
+// stagger in time, so a card that does several things (damage + rally + bond)
+// reads as a sequence of legible numbers instead of one illegible stack.
+const _popupStacks = new Map();   // figId -> { n, last }
 function popupAt(el, text, cls) {
   if (!el) return;
   const layer = $('#popup-layer');
   const stageR = $('#stage').getBoundingClientRect();
   const scale = stageR.width / 760;
   const r = el.getBoundingClientRect();
+  const key = el.dataset.fig || 'x';
+  const now = Date.now();
+  let st = _popupStacks.get(key);
+  if (!st || now - st.last > 850) st = { n: 0, last: now };
+  st.n++; st.last = now; _popupStacks.set(key, st);
+  const idx = st.n - 1;
   const p = document.createElement('div');
   p.className = 'popup ' + (cls || '');
   p.textContent = text;
   p.style.left = ((r.left + r.width / 2 - stageR.left) / scale) + 'px';
-  p.style.top = ((r.top - stageR.top) / scale + 6) + 'px';
+  p.style.top = ((r.top - stageR.top) / scale + 6 - idx * 15) + 'px';
+  if (idx) { p.style.animationDelay = (idx * 95) + 'ms'; p.style.animationFillMode = 'both'; }
   layer.appendChild(p);
-  setTimeout(() => p.remove(), 1050);
+  setTimeout(() => p.remove(), 1050 + idx * 95);
 }
 function shake(el) {
   if (!el) return;

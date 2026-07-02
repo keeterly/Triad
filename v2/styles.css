@@ -759,3 +759,104 @@ body {
 }
 .rch-pips .rp.on { background: var(--blood-bright); border-color: var(--blood-bright); box-shadow: 0 0 4px rgba(212,69,69,0.5); }
 .rch-lbl { font-size: 7px; letter-spacing: 0.14em; color: var(--ink-dim); margin-left: 4px; }
+
+/* ===========================================================================
+   BUILD 23 — paced popups, animated status chips, clear discard, vow cinematic
+   =========================================================================== */
+
+/* --- animated status chips: a chip that GREW this render pops + glows --- */
+.chip.chip-pop { animation: chip-pop 0.55s cubic-bezier(0.2,1.5,0.4,1); }
+@keyframes chip-pop {
+  0%   { transform: scale(0.4); opacity: 0; }
+  45%  { transform: scale(1.5); opacity: 1; }
+  70%  { transform: scale(0.94); }
+  100% { transform: scale(1); }
+}
+.chip.chip-pop.guard   { box-shadow: 0 0 12px rgba(168,200,232,0.85); }
+.chip.chip-pop.buff    { box-shadow: 0 0 12px rgba(240,212,136,0.9); }
+.chip.chip-pop.mark    { box-shadow: 0 0 12px rgba(212,69,69,0.85); }
+.chip.chip-pop.chill   { box-shadow: 0 0 12px rgba(142,203,232,0.85); }
+.chip.chip-pop.counter { box-shadow: 0 0 12px rgba(154,120,192,0.85); }
+.chip.chip-pop.stagger { box-shadow: 0 0 14px rgba(240,212,136,1); }
+
+/* --- discard (channel): the card burns to ash where it sat --- */
+.card.card-dissolve {
+  animation: card-dissolve 0.62s ease-in forwards;
+  filter: grayscale(0.4) brightness(1.15);
+  box-shadow: 0 0 26px rgba(230,140,60,0.7), inset 0 0 30px rgba(230,120,40,0.5);
+}
+@keyframes card-dissolve {
+  0%   { opacity: 1; transform: translateY(0) scale(1) rotate(0deg); filter: brightness(1.5) saturate(1.4); }
+  35%  { opacity: 1; transform: translateY(8px) scale(0.98) rotate(-2deg); }
+  100% { opacity: 0; transform: translateY(46px) scale(0.7) rotate(4deg); filter: grayscale(1) brightness(0.4); }
+}
+.discard-ash {
+  position: absolute; width: 4px; height: 4px; border-radius: 50%;
+  background: radial-gradient(circle, #ffd08a 0%, #d0641e 60%, transparent 80%);
+  pointer-events: none; z-index: 119;
+  animation: discard-ash 0.85s ease-out forwards;
+}
+@keyframes discard-ash {
+  0%   { opacity: 0; transform: translateY(0) scale(1); }
+  25%  { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-46px) translateX(6px) scale(0.3); }
+}
+
+/* --- resonant / vow cinematic --- */
+#resonant-cine {
+  position: absolute; inset: 0; z-index: 44; pointer-events: none; overflow: hidden;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  transition: opacity 0.24s ease;
+}
+#resonant-cine.hidden { display: none; }
+#resonant-cine.rc-out { opacity: 0; }
+.rc-wash {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse 90% 80% at 50% 45%, rgba(58,44,18,0.82) 0%, rgba(6,4,2,0.92) 70%);
+  animation: rc-wash-in 0.4s ease-out;
+}
+@keyframes rc-wash-in { from { opacity: 0; } to { opacity: 1; } }
+.rc-rays {
+  position: absolute; inset: -30% ; z-index: 1;
+  background: repeating-conic-gradient(from 0deg at 50% 45%,
+    rgba(240,212,136,0.10) 0deg, rgba(240,212,136,0) 5deg 16deg);
+  animation: rc-rays 9s linear infinite; opacity: 0.7;
+}
+@keyframes rc-rays { to { transform: rotate(360deg); } }
+.rc-sweep {
+  position: absolute; top: 0; bottom: 0; width: 55%; z-index: 2;
+  background: linear-gradient(100deg, transparent, rgba(255,246,216,0.55), transparent);
+  filter: blur(6px);
+  animation: rc-sweep 1.0s cubic-bezier(0.4,0,0.2,1) forwards;
+}
+@keyframes rc-sweep { 0% { left: -60%; } 100% { left: 120%; } }
+.rc-tri {
+  position: relative; z-index: 3; width: 118px; height: 102px; margin-bottom: 4px;
+}
+.rc-tri path {
+  stroke: var(--gold-bright); stroke-width: 2.4; fill: rgba(240,212,136,0.05);
+  stroke-dasharray: 400; stroke-dashoffset: 400;
+  animation: triad-draw 0.9s ease-out forwards;
+  filter: drop-shadow(0 0 8px rgba(240,212,136,0.85));
+}
+.rc-host {
+  position: relative; z-index: 3; font-size: 11px; letter-spacing: 0.36em;
+  color: var(--ink-dim); margin-bottom: 4px; animation: rc-fade 0.6s ease-out 0.2s both;
+}
+.rc-name {
+  position: relative; z-index: 3; font-size: 34px; letter-spacing: 0.28em;
+  color: var(--gold-bright); text-shadow: 0 0 26px rgba(240,212,136,0.7), 0 3px 8px #000;
+  animation: rc-slam 0.55s cubic-bezier(0.2,1.7,0.4,1) 0.1s both;
+}
+.rc-type {
+  position: relative; z-index: 3; font-size: 11px; letter-spacing: 0.34em;
+  color: var(--blood-bright); margin-top: 8px; animation: rc-fade 0.6s ease-out 0.35s both;
+}
+@keyframes rc-slam { 0% { transform: scale(2.6); opacity: 0; } 60% { opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
+@keyframes rc-fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+.rc-flash {
+  position: absolute; inset: 0; z-index: 46; pointer-events: none;
+  background: radial-gradient(ellipse at 50% 45%, rgba(255,246,216,0.55) 0%, transparent 70%);
+  animation: rc-flash 0.42s ease-out forwards;
+}
+@keyframes rc-flash { 0% { opacity: 0; } 18% { opacity: 1; } 100% { opacity: 0; } }
