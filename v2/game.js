@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 37;
+const V2_BUILD = 38;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -518,12 +518,12 @@ function newBattle(node) {
     const depth = Math.max(1, node.depth || 1);
     enemies.forEach(e => {
       if (e.def.boss) {
-        e.dmgMul = 1.3 + (depth - 1) * 0.03;
-        const hp = Math.round(e.maxHp * 1.15);   // bosses hit like a wall too now
+        e.dmgMul = 1.6 + (depth - 1) * 0.04;
+        const hp = Math.round(e.maxHp * 1.3);
         e.maxHp = hp; e.hp = hp;
       } else {
-        e.dmgMul = 1.55 + (depth - 1) * 0.06;
-        const hp = Math.round(e.maxHp * (1.45 + (depth - 1) * 0.05));
+        e.dmgMul = 1.8 + (depth - 1) * 0.08;
+        const hp = Math.round(e.maxHp * (1.65 + (depth - 1) * 0.06));
         e.maxHp = hp; e.hp = hp;
       }
     });
@@ -1442,7 +1442,7 @@ function burstReady() { return S && (S.momentum || 0) >= MOM_MAX && !S.executing
 // false to remove the whole layer cleanly (enemy attacks then resolve as before).
 // ---------------------------------------------------------------------------
 const PARRY_ENABLED = true;
-const PARRY_MISS_MULT = 1.3;   // an UNPARRIED blow lands HARDER (real-run only)
+const PARRY_MISS_MULT = 1.6;   // an UNPARRIED blow lands HARDER (real-run only)
 
 // Each intent carries a rhythm PATTERN — its own way to be turned aside — so
 // defense has Project-Diva variety: a clean tap, a quick double-tap flurry, a

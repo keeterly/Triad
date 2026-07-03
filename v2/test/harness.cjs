@@ -74,6 +74,34 @@ async function boot(opts = {}) {
       }
     } catch (_) {}
   }, { flow: opts.flow, clearRun: opts.clearRun !== false });
+  // AUTO-PARRY — lets the test bot play like a real (parrying) player, so we can
+  // tune difficulty for a skilled human instead of a bot that eats every blow.
+  // Watches for parry notes and performs the right gesture at a good time.
+  await page.addInitScript(() => {
+    window.__autoParry = false;
+    const fire = (ring) => {
+      const cx = Math.round(innerWidth / 2), cy = Math.round(innerHeight / 2);
+      const P = (type, x, y) => window.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, pointerId: 31, pointerType: 'touch' }));
+      if (ring.classList.contains('parry-hold')) {
+        P('pointerdown', cx, cy); setTimeout(() => P('pointerup', cx, cy), 1200);
+      } else if (ring.classList.contains('parry-swipe')) {
+        const lbl = (ring.querySelector('.pr-lbl') || {}).textContent || '';
+        let dx = 150, dy = -30;
+        if (lbl.indexOf('↶') >= 0) { dx = -150; } else if (lbl.indexOf('⤴') >= 0) { dx = 0; dy = -170; }
+        setTimeout(() => { P('pointerdown', cx, cy + 40); P('pointermove', cx + dx * 0.5, cy + 40 + dy * 0.5); P('pointermove', cx + dx, cy + 40 + dy); P('pointerup', cx + dx, cy + 40 + dy); }, 200);
+      } else {
+        setTimeout(() => { P('pointerdown', cx, cy); P('pointerup', cx, cy); }, 330);
+      }
+    };
+    const obs = new MutationObserver((muts) => {
+      if (!window.__autoParry) return;
+      for (const m of muts) for (const n of m.addedNodes) {
+        if (n.nodeType === 1 && n.classList && n.classList.contains('parry-ring') && !n.__ap) { n.__ap = 1; fire(n); }
+      }
+    });
+    const start = () => { try { obs.observe(document.documentElement, { childList: true, subtree: true }); } catch (_) {} };
+    if (document.body) start(); else addEventListener('DOMContentLoaded', start);
+  });
   await page.goto(`http://127.0.0.1:${port}/v2/index.html`, { waitUntil: 'networkidle' });
   await page.waitForTimeout(500);
 
@@ -82,6 +110,7 @@ async function boot(opts = {}) {
   fs.mkdirSync(shotsDir, { recursive: true });
   let shotN = 0;
   const api = {
+    autoParry: (on) => page.evaluate((v) => { window.__autoParry = v; }, on !== false),
     browser, ctx, page, errs, results,
     J: (fn, ...a) => page.evaluate(fn, ...a),
     sleep: ms => page.waitForTimeout(ms),

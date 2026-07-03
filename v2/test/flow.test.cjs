@@ -87,6 +87,7 @@ const QUICK = process.argv.includes('--quick');
   await J(() => { localStorage.setItem('kizuna2.flow', '99'); localStorage.removeItem('kizuna2.run'); });
   await t.page.reload({ waitUntil: 'networkidle' }); await sleep(500);
   await clickOverlayBtn('#t-descent'); await sleep(500);
+  await t.autoParry(true);   // the bot parries the harder descent like a real player
   check('map renders with reachable node', await J(() => !!document.querySelector('.map-node.mn-reach')));
   check('party chip previews the trio resonant', await J(() => document.querySelector('.party-chip')?.textContent.includes('Threefold Vow')));
   await shot('map');
@@ -299,6 +300,8 @@ const QUICK = process.argv.includes('--quick');
     const a = JSON.parse(localStorage.getItem('kizuna2.abyss') || '{}');
     return !a[n] && typeof S !== 'undefined' && S && !S.over;
   }, fallenNode));
+
+  await t.autoParry(false);   // scripted drills below control their own input
 
   // ---------- WEAKNESS / STAGGER (ported from v1) ----------
   console.log('--- STAGGER ---');
