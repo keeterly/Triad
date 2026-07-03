@@ -1224,3 +1224,20 @@ body {
   animation: pr-swipe-pulse 0.55s ease-in-out infinite;
 }
 @keyframes pr-swipe-pulse { 50% { transform: translate(-50%,-50%) scale(1.25); opacity: 0.7; } }
+
+/* ===========================================================================
+   BUILD 32 — curved DEFLECT swipe (trace an arc) + aim clamp
+   =========================================================================== */
+.parry-ring.parry-swipe .pr-arc-svg {
+  position: absolute; left: 0; top: 0; width: 118px; height: 118px;
+  transform: translate(-50%,-50%); overflow: visible;
+}
+.pr-arc-path { fill: none; stroke: rgba(255,225,74,0.22); stroke-width: 6; stroke-linecap: round; }
+.pr-arc-draw {
+  fill: none; stroke: #ffe14a; stroke-width: 4; stroke-linecap: round;
+  stroke-dasharray: 210; stroke-dashoffset: 210;
+  filter: drop-shadow(0 0 6px rgba(255,225,74,0.75));
+  animation: pr-arc-draw linear forwards;
+}
+@keyframes pr-arc-draw { to { stroke-dashoffset: 0; } }
+.pr-arc-dot { fill: #fff; filter: drop-shadow(0 0 8px #ffe14a); }

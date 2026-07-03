@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 31;
+const V2_BUILD = 32;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -475,10 +475,12 @@ function newBattle(node) {
     const depth = Math.max(1, node.depth || 1);
     enemies.forEach(e => {
       if (e.def.boss) {
-        e.dmgMul = 1.15 + (depth - 1) * 0.02;
+        e.dmgMul = 1.3 + (depth - 1) * 0.03;
+        const hp = Math.round(e.maxHp * 1.15);   // bosses hit like a wall too now
+        e.maxHp = hp; e.hp = hp;
       } else {
-        e.dmgMul = 1.4 + (depth - 1) * 0.05;
-        const hp = Math.round(e.maxHp * (1.3 + (depth - 1) * 0.04));
+        e.dmgMul = 1.55 + (depth - 1) * 0.06;
+        const hp = Math.round(e.maxHp * (1.45 + (depth - 1) * 0.05));
         e.maxHp = hp; e.hp = hp;
       }
     });
@@ -747,8 +749,10 @@ function _cornerPath(cx, cy, r) {
 // JRPG targeting reticle — distinct from Slay-the-Spire's flat arrow.
 function drawAimJRPG(fx, fy, ex, ey, valid, field, angle, color) {
   const svg = aimLayer();
-  const bow = Math.max(28, Math.abs(ex - fx) * 0.16);
-  const midX = (fx + ex) / 2, midY = Math.min(fy, ey) - bow;
+  // Gentle bow, CLAMPED so a far drag (e.g. a heal card over the enemy line)
+  // can never throw the control point off-screen into a giant arc.
+  const bow = Math.min(70, Math.max(24, Math.abs(ex - fx) * 0.12));
+  const midX = (fx + ex) / 2, midY = Math.max(12, Math.min(fy, ey) - bow);
   const path = `M ${fx} ${fy} Q ${midX} ${midY} ${ex} ${ey}`;
   const c = valid ? color : '#7a7060';
   let ret = '';
@@ -772,8 +776,8 @@ function drawAimField(fx, fy, pts, angle, color) {
   const svg = aimLayer();
   let s = '';
   pts.forEach(p => {
-    const bow = Math.max(22, Math.abs(p.x - fx) * 0.14);
-    const midX = (fx + p.x) / 2, midY = Math.min(fy, p.y) - bow;
+    const bow = Math.min(64, Math.max(20, Math.abs(p.x - fx) * 0.12));
+    const midX = (fx + p.x) / 2, midY = Math.max(12, Math.min(fy, p.y) - bow);
     const path = `M ${fx} ${fy} Q ${midX} ${midY} ${p.x} ${p.y}`;
     s += `<path d="${path}" fill="none" stroke="${color}" stroke-width="6" stroke-linecap="round" opacity="0.18" style="filter:blur(2.5px)"/>`
        + `<path d="${path}" fill="none" stroke="${color}" stroke-width="2.4" stroke-linecap="round" opacity="0.55"/>`
@@ -1375,16 +1379,28 @@ const PARRY_MISS_MULT = 1.3;   // an UNPARRIED blow lands HARDER (real-run only)
 // from the intent so every enemy reads consistently; `intent.parry` can author
 // an override.  A short glyph (⊙ / ⊙⊙ / ▭ / ➤) previews it on the telegraph.
 function parryPatternFor(intent) {
-  if (intent.parry) return intent.parry;
+  if (intent.parry) return normPattern(intent.parry);
   if (intent.heavy)          return { kind: 'hold' };
-  if (intent.row === 'all')  return { kind: 'swipe', dir: ['left', 'up', 'right'][(intent.dmg || 0) % 3] };
+  if (intent.row === 'all')  return { kind: 'swipe', arc: ['arcL', 'arcU', 'arcR'][(intent.dmg || 0) % 3] };
   if ((intent.dmg || 0) <= 4) return { kind: 'multi', count: 2 };
   return { kind: 'tap' };
 }
+// legacy dir -> arc, so authored {kind:'swipe',dir:'up'} still works
+function normPattern(p) {
+  if (p.kind === 'swipe' && !p.arc) p = Object.assign({}, p, { arc: { left: 'arcL', right: 'arcR', up: 'arcU', down: 'arcU' }[p.dir] || 'arcR' });
+  return p;
+}
+// A curved "deflect" sweep — you trace the arc to turn the blow aside, the way
+// Project Diva slide-notes and a real parry both carve a curve.
+const SWIPE_ARCS = {
+  arcR: { d: 'M -42 24 Q 0 -50 42 24', glyph: '↷', ok: (dx, dy) => dx > 34 && Math.abs(dx) > Math.abs(dy) * 0.5 },
+  arcL: { d: 'M 42 24 Q 0 -50 -42 24', glyph: '↶', ok: (dx, dy) => dx < -34 && Math.abs(dx) > Math.abs(dy) * 0.5 },
+  arcU: { d: 'M -38 34 Q 44 6 -6 -46', glyph: '⤴', ok: (dx, dy) => dy < -34 && Math.abs(dy) > Math.abs(dx) * 0.4 },
+};
 const PARRY_GLYPH = { tap: '⊙', multi: '⊙⊙', hold: '▭', swipe: '➤' };
 function parryGlyph(intent) {
   const p = parryPatternFor(intent);
-  return PARRY_GLYPH[p.kind] + (p.kind === 'swipe' ? { left: '←', up: '↑', right: '→', down: '↓' }[p.dir] : '');
+  return p.kind === 'swipe' ? (SWIPE_ARCS[p.arc] || SWIPE_ARCS.arcR).glyph : PARRY_GLYPH[p.kind];
 }
 
 // --- the parry UI base: a ring anchored on the target hero ---
@@ -1426,23 +1442,30 @@ function parryHoldNote(targetEl, dur) {
     setTimeout(() => finish(holding ? 'perfect' : everHeld ? 'good' : 'miss'), dur);
   });
 }
-// SWIPE note — flick the shown direction to sweep the blow aside.
-function parrySwipeNote(targetEl, dir, dur) {
+// DEFLECT note — trace the curved arc to sweep the blow aside (a real parry
+// carves a curve; so do Project-Diva slide notes).  Detection is forgiving: a
+// sweep whose net direction matches the arc counts, so tracing OR flicking works.
+function parrySwipeNote(targetEl, arc, dur) {
   return new Promise(resolve => {
-    const arrow = { left: '←', up: '↑', right: '→', down: '↓' }[dir] || '↑';
-    const ui = mkParryUi(targetEl, `<span class="pr-target"></span><span class="pr-close"></span><span class="pr-swipe">${arrow}</span><span class="pr-lbl">SWIPE ${arrow}</span>`, 'parry-swipe');
-    ui.el.querySelector('.pr-close').style.animationDuration = dur + 'ms';
-    let done = false, sx = null, sy = null, swiped = false; const t0 = Date.now();
-    const finish = (q) => { if (done) return; done = true; window.removeEventListener('pointerdown', onDown, true); window.removeEventListener('pointermove', onMove, true); ui.close(); resolve(q); };
-    const T = 26;
-    const ok = (dx, dy) => dir === 'left' ? (dx < -T && Math.abs(dx) > Math.abs(dy))
-      : dir === 'right' ? (dx > T && Math.abs(dx) > Math.abs(dy))
-      : dir === 'down' ? (dy > T && Math.abs(dy) > Math.abs(dx))
-      : (dy < -T && Math.abs(dy) > Math.abs(dx));
+    const spec = SWIPE_ARCS[arc] || SWIPE_ARCS.arcR;
+    const ui = mkParryUi(targetEl,
+      `<svg class="pr-arc-svg" viewBox="-60 -60 120 120">
+         <path class="pr-arc-path" d="${spec.d}"/>
+         <path class="pr-arc-draw" d="${spec.d}"/>
+         <circle class="pr-arc-dot" r="5"><animateMotion dur="${dur}ms" repeatCount="1" fill="freeze" path="${spec.d}"/></circle>
+       </svg><span class="pr-lbl">DEFLECT ${spec.glyph}</span>`, 'parry-swipe');
+    ui.el.querySelector('.pr-arc-draw').style.animationDuration = dur + 'ms';
+    let done = false, sx = null, sy = null, maxHit = null; const t0 = Date.now();
+    const finish = (q) => { if (done) return; done = true; window.removeEventListener('pointerdown', onDown, true); window.removeEventListener('pointermove', onMove, true); window.removeEventListener('pointerup', onUp, true); ui.close(); resolve(q); };
     const onDown = (e) => { sx = e.clientX; sy = e.clientY; };
-    const onMove = (e) => { if (sx == null || swiped) return; if (ok(e.clientX - sx, e.clientY - sy)) { swiped = true; const rem = dur - (Date.now() - t0); finish(rem <= 230 ? 'perfect' : 'good'); } };
+    const onMove = (e) => {
+      if (sx == null || maxHit) return;
+      if (spec.ok(e.clientX - sx, e.clientY - sy)) { maxHit = true; const rem = dur - (Date.now() - t0); finish(rem <= 250 ? 'perfect' : 'good'); }
+    };
+    const onUp = () => { sx = null; };
     window.addEventListener('pointerdown', onDown, true);
     window.addEventListener('pointermove', onMove, true);
+    window.addEventListener('pointerup', onUp, true);
     setTimeout(() => finish('miss'), dur);
   });
 }
@@ -1451,7 +1474,7 @@ async function runParry(targetEl, pattern) {
   if (!PARRY_ENABLED || !targetEl) { await sleep(380); return null; }
   const k = pattern.kind;
   if (k === 'hold')  return await parryHoldNote(targetEl, 900);
-  if (k === 'swipe') return await parrySwipeNote(targetEl, pattern.dir, 820);
+  if (k === 'swipe') return await parrySwipeNote(targetEl, pattern.arc, 820);
   if (k === 'multi') {
     let hits = 0;
     for (let i = 0; i < pattern.count; i++) {
