@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 46;
+const V2_BUILD = 47;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -211,6 +211,24 @@ const HEROES = {
       },
     },
   },
+  mira: {
+    school: 'blade', tempo: 'swift', name: 'MIRA', cls: 'Reaver', archetype: 'Assassin',
+    identity: 'A shadow that strikes and vanishes — marks prey, slips away.', tint: 'var(--mira-tint)', maxHp: 21,
+    cards: {
+      front: {
+        core: { name: 'Backstab',      cost: 1, target: 'frontmost', fx: { dmg: 6, step: 'back' }, desc: '6 damage · slip to BACK.' },
+        sig:  { name: 'Vanish Strike', cost: 2, target: 'frontmost', fx: { dmg: 9, step: 'back' }, desc: '9 damage · vanish to BACK.' },
+      },
+      mid: {
+        core: { name: 'Shadow Knife',  cost: 1, target: 'enemy', fx: { dmg: 4, mark: 3 }, desc: '4 damage · <span class="kw kw-exposed">◎ EXPOSED 3</span>.' },
+        sig:  { name: 'Twin Daggers',  cost: 2, target: 'enemy', fx: { dmg: 10 }, desc: '10 damage to ANY enemy — a focused kill.' },
+      },
+      back: {
+        core: { name: 'Thrown Dagger', cost: 1, target: 'enemy', fx: { dmg: 4, step: 'front' }, desc: '4 damage to ANY enemy · close to FRONT.' },
+        sig:  { name: 'Killing Mark',  cost: 2, target: 'enemy', fx: { dmg: 3, mark: 5 }, desc: '3 damage · <span class="kw kw-exposed">◎ EXPOSED 5</span>: +5 from every hit. Fades 1/turn.' },
+      },
+    },
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -237,7 +255,7 @@ const ENEMY_DEFS = {
     ],
   },
   cultist: {
-    weak: 'song', name: 'ASH CULTIST', maxHp: 15,
+    weak: 'blade', name: 'ASH CULTIST', maxHp: 15,
     intents: [
       { name: 'Sacrificial Knife', dmg: 5, row: 'front' },
       { name: 'Blood Chant', kind: 'buff', desc: 'gathers power', powerSelf: 2 },
@@ -245,7 +263,7 @@ const ENEMY_DEFS = {
     ],
   },
   mourner: {
-    weak: 'frost', name: 'GRAVE MOURNER', maxHp: 18,
+    weak: 'iron', name: 'GRAVE MOURNER', maxHp: 18,
     intents: [
       { name: 'Dirge',     dmg: 3, row: 'all' },
       { name: 'Sorrowing', dmg: 5, row: 'mid' },
@@ -261,7 +279,7 @@ const ENEMY_DEFS = {
     ],
   },
   echoknight: {
-    weak: 'song', name: 'THE ECHO KNIGHT', maxHp: 42, boss: true,
+    weak: 'blade', name: 'THE ECHO KNIGHT', maxHp: 42, boss: true,
     intents: [
       { name: 'Returning Stroke', dmg: 6, row: 'front' },
       { name: 'Echoed Arc',       dmg: 4, row: 'mid' },
@@ -270,7 +288,7 @@ const ENEMY_DEFS = {
     ],
   },
   echoknight2: {
-    weak: 'song', name: 'THE ECHO KNIGHT, REMEMBERED', maxHp: 60, boss: true, floorBoss: true, art: 'echoknight',
+    weak: 'blade', name: 'THE ECHO KNIGHT, REMEMBERED', maxHp: 60, boss: true, floorBoss: true, art: 'echoknight',
     intents: [
       // The floor boss fills the field; its blows are CASCADES you parry as a
       // sequence — taps racing down an arc, a braced hold, a deflect sweep.
@@ -371,6 +389,31 @@ const RESONANT_TABLE = {
       { text: 'and the hammer falls',         fx: { aoeDmg: 5 } },
     ],
   },
+  // Reaver (Mira) trios — the shadow marks, the party executes.
+  'Cleric+Guardian+Reaver': {
+    name: 'Veiled Bulwark', type: 'Defense',
+    desc: 'The party gains 6 guard · heal the party 4 · MARK every enemy (+3 from every hit).',
+    stages: [
+      { text: 'shadows fold around the wall', fx: { guardAll: 6 } },
+      { text: 'and mend what the dark spared', fx: { healAll: 4, markAll: 3 } },
+    ],
+  },
+  'Cleric+Reaver+Ronin': {
+    name: 'Twin Shadows', type: 'Offense',
+    desc: 'MARK every enemy (+3) · strike ALL enemies 6 · heal the party 3.',
+    stages: [
+      { text: 'two blades open the dark', fx: { markAll: 3 } },
+      { text: 'and bleed it dry',         fx: { aoeDmg: 6, healAll: 3 } },
+    ],
+  },
+  'Guardian+Reaver+Ronin': {
+    name: 'Executioner’s Wall', type: 'Offense',
+    desc: 'MARK every enemy (+3) · the FRONT hero gains 6 guard · 12 to the nearest enemy.',
+    stages: [
+      { text: 'the wall names its mark', fx: { markAll: 3, guardFront: 6 } },
+      { text: 'and the shadow ends it',  fx: { hitFrontmost: 12 } },
+    ],
+  },
 };
 const RESONANT_FALLBACK = {
   name: 'Triad Strike', type: 'Offense',
@@ -409,7 +452,7 @@ const FLOW = [
     { spk: 'KIKI', text: 'Oh good, an audience! Try to die interestingly, at least.' },
     { text: 'Three now. Threads can close into something greater. No one will tell you how. You’ll know it when it happens.' },
   ]},
-  { type: 'fight', chapter: 3, heroes: ['ash', 'elin', 'kiki'], enemies: ['echoknight', 'cultist'],
+  { type: 'fight', chapter: 3, heroes: ['ash', 'elin', 'mira'], enemies: ['echoknight', 'cultist'],
     narrator: 'Help each other. All three of you.' },
   { type: 'story', chapter: 3, title: 'THE ROAD DOWN', eyebrow: 'THE DESCENT', lines: [
     { text: 'The tutorial road ends at a cliff’s edge, and below — the <b>Descent</b>.' },
@@ -425,7 +468,7 @@ const MAP_NODES = [
   { id: 2, col: 3, type: 'fight',   label: 'HOLLOW CHOIR',   enemies: ['cultist', 'mourner'], next: [4] },
   { id: 3, col: 3, type: 'fight',   label: 'MOURNING FIELD', enemies: ['mourner', 'drone'], next: [4] },
   { id: 4, col: 4, type: 'camp',    label: 'EMBER REST',     next: [5] },
-  { id: 5, col: 5, type: 'recruit', label: 'THE FROSTLING',  hero: 'hask', next: [6, 7] },
+  { id: 5, col: 5, type: 'camp',    label: 'HOLLOW REST',    next: [6, 7] },
   { id: 6, col: 6, type: 'fight',   label: 'DRONE NEST',     enemies: ['drone', 'husk', 'wraith'], next: [8] },
   { id: 7, col: 6, type: 'fight',   label: 'COLD PROCESSION',enemies: ['wraith', 'cultist', 'mourner'], next: [8] },
   { id: 8, col: 7, type: 'camp',    label: 'LAST FIRE',      next: [9] },
@@ -438,6 +481,7 @@ const CAMP_VOICES = {
   kiki:   'I’m writing a song about us, you know. You’re the difficult verse.',
   cassia: 'A wall is only as strong as who it shelters. Stand behind me tomorrow.',
   hask:   'You’re warm. Sit closer. That’s strategy, not sentiment.',
+  mira:   'I watch the dark so you don’t have to. …Don’t thank me. I’ll deny it.',
 };
 
 const RECRUIT_LINES = {
@@ -481,9 +525,9 @@ const UNLOCK_KEY = 'kizuna.unlocked';
 
 function newRun() {
   return {
-    roster: ['ash', 'elin', 'kiki'],
-    active: ['ash', 'elin', 'kiki'],
-    hp: { ash: HEROES.ash.maxHp, elin: HEROES.elin.maxHp, kiki: HEROES.kiki.maxHp },
+    roster: ['ash', 'elin', 'mira'],
+    active: ['ash', 'elin', 'mira'],
+    hp: { ash: HEROES.ash.maxHp, elin: HEROES.elin.maxHp, mira: HEROES.mira.maxHp },
     bonds: {},          // pairKey -> points; a pair at 2+ is KINDLED
     completed: [],
     done: false,

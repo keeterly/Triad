@@ -89,7 +89,7 @@ const QUICK = process.argv.includes('--quick');
   await clickOverlayBtn('#t-descent'); await sleep(500);
   await t.autoParry(true);   // the bot parries the harder descent like a real player
   check('map renders with reachable node', await J(() => !!document.querySelector('.map-node.mn-reach')));
-  check('party chip previews the trio resonant', await J(() => document.querySelector('.party-chip')?.textContent.includes('Threefold Vow')));
+  check('party chip previews the trio resonant', await J(() => document.querySelector('.party-chip')?.textContent.includes('Twin Shadows')));
   await shot('map');
 
   // node 0 fight — autoplay attacks only (threads not needed here)
@@ -125,13 +125,13 @@ const QUICK = process.argv.includes('--quick');
   await shot('recruit-cassia');
   await clickOverlayBtn('#rc-join'); await sleep(500);
   check('party select opens (roster now 4)', await J(() => !!document.querySelector('.ps-row') && document.querySelectorAll('.ps-fig').length === 4));
-  // choose ash + cassia + kiki  (Bard+Guardian+Ronin → Warsong Phalanx, Formation)
-  for (const want of ['ash', 'cassia', 'kiki']) {
+  // choose ash + elin + cassia  (Cleric+Guardian+Ronin → Oathkeepers' Advance, Formation)
+  for (const want of ['ash', 'elin', 'cassia']) {
     await J((id) => {
       // toggle others off / target on, one effective click per call
       const on = [...document.querySelectorAll('.ps-fig.ps-on')].map(x => x.dataset.id);
       if (on.includes(id)) return;
-      const off = on.find(x => !['ash', 'cassia', 'kiki'].includes(x));
+      const off = on.find(x => !['ash', 'elin', 'cassia'].includes(x));
       if (on.length >= 3 && off) { [...document.querySelectorAll('.ps-fig.ps-on')].find(x => x.dataset.id === off).click(); return; }
       [...document.querySelectorAll('.ps-fig')].find(x => x.dataset.id === id)?.click();
     }, want);
@@ -142,24 +142,25 @@ const QUICK = process.argv.includes('--quick');
       if (on) break;
       await J((id) => {
         const sel = [...document.querySelectorAll('.ps-fig.ps-on')].map(x => x.dataset.id);
-        const off = sel.find(x => !['ash', 'cassia', 'kiki'].includes(x));
+        const off = sel.find(x => !['ash', 'elin', 'cassia'].includes(x));
         if (sel.length >= 3 && off) [...document.querySelectorAll('.ps-fig.ps-on')].find(x => x.dataset.id === off)?.click();
         else [...document.querySelectorAll('.ps-fig')].find(x => x.dataset.id === id)?.click();
       }, want);
       await sleep(200);
     }
   }
-  check('CONCEPT: picker previews Warsong Phalanx for this trio',
-    await J(() => document.querySelector('.ps-reso')?.textContent.includes('Warsong Phalanx')));
+  check('CONCEPT: picker previews Oathkeepers\' Advance for this trio',
+    await J(() => document.querySelector('.ps-reso')?.textContent.includes('Oathkeepers')));
   await shot('party-select-phalanx');
   await clickOverlayBtn('#ps-go'); await sleep(400);
-  // Deliberate formation: helpers where their help-cards live (Cassia MID has
-  // Cover, Kiki BACK has Crescendo).  Pick order IS the formation.
-  await J(() => { RUN.active = ['ash', 'cassia', 'kiki']; saveRun(); });
+  // Deliberate formation: ash FRONT (attacker), then the two weavers where
+  // their ally-cards live — Cassia MID (Cover), Elin BACK (Benediction) — so
+  // all three threads can close.  Pick order IS the formation.
+  await J(() => { RUN.active = ['ash', 'cassia', 'elin']; saveRun(); });
 
   // next fight: build the triangle deliberately, then verify the FORMATION resonant
   await J(() => document.querySelector('.map-node.mn-fight.mn-reach, .map-node.mn-reach').click()); await sleep(700);
-  check('fight uses composed trio', await J(() => S.heroes.map(h => h.id).sort().join(',') === 'ash,cassia,kiki'));
+  check('fight uses composed trio', await J(() => S.heroes.map(h => h.id).sort().join(',') === 'ash,cassia,elin'));
   // Build the triangle generically: whatever rows the trio landed in, keep
   // playing ally-target cards that form NEW threads until the triad closes.
   let gotCeremony = false;
@@ -194,10 +195,18 @@ const QUICK = process.argv.includes('--quick');
     await J(() => !!document.querySelector('#hand .card.kind-resonant')));
   if (await J(() => S.ep < S.maxEp)) await endTurn();
   const rowsBefore = await J(() => S.enemies.filter(x => !x.dead).map(x => x.id + ':' + x.row).join(' '));
-  await tapCard('Warsong Phalanx'); await sleep(2600);
+  // tap the hijacked resonant card by class (name carries a curly apostrophe)
+  await J(() => {
+    const c = document.querySelector('#hand .card.kind-resonant');
+    c.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 7 }));
+    c.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 7 }));
+  });
+  // wait out the full two-stage cinematic (push, then heal-ripple + front guard)
+  for (let w = 0; w < 20; w++) { if (await J(() => S.heroes.some(h => h.guard >= 4))) break; await sleep(300); }
   const rowsAfter = await J(() => S.enemies.filter(x => !x.dead).map(x => x.id + ':' + x.row).join(' '));
   check('FORMATION resonant pushed the enemy line', rowsBefore !== rowsAfter, rowsBefore + ' -> ' + rowsAfter);
-  check('phalanx guard granted', await J(() => S.heroes.some(h => h.guard >= 4)));
+  check('oathkeepers guard granted', await J(() => S.heroes.some(h => h.guard >= 4)),
+    await J(() => S.heroes.map(h => h.id + ':' + h.row + ':g' + h.guard).join(' ')));
   await shot('phalanx-pushed');
 
   // finish the fight with attacks
@@ -249,12 +258,12 @@ const QUICK = process.argv.includes('--quick');
   // ---------- BOND LOOP: fights grow pairs; kindled pairs pre-connect ----------
   console.log('--- BONDS ---');
   check('LOOP: victory accrued bond points for the held threads',
-    await J(() => ['ash|cassia', 'ash|kiki', 'cassia|kiki'].every(k => (RUN.bonds[k] || 0) >= 1)),
+    await J(() => ['ash|cassia', 'ash|elin', 'cassia|elin'].every(k => (RUN.bonds[k] || 0) >= 1)),
     await J(() => JSON.stringify(RUN.bonds)));
   // fast-forward: fully kindle the trio, open the next fight column
   await J(() => {
-    ['ash|cassia', 'ash|kiki', 'cassia|kiki'].forEach(k => RUN.bonds[k] = 2);
-    RUN.active = ['ash', 'cassia', 'kiki'];
+    ['ash|cassia', 'ash|elin', 'cassia|elin'].forEach(k => RUN.bonds[k] = 2);
+    RUN.active = ['ash', 'cassia', 'elin'];   // cassia MID so her Aegis (ally) is the awakener
     RUN.completed = [0, 1, 2, 3, 4, 5];
     saveRun(); showMap();
   });
