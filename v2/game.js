@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 32;
+const V2_BUILD = 33;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -226,13 +226,15 @@ const ENEMY_DEFS = {
     ],
   },
   echoknight2: {
-    weak: 'song', name: 'THE ECHO KNIGHT, REMEMBERED', maxHp: 60, boss: true, art: 'echoknight',
+    weak: 'song', name: 'THE ECHO KNIGHT, REMEMBERED', maxHp: 60, boss: true, floorBoss: true, art: 'echoknight',
     intents: [
-      { name: 'Returning Stroke', dmg: 7, row: 'front' },
+      // The floor boss fills the field; its blows are CASCADES you parry as a
+      // sequence — taps racing down an arc, a braced hold, a deflect sweep.
+      { name: 'Returning Stroke', dmg: 7, row: 'front', parry: { kind: 'seq', notes: [{ t: 'tap' }, { t: 'tap' }, { t: 'tap' }] } },
       { name: 'Gathers the Echo', kind: 'buff', desc: 'the echo swells', powerSelf: 2 },
-      { name: 'Echoed Arc',       dmg: 5, row: 'mid' },
-      { name: 'Remembered Blade', dmg: 6, row: 'back', expose: 2 },
-      { name: 'OBLIVION ECHO',    dmg: 9, row: 'all', heavy: true },
+      { name: 'Echoed Arc',       dmg: 5, row: 'mid',  parry: { kind: 'seq', notes: [{ t: 'swipe', arc: 'arcR' }, { t: 'tap' }, { t: 'tap' }] } },
+      { name: 'Remembered Blade', dmg: 6, row: 'back', expose: 2, parry: { kind: 'seq', notes: [{ t: 'tap' }, { t: 'tap' }, { t: 'hold' }] } },
+      { name: 'OBLIVION ECHO',    dmg: 9, row: 'all', heavy: true, parry: { kind: 'seq', notes: [{ t: 'tap' }, { t: 'tap' }, { t: 'tap' }, { t: 'swipe', arc: 'arcU' }, { t: 'hold' }] } },
     ],
   },
 };
@@ -383,7 +385,7 @@ const MAP_NODES = [
   { id: 6, col: 6, type: 'fight',   label: 'DRONE NEST',     enemies: ['drone', 'husk', 'wraith'], next: [8] },
   { id: 7, col: 6, type: 'fight',   label: 'COLD PROCESSION',enemies: ['wraith', 'cultist', 'mourner'], next: [8] },
   { id: 8, col: 7, type: 'camp',    label: 'LAST FIRE',      next: [9] },
-  { id: 9, col: 8, type: 'boss',    label: 'THE REMEMBERED', enemies: ['echoknight2', 'cultist'], next: [] },
+  { id: 9, col: 8, type: 'boss',    label: 'THE REMEMBERED', enemies: ['echoknight2'], next: [] },
 ];
 // One voice per hero — camp scenes pair the two least-bonded companions.
 const CAMP_VOICES = {
@@ -1400,26 +1402,31 @@ const SWIPE_ARCS = {
 const PARRY_GLYPH = { tap: '⊙', multi: '⊙⊙', hold: '▭', swipe: '➤' };
 function parryGlyph(intent) {
   const p = parryPatternFor(intent);
+  if (p.kind === 'seq') return '✷' + p.notes.length;   // a bullet-hell cascade
   return p.kind === 'swipe' ? (SWIPE_ARCS[p.arc] || SWIPE_ARCS.arcR).glyph : PARRY_GLYPH[p.kind];
 }
 
-// --- the parry UI base: a ring anchored on the target hero ---
-function mkParryUi(targetEl, innerHtml, cls) {
+// Stage-space anchor (center) of the parry UI for a given target figure.
+function noteAnchor(targetEl) {
   const sr = $('#stage').getBoundingClientRect(), scale = sr.width / 760;
   const r = targetEl.getBoundingClientRect();
+  return { x: (r.left + r.width / 2 - sr.left) / scale, y: (r.top + r.height * 0.4 - sr.top) / scale };
+}
+// --- the parry UI base: a ring at a STAGE coordinate (so boss notes can be
+// placed anywhere along an arc, not just on the target hero) ---
+function mkParryUiAt(ax, ay, innerHtml, cls) {
   const el = document.createElement('div');
   el.className = 'parry-ring ' + (cls || '');
-  el.style.left = ((r.left + r.width / 2 - sr.left) / scale) + 'px';
-  el.style.top = ((r.top + r.height * 0.4 - sr.top) / scale) + 'px';
+  el.style.left = ax + 'px'; el.style.top = ay + 'px';
   el.innerHTML = innerHtml;
   $('#popup-layer').appendChild(el);
   return { el, close: () => { el.classList.add('pr-out'); setTimeout(() => el.remove(), 160); } };
 }
 // TAP note — a closing ring; tap as it lands.
-function parryTapNote(targetEl, dur, idx, total) {
+function parryTapNote(ax, ay, dur, idx, total) {
   return new Promise(resolve => {
-    const label = total > 1 ? `TAP ${idx}/${total}` : 'TAP';
-    const ui = mkParryUi(targetEl, `<span class="pr-target"></span><span class="pr-close"></span><span class="pr-lbl">${label}</span>`);
+    const label = total > 1 ? `${idx}/${total}` : 'TAP';
+    const ui = mkParryUiAt(ax, ay, `<span class="pr-target"></span><span class="pr-close"></span><span class="pr-lbl">${label}</span>`);
     ui.el.querySelector('.pr-close').style.animationDuration = dur + 'ms';
     let done = false; const t0 = Date.now();
     const finish = (q) => { if (done) return; done = true; window.removeEventListener('pointerdown', onTap, true); ui.close(); resolve(q); };
@@ -1429,9 +1436,9 @@ function parryTapNote(targetEl, dur, idx, total) {
   });
 }
 // HOLD note — press and BRACE; keep held until the bar fills (through impact).
-function parryHoldNote(targetEl, dur) {
+function parryHoldNote(ax, ay, dur) {
   return new Promise(resolve => {
-    const ui = mkParryUi(targetEl, `<span class="pr-hold-track"><span class="pr-hold-fill"></span></span><span class="pr-lbl">HOLD</span>`, 'parry-hold');
+    const ui = mkParryUiAt(ax, ay, `<span class="pr-hold-track"><span class="pr-hold-fill"></span></span><span class="pr-lbl">HOLD</span>`, 'parry-hold');
     ui.el.querySelector('.pr-hold-fill').style.animationDuration = dur + 'ms';
     let done = false, holding = false, everHeld = false;
     const finish = (q) => { if (done) return; done = true; window.removeEventListener('pointerdown', onDown, true); window.removeEventListener('pointerup', onUp, true); ui.close(); resolve(q); };
@@ -1445,10 +1452,10 @@ function parryHoldNote(targetEl, dur) {
 // DEFLECT note — trace the curved arc to sweep the blow aside (a real parry
 // carves a curve; so do Project-Diva slide notes).  Detection is forgiving: a
 // sweep whose net direction matches the arc counts, so tracing OR flicking works.
-function parrySwipeNote(targetEl, arc, dur) {
+function parrySwipeNote(ax, ay, arc, dur) {
   return new Promise(resolve => {
     const spec = SWIPE_ARCS[arc] || SWIPE_ARCS.arcR;
-    const ui = mkParryUi(targetEl,
+    const ui = mkParryUiAt(ax, ay,
       `<svg class="pr-arc-svg" viewBox="-60 -60 120 120">
          <path class="pr-arc-path" d="${spec.d}"/>
          <path class="pr-arc-draw" d="${spec.d}"/>
@@ -1469,21 +1476,69 @@ function parrySwipeNote(targetEl, arc, dur) {
     setTimeout(() => finish('miss'), dur);
   });
 }
+// Place N notes along a bowed arc sweeping from the boss toward the target —
+// the "bullet-hell for parries" cascade the floor boss unleashes.
+function arcPoints(n, anchor) {
+  const x0 = 540, y0 = 96;                                   // near the boss
+  const x1 = anchor.x, y1 = Math.max(70, anchor.y - 24);     // toward the hero
+  const cx = (x0 + x1) / 2, cy = Math.min(y0, y1) - 66;      // bow up
+  const pts = [];
+  for (let i = 0; i < n; i++) {
+    const t = n === 1 ? 0.5 : i / (n - 1);
+    const u = 1 - t;
+    pts.push({ x: u * u * x0 + 2 * u * t * cx + t * t * x1, y: u * u * y0 + 2 * u * t * cy + t * t * y1 });
+  }
+  return pts;
+}
+// A faint telegraph of the whole cascade — the arc and every note position —
+// so the incoming sequence reads as "a series along an arc" before it starts.
+function mkSeqPreview(pts) {
+  const dots = pts.map((p, i) => `<circle cx="${p.x}" cy="${p.y}" r="9" class="sq-dot"/><text x="${p.x}" y="${p.y + 3.5}" class="sq-num">${i + 1}</text>`).join('');
+  const d = 'M ' + pts.map(p => `${p.x} ${p.y}`).join(' L ');
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('class', 'seq-preview');
+  svg.setAttribute('viewBox', '0 0 760 430');
+  svg.innerHTML = `<path d="${d}" class="sq-line"/>${dots}`;
+  $('#stage').appendChild(svg);
+  return svg;
+}
+// SEQUENCE — a chain of mixed notes (taps along an arc, a hold, a deflect).
+// Every note must land to fully turn the attack aside; partial → BLOCK.
+async function runParrySeq(notes, anchor) {
+  const pts = arcPoints(notes.length, anchor);
+  const preview = mkSeqPreview(pts);
+  let hits = 0;
+  for (let i = 0; i < notes.length; i++) {
+    const nt = notes[i], p = pts[i];
+    const done = preview.querySelectorAll('.sq-dot')[i]; if (done) done.classList.add('sq-active');
+    let q;
+    if (nt.t === 'hold')       q = await parryHoldNote(p.x, p.y, 720);
+    else if (nt.t === 'swipe') q = await parrySwipeNote(p.x, p.y, nt.arc || 'arcR', 640);
+    else                       q = await parryTapNote(p.x, p.y, 470, i + 1, notes.length);
+    if (done) { done.classList.remove('sq-active'); done.classList.add(q === 'perfect' || q === 'good' ? 'sq-hit' : 'sq-miss'); }
+    if (q === 'perfect' || q === 'good') hits++;
+  }
+  preview.remove();
+  const frac = hits / notes.length;
+  return frac >= 0.999 ? 'perfect' : frac >= 0.5 ? 'good' : 'miss';
+}
 // Run a full pattern; returns 'perfect' | 'good' | 'miss' (| null if disabled).
 async function runParry(targetEl, pattern) {
   if (!PARRY_ENABLED || !targetEl) { await sleep(380); return null; }
+  const a = noteAnchor(targetEl);
   const k = pattern.kind;
-  if (k === 'hold')  return await parryHoldNote(targetEl, 900);
-  if (k === 'swipe') return await parrySwipeNote(targetEl, pattern.arc, 820);
+  if (k === 'seq')   return await runParrySeq(pattern.notes, a);
+  if (k === 'hold')  return await parryHoldNote(a.x, a.y, 900);
+  if (k === 'swipe') return await parrySwipeNote(a.x, a.y, pattern.arc, 820);
   if (k === 'multi') {
     let hits = 0;
     for (let i = 0; i < pattern.count; i++) {
-      const q = await parryTapNote(targetEl, 520, i + 1, pattern.count);
+      const q = await parryTapNote(a.x, a.y, 520, i + 1, pattern.count);
       if (q === 'perfect' || q === 'good') hits++;
     }
     return hits === pattern.count ? 'perfect' : hits > 0 ? 'good' : 'miss';
   }
-  return await parryTapNote(targetEl, 700, 1, 1);
+  return await parryTapNote(a.x, a.y, 700, 1, 1);
 }
 function parryFlash(el) {
   if (!el) return;
@@ -2397,13 +2452,28 @@ function renderBattlefield() {
 
   const enemyHalf = $('#enemy-half');
   enemyHalf.innerHTML = '';
+  // FLOOR BOSS — one colossal foe that fills the enemy half, rendered as a
+  // single big figure instead of the three-slot line.
+  const fboss = S.enemies.find(x => x.def.floorBoss && (!x.dead || x._justDied));
+  enemyHalf.classList.toggle('has-floor-boss', !!fboss);
+  if (fboss) {
+    const fig = document.createElement('div');
+    const primed = !!(fboss.lull || fboss.weakened || fboss.staggered);
+    fig.className = 'figure enemy floor-boss' + (fboss._justDied ? ' fig-dying' : '') + (primed && !fboss._justDied ? ' fig-primed' : '');
+    fig.dataset.fig = fboss.uid;
+    if (targeting && !targeting.isRow && targeting.validIds.includes(fboss.uid)) fig.classList.add('fig-targetable');
+    fig.innerHTML = enemyFigInner(fboss);
+    snapFx(fboss, { weakened: fboss.weakened ? 1 : 0, staggered: fboss.staggered ? 1 : 0, guard: fboss.guard, power: fboss.power, mark: fboss.mark, lull: fboss.lull });
+    fig.onclick = () => onFigureTap(fboss.uid);
+    enemyHalf.appendChild(fig);
+    return;
+  }
   ['front', 'mid', 'back'].forEach(row => {
     const slot = document.createElement('div');
     slot.className = 'slot';
     slot.dataset.row = row;
     const e = S.enemies.find(x => x.row === row && (!x.dead || x._justDied));
     if (e) {
-      const it = e.def.intents[e.intentIdx % e.def.intents.length];
       const fig = document.createElement('div');
       // PRIMED — this foe is set up for a TECHNICAL detonation (chilled or
       // weakened).  A pulsing electric ring + ⚡ tag reads "hit me for a combo".
@@ -2412,30 +2482,35 @@ function renderBattlefield() {
       fig.dataset.fig = e.uid;
       const targetable = targeting && !targeting.isRow && targeting.validIds.includes(e.uid);
       if (targetable) fig.classList.add('fig-targetable');
-      const intentHtml = it.kind === 'buff'
-        ? `<div class="intent intent-buff"><span>◈</span><span class="i-row">${it.desc || 'gathers'}</span></div>`
-        : `<div class="intent${it.heavy ? ' intent-heavy' : ''}"><span>⚔</span><span class="i-dmg">${enemyIntentDmg(e, it)}</span>${it.chill ? '<span class="i-st kw-chill">❄</span>' : ''}${it.expose ? '<span class="i-st kw-exposed">◎</span>' : ''}<span class="i-row">→ ${it.row === 'all' ? 'ALL' : ROW_LABEL[it.row]}</span><span class="i-parry" title="parry pattern">${parryGlyph(it)}</span>${it.heavy ? '<span class="i-break">⚡ STAGGER breaks</span>' : ''}</div>`;
-      fig.innerHTML = `
-        ${intentHtml}
-        <div class="fig-art">${enemyArt(e)}${e._justDied ? '' : auraHTML({ guard: e.guard, rally: e.power, chill: e.lull, exposed: e.mark, weak: e.weakened, stagger: e.staggered })}</div>
-        <div class="fig-chips">
-          <span class="chip weak${e.weakRevealed ? ' revealed' : ''}" title="weakness — hit this element to WEAKEN, twice to STAGGER">${e.weakRevealed ? 'WEAK ' + (SCHOOL_GLYPH[e.def.weak] || '?') : '? ? ?'}</span>
-          ${e.weakened ? `<span class="chip mark${chipPop(e,'weakened',1)}">⌖</span>` : ''}
-          ${e.staggered ? `<span class="chip stagger${chipPop(e,'staggered',1)}">⚡</span>` : ''}
-          ${e.guard ? `<span class="chip guard${chipPop(e,'guard',e.guard)}">⛨ ${e.guard}</span>` : ''}
-          ${e.power ? `<span class="chip buff${chipPop(e,'power',e.power)}">▲ ${e.power}</span>` : ''}
-          ${e.mark ? `<span class="chip mark${chipPop(e,'mark',e.mark)}">◎ ${e.mark}</span>` : ''}
-          ${e.lull ? `<span class="chip chill${chipPop(e,'lull',e.lull)}">❄ ${e.lull}</span>` : ''}
-        </div>
-        <div class="hp-bar"><div class="hp-fill" style="width:${(e.hp / e.maxHp) * 100}%"></div></div>
-        <div class="fig-name">${e.def.name} <span class="hp-num">${e.hp}/${e.maxHp}</span></div>
-      `;
+      fig.innerHTML = enemyFigInner(e);
       snapFx(e, { weakened: e.weakened ? 1 : 0, staggered: e.staggered ? 1 : 0, guard: e.guard, power: e.power, mark: e.mark, lull: e.lull });
       fig.onclick = () => onFigureTap(e.uid);
       slot.appendChild(fig);
     }
     enemyHalf.appendChild(slot);
   });
+}
+// The inner markup for an enemy figure (shared by the line + the floor boss).
+function enemyFigInner(e) {
+  const it = e.def.intents[e.intentIdx % e.def.intents.length];
+  const intentHtml = it.kind === 'buff'
+    ? `<div class="intent intent-buff"><span>◈</span><span class="i-row">${it.desc || 'gathers'}</span></div>`
+    : `<div class="intent${it.heavy ? ' intent-heavy' : ''}"><span>⚔</span><span class="i-dmg">${enemyIntentDmg(e, it)}</span>${it.chill ? '<span class="i-st kw-chill">❄</span>' : ''}${it.expose ? '<span class="i-st kw-exposed">◎</span>' : ''}<span class="i-row">→ ${it.row === 'all' ? 'ALL' : ROW_LABEL[it.row]}</span><span class="i-parry" title="parry pattern">${parryGlyph(it)}</span>${it.heavy ? '<span class="i-break">⚡ STAGGER breaks</span>' : ''}</div>`;
+  return `
+    ${intentHtml}
+    <div class="fig-art">${enemyArt(e)}${e._justDied ? '' : auraHTML({ guard: e.guard, rally: e.power, chill: e.lull, exposed: e.mark, weak: e.weakened, stagger: e.staggered })}</div>
+    <div class="fig-chips">
+      <span class="chip weak${e.weakRevealed ? ' revealed' : ''}" title="weakness — hit this element to WEAKEN, twice to STAGGER">${e.weakRevealed ? 'WEAK ' + (SCHOOL_GLYPH[e.def.weak] || '?') : '? ? ?'}</span>
+      ${e.weakened ? `<span class="chip mark${chipPop(e,'weakened',1)}">⌖</span>` : ''}
+      ${e.staggered ? `<span class="chip stagger${chipPop(e,'staggered',1)}">⚡</span>` : ''}
+      ${e.guard ? `<span class="chip guard${chipPop(e,'guard',e.guard)}">⛨ ${e.guard}</span>` : ''}
+      ${e.power ? `<span class="chip buff${chipPop(e,'power',e.power)}">▲ ${e.power}</span>` : ''}
+      ${e.mark ? `<span class="chip mark${chipPop(e,'mark',e.mark)}">◎ ${e.mark}</span>` : ''}
+      ${e.lull ? `<span class="chip chill${chipPop(e,'lull',e.lull)}">❄ ${e.lull}</span>` : ''}
+    </div>
+    <div class="hp-bar"><div class="hp-fill" style="width:${(e.hp / e.maxHp) * 100}%"></div></div>
+    <div class="fig-name">${e.def.name} <span class="hp-num">${e.hp}/${e.maxHp}</span></div>
+  `;
 }
 
 function renderThreads(newKey) {

@@ -338,6 +338,13 @@ const QUICK = process.argv.includes('--quick');
   await endTurn();
   check('INTERRUPT: the staggered boss’s heavy wind-up BROKE (party untouched)',
     await J(() => S.heroes.every(h => h.hp === h.maxHp)));
+  // FLOOR BOSS — colossal render + bullet-hell cascade parry sequences
+  check('FLOOR BOSS: renders as one colossal figure filling the enemy half',
+    await J(() => !!document.querySelector('#enemy-half.has-floor-boss .figure.floor-boss[data-fig]')));
+  check('FLOOR BOSS: its OBLIVION blow is a 5-note parry CASCADE',
+    await J(() => { const p = parryPatternFor(ENEMY_DEFS.echoknight2.intents[4]); return p.kind === 'seq' && p.notes.length === 5; }));
+  check('FLOOR BOSS: the cascade previews on the telegraph (✷5)',
+    await J(() => parryGlyph(ENEMY_DEFS.echoknight2.intents[4]) === '✷5'));
 
   // ---------- REACTIVE: 'NOT TODAY' — costed protection ----------
   console.log('--- REACTIVE ---');
