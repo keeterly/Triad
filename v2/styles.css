@@ -1269,3 +1269,46 @@ body {
 .seq-preview .sq-dot.sq-hit { fill: rgba(120,200,120,0.5); stroke: #9ad878; }
 .seq-preview .sq-dot.sq-miss { fill: rgba(200,70,70,0.5); stroke: #e06a6a; }
 .seq-preview .sq-num { fill: #ffe6a4; font-size: 9px; font-family: Georgia, serif; text-anchor: middle; }
+
+/* ===========================================================================
+   BUILD 34 — JUICE: parry per-gesture feedback + hit flash / hitstop
+   =========================================================================== */
+/* rating callout at the note the instant a gesture lands */
+.parry-rate {
+  position: absolute; transform: translate(-50%,-50%); pointer-events: none; z-index: 64;
+  font-family: Georgia, serif; font-weight: bold; letter-spacing: 0.08em; white-space: nowrap;
+  animation: parry-rate 0.62s cubic-bezier(0.2,1.4,0.4,1) forwards;
+}
+.parry-rate em { font-style: normal; font-size: 0.82em; opacity: 0.9; }
+.parry-rate.prt-perfect { color: #ffe14a; font-size: 20px; text-shadow: 0 0 12px rgba(255,225,74,0.9), 0 2px 4px #000; }
+.parry-rate.prt-good    { color: #a8e0ff; font-size: 17px; text-shadow: 0 0 10px rgba(142,203,232,0.8), 0 2px 4px #000; }
+.parry-rate.prt-miss    { color: #e06a6a; font-size: 15px; text-shadow: 0 2px 4px #000; }
+@keyframes parry-rate {
+  0%   { opacity: 0; transform: translate(-50%,-50%) scale(0.4); }
+  25%  { opacity: 1; transform: translate(-50%,-90%) scale(1.15); }
+  60%  { transform: translate(-50%,-108%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%,-150%) scale(1); }
+}
+/* burst ring on the note */
+.parry-burst {
+  position: absolute; transform: translate(-50%,-50%); pointer-events: none; z-index: 63;
+  border-radius: 50%; border: 3px solid #fff; animation: parry-burst 0.42s ease-out forwards;
+}
+@keyframes parry-burst { 0% { width: 12px; height: 12px; opacity: 0.9; } 100% { width: 84px; height: 84px; opacity: 0; } }
+.parry-burst.pb-perfect { border-color: #ffe14a; box-shadow: 0 0 16px rgba(255,225,74,0.85); }
+.parry-burst.pb-good    { border-color: #8ecbe8; }
+.parry-burst.pb-miss    { border-color: rgba(224,106,106,0.7); animation-duration: 0.3s; }
+/* the note ring itself pops on landing */
+.parry-ring.pr-land-perfect .pr-close, .parry-ring.pr-land-good .pr-close { animation: pr-land 0.2s ease-out forwards !important; }
+@keyframes pr-land { 0% { filter: brightness(2.6); } 100% { transform: translate(-50%,-50%) scale(1.6); opacity: 0; } }
+
+/* HIT FLASH + HITSTOP */
+.hit-flash {
+  position: absolute; inset: 0; z-index: 47; pointer-events: none;
+  background: radial-gradient(ellipse at 50% 46%, rgba(255,255,255,0.22) 0%, transparent 60%);
+  animation: hit-flash 0.12s ease-out forwards;
+}
+.hit-flash.hit-flash-big { background: radial-gradient(ellipse at 50% 46%, rgba(255,242,224,0.5) 0%, transparent 66%); animation-duration: 0.19s; }
+@keyframes hit-flash { 0% { opacity: 1; } 100% { opacity: 0; } }
+/* the meaty freeze on a heavy blow — every animation holds for ~85ms */
+#stage.hitstop, #stage.hitstop *, #stage.hitstop *::before, #stage.hitstop *::after { animation-play-state: paused !important; }

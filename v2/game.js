@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 33;
+const V2_BUILD = 34;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -58,6 +58,12 @@ const SFX = (() => {
     enemy:   () => tone(220, 0.09, 'square', 0.04, 0, 180),
     follow:  () => { tone(500, 0.07, 'triangle', 0.05); tone(750, 0.1, 'triangle', 0.05, 0.06); },
     deny:    () => { tone(150, 0.08, 'square', 0.05, 0, 110); tone(120, 0.1, 'square', 0.045, 0.06, 90); },
+    // parry gesture feedback — pitch RAMPS with the combo streak (rhythm feel)
+    parry:   (perfect, streak) => { const b = 620 + Math.min(8, streak || 0) * 55; tone(b, 0.06, 'triangle', 0.06); if (perfect) tone(b * 1.5, 0.12, 'sine', 0.05, 0.03); },
+    parryMiss: () => tone(140, 0.12, 'sawtooth', 0.05, 0, 90),
+    swoosh:  () => { tone(300, 0.14, 'sine', 0.04, 0, 900); },
+    brace:   () => tone(160, 0.16, 'square', 0.05),
+    hitstop: () => tone(70, 0.05, 'square', 0.05),
   };
 })();
 
@@ -1306,7 +1312,8 @@ function dealToEnemy(e, amt, school, byHeroId) {
   // in resolveCard where the attacker is known)
   if (byHeroId) lungeFig(figEl(byHeroId));       // the striker drives forward
   impactFx(figEl(e.uid), school || 'phys', big); // school-typed blow lands
-  shake(figEl(e.uid), 'r');                       // enemy recoils away
+  struck(figEl(e.uid), 'r');                 // recoil + flash + brief stun
+  hitFlash(big);                                  // screen flash (+ hitstop if big)
   SFX.hit(big);
   if (big) stageShake();
   if (technical) {                                // detonation callout
@@ -1329,6 +1336,28 @@ function dealToEnemy(e, amt, school, byHeroId) {
 function stageShake() {
   const st = $('#stage');
   st.classList.remove('stage-shake'); void st.offsetWidth; st.classList.add('stage-shake');
+}
+// A struck figure: directional recoil + bright flash.  On big hits the global
+// HITSTOP (below) freezes this recoil mid-pose for the "the blow connects" beat.
+function struck(el, dir) {
+  if (!el) return;
+  const cls = dir === 'r' ? 'fig-hit-r' : dir === 'l' ? 'fig-hit-l' : 'fig-hit';
+  el.classList.remove('fig-hit', 'fig-hit-l', 'fig-hit-r'); void el.offsetWidth;
+  el.classList.add(cls);
+}
+// Full-screen impact flash; big hits also HITSTOP — a ~80ms freeze of every
+// animation for that meaty "the blow connects" beat.
+function hitFlash(big) {
+  const st = $('#stage');
+  const f = document.createElement('div');
+  f.className = 'hit-flash' + (big ? ' hit-flash-big' : '');
+  st.appendChild(f);
+  setTimeout(() => f.remove(), big ? 190 : 120);
+  if (big) {
+    st.classList.add('hitstop');
+    setTimeout(() => st.classList.remove('hitstop'), 85);
+    try { SFX.hitstop(); } catch (_) {}
+  }
 }
 function pulseEp() {
   const dial = $('#ep-dial');
@@ -1422,6 +1451,29 @@ function mkParryUiAt(ax, ay, innerHtml, cls) {
   $('#popup-layer').appendChild(el);
   return { el, close: () => { el.classList.add('pr-out'); setTimeout(() => el.remove(), 160); } };
 }
+// Immediate per-gesture RESPONSE: rating text + a burst ring at the note, a
+// combo streak that escalates, and a pitch-ramped tick.  This is the rhythm
+// feedback — you FEEL every tap land the instant you make it.
+let _parryStreak = 0;
+function noteFeedback(ui, ax, ay, q) {
+  const good = q === 'perfect' || q === 'good';
+  if (good) _parryStreak++; else _parryStreak = 0;
+  ui.el.classList.add(q === 'perfect' ? 'pr-land-perfect' : good ? 'pr-land-good' : 'pr-land-miss');
+  const layer = $('#popup-layer');
+  const rate = document.createElement('div');
+  rate.className = 'parry-rate ' + (q === 'perfect' ? 'prt-perfect' : good ? 'prt-good' : 'prt-miss');
+  rate.style.left = ax + 'px'; rate.style.top = (ay - 4) + 'px';
+  const word = q === 'perfect' ? 'PERFECT' : q === 'good' ? 'GOOD' : q === 'early' ? 'EARLY' : 'MISS';
+  rate.innerHTML = word + (good && _parryStreak > 1 ? ` <em>×${_parryStreak}</em>` : '');
+  layer.appendChild(rate);
+  setTimeout(() => rate.remove(), 620);
+  const burst = document.createElement('div');
+  burst.className = 'parry-burst ' + (q === 'perfect' ? 'pb-perfect' : good ? 'pb-good' : 'pb-miss');
+  burst.style.left = ax + 'px'; burst.style.top = ay + 'px';
+  layer.appendChild(burst);
+  setTimeout(() => burst.remove(), 440);
+  try { if (good) SFX.parry(q === 'perfect', _parryStreak); else SFX.parryMiss(); } catch (_) {}
+}
 // TAP note — a closing ring; tap as it lands.
 function parryTapNote(ax, ay, dur, idx, total) {
   return new Promise(resolve => {
@@ -1429,8 +1481,8 @@ function parryTapNote(ax, ay, dur, idx, total) {
     const ui = mkParryUiAt(ax, ay, `<span class="pr-target"></span><span class="pr-close"></span><span class="pr-lbl">${label}</span>`);
     ui.el.querySelector('.pr-close').style.animationDuration = dur + 'ms';
     let done = false; const t0 = Date.now();
-    const finish = (q) => { if (done) return; done = true; window.removeEventListener('pointerdown', onTap, true); ui.close(); resolve(q); };
-    const onTap = () => { const rem = dur - (Date.now() - t0); finish(rem <= 165 ? 'perfect' : rem <= 445 ? 'good' : 'early'); };
+    const finish = (q) => { if (done) return; done = true; window.removeEventListener('pointerdown', onTap, true); noteFeedback(ui, ax, ay, q); ui.close(); resolve(q); };
+    const onTap = () => { const rem = dur - (Date.now() - t0); finish(rem <= 175 ? 'perfect' : rem <= 460 ? 'good' : 'early'); };
     window.addEventListener('pointerdown', onTap, true);
     setTimeout(() => finish('miss'), dur);
   });
@@ -1441,8 +1493,8 @@ function parryHoldNote(ax, ay, dur) {
     const ui = mkParryUiAt(ax, ay, `<span class="pr-hold-track"><span class="pr-hold-fill"></span></span><span class="pr-lbl">HOLD</span>`, 'parry-hold');
     ui.el.querySelector('.pr-hold-fill').style.animationDuration = dur + 'ms';
     let done = false, holding = false, everHeld = false;
-    const finish = (q) => { if (done) return; done = true; window.removeEventListener('pointerdown', onDown, true); window.removeEventListener('pointerup', onUp, true); ui.close(); resolve(q); };
-    const onDown = () => { holding = true; everHeld = true; ui.el.classList.add('pr-pressed'); };
+    const finish = (q) => { if (done) return; done = true; window.removeEventListener('pointerdown', onDown, true); window.removeEventListener('pointerup', onUp, true); noteFeedback(ui, ax, ay, q); ui.close(); resolve(q); };
+    const onDown = () => { if (!everHeld) { try { SFX.brace(); } catch (_) {} } holding = true; everHeld = true; ui.el.classList.add('pr-pressed'); };
     const onUp = () => { holding = false; ui.el.classList.remove('pr-pressed'); };
     window.addEventListener('pointerdown', onDown, true);
     window.addEventListener('pointerup', onUp, true);
@@ -1463,11 +1515,11 @@ function parrySwipeNote(ax, ay, arc, dur) {
        </svg><span class="pr-lbl">DEFLECT ${spec.glyph}</span>`, 'parry-swipe');
     ui.el.querySelector('.pr-arc-draw').style.animationDuration = dur + 'ms';
     let done = false, sx = null, sy = null, maxHit = null; const t0 = Date.now();
-    const finish = (q) => { if (done) return; done = true; window.removeEventListener('pointerdown', onDown, true); window.removeEventListener('pointermove', onMove, true); window.removeEventListener('pointerup', onUp, true); ui.close(); resolve(q); };
+    const finish = (q) => { if (done) return; done = true; window.removeEventListener('pointerdown', onDown, true); window.removeEventListener('pointermove', onMove, true); window.removeEventListener('pointerup', onUp, true); noteFeedback(ui, ax, ay, q); ui.close(); resolve(q); };
     const onDown = (e) => { sx = e.clientX; sy = e.clientY; };
     const onMove = (e) => {
       if (sx == null || maxHit) return;
-      if (spec.ok(e.clientX - sx, e.clientY - sy)) { maxHit = true; const rem = dur - (Date.now() - t0); finish(rem <= 250 ? 'perfect' : 'good'); }
+      if (spec.ok(e.clientX - sx, e.clientY - sy)) { maxHit = true; try { SFX.swoosh(); } catch (_) {} const rem = dur - (Date.now() - t0); finish(rem <= 250 ? 'perfect' : 'good'); }
     };
     const onUp = () => { sx = null; };
     window.addEventListener('pointerdown', onDown, true);
@@ -1512,11 +1564,12 @@ async function runParrySeq(notes, anchor) {
     const nt = notes[i], p = pts[i];
     const done = preview.querySelectorAll('.sq-dot')[i]; if (done) done.classList.add('sq-active');
     let q;
-    if (nt.t === 'hold')       q = await parryHoldNote(p.x, p.y, 720);
-    else if (nt.t === 'swipe') q = await parrySwipeNote(p.x, p.y, nt.arc || 'arcR', 640);
-    else                       q = await parryTapNote(p.x, p.y, 470, i + 1, notes.length);
+    if (nt.t === 'hold')       q = await parryHoldNote(p.x, p.y, 760);
+    else if (nt.t === 'swipe') q = await parrySwipeNote(p.x, p.y, nt.arc || 'arcR', 680);
+    else                       q = await parryTapNote(p.x, p.y, 500, i + 1, notes.length);
     if (done) { done.classList.remove('sq-active'); done.classList.add(q === 'perfect' || q === 'good' ? 'sq-hit' : 'sq-miss'); }
     if (q === 'perfect' || q === 'good') hits++;
+    await sleep(130);   // a beat between notes so the cascade reads, not rushes
   }
   preview.remove();
   const frac = hits / notes.length;
@@ -1814,6 +1867,7 @@ function turnBanner(text, cls) {
 
 async function enemyPhase() {
   turnBanner('ENEMY TURN', 'tb-enemy');
+  _parryStreak = 0;   // a fresh parry combo for the phase
   // WEAKENED expires if you didn't capitalize this turn; STAGGERED holds
   // through the phase — a staggered enemy can be interrupted below.
   livingEnemies().forEach(e => { e.weakened = false; });
@@ -1910,7 +1964,8 @@ async function enemyPhase() {
           const big = left >= 7;
           popupAt(figEl(h.id), '−' + left, 'dmg' + (big ? ' popup-big' : ''));
           impactFx(figEl(h.id), 'foe', big);   // red claw-strike on the hero
-          shake(figEl(h.id), 'l');              // hero recoils away from foes
+          struck(figEl(h.id), 'l');        // recoil + flash + brief stun
+          hitFlash(big);
           SFX.hit(big);
           if (big) stageShake();
           (e._damaged || (e._damaged = [])).push(h.id);   // remembered for AVENGE
