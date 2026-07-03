@@ -73,7 +73,7 @@ const QUICK = process.argv.includes('--quick');
   check('thread formed on heal', await J(() => S.threads.size === 1));
   check('CONCEPT: bond steels both (+2 guard each)', await J(() => S.heroes.every(h => h.guard >= 2)),
     await J(() => S.heroes.map(h => h.id + ':' + h.guard).join(',')));
-  check('thread line renders', await J(() => document.querySelectorAll('.thread-line').length === 1));
+  check('DECLUTTER: bonds no longer draw a permanent web of lines', await J(() => document.querySelectorAll('#thread-layer .thread-line').length === 0));
   check('GENERATED: the first bond materialized ECHO BOND', await J(() => !!document.querySelector('#hand .card[data-card-name="Echo Bond"]')));
   await tapCard('Echo Bond'); await sleep(550);
   check('ECHO BOND: the pair moves as one (⛨5 · ▲2 each)',

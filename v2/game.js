@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 34;
+const V2_BUILD = 35;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -1603,7 +1603,8 @@ async function addThread(a, b) {
   const key = pairKey(a, b);
   if (S.threads.has(key)) { await checkTriad(a); return; }   // kindled threads awaken on any help
   S.threads.add(key);
-  renderThreads(key);
+  sparkThread(a, b);       // a single arc of connection, then it fades
+  renderResonance();       // update the RESONANCE badge (edge lights up)
   SFX.thread();
   // The fight's FIRST bond materializes an Echo Bond — a card the pair
   // shares, stronger if the two are already kindled (progression made card).
@@ -2413,6 +2414,7 @@ function renderAll() {
   renderTimeline();
   renderBattlefield();
   renderThreads();
+  renderResonance();
   renderActionBar();
 }
 
@@ -2568,48 +2570,51 @@ function enemyFigInner(e) {
   `;
 }
 
-function renderThreads(newKey) {
+// Bonds no longer draw a permanent web of lines across the party (it cluttered
+// the field and read vaguely).  The thread layer stays clear; a bond forming
+// plays a single quick SPARK between the pair (see sparkThread), and the running
+// state lives in the compact RESONANCE badge (see renderResonance).
+function renderThreads() {
   const svg = $('#thread-layer');
-  svg.innerHTML = '';
-  if (!S || S.node.chapter < 2) return;
-  const stageR = $('#stage').getBoundingClientRect();
-  const scale = stageR.width / 760;
-  S.threads.forEach(key => {
-    const [a, b] = key.split('|');
-    const ea = figEl(a), eb = figEl(b);
-    if (!ea || !eb) return;
-    const ra = ea.getBoundingClientRect(), rb = eb.getBoundingClientRect();
-    const bf = $('#battlefield').getBoundingClientRect();
-    const x1 = (ra.left + ra.width / 2 - bf.left) / scale;
-    const y1 = (ra.top + ra.height * 0.45 - bf.top) / scale;
-    const x2 = (rb.left + rb.width / 2 - bf.left) / scale;
-    const y2 = (rb.top + rb.height * 0.45 - bf.top) / scale;
-    const midY = Math.min(y1, y2) - 22;
-    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    path.setAttribute('d', `M ${x1} ${y1} Q ${(x1 + x2) / 2} ${midY} ${x2} ${y2}`);
-    path.setAttribute('class', 'thread-line' + (key === newKey ? ' thread-new' : ''));
-    svg.appendChild(path);
-  });
-  // Ghost the MISSING links once the first thread exists: the player sees
-  // the triangle taking shape and exactly which bond is still unformed.
-  const live = livingHeroes();
-  if (S.threads.size > 0 && !S.triadFormed && live.length >= 3) {
-    const ids = live.map(h => h.id);
-    for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) {
-      const k = pairKey(ids[i], ids[j]);
-      if (S.threads.has(k)) continue;
-      const ea = figEl(ids[i]), eb = figEl(ids[j]);
-      if (!ea || !eb) continue;
-      const ra = ea.getBoundingClientRect(), rb = eb.getBoundingClientRect();
-      const bf = $('#battlefield').getBoundingClientRect();
-      const x1 = (ra.left + ra.width / 2 - bf.left) / scale, y1 = (ra.top + ra.height * 0.45 - bf.top) / scale;
-      const x2 = (rb.left + rb.width / 2 - bf.left) / scale, y2 = (rb.top + rb.height * 0.45 - bf.top) / scale;
-      const g = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      g.setAttribute('d', `M ${x1} ${y1} Q ${(x1 + x2) / 2} ${Math.min(y1, y2) - 22} ${x2} ${y2}`);
-      g.setAttribute('class', 'thread-line thread-ghost');
-      svg.appendChild(g);
-    }
-  }
+  if (svg) svg.innerHTML = '';
+}
+// A one-shot spark that arcs between two bonded heroes, then fades — the moment
+// of connection, not a persistent tether.
+function sparkThread(a, b) {
+  const ea = figEl(a), eb = figEl(b); if (!ea || !eb) return;
+  const bf = $('#battlefield').getBoundingClientRect(), scale = bf.width / 760 || 1;
+  const ra = ea.getBoundingClientRect(), rb = eb.getBoundingClientRect();
+  const x1 = (ra.left + ra.width / 2 - bf.left) / scale, y1 = (ra.top + ra.height * 0.42 - bf.top) / scale;
+  const x2 = (rb.left + rb.width / 2 - bf.left) / scale, y2 = (rb.top + rb.height * 0.42 - bf.top) / scale;
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('class', 'thread-spark');
+  svg.setAttribute('viewBox', `0 0 ${Math.round(bf.width / scale)} ${Math.round(bf.height / scale)}`);
+  svg.innerHTML = `<path d="M ${x1} ${y1} Q ${(x1 + x2) / 2} ${Math.min(y1, y2) - 26} ${x2} ${y2}" class="ts-line"/>`;
+  $('#battlefield').appendChild(svg);
+  setTimeout(() => svg.remove(), 850);
+}
+// The RESONANCE badge — a small triangle of the trio's three bonds.  Each edge
+// lights as its thread forms; a full triangle is TRIAD READY.  Replaces the old
+// web of lines with one legible "how close am I to the vow" read.
+function renderResonance() {
+  const el = $('#resonance'); if (!el) return;
+  const live = S ? livingHeroes() : [];
+  if (!S || S.node.chapter < 2 || live.length < 3) { el.classList.add('hidden'); el.classList.remove('rz-ready'); return; }
+  el.classList.remove('hidden');
+  const ids = live.slice(0, 3).map(h => h.id);
+  const C = [{ x: 23, y: 7 }, { x: 43, y: 39 }, { x: 3, y: 39 }];
+  const E = [[0, 1], [1, 2], [0, 2]];
+  let formed = 0;
+  const edges = E.map(([i, j]) => {
+    const on = S.threads.has(pairKey(ids[i], ids[j])); if (on) formed++;
+    return `<line x1="${C[i].x}" y1="${C[i].y}" x2="${C[j].x}" y2="${C[j].y}" class="rz-edge${on ? ' on' : ''}"/>`;
+  }).join('');
+  const fill = formed === 3 ? `<polygon points="${C.map(c => c.x + ',' + c.y).join(' ')}" class="rz-fill"/>` : '';
+  const dots = ids.map((id, i) => `<circle cx="${C[i].x}" cy="${C[i].y}" r="4.2" class="rz-dot" style="fill:${HEROES[id].tint}"/>`).join('');
+  const ready = S.triadFormed && !S.resonantUsed;
+  el.classList.toggle('rz-ready', ready);
+  const label = S.resonantUsed ? 'VOW SPENT' : ready ? '✦ TRIAD READY' : 'RESONANCE ' + formed + '/3';
+  el.innerHTML = `<svg viewBox="-3 -3 52 48" class="rz-svg">${fill}${edges}${dots}</svg><span class="rz-lbl">${label}</span>`;
 }
 
 // The MOMENTUM gauge — fills as you exploit weaknesses / chain LINKs; when

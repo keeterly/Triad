@@ -1312,3 +1312,37 @@ body {
 @keyframes hit-flash { 0% { opacity: 1; } 100% { opacity: 0; } }
 /* the meaty freeze on a heavy blow — every animation holds for ~85ms */
 #stage.hitstop, #stage.hitstop *, #stage.hitstop *::before, #stage.hitstop *::after { animation-play-state: paused !important; }
+
+/* ===========================================================================
+   BUILD 35 — DECLUTTER: resonance badge replaces the web of bond lines
+   =========================================================================== */
+#resonance {
+  display: flex; align-items: center; gap: 6px; margin-left: 8px;
+  padding: 2px 11px 2px 5px; border-radius: 999px;
+  background: rgba(14,10,8,0.7); border: 1px solid rgba(240,212,136,0.25);
+}
+#resonance.hidden { display: none; }
+.rz-svg { width: 26px; height: 24px; overflow: visible; flex: none; }
+.rz-edge { stroke: rgba(240,212,136,0.18); stroke-width: 2; stroke-linecap: round; transition: stroke 0.3s ease; }
+.rz-edge.on { stroke: var(--gold-bright); filter: drop-shadow(0 0 3px rgba(240,212,136,0.7)); }
+.rz-dot { stroke: rgba(0,0,0,0.55); stroke-width: 0.6; }
+.rz-fill { fill: rgba(240,212,136,0.16); }
+.rz-lbl { font-size: 8px; letter-spacing: 0.18em; color: var(--ink-dim); white-space: nowrap; }
+#resonance.rz-ready { border-color: var(--gold-bright); animation: rz-ready 1.1s ease-in-out infinite; }
+#resonance.rz-ready .rz-lbl { color: var(--gold-bright); }
+@keyframes rz-ready { 0%,100% { box-shadow: 0 0 6px rgba(240,212,136,0.3); } 50% { box-shadow: 0 0 16px rgba(240,212,136,0.7); } }
+
+/* one-shot bond spark — arcs between the pair, then fades (no persistence) */
+.thread-spark { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 6; overflow: visible; }
+.thread-spark .ts-line {
+  fill: none; stroke: var(--gold-bright); stroke-width: 2.5; stroke-linecap: round;
+  stroke-dasharray: 320; stroke-dashoffset: 320;
+  filter: drop-shadow(0 0 6px rgba(240,212,136,0.85));
+  animation: ts-spark 0.85s ease-out forwards;
+}
+@keyframes ts-spark {
+  0%   { stroke-dashoffset: 320; opacity: 0; }
+  22%  { opacity: 1; }
+  60%  { stroke-dashoffset: 0; opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 0; }
+}
