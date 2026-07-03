@@ -413,6 +413,36 @@ const QUICK = process.argv.includes('--quick');
     await J((o) => S.enemies[1].hp === o.w - 4 && S.enemies[0].hp === o.h, { w: wraithHp0, h: huskHp0 }),
     await J(() => 'husk:'+S.enemies[0].hp+' wraith:'+S.enemies[1].hp));
 
+  // ---------- MOMENTUM: technical detonation + all-out burst ----------
+  console.log('--- MOMENTUM ---');
+  await J(() => {
+    hideOverlay();
+    startFight({ type:'fight', chapter:3, heroes:['ash','elin','kiki'], enemies:['husk','wraith'], narrator:'momentum drill' });
+    S.enemies.forEach(e => { e.hp = e.maxHp = 50; e.weakRevealed = true; });
+    S.enemies[0].lull = 2;   // husk primed (CHILLED)
+    S.momentum = 0; S.combo = 0;
+    renderAll();
+  });
+  await sleep(300);
+  check('PRIMED: a chilled foe is flagged for detonation', await J(() => !!document.querySelector('.figure.fig-primed')));
+  const tech = await J(() => {
+    const before = S.enemies[0].hp, mom0 = S.momentum;
+    dealToEnemy(S.enemies[0], 6, 'blade', 'ash');   // off-weakness hit on a chilled foe
+    return { dealt: before - S.enemies[0].hp, momGain: S.momentum - mom0 };
+  });
+  check('TECHNICAL: off-weakness hit on a primed foe detonates (+4 bonus)', tech.dealt === 10, 'dealt ' + tech.dealt);
+  check('TECHNICAL builds momentum', tech.momGain > 0, '+' + tech.momGain);
+  // fill and unleash the all-out
+  const allOut = await J(async () => {
+    S.momentum = 100; renderAll();
+    const before = S.enemies.map(e => e.hp);
+    await triggerAllOut();
+    return { before, after: S.enemies.map(e => e.hp), momentum: S.momentum, used: S.allOutUsed };
+  });
+  check('BURST: ALL-OUT hit the whole enemy line', allOut.after.every((hp, i) => hp < allOut.before[i]),
+    JSON.stringify(allOut.before) + ' -> ' + JSON.stringify(allOut.after));
+  check('BURST: momentum spent to zero', allOut.momentum === 0 && allOut.used >= 1);
+
   t.report();
   await t.browser.close();
 })().catch(e => { console.error('FATAL', e.message); process.exit(1); });

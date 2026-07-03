@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 27;
+const V2_BUILD = 28;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -1234,6 +1234,16 @@ function dealToEnemy(e, amt, school, byHeroId) {
     popupAt(figEl(e.uid), '×2!', 'dmg popup-big');
     stageShake();
   }
+  // TECHNICAL — striking a PRIMED foe (CHILLED or WEAKENED) off the weakness
+  // line detonates the setup for bonus damage + momentum.  This is the combo
+  // payoff: prime with a status card, then anyone cashes it.  (Suppressed in an
+  // all-out, which runs its own detonation.)
+  let technical = false;
+  if (byHeroId && !S._burstResolving && (e.lull || e.weakened) && !(school && school === e.def.weak)) {
+    amt += 4;
+    technical = true;
+    gainMomentum(8, { combo: true });
+  }
   let left = amt;
   if (e.guard > 0) { const g = Math.min(e.guard, left); e.guard -= g; left -= g; }
   e.hp = Math.max(0, e.hp - left);
@@ -1283,6 +1293,11 @@ function dealToEnemy(e, amt, school, byHeroId) {
   shake(figEl(e.uid), 'r');                       // enemy recoils away
   SFX.hit(big);
   if (big) stageShake();
+  if (technical) {                                // detonation callout
+    popupAt(figEl(e.uid), '⚡ TECHNICAL', 'tech');
+    techBurst(figEl(e.uid));
+    stageShake();
+  }
   if (e.hp === 0 && !e.dead) {
     e.dead = true;
     e._justDied = true;
@@ -2217,7 +2232,10 @@ function renderBattlefield() {
     if (e) {
       const it = e.def.intents[e.intentIdx % e.def.intents.length];
       const fig = document.createElement('div');
-      fig.className = 'figure enemy' + (e._justDied ? ' fig-dying' : '');
+      // PRIMED — this foe is set up for a TECHNICAL detonation (chilled or
+      // weakened).  A pulsing electric ring + ⚡ tag reads "hit me for a combo".
+      const primed = !!(e.lull || e.weakened || e.staggered);
+      fig.className = 'figure enemy' + (e._justDied ? ' fig-dying' : '') + (primed && !e._justDied ? ' fig-primed' : '');
       fig.dataset.fig = e.uid;
       const targetable = targeting && !targeting.isRow && targeting.validIds.includes(e.uid);
       if (targetable) fig.classList.add('fig-targetable');
@@ -2506,6 +2524,21 @@ function impactFx(el, school, big) {
   fx.innerHTML = IMPACT_SVG[school] || IMPACT_SVG.phys;
   layer.appendChild(fx);
   setTimeout(() => fx.remove(), 660);
+}
+// A distinct electric detonation burst for a TECHNICAL hit on a primed foe.
+function techBurst(el) {
+  if (!el) return;
+  const layer = $('#popup-layer');
+  const stageR = $('#stage').getBoundingClientRect();
+  const scale = stageR.width / 760;
+  const r = el.getBoundingClientRect();
+  const fx = document.createElement('div');
+  fx.className = 'impact impact-tech';
+  fx.style.left = ((r.left + r.width / 2 - stageR.left) / scale) + 'px';
+  fx.style.top = ((r.top + r.height * 0.42 - stageR.top) / scale) + 'px';
+  fx.innerHTML = `<span class="tb-ring"></span><span class="tb-bolt b1"></span><span class="tb-bolt b2"></span><span class="tb-bolt b3"></span><span class="tb-bolt b4"></span>`;
+  layer.appendChild(fx);
+  setTimeout(() => fx.remove(), 620);
 }
 let _narrTimer = null;
 function flashNarrator(text) {
