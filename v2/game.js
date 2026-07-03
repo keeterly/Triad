@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 44;
+const V2_BUILD = 45;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -1467,7 +1467,7 @@ function parryPatternFor(intent) {
   // hold), a wide sweeping claw you DEFLECT along a big arc, a huge single
   // blow you SLAM (big tap), a frenzied flurry you MASH, mid hits a double-tap.
   if (intent.heavy)         return { kind: 'hold', size: 'big' };
-  if (intent.row === 'all') return { kind: 'swipe', arc: ['arcL', 'arcU', 'arcR'][d % 3], size: 'wide' };
+  if (intent.row === 'all') return { kind: 'swipe', arc: 'arcAcross', size: 'wide', across: true };  // one sweep over the whole party
   if (d >= 7)               return { kind: 'tap', size: 'big' };
   if (d <= 3)               return { kind: 'mash', count: 4 };
   if (d <= 5)               return { kind: 'multi', count: 2 };
@@ -1484,6 +1484,8 @@ const SWIPE_ARCS = {
   arcR: { d: 'M -42 24 Q 0 -50 42 24', glyph: '↷', ok: (dx, dy) => dx > 34 && Math.abs(dx) > Math.abs(dy) * 0.5 },
   arcL: { d: 'M 42 24 Q 0 -50 -42 24', glyph: '↶', ok: (dx, dy) => dx < -34 && Math.abs(dx) > Math.abs(dy) * 0.5 },
   arcU: { d: 'M -38 34 Q 44 6 -6 -46', glyph: '⤴', ok: (dx, dy) => dy < -34 && Math.abs(dy) > Math.abs(dx) * 0.4 },
+  // a wide, shallow sweep ACROSS the party — one flick over all three heroes
+  arcAcross: { d: 'M -58 6 Q 0 -30 58 6', glyph: '⟺', ok: (dx, dy) => Math.abs(dx) > 46 && Math.abs(dx) > Math.abs(dy) },
 };
 const PARRY_GLYPH = { tap: '⊙', multi: '⊙⊙', hold: '▭', swipe: '➤', mash: '⊙⊙⊙' };
 function parryGlyph(intent) {
@@ -1665,28 +1667,42 @@ async function runParrySeq(notes, anchor, art) {
     await sleep(130);   // a beat between notes so the cascade reads, not rushes
   }
   preview.remove();
-  const frac = hits / notes.length;
-  return frac >= 0.999 ? 'perfect' : frac >= 0.5 ? 'good' : 'miss';
+  // PARTIAL: each note you turned aside negates its share; the ones you missed
+  // still land.  mit = fraction parried; perfect only if you caught them all.
+  return { mit: hits / notes.length, perfect: hits === notes.length };
 }
-// Run a full pattern; returns 'perfect' | 'good' | 'miss' (| null if disabled).
+// Run a pattern; returns { mit (0..1 damage negated), perfect } | null if off.
 async function runParry(targetEl, pattern, art) {
   if (!PARRY_ENABLED || !targetEl) { await sleep(380); return null; }
-  const a = noteAnchor(targetEl);
+  let a = noteAnchor(targetEl);
   const k = pattern.kind, sz = pattern.size || '';
+  // An across-sweep parries a WHOLE-PARTY blow — center it over the party line.
+  if (pattern.across) {
+    const figs = livingHeroes().map(h => figEl(h.id)).filter(Boolean);
+    if (figs.length) {
+      const sr = $('#stage').getBoundingClientRect(), s = sr.width / 760;
+      let sx = 0, sy = 0;
+      figs.forEach(f => { const r = f.getBoundingClientRect(); sx += (r.left + r.width / 2 - sr.left) / s; sy += (r.top + r.height * 0.4 - sr.top) / s; });
+      a = { x: sx / figs.length, y: sy / figs.length };
+    }
+  }
   if (art && k !== 'seq') bossAttackBeat(art, a.x, a.y);   // single-note attacks: one beat
   if (k === 'seq')   return await runParrySeq(pattern.notes, a, art);
-  if (k === 'hold')  return await parryHoldNote(a.x, a.y, 900, sz);
-  if (k === 'swipe') return await parrySwipeNote(a.x, a.y, pattern.arc, 860, sz);
-  if (k === 'mash')  return await parryMashNote(a.x, a.y, pattern.count || 4, 1150);
+  // multi is a mini-cascade — partial mitigation too (miss a tap, take its share)
   if (k === 'multi') {
     let hits = 0;
     for (let i = 0; i < pattern.count; i++) {
       const q = await parryTapNote(a.x, a.y, 520, i + 1, pattern.count, sz);
       if (q === 'perfect' || q === 'good') hits++;
     }
-    return hits === pattern.count ? 'perfect' : hits > 0 ? 'good' : 'miss';
+    return { mit: hits / pattern.count, perfect: hits === pattern.count };
   }
-  return await parryTapNote(a.x, a.y, 700, 1, 1, sz);
+  let q;
+  if (k === 'hold')       q = await parryHoldNote(a.x, a.y, 900, sz);
+  else if (k === 'swipe') q = await parrySwipeNote(a.x, a.y, pattern.arc, 860, sz);
+  else if (k === 'mash')  q = await parryMashNote(a.x, a.y, pattern.count || 4, 1150);
+  else                    q = await parryTapNote(a.x, a.y, 700, 1, 1, sz);
+  return { mit: q === 'perfect' ? 1 : q === 'good' ? 0.5 : 0, perfect: q === 'perfect' };
 }
 function parryFlash(el) {
   if (!el) return;
@@ -2024,8 +2040,9 @@ async function enemyPhase() {
     const ptRow = rows.find(r => heroInRow(r));
     const ptHero = ptRow ? heroInRow(ptRow) : null;
     if (PARRY_ENABLED && ptHero) {
-      const q = await runParry(figEl(ptHero.id), parryPatternFor(intent), intent.attackArt);
-      if (q === 'perfect') {
+      const res = await runParry(figEl(ptHero.id), parryPatternFor(intent), intent.attackArt);
+      const mit = res ? res.mit : 0;                    // fraction of the blow negated
+      if (res && res.perfect) {
         perfectParry = true; parryMul = 0;
         popupAt(figEl(ptHero.id), '⚔ PERFECT — +BURST', 'tech');
         flashNarrator(ptHero.def.name + ' turns the blow — the burst swells!');
@@ -2035,12 +2052,13 @@ async function enemyPhase() {
         renderAll();
         await sleep(240);
         if (e.dead || S.over) continue;
-      } else if (q === 'good') {
-        parryMul = 0.5;
-        popupAt(figEl(ptHero.id), '⛨ BLOCK · +BURST', 'guard');
-        gainMomentum(11, { combo: true });
-      } else if (q === 'miss' || q === 'early') {
-        parryMul = weightMode ? PARRY_MISS_MULT : 1;       // unparried = more weight
+      } else if (mit > 0) {
+        // PARTIAL — you caught some of the cascade; only the missed share lands
+        parryMul = 1 - mit;
+        popupAt(figEl(ptHero.id), '⛨ ' + Math.round(mit * 100) + '% PARRIED · +BURST', 'guard');
+        gainMomentum(Math.round(6 + mit * 14), { combo: true });
+      } else {
+        parryMul = weightMode ? PARRY_MISS_MULT : 1;    // fully unparried = more weight
         if (weightMode) popupAt(figEl(ptHero.id), 'UNPARRIED!', 'dmg');
       }
     } else {

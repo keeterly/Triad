@@ -483,6 +483,10 @@ const QUICK = process.argv.includes('--quick');
       && parryPatternFor({ dmg: 6 }).kind === 'tap'));
   check('RHYTHM: the parry pattern is previewed on the intent telegraph',
     await J(() => !!document.querySelector('.intent .i-parry')));
+  check('ALL-HIT: a whole-party blow is one across-sweep parry',
+    await J(() => { const p = parryPatternFor({ row: 'all', dmg: 5 }); return p.kind === 'swipe' && p.arc === 'arcAcross' && p.across === true; }));
+  check('PARTIAL: a multi-tap parries per note (mitigation is fractional)',
+    await J(() => { const p = parryPatternFor({ dmg: 4 }); return p.kind === 'multi' && p.count === 2; }));
   // a HOLD parried by bracing through impact negates the blow
   await J(() => {
     startFight({ type:'fight', chapter:3, heroes:['ash','elin','kiki'], enemies:['husk'], narrator:'hold drill' });
