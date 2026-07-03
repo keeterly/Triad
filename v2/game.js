@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 35;
+const V2_BUILD = 36;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -66,6 +66,22 @@ const SFX = (() => {
     hitstop: () => tone(70, 0.05, 'square', 0.05),
   };
 })();
+
+// HAPTICS — physical feedback for gestures on devices that support it (mobile).
+// Distinct pulse patterns per event so a tap, a hold, a swipe and a perfect all
+// FEEL different in the hand.  No-op on desktop.
+const HAP = {
+  tap:      [10],
+  perfect:  [10, 22, 14],
+  good:     [12],
+  miss:     [34],
+  press:    [16],
+  swipe:    [8, 16, 8],
+  play:     [7],
+  struck:   [26],
+  burst:    [16, 30, 16, 30, 24],
+};
+function haptic(p) { try { if (navigator.vibrate) navigator.vibrate(p); } catch (_) {} }
 
 // ---------------------------------------------------------------------------
 // DATA — heroes.
@@ -755,12 +771,14 @@ function _cornerPath(cx, cy, r) {
 }
 // A glowing energy ribbon (soft halo + bright core) ending in a rotating
 // JRPG targeting reticle — distinct from Slay-the-Spire's flat arrow.
-function drawAimJRPG(fx, fy, ex, ey, valid, field, angle, color) {
+function drawAimJRPG(fx, fy, ex, ey, valid, field, angle, color, tech) {
   const svg = aimLayer();
-  // Gentle bow, CLAMPED so a far drag (e.g. a heal card over the enemy line)
-  // can never throw the control point off-screen into a giant arc.
-  const bow = Math.min(70, Math.max(24, Math.abs(ex - fx) * 0.12));
-  const midX = (fx + ex) / 2, midY = Math.max(12, Math.min(fy, ey) - bow);
+  // CLAMP every point to the stage — a card dragged off any edge (left/top)
+  // can never throw the beam or its control point off-screen into a giant arc.
+  const cx = (v) => Math.max(6, Math.min(754, v)), cy = (v) => Math.max(6, Math.min(424, v));
+  fx = cx(fx); fy = cy(fy); ex = cx(ex); ey = cy(ey);
+  const bow = Math.min(60, Math.max(22, Math.abs(ex - fx) * 0.11));
+  const midX = (fx + ex) / 2, midY = Math.max(10, Math.min(fy, ey) - bow);
   const path = `M ${fx} ${fy} Q ${midX} ${midY} ${ex} ${ey}`;
   const c = valid ? color : '#7a7060';
   let ret = '';
@@ -768,7 +786,8 @@ function drawAimJRPG(fx, fy, ex, ey, valid, field, angle, color) {
     const R = 16;
     ret = `<g transform="rotate(${angle} ${ex} ${ey})"><rect x="${ex - R}" y="${ey - R}" width="${2 * R}" height="${2 * R}" rx="2" fill="none" stroke="${c}" stroke-width="1.6" opacity="0.85"/></g>`
         + `<g transform="rotate(${-angle * 0.7} ${ex} ${ey})"><path d="${_cornerPath(ex, ey, R + 5)}" fill="none" stroke="#fff6d8" stroke-width="2.4" stroke-linecap="round" style="filter:drop-shadow(0 0 4px ${c})"/></g>`
-        + `<circle cx="${ex}" cy="${ey}" r="3" fill="#fff6d8" style="filter:drop-shadow(0 0 7px ${c})"/>`;
+        + `<circle cx="${ex}" cy="${ey}" r="3" fill="#fff6d8" style="filter:drop-shadow(0 0 7px ${c})"/>`
+        + (tech ? `<text x="${ex + R + 8}" y="${ey - R + 2}" font-size="15" fill="#ffe14a" style="filter:drop-shadow(0 0 5px rgba(255,225,74,0.9))">⚡</text>` : '');
   } else if (field) {
     ret = `<circle cx="${ex}" cy="${ey}" r="9" fill="none" stroke="${c}" stroke-width="2"><animate attributeName="r" values="7;12;7" dur="0.8s" repeatCount="indefinite"/></circle>`;
   }
@@ -803,7 +822,7 @@ function attachDrag(el, card) {
   let pid = null, dragging = false, startX = 0, startY = 0;
   let ptrX = 0, ptrY = 0, originX = 0, originY = 0;
   let curTX = 0, curTY = 0, curEX = 0, curEY = 0, vel = 0, angle = 0, raf = 0;
-  let snapped = null;
+  let snapped = null, _aimTech = false;
   const sc = () => _sscale();
 
   el.addEventListener('pointerdown', (e) => {
@@ -874,20 +893,20 @@ function attachDrag(el, card) {
       valid = !!best;
       if (best) { const r = best.getBoundingClientRect(); ex = (r.left + r.width / 2 - sr.left) / s; ey = (r.top + r.height * 0.4 - sr.top) / s; }
       else { ex = (ptrX - sr.left) / s; ey = (ptrY - sr.top) / s; }
-      // TECHNICAL preview — snapping a damaging card onto a PRIMED foe (chilled
-      // or weakened, off its weakness line) will detonate: say so before release.
-      const hint = $('#target-hint');
-      let tech = false;
+      // TECHNICAL preview — aiming a damaging card at a PRIMED foe (chilled or
+      // weakened, off its weakness line) will detonate.  Rather than a flashing
+      // banner, the RETICLE itself goes electric-yellow with a ⚡ — a quiet,
+      // in-place cue on the very thing you're aiming at.
+      document.querySelectorAll('.fig-tech-aim').forEach(f => f.classList.remove('fig-tech-aim'));
+      _aimTech = false;
       if (best && best.dataset.fig && card.fx && (card.fx.dmg || card.fx.hitFrontmost)) {
         const te = S.enemies.find(x => x.uid === best.dataset.fig);
-        tech = !!(te && (te.lull || te.weakened) && !(card.school && card.school === te.def.weak));
+        if (te && (te.lull || te.weakened) && !(card.school && card.school === te.def.weak)) { _aimTech = true; best.classList.add('fig-tech-aim'); }
       }
-      if (tech) { hint.textContent = '⚡ TECHNICAL — detonates!'; hint.classList.remove('hidden'); hint.classList.add('th-tech'); }
-      else { hint.classList.add('hidden'); hint.classList.remove('th-tech'); }
     }
     curEX += (ex - curEX) * 0.34; curEY += (ey - curEY) * 0.34;
     angle = (angle + 3) % 360;
-    drawAimJRPG(fromX, fromY, curEX, curEY, valid, field, angle, aimColor(card));
+    drawAimJRPG(fromX, fromY, curEX, curEY, valid, field, angle, _aimTech ? '#ffe14a' : aimColor(card), _aimTech);
   }
   const finish = (e) => {
     if (pid === null) return;
@@ -897,6 +916,7 @@ function attachDrag(el, card) {
     dragging = false;
     el.classList.remove('card-dragging');
     aimClear();
+    document.querySelectorAll('.fig-tech-aim').forEach(f => f.classList.remove('fig-tech-aim'));
     if (!targeting) { $('#target-hint').classList.add('hidden'); $('#target-hint').classList.remove('th-tech'); }
     const handTop = $('#hand').getBoundingClientRect().top;
     const cancelled = e.clientY > handTop - 8;
@@ -1065,6 +1085,7 @@ function channelCard(card) {
 
 async function playCard(card, targetId) {
   if (S.executing || S.over) return;
+  haptic(HAP.play);
   S.executing = true;
   $('#stage').classList.add('executing');
   S.ep -= card.cost;
@@ -1473,6 +1494,7 @@ function noteFeedback(ui, ax, ay, q) {
   layer.appendChild(burst);
   setTimeout(() => burst.remove(), 440);
   try { if (good) SFX.parry(q === 'perfect', _parryStreak); else SFX.parryMiss(); } catch (_) {}
+  haptic(q === 'perfect' ? HAP.perfect : good ? HAP.good : HAP.miss);
 }
 // TAP note — a closing ring; tap as it lands.
 function parryTapNote(ax, ay, dur, idx, total) {
@@ -1494,7 +1516,7 @@ function parryHoldNote(ax, ay, dur) {
     ui.el.querySelector('.pr-hold-fill').style.animationDuration = dur + 'ms';
     let done = false, holding = false, everHeld = false;
     const finish = (q) => { if (done) return; done = true; window.removeEventListener('pointerdown', onDown, true); window.removeEventListener('pointerup', onUp, true); noteFeedback(ui, ax, ay, q); ui.close(); resolve(q); };
-    const onDown = () => { if (!everHeld) { try { SFX.brace(); } catch (_) {} } holding = true; everHeld = true; ui.el.classList.add('pr-pressed'); };
+    const onDown = () => { if (!everHeld) { try { SFX.brace(); } catch (_) {} haptic(HAP.press); } holding = true; everHeld = true; ui.el.classList.add('pr-pressed'); };
     const onUp = () => { holding = false; ui.el.classList.remove('pr-pressed'); };
     window.addEventListener('pointerdown', onDown, true);
     window.addEventListener('pointerup', onUp, true);
@@ -1519,7 +1541,7 @@ function parrySwipeNote(ax, ay, arc, dur) {
     const onDown = (e) => { sx = e.clientX; sy = e.clientY; };
     const onMove = (e) => {
       if (sx == null || maxHit) return;
-      if (spec.ok(e.clientX - sx, e.clientY - sy)) { maxHit = true; try { SFX.swoosh(); } catch (_) {} const rem = dur - (Date.now() - t0); finish(rem <= 250 ? 'perfect' : 'good'); }
+      if (spec.ok(e.clientX - sx, e.clientY - sy)) { maxHit = true; try { SFX.swoosh(); } catch (_) {} haptic(HAP.swipe); const rem = dur - (Date.now() - t0); finish(rem <= 250 ? 'perfect' : 'good'); }
     };
     const onUp = () => { sx = null; };
     window.addEventListener('pointerdown', onDown, true);
@@ -1765,6 +1787,7 @@ async function resolveAllOut() {
 }
 async function triggerAllOut() {
   if (!burstReady()) return;
+  haptic(HAP.burst);
   S.executing = true;
   $('#stage').classList.add('executing');
   renderAll();
@@ -1906,9 +1929,10 @@ async function enemyPhase() {
     if (lungeEl) { lungeEl.classList.add('fig-lunge'); SFX.enemy(); }
     const rows = intent.row === 'all' ? ROWS.slice() : [intent.row];
     // PARRY — a rhythm window on the wind-up whose PATTERN varies by attack.
-    // A PERFECT parry negates the blow, ripostes, and can break it; a partial
-    // BLOCKs half; MISS lets the (heavier) blow land.  Reposition beforehand to
-    // dodge the row entirely instead.
+    // Turning a blow aside doesn't deal damage; it CHARGES your BURST — parry is
+    // the engine that fuels the all-out.  PERFECT negates + a big surge; a partial
+    // BLOCKs half + a smaller surge; MISS lets the (heavier) blow land.
+    // Reposition beforehand to dodge the row entirely instead.
     let parryMul = 1, perfectParry = false;
     const weightMode = PARRY_ENABLED && S.node && S.node.useRunHp;   // real run hits harder
     const ptRow = rows.find(r => heroInRow(r));
@@ -1917,19 +1941,18 @@ async function enemyPhase() {
       const q = await runParry(figEl(ptHero.id), parryPatternFor(intent));
       if (q === 'perfect') {
         perfectParry = true; parryMul = 0;
-        popupAt(figEl(ptHero.id), '⚔ PERFECT PARRY', 'tech');
-        flashNarrator(ptHero.def.name + ' turns the blow — riposte!');
+        popupAt(figEl(ptHero.id), '⚔ PERFECT — +BURST', 'tech');
+        flashNarrator(ptHero.def.name + ' turns the blow — the burst swells!');
         parryFlash(figEl(ptHero.id));
-        gainMomentum(14, { combo: true });
+        gainMomentum(24, { combo: true });   // parry FEEDS the burst
         lungeFig(figEl(ptHero.id));
-        dealToEnemy(e, 6, ptHero.def.school, ptHero.id);   // the counter
         renderAll();
-        await sleep(300);
-        if (e.dead || S.over) continue;                    // attack broken
+        await sleep(240);
+        if (e.dead || S.over) continue;
       } else if (q === 'good') {
         parryMul = 0.5;
-        popupAt(figEl(ptHero.id), '⛨ BLOCK', 'guard');
-        gainMomentum(5);
+        popupAt(figEl(ptHero.id), '⛨ BLOCK · +BURST', 'guard');
+        gainMomentum(11, { combo: true });
       } else if (q === 'miss' || q === 'early') {
         parryMul = weightMode ? PARRY_MISS_MULT : 1;       // unparried = more weight
         if (weightMode) popupAt(figEl(ptHero.id), 'UNPARRIED!', 'dmg');
@@ -1965,7 +1988,7 @@ async function enemyPhase() {
           const big = left >= 7;
           popupAt(figEl(h.id), '−' + left, 'dmg' + (big ? ' popup-big' : ''));
           impactFx(figEl(h.id), 'foe', big);   // red claw-strike on the hero
-          struck(figEl(h.id), 'l');        // recoil + flash + brief stun
+          struck(figEl(h.id), 'l'); haptic(HAP.struck);   // recoil + flash + stun
           hitFlash(big);
           SFX.hit(big);
           if (big) stageShake();
@@ -2624,10 +2647,12 @@ function renderBurst() {
   const pct = Math.round(((S.momentum || 0) / MOM_MAX) * 100);
   $('#burst-fill').style.width = pct + '%';
   const ready = burstReady();
+  const wasReady = burst.classList.contains('burst-ready');
   burst.classList.toggle('burst-ready', ready);
-  $('#burst-lbl').textContent = ready ? 'ALL-OUT ▸' : 'BURST';
+  $('#burst-lbl').textContent = ready ? '⚡ ALL-OUT ▸' : 'BURST ' + pct + '%';
   burst.onclick = ready ? () => triggerAllOut() : null;
   burst.style.cursor = ready ? 'pointer' : 'default';
+  if (ready && !wasReady) haptic(HAP.good);   // a little buzz the moment it's ready
 }
 function renderActionBar() {
   $('#ep-num').textContent = S.ep;
