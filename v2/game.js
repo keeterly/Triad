@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 38;
+const V2_BUILD = 39;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -129,7 +129,7 @@ const HEROES = {
       },
       mid: {
         core: { name: 'Flowing Cut',   cost: 1, target: 'frontmost', fx: { dmg: 4, guard: 3 },  desc: '4 damage · gain 3 guard.' },
-        sig:  { name: 'Crossguard',    cost: 2, target: 'ally',      fx: { guard: 5, counter: 3 }, desc: 'Stand for an ally: <span class="kw kw-guard">⛨ 5 guard</span> · <span class="kw kw-counter">↺ counter 3</span> this round.' },
+        sig:  { name: 'Crossguard',    cost: 2, target: 'ally',      fx: { guard: 6 }, desc: 'Guard an ally: <span class="kw kw-guard">⛨ 6</span>.' },
       },
       back: {
         core: { name: 'Thrown Edge',   cost: 1, target: 'enemy',     fx: { dmg: 4, step: 'front' }, desc: '4 damage to ANY enemy, then close to FRONT.' },
@@ -183,11 +183,11 @@ const HEROES = {
       },
       mid: {
         core: { name: 'Cover', cost: 1, target: 'ally', fx: { guard: 4 }, desc: 'An ally gains 4 guard.' },
-        sig:  { name: 'Aegis', cost: 2, target: 'ally', fx: { guard: 6, counter: 3 }, desc: 'Stand for an ally: <span class="kw kw-guard">⛨ 6</span> · <span class="kw kw-counter">↺ 3</span>.' },
+        sig:  { name: 'Aegis', cost: 2, target: 'ally', fx: { guard: 7 }, desc: 'Guard an ally: <span class="kw kw-guard">⛨ 7</span>.' },
       },
       back: {
-        core: { name: 'Thrown Shield',  cost: 1, target: 'enemy', fx: { dmg: 3, lull: 1 }, desc: '3 damage · <span class="kw kw-chill">❄ CHILL</span> −1.' },
-        sig:  { name: 'Sentinel Throw', cost: 2, target: 'enemy', fx: { dmg: 5, guard: 4 }, desc: '5 damage to ANY enemy · gain 4 guard.' },
+        core: { name: 'Thrown Shield',  cost: 1, target: 'enemy', fx: { dmg: 4 }, desc: '4 damage to ANY enemy.' },
+        sig:  { name: 'Sentinel Throw', cost: 2, target: 'enemy', fx: { dmg: 7 }, desc: '7 damage to ANY enemy.' },
       },
     },
   },
@@ -200,7 +200,7 @@ const HEROES = {
       },
       mid: {
         core: { name: 'Ice Bolt',      cost: 1, target: 'enemy',     fx: { dmg: 4 },            desc: '4 frost damage to ANY enemy.' },
-        sig:  { name: 'Chill Ward',    cost: 2, target: 'ally',      fx: { guard: 4, counter: 2 }, desc: 'An ally gains <span class="kw kw-guard">⛨ 4 guard</span> · <span class="kw kw-counter">↺ counter 2</span>.' },
+        sig:  { name: 'Frost Ward',    cost: 2, target: 'ally',      fx: { guard: 5 }, desc: 'Guard an ally: <span class="kw kw-guard">⛨ 5</span>.' },
       },
       back: {
         core: { name: 'Deep Freeze',   cost: 1, target: 'enemy',     fx: { dmg: 5 },            desc: '5 frost damage to ANY enemy.' },
