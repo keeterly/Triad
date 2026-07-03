@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 25;
+const V2_BUILD = 26;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -465,6 +465,24 @@ function newBattle(node) {
     guard: 0, power: 0, mark: 0, lull: 0, intentIdx: 0, dead: false, acted: false,
     weakRevealed: false, weakened: false, staggered: false,
   }));
+  // DIFFICULTY — the tutorial (no useRunHp) stays a gentle on-ramp, but the
+  // real run (the DESCENT) hits harder and RAMPS as you go deeper, so fights
+  // stay threatening instead of being out-tempo'd.  dmgMul feeds the single
+  // enemyIntentDmg() source of truth; non-boss HP scales up so foes survive to
+  // act (no more turn-1 alpha wipes).  Bosses are already tuned high — they
+  // take only a light damage ramp and keep their hand-set HP.
+  if (node.useRunHp) {
+    const depth = Math.max(1, node.depth || 1);
+    enemies.forEach(e => {
+      if (e.def.boss) {
+        e.dmgMul = 1.15 + (depth - 1) * 0.02;
+      } else {
+        e.dmgMul = 1.4 + (depth - 1) * 0.05;
+        const hp = Math.round(e.maxHp * (1.3 + (depth - 1) * 0.04));
+        e.maxHp = hp; e.hp = hp;
+      }
+    });
+  }
   // Kindled bonds walk into battle already connected: the pair's thread is
   // pre-formed and the bond-guard applies from turn one.  The triad itself
   // still needs ONE act of help this fight to awaken (see addThread).
@@ -1197,6 +1215,14 @@ async function resolveCard(card, targetId) {
   await sleep(280);
 }
 
+// Single source of truth for how hard an enemy intent hits — base + power,
+// scaled by the fight's difficulty multiplier, then reduced by CHILL.  Used by
+// the enemy turn AND both telegraphs (intent bubble + threat forecast) so what
+// you're shown is exactly what lands.
+function enemyIntentDmg(e, intent) {
+  const scaled = Math.round(((intent.dmg || 0) + (e.power || 0)) * (e.dmgMul || 1));
+  return Math.max(0, scaled - (e.lull || 0));
+}
 function dealToEnemy(e, amt, school, byHeroId) {
   // STAGGER payoff: the next hit on a staggered enemy lands double.
   if (e.staggered) {
@@ -1512,7 +1538,7 @@ async function enemyPhase() {
       renderAll();
       continue;
     }
-    let dmg = Math.max(0, (intent.dmg || 0) + (e.power || 0) - (e.lull || 0));
+    let dmg = enemyIntentDmg(e, intent);
     if (e.lull) e.lull = 0;
     const rows = intent.row === 'all' ? ROWS.slice() : [intent.row];
     let hitAny = false;
@@ -1814,7 +1840,7 @@ function showMemory(n, mem) {
 }
 function startMapFight(n) {
   startFight({ type: 'fight', chapter: 3, heroes: RUN.active.slice(), enemies: n.enemies.slice(),
-    useRunHp: true, mapId: n.id, narrator: n.label + (n.type === 'boss' ? ' — it remembers you.' : '') });
+    useRunHp: true, mapId: n.id, depth: n.col, narrator: n.label + (n.type === 'boss' ? ' — it remembers you.' : '') });
   $('#chapter-chip').textContent = n.type === 'boss' ? 'BOSS' : 'DESCENT';
 }
 function showRecruit(n) {
@@ -2005,7 +2031,7 @@ function renderTimeline() {
   livingEnemies().forEach(e => {
     const it = e.def.intents[e.intentIdx % e.def.intents.length];
     if (!it || it.kind === 'buff') return;
-    const dmg = Math.max(0, (it.dmg || 0) + (e.power || 0) - (e.lull || 0));
+    const dmg = enemyIntentDmg(e, it);
     (it.row === 'all' ? ROWS.slice() : [it.row]).forEach(r => { rowDmg[r] += dmg; });
   });
   let incoming = 0, lethal = false;
@@ -2097,7 +2123,7 @@ function renderBattlefield() {
       if (targetable) fig.classList.add('fig-targetable');
       const intentHtml = it.kind === 'buff'
         ? `<div class="intent intent-buff"><span>◈</span><span class="i-row">${it.desc || 'gathers'}</span></div>`
-        : `<div class="intent${it.heavy ? ' intent-heavy' : ''}"><span>⚔</span><span class="i-dmg">${Math.max(0, (it.dmg || 0) + (e.power || 0) - (e.lull || 0))}</span>${it.chill ? '<span class="i-st kw-chill">❄</span>' : ''}${it.expose ? '<span class="i-st kw-exposed">◎</span>' : ''}<span class="i-row">→ ${it.row === 'all' ? 'ALL' : ROW_LABEL[it.row]}</span></div>`;
+        : `<div class="intent${it.heavy ? ' intent-heavy' : ''}"><span>⚔</span><span class="i-dmg">${enemyIntentDmg(e, it)}</span>${it.chill ? '<span class="i-st kw-chill">❄</span>' : ''}${it.expose ? '<span class="i-st kw-exposed">◎</span>' : ''}<span class="i-row">→ ${it.row === 'all' ? 'ALL' : ROW_LABEL[it.row]}</span></div>`;
       fig.innerHTML = `
         ${intentHtml}
         <div class="fig-art">${enemyArt(e)}${e._justDied ? '' : auraHTML({ guard: e.guard, rally: e.power, chill: e.lull, exposed: e.mark, weak: e.weakened, stagger: e.staggered })}</div>
