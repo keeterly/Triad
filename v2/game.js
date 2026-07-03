@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 30;
+const V2_BUILD = 31;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -1367,34 +1367,100 @@ function burstReady() { return S && (S.momentum || 0) >= MOM_MAX && !S.executing
 // false to remove the whole layer cleanly (enemy attacks then resolve as before).
 // ---------------------------------------------------------------------------
 const PARRY_ENABLED = true;
-function parryWindow(targetEl, dur) {
+const PARRY_MISS_MULT = 1.3;   // an UNPARRIED blow lands HARDER (real-run only)
+
+// Each intent carries a rhythm PATTERN — its own way to be turned aside — so
+// defense has Project-Diva variety: a clean tap, a quick double-tap flurry, a
+// braced HOLD for heavy blows, or a SWIPE to sweep away a wide attack.  Derived
+// from the intent so every enemy reads consistently; `intent.parry` can author
+// an override.  A short glyph (⊙ / ⊙⊙ / ▭ / ➤) previews it on the telegraph.
+function parryPatternFor(intent) {
+  if (intent.parry) return intent.parry;
+  if (intent.heavy)          return { kind: 'hold' };
+  if (intent.row === 'all')  return { kind: 'swipe', dir: ['left', 'up', 'right'][(intent.dmg || 0) % 3] };
+  if ((intent.dmg || 0) <= 4) return { kind: 'multi', count: 2 };
+  return { kind: 'tap' };
+}
+const PARRY_GLYPH = { tap: '⊙', multi: '⊙⊙', hold: '▭', swipe: '➤' };
+function parryGlyph(intent) {
+  const p = parryPatternFor(intent);
+  return PARRY_GLYPH[p.kind] + (p.kind === 'swipe' ? { left: '←', up: '↑', right: '→', down: '↓' }[p.dir] : '');
+}
+
+// --- the parry UI base: a ring anchored on the target hero ---
+function mkParryUi(targetEl, innerHtml, cls) {
+  const sr = $('#stage').getBoundingClientRect(), scale = sr.width / 760;
+  const r = targetEl.getBoundingClientRect();
+  const el = document.createElement('div');
+  el.className = 'parry-ring ' + (cls || '');
+  el.style.left = ((r.left + r.width / 2 - sr.left) / scale) + 'px';
+  el.style.top = ((r.top + r.height * 0.4 - sr.top) / scale) + 'px';
+  el.innerHTML = innerHtml;
+  $('#popup-layer').appendChild(el);
+  return { el, close: () => { el.classList.add('pr-out'); setTimeout(() => el.remove(), 160); } };
+}
+// TAP note — a closing ring; tap as it lands.
+function parryTapNote(targetEl, dur, idx, total) {
   return new Promise(resolve => {
-    if (!PARRY_ENABLED || !targetEl) { setTimeout(() => resolve(null), 380); return; }
-    const sr = $('#stage').getBoundingClientRect(), scale = sr.width / 760;
-    const r = targetEl.getBoundingClientRect();
-    const ring = document.createElement('div');
-    ring.className = 'parry-ring';
-    ring.style.left = ((r.left + r.width / 2 - sr.left) / scale) + 'px';
-    ring.style.top = ((r.top + r.height * 0.4 - sr.top) / scale) + 'px';
-    ring.innerHTML = `<span class="pr-target"></span><span class="pr-close"></span><span class="pr-lbl">PARRY</span>`;
-    $('#popup-layer').appendChild(ring);
-    ring.querySelector('.pr-close').style.animationDuration = dur + 'ms';
-    let done = false;
-    const t0 = Date.now();
-    const finish = (q) => {
-      if (done) return; done = true;
-      window.removeEventListener('pointerdown', onTap, true);
-      ring.classList.add('pr-out');
-      setTimeout(() => ring.remove(), 160);
-      resolve(q);
-    };
-    const onTap = () => {
-      const remaining = dur - (Date.now() - t0);
-      finish(remaining <= 165 ? 'perfect' : remaining <= 440 ? 'good' : 'early');
-    };
+    const label = total > 1 ? `TAP ${idx}/${total}` : 'TAP';
+    const ui = mkParryUi(targetEl, `<span class="pr-target"></span><span class="pr-close"></span><span class="pr-lbl">${label}</span>`);
+    ui.el.querySelector('.pr-close').style.animationDuration = dur + 'ms';
+    let done = false; const t0 = Date.now();
+    const finish = (q) => { if (done) return; done = true; window.removeEventListener('pointerdown', onTap, true); ui.close(); resolve(q); };
+    const onTap = () => { const rem = dur - (Date.now() - t0); finish(rem <= 165 ? 'perfect' : rem <= 445 ? 'good' : 'early'); };
     window.addEventListener('pointerdown', onTap, true);
     setTimeout(() => finish('miss'), dur);
   });
+}
+// HOLD note — press and BRACE; keep held until the bar fills (through impact).
+function parryHoldNote(targetEl, dur) {
+  return new Promise(resolve => {
+    const ui = mkParryUi(targetEl, `<span class="pr-hold-track"><span class="pr-hold-fill"></span></span><span class="pr-lbl">HOLD</span>`, 'parry-hold');
+    ui.el.querySelector('.pr-hold-fill').style.animationDuration = dur + 'ms';
+    let done = false, holding = false, everHeld = false;
+    const finish = (q) => { if (done) return; done = true; window.removeEventListener('pointerdown', onDown, true); window.removeEventListener('pointerup', onUp, true); ui.close(); resolve(q); };
+    const onDown = () => { holding = true; everHeld = true; ui.el.classList.add('pr-pressed'); };
+    const onUp = () => { holding = false; ui.el.classList.remove('pr-pressed'); };
+    window.addEventListener('pointerdown', onDown, true);
+    window.addEventListener('pointerup', onUp, true);
+    setTimeout(() => finish(holding ? 'perfect' : everHeld ? 'good' : 'miss'), dur);
+  });
+}
+// SWIPE note — flick the shown direction to sweep the blow aside.
+function parrySwipeNote(targetEl, dir, dur) {
+  return new Promise(resolve => {
+    const arrow = { left: '←', up: '↑', right: '→', down: '↓' }[dir] || '↑';
+    const ui = mkParryUi(targetEl, `<span class="pr-target"></span><span class="pr-close"></span><span class="pr-swipe">${arrow}</span><span class="pr-lbl">SWIPE ${arrow}</span>`, 'parry-swipe');
+    ui.el.querySelector('.pr-close').style.animationDuration = dur + 'ms';
+    let done = false, sx = null, sy = null, swiped = false; const t0 = Date.now();
+    const finish = (q) => { if (done) return; done = true; window.removeEventListener('pointerdown', onDown, true); window.removeEventListener('pointermove', onMove, true); ui.close(); resolve(q); };
+    const T = 26;
+    const ok = (dx, dy) => dir === 'left' ? (dx < -T && Math.abs(dx) > Math.abs(dy))
+      : dir === 'right' ? (dx > T && Math.abs(dx) > Math.abs(dy))
+      : dir === 'down' ? (dy > T && Math.abs(dy) > Math.abs(dx))
+      : (dy < -T && Math.abs(dy) > Math.abs(dx));
+    const onDown = (e) => { sx = e.clientX; sy = e.clientY; };
+    const onMove = (e) => { if (sx == null || swiped) return; if (ok(e.clientX - sx, e.clientY - sy)) { swiped = true; const rem = dur - (Date.now() - t0); finish(rem <= 230 ? 'perfect' : 'good'); } };
+    window.addEventListener('pointerdown', onDown, true);
+    window.addEventListener('pointermove', onMove, true);
+    setTimeout(() => finish('miss'), dur);
+  });
+}
+// Run a full pattern; returns 'perfect' | 'good' | 'miss' (| null if disabled).
+async function runParry(targetEl, pattern) {
+  if (!PARRY_ENABLED || !targetEl) { await sleep(380); return null; }
+  const k = pattern.kind;
+  if (k === 'hold')  return await parryHoldNote(targetEl, 900);
+  if (k === 'swipe') return await parrySwipeNote(targetEl, pattern.dir, 820);
+  if (k === 'multi') {
+    let hits = 0;
+    for (let i = 0; i < pattern.count; i++) {
+      const q = await parryTapNote(targetEl, 520, i + 1, pattern.count);
+      if (q === 'perfect' || q === 'good') hits++;
+    }
+    return hits === pattern.count ? 'perfect' : hits > 0 ? 'good' : 'miss';
+  }
+  return await parryTapNote(targetEl, 700, 1, 1);
 }
 function parryFlash(el) {
   if (!el) return;
@@ -1706,13 +1772,16 @@ async function enemyPhase() {
     }
     if (lungeEl) { lungeEl.classList.add('fig-lunge'); SFX.enemy(); }
     const rows = intent.row === 'all' ? ROWS.slice() : [intent.row];
-    // PARRY — a reactive timing window on the wind-up.  A PERFECT parry negates
-    // the blow, ripostes for momentum, and can break the attack outright.
+    // PARRY — a rhythm window on the wind-up whose PATTERN varies by attack.
+    // A PERFECT parry negates the blow, ripostes, and can break it; a partial
+    // BLOCKs half; MISS lets the (heavier) blow land.  Reposition beforehand to
+    // dodge the row entirely instead.
     let parryMul = 1, perfectParry = false;
+    const weightMode = PARRY_ENABLED && S.node && S.node.useRunHp;   // real run hits harder
     const ptRow = rows.find(r => heroInRow(r));
     const ptHero = ptRow ? heroInRow(ptRow) : null;
     if (PARRY_ENABLED && ptHero) {
-      const q = await parryWindow(figEl(ptHero.id), intent.heavy ? 820 : 700);
+      const q = await runParry(figEl(ptHero.id), parryPatternFor(intent));
       if (q === 'perfect') {
         perfectParry = true; parryMul = 0;
         popupAt(figEl(ptHero.id), '⚔ PERFECT PARRY', 'tech');
@@ -1728,8 +1797,9 @@ async function enemyPhase() {
         parryMul = 0.5;
         popupAt(figEl(ptHero.id), '⛨ BLOCK', 'guard');
         gainMomentum(5);
-      } else if (q === 'early') {
-        popupAt(figEl(ptHero.id), 'TOO EARLY', 'info');
+      } else if (q === 'miss' || q === 'early') {
+        parryMul = weightMode ? PARRY_MISS_MULT : 1;       // unparried = more weight
+        if (weightMode) popupAt(figEl(ptHero.id), 'UNPARRIED!', 'dmg');
       }
     } else {
       await sleep(400);
@@ -2321,7 +2391,7 @@ function renderBattlefield() {
       if (targetable) fig.classList.add('fig-targetable');
       const intentHtml = it.kind === 'buff'
         ? `<div class="intent intent-buff"><span>◈</span><span class="i-row">${it.desc || 'gathers'}</span></div>`
-        : `<div class="intent${it.heavy ? ' intent-heavy' : ''}"><span>⚔</span><span class="i-dmg">${enemyIntentDmg(e, it)}</span>${it.chill ? '<span class="i-st kw-chill">❄</span>' : ''}${it.expose ? '<span class="i-st kw-exposed">◎</span>' : ''}<span class="i-row">→ ${it.row === 'all' ? 'ALL' : ROW_LABEL[it.row]}</span>${it.heavy ? '<span class="i-break">⚡ STAGGER breaks</span>' : ''}</div>`;
+        : `<div class="intent${it.heavy ? ' intent-heavy' : ''}"><span>⚔</span><span class="i-dmg">${enemyIntentDmg(e, it)}</span>${it.chill ? '<span class="i-st kw-chill">❄</span>' : ''}${it.expose ? '<span class="i-st kw-exposed">◎</span>' : ''}<span class="i-row">→ ${it.row === 'all' ? 'ALL' : ROW_LABEL[it.row]}</span><span class="i-parry" title="parry pattern">${parryGlyph(it)}</span>${it.heavy ? '<span class="i-break">⚡ STAGGER breaks</span>' : ''}</div>`;
       fig.innerHTML = `
         ${intentHtml}
         <div class="fig-art">${enemyArt(e)}${e._justDied ? '' : auraHTML({ guard: e.guard, rally: e.power, chill: e.lull, exposed: e.mark, weak: e.weakened, stagger: e.staggered })}</div>

@@ -463,6 +463,33 @@ const QUICK = process.argv.includes('--quick');
   check('PARRY: a timed tap blunts the blow and builds momentum',
     await J((o) => (o.a - S.heroes.find(h => h.id === 'ash').hp) < 4 && S.momentum > 0, { a: ashHp0 }),
     await J((o) => 'ashDmg:' + (o.a - S.heroes.find(h => h.id === 'ash').hp) + ' mom:' + S.momentum, { a: ashHp0 }));
+  // varied rhythm patterns derive per intent + preview on the telegraph
+  check('RHYTHM: attacks carry varied parry patterns',
+    await J(() => parryPatternFor({ heavy: true }).kind === 'hold'
+      && parryPatternFor({ row: 'all', dmg: 4 }).kind === 'swipe'
+      && parryPatternFor({ dmg: 3 }).kind === 'multi'
+      && parryPatternFor({ dmg: 6 }).kind === 'tap'));
+  check('RHYTHM: the parry pattern is previewed on the intent telegraph',
+    await J(() => !!document.querySelector('.intent .i-parry')));
+  // a HOLD parried by bracing through impact negates the blow
+  await J(() => {
+    startFight({ type:'fight', chapter:3, heroes:['ash','elin','kiki'], enemies:['husk'], narrator:'hold drill' });
+    const a = S.heroes.find(h => h.id === 'ash'); a.row = 'front';
+    S.enemies[0].hp = S.enemies[0].maxHp = 40; S.ep = 0; S.momentum = 0;
+    const it = S.enemies[0].def.intents[S.enemies[0].intentIdx % S.enemies[0].def.intents.length];
+    it.parry = { kind: 'hold' }; renderAll();
+  });
+  await sleep(250);
+  const ashHold0 = await J(() => S.heroes.find(h => h.id === 'ash').hp);
+  t.page.evaluate(() => { endTurn(); });
+  await t.page.waitForSelector('.parry-ring.parry-hold', { state: 'attached', timeout: 6000 });
+  await t.page.mouse.move(150, 140); await t.page.mouse.down();   // brace and HOLD
+  await sleep(1050);
+  await t.page.mouse.up();
+  await sleep(2400);
+  check('RHYTHM: a braced HOLD negates the blow (perfect parry)',
+    await J((o) => S.heroes.find(h => h.id === 'ash').hp === o.a && S.momentum > 0, { a: ashHold0 }),
+    await J((o) => 'ashDmg:' + (o.a - S.heroes.find(h => h.id === 'ash').hp) + ' mom:' + S.momentum, { a: ashHold0 }));
 
   t.report();
   await t.browser.close();

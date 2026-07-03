@@ -1195,3 +1195,32 @@ body {
   border-color: var(--gold-bright); font-weight: bold;
   box-shadow: 0 0 16px rgba(255,225,74,0.6); animation: primed-blink 0.7s ease-in-out infinite;
 }
+
+/* ===========================================================================
+   BUILD 31 — rhythm PARRY: varied patterns (tap / multi / hold / swipe)
+   =========================================================================== */
+/* parry-pattern glyph on the intent telegraph (plan: reposition or which parry) */
+.i-parry { margin-left: 5px; font-size: 9px; color: #ffe14a; text-shadow: 0 0 5px rgba(255,225,74,0.5); }
+
+/* HOLD note — a filling brace bar; keep pressed until it completes */
+.parry-ring.parry-hold .pr-hold-track {
+  position: absolute; left: 0; top: 0; width: 62px; height: 10px; border-radius: 999px;
+  transform: translate(-50%,-50%); overflow: hidden;
+  background: rgba(10,8,8,0.85); border: 1.5px solid rgba(255,225,74,0.7);
+}
+.parry-ring.parry-hold .pr-hold-fill {
+  position: absolute; left: 0; top: 0; height: 100%; width: 0;
+  background: linear-gradient(90deg, #f0b45a, #ffe98c);
+  animation: pr-hold-fill linear forwards;
+}
+@keyframes pr-hold-fill { to { width: 100%; } }
+.parry-ring.parry-hold.pr-pressed .pr-hold-track { box-shadow: 0 0 14px rgba(255,225,74,0.8); border-color: #fff; }
+.parry-ring.parry-hold.pr-pressed .pr-hold-fill { background: linear-gradient(90deg, #ffe98c, #fff); }
+
+/* SWIPE note — a big directional arrow to flick */
+.parry-ring.parry-swipe .pr-swipe {
+  position: absolute; left: 0; top: 0; transform: translate(-50%,-50%);
+  font-size: 30px; color: #ffe14a; text-shadow: 0 0 12px rgba(255,225,74,0.85);
+  animation: pr-swipe-pulse 0.55s ease-in-out infinite;
+}
+@keyframes pr-swipe-pulse { 50% { transform: translate(-50%,-50%) scale(1.25); opacity: 0.7; } }
