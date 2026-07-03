@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 43;
+const V2_BUILD = 44;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -888,12 +888,13 @@ function attachDrag(el, card) {
     const nx = curTX + (tgtTX - curTX) * 0.26, ny = curTY + (tgtTY - curTY) * 0.26;
     vel = vel * 0.72 + (nx - curTX) * 0.28;
     curTX = nx; curTY = ny;
-    // CLAMP the card's on-screen position so it can never slide off the page —
-    // no matter how far past the edge the finger goes.
-    const hw = 64 * s;
+    // Keep the CARD in a comfortable lower-central zone as it lifts — it leans
+    // toward the finger but never flies into a corner or off the page (the beam
+    // + reticle follow the finger for aiming, so targeting is unaffected).
+    const W = sr.width, H = sr.height;
     let scx = originX + curTX * s, scy = originY + curTY * s;
-    scx = Math.max(sr.left + hw, Math.min(sr.right - hw, scx));
-    scy = Math.max(sr.top + 24 * s, Math.min(sr.bottom, scy));
+    scx = Math.max(sr.left + W * 0.12, Math.min(sr.right - W * 0.08, scx));
+    scy = Math.max(sr.top + H * 0.40, Math.min(sr.bottom, scy));
     curTX = (scx - originX) / s; curTY = (scy - originY) / s;
     const tilt = Math.max(-15, Math.min(15, vel * 1.5));
     el.style.transform = `translate(${curTX}px, ${curTY}px) rotate(${tilt}deg) scale(1.07)`;
@@ -1647,13 +1648,14 @@ function mkSeqPreview(pts) {
 }
 // SEQUENCE — a chain of mixed notes (taps along an arc, a hold, a deflect).
 // Every note must land to fully turn the attack aside; partial → BLOCK.
-async function runParrySeq(notes, anchor) {
+async function runParrySeq(notes, anchor, art) {
   const pts = arcPoints(notes.length, anchor);
   const preview = mkSeqPreview(pts);
   let hits = 0;
   for (let i = 0; i < notes.length; i++) {
     const nt = notes[i], p = pts[i];
     const done = preview.querySelectorAll('.sq-dot')[i]; if (done) done.classList.add('sq-active');
+    if (art) bossAttackBeat(art, p.x, p.y);   // one art streak per note — SYNCED
     let q;
     if (nt.t === 'hold')       q = await parryHoldNote(p.x, p.y, 760);
     else if (nt.t === 'swipe') q = await parrySwipeNote(p.x, p.y, nt.arc || 'arcR', 680);
@@ -1667,11 +1669,12 @@ async function runParrySeq(notes, anchor) {
   return frac >= 0.999 ? 'perfect' : frac >= 0.5 ? 'good' : 'miss';
 }
 // Run a full pattern; returns 'perfect' | 'good' | 'miss' (| null if disabled).
-async function runParry(targetEl, pattern) {
+async function runParry(targetEl, pattern, art) {
   if (!PARRY_ENABLED || !targetEl) { await sleep(380); return null; }
   const a = noteAnchor(targetEl);
   const k = pattern.kind, sz = pattern.size || '';
-  if (k === 'seq')   return await runParrySeq(pattern.notes, a);
+  if (art && k !== 'seq') bossAttackBeat(art, a.x, a.y);   // single-note attacks: one beat
+  if (k === 'seq')   return await runParrySeq(pattern.notes, a, art);
   if (k === 'hold')  return await parryHoldNote(a.x, a.y, 900, sz);
   if (k === 'swipe') return await parrySwipeNote(a.x, a.y, pattern.arc, 860, sz);
   if (k === 'mash')  return await parryMashNote(a.x, a.y, pattern.count || 4, 1150);
@@ -1769,18 +1772,18 @@ function cineLayer() {
   if (!el) { el = document.createElement('div'); el.id = 'resonant-cine'; el.className = 'hidden'; $('#stage').appendChild(el); }
   return el;
 }
-// BOSS ATTACK ART — a big JRPG attack graphic that sweeps the screen WHILE you
-// parry, selling the blow: a giant blade SLASH, a raking CLAW, a crushing SLAM,
-// or a swelling magic BLAST.  Purely visual, pointer-events:none, self-removing.
-function bossAttackFx(kind, dur) {
+// BOSS ATTACK ART — one JRPG attack BEAT per parry note, SYNCED to the cascade
+// and rendered BEHIND the notes (dim, z-8) so it sells the giant blade/claw/blast
+// without ever obscuring the gesture you're reading.  A 4-note claw = 4 rakes
+// racing down the arc as you tap.  Purely visual, self-removing.
+function bossAttackBeat(kind, ax, ay) {
   const fx = document.createElement('div');
-  fx.className = 'boss-fx boss-fx-' + kind;
-  if (kind === 'slash')      fx.innerHTML = `<span class="bfx-slash s1"></span><span class="bfx-slash s2"></span><span class="bfx-glint"></span>`;
-  else if (kind === 'claw')  fx.innerHTML = `<span class="bfx-claw c1"></span><span class="bfx-claw c2"></span><span class="bfx-claw c3"></span><span class="bfx-claw c4"></span>`;
-  else if (kind === 'slam')  fx.innerHTML = `<span class="bfx-slam"></span><span class="bfx-slam-ring"></span>`;
-  else                       fx.innerHTML = `<span class="bfx-blast-core"></span><span class="bfx-blast-ring"></span><span class="bfx-blast-rays"></span>`;
+  fx.className = 'boss-beat bb-' + kind;
+  fx.style.setProperty('--by', (ay / 430 * 100) + '%');
+  fx.style.setProperty('--bx', (ax / 760 * 100) + '%');
   $('#stage').appendChild(fx);
-  setTimeout(() => fx.remove(), dur || 1600);
+  stageShake();
+  setTimeout(() => fx.remove(), 640);
 }
 // A transient full-screen impact flash + shake — punctuates each vow stage.
 function cineFlash(color) {
@@ -2020,9 +2023,8 @@ async function enemyPhase() {
     const weightMode = PARRY_ENABLED && S.node && S.node.useRunHp;   // real run hits harder
     const ptRow = rows.find(r => heroInRow(r));
     const ptHero = ptRow ? heroInRow(ptRow) : null;
-    if (intent.attackArt) { bossAttackFx(intent.attackArt); SFX.enemy(); stageShake(); }
     if (PARRY_ENABLED && ptHero) {
-      const q = await runParry(figEl(ptHero.id), parryPatternFor(intent));
+      const q = await runParry(figEl(ptHero.id), parryPatternFor(intent), intent.attackArt);
       if (q === 'perfect') {
         perfectParry = true; parryMul = 0;
         popupAt(figEl(ptHero.id), '⚔ PERFECT — +BURST', 'tech');
