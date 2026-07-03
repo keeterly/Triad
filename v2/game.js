@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 40;
+const V2_BUILD = 41;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -1461,9 +1461,15 @@ const PARRY_MISS_MULT = 1.6;   // an UNPARRIED blow lands HARDER (real-run only)
 // an override.  A short glyph (⊙ / ⊙⊙ / ▭ / ➤) previews it on the telegraph.
 function parryPatternFor(intent) {
   if (intent.parry) return normPattern(intent.parry);
-  if (intent.heavy)          return { kind: 'hold' };
-  if (intent.row === 'all')  return { kind: 'swipe', arc: ['arcL', 'arcU', 'arcR'][(intent.dmg || 0) % 3] };
-  if ((intent.dmg || 0) <= 4) return { kind: 'multi', count: 2 };
+  const d = intent.dmg || 0;
+  // The GESTURE and its SIZE read the attack: a heavy blast you BRACE (big
+  // hold), a wide sweeping claw you DEFLECT along a big arc, a huge single
+  // blow you SLAM (big tap), a frenzied flurry you MASH, mid hits a double-tap.
+  if (intent.heavy)         return { kind: 'hold', size: 'big' };
+  if (intent.row === 'all') return { kind: 'swipe', arc: ['arcL', 'arcU', 'arcR'][d % 3], size: 'wide' };
+  if (d >= 7)               return { kind: 'tap', size: 'big' };
+  if (d <= 3)               return { kind: 'mash', count: 4 };
+  if (d <= 5)               return { kind: 'multi', count: 2 };
   return { kind: 'tap' };
 }
 // legacy dir -> arc, so authored {kind:'swipe',dir:'up'} still works
@@ -1478,11 +1484,12 @@ const SWIPE_ARCS = {
   arcL: { d: 'M 42 24 Q 0 -50 -42 24', glyph: '↶', ok: (dx, dy) => dx < -34 && Math.abs(dx) > Math.abs(dy) * 0.5 },
   arcU: { d: 'M -38 34 Q 44 6 -6 -46', glyph: '⤴', ok: (dx, dy) => dy < -34 && Math.abs(dy) > Math.abs(dx) * 0.4 },
 };
-const PARRY_GLYPH = { tap: '⊙', multi: '⊙⊙', hold: '▭', swipe: '➤' };
+const PARRY_GLYPH = { tap: '⊙', multi: '⊙⊙', hold: '▭', swipe: '➤', mash: '⊙⊙⊙' };
 function parryGlyph(intent) {
   const p = parryPatternFor(intent);
   if (p.kind === 'seq') return '✷' + p.notes.length;   // a bullet-hell cascade
-  return p.kind === 'swipe' ? (SWIPE_ARCS[p.arc] || SWIPE_ARCS.arcR).glyph : PARRY_GLYPH[p.kind];
+  const g = p.kind === 'swipe' ? (SWIPE_ARCS[p.arc] || SWIPE_ARCS.arcR).glyph : PARRY_GLYPH[p.kind];
+  return (p.size === 'big' ? '◉' : p.size === 'wide' ? '⟺' : '') + g;   // size hint
 }
 
 // Stage-space anchor (center) of the parry UI for a given target figure.
@@ -1539,11 +1546,12 @@ function comboCounter(good) {
     el.classList.remove('pc-on');
   }
 }
-// TAP note — a closing ring; tap as it lands.
-function parryTapNote(ax, ay, dur, idx, total) {
+// TAP note — a closing ring; tap as it lands.  A 'big' size reads as a heavy
+// single blast you SLAM.
+function parryTapNote(ax, ay, dur, idx, total, size) {
   return new Promise(resolve => {
-    const label = total > 1 ? `${idx}/${total}` : 'TAP';
-    const ui = mkParryUiAt(ax, ay, `<span class="pr-target"></span><span class="pr-close"></span><span class="pr-lbl">${label}</span>`);
+    const label = total > 1 ? `${idx}/${total}` : (size === 'big' ? 'SLAM' : 'TAP');
+    const ui = mkParryUiAt(ax, ay, `<span class="pr-target"></span><span class="pr-close"></span><span class="pr-lbl">${label}</span>`, size === 'big' ? 'pr-big' : '');
     ui.el.querySelector('.pr-close').style.animationDuration = dur + 'ms';
     let done = false; const t0 = Date.now();
     const finish = (q) => { if (done) return; done = true; window.removeEventListener('pointerdown', onTap, true); noteFeedback(ui, ax, ay, q); ui.close(); resolve(q); };
@@ -1552,10 +1560,27 @@ function parryTapNote(ax, ay, dur, idx, total) {
     setTimeout(() => finish('miss'), dur);
   });
 }
-// HOLD note — press and BRACE; keep held until the bar fills (through impact).
-function parryHoldNote(ax, ay, dur) {
+// MASH note — a frenzied flurry: tap rapidly to fill the meter before it closes.
+function parryMashNote(ax, ay, count, dur) {
   return new Promise(resolve => {
-    const ui = mkParryUiAt(ax, ay, `<span class="pr-hold-track"><span class="pr-hold-fill"></span></span><span class="pr-lbl">HOLD</span>`, 'parry-hold');
+    const ui = mkParryUiAt(ax, ay, `<span class="pr-target"></span><span class="pr-close"></span><span class="pr-mash"><span class="pr-mash-fill"></span></span><span class="pr-lbl">MASH!</span>`, 'parry-mash pr-big');
+    ui.el.querySelector('.pr-close').style.animationDuration = dur + 'ms';
+    const fill = ui.el.querySelector('.pr-mash-fill');
+    let done = false, taps = 0;
+    const finish = (q) => { if (done) return; done = true; window.removeEventListener('pointerdown', onTap, true); noteFeedback(ui, ax, ay, q); ui.close(); resolve(q); };
+    const onTap = () => {
+      taps++; if (fill) fill.style.width = Math.min(100, (taps / count) * 100) + '%';
+      haptic(HAP.tap);
+      if (taps >= count) finish('perfect');
+    };
+    window.addEventListener('pointerdown', onTap, true);
+    setTimeout(() => finish(taps >= Math.ceil(count / 2) ? 'good' : 'miss'), dur);
+  });
+}
+// HOLD note — press and BRACE; keep held until the bar fills (through impact).
+function parryHoldNote(ax, ay, dur, size) {
+  return new Promise(resolve => {
+    const ui = mkParryUiAt(ax, ay, `<span class="pr-hold-track"><span class="pr-hold-fill"></span></span><span class="pr-lbl">BRACE</span>`, 'parry-hold' + (size === 'big' ? ' pr-big' : ''));
     ui.el.querySelector('.pr-hold-fill').style.animationDuration = dur + 'ms';
     let done = false, holding = false, everHeld = false;
     const finish = (q) => { if (done) return; done = true; window.removeEventListener('pointerdown', onDown, true); window.removeEventListener('pointerup', onUp, true); noteFeedback(ui, ax, ay, q); ui.close(); resolve(q); };
@@ -1569,15 +1594,16 @@ function parryHoldNote(ax, ay, dur) {
 // DEFLECT note — trace the curved arc to sweep the blow aside (a real parry
 // carves a curve; so do Project-Diva slide notes).  Detection is forgiving: a
 // sweep whose net direction matches the arc counts, so tracing OR flicking works.
-function parrySwipeNote(ax, ay, arc, dur) {
+function parrySwipeNote(ax, ay, arc, dur, size) {
   return new Promise(resolve => {
     const spec = SWIPE_ARCS[arc] || SWIPE_ARCS.arcR;
+    const wide = size === 'wide';
     const ui = mkParryUiAt(ax, ay,
       `<svg class="pr-arc-svg" viewBox="-60 -60 120 120">
          <path class="pr-arc-path" d="${spec.d}"/>
          <path class="pr-arc-draw" d="${spec.d}"/>
          <circle class="pr-arc-dot" r="5"><animateMotion dur="${dur}ms" repeatCount="1" fill="freeze" path="${spec.d}"/></circle>
-       </svg><span class="pr-lbl">DEFLECT ${spec.glyph}</span>`, 'parry-swipe');
+       </svg><span class="pr-lbl">${wide ? 'SWEEP' : 'DEFLECT'} ${spec.glyph}</span>`, 'parry-swipe' + (wide ? ' pr-wide' : ''));
     ui.el.querySelector('.pr-arc-draw').style.animationDuration = dur + 'ms';
     let done = false, sx = null, sy = null, maxHit = null; const t0 = Date.now();
     const finish = (q) => { if (done) return; done = true; window.removeEventListener('pointerdown', onDown, true); window.removeEventListener('pointermove', onMove, true); window.removeEventListener('pointerup', onUp, true); noteFeedback(ui, ax, ay, q); ui.close(); resolve(q); };
@@ -1644,19 +1670,20 @@ async function runParrySeq(notes, anchor) {
 async function runParry(targetEl, pattern) {
   if (!PARRY_ENABLED || !targetEl) { await sleep(380); return null; }
   const a = noteAnchor(targetEl);
-  const k = pattern.kind;
+  const k = pattern.kind, sz = pattern.size || '';
   if (k === 'seq')   return await runParrySeq(pattern.notes, a);
-  if (k === 'hold')  return await parryHoldNote(a.x, a.y, 900);
-  if (k === 'swipe') return await parrySwipeNote(a.x, a.y, pattern.arc, 820);
+  if (k === 'hold')  return await parryHoldNote(a.x, a.y, 900, sz);
+  if (k === 'swipe') return await parrySwipeNote(a.x, a.y, pattern.arc, 860, sz);
+  if (k === 'mash')  return await parryMashNote(a.x, a.y, pattern.count || 4, 1150);
   if (k === 'multi') {
     let hits = 0;
     for (let i = 0; i < pattern.count; i++) {
-      const q = await parryTapNote(a.x, a.y, 520, i + 1, pattern.count);
+      const q = await parryTapNote(a.x, a.y, 520, i + 1, pattern.count, sz);
       if (q === 'perfect' || q === 'good') hits++;
     }
     return hits === pattern.count ? 'perfect' : hits > 0 ? 'good' : 'miss';
   }
-  return await parryTapNote(a.x, a.y, 700, 1, 1);
+  return await parryTapNote(a.x, a.y, 700, 1, 1, sz);
 }
 function parryFlash(el) {
   if (!el) return;
@@ -2500,17 +2527,21 @@ function renderTimeline() {
     const dmg = enemyIntentDmg(e, it);
     (it.row === 'all' ? ROWS.slice() : [it.row]).forEach(r => { rowDmg[r] += dmg; });
   });
-  let incoming = 0, lethal = false;
+  // The forecast is only useful if it drives the decision — so name the hero in
+  // real danger and say the answer (parry or move), not just a bare number.
+  let incoming = 0, doomed = null;
   ROWS.forEach(r => {
     const h = heroInRow(r);
     if (!h) return;
     incoming += rowDmg[r];
-    if (rowDmg[r] >= h.hp + h.guard && !h.invuln) lethal = true;
+    if (rowDmg[r] > 0 && rowDmg[r] >= h.hp + h.guard && !h.invuln) doomed = h;
   });
   tl.innerHTML = `<span class="rd-round">ROUND ${S.turn}</span>`
-    + (incoming > 0
-        ? `<span class="rd-threat${lethal ? ' rd-lethal' : ''}"><span class="rd-i">⚔</span> ${incoming} incoming${lethal ? ' ☠' : ''}</span>`
-        : `<span class="rd-safe">— the line holds —</span>`);
+    + (doomed
+        ? `<span class="rd-threat rd-lethal"><span class="rd-i">☠</span> ${doomed.def.name} WILL FALL — <b>parry or move</b></span>`
+        : incoming > 0
+          ? `<span class="rd-threat"><span class="rd-i">⚔</span> ${incoming} incoming — <b>parry to negate</b></span>`
+          : `<span class="rd-safe">— the line holds —</span>`);
 }
 
 function renderBattlefield() {

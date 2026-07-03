@@ -1394,3 +1394,27 @@ body {
 #parry-combo .pc-lbl { font-size: 14px; letter-spacing: 0.26em; color: #fff; font-style: normal; text-shadow: 0 2px 4px #000; }
 #parry-combo.pc-pop { animation: pc-pop 0.32s cubic-bezier(0.2,1.6,0.4,1); }
 @keyframes pc-pop { 0% { transform: translateX(-50%) scale(1.55); } 100% { transform: translateX(-50%) scale(1); } }
+
+/* ===========================================================================
+   BUILD 41 — parry gesture VARIETY: sized notes (big/wide) + MASH
+   =========================================================================== */
+/* BIG note — a heavy single blast: larger rings that demand a firm SLAM */
+.parry-ring.pr-big .pr-target { width: 64px; height: 64px; }
+.parry-ring.pr-big .pr-close  { width: 64px; height: 64px; }
+.parry-ring.pr-big .pr-lbl    { top: 46px; font-size: 10px; letter-spacing: 0.2em; }
+/* WIDE deflect — a giant sweeping claw: a much bigger arc to carve */
+.parry-ring.pr-wide .pr-arc-svg { width: 188px; height: 188px; }
+.parry-ring.pr-wide .pr-lbl { top: 56px; }
+/* MASH — a frenzied flurry: hammer the meter full before it closes */
+.parry-ring.parry-mash .pr-mash {
+  position: absolute; left: 0; top: 30px; transform: translateX(-50%);
+  width: 74px; height: 9px; border-radius: 999px; overflow: hidden;
+  background: rgba(10,8,8,0.92); border: 1.5px solid rgba(255,225,74,0.7);
+  box-shadow: 0 0 8px rgba(255,225,74,0.4);
+}
+.parry-ring.parry-mash .pr-mash-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #f0b45a, #ffe14a); box-shadow: 0 0 6px rgba(255,225,74,0.8); transition: width 0.05s linear; }
+.parry-ring.parry-mash .pr-lbl { top: 46px; color: #ffe14a; font-weight: bold; animation: primed-blink 0.35s ease-in-out infinite; }
+
+/* threat forecast call-to-action */
+.rd-threat b { color: var(--gold-bright); font-weight: 700; }
+.rd-threat.rd-lethal b { color: #ffd0d0; }

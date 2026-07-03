@@ -82,7 +82,9 @@ async function boot(opts = {}) {
     const fire = (ring) => {
       const cx = Math.round(innerWidth / 2), cy = Math.round(innerHeight / 2);
       const P = (type, x, y) => window.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, pointerId: 31, pointerType: 'touch' }));
-      if (ring.classList.contains('parry-hold')) {
+      if (ring.classList.contains('parry-mash')) {
+        let n = 0; const iv = setInterval(() => { P('pointerdown', cx, cy); P('pointerup', cx, cy); if (++n >= 6) clearInterval(iv); }, 70);
+      } else if (ring.classList.contains('parry-hold')) {
         P('pointerdown', cx, cy); setTimeout(() => P('pointerup', cx, cy), 1200);
       } else if (ring.classList.contains('parry-swipe')) {
         const lbl = (ring.querySelector('.pr-lbl') || {}).textContent || '';

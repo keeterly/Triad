@@ -474,10 +474,12 @@ const QUICK = process.argv.includes('--quick');
     await J((o) => (o.a - S.heroes.find(h => h.id === 'ash').hp) < 4 && S.momentum > 0, { a: ashHp0 }),
     await J((o) => 'ashDmg:' + (o.a - S.heroes.find(h => h.id === 'ash').hp) + ' mom:' + S.momentum, { a: ashHp0 }));
   // varied rhythm patterns derive per intent + preview on the telegraph
-  check('RHYTHM: attacks carry varied parry patterns',
+  check('RHYTHM: attacks carry varied parry patterns (+ sizes)',
     await J(() => parryPatternFor({ heavy: true }).kind === 'hold'
-      && parryPatternFor({ row: 'all', dmg: 4 }).kind === 'swipe'
-      && parryPatternFor({ dmg: 3 }).kind === 'multi'
+      && parryPatternFor({ row: 'all', dmg: 4 }).size === 'wide'
+      && parryPatternFor({ dmg: 3 }).kind === 'mash'
+      && parryPatternFor({ dmg: 5 }).kind === 'multi'
+      && parryPatternFor({ dmg: 8 }).size === 'big'
       && parryPatternFor({ dmg: 6 }).kind === 'tap'));
   check('RHYTHM: the parry pattern is previewed on the intent telegraph',
     await J(() => !!document.querySelector('.intent .i-parry')));
