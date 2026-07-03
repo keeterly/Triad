@@ -1466,3 +1466,9 @@ body {
   box-shadow: 0 0 30px rgba(255,80,50,0.5); animation: bb-pulse 0.6s ease-out;
 }
 @keyframes bb-pulse { 0%{opacity:0;transform:translate(-50%,-50%) scale(0.3)} 40%{opacity:0.9} 100%{opacity:0;transform:translate(-50%,-50%) scale(2.4)} }
+
+/* ===========================================================================
+   BUILD 46 — character archetypes surfaced in party-select / recruit
+   =========================================================================== */
+.ps-cls b { color: var(--gold-bright); font-weight: 700; }
+.ps-identity { display: block; font-size: 7.5px; line-height: 1.35; color: var(--ink-dim); font-style: italic; margin-top: 2px; max-width: 130px; }

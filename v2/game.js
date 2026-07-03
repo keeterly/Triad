@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 45;
+const V2_BUILD = 46;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -124,7 +124,7 @@ const STANCE = {
 
 const HEROES = {
   ash: {
-    school: 'blade', tempo: 'steady', name: 'ASH', cls: 'Ronin', tint: 'var(--ash-tint)', maxHp: 32,
+    school: 'blade', tempo: 'steady', name: 'ASH', cls: 'Ronin', archetype: 'Skirmisher', identity: 'Strikes and slips — repositions as he attacks.', tint: 'var(--ash-tint)', maxHp: 32,
     cards: {
       front: {
         core: { name: 'Cleave',        cost: 1, target: 'frontmost', fx: { dmg: 6 },            desc: '6 damage to the nearest enemy.' },
@@ -141,7 +141,7 @@ const HEROES = {
     },
   },
   elin: {
-    school: 'light', tempo: 'steady', name: 'ELIN', cls: 'Cleric', tint: 'var(--elin-tint)', maxHp: 24,
+    school: 'light', tempo: 'steady', name: 'ELIN', cls: 'Cleric', archetype: 'Mender', identity: 'Keeps the line standing — wards and heals.', tint: 'var(--elin-tint)', maxHp: 24,
     cards: {
       front: {
         core: { name: 'Smite',         cost: 1, target: 'frontmost', fx: { dmg: 4 },            desc: '4 holy damage to the nearest enemy.' },
@@ -158,7 +158,7 @@ const HEROES = {
     },
   },
   kiki: {
-    school: 'song', tempo: 'swift', name: 'KIKI', cls: 'Bard', tint: 'var(--kiki-tint)', maxHp: 20,
+    school: 'song', tempo: 'swift', name: 'KIKI', cls: 'Bard', archetype: 'Herald', identity: 'Rallies allies and chills foes — cheap, swift.', tint: 'var(--kiki-tint)', maxHp: 20,
     cards: {
       front: {
         core: { name: 'Sharp Note',    cost: 1, target: 'frontmost', fx: { dmg: 3, lull: 1 },   desc: '3 damage · <span class="kw kw-chill">❄ CHILL</span> −1 next attack.' },
@@ -178,7 +178,7 @@ const HEROES = {
     // HEAVY: one card per stance — expensive, high-impact, slow.  Her whole
     // turn is a single deliberate play (the guardian anchor).  MID card is
     // ally-target so she can still weave threads from her natural position.
-    tempo: 'heavy', school: 'iron', name: 'CASSIA', cls: 'Guardian', tint: 'var(--cassia-tint)', maxHp: 34,
+    tempo: 'heavy', school: 'iron', name: 'CASSIA', cls: 'Guardian', archetype: 'Warden', identity: 'An immovable wall — guards the whole party.', tint: 'var(--cassia-tint)', maxHp: 34,
     cards: {
       front: {
         core: { name: 'Shield Bash', cost: 1, target: 'frontmost', fx: { dmg: 4, guard: 2 }, desc: '4 damage · 2 guard.' },
@@ -195,7 +195,7 @@ const HEROES = {
     },
   },
   hask: {
-    school: 'frost', tempo: 'steady', name: 'HASK', cls: 'Mage', tint: 'var(--hask-tint)', maxHp: 22,
+    school: 'frost', tempo: 'steady', name: 'HASK', cls: 'Mage', archetype: 'Frostcaller', identity: 'Frost from range — sets up the shatter.', tint: 'var(--hask-tint)', maxHp: 22,
     cards: {
       front: {
         core: { name: 'Frost Touch',   cost: 1, target: 'frontmost', fx: { dmg: 4, lull: 1 },   desc: '4 frost damage · <span class="kw kw-chill">❄ CHILL</span> −1.' },
@@ -2374,8 +2374,9 @@ function showRecruit(n) {
   const lines = (RECRUIT_LINES[n.hero] || []).map(l =>
     `<div class="ov-line">${l.spk ? `<span class="spk">${l.spk}</span>` : ''}${l.text}</div>`).join('');
   showOverlay(`
-    <div class="ov-eyebrow">A NEW THREAD</div>
+    <div class="ov-eyebrow">A NEW THREAD · ${(h.archetype || '').toUpperCase()}</div>
     <div class="ov-title" style="font-size:22px">${h.name} — ${h.cls.toUpperCase()}</div>
+    <div class="ps-identity" style="margin:-4px auto 8px;max-width:360px">${h.identity || ''}</div>
     <div class="recruit-fig">${V2PORTRAITS[n.hero] || ''}</div>
     <div class="ov-lines" style="min-height:0">${lines}</div>
     <button class="ov-btn primary" id="rc-join">${h.name} JOINS</button>
@@ -2452,7 +2453,8 @@ function showPartySelect(onDone, mustInclude) {
       return `<button class="ps-fig${on ? ' ps-on' : ''}" data-id="${id}">
         <span class="ps-art">${V2PORTRAITS[id] || ''}</span>
         <span class="ps-name">${h.name}</span>
-        <span class="ps-cls">${h.cls} · ${RUN.hp[id] ?? h.maxHp}/${h.maxHp}</span>
+        <span class="ps-cls">${h.cls} · <b>${h.archetype || ''}</b> · ${RUN.hp[id] ?? h.maxHp}/${h.maxHp}</span>
+        <span class="ps-identity">${h.identity || ''}</span>
       </button>`;
     }).join('');
     const ready = picked.length === need;
