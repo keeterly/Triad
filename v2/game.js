@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 39;
+const V2_BUILD = 40;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -31,7 +31,7 @@ const SFX = (() => {
     if (!ctx) { try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (_) {} }
     return ctx;
   };
-  document.addEventListener('pointerdown', () => { const c = ac(); if (c && c.state === 'suspended') c.resume(); }, { capture: true });
+  document.addEventListener('pointerdown', () => { const c = ac(); if (c && c.state === 'suspended') c.resume(); try { ensureHaptic(); } catch (_) {} }, { capture: true });
   function tone(freq, dur, type, vol, delay, slideTo) {
     const c = ac(); if (!c || c.state !== 'running') return;
     const t0 = c.currentTime + (delay || 0);
@@ -90,7 +90,8 @@ function ensureHaptic() {
   if (_hapLabel || typeof document === 'undefined' || !document.body) return;
   const l = document.createElement('label');
   l.setAttribute('aria-hidden', 'true');
-  l.style.cssText = 'position:fixed;top:-50px;left:-50px;width:1px;height:1px;opacity:0;';
+  // rendered (not display:none) but out of the way — hidden elements don't tap.
+  l.style.cssText = 'position:fixed;bottom:2px;right:2px;width:6px;height:6px;opacity:0.001;pointer-events:none;z-index:-1;';
   const i = document.createElement('input');
   i.type = 'checkbox'; i.setAttribute('switch', ''); i.tabIndex = -1;
   l.appendChild(i); document.body.appendChild(l);
@@ -99,7 +100,9 @@ function ensureHaptic() {
 function haptic(p) {
   let vibrated = false;
   try { if (navigator.vibrate) vibrated = navigator.vibrate(p); } catch (_) {}
-  if (!vibrated) { try { ensureHaptic(); if (_hapInput) { _hapInput.checked = !_hapInput.checked; _hapLabel.click(); } } catch (_) {} }
+  // iOS fallback: click the LABEL (this toggles the switch and fires a system
+  // tap on iOS 17.4+).  Do NOT pre-toggle checked — the click does the toggle.
+  if (!vibrated) { try { ensureHaptic(); if (_hapLabel) _hapLabel.click(); } catch (_) {} }
 }
 
 // ---------------------------------------------------------------------------
@@ -885,6 +888,13 @@ function attachDrag(el, card) {
     const nx = curTX + (tgtTX - curTX) * 0.26, ny = curTY + (tgtTY - curTY) * 0.26;
     vel = vel * 0.72 + (nx - curTX) * 0.28;
     curTX = nx; curTY = ny;
+    // CLAMP the card's on-screen position so it can never slide off the page —
+    // no matter how far past the edge the finger goes.
+    const hw = 64 * s;
+    let scx = originX + curTX * s, scy = originY + curTY * s;
+    scx = Math.max(sr.left + hw, Math.min(sr.right - hw, scx));
+    scy = Math.max(sr.top + 24 * s, Math.min(sr.bottom, scy));
+    curTX = (scx - originX) / s; curTY = (scy - originY) / s;
     const tilt = Math.max(-15, Math.min(15, vel * 1.5));
     el.style.transform = `translate(${curTX}px, ${curTY}px) rotate(${tilt}deg) scale(1.07)`;
     // snapped target
@@ -2677,15 +2687,17 @@ function renderResonance() {
 // full it becomes a tappable ALL-OUT button.
 function renderBurst() {
   const burst = $('#burst'); if (!burst) return;
-  const pct = Math.round(((S.momentum || 0) / MOM_MAX) * 100);
-  $('#burst-fill').style.width = pct + '%';
+  const frac = Math.max(0, Math.min(1, (S.momentum || 0) / MOM_MAX));
+  $('#burst-fill').style.width = (frac * 100) + '%';
+  burst.style.setProperty('--charge', frac.toFixed(3));   // glow intensity ramps with charge
   const ready = burstReady();
   const wasReady = burst.classList.contains('burst-ready');
   burst.classList.toggle('burst-ready', ready);
-  $('#burst-lbl').textContent = ready ? '⚡ ALL-OUT ▸' : 'BURST ' + pct + '%';
+  // no %, no clutter — the flowing energy IS the read (FFXVI limit-gauge feel)
+  $('#burst-lbl').textContent = ready ? '⚡ ALL-OUT' : 'BURST';
   burst.onclick = ready ? () => triggerAllOut() : null;
   burst.style.cursor = ready ? 'pointer' : 'default';
-  if (ready && !wasReady) haptic(HAP.good);   // a little buzz the moment it's ready
+  if (ready && !wasReady) haptic(HAP.good);
 }
 function renderActionBar() {
   $('#ep-num').textContent = S.ep;
