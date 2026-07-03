@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 49;
+const V2_BUILD = 50;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -2538,9 +2538,11 @@ function showMap() {
         const done = RUN.completed.includes(n.id);
         const reach = nodeReachable(n);
         return `<button class="map-node mn-${n.type}${done ? ' mn-done' : ''}${reach ? ' mn-reach' : ''}"
-          data-node="${n.id}" ${reach ? '' : 'disabled'}>
+          data-node="${n.id}" ${reach ? '' : 'disabled'} title="${n.label}">
+          <span class="mn-pulse" aria-hidden="true"></span>
+          <span class="mn-icon">${glyph[n.type]}</span>
+          ${done ? '<span class="mn-check" aria-hidden="true">✓</span>' : ''}
           ${n.mem ? '<span class="mn-mem" title="A previous descent fell here">♰</span>' : ''}
-          <span class="mn-glyph">${done ? '✓' : glyph[n.type]}</span>
           <span class="mn-label">${n.label}</span>
         </button>`;
       }).join('')}
