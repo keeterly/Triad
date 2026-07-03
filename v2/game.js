@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 36;
+const V2_BUILD = 37;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -81,7 +81,26 @@ const HAP = {
   struck:   [26],
   burst:    [16, 30, 16, 30, 24],
 };
-function haptic(p) { try { if (navigator.vibrate) navigator.vibrate(p); } catch (_) {} }
+// iOS Safari has NO Vibration API — the only web haptic there is the switch
+// trick: programmatically toggling a hidden <input switch> fires a system tap
+// (iOS 17.4+).  Use navigator.vibrate where it exists (Android) and fall back
+// to the switch elsewhere so presses/taps are FELT on iPhone too.
+let _hapLabel = null, _hapInput = null;
+function ensureHaptic() {
+  if (_hapLabel || typeof document === 'undefined' || !document.body) return;
+  const l = document.createElement('label');
+  l.setAttribute('aria-hidden', 'true');
+  l.style.cssText = 'position:fixed;top:-50px;left:-50px;width:1px;height:1px;opacity:0;';
+  const i = document.createElement('input');
+  i.type = 'checkbox'; i.setAttribute('switch', ''); i.tabIndex = -1;
+  l.appendChild(i); document.body.appendChild(l);
+  _hapLabel = l; _hapInput = i;
+}
+function haptic(p) {
+  let vibrated = false;
+  try { if (navigator.vibrate) vibrated = navigator.vibrate(p); } catch (_) {}
+  if (!vibrated) { try { ensureHaptic(); if (_hapInput) { _hapInput.checked = !_hapInput.checked; _hapLabel.click(); } } catch (_) {} }
+}
 
 // ---------------------------------------------------------------------------
 // DATA — heroes.
@@ -1495,6 +1514,20 @@ function noteFeedback(ui, ax, ay, q) {
   setTimeout(() => burst.remove(), 440);
   try { if (good) SFX.parry(q === 'perfect', _parryStreak); else SFX.parryMiss(); } catch (_) {}
   haptic(q === 'perfect' ? HAP.perfect : good ? HAP.good : HAP.miss);
+  comboCounter(good);
+}
+// A prominent Project-Diva-style COMBO counter — a big number that grows and
+// pops with each linked gesture, and clears when the chain breaks.
+function comboCounter(good) {
+  let el = document.getElementById('parry-combo');
+  if (!el) { el = document.createElement('div'); el.id = 'parry-combo'; $('#stage').appendChild(el); }
+  if (good && _parryStreak >= 2) {
+    el.innerHTML = `<span class="pc-num">${_parryStreak}</span><span class="pc-lbl">COMBO</span>`;
+    el.classList.remove('pc-pop'); void el.offsetWidth; el.classList.add('pc-on', 'pc-pop');
+    clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('pc-on'), 1500);
+  } else if (!good) {
+    el.classList.remove('pc-on');
+  }
 }
 // TAP note — a closing ring; tap as it lands.
 function parryTapNote(ax, ay, dur, idx, total) {
