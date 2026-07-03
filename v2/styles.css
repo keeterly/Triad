@@ -1064,3 +1064,33 @@ body {
 /* PHYSICAL / untyped — a plain burst */
 .im-burst { position: absolute; left: -14px; top: -14px; width: 28px; height: 28px; border-radius: 50%;
   background: radial-gradient(circle, #fff, transparent 68%); animation: im-pop 0.34s ease-out; }
+
+/* ===========================================================================
+   BUILD 27 — MOMENTUM gauge + ALL-OUT burst (combat-earned Persona/CO burst)
+   =========================================================================== */
+#burst { width: 68px; display: flex; flex-direction: column; align-items: center; gap: 2px; margin-top: 5px; }
+#burst-track {
+  width: 100%; height: 7px; border-radius: 999px; overflow: hidden;
+  background: rgba(10,8,8,0.85); border: 1px solid rgba(240,180,90,0.35);
+}
+#burst-fill {
+  height: 100%; width: 0%;
+  background: linear-gradient(90deg, #c0512a, #f0b45a 70%, #ffe6a4);
+  box-shadow: 0 0 8px rgba(240,180,90,0.6);
+  transition: width 0.35s cubic-bezier(0.3,0.9,0.4,1);
+}
+#burst-lbl { font-size: 7.5px; letter-spacing: 0.22em; color: #c99a5a; }
+#burst.burst-ready { cursor: pointer; }
+#burst.burst-ready #burst-track { border-color: var(--gold-bright); box-shadow: 0 0 13px rgba(240,212,136,0.75); }
+#burst.burst-ready #burst-fill { background: linear-gradient(90deg, #f0d488, #ff6a4a, #f0d488); background-size: 200% 100%; animation: burst-flow 1.1s linear infinite; }
+#burst.burst-ready #burst-lbl { color: var(--gold-bright); font-weight: bold; animation: burst-pulse 0.85s ease infinite; }
+@keyframes burst-flow { to { background-position: 200% 0; } }
+@keyframes burst-pulse { 50% { opacity: 0.55; } }
+.burst-gain { animation: burst-gain 0.42s ease; }
+@keyframes burst-gain { 0%, 100% { filter: brightness(1); } 40% { filter: brightness(2); } }
+
+/* ALL-OUT cinematic — a hotter, redder cousin of the vow cinematic */
+.rc-wash.allout { background: radial-gradient(ellipse 90% 80% at 50% 45%, rgba(74,26,14,0.86) 0%, rgba(6,4,2,0.95) 70%); }
+.rc-rays.allout { background: repeating-conic-gradient(from 0deg at 50% 45%, rgba(255,140,80,0.13) 0deg, rgba(255,140,80,0) 5deg 16deg); }
+.rc-name.allout { color: #ff9a5a; text-shadow: 0 0 26px rgba(255,120,60,0.8), 0 3px 8px #000; }
+.rc-type.allout { color: var(--gold-bright); }

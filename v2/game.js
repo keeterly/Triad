@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 26;
+const V2_BUILD = 27;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -509,6 +509,7 @@ function newBattle(node) {
     used: new Set(),
     threads,
     tempCards: [], _tuid: 0, channelUsed: false,
+    momentum: 0, combo: 0, comboBest: 0, allOutUsed: 0,
     triadFormed: false, resonantUsed: false, resonantNew: false,
     executing: false, over: false, turn: 1,
   };
@@ -1149,6 +1150,8 @@ async function resolveCard(card, targetId) {
       dealToEnemy(tgt, amt, owner ? owner.def.school : null, owner ? owner.id : null);
       if (owner) hitters.push(owner.id);
       if (isFollowUp) {
+        gainMomentum(12, { combo: true });   // LINK — chaining allies builds burst
+        linkPopup(owner.id);
         popupAt(figEl(owner.id), '⚡ FOLLOW-UP +2', 'info');
         SFX.follow();
         await addThread(owner.id, prev);
@@ -1240,10 +1243,14 @@ function dealToEnemy(e, amt, school, byHeroId) {
     flashNarrator(e.def.name + ' — weak to ' + (SCHOOL_GLYPH[e.def.weak] || '?') + ' ' + (e.def.weak || '').toUpperCase() + '.');
   }
   // Weakness state machine: WEAKENED, then STAGGERED on the same-turn repeat.
-  if (school && school === e.def.weak && e.hp > 0) {
+  // (Suppressed during an ALL-OUT so the burst stays clean damage, not a
+  // cascade of forged finishers.)
+  if (school && school === e.def.weak && e.hp > 0 && !S._burstResolving) {
+    gainMomentum(10, { combo: true });            // exploiting a weakness builds burst
     if (e.weakened) {
       e.weakened = false;
       e.staggered = true;
+      gainMomentum(18);                            // the BREAK is a big surge
       popupAt(figEl(e.uid), '⚡ STAGGERED', 'info');
       SFX.follow();
       // The stagger forges a finisher in the staggerer's hand — the reward
@@ -1279,6 +1286,7 @@ function dealToEnemy(e, amt, school, byHeroId) {
   if (e.hp === 0 && !e.dead) {
     e.dead = true;
     e._justDied = true;
+    gainMomentum(8);                                // a kill feeds the burst
     SFX.kill();
     stageShake();
     const el = figEl(e.uid);
@@ -1296,6 +1304,36 @@ function pulseEp() {
   if (!dial) return;
   dial.classList.remove('ep-pulse'); void dial.offsetWidth; dial.classList.add('ep-pulse');
 }
+
+// ---------------------------------------------------------------------------
+// MOMENTUM — the combat-earned burst gauge (Persona all-out / Clair Obscur
+// gradient).  Exploiting weaknesses, chaining LINKs (follow-ups), staggering,
+// and killing all feed it.  A running LINK combo counter (per player turn)
+// scales each gain so chaining pays.  Full gauge → ALL-OUT ATTACK.
+// ---------------------------------------------------------------------------
+const MOM_MAX = 100;
+function gainMomentum(amt, opts) {
+  if (!S || S.over || S._burstResolving) return;   // bursts don't feed themselves
+  opts = opts || {};
+  if (opts.combo) {
+    S.combo = (S.combo || 0) + 1;
+    if (S.combo > (S.comboBest || 0)) S.comboBest = S.combo;
+    amt += Math.min(8, S.combo);                    // longer chains fill faster
+  }
+  const before = S.momentum || 0;
+  S.momentum = Math.max(0, Math.min(MOM_MAX, before + amt));
+  const fill = $('#burst-fill');
+  if (fill) { fill.classList.remove('burst-gain'); void fill.offsetWidth; fill.classList.add('burst-gain'); }
+  if (S.momentum >= MOM_MAX && before < MOM_MAX) {
+    flashNarrator('✦ MOMENTUM FULL — tap BURST to unleash the ALL-OUT ATTACK.');
+    SFX.triad();
+  }
+}
+// Show a "LINK ×N" combo callout above a hero as the chain grows.
+function linkPopup(heroId) {
+  if (S.combo >= 2) popupAt(figEl(heroId), '⚡ LINK ×' + S.combo, 'rally');
+}
+function burstReady() { return S && (S.momentum || 0) >= MOM_MAX && !S.executing && !S.over; }
 
 async function addThread(a, b) {
   const key = pairKey(a, b);
@@ -1411,6 +1449,67 @@ function resonantCineEnd() {
   $('#stage').classList.remove('frozen');
 }
 
+// ALL-OUT ATTACK — the momentum burst.  The whole party piles onto the enemy
+// line one after another; PRIMED foes (exposed / chilled / weakened / staggered)
+// take extra, so setting up before you spend the gauge pays off.
+async function allOutCineIntro(heroes) {
+  $('#stage').classList.add('frozen');
+  const el = cineLayer();
+  el.classList.remove('hidden', 'rc-out');
+  el.innerHTML = `
+    <div class="rc-wash allout"></div>
+    <div class="rc-rays allout"></div>
+    <div class="rc-sweep"></div>
+    <div class="rc-host">${heroes.map(h => h.def.name).join('  ·  ')}</div>
+    <div class="rc-name allout">⚔ ALL-OUT ATTACK</div>
+    <div class="rc-type allout">MOMENTUM UNLEASHED</div>`;
+  SFX.triad();
+  cineFlash('rgba(255,120,80,0.55)');
+  await sleep(1050);
+  el.classList.add('rc-out');
+  $('#stage').classList.remove('frozen');
+  await sleep(200);
+}
+async function resolveAllOut() {
+  S._burstResolving = true;
+  const heroes = livingHeroes();
+  await allOutCineIntro(heroes);
+  for (const h of heroes) {
+    if (S.over || !livingEnemies().length) break;
+    cineFlash('rgba(255,240,210,0.5)');
+    lungeFig(figEl(h.id));
+    await sleep(120);
+    for (const e of livingEnemies()) {
+      let dmg = 6 + heroes.length;                                   // each hero piles on
+      const primed = e.staggered || e.weakened || e.mark || e.lull;
+      if (primed) { dmg = Math.round(dmg * 1.5); }                   // detonate the setup
+      dealToEnemy(e, dmg, h.def.school, h.id);
+      if (primed) popupAt(figEl(e.uid), '⚡ TECHNICAL', 'info');
+      await sleep(80);
+    }
+    renderAll();
+    await sleep(200);
+    if (checkEnd()) break;
+  }
+  S.momentum = 0;
+  S.combo = 0;
+  S.allOutUsed = (S.allOutUsed || 0) + 1;
+  S._burstResolving = false;
+  resonantCineEnd();
+  renderAll();
+}
+async function triggerAllOut() {
+  if (!burstReady()) return;
+  S.executing = true;
+  $('#stage').classList.add('executing');
+  renderAll();
+  await resolveAllOut();
+  S.executing = false;
+  $('#stage').classList.remove('executing');
+  renderAll();
+  checkEnd();
+}
+
 async function resolveResonant() {
   const r = triadEntry();
   S.resonantUsed = true;
@@ -1483,6 +1582,7 @@ async function endTurn() {
     S.enemies.forEach(e => { e.mark = Math.max(0, (e.mark || 0) - 1); e.acted = false; e._hitBy = []; e.staggered = false; });
     S.tempCards = S.tempCards.filter(t => t.expiresTurn == null || t.expiresTurn >= S.turn);
     S._pressUsed = false;
+    S.combo = 0;                 // the LINK chain is a within-turn combo
     S.channelUsed = false;
     S.executing = false;
     $('#stage').classList.remove('executing');
@@ -2191,9 +2291,22 @@ function renderThreads(newKey) {
   }
 }
 
+// The MOMENTUM gauge — fills as you exploit weaknesses / chain LINKs; when
+// full it becomes a tappable ALL-OUT button.
+function renderBurst() {
+  const burst = $('#burst'); if (!burst) return;
+  const pct = Math.round(((S.momentum || 0) / MOM_MAX) * 100);
+  $('#burst-fill').style.width = pct + '%';
+  const ready = burstReady();
+  burst.classList.toggle('burst-ready', ready);
+  $('#burst-lbl').textContent = ready ? 'ALL-OUT ▸' : 'BURST';
+  burst.onclick = ready ? () => triggerAllOut() : null;
+  burst.style.cursor = ready ? 'pointer' : 'default';
+}
 function renderActionBar() {
   $('#ep-num').textContent = S.ep;
   $('#ep-max').textContent = '/' + S.maxEp;
+  renderBurst();
   $('#btn-endturn').disabled = S.executing || S.over;
   // When nothing is playable, softly pulse END TURN so the next step is obvious.
   const anyPlayable = buildHand().some(c => !c.spent && c.cost <= S.ep)
