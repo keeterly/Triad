@@ -443,6 +443,27 @@ const QUICK = process.argv.includes('--quick');
     JSON.stringify(allOut.before) + ' -> ' + JSON.stringify(allOut.after));
   check('BURST: momentum spent to zero', allOut.momentum === 0 && allOut.used >= 1);
 
+  // ---------- PARRY: reactive timing window on enemy attacks ----------
+  console.log('--- PARRY ---');
+  await J(() => {
+    hideOverlay();
+    startFight({ type:'fight', chapter:3, heroes:['ash','elin','kiki'], enemies:['husk'], narrator:'parry drill' });
+    const a = S.heroes.find(h => h.id === 'ash'); a.row = 'front';
+    S.enemies[0].hp = S.enemies[0].maxHp = 40; S.ep = 0; S.momentum = 0; renderAll();
+  });
+  await sleep(250);
+  const ashHp0 = await J(() => S.heroes.find(h => h.id === 'ash').hp);
+  t.page.evaluate(() => { endTurn(); });   // don't await — interact mid-window
+  const ringAppeared = await t.page.waitForSelector('.parry-ring', { state: 'attached', timeout: 6000 })
+    .then(() => true).catch(() => false);
+  check('PARRY: a reactive window opens on the enemy wind-up', ringAppeared);
+  await sleep(430);                 // tap into the closing window (good/perfect band)
+  await t.page.mouse.move(140, 130); await t.page.mouse.down(); await t.page.mouse.up();
+  await sleep(2600);
+  check('PARRY: a timed tap blunts the blow and builds momentum',
+    await J((o) => (o.a - S.heroes.find(h => h.id === 'ash').hp) < 4 && S.momentum > 0, { a: ashHp0 }),
+    await J((o) => 'ashDmg:' + (o.a - S.heroes.find(h => h.id === 'ash').hp) + ' mom:' + S.momentum, { a: ashHp0 }));
+
   t.report();
   await t.browser.close();
 })().catch(e => { console.error('FATAL', e.message); process.exit(1); });

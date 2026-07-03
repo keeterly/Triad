@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 28;
+const V2_BUILD = 29;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -1350,6 +1350,48 @@ function linkPopup(heroId) {
 }
 function burstReady() { return S && (S.momentum || 0) >= MOM_MAX && !S.executing && !S.over; }
 
+// ---------------------------------------------------------------------------
+// PARRY — a reactive timing window on enemy attacks (Clair Obscur flavor).
+// Tap as the ring closes: PERFECT negates the blow, ripostes, and builds
+// momentum; a looser tap BLOCKS half.  Experimental — flip PARRY_ENABLED to
+// false to remove the whole layer cleanly (enemy attacks then resolve as before).
+// ---------------------------------------------------------------------------
+const PARRY_ENABLED = true;
+function parryWindow(targetEl, dur) {
+  return new Promise(resolve => {
+    if (!PARRY_ENABLED || !targetEl) { setTimeout(() => resolve(null), 380); return; }
+    const sr = $('#stage').getBoundingClientRect(), scale = sr.width / 760;
+    const r = targetEl.getBoundingClientRect();
+    const ring = document.createElement('div');
+    ring.className = 'parry-ring';
+    ring.style.left = ((r.left + r.width / 2 - sr.left) / scale) + 'px';
+    ring.style.top = ((r.top + r.height * 0.4 - sr.top) / scale) + 'px';
+    ring.innerHTML = `<span class="pr-target"></span><span class="pr-close"></span><span class="pr-lbl">PARRY</span>`;
+    $('#popup-layer').appendChild(ring);
+    ring.querySelector('.pr-close').style.animationDuration = dur + 'ms';
+    let done = false;
+    const t0 = Date.now();
+    const finish = (q) => {
+      if (done) return; done = true;
+      window.removeEventListener('pointerdown', onTap, true);
+      ring.classList.add('pr-out');
+      setTimeout(() => ring.remove(), 160);
+      resolve(q);
+    };
+    const onTap = () => {
+      const remaining = dur - (Date.now() - t0);
+      finish(remaining <= 165 ? 'perfect' : remaining <= 440 ? 'good' : 'early');
+    };
+    window.addEventListener('pointerdown', onTap, true);
+    setTimeout(() => finish('miss'), dur);
+  });
+}
+function parryFlash(el) {
+  if (!el) return;
+  el.classList.remove('fig-parry'); void el.offsetWidth; el.classList.add('fig-parry');
+  setTimeout(() => el && el.classList.remove('fig-parry'), 500);
+}
+
 async function addThread(a, b) {
   const key = pairKey(a, b);
   if (S.threads.has(key)) { await checkTriad(a); return; }   // kindled threads awaken on any help
@@ -1641,9 +1683,8 @@ async function enemyPhase() {
       continue;
     }
     const lungeEl = figEl(e.uid);
-    if (lungeEl && intent.kind !== 'buff') { lungeEl.classList.add('fig-lunge'); SFX.enemy(); }
-    await sleep(400);
     if (intent.kind === 'buff') {
+      await sleep(400);
       if (intent.guardSelf) { e.guard += intent.guardSelf; popupAt(figEl(e.uid), '⛨ ' + intent.guardSelf, 'guard'); SFX.guard(); }
       if (intent.powerSelf) { e.power += intent.powerSelf; popupAt(figEl(e.uid), '▲ +' + intent.powerSelf, 'rally'); }
       if (intent.powerAll) {
@@ -1653,9 +1694,38 @@ async function enemyPhase() {
       renderAll();
       continue;
     }
-    let dmg = enemyIntentDmg(e, intent);
-    if (e.lull) e.lull = 0;
+    if (lungeEl) { lungeEl.classList.add('fig-lunge'); SFX.enemy(); }
     const rows = intent.row === 'all' ? ROWS.slice() : [intent.row];
+    // PARRY — a reactive timing window on the wind-up.  A PERFECT parry negates
+    // the blow, ripostes for momentum, and can break the attack outright.
+    let parryMul = 1, perfectParry = false;
+    const ptRow = rows.find(r => heroInRow(r));
+    const ptHero = ptRow ? heroInRow(ptRow) : null;
+    if (PARRY_ENABLED && ptHero) {
+      const q = await parryWindow(figEl(ptHero.id), intent.heavy ? 820 : 700);
+      if (q === 'perfect') {
+        perfectParry = true; parryMul = 0;
+        popupAt(figEl(ptHero.id), '⚔ PERFECT PARRY', 'tech');
+        flashNarrator(ptHero.def.name + ' turns the blow — riposte!');
+        parryFlash(figEl(ptHero.id));
+        gainMomentum(14, { combo: true });
+        lungeFig(figEl(ptHero.id));
+        dealToEnemy(e, 6, ptHero.def.school, ptHero.id);   // the counter
+        renderAll();
+        await sleep(300);
+        if (e.dead || S.over) continue;                    // attack broken
+      } else if (q === 'good') {
+        parryMul = 0.5;
+        popupAt(figEl(ptHero.id), '⛨ BLOCK', 'guard');
+        gainMomentum(5);
+      } else if (q === 'early') {
+        popupAt(figEl(ptHero.id), 'TOO EARLY', 'info');
+      }
+    } else {
+      await sleep(400);
+    }
+    let dmg = Math.round(enemyIntentDmg(e, intent) * parryMul);
+    if (e.lull) e.lull = 0;
     let hitAny = false;
     for (const row of rows) {
       const h = heroInRow(row);
@@ -1688,8 +1758,8 @@ async function enemyPhase() {
           (e._damaged || (e._damaged = [])).push(h.id);   // remembered for AVENGE
         }
       }
-      if (intent.chill)  { h.chill = (h.chill || 0) + intent.chill; popupAt(figEl(h.id), '❄ CHILL −' + intent.chill, 'chill'); }
-      if (intent.expose) { h.exposed = (h.exposed || 0) + intent.expose; popupAt(figEl(h.id), '◎ EXPOSED +' + intent.expose, 'info'); }
+      if (!perfectParry && intent.chill)  { h.chill = (h.chill || 0) + intent.chill; popupAt(figEl(h.id), '❄ CHILL −' + intent.chill, 'chill'); }
+      if (!perfectParry && intent.expose) { h.exposed = (h.exposed || 0) + intent.expose; popupAt(figEl(h.id), '◎ EXPOSED +' + intent.expose, 'info'); }
       // REACTIVE: an ally in real danger summons their strongest bond.
       // Costed on purpose — the intercept scrambles formation and chills
       // the protector; declining it is as expressive as playing it.
