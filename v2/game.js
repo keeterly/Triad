@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 42;
+const V2_BUILD = 43;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -274,11 +274,11 @@ const ENEMY_DEFS = {
     intents: [
       // The floor boss fills the field; its blows are CASCADES you parry as a
       // sequence — taps racing down an arc, a braced hold, a deflect sweep.
-      { name: 'Returning Stroke', dmg: 7, row: 'front', parry: { kind: 'seq', notes: [{ t: 'tap' }, { t: 'tap' }, { t: 'tap' }] } },
+      { name: 'Returning Stroke', dmg: 7, row: 'front', attackArt: 'slash', parry: { kind: 'seq', notes: [{ t: 'tap' }, { t: 'tap' }, { t: 'tap' }] } },
       { name: 'Gathers the Echo', kind: 'buff', desc: 'the echo swells', powerSelf: 2 },
-      { name: 'Echoed Arc',       dmg: 5, row: 'mid',  parry: { kind: 'seq', notes: [{ t: 'swipe', arc: 'arcR' }, { t: 'tap' }, { t: 'tap' }] } },
-      { name: 'Remembered Blade', dmg: 6, row: 'back', expose: 2, parry: { kind: 'seq', notes: [{ t: 'tap' }, { t: 'tap' }, { t: 'hold' }] } },
-      { name: 'OBLIVION ECHO',    dmg: 9, row: 'all', heavy: true, parry: { kind: 'seq', notes: [{ t: 'tap' }, { t: 'tap' }, { t: 'tap' }, { t: 'swipe', arc: 'arcU' }, { t: 'hold' }] } },
+      { name: 'Echoed Arc',       dmg: 5, row: 'mid',  attackArt: 'claw', parry: { kind: 'seq', notes: [{ t: 'swipe', arc: 'arcR' }, { t: 'tap' }, { t: 'tap' }] } },
+      { name: 'Remembered Blade', dmg: 6, row: 'back', expose: 2, attackArt: 'slam', parry: { kind: 'seq', notes: [{ t: 'tap' }, { t: 'tap' }, { t: 'hold' }] } },
+      { name: 'OBLIVION ECHO',    dmg: 9, row: 'all', heavy: true, attackArt: 'blast', parry: { kind: 'seq', notes: [{ t: 'tap' }, { t: 'tap' }, { t: 'tap' }, { t: 'swipe', arc: 'arcU' }, { t: 'hold' }] } },
     ],
   },
 };
@@ -1769,6 +1769,19 @@ function cineLayer() {
   if (!el) { el = document.createElement('div'); el.id = 'resonant-cine'; el.className = 'hidden'; $('#stage').appendChild(el); }
   return el;
 }
+// BOSS ATTACK ART — a big JRPG attack graphic that sweeps the screen WHILE you
+// parry, selling the blow: a giant blade SLASH, a raking CLAW, a crushing SLAM,
+// or a swelling magic BLAST.  Purely visual, pointer-events:none, self-removing.
+function bossAttackFx(kind, dur) {
+  const fx = document.createElement('div');
+  fx.className = 'boss-fx boss-fx-' + kind;
+  if (kind === 'slash')      fx.innerHTML = `<span class="bfx-slash s1"></span><span class="bfx-slash s2"></span><span class="bfx-glint"></span>`;
+  else if (kind === 'claw')  fx.innerHTML = `<span class="bfx-claw c1"></span><span class="bfx-claw c2"></span><span class="bfx-claw c3"></span><span class="bfx-claw c4"></span>`;
+  else if (kind === 'slam')  fx.innerHTML = `<span class="bfx-slam"></span><span class="bfx-slam-ring"></span>`;
+  else                       fx.innerHTML = `<span class="bfx-blast-core"></span><span class="bfx-blast-ring"></span><span class="bfx-blast-rays"></span>`;
+  $('#stage').appendChild(fx);
+  setTimeout(() => fx.remove(), dur || 1600);
+}
 // A transient full-screen impact flash + shake — punctuates each vow stage.
 function cineFlash(color) {
   const st = $('#stage');
@@ -2007,6 +2020,7 @@ async function enemyPhase() {
     const weightMode = PARRY_ENABLED && S.node && S.node.useRunHp;   // real run hits harder
     const ptRow = rows.find(r => heroInRow(r));
     const ptHero = ptRow ? heroInRow(ptRow) : null;
+    if (intent.attackArt) { bossAttackFx(intent.attackArt); SFX.enemy(); stageShake(); }
     if (PARRY_ENABLED && ptHero) {
       const q = await runParry(figEl(ptHero.id), parryPatternFor(intent));
       if (q === 'perfect') {
