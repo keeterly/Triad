@@ -440,6 +440,10 @@ body {
 .map-node.mn-boss .mn-glyph { color: var(--blood-bright); }
 .map-node.mn-camp .mn-glyph { color: var(--heal); }
 .map-node.mn-recruit .mn-glyph { color: var(--gold-bright); }
+.map-node.mn-elite { border-color: rgba(212,69,69,0.32); }
+.map-node.mn-elite.mn-reach { border-color: rgba(212,120,90,0.85); }
+.map-node.mn-elite .mn-glyph { color: #e08a5a; }
+.map-node.mn-event .mn-glyph { color: #8fb0d8; }
 
 .party-chip {
   font-family: inherit; cursor: pointer; margin: 2px auto 0;

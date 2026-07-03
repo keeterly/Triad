@@ -92,6 +92,77 @@ const QUICK = process.argv.includes('--quick');
   check('party chip previews the trio resonant', await J(() => document.querySelector('.party-chip')?.textContent.includes('Twin Shadows')));
   await shot('map');
 
+  // The map is now PROCEDURALLY GENERATED (v1-aligned).  First prove the
+  // generator's structural invariants over many runs, then exercise the two
+  // new node types, then PIN a deterministic descent for the scripted walk.
+  const gen = await J(() => {
+    let fails = 0, sawElite = false, sawEvent = false, nodes = 0;
+    for (let i = 0; i < 60; i++) {
+      const m = generateDescent(['ash', 'elin', 'mira']);
+      const l1 = m.filter(n => n.level === 1);
+      const boss = m.filter(n => n.type === 'boss');
+      const maxL = Math.max(...m.map(n => n.level));
+      if (l1.length !== 1 || l1[0].type !== 'fight') fails++;
+      if (boss.length !== 1 || boss[0].level !== maxL) fails++;
+      for (const n of m) { if (n.type !== 'boss' && (!n.next || !n.next.length)) { fails++; break; } }
+      for (const n of m) { if (n.level !== 1 && !m.some(p => p.next.includes(n.id))) { fails++; break; } }
+      const seen = new Set([l1[0].id]), q = [l1[0].id];
+      while (q.length) { const c = q.shift(); for (const nx of (m[c].next || [])) if (!seen.has(nx)) { seen.add(nx); q.push(nx); } }
+      if (!seen.has(boss[0].id)) fails++;
+      if (!m.some(n => n.type === 'recruit' && n.hero === 'cassia')) fails++;
+      if (m.some(n => n.type === 'elite')) sawElite = true;
+      if (m.some(n => n.type === 'event')) sawEvent = true;
+      nodes = m.length;
+    }
+    return { fails, sawElite, sawEvent, nodes };
+  });
+  check('GEN: 60 descents all valid (funnel→branch→boss · connected · recruit present)', gen.fails === 0, JSON.stringify(gen));
+  check('GEN: node vocabulary includes elite + event across runs', gen.sawElite && gen.sawEvent, JSON.stringify(gen));
+
+  // EVENT node resolves and applies its choice (shrine A = heal 6).
+  await J(() => {
+    RUN.map = [
+      { id: 0, level: 1, col: 1, type: 'event', label: 'A COLD SHRINE', eventId: 'shrine', next: [1] },
+      { id: 1, level: 2, col: 2, type: 'boss', label: 'x', enemies: ['echoknight2'], isBoss: true, next: [] },
+    ];
+    RUN.completed = []; RUN.hp.ash = 1; saveRun(); showMap();
+  });
+  await sleep(250);
+  await J(() => document.querySelector('.map-node.mn-event.mn-reach').click()); await sleep(250);
+  check('EVENT: a crossroads offers two choices', await J(() => !!document.querySelector('#ev-a') && !!document.querySelector('#ev-b')));
+  await J(() => document.querySelector('#ev-a').click()); await sleep(300);
+  check('EVENT: the choice resolved (party healed) and returned to the map',
+    await J(() => RUN.hp.ash >= 7 && !!document.querySelector('.map-strip')), await J(() => 'ash hp ' + RUN.hp.ash));
+
+  // ELITE node spikes enemy HP + damage over a plain run-scaled fight.
+  const el = await J(() => {
+    startFight({ type: 'fight', chapter: 3, heroes: ['ash', 'elin', 'mira'], enemies: ['drone'], useRunHp: true, depth: 3, elite: false });
+    const base = S.enemies[0].maxHp, bmul = S.enemies[0].dmgMul;
+    startFight({ type: 'fight', chapter: 3, heroes: ['ash', 'elin', 'mira'], enemies: ['drone'], useRunHp: true, depth: 3, elite: true });
+    return { base, bmul, hp: S.enemies[0].maxHp, mul: S.enemies[0].dmgMul };
+  });
+  check('ELITE: the spike raises enemy HP and damage', el.hp > el.base && el.mul > el.bmul, JSON.stringify(el));
+
+  // Pin a DETERMINISTIC descent so the scripted walk below is reproducible.
+  const TEST_MAP = [
+    { id: 0, level: 1, col: 1, type: 'fight',   label: 'ASHFALL ROAD',      enemies: ['husk', 'wraith'], next: [1] },
+    { id: 1, level: 2, col: 2, type: 'recruit', label: 'THE GATE HOLDS',    hero: 'cassia', next: [2, 3] },
+    { id: 2, level: 3, col: 3, type: 'fight',   label: 'HOLLOW CHOIR',      enemies: ['cultist', 'mourner'], next: [4] },
+    { id: 3, level: 3, col: 3, type: 'event',   label: 'A COLD SHRINE',     eventId: 'shrine', next: [4] },
+    { id: 4, level: 4, col: 4, type: 'camp',    label: 'EMBER REST',        next: [5, 6] },
+    { id: 5, level: 5, col: 5, type: 'elite',   label: 'THE WARDEN STIRS',  enemies: ['drone', 'mourner', 'cultist'], elite: true, next: [7] },
+    { id: 6, level: 5, col: 5, type: 'fight',   label: 'COLD PROCESSION',   enemies: ['wraith', 'cultist'], next: [7] },
+    { id: 7, level: 6, col: 6, type: 'camp',    label: 'LAST FIRE',         next: [8] },
+    { id: 8, level: 7, col: 7, type: 'boss',    label: 'THE REMEMBERED',    enemies: ['echoknight2'], isBoss: true, next: [] },
+  ];
+  await J((m) => {
+    RUN.map = m.map(n => ({ ...n, next: n.next.slice() }));
+    RUN.completed = []; RUN.bonds = {};
+    RUN.roster.forEach(id => { RUN.hp[id] = HEROES[id].maxHp; });
+    saveRun(); showMap();
+  }, TEST_MAP);
+  await sleep(250);
+
   // node 0 fight — autoplay attacks only (threads not needed here)
   await J(() => document.querySelector('.map-node.mn-reach').click()); await sleep(700);
   for (let turn = 0; turn < 12; turn++) {
@@ -283,21 +354,31 @@ const QUICK = process.argv.includes('--quick');
   await shot('awakened');
 
   // ---------- THE ABYSS REMEMBERS: death contributes ----------
+  // The map regenerates each run, so a fallen descent is now remembered by
+  // its DEPTH (level), and the ♰ resurfaces on a node at that depth next run.
   console.log('--- ABYSS ---');
-  const fallenNode = await J(() => S.node.mapId);
+  const fallenLevel = await J(() => S.node.level);
   await J(() => { S.heroes.forEach(h => { h.hp = 0; h.downed = true; }); checkEnd(); });
   await sleep(1400);
   check('LOOP: map defeat ends the run — the Abyss remembers', await J(() => document.body.innerText.includes('Abyss remembers')));
-  check('memory stored at the fallen node · run cleared', await J((n) => {
+  check('memory stored at the fallen depth · run cleared', await J((lvl) => {
     const a = JSON.parse(localStorage.getItem('kizuna2.abyss') || '{}');
-    return !!a[n] && !localStorage.getItem('kizuna2.run');
-  }, fallenNode));
+    return !!a[lvl] && !localStorage.getItem('kizuna2.run');
+  }, fallenLevel));
   await shot('abyss-fallen');
   await clickOverlayBtn('#ov-fallen'); await sleep(500);
   await clickOverlayBtn('#t-descent'); await sleep(500);
-  await J(() => { RUN.completed = [0, 1, 2, 3, 4, 5]; saveRun(); showMap(); }); await sleep(450);
-  check('next run: the map shows ♰ where they fell', await J((n) => !!document.querySelector(`.map-node[data-node="${n}"] .mn-mem`), fallenNode));
-  await J((n) => document.querySelector(`.map-node[data-node="${n}"]`).click(), fallenNode); await sleep(500);
+  // pin a fresh deterministic map and hang the recovered memory on the entry
+  // node so the ♰ is guaranteed reachable this run.
+  await J((arg) => {
+    const mem = JSON.parse(localStorage.getItem('kizuna2.abyss') || '{}')[arg.lvl];
+    RUN.map = arg.map.map(n => ({ ...n, next: n.next.slice() }));
+    RUN.map[0].mem = mem; RUN.map[0].memLevel = arg.lvl;
+    RUN.completed = []; RUN.bonds = {};
+    saveRun(); showMap();
+  }, { map: TEST_MAP, lvl: fallenLevel }); await sleep(400);
+  check('next run: the map shows ♰ where they fell', await J(() => !!document.querySelector('.map-node .mn-mem')));
+  await J(() => document.querySelector('.map-node[data-node="0"]').click()); await sleep(500);
   check('discovery beat: ashes of a descent', await J(() => !!document.querySelector('#ov-takeup')));
   await shot('abyss-memory');
   await clickOverlayBtn('#ov-takeup'); await sleep(900);
@@ -305,10 +386,10 @@ const QUICK = process.argv.includes('--quick');
     const b = RUN.bonds || {};
     return Object.keys(b).length >= 3 && Object.values(b).every(v => v >= 1);
   }), await J(() => JSON.stringify(RUN.bonds)));
-  check('memory consumed · the fight begins over their ashes', await J((n) => {
+  check('memory consumed · the fight begins over their ashes', await J((lvl) => {
     const a = JSON.parse(localStorage.getItem('kizuna2.abyss') || '{}');
-    return !a[n] && typeof S !== 'undefined' && S && !S.over;
-  }, fallenNode));
+    return !a[lvl] && typeof S !== 'undefined' && S && !S.over;
+  }, fallenLevel));
 
   await t.autoParry(false);   // scripted drills below control their own input
 

@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 48;
+const V2_BUILD = 49;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -508,19 +508,149 @@ const FLOW = [
   ], next: 'descent' },
 ];
 
-// The Descent — a small node map.  Linear columns with occasional choices.
-const MAP_NODES = [
-  { id: 0, col: 1, type: 'fight',   label: 'ASHFALL ROAD',   enemies: ['husk', 'wraith'], next: [1] },
-  { id: 1, col: 2, type: 'recruit', label: 'THE GATE HOLDS', hero: 'cassia', next: [2, 3] },
-  { id: 2, col: 3, type: 'fight',   label: 'HOLLOW CHOIR',   enemies: ['cultist', 'mourner'], next: [4] },
-  { id: 3, col: 3, type: 'fight',   label: 'MOURNING FIELD', enemies: ['mourner', 'drone'], next: [4] },
-  { id: 4, col: 4, type: 'camp',    label: 'EMBER REST',     next: [5] },
-  { id: 5, col: 5, type: 'recruit', label: 'THE OUTLAW’S DEBT', hero: 'branwen', next: [6, 7] },
-  { id: 6, col: 6, type: 'fight',   label: 'DRONE NEST',     enemies: ['drone', 'husk', 'wraith'], next: [8] },
-  { id: 7, col: 6, type: 'fight',   label: 'COLD PROCESSION',enemies: ['wraith', 'cultist', 'mourner'], next: [8] },
-  { id: 8, col: 7, type: 'camp',    label: 'LAST FIRE',      next: [9] },
-  { id: 9, col: 8, type: 'boss',    label: 'THE REMEMBERED', enemies: ['echoknight2'], next: [] },
-];
+// ---------------------------------------------------------------------------
+// THE DESCENT — a PROCEDURALLY GENERATED branching map (v1-aligned).  Every
+// run generates a fresh descent: a single funnel FIGHT, then several branching
+// stretches (2-3 nodes each — the player chooses the road), a pre-boss CAMP
+// gate, and the BOSS.  Node vocabulary: fight · elite · event · camp · recruit
+// · boss.  The generated map lives on RUN.map (an array indexed by id) so it
+// persists with the run; `mapNode(id)` / `mapAll()` read it.
+// ---------------------------------------------------------------------------
+const RECRUITABLE = ['cassia', 'branwen'];   // v2's optional recruits (order = when they appear)
+const RECRUIT_NODE_LABELS = { cassia: 'THE GATE HOLDS', branwen: 'THE OUTLAW’S DEBT' };
+const COMBAT_POOL = {
+  early: ['husk', 'wraith', 'cultist'],
+  mid:   ['cultist', 'mourner', 'husk', 'wraith'],
+  deep:  ['drone', 'mourner', 'cultist', 'wraith', 'husk'],
+};
+const NODE_LABELS = {
+  fight: ['ASHFALL ROAD', 'HOLLOW CHOIR', 'MOURNING FIELD', 'COLD PROCESSION', 'THE GREY MILE', 'SILENT MARCH', 'THE BROKEN CHANCEL', 'DRONE NEST', 'THE WEEPING STAIR'],
+  elite: ['THE WARDEN STIRS', 'A DEEPER SIN', 'THE GORGE OF NAMES', 'THE HUNGERING DARK', 'WHERE THE STRONG FELL'],
+  event: ['A COLD SHRINE', 'AN OLD CACHE', 'AN ECHO IN THE DARK', 'A FORK IN THE BLACK', 'THE WATCHER’S STONE'],
+  camp:  ['EMBER REST', 'HOLLOW REST', 'LAST FIRE', 'THE QUIET HOUR'],
+  boss:  ['THE REMEMBERED'],
+};
+function _rand(n) { return Math.floor(Math.random() * n); }
+function _pick(a) { return a[_rand(a.length)]; }
+function _shuffle(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = _rand(i + 1); const t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+function _labeler(type) { const q = _shuffle(NODE_LABELS[type] || ['THE ROAD']); let i = 0; return () => q[i++ % q.length]; }
+function _combatEnemies(level) {
+  const pool = level <= 2 ? COMBAT_POOL.early : level <= 4 ? COMBAT_POOL.mid : COMBAT_POOL.deep;
+  const count = level <= 2 ? 2 : (Math.random() < 0.45 ? 3 : 2);
+  const out = []; for (let i = 0; i < count; i++) out.push(_pick(pool)); return out;
+}
+function _eliteEnemies(level) {
+  const heavy = _pick(['drone', 'mourner']);
+  const rest = _shuffle(['cultist', 'wraith', 'husk', 'mourner']).slice(0, level >= 5 ? 2 : 1);
+  return [heavy, ...rest];
+}
+// One branching stretch's node TYPES (2-3), always with at least one fight and
+// weighted toward variety as the descent deepens.
+function _stretchTypes(level) {
+  const types = ['fight'];
+  const r = Math.random();
+  if (level >= 3 && r < 0.42) types.push('elite');
+  else types.push(Math.random() < 0.62 ? 'event' : 'fight');
+  if (Math.random() < 0.5) types.push(Math.random() < 0.5 ? 'event' : 'fight');
+  return _shuffle(types);
+}
+// Wire each stretch to the next: every source reaches 1-2 adjacent targets and
+// every target keeps at least one incoming edge (no orphans, no dead ends).
+function _connect(prev, next, nodes) {
+  prev.forEach((pid, pi) => {
+    const span = Math.max(1, prev.length - 1);
+    const base = Math.min(next.length - 1, Math.round(pi * (next.length - 1) / span));
+    const t = new Set([next[base]]);
+    if (next[base + 1] && Math.random() < 0.5) t.add(next[base + 1]);
+    if (next[base - 1] && Math.random() < 0.3) t.add(next[base - 1]);
+    nodes[pid].next = [...t];
+  });
+  next.forEach(nid => {
+    if (!prev.some(pid => nodes[pid].next.includes(nid))) {
+      nodes[prev[_rand(prev.length)]].next.push(nid);
+    }
+  });
+}
+function generateDescent(roster) {
+  roster = roster || ['ash', 'elin', 'mira'];
+  const pending = RECRUITABLE.filter(id => !roster.includes(id));
+  // Spread the pending recruits across the early/mid stretches as extra branches.
+  const recruitAtLevel = {};
+  pending.forEach((id, i) => { recruitAtLevel[2 + i * 2] = id; });
+  const numLevels = 7;
+  const nodes = [];
+  const levels = [];
+  const lbl = { fight: _labeler('fight'), elite: _labeler('elite'), event: _labeler('event'), camp: _labeler('camp'), boss: _labeler('boss') };
+  const eventQ = _shuffle(Object.keys(EVENTS_V2));
+  let eventI = 0, idc = 0;
+  for (let level = 1; level <= numLevels; level++) {
+    let types;
+    if (level === 1) types = ['fight'];
+    else if (level === numLevels) types = ['boss'];
+    else if (level === numLevels - 1) types = ['camp'];
+    else types = _stretchTypes(level);
+    if (recruitAtLevel[level]) types = types.slice(0, 2).concat('recruit');
+    const ids = [];
+    types.forEach(type => {
+      const node = { id: idc, level, col: level, type, next: [] };
+      if (type === 'fight')        { node.enemies = _combatEnemies(level); node.label = lbl.fight(); }
+      else if (type === 'elite')   { node.enemies = _eliteEnemies(level); node.elite = true; node.label = lbl.elite(); }
+      else if (type === 'event')   { node.eventId = eventQ[eventI++ % eventQ.length]; node.label = lbl.event(); }
+      else if (type === 'camp')    { node.label = lbl.camp(); }
+      else if (type === 'recruit') { node.hero = recruitAtLevel[level]; node.label = RECRUIT_NODE_LABELS[node.hero] || 'A NEW THREAD'; }
+      else if (type === 'boss')    { node.enemies = ['echoknight2']; node.isBoss = true; node.label = lbl.boss(); }
+      nodes[idc] = node; ids.push(idc); idc++;
+    });
+    levels.push(ids);
+  }
+  for (let l = 0; l < levels.length - 1; l++) _connect(levels[l], levels[l + 1], nodes);
+  // A previous descent's ashes surface once — attach any Abyss memory to a node
+  // at the same depth (level) in this fresh map so the ♰ still marks the road.
+  const abyss = loadAbyss();
+  Object.keys(abyss).forEach(lvlKey => {
+    const lv = +lvlKey;
+    const candidates = nodes.filter(n => n.level === lv && n.type !== 'boss');
+    if (candidates.length) { const n = candidates[_rand(candidates.length)]; n.mem = abyss[lvlKey]; n.memLevel = lv; }
+  });
+  return nodes;
+}
+function mapAll() { return (RUN && RUN.map) || []; }
+function mapNode(id) { return mapAll()[id]; }
+
+// EVENT nodes — a crossroads with two choices, each trading in the run's real
+// resources (party HP, bonds, a one-fight edge).  Kept small and readable; the
+// fx run at click-time so they close over the current RUN.
+function _healParty(x) { RUN.roster.forEach(id => { RUN.hp[id] = Math.min(HEROES[id].maxHp, (RUN.hp[id] ?? HEROES[id].maxHp) + x); }); }
+function _weakestActiveBondKey() {
+  const ids = RUN.active.slice(); let best = null, low = Infinity;
+  for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) {
+    const k = pairKey(ids[i], ids[j]); const p = bondPts(k);
+    if (p < low) { low = p; best = k; }
+  }
+  return best;
+}
+function _bumpWeakestBond() { const k = _weakestActiveBondKey(); if (k) { RUN.bonds = RUN.bonds || {}; RUN.bonds[k] = (RUN.bonds[k] || 0) + 1; } return k; }
+const EVENTS_V2 = {
+  shrine: {
+    title: 'A COLD SHRINE',
+    lines: ['A shrine to a god no one remembers leans in the dark.', 'It asks for something — or gives it. Hard to say which.'],
+    a: { label: 'KNEEL AND PRAY · the party heals 6', fx: () => _healParty(6) },
+    b: { label: 'OFFER A NAME · deepen the weakest bond +1 ♡', fx: () => _bumpWeakestBond() },
+  },
+  cache: {
+    title: 'AN OLD CACHE',
+    lines: ['A dead scout’s pack, half-buried. Whatever killed them is long gone.', 'Two things worth taking. Only time to grab one.'],
+    a: { label: 'THE WHETSTONE · open the next fight with ▲ RALLY +2', fx: () => { RUN.campEdge = true; } },
+    b: { label: 'THE POULTICE · the party heals 4', fx: () => _healParty(4) },
+  },
+  echo: {
+    title: 'AN ECHO IN THE DARK',
+    lines: ['A voice repeats a conversation the party half-remembers having.', 'Stay and listen, or press on before it learns your names.'],
+    a: { label: 'LISTEN · heal 3 · deepen the weakest bond +1 ♡', fx: () => { _healParty(3); _bumpWeakestBond(); } },
+    b: { label: 'PRESS ON · open the next fight with ▲ RALLY +2', fx: () => { RUN.campEdge = true; } },
+  },
+};
+
 // One voice per hero — camp scenes pair the two least-bonded companions.
 const CAMP_VOICES = {
   ash:    '…I don’t talk much. But I’d notice if you were gone.',
@@ -576,11 +706,13 @@ function trioClassKey(ids) { return ids.map(id => HEROES[id].cls).sort().join('+
 const UNLOCK_KEY = 'kizuna.unlocked';
 
 function newRun() {
+  const roster = ['ash', 'elin', 'mira'];
   return {
-    roster: ['ash', 'elin', 'mira'],
-    active: ['ash', 'elin', 'mira'],
+    roster: roster.slice(),
+    active: roster.slice(),
     hp: { ash: HEROES.ash.maxHp, elin: HEROES.elin.maxHp, mira: HEROES.mira.maxHp },
     bonds: {},          // pairKey -> points; a pair at 2+ is KINDLED
+    map: generateDescent(roster),   // a fresh branching descent every run
     completed: [],
     done: false,
   };
@@ -623,6 +755,12 @@ function newBattle(node) {
       } else {
         e.dmgMul = 1.8 + (depth - 1) * 0.08;
         const hp = Math.round(e.maxHp * (1.65 + (depth - 1) * 0.06));
+        e.maxHp = hp; e.hp = hp;
+      }
+      // ELITE nodes hit harder and last longer — a real spike over a plain fight.
+      if (node.elite && !e.def.boss) {
+        e.dmgMul *= 1.15;
+        const hp = Math.round(e.maxHp * 1.25);
         e.maxHp = hp; e.hp = hp;
       }
     });
@@ -2253,10 +2391,10 @@ function onVictory() {
     });
     saveRun();
   }
-  const isBoss = S.node.enemies.some(id => ENEMY_DEFS[id].boss);
+  const isBoss = S.node.isBoss || S.node.enemies.some(id => ENEMY_DEFS[id].boss);
   SFX.victory();
   setTimeout(() => {
-    if (S.node.mapId === 9) { onRunComplete(); return; }
+    if (isBoss && S.node.mapId != null) { onRunComplete(); return; }
     const th = S.threads.size;
     showOverlay(`
       <div class="ov-eyebrow" style="color:var(--gold-bright)">VICTORY</div>
@@ -2272,22 +2410,23 @@ function onDefeat() {
   // On the Descent, death is contribution: the run ends, and the Abyss
   // stores a memory of who fell here — the next descent will find it.
   if (S.node.mapId != null && RUN) {
+    const memLevel = S.node.level != null ? S.node.level : S.node.depth;
     const abyss = loadAbyss();
-    abyss[S.node.mapId] = {
+    abyss[memLevel] = {
       trio: RUN.active.slice(),
       threads: [...S.threads],
-      label: MAP_NODES[S.node.mapId].label,
+      label: S.node.label || (mapNode(S.node.mapId) || {}).label || 'the dark',
     };
     saveAbyss(abyss);
     try { localStorage.removeItem(RUN_KEY); } catch (_) {}
     RUN = null;
-    const names = abyss[S.node.mapId].trio.map(id => HEROES[id].name).join(' · ');
+    const names = abyss[memLevel].trio.map(id => HEROES[id].name).join(' · ');
     setTimeout(() => {
       showOverlay(`
         <div class="ov-eyebrow">THE DESCENT ENDS</div>
         <div class="ov-title" style="font-size:22px">THE THREAD FRAYS</div>
         <div class="ov-lines" style="text-align:center; min-height:0">
-          <div class="ov-line">${names} fall at <b>${abyss[S.node.mapId].label}</b>.</div>
+          <div class="ov-line">${names} fall at <b>${abyss[memLevel].label}</b>.</div>
           <div class="ov-line">But nothing here is wasted. <b>The Abyss remembers.</b></div>
         </div>
         <button class="ov-btn primary" id="ov-fallen">RETURN TO THE SURFACE</button>
@@ -2384,16 +2523,15 @@ function startDescent() {
 function nodeReachable(n) {
   if (RUN.completed.includes(n.id)) return false;
   if (n.col === 1) return true;
-  return MAP_NODES.some(p => RUN.completed.includes(p.id) && p.next.includes(n.id));
+  return mapAll().some(p => RUN.completed.includes(p.id) && p.next.includes(n.id));
 }
 function showMap() {
   S = null;
   $('#chapter-chip').textContent = 'DESCENT';
   $('#timeline').innerHTML = '';
   const cols = {};
-  MAP_NODES.forEach(n => { (cols[n.col] = cols[n.col] || []).push(n); });
-  const glyph = { fight: '⚔', recruit: '☉', camp: '⌂', boss: '☠' };
-  const abyss = loadAbyss();
+  mapAll().forEach(n => { (cols[n.col] = cols[n.col] || []).push(n); });
+  const glyph = { fight: '⚔', elite: '✸', event: '?', recruit: '☉', camp: '⌂', boss: '☠' };
   const colHtml = Object.keys(cols).sort((a, b) => a - b).map(c => `
     <div class="map-col">
       ${cols[c].map(n => {
@@ -2401,7 +2539,7 @@ function showMap() {
         const reach = nodeReachable(n);
         return `<button class="map-node mn-${n.type}${done ? ' mn-done' : ''}${reach ? ' mn-reach' : ''}"
           data-node="${n.id}" ${reach ? '' : 'disabled'}>
-          ${abyss[n.id] ? '<span class="mn-mem" title="A previous descent fell here">♰</span>' : ''}
+          ${n.mem ? '<span class="mn-mem" title="A previous descent fell here">♰</span>' : ''}
           <span class="mn-glyph">${done ? '✓' : glyph[n.type]}</span>
           <span class="mn-label">${n.label}</span>
         </button>`;
@@ -2419,17 +2557,20 @@ function showMap() {
     </button>
   `, 'map-screen');
   document.querySelectorAll('.map-node.mn-reach').forEach(el => {
-    el.onclick = () => enterMapNode(MAP_NODES[+el.dataset.node]);
+    el.onclick = () => enterMapNode(mapNode(+el.dataset.node));
   });
   $('#map-party').onclick = () => showPartySelect(() => showMap());
 }
-function enterMapNode(n) {
-  hideOverlay();
-  const abyss = loadAbyss();
-  if (abyss[n.id]) { showMemory(n, abyss[n.id]); return; }
-  if (n.type === 'fight' || n.type === 'boss') startMapFight(n);
+function resolveMapNode(n) {
+  if (n.type === 'fight' || n.type === 'elite' || n.type === 'boss') startMapFight(n);
   else if (n.type === 'recruit') showRecruit(n);
   else if (n.type === 'camp') showCamp(n);
+  else if (n.type === 'event') showEvent(n);
+}
+function enterMapNode(n) {
+  hideOverlay();
+  if (n.mem) { showMemory(n, n.mem); return; }
+  resolveMapNode(n);
 }
 // Discovery of a fallen descent — take up their thread, and their bonds echo
 // into this run.  Consumed once found.
@@ -2451,19 +2592,39 @@ function showMemory(n, mem) {
     (mem.threads || []).forEach(k => { RUN.bonds[k] = (RUN.bonds[k] || 0) + 1; });
     RUN.roster.forEach(id => { RUN.hp[id] = Math.min(HEROES[id].maxHp, (RUN.hp[id] || HEROES[id].maxHp) + 4); });
     const abyss = loadAbyss();
-    delete abyss[n.id];
+    delete abyss[n.memLevel != null ? n.memLevel : n.level];
     saveAbyss(abyss);
+    n.mem = null;
     saveRun();
     hideOverlay();
-    if (n.type === 'fight' || n.type === 'boss') startMapFight(n);
-    else if (n.type === 'recruit') showRecruit(n);
-    else if (n.type === 'camp') showCamp(n);
+    resolveMapNode(n);
   };
 }
+function showEvent(n) {
+  const ev = EVENTS_V2[n.eventId] || EVENTS_V2.shrine;
+  showOverlay(`
+    <div class="ov-eyebrow">A CROSSROADS</div>
+    <div class="ov-title" style="font-size:22px">${ev.title}</div>
+    <div class="ov-lines" style="text-align:center; min-height:0">${ev.lines.map(t => `<div class="ov-line">${t}</div>`).join('')}</div>
+    <button class="ov-btn primary" id="ev-a">${ev.a.label}</button>
+    <button class="ov-btn" id="ev-b">${ev.b.label}</button>
+  `);
+  const finish = (choice) => {
+    choice.fx();
+    if (!RUN.completed.includes(n.id)) RUN.completed.push(n.id);
+    saveRun();
+    showMap();
+  };
+  $('#ev-a').onclick = () => finish(ev.a);
+  $('#ev-b').onclick = () => finish(ev.b);
+}
 function startMapFight(n) {
+  const boss = !!n.isBoss;
   startFight({ type: 'fight', chapter: 3, heroes: RUN.active.slice(), enemies: n.enemies.slice(),
-    useRunHp: true, mapId: n.id, depth: n.col, narrator: n.label + (n.type === 'boss' ? ' — it remembers you.' : '') });
-  $('#chapter-chip').textContent = n.type === 'boss' ? 'BOSS' : 'DESCENT';
+    useRunHp: true, mapId: n.id, depth: n.level || n.col, elite: !!n.elite, isBoss: boss,
+    nodeType: n.type, label: n.label, level: n.level,
+    narrator: n.label + (boss ? ' — it remembers you.' : (n.elite ? ' — a deeper sin waits.' : '')) });
+  $('#chapter-chip').textContent = boss ? 'BOSS' : (n.elite ? 'ELITE' : 'DESCENT');
 }
 function showRecruit(n) {
   const h = HEROES[n.hero];
