@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 47;
+const V2_BUILD = 48;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -229,6 +229,28 @@ const HEROES = {
       },
     },
   },
+  branwen: {
+    // RANGED marksman: every shot reaches ANY enemy (ignores rows), so she
+    // hunts from the back line and hates being shoved to the front — her
+    // front-stance cards fire and RETREAT.  She marks prey for the party to
+    // cash.  The mirror of Ash: he advances into the cut, she falls back to it.
+    school: 'blade', tempo: 'swift', name: 'BRANWEN', cls: 'Ranger', archetype: 'Marksman',
+    identity: 'Looses from the back line — marks prey from range, never in reach.', tint: 'var(--branwen-tint)', maxHp: 20,
+    cards: {
+      front: {
+        core: { name: 'Backstep Shot', cost: 1, target: 'enemy', fx: { dmg: 5, step: 'back' }, desc: '5 damage to ANY enemy · loose and fall back to BACK.' },
+        sig:  { name: 'Hunter’s Mark', cost: 2, target: 'enemy', fx: { dmg: 3, mark: 4, step: 'back' }, desc: '3 damage · <span class="kw kw-exposed">◎ EXPOSED 4</span> · slip to BACK.' },
+      },
+      mid: {
+        core: { name: 'Aimed Shot',    cost: 1, target: 'enemy', fx: { dmg: 6 }, desc: '6 damage to ANY enemy.' },
+        sig:  { name: 'Killshot',      cost: 2, target: 'enemy', fx: { dmg: 11 }, desc: '11 damage to ANY enemy — a clean execution.' },
+      },
+      back: {
+        core: { name: 'Marking Arrow', cost: 1, target: 'enemy', fx: { dmg: 4, mark: 3 }, desc: '4 damage · <span class="kw kw-exposed">◎ EXPOSED 3</span>.' },
+        sig:  { name: 'Killing Arrow', cost: 2, target: 'enemy', fx: { dmg: 9, mark: 2 }, desc: '9 damage · <span class="kw kw-exposed">◎ EXPOSED 2</span> — pins the prey.' },
+      },
+    },
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -414,6 +436,31 @@ const RESONANT_TABLE = {
       { text: 'and the shadow ends it',  fx: { hitFrontmost: 12 } },
     ],
   },
+  // Ranger (Branwen) trios — she marks from range, the line cashes the wound.
+  'Cleric+Ranger+Ronin': {
+    name: 'Hunter’s Grace', type: 'Offense',
+    desc: 'MARK every enemy (+3) · strike ALL enemies 5 · heal the party 3.',
+    stages: [
+      { text: 'she names every wound from the dark', fx: { markAll: 3 } },
+      { text: 'and the volley falls with mercy behind it', fx: { aoeDmg: 5, healAll: 3 } },
+    ],
+  },
+  'Guardian+Ranger+Ronin': {
+    name: 'Killing Field', type: 'Offense',
+    desc: 'MARK every enemy (+3) · the FRONT hero gains 5 guard · 12 to the nearest enemy.',
+    stages: [
+      { text: 'the wall pins them, the arrow marks them', fx: { markAll: 3, guardFront: 5 } },
+      { text: 'and the killshot lands',                    fx: { hitFrontmost: 12 } },
+    ],
+  },
+  'Ranger+Reaver+Ronin': {
+    name: 'No Quarter', type: 'Offense',
+    desc: 'MARK every enemy (+4) · strike ALL enemies 6.',
+    stages: [
+      { text: 'two hunters call the same mark', fx: { markAll: 4 } },
+      { text: 'and nothing walks out',          fx: { aoeDmg: 6 } },
+    ],
+  },
 };
 const RESONANT_FALLBACK = {
   name: 'Triad Strike', type: 'Offense',
@@ -468,7 +515,7 @@ const MAP_NODES = [
   { id: 2, col: 3, type: 'fight',   label: 'HOLLOW CHOIR',   enemies: ['cultist', 'mourner'], next: [4] },
   { id: 3, col: 3, type: 'fight',   label: 'MOURNING FIELD', enemies: ['mourner', 'drone'], next: [4] },
   { id: 4, col: 4, type: 'camp',    label: 'EMBER REST',     next: [5] },
-  { id: 5, col: 5, type: 'camp',    label: 'HOLLOW REST',    next: [6, 7] },
+  { id: 5, col: 5, type: 'recruit', label: 'THE OUTLAW’S DEBT', hero: 'branwen', next: [6, 7] },
   { id: 6, col: 6, type: 'fight',   label: 'DRONE NEST',     enemies: ['drone', 'husk', 'wraith'], next: [8] },
   { id: 7, col: 6, type: 'fight',   label: 'COLD PROCESSION',enemies: ['wraith', 'cultist', 'mourner'], next: [8] },
   { id: 8, col: 7, type: 'camp',    label: 'LAST FIRE',      next: [9] },
@@ -482,6 +529,7 @@ const CAMP_VOICES = {
   cassia: 'A wall is only as strong as who it shelters. Stand behind me tomorrow.',
   hask:   'You’re warm. Sit closer. That’s strategy, not sentiment.',
   mira:   'I watch the dark so you don’t have to. …Don’t thank me. I’ll deny it.',
+  branwen:'I keep to the treeline so I can see you all. …Habit. Comes from losing people you didn’t.',
 };
 
 const RECRUIT_LINES = {
@@ -492,6 +540,10 @@ const RECRUIT_LINES = {
   hask: [
     { text: 'Frost patterns bloom across the stones. Something small and cold is waiting.' },
     { spk: 'HASK', text: 'You’re warm. Stand near me and I’ll forgive the noise.' },
+  ],
+  branwen: [
+    { text: 'An arrow thuds into the post beside you before you ever saw the archer. She steps from the dark, bow already lowered.' },
+    { spk: 'BRANWEN', text: 'Relax — if I’d wanted you dead you wouldn’t be reading this. You walk down there without eyes on the treeline, you don’t walk back. Let me be your eyes.' },
   ],
 };
 
