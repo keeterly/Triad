@@ -1173,3 +1173,25 @@ body {
   25% { transform: translateX(7px) scale(1.05); }
   100% { transform: translateX(0); filter: none; }
 }
+
+/* ===========================================================================
+   BUILD 30 — combo-setup CLARITY: intent hooks + technical aim preview
+   =========================================================================== */
+/* heavy intents advertise the counterplay: stagger to break the wind-up */
+.i-break {
+  display: block; margin-top: 2px; font-size: 7px; letter-spacing: 0.12em;
+  color: #ffe14a; text-shadow: 0 0 5px rgba(255,225,74,0.5);
+  animation: primed-blink 1s ease-in-out infinite;
+}
+/* revealed weakness reads as a clear callout, not a lone glyph */
+.chip.weak { color: var(--ink-faint); border-color: rgba(232,220,196,0.3); background: rgba(20,16,12,0.85); letter-spacing: 0.18em; }
+.chip.weak.revealed {
+  color: #ffe6a4; border-color: rgba(240,212,136,0.7); background: rgba(60,48,18,0.9);
+  letter-spacing: 0.06em; font-weight: 700;
+}
+/* the aim hint turns electric when the snapped hit will detonate a TECHNICAL */
+#target-hint.th-tech {
+  color: #1a1206; background: linear-gradient(180deg, #ffe98c, #f0c24a);
+  border-color: var(--gold-bright); font-weight: bold;
+  box-shadow: 0 0 16px rgba(255,225,74,0.6); animation: primed-blink 0.7s ease-in-out infinite;
+}

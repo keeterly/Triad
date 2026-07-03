@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 29;
+const V2_BUILD = 30;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -862,6 +862,16 @@ function attachDrag(el, card) {
       valid = !!best;
       if (best) { const r = best.getBoundingClientRect(); ex = (r.left + r.width / 2 - sr.left) / s; ey = (r.top + r.height * 0.4 - sr.top) / s; }
       else { ex = (ptrX - sr.left) / s; ey = (ptrY - sr.top) / s; }
+      // TECHNICAL preview — snapping a damaging card onto a PRIMED foe (chilled
+      // or weakened, off its weakness line) will detonate: say so before release.
+      const hint = $('#target-hint');
+      let tech = false;
+      if (best && best.dataset.fig && card.fx && (card.fx.dmg || card.fx.hitFrontmost)) {
+        const te = S.enemies.find(x => x.uid === best.dataset.fig);
+        tech = !!(te && (te.lull || te.weakened) && !(card.school && card.school === te.def.weak));
+      }
+      if (tech) { hint.textContent = '⚡ TECHNICAL — detonates!'; hint.classList.remove('hidden'); hint.classList.add('th-tech'); }
+      else { hint.classList.add('hidden'); hint.classList.remove('th-tech'); }
     }
     curEX += (ex - curEX) * 0.34; curEY += (ey - curEY) * 0.34;
     angle = (angle + 3) % 360;
@@ -875,7 +885,7 @@ function attachDrag(el, card) {
     dragging = false;
     el.classList.remove('card-dragging');
     aimClear();
-    if (!targeting) $('#target-hint').classList.add('hidden');
+    if (!targeting) { $('#target-hint').classList.add('hidden'); $('#target-hint').classList.remove('th-tech'); }
     const handTop = $('#hand').getBoundingClientRect().top;
     const cancelled = e.clientY > handTop - 8;
     const { mode } = dragTargets(card);
@@ -2311,12 +2321,12 @@ function renderBattlefield() {
       if (targetable) fig.classList.add('fig-targetable');
       const intentHtml = it.kind === 'buff'
         ? `<div class="intent intent-buff"><span>◈</span><span class="i-row">${it.desc || 'gathers'}</span></div>`
-        : `<div class="intent${it.heavy ? ' intent-heavy' : ''}"><span>⚔</span><span class="i-dmg">${enemyIntentDmg(e, it)}</span>${it.chill ? '<span class="i-st kw-chill">❄</span>' : ''}${it.expose ? '<span class="i-st kw-exposed">◎</span>' : ''}<span class="i-row">→ ${it.row === 'all' ? 'ALL' : ROW_LABEL[it.row]}</span></div>`;
+        : `<div class="intent${it.heavy ? ' intent-heavy' : ''}"><span>⚔</span><span class="i-dmg">${enemyIntentDmg(e, it)}</span>${it.chill ? '<span class="i-st kw-chill">❄</span>' : ''}${it.expose ? '<span class="i-st kw-exposed">◎</span>' : ''}<span class="i-row">→ ${it.row === 'all' ? 'ALL' : ROW_LABEL[it.row]}</span>${it.heavy ? '<span class="i-break">⚡ STAGGER breaks</span>' : ''}</div>`;
       fig.innerHTML = `
         ${intentHtml}
         <div class="fig-art">${enemyArt(e)}${e._justDied ? '' : auraHTML({ guard: e.guard, rally: e.power, chill: e.lull, exposed: e.mark, weak: e.weakened, stagger: e.staggered })}</div>
         <div class="fig-chips">
-          <span class="chip weak" title="weakness">${e.weakRevealed ? (SCHOOL_GLYPH[e.def.weak] || '?') : '?'}</span>
+          <span class="chip weak${e.weakRevealed ? ' revealed' : ''}" title="weakness — hit this element to WEAKEN, twice to STAGGER">${e.weakRevealed ? 'WEAK ' + (SCHOOL_GLYPH[e.def.weak] || '?') : '? ? ?'}</span>
           ${e.weakened ? `<span class="chip mark${chipPop(e,'weakened',1)}">⌖</span>` : ''}
           ${e.staggered ? `<span class="chip stagger${chipPop(e,'staggered',1)}">⚡</span>` : ''}
           ${e.guard ? `<span class="chip guard${chipPop(e,'guard',e.guard)}">⛨ ${e.guard}</span>` : ''}

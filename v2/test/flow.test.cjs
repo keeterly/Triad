@@ -309,7 +309,7 @@ const QUICK = process.argv.includes('--quick');
     renderAll();
   });
   await sleep(500);
-  check('weakness hidden before first blood (? chip)', await J(() => document.querySelector('.chip.weak')?.textContent.trim() === '?'));
+  check('weakness hidden before first blood (? chip)', await J(() => { const c = document.querySelector('.chip.weak'); return c && c.textContent.includes('?') && !c.classList.contains('revealed'); }));
   await tapCard('Cleave'); await sleep(650);
   check('first blood reveals the weakness (⚔ on the chip)', await J(() => S.enemies[0].weakRevealed && document.querySelector('.chip.weak')?.textContent.includes('⚔')));
   check('BLADE on BLADE-weak -> WEAKENED ⌖', await J(() => S.enemies[0].weakened));
