@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 7;
+const V2_BUILD = 8;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -4031,25 +4031,39 @@ function showEmberTree(onBack, heroId, selId) {
   $('#stage').classList.remove('show-bg');
   heroId = heroId && HEROES[heroId] ? heroId : 'ash';
   const nodes = EMBER_TREE.filter(n => n.hero === heroId);
-  // ---- LAYOUT: three stance columns, one row per tier, dependents under the
-  // column of the prerequisite that feeds them ----------------------------------
-  const W = 460, COLX = [112, 230, 348];
-  const rowY = t => 62 + (t - 1) * 72;
-  const stanceCol = { front: 0, mid: 1, back: 2 };
-  const colOf = {}, taken = {};
-  nodes.filter(n => n.tier === 1 && n.gate).forEach(n => { const c = stanceCol[n.gate.stance] ?? 1; colOf[n.id] = c; taken[n.tier + ':' + c] = 1; });
-  nodes.slice().sort((a, b) => a.tier - b.tier).forEach(n => {
-    if (colOf[n.id] != null) return;
-    let col = (n.requires || []).map(r => colOf[r]).find(c => c != null);
-    if (col == null || taken[n.tier + ':' + col]) { for (let c = 0; c < 3; c++) if (!taken[n.tier + ':' + c]) { col = c; break; } }
-    if (col == null) col = 1;
-    colOf[n.id] = col; taken[n.tier + ':' + col] = 1;
+  // ---- SPHERE GRID: a hub at the centre, rings growing OUTWARD.  A node's ring
+  // is its prerequisite DEPTH (0 = spokes off the hub), its angle inherited from
+  // the prerequisite so a chain reads as one radial arm. --------------------------
+  const W = 300, H = 300, CX = 150, CY = 150, R0 = 66, RING = 62;
+  const depth = {};
+  const depthOf = (n) => {
+    if (depth[n.id] != null) return depth[n.id];
+    const reqs = (n.requires || []).map(r => NODE_BY_ID[r]).filter(Boolean);
+    return depth[n.id] = reqs.length ? 1 + Math.max.apply(null, reqs.map(depthOf)) : 0;
+  };
+  nodes.forEach(depthOf);
+  const byDepth = {}; nodes.forEach(n => { (byDepth[depth[n.id]] = byDepth[depth[n.id]] || []).push(n); });
+  const angle = {};
+  // inner ring: spread the hub's spokes evenly; an even count is offset a
+  // half-step so the arms sit DIAGONAL (never axis-aligned) — no two labels
+  // stack on a flat horizontal spoke.
+  (byDepth[0] || []).forEach((n, i, a) => { const off = a.length % 2 === 0 ? 0.5 : 0; angle[n.id] = -90 + (i + off) * (360 / a.length); });
+  // deeper rings: sit at the prerequisite's angle (siblings fan apart a little)
+  Object.keys(byDepth).map(Number).filter(d => d > 0).sort((a, b) => a - b).forEach(d => {
+    const groups = {};
+    byDepth[d].forEach(n => { const k = (n.requires || [])[0] || 'root'; (groups[k] = groups[k] || []).push(n); });
+    Object.keys(groups).forEach(k => {
+      const base = angle[k] != null ? angle[k] : 0, arr = groups[k];
+      arr.forEach((n, i) => { angle[n.id] = base + (arr.length > 1 ? (i - (arr.length - 1) / 2) * 24 : 0); });
+    });
   });
-  const pos = {}; nodes.forEach(n => { pos[n.id] = { x: COLX[colOf[n.id]], y: rowY(n.tier) }; });
-  const root = { x: 230, y: 14 };
-  const maxTier = Math.max.apply(null, nodes.map(n => n.tier));
-  const H = rowY(maxTier) + 46;
-  // ---- LINKS: prereq → node (or root → tier-1 / no-req node) -------------------
+  const pos = {};
+  nodes.forEach(n => {
+    const a = (angle[n.id] || 0) * Math.PI / 180, r = R0 + depth[n.id] * RING;
+    pos[n.id] = { x: CX + r * Math.cos(a), y: CY + r * Math.sin(a) };
+  });
+  const root = { x: CX, y: CY };
+  // ---- LINKS: straight spokes — prereq → node, or hub → a depth-0 node ---------
   const links = [];
   nodes.forEach(n => {
     const reqs = (n.requires || []).filter(r => pos[r]);
@@ -4057,10 +4071,13 @@ function showEmberTree(onBack, heroId, selId) {
     else links.push({ a: root, b: pos[n.id], on: tierOpen(n.tier), full: hasNode(n.id) });
   });
   const linkSvg = links.map(l => {
-    const my = (l.a.y + l.b.y) / 2;
     const cls = l.full ? 'et-link-full' : l.on ? 'et-link-on' : 'et-link-off';
-    return `<path class="et-link ${cls}" vector-effect="non-scaling-stroke" d="M ${l.a.x} ${l.a.y} C ${l.a.x} ${my}, ${l.b.x} ${my}, ${l.b.x} ${l.b.y}" />`;
+    return `<path class="et-link ${cls}" vector-effect="non-scaling-stroke" d="M ${l.a.x} ${l.a.y} L ${l.b.x} ${l.b.y}" />`;
   }).join('');
+  // faint ring guides behind the spokes, one per depth present
+  const maxDepth = Math.max.apply(null, nodes.map(n => depth[n.id]));
+  let ringSvg = '';
+  for (let d = 0; d <= maxDepth; d++) ringSvg += `<circle class="et-ring" cx="${CX}" cy="${CY}" r="${R0 + d * RING}" vector-effect="non-scaling-stroke" />`;
   // ---- ORBS -------------------------------------------------------------------
   const orbs = nodes.map(n => {
     const st = nodeState(n);
@@ -4094,12 +4111,16 @@ function showEmberTree(onBack, heroId, selId) {
   showOverlay(`
     <div class="et-head"><span class="et-h-title">THE EMBER TREE</span><span class="et-h-wallet">✦ <b>${META.embers}</b></span><span class="et-h-boss">${META.bossclears || 0} boss${(META.bossclears || 0) === 1 ? '' : 'es'} felled</span></div>
     <div class="et-tabs">${tabs}</div>
-    <div class="et-canvas" style="--et-h:${H}px">
-      <svg class="et-links" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${linkSvg}</svg>
-      ${rootOrb}${orbs}
+    <div class="et-body">
+      <div class="et-canvas et-grid">
+        <svg class="et-links" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${ringSvg}${linkSvg}</svg>
+        ${rootOrb}${orbs}
+      </div>
+      <div class="et-side">
+        <div class="et-detail">${detail}</div>
+        <button class="ov-btn et-back-btn" id="et-back">◂ BACK</button>
+      </div>
     </div>
-    <div class="et-detail">${detail}</div>
-    <button class="ov-btn et-back-btn" id="et-back">◂ BACK</button>
   `, 'map-screen et-screen');
   document.querySelectorAll('.et-tab').forEach(el => {
     el.onclick = () => { if (el.dataset.hero !== heroId) showEmberTree(onBack, el.dataset.hero); };

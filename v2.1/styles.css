@@ -1960,7 +1960,14 @@ button.map-node:not(:disabled) { cursor: pointer; }
 .et-h-boss { font-size: 9px; letter-spacing: 0.14em; color: var(--ink-faint); }
 
 .et-canvas { position: relative; width: 100%; max-width: 460px; height: var(--et-h, 246px); margin: 2px auto 6px; }
+/* SPHERE GRID — grid on the left, detail rail on the right (use the landscape) */
+.et-body { display: flex; align-items: center; justify-content: center; gap: 22px; }
+.et-canvas.et-grid { width: 340px; height: 340px; max-width: 340px; margin: 0; flex: none; }
+.et-side { width: 250px; flex: none; display: flex; flex-direction: column; gap: 10px; }
+.et-side .et-detail { margin: 0; min-height: 132px; }
+.et-side .et-back-btn { align-self: flex-start; }
 .et-links { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.et-ring { fill: none; stroke: rgba(120,104,84,0.14); stroke-width: 1; }
 .et-link { fill: none; stroke-width: 2; stroke-linecap: round; }
 .et-link-off  { stroke: rgba(120,104,84,0.28); stroke-dasharray: 3 6; }
 .et-link-on   { stroke: rgba(255,170,90,0.55); stroke-dasharray: 5 6; animation: et-flow 24s linear infinite; }
