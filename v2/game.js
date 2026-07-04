@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 54;
+const V2_BUILD = 55;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -1133,12 +1133,30 @@ function attachDrag(el, card) {
     // toward the finger but never flies into a corner or off the page (the beam
     // + reticle follow the finger for aiming, so targeting is unaffected).
     const W = sr.width, H = sr.height;
+    const vw = (typeof window !== 'undefined' && window.innerWidth) || sr.right;
+    const vh = (typeof window !== 'undefined' && window.innerHeight) || sr.bottom;
     let scx = originX + curTX * s, scy = originY + curTY * s;
     scx = Math.max(sr.left + W * 0.12, Math.min(sr.right - W * 0.08, scx));
-    scy = Math.max(sr.top + H * 0.40, Math.min(sr.bottom, scy));
+    scy = Math.max(sr.top + H * 0.34, Math.min(sr.bottom, scy));
     curTX = (scx - originX) / s; curTY = (scy - originY) / s;
     const tilt = Math.max(-15, Math.min(15, vel * 1.5));
     el.style.transform = `translate(${curTX}px, ${curTY}px) rotate(${tilt}deg) scale(1.07)`;
+    // GUARANTEE the whole card stays on screen: measure the actual rendered box
+    // (transform-origin + tilt + the 1.07 lift make a predictive clamp unreliable)
+    // and push it back inside min(stage, viewport) with a small pad.  This is
+    // what finally kills the off-screen-drag glitch.
+    {
+      const b = el.getBoundingClientRect();
+      const padL = Math.max(sr.left, 0) + 4, padR = Math.min(sr.right, vw) - 4;
+      const padT = sr.top + 4, padB = Math.min(sr.bottom, vh) - 4;
+      let cx = 0, cy = 0;
+      if (b.left < padL) cx = padL - b.left; else if (b.right > padR) cx = padR - b.right;
+      if (b.top < padT) cy = padT - b.top;  else if (b.bottom > padB) cy = padB - b.bottom;
+      if (cx || cy) {
+        curTX += cx / s; curTY += cy / s;
+        el.style.transform = `translate(${curTX}px, ${curTY}px) rotate(${tilt}deg) scale(1.07)`;
+      }
+    }
     // snapped target
     const { mode, els } = dragTargets(card);
     document.querySelectorAll('.fig-snapped').forEach(f => f.classList.remove('fig-snapped'));
@@ -2191,6 +2209,33 @@ function strikeFeedback(ui, ax, ay, q) {
   try { if (good) SFX.parry(q === 'perfect', 1); else SFX.parryMiss(); } catch (_) {}
   haptic(q === 'perfect' ? HAP.perfect : good ? HAP.good : HAP.miss);
 }
+// STRIKE SWIPE — the offensive slash: flick across the enemy along the arc.
+// Same forgiving detection as the parry deflect, red-skinned, its own rating.
+function strikeSwipeNote(targetEl, arc, dur) {
+  return new Promise(resolve => {
+    const a = targetEl ? noteAnchor(targetEl) : { x: 500, y: 150 };
+    const spec = SWIPE_ARCS[arc] || SWIPE_ARCS.arcR;
+    const ui = mkParryUiAt(a.x, a.y,
+      `<svg class="pr-arc-svg" viewBox="-60 -60 120 120">
+         <path class="pr-arc-path" d="${spec.d}"/>
+         <path class="pr-arc-draw" d="${spec.d}"/>
+         <circle class="pr-arc-dot" r="5"><animateMotion dur="${dur}ms" repeatCount="1" fill="freeze" path="${spec.d}"/></circle>
+       </svg><span class="pr-lbl">SLASH ${spec.glyph}</span>`, 'parry-swipe pr-strike');
+    ui.el.querySelector('.pr-arc-draw').style.animationDuration = dur + 'ms';
+    let done = false, sx = null, sy = null, maxHit = null; const t0 = Date.now();
+    const finish = (q) => { if (done) return; done = true; window.removeEventListener('pointerdown', onDown, true); window.removeEventListener('pointermove', onMove, true); window.removeEventListener('pointerup', onUp, true); strikeFeedback(ui, a.x, a.y, q); ui.close(); resolve(q); };
+    const onDown = (e) => { sx = e.clientX; sy = e.clientY; };
+    const onMove = (e) => {
+      if (sx == null || maxHit) return;
+      if (spec.ok(e.clientX - sx, e.clientY - sy)) { maxHit = true; try { SFX.swoosh(); } catch (_) {} haptic(HAP.swipe); const rem = dur - (Date.now() - t0); finish(rem <= 260 ? 'perfect' : 'good'); }
+    };
+    const onUp = () => { sx = null; };
+    window.addEventListener('pointerdown', onDown, true);
+    window.addEventListener('pointermove', onMove, true);
+    window.addEventListener('pointerup', onUp, true);
+    setTimeout(() => finish('miss'), dur);
+  });
+}
 // The rising CHAIN counter during the all-out — nailing strikes in a row ramps
 // the damage multiplier, so a clean cascade reads as a building finisher.
 function allOutCombo(chain, q) {
@@ -2248,6 +2293,7 @@ async function resolveAllOut() {
   S._burstResolving = true;
   const heroes = livingHeroes();
   await allOutCineIntro(heroes);
+  $('#stage').classList.add('allout-focus');
   allOutCoach();
   let chain = 0;
   for (const h of heroes) {
@@ -2259,7 +2305,11 @@ async function resolveAllOut() {
       const tgt = frontmostEnemy() || livingEnemies()[0];
       if (!tgt) break;
       const step = ALLOUT_RHYTHM[i] || { d: 480, g: 0 };
-      const q = await strikeNote(figEl(tgt.uid), i + 1, ALLOUT.casc, step.d);
+      // each pile-on finishes with a SLASH — a tap sets up, the swipe cuts
+      const isSwipe = (i === ALLOUT.casc - 1);
+      const q = isSwipe
+        ? await strikeSwipeNote(figEl(tgt.uid), 'arcR', step.d + 140)
+        : await strikeNote(figEl(tgt.uid), i + 1, ALLOUT.casc, step.d);
       const good = q === 'perfect' || q === 'good';
       chain = good ? chain + 1 : 0;
       allOutCombo(chain, q);
@@ -2284,6 +2334,7 @@ async function resolveAllOut() {
   S.combo = 0;
   S.allOutUsed = (S.allOutUsed || 0) + 1;
   S._burstResolving = false;
+  $('#stage').classList.remove('allout-focus');
   resonantCineEnd();
   renderAll();
 }
