@@ -458,7 +458,7 @@ body {
 
 /* PRESS & HOLD INSPECT — a big Magic-style enlarge of the held card */
 #card-inspect { position: absolute; inset: 0; z-index: 210; display: flex; align-items: center; justify-content: center; pointer-events: none; }
-#card-inspect .ci-scrim { position: absolute; inset: 0; background: rgba(6,4,3,0.6); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); opacity: 0; transition: opacity 0.16s ease; }
+#card-inspect .ci-scrim { position: absolute; inset: 0; background: rgba(6,4,3,0.48); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); opacity: 0; transition: opacity 0.16s ease; }
 #card-inspect.ci-on .ci-scrim { opacity: 1; }
 #card-inspect .ci-card {
   position: relative; z-index: 1; margin: 0; cursor: default;
@@ -466,8 +466,8 @@ body {
   transition: transform 0.22s cubic-bezier(.2,1.35,.4,1), opacity 0.16s ease;
   box-shadow: 0 30px 70px rgba(0,0,0,0.9), 0 0 46px rgba(0,0,0,0.6), 0 0 30px color-mix(in srgb, var(--tint) 30%, transparent);
 }
-#card-inspect.ci-on .ci-card { transform: rotate(0deg) scale(2.35); opacity: 1; }
-#card-inspect .ci-card:hover { transform: rotate(0deg) scale(2.35); }
+#card-inspect.ci-on .ci-card { transform: rotate(0deg) scale(1.95); opacity: 1; }
+#card-inspect .ci-card:hover { transform: rotate(0deg) scale(1.95); }
 #card-inspect .ci-hint { position: absolute; bottom: 7%; left: 50%; transform: translateX(-50%); z-index: 2; font-size: 9px; letter-spacing: 0.24em; color: var(--ink-faint); text-transform: uppercase; }
 
 /* ---- map screen ---- */
@@ -901,14 +901,20 @@ button.map-node:not(:disabled) { cursor: pointer; }
    =========================================================================== */
 .c-cost.tempo-swift { background: #8ecbe8; }        /* fast: cheap plays */
 .c-cost.tempo-heavy { background: var(--blood-bright); color: #fff; }  /* slow: big plays */
-/* FREE — a costs-nothing gift (temp reward cards).  A little green pill that
-   reads instantly as "spend me, it's free" — feels great to cash. */
+/* FREE — a costs-nothing gift (temp reward cards).  Not a loud green pill but a
+   forged-gold sigil that matches the dark-fantasy vibe: a dark badge, a hairline
+   gold edge, a soft ember glow, and a leading ✦ spark. */
 .c-cost.c-free {
-  min-width: auto; width: auto; height: 13px; padding: 0 5px; border-radius: 7px;
-  font-size: 6.4px; letter-spacing: 0.12em; font-weight: 800; color: #0f2410;
-  background: linear-gradient(180deg, #bdec90, #6cae56);
-  box-shadow: 0 0 9px rgba(150,225,120,0.55);
+  min-width: auto; width: auto; height: 13px; padding: 0 6px 0 5px; border-radius: 3px;
+  font-size: 6.2px; letter-spacing: 0.2em; font-weight: 700;
+  color: #ffe6a4; background: linear-gradient(180deg, rgba(58,44,18,0.95), rgba(26,18,8,0.98));
+  border: 1px solid rgba(240,212,136,0.65);
+  box-shadow: 0 0 8px rgba(240,212,136,0.4), inset 0 0 5px rgba(240,212,136,0.12);
+  text-shadow: 0 0 5px rgba(240,212,136,0.7);
+  animation: free-ember 1.9s ease-in-out infinite;
 }
+.c-cost.c-free::before { content: '✦ '; color: #ffd060; font-size: 0.9em; }
+@keyframes free-ember { 50% { box-shadow: 0 0 13px rgba(240,212,136,0.6), inset 0 0 6px rgba(240,212,136,0.2); border-color: rgba(255,232,160,0.9); } }
 .card-channel {
   position: absolute; top: -7px; right: -7px; z-index: 5;
   width: 19px; height: 19px; border-radius: 50%; cursor: pointer;

@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 63;
+const V2_BUILD = 64;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -1071,10 +1071,11 @@ function _cornerPath(cx, cy, r) {
 // JRPG targeting reticle — distinct from Slay-the-Spire's flat arrow.
 function drawAimJRPG(fx, fy, ex, ey, valid, field, angle, color, tech) {
   const svg = aimLayer();
-  // CLAMP every point to the stage — a card dragged off any edge (left/top)
-  // can never throw the beam or its control point off-screen into a giant arc.
-  const cx = (v) => Math.max(6, Math.min(754, v)), cy = (v) => Math.max(6, Math.min(424, v));
-  fx = cx(fx); fy = cy(fy); ex = cx(ex); ey = cy(ey);
+  // The beam ORIGIN (the cast point) is pinned to a lower-central band, so it
+  // never appears to shoot in from an off-screen corner however far the card is
+  // flicked; the ENDPOINT (reticle) is free to reach any foe on the stage.
+  fx = Math.max(150, Math.min(610, fx)); fy = Math.max(214, Math.min(408, fy));
+  ex = Math.max(6, Math.min(754, ex)); ey = Math.max(6, Math.min(424, ey));
   const bow = Math.min(60, Math.max(22, Math.abs(ex - fx) * 0.11));
   const midX = (fx + ex) / 2, midY = Math.max(10, Math.min(fy, ey) - bow);
   const path = `M ${fx} ${fy} Q ${midX} ${midY} ${ex} ${ey}`;
@@ -1099,6 +1100,8 @@ function drawAimJRPG(fx, fy, ex, ey, valid, field, angle, color, tech) {
 // out to each affected figure and ring it, rather than beaming into the void.
 function drawAimField(fx, fy, pts, angle, color) {
   const svg = aimLayer();
+  // origin pinned lower-central (see drawAimJRPG) so the fan never starts off-screen
+  fx = Math.max(150, Math.min(610, fx)); fy = Math.max(214, Math.min(408, fy));
   let s = '';
   pts.forEach(p => {
     const bow = Math.min(64, Math.max(20, Math.abs(p.x - fx) * 0.12));
