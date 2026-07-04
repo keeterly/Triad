@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 6;
+const V2_BUILD = 7;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -4033,8 +4033,8 @@ function showEmberTree(onBack, heroId, selId) {
   const nodes = EMBER_TREE.filter(n => n.hero === heroId);
   // ---- LAYOUT: three stance columns, one row per tier, dependents under the
   // column of the prerequisite that feeds them ----------------------------------
-  const COLX = [116, 340, 564], W = 680;
-  const rowY = t => 66 + (t - 1) * 62;
+  const W = 460, COLX = [112, 230, 348];
+  const rowY = t => 62 + (t - 1) * 72;
   const stanceCol = { front: 0, mid: 1, back: 2 };
   const colOf = {}, taken = {};
   nodes.filter(n => n.tier === 1 && n.gate).forEach(n => { const c = stanceCol[n.gate.stance] ?? 1; colOf[n.id] = c; taken[n.tier + ':' + c] = 1; });
@@ -4046,9 +4046,9 @@ function showEmberTree(onBack, heroId, selId) {
     colOf[n.id] = col; taken[n.tier + ':' + col] = 1;
   });
   const pos = {}; nodes.forEach(n => { pos[n.id] = { x: COLX[colOf[n.id]], y: rowY(n.tier) }; });
-  const root = { x: 340, y: 20 };
+  const root = { x: 230, y: 14 };
   const maxTier = Math.max.apply(null, nodes.map(n => n.tier));
-  const H = rowY(maxTier) + 44;
+  const H = rowY(maxTier) + 46;
   // ---- LINKS: prereq → node (or root → tier-1 / no-req node) -------------------
   const links = [];
   nodes.forEach(n => {
