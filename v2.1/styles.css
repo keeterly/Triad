@@ -1933,3 +1933,10 @@ button.map-node:not(:disabled) { cursor: pointer; }
 .et-node.et-poor { filter: grayscale(0.4) brightness(0.82); cursor: default; }
 /* requirements unmet → locked, faint */
 .et-node.et-locked { filter: grayscale(0.7) brightness(0.6); cursor: default; }
+/* tier not yet opened by a boss milestone → the faintest, a distant goal */
+.et-node.et-tierlocked { filter: grayscale(0.85) brightness(0.48); cursor: default; }
+.et-tier-locked .et-tier-lbl { color: #6a5a44; }
+.et-milestone { font-size: 9px; letter-spacing: 0.12em; color: var(--ink-faint); margin-left: 8px; }
+/* forge (in-run, temporary) shares the ember look with a cooler cast */
+.et-node.et-forge .et-type.t-forge { background: #7fb0a0; }
+.et-forge-note { font-size: 9px; color: var(--ink-dim); margin: 0 0 8px; font-style: italic; }

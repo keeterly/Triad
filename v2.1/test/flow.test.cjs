@@ -736,6 +736,27 @@ const QUICK = process.argv.includes('--quick');
       return a.guard === 3;
     }));
 
+  // ---------- PHASE 2: boss-tier gate · forging ----------
+  console.log('--- PHASE 2 ---');
+  check('TIER GATE: tier 2 stays sealed until a boss falls',
+    await J(() => { META.bossclears = 0; return tierOpen(1) === true && tierOpen(2) === false; }));
+  check('TIER GATE: felling one boss opens tier 2 (not yet tier 3)',
+    await J(() => { META.bossclears = 1; return tierOpen(2) === true && tierOpen(3) === false; }));
+  check('MILESTONE: a boss victory increments the clear count',
+    await J(() => { const b = META.bossclears; META.bossclears = 0; startFight({ type: 'fight', chapter: 3, heroes: ['ash'], enemies: ['echoknight2'], narrator: 'boss', isBoss: true }); S.node.mapId = null; S.enemies.forEach(e => { e.hp = 0; e.dead = true; }); onVictory(); const ok = META.bossclears === 1; META.bossclears = b; return ok; }));
+  check('FORGE: WHETSTONE tempers an attack +1', await J(() => { const c = { kind: 'core', fx: { dmg: 6 } }; FORGE_BY_ID.whetstone.apply(c); return c.fx.dmg === 7; }));
+  check('FORGE: QUICKENING cuts a signature’s cost by 1', await J(() => { const c = { kind: 'sig', cost: 2, fx: { dmg: 11 } }; FORGE_BY_ID.quicken.apply(c); return c.cost === 1; }));
+  check('FORGE: HEXED EDGE adds ◎ EXPOSED to a core attack', await J(() => { const c = { kind: 'core', fx: { dmg: 6 } }; FORGE_BY_ID.hexedge.apply(c); return c.fx.mark === 1; }));
+  check('FORGE: mkCard applies an active run forge to the built card', await J(() => {
+    startFight({ type: 'fight', chapter: 1, heroes: ['ash'], enemies: ['husk'], narrator: 'forge' });
+    S.heroes[0].row = 'front';
+    const base = mkCard(S.heroes[0], 'core', HEROES.ash.cards.front.core).fx.dmg;
+    RUN = RUN || { forges: [] }; const saved = RUN.forges; RUN.forges = ['whetstone'];
+    const tempered = mkCard(S.heroes[0], 'core', HEROES.ash.cards.front.core).fx.dmg;
+    RUN.forges = saved || [];
+    return base === 6 && tempered === 7 && HEROES.ash.cards.front.core.fx.dmg === 6;   // def untouched
+  }));
+
   t.report();
   await t.browser.close();
 })().catch(e => { console.error('FATAL', e.message); process.exit(1); });

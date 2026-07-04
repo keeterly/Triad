@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 3;
+const V2_BUILD = 4;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -42,13 +42,16 @@ function saveSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringif
 // ---------------------------------------------------------------------------
 const META_KEY = 'kizuna2_1.meta';
 const META = Object.assign(
-  { embers: 0, nodes: [] },
-  (() => { try { const m = JSON.parse(localStorage.getItem(META_KEY) || '{}') || {}; return { embers: +m.embers || 0, nodes: Array.isArray(m.nodes) ? m.nodes.slice() : [] }; } catch (_) { return {}; } })()
+  { embers: 0, nodes: [], bossclears: 0, heat: 0 },
+  (() => { try { const m = JSON.parse(localStorage.getItem(META_KEY) || '{}') || {}; return { embers: +m.embers || 0, nodes: Array.isArray(m.nodes) ? m.nodes.slice() : [], bossclears: +m.bossclears || 0, heat: +m.heat || 0 }; } catch (_) { return {}; } })()
 );
-function saveMeta() { try { localStorage.setItem(META_KEY, JSON.stringify({ embers: META.embers, nodes: META.nodes })); } catch (_) {} }
+function saveMeta() { try { localStorage.setItem(META_KEY, JSON.stringify({ embers: META.embers, nodes: META.nodes, bossclears: META.bossclears, heat: META.heat })); } catch (_) {} }
 function hasNode(id) { return META.nodes.indexOf(id) >= 0; }
 function unlockNode(id) { if (!hasNode(id)) { META.nodes.push(id); saveMeta(); } }
 function addEmbers(n) { META.embers = Math.max(0, (META.embers || 0) + n); saveMeta(); }
+// A tree TIER opens on boss milestones: tier 1 from the start, tier 2 after the
+// first boss falls, tier 3 after the second — the toolkit ramps like job levels.
+function tierOpen(tier) { return (META.bossclears || 0) >= (tier - 1); }
 
 // ---------------------------------------------------------------------------
 // THE EMBER TREE — declarative skill-tree for cards.  Each node is pure data
@@ -89,6 +92,18 @@ function onHeroEnterRow(hero, toRow, fromRow) {
     popupAt(figEl(hero.id), '⛨ +3', 'guard');
   }
 }
+
+// IN-RUN FORGING — the temporary (per-descent) ember sink.  At a campfire you
+// spend embers to TEMPER the whole kit for the rest of the run; the tempers
+// reset next descent.  Each is applied to every card at build time (mkCard).
+const FORGE_OFFERS = [
+  { id: 'whetstone', cost: 5, label: 'WHETSTONE', desc: 'Every attack strikes for +1 for the rest of this descent.', apply: (c) => { if (c.fx && c.fx.dmg) c.fx.dmg += 1; } },
+  { id: 'quicken',   cost: 6, label: 'QUICKENING', desc: 'Your signature cards cost 1 less for the rest of this descent.', apply: (c) => { if (c.kind === 'sig' && c.cost > 0) c.cost -= 1; } },
+  { id: 'hexedge',   cost: 6, label: 'HEXED EDGE', desc: 'Your CORE attacks also inflict ◎ EXPOSED 1 for the rest of this descent.', apply: (c) => { if (c.kind === 'core' && c.fx && c.fx.dmg) c.fx.mark = (c.fx.mark || 0) + 1; } },
+];
+const FORGE_BY_ID = {};
+FORGE_OFFERS.forEach(f => { FORGE_BY_ID[f.id] = f; });
+function runForges() { return (typeof RUN !== 'undefined' && RUN && Array.isArray(RUN.forges)) ? RUN.forges : []; }
 
 // ---------------------------------------------------------------------------
 // SFX — tiny synthesized cues (no assets).  Volumes stay low; every cue is a
@@ -811,6 +826,7 @@ function newRun(starterId) {
     bonds: {},          // pairKey -> points; a pair at 2+ is KINDLED
     map: generateDescent(roster),   // a fresh branching descent every run
     completed: [],
+    forges: [],         // temporary ember tempers bought at camps — reset each descent
     done: false,
   };
 }
@@ -965,21 +981,26 @@ function mkCard(h, kind, def) {
   const tempo = h.def.tempo || 'steady';
   let cost = def.cost;
   if (tempo === 'swift' && cost > 1) cost -= 1;   // fast heroes play cheap and often
-  // EMBER RIDERS — unlocked tree upgrades bolt effects onto the base card.
-  // Clone fx first so the shared def is never mutated.
+  // EMBER RIDERS (permanent) + FORGES (temporary, per-run) bolt effects onto the
+  // base card.  Clone fx first so the shared def is never mutated.
   let fx = def.fx, desc = def.desc;
   const riders = ridersFor(h.id, def.name);
+  const forges = runForges();
+  if (riders.length || forges.length) fx = Object.assign({}, def.fx);
   if (riders.length) {
-    fx = Object.assign({}, def.fx);
     riders.forEach(n => {
       Object.keys(n.rider.fx).forEach(k => { fx[k] = (fx[k] || 0) + n.rider.fx[k]; });
       if (n.rider.descAdd) desc = desc + n.rider.descAdd;
     });
   }
-  return { kind, owner: h.id, ownerName: h.def.name, tint: h.def.tint, tempo,
+  const card = { kind, owner: h.id, ownerName: h.def.name, tint: h.def.tint, tempo,
     stance: STANCE[h.row].name, name: def.name, cost, target: def.target, fx, desc,
     school: (fx && fx.dmg) ? h.def.school : null,
     spent: S.used.has(h.id + ':' + kind) };
+  // temper the cloned card with any run forges (mutates card.fx / card.cost)
+  forges.forEach(fid => { const f = FORGE_BY_ID[fid]; if (f) f.apply(card); });
+  if (card.fx && card.fx.dmg && !card.school) card.school = h.def.school;
+  return card;
 }
 // Synthetic move "card" — never shown in hand; movement is a figure-drag
 // (or tap-the-hero, then tap a row).  Routed through playCard so EP cost,
@@ -2531,7 +2552,7 @@ async function resolveAllOut() {
   await allOutCineIntro(heroes);
   $('#stage').classList.add('allout-focus');
   allOutCoach();
-  let chain = 0;
+  let chain = 0, goodHits = 0;
   for (const h of heroes) {
     if (S.over || !livingEnemies().length) break;
     lungeFig(figEl(h.id));
@@ -2550,6 +2571,7 @@ async function resolveAllOut() {
       else if (nt.t === 'hold') q = await strikeHoldNote(figEl(tgt.uid), 860);
       else                      q = await strikeNote(figEl(tgt.uid), i + 1, casc.length, step.d);
       const good = q === 'perfect' || q === 'good';
+      if (good) goodHits++;
       chain = good ? chain + 1 : 0;
       allOutCombo(chain, q);
       const comboMul = 1 + Math.min(chain, ALLOUT.comboCap) * ALLOUT.comboStep;
@@ -2572,6 +2594,13 @@ async function resolveAllOut() {
   S.momentum = 0;
   S.combo = 0;
   S.allOutUsed = (S.allOutUsed || 0) + 1;
+  // a clean ALL-OUT pays embers — the better the cascade, the bigger the bounty
+  const aoBonus = Math.min(4, Math.floor(goodHits / 2));
+  if (aoBonus > 0) {
+    addEmbers(aoBonus); if (S) S._embersRun = (S._embersRun || 0) + aoBonus;
+    const anchor = livingEnemies()[0] || livingHeroes()[0];
+    if (anchor) popupAt(figEl(anchor.uid || anchor.id), '✦ +' + aoBonus, 'ember');
+  }
   S._burstResolving = false;
   $('#stage').classList.remove('allout-focus');
   resonantCineEnd();
@@ -2739,9 +2768,10 @@ async function enemyPhase() {
       const mit = res ? res.mit : 0;                    // fraction of the blow negated
       if (res && res.perfect) {
         perfectParry = true; parryMul = 0;
-        popupAt(figEl(ptHero.id), '⚔ PERFECT — +BURST', 'tech');
+        popupAt(figEl(ptHero.id), '⚔ PERFECT — +BURST ✦', 'tech');
         flashNarrator(ptHero.def.name + ' turns the blow — the burst swells!');
         parryFlash(figEl(ptHero.id));
+        addEmbers(1); if (S) S._embersRun = (S._embersRun || 0) + 1;   // mastery pays embers
         gainMomentum(24, { combo: true });   // parry FEEDS the burst
         lungeFig(figEl(ptHero.id));
         renderAll();
@@ -2857,6 +2887,7 @@ function onVictory() {
     saveRun();
   }
   const isBoss = S.node.isBoss || S.node.enemies.some(id => ENEMY_DEFS[id].boss);
+  if (isBoss) { META.bossclears = (META.bossclears || 0) + 1; saveMeta(); }   // a boss milestone opens the next tree tier
   SFX.victory();
   setTimeout(() => {
     if (isBoss && S.node.mapId != null) { onRunComplete(); return; }
@@ -3172,6 +3203,7 @@ function showCamp(n) {
     </div>
     <button class="ov-btn primary" id="camp-fire">SHARE THE FIRE · deepen the weakest bond +1 ♡</button>
     <button class="ov-btn" id="camp-steel">SHARPEN STEEL · open the next fight with ▲ RALLY +2</button>
+    <button class="ov-btn" id="camp-forge">✦ FORGE AT THE EMBER · temper your kit for this descent (${META.embers} embers)</button>
   `);
   $('#camp-fire').onclick = () => showCampScene(n);
   $('#camp-steel').onclick = () => {
@@ -3179,6 +3211,42 @@ function showCamp(n) {
     saveRun();
     showPartySelect(() => showMap());
   };
+  $('#camp-forge').onclick = () => showForge(n);
+}
+
+// IN-RUN FORGE — spend embers on a TEMPORARY temper that lasts this descent.
+// A different sink from the permanent tree: depth for this run, not breadth.
+function showForge(n) {
+  RUN.forges = RUN.forges || [];
+  const offers = FORGE_OFFERS.map(f => {
+    const owned = RUN.forges.includes(f.id);
+    const afford = META.embers >= f.cost;
+    const state = owned ? 'owned' : afford ? 'ready' : 'poor';
+    const foot = owned ? '<span class="et-owned">✓ TEMPERED</span>' : `<span class="et-cost${afford ? '' : ' et-cant'}">✦ ${f.cost}</span>`;
+    return `<button class="et-node et-forge et-${state}" data-id="${f.id}" ${owned || !afford ? 'disabled' : ''}>
+      <span class="et-type t-forge">TEMPER</span>
+      <span class="et-name">${f.label}</span>
+      <span class="et-desc">${f.desc}</span>
+      <span class="et-foot">${foot}</span>
+    </button>`;
+  }).join('');
+  showOverlay(`
+    <div class="ov-eyebrow" style="color:#ffb469">THE EMBER FORGE</div>
+    <div class="et-wallet">✦ <b>${META.embers}</b> <span>embers</span></div>
+    <div class="et-forge-note">These tempers hold only for this descent — spend freely, or bank toward the tree.</div>
+    <div class="et-tier-row">${offers}</div>
+    <button class="ov-btn" id="forge-back">◂ BACK TO THE FIRE</button>
+  `, 'map-screen et-screen');
+  document.querySelectorAll('.et-node:not([disabled])').forEach(el => {
+    el.onclick = () => {
+      const f = FORGE_BY_ID[el.dataset.id];
+      if (!f || RUN.forges.includes(f.id) || META.embers < f.cost) return;
+      addEmbers(-f.cost); RUN.forges.push(f.id); saveRun();
+      SFX.thread();
+      showForge(n);
+    };
+  });
+  $('#forge-back').onclick = () => showCamp(n);
 }
 // A small scene by the fire between the two LEAST-bonded active companions —
 // where the numbers become people.
@@ -3901,35 +3969,38 @@ function showEmberTree(onBack) {
   const byTier = {};
   EMBER_TREE.filter(n => n.hero === heroId).forEach(n => { (byTier[n.tier] = byTier[n.tier] || []).push(n); });
   const tiers = Object.keys(byTier).sort((a, b) => a - b).map(tier => {
+    const tOpen = tierOpen(+tier);
     const nodes = byTier[tier].map(n => {
       const owned = hasNode(n.id);
       const reqMet = (n.requires || []).every(r => hasNode(r));
       const afford = META.embers >= n.cost;
-      const state = owned ? 'owned' : !reqMet ? 'locked' : afford ? 'ready' : 'poor';
+      const state = owned ? 'owned' : !tOpen ? 'tierlocked' : !reqMet ? 'locked' : afford ? 'ready' : 'poor';
       const req = (n.requires || []).filter(r => !hasNode(r)).map(r => NODE_BY_ID[r].label);
       const foot = owned
         ? '<span class="et-owned">✓ UNLOCKED</span>'
+        : !tOpen ? `<span class="et-req">fell ${(+tier) - 1} boss${(+tier) - 1 > 1 ? 'es' : ''} to open</span>`
         : req.length ? `<span class="et-req">needs ${req.join(' · ')}</span>`
         : `<span class="et-cost${afford ? '' : ' et-cant'}">✦ ${n.cost}</span>`;
-      return `<button class="et-node et-${state}" data-id="${n.id}" ${owned || !reqMet || !afford ? 'disabled' : ''}>
+      const buyable = !owned && tOpen && reqMet && afford;
+      return `<button class="et-node et-${state}" data-id="${n.id}" ${buyable ? '' : 'disabled'}>
         <span class="et-type t-${n.type}">${TREE_TYPE_LABEL[n.type]}</span>
         <span class="et-name">${n.label}</span>
         <span class="et-desc">${n.desc}</span>
         <span class="et-foot">${foot}</span>
       </button>`;
     }).join('');
-    return `<div class="et-tier"><div class="et-tier-lbl">TIER ${tier}</div><div class="et-tier-row">${nodes}</div></div>`;
+    return `<div class="et-tier${tOpen ? '' : ' et-tier-locked'}"><div class="et-tier-lbl">TIER ${tier}${tOpen ? '' : ' · 🔒'}</div><div class="et-tier-row">${nodes}</div></div>`;
   }).join('');
   showOverlay(`
     <div class="ov-eyebrow">THE EMBER TREE · ${HEROES[heroId].name}</div>
-    <div class="et-wallet">✦ <b>${META.embers}</b> <span>embers</span></div>
+    <div class="et-wallet">✦ <b>${META.embers}</b> <span>embers</span><span class="et-milestone">· ${META.bossclears || 0} boss${(META.bossclears || 0) === 1 ? '' : 'es'} felled</span></div>
     <div class="et-scroll">${tiers}</div>
     <button class="ov-btn" id="et-back">◂ BACK</button>
   `, 'map-screen et-screen');
   document.querySelectorAll('.et-node:not([disabled])').forEach(el => {
     el.onclick = () => {
       const n = NODE_BY_ID[el.dataset.id];
-      if (!n || hasNode(n.id) || META.embers < n.cost) return;
+      if (!n || hasNode(n.id) || META.embers < n.cost || !tierOpen(n.tier)) return;
       if (!(n.requires || []).every(r => hasNode(r))) return;
       addEmbers(-n.cost); unlockNode(n.id);
       SFX.thread();
