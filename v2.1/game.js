@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 9;
+const V2_BUILD = 10;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -3931,7 +3931,6 @@ function showMenu() {
       <button class="menu-item menu-primary" id="m-resume">▸ RESUME</button>
       <button class="menu-item" id="m-sound"><span>SOUND</span>${onOff(SETTINGS.sound)}</button>
       <button class="menu-item" id="m-haptics"><span>HAPTICS</span>${onOff(SETTINGS.haptics)}</button>
-      ${inRun ? `<button class="menu-item menu-ember" id="m-tree"><span>✦ EMBER TREE</span><span class="menu-val">${META.embers}</span></button>` : ''}
       <button class="menu-item" id="m-howto"><span>HOW TO PLAY</span><span class="menu-val">?</span></button>
       ${inRun ? `<button class="menu-item menu-warn" id="m-abandon"><span>ABANDON RUN</span><span class="menu-val">✕</span></button>` : ''}
       <button class="menu-item" id="m-title"><span>RETURN TO TITLE</span><span class="menu-val">⌂</span></button>
@@ -3939,7 +3938,6 @@ function showMenu() {
     </div>
   `, 'menu-screen');
   $('#m-resume').onclick = resumeFromMenu;
-  { const mt = $('#m-tree'); if (mt) mt.onclick = () => showEmberTree(showMenu, (RUN && RUN.active && RUN.active[0]) || 'ash'); }
   $('#m-sound').onclick = () => { toggleSetting('sound'); showMenu(); };
   $('#m-haptics').onclick = () => { toggleSetting('haptics'); showMenu(); };
   $('#m-howto').onclick = () => showHowTo();

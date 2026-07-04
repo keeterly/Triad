@@ -826,11 +826,11 @@ const QUICK = process.argv.includes('--quick');
     }));
   check('MID-RUN: BACK from the tree returns to the descent map',
     await J(() => { const b = document.querySelector('#et-back'); if (!b) return false; b.click(); return !!document.querySelector('#map-tree'); }));
-  check('MID-RUN: the pause menu also offers the ember tree during a run',
+  check('MID-RUN: the ember tree is NOT reachable mid-fight (map-only unlocking)',
     await J(() => {
       startFight({ type: 'fight', chapter: 1, heroes: ['ash'], enemies: ['husk'], narrator: 'menu' });
       showMenu();
-      return !!document.querySelector('#m-tree');
+      return !document.querySelector('#m-tree');   // the pause menu offers no tree during a fight
     }));
 
   t.report();
