@@ -1205,6 +1205,28 @@ button.map-node:not(:disabled) { cursor: pointer; }
 /* ===========================================================================
    BUILD 29 — PARRY: reactive timing window on enemy attacks (combo Stage 3)
    =========================================================================== */
+/* PARRY FOCUS — while a parry is live, the world behind the reactive notes
+   desaturates, blurs and dims so the gesture is the only thing in focus.  Only
+   the battlefield/HUD siblings are filtered; #popup-layer (the notes, ratings,
+   bursts) and the boss-beat art sit above and stay crisp. */
+#battlefield, #topbar, #narrator, #action-bar { transition: filter 0.28s ease; }
+#stage.parry-focus #battlefield,
+#stage.parry-focus #topbar,
+#stage.parry-focus #narrator,
+#stage.parry-focus #action-bar { filter: saturate(0.32) blur(2.6px) brightness(0.6); }
+/* on a clean hit the world snaps a touch sharper for a beat — the parry lands */
+#stage.parry-focus.parry-snap #battlefield,
+#stage.parry-focus.parry-snap #topbar,
+#stage.parry-focus.parry-snap #narrator,
+#stage.parry-focus.parry-snap #action-bar { filter: saturate(0.6) blur(0.7px) brightness(0.94); transition: filter 0.07s ease; }
+/* a full-bleed flash on every landed press (behind the notes, above the world) */
+.parry-flash { position: absolute; inset: 0; z-index: 40; pointer-events: none;
+  background: radial-gradient(circle at 50% 42%, rgba(255,255,255,0.16), rgba(255,255,255,0) 60%);
+  animation: parry-flash 0.22s ease-out forwards; }
+.parry-flash.pf-perfect { background: radial-gradient(circle at 50% 42%, rgba(255,225,74,0.24), rgba(255,225,74,0) 62%); }
+.parry-flash.pf-miss { background: radial-gradient(circle at 50% 42%, rgba(224,106,106,0.14), rgba(224,106,106,0) 60%); animation-duration: 0.16s; }
+@keyframes parry-flash { 0% { opacity: 1; } 100% { opacity: 0; } }
+
 .parry-ring { position: absolute; width: 0; height: 0; transform: translate(-50%,-50%); pointer-events: none; z-index: 62; }
 .parry-ring.pr-out { opacity: 0; transition: opacity 0.15s ease; }
 /* the fixed sweet-spot ring the closing ring shrinks to meet */

@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 50;
+const V2_BUILD = 51;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -1766,6 +1766,17 @@ function noteFeedback(ui, ax, ay, q) {
   burst.style.left = ax + 'px'; burst.style.top = ay + 'px';
   layer.appendChild(burst);
   setTimeout(() => burst.remove(), 440);
+  // Screen-level RESPONSE to the press: the world snaps a touch sharper for a
+  // beat (the parry "connects"), and a quick flash sells the impact.
+  const stage = $('#stage');
+  if (good) {
+    stage.classList.add('parry-snap');
+    clearTimeout(stage._snapT); stage._snapT = setTimeout(() => stage.classList.remove('parry-snap'), 150);
+  }
+  const flash = document.createElement('div');
+  flash.className = 'parry-flash ' + (q === 'perfect' ? 'pf-perfect' : good ? 'pf-good' : 'pf-miss');
+  layer.appendChild(flash);
+  setTimeout(() => flash.remove(), 220);
   try { if (good) SFX.parry(q === 'perfect', _parryStreak); else SFX.parryMiss(); } catch (_) {}
   haptic(q === 'perfect' ? HAP.perfect : good ? HAP.good : HAP.miss);
   comboCounter(good);
@@ -1906,8 +1917,20 @@ async function runParrySeq(notes, anchor, art) {
   return { mit: hits / notes.length, perfect: hits === notes.length };
 }
 // Run a pattern; returns { mit (0..1 damage negated), perfect } | null if off.
+// While a parry is live the world behind the notes desaturates, blurs and
+// dims (`parry-focus`) so the reactive gesture is the only thing in focus —
+// the notes/ratings live in #popup-layer, above the filter, and stay crisp.
 async function runParry(targetEl, pattern, art) {
   if (!PARRY_ENABLED || !targetEl) { await sleep(380); return null; }
+  const stage = $('#stage');
+  stage.classList.add('parry-focus');
+  try {
+    return await runParryInner(targetEl, pattern, art);
+  } finally {
+    stage.classList.remove('parry-focus', 'parry-snap');
+  }
+}
+async function runParryInner(targetEl, pattern, art) {
   let a = noteAnchor(targetEl);
   const k = pattern.kind, sz = pattern.size || '';
   // An across-sweep parries a WHOLE-PARTY blow — center it over the party line.
