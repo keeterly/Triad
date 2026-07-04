@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 8;
+const V2_BUILD = 9;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -3106,15 +3106,19 @@ function showMap() {
     <div class="ov-eyebrow">THE DESCENT</div>
     <div class="ov-title" style="font-size:20px; margin-bottom:14px;">CHOOSE THE ROAD</div>
     <div class="map-strip"><svg class="map-edges" aria-hidden="true"></svg>${colHtml}</div>
-    <button class="party-chip" id="map-party">
-      ${trio}
-      <span class="party-chip-meta">PARTY · resonates as <b>✦ ${r.name}</b> <i>(${r.type})</i></span>
-    </button>
+    <div class="map-footer">
+      <button class="party-chip" id="map-party">
+        ${trio}
+        <span class="party-chip-meta">PARTY · resonates as <b>✦ ${r.name}</b> <i>(${r.type})</i></span>
+      </button>
+      <button class="map-tree-btn" id="map-tree">✦ EMBER TREE<span class="mt-embers">${META.embers}</span></button>
+    </div>
   `, 'map-screen');
   document.querySelectorAll('.map-node.mn-reach').forEach(el => {
     el.onclick = () => enterMapNode(mapNode(+el.dataset.node));
   });
   $('#map-party').onclick = () => showPartySelect(() => showMap());
+  $('#map-tree').onclick = () => showEmberTree(showMap, (RUN.active && RUN.active[0]) || 'ash');
   // draw the connecting edges once the overlay has laid out (two frames so the
   // scale/opacity intro is settled and node positions are final)
   requestAnimationFrame(() => requestAnimationFrame(drawMapEdges));
@@ -3927,6 +3931,7 @@ function showMenu() {
       <button class="menu-item menu-primary" id="m-resume">▸ RESUME</button>
       <button class="menu-item" id="m-sound"><span>SOUND</span>${onOff(SETTINGS.sound)}</button>
       <button class="menu-item" id="m-haptics"><span>HAPTICS</span>${onOff(SETTINGS.haptics)}</button>
+      ${inRun ? `<button class="menu-item menu-ember" id="m-tree"><span>✦ EMBER TREE</span><span class="menu-val">${META.embers}</span></button>` : ''}
       <button class="menu-item" id="m-howto"><span>HOW TO PLAY</span><span class="menu-val">?</span></button>
       ${inRun ? `<button class="menu-item menu-warn" id="m-abandon"><span>ABANDON RUN</span><span class="menu-val">✕</span></button>` : ''}
       <button class="menu-item" id="m-title"><span>RETURN TO TITLE</span><span class="menu-val">⌂</span></button>
@@ -3934,6 +3939,7 @@ function showMenu() {
     </div>
   `, 'menu-screen');
   $('#m-resume').onclick = resumeFromMenu;
+  { const mt = $('#m-tree'); if (mt) mt.onclick = () => showEmberTree(showMenu, (RUN && RUN.active && RUN.active[0]) || 'ash'); }
   $('#m-sound').onclick = () => { toggleSetting('sound'); showMenu(); };
   $('#m-haptics').onclick = () => { toggleSetting('haptics'); showMenu(); };
   $('#m-howto').onclick = () => showHowTo();

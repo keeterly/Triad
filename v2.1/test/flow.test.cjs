@@ -814,6 +814,25 @@ const QUICK = process.argv.includes('--quick');
       return hp4 > hp0 && dm4 > dm0;
     }));
 
+  // ---------- MID-RUN upgrading: reach the tree without leaving the run --------
+  console.log('--- MID-RUN TREE ---');
+  check('MID-RUN: the map exposes an ember-tree button that opens the sphere grid',
+    await J(() => {
+      S = null; RUN = newRun('ash'); showMap();
+      const btn = document.querySelector('#map-tree');
+      if (!btn) return false;
+      btn.click();
+      return !!document.querySelector('.et-canvas.et-grid') && !!document.querySelector('.et-orb[data-id]');
+    }));
+  check('MID-RUN: BACK from the tree returns to the descent map',
+    await J(() => { const b = document.querySelector('#et-back'); if (!b) return false; b.click(); return !!document.querySelector('#map-tree'); }));
+  check('MID-RUN: the pause menu also offers the ember tree during a run',
+    await J(() => {
+      startFight({ type: 'fight', chapter: 1, heroes: ['ash'], enemies: ['husk'], narrator: 'menu' });
+      showMenu();
+      return !!document.querySelector('#m-tree');
+    }));
+
   t.report();
   await t.browser.close();
 })().catch(e => { console.error('FATAL', e.message); process.exit(1); });
