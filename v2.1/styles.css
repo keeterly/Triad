@@ -1869,3 +1869,63 @@ button.map-node:not(:disabled) { cursor: pointer; }
    =========================================================================== */
 .ps-cls b { color: var(--gold-bright); font-weight: 700; }
 .ps-identity { display: block; font-size: 7.5px; line-height: 1.35; color: var(--ink-dim); font-style: italic; margin-top: 2px; max-width: 130px; }
+
+/* ===========================================================================
+   V2.1 — THE EMBER TREE (progression: skill-tree for cards)
+   =========================================================================== */
+.popup.ember { color: #ffb058; font-weight: 800; text-shadow: 0 0 10px rgba(255,150,60,0.9), 0 1px 2px #000; }
+.ov-embers {
+  margin: 6px auto 2px; font-size: 11px; letter-spacing: 0.06em; color: #ffb469;
+  text-shadow: 0 0 10px rgba(255,150,60,0.55);
+}
+.ov-embers b { color: #ffd08a; }
+/* title-screen ember button carries a warm glow */
+#t-tree { color: #ffcf8a; border-color: rgba(255,170,90,0.4); }
+#t-tree:hover { border-color: rgba(255,180,100,0.75); box-shadow: 0 0 14px rgba(255,150,60,0.28); }
+
+#overlay.et-screen #overlay-inner { max-width: 740px; }
+.et-wallet {
+  font-size: 14px; letter-spacing: 0.08em; color: #ffb469; margin: 0 0 8px;
+  text-shadow: 0 0 12px rgba(255,150,60,0.5);
+}
+.et-wallet b { color: #ffe0ac; font-size: 19px; }
+.et-wallet span { font-size: 10px; letter-spacing: 0.22em; color: var(--ink-dim); }
+.et-scroll { width: 100%; max-height: 228px; overflow-y: auto; padding: 2px 4px 4px; }
+.et-tier { margin-bottom: 10px; }
+.et-tier-lbl {
+  font-size: 8px; letter-spacing: 0.28em; color: var(--ink-faint);
+  text-align: left; margin: 0 0 5px 2px;
+}
+.et-tier-row { display: flex; gap: 9px; flex-wrap: wrap; justify-content: center; }
+.et-node {
+  width: 208px; min-height: 82px; text-align: left; cursor: pointer;
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 8px 10px; border-radius: 9px;
+  background: linear-gradient(180deg, rgba(30,22,16,0.94), rgba(14,11,9,0.96));
+  border: 1px solid var(--edge); color: var(--ink);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.08s ease, filter 0.15s ease;
+}
+.et-type {
+  font-size: 7px; letter-spacing: 0.2em; font-weight: 700; align-self: flex-start;
+  padding: 1px 6px; border-radius: 4px; color: #120d08;
+}
+.et-type.t-card    { background: #e8b45a; }
+.et-type.t-rider   { background: #d47b52; }
+.et-type.t-passive { background: #8fb0d6; }
+.et-type.t-allout  { background: #d45a5a; }
+.et-name { font-size: 12.5px; color: var(--gold-bright); letter-spacing: 0.02em; }
+.et-desc { font-size: 9px; line-height: 1.4; color: var(--ink-dim); flex: 1; }
+.et-foot { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
+.et-cost { font-size: 12px; font-weight: 800; color: #ffb469; text-shadow: 0 0 8px rgba(255,150,60,0.55); }
+.et-cost.et-cant { color: #7a6a52; text-shadow: none; }
+.et-owned { font-size: 9px; letter-spacing: 0.14em; color: #8ad39a; text-shadow: 0 0 8px rgba(120,200,140,0.5); }
+.et-req { font-size: 8px; letter-spacing: 0.08em; color: #b06a5a; font-style: italic; }
+/* affordable + requirements met → warm, invites the tap */
+.et-node.et-ready { border-color: rgba(255,170,90,0.55); box-shadow: 0 0 12px rgba(255,150,60,0.14); }
+.et-node.et-ready:hover { border-color: rgba(255,185,105,0.9); box-shadow: 0 0 18px rgba(255,150,60,0.3); transform: translateY(-2px); }
+/* owned → gold, settled */
+.et-node.et-owned { border-color: rgba(240,212,136,0.5); background: linear-gradient(180deg, rgba(44,36,20,0.9), rgba(16,13,9,0.96)); cursor: default; }
+/* can't afford yet → dim but visible (a goal) */
+.et-node.et-poor { filter: grayscale(0.4) brightness(0.82); cursor: default; }
+/* requirements unmet → locked, faint */
+.et-node.et-locked { filter: grayscale(0.7) brightness(0.6); cursor: default; }

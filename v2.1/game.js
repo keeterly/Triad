@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 1;
+const V2_BUILD = 2;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -33,6 +33,62 @@ const SETTINGS = Object.assign(
   (() => { try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') || {}; } catch (_) { return {}; } })()
 );
 function saveSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(SETTINGS)); } catch (_) {} }
+
+// ---------------------------------------------------------------------------
+// EMBERS — the meta progression currency.  Defeating foes yields embers; they
+// are banked PERMANENTLY (across runs) and spent on the Ember Tree to open a
+// hero's kit (a skill-tree for cards).  One persistent wallet; the tree is the
+// permanent breadth sink (in-run forging comes later).
+// ---------------------------------------------------------------------------
+const META_KEY = 'kizuna2_1.meta';
+const META = Object.assign(
+  { embers: 0, nodes: [] },
+  (() => { try { const m = JSON.parse(localStorage.getItem(META_KEY) || '{}') || {}; return { embers: +m.embers || 0, nodes: Array.isArray(m.nodes) ? m.nodes.slice() : [] }; } catch (_) { return {}; } })()
+);
+function saveMeta() { try { localStorage.setItem(META_KEY, JSON.stringify({ embers: META.embers, nodes: META.nodes })); } catch (_) {} }
+function hasNode(id) { return META.nodes.indexOf(id) >= 0; }
+function unlockNode(id) { if (!hasNode(id)) { META.nodes.push(id); saveMeta(); } }
+function addEmbers(n) { META.embers = Math.max(0, (META.embers || 0) + n); saveMeta(); }
+
+// ---------------------------------------------------------------------------
+// THE EMBER TREE — declarative skill-tree for cards.  Each node is pure data
+// the engine reads at card-build/move time, so there is no bespoke code per
+// node.  Node types:
+//   card    — unlocks a hero's signature card for a stance (SIG_GATE)
+//   rider   — attaches an effect to an existing card (bridge: adds a keyword)
+//   passive — a standing rule fired by a game hook (e.g. moving to FRONT)
+//   allout  — an alternate all-out (Phase 3)
+// Phase 1 ships Ash's opening constellation; other heroes keep their full kit
+// until they get their own constellations.
+// ---------------------------------------------------------------------------
+const EMBER_TREE = [
+  { id: 'ash.sig.front', hero: 'ash', tier: 1, cost: 4, type: 'card', gate: { stance: 'front' }, label: 'Crashing Wave', desc: 'FRONT signature — an 11-damage cleave through the nearest foe.' },
+  { id: 'ash.sig.back',  hero: 'ash', tier: 1, cost: 4, type: 'card', gate: { stance: 'back'  }, label: 'Marked Fate',  desc: 'BACK signature — 3 damage and <span class="kw kw-exposed">◎ EXPOSED 4</span> on any foe.' },
+  { id: 'ash.sig.mid',   hero: 'ash', tier: 1, cost: 5, type: 'card', gate: { stance: 'mid'   }, label: 'Crossguard',   desc: 'MID signature — throw <span class="kw kw-guard">⛨ 6</span> guard onto an ally.' },
+  { id: 'ash.rider.expose', hero: 'ash', tier: 2, cost: 6, type: 'rider', requires: ['ash.sig.back'], label: 'Hunter’s Instinct', desc: 'Thrown Edge (BACK core) now also inflicts <span class="kw kw-exposed">◎ EXPOSED 2</span> — position becomes a debuff.', rider: { card: 'Thrown Edge', fx: { mark: 2 }, descAdd: ' · <span class="kw kw-exposed">◎ EXPOSED 2</span>' } },
+  { id: 'ash.passive.vanguard', hero: 'ash', tier: 2, cost: 6, type: 'passive', label: 'Vanguard’s Momentum', desc: 'Whenever Ash closes to FRONT, he gains <span class="kw kw-guard">⛨ 3</span> guard — repositioning becomes defense.', passive: 'ash_vanguard' },
+];
+const NODE_BY_ID = {};
+EMBER_TREE.forEach(n => { NODE_BY_ID[n.id] = n; });
+// heroId -> stance -> gating nodeId (a hero's signature is hidden until unlocked)
+const SIG_GATE = {};
+EMBER_TREE.forEach(n => { if (n.type === 'card' && n.gate && n.gate.stance) { (SIG_GATE[n.hero] = SIG_GATE[n.hero] || {})[n.gate.stance] = n.id; } });
+// is hero h's signature available in its current stance?  (ungated heroes: yes)
+function sigUnlocked(h) { const g = SIG_GATE[h.id] && SIG_GATE[h.id][h.row]; return !g || hasNode(g); }
+// unlocked rider effects attached to a given (owner, card)
+function ridersFor(ownerId, cardName) {
+  return EMBER_TREE.filter(n => n.type === 'rider' && n.hero === ownerId && n.rider && n.rider.card === cardName && hasNode(n.id));
+}
+// ember reward for felling a foe
+function emberReward(e) { return (e.def.floorBoss || e.def.boss) ? 10 : (e._elite ? 4 : 2); }
+// a hero has just entered a new row — fire any unlocked positional passives
+function onHeroEnterRow(hero, toRow, fromRow) {
+  if (!hero || hero.downed || toRow === fromRow) return;
+  if (hero.id === 'ash' && toRow === 'front' && hasNode('ash.passive.vanguard')) {
+    hero.guard = (hero.guard || 0) + 3;
+    popupAt(figEl(hero.id), '⛨ +3', 'guard');
+  }
+}
 
 // ---------------------------------------------------------------------------
 // SFX — tiny synthesized cues (no assets).  Volumes stay low; every cue is a
@@ -891,7 +947,7 @@ function buildHand() {
       if (!core.spent) hand.push(core);
     }
     if (host === h.id) hand.push(mkResonantCard(h));
-    else { const sig = mkCard(h, 'sig', set.sig); if (!sig.spent) hand.push(sig); }
+    else if (sigUnlocked(h)) { const sig = mkCard(h, 'sig', set.sig); if (!sig.spent) hand.push(sig); }
   });
   S.tempCards.filter(t => t.expiresTurn == null || t.expiresTurn >= S.turn).forEach(t => hand.push(t));
   return hand;
@@ -908,9 +964,20 @@ function mkCard(h, kind, def) {
   const tempo = h.def.tempo || 'steady';
   let cost = def.cost;
   if (tempo === 'swift' && cost > 1) cost -= 1;   // fast heroes play cheap and often
+  // EMBER RIDERS — unlocked tree upgrades bolt effects onto the base card.
+  // Clone fx first so the shared def is never mutated.
+  let fx = def.fx, desc = def.desc;
+  const riders = ridersFor(h.id, def.name);
+  if (riders.length) {
+    fx = Object.assign({}, def.fx);
+    riders.forEach(n => {
+      Object.keys(n.rider.fx).forEach(k => { fx[k] = (fx[k] || 0) + n.rider.fx[k]; });
+      if (n.rider.descAdd) desc = desc + n.rider.descAdd;
+    });
+  }
   return { kind, owner: h.id, ownerName: h.def.name, tint: h.def.tint, tempo,
-    stance: STANCE[h.row].name, name: def.name, cost, target: def.target, fx: def.fx, desc: def.desc,
-    school: (def.fx && def.fx.dmg) ? h.def.school : null,
+    stance: STANCE[h.row].name, name: def.name, cost, target: def.target, fx, desc,
+    school: (fx && fx.dmg) ? h.def.school : null,
     spent: S.used.has(h.id + ':' + kind) };
 }
 // Synthetic move "card" — never shown in hand; movement is a figure-drag
@@ -1493,6 +1560,7 @@ async function resolveCard(card, targetId) {
     const occupant = livingHeroes().find(h => h.id !== owner.id && h.row === card.toRow);
     owner.row = card.toRow;
     if (occupant) occupant.row = from;
+    onHeroEnterRow(owner, card.toRow, from);
     // The departed stance lingers: a fading echo of its core, THIS TURN only.
     // Movement converts tempo into an extra weaker action — and the echo
     // keeps the OLD stance's strike, so stance-dancing can line up
@@ -1629,6 +1697,7 @@ async function resolveCard(card, targetId) {
     if (to !== owner.row) {
       const occ = livingHeroes().find(h => h.id !== owner.id && h.row === to);
       const from = owner.row; owner.row = to; if (occ) occ.row = from;
+      onHeroEnterRow(owner, to, from);
       S._morphHeroId = owner.id; if (occ) S._morphHeroId2 = occ.id;
       renderAll();
       popupAt(figEl(owner.id), '⇄ ' + STANCE[to].name.toUpperCase(), 'info');
@@ -1727,6 +1796,10 @@ function dealToEnemy(e, amt, school, byHeroId) {
   if (e.hp === 0 && !e.dead) {
     e.dead = true;
     e._justDied = true;
+    const reward = emberReward(e);                  // felling a foe yields embers
+    addEmbers(reward);
+    if (S) S._embersRun = (S._embersRun || 0) + reward;
+    const rel = figEl(e.uid); if (rel) popupAt(rel, '✦ +' + reward, 'ember');
     gainMomentum(8);                                // a kill feeds the burst
     SFX.kill();
     stageShake('lg');
@@ -2773,6 +2846,7 @@ function onVictory() {
       <div class="ov-eyebrow" style="color:var(--gold-bright)">VICTORY</div>
       <div class="ov-title" style="font-size:22px">${isBoss ? 'THE ECHO FADES' : 'THE ROAD HOLDS'}</div>
       ${th ? `<div class="ov-sub">${th} thread${th > 1 ? 's' : ''} held${S.triadFormed ? ' · the triad answered' : ''}</div>` : ''}
+      ${S._embersRun ? `<div class="ov-embers">✦ ${S._embersRun} embers gathered — spend them on the <b>Ember Tree</b></div>` : ''}
       ${bondLines.length ? `<div class="bond-growth">${bondLines.map(l => `<span class="bg-line${/KINDLED/.test(l) ? ' bg-kindled' : ''}">♡ ${l}</span>`).join('')}</div>` : ''}
       <button class="ov-btn primary" id="ov-next">CONTINUE</button>
     `);
@@ -3773,10 +3847,12 @@ function showTitle() {
     <button class="ov-btn primary" id="t-new">NEW GAME</button>
     ${canContinue ? `<button class="ov-btn" id="t-continue">CONTINUE</button>` : ''}
     <button class="ov-btn" id="t-descent">THE DESCENT</button>
+    <button class="ov-btn" id="t-tree">✦ EMBER TREE · ${META.embers}</button>
     <div class="ov-hint">V2.1 BUILD ${V2_BUILD} · EMBER BRANCH</div>
   `);
   // NEW GAME and THE DESCENT both start a fresh run — first CHOOSE YOUR SURVIVOR.
   $('#t-new').onclick = () => showStarterSelect(id => beginRun(id));
+  $('#t-tree').onclick = () => showEmberTree(showTitle);
   const c = $('#t-continue');
   if (c) c.onclick = () => {
     const r = loadRun();
@@ -3788,6 +3864,53 @@ function showTitle() {
     if (r && !r.done) { RUN = r; saveRun(); showMap(); }
     else showStarterSelect(id => beginRun(id));
   };
+}
+
+// THE EMBER TREE — spend banked embers to open a hero's kit.  Nodes read from
+// EMBER_TREE; buying one deducts embers and unlocks it permanently.
+const TREE_TYPE_LABEL = { card: 'CARD', rider: 'UPGRADE', passive: 'PASSIVE', allout: 'ALL-OUT' };
+function showEmberTree(onBack) {
+  $('#stage').classList.remove('show-bg');
+  const heroId = 'ash';
+  const byTier = {};
+  EMBER_TREE.filter(n => n.hero === heroId).forEach(n => { (byTier[n.tier] = byTier[n.tier] || []).push(n); });
+  const tiers = Object.keys(byTier).sort((a, b) => a - b).map(tier => {
+    const nodes = byTier[tier].map(n => {
+      const owned = hasNode(n.id);
+      const reqMet = (n.requires || []).every(r => hasNode(r));
+      const afford = META.embers >= n.cost;
+      const state = owned ? 'owned' : !reqMet ? 'locked' : afford ? 'ready' : 'poor';
+      const req = (n.requires || []).filter(r => !hasNode(r)).map(r => NODE_BY_ID[r].label);
+      const foot = owned
+        ? '<span class="et-owned">✓ UNLOCKED</span>'
+        : req.length ? `<span class="et-req">needs ${req.join(' · ')}</span>`
+        : `<span class="et-cost${afford ? '' : ' et-cant'}">✦ ${n.cost}</span>`;
+      return `<button class="et-node et-${state}" data-id="${n.id}" ${owned || !reqMet || !afford ? 'disabled' : ''}>
+        <span class="et-type t-${n.type}">${TREE_TYPE_LABEL[n.type]}</span>
+        <span class="et-name">${n.label}</span>
+        <span class="et-desc">${n.desc}</span>
+        <span class="et-foot">${foot}</span>
+      </button>`;
+    }).join('');
+    return `<div class="et-tier"><div class="et-tier-lbl">TIER ${tier}</div><div class="et-tier-row">${nodes}</div></div>`;
+  }).join('');
+  showOverlay(`
+    <div class="ov-eyebrow">THE EMBER TREE · ${HEROES[heroId].name}</div>
+    <div class="et-wallet">✦ <b>${META.embers}</b> <span>embers</span></div>
+    <div class="et-scroll">${tiers}</div>
+    <button class="ov-btn" id="et-back">◂ BACK</button>
+  `, 'map-screen et-screen');
+  document.querySelectorAll('.et-node:not([disabled])').forEach(el => {
+    el.onclick = () => {
+      const n = NODE_BY_ID[el.dataset.id];
+      if (!n || hasNode(n.id) || META.embers < n.cost) return;
+      if (!(n.requires || []).every(r => hasNode(r))) return;
+      addEmbers(-n.cost); unlockNode(n.id);
+      SFX.thread();
+      showEmberTree(onBack);   // re-render with the new state
+    };
+  });
+  $('#et-back').onclick = () => { hideOverlay(); (onBack || showTitle)(); };
 }
 // CHOOSE YOUR SURVIVOR — pick the hero you begin (solo) with, from the ones
 // you've UNLOCKED.  Locked heroes are shown dimmed: recruit them on the road to

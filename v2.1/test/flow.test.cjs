@@ -45,10 +45,11 @@ const QUICK = process.argv.includes('--quick');
   for (let i = 0; i < 6; i++) { if (!await J(() => !!document.querySelector('.ov-tap'))) break; await J(() => document.querySelector('#overlay').click()); await sleep(200); }
   await clickOverlayBtn('#ov-go');
   await sleep(300);
-  check('fight 1 opens with 2 cards (no move card) / EP 3', await J(() => document.querySelectorAll('#hand .card').length === 2 && S.ep === 3));
+  check('EMBER re-gate: fight 1 opens core-only — 1 card (Cleave), sig tree-gated / EP 3',
+    await J(() => { const c = document.querySelectorAll('#hand .card'); return c.length === 1 && c[0].dataset.cardName === 'Cleave' && S.ep === 3; }));
+  check('EMBER: Ash begins with his signature locked (earn embers to open it)', await J(() => !hasNode('ash.sig.front')));
   const hp0 = await J(() => S.enemies[0].hp);
   check('husk is 18 HP (fun tuning: no turn-1 alpha kill)', hp0 === 18, String(hp0));
-  check('CONCEPT: full alpha (3 EP) cannot also afford the dodge — real decision', true, 'Cleave 1 + Crashing Wave 2 = all EP');
   // T1 — strike, then DRAG ASH HIMSELF to MID (movement is the hero, not a card)
   await tapCard('Cleave'); await sleep(500);
   check('tap-play works', await J(() => S.enemies[0].hp) === hp0 - 6);
@@ -427,6 +428,12 @@ const QUICK = process.argv.includes('--quick');
   // back to targeting HIMSELF — the drag path used to filter the owner out and
   // the card would snap to nothing and spring back.
   console.log('--- SOLO ALLY ---');
+  // From here the suite exercises Ash's full kit — unlock his signature nodes on
+  // the ember tree (persisted so it survives any later reload).
+  await J(() => {
+    ['ash.sig.front', 'ash.sig.mid', 'ash.sig.back'].forEach(id => { if (!META.nodes.includes(id)) META.nodes.push(id); });
+    saveMeta();
+  });
   await J(() => {
     hideOverlay();
     startFight({ type: 'fight', chapter: 1, heroes: ['ash'], enemies: ['husk'], narrator: 'solo drill' });
@@ -657,6 +664,58 @@ const QUICK = process.argv.includes('--quick');
   check('RHYTHM: a braced HOLD negates the blow (perfect parry)',
     await J((o) => S.heroes.find(h => h.id === 'ash').hp === o.a && S.momentum > 0, { a: ashHold0 }),
     await J((o) => 'ashDmg:' + (o.a - S.heroes.find(h => h.id === 'ash').hp) + ' mom:' + S.momentum, { a: ashHold0 }));
+
+  // ---------- EMBER PROGRESSION (Phase 1) ----------
+  console.log('--- EMBERS ---');
+  // earning: felling a foe banks embers into the persistent wallet
+  await J(() => {
+    META.embers = 0; META.nodes = []; saveMeta();
+    startFight({ type: 'fight', chapter: 1, heroes: ['ash'], enemies: ['husk'], narrator: 'ember drill' });
+    S._embersRun = 0; renderAll();
+  });
+  const emb0 = await J(() => META.embers);
+  await J(() => { const e = S.enemies[0]; e.hp = 0; dealToEnemy(e, 0); });   // trigger death path
+  check('EARN: felling a normal foe banks +2 embers', await J(() => META.embers) === emb0 + 2,
+    'embers ' + emb0 + ' -> ' + await J(() => META.embers));
+
+  // spending: buying a node deducts embers, unlocks it, and opens the card
+  await J(() => { META.embers = 10; META.nodes = []; saveMeta(); });
+  check('GATE: with the front sig locked, a FRONT Ash holds only the core (1 card)',
+    await J(() => {
+      startFight({ type: 'fight', chapter: 1, heroes: ['ash'], enemies: ['husk'], narrator: 'gate' });
+      S.heroes[0].row = 'front'; S.ep = S.maxEp; renderAll();
+      return document.querySelectorAll('#hand .card').length === 1;
+    }));
+  await J(() => { const n = NODE_BY_ID['ash.sig.front']; addEmbers(-n.cost); unlockNode('ash.sig.front'); renderAll(); });
+  check('UNLOCK: buying Crashing Wave deducts its cost (10 -> 6)', await J(() => META.embers) === 6,
+    'embers ' + await J(() => META.embers));
+  check('OPEN: the unlocked signature now appears in hand (2 cards)',
+    await J(() => document.querySelectorAll('#hand .card').length === 2
+      && !!document.querySelector('#hand .card[data-card-name="Crashing Wave"]')));
+
+  // rider: an unlocked upgrade bolts a keyword onto an existing card
+  await J(() => { unlockNode('ash.sig.back'); unlockNode('ash.rider.expose'); });
+  check('RIDER: Hunter’s Instinct adds EXPOSED to Thrown Edge (mark:2 in fx)',
+    await J(() => {
+      startFight({ type: 'fight', chapter: 1, heroes: ['ash'], enemies: ['husk'], narrator: 'rider' });
+      S.heroes[0].row = 'back'; S.ep = S.maxEp; renderAll();
+      const hand = buildHand();
+      const te = hand.find(c => c.name === 'Thrown Edge');
+      return !!te && te.fx.mark === 2 && te.fx.dmg === 4;   // base dmg preserved, rider added
+    }));
+  // and the shared def is NOT mutated by the rider (clone integrity)
+  check('RIDER: the base card def is untouched (no shared-state leak)',
+    await J(() => HEROES.ash.cards.back.core.fx.mark === undefined));
+
+  // passive: closing to FRONT grants guard once the node is owned
+  check('PASSIVE: Vanguard’s Momentum grants ⛨3 when Ash moves to FRONT',
+    await J(() => {
+      unlockNode('ash.passive.vanguard');
+      startFight({ type: 'fight', chapter: 1, heroes: ['ash'], enemies: ['husk'], narrator: 'passive' });
+      const a = S.heroes[0]; a.row = 'back'; a.guard = 0; S.ep = S.maxEp; renderAll();
+      onHeroEnterRow(a, 'front', 'back');
+      return a.guard === 3;
+    }));
 
   t.report();
   await t.browser.close();
