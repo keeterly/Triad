@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0d0a08" />
+  <title>KIZUNA v2.1 | Ember Branch</title>
+  <link rel="icon" href="data:," />
+  <link rel="stylesheet" href="styles.css?v=210" />
+</head>
+<body>
+
+  <!-- Rotate prompt (landscape only, same rule as v1) -->
+  <div id="rotate-prompt">
+    <div class="rotate-inner">
+      <div class="rotate-icon">⟳</div>
+      <div class="rotate-text">Rotate device<br/><span>landscape only</span></div>
+    </div>
+  </div>
+
+  <div id="stage-scale">
+    <main id="stage">
+
+      <!-- Fight backdrop (shown only during battle; dimmed behind everything) -->
+      <div id="fight-bg" aria-hidden="true"></div>
+
+      <!-- Top strip: chapter chip + turn-order timeline + narrator -->
+      <header id="topbar">
+        <div id="chapter-chip">CH 1</div>
+        <div id="resonance" class="hidden"></div>
+        <div id="timeline"></div>
+        <button id="menu-btn" aria-label="Menu" title="Menu">☰</button>
+        <div id="build-stamp">V2.1 BUILD 1</div>
+      </header>
+      <div id="narrator"></div>
+
+      <!-- Battlefield: party (left) vs enemies (right).  A thread layer
+           (SVG) draws Kizuna lines between party figures. -->
+      <section id="battlefield">
+        <svg id="thread-layer" aria-hidden="true"></svg>
+        <div id="party-half"></div>
+        <div id="enemy-half"></div>
+      </section>
+
+      <!-- Action bar: EP (energy) cluster + END TURN -->
+      <section id="action-bar">
+        <div id="ep-cluster">
+          <div id="ep-dial"><span id="ep-num">3</span><span id="ep-max">/3</span></div>
+          <div id="ep-label">EP</div>
+          <div id="burst" title="MOMENTUM — parry, exploit weaknesses and chain LINKs to fill it, then unleash an ALL-OUT ATTACK">
+            <div id="burst-fill"></div>
+            <span id="burst-lbl">BURST</span>
+          </div>
+        </div>
+        <div id="hand"></div>
+        <button id="btn-endturn">END TURN</button>
+      </section>
+
+      <div id="popup-layer"></div>
+
+      <!-- Full-screen overlay: title / story beats / victory / defeat / triad -->
+      <div id="overlay" class="hidden">
+        <div id="overlay-inner"></div>
+      </div>
+
+      <!-- Target-pick veil -->
+      <div id="target-hint" class="hidden"></div>
+
+    </main>
+  </div>
+
+  <script src="portraits.js?v=2"></script>
+  <script src="game.js?v=210"></script>
+</body>
+</html>
