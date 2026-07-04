@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 2;
+const V2_BUILD = 3;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -382,6 +382,7 @@ const ENEMY_DEFS = {
   },
   echoknight2: {
     weak: 'blade', name: 'THE ECHO KNIGHT, REMEMBERED', maxHp: 112, boss: true, floorBoss: true, art: 'echoknight',
+    attacksPerRound: 2,   // the colossus strikes TWICE each round — two telegraphs to answer
     intents: [
       // The floor boss fills the field; its blows are CASCADES you parry as a
       // sequence — taps racing down an arc, a braced hold, a deflect sweep.
@@ -1716,6 +1717,16 @@ function enemyIntentDmg(e, intent) {
   const scaled = Math.round(((intent.dmg || 0) + (e.power || 0)) * (e.dmgMul || 1));
   return Math.max(0, scaled - (e.lull || 0));
 }
+// The intents an enemy will execute on its COMING turn (one, or two for a boss
+// that strikes twice).  Drives both the telegraph and the resolution so what is
+// shown is exactly what lands.
+function enemyNextIntents(e) {
+  const len = e.def.intents.length;
+  const n = (e.def.floorBoss && e.def.attacksPerRound) ? e.def.attacksPerRound : 1;
+  const out = [];
+  for (let k = 0; k < n; k++) out.push(e.def.intents[(e.intentIdx + k) % len]);
+  return out;
+}
 function dealToEnemy(e, amt, school, byHeroId) {
   // STAGGER payoff: the next hit on a staggered enemy lands double.
   if (e.staggered) {
@@ -2679,6 +2690,11 @@ async function enemyPhase() {
   await sleep(620);
   for (const e of livingEnemies()) {
     if (S.over) break;
+    // A boss takes MULTIPLE actions per round; each is its own telegraphed,
+    // parryable strike drawn from the next intents in its cycle.
+    const times = (e.def.floorBoss && e.def.attacksPerRound) ? e.def.attacksPerRound : 1;
+    for (let atk = 0; atk < times; atk++) {
+    if (S.over || e.dead) break;
     const intent = e.def.intents[e.intentIdx % e.def.intents.length];
     e.intentIdx++;
     e.acted = true;
@@ -2810,6 +2826,9 @@ async function enemyPhase() {
     renderAll();
     await sleep(400);
     if (checkEnd()) break;
+    if (atk + 1 < times) await sleep(360);   // a beat between the boss's two blows
+    }
+    if (S.over) break;
   }
 }
 
@@ -3324,11 +3343,12 @@ function renderBattlefield() {
   const rowDmg = { front: 0, mid: 0, back: 0 };
   let anyHeavy = false;
   livingEnemies().forEach(e => {
-    const it = e.def.intents[e.intentIdx % e.def.intents.length];
-    if (!it || it.kind === 'buff') return;
-    const dmg = enemyIntentDmg(e, it);
-    if (it.heavy) anyHeavy = true;
-    (it.row === 'all' ? ROWS.slice() : (it.row ? [it.row] : [])).forEach(r => { rowDmg[r] += dmg; });
+    enemyNextIntents(e).forEach(it => {          // sum EVERY blow this foe will throw (a boss throws two)
+      if (!it || it.kind === 'buff') return;
+      const dmg = enemyIntentDmg(e, it);
+      if (it.heavy) anyHeavy = true;
+      (it.row === 'all' ? ROWS.slice() : (it.row ? [it.row] : [])).forEach(r => { rowDmg[r] += dmg; });
+    });
   });
   // Classify a row's threat: how big, and would it drop the hero standing there?
   const dangerClass = (row) => {
@@ -3434,12 +3454,18 @@ function renderBattlefield() {
     enemyHalf.appendChild(slot);
   });
 }
+// one intent rendered as an inline segment (glyph · dmg → row · riders)
+function intentSeg(e, it) {
+  if (it.kind === 'buff') return `<span class="i-seg"><span class="i-glyph">◈</span><span class="i-row">${it.desc || 'gathers'}</span></span>`;
+  return `<span class="i-seg"><span class="i-glyph">⚔</span><span class="i-dmg">${enemyIntentDmg(e, it)}</span><span class="i-arrow">→</span><span class="i-row">${it.row === 'all' ? 'ALL' : ROW_LABEL[it.row]}</span>${it.chill ? '<span class="i-st kw-chill" title="chills you">❄</span>' : ''}${it.expose ? '<span class="i-st kw-exposed" title="exposes you">◎</span>' : ''}</span>`;
+}
 // The inner markup for an enemy figure (shared by the line + the floor boss).
 function enemyFigInner(e) {
-  const it = e.def.intents[e.intentIdx % e.def.intents.length];
-  const intentHtml = it.kind === 'buff'
-    ? `<div class="intent intent-buff"><span>◈</span><span class="i-row">${it.desc || 'gathers'}</span></div>`
-    : `<div class="intent${it.heavy ? ' intent-heavy' : ''}"><span class="i-glyph">⚔</span><span class="i-dmg">${enemyIntentDmg(e, it)}</span><span class="i-arrow">→</span><span class="i-row">${it.row === 'all' ? 'ALL' : ROW_LABEL[it.row]}</span>${it.chill ? '<span class="i-st kw-chill" title="chills you">❄</span>' : ''}${it.expose ? '<span class="i-st kw-exposed" title="exposes you">◎</span>' : ''}</div>`;
+  const its = enemyNextIntents(e);
+  const heavy = its.some(x => x.heavy);
+  const intentHtml = its.length > 1
+    ? `<div class="intent intent-multi${heavy ? ' intent-heavy' : ''}">${its.map(x => intentSeg(e, x)).join('<span class="i-div">+</span>')}</div>`
+    : `<div class="intent${its[0].kind === 'buff' ? ' intent-buff' : ''}${heavy ? ' intent-heavy' : ''}">${intentSeg(e, its[0])}</div>`;
   return `
     ${intentHtml}
     <div class="fig-art">${enemyArt(e)}${e._justDied ? '' : auraHTML({ guard: e.guard, rally: e.power, chill: e.lull, exposed: e.mark, weak: e.weakened, stagger: e.staggered })}</div>

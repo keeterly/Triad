@@ -484,8 +484,10 @@ const QUICK = process.argv.includes('--quick');
   });
   await sleep(400);
   await endTurn();
-  check('INTERRUPT: the staggered boss’s heavy wind-up BROKE (party untouched)',
-    await J(() => S.heroes.every(h => h.hp === h.maxHp)));
+  // The boss strikes twice; stagger BREAKS the heavy (all-row) wind-up, so the
+  // back line is spared — but its second, lighter blow still reaches the front.
+  check('INTERRUPT: the staggered boss’s heavy (all-row) wind-up BROKE — back line untouched',
+    await J(() => { const f = S.heroes.find(h => h.row === 'front'); return S.heroes.filter(h => h !== f).every(h => h.hp === h.maxHp); }));
   // FLOOR BOSS — colossal render + bullet-hell cascade parry sequences
   check('FLOOR BOSS: renders as one colossal figure filling the enemy half',
     await J(() => !!document.querySelector('#enemy-half.has-floor-boss .figure.floor-boss[data-fig]')));
@@ -493,6 +495,23 @@ const QUICK = process.argv.includes('--quick');
     await J(() => { const p = parryPatternFor(ENEMY_DEFS.echoknight2.intents[4]); return p.kind === 'seq' && p.notes.length === 5; }));
   check('FLOOR BOSS: the cascade previews on the telegraph (✷5)',
     await J(() => parryGlyph(ENEMY_DEFS.echoknight2.intents[4]) === '✷5'));
+  // TWO-ATTACK BOSS — telegraphs and resolves two blows per round
+  check('BOSS: strikes twice per round (attacksPerRound 2)',
+    await J(() => ENEMY_DEFS.echoknight2.attacksPerRound === 2));
+  check('BOSS: the telegraph shows BOTH coming blows (two intent segments)',
+    await J(() => {
+      hideOverlay();
+      startFight({ type: 'fight', chapter: 3, heroes: ['ash', 'elin', 'branwen'], enemies: ['echoknight2'], narrator: 'double drill' });
+      S.enemies[0].intentIdx = 0; renderAll();
+      return enemyNextIntents(S.enemies[0]).length === 2
+        && document.querySelectorAll('.figure.floor-boss .intent.intent-multi .i-seg').length === 2;
+    }));
+  check('BOSS: both blows feed the row-threat telegraph (two rows lit)',
+    await J(() => {
+      S.enemies[0].intentIdx = 2; renderAll();   // mid + back → two distinct damaging rows
+      const lit = ['back', 'mid', 'front'].filter(r => document.querySelector(`#party-half .slot[data-row="${r}"].slot-telegraphed`));
+      return lit.length === 2;
+    }));
 
   // ---------- REACTIVE: 'NOT TODAY' — costed protection ----------
   console.log('--- REACTIVE ---');

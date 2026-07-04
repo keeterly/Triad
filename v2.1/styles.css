@@ -312,6 +312,10 @@ body {
 .intent .i-row { color: var(--ink-dim); letter-spacing: 0.08em; }
 .intent.intent-buff { border-color: rgba(154,120,192,0.45); }
 .intent.intent-heavy { border-color: var(--blood-bright); box-shadow: 0 0 8px rgba(212,69,69,0.35); }
+/* a segment holds one blow; a boss's pill chains two, split by a divider */
+.intent .i-seg { display: inline-flex; align-items: center; gap: 4px; }
+.intent.intent-multi { gap: 6px; }
+.intent .i-div { color: var(--blood-bright); font-weight: 700; opacity: 0.75; margin: 0 1px; }
 
 /* stance halo on the active row (solo teaching) */
 .figure .stance-tag {
