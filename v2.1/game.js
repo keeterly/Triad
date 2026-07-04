@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 10;
+const V2_BUILD = 11;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -911,6 +911,7 @@ function newBattle(node) {
       }
       // ELITE nodes hit harder and last longer — a real spike over a plain fight.
       if (node.elite && !e.def.boss) {
+        e._elite = true;                 // pays the bigger ember bounty (emberReward)
         e.dmgMul *= 1.15;
         const hp = Math.round(e.maxHp * 1.25);
         e.maxHp = hp; e.hp = hp;
@@ -2936,6 +2937,10 @@ function onVictory() {
     saveRun();
   }
   const isBoss = S.node.isBoss || S.node.enemies.some(id => ENEMY_DEFS[id].boss);
+  // a CLEAR pays a small steady bounty on top of the per-kill embers, so every
+  // fight advances the tree a little (not just a trickle between boss lumps).
+  const clearBonus = isBoss ? 3 : (S.node.elite ? 2 : 1);
+  addEmbers(clearBonus); S._embersRun = (S._embersRun || 0) + clearBonus;
   if (isBoss) { META.bossclears = (META.bossclears || 0) + 1; saveMeta(); }   // a boss milestone opens the next tree tier
   SFX.victory();
   setTimeout(() => {

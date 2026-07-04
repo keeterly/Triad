@@ -813,6 +813,20 @@ const QUICK = process.argv.includes('--quick');
       META.heat = 0;
       return hp4 > hp0 && dm4 > dm0;
     }));
+  check('ECONOMY: a felled ELITE pays the bigger bounty (4, not 2)',
+    await J(() => {
+      startFight({ type: 'fight', chapter: 2, depth: 3, useRunHp: true, elite: true, heroes: ['ash'], enemies: ['husk'] });
+      return S.enemies[0]._elite === true && emberReward(S.enemies[0]) === 4;
+    }));
+  check('ECONOMY: clearing a fight pays a small steady bounty (+1 normal · +3 boss)',
+    await J(() => {
+      META.embers = 0; startFight({ type: 'fight', chapter: 1, heroes: ['ash'], enemies: ['husk'], narrator: 'clear' });
+      S.node.mapId = null; S.enemies.forEach(e => { e.hp = 0; e.dead = true; }); onVictory();  // dead already → no kill reward, only the clear bounty
+      const normal = META.embers;
+      META.embers = 0; startFight({ type: 'fight', chapter: 3, heroes: ['ash'], enemies: ['echoknight2'], narrator: 'clear', isBoss: true });
+      S.node.mapId = null; S.enemies.forEach(e => { e.hp = 0; e.dead = true; }); onVictory();
+      return normal === 1 && META.embers === 3;
+    }));
 
   // ---------- MID-RUN upgrading: reach the tree without leaving the run --------
   console.log('--- MID-RUN TREE ---');
