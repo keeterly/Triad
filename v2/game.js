@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 55;
+const V2_BUILD = 56;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -2749,27 +2749,32 @@ function showMap() {
   const cols = {};
   mapAll().forEach(n => { (cols[n.col] = cols[n.col] || []).push(n); });
   const glyph = { fight: '⚔', elite: '✸', event: '?', recruit: '☉', camp: '⌂', boss: '☠' };
+  // Your CURRENT position = the deepest completed node (where the trail ends).
+  const doneNodes = mapAll().filter(n => RUN.completed.includes(n.id));
+  const curNode = doneNodes.length ? doneNodes.reduce((a, b) => (b.col >= a.col ? b : a)) : null;
   const colHtml = Object.keys(cols).sort((a, b) => a - b).map(c => `
     <div class="map-col">
       ${cols[c].map(n => {
         const done = RUN.completed.includes(n.id);
         const reach = nodeReachable(n);
-        return `<button class="map-node mn-${n.type}${done ? ' mn-done' : ''}${reach ? ' mn-reach' : ''}"
+        const cur = curNode && n.id === curNode.id;
+        return `<button class="map-node mn-${n.type}${done ? ' mn-done' : ''}${reach ? ' mn-reach' : ''}${cur ? ' mn-current' : ''}${(!done && !reach) ? ' mn-locked' : ''}"
           data-node="${n.id}" ${reach ? '' : 'disabled'} title="${n.label}">
           <span class="mn-pulse" aria-hidden="true"></span>
           <span class="mn-icon">${glyph[n.type]}</span>
-          ${done ? '<span class="mn-check" aria-hidden="true">✓</span>' : ''}
+          ${cur ? '<span class="mn-here" aria-hidden="true">▾</span>' : ''}
+          ${done && !cur ? '<span class="mn-check" aria-hidden="true">✓</span>' : ''}
           ${n.mem ? '<span class="mn-mem" title="A previous descent fell here">♰</span>' : ''}
           <span class="mn-label">${n.label}</span>
         </button>`;
       }).join('')}
-    </div>`).join('<div class="map-arrow">›</div>');
+    </div>`).join('');
   const trio = RUN.active.map(id => `<span class="party-chip-fig">${V2PORTRAITS[id] || ''}</span>`).join('');
   const r = triadEntryFor(RUN.active);
   showOverlay(`
     <div class="ov-eyebrow">THE DESCENT</div>
     <div class="ov-title" style="font-size:20px; margin-bottom:14px;">CHOOSE THE ROAD</div>
-    <div class="map-strip">${colHtml}</div>
+    <div class="map-strip"><svg class="map-edges" aria-hidden="true"></svg>${colHtml}</div>
     <button class="party-chip" id="map-party">
       ${trio}
       <span class="party-chip-meta">PARTY · resonates as <b>✦ ${r.name}</b> <i>(${r.type})</i></span>
@@ -2779,6 +2784,39 @@ function showMap() {
     el.onclick = () => enterMapNode(mapNode(+el.dataset.node));
   });
   $('#map-party').onclick = () => showPartySelect(() => showMap());
+  // draw the connecting edges once the overlay has laid out (two frames so the
+  // scale/opacity intro is settled and node positions are final)
+  requestAnimationFrame(() => requestAnimationFrame(drawMapEdges));
+}
+// Curved connector edges: a bright GOLD trail through the nodes you've walked,
+// highlighted edges for the choices open right now, dim for the road ahead.
+function drawMapEdges() {
+  const strip = document.querySelector('.map-strip');
+  const svg = strip && strip.querySelector('.map-edges');
+  if (!strip || !svg) return;
+  const sr = strip.getBoundingClientRect();
+  if (!sr.width) return;
+  svg.setAttribute('viewBox', `0 0 ${sr.width} ${sr.height}`);
+  const centerOf = (id) => {
+    const el = strip.querySelector(`.map-node[data-node="${id}"] .mn-icon`);
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return { x: r.left + r.width / 2 - sr.left, y: r.top + r.height / 2 - sr.top };
+  };
+  let html = '';
+  mapAll().forEach(n => {
+    const a = centerOf(n.id); if (!a) return;
+    (n.next || []).forEach(nid => {
+      const b = centerOf(nid); if (!b) return;
+      const nDone = RUN.completed.includes(n.id);
+      const mDone = RUN.completed.includes(nid);
+      const mReach = nodeReachable(mapNode(nid));
+      const cls = (nDone && mDone) ? 'me-taken' : (nDone && mReach) ? 'me-open' : 'me-future';
+      const mx = (a.x + b.x) / 2;
+      html += `<path class="me ${cls}" d="M ${a.x} ${a.y} C ${mx} ${a.y}, ${mx} ${b.y}, ${b.x} ${b.y}"/>`;
+    });
+  });
+  svg.innerHTML = html;
 }
 function resolveMapNode(n) {
   if (n.type === 'fight' || n.type === 'elite' || n.type === 'boss') startMapFight(n);
