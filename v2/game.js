@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 60;
+const V2_BUILD = 61;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -1351,12 +1351,18 @@ function flyCard(cardName, targetEl) {
   const tr = (targetEl || $('#battlefield')).getBoundingClientRect();
   const dx = (tr.left + tr.width / 2 - (r.left + r.width / 2)) / scale;
   const dy = (tr.top + tr.height / 2 - (r.top + r.height / 2)) / scale;
+  // WEIGHT — a quick wind-up POP, then the card is HURLED at the target and
+  // shrinks into the blow, so a play lands with intent instead of drifting off.
   requestAnimationFrame(() => {
-    ghost.style.transition = 'transform 0.42s cubic-bezier(0.3, 0.9, 0.4, 1), opacity 0.42s ease';
-    ghost.style.transform = `translate(${dx}px, ${dy}px) scale(0.28) rotate(4deg)`;
-    ghost.style.opacity = '0';
+    ghost.style.transition = 'transform 0.1s ease-out';
+    ghost.style.transform = 'scale(1.13) rotate(-2deg)';
+    setTimeout(() => {
+      ghost.style.transition = 'transform 0.4s cubic-bezier(0.4, 1.3, 0.5, 1), opacity 0.4s ease';
+      ghost.style.transform = `translate(${dx}px, ${dy}px) scale(0.24) rotate(5deg)`;
+      ghost.style.opacity = '0';
+    }, 100);
   });
-  setTimeout(() => ghost.remove(), 480);
+  setTimeout(() => ghost.remove(), 560);
 }
 
 // Visual: a DISCARDED card burns away where it sat — desaturating to ash,
@@ -1651,36 +1657,44 @@ function dealToEnemy(e, amt, school, byHeroId) {
       if (!S._weakTaught) { S._weakTaught = true; flashNarrator('Weakness! Hit ' + SCHOOL_GLYPH[e.def.weak] + ' again THIS turn to STAGGER.'); }
     }
   }
-  const big = amt >= 8;
+  // IMPACT TIER — the weight of the blow drives every feel channel (flash,
+  // hitstop, shake, popup), so a 4-damage poke and a 30-damage crash land
+  // nothing alike.  0 light · 1 solid · 2 heavy · 3 massive.
+  const tier = amt >= 20 ? 3 : amt >= 12 ? 2 : amt >= 7 ? 1 : 0;
+  const big = tier >= 2;
   popupAt(figEl(e.uid), '−' + amt, 'dmg' + (big ? ' popup-big' : ''));
   // (damagedHeroes bookkeeping lives in enemyPhase; kills resolve avenging
   // in resolveCard where the attacker is known)
   if (byHeroId) lungeFig(figEl(byHeroId));       // the striker drives forward
   impactFx(figEl(e.uid), school || 'phys', big); // school-typed blow lands
   struck(figEl(e.uid), 'r');                 // recoil + flash + brief stun
-  hitFlash(big);                                  // screen flash (+ hitstop if big)
+  hitFlash(tier);                                 // screen flash (+ hitstop if heavy)
   SFX.hit(big);
-  if (big) stageShake();
+  if (tier >= 1) stageShake(['sm', 'sm', 'lg', 'xl'][tier]);
   if (technical) {                                // detonation callout
     popupAt(figEl(e.uid), '⚡ TECHNICAL', 'tech');
     techBurst(figEl(e.uid));
-    stageShake();
+    stageShake('lg');
   }
   if (e.hp === 0 && !e.dead) {
     e.dead = true;
     e._justDied = true;
     gainMomentum(8);                                // a kill feeds the burst
     SFX.kill();
-    stageShake();
+    stageShake('lg');
+    hitFlash(3);                                    // the kill gets a white flash + slow-mo beat
     const el = figEl(e.uid);
-    if (el) el.classList.add('fig-dying');
+    if (el) { el.classList.add('fig-dying'); deathBurst(el); }
     setTimeout(() => { e._justDied = false; if (S && !S.over) renderAll(); }, 750);
   }
 }
-// Micro screen-shake for weighty moments.
-function stageShake() {
+// Screen-shake, scaled to the moment: 'sm' a nudge, 'xl' a wall-rattling slam.
+function stageShake(mag) {
   const st = $('#stage');
-  st.classList.remove('stage-shake'); void st.offsetWidth; st.classList.add('stage-shake');
+  const cls = 'stage-shake-' + (mag || 'md');
+  st.classList.remove('stage-shake-sm', 'stage-shake-md', 'stage-shake-lg', 'stage-shake-xl');
+  void st.offsetWidth; st.classList.add(cls);
+  clearTimeout(st._shakeT); st._shakeT = setTimeout(() => st.classList.remove(cls), 460);
 }
 // A struck figure: directional recoil + bright flash.  On big hits the global
 // HITSTOP (below) freezes this recoil mid-pose for the "the blow connects" beat.
@@ -1690,19 +1704,42 @@ function struck(el, dir) {
   el.classList.remove('fig-hit', 'fig-hit-l', 'fig-hit-r'); void el.offsetWidth;
   el.classList.add(cls);
 }
-// Full-screen impact flash; big hits also HITSTOP — a ~80ms freeze of every
-// animation for that meaty "the blow connects" beat.
-function hitFlash(big) {
+// Full-screen impact flash, scaled by tier (0 light → 3 kill/massive).  Tier ≥ 2
+// also HITSTOPs — a freeze of every animation, longer the bigger the blow, for
+// that meaty "the blow connects" beat.
+function hitFlash(tier) {
+  tier = tier | 0;
   const st = $('#stage');
   const f = document.createElement('div');
-  f.className = 'hit-flash' + (big ? ' hit-flash-big' : '');
+  f.className = 'hit-flash' + (tier >= 2 ? ' hit-flash-big' : '') + (tier >= 3 ? ' hit-flash-huge' : '');
   st.appendChild(f);
-  setTimeout(() => f.remove(), big ? 190 : 120);
-  if (big) {
+  setTimeout(() => f.remove(), tier >= 3 ? 240 : tier >= 2 ? 190 : 120);
+  if (tier >= 2) {
     st.classList.add('hitstop');
-    setTimeout(() => st.classList.remove('hitstop'), 85);
+    const dur = tier >= 3 ? 155 : 95;
+    clearTimeout(st._hsT); st._hsT = setTimeout(() => st.classList.remove('hitstop'), dur);
     try { SFX.hitstop(); } catch (_) {}
   }
+}
+// A kill blooms a shatter burst at the enemy — a bright core, an expanding ring,
+// and shards flung outward: the satisfying "it breaks" beat.
+function deathBurst(el) {
+  if (!el) return;
+  const layer = $('#popup-layer'); if (!layer) return;
+  const sr = $('#stage').getBoundingClientRect(), s = sr.width / 760 || 1;
+  const r = el.getBoundingClientRect();
+  const x = (r.left + r.width / 2 - sr.left) / s, y = (r.top + r.height * 0.42 - sr.top) / s;
+  const b = document.createElement('div');
+  b.className = 'death-burst'; b.style.left = x + 'px'; b.style.top = y + 'px';
+  let shards = '';
+  for (let i = 0; i < 11; i++) {
+    const a = (i / 11) * 360 + (i * 37 % 24) - 12;
+    const d = 46 + (i * 53 % 34);
+    shards += `<span class="db-shard" style="--a:${a}deg; --d:${d}px"></span>`;
+  }
+  b.innerHTML = `<span class="db-core"></span><span class="db-ring"></span>${shards}`;
+  layer.appendChild(b);
+  setTimeout(() => b.remove(), 720);
 }
 function pulseEp() {
   const dial = $('#ep-dial');
@@ -2610,13 +2647,14 @@ async function enemyPhase() {
         if (h.guard > 0) { const g = Math.min(h.guard, left); h.guard -= g; left -= g; popupAt(figEl(h.id), '⛨', 'guard'); }
         if (left > 0) {
           h.hp = Math.max(0, h.hp - left);
-          const big = left >= 7;
+          const dtier = left >= 20 ? 3 : left >= 12 ? 2 : left >= 7 ? 1 : 0;
+          const big = dtier >= 2;
           popupAt(figEl(h.id), '−' + left, 'dmg' + (big ? ' popup-big' : ''));
           impactFx(figEl(h.id), 'foe', big);   // red claw-strike on the hero
-          struck(figEl(h.id), 'l'); haptic(HAP.struck);   // recoil + flash + stun
-          hitFlash(big);
+          struck(figEl(h.id), 'l'); haptic(dtier >= 2 ? HAP.struckBig || HAP.struck : HAP.struck);   // recoil + flash + stun
+          hitFlash(dtier);                      // a heavy enemy blow rocks the screen
           SFX.hit(big);
-          if (big) stageShake();
+          if (dtier >= 1) stageShake(['sm', 'sm', 'lg', 'xl'][dtier]);
           (e._damaged || (e._damaged = [])).push(h.id);   // remembered for AVENGE
         }
       }

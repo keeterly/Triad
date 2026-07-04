@@ -665,17 +665,46 @@ button.map-node:not(:disabled) { cursor: pointer; }
   pointer-events: none;
 }
 @keyframes fig-dying {
-  0%   { filter: brightness(2.4) saturate(0.4); }
-  30%  { filter: brightness(0.9) saturate(0.2); opacity: 0.9; }
-  100% { transform: translateY(16px) scale(0.92); opacity: 0; filter: brightness(0.3) saturate(0); }
+  0%   { filter: brightness(3.2) saturate(0); transform: translateY(-3px) scale(1.06); }
+  14%  { filter: brightness(2.2) saturate(0.3); transform: translateX(3px) scale(1.02); }
+  30%  { filter: brightness(0.8) saturate(0.2); opacity: 0.92; transform: translateX(-2px) scale(0.99); }
+  100% { transform: translateY(20px) scale(0.82) rotate(-4deg); opacity: 0; filter: brightness(0.2) saturate(0) blur(1px); }
 }
-.stage-shake { animation: stage-shake 0.24s ease; }
-@keyframes stage-shake {
-  0%, 100% { translate: 0 0; }
-  25% { translate: 3px 1px; }
-  50% { translate: -3px -1px; }
-  75% { translate: 2px 1px; }
+/* SCREEN SHAKE — amplitude + duration scale with the blow. */
+.stage-shake-sm { animation: shake-sm 0.2s ease; }
+.stage-shake-md { animation: shake-md 0.26s ease; }
+.stage-shake-lg { animation: shake-lg 0.34s cubic-bezier(.36,.07,.19,.97); }
+.stage-shake-xl { animation: shake-xl 0.44s cubic-bezier(.36,.07,.19,.97); }
+@keyframes shake-sm { 0%,100% { translate: 0 0; } 30% { translate: 2px 1px; } 70% { translate: -2px 0; } }
+@keyframes shake-md { 0%,100% { translate: 0 0; } 20% { translate: 3px 1px; } 45% { translate: -4px -1px; } 70% { translate: 3px 1px; } 88% { translate: -2px 0; } }
+@keyframes shake-lg {
+  0%,100% { translate: 0 0; } 12% { translate: -6px 2px; } 26% { translate: 7px -2px; } 40% { translate: -6px 3px; }
+  55% { translate: 5px -2px; } 70% { translate: -4px 1px; } 85% { translate: 3px -1px; }
 }
+@keyframes shake-xl {
+  0%,100% { translate: 0 0; } 8% { translate: -10px 3px; } 20% { translate: 11px -4px; } 32% { translate: -10px 5px; }
+  46% { translate: 9px -3px; } 60% { translate: -8px 3px; } 74% { translate: 6px -2px; } 88% { translate: -3px 1px; }
+}
+/* KILL BURST — a bright core, an expanding shockwave ring, and shards flung out */
+.death-burst { position: absolute; transform: translate(-50%,-50%); pointer-events: none; z-index: 58; width: 0; height: 0; }
+.death-burst .db-core {
+  position: absolute; left: 0; top: 0; width: 30px; height: 30px; transform: translate(-50%,-50%);
+  border-radius: 50%; background: radial-gradient(circle, #fff 0%, rgba(255,220,200,0.9) 30%, rgba(255,120,90,0) 70%);
+  animation: db-core 0.34s ease-out forwards;
+}
+.death-burst .db-ring {
+  position: absolute; left: 0; top: 0; width: 22px; height: 22px; transform: translate(-50%,-50%);
+  border-radius: 50%; border: 2.5px solid rgba(255,180,150,0.9); animation: db-ring 0.6s cubic-bezier(0,.6,.3,1) forwards;
+}
+.death-burst .db-shard {
+  position: absolute; left: 0; top: 0; width: 3px; height: 12px; margin: -6px 0 0 -1.5px;
+  background: linear-gradient(#fff, rgba(255,140,110,0.2)); border-radius: 2px;
+  transform: rotate(var(--a)) translateY(0); transform-origin: 50% 0;
+  animation: db-shard 0.62s cubic-bezier(.2,.7,.3,1) forwards;
+}
+@keyframes db-core { 0% { opacity: 1; transform: translate(-50%,-50%) scale(0.4); } 100% { opacity: 0; transform: translate(-50%,-50%) scale(2.6); } }
+@keyframes db-ring { 0% { opacity: 0.95; width: 22px; height: 22px; } 100% { opacity: 0; width: 150px; height: 150px; } }
+@keyframes db-shard { 0% { opacity: 1; transform: rotate(var(--a)) translateY(0) scaleY(1); } 100% { opacity: 0; transform: rotate(var(--a)) translateY(var(--d)) scaleY(0.5); } }
 .popup.popup-big { font-size: 23px; letter-spacing: 0.02em; text-shadow: 0 2px 4px #000, 0 0 14px rgba(212,69,69,0.5); }
 .turn-banner {
   position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%);
@@ -1563,6 +1592,7 @@ button.map-node:not(:disabled) { cursor: pointer; }
   animation: hit-flash 0.12s ease-out forwards;
 }
 .hit-flash.hit-flash-big { background: radial-gradient(ellipse at 50% 46%, rgba(255,242,224,0.5) 0%, transparent 66%); animation-duration: 0.19s; }
+.hit-flash.hit-flash-huge { background: radial-gradient(ellipse at 50% 46%, rgba(255,248,236,0.7) 0%, rgba(255,200,170,0.24) 34%, transparent 72%); animation-duration: 0.24s; }
 @keyframes hit-flash { 0% { opacity: 1; } 100% { opacity: 0; } }
 /* the meaty freeze on a heavy blow — every animation holds for ~85ms */
 #stage.hitstop, #stage.hitstop *, #stage.hitstop *::before, #stage.hitstop *::after { animation-play-state: paused !important; }
