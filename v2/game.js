@@ -8,17 +8,20 @@
 //    plus battle-generated temporaries (the resonant card is the first).
 //  · Resonance is EMERGENT: single-target help forms a visible thread.
 //    A full triangle freezes the field — TRIAD FORMED — and a resonant card
-//    burns into the hand, keyed to the CLASS composition of the trio.
-//    All ten triangles of the five-hero roster have distinct resonants
-//    across four families: Offense / Defense / Formation / Utility.
-//  · BUILD 2 adds: drag-to-play, the DESCENT (a node map after the tutorial
-//    chapters), recruits (Cassia the Guardian, Hask the Mage), camps, and
-//    party composition — your chosen trio decides which resonant exists.
+//    burns into the hand, keyed to the CLASS composition of the trio.  Every
+//    class-triangle has its own vow (Offense / Defense / Formation), so which
+//    three walk together IS the build.
+//  · Reactive combat: enemy blows are PARRIED on a rhythm window; chaining
+//    links / weakness / follow-ups fills BURST, unleashed as an interactive
+//    ALL-OUT — the offensive mirror of the parry.
+//  · The DESCENT is a procedurally-generated branching map (fight / elite /
+//    event / camp / recruit / boss); a fallen party's ashes are remembered by
+//    the Abyss and resurface in the next descent.
 // ============================================================================
 
 'use strict';
 
-const V2_BUILD = 57;
+const V2_BUILD = 58;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -474,37 +477,37 @@ const RESONANT_FALLBACK = {
 const FLOW = [
   { type: 'story', chapter: 1, title: 'ONE SURVIVOR', eyebrow: 'CHAPTER 1', lines: [
     { text: 'The first thing you understand is that everyone else is gone.' },
-    { spk: 'ASH', text: '...then I carry it alone.' },
-    { text: 'You are <b>Ash</b>. One blade, three ways to hold it. Your <b>row is your stance</b> — Front cuts, Mid flows, Back strikes from the wind. <b>Drag Ash himself</b> to another row and watch his cards transform.' },
+    { spk: 'ASH', text: '…then I carry it alone.' },
+    { text: 'You are <b>Ash</b>. One blade, three ways to hold it — your <b>row is your stance</b>: Front cuts, Mid flows, Back strikes from the wind. <b>Drag Ash himself</b> between rows and his cards rewrite to match.' },
   ]},
   { type: 'fight', chapter: 1, heroes: ['ash'], enemies: ['husk'],
-    narrator: 'Tap or drag a card to play it. DRAG ASH HIMSELF to change rows (1 EP).' },
+    narrator: 'Tap or drag a card to strike. DRAG ASH to change stance (1 EP). When the husk winds up, TAP in time to turn the blow.' },
   { type: 'story', chapter: 1, title: 'THE STANCES', eyebrow: 'CHAPTER 1', lines: [
-    { text: 'More of them ahead. Watch what each enemy <b>telegraphs</b>: the damage, and the <b>row</b> it will strike.' },
-    { spk: 'ASH', text: 'If the blow falls on FRONT... I simply won’t be there.' },
-    { text: '<b>Drag yourself</b> to another row to dodge. An attack on an empty row hits nothing.' },
+    { text: 'Every foe <b>telegraphs</b> before it strikes: the damage it will deal, and the <b>row</b> it will hit.' },
+    { spk: 'ASH', text: 'So I answer one of two ways — not be there, or meet it.' },
+    { text: '<b>Drag to an empty row</b> to dodge the blow, or hold your ground and <b>PARRY</b> it — tap each note the instant its ring glows gold. A clean parry blunts the strike and feeds your <b>momentum</b>.' },
   ]},
   { type: 'fight', chapter: 1, heroes: ['ash'], enemies: ['husk', 'wraith'],
-    narrator: 'Dodge by standing elsewhere. The row they call is the row they strike.' },
+    narrator: 'Dodge the row they call — or stand and PARRY it. The row they name is the row they strike.' },
   { type: 'story', chapter: 2, title: 'ELIN', eyebrow: 'CHAPTER 2 · TWO', lines: [
-    { text: 'A light in the ash-fog. A healer, kneeling over what’s left of her order.' },
+    { text: 'A light in the ash-fog — a healer, kneeling over what’s left of her order.' },
     { spk: 'ELIN', text: 'You’re bleeding. Stand still.' },
-    { spk: 'ASH', text: '...you’re coming with me.' },
-    { text: 'Two now. Drag a hero onto an ally to <b>swap</b> rows. And watch what happens when one of you <b>helps</b> the other.' },
+    { spk: 'ASH', text: '…you’re coming with me.' },
+    { text: 'Two now. When one of you <b>helps</b> the other — a heal, a guard, a follow-up on a wounded foe — a <b>thread</b> forms between them. The threads are the whole point. Watch.' },
   ]},
   { type: 'fight', chapter: 2, heroes: ['ash', 'elin'], enemies: ['cultist', 'husk'],
-    narrator: 'When Elin heals Ash, something forms between them. Watch.' },
-  { type: 'story', chapter: 3, title: 'KIKI', eyebrow: 'CHAPTER 3 · THREE', lines: [
-    { text: 'Someone is singing. In this place. Singing.' },
-    { spk: 'KIKI', text: 'Oh good, an audience! Try to die interestingly, at least.' },
-    { text: 'Three now. Threads can close into something greater. No one will tell you how. You’ll know it when it happens.' },
+    narrator: 'Have Elin heal Ash — a thread kindles between them. Fight side by side and it deepens.' },
+  { type: 'story', chapter: 3, title: 'MIRA', eyebrow: 'CHAPTER 3 · THREE', lines: [
+    { text: 'A blade rests at your throat before you hear a single step. Then, slowly, it lowers.' },
+    { spk: 'MIRA', text: 'You came through the dark loud as a funeral. …Lucky I only kill what I mean to. Move.' },
+    { text: 'Three now — a triangle. Hold all three <b>threads</b> at once and the trio <b>RESONATES</b>: a shared vow only your exact three can speak. No one will tell you how. You’ll feel it close.' },
   ]},
   { type: 'fight', chapter: 3, heroes: ['ash', 'elin', 'mira'], enemies: ['echoknight', 'cultist'],
-    narrator: 'Help each other. All three of you.' },
+    narrator: 'Help one another until all three threads hold — then the triad answers. Chain hits to fill BURST.' },
   { type: 'story', chapter: 3, title: 'THE ROAD DOWN', eyebrow: 'THE DESCENT', lines: [
-    { text: 'The tutorial road ends at a cliff’s edge, and below — the <b>Descent</b>.' },
-    { text: 'Others survived. You’ll find them on the road, and every trio you form <b>resonates differently</b> — ten triangles, ten different vows.' },
-    { spk: 'KIKI', text: 'New friends! Statistically some of them must like music.' },
+    { text: 'The tutorial road ends at a cliff’s edge. Below waits the <b>Descent</b> — and the Abyss beneath it.' },
+    { text: 'Others survived down there. Every trio you form <b>resonates differently</b>, so <b>who walks beside whom is your build</b>. And when a party falls, the Abyss remembers where — your next descent finds their ashes still warm.' },
+    { spk: 'MIRA', text: 'Down, then. Stay close. …That’s not sentiment. It’s tactics.' },
   ], next: 'descent' },
 ];
 
@@ -1695,7 +1698,7 @@ function gainMomentum(amt, opts) {
   const fill = $('#burst-fill');
   if (fill) { fill.classList.remove('burst-gain'); void fill.offsetWidth; fill.classList.add('burst-gain'); }
   if (S.momentum >= MOM_MAX && before < MOM_MAX) {
-    flashNarrator('✦ MOMENTUM FULL — tap BURST to unleash the ALL-OUT ATTACK.');
+    flashNarrator('✦ BURST FULL — unleash the ALL-OUT, then TAP each strike to chain it.');
     SFX.triad();
   }
 }
@@ -2670,7 +2673,7 @@ function onRunComplete() {
     <div class="ov-title" style="font-size:26px">THE ECHO FADES</div>
     <div class="ov-lines" style="text-align:center; min-height:0;">
       <div class="ov-line">The Remembered Knight unremembers itself, one stroke at a time.</div>
-      <div class="ov-line"><b>${RUN.roster.length} walked out of ${RUN.roster.length === 5 ? 'five' : RUN.roster.length}.</b>  Ten triangles wait for other trios, other descents.</div>
+      <div class="ov-line"><b>The thread held.</b>  Every triangle you never formed still waits below — other trios, other vows, another descent.</div>
     </div>
     <button class="ov-btn primary" id="ov-title">BACK TO TITLE</button>
   `);
