@@ -55,8 +55,52 @@ body {
   transform-origin: center center;
 }
 
+/* ---- fight backdrop ---- */
+#fight-bg {
+  position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background: url('../art/bg-descent.png') center 32% / cover no-repeat;
+  opacity: 0; transition: opacity 0.6s ease;
+}
+#stage.show-bg #fight-bg { opacity: 1; }
+/* a dark scrim + vignette keeps the figures and UI readable over the art */
+#fight-bg::after {
+  content: ''; position: absolute; inset: 0;
+  background:
+    linear-gradient(180deg, rgba(8,5,6,0.74) 0%, rgba(10,6,8,0.5) 42%, rgba(6,4,5,0.9) 100%),
+    radial-gradient(ellipse 82% 62% at 50% 42%, transparent 42%, rgba(6,4,5,0.62) 100%);
+}
+/* lift the actual game layers above the backdrop */
+#topbar, #narrator, #battlefield, #action-bar { position: relative; z-index: 1; }
+
 /* ---- topbar + turn-order timeline ---- */
 #topbar { display: flex; align-items: center; gap: 10px; }
+#menu-btn {
+  margin-left: auto; font-family: inherit; cursor: pointer;
+  width: 28px; height: 22px; border-radius: 6px; flex: none;
+  background: rgba(20,16,13,0.82); border: 1px solid var(--edge); color: var(--ink-dim);
+  font-size: 13px; line-height: 1; display: flex; align-items: center; justify-content: center;
+  transition: border-color 0.14s ease, color 0.14s ease;
+}
+#menu-btn:hover, #menu-btn:active { border-color: var(--gold-bright); color: var(--ink); }
+/* ---- pause / dev menu ---- */
+#overlay.menu-screen #overlay-inner { max-width: 380px; }
+.menu-list { display: flex; flex-direction: column; gap: 7px; margin: 4px auto 0; max-width: 300px; }
+.menu-item {
+  font-family: inherit; cursor: pointer; text-align: left;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 14px; border-radius: 8px; font-size: 11px; letter-spacing: 0.12em;
+  color: var(--ink); background: rgba(20,16,13,0.9); border: 1px solid var(--edge);
+  transition: border-color 0.14s ease, background 0.14s ease, transform 0.08s ease;
+}
+.menu-item:hover { border-color: var(--gold-bright); background: rgba(34,26,18,0.95); }
+.menu-item:active { transform: scale(0.98); }
+.menu-item.menu-primary { justify-content: center; border-color: rgba(240,212,136,0.55); color: var(--gold-bright); letter-spacing: 0.24em; }
+.menu-item.menu-warn { color: #e0907e; border-color: rgba(212,69,69,0.35); }
+.menu-item.menu-dev { color: var(--arc); border-color: rgba(154,120,192,0.4); }
+.menu-val { font-size: 9.5px; letter-spacing: 0.14em; color: var(--ink-faint); }
+.menu-val.mv-on { color: var(--heal); }
+.howto .ov-line { margin-bottom: 8px; font-size: 10px; line-height: 1.5; }
+.howto .ov-line b { color: var(--gold-bright); }
 #chapter-chip {
   font-size: 10px; letter-spacing: 0.24em; color: var(--gold-bright);
   border: 1px solid var(--edge); padding: 2px 9px; border-radius: 999px;

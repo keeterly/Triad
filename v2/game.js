@@ -21,8 +21,18 @@
 
 'use strict';
 
-const V2_BUILD = 64;
+const V2_BUILD = 65;
 const $ = (sel) => document.querySelector(sel);
+
+// ---------------------------------------------------------------------------
+// SETTINGS — persisted player options (menu) + dev toggles.
+// ---------------------------------------------------------------------------
+const SETTINGS_KEY = 'kizuna2.settings';
+const SETTINGS = Object.assign(
+  { sound: true, haptics: true, fightBg: true },
+  (() => { try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') || {}; } catch (_) { return {}; } })()
+);
+function saveSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(SETTINGS)); } catch (_) {} }
 
 // ---------------------------------------------------------------------------
 // SFX — tiny synthesized cues (no assets).  Volumes stay low; every cue is a
@@ -36,6 +46,7 @@ const SFX = (() => {
   };
   document.addEventListener('pointerdown', () => { const c = ac(); if (c && c.state === 'suspended') c.resume(); try { ensureHaptic(); } catch (_) {} }, { capture: true });
   function tone(freq, dur, type, vol, delay, slideTo) {
+    if (!SETTINGS.sound) return;
     const c = ac(); if (!c || c.state !== 'running') return;
     const t0 = c.currentTime + (delay || 0);
     const o = c.createOscillator(), g = c.createGain();
@@ -101,6 +112,7 @@ function ensureHaptic() {
   _hapLabel = l; _hapInput = i;
 }
 function haptic(p) {
+  if (!SETTINGS.haptics) return;
   let vibrated = false;
   try { if (navigator.vibrate) vibrated = navigator.vibrate(p); } catch (_) {}
   // iOS fallback: click the LABEL (this toggles the switch and fires a system
@@ -2887,6 +2899,7 @@ function nodeReachable(n) {
 }
 function showMap() {
   S = null;
+  $('#stage').classList.remove('show-bg');
   $('#chapter-chip').textContent = 'DESCENT';
   $('#timeline').innerHTML = '';
   const cols = {};
@@ -3200,11 +3213,18 @@ function auraHTML(fx) {
 
 function renderAll() {
   if (!S) return;
+  applyFightBg();
   renderTimeline();
   renderBattlefield();
   renderThreads();
   renderResonance();
   renderActionBar();
+}
+// The fight backdrop shows only during battle (S set) and only if the player
+// hasn't switched it off in DEV.  Toggled here + cleared by the map/title.
+function applyFightBg() {
+  const st = $('#stage');
+  if (st) st.classList.toggle('show-bg', !!(S && SETTINGS.fightBg));
 }
 
 // Combat no longer has an action-scripted / ATB order (your whole turn, then
@@ -3679,8 +3699,78 @@ function hideOverlay() {
   $('#overlay').onclick = null;
 }
 
+// ---------------------------------------------------------------------------
+// MENU — a standard mobile-RPG pause menu, reachable from the ☰ button.
+// ---------------------------------------------------------------------------
+function toggleSetting(key) {
+  SETTINGS[key] = !SETTINGS[key]; saveSettings();
+  if (key === 'fightBg') applyFightBg();
+  if (key === 'sound' && SETTINGS.sound) { try { SFX.card(); } catch (_) {} }
+}
+function resumeFromMenu() {
+  hideOverlay();
+  if (S) renderAll();
+  else if (RUN && !RUN.done) showMap();
+  else showTitle();
+}
+function showMenu() {
+  const inRun = !!(RUN && !RUN.done);
+  const onOff = (v) => `<span class="menu-val ${v ? 'mv-on' : 'mv-off'}">${v ? 'ON' : 'OFF'}</span>`;
+  showOverlay(`
+    <div class="ov-eyebrow">PAUSED</div>
+    <div class="ov-title" style="font-size:22px; margin-bottom:14px;">MENU</div>
+    <div class="menu-list">
+      <button class="menu-item menu-primary" id="m-resume">▸ RESUME</button>
+      <button class="menu-item" id="m-sound"><span>SOUND</span>${onOff(SETTINGS.sound)}</button>
+      <button class="menu-item" id="m-haptics"><span>HAPTICS</span>${onOff(SETTINGS.haptics)}</button>
+      <button class="menu-item" id="m-howto"><span>HOW TO PLAY</span><span class="menu-val">?</span></button>
+      ${inRun ? `<button class="menu-item menu-warn" id="m-abandon"><span>ABANDON RUN</span><span class="menu-val">✕</span></button>` : ''}
+      <button class="menu-item" id="m-title"><span>RETURN TO TITLE</span><span class="menu-val">⌂</span></button>
+      <button class="menu-item menu-dev" id="m-dev"><span>⚙ DEV TOOLS</span><span class="menu-val">›</span></button>
+    </div>
+  `, 'menu-screen');
+  $('#m-resume').onclick = resumeFromMenu;
+  $('#m-sound').onclick = () => { toggleSetting('sound'); showMenu(); };
+  $('#m-haptics').onclick = () => { toggleSetting('haptics'); showMenu(); };
+  $('#m-howto').onclick = () => showHowTo();
+  $('#m-title').onclick = () => { RUN = null; S = null; try { localStorage.removeItem(RUN_KEY); } catch (_) {} showTitle(); };
+  const ab = $('#m-abandon');
+  if (ab) ab.onclick = () => { RUN = null; S = null; try { localStorage.removeItem(RUN_KEY); } catch (_) {} showTitle(); };
+  $('#m-dev').onclick = () => showDevPanel();
+}
+function showHowTo() {
+  showOverlay(`
+    <div class="ov-eyebrow">HOW TO PLAY</div>
+    <div class="ov-title" style="font-size:20px; margin-bottom:10px;">THE THREADS</div>
+    <div class="ov-lines howto" style="text-align:left; max-width:420px; margin:0 auto;">
+      <div class="ov-line"><b>Row is stance.</b> Drag a hero between FRONT/MID/BACK — their cards rewrite.</div>
+      <div class="ov-line"><b>Defend.</b> When a blow winds up, dodge to an empty row or PARRY it — tap each note as its ring glows.</div>
+      <div class="ov-line"><b>Bond.</b> Help an ally (heal, guard, follow-up) to form a THREAD. Hold all three and the trio RESONATES a shared vow.</div>
+      <div class="ov-line"><b>Exploit.</b> Hit a foe's weakness twice in a turn to STAGGER it; chain hits to fill BURST, then unleash the ALL-OUT.</div>
+      <div class="ov-line"><b>Inspect.</b> Press &amp; hold any card to enlarge it.</div>
+    </div>
+    <button class="ov-btn primary" id="ht-back">◂ BACK</button>
+  `, 'menu-screen');
+  $('#ht-back').onclick = () => showMenu();
+}
+function showDevPanel() {
+  const onOff = (v) => `<span class="menu-val ${v ? 'mv-on' : 'mv-off'}">${v ? 'ON' : 'OFF'}</span>`;
+  showOverlay(`
+    <div class="ov-eyebrow">DEV</div>
+    <div class="ov-title" style="font-size:20px; margin-bottom:12px;">DEV TOOLS</div>
+    <div class="menu-list">
+      <button class="menu-item" id="d-bg"><span>FIGHT BACKGROUND</span>${onOff(SETTINGS.fightBg)}</button>
+      <button class="menu-item" id="d-back">◂ BACK</button>
+    </div>
+    <div class="ov-hint">Toggles here persist on this device.</div>
+  `, 'menu-screen');
+  $('#d-bg').onclick = () => { toggleSetting('fightBg'); showDevPanel(); };
+  $('#d-back').onclick = () => showMenu();
+}
+
 function showTitle() {
   S = null;
+  $('#stage').classList.remove('show-bg');
   $('#timeline').innerHTML = '';
   $('#chapter-chip').textContent = 'KIZUNA';
   const savedFlow = parseInt(localStorage.getItem(PROGRESS_KEY) || '0', 10) || 0;
@@ -3822,6 +3912,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) chec
 setTimeout(checkForUpdate, 2500);
 
 fitStage();
+{ const mb = $('#menu-btn'); if (mb) mb.onclick = showMenu; }
 let unlocked = false;
 try { unlocked = localStorage.getItem(UNLOCK_KEY) === '1'; } catch (_) {}
 if (unlocked) showTitle(); else showGate();
