@@ -541,6 +541,25 @@ button.map-node:not(:disabled) { cursor: pointer; }
   box-shadow: 0 0 12px rgba(240,212,136,0.3);
   color: var(--ink);
 }
+/* CHOOSE YOUR SURVIVOR — starter select (mirrors the party picker) */
+.ss-row { display: flex; gap: 10px; justify-content: center; margin: 8px auto 10px; flex-wrap: wrap; max-width: 640px; }
+.ss-fig {
+  font-family: inherit; cursor: pointer; width: 108px; padding: 8px 5px 8px;
+  border-radius: 10px; border: 1.5px solid rgba(232,220,196,0.18);
+  background: rgba(14,11,9,0.9); color: var(--ink-dim);
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+.ss-fig .ss-art { height: 84px; display: flex; align-items: flex-end; }
+.ss-fig .ss-art svg { height: 84px; width: auto; }
+.ss-fig .ss-name { font-size: 11px; letter-spacing: 0.2em; color: var(--ink); }
+.ss-fig .ss-cls { font-size: 8px; letter-spacing: 0.1em; }
+.ss-fig .ss-cls b { color: var(--gold-bright); font-weight: 700; }
+.ss-fig .ss-identity { display: block; font-size: 7.5px; line-height: 1.35; color: var(--ink-dim); font-style: italic; margin-top: 2px; max-width: 96px; }
+.ss-fig:not(.ss-locked):hover { border-color: var(--gold-bright); box-shadow: 0 0 14px rgba(240,212,136,0.3); transform: translateY(-2px); color: var(--ink); }
+.ss-fig.ss-locked { cursor: default; opacity: 0.4; filter: grayscale(0.7); }
+.ss-fig.ss-locked .ss-art svg { filter: brightness(0.5); }
+.ss-fig.ss-locked .ss-identity { color: var(--ink-faint); font-style: normal; }
 .ps-reso { font-size: 10.5px; color: var(--ink-dim); min-height: 34px; margin-bottom: 8px; line-height: 1.5; }
 .ps-reso b { color: var(--gold-bright); }
 .ps-reso-desc { font-size: 9px; color: var(--ink-faint); }

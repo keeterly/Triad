@@ -19,9 +19,28 @@ const QUICK = process.argv.includes('--quick');
   const t = await boot({ flow: 0 });
   const { J, shot, check, sleep, tapCard, pickTarget, endTurn, dismissCeremony, clickOverlayBtn } = t;
 
-  // ---------- LEVEL 1: solo, stances, tap+drag ----------
-  console.log('--- LEVEL 1 ---');
+  // ---------- ONBOARDING: choose your survivor (v1-style solo start) ----------
+  console.log('--- ONBOARDING ---');
   await clickOverlayBtn('#t-new');
+  check('starter-select: 5 heroes shown, some locked, Ash unlocked',
+    await J(() => document.querySelectorAll('.ss-fig').length === 5
+      && document.querySelectorAll('.ss-fig.ss-locked').length >= 1
+      && !!document.querySelector('.ss-fig[data-id="ash"]:not(.ss-locked)')));
+  await shot('starter-select');
+  await J(() => document.querySelector('.ss-fig[data-id="ash"]').click());   // pick Ash
+  for (let i = 0; i < 6; i++) { if (!await J(() => !!document.querySelector('.ov-tap'))) break; await J(() => document.querySelector('#overlay').click()); await sleep(200); }
+  await clickOverlayBtn('#ov-go'); await sleep(300);                          // BEGIN THE DESCENT
+  check('run begins SOLO with the chosen survivor',
+    await J(() => RUN && RUN.roster.length === 1 && RUN.roster[0] === 'ash' && RUN.active.length === 1),
+    await J(() => JSON.stringify(RUN && RUN.roster)));
+  check('solo map: the level-1 funnel is a single foe + recruits await',
+    await J(() => RUN.map.filter(n => n.level === 1).length === 1
+      && RUN.map.find(n => n.level === 1).enemies.length === 1
+      && RUN.map.filter(n => n.type === 'recruit').length >= 2));
+
+  // ---------- LEVEL 1: solo mechanics — drive the teaching flow directly ----------
+  console.log('--- LEVEL 1 ---');
+  await J(() => { flowIdx = 0; startFlowNode(); });
   for (let i = 0; i < 6; i++) { if (!await J(() => !!document.querySelector('.ov-tap'))) break; await J(() => document.querySelector('#overlay').click()); await sleep(200); }
   await clickOverlayBtn('#ov-go');
   await sleep(300);
@@ -63,11 +82,9 @@ const QUICK = process.argv.includes('--quick');
 
   if (QUICK) { t.report(); await t.browser.close(); return; }
 
-  // ---------- CHAPTER 2: threads + bond guard ----------
-  console.log('--- CHAPTER 2 (skip fight 2 via flow jump) ---');
-  await J(() => { localStorage.setItem('kizuna2.flow', '5'); });   // ch2 fight
-  await t.page.reload({ waitUntil: 'networkidle' }); await sleep(500);
-  await clickOverlayBtn('#t-continue'); await sleep(500);
+  // ---------- CHAPTER 2: threads + bond guard (drive the flow directly) ----------
+  console.log('--- CHAPTER 2 ---');
+  await J(() => { flowIdx = 5; startFlowNode(); }); await sleep(500);   // ch2 fight
   check('ch2 fight: two heroes', await J(() => S.heroes.length === 2 && S.maxEp === 4));
   await tapCard('Mend'); await pickTarget('ash'); await sleep(600);
   check('thread formed on heal', await J(() => S.threads.size === 1));
@@ -86,7 +103,14 @@ const QUICK = process.argv.includes('--quick');
   console.log('--- THE DESCENT ---');
   await J(() => { localStorage.setItem('kizuna2.flow', '99'); localStorage.removeItem('kizuna2.run'); });
   await t.page.reload({ waitUntil: 'networkidle' }); await sleep(500);
-  await clickOverlayBtn('#t-descent'); await sleep(500);
+  await clickOverlayBtn('#t-descent'); await sleep(400);                      // → CHOOSE YOUR SURVIVOR
+  await J(() => document.querySelector('.ss-fig[data-id="ash"]').click());    // pick Ash
+  for (let i = 0; i < 6; i++) { if (!await J(() => !!document.querySelector('.ov-tap'))) break; await J(() => document.querySelector('#overlay').click()); await sleep(200); }
+  await clickOverlayBtn('#ov-go'); await sleep(300);                          // → solo map
+  // promote to the default trio so the resonance / formation checks below have
+  // a full triangle to work with (recruiting is exercised separately).
+  await J(() => { RUN.roster = ['ash', 'elin', 'mira']; RUN.active = ['ash', 'elin', 'mira']; RUN.hp = { ash: HEROES.ash.maxHp, elin: HEROES.elin.maxHp, mira: HEROES.mira.maxHp }; saveRun(); showMap(); });
+  await sleep(200);
   await t.autoParry(true);   // the bot parries the harder descent like a real player
   check('map renders with reachable node', await J(() => !!document.querySelector('.map-node.mn-reach')));
   check('party chip previews the trio resonant', await J(() => document.querySelector('.party-chip')?.textContent.includes('Twin Shadows')));
@@ -367,11 +391,15 @@ const QUICK = process.argv.includes('--quick');
   }, fallenLevel));
   await shot('abyss-fallen');
   await clickOverlayBtn('#ov-fallen'); await sleep(500);
-  await clickOverlayBtn('#t-descent'); await sleep(500);
+  await clickOverlayBtn('#t-descent'); await sleep(400);                      // → CHOOSE YOUR SURVIVOR
+  await J(() => document.querySelector('.ss-fig[data-id="ash"]').click());    // pick Ash → new run
+  for (let i = 0; i < 6; i++) { if (!await J(() => !!document.querySelector('.ov-tap'))) break; await J(() => document.querySelector('#overlay').click()); await sleep(200); }
+  await clickOverlayBtn('#ov-go'); await sleep(300);
   // pin a fresh deterministic map and hang the recovered memory on the entry
   // node so the ♰ is guaranteed reachable this run.
   await J((arg) => {
     const mem = JSON.parse(localStorage.getItem('kizuna2.abyss') || '{}')[arg.lvl];
+    RUN.roster = ['ash', 'elin', 'mira']; RUN.active = ['ash', 'elin', 'mira'];
     RUN.map = arg.map.map(n => ({ ...n, next: n.next.slice() }));
     RUN.map[0].mem = mem; RUN.map[0].memLevel = arg.lvl;
     RUN.completed = []; RUN.bonds = {};

@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 58;
+const V2_BUILD = 59;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -313,7 +313,7 @@ const ENEMY_DEFS = {
     ],
   },
   echoknight2: {
-    weak: 'blade', name: 'THE ECHO KNIGHT, REMEMBERED', maxHp: 94, boss: true, floorBoss: true, art: 'echoknight',
+    weak: 'blade', name: 'THE ECHO KNIGHT, REMEMBERED', maxHp: 112, boss: true, floorBoss: true, art: 'echoknight',
     intents: [
       // The floor boss fills the field; its blows are CASCADES you parry as a
       // sequence — taps racing down an arc, a braced hold, a deflect sweep.
@@ -519,8 +519,26 @@ const FLOW = [
 // · boss.  The generated map lives on RUN.map (an array indexed by id) so it
 // persists with the run; `mapNode(id)` / `mapAll()` read it.
 // ---------------------------------------------------------------------------
-const RECRUITABLE = ['cassia', 'branwen'];   // v2's optional recruits (order = when they appear)
-const RECRUIT_NODE_LABELS = { cassia: 'THE GATE HOLDS', branwen: 'THE OUTLAW’S DEBT' };
+// STARTERS & RECRUITS — every run begins SOLO with a hero you choose from your
+// UNLOCKED starters (v1-style); the other party members are RECRUITED on the
+// road.  Recruiting a hero permanently UNLOCKS them as a future starter, so the
+// roster you can open with grows the more you play.
+const STARTER_POOL = ['ash', 'elin', 'mira', 'cassia', 'branwen'];   // all pickable/recruitable heroes
+const DEFAULT_STARTERS = ['ash', 'mira'];                            // unlocked from the first run (solo-viable damage)
+const STARTERS_KEY = 'kizuna2.starters';
+function getUnlockedStarters() {
+  try { const a = JSON.parse(localStorage.getItem(STARTERS_KEY) || 'null'); if (Array.isArray(a) && a.length) return a.filter(id => STARTER_POOL.includes(id)); } catch (_) {}
+  return DEFAULT_STARTERS.slice();
+}
+function unlockStarter(id) {
+  if (!STARTER_POOL.includes(id)) return;
+  const a = getUnlockedStarters();
+  if (!a.includes(id)) { a.push(id); try { localStorage.setItem(STARTERS_KEY, JSON.stringify(a)); } catch (_) {} }
+}
+const RECRUIT_NODE_LABELS = {
+  ash: 'A LONE BLADE', elin: 'THE LAST LIGHT', mira: 'A SHADOW ON THE ROAD',
+  cassia: 'THE GATE HOLDS', branwen: 'THE OUTLAW’S DEBT',
+};
 const COMBAT_POOL = {
   early: ['husk', 'wraith', 'cultist'],
   mid:   ['cultist', 'mourner', 'husk', 'wraith'],
@@ -539,7 +557,8 @@ function _shuffle(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { c
 function _labeler(type) { const q = _shuffle(NODE_LABELS[type] || ['THE ROAD']); let i = 0; return () => q[i++ % q.length]; }
 function _combatEnemies(level) {
   const pool = level <= 2 ? COMBAT_POOL.early : level <= 4 ? COMBAT_POOL.mid : COMBAT_POOL.deep;
-  const count = level <= 2 ? 2 : (Math.random() < 0.45 ? 3 : 2);
+  // The level-1 funnel is a single foe — a gentle opener for a solo starter.
+  const count = level <= 1 ? 1 : level <= 2 ? 2 : (Math.random() < 0.45 ? 3 : 2);
   const out = []; for (let i = 0; i < count; i++) out.push(_pick(pool)); return out;
 }
 function _eliteEnemies(level) {
@@ -575,11 +594,14 @@ function _connect(prev, next, nodes) {
   });
 }
 function generateDescent(roster) {
-  roster = roster || ['ash', 'elin', 'mira'];
-  const pending = RECRUITABLE.filter(id => !roster.includes(id));
-  // Spread the pending recruits across the early/mid stretches as extra branches.
+  roster = roster || ['ash'];
+  // Recruits = anyone not already in the party.  You start solo (or short) and
+  // build your trio from the road, so an early recruit is guaranteed close.
+  const pending = _shuffle(STARTER_POOL.filter(id => !roster.includes(id)));
+  // Spread the pending recruits across the early/mid stretches — the first two
+  // land early (levels 2 & 3) so a solo lead isn't alone for long.
   const recruitAtLevel = {};
-  pending.forEach((id, i) => { recruitAtLevel[2 + i * 2] = id; });
+  pending.slice(0, 3).forEach((id, i) => { recruitAtLevel[2 + i] = id; });
   const numLevels = 7;
   const nodes = [];
   const levels = [];
@@ -708,12 +730,15 @@ const ROMAN = ['', 'I', 'II', 'III'];
 function trioClassKey(ids) { return ids.map(id => HEROES[id].cls).sort().join('+'); }
 const UNLOCK_KEY = 'kizuna.unlocked';
 
-function newRun() {
-  const roster = ['ash', 'elin', 'mira'];
+function newRun(starterId) {
+  // Begin SOLO with the chosen (unlocked) starter; recruit the rest on the road.
+  starterId = (starterId && HEROES[starterId]) ? starterId : (getUnlockedStarters()[0] || 'ash');
+  const roster = [starterId];
+  const hp = {}; hp[starterId] = HEROES[starterId].maxHp;
   return {
     roster: roster.slice(),
     active: roster.slice(),
-    hp: { ash: HEROES.ash.maxHp, elin: HEROES.elin.maxHp, mira: HEROES.mira.maxHp },
+    hp,
     bonds: {},          // pairKey -> points; a pair at 2+ is KINDLED
     map: generateDescent(roster),   // a fresh branching descent every run
     completed: [],
@@ -750,14 +775,21 @@ function newBattle(node) {
   // take only a light damage ramp and keep their hand-set HP.
   if (node.useRunHp) {
     const depth = Math.max(1, node.depth || 1);
+    // Small parties (a solo/duo opener before you've recruited) take fewer
+    // knocks and face slightly softer foes, so the v1-style solo start is
+    // survivable until the road fills your line.  Bosses ignore this — by the
+    // final gate you should be a full trio, and the boss is meant to hurt.
+    const ps = heroes.length;
+    const psDmg = ps >= 3 ? 1 : ps === 2 ? 0.82 : 0.64;
+    const psHp = ps >= 3 ? 1 : ps === 2 ? 0.86 : 0.72;
     enemies.forEach(e => {
       if (e.def.boss) {
-        e.dmgMul = 1.95 + (depth - 1) * 0.06;
-        const hp = Math.round(e.maxHp * 1.6);
+        e.dmgMul = 2.3 + (depth - 1) * 0.08;
+        const hp = Math.round(e.maxHp * 1.9);
         e.maxHp = hp; e.hp = hp;
       } else {
-        e.dmgMul = 1.8 + (depth - 1) * 0.08;
-        const hp = Math.round(e.maxHp * (1.65 + (depth - 1) * 0.06));
+        e.dmgMul = (1.8 + (depth - 1) * 0.08) * psDmg;
+        const hp = Math.round(e.maxHp * (1.65 + (depth - 1) * 0.06) * psHp);
         e.maxHp = hp; e.hp = hp;
       }
       // ELITE nodes hit harder and last longer — a real spike over a plain fight.
@@ -2239,6 +2271,23 @@ function strikeSwipeNote(targetEl, arc, dur) {
     setTimeout(() => finish('miss'), dur);
   });
 }
+// STRIKE HOLD — the offensive CHARGE: press and hold through the wind-up, then
+// it lands as one heavy SLAM.  A guardian's/mage's signature all-out beat.
+function strikeHoldNote(targetEl, dur) {
+  return new Promise(resolve => {
+    const a = targetEl ? noteAnchor(targetEl) : { x: 500, y: 150 };
+    const ui = mkParryUiAt(a.x, a.y, `<span class="pr-hold-track"><span class="pr-hold-fill"></span></span><span class="pr-lbl">CHARGE</span>`, 'parry-hold pr-strike pr-big');
+    ui.el.querySelector('.pr-hold-fill').style.animationDuration = dur + 'ms';
+    const lbl = ui.el.querySelector('.pr-lbl');
+    let done = false, holding = false, everHeld = false;
+    const finish = (q) => { if (done) return; done = true; window.removeEventListener('pointerdown', onDown, true); window.removeEventListener('pointerup', onUp, true); strikeFeedback(ui, a.x, a.y, q); ui.close(); resolve(q); };
+    const onDown = () => { if (!everHeld) { try { SFX.brace(); } catch (_) {} haptic(HAP.press); } holding = true; everHeld = true; ui.el.classList.add('pr-pressed'); lbl.textContent = 'SLAM!'; };
+    const onUp = () => { holding = false; ui.el.classList.remove('pr-pressed'); };
+    window.addEventListener('pointerdown', onDown, true);
+    window.addEventListener('pointerup', onUp, true);
+    setTimeout(() => finish(holding ? 'perfect' : everHeld ? 'good' : 'miss'), dur);
+  });
+}
 // The rising CHAIN counter during the all-out — nailing strikes in a row ramps
 // the damage multiplier, so a clean cascade reads as a building finisher.
 function allOutCombo(chain, q) {
@@ -2279,8 +2328,23 @@ async function allOutCineIntro(heroes) {
 // accent the blow.  A running CHAIN of clean strikes ramps a damage multiplier,
 // so a nailed cascade is a devastating finisher — but fumbling the timing
 // deals a weak, glancing share (skill-gated: miss < a solid hit < perfect).
-const ALLOUT = { base: 4, casc: 2, qmul: { perfect: 1.5, good: 1.0, miss: 0.4, early: 0.4 }, comboStep: 0.05, comboCap: 10 };
+const ALLOUT = { base: 4, qmul: { perfect: 1.5, good: 1.0, miss: 0.4, early: 0.4 }, comboStep: 0.05, comboCap: 10 };
 const ALLOUT_RHYTHM = [{ d: 560, g: 120 }, { d: 460, g: 80 }, { d: 440, g: 0 }];
+// Each ARCHETYPE unleashes differently — the input you make expresses the class:
+//   Ronin   flurries TAPS · Reaver rakes twin SWIPES · Guardian/Mage CHARGE a
+//   heavy SLAM · Ranger looses an aimed shot then a raking SLASH · supports keep
+//   a steady two-tap.  Fewer notes hit harder each (damage is normalised), so a
+//   Guardian's single charged slam ≈ a Ronin's two quick cuts.
+const ALLOUT_CASCADE = {
+  Ronin:    [{ t: 'tap' }, { t: 'tap' }],
+  Reaver:   [{ t: 'swipe', arc: 'arcR' }, { t: 'swipe', arc: 'arcL' }],
+  Guardian: [{ t: 'hold' }],
+  Mage:     [{ t: 'hold' }, { t: 'tap' }],
+  Ranger:   [{ t: 'tap' }, { t: 'swipe', arc: 'arcU' }],
+  Cleric:   [{ t: 'tap' }, { t: 'tap' }],
+  Bard:     [{ t: 'tap' }, { t: 'tap' }],
+  _default: [{ t: 'tap' }, { t: 'swipe', arc: 'arcR' }],
+};
 function allOutCoach() {
   let n = 0;
   try { n = parseInt(localStorage.getItem('kizuna2.strikeLessons') || '0', 10) || 0; } catch (_) {}
@@ -2303,16 +2367,19 @@ async function resolveAllOut() {
     if (S.over || !livingEnemies().length) break;
     lungeFig(figEl(h.id));
     await sleep(90);
-    for (let i = 0; i < ALLOUT.casc; i++) {
+    // the hero's cascade is keyed to their ARCHETYPE — the gesture IS the class
+    const casc = ALLOUT_CASCADE[h.def.cls] || ALLOUT_CASCADE._default;
+    const noteBase = ALLOUT.base * (2 / casc.length);   // fewer notes → each hits harder
+    for (let i = 0; i < casc.length; i++) {
       if (S.over || !livingEnemies().length) break;
       const tgt = frontmostEnemy() || livingEnemies()[0];
       if (!tgt) break;
+      const nt = casc[i];
       const step = ALLOUT_RHYTHM[i] || { d: 480, g: 0 };
-      // each pile-on finishes with a SLASH — a tap sets up, the swipe cuts
-      const isSwipe = (i === ALLOUT.casc - 1);
-      const q = isSwipe
-        ? await strikeSwipeNote(figEl(tgt.uid), 'arcR', step.d + 140)
-        : await strikeNote(figEl(tgt.uid), i + 1, ALLOUT.casc, step.d);
+      let q;
+      if (nt.t === 'swipe')     q = await strikeSwipeNote(figEl(tgt.uid), nt.arc || 'arcR', step.d + 140);
+      else if (nt.t === 'hold') q = await strikeHoldNote(figEl(tgt.uid), 860);
+      else                      q = await strikeNote(figEl(tgt.uid), i + 1, casc.length, step.d);
       const good = q === 'perfect' || q === 'good';
       chain = good ? chain + 1 : 0;
       allOutCombo(chain, q);
@@ -2321,7 +2388,7 @@ async function resolveAllOut() {
       cineFlash(q === 'perfect' ? 'rgba(255,120,80,0.5)' : 'rgba(255,240,210,0.4)');
       if (q === 'perfect') stageShake();
       for (const e of livingEnemies()) {
-        let dmg = Math.max(1, Math.round(ALLOUT.base * qmul * comboMul));
+        let dmg = Math.max(1, Math.round(noteBase * qmul * comboMul));
         const primed = e.staggered || e.weakened || e.mark || e.lull;
         if (primed) { dmg = Math.round(dmg * 1.5); }                 // detonate the setup
         dealToEnemy(e, dmg, h.def.school, h.id);
@@ -2713,7 +2780,7 @@ function showStory(node) {
       <div class="ov-title" style="font-size:24px">${node.title}</div>
       <div class="ov-lines">${linesHtml}</div>
       ${done
-        ? `<button class="ov-btn primary" id="ov-go">${node.next === 'descent' ? 'BEGIN THE DESCENT' : (FLOW[flowIdx + 1] && FLOW[flowIdx + 1].type === 'fight' ? 'TO BATTLE' : 'CONTINUE')}</button>`
+        ? `<button class="ov-btn primary" id="ov-go">${(node.next === 'descent' || node.beginDescent) ? 'BEGIN THE DESCENT' : (FLOW[flowIdx + 1] && FLOW[flowIdx + 1].type === 'fight' ? 'TO BATTLE' : 'CONTINUE')}</button>`
         : `<div class="ov-tap">tap to continue ▸</div>`}
     `);
     if (done) {
@@ -2721,6 +2788,7 @@ function showStory(node) {
         ev.stopPropagation();
         hideOverlay();
         if (node.campDone) showPartySelect(() => showMap());
+        else if (node.beginDescent) showMap();
         else if (node.next === 'descent') startDescent();
         else advanceFlow();
       };
@@ -2902,8 +2970,11 @@ function showRecruit(n) {
     if (!RUN.roster.includes(n.hero)) RUN.roster.push(n.hero);
     RUN.hp[n.hero] = h.maxHp;
     if (!RUN.completed.includes(n.id)) RUN.completed.push(n.id);
+    unlockStarter(n.hero);   // meet them once → they're a future starter
+    // Solo/duo → the newcomer just joins the line.  Once you're a full trio+,
+    // composition becomes a choice.
+    if (RUN.active.length < 3 && !RUN.active.includes(n.hero)) RUN.active.push(n.hero);
     saveRun();
-    // A bigger roster than 3 means composition is now a choice.
     if (RUN.roster.length > 3) showPartySelect(() => showMap(), n.hero);
     else showMap();
   };
@@ -3542,23 +3613,62 @@ function showTitle() {
     <button class="ov-btn" id="t-descent">THE DESCENT</button>
     <div class="ov-hint">V2 BUILD ${V2_BUILD} · V1 LIVES AT THE ROOT URL</div>
   `);
-  $('#t-new').onclick = () => {
-    flowIdx = 0; RUN = null;
-    try { localStorage.setItem(PROGRESS_KEY, '0'); localStorage.removeItem(RUN_KEY); } catch (_) {}
-    startFlowNode();
-  };
+  // NEW GAME and THE DESCENT both start a fresh run — first CHOOSE YOUR SURVIVOR.
+  $('#t-new').onclick = () => showStarterSelect(id => beginRun(id));
   const c = $('#t-continue');
   if (c) c.onclick = () => {
     const r = loadRun();
     if (r && !r.done) { RUN = r; showMap(); }
-    else { flowIdx = Math.min(savedFlow, FLOW.length - 1); startFlowNode(); }
+    else showStarterSelect(id => beginRun(id));
   };
   $('#t-descent').onclick = () => {
     const r = loadRun();
-    RUN = (r && !r.done) ? r : newRun();
-    saveRun();
-    showMap();
+    if (r && !r.done) { RUN = r; saveRun(); showMap(); }
+    else showStarterSelect(id => beginRun(id));
   };
+}
+// CHOOSE YOUR SURVIVOR — pick the hero you begin (solo) with, from the ones
+// you've UNLOCKED.  Locked heroes are shown dimmed: recruit them on the road to
+// unlock them as a future starter.
+function showStarterSelect(onPick) {
+  const unlocked = getUnlockedStarters();
+  const cards = STARTER_POOL.map(id => {
+    const h = HEROES[id]; const open = unlocked.includes(id);
+    return `<button class="ss-fig${open ? '' : ' ss-locked'}" data-id="${id}" ${open ? '' : 'disabled'}>
+      <span class="ss-art">${V2PORTRAITS[id] || ''}</span>
+      <span class="ss-name">${h.name}</span>
+      <span class="ss-cls">${h.cls} · <b>${h.archetype || ''}</b></span>
+      <span class="ss-identity">${open ? (h.identity || '') : '🔒 recruit them on the road to unlock'}</span>
+    </button>`;
+  }).join('');
+  showOverlay(`
+    <div class="ov-eyebrow">THE ABYSS TAKES EVERYONE · WHO WALKS BACK IN?</div>
+    <div class="ov-title" style="font-size:20px; margin-bottom:12px;">CHOOSE YOUR SURVIVOR</div>
+    <div class="ss-row">${cards}</div>
+    <div class="ov-hint">You descend ALONE — the rest of your thread is found on the road.</div>
+    <button class="ov-btn" id="ss-back">◂ BACK</button>
+  `, 'map-screen');
+  document.querySelectorAll('.ss-fig:not(.ss-locked)').forEach(el => {
+    el.onclick = () => { hideOverlay(); onPick(el.dataset.id); };
+  });
+  $('#ss-back').onclick = () => showTitle();
+}
+// A short, hero-specific opening beat, then into the Descent.
+function beginRun(starterId) {
+  RUN = newRun(starterId);
+  flowIdx = FLOW.length;
+  try { localStorage.setItem(PROGRESS_KEY, String(FLOW.length)); localStorage.removeItem(RUN_KEY); } catch (_) {}
+  saveRun();
+  const h = HEROES[starterId];
+  showStory({
+    type: 'story', chapter: 3, title: h.name, eyebrow: 'ONE SURVIVOR',
+    lines: [
+      { text: 'The first thing you understand is that everyone else is gone.' },
+      { spk: h.name, text: '…then I carry it alone. For now.' },
+      { text: `You are <b>${h.name}</b> — ${h.identity || h.cls}. Your <b>row is your stance</b>, and when a blow falls you <b>dodge</b> it or <b>parry</b> it in time. Descend, find the others, and the <b>threads</b> you forge become the real weapon.` },
+    ],
+    beginDescent: true,
+  });
 }
 
 function showGate() {
