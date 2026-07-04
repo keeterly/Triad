@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 4;
+const V2_BUILD = 5;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -70,6 +70,31 @@ const EMBER_TREE = [
   { id: 'ash.sig.mid',   hero: 'ash', tier: 1, cost: 5, type: 'card', gate: { stance: 'mid'   }, label: 'Crossguard',   desc: 'MID signature — throw <span class="kw kw-guard">⛨ 6</span> guard onto an ally.' },
   { id: 'ash.rider.expose', hero: 'ash', tier: 2, cost: 6, type: 'rider', requires: ['ash.sig.back'], label: 'Hunter’s Instinct', desc: 'Thrown Edge (BACK core) now also inflicts <span class="kw kw-exposed">◎ EXPOSED 2</span> — position becomes a debuff.', rider: { card: 'Thrown Edge', fx: { mark: 2 }, descAdd: ' · <span class="kw kw-exposed">◎ EXPOSED 2</span>' } },
   { id: 'ash.passive.vanguard', hero: 'ash', tier: 2, cost: 6, type: 'passive', label: 'Vanguard’s Momentum', desc: 'Whenever Ash closes to FRONT, he gains <span class="kw kw-guard">⛨ 3</span> guard — repositioning becomes defense.', passive: 'ash_vanguard' },
+  { id: 'ash.allout.execution', hero: 'ash', tier: 3, cost: 10, type: 'allout', requires: ['ash.sig.front'], label: 'Rite of Endings', desc: 'ALT ALL-OUT — every strike of your all-out EXECUTES any foe left under 25% HP.', allout: 'execution' },
+
+  // ELIN — the Mender: wards and light
+  { id: 'elin.sig.front', hero: 'elin', tier: 1, cost: 4, type: 'card', gate: { stance: 'front' }, label: 'Radiant Ward', desc: 'FRONT signature — every ally gains <span class="kw kw-guard">⛨ 3</span>.' },
+  { id: 'elin.sig.mid',   hero: 'elin', tier: 1, cost: 5, type: 'card', gate: { stance: 'mid'   }, label: 'Sanctuary',   desc: 'MID signature — heal an ally 4 and ward them <span class="kw kw-guard">⛨ 4</span>.' },
+  { id: 'elin.sig.back',  hero: 'elin', tier: 1, cost: 4, type: 'card', gate: { stance: 'back'  }, label: 'Benediction', desc: 'BACK signature — heal an ally 8.' },
+  { id: 'elin.rider.warmth', hero: 'elin', tier: 2, cost: 6, type: 'rider', requires: ['elin.sig.mid'], label: 'Warm Light', desc: 'Mend (MID core) now also wards the ally for <span class="kw kw-guard">⛨ 2</span> — a heal that holds.', rider: { card: 'Mend', fx: { guard: 2 }, descAdd: ' · <span class="kw kw-guard">⛨ 2</span>' } },
+
+  // MIRA — the Assassin: exposure and slips
+  { id: 'mira.sig.front', hero: 'mira', tier: 1, cost: 4, type: 'card', gate: { stance: 'front' }, label: 'Vanish Strike', desc: 'FRONT signature — 9 damage, then vanish to BACK.' },
+  { id: 'mira.sig.mid',   hero: 'mira', tier: 1, cost: 5, type: 'card', gate: { stance: 'mid'   }, label: 'Twin Daggers',  desc: 'MID signature — 10 damage to ANY foe.' },
+  { id: 'mira.sig.back',  hero: 'mira', tier: 1, cost: 4, type: 'card', gate: { stance: 'back'  }, label: 'Killing Mark',  desc: 'BACK signature — <span class="kw kw-exposed">◎ EXPOSED 5</span> on any foe.' },
+  { id: 'mira.rider.exploit', hero: 'mira', tier: 2, cost: 6, type: 'rider', requires: ['mira.sig.front'], label: 'Killer’s Eye', desc: 'Backstab (FRONT core) now also inflicts <span class="kw kw-exposed">◎ EXPOSED 2</span>.', rider: { card: 'Backstab', fx: { mark: 2 }, descAdd: ' · <span class="kw kw-exposed">◎ EXPOSED 2</span>' } },
+
+  // CASSIA — the Warden: guard and retaliation
+  { id: 'cassia.sig.front', hero: 'cassia', tier: 1, cost: 4, type: 'card', gate: { stance: 'front' }, label: 'Bulwark', desc: 'FRONT signature — 6 damage and gain <span class="kw kw-guard">⛨ 6</span>.' },
+  { id: 'cassia.sig.mid',   hero: 'cassia', tier: 1, cost: 5, type: 'card', gate: { stance: 'mid'   }, label: 'Aegis',   desc: 'MID signature — ward an ally <span class="kw kw-guard">⛨ 7</span>.' },
+  { id: 'cassia.sig.back',  hero: 'cassia', tier: 1, cost: 4, type: 'card', gate: { stance: 'back'  }, label: 'Sentinel Throw', desc: 'BACK signature — 7 damage to ANY foe.' },
+  { id: 'cassia.rider.riposte', hero: 'cassia', tier: 2, cost: 6, type: 'rider', requires: ['cassia.sig.front'], label: 'Riposte', desc: 'Shield Bash (FRONT core) now also grants <span class="kw kw-counter">↺ 1</span> — punish the next blow.', rider: { card: 'Shield Bash', fx: { counter: 1 }, descAdd: ' · <span class="kw kw-counter">↺ 1</span>' } },
+
+  // BRANWEN — the Marksman: marks and repositioning
+  { id: 'branwen.sig.front', hero: 'branwen', tier: 1, cost: 4, type: 'card', gate: { stance: 'front' }, label: 'Hunter’s Mark', desc: 'FRONT signature — <span class="kw kw-exposed">◎ EXPOSED 4</span> and slip to BACK.' },
+  { id: 'branwen.sig.mid',   hero: 'branwen', tier: 1, cost: 5, type: 'card', gate: { stance: 'mid'   }, label: 'Killshot',    desc: 'MID signature — 11 damage to ANY foe.' },
+  { id: 'branwen.sig.back',  hero: 'branwen', tier: 1, cost: 4, type: 'card', gate: { stance: 'back'  }, label: 'Killing Arrow', desc: 'BACK signature — 9 damage and <span class="kw kw-exposed">◎ EXPOSED 2</span>.' },
+  { id: 'branwen.rider.deadeye', hero: 'branwen', tier: 2, cost: 6, type: 'rider', requires: ['branwen.sig.back'], label: 'Deadeye', desc: 'Backstep Shot (FRONT core) now also inflicts <span class="kw kw-exposed">◎ EXPOSED 2</span>.', rider: { card: 'Backstep Shot', fx: { mark: 2 }, descAdd: ' · <span class="kw kw-exposed">◎ EXPOSED 2</span>' } },
 ];
 const NODE_BY_ID = {};
 EMBER_TREE.forEach(n => { NODE_BY_ID[n.id] = n; });
@@ -82,8 +107,15 @@ function sigUnlocked(h) { const g = SIG_GATE[h.id] && SIG_GATE[h.id][h.row]; ret
 function ridersFor(ownerId, cardName) {
   return EMBER_TREE.filter(n => n.type === 'rider' && n.hero === ownerId && n.rider && n.rider.card === cardName && hasNode(n.id));
 }
-// ember reward for felling a foe
-function emberReward(e) { return (e.def.floorBoss || e.def.boss) ? 10 : (e._elite ? 4 : 2); }
+// ember reward for felling a foe — higher HEAT pays out more (risk → reward)
+function emberReward(e) {
+  const base = (e.def.floorBoss || e.def.boss) ? 10 : (e._elite ? 4 : 2);
+  return Math.round(base * (1 + (META.heat || 0) * 0.25));
+}
+// ALT ALL-OUT (Rite of Endings): each all-out strike finishes a foe under 25% HP
+function allOutExecutes(e) {
+  return hasNode('ash.allout.execution') && e && !e.dead && e.hp > 0 && e.hp <= Math.ceil(e.maxHp * 0.25);
+}
 // a hero has just entered a new row — fire any unlocked positional passives
 function onHeroEnterRow(hero, toRow, fromRow) {
   if (!hero || hero.downed || toRow === fromRow) return;
@@ -884,6 +916,17 @@ function newBattle(node) {
         e.maxHp = hp; e.hp = hp;
       }
     });
+    // HEAT — the opt-in difficulty valve.  Each level makes every foe hit harder
+    // and last longer, so a widening tree meets a rising challenge (and pays more
+    // embers — see emberReward).
+    const heat = META.heat || 0;
+    if (heat > 0) {
+      enemies.forEach(e => {
+        e.dmgMul = (e.dmgMul || 1) * (1 + heat * 0.15);
+        const hp = Math.round(e.maxHp * (1 + heat * 0.12));
+        e.maxHp = hp; e.hp = hp;
+      });
+    }
   }
   // Kindled bonds walk into battle already connected: the pair's thread is
   // pre-formed and the bond-guard applies from turn one.  The triad itself
@@ -958,13 +1001,15 @@ function buildHand() {
   const host = resonantHost();
   livingHeroes().forEach(h => {
     const set = h.def.cards[h.row];
+    const heavy = (h.def.tempo || 'steady') === 'heavy';
     // HEAVY heroes contribute a single (expensive) card; others show two.
-    if ((h.def.tempo || 'steady') !== 'heavy') {
+    if (!heavy) {
       const core = mkCard(h, 'core', set.core);
       if (!core.spent) hand.push(core);
     }
     if (host === h.id) hand.push(mkResonantCard(h));
     else if (sigUnlocked(h)) { const sig = mkCard(h, 'sig', set.sig); if (!sig.spent) hand.push(sig); }
+    else if (heavy) { const core = mkCard(h, 'core', set.core); if (!core.spent) hand.push(core); }   // heavy fallback: the CORE stands in until the signature is unlocked
   });
   S.tempCards.filter(t => t.expiresTurn == null || t.expiresTurn >= S.turn).forEach(t => hand.push(t));
   return hand;
@@ -2584,6 +2629,10 @@ async function resolveAllOut() {
         if (primed) { dmg = Math.round(dmg * 1.5); }                 // detonate the setup
         dealToEnemy(e, dmg, h.def.school, h.id);
         if (primed) popupAt(figEl(e.uid), '⚡ TECHNICAL', 'info');
+        if (allOutExecutes(e)) {                                     // ALT ALL-OUT: Rite of Endings
+          popupAt(figEl(e.uid), '☠ EXECUTED', 'dmg');
+          dealToEnemy(e, e.hp, h.def.school, h.id);              // finish the wounded
+        }
       }
       renderAll();
       if (checkEnd()) break;
@@ -3942,11 +3991,15 @@ function showTitle() {
     ${canContinue ? `<button class="ov-btn" id="t-continue">CONTINUE</button>` : ''}
     <button class="ov-btn" id="t-descent">THE DESCENT</button>
     <button class="ov-btn" id="t-tree">✦ EMBER TREE · ${META.embers}</button>
+    <div class="t-heat">HEAT <button id="heat-dn" aria-label="lower heat">−</button><b id="heat-val">${META.heat || 0}</b><button id="heat-up" aria-label="raise heat">+</button><span>foes hit harder · +embers</span></div>
     <div class="ov-hint">V2.1 BUILD ${V2_BUILD} · EMBER BRANCH</div>
   `);
   // NEW GAME and THE DESCENT both start a fresh run — first CHOOSE YOUR SURVIVOR.
   $('#t-new').onclick = () => showStarterSelect(id => beginRun(id));
   $('#t-tree').onclick = () => showEmberTree(showTitle);
+  const setHeat = (d) => { META.heat = Math.max(0, Math.min(5, (META.heat || 0) + d)); saveMeta(); const v = $('#heat-val'); if (v) v.textContent = META.heat; };
+  $('#heat-dn').onclick = () => setHeat(-1);
+  $('#heat-up').onclick = () => setHeat(1);
   const c = $('#t-continue');
   if (c) c.onclick = () => {
     const r = loadRun();
@@ -3963,9 +4016,14 @@ function showTitle() {
 // THE EMBER TREE — spend banked embers to open a hero's kit.  Nodes read from
 // EMBER_TREE; buying one deducts embers and unlocks it permanently.
 const TREE_TYPE_LABEL = { card: 'CARD', rider: 'UPGRADE', passive: 'PASSIVE', allout: 'ALL-OUT' };
-function showEmberTree(onBack) {
+const TREE_HEROES = EMBER_TREE.reduce((a, n) => (a.includes(n.hero) ? a : a.concat(n.hero)), []);
+function showEmberTree(onBack, heroId) {
   $('#stage').classList.remove('show-bg');
-  const heroId = 'ash';
+  heroId = heroId && HEROES[heroId] ? heroId : 'ash';
+  const tabs = TREE_HEROES.map(hid => {
+    const done = EMBER_TREE.filter(n => n.hero === hid).every(n => hasNode(n.id));
+    return `<button class="et-tab${hid === heroId ? ' et-tab-on' : ''}${done ? ' et-tab-done' : ''}" data-hero="${hid}">${HEROES[hid].name}</button>`;
+  }).join('');
   const byTier = {};
   EMBER_TREE.filter(n => n.hero === heroId).forEach(n => { (byTier[n.tier] = byTier[n.tier] || []).push(n); });
   const tiers = Object.keys(byTier).sort((a, b) => a - b).map(tier => {
@@ -3992,11 +4050,15 @@ function showEmberTree(onBack) {
     return `<div class="et-tier${tOpen ? '' : ' et-tier-locked'}"><div class="et-tier-lbl">TIER ${tier}${tOpen ? '' : ' · 🔒'}</div><div class="et-tier-row">${nodes}</div></div>`;
   }).join('');
   showOverlay(`
-    <div class="ov-eyebrow">THE EMBER TREE · ${HEROES[heroId].name}</div>
+    <div class="ov-eyebrow">THE EMBER TREE</div>
     <div class="et-wallet">✦ <b>${META.embers}</b> <span>embers</span><span class="et-milestone">· ${META.bossclears || 0} boss${(META.bossclears || 0) === 1 ? '' : 'es'} felled</span></div>
+    <div class="et-tabs">${tabs}</div>
     <div class="et-scroll">${tiers}</div>
     <button class="ov-btn" id="et-back">◂ BACK</button>
   `, 'map-screen et-screen');
+  document.querySelectorAll('.et-tab').forEach(el => {
+    el.onclick = () => { if (el.dataset.hero !== heroId) showEmberTree(onBack, el.dataset.hero); };
+  });
   document.querySelectorAll('.et-node:not([disabled])').forEach(el => {
     el.onclick = () => {
       const n = NODE_BY_ID[el.dataset.id];
@@ -4004,7 +4066,7 @@ function showEmberTree(onBack) {
       if (!(n.requires || []).every(r => hasNode(r))) return;
       addEmbers(-n.cost); unlockNode(n.id);
       SFX.thread();
-      showEmberTree(onBack);   // re-render with the new state
+      showEmberTree(onBack, heroId);   // re-render with the new state
     };
   });
   $('#et-back').onclick = () => { hideOverlay(); (onBack || showTitle)(); };

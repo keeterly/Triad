@@ -1937,6 +1937,28 @@ button.map-node:not(:disabled) { cursor: pointer; }
 .et-node.et-tierlocked { filter: grayscale(0.85) brightness(0.48); cursor: default; }
 .et-tier-locked .et-tier-lbl { color: #6a5a44; }
 .et-milestone { font-size: 9px; letter-spacing: 0.12em; color: var(--ink-faint); margin-left: 8px; }
+/* hero tabs — switch between constellations */
+.et-tabs { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin: 0 0 10px; }
+.et-tab {
+  font-family: inherit; cursor: pointer; font-size: 9px; letter-spacing: 0.16em;
+  padding: 4px 11px; border-radius: 999px; color: var(--ink-dim);
+  background: rgba(20,16,13,0.7); border: 1px solid var(--edge);
+  transition: color 0.14s ease, border-color 0.14s ease, background 0.14s ease;
+}
+.et-tab:hover { color: var(--ink); border-color: rgba(255,170,90,0.5); }
+.et-tab-on { color: #ffcf8a; border-color: rgba(255,170,90,0.7); background: rgba(40,28,16,0.85); }
+.et-tab-done::after { content: ' ✓'; color: #8ad39a; }
 /* forge (in-run, temporary) shares the ember look with a cooler cast */
 .et-node.et-forge .et-type.t-forge { background: #7fb0a0; }
 .et-forge-note { font-size: 9px; color: var(--ink-dim); margin: 0 0 8px; font-style: italic; }
+
+/* HEAT stepper on the title — the opt-in difficulty valve */
+.t-heat { display: inline-flex; align-items: center; gap: 8px; margin: 8px auto 0; font-size: 10px; letter-spacing: 0.18em; color: var(--ink-dim); }
+.t-heat button {
+  font-family: inherit; cursor: pointer; width: 22px; height: 22px; border-radius: 6px;
+  background: rgba(30,20,14,0.85); border: 1px solid rgba(255,150,60,0.4); color: #ffb469;
+  font-size: 14px; line-height: 1; display: inline-flex; align-items: center; justify-content: center;
+}
+.t-heat button:hover { border-color: rgba(255,170,90,0.8); }
+.t-heat b { color: #ffcf8a; font-size: 14px; min-width: 14px; text-align: center; }
+.t-heat span { font-size: 8px; letter-spacing: 0.1em; color: var(--ink-faint); font-style: italic; }

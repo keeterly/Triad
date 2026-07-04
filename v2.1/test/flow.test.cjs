@@ -103,6 +103,13 @@ const QUICK = process.argv.includes('--quick');
 
   // ---------- DESCENT: map, recruit, composition, Formation resonant ----------
   console.log('--- THE DESCENT ---');
+  // From here the suite exercises the FULL kit of several heroes (resonant
+  // hijack, phalanx trio, etc.) — unlock every hero's signature nodes, persisted
+  // so the state survives the reload below.
+  await J(() => {
+    EMBER_TREE.filter(n => n.type === 'card').forEach(n => { if (!META.nodes.includes(n.id)) META.nodes.push(n.id); });
+    saveMeta();
+  });
   await J(() => { localStorage.setItem('kizuna2_1.flow', '99'); localStorage.removeItem('kizuna2_1.run'); });
   await t.page.reload({ waitUntil: 'networkidle' }); await sleep(500);
   await clickOverlayBtn('#t-descent'); await sleep(400);                      // → CHOOSE YOUR SURVIVOR
@@ -354,6 +361,12 @@ const QUICK = process.argv.includes('--quick');
 
   // ---------- BOND LOOP: fights grow pairs; kindled pairs pre-connect ----------
   console.log('--- BONDS ---');
+  // From here the suite exercises the FULL kit of several heroes — unlock every
+  // hero's signature nodes on the ember tree (persisted so it survives reloads).
+  await J(() => {
+    EMBER_TREE.filter(n => n.type === 'card').forEach(n => { if (!META.nodes.includes(n.id)) META.nodes.push(n.id); });
+    saveMeta();
+  });
   check('LOOP: victory accrued bond points for the held threads',
     await J(() => ['ash|cassia', 'ash|elin', 'cassia|elin'].every(k => (RUN.bonds[k] || 0) >= 1)),
     await J(() => JSON.stringify(RUN.bonds)));
@@ -756,6 +769,50 @@ const QUICK = process.argv.includes('--quick');
     RUN.forges = saved || [];
     return base === 6 && tempered === 7 && HEROES.ash.cards.front.core.fx.dmg === 6;   // def untouched
   }));
+
+  // ---------- PHASE 3: constellations · alt all-out · Heat ----------
+  console.log('--- PHASE 3 ---');
+  check('CONSTELLATION: every roster hero has a full signature gate',
+    await J(() => ['ash', 'elin', 'mira', 'cassia', 'branwen'].every(h => SIG_GATE[h] && SIG_GATE[h].front && SIG_GATE[h].mid && SIG_GATE[h].back)));
+  check('RE-GATE: a recruited hero opens with only its CORE (heavy fallback)',
+    await J(() => {
+      META.nodes = [];   // nothing unlocked
+      startFight({ type: 'fight', chapter: 2, heroes: ['cassia'], enemies: ['husk'], narrator: 'gate' });
+      S.heroes[0].row = 'front'; S.ep = S.maxEp; renderAll();
+      const cards = document.querySelectorAll('#hand .card');
+      return cards.length === 1 && cards[0].dataset.cardName === 'Shield Bash';   // Bulwark (sig) gated
+    }));
+  check('CONSTELLATION: unlocking Cassia’s FRONT sig swaps in Bulwark',
+    await J(() => {
+      unlockNode('cassia.sig.front'); renderAll();
+      return !!document.querySelector('#hand .card[data-card-name="Bulwark"]')
+        && !document.querySelector('#hand .card[data-card-name="Shield Bash"]');   // heavy: sig replaces core
+    }));
+  check('ALT ALL-OUT: Rite of Endings is a tier-3 allout node (needs the front sig)',
+    await J(() => { const n = NODE_BY_ID['ash.allout.execution']; return !!n && n.type === 'allout' && n.tier === 3 && n.requires.includes('ash.sig.front'); }));
+  check('ALT ALL-OUT: it EXECUTES a foe under 25% HP only once owned',
+    await J(() => {
+      META.nodes = [];
+      const low = { dead: false, hp: 5, maxHp: 100 };
+      const before = allOutExecutes(low);
+      unlockNode('ash.allout.execution');
+      const after = allOutExecutes(low);
+      const healthy = allOutExecutes({ dead: false, hp: 40, maxHp: 100 });
+      return before === false && after === true && healthy === false;
+    }));
+  check('HEAT: raising heat scales the ember payout (2 → 4)',
+    await J(() => { META.heat = 0; const a = emberReward({ def: {} }); META.heat = 4; const b = emberReward({ def: {} }); META.heat = 0; return a === 2 && b === 4; }));
+  check('HEAT: raising heat makes run foes hit harder and last longer',
+    await J(() => {
+      META.heat = 0;
+      startFight({ type: 'fight', chapter: 2, depth: 1, useRunHp: true, heroes: ['ash', 'elin', 'mira'], enemies: ['husk'], narrator: 'h0' });
+      const hp0 = S.enemies[0].maxHp, dm0 = S.enemies[0].dmgMul;
+      META.heat = 4;
+      startFight({ type: 'fight', chapter: 2, depth: 1, useRunHp: true, heroes: ['ash', 'elin', 'mira'], enemies: ['husk'], narrator: 'h4' });
+      const hp4 = S.enemies[0].maxHp, dm4 = S.enemies[0].dmgMul;
+      META.heat = 0;
+      return hp4 > hp0 && dm4 > dm0;
+    }));
 
   t.report();
   await t.browser.close();
