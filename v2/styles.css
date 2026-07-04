@@ -248,20 +248,21 @@ body {
 .hp-fill { height: 100%; background: linear-gradient(90deg, #7a5c30, var(--gold)); transition: width 0.3s ease; }
 .figure.enemy .hp-fill { background: linear-gradient(90deg, #6a2424, var(--blood-bright)); }
 .hp-num { font-size: 8.5px; color: var(--ink-dim); }
-.fig-chips { display: flex; gap: 3px; min-height: 14px; flex-wrap: wrap; justify-content: center; }
-/* Status chips: bigger, bolder glyph + a tinted fill so each status reads at a
-   glance on a phone.  The number sits in high-contrast white; the icon carries
-   the color.  (Chill's cyan snowflake was the legibility target to match.) */
+.fig-chips { display: flex; gap: 7px; min-height: 13px; flex-wrap: wrap; justify-content: center; }
+/* DIEGETIC status runes — no mechanical box.  Each status is a glowing sigil
+   that burns in its own colour (paired with the aura painted over the creature
+   itself), the number riding alongside.  Reads as magic clinging to the foe,
+   not a UI pill.  A strong shadow keeps it legible over the fight backdrop. */
 .chip {
-  font-size: 9.5px; font-weight: 700; line-height: 1.35;
-  padding: 0.5px 5px; border-radius: 6px; letter-spacing: 0.02em;
-  border: 1px solid var(--edge); background: rgba(10,8,8,0.9); color: #fff;
-  text-shadow: 0 1px 2px #000; display: inline-flex; align-items: center; gap: 2px;
+  font-size: 10px; font-weight: 700; line-height: 1.2; letter-spacing: 0.02em;
+  padding: 0; border: none; background: none; color: #fff;
+  display: inline-flex; align-items: center; gap: 1.5px;
+  text-shadow: 0 0 5px rgba(0,0,0,0.9), 0 1px 2px #000;
 }
-.chip.guard   { color: #cfe4fb; border-color: rgba(168,200,232,0.7); background: rgba(38,58,84,0.9); }
-.chip.buff    { color: #ffe9ad; border-color: rgba(240,212,136,0.7); background: rgba(70,56,20,0.9); }
-.chip.mark    { color: #ffc0c0; border-color: rgba(212,69,69,0.7);  background: rgba(72,24,24,0.9); }
-.chip.counter { color: #e4d4ff; border-color: rgba(154,120,192,0.7); background: rgba(48,34,72,0.9); }
+.chip.guard   { color: #bfe0ff; text-shadow: 0 0 8px rgba(120,180,240,0.95), 0 1px 3px #000; }
+.chip.buff    { color: #ffdf98; text-shadow: 0 0 8px rgba(240,200,120,0.95), 0 1px 3px #000; }
+.chip.mark    { color: #ff988c; text-shadow: 0 0 9px rgba(224,58,48,0.95), 0 1px 3px #000; }
+.chip.counter { color: #d2baff; text-shadow: 0 0 8px rgba(160,124,220,0.95), 0 1px 3px #000; }
 
 /* intent bubble */
 .intent {
@@ -826,7 +827,7 @@ button.map-node:not(:disabled) { cursor: pointer; }
 .kw-rally   { color: var(--gold-bright); }
 .kw-guard   { color: #a8c8e8; }
 .kw-counter { color: var(--arc); }
-.chip.chill { color: #bfe8fb; border-color: rgba(142,203,232,0.7); background: rgba(28,58,76,0.9); }
+.chip.chill { color: #a8ddf5; text-shadow: 0 0 8px rgba(140,205,235,0.95), 0 1px 3px #000; }
 .popup.chill { color: #8ecbe8; }
 .popup.rally { color: var(--gold-bright); }
 
@@ -843,11 +844,10 @@ button.map-node:not(:disabled) { cursor: pointer; }
 .map-node { position: relative; }
 
 /* BUILD 13 — weakness/stagger (ported from v1) */
-.chip.weak { color: var(--ink-dim); border-color: rgba(232,220,196,0.3); }
+.chip.weak { color: var(--ink-dim); }
 .chip.stagger {
-  color: var(--gold-bright); border-color: var(--gold-bright);
+  color: #ffe14a; text-shadow: 0 0 10px rgba(255,225,74,1), 0 1px 3px #000;
   animation: target-pulse 0.7s ease infinite;
-  box-shadow: 0 0 8px rgba(240,212,136,0.4);
 }
 .c-school { color: var(--ink); }
 
@@ -1015,12 +1015,13 @@ button.map-node:not(:disabled) { cursor: pointer; }
   70%  { transform: scale(0.94); }
   100% { transform: scale(1); }
 }
-.chip.chip-pop.guard   { box-shadow: 0 0 12px rgba(168,200,232,0.85); }
-.chip.chip-pop.buff    { box-shadow: 0 0 12px rgba(240,212,136,0.9); }
-.chip.chip-pop.mark    { box-shadow: 0 0 12px rgba(212,69,69,0.85); }
-.chip.chip-pop.chill   { box-shadow: 0 0 12px rgba(142,203,232,0.85); }
-.chip.chip-pop.counter { box-shadow: 0 0 12px rgba(154,120,192,0.85); }
-.chip.chip-pop.stagger { box-shadow: 0 0 14px rgba(240,212,136,1); }
+/* the pop flares the rune's own glow (no box) — a burst of light on the foe */
+.chip.chip-pop.guard   { text-shadow: 0 0 16px rgba(120,180,240,1), 0 1px 3px #000; }
+.chip.chip-pop.buff    { text-shadow: 0 0 16px rgba(240,200,120,1), 0 1px 3px #000; }
+.chip.chip-pop.mark    { text-shadow: 0 0 18px rgba(224,58,48,1), 0 1px 3px #000; }
+.chip.chip-pop.chill   { text-shadow: 0 0 16px rgba(140,205,235,1), 0 1px 3px #000; }
+.chip.chip-pop.counter { text-shadow: 0 0 16px rgba(160,124,220,1), 0 1px 3px #000; }
+.chip.chip-pop.stagger { text-shadow: 0 0 20px rgba(255,225,74,1), 0 1px 3px #000; }
 
 /* --- discard (channel): the card burns to ash where it sat --- */
 .card.card-dissolve {
@@ -1535,12 +1536,14 @@ button.map-node:not(:disabled) { cursor: pointer; }
   color: #ffe14a; text-shadow: 0 0 5px rgba(255,225,74,0.5);
   animation: primed-blink 1s ease-in-out infinite;
 }
-/* revealed weakness reads as a clear callout, not a lone glyph */
-.chip.weak { color: var(--ink-faint); border-color: rgba(232,220,196,0.3); background: rgba(20,16,12,0.85); letter-spacing: 0.18em; }
+/* revealed weakness — a glowing elemental sigil clinging to the foe, not a box */
+.chip.weak { color: var(--ink-faint); letter-spacing: 0.16em; text-shadow: 0 0 4px rgba(0,0,0,0.9), 0 1px 2px #000; }
 .chip.weak.revealed {
-  color: #ffe6a4; border-color: rgba(240,212,136,0.7); background: rgba(60,48,18,0.9);
-  letter-spacing: 0.06em; font-weight: 700;
+  color: #ffe6a4; letter-spacing: 0.05em; font-weight: 700;
+  text-shadow: 0 0 9px rgba(240,212,136,0.9), 0 1px 3px #000;
+  animation: weak-sigil 1.8s ease-in-out infinite;
 }
+@keyframes weak-sigil { 50% { text-shadow: 0 0 15px rgba(255,232,160,1), 0 1px 3px #000; } }
 /* the aim hint turns electric when the snapped hit will detonate a TECHNICAL */
 #target-hint.th-tech {
   color: #1a1206; background: linear-gradient(180deg, #ffe98c, #f0c24a);
