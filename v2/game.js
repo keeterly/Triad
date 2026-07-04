@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 71;
+const V2_BUILD = 72;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -3236,30 +3236,12 @@ function applyFightBg() {
 // the forecast is the formation puzzle made numeric, and it drives the
 // guard / intercept / dodge decision.
 function renderTimeline() {
+  // The threat forecast used to sit here as a top banner (round number + "N
+  // incoming — parry to negate").  That hand-holding is gone: the danger now
+  // reads straight off the battlefield — the lock-on brackets and the ✕N (or a
+  // ☠ when it's lethal) on the threatened hero.  The player learns the UI.
   const tl = $('#timeline');
-  if (!S) { tl.innerHTML = ''; return; }
-  const rowDmg = { front: 0, mid: 0, back: 0 };
-  livingEnemies().forEach(e => {
-    const it = e.def.intents[e.intentIdx % e.def.intents.length];
-    if (!it || it.kind === 'buff') return;
-    const dmg = enemyIntentDmg(e, it);
-    (it.row === 'all' ? ROWS.slice() : [it.row]).forEach(r => { rowDmg[r] += dmg; });
-  });
-  // The forecast is only useful if it drives the decision — so name the hero in
-  // real danger and say the answer (parry or move), not just a bare number.
-  let incoming = 0, doomed = null;
-  ROWS.forEach(r => {
-    const h = heroInRow(r);
-    if (!h) return;
-    incoming += rowDmg[r];
-    if (rowDmg[r] > 0 && rowDmg[r] >= h.hp + h.guard && !h.invuln) doomed = h;
-  });
-  tl.innerHTML = `<span class="rd-round">ROUND ${S.turn}</span>`
-    + (doomed
-        ? `<span class="rd-threat rd-lethal"><span class="rd-i">☠</span> ${doomed.def.name} WILL FALL — <b>parry or move</b></span>`
-        : incoming > 0
-          ? `<span class="rd-threat"><span class="rd-i">⚔</span> ${incoming} incoming — <b>parry to negate</b></span>`
-          : `<span class="rd-safe">— the line holds —</span>`);
+  if (tl) tl.innerHTML = '';
 }
 
 function renderBattlefield() {
@@ -3291,7 +3273,10 @@ function renderBattlefield() {
     slot.dataset.row = row;
     const h = S.heroes.find(x => x.row === row && !x.downed);
     const downedHere = S.heroes.find(x => x.row === row && x.downed);
-    slot.innerHTML = `<span class="slot-ring"></span><span class="slot-danger" aria-hidden="true"><span class="sd-brackets"><i></i><i></i><i></i><i></i></span><span class="sd-wave"></span></span>${rowDmg[row] > 0 ? `<span class="slot-dmg">✕ ${rowDmg[row]}</span>` : ''}`;
+    const dRow = rowDmg[row];
+    const hRow = S.heroes.find(x => x.row === row && !x.downed);
+    const lethalRow = hRow && !hRow.invuln && dRow >= hRow.hp + hRow.guard;
+    slot.innerHTML = `<span class="slot-ring"></span><span class="slot-danger" aria-hidden="true"><span class="sd-brackets"><i></i><i></i><i></i><i></i></span><span class="sd-wave"></span></span>${dRow > 0 ? `<span class="slot-dmg${lethalRow ? ' sd-dmg-lethal' : ''}">${lethalRow ? '☠' : '✕'} ${dRow}</span>` : ''}`;
     const who = h || downedHere;
     if (who) {
       const fig = document.createElement('div');
