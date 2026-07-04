@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 53;
+const V2_BUILD = 54;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -2154,6 +2154,57 @@ function resonantCineEnd() {
   $('#stage').classList.remove('frozen');
 }
 
+// STRIKE note — the OFFENSIVE mirror of the parry.  Same closing-ring timing,
+// but placed ON the enemy and tinted red: tap as it lands to land the blow with
+// an ACCENT.  perfect > good > (missed = a weak, glancing hit).  Reuses the
+// .parry-ring plumbing (so the auto-tester can drive it) with a .pr-strike skin.
+function strikeNote(targetEl, idx, total, dur) {
+  return new Promise(resolve => {
+    const a = targetEl ? noteAnchor(targetEl) : { x: 500, y: 150 };
+    const label = total > 1 ? `${idx}/${total}` : 'STRIKE';
+    const ui = mkParryUiAt(a.x, a.y, `<span class="pr-target"></span><span class="pr-close"></span><span class="pr-lbl">${label}</span>`, 'pr-strike');
+    ui.el.querySelector('.pr-close').style.animationDuration = dur + 'ms';
+    const lbl = ui.el.querySelector('.pr-lbl');
+    const GOOD = 440, PERF = 165;
+    let done = false; const t0 = Date.now();
+    const liveT = setTimeout(() => { if (!done) { ui.el.classList.add('pr-live'); lbl.textContent = 'STRIKE!'; } }, Math.max(0, dur - GOOD));
+    const finish = (q) => { if (done) return; done = true; clearTimeout(liveT); window.removeEventListener('pointerdown', onTap, true); strikeFeedback(ui, a.x, a.y, q); ui.close(); resolve(q); };
+    const onTap = () => { const rem = dur - (Date.now() - t0); if (rem > GOOD) { parryEarlyNudge(ui, a.x, a.y); return; } finish(rem <= PERF ? 'perfect' : 'good'); };
+    window.addEventListener('pointerdown', onTap, true);
+    setTimeout(() => finish('miss'), dur);
+  });
+}
+// Per-strike RESPONSE — red rating word + burst; a perfect connects hard.
+function strikeFeedback(ui, ax, ay, q) {
+  const good = q === 'perfect' || q === 'good';
+  ui.el.classList.add(q === 'perfect' ? 'pr-land-perfect' : good ? 'pr-land-good' : 'pr-land-miss');
+  const layer = $('#popup-layer');
+  const rate = document.createElement('div');
+  rate.className = 'parry-rate strike-rate ' + (q === 'perfect' ? 'srt-perfect' : good ? 'srt-good' : 'srt-miss');
+  rate.style.left = ax + 'px'; rate.style.top = (ay - 4) + 'px';
+  rate.textContent = q === 'perfect' ? 'PERFECT!' : q === 'good' ? 'HIT' : 'WEAK';
+  layer.appendChild(rate); setTimeout(() => rate.remove(), 560);
+  const burst = document.createElement('div');
+  burst.className = 'parry-burst strike-burst ' + (q === 'perfect' ? 'pb-perfect' : good ? 'pb-good' : 'pb-miss');
+  burst.style.left = ax + 'px'; burst.style.top = ay + 'px';
+  layer.appendChild(burst); setTimeout(() => burst.remove(), 420);
+  try { if (good) SFX.parry(q === 'perfect', 1); else SFX.parryMiss(); } catch (_) {}
+  haptic(q === 'perfect' ? HAP.perfect : good ? HAP.good : HAP.miss);
+}
+// The rising CHAIN counter during the all-out — nailing strikes in a row ramps
+// the damage multiplier, so a clean cascade reads as a building finisher.
+function allOutCombo(chain, q) {
+  let el = document.getElementById('parry-combo');
+  if (!el) { el = document.createElement('div'); el.id = 'parry-combo'; $('#stage').appendChild(el); }
+  if (chain >= 2) {
+    el.innerHTML = `<span class="pc-num">${chain}</span><span class="pc-lbl">CHAIN</span>`;
+    el.classList.remove('pc-pop'); void el.offsetWidth; el.classList.add('pc-on', 'pc-pop');
+    clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('pc-on'), 1400);
+  } else if (q === 'miss' || q === 'early') {
+    el.classList.remove('pc-on');
+  }
+}
+
 // ALL-OUT ATTACK — the momentum burst.  The whole party piles onto the enemy
 // line one after another; PRIMED foes (exposed / chilled / weakened / staggered)
 // take extra, so setting up before you spend the gauge pays off.
@@ -2175,25 +2226,58 @@ async function allOutCineIntro(heroes) {
   $('#stage').classList.remove('frozen');
   await sleep(200);
 }
+// The all-out is now INTERACTIVE — the reverse-parry.  As each hero piles on,
+// a short cascade of STRIKE notes lands on the enemy line; tap each in time to
+// accent the blow.  A running CHAIN of clean strikes ramps a damage multiplier,
+// so a nailed cascade is a devastating finisher — but fumbling the timing
+// deals a weak, glancing share (skill-gated: miss < a solid hit < perfect).
+const ALLOUT = { base: 4, casc: 2, qmul: { perfect: 1.5, good: 1.0, miss: 0.4, early: 0.4 }, comboStep: 0.05, comboCap: 10 };
+const ALLOUT_RHYTHM = [{ d: 560, g: 120 }, { d: 460, g: 80 }, { d: 440, g: 0 }];
+function allOutCoach() {
+  let n = 0;
+  try { n = parseInt(localStorage.getItem('kizuna2.strikeLessons') || '0', 10) || 0; } catch (_) {}
+  if (n >= 3) return;
+  try { localStorage.setItem('kizuna2.strikeLessons', String(n + 1)); } catch (_) {}
+  let el = document.getElementById('parry-coach');
+  if (!el) { el = document.createElement('div'); el.id = 'parry-coach'; $('#stage').appendChild(el); }
+  el.textContent = 'TAP each STRIKE on the enemy — chain them for more damage';
+  el.classList.remove('pc-show'); void el.offsetWidth; el.classList.add('pc-show');
+  clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('pc-show'), 2800);
+}
 async function resolveAllOut() {
   S._burstResolving = true;
   const heroes = livingHeroes();
   await allOutCineIntro(heroes);
+  allOutCoach();
+  let chain = 0;
   for (const h of heroes) {
     if (S.over || !livingEnemies().length) break;
-    cineFlash('rgba(255,240,210,0.5)');
     lungeFig(figEl(h.id));
-    await sleep(120);
-    for (const e of livingEnemies()) {
-      let dmg = 6 + heroes.length;                                   // each hero piles on
-      const primed = e.staggered || e.weakened || e.mark || e.lull;
-      if (primed) { dmg = Math.round(dmg * 1.5); }                   // detonate the setup
-      dealToEnemy(e, dmg, h.def.school, h.id);
-      if (primed) popupAt(figEl(e.uid), '⚡ TECHNICAL', 'info');
-      await sleep(80);
+    await sleep(90);
+    for (let i = 0; i < ALLOUT.casc; i++) {
+      if (S.over || !livingEnemies().length) break;
+      const tgt = frontmostEnemy() || livingEnemies()[0];
+      if (!tgt) break;
+      const step = ALLOUT_RHYTHM[i] || { d: 480, g: 0 };
+      const q = await strikeNote(figEl(tgt.uid), i + 1, ALLOUT.casc, step.d);
+      const good = q === 'perfect' || q === 'good';
+      chain = good ? chain + 1 : 0;
+      allOutCombo(chain, q);
+      const comboMul = 1 + Math.min(chain, ALLOUT.comboCap) * ALLOUT.comboStep;
+      const qmul = ALLOUT.qmul[q] ?? 0.4;
+      cineFlash(q === 'perfect' ? 'rgba(255,120,80,0.5)' : 'rgba(255,240,210,0.4)');
+      if (q === 'perfect') stageShake();
+      for (const e of livingEnemies()) {
+        let dmg = Math.max(1, Math.round(ALLOUT.base * qmul * comboMul));
+        const primed = e.staggered || e.weakened || e.mark || e.lull;
+        if (primed) { dmg = Math.round(dmg * 1.5); }                 // detonate the setup
+        dealToEnemy(e, dmg, h.def.school, h.id);
+        if (primed) popupAt(figEl(e.uid), '⚡ TECHNICAL', 'info');
+      }
+      renderAll();
+      if (checkEnd()) break;
+      if (step.g) await sleep(step.g);
     }
-    renderAll();
-    await sleep(200);
     if (checkEnd()) break;
   }
   S.momentum = 0;

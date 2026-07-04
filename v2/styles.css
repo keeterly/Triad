@@ -1283,6 +1283,25 @@ button.map-node:not(:disabled) { cursor: pointer; }
 }
 #parry-coach.pc-show { animation: parry-coach 2.8s ease forwards; }
 @keyframes parry-coach { 0% { opacity: 0; transform: translate(-50%,6px); } 12%,80% { opacity: 1; transform: translate(-50%,0); } 100% { opacity: 0; } }
+
+/* OFFENSIVE strike notes (all-out reverse-parry) — RED/orange so they read as
+   attacking the enemy, the mirror of the gold defensive parry. */
+.parry-ring.pr-strike .pr-target { border-color: rgba(255,110,70,0.42); box-shadow: inset 0 0 8px rgba(255,110,70,0.14); }
+.parry-ring.pr-strike .pr-close { border-color: rgba(255,150,110,0.6); box-shadow: 0 0 8px rgba(255,110,70,0.42); }
+.parry-ring.pr-strike .pr-lbl { color: rgba(255,150,110,0.82); }
+.parry-ring.pr-strike.pr-live .pr-target {
+  border-style: solid; border-color: rgba(255,90,60,0.95);
+  box-shadow: 0 0 16px rgba(255,90,60,0.8), inset 0 0 10px rgba(255,90,60,0.35);
+  animation: pr-strike-pulse 0.42s ease-in-out infinite;
+}
+.parry-ring.pr-strike.pr-live .pr-close { border-color: #ff5a3c; box-shadow: 0 0 16px rgba(255,90,60,0.9); }
+.parry-ring.pr-strike.pr-live .pr-lbl { color: #fff; font-weight: 700; text-shadow: 0 0 8px rgba(255,90,60,0.95), 0 1px 3px #000; }
+@keyframes pr-strike-pulse { 50% { box-shadow: 0 0 24px rgba(255,90,60,0.95), inset 0 0 12px rgba(255,90,60,0.45); } }
+.parry-rate.srt-perfect { color: #ff7a4a; font-size: 20px; text-shadow: 0 0 12px rgba(255,120,70,0.9), 0 2px 4px #000; }
+.parry-rate.srt-good    { color: #ffb47a; font-size: 16px; text-shadow: 0 0 10px rgba(255,150,90,0.7), 0 2px 4px #000; }
+.parry-rate.srt-miss    { color: #b06a5a; font-size: 13px; text-shadow: 0 2px 4px #000; }
+.parry-burst.strike-burst.pb-perfect { border-color: #ff7a4a; box-shadow: 0 0 16px rgba(255,120,70,0.85); }
+.parry-burst.strike-burst.pb-good    { border-color: #ffb47a; }
 /* the parrying hero flares on a perfect turn-away */
 .figure.fig-parry { animation: fig-parry 0.5s ease; }
 @keyframes fig-parry {

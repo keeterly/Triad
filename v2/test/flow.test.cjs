@@ -551,16 +551,29 @@ const QUICK = process.argv.includes('--quick');
   });
   check('TECHNICAL: off-weakness hit on a primed foe detonates (+4 bonus)', tech.dealt === 10, 'dealt ' + tech.dealt);
   check('TECHNICAL builds momentum', tech.momGain > 0, '+' + tech.momGain);
-  // fill and unleash the all-out
+  // fill and unleash the all-out — now INTERACTIVE (reverse-parry strike notes).
+  // auto-tap drives the offensive cascade; nailed strikes ramp the CHAIN.
+  await t.autoParry(true);
   const allOut = await J(async () => {
     S.momentum = 100; renderAll();
     const before = S.enemies.map(e => e.hp);
     await triggerAllOut();
     return { before, after: S.enemies.map(e => e.hp), momentum: S.momentum, used: S.allOutUsed };
   });
+  await t.autoParry(false);
   check('BURST: ALL-OUT hit the whole enemy line', allOut.after.every((hp, i) => hp < allOut.before[i]),
     JSON.stringify(allOut.before) + ' -> ' + JSON.stringify(allOut.after));
   check('BURST: momentum spent to zero', allOut.momentum === 0 && allOut.used >= 1);
+
+  // TIMING MATTERS — a well-timed cascade out-damages an untimed (all-miss) one.
+  const strikeCmp = await J(async () => {
+    const setup = () => { startFight({ type: 'fight', chapter: 3, heroes: ['ash', 'elin', 'kiki'], enemies: ['husk'], narrator: 'strike cmp' }); S.enemies[0].hp = S.enemies[0].maxHp = 500; S.momentum = 100; renderAll(); };
+    setup(); const h0 = S.enemies[0].hp; window.__autoParry = false; await triggerAllOut(); const missed = h0 - S.enemies[0].hp;
+    setup(); const h1 = S.enemies[0].hp; window.__autoParry = true; await triggerAllOut(); window.__autoParry = false; const timed = h1 - S.enemies[0].hp;
+    return { missed, timed };
+  });
+  check('BURST: timed strikes out-damage a fumbled cascade', strikeCmp.timed > strikeCmp.missed,
+    'miss ' + strikeCmp.missed + ' vs timed ' + strikeCmp.timed);
 
   // ---------- PARRY: reactive timing window on enemy attacks ----------
   console.log('--- PARRY ---');
