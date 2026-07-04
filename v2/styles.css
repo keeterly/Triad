@@ -121,6 +121,7 @@ body {
   font-size: 8px; letter-spacing: 0.26em; color: var(--ink-faint);
 }
 .slot.slot-telegraphed .slot-label { color: var(--blood-bright); }
+.slot.slot-telegraphed.sd-lethal .slot-label { animation: primed-blink 0.55s ease-in-out infinite; font-weight: 700; }
 .slot-ring {
   /* Fixed-size box anchored where the figure stands — every row's indicator
      reads identically (the old full-column inset stretched with the slot,
@@ -129,7 +130,49 @@ body {
   border-radius: 10px;
   border: 1px dashed transparent; pointer-events: none;
 }
-.slot.slot-telegraphed .slot-ring { border-color: rgba(212,69,69,0.4); }
+/* DANGER TELEGRAPH — the row an enemy is about to hit no longer reads as a
+   dry dashed box.  A red glow SWELLS behind the threatened hero, and it pulses
+   BIGGER + FASTER the harder the incoming blow (a boss's OBLIVION looms). */
+.slot-danger {
+  position: absolute; left: 50%; bottom: 6px; width: 116%; height: 176px;
+  transform: translateX(-50%) scale(0.9); transform-origin: 50% 78%;
+  border-radius: 50% 50% 22px 22px; opacity: 0; pointer-events: none; z-index: 0;
+  background: radial-gradient(ellipse 60% 58% at 50% 66%, rgba(226,44,34,0.55), rgba(150,20,16,0.16) 52%, transparent 74%);
+}
+.slot-danger .sd-wave {
+  position: absolute; left: 50%; bottom: 26%; width: 70%; height: 70%;
+  transform: translate(-50%, 50%) scale(0.4); border-radius: 50%;
+  border: 2px solid rgba(240,70,54,0.0); pointer-events: none;
+}
+.slot-telegraphed .slot-danger { opacity: 1; }
+/* magnitude: small poke → subtle & slow; heavy/lethal → large, bright, urgent */
+.slot-telegraphed.sd-sm     .slot-danger { animation: sd-pulse 1.7s ease-in-out infinite; filter: saturate(0.9) brightness(0.85); }
+.slot-telegraphed.sd-md     .slot-danger { animation: sd-pulse 1.3s ease-in-out infinite; }
+.slot-telegraphed.sd-lg     .slot-danger { animation: sd-pulse-lg 0.95s ease-in-out infinite; }
+.slot-telegraphed.sd-lethal .slot-danger { animation: sd-pulse-lg 0.7s ease-in-out infinite; filter: brightness(1.15) saturate(1.2); }
+@keyframes sd-pulse {
+  0%,100% { opacity: 0.42; transform: translateX(-50%) scale(0.9); }
+  50%     { opacity: 0.85; transform: translateX(-50%) scale(1.04); }
+}
+@keyframes sd-pulse-lg {
+  0%,100% { opacity: 0.55; transform: translateX(-50%) scale(0.94); }
+  50%     { opacity: 1;    transform: translateX(-50%) scale(1.16); }
+}
+/* the shockwave ring only rides the big / lethal blows — a growing menace */
+.slot-telegraphed.sd-lg .slot-danger .sd-wave,
+.slot-telegraphed.sd-lethal .slot-danger .sd-wave { animation: sd-wave 0.95s ease-out infinite; }
+.slot-telegraphed.sd-lethal .slot-danger .sd-wave { animation-duration: 0.7s; }
+@keyframes sd-wave {
+  0%   { opacity: 0.85; transform: translate(-50%,50%) scale(0.4); border-color: rgba(255,90,70,0.85); }
+  100% { opacity: 0;    transform: translate(-50%,50%) scale(1.5); border-color: rgba(255,90,70,0); }
+}
+/* the incoming number, small and blood-red, riding the danger */
+.slot-dmg {
+  position: absolute; top: 4px; left: 50%; transform: translateX(-50%); z-index: 4;
+  font-size: 9px; font-weight: 700; letter-spacing: 0.06em; color: #ff6a54;
+  text-shadow: 0 0 6px rgba(220,40,30,0.8), 0 1px 2px #000; pointer-events: none;
+}
+.slot-telegraphed.sd-lg .slot-dmg, .slot-telegraphed.sd-lethal .slot-dmg { font-size: 11px; color: #ff5038; }
 
 /* figures */
 .figure {

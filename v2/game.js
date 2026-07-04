@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 59;
+const V2_BUILD = 60;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -3169,22 +3169,35 @@ function renderTimeline() {
 }
 
 function renderBattlefield() {
-  const telegraphed = new Set();
+  // Per-row INCOMING DAMAGE, so the telegraph can look as scary as the blow is
+  // big — a small poke barely glows, a boss's OBLIVION swells huge and red.
+  const rowDmg = { front: 0, mid: 0, back: 0 };
+  let anyHeavy = false;
   livingEnemies().forEach(e => {
     const it = e.def.intents[e.intentIdx % e.def.intents.length];
-    if (it.row === 'all') ROWS.forEach(r => telegraphed.add(r));
-    else if (it.row) telegraphed.add(it.row);
+    if (!it || it.kind === 'buff') return;
+    const dmg = enemyIntentDmg(e, it);
+    if (it.heavy) anyHeavy = true;
+    (it.row === 'all' ? ROWS.slice() : (it.row ? [it.row] : [])).forEach(r => { rowDmg[r] += dmg; });
   });
+  // Classify a row's threat: how big, and would it drop the hero standing there?
+  const dangerClass = (row) => {
+    const d = rowDmg[row]; if (d <= 0) return '';
+    const h = S.heroes.find(x => x.row === row && !x.downed);
+    const lethal = h && !h.invuln && d >= h.hp + h.guard;
+    const tier = lethal ? 'sd-lethal' : (d >= 16 || anyHeavy) ? 'sd-lg' : d >= 9 ? 'sd-md' : 'sd-sm';
+    return ' slot-telegraphed ' + tier;
+  };
 
   const party = $('#party-half');
   party.innerHTML = '';
   ['back', 'mid', 'front'].forEach(row => {
     const slot = document.createElement('div');
-    slot.className = 'slot' + (telegraphed.has(row) ? ' slot-telegraphed' : '');
+    slot.className = 'slot' + dangerClass(row);
     slot.dataset.row = row;
     const h = S.heroes.find(x => x.row === row && !x.downed);
     const downedHere = S.heroes.find(x => x.row === row && x.downed);
-    slot.innerHTML = `<span class="slot-ring"></span>`;
+    slot.innerHTML = `<span class="slot-ring"></span><span class="slot-danger" aria-hidden="true"><span class="sd-wave"></span></span>${rowDmg[row] > 0 ? `<span class="slot-dmg">✕ ${rowDmg[row]}</span>` : ''}`;
     const who = h || downedHere;
     if (who) {
       const fig = document.createElement('div');
