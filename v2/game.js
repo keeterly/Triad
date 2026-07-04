@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 66;
+const V2_BUILD = 67;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -1083,12 +1083,12 @@ function _cornerPath(cx, cy, r) {
 // JRPG targeting reticle — distinct from Slay-the-Spire's flat arrow.
 function drawAimJRPG(fx, fy, ex, ey, valid, field, angle, color, tech) {
   const svg = aimLayer();
-  // The beam always CASTS FROM THE HAND — a fixed bottom-centre point with only
-  // a slight horizontal lean toward the card — so it never swings out to a
-  // screen edge or appears to fly in from off-screen, on any aspect ratio.
-  // The ENDPOINT (reticle) is free to reach any foe on the stage.
-  fx = Math.max(330, Math.min(430, fx)); fy = 416;
-  ex = Math.max(6, Math.min(754, ex)); ey = Math.max(6, Math.min(424, ey));
+  // The beam casts FROM THE CARD (its position, clamped to the stage as a
+  // safety net).  The card is held in a lower-central zone by the drag clamp,
+  // so the origin is always on-screen and reads as coming from the card you're
+  // holding — not from a detached point.
+  const cx = (v) => Math.max(6, Math.min(754, v)), cy = (v) => Math.max(6, Math.min(424, v));
+  fx = cx(fx); fy = cy(fy); ex = cx(ex); ey = cy(ey);
   const bow = Math.min(60, Math.max(22, Math.abs(ex - fx) * 0.11));
   const midX = (fx + ex) / 2, midY = Math.max(10, Math.min(fy, ey) - bow);
   const path = `M ${fx} ${fy} Q ${midX} ${midY} ${ex} ${ey}`;
@@ -1113,8 +1113,9 @@ function drawAimJRPG(fx, fy, ex, ey, valid, field, angle, color, tech) {
 // out to each affected figure and ring it, rather than beaming into the void.
 function drawAimField(fx, fy, pts, angle, color) {
   const svg = aimLayer();
-  // origin cast from the hand (see drawAimJRPG) so the fan never starts off-screen
-  fx = Math.max(330, Math.min(430, fx)); fy = 416;
+  // origin from the card (clamped to the stage; the card is kept on-screen by
+  // the drag clamp) so the fan reads as coming from the card, never off-screen
+  fx = Math.max(6, Math.min(754, fx)); fy = Math.max(6, Math.min(424, fy));
   let s = '';
   pts.forEach(p => {
     const bow = Math.min(64, Math.max(20, Math.abs(p.x - fx) * 0.12));
