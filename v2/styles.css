@@ -1208,17 +1208,22 @@ button.map-node:not(:disabled) { cursor: pointer; }
 /* PARRY FOCUS — while a parry is live, the world behind the reactive notes
    desaturates, blurs and dims so the gesture is the only thing in focus.  Only
    the battlefield/HUD siblings are filtered; #popup-layer (the notes, ratings,
-   bursts) and the boss-beat art sit above and stay crisp. */
-#battlefield, #topbar, #narrator, #action-bar { transition: filter 0.28s ease; }
+   bursts) and the boss-beat art sit above and stay crisp.
+
+   PERF: a blur re-rasterizes every frame if its content changes, so two things
+   keep this cheap — the focus SNAPS in (no filter transition; animating a blur
+   is the costly part) and every animation inside the filtered subtree is
+   PAUSED for the duration, so the blurred bitmap is cached and merely
+   composited instead of re-blurred each frame.  The world literally freezes
+   for the parry beat, which also reads as time slowing. */
 #stage.parry-focus #battlefield,
 #stage.parry-focus #topbar,
 #stage.parry-focus #narrator,
-#stage.parry-focus #action-bar { filter: saturate(0.32) blur(2.6px) brightness(0.6); }
-/* on a clean hit the world snaps a touch sharper for a beat — the parry lands */
-#stage.parry-focus.parry-snap #battlefield,
-#stage.parry-focus.parry-snap #topbar,
-#stage.parry-focus.parry-snap #narrator,
-#stage.parry-focus.parry-snap #action-bar { filter: saturate(0.6) blur(0.7px) brightness(0.94); transition: filter 0.07s ease; }
+#stage.parry-focus #action-bar { filter: saturate(0.3) blur(2px) brightness(0.6); }
+#stage.parry-focus #battlefield *,
+#stage.parry-focus #action-bar *,
+#stage.parry-focus #topbar *,
+#stage.parry-focus #narrator * { animation-play-state: paused !important; }
 /* a full-bleed flash on every landed press (behind the notes, above the world) */
 .parry-flash { position: absolute; inset: 0; z-index: 40; pointer-events: none;
   background: radial-gradient(circle at 50% 42%, rgba(255,255,255,0.16), rgba(255,255,255,0) 60%);

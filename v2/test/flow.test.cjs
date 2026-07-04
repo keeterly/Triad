@@ -393,6 +393,25 @@ const QUICK = process.argv.includes('--quick');
 
   await t.autoParry(false);   // scripted drills below control their own input
 
+  // ---------- SOLO ALLY-TARGET (onboarding regression) ----------
+  // Ash alone in the onboarding: an ally-target card (Crossguard) must fall
+  // back to targeting HIMSELF — the drag path used to filter the owner out and
+  // the card would snap to nothing and spring back.
+  console.log('--- SOLO ALLY ---');
+  await J(() => {
+    hideOverlay();
+    startFight({ type: 'fight', chapter: 1, heroes: ['ash'], enemies: ['husk'], narrator: 'solo drill' });
+    S.heroes[0].row = 'mid';   // MID stance → Crossguard (ally, +6 guard) in hand
+    S.ep = S.maxEp; renderAll();
+  });
+  await sleep(400);
+  check('solo: Crossguard (ally card) is in hand for a lone Ash',
+    await J(() => !!document.querySelector('#hand .card[data-card-name="Crossguard"]')));
+  const soloGuard0 = await J(() => S.heroes[0].guard);
+  await t.drag('#hand .card[data-card-name="Crossguard"]', '[data-fig="ash"]');
+  check('solo: dragging Crossguard onto yourself applies its guard',
+    await J((g) => S.heroes[0].guard >= g + 6, soloGuard0), await J((g) => 'guard ' + g + ' -> ' + S.heroes[0].guard, soloGuard0));
+
   // ---------- WEAKNESS / STAGGER (ported from v1) ----------
   console.log('--- STAGGER ---');
   await J(() => {

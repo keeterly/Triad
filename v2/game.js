@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 51;
+const V2_BUILD = 52;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -970,7 +970,14 @@ function dragTargets(card) {
   switch (card.target) {
     case 'enemy':     return { mode: 'enemy', els: enemyFigEls() };
     case 'frontmost': { const f = frontmostEnemy(); return { mode: 'enemy', els: f ? [figEl(f.uid)].filter(Boolean) : [] }; }
-    case 'ally':      return { mode: 'ally',  els: livingHeroes().filter(h => h.id !== card.owner).map(h => figEl(h.id)).filter(Boolean) };
+    case 'ally': {
+      // Match targetSpec (the tap path): when the caster is the ONLY living
+      // ally (e.g. Ash alone in the onboarding), an ally card falls back to
+      // targeting yourself — otherwise Crossguard & friends can't be dropped.
+      const others = livingHeroes().filter(h => h.id !== card.owner);
+      const pool = others.length ? others : livingHeroes();
+      return { mode: 'ally', els: pool.map(h => figEl(h.id)).filter(Boolean) };
+    }
     case 'allies':    return { mode: 'party', els: livingHeroes().map(h => figEl(h.id)).filter(Boolean) };
     case 'self':      return { mode: 'self',  els: [figEl(card.owner)].filter(Boolean) };
     default:          return { mode: 'field', els: [] };
@@ -1766,13 +1773,9 @@ function noteFeedback(ui, ax, ay, q) {
   burst.style.left = ax + 'px'; burst.style.top = ay + 'px';
   layer.appendChild(burst);
   setTimeout(() => burst.remove(), 440);
-  // Screen-level RESPONSE to the press: the world snaps a touch sharper for a
-  // beat (the parry "connects"), and a quick flash sells the impact.
-  const stage = $('#stage');
-  if (good) {
-    stage.classList.add('parry-snap');
-    clearTimeout(stage._snapT); stage._snapT = setTimeout(() => stage.classList.remove('parry-snap'), 150);
-  }
+  // Screen-level RESPONSE to the press: a quick full-bleed flash sells the
+  // impact.  (Cheap — it's a separate fading overlay, so it never forces the
+  // paused/blurred battlefield behind it to re-rasterize.)
   const flash = document.createElement('div');
   flash.className = 'parry-flash ' + (q === 'perfect' ? 'pf-perfect' : good ? 'pf-good' : 'pf-miss');
   layer.appendChild(flash);
@@ -1927,7 +1930,7 @@ async function runParry(targetEl, pattern, art) {
   try {
     return await runParryInner(targetEl, pattern, art);
   } finally {
-    stage.classList.remove('parry-focus', 'parry-snap');
+    stage.classList.remove('parry-focus');
   }
 }
 async function runParryInner(targetEl, pattern, art) {
