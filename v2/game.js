@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 56;
+const V2_BUILD = 57;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -301,24 +301,24 @@ const ENEMY_DEFS = {
     ],
   },
   echoknight: {
-    weak: 'blade', name: 'THE ECHO KNIGHT', maxHp: 42, boss: true,
+    weak: 'blade', name: 'THE ECHO KNIGHT', maxHp: 56, boss: true,
     intents: [
-      { name: 'Returning Stroke', dmg: 6, row: 'front' },
-      { name: 'Echoed Arc',       dmg: 4, row: 'mid' },
-      { name: 'Remembered Blade', dmg: 5, row: 'back' },
-      { name: 'OBLIVION ECHO',    dmg: 8, row: 'all', heavy: true },
+      { name: 'Returning Stroke', dmg: 7, row: 'front' },
+      { name: 'Echoed Arc',       dmg: 5, row: 'mid' },
+      { name: 'Remembered Blade', dmg: 6, row: 'back' },
+      { name: 'OBLIVION ECHO',    dmg: 10, row: 'all', heavy: true },
     ],
   },
   echoknight2: {
-    weak: 'blade', name: 'THE ECHO KNIGHT, REMEMBERED', maxHp: 60, boss: true, floorBoss: true, art: 'echoknight',
+    weak: 'blade', name: 'THE ECHO KNIGHT, REMEMBERED', maxHp: 94, boss: true, floorBoss: true, art: 'echoknight',
     intents: [
       // The floor boss fills the field; its blows are CASCADES you parry as a
       // sequence — taps racing down an arc, a braced hold, a deflect sweep.
-      { name: 'Returning Stroke', dmg: 7, row: 'front', attackArt: 'slash', parry: { kind: 'seq', notes: [{ t: 'tap' }, { t: 'tap' }, { t: 'tap' }] } },
-      { name: 'Gathers the Echo', kind: 'buff', desc: 'the echo swells', powerSelf: 2 },
-      { name: 'Echoed Arc',       dmg: 5, row: 'mid',  attackArt: 'claw', parry: { kind: 'seq', notes: [{ t: 'swipe', arc: 'arcR' }, { t: 'tap' }, { t: 'tap' }] } },
-      { name: 'Remembered Blade', dmg: 6, row: 'back', expose: 2, attackArt: 'slam', parry: { kind: 'seq', notes: [{ t: 'tap' }, { t: 'tap' }, { t: 'hold' }] } },
-      { name: 'OBLIVION ECHO',    dmg: 9, row: 'all', heavy: true, attackArt: 'blast', parry: { kind: 'seq', notes: [{ t: 'tap' }, { t: 'tap' }, { t: 'tap' }, { t: 'swipe', arc: 'arcU' }, { t: 'hold' }] } },
+      { name: 'Returning Stroke', dmg: 9,  row: 'front', attackArt: 'slash', parry: { kind: 'seq', notes: [{ t: 'tap' }, { t: 'tap' }, { t: 'tap' }] } },
+      { name: 'Gathers the Echo', kind: 'buff', desc: 'the echo swells', powerSelf: 3 },
+      { name: 'Echoed Arc',       dmg: 7,  row: 'mid',  attackArt: 'claw', parry: { kind: 'seq', notes: [{ t: 'swipe', arc: 'arcR' }, { t: 'tap' }, { t: 'tap' }] } },
+      { name: 'Remembered Blade', dmg: 8,  row: 'back', expose: 2, attackArt: 'slam', parry: { kind: 'seq', notes: [{ t: 'tap' }, { t: 'tap' }, { t: 'hold' }] } },
+      { name: 'OBLIVION ECHO',    dmg: 13, row: 'all', heavy: true, attackArt: 'blast', parry: { kind: 'seq', notes: [{ t: 'tap' }, { t: 'tap' }, { t: 'tap' }, { t: 'swipe', arc: 'arcU' }, { t: 'hold' }] } },
     ],
   },
 };
@@ -749,8 +749,8 @@ function newBattle(node) {
     const depth = Math.max(1, node.depth || 1);
     enemies.forEach(e => {
       if (e.def.boss) {
-        e.dmgMul = 1.6 + (depth - 1) * 0.04;
-        const hp = Math.round(e.maxHp * 1.3);
+        e.dmgMul = 1.95 + (depth - 1) * 0.06;
+        const hp = Math.round(e.maxHp * 1.6);
         e.maxHp = hp; e.hp = hp;
       } else {
         e.dmgMul = 1.8 + (depth - 1) * 0.08;
