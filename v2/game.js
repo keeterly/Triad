@@ -18,7 +18,7 @@
 
 'use strict';
 
-const V2_BUILD = 52;
+const V2_BUILD = 53;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -1797,19 +1797,69 @@ function comboCounter(good) {
     el.classList.remove('pc-on');
   }
 }
-// TAP note — a closing ring; tap as it lands.  A 'big' size reads as a heavy
-// single blast you SLAM.
+// TAP note — an APPROACH ring shrinks onto the sweet spot.  It stays dim while
+// closing, then GLOWS GOLD and says "TAP!" the instant it enters the hit
+// window, so the moment to press is unmistakable.  Tapping too early no longer
+// WASTES the note — it nudges ("WAIT…") and keeps listening, so a single
+// mistimed press is forgiven and the timing is teachable rather than punishing.
 function parryTapNote(ax, ay, dur, idx, total, size) {
   return new Promise(resolve => {
     const label = total > 1 ? `${idx}/${total}` : (size === 'big' ? 'SLAM' : 'TAP');
     const ui = mkParryUiAt(ax, ay, `<span class="pr-target"></span><span class="pr-close"></span><span class="pr-lbl">${label}</span>`, size === 'big' ? 'pr-big' : '');
     ui.el.querySelector('.pr-close').style.animationDuration = dur + 'ms';
+    const lbl = ui.el.querySelector('.pr-lbl');
+    const GOOD = 460, PERF = 175;   // windows measured as ms remaining at the tap
     let done = false; const t0 = Date.now();
-    const finish = (q) => { if (done) return; done = true; window.removeEventListener('pointerdown', onTap, true); noteFeedback(ui, ax, ay, q); ui.close(); resolve(q); };
-    const onTap = () => { const rem = dur - (Date.now() - t0); finish(rem <= 175 ? 'perfect' : rem <= 460 ? 'good' : 'early'); };
+    // light the note up the moment it becomes tappable — "wait for the glow"
+    const liveT = setTimeout(() => { if (!done) { ui.el.classList.add('pr-live'); lbl.textContent = size === 'big' ? 'SLAM!' : 'TAP!'; } }, Math.max(0, dur - GOOD));
+    const finish = (q) => { if (done) return; done = true; clearTimeout(liveT); window.removeEventListener('pointerdown', onTap, true); noteFeedback(ui, ax, ay, q); ui.close(); resolve(q); };
+    const onTap = () => {
+      const rem = dur - (Date.now() - t0);
+      if (rem > GOOD) { parryEarlyNudge(ui, ax, ay); return; }   // too soon — forgive, keep listening
+      finish(rem <= PERF ? 'perfect' : 'good');
+    };
     window.addEventListener('pointerdown', onTap, true);
     setTimeout(() => finish('miss'), dur);
   });
+}
+// Premature press: a quick "WAIT…" nudge on the note that does NOT consume it.
+function parryEarlyNudge(ui, ax, ay) {
+  ui.el.classList.remove('pr-earlybump'); void ui.el.offsetWidth; ui.el.classList.add('pr-earlybump');
+  const tag = document.createElement('div');
+  tag.className = 'parry-rate prt-early';
+  tag.style.left = ax + 'px'; tag.style.top = (ay - 4) + 'px';
+  tag.textContent = 'WAIT…';
+  $('#popup-layer').appendChild(tag);
+  setTimeout(() => tag.remove(), 400);
+  try { haptic(HAP.tap); } catch (_) {}
+}
+// First-few-parries coach — a short caption teaching the tap timing.  Shown at
+// most 3 times ever (persisted), so new players get the "wait for the glow"
+// lesson without it nagging veterans.
+function parryCoach(msg) {
+  let n = 0;
+  try { n = parseInt(localStorage.getItem('kizuna2.parryLessons') || '0', 10) || 0; } catch (_) {}
+  if (n >= 3) return;
+  try { localStorage.setItem('kizuna2.parryLessons', String(n + 1)); } catch (_) {}
+  let el = document.getElementById('parry-coach');
+  if (!el) { el = document.createElement('div'); el.id = 'parry-coach'; $('#stage').appendChild(el); }
+  el.textContent = msg;
+  el.classList.remove('pc-hide'); void el.offsetWidth; el.classList.add('pc-show');
+  clearTimeout(el._t); el._t = setTimeout(() => { el.classList.remove('pc-show'); }, 2800);
+}
+// Non-linear rhythm for multi/seq runs: notes carry GROOVE, not an even
+// metronome.  Durations stay in the reactive-friendly band while VARYING, and
+// the GAPS between notes syncopate (a beat, then a quick pair, an off-beat
+// pause).  The first note is the accented downbeat (a touch slower/wider).
+function parryRhythm(count) {
+  const T = {
+    1: [{ d: 700, g: 0 }],
+    2: [{ d: 620, g: 150 }, { d: 440, g: 0 }],
+    3: [{ d: 620, g: 120 }, { d: 440, g: 70 }, { d: 440, g: 0 }],
+    4: [{ d: 600, g: 110 }, { d: 440, g: 230 }, { d: 440, g: 90 }, { d: 420, g: 0 }],
+    5: [{ d: 600, g: 100 }, { d: 440, g: 80 }, { d: 440, g: 220 }, { d: 460, g: 90 }, { d: 420, g: 0 }],
+  };
+  return T[count] || Array.from({ length: count }, (_, i) => ({ d: i === 0 ? 600 : 440, g: i === count - 1 ? 0 : 110 }));
 }
 // MASH note — a frenzied flurry: tap rapidly to fill the meter before it closes.
 function parryMashNote(ax, ay, count, dur) {
@@ -1901,18 +1951,19 @@ function mkSeqPreview(pts) {
 async function runParrySeq(notes, anchor, art) {
   const pts = arcPoints(notes.length, anchor);
   const preview = mkSeqPreview(pts);
+  const rh = parryRhythm(notes.length);   // groove: varied tap speeds + gaps
   let hits = 0;
   for (let i = 0; i < notes.length; i++) {
-    const nt = notes[i], p = pts[i];
+    const nt = notes[i], p = pts[i], step = rh[i] || { d: 480, g: 110 };
     const done = preview.querySelectorAll('.sq-dot')[i]; if (done) done.classList.add('sq-active');
     if (art) bossAttackBeat(art, p.x, p.y);   // one art streak per note — SYNCED
     let q;
     if (nt.t === 'hold')       q = await parryHoldNote(p.x, p.y, 760);
     else if (nt.t === 'swipe') q = await parrySwipeNote(p.x, p.y, nt.arc || 'arcR', 680);
-    else                       q = await parryTapNote(p.x, p.y, 500, i + 1, notes.length);
+    else                       q = await parryTapNote(p.x, p.y, step.d, i + 1, notes.length);
     if (done) { done.classList.remove('sq-active'); done.classList.add(q === 'perfect' || q === 'good' ? 'sq-hit' : 'sq-miss'); }
     if (q === 'perfect' || q === 'good') hits++;
-    await sleep(130);   // a beat between notes so the cascade reads, not rushes
+    if (step.g) await sleep(step.g);   // syncopated gap — a groove, not a metronome
   }
   preview.remove();
   // PARTIAL: each note you turned aside negates its share; the ones you missed
@@ -1947,12 +1998,17 @@ async function runParryInner(targetEl, pattern, art) {
     }
   }
   if (art && k !== 'seq') bossAttackBeat(art, a.x, a.y);   // single-note attacks: one beat
+  if (k === 'tap' || k === 'multi' || k === 'seq' || !k) parryCoach('Wait for the ring to glow gold — then TAP');
   if (k === 'seq')   return await runParrySeq(pattern.notes, a, art);
-  // multi is a mini-cascade — partial mitigation too (miss a tap, take its share)
+  // multi is a mini-cascade — partial mitigation too (miss a tap, take its
+  // share).  Notes vary in SPEED (a slower downbeat, then a snappier one) but
+  // stay CONTIGUOUS — a quick double-tap, no dead gap between them.
   if (k === 'multi') {
+    const rh = parryRhythm(pattern.count);
     let hits = 0;
     for (let i = 0; i < pattern.count; i++) {
-      const q = await parryTapNote(a.x, a.y, 520, i + 1, pattern.count, sz);
+      const step = rh[i] || { d: 480 };
+      const q = await parryTapNote(a.x, a.y, step.d, i + 1, pattern.count, sz);
       if (q === 'perfect' || q === 'good') hits++;
     }
     return { mit: hits / pattern.count, perfect: hits === pattern.count };
