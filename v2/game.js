@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 61;
+const V2_BUILD = 62;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -1164,15 +1164,19 @@ function attachDrag(el, card) {
     const nx = curTX + (tgtTX - curTX) * 0.26, ny = curTY + (tgtTY - curTY) * 0.26;
     vel = vel * 0.72 + (nx - curTX) * 0.28;
     curTX = nx; curTY = ny;
-    // Keep the CARD in a comfortable lower-central zone as it lifts — it leans
-    // toward the finger but never flies into a corner or off the page (the beam
-    // + reticle follow the finger for aiming, so targeting is unaffected).
+    // Keep the CARD parked in a comfortable LOWER-CENTRAL zone as it lifts — it
+    // leans a little toward the finger but never flies to a corner or off the
+    // page.  Only the beam + reticle follow the finger to aim, so targeting is
+    // unaffected however far you drag.  (A previous clamp was far too loose —
+    // 12% from the edge / 34% from the top — so flicking up-left parked the card
+    // in the corner and the beam appeared to shoot in from off-screen.)
     const W = sr.width, H = sr.height;
     const vw = (typeof window !== 'undefined' && window.innerWidth) || sr.right;
     const vh = (typeof window !== 'undefined' && window.innerHeight) || sr.bottom;
+    const cx = (sr.left + sr.right) / 2;
     let scx = originX + curTX * s, scy = originY + curTY * s;
-    scx = Math.max(sr.left + W * 0.12, Math.min(sr.right - W * 0.08, scx));
-    scy = Math.max(sr.top + H * 0.34, Math.min(sr.bottom, scy));
+    scx = Math.max(cx - W * 0.20, Math.min(cx + W * 0.20, scx));            // stay within a central band
+    scy = Math.max(sr.top + H * 0.56, Math.min(sr.bottom - H * 0.03, scy)); // and in the lower half
     curTX = (scx - originX) / s; curTY = (scy - originY) / s;
     const tilt = Math.max(-15, Math.min(15, vel * 1.5));
     el.style.transform = `translate(${curTX}px, ${curTY}px) rotate(${tilt}deg) scale(1.07)`;
