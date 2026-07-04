@@ -631,8 +631,8 @@ const QUICK = process.argv.includes('--quick');
       && parryPatternFor({ dmg: 5 }).kind === 'multi'
       && parryPatternFor({ dmg: 8 }).size === 'big'
       && parryPatternFor({ dmg: 6 }).kind === 'tap'));
-  check('RHYTHM: the parry pattern is previewed on the intent telegraph',
-    await J(() => !!document.querySelector('.intent .i-parry')));
+  check('INTENT: the telegraph pill is clean — damage + target row, no parry-glyph clutter',
+    await J(() => { const p = document.querySelector('.intent'); return !!p && !!p.querySelector('.i-dmg') && !!p.querySelector('.i-row') && !p.querySelector('.i-parry'); }));
   check('ALL-HIT: a whole-party blow is one across-sweep parry',
     await J(() => { const p = parryPatternFor({ row: 'all', dmg: 5 }); return p.kind === 'swipe' && p.arc === 'arcAcross' && p.across === true; }));
   check('PARTIAL: a multi-tap parries per note (mitigation is fractional)',

@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 70;
+const V2_BUILD = 71;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -3291,7 +3291,7 @@ function renderBattlefield() {
     slot.dataset.row = row;
     const h = S.heroes.find(x => x.row === row && !x.downed);
     const downedHere = S.heroes.find(x => x.row === row && x.downed);
-    slot.innerHTML = `<span class="slot-ring"></span><span class="slot-danger" aria-hidden="true"><span class="sd-wave"></span></span>${rowDmg[row] > 0 ? `<span class="slot-dmg">✕ ${rowDmg[row]}</span>` : ''}`;
+    slot.innerHTML = `<span class="slot-ring"></span><span class="slot-danger" aria-hidden="true"><span class="sd-brackets"><i></i><i></i><i></i><i></i></span><span class="sd-wave"></span></span>${rowDmg[row] > 0 ? `<span class="slot-dmg">✕ ${rowDmg[row]}</span>` : ''}`;
     const who = h || downedHere;
     if (who) {
       const fig = document.createElement('div');
@@ -3380,18 +3380,18 @@ function enemyFigInner(e) {
   const it = e.def.intents[e.intentIdx % e.def.intents.length];
   const intentHtml = it.kind === 'buff'
     ? `<div class="intent intent-buff"><span>◈</span><span class="i-row">${it.desc || 'gathers'}</span></div>`
-    : `<div class="intent${it.heavy ? ' intent-heavy' : ''}"><span>⚔</span><span class="i-dmg">${enemyIntentDmg(e, it)}</span>${it.chill ? '<span class="i-st kw-chill">❄</span>' : ''}${it.expose ? '<span class="i-st kw-exposed">◎</span>' : ''}<span class="i-row">→ ${it.row === 'all' ? 'ALL' : ROW_LABEL[it.row]}</span><span class="i-parry" title="parry pattern">${parryGlyph(it)}</span>${it.heavy ? '<span class="i-break">⚡ STAGGER breaks</span>' : ''}</div>`;
+    : `<div class="intent${it.heavy ? ' intent-heavy' : ''}"><span class="i-glyph">⚔</span><span class="i-dmg">${enemyIntentDmg(e, it)}</span><span class="i-arrow">→</span><span class="i-row">${it.row === 'all' ? 'ALL' : ROW_LABEL[it.row]}</span>${it.chill ? '<span class="i-st kw-chill" title="chills you">❄</span>' : ''}${it.expose ? '<span class="i-st kw-exposed" title="exposes you">◎</span>' : ''}</div>`;
   return `
     ${intentHtml}
     <div class="fig-art">${enemyArt(e)}${e._justDied ? '' : auraHTML({ guard: e.guard, rally: e.power, chill: e.lull, exposed: e.mark, weak: e.weakened, stagger: e.staggered })}</div>
     <div class="fig-chips">
-      <span class="chip weak${e.weakRevealed ? ' revealed' : ''}" title="weakness — hit this element to WEAKEN, twice to STAGGER">${e.weakRevealed ? 'WEAK ' + (SCHOOL_GLYPH[e.def.weak] || '?') : '? ? ?'}</span>
-      ${e.weakened ? `<span class="chip mark${chipPop(e,'weakened',1)}">⌖</span>` : ''}
-      ${e.staggered ? `<span class="chip stagger${chipPop(e,'staggered',1)}">⚡</span>` : ''}
-      ${e.guard ? `<span class="chip guard${chipPop(e,'guard',e.guard)}">⛨ ${e.guard}</span>` : ''}
-      ${e.power ? `<span class="chip buff${chipPop(e,'power',e.power)}">▲ ${e.power}</span>` : ''}
-      ${e.mark ? `<span class="chip mark${chipPop(e,'mark',e.mark)}">◎ ${e.mark}</span>` : ''}
-      ${e.lull ? `<span class="chip chill${chipPop(e,'lull',e.lull)}">❄ ${e.lull}</span>` : ''}
+      <span class="chip weak${e.weakRevealed ? ' revealed' : ''}" title="weakness — strike this element to WEAKEN, again to STAGGER">${e.weakRevealed ? `<span class="ru-i">${SCHOOL_GLYPH[e.def.weak] || '?'}</span>WEAK: ${(e.def.weak || '?').toUpperCase()}` : `<span class="ru-i">◇</span>? ? ?`}</span>
+      ${e.weakened ? `<span class="chip mark${chipPop(e,'weakened',1)}"><span class="ru-i">⌖</span>WEAKENED</span>` : ''}
+      ${e.staggered ? `<span class="chip stagger${chipPop(e,'staggered',1)}"><span class="ru-i">⚡</span>STAGGERED</span>` : ''}
+      ${e.guard ? `<span class="chip guard${chipPop(e,'guard',e.guard)}"><span class="ru-i">⛨</span>GUARD ${e.guard}</span>` : ''}
+      ${e.power ? `<span class="chip buff${chipPop(e,'power',e.power)}"><span class="ru-i">▲</span>RAGE ${e.power}</span>` : ''}
+      ${e.mark ? `<span class="chip mark${chipPop(e,'mark',e.mark)}"><span class="ru-i">◎</span>EXPOSED ${e.mark}</span>` : ''}
+      ${e.lull ? `<span class="chip chill${chipPop(e,'lull',e.lull)}"><span class="ru-i">❄</span>CHILL ${e.lull}</span>` : ''}
     </div>
     <div class="hp-bar"><div class="hp-fill" style="width:${(e.hp / e.maxHp) * 100}%"></div></div>
     <div class="fig-name">${e.def.name} <span class="hp-num">${e.hp}/${e.maxHp}</span></div>

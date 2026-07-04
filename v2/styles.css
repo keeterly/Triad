@@ -182,11 +182,28 @@ body {
    dry dashed box.  A red glow SWELLS behind the threatened hero, and it pulses
    BIGGER + FASTER the harder the incoming blow (a boss's OBLIVION looms). */
 .slot-danger {
-  position: absolute; left: 50%; bottom: 6px; width: 116%; height: 176px;
-  transform: translateX(-50%) scale(0.9); transform-origin: 50% 78%;
-  border-radius: 50% 50% 22px 22px; opacity: 0; pointer-events: none; z-index: 0;
-  background: radial-gradient(ellipse 60% 58% at 50% 66%, rgba(226,44,34,0.55), rgba(150,20,16,0.16) 52%, transparent 74%);
+  position: absolute; left: 50%; bottom: 6px; width: 112%; height: 178px;
+  transform: translateX(-50%) scale(0.9); transform-origin: 50% 84%;
+  opacity: 0; pointer-events: none; z-index: 0;
 }
+/* a low pool of blood-light at the target's feet (ambience, not the whole blob) */
+.slot-danger::before {
+  content: ''; position: absolute; left: 50%; bottom: 2px; width: 74%; height: 46px;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse 62% 100% at 50% 100%, rgba(226,44,34,0.5), rgba(150,20,16,0.14) 56%, transparent 76%);
+}
+/* LOCK-ON — four red corner brackets clamp around the threatened hero, so the
+   blow reads as AIMED at them, not a vague glow */
+.sd-brackets { position: absolute; left: 50%; top: 48%; width: 78%; height: 78%; transform: translate(-50%,-50%); }
+.sd-brackets i {
+  position: absolute; width: 15px; height: 15px;
+  border: 2.5px solid rgba(244,74,58,0.95);
+  filter: drop-shadow(0 0 5px rgba(226,44,34,0.85));
+}
+.sd-brackets i:nth-child(1) { top: 0; left: 0; border-right: 0; border-bottom: 0; }
+.sd-brackets i:nth-child(2) { top: 0; right: 0; border-left: 0; border-bottom: 0; }
+.sd-brackets i:nth-child(3) { bottom: 0; left: 0; border-right: 0; border-top: 0; }
+.sd-brackets i:nth-child(4) { bottom: 0; right: 0; border-left: 0; border-top: 0; }
 .slot-danger .sd-wave {
   position: absolute; left: 50%; bottom: 26%; width: 70%; height: 70%;
   transform: translate(-50%, 50%) scale(0.4); border-radius: 50%;
@@ -267,15 +284,24 @@ body {
 .chip.buff    { color: #ffdf98; text-shadow: 0 0 8px rgba(240,200,120,0.95), 0 1px 3px #000; }
 .chip.mark    { color: #ff988c; text-shadow: 0 0 9px rgba(224,58,48,0.95), 0 1px 3px #000; }
 .chip.counter { color: #d2baff; text-shadow: 0 0 8px rgba(160,124,220,0.95), 0 1px 3px #000; }
+/* the status glyph reads a touch larger than its label */
+.chip .ru-i { font-size: 11px; line-height: 1; }
+/* enemy runes carry a short LABEL now (WEAK: BLADE · ⛨ GUARD 4 · ❄ CHILL 2) so
+   the threat reads at a glance — small, spaced, colour-coded, still borderless */
+.figure.enemy .fig-chips { gap: 4px 9px; max-width: 158px; }
+.figure.enemy .chip { font-size: 8.5px; letter-spacing: 0.06em; gap: 2.5px; }
+.figure.floor-boss .fig-chips { max-width: 280px; }
 
 /* intent bubble */
 .intent {
   display: flex; align-items: center; gap: 4px;
-  font-size: 9px; padding: 1px 7px; border-radius: 999px;
+  font-size: 9.5px; padding: 1px 8px; border-radius: 999px;
   border: 1px solid rgba(212,69,69,0.4); background: rgba(24,10,10,0.9);
   color: var(--ink); margin-bottom: 2px;
 }
+.intent .i-glyph { color: var(--blood-bright); }
 .intent .i-dmg { color: var(--blood-bright); font-weight: bold; }
+.intent .i-arrow { color: var(--ink-faint); margin: 0 1px; }
 .intent .i-row { color: var(--ink-dim); letter-spacing: 0.08em; }
 .intent.intent-buff { border-color: rgba(154,120,192,0.45); }
 .intent.intent-heavy { border-color: var(--blood-bright); box-shadow: 0 0 8px rgba(212,69,69,0.35); }
