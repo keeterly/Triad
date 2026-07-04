@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 62;
+const V2_BUILD = 63;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -1120,23 +1120,29 @@ function attachDrag(el, card) {
   let pid = null, dragging = false, startX = 0, startY = 0;
   let ptrX = 0, ptrY = 0, originX = 0, originY = 0;
   let curTX = 0, curTY = 0, curEX = 0, curEY = 0, vel = 0, angle = 0, raf = 0;
-  let snapped = null, _aimTech = false;
+  let snapped = null, _aimTech = false, holdT = null, inspecting = false;
   const sc = () => _sscale();
 
   el.addEventListener('pointerdown', (e) => {
-    if (S.executing || S.over || card.spent) return;
-    // Can't afford it — shake the card and say why, rather than silently
-    // swallowing the touch (the card also renders greyed via .disabled).
-    if (card.cost > S.ep) { denyCard(el, card); e.preventDefault(); return; }
-    pid = e.pointerId; startX = e.clientX; startY = e.clientY; ptrX = e.clientX; ptrY = e.clientY; dragging = false;
+    if (S.executing || S.over) return;
+    pid = e.pointerId; startX = e.clientX; startY = e.clientY; ptrX = e.clientX; ptrY = e.clientY; dragging = false; inspecting = false;
     try { el.setPointerCapture(pid); } catch (_) {}
+    // PRESS & HOLD to INSPECT — a big MtG-style enlarge of the card (works on
+    // any card, even one you can't afford or have spent).  A drag or a quick
+    // release cancels it.
+    clearTimeout(holdT);
+    holdT = setTimeout(() => { if (pid !== null && !dragging) { inspecting = true; showCardInspect(card, el); } }, 340);
     e.preventDefault();
   });
   el.addEventListener('pointermove', (e) => {
     if (pid === null) return;
     ptrX = e.clientX; ptrY = e.clientY;
-    if (!dragging) {
+    if (!dragging && !inspecting) {
       if (Math.abs(e.clientX - startX) + Math.abs(e.clientY - startY) < 12) return;
+      clearTimeout(holdT);
+      // Can't play it? Deny on the drag attempt (spent, or unaffordable), rather
+      // than lifting a card that can't land.
+      if (card.spent || card.cost > S.ep) { if (card.cost > S.ep) denyCard(el, card); pid = null; try { el.releasePointerCapture(e.pointerId); } catch (_) {} return; }
       dragging = true;
       el.classList.add('card-dragging');
       el.style.transition = 'none';
@@ -1175,8 +1181,8 @@ function attachDrag(el, card) {
     const vh = (typeof window !== 'undefined' && window.innerHeight) || sr.bottom;
     const cx = (sr.left + sr.right) / 2;
     let scx = originX + curTX * s, scy = originY + curTY * s;
-    scx = Math.max(cx - W * 0.20, Math.min(cx + W * 0.20, scx));            // stay within a central band
-    scy = Math.max(sr.top + H * 0.56, Math.min(sr.bottom - H * 0.03, scy)); // and in the lower half
+    scx = Math.max(cx - W * 0.22, Math.min(cx + W * 0.22, scx));            // stay within a central band
+    scy = Math.max(sr.top + H * 0.40, Math.min(sr.bottom - H * 0.03, scy)); // lifts well up, still on-screen
     curTX = (scx - originX) / s; curTY = (scy - originY) / s;
     const tilt = Math.max(-15, Math.min(15, vel * 1.5));
     el.style.transform = `translate(${curTX}px, ${curTY}px) rotate(${tilt}deg) scale(1.07)`;
@@ -1238,8 +1244,10 @@ function attachDrag(el, card) {
   }
   const finish = (e) => {
     if (pid === null) return;
+    clearTimeout(holdT);
     try { el.releasePointerCapture(pid); } catch (_) {}
     pid = null; cancelAnimationFrame(raf);
+    if (inspecting) { inspecting = false; hideCardInspect(); return; }   // release from inspect — don't play
     if (!dragging) { onCardTap(card); return; }
     dragging = false;
     el.classList.remove('card-dragging');
@@ -1259,6 +1267,25 @@ function attachDrag(el, card) {
   el.addEventListener('pointerup', finish);
   el.addEventListener('pointercancel', finish);
 }
+// PRESS & HOLD INSPECT — a big, readable enlarge of the card (Magic-style), a
+// clone of the real card so it's pixel-faithful, over a dimmed/blurred field.
+function showCardInspect(card, el) {
+  hideCardInspect();
+  const wrap = document.createElement('div');
+  wrap.id = 'card-inspect';
+  const clone = el.cloneNode(true);
+  clone.className = 'card kind-' + card.kind + ' ci-card';
+  clone.removeAttribute('style');
+  clone.style.setProperty('--tint', card.tint || 'var(--gold)');
+  const ch = clone.querySelector('.card-channel'); if (ch) ch.remove();
+  const scrim = document.createElement('div'); scrim.className = 'ci-scrim';
+  const hint = document.createElement('div'); hint.className = 'ci-hint'; hint.textContent = 'release to close';
+  wrap.appendChild(scrim); wrap.appendChild(clone); wrap.appendChild(hint);
+  $('#stage').appendChild(wrap);
+  requestAnimationFrame(() => wrap.classList.add('ci-on'));
+  try { haptic(HAP.press); } catch (_) {}
+}
+function hideCardInspect() { const el = document.getElementById('card-inspect'); if (el) el.remove(); }
 // Denial feedback for an unaffordable card — a short shake + a reason.
 function denyCard(el, card) {
   el.classList.remove('card-deny'); void el.offsetWidth; el.classList.add('card-deny');
@@ -1456,9 +1483,9 @@ async function resolveCard(card, targetId) {
     const oldCore = owner.def.cards[from].core;
     if (oldCore.fx && oldCore.fx.dmg) {
       genTempCard({ kind: 'temp', owner: owner.id, ownerName: owner.def.name, tint: owner.def.tint,
-        stance: 'FADING', name: 'Echo: ' + oldCore.name, cost: 1, target: oldCore.target,
+        stance: 'AFTERIMAGE', name: 'Echo: ' + oldCore.name, cost: 0, target: oldCore.target,
         school: owner.def.school, fx: { dmg: Math.max(2, oldCore.fx.dmg - 2) }, expiresTurn: S.turn,
-        desc: `${Math.max(2, oldCore.fx.dmg - 2)} damage. The old stance lingers — this turn only.` });
+        desc: `<b>Free.</b> The stance you left behind strikes once more for ${Math.max(2, oldCore.fx.dmg - 2)} — then fades with the turn.` });
     }
     S._morphHeroId = owner.id;
     if (occupant) S._morphHeroId2 = occupant.id;
@@ -1645,9 +1672,9 @@ function dealToEnemy(e, amt, school, byHeroId) {
       if (byHeroId && HEROES[byHeroId]) {
         const fh = S.heroes.find(x => x.id === byHeroId);
         if (fh && !fh.downed) genTempCard({ kind: 'temp', owner: byHeroId, ownerName: fh.def.name, tint: fh.def.tint,
-          stance: 'FORGED', name: 'Coup de Grâce', cost: 1, target: 'enemy',
-          school: fh.def.school, fx: { dmg: 8 },
-          desc: '8 damage. Forged from the stagger — spend it while they reel.' });
+          stance: 'FORGED · FINISHER', name: 'Coup de Grâce', cost: 0, target: 'enemy',
+          school: fh.def.school, fx: { dmg: 10 },
+          desc: '<b>Free.</b> The break leaves them wide open — <b>10 damage</b>, and a STAGGERED foe takes it doubled. End them while they reel.' });
       }
       if (!S._pressUsed) {
         S._pressUsed = true;
@@ -2677,9 +2704,9 @@ async function enemyPhase() {
           S._notTodayGiven = true;
           const pr = protector.x;
           genTempCard({ kind: 'temp', owner: pr.id, ownerName: pr.def.name, tint: pr.def.tint,
-            stance: 'REACTIVE', name: 'Not Today', cost: 1, target: 'none',
+            stance: 'REACTIVE · RESCUE', name: 'Not Today', cost: 0, target: 'none',
             fx: { notToday: [pr.id, h.id] }, expiresTurn: S.turn + 1,
-            desc: `${pr.def.name} steps in: swap rows with ${h.def.name}, heal them 4, gain <span class="kw kw-guard">⛨ 4</span> <span class="kw kw-counter">↺ 2</span> — but overextends: <span class="kw kw-chill">❄ CHILL −2</span> on ${pr.def.name}’s next strike. Next turn only.` });
+            desc: `<b>Free.</b> ${pr.def.name} throws themselves in the way — swap rows with ${h.def.name}, heal them 4, gain <span class="kw kw-guard">⛨ 4</span> <span class="kw kw-counter">↺ 2</span>. The cost is theirs: <span class="kw kw-chill">❄ CHILL −2</span> on ${pr.def.name}’s next strike.` });
           flashNarrator(pr.def.name + ' sees ' + h.def.name + ' falter — a card takes shape.');
         }
       }
@@ -3461,8 +3488,8 @@ function renderActionBar() {
     if (fx.resonant) return `<span class="rch rch-t">◈ ALL</span>`;
     if (fx.notToday || fx.bondPair) return `<span class="rch rch-t">◇ BOND</span>`;
     switch (card.target) {
-      case 'frontmost': return `${reachPips([1, 0, 0])}<span class="rch-lbl">nearest</span>`;
-      case 'enemy':     return `${reachPips([1, 1, 1])}<span class="rch-lbl">any foe</span>`;
+      case 'frontmost': return `${reachPips([1, 0, 0])}`;
+      case 'enemy':     return `${reachPips([1, 1, 1])}`;
       case 'ally':      return `<span class="rch rch-a">♥ ALLY</span>`;
       case 'allies':    return `<span class="rch rch-a">♥ PARTY</span>`;
       case 'self':      return `<span class="rch rch-a">SELF</span>`;
@@ -3487,7 +3514,7 @@ function renderActionBar() {
     el.innerHTML = `
       ${channelable ? `<button class="card-channel" title="Channel for +1 EP">↻</button>` : ''}
       <div class="c-top">
-        <span class="c-cost tempo-${card.tempo || 'steady'}">${card.cost}</span>
+        <span class="c-cost tempo-${card.tempo || 'steady'}${card.cost === 0 ? ' c-free' : ''}">${card.cost === 0 ? 'FREE' : card.cost}</span>
         <span class="c-name">${card.name}</span>
         ${card.school ? `<span class="c-school">${SCHOOL_GLYPH[card.school]}</span>` : ''}
         ${isTemp ? `<span class="c-temp-mark">✧</span>` : ''}

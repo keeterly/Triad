@@ -456,6 +456,20 @@ body {
 }
 .card { touch-action: none; }   /* pointer events own the gesture */
 
+/* PRESS & HOLD INSPECT — a big Magic-style enlarge of the held card */
+#card-inspect { position: absolute; inset: 0; z-index: 210; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+#card-inspect .ci-scrim { position: absolute; inset: 0; background: rgba(6,4,3,0.6); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); opacity: 0; transition: opacity 0.16s ease; }
+#card-inspect.ci-on .ci-scrim { opacity: 1; }
+#card-inspect .ci-card {
+  position: relative; z-index: 1; margin: 0; cursor: default;
+  transform: rotate(0deg) scale(1.0); opacity: 0; transform-origin: center;
+  transition: transform 0.22s cubic-bezier(.2,1.35,.4,1), opacity 0.16s ease;
+  box-shadow: 0 30px 70px rgba(0,0,0,0.9), 0 0 46px rgba(0,0,0,0.6), 0 0 30px color-mix(in srgb, var(--tint) 30%, transparent);
+}
+#card-inspect.ci-on .ci-card { transform: rotate(0deg) scale(2.35); opacity: 1; }
+#card-inspect .ci-card:hover { transform: rotate(0deg) scale(2.35); }
+#card-inspect .ci-hint { position: absolute; bottom: 7%; left: 50%; transform: translateX(-50%); z-index: 2; font-size: 9px; letter-spacing: 0.24em; color: var(--ink-faint); text-transform: uppercase; }
+
 /* ---- map screen ---- */
 .map-strip {
   position: relative;
@@ -856,14 +870,20 @@ button.map-node:not(:disabled) { cursor: pointer; }
 .rch-a { color: var(--heal); border-color: rgba(152,216,120,0.4); }
 .rch-t { color: var(--gold-bright); border-color: rgba(240,212,136,0.5); }
 
-/* GENERATED / RESONANT cards visibly shimmer — a temporary, otherworldly card */
+/* GENERATED / RESONANT cards visibly shimmer — a temporary, otherworldly card.
+   These are gifts the fight forged: they glow gold, breathe, and their ✧ mark
+   twinkles, so a temp card reads as SPECIAL the instant it burns into hand. */
 .card.kind-temp, .card.kind-resonant {
-  border-style: solid;
-  border-color: rgba(240,212,136,0.7);
+  border-style: solid; border-width: 1.5px;
+  border-color: rgba(240,212,136,0.85);
+  border-top-width: 3px;
   background:
-    linear-gradient(180deg, rgba(58,48,26,0.92) 0%, rgba(20,15,10,0.95) 100%);
-  animation: temp-shimmer 2s ease-in-out infinite;
+    radial-gradient(ellipse 130% 80% at 50% 0%, rgba(96,74,34,0.7) 0%, rgba(20,15,10,0.96) 68%);
+  box-shadow: 0 0 16px rgba(240,212,136,0.3), inset 0 0 14px rgba(240,212,136,0.08);
+  animation: temp-shimmer 1.8s ease-in-out infinite;
 }
+.card.kind-temp .c-temp-mark { animation: temp-twinkle 1.4s ease-in-out infinite; text-shadow: 0 0 6px rgba(240,212,136,0.8); }
+@keyframes temp-twinkle { 0%,100% { opacity: 0.7; transform: scale(1); } 50% { opacity: 1; transform: scale(1.25); } }
 .card.kind-temp::before, .card.kind-resonant::before {
   content: ''; position: absolute; inset: 0; border-radius: 9px; pointer-events: none;
   background: linear-gradient(115deg, transparent 35%, rgba(240,212,136,0.14) 50%, transparent 65%);
@@ -881,6 +901,14 @@ button.map-node:not(:disabled) { cursor: pointer; }
    =========================================================================== */
 .c-cost.tempo-swift { background: #8ecbe8; }        /* fast: cheap plays */
 .c-cost.tempo-heavy { background: var(--blood-bright); color: #fff; }  /* slow: big plays */
+/* FREE — a costs-nothing gift (temp reward cards).  A little green pill that
+   reads instantly as "spend me, it's free" — feels great to cash. */
+.c-cost.c-free {
+  min-width: auto; width: auto; height: 13px; padding: 0 5px; border-radius: 7px;
+  font-size: 6.4px; letter-spacing: 0.12em; font-weight: 800; color: #0f2410;
+  background: linear-gradient(180deg, #bdec90, #6cae56);
+  box-shadow: 0 0 9px rgba(150,225,120,0.55);
+}
 .card-channel {
   position: absolute; top: -7px; right: -7px; z-index: 5;
   width: 19px; height: 19px; border-radius: 50%; cursor: pointer;

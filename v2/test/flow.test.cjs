@@ -462,7 +462,7 @@ const QUICK = process.argv.includes('--quick');
   await shot('staggered');
   const hpMid = await J(() => S.enemies[0].hp);
   await tapCard('Coup de Grâce'); await sleep(250); await pickTarget(); await sleep(650);
-  check('the finisher cashed the ×2 (8 -> 16)', await J(() => S.enemies[0].hp) === hpMid - 16, 'hp ' + hpMid + '->' + await J(() => S.enemies[0].hp));
+  check('the FREE finisher cashed the ×2 (10 -> 20)', await J(() => S.enemies[0].hp) === hpMid - 20, 'hp ' + hpMid + '->' + await J(() => S.enemies[0].hp));
   check('stagger consumed by the payoff', await J(() => !S.enemies[0].staggered));
   check('the forged card burned away on use', await J(() => !document.querySelector('#hand .card[data-card-name="Coup de Grâce"]')));
   // INTERRUPT — the Bloodborne moment
