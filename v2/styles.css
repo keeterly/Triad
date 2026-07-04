@@ -155,7 +155,10 @@ body {
 }
 #party-half, #enemy-half {
   display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;
-  align-items: end; min-height: 0; min-width: 0; padding-bottom: 4px;
+  align-items: end; min-height: 0; min-width: 0;
+  /* the hand fans up ~24px into the bottom of the battlefield — reserve that
+     band so a figure's name + HP never sit behind a card */
+  padding-bottom: 26px;
 }
 /* Depth stagger (per the combat-overview mock): BACK sits higher and smaller,
    FRONT lower and larger, so the three lanes read as depth, not columns. */
@@ -1182,18 +1185,30 @@ button.map-node:not(:disabled) { cursor: pointer; }
 }
 @keyframes aura-flicker { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.95; } }
 
-/* GUARD ⛨ — a shimmering shield bubble in front of the figure */
+/* GUARD ⛨ — no hard UI ring.  A diegetic WARD: a soft luminous sheen clinging
+   to the body, with a couple of pale light-shards slowly orbiting it — reads as
+   protective magic, not a bubble outline. */
 .aura-shield {
   position: absolute; left: 50%; top: 54px; transform: translate(-50%,-50%);
-  width: 88px; height: 108px; border-radius: 50%;
-  border: 2px solid rgba(168,200,232,0.5);
-  box-shadow: 0 0 16px rgba(168,200,232,0.4), inset 0 0 22px rgba(168,200,232,0.3);
-  background: linear-gradient(120deg, transparent 40%, rgba(168,200,232,0.16) 50%, transparent 60%);
-  background-size: 220% 220%;
-  animation: aura-shield-shimmer 2.4s linear infinite, aura-shield-pulse 2s ease-in-out infinite;
+  width: 92px; height: 116px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(ellipse 56% 60% at 50% 50%, rgba(168,200,232,0.22), rgba(150,186,224,0.07) 50%, transparent 72%);
+  animation: aura-shield-pulse 2.4s ease-in-out infinite;
 }
-@keyframes aura-shield-shimmer { 0% { background-position: 160% 0; } 100% { background-position: -60% 0; } }
-@keyframes aura-shield-pulse { 0%, 100% { opacity: 0.62; } 50% { opacity: 1; } }
+/* two orbiting ward-motes (kept upright while circling the torso) */
+.aura-shield::before, .aura-shield::after {
+  content: ''; position: absolute; left: 50%; top: 50%; margin: -2px;
+  width: 4px; height: 4px; border-radius: 50%;
+  background: rgba(210,228,250,0.95);
+  box-shadow: 0 0 6px 1px rgba(168,200,232,0.9);
+}
+.aura-shield::before { animation: ward-orbit 3.8s linear infinite; }
+.aura-shield::after  { animation: ward-orbit 3.8s linear infinite; animation-delay: -1.9s; }
+@keyframes ward-orbit {
+  0%   { transform: rotate(0deg)   translateX(38px) rotate(0deg)   scale(1);   opacity: 0.9; }
+  50%  { transform: rotate(180deg) translateX(38px) rotate(-180deg) scale(0.55); opacity: 0.45; }
+  100% { transform: rotate(360deg) translateX(38px) rotate(-360deg) scale(1);   opacity: 0.9; }
+}
+@keyframes aura-shield-pulse { 0%, 100% { opacity: 0.6; transform: translate(-50%,-50%) scale(0.94); } 50% { opacity: 1; transform: translate(-50%,-50%) scale(1.06); } }
 
 /* ===========================================================================
    BUILD 25 — attack-type impact VFX + directional hit/lunge feedback
@@ -1371,14 +1386,15 @@ button.map-node:not(:disabled) { cursor: pointer; }
   font-size: 12px; color: #ffe14a; text-shadow: 0 0 6px rgba(255,225,74,0.9);
   animation: primed-blink 0.9s ease-in-out infinite;
 }
+/* PRIMED — no hard outline.  A restless electric charge clings to the foe: a
+   soft yellow glow breathing over the body with a flickering static shimmer. */
 .figure.fig-primed .fig-art::after {
-  content: ''; position: absolute; inset: 4px 8px; border-radius: 46% 46% 42% 42%;
-  border: 1.5px solid rgba(255,225,74,0.55); pointer-events: none;
-  box-shadow: 0 0 12px rgba(255,225,74,0.35), inset 0 0 12px rgba(255,225,74,0.2);
-  animation: primed-ring 1.1s ease-in-out infinite;
+  content: ''; position: absolute; inset: -2px 4px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(ellipse 52% 58% at 50% 48%, rgba(255,225,74,0.26), rgba(255,205,60,0.08) 48%, transparent 70%);
+  animation: primed-charge 1.1s ease-in-out infinite;
 }
 @keyframes primed-blink { 50% { opacity: 0.35; transform: scale(0.86); } }
-@keyframes primed-ring { 0%,100% { opacity: 0.5; } 50% { opacity: 1; } }
+@keyframes primed-charge { 0%,100% { opacity: 0.45; } 50% { opacity: 0.95; filter: brightness(1.3); } }
 
 /* TECHNICAL detonation burst — electric ring + radiating bolts */
 .impact-tech .tb-ring {
@@ -1601,23 +1617,28 @@ button.map-node:not(:disabled) { cursor: pointer; }
 /* ===========================================================================
    BUILD 33 — FLOOR BOSS: one colossal foe filling the enemy half
    =========================================================================== */
-#enemy-half.has-floor-boss { position: relative; display: flex; align-items: center; justify-content: center; padding: 0; overflow: visible; }
+#enemy-half.has-floor-boss { position: relative; display: flex; align-items: flex-end; justify-content: center; padding: 0 0 30px; overflow: visible; }
 /* a pulsing red aura swells behind the colossus — dread before the blow */
 #enemy-half.has-floor-boss::before {
-  content: ''; position: absolute; inset: -8% -6% -4% -14%; z-index: 0; pointer-events: none;
-  background: radial-gradient(ellipse 62% 72% at 52% 56%, rgba(168,34,28,0.34), rgba(70,12,12,0.16) 46%, transparent 72%);
+  content: ''; position: absolute; inset: -16% -8% -4% -16%; z-index: 0; pointer-events: none;
+  background: radial-gradient(ellipse 66% 76% at 52% 50%, rgba(168,34,28,0.38), rgba(70,12,12,0.18) 46%, transparent 72%);
   animation: boss-aura 3.4s ease-in-out infinite;
 }
 @keyframes boss-aura { 0%,100% { opacity: 0.65; transform: scale(1); } 50% { opacity: 1; transform: scale(1.06); } }
 .figure.floor-boss {
   position: relative; z-index: 1;
   width: 100%; max-width: 100%; height: 100%;
-  flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+  flex-direction: column; align-items: center; justify-content: flex-end; gap: 2px;
 }
-/* BIGGER — the boss looms over the party line */
-.figure.floor-boss .fig-art { height: 86%; max-height: 340px; margin-left: -6%; overflow: visible; }
+/* BIGGER — the boss looms over the party line.  The intent floats above its
+   head (absolute) so the stack below can anchor to the bottom safe band. */
+/* The art is scaled up from its BASE (transform-origin bottom-centre) so the
+   colossus towers UPWARD and outward while its HP/name stay pinned to the
+   bottom safe band — looming larger without ever covering its own vitals. */
+.figure.floor-boss .fig-art { height: 78%; max-height: 330px; margin-left: -7%; overflow: visible; transform: scale(1.34); transform-origin: 50% 100%; }
+.figure.floor-boss .intent { position: absolute; top: -6px; left: 50%; }
 .figure.floor-boss .fig-art svg { height: 100%; width: auto; filter: drop-shadow(0 16px 36px rgba(0,0,0,0.9)) drop-shadow(0 0 48px rgba(190,44,40,0.5)) drop-shadow(0 0 12px rgba(255,120,90,0.35)); }
-.figure.floor-boss .intent { transform: scale(1.3); margin-bottom: 8px; }
+.figure.floor-boss .intent { transform: translateX(-50%) scale(1.3); transform-origin: top center; z-index: 4; }
 .figure.floor-boss .fig-name { font-size: 12px; letter-spacing: 0.22em; }
 .figure.floor-boss .hp-bar { width: 78%; height: 11px; }
 .figure.floor-boss .fig-chips { transform: scale(1.12); }
