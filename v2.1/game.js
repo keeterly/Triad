@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 5;
+const V2_BUILD = 6;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -4013,62 +4013,107 @@ function showTitle() {
   };
 }
 
-// THE EMBER TREE — spend banked embers to open a hero's kit.  Nodes read from
-// EMBER_TREE; buying one deducts embers and unlocks it permanently.
-const TREE_TYPE_LABEL = { card: 'CARD', rider: 'UPGRADE', passive: 'PASSIVE', allout: 'ALL-OUT' };
+// THE EMBER TREE — a branching constellation.  Each hero's nodes hang from a
+// root along lit paths; a node's PREREQUISITE feeds it down a thread.  Pick a
+// node to read it in the detail bar, then kindle it.
+const TREE_TYPE_LABEL = { card: 'SIGNATURE', rider: 'UPGRADE', passive: 'PASSIVE', allout: 'ALL-OUT' };
+const TREE_TYPE_GLYPH = { card: '❖', rider: '⊕', passive: '❉', allout: '✷' };
 const TREE_HEROES = EMBER_TREE.reduce((a, n) => (a.includes(n.hero) ? a : a.concat(n.hero)), []);
-function showEmberTree(onBack, heroId) {
+// node state for the current META: owned / ready(buyable) / poor(can't afford)
+// / needs(prereq) / sealed(tier).
+function nodeState(n) {
+  if (hasNode(n.id)) return 'owned';
+  if (!tierOpen(n.tier)) return 'sealed';
+  if (!(n.requires || []).every(r => hasNode(r))) return 'needs';
+  return META.embers >= n.cost ? 'ready' : 'poor';
+}
+function showEmberTree(onBack, heroId, selId) {
   $('#stage').classList.remove('show-bg');
   heroId = heroId && HEROES[heroId] ? heroId : 'ash';
+  const nodes = EMBER_TREE.filter(n => n.hero === heroId);
+  // ---- LAYOUT: three stance columns, one row per tier, dependents under the
+  // column of the prerequisite that feeds them ----------------------------------
+  const COLX = [116, 340, 564], W = 680;
+  const rowY = t => 66 + (t - 1) * 62;
+  const stanceCol = { front: 0, mid: 1, back: 2 };
+  const colOf = {}, taken = {};
+  nodes.filter(n => n.tier === 1 && n.gate).forEach(n => { const c = stanceCol[n.gate.stance] ?? 1; colOf[n.id] = c; taken[n.tier + ':' + c] = 1; });
+  nodes.slice().sort((a, b) => a.tier - b.tier).forEach(n => {
+    if (colOf[n.id] != null) return;
+    let col = (n.requires || []).map(r => colOf[r]).find(c => c != null);
+    if (col == null || taken[n.tier + ':' + col]) { for (let c = 0; c < 3; c++) if (!taken[n.tier + ':' + c]) { col = c; break; } }
+    if (col == null) col = 1;
+    colOf[n.id] = col; taken[n.tier + ':' + col] = 1;
+  });
+  const pos = {}; nodes.forEach(n => { pos[n.id] = { x: COLX[colOf[n.id]], y: rowY(n.tier) }; });
+  const root = { x: 340, y: 20 };
+  const maxTier = Math.max.apply(null, nodes.map(n => n.tier));
+  const H = rowY(maxTier) + 44;
+  // ---- LINKS: prereq → node (or root → tier-1 / no-req node) -------------------
+  const links = [];
+  nodes.forEach(n => {
+    const reqs = (n.requires || []).filter(r => pos[r]);
+    if (reqs.length) reqs.forEach(r => links.push({ a: pos[r], b: pos[n.id], on: hasNode(r), full: hasNode(r) && hasNode(n.id) }));
+    else links.push({ a: root, b: pos[n.id], on: tierOpen(n.tier), full: hasNode(n.id) });
+  });
+  const linkSvg = links.map(l => {
+    const my = (l.a.y + l.b.y) / 2;
+    const cls = l.full ? 'et-link-full' : l.on ? 'et-link-on' : 'et-link-off';
+    return `<path class="et-link ${cls}" vector-effect="non-scaling-stroke" d="M ${l.a.x} ${l.a.y} C ${l.a.x} ${my}, ${l.b.x} ${my}, ${l.b.x} ${l.b.y}" />`;
+  }).join('');
+  // ---- ORBS -------------------------------------------------------------------
+  const orbs = nodes.map(n => {
+    const st = nodeState(n);
+    const p = pos[n.id];
+    return `<button class="et-orb et-${st} t-${n.type}${n.id === selId ? ' et-sel' : ''}" data-id="${n.id}"
+       style="left:${(p.x / W) * 100}%; top:${(p.y / H) * 100}%">
+       <span class="et-orb-glyph">${st === 'owned' ? '✓' : st === 'sealed' ? '🔒' : TREE_TYPE_GLYPH[n.type]}</span>
+       <span class="et-orb-name">${n.label}</span>
+       ${st !== 'owned' && st !== 'sealed' ? `<span class="et-orb-cost${st === 'poor' ? ' et-cant' : ''}">✦${n.cost}</span>` : ''}
+     </button>`;
+  }).join('');
+  const rootOrb = `<div class="et-orb et-root" style="left:${(root.x / W) * 100}%; top:${(root.y / H) * 100}%"><span class="et-orb-glyph">◆</span></div>`;
+  // ---- DETAIL BAR (selected node) ---------------------------------------------
+  const sel = selId ? NODE_BY_ID[selId] : (nodes.find(n => nodeState(n) === 'ready') || nodes[0]);
+  let detail = '<div class="et-detail-empty">Pick a node to inspect it.</div>';
+  if (sel) {
+    const st = nodeState(sel);
+    const reqNames = (sel.requires || []).filter(r => !hasNode(r)).map(r => NODE_BY_ID[r].label);
+    const action = st === 'owned' ? '<span class="et-d-owned">✓ KINDLED</span>'
+      : st === 'sealed' ? `<span class="et-d-lock">fell ${sel.tier - 1} boss${sel.tier - 1 > 1 ? 'es' : ''} to unseal tier ${sel.tier}</span>`
+      : st === 'needs' ? `<span class="et-d-lock">needs ${reqNames.join(' · ')}</span>`
+      : `<button class="et-d-buy${st === 'poor' ? ' et-d-cant' : ''}" id="et-buy" ${st === 'poor' ? 'disabled' : ''}>KINDLE · ✦ ${sel.cost}</button>`;
+    detail = `<div class="et-d-head"><span class="et-d-type t-${sel.type}">${TREE_TYPE_LABEL[sel.type]}</span><span class="et-d-name">${sel.label}</span></div>
+      <div class="et-d-desc">${sel.desc}</div>
+      <div class="et-d-foot">${action}</div>`;
+  }
   const tabs = TREE_HEROES.map(hid => {
     const done = EMBER_TREE.filter(n => n.hero === hid).every(n => hasNode(n.id));
     return `<button class="et-tab${hid === heroId ? ' et-tab-on' : ''}${done ? ' et-tab-done' : ''}" data-hero="${hid}">${HEROES[hid].name}</button>`;
   }).join('');
-  const byTier = {};
-  EMBER_TREE.filter(n => n.hero === heroId).forEach(n => { (byTier[n.tier] = byTier[n.tier] || []).push(n); });
-  const tiers = Object.keys(byTier).sort((a, b) => a - b).map(tier => {
-    const tOpen = tierOpen(+tier);
-    const nodes = byTier[tier].map(n => {
-      const owned = hasNode(n.id);
-      const reqMet = (n.requires || []).every(r => hasNode(r));
-      const afford = META.embers >= n.cost;
-      const state = owned ? 'owned' : !tOpen ? 'tierlocked' : !reqMet ? 'locked' : afford ? 'ready' : 'poor';
-      const req = (n.requires || []).filter(r => !hasNode(r)).map(r => NODE_BY_ID[r].label);
-      const foot = owned
-        ? '<span class="et-owned">✓ UNLOCKED</span>'
-        : !tOpen ? `<span class="et-req">fell ${(+tier) - 1} boss${(+tier) - 1 > 1 ? 'es' : ''} to open</span>`
-        : req.length ? `<span class="et-req">needs ${req.join(' · ')}</span>`
-        : `<span class="et-cost${afford ? '' : ' et-cant'}">✦ ${n.cost}</span>`;
-      const buyable = !owned && tOpen && reqMet && afford;
-      return `<button class="et-node et-${state}" data-id="${n.id}" ${buyable ? '' : 'disabled'}>
-        <span class="et-type t-${n.type}">${TREE_TYPE_LABEL[n.type]}</span>
-        <span class="et-name">${n.label}</span>
-        <span class="et-desc">${n.desc}</span>
-        <span class="et-foot">${foot}</span>
-      </button>`;
-    }).join('');
-    return `<div class="et-tier${tOpen ? '' : ' et-tier-locked'}"><div class="et-tier-lbl">TIER ${tier}${tOpen ? '' : ' · 🔒'}</div><div class="et-tier-row">${nodes}</div></div>`;
-  }).join('');
   showOverlay(`
-    <div class="ov-eyebrow">THE EMBER TREE</div>
-    <div class="et-wallet">✦ <b>${META.embers}</b> <span>embers</span><span class="et-milestone">· ${META.bossclears || 0} boss${(META.bossclears || 0) === 1 ? '' : 'es'} felled</span></div>
+    <div class="et-head"><span class="et-h-title">THE EMBER TREE</span><span class="et-h-wallet">✦ <b>${META.embers}</b></span><span class="et-h-boss">${META.bossclears || 0} boss${(META.bossclears || 0) === 1 ? '' : 'es'} felled</span></div>
     <div class="et-tabs">${tabs}</div>
-    <div class="et-scroll">${tiers}</div>
-    <button class="ov-btn" id="et-back">◂ BACK</button>
+    <div class="et-canvas" style="--et-h:${H}px">
+      <svg class="et-links" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${linkSvg}</svg>
+      ${rootOrb}${orbs}
+    </div>
+    <div class="et-detail">${detail}</div>
+    <button class="ov-btn et-back-btn" id="et-back">◂ BACK</button>
   `, 'map-screen et-screen');
   document.querySelectorAll('.et-tab').forEach(el => {
     el.onclick = () => { if (el.dataset.hero !== heroId) showEmberTree(onBack, el.dataset.hero); };
   });
-  document.querySelectorAll('.et-node:not([disabled])').forEach(el => {
-    el.onclick = () => {
-      const n = NODE_BY_ID[el.dataset.id];
-      if (!n || hasNode(n.id) || META.embers < n.cost || !tierOpen(n.tier)) return;
-      if (!(n.requires || []).every(r => hasNode(r))) return;
-      addEmbers(-n.cost); unlockNode(n.id);
-      SFX.thread();
-      showEmberTree(onBack, heroId);   // re-render with the new state
-    };
+  document.querySelectorAll('.et-orb[data-id]').forEach(el => {
+    el.onclick = () => showEmberTree(onBack, heroId, el.dataset.id);   // select → inspect
   });
+  const buy = $('#et-buy');
+  if (buy && sel) buy.onclick = () => {
+    if (nodeState(sel) !== 'ready') return;
+    addEmbers(-sel.cost); unlockNode(sel.id);
+    SFX.thread();
+    showEmberTree(onBack, heroId, sel.id);
+  };
   $('#et-back').onclick = () => { hideOverlay(); (onBack || showTitle)(); };
 }
 // CHOOSE YOUR SURVIVOR — pick the hero you begin (solo) with, from the ones
