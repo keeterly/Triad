@@ -58,16 +58,17 @@ body {
 /* ---- fight backdrop ---- */
 #fight-bg {
   position: absolute; inset: 0; z-index: 0; pointer-events: none;
-  background: url('../art/bg-descent.png') center 32% / cover no-repeat;
+  background: url('../art/bg-descent.png') center 42% / cover no-repeat;
   opacity: 0; transition: opacity 0.6s ease;
 }
 #stage.show-bg #fight-bg { opacity: 1; }
-/* a dark scrim + vignette keeps the figures and UI readable over the art */
+/* the art is already dark-composed (eclipse up top, black floor below), so the
+   scrim stays light — just enough to seat the topbar and blend the hand area */
 #fight-bg::after {
   content: ''; position: absolute; inset: 0;
   background:
-    linear-gradient(180deg, rgba(8,5,6,0.74) 0%, rgba(10,6,8,0.5) 42%, rgba(6,4,5,0.9) 100%),
-    radial-gradient(ellipse 82% 62% at 50% 42%, transparent 42%, rgba(6,4,5,0.62) 100%);
+    linear-gradient(180deg, rgba(8,5,6,0.5) 0%, rgba(10,6,8,0.24) 34%, rgba(8,5,6,0.5) 70%, rgba(4,3,4,0.92) 100%),
+    radial-gradient(ellipse 92% 70% at 50% 40%, transparent 48%, rgba(6,4,5,0.5) 100%);
 }
 /* lift the actual game layers above the backdrop */
 #topbar, #narrator, #battlefield, #action-bar { position: relative; z-index: 1; }
