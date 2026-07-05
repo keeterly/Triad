@@ -226,12 +226,16 @@ const QUICK = process.argv.includes('--quick');
 
   // recruit cassia → party select appears → pick the WARSONG PHALANX trio
   check('recruit node reachable', await J(() => !!document.querySelector('.map-node.mn-recruit.mn-reach')));
-  await J(() => document.querySelector('.map-node.mn-recruit.mn-reach').click()); await sleep(500);
-  check('recruit screen shows Cassia the Guardian', await J(() => document.body.innerText.includes('CASSIA')));
+  // pin the recruit to Cassia (the map shuffles which traveler appears) so the rest of the onboarding is deterministic
+  await J(() => { const el = document.querySelector('.map-node.mn-recruit.mn-reach'); RUN.map[+el.dataset.node].hero = 'cassia'; el.click(); }); await sleep(500);
+  check('recruit opens the JRPG scene for Cassia',
+    await J(() => !!document.querySelector('#overlay.jc .jc-scene') && ((document.querySelector('.jc-plate') || {}).textContent || '') === 'CASSIA'));
   await shot('recruit-cassia');
-  // the recruit is a short conversation — a warm reply, then a warm reply → friend
-  await J(() => { document.querySelector('#rc-say-0').click(); }); await sleep(200);
-  await J(() => { document.querySelector('#rc-say-0').click(); }); await sleep(400);
+  // the recruit is a JRPG conversation — tap through the lines, answer warm twice → friend
+  await J(() => {
+    const run = (picks) => { let g = 0, pi = 0; while (g++ < 40) { const o = document.querySelectorAll('.jc-opt'); if (o.length) { (o[picks[pi++]] || o[0]).click(); continue; } if (document.querySelector('.jc-next')) { document.querySelector('.jc-scene').click(); continue; } break; } };
+    run([0, 0]);
+  }); await sleep(400);
   await clickOverlayBtn('#rc-next'); await sleep(500);      // → party select
   check('party select opens (roster now 4)', await J(() => !!document.querySelector('.ps-row') && document.querySelectorAll('.ps-fig').length === 4));
   // choose ash + elin + cassia  (Cleric+Guardian+Ronin → Oathkeepers' Advance, Formation)
@@ -1049,51 +1053,46 @@ const QUICK = process.argv.includes('--quick');
   check('INTRO: the fight begins after the cutscene closes',
     await J(() => !document.getElementById('boss-cine') && window.__began === true));
 
-  // ---------- TRAVELER (cinematic BG3-style conversation) ----------
+  // ---------- TRAVELER (JRPG cutscene conversation) ----------
   console.log('--- TRAVELER ---');
-  check('TRAVELER: a recruit opens a cinematic CONVERSATION (spoken line + dialogue options)',
+  check('TRAVELER: a recruit opens a JRPG SCENE — party LEFT, stranger RIGHT, a dialogue box',
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash'];
-      const rn = RUN.map.find(n => n.type === 'recruit');
+      const rn = RUN.map.find(n => n.type === 'recruit'); rn.hero = 'mira';
       showRecruit(rn);
-      const cine = document.querySelector('#overlay.traveler-cine');
-      return !!cine && !!document.querySelector('.tc-portrait .tc-art') && !!document.querySelector('.tc-quote')
-        && document.querySelectorAll('.tc-say').length >= 2
-        && !document.querySelector('#rc-friend') && !document.querySelector('#rc-join');
+      return !!document.querySelector('#overlay.jc .jc-scene')
+        && !!document.querySelector('.jc-fig-l .jc-art') && !!document.querySelector('.jc-fig-r .jc-art')
+        && !!document.querySelector('.jc-box .jc-line') && !document.querySelector('.tc-name');   // no more big centered title
     }));
-  // WARM conversation → they walk with you BONDED
   check('TRAVELER: a WARM conversation → they walk with you, a bond already bound',
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash']; RUN.bonds = {};
       const rn = RUN.map.find(n => n.type === 'recruit'); rn.hero = 'cassia';
       showRecruit(rn);
-      document.querySelector('#rc-say-0').click();   // beat 1: warm
-      document.querySelector('#rc-say-0').click();   // beat 2: warm → friend
-      return RUN.roster.includes('cassia') && RUN.active.includes('cassia') && (RUN.bonds['ash|cassia'] || 0) >= 1
+      const jcrun = (picks) => { let g = 0, pi = 0; while (g++ < 40) { const o = document.querySelectorAll('.jc-opt'); if (o.length) { (o[picks[pi++]] || o[0]).click(); continue; } if (document.querySelector('.jc-next')) { document.querySelector('.jc-scene').click(); continue; } break; } };
+      jcrun([0, 0]);   // warm, warm
+      return RUN.roster.includes('cassia') && (RUN.bonds['ash|cassia'] || 0) >= 1
         && ((document.querySelector('.tc-eyebrow') || {}).textContent || '').includes('THREAD IS BOUND');
     }));
-  // GUARDED conversation → they walk with you, but no bond yet
   check('TRAVELER: a GUARDED conversation → they walk with you, but no bond yet',
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash']; RUN.bonds = {};
       const rn = RUN.map.find(n => n.type === 'recruit'); rn.hero = 'mira';
       showRecruit(rn);
-      document.querySelector('#rc-say-1').click();   // beat 1: guarded
-      document.querySelector('#rc-say-1').click();   // beat 2: stay transactional → wary join
-      return RUN.roster.includes('mira') && RUN.active.includes('mira') && (RUN.bonds['ash|mira'] || 0) === 0;
+      const jcrun = (picks) => { let g = 0, pi = 0; while (g++ < 40) { const o = document.querySelectorAll('.jc-opt'); if (o.length) { (o[picks[pi++]] || o[0]).click(); continue; } if (document.querySelector('.jc-next')) { document.querySelector('.jc-scene').click(); continue; } break; } };
+      jcrun([1, 1]);   // guarded, transactional → wary join
+      return RUN.roster.includes('mira') && (RUN.bonds['ash|mira'] || 0) === 0;
     }));
-  // CROSSING them (cold → hostile) → they turn foe
   check('TRAVELER: CROSSING them in the talk → they turn foe (and are queued to ambush)',
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash']; RUN.foes = [];
       const rn = RUN.map.find(n => n.type === 'recruit'); rn.hero = 'cassia';
       showRecruit(rn);
-      document.querySelector('#rc-say-2').click();   // beat 1: cold
-      document.querySelector('#rc-say-1').click();   // beat 2: the hostile "leave her" line
+      const jcrun = (picks) => { let g = 0, pi = 0; while (g++ < 40) { const o = document.querySelectorAll('.jc-opt'); if (o.length) { (o[picks[pi++]] || o[0]).click(); continue; } if (document.querySelector('.jc-next')) { document.querySelector('.jc-scene').click(); continue; } break; } };
+      jcrun([2, 1]);   // cold, then the hostile line
       return !RUN.roster.includes('cassia') && RUN.foes.includes('cassia')
         && ((document.querySelector('.tc-name') || {}).textContent || '').includes('CASSIA TURNS AWAY');
     }));
-  // AMBUSH: the next fight spawns a "vengeful <name>" built from their kit
   check('TRAVELER: the wronged foe SPRINGS an ambush at the next fight (vengeful, weak to their own school)',
     await J(() => {
       const fn = RUN.map.find(n => n.type === 'fight');
@@ -1101,43 +1100,46 @@ const QUICK = process.argv.includes('--quick');
       const foe = S.enemies.find(e => e.def.name === 'VENGEFUL CASSIA');
       return !!foe && foe.def.weak === HEROES.cassia.school && RUN.foes.length === 0;
     }));
-  // GUARDED start can still warm UP in beat 2 → friend (the conversation matters)
   check('TRAVELER: a guarded start can WARM UP in the second beat → friend',
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash']; RUN.bonds = {};
       const rn = RUN.map.find(n => n.type === 'recruit'); rn.hero = 'branwen';
       showRecruit(rn);
-      document.querySelector('#rc-say-1').click();   // beat 1: guarded
-      document.querySelector('#rc-say-0').click();   // beat 2: warm turn (tone +2) → friend
+      const jcrun = (picks) => { let g = 0, pi = 0; while (g++ < 40) { const o = document.querySelectorAll('.jc-opt'); if (o.length) { (o[picks[pi++]] || o[0]).click(); continue; } if (document.querySelector('.jc-next')) { document.querySelector('.jc-scene').click(); continue; } break; } };
+      jcrun([1, 0]);   // guarded start, warm turn → friend
       return RUN.roster.includes('branwen') && (RUN.bonds['ash|branwen'] || 0) >= 1;
     }));
-  // BENCH path: a FULL trio still gets the conversation (join goes to reserve)
   check('TRAVELER: a full trio still gets the conversation encounter',
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash', 'elin', 'mira']; RUN.active = ['ash', 'elin', 'mira'];
-      const rn = RUN.map.find(n => n.type === 'recruit');
+      const rn = RUN.map.find(n => n.type === 'recruit'); rn.hero = 'branwen';
       showRecruit(rn);
-      return document.querySelectorAll('.tc-say').length >= 2 && !document.querySelector('#rc-friend');
+      return !!document.querySelector('#overlay.jc .jc-scene') && !document.querySelector('#rc-friend');
     }));
-  // PARTY-AWARE DEPTH: an ally already in your line vouches for the stranger
-  check('TRAVELER: a present ally VOUCHES — an interjection + a warm shortcut appears',
+  // PARTY-AWARE DEPTH: an ally already in your line vouches (speaks + a ♦ shortcut)
+  check('TRAVELER: a present ally VOUCHES — they speak in-scene and a ♦ shortcut appears',
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash', 'elin']; RUN.active = ['ash', 'elin']; RUN.bonds = {};
       const rn = RUN.map.find(n => n.type === 'recruit'); rn.hero = 'cassia';   // Elin knows Cassia
       showRecruit(rn);
-      return !!document.querySelector('.tc-ally') && !!document.querySelector('.tc-vouch')
-        && document.body.innerText.includes('ELIN');
+      let sawElin = false, g = 0;
+      while (g++ < 12) {
+        if (((document.querySelector('.jc-plate') || {}).textContent || '') === 'ELIN') sawElin = true;
+        if (document.querySelector('.jc-opt')) break;
+        document.querySelector('.jc-scene').click();
+      }
+      return sawElin && !!document.querySelector('.jc-vouch');
     }));
   check('TRAVELER: taking the ally’s vouch → they join as a friend (bonded)',
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash', 'elin']; RUN.active = ['ash', 'elin']; RUN.bonds = {};
       const rn = RUN.map.find(n => n.type === 'recruit'); rn.hero = 'cassia';
       showRecruit(rn);
-      document.querySelector('.tc-vouch').click();   // beat 1: the vouch (warm, tone 3)
-      document.querySelector('#rc-say-0').click();   // beat 2: warm → friend
+      const jcrun = (picks) => { let g = 0, pi = 0; while (g++ < 40) { const o = document.querySelectorAll('.jc-opt'); if (o.length) { const p = picks[pi++]; (typeof p === 'string' ? document.querySelector(p) : o[p]).click(); continue; } if (document.querySelector('.jc-next')) { document.querySelector('.jc-scene').click(); continue; } break; } };
+      jcrun(['.jc-vouch', 0]);
       return RUN.roster.includes('cassia') && (RUN.bonds['ash|cassia'] || 0) >= 1;
     }));
-  // PARTY MOOD: derived from bonds + crossings, read by travelers + shown on the map
+  // PARTY MOOD
   check('MOOD: solo → ALONE · two crossings → HUNTED · two kindled bonds → IRONBOUND',
     await J(() => {
       RUN = newRun('ash'); RUN.active = ['ash']; RUN.bonds = {}; RUN.foesMade = 0;
@@ -1148,12 +1150,20 @@ const QUICK = process.argv.includes('--quick');
       const iron = partyMood();
       return solo === 'lonely' && hunted === 'hunted' && iron === 'ironbound';
     }));
-  check('MOOD: a traveler READS your party in the encounter (mood line)',
+  check('MOOD: a traveler READS your party in the scene (mood aside spoken)',
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash'];   // lonely → a read line exists
       const rn = RUN.map.find(n => n.type === 'recruit'); rn.hero = 'mira';
       showRecruit(rn);
-      return !!document.querySelector('.tc-mood');
+      const read = MOODS[partyMood()].read;
+      let saw = false, g = 0;
+      while (g++ < 12) {
+        const l = (document.querySelector('.jc-line') || {}).textContent || '';
+        if (read && l.indexOf(read.slice(0, 12)) >= 0) saw = true;
+        if (document.querySelector('.jc-opt')) break;
+        document.querySelector('.jc-scene').click();
+      }
+      return saw;
     }));
   check('MOOD: the map shows a mood chip (HUNTED after crossings)',
     await J(() => {
