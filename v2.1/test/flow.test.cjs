@@ -1119,6 +1119,49 @@ const QUICK = process.argv.includes('--quick');
       showRecruit(rn);
       return document.querySelectorAll('.tc-say').length >= 2 && !document.querySelector('#rc-friend');
     }));
+  // PARTY-AWARE DEPTH: an ally already in your line vouches for the stranger
+  check('TRAVELER: a present ally VOUCHES — an interjection + a warm shortcut appears',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash', 'elin']; RUN.active = ['ash', 'elin']; RUN.bonds = {};
+      const rn = RUN.map.find(n => n.type === 'recruit'); rn.hero = 'cassia';   // Elin knows Cassia
+      showRecruit(rn);
+      return !!document.querySelector('.tc-ally') && !!document.querySelector('.tc-vouch')
+        && document.body.innerText.includes('ELIN');
+    }));
+  check('TRAVELER: taking the ally’s vouch → they join as a friend (bonded)',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash', 'elin']; RUN.active = ['ash', 'elin']; RUN.bonds = {};
+      const rn = RUN.map.find(n => n.type === 'recruit'); rn.hero = 'cassia';
+      showRecruit(rn);
+      document.querySelector('.tc-vouch').click();   // beat 1: the vouch (warm, tone 3)
+      document.querySelector('#rc-say-0').click();   // beat 2: warm → friend
+      return RUN.roster.includes('cassia') && (RUN.bonds['ash|cassia'] || 0) >= 1;
+    }));
+  // PARTY MOOD: derived from bonds + crossings, read by travelers + shown on the map
+  check('MOOD: solo → ALONE · two crossings → HUNTED · two kindled bonds → IRONBOUND',
+    await J(() => {
+      RUN = newRun('ash'); RUN.active = ['ash']; RUN.bonds = {}; RUN.foesMade = 0;
+      const solo = partyMood();
+      RUN.active = ['ash', 'elin', 'mira']; RUN.foesMade = 2;
+      const hunted = partyMood();
+      RUN.foesMade = 0; RUN.bonds = { 'ash|elin': 2, 'ash|mira': 2 };
+      const iron = partyMood();
+      return solo === 'lonely' && hunted === 'hunted' && iron === 'ironbound';
+    }));
+  check('MOOD: a traveler READS your party in the encounter (mood line)',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash'];   // lonely → a read line exists
+      const rn = RUN.map.find(n => n.type === 'recruit'); rn.hero = 'mira';
+      showRecruit(rn);
+      return !!document.querySelector('.tc-mood');
+    }));
+  check('MOOD: the map shows a mood chip (HUNTED after crossings)',
+    await J(() => {
+      RUN = newRun('ash'); RUN.active = ['ash']; RUN.foesMade = 2;
+      showMap();
+      const chip = document.querySelector('.map-mood');
+      return !!chip && chip.textContent.includes('HUNTED');
+    }));
 
   // ---------- EMERGENT GROWTH (tier-3 forge loops) ----------
   console.log('--- EMERGENT ---');

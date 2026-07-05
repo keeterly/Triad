@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 28;
+const V2_BUILD = 29;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -950,6 +950,7 @@ function newRun(starterId) {
     nodes: spark ? [spark] : [],   // per-run skill-tree unlocks — reset when the run ends (seeded with the starting spark)
     forges: [],         // temporary ember tempers bought at camps — reset each descent
     foes: [],           // travelers you wronged — they ambush a later fight this run
+    foesMade: 0,        // count of travelers ever crossed this run — reputation for party MOOD
     emCount: {},        // emergent-loop tallies — accrue ACROSS the whole descent (grow over time)
     done: false,
   };
@@ -3298,8 +3299,9 @@ function showMap() {
     </div>`).join('');
   const trio = RUN.active.map(id => `<span class="party-chip-fig">${V2PORTRAITS[id] || ''}</span>`).join('');
   const r = triadEntryFor(RUN.active);
+  const mood = partyMood(), moodDef = MOODS[mood];
   showOverlay(`
-    <div class="ov-eyebrow">THE DESCENT${(RUN.floor || 1) >= 2 ? ` · FLOOR ${RUN.floor}` : ''}</div>
+    <div class="ov-eyebrow">THE DESCENT${(RUN.floor || 1) >= 2 ? ` · FLOOR ${RUN.floor}` : ''}${moodDef && moodDef.label ? ` <span class="map-mood" style="color:${moodDef.tint}; border-color:${moodDef.tint}66">♦ ${moodDef.label}</span>` : ''}</div>
     <div class="ov-title" style="font-size:20px; margin-bottom:14px;">${(RUN.floor || 1) >= 2 ? 'THE DEEPER DARK' : 'CHOOSE THE ROAD'}</div>
     <div class="map-strip"><svg class="map-edges" aria-hidden="true"></svg>${colHtml}</div>
     ${(runEmbers() > 0 && !treeTaught()) ? `<div class="map-coach">✦ You tore <b>${runEmbers()} embers</b> from the dead — open your <b>EMBER TREE</b> below and kindle a new skill before you press on.</div>` : ''}
@@ -3656,9 +3658,50 @@ const TRAVELERS = {
   },
 };
 const toneBucket = (t) => t > 0 ? 'warm' : t < 0 ? 'cold' : 'guarded';
+// PARTY-AWARE DEPTH — when a specific ally is already in your line, they speak
+// up in the encounter and open a warm shortcut: shared history vouching for the
+// stranger.  (Bonus option lands friend; tone 3.)
+const TRAVELER_ALLIES = {
+  cassia:  { elin:    { line: 'She held the gate at Vael Crossing till the last of us were through. I owe her my breath.', bonus: '“Elin says you held the line — that’s all I need.”' } },
+  elin:    { cassia:  { line: 'I bled on her table once. I walked away because of it. Bring her.',                          bonus: '“Cassia’s alive because of you. Walk with us.”' } },
+  mira:    { branwen: { line: 'I’ve worked a treeline with this one. She kills quiet and she never misses. Let her in.',    bonus: '“Branwen vouches for you. Watch the dark with us.”' } },
+  branwen: { mira:    { line: 'She was the knife I never heard coming, once. I’d rather she watched our backs than someone else’s.', bonus: '“Mira trusts you. Take the high line.”' } },
+};
+function activeAllyFor(n) {
+  const map = TRAVELER_ALLIES[n.hero];
+  if (!map || !RUN || !RUN.active) return null;
+  for (const id of RUN.active) { if (id !== n.hero && map[id]) return { id, entry: map[id] }; }
+  return null;
+}
+// PARTY MOOD — a per-run read on how your line is carrying itself, drawn from
+// the bonds you've kindled and the names you've made enemies of.  Travelers
+// read it in their opening; the map shows it as a chip.  Resets with the run.
+const MOODS = {
+  lonely:    { label: 'ALONE',     tint: '#8ea2c8', read: 'You travel light. Too light, this deep.' },
+  hunted:    { label: 'HUNTED',    tint: '#e8604a', read: 'Word travels down here. You’ve left names behind you — angry ones.' },
+  ironbound: { label: 'IRONBOUND', tint: '#f0d488', read: 'That’s a real bond your people carry. I can see it from here.' },
+  warm:      { label: 'HOLDING',   tint: '#e8b84a', read: 'Your line watches each other’s backs. Rare, this far down.' },
+  wary:      { label: 'WARY',      tint: '#c89a5a', read: 'You move like people who’ve been crossed. Fair enough.' },
+  steady:    { label: 'STEADY',    tint: '#b8a88a', read: '' },
+};
+function partyMood() {
+  if (!RUN) return 'steady';
+  const active = RUN.active || [];
+  const bonds = RUN.bonds || {};
+  const kindled = Object.values(bonds).filter(v => v >= BOND_KINDLED).length;
+  const warm = Object.values(bonds).filter(v => v >= 1).length;
+  const foesMade = RUN.foesMade || 0;   // reputation persists past the ambush
+  if (foesMade >= 2) return 'hunted';
+  if (active.length <= 1) return 'lonely';
+  if (kindled >= 2) return 'ironbound';
+  if (foesMade >= 1) return 'wary';
+  if (warm && warm >= active.length - 1) return 'warm';
+  return 'steady';
+}
 // The cinematic "crossing paths" conversation — a full-bleed atmospheric scene
 // that plays out over two beats.  What you say resolves into the terms of the
-// alliance (friend / wary) — or, if you cross them, a foe.
+// alliance (friend / wary) — or, if you cross them, a foe.  A present ally may
+// vouch (a warm shortcut); the traveler reads your party's mood as they open.
 function showRecruit(n) {
   const trav = TRAVELERS[n.hero] || TRAVELERS._default;
   convoBeat(n, trav, { step: 1, tone: 0, hostile: false, bucket: 'guarded', showScene: true });
@@ -3666,9 +3709,20 @@ function showRecruit(n) {
 function convoBeat(n, trav, st) {
   const h = HEROES[n.hero];
   const line = st.step === 1 ? trav.line1 : trav.react[st.bucket];
-  const opts = st.step === 1 ? trav.opts1 : trav.opts2[st.bucket];
+  let opts = (st.step === 1 ? trav.opts1 : trav.opts2[st.bucket]).slice();
+  let extra = '';
+  if (st.step === 1) {
+    const mood = partyMood(), read = MOODS[mood] && MOODS[mood].read;
+    if (read) extra += `<div class="tc-mood" style="color:${MOODS[mood].tint}">— ${read}</div>`;
+    const ally = activeAllyFor(n);
+    if (ally) {
+      extra += `<div class="tc-speaker tc-ally-spk">${HEROES[ally.id].name}</div><div class="tc-quote tc-ally">“${ally.entry.line}”</div>`;
+      opts = opts.concat([{ text: ally.entry.bonus, tone: 3, ally: true }]);
+      st.showScene = false;   // the interjection carries the context; save the space
+    }
+  }
   const btns = opts.map((o, i) =>
-    `<button class="tc-choice tc-say" id="rc-say-${i}"><span class="tc-c-label">${o.text}</span></button>`).join('');
+    `<button class="tc-choice tc-say${o.ally ? ' tc-vouch' : ''}" id="rc-say-${i}"><span class="tc-c-label">${o.text}</span></button>`).join('');
   showOverlay(`
     <div class="tc-bar tc-bar-t"></div>
     <div class="tc-bar tc-bar-b"></div>
@@ -3681,6 +3735,7 @@ function convoBeat(n, trav, st) {
       ${st.showScene ? `<div class="tc-scene">${trav.scene}</div>` : ''}
       <div class="tc-speaker">${trav.speaker || h.name}</div>
       <div class="tc-quote">${line}</div>
+      ${extra}
       <div class="tc-choices tc-choices-say">${btns}</div>
     </div>
   `, 'traveler-cine');
@@ -3724,6 +3779,7 @@ function foeTraveler(n) {
   const rid = n.hero, h = HEROES[rid];
   RUN.foes = RUN.foes || [];
   if (!RUN.foes.includes(rid)) RUN.foes.push(rid);
+  RUN.foesMade = (RUN.foesMade || 0) + 1;   // reputation — persists past the ambush (feeds mood)
   if (!RUN.completed.includes(n.id)) RUN.completed.push(n.id);
   saveRun();
   showTravelerOutcome(rid, '⚔ A NAME AGAINST YOU', h.name + ' TURNS AWAY',
