@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 17;
+const V2_BUILD = 18;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -3318,11 +3318,73 @@ function showEvent(n) {
 function startMapFight(n) {
   const boss = !!n.isBoss;
   const floor = RUN.floor || 1;
-  startFight({ type: 'fight', chapter: 3, heroes: RUN.active.slice(), enemies: n.enemies.slice(),
-    useRunHp: true, mapId: n.id, depth: n.level || n.col, floor, elite: !!n.elite, isBoss: boss,
-    nodeType: n.type, label: n.label, level: n.level,
-    narrator: n.label + (boss ? (floor >= 2 ? ' — it is hungry.' : ' — it remembers you.') : (n.elite ? ' — a deeper sin waits.' : (floor >= 2 ? ' — the deep dark stirs.' : ''))) });
-  $('#chapter-chip').textContent = (boss ? 'BOSS' : (n.elite ? 'ELITE' : 'DESCENT')) + (floor >= 2 ? ' · FL' + floor : '');
+  const begin = () => {
+    startFight({ type: 'fight', chapter: 3, heroes: RUN.active.slice(), enemies: n.enemies.slice(),
+      useRunHp: true, mapId: n.id, depth: n.level || n.col, floor, elite: !!n.elite, isBoss: boss,
+      nodeType: n.type, label: n.label, level: n.level,
+      narrator: n.label + (boss ? (floor >= 2 ? ' — it is hungry.' : ' — it remembers you.') : (n.elite ? ' — a deeper sin waits.' : (floor >= 2 ? ' — the deep dark stirs.' : ''))) });
+    $('#chapter-chip').textContent = (boss ? 'BOSS' : (n.elite ? 'ELITE' : 'DESCENT')) + (floor >= 2 ? ' · FL' + floor : '');
+  };
+  if (boss) bossIntro(n.enemies[0], begin);   // a dramatic cutscene precedes the boss
+  else begin();
+}
+
+// ---------------------------------------------------------------------------
+// BOSS INTRO — a dramatic full-screen cutscene: the colossus rises from the
+// dark, its eyes ignite, its NAME slams the screen, it speaks — then the fight.
+// ---------------------------------------------------------------------------
+const BOSS_CINE = {
+  echoknight2:  { name: 'THE ECHO KNIGHT', epithet: 'THE REMEMBERED', eye: '#ff5038', roar: 'blade',
+    quote: 'You buried me once. I have counted every hand that threw the dirt.' },
+  echodevourer: { name: 'THE HOLLOW MAW', epithet: 'IT HUNGERS', eye: '#8dff74', roar: 'maw',
+    quote: 'Down here, everything is food. Even the little light you carry.' },
+};
+let _bossCineBusy = false;
+function bossIntro(bossId, onDone) {
+  const c = BOSS_CINE[bossId] || BOSS_CINE.echoknight2;
+  const def = ENEMY_DEFS[bossId] || {};
+  const art = V2PORTRAITS[def.art || bossId] || '';
+  hideOverlay();
+  $('#stage').classList.remove('show-bg');
+  const old = document.getElementById('boss-cine'); if (old) old.remove();
+  const el = document.createElement('div');
+  el.id = 'boss-cine';
+  el.className = c.roar === 'maw' ? 'bc-maw' : 'bc-knight';
+  el.style.setProperty('--bc-eye', c.eye);
+  el.innerHTML = `
+    <div class="bc-bar bc-bar-t"></div>
+    <div class="bc-bar bc-bar-b"></div>
+    <div class="bc-rays"></div>
+    <div class="bc-vign"></div>
+    <div class="bc-boss"><div class="bc-glow"></div><div class="bc-art">${art}</div><div class="bc-eyes"><span></span><span></span></div></div>
+    ${Array.from({ length: 16 }).map((_, i) => `<span class="bc-ember" style="--i:${i}"></span>`).join('')}
+    <div class="bc-flash"></div>
+    <div class="bc-txt">
+      <div class="bc-epithet">${c.epithet}</div>
+      <div class="bc-name">${c.name}</div>
+      <div class="bc-rule"></div>
+      <div class="bc-quote">“${c.quote}”</div>
+    </div>
+    <div class="bc-skip">TAP TO FACE IT</div>`;
+  $('#stage').appendChild(el);
+  _bossCineBusy = true;
+  requestAnimationFrame(() => el.classList.add('bc-run'));
+  const timers = [];
+  const at = (ms, fn) => timers.push(setTimeout(fn, ms));
+  at(260,  () => { if (SFX.enemy) SFX.enemy(); stageShake('sm'); });                        // the ground rumbles
+  at(1150, () => { if (SFX.kill) SFX.kill(); stageShake('lg'); el.classList.add('bc-eyes-on'); });  // eyes ignite
+  at(2050, () => { if (SFX.kill) SFX.kill(); if (SFX.enemy) SFX.enemy(); stageShake('xl'); el.classList.add('bc-slam'); });  // NAME slams
+  at(2450, () => stageShake('md'));
+  let done = false;
+  const finish = () => {
+    if (done) return; done = true;
+    timers.forEach(clearTimeout);
+    el.classList.add('bc-out');
+    setTimeout(() => { el.remove(); _bossCineBusy = false; onDone(); }, 460);
+  };
+  el.addEventListener('pointerdown', finish);
+  at(6400, finish);   // auto-advance if they don't tap
+  return el;
 }
 function showRecruit(n) {
   const h = HEROES[n.hero];

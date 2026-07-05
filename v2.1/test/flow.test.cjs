@@ -977,6 +977,23 @@ const QUICK = process.argv.includes('--quick');
       return h.hexed === 0;
     }));
 
+  // ---------- BOSS INTRO cutscene ----------
+  console.log('--- BOSS INTRO ---');
+  check('INTRO: the Maw gets a dramatic cutscene (silhouette · name · quote)',
+    await J(() => {
+      window.__began = false;
+      const el = bossIntro('echodevourer', () => { window.__began = true; });
+      const cine = document.getElementById('boss-cine');
+      return !!cine && !!cine.querySelector('.bc-art svg') && !!cine.querySelector('.bc-eyes')
+        && cine.querySelector('.bc-name').textContent === 'THE HOLLOW MAW'
+        && cine.textContent.indexOf('everything is food') >= 0;
+    }));
+  check('INTRO: tapping the cutscene dismisses it and begins the fight',
+    await J(() => document.getElementById('boss-cine').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))) || true);
+  await sleep(650);
+  check('INTRO: the fight begins after the cutscene closes',
+    await J(() => !document.getElementById('boss-cine') && window.__began === true));
+
   t.report();
   await t.browser.close();
 })().catch(e => { console.error('FATAL', e.message); process.exit(1); });

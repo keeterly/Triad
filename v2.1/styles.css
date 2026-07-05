@@ -2097,3 +2097,83 @@ button.map-node:not(:disabled) { cursor: pointer; }
   border-radius: 8px; background: rgba(20,34,22,0.6); border: 1px solid rgba(120,200,140,0.4);
 }
 .et-kindled-note b { color: #b7f0c4; }
+
+/* ===========================================================================
+   V2.1 — DRAMATIC BOSS INTRO CUTSCENE (#boss-cine)
+   =========================================================================== */
+#boss-cine {
+  position: absolute; inset: 0; z-index: 200; overflow: hidden; cursor: pointer;
+  opacity: 0; --bc-eye: #ff5038;
+  background: radial-gradient(ellipse 92% 72% at 50% 42%, #1c0708 0%, #060203 68%, #000 100%);
+}
+#boss-cine.bc-maw    { background: radial-gradient(ellipse 92% 72% at 50% 42%, #0b1a08 0%, #030703 68%, #000 100%); }
+#boss-cine.bc-run  { animation: bc-in 0.4s ease forwards; }
+#boss-cine.bc-out  { animation: bc-out 0.46s ease forwards; }
+@keyframes bc-in  { to { opacity: 1; } }
+@keyframes bc-out { to { opacity: 0; filter: brightness(2.4) blur(2px); } }
+
+/* cinematic letterbox bars */
+.bc-bar { position: absolute; left: 0; right: 0; height: 0; background: #000; z-index: 6; }
+.bc-bar-t { top: 0; } .bc-bar-b { bottom: 0; }
+#boss-cine.bc-run .bc-bar { animation: bc-bar 0.55s cubic-bezier(.2,.8,.2,1) forwards; }
+@keyframes bc-bar { to { height: 9%; } }
+
+/* rotating god-rays + colored backlight behind the colossus */
+.bc-rays { position: absolute; left: 50%; top: 40%; width: 150%; aspect-ratio: 1; transform: translate(-50%,-50%); z-index: 1; opacity: 0; pointer-events: none;
+  background: repeating-conic-gradient(from 0deg at 50% 50%, rgba(255,244,224,0.05) 0deg 2deg, transparent 2deg 16deg); mix-blend-mode: screen; }
+#boss-cine.bc-run .bc-rays { animation: bc-rays-in 2.4s ease forwards, bc-rays-spin 60s linear infinite; }
+@keyframes bc-rays-in { to { opacity: 0.7; } }
+@keyframes bc-rays-spin { to { transform: translate(-50%,-50%) rotate(360deg); } }
+.bc-glow { position: absolute; left: 50%; top: 42%; width: 88%; aspect-ratio: 1; transform: translate(-50%,-50%) scale(0.4); z-index: 1; border-radius: 50%; opacity: 0; mix-blend-mode: screen;
+  background: radial-gradient(circle, var(--bc-eye) 0%, transparent 52%); }
+#boss-cine.bc-run .bc-glow { animation: bc-glow 2s ease forwards; }
+@keyframes bc-glow { to { opacity: 0.34; transform: translate(-50%,-50%) scale(1); } }
+.bc-vign { position: absolute; inset: 0; z-index: 3; pointer-events: none;
+  background: radial-gradient(ellipse 70% 60% at 50% 44%, transparent 40%, rgba(0,0,0,0.85) 100%); }
+
+/* the colossus rises from the dark, a backlit silhouette, swaying */
+.bc-boss { position: absolute; left: 50%; top: 50%; height: 94%; aspect-ratio: 0.62; z-index: 2; opacity: 0; transform: translate(-50%,4%) scale(1.3); }
+#boss-cine.bc-run .bc-boss { animation: bc-rise 1.6s cubic-bezier(.16,.72,.28,1) forwards; }
+@keyframes bc-rise { to { opacity: 1; transform: translate(-50%,-44%) scale(1); } }
+.bc-art { width: 100%; height: 100%; display: flex; align-items: flex-end; justify-content: center; }
+.bc-art svg { height: 100%; width: auto; transform-origin: 50% 100%;
+  filter: brightness(0.13) drop-shadow(0 0 44px var(--bc-eye)) drop-shadow(0 0 12px var(--bc-eye)) drop-shadow(0 22px 42px rgba(0,0,0,0.95));
+  animation: bc-sway 4.2s ease-in-out infinite; }
+@keyframes bc-sway { 50% { transform: translateY(-9px) scale(1.02); } }
+
+/* eyes ignite */
+.bc-eyes { position: absolute; left: 50%; top: 17%; transform: translateX(-50%); display: flex; gap: 16px; z-index: 4; opacity: 0; }
+.bc-eyes span { width: 11px; height: 15px; border-radius: 50%; background: var(--bc-eye);
+  box-shadow: 0 0 18px 5px var(--bc-eye), 0 0 46px var(--bc-eye); }
+#boss-cine.bc-eyes-on .bc-eyes { animation: bc-eyeflare 0.45s ease forwards, bc-eyepulse 2.4s 0.45s ease-in-out infinite; }
+@keyframes bc-eyeflare { 0% { opacity: 0; transform: translateX(-50%) scale(0.2); } 55% { opacity: 1; transform: translateX(-50%) scale(1.6); } 100% { opacity: 1; transform: translateX(-50%) scale(1); } }
+@keyframes bc-eyepulse { 50% { filter: brightness(1.6); } }
+
+/* the impact flash on the name-slam */
+.bc-flash { position: absolute; inset: 0; z-index: 5; background: #fff; opacity: 0; pointer-events: none; }
+#boss-cine.bc-slam .bc-flash { animation: bc-flash 0.55s ease forwards; }
+@keyframes bc-flash { 0% { opacity: 0; } 7% { opacity: 0.9; } 100% { opacity: 0; } }
+
+/* drifting embers */
+.bc-ember { position: absolute; bottom: 8%; left: calc(4% + var(--i) * 6%); width: 3px; height: 3px; border-radius: 50%; z-index: 4; opacity: 0;
+  background: var(--bc-eye); box-shadow: 0 0 6px var(--bc-eye); }
+#boss-cine.bc-run .bc-ember { animation: bc-embers 4.5s linear infinite; animation-delay: calc(var(--i) * 0.28s); }
+@keyframes bc-embers { 0% { opacity: 0; transform: translate(0,0); } 12% { opacity: 0.85; } 100% { opacity: 0; transform: translate(calc((var(--i) - 8) * 6px), -340px); } }
+
+/* the text: epithet, the NAME slam, the rule, the quote */
+.bc-txt { position: absolute; left: 0; right: 0; bottom: 15%; z-index: 7; text-align: center; padding: 0 22px; }
+.bc-epithet { font-size: 11px; letter-spacing: 0.5em; color: var(--bc-eye); opacity: 0; text-shadow: 0 0 12px var(--bc-eye); }
+#boss-cine.bc-eyes-on .bc-epithet { animation: bc-fade 0.6s ease forwards; }
+.bc-name { font-size: 44px; letter-spacing: 0.05em; font-weight: 700; color: #fff; margin: 5px 0 0; line-height: 1;
+  opacity: 0; transform: scale(2.7); filter: blur(15px); text-shadow: 0 0 34px var(--bc-eye), 0 4px 14px #000; }
+#boss-cine.bc-slam .bc-name { animation: bc-slam 0.44s cubic-bezier(.2,.85,.24,1.15) forwards; }
+@keyframes bc-slam { 0% { opacity: 0; transform: scale(2.7); filter: blur(15px); } 55% { opacity: 1; } 100% { opacity: 1; transform: scale(1); filter: blur(0); } }
+.bc-rule { width: 0; height: 2px; margin: 10px auto 0; background: linear-gradient(90deg, transparent, var(--bc-eye), transparent); box-shadow: 0 0 10px var(--bc-eye); }
+#boss-cine.bc-slam .bc-rule { animation: bc-rule 0.7s 0.28s cubic-bezier(.2,.8,.2,1) forwards; }
+@keyframes bc-rule { to { width: 62%; } }
+.bc-quote { font-size: 13px; font-style: italic; color: #cdbfae; opacity: 0; max-width: 480px; margin: 10px auto 0; line-height: 1.4; text-shadow: 0 1px 4px #000; }
+#boss-cine.bc-slam .bc-quote { animation: bc-fade 0.9s 0.5s ease forwards; }
+@keyframes bc-fade { to { opacity: 1; } }
+.bc-skip { position: absolute; left: 0; right: 0; bottom: 5.5%; text-align: center; font-size: 9px; letter-spacing: 0.32em; color: var(--ink-faint); opacity: 0; z-index: 7; }
+#boss-cine.bc-slam .bc-skip { animation: bc-fade 0.6s 1.5s ease forwards, bc-skippulse 1.7s 2.1s ease-in-out infinite; }
+@keyframes bc-skippulse { 50% { opacity: 0.35; } }
