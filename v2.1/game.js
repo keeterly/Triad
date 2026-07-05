@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 33;
+const V2_BUILD = 34;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -4612,7 +4612,7 @@ function showMenu() {
   if (ab) ab.onclick = () => { RUN = null; S = null; try { localStorage.removeItem(RUN_KEY); } catch (_) {} showTitle(); };
   $('#m-dev').onclick = () => showDevPanel();
 }
-function showHowTo() {
+function showHowTo(back) {
   showOverlay(`
     <div class="ov-eyebrow">HOW TO PLAY</div>
     <div class="ov-title" style="font-size:20px; margin-bottom:10px;">THE THREADS</div>
@@ -4626,7 +4626,7 @@ function showHowTo() {
     </div>
     <button class="ov-btn primary" id="ht-back">◂ BACK</button>
   `, 'menu-screen');
-  $('#ht-back').onclick = () => showMenu();
+  $('#ht-back').onclick = () => (back || showMenu)();
 }
 // FULL PROGRESS RESET (dev) — wipe everything that makes the game "not
 // first-time": unlocked heroes, tutorial flow, one-time coaches, the abyss
@@ -4639,7 +4639,7 @@ function resetProgress() {
   RUN = null; S = null; flowIdx = 0; META.heat = 0;
 }
 let _devResetArmed = false;
-function showDevPanel() {
+function showDevPanel(back) {
   const onOff = (v) => `<span class="menu-val ${v ? 'mv-on' : 'mv-off'}">${v ? 'ON' : 'OFF'}</span>`;
   const armed = _devResetArmed;
   showOverlay(`
@@ -4663,7 +4663,7 @@ function showDevPanel() {
     flashNarrator('Progress wiped — the reach forgets you.');
     showTitle();
   };
-  $('#d-back').onclick = () => { _devResetArmed = false; showMenu(); };
+  $('#d-back').onclick = () => { _devResetArmed = false; (back || showMenu)(); };
 }
 
 function showTitle() {
@@ -4674,35 +4674,60 @@ function showTitle() {
   const savedFlow = parseInt(localStorage.getItem(PROGRESS_KEY) || '0', 10) || 0;
   const savedRun = loadRun();
   const canContinue = savedFlow > 0 || (savedRun && !savedRun.done);
+  // A cinematic full-screen JRPG title: an atmospheric backdrop (god-rays,
+  // vignette, drifting embers), the logo, and a lean menu.
   showOverlay(`
-    <div class="ov-title">KIZUNA</div>
-    <div class="ov-sub">THREADS · VERSION 2 PROTOTYPE</div>
-    <div class="ov-line" style="text-align:center; max-width:440px; margin:0 auto 20px;">
-      The party is the character. Cards are how three people talk;
-      <b>the thread between them</b> is what you’re playing.
+    <div class="tt-rays"></div>
+    <div class="tt-vign"></div>
+    ${Array.from({ length: 14 }).map((_, i) => `<span class="tt-ember" style="--i:${i}"></span>`).join('')}
+    <div class="tt-stage">
+      <div class="tt-logo">
+        <div class="tt-title">KIZUNA</div>
+        <div class="tt-rule"></div>
+        <div class="tt-sub">THREADS</div>
+      </div>
+      <div class="tt-menu">
+        <button class="tt-opt tt-opt-primary" id="t-new">NEW GAME</button>
+        ${canContinue ? `<button class="tt-opt" id="t-continue">CONTINUE</button>` : ''}
+        <button class="tt-opt" id="t-settings">SETTINGS</button>
+      </div>
     </div>
-    <button class="ov-btn primary" id="t-new">NEW GAME</button>
-    ${canContinue ? `<button class="ov-btn" id="t-continue">CONTINUE</button>` : ''}
-    <button class="ov-btn" id="t-descent">THE DESCENT</button>
-    <div class="t-heat">HEAT <button id="heat-dn" aria-label="lower heat">−</button><b id="heat-val">${META.heat || 0}</b><button id="heat-up" aria-label="raise heat">+</button><span>foes hit harder · +embers</span></div>
-    <div class="ov-hint">V2.1 BUILD ${V2_BUILD} · EMBER BRANCH</div>
-  `);
-  // NEW GAME and THE DESCENT both start a fresh run — first CHOOSE YOUR SURVIVOR.
+    <div class="tt-ver">V2.1 · BUILD ${V2_BUILD}</div>
+  `, 'title-cine');
   $('#t-new').onclick = () => showStarterSelect(id => beginRun(id));
-  const setHeat = (d) => { META.heat = Math.max(0, Math.min(5, (META.heat || 0) + d)); saveMeta(); const v = $('#heat-val'); if (v) v.textContent = META.heat; };
-  $('#heat-dn').onclick = () => setHeat(-1);
-  $('#heat-up').onclick = () => setHeat(1);
   const c = $('#t-continue');
   if (c) c.onclick = () => {
     const r = loadRun();
     if (r && !r.done) { RUN = r; showMap(); }
     else showStarterSelect(id => beginRun(id));
   };
-  $('#t-descent').onclick = () => {
-    const r = loadRun();
-    if (r && !r.done) { RUN = r; saveRun(); showMap(); }
-    else showStarterSelect(id => beginRun(id));
-  };
+  $('#t-settings').onclick = () => showSettings();
+}
+// SETTINGS (from the title) — device prefs, difficulty (Heat), and dev tools.
+function showSettings() {
+  const onOff = (v) => `<span class="menu-val ${v ? 'mv-on' : 'mv-off'}">${v ? 'ON' : 'OFF'}</span>`;
+  showOverlay(`
+    <div class="ov-eyebrow">TITLE</div>
+    <div class="ov-title" style="font-size:22px; margin-bottom:14px;">SETTINGS</div>
+    <div class="menu-list">
+      <button class="menu-item" id="s-sound"><span>SOUND</span>${onOff(SETTINGS.sound)}</button>
+      <button class="menu-item" id="s-haptics"><span>HAPTICS</span>${onOff(SETTINGS.haptics)}</button>
+      <button class="menu-item" id="s-bg"><span>FIGHT BACKGROUND</span>${onOff(SETTINGS.fightBg)}</button>
+      <button class="menu-item" id="s-heat"><span>HEAT <i style="opacity:.6">· foes hit harder, +embers</i></span><span class="menu-heat"><button id="s-heat-dn" aria-label="lower heat">−</button><b>${META.heat || 0}</b><button id="s-heat-up" aria-label="raise heat">+</button></span></button>
+      <button class="menu-item" id="s-howto"><span>HOW TO PLAY</span><span class="menu-val">?</span></button>
+      <button class="menu-item menu-dev" id="s-dev"><span>⚙ DEV TOOLS</span><span class="menu-val">›</span></button>
+      <button class="menu-item menu-primary" id="s-back">◂ BACK</button>
+    </div>
+  `, 'menu-screen');
+  $('#s-sound').onclick = () => { toggleSetting('sound'); showSettings(); };
+  $('#s-haptics').onclick = () => { toggleSetting('haptics'); showSettings(); };
+  $('#s-bg').onclick = () => { toggleSetting('fightBg'); showSettings(); };
+  const setHeat = (d) => { META.heat = Math.max(0, Math.min(5, (META.heat || 0) + d)); saveMeta(); showSettings(); };
+  $('#s-heat-dn').onclick = (e) => { e.stopPropagation(); setHeat(-1); };
+  $('#s-heat-up').onclick = (e) => { e.stopPropagation(); setHeat(1); };
+  $('#s-howto').onclick = () => showHowTo(showSettings);
+  $('#s-dev').onclick = () => showDevPanel(showSettings);
+  $('#s-back').onclick = () => showTitle();
 }
 
 // THE EMBER TREE — a branching constellation.  Each hero's nodes hang from a

@@ -106,7 +106,7 @@ const QUICK = process.argv.includes('--quick');
   console.log('--- THE DESCENT ---');
   await J(() => { localStorage.setItem('kizuna2_1.flow', '99'); localStorage.removeItem('kizuna2_1.run'); });
   await t.page.reload({ waitUntil: 'networkidle' }); await sleep(500);
-  await clickOverlayBtn('#t-descent'); await sleep(400);                      // → CHOOSE YOUR SURVIVOR
+  await clickOverlayBtn('#t-new'); await sleep(400);                      // → CHOOSE YOUR SURVIVOR
   await J(() => document.querySelector('.ss-fig[data-id="ash"]').click());    // pick Ash
   for (let i = 0; i < 6; i++) { if (!await J(() => !!document.querySelector('.ov-tap'))) break; await J(() => document.querySelector('#overlay').click()); await sleep(200); }
   await clickOverlayBtn('#ov-go'); await sleep(300);                          // → solo map
@@ -415,7 +415,7 @@ const QUICK = process.argv.includes('--quick');
   }, fallenLevel));
   await shot('abyss-fallen');
   await clickOverlayBtn('#ov-fallen'); await sleep(500);
-  await clickOverlayBtn('#t-descent'); await sleep(400);                      // → CHOOSE YOUR SURVIVOR
+  await clickOverlayBtn('#t-new'); await sleep(400);                      // → CHOOSE YOUR SURVIVOR
   await J(() => document.querySelector('.ss-fig[data-id="ash"]').click());    // pick Ash → new run
   for (let i = 0; i < 6; i++) { if (!await J(() => !!document.querySelector('.ov-tap'))) break; await J(() => document.querySelector('#overlay').click()); await sleep(200); }
   await clickOverlayBtn('#ov-go'); await sleep(300);
@@ -1277,6 +1277,30 @@ const QUICK = process.argv.includes('--quick');
       return hasNode('mira.emergent.bloodscent') && !!document.querySelector('#kindle-fx.t-emergent');
     }));
   await J(() => { const el = document.querySelector('#kindle-fx'); if (el) el.remove(); });
+
+  // ---------- TITLE + SETTINGS (cinematic) ----------
+  console.log('--- TITLE ---');
+  check('TITLE: cinematic screen — NEW GAME + SETTINGS, no THE DESCENT / no HEAT, version at bottom',
+    await J(() => {
+      showTitle();
+      const cine = document.querySelector('#overlay.title-cine');
+      return !!cine && !!document.querySelector('.tt-title') && !!document.querySelector('#t-new') && !!document.querySelector('#t-settings')
+        && !document.querySelector('#t-descent') && !document.querySelector('#heat-up')
+        && !!document.querySelector('.tt-ver') && (document.querySelector('.tt-ver').textContent || '').includes('BUILD');
+    }));
+  check('SETTINGS: offers sound, HEAT, dev tools; BACK returns to the title',
+    await J(() => {
+      showSettings();
+      const hasBits = !!document.querySelector('#s-sound') && !!document.querySelector('#s-heat-up') && !!document.querySelector('#s-dev');
+      document.querySelector('#s-back').click();
+      return hasBits && !!document.querySelector('#overlay.title-cine');
+    }));
+  check('SETTINGS: Heat adjusts from here (moved off the title)',
+    await J(() => {
+      META.heat = 0; showSettings();
+      document.querySelector('#s-heat-up').click(); document.querySelector('#s-heat-up').click();
+      return (META.heat || 0) === 2;
+    }));
 
   // ---------- DEV: reset progress (test first-time flow) ----------
   console.log('--- DEV ---');
