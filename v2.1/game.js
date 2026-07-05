@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 13;
+const V2_BUILD = 14;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -35,13 +35,12 @@ const SETTINGS = Object.assign(
 function saveSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(SETTINGS)); } catch (_) {} }
 
 // ---------------------------------------------------------------------------
-// EMBERS — the meta progression currency.  Defeating foes yields embers; they
-// are banked PERMANENTLY (across runs) and spent on the Ember Tree to open a
-// hero's kit (a skill-tree for cards).  One persistent wallet; the tree is the
-// permanent breadth sink (in-run forging comes later).
+// EMBERS — the PER-RUN progression currency.  Defeating foes yields embers,
+// spent on your party's Ember Tree (a skill-tree for cards) to open their kit
+// for THIS descent.  Everything resets when the run ends — see below.
 // ---------------------------------------------------------------------------
 // META now holds only the persistent difficulty setting (HEAT).  Progression is
-// NOT permanent — see below.
+// NOT permanent — it lives on the RUN.
 const META_KEY = 'kizuna2_1.meta';
 const META = Object.assign(
   { heat: 0 },
@@ -602,6 +601,7 @@ const FLOW = [
     { text: 'The first thing you understand is that everyone else is gone.' },
     { spk: 'ASH', text: '…then I carry it alone.' },
     { text: 'You are <b>Ash</b>. One blade, three ways to hold it — your <b>row is your stance</b>: Front cuts, Mid flows, Back strikes from the wind. <b>Drag Ash himself</b> between rows and his cards rewrite to match.' },
+    { text: 'You begin bare: a <b>single strike</b> in each stance. Everything else you’ll <b>earn on the way down</b>.' },
   ]},
   { type: 'fight', chapter: 1, heroes: ['ash'], enemies: ['husk'],
     narrator: 'Tap or drag a card to strike. DRAG ASH to change stance (1 EP). When the husk winds up, TAP in time to turn the blow.' },
@@ -629,7 +629,8 @@ const FLOW = [
     narrator: 'Help one another until all three threads hold — then the triad answers. Chain hits to fill BURST.' },
   { type: 'story', chapter: 3, title: 'THE ROAD DOWN', eyebrow: 'THE DESCENT', lines: [
     { text: 'The tutorial road ends at a cliff’s edge. Below waits the <b>Descent</b> — and the Abyss beneath it.' },
-    { text: 'Others survived down there. Every trio you form <b>resonates differently</b>, so <b>who walks beside whom is your build</b>. And when a party falls, the Abyss remembers where — your next descent finds their ashes still warm.' },
+    { text: 'The dead give up <b>✦ embers</b>. Between fights, open your party’s <b>Ember Tree</b> on the map and spend them to unlock new cards and upgrades — only for the heroes you’re fielding, and only for <b>this descent</b>. Fall, and the whole kit burns away with you.' },
+    { text: 'Every trio you form <b>resonates differently</b>, so <b>who walks beside whom is your build</b>. And when a party falls, the Abyss remembers where — your next descent finds their ashes still warm.' },
     { spk: 'MIRA', text: 'Down, then. Stay close. …That’s not sentiment. It’s tactics.' },
   ], next: 'descent' },
 ];
@@ -3124,7 +3125,7 @@ function showMap() {
         ${trio}
         <span class="party-chip-meta">PARTY · resonates as <b>✦ ${r.name}</b> <i>(${r.type})</i></span>
       </button>
-      <button class="map-tree-btn" id="map-tree">✦ EMBER TREE<span class="mt-embers">${runEmbers()}</span></button>
+      <button class="map-tree-btn${runEmbers() > 0 ? ' mt-glow' : ''}" id="map-tree">✦ EMBER TREE<span class="mt-embers">${runEmbers()}</span></button>
     </div>
   `, 'map-screen');
   document.querySelectorAll('.map-node.mn-reach').forEach(el => {
@@ -3964,11 +3965,12 @@ function showHowTo() {
   showOverlay(`
     <div class="ov-eyebrow">HOW TO PLAY</div>
     <div class="ov-title" style="font-size:20px; margin-bottom:10px;">THE THREADS</div>
-    <div class="ov-lines howto" style="text-align:left; max-width:420px; margin:0 auto;">
+    <div class="ov-lines howto" style="text-align:left; max-width:440px; margin:0 auto;">
       <div class="ov-line"><b>Row is stance.</b> Drag a hero between FRONT/MID/BACK — their cards rewrite.</div>
       <div class="ov-line"><b>Defend.</b> When a blow winds up, dodge to an empty row or PARRY it — tap each note as its ring glows.</div>
       <div class="ov-line"><b>Bond.</b> Help an ally (heal, guard, follow-up) to form a THREAD. Hold all three and the trio RESONATES a shared vow.</div>
       <div class="ov-line"><b>Exploit.</b> Hit a foe's weakness twice in a turn to STAGGER it; chain hits to fill BURST, then unleash the ALL-OUT.</div>
+      <div class="ov-line"><b>Grow.</b> Every hero starts with one card per stance. Foes drop <b>✦ embers</b> — on the map, spend them in your party's <b>EMBER TREE</b> to unlock cards and upgrades. It's power for <i>this descent only</i>: fall, and it burns away.</div>
       <div class="ov-line"><b>Inspect.</b> Press &amp; hold any card to enlarge it.</div>
     </div>
     <button class="ov-btn primary" id="ht-back">◂ BACK</button>
