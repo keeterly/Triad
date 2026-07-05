@@ -2069,3 +2069,23 @@ button.map-node:not(:disabled) { cursor: pointer; }
 .menu-item.menu-ember { border-color: rgba(255,170,90,0.4); }
 .menu-item.menu-ember span:first-child { color: #ffcf8a; }
 .menu-item.menu-ember .menu-val { color: #ffe0ac; font-weight: 800; }
+
+/* first-time guidance for the ember tree */
+.map-coach {
+  max-width: 520px; margin: 8px auto 2px; padding: 7px 14px; border-radius: 999px;
+  font-size: 10.5px; letter-spacing: 0.04em; color: #ffdca8; text-align: center;
+  background: rgba(40,26,14,0.7); border: 1px solid rgba(255,170,90,0.35);
+  animation: mt-pulse 1.7s ease-in-out infinite;
+}
+.map-coach b { color: #ffe6b8; }
+.map-tree-btn.mt-teach { border-color: rgba(255,190,110,0.9); }
+.et-coach {
+  font-size: 10px; line-height: 1.4; color: #ffcf8a; margin-bottom: 8px; padding: 7px 11px;
+  border-radius: 8px; background: rgba(40,26,14,0.55); border: 1px dashed rgba(255,170,90,0.4);
+}
+.et-coach b { color: #ffe6b8; }
+.et-kindled-note {
+  font-size: 10px; line-height: 1.4; color: #8ad39a; margin-bottom: 8px; padding: 7px 11px;
+  border-radius: 8px; background: rgba(20,34,22,0.6); border: 1px solid rgba(120,200,140,0.4);
+}
+.et-kindled-note b { color: #b7f0c4; }

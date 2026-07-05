@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 14;
+const V2_BUILD = 15;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -58,6 +58,10 @@ function addEmbers(n) { if (!RUN) return; RUN.embers = Math.max(0, (RUN.embers |
 // of nodes are behind you, tier 3 deeper still — the kit grows across the run.
 function runDepth() { return (RUN && RUN.completed) ? RUN.completed.length : 0; }
 function tierOpen(tier) { return runDepth() >= (tier - 1) * 2; }
+// one-time hand-hold: the first time you have embers to spend, the game walks
+// you through opening the Ember Tree and kindling a skill.
+function treeTaught() { try { return localStorage.getItem('kizuna2_1.treeTaught') === '1'; } catch (_) { return false; } }
+function setTreeTaught() { try { localStorage.setItem('kizuna2_1.treeTaught', '1'); } catch (_) {} }
 
 // ---------------------------------------------------------------------------
 // THE EMBER TREE — declarative skill-tree for cards.  Each node is pure data
@@ -3120,12 +3124,13 @@ function showMap() {
     <div class="ov-eyebrow">THE DESCENT</div>
     <div class="ov-title" style="font-size:20px; margin-bottom:14px;">CHOOSE THE ROAD</div>
     <div class="map-strip"><svg class="map-edges" aria-hidden="true"></svg>${colHtml}</div>
+    ${(runEmbers() > 0 && !treeTaught()) ? `<div class="map-coach">✦ You tore <b>${runEmbers()} embers</b> from the dead — open your <b>EMBER TREE</b> below and kindle a new skill before you press on.</div>` : ''}
     <div class="map-footer">
       <button class="party-chip" id="map-party">
         ${trio}
         <span class="party-chip-meta">PARTY · resonates as <b>✦ ${r.name}</b> <i>(${r.type})</i></span>
       </button>
-      <button class="map-tree-btn${runEmbers() > 0 ? ' mt-glow' : ''}" id="map-tree">✦ EMBER TREE<span class="mt-embers">${runEmbers()}</span></button>
+      <button class="map-tree-btn${(runEmbers() > 0 && !treeTaught()) ? ' mt-glow mt-teach' : (runEmbers() > 0 ? ' mt-glow' : '')}" id="map-tree">✦ EMBER TREE<span class="mt-embers">${runEmbers()}</span></button>
     </div>
   `, 'map-screen');
   document.querySelectorAll('.map-node.mn-reach').forEach(el => {
@@ -4049,6 +4054,9 @@ function nodeState(n) {
 function partyHeroes() { return (RUN && RUN.active && RUN.active.length) ? RUN.active.filter(id => TREE_HEROES.indexOf(id) >= 0) : []; }
 function showEmberTree(onBack, heroId, selId) {
   $('#stage').classList.remove('show-bg');
+  // a "__kindled:" prefix on selId means we just bought that node — celebrate it
+  let justKindled = false;
+  if (selId && String(selId).indexOf('__kindled:') === 0) { justKindled = true; selId = selId.slice(10); }
   const party = partyHeroes();
   // only your fielded party has constellations here; clamp to a party member
   if (party.length && party.indexOf(heroId) < 0) heroId = party[0];
@@ -4142,6 +4150,7 @@ function showEmberTree(onBack, heroId, selId) {
         ${rootOrb}${orbs}
       </div>
       <div class="et-side">
+        ${!treeTaught() ? `<div class="et-coach">Tap a <b>lit node</b>, then press <b>KINDLE</b> — the skill joins ${HEROES[heroId].name}’s hand for this descent.</div>` : ''}
         <div class="et-detail">${detail}</div>
         <button class="ov-btn et-back-btn" id="et-back">◂ BACK</button>
       </div>
@@ -4156,10 +4165,16 @@ function showEmberTree(onBack, heroId, selId) {
   const buy = $('#et-buy');
   if (buy && sel) buy.onclick = () => {
     if (nodeState(sel) !== 'ready') return;
-    addEmbers(-sel.cost); unlockNode(sel.id);
+    const first = !treeTaught();
+    addEmbers(-sel.cost); unlockNode(sel.id); setTreeTaught();   // learning the tree, once
     SFX.thread();
-    showEmberTree(onBack, heroId, sel.id);
+    showEmberTree(onBack, heroId, first ? '__kindled:' + sel.id : sel.id);
   };
+  // celebrate the very first kindle so the loop clicks: node → KINDLE → in hand
+  if (justKindled) {
+    const c = document.querySelector('.et-side');
+    if (c) { const b = document.createElement('div'); b.className = 'et-kindled-note'; b.innerHTML = '✓ <b>Kindled!</b> It’s in your hand now. Spend more embers here between fights — but it all resets if you fall.'; c.insertBefore(b, c.firstChild); }
+  }
   $('#et-back').onclick = () => { hideOverlay(); (onBack || showTitle)(); };
 }
 // CHOOSE YOUR SURVIVOR — pick the hero you begin (solo) with, from the ones

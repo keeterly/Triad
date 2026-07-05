@@ -879,6 +879,26 @@ const QUICK = process.argv.includes('--quick');
       return RUN === null && runEmbers() === 0;   // the run (and its unlocks) is gone
     }));
 
+  // ---------- GUIDED FIRST KINDLE ----------
+  console.log('--- TEACH THE TREE ---');
+  check('TEACH: with embers in hand, the map coaches you toward the Ember Tree',
+    await J(() => {
+      try { localStorage.removeItem('kizuna2_1.treeTaught'); } catch (_) {}
+      S = null; RUN = newRun('ash'); RUN.embers = 8; showMap();
+      return !!document.querySelector('.map-coach') && !!document.querySelector('.map-tree-btn.mt-teach');
+    }));
+  check('TEACH: the tree shows a KINDLE coach until you learn it',
+    await J(() => { showEmberTree(() => {}, 'ash'); return !!document.querySelector('.et-coach') && treeTaught() === false; }));
+  check('TEACH: kindling your first node marks the lesson + shows the confirmation',
+    await J(() => {
+      RUN.embers = 20; RUN.completed = [0, 1, 2, 3]; showEmberTree(() => {}, 'ash');
+      const buy = document.querySelector('#et-buy'); if (!buy) return false;
+      buy.click();
+      return treeTaught() === true && !document.querySelector('.et-coach') && !!document.querySelector('.et-kindled-note');
+    }));
+  check('TEACH: once learned, the map no longer nags',
+    await J(() => { S = null; RUN = newRun('ash'); RUN.embers = 8; showMap(); return !document.querySelector('.map-coach'); }));
+
   t.report();
   await t.browser.close();
 })().catch(e => { console.error('FATAL', e.message); process.exit(1); });
