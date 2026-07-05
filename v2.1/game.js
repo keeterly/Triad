@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 26;
+const V2_BUILD = 27;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -3114,7 +3114,6 @@ function onVictory() {
   addEmbers(clearBonus); S._embersRun = (S._embersRun || 0) + clearBonus;
   SFX.victory();
   setTimeout(() => {
-    if (S.node.recruitId) { showWandererJoin(); return; }   // a shared fight won → the wanderer joins
     if (isBoss && S.node.mapId != null) { onFloorCleared(); return; }   // floor boss → deeper, or the run's end
     const th = S.threads.size;
     showOverlay(`
@@ -3541,115 +3540,97 @@ function kindleBurst(node, onDone) {
   return el;
 }
 // ===========================================================================
-// TRAVELER ENCOUNTERS — recruitment is a narrative CHOICE, not a menu button.
-// You meet a stranger on the road and HOW you treat them decides everything:
+// TRAVELER ENCOUNTERS — recruitment is a cinematic CHOICE, not a menu button.
+// You cross paths with a stranger on the road and HOW you treat them decides
+// everything:
 //   friend  — welcomed / aligned   → they join with a bond already kindled
-//   fight   — "prove yourselves"    → a shared fight earns the bond (WANDER_STAGE)
-//   neutral — recruited coldly      → they join, but no bond
+//   neutral — taken in coldly       → they join, but no bond (warmth is earned)
 //   decline — turned away           → they don't join; the party closes ranks
 //   foe     — wronged               → they leave resentful and AMBUSH you later
 // It all lives on RUN and wipes on death — every descent you can choose
 // differently and assemble a differently-tempered party.
 // ===========================================================================
-const WANDER_STAGE = {   // the "prove yourselves" shared-fight staging, per hero
-  cassia:  { enemies: ['husk', 'husk'] },
-  elin:    { enemies: ['wraith', 'husk'] },
-  mira:    { enemies: ['cultist', 'husk'] },
-  branwen: { enemies: ['wraith', 'wraith'] },
-  hask:    { enemies: ['husk', 'husk'] },
-};
 const TRAVELERS = {
   cassia: {
     eyebrow: 'A BANNER IN THE DUST',
     scene: 'A knight sits beside a sword driven point-down through a torn banner, helm off, fingers loose on the pommel.',
-    lines: [{ spk: 'CASSIA', text: '“If you came to take the sword, take it. If you came to ask whose it was — don’t. I have spent the last reach forgetting… but I spent it standing.”' }],
+    quote: '“If you came to take the sword, take it. If you came to ask whose it was — don’t. I spent the last reach forgetting… but I spent it standing.”',
     choices: [
-      { outcome: 'friend', label: 'Stand with her', tag: 'she joins, a bond already bound' },
-      { outcome: 'fight',  label: 'Test each other first', tag: 'fight at her side to earn it' },
-      { outcome: 'foe',    label: 'Take the sword, leave her', tag: 'she will not forget the theft' },
+      { outcome: 'friend',  label: 'Stand with her',        tag: 'she joins, a bond already bound' },
+      { outcome: 'neutral', label: 'Take her sword-arm',    tag: 'she walks with you — cold, for now' },
+      { outcome: 'foe',     label: 'Take the sword, leave her', tag: 'she will not forget the theft' },
     ],
   },
   elin: {
     eyebrow: 'A FIELD-MEDIC MARK',
     scene: 'A trail of clean linen strips leads you in. A woman kneels splinting a stranger’s arm — a stranger who is not breathing. She finishes the splint anyway.',
-    lines: [{ spk: 'ELIN', text: '“I was sent to heal. I will heal who walks.”' }],
+    quote: '“I was sent to heal. I will heal who walks.”',
     choices: [
-      { outcome: 'friend', label: 'Walk with her', tag: 'she joins, a bond already bound' },
-      { outcome: 'fight',  label: 'Let her prove her mettle', tag: 'fight at her side to earn it' },
-      { outcome: 'decline',label: 'Leave her to the dead', tag: 'the party closes ranks' },
+      { outcome: 'friend',  label: 'Walk with her',            tag: 'she joins, a bond already bound' },
+      { outcome: 'neutral', label: 'Let her tend the line',    tag: 'she walks with you — nothing more' },
+      { outcome: 'decline', label: 'Leave her to the dead',    tag: 'the party closes ranks' },
     ],
   },
   mira: {
     eyebrow: 'A KNIFE IN THE DARK',
     scene: 'You never see her until she wants you to. A blade turns lazily in her fingers; three bodies cool behind her that you never heard fall.',
-    lines: [{ spk: 'MIRA', text: '“You walk loud. Someone should watch the dark for you. …Don’t make me regret offering.”' }],
+    quote: '“You walk loud. Someone should watch the dark for you. …Don’t make me regret offering.”',
     choices: [
-      { outcome: 'friend', label: 'Let her in', tag: 'she joins, a bond already bound' },
-      { outcome: 'fight',  label: 'Prove you’re worth watching', tag: 'fight at her side to earn it' },
-      { outcome: 'foe',    label: 'Try to rob the assassin', tag: 'a very bad idea' },
+      { outcome: 'friend',  label: 'Let her in',              tag: 'she joins, a bond already bound' },
+      { outcome: 'neutral', label: 'Keep her at knife’s length', tag: 'she walks with you — trust nothing' },
+      { outcome: 'foe',     label: 'Try to rob the assassin', tag: 'a very bad idea' },
     ],
   },
   branwen: {
     eyebrow: 'EYES ON THE TREELINE',
     scene: 'An arrow splits the post beside your head before you see her. She steps from cover, bow already lowered, unhurried.',
-    lines: [{ spk: 'BRANWEN', text: '“Relax — if I’d wanted you dead you wouldn’t be reading this. Walk down there without eyes on the treeline and you don’t walk back. Let me be your eyes.”' }],
+    quote: '“Relax — if I’d wanted you dead you wouldn’t be reading this. Walk down there without eyes on the treeline and you don’t walk back. Let me be your eyes.”',
     choices: [
-      { outcome: 'friend', label: 'Fall into her line', tag: 'she joins, a bond already bound' },
-      { outcome: 'fight',  label: 'Earn her arrows', tag: 'fight at her side to earn it' },
-      { outcome: 'decline',label: 'Refuse her eyes', tag: 'the party closes ranks' },
+      { outcome: 'friend',  label: 'Fall into her line',    tag: 'she joins, a bond already bound' },
+      { outcome: 'neutral', label: 'Take the eyes, not the trust', tag: 'she walks with you — watchful' },
+      { outcome: 'decline', label: 'Refuse her eyes',       tag: 'the party closes ranks' },
     ],
   },
   _default: {
     eyebrow: 'A STRANGER ON THE PATH',
     scene: 'Footsteps in the dust that are not yours. Whoever they are, they stop when you stop — waiting for you to choose first.',
-    lines: [],
+    quote: '',
     choices: [
-      { outcome: 'friend', label: 'Hear them out', tag: 'they join, a bond already bound' },
-      { outcome: 'fight',  label: 'Prove yourselves', tag: 'fight at their side to earn it' },
-      { outcome: 'decline',label: 'Keep walking', tag: 'the party closes ranks' },
+      { outcome: 'friend',  label: 'Hear them out',   tag: 'they join, a bond already bound' },
+      { outcome: 'neutral', label: 'Let them walk a while', tag: 'they walk with you — for now' },
+      { outcome: 'decline', label: 'Keep walking',    tag: 'the party closes ranks' },
     ],
   },
 };
+// The cinematic "crossing paths" encounter — a full-bleed atmospheric scene:
+// the stranger rises out of the dark, their line lands, then the choices.
 function showRecruit(n) {
   const h = HEROES[n.hero];
   const trav = TRAVELERS[n.hero] || TRAVELERS._default;
-  // Your line is only three deep on the field — with no room to field them, the
-  // "prove yourselves" shared fight is off the table (a full trio can't take a
-  // fourth into a fight); the wanderer still joins the reserve or is turned away.
-  const bench = RUN.active.length >= 3;
-  const choices = trav.choices.filter(c => !(bench && c.outcome === 'fight'));
-  const lines = (trav.lines || []).map(l => `<div class="ov-line">${l.spk ? `<span class="spk">${l.spk}</span>` : ''}${l.text}</div>`).join('');
-  const btns = choices.map((c, i) =>
-    `<button class="ov-btn${i === 0 ? ' primary' : ''} rc-out-${c.outcome}" id="rc-${c.outcome}">${c.label} · <span style="opacity:.65">${c.tag}</span></button>`).join('');
+  const spk = (trav.lines && trav.lines[0] && trav.lines[0].spk) || h.name;
+  const btns = trav.choices.map(c =>
+    `<button class="tc-choice tc-${c.outcome}" id="rc-${c.outcome}"><span class="tc-c-label">${c.label}</span><span class="tc-c-tag">${c.tag}</span></button>`).join('');
   showOverlay(`
-    <div class="ov-eyebrow">${trav.eyebrow} · ${(h.archetype || '').toUpperCase()}</div>
-    <div class="ov-title" style="font-size:22px">${h.name} — ${h.cls.toUpperCase()}</div>
-    <div class="ps-identity" style="margin:-4px auto 8px;max-width:380px">${trav.scene}</div>
-    <div class="recruit-fig">${V2PORTRAITS[n.hero] || ''}</div>
-    <div class="ov-lines" style="min-height:0">${lines}</div>
-    ${btns}
-  `);
-  choices.forEach(c => { const b = $('#rc-' + c.outcome); if (b) b.onclick = () => resolveTravelerChoice(n, c); });
+    <div class="tc-bar tc-bar-t"></div>
+    <div class="tc-bar tc-bar-b"></div>
+    <div class="tc-rays"></div>
+    <div class="tc-vign"></div>
+    <div class="tc-body">
+      <div class="tc-eyebrow">${trav.eyebrow} · ${(h.archetype || '').toUpperCase()}</div>
+      <div class="tc-portrait"><span class="tc-glow"></span><span class="tc-art">${V2PORTRAITS[n.hero] || ''}</span></div>
+      <div class="tc-name">${h.name}<span class="tc-cls"> — ${h.cls.toUpperCase()}</span></div>
+      <div class="tc-scene">${trav.scene}</div>
+      ${trav.quote ? `<div class="tc-speaker">${spk}</div><div class="tc-quote">${trav.quote}</div>` : ''}
+      <div class="tc-choices">${btns}</div>
+    </div>
+  `, 'traveler-cine');
+  trav.choices.forEach(c => { const b = $('#rc-' + c.outcome); if (b) b.onclick = () => resolveTravelerChoice(n, c); });
 }
 function resolveTravelerChoice(n, c) {
   hideOverlay();
-  if (c.outcome === 'fight')   return startWanderFight(n);
   if (c.outcome === 'decline') return declineTraveler(n);
   if (c.outcome === 'foe')     return foeTraveler(n);
   return joinTraveler(n, c.outcome === 'friend');   // friend | neutral
-}
-// FIGHT branch — the wanderer fights at your side; the threads you form ARE the
-// recruitment.  Resolves through onVictory → showWandererJoin.
-function startWanderFight(n) {
-  const h = HEROES[n.hero];
-  const stage = WANDER_STAGE[n.hero] || { enemies: _combatEnemies(n.level || 2) };
-  const heroes = RUN.active.slice();
-  if (!heroes.includes(n.hero)) heroes.push(n.hero);
-  startFight({ type: 'fight', chapter: 3, heroes, enemies: stage.enemies.slice(),
-    useRunHp: true, mapId: n.id, depth: n.level || n.col, floor: RUN.floor || 1,
-    nodeType: 'recruit', recruitId: n.hero, label: n.label || 'A NEW THREAD', level: n.level,
-    narrator: h.name + ' fights beside you — help them, and the thread will hold.' });
-  $('#chapter-chip').textContent = 'A NEW THREAD';
 }
 // FRIEND / NEUTRAL join — a friend arrives already threaded to the whole line.
 function joinTraveler(n, friend) {
@@ -3691,37 +3672,21 @@ function foeTraveler(n) {
   showTravelerOutcome(rid, '⚔ A NAME AGAINST YOU', h.name + ' TURNS AWAY',
     `You wrong <b>${h.name}</b>, and they mark you for it. They melt into the dark — but the reach is long, and they are <b>waiting on the road ahead</b>.`, true, rid);
 }
-// Shared outcome beat for friend / neutral / decline / foe.
+// Shared cinematic outcome beat for friend / neutral / decline / foe.
 function showTravelerOutcome(figId, eyebrow, title, beat, foe, mustInclude) {
   showOverlay(`
-    <div class="ov-eyebrow" style="color:${foe ? '#e8604a' : 'var(--gold-bright)'}">${eyebrow}</div>
-    <div class="ov-title" style="font-size:22px">${title}</div>
-    ${figId ? `<div class="recruit-fig${foe ? ' rc-foe' : ''}">${V2PORTRAITS[figId] || ''}</div>` : ''}
-    <div class="ov-lines" style="min-height:0"><div class="ov-line">${beat}</div></div>
-    <button class="ov-btn primary" id="rc-next">${RUN.roster.length > 3 ? 'CHOOSE YOUR LINE' : 'ONWARD'}</button>
-  `);
+    <div class="tc-bar tc-bar-t"></div>
+    <div class="tc-bar tc-bar-b"></div>
+    <div class="tc-vign"></div>
+    <div class="tc-body">
+      <div class="tc-eyebrow${foe ? ' tc-eyebrow-foe' : ''}">${eyebrow}</div>
+      ${figId ? `<div class="tc-portrait${foe ? ' tc-foe-art' : ''}"><span class="tc-glow"></span><span class="tc-art">${V2PORTRAITS[figId] || ''}</span></div>` : '<div class="tc-portrait tc-portrait-empty"></div>'}
+      <div class="tc-name">${title}</div>
+      <div class="tc-scene tc-scene-wide">${beat}</div>
+      <div class="tc-choices"><button class="tc-choice tc-friend" id="rc-next"><span class="tc-c-label">${RUN.roster.length > 3 ? 'CHOOSE YOUR LINE' : 'ONWARD'}</span></button></div>
+    </div>
+  `, 'traveler-cine' + (foe ? ' tc-foe-scene' : ''));
   $('#rc-next').onclick = () => { hideOverlay(); (RUN.roster.length > 3) ? showPartySelect(() => showMap(), mustInclude) : showMap(); };
-}
-// The shared "prove yourselves" fight is won → the wanderer joins.  HOW you
-// fought decides the terms: a thread formed → bonded; none → wounded and wary.
-function showWandererJoin() {
-  const rid = S.node.recruitId;
-  const h = HEROES[rid];
-  const threaded = [...S.threads].some(k => k.split('|').indexOf(rid) >= 0);
-  const hp = RUN.hp[rid] != null ? RUN.hp[rid] : h.maxHp;
-  const wounded = hp < h.maxHp * 0.6;
-  if (!RUN.roster.includes(rid)) RUN.roster.push(rid);
-  if (RUN.hp[rid] == null) RUN.hp[rid] = h.maxHp;
-  unlockStarter(rid);   // meet them once → a future starter
-  if (RUN.active.length < 3 && !RUN.active.includes(rid)) RUN.active.push(rid);
-  saveRun();
-  const beat = threaded
-    ? `You fought as one — steel and cover and a hand at the right moment. <b>${h.name}</b> joins, and the thread between you is <b>already bound</b>.`
-    : wounded
-      ? `<b>${h.name}</b> joins the line, battered — you fought past them, not with them. The trust will have to be earned on the road.`
-      : `The foe falls. <b>${h.name}</b> falls in beside you, wary but willing.`;
-  showTravelerOutcome(rid, threaded ? '♡ A THREAD IS BOUND' : 'A NEW THREAD', h.name + ' JOINS',
-    beat + (threaded ? '' : ' <span style="opacity:.75">Fight beside them again and the thread will come.</span>'), false, rid);
 }
 // A "vengeful traveler" enemy synthesized from a wronged hero's own kit — you
 // know how they fight, so they're weak to their own school.  Registered once.

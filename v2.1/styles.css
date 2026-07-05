@@ -2240,3 +2240,64 @@ button.map-node:not(:disabled) { cursor: pointer; }
 .kf-skip { position: absolute; left: 0; right: 0; bottom: 7%; text-align: center; font-size: 9px; letter-spacing: 0.3em; color: var(--ink-faint); opacity: 0; z-index: 7; }
 #kindle-fx.kf-slam .kf-skip { animation: kf-fade 0.6s 1.2s ease forwards, kf-skippulse 1.7s 1.8s ease-in-out infinite; }
 @keyframes kf-skippulse { 50% { opacity: 0.35; } }
+
+/* ===========================================================================
+   V2.1 — TRAVELER ENCOUNTER (#overlay.traveler-cine) · "where paths cross"
+   A full-bleed cinematic: opaque atmospheric backdrop, letterbox bars, the
+   stranger rising out of the dark, then uniform single-line choices.
+   =========================================================================== */
+#overlay.traveler-cine {
+  background: radial-gradient(ellipse 120% 92% at 50% 38%, #18110b 0%, #0a0605 56%, #000 100%);
+  overflow: hidden;
+}
+#overlay.traveler-cine #overlay-inner { width: 100%; max-width: none; text-align: center; }
+.tc-bar { position: absolute; left: 0; right: 0; height: 4%; background: #000; z-index: 6; }
+.tc-bar-t { top: 0;    box-shadow: 0 8px 22px rgba(0,0,0,0.7); animation: tc-bar-in 0.55s cubic-bezier(.2,.8,.2,1) both; }
+.tc-bar-b { bottom: 0; box-shadow: 0 -8px 22px rgba(0,0,0,0.7); animation: tc-bar-in 0.55s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes tc-bar-in { from { height: 13%; } to { height: 4%; } }
+.tc-rays { position: absolute; left: 50%; top: 30%; width: 130vmax; height: 130vmax; transform: translate(-50%,-50%);
+  opacity: 0; pointer-events: none;
+  background: repeating-conic-gradient(from 0deg at 50% 50%, transparent 0 6deg, rgba(240,212,136,0.05) 6.4deg 7deg, transparent 7.4deg 16deg);
+  animation: tc-rays-in 2s ease forwards, tc-rays-spin 140s linear infinite; }
+@keyframes tc-rays-in { to { opacity: 0.5; } }
+@keyframes tc-rays-spin { to { transform: translate(-50%,-50%) rotate(360deg); } }
+.tc-vign { position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse 58% 52% at 50% 34%, transparent 42%, rgba(0,0,0,0.6) 100%); }
+.tc-body { position: relative; z-index: 5; display: flex; flex-direction: column; align-items: center; padding: 1.2% 16px; }
+.tc-eyebrow { font-size: 9.5px; letter-spacing: 0.4em; color: var(--blood-bright); animation: tc-fade 0.7s 0.1s both; }
+.tc-eyebrow-foe { color: #e8604a; }
+.tc-portrait { position: relative; width: 88px; height: 88px; margin: 2px auto 0; display: flex; align-items: flex-end; justify-content: center; animation: tc-rise 1s cubic-bezier(.16,.72,.28,1) both; }
+.tc-portrait-empty { height: 24px; }
+.tc-glow { position: absolute; inset: -16%; border-radius: 50%; filter: blur(6px);
+  background: radial-gradient(circle at 50% 55%, rgba(240,212,136,0.16) 0%, transparent 62%); animation: tc-glow-pulse 4.5s ease-in-out infinite; }
+.tc-art { position: relative; display: block; }
+.tc-art svg, .tc-art img { height: 88px; width: auto; filter: drop-shadow(0 6px 16px rgba(0,0,0,0.85)); }
+.tc-foe-art .tc-art svg { filter: drop-shadow(0 6px 16px rgba(0,0,0,0.85)) grayscale(0.35) brightness(0.82) sepia(0.3) hue-rotate(-30deg); }
+@keyframes tc-rise { from { opacity: 0; transform: translateY(14px) scale(0.95); } to { opacity: 1; transform: none; } }
+@keyframes tc-glow-pulse { 50% { opacity: 0.55; } }
+.tc-name { font-family: var(--display, 'Cinzel', serif); font-size: 21px; letter-spacing: 0.12em; color: var(--ink); margin-top: 3px; animation: tc-fade 0.7s 0.32s both; }
+.tc-cls { color: var(--ink-dim); font-size: 15px; letter-spacing: 0.08em; }
+.tc-scene { font-size: 11px; font-style: italic; color: var(--ink-dim); max-width: 440px; line-height: 1.5; margin: 5px auto 0; animation: tc-fade 0.8s 0.48s both; }
+.tc-scene-wide { max-width: 470px; }
+.tc-scene b { color: var(--ink); font-style: normal; }
+.tc-speaker { font-size: 8.5px; letter-spacing: 0.26em; color: var(--gold-bright); margin: 7px 0 2px; animation: tc-fade 0.8s 0.58s both; }
+.tc-quote { font-size: 12px; font-style: italic; color: var(--ink); max-width: 460px; line-height: 1.5; margin: 0 auto; animation: tc-fade 0.8s 0.64s both; }
+@keyframes tc-fade { from { opacity: 0; } to { opacity: 1; } }
+/* uniform, single-line choices */
+.tc-choices { display: flex; flex-direction: column; gap: 6px; width: 100%; max-width: 430px; margin: 11px auto 0; animation: tc-fade 0.8s 0.8s both; }
+.tc-choice { display: flex; align-items: baseline; justify-content: center; gap: 9px; width: 100%;
+  font-family: inherit; cursor: pointer; padding: 9px 18px; border-radius: 5px;
+  background: rgba(18,13,9,0.72); border: 1px solid rgba(240,212,136,0.26); color: var(--ink);
+  white-space: nowrap; overflow: hidden; transition: border-color 0.15s, background 0.15s, transform 0.08s; }
+.tc-choice:hover { border-color: var(--gold-bright); background: rgba(30,22,12,0.9); }
+.tc-choice:active { transform: translateY(1px); }
+.tc-c-label { font-size: 12px; letter-spacing: 0.16em; flex: 0 0 auto; }
+.tc-c-tag { font-size: 10px; letter-spacing: 0.06em; color: var(--ink-faint); overflow: hidden; text-overflow: ellipsis; }
+.tc-c-tag::before { content: '· '; }
+.tc-friend { border-color: rgba(240,212,136,0.5); }
+.tc-friend .tc-c-label { color: var(--gold-bright); }
+.tc-neutral .tc-c-label { color: var(--ink); }
+.tc-decline .tc-c-label { color: var(--ink-dim); }
+.tc-foe { border-color: rgba(200,72,52,0.42); }
+.tc-foe .tc-c-label { color: #e8825a; }
+.tc-foe:hover { border-color: #e8604a; background: rgba(42,16,12,0.9); }

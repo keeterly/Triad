@@ -1047,63 +1047,33 @@ const QUICK = process.argv.includes('--quick');
   check('INTRO: the fight begins after the cutscene closes',
     await J(() => !document.getElementById('boss-cine') && window.__began === true));
 
-  // ---------- TRAVELER (choice-driven recruitment) ----------
+  // ---------- TRAVELER (cinematic choice-driven recruitment) ----------
   console.log('--- TRAVELER ---');
-  check('TRAVELER: a recruit is a CHOICE event (welcome / prove / wrong) — no join button',
+  check('TRAVELER: a recruit is a cinematic CHOICE (welcome / take / wrong) — no fight, no join button',
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash'];
       const rn = RUN.map.find(n => n.type === 'recruit');
       showRecruit(rn);
-      return !!document.querySelector('#rc-friend') && !!document.querySelector('#rc-fight') && !document.querySelector('#rc-join');
+      const cine = document.querySelector('#overlay.traveler-cine');
+      return !!cine && !!document.querySelector('.tc-portrait .tc-art') && !!document.querySelector('#rc-friend')
+        && !document.querySelector('#rc-fight') && !document.querySelector('#rc-join');
     }));
-  check('TRAVELER: the "prove yourselves" choice opens a shared FIGHT with them in your line',
-    await J(() => {
-      document.querySelector('#rc-fight').click();
-      return !!S.node.recruitId && S.heroes.some(h => h.id === 'ash') && S.heroes.some(h => h.id === S.node.recruitId) && S.heroes.length === 2;
-    }));
-  check('WANDERER: forming a thread + winning enlists them BONDED',
-    await J(async () => {
-      const rid = S.node.recruitId;
-      await addThread('ash', rid);                       // an act of help forms the thread
-      S.enemies.forEach(e => { e.hp = 0; e.dead = true; });
-      onVictory();
-      return true;
-    }));
-  await sleep(900);
-  check('WANDERER: the join beat celebrates the bound thread',
-    await J(() => ((document.querySelector('.ov-eyebrow') || {}).textContent || '').includes('THREAD IS BOUND') && !!document.querySelector('#rc-next')));
-  await J(() => { const b = document.querySelector('#rc-next'); if (b) b.click(); });
-  await sleep(300);
-  check('WANDERER: the recruit now rides in the roster + active line, bonded',
-    await J(() => {
-      const rid = RUN.roster.find(id => id !== 'ash');
-      return !!rid && RUN.active.includes(rid) && (RUN.bonds[['ash', rid].sort().join('|')] || 0) >= 1;
-    }));
-  // UNTHREADED path: win without helping them → they join, but wary (no bond)
-  check('WANDERER: winning WITHOUT a thread still enlists them — but bond-less',
-    await J(async () => {
-      RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash']; RUN.bonds = {};
-      const rn = RUN.map.find(n => n.type === 'recruit');
-      showRecruit(rn); document.querySelector('#rc-fight').click();
-      const rid = S.node.recruitId;
-      S.enemies.forEach(e => { e.hp = 0; e.dead = true; });   // win, but no thread formed
-      onVictory();
-      window.__rid = rid;
-      return true;
-    }));
-  await sleep(900);
-  await J(() => { const b = document.querySelector('#rc-next'); if (b) b.click(); });
-  await sleep(300);
-  check('WANDERER: bond-less recruit joined the line with no thread seeded',
-    await J(() => { const rid = window.__rid; return RUN.roster.includes(rid) && RUN.active.includes(rid) && (RUN.bonds[['ash', rid].sort().join('|')] || 0) === 0; }));
-  // FRIEND: welcoming a traveler joins them BONDED, no fight
+  // FRIEND: welcoming a traveler joins them BONDED
   check('TRAVELER: WELCOME → they join with a bond already kindled',
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash']; RUN.bonds = {};
       const rn = RUN.map.find(n => n.type === 'recruit'); rn.hero = 'cassia';
       showRecruit(rn); document.querySelector('#rc-friend').click();
       return RUN.roster.includes('cassia') && RUN.active.includes('cassia') && (RUN.bonds['ash|cassia'] || 0) >= 1
-        && ((document.querySelector('.ov-eyebrow') || {}).textContent || '').includes('THREAD IS BOUND');
+        && ((document.querySelector('.tc-eyebrow') || {}).textContent || '').includes('THREAD IS BOUND');
+    }));
+  // NEUTRAL: taking them in coldly joins them WITHOUT a bond
+  check('TRAVELER: TAKE THEM IN (cold) → they join, but no bond',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash']; RUN.bonds = {};
+      const rn = RUN.map.find(n => n.type === 'recruit'); rn.hero = 'mira';
+      showRecruit(rn); document.querySelector('#rc-neutral').click();
+      return RUN.roster.includes('mira') && RUN.active.includes('mira') && (RUN.bonds['ash|mira'] || 0) === 0;
     }));
   // DECLINE: turning a traveler away doesn't recruit — the party closes ranks (heals)
   check('TRAVELER: DECLINE → they don’t join; the party closes ranks (heals)',
@@ -1120,7 +1090,7 @@ const QUICK = process.argv.includes('--quick');
       const rn = RUN.map.find(n => n.type === 'recruit'); rn.hero = 'cassia';
       showRecruit(rn); document.querySelector('#rc-foe').click();
       return !RUN.roster.includes('cassia') && RUN.foes.includes('cassia')
-        && ((document.querySelector('.ov-title') || {}).textContent || '').includes('CASSIA TURNS AWAY');
+        && ((document.querySelector('.tc-name') || {}).textContent || '').includes('CASSIA TURNS AWAY');
     }));
   // AMBUSH: the next fight spawns a "vengeful <name>" built from their kit
   check('TRAVELER: the wronged foe SPRINGS an ambush at the next fight (vengeful, weak to their own school)',
@@ -1130,8 +1100,8 @@ const QUICK = process.argv.includes('--quick');
       const foe = S.enemies.find(e => e.def.name === 'VENGEFUL CASSIA');
       return !!foe && foe.def.weak === HEROES.cassia.school && RUN.foes.length === 0;
     }));
-  // BENCH path: a FULL trio meets an extra wanderer → choices minus the fight branch
-  check('TRAVELER: a full trio can WELCOME/turn-away but not fight (no forced 4-hero fight)',
+  // BENCH path: a FULL trio meets an extra wanderer → same choices (join goes to reserve)
+  check('TRAVELER: a full trio still gets the choice encounter (welcome / take / turn away)',
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash', 'elin', 'mira']; RUN.active = ['ash', 'elin', 'mira'];
       const rn = RUN.map.find(n => n.type === 'recruit');
