@@ -1288,6 +1288,17 @@ const QUICK = process.argv.includes('--quick');
         && !document.querySelector('#t-descent') && !document.querySelector('#heat-up')
         && !!document.querySelector('.tt-ver') && (document.querySelector('.tt-ver').textContent || '').includes('BUILD');
     }));
+  check('TITLE: key-art reflects your LAST-played starter (falls back to Ash)',
+    await J(() => {
+      try { localStorage.removeItem(LAST_STARTER_KEY); } catch (_) {}
+      showTitle();
+      const dflt = !!document.querySelector('.tt-keyart.tt-art-ash');
+      try { localStorage.setItem(LAST_STARTER_KEY, 'mira'); } catch (_) {}
+      showTitle();
+      const last = !!document.querySelector('.tt-keyart.tt-art-mira');
+      try { localStorage.removeItem(LAST_STARTER_KEY); } catch (_) {}
+      return dflt && last;
+    }));
   check('SETTINGS: offers sound, HEAT, dev tools; BACK returns to the title',
     await J(() => {
       showSettings();

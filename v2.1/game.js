@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 35;
+const V2_BUILD = 36;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -722,6 +722,7 @@ const FLOW = [
 const STARTER_POOL = ['ash', 'elin', 'mira', 'cassia', 'branwen'];   // all pickable/recruitable heroes
 const DEFAULT_STARTERS = ['ash', 'mira'];                            // unlocked from the first run (solo-viable damage)
 const STARTERS_KEY = 'kizuna2_1.starters';
+const LAST_STARTER_KEY = 'kizuna2_1.lastStarter';   // whose key-art greets you on the title
 function getUnlockedStarters() {
   try { const a = JSON.parse(localStorage.getItem(STARTERS_KEY) || 'null'); if (Array.isArray(a) && a.length) return a.filter(id => STARTER_POOL.includes(id)); } catch (_) {}
   return DEFAULT_STARTERS.slice();
@@ -4633,7 +4634,7 @@ function showHowTo(back) {
 // memories and vow ranks, the current run, and Heat.  Device prefs (sound,
 // fight background) and the entry gate are left alone.
 function resetProgress() {
-  [STARTERS_KEY, PROGRESS_KEY, RUN_KEY, ABYSS_KEY, VOWS_KEY, META_KEY,
+  [STARTERS_KEY, LAST_STARTER_KEY, PROGRESS_KEY, RUN_KEY, ABYSS_KEY, VOWS_KEY, META_KEY,
    'kizuna2_1.treeTaught', 'kizuna2_1.parryLessons', 'kizuna2_1.strikeLessons']
     .forEach(k => { try { localStorage.removeItem(k); } catch (_) {} });
   RUN = null; S = null; flowIdx = 0; META.heat = 0;
@@ -4675,10 +4676,13 @@ function showTitle() {
   const savedRun = loadRun();
   const canContinue = savedFlow > 0 || (savedRun && !savedRun.done);
   // A full-screen JRPG title: a key-art figure fills the frame, the logo sits
-  // top-center, and a horizontal menu bar runs across the bottom.
+  // top-center, and a horizontal menu bar runs across the bottom.  The key art
+  // is whoever you LAST descended as (falls back to Ash).
+  let artHero = 'ash';
+  try { const l = localStorage.getItem(LAST_STARTER_KEY); if (l && HEROES[l] && V2PORTRAITS[l]) artHero = l; } catch (_) {}
   showOverlay(`
     <div class="tt-rays"></div>
-    <div class="tt-keyart"><span class="tt-keyart-glow"></span><span class="tt-keyart-fig">${V2PORTRAITS['ash'] || ''}</span></div>
+    <div class="tt-keyart tt-art-${artHero}"><span class="tt-keyart-glow"></span><span class="tt-keyart-fig">${V2PORTRAITS[artHero] || ''}</span></div>
     <div class="tt-vign"></div>
     <div class="tt-scrim"></div>
     ${Array.from({ length: 14 }).map((_, i) => `<span class="tt-ember" style="--i:${i}"></span>`).join('')}
@@ -4902,7 +4906,7 @@ function showStarterSelect(onPick) {
 function beginRun(starterId) {
   RUN = newRun(starterId);
   flowIdx = FLOW.length;
-  try { localStorage.setItem(PROGRESS_KEY, String(FLOW.length)); localStorage.removeItem(RUN_KEY); } catch (_) {}
+  try { localStorage.setItem(PROGRESS_KEY, String(FLOW.length)); localStorage.removeItem(RUN_KEY); localStorage.setItem(LAST_STARTER_KEY, starterId); } catch (_) {}
   saveRun();
   const h = HEROES[starterId];
   showStory({
