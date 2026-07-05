@@ -1023,14 +1023,26 @@ const QUICK = process.argv.includes('--quick');
       const afterTwo = has();
       return afterOne === false && afterTwo === true;
     }));
+  check('EMERGENT: the tally accrues ACROSS fights in a descent (grows over the run)',
+    await J(() => {
+      RUN = newRun('mira'); RUN.active = ['mira']; RUN.nodes = ['mira.sig.back', 'mira.emergent.bloodscent'];
+      startFight({ type: 'fight', chapter: 3, useRunHp: true, heroes: ['mira'], enemies: ['husk'] });
+      fireEmergent('mira', 'expose');                                   // fight A: 1 mark, no forge yet
+      const forgedInA = S.tempCards.some(c => c.name === 'Execute');
+      startFight({ type: 'fight', chapter: 3, useRunHp: true, heroes: ['mira'], enemies: ['husk'] });  // fresh fight, fresh hand
+      const freshHand = !S.tempCards.some(c => c.name === 'Execute');
+      fireEmergent('mira', 'expose');                                   // fight B: 2nd mark of the RUN → forge
+      const forgedInB = S.tempCards.some(c => c.name === 'Execute');
+      return forgedInA === false && freshHand === true && forgedInB === true;
+    }));
   check('EMERGENT: a forged temp card cannot itself re-trigger the loop (no snowball)',
     await J(() => {
       RUN = newRun('ash'); RUN.active = ['ash']; RUN.nodes = ['ash.sig.front', 'ash.emergent.tempo'];
       startFight({ type: 'fight', chapter: 3, useRunHp: true, heroes: ['ash'], enemies: ['husk'] });
-      S._emCount = {};
+      RUN.emCount = {};
       const temp = { temp: true, owner: 'ash', kind: 'temp' };
       for (let i = 0; i < 6; i++) fireEmergent('ash', 'hit', temp);   // temp plays never count
-      return (S._emCount['ash.emergent.tempo'] || 0) === 0;
+      return (RUN.emCount['ash.emergent.tempo'] || 0) === 0;
     }));
   check('EMERGENT: an all-out burst does not forge emergent cards',
     await J(() => {

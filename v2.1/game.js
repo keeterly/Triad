@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 20;
+const V2_BUILD = 21;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -170,10 +170,12 @@ function fireEmergent(heroId, event, card) {
   if (!hero || hero.downed) return;
   const nodes = emergentNodes(heroId);
   if (!nodes.length) return;
-  S._emCount = S._emCount || {};
+  // the tally accrues across the WHOLE descent (on RUN, not the fight) so trash
+  // fights feed the payoff — the loop genuinely grows over the run.
+  const tally = (RUN && (RUN.emCount = RUN.emCount || {})) || (S._emCount = S._emCount || {});
   nodes.forEach(n => {
     if (n.emergent.on !== event) return;
-    const c = (S._emCount[n.id] = (S._emCount[n.id] || 0) + 1);
+    const c = (tally[n.id] = (tally[n.id] || 0) + 1);
     if (c % n.emergent.every !== 0) return;
     const f = n.emergent.forge;
     genTempCard({ kind: 'temp', owner: heroId, ownerName: hero.def.name, tint: hero.def.tint,
@@ -942,6 +944,7 @@ function newRun(starterId) {
     embers: 0,          // per-run ember wallet — earned and spent THIS descent only
     nodes: [],          // per-run skill-tree unlocks — reset when the run ends
     forges: [],         // temporary ember tempers bought at camps — reset each descent
+    emCount: {},        // emergent-loop tallies — accrue ACROSS the whole descent (grow over time)
     done: false,
   };
 }
