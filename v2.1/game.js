@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 11;
+const V2_BUILD = 12;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -3123,7 +3123,12 @@ function showMap() {
     el.onclick = () => enterMapNode(mapNode(+el.dataset.node));
   });
   $('#map-party').onclick = () => showPartySelect(() => showMap());
-  $('#map-tree').onclick = () => showEmberTree(showMap, (RUN.active && RUN.active[0]) || 'ash');
+  $('#map-tree').onclick = () => {
+    // open on a hero you can actually re-forge (one not on the field), if any
+    const roster = RUN.roster || RUN.active || ['ash'];
+    const pick = roster.find(id => !heroInActiveParty(id)) || (RUN.active && RUN.active[0]) || 'ash';
+    showEmberTree(showMap, pick);
+  };
   // draw the connecting edges once the overlay has laid out (two frames so the
   // scale/opacity intro is settled and node positions are final)
   requestAnimationFrame(() => requestAnimationFrame(drawMapEdges));
@@ -4036,6 +4041,9 @@ function nodeState(n) {
   if (!(n.requires || []).every(r => hasNode(r))) return 'needs';
   return META.embers >= n.cost ? 'ready' : 'poor';
 }
+// A hero fielded in the ACTIVE party can't be re-forged on the road — they're
+// committed for the descent.  (Between runs there is no party, so all are open.)
+function heroInActiveParty(hid) { return !!(RUN && !RUN.done && RUN.active && RUN.active.indexOf(hid) >= 0); }
 function showEmberTree(onBack, heroId, selId) {
   $('#stage').classList.remove('show-bg');
   heroId = heroId && HEROES[heroId] ? heroId : 'ash';
@@ -4087,25 +4095,29 @@ function showEmberTree(onBack, heroId, selId) {
   const maxDepth = Math.max.apply(null, nodes.map(n => depth[n.id]));
   let ringSvg = '';
   for (let d = 0; d <= maxDepth; d++) ringSvg += `<circle class="et-ring" cx="${CX}" cy="${CY}" r="${R0 + d * RING}" vector-effect="non-scaling-stroke" />`;
+  // a hero on the field is committed — their un-owned nodes read as 'party'
+  const partyLocked = heroInActiveParty(heroId);
+  const dispState = (n) => { const s = nodeState(n); return (partyLocked && s !== 'owned') ? 'party' : s; };
   // ---- ORBS -------------------------------------------------------------------
   const orbs = nodes.map(n => {
-    const st = nodeState(n);
+    const st = dispState(n);
     const p = pos[n.id];
     return `<button class="et-orb et-${st} t-${n.type}${n.id === selId ? ' et-sel' : ''}" data-id="${n.id}"
        style="left:${(p.x / W) * 100}%; top:${(p.y / H) * 100}%">
-       <span class="et-orb-glyph">${st === 'owned' ? '✓' : st === 'sealed' ? '🔒' : TREE_TYPE_GLYPH[n.type]}</span>
+       <span class="et-orb-glyph">${st === 'owned' ? '✓' : st === 'sealed' ? '🔒' : st === 'party' ? '⚔' : TREE_TYPE_GLYPH[n.type]}</span>
        <span class="et-orb-name">${n.label}</span>
-       ${st !== 'owned' && st !== 'sealed' ? `<span class="et-orb-cost${st === 'poor' ? ' et-cant' : ''}">✦${n.cost}</span>` : ''}
+       ${st === 'ready' || st === 'poor' ? `<span class="et-orb-cost${st === 'poor' ? ' et-cant' : ''}">✦${n.cost}</span>` : ''}
      </button>`;
   }).join('');
   const rootOrb = `<div class="et-orb et-root" style="left:${(root.x / W) * 100}%; top:${(root.y / H) * 100}%"><span class="et-orb-glyph">◆</span></div>`;
   // ---- DETAIL BAR (selected node) ---------------------------------------------
-  const sel = selId ? NODE_BY_ID[selId] : (nodes.find(n => nodeState(n) === 'ready') || nodes[0]);
+  const sel = selId ? NODE_BY_ID[selId] : (!partyLocked && nodes.find(n => nodeState(n) === 'ready')) || nodes[0];
   let detail = '<div class="et-detail-empty">Pick a node to inspect it.</div>';
   if (sel) {
-    const st = nodeState(sel);
+    const st = dispState(sel);
     const reqNames = (sel.requires || []).filter(r => !hasNode(r)).map(r => NODE_BY_ID[r].label);
     const action = st === 'owned' ? '<span class="et-d-owned">✓ KINDLED</span>'
+      : st === 'party' ? `<span class="et-d-lock">${HEROES[heroId].name} is in your party — return to the surface to re-forge them</span>`
       : st === 'sealed' ? `<span class="et-d-lock">fell ${sel.tier - 1} boss${sel.tier - 1 > 1 ? 'es' : ''} to unseal tier ${sel.tier}</span>`
       : st === 'needs' ? `<span class="et-d-lock">needs ${reqNames.join(' · ')}</span>`
       : `<button class="et-d-buy${st === 'poor' ? ' et-d-cant' : ''}" id="et-buy" ${st === 'poor' ? 'disabled' : ''}>KINDLE · ✦ ${sel.cost}</button>`;
@@ -4115,7 +4127,8 @@ function showEmberTree(onBack, heroId, selId) {
   }
   const tabs = TREE_HEROES.map(hid => {
     const done = EMBER_TREE.filter(n => n.hero === hid).every(n => hasNode(n.id));
-    return `<button class="et-tab${hid === heroId ? ' et-tab-on' : ''}${done ? ' et-tab-done' : ''}" data-hero="${hid}">${HEROES[hid].name}</button>`;
+    const party = heroInActiveParty(hid);
+    return `<button class="et-tab${hid === heroId ? ' et-tab-on' : ''}${done ? ' et-tab-done' : ''}${party ? ' et-tab-party' : ''}" data-hero="${hid}">${HEROES[hid].name}${party ? ' <span class="et-tab-lk">⚔</span>' : ''}</button>`;
   }).join('');
   showOverlay(`
     <div class="et-head"><span class="et-h-title">THE EMBER TREE</span><span class="et-h-wallet">✦ <b>${META.embers}</b></span><span class="et-h-boss">${META.bossclears || 0} boss${(META.bossclears || 0) === 1 ? '' : 'es'} felled</span></div>
@@ -4139,7 +4152,7 @@ function showEmberTree(onBack, heroId, selId) {
   });
   const buy = $('#et-buy');
   if (buy && sel) buy.onclick = () => {
-    if (nodeState(sel) !== 'ready') return;
+    if (partyLocked || nodeState(sel) !== 'ready') return;   // can't re-forge a fielded hero
     addEmbers(-sel.cost); unlockNode(sel.id);
     SFX.thread();
     showEmberTree(onBack, heroId, sel.id);

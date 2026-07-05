@@ -1948,6 +1948,9 @@ button.map-node:not(:disabled) { cursor: pointer; }
 .et-tab:hover { color: var(--ink); border-color: rgba(255,170,90,0.5); }
 .et-tab-on { color: #ffcf8a; border-color: rgba(255,170,90,0.7); background: rgba(40,28,16,0.85); }
 .et-tab-done::after { content: ' ✓'; color: #8ad39a; }
+/* a fielded hero's tab is marked — in the party, so locked for the descent */
+.et-tab-party { border-color: rgba(201,161,90,0.35); }
+.et-tab-lk { color: #c9a15a; font-size: 8px; }
 /* forge (in-run, temporary) shares the ember look with a cooler cast */
 .et-node.et-forge .et-type.t-forge { background: #7fb0a0; }
 .et-forge-note { font-size: 9px; color: var(--ink-dim); margin: 0 0 8px; font-style: italic; }
@@ -2002,6 +2005,10 @@ button.map-node:not(:disabled) { cursor: pointer; }
 .et-orb.et-needs  { opacity: 0.6; }
 .et-orb.et-sealed { opacity: 0.42; }
 .et-orb.et-sealed .et-orb-glyph { font-size: 13px; }
+/* fielded hero — committed for the descent, can't be re-forged */
+.et-orb.et-party  { opacity: 0.5; }
+.et-orb.et-party  .et-orb-glyph { color: #c9a15a; border-color: rgba(201,161,90,0.5); font-size: 14px; }
+.et-orb.et-party  .et-orb-name { color: var(--ink-faint); }
 .et-orb:hover .et-orb-glyph { transform: scale(1.08); }
 .et-orb.et-sel  .et-orb-glyph { border-color: #ffe6a4; box-shadow: 0 0 0 3px rgba(255,225,160,0.22), 0 0 14px rgba(255,180,90,0.4); }
 @keyframes et-pulse { 50% { box-shadow: 0 0 20px rgba(255,150,60,0.6); } }

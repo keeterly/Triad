@@ -847,6 +847,27 @@ const QUICK = process.argv.includes('--quick');
       return !document.querySelector('#m-tree');   // the pause menu offers no tree during a fight
     }));
 
+  // ---------- PARTY LOCK: a fielded hero can't be re-forged mid-run -----------
+  console.log('--- PARTY LOCK ---');
+  check('PARTY-LOCK: a hero in the active party shows locked nodes and no KINDLE',
+    await J(() => {
+      S = null; META.embers = 20; META.nodes = []; META.bossclears = 0; saveMeta();
+      RUN = newRun('ash'); RUN.active = ['ash'];       // Ash is fielded
+      showEmberTree(() => {}, 'ash');
+      return !!document.querySelector('.et-orb.et-party') && !document.querySelector('#et-buy');
+    }));
+  check('PARTY-LOCK: a benched (recruited but not fielded) hero can still be kindled',
+    await J(() => {
+      RUN.roster = ['ash', 'mira']; RUN.active = ['ash'];   // Mira benched
+      showEmberTree(() => {}, 'mira');
+      return !document.querySelector('.et-orb.et-party') && !!document.querySelector('#et-buy');
+    }));
+  check('PARTY-LOCK: between runs (no party) every hero is open again',
+    await J(() => {
+      RUN = null; showEmberTree(() => {}, 'ash');
+      return !document.querySelector('.et-orb.et-party') && !!document.querySelector('#et-buy');
+    }));
+
   t.report();
   await t.browser.close();
 })().catch(e => { console.error('FATAL', e.message); process.exit(1); });
