@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 12;
+const V2_BUILD = 13;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -40,18 +40,25 @@ function saveSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringif
 // hero's kit (a skill-tree for cards).  One persistent wallet; the tree is the
 // permanent breadth sink (in-run forging comes later).
 // ---------------------------------------------------------------------------
+// META now holds only the persistent difficulty setting (HEAT).  Progression is
+// NOT permanent — see below.
 const META_KEY = 'kizuna2_1.meta';
 const META = Object.assign(
-  { embers: 0, nodes: [], bossclears: 0, heat: 0 },
-  (() => { try { const m = JSON.parse(localStorage.getItem(META_KEY) || '{}') || {}; return { embers: +m.embers || 0, nodes: Array.isArray(m.nodes) ? m.nodes.slice() : [], bossclears: +m.bossclears || 0, heat: +m.heat || 0 }; } catch (_) { return {}; } })()
+  { heat: 0 },
+  (() => { try { const m = JSON.parse(localStorage.getItem(META_KEY) || '{}') || {}; return { heat: +m.heat || 0 }; } catch (_) { return {}; } })()
 );
-function saveMeta() { try { localStorage.setItem(META_KEY, JSON.stringify({ embers: META.embers, nodes: META.nodes, bossclears: META.bossclears, heat: META.heat })); } catch (_) {} }
-function hasNode(id) { return META.nodes.indexOf(id) >= 0; }
-function unlockNode(id) { if (!hasNode(id)) { META.nodes.push(id); saveMeta(); } }
-function addEmbers(n) { META.embers = Math.max(0, (META.embers || 0) + n); saveMeta(); }
-// A tree TIER opens on boss milestones: tier 1 from the start, tier 2 after the
-// first boss falls, tier 3 after the second — the toolkit ramps like job levels.
-function tierOpen(tier) { return (META.bossclears || 0) >= (tier - 1); }
+function saveMeta() { try { localStorage.setItem(META_KEY, JSON.stringify({ heat: META.heat })); } catch (_) {} }
+// PER-RUN progression — embers and skill-tree unlocks live on the RUN and reset
+// when it ends (death OR completion).  Between runs nothing is banked; every
+// descent you rebuild your party's kit from scratch.
+function runEmbers() { return (RUN && +RUN.embers) || 0; }
+function hasNode(id) { return !!(RUN && RUN.nodes && RUN.nodes.indexOf(id) >= 0); }
+function unlockNode(id) { if (RUN && !hasNode(id)) { (RUN.nodes = RUN.nodes || []).push(id); saveRun(); } }
+function addEmbers(n) { if (!RUN) return; RUN.embers = Math.max(0, (RUN.embers || 0) + n); saveRun(); }
+// A tree TIER opens as you DESCEND: tier 1 from the start, tier 2 once a couple
+// of nodes are behind you, tier 3 deeper still — the kit grows across the run.
+function runDepth() { return (RUN && RUN.completed) ? RUN.completed.length : 0; }
+function tierOpen(tier) { return runDepth() >= (tier - 1) * 2; }
 
 // ---------------------------------------------------------------------------
 // THE EMBER TREE — declarative skill-tree for cards.  Each node is pure data
@@ -858,6 +865,8 @@ function newRun(starterId) {
     bonds: {},          // pairKey -> points; a pair at 2+ is KINDLED
     map: generateDescent(roster),   // a fresh branching descent every run
     completed: [],
+    embers: 0,          // per-run ember wallet — earned and spent THIS descent only
+    nodes: [],          // per-run skill-tree unlocks — reset when the run ends
     forges: [],         // temporary ember tempers bought at camps — reset each descent
     done: false,
   };
@@ -2941,7 +2950,6 @@ function onVictory() {
   // fight advances the tree a little (not just a trickle between boss lumps).
   const clearBonus = isBoss ? 3 : (S.node.elite ? 2 : 1);
   addEmbers(clearBonus); S._embersRun = (S._embersRun || 0) + clearBonus;
-  if (isBoss) { META.bossclears = (META.bossclears || 0) + 1; saveMeta(); }   // a boss milestone opens the next tree tier
   SFX.victory();
   setTimeout(() => {
     if (isBoss && S.node.mapId != null) { onRunComplete(); return; }
@@ -3116,19 +3124,15 @@ function showMap() {
         ${trio}
         <span class="party-chip-meta">PARTY · resonates as <b>✦ ${r.name}</b> <i>(${r.type})</i></span>
       </button>
-      <button class="map-tree-btn" id="map-tree">✦ EMBER TREE<span class="mt-embers">${META.embers}</span></button>
+      <button class="map-tree-btn" id="map-tree">✦ EMBER TREE<span class="mt-embers">${runEmbers()}</span></button>
     </div>
   `, 'map-screen');
   document.querySelectorAll('.map-node.mn-reach').forEach(el => {
     el.onclick = () => enterMapNode(mapNode(+el.dataset.node));
   });
   $('#map-party').onclick = () => showPartySelect(() => showMap());
-  $('#map-tree').onclick = () => {
-    // open on a hero you can actually re-forge (one not on the field), if any
-    const roster = RUN.roster || RUN.active || ['ash'];
-    const pick = roster.find(id => !heroInActiveParty(id)) || (RUN.active && RUN.active[0]) || 'ash';
-    showEmberTree(showMap, pick);
-  };
+  // the tree only holds your PARTY's constellations — open on the first member
+  $('#map-tree').onclick = () => showEmberTree(showMap, (RUN.active && RUN.active[0]) || 'ash');
   // draw the connecting edges once the overlay has laid out (two frames so the
   // scale/opacity intro is settled and node positions are final)
   requestAnimationFrame(() => requestAnimationFrame(drawMapEdges));
@@ -3266,7 +3270,7 @@ function showCamp(n) {
     </div>
     <button class="ov-btn primary" id="camp-fire">SHARE THE FIRE · deepen the weakest bond +1 ♡</button>
     <button class="ov-btn" id="camp-steel">SHARPEN STEEL · open the next fight with ▲ RALLY +2</button>
-    <button class="ov-btn" id="camp-forge">✦ FORGE AT THE EMBER · temper your kit for this descent (${META.embers} embers)</button>
+    <button class="ov-btn" id="camp-forge">✦ FORGE AT THE EMBER · temper your kit for this descent (${runEmbers()} embers)</button>
   `);
   $('#camp-fire').onclick = () => showCampScene(n);
   $('#camp-steel').onclick = () => {
@@ -3283,7 +3287,7 @@ function showForge(n) {
   RUN.forges = RUN.forges || [];
   const offers = FORGE_OFFERS.map(f => {
     const owned = RUN.forges.includes(f.id);
-    const afford = META.embers >= f.cost;
+    const afford = runEmbers() >= f.cost;
     const state = owned ? 'owned' : afford ? 'ready' : 'poor';
     const foot = owned ? '<span class="et-owned">✓ TEMPERED</span>' : `<span class="et-cost${afford ? '' : ' et-cant'}">✦ ${f.cost}</span>`;
     return `<button class="et-node et-forge et-${state}" data-id="${f.id}" ${owned || !afford ? 'disabled' : ''}>
@@ -3295,7 +3299,7 @@ function showForge(n) {
   }).join('');
   showOverlay(`
     <div class="ov-eyebrow" style="color:#ffb469">THE EMBER FORGE</div>
-    <div class="et-wallet">✦ <b>${META.embers}</b> <span>embers</span></div>
+    <div class="et-wallet">✦ <b>${runEmbers()}</b> <span>embers</span></div>
     <div class="et-forge-note">These tempers hold only for this descent — spend freely, or bank toward the tree.</div>
     <div class="et-tier-row">${offers}</div>
     <button class="ov-btn" id="forge-back">◂ BACK TO THE FIRE</button>
@@ -3303,7 +3307,7 @@ function showForge(n) {
   document.querySelectorAll('.et-node:not([disabled])').forEach(el => {
     el.onclick = () => {
       const f = FORGE_BY_ID[el.dataset.id];
-      if (!f || RUN.forges.includes(f.id) || META.embers < f.cost) return;
+      if (!f || RUN.forges.includes(f.id) || runEmbers() < f.cost) return;
       addEmbers(-f.cost); RUN.forges.push(f.id); saveRun();
       SFX.thread();
       showForge(n);
@@ -4004,13 +4008,11 @@ function showTitle() {
     <button class="ov-btn primary" id="t-new">NEW GAME</button>
     ${canContinue ? `<button class="ov-btn" id="t-continue">CONTINUE</button>` : ''}
     <button class="ov-btn" id="t-descent">THE DESCENT</button>
-    <button class="ov-btn" id="t-tree">✦ EMBER TREE · ${META.embers}</button>
     <div class="t-heat">HEAT <button id="heat-dn" aria-label="lower heat">−</button><b id="heat-val">${META.heat || 0}</b><button id="heat-up" aria-label="raise heat">+</button><span>foes hit harder · +embers</span></div>
     <div class="ov-hint">V2.1 BUILD ${V2_BUILD} · EMBER BRANCH</div>
   `);
   // NEW GAME and THE DESCENT both start a fresh run — first CHOOSE YOUR SURVIVOR.
   $('#t-new').onclick = () => showStarterSelect(id => beginRun(id));
-  $('#t-tree').onclick = () => showEmberTree(showTitle);
   const setHeat = (d) => { META.heat = Math.max(0, Math.min(5, (META.heat || 0) + d)); saveMeta(); const v = $('#heat-val'); if (v) v.textContent = META.heat; };
   $('#heat-dn').onclick = () => setHeat(-1);
   $('#heat-up').onclick = () => setHeat(1);
@@ -4039,14 +4041,16 @@ function nodeState(n) {
   if (hasNode(n.id)) return 'owned';
   if (!tierOpen(n.tier)) return 'sealed';
   if (!(n.requires || []).every(r => hasNode(r))) return 'needs';
-  return META.embers >= n.cost ? 'ready' : 'poor';
+  return runEmbers() >= n.cost ? 'ready' : 'poor';
 }
-// A hero fielded in the ACTIVE party can't be re-forged on the road — they're
-// committed for the descent.  (Between runs there is no party, so all are open.)
-function heroInActiveParty(hid) { return !!(RUN && !RUN.done && RUN.active && RUN.active.indexOf(hid) >= 0); }
+// You can only build the heroes you're FIELDING — the tree shows your party.
+function partyHeroes() { return (RUN && RUN.active && RUN.active.length) ? RUN.active.filter(id => TREE_HEROES.indexOf(id) >= 0) : []; }
 function showEmberTree(onBack, heroId, selId) {
   $('#stage').classList.remove('show-bg');
-  heroId = heroId && HEROES[heroId] ? heroId : 'ash';
+  const party = partyHeroes();
+  // only your fielded party has constellations here; clamp to a party member
+  if (party.length && party.indexOf(heroId) < 0) heroId = party[0];
+  heroId = heroId && HEROES[heroId] ? heroId : (party[0] || 'ash');
   const nodes = EMBER_TREE.filter(n => n.hero === heroId);
   // ---- SPHERE GRID: a hub at the centre, rings growing OUTWARD.  A node's ring
   // is its prerequisite DEPTH (0 = spokes off the hub), its angle inherited from
@@ -4095,43 +4099,40 @@ function showEmberTree(onBack, heroId, selId) {
   const maxDepth = Math.max.apply(null, nodes.map(n => depth[n.id]));
   let ringSvg = '';
   for (let d = 0; d <= maxDepth; d++) ringSvg += `<circle class="et-ring" cx="${CX}" cy="${CY}" r="${R0 + d * RING}" vector-effect="non-scaling-stroke" />`;
-  // a hero on the field is committed — their un-owned nodes read as 'party'
-  const partyLocked = heroInActiveParty(heroId);
-  const dispState = (n) => { const s = nodeState(n); return (partyLocked && s !== 'owned') ? 'party' : s; };
   // ---- ORBS -------------------------------------------------------------------
   const orbs = nodes.map(n => {
-    const st = dispState(n);
+    const st = nodeState(n);
     const p = pos[n.id];
     return `<button class="et-orb et-${st} t-${n.type}${n.id === selId ? ' et-sel' : ''}" data-id="${n.id}"
        style="left:${(p.x / W) * 100}%; top:${(p.y / H) * 100}%">
-       <span class="et-orb-glyph">${st === 'owned' ? '✓' : st === 'sealed' ? '🔒' : st === 'party' ? '⚔' : TREE_TYPE_GLYPH[n.type]}</span>
+       <span class="et-orb-glyph">${st === 'owned' ? '✓' : st === 'sealed' ? '🔒' : TREE_TYPE_GLYPH[n.type]}</span>
        <span class="et-orb-name">${n.label}</span>
        ${st === 'ready' || st === 'poor' ? `<span class="et-orb-cost${st === 'poor' ? ' et-cant' : ''}">✦${n.cost}</span>` : ''}
      </button>`;
   }).join('');
   const rootOrb = `<div class="et-orb et-root" style="left:${(root.x / W) * 100}%; top:${(root.y / H) * 100}%"><span class="et-orb-glyph">◆</span></div>`;
   // ---- DETAIL BAR (selected node) ---------------------------------------------
-  const sel = selId ? NODE_BY_ID[selId] : (!partyLocked && nodes.find(n => nodeState(n) === 'ready')) || nodes[0];
+  const sel = selId ? NODE_BY_ID[selId] : nodes.find(n => nodeState(n) === 'ready') || nodes[0];
   let detail = '<div class="et-detail-empty">Pick a node to inspect it.</div>';
   if (sel) {
-    const st = dispState(sel);
+    const st = nodeState(sel);
     const reqNames = (sel.requires || []).filter(r => !hasNode(r)).map(r => NODE_BY_ID[r].label);
     const action = st === 'owned' ? '<span class="et-d-owned">✓ KINDLED</span>'
-      : st === 'party' ? `<span class="et-d-lock">${HEROES[heroId].name} is in your party — return to the surface to re-forge them</span>`
-      : st === 'sealed' ? `<span class="et-d-lock">fell ${sel.tier - 1} boss${sel.tier - 1 > 1 ? 'es' : ''} to unseal tier ${sel.tier}</span>`
+      : st === 'sealed' ? `<span class="et-d-lock">descend deeper to unseal tier ${sel.tier}</span>`
       : st === 'needs' ? `<span class="et-d-lock">needs ${reqNames.join(' · ')}</span>`
       : `<button class="et-d-buy${st === 'poor' ? ' et-d-cant' : ''}" id="et-buy" ${st === 'poor' ? 'disabled' : ''}>KINDLE · ✦ ${sel.cost}</button>`;
     detail = `<div class="et-d-head"><span class="et-d-type t-${sel.type}">${TREE_TYPE_LABEL[sel.type]}</span><span class="et-d-name">${sel.label}</span></div>
       <div class="et-d-desc">${sel.desc}</div>
       <div class="et-d-foot">${action}</div>`;
   }
-  const tabs = TREE_HEROES.map(hid => {
+  // tabs are ONLY your fielded party's constellations
+  const tabHeroes = party.length ? party : [heroId];
+  const tabs = tabHeroes.map(hid => {
     const done = EMBER_TREE.filter(n => n.hero === hid).every(n => hasNode(n.id));
-    const party = heroInActiveParty(hid);
-    return `<button class="et-tab${hid === heroId ? ' et-tab-on' : ''}${done ? ' et-tab-done' : ''}${party ? ' et-tab-party' : ''}" data-hero="${hid}">${HEROES[hid].name}${party ? ' <span class="et-tab-lk">⚔</span>' : ''}</button>`;
+    return `<button class="et-tab${hid === heroId ? ' et-tab-on' : ''}${done ? ' et-tab-done' : ''}" data-hero="${hid}">${HEROES[hid].name}</button>`;
   }).join('');
   showOverlay(`
-    <div class="et-head"><span class="et-h-title">THE EMBER TREE</span><span class="et-h-wallet">✦ <b>${META.embers}</b></span><span class="et-h-boss">${META.bossclears || 0} boss${(META.bossclears || 0) === 1 ? '' : 'es'} felled</span></div>
+    <div class="et-head"><span class="et-h-title">THE EMBER TREE</span><span class="et-h-wallet">✦ <b>${runEmbers()}</b></span><span class="et-h-boss">this descent only · resets if you fall</span></div>
     <div class="et-tabs">${tabs}</div>
     <div class="et-body">
       <div class="et-canvas et-grid">
@@ -4152,7 +4153,7 @@ function showEmberTree(onBack, heroId, selId) {
   });
   const buy = $('#et-buy');
   if (buy && sel) buy.onclick = () => {
-    if (partyLocked || nodeState(sel) !== 'ready') return;   // can't re-forge a fielded hero
+    if (nodeState(sel) !== 'ready') return;
     addEmbers(-sel.cost); unlockNode(sel.id);
     SFX.thread();
     showEmberTree(onBack, heroId, sel.id);

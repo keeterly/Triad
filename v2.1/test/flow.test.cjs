@@ -103,13 +103,6 @@ const QUICK = process.argv.includes('--quick');
 
   // ---------- DESCENT: map, recruit, composition, Formation resonant ----------
   console.log('--- THE DESCENT ---');
-  // From here the suite exercises the FULL kit of several heroes (resonant
-  // hijack, phalanx trio, etc.) — unlock every hero's signature nodes, persisted
-  // so the state survives the reload below.
-  await J(() => {
-    EMBER_TREE.filter(n => n.type === 'card').forEach(n => { if (!META.nodes.includes(n.id)) META.nodes.push(n.id); });
-    saveMeta();
-  });
   await J(() => { localStorage.setItem('kizuna2_1.flow', '99'); localStorage.removeItem('kizuna2_1.run'); });
   await t.page.reload({ waitUntil: 'networkidle' }); await sleep(500);
   await clickOverlayBtn('#t-descent'); await sleep(400);                      // → CHOOSE YOUR SURVIVOR
@@ -118,7 +111,15 @@ const QUICK = process.argv.includes('--quick');
   await clickOverlayBtn('#ov-go'); await sleep(300);                          // → solo map
   // promote to the default trio so the resonance / formation checks below have
   // a full triangle to work with (recruiting is exercised separately).
-  await J(() => { RUN.roster = ['ash', 'elin', 'mira']; RUN.active = ['ash', 'elin', 'mira']; RUN.hp = { ash: HEROES.ash.maxHp, elin: HEROES.elin.maxHp, mira: HEROES.mira.maxHp }; saveRun(); showMap(); });
+  // grant the party its full kit for the mechanic checks below: per-run sigs +
+  // embers, and a deep `completed` so every tree tier is open this descent.
+  await J(() => {
+    RUN.roster = ['ash', 'elin', 'mira']; RUN.active = ['ash', 'elin', 'mira'];
+    RUN.hp = { ash: HEROES.ash.maxHp, elin: HEROES.elin.maxHp, mira: HEROES.mira.maxHp };
+    RUN.nodes = EMBER_TREE.filter(n => n.type === 'card').map(n => n.id);
+    RUN.embers = 999; RUN.completed = [0, 1, 2, 3, 4, 5, 6, 7];
+    saveRun(); showMap();
+  });
   await sleep(200);
   await t.autoParry(true);   // the bot parries the harder descent like a real player
   check('map renders with reachable node', await J(() => !!document.querySelector('.map-node.mn-reach')));
@@ -361,11 +362,11 @@ const QUICK = process.argv.includes('--quick');
 
   // ---------- BOND LOOP: fights grow pairs; kindled pairs pre-connect ----------
   console.log('--- BONDS ---');
-  // From here the suite exercises the FULL kit of several heroes — unlock every
-  // hero's signature nodes on the ember tree (persisted so it survives reloads).
+  // keep the party's full per-run kit granted for the mechanic checks below
   await J(() => {
-    EMBER_TREE.filter(n => n.type === 'card').forEach(n => { if (!META.nodes.includes(n.id)) META.nodes.push(n.id); });
-    saveMeta();
+    if (!RUN) RUN = newRun('ash');
+    RUN.nodes = EMBER_TREE.filter(n => n.type === 'card').map(n => n.id);
+    RUN.embers = 999; RUN.completed = [0, 1, 2, 3, 4, 5, 6, 7]; saveRun();
   });
   check('LOOP: victory accrued bond points for the held threads',
     await J(() => ['ash|cassia', 'ash|elin', 'cassia|elin'].every(k => (RUN.bonds[k] || 0) >= 1)),
@@ -441,11 +442,11 @@ const QUICK = process.argv.includes('--quick');
   // back to targeting HIMSELF — the drag path used to filter the owner out and
   // the card would snap to nothing and spring back.
   console.log('--- SOLO ALLY ---');
-  // From here the suite exercises Ash's full kit — unlock his signature nodes on
-  // the ember tree (persisted so it survives any later reload).
+  // re-establish the per-run kit (the ABYSS section above may have ended the run)
   await J(() => {
-    ['ash.sig.front', 'ash.sig.mid', 'ash.sig.back'].forEach(id => { if (!META.nodes.includes(id)) META.nodes.push(id); });
-    saveMeta();
+    if (!RUN) RUN = newRun('ash');
+    RUN.nodes = EMBER_TREE.filter(n => n.type === 'card').map(n => n.id);
+    RUN.embers = 999; RUN.completed = [0, 1, 2, 3, 4, 5, 6, 7]; saveRun();
   });
   await J(() => {
     hideOverlay();
@@ -699,19 +700,19 @@ const QUICK = process.argv.includes('--quick');
 
   // ---------- EMBER PROGRESSION (Phase 1) ----------
   console.log('--- EMBERS ---');
-  // earning: felling a foe banks embers into the persistent wallet
+  // earning: felling a foe banks embers into the RUN wallet (per-run, not meta)
   await J(() => {
-    META.embers = 0; META.nodes = []; saveMeta();
+    RUN = newRun('ash'); RUN.embers = 0; RUN.nodes = [];
     startFight({ type: 'fight', chapter: 1, heroes: ['ash'], enemies: ['husk'], narrator: 'ember drill' });
     S._embersRun = 0; renderAll();
   });
-  const emb0 = await J(() => META.embers);
+  const emb0 = await J(() => RUN.embers);
   await J(() => { const e = S.enemies[0]; e.hp = 0; dealToEnemy(e, 0); });   // trigger death path
-  check('EARN: felling a normal foe banks +2 embers', await J(() => META.embers) === emb0 + 2,
-    'embers ' + emb0 + ' -> ' + await J(() => META.embers));
+  check('EARN: felling a normal foe banks +2 embers into the run wallet', await J(() => RUN.embers) === emb0 + 2,
+    'embers ' + emb0 + ' -> ' + await J(() => RUN.embers));
 
   // spending: buying a node deducts embers, unlocks it, and opens the card
-  await J(() => { META.embers = 10; META.nodes = []; saveMeta(); });
+  await J(() => { RUN.embers = 10; RUN.nodes = []; saveRun(); });
   check('GATE: with the front sig locked, a FRONT Ash holds only the core (1 card)',
     await J(() => {
       startFight({ type: 'fight', chapter: 1, heroes: ['ash'], enemies: ['husk'], narrator: 'gate' });
@@ -719,8 +720,8 @@ const QUICK = process.argv.includes('--quick');
       return document.querySelectorAll('#hand .card').length === 1;
     }));
   await J(() => { const n = NODE_BY_ID['ash.sig.front']; addEmbers(-n.cost); unlockNode('ash.sig.front'); renderAll(); });
-  check('UNLOCK: buying Crashing Wave deducts its cost (10 -> 6)', await J(() => META.embers) === 6,
-    'embers ' + await J(() => META.embers));
+  check('UNLOCK: buying Crashing Wave deducts its cost (10 -> 6)', await J(() => RUN.embers) === 6,
+    'embers ' + await J(() => RUN.embers));
   check('OPEN: the unlocked signature now appears in hand (2 cards)',
     await J(() => document.querySelectorAll('#hand .card').length === 2
       && !!document.querySelector('#hand .card[data-card-name="Crashing Wave"]')));
@@ -749,14 +750,12 @@ const QUICK = process.argv.includes('--quick');
       return a.guard === 3;
     }));
 
-  // ---------- PHASE 2: boss-tier gate · forging ----------
+  // ---------- PHASE 2: depth-gated tiers · forging ----------
   console.log('--- PHASE 2 ---');
-  check('TIER GATE: tier 2 stays sealed until a boss falls',
-    await J(() => { META.bossclears = 0; return tierOpen(1) === true && tierOpen(2) === false; }));
-  check('TIER GATE: felling one boss opens tier 2 (not yet tier 3)',
-    await J(() => { META.bossclears = 1; return tierOpen(2) === true && tierOpen(3) === false; }));
-  check('MILESTONE: a boss victory increments the clear count',
-    await J(() => { const b = META.bossclears; META.bossclears = 0; startFight({ type: 'fight', chapter: 3, heroes: ['ash'], enemies: ['echoknight2'], narrator: 'boss', isBoss: true }); S.node.mapId = null; S.enemies.forEach(e => { e.hp = 0; e.dead = true; }); onVictory(); const ok = META.bossclears === 1; META.bossclears = b; return ok; }));
+  check('TIER GATE: tier 2 stays sealed until you descend deeper this run',
+    await J(() => { RUN.completed = []; return tierOpen(1) === true && tierOpen(2) === false; }));
+  check('TIER GATE: descending opens tier 2, then tier 3 deeper still',
+    await J(() => { RUN.completed = [0, 1]; const t2 = tierOpen(2) === true && tierOpen(3) === false; RUN.completed = [0, 1, 2, 3]; return t2 && tierOpen(3) === true; }));
   check('FORGE: WHETSTONE tempers an attack +1', await J(() => { const c = { kind: 'core', fx: { dmg: 6 } }; FORGE_BY_ID.whetstone.apply(c); return c.fx.dmg === 7; }));
   check('FORGE: QUICKENING cuts a signature’s cost by 1', await J(() => { const c = { kind: 'sig', cost: 2, fx: { dmg: 11 } }; FORGE_BY_ID.quicken.apply(c); return c.cost === 1; }));
   check('FORGE: HEXED EDGE adds ◎ EXPOSED to a core attack', await J(() => { const c = { kind: 'core', fx: { dmg: 6 } }; FORGE_BY_ID.hexedge.apply(c); return c.fx.mark === 1; }));
@@ -776,7 +775,7 @@ const QUICK = process.argv.includes('--quick');
     await J(() => ['ash', 'elin', 'mira', 'cassia', 'branwen'].every(h => SIG_GATE[h] && SIG_GATE[h].front && SIG_GATE[h].mid && SIG_GATE[h].back)));
   check('RE-GATE: a recruited hero opens with only its CORE (heavy fallback)',
     await J(() => {
-      META.nodes = [];   // nothing unlocked
+      RUN.nodes = [];   // nothing unlocked this run
       startFight({ type: 'fight', chapter: 2, heroes: ['cassia'], enemies: ['husk'], narrator: 'gate' });
       S.heroes[0].row = 'front'; S.ep = S.maxEp; renderAll();
       const cards = document.querySelectorAll('#hand .card');
@@ -792,7 +791,7 @@ const QUICK = process.argv.includes('--quick');
     await J(() => { const n = NODE_BY_ID['ash.allout.execution']; return !!n && n.type === 'allout' && n.tier === 3 && n.requires.includes('ash.sig.front'); }));
   check('ALT ALL-OUT: it EXECUTES a foe under 25% HP only once owned',
     await J(() => {
-      META.nodes = [];
+      RUN.nodes = [];
       const low = { dead: false, hp: 5, maxHp: 100 };
       const before = allOutExecutes(low);
       unlockNode('ash.allout.execution');
@@ -820,12 +819,13 @@ const QUICK = process.argv.includes('--quick');
     }));
   check('ECONOMY: clearing a fight pays a small steady bounty (+1 normal · +3 boss)',
     await J(() => {
-      META.embers = 0; startFight({ type: 'fight', chapter: 1, heroes: ['ash'], enemies: ['husk'], narrator: 'clear' });
+      RUN = newRun('ash'); RUN.embers = 0;
+      startFight({ type: 'fight', chapter: 1, heroes: ['ash'], enemies: ['husk'], narrator: 'clear' });
       S.node.mapId = null; S.enemies.forEach(e => { e.hp = 0; e.dead = true; }); onVictory();  // dead already → no kill reward, only the clear bounty
-      const normal = META.embers;
-      META.embers = 0; startFight({ type: 'fight', chapter: 3, heroes: ['ash'], enemies: ['echoknight2'], narrator: 'clear', isBoss: true });
+      const normal = RUN.embers;
+      RUN.embers = 0; startFight({ type: 'fight', chapter: 3, heroes: ['ash'], enemies: ['echoknight2'], narrator: 'clear', isBoss: true });
       S.node.mapId = null; S.enemies.forEach(e => { e.hp = 0; e.dead = true; }); onVictory();
-      return normal === 1 && META.embers === 3;
+      return normal === 1 && RUN.embers === 3;
     }));
 
   // ---------- MID-RUN upgrading: reach the tree without leaving the run --------
@@ -847,25 +847,36 @@ const QUICK = process.argv.includes('--quick');
       return !document.querySelector('#m-tree');   // the pause menu offers no tree during a fight
     }));
 
-  // ---------- PARTY LOCK: a fielded hero can't be re-forged mid-run -----------
-  console.log('--- PARTY LOCK ---');
-  check('PARTY-LOCK: a hero in the active party shows locked nodes and no KINDLE',
+  // ---------- PER-RUN / PARTY-ONLY progression ----------
+  console.log('--- PER-RUN TREES ---');
+  check('PARTY-ONLY: the tree shows only your FIELDED party (tabs == active party)',
     await J(() => {
-      S = null; META.embers = 20; META.nodes = []; META.bossclears = 0; saveMeta();
-      RUN = newRun('ash'); RUN.active = ['ash'];       // Ash is fielded
+      S = null; RUN = newRun('ash'); RUN.roster = ['ash', 'mira']; RUN.active = ['ash', 'mira'];
+      RUN.embers = 20; RUN.nodes = []; RUN.completed = [0, 1, 2, 3];
       showEmberTree(() => {}, 'ash');
-      return !!document.querySelector('.et-orb.et-party') && !document.querySelector('#et-buy');
+      const tabs = [...document.querySelectorAll('.et-tab')].map(t => t.dataset.hero);
+      return tabs.length === 2 && tabs.indexOf('ash') >= 0 && tabs.indexOf('mira') >= 0 && tabs.indexOf('elin') < 0;
     }));
-  check('PARTY-LOCK: a benched (recruited but not fielded) hero can still be kindled',
+  check('PARTY-ONLY: a party hero CAN be kindled (KINDLE offered)',
+    await J(() => { showEmberTree(() => {}, 'ash'); return !!document.querySelector('#et-buy'); }));
+  check('PARTY-ONLY: asking for a non-party hero clamps to a party member',
+    await J(() => { showEmberTree(() => {}, 'branwen'); const on = document.querySelector('.et-tab-on'); return !!on && ['ash', 'mira'].indexOf(on.dataset.hero) >= 0; }));
+  check('PER-RUN: unlocks + embers live on the RUN, and reading them needs a run',
     await J(() => {
-      RUN.roster = ['ash', 'mira']; RUN.active = ['ash'];   // Mira benched
-      showEmberTree(() => {}, 'mira');
-      return !document.querySelector('.et-orb.et-party') && !!document.querySelector('#et-buy');
+      RUN = newRun('ash'); RUN.nodes = ['ash.sig.front']; RUN.embers = 7;
+      const had = hasNode('ash.sig.front') && runEmbers() === 7;
+      RUN = null;                                   // the descent ends
+      return had && !hasNode('ash.sig.front') && runEmbers() === 0;
     }));
-  check('PARTY-LOCK: between runs (no party) every hero is open again',
+  check('RESET: a fresh descent begins with an empty wallet and no unlocks',
+    await J(() => { RUN = newRun('ash'); return RUN.embers === 0 && RUN.nodes.length === 0 && !hasNode('ash.sig.front'); }));
+  check('RESET: falling (onDefeat) clears the run so progression is wiped',
     await J(() => {
-      RUN = null; showEmberTree(() => {}, 'ash');
-      return !document.querySelector('.et-orb.et-party') && !!document.querySelector('#et-buy');
+      RUN = newRun('ash'); RUN.nodes = ['ash.sig.front']; RUN.embers = 9;
+      startFight({ type: 'fight', chapter: 1, heroes: ['ash'], enemies: ['husk'], narrator: 'fall' });
+      S.node = { mapId: 0, level: 0 }; S.heroes.forEach(h => { h.hp = 0; h.downed = true; });
+      onDefeat();
+      return RUN === null && runEmbers() === 0;   // the run (and its unlocks) is gone
     }));
 
   t.report();
