@@ -558,40 +558,24 @@ const QUICK = process.argv.includes('--quick');
   check('CONS: Ash overextended — ❄ CHILL 2 on his next strike', await J(() => S.heroes[0].chill >= 2));
   check('one-shot: the card burned away', await J(() => !document.querySelector('#hand .card[data-card-name="Not Today"]')));
 
-  // ---------- CARD ECONOMY: taper + tempo profiles + channel + heal floor ----------
+  // ---------- CARD ECONOMY: tempo profiles + channel + heal floor ----------
   console.log('--- CARD ECONOMY ---');
-  // TAPER: a full trio expresses ONE card per hero (the fan never floods) — breadth
-  // comes from HAVING three heroes, not six cards.
+  // A full party's hand GROWS with unlocks — each hero shows Core + Signature
+  // (when kindled); HEAVY heroes contribute one (expensive) card.
   await J(() => {
     hideOverlay();
+    if (!RUN) RUN = newRun('ash');
+    RUN.nodes = EMBER_TREE.filter(n => n.type === 'card').map(n => n.id);   // full kit kindled → widest hand
     startFight({ type: 'fight', chapter: 3, heroes: ['ash', 'cassia', 'kiki'], enemies: ['husk'], narrator: 'economy drill' });
     renderAll();
   });
   await sleep(400);
-  check('TAPER: a full trio shows ONE card per hero (3 total, not 6)',
+  check('ASYMMETRY: HEAVY Cassia contributes ONE card; STEADY+SWIFT show two (kit unlocked)',
     await J(() => {
       const n = (id) => document.querySelectorAll(`#hand .card[data-owner="${id}"]`).length;
-      return n('ash') === 1 && n('cassia') === 1 && n('kiki') === 1 && document.querySelectorAll('#hand .card').length === 3;
+      return n('cassia') === 1 && n('ash') === 2 && n('kiki') === 2;
     }), await J(() => 'ash:'+document.querySelectorAll('#hand .card[data-owner="ash"]').length+' cassia:'+document.querySelectorAll('#hand .card[data-owner="cassia"]').length+' kiki:'+document.querySelectorAll('#hand .card[data-owner="kiki"]').length));
-  // ASYMMETRY still reads at a SMALL party (non-lean): HEAVY shows one big card,
-  // steady/swift show core + signature.
-  await J(() => {
-    hideOverlay();
-    if (!RUN) RUN = newRun('ash');
-    RUN.nodes = ['ash.sig.front'];   // Ash's front sig open so a steady hero shows two
-    startFight({ type: 'fight', chapter: 3, heroes: ['ash', 'cassia'], enemies: ['husk'], narrator: 'asymmetry drill' });
-    renderAll();
-  });
-  await sleep(300);
-  check('ASYMMETRY (small party): HEAVY Cassia shows ONE card; STEADY Ash shows two',
-    await J(() => {
-      const n = (id) => document.querySelectorAll(`#hand .card[data-owner="${id}"]`).length;
-      return n('cassia') === 1 && n('ash') === 2;
-    }), await J(() => 'ash:'+document.querySelectorAll('#hand .card[data-owner="ash"]').length+' cassia:'+document.querySelectorAll('#hand .card[data-owner="cassia"]').length));
-  // back to the trio for the channel drill
-  await J(() => { hideOverlay(); startFight({ type: 'fight', chapter: 3, heroes: ['ash', 'cassia', 'kiki'], enemies: ['husk'], narrator: 'channel drill' }); renderAll(); });
-  await sleep(300);
-  check('SWIFT: Kiki’s signature is discounted to 1',
+  check('SWIFT: Kiki’s 2-cost signature is discounted to 1',
     await J(() => { const c = [...document.querySelectorAll('#hand .card[data-owner="kiki"]')]; return c.some(x => x.querySelector('.c-cost').textContent === '1'); }));
   // CHANNEL: sacrifice a card for +1 EP, once per turn
   const epBefore = await J(() => S.ep);

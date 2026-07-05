@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 23;
+const V2_BUILD = 24;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -1092,35 +1092,25 @@ function cardType(card) {
   return 'skill';
 }
 function buildHand() {
-  // THE PARTY IS THE CHARACTER.  Hand size scales SUB-linearly with the party:
-  //   • a lone/duo hero shows MORE of their kit (core + signature) so a small
-  //     turn has real choices and no dead EP;
-  //   • a full trio expresses ONE card each (their signature, with the core
-  //     folded into the stance) so the fan never floods — breadth now comes
-  //     from HAVING three heroes, not from six cards.
-  // Movement is not a card — you drag the hero.  When the triad forms, the
-  // resonant card HIJACKS the host's slot (the card evolves).  Played cards
-  // LEAVE the fan (they return next turn) — what remains is what you can do.
+  // Each hero contributes a Core + their Signature (once it's UNLOCKED) — so the
+  // hand GROWS as you kindle skills on the way down.  That breadth is earned, not
+  // dumped on you: you open with a single spark and unlock the rest through the
+  // ember tree, growing into a wide full-party hand as you go.  HEAVY heroes
+  // contribute one (expensive) card.  Movement is not a card — you drag the hero.
+  // When the triad forms, the resonant card HIJACKS the host's signature slot
+  // (the card evolves).  Played cards LEAVE the fan (they return next turn) — what
+  // remains is exactly what you can still do.
   const hand = [];
   const host = resonantHost();
-  const lean = livingHeroes().length >= 3;   // full party → one expression each
   livingHeroes().forEach(h => {
     const set = h.def.cards[h.row];
     const heavy = (h.def.tempo || 'steady') === 'heavy';
-    if (host === h.id) { hand.push(mkResonantCard(h)); return; }   // the vow takes the whole slot
-    const sigOpen = sigUnlocked(h);
-    if (lean) {
-      // ONE card: the signature (their expression) if it's open, else the core.
-      // Tempo asymmetry now lives in the card's cost/impact, not the count.
-      let card = null;
-      if (sigOpen) { const s = mkCard(h, 'sig', set.sig); if (!s.spent) card = s; }
-      if (!card)   { const c = mkCard(h, 'core', set.core); if (!c.spent) card = c; }
-      if (card) hand.push(card);
-      return;
+    if (!heavy) {
+      const core = mkCard(h, 'core', set.core);
+      if (!core.spent) hand.push(core);
     }
-    // small party (solo/duo): HEAVY shows one big card; others show core + sig.
-    if (!heavy) { const core = mkCard(h, 'core', set.core); if (!core.spent) hand.push(core); }
-    if (sigOpen) { const sig = mkCard(h, 'sig', set.sig); if (!sig.spent) hand.push(sig); }
+    if (host === h.id) hand.push(mkResonantCard(h));
+    else if (sigUnlocked(h)) { const sig = mkCard(h, 'sig', set.sig); if (!sig.spent) hand.push(sig); }
     else if (heavy) { const core = mkCard(h, 'core', set.core); if (!core.spent) hand.push(core); }   // heavy fallback: the CORE stands in until the signature is unlocked
   });
   S.tempCards.filter(t => t.expiresTurn == null || t.expiresTurn >= S.turn).forEach(t => hand.push(t));
