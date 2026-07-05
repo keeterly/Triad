@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 24;
+const V2_BUILD = 25;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -3113,6 +3113,7 @@ function onVictory() {
   addEmbers(clearBonus); S._embersRun = (S._embersRun || 0) + clearBonus;
   SFX.victory();
   setTimeout(() => {
+    if (S.node.recruitId) { showWandererJoin(); return; }   // a shared fight won → the wanderer joins
     if (isBoss && S.node.mapId != null) { onFloorCleared(); return; }   // floor boss → deeper, or the run's end
     const th = S.threads.size;
     showOverlay(`
@@ -3528,7 +3529,79 @@ function kindleBurst(node, onDone) {
   at(3600, finish);   // auto-advance
   return el;
 }
+// EMBATTLED RECRUITS — a recruit is no longer a menu button.  You meet the
+// stranger mid-battle and fight a shared fight at their side; the THREADS you
+// form in that fight ARE the recruitment (heal / guard / follow-up / avenge —
+// the game's own bond verbs).  Win together and they join — bonded by what you
+// did, or wounded and wary if you left them to bleed (they join at whatever HP
+// they ended the fight with).  Each hero is staged to their archetype.
+const WANDER_STAGE = {
+  cassia:  { enemies: ['husk', 'husk'],     eyebrow: 'A WALL, ALONE',        scene: 'A knight is planted in a shattered gate, shield up, drowning in husks. Reach her before they drag her down — and hold the line together.' },
+  elin:    { enemies: ['wraith', 'husk'],   eyebrow: 'A LIGHT, GUTTERING',   scene: 'A healer kneels over a dying scout as shades close in. Keep them off her — let her work.' },
+  mira:    { enemies: ['cultist', 'husk'],  eyebrow: 'A KNIFE IN THE DARK',  scene: 'Something is already killing them from the shadows. Cash the openings she leaves you.' },
+  branwen: { enemies: ['wraith', 'wraith'], eyebrow: 'EYES ON THE TREELINE', scene: 'An arrow splits the post beside you. She looses from cover — fight in her line and prove you belong in it.' },
+  hask:    { enemies: ['husk', 'husk'],     eyebrow: 'SOMETHING COLD',       scene: 'Frost blooms across the stones. A small cold thing is cornered and furious. Warm the fight.' },
+};
 function showRecruit(n) {
+  // Your line is only three deep on the field.  While there's room, you MEET
+  // the recruit in battle (below); once you're already a full trio, extra
+  // wanderers join the reserve through a lighter beat (showRecruitBench).
+  if (RUN.active.length >= 3) return showRecruitBench(n);
+  const h = HEROES[n.hero];
+  const stage = WANDER_STAGE[n.hero] || { enemies: _combatEnemies(n.level || 2), eyebrow: 'A NEW THREAD', scene: 'A stranger fights for their life in the dark ahead. Reach them — and fight as one.' };
+  const lines = (RECRUIT_LINES[n.hero] || []).map(l =>
+    `<div class="ov-line">${l.spk ? `<span class="spk">${l.spk}</span>` : ''}${l.text}</div>`).join('');
+  showOverlay(`
+    <div class="ov-eyebrow">${stage.eyebrow} · ${(h.archetype || '').toUpperCase()}</div>
+    <div class="ov-title" style="font-size:22px">${h.name} — ${h.cls.toUpperCase()}</div>
+    <div class="ps-identity" style="margin:-4px auto 8px;max-width:360px">${stage.scene}</div>
+    <div class="recruit-fig">${V2PORTRAITS[n.hero] || ''}</div>
+    <div class="ov-lines" style="min-height:0">${lines}</div>
+    <button class="ov-btn primary" id="rc-fight">FIGHT BESIDE ${h.name}</button>
+    <div class="ov-hint">Form a THREAD in the fight — a heal, a guard, a follow-up — and they join bonded.</div>
+  `);
+  $('#rc-fight').onclick = () => {
+    hideOverlay();
+    const heroes = RUN.active.slice();
+    if (!heroes.includes(n.hero)) heroes.push(n.hero);   // the wanderer fights at your side
+    startFight({ type: 'fight', chapter: 3, heroes, enemies: stage.enemies.slice(),
+      useRunHp: true, mapId: n.id, depth: n.level || n.col, floor: RUN.floor || 1,
+      nodeType: 'recruit', recruitId: n.hero, label: n.label || 'A NEW THREAD', level: n.level,
+      narrator: h.name + ' fights beside you — help them, and the thread will hold.' });
+    $('#chapter-chip').textContent = 'A NEW THREAD';
+  };
+}
+// The shared fight is won → the wanderer joins.  HOW you fought decides the
+// terms: a thread formed → they join bonded; none → they join wounded and wary.
+function showWandererJoin() {
+  const rid = S.node.recruitId;
+  const h = HEROES[rid];
+  const threaded = [...S.threads].some(k => k.split('|').indexOf(rid) >= 0);
+  const hp = RUN.hp[rid] != null ? RUN.hp[rid] : h.maxHp;
+  const wounded = hp < h.maxHp * 0.6;
+  if (!RUN.roster.includes(rid)) RUN.roster.push(rid);
+  if (RUN.hp[rid] == null) RUN.hp[rid] = h.maxHp;
+  unlockStarter(rid);   // meet them once → a future starter
+  if (RUN.active.length < 3 && !RUN.active.includes(rid)) RUN.active.push(rid);
+  saveRun();
+  const beat = threaded
+    ? `You fought as one — steel and cover and a hand at the right moment. <b>${h.name}</b> joins, and the thread between you is <b>already bound</b>.`
+    : wounded
+      ? `<b>${h.name}</b> joins the line, battered — you fought past them, not with them. The trust will have to be earned on the road.`
+      : `The foe falls. <b>${h.name}</b> falls in beside you, wary but willing.`;
+  showOverlay(`
+    <div class="ov-eyebrow" style="color:var(--gold-bright)">${threaded ? '♡ A THREAD IS BOUND' : 'A NEW THREAD'}</div>
+    <div class="ov-title" style="font-size:22px">${h.name} JOINS</div>
+    <div class="recruit-fig">${V2PORTRAITS[rid] || ''}</div>
+    <div class="ov-lines" style="min-height:0"><div class="ov-line">${beat}</div>${threaded ? '' : `<div class="ov-line" style="opacity:.75">Fight beside them again and the thread will come.</div>`}</div>
+    <button class="ov-btn primary" id="rc-next">${RUN.roster.length > 3 ? 'CHOOSE YOUR LINE' : 'ONWARD'}</button>
+  `);
+  $('#rc-next').onclick = () => { hideOverlay(); if (RUN.roster.length > 3) showPartySelect(() => showMap(), rid); else showMap(); };
+}
+// BENCH RECRUIT — once your line is full, an extra wanderer joins the reserve
+// through the old, lighter beat (no shared fight; you'll bond them by fielding
+// them later).
+function showRecruitBench(n) {
   const h = HEROES[n.hero];
   const lines = (RECRUIT_LINES[n.hero] || []).map(l =>
     `<div class="ov-line">${l.spk ? `<span class="spk">${l.spk}</span>` : ''}${l.text}</div>`).join('');
@@ -3545,8 +3618,6 @@ function showRecruit(n) {
     RUN.hp[n.hero] = h.maxHp;
     if (!RUN.completed.includes(n.id)) RUN.completed.push(n.id);
     unlockStarter(n.hero);   // meet them once → they're a future starter
-    // Solo/duo → the newcomer just joins the line.  Once you're a full trio+,
-    // composition becomes a choice.
     if (RUN.active.length < 3 && !RUN.active.includes(n.hero)) RUN.active.push(n.hero);
     saveRun();
     if (RUN.roster.length > 3) showPartySelect(() => showMap(), n.hero);

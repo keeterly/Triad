@@ -1046,6 +1046,64 @@ const QUICK = process.argv.includes('--quick');
   check('INTRO: the fight begins after the cutscene closes',
     await J(() => !document.getElementById('boss-cine') && window.__began === true));
 
+  // ---------- WANDERER (embattled, emergent recruitment) ----------
+  console.log('--- WANDERER ---');
+  check('WANDERER: a solo/duo recruit opens the FIGHT-BESIDE-THEM intro (not a join button)',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash'];
+      const rn = RUN.map.find(n => n.type === 'recruit');
+      showRecruit(rn);
+      return !!document.querySelector('#rc-fight') && !document.querySelector('#rc-join');
+    }));
+  check('WANDERER: the encounter is a shared FIGHT with the recruit in your line',
+    await J(() => {
+      document.querySelector('#rc-fight').click();
+      return !!S.node.recruitId && S.heroes.some(h => h.id === 'ash') && S.heroes.some(h => h.id === S.node.recruitId) && S.heroes.length === 2;
+    }));
+  check('WANDERER: forming a thread + winning enlists them BONDED',
+    await J(async () => {
+      const rid = S.node.recruitId;
+      await addThread('ash', rid);                       // an act of help forms the thread
+      S.enemies.forEach(e => { e.hp = 0; e.dead = true; });
+      onVictory();
+      return true;
+    }));
+  await sleep(900);
+  check('WANDERER: the join beat celebrates the bound thread',
+    await J(() => ((document.querySelector('.ov-eyebrow') || {}).textContent || '').includes('THREAD IS BOUND') && !!document.querySelector('#rc-next')));
+  await J(() => { const b = document.querySelector('#rc-next'); if (b) b.click(); });
+  await sleep(300);
+  check('WANDERER: the recruit now rides in the roster + active line, bonded',
+    await J(() => {
+      const rid = RUN.roster.find(id => id !== 'ash');
+      return !!rid && RUN.active.includes(rid) && (RUN.bonds[['ash', rid].sort().join('|')] || 0) >= 1;
+    }));
+  // UNTHREADED path: win without helping them → they join, but wary (no bond)
+  check('WANDERER: winning WITHOUT a thread still enlists them — but bond-less',
+    await J(async () => {
+      RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash']; RUN.bonds = {};
+      const rn = RUN.map.find(n => n.type === 'recruit');
+      showRecruit(rn); document.querySelector('#rc-fight').click();
+      const rid = S.node.recruitId;
+      S.enemies.forEach(e => { e.hp = 0; e.dead = true; });   // win, but no thread formed
+      onVictory();
+      window.__rid = rid;
+      return true;
+    }));
+  await sleep(900);
+  await J(() => { const b = document.querySelector('#rc-next'); if (b) b.click(); });
+  await sleep(300);
+  check('WANDERER: bond-less recruit joined the line with no thread seeded',
+    await J(() => { const rid = window.__rid; return RUN.roster.includes(rid) && RUN.active.includes(rid) && (RUN.bonds[['ash', rid].sort().join('|')] || 0) === 0; }));
+  // BENCH path: a FULL trio meets an extra wanderer → the lighter join beat
+  check('WANDERER: a full trio gets the lighter BENCH join (no forced 4-hero fight)',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash', 'elin', 'mira']; RUN.active = ['ash', 'elin', 'mira'];
+      const rn = RUN.map.find(n => n.type === 'recruit');
+      showRecruit(rn);
+      return !!document.querySelector('#rc-join') && !document.querySelector('#rc-fight');
+    }));
+
   // ---------- EMERGENT GROWTH (tier-3 forge loops) ----------
   console.log('--- EMERGENT ---');
   check('EMERGENT: each party hero has a tier-3 emergent node that forges a temp card',
