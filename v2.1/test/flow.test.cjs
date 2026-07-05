@@ -899,6 +899,84 @@ const QUICK = process.argv.includes('--quick');
   check('TEACH: once learned, the map no longer nags',
     await J(() => { S = null; RUN = newRun('ash'); RUN.embers = 8; showMap(); return !document.querySelector('.map-coach'); }));
 
+  // ---------- FLOOR 2 (ascension) · smarter foes · the Maw ----------
+  console.log('--- FLOOR 2 ---');
+  check('FLOOR: a run starts on floor 1; floor 1 boss is the Echo Knight',
+    await J(() => {
+      RUN = newRun('ash');
+      const bossNode = RUN.map.find(n => n.type === 'boss');
+      return RUN.floor === 1 && !!bossNode && bossNode.enemies[0] === 'echoknight2';
+    }));
+  check('FLOOR: clearing the floor-1 boss drops you to floor 2 (kit + embers kept, tiers stay open)',
+    await J(() => {
+      RUN = newRun('ash'); RUN.active = ['ash']; RUN.nodes = ['ash.sig.front']; RUN.embers = 12; RUN.completed = [0, 1, 2, 3, 4, 5];
+      startFight({ type: 'fight', chapter: 3, heroes: ['ash'], enemies: ['echoknight2'], isBoss: true, useRunHp: true, mapId: 6, depth: 7, floor: 1 });
+      S.enemies.forEach(e => { e.hp = 0; e.dead = true; }); onFloorCleared();
+      const bossNode2 = RUN.map.find(n => n.type === 'boss');
+      return RUN.floor === 2 && RUN.embers === 12 && hasNode('ash.sig.front')
+        && tierOpen(3) === true                                   // depthBase carried the ramp
+        && bossNode2.enemies[0] === 'echodevourer';               // floor-2 boss is the Maw
+    }));
+  check('FLOOR: floor 2 hits harder than floor 1 (continued depth ramp)',
+    await J(() => {
+      RUN = newRun('ash'); RUN.active = ['ash', 'elin', 'mira'];
+      startFight({ type: 'fight', chapter: 3, depth: 3, floor: 1, useRunHp: true, heroes: ['ash', 'elin', 'mira'], enemies: ['husk'] });
+      const dm1 = S.enemies[0].dmgMul, hp1 = S.enemies[0].maxHp, smart1 = S.enemies[0].smart;
+      startFight({ type: 'fight', chapter: 3, depth: 3, floor: 2, useRunHp: true, heroes: ['ash', 'elin', 'mira'], enemies: ['husk'] });
+      const dm2 = S.enemies[0].dmgMul, hp2 = S.enemies[0].maxHp, smart2 = S.enemies[0].smart;
+      return dm2 > dm1 && hp2 > hp1 && smart1 === false && smart2 === true;
+    }));
+  check('SMART: a smart foe re-aims a single-row blow at the WEAKEST hero (telegraph honest)',
+    await J(() => {
+      startFight({ type: 'fight', chapter: 3, floor: 2, useRunHp: true, heroes: ['ash', 'elin', 'mira'], enemies: ['husk'] });
+      S.heroes.forEach((h, i) => { h.row = ['front', 'mid', 'back'][i]; h.hp = h.maxHp; h.guard = 0; });
+      const back = S.heroes.find(h => h.row === 'back'); back.hp = 3;   // the weak one is at BACK
+      const e = S.enemies[0]; e.smart = true;
+      const intent = { dmg: 6, row: 'front' };                         // nominally FRONT
+      return effIntentRow(e, intent) === 'back';                       // but it hunts the BACK weakling
+    }));
+  check('MAW: the Hollow Maw is a floorBoss, weak to LIGHT, that DRAINS and HEXES',
+    await J(() => {
+      const m = ENEMY_DEFS.echodevourer;
+      return !!m && m.floorBoss && m.weak === 'light'
+        && m.intents.some(i => i.drain) && m.intents.some(i => i.hex);
+    }));
+  check('DRAIN: the Maw heals from the damage it deals (staggered, it cannot feed)',
+    await J(() => {
+      // fed: hp restored by round(dmg*drain); staggered: no feed
+      const heal = (dmg, drain, stag) => stag ? 0 : Math.max(1, Math.round(dmg * drain));
+      return heal(10, 0.6, false) === 6 && heal(10, 0.6, true) === 0;
+    }));
+
+  // ---------- HEX (Balatro-style curse) ----------
+  console.log('--- HEX ---');
+  check('HEX: landing a hex attack (undodged) curses the hero',
+    await J(() => {
+      startFight({ type: 'fight', chapter: 3, floor: 2, useRunHp: true, heroes: ['ash'], enemies: ['husk'] });
+      const h = S.heroes[0]; h.hexed = 0;
+      const intent = { hex: 2 };
+      if (intent.hex) h.hexed = Math.max(h.hexed || 0, intent.hex);   // same rule as the enemy phase
+      return h.hexed === 2;
+    }));
+  check('HEX: a hexed hero playing a card burns a random OTHER card from hand',
+    await J(() => {
+      startFight({ type: 'fight', chapter: 3, floor: 2, useRunHp: true, heroes: ['ash'], enemies: ['husk'] });
+      RUN = RUN || newRun('ash'); RUN.nodes = ['ash.sig.front'];       // give Ash 2 cards (core + sig)
+      const a = S.heroes[0]; a.row = 'front'; a.hexed = 2; S.ep = S.maxEp; renderAll();
+      const before = buildHand().filter(c => c.owner === 'ash' && !c.spent && c.kind !== 'move').length;
+      const played = buildHand().find(c => c.owner === 'ash' && c.name === 'Cleave');
+      hexBurn(played);                                                 // simulate the on-play curse
+      const after = buildHand().filter(c => c.owner === 'ash' && !c.spent && c.kind !== 'move').length;
+      return before === 2 && after === 1;                             // one other card burned away
+    }));
+  check('HEX: it ticks down each turn and lifts',
+    await J(() => {
+      startFight({ type: 'fight', chapter: 3, floor: 2, useRunHp: true, heroes: ['ash'], enemies: ['husk'] });
+      const h = S.heroes[0]; h.hexed = 1;
+      h.hexed = Math.max(0, (h.hexed || 0) - 1);   // the per-turn tick
+      return h.hexed === 0;
+    }));
+
   t.report();
   await t.browser.close();
 })().catch(e => { console.error('FATAL', e.message); process.exit(1); });

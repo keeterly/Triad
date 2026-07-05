@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 15;
+const V2_BUILD = 16;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -56,7 +56,7 @@ function unlockNode(id) { if (RUN && !hasNode(id)) { (RUN.nodes = RUN.nodes || [
 function addEmbers(n) { if (!RUN) return; RUN.embers = Math.max(0, (RUN.embers || 0) + n); saveRun(); }
 // A tree TIER opens as you DESCEND: tier 1 from the start, tier 2 once a couple
 // of nodes are behind you, tier 3 deeper still — the kit grows across the run.
-function runDepth() { return (RUN && RUN.completed) ? RUN.completed.length : 0; }
+function runDepth() { return RUN ? ((RUN.depthBase || 0) + (RUN.completed ? RUN.completed.length : 0)) : 0; }
 function tierOpen(tier) { return runDepth() >= (tier - 1) * 2; }
 // one-time hand-hold: the first time you have embers to spend, the game walks
 // you through opening the Ember Tree and kindling a skill.
@@ -450,6 +450,21 @@ const ENEMY_DEFS = {
       { name: 'OBLIVION ECHO',    dmg: 13, row: 'all', heavy: true, attackArt: 'blast', parry: { kind: 'seq', notes: [{ t: 'tap' }, { t: 'tap' }, { t: 'tap' }, { t: 'swipe', arc: 'arcU' }, { t: 'hold' }] } },
     ],
   },
+  // FLOOR 2 boss — a different concept from the Echo Knight.  Not a rhythm of
+  // remembered strokes but a HUNGER: it HUNTS the weakest of you (smart) and
+  // DRAINS life from every blow to heal itself, so you can't just out-race it —
+  // you have to deny the damage.  Parries lean on braced HOLDs ("resist the pull").
+  echodevourer: {
+    weak: 'light', name: 'THE HOLLOW MAW', maxHp: 132, boss: true, floorBoss: true, art: 'echoknight', aura: 'maw',
+    attacksPerRound: 2,
+    intents: [
+      { name: 'Cursed Reach', dmg: 8,  row: 'front', hex: 2, attackArt: 'claw',  parry: { kind: 'seq', notes: [{ t: 'tap' }, { t: 'hold' }] } },
+      { name: 'The Hunger Deepens', kind: 'buff', desc: 'it feeds and swells', powerSelf: 3 },
+      { name: 'DEVOUR',        dmg: 13, row: 'front', drain: 0.6, attackArt: 'slam', parry: { kind: 'seq', notes: [{ t: 'hold' }, { t: 'tap' }, { t: 'hold' }] } },
+      { name: 'Withering Wail', dmg: 6, row: 'all', chill: 1, attackArt: 'blast', parry: { kind: 'seq', notes: [{ t: 'swipe', arc: 'arcAcross' }, { t: 'tap' }] } },
+      { name: 'THE GREAT GORGE', dmg: 15, row: 'all', heavy: true, drain: 0.4, attackArt: 'blast', parry: { kind: 'seq', notes: [{ t: 'hold' }, { t: 'tap' }, { t: 'swipe', arc: 'arcU' }, { t: 'tap' }, { t: 'hold' }] } },
+    ],
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -721,8 +736,9 @@ function _connect(prev, next, nodes) {
     }
   });
 }
-function generateDescent(roster) {
+function generateDescent(roster, floor) {
   roster = roster || ['ash'];
+  floor = floor || 1;
   // Recruits = anyone not already in the party.  You start solo (or short) and
   // build your trio from the road, so an early recruit is guaranteed close.
   const pending = _shuffle(STARTER_POOL.filter(id => !roster.includes(id)));
@@ -751,7 +767,7 @@ function generateDescent(roster) {
       else if (type === 'event')   { node.eventId = eventQ[eventI++ % eventQ.length]; node.label = lbl.event(); }
       else if (type === 'camp')    { node.label = lbl.camp(); }
       else if (type === 'recruit') { node.hero = recruitAtLevel[level]; node.label = RECRUIT_NODE_LABELS[node.hero] || 'A NEW THREAD'; }
-      else if (type === 'boss')    { node.enemies = ['echoknight2']; node.isBoss = true; node.label = lbl.boss(); }
+      else if (type === 'boss')    { node.enemies = [floor >= 2 ? 'echodevourer' : 'echoknight2']; node.isBoss = true; node.floorBoss = true; node.label = floor >= 2 ? 'THE HOLLOW MAW' : lbl.boss(); }
       nodes[idc] = node; ids.push(idc); idc++;
     });
     levels.push(ids);
@@ -868,7 +884,9 @@ function newRun(starterId) {
     active: roster.slice(),
     hp,
     bonds: {},          // pairKey -> points; a pair at 2+ is KINDLED
-    map: generateDescent(roster),   // a fresh branching descent every run
+    floor: 1,           // the descent has FLOORS; clearing a floor boss drops you deeper
+    depthBase: 0,       // depth carried from cleared floors, so the ramp keeps rising
+    map: generateDescent(roster, 1),   // a fresh branching descent every run
     completed: [],
     embers: 0,          // per-run ember wallet — earned and spent THIS descent only
     nodes: [],          // per-run skill-tree unlocks — reset when the run ends
@@ -876,6 +894,7 @@ function newRun(starterId) {
     done: false,
   };
 }
+const FLOORS = 2;         // total floors in a full descent
 const BOND_KINDLED = 2;
 const bondPts = (k) => (RUN && RUN.bonds && RUN.bonds[k]) || 0;
 function saveRun() { try { localStorage.setItem(RUN_KEY, RUN ? JSON.stringify(RUN) : ''); } catch (_) {} }
@@ -897,6 +916,7 @@ function newBattle(node) {
     row: ['front', 'mid', 'back'][i] || 'mid',
     guard: 0, power: 0, mark: 0, lull: 0, intentIdx: 0, dead: false, acted: false,
     weakRevealed: false, weakened: false, staggered: false,
+    smart: (node.floor || 1) >= 2,   // deeper foes HUNT the weakest of you (see effIntentRow)
   }));
   // DIFFICULTY — the tutorial (no useRunHp) stays a gentle on-ramp, but the
   // real run (the DESCENT) hits harder and RAMPS as you go deeper, so fights
@@ -905,7 +925,9 @@ function newBattle(node) {
   // act (no more turn-1 alpha wipes).  Bosses are already tuned high — they
   // take only a light damage ramp and keep their hand-set HP.
   if (node.useRunHp) {
-    const depth = Math.max(1, node.depth || 1);
+    // depth carries across floors, so floor 2 continues the ramp (harder) rather
+    // than restarting soft.  numLevels-per-floor is 7.
+    const depth = Math.max(1, (node.depth || 1) + ((node.floor || 1) - 1) * 7);
     // Small parties (a solo/duo opener before you've recruited) take fewer
     // knocks and face slightly softer foes, so the v1-style solo start is
     // survivable until the road fills your line.  Bosses ignore this — by the
@@ -1625,10 +1647,27 @@ async function playCard(card, targetId) {
   pulseEp();
   renderAll();
   await resolveCard(card, targetId);
+  if (card.kind !== 'move') hexBurn(card);   // a hexed hero's card play eats another card
   S.executing = false;
   $('#stage').classList.remove('executing');
   renderAll();
   checkEnd();
+}
+// HEX (the Maw's curse) — when a hexed hero plays a card, a RANDOM other card in
+// the hand burns away.  Balatro-flavoured: your options are eaten as you act.
+function hexBurn(playedCard) {
+  const owner = playedCard && S.heroes.find(h => h.id === playedCard.owner);
+  if (!owner || !(owner.hexed > 0)) return;
+  const pool = buildHand().filter(c => c.kind !== 'move' && c.kind !== 'resonant' && !c.spent
+    && !(c.owner === playedCard.owner && c.kind === playedCard.kind && !c.temp)   // not the just-played core/sig
+    && !(c.temp && c.uid === playedCard.uid));                                     // not the just-played temp
+  if (!pool.length) return;
+  const victim = pool[Math.floor(Math.random() * pool.length)];
+  if (victim.temp) S.tempCards = S.tempCards.filter(t => t.uid !== victim.uid);
+  else if (victim.owner !== 'triad') S.used.add(victim.owner + ':' + victim.kind);
+  dissolveCard(victim.name);
+  popupAt(figEl(owner.id), '☠ HEX burns ' + victim.name, 'dmg');
+  if (SFX.deny) SFX.deny();
 }
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -1807,6 +1846,16 @@ function enemyNextIntents(e) {
   const out = [];
   for (let k = 0; k < n; k++) out.push(e.def.intents[(e.intentIdx + k) % len]);
   return out;
+}
+// SMART foes (floor 2+) don't hammer a fixed row — they HUNT the most vulnerable
+// living hero (lowest hp+guard; ties to the most-exposed).  Computed live, so the
+// telegraph always shows the real target — and moving the weak one re-aims it.
+function effIntentRow(e, intent) {
+  if (!e || !e.smart || !intent || intent.kind === 'buff' || intent.row === 'all') return intent ? intent.row : undefined;
+  const live = (typeof S !== 'undefined' && S) ? livingHeroes() : [];
+  if (!live.length) return intent.row;
+  const prey = live.slice().sort((a, b) => (a.hp + (a.guard || 0)) - (b.hp + (b.guard || 0)) || (b.exposed || 0) - (a.exposed || 0))[0];
+  return prey.row;
 }
 function dealToEnemy(e, amt, school, byHeroId) {
   // STAGGER payoff: the next hit on a staggered enemy lands double.
@@ -2748,7 +2797,7 @@ async function endTurn() {
     S.turn++;
     S.ep = S.maxEp;
     S.used = new Set();
-    S.heroes.forEach(h => { h.guard = 0; h.counter = 0; h.invuln = false; h.exposed = 0; h._hitByE = []; });
+    S.heroes.forEach(h => { h.guard = 0; h.counter = 0; h.invuln = false; h.exposed = 0; h._hitByE = []; h.hexed = Math.max(0, (h.hexed || 0) - 1); });
     // EXPOSED (mark) now survives the turn rollover but FADES by 1, so a mark
     // laid down this turn still pays off next turn — making it a real setup,
     // not a same-turn-only tax.
@@ -2817,7 +2866,8 @@ async function enemyPhase() {
       continue;
     }
     if (lungeEl) { lungeEl.classList.add('fig-lunge'); SFX.enemy(); }
-    const rows = intent.row === 'all' ? ROWS.slice() : [intent.row];
+    const eRow = effIntentRow(e, intent);                 // smart foes hunt the weakest
+    const rows = eRow === 'all' ? ROWS.slice() : [eRow];
     // PARRY — a rhythm window on the wind-up whose PATTERN varies by attack.
     // Turning a blow aside doesn't deal damage; it CHARGES your BURST — parry is
     // the engine that fuels the all-out.  PERFECT negates + a big surge; a partial
@@ -2887,10 +2937,20 @@ async function enemyPhase() {
           SFX.hit(big);
           if (dtier >= 1) stageShake(['sm', 'sm', 'lg', 'xl'][dtier]);
           (e._damaged || (e._damaged = [])).push(h.id);   // remembered for AVENGE
+          // DRAIN — the Maw feeds: a share of the damage dealt heals it.  Staggered
+          // (its wind-up broken) it cannot feed, so STAGGER is the counter.
+          if (intent.drain && !e.staggered) {
+            const fed = Math.max(1, Math.round(left * intent.drain));
+            e.hp = Math.min(e.maxHp, e.hp + fed);
+            popupAt(figEl(e.uid), '♥ +' + fed, 'heal');
+          }
         }
       }
       if (!perfectParry && intent.chill)  { h.chill = (h.chill || 0) + intent.chill; popupAt(figEl(h.id), '❄ CHILL −' + intent.chill, 'chill'); }
       if (!perfectParry && intent.expose) { h.exposed = (h.exposed || 0) + intent.expose; popupAt(figEl(h.id), '◎ EXPOSED +' + intent.expose, 'info'); }
+      // HEX — the Maw's curse.  If you don't DODGE the row (or perfect-parry), the
+      // hex clings: while hexed, every card you play burns another from your hand.
+      if (!perfectParry && intent.hex) { h.hexed = Math.max(h.hexed || 0, intent.hex); popupAt(figEl(h.id), '☠ HEXED', 'dmg'); }
       // REACTIVE: an ally in real danger summons their strongest bond.
       // Costed on purpose — the intercept scrambles formation and chills
       // the protector; declining it is as expressive as playing it.
@@ -2957,7 +3017,7 @@ function onVictory() {
   addEmbers(clearBonus); S._embersRun = (S._embersRun || 0) + clearBonus;
   SFX.victory();
   setTimeout(() => {
-    if (isBoss && S.node.mapId != null) { onRunComplete(); return; }
+    if (isBoss && S.node.mapId != null) { onFloorCleared(); return; }   // floor boss → deeper, or the run's end
     const th = S.threads.size;
     showOverlay(`
       <div class="ov-eyebrow" style="color:var(--gold-bright)">VICTORY</div>
@@ -3010,14 +3070,35 @@ function onDefeat() {
     $('#ov-retry').onclick = () => { hideOverlay(); startFlowNode(); };
   }, 700);
 }
+// A floor boss falls — either you drop into the next, deeper floor (keeping your
+// whole in-run build), or, on the final floor, the descent is truly cleared.
+function onFloorCleared() {
+  if ((RUN.floor || 1) >= FLOORS) { onRunComplete(); return; }
+  RUN.depthBase = (RUN.depthBase || 0) + (RUN.completed ? RUN.completed.length : 0);   // the ramp keeps rising
+  RUN.floor = (RUN.floor || 1) + 1;
+  RUN.completed = [];
+  RUN.map = generateDescent(RUN.roster, RUN.floor);
+  RUN.roster.forEach(id => { RUN.hp[id] = HEROES[id].maxHp; });   // catch your breath before the deep
+  saveRun();
+  showOverlay(`
+    <div class="ov-eyebrow" style="color:var(--gold-bright)">FLOOR ${RUN.floor - 1} · CLEARED</div>
+    <div class="ov-title" style="font-size:24px">THE FLOOR GIVES WAY</div>
+    <div class="ov-lines" style="text-align:center; min-height:0;">
+      <div class="ov-line">The Echo shatters — and the ground beneath it opens onto a <b>deeper dark</b>.</div>
+      <div class="ov-line">Down here the dead are <b>older, hungrier — and they learn</b>. Your kindled skills descend with you… but so does the price of falling.</div>
+    </div>
+    <button class="ov-btn primary" id="ov-deeper">DESCEND · FLOOR ${RUN.floor}</button>
+  `);
+  $('#ov-deeper').onclick = () => { hideOverlay(); showMap(); };
+}
 function onRunComplete() {
   RUN.done = true; saveRun();
   showOverlay(`
     <div class="ov-eyebrow" style="color:var(--gold-bright)">THE DESCENT · CLEARED</div>
-    <div class="ov-title" style="font-size:26px">THE ECHO FADES</div>
+    <div class="ov-title" style="font-size:26px">THE HUNGER STILLS</div>
     <div class="ov-lines" style="text-align:center; min-height:0;">
-      <div class="ov-line">The Remembered Knight unremembers itself, one stroke at a time.</div>
-      <div class="ov-line"><b>The thread held.</b>  Every triangle you never formed still waits below — other trios, other vows, another descent.</div>
+      <div class="ov-line">The Maw folds inward and is gone. For the first time, the deep dark is quiet.</div>
+      <div class="ov-line"><b>The thread held — all the way down.</b> Every triangle you never formed still waits below: other trios, other vows, another descent.</div>
     </div>
     <button class="ov-btn primary" id="ov-title">BACK TO TITLE</button>
   `);
@@ -3121,8 +3202,8 @@ function showMap() {
   const trio = RUN.active.map(id => `<span class="party-chip-fig">${V2PORTRAITS[id] || ''}</span>`).join('');
   const r = triadEntryFor(RUN.active);
   showOverlay(`
-    <div class="ov-eyebrow">THE DESCENT</div>
-    <div class="ov-title" style="font-size:20px; margin-bottom:14px;">CHOOSE THE ROAD</div>
+    <div class="ov-eyebrow">THE DESCENT${(RUN.floor || 1) >= 2 ? ` · FLOOR ${RUN.floor}` : ''}</div>
+    <div class="ov-title" style="font-size:20px; margin-bottom:14px;">${(RUN.floor || 1) >= 2 ? 'THE DEEPER DARK' : 'CHOOSE THE ROAD'}</div>
     <div class="map-strip"><svg class="map-edges" aria-hidden="true"></svg>${colHtml}</div>
     ${(runEmbers() > 0 && !treeTaught()) ? `<div class="map-coach">✦ You tore <b>${runEmbers()} embers</b> from the dead — open your <b>EMBER TREE</b> below and kindle a new skill before you press on.</div>` : ''}
     <div class="map-footer">
@@ -3232,11 +3313,12 @@ function showEvent(n) {
 }
 function startMapFight(n) {
   const boss = !!n.isBoss;
+  const floor = RUN.floor || 1;
   startFight({ type: 'fight', chapter: 3, heroes: RUN.active.slice(), enemies: n.enemies.slice(),
-    useRunHp: true, mapId: n.id, depth: n.level || n.col, elite: !!n.elite, isBoss: boss,
+    useRunHp: true, mapId: n.id, depth: n.level || n.col, floor, elite: !!n.elite, isBoss: boss,
     nodeType: n.type, label: n.label, level: n.level,
-    narrator: n.label + (boss ? ' — it remembers you.' : (n.elite ? ' — a deeper sin waits.' : '')) });
-  $('#chapter-chip').textContent = boss ? 'BOSS' : (n.elite ? 'ELITE' : 'DESCENT');
+    narrator: n.label + (boss ? (floor >= 2 ? ' — it is hungry.' : ' — it remembers you.') : (n.elite ? ' — a deeper sin waits.' : (floor >= 2 ? ' — the deep dark stirs.' : ''))) });
+  $('#chapter-chip').textContent = (boss ? 'BOSS' : (n.elite ? 'ELITE' : 'DESCENT')) + (floor >= 2 ? ' · FL' + floor : '');
 }
 function showRecruit(n) {
   const h = HEROES[n.hero];
@@ -3488,7 +3570,8 @@ function renderBattlefield() {
       if (!it || it.kind === 'buff') return;
       const dmg = enemyIntentDmg(e, it);
       if (it.heavy) anyHeavy = true;
-      (it.row === 'all' ? ROWS.slice() : (it.row ? [it.row] : [])).forEach(r => { rowDmg[r] += dmg; });
+      const row = effIntentRow(e, it);           // smart foes aim at the weakest — shown honestly
+      (row === 'all' ? ROWS.slice() : (row ? [row] : [])).forEach(r => { rowDmg[r] += dmg; });
     });
   });
   // Classify a row's threat: how big, and would it drop the hero standing there?
@@ -3530,6 +3613,7 @@ function renderBattlefield() {
           ${who.counter ? `<span class="chip counter${chipPop(who,'counter',who.counter)}">↺ ${who.counter}</span>` : ''}
           ${who.exposed ? `<span class="chip mark${chipPop(who,'exposed',who.exposed)}">◎ ${who.exposed}</span>` : ''}
           ${who.chill ? `<span class="chip chill${chipPop(who,'chill',who.chill)}">❄ ${who.chill}</span>` : ''}
+          ${who.hexed ? `<span class="chip hex${chipPop(who,'hexed',who.hexed)}" title="HEXED — your card plays burn your hand">☠ HEXED</span>` : ''}
         </div>
         <div class="hp-bar"><div class="hp-fill" style="width:${(who.hp / who.maxHp) * 100}%"></div></div>
         <div class="fig-name">${who.def.name} <span class="hp-num">${who.hp}/${who.maxHp}</span></div>
@@ -3561,6 +3645,7 @@ function renderBattlefield() {
   // single big figure instead of the three-slot line.
   const fboss = S.enemies.find(x => x.def.floorBoss && (!x.dead || x._justDied));
   enemyHalf.classList.toggle('has-floor-boss', !!fboss);
+  enemyHalf.classList.toggle('boss-maw', !!(fboss && fboss.def.aura === 'maw'));   // the Maw glows a sickly, hungry green
   if (fboss) {
     const fig = document.createElement('div');
     const primed = !!(fboss.lull || fboss.weakened || fboss.staggered);
@@ -3598,7 +3683,8 @@ function renderBattlefield() {
 // one intent rendered as an inline segment (glyph · dmg → row · riders)
 function intentSeg(e, it) {
   if (it.kind === 'buff') return `<span class="i-seg"><span class="i-glyph">◈</span><span class="i-row">${it.desc || 'gathers'}</span></span>`;
-  return `<span class="i-seg"><span class="i-glyph">⚔</span><span class="i-dmg">${enemyIntentDmg(e, it)}</span><span class="i-arrow">→</span><span class="i-row">${it.row === 'all' ? 'ALL' : ROW_LABEL[it.row]}</span>${it.chill ? '<span class="i-st kw-chill" title="chills you">❄</span>' : ''}${it.expose ? '<span class="i-st kw-exposed" title="exposes you">◎</span>' : ''}</span>`;
+  const row = effIntentRow(e, it);   // smart foes point at the hero they're hunting
+  return `<span class="i-seg"><span class="i-glyph">⚔</span><span class="i-dmg">${enemyIntentDmg(e, it)}</span><span class="i-arrow">→</span><span class="i-row">${row === 'all' ? 'ALL' : ROW_LABEL[row]}</span>${it.hex ? '<span class="i-st kw-hex" title="HEX — if it lands, your card plays burn your hand; dodge it">☠</span>' : ''}${it.drain ? '<span class="i-st kw-drain" title="drains life — heals the Maw">♥</span>' : ''}${it.chill ? '<span class="i-st kw-chill" title="chills you">❄</span>' : ''}${it.expose ? '<span class="i-st kw-exposed" title="exposes you">◎</span>' : ''}</span>`;
 }
 // The inner markup for an enemy figure (shared by the line + the floor boss).
 function enemyFigInner(e) {
