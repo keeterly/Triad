@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 19;
+const V2_BUILD = 20;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -81,30 +81,50 @@ const EMBER_TREE = [
   { id: 'ash.rider.expose', hero: 'ash', tier: 2, cost: 6, type: 'rider', requires: ['ash.sig.back'], label: 'Hunter’s Instinct', desc: 'Thrown Edge (BACK core) now also inflicts <span class="kw kw-exposed">◎ EXPOSED 2</span> — position becomes a debuff.', rider: { card: 'Thrown Edge', fx: { mark: 2 }, descAdd: ' · <span class="kw kw-exposed">◎ EXPOSED 2</span>' } },
   { id: 'ash.passive.vanguard', hero: 'ash', tier: 2, cost: 6, type: 'passive', label: 'Vanguard’s Momentum', desc: 'Whenever Ash closes to FRONT, he gains <span class="kw kw-guard">⛨ 3</span> guard — repositioning becomes defense.', passive: 'ash_vanguard' },
   { id: 'ash.allout.execution', hero: 'ash', tier: 3, cost: 10, type: 'allout', requires: ['ash.sig.front'], label: 'Rite of Endings', desc: 'ALT ALL-OUT — every strike of your all-out EXECUTES any foe left under 25% HP.', allout: 'execution' },
+  { id: 'ash.emergent.tempo', hero: 'ash', tier: 3, cost: 9, type: 'emergent', requires: ['ash.sig.front'], label: 'Rising Tempo',
+    desc: 'Ash learns the <b>rhythm of the duel</b>. Every <b>3rd strike</b> he lands this fight forges a free <b>Follow Cut</b> — the momentum becomes a card.',
+    emergent: { on: 'hit', every: 3, stance: 'FORGED · TEMPO', flash: 'Ash finds the rhythm — <b>Follow Cut</b> forged.',
+      forge: { name: 'Follow Cut', cost: 0, target: 'enemy', fx: { dmg: 7 }, desc: '<b>Free.</b> The rhythm carries the blade — <b>7 damage</b> to any foe. Landed on the beat.' } } },
 
   // ELIN — the Mender: wards and light
   { id: 'elin.sig.front', hero: 'elin', tier: 1, cost: 4, type: 'card', gate: { stance: 'front' }, label: 'Radiant Ward', desc: 'FRONT signature — every ally gains <span class="kw kw-guard">⛨ 3</span>.' },
   { id: 'elin.sig.mid',   hero: 'elin', tier: 1, cost: 5, type: 'card', gate: { stance: 'mid'   }, label: 'Sanctuary',   desc: 'MID signature — heal an ally 4 and ward them <span class="kw kw-guard">⛨ 4</span>.' },
   { id: 'elin.sig.back',  hero: 'elin', tier: 1, cost: 4, type: 'card', gate: { stance: 'back'  }, label: 'Benediction', desc: 'BACK signature — heal an ally 8.' },
   { id: 'elin.rider.warmth', hero: 'elin', tier: 2, cost: 6, type: 'rider', requires: ['elin.sig.mid'], label: 'Warm Light', desc: 'Mend (MID core) now also wards the ally for <span class="kw kw-guard">⛨ 2</span> — a heal that holds.', rider: { card: 'Mend', fx: { guard: 2 }, descAdd: ' · <span class="kw kw-guard">⛨ 2</span>' } },
+  { id: 'elin.emergent.afterglow', hero: 'elin', tier: 3, cost: 9, type: 'emergent', requires: ['elin.sig.back'], label: 'Afterglow',
+    desc: 'Elin’s light <b>lingers</b>. Every <b>2nd time she heals</b> this fight forges a free <b>Afterglow</b> — the warmth spreads to the whole party.',
+    emergent: { on: 'heal', every: 2, stance: 'FORGED · LIGHT', flash: 'The light lingers — <b>Afterglow</b> forged.',
+      forge: { name: 'Afterglow', cost: 0, target: 'allies', fx: { guard: 3 }, desc: '<b>Free.</b> The mending glow spills over — every ally gains <span class="kw kw-guard">⛨ 3</span>.' } } },
 
   // MIRA — the Assassin: exposure and slips
   { id: 'mira.sig.front', hero: 'mira', tier: 1, cost: 4, type: 'card', gate: { stance: 'front' }, label: 'Vanish Strike', desc: 'FRONT signature — 9 damage, then vanish to BACK.' },
   { id: 'mira.sig.mid',   hero: 'mira', tier: 1, cost: 5, type: 'card', gate: { stance: 'mid'   }, label: 'Twin Daggers',  desc: 'MID signature — 10 damage to ANY foe.' },
   { id: 'mira.sig.back',  hero: 'mira', tier: 1, cost: 4, type: 'card', gate: { stance: 'back'  }, label: 'Killing Mark',  desc: 'BACK signature — <span class="kw kw-exposed">◎ EXPOSED 5</span> on any foe.' },
   { id: 'mira.rider.exploit', hero: 'mira', tier: 2, cost: 6, type: 'rider', requires: ['mira.sig.front'], label: 'Killer’s Eye', desc: 'Backstab (FRONT core) now also inflicts <span class="kw kw-exposed">◎ EXPOSED 2</span>.', rider: { card: 'Backstab', fx: { mark: 2 }, descAdd: ' · <span class="kw kw-exposed">◎ EXPOSED 2</span>' } },
+  { id: 'mira.emergent.bloodscent', hero: 'mira', tier: 3, cost: 9, type: 'emergent', requires: ['mira.sig.back'], label: 'Bloodscent',
+    desc: 'Mira <b>smells the opening</b>. Every <b>2nd time she marks a foe</b> <span class="kw kw-exposed">◎ EXPOSED</span> this fight forges a free <b>Execute</b> — the mark becomes a killing card.',
+    emergent: { on: 'expose', every: 2, stance: 'FORGED · BLOOD', flash: 'She smells blood — <b>Execute</b> forged.',
+      forge: { name: 'Execute', cost: 0, target: 'enemy', fx: { dmg: 12 }, desc: '<b>Free.</b> The opening is hers — <b>12 damage</b> to any foe. An EXPOSED target has nowhere to hide.' } } },
 
   // CASSIA — the Warden: guard and retaliation
   { id: 'cassia.sig.front', hero: 'cassia', tier: 1, cost: 4, type: 'card', gate: { stance: 'front' }, label: 'Bulwark', desc: 'FRONT signature — 6 damage and gain <span class="kw kw-guard">⛨ 6</span>.' },
   { id: 'cassia.sig.mid',   hero: 'cassia', tier: 1, cost: 5, type: 'card', gate: { stance: 'mid'   }, label: 'Aegis',   desc: 'MID signature — ward an ally <span class="kw kw-guard">⛨ 7</span>.' },
   { id: 'cassia.sig.back',  hero: 'cassia', tier: 1, cost: 4, type: 'card', gate: { stance: 'back'  }, label: 'Sentinel Throw', desc: 'BACK signature — 7 damage to ANY foe.' },
   { id: 'cassia.rider.riposte', hero: 'cassia', tier: 2, cost: 6, type: 'rider', requires: ['cassia.sig.front'], label: 'Riposte', desc: 'Shield Bash (FRONT core) now also grants <span class="kw kw-counter">↺ 1</span> — punish the next blow.', rider: { card: 'Shield Bash', fx: { counter: 1 }, descAdd: ' · <span class="kw kw-counter">↺ 1</span>' } },
+  { id: 'cassia.emergent.bulwark', hero: 'cassia', tier: 3, cost: 9, type: 'emergent', requires: ['cassia.sig.front'], label: 'Iron Answer',
+    desc: 'Cassia turns <b>defense into a weapon</b>. Every <b>2nd time she raises guard</b> this fight forges a free <b>Bulwark Break</b> — the wall answers back.',
+    emergent: { on: 'guard', every: 2, stance: 'FORGED · IRON', flash: 'The wall answers — <b>Bulwark Break</b> forged.',
+      forge: { name: 'Bulwark Break', cost: 0, target: 'enemy', fx: { dmg: 9 }, desc: '<b>Free.</b> The shield becomes the blow — <b>9 damage</b> to any foe. Every wall she raises is a blade held back.' } } },
 
   // BRANWEN — the Marksman: marks and repositioning
   { id: 'branwen.sig.front', hero: 'branwen', tier: 1, cost: 4, type: 'card', gate: { stance: 'front' }, label: 'Hunter’s Mark', desc: 'FRONT signature — <span class="kw kw-exposed">◎ EXPOSED 4</span> and slip to BACK.' },
   { id: 'branwen.sig.mid',   hero: 'branwen', tier: 1, cost: 5, type: 'card', gate: { stance: 'mid'   }, label: 'Killshot',    desc: 'MID signature — 11 damage to ANY foe.' },
   { id: 'branwen.sig.back',  hero: 'branwen', tier: 1, cost: 4, type: 'card', gate: { stance: 'back'  }, label: 'Killing Arrow', desc: 'BACK signature — 9 damage and <span class="kw kw-exposed">◎ EXPOSED 2</span>.' },
   { id: 'branwen.rider.deadeye', hero: 'branwen', tier: 2, cost: 6, type: 'rider', requires: ['branwen.sig.back'], label: 'Deadeye', desc: 'Backstep Shot (FRONT core) now also inflicts <span class="kw kw-exposed">◎ EXPOSED 2</span>.', rider: { card: 'Backstep Shot', fx: { mark: 2 }, descAdd: ' · <span class="kw kw-exposed">◎ EXPOSED 2</span>' } },
+  { id: 'branwen.emergent.tally', hero: 'branwen', tier: 3, cost: 9, type: 'emergent', requires: ['branwen.sig.back'], label: 'Death’s Tally',
+    desc: 'Branwen <b>counts her marks</b>. Every <b>2nd time she inflicts</b> <span class="kw kw-exposed">◎ EXPOSED</span> this fight forges a free <b>Killing Arrow</b> — the tally comes due.',
+    emergent: { on: 'expose', every: 2, stance: 'FORGED · TALLY', flash: 'The tally comes due — <b>Killing Arrow</b> forged.',
+      forge: { name: 'Killing Arrow', cost: 0, target: 'enemy', fx: { dmg: 9, mark: 2 }, desc: '<b>Free.</b> The counted shot lands — <b>9 damage</b> and <span class="kw kw-exposed">◎ EXPOSED 2</span> to any foe.' } } },
 ];
 const NODE_BY_ID = {};
 EMBER_TREE.forEach(n => { NODE_BY_ID[n.id] = n; });
@@ -133,6 +153,35 @@ function onHeroEnterRow(hero, toRow, fromRow) {
     hero.guard = (hero.guard || 0) + 3;
     popupAt(figEl(hero.id), '⛨ +3', 'guard');
   }
+}
+// EMERGENT LOOPS — a kindled tier-3 node installs a per-fight counter that watches
+// a hero repeat their archetypal act (strike / expose / heal / raise guard); on the
+// Nth repeat it FORGES a signature temp card into that hero's hand.  This is how a
+// hero's kit "grows over the run" — the more they play to type, the more their
+// story-cards appear.  Data-driven (node.emergent), so no bespoke code per hero.
+function emergentNodes(heroId) {
+  return EMBER_TREE.filter(n => n.type === 'emergent' && n.hero === heroId && n.emergent && hasNode(n.id));
+}
+function fireEmergent(heroId, event, card) {
+  // don't chain off an all-out burst, and don't let a forged temp card re-forge
+  if (!heroId || typeof S === 'undefined' || !S || S._burstResolving) return;
+  if (card && card.temp) return;
+  const hero = S.heroes.find(h => h.id === heroId);
+  if (!hero || hero.downed) return;
+  const nodes = emergentNodes(heroId);
+  if (!nodes.length) return;
+  S._emCount = S._emCount || {};
+  nodes.forEach(n => {
+    if (n.emergent.on !== event) return;
+    const c = (S._emCount[n.id] = (S._emCount[n.id] || 0) + 1);
+    if (c % n.emergent.every !== 0) return;
+    const f = n.emergent.forge;
+    genTempCard({ kind: 'temp', owner: heroId, ownerName: hero.def.name, tint: hero.def.tint,
+      stance: n.emergent.stance || 'FORGED', name: f.name, cost: f.cost || 0, target: f.target || 'enemy',
+      school: (f.fx && f.fx.dmg) ? hero.def.school : null, fx: Object.assign({}, f.fx), desc: f.desc });
+    popupAt(figEl(heroId), '✦ ' + f.name, 'rally');
+    if (n.emergent.flash) flashNarrator(n.emergent.flash);
+  });
 }
 
 // IN-RUN FORGING — the temporary (per-descent) ember sink.  At a campfire you
@@ -180,6 +229,8 @@ const SFX = (() => {
     heal:    () => { tone(520, 0.14, 'sine', 0.05); tone(780, 0.18, 'sine', 0.035, 0.06); },
     guard:   () => tone(290, 0.09, 'triangle', 0.055),
     thread:  () => { tone(440, 0.35, 'sine', 0.05); tone(660, 0.4, 'sine', 0.04, 0.09); },
+    // KINDLE — a rising ember-catch: struck spark, swelling chord, bright bloom
+    kindle:  () => { tone(180, 0.1, 'square', 0.05, 0, 90); [392, 523, 659, 784, 1046].forEach((f, i) => tone(f, 0.5, 'triangle', 0.05, 0.12 + i * 0.075)); tone(1568, 0.6, 'sine', 0.035, 0.5); },
     triad:   () => { [440, 554, 659, 880].forEach((f, i) => tone(f, 0.7, 'sine', 0.05, i * 0.09)); },
     victory: () => { [523, 659, 784].forEach((f, i) => tone(f, 0.25, 'triangle', 0.05, i * 0.11)); },
     enemy:   () => tone(220, 0.09, 'square', 0.04, 0, 180),
@@ -1762,7 +1813,7 @@ async function resolveCard(card, targetId) {
       const isFollowUp = !!(owner && prev && prev !== owner.id);
       if (isFollowUp) amt += 2;
       dealToEnemy(tgt, amt, owner ? owner.def.school : null, owner ? owner.id : null);
-      if (owner) hitters.push(owner.id);
+      if (owner) { hitters.push(owner.id); fireEmergent(owner.id, 'hit', card); if (tgt.dead) fireEmergent(owner.id, 'kill', card); }
       if (isFollowUp) {
         gainMomentum(12, { combo: true });   // LINK — chaining allies builds burst
         linkPopup(owner.id);
@@ -1787,7 +1838,7 @@ async function resolveCard(card, targetId) {
   }
   if (fx.mark) {
     const tgt = livingEnemies().find(e => e.uid === targetId);
-    if (tgt) { tgt.mark = fx.mark; popupAt(figEl(tgt.uid), '◎ EXPOSED +' + fx.mark, 'info'); }
+    if (tgt) { tgt.mark = fx.mark; popupAt(figEl(tgt.uid), '◎ EXPOSED +' + fx.mark, 'info'); if (owner) fireEmergent(owner.id, 'expose', card); }
   }
   if (fx.lull) {
     const tgt = card.target === 'enemy' ? (livingEnemies().find(e => e.uid === targetId) || frontmostEnemy()) : frontmostEnemy();
@@ -1812,6 +1863,11 @@ async function resolveCard(card, targetId) {
       if (fx.buffDmg){ rc.buffDmg += fx.buffDmg; popupAt(figEl(rc.id), '▲ RALLY +' + fx.buffDmg, 'rally'); }
       if (fx.counter){ rc.counter = Math.max(rc.counter, fx.counter); }
       if (owner && rc.id !== owner.id && card.target === 'ally') await addThread(owner.id, rc.id);
+    }
+    // one emergent tick per PLAY (not per receiver): the caster's mending / warding loop
+    if (owner && receivers.length) {
+      if (fx.heal)  fireEmergent(owner.id, 'heal', card);
+      if (fx.guard) fireEmergent(owner.id, 'guard', card);
     }
   }
   // Movement built into the action: the caster repositions after resolving,
@@ -3386,6 +3442,56 @@ function bossIntro(bossId, onDone) {
   at(6400, finish);   // auto-advance if they don't tap
   return el;
 }
+// KINDLE BURST — the moment a skill catches.  A full-screen ember-bloom over the
+// tree: the node's glyph ignites, ember shards fan out, the skill NAME slams in
+// and its effect line resolves.  Short, skippable, then back to the tree.
+let _kindleBusy = false;
+function kindleBurst(node, onDone) {
+  const heroName = (HEROES[node.hero] && HEROES[node.hero].name) || '';
+  const tint = (HEROES[node.hero] && HEROES[node.hero].tint) || '#e8b84a';
+  const glyph = TREE_TYPE_GLYPH[node.type] || '✦';
+  const kind = TREE_TYPE_LABEL[node.type] || 'SKILL';
+  const old = document.getElementById('kindle-fx'); if (old) old.remove();
+  const el = document.createElement('div');
+  el.id = 'kindle-fx';
+  el.className = 'kf t-' + node.type;
+  el.style.setProperty('--kf-tint', tint);
+  el.innerHTML = `
+    <div class="kf-scrim"></div>
+    <div class="kf-rays"></div>
+    <div class="kf-flash"></div>
+    <div class="kf-core">
+      <div class="kf-halo"></div>
+      <div class="kf-glyph">${glyph}</div>
+      ${Array.from({ length: 18 }).map((_, i) => `<span class="kf-shard" style="--i:${i}"></span>`).join('')}
+    </div>
+    <div class="kf-txt">
+      <div class="kf-eyebrow">${heroName} · NEW ${kind}</div>
+      <div class="kf-name">${node.label}</div>
+      <div class="kf-rule"></div>
+      <div class="kf-desc">${node.desc}</div>
+    </div>
+    <div class="kf-skip">TAP TO CONTINUE</div>`;
+  $('#stage').appendChild(el);
+  _kindleBusy = true;
+  if (SFX.kindle) SFX.kindle();
+  requestAnimationFrame(() => el.classList.add('kf-run'));
+  const timers = [];
+  const at = (ms, fn) => timers.push(setTimeout(fn, ms));
+  at(120, () => stageShake('sm'));
+  at(620, () => { stageShake('md'); el.classList.add('kf-slam'); if (SFX.follow) SFX.follow(); });
+  let done = false;
+  const finish = () => {
+    if (done) return; done = true;
+    timers.forEach(clearTimeout);
+    el.classList.add('kf-out');
+    setTimeout(() => { el.remove(); _kindleBusy = false; (onDone || function () {})(); }, 360);
+  };
+  el.addEventListener('pointerdown', () => { if (el.classList.contains('kf-ready')) finish(); });
+  at(700, () => el.classList.add('kf-ready'));   // ignore stray taps during the slam
+  at(3600, finish);   // auto-advance
+  return el;
+}
 function showRecruit(n) {
   const h = HEROES[n.hero];
   const lines = (RECRUIT_LINES[n.hero] || []).map(l =>
@@ -4191,8 +4297,8 @@ function showTitle() {
 // THE EMBER TREE — a branching constellation.  Each hero's nodes hang from a
 // root along lit paths; a node's PREREQUISITE feeds it down a thread.  Pick a
 // node to read it in the detail bar, then kindle it.
-const TREE_TYPE_LABEL = { card: 'SIGNATURE', rider: 'UPGRADE', passive: 'PASSIVE', allout: 'ALL-OUT' };
-const TREE_TYPE_GLYPH = { card: '❖', rider: '⊕', passive: '❉', allout: '✷' };
+const TREE_TYPE_LABEL = { card: 'SIGNATURE', rider: 'UPGRADE', passive: 'PASSIVE', allout: 'ALL-OUT', emergent: 'EMERGENT' };
+const TREE_TYPE_GLYPH = { card: '❖', rider: '⊕', passive: '❉', allout: '✷', emergent: '✦' };
 const TREE_HEROES = EMBER_TREE.reduce((a, n) => (a.includes(n.hero) ? a : a.concat(n.hero)), []);
 // node state for the current META: owned / ready(buyable) / poor(can't afford)
 // / needs(prereq) / sealed(tier).
@@ -4318,9 +4424,10 @@ function showEmberTree(onBack, heroId, selId) {
   if (buy && sel) buy.onclick = () => {
     if (nodeState(sel) !== 'ready') return;
     const first = !treeTaught();
-    addEmbers(-sel.cost); unlockNode(sel.id); setTreeTaught();   // learning the tree, once
-    SFX.thread();
-    showEmberTree(onBack, heroId, first ? '__kindled:' + sel.id : sel.id);
+    const bought = sel;
+    addEmbers(-bought.cost); unlockNode(bought.id); setTreeTaught();   // learning the tree, once
+    // the skill CATCHES — a full-screen ember-bloom before dropping back to the tree
+    kindleBurst(bought, () => showEmberTree(onBack, heroId, first ? '__kindled:' + bought.id : bought.id));
   };
   // celebrate the very first kindle so the loop clicks: node → KINDLE → in hand
   if (justKindled) {

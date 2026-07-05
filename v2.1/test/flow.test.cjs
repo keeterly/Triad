@@ -889,13 +889,19 @@ const QUICK = process.argv.includes('--quick');
     }));
   check('TEACH: the tree shows a KINDLE coach until you learn it',
     await J(() => { showEmberTree(() => {}, 'ash'); return !!document.querySelector('.et-coach') && treeTaught() === false; }));
-  check('TEACH: kindling your first node marks the lesson + shows the confirmation',
+  check('TEACH: kindling a node plays a KINDLE BURST and banks the unlock',
     await J(() => {
       RUN.embers = 20; RUN.completed = [0, 1, 2, 3]; showEmberTree(() => {}, 'ash');
       const buy = document.querySelector('#et-buy'); if (!buy) return false;
       buy.click();
-      return treeTaught() === true && !document.querySelector('.et-coach') && !!document.querySelector('.et-kindled-note');
+      // the unlock is committed immediately; the full-screen burst plays over the tree
+      return treeTaught() === true && runEmbers() === 16 && !!document.querySelector('#kindle-fx');
     }));
+  // dismiss the burst → the tree re-renders with the confirmation note
+  await J(() => { const el = document.querySelector('#kindle-fx'); if (el) { el.classList.add('kf-ready'); el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); } });
+  await sleep(450);
+  check('TEACH: after the burst, the tree shows the kindled confirmation',
+    await J(() => !document.querySelector('#kindle-fx') && !document.querySelector('.et-coach') && !!document.querySelector('.et-kindled-note')));
   check('TEACH: once learned, the map no longer nags',
     await J(() => { S = null; RUN = newRun('ash'); RUN.embers = 8; showMap(); return !document.querySelector('.map-coach'); }));
 
@@ -993,6 +999,58 @@ const QUICK = process.argv.includes('--quick');
   await sleep(650);
   check('INTRO: the fight begins after the cutscene closes',
     await J(() => !document.getElementById('boss-cine') && window.__began === true));
+
+  // ---------- EMERGENT GROWTH (tier-3 forge loops) ----------
+  console.log('--- EMERGENT ---');
+  check('EMERGENT: each party hero has a tier-3 emergent node that forges a temp card',
+    await J(() => {
+      const em = EMBER_TREE.filter(n => n.type === 'emergent');
+      return ['ash', 'elin', 'mira', 'cassia', 'branwen'].every(h => em.some(n => n.hero === h && n.tier === 3 && n.emergent && n.emergent.forge));
+    }));
+  check('EMERGENT: an emergent node needs its signature prerequisite kindled first',
+    await J(() => {
+      const n = NODE_BY_ID['mira.emergent.bloodscent'];
+      return !!n && (n.requires || []).includes('mira.sig.back');
+    }));
+  check('EMERGENT: Mira’s Bloodscent forges Execute on her 2nd EXPOSED — not the 1st',
+    await J(() => {
+      RUN = newRun('mira'); RUN.active = ['mira']; RUN.nodes = ['mira.sig.back', 'mira.emergent.bloodscent'];
+      startFight({ type: 'fight', chapter: 3, useRunHp: true, heroes: ['mira'], enemies: ['husk'] });
+      const has = () => S.tempCards.some(c => c.name === 'Execute');
+      fireEmergent('mira', 'expose');
+      const afterOne = has();
+      fireEmergent('mira', 'expose');
+      const afterTwo = has();
+      return afterOne === false && afterTwo === true;
+    }));
+  check('EMERGENT: a forged temp card cannot itself re-trigger the loop (no snowball)',
+    await J(() => {
+      RUN = newRun('ash'); RUN.active = ['ash']; RUN.nodes = ['ash.sig.front', 'ash.emergent.tempo'];
+      startFight({ type: 'fight', chapter: 3, useRunHp: true, heroes: ['ash'], enemies: ['husk'] });
+      S._emCount = {};
+      const temp = { temp: true, owner: 'ash', kind: 'temp' };
+      for (let i = 0; i < 6; i++) fireEmergent('ash', 'hit', temp);   // temp plays never count
+      return (S._emCount['ash.emergent.tempo'] || 0) === 0;
+    }));
+  check('EMERGENT: an all-out burst does not forge emergent cards',
+    await J(() => {
+      RUN = newRun('mira'); RUN.active = ['mira']; RUN.nodes = ['mira.sig.back', 'mira.emergent.bloodscent'];
+      startFight({ type: 'fight', chapter: 3, useRunHp: true, heroes: ['mira'], enemies: ['husk'] });
+      S._burstResolving = true;
+      fireEmergent('mira', 'expose'); fireEmergent('mira', 'expose');
+      S._burstResolving = false;
+      return !S.tempCards.some(c => c.name === 'Execute');
+    }));
+  check('EMERGENT: kindling an emergent node plays the KINDLE BURST cinematic',
+    await J(() => {
+      RUN = newRun('mira'); RUN.active = ['mira']; RUN.embers = 30; RUN.completed = [0, 1, 2, 3, 4, 5, 6, 7];
+      RUN.nodes = ['mira.sig.back'];
+      showEmberTree(() => {}, 'mira', 'mira.emergent.bloodscent');
+      const buy = document.querySelector('#et-buy'); if (!buy) return false;
+      buy.click();
+      return hasNode('mira.emergent.bloodscent') && !!document.querySelector('#kindle-fx.t-emergent');
+    }));
+  await J(() => { const el = document.querySelector('#kindle-fx'); if (el) el.remove(); });
 
   t.report();
   await t.browser.close();
