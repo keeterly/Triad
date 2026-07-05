@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 34;
+const V2_BUILD = 35;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -4674,23 +4674,23 @@ function showTitle() {
   const savedFlow = parseInt(localStorage.getItem(PROGRESS_KEY) || '0', 10) || 0;
   const savedRun = loadRun();
   const canContinue = savedFlow > 0 || (savedRun && !savedRun.done);
-  // A cinematic full-screen JRPG title: an atmospheric backdrop (god-rays,
-  // vignette, drifting embers), the logo, and a lean menu.
+  // A full-screen JRPG title: a key-art figure fills the frame, the logo sits
+  // top-center, and a horizontal menu bar runs across the bottom.
   showOverlay(`
     <div class="tt-rays"></div>
+    <div class="tt-keyart"><span class="tt-keyart-glow"></span><span class="tt-keyart-fig">${V2PORTRAITS['ash'] || ''}</span></div>
     <div class="tt-vign"></div>
+    <div class="tt-scrim"></div>
     ${Array.from({ length: 14 }).map((_, i) => `<span class="tt-ember" style="--i:${i}"></span>`).join('')}
-    <div class="tt-stage">
-      <div class="tt-logo">
-        <div class="tt-title">KIZUNA</div>
-        <div class="tt-rule"></div>
-        <div class="tt-sub">THREADS</div>
-      </div>
-      <div class="tt-menu">
-        <button class="tt-opt tt-opt-primary" id="t-new">NEW GAME</button>
-        ${canContinue ? `<button class="tt-opt" id="t-continue">CONTINUE</button>` : ''}
-        <button class="tt-opt" id="t-settings">SETTINGS</button>
-      </div>
+    <div class="tt-top">
+      <div class="tt-title">KIZUNA</div>
+      <div class="tt-rule"></div>
+      <div class="tt-sub">RESONANCE</div>
+    </div>
+    <div class="tt-menu-bar">
+      <button class="tt-opt tt-opt-primary" id="t-new">NEW GAME</button>
+      ${canContinue ? `<button class="tt-opt" id="t-continue">CONTINUE</button>` : ''}
+      <button class="tt-opt" id="t-settings">SETTINGS</button>
     </div>
     <div class="tt-ver">V2.1 · BUILD ${V2_BUILD}</div>
   `, 'title-cine');
