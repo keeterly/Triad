@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 18;
+const V2_BUILD = 19;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -3336,7 +3336,7 @@ function startMapFight(n) {
 const BOSS_CINE = {
   echoknight2:  { name: 'THE ECHO KNIGHT', epithet: 'THE REMEMBERED', eye: '#ff5038', roar: 'blade',
     quote: 'You buried me once. I have counted every hand that threw the dirt.' },
-  echodevourer: { name: 'THE HOLLOW MAW', epithet: 'IT HUNGERS', eye: '#8dff74', roar: 'maw',
+  echodevourer: { name: 'THE HOLLOW MAW', epithet: 'IT HUNGERS', eye: '#a86bff', roar: 'maw',
     quote: 'Down here, everything is food. Even the little light you carry.' },
 };
 let _bossCineBusy = false;

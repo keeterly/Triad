@@ -1665,11 +1665,12 @@ button.map-node:not(:disabled) { cursor: pointer; }
   animation: boss-aura 3.4s ease-in-out infinite;
 }
 @keyframes boss-aura { 0%,100% { opacity: 0.65; transform: scale(1); } 50% { opacity: 1; transform: scale(1.06); } }
-/* THE HOLLOW MAW — a sickly, hungry green rather than the Echo Knight's blood-red */
+/* THE HOLLOW MAW — a corrupt amethyst glow (ties to its purple HEX) rather than
+   the Echo Knight's blood-red */
 #enemy-half.has-floor-boss.boss-maw::before {
-  background: radial-gradient(ellipse 66% 76% at 52% 50%, rgba(74,150,58,0.36), rgba(24,54,20,0.2) 46%, transparent 72%);
+  background: radial-gradient(ellipse 66% 76% at 52% 50%, rgba(150,90,224,0.36), rgba(58,28,96,0.2) 46%, transparent 72%);
 }
-#enemy-half.boss-maw .figure.floor-boss .fig-art svg { filter: drop-shadow(0 16px 36px rgba(0,0,0,0.9)) drop-shadow(0 0 48px rgba(90,180,70,0.5)) drop-shadow(0 0 12px rgba(150,255,120,0.35)) hue-rotate(75deg) saturate(0.85); }
+#enemy-half.boss-maw .figure.floor-boss .fig-art svg { filter: drop-shadow(0 16px 36px rgba(0,0,0,0.9)) drop-shadow(0 0 48px rgba(150,90,224,0.5)) drop-shadow(0 0 12px rgba(190,140,255,0.4)) hue-rotate(255deg) saturate(0.95); }
 .figure.floor-boss {
   position: relative; z-index: 1;
   width: 100%; max-width: 100%; height: 100%;
@@ -2106,7 +2107,7 @@ button.map-node:not(:disabled) { cursor: pointer; }
   opacity: 0; --bc-eye: #ff5038;
   background: radial-gradient(ellipse 92% 72% at 50% 42%, #1c0708 0%, #060203 68%, #000 100%);
 }
-#boss-cine.bc-maw    { background: radial-gradient(ellipse 92% 72% at 50% 42%, #0b1a08 0%, #030703 68%, #000 100%); }
+#boss-cine.bc-maw    { background: radial-gradient(ellipse 92% 72% at 50% 42%, #160a26 0%, #06030c 68%, #000 100%); }
 #boss-cine.bc-run  { animation: bc-in 0.4s ease forwards; }
 #boss-cine.bc-out  { animation: bc-out 0.46s ease forwards; }
 @keyframes bc-in  { to { opacity: 1; } }
