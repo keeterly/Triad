@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 27;
+const V2_BUILD = 28;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -3540,76 +3540,135 @@ function kindleBurst(node, onDone) {
   return el;
 }
 // ===========================================================================
-// TRAVELER ENCOUNTERS — recruitment is a cinematic CHOICE, not a menu button.
-// You cross paths with a stranger on the road and HOW you treat them decides
-// everything:
-//   friend  — welcomed / aligned   → they join with a bond already kindled
-//   neutral — taken in coldly       → they join, but no bond (warmth is earned)
-//   decline — turned away           → they don't join; the party closes ranks
-//   foe     — wronged               → they leave resentful and AMBUSH you later
-// It all lives on RUN and wipes on death — every descent you can choose
-// differently and assemble a differently-tempered party.
+// TRAVELER ENCOUNTERS — you're all clawing out of the same abyss, and you cross
+// paths on the way up.  Recruitment is a short BG3-style CONVERSATION: what you
+// SAY across two beats decides how it lands.  There's only one way to travel
+// together — but the talk sets the TERMS:
+//   friend  — you met them warm         → they walk with you, a bond already bound
+//   neutral — pragmatic / wary          → they walk with you, no bond yet (warmth is earned)
+//   foe     — you crossed them          → they leave resentful and AMBUSH you later
+// It all lives on RUN and wipes on death — every descent the conversation can
+// go a different way and hand you a differently-tempered party.
+// Each option carries a `tone` (warm > 0, guarded = 0, cold < 0); `hostile`
+// marks the line that crosses them for good.  b1 tone picks the reply bucket;
+// the running total resolves the encounter.
 // ===========================================================================
 const TRAVELERS = {
   cassia: {
-    eyebrow: 'A BANNER IN THE DUST',
-    scene: 'A knight sits beside a sword driven point-down through a torn banner, helm off, fingers loose on the pommel.',
-    quote: '“If you came to take the sword, take it. If you came to ask whose it was — don’t. I spent the last reach forgetting… but I spent it standing.”',
-    choices: [
-      { outcome: 'friend',  label: 'Stand with her',        tag: 'she joins, a bond already bound' },
-      { outcome: 'neutral', label: 'Take her sword-arm',    tag: 'she walks with you — cold, for now' },
-      { outcome: 'foe',     label: 'Take the sword, leave her', tag: 'she will not forget the theft' },
+    eyebrow: 'A BANNER IN THE DUST', speaker: 'CASSIA',
+    scene: 'A knight sits in a shattered gate, a sword driven through a torn banner beside her. She’s climbing out of the same dark you are — she only stopped to bury something first.',
+    line1: '“If you came to take the sword, take it. If you came to ask whose it was — don’t.”',
+    opts1: [
+      { text: 'Keep the sword. Carry the grief up with us.', tone: 2 },
+      { text: 'I don’t care whose it was. Can you still swing it?', tone: 0 },
+      { text: 'Bury your dead and stay out of our way.', tone: -1 },
     ],
+    react: {
+      warm:    '“…No one’s offered to carry it. Only to take it.”',
+      guarded: '“Blunt. Good. Yes — I can still swing it.”',
+      cold:    '“Travel light. That’s how the last party climbed. Light, and gone.”',
+    },
+    opts2: {
+      warm:    [ { text: 'Then stand. The gate’s behind you now.', tone: 2 }, { text: 'We hold the line together or not at all.', tone: 1 } ],
+      guarded: [ { text: 'Then walk with us — properly.', tone: 2 }, { text: 'Front rank’s yours. That’s all I need.', tone: 0 } ],
+      cold:    [ { text: '…Fine. Come. Just keep pace.', tone: 2 }, { text: 'Take the sword. Leave her.', tone: -2, hostile: true } ],
+    },
   },
   elin: {
-    eyebrow: 'A FIELD-MEDIC MARK',
-    scene: 'A trail of clean linen strips leads you in. A woman kneels splinting a stranger’s arm — a stranger who is not breathing. She finishes the splint anyway.',
-    quote: '“I was sent to heal. I will heal who walks.”',
-    choices: [
-      { outcome: 'friend',  label: 'Walk with her',            tag: 'she joins, a bond already bound' },
-      { outcome: 'neutral', label: 'Let her tend the line',    tag: 'she walks with you — nothing more' },
-      { outcome: 'decline', label: 'Leave her to the dead',    tag: 'the party closes ranks' },
+    eyebrow: 'A FIELD-MEDIC MARK', speaker: 'ELIN',
+    scene: 'A trail of clean linen leads you in. A woman kneels splinting a dead stranger’s arm — finishing it anyway. She’s trying to climb out too; she just can’t walk past the wounded to do it.',
+    line1: '“I was sent to heal. I’ll heal who walks. …Are you walking, or are you dying quietly?”',
+    opts1: [
+      { text: 'Walking. And we’d walk faster with you.', tone: 2 },
+      { text: 'Bleeding, mostly. Can you fix that?', tone: 0 },
+      { text: 'Leave the dead. We don’t have time.', tone: -1 },
     ],
+    react: {
+      warm:    '“Then let me keep you walking. That’s all I’ve ever wanted to do.”',
+      guarded: '“I can fix most things. Hold still and don’t argue.”',
+      cold:    '“The dead had names. …But the living have farther to go. I know.”',
+    },
+    opts2: {
+      warm:    [ { text: 'Stay behind us. We’ll keep the dark off you.', tone: 2 }, { text: 'Come. No one else falls today.', tone: 1 } ],
+      guarded: [ { text: 'Fair. Then you’re one of us now.', tone: 2 }, { text: 'Just keep the party breathing.', tone: 0 } ],
+      cold:    [ { text: '…You’re right to stay. Come with us instead.', tone: 2 }, { text: 'Take her supplies and go.', tone: -2, hostile: true } ],
+    },
   },
   mira: {
-    eyebrow: 'A KNIFE IN THE DARK',
-    scene: 'You never see her until she wants you to. A blade turns lazily in her fingers; three bodies cool behind her that you never heard fall.',
-    quote: '“You walk loud. Someone should watch the dark for you. …Don’t make me regret offering.”',
-    choices: [
-      { outcome: 'friend',  label: 'Let her in',              tag: 'she joins, a bond already bound' },
-      { outcome: 'neutral', label: 'Keep her at knife’s length', tag: 'she walks with you — trust nothing' },
-      { outcome: 'foe',     label: 'Try to rob the assassin', tag: 'a very bad idea' },
+    eyebrow: 'A KNIFE IN THE DARK', speaker: 'MIRA',
+    scene: 'You never see her until she wants you to. A blade turns in her fingers; three bodies cool behind her that you never heard fall. She’s hunting a way up — quietly, alone, tired of it.',
+    line1: '“You walk loud. Someone should watch the dark for you before it eats you. …Don’t make me regret offering.”',
+    opts1: [
+      { text: 'We’re all running the same climb. Watch it with us.', tone: 2 },
+      { text: 'You’re useful. Keep pace and we won’t leave you.', tone: 0 },
+      { text: 'Watch the dark from somewhere else.', tone: -1 },
     ],
+    react: {
+      warm:    '“…Huh. Most people flinch. Alright. I’ll keep you breathing.”',
+      guarded: '“Transactional. Good. I can trust transactional.”',
+      cold:    '“Suit yourself. The dark’s patient. So am I.”',
+    },
+    opts2: {
+      warm:    [ { text: 'What are you running from?', tone: 2 }, { text: 'Then stay close. We don’t lose people.', tone: 1 } ],
+      guarded: [ { text: 'Pull your weight, there’s no problem.', tone: 2 }, { text: 'Eyes on the dark. That’s the deal.', tone: 0 } ],
+      cold:    [ { text: '…No. Wait. We could use the eyes.', tone: 2 }, { text: 'Try to lift her blades while she talks.', tone: -2, hostile: true } ],
+    },
   },
   branwen: {
-    eyebrow: 'EYES ON THE TREELINE',
-    scene: 'An arrow splits the post beside your head before you see her. She steps from cover, bow already lowered, unhurried.',
-    quote: '“Relax — if I’d wanted you dead you wouldn’t be reading this. Walk down there without eyes on the treeline and you don’t walk back. Let me be your eyes.”',
-    choices: [
-      { outcome: 'friend',  label: 'Fall into her line',    tag: 'she joins, a bond already bound' },
-      { outcome: 'neutral', label: 'Take the eyes, not the trust', tag: 'she walks with you — watchful' },
-      { outcome: 'decline', label: 'Refuse her eyes',       tag: 'the party closes ranks' },
+    eyebrow: 'EYES ON THE TREELINE', speaker: 'BRANWEN',
+    scene: 'An arrow splits the post beside your head before you see her. She steps from cover, bow already lowered — one more survivor picking her way up, who’d rather see you first than trust you.',
+    line1: '“Relax — if I’d wanted you dead you’d not be reading this. Climb without eyes on the treeline and you don’t climb far. Let me be your eyes.”',
+    opts1: [
+      { text: 'We could use eyes we can trust. Walk with us.', tone: 2 },
+      { text: 'Point that somewhere else and we’ll talk.', tone: 0 },
+      { text: 'We don’t trust arrows from the dark.', tone: -1 },
     ],
+    react: {
+      warm:    '“Trust. Bold word down here. …I’ll earn it, then.”',
+      guarded: '“Already lowered. See? I’m the reasonable kind of dangerous.”',
+      cold:    '“Smart. Trust gets people killed. …Doesn’t mean you don’t need me.”',
+    },
+    opts2: {
+      warm:    [ { text: 'Take the high line. We’ll take the low.', tone: 2 }, { text: 'Then no one walks into the dark blind again.', tone: 1 } ],
+      guarded: [ { text: 'Good enough. Fall in.', tone: 2 }, { text: 'Just call the shots you see.', tone: 0 } ],
+      cold:    [ { text: '…But we do need you. Come on.', tone: 2 }, { text: 'Loose your string and leave it. Walk away.', tone: -2, hostile: true } ],
+    },
   },
   _default: {
-    eyebrow: 'A STRANGER ON THE PATH',
-    scene: 'Footsteps in the dust that are not yours. Whoever they are, they stop when you stop — waiting for you to choose first.',
-    quote: '',
-    choices: [
-      { outcome: 'friend',  label: 'Hear them out',   tag: 'they join, a bond already bound' },
-      { outcome: 'neutral', label: 'Let them walk a while', tag: 'they walk with you — for now' },
-      { outcome: 'decline', label: 'Keep walking',    tag: 'the party closes ranks' },
+    eyebrow: 'A STRANGER ON THE PATH', speaker: 'A STRANGER',
+    scene: 'Footsteps in the dust that are not yours. Another climber, out of the same dark — they stop when you stop, waiting for you to speak first.',
+    line1: '“You’re climbing out too. …Two backs are better than one down here.”',
+    opts1: [
+      { text: 'Then climb with us.', tone: 2 },
+      { text: 'Keep pace and we’ll see.', tone: 0 },
+      { text: 'We climb alone.', tone: -1 },
     ],
+    react: {
+      warm:    '“Good. I was tired of the quiet.”',
+      guarded: '“Fair enough. I’ll earn my place.”',
+      cold:    '“…Alone gets you dead. But it’s your climb.”',
+    },
+    opts2: {
+      warm:    [ { text: 'Stay close, then.', tone: 2 }, { text: 'No one falls behind.', tone: 1 } ],
+      guarded: [ { text: 'Alright — you’re one of us.', tone: 2 }, { text: 'Just keep up.', tone: 0 } ],
+      cold:    [ { text: '…Fine. Come on.', tone: 2 }, { text: 'Take what they carry and go.', tone: -2, hostile: true } ],
+    },
   },
 };
-// The cinematic "crossing paths" encounter — a full-bleed atmospheric scene:
-// the stranger rises out of the dark, their line lands, then the choices.
+const toneBucket = (t) => t > 0 ? 'warm' : t < 0 ? 'cold' : 'guarded';
+// The cinematic "crossing paths" conversation — a full-bleed atmospheric scene
+// that plays out over two beats.  What you say resolves into the terms of the
+// alliance (friend / wary) — or, if you cross them, a foe.
 function showRecruit(n) {
-  const h = HEROES[n.hero];
   const trav = TRAVELERS[n.hero] || TRAVELERS._default;
-  const spk = (trav.lines && trav.lines[0] && trav.lines[0].spk) || h.name;
-  const btns = trav.choices.map(c =>
-    `<button class="tc-choice tc-${c.outcome}" id="rc-${c.outcome}"><span class="tc-c-label">${c.label}</span><span class="tc-c-tag">${c.tag}</span></button>`).join('');
+  convoBeat(n, trav, { step: 1, tone: 0, hostile: false, bucket: 'guarded', showScene: true });
+}
+function convoBeat(n, trav, st) {
+  const h = HEROES[n.hero];
+  const line = st.step === 1 ? trav.line1 : trav.react[st.bucket];
+  const opts = st.step === 1 ? trav.opts1 : trav.opts2[st.bucket];
+  const btns = opts.map((o, i) =>
+    `<button class="tc-choice tc-say" id="rc-say-${i}"><span class="tc-c-label">${o.text}</span></button>`).join('');
   showOverlay(`
     <div class="tc-bar tc-bar-t"></div>
     <div class="tc-bar tc-bar-b"></div>
@@ -3619,18 +3678,27 @@ function showRecruit(n) {
       <div class="tc-eyebrow">${trav.eyebrow} · ${(h.archetype || '').toUpperCase()}</div>
       <div class="tc-portrait"><span class="tc-glow"></span><span class="tc-art">${V2PORTRAITS[n.hero] || ''}</span></div>
       <div class="tc-name">${h.name}<span class="tc-cls"> — ${h.cls.toUpperCase()}</span></div>
-      <div class="tc-scene">${trav.scene}</div>
-      ${trav.quote ? `<div class="tc-speaker">${spk}</div><div class="tc-quote">${trav.quote}</div>` : ''}
-      <div class="tc-choices">${btns}</div>
+      ${st.showScene ? `<div class="tc-scene">${trav.scene}</div>` : ''}
+      <div class="tc-speaker">${trav.speaker || h.name}</div>
+      <div class="tc-quote">${line}</div>
+      <div class="tc-choices tc-choices-say">${btns}</div>
     </div>
   `, 'traveler-cine');
-  trav.choices.forEach(c => { const b = $('#rc-' + c.outcome); if (b) b.onclick = () => resolveTravelerChoice(n, c); });
+  opts.forEach((o, i) => { const b = $('#rc-say-' + i); if (b) b.onclick = () => advanceConvo(n, trav, st, o); });
 }
-function resolveTravelerChoice(n, c) {
+function advanceConvo(n, trav, st, o) {
+  st.tone += (o.tone || 0);
+  if (o.hostile) st.hostile = true;
+  if (st.step === 1) {
+    st.bucket = toneBucket(o.tone || 0);
+    st.step = 2; st.showScene = false;
+    convoBeat(n, trav, st);
+    return;
+  }
+  // resolve the conversation into the terms of the alliance
   hideOverlay();
-  if (c.outcome === 'decline') return declineTraveler(n);
-  if (c.outcome === 'foe')     return foeTraveler(n);
-  return joinTraveler(n, c.outcome === 'friend');   // friend | neutral
+  if (st.hostile) return foeTraveler(n);
+  return joinTraveler(n, st.tone >= 2);   // warm total → friend; otherwise a wary join
 }
 // FRIEND / NEUTRAL join — a friend arrives already threaded to the whole line.
 function joinTraveler(n, friend) {
@@ -3646,20 +3714,9 @@ function joinTraveler(n, friend) {
   if (!RUN.completed.includes(n.id)) RUN.completed.push(n.id);
   saveRun();
   const beat = friend
-    ? `<b>${h.name}</b> falls in beside you — welcomed, not tested. A thread is <b>already bound</b> between you.`
-    : `<b>${h.name}</b> joins the line. No warmth in it yet — two roads that happen to run the same way.`;
-  showTravelerOutcome(rid, friend ? '♡ A THREAD IS BOUND' : 'A NEW THREAD', h.name + ' JOINS', beat, false, rid);
-}
-// DECLINE — you walk on.  The party closes ranks: the line heals and the bond
-// nearest to breaking tightens around the people already with you.
-function declineTraveler(n) {
-  const h = HEROES[n.hero];
-  RUN.active.forEach(id => { RUN.hp[id] = Math.min(HEROES[id].maxHp, (RUN.hp[id] != null ? RUN.hp[id] : HEROES[id].maxHp) + 4); });
-  const k = _bumpWeakestBond();
-  if (!RUN.completed.includes(n.id)) RUN.completed.push(n.id);
-  saveRun();
-  showTravelerOutcome(null, 'THE ROAD NARROWS', 'YOU WALK ON',
-    `You leave <b>${h.name}</b> where they stand. The party closes a little tighter — <b>every wound eases</b>${k ? ', and the thread nearest breaking holds' : ''}.`, false, null);
+    ? `You climb on together — and the talk carried. <b>${h.name}</b> walks at your side with a thread <b>already bound</b> between you.`
+    : `<b>${h.name}</b> falls in with you — pragmatic, watchful. Two climbers, one dark. The warmth will have to be earned on the way up.`;
+  showTravelerOutcome(rid, friend ? '♡ A THREAD IS BOUND' : 'A WARY ALLIANCE', h.name + ' WALKS WITH YOU', beat, false, rid);
 }
 // FOE — you wrong them, and they mark you for it.  They vanish, then spring an
 // AMBUSH at the next fight (a "vengeful <name>" built from their own kit).

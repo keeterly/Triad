@@ -229,7 +229,9 @@ const QUICK = process.argv.includes('--quick');
   await J(() => document.querySelector('.map-node.mn-recruit.mn-reach').click()); await sleep(500);
   check('recruit screen shows Cassia the Guardian', await J(() => document.body.innerText.includes('CASSIA')));
   await shot('recruit-cassia');
-  await clickOverlayBtn('#rc-friend'); await sleep(400);   // welcome her in (traveler choice)
+  // the recruit is a short conversation — a warm reply, then a warm reply → friend
+  await J(() => { document.querySelector('#rc-say-0').click(); }); await sleep(200);
+  await J(() => { document.querySelector('#rc-say-0').click(); }); await sleep(400);
   await clickOverlayBtn('#rc-next'); await sleep(500);      // → party select
   check('party select opens (roster now 4)', await J(() => !!document.querySelector('.ps-row') && document.querySelectorAll('.ps-fig').length === 4));
   // choose ash + elin + cassia  (Cleric+Guardian+Ronin → Oathkeepers' Advance, Formation)
@@ -1047,48 +1049,47 @@ const QUICK = process.argv.includes('--quick');
   check('INTRO: the fight begins after the cutscene closes',
     await J(() => !document.getElementById('boss-cine') && window.__began === true));
 
-  // ---------- TRAVELER (cinematic choice-driven recruitment) ----------
+  // ---------- TRAVELER (cinematic BG3-style conversation) ----------
   console.log('--- TRAVELER ---');
-  check('TRAVELER: a recruit is a cinematic CHOICE (welcome / take / wrong) — no fight, no join button',
+  check('TRAVELER: a recruit opens a cinematic CONVERSATION (spoken line + dialogue options)',
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash'];
       const rn = RUN.map.find(n => n.type === 'recruit');
       showRecruit(rn);
       const cine = document.querySelector('#overlay.traveler-cine');
-      return !!cine && !!document.querySelector('.tc-portrait .tc-art') && !!document.querySelector('#rc-friend')
-        && !document.querySelector('#rc-fight') && !document.querySelector('#rc-join');
+      return !!cine && !!document.querySelector('.tc-portrait .tc-art') && !!document.querySelector('.tc-quote')
+        && document.querySelectorAll('.tc-say').length >= 2
+        && !document.querySelector('#rc-friend') && !document.querySelector('#rc-join');
     }));
-  // FRIEND: welcoming a traveler joins them BONDED
-  check('TRAVELER: WELCOME → they join with a bond already kindled',
+  // WARM conversation → they walk with you BONDED
+  check('TRAVELER: a WARM conversation → they walk with you, a bond already bound',
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash']; RUN.bonds = {};
       const rn = RUN.map.find(n => n.type === 'recruit'); rn.hero = 'cassia';
-      showRecruit(rn); document.querySelector('#rc-friend').click();
+      showRecruit(rn);
+      document.querySelector('#rc-say-0').click();   // beat 1: warm
+      document.querySelector('#rc-say-0').click();   // beat 2: warm → friend
       return RUN.roster.includes('cassia') && RUN.active.includes('cassia') && (RUN.bonds['ash|cassia'] || 0) >= 1
         && ((document.querySelector('.tc-eyebrow') || {}).textContent || '').includes('THREAD IS BOUND');
     }));
-  // NEUTRAL: taking them in coldly joins them WITHOUT a bond
-  check('TRAVELER: TAKE THEM IN (cold) → they join, but no bond',
+  // GUARDED conversation → they walk with you, but no bond yet
+  check('TRAVELER: a GUARDED conversation → they walk with you, but no bond yet',
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash']; RUN.bonds = {};
       const rn = RUN.map.find(n => n.type === 'recruit'); rn.hero = 'mira';
-      showRecruit(rn); document.querySelector('#rc-neutral').click();
+      showRecruit(rn);
+      document.querySelector('#rc-say-1').click();   // beat 1: guarded
+      document.querySelector('#rc-say-1').click();   // beat 2: stay transactional → wary join
       return RUN.roster.includes('mira') && RUN.active.includes('mira') && (RUN.bonds['ash|mira'] || 0) === 0;
     }));
-  // DECLINE: turning a traveler away doesn't recruit — the party closes ranks (heals)
-  check('TRAVELER: DECLINE → they don’t join; the party closes ranks (heals)',
-    await J(() => {
-      RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash']; RUN.hp = { ash: 20 };
-      const rn = RUN.map.find(n => n.type === 'recruit'); rn.hero = 'elin';
-      showRecruit(rn); document.querySelector('#rc-decline').click();
-      return !RUN.roster.includes('elin') && RUN.hp.ash === 24;
-    }));
-  // FOE: wronging a traveler queues them as an ambush
-  check('TRAVELER: WRONG THEM → they turn foe and are queued to ambush',
+  // CROSSING them (cold → hostile) → they turn foe
+  check('TRAVELER: CROSSING them in the talk → they turn foe (and are queued to ambush)',
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash']; RUN.foes = [];
       const rn = RUN.map.find(n => n.type === 'recruit'); rn.hero = 'cassia';
-      showRecruit(rn); document.querySelector('#rc-foe').click();
+      showRecruit(rn);
+      document.querySelector('#rc-say-2').click();   // beat 1: cold
+      document.querySelector('#rc-say-1').click();   // beat 2: the hostile "leave her" line
       return !RUN.roster.includes('cassia') && RUN.foes.includes('cassia')
         && ((document.querySelector('.tc-name') || {}).textContent || '').includes('CASSIA TURNS AWAY');
     }));
@@ -1100,13 +1101,23 @@ const QUICK = process.argv.includes('--quick');
       const foe = S.enemies.find(e => e.def.name === 'VENGEFUL CASSIA');
       return !!foe && foe.def.weak === HEROES.cassia.school && RUN.foes.length === 0;
     }));
-  // BENCH path: a FULL trio meets an extra wanderer → same choices (join goes to reserve)
-  check('TRAVELER: a full trio still gets the choice encounter (welcome / take / turn away)',
+  // GUARDED start can still warm UP in beat 2 → friend (the conversation matters)
+  check('TRAVELER: a guarded start can WARM UP in the second beat → friend',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash']; RUN.bonds = {};
+      const rn = RUN.map.find(n => n.type === 'recruit'); rn.hero = 'branwen';
+      showRecruit(rn);
+      document.querySelector('#rc-say-1').click();   // beat 1: guarded
+      document.querySelector('#rc-say-0').click();   // beat 2: warm turn (tone +2) → friend
+      return RUN.roster.includes('branwen') && (RUN.bonds['ash|branwen'] || 0) >= 1;
+    }));
+  // BENCH path: a FULL trio still gets the conversation (join goes to reserve)
+  check('TRAVELER: a full trio still gets the conversation encounter',
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash', 'elin', 'mira']; RUN.active = ['ash', 'elin', 'mira'];
       const rn = RUN.map.find(n => n.type === 'recruit');
       showRecruit(rn);
-      return !!document.querySelector('#rc-friend') && !document.querySelector('#rc-fight') && !document.querySelector('#rc-join');
+      return document.querySelectorAll('.tc-say').length >= 2 && !document.querySelector('#rc-friend');
     }));
 
   // ---------- EMERGENT GROWTH (tier-3 forge loops) ----------
