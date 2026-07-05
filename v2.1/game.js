@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 21;
+const V2_BUILD = 22;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -1371,17 +1371,32 @@ function attachDrag(el, card) {
 
   el.addEventListener('pointerdown', (e) => {
     if (S.executing || S.over) return;
+    if (pid !== null) return;   // a gesture is already in flight — don't let a second touch hijack it
     pid = e.pointerId; startX = e.clientX; startY = e.clientY; ptrX = e.clientX; ptrY = e.clientY; dragging = false; inspecting = false;
     try { el.setPointerCapture(pid); } catch (_) {}
     // PRESS & HOLD to INSPECT — a big MtG-style enlarge of the card (works on
     // any card, even one you can't afford or have spent).  A drag or a quick
     // release cancels it.
     clearTimeout(holdT);
-    holdT = setTimeout(() => { if (pid !== null && !dragging) { inspecting = true; showCardInspect(card, el); } }, 340);
+    holdT = setTimeout(() => {
+      if (pid !== null && !dragging) {
+        inspecting = true;
+        // Close-from-anywhere safety net: if the ending pointerup never reaches
+        // this card (capture lost, a re-render swapped the element, a stray
+        // second touch), the inspect + gesture would otherwise stick open.  The
+        // window listener guarantees release ALWAYS clears both.
+        showCardInspect(card, el, () => {
+          inspecting = false;
+          const held = pid; pid = null;
+          if (held !== null) { try { el.releasePointerCapture(held); } catch (_) {} }
+          cancelAnimationFrame(raf);
+        });
+      }
+    }, 340);
     e.preventDefault();
   });
   el.addEventListener('pointermove', (e) => {
-    if (pid === null) return;
+    if (pid === null || e.pointerId !== pid) return;
     ptrX = e.clientX; ptrY = e.clientY;
     if (!dragging && !inspecting) {
       if (Math.abs(e.clientX - startX) + Math.abs(e.clientY - startY) < 12) return;
@@ -1489,7 +1504,7 @@ function attachDrag(el, card) {
     drawAimJRPG(fromX, fromY, curEX, curEY, valid, field, angle, _aimTech ? '#ffe14a' : aimColor(card), _aimTech);
   }
   const finish = (e) => {
-    if (pid === null) return;
+    if (pid === null || (e && e.pointerId !== pid)) return;   // ignore stray / second-pointer releases
     clearTimeout(holdT);
     try { el.releasePointerCapture(pid); } catch (_) {}
     pid = null; cancelAnimationFrame(raf);
@@ -1515,7 +1530,7 @@ function attachDrag(el, card) {
 }
 // PRESS & HOLD INSPECT — a big, readable enlarge of the card (Magic-style), a
 // clone of the real card so it's pixel-faithful, over a dimmed/blurred field.
-function showCardInspect(card, el) {
+function showCardInspect(card, el, onClose) {
   hideCardInspect();
   const wrap = document.createElement('div');
   wrap.id = 'card-inspect';
@@ -1530,6 +1545,17 @@ function showCardInspect(card, el) {
   $('#stage').appendChild(wrap);
   requestAnimationFrame(() => wrap.classList.add('ci-on'));
   try { haptic(HAP.press); } catch (_) {}
+  // Release ANYWHERE closes the inspect and runs the gesture cleanup — a window
+  // capture listener fires before (and independently of) the card's own pointerup,
+  // so a lost capture or swapped element can never leave the overlay stuck open.
+  const close = () => {
+    window.removeEventListener('pointerup', close, true);
+    window.removeEventListener('pointercancel', close, true);
+    hideCardInspect();
+    if (onClose) onClose();
+  };
+  window.addEventListener('pointerup', close, true);
+  window.addEventListener('pointercancel', close, true);
 }
 function hideCardInspect() { const el = document.getElementById('card-inspect'); if (el) el.remove(); }
 // Denial feedback for an unaffordable card — a short shake + a reason.

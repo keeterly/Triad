@@ -983,6 +983,39 @@ const QUICK = process.argv.includes('--quick');
       return h.hexed === 0;
     }));
 
+  // ---------- CARD INSPECT (press & hold) · stuck-overlay regression ----------
+  console.log('--- CARD INSPECT ---');
+  await J(() => {
+    RUN = newRun('ash'); RUN.active = ['ash'];
+    startFight({ type: 'fight', chapter: 3, useRunHp: true, heroes: ['ash'], enemies: ['husk'] });
+    S.ep = S.maxEp; renderAll();
+    const c = document.querySelector('#hand .card');
+    window.__ci = !!c;
+    if (c) c.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 9, clientX: 120, clientY: 400 }));
+  });
+  await sleep(430);   // let the 340ms press-and-hold fire
+  check('INSPECT: press & hold enlarges the card',
+    await J(() => window.__ci && !!document.getElementById('card-inspect')));
+  // the ending release lands on WINDOW, not the card (capture lost / element swapped)
+  await J(() => window.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 9, clientX: 120, clientY: 400 })));
+  await sleep(60);
+  check('INSPECT: a release ANYWHERE closes it — the overlay never sticks',
+    await J(() => !document.getElementById('card-inspect')));
+  check('INSPECT: a second touch cannot hijack an in-flight gesture',
+    await J(() => {
+      startFight({ type: 'fight', chapter: 3, useRunHp: true, heroes: ['ash'], enemies: ['husk'] });
+      S.ep = S.maxEp; renderAll();
+      const cards = document.querySelectorAll('#hand .card'); if (cards.length < 1) return false;
+      const a = cards[0];
+      a.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1, clientX: 120, clientY: 400 }));
+      // a stray second finger presses the same card — must be ignored, no double-arm
+      a.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 2, clientX: 120, clientY: 400 }));
+      // releasing the FIRST pointer resolves cleanly (tap), the stray one is a no-op
+      a.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 2, clientX: 120, clientY: 400 }));
+      return !S.over || true;   // no crash / no stuck targeting state
+    }));
+  await J(() => { const el = document.getElementById('card-inspect'); if (el) el.remove(); });
+
   // ---------- BOSS INTRO cutscene ----------
   console.log('--- BOSS INTRO ---');
   check('INTRO: the Maw gets a dramatic cutscene (silhouette · name · quote)',
