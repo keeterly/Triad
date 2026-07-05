@@ -45,9 +45,10 @@ const QUICK = process.argv.includes('--quick');
   for (let i = 0; i < 6; i++) { if (!await J(() => !!document.querySelector('.ov-tap'))) break; await J(() => document.querySelector('#overlay').click()); await sleep(200); }
   await clickOverlayBtn('#ov-go');
   await sleep(300);
-  check('EMBER re-gate: fight 1 opens core-only — 1 card (Cleave), sig tree-gated / EP 3',
-    await J(() => { const c = document.querySelectorAll('#hand .card'); return c.length === 1 && c[0].dataset.cardName === 'Cleave' && S.ep === 3; }));
-  check('EMBER: Ash begins with his signature locked (earn embers to open it)', await J(() => !hasNode('ash.sig.front')));
+  check('STARTING SPARK: fight 1 opens with core + the sparked FRONT signature (2 cards) / EP 3',
+    await J(() => { const c = [...document.querySelectorAll('#hand .card')].map(x => x.dataset.cardName); return c.length === 2 && c.includes('Cleave') && c.includes('Crashing Wave') && S.ep === 3; }));
+  check('SPARK: Ash opens with his FRONT signature kindled; the rest of the tree is still locked',
+    await J(() => hasNode('ash.sig.front') && !hasNode('ash.sig.mid') && !hasNode('ash.sig.back')));
   const hp0 = await J(() => S.enemies[0].hp);
   check('husk is 18 HP (fun tuning: no turn-1 alpha kill)', hp0 === 18, String(hp0));
   // T1 — strike, then DRAG ASH HIMSELF to MID (movement is the hero, not a card)
@@ -466,7 +467,12 @@ const QUICK = process.argv.includes('--quick');
   console.log('--- STAGGER ---');
   await J(() => {
     hideOverlay();
-    startFight({ type: 'fight', chapter: 3, heroes: ['ash', 'elin', 'kiki'], enemies: ['wraith'], narrator: 'stagger drill' });
+    if (!RUN) RUN = newRun('ash');
+    RUN.nodes = ['ash.sig.front'];   // solo Ash keeps BOTH his core + signature (small-party hand)
+    // SOLO drill: at a full trio the hand tapers to one card/hero, so the
+    // same-turn weakness→stagger double is a solo/duo play (or, at trio, routed
+    // through a movement Echo).  Test the core mechanic where Ash holds both.
+    startFight({ type: 'fight', chapter: 3, heroes: ['ash'], enemies: ['wraith'], narrator: 'stagger drill' });
     S.enemies[0].hp = S.enemies[0].maxHp = 40;   // survive the drill
     renderAll();
   });
@@ -552,20 +558,40 @@ const QUICK = process.argv.includes('--quick');
   check('CONS: Ash overextended — ❄ CHILL 2 on his next strike', await J(() => S.heroes[0].chill >= 2));
   check('one-shot: the card burned away', await J(() => !document.querySelector('#hand .card[data-card-name="Not Today"]')));
 
-  // ---------- CARD ECONOMY: tempo profiles + channel + heal floor ----------
+  // ---------- CARD ECONOMY: taper + tempo profiles + channel + heal floor ----------
   console.log('--- CARD ECONOMY ---');
+  // TAPER: a full trio expresses ONE card per hero (the fan never floods) — breadth
+  // comes from HAVING three heroes, not six cards.
   await J(() => {
     hideOverlay();
     startFight({ type: 'fight', chapter: 3, heroes: ['ash', 'cassia', 'kiki'], enemies: ['husk'], narrator: 'economy drill' });
     renderAll();
   });
   await sleep(400);
-  check('ASYMMETRY: HEAVY Cassia contributes ONE card; SWIFT+STEADY show two',
+  check('TAPER: a full trio shows ONE card per hero (3 total, not 6)',
     await J(() => {
       const n = (id) => document.querySelectorAll(`#hand .card[data-owner="${id}"]`).length;
-      return n('cassia') === 1 && n('ash') === 2 && n('kiki') === 2;
+      return n('ash') === 1 && n('cassia') === 1 && n('kiki') === 1 && document.querySelectorAll('#hand .card').length === 3;
     }), await J(() => 'ash:'+document.querySelectorAll('#hand .card[data-owner="ash"]').length+' cassia:'+document.querySelectorAll('#hand .card[data-owner="cassia"]').length+' kiki:'+document.querySelectorAll('#hand .card[data-owner="kiki"]').length));
-  check('SWIFT: Kiki’s 2-cost signature is discounted to 1',
+  // ASYMMETRY still reads at a SMALL party (non-lean): HEAVY shows one big card,
+  // steady/swift show core + signature.
+  await J(() => {
+    hideOverlay();
+    if (!RUN) RUN = newRun('ash');
+    RUN.nodes = ['ash.sig.front'];   // Ash's front sig open so a steady hero shows two
+    startFight({ type: 'fight', chapter: 3, heroes: ['ash', 'cassia'], enemies: ['husk'], narrator: 'asymmetry drill' });
+    renderAll();
+  });
+  await sleep(300);
+  check('ASYMMETRY (small party): HEAVY Cassia shows ONE card; STEADY Ash shows two',
+    await J(() => {
+      const n = (id) => document.querySelectorAll(`#hand .card[data-owner="${id}"]`).length;
+      return n('cassia') === 1 && n('ash') === 2;
+    }), await J(() => 'ash:'+document.querySelectorAll('#hand .card[data-owner="ash"]').length+' cassia:'+document.querySelectorAll('#hand .card[data-owner="cassia"]').length));
+  // back to the trio for the channel drill
+  await J(() => { hideOverlay(); startFight({ type: 'fight', chapter: 3, heroes: ['ash', 'cassia', 'kiki'], enemies: ['husk'], narrator: 'channel drill' }); renderAll(); });
+  await sleep(300);
+  check('SWIFT: Kiki’s signature is discounted to 1',
     await J(() => { const c = [...document.querySelectorAll('#hand .card[data-owner="kiki"]')]; return c.some(x => x.querySelector('.c-cost').textContent === '1'); }));
   // CHANNEL: sacrifice a card for +1 EP, once per turn
   const epBefore = await J(() => S.ep);
@@ -574,8 +600,9 @@ const QUICK = process.argv.includes('--quick');
   check('CHANNEL: sacrificing a card gave +1 EP', await J(() => S.ep) === epBefore + 1, 'ep ' + epBefore + '->' + await J(() => S.ep));
   check('CHANNEL: once per turn (no more channel pips)', await J(() => S.channelUsed && !document.querySelector('.card-channel')));
   await shot('economy');
-  // HEAL FLOOR: mending a full-HP ally shields instead of wasting
-  await J(() => { hideOverlay(); startFight({ type:'fight', chapter:3, heroes:['ash','elin','kiki'], enemies:['husk'], narrator:'heal floor' }); renderAll(); });
+  // HEAL FLOOR: mending a full-HP ally shields instead of wasting.  A small party
+  // (non-lean) so Elin still holds her MID core (Mend) alongside her signature.
+  await J(() => { hideOverlay(); startFight({ type:'fight', chapter:3, heroes:['ash','elin'], enemies:['husk'], narrator:'heal floor' }); renderAll(); });   // duo: Ash front (heroes[0]), Elin mid → holds Mend
   await sleep(300);
   const gBefore = await J(() => S.heroes[0].guard);
   await tapCard('Mend'); await pickTarget('ash'); await sleep(500);
@@ -586,7 +613,9 @@ const QUICK = process.argv.includes('--quick');
   console.log('--- AIM ---');
   await J(() => {
     hideOverlay();
-    startFight({ type:'fight', chapter:3, heroes:['elin','hask','kiki'], enemies:['husk','wraith'], narrator:'aim drill' });
+    // duo (non-lean) so Hask still holds his MID core (Ice Bolt); put him in mid
+    startFight({ type:'fight', chapter:3, heroes:['hask','elin'], enemies:['husk','wraith'], narrator:'aim drill' });
+    S.heroes.find(h => h.id === 'hask').row = 'mid';
     S.enemies[0].hp = S.enemies[0].maxHp = 30;
     S.enemies[1].hp = S.enemies[1].maxHp = 30;
     renderAll();
@@ -868,8 +897,8 @@ const QUICK = process.argv.includes('--quick');
       RUN = null;                                   // the descent ends
       return had && !hasNode('ash.sig.front') && runEmbers() === 0;
     }));
-  check('RESET: a fresh descent begins with an empty wallet and no unlocks',
-    await J(() => { RUN = newRun('ash'); return RUN.embers === 0 && RUN.nodes.length === 0 && !hasNode('ash.sig.front'); }));
+  check('RESET: a fresh descent begins with an empty wallet and only the starting spark',
+    await J(() => { RUN = newRun('ash'); return RUN.embers === 0 && RUN.nodes.length === 1 && hasNode('ash.sig.front'); }));
   check('RESET: falling (onDefeat) clears the run so progression is wiped',
     await J(() => {
       RUN = newRun('ash'); RUN.nodes = ['ash.sig.front']; RUN.embers = 9;

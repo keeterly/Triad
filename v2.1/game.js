@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 22;
+const V2_BUILD = 23;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -673,7 +673,7 @@ const FLOW = [
     { text: 'The first thing you understand is that everyone else is gone.' },
     { spk: 'ASH', text: '…then I carry it alone.' },
     { text: 'You are <b>Ash</b>. One blade, three ways to hold it — your <b>row is your stance</b>: Front cuts, Mid flows, Back strikes from the wind. <b>Drag Ash himself</b> between rows and his cards rewrite to match.' },
-    { text: 'You begin bare: a <b>single strike</b> in each stance. Everything else you’ll <b>earn on the way down</b>.' },
+    { text: 'You begin lean: a <b>basic strike</b> in each stance, and <b>one opening signature</b> already lit. Everything deeper — new arts, upgrades, ruinous finishers — you’ll <b>earn on the way down</b>.' },
   ]},
   { type: 'fight', chapter: 1, heroes: ['ash'], enemies: ['husk'],
     narrator: 'Tap or drag a card to strike. DRAG ASH to change stance (1 EP). When the husk winds up, TAP in time to turn the blow.' },
@@ -932,6 +932,11 @@ function newRun(starterId) {
   starterId = (starterId && HEROES[starterId]) ? starterId : (getUnlockedStarters()[0] || 'ash');
   const roster = [starterId];
   const hp = {}; hp[starterId] = HEROES[starterId].maxHp;
+  // STARTING SPARK — the lone starter opens with their FRONT signature already
+  // kindled, so a solo turn has a real SECOND action (core + signature = 2 cards,
+  // matching the 3 solo EP).  The tree still gates the mid/back sigs, riders, and
+  // emergent capstones, so there's plenty left to earn on the way down.
+  const spark = (SIG_GATE[starterId] && SIG_GATE[starterId].front) || null;
   return {
     roster: roster.slice(),
     active: roster.slice(),
@@ -942,7 +947,7 @@ function newRun(starterId) {
     map: generateDescent(roster, 1),   // a fresh branching descent every run
     completed: [],
     embers: 0,          // per-run ember wallet — earned and spent THIS descent only
-    nodes: [],          // per-run skill-tree unlocks — reset when the run ends
+    nodes: spark ? [spark] : [],   // per-run skill-tree unlocks — reset when the run ends (seeded with the starting spark)
     forges: [],         // temporary ember tempers bought at camps — reset each descent
     emCount: {},        // emergent-loop tallies — accrue ACROSS the whole descent (grow over time)
     done: false,
@@ -1087,23 +1092,35 @@ function cardType(card) {
   return 'skill';
 }
 function buildHand() {
-  // 1 Core + 1 Signature per hero.  Movement is not a card — you drag the
-  // hero.  When the triad forms, the resonant card doesn't ADD to the hand:
-  // it HIJACKS the closing helper's signature slot (the card evolves).
-  // Played cards LEAVE the fan (they return next turn) — what remains is
-  // exactly what you can still do.
+  // THE PARTY IS THE CHARACTER.  Hand size scales SUB-linearly with the party:
+  //   • a lone/duo hero shows MORE of their kit (core + signature) so a small
+  //     turn has real choices and no dead EP;
+  //   • a full trio expresses ONE card each (their signature, with the core
+  //     folded into the stance) so the fan never floods — breadth now comes
+  //     from HAVING three heroes, not from six cards.
+  // Movement is not a card — you drag the hero.  When the triad forms, the
+  // resonant card HIJACKS the host's slot (the card evolves).  Played cards
+  // LEAVE the fan (they return next turn) — what remains is what you can do.
   const hand = [];
   const host = resonantHost();
+  const lean = livingHeroes().length >= 3;   // full party → one expression each
   livingHeroes().forEach(h => {
     const set = h.def.cards[h.row];
     const heavy = (h.def.tempo || 'steady') === 'heavy';
-    // HEAVY heroes contribute a single (expensive) card; others show two.
-    if (!heavy) {
-      const core = mkCard(h, 'core', set.core);
-      if (!core.spent) hand.push(core);
+    if (host === h.id) { hand.push(mkResonantCard(h)); return; }   // the vow takes the whole slot
+    const sigOpen = sigUnlocked(h);
+    if (lean) {
+      // ONE card: the signature (their expression) if it's open, else the core.
+      // Tempo asymmetry now lives in the card's cost/impact, not the count.
+      let card = null;
+      if (sigOpen) { const s = mkCard(h, 'sig', set.sig); if (!s.spent) card = s; }
+      if (!card)   { const c = mkCard(h, 'core', set.core); if (!c.spent) card = c; }
+      if (card) hand.push(card);
+      return;
     }
-    if (host === h.id) hand.push(mkResonantCard(h));
-    else if (sigUnlocked(h)) { const sig = mkCard(h, 'sig', set.sig); if (!sig.spent) hand.push(sig); }
+    // small party (solo/duo): HEAVY shows one big card; others show core + sig.
+    if (!heavy) { const core = mkCard(h, 'core', set.core); if (!core.spent) hand.push(core); }
+    if (sigOpen) { const sig = mkCard(h, 'sig', set.sig); if (!sig.spent) hand.push(sig); }
     else if (heavy) { const core = mkCard(h, 'core', set.core); if (!core.spent) hand.push(core); }   // heavy fallback: the CORE stands in until the signature is unlocked
   });
   S.tempCards.filter(t => t.expiresTurn == null || t.expiresTurn >= S.turn).forEach(t => hand.push(t));
