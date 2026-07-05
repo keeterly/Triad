@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 31;
+const V2_BUILD = 32;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -795,11 +795,15 @@ function generateDescent(roster, floor) {
   // Recruits = anyone not already in the party.  You start solo (or short) and
   // build your trio from the road, so an early recruit is guaranteed close.
   const pending = _shuffle(STARTER_POOL.filter(id => !roster.includes(id)));
-  // Spread the pending recruits across the early/mid stretches — the first two
-  // land early (levels 2 & 3) so a solo lead isn't alone for long.
-  const recruitAtLevel = {};
-  pending.slice(0, 3).forEach((id, i) => { recruitAtLevel[2 + i] = id; });
   const numLevels = 7;
+  // Scatter recruit encounters at RANDOM depths (not clustered up front) —
+  // FFT-style, you cross paths with survivors anywhere on the road.  One lands
+  // early (level 2) so a solo lead isn't alone for long; the rest fall at random
+  // deeper levels among the mid stretch.
+  const midLevels = _shuffle(Array.from({ length: Math.max(0, numLevels - 4) }, (_, i) => i + 3));  // 3 .. numLevels-2
+  const recruitLevels = [2].concat(midLevels).slice(0, Math.min(pending.length, 3));
+  const recruitAtLevel = {};
+  recruitLevels.forEach((lvl, i) => { recruitAtLevel[lvl] = pending[i]; });
   const nodes = [];
   const levels = [];
   const lbl = { fight: _labeler('fight'), elite: _labeler('elite'), event: _labeler('event'), camp: _labeler('camp'), boss: _labeler('boss') };
@@ -811,7 +815,7 @@ function generateDescent(roster, floor) {
     else if (level === numLevels) types = ['boss'];
     else if (level === numLevels - 1) types = ['camp'];
     else types = _stretchTypes(level);
-    if (recruitAtLevel[level]) types = types.slice(0, 2).concat('recruit');
+    if (recruitAtLevel[level]) { types = types.slice(0, 2); types.splice(_rand(types.length + 1), 0, 'recruit'); }   // random row, not always the bottom
     const ids = [];
     types.forEach(type => {
       const node = { id: idc, level, col: level, type, next: [] };
@@ -3703,7 +3707,30 @@ function partyMood() {
 // continue), then hands you a couple of short replies.  The lit side is whoever
 // is speaking.  A present ally steps in to vouch; the traveler reads your mood
 // as a first aside.  Resolves into the terms of the alliance — or a foe.
+// Once you've MET a hero (they're unlocked from a past run), crossing paths
+// again needs no unlock ceremony — just a familiar face and a quick word.
+const REUNION_LINES = {
+  cassia:  'Still climbing, I see. Good. …Room in that line for a shield?',
+  elin:    'You look worse than the last time I patched you up. …Shall I walk with you again?',
+  mira:    'You again. Loud as ever. …I’ll watch the dark for you. Same as before.',
+  branwen: 'Knew our paths would cross again. Still no eyes on your treeline. Let me fix that.',
+  hask:    'The cold followed me here too. …It’s warmer with company. Shall I?',
+};
+function showReunion(n) {
+  const h = HEROES[n.hero];
+  const trav = Object.assign({}, TRAVELERS[n.hero] || TRAVELERS._default, { eyebrow: 'A FAMILIAR FACE' });
+  const st = { n, trav, tone: 0, hostile: false, ally: null, _beat2: true };   // one beat, no crossing
+  const line = REUNION_LINES[n.hero] || 'A familiar face, this deep. …Room for one more?';
+  jcPlay(st, [{ side: 'them', speaker: h.name, text: line }], () => {
+    jcChoose(st, [
+      { text: 'Always. Fall in.', tone: 2 },
+      { text: 'We can use the hands. Keep pace.', tone: 0 },
+    ]);
+  });
+}
 function showRecruit(n) {
+  // A hero you've already met is a lighter beat — no full unlock cutscene.
+  if (getUnlockedStarters().includes(n.hero)) return showReunion(n);
   const trav = TRAVELERS[n.hero] || TRAVELERS._default;
   const st = { n, trav, tone: 0, hostile: false, ally: activeAllyFor(n) };
   const open = [{ side: 'them', speaker: trav.speaker, scene: trav.scene, text: trav.line1 }];

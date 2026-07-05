@@ -1059,6 +1059,7 @@ const QUICK = process.argv.includes('--quick');
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash'];
       const rn = RUN.map.find(n => n.type === 'recruit'); rn.hero = 'mira';
+      try { localStorage.setItem(STARTERS_KEY, JSON.stringify(['ash'])); } catch (_) {}   // traveler is UNMET → full cutscene
       showRecruit(rn);
       return !!document.querySelector('#overlay.jc .jc-scene')
         && !!document.querySelector('.jc-fig-l .jc-art') && !!document.querySelector('.jc-fig-r .jc-art')
@@ -1068,6 +1069,7 @@ const QUICK = process.argv.includes('--quick');
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash']; RUN.bonds = {};
       const rn = RUN.map.find(n => n.type === 'recruit'); rn.hero = 'cassia';
+      try { localStorage.setItem(STARTERS_KEY, JSON.stringify(['ash'])); } catch (_) {}   // traveler is UNMET → full cutscene
       showRecruit(rn);
       const jcrun = (picks) => { let g = 0, pi = 0; while (g++ < 40) { const o = document.querySelectorAll('.jc-opt'); if (o.length) { (o[picks[pi++]] || o[0]).click(); continue; } if (document.querySelector('.jc-next')) { document.querySelector('.jc-scene').click(); continue; } break; } };
       jcrun([0, 0]);   // warm, warm
@@ -1078,6 +1080,7 @@ const QUICK = process.argv.includes('--quick');
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash']; RUN.bonds = {};
       const rn = RUN.map.find(n => n.type === 'recruit'); rn.hero = 'mira';
+      try { localStorage.setItem(STARTERS_KEY, JSON.stringify(['ash'])); } catch (_) {}   // traveler is UNMET → full cutscene
       showRecruit(rn);
       const jcrun = (picks) => { let g = 0, pi = 0; while (g++ < 40) { const o = document.querySelectorAll('.jc-opt'); if (o.length) { (o[picks[pi++]] || o[0]).click(); continue; } if (document.querySelector('.jc-next')) { document.querySelector('.jc-scene').click(); continue; } break; } };
       jcrun([1, 1]);   // guarded, transactional → wary join
@@ -1087,6 +1090,7 @@ const QUICK = process.argv.includes('--quick');
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash']; RUN.foes = [];
       const rn = RUN.map.find(n => n.type === 'recruit'); rn.hero = 'cassia';
+      try { localStorage.setItem(STARTERS_KEY, JSON.stringify(['ash'])); } catch (_) {}   // traveler is UNMET → full cutscene
       showRecruit(rn);
       const jcrun = (picks) => { let g = 0, pi = 0; while (g++ < 40) { const o = document.querySelectorAll('.jc-opt'); if (o.length) { (o[picks[pi++]] || o[0]).click(); continue; } if (document.querySelector('.jc-next')) { document.querySelector('.jc-scene').click(); continue; } break; } };
       jcrun([2, 1]);   // cold, then the hostile line
@@ -1104,6 +1108,7 @@ const QUICK = process.argv.includes('--quick');
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash']; RUN.bonds = {};
       const rn = RUN.map.find(n => n.type === 'recruit'); rn.hero = 'branwen';
+      try { localStorage.setItem(STARTERS_KEY, JSON.stringify(['ash'])); } catch (_) {}   // traveler is UNMET → full cutscene
       showRecruit(rn);
       const jcrun = (picks) => { let g = 0, pi = 0; while (g++ < 40) { const o = document.querySelectorAll('.jc-opt'); if (o.length) { (o[picks[pi++]] || o[0]).click(); continue; } if (document.querySelector('.jc-next')) { document.querySelector('.jc-scene').click(); continue; } break; } };
       jcrun([1, 0]);   // guarded start, warm turn → friend
@@ -1113,6 +1118,7 @@ const QUICK = process.argv.includes('--quick');
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash', 'elin', 'mira']; RUN.active = ['ash', 'elin', 'mira'];
       const rn = RUN.map.find(n => n.type === 'recruit'); rn.hero = 'branwen';
+      try { localStorage.setItem(STARTERS_KEY, JSON.stringify(['ash'])); } catch (_) {}   // traveler is UNMET → full cutscene
       showRecruit(rn);
       return !!document.querySelector('#overlay.jc .jc-scene') && !document.querySelector('#rc-friend');
     }));
@@ -1121,6 +1127,7 @@ const QUICK = process.argv.includes('--quick');
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash', 'elin']; RUN.active = ['ash', 'elin']; RUN.bonds = {};
       const rn = RUN.map.find(n => n.type === 'recruit'); rn.hero = 'cassia';   // Elin knows Cassia
+      try { localStorage.setItem(STARTERS_KEY, JSON.stringify(['ash'])); } catch (_) {}   // traveler is UNMET → full cutscene
       showRecruit(rn);
       let sawElin = false, g = 0;
       while (g++ < 12) {
@@ -1134,6 +1141,7 @@ const QUICK = process.argv.includes('--quick');
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash', 'elin']; RUN.active = ['ash', 'elin']; RUN.bonds = {};
       const rn = RUN.map.find(n => n.type === 'recruit'); rn.hero = 'cassia';
+      try { localStorage.setItem(STARTERS_KEY, JSON.stringify(['ash'])); } catch (_) {}   // traveler is UNMET → full cutscene
       showRecruit(rn);
       const jcrun = (picks) => { let g = 0, pi = 0; while (g++ < 40) { const o = document.querySelectorAll('.jc-opt'); if (o.length) { const p = picks[pi++]; (typeof p === 'string' ? document.querySelector(p) : o[p]).click(); continue; } if (document.querySelector('.jc-next')) { document.querySelector('.jc-scene').click(); continue; } break; } };
       jcrun(['.jc-vouch', 0]);
@@ -1154,6 +1162,7 @@ const QUICK = process.argv.includes('--quick');
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash'];   // lonely → a read line exists
       const rn = RUN.map.find(n => n.type === 'recruit'); rn.hero = 'mira';
+      try { localStorage.setItem(STARTERS_KEY, JSON.stringify(['ash'])); } catch (_) {}   // traveler is UNMET → full cutscene
       showRecruit(rn);
       const read = MOODS[partyMood()].read;
       let saw = false, g = 0;
@@ -1171,6 +1180,38 @@ const QUICK = process.argv.includes('--quick');
       showMap();
       const chip = document.querySelector('.map-mood');
       return !!chip && chip.textContent.includes('HUNTED');
+    }));
+  // PLACEMENT: recruits scatter across random depths (FFT-style), not clustered up front
+  check('MAP: recruits scatter to random depths (one early, the rest spread deeper)',
+    await J(() => {
+      const seen = new Set(); let earlyAlways = true;
+      for (let k = 0; k < 30; k++) {
+        const map = generateDescent(['ash'], 1);
+        const lvls = map.filter(nn => nn && nn.type === 'recruit').map(nn => nn.level);
+        lvls.forEach(l => seen.add(l));
+        if (!lvls.includes(2)) earlyAlways = false;
+      }
+      return earlyAlways && [...seen].some(l => l >= 4) && seen.size >= 3;   // reaches deeper than the old 2–4 cluster
+    }));
+  // REUNION: an already-met hero is a LIGHT re-encounter, not the full cutscene
+  check('REUNION: an already-met hero gets a lighter re-encounter (A FAMILIAR FACE)',
+    await J(() => {
+      unlockStarter('branwen');   // met in a past run
+      RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash']; RUN.bonds = {};
+      const rn = { id: 300, type: 'recruit', hero: 'branwen', level: 3, col: 3 }; RUN.map[300] = rn;
+      showRecruit(rn);
+      return ((document.querySelector('.jc-eyebrow') || {}).textContent || '').includes('FAMILIAR FACE')
+        && !!document.querySelector('.jc-line');
+    }));
+  check('REUNION: one warm word and they fall back in — bonded, no second beat',
+    await J(() => {
+      unlockStarter('branwen');
+      RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash']; RUN.bonds = {};
+      const rn = { id: 301, type: 'recruit', hero: 'branwen', level: 3, col: 3 }; RUN.map[301] = rn;
+      showRecruit(rn);
+      const jcrun = (picks) => { let g = 0, pi = 0; while (g++ < 20) { const o = document.querySelectorAll('.jc-opt'); if (o.length) { (o[picks[pi++]] || o[0]).click(); continue; } if (document.querySelector('.jc-next')) { document.querySelector('.jc-scene').click(); continue; } break; } };
+      jcrun([0]);   // a single warm reply → friend
+      return RUN.roster.includes('branwen') && (RUN.bonds['ash|branwen'] || 0) >= 1;
     }));
 
   // ---------- EMERGENT GROWTH (tier-3 forge loops) ----------
