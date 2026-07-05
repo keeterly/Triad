@@ -229,7 +229,8 @@ const QUICK = process.argv.includes('--quick');
   await J(() => document.querySelector('.map-node.mn-recruit.mn-reach').click()); await sleep(500);
   check('recruit screen shows Cassia the Guardian', await J(() => document.body.innerText.includes('CASSIA')));
   await shot('recruit-cassia');
-  await clickOverlayBtn('#rc-join'); await sleep(500);
+  await clickOverlayBtn('#rc-friend'); await sleep(400);   // welcome her in (traveler choice)
+  await clickOverlayBtn('#rc-next'); await sleep(500);      // → party select
   check('party select opens (roster now 4)', await J(() => !!document.querySelector('.ps-row') && document.querySelectorAll('.ps-fig').length === 4));
   // choose ash + elin + cassia  (Cleric+Guardian+Ronin → Oathkeepers' Advance, Formation)
   for (const want of ['ash', 'elin', 'cassia']) {
@@ -1046,16 +1047,16 @@ const QUICK = process.argv.includes('--quick');
   check('INTRO: the fight begins after the cutscene closes',
     await J(() => !document.getElementById('boss-cine') && window.__began === true));
 
-  // ---------- WANDERER (embattled, emergent recruitment) ----------
-  console.log('--- WANDERER ---');
-  check('WANDERER: a solo/duo recruit opens the FIGHT-BESIDE-THEM intro (not a join button)',
+  // ---------- TRAVELER (choice-driven recruitment) ----------
+  console.log('--- TRAVELER ---');
+  check('TRAVELER: a recruit is a CHOICE event (welcome / prove / wrong) — no join button',
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash'];
       const rn = RUN.map.find(n => n.type === 'recruit');
       showRecruit(rn);
-      return !!document.querySelector('#rc-fight') && !document.querySelector('#rc-join');
+      return !!document.querySelector('#rc-friend') && !!document.querySelector('#rc-fight') && !document.querySelector('#rc-join');
     }));
-  check('WANDERER: the encounter is a shared FIGHT with the recruit in your line',
+  check('TRAVELER: the "prove yourselves" choice opens a shared FIGHT with them in your line',
     await J(() => {
       document.querySelector('#rc-fight').click();
       return !!S.node.recruitId && S.heroes.some(h => h.id === 'ash') && S.heroes.some(h => h.id === S.node.recruitId) && S.heroes.length === 2;
@@ -1095,13 +1096,47 @@ const QUICK = process.argv.includes('--quick');
   await sleep(300);
   check('WANDERER: bond-less recruit joined the line with no thread seeded',
     await J(() => { const rid = window.__rid; return RUN.roster.includes(rid) && RUN.active.includes(rid) && (RUN.bonds[['ash', rid].sort().join('|')] || 0) === 0; }));
-  // BENCH path: a FULL trio meets an extra wanderer → the lighter join beat
-  check('WANDERER: a full trio gets the lighter BENCH join (no forced 4-hero fight)',
+  // FRIEND: welcoming a traveler joins them BONDED, no fight
+  check('TRAVELER: WELCOME → they join with a bond already kindled',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash']; RUN.bonds = {};
+      const rn = RUN.map.find(n => n.type === 'recruit'); rn.hero = 'cassia';
+      showRecruit(rn); document.querySelector('#rc-friend').click();
+      return RUN.roster.includes('cassia') && RUN.active.includes('cassia') && (RUN.bonds['ash|cassia'] || 0) >= 1
+        && ((document.querySelector('.ov-eyebrow') || {}).textContent || '').includes('THREAD IS BOUND');
+    }));
+  // DECLINE: turning a traveler away doesn't recruit — the party closes ranks (heals)
+  check('TRAVELER: DECLINE → they don’t join; the party closes ranks (heals)',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash']; RUN.hp = { ash: 20 };
+      const rn = RUN.map.find(n => n.type === 'recruit'); rn.hero = 'elin';
+      showRecruit(rn); document.querySelector('#rc-decline').click();
+      return !RUN.roster.includes('elin') && RUN.hp.ash === 24;
+    }));
+  // FOE: wronging a traveler queues them as an ambush
+  check('TRAVELER: WRONG THEM → they turn foe and are queued to ambush',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash']; RUN.foes = [];
+      const rn = RUN.map.find(n => n.type === 'recruit'); rn.hero = 'cassia';
+      showRecruit(rn); document.querySelector('#rc-foe').click();
+      return !RUN.roster.includes('cassia') && RUN.foes.includes('cassia')
+        && ((document.querySelector('.ov-title') || {}).textContent || '').includes('CASSIA TURNS AWAY');
+    }));
+  // AMBUSH: the next fight spawns a "vengeful <name>" built from their kit
+  check('TRAVELER: the wronged foe SPRINGS an ambush at the next fight (vengeful, weak to their own school)',
+    await J(() => {
+      const fn = RUN.map.find(n => n.type === 'fight');
+      startMapFight(fn);
+      const foe = S.enemies.find(e => e.def.name === 'VENGEFUL CASSIA');
+      return !!foe && foe.def.weak === HEROES.cassia.school && RUN.foes.length === 0;
+    }));
+  // BENCH path: a FULL trio meets an extra wanderer → choices minus the fight branch
+  check('TRAVELER: a full trio can WELCOME/turn-away but not fight (no forced 4-hero fight)',
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash', 'elin', 'mira']; RUN.active = ['ash', 'elin', 'mira'];
       const rn = RUN.map.find(n => n.type === 'recruit');
       showRecruit(rn);
-      return !!document.querySelector('#rc-join') && !document.querySelector('#rc-fight');
+      return !!document.querySelector('#rc-friend') && !document.querySelector('#rc-fight') && !document.querySelector('#rc-join');
     }));
 
   // ---------- EMERGENT GROWTH (tier-3 forge loops) ----------
