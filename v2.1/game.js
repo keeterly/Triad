@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 30;
+const V2_BUILD = 31;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -3558,102 +3558,102 @@ function kindleBurst(node, onDone) {
 const TRAVELERS = {
   cassia: {
     eyebrow: 'A BANNER IN THE DUST', speaker: 'CASSIA',
-    scene: 'A knight in a broken gate, a sword through a torn banner. Same climb as you — she just stopped to bury someone.',
-    line1: 'Take the sword if you want it. Don’t ask whose it was.',
+    scene: 'A knight kneels in a broken gate, her sword driven through a fallen banner. Same climb as you — she only stopped to bury one of her own.',
+    line1: 'If you’re here for the sword, take it and go. If you’re here to ask who carried it — don’t.',
     opts1: [
-      { text: 'Keep it. Carry the grief up with us.', tone: 2 },
-      { text: 'Can you still swing it?', tone: 0 },
-      { text: 'Bury your dead. Stay behind.', tone: -1 },
+      { text: 'Keep your sword. Keep the grief, too. Just carry them up with us.', tone: 2 },
+      { text: 'I only need to know one thing. Can you still fight?', tone: 0 },
+      { text: 'Then finish burying your dead and stay out of our way.', tone: -1 },
     ],
     react: {
-      warm:    'No one’s offered to carry it. Only to take it.',
-      guarded: 'Blunt. Good. Yes — I can swing it.',
-      cold:    'Light and fast. That’s how the last party climbed. Gone, now.',
+      warm:    'Plenty have offered to take the blade. You’re the first to offer to share the weight.',
+      guarded: 'Blunt. I can respect blunt. Yes — I can still fight.',
+      cold:    'Travel light, travel fast. That’s exactly how the last group climbed. None of them made it.',
     },
     opts2: {
-      warm:    [ { text: 'Then stand. The gate’s behind you.', tone: 2 }, { text: 'We hold the line together.', tone: 1 } ],
-      guarded: [ { text: 'Then walk with us — properly.', tone: 2 }, { text: 'Front rank’s yours.', tone: 0 } ],
-      cold:    [ { text: '…Fine. Keep pace.', tone: 2 }, { text: 'Take the sword. Leave her.', tone: -2, hostile: true } ],
+      warm:    [ { text: 'Then get up. Whatever you buried, it’s behind you now.', tone: 2 }, { text: 'We hold the line together, or none of us climb.', tone: 1 } ],
+      guarded: [ { text: 'Good. Then walk with us — the whole way up.', tone: 2 }, { text: 'Then take the front. That’s all I’m asking.', tone: 0 } ],
+      cold:    [ { text: '…Alright. Come on, then. Just keep pace.', tone: 2 }, { text: 'Take the sword. Leave her in the dirt.', tone: -2, hostile: true } ],
     },
   },
   elin: {
     eyebrow: 'A TRAIL OF LINEN', speaker: 'ELIN',
-    scene: 'She’s splinting a dead man’s arm — finishing it anyway. Climbing out too. She just can’t walk past the wounded.',
-    line1: 'I heal who walks. …Are you walking, or dying quietly?',
+    scene: 'She’s binding a dead man’s wound as gently as if he could still feel it. Climbing out like everyone — she just can’t bring herself to step over the fallen.',
+    line1: 'I mend anyone still walking. So — are you walking? Or just bleeding somewhere quiet?',
     opts1: [
-      { text: 'Walking. Faster with you.', tone: 2 },
-      { text: 'Bleeding. Can you fix it?', tone: 0 },
-      { text: 'Leave the dead. No time.', tone: -1 },
+      { text: 'Still walking. And we’d get a lot farther with you beside us.', tone: 2 },
+      { text: 'Bleeding, if I’m honest. Can you do anything about that?', tone: 0 },
+      { text: 'The dead are past helping. We don’t have time — for them or you.', tone: -1 },
     ],
     react: {
-      warm:    'Then let me keep you walking. It’s all I’m good for.',
-      guarded: 'I can fix most things. Hold still.',
-      cold:    'The dead had names. …But the living climb farther. I know.',
+      warm:    'Then let me keep you on your feet. It’s the only thing I’ve ever been good for.',
+      guarded: 'Most things, yes. Now hold still and stop arguing with me.',
+      cold:    'They had names, the dead. …But the living have farther to go. I know that better than anyone.',
     },
     opts2: {
-      warm:    [ { text: 'Stay behind us. We’ll keep the dark off.', tone: 2 }, { text: 'Come. No one else falls today.', tone: 1 } ],
-      guarded: [ { text: 'Fair. You’re one of us now.', tone: 2 }, { text: 'Just keep us breathing.', tone: 0 } ],
-      cold:    [ { text: '…You’re right. Come with us.', tone: 2 }, { text: 'Take her supplies. Go.', tone: -2, hostile: true } ],
+      warm:    [ { text: 'Stay close behind us. We’ll keep the dark off you.', tone: 2 }, { text: 'Come with us. No one else dies today.', tone: 1 } ],
+      guarded: [ { text: 'Fair enough. From here, you’re one of us.', tone: 2 }, { text: 'Just keep the party breathing. That’s the deal.', tone: 0 } ],
+      cold:    [ { text: '…You’re right to stay. Come with us instead — please.', tone: 2 }, { text: 'Take whatever supplies she’s got and move on.', tone: -2, hostile: true } ],
     },
   },
   mira: {
     eyebrow: 'A KNIFE IN THE DARK', speaker: 'MIRA',
-    scene: 'Three bodies cool behind her you never heard fall. Hunting a way up — alone, and tired of it.',
-    line1: 'You walk loud. Someone should watch the dark for you. …Don’t make me regret it.',
+    scene: 'Three bodies cool behind her, and you never heard a sound. She’s been carving her own way up — alone, and sick of it.',
+    line1: 'You move loud enough to wake the dead. Someone ought to watch the dark for you. …Don’t make me sorry I offered.',
     opts1: [
-      { text: 'Same dark, same climb. Watch it with us.', tone: 2 },
-      { text: 'You’re useful. Keep pace.', tone: 0 },
-      { text: 'Watch it from somewhere else.', tone: -1 },
+      { text: 'We’re all clawing out of the same hole. Watch it with us.', tone: 2 },
+      { text: 'You’re good in the dark. Keep pace and you’ve earned a place.', tone: 0 },
+      { text: 'Go watch the dark for someone else. We’re fine.', tone: -1 },
     ],
     react: {
-      warm:    'Huh. Most people flinch. …Fine. I’ll keep you breathing.',
-      guarded: 'Transactional. I can trust that.',
+      warm:    'Huh. Most people flinch when I speak. …Fine. I’ll keep you breathing.',
+      guarded: 'A clean arrangement. I can work with clean arrangements.',
       cold:    'Suit yourself. The dark’s patient. So am I.',
     },
     opts2: {
-      warm:    [ { text: 'What are you running from?', tone: 2 }, { text: 'Stay close. We don’t lose people.', tone: 1 } ],
-      guarded: [ { text: 'Pull your weight. That’s the deal.', tone: 2 }, { text: 'Eyes on the dark. Nothing more.', tone: 0 } ],
-      cold:    [ { text: '…Wait. We could use the eyes.', tone: 2 }, { text: 'Lift her blades while she talks.', tone: -2, hostile: true } ],
+      warm:    [ { text: 'So what are you really running from?', tone: 2 }, { text: 'Then stay close. We don’t leave people behind.', tone: 1 } ],
+      guarded: [ { text: 'Carry your weight and there’s no trouble.', tone: 2 }, { text: 'Keep your eyes on the dark. Nothing more.', tone: 0 } ],
+      cold:    [ { text: '…Actually — wait. We could use eyes like yours.', tone: 2 }, { text: 'Try lifting her blades while she’s talking.', tone: -2, hostile: true } ],
     },
   },
   branwen: {
     eyebrow: 'EYES ON THE TREELINE', speaker: 'BRANWEN',
-    scene: 'An arrow splits the post by your head before you see her. Bow already lowered. She’d rather see you first than trust you.',
-    line1: 'If I wanted you dead you’d not be reading this. Climb blind, you don’t climb far. Let me be your eyes.',
+    scene: 'An arrow buries itself by your head before you ever see her. She steps out with the bow already lowered — one more climber who’d sooner watch you than trust you.',
+    line1: 'Relax. If I wanted you dead, you’d never have read this far. Climb with no eyes on the treeline and you don’t climb at all. Let me be yours.',
     opts1: [
-      { text: 'Eyes we can trust. Walk with us.', tone: 2 },
-      { text: 'Point it somewhere else first.', tone: 0 },
-      { text: 'We don’t trust arrows from the dark.', tone: -1 },
+      { text: 'Eyes we can trust would be worth a lot. Walk with us.', tone: 2 },
+      { text: 'Lower that a little further and we’ll talk.', tone: 0 },
+      { text: 'We don’t take arrows from strangers in the dark.', tone: -1 },
     ],
     react: {
-      warm:    'Trust. Bold word, down here. …I’ll earn it.',
-      guarded: 'Already lowered. The reasonable kind of dangerous.',
-      cold:    'Smart. Trust gets people killed. …Doesn’t mean you don’t need me.',
+      warm:    'Trust. That’s a bold word, this far down. …I’ll earn it, then.',
+      guarded: 'Already lowered, see? The reasonable sort of dangerous.',
+      cold:    'Smart. Trust gets people killed down here. …Doesn’t mean you don’t still need me.',
     },
     opts2: {
-      warm:    [ { text: 'Take the high line. We’ll take the low.', tone: 2 }, { text: 'No one walks in blind again.', tone: 1 } ],
-      guarded: [ { text: 'Good enough. Fall in.', tone: 2 }, { text: 'Call the shots you see.', tone: 0 } ],
-      cold:    [ { text: '…But we do need you. Come on.', tone: 2 }, { text: 'Cut her string. Walk away.', tone: -2, hostile: true } ],
+      warm:    [ { text: 'You take the high ground, we’ll take the low.', tone: 2 }, { text: 'Then no one walks into the dark blind again.', tone: 1 } ],
+      guarded: [ { text: 'Good enough for me. Fall in.', tone: 2 }, { text: 'Just call out what you see.', tone: 0 } ],
+      cold:    [ { text: '…But we do need you. Come on.', tone: 2 }, { text: 'Cut her bowstring and leave her here.', tone: -2, hostile: true } ],
     },
   },
   _default: {
     eyebrow: 'A STRANGER ON THE PATH', speaker: 'STRANGER',
-    scene: 'Another climber out of the same dark. They stop when you stop.',
-    line1: 'You’re climbing out too. …Two backs beat one down here.',
+    scene: 'Another climber out of the same dark. They stop when you stop, and wait.',
+    line1: 'You’re climbing out too, then. …Two backs are better than one down here.',
     opts1: [
-      { text: 'Then climb with us.', tone: 2 },
-      { text: 'Keep pace, we’ll see.', tone: 0 },
-      { text: 'We climb alone.', tone: -1 },
+      { text: 'Then let’s climb together.', tone: 2 },
+      { text: 'Keep pace, and we’ll see how it goes.', tone: 0 },
+      { text: 'We climb on our own.', tone: -1 },
     ],
     react: {
-      warm:    'Good. I was tired of the quiet.',
-      guarded: 'Fair. I’ll earn my place.',
-      cold:    '…Alone gets you dead. Your climb.',
+      warm:    'Good. I was getting tired of my own company.',
+      guarded: 'Fair. I’ll earn my place on the way up.',
+      cold:    '…Going it alone gets you killed. But it’s your climb.',
     },
     opts2: {
-      warm:    [ { text: 'Stay close.', tone: 2 }, { text: 'No one falls behind.', tone: 1 } ],
-      guarded: [ { text: 'You’re one of us.', tone: 2 }, { text: 'Just keep up.', tone: 0 } ],
-      cold:    [ { text: '…Fine. Come on.', tone: 2 }, { text: 'Take what they carry. Go.', tone: -2, hostile: true } ],
+      warm:    [ { text: 'Then stay close.', tone: 2 }, { text: 'No one gets left behind.', tone: 1 } ],
+      guarded: [ { text: 'Alright — you’re one of us now.', tone: 2 }, { text: 'Just keep up.', tone: 0 } ],
+      cold:    [ { text: '…Fine. Come on.', tone: 2 }, { text: 'Take what they’re carrying and go.', tone: -2, hostile: true } ],
     },
   },
 };
@@ -3662,10 +3662,10 @@ const toneBucket = (t) => t > 0 ? 'warm' : t < 0 ? 'cold' : 'guarded';
 // up in the encounter and open a warm shortcut: shared history vouching for the
 // stranger.  (Bonus option lands friend; tone 3.)
 const TRAVELER_ALLIES = {
-  cassia:  { elin:    { line: 'She held the gate at Vael till we were all through. I owe her.',   bonus: 'Elin vouches for you. Good enough.' } },
-  elin:    { cassia:  { line: 'She patched me once. I walked away because of it. Bring her.',      bonus: 'Cassia’s alive because of you. Come.' } },
-  mira:    { branwen: { line: 'Worked a treeline with this one. Kills quiet, never misses.',       bonus: 'Branwen vouches. Watch the dark with us.' } },
-  branwen: { mira:    { line: 'She was the knife I never heard. Rather she watched our backs.',    bonus: 'Mira trusts you. Take the high line.' } },
+  cassia:  { elin:    { line: 'She held the gate at Vael Crossing until every last one of us was through. I owe her my life.', bonus: 'Elin says you held the line. That’s good enough for me.' } },
+  elin:    { cassia:  { line: 'She stitched me back together once. I only walked away because of her. Bring her along.',       bonus: 'Cassia’s alive because of you. Come with us.' } },
+  mira:    { branwen: { line: 'I’ve held a treeline beside this one. She kills quiet, and she never misses.',                  bonus: 'Branwen vouches for you. Watch the dark with us.' } },
+  branwen: { mira:    { line: 'She was the knife I never heard coming. I’d rather she watched our backs than a stranger’s.',    bonus: 'Mira trusts you. Take the high line with us.' } },
 };
 function activeAllyFor(n) {
   const map = TRAVELER_ALLIES[n.hero];
@@ -3677,11 +3677,11 @@ function activeAllyFor(n) {
 // the bonds you've kindled and the names you've made enemies of.  Travelers
 // read it in their opening; the map shows it as a chip.  Resets with the run.
 const MOODS = {
-  lonely:    { label: 'ALONE',     tint: '#8ea2c8', read: 'You travel light. Too light, this deep.' },
-  hunted:    { label: 'HUNTED',    tint: '#e8604a', read: 'Word travels down here. You’ve left names behind you — angry ones.' },
-  ironbound: { label: 'IRONBOUND', tint: '#f0d488', read: 'That’s a real bond your people carry. I can see it from here.' },
-  warm:      { label: 'HOLDING',   tint: '#e8b84a', read: 'Your line watches each other’s backs. Rare, this far down.' },
-  wary:      { label: 'WARY',      tint: '#c89a5a', read: 'You move like people who’ve been crossed. Fair enough.' },
+  lonely:    { label: 'ALONE',     tint: '#8ea2c8', read: 'You’re travelling light. Too light for a place like this.' },
+  hunted:    { label: 'HUNTED',    tint: '#e8604a', read: 'Word travels fast down here. You’ve left angry names in your wake.' },
+  ironbound: { label: 'IRONBOUND', tint: '#f0d488', read: 'There’s real trust between your people. I can see it from here.' },
+  warm:      { label: 'HOLDING',   tint: '#e8b84a', read: 'Your line watches each other’s backs. That’s rare, this deep.' },
+  wary:      { label: 'WARY',      tint: '#c89a5a', read: 'You carry yourselves like people who’ve been crossed. Can’t blame you.' },
   steady:    { label: 'STEADY',    tint: '#b8a88a', read: '' },
 };
 function partyMood() {
@@ -3738,21 +3738,25 @@ function jcPick(st, o) {
     return joinTraveler(st.n, st.tone >= 2);   // warm total → friend; else a wary join
   }
 }
-// Render one frame of the scene: the two figures + the dialogue box (a spoken
-// line, or your replies).  The speaking side is lit; the other dims back.
+// Render one frame: the party group (stage-LEFT), the stranger (stage-RIGHT),
+// and the dialogue box (a typed line, or your replies).  The speaking side is
+// lit; the other dims back.  The whole active line stands on the left, with the
+// current speaker brought to the front.
 function jcRender(st, content) {
+  if (st._typeTimer) { clearInterval(st._typeTimer); st._typeTimer = null; }
   const n = st.n, trav = st.trav;
-  const lead = (RUN && RUN.active && RUN.active[0]) || 'ash';
-  let leftHero = lead, lit = 'them', box = '';
+  const party = (RUN && RUN.active && RUN.active.length) ? RUN.active.slice() : ['ash'];
+  const lead = party[0];
+  let speaker = lead, lit = 'them', box = '';
   if (content.say) {
     const s = content.say;
     lit = s.side;
-    if (s.side === 'us' && s.heroId) leftHero = s.heroId;
+    if (s.side === 'us' && s.heroId) speaker = s.heroId;
     box = `
       <div class="jc-plate jc-plate-${s.side}">${s.speaker}</div>
       ${s.scene ? `<div class="jc-scene-cap">${s.scene}</div>` : ''}
-      <div class="jc-line${s.aside ? ' jc-aside' : ''}"${s.tint ? ` style="color:${s.tint}"` : ''}>${s.text}</div>
-      <div class="jc-next">${content.more ? 'tap ▸' : 'tap to answer ▸'}</div>`;
+      <div class="jc-line${s.aside ? ' jc-aside' : ''}"${s.tint ? ` style="color:${s.tint}"` : ''}></div>
+      <div class="jc-next">tap ▸</div>`;
   } else {
     lit = 'us';
     box = `
@@ -3760,10 +3764,15 @@ function jcRender(st, content) {
       <div class="jc-opts">${content.choose.map((o, i) =>
         `<button class="jc-opt tc-say${o.ally ? ' tc-vouch jc-vouch' : ''}" id="rc-say-${i}">${o.text}</button>`).join('')}</div>`;
   }
+  // the party lineup: the speaker (or lead) stands front-and-lit; the rest fall
+  // in behind, smaller and dimmer.
+  const ordered = [speaker].concat(party.filter(id => id !== speaker));
+  const leftFigs = ordered.map((id, i) =>
+    `<span class="jc-hero${i === 0 ? ' jc-hero-lead jc-art' : ' jc-hero-back'}" style="--i:${i}">${V2PORTRAITS[id] || ''}</span>`).join('');
   showOverlay(`
     <div class="jc-scene jc-lit-${lit}">
       <div class="jc-eyebrow">${trav.eyebrow}</div>
-      <div class="jc-fig jc-fig-l"><span class="jc-art">${V2PORTRAITS[leftHero] || ''}</span></div>
+      <div class="jc-fig jc-fig-l">${leftFigs}</div>
       <div class="jc-fig jc-fig-r"><span class="jc-art">${V2PORTRAITS[n.hero] || ''}</span></div>
       <div class="jc-box">${box}</div>
     </div>
@@ -3774,10 +3783,34 @@ function jcRender(st, content) {
   $('#overlay').onclick = null;
   const scene = $('.jc-scene');
   if (content.say) {
-    if (scene) scene.onclick = () => jcAdvance(st);
+    const lineEl = $('.jc-line');
+    jcType(st, lineEl, content.say.text);
+    if (scene) scene.onclick = () => {
+      if (st._typing) jcTypeDone(st, lineEl, content.say.text);   // first tap: finish the reveal
+      else jcAdvance(st);                                         // second tap: next line
+    };
   } else {
     content.choose.forEach((o, i) => { const b = $('#rc-say-' + i); if (b) b.onclick = (e) => { e.stopPropagation(); jcPick(st, o); }; });
   }
+}
+// TYPEWRITER — reveal a spoken line character by character; a tap completes it.
+function jcType(st, el, text) {
+  if (!el) return;
+  st._typing = true;
+  el.textContent = '';
+  const scene = $('.jc-scene'); if (scene) scene.classList.add('jc-typing');
+  let i = 0;
+  st._typeTimer = setInterval(() => {
+    i += 2;
+    el.textContent = text.slice(0, i);
+    if (i >= text.length) jcTypeDone(st, el, text);
+  }, 20);
+}
+function jcTypeDone(st, el, text) {
+  if (st._typeTimer) { clearInterval(st._typeTimer); st._typeTimer = null; }
+  st._typing = false;
+  if (el) el.textContent = text;
+  const scene = $('.jc-scene'); if (scene) scene.classList.remove('jc-typing');
 }
 // FRIEND / NEUTRAL join — a friend arrives already threaded to the whole line.
 function joinTraveler(n, friend) {
