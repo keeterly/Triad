@@ -1278,6 +1278,25 @@ const QUICK = process.argv.includes('--quick');
     }));
   await J(() => { const el = document.querySelector('#kindle-fx'); if (el) el.remove(); });
 
+  // ---------- DEV: reset progress (test first-time flow) ----------
+  console.log('--- DEV ---');
+  check('DEV: the dev panel offers a RESET PROGRESS control',
+    await J(() => { showDevPanel(); return !!document.querySelector('#d-reset'); }));
+  check('DEV: reset wipes unlocks + tutorial + abyss, keeps device settings',
+    await J(() => {
+      unlockStarter('cassia'); setTreeTaught();
+      localStorage.setItem(PROGRESS_KEY, '5');
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify({ sound: true }));   // a device pref to preserve
+      const before = getUnlockedStarters().includes('cassia') && treeTaught();
+      resetProgress();
+      return before
+        && localStorage.getItem(STARTERS_KEY) === null
+        && localStorage.getItem(PROGRESS_KEY) === null
+        && localStorage.getItem('kizuna2_1.treeTaught') === null
+        && !treeTaught() && !getUnlockedStarters().includes('cassia')
+        && !!localStorage.getItem(SETTINGS_KEY);   // settings kept
+    }));
+
   t.report();
   await t.browser.close();
 })().catch(e => { console.error('FATAL', e.message); process.exit(1); });

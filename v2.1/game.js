@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 32;
+const V2_BUILD = 33;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -4628,19 +4628,42 @@ function showHowTo() {
   `, 'menu-screen');
   $('#ht-back').onclick = () => showMenu();
 }
+// FULL PROGRESS RESET (dev) — wipe everything that makes the game "not
+// first-time": unlocked heroes, tutorial flow, one-time coaches, the abyss
+// memories and vow ranks, the current run, and Heat.  Device prefs (sound,
+// fight background) and the entry gate are left alone.
+function resetProgress() {
+  [STARTERS_KEY, PROGRESS_KEY, RUN_KEY, ABYSS_KEY, VOWS_KEY, META_KEY,
+   'kizuna2_1.treeTaught', 'kizuna2_1.parryLessons', 'kizuna2_1.strikeLessons']
+    .forEach(k => { try { localStorage.removeItem(k); } catch (_) {} });
+  RUN = null; S = null; flowIdx = 0; META.heat = 0;
+}
+let _devResetArmed = false;
 function showDevPanel() {
   const onOff = (v) => `<span class="menu-val ${v ? 'mv-on' : 'mv-off'}">${v ? 'ON' : 'OFF'}</span>`;
+  const armed = _devResetArmed;
   showOverlay(`
     <div class="ov-eyebrow">DEV</div>
     <div class="ov-title" style="font-size:20px; margin-bottom:12px;">DEV TOOLS</div>
     <div class="menu-list">
       <button class="menu-item" id="d-bg"><span>FIGHT BACKGROUND</span>${onOff(SETTINGS.fightBg)}</button>
+      <button class="menu-item${armed ? ' mi-danger' : ''}" id="d-reset">
+        <span>${armed ? '⚠ TAP AGAIN TO WIPE' : 'RESET PROGRESS'}</span>
+        <span class="menu-val mv-off">${armed ? 'CONFIRM' : 'unlocks · tutorial · abyss'}</span>
+      </button>
       <button class="menu-item" id="d-back">◂ BACK</button>
     </div>
-    <div class="ov-hint">Toggles here persist on this device.</div>
+    <div class="ov-hint">Reset wipes unlocks &amp; tutorial to test first-time flow. Device settings are kept.</div>
   `, 'menu-screen');
   $('#d-bg').onclick = () => { toggleSetting('fightBg'); showDevPanel(); };
-  $('#d-back').onclick = () => showMenu();
+  $('#d-reset').onclick = () => {
+    if (!_devResetArmed) { _devResetArmed = true; showDevPanel(); return; }   // two-tap confirm
+    _devResetArmed = false;
+    resetProgress();
+    flashNarrator('Progress wiped — the reach forgets you.');
+    showTitle();
+  };
+  $('#d-back').onclick = () => { _devResetArmed = false; showMenu(); };
 }
 
 function showTitle() {

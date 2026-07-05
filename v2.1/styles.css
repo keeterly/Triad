@@ -97,6 +97,8 @@ body {
 .menu-item:active { transform: scale(0.98); }
 .menu-item.menu-primary { justify-content: center; border-color: rgba(240,212,136,0.55); color: var(--gold-bright); letter-spacing: 0.24em; }
 .menu-item.menu-warn { color: #e0907e; border-color: rgba(212,69,69,0.35); }
+.menu-item.mi-danger { color: #ff6a52; border-color: #e8604a; background: rgba(48,14,10,0.9); animation: mi-danger-pulse 0.9s ease-in-out infinite; }
+@keyframes mi-danger-pulse { 50% { border-color: #ff8a72; } }
 .menu-item.menu-dev { color: var(--arc); border-color: rgba(154,120,192,0.4); }
 .menu-val { font-size: 9.5px; letter-spacing: 0.14em; color: var(--ink-faint); }
 .menu-val.mv-on { color: var(--heal); }
