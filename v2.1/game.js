@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 16;
+const V2_BUILD = 17;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -458,11 +458,11 @@ const ENEMY_DEFS = {
     weak: 'light', name: 'THE HOLLOW MAW', maxHp: 132, boss: true, floorBoss: true, art: 'echoknight', aura: 'maw',
     attacksPerRound: 2,
     intents: [
-      { name: 'Cursed Reach', dmg: 8,  row: 'front', hex: 2, attackArt: 'claw',  parry: { kind: 'seq', notes: [{ t: 'tap' }, { t: 'hold' }] } },
-      { name: 'The Hunger Deepens', kind: 'buff', desc: 'it feeds and swells', powerSelf: 3 },
-      { name: 'DEVOUR',        dmg: 13, row: 'front', drain: 0.6, attackArt: 'slam', parry: { kind: 'seq', notes: [{ t: 'hold' }, { t: 'tap' }, { t: 'hold' }] } },
-      { name: 'Withering Wail', dmg: 6, row: 'all', chill: 1, attackArt: 'blast', parry: { kind: 'seq', notes: [{ t: 'swipe', arc: 'arcAcross' }, { t: 'tap' }] } },
-      { name: 'THE GREAT GORGE', dmg: 15, row: 'all', heavy: true, drain: 0.4, attackArt: 'blast', parry: { kind: 'seq', notes: [{ t: 'hold' }, { t: 'tap' }, { t: 'swipe', arc: 'arcU' }, { t: 'tap' }, { t: 'hold' }] } },
+      { name: 'Cursed Reach', dmg: 5,  row: 'front', hex: 2, attackArt: 'claw',  parry: { kind: 'seq', notes: [{ t: 'tap' }, { t: 'hold' }] } },
+      { name: 'The Hunger Deepens', kind: 'buff', desc: 'it feeds and swells', powerSelf: 2 },
+      { name: 'DEVOUR',        dmg: 6,  row: 'front', drain: 0.6, attackArt: 'slam', parry: { kind: 'seq', notes: [{ t: 'hold' }, { t: 'tap' }, { t: 'hold' }] } },
+      { name: 'Withering Wail', dmg: 4, row: 'all', chill: 1, attackArt: 'blast', parry: { kind: 'seq', notes: [{ t: 'swipe', arc: 'arcAcross' }, { t: 'tap' }] } },
+      { name: 'THE GREAT GORGE', dmg: 7, row: 'all', heavy: true, drain: 0.4, attackArt: 'blast', parry: { kind: 'seq', notes: [{ t: 'hold' }, { t: 'tap' }, { t: 'swipe', arc: 'arcU' }, { t: 'tap' }, { t: 'hold' }] } },
     ],
   },
 };
@@ -937,7 +937,11 @@ function newBattle(node) {
     const psHp = ps >= 3 ? 1 : ps === 2 ? 0.86 : 0.72;
     enemies.forEach(e => {
       if (e.def.boss) {
-        e.dmgMul = 2.3 + (depth - 1) * 0.08;
+        // Bosses already hit hard and strike TWICE a round, so their per-floor
+        // ramp is GENTLE (+3 effective depth per floor, not +7): a single
+        // UNPARRIED blow should be frightening, not an instant execution.
+        const bdepth = Math.max(1, (node.depth || 1) + ((node.floor || 1) - 1) * 3);
+        e.dmgMul = 2.3 + (bdepth - 1) * 0.08;
         const hp = Math.round(e.maxHp * 1.9);
         e.maxHp = hp; e.hp = hp;
       } else {
