@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 55;
+const V2_BUILD = 56;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -110,7 +110,7 @@ const EMBER_TREE = [
   { id: 'cassia.sig.front', hero: 'cassia', tier: 1, cost: 4, type: 'card', gate: { stance: 'front' }, label: 'Bulwark', desc: 'FRONT signature — 6 damage and gain <span class="kw kw-guard">⛨ 6</span>.' },
   { id: 'cassia.sig.mid',   hero: 'cassia', tier: 1, cost: 5, type: 'card', gate: { stance: 'mid'   }, label: 'Aegis',   desc: 'MID signature — ward an ally <span class="kw kw-guard">⛨ 7</span>.' },
   { id: 'cassia.sig.back',  hero: 'cassia', tier: 1, cost: 4, type: 'card', gate: { stance: 'back'  }, label: 'Sentinel Throw', desc: 'BACK signature — 7 damage to ANY foe.' },
-  { id: 'cassia.rider.riposte', hero: 'cassia', tier: 2, cost: 6, type: 'rider', requires: ['cassia.sig.front'], label: 'Riposte', desc: 'Shield Bash (FRONT core) now also grants <span class="kw kw-counter">↺ 1</span> — punish the next blow.', rider: { card: 'Shield Bash', fx: { counter: 1 }, descAdd: ' · <span class="kw kw-counter">↺ 1</span>' } },
+  { id: 'cassia.rider.riposte', hero: 'cassia', tier: 2, cost: 6, type: 'rider', requires: ['cassia.sig.front'], label: 'Riposte', desc: 'Bulwark (FRONT signature) now also grants <span class="kw kw-counter">↺ 1</span> — punish the next blow.', rider: { card: 'Bulwark', fx: { counter: 1 }, descAdd: ' · <span class="kw kw-counter">↺ 1</span>' } },
   { id: 'cassia.emergent.bulwark', hero: 'cassia', tier: 3, cost: 9, type: 'emergent', requires: ['cassia.sig.front'], label: 'Iron Answer',
     desc: 'Cassia turns <b>defense into a weapon</b>. Every <b>2nd time she raises guard</b> this fight forges a free <b>Bulwark Break</b> — the wall answers back.',
     emergent: { on: 'guard', every: 2, stance: 'FORGED · IRON', flash: 'The wall answers — <b>Bulwark Break</b> forged.',
@@ -166,6 +166,30 @@ const EMBER_TREE = [
   { id: 'mira.synergy.marked', hero: 'mira', tier: 4, cost: 11, type: 'synergy', requires: ['mira.passive.opportunist'], label: 'Marked for Death', desc: 'While Mira stands with you, <span class="kw kw-exposed">◎ EXPOSED</span> foes take <b>+2</b> from EVERY ally — her openings are the whole party’s.', passive: 'mira_marked' },
   { id: 'cassia.synergy.soak', hero: 'cassia', tier: 4, cost: 11, type: 'synergy', requires: ['cassia.passive.vigil'], label: 'Guardian’s Aegis', desc: 'Allies in the rows BEHIND Cassia take <b>−2</b> from every enemy blow — she covers the line.', passive: 'cassia_soak' },
   { id: 'branwen.synergy.cadence', hero: 'branwen', tier: 4, cost: 11, type: 'synergy', requires: ['branwen.passive.opening'], label: 'Hunter’s Cadence', desc: 'At the start of your turn, if any foe is <span class="kw kw-exposed">◎ EXPOSED</span>, the WHOLE party gains <span class="kw kw-rally">▲ RALLY +1</span>.', passive: 'branwen_cadence' },
+
+  // ═══ STANCE PATHWAYS — every position now grows its own branch, so all three
+  // rows reward investment (not just each hero's one favoured stance). ══════════
+  // ASH — the MID (flow) line and a deeper BACK (mark) line
+  { id: 'ash.rider.flowcut', hero: 'ash', tier: 2, cost: 6, type: 'rider', requires: ['ash.sig.mid'], label: 'Flowing Guard', desc: 'Flowing Cut (MID core) strikes for <b>+2</b> and guards <span class="kw kw-guard">⛨ +2</span> — flow becomes footing.', rider: { card: 'Flowing Cut', fx: { dmg: 2, guard: 2 }, descAdd: ' · <b>+2</b> · <span class="kw kw-guard">⛨ +2</span>' } },
+  { id: 'ash.emergent.riposte', hero: 'ash', tier: 3, cost: 8, type: 'emergent', requires: ['ash.rider.flowcut'], label: 'Riposte Flow', desc: 'Ash reads the blade. Every <b>2nd time he raises guard</b> forges a free <b>Riposte</b> — the block becomes a cut.', emergent: { on: 'guard', every: 2, stance: 'FORGED · FLOW', flash: 'He turns the guard into a cut — <b>Riposte</b> forged.', forge: { name: 'Riposte', cost: 0, target: 'enemy', fx: { dmg: 7 }, desc: '<b>Free.</b> The parried blow answered — <b>7 damage</b> to any foe.' } } },
+  { id: 'ash.passive.exploit', hero: 'ash', tier: 3, cost: 8, type: 'passive', requires: ['ash.rider.expose'], label: 'Opening Read', desc: 'Ash deals <b>+3</b> to any <span class="kw kw-exposed">◎ EXPOSED</span> foe — his marks are his to cash.', passive: 'ash_exploit' },
+
+  // ELIN — a deeper MID (ward) line
+  { id: 'elin.rider.sanctuary', hero: 'elin', tier: 2, cost: 6, type: 'rider', requires: ['elin.sig.mid'], label: 'Warded Sanctuary', desc: 'Sanctuary (MID signature) also grants the ally <span class="kw kw-counter">↺ 1</span> — the sanctuary strikes back.', rider: { card: 'Sanctuary', fx: { counter: 1 }, descAdd: ' · <span class="kw kw-counter">↺ 1</span>' } },
+  { id: 'elin.emergent.warden', hero: 'elin', tier: 3, cost: 8, type: 'emergent', requires: ['elin.rider.sanctuary'], label: 'Warding Circle', desc: 'Elin’s wards compound. Every <b>2nd time she grants guard</b> forges a free <b>Warding Circle</b> — the whole line hardens.', emergent: { on: 'guard', every: 2, stance: 'FORGED · WARD', flash: 'The circle closes — <b>Warding Circle</b> forged.', forge: { name: 'Warding Circle', cost: 0, target: 'allies', fx: { guard: 3 }, desc: '<b>Free.</b> A ring of light — every ally gains <span class="kw kw-guard">⛨ 3</span>.' } } },
+
+  // MIRA — a deeper FRONT (vanish) line and a MID (twin) line
+  { id: 'mira.rider.vanish', hero: 'mira', tier: 2, cost: 6, type: 'rider', requires: ['mira.sig.front'], label: 'Whisper Edge', desc: 'Vanish Strike (FRONT signature) strikes for <b>+3</b> — the blade lands before the vanish.', rider: { card: 'Vanish Strike', fx: { dmg: 3 }, descAdd: ' · <b>+3</b>' } },
+  { id: 'mira.passive.ambush', hero: 'mira', tier: 3, cost: 8, type: 'passive', requires: ['mira.rider.vanish'], label: 'Ambush', desc: 'Whenever Mira changes rows, her next strike this turn deals <span class="kw kw-rally">▲ +4</span> — she kills from the shadow she slipped to.', passive: 'mira_ambush' },
+  { id: 'mira.emergent.flurry', hero: 'mira', tier: 3, cost: 8, type: 'emergent', requires: ['mira.rider.twin'], label: 'Bladestorm', desc: 'Mira’s knives multiply. Every <b>3rd strike</b> she lands forges a free <b>Flurry</b> — the daggers keep coming.', emergent: { on: 'hit', every: 3, stance: 'FORGED · STORM', flash: 'The blades multiply — <b>Flurry</b> forged.', forge: { name: 'Flurry', cost: 0, target: 'enemy', fx: { dmg: 6, mark: 1 }, desc: '<b>Free.</b> A whirl of steel — <b>6 damage</b> and <span class="kw kw-exposed">◎ EXPOSED 1</span> to any foe.' } } },
+
+  // CASSIA — a BACK (sentinel) line
+  { id: 'cassia.rider.sentinel', hero: 'cassia', tier: 2, cost: 6, type: 'rider', requires: ['cassia.sig.back'], label: 'Weighted Shield', desc: 'Sentinel Throw (BACK signature) strikes for <b>+3</b> — the sentinel’s throw lands like a wall.', rider: { card: 'Sentinel Throw', fx: { dmg: 3 }, descAdd: ' · <b>+3</b>' } },
+  { id: 'cassia.emergent.sentinel', hero: 'cassia', tier: 3, cost: 8, type: 'emergent', requires: ['cassia.rider.sentinel'], label: 'Sentinel’s Watch', desc: 'The wall answers from range. Every <b>2nd time Cassia raises guard</b> forges a free <b>Sentinel Volley</b>.', emergent: { on: 'guard', every: 2, stance: 'FORGED · WATCH', flash: 'The sentinel looses — <b>Sentinel Volley</b> forged.', forge: { name: 'Sentinel Volley', cost: 0, target: 'enemy', fx: { dmg: 8 }, desc: '<b>Free.</b> A shield hurled from the wall — <b>8 damage</b> to any foe.' } } },
+
+  // BRANWEN — a FRONT (mark) line
+  { id: 'branwen.rider.hunt', hero: 'branwen', tier: 2, cost: 6, type: 'rider', requires: ['branwen.sig.front'], label: 'Deeper Mark', desc: 'Hunter’s Mark (FRONT signature) now brands <span class="kw kw-exposed">◎ EXPOSED +2</span> deeper.', rider: { card: 'Hunter’s Mark', fx: { mark: 2 }, descAdd: ' · <span class="kw kw-exposed">◎ +2</span>' } },
+  { id: 'branwen.emergent.hail', hero: 'branwen', tier: 3, cost: 8, type: 'emergent', requires: ['branwen.rider.hunt'], label: 'Rain of Arrows', desc: 'The volley never ends. Every <b>2nd time she inflicts</b> <span class="kw kw-exposed">◎ EXPOSED</span> forges a free <b>Volley Shot</b>.', emergent: { on: 'expose', every: 2, stance: 'FORGED · HAIL', flash: 'The sky darkens — <b>Volley Shot</b> forged.', forge: { name: 'Volley Shot', cost: 0, target: 'enemy', fx: { dmg: 6, mark: 2 }, desc: '<b>Free.</b> A shaft from the dark — <b>6 damage</b> and <span class="kw kw-exposed">◎ EXPOSED 2</span> to any foe.' } } },
 ];
 const NODE_BY_ID = {};
 EMBER_TREE.forEach(n => { NODE_BY_ID[n.id] = n; });
@@ -233,6 +257,8 @@ const PASSIVE_DEFS = {
   // ASH — TEMPO: motion is force, the duel never lets up
   ash_vanguard: { trigger: 'enterRow', apply: (c) => { if (c.toRow === 'front') { c.hero.guard += 3; popupAt(figEl(c.hero.id), '⛨ +3', 'guard'); } } },
   ash_flow:     { trigger: 'enterRow', apply: (c) => { c.hero.buffDmg += 3; popupAt(figEl(c.hero.id), '▲ +3 NEXT', 'rally'); } },
+  ash_exploit:  { trigger: 'dmgMod', mod: (o, t) => (o.id === 'ash' && t && t.mark ? 3 : 0) },
+  mira_ambush:  { trigger: 'enterRow', apply: (c) => { if (c.hero.id !== 'mira') return; c.hero.buffDmg += 4; popupAt(figEl(c.hero.id), '▲ AMBUSH +4', 'rally'); } },
   ash_relentless: { trigger: 'followup', apply: (c) => { if (!S._flags.ashRefund) { S._flags.ashRefund = true; refundEp(1); } } },
   // ELIN — LIGHT: the ward finds the hurt
   elin_ward:    { trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'elin') return; const t = lowestHpAlly(); if (t) { t.guard += 2; popupAt(figEl(t.id), '⛨ +2', 'guard'); } } },

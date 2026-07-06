@@ -1673,6 +1673,26 @@ const QUICK = process.argv.includes('--quick');
   check('SCALE: fitStage reads visualViewport and never leaves the stage un-scaled',
     await J(() => { document.getElementById('stage').style.transform = ''; fitStage(); return /scale\([\d.]+\)/.test(document.getElementById('stage').style.transform); }));
 
+  // ---------- STANCE DEPTH: every position pathway grows nodes ----------
+  console.log('--- STANCE DEPTH ---');
+  check('TREE: every hero’s FRONT/MID/BACK signature now has a branch hanging off it',
+    await J(() => {
+      const heroes = ['ash', 'elin', 'mira', 'cassia', 'branwen'];
+      const childrenOf = (id) => EMBER_TREE.filter(n => (n.requires || []).includes(id));
+      return heroes.every(h => ['front', 'mid', 'back'].every(st => {
+        const sig = (SIG_GATE[h] || {})[st];
+        return !!sig && childrenOf(sig).length > 0;
+      }));
+    }));
+  check('TREE: new stance nodes wire cleanly (valid requires, valid passives, unique ids)',
+    await J(() => {
+      const ids = new Set(); let ok = true;
+      const special = ['elin_overflow'];   // handled inline in the heal-spill code, not via PASSIVE_DEFS
+      EMBER_TREE.forEach(n => { if (ids.has(n.id)) ok = false; ids.add(n.id); });
+      EMBER_TREE.forEach(n => { (n.requires || []).forEach(r => { if (!NODE_BY_ID[r]) ok = false; }); if ((n.type === 'passive' || n.type === 'synergy') && !PASSIVE_DEFS[n.passive] && !special.includes(n.passive)) ok = false; });
+      return ok;
+    }));
+
   t.report();
   await t.browser.close();
 })().catch(e => { console.error('FATAL', e.message); process.exit(1); });
