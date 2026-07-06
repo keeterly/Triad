@@ -1619,6 +1619,32 @@ const QUICK = process.argv.includes('--quick');
       showCamp({ id: 9, type: 'camp', label: 'EMBER REST' });
       return !!document.querySelector('#camp-boon') && !document.querySelector('#camp-forge');
     }));
+  check('BOON: held gifts show in the combat topbar strip, party-gated',
+    await J(() => {
+      RUN = newRun('mira'); RUN.roster = ['mira', 'elin']; RUN.active = ['mira', 'elin']; RUN.hp = { mira: 22, elin: 24 };
+      RUN.boons = ['mira_scent', 'cassia_vigil']; RUN.completed = [0, 1, 2, 3];   // cassia NOT fielded
+      startFight({ type: 'fight', chapter: 3, heroes: ['mira', 'elin'], enemies: ['husk'], useRunHp: true, floor: 1, depth: 4, narrator: '' });
+      renderAll();
+      const ids = [...document.getElementById('combat-boons').children].map(c => c.dataset.boon);
+      return ids.includes('mira_scent') && !ids.includes('cassia_vigil');
+    }));
+  check('BOON: the companion EVENT routes its gift choice into the draft',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash', 'branwen']; RUN.active = ['ash', 'branwen']; RUN.boons = [];
+      showEvent({ id: 3, type: 'event', eventId: 'companion' });
+      document.querySelector('#ev-a').click();
+      return !!document.querySelector('.boon-card');
+    }));
+  check('BOON: a proc pulses its topbar chip + pops a tag (Second Wind on follow-up)',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash', 'mira']; RUN.active = ['ash', 'mira']; RUN.hp = { ash: 32, mira: 22 };
+      RUN.boons = ['ash_relentless']; RUN.completed = [0, 1, 2, 3];
+      startFight({ type: 'fight', chapter: 3, heroes: ['ash', 'mira'], enemies: ['husk'], useRunHp: true, floor: 1, depth: 4, narrator: '' });
+      renderAll(); S._flags = {}; S.ep = 5;
+      firePassives('followup', 'ash', { ally: 'mira' });
+      const chip = document.querySelector('#combat-boons [data-boon="ash_relentless"]');
+      return S.ep === 6 && !!chip && chip.classList.contains('cb-proc');
+    }));
 
   t.report();
   await t.browser.close();

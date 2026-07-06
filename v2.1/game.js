@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 52;
+const V2_BUILD = 53;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -334,24 +334,24 @@ const BOONS = [
   { id: 'ash_tide', hero: 'ash', name: 'Rushing Tide', icon: '⇄', desc: 'Ash’s damaging cards cost <b>1 less</b> (min 1).',
     card: (c) => { if (c.owner === 'ash' && c.fx && c.fx.dmg && c.cost > 1) c.cost -= 1; } },
   { id: 'ash_relentless', hero: 'ash', name: 'Second Wind', icon: '↻', desc: 'Ash’s first <span class="kw kw-rally">FOLLOW-UP</span> each turn refunds <b>1 EP</b>.',
-    trigger: 'followup', apply: () => { if (!S._flags.boonAsh) { S._flags.boonAsh = true; refundEp(1); } } },
+    trigger: 'followup', apply: () => { if (!S._flags.boonAsh) { S._flags.boonAsh = true; refundEp(1); boonProc('ash', 'ash_relentless'); } } },
   // ELIN — light
   { id: 'elin_grace', hero: 'elin', name: 'Elin’s Grace', icon: '✚', desc: 'When Elin heals or wards an ally, they also gain <span class="kw kw-guard">⛨ 1</span>.',
-    trigger: 'support', apply: (c) => { if (c.receiver && !c.receiver.downed) { c.receiver.guard += 1; } } },
+    trigger: 'support', apply: (c) => { if (c.receiver && !c.receiver.downed) { c.receiver.guard += 1; popupAt(figEl(c.receiver.id), '⛨ +1', 'guard'); boonProc('elin', 'elin_grace'); } } },
   { id: 'elin_warm', hero: 'elin', name: 'Warm Hands', icon: '❂', desc: 'Elin’s healing cards restore <b>+2</b>.',
     card: (c) => { if (c.owner === 'elin' && c.fx && c.fx.heal) c.fx.heal += 2; } },
   { id: 'elin_dawn', hero: 'elin', name: 'Dawnward', icon: '☀', desc: 'At the start of your turn, your most-wounded ally heals <span class="kw kw-heal">✚ 2</span>.',
-    trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'elin') return; const t = lowestHpAlly(); if (t) { t.hp = Math.min(t.maxHp, t.hp + 2); popupAt(figEl(t.id), '✚2', 'heal'); } } },
+    trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'elin') return; const t = lowestHpAlly(); if (t && t.hp < t.maxHp) { t.hp = Math.min(t.maxHp, t.hp + 2); popupAt(figEl(t.id), '✚2', 'heal'); boonProc('elin', 'elin_dawn'); } } },
   // MIRA — exposed / execute
   { id: 'mira_scent', hero: 'mira', name: 'Bloodscent', icon: '◎', desc: 'Mira deals <b>+2</b> to any <span class="kw kw-exposed">◎ EXPOSED</span> foe.',
     trigger: 'dmgMod', mod: (o, t) => (o.id === 'mira' && t && t.mark ? 2 : 0) },
   { id: 'mira_patience', hero: 'mira', name: 'Killer’s Patience', icon: '☠', desc: 'The first <span class="kw kw-exposed">◎ EXPOSED</span> foe Mira kills each turn refunds <b>1 EP</b>.',
-    trigger: 'kill', apply: (c) => { if (c.tgt && c.tgt.mark && !S._flags.boonMira) { S._flags.boonMira = true; refundEp(1); } } },
+    trigger: 'kill', apply: (c) => { if (c.tgt && c.tgt.mark && !S._flags.boonMira) { S._flags.boonMira = true; refundEp(1); boonProc('mira', 'mira_patience'); } } },
   { id: 'mira_fang', hero: 'mira', name: 'Twin Fang', icon: '⚔', desc: 'Mira’s <b>signature</b> attacks strike for <b>+2</b>.',
     card: (c) => { if (c.owner === 'mira' && c.kind === 'sig' && c.fx && c.fx.dmg) c.fx.dmg += 2; } },
   // CASSIA — guard
   { id: 'cassia_vigil', hero: 'cassia', name: 'Bulwark Heart', icon: '⛨', desc: 'At the start of your turn, Cassia braces for <span class="kw kw-guard">⛨ 2</span>.',
-    trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'cassia') return; c.hero.guard += 2; popupAt(figEl(c.hero.id), '⛨ +2', 'guard'); } },
+    trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'cassia') return; c.hero.guard += 2; popupAt(figEl(c.hero.id), '⛨ +2', 'guard'); boonProc('cassia', 'cassia_vigil', { quiet: true }); } },
   { id: 'cassia_iron', hero: 'cassia', name: 'Ironclad', icon: '◆', desc: 'Cassia’s guard-granting cards give <span class="kw kw-guard">⛨ +2</span>.',
     card: (c) => { if (c.owner === 'cassia' && c.fx && c.fx.guard) c.fx.guard += 2; } },
   { id: 'cassia_reprisal', hero: 'cassia', name: 'Reprisal', icon: '↺', desc: 'While Cassia holds <span class="kw kw-guard">⛨ guard</span>, her strikes deal <b>+3</b>.',
@@ -362,7 +362,7 @@ const BOONS = [
   { id: 'branwen_season', hero: 'branwen', name: 'Open Season', icon: '✦', desc: 'While Branwen stands with you, EVERY ally deals <b>+1</b> to <span class="kw kw-exposed">◎ EXPOSED</span> foes.',
     trigger: 'dmgMod', mod: (o, t) => (t && t.mark ? 1 : 0) },
   { id: 'branwen_bounty', hero: 'branwen', name: 'Hunter’s Bounty', icon: '☠', desc: 'The first <span class="kw kw-exposed">◎ EXPOSED</span> foe Branwen kills each turn refunds <b>1 EP</b>.',
-    trigger: 'kill', apply: (c) => { if (c.tgt && c.tgt.mark && !S._flags.boonBran) { S._flags.boonBran = true; refundEp(1); } } },
+    trigger: 'kill', apply: (c) => { if (c.tgt && c.tgt.mark && !S._flags.boonBran) { S._flags.boonBran = true; refundEp(1); boonProc('branwen', 'branwen_bounty'); } } },
 ];
 const BOON_BY_ID = {}; BOONS.forEach(b => { BOON_BY_ID[b.id] = b; });
 // active boons: OWNED this descent AND their hero is currently fielded
@@ -370,6 +370,22 @@ function runBoons() {
   if (typeof RUN === 'undefined' || !RUN || !Array.isArray(RUN.boons)) return [];
   const party = (RUN.active && RUN.active.length) ? RUN.active : RUN.roster || [];
   return RUN.boons.map(id => BOON_BY_ID[id]).filter(b => b && party.indexOf(b.hero) >= 0);
+}
+// held boons as a compact icon strip in the combat topbar
+function renderCombatBoons() {
+  const el = document.getElementById('combat-boons'); if (!el) return;
+  const boons = runBoons();
+  el.innerHTML = boons.map(b => `<span class="cb-boon" data-boon="${b.id}" style="--tint:${HEROES[b.hero].tint}" title="${HEROES[b.hero].name}’s ${b.name} — ${b.desc.replace(/<[^>]+>/g, '')}">${b.icon}</span>`).join('');
+  el.classList.toggle('hidden', !boons.length);
+}
+// FEEDBACK when a boon fires — a chip pulse in the topbar, and (for discrete
+// procs) a labelled pop over the hero, so gifts are FELT the moment they trigger.
+function boonProc(heroId, boonId, opts) {
+  const b = BOON_BY_ID[boonId]; if (!b) return;
+  if (!(opts && opts.quiet)) { try { popupAt(figEl(heroId), '✦ ' + b.name.toUpperCase(), 'boon'); } catch (_) {} }
+  const el = document.getElementById('combat-boons');
+  const chip = el && el.querySelector(`[data-boon="${boonId}"]`);
+  if (chip) { chip.classList.remove('cb-proc'); void chip.offsetWidth; chip.classList.add('cb-proc'); }
 }
 
 // IN-RUN FORGING — the temporary (per-descent) ember sink.  At a campfire you
@@ -1166,6 +1182,13 @@ const EVENTS_V2 = {
     lines: ['A voice repeats a conversation the party half-remembers having.', 'Stay and listen, or press on before it learns your names.'],
     a: { icon: '♡', label: 'LISTEN', effect: 'Heal <b>3</b> · deepen your weakest bond <b>+1</b>.', fx: () => { _healParty(3); _bumpWeakestBond(); } },
     b: { icon: '▲', label: 'PRESS ON', effect: 'Open the next fight with <span class="kw kw-rally">▲ RALLY +2</span>.', fx: () => { RUN.campEdge = true; } },
+  },
+  // A companion moment — the third BOON source (alongside elites and the fire).
+  companion: {
+    title: 'A QUIET WORD', eyebrow: 'A CROSSROADS',
+    lines: ['One of them falls into step beside you, turning something over in their hands.', 'They’ve been meaning to show you how they do a certain thing.'],
+    a: { icon: '✦', label: 'HEAR THEM OUT', effect: 'A companion shares how they fight — <b>draw 1 of 3</b>.', boon: true },
+    b: { icon: '✚', label: 'KEEP MOVING', effect: 'Press on · the party heals <b>4</b>.', fx: () => _healParty(4) },
   },
 };
 
@@ -2188,6 +2211,8 @@ async function resolveCard(card, targetId) {
       if (owner && owner.chill) { amt = Math.max(0, amt - owner.chill); popupAt(figEl(owner.id), '❄ −' + owner.chill, 'chill'); owner.chill = 0; }
       amt += tgt.mark || 0;
       amt += passiveDmg(owner, tgt);   // EXPOSED-exploiter passives (Opportunist / Hunter's Focus)
+      // subtle feedback when a damage-tuning BOON is lifting this hit (chip pulse, no popup spam)
+      if (owner) runBoons().forEach(b => { if (b.trigger === 'dmgMod' && b.mod && (b.mod(owner, tgt) || 0) > 0) boonProc(owner.id, b.id, { quiet: true }); });
       // FOLLOW-UP: striking an enemy an ally already hit this turn is a
       // combo — +2 damage, and fighting together forms a thread between
       // the two attackers (Concept 3: following up strengthens bonds).
@@ -3909,8 +3934,13 @@ function showEvent(n) {
     <div class="ev-choices">${choice(ev.a, 'ev-a')}${choice(ev.b, 'ev-b')}</div>
   `, 'event-screen');
   const finish = (choice) => {
-    choice.fx();
     if (!RUN.completed.includes(n.id)) RUN.completed.push(n.id);
+    if (choice.boon) {   // this branch offers a companion's gift — into the draft
+      saveRun();
+      showBoonDraft(() => showMap(), { eyebrow: ev.title.toUpperCase(), title: 'A COMPANION’S GIFT', flavor: 'They show you a piece of how they fight. Take one — it holds until you fall.' });
+      return;
+    }
+    if (choice.fx) choice.fx();
     saveRun();
     showMap();
   };
@@ -4424,8 +4454,10 @@ function showBoonDraft(onDone, opts) {
   shuffled.forEach(b => { if (picks.length < 3 && !usedHeroes.has(b.hero)) { picks.push(b); usedHeroes.add(b.hero); } });
   shuffled.forEach(b => { if (picks.length < 3 && picks.indexOf(b) < 0) picks.push(b); });
   const cardHtml = (b) => `
-    <button class="boon-card" id="boon-${b.id}">
-      <span class="boon-icon" style="--tint:${HEROES[b.hero].tint}">${b.icon}</span>
+    <button class="boon-card" id="boon-${b.id}" style="--tint:${HEROES[b.hero].tint}">
+      <span class="boon-portrait">${V2PORTRAITS[b.hero] || ''}</span>
+      <span class="boon-scrim"></span>
+      <span class="boon-medallion">${b.icon}</span>
       <span class="boon-body">
         <span class="boon-from">${HEROES[b.hero].name}’S GIFT</span>
         <span class="boon-name">${b.name}</span>
@@ -4655,6 +4687,7 @@ function renderAll() {
   renderBattlefield();
   renderThreads();
   renderResonance();
+  renderCombatBoons();
   renderActionBar();
 }
 // The fight backdrop shows only during battle (S set) and only if the player
