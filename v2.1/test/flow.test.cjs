@@ -632,6 +632,22 @@ const QUICK = process.argv.includes('--quick');
   check('AIM: drag played the card on the SNAPPED target (wraith took 4, husk untouched)',
     await J((o) => S.enemies[1].hp === o.w - 4 && S.enemies[0].hp === o.h, { w: wraithHp0, h: huskHp0 }),
     await J(() => 'husk:'+S.enemies[0].hp+' wraith:'+S.enemies[1].hp));
+  // REGRESSION: a release that never reaches the card (lost capture / re-render)
+  // must still end the drag and clear the aim beam — no orphaned reticle.
+  check('AIM: a release that MISSES the card still ends the drag (no stuck beam)',
+    await J(() => {
+      startFight({ type: 'fight', chapter: 3, useRunHp: true, heroes: ['hask', 'elin'], enemies: ['husk', 'wraith'] });
+      S.heroes.find(h => h.id === 'hask').row = 'mid'; S.ep = S.maxEp; renderAll();
+      const c = document.querySelector('#hand .card[data-card-name="Ice Bolt"]'); if (!c) return false;
+      const r = c.getBoundingClientRect(), mx = r.left + r.width / 2, my = r.top + r.height / 2;
+      c.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 8, clientX: mx, clientY: my }));
+      c.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerId: 8, clientX: mx, clientY: my - 70 }));   // lift toward the field
+      const dragging = c.classList.contains('card-dragging');
+      // the pointerup lands on WINDOW, not the card (capture lost) — the safety net must still finish
+      window.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 8, clientX: mx, clientY: my }));
+      const ended = !document.querySelector('#hand .card.card-dragging') && !document.querySelector('.fig-snapped');
+      return dragging && ended;
+    }));
 
   // ---------- MOMENTUM: technical detonation + all-out burst ----------
   console.log('--- MOMENTUM ---');

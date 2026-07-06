@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 39;
+const V2_BUILD = 40;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -1381,7 +1381,7 @@ function attachDrag(el, card) {
   let ptrX = 0, ptrY = 0, originX = 0, originY = 0;
   let curTX = 0, curTY = 0, curEX = 0, curEY = 0, vel = 0, angle = 0, raf = 0;
   let snapped = null, _aimTech = false, holdT = null, inspecting = false;
-  let canSac = false, canPlay = false, overEp = false;
+  let canSac = false, canPlay = false, overEp = false, winUp = null;
   const sc = () => _sscale();
   // Is the pointer over the EP dial (the sacrifice drop-target)?  Generous pad.
   const epOrbHit = (x, y) => {
@@ -1396,6 +1396,13 @@ function attachDrag(el, card) {
     if (pid !== null) return;   // a gesture is already in flight — don't let a second touch hijack it
     pid = e.pointerId; startX = e.clientX; startY = e.clientY; ptrX = e.clientX; ptrY = e.clientY; dragging = false; inspecting = false;
     try { el.setPointerCapture(pid); } catch (_) {}
+    // SAFETY NET — if a re-render swaps this card out or capture is lost, the
+    // card's own pointerup never fires and the aim beam/raf would stick.  A
+    // window capture listener guarantees finish() ALWAYS runs on release.
+    if (winUp) { window.removeEventListener('pointerup', winUp, true); window.removeEventListener('pointercancel', winUp, true); }
+    winUp = (ev) => finish(ev);
+    window.addEventListener('pointerup', winUp, true);
+    window.addEventListener('pointercancel', winUp, true);
     // PRESS & HOLD to INSPECT — a big MtG-style enlarge of the card (works on
     // any card, even one you can't afford or have spent).  A drag or a quick
     // release cancels it.
@@ -1539,6 +1546,7 @@ function attachDrag(el, card) {
   }
   const finish = (e) => {
     if (pid === null || (e && e.pointerId !== pid)) return;   // ignore stray / second-pointer releases
+    if (winUp) { window.removeEventListener('pointerup', winUp, true); window.removeEventListener('pointercancel', winUp, true); winUp = null; }
     clearTimeout(holdT);
     try { el.releasePointerCapture(pid); } catch (_) {}
     pid = null; cancelAnimationFrame(raf);
