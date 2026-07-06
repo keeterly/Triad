@@ -1758,6 +1758,12 @@ button.map-node:not(:disabled) { cursor: pointer; }
   background: radial-gradient(ellipse 66% 76% at 52% 50%, rgba(150,90,224,0.36), rgba(58,28,96,0.2) 46%, transparent 72%);
 }
 #enemy-half.boss-maw .figure.floor-boss .fig-art svg { filter: drop-shadow(0 14px 30px rgba(0,0,0,0.9)) drop-shadow(0 0 40px rgba(150,90,224,0.5)) hue-rotate(255deg) saturate(0.95); }
+/* THE SUNDERING — a cold, spectral cyan unraveling (weak to SONG); reads apart
+   from the Echo Knight's red and the Maw's amethyst */
+#enemy-half.has-floor-boss.boss-sunder::before {
+  background: radial-gradient(ellipse 66% 76% at 52% 50%, rgba(120,224,208,0.32), rgba(34,86,92,0.2) 46%, transparent 72%);
+}
+#enemy-half.boss-sunder .figure.floor-boss .fig-art svg { filter: drop-shadow(0 14px 30px rgba(0,0,0,0.9)) drop-shadow(0 0 40px rgba(120,224,208,0.5)) hue-rotate(150deg) saturate(0.7) brightness(1.05); }
 .figure.floor-boss {
   position: relative; z-index: 1;
   width: 100%; max-width: 100%; height: 100%;

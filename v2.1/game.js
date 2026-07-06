@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 56;
+const V2_BUILD = 57;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -782,6 +782,23 @@ const ENEMY_DEFS = {
       { name: 'THE GREAT GORGE', dmg: 7, row: 'all', heavy: true, drain: 0.4, attackArt: 'blast', parry: { kind: 'seq', notes: [{ t: 'hold' }, { t: 'tap' }, { t: 'swipe', arc: 'arcU' }, { t: 'tap' }, { t: 'hold' }] } },
     ],
   },
+  // FLOOR 3 boss — a wholly different threat: it does not out-HP or out-drain
+  // you, it attacks the KIZUNA itself.  A SEVER strike cuts a formed thread,
+  // undoing your resonance progress — the only foe that fights the bond system
+  // the whole game is built on.  Weak to SONG (♫ — harmony mends what it cuts).
+  // Its blows are cutting strokes you DEFLECT (swipe-heavy parries).  A PERFECT
+  // parry holds the thread together; miss it and the bond snaps.
+  echosunder: {
+    weak: 'song', name: 'THE SUNDERING', maxHp: 152, boss: true, floorBoss: true, art: 'echoknight', aura: 'sunder',
+    attacksPerRound: 2,
+    intents: [
+      { name: 'Cut the Thread', dmg: 6, row: 'front', sever: 1, attackArt: 'slash', parry: { kind: 'seq', notes: [{ t: 'swipe', arc: 'arcR' }, { t: 'tap' }] } },
+      { name: 'The Unmaking', kind: 'buff', desc: 'it unravels the world', powerSelf: 3 },
+      { name: 'Isolation', dmg: 8, row: 'mid', chill: 1, attackArt: 'claw', parry: { kind: 'seq', notes: [{ t: 'tap' }, { t: 'swipe', arc: 'arcL' }, { t: 'tap' }] } },
+      { name: 'Fraying Chord', dmg: 5, row: 'back', sever: 1, attackArt: 'blast', parry: { kind: 'seq', notes: [{ t: 'swipe', arc: 'arcU' }, { t: 'tap' }] } },
+      { name: 'THE GREAT UNRAVELING', dmg: 12, row: 'all', heavy: true, sever: 3, attackArt: 'blast', parry: { kind: 'seq', notes: [{ t: 'tap' }, { t: 'swipe', arc: 'arcAcross' }, { t: 'tap' }, { t: 'swipe', arc: 'arcU' }, { t: 'hold' }] } },
+    ],
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -1192,7 +1209,7 @@ function generateDescent(roster, floor) {
       else if (type === 'event')   { node.eventId = eventQ[eventI++ % eventQ.length]; node.label = lbl.event(); }
       else if (type === 'camp')    { node.label = lbl.camp(); }
       else if (type === 'recruit') { node.hero = recruitAtLevel[level]; node.label = RECRUIT_NODE_LABELS[node.hero] || 'A NEW THREAD'; }
-      else if (type === 'boss')    { node.enemies = [floor >= 2 ? 'echodevourer' : 'echoknight2']; node.isBoss = true; node.floorBoss = true; node.label = floor >= 2 ? 'THE HOLLOW MAW' : lbl.boss(); }
+      else if (type === 'boss')    { const bid = floor >= 3 ? 'echosunder' : floor >= 2 ? 'echodevourer' : 'echoknight2'; node.enemies = [bid]; node.isBoss = true; node.floorBoss = true; node.label = floor >= 3 ? 'THE SUNDERING' : floor >= 2 ? 'THE HOLLOW MAW' : lbl.boss(); }
       nodes[idc] = node; ids.push(idc); idc++;
     });
     levels.push(ids);
@@ -1337,7 +1354,7 @@ function newRun(starterId) {
     done: false,
   };
 }
-const FLOORS = 2;         // total floors in a full descent
+const FLOORS = 3;         // total floors in a full descent
 const BOND_KINDLED = 2;
 const bondPts = (k) => (RUN && RUN.bonds && RUN.bonds[k]) || 0;
 function saveRun() { try { localStorage.setItem(RUN_KEY, RUN ? JSON.stringify(RUN) : ''); } catch (_) {} }
@@ -3639,6 +3656,9 @@ async function enemyPhase() {
       popupAt(figEl(e.uid), 'MISS', 'info');
       flashNarrator(e.def.name + '’s ' + intent.name + ' finds an empty row.');
     }
+    // SEVER — THE SUNDERING cuts a formed thread, undoing resonance progress.
+    // A PERFECT parry holds the bond together; otherwise the thread snaps.
+    if (intent.sever && !perfectParry) severThreads(e, intent.sever);
     renderAll();
     await sleep(400);
     if (checkEnd()) break;
@@ -3651,6 +3671,27 @@ async function enemyPhase() {
   }
 }
 
+// THE SUNDERING's signature: cut up to `count` formed threads, undoing your
+// resonance progress (a broken triangle can no longer speak the vow).
+function severThreads(e, count) {
+  if (!S.threads || !S.threads.size) return 0;
+  const keys = [...S.threads];
+  const cut = Math.min(count, keys.length);
+  for (let i = 0; i < cut; i++) {
+    const k = keys.splice(Math.floor(Math.random() * keys.length), 1)[0];
+    if (!k) break;
+    S.threads.delete(k);
+    const [a, b] = k.split('|');
+    popupAt(figEl(a), '✂ SEVERED', 'dmg'); popupAt(figEl(b), '✂ SEVERED', 'dmg');
+  }
+  if (cut) {
+    S.triadFormed = false; S.resonantHostId = null;
+    flashNarrator((e && e.def ? e.def.name : 'It') + ' SEVERS your bonds — the thread snaps.');
+    try { SFX.deny(); } catch (_) {}
+    renderResonance();
+  }
+  return cut;
+}
 function checkEnd() {
   if (S.over) return true;
   if (!livingEnemies().length) { S.over = true; onVictory(); return true; }
@@ -3756,7 +3797,7 @@ function onFloorCleared() {
     <div class="ov-eyebrow" style="color:var(--gold-bright)">FLOOR ${RUN.floor - 1} · CLEARED</div>
     <div class="ov-title" style="font-size:24px">THE FLOOR GIVES WAY</div>
     <div class="ov-lines" style="text-align:center; min-height:0;">
-      <div class="ov-line">The Echo shatters — and the ground beneath it opens onto a <b>deeper dark</b>.</div>
+      <div class="ov-line">The colossus shatters — and the ground beneath it opens onto a <b>deeper dark</b>.</div>
       <div class="ov-line">Down here the dead are <b>older, hungrier — and they learn</b>. Your kindled skills descend with you… but so does the price of falling.</div>
     </div>
     <button class="ov-btn primary" id="ov-deeper">DESCEND · FLOOR ${RUN.floor}</button>
@@ -4044,6 +4085,8 @@ const BOSS_CINE = {
     quote: 'You buried me once. I have counted every hand that threw the dirt.' },
   echodevourer: { name: 'THE HOLLOW MAW', epithet: 'IT HUNGERS', eye: '#a86bff', roar: 'maw',
     quote: 'Down here, everything is food. Even the little light you carry.' },
+  echosunder:   { name: 'THE SUNDERING', epithet: 'IT CUTS THE THREADS', eye: '#8fe0d0', roar: 'maw',
+    quote: 'Every bond you tie, I have already cut. You came down together — you will not leave that way.' },
 };
 let _bossCineBusy = false;
 function bossIntro(bossId, onDone) {
@@ -4861,7 +4904,8 @@ function renderBattlefield() {
   // the three-slot line.
   const fboss = S.enemies.find(x => x.def.floorBoss && (!x.dead || x._justDied));
   enemyHalf.classList.toggle('has-floor-boss', !!fboss);
-  enemyHalf.classList.toggle('boss-maw', !!(fboss && fboss.def.aura === 'maw'));   // the Maw glows a sickly, hungry green
+  enemyHalf.classList.toggle('boss-maw', !!(fboss && fboss.def.aura === 'maw'));      // the Maw glows a sickly amethyst
+  enemyHalf.classList.toggle('boss-sunder', !!(fboss && fboss.def.aura === 'sunder'));  // the Sundering glows spectral cyan
   if (fboss) { renderFloorBoss(enemyHalf, fboss, targeting); return; }
   _bossFig = null;
   enemyHalf.innerHTML = '';

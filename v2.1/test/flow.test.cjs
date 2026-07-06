@@ -1693,6 +1693,27 @@ const QUICK = process.argv.includes('--quick');
       return ok;
     }));
 
+  // ---------- FLOOR 3: THE SUNDERING — a bond-cutting boss ----------
+  console.log('--- FLOOR 3 ---');
+  check('FLOOR 3: the descent now runs THREE floors', await J(() => FLOORS === 3));
+  check('FLOOR 3: a third floor generates THE SUNDERING as its boss',
+    await J(() => {
+      const map = generateDescent(['ash', 'elin', 'mira'], 3);
+      const boss = map.find(n => n.isBoss);
+      return !!boss && boss.enemies[0] === 'echosunder' && !!ENEMY_DEFS.echosunder && !!ENEMY_DEFS.echosunder.floorBoss && ENEMY_DEFS.echosunder.weak === 'song';
+    }));
+  check('FLOOR 3: the Sundering’s intents carry the SEVER mechanic (unique to it)',
+    await J(() => ENEMY_DEFS.echosunder.intents.some(i => i.sever) && !ENEMY_DEFS.echoknight2.intents.some(i => i.sever) && !ENEMY_DEFS.echodevourer.intents.some(i => i.sever)));
+  check('SUNDERING: a SEVER strike cuts a formed thread and un-forms the triad',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash', 'elin', 'mira']; RUN.active = ['ash', 'elin', 'mira']; RUN.hp = { ash: 32, elin: 24, mira: 22 };
+      RUN.nodes = []; RUN.completed = [0, 1, 2, 3, 4, 5];
+      startFight({ type: 'fight', chapter: 3, heroes: ['ash', 'elin', 'mira'], enemies: ['echosunder'], useRunHp: true, floor: 3, depth: 7, isBoss: true, narrator: '' });
+      S.threads = new Set(['ash|elin', 'ash|mira', 'elin|mira']); S.triadFormed = true;
+      const cut = severThreads(S.enemies[0], 1);
+      return cut === 1 && S.threads.size === 2 && S.triadFormed === false;
+    }));
+
   t.report();
   await t.browser.close();
 })().catch(e => { console.error('FATAL', e.message); process.exit(1); });
