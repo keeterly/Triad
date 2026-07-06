@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 48;
+const V2_BUILD = 49;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -5338,7 +5338,6 @@ function showEmberTree(onBack, heroId, selId) {
           <svg class="et-links" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${ringSvg}${linkSvg}</svg>
           ${rootOrb}${orbs}
         </div>
-        <span class="et-pan-hint">⤢ drag to pan</span>
       </div>
       <div class="et-side">
         ${!treeTaught() ? `<div class="et-coach">Tap a <b>lit node</b>, then press <b>KINDLE</b> — the skill joins ${HEROES[heroId].name}’s hand for this descent.</div>` : ''}

@@ -2019,8 +2019,6 @@ button.map-node:not(:disabled) { cursor: pointer; }
 /* the constellation sits in a fixed-size layer, centred a touch LEFT so the
    floating detail panel doesn't cover it; drag translates it (JS transform). */
 .et-pan { position: absolute; left: 42%; top: 50%; width: 340px; height: 340px; margin: -170px 0 0 -170px; will-change: transform; }
-.et-pan-hint { position: absolute; left: 16px; bottom: 12px; z-index: 4; font-size: 8px; letter-spacing: 0.16em;
-  color: var(--ink-faint); opacity: 0.5; pointer-events: none; text-transform: uppercase; }
 /* the detail rail floats over the field on the right, on a soft gradient that
    fades in from transparent so nodes behind its left edge stay readable */
 .et-side { position: absolute; top: 0; right: 0; bottom: 0; width: 316px; padding: 18px 24px; z-index: 5;
