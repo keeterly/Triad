@@ -1400,6 +1400,44 @@ const QUICK = process.argv.includes('--quick');
         && !!localStorage.getItem(SETTINGS_KEY);   // settings kept
     }));
 
+  // ---------- DUET: a kindled PAIR + a shared act awakens a 2-hero vow ----------
+  console.log('--- DUET ---');
+  const duetSetup = await J(() => {
+    RUN = newRun('ash');
+    RUN.roster = ['ash', 'elin']; RUN.active = ['ash', 'elin'];
+    RUN.hp = { ash: 20, elin: 24 };
+    RUN.bonds = {}; RUN.bonds[pairKey('ash', 'elin')] = 2;   // KINDLED across the run
+    startMapFight(RUN.map.find(x => x.type === 'fight'));
+    return { pre: [...S.threads] };
+  });
+  await sleep(200);
+  check('DUET: a kindled pair walks in with its thread PRE-FORMED',
+    duetSetup.pre.length === 1 && duetSetup.pre[0] === 'ash|elin', JSON.stringify(duetSetup.pre));
+  await J(async () => { await addThread('ash', 'elin'); });   // the shared act this fight
+  await sleep(300);
+  check('DUET: the shared act forged the pair vow (Warded Edge · 3 EP)',
+    await J(() => { const d = S.tempCards.find(c => c.fx && c.fx.duet); return !!d && d.name === 'Warded Edge' && d.cost === 3; }),
+    await J(() => JSON.stringify(S.tempCards.map(c => c.name))));
+  check('DUET: it supersedes the generic Echo Bond', await J(() => !S.tempCards.find(c => c.name === 'Echo Bond')));
+  check('DUET: costs 3 EP not the whole turn — playable now',
+    await J(() => { const el = [...document.querySelectorAll('#hand .card')].find(x => x.dataset.cardName === 'Warded Edge'); return !!el && !el.classList.contains('disabled'); }));
+  const dBefore = await J(() => ({ hp: S.enemies[0].hp, ep: S.ep }));
+  await tapCard('Warded Edge'); await sleep(1500);
+  const dAfter = await J(() => ({ hp: S.enemies[0].hp, guards: S.heroes.map(h => h.guard), ep: S.ep, gone: !S.tempCards.find(c => c.fx && c.fx.duet) }));
+  check('DUET: resolves — both guard +4, foe struck 5, 3 EP spent, card consumed',
+    dAfter.guards.every(g => g >= 6) && dAfter.hp === dBefore.hp - 5 && dAfter.ep === dBefore.ep - 3 && dAfter.gone,
+    JSON.stringify({ dBefore, dAfter }));
+  const noDuet = await J(async () => {
+    RUN = newRun('ash');
+    RUN.roster = ['ash', 'mira']; RUN.active = ['ash', 'mira'];
+    RUN.hp = { ash: 32, mira: 22 }; RUN.bonds = {};   // un-kindled
+    startMapFight(RUN.map.find(x => x.type === 'fight'));
+    await addThread('ash', 'mira');
+    return { duet: !!S.tempCards.find(c => c.fx && c.fx.duet), echo: !!S.tempCards.find(c => c.name === 'Echo Bond') };
+  });
+  check('DUET: an UN-kindled pair awakens no vow (falls back to Echo Bond)',
+    !noDuet.duet && noDuet.echo, JSON.stringify(noDuet));
+
   t.report();
   await t.browser.close();
 })().catch(e => { console.error('FATAL', e.message); process.exit(1); });

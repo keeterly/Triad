@@ -666,6 +666,109 @@ const RESONANT_FALLBACK = {
 };
 
 // ---------------------------------------------------------------------------
+// DATA — DUET VOWS.  Where the triad is three threads held at once, a DUET is
+// a single KINDLED bond (2+ points earned across the run) that a SHARED ACT in
+// battle awakens — a pair's smaller, personal resonance.  Keyed by the two
+// classes (sorted, '+').  Stage fx verbs are PAIR-scoped:
+//   aoeDmg hitFrontmost pairHeal pairGuard guardFront pairRally pairCounter
+//   markFront markAll lullAll
+// A duet costs DUET_COST (not your whole turn) and deepens like a vow.
+// ---------------------------------------------------------------------------
+const DUET_COST = 3;
+const RESONANT_PAIRS = {
+  'Cleric+Ronin': {   // Elin + Ash — the healer wards, the blade answers
+    name: 'Warded Edge', type: 'Offense',
+    desc: 'Both gain 4 guard · strike ALL enemies 5.',
+    stages: [
+      { text: 'her light closes around his guard', fx: { pairGuard: 4 } },
+      { text: 'and he answers every line',          fx: { aoeDmg: 5 } },
+    ],
+  },
+  'Reaver+Ronin': {   // Mira + Ash — two blades open the same wound
+    name: 'Twin Edge', type: 'Offense',
+    desc: 'EXPOSE every enemy (+2) · strike ALL enemies 6.',
+    stages: [
+      { text: 'two blades find the same seam', fx: { markAll: 2 } },
+      { text: 'and open it together',          fx: { aoeDmg: 6 } },
+    ],
+  },
+  'Cleric+Reaver': {   // Elin + Mira — mercy, then the killing stroke
+    name: 'Silent Mercy', type: 'Offense',
+    desc: 'Both heal 5 · 9 to the NEAREST enemy.',
+    stages: [
+      { text: 'she mends what the dark spared', fx: { pairHeal: 5 } },
+      { text: 'and the shadow ends the rest',   fx: { hitFrontmost: 9 } },
+    ],
+  },
+  'Guardian+Ronin': {   // Cassia + Ash — she holds the gate, he cuts through it
+    name: 'Shield & Sword', type: 'Offense',
+    desc: 'FRONT hero gains 6 guard · strike ALL enemies 5.',
+    stages: [
+      { text: 'the wall sets its feet',   fx: { guardFront: 6 } },
+      { text: 'and the blade leaps past it', fx: { aoeDmg: 5 } },
+    ],
+  },
+  'Guardian+Cleric': {   // Cassia + Elin — an unbroken line
+    name: 'Sanctified Wall', type: 'Defense',
+    desc: 'Both gain 6 guard · both heal 5.',
+    stages: [
+      { text: 'the wall is blessed', fx: { pairGuard: 6 } },
+      { text: 'and made whole',      fx: { pairHeal: 5 } },
+    ],
+  },
+  'Guardian+Reaver': {   // Cassia + Mira — the wall names the mark
+    name: 'Wall & Whisper', type: 'Defense',
+    desc: 'Both gain 5 guard · EXPOSE every enemy (+3).',
+    stages: [
+      { text: 'the wall holds', fx: { pairGuard: 5 } },
+      { text: 'while the shadow marks them all', fx: { markAll: 3 } },
+    ],
+  },
+  'Ranger+Ronin': {   // Branwen + Ash — she marks, he charges the mark
+    name: 'Marked Charge', type: 'Offense',
+    desc: 'EXPOSE every enemy (+3) · strike ALL enemies 5.',
+    stages: [
+      { text: 'she names the wounds from range', fx: { markAll: 3 } },
+      { text: 'and he charges every one',        fx: { aoeDmg: 5 } },
+    ],
+  },
+  'Cleric+Ranger': {   // Elin + Branwen — covered while she draws
+    name: 'Covered Advance', type: 'Utility',
+    desc: 'Both heal 5 · EXPOSE every enemy (+3).',
+    stages: [
+      { text: 'she tends the line', fx: { pairHeal: 5 } },
+      { text: 'so the volley can mark them all', fx: { markAll: 3 } },
+    ],
+  },
+  'Ranger+Reaver': {   // Branwen + Mira — two hunters, one kill order
+    name: 'Kill Order', type: 'Offense',
+    desc: 'EXPOSE every enemy (+3) · 10 to the NEAREST enemy.',
+    stages: [
+      { text: 'two hunters call the same mark', fx: { markAll: 3 } },
+      { text: 'and the killshot lands',         fx: { hitFrontmost: 10 } },
+    ],
+  },
+  'Guardian+Ranger': {   // Cassia + Branwen — anvil and arrow
+    name: 'Anvil & Arrow', type: 'Offense',
+    desc: 'FRONT hero gains 5 guard · 10 to the NEAREST enemy.',
+    stages: [
+      { text: 'the anvil holds them fast', fx: { guardFront: 5 } },
+      { text: 'and the arrow drives home', fx: { hitFrontmost: 10 } },
+    ],
+  },
+};
+const DUET_FALLBACK = {
+  name: 'Shared Vow', type: 'Offense',
+  desc: 'Both gain 4 guard · strike ALL enemies 5.',
+  stages: [
+    { text: 'the two move as one', fx: { pairGuard: 4 } },
+    { text: 'and strike as one',   fx: { aoeDmg: 5 } },
+  ],
+};
+function duetClassKey(a, b) { return [HEROES[a].cls, HEROES[b].cls].sort().join('+'); }
+function duetFor(a, b) { return RESONANT_PAIRS[duetClassKey(a, b)] || DUET_FALLBACK; }
+
+// ---------------------------------------------------------------------------
 // DATA — the tutorial chapters (unchanged), then THE DESCENT map.
 // ---------------------------------------------------------------------------
 const FLOW = [
@@ -1060,6 +1163,7 @@ function newBattle(node) {
     maxEp: 2 + heroes.length, ep: 2 + heroes.length,
     used: new Set(),
     threads,
+    pairsAwake: new Set(),   // kindled pairs whose DUET has awakened THIS fight
     tempCards: [], _tuid: 0, channelUsed: false,
     momentum: 0, combo: 0, comboBest: 0, allOutUsed: 0,
     triadFormed: false, resonantUsed: false, resonantNew: false,
@@ -1192,7 +1296,7 @@ function mkResonantCard(host) {
 function onCardTap(card) {
   if (S.executing || S.over || card.spent) return;
   if (card.cost > S.ep) { flashNarrator('Not enough EP.'); return; }
-  if (card.kind === 'resonant' && S.ep < S.maxEp) {
+  if (card.kind === 'resonant' && !card.pair && S.ep < S.maxEp) {
     flashNarrator('The Vow needs your ENTIRE turn — play it first.');
     return;
   }
@@ -1279,6 +1383,13 @@ function fieldTargets(card) {
   const fx = card.fx || {};
   if (fx.notToday)  return fx.notToday.map(id => figEl(id)).filter(Boolean);
   if (fx.bondPair)  return fx.bondPair.map(id => figEl(id)).filter(Boolean);
+  if (fx.duet) {
+    // The duet lights its OWN pair, plus every foe if a stage strikes.
+    const dfx = {}; (duetFor(fx.pairIds[0], fx.pairIds[1]).stages || []).forEach(st => Object.assign(dfx, st.fx || {}));
+    const els = fx.pairIds.map(id => figEl(id)).filter(Boolean);
+    if (dfx.aoeDmg || dfx.hitFrontmost || dfx.markAll || dfx.markFront || dfx.lullAll) enemyFigEls().forEach(e => els.push(e));
+    return els;
+  }
   if (fx.resonant) {
     // The vow sweeps the whole board: rally the party, strike every foe.
     const rfx = {}; (triadEntry().stages || []).forEach(st => Object.assign(rfx, st.fx || {}));
@@ -1564,7 +1675,7 @@ function attachDrag(el, card) {
     const cancelled = e.clientY > handTop - 8;
     const { mode } = dragTargets(card);
     if (!cancelled && mode === 'field') {
-      if (card.kind === 'resonant' && S.ep < S.maxEp) { flashNarrator('The Vow needs your ENTIRE turn — play it first.'); springBack(el); return; }
+      if (card.kind === 'resonant' && !card.pair && S.ep < S.maxEp) { flashNarrator('The Vow needs your ENTIRE turn — play it first.'); springBack(el); return; }
       playCard(card, null); return;
     }
     if (!cancelled && snapped && snapped.dataset) { playCard(card, snapped.dataset.fig); return; }
@@ -1831,7 +1942,7 @@ async function resolveCard(card, targetId) {
     return;
   }
 
-  if (card.kind === 'resonant') { await resolveResonant(); return; }
+  if (card.kind === 'resonant') { if (card.pair) { await resolveDuet(card); return; } await resolveResonant(); return; }
 
   const fx = card.fx || {};
   if (fx.notToday) {
@@ -2517,14 +2628,20 @@ function parryFlash(el) {
 
 async function addThread(a, b) {
   const key = pairKey(a, b);
-  if (S.threads.has(key)) { await checkTriad(a); return; }   // kindled threads awaken on any help
+  // A KINDLED pair (thread pre-formed at fight start) awakens its DUET on the
+  // FIRST act of help this fight — the "kindled bond + a shared act" trigger.
+  if (S.threads.has(key)) { await awakenDuet(a, b); await checkTriad(a); return; }
   S.threads.add(key);
   sparkThread(a, b);       // a single arc of connection, then it fades
   renderResonance();       // update the RESONANCE badge (edge lights up)
   SFX.thread();
+  // If this newly-threaded pair is ALREADY kindled from earlier fights, this
+  // very act awakens their duet — and it stands in for the generic Echo Bond.
+  const kindledNow = bondPts(key) >= BOND_KINDLED;
+  const duetAwoke = kindledNow ? await awakenDuet(a, b) : false;
   // The fight's FIRST bond materializes an Echo Bond — a card the pair
   // shares, stronger if the two are already kindled (progression made card).
-  if (!S._echoBondGiven) {
+  if (!duetAwoke && !S._echoBondGiven) {
     S._echoBondGiven = true;
     const kindled = bondPts(key) >= BOND_KINDLED;
     genTempCard({ kind: 'temp', owner: 'bond', ownerName: HEROES[a].name + ' + ' + HEROES[b].name,
@@ -2922,6 +3039,79 @@ async function resolveResonant() {
 }
 
 // ---------------------------------------------------------------------------
+// DUET — a kindled pair's shared resonance.  Lighter than the triad: no field
+// freeze, no full-turn cost — a bright beat and a card forged into the hand.
+// ---------------------------------------------------------------------------
+function forgeDuetCard(card) {
+  // A duet is a MAJOR moment — it bypasses the 3-card temp cap so it always lands.
+  card.temp = true;
+  card.uid = ++S._tuid;
+  S.tempCards.push(card);
+  S._tempNew = card.uid;
+  SFX.card();
+}
+async function awakenDuet(a, b) {
+  const key = pairKey(a, b);
+  if (bondPts(key) < BOND_KINDLED) return false;            // only KINDLED bonds can awaken
+  S.pairsAwake = S.pairsAwake || new Set();
+  if (S.pairsAwake.has(key)) return false;                  // once per fight
+  const ha = S.heroes.find(x => x.id === a), hb = S.heroes.find(x => x.id === b);
+  if (!ha || ha.downed || !hb || hb.downed) return false;
+  S.pairsAwake.add(key);
+  const d = duetFor(a, b);
+  const rank = vowRank(duetClassKey(a, b));
+  const suffix = rank > 1 ? ' ' + ROMAN[rank] : '';
+  // The awaken beat — mirrors the triad's spark WITHOUT freezing the field.
+  sparkThread(a, b);
+  SFX.thread();
+  cineFlash('rgba(240,212,136,0.4)');
+  flashNarrator('✦ DUET — ' + HEROES[a].name + ' & ' + HEROES[b].name + ' awaken ' + d.name + suffix);
+  forgeDuetCard({
+    kind: 'resonant', pair: true, pairIds: [a, b], owner: 'duet',
+    ownerName: HEROES[a].name + ' & ' + HEROES[b].name,
+    tint: 'var(--gold-bright)', stance: 'DUET',
+    name: d.name + suffix, cost: DUET_COST, target: 'none',
+    fx: { resonant: true, duet: true, pairIds: [a, b] },
+    desc: d.desc + (rank > 1 ? `  <span class="kw kw-rally">DEEPENED ×${rank - 1}</span>` : '')
+      + `  A shared vow — costs <b>${DUET_COST} EP</b>.`, spent: false });
+  renderAll();
+  return true;
+}
+async function resolveDuet(card) {
+  const [a, b] = card.pairIds || [];
+  const d = duetFor(a, b);
+  const ck = duetClassKey(a, b);
+  const rank = vowRank(ck);
+  const rankBonus = rank - 1;   // duets deepen a touch each time they're spoken
+  recordVow(ck);
+  const pair = [a, b].map(id => S.heroes.find(h => h.id === id)).filter(h => h && !h.downed);
+  flashNarrator('✦ ' + d.name + ' — ' + HEROES[a].name + ' & ' + HEROES[b].name);
+  for (const st of (d.stages || [])) {
+    flashNarrator('✦ ' + st.text);
+    const fx = Object.assign({}, st.fx || {});
+    ['aoeDmg', 'hitFrontmost', 'pairHeal', 'pairGuard', 'guardFront', 'pairRally'].forEach(k => {
+      if (fx[k]) fx[k] += rankBonus;
+    });
+    const offensive = fx.aoeDmg || fx.hitFrontmost;
+    cineFlash(offensive ? 'rgba(212,69,69,0.45)' : 'rgba(240,212,136,0.4)');
+    await sleep(160);
+    if (fx.aoeDmg) { for (const e of livingEnemies()) { dealToEnemy(e, fx.aoeDmg + (e.mark || 0)); await sleep(140); } }
+    if (fx.hitFrontmost) { const t = frontmostEnemy(); if (t) dealToEnemy(t, fx.hitFrontmost + (t.mark || 0)); }
+    if (fx.pairHeal) { for (const h of pair) { h.hp = Math.min(h.maxHp, h.hp + fx.pairHeal); popupAt(figEl(h.id), '+' + fx.pairHeal, 'heal'); SFX.heal(); await sleep(100); } }
+    if (fx.pairGuard) { for (const h of pair) { h.guard += fx.pairGuard; popupAt(figEl(h.id), '⛨ ' + fx.pairGuard, 'guard'); await sleep(80); } }
+    if (fx.guardFront) { const h = pair.find(x => x.row === 'front') || heroInRow('front'); if (h) { h.guard += fx.guardFront; popupAt(figEl(h.id), '⛨ ' + fx.guardFront, 'guard'); } }
+    if (fx.pairRally) { for (const h of pair) { h.buffDmg += fx.pairRally; popupAt(figEl(h.id), '▲ +' + fx.pairRally + ' NEXT', 'rally'); await sleep(80); } }
+    if (fx.pairCounter) pair.forEach(h => { h.counter = Math.max(h.counter, fx.pairCounter); });
+    if (fx.markFront) { const t = frontmostEnemy(); if (t) { t.mark = (t.mark || 0) + fx.markFront; popupAt(figEl(t.uid), '◎ EXPOSED +' + fx.markFront, 'info'); } }
+    if (fx.markAll) { for (const e of livingEnemies()) { e.mark = (e.mark || 0) + fx.markAll; popupAt(figEl(e.uid), '◎ EXPOSED +' + fx.markAll, 'info'); await sleep(80); } }
+    if (fx.lullAll) { for (const e of livingEnemies()) { e.lull = (e.lull || 0) + fx.lullAll; popupAt(figEl(e.uid), '❄ CHILL −' + fx.lullAll, 'chill'); await sleep(80); } }
+    renderAll();
+    await sleep(480);
+    if (checkEnd()) return;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // END TURN → enemy phase → next turn
 // ---------------------------------------------------------------------------
 async function endTurn() {
@@ -3154,6 +3344,7 @@ function onVictory() {
   addEmbers(clearBonus); S._embersRun = (S._embersRun || 0) + clearBonus;
   SFX.victory();
   setTimeout(() => {
+    if (!S) return;   // the fight was torn down before this deferred beat fired
     if (isBoss && S.node.mapId != null) { onFloorCleared(); return; }   // floor boss → deeper, or the run's end
     const th = S.threads.size;
     showOverlay(`
@@ -4420,6 +4611,21 @@ function renderActionBar() {
   const cardIcons = (card) => {
     const fx = card.fx || {};
     const dg = SCHOOL_GLYPH[card.school] || '⚔';   // element carried on the damage number
+    if (fx.duet) {
+      const rfx = {}; (duetFor(fx.pairIds[0], fx.pairIds[1]).stages || []).forEach(st => Object.assign(rfx, st.fx || {}));
+      const nfx = {};   // map PAIR-scoped verbs onto the icons fxIconStr understands
+      if (rfx.aoeDmg) nfx.aoeDmg = rfx.aoeDmg;
+      if (rfx.hitFrontmost) nfx.hitFrontmost = rfx.hitFrontmost;
+      if (rfx.pairHeal) nfx.heal = rfx.pairHeal;
+      if (rfx.pairGuard) nfx.guard = rfx.pairGuard;
+      if (rfx.guardFront) nfx.guardFront = rfx.guardFront;
+      if (rfx.pairRally) nfx.buffDmg = rfx.pairRally;
+      if (rfx.pairCounter) nfx.counter = rfx.pairCounter;
+      if (rfx.markFront) nfx.mark = rfx.markFront;
+      if (rfx.markAll) nfx.markAll = rfx.markAll;
+      if (rfx.lullAll) nfx.lullAll = rfx.lullAll;
+      return fxIconStr(nfx, false, dg);
+    }
     if (fx.resonant) { const rfx = {}; (triadEntry().stages || []).forEach(st => Object.assign(rfx, st.fx || {})); return fxIconStr(rfx, false, dg); }
     if (fx.bondPair) return `<span class="ic ic-guard">⛨${fx.bondGuard}</span><span class="ic ic-rally">▲${fx.bondRally}</span>`;
     if (fx.notToday) return `<span class="ic ic-move">⇄</span><span class="ic ic-heal">✚4</span><span class="ic ic-guard">⛨4</span><span class="ic ic-counter">↺2</span>`;
@@ -4430,6 +4636,7 @@ function renderActionBar() {
   const reachPips = (cells) => `<span class="rch-pips" title="enemy reach — front · mid · back">${cells.map(c => `<i class="rp${c ? ' on' : ''}"></i>`).join('')}</span>`;
   const cardReach = (card) => {
     const fx = card.fx || {};
+    if (fx.duet) return `<span class="rch rch-t">◈ DUET</span>`;
     if (fx.resonant) return `<span class="rch rch-t">◈ ALL</span>`;
     if (fx.notToday || fx.bondPair) return `<span class="rch rch-t">◇ BOND</span>`;
     switch (card.target) {
