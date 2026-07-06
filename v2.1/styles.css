@@ -307,7 +307,9 @@ body {
   font-size: 9.5px; padding: 1px 8px; border-radius: 999px;
   border: 1px solid rgba(212,69,69,0.4); background: rgba(24,10,10,0.9);
   color: var(--ink); margin-bottom: 2px;
+  white-space: nowrap;   /* the telegraph is always ONE crisp line — never wraps */
 }
+.intent .i-seg, .intent .i-row { white-space: nowrap; }
 .intent .i-glyph { color: var(--blood-bright); }
 .intent .i-dmg { color: var(--blood-bright); font-weight: bold; }
 .intent .i-arrow { color: var(--ink-faint); margin: 0 1px; }
@@ -477,6 +479,22 @@ body {
 .ov-btn.primary { color: var(--gold-bright); border-color: var(--gold-bright); }
 .ov-hint { font-size: 9.5px; color: var(--ink-faint); letter-spacing: 0.16em; margin-top: 12px; }
 .ov-tap { font-size: 9.5px; color: var(--ink-faint); letter-spacing: 0.22em; margin-top: 14px; animation: target-pulse 1.4s ease infinite; }
+
+/* EVENT choices — one shared two-line card (icon · ACT · consequence) so every
+   crossroads reads the same way, matching the overlay's gold-on-dark chrome. */
+.ev-choices { display: flex; gap: 14px; justify-content: center; margin-top: 4px; width: 100%; max-width: 580px; }
+.ev-choice {
+  flex: 1 1 0; display: flex; align-items: center; gap: 12px; text-align: left;
+  font-family: inherit; cursor: pointer;
+  color: var(--ink); background: rgba(22,17,13,0.9); border: 1px solid rgba(240,212,136,0.3);
+  padding: 13px 15px; border-radius: 8px; transition: border-color 0.15s, transform 0.12s, background 0.15s;
+}
+.ev-choice:hover { border-color: var(--gold-bright); background: rgba(34,26,16,0.96); transform: translateY(-2px); }
+.ev-choice-icon { font-size: 19px; line-height: 1; color: var(--gold-bright); flex: none; width: 24px; text-align: center; }
+.ev-choice-body { display: flex; flex-direction: column; gap: 3px; }
+.ev-choice-label { font-size: 12px; letter-spacing: 0.18em; color: var(--gold-bright); font-weight: 600; }
+.ev-choice-effect { font-size: 10.5px; line-height: 1.4; color: var(--ink-dim); letter-spacing: 0.02em; }
+.ev-choice-effect b { color: var(--ink); }
 
 /* triad ceremony */
 #overlay.triad-ceremony {
@@ -1696,9 +1714,10 @@ button.map-node:not(:disabled) { cursor: pointer; }
    colossus towers UPWARD and outward while its HP/name stay pinned to the
    bottom safe band — looming larger without ever covering its own vitals. */
 .figure.floor-boss .fig-art { height: 78%; max-height: 330px; margin-left: -7%; overflow: visible; transform: scale(1.34); transform-origin: 50% 100%; }
-.figure.floor-boss .intent { position: absolute; top: -6px; left: 50%; }
 .figure.floor-boss .fig-art svg { height: 100%; width: auto; filter: drop-shadow(0 16px 36px rgba(0,0,0,0.9)) drop-shadow(0 0 48px rgba(190,44,40,0.5)) drop-shadow(0 0 12px rgba(255,120,90,0.35)); }
-.figure.floor-boss .intent { transform: translateX(-50%) scale(1.3); transform-origin: top center; z-index: 4; }
+/* Intent floats above the colossus, pinned to the TOP of the enemy half (not the
+   swaying art) so it never drifts, clips, or wraps — a stable, readable banner. */
+.figure.floor-boss .intent { position: absolute; top: 4px; left: 50%; transform: translateX(-50%) scale(1.14); transform-origin: top center; z-index: 6; }
 .figure.floor-boss .fig-name { font-size: 12px; letter-spacing: 0.22em; }
 .figure.floor-boss .hp-bar { width: 78%; height: 11px; }
 .figure.floor-boss .fig-chips { transform: scale(1.12); }
@@ -1988,7 +2007,16 @@ button.map-node:not(:disabled) { cursor: pointer; }
 .et-canvas { position: relative; width: 100%; max-width: 460px; height: var(--et-h, 246px); margin: 2px auto 6px; }
 /* SPHERE GRID — grid on the left, detail rail on the right (use the landscape) */
 .et-body { display: flex; align-items: center; justify-content: center; gap: 22px; }
-.et-canvas.et-grid { width: 340px; height: 340px; max-width: 340px; margin: 0; flex: none; }
+.et-canvas.et-grid { width: 340px; height: 340px; max-width: 340px; margin: 0; flex: none; overflow: hidden; border-radius: 14px; touch-action: none; cursor: grab; }
+.et-canvas.et-grid.et-grabbing { cursor: grabbing; }
+/* the pannable constellation layer — translated by drag; fills the viewport so
+   the orbs' % positions still resolve against it */
+.et-pan { position: absolute; inset: 0; will-change: transform; }
+.et-pan-hint { position: absolute; right: 8px; bottom: 6px; z-index: 8; font-size: 8px; letter-spacing: 0.16em;
+  color: var(--ink-faint); opacity: 0.6; pointer-events: none; text-transform: uppercase; }
+/* soft edge vignette hints there's more to reach by panning */
+.et-canvas.et-grid::after { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 7; border-radius: 14px;
+  box-shadow: inset 0 0 26px 10px rgba(8,5,4,0.7); }
 .et-side { width: 250px; flex: none; display: flex; flex-direction: column; gap: 10px; }
 .et-side .et-detail { margin: 0; min-height: 132px; }
 .et-side .et-back-btn { align-self: flex-start; }

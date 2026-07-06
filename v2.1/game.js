@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 46;
+const V2_BUILD = 47;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -1087,24 +1087,26 @@ function _weakestActiveBondKey() {
   return best;
 }
 function _bumpWeakestBond() { const k = _weakestActiveBondKey(); if (k) { RUN.bonds = RUN.bonds || {}; RUN.bonds[k] = (RUN.bonds[k] || 0) + 1; } return k; }
+// Each choice is { icon, label (the ACT), effect (the CONSEQUENCE, styled) }
+// so every event renders the same two-line choice card — one shared structure.
 const EVENTS_V2 = {
   shrine: {
-    title: 'A COLD SHRINE',
+    title: 'A COLD SHRINE', eyebrow: 'A CROSSROADS',
     lines: ['A shrine to a god no one remembers leans in the dark.', 'It asks for something — or gives it. Hard to say which.'],
-    a: { label: 'KNEEL AND PRAY · the party heals 6', fx: () => _healParty(6) },
-    b: { label: 'OFFER A NAME · deepen the weakest bond +1 ♡', fx: () => _bumpWeakestBond() },
+    a: { icon: '✦', label: 'KNEEL AND PRAY', effect: 'The party heals <b>6</b>.', fx: () => _healParty(6) },
+    b: { icon: '♡', label: 'OFFER A NAME', effect: 'Deepen your weakest bond <b>+1</b>.', fx: () => _bumpWeakestBond() },
   },
   cache: {
-    title: 'AN OLD CACHE',
+    title: 'AN OLD CACHE', eyebrow: 'A CROSSROADS',
     lines: ['A dead scout’s pack, half-buried. Whatever killed them is long gone.', 'Two things worth taking. Only time to grab one.'],
-    a: { label: 'THE WHETSTONE · open the next fight with ▲ RALLY +2', fx: () => { RUN.campEdge = true; } },
-    b: { label: 'THE POULTICE · the party heals 4', fx: () => _healParty(4) },
+    a: { icon: '▲', label: 'THE WHETSTONE', effect: 'Open the next fight with <span class="kw kw-rally">▲ RALLY +2</span>.', fx: () => { RUN.campEdge = true; } },
+    b: { icon: '✚', label: 'THE POULTICE', effect: 'The party heals <b>4</b>.', fx: () => _healParty(4) },
   },
   echo: {
-    title: 'AN ECHO IN THE DARK',
+    title: 'AN ECHO IN THE DARK', eyebrow: 'A CROSSROADS',
     lines: ['A voice repeats a conversation the party half-remembers having.', 'Stay and listen, or press on before it learns your names.'],
-    a: { label: 'LISTEN · heal 3 · deepen the weakest bond +1 ♡', fx: () => { _healParty(3); _bumpWeakestBond(); } },
-    b: { label: 'PRESS ON · open the next fight with ▲ RALLY +2', fx: () => { RUN.campEdge = true; } },
+    a: { icon: '♡', label: 'LISTEN', effect: 'Heal <b>3</b> · deepen your weakest bond <b>+1</b>.', fx: () => { _healParty(3); _bumpWeakestBond(); } },
+    b: { icon: '▲', label: 'PRESS ON', effect: 'Open the next fight with <span class="kw kw-rally">▲ RALLY +2</span>.', fx: () => { RUN.campEdge = true; } },
   },
 };
 
@@ -3821,13 +3823,20 @@ function showMemory(n, mem) {
 }
 function showEvent(n) {
   const ev = EVENTS_V2[n.eventId] || EVENTS_V2.shrine;
+  const choice = (c, id) => `
+    <button class="ev-choice" id="${id}">
+      <span class="ev-choice-icon">${c.icon || '◆'}</span>
+      <span class="ev-choice-body">
+        <span class="ev-choice-label">${c.label}</span>
+        <span class="ev-choice-effect">${c.effect || ''}</span>
+      </span>
+    </button>`;
   showOverlay(`
-    <div class="ov-eyebrow">A CROSSROADS</div>
+    <div class="ov-eyebrow">${ev.eyebrow || 'A CROSSROADS'}</div>
     <div class="ov-title" style="font-size:22px">${ev.title}</div>
     <div class="ov-lines" style="text-align:center; min-height:0">${ev.lines.map(t => `<div class="ov-line">${t}</div>`).join('')}</div>
-    <button class="ov-btn primary" id="ev-a">${ev.a.label}</button>
-    <button class="ov-btn" id="ev-b">${ev.b.label}</button>
-  `);
+    <div class="ev-choices">${choice(ev.a, 'ev-a')}${choice(ev.b, 'ev-b')}</div>
+  `, 'event-screen');
   const finish = (choice) => {
     choice.fx();
     if (!RUN.completed.includes(n.id)) RUN.completed.push(n.id);
@@ -4665,7 +4674,15 @@ function renderBattlefield() {
 }
 // one intent rendered as an inline segment (glyph · dmg → row · riders)
 function intentSeg(e, it) {
-  if (it.kind === 'buff') return `<span class="i-seg"><span class="i-glyph">◈</span><span class="i-row">${it.desc || 'gathers'}</span></span>`;
+  if (it.kind === 'buff') {
+    // Telegraph the MECHANICAL effect, not the flavor line — a compact glyph so
+    // the pill stays one short, readable segment (the flavor lives in the title).
+    let eff = 'GATHERS';
+    if (it.powerAll) eff = '▲ ALL +' + it.powerAll;
+    else if (it.powerSelf) eff = '▲ +' + it.powerSelf;
+    else if (it.guardSelf) eff = '⛨ +' + it.guardSelf;
+    return `<span class="i-seg" title="${it.desc || ''}"><span class="i-glyph">◈</span><span class="i-row">${eff}</span></span>`;
+  }
   const row = effIntentRow(e, it);   // smart foes point at the hero they're hunting
   return `<span class="i-seg"><span class="i-glyph">⚔</span><span class="i-dmg">${enemyIntentDmg(e, it)}</span><span class="i-arrow">→</span><span class="i-row">${row === 'all' ? 'ALL' : ROW_LABEL[row]}</span>${it.hex ? '<span class="i-st kw-hex" title="HEX — if it lands, your card plays burn your hand; dodge it">☠</span>' : ''}${it.drain ? '<span class="i-st kw-drain" title="drains life — heals the Maw">♥</span>' : ''}${it.chill ? '<span class="i-st kw-chill" title="chills you">❄</span>' : ''}${it.expose ? '<span class="i-st kw-exposed" title="exposes you">◎</span>' : ''}</span>`;
 }
@@ -5175,6 +5192,39 @@ function showSettings() {
 const TREE_TYPE_LABEL = { card: 'SIGNATURE', rider: 'UPGRADE', passive: 'PASSIVE', allout: 'ALL-OUT', emergent: 'EMERGENT', synergy: 'TEAM SYNERGY' };
 const TREE_TYPE_GLYPH = { card: '❖', rider: '⊕', passive: '❉', allout: '✷', emergent: '✦', synergy: '☍' };
 const TREE_HEROES = EMBER_TREE.reduce((a, n) => (a.includes(n.hero) ? a : a.concat(n.hero)), []);
+const TREE_PAN = {};   // per-hero pan offset, kept across re-renders (selecting a node re-renders)
+// Drag-to-pan the constellation so outer-ring nodes (the tier-3/4 arms that
+// reach past the canvas) are always tap-able.  Suppresses the orb SELECT click
+// when the gesture was actually a drag.
+function attachTreePan(heroId) {
+  const canvas = document.getElementById('et-canvas');
+  const pan = document.getElementById('et-pan');
+  if (!canvas || !pan) return;
+  const CLAMP = 165;
+  const clamp = (v) => Math.max(-CLAMP, Math.min(CLAMP, v));
+  let ox = (TREE_PAN[heroId] && TREE_PAN[heroId].x) || 0;
+  let oy = (TREE_PAN[heroId] && TREE_PAN[heroId].y) || 0;
+  const apply = () => { pan.style.transform = `translate(${ox}px, ${oy}px)`; };
+  apply();
+  let sx = 0, sy = 0, drag = false, pid = null;
+  canvas.addEventListener('pointerdown', (e) => {
+    pid = e.pointerId; sx = e.clientX; sy = e.clientY; drag = true; canvas._dragMoved = false;
+    canvas.classList.add('et-grabbing');
+  });
+  canvas.addEventListener('pointermove', (e) => {
+    if (!drag || e.pointerId !== pid) return;
+    const dx = e.clientX - sx, dy = e.clientY - sy;
+    if (Math.abs(dx) + Math.abs(dy) > 6) canvas._dragMoved = true;
+    pan.style.transform = `translate(${clamp(ox + dx)}px, ${clamp(oy + dy)}px)`;
+  });
+  const end = (e) => {
+    if (!drag) return; drag = false; canvas.classList.remove('et-grabbing');
+    ox = clamp(ox + (e.clientX - sx)); oy = clamp(oy + (e.clientY - sy));
+    TREE_PAN[heroId] = { x: ox, y: oy }; apply();
+  };
+  canvas.addEventListener('pointerup', end);
+  canvas.addEventListener('pointercancel', end);
+}
 // node state for the current META: owned / ready(buyable) / poor(can't afford)
 // / needs(prereq) / sealed(tier).
 function nodeState(n) {
@@ -5283,9 +5333,12 @@ function showEmberTree(onBack, heroId, selId) {
     <div class="et-head"><span class="et-h-title">THE EMBER TREE</span><span class="et-h-wallet">✦ <b>${runEmbers()}</b></span><span class="et-h-boss">this descent only · resets if you fall</span></div>
     <div class="et-tabs">${tabs}</div>
     <div class="et-body">
-      <div class="et-canvas et-grid">
-        <svg class="et-links" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${ringSvg}${linkSvg}</svg>
-        ${rootOrb}${orbs}
+      <div class="et-canvas et-grid" id="et-canvas">
+        <div class="et-pan" id="et-pan">
+          <svg class="et-links" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${ringSvg}${linkSvg}</svg>
+          ${rootOrb}${orbs}
+        </div>
+        <span class="et-pan-hint">⤢ drag to pan</span>
       </div>
       <div class="et-side">
         ${!treeTaught() ? `<div class="et-coach">Tap a <b>lit node</b>, then press <b>KINDLE</b> — the skill joins ${HEROES[heroId].name}’s hand for this descent.</div>` : ''}
@@ -5297,9 +5350,11 @@ function showEmberTree(onBack, heroId, selId) {
   document.querySelectorAll('.et-tab').forEach(el => {
     el.onclick = () => { if (el.dataset.hero !== heroId) showEmberTree(onBack, el.dataset.hero); };
   });
+  const etCanvas = document.getElementById('et-canvas');
   document.querySelectorAll('.et-orb[data-id]').forEach(el => {
-    el.onclick = () => showEmberTree(onBack, heroId, el.dataset.id);   // select → inspect
+    el.onclick = () => { if (etCanvas && etCanvas._dragMoved) return; showEmberTree(onBack, heroId, el.dataset.id); };   // a drag pans; a tap selects
   });
+  attachTreePan(heroId);
   const buy = $('#et-buy');
   if (buy && sel) buy.onclick = () => {
     if (nodeState(sel) !== 'ready') return;

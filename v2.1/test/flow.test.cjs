@@ -1557,6 +1557,36 @@ const QUICK = process.argv.includes('--quick');
       return S.threads.has('ash|mira') && S.threads.has('ash|branwen') && S.threads.has('branwen|mira') && S.triadFormed;
     }));
 
+  // ---------- UI POLISH (Build 47): boss intent · tree pan · event cards ----------
+  console.log('--- UI POLISH ---');
+  check('UI: a buff intent telegraphs its EFFECT compactly (no flavor-text wrap)',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash']; RUN.hp = { ash: 32 };
+      startFight({ type: 'fight', chapter: 3, heroes: ['ash'], enemies: ['echodevourer'], useRunHp: true, floor: 2, depth: 7, isBoss: true, narrator: '' });
+      S.enemies[0].intentIdx = 1;   // "The Hunger Deepens" — a buff intent
+      renderAll();
+      const pill = document.querySelector('.figure.floor-boss .intent');
+      const seg = pill && pill.querySelector('.i-seg .i-row');
+      return !!seg && /▲|⛨|GATHERS/.test(seg.textContent) && !/feeds/.test(pill.innerText);
+    }));
+  check('UI: the ember tree PANS on drag so outer-ring nodes are reachable',
+    await J(() => {
+      RUN = newRun('ash'); RUN.active = ['ash']; RUN.nodes = []; RUN.embers = 30; RUN.completed = [0, 1, 2, 3, 4, 5];
+      showEmberTree(() => {}, 'ash');
+      const c = document.getElementById('et-canvas'), pan = document.getElementById('et-pan');
+      if (!c || !pan) return false;
+      const P = (ty, x, y) => c.dispatchEvent(new PointerEvent(ty, { bubbles: true, pointerId: 9, clientX: x, clientY: y }));
+      P('pointerdown', 400, 300); P('pointermove', 315, 240); P('pointerup', 315, 240);
+      return /translate\(-?\d/.test(pan.style.transform) && pan.style.transform !== 'translate(0px, 0px)';
+    }));
+  check('UI: event choices are unified cards (icon · ACT · consequence)',
+    await J(() => {
+      hideOverlay(); showEvent({ id: 99, eventId: 'shrine' });
+      const a = document.querySelector('#ev-a');
+      return !!a && !!a.querySelector('.ev-choice-icon') && !!a.querySelector('.ev-choice-label')
+        && !!a.querySelector('.ev-choice-effect') && !!document.querySelector('#ev-b .ev-choice-effect');
+    }));
+
   t.report();
   await t.browser.close();
 })().catch(e => { console.error('FATAL', e.message); process.exit(1); });
