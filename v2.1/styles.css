@@ -1929,7 +1929,12 @@ button.map-node:not(:disabled) { cursor: pointer; }
 #t-tree { color: #ffcf8a; border-color: rgba(255,170,90,0.4); }
 #t-tree:hover { border-color: rgba(255,180,100,0.75); box-shadow: 0 0 14px rgba(255,150,60,0.28); }
 
-#overlay.et-screen #overlay-inner { max-width: 740px; }
+/* FULL-BLEED ember tree — the constellation fills the whole screen (no boxed
+   frame); the detail rail floats over it on the right behind a soft dark
+   gradient so the nodes underneath stay legible. */
+#overlay.et-screen #overlay-inner { max-width: none; width: 100%; height: 100%; display: flex; flex-direction: column; }
+#overlay.et-screen .et-head { margin: 12px 0 6px; }
+#overlay.et-screen .et-tabs { margin: 0 0 4px; position: relative; z-index: 6; }
 .et-wallet {
   font-size: 14px; letter-spacing: 0.08em; color: #ffb469; margin: 0 0 8px;
   text-shadow: 0 0 12px rgba(255,150,60,0.5);
@@ -2006,19 +2011,23 @@ button.map-node:not(:disabled) { cursor: pointer; }
 
 .et-canvas { position: relative; width: 100%; max-width: 460px; height: var(--et-h, 246px); margin: 2px auto 6px; }
 /* SPHERE GRID — grid on the left, detail rail on the right (use the landscape) */
-.et-body { display: flex; align-items: center; justify-content: center; gap: 22px; }
-.et-canvas.et-grid { width: 340px; height: 340px; max-width: 340px; margin: 0; flex: none; overflow: hidden; border-radius: 14px; touch-action: none; cursor: grab; }
+.et-body { position: relative; flex: 1 1 auto; width: 100%; min-height: 0; display: block; overflow: hidden; }
+/* the whole screen is the pannable field — no frame, no clip */
+.et-canvas.et-grid { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; margin: 0;
+  overflow: visible; border: none; border-radius: 0; background: none; touch-action: none; cursor: grab; }
 .et-canvas.et-grid.et-grabbing { cursor: grabbing; }
-/* the pannable constellation layer — translated by drag; fills the viewport so
-   the orbs' % positions still resolve against it */
-.et-pan { position: absolute; inset: 0; will-change: transform; }
-.et-pan-hint { position: absolute; right: 8px; bottom: 6px; z-index: 8; font-size: 8px; letter-spacing: 0.16em;
-  color: var(--ink-faint); opacity: 0.6; pointer-events: none; text-transform: uppercase; }
-/* soft edge vignette hints there's more to reach by panning */
-.et-canvas.et-grid::after { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 7; border-radius: 14px;
-  box-shadow: inset 0 0 26px 10px rgba(8,5,4,0.7); }
-.et-side { width: 250px; flex: none; display: flex; flex-direction: column; gap: 10px; }
-.et-side .et-detail { margin: 0; min-height: 132px; }
+/* the constellation sits in a fixed-size layer, centred a touch LEFT so the
+   floating detail panel doesn't cover it; drag translates it (JS transform). */
+.et-pan { position: absolute; left: 42%; top: 50%; width: 340px; height: 340px; margin: -170px 0 0 -170px; will-change: transform; }
+.et-pan-hint { position: absolute; left: 16px; bottom: 12px; z-index: 4; font-size: 8px; letter-spacing: 0.16em;
+  color: var(--ink-faint); opacity: 0.5; pointer-events: none; text-transform: uppercase; }
+/* the detail rail floats over the field on the right, on a soft gradient that
+   fades in from transparent so nodes behind its left edge stay readable */
+.et-side { position: absolute; top: 0; right: 0; bottom: 0; width: 316px; padding: 18px 24px; z-index: 5;
+  display: flex; flex-direction: column; justify-content: center; gap: 12px; pointer-events: none;
+  background: linear-gradient(90deg, transparent 0%, rgba(10,6,5,0.34) 22%, rgba(9,5,4,0.82) 56%, rgba(6,4,3,0.96) 100%); }
+.et-side > * { pointer-events: auto; }
+.et-side .et-detail { margin: 0; min-height: 132px; border-color: rgba(240,212,136,0.16); background: linear-gradient(180deg, rgba(26,20,14,0.72), rgba(12,9,7,0.6)); }
 .et-side .et-back-btn { align-self: flex-start; }
 .et-links { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
 .et-ring { fill: none; stroke: rgba(120,104,84,0.14); stroke-width: 1; }
