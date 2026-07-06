@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 60;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 61;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -190,6 +190,29 @@ const EMBER_TREE = [
   // BRANWEN — a FRONT (mark) line
   { id: 'branwen.rider.hunt', hero: 'branwen', tier: 2, cost: 6, type: 'rider', requires: ['branwen.sig.front'], label: 'Deeper Mark', desc: 'Hunter’s Mark (FRONT signature) now brands <span class="kw kw-exposed">◎ EXPOSED +2</span> deeper.', rider: { card: 'Hunter’s Mark', fx: { mark: 2 }, descAdd: ' · <span class="kw kw-exposed">◎ +2</span>' } },
   { id: 'branwen.emergent.hail', hero: 'branwen', tier: 3, cost: 8, type: 'emergent', requires: ['branwen.rider.hunt'], label: 'Rain of Arrows', desc: 'The volley never ends. Every <b>2nd time she inflicts</b> <span class="kw kw-exposed">◎ EXPOSED</span> forges a free <b>Volley Shot</b>.', emergent: { on: 'expose', every: 2, stance: 'FORGED · HAIL', flash: 'The sky darkens — <b>Volley Shot</b> forged.', forge: { name: 'Volley Shot', cost: 0, target: 'enemy', fx: { dmg: 6, mark: 2 }, desc: '<b>Free.</b> A shaft from the dark — <b>6 damage</b> and <span class="kw kw-exposed">◎ EXPOSED 2</span> to any foe.' } } },
+
+  // ═══ COMBO DEPTH (FFXIV-shaped) — completing the thin stance lines so every
+  // position grows a full arc: sig opener → keyword rider → emergent finisher →
+  // identity capstone.  All data-driven off the existing hooks. ═════════════════
+  // ELIN — the FRONT (searing) and BACK (mercy) lines each jumped T1→T3; a T2
+  // rider fills the hole, and a BACK capstone finally caps the heal line.
+  { id: 'elin.rider.searing', hero: 'elin', tier: 2, cost: 6, type: 'rider', requires: ['elin.sig.front'], label: 'Searing Light', desc: 'Smite (FRONT core) burns for <b>+3</b> — the mender bares her teeth.', rider: { card: 'Smite', fx: { dmg: 3 }, descAdd: ' · <b>+3</b>' } },
+  { id: 'elin.rider.mercy', hero: 'elin', tier: 2, cost: 6, type: 'rider', requires: ['elin.sig.back'], label: 'Deep Mercy', desc: 'Benediction (BACK signature) heals <span class="kw kw-heal">✚ +3</span> — the deepest wounds close.', rider: { card: 'Benediction', fx: { heal: 3 }, descAdd: ' · <span class="kw kw-heal">✚ +3</span>' } },
+  { id: 'elin.passive.evensong', hero: 'elin', tier: 4, cost: 12, type: 'passive', requires: ['elin.emergent.afterglow'], label: 'Evensong', desc: 'At the start of your turn, Elin mends her most-wounded ally <span class="kw kw-heal">✚ 3</span> — the vigil never rests.', passive: 'elin_evensong' },
+
+  // MIRA — the MID (twin) line lacked its early rider; a MID capstone caps it.
+  { id: 'mira.rider.serrated', hero: 'mira', tier: 2, cost: 6, type: 'rider', requires: ['mira.sig.mid'], label: 'Serrated Edge', desc: 'Shadow Knife (MID core) cuts for <b>+2</b> and brands <span class="kw kw-exposed">◎ +1</span> — every nick bleeds.', rider: { card: 'Shadow Knife', fx: { dmg: 2, mark: 1 }, descAdd: ' · <b>+2</b> · <span class="kw kw-exposed">◎ +1</span>' } },
+  { id: 'mira.passive.frenzy', hero: 'mira', tier: 4, cost: 12, type: 'passive', requires: ['mira.emergent.flurry'], label: 'Bloodfrenzy', desc: 'Each time Mira strikes an <span class="kw kw-exposed">◎ EXPOSED</span> foe, her NEXT strike deals <span class="kw kw-rally">▲ +2</span> — the kill feeds the next.', passive: 'mira_frenzy' },
+
+  // CASSIA — the MID (aegis) line jumped T1→T3; a T2 rider fills it.
+  { id: 'cassia.rider.reinforce', hero: 'cassia', tier: 2, cost: 6, type: 'rider', requires: ['cassia.sig.mid'], label: 'Reinforce', desc: 'Cover (MID core) plates the ally for <span class="kw kw-guard">⛨ +3</span> — the wall extends to them.', rider: { card: 'Cover', fx: { guard: 3 }, descAdd: ' · <span class="kw kw-guard">⛨ +3</span>' } },
+
+  // BRANWEN — the MID (Killshot) line was the thinnest in the tree: one lone
+  // rider.  Now a full single-target execution arc — steady aim → a piercing
+  // cadence that forges free shots → the killing blow that finishes the wounded.
+  { id: 'branwen.rider.steady', hero: 'branwen', tier: 2, cost: 6, type: 'rider', requires: ['branwen.sig.mid'], label: 'Steady Aim', desc: 'Killshot (MID signature) lands for <b>+3</b> — the execution bites deeper.', rider: { card: 'Killshot', fx: { dmg: 3 }, descAdd: ' · <b>+3</b>' } },
+  { id: 'branwen.emergent.pierce', hero: 'branwen', tier: 3, cost: 8, type: 'emergent', requires: ['branwen.rider.steady'], label: 'Marksman’s Rhythm', desc: 'Branwen finds her cadence. Every <b>3rd shot</b> she lands forges a free <b>Piercing Shot</b> — the aim never wavers.', emergent: { on: 'hit', every: 3, stance: 'FORGED · AIM', flash: 'The cadence holds — <b>Piercing Shot</b> forged.', forge: { name: 'Piercing Shot', cost: 0, target: 'enemy', fx: { dmg: 10 }, desc: '<b>Free.</b> A shaft through the gap — <b>10 damage</b> to any foe.' } } },
+  { id: 'branwen.passive.killingblow', hero: 'branwen', tier: 4, cost: 12, type: 'passive', requires: ['branwen.emergent.pierce'], label: 'The Killing Blow', desc: 'Branwen deals <b>+4</b> to any foe at or below <b>half HP</b> — the wounded do not outrun the arrow.', passive: 'branwen_killingblow' },
 ];
 const NODE_BY_ID = {};
 EMBER_TREE.forEach(n => { NODE_BY_ID[n.id] = n; });
@@ -272,6 +295,10 @@ const PASSIVE_DEFS = {
   branwen_hunter: { trigger: 'dmgMod', mod: (owner, tgt) => (tgt && tgt.mark ? 2 : 0) },
   branwen_opening: { trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'branwen') return; const e = frontmostEnemy(); if (e) { e.mark = (e.mark || 0) + 1; popupAt(figEl(e.uid), '◎ +1', 'info'); } } },
   branwen_reckoning: { trigger: 'kill', apply: (c) => { if (c.tgt && c.tgt.mark && !S._flags.brRefund) { S._flags.brRefund = true; refundEp(1); } } },
+  // ── COMBO-DEPTH capstones (see EMBER_TREE combo-depth block) ──
+  elin_evensong: { trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'elin') return; const t = lowestHpAlly(); if (t && t.hp < t.maxHp) { t.hp = Math.min(t.maxHp, t.hp + 3); popupAt(figEl(t.id), '✚3', 'heal'); } } },
+  mira_frenzy: { trigger: 'postHit', apply: (c) => { if (c.hero.id !== 'mira') return; const t = c.tgt; if (t && t.mark) { c.hero.buffDmg += 2; popupAt(figEl(c.hero.id), '▲ FRENZY +2', 'rally'); } } },
+  branwen_killingblow: { trigger: 'dmgMod', mod: (o, t) => (o.id === 'branwen' && t && t.hp > 0 && t.hp <= t.maxHp * 0.5 ? 4 : 0) },
   // ── TEAM SYNERGY (Phase 3) — a hero's kit pays off for the whole party ──
   ash_warcry:      { trigger: 'followup', apply: (c) => { const a = c.ally && S.heroes.find(h => h.id === c.ally); if (a && !a.downed) { a.buffDmg += 2; popupAt(figEl(a.id), '▲ RALLY +2', 'rally'); } } },
   elin_blessing:   { trigger: 'support', apply: (c) => { const r = c.receiver; if (r && !r.downed && r.id !== c.hero.id) { r.buffDmg += 2; popupAt(figEl(r.id), '▲ BLESSED +2', 'rally'); } } },

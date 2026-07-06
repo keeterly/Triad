@@ -1699,6 +1699,37 @@ const QUICK = process.argv.includes('--quick');
       return ok;
     }));
 
+  // ---------- COMBO DEPTH: the thin stance lines grow a full arc ----------
+  console.log('--- COMBO DEPTH ---');
+  check('COMBO: Branwen’s MID line (once the thinnest) is now a 4-deep arc sig→steady→pierce→killing-blow',
+    await J(() => {
+      const chain = ['branwen.sig.mid', 'branwen.rider.steady', 'branwen.emergent.pierce', 'branwen.passive.killingblow'];
+      // each node must require the one before it (a real prerequisite chain, not loose leaves)
+      return chain.every((id, i) => !!NODE_BY_ID[id] && (i === 0 || (NODE_BY_ID[id].requires || []).includes(chain[i - 1])));
+    }));
+  check('COMBO elin.rider.searing: Smite (FRONT core) hits +3',
+    await J(() => { setupFight(['elin'], ['elin.sig.front', 'elin.rider.searing'], { elin: 'front' }); const c = handCard('Smite'); return !!c && c.fx.dmg === 7; }));
+  check('COMBO elin.rider.mercy: Benediction heals +3',
+    await J(() => { setupFight(['elin'], ['elin.sig.back', 'elin.rider.mercy'], { elin: 'back' }); const c = handCard('Benediction'); return !!c && c.fx.heal === 11; }));
+  check('COMBO elin.passive.evensong: turn start mends the most-wounded ally +3',
+    await J(() => { setupFight(['elin', 'ash'], ['elin.passive.evensong'], { elin: 'back' }, { ash: 10 }); const a = S.heroes.find(h => h.id === 'ash'); const before = a.hp; firePassives('turnStart', 'elin', {}); return a.hp === before + 3; }));
+  check('COMBO mira.rider.serrated: Shadow Knife (MID core) hits +2 and marks +1',
+    await J(() => { setupFight(['mira'], ['mira.sig.mid', 'mira.rider.serrated'], { mira: 'mid' }); const c = handCard('Shadow Knife'); return !!c && c.fx.dmg === 6 && c.fx.mark === 4; }));
+  check('COMBO mira.passive.frenzy: striking an EXPOSED foe buffs the next strike +2',
+    await J(() => { setupFight(['mira'], ['mira.passive.frenzy'], { mira: 'mid' }); const h = S.heroes[0]; h.buffDmg = 0; const e = S.enemies[0]; e.mark = 2; firePassives('postHit', 'mira', { tgt: e }); return h.buffDmg === 2; }));
+  check('COMBO cassia.rider.reinforce: Cover (MID core) wards +3',
+    await J(() => { setupFight(['cassia'], ['cassia.sig.mid', 'cassia.rider.reinforce'], { cassia: 'mid' }); const c = handCard('Cover'); return !!c && c.fx.guard === 7; }));
+  check('COMBO branwen.rider.steady: Killshot (MID signature) hits +3',
+    await J(() => { setupFight(['branwen'], ['branwen.sig.mid', 'branwen.rider.steady'], { branwen: 'mid' }); const c = handCard('Killshot'); return !!c && c.fx.dmg === 14; }));
+  check('COMBO branwen.passive.killingblow: +4 vs a foe at/below half HP, nothing above',
+    await J(() => {
+      setupFight(['branwen'], ['branwen.passive.killingblow'], { branwen: 'mid' });
+      const h = S.heroes[0], e = S.enemies[0];
+      e.maxHp = 100; e.hp = 100; const hi = passiveDmg(h, e);
+      e.hp = 40; const lo = passiveDmg(h, e);
+      return hi === 0 && lo === 4;
+    }));
+
   // ---------- FLOOR 3: THE SUNDERING — a bond-cutting boss ----------
   console.log('--- FLOOR 3 ---');
   check('FLOOR 3: the descent now runs THREE floors', await J(() => FLOORS === 3));
