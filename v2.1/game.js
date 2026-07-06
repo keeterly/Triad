@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 43;
+const V2_BUILD = 44;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -2603,6 +2603,16 @@ function parryRhythm(count) {
   };
   return T[count] || Array.from({ length: count }, (_, i) => ({ d: i === 0 ? 600 : 440, g: i === count - 1 ? 0 : 110 }));
 }
+// A boss CASCADE reads differently from a mob's quick double-tap: it's a longer
+// chain you have to stay with, so it wants a STEADY, readable groove rather than
+// syncopation.  An accented (slower, wider) downbeat announces the run, then even
+// beats with a consistent gap — every note catchable, the rhythm never a trick.
+const SEQ_LEADIN = 460;   // beat of quiet after the telegraph draws, before note 1
+function seqRhythm(count) {
+  const out = [];
+  for (let i = 0; i < count; i++) out.push({ d: i === 0 ? 660 : 560, g: i === count - 1 ? 0 : 160 });
+  return out;
+}
 // MASH note — a frenzied flurry: tap rapidly to fill the meter before it closes.
 function parryMashNote(ax, ay, count, dur) {
   return new Promise(resolve => {
@@ -2693,19 +2703,20 @@ function mkSeqPreview(pts) {
 async function runParrySeq(notes, anchor, art) {
   const pts = arcPoints(notes.length, anchor);
   const preview = mkSeqPreview(pts);
-  const rh = parryRhythm(notes.length);   // groove: varied tap speeds + gaps
+  const rh = seqRhythm(notes.length);   // steady, readable cascade groove
+  await sleep(SEQ_LEADIN);              // let the whole arc register before note 1 lands
   let hits = 0;
   for (let i = 0; i < notes.length; i++) {
-    const nt = notes[i], p = pts[i], step = rh[i] || { d: 480, g: 110 };
+    const nt = notes[i], p = pts[i], step = rh[i] || { d: 560, g: 160 };
     const done = preview.querySelectorAll('.sq-dot')[i]; if (done) done.classList.add('sq-active');
     if (art) bossAttackBeat(art, p.x, p.y);   // one art streak per note — SYNCED
     let q;
-    if (nt.t === 'hold')       q = await parryHoldNote(p.x, p.y, 760);
-    else if (nt.t === 'swipe') q = await parrySwipeNote(p.x, p.y, nt.arc || 'arcR', 680);
+    if (nt.t === 'hold')       q = await parryHoldNote(p.x, p.y, 820);
+    else if (nt.t === 'swipe') q = await parrySwipeNote(p.x, p.y, nt.arc || 'arcR', 760);
     else                       q = await parryTapNote(p.x, p.y, step.d, i + 1, notes.length);
     if (done) { done.classList.remove('sq-active'); done.classList.add(q === 'perfect' || q === 'good' ? 'sq-hit' : 'sq-miss'); }
     if (q === 'perfect' || q === 'good') hits++;
-    if (step.g) await sleep(step.g);   // syncopated gap — a groove, not a metronome
+    if (step.g) await sleep(step.g);   // even gap — a groove you can stay inside
   }
   preview.remove();
   // PARTIAL: each note you turned aside negates its share; the ones you missed
@@ -3465,7 +3476,10 @@ async function enemyPhase() {
     renderAll();
     await sleep(400);
     if (checkEnd()) break;
-    if (atk + 1 < times) await sleep(360);   // a beat between the boss's two blows
+    // A clear BREATHER between the boss's two blows — the second wind-up gets its
+    // own telegraph and a beat to read, so the pair lands as call-and-response
+    // instead of a single overwhelming wall of notes.
+    if (atk + 1 < times) { flashNarrator(e.def.name + ' winds up again…'); await sleep(560); }
     }
     if (S.over) break;
   }

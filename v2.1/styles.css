@@ -1480,13 +1480,16 @@ button.map-node:not(:disabled) { cursor: pointer; }
    PERF: a blur re-rasterizes every frame if its content changes, so two things
    keep this cheap — the focus SNAPS in (no filter transition; animating a blur
    is the costly part) and every animation inside the filtered subtree is
-   PAUSED for the duration, so the blurred bitmap is cached and merely
-   composited instead of re-blurred each frame.  The world literally freezes
-   for the parry beat, which also reads as time slowing. */
+   PAUSED for the duration.  The world freezes and DIMS for the parry beat,
+   which reads as time slowing.  We deliberately do NOT blur here: a filter:blur
+   on the whole battlefield forces the browser to re-rasterize a large subtree
+   to an offscreen buffer every time the parry starts (twice per boss round) —
+   a real hitch on mobile.  A strong desaturate + darken focuses the notes just
+   as well, and composites for free. */
 #stage.parry-focus #battlefield,
 #stage.parry-focus #topbar,
 #stage.parry-focus #narrator,
-#stage.parry-focus #action-bar { filter: saturate(0.3) blur(2px) brightness(0.6); }
+#stage.parry-focus #action-bar { filter: saturate(0.22) brightness(0.46); }
 #stage.parry-focus #battlefield *,
 #stage.parry-focus #action-bar *,
 #stage.parry-focus #topbar *,
