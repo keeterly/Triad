@@ -30,8 +30,10 @@ body {
 .hidden { display: none !important; }
 
 /* ---- rotate prompt ---- */
+/* Only a TOUCH device in portrait gets the "rotate" wall.  A desktop window
+   that happens to be tall just letterboxes the stage instead of blanking. */
 #rotate-prompt { display: none; }
-@media (orientation: portrait) {
+@media (orientation: portrait) and (pointer: coarse) {
   #rotate-prompt {
     display: flex; position: fixed; inset: 0; z-index: 999;
     background: var(--bg); align-items: center; justify-content: center;

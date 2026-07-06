@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 53;
+const V2_BUILD = 54;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -5598,13 +5598,29 @@ function showGate() {
 // ---------------------------------------------------------------------------
 // FIT-TO-SCREEN + BOOT
 // ---------------------------------------------------------------------------
+// Fit the 760×430 design canvas into whatever the device gives us, preserving
+// the iOS proportions everywhere (contain-scale + centre).  visualViewport is
+// the source of truth on mobile — it reflects the ACTUAL visible area as the
+// browser's toolbar slides in/out and survives pinch-zoom, so Android/iOS don't
+// get left letterboxed by a stale window.innerHeight.
 function fitStage() {
-  const w = window.innerWidth, h = window.innerHeight;
+  const vv = window.visualViewport;
+  const w = Math.round((vv && vv.width) || window.innerWidth || document.documentElement.clientWidth || 0);
+  const h = Math.round((vv && vv.height) || window.innerHeight || document.documentElement.clientHeight || 0);
+  if (!w || !h) return;
   const scale = Math.min(w / 760, h / 430);
-  $('#stage').style.transform = `scale(${scale})`;
+  const st = document.getElementById('stage');
+  if (st) st.style.transform = 'scale(' + scale + ')';
 }
+// Layout can settle a frame or two after load/rotate on mobile — re-fit a few times.
+function scheduleFit() { fitStage(); requestAnimationFrame(fitStage); setTimeout(fitStage, 250); }
 window.addEventListener('resize', fitStage);
-window.addEventListener('orientationchange', () => setTimeout(fitStage, 120));
+window.addEventListener('load', scheduleFit);
+window.addEventListener('orientationchange', () => { scheduleFit(); setTimeout(fitStage, 550); });
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', fitStage);
+  window.visualViewport.addEventListener('scroll', fitStage);
+}
 
 // Cancel tap-targeting on stray taps (drag mode manages its own lifecycle).
 document.addEventListener('pointerdown', (e) => {
