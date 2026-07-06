@@ -1535,6 +1535,28 @@ const QUICK = process.argv.includes('--quick');
   check('DUET: an UN-kindled pair awakens no vow (falls back to Echo Bond)',
     !noDuet.duet && noDuet.echo, JSON.stringify(noDuet));
 
+  // ---------- KIZUNA REACH: bonds form through ordinary cooperative play ----------
+  console.log('--- KIZUNA REACH ---');
+  check('KIZUNA: a party-wide ward threads the caster to EVERY ally it shelters',
+    await J(async () => {
+      setupFight(['elin', 'ash', 'mira'], ['elin.sig.front'], { elin: 'front', ash: 'mid', mira: 'back' });
+      window.triadCeremony = async () => { S.resonantNew = true; };   // don't block on the cinematic
+      S.ep = 20; const before = S.threads.size;
+      await playCard(handCard('Radiant Ward'), null);   // target 'allies' → wards the whole party
+      return before === 0 && S.threads.has('ash|elin') && S.threads.has('elin|mira') && S.threads.size === 2;
+    }));
+  check('KIZUNA: ganging up — a follow-up threads the striker with EVERY prior hitter of that foe',
+    await J(async () => {
+      setupFight(['ash', 'mira', 'branwen'], ['mira.sig.mid', 'branwen.sig.back'], { ash: 'front', mira: 'mid', branwen: 'back' });
+      window.triadCeremony = async () => { S.resonantNew = true; };
+      S.ep = 20; S.threads.clear();
+      const e = frontmostEnemy(); e.hp = e.maxHp = 99;
+      await playCard(buildHand().find(c => c.owner === 'ash' && c.fx && c.fx.dmg), e.uid);           // ash hits
+      await playCard(buildHand().find(c => c.owner === 'mira' && c.name === 'Twin Daggers'), e.uid);  // mira follows → ash-mira
+      await playCard(buildHand().find(c => c.owner === 'branwen' && c.name === 'Killing Arrow'), e.uid); // branwen follows → threads BOTH prior
+      return S.threads.has('ash|mira') && S.threads.has('ash|branwen') && S.threads.has('branwen|mira') && S.triadFormed;
+    }));
+
   t.report();
   await t.browser.close();
 })().catch(e => { console.error('FATAL', e.message); process.exit(1); });

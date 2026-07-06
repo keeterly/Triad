@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 45;
+const V2_BUILD = 46;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -2144,7 +2144,12 @@ async function resolveCard(card, targetId) {
         popupAt(figEl(owner.id), '⚡ FOLLOW-UP +2', 'info');
         SFX.follow();
         firePassives('followup', owner.id, { ally: prev });   // ally = the hero Ash followed
-        await addThread(owner.id, prev);
+        // GANGING UP binds the whole party: thread with EVERY ally who has
+        // struck this foe this turn, not just the last — so focus-firing one
+        // enemy (the natural strong play) weaves the full triangle instead of
+        // leaving the triad's marquee moment locked behind fussy pick order.
+        const priorAllies = hitters.filter((id, i) => id !== owner.id && hitters.indexOf(id) === i);
+        for (const ally of priorAllies) await addThread(owner.id, ally);
       }
       // AVENGE: cutting down an enemy that hurt an ally this fight forms a
       // thread with the one you avenged — protective aggression bonds too.
@@ -2195,7 +2200,11 @@ async function resolveCard(card, targetId) {
       if (fx.counter){ rc.counter = Math.max(rc.counter, fx.counter); }
       // TEAM SYNERGY: warding/mending an ally can bless their next strike (Elin's Blessed Edge)
       if (owner && (fx.heal || fx.guard)) firePassives('support', owner.id, { receiver: rc });
-      if (owner && rc.id !== owner.id && card.target === 'ally') await addThread(owner.id, rc.id);
+      // A shared act BONDS: helping an ally forms a thread.  A PARTY-wide ward or
+      // heal (target 'allies') weaves the caster to EVERYONE it shelters — so a
+      // support hero's whole role knits the triangle, and the triad's marquee
+      // moment is reachable through ordinary play instead of fussy pick order.
+      if (owner && rc.id !== owner.id && (card.target === 'ally' || card.target === 'allies')) await addThread(owner.id, rc.id);
     }
     // one emergent tick per PLAY (not per receiver): the caster's mending / warding loop
     if (owner && receivers.length) {
