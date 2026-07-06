@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 65;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 66;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -1254,6 +1254,16 @@ function _connect(prev, next, nodes) {
 function generateDescent(roster, floor) {
   roster = roster || ['ash'];
   floor = floor || 1;
+  // FLOOR 4 — THE DEEPEST DARK: a deliberate TWO-NODE approach.  A LAST FIRE to
+  // steady the line, then the multi-stage MEGA BOSS.  No detours — the mega boss
+  // is itself the gauntlet (three stages).  (The map strip keeps a fixed height,
+  // so this reads at the same vertical scale as the branching floors.)
+  if (floor >= 4) {
+    return [
+      { id: 0, level: 1, col: 1, type: 'camp', label: 'THE LAST FIRE', next: [1] },
+      { id: 1, level: 2, col: 2, type: 'boss', enemies: ['echochorus'], isBoss: true, floorBoss: true, label: 'THE HOLLOW CHORUS', next: [] },
+    ];
+  }
   // Recruits = anyone not already in the party.  You start solo (or short) and
   // build your trio from the road, so an early recruit is guaranteed close.
   const pending = _shuffle(STARTER_POOL.filter(id => !roster.includes(id)));
@@ -1273,9 +1283,7 @@ function generateDescent(roster, floor) {
   let eventI = 0, idc = 0;
   for (let level = 1; level <= numLevels; level++) {
     let types;
-    // The FINAL floor opens on a LAST FIRE (a rest, not a fight) before its
-    // gauntlet — you steady the line before the deepest dark.
-    if (level === 1) types = floor >= 4 ? ['camp'] : ['fight'];
+    if (level === 1) types = ['fight'];
     else if (level === numLevels) types = ['boss'];
     else if (level === numLevels - 1) types = ['camp'];
     else types = _stretchTypes(level);
@@ -1288,7 +1296,7 @@ function generateDescent(roster, floor) {
       else if (type === 'event')   { node.eventId = eventQ[eventI++ % eventQ.length]; node.label = lbl.event(); }
       else if (type === 'camp')    { node.label = lbl.camp(); }
       else if (type === 'recruit') { node.hero = recruitAtLevel[level]; node.label = RECRUIT_NODE_LABELS[node.hero] || 'A NEW THREAD'; }
-      else if (type === 'boss')    { const bid = floor >= 4 ? 'echochorus' : floor >= 3 ? 'echosunder' : floor >= 2 ? 'echodevourer' : 'echoknight2'; node.enemies = [bid]; node.isBoss = true; node.floorBoss = true; node.label = floor >= 4 ? 'THE HOLLOW CHORUS' : floor >= 3 ? 'THE SUNDERING' : floor >= 2 ? 'THE HOLLOW MAW' : lbl.boss(); }
+      else if (type === 'boss')    { const bid = floor >= 3 ? 'echosunder' : floor >= 2 ? 'echodevourer' : 'echoknight2'; node.enemies = [bid]; node.isBoss = true; node.floorBoss = true; node.label = floor >= 3 ? 'THE SUNDERING' : floor >= 2 ? 'THE HOLLOW MAW' : lbl.boss(); }
       nodes[idc] = node; ids.push(idc); idc++;
     });
     levels.push(ids);

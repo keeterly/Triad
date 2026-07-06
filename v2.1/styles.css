@@ -636,6 +636,9 @@ body {
   position: relative;
   display: flex; align-items: center; justify-content: center; gap: 26px;
   margin: 4px auto 14px; max-width: 720px; flex-wrap: nowrap;
+  /* A fixed vertical extent so a SHORT map (the final floor's camp → boss) reads
+     at the same height as the tall branching floors, instead of a thin strip. */
+  min-height: 210px;
 }
 .map-col { display: flex; flex-direction: column; gap: 12px; justify-content: center; }
 .map-arrow { color: var(--ink-faint); font-size: 14px; padding: 0 1px; }

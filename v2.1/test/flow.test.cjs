@@ -1754,14 +1754,12 @@ const QUICK = process.argv.includes('--quick');
   // ---------- FLOOR 4: THE HOLLOW CHORUS — the multi-stage mega boss ----------
   console.log('--- FLOOR 4 / MEGA BOSS ---');
   check('FLOOR 4: the descent now runs FOUR floors', await J(() => FLOORS === 4));
-  check('FLOOR 4: a FULL map like the other floors — opens on a LAST FIRE (not a fight), ends on the mega boss',
+  check('FLOOR 4: a TWO-node approach — a LAST FIRE (camp), then the mega boss (never a fight first)',
     await J(() => {
       const m = generateDescent(['ash', 'elin', 'mira'], 4);
-      const firstCol = m.filter(n => n.col === Math.min(...m.map(x => x.col)));
-      const boss = m.find(n => n.isBoss);
-      return m.length > 3                                            // not the old 3-node stub — a real gauntlet
-        && firstCol.length === 1 && firstCol[0].type === 'camp'      // first node is a campfire, never a fight
-        && !!boss && boss.enemies[0] === 'echochorus' && boss.next.length === 0;
+      return m.length === 2
+        && m[0].type === 'camp' && m[0].next.join() === '1'
+        && m[1].type === 'boss' && m[1].enemies[0] === 'echochorus' && m[1].next.length === 0;
     }));
   check('MEGA: the Chorus is a 3-stage boss (Remembered → Devouring → Unmaking)',
     await J(() => {
