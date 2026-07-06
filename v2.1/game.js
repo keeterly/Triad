@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 49;
+const V2_BUILD = 50;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -4341,17 +4341,37 @@ function showCamp(n) {
   RUN.roster.forEach(id => { RUN.hp[id] = HEROES[id].maxHp; });
   if (!RUN.completed.includes(n.id)) RUN.completed.push(n.id);
   saveRun();
+  // CINEMATIC CAMPFIRE — the party gathers, lit warm by the fire; the night's
+  // one choice is offered as cards over the scene (mirrors the JRPG cutscenes).
+  const party = ((RUN.active && RUN.active.length) ? RUN.active : RUN.roster).slice();
+  const mid = (party.length - 1) / 2;
+  const heroes = party.map((id, i) => {
+    const side = i < mid ? 'l' : i > mid ? 'r' : 'c';   // right side faces the fire (flipped)
+    return `<span class="camp-hero camp-hero-${side}" style="--off:${(i - mid).toFixed(2)}">${V2PORTRAITS[id] || ''}</span>`;
+  }).join('');
+  const embers = Array.from({ length: 9 }, (_, i) => `<span class="cf-ember" style="--i:${i}"></span>`).join('');
+  const choice = (id, icon, label, effect) => `
+    <button class="ev-choice camp-choice" id="${id}">
+      <span class="ev-choice-icon">${icon}</span>
+      <span class="ev-choice-body"><span class="ev-choice-label">${label}</span><span class="ev-choice-effect">${effect}</span></span>
+    </button>`;
   showOverlay(`
-    <div class="ov-eyebrow" style="color:var(--gold-bright)">CAMPFIRE</div>
-    <div class="ov-title" style="font-size:22px">${n.label}</div>
-    <div class="ov-lines" style="text-align:center; min-height:0">
-      <div class="ov-line">The fire holds back the dark a while. <b>Every wound closes.</b></div>
-      <div class="ov-line">One evening, one choice — what does the party do with it?</div>
+    <div class="camp-scene">
+      <div class="camp-glow"></div>
+      <div class="camp-party">${heroes}</div>
+      <div class="camp-fire"><span class="cf-core"></span><span class="cf-flame"></span>${embers}</div>
+      <div class="camp-top">
+        <div class="camp-eyebrow">CAMPFIRE</div>
+        <div class="camp-title">${n.label}</div>
+        <div class="camp-flavor">The fire holds back the dark a while. <b>Every wound closes.</b> One evening, one choice.</div>
+      </div>
+      <div class="camp-choices">
+        ${choice('camp-fire', '♡', 'SHARE THE FIRE', 'Deepen your weakest bond <b>+1</b>.')}
+        ${choice('camp-steel', '▲', 'SHARPEN STEEL', 'Open the next fight with <span class="kw kw-rally">▲ RALLY +2</span>.')}
+        ${choice('camp-forge', '✦', 'FORGE AT THE EMBER', `Temper your kit for this descent · <b>${runEmbers()}</b> embers.`)}
+      </div>
     </div>
-    <button class="ov-btn primary" id="camp-fire">SHARE THE FIRE · deepen the weakest bond +1 ♡</button>
-    <button class="ov-btn" id="camp-steel">SHARPEN STEEL · open the next fight with ▲ RALLY +2</button>
-    <button class="ov-btn" id="camp-forge">✦ FORGE AT THE EMBER · temper your kit for this descent (${runEmbers()} embers)</button>
-  `);
+  `, 'camp-cine');
   $('#camp-fire').onclick = () => showCampScene(n);
   $('#camp-steel').onclick = () => {
     RUN.campEdge = true;
