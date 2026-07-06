@@ -568,7 +568,8 @@ const QUICK = process.argv.includes('--quick');
   // ---------- CARD ECONOMY: tempo profiles + channel + heal floor ----------
   console.log('--- CARD ECONOMY ---');
   // A full party's hand GROWS with unlocks — each hero shows Core + Signature
-  // (when kindled); HEAVY heroes contribute one (expensive) card.
+  // (when kindled).  HEAVY heroes hold BOTH like everyone else, but each card
+  // carries a +1 EP premium, so fielding both in one turn is a real commitment.
   await J(() => {
     hideOverlay();
     if (!RUN) RUN = newRun('ash');
@@ -577,11 +578,16 @@ const QUICK = process.argv.includes('--quick');
     renderAll();
   });
   await sleep(400);
-  check('ASYMMETRY: HEAVY Cassia contributes ONE card; STEADY+SWIFT show two (kit unlocked)',
+  check('PARITY: HEAVY Cassia now shows TWO cards, same as STEADY+SWIFT (kit unlocked)',
     await J(() => {
       const n = (id) => document.querySelectorAll(`#hand .card[data-owner="${id}"]`).length;
-      return n('cassia') === 1 && n('ash') === 2 && n('kiki') === 2;
+      return n('cassia') === 2 && n('ash') === 2 && n('kiki') === 2;
     }), await J(() => 'ash:'+document.querySelectorAll('#hand .card[data-owner="ash"]').length+' cassia:'+document.querySelectorAll('#hand .card[data-owner="cassia"]').length+' kiki:'+document.querySelectorAll('#hand .card[data-owner="kiki"]').length));
+  check('HEAVY PREMIUM: each of Cassia’s cards costs +1 — her base-1 core reads 2, never 1',
+    await J(() => {
+      const costs = [...document.querySelectorAll('#hand .card[data-owner="cassia"] .c-cost')].map(x => x.textContent);
+      return costs.includes('2') && !costs.includes('1');
+    }), await J(() => 'costs=' + [...document.querySelectorAll('#hand .card[data-owner="cassia"] .c-cost')].map(x => x.textContent).join(',')));
   check('SWIFT: Kiki’s 2-cost signature is discounted to 1',
     await J(() => { const c = [...document.querySelectorAll('#hand .card[data-owner="kiki"]')]; return c.some(x => x.querySelector('.c-cost').textContent === '1'); }));
   // SACRIFICE is a GESTURE now (drag a card onto the EP dial) — no button.
@@ -821,7 +827,7 @@ const QUICK = process.argv.includes('--quick');
   console.log('--- PHASE 3 ---');
   check('CONSTELLATION: every roster hero has a full signature gate',
     await J(() => ['ash', 'elin', 'mira', 'cassia', 'branwen'].every(h => SIG_GATE[h] && SIG_GATE[h].front && SIG_GATE[h].mid && SIG_GATE[h].back)));
-  check('RE-GATE: a recruited hero opens with only its CORE (heavy fallback)',
+  check('RE-GATE: a recruited hero opens with only its CORE (sig gated)',
     await J(() => {
       RUN.nodes = [];   // nothing unlocked this run
       startFight({ type: 'fight', chapter: 2, heroes: ['cassia'], enemies: ['husk'], narrator: 'gate' });
@@ -829,11 +835,11 @@ const QUICK = process.argv.includes('--quick');
       const cards = document.querySelectorAll('#hand .card');
       return cards.length === 1 && cards[0].dataset.cardName === 'Shield Bash';   // Bulwark (sig) gated
     }));
-  check('CONSTELLATION: unlocking Cassia’s FRONT sig swaps in Bulwark',
+  check('CONSTELLATION: unlocking Cassia’s FRONT sig ADDS Bulwark alongside the core',
     await J(() => {
       unlockNode('cassia.sig.front'); renderAll();
       return !!document.querySelector('#hand .card[data-card-name="Bulwark"]')
-        && !document.querySelector('#hand .card[data-card-name="Shield Bash"]');   // heavy: sig replaces core
+        && !!document.querySelector('#hand .card[data-card-name="Shield Bash"]');   // heavy now holds BOTH
     }));
   check('ALT ALL-OUT: Rite of Endings is a tier-3 allout node (needs the front sig)',
     await J(() => { const n = NODE_BY_ID['ash.allout.execution']; return !!n && n.type === 'allout' && n.tier === 3 && n.requires.includes('ash.sig.front'); }));

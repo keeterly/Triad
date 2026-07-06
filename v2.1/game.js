@@ -1504,7 +1504,8 @@ function buildHand() {
   // hand GROWS as you kindle skills on the way down.  That breadth is earned, not
   // dumped on you: you open with a single spark and unlock the rest through the
   // ember tree, growing into a wide full-party hand as you go.  HEAVY heroes
-  // contribute one (expensive) card.  Movement is not a card — you drag the hero.
+  // hold BOTH cards like everyone else, but each costs +1 EP — so fielding
+  // both in one turn is a real commitment.  Movement is not a card — you drag.
   // When the triad forms, the resonant card HIJACKS the host's signature slot
   // (the card evolves).  Played cards LEAVE the fan (they return next turn) — what
   // remains is exactly what you can still do.
@@ -1512,14 +1513,10 @@ function buildHand() {
   const host = resonantHost();
   livingHeroes().forEach(h => {
     const set = h.def.cards[h.row];
-    const heavy = (h.def.tempo || 'steady') === 'heavy';
-    if (!heavy) {
-      const core = mkCard(h, 'core', set.core);
-      if (!core.spent) hand.push(core);
-    }
+    const core = mkCard(h, 'core', set.core);
+    if (!core.spent) hand.push(core);
     if (host === h.id) hand.push(mkResonantCard(h));
     else if (sigUnlocked(h)) { const sig = mkCard(h, 'sig', set.sig); if (!sig.spent) hand.push(sig); }
-    else if (heavy) { const core = mkCard(h, 'core', set.core); if (!core.spent) hand.push(core); }   // heavy fallback: the CORE stands in until the signature is unlocked
   });
   S.tempCards.filter(t => t.expiresTurn == null || t.expiresTurn >= S.turn).forEach(t => hand.push(t));
   return hand;
@@ -1536,6 +1533,7 @@ function mkCard(h, kind, def) {
   const tempo = h.def.tempo || 'steady';
   let cost = def.cost;
   if (tempo === 'swift' && cost > 1) cost -= 1;   // fast heroes play cheap and often
+  if (tempo === 'heavy') cost += 1;               // heavy heroes hold BOTH cards, but each carries a premium — playing both commits the whole turn
   // EMBER RIDERS (permanent) + FORGES (temporary, per-run) bolt effects onto the
   // base card.  Clone fx first so the shared def is never mutated.
   let fx = def.fx, desc = def.desc;
