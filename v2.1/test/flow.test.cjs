@@ -1587,6 +1587,39 @@ const QUICK = process.argv.includes('--quick');
         && !!a.querySelector('.ev-choice-effect') && !!document.querySelector('#ev-b .ev-choice-effect');
     }));
 
+  // ---------- BOONS (mid-run randomness): companion gifts drafted 1-of-3 ----------
+  console.log('--- BOONS ---');
+  check('BOON: a companion gift bends a card (Duelist’s Focus → Ash sig +3)',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash']; RUN.hp = { ash: 32 };
+      RUN.boons = ['ash_duelist']; RUN.nodes = ['ash.sig.front']; RUN.completed = [0, 1, 2, 3];
+      startFight({ type: 'fight', chapter: 3, heroes: ['ash'], enemies: ['husk'], useRunHp: true, floor: 1, depth: 4, narrator: '' });
+      S.heroes[0].row = 'front'; const c = buildHand().find(x => x.name === 'Crashing Wave'); return !!c && c.fx.dmg === 14;
+    }));
+  check('BOON: a dmgMod gift applies only while its hero is FIELDED (Open Season)',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash', 'branwen']; RUN.active = ['ash', 'branwen']; RUN.hp = { ash: 32, branwen: 20 };
+      RUN.boons = ['branwen_season']; RUN.completed = [0, 1, 2, 3];
+      startFight({ type: 'fight', chapter: 3, heroes: ['ash', 'branwen'], enemies: ['husk'], useRunHp: true, floor: 1, depth: 4, narrator: '' });
+      const e = S.enemies[0], ash = S.heroes.find(h => h.id === 'ash'); e.mark = 2; const withB = passiveDmg(ash, e);
+      RUN.active = ['ash']; const noB = passiveDmg(ash, e); return withB === 1 && noB === 0;
+    }));
+  check('BOON DRAFT: the pool is party-gated and picking one stores it',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash', 'elin']; RUN.active = ['ash', 'elin']; RUN.boons = [];
+      showBoonDraft(() => {}, {});
+      const cards = [...document.querySelectorAll('.boon-card')];
+      const gated = cards.every(c => ['ash', 'elin'].includes(BOON_BY_ID[c.id.replace('boon-', '')].hero));
+      cards[0].click();
+      return cards.length >= 1 && cards.length <= 3 && gated && RUN.boons.length === 1;
+    }));
+  check('CAMP: the fire’s third slot is COMMUNE (draw a boon), not the old Forge',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash']; RUN.hp = { ash: 32 }; RUN.boons = [];
+      showCamp({ id: 9, type: 'camp', label: 'EMBER REST' });
+      return !!document.querySelector('#camp-boon') && !document.querySelector('#camp-forge');
+    }));
+
   t.report();
   await t.browser.close();
 })().catch(e => { console.error('FATAL', e.message); process.exit(1); });

@@ -496,6 +496,27 @@ body {
 .ev-choice-effect { font-size: 10.5px; line-height: 1.4; color: var(--ink-dim); letter-spacing: 0.02em; }
 .ev-choice-effect b { color: var(--ink); }
 
+/* BOON DRAFT — a companion's gift, picked 1 of 3 (the mid-run randomness beat) */
+#overlay.boon-screen #overlay-inner { max-width: 740px; }
+.boon-choices { display: flex; gap: 12px; justify-content: center; margin-top: 8px; width: 100%; }
+.boon-card { flex: 1 1 0; max-width: 232px; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center;
+  font-family: inherit; cursor: pointer; color: var(--ink);
+  background: linear-gradient(180deg, rgba(26,20,14,0.92), rgba(12,9,7,0.95)); border: 1px solid rgba(240,212,136,0.28);
+  padding: 15px 13px 16px; border-radius: 11px; transition: border-color 0.15s, transform 0.12s, box-shadow 0.15s; }
+.boon-card:hover { border-color: var(--gold-bright); transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.5), 0 0 18px rgba(255,150,60,0.18); }
+.boon-icon { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 19px; flex: none;
+  color: var(--tint, var(--gold-bright)); border: 2px solid rgba(240,212,136,0.4);
+  background: radial-gradient(circle at 50% 36%, rgba(42,34,24,0.98), rgba(12,10,8,0.98)); box-shadow: 0 0 10px rgba(255,150,60,0.15); }
+.boon-from { font-size: 7.5px; letter-spacing: 0.24em; color: var(--ink-faint); }
+.boon-name { font-size: 13px; letter-spacing: 0.03em; color: var(--gold-bright); font-weight: 600; }
+.boon-desc { font-size: 10px; line-height: 1.46; color: var(--ink-dim); }
+.boon-desc b { color: var(--ink); }
+.boon-desc .kw { font-style: normal; }
+/* held boons — a compact icon strip on the map */
+.map-boons { display: inline-flex; gap: 5px; vertical-align: middle; margin-left: 8px; }
+.map-boon { width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px;
+  color: var(--tint, var(--gold-bright)); border: 1px solid rgba(240,212,136,0.35); background: rgba(20,15,10,0.9); }
+
 /* triad ceremony */
 #overlay.triad-ceremony {
   background: radial-gradient(ellipse 100% 90% at 50% 40%, rgba(46,36,16,0.92) 0%, rgba(5,3,2,0.98) 75%);

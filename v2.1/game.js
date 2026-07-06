@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 51;
+const V2_BUILD = 52;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -275,9 +275,12 @@ function firePassives(trigger, heroId, ctx) {
   const hero = S.heroes.find(h => h.id === heroId);
   if (!hero || hero.downed) return;
   S._flags = S._flags || {};
+  const c = Object.assign({ hero, heroId }, ctx || {});
   passiveNodesFor(heroId, trigger).forEach(n => {
-    try { PASSIVE_DEFS[n.passive].apply(Object.assign({ hero, heroId }, ctx || {})); } catch (_) {}
+    try { PASSIVE_DEFS[n.passive].apply(c); } catch (_) {}
   });
+  // BOONS with the same trigger, gated to this hero
+  runBoons().forEach(b => { if (b.hero === heroId && b.trigger === trigger && b.apply) { try { b.apply(c); } catch (_) {} } });
 }
 // sum of damage-tuning passives against a target: the ATTACKER's own
 // dmgMod exploiters, PLUS any living ally's party-wide synergy (partyDmgMod).
@@ -299,6 +302,8 @@ function passiveDmg(owner, tgt) {
       }
     });
   });
+  // BOON damage tuners (each gates itself by owner inside .mod)
+  runBoons().forEach(b => { if (b.trigger === 'dmgMod' && b.mod) bonus += b.mod(owner, tgt) || 0; });
   return bonus;
 }
 // team mitigation: Cassia's Guardian's Aegis soaks for allies in rows behind her
@@ -311,6 +316,60 @@ function soakMitigation(h) {
 // does this hero keep their guard through the enemy turn? (Cassia's Immovable)
 function keepsGuard(heroId) {
   return passiveNodesFor(heroId, 'keepGuard').length > 0;
+}
+
+// ---------------------------------------------------------------------------
+// BOONS (the roguelite's mid-run randomness engine) — companion "gifts" you
+// DRAFT 1-of-3 at elites, events, and the fire.  Each is tied to a hero and is
+// only OFFERED / ACTIVE while that hero is in your party, so WHO you bring
+// shapes the boon pool: party-as-draft and relic-as-draft reinforce each other.
+// Boons reuse the same effect engine as passives/forges — a `card(c)` build-time
+// mod and/or a hook `{ trigger, apply }` / `{ trigger:'dmgMod', mod }` — so there
+// is no bespoke wiring per boon.  Stored on RUN.boons (per-descent, wiped on death).
+// ---------------------------------------------------------------------------
+const BOONS = [
+  // ASH — tempo
+  { id: 'ash_duelist', hero: 'ash', name: 'Duelist’s Focus', icon: '⚔', desc: 'Ash’s <b>signature</b> attacks strike for <b>+3</b>.',
+    card: (c) => { if (c.owner === 'ash' && c.kind === 'sig' && c.fx && c.fx.dmg) c.fx.dmg += 3; } },
+  { id: 'ash_tide', hero: 'ash', name: 'Rushing Tide', icon: '⇄', desc: 'Ash’s damaging cards cost <b>1 less</b> (min 1).',
+    card: (c) => { if (c.owner === 'ash' && c.fx && c.fx.dmg && c.cost > 1) c.cost -= 1; } },
+  { id: 'ash_relentless', hero: 'ash', name: 'Second Wind', icon: '↻', desc: 'Ash’s first <span class="kw kw-rally">FOLLOW-UP</span> each turn refunds <b>1 EP</b>.',
+    trigger: 'followup', apply: () => { if (!S._flags.boonAsh) { S._flags.boonAsh = true; refundEp(1); } } },
+  // ELIN — light
+  { id: 'elin_grace', hero: 'elin', name: 'Elin’s Grace', icon: '✚', desc: 'When Elin heals or wards an ally, they also gain <span class="kw kw-guard">⛨ 1</span>.',
+    trigger: 'support', apply: (c) => { if (c.receiver && !c.receiver.downed) { c.receiver.guard += 1; } } },
+  { id: 'elin_warm', hero: 'elin', name: 'Warm Hands', icon: '❂', desc: 'Elin’s healing cards restore <b>+2</b>.',
+    card: (c) => { if (c.owner === 'elin' && c.fx && c.fx.heal) c.fx.heal += 2; } },
+  { id: 'elin_dawn', hero: 'elin', name: 'Dawnward', icon: '☀', desc: 'At the start of your turn, your most-wounded ally heals <span class="kw kw-heal">✚ 2</span>.',
+    trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'elin') return; const t = lowestHpAlly(); if (t) { t.hp = Math.min(t.maxHp, t.hp + 2); popupAt(figEl(t.id), '✚2', 'heal'); } } },
+  // MIRA — exposed / execute
+  { id: 'mira_scent', hero: 'mira', name: 'Bloodscent', icon: '◎', desc: 'Mira deals <b>+2</b> to any <span class="kw kw-exposed">◎ EXPOSED</span> foe.',
+    trigger: 'dmgMod', mod: (o, t) => (o.id === 'mira' && t && t.mark ? 2 : 0) },
+  { id: 'mira_patience', hero: 'mira', name: 'Killer’s Patience', icon: '☠', desc: 'The first <span class="kw kw-exposed">◎ EXPOSED</span> foe Mira kills each turn refunds <b>1 EP</b>.',
+    trigger: 'kill', apply: (c) => { if (c.tgt && c.tgt.mark && !S._flags.boonMira) { S._flags.boonMira = true; refundEp(1); } } },
+  { id: 'mira_fang', hero: 'mira', name: 'Twin Fang', icon: '⚔', desc: 'Mira’s <b>signature</b> attacks strike for <b>+2</b>.',
+    card: (c) => { if (c.owner === 'mira' && c.kind === 'sig' && c.fx && c.fx.dmg) c.fx.dmg += 2; } },
+  // CASSIA — guard
+  { id: 'cassia_vigil', hero: 'cassia', name: 'Bulwark Heart', icon: '⛨', desc: 'At the start of your turn, Cassia braces for <span class="kw kw-guard">⛨ 2</span>.',
+    trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'cassia') return; c.hero.guard += 2; popupAt(figEl(c.hero.id), '⛨ +2', 'guard'); } },
+  { id: 'cassia_iron', hero: 'cassia', name: 'Ironclad', icon: '◆', desc: 'Cassia’s guard-granting cards give <span class="kw kw-guard">⛨ +2</span>.',
+    card: (c) => { if (c.owner === 'cassia' && c.fx && c.fx.guard) c.fx.guard += 2; } },
+  { id: 'cassia_reprisal', hero: 'cassia', name: 'Reprisal', icon: '↺', desc: 'While Cassia holds <span class="kw kw-guard">⛨ guard</span>, her strikes deal <b>+3</b>.',
+    trigger: 'dmgMod', mod: (o) => (o.id === 'cassia' && o.guard > 0 ? 3 : 0) },
+  // BRANWEN — mark
+  { id: 'branwen_deadeye', hero: 'branwen', name: 'Deadeye', icon: '◎', desc: 'Branwen’s marks land <b>+1</b> deeper <span class="kw kw-exposed">◎ EXPOSED</span>.',
+    card: (c) => { if (c.owner === 'branwen' && c.fx && c.fx.mark) c.fx.mark += 1; } },
+  { id: 'branwen_season', hero: 'branwen', name: 'Open Season', icon: '✦', desc: 'While Branwen stands with you, EVERY ally deals <b>+1</b> to <span class="kw kw-exposed">◎ EXPOSED</span> foes.',
+    trigger: 'dmgMod', mod: (o, t) => (t && t.mark ? 1 : 0) },
+  { id: 'branwen_bounty', hero: 'branwen', name: 'Hunter’s Bounty', icon: '☠', desc: 'The first <span class="kw kw-exposed">◎ EXPOSED</span> foe Branwen kills each turn refunds <b>1 EP</b>.',
+    trigger: 'kill', apply: (c) => { if (c.tgt && c.tgt.mark && !S._flags.boonBran) { S._flags.boonBran = true; refundEp(1); } } },
+];
+const BOON_BY_ID = {}; BOONS.forEach(b => { BOON_BY_ID[b.id] = b; });
+// active boons: OWNED this descent AND their hero is currently fielded
+function runBoons() {
+  if (typeof RUN === 'undefined' || !RUN || !Array.isArray(RUN.boons)) return [];
+  const party = (RUN.active && RUN.active.length) ? RUN.active : RUN.roster || [];
+  return RUN.boons.map(id => BOON_BY_ID[id]).filter(b => b && party.indexOf(b.hero) >= 0);
 }
 
 // IN-RUN FORGING — the temporary (per-descent) ember sink.  At a campfire you
@@ -1186,6 +1245,7 @@ function newRun(starterId) {
     embers: 0,          // per-run ember wallet — earned and spent THIS descent only
     nodes: spark ? [spark] : [],   // per-run skill-tree unlocks — reset when the run ends (seeded with the starting spark)
     forges: [],         // temporary ember tempers bought at camps — reset each descent
+    boons: [],          // companion GIFTS drafted on the road — reset each descent (party-gated)
     foes: [],           // travelers you wronged — they ambush a later fight this run
     foesMade: 0,        // count of travelers ever crossed this run — reputation for party MOOD
     emCount: {},        // emergent-loop tallies — accrue ACROSS the whole descent (grow over time)
@@ -1379,7 +1439,8 @@ function mkCard(h, kind, def) {
   let fx = def.fx, desc = def.desc;
   const riders = ridersFor(h.id, def.name);
   const forges = runForges();
-  if (riders.length || forges.length) fx = Object.assign({}, def.fx);
+  const boons = runBoons().filter(b => b.card);
+  if (riders.length || forges.length || boons.length) fx = Object.assign({}, def.fx);
   if (riders.length) {
     riders.forEach(n => {
       Object.keys(n.rider.fx).forEach(k => { fx[k] = (fx[k] || 0) + n.rider.fx[k]; });
@@ -1392,6 +1453,7 @@ function mkCard(h, kind, def) {
     spent: S.used.has(h.id + ':' + kind) };
   // temper the cloned card with any run forges (mutates card.fx / card.cost)
   forges.forEach(fid => { const f = FORGE_BY_ID[fid]; if (f) f.apply(card); });
+  boons.forEach(b => { try { b.card(card); } catch (_) {} });   // companion gifts bend the card too
   if (card.fx && card.fx.dmg && !card.school) card.school = h.def.school;
   return card;
 }
@@ -3544,7 +3606,13 @@ function onVictory() {
       ${bondLines.length ? `<div class="bond-growth">${bondLines.map(l => `<span class="bg-line${/KINDLED/.test(l) ? ' bg-kindled' : ''}">♡ ${l}</span>`).join('')}</div>` : ''}
       <button class="ov-btn primary" id="ov-next">CONTINUE</button>
     `);
-    $('#ov-next').onclick = () => { hideOverlay(); S.node.mapId != null ? showMap() : advanceFlow(); };
+    const wasElite = !!S.node.elite;   // an elite kill hands you a companion's gift
+    $('#ov-next').onclick = () => {
+      hideOverlay();
+      if (S.node.mapId == null) { advanceFlow(); return; }
+      if (wasElite) showBoonDraft(() => showMap(), { eyebrow: 'THE ELITE FALLS', title: 'SPOILS OF THE ROAD', flavor: 'The harder the fight, the more your companions have to teach. Take one — it holds until you fall.' });
+      else showMap();
+    };
   }, 700);
 }
 function onDefeat() {
@@ -3729,8 +3797,11 @@ function showMap() {
     : (hasEmbers && !treeTaught()
       ? `<div class="map-coach map-coach-soft">✦ <b>${runEmbers()} embers</b> gathered. Fell a few more foes and you’ll have enough to kindle a skill in the <b>EMBER TREE</b>.</div>`
       : '');
+  const boonStrip = (RUN.boons && RUN.boons.length)
+    ? `<span class="map-boons">${RUN.boons.map(id => { const b = BOON_BY_ID[id]; return b ? `<span class="map-boon" style="--tint:${HEROES[b.hero].tint}" title="${HEROES[b.hero].name}’s ${b.name} — ${b.desc.replace(/<[^>]+>/g, '')}">${b.icon}</span>` : ''; }).join('')}</span>`
+    : '';
   showOverlay(`
-    <div class="ov-eyebrow">THE DESCENT${(RUN.floor || 1) >= 2 ? ` · FLOOR ${RUN.floor}` : ''}${moodDef && moodDef.label ? ` <span class="map-mood" style="color:${moodDef.tint}; border-color:${moodDef.tint}66">♦ ${moodDef.label}</span>` : ''}</div>
+    <div class="ov-eyebrow">THE DESCENT${(RUN.floor || 1) >= 2 ? ` · FLOOR ${RUN.floor}` : ''}${moodDef && moodDef.label ? ` <span class="map-mood" style="color:${moodDef.tint}; border-color:${moodDef.tint}66">♦ ${moodDef.label}</span>` : ''}${boonStrip}</div>
     <div class="ov-title" style="font-size:20px; margin-bottom:14px;">${(RUN.floor || 1) >= 2 ? 'THE DEEPER DARK' : 'CHOOSE THE ROAD'}</div>
     <div class="map-strip"><svg class="map-edges" aria-hidden="true"></svg>${colHtml}</div>
     ${coach}
@@ -4337,6 +4408,42 @@ function ensureFoeDef(heroId) {
   ENEMY_DEFS[id] = { weak: h.school, name: 'VENGEFUL ' + h.name, maxHp: Math.round(h.maxHp * 0.6), art: heroId, intents, foeHero: heroId };
   return id;
 }
+// BOON DRAFT — a companion offers a GIFT: pick 1 of 3 (party-gated), held for
+// this descent.  The mid-run randomness beat, shown at elites, events, the fire.
+function showBoonDraft(onDone, opts) {
+  opts = opts || {};
+  const done = onDone || (() => showMap());
+  const party = (RUN.active && RUN.active.length) ? RUN.active : (RUN.roster || []);
+  RUN.boons = RUN.boons || [];
+  const pool = BOONS.filter(b => party.indexOf(b.hero) >= 0 && RUN.boons.indexOf(b.id) < 0);
+  if (!pool.length) { done(); return; }
+  // Prefer VARIETY — gifts from different companions when we can, so a draft
+  // reads as "who's offering" rather than three of the same hero.
+  const shuffled = _shuffle(pool);
+  const picks = [], usedHeroes = new Set();
+  shuffled.forEach(b => { if (picks.length < 3 && !usedHeroes.has(b.hero)) { picks.push(b); usedHeroes.add(b.hero); } });
+  shuffled.forEach(b => { if (picks.length < 3 && picks.indexOf(b) < 0) picks.push(b); });
+  const cardHtml = (b) => `
+    <button class="boon-card" id="boon-${b.id}">
+      <span class="boon-icon" style="--tint:${HEROES[b.hero].tint}">${b.icon}</span>
+      <span class="boon-body">
+        <span class="boon-from">${HEROES[b.hero].name}’S GIFT</span>
+        <span class="boon-name">${b.name}</span>
+        <span class="boon-desc">${b.desc}</span>
+      </span>
+    </button>`;
+  showOverlay(`
+    <div class="ov-eyebrow" style="color:var(--gold-bright)">${opts.eyebrow || 'A BOND DEEPENS'}</div>
+    <div class="ov-title" style="font-size:22px">${opts.title || 'A COMPANION’S GIFT'}</div>
+    <div class="ov-lines" style="text-align:center; min-height:0"><div class="ov-line">${opts.flavor || 'Someone shares a piece of how they fight. Take one — it holds until you fall.'}</div></div>
+    <div class="boon-choices">${picks.map(cardHtml).join('')}</div>
+  `, 'boon-screen');
+  picks.forEach(b => { const el = $('#boon-' + b.id); if (el) el.onclick = () => {
+    RUN.boons.push(b.id); saveRun();
+    try { SFX.kindle(); } catch (_) {}
+    done();
+  }; });
+}
 function showCamp(n) {
   RUN.roster.forEach(id => { RUN.hp[id] = HEROES[id].maxHp; });
   if (!RUN.completed.includes(n.id)) RUN.completed.push(n.id);
@@ -4368,7 +4475,7 @@ function showCamp(n) {
       <div class="camp-choices">
         ${choice('camp-fire', '♡', 'SHARE THE FIRE', 'Deepen your weakest bond <b>+1</b>.')}
         ${choice('camp-steel', '▲', 'SHARPEN STEEL', 'Open the next fight with <span class="kw kw-rally">▲ RALLY +2</span>.')}
-        ${choice('camp-forge', '✦', 'FORGE AT THE EMBER', `Temper your kit for this descent · <b>${runEmbers()}</b> embers.`)}
+        ${choice('camp-boon', '✦', 'COMMUNE AT THE FIRE', 'A companion shares a gift — <b>draw 1 of 3</b>.')}
       </div>
     </div>
   `, 'camp-cine');
@@ -4378,7 +4485,7 @@ function showCamp(n) {
     saveRun();
     showPartySelect(() => showMap());
   };
-  $('#camp-forge').onclick = () => showForge(n);
+  $('#camp-boon').onclick = () => showBoonDraft(() => showMap(), { eyebrow: n.label.toUpperCase(), title: 'A COMPANION’S GIFT', flavor: 'By the fire, someone shares a piece of how they fight. Take one — it holds until you fall.' });
 }
 
 // IN-RUN FORGE — spend embers on a TEMPORARY temper that lasts this descent.
