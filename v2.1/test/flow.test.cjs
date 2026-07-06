@@ -1788,6 +1788,36 @@ const QUICK = process.argv.includes('--quick');
       const nx = enemyNextIntents(e); const v = nx[0];
       return v.echoOf === true && v.dmg === (src.dmg + src.echoBonus) && !v.echo; }));
 
+  // ---------- BURST LEVELS: kizuna expands the all-out container ----------
+  console.log('--- BURST LEVELS ---');
+  check('BURST: a fresh fight opens at container Level 1 (cap 100)',
+    await J(() => { setupFight(['ash', 'elin', 'mira'], [], {}); return S.burstLevel === 1 && burstCap() === 100; }));
+  check('BURST: expandBurst grows the container (L2→175, L3→250) and never downgrades',
+    await J(() => { setupFight(['ash', 'elin', 'mira'], [], {});
+      expandBurst(2); const l2 = S.burstLevel === 2 && burstCap() === 175;
+      expandBurst(3); const l3 = S.burstLevel === 3 && burstCap() === 250;
+      expandBurst(2); const noDown = S.burstLevel === 3;   // a lower call can't shrink it
+      return l2 && l3 && noDown; }));
+  check('BURST: charge only exceeds 100 once the container is expanded',
+    await J(() => { setupFight(['ash', 'elin', 'mira'], [], {}); S.momentum = 0;
+      gainMomentum(300); const l1 = S.momentum === 100;             // clamped at the L1 cap
+      expandBurst(2); S.momentum = 0; gainMomentum(300); const l2 = S.momentum === 175;   // now holds more
+      return l1 && l2; }));
+  check('BURST: the fire level tracks how full the container is',
+    await J(() => { setupFight(['ash', 'elin', 'mira'], [], {}); expandBurst(3);
+      S.momentum = 40;  const none = burstFireLevel() === 0;
+      S.momentum = 120; const one = burstFireLevel() === 1;
+      S.momentum = 180; const two = burstFireLevel() === 2;
+      S.momentum = 250; const three = burstFireLevel() === 3;
+      return none && one && two && three; }));
+  check('BURST: a DUET expands to L2 and the TRIAD vow to L3 (wired into their resolutions)',
+    await J(() => typeof expandBurst === 'function' && typeof allOutEncore === 'function'
+      && resolveDuet.toString().includes('expandBurst(2')
+      && resolveResonant.toString().includes('expandBurst(3')));
+  check('BURST: the all-out scales by fire level and adds an L2+ encore (wired into resolveAllOut)',
+    await J(() => { const s = resolveAllOut.toString();
+      return s.includes('burstFireLevel()') && s.includes('lvlMul') && s.includes('allOutEncore'); }));
+
   t.report();
   await t.browser.close();
 })().catch(e => { console.error('FATAL', e.message); process.exit(1); });

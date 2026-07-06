@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 62;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 63;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -1555,7 +1555,7 @@ function newBattle(node) {
     threads,
     pairsAwake: new Set(),   // kindled pairs whose DUET has awakened THIS fight
     tempCards: [], _tuid: 0, channelUsed: false,
-    momentum: 0, combo: 0, comboBest: 0, allOutUsed: 0,
+    momentum: 0, combo: 0, comboBest: 0, allOutUsed: 0, burstLevel: 1,   // burst container grows via DUET/TRIAD (see expandBurst)
     triadFormed: false, resonantUsed: false, resonantNew: false,
     executing: false, over: false, turn: 1,
   };
@@ -2700,7 +2700,21 @@ function pulseEp() {
 // and killing all feed it.  A running LINK combo counter (per player turn)
 // scales each gain so chaining pays.  Full gauge → ALL-OUT ATTACK.
 // ---------------------------------------------------------------------------
-const MOM_MAX = 100;
+const MOM_MAX = 100;                 // L1 threshold — the all-out is available here
+// BURST LEVELS — the gauge's CONTAINER grows as you speak kizuna.  Landing a DUET
+// expands it to L2, the TRIAD vow to L3 (see expandBurst); a bigger container
+// holds more charge, and the all-out that fires UPGRADES to whatever level the
+// gauge has filled to (see burstFireLevel / resolveAllOut).  Additive & opt-in:
+// a fight that never bonds plays exactly like L1 always did.
+const BURST_CAPS = [100, 175, 250];
+function burstCap() { return BURST_CAPS[((S && S.burstLevel) || 1) - 1] || 100; }
+// The level the all-out will fire at RIGHT NOW — how far the container is filled.
+function burstFireLevel() { const m = (S && S.momentum) || 0; return m >= 250 ? 3 : m >= 175 ? 2 : m >= 100 ? 1 : 0; }
+const BURST_TIERS = [
+  { m: 100, t: '✦ BURST READY — unleash the ALL-OUT, then TAP each strike to chain it.' },
+  { m: 175, t: '✦✦ BURST LV2 — your ALL-OUT is now RESONANT. Hold, or unleash.' },
+  { m: 250, t: '✦✦✦ BURST LV3 — your ALL-OUT is TRANSCENDENT. Unleash it.' },
+];
 function gainMomentum(amt, opts) {
   if (!S || S.over || S._burstResolving) return;   // bursts don't feed themselves
   opts = opts || {};
@@ -2710,13 +2724,26 @@ function gainMomentum(amt, opts) {
     amt += Math.min(8, S.combo);                    // longer chains fill faster
   }
   const before = S.momentum || 0;
-  S.momentum = Math.max(0, Math.min(MOM_MAX, before + amt));
+  S.momentum = Math.max(0, Math.min(burstCap(), before + amt));
   const fill = $('#burst-fill');
   if (fill) { fill.classList.remove('burst-gain'); void fill.offsetWidth; fill.classList.add('burst-gain'); }
-  if (S.momentum >= MOM_MAX && before < MOM_MAX) {
-    flashNarrator('✦ BURST FULL — unleash the ALL-OUT, then TAP each strike to chain it.');
-    SFX.triad();
-  }
+  // Announce each TIER the charge crosses (momentum can't exceed the cap, so a
+  // crossing implies the container was already expanded to hold it).
+  BURST_TIERS.forEach(tt => { if (S.momentum >= tt.m && before < tt.m) { flashNarrator(tt.t); SFX.triad(); } });
+}
+// Grow the burst container.  Called when a DUET (L2) or the TRIAD vow (L3) lands —
+// the kizuna also pours in a chunk of charge so the bigger gauge feels reachable.
+// Persists for the rest of the fight (the container stays big; you refill it).
+function expandBurst(level, label, charge) {
+  if (!S || ((S.burstLevel || 1) >= level)) { if (charge) gainMomentum(charge); return false; }
+  S.burstLevel = level;
+  const burst = $('#burst');
+  if (burst) { burst.classList.remove('burst-expand'); void burst.offsetWidth; burst.classList.add('burst-expand'); }
+  flashNarrator('✦ THE BURST EXPANDS — LEVEL ' + level + (label ? ' · ' + label : '') + '.');
+  if (SFX.triad) SFX.triad();
+  if (charge) gainMomentum(charge);
+  renderBurst();
+  return true;
 }
 // Show a "LINK ×N" combo callout above a hero as the chain grows.
 function linkPopup(heroId) {
@@ -3359,6 +3386,11 @@ function allOutCoach() {
 }
 async function resolveAllOut() {
   S._burstResolving = true;
+  // The all-out FIRES at whatever level the container is filled to.  Each level
+  // scales every strike and adds an auto ENCORE (no extra input) — the kizuna
+  // payoff.  L3 also detonates every hit and lifts the party afterward.
+  const aoLevel = burstFireLevel() || 1;
+  const lvlMul = [1, 1.5, 2][aoLevel - 1] || 1;
   const heroes = livingHeroes();
   // FORTRESS (Cassia) — the party braces before the storm.
   if (hasNode('cassia.allout.fortress') && heroes.some(h => h.id === 'cassia')) {
@@ -3394,8 +3426,8 @@ async function resolveAllOut() {
       cineFlash(q === 'perfect' ? 'rgba(255,120,80,0.5)' : 'rgba(255,240,210,0.4)');
       if (q === 'perfect') stageShake();
       for (const e of livingEnemies()) {
-        let dmg = Math.max(1, Math.round(noteBase * qmul * comboMul));
-        const primed = e.staggered || e.weakened || e.mark || e.lull;
+        let dmg = Math.max(1, Math.round(noteBase * qmul * comboMul * lvlMul));
+        const primed = e.staggered || e.weakened || e.mark || e.lull || aoLevel >= 3;   // L3 detonates everything
         if (primed) { dmg = Math.round(dmg * 1.5); }                 // detonate the setup
         dealToEnemy(e, dmg, h.def.school, h.id);
         if (primed) popupAt(figEl(e.uid), '⚡ TECHNICAL', 'info');
@@ -3410,6 +3442,9 @@ async function resolveAllOut() {
     }
     if (checkEnd()) break;
   }
+  // ENCORE — an upgraded all-out (L2+) ends on a resonant finisher: the whole
+  // party's charge crashes down on the enemy line at once.  No extra input.
+  if (!S.over && livingEnemies().length && aoLevel >= 2) await allOutEncore(aoLevel, heroes);
   // DAWNBREAK (Elin) — the light spills over when the storm passes.
   if (!S.over && hasNode('elin.allout.dawn') && livingHeroes().some(h => h.id === 'elin')) {
     livingHeroes().forEach(h => { h.hp = Math.min(h.maxHp, h.hp + 5); popupAt(figEl(h.id), '✚5', 'heal'); });
@@ -3417,6 +3452,7 @@ async function resolveAllOut() {
   }
   S.momentum = 0;
   S.combo = 0;
+  // The container PERSISTS for the fight — you've earned the bigger gauge; refill it.
   S.allOutUsed = (S.allOutUsed || 0) + 1;
   // a clean ALL-OUT pays embers — the better the cascade, the bigger the bounty
   const aoBonus = Math.min(4, Math.floor(goodHits / 2));
@@ -3429,6 +3465,33 @@ async function resolveAllOut() {
   $('#stage').classList.remove('allout-focus');
   resonantCineEnd();
   renderAll();
+}
+// The upgraded-all-out finisher (Level 2+).  A resonant crash on the whole enemy
+// line — L2 once, L3 twice — then, at L3, the resonance lifts the party (heal +
+// guard).  Damage scales off the all-out base and party size; purely scripted.
+async function allOutEncore(level, heroes) {
+  heroes = (heroes && heroes.length) ? heroes : livingHeroes();
+  const lead = heroes[0];
+  const hits = level >= 3 ? 2 : 1;
+  const per = Math.round(ALLOUT.base * (level >= 3 ? 2.4 : 1.6) * Math.max(2, heroes.length) / 2);
+  flashNarrator(level >= 3 ? '✦✦✦ ENCORE — TRANSCENDENT' : '✦✦ ENCORE — RESONANT');
+  for (let r = 0; r < hits; r++) {
+    if (S.over || !livingEnemies().length) break;
+    cineFlash(level >= 3 ? 'rgba(255,120,80,0.6)' : 'rgba(255,170,90,0.5)');
+    stageShake('lg'); if (SFX.triad) SFX.triad();
+    for (const e of livingEnemies()) {
+      dealToEnemy(e, Math.max(1, per), lead ? lead.def.school : null, lead ? lead.id : null);
+      popupAt(figEl(e.uid), '✦ ENCORE', 'dmg popup-big');
+    }
+    renderAll();
+    if (checkEnd()) return;
+    await sleep(380);
+  }
+  if (level >= 3 && !S.over) {   // the Transcendent resonance lifts the whole party
+    livingHeroes().forEach(h => { h.hp = Math.min(h.maxHp, h.hp + 5); h.guard += 5; popupAt(figEl(h.id), '✚5 ⛨5', 'heal'); });
+    if (SFX.heal) SFX.heal();
+    renderAll();
+  }
 }
 async function triggerAllOut() {
   if (!burstReady()) return;
@@ -3492,6 +3555,9 @@ async function resolveResonant() {
     await sleep(560);
     if (checkEnd()) { resonantCineEnd(); return; }
   }
+  // A TRIO move EXPANDS the burst container to Level 3 — the top tier (and pours
+  // in a big surge, so a Transcendent all-out is within reach after the vow).
+  expandBurst(3, 'the triad resonates', 40);
   resonantCineEnd();
 }
 
@@ -3566,6 +3632,8 @@ async function resolveDuet(card) {
     await sleep(480);
     if (checkEnd()) return;
   }
+  // A DUO move EXPANDS the burst container to Level 2 (and pours in charge).
+  expandBurst(2, 'the duet resonates', 25);
 }
 
 // ---------------------------------------------------------------------------
@@ -5256,14 +5324,28 @@ function renderResonance() {
 // full it becomes a tappable ALL-OUT button.
 function renderBurst() {
   const burst = $('#burst'); if (!burst) return;
-  const frac = Math.max(0, Math.min(1, (S.momentum || 0) / MOM_MAX));
+  const cap = burstCap();
+  const level = (S.burstLevel || 1);
+  const frac = Math.max(0, Math.min(1, (S.momentum || 0) / cap));
   $('#burst-fill').style.width = (frac * 100) + '%';
   burst.style.setProperty('--charge', frac.toFixed(3));   // glow intensity ramps with charge
+  // container LEVEL theming (richer as it expands) + the tier notches that show
+  // where L2 / L3 sit inside the widened gauge.
+  burst.classList.toggle('bl-2', level >= 2);
+  burst.classList.toggle('bl-3', level >= 3);
+  let ticks = burst.querySelector('.burst-ticks');
+  if (!ticks) { ticks = document.createElement('div'); ticks.className = 'burst-ticks'; burst.insertBefore(ticks, burst.querySelector('#burst-lbl')); }
+  ticks.innerHTML = BURST_CAPS.slice(1).map((thr, i) => {
+    const lv = i + 2;
+    return level >= lv ? `<span class="burst-tick bt-${lv}" style="left:${(thr / cap * 100).toFixed(1)}%"></span>` : '';
+  }).join('');
   const ready = burstReady();
   const wasReady = burst.classList.contains('burst-ready');
   burst.classList.toggle('burst-ready', ready);
-  // no %, no clutter — the flowing energy IS the read (FFXVI limit-gauge feel)
-  $('#burst-lbl').textContent = ready ? '⚡ ALL-OUT' : 'BURST';
+  // The label reads the level the all-out will FIRE at right now — so the choice
+  // to unleash or hold-and-charge is legible without a percentage.
+  const fl = burstFireLevel();
+  $('#burst-lbl').textContent = ready ? (fl >= 2 ? '⚡ ALL-OUT ' + '✦'.repeat(fl) : '⚡ ALL-OUT') : (level > 1 ? 'BURST ✦' + level : 'BURST');
   burst.onclick = ready ? () => triggerAllOut() : null;
   burst.style.cursor = ready ? 'pointer' : 'default';
   if (ready && !wasReady) haptic(HAP.good);
