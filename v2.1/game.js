@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 57;
+const V2_BUILD = 60;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -5803,6 +5803,9 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) chec
 setTimeout(checkForUpdate, 2500);
 
 fitStage();
+// Drive the on-screen build stamp from the single source of truth (V2_BUILD),
+// so the HTML can't drift out of sync with what the game actually reports.
+{ const bs = document.getElementById('build-stamp'); if (bs) bs.textContent = 'V2.1 BUILD ' + V2_BUILD; }
 { const mb = $('#menu-btn'); if (mb) mb.onclick = showMenu; }
 let unlocked = false;
 try { unlocked = localStorage.getItem(UNLOCK_KEY) === '1'; } catch (_) {}
