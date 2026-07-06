@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 38;
+const V2_BUILD = 39;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -1381,7 +1381,15 @@ function attachDrag(el, card) {
   let ptrX = 0, ptrY = 0, originX = 0, originY = 0;
   let curTX = 0, curTY = 0, curEX = 0, curEY = 0, vel = 0, angle = 0, raf = 0;
   let snapped = null, _aimTech = false, holdT = null, inspecting = false;
+  let canSac = false, canPlay = false, overEp = false;
   const sc = () => _sscale();
+  // Is the pointer over the EP dial (the sacrifice drop-target)?  Generous pad.
+  const epOrbHit = (x, y) => {
+    const o = $('#ep-dial'); if (!o) return false;
+    const r = o.getBoundingClientRect(); const pad = Math.max(r.width, 26) * 0.6;
+    return x >= r.left - pad && x <= r.right + pad && y >= r.top - pad && y <= r.bottom + pad;
+  };
+  const disarmEp = () => { const c = $('#ep-cluster'); if (c) c.classList.remove('ep-armed', 'ep-sac-hot'); };
 
   el.addEventListener('pointerdown', (e) => {
     if (S.executing || S.over) return;
@@ -1415,12 +1423,15 @@ function attachDrag(el, card) {
     if (!dragging && !inspecting) {
       if (Math.abs(e.clientX - startX) + Math.abs(e.clientY - startY) < 12) return;
       clearTimeout(holdT);
-      // Can't play it? Deny on the drag attempt (spent, or unaffordable), rather
-      // than lifting a card that can't land.
-      if (card.spent || card.cost > S.ep) { if (card.cost > S.ep) denyCard(el, card); pid = null; try { el.releasePointerCapture(e.pointerId); } catch (_) {} return; }
+      // You can drag a card to PLAY it (affordable) or to SACRIFICE it onto the
+      // EP dial for +1 EP (once per turn).  Only deny if it can do neither.
+      canPlay = !card.spent && card.cost <= S.ep;
+      canSac  = !card.spent && !S.channelUsed && card.kind !== 'resonant' && card.kind !== 'move';
+      if (!canPlay && !canSac) { if (card.cost > S.ep) denyCard(el, card); pid = null; try { el.releasePointerCapture(e.pointerId); } catch (_) {} return; }
       dragging = true;
       el.classList.add('card-dragging');
       el.style.transition = 'none';
+      if (canSac) { const cl = $('#ep-cluster'); if (cl) cl.classList.add('ep-armed'); }   // invite the sacrifice
       const r = el.getBoundingClientRect();
       originX = r.left + r.width / 2; originY = r.top + r.height / 2;
       const sr = $('#stage').getBoundingClientRect();
@@ -1480,6 +1491,15 @@ function attachDrag(el, card) {
     // snapped target
     const { mode, els } = dragTargets(card);
     document.querySelectorAll('.fig-snapped').forEach(f => f.classList.remove('fig-snapped'));
+    // SACRIFICE zone — over the EP dial: light it, drop the aim beam, prompt.
+    overEp = canSac && epOrbHit(ptrX, ptrY);
+    { const cl = $('#ep-cluster'); if (cl) cl.classList.toggle('ep-sac-hot', overEp); }
+    if (overEp) {
+      snapped = null; aimClear();
+      const hint = $('#target-hint'); hint.textContent = 'SACRIFICE · feed the card for +1 EP'; hint.classList.remove('hidden');
+      return;
+    }
+    if (mode !== 'field' && !targeting) { const h = $('#target-hint'); if ((h.textContent || '').indexOf('SACRIFICE') === 0) h.classList.add('hidden'); }
     let ex, ey, valid, field = false;
     const cr = el.getBoundingClientRect();
     const fromX = (cr.left + cr.width / 2 - sr.left) / s, fromY = (cr.top - sr.top) / s + 2;
@@ -1527,8 +1547,11 @@ function attachDrag(el, card) {
     dragging = false;
     el.classList.remove('card-dragging');
     aimClear();
+    disarmEp();
     document.querySelectorAll('.fig-tech-aim').forEach(f => f.classList.remove('fig-tech-aim'));
     if (!targeting) { $('#target-hint').classList.add('hidden'); $('#target-hint').classList.remove('th-tech'); }
+    // SACRIFICE — released over the EP dial → feed the card for +1 EP.
+    if (canSac && epOrbHit(e.clientX, e.clientY)) { channelCard(card); return; }
     const handTop = $('#hand').getBoundingClientRect().top;
     const cancelled = e.clientY > handTop - 8;
     const { mode } = dragTargets(card);
@@ -4424,9 +4447,8 @@ function renderActionBar() {
     el.dataset.kind = card.kind;
     const isTemp = card.temp || card.kind === 'resonant';
     el.title = card.name + ' — ' + card.desc.replace(/<[^>]+>/g, '');
-    const channelable = !card.spent && !S.channelUsed && !S.executing && !S.over && card.kind !== 'resonant';
+    // SACRIFICE is a gesture now (drag the card onto the EP dial) — no button.
     el.innerHTML = `
-      ${channelable ? `<button class="card-channel" title="Channel for +1 EP">↻</button>` : ''}
       <div class="c-top">
         <span class="c-cost tempo-${card.tempo || 'steady'}${card.cost === 0 ? ' c-free' : ''}">${card.cost === 0 ? 'FREE' : card.cost}</span>
         <span class="c-name">${card.name}</span>
@@ -4437,11 +4459,6 @@ function renderActionBar() {
       <div class="c-reach">${cardReach(card)}</div>
       <div class="c-owner"><span>${card.ownerName}</span><span class="c-stance">· ${card.stance}</span></div>
     `;
-    const chBtn = el.querySelector('.card-channel');
-    if (chBtn) {
-      chBtn.addEventListener('pointerdown', e => e.stopPropagation());
-      chBtn.addEventListener('click', e => { e.stopPropagation(); channelCard(card); });
-    }
     attachDrag(el, card);
     handEl.appendChild(el);
   });
@@ -4638,6 +4655,7 @@ function showHowTo(back) {
       <div class="ov-line"><b>Bond.</b> Help an ally (heal, guard, follow-up) to form a THREAD. Hold all three and the trio RESONATES a shared vow.</div>
       <div class="ov-line"><b>Exploit.</b> Hit a foe's weakness twice in a turn to STAGGER it; chain hits to fill BURST, then unleash the ALL-OUT.</div>
       <div class="ov-line"><b>Grow.</b> Every hero starts with one card per stance. Foes drop <b>✦ embers</b> — on the map, spend them in your party's <b>EMBER TREE</b> to unlock cards and upgrades. It's power for <i>this descent only</i>: fall, and it burns away.</div>
+      <div class="ov-line"><b>Sacrifice.</b> Drag a card onto your <b>EP dial</b> to feed it for <b>+1 EP</b> — once a turn, so no card is ever dead.</div>
       <div class="ov-line"><b>Inspect.</b> Press &amp; hold any card to enlarge it.</div>
     </div>
     <button class="ov-btn primary" id="ht-back">◂ BACK</button>

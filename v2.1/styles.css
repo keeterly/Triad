@@ -831,6 +831,15 @@ button.map-node:not(:disabled) { cursor: pointer; }
   100% { transform: translateX(0); }
 }
 #ep-dial.ep-pulse { animation: ep-pulse 0.4s ease; }
+/* SACRIFICE drop-target — the EP dial invites a card while one is dragged, and
+   flares when the card hovers over it. */
+#ep-cluster { position: relative; transition: transform 0.15s ease; }
+#ep-cluster.ep-armed #ep-dial { border-color: rgba(240,190,120,0.75); box-shadow: 0 0 16px rgba(240,190,120,0.35), inset 0 0 10px rgba(0,0,0,0.6); animation: ep-armed-pulse 1.3s ease-in-out infinite; }
+#ep-cluster.ep-armed::after { content: '↓ SACRIFICE'; position: absolute; top: -16px; left: 50%; transform: translateX(-50%); white-space: nowrap; font-size: 7.5px; letter-spacing: 0.24em; color: #ffcf8a; opacity: 0.85; pointer-events: none; }
+#ep-cluster.ep-sac-hot { transform: scale(1.06); }
+#ep-cluster.ep-sac-hot #ep-dial { border-color: #ffcf8a; background: radial-gradient(circle at 50% 40%, rgba(70,46,16,0.95) 0%, rgba(24,14,6,0.96) 75%); box-shadow: 0 0 26px rgba(255,190,110,0.65), inset 0 0 10px rgba(0,0,0,0.5); animation: none; }
+#ep-cluster.ep-sac-hot::after { color: #ffe3ad; opacity: 1; }
+@keyframes ep-armed-pulse { 50% { box-shadow: 0 0 22px rgba(240,190,120,0.5), inset 0 0 10px rgba(0,0,0,0.6); } }
 @keyframes ep-pulse {
   0% { transform: scale(1); box-shadow: 0 0 12px rgba(154,120,192,0.25); }
   40% { transform: scale(1.12); box-shadow: 0 0 22px rgba(154,120,192,0.6); }

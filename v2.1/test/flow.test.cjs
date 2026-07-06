@@ -584,12 +584,24 @@ const QUICK = process.argv.includes('--quick');
     }), await J(() => 'ash:'+document.querySelectorAll('#hand .card[data-owner="ash"]').length+' cassia:'+document.querySelectorAll('#hand .card[data-owner="cassia"]').length+' kiki:'+document.querySelectorAll('#hand .card[data-owner="kiki"]').length));
   check('SWIFT: Kiki’s 2-cost signature is discounted to 1',
     await J(() => { const c = [...document.querySelectorAll('#hand .card[data-owner="kiki"]')]; return c.some(x => x.querySelector('.c-cost').textContent === '1'); }));
-  // CHANNEL: sacrifice a card for +1 EP, once per turn
+  // SACRIFICE is a GESTURE now (drag a card onto the EP dial) — no button.
+  check('SACRIFICE: cards no longer carry a channel button', await J(() => !document.querySelector('#hand .card-channel')));
+  check('SACRIFICE: dragging a card ARMS the EP dial as a drop-target',
+    await J(() => {
+      S.channelUsed = false; S.ep = S.maxEp; renderAll();
+      const c = document.querySelector('#hand .card[data-owner="kiki"]'); if (!c) return false;
+      const r = c.getBoundingClientRect(), mx = r.left + r.width / 2, my = r.top + r.height / 2;
+      c.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 5, clientX: mx, clientY: my }));
+      c.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerId: 5, clientX: mx, clientY: my - 40 }));
+      const armed = !!document.querySelector('#ep-cluster.ep-armed');
+      c.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 5, clientX: mx, clientY: my - 40 }));
+      return armed && !document.querySelector('#ep-cluster.ep-armed');   // disarms on release
+    }));
   const epBefore = await J(() => S.ep);
-  await J(() => { const c = document.querySelector('#hand .card[data-owner="kiki"]'); const b = c.querySelector('.card-channel'); b.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
-  await sleep(250);
-  check('CHANNEL: sacrificing a card gave +1 EP', await J(() => S.ep) === epBefore + 1, 'ep ' + epBefore + '->' + await J(() => S.ep));
-  check('CHANNEL: once per turn (no more channel pips)', await J(() => S.channelUsed && !document.querySelector('.card-channel')));
+  await J(() => { S.channelUsed = false; const c = buildHand().find(x => x.owner === 'kiki' && !x.spent && x.kind !== 'move'); channelCard(c); });
+  await sleep(200);
+  check('SACRIFICE: feeding a card to the dial grants +1 EP', await J(() => S.ep) === epBefore + 1, 'ep ' + epBefore + '->' + await J(() => S.ep));
+  check('SACRIFICE: once per turn (channelUsed locks)', await J(() => S.channelUsed === true));
   await shot('economy');
   // HEAL FLOOR: mending a full-HP ally shields instead of wasting.  A small party
   // (non-lean) so Elin still holds her MID core (Mend) alongside her signature.
