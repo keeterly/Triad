@@ -1818,6 +1818,19 @@ const QUICK = process.argv.includes('--quick');
     await J(() => { const s = resolveAllOut.toString();
       return s.includes('burstFireLevel()') && s.includes('lvlMul') && s.includes('allOutEncore'); }));
 
+  // ---------- PERFECT REWARDS: flawless parry riposte + all-out finisher ----------
+  console.log('--- PERFECT REWARDS ---');
+  check('RIPOSTE: a flawless parry string counters, scaled by length; a single note does not',
+    await J(() => parryRiposteDmg(1) === 0 && parryRiposteDmg(2) === 8 && parryRiposteDmg(3) === 12 && parryRiposteDmg(5) === 20));
+  check('RIPOSTE: runParrySeq reports a FLAWLESS flag (every note PERFECT, not just caught)',
+    await J(() => { const s = runParrySeq.toString(); return s.includes('perfects') && s.includes('flawless') && s.includes('notes: notes.length'); }));
+  check('RIPOSTE: the flawless counter is wired into the enemy parry resolution',
+    await J(() => { const s = enemyPhase.toString(); return s.includes('res.flawless') && s.includes('parryRiposteDmg'); }));
+  check('FINISHER: a flawless all-out finisher scales with party size',
+    await J(() => allOutFinisherDmg(3) === 19 && allOutFinisherDmg(2) === 13 && allOutFinisherDmg(1) === 13));
+  check('FINISHER: an all-perfect cascade (3+ strikes) triggers the finisher (wired into resolveAllOut)',
+    await J(() => { const s = resolveAllOut.toString(); return s.includes('perfectStrikes') && s.includes('allStrikes >= 3') && s.includes('allOutFinisher('); }));
+
   t.report();
   await t.browser.close();
 })().catch(e => { console.error('FATAL', e.message); process.exit(1); });

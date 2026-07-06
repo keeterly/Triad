@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 63;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 64;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -2820,6 +2820,12 @@ function mkParryUiAt(ax, ay, innerHtml, cls) {
 // combo streak that escalates, and a pitch-ramped tick.  This is the rhythm
 // feedback — you FEEL every tap land the instant you make it.
 let _parryStreak = 0;
+// FLAWLESS PARRY RIPOSTE (Clair Obscur) — reading a whole cascade PERFECTLY (every
+// note perfect, not just caught) counters for damage, scaled by the string length,
+// so the big 3–5-note boss cascades are the richest to nail.  Single notes don't
+// riposte — the counter is the reward for a real string.
+const RIPOSTE_PER_NOTE = 4;
+function parryRiposteDmg(noteCount) { return (noteCount >= 2) ? noteCount * RIPOSTE_PER_NOTE : 0; }
 function noteFeedback(ui, ax, ay, q) {
   const good = q === 'perfect' || q === 'good';
   if (good) _parryStreak++; else _parryStreak = 0;
@@ -3027,7 +3033,7 @@ async function runParrySeq(notes, anchor, art) {
   const preview = mkSeqPreview(pts);
   const rh = seqRhythm(notes.length);   // steady, readable cascade groove
   await sleep(SEQ_LEADIN);              // let the whole arc register before note 1 lands
-  let hits = 0;
+  let hits = 0, perfects = 0;
   for (let i = 0; i < notes.length; i++) {
     const nt = notes[i], p = pts[i], step = rh[i] || { d: 560, g: 160 };
     const done = preview.querySelectorAll('.sq-dot')[i]; if (done) done.classList.add('sq-active');
@@ -3038,12 +3044,14 @@ async function runParrySeq(notes, anchor, art) {
     else                       q = await parryTapNote(p.x, p.y, step.d, i + 1, notes.length);
     if (done) { done.classList.remove('sq-active'); done.classList.add(q === 'perfect' || q === 'good' ? 'sq-hit' : 'sq-miss'); }
     if (q === 'perfect' || q === 'good') hits++;
+    if (q === 'perfect') perfects++;
     if (step.g) await sleep(step.g);   // even gap — a groove you can stay inside
   }
   preview.remove();
   // PARTIAL: each note you turned aside negates its share; the ones you missed
-  // still land.  mit = fraction parried; perfect only if you caught them all.
-  return { mit: hits / notes.length, perfect: hits === notes.length };
+  // still land.  mit = fraction parried; perfect = caught them all; FLAWLESS =
+  // every note read PERFECTLY (the Clair Obscur counter — ripostes, see enemyPhase).
+  return { mit: hits / notes.length, perfect: hits === notes.length, flawless: perfects === notes.length && notes.length > 0, notes: notes.length };
 }
 // Run a pattern; returns { mit (0..1 damage negated), perfect } | null if off.
 // While a parry is live the world behind the notes desaturates, blurs and
@@ -3080,20 +3088,21 @@ async function runParryInner(targetEl, pattern, art) {
   // stay CONTIGUOUS — a quick double-tap, no dead gap between them.
   if (k === 'multi') {
     const rh = parryRhythm(pattern.count);
-    let hits = 0;
+    let hits = 0, perfects = 0;
     for (let i = 0; i < pattern.count; i++) {
       const step = rh[i] || { d: 480 };
       const q = await parryTapNote(a.x, a.y, step.d, i + 1, pattern.count, sz);
       if (q === 'perfect' || q === 'good') hits++;
+      if (q === 'perfect') perfects++;
     }
-    return { mit: hits / pattern.count, perfect: hits === pattern.count };
+    return { mit: hits / pattern.count, perfect: hits === pattern.count, flawless: perfects === pattern.count && pattern.count > 0, notes: pattern.count };
   }
   let q;
   if (k === 'hold')       q = await parryHoldNote(a.x, a.y, 900, sz);
   else if (k === 'swipe') q = await parrySwipeNote(a.x, a.y, pattern.arc, 860, sz);
   else if (k === 'mash')  q = await parryMashNote(a.x, a.y, pattern.count || 4, 1150);
   else                    q = await parryTapNote(a.x, a.y, 700, 1, 1, sz);
-  return { mit: q === 'perfect' ? 1 : q === 'good' ? 0.5 : 0, perfect: q === 'perfect' };
+  return { mit: q === 'perfect' ? 1 : q === 'good' ? 0.5 : 0, perfect: q === 'perfect', flawless: q === 'perfect', notes: 1 };
 }
 function parryFlash(el) {
   if (!el) return;
@@ -3399,7 +3408,7 @@ async function resolveAllOut() {
   await allOutCineIntro(heroes);
   $('#stage').classList.add('allout-focus');
   allOutCoach();
-  let chain = 0, goodHits = 0;
+  let chain = 0, goodHits = 0, allStrikes = 0, perfectStrikes = 0;
   for (const h of heroes) {
     if (S.over || !livingEnemies().length) break;
     lungeFig(figEl(h.id));
@@ -3419,6 +3428,7 @@ async function resolveAllOut() {
       else                      q = await strikeNote(figEl(tgt.uid), i + 1, casc.length, step.d);
       const good = q === 'perfect' || q === 'good';
       if (good) goodHits++;
+      allStrikes++; if (q === 'perfect') perfectStrikes++;   // for the FLAWLESS finisher
       chain = good ? chain + 1 : 0;
       allOutCombo(chain, q);
       const comboMul = 1 + Math.min(chain, ALLOUT.comboCap) * ALLOUT.comboStep;
@@ -3445,6 +3455,11 @@ async function resolveAllOut() {
   // ENCORE — an upgraded all-out (L2+) ends on a resonant finisher: the whole
   // party's charge crashes down on the enemy line at once.  No extra input.
   if (!S.over && livingEnemies().length && aoLevel >= 2) await allOutEncore(aoLevel, heroes);
+  // FLAWLESS FINISHER (Clair Obscur) — nailing EVERY strike perfectly (a real
+  // string, 3+) earns an extra screen-filling blow.  Rewards INPUT mastery,
+  // independent of the burst LEVEL — so a perfect L1 all-out still earns it.
+  const flawlessAllOut = allStrikes >= 3 && perfectStrikes === allStrikes;
+  if (!S.over && livingEnemies().length && flawlessAllOut) await allOutFinisher(heroes);
   // DAWNBREAK (Elin) — the light spills over when the storm passes.
   if (!S.over && hasNode('elin.allout.dawn') && livingHeroes().some(h => h.id === 'elin')) {
     livingHeroes().forEach(h => { h.hp = Math.min(h.maxHp, h.hp + 5); popupAt(figEl(h.id), '✚5', 'heal'); });
@@ -3492,6 +3507,26 @@ async function allOutEncore(level, heroes) {
     if (SFX.heal) SFX.heal();
     renderAll();
   }
+}
+// FLAWLESS ALL-OUT FINISHER — the mastery payoff for a perfectly-timed cascade.
+// A single blinding blow crashes on the whole enemy line.  Scales off the
+// all-out base and party size; earned by input, so it can be strong.
+function allOutFinisherDmg(partySize) { return Math.round(ALLOUT.base * 3.2 * Math.max(2, partySize) / 2); }
+async function allOutFinisher(heroes) {
+  heroes = (heroes && heroes.length) ? heroes : livingHeroes();
+  const lead = heroes[0];
+  flashNarrator('✦✦✦ FLAWLESS — THE FINISHER');
+  $('#stage').classList.add('allout-focus');
+  cineFlash('rgba(255,244,190,0.72)'); stageShake('xl'); hitFlash(3);
+  if (SFX.kill) SFX.kill();
+  await sleep(160);
+  const dmg = allOutFinisherDmg(heroes.length);
+  for (const e of livingEnemies()) {
+    dealToEnemy(e, dmg, lead ? lead.def.school : null, lead ? lead.id : null);
+    popupAt(figEl(e.uid), '✦ FINISHER ' + dmg, 'dmg popup-big');
+  }
+  renderAll();
+  await sleep(520);
 }
 async function triggerAllOut() {
   if (!burstReady()) return;
@@ -3747,8 +3782,18 @@ async function enemyPhase() {
         addEmbers(1); if (S) S._embersRun = (S._embersRun || 0) + 1;   // mastery pays embers
         gainMomentum(24, { combo: true });   // parry FEEDS the burst
         lungeFig(figEl(ptHero.id));
+        // FLAWLESS RIPOSTE — a whole cascade read PERFECTLY counters for damage.
+        const rip = res.flawless ? parryRiposteDmg(res.notes || 1) : 0;
+        if (rip > 0 && !e.dead) {
+          flashNarrator('✦ FLAWLESS — ' + ptHero.def.name + ' RIPOSTES for ' + rip + '!');
+          cineFlash('rgba(255,205,130,0.42)'); stageShake('lg');
+          lungeFig(figEl(ptHero.id));
+          dealToEnemy(e, rip, ptHero.def.school, ptHero.id);   // through the hero's school → can exploit weakness
+          popupAt(figEl(e.uid), '⚔ RIPOSTE ' + rip, 'dmg popup-big');
+          gainMomentum(10, { combo: true });   // a flawless string surges extra burst
+        }
         renderAll();
-        await sleep(240);
+        await sleep(rip > 0 ? 340 : 240);
         if (e.dead || S.over) continue;
       } else if (mit > 0) {
         // PARTIAL — you caught some of the cascade; only the missed share lands
