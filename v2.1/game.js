@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 44;
+const V2_BUILD = 45;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -1238,7 +1238,13 @@ function newBattle(node) {
         // UNPARRIED blow should be frightening, not an instant execution.
         const bdepth = Math.max(1, (node.depth || 1) + ((node.floor || 1) - 1) * 3);
         e.dmgMul = 2.3 + (bdepth - 1) * 0.08;
-        const hp = Math.round(e.maxHp * 1.9);
+        // A single-target boss gets FOCUS-FIRED by a full trio (every hero piles
+        // follow-ups onto one body), so it needs real bulk to be a CLIMAX rather
+        // than a 2-turn pushover.  The floor-1 boss leans on HP for that; the
+        // floor-2 boss (life-DRAIN + hunts the weakest) is deadly at less, so it
+        // keeps the leaner multiplier instead of becoming an HP sponge.
+        const bhpMult = (node.floor || 1) >= 2 ? 1.9 : 2.9;
+        const hp = Math.round(e.maxHp * bhpMult);
         e.maxHp = hp; e.hp = hp;
       } else {
         e.dmgMul = (1.8 + (depth - 1) * 0.08) * psDmg;
@@ -1248,8 +1254,8 @@ function newBattle(node) {
       // ELITE nodes hit harder and last longer — a real spike over a plain fight.
       if (node.elite && !e.def.boss) {
         e._elite = true;                 // pays the bigger ember bounty (emberReward)
-        e.dmgMul *= 1.15;
-        const hp = Math.round(e.maxHp * 1.25);
+        e.dmgMul *= 1.3;
+        const hp = Math.round(e.maxHp * 1.6);
         e.maxHp = hp; e.hp = hp;
       }
     });
