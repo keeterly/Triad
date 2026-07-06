@@ -2429,27 +2429,30 @@ button.map-node:not(:disabled) { cursor: pointer; }
   background: radial-gradient(ellipse 58% 60% at 50% 100%, rgba(255,152,64,0.42) 0%, rgba(255,110,40,0.16) 34%, transparent 66%);
   filter: blur(3px); animation: camp-glow-flicker 3.4s ease-in-out infinite; }
 @keyframes camp-glow-flicker { 0%,100% { opacity: 0.9; } 40% { opacity: 1; } 72% { opacity: 0.8; } }
-/* the party, gathered — portraits lit warm, right side turned to the fire */
-.camp-party { position: absolute; left: 0; right: 0; bottom: 37%; height: 0; z-index: 2; }
-.camp-hero { position: absolute; left: 50%; bottom: 0; transform: translateX(calc(-50% + var(--off) * 148px));
+/* the party, gathered — portraits lit warm, right side turned to the fire.
+   They stand a touch HIGHER so the fire reads in FRONT of them (they gather
+   AROUND it), and the middle hero sits back a step so nobody blocks the flame. */
+.camp-party { position: absolute; left: 0; right: 0; bottom: 42%; height: 0; z-index: 2; }
+.camp-hero { position: absolute; left: 50%; bottom: 0; transform: translateX(calc(-50% + var(--off) * 156px));
   animation: camp-hero-in 0.6s cubic-bezier(.16,.72,.28,1) both; animation-delay: calc(0.1s + var(--off) * 0.05s); }
-.camp-hero svg { height: 146px; width: auto; display: block;
+.camp-hero svg { height: 140px; width: auto; display: block;
   filter: drop-shadow(0 12px 22px rgba(0,0,0,0.92)) drop-shadow(0 -6px 20px rgba(255,140,50,0.3)) brightness(0.9) saturate(1.08); }
-.camp-hero-c { z-index: 3; } .camp-hero-c svg { height: 160px; }
-.camp-hero-l { z-index: 2; }
+.camp-hero-c { z-index: 2; }               /* centre stands BACK, behind the fire */
+.camp-hero-c svg { height: 132px; filter: drop-shadow(0 12px 22px rgba(0,0,0,0.92)) drop-shadow(0 -6px 20px rgba(255,140,50,0.28)) brightness(0.82) saturate(1.05); }
+.camp-hero-l, .camp-hero-r { z-index: 3; }  /* flanks stand nearer, framing the fire */
 .camp-hero-r svg { transform: scaleX(-1); }
-@keyframes camp-hero-in { from { opacity: 0; transform: translateX(calc(-50% + var(--off) * 148px)) translateY(14px); } }
-/* the fire itself */
-.camp-fire { position: absolute; left: 50%; bottom: 33%; transform: translateX(-50%); z-index: 4; width: 60px; height: 54px; pointer-events: none; }
-.cf-core { position: absolute; left: 50%; bottom: 0; width: 50px; height: 20px; transform: translateX(-50%); border-radius: 50%; filter: blur(1.5px);
-  background: radial-gradient(ellipse at 50% 100%, rgba(255,224,150,0.9), rgba(255,140,50,0.5) 46%, transparent 76%); }
-.cf-flame { position: absolute; left: 50%; bottom: 5px; width: 20px; height: 38px; transform: translateX(-50%); filter: blur(0.5px); transform-origin: 50% 100%;
-  background: radial-gradient(ellipse at 50% 100%, rgba(255,232,175,0.96), rgba(255,150,50,0.72) 40%, rgba(220,70,30,0.22) 70%, transparent);
-  border-radius: 50% 50% 44% 44% / 66% 66% 34% 34%; animation: cf-flicker 0.42s ease-in-out infinite alternate; }
-@keyframes cf-flicker { 0% { transform: translateX(-50%) scale(1,1); opacity: 0.92; } 100% { transform: translateX(-50%) scale(0.9,1.14); opacity: 1; } }
-.cf-ember { position: absolute; left: 50%; bottom: 8px; width: 3px; height: 3px; border-radius: 50%; background: #ffcf8a; box-shadow: 0 0 5px rgba(255,170,80,0.9); opacity: 0;
+@keyframes camp-hero-in { from { opacity: 0; transform: translateX(calc(-50% + var(--off) * 156px)) translateY(14px); } }
+/* the fire — a PROMINENT foreground element the party stands around */
+.camp-fire { position: absolute; left: 50%; bottom: 33%; transform: translateX(-50%); z-index: 4; width: 96px; height: 92px; pointer-events: none; }
+.cf-core { position: absolute; left: 50%; bottom: 0; width: 82px; height: 32px; transform: translateX(-50%); border-radius: 50%; filter: blur(2px);
+  background: radial-gradient(ellipse at 50% 100%, rgba(255,228,160,0.95), rgba(255,140,50,0.55) 46%, transparent 76%); }
+.cf-flame { position: absolute; left: 50%; bottom: 10px; width: 30px; height: 60px; transform: translateX(-50%); filter: blur(0.5px); transform-origin: 50% 100%;
+  background: radial-gradient(ellipse at 50% 100%, rgba(255,236,185,0.97), rgba(255,152,52,0.78) 40%, rgba(222,72,32,0.26) 70%, transparent);
+  border-radius: 50% 50% 44% 44% / 66% 66% 34% 34%; animation: cf-flicker 0.42s ease-in-out infinite alternate; box-shadow: 0 0 34px 14px rgba(255,140,50,0.35); }
+@keyframes cf-flicker { 0% { transform: translateX(-50%) scale(1,1); opacity: 0.94; } 100% { transform: translateX(-50%) scale(0.88,1.16); opacity: 1; } }
+.cf-ember { position: absolute; left: 50%; bottom: 14px; width: 3px; height: 3px; border-radius: 50%; background: #ffcf8a; box-shadow: 0 0 5px rgba(255,170,80,0.9); opacity: 0;
   animation: cf-ember-rise calc(2.3s + var(--i) * 0.28s) ease-in infinite; animation-delay: calc(var(--i) * -0.42s); }
-@keyframes cf-ember-rise { 0% { opacity: 0; transform: translate(-50%, 0) scale(1); } 16% { opacity: 1; } 100% { opacity: 0; transform: translate(calc(-50% + (var(--i) - 4) * 9px), -128px) scale(0.3); } }
+@keyframes cf-ember-rise { 0% { opacity: 0; transform: translate(-50%, 0) scale(1); } 16% { opacity: 1; } 100% { opacity: 0; transform: translate(calc(-50% + (var(--i) - 4) * 11px), -150px) scale(0.3); } }
 /* title over the scene */
 .camp-top { position: absolute; top: 6%; left: 0; right: 0; text-align: center; z-index: 5; animation: tc-fade 0.7s both; padding: 0 6%; }
 .camp-eyebrow { font-size: 9px; letter-spacing: 0.44em; color: var(--gold-bright); margin-bottom: 7px; }

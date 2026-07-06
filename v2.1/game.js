@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 50;
+const V2_BUILD = 51;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
