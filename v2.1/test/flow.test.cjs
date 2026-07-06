@@ -907,6 +907,21 @@ const QUICK = process.argv.includes('--quick');
       S = null; RUN = newRun('ash'); RUN.embers = 8; showMap();
       return !!document.querySelector('.map-coach') && !!document.querySelector('.map-tree-btn.mt-teach');
     }));
+  check('COACH: embers but none affordable → soft prompt only, no kindle nag',
+    await J(() => {
+      try { localStorage.removeItem('kizuna2_1.treeTaught'); } catch (_) {}
+      S = null; RUN = newRun('ash'); RUN.active = ['ash']; RUN.embers = 3; RUN.completed = [];   // spark owned; cheapest other node costs 4
+      showMap();
+      return !canKindleNow() && !!document.querySelector('.map-coach-soft')
+        && !document.querySelector('.map-coach:not(.map-coach-soft)') && !document.querySelector('.map-tree-btn.mt-teach');
+    }));
+  check('COACH: once a node is affordable, the map nags to kindle it',
+    await J(() => {
+      try { localStorage.removeItem('kizuna2_1.treeTaught'); } catch (_) {}
+      S = null; RUN = newRun('ash'); RUN.active = ['ash']; RUN.embers = 6; RUN.completed = [];
+      showMap();
+      return canKindleNow() && !!document.querySelector('.map-coach:not(.map-coach-soft)') && !!document.querySelector('.map-tree-btn.mt-teach');
+    }));
   check('TEACH: the tree shows a KINDLE coach until you learn it',
     await J(() => { showEmberTree(() => {}, 'ash'); return !!document.querySelector('.et-coach') && treeTaught() === false; }));
   check('TEACH: kindling a node plays a KINDLE BURST and banks the unlock',

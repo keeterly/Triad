@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 36;
+const V2_BUILD = 37;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -3305,17 +3305,27 @@ function showMap() {
   const trio = RUN.active.map(id => `<span class="party-chip-fig">${V2PORTRAITS[id] || ''}</span>`).join('');
   const r = triadEntryFor(RUN.active);
   const mood = partyMood(), moodDef = MOODS[mood];
+  // Only nag "kindle a skill" when you can actually AFFORD one — otherwise it
+  // prompts an impossible action (and, since the teach never completes, nags
+  // forever).  With embers-but-not-enough, coach toward gathering more.
+  const hasEmbers = runEmbers() > 0;
+  const canKindle = hasEmbers && !treeTaught() && canKindleNow();
+  const coach = canKindle
+    ? `<div class="map-coach">✦ You tore <b>${runEmbers()} embers</b> from the dead — open your <b>EMBER TREE</b> below and kindle your first skill before you press on.</div>`
+    : (hasEmbers && !treeTaught()
+      ? `<div class="map-coach map-coach-soft">✦ <b>${runEmbers()} embers</b> gathered. Fell a few more foes and you’ll have enough to kindle a skill in the <b>EMBER TREE</b>.</div>`
+      : '');
   showOverlay(`
     <div class="ov-eyebrow">THE DESCENT${(RUN.floor || 1) >= 2 ? ` · FLOOR ${RUN.floor}` : ''}${moodDef && moodDef.label ? ` <span class="map-mood" style="color:${moodDef.tint}; border-color:${moodDef.tint}66">♦ ${moodDef.label}</span>` : ''}</div>
     <div class="ov-title" style="font-size:20px; margin-bottom:14px;">${(RUN.floor || 1) >= 2 ? 'THE DEEPER DARK' : 'CHOOSE THE ROAD'}</div>
     <div class="map-strip"><svg class="map-edges" aria-hidden="true"></svg>${colHtml}</div>
-    ${(runEmbers() > 0 && !treeTaught()) ? `<div class="map-coach">✦ You tore <b>${runEmbers()} embers</b> from the dead — open your <b>EMBER TREE</b> below and kindle a new skill before you press on.</div>` : ''}
+    ${coach}
     <div class="map-footer">
       <button class="party-chip" id="map-party">
         ${trio}
         <span class="party-chip-meta">PARTY · resonates as <b>✦ ${r.name}</b> <i>(${r.type})</i></span>
       </button>
-      <button class="map-tree-btn${(runEmbers() > 0 && !treeTaught()) ? ' mt-glow mt-teach' : (runEmbers() > 0 ? ' mt-glow' : '')}" id="map-tree">✦ EMBER TREE<span class="mt-embers">${runEmbers()}</span></button>
+      <button class="map-tree-btn${canKindle ? ' mt-glow mt-teach' : (hasEmbers ? ' mt-glow' : '')}" id="map-tree">✦ EMBER TREE<span class="mt-embers">${runEmbers()}</span></button>
     </div>
   `, 'map-screen');
   document.querySelectorAll('.map-node.mn-reach').forEach(el => {
@@ -4750,6 +4760,11 @@ function nodeState(n) {
 }
 // You can only build the heroes you're FIELDING — the tree shows your party.
 function partyHeroes() { return (RUN && RUN.active && RUN.active.length) ? RUN.active.filter(id => TREE_HEROES.indexOf(id) >= 0) : []; }
+// Is at least one node in the party's trees kindle-able RIGHT NOW (affordable,
+// prereqs met, tier open)?  Gates the map's "kindle a skill" coach.
+function canKindleNow() {
+  return partyHeroes().some(hid => EMBER_TREE.some(n => n.hero === hid && nodeState(n) === 'ready'));
+}
 function showEmberTree(onBack, heroId, selId) {
   $('#stage').classList.remove('show-bg');
   // a "__kindled:" prefix on selId means we just bought that node — celebrate it
