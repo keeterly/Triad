@@ -1406,8 +1406,11 @@ function newBattle(node) {
         // follow-ups onto one body), so it needs real bulk to be a CLIMAX rather
         // than a 2-turn pushover.  The floor-1 boss leans on HP for that; the
         // floor-2 boss (life-DRAIN + hunts the weakest) is deadly at less, so it
-        // keeps the leaner multiplier instead of becoming an HP sponge.
-        const bhpMult = (node.floor || 1) >= 2 ? 1.9 : 2.9;
+        // keeps the leaner multiplier instead of becoming an HP sponge.  The
+        // floor-3 FINALE (the Sundering) faces a full endgame kit focus-firing
+        // one body, so it wants to be the BIGGEST wall — its own fat multiplier.
+        const fl = node.floor || 1;
+        const bhpMult = fl >= 3 ? 2.4 : fl >= 2 ? 1.9 : 2.9;
         const hp = Math.round(e.maxHp * bhpMult);
         e.maxHp = hp; e.hp = hp;
       } else {
