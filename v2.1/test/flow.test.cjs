@@ -1732,7 +1732,7 @@ const QUICK = process.argv.includes('--quick');
 
   // ---------- FLOOR 3: THE SUNDERING — a bond-cutting boss ----------
   console.log('--- FLOOR 3 ---');
-  check('FLOOR 3: the descent now runs THREE floors', await J(() => FLOORS === 3));
+  check('FLOOR 3: the Sundering is a mid-descent floor now (the run runs deeper than three)', await J(() => FLOORS > 3));
   check('FLOOR 3: a third floor generates THE SUNDERING as its boss',
     await J(() => {
       const map = generateDescent(['ash', 'elin', 'mira'], 3);
@@ -1750,6 +1750,43 @@ const QUICK = process.argv.includes('--quick');
       const cut = severThreads(S.enemies[0], 1);
       return cut === 1 && S.threads.size === 2 && S.triadFormed === false;
     }));
+
+  // ---------- FLOOR 4: THE HOLLOW CHORUS — the multi-stage mega boss ----------
+  console.log('--- FLOOR 4 / MEGA BOSS ---');
+  check('FLOOR 4: the descent now runs FOUR floors', await J(() => FLOORS === 4));
+  check('FLOOR 4: a short 3-node gauntlet — threshold fight → last fire → the mega boss',
+    await J(() => {
+      const m = generateDescent(['ash', 'elin', 'mira'], 4);
+      return m.length === 3
+        && m[0].type === 'fight' && m[0].next.join() === '1'
+        && m[1].type === 'camp' && m[1].next.join() === '2'
+        && m[2].type === 'boss' && m[2].enemies[0] === 'echochorus' && m[2].next.length === 0;
+    }));
+  check('MEGA: the Chorus is a 3-stage boss (Remembered → Devouring → Unmaking)',
+    await J(() => {
+      const d = ENEMY_DEFS.echochorus;
+      return d && d.megaBoss && Array.isArray(d.stages) && d.stages.length === 3
+        && d.stages.map(s => s.weak).join() === 'blade,light,song';
+    }));
+  await J(() => { window.megaBoot = () => {
+    RUN = newRun('ash'); RUN.roster = ['ash', 'elin', 'mira']; RUN.active = ['ash', 'elin', 'mira']; RUN.hp = { ash: 32, elin: 24, mira: 22 };
+    RUN.nodes = []; RUN.completed = [0, 1];
+    startFight({ type: 'fight', chapter: 3, heroes: ['ash', 'elin', 'mira'], enemies: ['echochorus'], useRunHp: true, floor: 4, depth: 3, isBoss: true, narrator: '' });
+    return S.enemies[0];
+  }; });
+  check('MEGA: it opens in stage 0 — THE REMEMBERED, weak to blade, its own HP',
+    await J(() => { const e = megaBoot(); return e.stage === 0 && e.def.name === 'THE REMEMBERED' && e.def.weak === 'blade'
+      && e.hp === e.maxHp && e.maxHp === Math.round(150 * (1 + (META.heat || 0) * 0.12)); }));
+  check('MEGA: entering a stage swaps weakness / aura / intents / HP live on e.def',
+    await J(() => { const e = megaBoot(); enterMegaStage(e, 1); const two = e.def.weak === 'light' && e.def.aura === 'maw';
+      enterMegaStage(e, 2); const three = e.def.weak === 'song' && e.def.aura === 'sunder' && e.def.intents.some(i => i.discord);
+      return two && three; }));
+  check('MEGA: a stage carries a FIVE-note parry cascade (the climax sequences)',
+    await J(() => ENEMY_DEFS.echochorus.stages.some(s => s.intents.some(i => i.parry && i.parry.notes && i.parry.notes.length === 5))));
+  check('MEGA ECHO: a stored echo returns as the round’s first telegraph, stronger & non-chaining',
+    await J(() => { const e = megaBoot(); const src = e._stages[0].intents.find(i => i.echo); e.echoStored = { intent: src, dmgBonus: src.echoBonus || 4 };
+      const nx = enemyNextIntents(e); const v = nx[0];
+      return v.echoOf === true && v.dmg === (src.dmg + src.echoBonus) && !v.echo; }));
 
   t.report();
   await t.browser.close();

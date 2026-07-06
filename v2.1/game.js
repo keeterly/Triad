@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 61;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 62;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -826,6 +826,56 @@ const ENEMY_DEFS = {
       { name: 'THE GREAT UNRAVELING', dmg: 12, row: 'all', heavy: true, sever: 3, attackArt: 'blast', parry: { kind: 'seq', notes: [{ t: 'tap' }, { t: 'swipe', arc: 'arcAcross' }, { t: 'tap' }, { t: 'swipe', arc: 'arcU' }, { t: 'hold' }] } },
     ],
   },
+  // ═══ THE MEGA BOSS (FLOOR 4) — the source the three floor bosses were only
+  // fragments of.  A MULTI-STAGE fight: it wears each prior aspect in turn, then
+  // becomes the whole.  `stages[]` each carry their own name / weak / aura / HP /
+  // intents; the engine swaps `e.def` to the live stage (see enterMegaStage), so
+  // every stage teaches its own weakness and telegraphs its own cascades.  Two
+  // NEW mechanics debut here, each a fusion of earlier ones:
+  //   ECHO    — an unparried echo strike RETURNS next round, stronger (the
+  //             Knight's memory).  A PERFECT parry silences it.
+  //   DISCORD — an unparried discord strike SEVERS a thread AND heals the Chorus
+  //             from the broken bond (the Sundering's cut + the Maw's hunger).
+  // Parry sequences run up to FIVE notes in succession — the climax of the game.
+  echochorus: {
+    name: 'THE HOLLOW CHORUS', weak: 'song', boss: true, floorBoss: true, megaBoss: true, art: 'echoknight',
+    attacksPerRound: 2, maxHp: 1,   // placeholder — real HP is per-stage (see enterMegaStage)
+    stages: [
+      // STAGE 1 — THE REMEMBERED (blade / rhythm).  Fast TAP cascades that GROW
+      // as it gathers the echo; its Remembered Cascade ECHOes if you miss it.
+      { key: 'remembered', name: 'THE REMEMBERED', epithet: 'IT KEEPS THE BEAT', aura: null, weak: 'blade', maxHp: 150, eye: '#ff5038', roar: 'blade',
+        quote: 'I wore his face first. You remember the Knight — so does he.',
+        intents: [
+          { name: 'Returning Stroke', dmg: 8, row: 'front', attackArt: 'slash', parry: { kind: 'seq', notes: [{ t: 'tap' }, { t: 'tap' }, { t: 'tap' }] } },
+          { name: 'Gathers the Echo', kind: 'buff', desc: 'the beat quickens', powerSelf: 3 },
+          { name: 'Remembered Cascade', dmg: 7, row: 'mid', echo: true, echoBonus: 4, attackArt: 'claw', parry: { kind: 'seq', notes: [{ t: 'tap' }, { t: 'swipe', arc: 'arcR' }, { t: 'tap' }, { t: 'tap' }] } },
+          { name: 'CRESCENDO', dmg: 11, row: 'all', heavy: true, attackArt: 'blast', parry: { kind: 'seq', notes: [{ t: 'tap' }, { t: 'tap' }, { t: 'tap' }, { t: 'swipe', arc: 'arcU' }, { t: 'hold' }] } },
+        ] },
+      // STAGE 2 — THE DEVOURING (light / hunger).  Braced HOLDs; DRAIN heals it,
+      // HEX burns your hand, and it HUNTS your weakest.  Deny the damage.
+      { key: 'devouring', name: 'THE DEVOURING', epithet: 'IT IS STILL HUNGRY', aura: 'maw', weak: 'light', maxHp: 165, eye: '#a86bff', roar: 'maw',
+        quote: 'The Maw never stopped eating. It only learned patience.',
+        intents: [
+          { name: 'Cursed Reach', dmg: 6, row: 'front', hex: 2, attackArt: 'claw', parry: { kind: 'seq', notes: [{ t: 'tap' }, { t: 'hold' }] } },
+          { name: 'The Hunger Swells', kind: 'buff', desc: 'it feeds and grows', powerSelf: 2 },
+          { name: 'DEVOUR', dmg: 7, row: 'front', drain: 0.6, attackArt: 'slam', parry: { kind: 'seq', notes: [{ t: 'hold' }, { t: 'tap' }, { t: 'hold' }] } },
+          { name: 'Withering Chorus', dmg: 5, row: 'all', chill: 1, hex: 1, attackArt: 'blast', parry: { kind: 'seq', notes: [{ t: 'swipe', arc: 'arcAcross' }, { t: 'tap' }, { t: 'hold' }] } },
+          { name: 'THE GREAT GORGE', dmg: 9, row: 'all', heavy: true, drain: 0.5, attackArt: 'blast', parry: { kind: 'seq', notes: [{ t: 'hold' }, { t: 'tap' }, { t: 'swipe', arc: 'arcU' }, { t: 'tap' }, { t: 'hold' }] } },
+        ] },
+      // STAGE 3 — THE UNMAKING (song / bonds).  SWIPE deflects; SEVER cuts threads
+      // and the new DISCORD feeds it from every bond it breaks.  THE LAST CHORD is
+      // the climax: a five-note sequence that unmakes the whole line at once.
+      { key: 'unmaking', name: 'THE UNMAKING', epithet: 'IT FEEDS ON THE BOND', aura: 'sunder', weak: 'song', maxHp: 190, eye: '#8fe0d0', roar: 'maw',
+        quote: 'You came down together. I keep every echo you leave behind.',
+        intents: [
+          { name: 'Cut the Thread', dmg: 7, row: 'front', sever: 1, attackArt: 'slash', parry: { kind: 'seq', notes: [{ t: 'swipe', arc: 'arcR' }, { t: 'tap' }] } },
+          { name: 'DISCORD', dmg: 8, row: 'mid', discord: 1, attackArt: 'claw', parry: { kind: 'seq', notes: [{ t: 'swipe', arc: 'arcL' }, { t: 'tap' }, { t: 'swipe', arc: 'arcR' }] } },
+          { name: 'The Unmaking', kind: 'buff', desc: 'it unravels the world', powerSelf: 3 },
+          { name: 'Fraying Chord', dmg: 6, row: 'back', sever: 1, echo: true, echoBonus: 5, attackArt: 'blast', parry: { kind: 'seq', notes: [{ t: 'swipe', arc: 'arcU' }, { t: 'tap' }] } },
+          { name: 'THE LAST CHORD', dmg: 12, row: 'all', heavy: true, discord: 2, attackArt: 'blast', parry: { kind: 'seq', notes: [{ t: 'tap' }, { t: 'swipe', arc: 'arcAcross' }, { t: 'hold' }, { t: 'swipe', arc: 'arcU' }, { t: 'hold' }] } },
+        ] },
+    ],
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -1204,6 +1254,16 @@ function _connect(prev, next, nodes) {
 function generateDescent(roster, floor) {
   roster = roster || ['ash'];
   floor = floor || 1;
+  // FLOOR 4 — THE DEEPEST DARK.  Not a branching map: a short, brutal gauntlet of
+  // just THREE travel nodes — a threshold fight, a last fire to prepare, and the
+  // multi-stage MEGA BOSS.  No choices, no detours; only the descent's end.
+  if (floor >= 4) {
+    return [
+      { id: 0, level: 1, col: 1, type: 'fight', enemies: _combatEnemies(6), label: 'THE THRESHOLD', next: [1] },
+      { id: 1, level: 2, col: 2, type: 'camp', label: 'THE LAST FIRE', next: [2] },
+      { id: 2, level: 3, col: 3, type: 'boss', enemies: ['echochorus'], isBoss: true, floorBoss: true, label: 'THE HOLLOW CHORUS', next: [] },
+    ];
+  }
   // Recruits = anyone not already in the party.  You start solo (or short) and
   // build your trio from the road, so an early recruit is guaranteed close.
   const pending = _shuffle(STARTER_POOL.filter(id => !roster.includes(id)));
@@ -1381,7 +1441,7 @@ function newRun(starterId) {
     done: false,
   };
 }
-const FLOORS = 3;         // total floors in a full descent
+const FLOORS = 4;         // total floors — floor 4 is the short mega-boss gauntlet
 const BOND_KINDLED = 2;
 const bondPts = (k) => (RUN && RUN.bonds && RUN.bonds[k]) || 0;
 function saveRun() { try { localStorage.setItem(RUN_KEY, RUN ? JSON.stringify(RUN) : ''); } catch (_) {} }
@@ -1465,6 +1525,9 @@ function newBattle(node) {
       });
     }
   }
+  // MEGA BOSS — swap the placeholder def for its first live stage (per-stage HP
+  // scaled by the same HEAT factor).  Keeps the boss's rolled dmgMul from above.
+  enemies.forEach(e => { if (e.def && e.def.megaBoss) initMegaBoss(e, META.heat || 0); });
   // Kindled bonds walk into battle already connected: the pair's thread is
   // pre-formed and the bond-guard applies from turn one.  The triad itself
   // still needs ONE act of help this fight to awaken (see addThread).
@@ -2445,8 +2508,21 @@ function enemyNextIntents(e) {
   const len = e.def.intents.length;
   const n = (e.def.floorBoss && e.def.attacksPerRound) ? e.def.attacksPerRound : 1;
   const out = [];
-  for (let k = 0; k < n; k++) out.push(e.def.intents[(e.intentIdx + k) % len]);
+  // A stored ECHO returns as the round's FIRST strike (it does not consume a slot
+  // in the normal cycle), so the telegraph mirrors exactly what enemyPhase runs.
+  for (let k = 0; k < n; k++) {
+    if (k === 0 && e.echoStored) { out.push(echoView(e.echoStored)); continue; }
+    const off = e.echoStored ? k - 1 : k;
+    out.push(e.def.intents[(e.intentIdx + off) % len]);
+  }
   return out;
+}
+// A returning ECHO: the same blow again, stronger, still parriable — but it does
+// not re-echo, sever, or curse (pure damage), so it can't chain into a loop.
+function echoView(stored) {
+  const s = stored.intent;
+  return { name: 'ECHO · ' + s.name, dmg: (s.dmg || 0) + (stored.dmgBonus || 0), row: s.row,
+    heavy: s.heavy, attackArt: s.attackArt, parry: s.parry, echoOf: true };
 }
 // SMART foes (floor 2+) don't hammer a fixed row — they HUNT the most vulnerable
 // living hero (lowest hp+guard; ties to the most-exposed).  Computed live, so the
@@ -2536,6 +2612,14 @@ function dealToEnemy(e, amt, school, byHeroId) {
     stageShake('lg');
   }
   if (e.hp === 0 && !e.dead) {
+    // MEGA BOSS — dropping a stage is not death: it sheds the aspect and reforms
+    // into the next.  (During an ALL-OUT we clamp to 1 HP instead of breaking
+    // mid-burst, so the reform cutscene never interrupts the scripted sequence —
+    // the next clean hit triggers it.)
+    if (e._stages && e.stage < e._stages.length - 1) {
+      if (S && S._burstResolving) e.hp = 1; else megaStageBreak(e);
+      return;
+    }
     e.dead = true;
     e._justDied = true;
     const reward = emberReward(e);                  // felling a foe yields embers
@@ -3541,8 +3625,11 @@ async function enemyPhase() {
     const times = (e.def.floorBoss && e.def.attacksPerRound) ? e.def.attacksPerRound : 1;
     for (let atk = 0; atk < times; atk++) {
     if (S.over || e.dead) break;
-    const intent = e.def.intents[e.intentIdx % e.def.intents.length];
-    e.intentIdx++;
+    // A stored ECHO returns as the round's FIRST strike — it does NOT advance the
+    // normal cycle (so the cadence resumes where it left off after the echo lands).
+    let intent;
+    if (atk === 0 && e.echoStored) { intent = echoView(e.echoStored); e.echoStored = null; popupAt(figEl(e.uid), '◈ THE ECHO RETURNS', 'info'); }
+    else { intent = e.def.intents[e.intentIdx % e.def.intents.length]; e.intentIdx++; }
     e.acted = true;
     renderTimeline();
     // INTERRUPT: a staggered enemy cannot release a HEAVY intent — the
@@ -3687,6 +3774,15 @@ async function enemyPhase() {
     // SEVER — THE SUNDERING cuts a formed thread, undoing resonance progress.
     // A PERFECT parry holds the bond together; otherwise the thread snaps.
     if (intent.sever && !perfectParry) severThreads(e, intent.sever);
+    // DISCORD — the Chorus feeds on the bonds it breaks: sever a thread AND heal
+    // for each one cut.  A PERFECT parry denies both.  (Fusion of sever + drain.)
+    if (intent.discord && !perfectParry) {
+      const cut = severThreads(e, intent.discord);
+      if (cut > 0 && !e.staggered) { const fed = cut * 9; e.hp = Math.min(e.maxHp, e.hp + fed); popupAt(figEl(e.uid), '♥ +' + fed, 'heal'); flashNarrator(e.def.name + ' feeds on the broken bond.'); }
+    }
+    // ECHO — an unparried echo strike is REMEMBERED and returns next round,
+    // stronger.  A PERFECT parry silences it before it can ring out again.
+    if (intent.echo && !intent.echoOf && !perfectParry) { e.echoStored = { intent, dmgBonus: intent.echoBonus || 4 }; popupAt(figEl(e.uid), '◈ ECHO STORED', 'info'); }
     renderAll();
     await sleep(400);
     if (checkEnd()) break;
@@ -3821,7 +3917,18 @@ function onFloorCleared() {
   RUN.map = generateDescent(RUN.roster, RUN.floor);
   RUN.roster.forEach(id => { RUN.hp[id] = HEROES[id].maxHp; });   // catch your breath before the deep
   saveRun();
-  showOverlay(`
+  // The step onto the FINAL floor is its own beat: the deepest dark, where the
+  // three you broke were only fragments of the one thing still waiting.
+  const finalFloor = RUN.floor >= FLOORS;
+  showOverlay(finalFloor ? `
+    <div class="ov-eyebrow" style="color:var(--gold-bright)">THE DESCENT · THE LAST FLOOR</div>
+    <div class="ov-title" style="font-size:24px">THE DEEPEST DARK</div>
+    <div class="ov-lines" style="text-align:center; min-height:0;">
+      <div class="ov-line">The Sundering’s pieces do not scatter — they are <b>drawn downward</b>, gathered, remembered.</div>
+      <div class="ov-line">Knight, Maw, Sundering: three voices of <b>one throat</b>. It has been singing the whole way down. A threshold, a last fire — then the <b>Hollow Chorus</b>.</div>
+    </div>
+    <button class="ov-btn primary" id="ov-deeper">INTO THE DEEP</button>
+  ` : `
     <div class="ov-eyebrow" style="color:var(--gold-bright)">FLOOR ${RUN.floor - 1} · CLEARED</div>
     <div class="ov-title" style="font-size:24px">THE FLOOR GIVES WAY</div>
     <div class="ov-lines" style="text-align:center; min-height:0;">
@@ -3835,11 +3942,11 @@ function onFloorCleared() {
 function onRunComplete() {
   RUN.done = true; saveRun();
   showOverlay(`
-    <div class="ov-eyebrow" style="color:var(--gold-bright)">THE DESCENT · CLEARED</div>
-    <div class="ov-title" style="font-size:26px">THE HUNGER STILLS</div>
+    <div class="ov-eyebrow" style="color:var(--gold-bright)">THE HOLLOW CHORUS · SILENCED</div>
+    <div class="ov-title" style="font-size:26px">THE LAST ECHO FADES</div>
     <div class="ov-lines" style="text-align:center; min-height:0;">
-      <div class="ov-line">The Maw folds inward and is gone. For the first time, the deep dark is quiet.</div>
-      <div class="ov-line"><b>The thread held — all the way down.</b> Every triangle you never formed still waits below: other trios, other vows, another descent.</div>
+      <div class="ov-line">Three voices in one throat, and every one of them cut. The Chorus comes apart into a hush so complete you can hear your own hearts — <b>all of them, still beating, together</b>.</div>
+      <div class="ov-line"><b>The thread held — all the way to the bottom.</b> Every triangle you never formed still waits in the dark: other trios, other vows, another descent.</div>
     </div>
     <button class="ov-btn primary" id="ov-title">BACK TO TITLE</button>
   `);
@@ -4115,34 +4222,51 @@ const BOSS_CINE = {
     quote: 'Down here, everything is food. Even the little light you carry.' },
   echosunder:   { name: 'THE SUNDERING', epithet: 'IT CUTS THE THREADS', eye: '#8fe0d0', roar: 'maw',
     quote: 'Every bond you tie, I have already cut. You came down together — you will not leave that way.' },
+  echochorus:   { name: 'THE HOLLOW CHORUS', epithet: 'ALL ECHOES ARE ITS VOICE', eye: '#e8b84a', roar: 'maw',
+    quote: 'Knight. Maw. Sundering — three voices you have already silenced. I am the one that sang them all.' },
 };
 let _bossCineBusy = false;
 function bossIntro(bossId, onDone) {
   const c = BOSS_CINE[bossId] || BOSS_CINE.echoknight2;
   const def = ENEMY_DEFS[bossId] || {};
   const art = V2PORTRAITS[def.art || bossId] || '';
+  bossCine(Object.assign({ art, skip: 'TAP TO FACE IT' }, c), onDone);
+}
+// A mid-fight STAGE cutscene for the mega boss: its form shatters and reforms
+// into the next aspect.  Reuses the boss-intro presentation with the stage's own
+// name / epithet / eye-colour / quote.
+function megaStageCine(stage, onDone) {
+  bossCine({ name: 'THE HOLLOW CHORUS', epithet: stage.epithet || stage.name, sub: stage.name,
+    eye: stage.eye || '#e8b84a', roar: stage.roar || 'maw', quote: stage.quote || '',
+    art: V2PORTRAITS[ENEMY_DEFS.echochorus.art] || '', skip: 'TAP TO FACE WHAT COMES', transition: true }, onDone);
+}
+// Shared boss cutscene: the colossus rises, eyes ignite, its NAME slams, it
+// speaks — then the fight (or the next stage) begins.
+function bossCine(c, onDone) {
+  onDone = onDone || function () {};
   hideOverlay();
   $('#stage').classList.remove('show-bg');
   const old = document.getElementById('boss-cine'); if (old) old.remove();
   const el = document.createElement('div');
   el.id = 'boss-cine';
-  el.className = c.roar === 'maw' ? 'bc-maw' : 'bc-knight';
+  el.className = (c.roar === 'maw' ? 'bc-maw' : 'bc-knight') + (c.transition ? ' bc-transition' : '');
   el.style.setProperty('--bc-eye', c.eye);
   el.innerHTML = `
     <div class="bc-bar bc-bar-t"></div>
     <div class="bc-bar bc-bar-b"></div>
     <div class="bc-rays"></div>
     <div class="bc-vign"></div>
-    <div class="bc-boss"><div class="bc-glow"></div><div class="bc-art">${art}</div><div class="bc-eyes"><span></span><span></span></div></div>
+    <div class="bc-boss"><div class="bc-glow"></div><div class="bc-art">${c.art || ''}</div><div class="bc-eyes"><span></span><span></span></div></div>
     ${Array.from({ length: 16 }).map((_, i) => `<span class="bc-ember" style="--i:${i}"></span>`).join('')}
     <div class="bc-flash"></div>
     <div class="bc-txt">
       <div class="bc-epithet">${c.epithet}</div>
       <div class="bc-name">${c.name}</div>
+      ${c.sub ? `<div class="bc-sub">— ${c.sub} —</div>` : ''}
       <div class="bc-rule"></div>
       <div class="bc-quote">“${c.quote}”</div>
     </div>
-    <div class="bc-skip">TAP TO FACE IT</div>`;
+    <div class="bc-skip">${c.skip || 'TAP TO FACE IT'}</div>`;
   $('#stage').appendChild(el);
   _bossCineBusy = true;
   requestAnimationFrame(() => el.classList.add('bc-run'));
@@ -4162,6 +4286,47 @@ function bossIntro(bossId, onDone) {
   el.addEventListener('pointerdown', finish);
   at(6400, finish);   // auto-advance if they don't tap
   return el;
+}
+// ── MEGA-BOSS STAGES ────────────────────────────────────────────────────────
+// The Hollow Chorus is one body with three aspects.  `e.def` is swapped to the
+// live stage (a merge of the base def + the stage), so every read of intents /
+// weak / aura / name / HP just works with no other engine changes.
+function initMegaBoss(e, heat) {
+  e._baseDef = ENEMY_DEFS.echochorus;       // the shared shell (art, flags, attacksPerRound)
+  e._stages = e._baseDef.stages;
+  e.stageHpMul = 1 + (heat || 0) * 0.12;    // HEAT scales EACH stage, not just the first
+  enterMegaStage(e, 0);                     // dmgMul was already rolled by the boss ramp
+}
+function enterMegaStage(e, i) {
+  const st = e._stages[i];
+  e.stage = i;
+  e.def = Object.assign({}, e._baseDef, st);   // live stage view (st overrides name/weak/aura/intents/maxHp)
+  e.maxHp = Math.round((st.maxHp || 160) * (e.stageHpMul || 1));
+  e.hp = e.maxHp;
+  e.intentIdx = 0; e.power = 0; e.guard = 0; e.mark = 0; e.lull = 0;
+  e.weakRevealed = false; e.weakened = false; e.staggered = false; e.echoStored = null;
+}
+// A stage falls: freeze the field, play the reform cutscene, then the Chorus
+// rises in its next aspect at full stage HP.  The party's HP/threads carry over —
+// the war of attrition is the point.
+function megaStageBreak(e) {
+  const next = e.stage + 1;
+  const st = e._stages[next];
+  S._staging = true;
+  e.hp = 0; e.staggered = false;
+  const fell = (e.def && e.def.name) || 'THE CHORUS';
+  popupAt(figEl(e.uid), '✦ ' + fell + ' FALLS', 'info');
+  if (SFX.kill) SFX.kill();
+  stageShake('xl'); hitFlash(3);
+  renderAll();
+  megaStageCine(st, () => {
+    enterMegaStage(e, next);
+    S._staging = false;
+    _bossFig = null;   // rebuild the boss figure for the new aspect (fresh aura/filters)
+    flashNarrator('THE HOLLOW CHORUS reforms — ' + st.name + '.');
+    if (SFX.enemy) SFX.enemy();
+    renderAll();
+  });
 }
 // KINDLE BURST — the moment a skill catches.  A full-screen ember-bloom over the
 // tree: the node's glyph ignites, ember shards fan out, the skill NAME slams in

@@ -2290,6 +2290,8 @@ button.map-node:not(:disabled) { cursor: pointer; }
   opacity: 0; transform: scale(2.7); filter: blur(15px); text-shadow: 0 0 34px var(--bc-eye), 0 4px 14px #000; }
 #boss-cine.bc-slam .bc-name { animation: bc-slam 0.44s cubic-bezier(.2,.85,.24,1.15) forwards; }
 @keyframes bc-slam { 0% { opacity: 0; transform: scale(2.7); filter: blur(15px); } 55% { opacity: 1; } 100% { opacity: 1; transform: scale(1); filter: blur(0); } }
+.bc-sub { font-size: 13px; letter-spacing: 0.32em; color: var(--bc-eye); opacity: 0; margin: 8px 0 0; text-shadow: 0 0 14px var(--bc-eye); font-weight: 600; }
+#boss-cine.bc-slam .bc-sub { animation: bc-fade 0.7s 0.42s ease forwards; }
 .bc-rule { width: 0; height: 2px; margin: 10px auto 0; background: linear-gradient(90deg, transparent, var(--bc-eye), transparent); box-shadow: 0 0 10px var(--bc-eye); }
 #boss-cine.bc-slam .bc-rule { animation: bc-rule 0.7s 0.28s cubic-bezier(.2,.8,.2,1) forwards; }
 @keyframes bc-rule { to { width: 62%; } }
