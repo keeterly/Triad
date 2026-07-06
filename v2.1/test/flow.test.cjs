@@ -1400,6 +1400,90 @@ const QUICK = process.argv.includes('--quick');
         && !!localStorage.getItem(SETTINGS_KEY);   // settings kept
     }));
 
+  // ---------- DEEP TREES (Phase 2): layered keyword identities per hero ----------
+  console.log('--- DEEP TREES ---');
+  await J(() => {
+    window.setupFight = (heroes, nodeIds, rows, hp) => {
+      RUN = newRun(heroes[0]);
+      RUN.roster = heroes.slice(); RUN.active = heroes.slice();
+      RUN.hp = {}; heroes.forEach(h => RUN.hp[h] = (hp && hp[h]) || HEROES[h].maxHp);
+      RUN.nodes = nodeIds.slice();
+      RUN.completed = [0, 1, 2, 3, 4, 5, 6, 7, 8];   // depth 9 → all four tiers open
+      RUN.bonds = {};
+      startMapFight(RUN.map.find(x => x.type === 'fight'));
+      if (rows) S.heroes.forEach(h => { if (rows[h.id]) h.row = rows[h.id]; });
+      S.ep = 20; renderAll();
+    };
+    window.handCard = (name) => buildHand().find(c => c.name === name);
+  });
+  // RIDERS — keywords bolt onto signatures at build time
+  check('TREE ash.rider.wave: Crashing Wave strikes +3 (11→14)',
+    await J(() => { setupFight(['ash'], ['ash.sig.front', 'ash.rider.wave'], { ash: 'front' }); const c = handCard('Crashing Wave'); return !!c && c.fx.dmg === 14; }));
+  check('TREE mira.rider.twin: Twin Daggers now also EXPOSED 3',
+    await J(() => { setupFight(['mira'], ['mira.sig.mid', 'mira.rider.twin'], { mira: 'mid' }); const c = handCard('Twin Daggers'); return !!c && c.fx.mark === 3; }));
+  check('TREE cassia.rider.aegis: Aegis also grants COUNTER 1',
+    await J(() => { setupFight(['cassia'], ['cassia.sig.mid', 'cassia.rider.aegis'], { cassia: 'mid' }); const c = handCard('Aegis'); return !!c && c.fx.counter === 1; }));
+  check('TREE branwen.rider.volley: Killshot now also EXPOSED 2',
+    await J(() => { setupFight(['branwen'], ['branwen.sig.mid', 'branwen.rider.volley'], { branwen: 'mid' }); const c = handCard('Killshot'); return !!c && c.fx.mark === 2; }));
+  check('TREE elin.rider.radiance: Radiant Ward also heals party 2',
+    await J(() => { setupFight(['elin'], ['elin.sig.front', 'elin.rider.radiance'], { elin: 'front' }); const c = handCard('Radiant Ward'); return !!c && c.fx.heal === 2 && c.fx.guard === 3; }));
+  // dmgMod passives — EXPOSED exploiters
+  check('TREE mira.passive.opportunist: +3 damage to an EXPOSED foe',
+    await J(() => { setupFight(['mira'], ['mira.passive.opportunist'], { mira: 'mid' }); const e = S.enemies[0]; e.mark = 0; const a = passiveDmg(S.heroes[0], e); e.mark = 4; return a === 0 && passiveDmg(S.heroes[0], e) === 3; }));
+  check('TREE branwen.passive.focus: +2 damage to an EXPOSED foe',
+    await J(() => { setupFight(['branwen'], ['branwen.passive.focus'], { branwen: 'back' }); const e = S.enemies[0]; e.mark = 3; return passiveDmg(S.heroes[0], e) === 2; }));
+  // postHit execute — Death Mark
+  check('TREE mira.passive.deathmark: EXECUTES a foe at ≤30% HP, spares a healthy one',
+    await J(() => {
+      setupFight(['mira'], ['mira.passive.deathmark'], { mira: 'mid' });
+      const e = S.enemies[0]; e.hp = Math.ceil(e.maxHp * 0.28); e.dead = false; firePassives('postHit', 'mira', { tgt: e });
+      const executed = e.dead || e.hp <= 0;
+      e.hp = e.maxHp; e.dead = false; firePassives('postHit', 'mira', { tgt: e });
+      return executed && !e.dead;
+    }));
+  // turnStart passives
+  check('TREE cassia.passive.vigil: braces +2 guard at turn start',
+    await J(() => { setupFight(['cassia'], ['cassia.passive.vigil'], { cassia: 'front' }); const h = S.heroes[0]; h.guard = 0; firePassives('turnStart', 'cassia', {}); return h.guard === 2; }));
+  check('TREE elin.passive.ward: turn start shields the most-wounded ally',
+    await J(() => { setupFight(['elin', 'ash'], ['elin.passive.ward'], { elin: 'back', ash: 'front' }, { ash: 5 }); S.heroes.forEach(h => h.guard = 0); firePassives('turnStart', 'elin', {}); const ash = S.heroes.find(h => h.id === 'ash'); return ash.guard === 2; }));
+  check('TREE branwen.passive.opening: turn start EXPOSES the nearest foe',
+    await J(() => { setupFight(['branwen'], ['branwen.passive.opening'], { branwen: 'back' }); frontmostEnemy().mark = 0; firePassives('turnStart', 'branwen', {}); return frontmostEnemy().mark === 1; }));
+  // enterRow passives
+  check('TREE ash.passive.flow: changing rows rallies his next card +3',
+    await J(() => { setupFight(['ash'], ['ash.passive.flow'], { ash: 'front' }); const h = S.heroes[0]; h.buffDmg = 0; firePassives('enterRow', 'ash', { toRow: 'mid', fromRow: 'front' }); return h.buffDmg === 3; }));
+  // EP-refund latches (once per turn)
+  check('TREE ash.passive.relentless: 1st follow-up refunds 1 EP, the 2nd does not',
+    await J(() => { setupFight(['ash', 'mira'], ['ash.passive.relentless'], { ash: 'front', mira: 'mid' }); S._flags = {}; S.ep = 5; firePassives('followup', 'ash', {}); const a = S.ep; firePassives('followup', 'ash', {}); return a === 6 && S.ep === 6; }));
+  check('TREE branwen.passive.reckoning: killing a MARKED foe refunds 1 EP (unmarked does not)',
+    await J(() => { setupFight(['branwen'], ['branwen.passive.reckoning'], { branwen: 'back' }); S._flags = {}; S.ep = 4; firePassives('kill', 'branwen', { tgt: { mark: 2 } }); const a = S.ep; S._flags = {}; firePassives('kill', 'branwen', { tgt: { mark: 0 } }); return a === 5 && S.ep === 5; }));
+  // capstone — Immovable
+  check('TREE cassia.passive.immovable: her guard persists through the enemy turn',
+    await J(() => { setupFight(['cassia'], ['cassia.passive.immovable'], { cassia: 'front' }); return keepsGuard('cassia') === true && keepsGuard('ash') === false; }));
+  // capstone — Radiant Overflow (real heal; overheal spill reaches the whole party)
+  check('TREE elin.passive.overflow: overheal shields the WHOLE party, not just the target',
+    await J(async () => {
+      setupFight(['elin', 'ash'], ['elin.passive.overflow', 'elin.sig.back'], { elin: 'back', ash: 'front' });
+      S.heroes.forEach(h => { h.hp = h.maxHp; h.guard = 0; });
+      await playCard(handCard('Benediction'), 'ash');   // heal 8, all overflow → +8 guard to both (+2 bond each)
+      const ash = S.heroes.find(h => h.id === 'ash'), elin = S.heroes.find(h => h.id === 'elin');
+      return elin.guard >= 8 && ash.guard >= 8;   // elin (non-target) got the spill ⇒ overflow works
+    }));
+  // ALL-OUT upgrades — resolve a full burst (untimed strikes still complete)
+  check('TREE cassia.allout.fortress + elin.allout.dawn: party braces before & heals after the all-out',
+    await J(async () => {
+      setupFight(['cassia', 'elin'],
+        ['cassia.allout.fortress', 'cassia.emergent.bulwark', 'cassia.sig.front', 'elin.allout.dawn', 'elin.emergent.afterglow', 'elin.sig.back'],
+        { cassia: 'front', elin: 'back' });
+      S.enemies.forEach(e => { e.hp = e.maxHp = 400; });   // survive the burst so Dawnbreak fires
+      S.heroes.forEach(h => { h.hp = Math.max(1, h.maxHp - 12); h.guard = 0; });
+      const beforeHp = {}; S.heroes.forEach(h => beforeHp[h.id] = h.hp);
+      window.__autoParry = false; S.momentum = 100; renderAll();
+      await triggerAllOut();
+      const bracedAll = S.heroes.every(h => h.guard >= 5);     // Fortress +5 to everyone
+      const healedAll = S.heroes.every(h => h.hp === beforeHp[h.id] + 5);   // Dawnbreak +5 to everyone
+      return bracedAll && healedAll;
+    }));
+
   // ---------- DUET: a kindled PAIR + a shared act awakens a 2-hero vow ----------
   console.log('--- DUET ---');
   const duetSetup = await J(() => {

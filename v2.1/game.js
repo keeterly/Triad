@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 40;
+const V2_BUILD = 42;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -125,6 +125,39 @@ const EMBER_TREE = [
     desc: 'Branwen <b>counts her marks</b>. Every <b>2nd time she inflicts</b> <span class="kw kw-exposed">◎ EXPOSED</span> this fight forges a free <b>Killing Arrow</b> — the tally comes due.',
     emergent: { on: 'expose', every: 2, stance: 'FORGED · TALLY', flash: 'The tally comes due — <b>Killing Arrow</b> forged.',
       forge: { name: 'Killing Arrow', cost: 0, target: 'enemy', fx: { dmg: 9, mark: 2 }, desc: '<b>Free.</b> The counted shot lands — <b>9 damage</b> and <span class="kw kw-exposed">◎ EXPOSED 2</span> to any foe.' } } },
+
+  // ═══ DEEP TREES (Phase 2) — each hero grows a layered keyword identity across
+  // four tiers: signatures → keyword riders & passives → emergent procs + an
+  // all-out upgrade → an identity CAPSTONE.  All data-driven (rider / passive /
+  // allout), read by the shared hooks above. ═══════════════════════════════════
+
+  // ASH — TEMPO: momentum, repositioning, follow-ups
+  { id: 'ash.rider.wave', hero: 'ash', tier: 2, cost: 6, type: 'rider', requires: ['ash.sig.front'], label: 'Crushing Wave', desc: 'Crashing Wave (FRONT signature) strikes for <b>+3</b> — the cleave lands heavier.', rider: { card: 'Crashing Wave', fx: { dmg: 3 }, descAdd: ' · <b>+3</b>' } },
+  { id: 'ash.passive.flow', hero: 'ash', tier: 3, cost: 8, type: 'passive', requires: ['ash.passive.vanguard'], label: 'Flowing Momentum', desc: 'Whenever Ash changes rows, his next damaging card this turn deals <span class="kw kw-rally">▲ +3</span> — motion becomes force.', passive: 'ash_flow' },
+  { id: 'ash.passive.relentless', hero: 'ash', tier: 4, cost: 12, type: 'passive', requires: ['ash.emergent.tempo'], label: 'Relentless', desc: 'The FIRST <span class="kw kw-rally">FOLLOW-UP</span> Ash lands each turn refunds <b>1 EP</b> — the duel never lets up.', passive: 'ash_relentless' },
+
+  // ELIN — LIGHT: wards, overheal shields, party sustain
+  { id: 'elin.passive.ward', hero: 'elin', tier: 2, cost: 6, type: 'passive', label: 'Warding Light', desc: 'At the start of your turn, your most wounded ally gains <span class="kw kw-guard">⛨ 2</span> — the light finds the hurt.', passive: 'elin_ward' },
+  { id: 'elin.rider.radiance', hero: 'elin', tier: 3, cost: 7, type: 'rider', requires: ['elin.sig.front'], label: 'Radiance', desc: 'Radiant Ward (FRONT signature) now also heals every ally <span class="kw kw-heal">✚ 2</span>.', rider: { card: 'Radiant Ward', fx: { heal: 2 }, descAdd: ' · <span class="kw kw-heal">✚ 2</span> party' } },
+  { id: 'elin.allout.dawn', hero: 'elin', tier: 3, cost: 9, type: 'allout', requires: ['elin.emergent.afterglow'], label: 'Dawnbreak', desc: 'ALL-OUT upgrade — when your all-out ends, the whole party heals <span class="kw kw-heal">✚ 5</span>.', allout: 'dawn' },
+  { id: 'elin.passive.overflow', hero: 'elin', tier: 4, cost: 11, type: 'passive', requires: ['elin.rider.radiance'], label: 'Radiant Overflow', desc: 'When Elin’s heal overflows a target, the spilled <span class="kw kw-guard">⛨</span> shields the WHOLE party — not just them.', passive: 'elin_overflow' },
+
+  // MIRA — EXPOSED: exploit marks, execute the wounded
+  { id: 'mira.passive.opportunist', hero: 'mira', tier: 2, cost: 6, type: 'passive', requires: ['mira.sig.back'], label: 'Opportunist', desc: 'Mira deals <b>+3</b> to any <span class="kw kw-exposed">◎ EXPOSED</span> foe — she never wastes an opening.', passive: 'mira_opportunist' },
+  { id: 'mira.rider.twin', hero: 'mira', tier: 3, cost: 7, type: 'rider', requires: ['mira.sig.mid'], label: 'Twinned Edge', desc: 'Twin Daggers (MID signature) now also inflicts <span class="kw kw-exposed">◎ EXPOSED 3</span>.', rider: { card: 'Twin Daggers', fx: { mark: 3 }, descAdd: ' · <span class="kw kw-exposed">◎ EXPOSED 3</span>' } },
+  { id: 'mira.passive.deathmark', hero: 'mira', tier: 4, cost: 12, type: 'passive', requires: ['mira.emergent.bloodscent'], label: 'Death Mark', desc: 'When Mira strikes a foe at or below <b>30% HP</b>, she EXECUTES it outright — the wounded do not walk away.', passive: 'mira_execute' },
+
+  // CASSIA — GUARD: retaliation, an immovable wall
+  { id: 'cassia.passive.vigil', hero: 'cassia', tier: 2, cost: 6, type: 'passive', label: 'Standing Vigil', desc: 'At the start of your turn, Cassia braces for <span class="kw kw-guard">⛨ 2</span> — the wall is never caught flat.', passive: 'cassia_vigil' },
+  { id: 'cassia.rider.aegis', hero: 'cassia', tier: 3, cost: 7, type: 'rider', requires: ['cassia.sig.mid'], label: 'Warded Aegis', desc: 'Aegis (MID signature) also grants the ally <span class="kw kw-counter">↺ 1</span> — the ward bites back.', rider: { card: 'Aegis', fx: { counter: 1 }, descAdd: ' · <span class="kw kw-counter">↺ 1</span>' } },
+  { id: 'cassia.allout.fortress', hero: 'cassia', tier: 3, cost: 9, type: 'allout', requires: ['cassia.emergent.bulwark'], label: 'Fortress', desc: 'ALL-OUT upgrade — before Cassia’s all-out, the whole party gains <span class="kw kw-guard">⛨ 5</span>.', allout: 'fortress' },
+  { id: 'cassia.passive.immovable', hero: 'cassia', tier: 4, cost: 12, type: 'passive', requires: ['cassia.rider.aegis'], label: 'Immovable', desc: 'Cassia’s <span class="kw kw-guard">⛨ guard</span> no longer fades at turn’s end — the wall only grows.', passive: 'cassia_immovable' },
+
+  // BRANWEN — MARK: marks at range, the tally comes due
+  { id: 'branwen.passive.focus', hero: 'branwen', tier: 2, cost: 6, type: 'passive', requires: ['branwen.sig.back'], label: 'Hunter’s Focus', desc: 'Branwen deals <b>+2</b> to any <span class="kw kw-exposed">◎ EXPOSED</span> foe.', passive: 'branwen_hunter' },
+  { id: 'branwen.rider.volley', hero: 'branwen', tier: 3, cost: 7, type: 'rider', requires: ['branwen.sig.mid'], label: 'Volley', desc: 'Killshot (MID signature) now also inflicts <span class="kw kw-exposed">◎ EXPOSED 2</span>.', rider: { card: 'Killshot', fx: { mark: 2 }, descAdd: ' · <span class="kw kw-exposed">◎ EXPOSED 2</span>' } },
+  { id: 'branwen.passive.opening', hero: 'branwen', tier: 3, cost: 8, type: 'passive', requires: ['branwen.passive.focus'], label: 'Opening Shot', desc: 'At the start of your turn, Branwen EXPOSES the nearest foe <span class="kw kw-exposed">◎ 1</span> — the hunt is always on.', passive: 'branwen_opening' },
+  { id: 'branwen.passive.reckoning', hero: 'branwen', tier: 4, cost: 12, type: 'passive', requires: ['branwen.emergent.tally'], label: 'The Reckoning', desc: 'The first <span class="kw kw-exposed">◎ EXPOSED</span> foe Branwen kills each turn refunds <b>1 EP</b> — the tally always comes due.', passive: 'branwen_reckoning' },
 ];
 const NODE_BY_ID = {};
 EMBER_TREE.forEach(n => { NODE_BY_ID[n.id] = n; });
@@ -149,10 +182,7 @@ function allOutExecutes(e) {
 // a hero has just entered a new row — fire any unlocked positional passives
 function onHeroEnterRow(hero, toRow, fromRow) {
   if (!hero || hero.downed || toRow === fromRow) return;
-  if (hero.id === 'ash' && toRow === 'front' && hasNode('ash.passive.vanguard')) {
-    hero.guard = (hero.guard || 0) + 3;
-    popupAt(figEl(hero.id), '⛨ +3', 'guard');
-  }
+  firePassives('enterRow', hero.id, { toRow, fromRow });
 }
 // EMERGENT LOOPS — a kindled tier-3 node installs a per-fight counter that watches
 // a hero repeat their archetypal act (strike / expose / heal / raise guard); on the
@@ -184,6 +214,70 @@ function fireEmergent(heroId, event, card) {
     popupAt(figEl(heroId), '✦ ' + f.name, 'rally');
     if (n.emergent.flash) flashNarrator(n.emergent.flash);
   });
+}
+
+// PASSIVES (Phase 2) — standing rules a kindled node installs, fired by game
+// hooks.  Fully data-driven: a passive node carries `passive: '<id>'`, and the
+// engine looks up PASSIVE_DEFS[id] at each hook.  A def declares a `trigger`
+// and an `apply(ctx)` (side-effect) or, for damage tuning, `trigger:'dmgMod'`
+// with `mod(owner, tgt) -> number`.  No bespoke wiring per node.
+const PASSIVE_DEFS = {
+  // ASH — TEMPO: motion is force, the duel never lets up
+  ash_vanguard: { trigger: 'enterRow', apply: (c) => { if (c.toRow === 'front') { c.hero.guard += 3; popupAt(figEl(c.hero.id), '⛨ +3', 'guard'); } } },
+  ash_flow:     { trigger: 'enterRow', apply: (c) => { c.hero.buffDmg += 3; popupAt(figEl(c.hero.id), '▲ +3 NEXT', 'rally'); } },
+  ash_relentless: { trigger: 'followup', apply: (c) => { if (!S._flags.ashRefund) { S._flags.ashRefund = true; refundEp(1); } } },
+  // ELIN — LIGHT: the ward finds the hurt
+  elin_ward:    { trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'elin') return; const t = lowestHpAlly(); if (t) { t.guard += 2; popupAt(figEl(t.id), '⛨ +2', 'guard'); } } },
+  // MIRA — EXPOSED: never waste an opening; mark the dying
+  mira_opportunist: { trigger: 'dmgMod', mod: (owner, tgt) => (tgt && tgt.mark ? 3 : 0) },
+  mira_execute: { trigger: 'postHit', apply: (c) => { const t = c.tgt; if (t && !t.dead && t.hp > 0 && t.hp <= Math.ceil(t.maxHp * 0.30)) { popupAt(figEl(t.uid), '☠ DEATH MARK', 'dmg'); dealToEnemy(t, t.hp, c.hero.def.school, c.hero.id); } } },
+  // CASSIA — GUARD: the wall is never caught flat, and only grows
+  cassia_vigil: { trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'cassia') return; c.hero.guard += 2; popupAt(figEl(c.hero.id), '⛨ +2', 'guard'); } },
+  cassia_immovable: { trigger: 'keepGuard' },   // read by endTurn's guard-reset
+  // BRANWEN — MARK: the hunt is always on, the tally comes due
+  branwen_hunter: { trigger: 'dmgMod', mod: (owner, tgt) => (tgt && tgt.mark ? 2 : 0) },
+  branwen_opening: { trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'branwen') return; const e = frontmostEnemy(); if (e) { e.mark = (e.mark || 0) + 1; popupAt(figEl(e.uid), '◎ +1', 'info'); } } },
+  branwen_reckoning: { trigger: 'kill', apply: (c) => { if (c.tgt && c.tgt.mark && !S._flags.brRefund) { S._flags.brRefund = true; refundEp(1); } } },
+};
+function refundEp(n) {
+  S.ep = Math.min(S.maxEp + 2, S.ep + n);
+  pulseEp(); SFX.move();
+  popupAt($('#ep-dial'), '+' + n + ' EP', 'rally');
+}
+function lowestHpAlly() {
+  const live = livingHeroes(); if (!live.length) return null;
+  return live.slice().sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp))[0];
+}
+// unlocked passive nodes for a hero matching a trigger
+function passiveNodesFor(heroId, trigger) {
+  return EMBER_TREE.filter(n => n.type === 'passive' && n.hero === heroId && n.passive
+    && hasNode(n.id) && PASSIVE_DEFS[n.passive] && PASSIVE_DEFS[n.passive].trigger === trigger);
+}
+// fire all of a hero's owned side-effect passives for a trigger
+function firePassives(trigger, heroId, ctx) {
+  if (!heroId || typeof S === 'undefined' || !S) return;
+  const hero = S.heroes.find(h => h.id === heroId);
+  if (!hero || hero.downed) return;
+  S._flags = S._flags || {};
+  passiveNodesFor(heroId, trigger).forEach(n => {
+    try { PASSIVE_DEFS[n.passive].apply(Object.assign({ hero, heroId }, ctx || {})); } catch (_) {}
+  });
+}
+// sum of a hero's damage-tuning passives against a target (EXPOSED exploiters)
+function passiveDmg(owner, tgt) {
+  if (!owner) return 0;
+  let bonus = 0;
+  EMBER_TREE.forEach(n => {
+    if (n.type === 'passive' && n.hero === owner.id && n.passive && hasNode(n.id)) {
+      const d = PASSIVE_DEFS[n.passive];
+      if (d && d.trigger === 'dmgMod' && d.mod) bonus += d.mod(owner, tgt) || 0;
+    }
+  });
+  return bonus;
+}
+// does this hero keep their guard through the enemy turn? (Cassia's Immovable)
+function keepsGuard(heroId) {
+  return passiveNodesFor(heroId, 'keepGuard').length > 0;
 }
 
 // IN-RUN FORGING — the temporary (per-descent) ember sink.  At a campfire you
@@ -1990,6 +2084,7 @@ async function resolveCard(card, targetId) {
       if (owner && owner.buffDmg) { popupAt(figEl(owner.id), '▲ RALLY +' + owner.buffDmg, 'rally'); owner.buffDmg = 0; }
       if (owner && owner.chill) { amt = Math.max(0, amt - owner.chill); popupAt(figEl(owner.id), '❄ −' + owner.chill, 'chill'); owner.chill = 0; }
       amt += tgt.mark || 0;
+      amt += passiveDmg(owner, tgt);   // EXPOSED-exploiter passives (Opportunist / Hunter's Focus)
       // FOLLOW-UP: striking an enemy an ally already hit this turn is a
       // combo — +2 damage, and fighting together forms a thread between
       // the two attackers (Concept 3: following up strengthens bonds).
@@ -1998,12 +2093,18 @@ async function resolveCard(card, targetId) {
       const isFollowUp = !!(owner && prev && prev !== owner.id);
       if (isFollowUp) amt += 2;
       dealToEnemy(tgt, amt, owner ? owner.def.school : null, owner ? owner.id : null);
-      if (owner) { hitters.push(owner.id); fireEmergent(owner.id, 'hit', card); if (tgt.dead) fireEmergent(owner.id, 'kill', card); }
+      if (owner && !tgt.dead) firePassives('postHit', owner.id, { tgt });   // execute thresholds (Death Mark)
+      if (owner) {
+        hitters.push(owner.id);
+        fireEmergent(owner.id, 'hit', card);
+        if (tgt.dead) { fireEmergent(owner.id, 'kill', card); firePassives('kill', owner.id, { tgt }); }
+      }
       if (isFollowUp) {
         gainMomentum(12, { combo: true });   // LINK — chaining allies builds burst
         linkPopup(owner.id);
         popupAt(figEl(owner.id), '⚡ FOLLOW-UP +2', 'info');
         SFX.follow();
+        firePassives('followup', owner.id, {});
         await addThread(owner.id, prev);
       }
       // AVENGE: cutting down an enemy that hurt an ally this fight forms a
@@ -2041,7 +2142,13 @@ async function resolveCard(card, targetId) {
         const room = rc.maxHp - rc.hp, healed = Math.min(room, fx.heal), spill = fx.heal - healed;
         rc.hp += healed;
         if (healed) popupAt(figEl(rc.id), '✚' + healed, 'heal');
-        if (spill) { rc.guard += spill; popupAt(figEl(rc.id), '⛨' + spill, 'guard'); }   // overheal shields
+        if (spill) {
+          // overheal shields — and Elin's RADIANT OVERFLOW spreads the spill to
+          // the WHOLE party instead of pooling on one target.
+          if (owner && owner.id === 'elin' && hasNode('elin.passive.overflow')) {
+            livingHeroes().forEach(h => { h.guard += spill; popupAt(figEl(h.id), '⛨' + spill, 'guard'); });
+          } else { rc.guard += spill; popupAt(figEl(rc.id), '⛨' + spill, 'guard'); }
+        }
         SFX.heal();
       }
       if (fx.guard)  { rc.guard += fx.guard; popupAt(figEl(rc.id), '⛨ ' + fx.guard, 'guard'); SFX.guard(); }
@@ -2912,6 +3019,10 @@ function allOutCoach() {
 async function resolveAllOut() {
   S._burstResolving = true;
   const heroes = livingHeroes();
+  // FORTRESS (Cassia) — the party braces before the storm.
+  if (hasNode('cassia.allout.fortress') && heroes.some(h => h.id === 'cassia')) {
+    heroes.forEach(h => { h.guard += 5; popupAt(figEl(h.id), '⛨ +5', 'guard'); });
+  }
   await allOutCineIntro(heroes);
   $('#stage').classList.add('allout-focus');
   allOutCoach();
@@ -2957,6 +3068,11 @@ async function resolveAllOut() {
       if (step.g) await sleep(step.g);
     }
     if (checkEnd()) break;
+  }
+  // DAWNBREAK (Elin) — the light spills over when the storm passes.
+  if (!S.over && hasNode('elin.allout.dawn') && livingHeroes().some(h => h.id === 'elin')) {
+    livingHeroes().forEach(h => { h.hp = Math.min(h.maxHp, h.hp + 5); popupAt(figEl(h.id), '✚5', 'heal'); });
+    SFX.heal();
   }
   S.momentum = 0;
   S.combo = 0;
@@ -3124,7 +3240,9 @@ async function endTurn() {
     S.turn++;
     S.ep = S.maxEp;
     S.used = new Set();
-    S.heroes.forEach(h => { h.guard = 0; h.counter = 0; h.invuln = false; h.exposed = 0; h._hitByE = []; h.hexed = Math.max(0, (h.hexed || 0) - 1); });
+    S._flags = {};   // per-turn passive latches (EP refunds) reset
+    // IMMOVABLE (Cassia) keeps her guard through the enemy turn — everyone else's fades.
+    S.heroes.forEach(h => { h.guard = keepsGuard(h.id) ? h.guard : 0; h.counter = 0; h.invuln = false; h.exposed = 0; h._hitByE = []; h.hexed = Math.max(0, (h.hexed || 0) - 1); });
     // EXPOSED (mark) now survives the turn rollover but FADES by 1, so a mark
     // laid down this turn still pays off next turn — making it a real setup,
     // not a same-turn-only tax.
@@ -3135,6 +3253,8 @@ async function endTurn() {
     S.channelUsed = false;
     S.executing = false;
     $('#stage').classList.remove('executing');
+    // TURN-START passives — the wall braces, the light finds the hurt, the hunt resumes.
+    livingHeroes().forEach(h => firePassives('turnStart', h.id, {}));
     turnBanner('TURN ' + S.turn, 'tb-player');
     renderAll();
   }
