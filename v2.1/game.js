@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 37;
+const V2_BUILD = 38;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -398,7 +398,7 @@ const HEROES = {
     cards: {
       front: {
         core: { name: 'Backstab',      cost: 1, target: 'frontmost', fx: { dmg: 6, step: 'back' }, desc: '6 damage · slip to BACK.' },
-        sig:  { name: 'Vanish Strike', cost: 2, target: 'frontmost', fx: { dmg: 9, step: 'back' }, desc: '9 damage · vanish to BACK.' },
+        sig:  { name: 'Vanish Strike', cost: 2, target: 'frontmost', fx: { dmg: 9, warp: 'back' }, desc: '9 damage · vanish to the BACK line.' },
       },
       mid: {
         core: { name: 'Shadow Knife',  cost: 1, target: 'enemy', fx: { dmg: 4, mark: 3 }, desc: '4 damage · <span class="kw kw-exposed">◎ EXPOSED 3</span>.' },
@@ -1915,16 +1915,19 @@ async function resolveCard(card, targetId) {
   }
   // Movement built into the action: the caster repositions after resolving,
   // free (no EP, no move-use).  The hand morphs to the new stance.
-  if (fx.step && owner && !owner.downed) {
-    const idx = ROWS.indexOf(owner.row);
-    const to = fx.step === 'front' ? ROWS[Math.max(0, idx - 1)] : ROWS[Math.min(2, idx + 1)];
-    if (to !== owner.row) {
+  //   step — slip ONE row toward front/back.
+  //   warp — jump straight to a named row (e.g. a "vanish" to BACK).
+  if ((fx.step || fx.warp) && owner && !owner.downed) {
+    let to;
+    if (fx.warp) to = fx.warp;
+    else { const idx = ROWS.indexOf(owner.row); to = fx.step === 'front' ? ROWS[Math.max(0, idx - 1)] : ROWS[Math.min(2, idx + 1)]; }
+    if (ROWS.indexOf(to) >= 0 && to !== owner.row) {
       const occ = livingHeroes().find(h => h.id !== owner.id && h.row === to);
       const from = owner.row; owner.row = to; if (occ) occ.row = from;
       onHeroEnterRow(owner, to, from);
       S._morphHeroId = owner.id; if (occ) S._morphHeroId2 = occ.id;
       renderAll();
-      popupAt(figEl(owner.id), '⇄ ' + STANCE[to].name.toUpperCase(), 'info');
+      popupAt(figEl(owner.id), (fx.warp ? '✦ ' : '⇄ ') + STANCE[to].name.toUpperCase(), 'info');
       SFX.move();
       await sleep(320);
     }
@@ -4359,11 +4362,12 @@ function renderActionBar() {
   if (S.over) return;
   // Icon-first card face — legibility over prose (mobile).  Full text lives
   // in the card's title attribute for anyone who wants the detail.
-  const fxIconStr = (fx, hasAll) => {
+  const fxIconStr = (fx, hasAll, dg) => {
+    dg = dg || '⚔';   // the damage glyph carries the card's ELEMENT (blade/light/…)
     const b = [];
     const d = fx.dmg || fx.hitFrontmost;
-    if (fx.aoeDmg) b.push(`<span class="ic ic-dmg">⚔${fx.aoeDmg}<em>·ALL</em></span>`);
-    else if (d)    b.push(`<span class="ic ic-dmg">⚔${d}</span>`);
+    if (fx.aoeDmg) b.push(`<span class="ic ic-dmg">${dg}${fx.aoeDmg}<em>·ALL</em></span>`);
+    else if (d)    b.push(`<span class="ic ic-dmg">${dg}${d}</span>`);
     const heal = fx.heal || fx.healAll;
     if (heal) b.push(`<span class="ic ic-heal">✚${heal}${fx.healAll ? '<em>·ALL</em>' : ''}</span>`);
     const g = fx.guard || fx.guardAll || fx.guardFront;
@@ -4379,14 +4383,16 @@ function renderActionBar() {
     if (fx.invulnFront) b.push(`<span class="ic ic-guard">✦INV</span>`);
     if (fx.pushBack) b.push(`<span class="ic ic-move">⇄PUSH</span>`);
     if (fx.step) b.push(`<span class="ic ic-move">⇄${fx.step === 'front' ? 'F' : 'B'}</span>`);
+    if (fx.warp) b.push(`<span class="ic ic-move">✦${(fx.warp[0] || '').toUpperCase()}</span>`);
     return b.join('');
   };
   const cardIcons = (card) => {
     const fx = card.fx || {};
-    if (fx.resonant) { const rfx = {}; (triadEntry().stages || []).forEach(st => Object.assign(rfx, st.fx || {})); return fxIconStr(rfx); }
+    const dg = SCHOOL_GLYPH[card.school] || '⚔';   // element carried on the damage number
+    if (fx.resonant) { const rfx = {}; (triadEntry().stages || []).forEach(st => Object.assign(rfx, st.fx || {})); return fxIconStr(rfx, false, dg); }
     if (fx.bondPair) return `<span class="ic ic-guard">⛨${fx.bondGuard}</span><span class="ic ic-rally">▲${fx.bondRally}</span>`;
     if (fx.notToday) return `<span class="ic ic-move">⇄</span><span class="ic ic-heal">✚4</span><span class="ic ic-guard">⛨4</span><span class="ic ic-counter">↺2</span>`;
-    return fxIconStr(fx);
+    return fxIconStr(fx, false, dg);
   };
   // Reach: a 3-cell front/mid/back diagram for enemy cards (filled = can hit),
   // so 'nearest' vs 'any' reads without words; support targets stay labelled.
@@ -4424,7 +4430,6 @@ function renderActionBar() {
       <div class="c-top">
         <span class="c-cost tempo-${card.tempo || 'steady'}${card.cost === 0 ? ' c-free' : ''}">${card.cost === 0 ? 'FREE' : card.cost}</span>
         <span class="c-name">${card.name}</span>
-        ${card.school ? `<span class="c-school">${SCHOOL_GLYPH[card.school]}</span>` : ''}
         ${isTemp ? `<span class="c-temp-mark">✧</span>` : ''}
       </div>
       <div class="c-fx">${cardIcons(card)}</div>

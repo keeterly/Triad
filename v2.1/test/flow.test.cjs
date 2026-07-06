@@ -1068,6 +1068,31 @@ const QUICK = process.argv.includes('--quick');
   check('INTRO: the fight begins after the cutscene closes',
     await J(() => !document.getElementById('boss-cine') && window.__began === true));
 
+  // ---------- CARD FACE + VANISH ----------
+  console.log('--- CARD FACE ---');
+  check('CARD FACE: the element rides on the damage number (light ✦) — no separate top-right element icon',
+    await J(() => {
+      RUN = newRun('elin'); RUN.active = ['elin'];
+      startFight({ type: 'fight', chapter: 3, useRunHp: true, heroes: ['elin'], enemies: ['husk'] });
+      S.heroes[0].row = 'front'; S.ep = S.maxEp; renderAll();
+      const card = document.querySelector('#hand .card[data-card-name="Smite"]');
+      const dmg = card && card.querySelector('.ic-dmg');
+      return !!dmg && dmg.textContent.indexOf('✦') >= 0 && !card.querySelector('.c-school');
+    }));
+  check('VANISH: Vanish Strike carries warp:back (jumps to the back line, not one step)',
+    await J(() => HEROES.mira.cards.front.sig.fx.warp === 'back' && HEROES.mira.cards.front.sig.fx.step == null));
+  await J(() => {
+    RUN = newRun('mira'); RUN.active = ['mira']; RUN.nodes = ['mira.sig.front'];
+    startFight({ type: 'fight', chapter: 3, useRunHp: true, heroes: ['mira'], enemies: ['husk'] });
+    S.heroes[0].row = 'front'; S.enemies[0].hp = S.enemies[0].maxHp = 40; S.ep = S.maxEp; renderAll();
+  });
+  await sleep(300);
+  const vBefore = await J(() => S.heroes[0].row);
+  await tapCard('Vanish Strike'); await pickTarget(); await sleep(400);
+  check('VANISH: playing it warps Mira straight from FRONT to BACK',
+    await J(() => S.heroes[0].row === 'back') && vBefore === 'front',
+    'row ' + vBefore + ' -> ' + await J(() => S.heroes[0].row));
+
   // ---------- TRAVELER (JRPG cutscene conversation) ----------
   console.log('--- TRAVELER ---');
   check('TRAVELER: a recruit opens a JRPG SCENE — party LEFT, stranger RIGHT, a dialogue box',
