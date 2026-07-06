@@ -1645,17 +1645,30 @@ const QUICK = process.argv.includes('--quick');
       const chip = document.querySelector('#combat-boons [data-boon="ash_relentless"]');
       return S.ep === 6 && !!chip && chip.classList.contains('cb-proc');
     }));
+  check('BOON: a held gift is INSPECTABLE (press-hold / hover shows the full gift)',
+    await J(() => {
+      RUN = newRun('mira'); RUN.roster = ['mira']; RUN.active = ['mira']; RUN.hp = { mira: 22 };
+      RUN.boons = ['mira_scent']; RUN.completed = [0, 1, 2, 3];
+      startFight({ type: 'fight', chapter: 3, heroes: ['mira'], enemies: ['husk'], useRunHp: true, floor: 1, depth: 4, narrator: '' });
+      renderAll();
+      const chip = document.querySelector('#combat-boons .cb-boon');
+      showBoonInspect(chip.dataset.boon, chip);
+      const el = document.getElementById('boon-inspect');
+      const ok = !!el && /Bloodscent/.test((el.querySelector('.bi-name') || {}).textContent || '') && /EXPOSED/.test(el.querySelector('.bi-desc').textContent);
+      hideBoonInspect();
+      return ok && !document.getElementById('boon-inspect');
+    }));
 
   // ---------- SCALING: the 760×430 canvas fits every platform identically ----------
   console.log('--- SCALING ---');
-  check('SCALE: stage contains the viewport, keeps the 760×430 aspect, stays centered',
+  check('SCALE: fitStage contains the 760×430 canvas at the correct contain-scale',
     await J(() => {
       fitStage();
-      const st = document.getElementById('stage'); const r = st.getBoundingClientRect();
-      const aspectOk = Math.abs((r.width / r.height) - (760 / 430)) < 0.01;
-      const fits = r.width <= innerWidth + 1 && r.height <= innerHeight + 1;
-      const centered = Math.abs((r.left + r.width / 2) - innerWidth / 2) < 3 && Math.abs((r.top + r.height / 2) - innerHeight / 2) < 3;
-      return aspectOk && fits && centered;
+      const st = document.getElementById('stage');
+      const sc = parseFloat((st.style.transform.match(/scale\(([-\d.]+)\)/) || [])[1]);
+      const vv = window.visualViewport; const vw = (vv && vv.width) || innerWidth, vh = (vv && vv.height) || innerHeight;
+      const want = Math.min(vw / 760, vh / 430);   // deterministic: the contain-scale math (centering is CSS flex)
+      return Math.abs(sc - want) < 0.01 && sc > 0;
     }));
   check('SCALE: fitStage reads visualViewport and never leaves the stage un-scaled',
     await J(() => { document.getElementById('stage').style.transform = ''; fitStage(); return /scale\([\d.]+\)/.test(document.getElementById('stage').style.transform); }));

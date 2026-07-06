@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 54;
+const V2_BUILD = 55;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -376,8 +376,44 @@ function renderCombatBoons() {
   const el = document.getElementById('combat-boons'); if (!el) return;
   const boons = runBoons();
   el.innerHTML = boons.map(b => `<span class="cb-boon" data-boon="${b.id}" style="--tint:${HEROES[b.hero].tint}" title="${HEROES[b.hero].name}’s ${b.name} — ${b.desc.replace(/<[^>]+>/g, '')}">${b.icon}</span>`).join('');
+  el.querySelectorAll('.cb-boon').forEach(c => attachBoonInspect(c, c.dataset.boon));
   el.classList.toggle('hidden', !boons.length);
 }
+// INSPECT a boon (StS-style) — press & hold (touch) or hover (mouse) any held
+// boon icon to read its full gift.  A floating panel, dismissed on release.
+let _boonInspectEl = null, _boonHoldT = null;
+function showBoonInspect(boonId, anchor) {
+  hideBoonInspect();
+  const b = BOON_BY_ID[boonId]; if (!b || !anchor) return;
+  const el = document.createElement('div');
+  el.id = 'boon-inspect';
+  el.style.setProperty('--tint', HEROES[b.hero].tint);
+  el.innerHTML = `<span class="bi-icon">${b.icon}</span><span class="bi-from">${HEROES[b.hero].name}’S GIFT</span><span class="bi-name">${b.name}</span><span class="bi-desc">${b.desc}</span>`;
+  document.body.appendChild(el);
+  const r = anchor.getBoundingClientRect(), bw = el.offsetWidth, bh = el.offsetHeight;
+  let x = r.left + r.width / 2 - bw / 2;
+  let y = (r.bottom + 10 + bh <= window.innerHeight) ? r.bottom + 10 : r.top - bh - 10;   // below if room, else above
+  x = Math.max(6, Math.min(x, window.innerWidth - bw - 6));
+  y = Math.max(6, Math.min(y, window.innerHeight - bh - 6));
+  el.style.left = x + 'px'; el.style.top = y + 'px';
+  requestAnimationFrame(() => el.classList.add('bi-show'));
+  _boonInspectEl = el;
+}
+function hideBoonInspect() {
+  if (_boonHoldT) { clearTimeout(_boonHoldT); _boonHoldT = null; }
+  if (_boonInspectEl) { _boonInspectEl.remove(); _boonInspectEl = null; }
+}
+function attachBoonInspect(el, boonId) {
+  if (!el || el._boonWired) return; el._boonWired = true;
+  el.style.cursor = 'pointer';
+  el.addEventListener('pointerdown', () => { _boonHoldT = setTimeout(() => showBoonInspect(boonId, el), 240); });
+  el.addEventListener('pointerup', () => { clearTimeout(_boonHoldT); _boonHoldT = null; setTimeout(hideBoonInspect, 40); });
+  el.addEventListener('pointercancel', hideBoonInspect);
+  el.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') showBoonInspect(boonId, el); });
+  el.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') hideBoonInspect(); });
+}
+// FEEDBACK when a boon fires — a chip pulse in the topbar, and (for discrete
+// procs) a labelled pop over the hero, so gifts are FELT the moment they trigger.
 // FEEDBACK when a boon fires — a chip pulse in the topbar, and (for discrete
 // procs) a labelled pop over the hero, so gifts are FELT the moment they trigger.
 function boonProc(heroId, boonId, opts) {
@@ -3732,6 +3768,7 @@ function startFlowNode() {
 }
 function startFight(node) {
   S = newBattle(node);
+  _bossFig = null;   // a fresh fight builds its own boss figure (uids can repeat across fights)
   hideOverlay();
   flashNarrator(node.narrator || '');
   renderAll();
@@ -3823,7 +3860,7 @@ function showMap() {
       ? `<div class="map-coach map-coach-soft">✦ <b>${runEmbers()} embers</b> gathered. Fell a few more foes and you’ll have enough to kindle a skill in the <b>EMBER TREE</b>.</div>`
       : '');
   const boonStrip = (RUN.boons && RUN.boons.length)
-    ? `<span class="map-boons">${RUN.boons.map(id => { const b = BOON_BY_ID[id]; return b ? `<span class="map-boon" style="--tint:${HEROES[b.hero].tint}" title="${HEROES[b.hero].name}’s ${b.name} — ${b.desc.replace(/<[^>]+>/g, '')}">${b.icon}</span>` : ''; }).join('')}</span>`
+    ? `<span class="map-boons">${RUN.boons.map(id => { const b = BOON_BY_ID[id]; return b ? `<span class="map-boon" data-boon="${id}" style="--tint:${HEROES[b.hero].tint}" title="${HEROES[b.hero].name}’s ${b.name} — ${b.desc.replace(/<[^>]+>/g, '')}">${b.icon}</span>` : ''; }).join('')}</span>`
     : '';
   showOverlay(`
     <div class="ov-eyebrow">THE DESCENT${(RUN.floor || 1) >= 2 ? ` · FLOOR ${RUN.floor}` : ''}${moodDef && moodDef.label ? ` <span class="map-mood" style="color:${moodDef.tint}; border-color:${moodDef.tint}66">♦ ${moodDef.label}</span>` : ''}${boonStrip}</div>
@@ -3838,6 +3875,7 @@ function showMap() {
       <button class="map-tree-btn${canKindle ? ' mt-glow mt-teach' : (hasEmbers ? ' mt-glow' : '')}" id="map-tree">✦ EMBER TREE<span class="mt-embers">${runEmbers()}</span></button>
     </div>
   `, 'map-screen');
+  document.querySelectorAll('.map-boon').forEach(el => attachBoonInspect(el, el.dataset.boon));
   document.querySelectorAll('.map-node.mn-reach').forEach(el => {
     el.onclick = () => enterMapNode(mapNode(+el.dataset.node));
   });
@@ -4502,7 +4540,7 @@ function showCamp(n) {
       <div class="camp-top">
         <div class="camp-eyebrow">CAMPFIRE</div>
         <div class="camp-title">${n.label}</div>
-        <div class="camp-flavor">The fire holds back the dark a while. <b>Every wound closes.</b> One evening, one choice.</div>
+        <div class="camp-flavor">The fire holds back the dark. <b>Every wound closes.</b></div>
       </div>
       <div class="camp-choices">
         ${choice('camp-fire', '♡', 'SHARE THE FIRE', 'Deepen your weakest bond <b>+1</b>.')}
@@ -4792,24 +4830,15 @@ function renderBattlefield() {
   });
 
   const enemyHalf = $('#enemy-half');
-  enemyHalf.innerHTML = '';
   // FLOOR BOSS — one colossal foe that fills the enemy half, rendered as a
-  // single big figure instead of the three-slot line.
+  // single big figure (reused across renders — see renderFloorBoss) instead of
+  // the three-slot line.
   const fboss = S.enemies.find(x => x.def.floorBoss && (!x.dead || x._justDied));
   enemyHalf.classList.toggle('has-floor-boss', !!fboss);
   enemyHalf.classList.toggle('boss-maw', !!(fboss && fboss.def.aura === 'maw'));   // the Maw glows a sickly, hungry green
-  if (fboss) {
-    const fig = document.createElement('div');
-    const primed = !!(fboss.lull || fboss.weakened || fboss.staggered);
-    fig.className = 'figure enemy floor-boss' + (fboss._justDied ? ' fig-dying' : '') + (primed && !fboss._justDied ? ' fig-primed' : '');
-    fig.dataset.fig = fboss.uid;
-    if (targeting && !targeting.isRow && targeting.validIds.includes(fboss.uid)) fig.classList.add('fig-targetable');
-    fig.innerHTML = enemyFigInner(fboss);
-    snapFx(fboss, { weakened: fboss.weakened ? 1 : 0, staggered: fboss.staggered ? 1 : 0, guard: fboss.guard, power: fboss.power, mark: fboss.mark, lull: fboss.lull });
-    fig.onclick = () => onFigureTap(fboss.uid);
-    enemyHalf.appendChild(fig);
-    return;
-  }
+  if (fboss) { renderFloorBoss(enemyHalf, fboss, targeting); return; }
+  _bossFig = null;
+  enemyHalf.innerHTML = '';
   ['front', 'mid', 'back'].forEach(row => {
     const slot = document.createElement('div');
     slot.className = 'slot';
@@ -4846,17 +4875,16 @@ function intentSeg(e, it) {
   const row = effIntentRow(e, it);   // smart foes point at the hero they're hunting
   return `<span class="i-seg"><span class="i-glyph">⚔</span><span class="i-dmg">${enemyIntentDmg(e, it)}</span><span class="i-arrow">→</span><span class="i-row">${row === 'all' ? 'ALL' : ROW_LABEL[row]}</span>${it.hex ? '<span class="i-st kw-hex" title="HEX — if it lands, your card plays burn your hand; dodge it">☠</span>' : ''}${it.drain ? '<span class="i-st kw-drain" title="drains life — heals the Maw">♥</span>' : ''}${it.chill ? '<span class="i-st kw-chill" title="chills you">❄</span>' : ''}${it.expose ? '<span class="i-st kw-exposed" title="exposes you">◎</span>' : ''}</span>`;
 }
-// The inner markup for an enemy figure (shared by the line + the floor boss).
-function enemyFigInner(e) {
+// the intent telegraph markup for an enemy (one or a boss's chained two)
+function enemyIntentHtml(e) {
   const its = enemyNextIntents(e);
   const heavy = its.some(x => x.heavy);
-  const intentHtml = its.length > 1
+  return its.length > 1
     ? `<div class="intent intent-multi${heavy ? ' intent-heavy' : ''}">${its.map(x => intentSeg(e, x)).join('<span class="i-div">+</span>')}</div>`
     : `<div class="intent${its[0].kind === 'buff' ? ' intent-buff' : ''}${heavy ? ' intent-heavy' : ''}">${intentSeg(e, its[0])}</div>`;
-  return `
-    ${intentHtml}
-    <div class="fig-art">${enemyArt(e)}${e._justDied ? '' : auraHTML({ guard: e.guard, rally: e.power, chill: e.lull, exposed: e.mark, weak: e.weakened, stagger: e.staggered })}</div>
-    <div class="fig-chips">
+}
+function enemyChipsHtml(e) {
+  return `<div class="fig-chips">
       <span class="chip weak${e.weakRevealed ? ' revealed' : ''}" title="weakness — strike this element to WEAKEN, again to STAGGER">${e.weakRevealed ? `<span class="ru-i">${SCHOOL_GLYPH[e.def.weak] || '?'}</span>WEAK: ${(e.def.weak || '?').toUpperCase()}` : `<span class="ru-i">◇</span>? ? ?`}</span>
       ${e.weakened ? `<span class="chip mark${chipPop(e,'weakened',1)}"><span class="ru-i">⌖</span>WEAKENED</span>` : ''}
       ${e.staggered ? `<span class="chip stagger${chipPop(e,'staggered',1)}"><span class="ru-i">⚡</span>STAGGERED</span>` : ''}
@@ -4864,10 +4892,54 @@ function enemyFigInner(e) {
       ${e.power ? `<span class="chip buff${chipPop(e,'power',e.power)}"><span class="ru-i">▲</span>RAGE ${e.power}</span>` : ''}
       ${e.mark ? `<span class="chip mark${chipPop(e,'mark',e.mark)}"><span class="ru-i">◎</span>EXPOSED ${e.mark}</span>` : ''}
       ${e.lull ? `<span class="chip chill${chipPop(e,'lull',e.lull)}"><span class="ru-i">❄</span>CHILL ${e.lull}</span>` : ''}
-    </div>
+    </div>`;
+}
+function enemyAuraHtml(e) {
+  return e._justDied ? '' : auraHTML({ guard: e.guard, rally: e.power, chill: e.lull, exposed: e.mark, weak: e.weakened, stagger: e.staggered });
+}
+// The inner markup for an enemy figure (shared by the line + the floor boss).
+function enemyFigInner(e) {
+  return `
+    ${enemyIntentHtml(e)}
+    <div class="fig-art">${enemyArt(e)}${enemyAuraHtml(e)}</div>
+    ${enemyChipsHtml(e)}
     <div class="hp-bar"><div class="hp-fill" style="width:${(e.hp / e.maxHp) * 100}%"></div></div>
     <div class="fig-name">${e.def.name} <span class="hp-num">${e.hp}/${e.maxHp}</span></div>
   `;
+}
+// PERF: the floor boss's art is a big, heavily-filtered SVG.  Recreating it on
+// every renderAll re-rasterizes that filter — a stutter machine mid-fight.  So we
+// KEEP the same figure element across renders and update only the cheap dynamic
+// bits (intent, chips, hp, aura, classes); the expensive .fig-art SVG stays put.
+let _bossFig = null;
+function renderFloorBoss(enemyHalf, fboss, tgt) {
+  const primed = !!(fboss.lull || fboss.weakened || fboss.staggered);
+  const justDied = fboss._justDied;
+  const reuse = _bossFig && _bossFig.dataset.fig === fboss.uid && !justDied && _bossFig.querySelector('.fig-art svg');
+  let fig;
+  if (reuse) {
+    fig = _bossFig;
+    const swap = (sel, html) => { const el = fig.querySelector(sel); if (el && html) { const t = document.createElement('div'); t.innerHTML = html; el.replaceWith(t.firstElementChild); } };
+    swap('.intent', enemyIntentHtml(fboss));
+    swap('.fig-chips', enemyChipsHtml(fboss));
+    const art = fig.querySelector('.fig-art');
+    if (art) { const oa = art.querySelector('.fig-aura'); if (oa) oa.remove(); const a = enemyAuraHtml(fboss); if (a) art.insertAdjacentHTML('beforeend', a); }
+    const fill = fig.querySelector('.hp-fill'); if (fill) fill.style.width = (fboss.hp / fboss.maxHp * 100) + '%';
+    const hpNum = fig.querySelector('.hp-num'); if (hpNum) hpNum.textContent = fboss.hp + '/' + fboss.maxHp;
+  } else {
+    fig = document.createElement('div');
+    fig.dataset.fig = fboss.uid;
+    fig.innerHTML = enemyFigInner(fboss);
+    _bossFig = fig;
+  }
+  fig.className = 'figure enemy floor-boss' + (justDied ? ' fig-dying' : '') + (primed && !justDied ? ' fig-primed' : '')
+    + ((tgt && !tgt.isRow && tgt.validIds.includes(fboss.uid)) ? ' fig-targetable' : '');
+  fig.onclick = () => onFigureTap(fboss.uid);
+  if (enemyHalf.firstElementChild !== fig || enemyHalf.childElementCount !== 1) {
+    while (enemyHalf.firstChild) enemyHalf.removeChild(enemyHalf.firstChild);
+    enemyHalf.appendChild(fig);
+  }
+  snapFx(fboss, { weakened: fboss.weakened ? 1 : 0, staggered: fboss.staggered ? 1 : 0, guard: fboss.guard, power: fboss.power, mark: fboss.mark, lull: fboss.lull });
 }
 
 // Bonds no longer draw a permanent web of lines across the party (it cluttered
@@ -5627,6 +5699,10 @@ document.addEventListener('pointerdown', (e) => {
   if (!targeting || targeting.drag) return;
   if (e.target.closest('.fig-targetable') || (targeting.isRow && e.target.closest('.slot'))) return;
   cancelTargeting();
+}, true);
+// Dismiss a boon inspect panel on any tap that isn't on a boon chip.
+document.addEventListener('pointerdown', (e) => {
+  if (_boonInspectEl && !e.target.closest('.cb-boon, .map-boon')) hideBoonInspect();
 }, true);
 
 $('#btn-endturn').addEventListener('click', endTurn);

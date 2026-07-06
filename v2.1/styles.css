@@ -536,6 +536,20 @@ body {
   40% { transform: scale(1.4); box-shadow: 0 0 12px 3px color-mix(in srgb, var(--tint) 60%, transparent); } 100% { transform: scale(1); box-shadow: 0 0 0 0 transparent; } }
 /* a boon-proc popup floats gold over the hero */
 .popup.boon { color: #ffe6a4; text-shadow: 0 0 8px rgba(255,170,80,0.8), 0 1px 3px #000; font-weight: 700; letter-spacing: 0.06em; }
+.cb-boon, .map-boon { cursor: pointer; }
+/* INSPECT panel — press & hold / hover a held boon to read the full gift */
+#boon-inspect {
+  position: fixed; z-index: 120; width: 220px; max-width: 78vw; padding: 12px 14px 13px; border-radius: 11px;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; pointer-events: none;
+  background: linear-gradient(180deg, rgba(26,20,14,0.98), rgba(10,7,5,0.99)); border: 1px solid var(--tint, rgba(240,212,136,0.5));
+  box-shadow: 0 12px 34px rgba(0,0,0,0.7), 0 0 20px color-mix(in srgb, var(--tint) 30%, transparent);
+  opacity: 0; transform: translateY(4px) scale(0.97); transition: opacity 0.12s ease, transform 0.12s ease; font-family: inherit; }
+#boon-inspect.bi-show { opacity: 1; transform: translateY(0) scale(1); }
+#boon-inspect .bi-icon { font-size: 18px; color: var(--tint, var(--gold-bright)); }
+#boon-inspect .bi-from { font-size: 7.5px; letter-spacing: 0.22em; color: var(--tint, var(--ink-faint)); opacity: 0.9; }
+#boon-inspect .bi-name { font-size: 13px; color: var(--gold-bright); font-weight: 600; letter-spacing: 0.02em; }
+#boon-inspect .bi-desc { font-size: 10.5px; line-height: 1.5; color: var(--ink-dim); margin-top: 2px; }
+#boon-inspect .bi-desc b { color: var(--ink); } #boon-inspect .bi-desc .kw { font-style: normal; }
 
 /* triad ceremony */
 #overlay.triad-ceremony {
@@ -1735,7 +1749,7 @@ button.map-node:not(:disabled) { cursor: pointer; }
 #enemy-half.has-floor-boss::before {
   content: ''; position: absolute; inset: -16% -8% -4% -16%; z-index: 0; pointer-events: none;
   background: radial-gradient(ellipse 66% 76% at 52% 50%, rgba(168,34,28,0.38), rgba(70,12,12,0.18) 46%, transparent 72%);
-  animation: boss-aura 3.4s ease-in-out infinite;
+  animation: boss-aura 3.4s ease-in-out infinite; will-change: transform, opacity;
 }
 @keyframes boss-aura { 0%,100% { opacity: 0.65; transform: scale(1); } 50% { opacity: 1; transform: scale(1.06); } }
 /* THE HOLLOW MAW — a corrupt amethyst glow (ties to its purple HEX) rather than
@@ -1743,7 +1757,7 @@ button.map-node:not(:disabled) { cursor: pointer; }
 #enemy-half.has-floor-boss.boss-maw::before {
   background: radial-gradient(ellipse 66% 76% at 52% 50%, rgba(150,90,224,0.36), rgba(58,28,96,0.2) 46%, transparent 72%);
 }
-#enemy-half.boss-maw .figure.floor-boss .fig-art svg { filter: drop-shadow(0 16px 36px rgba(0,0,0,0.9)) drop-shadow(0 0 48px rgba(150,90,224,0.5)) drop-shadow(0 0 12px rgba(190,140,255,0.4)) hue-rotate(255deg) saturate(0.95); }
+#enemy-half.boss-maw .figure.floor-boss .fig-art svg { filter: drop-shadow(0 14px 30px rgba(0,0,0,0.9)) drop-shadow(0 0 40px rgba(150,90,224,0.5)) hue-rotate(255deg) saturate(0.95); }
 .figure.floor-boss {
   position: relative; z-index: 1;
   width: 100%; max-width: 100%; height: 100%;
@@ -1754,17 +1768,24 @@ button.map-node:not(:disabled) { cursor: pointer; }
 /* The art is scaled up from its BASE (transform-origin bottom-centre) so the
    colossus towers UPWARD and outward while its HP/name stay pinned to the
    bottom safe band — looming larger without ever covering its own vitals. */
-.figure.floor-boss .fig-art { height: 78%; max-height: 330px; margin-left: -7%; overflow: visible; transform: scale(1.34); transform-origin: 50% 100%; }
-.figure.floor-boss .fig-art svg { height: 100%; width: auto; filter: drop-shadow(0 16px 36px rgba(0,0,0,0.9)) drop-shadow(0 0 48px rgba(190,44,40,0.5)) drop-shadow(0 0 12px rgba(255,120,90,0.35)); }
+/* PERF: the sway animates the .fig-art WRAPPER (a promoted compositor layer),
+   while the costly multi-drop-shadow/hue-rotate filter lives on the STATIC svg
+   inside it.  So the filter is rasterized ONCE and the sway just composites the
+   cached layer — instead of re-running the whole filter pipeline every frame
+   (which was the boss-fight lag).  Same look, a fraction of the GPU cost. */
+.figure.floor-boss .fig-art { height: 78%; max-height: 330px; margin-left: -7%; overflow: visible;
+  transform-origin: 50% 100%; will-change: transform; backface-visibility: hidden;
+  animation: floor-boss-sway 4.2s ease-in-out infinite; }
+.figure.floor-boss .fig-art svg { height: 100%; width: auto; filter: drop-shadow(0 14px 30px rgba(0,0,0,0.9)) drop-shadow(0 0 40px rgba(190,44,40,0.45)); }
 /* Intent floats above the colossus, pinned to the TOP of the enemy half (not the
    swaying art) so it never drifts, clips, or wraps — a stable, readable banner. */
 .figure.floor-boss .intent { position: absolute; top: 4px; left: 50%; transform: translateX(-50%) scale(1.14); transform-origin: top center; z-index: 6; }
 .figure.floor-boss .fig-name { font-size: 12px; letter-spacing: 0.22em; }
 .figure.floor-boss .hp-bar { width: 78%; height: 11px; }
 .figure.floor-boss .fig-chips { transform: scale(1.12); }
-/* a slow, heavy, menacing breathing sway — more amplitude than a mook */
-.figure.floor-boss .fig-art svg { animation: floor-boss-sway 4.2s ease-in-out infinite; transform-origin: 50% 100%; }
-@keyframes floor-boss-sway { 0%,100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-10px) scale(1.03); } }
+/* a slow, heavy, menacing breathing sway — translate-only so it composites the
+   cached filtered layer (the base scale is baked into the keyframe) */
+@keyframes floor-boss-sway { 0%,100% { transform: scale(1.34) translateY(0); } 50% { transform: scale(1.34) translateY(-7px); } }
 .figure.floor-boss.fig-primed .fig-art::after { inset: 6px 12%; }
 
 /* floor-boss attack cascade — the arc + numbered notes telegraphed */
@@ -2473,7 +2494,7 @@ button.map-node:not(:disabled) { cursor: pointer; }
 /* the party, gathered — portraits lit warm, right side turned to the fire.
    They stand a touch HIGHER so the fire reads in FRONT of them (they gather
    AROUND it), and the middle hero sits back a step so nobody blocks the flame. */
-.camp-party { position: absolute; left: 0; right: 0; bottom: 42%; height: 0; z-index: 2; }
+.camp-party { position: absolute; left: 0; right: 0; bottom: 37%; height: 0; z-index: 2; }
 .camp-hero { position: absolute; left: 50%; bottom: 0; transform: translateX(calc(-50% + var(--off) * 156px));
   animation: camp-hero-in 0.6s cubic-bezier(.16,.72,.28,1) both; animation-delay: calc(0.1s + var(--off) * 0.05s); }
 .camp-hero svg { height: 140px; width: auto; display: block;
@@ -2495,10 +2516,10 @@ button.map-node:not(:disabled) { cursor: pointer; }
   animation: cf-ember-rise calc(2.3s + var(--i) * 0.28s) ease-in infinite; animation-delay: calc(var(--i) * -0.42s); }
 @keyframes cf-ember-rise { 0% { opacity: 0; transform: translate(-50%, 0) scale(1); } 16% { opacity: 1; } 100% { opacity: 0; transform: translate(calc(-50% + (var(--i) - 4) * 11px), -150px) scale(0.3); } }
 /* title over the scene */
-.camp-top { position: absolute; top: 6%; left: 0; right: 0; text-align: center; z-index: 5; animation: tc-fade 0.7s both; padding: 0 6%; }
-.camp-eyebrow { font-size: 9px; letter-spacing: 0.44em; color: var(--gold-bright); margin-bottom: 7px; }
-.camp-title { font-size: 24px; letter-spacing: 0.3em; color: var(--ink); margin-bottom: 9px; text-shadow: 0 0 18px rgba(255,150,60,0.25); }
-.camp-flavor { font-size: 11.5px; font-style: italic; color: var(--ink-dim); max-width: 480px; margin: 0 auto; line-height: 1.55; }
+.camp-top { position: absolute; top: 4%; left: 0; right: 0; text-align: center; z-index: 5; animation: tc-fade 0.7s both; padding: 0 6%; }
+.camp-eyebrow { font-size: 9px; letter-spacing: 0.44em; color: var(--gold-bright); margin-bottom: 5px; }
+.camp-title { font-size: 23px; letter-spacing: 0.3em; color: var(--ink); margin-bottom: 6px; text-shadow: 0 0 18px rgba(255,150,60,0.25); }
+.camp-flavor { font-size: 11.5px; font-style: italic; color: var(--ink-dim); max-width: 620px; margin: 0 auto; line-height: 1.5; white-space: nowrap; }
 .camp-flavor b { color: var(--ink); font-style: normal; }
 /* the night's choices, over a soft base scrim so they read against the scene */
 .camp-choices { position: absolute; left: 50%; bottom: 4%; transform: translateX(-50%); width: 92%; max-width: 560px; z-index: 6;
