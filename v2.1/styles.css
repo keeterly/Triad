@@ -2016,6 +2016,7 @@ button.map-node:not(:disabled) { cursor: pointer; }
 .et-orb.t-rider   .et-orb-glyph { border-color: rgba(212,123,82,0.55); }
 .et-orb.t-passive .et-orb-glyph { border-color: rgba(143,176,214,0.55); }
 .et-orb.t-allout  .et-orb-glyph { border-color: rgba(212,90,90,0.55); }
+.et-orb.t-synergy .et-orb-glyph { border-color: rgba(122,205,182,0.6); }
 .et-orb.et-owned  .et-orb-glyph { border-color: rgba(240,212,136,0.9); color: #ffe6a4; background: radial-gradient(circle at 50% 36%, rgba(60,48,24,0.98), rgba(24,18,10,0.98)); box-shadow: 0 0 12px rgba(240,212,136,0.4); }
 .et-orb.et-owned  .et-orb-name { color: #d8c48a; }
 .et-orb.et-ready  .et-orb-glyph { border-color: rgba(255,180,100,0.95); color: #ffcf8a; box-shadow: 0 0 14px rgba(255,150,60,0.35); animation: et-pulse 1.9s ease-in-out infinite; }
@@ -2045,6 +2046,7 @@ button.map-node:not(:disabled) { cursor: pointer; }
 .et-d-type { font-size: 7px; letter-spacing: 0.2em; font-weight: 700; padding: 1px 6px; border-radius: 4px; color: #120d08; }
 .et-d-type.t-card { background: #e8b45a; } .et-d-type.t-rider { background: #d47b52; }
 .et-d-type.t-passive { background: #8fb0d6; } .et-d-type.t-allout { background: #d45a5a; }
+.et-d-type.t-synergy { background: #7acdb6; color: #10201b; }
 .et-d-name { font-size: 14px; color: var(--gold-bright); letter-spacing: 0.02em; }
 .et-d-desc { font-size: 10px; line-height: 1.45; color: var(--ink-dim); }
 .et-d-foot { margin-top: 6px; }

@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 42;
+const V2_BUILD = 43;
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -158,6 +158,14 @@ const EMBER_TREE = [
   { id: 'branwen.rider.volley', hero: 'branwen', tier: 3, cost: 7, type: 'rider', requires: ['branwen.sig.mid'], label: 'Volley', desc: 'Killshot (MID signature) now also inflicts <span class="kw kw-exposed">◎ EXPOSED 2</span>.', rider: { card: 'Killshot', fx: { mark: 2 }, descAdd: ' · <span class="kw kw-exposed">◎ EXPOSED 2</span>' } },
   { id: 'branwen.passive.opening', hero: 'branwen', tier: 3, cost: 8, type: 'passive', requires: ['branwen.passive.focus'], label: 'Opening Shot', desc: 'At the start of your turn, Branwen EXPOSES the nearest foe <span class="kw kw-exposed">◎ 1</span> — the hunt is always on.', passive: 'branwen_opening' },
   { id: 'branwen.passive.reckoning', hero: 'branwen', tier: 4, cost: 12, type: 'passive', requires: ['branwen.emergent.tally'], label: 'The Reckoning', desc: 'The first <span class="kw kw-exposed">◎ EXPOSED</span> foe Branwen kills each turn refunds <b>1 EP</b> — the tally always comes due.', passive: 'branwen_reckoning' },
+
+  // ═══ TEAM SYNERGY (Phase 3) — each hero's identity now pays the WHOLE party.
+  // These are the cross-hero combos: who you bring changes how everyone plays. ═══
+  { id: 'ash.synergy.warcry', hero: 'ash', tier: 4, cost: 11, type: 'synergy', requires: ['ash.emergent.tempo'], label: 'Warcry', desc: 'When Ash lands a <span class="kw kw-rally">FOLLOW-UP</span>, the ally he followed gains <span class="kw kw-rally">▲ RALLY +2</span> — his momentum becomes theirs.', passive: 'ash_warcry' },
+  { id: 'elin.synergy.blessing', hero: 'elin', tier: 4, cost: 11, type: 'synergy', requires: ['elin.passive.ward'], label: 'Blessed Edge', desc: 'When Elin heals or wards an ally, that ally’s next strike deals <span class="kw kw-rally">▲ +2</span> — her light sharpens their blade.', passive: 'elin_blessing' },
+  { id: 'mira.synergy.marked', hero: 'mira', tier: 4, cost: 11, type: 'synergy', requires: ['mira.passive.opportunist'], label: 'Marked for Death', desc: 'While Mira stands with you, <span class="kw kw-exposed">◎ EXPOSED</span> foes take <b>+2</b> from EVERY ally — her openings are the whole party’s.', passive: 'mira_marked' },
+  { id: 'cassia.synergy.soak', hero: 'cassia', tier: 4, cost: 11, type: 'synergy', requires: ['cassia.passive.vigil'], label: 'Guardian’s Aegis', desc: 'Allies in the rows BEHIND Cassia take <b>−2</b> from every enemy blow — she covers the line.', passive: 'cassia_soak' },
+  { id: 'branwen.synergy.cadence', hero: 'branwen', tier: 4, cost: 11, type: 'synergy', requires: ['branwen.passive.opening'], label: 'Hunter’s Cadence', desc: 'At the start of your turn, if any foe is <span class="kw kw-exposed">◎ EXPOSED</span>, the WHOLE party gains <span class="kw kw-rally">▲ RALLY +1</span>.', passive: 'branwen_cadence' },
 ];
 const NODE_BY_ID = {};
 EMBER_TREE.forEach(n => { NODE_BY_ID[n.id] = n; });
@@ -238,6 +246,12 @@ const PASSIVE_DEFS = {
   branwen_hunter: { trigger: 'dmgMod', mod: (owner, tgt) => (tgt && tgt.mark ? 2 : 0) },
   branwen_opening: { trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'branwen') return; const e = frontmostEnemy(); if (e) { e.mark = (e.mark || 0) + 1; popupAt(figEl(e.uid), '◎ +1', 'info'); } } },
   branwen_reckoning: { trigger: 'kill', apply: (c) => { if (c.tgt && c.tgt.mark && !S._flags.brRefund) { S._flags.brRefund = true; refundEp(1); } } },
+  // ── TEAM SYNERGY (Phase 3) — a hero's kit pays off for the whole party ──
+  ash_warcry:      { trigger: 'followup', apply: (c) => { const a = c.ally && S.heroes.find(h => h.id === c.ally); if (a && !a.downed) { a.buffDmg += 2; popupAt(figEl(a.id), '▲ RALLY +2', 'rally'); } } },
+  elin_blessing:   { trigger: 'support', apply: (c) => { const r = c.receiver; if (r && !r.downed && r.id !== c.hero.id) { r.buffDmg += 2; popupAt(figEl(r.id), '▲ BLESSED +2', 'rally'); } } },
+  mira_marked:     { trigger: 'partyDmgMod', mod: (owner, tgt) => (tgt && tgt.mark ? 2 : 0) },
+  cassia_soak:     { trigger: 'mitigate' },   // read by the enemy-damage step (soakMitigation)
+  branwen_cadence: { trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'branwen') return; if (!livingEnemies().some(e => e.mark)) return; livingHeroes().forEach(h => { h.buffDmg += 1; popupAt(figEl(h.id), '▲ +1', 'rally'); }); } },
 };
 function refundEp(n) {
   S.ep = Math.min(S.maxEp + 2, S.ep + n);
@@ -248,9 +262,11 @@ function lowestHpAlly() {
   const live = livingHeroes(); if (!live.length) return null;
   return live.slice().sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp))[0];
 }
-// unlocked passive nodes for a hero matching a trigger
+// a node whose effect is a PASSIVE_DEFS rule — passives + team-synergy nodes
+function isPassiveNode(n) { return (n.type === 'passive' || n.type === 'synergy') && n.passive; }
+// unlocked passive/synergy nodes for a hero matching a trigger
 function passiveNodesFor(heroId, trigger) {
-  return EMBER_TREE.filter(n => n.type === 'passive' && n.hero === heroId && n.passive
+  return EMBER_TREE.filter(n => isPassiveNode(n) && n.hero === heroId
     && hasNode(n.id) && PASSIVE_DEFS[n.passive] && PASSIVE_DEFS[n.passive].trigger === trigger);
 }
 // fire all of a hero's owned side-effect passives for a trigger
@@ -263,17 +279,34 @@ function firePassives(trigger, heroId, ctx) {
     try { PASSIVE_DEFS[n.passive].apply(Object.assign({ hero, heroId }, ctx || {})); } catch (_) {}
   });
 }
-// sum of a hero's damage-tuning passives against a target (EXPOSED exploiters)
+// sum of damage-tuning passives against a target: the ATTACKER's own
+// dmgMod exploiters, PLUS any living ally's party-wide synergy (partyDmgMod).
 function passiveDmg(owner, tgt) {
   if (!owner) return 0;
   let bonus = 0;
   EMBER_TREE.forEach(n => {
-    if (n.type === 'passive' && n.hero === owner.id && n.passive && hasNode(n.id)) {
+    if (isPassiveNode(n) && n.hero === owner.id && hasNode(n.id)) {
       const d = PASSIVE_DEFS[n.passive];
       if (d && d.trigger === 'dmgMod' && d.mod) bonus += d.mod(owner, tgt) || 0;
     }
   });
+  // team synergy: a nodeholder anywhere in the LIVING party lifts everyone's hits
+  livingHeroes().forEach(ph => {
+    EMBER_TREE.forEach(n => {
+      if (isPassiveNode(n) && n.hero === ph.id && hasNode(n.id)) {
+        const d = PASSIVE_DEFS[n.passive];
+        if (d && d.trigger === 'partyDmgMod' && d.mod) bonus += d.mod(owner, tgt) || 0;
+      }
+    });
+  });
   return bonus;
+}
+// team mitigation: Cassia's Guardian's Aegis soaks for allies in rows behind her
+function soakMitigation(h) {
+  if (!h || !hasNode('cassia.synergy.soak')) return 0;
+  const cassia = livingHeroes().find(x => x.id === 'cassia');
+  if (!cassia || cassia.id === h.id) return 0;
+  return (ROWS.indexOf(h.row) > ROWS.indexOf(cassia.row)) ? 2 : 0;
 }
 // does this hero keep their guard through the enemy turn? (Cassia's Immovable)
 function keepsGuard(heroId) {
@@ -2104,7 +2137,7 @@ async function resolveCard(card, targetId) {
         linkPopup(owner.id);
         popupAt(figEl(owner.id), '⚡ FOLLOW-UP +2', 'info');
         SFX.follow();
-        firePassives('followup', owner.id, {});
+        firePassives('followup', owner.id, { ally: prev });   // ally = the hero Ash followed
         await addThread(owner.id, prev);
       }
       // AVENGE: cutting down an enemy that hurt an ally this fight forms a
@@ -2154,6 +2187,8 @@ async function resolveCard(card, targetId) {
       if (fx.guard)  { rc.guard += fx.guard; popupAt(figEl(rc.id), '⛨ ' + fx.guard, 'guard'); SFX.guard(); }
       if (fx.buffDmg){ rc.buffDmg += fx.buffDmg; popupAt(figEl(rc.id), '▲ RALLY +' + fx.buffDmg, 'rally'); }
       if (fx.counter){ rc.counter = Math.max(rc.counter, fx.counter); }
+      // TEAM SYNERGY: warding/mending an ally can bless their next strike (Elin's Blessed Edge)
+      if (owner && (fx.heal || fx.guard)) firePassives('support', owner.id, { receiver: rc });
       if (owner && rc.id !== owner.id && card.target === 'ally') await addThread(owner.id, rc.id);
     }
     // one emergent tick per PLAY (not per receiver): the caster's mending / warding loop
@@ -3371,6 +3406,9 @@ async function enemyPhase() {
           SFX.follow();
         }
         hby.push(e.uid);
+        // TEAM SYNERGY: Cassia soaks for allies in the rows behind her (Guardian's Aegis)
+        const soak = soakMitigation(h);
+        if (soak) { hitDmg = Math.max(0, hitDmg - soak); popupAt(figEl(h.id), '⛨ COVERED −' + soak, 'guard'); }
         let left = hitDmg;
         if (h.guard > 0) { const g = Math.min(h.guard, left); h.guard -= g; left -= g; popupAt(figEl(h.id), '⛨', 'guard'); }
         if (left > 0) {
@@ -5105,8 +5143,8 @@ function showSettings() {
 // THE EMBER TREE — a branching constellation.  Each hero's nodes hang from a
 // root along lit paths; a node's PREREQUISITE feeds it down a thread.  Pick a
 // node to read it in the detail bar, then kindle it.
-const TREE_TYPE_LABEL = { card: 'SIGNATURE', rider: 'UPGRADE', passive: 'PASSIVE', allout: 'ALL-OUT', emergent: 'EMERGENT' };
-const TREE_TYPE_GLYPH = { card: '❖', rider: '⊕', passive: '❉', allout: '✷', emergent: '✦' };
+const TREE_TYPE_LABEL = { card: 'SIGNATURE', rider: 'UPGRADE', passive: 'PASSIVE', allout: 'ALL-OUT', emergent: 'EMERGENT', synergy: 'TEAM SYNERGY' };
+const TREE_TYPE_GLYPH = { card: '❖', rider: '⊕', passive: '❉', allout: '✷', emergent: '✦', synergy: '☍' };
 const TREE_HEROES = EMBER_TREE.reduce((a, n) => (a.includes(n.hero) ? a : a.concat(n.hero)), []);
 // node state for the current META: owned / ready(buyable) / poor(can't afford)
 // / needs(prereq) / sealed(tier).

@@ -1484,6 +1484,19 @@ const QUICK = process.argv.includes('--quick');
       return bracedAll && healedAll;
     }));
 
+  // ---------- TEAM SYNERGY (Phase 3): cross-hero payoffs ----------
+  console.log('--- TEAM SYNERGY ---');
+  check('SYN ash.synergy.warcry: a follow-up hands the followed ally RALLY +2',
+    await J(() => { setupFight(['ash', 'mira'], ['ash.synergy.warcry', 'ash.emergent.tempo'], { ash: 'front', mira: 'mid' }); const m = S.heroes.find(h => h.id === 'mira'); m.buffDmg = 0; firePassives('followup', 'ash', { ally: 'mira' }); return m.buffDmg === 2; }));
+  check('SYN elin.synergy.blessing: mending/warding an ally blesses their next strike +2',
+    await J(async () => { setupFight(['elin', 'ash'], ['elin.synergy.blessing'], { elin: 'mid', ash: 'front' }, { ash: 10 }); const a = S.heroes.find(h => h.id === 'ash'); a.buffDmg = 0; await playCard(handCard('Mend'), 'ash'); return a.buffDmg === 2; }));
+  check('SYN mira.synergy.marked: EXPOSED foes take +2 from EVERY ally (not just Mira)',
+    await J(() => { setupFight(['ash', 'mira'], ['mira.synergy.marked'], { ash: 'front', mira: 'mid' }); const e = S.enemies[0], a = S.heroes.find(h => h.id === 'ash'); e.mark = 0; const clean = passiveDmg(a, e); e.mark = 3; return clean === 0 && passiveDmg(a, e) === 2; }));
+  check('SYN cassia.synergy.soak: allies BEHIND Cassia take −2 (she does not soak for those ahead)',
+    await J(() => { setupFight(['cassia', 'ash'], ['cassia.synergy.soak'], { cassia: 'front', ash: 'back' }); const a = S.heroes.find(h => h.id === 'ash'), c = S.heroes.find(h => h.id === 'cassia'); return soakMitigation(a) === 2 && soakMitigation(c) === 0; }));
+  check('SYN branwen.synergy.cadence: turn start rallies the party only when a foe is EXPOSED',
+    await J(() => { setupFight(['branwen', 'ash'], ['branwen.synergy.cadence'], { branwen: 'back', ash: 'front' }); S.heroes.forEach(h => h.buffDmg = 0); livingEnemies().forEach(e => e.mark = 0); firePassives('turnStart', 'branwen', {}); const noMark = S.heroes.map(h => h.buffDmg).join(','); frontmostEnemy().mark = 2; firePassives('turnStart', 'branwen', {}); return noMark === '0,0' && S.heroes.every(h => h.buffDmg === 1); }));
+
   // ---------- DUET: a kindled PAIR + a shared act awakens a 2-hero vow ----------
   console.log('--- DUET ---');
   const duetSetup = await J(() => {
