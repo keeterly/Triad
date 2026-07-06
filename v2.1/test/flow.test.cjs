@@ -1844,6 +1844,16 @@ const QUICK = process.argv.includes('--quick');
     }));
   check('PERF: a fresh fight frees the party-figure cache (drag closures rebind to the new fight)',
     await J(() => { setupFight(['ash', 'elin'], [], {}); const before = document.querySelector('.figure.party[data-fig="ash"]'); setupFight(['ash', 'elin'], [], {}); const after = document.querySelector('.figure.party[data-fig="ash"]'); return !!before && !!after && before !== after; }));
+  check('PERF: the hand DOM is REUSED when nothing changed, and REBUILT when EP/hand changes',
+    await J(() => {
+      setupFight(['ash', 'elin', 'mira'], [], {}); renderAll();
+      const c1 = document.querySelector('#hand .card');
+      renderAll();                                   // identical hand → skip the rebuild
+      const c2 = document.querySelector('#hand .card');
+      S.ep = S.ep - 1; renderAll();                  // EP changed → rebuild (disabled states can shift)
+      const c3 = document.querySelector('#hand .card');
+      return !!c1 && c1 === c2 && !!c3 && c3 !== c1;
+    }));
 
   t.report();
   await t.browser.close();

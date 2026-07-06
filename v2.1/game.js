@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 66;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 67;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -5436,14 +5436,24 @@ function renderActionBar() {
   $('#ep-max').textContent = '/' + S.maxEp;
   renderBurst();
   $('#btn-endturn').disabled = S.executing || S.over;
+  // Build the hand ONCE (it applies riders/forges/boons per card — not free).
+  const hand = buildHand();
   // When nothing is playable, softly pulse END TURN so the next step is obvious.
-  const anyPlayable = buildHand().some(c => !c.spent && c.cost <= S.ep)
+  const anyPlayable = hand.some(c => !c.spent && c.cost <= S.ep)
     || livingHeroes().some(h => canMove(h));
   $('#btn-endturn').classList.toggle('et-nudge', !S.executing && !S.over && !anyPlayable);
 
   const handEl = $('#hand');
+  if (S.over) { handEl.innerHTML = ''; S._handSig = null; return; }
+  // PERF: renderAll fires after every hit / parry / animation beat, but the hand
+  // is USUALLY unchanged.  Rebuilding its DOM (+ re-attaching drag per card) was
+  // the single biggest cost in renderAll.  Skip it unless something that affects a
+  // card face or its playability actually changed.
+  const sig = hand.map(c => `${c.uid || (c.owner + c.name)}:${c.cost}:${c.spent ? 1 : 0}:${c.kind}`).join('|')
+    + '#' + S.ep + '/' + S.maxEp + (S._tempNew || '') + (S.resonantNew ? 'R' : '') + (S.executing ? 'X' : '') + (targeting ? 'T' : '');
+  if (sig === S._handSig && handEl.childElementCount === hand.length) return;
+  S._handSig = sig;
   handEl.innerHTML = '';
-  if (S.over) return;
   // Icon-first card face — legibility over prose (mobile).  Full text lives
   // in the card's title attribute for anyone who wants the detail.
   const fxIconStr = (fx, hasAll, dg) => {
@@ -5510,7 +5520,7 @@ function renderActionBar() {
       default:          return '';
     }
   };
-  buildHand().forEach(card => {
+  hand.forEach(card => {
     const type = cardType(card);
     const el = document.createElement('div');
     el.className = `card kind-${card.kind}`
