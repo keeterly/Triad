@@ -1754,13 +1754,14 @@ const QUICK = process.argv.includes('--quick');
   // ---------- FLOOR 4: THE HOLLOW CHORUS — the multi-stage mega boss ----------
   console.log('--- FLOOR 4 / MEGA BOSS ---');
   check('FLOOR 4: the descent now runs FOUR floors', await J(() => FLOORS === 4));
-  check('FLOOR 4: a short 3-node gauntlet — threshold fight → last fire → the mega boss',
+  check('FLOOR 4: a FULL map like the other floors — opens on a LAST FIRE (not a fight), ends on the mega boss',
     await J(() => {
       const m = generateDescent(['ash', 'elin', 'mira'], 4);
-      return m.length === 3
-        && m[0].type === 'fight' && m[0].next.join() === '1'
-        && m[1].type === 'camp' && m[1].next.join() === '2'
-        && m[2].type === 'boss' && m[2].enemies[0] === 'echochorus' && m[2].next.length === 0;
+      const firstCol = m.filter(n => n.col === Math.min(...m.map(x => x.col)));
+      const boss = m.find(n => n.isBoss);
+      return m.length > 3                                            // not the old 3-node stub — a real gauntlet
+        && firstCol.length === 1 && firstCol[0].type === 'camp'      // first node is a campfire, never a fight
+        && !!boss && boss.enemies[0] === 'echochorus' && boss.next.length === 0;
     }));
   check('MEGA: the Chorus is a 3-stage boss (Remembered → Devouring → Unmaking)',
     await J(() => {
@@ -1830,6 +1831,21 @@ const QUICK = process.argv.includes('--quick');
     await J(() => allOutFinisherDmg(3) === 19 && allOutFinisherDmg(2) === 13 && allOutFinisherDmg(1) === 13));
   check('FINISHER: an all-perfect cascade (3+ strikes) triggers the finisher (wired into resolveAllOut)',
     await J(() => { const s = resolveAllOut.toString(); return s.includes('perfectStrikes') && s.includes('allStrikes >= 3') && s.includes('allOutFinisher('); }));
+
+  // ---------- PERF: party figures reused across renders (no SVG re-parse) ----------
+  console.log('--- PERF ---');
+  check('PERF: a party figure (and its SVG portrait) is REUSED across renders, not rebuilt',
+    await J(() => {
+      setupFight(['ash', 'elin', 'mira'], [], {});
+      const a1 = document.querySelector('#party-half .figure.party[data-fig="ash"]');
+      const svg1 = a1 && a1.querySelector('.fig-art svg');
+      S.heroes[0].guard = 7; renderAll();   // a state change re-renders
+      const a2 = document.querySelector('#party-half .figure.party[data-fig="ash"]');
+      return !!a1 && !!svg1 && a1 === a2 && a2.querySelector('.fig-art svg') === svg1
+        && !!a2.querySelector('.chip.guard');   // the cheap parts still updated
+    }));
+  check('PERF: a fresh fight frees the party-figure cache (drag closures rebind to the new fight)',
+    await J(() => { setupFight(['ash', 'elin'], [], {}); const before = document.querySelector('.figure.party[data-fig="ash"]'); setupFight(['ash', 'elin'], [], {}); const after = document.querySelector('.figure.party[data-fig="ash"]'); return !!before && !!after && before !== after; }));
 
   t.report();
   await t.browser.close();

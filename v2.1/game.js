@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 64;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 65;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -1254,16 +1254,6 @@ function _connect(prev, next, nodes) {
 function generateDescent(roster, floor) {
   roster = roster || ['ash'];
   floor = floor || 1;
-  // FLOOR 4 — THE DEEPEST DARK.  Not a branching map: a short, brutal gauntlet of
-  // just THREE travel nodes — a threshold fight, a last fire to prepare, and the
-  // multi-stage MEGA BOSS.  No choices, no detours; only the descent's end.
-  if (floor >= 4) {
-    return [
-      { id: 0, level: 1, col: 1, type: 'fight', enemies: _combatEnemies(6), label: 'THE THRESHOLD', next: [1] },
-      { id: 1, level: 2, col: 2, type: 'camp', label: 'THE LAST FIRE', next: [2] },
-      { id: 2, level: 3, col: 3, type: 'boss', enemies: ['echochorus'], isBoss: true, floorBoss: true, label: 'THE HOLLOW CHORUS', next: [] },
-    ];
-  }
   // Recruits = anyone not already in the party.  You start solo (or short) and
   // build your trio from the road, so an early recruit is guaranteed close.
   const pending = _shuffle(STARTER_POOL.filter(id => !roster.includes(id)));
@@ -1283,7 +1273,9 @@ function generateDescent(roster, floor) {
   let eventI = 0, idc = 0;
   for (let level = 1; level <= numLevels; level++) {
     let types;
-    if (level === 1) types = ['fight'];
+    // The FINAL floor opens on a LAST FIRE (a rest, not a fight) before its
+    // gauntlet — you steady the line before the deepest dark.
+    if (level === 1) types = floor >= 4 ? ['camp'] : ['fight'];
     else if (level === numLevels) types = ['boss'];
     else if (level === numLevels - 1) types = ['camp'];
     else types = _stretchTypes(level);
@@ -1296,7 +1288,7 @@ function generateDescent(roster, floor) {
       else if (type === 'event')   { node.eventId = eventQ[eventI++ % eventQ.length]; node.label = lbl.event(); }
       else if (type === 'camp')    { node.label = lbl.camp(); }
       else if (type === 'recruit') { node.hero = recruitAtLevel[level]; node.label = RECRUIT_NODE_LABELS[node.hero] || 'A NEW THREAD'; }
-      else if (type === 'boss')    { const bid = floor >= 3 ? 'echosunder' : floor >= 2 ? 'echodevourer' : 'echoknight2'; node.enemies = [bid]; node.isBoss = true; node.floorBoss = true; node.label = floor >= 3 ? 'THE SUNDERING' : floor >= 2 ? 'THE HOLLOW MAW' : lbl.boss(); }
+      else if (type === 'boss')    { const bid = floor >= 4 ? 'echochorus' : floor >= 3 ? 'echosunder' : floor >= 2 ? 'echodevourer' : 'echoknight2'; node.enemies = [bid]; node.isBoss = true; node.floorBoss = true; node.label = floor >= 4 ? 'THE HOLLOW CHORUS' : floor >= 3 ? 'THE SUNDERING' : floor >= 2 ? 'THE HOLLOW MAW' : lbl.boss(); }
       nodes[idc] = node; ids.push(idc); idc++;
     });
     levels.push(ids);
@@ -4084,6 +4076,7 @@ function startFlowNode() {
 function startFight(node) {
   S = newBattle(node);
   _bossFig = null;   // a fresh fight builds its own boss figure (uids can repeat across fights)
+  _partyFigs = {};   // and fresh party figures (drag closures capture this fight's hero objects)
   hideOverlay();
   flashNarrator(node.narrator || '');
   renderAll();
@@ -4419,27 +4412,37 @@ function enterMegaStage(e, i) {
   e.intentIdx = 0; e.power = 0; e.guard = 0; e.mark = 0; e.lull = 0;
   e.weakRevealed = false; e.weakened = false; e.staggered = false; e.echoStored = null;
 }
-// A stage falls: freeze the field, play the reform cutscene, then the Chorus
-// rises in its next aspect at full stage HP.  The party's HP/threads carry over —
-// the war of attrition is the point.
+// A stage falls in TWO beats: (1) the current aspect visibly DIES — it shatters,
+// a death-burst blooms, the field rocks — held long enough to read as a KILL;
+// then (2) the reform cutscene, and the Chorus rises in its next aspect at full
+// stage HP.  The party's HP/threads carry over — the war of attrition is the point.
 function megaStageBreak(e) {
   const next = e.stage + 1;
   const st = e._stages[next];
   S._staging = true;
   e.hp = 0; e.staggered = false;
+  e._justDied = true;                       // renderFloorBoss keeps the dying treatment through the beat
+  const el = figEl(e.uid);
   const fell = (e.def && e.def.name) || 'THE CHORUS';
-  popupAt(figEl(e.uid), '✦ ' + fell + ' FALLS', 'info');
+  // BEAT 1 — the death.  Same visual language as a real kill, dialed up.
+  flashNarrator('✦ ' + fell + ' — SILENCED.');
+  popupAt(el, '☠ ' + fell + ' FALLS', 'dmg popup-big');
   if (SFX.kill) SFX.kill();
   stageShake('xl'); hitFlash(3);
+  if (el) { el.classList.add('fig-dying'); deathBurst(el); }
   renderAll();
-  megaStageCine(st, () => {
-    enterMegaStage(e, next);
-    S._staging = false;
-    _bossFig = null;   // rebuild the boss figure for the new aspect (fresh aura/filters)
-    flashNarrator('THE HOLLOW CHORUS reforms — ' + st.name + '.');
-    if (SFX.enemy) SFX.enemy();
-    renderAll();
-  });
+  // BEAT 2 — after the death lands, the reform cutscene, then rise anew.
+  setTimeout(() => {
+    e._justDied = false;
+    megaStageCine(st, () => {
+      enterMegaStage(e, next);
+      S._staging = false;
+      _bossFig = null;   // rebuild the boss figure for the new aspect (fresh aura/filters)
+      flashNarrator('THE HOLLOW CHORUS reforms — ' + st.name + '.');
+      if (SFX.enemy) SFX.enemy();
+      renderAll();
+    });
+  }, 1250);   // let the death read as a KILL before the reform begins
 }
 // KINDLE BURST — the moment a skill catches.  A full-screen ember-bloom over the
 // tree: the node's glyph ignites, ember shards fan out, the skill NAME slams in
@@ -5069,6 +5072,33 @@ function chipPop(who, key, val) {
   return (val > (prev[key] || 0)) ? ' chip-pop' : '';
 }
 function snapFx(who, obj) { who._fxPrev = obj; }
+// Party figures are REUSED across renders (their SVG portrait is expensive to
+// re-parse — the same optimisation the floor boss uses).  These build the
+// mutable bits so a re-render only swaps chips / hp / aura, never the art.
+let _partyFigs = {};
+function partyChipsHtml(who) {
+  return `
+    ${who.invuln ? `<span class="chip buff${chipPop(who,'invuln',1)}">✦ INVULN</span>` : ''}
+    ${who.guard ? `<span class="chip guard${chipPop(who,'guard',who.guard)}">⛨ ${who.guard}</span>` : ''}
+    ${who.buffDmg ? `<span class="chip buff${chipPop(who,'buffDmg',who.buffDmg)}">▲ ${who.buffDmg}</span>` : ''}
+    ${who.counter ? `<span class="chip counter${chipPop(who,'counter',who.counter)}">↺ ${who.counter}</span>` : ''}
+    ${who.exposed ? `<span class="chip mark${chipPop(who,'exposed',who.exposed)}">◎ ${who.exposed}</span>` : ''}
+    ${who.chill ? `<span class="chip chill${chipPop(who,'chill',who.chill)}">❄ ${who.chill}</span>` : ''}
+    ${who.hexed ? `<span class="chip hex${chipPop(who,'hexed',who.hexed)}" title="HEXED — your card plays burn your hand">☠ HEXED</span>` : ''}`;
+}
+function partyAuraObj(who) { return { guard: who.guard, rally: who.buffDmg, chill: who.chill, exposed: who.exposed, counter: who.counter, invuln: who.invuln }; }
+// Refresh a REUSED party figure in place — swap only what changed.
+function refreshPartyFig(fig, who, solo) {
+  const chips = fig.querySelector('.fig-chips'); if (chips) chips.innerHTML = partyChipsHtml(who);
+  const fill = fig.querySelector('.hp-fill'); if (fill) fill.style.width = ((who.hp / who.maxHp) * 100) + '%';
+  const num = fig.querySelector('.hp-num'); if (num) num.textContent = who.hp + '/' + who.maxHp;
+  const art = fig.querySelector('.fig-art');
+  if (art) { const oa = art.querySelector('.fig-aura'); if (oa) oa.remove(); if (!who.downed) { const a = auraHTML(partyAuraObj(who)); if (a) art.insertAdjacentHTML('beforeend', a); } }
+  let tag = fig.querySelector('.stance-tag');
+  if (solo && !tag) fig.insertAdjacentHTML('afterbegin', `<span class="stance-tag">${STANCE[who.row].name.toUpperCase()}</span>`);
+  else if (solo && tag) tag.textContent = STANCE[who.row].name.toUpperCase();
+  else if (!solo && tag) tag.remove();
+}
 
 // Status AURA — persistent particle/glow effects painted OVER the character
 // body so an active status reads as an atmosphere around the figure, not just
@@ -5162,30 +5192,28 @@ function renderBattlefield() {
     slot.innerHTML = `<span class="slot-ring"></span><span class="slot-danger" aria-hidden="true"><span class="sd-brackets"><i></i><i></i><i></i><i></i></span><span class="sd-wave"></span></span>${dRow > 0 ? `<span class="slot-dmg${lethalRow ? ' sd-dmg-lethal' : ''}">${lethalRow ? '☠' : '✕'} ${dRow}</span>` : ''}`;
     const who = h || downedHere;
     if (who) {
-      const fig = document.createElement('div');
-      fig.className = 'figure party' + (who.downed ? ' downed' : '');
-      fig.dataset.fig = who.id;
       const solo = livingHeroes().length === 1;
       const targetable = targeting && !targeting.isRow && targeting.validIds.includes(who.id);
-      if (targetable) fig.classList.add('fig-targetable');
-      fig.innerHTML = `
-        ${solo ? `<span class="stance-tag">${STANCE[who.row].name.toUpperCase()}</span>` : ''}
-        <div class="fig-art">${V2PORTRAITS[who.id] || ''}${who.downed ? '' : auraHTML({ guard: who.guard, rally: who.buffDmg, chill: who.chill, exposed: who.exposed, counter: who.counter, invuln: who.invuln })}</div>
-        <div class="fig-chips">
-          ${who.invuln ? `<span class="chip buff${chipPop(who,'invuln',1)}">✦ INVULN</span>` : ''}
-          ${who.guard ? `<span class="chip guard${chipPop(who,'guard',who.guard)}">⛨ ${who.guard}</span>` : ''}
-          ${who.buffDmg ? `<span class="chip buff${chipPop(who,'buffDmg',who.buffDmg)}">▲ ${who.buffDmg}</span>` : ''}
-          ${who.counter ? `<span class="chip counter${chipPop(who,'counter',who.counter)}">↺ ${who.counter}</span>` : ''}
-          ${who.exposed ? `<span class="chip mark${chipPop(who,'exposed',who.exposed)}">◎ ${who.exposed}</span>` : ''}
-          ${who.chill ? `<span class="chip chill${chipPop(who,'chill',who.chill)}">❄ ${who.chill}</span>` : ''}
-          ${who.hexed ? `<span class="chip hex${chipPop(who,'hexed',who.hexed)}" title="HEXED — your card plays burn your hand">☠ HEXED</span>` : ''}
-        </div>
-        <div class="hp-bar"><div class="hp-fill" style="width:${(who.hp / who.maxHp) * 100}%"></div></div>
-        <div class="fig-name">${who.def.name} <span class="hp-num">${who.hp}/${who.maxHp}</span></div>
-      `;
+      // REUSE the hero's figure across renders (its SVG portrait is expensive) —
+      // build once, then only swap chips / hp / aura.  Freed each fight.
+      let fig = _partyFigs[who.id];
+      if (fig && fig.querySelector('.fig-art svg')) {
+        refreshPartyFig(fig, who, solo);
+      } else {
+        fig = document.createElement('div');
+        fig.dataset.fig = who.id;
+        fig.innerHTML = `
+          ${solo ? `<span class="stance-tag">${STANCE[who.row].name.toUpperCase()}</span>` : ''}
+          <div class="fig-art">${V2PORTRAITS[who.id] || ''}${who.downed ? '' : auraHTML(partyAuraObj(who))}</div>
+          <div class="fig-chips">${partyChipsHtml(who)}</div>
+          <div class="hp-bar"><div class="hp-fill" style="width:${(who.hp / who.maxHp) * 100}%"></div></div>
+          <div class="fig-name">${who.def.name} <span class="hp-num">${who.hp}/${who.maxHp}</span></div>
+        `;
+        attachHeroDrag(fig, who);
+        _partyFigs[who.id] = fig;
+      }
+      fig.className = 'figure party' + (who.downed ? ' downed' : '') + (targetable ? ' fig-targetable' : '') + (canMove(who) ? ' can-move' : '');
       snapFx(who, { invuln: who.invuln ? 1 : 0, guard: who.guard, buffDmg: who.buffDmg, counter: who.counter, exposed: who.exposed, chill: who.chill });
-      if (canMove(who)) fig.classList.add('can-move');
-      attachHeroDrag(fig, who);
       // Click fallback for target-picking (synthetic clicks / accessibility
       // tools).  Safe alongside the pointer path: onFigureTap no-ops once
       // targeting clears, so a double-fire can't double-play.
