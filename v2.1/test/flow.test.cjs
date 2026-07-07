@@ -1936,6 +1936,13 @@ const QUICK = process.argv.includes('--quick');
       && devPreviewRotations.toString().includes('_rotations = true')
       && devPreviewRotations.toString().includes('ROTATION_GATES')
       && Array.isArray(ROTATION_GATES) && ROTATION_GATES.length === 15));
+  check('ROTATION forged steps sit in the HERO’s slot, not appended to the far right of the hand',
+    await J(() => { setupFight(['ash', 'elin'], ['ash.sig.front', 'rot.ash.front'], { ash: 'front', elin: 'mid' }); S._rotations = true; renderAll();
+      const op = buildHand().find(c => c.kind === 'opener' && c.owner === 'ash'); S.tempCards = []; resolveChainPlay(op);
+      const names = buildHand().map(c => c.name);
+      const iRs = names.indexOf('Rising Slash'), iSu = names.indexOf('Sunder'), iMend = names.indexOf('Mend');
+      // Ash (first hero) forged cards precede Elin's opener — grouped in Ash's slot
+      return iRs >= 0 && iSu >= 0 && iMend >= 0 && iRs < iMend && iSu < iMend; }));
   check('ROTATION drag fix: forge origin is the card HOME slot (drag-start), NOT the lifted/impact spot',
     await J(() => { setupFight(['ash'], ['ash.sig.front', 'rot.ash.front'], { ash: 'front' }); S._rotations = true; renderAll();
       const op = buildHand().find(c => c.kind === 'opener'); const en = S.enemies.find(e => !e.dead);

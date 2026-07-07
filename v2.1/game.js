@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 81;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 82;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -1836,6 +1836,13 @@ function buildHand() {
   // remains is exactly what you can still do.
   const hand = [];
   const host = resonantHost();
+  const temps = S.tempCards.filter(t => t.expiresTurn == null || t.expiresTurn >= S.turn);
+  // A rotation grows IN PLACE: a hero's forged builders/finishers sit right where
+  // their opener was, not appended to the far right of the fan — so the card that
+  // left the slot visibly becomes its next step(s) there.  Non-chain temps (stance
+  // echoes, emergent forges, duet cards) still trail at the end.
+  const chainTemps = {};
+  temps.forEach(t => { if (t.chain) (chainTemps[t.owner] = chainTemps[t.owner] || []).push(t); });
   livingHeroes().forEach(h => {
     // CHAIN HEROES show a single OPENER instead of core+sig — their builders and
     // finishers arrive as forged temp cards as the rotation plays out.  The triad
@@ -1844,6 +1851,7 @@ function buildHand() {
     if (rot) {
       if (host === h.id) hand.push(mkResonantCard(h));
       else { const op = mkChainOpener(h, rot); if (!op.spent) hand.push(op); }
+      (chainTemps[h.id] || []).forEach(t => hand.push(t));   // forged steps sit in this hero's slot
       return;
     }
     const set = h.def.cards[h.row];
@@ -1851,8 +1859,9 @@ function buildHand() {
     if (!core.spent) hand.push(core);
     if (host === h.id) hand.push(mkResonantCard(h));
     else if (sigUnlocked(h)) { const sig = mkCard(h, 'sig', set.sig); if (!sig.spent) hand.push(sig); }
+    (chainTemps[h.id] || []).forEach(t => hand.push(t));     // (a non-rotation hero can still hold forged temps)
   });
-  S.tempCards.filter(t => t.expiresTurn == null || t.expiresTurn >= S.turn).forEach(t => hand.push(t));
+  temps.forEach(t => { if (!t.chain) hand.push(t); });       // echoes / emergent forges / duet trail at the end
   return hand;
 }
 // Whose signature is currently transformed?  The hero whose act of help
