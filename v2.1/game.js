@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 72;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 73;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -1802,10 +1802,13 @@ function aimLayer() {
   if (!svg) {
     svg = document.createElementNS(_AIMNS, 'svg');
     svg.id = 'aim-layer';
-    svg.setAttribute('viewBox', '0 0 760 430');
     svg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:55;overflow:visible';
     $('#stage').appendChild(svg);
   }
+  // The aim beam/reticle is drawn in DESIGN coords, so the viewBox must match the
+  // current design canvas (760×430 on mobile, larger on desktop) — otherwise the
+  // reticle points to the wrong place and targeting looks off.
+  svg.setAttribute('viewBox', '0 0 ' + stageDW() + ' ' + stageDH());
   return svg;
 }
 function aimClear() {
@@ -3028,7 +3031,7 @@ function mkSeqPreview(pts) {
   const d = 'M ' + pts.map(p => `${p.x} ${p.y}`).join(' L ');
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('class', 'seq-preview');
-  svg.setAttribute('viewBox', '0 0 760 430');
+  svg.setAttribute('viewBox', '0 0 ' + stageDW() + ' ' + stageDH());   // design canvas (larger on desktop)
   svg.innerHTML = `<path d="${d}" class="sq-line"/>${dots}`;
   $('#stage').appendChild(svg);
   return svg;

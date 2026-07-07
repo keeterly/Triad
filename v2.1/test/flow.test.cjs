@@ -1689,6 +1689,8 @@ const QUICK = process.argv.includes('--quick');
       const backX = sr.left + a.x * sc, backY = sr.top + a.y * sc;  // DESIGN → screen must return to the figure
       return Math.abs(backX - (fr.left + fr.width / 2)) < 1 && Math.abs(backY - (fr.top + fr.height * 0.4)) < 1;
     }));
+  check('SCALE: the aim-layer / seq-preview viewBox tracks the design canvas (targeting reticle aims true)',
+    await J(() => { const svg = aimLayer(); return svg.getAttribute('viewBox') === '0 0 ' + stageDW() + ' ' + stageDH(); }));
 
   // ---------- STANCE DEPTH: every position pathway grows nodes ----------
   console.log('--- STANCE DEPTH ---');
