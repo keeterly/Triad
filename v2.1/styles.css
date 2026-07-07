@@ -257,7 +257,7 @@ body {
   transition: transform 0.35s ease, filter 0.3s ease;
   cursor: default;
 }
-.figure .fig-art { width: 100%; height: 118px; display: flex; align-items: flex-end; justify-content: center; }
+.figure .fig-art { width: 100%; height: 118px; display: flex; align-items: flex-end; justify-content: center; position: relative; }
 .figure .fig-art svg { height: 100%; width: auto; max-width: 100%; filter: drop-shadow(0 6px 14px rgba(0,0,0,0.7)); }
 .figure.enemy .fig-art { height: 108px; }
 .figure.downed { filter: grayscale(1) brightness(0.5); }
@@ -280,7 +280,15 @@ body {
 .hp-fill { height: 100%; background: linear-gradient(90deg, #7a5c30, var(--gold)); transition: width 0.3s ease; }
 .figure.enemy .hp-fill { background: linear-gradient(90deg, #6a2424, var(--blood-bright)); }
 .hp-num { font-size: 8.5px; color: var(--ink-dim); }
-.fig-chips { display: flex; gap: 7px; min-height: 13px; flex-wrap: wrap; justify-content: center; }
+/* Status runes OVERLAY the top of the character art (absolute), so an effect
+   appearing never reflows the figure / pushes the artwork up.  They sit ON the
+   art (z above the aura + svg), floating just over the top of the creature. */
+.fig-chips {
+  position: absolute; top: 3px; left: 50%; transform: translateX(-50%);
+  z-index: 6; width: max-content; max-width: 150px;
+  display: flex; gap: 7px; flex-wrap: wrap; justify-content: center;
+  pointer-events: none;
+}
 /* DIEGETIC status runes — no mechanical box.  Each status is a glowing sigil
    that burns in its own colour (paired with the aura painted over the creature
    itself), the number riding alongside.  Reads as magic clinging to the foe,
@@ -301,7 +309,11 @@ body {
    the threat reads at a glance — small, spaced, colour-coded, still borderless */
 .figure.enemy .fig-chips { gap: 4px 9px; max-width: 158px; }
 .figure.enemy .chip { font-size: 8.5px; letter-spacing: 0.06em; gap: 2.5px; }
-.figure.floor-boss .fig-chips { max-width: 280px; }
+/* the boss art is huge (78% of the half) and offset right — anchor its runes over
+   the LOWER body (near the hp bar), overlaid so nothing reflows, and keep them
+   NARROW so the row wraps and never spills off the right edge. */
+.figure.floor-boss .fig-chips { max-width: 158px; top: auto; bottom: 12px; row-gap: 3px;
+  left: 0; right: 0; transform: none; margin-left: auto; margin-right: auto; }
 
 /* intent bubble */
 .intent {

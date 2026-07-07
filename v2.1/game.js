@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 67;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 68;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -5212,8 +5212,7 @@ function renderBattlefield() {
         fig.dataset.fig = who.id;
         fig.innerHTML = `
           ${solo ? `<span class="stance-tag">${STANCE[who.row].name.toUpperCase()}</span>` : ''}
-          <div class="fig-art">${V2PORTRAITS[who.id] || ''}${who.downed ? '' : auraHTML(partyAuraObj(who))}</div>
-          <div class="fig-chips">${partyChipsHtml(who)}</div>
+          <div class="fig-art">${V2PORTRAITS[who.id] || ''}${who.downed ? '' : auraHTML(partyAuraObj(who))}<div class="fig-chips">${partyChipsHtml(who)}</div></div>
           <div class="hp-bar"><div class="hp-fill" style="width:${(who.hp / who.maxHp) * 100}%"></div></div>
           <div class="fig-name">${who.def.name} <span class="hp-num">${who.hp}/${who.maxHp}</span></div>
         `;
@@ -5313,8 +5312,7 @@ function enemyAuraHtml(e) {
 function enemyFigInner(e) {
   return `
     ${enemyIntentHtml(e)}
-    <div class="fig-art">${enemyArt(e)}${enemyAuraHtml(e)}</div>
-    ${enemyChipsHtml(e)}
+    <div class="fig-art">${enemyArt(e)}${enemyAuraHtml(e)}${enemyChipsHtml(e)}</div>
     <div class="hp-bar"><div class="hp-fill" style="width:${(e.hp / e.maxHp) * 100}%"></div></div>
     <div class="fig-name">${e.def.name} <span class="hp-num">${e.hp}/${e.maxHp}</span></div>
   `;
@@ -5611,11 +5609,14 @@ function popupAt(el, text, cls) {
   const p = document.createElement('div');
   p.className = 'popup ' + (cls || '');
   p.textContent = text;
-  p.style.left = ((r.left + r.width / 2 - stageR.left) / scale) + 'px';
-  p.style.top = ((r.top - stageR.top) / scale + 6 - idx * 15) + 'px';
-  if (idx) { p.style.animationDelay = (idx * 95) + 'ms'; p.style.animationFillMode = 'both'; }
+  // Stack readably: each rapid follow-up rides HIGHER (a clear gap, not a pile)
+  // and ZIGZAGS left/right so consecutive numbers never sit on top of each other.
+  const dx = idx === 0 ? 0 : ((idx % 2) ? 1 : -1) * (16 + Math.floor((idx - 1) / 2) * 7);
+  p.style.left = ((r.left + r.width / 2 - stageR.left) / scale + dx) + 'px';
+  p.style.top = ((r.top - stageR.top) / scale + 4 - idx * 24) + 'px';
+  if (idx) { p.style.animationDelay = (idx * 110) + 'ms'; p.style.animationFillMode = 'both'; }
   layer.appendChild(p);
-  setTimeout(() => p.remove(), 1050 + idx * 95);
+  setTimeout(() => p.remove(), 1050 + idx * 110);
 }
 function shake(el, dir) {
   if (!el) return;
