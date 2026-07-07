@@ -1684,10 +1684,24 @@ const QUICK = process.argv.includes('--quick');
     await J(() => {
       setupFight(['ash', 'elin', 'mira'], [], {}); fitStage(); renderAll();
       const st = document.getElementById('stage'), sr = st.getBoundingClientRect(), sc = stageScale();
-      const fig = document.querySelector('.figure.party[data-fig="ash"]'), fr = fig.getBoundingClientRect();
+      const fig = document.querySelector('.figure.party[data-fig="ash"]'), fr = figHitRect(fig);   // anchors on the visible ART, not the container box
       const a = noteAnchor(fig);                                  // screen → DESIGN coords (parry ring / popup anchor)
-      const backX = sr.left + a.x * sc, backY = sr.top + a.y * sc;  // DESIGN → screen must return to the figure
+      const backX = sr.left + a.x * sc, backY = sr.top + a.y * sc;  // DESIGN → screen must return to the art
       return Math.abs(backX - (fr.left + fr.width / 2)) < 1 && Math.abs(backY - (fr.top + fr.height * 0.4)) < 1;
+    }));
+  check('SCALE: overlays anchor on the VISIBLE art, not an oversized figure box (boss reticle lands ON the boss)',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash', 'elin', 'mira']; RUN.active = ['ash', 'elin', 'mira']; RUN.hp = { ash: 32, elin: 24, mira: 22 };
+      RUN.nodes = []; RUN.completed = [0, 1];
+      startFight({ type: 'fight', chapter: 3, heroes: ['ash', 'elin', 'mira'], enemies: ['echoknight2'], useRunHp: true, floor: 1, depth: 5, isBoss: true, narrator: '' });
+      fitStage(); renderAll();
+      const e = S.enemies[0], fig = document.querySelector(`[data-fig="${e.uid}"]`);
+      const box = fig.getBoundingClientRect(), art = figHitRect(fig);
+      const sr = document.getElementById('stage').getBoundingClientRect(), sc = stageScale();
+      const a = noteAnchor(fig); const backX = sr.left + a.x * sc, backY = sr.top + a.y * sc;
+      return box.width > art.width * 1.4                          // the boss container box really is much wider than the drawn boss
+        && Math.abs(backX - (art.left + art.width / 2)) < 1       // yet the reticle/parry anchor sits on the ART
+        && Math.abs(backY - (art.top + art.height * 0.4)) < 1;
     }));
   check('SCALE: the aim-layer / seq-preview viewBox tracks the design canvas (targeting reticle aims true)',
     await J(() => { const svg = aimLayer(); return svg.getAttribute('viewBox') === '0 0 ' + stageDW() + ' ' + stageDH(); }));

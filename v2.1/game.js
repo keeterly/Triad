@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 75;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 76;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -2030,7 +2030,7 @@ function attachDrag(el, card) {
       snapped = '__field__';
       const pts = fieldTargets(card).map(t => {
         t.classList.add('fig-snapped');
-        const r = t.getBoundingClientRect();
+        const r = figHitRect(t);
         return { x: (r.left + r.width / 2 - sr.left) / s, y: (r.top + r.height * 0.4 - sr.top) / s };
       });
       angle = (angle + 3) % 360;
@@ -2038,10 +2038,10 @@ function attachDrag(el, card) {
       return;
     } else {
       let best = null, bd = Infinity;
-      els.forEach(t => { const r = t.getBoundingClientRect(); const d = (r.left + r.width / 2 - ptrX) ** 2 + (r.top + r.height / 2 - ptrY) ** 2; if (d < bd) { bd = d; best = t; } });
+      els.forEach(t => { const r = figHitRect(t); const d = (r.left + r.width / 2 - ptrX) ** 2 + (r.top + r.height / 2 - ptrY) ** 2; if (d < bd) { bd = d; best = t; } });
       snapped = best; if (best) best.classList.add('fig-snapped');
       valid = !!best;
-      if (best) { const r = best.getBoundingClientRect(); ex = (r.left + r.width / 2 - sr.left) / s; ey = (r.top + r.height * 0.4 - sr.top) / s; }
+      if (best) { const r = figHitRect(best); ex = (r.left + r.width / 2 - sr.left) / s; ey = (r.top + r.height * 0.4 - sr.top) / s; }
       else { ex = (ptrX - sr.left) / s; ey = (ptrY - sr.top) / s; }
       // TECHNICAL preview — aiming a damaging card at a PRIMED foe (chilled or
       // weakened, off its weakness line) will detonate.  Rather than a flashing
@@ -2690,7 +2690,7 @@ function deathBurst(el) {
   if (!el) return;
   const layer = $('#popup-layer'); if (!layer) return;
   const sr = $('#stage').getBoundingClientRect(), s = sr.width / stageDW() || 1;
-  const r = el.getBoundingClientRect();
+  const r = figHitRect(el);
   const x = (r.left + r.width / 2 - sr.left) / s, y = (r.top + r.height * 0.42 - sr.top) / s;
   const b = document.createElement('div');
   b.className = 'death-burst'; b.style.left = x + 'px'; b.style.top = y + 'px';
@@ -2816,10 +2816,19 @@ function parryGlyph(intent) {
   return (p.size === 'big' ? '◉' : p.size === 'wide' ? '⟺' : '') + g;   // size hint
 }
 
+// The VISIBLE-art rect of a figure — its container box can be much larger than
+// the drawn creature (the floor boss's figure spans the whole enemy half), so
+// anchoring overlays / reticles / snaps on the box lands them high-and-centre
+// instead of ON the creature.  Anchor on the .fig-art svg when there is one.
+function figHitRect(el) {
+  if (!el) return null;
+  const art = el.querySelector && (el.querySelector('.fig-art svg') || el.querySelector('.fig-art'));
+  return (art || el).getBoundingClientRect();
+}
 // Stage-space anchor (center) of the parry UI for a given target figure.
 function noteAnchor(targetEl) {
   const sr = $('#stage').getBoundingClientRect(), scale = sr.width / stageDW();
-  const r = targetEl.getBoundingClientRect();
+  const r = figHitRect(targetEl) || targetEl.getBoundingClientRect();
   return { x: (r.left + r.width / 2 - sr.left) / scale, y: (r.top + r.height * 0.4 - sr.top) / scale };
 }
 // --- the parry UI base: a ring at a STAGE coordinate (so boss notes can be
@@ -5650,7 +5659,7 @@ function popupAt(el, text, cls) {
   const layer = $('#popup-layer');
   const stageR = $('#stage').getBoundingClientRect();
   const scale = stageR.width / stageDW();
-  const r = el.getBoundingClientRect();
+  const r = figHitRect(el);
   const key = el.dataset.fig || 'x';
   const now = Date.now();
   let st = _popupStacks.get(key);
@@ -5700,7 +5709,7 @@ function impactFx(el, school, big) {
   const layer = $('#popup-layer');
   const stageR = $('#stage').getBoundingClientRect();
   const scale = stageR.width / stageDW();
-  const r = el.getBoundingClientRect();
+  const r = figHitRect(el);
   const fx = document.createElement('div');
   fx.className = 'impact impact-' + (school || 'phys') + (big ? ' impact-big' : '');
   fx.style.left = ((r.left + r.width / 2 - stageR.left) / scale) + 'px';
@@ -5715,7 +5724,7 @@ function techBurst(el) {
   const layer = $('#popup-layer');
   const stageR = $('#stage').getBoundingClientRect();
   const scale = stageR.width / stageDW();
-  const r = el.getBoundingClientRect();
+  const r = figHitRect(el);
   const fx = document.createElement('div');
   fx.className = 'impact impact-tech';
   fx.style.left = ((r.left + r.width / 2 - stageR.left) / scale) + 'px';
