@@ -1892,9 +1892,13 @@ const QUICK = process.argv.includes('--quick');
     await J(() => { setupFight(['ash'], ['ash.sig.front', 'ash.rider.wave'], { ash: 'front' }); S._rotations = true; renderAll();
       const hand = buildHand().filter(c => c.owner === 'ash');
       return hand.length === 1 && hand[0].kind === 'opener' && hand[0].name === 'Cleave' && hand[0].cost === 2 && !!rotationFor(S.heroes[0]); }));
-  check('ROTATION opener forges BOTH branches (see-both-and-pick) — free, same group, expiring this turn',
-    await J(() => { const op = buildHand().find(c => c.kind === 'opener');
-      S.tempCards = []; resolveChainPlay(op);
+  check('ROTATION base line is LINEAR until the branch gate is owned (opener forges ONE builder)',
+    await J(() => { const op = buildHand().find(c => c.kind === 'opener'); S.tempCards = []; resolveChainPlay(op);
+      const names = S.tempCards.map(c => c.name);
+      return S.tempCards.length === 1 && names.includes('Rising Slash') && !names.includes('Sunder'); }));
+  check('ROTATION owning the gate opens the fork: opener forges BOTH — free, same group, this turn only',
+    await J(() => { setupFight(['ash'], ['ash.sig.front', 'ash.rider.wave', 'rot.ash.front'], { ash: 'front' }); S._rotations = true; renderAll();
+      const op = buildHand().find(c => c.kind === 'opener'); S.tempCards = []; resolveChainPlay(op);
       const rs = S.tempCards.find(c => c.name === 'Rising Slash'), su = S.tempCards.find(c => c.name === 'Sunder');
       return S.tempCards.length === 2 && !!rs && !!su && rs.cost === 0 && su.cost === 0
         && rs.branchGroup === su.branchGroup && rs.expiresTurn === S.turn; }));
@@ -1906,11 +1910,55 @@ const QUICK = process.argv.includes('--quick');
     await J(() => { const cw = S.tempCards.find(c => c.name === 'Crashing Wave'); return !!cw && cw.fx.dmg === 14; }));
   check('ROTATION stance change abandons the in-progress chain (purgeChain clears forged steps)',
     await J(() => { purgeChain('ash'); return S.tempCards.filter(c => c.chain).length === 0; }));
-  check('ROTATION all three Ash stances declare a full opener→builder→finisher chain',
-    await J(() => ['front', 'mid', 'back'].every(r => { const rot = ROTATIONS.ash[r]; const op = rot.cards[rot.opener];
-      return op && op.next && op.next.length >= 1 && rot.cards[op.next[0]] && (rot.cards[op.next[0]].next || []).length >= 1; })));
-  check('ROTATION dev preview is wired (party fight, rotations ON)',
-    await J(() => typeof devPreviewRotations === 'function' && devPreviewRotations.toString().includes('_rotations = true')));
+  check('ROTATION all FIVE heroes × 3 stances declare a full opener→builder→finisher chain + a gated branch',
+    await J(() => ['ash', 'elin', 'mira', 'cassia', 'branwen'].every(hid =>
+      ['front', 'mid', 'back'].every(r => {
+        const rot = ROTATIONS[hid] && ROTATIONS[hid][r]; if (!rot) return false;
+        const op = rot.cards[rot.opener]; if (!op || !op.next || op.next.length < 2) return false;
+        const base = op.next[0], alt = op.next[1];
+        const baseOk = typeof base === 'string' && rot.cards[base] && (rot.cards[base].next || []).length >= 1;
+        const altOk = alt && alt.key && alt.gate && rot.cards[alt.key] && (rot.cards[alt.key].next || []).length >= 1;
+        return baseOk && altOk;
+      }))));
+  check('ROTATION every rotation fx uses only supported effect keys (no dead effects)',
+    await J(() => { const ok = new Set(['dmg', 'mark', 'guard', 'heal', 'buffDmg', 'counter', 'step', 'warp', 'lull']);
+      return Object.values(ROTATIONS).every(st => Object.values(st).every(rot =>
+        Object.values(rot.cards).every(c => Object.keys(c.fx || {}).every(k => ok.has(k))))); }));
+  check('ROTATION Cassia openers carry the HEAVY +1 premium; forged steps stay free',
+    await J(() => { setupFight(['cassia'], ROTATION_GATES.concat(['cassia.sig.front']), { cassia: 'front' }); S._rotations = true; renderAll();
+      const op = buildHand().find(c => c.kind === 'opener');
+      return !!op && op.name === 'Shield Bash' && op.cost === 2; }));
+  check('ROTATION dev preview is the FULL build — whole party, all branch gates unlocked',
+    await J(() => typeof devPreviewRotations === 'function'
+      && devPreviewRotations.toString().includes('_rotations = true')
+      && devPreviewRotations.toString().includes('ROTATION_GATES')
+      && Array.isArray(ROTATION_GATES) && ROTATION_GATES.length === 15));
+  // RUNTIME: boot the actual dev preview and drive a full opener→branch→finisher
+  // for each active hero — catches any throw in the heal/guard/warp/step paths.
+  await J(() => devPreviewRotations());
+  await sleep(400);
+  check('ROTATION preview boots a party fight with the engine LIVE',
+    await J(() => !!S && S._rotations === true && S.heroes.length === 3 && !document.querySelector('#overlay:not(.hidden)')));
+  check('ROTATION preview: every active hero shows exactly one opener (hand is small)',
+    await J(() => { const openers = buildHand().filter(c => c.kind === 'opener');
+      return openers.length === 3 && openers.every(o => o.cost >= 1); }));
+  const drove = await J(async () => {
+    // play each hero's whole rotation via the real playCard path; a throw rejects
+    for (const h of S.heroes.slice()) {
+      if (h.downed) continue;
+      let guard = 0;
+      while (guard++ < 5) {
+        const card = buildHand().find(c => (c.kind === 'opener' || c.chain) && c.owner === h.id && !c.spent && c.cost <= S.ep);
+        if (!card) break;
+        let tid = null;
+        if (card.target === 'enemy') tid = (S.enemies.find(e => !e.dead) || {}).uid;
+        else if (card.target === 'ally') tid = (S.heroes.find(x => !x.downed) || {}).id;
+        await playCard(card, tid);
+      }
+    }
+    return true;
+  });
+  check('ROTATION preview: driving all three rotations end-to-end throws nothing', drove === true);
 
   t.report();
   await t.browser.close();
