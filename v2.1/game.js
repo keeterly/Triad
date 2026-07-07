@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 68;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 69;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -6112,12 +6112,19 @@ function showGate() {
 // the source of truth on mobile — it reflects the ACTUAL visible area as the
 // browser's toolbar slides in/out and survives pinch-zoom, so Android/iOS don't
 // get left letterboxed by a stale window.innerHeight.
+// DESKTOP (mouse-primary) gets more real estate than it needs — filling a big
+// monitor blows the UI up huge.  So on desktop we CAP the scale: the game sits
+// smaller and windowed (centred, with margin) rather than maximised.  Mobile
+// (coarse pointer / touch) keeps filling the screen edge-to-edge as before.
+const DESKTOP_MAX_SCALE = 1.35;
+function isDesktop() { try { return !!(window.matchMedia && window.matchMedia('(pointer: fine)').matches); } catch (_) { return false; } }
 function fitStage() {
   const vv = window.visualViewport;
   const w = Math.round((vv && vv.width) || window.innerWidth || document.documentElement.clientWidth || 0);
   const h = Math.round((vv && vv.height) || window.innerHeight || document.documentElement.clientHeight || 0);
   if (!w || !h) return;
-  const scale = Math.min(w / 760, h / 430);
+  let scale = Math.min(w / 760, h / 430);
+  if (isDesktop()) scale = Math.min(scale, DESKTOP_MAX_SCALE);   // smaller, windowed on desktop
   const st = document.getElementById('stage');
   if (st) st.style.transform = 'scale(' + scale + ')';
 }
