@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 85;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 86;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -5977,23 +5977,56 @@ function forgeReturnFx(ev) {
     + `filter:brightness(1.3); --tint:${els[0].style.getPropertyValue('--tint')};`
     + `transform:translate(${start.x - origin.x}px, ${start.y - origin.y}px) scale(0.86) rotate(4deg);`;
   $('#popup-layer').appendChild(ghost);
+  const LAND = HOLD + BOUNCE;   // the moment the returning card reaches the slot
   setTimeout(() => {
     ghost.style.opacity = '1';
     ghost.style.transition = `transform ${BOUNCE}ms cubic-bezier(0.34,0.72,0.28,1), opacity 130ms ease`;
     requestAnimationFrame(() => { ghost.style.transform = 'translate(0px, 0px) scale(1.05) rotate(-1deg)'; });
   }, HOLD);
-  setTimeout(() => { ghost.style.transition = 'opacity 150ms ease, transform 150ms ease'; ghost.style.opacity = '0'; ghost.style.transform = 'translate(0px,-3px) scale(0.97)'; }, HOLD + BOUNCE);
-  setTimeout(() => ghost.remove(), HOLD + BOUNCE + 240);
-  // Phase B — as the bounce lands, the forged card(s) emerge from the origin slot
-  // and settle, staggered so a fork reads as the card SPLITTING into two.
+  // Landing: a quick IMPACT POP + a gold ring, then the ghost fades AS the forged
+  // cards bloom out of the same point — a continuous hand-off, no static gap.
+  setTimeout(() => {
+    ghost.style.transition = 'transform 130ms ease-out, opacity 200ms ease 70ms';
+    ghost.style.transform = 'translate(0px,-2px) scale(1.14)';
+    ghost.style.opacity = '0';
+    forgeComboFlash(origin);
+  }, LAND);
+  setTimeout(() => ghost.remove(), LAND + 300);
+
+  // Phase B — the forged card(s) BLOOM out of the landing point into their slots,
+  // JS-driven (smooth under reduced motion, no CSS-cache wipe).  Tight stagger →
+  // reads as one card splitting into its next beats: a combo progressing.
   els.forEach((el, i) => {
     const c = rectCenterLocal(el.getBoundingClientRect());
-    el.classList.remove('card-forge-in');
-    el.classList.add('card-forge-split');
-    el.style.setProperty('--from-dx', (c ? origin.x - c.x : 0) + 'px');
-    el.style.setProperty('--from-dy', (c ? origin.y - c.y : 0) + 'px');
-    el.style.setProperty('--forge-delay', (HOLD + BOUNCE + i * 150) + 'ms');
+    const dx = c ? origin.x - c.x : 0, dy = c ? origin.y - c.y : 0;
+    el.classList.remove('card-forge-in', 'card-forge-split');
+    el.style.transition = 'none';
+    el.style.opacity = '0';
+    el.style.transform = `translate(${dx}px, ${dy}px) scale(0.58) rotate(${i ? 4 : -4}deg)`;
+    void el.offsetWidth;   // commit the start state before we animate
+    setTimeout(() => {
+      el.style.transition = 'transform 380ms cubic-bezier(0.32,1.4,0.5,1), opacity 200ms ease';
+      el.style.opacity = '1';
+      el.style.transform = '';   // slide out to its own fanned slot
+      setTimeout(() => { el.style.transition = ''; }, 420);
+    }, LAND - 30 + i * 90);   // begin as the ghost lands; the two bloom apart
   });
+}
+// A gold ring that expands at the landing point — punctuates the combo hand-off
+// from the returning card to its forged next steps.  JS-driven (reduced-motion safe).
+function forgeComboFlash(pt) {
+  if (!pt) return;
+  const ring = document.createElement('div');
+  ring.style.cssText = `position:absolute; left:${pt.x}px; top:${pt.y}px; width:16px; height:16px;`
+    + `margin:-8px 0 0 -8px; z-index:120; pointer-events:none; border-radius:50%; opacity:0.85;`
+    + `transform:scale(0.4); border:2px solid var(--gold-bright,#f0d488); box-shadow:0 0 20px 5px rgba(240,190,96,0.6);`;
+  $('#popup-layer').appendChild(ring);
+  requestAnimationFrame(() => {
+    ring.style.transition = 'transform 440ms cubic-bezier(0.2,0.7,0.3,1), opacity 440ms ease';
+    ring.style.transform = 'scale(6)';
+    ring.style.opacity = '0';
+  });
+  setTimeout(() => ring.remove(), 500);
 }
 
 // ---------------------------------------------------------------------------
