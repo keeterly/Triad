@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 78;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 79;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -926,20 +926,25 @@ function resolveChainPlay(card) {
   const rot = ROTATIONS[card.owner] && ROTATIONS[card.owner][card.chainStance];
   if (!rot) return;
   const group = ++S._chainGroup;
-  const forged = [];
+  const forged = [], uids = [];
   // a branch entry may be gated: {key, gate} forges only when the gate is owned
   // (the base line — a bare string — always forges).  Gate off → linear chain.
   card.chainNext.forEach(n => {
     const key = (typeof n === 'string') ? n : n.key;
     if (n && n.gate && !hasNode(n.gate)) return;
     const def = rot.cards[key];
-    if (def && genChainStep(h, card.chainStance, def, group)) forged.push(def.name);
+    const c = def && genChainStep(h, card.chainStance, def, group);
+    if (c) { forged.push(def.name); uids.push(c.uid); }
   });
   if (!forged.length) return;
+  // Hand the render layer a FORGE EVENT: which hero forged, which card uids, and
+  // whether it's a real fork — renderActionBar burns the cards in (staggered) and
+  // arcs ember shards from the hero into the new cards so the branch is SEEN.
+  S._forgeEvent = { heroId: h.id, uids, pick: forged.length > 1 };
   S._tempNew = S._tuid;
   SFX.card();
   const many = forged.length > 1;
-  popupAt(figEl(h.id), many ? '✦ CHOOSE' : '✦ ' + forged[0], 'rally');
+  popupAt(figEl(h.id), many ? '✦ TWO PATHS' : '✦ ' + forged[0], 'rally');
   flashNarrator(h.def.name + (many
     ? ' opens two lines — <b>' + forged.join('</b> or <b>') + '</b>.'
     : ' forges <b>' + forged[0] + '</b>.'));
@@ -5745,7 +5750,8 @@ function renderActionBar() {
   // the single biggest cost in renderAll.  Skip it unless something that affects a
   // card face or its playability actually changed.
   const sig = hand.map(c => `${c.uid || (c.owner + c.name)}:${c.cost}:${c.spent ? 1 : 0}:${c.kind}`).join('|')
-    + '#' + S.ep + '/' + S.maxEp + (S._tempNew || '') + (S.resonantNew ? 'R' : '') + (S.executing ? 'X' : '') + (targeting ? 'T' : '');
+    + '#' + S.ep + '/' + S.maxEp + (S._tempNew || '') + (S._forgeEvent ? 'F' + S._forgeEvent.uids.join(',') : '')
+    + (S.resonantNew ? 'R' : '') + (S.executing ? 'X' : '') + (targeting ? 'T' : '');
   if (sig === S._handSig && handEl.childElementCount === hand.length) return;
   S._handSig = sig;
   handEl.innerHTML = '';
@@ -5822,8 +5828,16 @@ function renderActionBar() {
       + (card.spent ? ' card-spent' : (card.cost > S.ep ? ' disabled' : ''));
     if (card.kind === 'resonant' && S.resonantNew) el.classList.add('card-burn-in');
     if (card.temp && S._tempNew === card.uid) { el.classList.add('card-burn-in'); S._tempNew = null; }
+    // FORGED-THIS-PLAY cards burn in together, staggered so a two-path fork reads
+    // as "one → two" (and the shard flourish below lands on each in turn).
+    if (card.temp && S._forgeEvent && S._forgeEvent.uids.indexOf(card.uid) >= 0) {
+      const oi = S._forgeEvent.uids.indexOf(card.uid);
+      el.classList.add('card-forge-in');
+      el.style.setProperty('--forge-delay', (oi * 150 + 220) + 'ms');   // land as the shard arrives
+    }
     el.style.setProperty('--tint', card.tint);
     el.dataset.owner = card.owner;
+    if (card.uid != null) el.dataset.uid = card.uid;
     el.dataset.cardName = card.name;
     el.dataset.target = card.target || 'none';
     el.dataset.kind = card.kind;
@@ -5882,6 +5896,38 @@ function renderActionBar() {
       });
     });
   }
+  // The branch is SEEN: arc an ember shard from the forging hero into each new
+  // card as it burns in.  Consume the event so it fires exactly once per forge.
+  if (S._forgeEvent) { const ev = S._forgeEvent; S._forgeEvent = null; forgeBranchFx(ev); }
+}
+// Ember shards arcing from the hero figure to each freshly-forged card — the
+// visible "the opener split into these" beat.  Pure DOM/CSS, positioned in the
+// stage-local coordinate space (same math as flyCard) so it tracks any scale.
+function forgeBranchFx(ev) {
+  if (!ev || !ev.uids || !ev.uids.length) return;
+  const src = figHitRect(figEl(ev.heroId)) || (figEl(ev.heroId) && figEl(ev.heroId).getBoundingClientRect());
+  if (!src) return;
+  const stage = $('#stage'); const sr = stage.getBoundingClientRect();
+  const scale = sr.width / stageDW() || 1;
+  const layer = $('#popup-layer');
+  const sx = (src.left + src.width / 2 - sr.left) / scale;
+  const sy = (src.top + src.height * 0.4 - sr.top) / scale;
+  ev.uids.forEach((uid, i) => {
+    const el = document.querySelector(`#hand .card[data-uid="${uid}"]`);
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const tx = (r.left + r.width / 2 - sr.left) / scale;
+    const ty = (r.top + r.height / 2 - sr.top) / scale;
+    const shard = document.createElement('span');
+    shard.className = 'forge-shard';
+    shard.style.left = sx + 'px';
+    shard.style.top = sy + 'px';
+    shard.style.setProperty('--fx-dx', (tx - sx) + 'px');
+    shard.style.setProperty('--fx-dy', (ty - sy) + 'px');
+    shard.style.animationDelay = (i * 150) + 'ms';
+    layer.appendChild(shard);
+    setTimeout(() => shard.remove(), 520 + i * 150);
+  });
 }
 
 // ---------------------------------------------------------------------------
