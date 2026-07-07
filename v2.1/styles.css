@@ -260,6 +260,12 @@ body {
 .figure .fig-art { width: 100%; height: 118px; display: flex; align-items: flex-end; justify-content: center; position: relative; }
 .figure .fig-art svg { height: 100%; width: auto; max-width: 100%; filter: drop-shadow(0 6px 14px rgba(0,0,0,0.7)); }
 .figure.enemy .fig-art { height: 108px; }
+/* DESKTOP: the board row is taller here (the canvas is enlarged so chrome reads
+   smaller), so grow the figures to fill it — the board stays FULL and premium
+   instead of small figures marooned in empty space.  Chrome stays small. */
+.ui-desktop .figure { max-width: 122px; }
+.ui-desktop .figure .fig-art { height: 168px; }
+.ui-desktop .figure.enemy .fig-art { height: 156px; }
 .figure.downed { filter: grayscale(1) brightness(0.5); }
 .figure.fig-hit { animation: fig-hit 0.34s ease; }
 @keyframes fig-hit {

@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 70;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 71;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -6125,13 +6125,17 @@ function fitStage() {
   const w = Math.round((vv && vv.width) || window.innerWidth || document.documentElement.clientWidth || 0);
   const h = Math.round((vv && vv.height) || window.innerHeight || document.documentElement.clientHeight || 0);
   if (!w || !h) return;
-  const k = isDesktop() ? DESK_K : 1;
+  const desktop = isDesktop();
+  const k = desktop ? DESK_K : 1;
   const dw = 760 * k, dh = 430 * k;
   const st = document.getElementById('stage');
   if (!st) return;
   st.style.width = dw + 'px';
   st.style.height = dh + 'px';
   st.style.transform = 'scale(' + Math.min(w / dw, h / dh) + ')';   // still fills; content just renders smaller
+  // a class the CSS uses to give desktop its OWN tuning (bigger figures that
+  // fill the taller board, so the extra room reads premium, not empty).
+  if (st.classList.contains('ui-desktop') !== desktop) st.classList.toggle('ui-desktop', desktop);
 }
 // Layout can settle a frame or two after load/rotate on mobile — re-fit a few times.
 function scheduleFit() { fitStage(); requestAnimationFrame(fitStage); setTimeout(fitStage, 250); }
