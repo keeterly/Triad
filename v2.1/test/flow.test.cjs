@@ -1525,7 +1525,7 @@ const QUICK = process.argv.includes('--quick');
   check('DUET: costs 3 EP not the whole turn — playable now',
     await J(() => { const el = [...document.querySelectorAll('#hand .card')].find(x => x.dataset.cardName === 'Warded Edge'); return !!el && !el.classList.contains('disabled'); }));
   const dBefore = await J(() => ({ hp: S.enemies[0].hp, ep: S.ep }));
-  await tapCard('Warded Edge'); await sleep(1500);
+  await tapCard('Warded Edge'); await sleep(3200);   // the duet now plays a cinematic intro before its stages resolve
   const dAfter = await J(() => ({ hp: S.enemies[0].hp, guards: S.heroes.map(h => h.guard), ep: S.ep, gone: !S.tempCards.find(c => c.fx && c.fx.duet) }));
   check('DUET: resolves — both guard +4, foe struck 5, 3 EP spent, card consumed',
     dAfter.guards.every(g => g >= 6) && dAfter.hp === dBefore.hp - 5 && dAfter.ep === dBefore.ep - 3 && dAfter.gone,

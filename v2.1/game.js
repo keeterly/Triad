@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 73;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 74;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -844,6 +844,7 @@ const ENEMY_DEFS = {
       // STAGE 1 — THE REMEMBERED (blade / rhythm).  Fast TAP cascades that GROW
       // as it gathers the echo; its Remembered Cascade ECHOes if you miss it.
       { key: 'remembered', name: 'THE REMEMBERED', epithet: 'IT KEEPS THE BEAT', aura: null, weak: 'blade', maxHp: 150, eye: '#ff5038', roar: 'blade',
+        attacksPerRound: 3,   // stage 1: the parry load rises each stage (3 → 4 → 5)
         quote: 'I wore his face first. You remember the Knight — so does he.',
         intents: [
           { name: 'Returning Stroke', dmg: 8, row: 'front', attackArt: 'slash', parry: { kind: 'seq', notes: [{ t: 'tap' }, { t: 'tap' }, { t: 'tap' }] } },
@@ -854,6 +855,7 @@ const ENEMY_DEFS = {
       // STAGE 2 — THE DEVOURING (light / hunger).  Braced HOLDs; DRAIN heals it,
       // HEX burns your hand, and it HUNTS your weakest.  Deny the damage.
       { key: 'devouring', name: 'THE DEVOURING', epithet: 'IT IS STILL HUNGRY', aura: 'maw', weak: 'light', maxHp: 165, eye: '#a86bff', roar: 'maw',
+        attacksPerRound: 4,   // stage 2
         quote: 'The Maw never stopped eating. It only learned patience.',
         intents: [
           { name: 'Cursed Reach', dmg: 6, row: 'front', hex: 2, attackArt: 'claw', parry: { kind: 'seq', notes: [{ t: 'tap' }, { t: 'hold' }] } },
@@ -866,6 +868,7 @@ const ENEMY_DEFS = {
       // and the new DISCORD feeds it from every bond it breaks.  THE LAST CHORD is
       // the climax: a five-note sequence that unmakes the whole line at once.
       { key: 'unmaking', name: 'THE UNMAKING', epithet: 'IT FEEDS ON THE BOND', aura: 'sunder', weak: 'song', maxHp: 190, eye: '#8fe0d0', roar: 'maw',
+        attacksPerRound: 5,   // stage 3 — the climax: five telegraphed strikes to read
         quote: 'You came down together. I keep every echo you leave behind.',
         intents: [
           { name: 'Cut the Thread', dmg: 7, row: 'front', sever: 1, attackArt: 'slash', parry: { kind: 'seq', notes: [{ t: 'swipe', arc: 'arcR' }, { t: 'tap' }] } },
@@ -1659,7 +1662,7 @@ function mkMoveAction(h) {
     desc: '', spent: S.used.has(h.id + ':move') };
 }
 function canMove(h) {
-  return !S.executing && !S.over && !h.downed && S.ep >= 1 && !S.used.has(h.id + ':move');
+  return !S.executing && !S.over && !S._staging && !h.downed && S.ep >= 1 && !S.used.has(h.id + ':move');
 }
 function triadEntryFor(ids) {
   const classes = ids.map(id => HEROES[id].cls).sort().join('+');
@@ -1684,7 +1687,7 @@ function mkResonantCard(host) {
 // PLAY — tap or drag.
 // ---------------------------------------------------------------------------
 function onCardTap(card) {
-  if (S.executing || S.over || card.spent) return;
+  if (S.executing || S.over || S._staging || card.spent) return;
   if (card.cost > S.ep) { flashNarrator('Not enough EP.'); return; }
   if (card.kind === 'resonant' && !card.pair && S.ep < S.maxEp) {
     flashNarrator('The Vow needs your ENTIRE turn — play it first.');
@@ -1903,7 +1906,7 @@ function attachDrag(el, card) {
   const disarmEp = () => { const c = $('#ep-cluster'); if (c) c.classList.remove('ep-armed', 'ep-sac-hot'); };
 
   el.addEventListener('pointerdown', (e) => {
-    if (S.executing || S.over) return;
+    if (S.executing || S.over || S._staging) return;
     if (pid !== null) return;   // a gesture is already in flight — don't let a second touch hijack it
     pid = e.pointerId; startX = e.clientX; startY = e.clientY; ptrX = e.clientX; ptrY = e.clientY; dragging = false; inspecting = false;
     try { el.setPointerCapture(pid); } catch (_) {}
@@ -2258,7 +2261,7 @@ function dissolveCard(cardName) {
 // that means no card is ever truly dead.  A heal at full HP, a finisher with
 // nothing to finish — feed it to the fire and buy a better play.
 function channelCard(card) {
-  if (S.executing || S.over || S.channelUsed || card.spent) return;
+  if (S.executing || S.over || S._staging || S.channelUsed || card.spent) return;
   if (card.kind === 'resonant') { flashNarrator('The vow cannot be spent for scraps.'); return; }
   S.channelUsed = true;
   dissolveCard(card.name);            // burn the discarded card away, visibly
@@ -2273,7 +2276,7 @@ function channelCard(card) {
 }
 
 async function playCard(card, targetId) {
-  if (S.executing || S.over) return;
+  if (S.executing || S.over || S._staging) return;
   haptic(HAP.play);
   S.executing = true;
   $('#stage').classList.add('executing');
@@ -2627,6 +2630,9 @@ function dealToEnemy(e, amt, school, byHeroId) {
     // mid-burst, so the reform cutscene never interrupts the scripted sequence —
     // the next clean hit triggers it.)
     if (e._stages && e.stage < e._stages.length - 1) {
+      // Already mid-transition (a same-card follow-up hit landed after the KO)?
+      // Don't fire a second break — just hold at 0 until the reform completes.
+      if (S && S._staging) return;
       if (S && S._burstResolving) e.hp = 1; else megaStageBreak(e);
       return;
     }
@@ -2759,7 +2765,7 @@ function expandBurst(level, label, charge) {
 function linkPopup(heroId) {
   if (S.combo >= 2) popupAt(figEl(heroId), '⚡ LINK ×' + S.combo, 'rally');
 }
-function burstReady() { return S && (S.momentum || 0) >= MOM_MAX && !S.executing && !S.over; }
+function burstReady() { return S && (S.momentum || 0) >= MOM_MAX && !S.executing && !S.over && !S._staging; }
 
 // ---------------------------------------------------------------------------
 // PARRY — a reactive timing window on enemy attacks (Clair Obscur flavor).
@@ -3253,6 +3259,29 @@ function resonantCineEnd() {
   el.classList.add('hidden'); el.classList.remove('rc-out'); el.innerHTML = '';
   $('#stage').classList.remove('frozen');
 }
+// A DUET's own cinematic moment — lighter than the triad's, but a real BEAT so a
+// pair vow feels special (not a silent flash): a bond line snaps taut between the
+// two, their names rise, the vow slams in.
+async function duetCineIntro(d, a, b, rank) {
+  $('#stage').classList.add('frozen');
+  const el = cineLayer();
+  el.classList.remove('hidden', 'rc-out');
+  el.innerHTML = `
+    <div class="rc-wash rc-duet"></div>
+    <div class="rc-rays"></div>
+    <div class="rc-sweep"></div>
+    <svg class="rc-tri rc-bond" viewBox="0 0 150 130"><line x1="30" y1="66" x2="120" y2="66"/><circle cx="30" cy="66" r="10"/><circle cx="120" cy="66" r="10"/></svg>
+    <div class="rc-host">${HEROES[a].name} &amp; ${HEROES[b].name}</div>
+    <div class="rc-name">✦ ${d.name}${rank > 1 ? ' ' + ROMAN[rank] : ''}</div>
+    <div class="rc-type">DUET</div>`;
+  if (SFX.triad) SFX.triad();
+  cineFlash('rgba(240,212,136,0.42)');
+  sparkThread(a, b);            // the bond line arcs between the pair on the field
+  await sleep(880);
+  el.classList.add('rc-out');
+  $('#stage').classList.remove('frozen');
+  await sleep(180);
+}
 
 // STRIKE note — the OFFENSIVE mirror of the parry.  Same closing-ring timing,
 // but placed ON the enemy and tinted red: tap as it lands to land the blow with
@@ -3572,6 +3601,7 @@ async function resolveResonant() {
     // RIPPLE across the line (small gaps) so every hit stays readable.
     const offensive = fx.aoeDmg || fx.hitFrontmost;
     cineFlash(offensive ? 'rgba(212,69,69,0.5)' : 'rgba(240,212,136,0.45)');
+    if (offensive) stageShake('xl');       // the vow's blow rocks the field
     await sleep(180);
     if (fx.aoeDmg) { for (const e of livingEnemies()) { dealToEnemy(e, fx.aoeDmg + (e.mark || 0)); await sleep(150); } }
     if (fx.hitFrontmost) { const t = frontmostEnemy(); if (t) dealToEnemy(t, fx.hitFrontmost + (t.mark || 0)); }
@@ -3653,7 +3683,7 @@ async function resolveDuet(card) {
   const rankBonus = rank - 1;   // duets deepen a touch each time they're spoken
   recordVow(ck);
   const pair = [a, b].map(id => S.heroes.find(h => h.id === id)).filter(h => h && !h.downed);
-  flashNarrator('✦ ' + d.name + ' — ' + HEROES[a].name + ' & ' + HEROES[b].name);
+  await duetCineIntro(d, a, b, rank);      // the duet gets its own cinematic beat now
   for (const st of (d.stages || [])) {
     flashNarrator('✦ ' + st.text);
     const fx = Object.assign({}, st.fx || {});
@@ -3662,6 +3692,7 @@ async function resolveDuet(card) {
     });
     const offensive = fx.aoeDmg || fx.hitFrontmost;
     cineFlash(offensive ? 'rgba(212,69,69,0.45)' : 'rgba(240,212,136,0.4)');
+    if (offensive) stageShake('lg');       // the blow LANDS
     await sleep(160);
     if (fx.aoeDmg) { for (const e of livingEnemies()) { dealToEnemy(e, fx.aoeDmg + (e.mark || 0)); await sleep(140); } }
     if (fx.hitFrontmost) { const t = frontmostEnemy(); if (t) dealToEnemy(t, fx.hitFrontmost + (t.mark || 0)); }
@@ -3679,13 +3710,14 @@ async function resolveDuet(card) {
   }
   // A DUO move EXPANDS the burst container to Level 2 (and pours in charge).
   expandBurst(2, 'the duet resonates', 25);
+  resonantCineEnd();
 }
 
 // ---------------------------------------------------------------------------
 // END TURN → enemy phase → next turn
 // ---------------------------------------------------------------------------
 async function endTurn() {
-  if (S.executing || S.over) return;
+  if (S.executing || S.over || S._staging) return;
   S.executing = true;
   $('#stage').classList.add('executing');
   renderAll();
@@ -5743,6 +5775,20 @@ function showMenu() {
   if (ab) ab.onclick = () => { RUN = null; S = null; try { localStorage.removeItem(RUN_KEY); } catch (_) {} showTitle(); };
   $('#m-dev').onclick = () => showDevPanel();
 }
+// DEV — jump straight to the FINAL BOSS with a fresh full trio (whole kit
+// kindled + bonds pre-formed), so the multi-stage Chorus can be re-tested fast.
+function devChallengeFinalBoss() {
+  RUN = newRun('ash');
+  RUN.roster = ['ash', 'elin', 'mira']; RUN.active = ['ash', 'elin', 'mira'];
+  RUN.hp = {}; RUN.roster.forEach(id => { RUN.hp[id] = HEROES[id].maxHp; });
+  RUN.nodes = EMBER_TREE.filter(n => n.type === 'card').map(n => n.id);   // full signature kit
+  RUN.bonds = { 'ash|elin': BOND_KINDLED, 'ash|mira': BOND_KINDLED, 'elin|mira': BOND_KINDLED };  // kindled → duets + triad live
+  RUN.floor = 4; RUN.completed = [0];     // past the Last Fire
+  RUN.map = generateDescent(RUN.roster, 4);
+  saveRun();
+  const bossNode = RUN.map.find(n => n.isBoss);
+  if (bossNode) startMapFight(bossNode); else showMap();
+}
 function showHowTo(back) {
   showOverlay(`
     <div class="ov-eyebrow">HOW TO PLAY</div>
@@ -5778,6 +5824,7 @@ function showDevPanel(back) {
     <div class="ov-eyebrow">DEV</div>
     <div class="ov-title" style="font-size:20px; margin-bottom:12px;">DEV TOOLS</div>
     <div class="menu-list">
+      <button class="menu-item menu-primary" id="d-megaboss"><span>⚔ CHALLENGE FINAL BOSS</span><span class="menu-val">›</span></button>
       <button class="menu-item" id="d-bg"><span>FIGHT BACKGROUND</span>${onOff(SETTINGS.fightBg)}</button>
       <button class="menu-item${armed ? ' mi-danger' : ''}" id="d-reset">
         <span>${armed ? '⚠ TAP AGAIN TO WIPE' : 'RESET PROGRESS'}</span>
@@ -5787,6 +5834,7 @@ function showDevPanel(back) {
     </div>
     <div class="ov-hint">Reset wipes unlocks &amp; tutorial to test first-time flow. Device settings are kept.</div>
   `, 'menu-screen');
+  $('#d-megaboss').onclick = () => { _devResetArmed = false; hideOverlay(); devChallengeFinalBoss(); };
   $('#d-bg').onclick = () => { toggleSetting('fightBg'); showDevPanel(); };
   $('#d-reset').onclick = () => {
     if (!_devResetArmed) { _devResetArmed = true; showDevPanel(); return; }   // two-tap confirm

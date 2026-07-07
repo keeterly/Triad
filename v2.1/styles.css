@@ -1232,6 +1232,14 @@ button.map-node:not(:disabled) { cursor: pointer; }
   animation: triad-draw 0.9s ease-out forwards;
   filter: drop-shadow(0 0 8px rgba(240,212,136,0.85));
 }
+/* DUET banner — a bond LINE snapping taut between two nodes (vs the triad's triangle) */
+.rc-bond { width: 130px; height: 96px; }
+.rc-bond line { stroke: var(--gold-bright); stroke-width: 2.6; stroke-dasharray: 120; stroke-dashoffset: 120;
+  animation: bond-draw 0.5s ease-out forwards; filter: drop-shadow(0 0 8px rgba(240,212,136,0.9)); }
+.rc-bond circle { fill: rgba(240,212,136,0.12); stroke: var(--gold-bright); stroke-width: 2.4; opacity: 0;
+  filter: drop-shadow(0 0 7px rgba(240,212,136,0.85)); animation: rc-fade 0.4s ease-out 0.32s forwards; }
+@keyframes bond-draw { to { stroke-dashoffset: 0; } }
+.rc-wash.rc-duet { background: radial-gradient(ellipse 90% 80% at 50% 45%, rgba(58,44,20,0.82) 0%, rgba(6,4,2,0.95) 70%); }
 .rc-host {
   position: relative; z-index: 3; font-size: 11px; letter-spacing: 0.36em;
   color: var(--ink-dim); margin-bottom: 4px; animation: rc-fade 0.6s ease-out 0.2s both;
