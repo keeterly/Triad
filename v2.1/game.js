@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 69;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 70;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -6112,21 +6112,26 @@ function showGate() {
 // the source of truth on mobile — it reflects the ACTUAL visible area as the
 // browser's toolbar slides in/out and survives pinch-zoom, so Android/iOS don't
 // get left letterboxed by a stale window.innerHeight.
-// DESKTOP (mouse-primary) gets more real estate than it needs — filling a big
-// monitor blows the UI up huge.  So on desktop we CAP the scale: the game sits
-// smaller and windowed (centred, with margin) rather than maximised.  Mobile
-// (coarse pointer / touch) keeps filling the screen edge-to-edge as before.
-const DESKTOP_MAX_SCALE = 1.35;
+// DESKTOP (mouse-primary) still fills the screen edge-to-edge — but it has more
+// real estate than the 760×430 phone canvas needs, so a straight fill blows the
+// UI up huge.  Instead, on desktop we ENLARGE the LOGICAL canvas by DESK_K (same
+// 16:9 aspect, so it still fills): every fixed-size element becomes a smaller
+// fraction of the bigger canvas → the UI reads smaller and the board gets more
+// breathing room, MTG-Arena style.  Mobile keeps the native phone canvas.
+const DESK_K = 1.3;
 function isDesktop() { try { return !!(window.matchMedia && window.matchMedia('(pointer: fine)').matches); } catch (_) { return false; } }
 function fitStage() {
   const vv = window.visualViewport;
   const w = Math.round((vv && vv.width) || window.innerWidth || document.documentElement.clientWidth || 0);
   const h = Math.round((vv && vv.height) || window.innerHeight || document.documentElement.clientHeight || 0);
   if (!w || !h) return;
-  let scale = Math.min(w / 760, h / 430);
-  if (isDesktop()) scale = Math.min(scale, DESKTOP_MAX_SCALE);   // smaller, windowed on desktop
+  const k = isDesktop() ? DESK_K : 1;
+  const dw = 760 * k, dh = 430 * k;
   const st = document.getElementById('stage');
-  if (st) st.style.transform = 'scale(' + scale + ')';
+  if (!st) return;
+  st.style.width = dw + 'px';
+  st.style.height = dh + 'px';
+  st.style.transform = 'scale(' + Math.min(w / dw, h / dh) + ')';   // still fills; content just renders smaller
 }
 // Layout can settle a frame or two after load/rotate on mobile — re-fit a few times.
 function scheduleFit() { fitStage(); requestAnimationFrame(fitStage); setTimeout(fitStage, 250); }

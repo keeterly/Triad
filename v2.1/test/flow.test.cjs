@@ -1667,14 +1667,16 @@ const QUICK = process.argv.includes('--quick');
 
   // ---------- SCALING: the 760×430 canvas fits every platform identically ----------
   console.log('--- SCALING ---');
-  check('SCALE: fitStage contains the 760×430 canvas at the correct contain-scale',
+  check('SCALE: fitStage fills the viewport at the correct contain-scale (desktop enlarges the logical canvas)',
     await J(() => {
       fitStage();
       const st = document.getElementById('stage');
       const sc = parseFloat((st.style.transform.match(/scale\(([-\d.]+)\)/) || [])[1]);
       const vv = window.visualViewport; const vw = (vv && vv.width) || innerWidth, vh = (vv && vv.height) || innerHeight;
-      const want = Math.min(vw / 760, vh / 430);   // deterministic: the contain-scale math (centering is CSS flex)
-      return Math.abs(sc - want) < 0.01 && sc > 0;
+      const k = isDesktop() ? DESK_K : 1;                 // desktop uses a larger 16:9 canvas so the UI reads smaller
+      const want = Math.min(vw / (760 * k), vh / (430 * k));
+      const sizeOK = Math.round(parseFloat(st.style.width)) === Math.round(760 * k) && Math.round(parseFloat(st.style.height)) === Math.round(430 * k);
+      return Math.abs(sc - want) < 0.01 && sc > 0 && sizeOK;
     }));
   check('SCALE: fitStage reads visualViewport and never leaves the stage un-scaled',
     await J(() => { document.getElementById('stage').style.transform = ''; fitStage(); return /scale\([\d.]+\)/.test(document.getElementById('stage').style.transform); }));
