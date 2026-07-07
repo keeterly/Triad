@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 76;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 77;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -724,6 +724,115 @@ const HEROES = {
     },
   },
 };
+
+// ---------------------------------------------------------------------------
+// BRANCHING ROTATIONS — a stance can declare a ROTATION instead of the classic
+// core+signature pair.  The hero shows ONE live card: their OPENER.  Playing a
+// chain card FORGES its next step(s) into hand as FREE temp cards — so the hand
+// is always the current STATE of the rotation (~1–2 cards/hero), never the whole
+// kit.  When a step offers two options they share a branchGroup: picking one
+// PURGES its sibling — the choice is real (FFXIV-shaped).  Everything resets each
+// turn (forged steps carry expiresTurn; the opener returns fresh next turn).
+//   LOCKED: opener costs EP, every forged step is free — EP gates how many HEROES
+//   you engage per turn, not how deep you go.  Combos reset each turn.
+// Phase 1 ships ASH on rotations across all three stances; the other heroes keep
+// the classic core+signature hand until their rotations land.
+// ---------------------------------------------------------------------------
+const ROTATIONS = {
+  ash: {
+    front: { opener: 'cleave', cards: {
+      cleave:       { name: 'Cleave',        cost: 2, target: 'frontmost', fx: { dmg: 6 },          stance: 'OPENER · AGGRESSION', desc: '<b>Opener.</b> 6 damage to the nearest foe — then choose your line.', next: ['risingslash', 'sunder'] },
+      risingslash:  { name: 'Rising Slash',  cost: 0, target: 'frontmost', fx: { dmg: 8 },          stance: 'BUILDER · TEMPO',     desc: '<b>Free.</b> 8 damage — the duel builds. Forges the finisher.', next: ['crashingwave'] },
+      crashingwave: { name: 'Crashing Wave', cost: 0, target: 'frontmost', fx: { dmg: 11 },         stance: 'FINISHER · TEMPO',    desc: '<b>Free finisher.</b> 11 damage cleaves through the nearest foe.' },
+      sunder:       { name: 'Sunder',        cost: 0, target: 'enemy',     fx: { dmg: 5, mark: 2 }, stance: 'BUILDER · EXPOSE',    desc: '<b>Free.</b> 5 damage · <span class="kw kw-exposed">◎ EXPOSED 2</span> to ANY foe. Forges the finisher.', next: ['markedfate'] },
+      markedfate:   { name: 'Marked Fate',   cost: 0, target: 'enemy',     fx: { dmg: 3, mark: 4 }, stance: 'FINISHER · EXPOSE',   desc: '<b>Free finisher.</b> 3 damage · <span class="kw kw-exposed">◎ EXPOSED 4</span>: +4 from EVERY hit.' },
+    } },
+    mid: { opener: 'flowingcut', cards: {
+      flowingcut: { name: 'Flowing Cut', cost: 1, target: 'frontmost', fx: { dmg: 4, guard: 3 },        stance: 'OPENER · FLOW',     desc: '<b>Opener.</b> 4 damage · gain <span class="kw kw-guard">⛨ 3</span> — then read the blade.', next: ['parrystep', 'flowread'] },
+      parrystep:  { name: 'Parry Step',  cost: 0, target: 'self',      fx: { guard: 4, counter: 1 },     stance: 'BUILDER · GUARD',   desc: '<b>Free.</b> Gain <span class="kw kw-guard">⛨ 4</span> · <span class="kw kw-counter">↺ 1</span>. Forges the riposte.', next: ['riposte'] },
+      riposte:    { name: 'Riposte',     cost: 0, target: 'frontmost', fx: { dmg: 7 },                   stance: 'FINISHER · FLOW',   desc: '<b>Free finisher.</b> 7 damage — the parried blow answered.' },
+      flowread:   { name: 'Flow Read',   cost: 0, target: 'self',      fx: { buffDmg: 3, step: 'front' },stance: 'BUILDER · TEMPO',   desc: '<b>Free.</b> Slip to FRONT · your next strike deals <span class="kw kw-rally">▲ +3</span>. Forges the guard.', next: ['crossguard'] },
+      crossguard: { name: 'Crossguard',  cost: 0, target: 'ally',      fx: { guard: 6 },                 stance: 'FINISHER · GUARD',  desc: '<b>Free finisher.</b> Throw <span class="kw kw-guard">⛨ 6</span> onto an ally.' },
+    } },
+    back: { opener: 'thrownedge', cards: {
+      thrownedge:  { name: 'Thrown Edge',   cost: 1, target: 'enemy', fx: { dmg: 4, step: 'front' }, stance: 'OPENER · MARK',    desc: '<b>Opener.</b> 4 damage to ANY foe · close to FRONT — then press the mark.', next: ['deepercut', 'huntersread'] },
+      deepercut:   { name: 'Deeper Cut',    cost: 0, target: 'enemy', fx: { dmg: 5 },                stance: 'BUILDER · TEMPO',  desc: '<b>Free.</b> 5 damage to any foe. Forges the finisher.', next: ['followcut'] },
+      followcut:   { name: 'Follow Cut',    cost: 0, target: 'enemy', fx: { dmg: 7 },                stance: 'FINISHER · TEMPO', desc: '<b>Free finisher.</b> 7 damage — the rhythm carries the blade.' },
+      huntersread: { name: 'Hunter’s Read', cost: 0, target: 'enemy', fx: { dmg: 2, mark: 2 },       stance: 'BUILDER · EXPOSE', desc: '<b>Free.</b> 2 damage · <span class="kw kw-exposed">◎ EXPOSED 2</span>. Forges the finisher.', next: ['backmarked'] },
+      backmarked:  { name: 'Marked Fate',   cost: 0, target: 'enemy', fx: { dmg: 3, mark: 4 },       stance: 'FINISHER · EXPOSE',desc: '<b>Free finisher.</b> 3 damage · <span class="kw kw-exposed">◎ EXPOSED 4</span> on any foe.' },
+    } },
+  },
+};
+// Rotations are OPT-IN per fight (S._rotations) while they're a preview — with
+// the flag off, chain heroes fall back to their classic core+signature hand, so
+// the tutorial and the whole flow suite are untouched until the swap is default.
+function rotationFor(h) { return (S && S._rotations && h && ROTATIONS[h.id] && ROTATIONS[h.id][h.row]) || null; }
+// shared builder for any rotation card (opener OR forged step).  Runs the SAME
+// rider/forge/boon pipeline as mkCard so the Ember Tree's name-keyed riders keep
+// biting (Crashing Wave / Thrown Edge / Flowing Cut are now rotation cards).
+function mkRotCard(h, rowKey, def, kind) {
+  const tempo = h.def.tempo || 'steady';
+  let cost = def.cost || 0;
+  if (kind === 'opener') {                          // openers obey the tempo economy; forged steps are always free
+    if (tempo === 'swift' && cost > 1) cost -= 1;
+    if (tempo === 'heavy') cost += 1;
+  }
+  let fx = Object.assign({}, def.fx), desc = def.desc;
+  const riders = ridersFor(h.id, def.name);
+  riders.forEach(n => {
+    Object.keys(n.rider.fx).forEach(k => { fx[k] = (fx[k] || 0) + n.rider.fx[k]; });
+    if (n.rider.descAdd) desc = desc + n.rider.descAdd;
+  });
+  const card = { kind, chain: true, chainStance: rowKey, owner: h.id, ownerName: h.def.name, tint: h.def.tint, tempo,
+    stance: def.stance || STANCE[h.row].name, name: def.name, cost, target: def.target, fx, desc,
+    school: (fx && fx.dmg) ? h.def.school : null };
+  if (def.next && def.next.length) card.chainNext = def.next.slice();
+  runForges().forEach(fid => { const f = FORGE_BY_ID[fid]; if (f) f.apply(card); });
+  runBoons().filter(b => b.card).forEach(b => { try { b.card(card); } catch (_) {} });
+  if (card.fx && card.fx.dmg && !card.school) card.school = h.def.school;
+  return card;
+}
+function mkChainOpener(h, rot) {
+  const c = mkRotCard(h, h.row, rot.cards[rot.opener], 'opener');
+  c.spent = S.used.has(h.id + ':opener');
+  return c;
+}
+// forge one rotation step into the hand as a free, this-turn-only temp card
+function genChainStep(h, rowKey, def, group) {
+  if (S.tempCards.length >= 8) return null;
+  const c = mkRotCard(h, rowKey, def, 'temp');
+  c.temp = true; c.branchGroup = group; c.uid = ++S._tuid; c.expiresTurn = S.turn;
+  S.tempCards.push(c);
+  return c;
+}
+// after a chain card resolves: purge the picked branch's siblings, then forge
+// this card's own next step(s).  Sibling purge is what makes the choice real.
+function resolveChainPlay(card) {
+  if (!card || !card.chain) return;
+  if (card.branchGroup != null) S.tempCards = S.tempCards.filter(t => t.branchGroup !== card.branchGroup);
+  if (!card.chainNext || !card.chainNext.length) return;
+  const h = S.heroes.find(x => x.id === card.owner);
+  if (!h || h.downed) return;
+  const rot = ROTATIONS[card.owner] && ROTATIONS[card.owner][card.chainStance];
+  if (!rot) return;
+  const group = ++S._chainGroup;
+  const forged = [];
+  card.chainNext.forEach(key => {
+    const def = rot.cards[key];
+    if (def && genChainStep(h, card.chainStance, def, group)) forged.push(def.name);
+  });
+  if (!forged.length) return;
+  S._tempNew = S._tuid;
+  SFX.card();
+  const many = forged.length > 1;
+  popupAt(figEl(h.id), many ? '✦ CHOOSE' : '✦ ' + forged[0], 'rally');
+  flashNarrator(h.def.name + (many
+    ? ' opens two lines — <b>' + forged.join('</b> or <b>') + '</b>.'
+    : ' forges <b>' + forged[0] + '</b>.'));
+}
+// stance change abandons an in-progress rotation (forged steps clear; the opener
+// of the NEW stance returns) — repositioning mid-chain is a real cost.
+function purgeChain(heroId) { S.tempCards = S.tempCards.filter(t => !(t.chain && t.owner === heroId)); }
 
 // ---------------------------------------------------------------------------
 // DATA — enemies.  Intents telegraph damage + the PARTY ROW they strike.
@@ -1557,7 +1666,8 @@ function newBattle(node) {
     used: new Set(),
     threads,
     pairsAwake: new Set(),   // kindled pairs whose DUET has awakened THIS fight
-    tempCards: [], _tuid: 0, channelUsed: false,
+    tempCards: [], _tuid: 0, _chainGroup: 0, channelUsed: false,
+    _rotations: !!(RUN && RUN._rotations),   // branching-rotation preview — opt-in per run (dev toggle) until it's the default
     momentum: 0, combo: 0, comboBest: 0, allOutUsed: 0, burstLevel: 1,   // burst container grows via DUET/TRIAD (see expandBurst)
     triadFormed: false, resonantUsed: false, resonantNew: false,
     executing: false, over: false, turn: 1,
@@ -1608,6 +1718,15 @@ function buildHand() {
   const hand = [];
   const host = resonantHost();
   livingHeroes().forEach(h => {
+    // CHAIN HEROES show a single OPENER instead of core+sig — their builders and
+    // finishers arrive as forged temp cards as the rotation plays out.  The triad
+    // still hijacks the slot (the vow consumes the whole turn regardless).
+    const rot = rotationFor(h);
+    if (rot) {
+      if (host === h.id) hand.push(mkResonantCard(h));
+      else { const op = mkChainOpener(h, rot); if (!op.spent) hand.push(op); }
+      return;
+    }
     const set = h.def.cards[h.row];
     const core = mkCard(h, 'core', set.core);
     if (!core.spent) hand.push(core);
@@ -2290,6 +2409,7 @@ async function playCard(card, targetId) {
   pulseEp();
   renderAll();
   await resolveCard(card, targetId);
+  resolveChainPlay(card);                    // forge the rotation's next step(s); purge unpicked siblings
   if (card.kind !== 'move') hexBurn(card);   // a hexed hero's card play eats another card
   S.executing = false;
   $('#stage').classList.remove('executing');
@@ -2324,6 +2444,9 @@ async function resolveCard(card, targetId) {
     const occupant = livingHeroes().find(h => h.id !== owner.id && h.row === card.toRow);
     owner.row = card.toRow;
     if (occupant) occupant.row = from;
+    // a stance change abandons any in-progress rotation for the heroes who moved
+    purgeChain(owner.id);
+    if (occupant) purgeChain(occupant.id);
     onHeroEnterRow(owner, card.toRow, from);
     // The departed stance lingers: a fading echo of its core, THIS TURN only.
     // Movement converts tempo into an extra weaker action — and the echo
@@ -5807,6 +5930,23 @@ function devChallengeFinalBoss() {
   const bossNode = RUN.map.find(n => n.isBoss);
   if (bossNode) startMapFight(bossNode); else showMap();
 }
+// PREVIEW the branching-rotation combat: full trio, rotations ON, a normal pack
+// so you feel the opener → branch → finisher loop (not a boss).  ASH is on
+// rotations; Elin & Mira keep their classic hand — so you see the hybrid, and
+// exactly how much smaller the hand reads.
+function devPreviewRotations() {
+  RUN = newRun('ash');
+  RUN.roster = ['ash', 'elin', 'mira']; RUN.active = ['ash', 'elin', 'mira'];
+  RUN.hp = {}; RUN.roster.forEach(id => { RUN.hp[id] = HEROES[id].maxHp; });
+  RUN.nodes = EMBER_TREE.filter(n => n.type === 'card' || (n.hero === 'ash' && n.type === 'rider')).map(n => n.id);
+  RUN.bonds = { 'ash|elin': BOND_KINDLED, 'ash|mira': BOND_KINDLED, 'elin|mira': BOND_KINDLED };
+  RUN.floor = 2; RUN.completed = [0];
+  RUN._rotations = true;   // the whole point — this run runs the new engine
+  RUN.map = generateDescent(RUN.roster, 2);
+  saveRun();
+  const fight = RUN.map.find(n => n.type === 'fight' && !n.isBoss) || RUN.map.find(n => n.type === 'fight');
+  if (fight) startMapFight(fight); else showMap();
+}
 function showHowTo(back) {
   showOverlay(`
     <div class="ov-eyebrow">HOW TO PLAY</div>
@@ -5842,6 +5982,7 @@ function showDevPanel(back) {
     <div class="ov-eyebrow">DEV</div>
     <div class="ov-title" style="font-size:20px; margin-bottom:12px;">DEV TOOLS</div>
     <div class="menu-list">
+      <button class="menu-item menu-primary" id="d-rotations"><span>🔥 PREVIEW ROTATIONS</span><span class="menu-val">›</span></button>
       <button class="menu-item menu-primary" id="d-megaboss"><span>⚔ CHALLENGE FINAL BOSS</span><span class="menu-val">›</span></button>
       <button class="menu-item" id="d-bg"><span>FIGHT BACKGROUND</span>${onOff(SETTINGS.fightBg)}</button>
       <button class="menu-item${armed ? ' mi-danger' : ''}" id="d-reset">
@@ -5852,6 +5993,7 @@ function showDevPanel(back) {
     </div>
     <div class="ov-hint">Reset wipes unlocks &amp; tutorial to test first-time flow. Device settings are kept.</div>
   `, 'menu-screen');
+  $('#d-rotations').onclick = () => { _devResetArmed = false; hideOverlay(); devPreviewRotations(); };
   $('#d-megaboss').onclick = () => { _devResetArmed = false; hideOverlay(); devChallengeFinalBoss(); };
   $('#d-bg').onclick = () => { toggleSetting('fightBg'); showDevPanel(); };
   $('#d-reset').onclick = () => {

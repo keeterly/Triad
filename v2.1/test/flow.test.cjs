@@ -1882,6 +1882,36 @@ const QUICK = process.argv.includes('--quick');
       return !!c1 && c1 === c2 && !!c3 && c3 !== c1;
     }));
 
+  // ---------- BRANCHING ROTATIONS (preview engine) ----------
+  console.log('--- ROTATIONS ---');
+  check('ROTATION off by default: a chain hero still shows the classic core+sig hand',
+    await J(() => { setupFight(['ash'], ['ash.sig.front'], { ash: 'front' }); S._rotations = false;
+      const names = buildHand().map(c => c.name);
+      return rotationFor(S.heroes[0]) === null && names.includes('Cleave') && names.includes('Crashing Wave'); }));
+  check('ROTATION on: Ash-front shows ONE live card — the opener (Cleave, 2 EP)',
+    await J(() => { setupFight(['ash'], ['ash.sig.front', 'ash.rider.wave'], { ash: 'front' }); S._rotations = true; renderAll();
+      const hand = buildHand().filter(c => c.owner === 'ash');
+      return hand.length === 1 && hand[0].kind === 'opener' && hand[0].name === 'Cleave' && hand[0].cost === 2 && !!rotationFor(S.heroes[0]); }));
+  check('ROTATION opener forges BOTH branches (see-both-and-pick) — free, same group, expiring this turn',
+    await J(() => { const op = buildHand().find(c => c.kind === 'opener');
+      S.tempCards = []; resolveChainPlay(op);
+      const rs = S.tempCards.find(c => c.name === 'Rising Slash'), su = S.tempCards.find(c => c.name === 'Sunder');
+      return S.tempCards.length === 2 && !!rs && !!su && rs.cost === 0 && su.cost === 0
+        && rs.branchGroup === su.branchGroup && rs.expiresTurn === S.turn; }));
+  check('ROTATION picking a branch PURGES its sibling and forges that line’s finisher',
+    await J(() => { const rs = S.tempCards.find(c => c.name === 'Rising Slash'); resolveChainPlay(rs);
+      const names = S.tempCards.map(c => c.name);
+      return names.includes('Crashing Wave') && !names.includes('Sunder') && !names.includes('Rising Slash'); }));
+  check('ROTATION riders still bite on forged finishers (Crashing Wave +3 via ash.rider.wave → 14)',
+    await J(() => { const cw = S.tempCards.find(c => c.name === 'Crashing Wave'); return !!cw && cw.fx.dmg === 14; }));
+  check('ROTATION stance change abandons the in-progress chain (purgeChain clears forged steps)',
+    await J(() => { purgeChain('ash'); return S.tempCards.filter(c => c.chain).length === 0; }));
+  check('ROTATION all three Ash stances declare a full opener→builder→finisher chain',
+    await J(() => ['front', 'mid', 'back'].every(r => { const rot = ROTATIONS.ash[r]; const op = rot.cards[rot.opener];
+      return op && op.next && op.next.length >= 1 && rot.cards[op.next[0]] && (rot.cards[op.next[0]].next || []).length >= 1; })));
+  check('ROTATION dev preview is wired (party fight, rotations ON)',
+    await J(() => typeof devPreviewRotations === 'function' && devPreviewRotations.toString().includes('_rotations = true')));
+
   t.report();
   await t.browser.close();
 })().catch(e => { console.error('FATAL', e.message); process.exit(1); });
