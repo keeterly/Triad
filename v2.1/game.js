@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 86;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 87;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -5966,67 +5966,68 @@ function forgeReturnFx(ev) {
   if (!els.length || !origin) return;   // graceful fallback: cards keep their plain burn-in
   const HOLD = 220;     // let the HURL reach the target before the bounce begins
   const BOUNCE = 360;   // the reverse-flight time
-  // Phase A — a ghost of the card, parked at the STRUCK figure, flies back into the
-  // home slot (the reverse of the hurl).  Anchor its centre on the origin, then it
-  // starts translated out to the impact and transitions home.
+  const LAND = HOLD + BOUNCE;
+  // The DIVIDE point: the midpoint of the forged cards' slots.  The single card
+  // returns HERE, then cleanly divides into its next steps that glide apart from it.
+  const centers = els.map(el => rectCenterLocal(el.getBoundingClientRect()) || origin);
+  const mid = { x: centers.reduce((s, c) => s + c.x, 0) / centers.length,
+                y: centers.reduce((s, c) => s + c.y, 0) / centers.length };
+  // hide the real cards (synchronously, before paint) until the divide
+  els.forEach(el => { el.classList.remove('card-forge-in', 'card-forge-split'); el.style.transition = 'none'; el.style.opacity = '0'; });
+  // Phase A — a ghost of the card flies back (reverse of the hurl) from the struck
+  // figure to the DIVIDE point.  Anchor its centre on mid, start it out at impact.
   const w = els[0].offsetWidth, h = els[0].offsetHeight;
   const ghost = els[0].cloneNode(true);
   ghost.className = 'card kind-temp';   // plain card face; motion is JS, not CSS
   ghost.style.cssText = `position:absolute; margin:0; z-index:121; pointer-events:none; opacity:0;`
-    + `left:${origin.x - w / 2}px; top:${origin.y - h / 2}px; width:${w}px; height:${h}px;`
-    + `filter:brightness(1.3); --tint:${els[0].style.getPropertyValue('--tint')};`
-    + `transform:translate(${start.x - origin.x}px, ${start.y - origin.y}px) scale(0.86) rotate(4deg);`;
+    + `left:${mid.x - w / 2}px; top:${mid.y - h / 2}px; width:${w}px; height:${h}px;`
+    + `filter:brightness(1.28); --tint:${els[0].style.getPropertyValue('--tint')};`
+    + `transform:translate(${start.x - mid.x}px, ${start.y - mid.y}px) scale(0.86) rotate(4deg);`;
   $('#popup-layer').appendChild(ghost);
-  const LAND = HOLD + BOUNCE;   // the moment the returning card reaches the slot
   setTimeout(() => {
     ghost.style.opacity = '1';
-    ghost.style.transition = `transform ${BOUNCE}ms cubic-bezier(0.34,0.72,0.28,1), opacity 130ms ease`;
-    requestAnimationFrame(() => { ghost.style.transform = 'translate(0px, 0px) scale(1.05) rotate(-1deg)'; });
+    ghost.style.transition = `transform ${BOUNCE}ms cubic-bezier(0.33,0.66,0.3,1), opacity 120ms ease`;
+    requestAnimationFrame(() => { ghost.style.transform = 'translate(0px,0px) scale(1.04) rotate(0deg)'; });
   }, HOLD);
-  // Landing: a quick IMPACT POP + a gold ring, then the ghost fades AS the forged
-  // cards bloom out of the same point — a continuous hand-off, no static gap.
+  // Phase B — the DIVIDE.  At landing the ghost hands off to the real cards, which
+  // appear STACKED at the divide point (reading as the one returned card) and then
+  // glide APART to their own slots together — one card becoming two.  For a single
+  // forged step there's nothing to part: it simply settles in.
   setTimeout(() => {
-    ghost.style.transition = 'transform 130ms ease-out, opacity 200ms ease 70ms';
-    ghost.style.transform = 'translate(0px,-2px) scale(1.14)';
-    ghost.style.opacity = '0';
-    forgeComboFlash(origin);
-  }, LAND);
-  setTimeout(() => ghost.remove(), LAND + 300);
-
-  // Phase B — the forged card(s) BLOOM out of the landing point into their slots,
-  // JS-driven (smooth under reduced motion, no CSS-cache wipe).  Tight stagger →
-  // reads as one card splitting into its next beats: a combo progressing.
-  els.forEach((el, i) => {
-    const c = rectCenterLocal(el.getBoundingClientRect());
-    const dx = c ? origin.x - c.x : 0, dy = c ? origin.y - c.y : 0;
-    el.classList.remove('card-forge-in', 'card-forge-split');
-    el.style.transition = 'none';
-    el.style.opacity = '0';
-    el.style.transform = `translate(${dx}px, ${dy}px) scale(0.58) rotate(${i ? 4 : -4}deg)`;
-    void el.offsetWidth;   // commit the start state before we animate
-    setTimeout(() => {
-      el.style.transition = 'transform 380ms cubic-bezier(0.32,1.4,0.5,1), opacity 200ms ease';
+    forgeSplitGlow(mid, els.length > 1);
+    ghost.style.transition = 'opacity 110ms ease, transform 160ms ease-out';
+    ghost.style.opacity = '0'; ghost.style.transform = 'scale(1.05)';
+    els.forEach((el, i) => {
+      const c = centers[i];
+      el.style.transition = 'none';
       el.style.opacity = '1';
-      el.style.transform = '';   // slide out to its own fanned slot
-      setTimeout(() => { el.style.transition = ''; }, 420);
-    }, LAND - 30 + i * 90);   // begin as the ghost lands; the two bloom apart
-  });
+      el.style.transform = `translate(${mid.x - c.x}px, ${mid.y - c.y}px)`;   // stacked at the divide point, full size
+      void el.offsetWidth;   // commit before animating
+      requestAnimationFrame(() => {
+        el.style.transition = 'transform 400ms cubic-bezier(0.22,0.62,0.28,1), opacity 220ms ease';
+        el.style.transform = '';   // glide out to its own slot — the two part
+        setTimeout(() => { el.style.transition = ''; }, 440);
+      });
+    });
+  }, LAND);
+  setTimeout(() => ghost.remove(), LAND + 220);
 }
-// A gold ring that expands at the landing point — punctuates the combo hand-off
-// from the returning card to its forged next steps.  JS-driven (reduced-motion safe).
-function forgeComboFlash(pt) {
+// A soft radial bloom at the divide point — a gentle accent on the moment one card
+// becomes two.  JS-driven (reduced-motion safe).  `wide` for a two-card split.
+function forgeSplitGlow(pt, wide) {
   if (!pt) return;
-  const ring = document.createElement('div');
-  ring.style.cssText = `position:absolute; left:${pt.x}px; top:${pt.y}px; width:16px; height:16px;`
-    + `margin:-8px 0 0 -8px; z-index:120; pointer-events:none; border-radius:50%; opacity:0.85;`
-    + `transform:scale(0.4); border:2px solid var(--gold-bright,#f0d488); box-shadow:0 0 20px 5px rgba(240,190,96,0.6);`;
-  $('#popup-layer').appendChild(ring);
+  const g = document.createElement('div');
+  const s = wide ? 150 : 96;
+  g.style.cssText = `position:absolute; left:${pt.x}px; top:${pt.y}px; width:${s}px; height:${s}px;`
+    + `margin:${-s / 2}px 0 0 ${-s / 2}px; z-index:120; pointer-events:none; border-radius:50%; opacity:0.7;`
+    + `transform:scale(0.45); background:radial-gradient(circle, rgba(244,206,128,0.5) 0%, rgba(240,190,96,0.14) 46%, transparent 70%);`;
+  $('#popup-layer').appendChild(g);
   requestAnimationFrame(() => {
-    ring.style.transition = 'transform 440ms cubic-bezier(0.2,0.7,0.3,1), opacity 440ms ease';
-    ring.style.transform = 'scale(6)';
-    ring.style.opacity = '0';
+    g.style.transition = 'transform 320ms cubic-bezier(0.2,0.7,0.3,1), opacity 340ms ease';
+    g.style.transform = 'scale(1.5)';
+    g.style.opacity = '0';
   });
-  setTimeout(() => ring.remove(), 500);
+  setTimeout(() => g.remove(), 380);
 }
 
 // ---------------------------------------------------------------------------
