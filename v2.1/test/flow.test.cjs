@@ -1902,9 +1902,9 @@ const QUICK = process.argv.includes('--quick');
       const rs = S.tempCards.find(c => c.name === 'Rising Slash'), su = S.tempCards.find(c => c.name === 'Sunder');
       return S.tempCards.length === 2 && !!rs && !!su && rs.cost === 0 && su.cost === 0
         && rs.branchGroup === su.branchGroup && rs.expiresTurn === S.turn; }));
-  check('ROTATION a fork emits a FORGE EVENT (both new uids, flagged as a pick) for the branch showcase',
+  check('ROTATION a fork emits a FORGE EVENT (both new uids, flagged as a pick) for the return-split showcase',
     await J(() => !!S._forgeEvent && S._forgeEvent.pick === true && S._forgeEvent.uids.length === 2
-      && S._forgeEvent.heroId === 'ash' && typeof forgeBranchFx === 'function'));
+      && S._forgeEvent.heroId === 'ash' && typeof forgeReturnFx === 'function' && typeof captureForgeAnchors === 'function'));
   check('ROTATION picking a branch PURGES its sibling and forges that line’s finisher',
     await J(() => { const rs = S.tempCards.find(c => c.name === 'Rising Slash'); resolveChainPlay(rs);
       const names = S.tempCards.map(c => c.name);

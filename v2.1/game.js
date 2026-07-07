@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 79;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 80;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -2516,6 +2516,10 @@ function channelCard(card) {
 async function playCard(card, targetId) {
   if (S.executing || S.over || S._staging) return;
   haptic(HAP.play);
+  // A rotation card grows into its next step: remember WHERE it sat in the hand
+  // and WHAT it struck, so the forged card(s) can fly back to that slot and split
+  // out of it — the card that left the hand becomes the next stage.
+  if (card.chain) captureForgeAnchors(card, targetId);
   S.executing = true;
   $('#stage').classList.add('executing');
   S.ep -= card.cost;
@@ -5896,37 +5900,57 @@ function renderActionBar() {
       });
     });
   }
-  // The branch is SEEN: arc an ember shard from the forging hero into each new
-  // card as it burns in.  Consume the event so it fires exactly once per forge.
-  if (S._forgeEvent) { const ev = S._forgeEvent; S._forgeEvent = null; forgeBranchFx(ev); }
+  // The branch is SEEN: the played card flies BACK to its home slot and the
+  // forged step(s) split out of it.  Consume the event so it fires once per forge.
+  if (S._forgeEvent) { const ev = S._forgeEvent; S._forgeEvent = null; forgeReturnFx(ev); }
 }
-// Ember shards arcing from the hero figure to each freshly-forged card — the
-// visible "the opener split into these" beat.  Pure DOM/CSS, positioned in the
-// stage-local coordinate space (same math as flyCard) so it tracks any scale.
-function forgeBranchFx(ev) {
-  if (!ev || !ev.uids || !ev.uids.length) return;
-  const src = figHitRect(figEl(ev.heroId)) || (figEl(ev.heroId) && figEl(ev.heroId).getBoundingClientRect());
-  if (!src) return;
-  const stage = $('#stage'); const sr = stage.getBoundingClientRect();
+// centre of a client rect in stage-local (unscaled) coordinates — the same space
+// flyCard / popup-layer live in, so animation tracks desktop/mobile scaling.
+function rectCenterLocal(r) {
+  const stage = $('#stage'); if (!stage || !r) return null;
+  const sr = stage.getBoundingClientRect();
   const scale = sr.width / stageDW() || 1;
-  const layer = $('#popup-layer');
-  const sx = (src.left + src.width / 2 - sr.left) / scale;
-  const sy = (src.top + src.height * 0.4 - sr.top) / scale;
-  ev.uids.forEach((uid, i) => {
-    const el = document.querySelector(`#hand .card[data-uid="${uid}"]`);
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    const tx = (r.left + r.width / 2 - sr.left) / scale;
-    const ty = (r.top + r.height / 2 - sr.top) / scale;
-    const shard = document.createElement('span');
-    shard.className = 'forge-shard';
-    shard.style.left = sx + 'px';
-    shard.style.top = sy + 'px';
-    shard.style.setProperty('--fx-dx', (tx - sx) + 'px');
-    shard.style.setProperty('--fx-dy', (ty - sy) + 'px');
-    shard.style.animationDelay = (i * 150) + 'ms';
-    layer.appendChild(shard);
-    setTimeout(() => shard.remove(), 520 + i * 150);
+  return { x: (r.left + r.width / 2 - sr.left) / scale, y: (r.top + r.height / 2 - sr.top) / scale };
+}
+// Snapshot, at play time, the slot the rotation card sat in (its ORIGIN) and the
+// figure it acted on (the IMPACT) — read later by forgeReturnFx.
+function captureForgeAnchors(card, targetId) {
+  S._forgeOrigin = S._forgeStart = null;
+  const el = (card.uid != null && document.querySelector(`#hand .card[data-uid="${card.uid}"]`))
+    || Array.from(document.querySelectorAll('#hand .card')).find(c => c.dataset.cardName === card.name && c.dataset.owner === card.owner);
+  S._forgeOrigin = el ? rectCenterLocal(el.getBoundingClientRect()) : null;
+  let tgtEl = targetId ? figEl(targetId) : null;
+  if (!tgtEl && card.target === 'frontmost') { const f = frontmostEnemy(); if (f) tgtEl = figEl(f.uid); }
+  if (!tgtEl) tgtEl = figEl(card.owner);
+  S._forgeStart = tgtEl ? rectCenterLocal(figHitRect(tgtEl) || tgtEl.getBoundingClientRect()) : S._forgeOrigin;
+}
+// The played card RETURNS to its home slot and GROWS: a ghost flies from the
+// impact back to the origin slot, then the real forged card(s) emerge FROM that
+// slot and settle into place — a single builder, or a visible SPLIT into two.
+function forgeReturnFx(ev) {
+  if (!ev || !ev.uids || !ev.uids.length) return;
+  const origin = S._forgeOrigin, start = S._forgeStart || S._forgeOrigin;
+  const els = ev.uids.map(uid => document.querySelector(`#hand .card[data-uid="${uid}"]`)).filter(Boolean);
+  S._forgeOrigin = S._forgeStart = null;
+  if (!els.length || !origin) return;   // graceful fallback: cards keep their plain burn-in
+  const BOUNCE = 330;
+  // Phase A — the card flies back from the impact into its home slot
+  const ghost = els[0].cloneNode(true);
+  ghost.className = 'card card-return-ghost kind-' + (ev.pick ? 'temp' : 'temp');
+  ghost.style.cssText = `position:absolute; margin:0; z-index:121; pointer-events:none;`
+    + `left:${origin.x}px; top:${origin.y}px; width:${els[0].offsetWidth}px; height:${els[0].offsetHeight}px;`
+    + `--rx:${start.x - origin.x}px; --ry:${start.y - origin.y}px; --tint:${els[0].style.getPropertyValue('--tint')};`;
+  $('#popup-layer').appendChild(ghost);
+  setTimeout(() => ghost.remove(), BOUNCE + 120);
+  // Phase B — the forged card(s) emerge from the origin slot and slide home,
+  // staggered so a fork reads as the card SPLITTING into two.
+  els.forEach((el, i) => {
+    const c = rectCenterLocal(el.getBoundingClientRect());
+    el.classList.remove('card-forge-in');
+    el.classList.add('card-forge-split');
+    el.style.setProperty('--from-dx', (c ? origin.x - c.x : 0) + 'px');
+    el.style.setProperty('--from-dy', (c ? origin.y - c.y : 0) + 'px');
+    el.style.setProperty('--forge-delay', (BOUNCE + i * 150) + 'ms');
   });
 }
 
