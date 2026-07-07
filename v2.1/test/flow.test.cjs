@@ -1943,15 +1943,21 @@ const QUICK = process.argv.includes('--quick');
       const iRs = names.indexOf('Rising Slash'), iSu = names.indexOf('Sunder'), iMend = names.indexOf('Mend');
       // Ash (first hero) forged cards precede Elin's opener — grouped in Ash's slot
       return iRs >= 0 && iSu >= 0 && iMend >= 0 && iRs < iMend && iSu < iMend; }));
-  check('ROTATION drag fix: forge origin is the card HOME slot (drag-start), NOT the lifted/impact spot',
+  check('ROTATION drag fly-back: origin = HOME slot, start = the DROP point (not the lifted card / enemy)',
     await J(() => { setupFight(['ash'], ['ash.sig.front', 'rot.ash.front'], { ash: 'front' }); S._rotations = true; renderAll();
       const op = buildHand().find(c => c.kind === 'opener'); const en = S.enemies.find(e => !e.dead);
-      _forgeDragHome = { name: op.name, owner: op.owner, cx: 120, cy: 405 };   // a drag: home slot passed from drag-start
+      _forgeDrag = { name: op.name, owner: op.owner, homeX: 120, homeY: 405, dropX: 600, dropY: 200 };   // a real drag
       captureForgeAnchors(op, en.uid);
-      const home = clientPtLocal(120, 405), o = S._forgeOrigin, s = S._forgeStart;
+      const home = clientPtLocal(120, 405), drop = clientPtLocal(600, 200), o = S._forgeOrigin, s = S._forgeStart;
       return !!o && Math.abs(o.x - home.x) < 1 && Math.abs(o.y - home.y) < 1     // origin == home slot
-        && !!s && (Math.abs(s.x - o.x) > 1 || Math.abs(s.y - o.y) > 1)           // impact (enemy) is elsewhere
-        && _forgeDragHome === null; }));                                          // and it was consumed
+        && !!s && Math.abs(s.x - drop.x) < 1 && Math.abs(s.y - drop.y) < 1       // start == the drop point
+        && _forgeDrag === null; }));                                             // and it was consumed
+  check('ROTATION a forging card does NOT hurl into the enemy (flies back); a terminal finisher plays normally',
+    await J(() => { setupFight(['ash'], ['ash.sig.front', 'rot.ash.front'], { ash: 'front' }); S._rotations = true; renderAll();
+      const op = buildHand().find(c => c.kind === 'opener');
+      return typeof willForge === 'function' && willForge(op) === true
+        && willForge({ chain: true, chainNext: null }) === false
+        && playCard.toString().includes('!willForge(card)'); }));
   // RUNTIME: boot the actual dev preview and drive a full opener→branch→finisher
   // for each active hero — catches any throw in the heal/guard/warp/step paths.
   await J(() => devPreviewRotations());
