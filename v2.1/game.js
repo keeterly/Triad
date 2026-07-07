@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 74;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 75;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -855,7 +855,7 @@ const ENEMY_DEFS = {
       // STAGE 2 — THE DEVOURING (light / hunger).  Braced HOLDs; DRAIN heals it,
       // HEX burns your hand, and it HUNTS your weakest.  Deny the damage.
       { key: 'devouring', name: 'THE DEVOURING', epithet: 'IT IS STILL HUNGRY', aura: 'maw', weak: 'light', maxHp: 165, eye: '#a86bff', roar: 'maw',
-        attacksPerRound: 4,   // stage 2
+        attacksPerRound: 4, parrySpeed: 0.82,   // stage 2 — faster cascades
         quote: 'The Maw never stopped eating. It only learned patience.',
         intents: [
           { name: 'Cursed Reach', dmg: 6, row: 'front', hex: 2, attackArt: 'claw', parry: { kind: 'seq', notes: [{ t: 'tap' }, { t: 'hold' }] } },
@@ -868,7 +868,7 @@ const ENEMY_DEFS = {
       // and the new DISCORD feeds it from every bond it breaks.  THE LAST CHORD is
       // the climax: a five-note sequence that unmakes the whole line at once.
       { key: 'unmaking', name: 'THE UNMAKING', epithet: 'IT FEEDS ON THE BOND', aura: 'sunder', weak: 'song', maxHp: 190, eye: '#8fe0d0', roar: 'maw',
-        attacksPerRound: 5,   // stage 3 — the climax: five telegraphed strikes to read
+        attacksPerRound: 5, parrySpeed: 0.68,   // stage 3 — the climax: five fast strikes to read
         quote: 'You came down together. I keep every echo you leave behind.',
         intents: [
           { name: 'Cut the Thread', dmg: 7, row: 'front', sever: 1, attackArt: 'slash', parry: { kind: 'seq', notes: [{ t: 'swipe', arc: 'arcR' }, { t: 'tap' }] } },
@@ -2952,9 +2952,13 @@ function parryRhythm(count) {
 // syncopation.  An accented (slower, wider) downbeat announces the run, then even
 // beats with a consistent gap — every note catchable, the rhythm never a trick.
 const SEQ_LEADIN = 460;   // beat of quiet after the telegraph draws, before note 1
+// A per-attack TEMPO scalar (<1 = faster / more frantic).  Set from the current
+// foe's def.parrySpeed each strike (the mega boss's later stages crank it up), so
+// the same cascade reads calmer or more intense without new note data.
+let _parrySpeed = 1;
 function seqRhythm(count) {
   const out = [];
-  for (let i = 0; i < count; i++) out.push({ d: i === 0 ? 660 : 560, g: i === count - 1 ? 0 : 160 });
+  for (let i = 0; i < count; i++) out.push({ d: Math.round((i === 0 ? 660 : 560) * _parrySpeed), g: i === count - 1 ? 0 : Math.round(160 * _parrySpeed) });
   return out;
 }
 // MASH note — a frenzied flurry: tap rapidly to fill the meter before it closes.
@@ -3048,7 +3052,7 @@ async function runParrySeq(notes, anchor, art) {
   const pts = arcPoints(notes.length, anchor);
   const preview = mkSeqPreview(pts);
   const rh = seqRhythm(notes.length);   // steady, readable cascade groove
-  await sleep(SEQ_LEADIN);              // let the whole arc register before note 1 lands
+  await sleep(Math.round(SEQ_LEADIN * _parrySpeed));   // let the whole arc register before note 1 lands
   let hits = 0, perfects = 0;
   for (let i = 0; i < notes.length; i++) {
     const nt = notes[i], p = pts[i], step = rh[i] || { d: 560, g: 160 };
@@ -3768,8 +3772,9 @@ async function enemyPhase() {
     // A boss takes MULTIPLE actions per round; each is its own telegraphed,
     // parryable strike drawn from the next intents in its cycle.
     const times = (e.def.floorBoss && e.def.attacksPerRound) ? e.def.attacksPerRound : 1;
+    _parrySpeed = e.def.parrySpeed || 1;   // later boss stages crank the cascade tempo (see stage defs)
     for (let atk = 0; atk < times; atk++) {
-    if (S.over || e.dead) break;
+    if (S.over || e.dead || S._staging) break;
     // A stored ECHO returns as the round's FIRST strike — it does NOT advance the
     // normal cycle (so the cadence resumes where it left off after the echo lands).
     let intent;
@@ -3849,6 +3854,10 @@ async function enemyPhase() {
     } else {
       await sleep(400);
     }
+    // The boss was KO'd MID-ATTACK — a flawless-parry RIPOSTE or a COUNTER dropped
+    // its stage during the wind-up.  It's reforming: cancel the rest of the string
+    // (no un-telegraphed blow lands, no next note fires) and let the cutscene play.
+    if (S._staging) break;
     let dmg = Math.round(enemyIntentDmg(e, intent) * parryMul);
     if (e.lull) e.lull = 0;
     let hitAny = false;
@@ -3944,7 +3953,7 @@ async function enemyPhase() {
     // A clear BREATHER between the boss's two blows — the second wind-up gets its
     // own telegraph and a beat to read, so the pair lands as call-and-response
     // instead of a single overwhelming wall of notes.
-    if (atk + 1 < times) { flashNarrator(e.def.name + ' winds up again…'); await sleep(560); }
+    if (atk + 1 < times) { flashNarrator(e.def.name + ' winds up again…'); await sleep(Math.round(560 * _parrySpeed)); }
     }
     if (S.over) break;
   }
