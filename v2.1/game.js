@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 80;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 81;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -2315,11 +2315,15 @@ function attachDrag(el, card) {
     const handTop = $('#hand').getBoundingClientRect().top;
     const cancelled = e.clientY > handTop - 8;
     const { mode } = dragTargets(card);
+    // hand the forge animation the card's HOME slot (its resting centre from drag
+    // start) so a forged rotation flies back to the hand, not to the lifted spot
+    if (card.chain) _forgeDragHome = { name: card.name, owner: card.owner, cx: originX, cy: originY };
     if (!cancelled && mode === 'field') {
       if (card.kind === 'resonant' && !card.pair && S.ep < S.maxEp) { flashNarrator('The Vow needs your ENTIRE turn — play it first.'); springBack(el); return; }
       playCard(card, null); return;
     }
     if (!cancelled && snapped && snapped.dataset) { playCard(card, snapped.dataset.fig); return; }
+    _forgeDragHome = null;   // released in the hand / on nothing — no play, clear it
     springBack(el);   // released in the hand or on nothing — ease home
   };
   el.addEventListener('pointerup', finish);
@@ -5904,21 +5908,31 @@ function renderActionBar() {
   // forged step(s) split out of it.  Consume the event so it fires once per forge.
   if (S._forgeEvent) { const ev = S._forgeEvent; S._forgeEvent = null; forgeReturnFx(ev); }
 }
-// centre of a client rect in stage-local (unscaled) coordinates — the same space
-// flyCard / popup-layer live in, so animation tracks desktop/mobile scaling.
-function rectCenterLocal(r) {
-  const stage = $('#stage'); if (!stage || !r) return null;
+// a client point → stage-local (unscaled) coords, the space flyCard / popup-layer
+// live in, so animation tracks desktop/mobile scaling.
+function clientPtLocal(cx, cy) {
+  const stage = $('#stage'); if (!stage) return null;
   const sr = stage.getBoundingClientRect();
   const scale = sr.width / stageDW() || 1;
-  return { x: (r.left + r.width / 2 - sr.left) / scale, y: (r.top + r.height / 2 - sr.top) / scale };
+  return { x: (cx - sr.left) / scale, y: (cy - sr.top) / scale };
 }
+function rectCenterLocal(r) { return r ? clientPtLocal(r.left + r.width / 2, r.top + r.height / 2) : null; }
+// A DRAG lifts the card toward the finger, so by play time its element rect is the
+// lifted position, NOT its home slot.  The drag closure hands us the card's resting
+// centre (captured at drag start) here — so the forge flies back to the true slot.
+let _forgeDragHome = null;
 // Snapshot, at play time, the slot the rotation card sat in (its ORIGIN) and the
 // figure it acted on (the IMPACT) — read later by forgeReturnFx.
 function captureForgeAnchors(card, targetId) {
   S._forgeOrigin = S._forgeStart = null;
-  const el = (card.uid != null && document.querySelector(`#hand .card[data-uid="${card.uid}"]`))
-    || Array.from(document.querySelectorAll('#hand .card')).find(c => c.dataset.cardName === card.name && c.dataset.owner === card.owner);
-  S._forgeOrigin = el ? rectCenterLocal(el.getBoundingClientRect()) : null;
+  if (_forgeDragHome && _forgeDragHome.name === card.name && _forgeDragHome.owner === card.owner) {
+    S._forgeOrigin = clientPtLocal(_forgeDragHome.cx, _forgeDragHome.cy);   // drag: use the home slot from drag-start
+  } else {
+    const el = (card.uid != null && document.querySelector(`#hand .card[data-uid="${card.uid}"]`))
+      || Array.from(document.querySelectorAll('#hand .card')).find(c => c.dataset.cardName === card.name && c.dataset.owner === card.owner);
+    S._forgeOrigin = el ? rectCenterLocal(el.getBoundingClientRect()) : null;   // tap: card is at rest
+  }
+  _forgeDragHome = null;
   let tgtEl = targetId ? figEl(targetId) : null;
   if (!tgtEl && card.target === 'frontmost') { const f = frontmostEnemy(); if (f) tgtEl = figEl(f.uid); }
   if (!tgtEl) tgtEl = figEl(card.owner);

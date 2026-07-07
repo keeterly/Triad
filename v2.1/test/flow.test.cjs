@@ -1936,6 +1936,15 @@ const QUICK = process.argv.includes('--quick');
       && devPreviewRotations.toString().includes('_rotations = true')
       && devPreviewRotations.toString().includes('ROTATION_GATES')
       && Array.isArray(ROTATION_GATES) && ROTATION_GATES.length === 15));
+  check('ROTATION drag fix: forge origin is the card HOME slot (drag-start), NOT the lifted/impact spot',
+    await J(() => { setupFight(['ash'], ['ash.sig.front', 'rot.ash.front'], { ash: 'front' }); S._rotations = true; renderAll();
+      const op = buildHand().find(c => c.kind === 'opener'); const en = S.enemies.find(e => !e.dead);
+      _forgeDragHome = { name: op.name, owner: op.owner, cx: 120, cy: 405 };   // a drag: home slot passed from drag-start
+      captureForgeAnchors(op, en.uid);
+      const home = clientPtLocal(120, 405), o = S._forgeOrigin, s = S._forgeStart;
+      return !!o && Math.abs(o.x - home.x) < 1 && Math.abs(o.y - home.y) < 1     // origin == home slot
+        && !!s && (Math.abs(s.x - o.x) > 1 || Math.abs(s.y - o.y) > 1)           // impact (enemy) is elsewhere
+        && _forgeDragHome === null; }));                                          // and it was consumed
   // RUNTIME: boot the actual dev preview and drive a full opener→branch→finisher
   // for each active hero — catches any throw in the heal/guard/warp/step paths.
   await J(() => devPreviewRotations());
