@@ -473,12 +473,13 @@ body {
    slot — a full, visible card (not a faint spark) that settles, then hands off to
    the forged card(s) which split out of the slot. */
 .card-return-ghost {
-  animation: card-return 0.38s cubic-bezier(0.32, 0.72, 0.28, 1) forwards;
+  animation: card-return 0.4s cubic-bezier(0.32, 0.72, 0.28, 1) both;
   will-change: transform, opacity; filter: brightness(1.25);
 }
 @keyframes card-return {
-  0%   { transform: translate(var(--rx), var(--ry)) scale(0.9) rotate(5deg); opacity: 1; }
-  74%  { transform: translate(0, 0) scale(1.06) rotate(-1deg); opacity: 1; }
+  0%   { transform: translate(var(--rx), var(--ry)) scale(0.92) rotate(5deg); opacity: 0; }
+  15%  { opacity: 1; }
+  75%  { transform: translate(0, 0) scale(1.06) rotate(-1deg); opacity: 1; }
   100% { transform: translate(0, -2px) scale(0.98); opacity: 0; }
 }
 

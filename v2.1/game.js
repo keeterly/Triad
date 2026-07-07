@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 83;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 84;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -2324,15 +2324,9 @@ function attachDrag(el, card) {
     const handTop = $('#hand').getBoundingClientRect().top;
     const cancelled = e.clientY > handTop - 8;
     const { mode } = dragTargets(card);
-    // hand the forge animation BOTH the card's HOME slot (resting centre from drag
-    // start) and where it was DROPPED (its lifted centre now) — so a forged rotation
-    // flies from the drop point back into the slot.  Capture the drop rect before
-    // the play triggers a re-render.
-    if (card.chain) {
-      const dr = el.getBoundingClientRect();
-      _forgeDrag = { name: card.name, owner: card.owner, homeX: originX, homeY: originY,
-        dropX: dr.left + dr.width / 2, dropY: dr.top + dr.height / 2 };
-    }
+    // hand the forge animation the card's HOME slot (its resting centre from drag
+    // start) so the bounce lands back in the slot, not the lifted position
+    if (card.chain) _forgeDrag = { name: card.name, owner: card.owner, homeX: originX, homeY: originY };
     if (!cancelled && mode === 'field') {
       if (card.kind === 'resonant' && !card.pair && S.ep < S.maxEp) { flashNarrator('The Vow needs your ENTIRE turn — play it first.'); springBack(el); return; }
       playCard(card, null); return;
@@ -2546,9 +2540,10 @@ async function playCard(card, targetId) {
   else if (card.owner !== 'triad') S.used.add(card.owner + ':' + card.kind);
   if (card.kind !== 'move') {
     SFX.card();
-    // a forging rotation card does NOT hurl into the enemy — it flies BACK to its
-    // slot and splits (forgeReturnFx).  Everything else hurls at the target as before.
-    if (!willForge(card)) flyCard(card.name, targetId ? figEl(targetId) : (card.target === 'frontmost' && frontmostEnemy() ? figEl(frontmostEnemy().uid) : null));
+    // The card HURLS into the target (the strike).  A forging rotation card then
+    // BOUNCES back to its slot and splits — see forgeReturnFx, which waits for the
+    // hurl to land before the bounce.
+    flyCard(card.name, targetId ? figEl(targetId) : (card.target === 'frontmost' && frontmostEnemy() ? figEl(frontmostEnemy().uid) : null));
   } else { SFX.move(); }
   pulseEp();
   renderAll();
@@ -5935,32 +5930,27 @@ function clientPtLocal(cx, cy) {
 }
 function rectCenterLocal(r) { return r ? clientPtLocal(r.left + r.width / 2, r.top + r.height / 2) : null; }
 // A DRAG lifts the card toward the finger, so by play time its element rect is the
-// lifted position, NOT its home slot.  The drag closure hands us BOTH the card's
-// resting centre (home slot, from drag start) and where it was RELEASED (the drop
-// point), so the forge flies from the drop back into the slot.
-let _forgeDrag = null;   // { name, owner, homeX, homeY, dropX, dropY }
-// will this chain card actually forge a next step (base line always; a gated
-// branch only when owned)?  A terminal finisher forges nothing and plays normally.
-function willForge(card) {
-  if (!card || !card.chain || !Array.isArray(card.chainNext)) return false;
-  return card.chainNext.some(n => (typeof n === 'string') || !n.gate || hasNode(n.gate));
-}
-// Snapshot, at play time, the slot the rotation card sat in (its ORIGIN) and where
-// it was dropped (the START of the fly-back) — read later by forgeReturnFx.
+// lifted position, NOT its home slot.  The drag closure hands us the card's resting
+// centre (home slot, from drag start) so the bounce lands back in the true slot.
+let _forgeDrag = null;   // { name, owner, homeX, homeY }
+// Snapshot, at play time, the slot the rotation card sat in (its ORIGIN) and the
+// figure it HURLED into (the IMPACT) — the card bounces back from the impact to the
+// slot.  Read later by forgeReturnFx.
 function captureForgeAnchors(card, targetId) {
   S._forgeOrigin = S._forgeStart = null;
   if (_forgeDrag && _forgeDrag.name === card.name && _forgeDrag.owner === card.owner) {
-    S._forgeOrigin = clientPtLocal(_forgeDrag.homeX, _forgeDrag.homeY);   // home slot (drag start)
-    S._forgeStart  = clientPtLocal(_forgeDrag.dropX, _forgeDrag.dropY);   // where you let go
+    S._forgeOrigin = clientPtLocal(_forgeDrag.homeX, _forgeDrag.homeY);   // drag: home slot from drag start
   } else {
     const el = (card.uid != null && document.querySelector(`#hand .card[data-uid="${card.uid}"]`))
       || Array.from(document.querySelectorAll('#hand .card')).find(c => c.dataset.cardName === card.name && c.dataset.owner === card.owner);
     S._forgeOrigin = el ? rectCenterLocal(el.getBoundingClientRect()) : null;   // tap: card is at rest
-    let tgtEl = targetId ? figEl(targetId) : null;                              // tap: fly in from the struck figure
-    if (!tgtEl && card.target === 'frontmost') { const f = frontmostEnemy(); if (f) tgtEl = figEl(f.uid); }
-    S._forgeStart = tgtEl ? rectCenterLocal(figHitRect(tgtEl) || tgtEl.getBoundingClientRect()) : S._forgeOrigin;
   }
   _forgeDrag = null;
+  // the bounce starts from the struck figure (where the card hurled to)
+  let tgtEl = targetId ? figEl(targetId) : null;
+  if (!tgtEl && card.target === 'frontmost') { const f = frontmostEnemy(); if (f) tgtEl = figEl(f.uid); }
+  if (!tgtEl) tgtEl = figEl(card.owner);
+  S._forgeStart = tgtEl ? rectCenterLocal(figHitRect(tgtEl) || tgtEl.getBoundingClientRect()) : S._forgeOrigin;
 }
 // The played card RETURNS to its home slot and GROWS: a ghost flies from the
 // impact back to the origin slot, then the real forged card(s) emerge FROM that
@@ -5971,26 +5961,29 @@ function forgeReturnFx(ev) {
   const els = ev.uids.map(uid => document.querySelector(`#hand .card[data-uid="${uid}"]`)).filter(Boolean);
   S._forgeOrigin = S._forgeStart = null;
   if (!els.length || !origin) return;   // graceful fallback: cards keep their plain burn-in
-  const BOUNCE = 300;
-  // Phase A — the played card flies back from the DROP point into its home slot.
-  // Anchor the ghost so its CENTRE sits on the origin (rectCenterLocal is a centre).
+  const HOLD = 240;     // let the HURL reach the enemy before the bounce begins
+  const BOUNCE = 300;   // the bounce flight time
+  // Phase A — the card BOUNCES back from the struck figure into its home slot,
+  // after a beat that lets the hurl land.  Anchor the ghost so its CENTRE sits on
+  // the origin (rectCenterLocal is a centre).
   const w = els[0].offsetWidth, h = els[0].offsetHeight;
   const ghost = els[0].cloneNode(true);
   ghost.className = 'card card-return-ghost kind-temp';
   ghost.style.cssText = `position:absolute; margin:0; z-index:121; pointer-events:none;`
     + `left:${origin.x - w / 2}px; top:${origin.y - h / 2}px; width:${w}px; height:${h}px;`
+    + `animation-delay:${HOLD}ms;`
     + `--rx:${start.x - origin.x}px; --ry:${start.y - origin.y}px; --tint:${els[0].style.getPropertyValue('--tint')};`;
   $('#popup-layer').appendChild(ghost);
-  setTimeout(() => ghost.remove(), BOUNCE + 160);
-  // Phase B — the forged card(s) emerge from the origin slot and slide home,
-  // staggered so a fork reads as the card SPLITTING into two.
+  setTimeout(() => ghost.remove(), HOLD + BOUNCE + 200);
+  // Phase B — as the bounce lands, the forged card(s) emerge from the origin slot
+  // and settle, staggered so a fork reads as the card SPLITTING into two.
   els.forEach((el, i) => {
     const c = rectCenterLocal(el.getBoundingClientRect());
     el.classList.remove('card-forge-in');
     el.classList.add('card-forge-split');
     el.style.setProperty('--from-dx', (c ? origin.x - c.x : 0) + 'px');
     el.style.setProperty('--from-dy', (c ? origin.y - c.y : 0) + 'px');
-    el.style.setProperty('--forge-delay', (BOUNCE + i * 150) + 'ms');
+    el.style.setProperty('--forge-delay', (HOLD + BOUNCE + i * 150) + 'ms');
   });
 }
 
