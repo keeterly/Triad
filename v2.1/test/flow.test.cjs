@@ -1953,9 +1953,11 @@ const QUICK = process.argv.includes('--quick');
       return !!o && Math.abs(o.x - home.x) < 1 && Math.abs(o.y - home.y) < 1     // origin == home slot
         && !!s && Math.abs(s.x - enC.x) < 1 && Math.abs(s.y - enC.y) < 1         // start == the struck enemy
         && _forgeDrag === null; }));                                             // and it was consumed
-  check('ROTATION the card still HURLS into the target (flyCard runs) — the bounce follows the strike',
+  check('ROTATION the card HURLS in, then the bounce is JS-driven (survives prefers-reduced-motion)',
     await J(() => playCard.toString().includes('flyCard(card.name')
-      && forgeReturnFx.toString().includes('animation-delay') && forgeReturnFx.toString().includes('HOLD')));
+      && forgeReturnFx.toString().includes('HOLD')
+      && forgeReturnFx.toString().includes('.style.transition')          // inline JS motion, not a CSS @keyframes
+      && !forgeReturnFx.toString().includes('card-return-ghost')));       // no CSS-animation class to be suppressed
   // RUNTIME: boot the actual dev preview and drive a full opener→branch→finisher
   // for each active hero — catches any throw in the heal/guard/warp/step paths.
   await J(() => devPreviewRotations());

@@ -469,19 +469,10 @@ body {
   100% { transform: none; box-shadow: none; filter: none; }
 }
 
-/* The played rotation card flying BACK from where you dropped it into its home
-   slot — a full, visible card (not a faint spark) that settles, then hands off to
-   the forged card(s) which split out of the slot. */
-.card-return-ghost {
-  animation: card-return 0.4s cubic-bezier(0.32, 0.72, 0.28, 1) both;
-  will-change: transform, opacity; filter: brightness(1.25);
-}
-@keyframes card-return {
-  0%   { transform: translate(var(--rx), var(--ry)) scale(0.92) rotate(5deg); opacity: 0; }
-  15%  { opacity: 1; }
-  75%  { transform: translate(0, 0) scale(1.06) rotate(-1deg); opacity: 1; }
-  100% { transform: translate(0, -2px) scale(0.98); opacity: 0; }
-}
+/* NB: the reverse flight (the card bouncing from the struck target back to its
+   slot) is driven by INLINE JS transitions in forgeReturnFx — exactly like
+   flyCard — precisely so `prefers-reduced-motion` can't suppress it.  Do not
+   reintroduce a CSS-animation version here or it will vanish under Reduce Motion. */
 
 /* A forged step EMERGING from the origin slot: it starts at the returned card's
    position (--from-dx/dy) and slides into its own slot, flaring ember-gold.  Two
@@ -498,7 +489,6 @@ body {
 }
 @media (prefers-reduced-motion: reduce) {
   .card.card-forge-in, .card.card-forge-split { animation: card-burn 0.4s ease-out backwards; }
-  .card-return-ghost { display: none; }
 }
 
 /* ---- popups ---- */

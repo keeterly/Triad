@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 84;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 85;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -5952,29 +5952,38 @@ function captureForgeAnchors(card, targetId) {
   if (!tgtEl) tgtEl = figEl(card.owner);
   S._forgeStart = tgtEl ? rectCenterLocal(figHitRect(tgtEl) || tgtEl.getBoundingClientRect()) : S._forgeOrigin;
 }
-// The played card RETURNS to its home slot and GROWS: a ghost flies from the
-// impact back to the origin slot, then the real forged card(s) emerge FROM that
-// slot and settle into place — a single builder, or a visible SPLIT into two.
+// The played card RETURNS to its home slot and GROWS: a ghost flies (in REVERSE
+// of the hurl) from the struck figure back to the origin slot, then the real
+// forged card(s) emerge FROM that slot — a single builder, or a SPLIT into two.
+// The ghost is driven by INLINE JS transitions (exactly like flyCard), NOT a CSS
+// @keyframes animation, so it plays even under `prefers-reduced-motion` and can't
+// be suppressed by that media query — the reverse flight is core feedback.
 function forgeReturnFx(ev) {
   if (!ev || !ev.uids || !ev.uids.length) return;
   const origin = S._forgeOrigin, start = S._forgeStart || S._forgeOrigin;
   const els = ev.uids.map(uid => document.querySelector(`#hand .card[data-uid="${uid}"]`)).filter(Boolean);
   S._forgeOrigin = S._forgeStart = null;
   if (!els.length || !origin) return;   // graceful fallback: cards keep their plain burn-in
-  const HOLD = 240;     // let the HURL reach the enemy before the bounce begins
-  const BOUNCE = 300;   // the bounce flight time
-  // Phase A — the card BOUNCES back from the struck figure into its home slot,
-  // after a beat that lets the hurl land.  Anchor the ghost so its CENTRE sits on
-  // the origin (rectCenterLocal is a centre).
+  const HOLD = 220;     // let the HURL reach the target before the bounce begins
+  const BOUNCE = 360;   // the reverse-flight time
+  // Phase A — a ghost of the card, parked at the STRUCK figure, flies back into the
+  // home slot (the reverse of the hurl).  Anchor its centre on the origin, then it
+  // starts translated out to the impact and transitions home.
   const w = els[0].offsetWidth, h = els[0].offsetHeight;
   const ghost = els[0].cloneNode(true);
-  ghost.className = 'card card-return-ghost kind-temp';
-  ghost.style.cssText = `position:absolute; margin:0; z-index:121; pointer-events:none;`
+  ghost.className = 'card kind-temp';   // plain card face; motion is JS, not CSS
+  ghost.style.cssText = `position:absolute; margin:0; z-index:121; pointer-events:none; opacity:0;`
     + `left:${origin.x - w / 2}px; top:${origin.y - h / 2}px; width:${w}px; height:${h}px;`
-    + `animation-delay:${HOLD}ms;`
-    + `--rx:${start.x - origin.x}px; --ry:${start.y - origin.y}px; --tint:${els[0].style.getPropertyValue('--tint')};`;
+    + `filter:brightness(1.3); --tint:${els[0].style.getPropertyValue('--tint')};`
+    + `transform:translate(${start.x - origin.x}px, ${start.y - origin.y}px) scale(0.86) rotate(4deg);`;
   $('#popup-layer').appendChild(ghost);
-  setTimeout(() => ghost.remove(), HOLD + BOUNCE + 200);
+  setTimeout(() => {
+    ghost.style.opacity = '1';
+    ghost.style.transition = `transform ${BOUNCE}ms cubic-bezier(0.34,0.72,0.28,1), opacity 130ms ease`;
+    requestAnimationFrame(() => { ghost.style.transform = 'translate(0px, 0px) scale(1.05) rotate(-1deg)'; });
+  }, HOLD);
+  setTimeout(() => { ghost.style.transition = 'opacity 150ms ease, transform 150ms ease'; ghost.style.opacity = '0'; ghost.style.transform = 'translate(0px,-3px) scale(0.97)'; }, HOLD + BOUNCE);
+  setTimeout(() => ghost.remove(), HOLD + BOUNCE + 240);
   // Phase B — as the bounce lands, the forged card(s) emerge from the origin slot
   // and settle, staggered so a fork reads as the card SPLITTING into two.
   els.forEach((el, i) => {
