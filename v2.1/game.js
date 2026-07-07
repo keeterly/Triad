@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 71;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 72;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -1746,7 +1746,14 @@ function onRowTap(row) {
 // the field plays on it.  Loose, precise, and unmistakable about where a
 // card lands.
 const _AIMNS = 'http://www.w3.org/2000/svg';
-function _sscale() { return ($('#stage').getBoundingClientRect().width / 760) || 1; }
+// TRUE stage scale = rendered width ÷ LOGICAL width.  The logical width is 760 on
+// mobile but LARGER on desktop (the canvas is enlarged — see fitStage), so every
+// screen⇄stage coordinate conversion must divide by the ACTUAL design size, not a
+// hardcoded 760/430, or taps and parry rings land in the wrong place on desktop.
+function stageDW() { const s = document.getElementById('stage'); return (s && s.offsetWidth) || 760; }
+function stageDH() { const s = document.getElementById('stage'); return (s && s.offsetHeight) || 430; }
+function stageScale() { const s = document.getElementById('stage'); if (!s) return 1; return (s.getBoundingClientRect().width / (s.offsetWidth || 760)) || 1; }
+function _sscale() { return stageScale(); }
 function enemyFigEls() { return livingEnemies().map(e => figEl(e.uid)).filter(Boolean); }
 function dragTargets(card) {
   const fx = card.fx || {};
@@ -2124,7 +2131,7 @@ function springBack(el) {
 // targeting, in which case the tap is the target pick.
 function attachHeroDrag(fig, hero) {
   let startX = 0, startY = 0, dragging = false, pid = null;
-  const scale = () => ($('#stage').getBoundingClientRect().width / 760) || 1;
+  const scale = () => stageScale();
   const highlight = (on) => {
     document.querySelectorAll('#party-half .slot').forEach(sl => {
       sl.classList.toggle('slot-droppable', on && sl.dataset.row !== hero.row);
@@ -2189,7 +2196,7 @@ function flyCard(cardName, targetEl) {
   if (!el) return;
   const stage = $('#stage');
   const sr = stage.getBoundingClientRect();
-  const scale = sr.width / 760 || 1;
+  const scale = sr.width / stageDW() || 1;
   const r = el.getBoundingClientRect();
   const ghost = el.cloneNode(true);
   ghost.className = el.className + ' card-ghost';
@@ -2221,7 +2228,7 @@ function dissolveCard(cardName) {
   const el = document.querySelector(`#hand .card[data-card-name="${CSS.escape(cardName)}"]`);
   if (!el) return;
   const sr = $('#stage').getBoundingClientRect();
-  const scale = sr.width / 760 || 1;
+  const scale = sr.width / stageDW() || 1;
   const r = el.getBoundingClientRect();
   const ghost = el.cloneNode(true);
   const ch = ghost.querySelector('.card-channel'); if (ch) ch.remove();
@@ -2673,7 +2680,7 @@ function hitFlash(tier) {
 function deathBurst(el) {
   if (!el) return;
   const layer = $('#popup-layer'); if (!layer) return;
-  const sr = $('#stage').getBoundingClientRect(), s = sr.width / 760 || 1;
+  const sr = $('#stage').getBoundingClientRect(), s = sr.width / stageDW() || 1;
   const r = el.getBoundingClientRect();
   const x = (r.left + r.width / 2 - sr.left) / s, y = (r.top + r.height * 0.42 - sr.top) / s;
   const b = document.createElement('div');
@@ -2802,7 +2809,7 @@ function parryGlyph(intent) {
 
 // Stage-space anchor (center) of the parry UI for a given target figure.
 function noteAnchor(targetEl) {
-  const sr = $('#stage').getBoundingClientRect(), scale = sr.width / 760;
+  const sr = $('#stage').getBoundingClientRect(), scale = sr.width / stageDW();
   const r = targetEl.getBoundingClientRect();
   return { x: (r.left + r.width / 2 - sr.left) / scale, y: (r.top + r.height * 0.4 - sr.top) / scale };
 }
@@ -3074,7 +3081,7 @@ async function runParryInner(targetEl, pattern, art) {
   if (pattern.across) {
     const figs = livingHeroes().map(h => figEl(h.id)).filter(Boolean);
     if (figs.length) {
-      const sr = $('#stage').getBoundingClientRect(), s = sr.width / 760;
+      const sr = $('#stage').getBoundingClientRect(), s = sr.width / stageDW();
       let sx = 0, sy = 0;
       figs.forEach(f => { const r = f.getBoundingClientRect(); sx += (r.left + r.width / 2 - sr.left) / s; sy += (r.top + r.height * 0.4 - sr.top) / s; });
       a = { x: sx / figs.length, y: sy / figs.length };
@@ -3201,8 +3208,8 @@ function cineLayer() {
 function bossAttackBeat(kind, ax, ay) {
   const fx = document.createElement('div');
   fx.className = 'boss-beat bb-' + kind;
-  fx.style.setProperty('--by', (ay / 430 * 100) + '%');
-  fx.style.setProperty('--bx', (ax / 760 * 100) + '%');
+  fx.style.setProperty('--by', (ay / stageDH() * 100) + '%');
+  fx.style.setProperty('--bx', (ax / stageDW() * 100) + '%');
   $('#stage').appendChild(fx);
   stageShake();
   setTimeout(() => fx.remove(), 640);
@@ -5364,7 +5371,7 @@ function renderThreads() {
 // of connection, not a persistent tether.
 function sparkThread(a, b) {
   const ea = figEl(a), eb = figEl(b); if (!ea || !eb) return;
-  const bf = $('#battlefield').getBoundingClientRect(), scale = bf.width / 760 || 1;
+  const bf = $('#battlefield').getBoundingClientRect(), scale = stageScale();
   const ra = ea.getBoundingClientRect(), rb = eb.getBoundingClientRect();
   const x1 = (ra.left + ra.width / 2 - bf.left) / scale, y1 = (ra.top + ra.height * 0.42 - bf.top) / scale;
   const x2 = (rb.left + rb.width / 2 - bf.left) / scale, y2 = (rb.top + rb.height * 0.42 - bf.top) / scale;
@@ -5598,7 +5605,7 @@ function popupAt(el, text, cls) {
   if (!el) return;
   const layer = $('#popup-layer');
   const stageR = $('#stage').getBoundingClientRect();
-  const scale = stageR.width / 760;
+  const scale = stageR.width / stageDW();
   const r = el.getBoundingClientRect();
   const key = el.dataset.fig || 'x';
   const now = Date.now();
@@ -5648,7 +5655,7 @@ function impactFx(el, school, big) {
   if (!el) return;
   const layer = $('#popup-layer');
   const stageR = $('#stage').getBoundingClientRect();
-  const scale = stageR.width / 760;
+  const scale = stageR.width / stageDW();
   const r = el.getBoundingClientRect();
   const fx = document.createElement('div');
   fx.className = 'impact impact-' + (school || 'phys') + (big ? ' impact-big' : '');
@@ -5663,7 +5670,7 @@ function techBurst(el) {
   if (!el) return;
   const layer = $('#popup-layer');
   const stageR = $('#stage').getBoundingClientRect();
-  const scale = stageR.width / 760;
+  const scale = stageR.width / stageDW();
   const r = el.getBoundingClientRect();
   const fx = document.createElement('div');
   fx.className = 'impact impact-tech';
@@ -5882,13 +5889,15 @@ function attachTreePan(heroId) {
   });
   canvas.addEventListener('pointermove', (e) => {
     if (!drag || e.pointerId !== pid) return;
-    const dx = e.clientX - sx, dy = e.clientY - sy;
+    const s = stageScale();                          // the tree pans INSIDE the scaled stage — divide so it tracks the pointer 1:1
+    const dx = (e.clientX - sx) / s, dy = (e.clientY - sy) / s;
     if (Math.abs(dx) + Math.abs(dy) > 6) canvas._dragMoved = true;
     pan.style.transform = `translate(${clamp(ox + dx)}px, ${clamp(oy + dy)}px)`;
   });
   const end = (e) => {
     if (!drag) return; drag = false; canvas.classList.remove('et-grabbing');
-    ox = clamp(ox + (e.clientX - sx)); oy = clamp(oy + (e.clientY - sy));
+    const s = stageScale();
+    ox = clamp(ox + (e.clientX - sx) / s); oy = clamp(oy + (e.clientY - sy) / s);
     TREE_PAN[heroId] = { x: ox, y: oy }; apply();
   };
   canvas.addEventListener('pointerup', end);

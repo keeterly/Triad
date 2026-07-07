@@ -1680,6 +1680,15 @@ const QUICK = process.argv.includes('--quick');
     }));
   check('SCALE: fitStage reads visualViewport and never leaves the stage un-scaled',
     await J(() => { document.getElementById('stage').style.transform = ''; fitStage(); return /scale\([\d.]+\)/.test(document.getElementById('stage').style.transform); }));
+  check('SCALE: screen⇄stage anchors round-trip exactly onto the target (no desktop tap/parry offset)',
+    await J(() => {
+      setupFight(['ash', 'elin', 'mira'], [], {}); fitStage(); renderAll();
+      const st = document.getElementById('stage'), sr = st.getBoundingClientRect(), sc = stageScale();
+      const fig = document.querySelector('.figure.party[data-fig="ash"]'), fr = fig.getBoundingClientRect();
+      const a = noteAnchor(fig);                                  // screen → DESIGN coords (parry ring / popup anchor)
+      const backX = sr.left + a.x * sc, backY = sr.top + a.y * sc;  // DESIGN → screen must return to the figure
+      return Math.abs(backX - (fr.left + fr.width / 2)) < 1 && Math.abs(backY - (fr.top + fr.height * 0.4)) < 1;
+    }));
 
   // ---------- STANCE DEPTH: every position pathway grows nodes ----------
   console.log('--- STANCE DEPTH ---');
