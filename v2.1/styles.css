@@ -426,21 +426,17 @@ body {
   font-size: 7.5px; letter-spacing: 0.18em; color: var(--tint); opacity: 0.9;
 }
 .card .c-owner .c-stance { color: var(--ink-faint); letter-spacing: 0.06em; }
-/* Chain-position readout — OPENER · COMBO · FINISHER with a textual step count
-   (N/3), on its own line.  Deliberately NOT dots, so it can't be confused with
-   the red enemy-reach pips that sit just above it. */
+/* Chain-position readout — OPENER → · → COMBO → · → FINISHER, a directional role
+   label on its own line.  The arrows carry sequence without a fixed count, and
+   it's purely textual so it can't be confused with the red enemy-reach pips. */
 .card .c-step {
-  display: flex; align-items: baseline; justify-content: space-between; gap: 6px;
+  display: flex; align-items: baseline; gap: 4px;
   margin-top: 2px; padding-top: 3px; border-top: 1px solid rgba(255,255,255,0.07);
 }
 .card .c-step .c-role {
   font-size: 7.5px; letter-spacing: 0.2em; font-weight: bold; color: var(--tint);
 }
-.card .c-step .c-pos {
-  font-size: 8px; font-weight: bold; color: var(--tint);
-  font-variant-numeric: tabular-nums; letter-spacing: 0.04em;
-}
-.card .c-step .c-pos .c-pos-tot { color: var(--ink-faint); font-weight: normal; }
+.card .c-step .c-arrow { font-size: 8px; color: var(--ink-faint); opacity: 0.75; }
 /* card TYPE line (mock: ✕ ATTACK / GUARD / SKILL / MOVE / BONUS) */
 .card .c-type { font-size: 7.5px; letter-spacing: 0.24em; font-weight: bold; }
 .card .c-type.t-attack { color: var(--blood-bright); }

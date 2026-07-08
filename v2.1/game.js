@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 109;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 110;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -5935,18 +5935,21 @@ function renderActionBar() {
       default:          return '';
     }
   };
-  // Chain-position readout — shows where a rotation card sits in its combo
-  // (OPENER → COMBO → FINISHER) as role + a textual step count on its own line.
-  // Kept purely textual (not dots) so it never reads as the red enemy-reach pips.
+  // Chain-position readout — shows where a rotation card sits in its combo as a
+  // DIRECTIONAL role label (OPENER → · → COMBO → · → FINISHER).  The arrows carry
+  // the sequence without asserting a fixed length, so it stays correct for a
+  // 2-step base line, a fork, or any number of middle steps.  Purely textual, so
+  // it never reads as the red enemy-reach pips above it.
   const chainStep = (card) => {
     if (!card.chain) return '';
     const head = String(card.stance || '').split('·')[0].trim().toUpperCase();
-    let role = '', pos = 0;
-    if (head === 'OPENER') { role = 'OPENER'; pos = 1; }
-    else if (head === 'COMBO') { role = 'COMBO'; pos = 2; }
-    else if (head === 'FINISHER') { role = 'FINISHER'; pos = 3; }
+    const A = '<span class="c-arrow">→</span>';
+    let inner = '';
+    if (head === 'OPENER') inner = `<span class="c-role">OPENER</span>${A}`;
+    else if (head === 'COMBO') inner = `${A}<span class="c-role">COMBO</span>${A}`;
+    else if (head === 'FINISHER') inner = `${A}<span class="c-role">FINISHER</span>`;
     else return '';
-    return `<div class="c-step p${pos}"><span class="c-role">${role}</span><span class="c-pos">${pos}<span class="c-pos-tot">/3</span></span></div>`;
+    return `<div class="c-step">${inner}</div>`;
   };
   hand.forEach(card => {
     const type = cardType(card);
