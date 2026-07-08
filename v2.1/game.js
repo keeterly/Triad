@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 93;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 94;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -240,7 +240,14 @@ EMBER_TREE.forEach(n => { NODE_BY_ID[n.id] = n; });
 const SIG_GATE = {};
 EMBER_TREE.forEach(n => { if (n.type === 'card' && n.gate && n.gate.stance) { (SIG_GATE[n.hero] = SIG_GATE[n.hero] || {})[n.gate.stance] = n.id; } });
 // is hero h's signature available in its current stance?  (ungated heroes: yes)
-function sigUnlocked(h) { const g = SIG_GATE[h.id] && SIG_GATE[h.id][h.row]; return !g || hasNode(g); }
+function sigUnlocked(h) {
+  const g = SIG_GATE[h.id] && SIG_GATE[h.id][h.row];
+  if (!g || hasNode(g)) return true;
+  // STARTING SPARK (classic only — rotation heroes never reach here): the chosen
+  // starter opens with their FRONT signature lit, WITHOUT owning a tree node, so
+  // the descent's tree still starts empty.
+  return h.row === 'front' && !!(RUN && RUN.roster && RUN.roster[0] === h.id);
+}
 // unlocked rider effects attached to a given (owner, card)
 function ridersFor(ownerId, cardName) {
   return EMBER_TREE.filter(n => n.type === 'rider' && n.hero === ownerId && n.rider && n.rider.card === cardName && hasNode(n.id));
@@ -1683,11 +1690,10 @@ function newRun(starterId) {
   starterId = (starterId && HEROES[starterId]) ? starterId : (getUnlockedStarters()[0] || 'ash');
   const roster = [starterId];
   const hp = {}; hp[starterId] = HEROES[starterId].maxHp;
-  // STARTING SPARK — the lone starter opens with their FRONT signature already
-  // kindled, so a solo turn has a real SECOND action (core + signature = 2 cards,
-  // matching the 3 solo EP).  The tree still gates the mid/back sigs, riders, and
-  // emergent capstones, so there's plenty left to earn on the way down.
-  const spark = (SIG_GATE[starterId] && SIG_GATE[starterId].front) || null;
+  // STARTING SPARK — the lone starter opens with their FRONT signature in the
+  // CLASSIC tutorial (a solo turn then has a real second action).  It is granted
+  // WITHOUT kindling a tree node (see sigUnlocked), so the skill tree — and the
+  // rotation DESCENT — start truly empty: every stance begins opener → finisher.
   return {
     roster: roster.slice(),
     active: roster.slice(),
@@ -1698,7 +1704,7 @@ function newRun(starterId) {
     map: generateDescent(roster, 1),   // a fresh branching descent every run
     completed: [],
     embers: 0,          // per-run ember wallet — earned and spent THIS descent only
-    nodes: spark ? [spark] : [],   // per-run skill-tree unlocks — reset when the run ends (seeded with the starting spark)
+    nodes: [],          // per-run skill-tree unlocks — reset when the run ends; starts EMPTY (everything earned)
     forges: [],         // temporary ember tempers bought at camps — reset each descent
     boons: [],          // companion GIFTS drafted on the road — reset each descent (party-gated)
     foes: [],           // travelers you wronged — they ambush a later fight this run

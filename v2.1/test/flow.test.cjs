@@ -52,8 +52,8 @@ const QUICK = process.argv.includes('--quick');
   await sleep(300);
   check('STARTING SPARK: fight 1 opens with core + the sparked FRONT signature (2 cards) / EP 3',
     await J(() => { const c = [...document.querySelectorAll('#hand .card')].map(x => x.dataset.cardName); return c.length === 2 && c.includes('Cleave') && c.includes('Crashing Wave') && S.ep === 3; }));
-  check('SPARK: Ash opens with his FRONT signature kindled; the rest of the tree is still locked',
-    await J(() => hasNode('ash.sig.front') && !hasNode('ash.sig.mid') && !hasNode('ash.sig.back')));
+  check('SPARK: the starter opens with their FRONT signature WITHOUT owning a tree node — the tree starts empty',
+    await J(() => !hasNode('ash.sig.front') && (RUN.nodes || []).length === 0 && sigUnlocked(S.heroes[0]) === true));
   const hp0 = await J(() => S.enemies[0].hp);
   check('husk is 18 HP (fun tuning: no turn-1 alpha kill)', hp0 === 18, String(hp0));
   // T1 — strike, then DRAG ASH HIMSELF to MID (movement is the hero, not a card)
@@ -772,18 +772,19 @@ const QUICK = process.argv.includes('--quick');
 
   // spending: buying a node deducts embers, unlocks it, and opens the card
   await J(() => { RUN.embers = 10; RUN.nodes = []; saveRun(); });
-  check('GATE: with the front sig locked, a FRONT Ash holds only the core (1 card)',
+  check('GATE: with the MID sig locked, a MID Ash holds only the core (1 card) — only the starter’s FRONT sig is free',
     await J(() => {
       startFight({ type: 'fight', chapter: 1, heroes: ['ash'], enemies: ['husk'], narrator: 'gate' });
-      S.heroes[0].row = 'front'; S.ep = S.maxEp; renderAll();
+      S.heroes[0].row = 'mid'; S.ep = S.maxEp; renderAll();
       return document.querySelectorAll('#hand .card').length === 1;
     }));
-  await J(() => { const n = NODE_BY_ID['ash.sig.front']; addEmbers(-n.cost); unlockNode('ash.sig.front'); renderAll(); });
-  check('UNLOCK: buying Crashing Wave deducts its cost (10 -> 6)', await J(() => RUN.embers) === 6,
+  await J(() => { const n = NODE_BY_ID['ash.sig.mid']; addEmbers(-n.cost); unlockNode('ash.sig.mid'); renderAll(); });
+  check('UNLOCK: buying the MID signature deducts its cost (10 -> 5)', await J(() => RUN.embers) === 5,
     'embers ' + await J(() => RUN.embers));
-  check('OPEN: the unlocked signature now appears in hand (2 cards)',
-    await J(() => document.querySelectorAll('#hand .card').length === 2
-      && !!document.querySelector('#hand .card[data-card-name="Crashing Wave"]')));
+  check('OPEN: the unlocked MID signature now appears in hand (2 cards)',
+    await J(() => { S.heroes[0].row = 'mid'; renderAll();
+      return document.querySelectorAll('#hand .card').length === 2
+        && !!document.querySelector('#hand .card[data-card-name="Crossguard"]'); }));
 
   // rider: an unlocked upgrade bolts a keyword onto an existing card
   await J(() => { unlockNode('ash.sig.back'); unlockNode('ash.rider.expose'); });
@@ -927,8 +928,8 @@ const QUICK = process.argv.includes('--quick');
       RUN = null;                                   // the descent ends
       return had && !hasNode('ash.sig.front') && runEmbers() === 0;
     }));
-  check('RESET: a fresh descent begins with an empty wallet and only the starting spark',
-    await J(() => { RUN = newRun('ash'); return RUN.embers === 0 && RUN.nodes.length === 1 && hasNode('ash.sig.front'); }));
+  check('RESET: a fresh descent begins with an empty wallet AND an empty tree (everything is earned)',
+    await J(() => { RUN = newRun('ash'); return RUN.embers === 0 && RUN.nodes.length === 0; }));
   check('RESET: falling (onDefeat) clears the run so progression is wiped',
     await J(() => {
       RUN = newRun('ash'); RUN.nodes = ['ash.sig.front']; RUN.embers = 9;
