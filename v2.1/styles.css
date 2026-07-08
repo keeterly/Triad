@@ -436,7 +436,7 @@ body {
 .card .c-step .c-role {
   font-size: 7.5px; letter-spacing: 0.2em; font-weight: bold; color: var(--tint);
 }
-.card .c-step .c-arrow { font-size: 8px; color: var(--ink-faint); opacity: 0.75; }
+.card .c-step .c-arrow { font-size: 10px; font-weight: 900; color: var(--tint); opacity: 0.95; text-shadow: 0 0 4px var(--tint); }
 /* card TYPE line (mock: ✕ ATTACK / GUARD / SKILL / MOVE / BONUS) */
 .card .c-type { font-size: 7.5px; letter-spacing: 0.24em; font-weight: bold; }
 .card .c-type.t-attack { color: var(--blood-bright); }
