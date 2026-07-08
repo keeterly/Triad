@@ -869,8 +869,8 @@ const QUICK = process.argv.includes('--quick');
       return !!document.querySelector('#hand .card[data-card-name="Bulwark"]')
         && !!document.querySelector('#hand .card[data-card-name="Shield Bash"]');   // heavy now holds BOTH
     }));
-  check('ALT ALL-OUT: Rite of Endings is a tier-3 allout node (needs the front sig)',
-    await J(() => { const n = NODE_BY_ID['ash.allout.execution']; return !!n && n.type === 'allout' && n.tier === 3 && n.requires.includes('ash.sig.front'); }));
+  check('ALT ALL-OUT: Rite of Endings is a tier-4 capstone allout node (needs the front sig)',
+    await J(() => { const n = NODE_BY_ID['ash.allout.execution']; return !!n && n.type === 'allout' && n.tier === 4 && n.requires.includes('ash.sig.front'); }));
   check('ALT ALL-OUT: it EXECUTES a foe under 25% HP only once owned',
     await J(() => {
       RUN.nodes = [];
@@ -1318,10 +1318,10 @@ const QUICK = process.argv.includes('--quick');
 
   // ---------- EMERGENT GROWTH (tier-3 forge loops) ----------
   console.log('--- EMERGENT ---');
-  check('EMERGENT: each party hero has a tier-3 emergent node that forges a temp card',
+  check('EMERGENT: each party hero has an emergent node (tier 3+) that forges a temp card',
     await J(() => {
       const em = EMBER_TREE.filter(n => n.type === 'emergent');
-      return ['ash', 'elin', 'mira', 'cassia', 'branwen'].every(h => em.some(n => n.hero === h && n.tier === 3 && n.emergent && n.emergent.forge));
+      return ['ash', 'elin', 'mira', 'cassia', 'branwen'].every(h => em.some(n => n.hero === h && n.tier >= 3 && n.emergent && n.emergent.forge));
     }));
   check('EMERGENT: an emergent node needs its signature prerequisite kindled first',
     await J(() => {
@@ -1789,6 +1789,13 @@ const QUICK = process.argv.includes('--quick');
     await J(() => ['branwen.emergent.hail', 'branwen.rider.hunt', 'branwen.rider.volley', 'branwen.rider.steady'].every(id => !NODE_BY_ID[id])));
   check('CAPSTONES branwen: three distinct build-paths survive (reckoning/cadence/killingblow)',
     await J(() => ['branwen.passive.reckoning', 'branwen.synergy.cadence', 'branwen.passive.killingblow'].every(id => !!NODE_BY_ID[id])));
+  check('CAPSTONE PARITY: every hero has 3 tier-4 capstones, each on its OWN feeder (no convergence)',
+    await J(() => ['ash', 'cassia', 'elin', 'mira', 'branwen'].every(h => {
+      const caps = EMBER_TREE.filter(n => n.hero === h && n.tier === 4);
+      if (caps.length < 3) return false;
+      const feeders = caps.map(c => (c.requires || []).join(','));   // each capstone's prerequisite chain
+      return new Set(feeders).size === feeders.length;               // all distinct → divergent arcs
+    })));
   check('COMBO branwen.passive.killingblow: +4 vs a foe at/below half HP, nothing above',
     await J(() => {
       setupFight(['branwen'], ['branwen.passive.killingblow'], { branwen: 'mid' });

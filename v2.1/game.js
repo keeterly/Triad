@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 113;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 114;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -80,7 +80,7 @@ const EMBER_TREE = [
   { id: 'ash.sig.mid',   hero: 'ash', tier: 1, cost: 5, type: 'card', gate: { stance: 'mid'   }, label: 'Parry Step', desc: 'MID combo — inserts <b>Parry Step</b>: Flowing Cut → <b>Parry Step</b> → Riposte.' },
   { id: 'ash.rider.expose', hero: 'ash', tier: 2, cost: 6, type: 'rider', requires: ['ash.sig.back'], label: 'Hunter’s Instinct', desc: 'Thrown Edge now also inflicts <span class="kw kw-exposed">◎ EXPOSED 2</span> — position becomes a debuff.', rider: { card: 'Thrown Edge', fx: { mark: 2 }, descAdd: ' · <span class="kw kw-exposed">◎ EXPOSED 2</span>' } },
   { id: 'ash.passive.vanguard', hero: 'ash', tier: 2, cost: 6, type: 'passive', label: 'Vanguard’s Momentum', desc: 'Whenever Ash closes to FRONT, he gains <span class="kw kw-guard">⛨ 3</span> guard — repositioning becomes defense.', passive: 'ash_vanguard' },
-  { id: 'ash.allout.execution', hero: 'ash', tier: 3, cost: 10, type: 'allout', requires: ['ash.sig.front'], label: 'Rite of Endings', desc: 'ALT ALL-OUT — every strike of your all-out EXECUTES any foe left under 25% HP.', allout: 'execution' },
+  { id: 'ash.allout.execution', hero: 'ash', tier: 4, cost: 12, type: 'allout', requires: ['ash.sig.front'], label: 'Rite of Endings', desc: 'CAPSTONE · ALT ALL-OUT — every strike of your all-out EXECUTES any foe left under 25% HP.', allout: 'execution' },
   { id: 'ash.emergent.tempo', hero: 'ash', tier: 3, cost: 9, type: 'emergent', requires: ['ash.sig.front'], label: 'Rising Tempo',
     desc: 'Ash learns the <b>rhythm of the duel</b>. Every <b>3rd strike</b> he lands this fight forges a free <b>Follow Cut</b> — the momentum becomes a card.',
     emergent: { on: 'hit', every: 3, stance: 'FORGED · TEMPO', flash: 'Ash finds the rhythm — <b>Follow Cut</b> forged.',
@@ -151,7 +151,7 @@ const EMBER_TREE = [
 
   // ═══ TEAM SYNERGY (Phase 3) — each hero's identity now pays the WHOLE party.
   // These are the cross-hero combos: who you bring changes how everyone plays. ═══
-  { id: 'ash.synergy.warcry', hero: 'ash', tier: 4, cost: 11, type: 'synergy', requires: ['ash.emergent.tempo'], label: 'Warcry', desc: 'When Ash lands a <span class="kw kw-rally">FOLLOW-UP</span>, the ally he followed gains <span class="kw kw-rally">▲ RALLY +2</span> — his momentum becomes theirs.', passive: 'ash_warcry' },
+  { id: 'ash.synergy.warcry', hero: 'ash', tier: 4, cost: 11, type: 'synergy', requires: ['ash.passive.exploit'], label: 'Warcry', desc: 'The hunt feeds the pack — when Ash lands a <span class="kw kw-rally">FOLLOW-UP</span>, the ally he followed gains <span class="kw kw-rally">▲ RALLY +2</span>. His read of the opening becomes theirs.', passive: 'ash_warcry' },
   { id: 'elin.synergy.blessing', hero: 'elin', tier: 4, cost: 11, type: 'synergy', requires: ['elin.passive.ward'], label: 'Blessed Edge', desc: 'When Elin heals or wards an ally, that ally’s next strike deals <span class="kw kw-rally">▲ +2</span> — her light sharpens their blade.', passive: 'elin_blessing' },
   { id: 'mira.synergy.marked', hero: 'mira', tier: 4, cost: 11, type: 'synergy', requires: ['mira.passive.opportunist'], label: 'Marked for Death', desc: 'While Mira stands with you, <span class="kw kw-exposed">◎ EXPOSED</span> foes take <b>+2</b> from EVERY ally — her openings are the whole party’s.', passive: 'mira_marked' },
   { id: 'cassia.synergy.soak', hero: 'cassia', tier: 4, cost: 11, type: 'synergy', requires: ['cassia.passive.vigil'], label: 'Guardian’s Aegis', desc: 'Allies in the rows BEHIND Cassia take <b>−2</b> from every enemy blow — she covers the line.', passive: 'cassia_soak' },
@@ -192,11 +192,11 @@ const EMBER_TREE = [
   // ═══ SIGNATURE MOMENTS — build-defining capstones that turn a hero's identity
   // INSIDE OUT.  Each is one of several ways to build a hero across playthroughs;
   // pick the fantasy you want this run. ════════════════════════════════════════════
-  { id: 'cassia.nova', hero: 'cassia', tier: 3, cost: 9, type: 'emergent', requires: ['cassia.passive.vigil'], label: 'Aegis Nova',
+  { id: 'cassia.nova', hero: 'cassia', tier: 4, cost: 11, type: 'emergent', requires: ['cassia.emergent.bulwark'], label: 'Aegis Nova',
     desc: 'Cassia turns the WALL into a weapon. Every <b>3rd time she raises</b> <span class="kw kw-guard">⛨ guard</span>, she forges a free <b>Aegis Nova</b> — loose ALL her guard as one blow, then it shatters. Turtle up, then end them.',
     emergent: { on: 'guard', every: 3, stance: 'FORGED · NOVA', flash: 'The wall becomes the blow — <b>Aegis Nova</b> forged.',
       forge: { name: 'Aegis Nova', cost: 0, target: 'frontmost', fx: { guardBurst: true }, desc: '<b>Free.</b> Loose the whole wall in one strike — <b>damage equal to your current</b> <span class="kw kw-guard">⛨ guard</span>, then it shatters. Stack it high, then unleash.' } } },
-  { id: 'elin.inverse', hero: 'elin', tier: 3, cost: 9, type: 'emergent', requires: ['elin.passive.ward'], label: 'Inverse Light',
+  { id: 'elin.inverse', hero: 'elin', tier: 4, cost: 11, type: 'emergent', requires: ['elin.rider.sanctuary'], label: 'Inverse Light',
     desc: 'Elin turns mending OUTWARD. Every <b>2nd time she heals</b>, she forges a free <b>Inverse Light</b> — the light that knits a wound now <b>burns a foe</b>. Mercy, weaponised.',
     emergent: { on: 'heal', every: 2, stance: 'FORGED · UMBRA', flash: 'The light turns outward — <b>Inverse Light</b> forged.',
       forge: { name: 'Inverse Light', cost: 0, target: 'enemy', fx: { dmg: 8 }, desc: '<b>Free.</b> Mercy, reversed — <b>8 holy damage</b> to any foe. The mender bares her light.' } } },
