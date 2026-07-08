@@ -61,11 +61,10 @@ const QUICK = process.argv.includes('--quick');
   check('tap-play works', await J(() => S.enemies[0].hp) === hp0 - 6);
   await t.drag('[data-fig="ash"]', '#party-half .slot[data-row="mid"]');
   check('HERO drag moved Ash to MID (1 EP)', await J(() => S.heroes[0].row === 'mid' && S.ep === 1));
-  check('GENERATED: the move left a fading echo (Echo: Cleave)',
-    await J(() => !document.querySelector('#hand .card[data-card-name="Flowing Cut"]') && !!document.querySelector('#hand .card[data-card-name="Echo: Cleave"]')));
+  check('ONBOARDING: moving is a CLEAN reposition — no free Echo card (Afterimage is an earned descent skill)',
+    await J(() => !document.querySelector('#hand .card[data-card-name="Flowing Cut"]') && !document.querySelector('#hand .card[data-card-name="Echo: Cleave"]')));
   await endTurn();
   check('dodge lesson: FRONT claw missed', await J(() => S.heroes[0].hp === 32));
-  check('the echo faded with the turn', await J(() => !document.querySelector('#hand .card[data-card-name="Echo: Cleave"]')));
   check('CONCEPT: new turn, position rewrote the hand (Flowing Cut awaits)',
     await J(() => !!document.querySelector('#hand .card[data-card-name="Flowing Cut"]')));
   // T2 — DRAG the fresh core onto the enemy figure; self-guard eats Lurch
@@ -129,6 +128,16 @@ const QUICK = process.argv.includes('--quick');
   await sleep(200);
   await t.autoParry(true);   // the bot parries the harder descent like a real player
   check('map renders with reachable node', await J(() => !!document.querySelector('.map-node.mn-reach')));
+  check('MAP: forward-only — from a branch both children are reachable; pick one and the sibling LOCKS',
+    await J(() => { const _save = RUN;
+      RUN = { map: newRun('ash').map, completed: [] };
+      const nodes = RUN.map, branch = nodes.find(n => (n.next || []).length >= 2);
+      let ok = true;
+      if (branch) { const k = branch.next.map(id => nodes.find(n => n.id === id)).filter(Boolean);
+        RUN.completed = [branch.id]; const both = nodeReachable(k[0]) && nodeReachable(k[1]);
+        RUN.completed = [branch.id, k[0].id]; const locked = !nodeReachable(k[1]) && nodeReachable(k[0]) === false;
+        ok = both && locked; }
+      RUN = _save; return ok; }));
   check('party chip previews the trio resonant', await J(() => document.querySelector('.party-chip')?.textContent.includes('Twin Shadows')));
   await shot('map');
 
@@ -392,8 +401,10 @@ const QUICK = process.argv.includes('--quick');
     saveRun(); showMap();
   });
   await sleep(500);
-  check('picker/map path still healthy after seeding', await J(() => !!document.querySelector('.map-node.mn-fight.mn-reach')));
-  await J(() => document.querySelector('.map-node.mn-fight.mn-reach').click()); await sleep(900);
+  check('picker/map path still healthy after seeding', await J(() => !!document.querySelector('.map-node.mn-reach')));
+  // forward-only map: rather than depend on a fight being the current node's next,
+  // start the next unfought battle directly with the kindled trio.
+  await J(() => { const f = RUN.map.find(n => n.type === 'fight' && !RUN.completed.includes(n.id)); startMapFight(f); }); await sleep(900);
   check('LOOP: kindled trio starts with all 3 threads PRE-FORMED (triad not yet awake)',
     await J(() => S.threads.size === 3 && !S.triadFormed));
   check('LOOP: bond-guard applied from turn one', await J(() => livingHeroes().every(h => h.guard >= 4)),
@@ -778,7 +789,7 @@ const QUICK = process.argv.includes('--quick');
   });
   const emb0 = await J(() => RUN.embers);
   await J(() => { const e = S.enemies[0]; e.hp = 0; dealToEnemy(e, 0); });   // trigger death path
-  check('EARN: felling a normal foe banks +2 embers into the run wallet', await J(() => RUN.embers) === emb0 + 2,
+  check('EARN: felling a normal foe banks +3 embers into the run wallet', await J(() => RUN.embers) === emb0 + 3,
     'embers ' + emb0 + ' -> ' + await J(() => RUN.embers));
 
   // spending: buying a node deducts embers, unlocks it, and opens the card
@@ -870,8 +881,8 @@ const QUICK = process.argv.includes('--quick');
       const healthy = allOutExecutes({ dead: false, hp: 40, maxHp: 100 });
       return before === false && after === true && healthy === false;
     }));
-  check('HEAT: raising heat scales the ember payout (2 → 4)',
-    await J(() => { META.heat = 0; const a = emberReward({ def: {} }); META.heat = 4; const b = emberReward({ def: {} }); META.heat = 0; return a === 2 && b === 4; }));
+  check('HEAT: raising heat scales the ember payout (3 → 6)',
+    await J(() => { META.heat = 0; const a = emberReward({ def: {} }); META.heat = 4; const b = emberReward({ def: {} }); META.heat = 0; return a === 3 && b === 6; }));
   check('HEAT: raising heat makes run foes hit harder and last longer',
     await J(() => {
       META.heat = 0;
@@ -883,10 +894,10 @@ const QUICK = process.argv.includes('--quick');
       META.heat = 0;
       return hp4 > hp0 && dm4 > dm0;
     }));
-  check('ECONOMY: a felled ELITE pays the bigger bounty (4, not 2)',
+  check('ECONOMY: a felled ELITE pays the bigger bounty (5, not 3)',
     await J(() => {
       startFight({ type: 'fight', chapter: 2, depth: 3, useRunHp: true, elite: true, heroes: ['ash'], enemies: ['husk'] });
-      return S.enemies[0]._elite === true && emberReward(S.enemies[0]) === 4;
+      return S.enemies[0]._elite === true && emberReward(S.enemies[0]) === 5;
     }));
   check('ECONOMY: clearing a fight pays a small steady bounty (+1 normal · +3 boss)',
     await J(() => {

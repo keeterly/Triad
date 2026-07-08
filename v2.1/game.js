@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 98;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 99;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -274,7 +274,9 @@ function ridersFor(ownerId, cardName) {
 }
 // ember reward for felling a foe — higher HEAT pays out more (risk → reward)
 function emberReward(e) {
-  const base = (e.def.floorBoss || e.def.boss) ? 10 : (e._elite ? 4 : 2);
+  // The descent runs one forward-only PATH now (no backtracking for extra kills),
+  // so each kill pays MORE — a single road should still fund a growing rotation.
+  const base = (e.def.floorBoss || e.def.boss) ? 13 : (e._elite ? 5 : 3);
   return Math.round(base * (1 + (META.heat || 0) * 0.25));
 }
 // ALT ALL-OUT (Rite of Endings): each all-out strike finishes a foe under 25% HP
@@ -2670,12 +2672,11 @@ async function resolveCard(card, targetId) {
     purgeChain(owner.id);
     if (occupant) purgeChain(occupant.id);
     onHeroEnterRow(owner, card.toRow, from);
-    // The departed stance lingers: a fading echo of its core, THIS TURN only.
-    // Movement converts tempo into an extra weaker action.  This is AUTOMATIC in
-    // the classic tutorial (a taught mechanic), but in the rotation DESCENT it's an
-    // EARNED per-hero skill — the AFTERIMAGE node — so free value stays earned.
+    // The departed stance can leave a fading echo of its core (THIS TURN only) —
+    // but that's an EARNED per-hero skill, the AFTERIMAGE node, kept OUT of
+    // onboarding.  With no node, moving is simply a clean reposition / dodge.
     const oldCore = owner.def.cards[from].core;
-    if (oldCore.fx && oldCore.fx.dmg && (!S._rotations || hasNode(owner.id + '.afterimage'))) {
+    if (oldCore.fx && oldCore.fx.dmg && hasNode(owner.id + '.afterimage')) {
       genTempCard({ kind: 'temp', owner: owner.id, ownerName: owner.def.name, tint: owner.def.tint,
         stance: 'AFTERIMAGE', name: 'Echo: ' + oldCore.name, cost: 0, target: oldCore.target,
         school: owner.def.school, fx: { dmg: Math.max(2, oldCore.fx.dmg - 2) }, expiresTurn: S.turn,
@@ -4535,10 +4536,15 @@ function startDescent() {
   saveRun();
   showMap();
 }
+// The descent runs strictly LEFT → RIGHT.  A node is reachable only from your
+// CURRENT position (the deepest node you've completed) — so once you pick a branch,
+// the sibling you passed up is locked behind you.  No going back for embers.
 function nodeReachable(n) {
   if (RUN.completed.includes(n.id)) return false;
-  if (n.col === 1) return true;
-  return mapAll().some(p => RUN.completed.includes(p.id) && p.next.includes(n.id));
+  const done = mapAll().filter(p => RUN.completed.includes(p.id));
+  if (!done.length) return n.col === 1;                       // the descent's mouth
+  const cur = done.reduce((a, b) => (b.col >= a.col ? b : a)); // where the trail ends
+  return cur.next.includes(n.id);                             // only forward, from here
 }
 function showMap() {
   S = null;
