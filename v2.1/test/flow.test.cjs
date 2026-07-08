@@ -1948,6 +1948,15 @@ const QUICK = process.argv.includes('--quick');
         && typeof burnUnpickedSiblings === 'function'; }));
   check('ROTATION stance change abandons the in-progress chain (purgeChain clears forged steps)',
     await J(() => { purgeChain('ash'); return S.tempCards.filter(c => c.chain).length === 0; }));
+  check('AFTERIMAGE gate: moving in the descent forges NO echo without the node; WITH it, the stance echoes',
+    await J(async () => {
+      setupFight(['ash'], [], { ash: 'front' }); S._rotations = true; S.ep = 10; S.tempCards = []; renderAll();
+      await playCard(Object.assign({}, mkMoveAction(S.heroes.find(h => h.id === 'ash')), { toRow: 'mid' }), null);
+      const noEcho = !S.tempCards.some(c => (c.name || '').startsWith('Echo'));
+      setupFight(['ash'], ['ash.afterimage'], { ash: 'front' }); S._rotations = true; S.ep = 10; S.tempCards = []; renderAll();
+      await playCard(Object.assign({}, mkMoveAction(S.heroes.find(h => h.id === 'ash')), { toRow: 'mid' }), null);
+      const echo = S.tempCards.some(c => (c.name || '').startsWith('Echo'));
+      return noEcho && echo; }));
   check('ROTATION every stance declares: base finisher (gateNot builder), builder (gate), fork (gate branch)',
     await J(() => ['ash', 'elin', 'mira', 'cassia', 'branwen'].every(hid =>
       ['front', 'mid', 'back'].every(r => {

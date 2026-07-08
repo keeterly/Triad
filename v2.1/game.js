@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 97;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 98;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -243,6 +243,16 @@ const EMBER_TREE = [
   { id: 'mira.exec',    hero: 'mira',    tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'When Mira STAGGERS a foe, she forges a free <b>Coup de Grâce</b> — <b>10 damage</b>, <b>doubled</b> against the staggered. The break is hers to finish.' },
   { id: 'cassia.exec',  hero: 'cassia',  tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'When Cassia STAGGERS a foe, she forges a free <b>Coup de Grâce</b> — <b>10 damage</b>, <b>doubled</b> against the staggered. The wall ends the reeling.' },
   { id: 'branwen.exec', hero: 'branwen', tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'When Branwen STAGGERS a foe, she forges a free <b>Coup de Grâce</b> — <b>10 damage</b>, <b>doubled</b> against the staggered. The break is a marked kill.' },
+
+  // ═══ AFTERIMAGE — earning the ECHO on the move.  Repositioning (the 1-EP dodge)
+  // is always free; but the fading echo it leaves — the stance you left striking
+  // once more, this turn only — is a per-hero unlock.  Turns stance-dancing into
+  // an earned tempo tool. ═════════════════════════════════════════════════════════
+  { id: 'ash.afterimage',     hero: 'ash',     tier: 1, cost: 4, type: 'afterimage', label: 'Afterimage', desc: 'When Ash changes stance, the stance he left <b>strikes once more</b> — a free fading echo (its strike, −2 dmg, this turn only). Repositioning becomes an extra action.' },
+  { id: 'elin.afterimage',    hero: 'elin',    tier: 1, cost: 4, type: 'afterimage', label: 'Afterimage', desc: 'When Elin changes stance, the stance she left <b>strikes once more</b> — a free fading echo (−2 dmg, this turn only).' },
+  { id: 'mira.afterimage',    hero: 'mira',    tier: 1, cost: 4, type: 'afterimage', label: 'Afterimage', desc: 'When Mira changes stance, the stance she left <b>strikes once more</b> — a free fading echo (−2 dmg, this turn only). The shadow she leaves still cuts.' },
+  { id: 'cassia.afterimage',  hero: 'cassia',  tier: 1, cost: 4, type: 'afterimage', label: 'Afterimage', desc: 'When Cassia changes stance, the stance she left <b>strikes once more</b> — a free fading echo (−2 dmg, this turn only).' },
+  { id: 'branwen.afterimage', hero: 'branwen', tier: 1, cost: 4, type: 'afterimage', label: 'Afterimage', desc: 'When Branwen changes stance, the stance she left <b>strikes once more</b> — a free fading echo (−2 dmg, this turn only).' },
 ];
 const NODE_BY_ID = {};
 EMBER_TREE.forEach(n => { NODE_BY_ID[n.id] = n; });
@@ -2661,11 +2671,11 @@ async function resolveCard(card, targetId) {
     if (occupant) purgeChain(occupant.id);
     onHeroEnterRow(owner, card.toRow, from);
     // The departed stance lingers: a fading echo of its core, THIS TURN only.
-    // Movement converts tempo into an extra weaker action — and the echo
-    // keeps the OLD stance's strike, so stance-dancing can line up
-    // same-element pairs for staggers.
+    // Movement converts tempo into an extra weaker action.  This is AUTOMATIC in
+    // the classic tutorial (a taught mechanic), but in the rotation DESCENT it's an
+    // EARNED per-hero skill — the AFTERIMAGE node — so free value stays earned.
     const oldCore = owner.def.cards[from].core;
-    if (oldCore.fx && oldCore.fx.dmg) {
+    if (oldCore.fx && oldCore.fx.dmg && (!S._rotations || hasNode(owner.id + '.afterimage'))) {
       genTempCard({ kind: 'temp', owner: owner.id, ownerName: owner.def.name, tint: owner.def.tint,
         stance: 'AFTERIMAGE', name: 'Echo: ' + oldCore.name, cost: 0, target: oldCore.target,
         school: owner.def.school, fx: { dmg: Math.max(2, oldCore.fx.dmg - 2) }, expiresTurn: S.turn,
@@ -6298,7 +6308,7 @@ function devPreviewRotations() {
   RUN.hp = {}; RUN.roster.forEach(id => { RUN.hp[id] = HEROES[id].maxHp; });
   // full card kit + every hero's riders (so name-keyed riders bite) + ALL branch
   // gates (the fully-grown rotation — the intended endgame shape)
-  RUN.nodes = EMBER_TREE.filter(n => n.type === 'card' || n.type === 'rider' || n.type === 'execute').map(n => n.id).concat(ROTATION_GATES);
+  RUN.nodes = EMBER_TREE.filter(n => n.type === 'card' || n.type === 'rider' || n.type === 'execute' || n.type === 'afterimage').map(n => n.id).concat(ROTATION_GATES);
   RUN.bonds = { 'ash|elin': BOND_KINDLED, 'ash|mira': BOND_KINDLED, 'elin|mira': BOND_KINDLED };
   RUN.floor = 2; RUN.completed = [0];
   RUN._rotations = true;   // the whole point — this run runs the new engine
@@ -6436,8 +6446,8 @@ function showSettings() {
 // THE EMBER TREE — a branching constellation.  Each hero's nodes hang from a
 // root along lit paths; a node's PREREQUISITE feeds it down a thread.  Pick a
 // node to read it in the detail bar, then kindle it.
-const TREE_TYPE_LABEL = { card: 'BUILDER', rider: 'UPGRADE', passive: 'PASSIVE', allout: 'ALL-OUT', emergent: 'EMERGENT', synergy: 'TEAM SYNERGY', branch: 'FORK', execute: 'EXECUTIONER' };
-const TREE_TYPE_GLYPH = { card: '❖', rider: '⊕', passive: '❉', allout: '✷', emergent: '✦', synergy: '☍', branch: '⑂', execute: '☠' };
+const TREE_TYPE_LABEL = { card: 'BUILDER', rider: 'UPGRADE', passive: 'PASSIVE', allout: 'ALL-OUT', emergent: 'EMERGENT', synergy: 'TEAM SYNERGY', branch: 'FORK', execute: 'EXECUTIONER', afterimage: 'AFTERIMAGE' };
+const TREE_TYPE_GLYPH = { card: '❖', rider: '⊕', passive: '❉', allout: '✷', emergent: '✦', synergy: '☍', branch: '⑂', execute: '☠', afterimage: '⧉' };
 const TREE_HEROES = EMBER_TREE.reduce((a, n) => (a.includes(n.hero) ? a : a.concat(n.hero)), []);
 const TREE_PAN = {};   // per-hero pan offset, kept across re-renders (selecting a node re-renders)
 // Drag-to-pan the constellation so outer-ring nodes (the tier-3/4 arms that
