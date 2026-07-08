@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 103;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 104;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -105,7 +105,6 @@ const EMBER_TREE = [
   { id: 'cassia.sig.front', hero: 'cassia', tier: 1, cost: 4, type: 'card', gate: { stance: 'front' }, label: 'Brace', desc: 'FRONT builder — inserts <b>Brace</b> (<span class="kw kw-guard">⛨ 4</span>): Shield Bash → <b>Brace</b> → Bulwark.' },
   { id: 'cassia.sig.mid',   hero: 'cassia', tier: 1, cost: 5, type: 'card', gate: { stance: 'mid'   }, label: 'Reinforce', desc: 'MID builder — inserts <b>Reinforce</b> (ally <span class="kw kw-guard">⛨ 3</span>): Cover → <b>Reinforce</b> → Aegis.' },
   { id: 'cassia.sig.back',  hero: 'cassia', tier: 1, cost: 4, type: 'card', gate: { stance: 'back'  }, label: 'Weighted Shield', desc: 'BACK builder — inserts <b>Weighted Shield</b> (3 dmg): Thrown Shield → <b>Weighted Shield</b> → Sentinel Throw.' },
-  { id: 'cassia.rider.riposte', hero: 'cassia', tier: 2, cost: 6, type: 'rider', requires: ['cassia.sig.front'], label: 'Riposte', desc: 'Bulwark (FRONT signature) now also grants <span class="kw kw-counter">↺ 1</span> — punish the next blow.', rider: { card: 'Bulwark', fx: { counter: 1 }, descAdd: ' · <span class="kw kw-counter">↺ 1</span>' } },
   { id: 'cassia.emergent.bulwark', hero: 'cassia', tier: 3, cost: 9, type: 'emergent', requires: ['cassia.sig.front'], label: 'Iron Answer',
     desc: 'Cassia turns <b>defense into a weapon</b>. Every <b>2nd time she raises guard</b> this fight forges a free <b>Bulwark Break</b> — the wall answers back.',
     emergent: { on: 'guard', every: 2, stance: 'FORGED · IRON', flash: 'The wall answers — <b>Bulwark Break</b> forged.',
@@ -177,8 +176,6 @@ const EMBER_TREE = [
   { id: 'mira.emergent.flurry', hero: 'mira', tier: 3, cost: 8, type: 'emergent', requires: ['mira.rider.twin'], label: 'Bladestorm', desc: 'Mira’s knives multiply. Every <b>3rd strike</b> she lands forges a free <b>Flurry</b> — the daggers keep coming.', emergent: { on: 'hit', every: 3, stance: 'FORGED · STORM', flash: 'The blades multiply — <b>Flurry</b> forged.', forge: { name: 'Flurry', cost: 0, target: 'enemy', fx: { dmg: 6, mark: 1 }, desc: '<b>Free.</b> A whirl of steel — <b>6 damage</b> and <span class="kw kw-exposed">◎ EXPOSED 1</span> to any foe.' } } },
 
   // CASSIA — a BACK (sentinel) line
-  { id: 'cassia.rider.sentinel', hero: 'cassia', tier: 2, cost: 6, type: 'rider', requires: ['cassia.sig.back'], label: 'Weighted Shield', desc: 'Sentinel Throw (BACK signature) strikes for <b>+3</b> — the sentinel’s throw lands like a wall.', rider: { card: 'Sentinel Throw', fx: { dmg: 3 }, descAdd: ' · <b>+3</b>' } },
-  { id: 'cassia.emergent.sentinel', hero: 'cassia', tier: 3, cost: 8, type: 'emergent', requires: ['cassia.rider.sentinel'], label: 'Sentinel’s Watch', desc: 'The wall answers from range. Every <b>2nd time Cassia raises guard</b> forges a free <b>Sentinel Volley</b>.', emergent: { on: 'guard', every: 2, stance: 'FORGED · WATCH', flash: 'The sentinel looses — <b>Sentinel Volley</b> forged.', forge: { name: 'Sentinel Volley', cost: 0, target: 'enemy', fx: { dmg: 8 }, desc: '<b>Free.</b> A shield hurled from the wall — <b>8 damage</b> to any foe.' } } },
 
   // BRANWEN — a FRONT (mark) line
   { id: 'branwen.rider.hunt', hero: 'branwen', tier: 2, cost: 6, type: 'rider', requires: ['branwen.sig.front'], label: 'Deeper Mark', desc: 'Hunter’s Mark (FRONT signature) now brands <span class="kw kw-exposed">◎ EXPOSED +2</span> deeper.', rider: { card: 'Hunter’s Mark', fx: { mark: 2 }, descAdd: ' · <span class="kw kw-exposed">◎ +2</span>' } },
@@ -195,7 +192,6 @@ const EMBER_TREE = [
   { id: 'mira.passive.frenzy', hero: 'mira', tier: 4, cost: 12, type: 'passive', requires: ['mira.emergent.flurry'], label: 'Bloodfrenzy', desc: 'Each time Mira strikes an <span class="kw kw-exposed">◎ EXPOSED</span> foe, her NEXT strike deals <span class="kw kw-rally">▲ +2</span> — the kill feeds the next.', passive: 'mira_frenzy' },
 
   // CASSIA — the MID (aegis) line jumped T1→T3; a T2 rider fills it.
-  { id: 'cassia.rider.reinforce', hero: 'cassia', tier: 2, cost: 6, type: 'rider', requires: ['cassia.sig.mid'], label: 'Reinforce', desc: 'Cover (MID core) plates the ally for <span class="kw kw-guard">⛨ +3</span> — the wall extends to them.', rider: { card: 'Cover', fx: { guard: 3 }, descAdd: ' · <span class="kw kw-guard">⛨ +3</span>' } },
 
   // BRANWEN — the MID (Killshot) line was the thinnest in the tree: one lone
   // rider.  Now a full single-target execution arc — steady aim → a piercing

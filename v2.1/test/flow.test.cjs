@@ -1771,8 +1771,12 @@ const QUICK = process.argv.includes('--quick');
     await J(() => { setupFight(['mira'], ['mira.sig.mid', 'mira.rider.serrated'], { mira: 'mid' }); const c = handCard('Shadow Knife'); return !!c && c.fx.dmg === 6 && c.fx.mark === 4; }));
   check('COMBO mira.passive.frenzy: striking an EXPOSED foe buffs the next strike +2',
     await J(() => { setupFight(['mira'], ['mira.passive.frenzy'], { mira: 'mid' }); const h = S.heroes[0]; h.buffDmg = 0; const e = S.enemies[0]; e.mark = 2; firePassives('postHit', 'mira', { tgt: e }); return h.buffDmg === 2; }));
-  check('COMBO cassia.rider.reinforce: Cover (MID core) wards +3',
-    await J(() => { setupFight(['cassia'], ['cassia.sig.mid', 'cassia.rider.reinforce'], { cassia: 'mid' }); const c = handCard('Cover'); return !!c && c.fx.guard === 7; }));
+  check('COMBO cassia.rider.aegis: Aegis (MID signature) also grants counter 1',
+    await J(() => { setupFight(['cassia'], ['cassia.sig.mid', 'cassia.rider.aegis'], { cassia: 'mid' }); const c = handCard('Aegis'); return !!c && c.fx.counter === 1; }));
+  check('PRUNE cassia: redundant flat riders + duplicate guard-forge emergent removed',
+    await J(() => ['cassia.rider.riposte', 'cassia.rider.sentinel', 'cassia.emergent.sentinel', 'cassia.rider.reinforce'].every(id => !NODE_BY_ID[id])));
+  check('CAPSTONES cassia: three distinct build-paths survive (nova/immovable/soak)',
+    await J(() => ['cassia.nova', 'cassia.passive.immovable', 'cassia.synergy.soak'].every(id => !!NODE_BY_ID[id])));
   check('COMBO branwen.rider.steady: Killshot (MID signature) hits +3',
     await J(() => { setupFight(['branwen'], ['branwen.sig.mid', 'branwen.rider.steady'], { branwen: 'mid' }); const c = handCard('Killshot'); return !!c && c.fx.dmg === 14; }));
   check('COMBO branwen.passive.killingblow: +4 vs a foe at/below half HP, nothing above',
