@@ -1954,6 +1954,13 @@ const QUICK = process.argv.includes('--quick');
       const rs = S.tempCards[0]; S.tempCards = S.tempCards.filter(t => t.uid !== rs.uid); resolveChainPlay(rs);
       const cw = S.tempCards.find(c => c.name === 'Crashing Wave');
       return builder && !!cw && cw.fx.dmg === 11; }));   // builder → finisher (base Crashing Wave 11)
+  check('ROTATION COMBO label: opener/combo/finisher chain cards carry the renamed COMBO tag + chain flag',
+    await J(() => { setupFight(['ash'], ['ash.sig.front'], { ash: 'front' }); S._rotations = true; renderAll();
+      const op = buildHand().find(c => c.kind === 'opener'); const openerOk = /^OPENER/.test(op.stance) && op.chain === true;
+      S.tempCards = []; resolveChainPlay(op);
+      const combo = S.tempCards[0]; const comboOk = /^COMBO/.test(combo.stance) && combo.chain === true;   // no more "BUILDER"
+      resolveChainPlay(combo); const fin = S.tempCards.find(c => c.name === 'Crashing Wave');
+      return openerOk && comboOk && !!fin && /^FINISHER/.test(fin.stance); }));
   check('ROTATION FORK node adds the branch (needs the builder): opener forges BOTH lines with a pick event',
     await J(() => { setupFight(['ash'], ['ash.sig.front', 'ash.branch.front'], { ash: 'front' }); S._rotations = true; renderAll();
       const op = buildHand().find(c => c.kind === 'opener'); S.tempCards = []; resolveChainPlay(op);
