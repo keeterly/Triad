@@ -513,7 +513,7 @@ const QUICK = process.argv.includes('--quick');
   await shot('staggered');
   const hpMid = await J(() => S.enemies[0].hp);
   await tapCard('Coup de Grâce'); await sleep(250); await pickTarget(); await sleep(650);
-  check('the FREE finisher cashed the ×2 (10 -> 20)', await J(() => S.enemies[0].hp) === hpMid - 20, 'hp ' + hpMid + '->' + await J(() => S.enemies[0].hp));
+  check('the FREE finisher cashed the ×2 (10 → 20+, plus the stagger’s own EXPOSED bonus)', (hpMid - await J(() => S.enemies[0].hp)) >= 20, 'dealt ' + (hpMid - await J(() => S.enemies[0].hp)));
   check('stagger consumed by the payoff', await J(() => !S.enemies[0].staggered));
   check('the forged card burned away on use', await J(() => !document.querySelector('#hand .card[data-card-name="Coup de Grâce"]')));
   check('EXECUTIONER gate: WITHOUT the node the break still lands + pays EP, but NO free Coup de Grâce',
@@ -527,6 +527,14 @@ const QUICK = process.argv.includes('--quick');
       return e.staggered === true && S.ep === ep0 + 1                             // break + PRESS-ON EP still happen
         && !document.querySelector('#hand .card[data-card-name="Coup de Grâce"]') // but the killing card is gated
         && !S.tempCards.some(c => c.name === 'Coup de Grâce'); }));
+  check('EMERGENT stagger→EXPOSED: breaking a foe also marks it ◎ EXPOSED (feeds every mark payoff)',
+    await J(() => {
+      startFight({ type: 'fight', chapter: 3, heroes: ['ash'], enemies: ['wraith'], narrator: 'expose drill' });
+      const e = S.enemies[0]; e.hp = e.maxHp = 60; e.mark = 0; renderAll();
+      dealToEnemy(e, 4, 'blade', 'ash');          // WEAKENED
+      const preMark = e.mark || 0;
+      dealToEnemy(e, 4, 'blade', 'ash');          // STAGGERED — and now also EXPOSED
+      return e.staggered === true && (e.mark || 0) >= preMark + 3; }));
   // INTERRUPT — the Bloodborne moment
   await J(() => {
     hideOverlay();
@@ -1994,6 +2002,18 @@ const QUICK = process.argv.includes('--quick');
       await playCard(Object.assign({}, mkMoveAction(S.heroes.find(h => h.id === 'ash')), { toRow: 'mid' }), null);
       const echo = S.tempCards.some(c => (c.name || '').startsWith('Echo'));
       return noEcho && echo; }));
+  check('AFTERIMAGE + movement: a strike that SLIPS the caster (fx.step) also leaves an echo',
+    await J(async () => {
+      setupFight(['mira'], ['mira.afterimage'], { mira: 'front' }); S._rotations = false; S.tempCards = []; renderAll();
+      const mira = S.heroes.find(h => h.id === 'mira');
+      // a front strike that slips to BACK — the shape of Mira's Backstab / Vanish
+      await resolveCard({ kind: 'action', owner: 'mira', name: 'Slip Strike', cost: 0, target: 'frontmost', fx: { dmg: 4, warp: 'back' } }, S.enemies[0].uid);
+      return mira.row === 'back' && S.tempCards.some(c => (c.name || '').startsWith('Echo')); }));
+  check('AFTERIMAGE + movement: no echo from the slip without the node',
+    await J(async () => {
+      setupFight(['mira'], [], { mira: 'front' }); S._rotations = false; S.tempCards = []; renderAll();
+      await resolveCard({ kind: 'action', owner: 'mira', name: 'Slip Strike', cost: 0, target: 'frontmost', fx: { dmg: 4, warp: 'back' } }, S.enemies[0].uid);
+      return S.heroes.find(h => h.id === 'mira').row === 'back' && !S.tempCards.some(c => (c.name || '').startsWith('Echo')); }));
   check('GUARD: an UNAFFORDABLE card cannot be played (the greyed-card-still-plays bug)',
     await J(async () => {
       setupFight(['ash'], [], { ash: 'front' }); S._rotations = false; S.ep = 0; renderAll();

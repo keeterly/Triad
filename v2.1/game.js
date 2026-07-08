@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 114;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 115;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -235,11 +235,11 @@ const EMBER_TREE = [
   // is always free; but the fading echo it leaves — the stance you left striking
   // once more, this turn only — is a per-hero unlock.  Turns stance-dancing into
   // an earned tempo tool. ═════════════════════════════════════════════════════════
-  { id: 'ash.afterimage',     hero: 'ash',     tier: 1, cost: 4, type: 'afterimage', label: 'Afterimage', desc: 'When Ash changes stance, the stance he left <b>strikes once more</b> — a free fading echo (its strike, −2 dmg, this turn only). Repositioning becomes an extra action.' },
-  { id: 'elin.afterimage',    hero: 'elin',    tier: 1, cost: 4, type: 'afterimage', label: 'Afterimage', desc: 'When Elin changes stance, the stance she left <b>strikes once more</b> — a free fading echo (−2 dmg, this turn only).' },
-  { id: 'mira.afterimage',    hero: 'mira',    tier: 1, cost: 4, type: 'afterimage', label: 'Afterimage', desc: 'When Mira changes stance, the stance she left <b>strikes once more</b> — a free fading echo (−2 dmg, this turn only). The shadow she leaves still cuts.' },
-  { id: 'cassia.afterimage',  hero: 'cassia',  tier: 1, cost: 4, type: 'afterimage', label: 'Afterimage', desc: 'When Cassia changes stance, the stance she left <b>strikes once more</b> — a free fading echo (−2 dmg, this turn only).' },
-  { id: 'branwen.afterimage', hero: 'branwen', tier: 1, cost: 4, type: 'afterimage', label: 'Afterimage', desc: 'When Branwen changes stance, the stance she left <b>strikes once more</b> — a free fading echo (−2 dmg, this turn only).' },
+  { id: 'ash.afterimage',     hero: 'ash',     tier: 1, cost: 4, type: 'afterimage', label: 'Afterimage', desc: 'Whenever Ash repositions — a move, <b>or any strike that slips him</b> to a new row — the stance he left <b>strikes once more</b> (free fading echo, −2 dmg, this turn). Every reposition is an extra blow.' },
+  { id: 'elin.afterimage',    hero: 'elin',    tier: 1, cost: 4, type: 'afterimage', label: 'Afterimage', desc: 'Whenever Elin repositions — a move <b>or any action that shifts her row</b> — the stance she left <b>strikes once more</b> (free fading echo, −2 dmg, this turn).' },
+  { id: 'mira.afterimage',    hero: 'mira',    tier: 1, cost: 4, type: 'afterimage', label: 'Afterimage', desc: 'Whenever Mira repositions — a move, <b>or the slip / vanish built into her strikes</b> — the stance she left <b>strikes once more</b> (free fading echo, −2 dmg, this turn). Backstab and Vanish Strike now double as echoes — her whole shadow-dance loops.' },
+  { id: 'cassia.afterimage',  hero: 'cassia',  tier: 1, cost: 4, type: 'afterimage', label: 'Afterimage', desc: 'Whenever Cassia repositions — a move <b>or any action that shifts her row</b> — the stance she left <b>strikes once more</b> (free fading echo, −2 dmg, this turn).' },
+  { id: 'branwen.afterimage', hero: 'branwen', tier: 1, cost: 4, type: 'afterimage', label: 'Afterimage', desc: 'Whenever Branwen repositions — a move, <b>or the backstep loosed with her shots</b> — the stance she left <b>strikes once more</b> (free fading echo, −2 dmg, this turn). Her kiting Backstep Shot now leaves a parting arrow.' },
 ];
 const NODE_BY_ID = {};
 EMBER_TREE.forEach(n => { NODE_BY_ID[n.id] = n; });
@@ -2650,6 +2650,22 @@ function hexBurn(playedCard) {
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
+// AFTERIMAGE — the stance a hero LEAVES strikes once more as a free fading echo
+// (−2 dmg, this turn only).  Fires on ANY reposition, not just a dedicated MOVE:
+// a card that slips/vanishes the caster (fx.step / fx.warp, e.g. Mira's Backstab
+// or Vanish Strike) leaves an echo too, so a movement-heavy kit + this node is a
+// real emergent engine.  Gated on the earned per-hero afterimage node.
+function leaveAfterimage(owner, fromRow) {
+  if (!owner || owner.downed || !hasNode(owner.id + '.afterimage')) return;
+  const oldCore = owner.def.cards[fromRow] && owner.def.cards[fromRow].core;
+  if (!oldCore || !oldCore.fx || !oldCore.fx.dmg) return;
+  const dmg = Math.max(2, oldCore.fx.dmg - 2);
+  genTempCard({ kind: 'temp', owner: owner.id, ownerName: owner.def.name, tint: owner.def.tint,
+    stance: 'AFTERIMAGE', name: 'Echo: ' + oldCore.name, cost: 0, target: oldCore.target,
+    school: owner.def.school, fx: { dmg }, expiresTurn: S.turn,
+    desc: `<b>Free.</b> The stance you left behind strikes once more for ${dmg} — then fades with the turn.` });
+}
+
 async function resolveCard(card, targetId) {
   const owner = S.heroes.find(h => h.id === card.owner);
   if (owner && owner.downed) return;
@@ -2664,15 +2680,9 @@ async function resolveCard(card, targetId) {
     if (occupant) purgeChain(occupant.id);
     onHeroEnterRow(owner, card.toRow, from);
     // The departed stance can leave a fading echo of its core (THIS TURN only) —
-    // but that's an EARNED per-hero skill, the AFTERIMAGE node, kept OUT of
-    // onboarding.  With no node, moving is simply a clean reposition / dodge.
-    const oldCore = owner.def.cards[from].core;
-    if (oldCore.fx && oldCore.fx.dmg && hasNode(owner.id + '.afterimage')) {
-      genTempCard({ kind: 'temp', owner: owner.id, ownerName: owner.def.name, tint: owner.def.tint,
-        stance: 'AFTERIMAGE', name: 'Echo: ' + oldCore.name, cost: 0, target: oldCore.target,
-        school: owner.def.school, fx: { dmg: Math.max(2, oldCore.fx.dmg - 2) }, expiresTurn: S.turn,
-        desc: `<b>Free.</b> The stance you left behind strikes once more for ${Math.max(2, oldCore.fx.dmg - 2)} — then fades with the turn.` });
-    }
+    // an EARNED per-hero skill (the AFTERIMAGE node), kept OUT of onboarding.
+    // With no node, moving is simply a clean reposition / dodge.
+    leaveAfterimage(owner, from);
     S._morphHeroId = owner.id;
     if (occupant) S._morphHeroId2 = occupant.id;
     renderAll();
@@ -2843,6 +2853,7 @@ async function resolveCard(card, targetId) {
       const occ = livingHeroes().find(h => h.id !== owner.id && h.row === to);
       const from = owner.row; owner.row = to; if (occ) occ.row = from;
       onHeroEnterRow(owner, to, from);
+      leaveAfterimage(owner, from);   // the slipped-from stance echoes (Mira's vanish, Branwen's backstep, etc.)
       S._morphHeroId = owner.id; if (occ) S._morphHeroId2 = occ.id;
       renderAll();
       popupAt(figEl(owner.id), (fx.warp ? '✦ ' : '⇄ ') + STANCE[to].name.toUpperCase(), 'info');
@@ -2938,6 +2949,12 @@ function dealToEnemy(e, amt, school, byHeroId) {
       gainMomentum(18);                            // the BREAK is a big surge
       popupAt(figEl(e.uid), '⚡ STAGGERED', 'info');
       SFX.follow();
+      // EMERGENT: a broken-open foe is also left EXPOSED — the stagger feeds the
+      // whole mark ecosystem, so any hero's ◎ payoffs (Opportunist, Hunter's
+      // Focus, Death Mark, Bloodscent, Marked-for-Death…) light up on the reeling
+      // target.  Staggering and marking now compound instead of living apart.
+      e.mark = (e.mark || 0) + 3;
+      popupAt(figEl(e.uid), '◎ EXPOSED 3', 'info');
       // The break itself is baseline (burst + PRESS-ON EP below).  The free
       // Coup de Grâce that CASHES it is an earned per-hero skill: only a hero who
       // has kindled their EXECUTIONER node forges the killing card on a stagger.
