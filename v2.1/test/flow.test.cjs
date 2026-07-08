@@ -2005,6 +2005,18 @@ const QUICK = process.argv.includes('--quick');
     await J(() => { setupFight(['cassia'], ROTATION_GATES.concat(['cassia.sig.front']), { cassia: 'front' }); S._rotations = true; renderAll();
       const op = buildHand().find(c => c.kind === 'opener');
       return !!op && op.name === 'Shield Bash' && op.cost === 2; }));
+  check('SIGNATURE Aegis Nova (Cassia): releases ALL guard as one hit, then spends it',
+    await J(async () => { setupFight(['cassia'], [], { cassia: 'front' }); S._rotations = false; S.ep = 9; renderAll();
+      const c = S.heroes[0]; c.guard = 14; const foe = S.enemies[0]; foe.hp = foe.maxHp = 60; foe.guard = 0;
+      await playCard({ kind: 'temp', owner: 'cassia', name: 'Aegis Nova', cost: 0, target: 'frontmost', fx: { guardBurst: true }, temp: true, uid: 999 }, foe.uid);
+      return foe.hp === 60 - 14 && c.guard === 0; }));   // dealt 14 (= guard), guard spent
+  check('SIGNATURE Inverse Light (Elin): the heal loop forges a holy DAMAGE card',
+    await J(() => { setupFight(['elin'], ['elin.inverse', 'elin.passive.ward'], { elin: 'mid' }); S._rotations = false; S.ep = 9; S.tempCards = []; renderAll();
+      const ally = S.heroes[0]; ally.hp = 10;
+      // two heals (every 2nd forges): fire the heal emergent twice
+      fireEmergent('elin', 'heal', { name: 'Mend' }); fireEmergent('elin', 'heal', { name: 'Mend' });
+      const il = S.tempCards.find(c => c.name === 'Inverse Light');
+      return !!il && il.fx.dmg === 8 && il.school === 'light'; }));
   check('ROTATION dev preview is the FULL build — all 30 rotation gates (15 finishers + 15 forks) unlocked',
     await J(() => typeof devPreviewRotations === 'function'
       && devPreviewRotations.toString().includes('_rotations = true')

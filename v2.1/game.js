@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 101;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 102;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -213,6 +213,18 @@ const EMBER_TREE = [
   { id: 'branwen.rider.steady', hero: 'branwen', tier: 2, cost: 6, type: 'rider', requires: ['branwen.sig.mid'], label: 'Steady Aim', desc: 'Killshot (MID signature) lands for <b>+3</b> — the execution bites deeper.', rider: { card: 'Killshot', fx: { dmg: 3 }, descAdd: ' · <b>+3</b>' } },
   { id: 'branwen.emergent.pierce', hero: 'branwen', tier: 3, cost: 8, type: 'emergent', requires: ['branwen.rider.steady'], label: 'Marksman’s Rhythm', desc: 'Branwen finds her cadence. Every <b>3rd shot</b> she lands forges a free <b>Piercing Shot</b> — the aim never wavers.', emergent: { on: 'hit', every: 3, stance: 'FORGED · AIM', flash: 'The cadence holds — <b>Piercing Shot</b> forged.', forge: { name: 'Piercing Shot', cost: 0, target: 'enemy', fx: { dmg: 10 }, desc: '<b>Free.</b> A shaft through the gap — <b>10 damage</b> to any foe.' } } },
   { id: 'branwen.passive.killingblow', hero: 'branwen', tier: 4, cost: 12, type: 'passive', requires: ['branwen.emergent.pierce'], label: 'The Killing Blow', desc: 'Branwen deals <b>+4</b> to any foe at or below <b>half HP</b> — the wounded do not outrun the arrow.', passive: 'branwen_killingblow' },
+
+  // ═══ SIGNATURE MOMENTS — build-defining capstones that turn a hero's identity
+  // INSIDE OUT.  Each is one of several ways to build a hero across playthroughs;
+  // pick the fantasy you want this run. ════════════════════════════════════════════
+  { id: 'cassia.nova', hero: 'cassia', tier: 3, cost: 9, type: 'emergent', requires: ['cassia.passive.vigil'], label: 'Aegis Nova',
+    desc: 'Cassia turns the WALL into a weapon. Every <b>3rd time she raises</b> <span class="kw kw-guard">⛨ guard</span>, she forges a free <b>Aegis Nova</b> — loose ALL her guard as one blow, then it shatters. Turtle up, then end them.',
+    emergent: { on: 'guard', every: 3, stance: 'FORGED · NOVA', flash: 'The wall becomes the blow — <b>Aegis Nova</b> forged.',
+      forge: { name: 'Aegis Nova', cost: 0, target: 'frontmost', fx: { guardBurst: true }, desc: '<b>Free.</b> Loose the whole wall in one strike — <b>damage equal to your current</b> <span class="kw kw-guard">⛨ guard</span>, then it shatters. Stack it high, then unleash.' } } },
+  { id: 'elin.inverse', hero: 'elin', tier: 3, cost: 9, type: 'emergent', requires: ['elin.passive.ward'], label: 'Inverse Light',
+    desc: 'Elin turns mending OUTWARD. Every <b>2nd time she heals</b>, she forges a free <b>Inverse Light</b> — the light that knits a wound now <b>burns a foe</b>. Mercy, weaponised.',
+    emergent: { on: 'heal', every: 2, stance: 'FORGED · UMBRA', flash: 'The light turns outward — <b>Inverse Light</b> forged.',
+      forge: { name: 'Inverse Light', cost: 0, target: 'enemy', fx: { dmg: 8 }, desc: '<b>Free.</b> Mercy, reversed — <b>8 holy damage</b> to any foe. The mender bares her light.' } } },
 
   // ═══ ROTATION BRANCHES — the FORK.  Once a stance's line is complete (its
   // finisher signature), a branch node opens a SECOND path off the opener: play
@@ -2737,12 +2749,15 @@ async function resolveCard(card, targetId) {
     await sleep(300);
     return;
   }
-  if (fx.dmg) {
+  if (fx.dmg || fx.guardBurst) {
     let tgt = null;
     if (card.target === 'frontmost') tgt = frontmostEnemy();
     else if (card.target === 'enemy') tgt = livingEnemies().find(e => e.uid === targetId) || frontmostEnemy();
     if (tgt) {
-      let amt = fx.dmg + (owner ? owner.buffDmg : 0);
+      let amt = (fx.dmg || 0) + (owner ? owner.buffDmg : 0);
+      // AEGIS NOVA (Cassia) — release the accumulated wall as ONE blow: add all her
+      // current guard to the strike, then spend it.  Turtle up, then unleash.
+      if (fx.guardBurst && owner) { const g = owner.guard || 0; amt += g; if (g) { owner.guard = 0; popupAt(figEl(owner.id), '⛨→⚔ ' + g, 'dmg'); } }
       if (owner && owner.buffDmg) { popupAt(figEl(owner.id), '▲ RALLY +' + owner.buffDmg, 'rally'); owner.buffDmg = 0; }
       if (owner && owner.chill) { amt = Math.max(0, amt - owner.chill); popupAt(figEl(owner.id), '❄ −' + owner.chill, 'chill'); owner.chill = 0; }
       amt += tgt.mark || 0;
@@ -6336,7 +6351,7 @@ function devPreviewRotations() {
   RUN.hp = {}; RUN.roster.forEach(id => { RUN.hp[id] = HEROES[id].maxHp; });
   // full card kit + every hero's riders (so name-keyed riders bite) + ALL branch
   // gates (the fully-grown rotation — the intended endgame shape)
-  RUN.nodes = EMBER_TREE.filter(n => n.type === 'card' || n.type === 'rider' || n.type === 'execute' || n.type === 'afterimage').map(n => n.id).concat(ROTATION_GATES);
+  RUN.nodes = EMBER_TREE.filter(n => ['card', 'rider', 'execute', 'afterimage', 'emergent'].includes(n.type)).map(n => n.id).concat(ROTATION_GATES);
   RUN.bonds = { 'ash|elin': BOND_KINDLED, 'ash|mira': BOND_KINDLED, 'elin|mira': BOND_KINDLED };
   RUN.floor = 2; RUN.completed = [0];
   RUN._rotations = true;   // the whole point — this run runs the new engine
