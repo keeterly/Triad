@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 106;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 107;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -114,7 +114,7 @@ const EMBER_TREE = [
   { id: 'branwen.sig.front', hero: 'branwen', tier: 1, cost: 4, type: 'card', gate: { stance: 'front' }, label: 'Snap Shot', desc: 'FRONT builder — inserts <b>Snap Shot</b> (5 dmg): Backstep Shot → <b>Snap Shot</b> → Hail.' },
   { id: 'branwen.sig.mid',   hero: 'branwen', tier: 1, cost: 5, type: 'card', gate: { stance: 'mid'   }, label: 'Steady Aim', desc: 'MID builder — inserts <b>Steady Aim</b> (<span class="kw kw-rally">▲ +3</span> next shot): Aimed Shot → <b>Steady Aim</b> → Killshot.' },
   { id: 'branwen.sig.back',  hero: 'branwen', tier: 1, cost: 4, type: 'card', gate: { stance: 'back'  }, label: 'Deeper Mark', desc: 'BACK builder — inserts <b>Deeper Mark</b> (<span class="kw kw-exposed">◎ +2</span>): Marking Arrow → <b>Deeper Mark</b> → Killing Arrow.' },
-  { id: 'branwen.rider.deadeye', hero: 'branwen', tier: 2, cost: 6, type: 'rider', requires: ['branwen.sig.back'], label: 'Deadeye', desc: 'Backstep Shot (FRONT core) now also inflicts <span class="kw kw-exposed">◎ EXPOSED 2</span>.', rider: { card: 'Backstep Shot', fx: { mark: 2 }, descAdd: ' · <span class="kw kw-exposed">◎ EXPOSED 2</span>' } },
+  { id: 'branwen.rider.deadeye', hero: 'branwen', tier: 2, cost: 6, type: 'rider', requires: ['branwen.sig.front'], label: 'Deadeye', desc: 'Backstep Shot (FRONT core) now also inflicts <span class="kw kw-exposed">◎ EXPOSED 2</span>.', rider: { card: 'Backstep Shot', fx: { mark: 2 }, descAdd: ' · <span class="kw kw-exposed">◎ EXPOSED 2</span>' } },
   { id: 'branwen.emergent.tally', hero: 'branwen', tier: 3, cost: 9, type: 'emergent', requires: ['branwen.sig.back'], label: 'Death’s Tally',
     desc: 'Branwen <b>counts her marks</b>. Every <b>2nd time she inflicts</b> <span class="kw kw-exposed">◎ EXPOSED</span> this fight forges a free <b>Killing Arrow</b> — the tally comes due.',
     emergent: { on: 'expose', every: 2, stance: 'FORGED · TALLY', flash: 'The tally comes due — <b>Killing Arrow</b> forged.',
@@ -146,7 +146,6 @@ const EMBER_TREE = [
 
   // BRANWEN — MARK: marks at range, the tally comes due
   { id: 'branwen.passive.focus', hero: 'branwen', tier: 2, cost: 6, type: 'passive', requires: ['branwen.sig.back'], label: 'Hunter’s Focus', desc: 'Branwen deals <b>+2</b> to any <span class="kw kw-exposed">◎ EXPOSED</span> foe.', passive: 'branwen_hunter' },
-  { id: 'branwen.rider.volley', hero: 'branwen', tier: 3, cost: 7, type: 'rider', requires: ['branwen.sig.mid'], label: 'Volley', desc: 'Killshot (MID signature) now also inflicts <span class="kw kw-exposed">◎ EXPOSED 2</span>.', rider: { card: 'Killshot', fx: { mark: 2 }, descAdd: ' · <span class="kw kw-exposed">◎ EXPOSED 2</span>' } },
   { id: 'branwen.passive.opening', hero: 'branwen', tier: 3, cost: 8, type: 'passive', requires: ['branwen.passive.focus'], label: 'Opening Shot', desc: 'At the start of your turn, Branwen EXPOSES the nearest foe <span class="kw kw-exposed">◎ 1</span> — the hunt is always on.', passive: 'branwen_opening' },
   { id: 'branwen.passive.reckoning', hero: 'branwen', tier: 4, cost: 12, type: 'passive', requires: ['branwen.emergent.tally'], label: 'The Reckoning', desc: 'The first <span class="kw kw-exposed">◎ EXPOSED</span> foe Branwen kills each turn refunds <b>1 EP</b> — the tally always comes due.', passive: 'branwen_reckoning' },
 
@@ -172,8 +171,6 @@ const EMBER_TREE = [
   // CASSIA — a BACK (sentinel) line
 
   // BRANWEN — a FRONT (mark) line
-  { id: 'branwen.rider.hunt', hero: 'branwen', tier: 2, cost: 6, type: 'rider', requires: ['branwen.sig.front'], label: 'Deeper Mark', desc: 'Hunter’s Mark (FRONT signature) now brands <span class="kw kw-exposed">◎ EXPOSED +2</span> deeper.', rider: { card: 'Hunter’s Mark', fx: { mark: 2 }, descAdd: ' · <span class="kw kw-exposed">◎ +2</span>' } },
-  { id: 'branwen.emergent.hail', hero: 'branwen', tier: 3, cost: 8, type: 'emergent', requires: ['branwen.rider.hunt'], label: 'Rain of Arrows', desc: 'The volley never ends. Every <b>2nd time she inflicts</b> <span class="kw kw-exposed">◎ EXPOSED</span> forges a free <b>Volley Shot</b>.', emergent: { on: 'expose', every: 2, stance: 'FORGED · HAIL', flash: 'The sky darkens — <b>Volley Shot</b> forged.', forge: { name: 'Volley Shot', cost: 0, target: 'enemy', fx: { dmg: 6, mark: 2 }, desc: '<b>Free.</b> A shaft from the dark — <b>6 damage</b> and <span class="kw kw-exposed">◎ EXPOSED 2</span> to any foe.' } } },
 
   // ═══ COMBO DEPTH (FFXIV-shaped) — completing the thin stance lines so every
   // position grows a full arc: sig opener → keyword rider → emergent finisher →
@@ -189,8 +186,7 @@ const EMBER_TREE = [
   // BRANWEN — the MID (Killshot) line was the thinnest in the tree: one lone
   // rider.  Now a full single-target execution arc — steady aim → a piercing
   // cadence that forges free shots → the killing blow that finishes the wounded.
-  { id: 'branwen.rider.steady', hero: 'branwen', tier: 2, cost: 6, type: 'rider', requires: ['branwen.sig.mid'], label: 'Steady Aim', desc: 'Killshot (MID signature) lands for <b>+3</b> — the execution bites deeper.', rider: { card: 'Killshot', fx: { dmg: 3 }, descAdd: ' · <b>+3</b>' } },
-  { id: 'branwen.emergent.pierce', hero: 'branwen', tier: 3, cost: 8, type: 'emergent', requires: ['branwen.rider.steady'], label: 'Marksman’s Rhythm', desc: 'Branwen finds her cadence. Every <b>3rd shot</b> she lands forges a free <b>Piercing Shot</b> — the aim never wavers.', emergent: { on: 'hit', every: 3, stance: 'FORGED · AIM', flash: 'The cadence holds — <b>Piercing Shot</b> forged.', forge: { name: 'Piercing Shot', cost: 0, target: 'enemy', fx: { dmg: 10 }, desc: '<b>Free.</b> A shaft through the gap — <b>10 damage</b> to any foe.' } } },
+  { id: 'branwen.emergent.pierce', hero: 'branwen', tier: 3, cost: 8, type: 'emergent', requires: ['branwen.sig.mid'], label: 'Marksman’s Rhythm', desc: 'Branwen finds her cadence. Every <b>3rd shot</b> she lands forges a free <b>Piercing Shot</b> — the aim never wavers.', emergent: { on: 'hit', every: 3, stance: 'FORGED · AIM', flash: 'The cadence holds — <b>Piercing Shot</b> forged.', forge: { name: 'Piercing Shot', cost: 0, target: 'enemy', fx: { dmg: 10 }, desc: '<b>Free.</b> A shaft through the gap — <b>10 damage</b> to any foe.' } } },
   { id: 'branwen.passive.killingblow', hero: 'branwen', tier: 4, cost: 12, type: 'passive', requires: ['branwen.emergent.pierce'], label: 'The Killing Blow', desc: 'Branwen deals <b>+4</b> to any foe at or below <b>half HP</b> — the wounded do not outrun the arrow.', passive: 'branwen_killingblow' },
 
   // ═══ SIGNATURE MOMENTS — build-defining capstones that turn a hero's identity

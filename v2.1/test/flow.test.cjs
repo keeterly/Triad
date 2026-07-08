@@ -1458,8 +1458,8 @@ const QUICK = process.argv.includes('--quick');
     await J(() => { setupFight(['mira'], ['mira.sig.mid', 'mira.rider.twin'], { mira: 'mid' }); const c = handCard('Twin Daggers'); return !!c && c.fx.mark === 3; }));
   check('TREE cassia.rider.aegis: Aegis also grants COUNTER 1',
     await J(() => { setupFight(['cassia'], ['cassia.sig.mid', 'cassia.rider.aegis'], { cassia: 'mid' }); const c = handCard('Aegis'); return !!c && c.fx.counter === 1; }));
-  check('TREE branwen.rider.volley: Killshot now also EXPOSED 2',
-    await J(() => { setupFight(['branwen'], ['branwen.sig.mid', 'branwen.rider.volley'], { branwen: 'mid' }); const c = handCard('Killshot'); return !!c && c.fx.mark === 2; }));
+  check('TREE branwen.rider.deadeye: Backstep Shot (FRONT core) now also EXPOSED 2',
+    await J(() => { setupFight(['branwen'], ['branwen.sig.front', 'branwen.rider.deadeye'], { branwen: 'front' }); const c = handCard('Backstep Shot'); return !!c && c.fx.mark === 2; }));
   check('TREE elin.rider.radiance: Radiant Ward also heals party 2',
     await J(() => { setupFight(['elin'], ['elin.sig.front', 'elin.rider.radiance'], { elin: 'front' }); const c = handCard('Radiant Ward'); return !!c && c.fx.heal === 2 && c.fx.guard === 3; }));
   // dmgMod passives — EXPOSED exploiters
@@ -1755,9 +1755,9 @@ const QUICK = process.argv.includes('--quick');
 
   // ---------- COMBO DEPTH: the thin stance lines grow a full arc ----------
   console.log('--- COMBO DEPTH ---');
-  check('COMBO: Branwen’s MID line (once the thinnest) is now a 4-deep arc sig→steady→pierce→killing-blow',
+  check('COMBO: Branwen’s MID line grows a real arc sig→pierce→killing-blow',
     await J(() => {
-      const chain = ['branwen.sig.mid', 'branwen.rider.steady', 'branwen.emergent.pierce', 'branwen.passive.killingblow'];
+      const chain = ['branwen.sig.mid', 'branwen.emergent.pierce', 'branwen.passive.killingblow'];
       // each node must require the one before it (a real prerequisite chain, not loose leaves)
       return chain.every((id, i) => !!NODE_BY_ID[id] && (i === 0 || (NODE_BY_ID[id].requires || []).includes(chain[i - 1])));
     }));
@@ -1785,8 +1785,10 @@ const QUICK = process.argv.includes('--quick');
     await J(() => ['cassia.rider.riposte', 'cassia.rider.sentinel', 'cassia.emergent.sentinel', 'cassia.rider.reinforce'].every(id => !NODE_BY_ID[id])));
   check('CAPSTONES cassia: three distinct build-paths survive (nova/immovable/soak)',
     await J(() => ['cassia.nova', 'cassia.passive.immovable', 'cassia.synergy.soak'].every(id => !!NODE_BY_ID[id])));
-  check('COMBO branwen.rider.steady: Killshot (MID signature) hits +3',
-    await J(() => { setupFight(['branwen'], ['branwen.sig.mid', 'branwen.rider.steady'], { branwen: 'mid' }); const c = handCard('Killshot'); return !!c && c.fx.dmg === 14; }));
+  check('PRUNE branwen: duplicate expose-forge + redundant mark/flat riders removed',
+    await J(() => ['branwen.emergent.hail', 'branwen.rider.hunt', 'branwen.rider.volley', 'branwen.rider.steady'].every(id => !NODE_BY_ID[id])));
+  check('CAPSTONES branwen: three distinct build-paths survive (reckoning/cadence/killingblow)',
+    await J(() => ['branwen.passive.reckoning', 'branwen.synergy.cadence', 'branwen.passive.killingblow'].every(id => !!NODE_BY_ID[id])));
   check('COMBO branwen.passive.killingblow: +4 vs a foe at/below half HP, nothing above',
     await J(() => {
       setupFight(['branwen'], ['branwen.passive.killingblow'], { branwen: 'mid' });
