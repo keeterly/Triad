@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 110;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 111;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -5976,7 +5976,7 @@ function renderActionBar() {
     // SACRIFICE is a gesture now (drag the card onto the EP dial) — no button.
     el.innerHTML = `
       <div class="c-top">
-        <span class="c-cost tempo-${card.tempo || 'steady'}${card.cost === 0 ? ' c-free' : ''}">${card.cost === 0 ? 'FREE' : card.cost}</span>
+        <span class="c-cost tempo-${card.tempo || 'steady'}${card.cost === 0 ? ' c-free' : ''}"${card.cost === 0 ? ' title="Free — costs no EP"' : ''}>${card.cost === 0 ? '✦' : card.cost}</span>
         <span class="c-name">${card.name}</span>
         ${isTemp ? `<span class="c-temp-mark">✧</span>` : ''}
       </div>

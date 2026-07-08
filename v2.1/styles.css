@@ -1128,19 +1128,17 @@ button.map-node:not(:disabled) { cursor: pointer; }
    =========================================================================== */
 .c-cost.tempo-swift { background: #8ecbe8; }        /* fast: cheap plays */
 .c-cost.tempo-heavy { background: var(--blood-bright); color: #fff; }  /* slow: big plays */
-/* FREE — a costs-nothing gift (temp reward cards).  Not a loud green pill but a
-   forged-gold sigil that matches the dark-fantasy vibe: a dark badge, a hairline
-   gold edge, a soft ember glow, and a leading ✦ spark. */
+/* FREE — a costs-nothing gift (temp reward cards).  Just the ✦ ember spark in a
+   compact circular pip the same footprint as a numbered cost, so it reads as
+   "free" at a glance without the wide FREE word eating the card's top row. */
 .c-cost.c-free {
-  min-width: auto; width: auto; height: 13px; padding: 0 6px 0 5px; border-radius: 3px;
-  font-size: 6.2px; letter-spacing: 0.2em; font-weight: 700;
+  font-size: 10px; letter-spacing: 0; font-weight: 700;
   color: #ffe6a4; background: linear-gradient(180deg, rgba(58,44,18,0.95), rgba(26,18,8,0.98));
   border: 1px solid rgba(240,212,136,0.65);
   box-shadow: 0 0 8px rgba(240,212,136,0.4), inset 0 0 5px rgba(240,212,136,0.12);
   text-shadow: 0 0 5px rgba(240,212,136,0.7);
   animation: free-ember 1.9s ease-in-out infinite;
 }
-.c-cost.c-free::before { content: '✦ '; color: #ffd060; font-size: 0.9em; }
 @keyframes free-ember { 50% { box-shadow: 0 0 13px rgba(240,212,136,0.6), inset 0 0 6px rgba(240,212,136,0.2); border-color: rgba(255,232,160,0.9); } }
 .card-channel {
   position: absolute; top: -7px; right: -7px; z-index: 5;
