@@ -1905,10 +1905,14 @@ const QUICK = process.argv.includes('--quick');
   check('ROTATION a fork emits a FORGE EVENT (both new uids, flagged as a pick) for the return-split showcase',
     await J(() => !!S._forgeEvent && S._forgeEvent.pick === true && S._forgeEvent.uids.length === 2
       && S._forgeEvent.heroId === 'ash' && typeof forgeReturnFx === 'function' && typeof captureForgeAnchors === 'function'));
-  check('ROTATION picking a branch PURGES its sibling and forges that line’s finisher',
-    await J(() => { const rs = S.tempCards.find(c => c.name === 'Rising Slash'); resolveChainPlay(rs);
+  check('ROTATION picking a branch BURNS the unpicked sibling (on drop) and forges the finisher',
+    await J(() => { const rs = S.tempCards.find(c => c.name === 'Rising Slash');
+      burnUnpickedSiblings(rs);                                 // playCard does this the instant the card drops
+      S.tempCards = S.tempCards.filter(t => t.uid !== rs.uid);  // playCard removes the played temp card
+      resolveChainPlay(rs);                                     // then forges the next step
       const names = S.tempCards.map(c => c.name);
-      return names.includes('Crashing Wave') && !names.includes('Sunder') && !names.includes('Rising Slash'); }));
+      return names.includes('Crashing Wave') && !names.includes('Sunder') && !names.includes('Rising Slash')
+        && typeof burnUnpickedSiblings === 'function'; }));
   check('ROTATION riders still bite on forged finishers (Crashing Wave +3 via ash.rider.wave → 14)',
     await J(() => { const cw = S.tempCards.find(c => c.name === 'Crashing Wave'); return !!cw && cw.fx.dmg === 14; }));
   check('ROTATION stance change abandons the in-progress chain (purgeChain clears forged steps)',

@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 88;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 89;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -917,15 +917,18 @@ function genChainStep(h, rowKey, def, group) {
 }
 // after a chain card resolves: purge the picked branch's siblings, then forge
 // this card's own next step(s).  Sibling purge is what makes the choice real.
+// Picking one branch BURNS the path you didn't take — the unpicked sibling(s)
+// crumble to ash where they sat, then leave the hand.  Called from playCard the
+// instant the card drops (see there), so the burn and the strike read together.
+function burnUnpickedSiblings(card) {
+  if (!card || card.branchGroup == null) return;
+  const doomed = S.tempCards.filter(t => t.branchGroup === card.branchGroup && t.uid !== card.uid);
+  if (!doomed.length) return;
+  doomed.forEach(sib => { const el = document.querySelector(`#hand .card[data-uid="${sib.uid}"]`); if (el) dissolveCardEl(el); });
+  S.tempCards = S.tempCards.filter(t => !(t.branchGroup === card.branchGroup && t.uid !== card.uid));
+}
 function resolveChainPlay(card) {
   if (!card || !card.chain) return;
-  // Picking one branch BURNS the path you didn't take — the unpicked sibling(s)
-  // crumble to ash where they sat, then leave the hand.
-  if (card.branchGroup != null) {
-    const doomed = S.tempCards.filter(t => t.branchGroup === card.branchGroup && t.uid !== card.uid);
-    doomed.forEach(sib => { const el = document.querySelector(`#hand .card[data-uid="${sib.uid}"]`); if (el) dissolveCardEl(el); });
-    S.tempCards = S.tempCards.filter(t => t.branchGroup !== card.branchGroup);
-  }
   if (!card.chainNext || !card.chainNext.length) return;
   const h = S.heroes.find(x => x.id === card.owner);
   if (!h || h.downed) return;
@@ -2543,6 +2546,9 @@ async function playCard(card, targetId) {
   // and WHAT it struck, so the forged card(s) can fly back to that slot and split
   // out of it — the card that left the hand becomes the next stage.
   if (card.chain) captureForgeAnchors(card, targetId);
+  // Picking a branch: the unpicked path BURNS AWAY the moment this card drops and
+  // flies at the foe — the two actions happen together, not one after the other.
+  if (card.branchGroup != null) burnUnpickedSiblings(card);
   S.executing = true;
   $('#stage').classList.add('executing');
   S.ep -= card.cost;
