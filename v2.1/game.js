@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 118;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 119;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -5778,7 +5778,11 @@ function intentSeg(e, it) {
     return `<span class="i-seg" title="${it.desc || ''}"><span class="i-glyph">◈</span><span class="i-row">${eff}</span></span>`;
   }
   const row = effIntentRow(e, it);   // smart foes point at the hero they're hunting
-  return `<span class="i-seg"><span class="i-glyph">⚔</span><span class="i-dmg">${enemyIntentDmg(e, it)}</span><span class="i-arrow">→</span><span class="i-row">${row === 'all' ? 'ALL' : ROW_LABEL[row]}</span>${it.hex ? '<span class="i-st kw-hex" title="HEX — if it lands, your card plays burn your hand; dodge it">☠</span>' : ''}${it.drain ? '<span class="i-st kw-drain" title="drains life — heals the Maw">♥</span>' : ''}${it.chill ? '<span class="i-st kw-chill" title="chills you">❄</span>' : ''}${it.expose ? '<span class="i-st kw-exposed" title="exposes you">◎</span>' : ''}</span>`;
+  // GESTURE PREVIEW — surface HOW to parry this blow (mash / brace / sweep / slam)
+  // so the attack READS ahead of the ring: the foe's identity is legible, and
+  // defending is a decision you can prepare, not a pure reaction.
+  const pglyph = parryGlyph(it);
+  return `<span class="i-seg"><span class="i-glyph">⚔</span><span class="i-dmg">${enemyIntentDmg(e, it)}</span><span class="i-arrow">→</span><span class="i-row">${row === 'all' ? 'ALL' : ROW_LABEL[row]}</span>${it.hex ? '<span class="i-st kw-hex" title="HEX — if it lands, your card plays burn your hand; dodge it">☠</span>' : ''}${it.drain ? '<span class="i-st kw-drain" title="drains life — heals the Maw">♥</span>' : ''}${it.chill ? '<span class="i-st kw-chill" title="chills you">❄</span>' : ''}${it.expose ? '<span class="i-st kw-exposed" title="exposes you">◎</span>' : ''}${pglyph ? `<span class="i-parry" title="parry gesture — trace it when the ring glows">${pglyph}</span>` : ''}</span>`;
 }
 // the intent telegraph markup for an enemy (one or a boss's chained two)
 function enemyIntentHtml(e) {

@@ -585,6 +585,12 @@ const QUICK = process.argv.includes('--quick');
     }));
   check('ENEMY IDENTITY: speed axis reads the foe — Wraith fast (>1), Husk/Drone slow (<1)',
     await J(() => ENEMY_DEFS.wraith.parrySpeed > 1 && ENEMY_DEFS.husk.parrySpeed < 1 && ENEMY_DEFS.drone.parrySpeed < 1));
+  check('TELEGRAPH: a foe PREVIEWS its parry gesture (i-parry glyph) so the attack reads ahead of the ring',
+    await J(() => {
+      startFight({ type: 'fight', chapter: 2, heroes: ['ash'], enemies: ['wraith'], narrator: 'telegraph' });
+      S.enemies[0].intentIdx = 0; renderAll();   // Grasping Flurry — a mash
+      const el = document.querySelector('.figure.enemy .intent .i-parry');
+      return !!el && el.textContent.length > 0; }));
   // INTERRUPT — the Bloodborne moment
   await J(() => {
     hideOverlay();
@@ -811,8 +817,8 @@ const QUICK = process.argv.includes('--quick');
       && parryPatternFor({ dmg: 5 }).kind === 'multi'
       && parryPatternFor({ dmg: 8 }).size === 'big'
       && parryPatternFor({ dmg: 6 }).kind === 'tap'));
-  check('INTENT: the telegraph pill is clean — damage + target row, no parry-glyph clutter',
-    await J(() => { const p = document.querySelector('.intent'); return !!p && !!p.querySelector('.i-dmg') && !!p.querySelector('.i-row') && !p.querySelector('.i-parry'); }));
+  check('INTENT: the telegraph reads damage + target row + the parry GESTURE (authored identity, so it previews)',
+    await J(() => { const p = document.querySelector('.intent'); return !!p && !!p.querySelector('.i-dmg') && !!p.querySelector('.i-row') && !!p.querySelector('.i-parry'); }));
   check('ALL-HIT: a whole-party blow is one across-sweep parry',
     await J(() => { const p = parryPatternFor({ row: 'all', dmg: 5 }); return p.kind === 'swipe' && p.arc === 'arcAcross' && p.across === true; }));
   check('PARTIAL: a multi-tap parries per note (mitigation is fractional)',

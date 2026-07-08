@@ -340,6 +340,12 @@ body {
 .intent .i-seg { display: inline-flex; align-items: center; gap: 4px; }
 .intent.intent-multi { gap: 6px; }
 .intent .i-div { color: var(--blood-bright); font-weight: 700; opacity: 0.75; margin: 0 1px; }
+/* parry-gesture preview — a dim gold hint of HOW to defend this blow (mash /
+   brace / sweep / slam), set apart so it reads as "your input", not the threat */
+.intent .i-parry {
+  color: var(--gold-bright); opacity: 0.85; font-size: 10px; margin-left: 4px;
+  padding-left: 5px; border-left: 1px solid rgba(255,255,255,0.14); letter-spacing: 0.02em;
+}
 
 /* stance halo on the active row (solo teaching) */
 .figure .stance-tag {
