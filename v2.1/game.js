@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 87;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 88;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -919,7 +919,13 @@ function genChainStep(h, rowKey, def, group) {
 // this card's own next step(s).  Sibling purge is what makes the choice real.
 function resolveChainPlay(card) {
   if (!card || !card.chain) return;
-  if (card.branchGroup != null) S.tempCards = S.tempCards.filter(t => t.branchGroup !== card.branchGroup);
+  // Picking one branch BURNS the path you didn't take — the unpicked sibling(s)
+  // crumble to ash where they sat, then leave the hand.
+  if (card.branchGroup != null) {
+    const doomed = S.tempCards.filter(t => t.branchGroup === card.branchGroup && t.uid !== card.uid);
+    doomed.forEach(sib => { const el = document.querySelector(`#hand .card[data-uid="${sib.uid}"]`); if (el) dissolveCardEl(el); });
+    S.tempCards = S.tempCards.filter(t => t.branchGroup !== card.branchGroup);
+  }
   if (!card.chainNext || !card.chainNext.length) return;
   const h = S.heroes.find(x => x.id === card.owner);
   if (!h || h.downed) return;
@@ -2482,7 +2488,11 @@ function flyCard(cardName, targetEl) {
 // crumpling and drifting down with a warm ember glow — so channeling reads as
 // "this card is gone, spent for fuel," not a card that silently vanished.
 function dissolveCard(cardName) {
-  const el = document.querySelector(`#hand .card[data-card-name="${CSS.escape(cardName)}"]`);
+  dissolveCardEl(document.querySelector(`#hand .card[data-card-name="${CSS.escape(cardName)}"]`));
+}
+// burn a SPECIFIC card element away (used for the unpicked rotation branch — the
+// path you didn't take crumbles to ash).
+function dissolveCardEl(el) {
   if (!el) return;
   const sr = $('#stage').getBoundingClientRect();
   const scale = sr.width / stageDW() || 1;
@@ -5937,13 +5947,16 @@ let _forgeDrag = null;   // { name, owner, homeX, homeY }
 // figure it HURLED into (the IMPACT) — the card bounces back from the impact to the
 // slot.  Read later by forgeReturnFx.
 function captureForgeAnchors(card, targetId) {
-  S._forgeOrigin = S._forgeStart = null;
+  S._forgeOrigin = S._forgeStart = S._forgeFace = null;
+  // clone the played card's FACE now (it's about to leave the hand) — the returning
+  // ghost shows THIS card, then transforms into its forged next step(s).
+  const playedEl = (card.uid != null && document.querySelector(`#hand .card[data-uid="${card.uid}"]`))
+    || Array.from(document.querySelectorAll('#hand .card')).find(c => c.dataset.cardName === card.name && c.dataset.owner === card.owner);
+  S._forgeFace = playedEl ? playedEl.cloneNode(true) : null;
   if (_forgeDrag && _forgeDrag.name === card.name && _forgeDrag.owner === card.owner) {
     S._forgeOrigin = clientPtLocal(_forgeDrag.homeX, _forgeDrag.homeY);   // drag: home slot from drag start
   } else {
-    const el = (card.uid != null && document.querySelector(`#hand .card[data-uid="${card.uid}"]`))
-      || Array.from(document.querySelectorAll('#hand .card')).find(c => c.dataset.cardName === card.name && c.dataset.owner === card.owner);
-    S._forgeOrigin = el ? rectCenterLocal(el.getBoundingClientRect()) : null;   // tap: card is at rest
+    S._forgeOrigin = playedEl ? rectCenterLocal(playedEl.getBoundingClientRect()) : null;   // tap: card is at rest
   }
   _forgeDrag = null;
   // the bounce starts from the struck figure (where the card hurled to)
@@ -5972,45 +5985,65 @@ function forgeReturnFx(ev) {
   const centers = els.map(el => rectCenterLocal(el.getBoundingClientRect()) || origin);
   const mid = { x: centers.reduce((s, c) => s + c.x, 0) / centers.length,
                 y: centers.reduce((s, c) => s + c.y, 0) / centers.length };
-  // hide the real cards (synchronously, before paint) until the divide
+  // hide the real cards (synchronously, before paint) until the hand-off
   els.forEach(el => { el.classList.remove('card-forge-in', 'card-forge-split'); el.style.transition = 'none'; el.style.opacity = '0'; });
-  // Phase A — a ghost of the card flies back (reverse of the hurl) from the struck
-  // figure to the DIVIDE point.  Anchor its centre on mid, start it out at impact.
+  // Phase A — a ghost showing the PLAYED card's own face flies back (reverse of the
+  // hurl) from the struck figure to the DIVIDE point.  It's literally the opener
+  // returning to the hand; on landing it TRANSFORMS into its forged next step(s).
   const w = els[0].offsetWidth, h = els[0].offsetHeight;
-  const ghost = els[0].cloneNode(true);
-  ghost.className = 'card kind-temp';   // plain card face; motion is JS, not CSS
+  const face = S._forgeFace; S._forgeFace = null;
+  const ghost = face || els[0].cloneNode(true);
+  ghost.className = (ghost.className || 'card').replace(/card-dragging/g, '');
   ghost.style.cssText = `position:absolute; margin:0; z-index:121; pointer-events:none; opacity:0;`
-    + `left:${mid.x - w / 2}px; top:${mid.y - h / 2}px; width:${w}px; height:${h}px;`
-    + `filter:brightness(1.28); --tint:${els[0].style.getPropertyValue('--tint')};`
+    + `left:${mid.x - w / 2}px; top:${mid.y - h / 2}px; width:${w}px; height:${h}px; transform-origin:50% 50%;`
+    + `filter:brightness(1.22); --tint:${els[0].style.getPropertyValue('--tint')};`
     + `transform:translate(${start.x - mid.x}px, ${start.y - mid.y}px) scale(0.86) rotate(4deg);`;
   $('#popup-layer').appendChild(ghost);
   setTimeout(() => {
     ghost.style.opacity = '1';
     ghost.style.transition = `transform ${BOUNCE}ms cubic-bezier(0.33,0.66,0.3,1), opacity 120ms ease`;
-    requestAnimationFrame(() => { ghost.style.transform = 'translate(0px,0px) scale(1.04) rotate(0deg)'; });
+    requestAnimationFrame(() => { ghost.style.transform = 'translate(0px,0px) scale(1.03) rotate(0deg)'; });
   }, HOLD);
-  // Phase B — the DIVIDE.  At landing the ghost hands off to the real cards, which
-  // appear STACKED at the divide point (reading as the one returned card) and then
-  // glide APART to their own slots together — one card becoming two.  For a single
-  // forged step there's nothing to part: it simply settles in.
+  // Phase B — the TRANSFORM.  On landing the opener card hands off to its next step:
+  //   • one step  → a card FLIP: the opener turns edge-on and the builder turns in.
+  //   • two steps → a DIVIDE: two cards appear stacked (reading as the one card) and
+  //                 glide APART to their slots together — one card becoming two.
   setTimeout(() => {
     forgeSplitGlow(mid, els.length > 1);
-    ghost.style.transition = 'opacity 110ms ease, transform 160ms ease-out';
-    ghost.style.opacity = '0'; ghost.style.transform = 'scale(1.05)';
-    els.forEach((el, i) => {
-      const c = centers[i];
+    if (els.length === 1) {
+      const el = els[0];
+      ghost.style.transition = 'transform 180ms cubic-bezier(0.5,0,0.9,0.35), opacity 60ms ease 150ms';
+      ghost.style.transform = 'perspective(780px) rotateY(90deg) scale(1.03)';   // opener flips edge-on
+      ghost.style.opacity = '0';
       el.style.transition = 'none';
-      el.style.opacity = '1';
-      el.style.transform = `translate(${mid.x - c.x}px, ${mid.y - c.y}px)`;   // stacked at the divide point, full size
-      void el.offsetWidth;   // commit before animating
-      requestAnimationFrame(() => {
-        el.style.transition = 'transform 400ms cubic-bezier(0.22,0.62,0.28,1), opacity 220ms ease';
-        el.style.transform = '';   // glide out to its own slot — the two part
-        setTimeout(() => { el.style.transition = ''; }, 440);
+      el.style.transformOrigin = '50% 50%';
+      el.style.opacity = '0';
+      el.style.transform = 'perspective(780px) rotateY(-90deg)';
+      void el.offsetWidth;
+      setTimeout(() => {                                                          // builder turns in to face-on
+        el.style.transition = 'transform 220ms cubic-bezier(0.2,0.7,0.35,1), opacity 120ms ease';
+        el.style.opacity = '1';
+        el.style.transform = 'perspective(780px) rotateY(0deg)';
+        setTimeout(() => { el.style.transition = 'none'; el.style.transform = ''; el.style.transformOrigin = ''; requestAnimationFrame(() => { el.style.transition = ''; }); }, 240);
+      }, 150);
+    } else {
+      ghost.style.transition = 'opacity 110ms ease, transform 160ms ease-out';
+      ghost.style.opacity = '0'; ghost.style.transform = 'scale(1.04)';
+      els.forEach((el, i) => {
+        const c = centers[i];
+        el.style.transition = 'none';
+        el.style.opacity = '1';
+        el.style.transform = `translate(${mid.x - c.x}px, ${mid.y - c.y}px)`;   // stacked at the divide point
+        void el.offsetWidth;
+        requestAnimationFrame(() => {
+          el.style.transition = 'transform 400ms cubic-bezier(0.22,0.62,0.28,1), opacity 220ms ease';
+          el.style.transform = '';   // glide out to its own slot — the two part
+          setTimeout(() => { el.style.transition = ''; }, 440);
+        });
       });
-    });
+    }
   }, LAND);
-  setTimeout(() => ghost.remove(), LAND + 220);
+  setTimeout(() => ghost.remove(), LAND + 320);
 }
 // A soft radial bloom at the divide point — a gentle accent on the moment one card
 // becomes two.  JS-driven (reduced-motion safe).  `wide` for a two-card split.
