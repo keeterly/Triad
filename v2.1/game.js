@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 95;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 96;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -1789,7 +1789,10 @@ function newBattle(node) {
         e.maxHp = hp; e.hp = hp;
       } else {
         e.dmgMul = (1.8 + (depth - 1) * 0.08) * psDmg;
-        const hp = Math.round(e.maxHp * (1.65 + (depth - 1) * 0.06) * psHp);
+        // HP curve is EARLY-WEIGHTED: base 1.9 (was 1.65) so a party's opening
+        // rotations don't 1-turn early fights, with a gentler per-depth ramp so the
+        // late game (where your rotations are grown) stays where it was tuned.
+        const hp = Math.round(e.maxHp * (1.9 + (depth - 1) * 0.055) * psHp);
         e.maxHp = hp; e.hp = hp;
       }
       // ELITE nodes hit harder and last longer — a real spike over a plain fight.
