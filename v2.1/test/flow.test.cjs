@@ -1906,20 +1906,20 @@ const QUICK = process.argv.includes('--quick');
     await J(() => { setupFight(['ash'], ['ash.rider.wave'], { ash: 'front' }); S._rotations = true; renderAll();
       const hand = buildHand().filter(c => c.owner === 'ash');
       return hand.length === 1 && hand[0].kind === 'opener' && hand[0].name === 'Cleave' && hand[0].cost === 2 && !!rotationFor(S.heroes[0]); }));
-  check('ROTATION EARNED: base line is opener → builder ONLY — no finisher, no fork, before any skill',
-    await J(() => { const op = buildHand().find(c => c.kind === 'opener'); S.tempCards = []; resolveChainPlay(op);
-      const oneBuilder = S.tempCards.length === 1 && S.tempCards[0].name === 'Rising Slash';
-      const rs = S.tempCards[0]; S.tempCards = S.tempCards.filter(t => t.uid !== rs.uid); resolveChainPlay(rs);
-      const noFinisher = !S.tempCards.some(c => c.name === 'Crashing Wave');   // the finisher is EARNED, not free
-      return oneBuilder && noFinisher; }));
-  check('ROTATION FINISHER node (signature) completes the line: the builder now forges the finisher',
+  check('ROTATION EARNED: base line is opener → FINISHER (a short combo) — no builder, no fork, before any skill',
+    await J(() => { setupFight(['ash'], [], { ash: 'front' }); S._rotations = true; renderAll();
+      const op = buildHand().find(c => c.kind === 'opener'); S.tempCards = []; resolveChainPlay(op);
+      // the opener forges the FINISHER directly (Crashing Wave), not the builder
+      return S.tempCards.length === 1 && S.tempCards[0].name === 'Crashing Wave'; }));
+  check('ROTATION BUILDER node (signature) inserts a middle step: opener → builder → finisher',
     await J(() => { setupFight(['ash'], ['ash.sig.front', 'ash.rider.wave'], { ash: 'front' }); S._rotations = true; renderAll();
       const op = buildHand().find(c => c.kind === 'opener'); S.tempCards = []; resolveChainPlay(op);
-      const stillLinear = S.tempCards.length === 1 && !S.tempCards.some(c => c.name === 'Sunder');   // no fork yet (branch not owned)
+      // opener now forges the BUILDER (Rising Slash), not the finisher directly; no fork yet
+      const builder = S.tempCards.length === 1 && S.tempCards[0].name === 'Rising Slash';
       const rs = S.tempCards[0]; S.tempCards = S.tempCards.filter(t => t.uid !== rs.uid); resolveChainPlay(rs);
       const cw = S.tempCards.find(c => c.name === 'Crashing Wave');
-      return stillLinear && !!cw && cw.fx.dmg === 14; }));   // finisher forged, and the rider still bites (11 → 14)
-  check('ROTATION BRANCH node opens the FORK: opener forges BOTH lines — free, same group, this turn, with a pick event',
+      return builder && !!cw && cw.fx.dmg === 14; }));   // builder → finisher, and the rider still bites (11 → 14)
+  check('ROTATION FORK node adds the branch (needs the builder): opener forges BOTH lines with a pick event',
     await J(() => { setupFight(['ash'], ['ash.sig.front', 'ash.branch.front', 'ash.rider.wave'], { ash: 'front' }); S._rotations = true; renderAll();
       const op = buildHand().find(c => c.kind === 'opener'); S.tempCards = []; resolveChainPlay(op);
       const rs = S.tempCards.find(c => c.name === 'Rising Slash'), su = S.tempCards.find(c => c.name === 'Sunder');
@@ -1936,15 +1936,17 @@ const QUICK = process.argv.includes('--quick');
         && typeof burnUnpickedSiblings === 'function'; }));
   check('ROTATION stance change abandons the in-progress chain (purgeChain clears forged steps)',
     await J(() => { purgeChain('ash'); return S.tempCards.filter(c => c.chain).length === 0; }));
-  check('ROTATION all FIVE heroes × 3 stances declare a full opener→builder→finisher chain + a gated branch',
+  check('ROTATION every stance declares: base finisher (gateNot builder), builder (gate), fork (gate branch)',
     await J(() => ['ash', 'elin', 'mira', 'cassia', 'branwen'].every(hid =>
       ['front', 'mid', 'back'].every(r => {
         const rot = ROTATIONS[hid] && ROTATIONS[hid][r]; if (!rot) return false;
-        const op = rot.cards[rot.opener]; if (!op || !op.next || op.next.length < 2) return false;
-        const base = op.next[0], alt = op.next[1];
-        const baseOk = typeof base === 'string' && rot.cards[base] && (rot.cards[base].next || []).length >= 1;
-        const altOk = alt && alt.key && alt.gate && rot.cards[alt.key] && (rot.cards[alt.key].next || []).length >= 1;
-        return baseOk && altOk;
+        const op = rot.cards[rot.opener]; if (!op || !op.next || op.next.length !== 3) return false;
+        const [fin, bld, alt] = op.next;
+        const finOk = fin && fin.key && fin.gateNot && rot.cards[fin.key];                                   // opener→finisher when builder NOT owned
+        const bldOk = bld && bld.key && bld.gate && bld.gate === fin.gateNot && rot.cards[bld.key]           // builder inserts (same node hides the direct finisher)
+          && (rot.cards[bld.key].next || []).length >= 1;
+        const altOk = alt && alt.key && alt.gate && rot.cards[alt.key] && (rot.cards[alt.key].next || []).length >= 1;   // fork's alt line
+        return finOk && bldOk && altOk;
       }))));
   check('ROTATION every rotation fx uses only supported effect keys (no dead effects)',
     await J(() => { const ok = new Set(['dmg', 'mark', 'guard', 'heal', 'buffDmg', 'counter', 'step', 'warp', 'lull']);

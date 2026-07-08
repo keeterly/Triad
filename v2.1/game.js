@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 92;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 93;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -75,9 +75,9 @@ function setTreeTaught() { try { localStorage.setItem('kizuna2_1.treeTaught', '1
 // until they get their own constellations.
 // ---------------------------------------------------------------------------
 const EMBER_TREE = [
-  { id: 'ash.sig.front', hero: 'ash', tier: 1, cost: 4, type: 'card', gate: { stance: 'front' }, label: 'Crashing Wave', desc: 'FRONT finisher — completes the line: Rising Slash → <b>Crashing Wave</b> (11 cleave). Without it the opener stops at the builder.' },
-  { id: 'ash.sig.back',  hero: 'ash', tier: 1, cost: 4, type: 'card', gate: { stance: 'back'  }, label: 'Follow Cut', desc: 'BACK finisher — completes the line: Deeper Cut → <b>Follow Cut</b> (7 dmg).' },
-  { id: 'ash.sig.mid',   hero: 'ash', tier: 1, cost: 5, type: 'card', gate: { stance: 'mid'   }, label: 'Riposte', desc: 'MID finisher — completes the line: Parry Step → <b>Riposte</b> (7 counter-cut).' },
+  { id: 'ash.sig.front', hero: 'ash', tier: 1, cost: 4, type: 'card', gate: { stance: 'front' }, label: 'Rising Slash', desc: 'FRONT builder — inserts <b>Rising Slash</b> (8 dmg) into the line: Cleave → <b>Rising Slash</b> → Crashing Wave. Deepens the combo.' },
+  { id: 'ash.sig.back',  hero: 'ash', tier: 1, cost: 4, type: 'card', gate: { stance: 'back'  }, label: 'Deeper Cut', desc: 'BACK builder — inserts <b>Deeper Cut</b> (5 dmg): Thrown Edge → <b>Deeper Cut</b> → Follow Cut.' },
+  { id: 'ash.sig.mid',   hero: 'ash', tier: 1, cost: 5, type: 'card', gate: { stance: 'mid'   }, label: 'Parry Step', desc: 'MID builder — inserts <b>Parry Step</b> (<span class="kw kw-guard">⛨ 4</span> · <span class="kw kw-counter">↺ 1</span>): Flowing Cut → <b>Parry Step</b> → Riposte.' },
   { id: 'ash.rider.expose', hero: 'ash', tier: 2, cost: 6, type: 'rider', requires: ['ash.sig.back'], label: 'Hunter’s Instinct', desc: 'Thrown Edge (BACK core) now also inflicts <span class="kw kw-exposed">◎ EXPOSED 2</span> — position becomes a debuff.', rider: { card: 'Thrown Edge', fx: { mark: 2 }, descAdd: ' · <span class="kw kw-exposed">◎ EXPOSED 2</span>' } },
   { id: 'ash.passive.vanguard', hero: 'ash', tier: 2, cost: 6, type: 'passive', label: 'Vanguard’s Momentum', desc: 'Whenever Ash closes to FRONT, he gains <span class="kw kw-guard">⛨ 3</span> guard — repositioning becomes defense.', passive: 'ash_vanguard' },
   { id: 'ash.allout.execution', hero: 'ash', tier: 3, cost: 10, type: 'allout', requires: ['ash.sig.front'], label: 'Rite of Endings', desc: 'ALT ALL-OUT — every strike of your all-out EXECUTES any foe left under 25% HP.', allout: 'execution' },
@@ -87,9 +87,9 @@ const EMBER_TREE = [
       forge: { name: 'Follow Cut', cost: 0, target: 'enemy', fx: { dmg: 7 }, desc: '<b>Free.</b> The rhythm carries the blade — <b>7 damage</b> to any foe. Landed on the beat.' } } },
 
   // ELIN — the Mender: wards and light
-  { id: 'elin.sig.front', hero: 'elin', tier: 1, cost: 4, type: 'card', gate: { stance: 'front' }, label: 'Radiant Ward', desc: 'FRONT finisher — completes the line: Searing → <b>Radiant Ward</b> (party <span class="kw kw-guard">⛨ 3</span> · <span class="kw kw-heal">✚ 2</span>).' },
-  { id: 'elin.sig.mid',   hero: 'elin', tier: 1, cost: 5, type: 'card', gate: { stance: 'mid'   }, label: 'Renew', desc: 'MID finisher — completes the line: Sanctuary → <b>Renew</b> (<span class="kw kw-heal">✚ 8</span>).' },
-  { id: 'elin.sig.back',  hero: 'elin', tier: 1, cost: 4, type: 'card', gate: { stance: 'back'  }, label: 'Benediction', desc: 'BACK finisher — completes the line: Blessing → <b>Benediction</b> (<span class="kw kw-heal">✚ 8</span>).' },
+  { id: 'elin.sig.front', hero: 'elin', tier: 1, cost: 4, type: 'card', gate: { stance: 'front' }, label: 'Searing', desc: 'FRONT builder — inserts <b>Searing</b> (7 holy): Smite → <b>Searing</b> → Radiant Ward.' },
+  { id: 'elin.sig.mid',   hero: 'elin', tier: 1, cost: 5, type: 'card', gate: { stance: 'mid'   }, label: 'Sanctuary', desc: 'MID builder — inserts <b>Sanctuary</b> (<span class="kw kw-heal">✚ 4</span> · <span class="kw kw-guard">⛨ 4</span>): Mend → <b>Sanctuary</b> → Renew.' },
+  { id: 'elin.sig.back',  hero: 'elin', tier: 1, cost: 4, type: 'card', gate: { stance: 'back'  }, label: 'Blessing', desc: 'BACK builder — inserts <b>Blessing</b> (<span class="kw kw-rally">▲ +2</span> ally): Distant Prayer → <b>Blessing</b> → Benediction.' },
   { id: 'elin.rider.warmth', hero: 'elin', tier: 2, cost: 6, type: 'rider', requires: ['elin.sig.mid'], label: 'Warm Light', desc: 'Mend (MID core) now also wards the ally for <span class="kw kw-guard">⛨ 2</span> — a heal that holds.', rider: { card: 'Mend', fx: { guard: 2 }, descAdd: ' · <span class="kw kw-guard">⛨ 2</span>' } },
   { id: 'elin.emergent.afterglow', hero: 'elin', tier: 3, cost: 9, type: 'emergent', requires: ['elin.sig.back'], label: 'Afterglow',
     desc: 'Elin’s light <b>lingers</b>. Every <b>2nd time she heals</b> this fight forges a free <b>Afterglow</b> — the warmth spreads to the whole party.',
@@ -97,9 +97,9 @@ const EMBER_TREE = [
       forge: { name: 'Afterglow', cost: 0, target: 'allies', fx: { guard: 3 }, desc: '<b>Free.</b> The mending glow spills over — every ally gains <span class="kw kw-guard">⛨ 3</span>.' } } },
 
   // MIRA — the Assassin: exposure and slips
-  { id: 'mira.sig.front', hero: 'mira', tier: 1, cost: 4, type: 'card', gate: { stance: 'front' }, label: 'Vanish Strike', desc: 'FRONT finisher — completes the line: Twin Cut → <b>Vanish Strike</b> (9 dmg · vanish to BACK).' },
-  { id: 'mira.sig.mid',   hero: 'mira', tier: 1, cost: 5, type: 'card', gate: { stance: 'mid'   }, label: 'Twin Daggers', desc: 'MID finisher — completes the line: Serrate → <b>Twin Daggers</b> (10 dmg).' },
-  { id: 'mira.sig.back',  hero: 'mira', tier: 1, cost: 4, type: 'card', gate: { stance: 'back'  }, label: 'Execute', desc: 'BACK finisher — completes the line: Quick Throw → <b>Execute</b> (12 dmg vs the exposed).' },
+  { id: 'mira.sig.front', hero: 'mira', tier: 1, cost: 4, type: 'card', gate: { stance: 'front' }, label: 'Twin Cut', desc: 'FRONT builder — inserts <b>Twin Cut</b> (6 dmg): Backstab → <b>Twin Cut</b> → Vanish Strike.' },
+  { id: 'mira.sig.mid',   hero: 'mira', tier: 1, cost: 5, type: 'card', gate: { stance: 'mid'   }, label: 'Serrate', desc: 'MID builder — inserts <b>Serrate</b> (4 dmg · <span class="kw kw-exposed">◎ +1</span>): Shadow Knife → <b>Serrate</b> → Twin Daggers.' },
+  { id: 'mira.sig.back',  hero: 'mira', tier: 1, cost: 4, type: 'card', gate: { stance: 'back'  }, label: 'Quick Throw', desc: 'BACK builder — inserts <b>Quick Throw</b> (4 dmg): Thrown Dagger → <b>Quick Throw</b> → Execute.' },
   { id: 'mira.rider.exploit', hero: 'mira', tier: 2, cost: 6, type: 'rider', requires: ['mira.sig.front'], label: 'Killer’s Eye', desc: 'Backstab (FRONT core) now also inflicts <span class="kw kw-exposed">◎ EXPOSED 2</span>.', rider: { card: 'Backstab', fx: { mark: 2 }, descAdd: ' · <span class="kw kw-exposed">◎ EXPOSED 2</span>' } },
   { id: 'mira.emergent.bloodscent', hero: 'mira', tier: 3, cost: 9, type: 'emergent', requires: ['mira.sig.back'], label: 'Bloodscent',
     desc: 'Mira <b>smells the opening</b>. Every <b>2nd time she marks a foe</b> <span class="kw kw-exposed">◎ EXPOSED</span> this fight forges a free <b>Execute</b> — the mark becomes a killing card.',
@@ -107,9 +107,9 @@ const EMBER_TREE = [
       forge: { name: 'Execute', cost: 0, target: 'enemy', fx: { dmg: 12 }, desc: '<b>Free.</b> The opening is hers — <b>12 damage</b> to any foe. An EXPOSED target has nowhere to hide.' } } },
 
   // CASSIA — the Warden: guard and retaliation
-  { id: 'cassia.sig.front', hero: 'cassia', tier: 1, cost: 4, type: 'card', gate: { stance: 'front' }, label: 'Bulwark', desc: 'FRONT finisher — completes the line: Brace → <b>Bulwark</b> (6 dmg · <span class="kw kw-guard">⛨ 6</span>).' },
-  { id: 'cassia.sig.mid',   hero: 'cassia', tier: 1, cost: 5, type: 'card', gate: { stance: 'mid'   }, label: 'Aegis', desc: 'MID finisher — completes the line: Reinforce → <b>Aegis</b> (ally <span class="kw kw-guard">⛨ 7</span>).' },
-  { id: 'cassia.sig.back',  hero: 'cassia', tier: 1, cost: 4, type: 'card', gate: { stance: 'back'  }, label: 'Sentinel Throw', desc: 'BACK finisher — completes the line: Weighted Shield → <b>Sentinel Throw</b> (7 dmg).' },
+  { id: 'cassia.sig.front', hero: 'cassia', tier: 1, cost: 4, type: 'card', gate: { stance: 'front' }, label: 'Brace', desc: 'FRONT builder — inserts <b>Brace</b> (<span class="kw kw-guard">⛨ 4</span>): Shield Bash → <b>Brace</b> → Bulwark.' },
+  { id: 'cassia.sig.mid',   hero: 'cassia', tier: 1, cost: 5, type: 'card', gate: { stance: 'mid'   }, label: 'Reinforce', desc: 'MID builder — inserts <b>Reinforce</b> (ally <span class="kw kw-guard">⛨ 3</span>): Cover → <b>Reinforce</b> → Aegis.' },
+  { id: 'cassia.sig.back',  hero: 'cassia', tier: 1, cost: 4, type: 'card', gate: { stance: 'back'  }, label: 'Weighted Shield', desc: 'BACK builder — inserts <b>Weighted Shield</b> (3 dmg): Thrown Shield → <b>Weighted Shield</b> → Sentinel Throw.' },
   { id: 'cassia.rider.riposte', hero: 'cassia', tier: 2, cost: 6, type: 'rider', requires: ['cassia.sig.front'], label: 'Riposte', desc: 'Bulwark (FRONT signature) now also grants <span class="kw kw-counter">↺ 1</span> — punish the next blow.', rider: { card: 'Bulwark', fx: { counter: 1 }, descAdd: ' · <span class="kw kw-counter">↺ 1</span>' } },
   { id: 'cassia.emergent.bulwark', hero: 'cassia', tier: 3, cost: 9, type: 'emergent', requires: ['cassia.sig.front'], label: 'Iron Answer',
     desc: 'Cassia turns <b>defense into a weapon</b>. Every <b>2nd time she raises guard</b> this fight forges a free <b>Bulwark Break</b> — the wall answers back.',
@@ -117,9 +117,9 @@ const EMBER_TREE = [
       forge: { name: 'Bulwark Break', cost: 0, target: 'enemy', fx: { dmg: 9 }, desc: '<b>Free.</b> The shield becomes the blow — <b>9 damage</b> to any foe. Every wall she raises is a blade held back.' } } },
 
   // BRANWEN — the Marksman: marks and repositioning
-  { id: 'branwen.sig.front', hero: 'branwen', tier: 1, cost: 4, type: 'card', gate: { stance: 'front' }, label: 'Hail', desc: 'FRONT finisher — completes the line: Snap Shot → <b>Hail</b> (6 dmg from the dark).' },
-  { id: 'branwen.sig.mid',   hero: 'branwen', tier: 1, cost: 5, type: 'card', gate: { stance: 'mid'   }, label: 'Killshot', desc: 'MID finisher — completes the line: Steady Aim → <b>Killshot</b> (11 dmg execution).' },
-  { id: 'branwen.sig.back',  hero: 'branwen', tier: 1, cost: 4, type: 'card', gate: { stance: 'back'  }, label: 'Killing Arrow', desc: 'BACK finisher — completes the line: Deeper Mark → <b>Killing Arrow</b> (9 dmg · <span class="kw kw-exposed">◎ EXPOSED 2</span>).' },
+  { id: 'branwen.sig.front', hero: 'branwen', tier: 1, cost: 4, type: 'card', gate: { stance: 'front' }, label: 'Snap Shot', desc: 'FRONT builder — inserts <b>Snap Shot</b> (5 dmg): Backstep Shot → <b>Snap Shot</b> → Hail.' },
+  { id: 'branwen.sig.mid',   hero: 'branwen', tier: 1, cost: 5, type: 'card', gate: { stance: 'mid'   }, label: 'Steady Aim', desc: 'MID builder — inserts <b>Steady Aim</b> (<span class="kw kw-rally">▲ +3</span> next shot): Aimed Shot → <b>Steady Aim</b> → Killshot.' },
+  { id: 'branwen.sig.back',  hero: 'branwen', tier: 1, cost: 4, type: 'card', gate: { stance: 'back'  }, label: 'Deeper Mark', desc: 'BACK builder — inserts <b>Deeper Mark</b> (<span class="kw kw-exposed">◎ +2</span>): Marking Arrow → <b>Deeper Mark</b> → Killing Arrow.' },
   { id: 'branwen.rider.deadeye', hero: 'branwen', tier: 2, cost: 6, type: 'rider', requires: ['branwen.sig.back'], label: 'Deadeye', desc: 'Backstep Shot (FRONT core) now also inflicts <span class="kw kw-exposed">◎ EXPOSED 2</span>.', rider: { card: 'Backstep Shot', fx: { mark: 2 }, descAdd: ' · <span class="kw kw-exposed">◎ EXPOSED 2</span>' } },
   { id: 'branwen.emergent.tally', hero: 'branwen', tier: 3, cost: 9, type: 'emergent', requires: ['branwen.sig.back'], label: 'Death’s Tally',
     desc: 'Branwen <b>counts her marks</b>. Every <b>2nd time she inflicts</b> <span class="kw kw-exposed">◎ EXPOSED</span> this fight forges a free <b>Killing Arrow</b> — the tally comes due.',
@@ -767,22 +767,22 @@ const ROTATIONS = {
   // grants them all so the fully-branched build is testable end to end.
   ash: {
     front: { opener: 'cleave', cards: {
-      cleave:       { name: 'Cleave',        cost: 2, target: 'frontmost', fx: { dmg: 6 },          stance: 'OPENER · AGGRESSION', desc: '<b>Opener.</b> 6 damage to the nearest foe — then build the duel.', next: ['risingslash', { key: 'sunder', gate: 'ash.branch.front' }] },
-      risingslash:  { name: 'Rising Slash',  cost: 0, target: 'frontmost', fx: { dmg: 8 },          stance: 'BUILDER · TEMPO',     desc: '<b>Free.</b> 8 damage — the duel builds. Forges the finisher.', next: [{ key: 'crashingwave', gate: 'ash.sig.front' }] },
+      cleave:       { name: 'Cleave',        cost: 2, target: 'frontmost', fx: { dmg: 6 },          stance: 'OPENER · AGGRESSION', desc: '<b>Opener.</b> 6 damage to the nearest foe — then build the duel.', next: [{ key: 'crashingwave', gateNot: 'ash.sig.front' }, { key: 'risingslash', gate: 'ash.sig.front' }, { key: 'sunder', gate: 'ash.branch.front' }] },
+      risingslash:  { name: 'Rising Slash',  cost: 0, target: 'frontmost', fx: { dmg: 8 },          stance: 'BUILDER · TEMPO',     desc: '<b>Free.</b> 8 damage — the duel builds. Forges the finisher.', next: ['crashingwave'] },
       crashingwave: { name: 'Crashing Wave', cost: 0, target: 'frontmost', fx: { dmg: 11 },         stance: 'FINISHER · TEMPO',    desc: '<b>Free finisher.</b> 11 damage cleaves through the nearest foe.' },
       sunder:       { name: 'Sunder',        cost: 0, target: 'enemy',     fx: { dmg: 5, mark: 2 }, stance: 'BUILDER · EXPOSE',    desc: '<b>Free.</b> 5 damage · <span class="kw kw-exposed">◎ EXPOSED 2</span> to ANY foe. Forges the finisher.', next: ['markedfate'] },
       markedfate:   { name: 'Marked Fate',   cost: 0, target: 'enemy',     fx: { dmg: 3, mark: 4 }, stance: 'FINISHER · EXPOSE',   desc: '<b>Free finisher.</b> 3 damage · <span class="kw kw-exposed">◎ EXPOSED 4</span>: +4 from EVERY hit.' },
     } },
     mid: { opener: 'flowingcut', cards: {
-      flowingcut: { name: 'Flowing Cut', cost: 1, target: 'frontmost', fx: { dmg: 4, guard: 3 },        stance: 'OPENER · FLOW',     desc: '<b>Opener.</b> 4 damage · gain <span class="kw kw-guard">⛨ 3</span> — then read the blade.', next: ['parrystep', { key: 'flowread', gate: 'ash.branch.mid' }] },
-      parrystep:  { name: 'Parry Step',  cost: 0, target: 'self',      fx: { guard: 4, counter: 1 },     stance: 'BUILDER · GUARD',   desc: '<b>Free.</b> Gain <span class="kw kw-guard">⛨ 4</span> · <span class="kw kw-counter">↺ 1</span>. Forges the riposte.', next: [{ key: 'riposte', gate: 'ash.sig.mid' }] },
+      flowingcut: { name: 'Flowing Cut', cost: 1, target: 'frontmost', fx: { dmg: 4, guard: 3 },        stance: 'OPENER · FLOW',     desc: '<b>Opener.</b> 4 damage · gain <span class="kw kw-guard">⛨ 3</span> — then read the blade.', next: [{ key: 'riposte', gateNot: 'ash.sig.mid' }, { key: 'parrystep', gate: 'ash.sig.mid' }, { key: 'flowread', gate: 'ash.branch.mid' }] },
+      parrystep:  { name: 'Parry Step',  cost: 0, target: 'self',      fx: { guard: 4, counter: 1 },     stance: 'BUILDER · GUARD',   desc: '<b>Free.</b> Gain <span class="kw kw-guard">⛨ 4</span> · <span class="kw kw-counter">↺ 1</span>. Forges the riposte.', next: ['riposte'] },
       riposte:    { name: 'Riposte',     cost: 0, target: 'frontmost', fx: { dmg: 7 },                   stance: 'FINISHER · FLOW',   desc: '<b>Free finisher.</b> 7 damage — the parried blow answered.' },
       flowread:   { name: 'Flow Read',   cost: 0, target: 'self',      fx: { buffDmg: 3, step: 'front' },stance: 'BUILDER · TEMPO',   desc: '<b>Free.</b> Slip to FRONT · your next strike deals <span class="kw kw-rally">▲ +3</span>. Forges the guard.', next: ['crossguard'] },
       crossguard: { name: 'Crossguard',  cost: 0, target: 'ally',      fx: { guard: 6 },                 stance: 'FINISHER · GUARD',  desc: '<b>Free finisher.</b> Throw <span class="kw kw-guard">⛨ 6</span> onto an ally.' },
     } },
     back: { opener: 'thrownedge', cards: {
-      thrownedge:  { name: 'Thrown Edge',   cost: 1, target: 'enemy', fx: { dmg: 4, step: 'front' }, stance: 'OPENER · MARK',    desc: '<b>Opener.</b> 4 damage to ANY foe · close to FRONT — then press the mark.', next: ['deepercut', { key: 'huntersread', gate: 'ash.branch.back' }] },
-      deepercut:   { name: 'Deeper Cut',    cost: 0, target: 'enemy', fx: { dmg: 5 },                stance: 'BUILDER · TEMPO',  desc: '<b>Free.</b> 5 damage to any foe. Forges the finisher.', next: [{ key: 'followcut', gate: 'ash.sig.back' }] },
+      thrownedge:  { name: 'Thrown Edge',   cost: 1, target: 'enemy', fx: { dmg: 4, step: 'front' }, stance: 'OPENER · MARK',    desc: '<b>Opener.</b> 4 damage to ANY foe · close to FRONT — then press the mark.', next: [{ key: 'followcut', gateNot: 'ash.sig.back' }, { key: 'deepercut', gate: 'ash.sig.back' }, { key: 'huntersread', gate: 'ash.branch.back' }] },
+      deepercut:   { name: 'Deeper Cut',    cost: 0, target: 'enemy', fx: { dmg: 5 },                stance: 'BUILDER · TEMPO',  desc: '<b>Free.</b> 5 damage to any foe. Forges the finisher.', next: ['followcut'] },
       followcut:   { name: 'Follow Cut',    cost: 0, target: 'enemy', fx: { dmg: 7 },                stance: 'FINISHER · TEMPO', desc: '<b>Free finisher.</b> 7 damage — the rhythm carries the blade.' },
       huntersread: { name: 'Hunter’s Read', cost: 0, target: 'enemy', fx: { dmg: 2, mark: 2 },       stance: 'BUILDER · EXPOSE', desc: '<b>Free.</b> 2 damage · <span class="kw kw-exposed">◎ EXPOSED 2</span>. Forges the finisher.', next: ['backmarked'] },
       backmarked:  { name: 'Marked Fate',   cost: 0, target: 'enemy', fx: { dmg: 3, mark: 4 },       stance: 'FINISHER · EXPOSE',desc: '<b>Free finisher.</b> 3 damage · <span class="kw kw-exposed">◎ EXPOSED 4</span> on any foe.' },
@@ -791,22 +791,22 @@ const ROTATIONS = {
 
   elin: {
     front: { opener: 'smite', cards: {
-      smite:      { name: 'Smite',        cost: 2, target: 'frontmost', fx: { dmg: 4 },            stance: 'OPENER · RADIANT', desc: '<b>Opener.</b> 4 holy damage to the nearest foe — the mender bares her teeth.', next: ['searing', { key: 'raiseward', gate: 'elin.branch.front' }] },
-      searing:    { name: 'Searing',      cost: 0, target: 'frontmost', fx: { dmg: 7 },            stance: 'BUILDER · RADIANT',desc: '<b>Free.</b> 7 holy damage. Forges the finisher.', next: [{ key: 'radiantward', gate: 'elin.sig.front' }] },
+      smite:      { name: 'Smite',        cost: 2, target: 'frontmost', fx: { dmg: 4 },            stance: 'OPENER · RADIANT', desc: '<b>Opener.</b> 4 holy damage to the nearest foe — the mender bares her teeth.', next: [{ key: 'radiantward', gateNot: 'elin.sig.front' }, { key: 'searing', gate: 'elin.sig.front' }, { key: 'raiseward', gate: 'elin.branch.front' }] },
+      searing:    { name: 'Searing',      cost: 0, target: 'frontmost', fx: { dmg: 7 },            stance: 'BUILDER · RADIANT',desc: '<b>Free.</b> 7 holy damage. Forges the finisher.', next: ['radiantward'] },
       radiantward:{ name: 'Radiant Ward', cost: 0, target: 'allies',    fx: { guard: 3, heal: 2 }, stance: 'FINISHER · WARD',  desc: '<b>Free finisher.</b> Every ally gains <span class="kw kw-guard">⛨ 3</span> · <span class="kw kw-heal">✚ 2</span>.' },
       raiseward:  { name: 'Raise Ward',   cost: 0, target: 'allies',    fx: { guard: 2 },          stance: 'BUILDER · WARD',   desc: '<b>Free.</b> Every ally gains <span class="kw kw-guard">⛨ 2</span>. Forges the finisher.', next: ['consecrate'] },
       consecrate: { name: 'Consecrate',   cost: 0, target: 'frontmost', fx: { dmg: 6 },            stance: 'FINISHER · RADIANT',desc: '<b>Free finisher.</b> 6 holy damage — the ward becomes a blade.' },
     } },
     mid: { opener: 'mend', cards: {
-      mend:      { name: 'Mend',           cost: 1, target: 'ally', fx: { heal: 5 },            stance: 'OPENER · MEND',    desc: '<b>Opener.</b> Heal an ally 5 — then tend the line.', next: ['sanctuary', { key: 'cleanse', gate: 'elin.branch.mid' }] },
-      sanctuary: { name: 'Sanctuary',      cost: 0, target: 'ally', fx: { heal: 4, guard: 4 },  stance: 'BUILDER · MEND',   desc: '<b>Free.</b> Heal an ally 4 · <span class="kw kw-guard">⛨ 4</span>. Forges the finisher.', next: [{ key: 'renew', gate: 'elin.sig.mid' }] },
+      mend:      { name: 'Mend',           cost: 1, target: 'ally', fx: { heal: 5 },            stance: 'OPENER · MEND',    desc: '<b>Opener.</b> Heal an ally 5 — then tend the line.', next: [{ key: 'renew', gateNot: 'elin.sig.mid' }, { key: 'sanctuary', gate: 'elin.sig.mid' }, { key: 'cleanse', gate: 'elin.branch.mid' }] },
+      sanctuary: { name: 'Sanctuary',      cost: 0, target: 'ally', fx: { heal: 4, guard: 4 },  stance: 'BUILDER · MEND',   desc: '<b>Free.</b> Heal an ally 4 · <span class="kw kw-guard">⛨ 4</span>. Forges the finisher.', next: ['renew'] },
       renew:     { name: 'Renew',          cost: 0, target: 'ally', fx: { heal: 8 },            stance: 'FINISHER · MEND',  desc: '<b>Free finisher.</b> Heal an ally 8 — the deepest wound closes.' },
       cleanse:   { name: 'Cleanse',        cost: 0, target: 'ally', fx: { heal: 3, guard: 3 },  stance: 'BUILDER · WARD',   desc: '<b>Free.</b> Heal an ally 3 · <span class="kw kw-guard">⛨ 3</span>. Forges the circle.', next: ['wardingcircle'] },
       wardingcircle:{ name: 'Warding Circle',cost: 0, target: 'allies', fx: { guard: 3 },       stance: 'FINISHER · WARD',  desc: '<b>Free finisher.</b> A ring of light — every ally gains <span class="kw kw-guard">⛨ 3</span>.' },
     } },
     back: { opener: 'distantprayer', cards: {
-      distantprayer:{ name: 'Distant Prayer', cost: 1, target: 'allies', fx: { heal: 2 },        stance: 'OPENER · BLESS',   desc: '<b>Opener.</b> Heal every ally 2 — then bless the strike.', next: ['blessing', { key: 'deepmercy', gate: 'elin.branch.back' }] },
-      blessing:  { name: 'Blessing',        cost: 0, target: 'ally',   fx: { buffDmg: 2 },       stance: 'BUILDER · BLESS',  desc: '<b>Free.</b> An ally’s next strike deals <span class="kw kw-rally">▲ +2</span>. Forges the finisher.', next: [{ key: 'benediction', gate: 'elin.sig.back' }] },
+      distantprayer:{ name: 'Distant Prayer', cost: 1, target: 'allies', fx: { heal: 2 },        stance: 'OPENER · BLESS',   desc: '<b>Opener.</b> Heal every ally 2 — then bless the strike.', next: [{ key: 'benediction', gateNot: 'elin.sig.back' }, { key: 'blessing', gate: 'elin.sig.back' }, { key: 'deepmercy', gate: 'elin.branch.back' }] },
+      blessing:  { name: 'Blessing',        cost: 0, target: 'ally',   fx: { buffDmg: 2 },       stance: 'BUILDER · BLESS',  desc: '<b>Free.</b> An ally’s next strike deals <span class="kw kw-rally">▲ +2</span>. Forges the finisher.', next: ['benediction'] },
       benediction:{ name: 'Benediction',    cost: 0, target: 'ally',   fx: { heal: 8 },          stance: 'FINISHER · BLESS', desc: '<b>Free finisher.</b> Heal an ally 8.' },
       deepmercy: { name: 'Deep Mercy',      cost: 0, target: 'ally',   fx: { heal: 8 },          stance: 'BUILDER · MERCY',  desc: '<b>Free.</b> Heal an ally 8. Forges the dawnlight.', next: ['dawnlight'] },
       dawnlight: { name: 'Dawnlight',       cost: 0, target: 'allies', fx: { heal: 5 },          stance: 'FINISHER · MERCY', desc: '<b>Free finisher.</b> Dawn breaks — heal every ally 5.' },
@@ -815,22 +815,22 @@ const ROTATIONS = {
 
   mira: {
     front: { opener: 'backstab', cards: {
-      backstab:   { name: 'Backstab',      cost: 1, target: 'frontmost', fx: { dmg: 6, step: 'back' }, stance: 'OPENER · VANISH', desc: '<b>Opener.</b> 6 damage · slip to BACK — then vanish through the line.', next: ['twincut', { key: 'shadowstep', gate: 'mira.branch.front' }] },
-      twincut:    { name: 'Twin Cut',      cost: 0, target: 'frontmost', fx: { dmg: 6 },              stance: 'BUILDER · VANISH',desc: '<b>Free.</b> 6 damage. Forges the finisher.', next: [{ key: 'vanishstrike', gate: 'mira.sig.front' }] },
+      backstab:   { name: 'Backstab',      cost: 1, target: 'frontmost', fx: { dmg: 6, step: 'back' }, stance: 'OPENER · VANISH', desc: '<b>Opener.</b> 6 damage · slip to BACK — then vanish through the line.', next: [{ key: 'vanishstrike', gateNot: 'mira.sig.front' }, { key: 'twincut', gate: 'mira.sig.front' }, { key: 'shadowstep', gate: 'mira.branch.front' }] },
+      twincut:    { name: 'Twin Cut',      cost: 0, target: 'frontmost', fx: { dmg: 6 },              stance: 'BUILDER · VANISH',desc: '<b>Free.</b> 6 damage. Forges the finisher.', next: ['vanishstrike'] },
       vanishstrike:{ name: 'Vanish Strike',cost: 0, target: 'frontmost', fx: { dmg: 9, warp: 'back' },stance: 'FINISHER · VANISH',desc: '<b>Free finisher.</b> 9 damage · vanish to the BACK line.' },
       shadowstep: { name: 'Shadowstep',    cost: 0, target: 'enemy',     fx: { dmg: 3, mark: 2, step: 'back' }, stance: 'BUILDER · SHADOW', desc: '<b>Free.</b> 3 damage · <span class="kw kw-exposed">◎ EXPOSED 2</span> · slip BACK. Forges the mark.', next: ['killingmark'] },
       killingmark:{ name: 'Killing Mark',  cost: 0, target: 'enemy',     fx: { dmg: 3, mark: 5 },     stance: 'FINISHER · SHADOW',desc: '<b>Free finisher.</b> 3 damage · <span class="kw kw-exposed">◎ EXPOSED 5</span> — nowhere to hide.' },
     } },
     mid: { opener: 'shadowknife', cards: {
-      shadowknife:{ name: 'Shadow Knife',  cost: 1, target: 'enemy', fx: { dmg: 4, mark: 3 }, stance: 'OPENER · BLEED', desc: '<b>Opener.</b> 4 damage · <span class="kw kw-exposed">◎ EXPOSED 3</span> — then open the wound.', next: ['serrate', { key: 'feint', gate: 'mira.branch.mid' }] },
-      serrate:    { name: 'Serrate',       cost: 0, target: 'enemy', fx: { dmg: 4, mark: 1 }, stance: 'BUILDER · BLEED',desc: '<b>Free.</b> 4 damage · <span class="kw kw-exposed">◎ EXPOSED 1</span>. Forges the finisher.', next: [{ key: 'twindaggers', gate: 'mira.sig.mid' }] },
+      shadowknife:{ name: 'Shadow Knife',  cost: 1, target: 'enemy', fx: { dmg: 4, mark: 3 }, stance: 'OPENER · BLEED', desc: '<b>Opener.</b> 4 damage · <span class="kw kw-exposed">◎ EXPOSED 3</span> — then open the wound.', next: [{ key: 'twindaggers', gateNot: 'mira.sig.mid' }, { key: 'serrate', gate: 'mira.sig.mid' }, { key: 'feint', gate: 'mira.branch.mid' }] },
+      serrate:    { name: 'Serrate',       cost: 0, target: 'enemy', fx: { dmg: 4, mark: 1 }, stance: 'BUILDER · BLEED',desc: '<b>Free.</b> 4 damage · <span class="kw kw-exposed">◎ EXPOSED 1</span>. Forges the finisher.', next: ['twindaggers'] },
       twindaggers:{ name: 'Twin Daggers',  cost: 0, target: 'enemy', fx: { dmg: 10 },          stance: 'FINISHER · BLEED',desc: '<b>Free finisher.</b> 10 damage — a focused kill.' },
       feint:      { name: 'Feint',         cost: 0, target: 'self',  fx: { buffDmg: 3 },       stance: 'BUILDER · GUILE',desc: '<b>Free.</b> Your next strike deals <span class="kw kw-rally">▲ +3</span>. Forges the finisher.', next: ['bloodletting'] },
       bloodletting:{ name: 'Bloodletting', cost: 0, target: 'enemy', fx: { dmg: 8, mark: 2 },  stance: 'FINISHER · GUILE',desc: '<b>Free finisher.</b> 8 damage · <span class="kw kw-exposed">◎ EXPOSED 2</span> — the wound runs deep.' },
     } },
     back: { opener: 'throwndagger', cards: {
-      throwndagger:{ name: 'Thrown Dagger',cost: 1, target: 'enemy', fx: { dmg: 4 },          stance: 'OPENER · MARK', desc: '<b>Opener.</b> 4 damage to ANY foe — then hunt the opening.', next: ['quickthrow', { key: 'markblade', gate: 'mira.branch.back' }] },
-      quickthrow: { name: 'Quick Throw',   cost: 0, target: 'enemy', fx: { dmg: 4 },          stance: 'BUILDER · MARK',desc: '<b>Free.</b> 4 damage. Forges the execution.', next: [{ key: 'execute', gate: 'mira.sig.back' }] },
+      throwndagger:{ name: 'Thrown Dagger',cost: 1, target: 'enemy', fx: { dmg: 4 },          stance: 'OPENER · MARK', desc: '<b>Opener.</b> 4 damage to ANY foe — then hunt the opening.', next: [{ key: 'execute', gateNot: 'mira.sig.back' }, { key: 'quickthrow', gate: 'mira.sig.back' }, { key: 'markblade', gate: 'mira.branch.back' }] },
+      quickthrow: { name: 'Quick Throw',   cost: 0, target: 'enemy', fx: { dmg: 4 },          stance: 'BUILDER · MARK',desc: '<b>Free.</b> 4 damage. Forges the execution.', next: ['execute'] },
       execute:    { name: 'Execute',       cost: 0, target: 'enemy', fx: { dmg: 12 },         stance: 'FINISHER · MARK',desc: '<b>Free finisher.</b> 12 damage — an EXPOSED target has nowhere to run.' },
       markblade:  { name: 'Mark',          cost: 0, target: 'enemy', fx: { dmg: 2, mark: 3 }, stance: 'BUILDER · HUNT',desc: '<b>Free.</b> 2 damage · <span class="kw kw-exposed">◎ EXPOSED 3</span>. Forges the finisher.', next: ['backkillingmark'] },
       backkillingmark:{ name: 'Killing Mark',cost: 0, target: 'enemy', fx: { dmg: 3, mark: 5 },stance: 'FINISHER · HUNT',desc: '<b>Free finisher.</b> 3 damage · <span class="kw kw-exposed">◎ EXPOSED 5</span>.' },
@@ -839,22 +839,22 @@ const ROTATIONS = {
 
   cassia: {
     front: { opener: 'shieldbash', cards: {
-      shieldbash: { name: 'Shield Bash', cost: 1, target: 'frontmost', fx: { dmg: 4, guard: 2 }, stance: 'OPENER · WALL', desc: '<b>Opener.</b> 4 damage · <span class="kw kw-guard">⛨ 2</span> — then raise the wall.', next: ['brace', { key: 'provoke', gate: 'cassia.branch.front' }] },
-      brace:      { name: 'Brace',       cost: 0, target: 'self',      fx: { guard: 4 },          stance: 'BUILDER · WALL',desc: '<b>Free.</b> Gain <span class="kw kw-guard">⛨ 4</span>. Forges the bulwark.', next: [{ key: 'bulwark', gate: 'cassia.sig.front' }] },
+      shieldbash: { name: 'Shield Bash', cost: 1, target: 'frontmost', fx: { dmg: 4, guard: 2 }, stance: 'OPENER · WALL', desc: '<b>Opener.</b> 4 damage · <span class="kw kw-guard">⛨ 2</span> — then raise the wall.', next: [{ key: 'bulwark', gateNot: 'cassia.sig.front' }, { key: 'brace', gate: 'cassia.sig.front' }, { key: 'provoke', gate: 'cassia.branch.front' }] },
+      brace:      { name: 'Brace',       cost: 0, target: 'self',      fx: { guard: 4 },          stance: 'BUILDER · WALL',desc: '<b>Free.</b> Gain <span class="kw kw-guard">⛨ 4</span>. Forges the bulwark.', next: ['bulwark'] },
       bulwark:    { name: 'Bulwark',     cost: 0, target: 'frontmost', fx: { dmg: 6, guard: 6 },  stance: 'FINISHER · WALL',desc: '<b>Free finisher.</b> 6 damage · gain <span class="kw kw-guard">⛨ 6</span> — an immovable wall.' },
       provoke:    { name: 'Provoke',     cost: 0, target: 'self',      fx: { guard: 2, counter: 2 }, stance: 'BUILDER · IRON', desc: '<b>Free.</b> <span class="kw kw-guard">⛨ 2</span> · <span class="kw kw-counter">↺ 2</span> — dare the next blow. Forges the answer.', next: ['ironanswer'] },
       ironanswer: { name: 'Iron Answer', cost: 0, target: 'frontmost', fx: { dmg: 9 },            stance: 'FINISHER · IRON',desc: '<b>Free finisher.</b> 9 damage — the wall answers back.' },
     } },
     mid: { opener: 'cover', cards: {
-      cover:      { name: 'Cover',     cost: 1, target: 'ally',  fx: { guard: 4 },           stance: 'OPENER · AEGIS', desc: '<b>Opener.</b> An ally gains <span class="kw kw-guard">⛨ 4</span> — then extend the wall.', next: ['reinforce', { key: 'warded', gate: 'cassia.branch.mid' }] },
-      reinforce:  { name: 'Reinforce', cost: 0, target: 'ally',  fx: { guard: 3 },           stance: 'BUILDER · AEGIS',desc: '<b>Free.</b> An ally gains <span class="kw kw-guard">⛨ 3</span>. Forges the aegis.', next: [{ key: 'aegis', gate: 'cassia.sig.mid' }] },
+      cover:      { name: 'Cover',     cost: 1, target: 'ally',  fx: { guard: 4 },           stance: 'OPENER · AEGIS', desc: '<b>Opener.</b> An ally gains <span class="kw kw-guard">⛨ 4</span> — then extend the wall.', next: [{ key: 'aegis', gateNot: 'cassia.sig.mid' }, { key: 'reinforce', gate: 'cassia.sig.mid' }, { key: 'warded', gate: 'cassia.branch.mid' }] },
+      reinforce:  { name: 'Reinforce', cost: 0, target: 'ally',  fx: { guard: 3 },           stance: 'BUILDER · AEGIS',desc: '<b>Free.</b> An ally gains <span class="kw kw-guard">⛨ 3</span>. Forges the aegis.', next: ['aegis'] },
       aegis:      { name: 'Aegis',     cost: 0, target: 'ally',  fx: { guard: 7 },           stance: 'FINISHER · AEGIS',desc: '<b>Free finisher.</b> Ward an ally <span class="kw kw-guard">⛨ 7</span>.' },
       warded:     { name: 'Warded',    cost: 0, target: 'ally',  fx: { guard: 2, counter: 1 },stance: 'BUILDER · SENTINEL',desc: '<b>Free.</b> An ally gains <span class="kw kw-guard">⛨ 2</span> · <span class="kw kw-counter">↺ 1</span>. Forges the volley.', next: ['sentinelvolley'] },
       sentinelvolley:{ name: 'Sentinel Volley', cost: 0, target: 'enemy', fx: { dmg: 8 },     stance: 'FINISHER · SENTINEL',desc: '<b>Free finisher.</b> A shield hurled from the wall — 8 damage.' },
     } },
     back: { opener: 'thrownshield', cards: {
-      thrownshield:{ name: 'Thrown Shield', cost: 1, target: 'enemy', fx: { dmg: 4 },        stance: 'OPENER · SENTINEL', desc: '<b>Opener.</b> 4 damage to ANY foe — then hold the range.', next: ['weighted', { key: 'rampart', gate: 'cassia.branch.back' }] },
-      weighted:   { name: 'Weighted Shield',cost: 0, target: 'enemy', fx: { dmg: 3 },        stance: 'BUILDER · SENTINEL',desc: '<b>Free.</b> 3 damage. Forges the sentinel throw.', next: [{ key: 'sentinelthrow', gate: 'cassia.sig.back' }] },
+      thrownshield:{ name: 'Thrown Shield', cost: 1, target: 'enemy', fx: { dmg: 4 },        stance: 'OPENER · SENTINEL', desc: '<b>Opener.</b> 4 damage to ANY foe — then hold the range.', next: [{ key: 'sentinelthrow', gateNot: 'cassia.sig.back' }, { key: 'weighted', gate: 'cassia.sig.back' }, { key: 'rampart', gate: 'cassia.branch.back' }] },
+      weighted:   { name: 'Weighted Shield',cost: 0, target: 'enemy', fx: { dmg: 3 },        stance: 'BUILDER · SENTINEL',desc: '<b>Free.</b> 3 damage. Forges the sentinel throw.', next: ['sentinelthrow'] },
       sentinelthrow:{ name: 'Sentinel Throw',cost: 0, target: 'enemy', fx: { dmg: 7 },       stance: 'FINISHER · SENTINEL',desc: '<b>Free finisher.</b> 7 damage to any foe.' },
       rampart:    { name: 'Rampart',        cost: 0, target: 'self',  fx: { guard: 4 },       stance: 'BUILDER · WALL',   desc: '<b>Free.</b> Gain <span class="kw kw-guard">⛨ 4</span>. Forges the volley.', next: ['backvolley'] },
       backvolley: { name: 'Sentinel Volley',cost: 0, target: 'enemy', fx: { dmg: 8 },        stance: 'FINISHER · SENTINEL',desc: '<b>Free finisher.</b> 8 damage — the wall looses from range.' },
@@ -863,22 +863,22 @@ const ROTATIONS = {
 
   branwen: {
     front: { opener: 'backstepshot', cards: {
-      backstepshot:{ name: 'Backstep Shot', cost: 1, target: 'enemy', fx: { dmg: 5, step: 'back' }, stance: 'OPENER · RETREAT', desc: '<b>Opener.</b> 5 damage to ANY foe · fall back to BACK — then loose again.', next: ['snapshot', { key: 'huntmark', gate: 'branwen.branch.front' }] },
-      snapshot:   { name: 'Snap Shot',    cost: 0, target: 'enemy', fx: { dmg: 5 },                 stance: 'BUILDER · RETREAT',desc: '<b>Free.</b> 5 damage. Forges the hail.', next: [{ key: 'hail', gate: 'branwen.sig.front' }] },
+      backstepshot:{ name: 'Backstep Shot', cost: 1, target: 'enemy', fx: { dmg: 5, step: 'back' }, stance: 'OPENER · RETREAT', desc: '<b>Opener.</b> 5 damage to ANY foe · fall back to BACK — then loose again.', next: [{ key: 'hail', gateNot: 'branwen.sig.front' }, { key: 'snapshot', gate: 'branwen.sig.front' }, { key: 'huntmark', gate: 'branwen.branch.front' }] },
+      snapshot:   { name: 'Snap Shot',    cost: 0, target: 'enemy', fx: { dmg: 5 },                 stance: 'BUILDER · RETREAT',desc: '<b>Free.</b> 5 damage. Forges the hail.', next: ['hail'] },
       hail:       { name: 'Hail',         cost: 0, target: 'enemy', fx: { dmg: 6 },                 stance: 'FINISHER · RETREAT',desc: '<b>Free finisher.</b> 6 damage from the dark.' },
       huntmark:   { name: 'Hunter’s Mark',cost: 0, target: 'enemy', fx: { dmg: 3, mark: 4, step: 'back' }, stance: 'BUILDER · HUNT', desc: '<b>Free.</b> 3 damage · <span class="kw kw-exposed">◎ EXPOSED 4</span> · slip BACK. Forges the finisher.', next: ['frontmarked'] },
       frontmarked:{ name: 'Marked Fate',  cost: 0, target: 'enemy', fx: { dmg: 3, mark: 4 },       stance: 'FINISHER · HUNT',  desc: '<b>Free finisher.</b> 3 damage · <span class="kw kw-exposed">◎ EXPOSED 4</span>.' },
     } },
     mid: { opener: 'aimedshot', cards: {
-      aimedshot:  { name: 'Aimed Shot',   cost: 3, target: 'enemy', fx: { dmg: 6 },  stance: 'OPENER · EXECUTION', desc: '<b>Opener.</b> 6 damage to ANY foe — then line up the kill.', next: ['steadyaim', { key: 'calledshot', gate: 'branwen.branch.mid' }] },
-      steadyaim:  { name: 'Steady Aim',   cost: 0, target: 'self',  fx: { buffDmg: 3 }, stance: 'BUILDER · EXECUTION',desc: '<b>Free.</b> Your next shot deals <span class="kw kw-rally">▲ +3</span>. Forges the killshot.', next: [{ key: 'killshot', gate: 'branwen.sig.mid' }] },
+      aimedshot:  { name: 'Aimed Shot',   cost: 3, target: 'enemy', fx: { dmg: 6 },  stance: 'OPENER · EXECUTION', desc: '<b>Opener.</b> 6 damage to ANY foe — then line up the kill.', next: [{ key: 'killshot', gateNot: 'branwen.sig.mid' }, { key: 'steadyaim', gate: 'branwen.sig.mid' }, { key: 'calledshot', gate: 'branwen.branch.mid' }] },
+      steadyaim:  { name: 'Steady Aim',   cost: 0, target: 'self',  fx: { buffDmg: 3 }, stance: 'BUILDER · EXECUTION',desc: '<b>Free.</b> Your next shot deals <span class="kw kw-rally">▲ +3</span>. Forges the killshot.', next: ['killshot'] },
       killshot:   { name: 'Killshot',     cost: 0, target: 'enemy', fx: { dmg: 11 }, stance: 'FINISHER · EXECUTION',desc: '<b>Free finisher.</b> 11 damage — a clean execution.' },
       calledshot: { name: 'Called Shot',  cost: 0, target: 'enemy', fx: { dmg: 3, mark: 2 }, stance: 'BUILDER · HUNT', desc: '<b>Free.</b> 3 damage · <span class="kw kw-exposed">◎ EXPOSED 2</span>. Forges the pierce.', next: ['piercingshot'] },
       piercingshot:{ name: 'Piercing Shot',cost: 0, target: 'enemy', fx: { dmg: 10 }, stance: 'FINISHER · HUNT', desc: '<b>Free finisher.</b> 10 damage through the gap.' },
     } },
     back: { opener: 'markingarrow', cards: {
-      markingarrow:{ name: 'Marking Arrow', cost: 1, target: 'enemy', fx: { dmg: 4, mark: 3 }, stance: 'OPENER · VOLLEY', desc: '<b>Opener.</b> 4 damage · <span class="kw kw-exposed">◎ EXPOSED 3</span> — then count the marks.', next: ['deepermark', { key: 'rapidnock', gate: 'branwen.branch.back' }] },
-      deepermark: { name: 'Deeper Mark',  cost: 0, target: 'enemy', fx: { dmg: 2, mark: 2 }, stance: 'BUILDER · VOLLEY',desc: '<b>Free.</b> 2 damage · <span class="kw kw-exposed">◎ EXPOSED 2</span>. Forges the killing arrow.', next: [{ key: 'killingarrow', gate: 'branwen.sig.back' }] },
+      markingarrow:{ name: 'Marking Arrow', cost: 1, target: 'enemy', fx: { dmg: 4, mark: 3 }, stance: 'OPENER · VOLLEY', desc: '<b>Opener.</b> 4 damage · <span class="kw kw-exposed">◎ EXPOSED 3</span> — then count the marks.', next: [{ key: 'killingarrow', gateNot: 'branwen.sig.back' }, { key: 'deepermark', gate: 'branwen.sig.back' }, { key: 'rapidnock', gate: 'branwen.branch.back' }] },
+      deepermark: { name: 'Deeper Mark',  cost: 0, target: 'enemy', fx: { dmg: 2, mark: 2 }, stance: 'BUILDER · VOLLEY',desc: '<b>Free.</b> 2 damage · <span class="kw kw-exposed">◎ EXPOSED 2</span>. Forges the killing arrow.', next: ['killingarrow'] },
       killingarrow:{ name: 'Killing Arrow',cost: 0, target: 'enemy', fx: { dmg: 9, mark: 2 }, stance: 'FINISHER · VOLLEY',desc: '<b>Free finisher.</b> 9 damage · <span class="kw kw-exposed">◎ EXPOSED 2</span> — pins the prey.' },
       rapidnock:  { name: 'Rapid Nock',   cost: 0, target: 'enemy', fx: { dmg: 4 },          stance: 'BUILDER · RAIN', desc: '<b>Free.</b> 4 damage. Forges the volley.', next: ['volleyshot'] },
       volleyshot: { name: 'Volley Shot',  cost: 0, target: 'enemy', fx: { dmg: 6, mark: 2 }, stance: 'FINISHER · RAIN', desc: '<b>Free finisher.</b> 6 damage · <span class="kw kw-exposed">◎ EXPOSED 2</span> — a shaft from the dark.' },
@@ -956,11 +956,15 @@ function resolveChainPlay(card) {
   if (!rot) return;
   const group = ++S._chainGroup;
   const forged = [], uids = [];
-  // a branch entry may be gated: {key, gate} forges only when the gate is owned
-  // (the base line — a bare string — always forges).  Gate off → linear chain.
+  // a next entry may be gated: {key, gate} forges only when the node is OWNED;
+  // {key, gateNot} forges only when it's NOT owned.  This is how the tree reshapes
+  // the chain: base = opener→finisher (gateNot the builder node); the builder node
+  // inserts a step (gate the builder, gateNot-hides the direct finisher); the fork
+  // node adds the alt line (gate the branch node).  A bare string always forges.
   card.chainNext.forEach(n => {
     const key = (typeof n === 'string') ? n : n.key;
     if (n && n.gate && !hasNode(n.gate)) return;
+    if (n && n.gateNot && hasNode(n.gateNot)) return;
     const def = rot.cards[key];
     const c = def && genChainStep(h, card.chainStance, def, group);
     if (c) { forged.push(def.name); uids.push(c.uid); }
@@ -1422,9 +1426,9 @@ const FLOW = [
     narrator: 'Help one another until all three threads hold — then the triad answers. Chain hits to fill BURST.' },
   { type: 'story', chapter: 3, title: 'THE ROAD DOWN', eyebrow: 'THE DESCENT', lines: [
     { text: 'The tutorial road ends at a cliff’s edge. Below waits the <b>Descent</b> — and the Abyss beneath it.' },
-    { text: 'Down here your steel finds its <b>rhythm</b>. Each hero shows a single <b>opener</b> — play it and it <b>flows into a follow-up strike</b>. That’s all you start with: a short combo. The <b>finisher</b> and the <b>branching path</b> are earned, not given.' },
-    { spk: 'ASH', text: 'One cut opens the next. The killing blow? That I have to learn.' },
-    { text: 'The dead give up <b>✦ embers</b>. Between fights, open your party’s <b>Ember Tree</b> and spend them — a <b>finisher</b> node <b>completes</b> a stance’s line, then a <b>fork</b> node opens its <b>second path</b> (play the opener, pick one line, the other burns away). Grow the rotation one earned choice at a time. Only for the heroes you field, and only for <b>this descent</b>.' },
+    { text: 'Down here your steel finds its <b>rhythm</b>. Each hero shows a single <b>opener</b> — play it and it <b>flows into a finisher</b>. That short combo is all you start with; how it <b>grows</b> is up to you.' },
+    { spk: 'ASH', text: 'A strike and a killing blow. Everything between them, I earn.' },
+    { text: 'The dead give up <b>✦ embers</b>. Between fights, open your party’s <b>Ember Tree</b> and spend them — a <b>builder</b> node <b>inserts a middle strike</b> (opener → builder → finisher), and a <b>fork</b> node opens a <b>second line</b> off the opener (play it, pick one path, the other burns away). Grow each rotation one earned choice at a time. Only for the heroes you field, and only for <b>this descent</b>.' },
     { text: 'Every trio you form <b>resonates differently</b>, so <b>who walks beside whom is your build</b>. And when a party falls, the Abyss remembers where — your next descent finds their ashes still warm.' },
     { spk: 'MIRA', text: 'Down, then. Stay close. …That’s not sentiment. It’s tactics.' },
   ], next: 'descent' },
@@ -6412,7 +6416,7 @@ function showSettings() {
 // THE EMBER TREE — a branching constellation.  Each hero's nodes hang from a
 // root along lit paths; a node's PREREQUISITE feeds it down a thread.  Pick a
 // node to read it in the detail bar, then kindle it.
-const TREE_TYPE_LABEL = { card: 'FINISHER', rider: 'UPGRADE', passive: 'PASSIVE', allout: 'ALL-OUT', emergent: 'EMERGENT', synergy: 'TEAM SYNERGY', branch: 'FORK' };
+const TREE_TYPE_LABEL = { card: 'BUILDER', rider: 'UPGRADE', passive: 'PASSIVE', allout: 'ALL-OUT', emergent: 'EMERGENT', synergy: 'TEAM SYNERGY', branch: 'FORK' };
 const TREE_TYPE_GLYPH = { card: '❖', rider: '⊕', passive: '❉', allout: '✷', emergent: '✦', synergy: '☍', branch: '⑂' };
 const TREE_HEROES = EMBER_TREE.reduce((a, n) => (a.includes(n.hero) ? a : a.concat(n.hero)), []);
 const TREE_PAN = {};   // per-hero pan offset, kept across re-renders (selecting a node re-renders)
