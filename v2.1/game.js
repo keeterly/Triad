@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 117;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 118;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -1021,45 +1021,59 @@ function purgeChain(heroId) { S.tempCards = S.tempCards.filter(t => !(t.chain &&
 // def.art overrides the portrait key (the remembered Echo Knight reuses art).
 // ---------------------------------------------------------------------------
 const ENEMY_DEFS = {
+  // REGULAR MOBS — each reads through the parry AXES (gesture · input size ·
+  // speed · damage), so a fight expresses WHO you're facing, not just a number:
+  // the Husk lumbers (slow single taps), the Wraith flurries (fast mash), the
+  // Cultist channels (braced holds + expose), the Mourner wails (wide arc sweeps
+  // over the whole party), the Drone turtles then SLAMS (a big telegraphed tap).
   husk: {
     // 18 HP: survives Cleave+Crashing Wave (17) so the FIRST fight forces one
     // real decision — eat the telegraphed hit, or learn to change stance.
-    weak: 'light', name: 'HOLLOW HUSK', maxHp: 18,
+    // A lumbering brute: slow, simple, readable — the game's parry primer.
+    weak: 'light', name: 'HOLLOW HUSK', maxHp: 18, parrySpeed: 0.9,
     intents: [
-      { name: 'Claw',  dmg: 4, row: 'front' },
-      { name: 'Lurch', dmg: 3, row: 'mid' },
+      { name: 'Heavy Claw', dmg: 4, row: 'front', attackArt: 'claw',  parry: { kind: 'tap' } },
+      { name: 'Lurch',      dmg: 3, row: 'mid',   attackArt: 'slash', parry: { kind: 'tap' } },
       { name: 'Wither', kind: 'buff', desc: 'hardens', guardSelf: 3 },
     ],
   },
   wraith: {
-    weak: 'blade', name: 'PALE WRAITH', maxHp: 16,
+    // A flitting phantom: FAST and many-handed — a flurry you MASH, a chill wail
+    // that sweeps the whole line.  Low damage per touch, but relentless.
+    weak: 'blade', name: 'PALE WRAITH', maxHp: 16, parrySpeed: 1.35,
     intents: [
-      { name: 'Grasp Beyond', dmg: 5, row: 'back' },
-      { name: 'Chill Wail',   dmg: 2, row: 'all', chill: 1 },
-      { name: 'Drift',        dmg: 4, row: 'mid' },
+      { name: 'Grasping Flurry', dmg: 4, row: 'back', attackArt: 'claw',  parry: { kind: 'mash', count: 3 } },
+      { name: 'Chill Wail',      dmg: 2, row: 'all',  chill: 1, attackArt: 'blast', parry: { kind: 'swipe', arc: 'arcAcross', across: true } },
+      { name: 'Phantom Rush',    dmg: 3, row: 'mid',  attackArt: 'slash', parry: { kind: 'multi', count: 2 } },
     ],
   },
   cultist: {
-    weak: 'blade', name: 'ASH CULTIST', maxHp: 15,
+    // A ritual caster: it CHANNELS — a braced HOLD you must weather — and its
+    // dark verse leaves you EXPOSED.  Punish the chant before it gathers.
+    weak: 'blade', name: 'ASH CULTIST', maxHp: 15, parrySpeed: 1.0,
     intents: [
-      { name: 'Sacrificial Knife', dmg: 5, row: 'front' },
+      { name: 'Sacrificial Knife', dmg: 5, row: 'front', attackArt: 'slash', parry: { kind: 'multi', count: 2 } },
+      { name: 'Dark Channel',      dmg: 6, row: 'mid', expose: 2, attackArt: 'blast', parry: { kind: 'hold', size: 'big' } },
       { name: 'Blood Chant', kind: 'buff', desc: 'gathers power', powerSelf: 2 },
-      { name: 'Hollow Verse', dmg: 4, row: 'mid', expose: 2 },
     ],
   },
   mourner: {
-    weak: 'iron', name: 'GRAVE MOURNER', maxHp: 18,
+    // A keening wailer: wide, sweeping grief that washes over the WHOLE party —
+    // you DEFLECT it along a big arc.  Rallies the horde when left alone.
+    weak: 'iron', name: 'GRAVE MOURNER', maxHp: 18, parrySpeed: 1.0,
     intents: [
-      { name: 'Dirge',     dmg: 3, row: 'all' },
-      { name: 'Sorrowing', dmg: 5, row: 'mid' },
+      { name: 'Dirge',         dmg: 3, row: 'all', attackArt: 'blast', parry: { kind: 'swipe', arc: 'arcAcross', across: true } },
+      { name: 'Sorrowing Arc', dmg: 5, row: 'mid', attackArt: 'claw',  parry: { kind: 'swipe', arc: 'arcR' } },
       { name: 'Keening', kind: 'buff', desc: 'keens the horde onward', powerAll: 1 },
     ],
   },
   drone: {
-    weak: 'iron', name: 'HOLLOW DRONE', maxHp: 20,
+    // An armored turtle: it HARDENS, bides, then drops a single crushing SLAM —
+    // a big, slow, telegraphed tap.  Deny the shell or weather the hammer.
+    weak: 'iron', name: 'HOLLOW DRONE', maxHp: 20, parrySpeed: 0.9,
     intents: [
-      { name: 'Refrain',  dmg: 5, row: 'front' },
-      { name: 'Dull Hum', dmg: 3, row: 'all' },
+      { name: 'Refrain',     dmg: 5, row: 'front', attackArt: 'slash', parry: { kind: 'multi', count: 2 } },
+      { name: 'Piston Slam', dmg: 7, row: 'front', attackArt: 'slam',  parry: { kind: 'tap', size: 'big' } },
       { name: 'Harden', kind: 'buff', desc: 'hardens', guardSelf: 4 },
     ],
   },

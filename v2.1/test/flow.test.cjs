@@ -568,6 +568,23 @@ const QUICK = process.argv.includes('--quick');
       const preMark = e.mark || 0;
       dealToEnemy(e, 4, 'blade', 'ash');          // STAGGERED — and now also EXPOSED
       return e.staggered === true && (e.mark || 0) >= preMark + 3; }));
+  // ENEMY IDENTITY — regular mobs author their own gesture/speed, not a damage-band default
+  check('ENEMY IDENTITY: every regular mob authors its own parry gesture + attackArt + parrySpeed',
+    await J(() => ['husk', 'wraith', 'cultist', 'mourner', 'drone'].every(id => {
+      const def = ENEMY_DEFS[id];
+      if (!def || !def.parrySpeed) return false;
+      const dmgIntents = def.intents.filter(i => i.dmg);
+      return dmgIntents.length > 0 && dmgIntents.every(i => i.parry && i.attackArt);
+    })));
+  check('ENEMY IDENTITY: same-damage hits now PLAY differently — Wraith flurry (mash) vs Husk claw (tap)',
+    await J(() => {
+      const wr = ENEMY_DEFS.wraith.intents.find(i => i.name === 'Grasping Flurry');
+      const hk = ENEMY_DEFS.husk.intents.find(i => i.name === 'Heavy Claw');
+      const pw = parryPatternFor(wr), ph = parryPatternFor(hk);
+      return wr.dmg === hk.dmg && pw.kind === 'mash' && ph.kind === 'tap';   // identical damage, distinct gesture
+    }));
+  check('ENEMY IDENTITY: speed axis reads the foe — Wraith fast (>1), Husk/Drone slow (<1)',
+    await J(() => ENEMY_DEFS.wraith.parrySpeed > 1 && ENEMY_DEFS.husk.parrySpeed < 1 && ENEMY_DEFS.drone.parrySpeed < 1));
   // INTERRUPT — the Bloodborne moment
   await J(() => {
     hideOverlay();
@@ -614,8 +631,8 @@ const QUICK = process.argv.includes('--quick');
     hideOverlay();
     startFight({ type: 'fight', chapter: 3, heroes: ['ash', 'elin', 'kiki'], enemies: ['cultist'], narrator: 'intercept drill' });
     RUN.bonds = { 'ash|elin': 3 };            // Ash is Elin's strongest bond
-    S.heroes[1].hp = 13;                       // Elin one Hollow Verse from danger
-    S.enemies[0].intentIdx = 2;                // Hollow Verse -> MID (Elin)
+    S.heroes[1].hp = 13;                       // Elin one Dark Channel from danger
+    S.enemies[0].intentIdx = 1;                // Dark Channel -> MID (Elin)
     renderAll();
   });
   await sleep(400);
