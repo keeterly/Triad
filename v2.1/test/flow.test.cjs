@@ -527,6 +527,39 @@ const QUICK = process.argv.includes('--quick');
       return e.staggered === true && S.ep === ep0 + 1                             // break + PRESS-ON EP still happen
         && !document.querySelector('#hand .card[data-card-name="Coup de Grâce"]') // but the killing card is gated
         && !S.tempCards.some(c => c.name === 'Coup de Grâce'); }));
+  // Per-hero STAGGER reactions — the Executioner cashes a break in each hero's voice
+  check('EXECUTIONER Cassia: stagger forges Bulwark Break (dmg + ⛨5 on the wall)',
+    await J(() => {
+      RUN.nodes = ['cassia.exec'];
+      startFight({ type: 'fight', chapter: 3, heroes: ['cassia'], enemies: ['wraith'], narrator: 'exec cassia' });
+      const e = S.enemies[0]; e.hp = e.maxHp = 80; S.tempCards = []; renderAll();
+      dealToEnemy(e, 4, e.def.weak, 'cassia'); dealToEnemy(e, 4, e.def.weak, 'cassia');   // → STAGGER
+      const c = S.tempCards.find(t => t.name === 'Bulwark Break');
+      return !!c && c.fx.dmg === 8 && c.fx.guard === 5 && c.target === 'frontmost'; }));
+  check('EXECUTIONER Mira: stagger forges Death Blossom (dmg + ◎ EXPOSED 4 for the mark-flow)',
+    await J(() => {
+      RUN.nodes = ['mira.exec'];
+      startFight({ type: 'fight', chapter: 3, heroes: ['mira'], enemies: ['wraith'], narrator: 'exec mira' });
+      const e = S.enemies[0]; e.hp = e.maxHp = 80; S.tempCards = []; renderAll();
+      dealToEnemy(e, 4, e.def.weak, 'mira'); dealToEnemy(e, 4, e.def.weak, 'mira');
+      const c = S.tempCards.find(t => t.name === 'Death Blossom');
+      return !!c && c.fx.dmg === 7 && c.fx.mark === 4; }));
+  check('EXECUTIONER Branwen: stagger forges Marksman’s Finish AND refunds 1 EP on the break',
+    await J(() => {
+      RUN.nodes = ['branwen.exec'];
+      startFight({ type: 'fight', chapter: 3, heroes: ['branwen'], enemies: ['wraith'], narrator: 'exec branwen' });
+      const e = S.enemies[0]; e.hp = e.maxHp = 80; S.ep = 2; S.tempCards = []; renderAll();
+      dealToEnemy(e, 4, e.def.weak, 'branwen'); const ep0 = S.ep;
+      dealToEnemy(e, 4, e.def.weak, 'branwen');   // STAGGER: +1 press-on (universal) +1 her Executioner refund
+      return S.tempCards.some(t => t.name === 'Marksman’s Finish') && S.ep === ep0 + 2; }));
+  check('EXECUTIONER Elin: stagger forges Mercy’s End AND mends the party on the break',
+    await J(() => {
+      RUN.nodes = ['elin.exec'];
+      startFight({ type: 'fight', chapter: 3, heroes: ['elin'], enemies: ['wraith'], narrator: 'exec elin' });
+      const e = S.enemies[0]; e.hp = e.maxHp = 80; S.tempCards = []; const el = S.heroes[0]; el.hp = el.maxHp - 6; renderAll();
+      dealToEnemy(e, 4, e.def.weak, 'elin'); const hp0 = el.hp;
+      dealToEnemy(e, 4, e.def.weak, 'elin');      // STAGGER: forge + party heal
+      return S.tempCards.some(t => t.name === 'Mercy’s End') && el.hp === hp0 + 3; }));
   check('EMERGENT stagger→EXPOSED: breaking a foe also marks it ◎ EXPOSED (feeds every mark payoff)',
     await J(() => {
       startFight({ type: 'fight', chapter: 3, heroes: ['ash'], enemies: ['wraith'], narrator: 'expose drill' });

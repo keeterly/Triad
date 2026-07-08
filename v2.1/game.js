@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 115;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 116;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -225,11 +225,19 @@ const EMBER_TREE = [
   // twice in a turn) is always worth burst + PRESS-ON EP; but the free
   // Coup de Grâce that ENDS the reeling foe is a per-hero unlock.  Who on your
   // party can execute a break is part of the build. ══════════════════════════════
-  { id: 'ash.exec',     hero: 'ash',     tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'When Ash STAGGERS a foe, he forges a free <b>Coup de Grâce</b> — <b>10 damage</b>, <b>doubled</b> against the staggered. The break becomes a killing card.' },
-  { id: 'elin.exec',    hero: 'elin',    tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'When Elin STAGGERS a foe, she forges a free <b>Coup de Grâce</b> — <b>10 damage</b>, <b>doubled</b> against the staggered. Even the mender ends what she breaks.' },
-  { id: 'mira.exec',    hero: 'mira',    tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'When Mira STAGGERS a foe, she forges a free <b>Coup de Grâce</b> — <b>10 damage</b>, <b>doubled</b> against the staggered. The break is hers to finish.' },
-  { id: 'cassia.exec',  hero: 'cassia',  tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'When Cassia STAGGERS a foe, she forges a free <b>Coup de Grâce</b> — <b>10 damage</b>, <b>doubled</b> against the staggered. The wall ends the reeling.' },
-  { id: 'branwen.exec', hero: 'branwen', tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'When Branwen STAGGERS a foe, she forges a free <b>Coup de Grâce</b> — <b>10 damage</b>, <b>doubled</b> against the staggered. The break is a marked kill.' },
+  // EXECUTIONER — every hero can cash a STAGGER, but each break lands in their OWN
+  // voice: a hero-flavoured finisher forged into hand (still doubled vs the
+  // staggered foe), plus, for some, an instant reaction that feeds their build.
+  { id: 'ash.exec',     hero: 'ash',     tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'When Ash STAGGERS a foe, he forges a free <b>Coup de Grâce</b> — <b>10 damage</b>, <b>doubled</b> against the staggered. Pure aggression ends the reeling.',
+    stagger: { name: 'Coup de Grâce', target: 'enemy', fx: { dmg: 10 }, desc: '<b>Free.</b> The break leaves them open — <b>10 damage</b>, doubled against a STAGGERED foe.' } },
+  { id: 'elin.exec',    hero: 'elin',    tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'When Elin STAGGERS a foe, she forges a free <b>Mercy’s End</b> — <b>8 holy damage</b> (doubled vs staggered) — and the whole party <b>heals <span class="kw kw-heal">✚ 3</span></b>. Even the mender ends what she breaks — and mends as she does.',
+    stagger: { name: 'Mercy’s End', target: 'enemy', fx: { dmg: 8 }, heal: 3, desc: '<b>Free.</b> A ray through the break — <b>8 holy damage</b>, doubled vs a STAGGERED foe.' } },
+  { id: 'mira.exec',    hero: 'mira',    tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'When Mira STAGGERS a foe, she forges a free <b>Death Blossom</b> — <b>7 damage</b> (doubled vs staggered) and <span class="kw kw-exposed">◎ EXPOSED 4</span>. She doesn’t just finish — she paints the kill for her whole mark-flow.',
+    stagger: { name: 'Death Blossom', target: 'enemy', fx: { dmg: 7, mark: 4 }, desc: '<b>Free.</b> A whirl of blades — <b>7 damage</b> (doubled vs STAGGERED) and <span class="kw kw-exposed">◎ EXPOSED 4</span>.' } },
+  { id: 'cassia.exec',  hero: 'cassia',  tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'When Cassia STAGGERS a foe, she forges a free <b>Bulwark Break</b> — <b>8 damage</b> (doubled vs staggered) <b>and Cassia gains <span class="kw kw-guard">⛨ 5</span></b>. The wall punishes the reeling and hardens as it does.',
+    stagger: { name: 'Bulwark Break', target: 'frontmost', fx: { dmg: 8, guard: 5 }, desc: '<b>Free.</b> The shield-edge crashes down — <b>8 damage</b> (doubled vs STAGGERED), and Cassia gains <span class="kw kw-guard">⛨ 5</span>.' } },
+  { id: 'branwen.exec', hero: 'branwen', tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'When Branwen STAGGERS a foe, she forges a free <b>Marksman’s Finish</b> — <b>10 damage</b> (doubled vs staggered) — <b>and refunds 1 EP</b>. The tally comes due; the hunt presses on.',
+    stagger: { name: 'Marksman’s Finish', target: 'enemy', fx: { dmg: 10 }, ep: 1, desc: '<b>Free.</b> A called shot through the break — <b>10 damage</b>, doubled vs a STAGGERED foe.' } },
 
   // ═══ AFTERIMAGE — earning the ECHO on the move.  Repositioning (the 1-EP dodge)
   // is always free; but the fading echo it leaves — the stance you left striking
@@ -2955,15 +2963,21 @@ function dealToEnemy(e, amt, school, byHeroId) {
       // target.  Staggering and marking now compound instead of living apart.
       e.mark = (e.mark || 0) + 3;
       popupAt(figEl(e.uid), '◎ EXPOSED 3', 'info');
-      // The break itself is baseline (burst + PRESS-ON EP below).  The free
-      // Coup de Grâce that CASHES it is an earned per-hero skill: only a hero who
-      // has kindled their EXECUTIONER node forges the killing card on a stagger.
+      // The break itself is baseline (burst + PRESS-ON EP below).  CASHING it is an
+      // earned per-hero skill (the EXECUTIONER node) — and each hero cashes it in
+      // their OWN voice: a hero-flavoured finisher forged into hand, plus, for
+      // some, an instant reaction that feeds their build (Elin mends, Cassia
+      // hardens, Branwen refunds EP).  Data-driven off node.stagger.
       if (byHeroId && HEROES[byHeroId] && hasNode(byHeroId + '.exec')) {
         const fh = S.heroes.find(x => x.id === byHeroId);
-        if (fh && !fh.downed) genTempCard({ kind: 'temp', owner: byHeroId, ownerName: fh.def.name, tint: fh.def.tint,
-          stance: 'FORGED · FINISHER', name: 'Coup de Grâce', cost: 0, target: 'enemy',
-          school: fh.def.school, fx: { dmg: 10 },
-          desc: '<b>Free.</b> The break leaves them wide open — <b>10 damage</b>, and a STAGGERED foe takes it doubled. End them while they reel.' });
+        const st = (NODE_BY_ID[byHeroId + '.exec'] || {}).stagger;
+        if (fh && !fh.downed && st) {
+          genTempCard({ kind: 'temp', owner: byHeroId, ownerName: fh.def.name, tint: fh.def.tint,
+            stance: 'FORGED · FINISHER', name: st.name, cost: 0, target: st.target || 'enemy',
+            school: fh.def.school, fx: Object.assign({}, st.fx), desc: st.desc });
+          if (st.ep) refundEp(st.ep);                                       // Branwen — the tally comes due
+          if (st.heal) livingHeroes().forEach(h => { if (!h.downed && h.hp < h.maxHp) { h.hp = Math.min(h.maxHp, h.hp + st.heal); popupAt(figEl(h.id), '✚' + st.heal, 'heal'); } });   // Elin — mends as she ends
+        }
       }
       if (!S._pressUsed) {
         S._pressUsed = true;
