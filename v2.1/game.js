@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 105;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 106;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -167,8 +167,6 @@ const EMBER_TREE = [
   { id: 'elin.rider.sanctuary', hero: 'elin', tier: 2, cost: 6, type: 'rider', requires: ['elin.sig.mid'], label: 'Warded Sanctuary', desc: 'Sanctuary (MID signature) also grants the ally <span class="kw kw-counter">↺ 1</span> — the sanctuary strikes back.', rider: { card: 'Sanctuary', fx: { counter: 1 }, descAdd: ' · <span class="kw kw-counter">↺ 1</span>' } },
 
   // MIRA — a deeper FRONT (vanish) line and a MID (twin) line
-  { id: 'mira.rider.vanish', hero: 'mira', tier: 2, cost: 6, type: 'rider', requires: ['mira.sig.front'], label: 'Whisper Edge', desc: 'Vanish Strike (FRONT signature) strikes for <b>+3</b> — the blade lands before the vanish.', rider: { card: 'Vanish Strike', fx: { dmg: 3 }, descAdd: ' · <b>+3</b>' } },
-  { id: 'mira.passive.ambush', hero: 'mira', tier: 3, cost: 8, type: 'passive', requires: ['mira.rider.vanish'], label: 'Ambush', desc: 'Whenever Mira changes rows, her next strike this turn deals <span class="kw kw-rally">▲ +4</span> — she kills from the shadow she slipped to.', passive: 'mira_ambush' },
   { id: 'mira.emergent.flurry', hero: 'mira', tier: 3, cost: 8, type: 'emergent', requires: ['mira.rider.twin'], label: 'Bladestorm', desc: 'Mira’s knives multiply. Every <b>3rd strike</b> she lands forges a free <b>Flurry</b> — the daggers keep coming.', emergent: { on: 'hit', every: 3, stance: 'FORGED · STORM', flash: 'The blades multiply — <b>Flurry</b> forged.', forge: { name: 'Flurry', cost: 0, target: 'enemy', fx: { dmg: 6, mark: 1 }, desc: '<b>Free.</b> A whirl of steel — <b>6 damage</b> and <span class="kw kw-exposed">◎ EXPOSED 1</span> to any foe.' } } },
 
   // CASSIA — a BACK (sentinel) line
@@ -184,7 +182,6 @@ const EMBER_TREE = [
   // rider fills the hole, and a BACK capstone finally caps the heal line.
 
   // MIRA — the MID (twin) line lacked its early rider; a MID capstone caps it.
-  { id: 'mira.rider.serrated', hero: 'mira', tier: 2, cost: 6, type: 'rider', requires: ['mira.sig.mid'], label: 'Serrated Edge', desc: 'Shadow Knife (MID core) cuts for <b>+2</b> and brands <span class="kw kw-exposed">◎ +1</span> — every nick bleeds.', rider: { card: 'Shadow Knife', fx: { dmg: 2, mark: 1 }, descAdd: ' · <b>+2</b> · <span class="kw kw-exposed">◎ +1</span>' } },
   { id: 'mira.passive.frenzy', hero: 'mira', tier: 4, cost: 12, type: 'passive', requires: ['mira.emergent.flurry'], label: 'Bloodfrenzy', desc: 'Each time Mira strikes an <span class="kw kw-exposed">◎ EXPOSED</span> foe, her NEXT strike deals <span class="kw kw-rally">▲ +2</span> — the kill feeds the next.', passive: 'mira_frenzy' },
 
   // CASSIA — the MID (aegis) line jumped T1→T3; a T2 rider fills it.
@@ -323,7 +320,6 @@ const PASSIVE_DEFS = {
   // ASH — TEMPO: motion is force, the duel never lets up
   ash_vanguard: { trigger: 'enterRow', apply: (c) => { if (c.toRow === 'front') { c.hero.guard += 3; popupAt(figEl(c.hero.id), '⛨ +3', 'guard'); } } },
   ash_exploit:  { trigger: 'dmgMod', mod: (o, t) => (o.id === 'ash' && t && t.mark ? 3 : 0) },
-  mira_ambush:  { trigger: 'enterRow', apply: (c) => { if (c.hero.id !== 'mira') return; c.hero.buffDmg += 4; popupAt(figEl(c.hero.id), '▲ AMBUSH +4', 'rally'); } },
   ash_relentless: { trigger: 'followup', apply: (c) => { if (!S._flags.ashRefund) { S._flags.ashRefund = true; refundEp(1); } } },
   // ELIN — LIGHT: the ward finds the hurt
   elin_ward:    { trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'elin') return; const t = lowestHpAlly(); if (t) { t.guard += 2; popupAt(figEl(t.id), '⛨ +2', 'guard'); } } },

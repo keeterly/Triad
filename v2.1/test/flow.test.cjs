@@ -1771,8 +1771,12 @@ const QUICK = process.argv.includes('--quick');
     await J(() => ['ash.rider.wave', 'ash.rider.flowcut', 'ash.emergent.riposte', 'ash.passive.flow'].every(id => !NODE_BY_ID[id])));
   check('CAPSTONES ash: distinct build-paths survive (relentless/warcry/execution/exploit)',
     await J(() => ['ash.passive.relentless', 'ash.synergy.warcry', 'ash.allout.execution', 'ash.passive.exploit'].every(id => !!NODE_BY_ID[id])));
-  check('COMBO mira.rider.serrated: Shadow Knife (MID core) hits +2 and marks +1',
-    await J(() => { setupFight(['mira'], ['mira.sig.mid', 'mira.rider.serrated'], { mira: 'mid' }); const c = handCard('Shadow Knife'); return !!c && c.fx.dmg === 6 && c.fx.mark === 4; }));
+  check('COMBO mira.rider.exploit: Backstab (FRONT core) also marks EXPOSED 2',
+    await J(() => { setupFight(['mira'], ['mira.sig.front', 'mira.rider.exploit'], { mira: 'front' }); const c = handCard('Backstab'); return !!c && c.fx.mark === 2; }));
+  check('PRUNE mira: flat rider + overlapping move-passive + redundant mark-rider removed',
+    await J(() => ['mira.rider.vanish', 'mira.passive.ambush', 'mira.rider.serrated'].every(id => !NODE_BY_ID[id])));
+  check('CAPSTONES mira: three distinct build-paths survive (deathmark/marked/frenzy)',
+    await J(() => ['mira.passive.deathmark', 'mira.synergy.marked', 'mira.passive.frenzy'].every(id => !!NODE_BY_ID[id])));
   check('COMBO mira.passive.frenzy: striking an EXPOSED foe buffs the next strike +2',
     await J(() => { setupFight(['mira'], ['mira.passive.frenzy'], { mira: 'mid' }); const h = S.heroes[0]; h.buffDmg = 0; const e = S.enemies[0]; e.mark = 2; firePassives('postHit', 'mira', { tgt: e }); return h.buffDmg === 2; }));
   check('COMBO cassia.rider.aegis: Aegis (MID signature) also grants counter 1',
