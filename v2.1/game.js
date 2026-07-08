@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 112;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 113;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -5971,14 +5971,14 @@ function renderActionBar() {
     el.dataset.cardName = card.name;
     el.dataset.target = card.target || 'none';
     el.dataset.kind = card.kind;
-    const isTemp = card.temp || card.kind === 'resonant';
     el.title = card.name + ' — ' + card.desc.replace(/<[^>]+>/g, '');
     // SACRIFICE is a gesture now (drag the card onto the EP dial) — no button.
+    // Forged/temporary cards need no ✧ badge — their dashed gold frame (and, for
+    // rotation steps, the COMBO/FINISHER role line) already reads as temporary.
     el.innerHTML = `
       <div class="c-top">
         <span class="c-cost tempo-${card.tempo || 'steady'}${card.cost === 0 ? ' c-free' : ''}"${card.cost === 0 ? ' title="Free — costs no EP"' : ''}>${card.cost === 0 ? '✦' : card.cost}</span>
         <span class="c-name">${card.name}</span>
-        ${isTemp ? `<span class="c-temp-mark">✧</span>` : ''}
       </div>
       <div class="c-fx">${cardIcons(card)}</div>
       <div class="c-desc">${card.desc}</div>
