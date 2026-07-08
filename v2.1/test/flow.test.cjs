@@ -1452,8 +1452,8 @@ const QUICK = process.argv.includes('--quick');
     window.handCard = (name) => buildHand().find(c => c.name === name);
   });
   // RIDERS — keywords bolt onto signatures at build time
-  check('TREE ash.rider.wave: Crashing Wave strikes +3 (11→14)',
-    await J(() => { setupFight(['ash'], ['ash.sig.front', 'ash.rider.wave'], { ash: 'front' }); const c = handCard('Crashing Wave'); return !!c && c.fx.dmg === 14; }));
+  check('TREE ash.rider.expose: Thrown Edge (BACK core) also marks EXPOSED 2',
+    await J(() => { setupFight(['ash'], ['ash.sig.back', 'ash.rider.expose'], { ash: 'back' }); const c = handCard('Thrown Edge'); return !!c && c.fx.mark === 2; }));
   check('TREE mira.rider.twin: Twin Daggers now also EXPOSED 3',
     await J(() => { setupFight(['mira'], ['mira.sig.mid', 'mira.rider.twin'], { mira: 'mid' }); const c = handCard('Twin Daggers'); return !!c && c.fx.mark === 3; }));
   check('TREE cassia.rider.aegis: Aegis also grants COUNTER 1',
@@ -1484,8 +1484,8 @@ const QUICK = process.argv.includes('--quick');
   check('TREE branwen.passive.opening: turn start EXPOSES the nearest foe',
     await J(() => { setupFight(['branwen'], ['branwen.passive.opening'], { branwen: 'back' }); frontmostEnemy().mark = 0; firePassives('turnStart', 'branwen', {}); return frontmostEnemy().mark === 1; }));
   // enterRow passives
-  check('TREE ash.passive.flow: changing rows rallies his next card +3',
-    await J(() => { setupFight(['ash'], ['ash.passive.flow'], { ash: 'front' }); const h = S.heroes[0]; h.buffDmg = 0; firePassives('enterRow', 'ash', { toRow: 'mid', fromRow: 'front' }); return h.buffDmg === 3; }));
+  check('TREE ash.passive.vanguard: closing to FRONT braces him for guard 3',
+    await J(() => { setupFight(['ash'], ['ash.passive.vanguard'], { ash: 'mid' }); const h = S.heroes[0]; h.guard = 0; firePassives('enterRow', 'ash', { toRow: 'front', fromRow: 'mid' }); return h.guard === 3; }));
   // EP-refund latches (once per turn)
   check('TREE ash.passive.relentless: 1st follow-up refunds 1 EP, the 2nd does not',
     await J(() => { setupFight(['ash', 'mira'], ['ash.passive.relentless'], { ash: 'front', mira: 'mid' }); S._flags = {}; S.ep = 5; firePassives('followup', 'ash', {}); const a = S.ep; firePassives('followup', 'ash', {}); return a === 6 && S.ep === 6; }));
@@ -1767,6 +1767,10 @@ const QUICK = process.argv.includes('--quick');
     await J(() => ['elin.rider.searing', 'elin.rider.mercy', 'elin.rider.warmth', 'elin.passive.evensong', 'elin.emergent.warden', 'elin.emergent.afterglow', 'elin.allout.dawn'].every(id => !NODE_BY_ID[id])));
   check('CAPSTONES elin: three distinct build-paths survive (inverse/overflow/blessing)',
     await J(() => ['elin.inverse', 'elin.passive.overflow', 'elin.synergy.blessing'].every(id => !!NODE_BY_ID[id])));
+  check('PRUNE ash: flat rider + off-theme guard-forge + overlapping move-passive removed',
+    await J(() => ['ash.rider.wave', 'ash.rider.flowcut', 'ash.emergent.riposte', 'ash.passive.flow'].every(id => !NODE_BY_ID[id])));
+  check('CAPSTONES ash: distinct build-paths survive (relentless/warcry/execution/exploit)',
+    await J(() => ['ash.passive.relentless', 'ash.synergy.warcry', 'ash.allout.execution', 'ash.passive.exploit'].every(id => !!NODE_BY_ID[id])));
   check('COMBO mira.rider.serrated: Shadow Knife (MID core) hits +2 and marks +1',
     await J(() => { setupFight(['mira'], ['mira.sig.mid', 'mira.rider.serrated'], { mira: 'mid' }); const c = handCard('Shadow Knife'); return !!c && c.fx.dmg === 6 && c.fx.mark === 4; }));
   check('COMBO mira.passive.frenzy: striking an EXPOSED foe buffs the next strike +2',
@@ -1928,7 +1932,7 @@ const QUICK = process.argv.includes('--quick');
       const names = buildHand().map(c => c.name);
       return rotationFor(S.heroes[0]) === null && names.includes('Cleave') && names.includes('Crashing Wave'); }));
   check('ROTATION on: Ash-front shows ONE live card — the opener (Cleave, 2 EP)',
-    await J(() => { setupFight(['ash'], ['ash.rider.wave'], { ash: 'front' }); S._rotations = true; renderAll();
+    await J(() => { setupFight(['ash'], ['ash.exec'], { ash: 'front' }); S._rotations = true; renderAll();
       const hand = buildHand().filter(c => c.owner === 'ash');
       return hand.length === 1 && hand[0].kind === 'opener' && hand[0].name === 'Cleave' && hand[0].cost === 2 && !!rotationFor(S.heroes[0]); }));
   check('ROTATION EARNED: base line is opener → FINISHER (a short combo) — no builder, no fork, before any skill',
@@ -1937,15 +1941,15 @@ const QUICK = process.argv.includes('--quick');
       // the opener forges the FINISHER directly (Crashing Wave), not the builder
       return S.tempCards.length === 1 && S.tempCards[0].name === 'Crashing Wave'; }));
   check('ROTATION BUILDER node (signature) inserts a middle step: opener → builder → finisher',
-    await J(() => { setupFight(['ash'], ['ash.sig.front', 'ash.rider.wave'], { ash: 'front' }); S._rotations = true; renderAll();
+    await J(() => { setupFight(['ash'], ['ash.sig.front'], { ash: 'front' }); S._rotations = true; renderAll();
       const op = buildHand().find(c => c.kind === 'opener'); S.tempCards = []; resolveChainPlay(op);
       // opener now forges the BUILDER (Rising Slash), not the finisher directly; no fork yet
       const builder = S.tempCards.length === 1 && S.tempCards[0].name === 'Rising Slash';
       const rs = S.tempCards[0]; S.tempCards = S.tempCards.filter(t => t.uid !== rs.uid); resolveChainPlay(rs);
       const cw = S.tempCards.find(c => c.name === 'Crashing Wave');
-      return builder && !!cw && cw.fx.dmg === 14; }));   // builder → finisher, and the rider still bites (11 → 14)
+      return builder && !!cw && cw.fx.dmg === 11; }));   // builder → finisher (base Crashing Wave 11)
   check('ROTATION FORK node adds the branch (needs the builder): opener forges BOTH lines with a pick event',
-    await J(() => { setupFight(['ash'], ['ash.sig.front', 'ash.branch.front', 'ash.rider.wave'], { ash: 'front' }); S._rotations = true; renderAll();
+    await J(() => { setupFight(['ash'], ['ash.sig.front', 'ash.branch.front'], { ash: 'front' }); S._rotations = true; renderAll();
       const op = buildHand().find(c => c.kind === 'opener'); S.tempCards = []; resolveChainPlay(op);
       const rs = S.tempCards.find(c => c.name === 'Rising Slash'), su = S.tempCards.find(c => c.name === 'Sunder');
       return S.tempCards.length === 2 && !!rs && !!su && rs.cost === 0 && su.cost === 0

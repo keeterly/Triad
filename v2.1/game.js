@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 104;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 105;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -126,8 +126,6 @@ const EMBER_TREE = [
   // allout), read by the shared hooks above. ═══════════════════════════════════
 
   // ASH — TEMPO: momentum, repositioning, follow-ups
-  { id: 'ash.rider.wave', hero: 'ash', tier: 2, cost: 6, type: 'rider', requires: ['ash.sig.front'], label: 'Crushing Wave', desc: 'Crashing Wave (FRONT signature) strikes for <b>+3</b> — the cleave lands heavier.', rider: { card: 'Crashing Wave', fx: { dmg: 3 }, descAdd: ' · <b>+3</b>' } },
-  { id: 'ash.passive.flow', hero: 'ash', tier: 3, cost: 8, type: 'passive', requires: ['ash.passive.vanguard'], label: 'Flowing Momentum', desc: 'Whenever Ash changes rows, his next damaging card this turn deals <span class="kw kw-rally">▲ +3</span> — motion becomes force.', passive: 'ash_flow' },
   { id: 'ash.passive.relentless', hero: 'ash', tier: 4, cost: 12, type: 'passive', requires: ['ash.emergent.tempo'], label: 'Relentless', desc: 'The FIRST <span class="kw kw-rally">FOLLOW-UP</span> Ash lands each turn refunds <b>1 EP</b> — the duel never lets up.', passive: 'ash_relentless' },
 
   // ELIN — LIGHT: wards, overheal shields, party sustain
@@ -163,8 +161,6 @@ const EMBER_TREE = [
   // ═══ STANCE PATHWAYS — every position now grows its own branch, so all three
   // rows reward investment (not just each hero's one favoured stance). ══════════
   // ASH — the MID (flow) line and a deeper BACK (mark) line
-  { id: 'ash.rider.flowcut', hero: 'ash', tier: 2, cost: 6, type: 'rider', requires: ['ash.sig.mid'], label: 'Flowing Guard', desc: 'Flowing Cut (MID core) strikes for <b>+2</b> and guards <span class="kw kw-guard">⛨ +2</span> — flow becomes footing.', rider: { card: 'Flowing Cut', fx: { dmg: 2, guard: 2 }, descAdd: ' · <b>+2</b> · <span class="kw kw-guard">⛨ +2</span>' } },
-  { id: 'ash.emergent.riposte', hero: 'ash', tier: 3, cost: 8, type: 'emergent', requires: ['ash.rider.flowcut'], label: 'Riposte Flow', desc: 'Ash reads the blade. Every <b>2nd time he raises guard</b> forges a free <b>Riposte</b> — the block becomes a cut.', emergent: { on: 'guard', every: 2, stance: 'FORGED · FLOW', flash: 'He turns the guard into a cut — <b>Riposte</b> forged.', forge: { name: 'Riposte', cost: 0, target: 'enemy', fx: { dmg: 7 }, desc: '<b>Free.</b> The parried blow answered — <b>7 damage</b> to any foe.' } } },
   { id: 'ash.passive.exploit', hero: 'ash', tier: 3, cost: 8, type: 'passive', requires: ['ash.rider.expose'], label: 'Opening Read', desc: 'Ash deals <b>+3</b> to any <span class="kw kw-exposed">◎ EXPOSED</span> foe — his marks are his to cash.', passive: 'ash_exploit' },
 
   // ELIN — a deeper MID (ward) line
@@ -326,7 +322,6 @@ function fireEmergent(heroId, event, card) {
 const PASSIVE_DEFS = {
   // ASH — TEMPO: motion is force, the duel never lets up
   ash_vanguard: { trigger: 'enterRow', apply: (c) => { if (c.toRow === 'front') { c.hero.guard += 3; popupAt(figEl(c.hero.id), '⛨ +3', 'guard'); } } },
-  ash_flow:     { trigger: 'enterRow', apply: (c) => { c.hero.buffDmg += 3; popupAt(figEl(c.hero.id), '▲ +3 NEXT', 'rally'); } },
   ash_exploit:  { trigger: 'dmgMod', mod: (o, t) => (o.id === 'ash' && t && t.mark ? 3 : 0) },
   mira_ambush:  { trigger: 'enterRow', apply: (c) => { if (c.hero.id !== 'mira') return; c.hero.buffDmg += 4; popupAt(figEl(c.hero.id), '▲ AMBUSH +4', 'rally'); } },
   ash_relentless: { trigger: 'followup', apply: (c) => { if (!S._flags.ashRefund) { S._flags.ashRefund = true; refundEp(1); } } },
