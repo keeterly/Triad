@@ -1906,20 +1906,27 @@ const QUICK = process.argv.includes('--quick');
     await J(() => { setupFight(['ash'], ['ash.rider.wave'], { ash: 'front' }); S._rotations = true; renderAll();
       const hand = buildHand().filter(c => c.owner === 'ash');
       return hand.length === 1 && hand[0].kind === 'opener' && hand[0].name === 'Cleave' && hand[0].cost === 2 && !!rotationFor(S.heroes[0]); }));
-  check('ROTATION base line is LINEAR until the branch gate (the stance signature node) is owned',
+  check('ROTATION EARNED: base line is opener → builder ONLY — no finisher, no fork, before any skill',
     await J(() => { const op = buildHand().find(c => c.kind === 'opener'); S.tempCards = []; resolveChainPlay(op);
-      const names = S.tempCards.map(c => c.name);
-      return S.tempCards.length === 1 && names.includes('Rising Slash') && !names.includes('Sunder'); }));
-  check('ROTATION owning the signature node opens the fork: opener forges BOTH — free, same group, this turn only',
+      const oneBuilder = S.tempCards.length === 1 && S.tempCards[0].name === 'Rising Slash';
+      const rs = S.tempCards[0]; S.tempCards = S.tempCards.filter(t => t.uid !== rs.uid); resolveChainPlay(rs);
+      const noFinisher = !S.tempCards.some(c => c.name === 'Crashing Wave');   // the finisher is EARNED, not free
+      return oneBuilder && noFinisher; }));
+  check('ROTATION FINISHER node (signature) completes the line: the builder now forges the finisher',
     await J(() => { setupFight(['ash'], ['ash.sig.front', 'ash.rider.wave'], { ash: 'front' }); S._rotations = true; renderAll();
+      const op = buildHand().find(c => c.kind === 'opener'); S.tempCards = []; resolveChainPlay(op);
+      const stillLinear = S.tempCards.length === 1 && !S.tempCards.some(c => c.name === 'Sunder');   // no fork yet (branch not owned)
+      const rs = S.tempCards[0]; S.tempCards = S.tempCards.filter(t => t.uid !== rs.uid); resolveChainPlay(rs);
+      const cw = S.tempCards.find(c => c.name === 'Crashing Wave');
+      return stillLinear && !!cw && cw.fx.dmg === 14; }));   // finisher forged, and the rider still bites (11 → 14)
+  check('ROTATION BRANCH node opens the FORK: opener forges BOTH lines — free, same group, this turn, with a pick event',
+    await J(() => { setupFight(['ash'], ['ash.sig.front', 'ash.branch.front', 'ash.rider.wave'], { ash: 'front' }); S._rotations = true; renderAll();
       const op = buildHand().find(c => c.kind === 'opener'); S.tempCards = []; resolveChainPlay(op);
       const rs = S.tempCards.find(c => c.name === 'Rising Slash'), su = S.tempCards.find(c => c.name === 'Sunder');
       return S.tempCards.length === 2 && !!rs && !!su && rs.cost === 0 && su.cost === 0
-        && rs.branchGroup === su.branchGroup && rs.expiresTurn === S.turn; }));
-  check('ROTATION a fork emits a FORGE EVENT (both new uids, flagged as a pick) for the return-split showcase',
-    await J(() => !!S._forgeEvent && S._forgeEvent.pick === true && S._forgeEvent.uids.length === 2
-      && S._forgeEvent.heroId === 'ash' && typeof forgeReturnFx === 'function' && typeof captureForgeAnchors === 'function'));
-  check('ROTATION picking a branch BURNS the unpicked sibling (on drop) and forges the finisher',
+        && rs.branchGroup === su.branchGroup && rs.expiresTurn === S.turn
+        && !!S._forgeEvent && S._forgeEvent.pick === true && S._forgeEvent.uids.length === 2; }));
+  check('ROTATION picking a branch BURNS the unpicked sibling (on drop) and forges that line’s finisher',
     await J(() => { const rs = S.tempCards.find(c => c.name === 'Rising Slash');
       burnUnpickedSiblings(rs);                                 // playCard does this the instant the card drops
       S.tempCards = S.tempCards.filter(t => t.uid !== rs.uid);  // playCard removes the played temp card
@@ -1927,8 +1934,6 @@ const QUICK = process.argv.includes('--quick');
       const names = S.tempCards.map(c => c.name);
       return names.includes('Crashing Wave') && !names.includes('Sunder') && !names.includes('Rising Slash')
         && typeof burnUnpickedSiblings === 'function'; }));
-  check('ROTATION riders still bite on forged finishers (Crashing Wave +3 via ash.rider.wave → 14)',
-    await J(() => { const cw = S.tempCards.find(c => c.name === 'Crashing Wave'); return !!cw && cw.fx.dmg === 14; }));
   check('ROTATION stance change abandons the in-progress chain (purgeChain clears forged steps)',
     await J(() => { purgeChain('ash'); return S.tempCards.filter(c => c.chain).length === 0; }));
   check('ROTATION all FIVE heroes × 3 stances declare a full opener→builder→finisher chain + a gated branch',
@@ -1949,13 +1954,13 @@ const QUICK = process.argv.includes('--quick');
     await J(() => { setupFight(['cassia'], ROTATION_GATES.concat(['cassia.sig.front']), { cassia: 'front' }); S._rotations = true; renderAll();
       const op = buildHand().find(c => c.kind === 'opener');
       return !!op && op.name === 'Shield Bash' && op.cost === 2; }));
-  check('ROTATION dev preview is the FULL build — whole party, all branch gates unlocked',
+  check('ROTATION dev preview is the FULL build — all 30 rotation gates (15 finishers + 15 forks) unlocked',
     await J(() => typeof devPreviewRotations === 'function'
       && devPreviewRotations.toString().includes('_rotations = true')
       && devPreviewRotations.toString().includes('ROTATION_GATES')
-      && Array.isArray(ROTATION_GATES) && ROTATION_GATES.length === 15));
+      && Array.isArray(ROTATION_GATES) && ROTATION_GATES.length === 30));
   check('ROTATION forged steps sit in the HERO’s slot, not appended to the far right of the hand',
-    await J(() => { setupFight(['ash', 'elin'], ['ash.sig.front'], { ash: 'front', elin: 'mid' }); S._rotations = true; renderAll();
+    await J(() => { setupFight(['ash', 'elin'], ['ash.sig.front', 'ash.branch.front'], { ash: 'front', elin: 'mid' }); S._rotations = true; renderAll();
       const op = buildHand().find(c => c.kind === 'opener' && c.owner === 'ash'); S.tempCards = []; resolveChainPlay(op);
       const names = buildHand().map(c => c.name);
       const iRs = names.indexOf('Rising Slash'), iSu = names.indexOf('Sunder'), iMend = names.indexOf('Mend');
