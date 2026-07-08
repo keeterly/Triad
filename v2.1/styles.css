@@ -457,39 +457,27 @@ body {
 }
 
 /* Fallback burn-in for a forged card when the return flight can't play (no
-   origin captured) — a plain rise, same feel as an emergent forge. */
+   origin captured) — a plain rise.  transform/opacity only (compositor-cheap):
+   no animated box-shadow/filter, which force per-frame repaints on mobile. */
 .card.card-forge-in {
-  animation: card-forge 0.62s cubic-bezier(0.3, 1.4, 0.5, 1) backwards;
+  animation: card-forge 0.6s cubic-bezier(0.3, 1.4, 0.5, 1) backwards;
   animation-delay: var(--forge-delay, 0ms);
+  will-change: transform, opacity;
 }
 @keyframes card-forge {
-  0%   { transform: translateY(18px) scale(0.42); opacity: 0; filter: brightness(3.4) saturate(1.6); }
+  0%   { transform: translateY(18px) scale(0.42); opacity: 0; }
   45%  { opacity: 1; }
-  60%  { transform: translateY(-5px) scale(1.08); box-shadow: 0 0 26px 4px rgba(240, 190, 96, 0.85); filter: brightness(1.5); }
-  100% { transform: none; box-shadow: none; filter: none; }
-}
-
-/* NB: the reverse flight (the card bouncing from the struck target back to its
-   slot) is driven by INLINE JS transitions in forgeReturnFx — exactly like
-   flyCard — precisely so `prefers-reduced-motion` can't suppress it.  Do not
-   reintroduce a CSS-animation version here or it will vanish under Reduce Motion. */
-
-/* A forged step EMERGING from the origin slot: it starts at the returned card's
-   position (--from-dx/dy) and slides into its own slot, flaring ember-gold.  Two
-   of these, staggered, read as the card SPLITTING into a fork. */
-.card.card-forge-split {
-  animation: card-forge-split 0.5s cubic-bezier(0.3, 1.4, 0.5, 1) backwards;
-  animation-delay: var(--forge-delay, 0ms);
-}
-@keyframes card-forge-split {
-  0%   { transform: translate(var(--from-dx, 0), var(--from-dy, 0)) scale(0.36); opacity: 0; filter: brightness(3.2) saturate(1.6); }
-  45%  { opacity: 1; }
-  70%  { transform: translate(0, -4px) scale(1.08); box-shadow: 0 0 24px 4px rgba(240, 190, 96, 0.85); filter: brightness(1.5); }
-  100% { transform: none; box-shadow: none; filter: none; }
+  60%  { transform: translateY(-5px) scale(1.08); }
+  100% { transform: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .card.card-forge-in, .card.card-forge-split { animation: card-burn 0.4s ease-out backwards; }
+  .card.card-forge-in { animation: card-burn 0.4s ease-out backwards; }
 }
+
+/* NB: the reverse flight, the divide/flip, and the split-glow are all driven by
+   INLINE JS transitions (transform/opacity only) in forgeReturnFx — so they play
+   under prefers-reduced-motion AND stay cheap to composite.  Don't reintroduce a
+   CSS-animation version, and don't animate box-shadow/filter on cards. */
 
 /* ---- popups ---- */
 #popup-layer { position: absolute; inset: 0; pointer-events: none; z-index: 20; }

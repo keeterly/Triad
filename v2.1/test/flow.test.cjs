@@ -19,6 +19,11 @@ const QUICK = process.argv.includes('--quick');
 
   const t = await boot({ flow: 0 });
   const { J, shot, check, sleep, tapCard, pickTarget, endTurn, dismissCeremony, clickOverlayBtn } = t;
+  // The flow suite exercises the SHARED combat mechanics (stances, threads, triad,
+  // duet, burst, boss) through CLASSIC hands, still shipped by the tutorial.  This
+  // persisted flag forces classic across every run the suite spins up; the
+  // branching-rotation descent gets its own ROTATION block (which clears it).
+  await J(() => { try { localStorage.setItem('kizuna2_1.forceClassic', '1'); } catch (_) {} });
 
   // ---------- ONBOARDING: choose your survivor (v1-style solo start) ----------
   console.log('--- ONBOARDING ---');
@@ -1416,6 +1421,7 @@ const QUICK = process.argv.includes('--quick');
       RUN.nodes = nodeIds.slice();
       RUN.completed = [0, 1, 2, 3, 4, 5, 6, 7, 8];   // depth 9 → all four tiers open
       RUN.bonds = {};
+      RUN._rotations = false;   // this helper exercises the CLASSIC tree mechanics (riders/passives); the ROTATION block flips it on per-test
       startMapFight(RUN.map.find(x => x.type === 'fight'));
       if (rows) S.heroes.forEach(h => { if (rows[h.id]) h.row = rows[h.id]; });
       S.ep = 20; renderAll();
@@ -1882,22 +1888,30 @@ const QUICK = process.argv.includes('--quick');
       return !!c1 && c1 === c2 && !!c3 && c3 !== c1;
     }));
 
-  // ---------- BRANCHING ROTATIONS (preview engine) ----------
+  // ---------- BRANCHING ROTATIONS (the descent combat system) ----------
   console.log('--- ROTATIONS ---');
+  await J(() => { try { localStorage.removeItem('kizuna2_1.forceClassic'); } catch (_) {} });   // real rotations from here
+  check('SWAP: a real DESCENT fight (useRunHp) now defaults to ROTATIONS; the tutorial stays classic',
+    await J(() => { RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash']; RUN.hp = { ash: HEROES.ash.maxHp }; delete RUN._rotations;
+      startMapFight(RUN.map.find(x => x.type === 'fight'));   // a real descent fight
+      const descentRot = S._rotations === true && !!rotationFor(S.heroes[0]);
+      // the same engine with a NON-useRunHp (tutorial) node stays classic
+      const tutClassic = newBattle({ heroes: ['ash'], enemies: ['husk'] })._rotations === false;
+      return descentRot && tutClassic; }));
   check('ROTATION off by default: a chain hero still shows the classic core+sig hand',
     await J(() => { setupFight(['ash'], ['ash.sig.front'], { ash: 'front' }); S._rotations = false;
       const names = buildHand().map(c => c.name);
       return rotationFor(S.heroes[0]) === null && names.includes('Cleave') && names.includes('Crashing Wave'); }));
   check('ROTATION on: Ash-front shows ONE live card — the opener (Cleave, 2 EP)',
-    await J(() => { setupFight(['ash'], ['ash.sig.front', 'ash.rider.wave'], { ash: 'front' }); S._rotations = true; renderAll();
+    await J(() => { setupFight(['ash'], ['ash.rider.wave'], { ash: 'front' }); S._rotations = true; renderAll();
       const hand = buildHand().filter(c => c.owner === 'ash');
       return hand.length === 1 && hand[0].kind === 'opener' && hand[0].name === 'Cleave' && hand[0].cost === 2 && !!rotationFor(S.heroes[0]); }));
-  check('ROTATION base line is LINEAR until the branch gate is owned (opener forges ONE builder)',
+  check('ROTATION base line is LINEAR until the branch gate (the stance signature node) is owned',
     await J(() => { const op = buildHand().find(c => c.kind === 'opener'); S.tempCards = []; resolveChainPlay(op);
       const names = S.tempCards.map(c => c.name);
       return S.tempCards.length === 1 && names.includes('Rising Slash') && !names.includes('Sunder'); }));
-  check('ROTATION owning the gate opens the fork: opener forges BOTH — free, same group, this turn only',
-    await J(() => { setupFight(['ash'], ['ash.sig.front', 'ash.rider.wave', 'rot.ash.front'], { ash: 'front' }); S._rotations = true; renderAll();
+  check('ROTATION owning the signature node opens the fork: opener forges BOTH — free, same group, this turn only',
+    await J(() => { setupFight(['ash'], ['ash.sig.front', 'ash.rider.wave'], { ash: 'front' }); S._rotations = true; renderAll();
       const op = buildHand().find(c => c.kind === 'opener'); S.tempCards = []; resolveChainPlay(op);
       const rs = S.tempCards.find(c => c.name === 'Rising Slash'), su = S.tempCards.find(c => c.name === 'Sunder');
       return S.tempCards.length === 2 && !!rs && !!su && rs.cost === 0 && su.cost === 0
@@ -1941,14 +1955,14 @@ const QUICK = process.argv.includes('--quick');
       && devPreviewRotations.toString().includes('ROTATION_GATES')
       && Array.isArray(ROTATION_GATES) && ROTATION_GATES.length === 15));
   check('ROTATION forged steps sit in the HERO’s slot, not appended to the far right of the hand',
-    await J(() => { setupFight(['ash', 'elin'], ['ash.sig.front', 'rot.ash.front'], { ash: 'front', elin: 'mid' }); S._rotations = true; renderAll();
+    await J(() => { setupFight(['ash', 'elin'], ['ash.sig.front'], { ash: 'front', elin: 'mid' }); S._rotations = true; renderAll();
       const op = buildHand().find(c => c.kind === 'opener' && c.owner === 'ash'); S.tempCards = []; resolveChainPlay(op);
       const names = buildHand().map(c => c.name);
       const iRs = names.indexOf('Rising Slash'), iSu = names.indexOf('Sunder'), iMend = names.indexOf('Mend');
       // Ash (first hero) forged cards precede Elin's opener — grouped in Ash's slot
       return iRs >= 0 && iSu >= 0 && iMend >= 0 && iRs < iMend && iSu < iMend; }));
   check('ROTATION bounce-back: origin = the HOME slot (drag-start), start = the struck ENEMY (hurl impact)',
-    await J(() => { setupFight(['ash'], ['ash.sig.front', 'rot.ash.front'], { ash: 'front' }); S._rotations = true; renderAll();
+    await J(() => { setupFight(['ash'], ['ash.sig.front'], { ash: 'front' }); S._rotations = true; renderAll();
       const op = buildHand().find(c => c.kind === 'opener'); const en = S.enemies.find(e => !e.dead);
       _forgeDrag = { name: op.name, owner: op.owner, homeX: 120, homeY: 405 };   // a real drag (home slot from drag start)
       captureForgeAnchors(op, en.uid);
