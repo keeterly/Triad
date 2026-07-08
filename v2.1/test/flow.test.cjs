@@ -480,7 +480,7 @@ const QUICK = process.argv.includes('--quick');
   await J(() => {
     hideOverlay();
     if (!RUN) RUN = newRun('ash');
-    RUN.nodes = ['ash.sig.front'];   // solo Ash keeps BOTH his core + signature (small-party hand)
+    RUN.nodes = ['ash.sig.front', 'ash.exec'];   // core+sig hand, and Ash can EXECUTE a stagger (Coup de Grâce)
     // SOLO drill: at a full trio the hand tapers to one card/hero, so the
     // same-turn weakness→stagger double is a solo/duo play (or, at trio, routed
     // through a movement Echo).  Test the core mechanic where Ash holds both.
@@ -505,6 +505,17 @@ const QUICK = process.argv.includes('--quick');
   check('the FREE finisher cashed the ×2 (10 -> 20)', await J(() => S.enemies[0].hp) === hpMid - 20, 'hp ' + hpMid + '->' + await J(() => S.enemies[0].hp));
   check('stagger consumed by the payoff', await J(() => !S.enemies[0].staggered));
   check('the forged card burned away on use', await J(() => !document.querySelector('#hand .card[data-card-name="Coup de Grâce"]')));
+  check('EXECUTIONER gate: WITHOUT the node the break still lands + pays EP, but NO free Coup de Grâce',
+    await J(() => {
+      RUN.nodes = ['ash.sig.front'];   // Ash has NOT kindled Executioner
+      startFight({ type: 'fight', chapter: 3, heroes: ['ash'], enemies: ['wraith'], narrator: 'gate drill' });
+      S.enemies[0].hp = S.enemies[0].maxHp = 40; S.ep = 8; renderAll();
+      const e = S.enemies[0], ep0 = S.ep;
+      dealToEnemy(e, 4, 'blade', 'ash');    // WEAKENED
+      dealToEnemy(e, 4, 'blade', 'ash');    // STAGGERED
+      return e.staggered === true && S.ep === ep0 + 1                             // break + PRESS-ON EP still happen
+        && !document.querySelector('#hand .card[data-card-name="Coup de Grâce"]') // but the killing card is gated
+        && !S.tempCards.some(c => c.name === 'Coup de Grâce'); }));
   // INTERRUPT — the Bloodborne moment
   await J(() => {
     hideOverlay();

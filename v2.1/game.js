@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 94;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 95;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -233,6 +233,16 @@ const EMBER_TREE = [
   { id: 'branwen.branch.front', hero: 'branwen', tier: 2, cost: 6, type: 'branch', requires: ['branwen.sig.front'], label: 'Mark Fork', desc: 'FRONT fork — <b>Backstep Shot</b> also opens <b>Hunter’s Mark</b> (<span class="kw kw-exposed">◎ EXPOSED 4</span> · slip) → <b>Marked Fate</b> (<span class="kw kw-exposed">◎ EXPOSED 4</span>).' },
   { id: 'branwen.branch.mid',   hero: 'branwen', tier: 2, cost: 6, type: 'branch', requires: ['branwen.sig.mid'],   label: 'Pierce Fork', desc: 'MID fork — <b>Aimed Shot</b> also opens <b>Called Shot</b> (<span class="kw kw-exposed">◎ EXPOSED 2</span>) → <b>Piercing Shot</b> (10 dmg).' },
   { id: 'branwen.branch.back',  hero: 'branwen', tier: 2, cost: 6, type: 'branch', requires: ['branwen.sig.back'],  label: 'Rain Fork',  desc: 'BACK fork — <b>Marking Arrow</b> also opens <b>Rapid Nock</b> (4 dmg) → <b>Volley Shot</b> (6 dmg · <span class="kw kw-exposed">◎ EXPOSED 2</span>).' },
+
+  // ═══ EXECUTIONER — cashing the STAGGER.  Breaking a foe (hitting its weakness
+  // twice in a turn) is always worth burst + PRESS-ON EP; but the free
+  // Coup de Grâce that ENDS the reeling foe is a per-hero unlock.  Who on your
+  // party can execute a break is part of the build. ══════════════════════════════
+  { id: 'ash.exec',     hero: 'ash',     tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'When Ash STAGGERS a foe, he forges a free <b>Coup de Grâce</b> — <b>10 damage</b>, <b>doubled</b> against the staggered. The break becomes a killing card.' },
+  { id: 'elin.exec',    hero: 'elin',    tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'When Elin STAGGERS a foe, she forges a free <b>Coup de Grâce</b> — <b>10 damage</b>, <b>doubled</b> against the staggered. Even the mender ends what she breaks.' },
+  { id: 'mira.exec',    hero: 'mira',    tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'When Mira STAGGERS a foe, she forges a free <b>Coup de Grâce</b> — <b>10 damage</b>, <b>doubled</b> against the staggered. The break is hers to finish.' },
+  { id: 'cassia.exec',  hero: 'cassia',  tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'When Cassia STAGGERS a foe, she forges a free <b>Coup de Grâce</b> — <b>10 damage</b>, <b>doubled</b> against the staggered. The wall ends the reeling.' },
+  { id: 'branwen.exec', hero: 'branwen', tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'When Branwen STAGGERS a foe, she forges a free <b>Coup de Grâce</b> — <b>10 damage</b>, <b>doubled</b> against the staggered. The break is a marked kill.' },
 ];
 const NODE_BY_ID = {};
 EMBER_TREE.forEach(n => { NODE_BY_ID[n.id] = n; });
@@ -2906,9 +2916,10 @@ function dealToEnemy(e, amt, school, byHeroId) {
       gainMomentum(18);                            // the BREAK is a big surge
       popupAt(figEl(e.uid), '⚡ STAGGERED', 'info');
       SFX.follow();
-      // The stagger forges a finisher in the staggerer's hand — the reward
-      // for engineering the state is the card that cashes it.
-      if (byHeroId && HEROES[byHeroId]) {
+      // The break itself is baseline (burst + PRESS-ON EP below).  The free
+      // Coup de Grâce that CASHES it is an earned per-hero skill: only a hero who
+      // has kindled their EXECUTIONER node forges the killing card on a stagger.
+      if (byHeroId && HEROES[byHeroId] && hasNode(byHeroId + '.exec')) {
         const fh = S.heroes.find(x => x.id === byHeroId);
         if (fh && !fh.downed) genTempCard({ kind: 'temp', owner: byHeroId, ownerName: fh.def.name, tint: fh.def.tint,
           stance: 'FORGED · FINISHER', name: 'Coup de Grâce', cost: 0, target: 'enemy',
@@ -6284,7 +6295,7 @@ function devPreviewRotations() {
   RUN.hp = {}; RUN.roster.forEach(id => { RUN.hp[id] = HEROES[id].maxHp; });
   // full card kit + every hero's riders (so name-keyed riders bite) + ALL branch
   // gates (the fully-grown rotation — the intended endgame shape)
-  RUN.nodes = EMBER_TREE.filter(n => n.type === 'card' || n.type === 'rider').map(n => n.id).concat(ROTATION_GATES);
+  RUN.nodes = EMBER_TREE.filter(n => n.type === 'card' || n.type === 'rider' || n.type === 'execute').map(n => n.id).concat(ROTATION_GATES);
   RUN.bonds = { 'ash|elin': BOND_KINDLED, 'ash|mira': BOND_KINDLED, 'elin|mira': BOND_KINDLED };
   RUN.floor = 2; RUN.completed = [0];
   RUN._rotations = true;   // the whole point — this run runs the new engine
@@ -6422,8 +6433,8 @@ function showSettings() {
 // THE EMBER TREE — a branching constellation.  Each hero's nodes hang from a
 // root along lit paths; a node's PREREQUISITE feeds it down a thread.  Pick a
 // node to read it in the detail bar, then kindle it.
-const TREE_TYPE_LABEL = { card: 'BUILDER', rider: 'UPGRADE', passive: 'PASSIVE', allout: 'ALL-OUT', emergent: 'EMERGENT', synergy: 'TEAM SYNERGY', branch: 'FORK' };
-const TREE_TYPE_GLYPH = { card: '❖', rider: '⊕', passive: '❉', allout: '✷', emergent: '✦', synergy: '☍', branch: '⑂' };
+const TREE_TYPE_LABEL = { card: 'BUILDER', rider: 'UPGRADE', passive: 'PASSIVE', allout: 'ALL-OUT', emergent: 'EMERGENT', synergy: 'TEAM SYNERGY', branch: 'FORK', execute: 'EXECUTIONER' };
+const TREE_TYPE_GLYPH = { card: '❖', rider: '⊕', passive: '❉', allout: '✷', emergent: '✦', synergy: '☍', branch: '⑂', execute: '☠' };
 const TREE_HEROES = EMBER_TREE.reduce((a, n) => (a.includes(n.hero) ? a : a.concat(n.hero)), []);
 const TREE_PAN = {};   // per-hero pan offset, kept across re-renders (selecting a node re-renders)
 // Drag-to-pan the constellation so outer-ring nodes (the tier-3/4 arms that
