@@ -1557,6 +1557,29 @@ const QUICK = process.argv.includes('--quick');
       const bracedAll = S.heroes.every(h => h.guard >= 5);     // Fortress +5 to everyone
       return bracedAll;
     }));
+  check('ALL-OUT elin.allout.dawn: the storm ends on a party mend (✚5) + ward (⛨3)',
+    await J(async () => {
+      setupFight(['elin'], ['elin.allout.dawn'], { elin: 'mid' });
+      S.enemies.forEach(e => { e.hp = e.maxHp = 400; });
+      const el = S.heroes[0]; el.hp = el.maxHp - 12; el.guard = 0;
+      window.__autoParry = false; S.momentum = 100; renderAll();
+      await triggerAllOut();
+      return el.hp === el.maxHp - 7 && el.guard >= 3; }));   // healed +5 (−12 → −7), warded +3
+  check('ALL-OUT mira.allout.dance: the storm ends leaving every survivor ◎ EXPOSED 5',
+    await J(async () => {
+      setupFight(['mira'], ['mira.allout.dance'], { mira: 'front' });
+      S.enemies.forEach(e => { e.hp = e.maxHp = 400; e.mark = 0; });
+      window.__autoParry = false; S.momentum = 100; renderAll();
+      await triggerAllOut();
+      return S.enemies.every(e => (e.mark || 0) >= 5); }));
+  check('ALL-OUT branwen.allout.ruin: a parting volley hits the line and refunds 2 EP',
+    await J(async () => {
+      setupFight(['branwen'], ['branwen.allout.ruin'], { branwen: 'back' });
+      S.enemies.forEach(e => { e.hp = e.maxHp = 400; e.guard = 0; });
+      window.__autoParry = false; S.momentum = 100; S.ep = 1; renderAll();
+      const hp0 = S.enemies[0].hp, ep0 = S.ep;
+      await triggerAllOut();
+      return S.enemies[0].hp < hp0 && S.ep >= ep0 + 2; }));
 
   // ---------- TEAM SYNERGY (Phase 3): cross-hero payoffs ----------
   console.log('--- TEAM SYNERGY ---');
@@ -1804,8 +1827,8 @@ const QUICK = process.argv.includes('--quick');
     }));
   check('COMBO elin.rider.sanctuary: Sanctuary (MID signature) also grants counter 1',
     await J(() => { setupFight(['elin'], ['elin.sig.mid', 'elin.rider.sanctuary'], { elin: 'mid' }); const c = handCard('Sanctuary'); return !!c && c.fx.counter === 1; }));
-  check('PRUNE elin: redundant/duplicate heal nodes removed (searing, mercy, warmth, evensong, warden, afterglow, dawn)',
-    await J(() => ['elin.rider.searing', 'elin.rider.mercy', 'elin.rider.warmth', 'elin.passive.evensong', 'elin.emergent.warden', 'elin.emergent.afterglow', 'elin.allout.dawn'].every(id => !NODE_BY_ID[id])));
+  check('PRUNE elin: redundant/duplicate heal nodes removed (searing, mercy, warmth, evensong, warden, afterglow)',
+    await J(() => ['elin.rider.searing', 'elin.rider.mercy', 'elin.rider.warmth', 'elin.passive.evensong', 'elin.emergent.warden', 'elin.emergent.afterglow'].every(id => !NODE_BY_ID[id])));
   check('CAPSTONES elin: three distinct build-paths survive (inverse/overflow/blessing)',
     await J(() => ['elin.inverse', 'elin.passive.overflow', 'elin.synergy.blessing'].every(id => !!NODE_BY_ID[id])));
   check('PRUNE ash: flat rider + off-theme guard-forge + overlapping move-passive removed',

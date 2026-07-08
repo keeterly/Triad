@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 116;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 117;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -248,6 +248,15 @@ const EMBER_TREE = [
   { id: 'mira.afterimage',    hero: 'mira',    tier: 1, cost: 4, type: 'afterimage', label: 'Afterimage', desc: 'Whenever Mira repositions — a move, <b>or the slip / vanish built into her strikes</b> — the stance she left <b>strikes once more</b> (free fading echo, −2 dmg, this turn). Backstab and Vanish Strike now double as echoes — her whole shadow-dance loops.' },
   { id: 'cassia.afterimage',  hero: 'cassia',  tier: 1, cost: 4, type: 'afterimage', label: 'Afterimage', desc: 'Whenever Cassia repositions — a move <b>or any action that shifts her row</b> — the stance she left <b>strikes once more</b> (free fading echo, −2 dmg, this turn).' },
   { id: 'branwen.afterimage', hero: 'branwen', tier: 1, cost: 4, type: 'afterimage', label: 'Afterimage', desc: 'Whenever Branwen repositions — a move, <b>or the backstep loosed with her shots</b> — the stance she left <b>strikes once more</b> (free fading echo, −2 dmg, this turn). Her kiting Backstep Shot now leaves a parting arrow.' },
+
+  // ═══ ALL-OUT FINISHERS — an EARNED per-hero flourish on the marquee moment.
+  // Ash (Rite of Endings) and Cassia (Fortress) already have theirs; these give
+  // the other three an all-out identity too.  Each fires when the all-out ends,
+  // in the hero's own voice.  Optional T3 leaves — the all-out still works
+  // without them, but investing makes the climax express who you brought.
+  { id: 'elin.allout.dawn',    hero: 'elin',    tier: 3, cost: 9,  type: 'allout', requires: ['elin.sig.mid'],  label: 'Radiant Dawn', desc: 'ALL-OUT finisher — when your all-out ends, dawn breaks: the whole party <b>heals <span class="kw kw-heal">✚ 5</span></b> and gains <span class="kw kw-guard">⛨ 3</span>. The light always rises after the storm.', allout: 'dawn' },
+  { id: 'mira.allout.dance',   hero: 'mira',    tier: 3, cost: 9,  type: 'allout', requires: ['mira.passive.opportunist'], label: 'Death Dance', desc: 'ALL-OUT finisher — when your all-out ends, Mira vanishes through the storm and leaves <b>every surviving foe <span class="kw kw-exposed">◎ EXPOSED 5</span></b>. The whole line is marked for the kill-flow.', allout: 'dance' },
+  { id: 'branwen.allout.ruin', hero: 'branwen', tier: 3, cost: 10, type: 'allout', requires: ['branwen.sig.back'], label: 'Rain of Ruin', desc: 'ALL-OUT finisher — when your all-out ends, Branwen looses a parting <b>volley on the whole enemy line</b> and <b>refunds 2 EP</b>. The sky goes dark with arrows.', allout: 'ruin' },
 ];
 const NODE_BY_ID = {};
 EMBER_TREE.forEach(n => { NODE_BY_ID[n.id] = n; });
@@ -3898,6 +3907,30 @@ async function resolveAllOut() {
   // independent of the burst LEVEL — so a perfect L1 all-out still earns it.
   const flawlessAllOut = allStrikes >= 3 && perfectStrikes === allStrikes;
   if (!S.over && livingEnemies().length && flawlessAllOut) await allOutFinisher(heroes);
+  // PER-HERO ALL-OUT FINISHERS — each fielded hero who kindled their all-out node
+  // ends the storm in their own voice (Ash's execute fires per-strike, above).
+  if (!S.over) {
+    // ELIN — Radiant Dawn: the light rises after the storm; mend & ward the party.
+    if (hasNode('elin.allout.dawn') && heroes.some(h => h.id === 'elin')) {
+      livingHeroes().forEach(h => { if (!h.downed) { h.hp = Math.min(h.maxHp, h.hp + 5); h.guard += 3; popupAt(figEl(h.id), '✚5 ⛨3', 'heal'); } });
+      flashNarrator('✦ RADIANT DAWN — the light rises after the storm.');
+      if (SFX.heal) SFX.heal();
+    }
+    // MIRA — Death Dance: she vanishes through the storm, marking every survivor.
+    if (hasNode('mira.allout.dance') && heroes.some(h => h.id === 'mira') && livingEnemies().length) {
+      livingEnemies().forEach(e => { e.mark = (e.mark || 0) + 5; popupAt(figEl(e.uid), '◎ EXPOSED +5', 'info'); });
+      flashNarrator('✦ DEATH DANCE — every foe left marked for death.');
+    }
+    // BRANWEN — Rain of Ruin: a parting volley on the whole line, and +2 EP.
+    if (hasNode('branwen.allout.ruin') && heroes.some(h => h.id === 'branwen') && livingEnemies().length) {
+      const vdmg = Math.round(ALLOUT.base * 2.2 * Math.max(2, heroes.length) / 2);
+      for (const e of livingEnemies()) { dealToEnemy(e, vdmg, 'blade', 'branwen'); popupAt(figEl(e.uid), '➹ VOLLEY ' + vdmg, 'dmg'); }
+      refundEp(2);
+      flashNarrator('✦ RAIN OF RUIN — the sky goes dark with arrows.');
+      renderAll();
+      await sleep(360);
+    }
+  }
   S.momentum = 0;
   S.combo = 0;
   // The container PERSISTS for the fight — you've earned the bigger gauge; refill it.
