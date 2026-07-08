@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 102;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 103;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -90,11 +90,6 @@ const EMBER_TREE = [
   { id: 'elin.sig.front', hero: 'elin', tier: 1, cost: 4, type: 'card', gate: { stance: 'front' }, label: 'Searing', desc: 'FRONT builder — inserts <b>Searing</b> (7 holy): Smite → <b>Searing</b> → Radiant Ward.' },
   { id: 'elin.sig.mid',   hero: 'elin', tier: 1, cost: 5, type: 'card', gate: { stance: 'mid'   }, label: 'Sanctuary', desc: 'MID builder — inserts <b>Sanctuary</b> (<span class="kw kw-heal">✚ 4</span> · <span class="kw kw-guard">⛨ 4</span>): Mend → <b>Sanctuary</b> → Renew.' },
   { id: 'elin.sig.back',  hero: 'elin', tier: 1, cost: 4, type: 'card', gate: { stance: 'back'  }, label: 'Blessing', desc: 'BACK builder — inserts <b>Blessing</b> (<span class="kw kw-heal">✚ 3</span> · <span class="kw kw-rally">▲ +2</span> ally): Distant Prayer → <b>Blessing</b> → Benediction.' },
-  { id: 'elin.rider.warmth', hero: 'elin', tier: 2, cost: 6, type: 'rider', requires: ['elin.sig.mid'], label: 'Warm Light', desc: 'Mend (MID core) now also wards the ally for <span class="kw kw-guard">⛨ 2</span> — a heal that holds.', rider: { card: 'Mend', fx: { guard: 2 }, descAdd: ' · <span class="kw kw-guard">⛨ 2</span>' } },
-  { id: 'elin.emergent.afterglow', hero: 'elin', tier: 3, cost: 9, type: 'emergent', requires: ['elin.sig.back'], label: 'Afterglow',
-    desc: 'Elin’s light <b>lingers</b>. Every <b>2nd time she heals</b> this fight forges a free <b>Afterglow</b> — the warmth spreads to the whole party.',
-    emergent: { on: 'heal', every: 2, stance: 'FORGED · LIGHT', flash: 'The light lingers — <b>Afterglow</b> forged.',
-      forge: { name: 'Afterglow', cost: 0, target: 'allies', fx: { guard: 3 }, desc: '<b>Free.</b> The mending glow spills over — every ally gains <span class="kw kw-guard">⛨ 3</span>.' } } },
 
   // MIRA — the Assassin: exposure and slips
   { id: 'mira.sig.front', hero: 'mira', tier: 1, cost: 4, type: 'card', gate: { stance: 'front' }, label: 'Twin Cut', desc: 'FRONT builder — inserts <b>Twin Cut</b> (6 dmg): Backstab → <b>Twin Cut</b> → Vanish Strike.' },
@@ -139,7 +134,6 @@ const EMBER_TREE = [
   // ELIN — LIGHT: wards, overheal shields, party sustain
   { id: 'elin.passive.ward', hero: 'elin', tier: 2, cost: 6, type: 'passive', label: 'Warding Light', desc: 'At the start of your turn, your most wounded ally gains <span class="kw kw-guard">⛨ 2</span> — the light finds the hurt.', passive: 'elin_ward' },
   { id: 'elin.rider.radiance', hero: 'elin', tier: 3, cost: 7, type: 'rider', requires: ['elin.sig.front'], label: 'Radiance', desc: 'Radiant Ward (FRONT signature) now also heals every ally <span class="kw kw-heal">✚ 2</span>.', rider: { card: 'Radiant Ward', fx: { heal: 2 }, descAdd: ' · <span class="kw kw-heal">✚ 2</span> party' } },
-  { id: 'elin.allout.dawn', hero: 'elin', tier: 3, cost: 9, type: 'allout', requires: ['elin.emergent.afterglow'], label: 'Dawnbreak', desc: 'ALL-OUT upgrade — when your all-out ends, the whole party heals <span class="kw kw-heal">✚ 5</span>.', allout: 'dawn' },
   { id: 'elin.passive.overflow', hero: 'elin', tier: 4, cost: 11, type: 'passive', requires: ['elin.rider.radiance'], label: 'Radiant Overflow', desc: 'When Elin’s heal overflows a target, the spilled <span class="kw kw-guard">⛨</span> shields the WHOLE party — not just them.', passive: 'elin_overflow' },
 
   // MIRA — EXPOSED: exploit marks, execute the wounded
@@ -176,7 +170,6 @@ const EMBER_TREE = [
 
   // ELIN — a deeper MID (ward) line
   { id: 'elin.rider.sanctuary', hero: 'elin', tier: 2, cost: 6, type: 'rider', requires: ['elin.sig.mid'], label: 'Warded Sanctuary', desc: 'Sanctuary (MID signature) also grants the ally <span class="kw kw-counter">↺ 1</span> — the sanctuary strikes back.', rider: { card: 'Sanctuary', fx: { counter: 1 }, descAdd: ' · <span class="kw kw-counter">↺ 1</span>' } },
-  { id: 'elin.emergent.warden', hero: 'elin', tier: 3, cost: 8, type: 'emergent', requires: ['elin.rider.sanctuary'], label: 'Warding Circle', desc: 'Elin’s wards compound. Every <b>2nd time she grants guard</b> forges a free <b>Warding Circle</b> — the whole line hardens.', emergent: { on: 'guard', every: 2, stance: 'FORGED · WARD', flash: 'The circle closes — <b>Warding Circle</b> forged.', forge: { name: 'Warding Circle', cost: 0, target: 'allies', fx: { guard: 3 }, desc: '<b>Free.</b> A ring of light — every ally gains <span class="kw kw-guard">⛨ 3</span>.' } } },
 
   // MIRA — a deeper FRONT (vanish) line and a MID (twin) line
   { id: 'mira.rider.vanish', hero: 'mira', tier: 2, cost: 6, type: 'rider', requires: ['mira.sig.front'], label: 'Whisper Edge', desc: 'Vanish Strike (FRONT signature) strikes for <b>+3</b> — the blade lands before the vanish.', rider: { card: 'Vanish Strike', fx: { dmg: 3 }, descAdd: ' · <b>+3</b>' } },
@@ -196,9 +189,6 @@ const EMBER_TREE = [
   // identity capstone.  All data-driven off the existing hooks. ═════════════════
   // ELIN — the FRONT (searing) and BACK (mercy) lines each jumped T1→T3; a T2
   // rider fills the hole, and a BACK capstone finally caps the heal line.
-  { id: 'elin.rider.searing', hero: 'elin', tier: 2, cost: 6, type: 'rider', requires: ['elin.sig.front'], label: 'Searing Light', desc: 'Smite (FRONT core) burns for <b>+3</b> — the mender bares her teeth.', rider: { card: 'Smite', fx: { dmg: 3 }, descAdd: ' · <b>+3</b>' } },
-  { id: 'elin.rider.mercy', hero: 'elin', tier: 2, cost: 6, type: 'rider', requires: ['elin.sig.back'], label: 'Deep Mercy', desc: 'Benediction (BACK signature) heals <span class="kw kw-heal">✚ +3</span> — the deepest wounds close.', rider: { card: 'Benediction', fx: { heal: 3 }, descAdd: ' · <span class="kw kw-heal">✚ +3</span>' } },
-  { id: 'elin.passive.evensong', hero: 'elin', tier: 4, cost: 12, type: 'passive', requires: ['elin.emergent.afterglow'], label: 'Evensong', desc: 'At the start of your turn, Elin mends her most-wounded ally <span class="kw kw-heal">✚ 3</span> — the vigil never rests.', passive: 'elin_evensong' },
 
   // MIRA — the MID (twin) line lacked its early rider; a MID capstone caps it.
   { id: 'mira.rider.serrated', hero: 'mira', tier: 2, cost: 6, type: 'rider', requires: ['mira.sig.mid'], label: 'Serrated Edge', desc: 'Shadow Knife (MID core) cuts for <b>+2</b> and brands <span class="kw kw-exposed">◎ +1</span> — every nick bleeds.', rider: { card: 'Shadow Knife', fx: { dmg: 2, mark: 1 }, descAdd: ' · <b>+2</b> · <span class="kw kw-exposed">◎ +1</span>' } },
@@ -357,7 +347,6 @@ const PASSIVE_DEFS = {
   branwen_opening: { trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'branwen') return; const e = frontmostEnemy(); if (e) { e.mark = (e.mark || 0) + 1; popupAt(figEl(e.uid), '◎ +1', 'info'); } } },
   branwen_reckoning: { trigger: 'kill', apply: (c) => { if (c.tgt && c.tgt.mark && !S._flags.brRefund) { S._flags.brRefund = true; refundEp(1); } } },
   // ── COMBO-DEPTH capstones (see EMBER_TREE combo-depth block) ──
-  elin_evensong: { trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'elin') return; const t = lowestHpAlly(); if (t && t.hp < t.maxHp) { t.hp = Math.min(t.maxHp, t.hp + 3); popupAt(figEl(t.id), '✚3', 'heal'); } } },
   mira_frenzy: { trigger: 'postHit', apply: (c) => { if (c.hero.id !== 'mira') return; const t = c.tgt; if (t && t.mark) { c.hero.buffDmg += 2; popupAt(figEl(c.hero.id), '▲ FRENZY +2', 'rally'); } } },
   branwen_killingblow: { trigger: 'dmgMod', mod: (o, t) => (o.id === 'branwen' && t && t.hp > 0 && t.hp <= t.maxHp * 0.5 ? 4 : 0) },
   // ── TEAM SYNERGY (Phase 3) — a hero's kit pays off for the whole party ──
@@ -3895,11 +3884,6 @@ async function resolveAllOut() {
   // independent of the burst LEVEL — so a perfect L1 all-out still earns it.
   const flawlessAllOut = allStrikes >= 3 && perfectStrikes === allStrikes;
   if (!S.over && livingEnemies().length && flawlessAllOut) await allOutFinisher(heroes);
-  // DAWNBREAK (Elin) — the light spills over when the storm passes.
-  if (!S.over && hasNode('elin.allout.dawn') && livingHeroes().some(h => h.id === 'elin')) {
-    livingHeroes().forEach(h => { h.hp = Math.min(h.maxHp, h.hp + 5); popupAt(figEl(h.id), '✚5', 'heal'); });
-    SFX.heal();
-  }
   S.momentum = 0;
   S.combo = 0;
   // The container PERSISTS for the fight — you've earned the bigger gauge; refill it.

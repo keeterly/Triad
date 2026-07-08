@@ -1504,19 +1504,17 @@ const QUICK = process.argv.includes('--quick');
       return elin.guard >= 8 && ash.guard >= 8;   // elin (non-target) got the spill ⇒ overflow works
     }));
   // ALL-OUT upgrades — resolve a full burst (untimed strikes still complete)
-  check('TREE cassia.allout.fortress + elin.allout.dawn: party braces before & heals after the all-out',
+  check('TREE cassia.allout.fortress: party braces before the all-out',
     await J(async () => {
       setupFight(['cassia', 'elin'],
-        ['cassia.allout.fortress', 'cassia.emergent.bulwark', 'cassia.sig.front', 'elin.allout.dawn', 'elin.emergent.afterglow', 'elin.sig.back'],
+        ['cassia.allout.fortress', 'cassia.emergent.bulwark', 'cassia.sig.front'],
         { cassia: 'front', elin: 'back' });
-      S.enemies.forEach(e => { e.hp = e.maxHp = 400; });   // survive the burst so Dawnbreak fires
+      S.enemies.forEach(e => { e.hp = e.maxHp = 400; });
       S.heroes.forEach(h => { h.hp = Math.max(1, h.maxHp - 12); h.guard = 0; });
-      const beforeHp = {}; S.heroes.forEach(h => beforeHp[h.id] = h.hp);
       window.__autoParry = false; S.momentum = 100; renderAll();
       await triggerAllOut();
       const bracedAll = S.heroes.every(h => h.guard >= 5);     // Fortress +5 to everyone
-      const healedAll = S.heroes.every(h => h.hp === beforeHp[h.id] + 5);   // Dawnbreak +5 to everyone
-      return bracedAll && healedAll;
+      return bracedAll;
     }));
 
   // ---------- TEAM SYNERGY (Phase 3): cross-hero payoffs ----------
@@ -1763,12 +1761,12 @@ const QUICK = process.argv.includes('--quick');
       // each node must require the one before it (a real prerequisite chain, not loose leaves)
       return chain.every((id, i) => !!NODE_BY_ID[id] && (i === 0 || (NODE_BY_ID[id].requires || []).includes(chain[i - 1])));
     }));
-  check('COMBO elin.rider.searing: Smite (FRONT core) hits +3',
-    await J(() => { setupFight(['elin'], ['elin.sig.front', 'elin.rider.searing'], { elin: 'front' }); const c = handCard('Smite'); return !!c && c.fx.dmg === 7; }));
-  check('COMBO elin.rider.mercy: Benediction heals +3',
-    await J(() => { setupFight(['elin'], ['elin.sig.back', 'elin.rider.mercy'], { elin: 'back' }); const c = handCard('Benediction'); return !!c && c.fx.heal === 11; }));
-  check('COMBO elin.passive.evensong: turn start mends the most-wounded ally +3',
-    await J(() => { setupFight(['elin', 'ash'], ['elin.passive.evensong'], { elin: 'back' }, { ash: 10 }); const a = S.heroes.find(h => h.id === 'ash'); const before = a.hp; firePassives('turnStart', 'elin', {}); return a.hp === before + 3; }));
+  check('COMBO elin.rider.sanctuary: Sanctuary (MID signature) also grants counter 1',
+    await J(() => { setupFight(['elin'], ['elin.sig.mid', 'elin.rider.sanctuary'], { elin: 'mid' }); const c = handCard('Sanctuary'); return !!c && c.fx.counter === 1; }));
+  check('PRUNE elin: redundant/duplicate heal nodes removed (searing, mercy, warmth, evensong, warden, afterglow, dawn)',
+    await J(() => ['elin.rider.searing', 'elin.rider.mercy', 'elin.rider.warmth', 'elin.passive.evensong', 'elin.emergent.warden', 'elin.emergent.afterglow', 'elin.allout.dawn'].every(id => !NODE_BY_ID[id])));
+  check('CAPSTONES elin: three distinct build-paths survive (inverse/overflow/blessing)',
+    await J(() => ['elin.inverse', 'elin.passive.overflow', 'elin.synergy.blessing'].every(id => !!NODE_BY_ID[id])));
   check('COMBO mira.rider.serrated: Shadow Knife (MID core) hits +2 and marks +1',
     await J(() => { setupFight(['mira'], ['mira.sig.mid', 'mira.rider.serrated'], { mira: 'mid' }); const c = handCard('Shadow Knife'); return !!c && c.fx.dmg === 6 && c.fx.mark === 4; }));
   check('COMBO mira.passive.frenzy: striking an EXPOSED foe buffs the next strike +2',
