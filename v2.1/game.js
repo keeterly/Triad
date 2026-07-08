@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 100;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 101;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -871,7 +871,7 @@ const ROTATIONS = {
       shieldbash: { name: 'Shield Bash', cost: 1, target: 'frontmost', fx: { dmg: 4, guard: 2 }, stance: 'OPENER · WALL', desc: '<b>Opener.</b> 4 damage · <span class="kw kw-guard">⛨ 2</span> — then raise the wall.', next: [{ key: 'bulwark', gateNot: 'cassia.sig.front' }, { key: 'brace', gate: 'cassia.sig.front' }, { key: 'provoke', gate: 'cassia.branch.front' }] },
       brace:      { name: 'Brace',       cost: 0, target: 'self',      fx: { guard: 4 },          stance: 'BUILDER · WALL',desc: '<b>Free.</b> Gain <span class="kw kw-guard">⛨ 4</span>. Forges the bulwark.', next: ['bulwark'] },
       bulwark:    { name: 'Bulwark',     cost: 0, target: 'frontmost', fx: { dmg: 8, guard: 6 },  stance: 'FINISHER · WALL',desc: '<b>Free finisher.</b> 8 damage · gain <span class="kw kw-guard">⛨ 6</span> — an immovable wall.' },
-      provoke:    { name: 'Provoke',     cost: 0, target: 'self',      fx: { guard: 2, counter: 2 }, stance: 'BUILDER · IRON', desc: '<b>Free.</b> <span class="kw kw-guard">⛨ 2</span> · <span class="kw kw-counter">↺ 2</span> — dare the next blow. Forges the answer.', next: ['ironanswer'] },
+      provoke:    { name: 'Provoke',     cost: 0, target: 'self',      fx: { guard: 2, counter: 2, taunt: true }, stance: 'BUILDER · IRON', desc: '<b>Free.</b> <span class="kw kw-guard">⛨ 2</span> · <span class="kw kw-counter">↺ 2</span> · <b>TAUNT</b> — every foe strikes CASSIA’s row next round. Forges the answer.', next: ['ironanswer'] },
       ironanswer: { name: 'Iron Answer', cost: 0, target: 'frontmost', fx: { dmg: 9 },            stance: 'FINISHER · IRON',desc: '<b>Free finisher.</b> 9 damage — the wall answers back.' },
     } },
     mid: { opener: 'cover', cards: {
@@ -2837,6 +2837,13 @@ async function resolveCard(card, targetId) {
       if (fx.guard) fireEmergent(owner.id, 'guard', card);
     }
   }
+  // TAUNT (Cassia's Provoke) — drag every foe's blow onto the taunter's ROW for the
+  // coming enemy round.  Read by effIntentRow (and the telegraph, so it shows).
+  if (fx.taunt && owner && !owner.downed) {
+    S._taunt = owner.id;
+    popupAt(figEl(owner.id), '⚑ TAUNT', 'info');
+    flashNarrator(owner.def.name + ' PROVOKES — every foe turns to strike ' + owner.def.name + '.');
+  }
   // Movement built into the action: the caster repositions after resolving,
   // free (no EP, no move-use).  The hand morphs to the new stance.
   //   step — slip ONE row toward front/back.
@@ -2894,7 +2901,14 @@ function echoView(stored) {
 // living hero (lowest hp+guard; ties to the most-exposed).  Computed live, so the
 // telegraph always shows the real target — and moving the weak one re-aims it.
 function effIntentRow(e, intent) {
-  if (!e || !e.smart || !intent || intent.kind === 'buff' || intent.row === 'all') return intent ? intent.row : undefined;
+  if (!intent || intent.kind === 'buff' || intent.row === 'all') return intent ? intent.row : undefined;
+  // TAUNT (Cassia's Provoke) overrides targeting — every single-row blow lands on
+  // the taunter's row, even for non-smart foes.  The wall makes itself the target.
+  if (typeof S !== 'undefined' && S && S._taunt) {
+    const tn = livingHeroes().find(h => h.id === S._taunt);
+    if (tn) return tn.row;
+  }
+  if (!e || !e.smart) return intent.row;
   const live = (typeof S !== 'undefined' && S) ? livingHeroes() : [];
   if (!live.length) return intent.row;
   const prey = live.slice().sort((a, b) => (a.hp + (a.guard || 0)) - (b.hp + (b.guard || 0)) || (b.exposed || 0) - (a.exposed || 0))[0];
@@ -4102,6 +4116,7 @@ async function endTurn() {
     S.enemies.forEach(e => { e.mark = Math.max(0, (e.mark || 0) - 1); e.acted = false; e._hitBy = []; e.staggered = false; });
     S.tempCards = S.tempCards.filter(t => t.expiresTurn == null || t.expiresTurn >= S.turn);
     S._pressUsed = false;
+    S._taunt = null;             // Cassia's TAUNT lasted the enemy round it provoked
     S.combo = 0;                 // the LINK chain is a within-turn combo
     S.channelUsed = false;
     S.executing = false;

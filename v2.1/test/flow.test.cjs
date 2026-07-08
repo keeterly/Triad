@@ -1988,9 +1988,19 @@ const QUICK = process.argv.includes('--quick');
         return finOk && bldOk && altOk;
       }))));
   check('ROTATION every rotation fx uses only supported effect keys (no dead effects)',
-    await J(() => { const ok = new Set(['dmg', 'mark', 'guard', 'heal', 'buffDmg', 'counter', 'step', 'warp', 'lull']);
+    await J(() => { const ok = new Set(['dmg', 'mark', 'guard', 'heal', 'buffDmg', 'counter', 'step', 'warp', 'lull', 'taunt']);
       return Object.values(ROTATIONS).every(st => Object.values(st).every(rot =>
         Object.values(rot.cards).every(c => Object.keys(c.fx || {}).every(k => ok.has(k))))); }));
+  check('PROVOKE / TAUNT: a smart foe that would hunt the weakest instead strikes the TAUNTER’s row',
+    await J(() => { setupFight(['ash', 'cassia', 'elin'], [], { ash: 'front', cassia: 'mid', elin: 'back' }); S._rotations = false; renderAll();
+      const e = S.enemies[0]; e.smart = true;
+      const wounded = S.heroes.find(h => h.id === 'ash'); wounded.hp = 3;   // Ash is the weakest → default prey
+      const intent = { name: 'x', dmg: 5, row: 'back' };
+      const preyRow = effIntentRow(e, intent);                              // hunts the weakest (Ash, front)
+      S._taunt = 'cassia';                                                  // Cassia provokes
+      const tauntRow = effIntentRow(e, intent);                            // now forced onto Cassia's row (mid)
+      S._taunt = null;
+      return preyRow === 'front' && tauntRow === 'mid'; }));
   check('ROTATION Cassia openers carry the HEAVY +1 premium; forged steps stay free',
     await J(() => { setupFight(['cassia'], ROTATION_GATES.concat(['cassia.sig.front']), { cassia: 'front' }); S._rotations = true; renderAll();
       const op = buildHand().find(c => c.kind === 'opener');
