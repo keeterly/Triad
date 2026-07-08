@@ -1968,6 +1968,13 @@ const QUICK = process.argv.includes('--quick');
       await playCard(Object.assign({}, mkMoveAction(S.heroes.find(h => h.id === 'ash')), { toRow: 'mid' }), null);
       const echo = S.tempCards.some(c => (c.name || '').startsWith('Echo'));
       return noEcho && echo; }));
+  check('GUARD: an UNAFFORDABLE card cannot be played (the greyed-card-still-plays bug)',
+    await J(async () => {
+      setupFight(['ash'], [], { ash: 'front' }); S._rotations = false; S.ep = 0; renderAll();
+      const foe = S.enemies[0], hp0 = foe.hp;
+      const card = buildHand().find(c => c.cost > 0 && (c.fx || {}).dmg);
+      if (card) await playCard(card, foe.uid);
+      return foe.hp === hp0 && S.ep === 0; }));   // no damage dealt, no EP spent
   check('ROTATION every stance declares: base finisher (gateNot builder), builder (gate), fork (gate branch)',
     await J(() => ['ash', 'elin', 'mira', 'cassia', 'branwen'].every(hid =>
       ['front', 'mid', 'back'].every(r => {

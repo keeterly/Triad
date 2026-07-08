@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 99;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 100;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -2405,6 +2405,12 @@ function attachDrag(el, card) {
     // hand the forge animation the card's HOME slot (its resting centre from drag
     // start) so the bounce lands back in the slot, not the lifted position
     if (card.chain) _forgeDrag = { name: card.name, owner: card.owner, homeX: originX, homeY: originY };
+    // A card you can't AFFORD is draggable only because it can still be SACRIFICED
+    // (dropped on the EP dial, handled above).  Dropping it on a TARGET must NOT
+    // play it — guard both play paths, or an unaffordable card sneaks through.
+    if (!cancelled && !canPlay && (mode === 'field' || (snapped && snapped.dataset))) {
+      flashNarrator('Not enough EP.'); denyCard(el, card); _forgeDrag = null; springBack(el); return;
+    }
     if (!cancelled && mode === 'field') {
       if (card.kind === 'resonant' && !card.pair && S.ep < S.maxEp) { flashNarrator('The Vow needs your ENTIRE turn — play it first.'); springBack(el); return; }
       playCard(card, null); return;
@@ -2610,6 +2616,7 @@ function channelCard(card) {
 
 async function playCard(card, targetId) {
   if (S.executing || S.over || S._staging) return;
+  if (card.spent || card.cost > S.ep) { flashNarrator('Not enough EP.'); return; }   // safety net: never play an unaffordable/spent card
   haptic(HAP.play);
   // A rotation card grows into its next step: remember WHERE it sat in the hand
   // and WHAT it struck, so the forged card(s) can fly back to that slot and split
