@@ -21,9 +21,10 @@
 
 'use strict';
 
-const V2_BUILD = 139;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 140;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
+const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
 function chargeCap(h) { return (h && h.id === 'hask' && hasNode('hask.passive.conduit')) ? 6 : CHARGE_CAP; }
 function chargeDmg() { return hasNode('hask.passive.meltdown') ? 5 : CHARGE_DMG; }
 const $ = (sel) => document.querySelector(sel);
@@ -283,7 +284,7 @@ const EMBER_TREE = [
     emergent: { on: 'hit', every: 3, stance: 'FORGED · ICE', flash: 'The cold gathers — <b>Icicle</b> forged.',
       forge: { name: 'Icicle', cost: 0, target: 'enemy', fx: { dmg: 6, lull: 1 }, desc: '<b>6 frost</b> · <span class="kw kw-chill">❄ CHILL 1</span> to any foe.' } } },
   { id: 'hask.passive.conduit', hero: 'hask', tier: 3, cost: 8, type: 'passive', requires: ['hask.passive.kindling'], label: 'Conduit', desc: 'PASSIVE: your <span class="kw kw-charge">◆ CHARGE cap rises to 6</span> — hold more power', passive: 'hask_conduit' },
-  { id: 'hask.passive.steady', hero: 'hask', tier: 3, cost: 8, type: 'passive', requires: ['hask.passive.frostbite'], label: 'Steady Cast', desc: 'PASSIVE: moving no longer <b>interrupts</b> your <span class="kw kw-charge">◆ CHARGE</span> — channel on the move', passive: 'hask_steady' },
+  { id: 'hask.passive.steady', hero: 'hask', tier: 3, cost: 8, type: 'passive', requires: ['hask.passive.frostbite'], label: 'Steady Cast', desc: 'PASSIVE: moving no longer breaks your channel — <span class="kw kw-charge">◆ CHARGE</span> survives and <b>no MISFIRE</b>. Channel on the move', passive: 'hask_steady' },
 
   { id: 'hask.passive.meltdown', hero: 'hask', tier: 4, cost: 12, type: 'passive', requires: ['hask.branch.mid'], label: 'Meltdown', desc: 'PASSIVE: <b>OVERLOAD</b> spends <span class="kw kw-charge">◆ CHARGE</span> for <b>+5</b> each (was +3) — total meltdown', passive: 'hask_meltdown' },
   { id: 'hask.synergy.permafrost', hero: 'hask', tier: 4, cost: 11, type: 'synergy', requires: ['hask.passive.frostbite'], label: 'Permafrost', desc: 'PASSIVE: <span class="kw kw-chill">❄ CHILLED</span> foes take <b>+3</b> from EVERY ally — the deep cold', passive: 'hask_permafrost' },
@@ -324,10 +325,28 @@ function allOutExecutes(e) {
 // a hero has just entered a new row — fire any unlocked positional passives
 function onHeroEnterRow(hero, toRow, fromRow) {
   if (!hero || hero.downed || toRow === fromRow) return;
-  // INTERRUPT (Hask) — a caster who MOVES loses their gathered ◆ CHARGE and any
-  // in-progress CAST… unless they've learned Steady Cast (channel while moving).
+  // INTERRUPT + MISFIRE (Hask) — a caster who MOVES breaks their channel: they lose
+  // their gathered ◆ CHARGE and any in-progress CAST, AND the loose aether detonates
+  // INWARD for 2× the charge they were holding (guard soaks first).  The higher he
+  // banked, the more it hurts — so hoarding charge in the danger row is a real gamble.
+  // Steady Cast (channel on the move) exempts him from all of it.
   if (hero.id === 'hask' && !hasNode('hask.passive.steady')) {
-    if (hero.charge) { hero.charge = 0; popupAt(figEl(hero.id), '◆ INTERRUPTED', 'chill'); }
+    const ch = hero.charge || 0;
+    if (ch) {
+      hero.charge = 0;
+      let left = ch * MISFIRE_PER_CHARGE;
+      if (hero.guard > 0) { const g = Math.min(hero.guard, left); hero.guard -= g; left -= g; }
+      if (left > 0) {
+        hero.hp = Math.max(0, hero.hp - left);
+        const big = left >= 8;
+        popupAt(figEl(hero.id), '◆ MISFIRE −' + left, 'dmg' + (big ? ' popup-big' : ''));
+        impactFx(figEl(hero.id), 'foe', big); struck(figEl(hero.id), 'l'); SFX.hit(big);
+        if (big) stageShake('lg');
+        if (hero.hp === 0) { hero.downed = true; popupAt(figEl(hero.id), 'DOWN', 'dmg'); }
+      } else {
+        popupAt(figEl(hero.id), '◆ INTERRUPTED', 'chill');
+      }
+    }
     if (hero.pendingCast) { hero.pendingCast = null; popupAt(figEl(hero.id), '◈ CAST BROKEN', 'chill'); }
   }
   firePassives('enterRow', hero.id, { toRow, fromRow });
@@ -5821,7 +5840,7 @@ function partyChipsHtml(who) {
     ${who.counter ? `<span class="chip counter${chipPop(who,'counter',who.counter)}">↺ ${who.counter}</span>` : ''}
     ${who.exposed ? `<span class="chip mark${chipPop(who,'exposed',who.exposed)}">◎ ${who.exposed}</span>` : ''}
     ${who.chill ? `<span class="chip chill${chipPop(who,'chill',who.chill)}">❄ ${who.chill}</span>` : ''}
-    ${who.charge ? `<span class="chip charge${chipPop(who,'charge',who.charge)}" title="CHARGE — builds on Hask's spells; an OVERLOAD nuke spends it for +3 damage each">◆ ${who.charge}</span>` : ''}
+    ${who.charge ? `<span class="chip charge${chipPop(who,'charge',who.charge)}" title="CHARGE — builds on Hask's spells; an OVERLOAD nuke spends it for +3 damage each. MOVING mid-channel MISFIRES for 2× held ◆ (unless Steady Cast)">◆ ${who.charge}</span>` : ''}
     ${who.pendingCast ? `<span class="chip charge" title="CASTING — unleashes at the start of your next turn; moving interrupts it">◈ CAST</span>` : ''}
     ${who.aether > 0 ? `<span class="chip astral${chipPop(who,'aether',who.aether)}" title="PYRE — fire spells hit +2 per stack. Cast ice to swing back to FROST.">🔥 ${who.aether}</span>` : ''}
     ${who.aether < 0 ? `<span class="chip umbral${chipPop(who,'aether',-who.aether)}" title="FROST — ice spells refill ◆ CHARGE. Cast fire to swing back to PYRE.">❄ ${-who.aether}</span>` : ''}

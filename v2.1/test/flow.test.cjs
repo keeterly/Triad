@@ -1916,9 +1916,15 @@ const QUICK = process.argv.includes('--quick');
       await resolveCard({ owner: 'hask', name: 'Overload', cost: 0, target: 'enemy', fx: { dmg: 6, spendCharge: true } }, e.uid);
       return h.charge === 0 && (hp0 - S.enemies[0].hp) === 15; }));   // 6 base + 3×3
   check('HASK INTERRUPT: moving resets ◆ CHARGE (a rooted caster)',
-    await J(() => { setupFight(['hask'], [], { hask: 'mid' }); const h = S.heroes[0]; h.charge = 3; onHeroEnterRow(h, 'front', 'mid'); return h.charge === 0; }));
-  check('HASK STEADY CAST node: moving KEEPS ◆ CHARGE (channel on the move)',
-    await J(() => { setupFight(['hask'], ['hask.passive.steady'], { hask: 'mid' }); const h = S.heroes[0]; h.charge = 3; onHeroEnterRow(h, 'front', 'mid'); return h.charge === 3; }));
+    await J(() => { setupFight(['hask'], [], { hask: 'mid' }); const h = S.heroes[0]; h.charge = 3; h.hp = 22; onHeroEnterRow(h, 'front', 'mid'); return h.charge === 0; }));
+  check('HASK MISFIRE: moving mid-channel detonates the held ◆ inward (charge×2 self-damage)',
+    await J(() => { setupFight(['hask'], [], { hask: 'mid' }); const h = S.heroes[0]; h.charge = 3; h.hp = 22; h.guard = 0; onHeroEnterRow(h, 'front', 'mid'); return h.hp === 16 && h.charge === 0; }));   // 3 ◆ × 2 = 6 self-damage
+  check('HASK MISFIRE: guard soaks the backlash before HP',
+    await J(() => { setupFight(['hask'], [], { hask: 'mid' }); const h = S.heroes[0]; h.charge = 4; h.hp = 22; h.guard = 5; onHeroEnterRow(h, 'front', 'mid'); return h.guard === 0 && h.hp === 19; }));   // 8 backlash − 5 guard = 3 to HP
+  check('HASK MISFIRE: no charge held → moving is free (nothing to detonate)',
+    await J(() => { setupFight(['hask'], [], { hask: 'mid' }); const h = S.heroes[0]; h.charge = 0; h.hp = 22; onHeroEnterRow(h, 'front', 'mid'); return h.hp === 22; }));
+  check('HASK STEADY CAST node: moving KEEPS ◆ CHARGE and takes NO misfire (channel on the move)',
+    await J(() => { setupFight(['hask'], ['hask.passive.steady'], { hask: 'mid' }); const h = S.heroes[0]; h.charge = 3; h.hp = 22; onHeroEnterRow(h, 'front', 'mid'); return h.charge === 3 && h.hp === 22; }));
   check('HASK CAST-TIME: a castDmg card BEGINS a cast (no hit now, pendingCast set)',
     await J(async () => {
       setupFight(['hask'], [], { hask: 'back' }); S.tempCards = []; const e = S.enemies[0]; e.hp = e.maxHp = 100; const hp0 = e.hp;

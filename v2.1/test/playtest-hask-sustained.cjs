@@ -64,11 +64,11 @@ const { boot } = require('./harness.cjs');
       const per = [];
       per.push(await walk('hask', 'front', has, false));   // turn 1: Rime (front), builds ◆
       per.push(await walk('hask', 'front', has, false));   // turn 2: Rime (front), builds ◆
-      const chargeBeforeMove = h.charge || 0;
-      h.row = 'mid'; onHeroEnterRow(h, 'mid', 'front');     // MOVE to mid — wipes ◆ unless Steady
-      const chargeAfterMove = h.charge || 0;
+      const chargeBeforeMove = h.charge || 0; const hpBeforeMove = h.hp;
+      h.row = 'mid'; onHeroEnterRow(h, 'mid', 'front');     // MOVE to mid — wipes ◆ + MISFIRE unless Steady
+      const chargeAfterMove = h.charge || 0; const misfire = hpBeforeMove - h.hp;
       per.push(await walk('hask', 'mid', has, false));      // turn 3: Overload dump
-      return { per, total: per.reduce((a,b)=>a+b,0), chargeBeforeMove, chargeAfterMove };
+      return { per, total: per.reduce((a,b)=>a+b,0), chargeBeforeMove, chargeAfterMove, misfire, hpLeft: h.hp };
     }
 
     return {
@@ -97,8 +97,8 @@ const { boot } = require('./harness.cjs');
   row('WEAVE Emberwake', res.weave, 'open Frost → ignite fire each turn');
   row('WEAVE +Backdraft', res.weaveCap, 'crossings snap to ±3 + detonate; deep invest + front risk');
   console.log('\n--- CROSS-STANCE BANK: 2 turns Rime (front, builds ◆) → move to mid → Overload dump ---');
-  console.log(`no Steady Cast:  turns [${res.crossNoSteady.per.map(x=>String(x).padStart(3)).join(', ')}]  total ${res.crossNoSteady.total}   ◆ before move ${res.crossNoSteady.chargeBeforeMove} → after ${res.crossNoSteady.chargeAfterMove} (WIPED by move)`);
-  console.log(`with Steady Cast:turns [${res.crossSteady.per.map(x=>String(x).padStart(3)).join(', ')}]  total ${res.crossSteady.total}   ◆ before move ${res.crossSteady.chargeBeforeMove} → after ${res.crossSteady.chargeAfterMove} (KEPT — big dump)`);
+  console.log(`no Steady Cast:  turns [${res.crossNoSteady.per.map(x=>String(x).padStart(3)).join(', ')}]  total ${res.crossNoSteady.total}   ◆ ${res.crossNoSteady.chargeBeforeMove}→${res.crossNoSteady.chargeAfterMove} WIPED · MISFIRE −${res.crossNoSteady.misfire} self (${res.crossNoSteady.hpLeft}/22 HP left!)`);
+  console.log(`with Steady Cast:turns [${res.crossSteady.per.map(x=>String(x).padStart(3)).join(', ')}]  total ${res.crossSteady.total}   ◆ ${res.crossSteady.chargeBeforeMove}→${res.crossSteady.chargeAfterMove} KEPT · no misfire (${res.crossSteady.hpLeft}/22 HP) — big dump`);
   console.log('\nContext: Branwen (archer) ~35/turn signature; Hask has 22 HP. Front-stance paths');
   console.log('(RIME/WEAVE) stand Hask in the danger row — that exposure is the price of the ceiling.');
   await t.browser.close();
