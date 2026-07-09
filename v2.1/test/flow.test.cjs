@@ -1849,7 +1849,7 @@ const QUICK = process.argv.includes('--quick');
   check('TREE: new stance nodes wire cleanly (valid requires, valid passives, unique ids)',
     await J(() => {
       const ids = new Set(); let ok = true;
-      const special = ['elin_overflow', 'hask_kindling', 'hask_conduit', 'hask_steady', 'hask_meltdown', 'hask_surge', 'hask_meteor'];   // handled inline (heal-spill / charge / cast systems), not via PASSIVE_DEFS
+      const special = ['elin_overflow', 'hask_kindling', 'hask_conduit', 'hask_steady', 'hask_meltdown', 'hask_surge', 'hask_meteor', 'hask_enochian'];   // handled inline (heal-spill / charge / cast / weave systems), not via PASSIVE_DEFS
       EMBER_TREE.forEach(n => { if (ids.has(n.id)) ok = false; ids.add(n.id); });
       EMBER_TREE.forEach(n => { (n.requires || []).forEach(r => { if (!NODE_BY_ID[r]) ok = false; }); if ((n.type === 'passive' || n.type === 'synergy') && !PASSIVE_DEFS[n.passive] && !special.includes(n.passive)) ok = false; });
       return ok;
@@ -1942,6 +1942,38 @@ const QUICK = process.argv.includes('--quick');
       setupFight(['hask'], ['hask.cast.meteor'], { hask: 'back' }); S.tempCards = [];
       await resolveCard({ owner: 'hask', name: 'Comet', cost: 0, target: 'enemy', fx: { castDmg: 16 } }, S.enemies[0].uid);
       return !!S.heroes[0].pendingCast && S.heroes[0].pendingCast.all === true; }));
+  check('HASK WEAVE: with Astral Fire, a FIRE spell swings 🔥 ASTRAL (+1) and ICE swings ❄ UMBRAL (−1)',
+    await J(async () => {
+      setupFight(['hask'], ['hask.weave.astral'], { hask: 'front' }); S._rotations = false; const e = S.enemies[0]; e.hp = e.maxHp = 100; e.guard = 0;
+      const h = S.heroes[0]; h.aether = 0;
+      await resolveCard({ owner: 'hask', name: 'Flare', cost: 0, target: 'enemy', fx: { dmg: 5, elem: 'fire' } }, e.uid);
+      const afterFire = h.aether;   // → +1 Astral
+      await resolveCard({ owner: 'hask', name: 'Frost', cost: 0, target: 'enemy', fx: { dmg: 4, elem: 'ice' } }, e.uid);
+      return afterFire === 1 && h.aether === 0; }));   // ice pulls back toward Umbral
+  check('HASK ASTRAL FIRE: at deep Astral, a fire spell hits +2 per stack',
+    await J(async () => {
+      setupFight(['hask'], ['hask.weave.astral'], { hask: 'front' }); S._rotations = false; const e = S.enemies[0]; e.hp = e.maxHp = 100; e.guard = 0; const hp0 = e.hp;
+      const h = S.heroes[0]; h.aether = 2;   // one more fire → Astral 3
+      await resolveCard({ owner: 'hask', name: 'Flare', cost: 0, target: 'enemy', fx: { dmg: 5, elem: 'fire' } }, e.uid);
+      return h.aether === 3 && (hp0 - S.enemies[0].hp) === 11; }));   // 5 base + 2×3 Astral
+  check('HASK UMBRAL ICE: an ice spell going Umbral refills extra ◆ CHARGE',
+    await J(async () => {
+      setupFight(['hask'], ['hask.weave.astral'], { hask: 'front' }); S._rotations = false; const e = S.enemies[0]; e.hp = e.maxHp = 100; e.guard = 0;
+      const h = S.heroes[0]; h.aether = 0; h.charge = 0;
+      await resolveCard({ owner: 'hask', name: 'Frost', cost: 0, target: 'enemy', fx: { dmg: 4, elem: 'ice' } }, e.uid);
+      return h.aether === -1 && h.charge === 2; }));   // base +1 charge, +1 Umbral refill
+  check('HASK ENOCHIAN: fire cast AGAINST Umbral snaps to full Astral and DETONATES (+6 resonance)',
+    await J(async () => {
+      setupFight(['hask'], ['hask.weave.astral', 'hask.weave.enochian'], { hask: 'front' }); S._rotations = false; const e = S.enemies[0]; e.hp = e.maxHp = 100; e.guard = 0; const hp0 = e.hp;
+      const h = S.heroes[0]; h.aether = -2;   // deep Umbral
+      await resolveCard({ owner: 'hask', name: 'Flare', cost: 0, target: 'enemy', fx: { dmg: 5, elem: 'fire' } }, e.uid);
+      return h.aether === 3 && (hp0 - S.enemies[0].hp) === 17; }));   // 5 base + 6 resonance + 6 Astral(3)
+  check('HASK ENOCHIAN gated: without the node, fire in Umbral just steps +1 (no snap, no burst)',
+    await J(async () => {
+      setupFight(['hask'], ['hask.weave.astral'], { hask: 'front' }); S._rotations = false; const e = S.enemies[0]; e.hp = e.maxHp = 100; e.guard = 0; const hp0 = e.hp;
+      const h = S.heroes[0]; h.aether = -2;
+      await resolveCard({ owner: 'hask', name: 'Flare', cost: 0, target: 'enemy', fx: { dmg: 5, elem: 'fire' } }, e.uid);
+      return h.aether === -1 && (hp0 - S.enemies[0].hp) === 5; }));   // just steps toward Astral, no bonus
   check('POSITION MEMORY: a descent fight opens where the party stood at the end of the last one',
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash', 'hask']; RUN.active = RUN.roster.slice();
@@ -2207,7 +2239,7 @@ const QUICK = process.argv.includes('--quick');
         return finOk && bldOk && altOk;
       }))));
   check('ROTATION every rotation fx uses only supported effect keys (no dead effects)',
-    await J(() => { const ok = new Set(['dmg', 'mark', 'guard', 'heal', 'buffDmg', 'counter', 'step', 'warp', 'lull', 'taunt', 'chargeGain', 'spendCharge', 'castDmg']);
+    await J(() => { const ok = new Set(['dmg', 'mark', 'guard', 'heal', 'buffDmg', 'counter', 'step', 'warp', 'lull', 'taunt', 'chargeGain', 'spendCharge', 'castDmg', 'elem']);
       return Object.values(ROTATIONS).every(st => Object.values(st).every(rot =>
         Object.values(rot.cards).every(c => Object.keys(c.fx || {}).every(k => ok.has(k))))); }));
   check('PROVOKE / TAUNT: a smart foe that would hunt the weakest instead strikes the TAUNTER’s row',
@@ -2236,11 +2268,11 @@ const QUICK = process.argv.includes('--quick');
       fireEmergent('elin', 'heal', { name: 'Mend' }); fireEmergent('elin', 'heal', { name: 'Mend' });
       const il = S.tempCards.find(c => c.name === 'Inverse Light');
       return !!il && il.fx.dmg === 8 && il.school === 'light'; }));
-  check('ROTATION dev preview is the FULL build — all 36 rotation gates (18 finishers + 18 forks, 6 heroes) unlocked',
+  check('ROTATION dev preview is the FULL build — all 37 rotation gates (18 finishers + 19 forks, 6 heroes incl. Hask’s weave) unlocked',
     await J(() => typeof devPreviewRotations === 'function'
       && devPreviewRotations.toString().includes('_rotations = true')
       && devPreviewRotations.toString().includes('ROTATION_GATES')
-      && Array.isArray(ROTATION_GATES) && ROTATION_GATES.length === 36));
+      && Array.isArray(ROTATION_GATES) && ROTATION_GATES.length === 37));
   check('ROTATION forged steps sit in the HERO’s slot, not appended to the far right of the hand',
     await J(() => { setupFight(['ash', 'elin'], ['ash.sig.front', 'ash.branch.front'], { ash: 'front', elin: 'mid' }); S._rotations = true; renderAll();
       const op = buildHand().find(c => c.kind === 'opener' && c.owner === 'ash'); S.tempCards = []; resolveChainPlay(op);

@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 136;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 137;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 function chargeCap(h) { return (h && h.id === 'hask' && hasNode('hask.passive.conduit')) ? 6 : CHARGE_CAP; }
@@ -289,6 +289,8 @@ const EMBER_TREE = [
   { id: 'hask.synergy.permafrost', hero: 'hask', tier: 4, cost: 11, type: 'synergy', requires: ['hask.passive.frostbite'], label: 'Permafrost', desc: 'PASSIVE: <span class="kw kw-chill">❄ CHILLED</span> foes take <b>+3</b> from EVERY ally — the deep cold', passive: 'hask_permafrost' },
   { id: 'hask.passive.surge', hero: 'hask', tier: 4, cost: 12, type: 'passive', requires: ['hask.passive.conduit'], label: 'Elemental Surge', desc: 'ON OVERLOAD: spending <span class="kw kw-charge">◆ CHARGE</span> refunds <b>2 EP</b> — the aether rebounds', passive: 'hask_surge' },
   { id: 'hask.cast.meteor', hero: 'hask', tier: 4, cost: 12, type: 'passive', requires: ['hask.branch.back'], label: 'Meteor', desc: 'PASSIVE: your <b>◈ CASTS</b> land on <b>EVERY foe</b> — the sky falls, not a single star', passive: 'hask_meteor' },
+  { id: 'hask.weave.astral', hero: 'hask', tier: 3, cost: 8, type: 'branch', requires: ['hask.sig.front'], label: 'Astral Fire', desc: 'FORK · FRONT: Frost Touch also opens a FIRE line — <b>Ember Veil</b> → <b>Flare</b>. Spells now swing <span class="kw kw-astral">🔥 ASTRAL</span> / <span class="kw kw-chill">❄ UMBRAL</span> — Astral empowers fire (+2/stack), Umbral refills <span class="kw kw-charge">◆</span>' },
+  { id: 'hask.weave.enochian', hero: 'hask', tier: 4, cost: 12, type: 'passive', requires: ['hask.weave.astral'], label: 'Enochian', desc: 'PASSIVE: a spell cast <b>AGAINST</b> your element snaps to the far pole and <b>DETONATES</b> — <span class="kw kw-astral">🔥 +6</span> / <span class="kw kw-chill">❄ +4</span>. The weave rewards both', passive: 'hask_enochian' },
 ];
 const NODE_BY_ID = {};
 EMBER_TREE.forEach(n => { NODE_BY_ID[n.id] = n; });
@@ -958,11 +960,13 @@ const ROTATIONS = {
   // dump it.  The MID fork is the OVERLOAD line: build charge, then unleash it.
   hask: {
     front: { opener: 'frosttouch', cards: {
-      frosttouch: { name: 'Frost Touch', cost: 2, target: 'frontmost', fx: { dmg: 4, lull: 1 }, stance: 'OPENER · RIME', desc: '4 frost · <span class="kw kw-chill">❄ CHILL 1</span>.', next: [{ key: 'shatter', gateNot: 'hask.sig.front' }, { key: 'icespike', gate: 'hask.sig.front' }, { key: 'rimeblast', gate: 'hask.branch.front' }] },
-      icespike:   { name: 'Ice Spike',   cost: 0, target: 'frontmost', fx: { dmg: 6, lull: 1 }, stance: 'COMBO · RIME', desc: '6 frost · <span class="kw kw-chill">❄ CHILL 1</span>.', next: ['shatter'] },
-      shatter:    { name: 'Shatter',     cost: 0, target: 'frontmost', fx: { dmg: 10 }, stance: 'FINISHER · RIME', desc: '10 frost — shatters the frozen.' },
-      rimeblast:  { name: 'Rime Blast',  cost: 0, target: 'enemy', fx: { dmg: 4, lull: 2 }, stance: 'COMBO · FROST', desc: '4 frost · <span class="kw kw-chill">❄ CHILL 2</span> to ANY foe.', next: ['glacier'] },
-      glacier:    { name: 'Glacier',     cost: 0, target: 'enemy', fx: { dmg: 8, lull: 1 }, stance: 'FINISHER · FROST', desc: '8 frost · <span class="kw kw-chill">❄ CHILL 1</span>.' },
+      frosttouch: { name: 'Frost Touch', cost: 2, target: 'frontmost', fx: { dmg: 4, lull: 1, elem: 'ice' }, stance: 'OPENER · RIME', desc: '4 frost · <span class="kw kw-chill">❄ CHILL 1</span>.', next: [{ key: 'shatter', gateNot: 'hask.sig.front' }, { key: 'icespike', gate: 'hask.sig.front' }, { key: 'rimeblast', gate: 'hask.branch.front' }, { key: 'emberveil', gate: 'hask.weave.astral' }] },
+      icespike:   { name: 'Ice Spike',   cost: 0, target: 'frontmost', fx: { dmg: 6, lull: 1, elem: 'ice' }, stance: 'COMBO · RIME', desc: '6 frost · <span class="kw kw-chill">❄ CHILL 1</span>.', next: ['shatter'] },
+      shatter:    { name: 'Shatter',     cost: 0, target: 'frontmost', fx: { dmg: 10, elem: 'ice' }, stance: 'FINISHER · RIME', desc: '10 frost — shatters the frozen.' },
+      rimeblast:  { name: 'Rime Blast',  cost: 0, target: 'enemy', fx: { dmg: 4, lull: 2, elem: 'ice' }, stance: 'COMBO · FROST', desc: '4 frost · <span class="kw kw-chill">❄ CHILL 2</span> to ANY foe.', next: ['glacier'] },
+      glacier:    { name: 'Glacier',     cost: 0, target: 'enemy', fx: { dmg: 8, lull: 1, elem: 'ice' }, stance: 'FINISHER · FROST', desc: '8 frost · <span class="kw kw-chill">❄ CHILL 1</span>.' },
+      emberveil:  { name: 'Ember Veil',  cost: 0, target: 'frontmost', fx: { dmg: 5, elem: 'fire' }, stance: 'COMBO · ASTRAL', desc: '5 fire · swings <span class="kw kw-astral">🔥 ASTRAL</span>.', next: ['flare'] },
+      flare:      { name: 'Flare',       cost: 0, target: 'enemy', fx: { dmg: 8, elem: 'fire' }, stance: 'FINISHER · ASTRAL', desc: '8 fire · <span class="kw kw-astral">🔥 ASTRAL</span> empowers (+2 per stack).' },
     } },
     mid: { opener: 'icebolt', cards: {
       icebolt:    { name: 'Ice Bolt',    cost: 2, target: 'enemy', fx: { dmg: 4 }, stance: 'OPENER · CAST', desc: '4 frost to ANY foe.', next: [{ key: 'frostfire', gateNot: 'hask.sig.mid' }, { key: 'kindle', gate: 'hask.sig.mid' }, { key: 'overcharge', gate: 'hask.branch.mid' }] },
@@ -1880,7 +1884,7 @@ function newBattle(node) {
       maxHp: HEROES[id].maxHp,
       row,
       guard: 0, buffDmg: 0, counter: 0, invuln: false, downed: startDowned,
-      chill: 0, exposed: 0, charge: 0,   // charge: Hask's Black-Mage resource (builds on spells, spent by nukes)
+      chill: 0, exposed: 0, charge: 0, aether: 0,   // charge: Hask's Black-Mage resource; aether: Astral(+)/Umbral(−) weave meter
     };
   });
   const enemies = node.enemies.map((id, i) => ({
@@ -2959,6 +2963,23 @@ async function resolveCard(card, targetId) {
       // OVERLOAD (Hask) — a nuke SPENDS all CHARGE, adding damage per stack; the
       // Meltdown capstone raises that, and Elemental Surge refunds EP on the dump.
       if (fx.spendCharge && owner && owner.id === 'hask') { const ch = owner.charge || 0; if (ch) { const d = chargeDmg(); amt += ch * d; owner.charge = 0; popupAt(figEl(owner.id), '◆→⚔ +' + (ch * d), 'dmg'); if (hasNode('hask.passive.surge')) refundEp(2); } }
+      // ASTRAL FIRE / UMBRAL ICE (Hask, Elemental Weave) — his spells swing an
+      // aether meter between fire (+) and ice (−).  ASTRAL empowers fire (+2/stack);
+      // UMBRAL refills ◆ CHARGE.  ENOCHIAN lets a spell cast AGAINST the grain snap
+      // to the far pole and DETONATE a resonance burst — the payoff for weaving both.
+      if (owner && owner.id === 'hask' && hasNode('hask.weave.astral')) {
+        const elem = fx.elem || 'ice';
+        const a = owner.aether || 0;
+        if (elem === 'fire') {
+          if (a < 0 && hasNode('hask.weave.enochian')) { owner.aether = 3; amt += 6; popupAt(figEl(owner.id), '🔥 RESONANCE +6', 'dmg'); }
+          else owner.aether = Math.min(3, a + 1);
+          if (owner.aether > 0) { amt += 2 * owner.aether; popupAt(figEl(owner.id), '🔥 ASTRAL +' + (2 * owner.aether), 'dmg'); }
+        } else {
+          if (a > 0 && hasNode('hask.weave.enochian')) { owner.aether = -3; amt += 4; popupAt(figEl(owner.id), '❄ RESONANCE +4', 'dmg'); }
+          else owner.aether = Math.max(-3, a - 1);
+          owner._umbral = owner.aether < 0 ? -owner.aether : 0;   // Umbral refill, cashed at the CHARGE step
+        }
+      }
       if (owner && owner.buffDmg) { popupAt(figEl(owner.id), '▲ RALLY +' + owner.buffDmg, 'rally'); owner.buffDmg = 0; }
       if (owner && owner.chill) { amt = Math.max(0, amt - owner.chill); popupAt(figEl(owner.id), '❄ −' + owner.chill, 'chill'); owner.chill = 0; }
       amt += tgt.mark || 0;
@@ -2979,7 +3000,7 @@ async function resolveCard(card, targetId) {
         fireEmergent(owner.id, 'hit', card);
         if (tgt.dead) { fireEmergent(owner.id, 'kill', card); firePassives('kill', owner.id, { tgt }); }
         // CHARGE (Hask) — every spell that lands builds a stack (a nuke spends them).
-        if (owner.id === 'hask' && !fx.spendCharge) { owner.charge = Math.min(chargeCap(owner), (owner.charge || 0) + 1); popupAt(figEl(owner.id), '◆ ' + owner.charge, 'info'); }
+        if (owner.id === 'hask' && !fx.spendCharge) { const gain = 1 + (owner._umbral || 0); owner._umbral = 0; owner.charge = Math.min(chargeCap(owner), (owner.charge || 0) + gain); popupAt(figEl(owner.id), '◆ ' + owner.charge, 'info'); }
       }
       if (isFollowUp) {
         gainMomentum(12, { combo: true });   // LINK — chaining allies builds burst
@@ -5799,6 +5820,8 @@ function partyChipsHtml(who) {
     ${who.chill ? `<span class="chip chill${chipPop(who,'chill',who.chill)}">❄ ${who.chill}</span>` : ''}
     ${who.charge ? `<span class="chip charge${chipPop(who,'charge',who.charge)}" title="CHARGE — builds on Hask's spells; an OVERLOAD nuke spends it for +3 damage each">◆ ${who.charge}</span>` : ''}
     ${who.pendingCast ? `<span class="chip charge" title="CASTING — unleashes at the start of your next turn; moving interrupts it">◈ CAST</span>` : ''}
+    ${who.aether > 0 ? `<span class="chip astral${chipPop(who,'aether',who.aether)}" title="ASTRAL FIRE — fire spells hit +2 per stack. Cast ice to swing back to UMBRAL.">🔥 ${who.aether}</span>` : ''}
+    ${who.aether < 0 ? `<span class="chip umbral${chipPop(who,'aether',-who.aether)}" title="UMBRAL ICE — ice spells refill ◆ CHARGE. Cast fire to swing back to ASTRAL.">❄ ${-who.aether}</span>` : ''}
     ${who.hexed ? `<span class="chip hex${chipPop(who,'hexed',who.hexed)}" title="HEXED — your card plays burn your hand">☠ HEXED</span>` : ''}`;
 }
 function partyAuraObj(who) { return { guard: who.guard, rally: who.buffDmg, chill: who.chill, exposed: who.exposed, counter: who.counter, invuln: who.invuln }; }
