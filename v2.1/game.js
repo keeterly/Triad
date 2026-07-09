@@ -21,7 +21,11 @@
 
 'use strict';
 
-const V2_BUILD = 132;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 134;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
+const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
+function chargeCap(h) { return (h && h.id === 'hask' && hasNode('hask.passive.conduit')) ? 6 : CHARGE_CAP; }
+function chargeDmg() { return hasNode('hask.passive.meltdown') ? 5 : CHARGE_DMG; }
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -257,6 +261,33 @@ const EMBER_TREE = [
   { id: 'elin.allout.dawn',    hero: 'elin',    tier: 3, cost: 9,  type: 'allout', requires: ['elin.sig.mid'],  label: 'Radiant Dawn', desc: 'ALL-OUT END: the whole party heals <span class="kw kw-heal">✚5</span> & gains <span class="kw kw-guard">⛨3</span> — dawn after the storm', allout: 'dawn' },
   { id: 'mira.allout.dance',   hero: 'mira',    tier: 3, cost: 9,  type: 'allout', requires: ['mira.passive.opportunist'], label: 'Death Dance', desc: 'ALL-OUT END: every surviving foe is left <span class="kw kw-exposed">◎ EXPOSED 5</span> — marked for the kill-flow', allout: 'dance' },
   { id: 'branwen.allout.ruin', hero: 'branwen', tier: 3, cost: 10, type: 'allout', requires: ['branwen.sig.back'], label: 'Rain of Ruin', desc: 'ALL-OUT END: loose a <b>volley</b> on the whole line & refund <b>2 EP</b> — the sky goes dark with arrows', allout: 'ruin' },
+
+  // ═══ HASK — the BLACK MAGE.  Builds ◆ CHARGE on every spell; the MID fork is the
+  // OVERLOAD line (build charge → dump it in a nuke).  Three job-paths: OVERLOAD
+  // (Meltdown), FROST-CONTROL (Permafrost), and AETHER-SUSTAIN (Elemental Surge).
+  { id: 'hask.sig.front', hero: 'hask', tier: 1, cost: 4, type: 'card', gate: { stance: 'front' }, label: 'Ice Spike',   desc: 'COMBO · FRONT: inserts <b>Ice Spike</b> (6 frost · <span class="kw kw-chill">❄</span>) · Frost Touch → <b>Ice Spike</b> → Shatter' },
+  { id: 'hask.sig.mid',   hero: 'hask', tier: 1, cost: 5, type: 'card', gate: { stance: 'mid'   }, label: 'Kindle',      desc: 'COMBO · MID: inserts <b>Kindle</b> (5 frost) · Ice Bolt → <b>Kindle</b> → Frostfire' },
+  { id: 'hask.sig.back',  hero: 'hask', tier: 1, cost: 4, type: 'card', gate: { stance: 'back'  }, label: 'Frost Lance', desc: 'COMBO · BACK: inserts <b>Frost Lance</b> (6 frost) · Deep Freeze → <b>Frost Lance</b> → Ice Shard' },
+  { id: 'hask.afterimage', hero: 'hask', tier: 1, cost: 4, type: 'afterimage', label: 'Afterimage', desc: 'ON REPOSITION: the stance he left <b>strikes again</b> (free echo, −2 dmg, this turn)' },
+
+  { id: 'hask.branch.front', hero: 'hask', tier: 2, cost: 6, type: 'branch', requires: ['hask.sig.front'], label: 'Rime Fork',    desc: 'FORK · FRONT: Frost Touch also opens <b>Rime Blast</b> (4 · <span class="kw kw-chill">❄2</span>) → <b>Glacier</b> (8 · <span class="kw kw-chill">❄1</span>)' },
+  { id: 'hask.branch.mid',   hero: 'hask', tier: 2, cost: 6, type: 'branch', requires: ['hask.sig.mid'],   label: 'Overload Fork', desc: 'FORK · MID: Ice Bolt also opens <b>Overcharge</b> (<span class="kw kw-charge">◆ CHARGE 2</span>) → <b>Overload</b> (SPEND <span class="kw kw-charge">◆ CHARGE</span>) — build, then unleash' },
+  { id: 'hask.branch.back',  hero: 'hask', tier: 2, cost: 6, type: 'branch', requires: ['hask.sig.back'],  label: 'Winter Fork',   desc: 'FORK · BACK: Deep Freeze also opens <b>Blizzard</b> (4 · <span class="kw kw-chill">❄2</span>) → <b>Whiteout</b> (6 · <span class="kw kw-chill">❄2</span>)' },
+  { id: 'hask.exec', hero: 'hask', tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'ON STAGGER: forge a free <b>Killing Frost</b> — 8 frost · <span class="kw kw-chill">❄2</span> · <b>×2 vs STAGGERED</b>',
+    stagger: { name: 'Killing Frost', target: 'enemy', fx: { dmg: 8, lull: 2 }, desc: '<b>8 frost</b> · <span class="kw kw-chill">❄ CHILL 2</span> · <b>×2 vs STAGGERED</b>.' } },
+  { id: 'hask.passive.frostbite', hero: 'hask', tier: 2, cost: 6, type: 'passive', requires: ['hask.sig.front'], label: 'Frostbite', desc: 'PASSIVE: <b>+2 dmg</b> to any <span class="kw kw-chill">❄ CHILLED</span> foe — cash the frost', passive: 'hask_frostbite' },
+  { id: 'hask.passive.kindling', hero: 'hask', tier: 2, cost: 6, type: 'passive', requires: ['hask.sig.mid'], label: 'Kindling', desc: 'ON CHILL: gain <span class="kw kw-charge">◆ CHARGE 1</span> — frost feeds the fire', passive: 'hask_kindling' },
+
+  { id: 'hask.emergent.icicle', hero: 'hask', tier: 3, cost: 8, type: 'emergent', requires: ['hask.sig.back'], label: 'Ice Age',
+    desc: 'EVERY 3RD SPELL: forge a free <b>Icicle</b> (6 frost · <span class="kw kw-chill">❄1</span>) — the cold never stops',
+    emergent: { on: 'hit', every: 3, stance: 'FORGED · ICE', flash: 'The cold gathers — <b>Icicle</b> forged.',
+      forge: { name: 'Icicle', cost: 0, target: 'enemy', fx: { dmg: 6, lull: 1 }, desc: '<b>6 frost</b> · <span class="kw kw-chill">❄ CHILL 1</span> to any foe.' } } },
+  { id: 'hask.passive.conduit', hero: 'hask', tier: 3, cost: 8, type: 'passive', requires: ['hask.passive.kindling'], label: 'Conduit', desc: 'PASSIVE: your <span class="kw kw-charge">◆ CHARGE cap rises to 6</span> — hold more power', passive: 'hask_conduit' },
+  { id: 'hask.passive.steady', hero: 'hask', tier: 3, cost: 8, type: 'passive', requires: ['hask.passive.frostbite'], label: 'Steady Cast', desc: 'PASSIVE: moving no longer <b>interrupts</b> your <span class="kw kw-charge">◆ CHARGE</span> — channel on the move', passive: 'hask_steady' },
+
+  { id: 'hask.passive.meltdown', hero: 'hask', tier: 4, cost: 12, type: 'passive', requires: ['hask.branch.mid'], label: 'Meltdown', desc: 'PASSIVE: <b>OVERLOAD</b> spends <span class="kw kw-charge">◆ CHARGE</span> for <b>+5</b> each (was +3) — total meltdown', passive: 'hask_meltdown' },
+  { id: 'hask.synergy.permafrost', hero: 'hask', tier: 4, cost: 11, type: 'synergy', requires: ['hask.passive.frostbite'], label: 'Permafrost', desc: 'PASSIVE: <span class="kw kw-chill">❄ CHILLED</span> foes take <b>+3</b> from EVERY ally — the deep cold', passive: 'hask_permafrost' },
+  { id: 'hask.passive.surge', hero: 'hask', tier: 4, cost: 12, type: 'passive', requires: ['hask.passive.conduit'], label: 'Elemental Surge', desc: 'ON OVERLOAD: spending <span class="kw kw-charge">◆ CHARGE</span> refunds <b>2 EP</b> — the aether rebounds', passive: 'hask_surge' },
 ];
 const NODE_BY_ID = {};
 EMBER_TREE.forEach(n => { NODE_BY_ID[n.id] = n; });
@@ -290,6 +321,11 @@ function allOutExecutes(e) {
 // a hero has just entered a new row — fire any unlocked positional passives
 function onHeroEnterRow(hero, toRow, fromRow) {
   if (!hero || hero.downed || toRow === fromRow) return;
+  // INTERRUPT (Hask) — a caster who MOVES loses their gathered ◆ CHARGE… unless
+  // they've learned Steady Cast (channel while repositioning).
+  if (hero.id === 'hask' && hero.charge && !hasNode('hask.passive.steady')) {
+    hero.charge = 0; popupAt(figEl(hero.id), '◆ INTERRUPTED', 'chill');
+  }
   firePassives('enterRow', hero.id, { toRow, fromRow });
 }
 // EMERGENT LOOPS — a kindled tier-3 node installs a per-fight counter that watches
@@ -333,6 +369,8 @@ const PASSIVE_DEFS = {
   // ASH — TEMPO: motion is force, the duel never lets up
   ash_vanguard: { trigger: 'enterRow', apply: (c) => { if (c.toRow === 'front') { c.hero.guard += 3; popupAt(figEl(c.hero.id), '⛨ +3', 'guard'); } } },
   ash_exploit:  { trigger: 'dmgMod', mod: (o, t) => (o.id === 'ash' && t && t.mark ? 3 : 0) },
+  hask_frostbite:  { trigger: 'dmgMod', mod: (o, t) => (o.id === 'hask' && t && t.lull ? 2 : 0) },   // Hask +2 to CHILLED foes
+  hask_permafrost: { trigger: 'partyDmgMod', mod: (owner, tgt) => (tgt && tgt.lull ? 3 : 0) },        // CHILLED foes take +3 from EVERY ally
   ash_relentless: { trigger: 'followup', apply: (c) => { if (!S._flags.ashRefund) { S._flags.ashRefund = true; refundEp(1); } } },
   // ELIN — LIGHT: the ward finds the hurt
   elin_ward:    { trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'elin') return; const t = lowestHpAlly(); if (t) { t.guard += 2; popupAt(figEl(t.id), '⛨ +2', 'guard'); } } },
@@ -912,6 +950,31 @@ const ROTATIONS = {
       killingarrow:{ name: 'Killing Arrow',cost: 0, target: 'enemy', fx: { dmg: 9, mark: 2 }, stance: 'FINISHER · VOLLEY',desc: '9 damage · <span class="kw kw-exposed">◎ EXPOSED 2</span>.' },
       rapidnock:  { name: 'Rapid Nock',   cost: 0, target: 'enemy', fx: { dmg: 4 },          stance: 'COMBO · RAIN', desc: '4 damage.', next: ['volleyshot'] },
       volleyshot: { name: 'Volley Shot',  cost: 0, target: 'enemy', fx: { dmg: 6, mark: 2 }, stance: 'FINISHER · RAIN', desc: '6 damage · <span class="kw kw-exposed">◎ EXPOSED 2</span>.' },
+    } },
+  },
+  // HASK — the BLACK MAGE.  Every spell that lands builds ◆ CHARGE; his finishers
+  // dump it.  The MID fork is the OVERLOAD line: build charge, then unleash it.
+  hask: {
+    front: { opener: 'frosttouch', cards: {
+      frosttouch: { name: 'Frost Touch', cost: 2, target: 'frontmost', fx: { dmg: 4, lull: 1 }, stance: 'OPENER · RIME', desc: '4 frost · <span class="kw kw-chill">❄ CHILL 1</span>.', next: [{ key: 'shatter', gateNot: 'hask.sig.front' }, { key: 'icespike', gate: 'hask.sig.front' }, { key: 'rimeblast', gate: 'hask.branch.front' }] },
+      icespike:   { name: 'Ice Spike',   cost: 0, target: 'frontmost', fx: { dmg: 6, lull: 1 }, stance: 'COMBO · RIME', desc: '6 frost · <span class="kw kw-chill">❄ CHILL 1</span>.', next: ['shatter'] },
+      shatter:    { name: 'Shatter',     cost: 0, target: 'frontmost', fx: { dmg: 10 }, stance: 'FINISHER · RIME', desc: '10 frost — shatters the frozen.' },
+      rimeblast:  { name: 'Rime Blast',  cost: 0, target: 'enemy', fx: { dmg: 4, lull: 2 }, stance: 'COMBO · FROST', desc: '4 frost · <span class="kw kw-chill">❄ CHILL 2</span> to ANY foe.', next: ['glacier'] },
+      glacier:    { name: 'Glacier',     cost: 0, target: 'enemy', fx: { dmg: 8, lull: 1 }, stance: 'FINISHER · FROST', desc: '8 frost · <span class="kw kw-chill">❄ CHILL 1</span>.' },
+    } },
+    mid: { opener: 'icebolt', cards: {
+      icebolt:    { name: 'Ice Bolt',    cost: 2, target: 'enemy', fx: { dmg: 4 }, stance: 'OPENER · CAST', desc: '4 frost to ANY foe.', next: [{ key: 'frostfire', gateNot: 'hask.sig.mid' }, { key: 'kindle', gate: 'hask.sig.mid' }, { key: 'overcharge', gate: 'hask.branch.mid' }] },
+      kindle:     { name: 'Kindle',      cost: 0, target: 'enemy', fx: { dmg: 5 }, stance: 'COMBO · CAST', desc: '5 frost to ANY foe.', next: ['frostfire'] },
+      frostfire:  { name: 'Frostfire',   cost: 0, target: 'enemy', fx: { dmg: 9 }, stance: 'FINISHER · CAST', desc: '9 frost to ANY foe.' },
+      overcharge: { name: 'Overcharge',  cost: 0, target: 'self', fx: { chargeGain: 2 }, stance: 'COMBO · OVERLOAD', desc: 'Gain <b>◆ CHARGE 2</b> — no strike, all power.', next: ['overload'] },
+      overload:   { name: 'Overload',    cost: 0, target: 'enemy', fx: { dmg: 6, spendCharge: true }, stance: 'FINISHER · OVERLOAD', desc: '6 frost · <b>SPEND ◆ CHARGE</b> (+3 each) to ANY foe.' },
+    } },
+    back: { opener: 'deepfreeze', cards: {
+      deepfreeze: { name: 'Deep Freeze', cost: 2, target: 'enemy', fx: { dmg: 5 }, stance: 'OPENER · ARTILLERY', desc: '5 frost to ANY foe.', next: [{ key: 'iceshard', gateNot: 'hask.sig.back' }, { key: 'frostlance', gate: 'hask.sig.back' }, { key: 'blizzard', gate: 'hask.branch.back' }] },
+      frostlance: { name: 'Frost Lance', cost: 0, target: 'enemy', fx: { dmg: 6 }, stance: 'COMBO · ARTILLERY', desc: '6 frost to ANY foe.', next: ['iceshard'] },
+      iceshard:   { name: 'Ice Shard',   cost: 0, target: 'enemy', fx: { dmg: 8 }, stance: 'FINISHER · ARTILLERY', desc: '8 frost to ANY foe.' },
+      blizzard:   { name: 'Blizzard',    cost: 0, target: 'enemy', fx: { dmg: 4, lull: 2 }, stance: 'COMBO · WINTER', desc: '4 frost · <span class="kw kw-chill">❄ CHILL 2</span> to ANY foe.', next: ['whiteout'] },
+      whiteout:   { name: 'Whiteout',    cost: 0, target: 'enemy', fx: { dmg: 6, lull: 2 }, stance: 'FINISHER · WINTER', desc: '6 frost · <span class="kw kw-chill">❄ CHILL 2</span>.' },
     } },
   },
 };
@@ -1521,7 +1584,7 @@ const FLOW = [
 // UNLOCKED starters (v1-style); the other party members are RECRUITED on the
 // road.  Recruiting a hero permanently UNLOCKS them as a future starter, so the
 // roster you can open with grows the more you play.
-const STARTER_POOL = ['ash', 'elin', 'mira', 'cassia', 'branwen'];   // all pickable/recruitable heroes
+const STARTER_POOL = ['ash', 'elin', 'mira', 'cassia', 'branwen', 'hask'];   // all pickable/recruitable heroes
 const DEFAULT_STARTERS = ['ash', 'mira'];                            // unlocked from the first run (solo-viable damage)
 const STARTERS_KEY = 'kizuna2_1.starters';
 const LAST_STARTER_KEY = 'kizuna2_1.lastStarter';   // whose key-art greets you on the title
@@ -1536,7 +1599,7 @@ function unlockStarter(id) {
 }
 const RECRUIT_NODE_LABELS = {
   ash: 'A LONE BLADE', elin: 'THE LAST LIGHT', mira: 'A SHADOW ON THE ROAD',
-  cassia: 'THE GATE HOLDS', branwen: 'THE OUTLAW’S DEBT',
+  cassia: 'THE GATE HOLDS', branwen: 'THE OUTLAW’S DEBT', hask: 'THE FROST-CALLER’S VIGIL',
 };
 const COMBAT_POOL = {
   early: ['husk', 'wraith', 'cultist'],
@@ -1797,14 +1860,23 @@ function newBattle(node) {
   let _forceClassic = false;
   try { _forceClassic = localStorage.getItem('kizuna2_1.forceClassic') === '1'; } catch (_) {}
   const ids = node.heroes;
-  const heroes = ids.map((id, i) => ({
-    id, def: HEROES[id],
-    hp: (node.useRunHp && RUN) ? Math.max(1, RUN.hp[id] ?? HEROES[id].maxHp) : HEROES[id].maxHp,
-    maxHp: HEROES[id].maxHp,
-    row: ['front', 'mid', 'back'][i] || 'front',
-    guard: 0, buffDmg: 0, counter: 0, invuln: false, downed: false,
-    chill: 0, exposed: 0,
-  }));
+  // POSITION MEMORY — a real DESCENT fight opens where the party stood at the end
+  // of the last one (RUN.rows), so a caster who fell back stays back.  Falls back
+  // to the default line if a slot's taken or there's no memory (first fight).
+  const _usedRows = new Set();
+  const heroes = ids.map((id, i) => {
+    let row = (node.useRunHp && RUN && RUN.rows && RUN.rows[id]) ? RUN.rows[id] : (['front', 'mid', 'back'][i] || 'front');
+    if (_usedRows.has(row)) row = ['front', 'mid', 'back'].find(r => !_usedRows.has(r)) || row;
+    _usedRows.add(row);
+    return {
+      id, def: HEROES[id],
+      hp: (node.useRunHp && RUN) ? Math.max(1, RUN.hp[id] ?? HEROES[id].maxHp) : HEROES[id].maxHp,
+      maxHp: HEROES[id].maxHp,
+      row,
+      guard: 0, buffDmg: 0, counter: 0, invuln: false, downed: false,
+      chill: 0, exposed: 0, charge: 0,   // charge: Hask's Black-Mage resource (builds on spells, spent by nukes)
+    };
+  });
   const enemies = node.enemies.map((id, i) => ({
     id, def: ENEMY_DEFS[id], uid: id + '#' + i,
     hp: ENEMY_DEFS[id].maxHp, maxHp: ENEMY_DEFS[id].maxHp,
@@ -2866,6 +2938,9 @@ async function resolveCard(card, targetId) {
       // AEGIS NOVA (Cassia) — release the accumulated wall as ONE blow: add all her
       // current guard to the strike, then spend it.  Turtle up, then unleash.
       if (fx.guardBurst && owner) { const g = owner.guard || 0; amt += g; if (g) { owner.guard = 0; popupAt(figEl(owner.id), '⛨→⚔ ' + g, 'dmg'); } }
+      // OVERLOAD (Hask) — a nuke SPENDS all CHARGE, adding damage per stack; the
+      // Meltdown capstone raises that, and Elemental Surge refunds EP on the dump.
+      if (fx.spendCharge && owner && owner.id === 'hask') { const ch = owner.charge || 0; if (ch) { const d = chargeDmg(); amt += ch * d; owner.charge = 0; popupAt(figEl(owner.id), '◆→⚔ +' + (ch * d), 'dmg'); if (hasNode('hask.passive.surge')) refundEp(2); } }
       if (owner && owner.buffDmg) { popupAt(figEl(owner.id), '▲ RALLY +' + owner.buffDmg, 'rally'); owner.buffDmg = 0; }
       if (owner && owner.chill) { amt = Math.max(0, amt - owner.chill); popupAt(figEl(owner.id), '❄ −' + owner.chill, 'chill'); owner.chill = 0; }
       amt += tgt.mark || 0;
@@ -2885,6 +2960,8 @@ async function resolveCard(card, targetId) {
         hitters.push(owner.id);
         fireEmergent(owner.id, 'hit', card);
         if (tgt.dead) { fireEmergent(owner.id, 'kill', card); firePassives('kill', owner.id, { tgt }); }
+        // CHARGE (Hask) — every spell that lands builds a stack (a nuke spends them).
+        if (owner.id === 'hask' && !fx.spendCharge) { owner.charge = Math.min(chargeCap(owner), (owner.charge || 0) + 1); popupAt(figEl(owner.id), '◆ ' + owner.charge, 'info'); }
       }
       if (isFollowUp) {
         gainMomentum(12, { combo: true });   // LINK — chaining allies builds burst
@@ -2921,7 +2998,11 @@ async function resolveCard(card, targetId) {
   if (fx.lull) {
     const tgt = card.target === 'enemy' ? (livingEnemies().find(e => e.uid === targetId) || frontmostEnemy()) : frontmostEnemy();
     if (tgt) { tgt.lull = (tgt.lull || 0) + fx.lull; popupAt(figEl(tgt.uid), '❄ CHILL −' + fx.lull, 'chill'); }
+    // KINDLING (Hask) — frost feeds the fire: chilling a foe builds ◆ CHARGE.
+    if (owner && owner.id === 'hask' && hasNode('hask.passive.kindling')) { owner.charge = Math.min(chargeCap(owner), (owner.charge || 0) + 1); popupAt(figEl(owner.id), '◆ ' + owner.charge, 'info'); }
   }
+  // OVERCHARGE (Hask) — a self-cast that only builds ◆ CHARGE, no strike.
+  if (fx.chargeGain && owner) { owner.charge = Math.min(chargeCap(owner), (owner.charge || 0) + fx.chargeGain); popupAt(figEl(owner.id), '◆ ' + owner.charge, 'info'); }
   if (fx.heal || fx.guard || fx.buffDmg || fx.counter) {
     let receivers = [];
     if (card.target === 'ally')   receivers = [S.heroes.find(h => h.id === targetId)].filter(Boolean);
@@ -4524,7 +4605,8 @@ function onVictory() {
   // Write survivors' HP back into the run (downed heroes stagger up at 6).
   let bondLines = [];
   if (S.node.useRunHp && RUN) {
-    S.heroes.forEach(h => { RUN.hp[h.id] = h.downed ? 6 : h.hp; });
+    RUN.rows = RUN.rows || {};
+    S.heroes.forEach(h => { RUN.hp[h.id] = h.downed ? 6 : h.hp; RUN.rows[h.id] = h.row; });   // POSITION MEMORY — next fight opens where you stood
     if (S.node.mapId != null && !RUN.completed.includes(S.node.mapId)) RUN.completed.push(S.node.mapId);
     // Fighting together with a thread held IS the reward: the pair grows.
     RUN.bonds = RUN.bonds || {};
@@ -5681,6 +5763,7 @@ function partyChipsHtml(who) {
     ${who.counter ? `<span class="chip counter${chipPop(who,'counter',who.counter)}">↺ ${who.counter}</span>` : ''}
     ${who.exposed ? `<span class="chip mark${chipPop(who,'exposed',who.exposed)}">◎ ${who.exposed}</span>` : ''}
     ${who.chill ? `<span class="chip chill${chipPop(who,'chill',who.chill)}">❄ ${who.chill}</span>` : ''}
+    ${who.charge ? `<span class="chip charge${chipPop(who,'charge',who.charge)}" title="CHARGE — builds on Hask's spells; an OVERLOAD nuke spends it for +3 damage each">◆ ${who.charge}</span>` : ''}
     ${who.hexed ? `<span class="chip hex${chipPop(who,'hexed',who.hexed)}" title="HEXED — your card plays burn your hand">☠ HEXED</span>` : ''}`;
 }
 function partyAuraObj(who) { return { guard: who.guard, rally: who.buffDmg, chill: who.chill, exposed: who.exposed, counter: who.counter, invuln: who.invuln }; }
@@ -5873,11 +5956,9 @@ function intentSeg(e, it) {
     return `<span class="i-seg" title="${it.desc || ''}"><span class="i-glyph">◈</span><span class="i-row">${eff}</span></span>`;
   }
   const row = effIntentRow(e, it);   // smart foes point at the hero they're hunting
-  // GESTURE PREVIEW — surface HOW to parry this blow (mash / brace / sweep / slam)
-  // so the attack READS ahead of the ring: the foe's identity is legible, and
-  // defending is a decision you can prepare, not a pure reaction.
-  const pglyph = parryGlyph(it);
-  return `<span class="i-seg"><span class="i-glyph">⚔</span><span class="i-dmg">${enemyIntentDmg(e, it)}</span><span class="i-arrow">→</span><span class="i-row">${row === 'all' ? 'ALL' : ROW_LABEL[row]}</span>${it.hex ? '<span class="i-st kw-hex" title="HEX — if it lands, your card plays burn your hand; dodge it">☠</span>' : ''}${it.drain ? '<span class="i-st kw-drain" title="drains life — heals the Maw">♥</span>' : ''}${it.chill ? '<span class="i-st kw-chill" title="chills you">❄</span>' : ''}${it.expose ? '<span class="i-st kw-exposed" title="exposes you">◎</span>' : ''}${pglyph ? `<span class="i-parry" title="parry gesture — trace it when the ring glows">${pglyph}</span>` : ''}</span>`;
+  // The pill stays clean: damage + target row + status.  The parry GESTURE is NOT
+  // previewed — you read the foe's type & the attack and react at the ring.
+  return `<span class="i-seg"><span class="i-glyph">⚔</span><span class="i-dmg">${enemyIntentDmg(e, it)}</span><span class="i-arrow">→</span><span class="i-row">${row === 'all' ? 'ALL' : ROW_LABEL[row]}</span>${it.hex ? '<span class="i-st kw-hex" title="HEX — if it lands, your card plays burn your hand; dodge it">☠</span>' : ''}${it.drain ? '<span class="i-st kw-drain" title="drains life — heals the Maw">♥</span>' : ''}${it.chill ? '<span class="i-st kw-chill" title="chills you">❄</span>' : ''}${it.expose ? '<span class="i-st kw-exposed" title="exposes you">◎</span>' : ''}</span>`;
 }
 // the intent telegraph markup for an enemy (one or a boss's chained two)
 function enemyIntentHtml(e) {

@@ -28,8 +28,8 @@ const QUICK = process.argv.includes('--quick');
   // ---------- ONBOARDING: choose your survivor (v1-style solo start) ----------
   console.log('--- ONBOARDING ---');
   await clickOverlayBtn('#t-new');
-  check('starter-select: 5 heroes shown, some locked, Ash unlocked',
-    await J(() => document.querySelectorAll('.ss-fig').length === 5
+  check('starter-select: 6 heroes shown, some locked, Ash unlocked',
+    await J(() => document.querySelectorAll('.ss-fig').length === 6
       && document.querySelectorAll('.ss-fig.ss-locked').length >= 1
       && !!document.querySelector('.ss-fig[data-id="ash"]:not(.ss-locked)')));
   await shot('starter-select');
@@ -585,12 +585,12 @@ const QUICK = process.argv.includes('--quick');
     }));
   check('ENEMY IDENTITY: speed axis reads the foe — Wraith fast (>1), Husk/Drone slow (<1)',
     await J(() => ENEMY_DEFS.wraith.parrySpeed > 1 && ENEMY_DEFS.husk.parrySpeed < 1 && ENEMY_DEFS.drone.parrySpeed < 1));
-  check('TELEGRAPH: a foe PREVIEWS its parry gesture (i-parry glyph) so the attack reads ahead of the ring',
+  check('TELEGRAPH: the pill stays clean — NO parry-gesture glyph (react at the ring instead)',
     await J(() => {
       startFight({ type: 'fight', chapter: 2, heroes: ['ash'], enemies: ['wraith'], narrator: 'telegraph' });
-      S.enemies[0].intentIdx = 0; renderAll();   // Grasping Flurry — a mash
-      const el = document.querySelector('.figure.enemy .intent .i-parry');
-      return !!el && el.textContent.length > 0; }));
+      S.enemies[0].intentIdx = 0; renderAll();
+      const p = document.querySelector('.figure.enemy .intent');
+      return !!p && !!p.querySelector('.i-dmg') && !p.querySelector('.i-parry'); }));
   // EXPANDED BESTIARY — three foes on new axes
   check('BESTIARY brood: a SWARM strikes TWICE a round (frequency axis works for a non-boss)',
     await J(() => {
@@ -832,8 +832,8 @@ const QUICK = process.argv.includes('--quick');
       && parryPatternFor({ dmg: 5 }).kind === 'multi'
       && parryPatternFor({ dmg: 8 }).size === 'big'
       && parryPatternFor({ dmg: 6 }).kind === 'tap'));
-  check('INTENT: the telegraph reads damage + target row + the parry GESTURE (authored identity, so it previews)',
-    await J(() => { const p = document.querySelector('.intent'); return !!p && !!p.querySelector('.i-dmg') && !!p.querySelector('.i-row') && !!p.querySelector('.i-parry'); }));
+  check('INTENT: the telegraph pill is clean — damage + target row, no parry-glyph clutter',
+    await J(() => { const p = document.querySelector('.intent'); return !!p && !!p.querySelector('.i-dmg') && !!p.querySelector('.i-row') && !p.querySelector('.i-parry'); }));
   check('ALL-HIT: a whole-party blow is one across-sweep parry',
     await J(() => { const p = parryPatternFor({ row: 'all', dmg: 5 }); return p.kind === 'swipe' && p.arc === 'arcAcross' && p.across === true; }));
   check('PARTIAL: a multi-tap parries per note (mitigation is fractional)',
@@ -1849,7 +1849,7 @@ const QUICK = process.argv.includes('--quick');
   check('TREE: new stance nodes wire cleanly (valid requires, valid passives, unique ids)',
     await J(() => {
       const ids = new Set(); let ok = true;
-      const special = ['elin_overflow'];   // handled inline in the heal-spill code, not via PASSIVE_DEFS
+      const special = ['elin_overflow', 'hask_kindling', 'hask_conduit', 'hask_steady', 'hask_meltdown', 'hask_surge'];   // handled inline (heal-spill / charge system), not via PASSIVE_DEFS
       EMBER_TREE.forEach(n => { if (ids.has(n.id)) ok = false; ids.add(n.id); });
       EMBER_TREE.forEach(n => { (n.requires || []).forEach(r => { if (!NODE_BY_ID[r]) ok = false; }); if ((n.type === 'passive' || n.type === 'synergy') && !PASSIVE_DEFS[n.passive] && !special.includes(n.passive)) ok = false; });
       return ok;
@@ -1892,12 +1892,41 @@ const QUICK = process.argv.includes('--quick');
   check('CAPSTONES branwen: three distinct build-paths survive (reckoning/cadence/killingblow)',
     await J(() => ['branwen.passive.reckoning', 'branwen.synergy.cadence', 'branwen.passive.killingblow'].every(id => !!NODE_BY_ID[id])));
   check('CAPSTONE PARITY: every hero has 3 tier-4 capstones, each on its OWN feeder (no convergence)',
-    await J(() => ['ash', 'cassia', 'elin', 'mira', 'branwen'].every(h => {
+    await J(() => ['ash', 'cassia', 'elin', 'mira', 'branwen', 'hask'].every(h => {
       const caps = EMBER_TREE.filter(n => n.hero === h && n.tier === 4);
       if (caps.length < 3) return false;
       const feeders = caps.map(c => (c.requires || []).join(','));   // each capstone's prerequisite chain
       return new Set(feeders).size === feeders.length;               // all distinct → divergent arcs
     })));
+  // ---------- HASK — the BLACK MAGE (◆ CHARGE / OVERLOAD) ----------
+  console.log('--- HASK / BLACK MAGE ---');
+  check('HASK: a fieldable tree-hero — in the starter pool, 3 capstones, an Overload fork',
+    await J(() => STARTER_POOL.includes('hask') && TREE_HEROES.includes('hask')
+      && !!NODE_BY_ID['hask.branch.mid'] && !!ROTATIONS.hask));
+  check('HASK ◆ CHARGE: a spell that lands builds a stack',
+    await J(async () => {
+      setupFight(['hask'], [], { hask: 'mid' }); S._rotations = false; S.tempCards = []; renderAll();
+      const h = S.heroes[0]; h.charge = 0;
+      await resolveCard({ owner: 'hask', name: 'Bolt', cost: 0, target: 'enemy', fx: { dmg: 4 } }, S.enemies[0].uid);
+      return h.charge === 1; }));
+  check('HASK OVERLOAD: a spendCharge nuke dumps ◆ CHARGE (+3 each) then resets to 0',
+    await J(async () => {
+      setupFight(['hask'], [], { hask: 'mid' }); S._rotations = false; S.tempCards = []; renderAll();
+      const h = S.heroes[0]; h.charge = 3; const e = S.enemies[0]; e.hp = e.maxHp = 100; e.guard = 0; const hp0 = e.hp;
+      await resolveCard({ owner: 'hask', name: 'Overload', cost: 0, target: 'enemy', fx: { dmg: 6, spendCharge: true } }, e.uid);
+      return h.charge === 0 && (hp0 - S.enemies[0].hp) === 15; }));   // 6 base + 3×3
+  check('HASK INTERRUPT: moving resets ◆ CHARGE (a rooted caster)',
+    await J(() => { setupFight(['hask'], [], { hask: 'mid' }); const h = S.heroes[0]; h.charge = 3; onHeroEnterRow(h, 'front', 'mid'); return h.charge === 0; }));
+  check('HASK STEADY CAST node: moving KEEPS ◆ CHARGE (channel on the move)',
+    await J(() => { setupFight(['hask'], ['hask.passive.steady'], { hask: 'mid' }); const h = S.heroes[0]; h.charge = 3; onHeroEnterRow(h, 'front', 'mid'); return h.charge === 3; }));
+  check('POSITION MEMORY: a descent fight opens where the party stood at the end of the last one',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash', 'hask']; RUN.active = RUN.roster.slice();
+      RUN.hp = { ash: 32, hask: 22 }; RUN.completed = [0, 1, 2, 3, 4, 5, 6, 7, 8];
+      RUN.rows = { ash: 'front', hask: 'back' };   // Hask fell back last fight
+      startMapFight(RUN.map.find(x => x.type === 'fight'));
+      const ash = S.heroes.find(h => h.id === 'ash'), hk = S.heroes.find(h => h.id === 'hask');
+      return ash.row === 'front' && hk.row === 'back'; }));
   check('COMBO branwen.passive.killingblow: +4 vs a foe at/below half HP, nothing above',
     await J(() => {
       setupFight(['branwen'], ['branwen.passive.killingblow'], { branwen: 'mid' });
@@ -2145,7 +2174,7 @@ const QUICK = process.argv.includes('--quick');
         return finOk && bldOk && altOk;
       }))));
   check('ROTATION every rotation fx uses only supported effect keys (no dead effects)',
-    await J(() => { const ok = new Set(['dmg', 'mark', 'guard', 'heal', 'buffDmg', 'counter', 'step', 'warp', 'lull', 'taunt']);
+    await J(() => { const ok = new Set(['dmg', 'mark', 'guard', 'heal', 'buffDmg', 'counter', 'step', 'warp', 'lull', 'taunt', 'chargeGain', 'spendCharge']);
       return Object.values(ROTATIONS).every(st => Object.values(st).every(rot =>
         Object.values(rot.cards).every(c => Object.keys(c.fx || {}).every(k => ok.has(k))))); }));
   check('PROVOKE / TAUNT: a smart foe that would hunt the weakest instead strikes the TAUNTER’s row',
@@ -2174,11 +2203,11 @@ const QUICK = process.argv.includes('--quick');
       fireEmergent('elin', 'heal', { name: 'Mend' }); fireEmergent('elin', 'heal', { name: 'Mend' });
       const il = S.tempCards.find(c => c.name === 'Inverse Light');
       return !!il && il.fx.dmg === 8 && il.school === 'light'; }));
-  check('ROTATION dev preview is the FULL build — all 30 rotation gates (15 finishers + 15 forks) unlocked',
+  check('ROTATION dev preview is the FULL build — all 36 rotation gates (18 finishers + 18 forks, 6 heroes) unlocked',
     await J(() => typeof devPreviewRotations === 'function'
       && devPreviewRotations.toString().includes('_rotations = true')
       && devPreviewRotations.toString().includes('ROTATION_GATES')
-      && Array.isArray(ROTATION_GATES) && ROTATION_GATES.length === 30));
+      && Array.isArray(ROTATION_GATES) && ROTATION_GATES.length === 36));
   check('ROTATION forged steps sit in the HERO’s slot, not appended to the far right of the hand',
     await J(() => { setupFight(['ash', 'elin'], ['ash.sig.front', 'ash.branch.front'], { ash: 'front', elin: 'mid' }); S._rotations = true; renderAll();
       const op = buildHand().find(c => c.kind === 'opener' && c.owner === 'ash'); S.tempCards = []; resolveChainPlay(op);
