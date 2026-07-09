@@ -591,6 +591,21 @@ const QUICK = process.argv.includes('--quick');
       S.enemies[0].intentIdx = 0; renderAll();   // Grasping Flurry — a mash
       const el = document.querySelector('.figure.enemy .intent .i-parry');
       return !!el && el.textContent.length > 0; }));
+  // EXPANDED BESTIARY — three foes on new axes
+  check('BESTIARY brood: a SWARM strikes TWICE a round (frequency axis works for a non-boss)',
+    await J(() => {
+      startFight({ type: 'fight', chapter: 3, heroes: ['ash'], enemies: ['brood'], narrator: 'brood' });
+      return ENEMY_DEFS.brood.attacksPerRound === 2 && enemyNextIntents(S.enemies[0]).length === 2; }));
+  check('BESTIARY cantor: a back-line caster — hits BACK/ALL with chill+expose and EMPOWERS the horde',
+    await J(() => {
+      const its = ENEMY_DEFS.cantor.intents;
+      const ranged = its.some(i => i.dmg && (i.row === 'back' || i.row === 'all') && (i.chill || i.expose));
+      const empowers = its.some(i => i.kind === 'buff' && i.powerAll);
+      return ranged && empowers; }));
+  check('BESTIARY revenant: an elite mini-boss with boss-style multi-note CASCADES (input-size axis)',
+    await J(() => ENEMY_DEFS.revenant.intents.some(i => i.parry && i.parry.kind === 'seq' && i.parry.notes.length >= 3)));
+  check('BESTIARY: encounters seed the new foes — elite anchored by the Revenant; brood/cantor in the deep pool',
+    await J(() => _eliteEnemies(5).includes('revenant') && COMBAT_POOL.deep.includes('brood') && COMBAT_POOL.deep.includes('cantor')));
   // INTERRUPT — the Bloodborne moment
   await J(() => {
     hideOverlay();

@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 119;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 120;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -1077,6 +1077,37 @@ const ENEMY_DEFS = {
       { name: 'Harden', kind: 'buff', desc: 'hardens', guardSelf: 4 },
     ],
   },
+  // ── EXPANDED BESTIARY — three foes that open new axes ──────────────────────
+  // GNAWING BROOD — the FREQUENCY axis: it strikes TWICE a round, two small fast
+  // telegraphs to answer.  Individually weak, lethal when it swarms you.
+  brood: {
+    weak: 'blade', name: 'GNAWING BROOD', maxHp: 22, parrySpeed: 1.4, attacksPerRound: 2,
+    intents: [
+      { name: 'Gnaw',       dmg: 3, row: 'front', attackArt: 'claw',  parry: { kind: 'mash', count: 3 } },
+      { name: 'Skitter',    dmg: 2, row: 'mid',   attackArt: 'slash', parry: { kind: 'multi', count: 2 } },
+      { name: 'Swarm Over', dmg: 2, row: 'all',   attackArt: 'claw',  parry: { kind: 'swipe', arc: 'arcAcross', across: true } },
+    ],
+  },
+  // DIRGE CANTOR — POSITIONAL / status artillery: a back-line caster that debuffs
+  // the whole party and EMPOWERS the horde.  Braced channels; kill it first.
+  cantor: {
+    weak: 'light', name: 'DIRGE CANTOR', maxHp: 20, parrySpeed: 1.0,
+    intents: [
+      { name: 'Wailing Verse', dmg: 4, row: 'back', chill: 1,  attackArt: 'blast', parry: { kind: 'hold', size: 'big' } },
+      { name: 'Dirge of Ruin', dmg: 3, row: 'all',  expose: 2, attackArt: 'blast', parry: { kind: 'swipe', arc: 'arcAcross', across: true } },
+      { name: 'Requiem', kind: 'buff', desc: 'empowers the choir', powerAll: 2 },
+    ],
+  },
+  // ECHO REVENANT — the INPUT-SIZE axis: an elite mini-boss with real boss-style
+  // multi-note CASCADES you parry as a sequence.  The elite fight that bites.
+  revenant: {
+    weak: 'blade', name: 'ECHO REVENANT', maxHp: 38, parrySpeed: 1.1,
+    intents: [
+      { name: 'Phantom Combo',  dmg: 8,  row: 'front', attackArt: 'slash', parry: { kind: 'seq', notes: [{ t: 'tap' }, { t: 'tap' }, { t: 'swipe', arc: 'arcR' }] } },
+      { name: 'Echoed Guard', kind: 'buff', desc: 'echoes a ward', guardSelf: 5 },
+      { name: 'REMEMBERED END', dmg: 11, row: 'all', heavy: true, expose: 2, attackArt: 'blast', parry: { kind: 'seq', notes: [{ t: 'tap' }, { t: 'hold' }, { t: 'tap' }, { t: 'swipe', arc: 'arcU' }] } },
+    ],
+  },
   echoknight: {
     weak: 'blade', name: 'THE ECHO KNIGHT', maxHp: 56, boss: true,
     intents: [
@@ -1509,8 +1540,8 @@ const RECRUIT_NODE_LABELS = {
 };
 const COMBAT_POOL = {
   early: ['husk', 'wraith', 'cultist'],
-  mid:   ['cultist', 'mourner', 'husk', 'wraith'],
-  deep:  ['drone', 'mourner', 'cultist', 'wraith', 'husk'],
+  mid:   ['cultist', 'mourner', 'husk', 'wraith', 'brood'],
+  deep:  ['drone', 'mourner', 'cultist', 'wraith', 'brood', 'cantor'],
 };
 const NODE_LABELS = {
   fight: ['ASHFALL ROAD', 'HOLLOW CHOIR', 'MOURNING FIELD', 'COLD PROCESSION', 'THE GREY MILE', 'SILENT MARCH', 'THE BROKEN CHANCEL', 'DRONE NEST', 'THE WEEPING STAIR'],
@@ -1530,9 +1561,12 @@ function _combatEnemies(level) {
   const out = []; for (let i = 0; i < count; i++) out.push(_pick(pool)); return out;
 }
 function _eliteEnemies(level) {
-  const heavy = _pick(['drone', 'mourner']);
-  const rest = _shuffle(['cultist', 'wraith', 'husk', 'mourner']).slice(0, level >= 5 ? 2 : 1);
-  return [heavy, ...rest];
+  // The elite fight is anchored by a mini-boss — the ECHO REVENANT with its
+  // boss-style cascades — flanked by a support caster / adds so it plays like a
+  // real set-piece, not just a bigger mob.
+  const anchor = 'revenant';
+  const rest = _shuffle(['cantor', 'cultist', 'wraith', 'drone']).slice(0, level >= 5 ? 2 : 1);
+  return [anchor, ...rest];
 }
 // One branching stretch's node TYPES (2-3), always with at least one fight and
 // weighted toward variety as the descent deepens.
@@ -2908,7 +2942,7 @@ function enemyIntentDmg(e, intent) {
 // shown is exactly what lands.
 function enemyNextIntents(e) {
   const len = e.def.intents.length;
-  const n = (e.def.floorBoss && e.def.attacksPerRound) ? e.def.attacksPerRound : 1;
+  const n = e.def.attacksPerRound || 1;   // bosses AND swarms (Gnawing Brood) strike more than once
   const out = [];
   // A stored ECHO returns as the round's FIRST strike (it does not consume a slot
   // in the normal cycle), so the telegraph mirrors exactly what enemyPhase runs.
@@ -4209,7 +4243,7 @@ async function enemyPhase() {
     if (S.over) break;
     // A boss takes MULTIPLE actions per round; each is its own telegraphed,
     // parryable strike drawn from the next intents in its cycle.
-    const times = (e.def.floorBoss && e.def.attacksPerRound) ? e.def.attacksPerRound : 1;
+    const times = e.def.attacksPerRound || 1;   // bosses AND swarms strike more than once per round
     _parrySpeed = e.def.parrySpeed || 1;   // later boss stages crank the cascade tempo (see stage defs)
     for (let atk = 0; atk < times; atk++) {
     if (S.over || e.dead || S._staging) break;
