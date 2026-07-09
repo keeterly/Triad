@@ -1942,33 +1942,33 @@ const QUICK = process.argv.includes('--quick');
       setupFight(['hask'], ['hask.cast.meteor'], { hask: 'back' }); S.tempCards = [];
       await resolveCard({ owner: 'hask', name: 'Starfall', cost: 0, target: 'enemy', fx: { castDmg: 16 } }, S.enemies[0].uid);
       return !!S.heroes[0].pendingCast && S.heroes[0].pendingCast.all === true; }));
-  check('HASK WEAVE: with Emberwake, a FIRE spell swings 🔥 PYRE (+1) and ICE swings ❄ HOAR (−1)',
+  check('HASK WEAVE: with Emberwake, a FIRE spell swings 🔥 PYRE (+1) and ICE swings ❄ FROST (−1)',
     await J(async () => {
       setupFight(['hask'], ['hask.weave.astral'], { hask: 'front' }); S._rotations = false; const e = S.enemies[0]; e.hp = e.maxHp = 100; e.guard = 0;
       const h = S.heroes[0]; h.aether = 0;
       await resolveCard({ owner: 'hask', name: 'Cinderfall', cost: 0, target: 'enemy', fx: { dmg: 5, elem: 'fire' } }, e.uid);
       const afterFire = h.aether;   // → +1 Pyre
       await resolveCard({ owner: 'hask', name: 'Frost', cost: 0, target: 'enemy', fx: { dmg: 4, elem: 'ice' } }, e.uid);
-      return afterFire === 1 && h.aether === -1; }));   // ice crosses back and chills to Hoar 1
+      return afterFire === 1 && h.aether === -1; }));   // ice crosses back and chills to Frost 1
   check('HASK PYRE: at deep Pyre, a fire spell hits +2 per stack',
     await J(async () => {
       setupFight(['hask'], ['hask.weave.astral'], { hask: 'front' }); S._rotations = false; const e = S.enemies[0]; e.hp = e.maxHp = 100; e.guard = 0; const hp0 = e.hp;
       const h = S.heroes[0]; h.aether = 2;   // one more fire → Astral 3
       await resolveCard({ owner: 'hask', name: 'Cinderfall', cost: 0, target: 'enemy', fx: { dmg: 5, elem: 'fire' } }, e.uid);
       return h.aether === 3 && (hp0 - S.enemies[0].hp) === 11; }));   // 5 base + 2×3 Astral
-  check('HASK HOAR: an ice spell going Hoar refills extra ◆ CHARGE',
+  check('HASK FROST: an ice spell going Frost refills extra ◆ CHARGE',
     await J(async () => {
       setupFight(['hask'], ['hask.weave.astral'], { hask: 'front' }); S._rotations = false; const e = S.enemies[0]; e.hp = e.maxHp = 100; e.guard = 0;
       const h = S.heroes[0]; h.aether = 0; h.charge = 0;
       await resolveCard({ owner: 'hask', name: 'Frost', cost: 0, target: 'enemy', fx: { dmg: 4, elem: 'ice' } }, e.uid);
       return h.aether === -1 && h.charge === 2; }));   // base +1 charge, +1 Umbral refill
-  check('HASK BACKDRAFT: fire cast AGAINST Hoar snaps to full Pyre and DETONATES (+6 burst)',
+  check('HASK BACKDRAFT: fire cast AGAINST Frost snaps to full Pyre and DETONATES (+6 burst)',
     await J(async () => {
       setupFight(['hask'], ['hask.weave.astral', 'hask.weave.enochian'], { hask: 'front' }); S._rotations = false; const e = S.enemies[0]; e.hp = e.maxHp = 100; e.guard = 0; const hp0 = e.hp;
       const h = S.heroes[0]; h.aether = -2;   // deep Umbral
       await resolveCard({ owner: 'hask', name: 'Cinderfall', cost: 0, target: 'enemy', fx: { dmg: 5, elem: 'fire' } }, e.uid);
       return h.aether === 3 && (hp0 - S.enemies[0].hp) === 17; }));   // 5 base + 6 resonance + 6 Astral(3)
-  check('HASK EMBERWAKE (no Backdraft): fire crossing from Hoar IGNITES at Pyre 1 (+2), no far-snap/burst',
+  check('HASK EMBERWAKE (no Backdraft): fire crossing from Frost IGNITES at Pyre 1 (+2), no far-snap/burst',
     await J(async () => {
       setupFight(['hask'], ['hask.weave.astral'], { hask: 'front' }); S._rotations = false; const e = S.enemies[0]; e.hp = e.maxHp = 100; e.guard = 0; const hp0 = e.hp;
       const h = S.heroes[0]; h.aether = -2;

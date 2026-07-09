@@ -1,4 +1,4 @@
-// Playtest: Hask's PYRE/HOAR elemental weave. Compares three play patterns —
+// Playtest: Hask's PYRE/FROST elemental weave. Compares three play patterns —
 // camp fire, camp ice, and weave (alternate) — to confirm the design rewards
 // WEAVING both elements over camping one. Reports damage + charge economy.
 'use strict';
