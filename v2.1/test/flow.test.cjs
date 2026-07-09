@@ -1544,6 +1544,16 @@ const QUICK = process.argv.includes('--quick');
   // dmgMod passives — EXPOSED exploiters
   check('TREE mira.passive.opportunist: +3 damage to an EXPOSED foe',
     await J(() => { setupFight(['mira'], ['mira.passive.opportunist'], { mira: 'mid' }); const e = S.enemies[0]; e.mark = 0; const a = passiveDmg(S.heroes[0], e); e.mark = 4; return a === 0 && passiveDmg(S.heroes[0], e) === 3; }));
+  check('TREE mira.passive.swiftfoot: Mira’s first move each turn is FREE (0 EP)',
+    await J(() => { setupFight(['mira'], ['mira.afterimage', 'mira.passive.swiftfoot'], { mira: 'mid' }); const h = S.heroes[0]; S.used = new Set(); return moveCost(h) === 0 && mkMoveAction(h).cost === 0; }));
+  check('TREE mira.passive.swiftfoot: WITHOUT the node her move costs 1 EP',
+    await J(() => { setupFight(['mira'], ['mira.afterimage'], { mira: 'mid' }); const h = S.heroes[0]; S.used = new Set(); return moveCost(h) === 1; }));
+  check('TREE swiftfoot: only the FIRST move is free — after moving, a further move costs 1',
+    await J(() => { setupFight(['mira'], ['mira.afterimage', 'mira.passive.swiftfoot'], { mira: 'mid' }); const h = S.heroes[0]; S.used = new Set(); const first = moveCost(h); S.used.add('mira:move'); return first === 0 && moveCost(h) === 1; }));
+  check('TREE swiftfoot: can move at 0 EP with the free move (canMove holds)',
+    await J(() => { setupFight(['mira'], ['mira.afterimage', 'mira.passive.swiftfoot'], { mira: 'mid' }); const h = S.heroes[0]; S.used = new Set(); S.ep = 0; S.executing = false; S.over = false; S._staging = false; return canMove(h) === true; }));
+  check('TREE swiftfoot is Mira-only: another hero’s move still costs 1 EP',
+    await J(() => { setupFight(['ash'], ['mira.passive.swiftfoot'], { ash: 'mid' }); const h = S.heroes[0]; S.used = new Set(); return moveCost(h) === 1; }));
   check('TREE branwen.passive.focus: +2 damage to an EXPOSED foe',
     await J(() => { setupFight(['branwen'], ['branwen.passive.focus'], { branwen: 'back' }); const e = S.enemies[0]; e.mark = 3; return passiveDmg(S.heroes[0], e) === 2; }));
   // postHit execute — Death Mark
@@ -1849,7 +1859,7 @@ const QUICK = process.argv.includes('--quick');
   check('TREE: new stance nodes wire cleanly (valid requires, valid passives, unique ids)',
     await J(() => {
       const ids = new Set(); let ok = true;
-      const special = ['elin_overflow', 'hask_kindling', 'hask_conduit', 'hask_steady', 'hask_meltdown', 'hask_surge', 'hask_meteor', 'hask_enochian'];   // handled inline (heal-spill / charge / cast / weave systems), not via PASSIVE_DEFS
+      const special = ['elin_overflow', 'hask_kindling', 'hask_conduit', 'hask_steady', 'hask_meltdown', 'hask_surge', 'hask_meteor', 'hask_enochian', 'mira_swiftfoot'];   // handled inline (heal-spill / charge / cast / weave / move-cost systems), not via PASSIVE_DEFS
       EMBER_TREE.forEach(n => { if (ids.has(n.id)) ok = false; ids.add(n.id); });
       EMBER_TREE.forEach(n => { (n.requires || []).forEach(r => { if (!NODE_BY_ID[r]) ok = false; }); if ((n.type === 'passive' || n.type === 'synergy') && !PASSIVE_DEFS[n.passive] && !special.includes(n.passive)) ok = false; });
       return ok;

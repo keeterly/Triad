@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 140;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 141;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -251,6 +251,7 @@ const EMBER_TREE = [
   { id: 'ash.afterimage',     hero: 'ash',     tier: 1, cost: 4, type: 'afterimage', label: 'Afterimage', desc: 'ON REPOSITION: the stance you left <b>strikes again</b> (free echo, −2 dmg, this turn) — a move OR a slip counts' },
   { id: 'elin.afterimage',    hero: 'elin',    tier: 1, cost: 4, type: 'afterimage', label: 'Afterimage', desc: 'ON REPOSITION: the stance she left <b>strikes again</b> (free echo, −2 dmg, this turn)' },
   { id: 'mira.afterimage',    hero: 'mira',    tier: 1, cost: 4, type: 'afterimage', label: 'Afterimage', desc: 'ON REPOSITION: the stance she left <b>strikes again</b> (free echo, −2 dmg, this turn) — her slips & vanishes count' },
+  { id: 'mira.passive.swiftfoot', hero: 'mira', tier: 2, cost: 6, type: 'passive', requires: ['mira.afterimage'], label: 'Swiftfoot', desc: 'PASSIVE: your <b>first MOVE each turn is FREE</b> (no EP) — slip in and out without paying the tempo, and feed the <b>echo</b>', passive: 'mira_swiftfoot' },
   { id: 'cassia.afterimage',  hero: 'cassia',  tier: 1, cost: 4, type: 'afterimage', label: 'Afterimage', desc: 'ON REPOSITION: the stance she left <b>strikes again</b> (free echo, −2 dmg, this turn)' },
   { id: 'branwen.afterimage', hero: 'branwen', tier: 1, cost: 4, type: 'afterimage', label: 'Afterimage', desc: 'ON REPOSITION: the stance she left <b>strikes again</b> (free echo, −2 dmg, this turn) — her backstep leaves a parting arrow' },
 
@@ -2131,13 +2132,19 @@ function mkCard(h, kind, def) {
 // Synthetic move "card" — never shown in hand; movement is a figure-drag
 // (or tap-the-hero, then tap a row).  Routed through playCard so EP cost,
 // once-per-turn use, and execution flow stay identical to real cards.
+// SWIFTFOOT (Mira) — her FIRST move each turn is free.  Since a hero may move
+// only once per turn, this makes her sole move cost no EP: slip in and out
+// without paying the tempo (and it feeds Afterimage's free echo).
+function moveCost(h) {
+  return (h && h.id === 'mira' && hasNode('mira.passive.swiftfoot') && !S.used.has(h.id + ':move')) ? 0 : 1;
+}
 function mkMoveAction(h) {
   return { kind: 'move', owner: h.id, ownerName: h.def.name, tint: h.def.tint,
-    stance: STANCE[h.row].name, name: 'Move', cost: 1, target: 'row',
+    stance: STANCE[h.row].name, name: 'Move', cost: moveCost(h), target: 'row',
     desc: '', spent: S.used.has(h.id + ':move') };
 }
 function canMove(h) {
-  return !S.executing && !S.over && !S._staging && !h.downed && S.ep >= 1 && !S.used.has(h.id + ':move');
+  return !S.executing && !S.over && !S._staging && !h.downed && S.ep >= moveCost(h) && !S.used.has(h.id + ':move');
 }
 function triadEntryFor(ids) {
   const classes = ids.map(id => HEROES[id].cls).sort().join('+');
