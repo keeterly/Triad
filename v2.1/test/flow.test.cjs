@@ -1963,6 +1963,21 @@ const QUICK = process.argv.includes('--quick');
     await J(() => { setupFight(['hask'], [], { hask: 'mid' }); const h = S.heroes[0]; h.charge = 0; h.hp = 22; onHeroEnterRow(h, 'front', 'mid'); return h.hp === 22; }));
   check('HASK STEADY CAST node: moving KEEPS ◆ CHARGE and takes NO misfire (channel on the move)',
     await J(() => { setupFight(['hask'], ['hask.passive.steady'], { hask: 'mid' }); const h = S.heroes[0]; h.charge = 3; h.hp = 22; onHeroEnterRow(h, 'front', 'mid'); return h.charge === 3 && h.hp === 22; }));
+  // ── FORCED REPOSITION — enemies can now SHOVE / HOOK heroes between rows ──
+  check('SHOVE: applyShove drags a BACK hero to FRONT, swapping the occupant',
+    await J(() => { setupFight(['ash', 'hask'], [], { ash: 'front', hask: 'back' }); const hk = S.heroes.find(x => x.id === 'hask'); const ash = S.heroes.find(x => x.id === 'ash');
+      const dest = applyShove(hk, 'front'); return dest === 'mid' && hk.row === 'mid' && ash.row === 'front'; }));   // no one in mid → hask slides to mid
+  check('SHOVE: a hero at the edge cannot be pushed further (returns null)',
+    await J(() => { setupFight(['ash'], [], { ash: 'front' }); const ash = S.heroes[0]; return applyShove(ash, 'front') === null && ash.row === 'front'; }));
+  check('SHOVE→MISFIRE: a charged Hask HOOKED out of the back detonates (forced move, no Steady Cast)',
+    await J(() => { setupFight(['hask'], [], { hask: 'back' }); const h = S.heroes[0]; h.charge = 4; h.hp = 22; h.guard = 0;
+      applyShove(h, 'front'); return h.row === 'mid' && h.charge === 0 && h.hp === 14; }));   // 4 ◆ × 2 = 8 self-damage on the forced move
+  check('SHOVE→MISFIRE: Steady Cast Hask is HOOKED but keeps ◆ and takes no backlash',
+    await J(() => { setupFight(['hask'], ['hask.passive.steady'], { hask: 'back' }); const h = S.heroes[0]; h.charge = 4; h.hp = 22;
+      applyShove(h, 'front'); return h.row === 'mid' && h.charge === 4 && h.hp === 22; }));
+  check('SHOVE: the bestiary wires it — Drone SLAMS back, Revenant HOOKS forward',
+    await J(() => { const drone = (ENEMY_DEFS.drone.intents || []).find(i => i.shove === 'back'); const rev = (ENEMY_DEFS.revenant.intents || []).find(i => i.shove === 'front');
+      return !!drone && drone.name === 'Piston Slam' && !!rev && rev.name === 'Chain Hook' && rev.row === 'back'; }));
   check('HASK CAST-TIME: a castDmg card BEGINS a cast (no hit now, pendingCast set)',
     await J(async () => {
       setupFight(['hask'], [], { hask: 'back' }); S.tempCards = []; const e = S.enemies[0]; e.hp = e.maxHp = 100; const hp0 = e.hp;

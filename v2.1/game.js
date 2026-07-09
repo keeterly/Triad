@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 142;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 143;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -355,6 +355,23 @@ function onHeroEnterRow(hero, toRow, fromRow) {
     if (hero.pendingCast) { hero.pendingCast = null; popupAt(figEl(hero.id), '◈ CAST BROKEN', 'chill'); }
   }
   firePassives('enterRow', hero.id, { toRow, fromRow });
+}
+// FORCED REPOSITION — a foe's SHOVE ('back', away) or HOOK ('front', into reach)
+// drives a hero one row over, swapping with whoever's there.  Returns the new row,
+// or null if they were already at the edge.  Routes through onHeroEnterRow, so a
+// charged Hask MISFIRES and any enter-row passives fire.
+function applyShove(hero, dir) {
+  if (!hero || hero.downed) return null;
+  const order = ['front', 'mid', 'back'];
+  const dest = order[order.indexOf(hero.row) + (dir === 'front' ? -1 : 1)];
+  if (!dest) return null;
+  const from = hero.row, occ = (typeof heroInRow === 'function') ? heroInRow(dest) : null;
+  hero.row = dest; if (occ) occ.row = from;
+  popupAt(figEl(hero.id), dir === 'front' ? '⇱ DRAGGED' : '⇲ SHOVED', 'dmg');
+  S._morphHeroId = hero.id; if (occ) S._morphHeroId2 = occ.id;   // animate the swap
+  onHeroEnterRow(hero, dest, from);
+  if (occ) onHeroEnterRow(occ, from, dest);
+  return dest;
 }
 // EMERGENT LOOPS — a kindled tier-3 node installs a per-fight counter that watches
 // a hero repeat their archetypal act (strike / expose / heal / raise guard); on the
@@ -1161,12 +1178,13 @@ const ENEMY_DEFS = {
     ],
   },
   drone: {
-    // An armored turtle: it HARDENS, bides, then drops a single crushing SLAM —
-    // a big, slow, telegraphed tap.  Deny the shell or weather the hammer.
+    // An armored turtle: it HARDENS, bides, then drops a single crushing SLAM that
+    // KNOCKS the front hero back a row — a big, slow, telegraphed tap.  Deny the
+    // shell, weather the hammer, or parry to hold your footing.
     weak: 'iron', name: 'HOLLOW DRONE', maxHp: 20, parrySpeed: 0.9,
     intents: [
       { name: 'Refrain',     dmg: 5, row: 'front', attackArt: 'slash', parry: { kind: 'multi', count: 2 } },
-      { name: 'Piston Slam', dmg: 7, row: 'front', attackArt: 'slam',  parry: { kind: 'tap', size: 'big' } },
+      { name: 'Piston Slam', dmg: 7, row: 'front', shove: 'back', attackArt: 'slam',  parry: { kind: 'tap', size: 'big' } },
       { name: 'Harden', kind: 'buff', desc: 'hardens', guardSelf: 4 },
     ],
   },
@@ -1192,11 +1210,14 @@ const ENEMY_DEFS = {
     ],
   },
   // ECHO REVENANT — the INPUT-SIZE axis: an elite mini-boss with real boss-style
-  // multi-note CASCADES you parry as a sequence.  The elite fight that bites.
+  // multi-note CASCADES you parry as a sequence.  Its Chain Hook DRAGS a back-line
+  // hero into the front — punishing squishy casters (and a charged Hask, who
+  // MISFIRES when yanked).  The elite fight that bites, positionally too.
   revenant: {
     weak: 'blade', name: 'ECHO REVENANT', maxHp: 38, parrySpeed: 1.1,
     intents: [
       { name: 'Phantom Combo',  dmg: 8,  row: 'front', attackArt: 'slash', parry: { kind: 'seq', notes: [{ t: 'tap' }, { t: 'tap' }, { t: 'swipe', arc: 'arcR' }] } },
+      { name: 'Chain Hook', dmg: 4, row: 'back', shove: 'front', attackArt: 'claw', parry: { kind: 'seq', notes: [{ t: 'swipe', arc: 'arcL' }, { t: 'tap' }] } },
       { name: 'Echoed Guard', kind: 'buff', desc: 'echoes a ward', guardSelf: 5 },
       { name: 'REMEMBERED END', dmg: 11, row: 'all', heavy: true, expose: 2, attackArt: 'blast', parry: { kind: 'seq', notes: [{ t: 'tap' }, { t: 'hold' }, { t: 'tap' }, { t: 'swipe', arc: 'arcU' }] } },
     ],
@@ -4626,6 +4647,11 @@ async function enemyPhase() {
       // HEX — the Maw's curse.  If you don't DODGE the row (or perfect-parry), the
       // hex clings: while hexed, every card you play burns another from your hand.
       if (!perfectParry && intent.hex) { h.hexed = Math.max(h.hexed || 0, intent.hex); popupAt(figEl(h.id), '☠ HEXED', 'dmg'); }
+      // SHOVE / HOOK — a heavy foe knocks the struck hero OUT of formation:
+      // shove:'back' drives them one row back, 'front' DRAGS them forward into the
+      // teeth.  The reposition fires onHeroEnterRow — so a charged Hask MISFIRES and
+      // a squishy backliner gets yanked into reach.  A PERFECT parry keeps your footing.
+      if (!perfectParry && intent.shove && !h.downed) applyShove(h, intent.shove);
       // REACTIVE: an ally in real danger summons their strongest bond.
       // Costed on purpose — the intercept scrambles formation and chills
       // the protector; declining it is as expressive as playing it.
@@ -6066,7 +6092,7 @@ function intentSeg(e, it) {
   const row = effIntentRow(e, it);   // smart foes point at the hero they're hunting
   // The pill stays clean: damage + target row + status.  The parry GESTURE is NOT
   // previewed — you read the foe's type & the attack and react at the ring.
-  return `<span class="i-seg"><span class="i-glyph">⚔</span><span class="i-dmg">${enemyIntentDmg(e, it)}</span><span class="i-arrow">→</span><span class="i-row">${row === 'all' ? 'ALL' : ROW_LABEL[row]}</span>${it.hex ? '<span class="i-st kw-hex" title="HEX — if it lands, your card plays burn your hand; dodge it">☠</span>' : ''}${it.drain ? '<span class="i-st kw-drain" title="drains life — heals the Maw">♥</span>' : ''}${it.chill ? '<span class="i-st kw-chill" title="chills you">❄</span>' : ''}${it.expose ? '<span class="i-st kw-exposed" title="exposes you">◎</span>' : ''}</span>`;
+  return `<span class="i-seg"><span class="i-glyph">⚔</span><span class="i-dmg">${enemyIntentDmg(e, it)}</span><span class="i-arrow">→</span><span class="i-row">${row === 'all' ? 'ALL' : ROW_LABEL[row]}</span>${it.hex ? '<span class="i-st kw-hex" title="HEX — if it lands, your card plays burn your hand; dodge it">☠</span>' : ''}${it.drain ? '<span class="i-st kw-drain" title="drains life — heals the Maw">♥</span>' : ''}${it.chill ? '<span class="i-st kw-chill" title="chills you">❄</span>' : ''}${it.expose ? '<span class="i-st kw-exposed" title="exposes you">◎</span>' : ''}${it.shove === 'front' ? '<span class="i-st kw-shove" title="DRAGS the struck hero one row forward — parry to hold your ground">⇱</span>' : ''}${it.shove === 'back' ? '<span class="i-st kw-shove" title="SHOVES the struck hero one row back — parry to hold your ground">⇲</span>' : ''}</span>`;
 }
 // the intent telegraph markup for an enemy (one or a boss's chained two)
 function enemyIntentHtml(e) {
