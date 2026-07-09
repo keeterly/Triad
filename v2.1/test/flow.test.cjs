@@ -1927,6 +1927,16 @@ const QUICK = process.argv.includes('--quick');
       startMapFight(RUN.map.find(x => x.type === 'fight'));
       const ash = S.heroes.find(h => h.id === 'ash'), hk = S.heroes.find(h => h.id === 'hask');
       return ash.row === 'front' && hk.row === 'back'; }));
+  check('DOWNED heroes STAY down between fights (no free revive); a campfire revives them',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash', 'hask']; RUN.active = RUN.roster.slice();
+      RUN.hp = { ash: 20, hask: 0 };   // Hask fell last fight — hp 0
+      RUN.completed = [0, 1, 2, 3, 4, 5, 6, 7, 8];
+      startMapFight(RUN.map.find(x => x.type === 'fight'));
+      const hk = S.heroes.find(h => h.id === 'hask');
+      const downedAtStart = !!hk && hk.downed && hk.hp === 0;   // still down entering the fight
+      _healParty(6);                                            // campfire
+      return downedAtStart && RUN.hp.hask === 6; }));           // revived
   check('COMBO branwen.passive.killingblow: +4 vs a foe at/below half HP, nothing above',
     await J(() => {
       setupFight(['branwen'], ['branwen.passive.killingblow'], { branwen: 'mid' });

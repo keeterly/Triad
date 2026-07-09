@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 134;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 135;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 function chargeCap(h) { return (h && h.id === 'hask' && hasNode('hask.passive.conduit')) ? 6 : CHARGE_CAP; }
@@ -1868,12 +1868,16 @@ function newBattle(node) {
     let row = (node.useRunHp && RUN && RUN.rows && RUN.rows[id]) ? RUN.rows[id] : (['front', 'mid', 'back'][i] || 'front');
     if (_usedRows.has(row)) row = ['front', 'mid', 'back'].find(r => !_usedRows.has(r)) || row;
     _usedRows.add(row);
+    // A hero the run remembers as DOWNED (hp 0) enters this fight still downed —
+    // out of the fight until a campfire revives them.
+    const runHp = (node.useRunHp && RUN) ? RUN.hp[id] : null;
+    const startDowned = runHp != null && runHp <= 0;
     return {
       id, def: HEROES[id],
-      hp: (node.useRunHp && RUN) ? Math.max(1, RUN.hp[id] ?? HEROES[id].maxHp) : HEROES[id].maxHp,
+      hp: startDowned ? 0 : ((node.useRunHp && RUN) ? Math.max(1, runHp ?? HEROES[id].maxHp) : HEROES[id].maxHp),
       maxHp: HEROES[id].maxHp,
       row,
-      guard: 0, buffDmg: 0, counter: 0, invuln: false, downed: false,
+      guard: 0, buffDmg: 0, counter: 0, invuln: false, downed: startDowned,
       chill: 0, exposed: 0, charge: 0,   // charge: Hask's Black-Mage resource (builds on spells, spent by nukes)
     };
   });
@@ -4602,11 +4606,13 @@ function checkEnd() {
 }
 
 function onVictory() {
-  // Write survivors' HP back into the run (downed heroes stagger up at 6).
+  // Write survivors' HP back into the run.  A DOWNED hero STAYS down (hp 0) — no
+  // free between-fight revive; only a CAMPFIRE brings them back.  Position memory:
+  // the next fight opens where each hero stood.
   let bondLines = [];
   if (S.node.useRunHp && RUN) {
     RUN.rows = RUN.rows || {};
-    S.heroes.forEach(h => { RUN.hp[h.id] = h.downed ? 6 : h.hp; RUN.rows[h.id] = h.row; });   // POSITION MEMORY — next fight opens where you stood
+    S.heroes.forEach(h => { RUN.hp[h.id] = h.downed ? 0 : h.hp; RUN.rows[h.id] = h.row; });
     if (S.node.mapId != null && !RUN.completed.includes(S.node.mapId)) RUN.completed.push(S.node.mapId);
     // Fighting together with a thread held IS the reward: the pair grows.
     RUN.bonds = RUN.bonds || {};
