@@ -1849,7 +1849,7 @@ const QUICK = process.argv.includes('--quick');
   check('TREE: new stance nodes wire cleanly (valid requires, valid passives, unique ids)',
     await J(() => {
       const ids = new Set(); let ok = true;
-      const special = ['elin_overflow', 'hask_kindling', 'hask_conduit', 'hask_steady', 'hask_meltdown', 'hask_surge'];   // handled inline (heal-spill / charge system), not via PASSIVE_DEFS
+      const special = ['elin_overflow', 'hask_kindling', 'hask_conduit', 'hask_steady', 'hask_meltdown', 'hask_surge', 'hask_meteor'];   // handled inline (heal-spill / charge / cast systems), not via PASSIVE_DEFS
       EMBER_TREE.forEach(n => { if (ids.has(n.id)) ok = false; ids.add(n.id); });
       EMBER_TREE.forEach(n => { (n.requires || []).forEach(r => { if (!NODE_BY_ID[r]) ok = false; }); if ((n.type === 'passive' || n.type === 'synergy') && !PASSIVE_DEFS[n.passive] && !special.includes(n.passive)) ok = false; });
       return ok;
@@ -1919,6 +1919,29 @@ const QUICK = process.argv.includes('--quick');
     await J(() => { setupFight(['hask'], [], { hask: 'mid' }); const h = S.heroes[0]; h.charge = 3; onHeroEnterRow(h, 'front', 'mid'); return h.charge === 0; }));
   check('HASK STEADY CAST node: moving KEEPS ◆ CHARGE (channel on the move)',
     await J(() => { setupFight(['hask'], ['hask.passive.steady'], { hask: 'mid' }); const h = S.heroes[0]; h.charge = 3; onHeroEnterRow(h, 'front', 'mid'); return h.charge === 3; }));
+  check('HASK CAST-TIME: a castDmg card BEGINS a cast (no hit now, pendingCast set)',
+    await J(async () => {
+      setupFight(['hask'], [], { hask: 'back' }); S.tempCards = []; const e = S.enemies[0]; e.hp = e.maxHp = 100; const hp0 = e.hp;
+      await resolveCard({ owner: 'hask', name: 'Comet', cost: 0, target: 'enemy', fx: { castDmg: 16 } }, e.uid);
+      const h = S.heroes[0];
+      return !!h.pendingCast && h.pendingCast.dmg === 16 && S.enemies[0].hp === hp0; }));   // no damage yet
+  check('HASK CAST-TIME: moving BREAKS the cast (rooted)',
+    await J(async () => {
+      setupFight(['hask'], [], { hask: 'back' }); const h = S.heroes[0];
+      await resolveCard({ owner: 'hask', name: 'Comet', cost: 0, target: 'enemy', fx: { castDmg: 16 } }, S.enemies[0].uid);
+      onHeroEnterRow(h, 'front', 'back');
+      return !h.pendingCast; }));
+  check('HASK CAST unleash: the pending cast resolves (16 damage), then clears',
+    await J(async () => {
+      setupFight(['hask'], [], { hask: 'back' }); const e = S.enemies[0]; e.hp = e.maxHp = 100; e.guard = 0; const hp0 = e.hp;
+      const h = S.heroes[0]; h.pendingCast = { dmg: 16, all: false, targetId: e.uid, name: 'Comet' };
+      await unleashCast(h);
+      return !h.pendingCast && (hp0 - S.enemies[0].hp) === 16; }));
+  check('HASK METEOR node: a Comet cast becomes AoE (pendingCast.all)',
+    await J(async () => {
+      setupFight(['hask'], ['hask.cast.meteor'], { hask: 'back' }); S.tempCards = [];
+      await resolveCard({ owner: 'hask', name: 'Comet', cost: 0, target: 'enemy', fx: { castDmg: 16 } }, S.enemies[0].uid);
+      return !!S.heroes[0].pendingCast && S.heroes[0].pendingCast.all === true; }));
   check('POSITION MEMORY: a descent fight opens where the party stood at the end of the last one',
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash', 'hask']; RUN.active = RUN.roster.slice();
@@ -2184,7 +2207,7 @@ const QUICK = process.argv.includes('--quick');
         return finOk && bldOk && altOk;
       }))));
   check('ROTATION every rotation fx uses only supported effect keys (no dead effects)',
-    await J(() => { const ok = new Set(['dmg', 'mark', 'guard', 'heal', 'buffDmg', 'counter', 'step', 'warp', 'lull', 'taunt', 'chargeGain', 'spendCharge']);
+    await J(() => { const ok = new Set(['dmg', 'mark', 'guard', 'heal', 'buffDmg', 'counter', 'step', 'warp', 'lull', 'taunt', 'chargeGain', 'spendCharge', 'castDmg']);
       return Object.values(ROTATIONS).every(st => Object.values(st).every(rot =>
         Object.values(rot.cards).every(c => Object.keys(c.fx || {}).every(k => ok.has(k))))); }));
   check('PROVOKE / TAUNT: a smart foe that would hunt the weakest instead strikes the TAUNTER’s row',

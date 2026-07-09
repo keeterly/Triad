@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 135;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 136;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 function chargeCap(h) { return (h && h.id === 'hask' && hasNode('hask.passive.conduit')) ? 6 : CHARGE_CAP; }
@@ -272,7 +272,7 @@ const EMBER_TREE = [
 
   { id: 'hask.branch.front', hero: 'hask', tier: 2, cost: 6, type: 'branch', requires: ['hask.sig.front'], label: 'Rime Fork',    desc: 'FORK · FRONT: Frost Touch also opens <b>Rime Blast</b> (4 · <span class="kw kw-chill">❄2</span>) → <b>Glacier</b> (8 · <span class="kw kw-chill">❄1</span>)' },
   { id: 'hask.branch.mid',   hero: 'hask', tier: 2, cost: 6, type: 'branch', requires: ['hask.sig.mid'],   label: 'Overload Fork', desc: 'FORK · MID: Ice Bolt also opens <b>Overcharge</b> (<span class="kw kw-charge">◆ CHARGE 2</span>) → <b>Overload</b> (SPEND <span class="kw kw-charge">◆ CHARGE</span>) — build, then unleash' },
-  { id: 'hask.branch.back',  hero: 'hask', tier: 2, cost: 6, type: 'branch', requires: ['hask.sig.back'],  label: 'Winter Fork',   desc: 'FORK · BACK: Deep Freeze also opens <b>Blizzard</b> (4 · <span class="kw kw-chill">❄2</span>) → <b>Whiteout</b> (6 · <span class="kw kw-chill">❄2</span>)' },
+  { id: 'hask.branch.back',  hero: 'hask', tier: 2, cost: 6, type: 'branch', requires: ['hask.sig.back'],  label: 'Cast Fork',     desc: 'FORK · BACK: Deep Freeze also opens <b>Ley Focus</b> → <b>Comet</b> — BEGIN a cast that lands <b>◈ 16 frost NEXT turn</b> (moving breaks it)' },
   { id: 'hask.exec', hero: 'hask', tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'ON STAGGER: forge a free <b>Killing Frost</b> — 8 frost · <span class="kw kw-chill">❄2</span> · <b>×2 vs STAGGERED</b>',
     stagger: { name: 'Killing Frost', target: 'enemy', fx: { dmg: 8, lull: 2 }, desc: '<b>8 frost</b> · <span class="kw kw-chill">❄ CHILL 2</span> · <b>×2 vs STAGGERED</b>.' } },
   { id: 'hask.passive.frostbite', hero: 'hask', tier: 2, cost: 6, type: 'passive', requires: ['hask.sig.front'], label: 'Frostbite', desc: 'PASSIVE: <b>+2 dmg</b> to any <span class="kw kw-chill">❄ CHILLED</span> foe — cash the frost', passive: 'hask_frostbite' },
@@ -288,6 +288,7 @@ const EMBER_TREE = [
   { id: 'hask.passive.meltdown', hero: 'hask', tier: 4, cost: 12, type: 'passive', requires: ['hask.branch.mid'], label: 'Meltdown', desc: 'PASSIVE: <b>OVERLOAD</b> spends <span class="kw kw-charge">◆ CHARGE</span> for <b>+5</b> each (was +3) — total meltdown', passive: 'hask_meltdown' },
   { id: 'hask.synergy.permafrost', hero: 'hask', tier: 4, cost: 11, type: 'synergy', requires: ['hask.passive.frostbite'], label: 'Permafrost', desc: 'PASSIVE: <span class="kw kw-chill">❄ CHILLED</span> foes take <b>+3</b> from EVERY ally — the deep cold', passive: 'hask_permafrost' },
   { id: 'hask.passive.surge', hero: 'hask', tier: 4, cost: 12, type: 'passive', requires: ['hask.passive.conduit'], label: 'Elemental Surge', desc: 'ON OVERLOAD: spending <span class="kw kw-charge">◆ CHARGE</span> refunds <b>2 EP</b> — the aether rebounds', passive: 'hask_surge' },
+  { id: 'hask.cast.meteor', hero: 'hask', tier: 4, cost: 12, type: 'passive', requires: ['hask.branch.back'], label: 'Meteor', desc: 'PASSIVE: your <b>◈ CASTS</b> land on <b>EVERY foe</b> — the sky falls, not a single star', passive: 'hask_meteor' },
 ];
 const NODE_BY_ID = {};
 EMBER_TREE.forEach(n => { NODE_BY_ID[n.id] = n; });
@@ -321,10 +322,11 @@ function allOutExecutes(e) {
 // a hero has just entered a new row — fire any unlocked positional passives
 function onHeroEnterRow(hero, toRow, fromRow) {
   if (!hero || hero.downed || toRow === fromRow) return;
-  // INTERRUPT (Hask) — a caster who MOVES loses their gathered ◆ CHARGE… unless
-  // they've learned Steady Cast (channel while repositioning).
-  if (hero.id === 'hask' && hero.charge && !hasNode('hask.passive.steady')) {
-    hero.charge = 0; popupAt(figEl(hero.id), '◆ INTERRUPTED', 'chill');
+  // INTERRUPT (Hask) — a caster who MOVES loses their gathered ◆ CHARGE and any
+  // in-progress CAST… unless they've learned Steady Cast (channel while moving).
+  if (hero.id === 'hask' && !hasNode('hask.passive.steady')) {
+    if (hero.charge) { hero.charge = 0; popupAt(figEl(hero.id), '◆ INTERRUPTED', 'chill'); }
+    if (hero.pendingCast) { hero.pendingCast = null; popupAt(figEl(hero.id), '◈ CAST BROKEN', 'chill'); }
   }
   firePassives('enterRow', hero.id, { toRow, fromRow });
 }
@@ -970,11 +972,11 @@ const ROTATIONS = {
       overload:   { name: 'Overload',    cost: 0, target: 'enemy', fx: { dmg: 6, spendCharge: true }, stance: 'FINISHER · OVERLOAD', desc: '6 frost · <b>SPEND ◆ CHARGE</b> (+3 each) to ANY foe.' },
     } },
     back: { opener: 'deepfreeze', cards: {
-      deepfreeze: { name: 'Deep Freeze', cost: 2, target: 'enemy', fx: { dmg: 5 }, stance: 'OPENER · ARTILLERY', desc: '5 frost to ANY foe.', next: [{ key: 'iceshard', gateNot: 'hask.sig.back' }, { key: 'frostlance', gate: 'hask.sig.back' }, { key: 'blizzard', gate: 'hask.branch.back' }] },
+      deepfreeze: { name: 'Deep Freeze', cost: 2, target: 'enemy', fx: { dmg: 5 }, stance: 'OPENER · ARTILLERY', desc: '5 frost to ANY foe.', next: [{ key: 'iceshard', gateNot: 'hask.sig.back' }, { key: 'frostlance', gate: 'hask.sig.back' }, { key: 'leyfocus', gate: 'hask.branch.back' }] },
       frostlance: { name: 'Frost Lance', cost: 0, target: 'enemy', fx: { dmg: 6 }, stance: 'COMBO · ARTILLERY', desc: '6 frost to ANY foe.', next: ['iceshard'] },
       iceshard:   { name: 'Ice Shard',   cost: 0, target: 'enemy', fx: { dmg: 8 }, stance: 'FINISHER · ARTILLERY', desc: '8 frost to ANY foe.' },
-      blizzard:   { name: 'Blizzard',    cost: 0, target: 'enemy', fx: { dmg: 4, lull: 2 }, stance: 'COMBO · WINTER', desc: '4 frost · <span class="kw kw-chill">❄ CHILL 2</span> to ANY foe.', next: ['whiteout'] },
-      whiteout:   { name: 'Whiteout',    cost: 0, target: 'enemy', fx: { dmg: 6, lull: 2 }, stance: 'FINISHER · WINTER', desc: '6 frost · <span class="kw kw-chill">❄ CHILL 2</span>.' },
+      leyfocus:   { name: 'Ley Focus',   cost: 0, target: 'enemy', fx: { dmg: 4 }, stance: 'COMBO · LEY', desc: '4 frost · steady the ley-line.', next: ['comet'] },
+      comet:      { name: 'Comet',       cost: 0, target: 'enemy', fx: { castDmg: 16 }, stance: 'FINISHER · LEY', desc: 'BEGIN a cast — <b>◈ 16 frost</b> lands NEXT turn. Moving breaks it.' },
     } },
   },
 };
@@ -2897,6 +2899,18 @@ async function resolveCard(card, targetId) {
   if (card.kind === 'resonant') { if (card.pair) { await resolveDuet(card); return; } await resolveResonant(); return; }
 
   const fx = card.fx || {};
+  // CAST-TIME (Hask) — a big spell doesn't hit now; it BEGINS a cast that lands at
+  // the START of your next turn.  It telegraphs on the caster, and MOVING before it
+  // resolves interrupts it (a rooted big cast).  Meteor makes the payoff AoE.
+  if (fx.castDmg && owner && !owner.downed) {
+    const all = !!(fx.castAll || hasNode('hask.cast.meteor'));
+    owner.pendingCast = { dmg: fx.castDmg, all, targetId: targetId || (frontmostEnemy() && frontmostEnemy().uid), name: card.name };
+    popupAt(figEl(owner.id), '◈ CASTING', 'info');
+    flashNarrator('<b>' + owner.def.name + '</b> begins casting <b>' + card.name + '</b>…');
+    renderAll();
+    await sleep(260);
+    return;
+  }
   if (fx.notToday) {
     const [prId, wdId] = fx.notToday;
     const pr = S.heroes.find(x => x.id === prId);
@@ -4334,6 +4348,18 @@ async function resolveDuet(card) {
   resonantCineEnd();
 }
 
+// A pending CAST unleashes: single-target, or ALL foes with Meteor.  A screen-
+// shaking payoff for committing a turn (and staying put) to the big spell.
+async function unleashCast(h) {
+  const pc = h.pendingCast; h.pendingCast = null;
+  if (!pc || h.downed) return;
+  flashNarrator('◈ <b>' + pc.name + '</b> UNLEASHED!');
+  try { cineFlash('rgba(150,90,224,0.5)'); stageShake('lg'); } catch (_) {}
+  const targets = pc.all ? livingEnemies().slice()
+    : [livingEnemies().find(e => e.uid === pc.targetId) || frontmostEnemy()].filter(Boolean);
+  for (const e of targets) { if (!e) continue; dealToEnemy(e, pc.dmg, 'frost', h.id); popupAt(figEl(e.uid), '◈ ' + pc.dmg, 'dmg popup-big'); }
+  renderAll(); checkEnd(); await sleep(420);
+}
 // ---------------------------------------------------------------------------
 // END TURN → enemy phase → next turn
 // ---------------------------------------------------------------------------
@@ -4363,6 +4389,8 @@ async function endTurn() {
     $('#stage').classList.remove('executing');
     // TURN-START passives — the wall braces, the light finds the hurt, the hunt resumes.
     livingHeroes().forEach(h => firePassives('turnStart', h.id, {}));
+    // CAST-TIME payoff — a spell begun last turn UNLEASHES now (Hask's big casts).
+    for (const h of livingHeroes()) { if (h.pendingCast && !S.over) await unleashCast(h); }
     turnBanner('TURN ' + S.turn, 'tb-player');
     renderAll();
   }
@@ -5770,6 +5798,7 @@ function partyChipsHtml(who) {
     ${who.exposed ? `<span class="chip mark${chipPop(who,'exposed',who.exposed)}">◎ ${who.exposed}</span>` : ''}
     ${who.chill ? `<span class="chip chill${chipPop(who,'chill',who.chill)}">❄ ${who.chill}</span>` : ''}
     ${who.charge ? `<span class="chip charge${chipPop(who,'charge',who.charge)}" title="CHARGE — builds on Hask's spells; an OVERLOAD nuke spends it for +3 damage each">◆ ${who.charge}</span>` : ''}
+    ${who.pendingCast ? `<span class="chip charge" title="CASTING — unleashes at the start of your next turn; moving interrupts it">◈ CAST</span>` : ''}
     ${who.hexed ? `<span class="chip hex${chipPop(who,'hexed',who.hexed)}" title="HEXED — your card plays burn your hand">☠ HEXED</span>` : ''}`;
 }
 function partyAuraObj(who) { return { guard: who.guard, rally: who.buffDmg, chill: who.chill, exposed: who.exposed, counter: who.counter, invuln: who.invuln }; }
