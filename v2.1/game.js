@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 126;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 127;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -7002,20 +7002,27 @@ let unlocked = false;
 try { unlocked = localStorage.getItem(UNLOCK_KEY) === '1'; } catch (_) {}
 if (unlocked) showTitle(); else showGate();
 
-// ── PERF HUD (opt-in) — add #fps to the URL to see live frame time.  Turns the
-// "still laggy?" loop into real numbers: rolling fps, avg + WORST frame ms.  A
-// worst-frame spike during a drag pinpoints a paint/layout hitch on-device.
+// ── PERF HUD — TAP THE BUILD STAMP (top-right "V2.1 BUILD n") to toggle a live
+// frame-time readout: fps · avg · WORST-frame ms (green→yellow→red).  A worst
+// spike while dragging pinpoints an on-device paint/layout hitch.  Tap-to-toggle
+// so no URL editing is needed on mobile (#fps still auto-enables it).
 (function fpsHud() {
-  try { if ((location.hash || '').indexOf('fps') < 0) return; } catch (_) { return; }
+  let on = false, last = 0, frames = 0, acc = 0, worst = 0;
   const el = document.createElement('div');
-  el.style.cssText = 'position:fixed;top:4px;left:4px;z-index:99999;background:rgba(0,0,0,0.72);color:#6f6;font:11px/1.3 monospace;padding:3px 7px;border-radius:5px;pointer-events:none;white-space:pre';
-  const add = () => (document.body || document.documentElement).appendChild(el);
-  if (document.body) add(); else window.addEventListener('DOMContentLoaded', add);
-  let last = 0, frames = 0, acc = 0, worst = 0;
+  el.style.cssText = 'position:fixed;top:42px;left:50%;transform:translateX(-50%);z-index:2147483647;background:rgba(0,0,0,0.82);color:#6f6;font:14px/1.4 monospace;padding:5px 12px;border-radius:7px;pointer-events:none;white-space:pre;display:none';
+  const mount = () => (document.body || document.documentElement).appendChild(el);
+  if (document.body) mount(); else window.addEventListener('DOMContentLoaded', mount);
   function tick(t) {
+    if (!on) return;
     if (last) { const dt = t - last; acc += dt; frames++; if (dt > worst) worst = dt;
-      if (acc >= 500) { const avg = acc / frames; el.textContent = Math.round(1000 / avg) + ' fps   avg ' + avg.toFixed(1) + 'ms   worst ' + worst.toFixed(0) + 'ms'; el.style.color = worst > 32 ? '#f66' : worst > 20 ? '#fd6' : '#6f6'; acc = 0; frames = 0; worst = 0; } }
+      if (acc >= 400) { const avg = acc / frames; el.textContent = Math.round(1000 / avg) + ' fps · avg ' + avg.toFixed(1) + ' · worst ' + worst.toFixed(0) + 'ms'; el.style.color = worst > 32 ? '#f66' : worst > 20 ? '#fd6' : '#6f6'; acc = 0; frames = 0; worst = 0; } }
     last = t; requestAnimationFrame(tick);
   }
-  requestAnimationFrame(tick);
+  const toggle = () => { on = !on; el.style.display = on ? 'block' : 'none'; el.textContent = 'measuring…'; last = acc = frames = worst = 0; if (on) requestAnimationFrame(tick); };
+  const wire = () => {
+    const bs = document.getElementById('build-stamp');
+    if (bs) { bs.style.pointerEvents = 'auto'; bs.style.cursor = 'pointer'; bs.title = 'tap: FPS meter'; bs.addEventListener('click', toggle); }
+    try { if ((location.hash || '').indexOf('fps') >= 0) toggle(); } catch (_) {}
+  };
+  if (document.readyState !== 'loading') wire(); else window.addEventListener('DOMContentLoaded', wire);
 })();
