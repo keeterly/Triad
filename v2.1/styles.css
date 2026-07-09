@@ -439,13 +439,18 @@ body {
    label on its own line.  The arrows carry sequence without a fixed count, and
    it's purely textual so it can't be confused with the red enemy-reach pips. */
 .card .c-step {
-  display: flex; align-items: baseline; gap: 4px;
+  display: flex; align-items: center; gap: 4px;
   margin-top: 2px; padding-top: 3px; border-top: 1px solid rgba(255,255,255,0.07);
 }
+/* Role reads as a CHIP — same visual language as the Ember Tree's TRIGGER chips,
+   but tinted to the hero so cards keep their identity. */
 .card .c-step .c-role {
-  font-size: 7.5px; letter-spacing: 0.2em; font-weight: bold; color: var(--tint);
+  font-size: 7px; letter-spacing: 0.12em; font-weight: 700; color: var(--tint);
+  padding: 1px 5px; border-radius: 4px;
+  background: color-mix(in srgb, var(--tint) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tint) 34%, transparent);
 }
-.card .c-step .c-arrow { font-size: 10px; font-weight: 900; color: var(--tint); opacity: 0.95; text-shadow: 0 0 4px var(--tint); }
+.card .c-step .c-arrow { font-size: 9px; font-weight: 900; color: var(--tint); opacity: 0.9; }
 /* card TYPE line (mock: ✕ ATTACK / GUARD / SKILL / MOVE / BONUS) */
 .card .c-type { font-size: 7.5px; letter-spacing: 0.24em; font-weight: bold; }
 .card .c-type.t-attack { color: var(--blood-bright); }
