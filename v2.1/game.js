@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 127;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 128;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -7018,7 +7018,22 @@ if (unlocked) showTitle(); else showGate();
       if (acc >= 400) { const avg = acc / frames; el.textContent = Math.round(1000 / avg) + ' fps · avg ' + avg.toFixed(1) + ' · worst ' + worst.toFixed(0) + 'ms'; el.style.color = worst > 32 ? '#f66' : worst > 20 ? '#fd6' : '#6f6'; acc = 0; frames = 0; worst = 0; } }
     last = t; requestAnimationFrame(tick);
   }
-  const toggle = () => { on = !on; el.style.display = on ? 'block' : 'none'; el.textContent = 'measuring…'; last = acc = frames = worst = 0; if (on) requestAnimationFrame(tick); };
+  // DIAGNOSTIC toggles — two buttons under the readout that turn off continuous
+  // ANIMATIONS and figure FILTERS.  Whichever recovers idle fps is the culprit.
+  const bar = document.createElement('div');
+  bar.style.cssText = 'position:fixed;top:74px;left:50%;transform:translateX(-50%);z-index:2147483647;display:none;gap:8px;pointer-events:auto';
+  const mkBtn = (label, cls) => {
+    const b = document.createElement('button');
+    b.textContent = label;
+    b.style.cssText = 'font:12px monospace;padding:5px 10px;border-radius:6px;border:1px solid #555;background:rgba(0,0,0,0.82);color:#ccc';
+    b.onclick = () => { const doc = document.documentElement; const off = doc.classList.toggle(cls); b.style.background = off ? '#3a5' : 'rgba(0,0,0,0.82)'; b.style.color = off ? '#000' : '#ccc'; };
+    return b;
+  };
+  bar.appendChild(mkBtn('anims off', 'diag-noanim'));
+  bar.appendChild(mkBtn('filters off', 'diag-nofilter'));
+  const mountBar = () => (document.body || document.documentElement).appendChild(bar);
+  if (document.body) mountBar(); else window.addEventListener('DOMContentLoaded', mountBar);
+  const toggle = () => { on = !on; el.style.display = on ? 'block' : 'none'; bar.style.display = on ? 'flex' : 'none'; el.textContent = 'measuring…'; last = acc = frames = worst = 0; if (on) requestAnimationFrame(tick); };
   const wire = () => {
     const bs = document.getElementById('build-stamp');
     if (bs) { bs.style.pointerEvents = 'auto'; bs.style.cursor = 'pointer'; bs.title = 'tap: FPS meter'; bs.addEventListener('click', toggle); }
