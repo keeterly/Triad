@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 125;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 126;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -2286,22 +2286,20 @@ function drawAimField(fx, fy, pts, angle, color) {
       // No filter:blur / drop-shadow on the animated THREADS (a per-frame filter
       // re-rasterization is death); a wide low-opacity underlay fakes the glow.
       // Pulse rings are SMIL, built ONCE, so they animate cheaply.
-      s += `<path class="aF-glow" data-i="${i}" fill="none" stroke="${color}" stroke-width="7" stroke-linecap="round" opacity="0.16"/>`
-         + `<path class="aF-core" data-i="${i}" fill="none" stroke="${color}" stroke-width="2.4" stroke-linecap="round" opacity="0.55"/>`
-         + `<path class="aF-dash" data-i="${i}" fill="none" stroke="#fff6d8" stroke-width="1.3" stroke-linecap="round" stroke-dasharray="2 6"/>`
+      s += `<path class="aF-core" data-i="${i}" fill="none" stroke="${color}" stroke-width="3" stroke-linecap="round" opacity="0.5"/>`
+         + `<path class="aF-dash" data-i="${i}" fill="none" stroke="#fff6d8" stroke-width="1.4" stroke-linecap="round" stroke-dasharray="2 6"/>`
          + `<circle cx="${p.x}" cy="${p.y}" r="7" fill="none" stroke="${color}" stroke-width="1.8"><animate attributeName="r" values="6;10;6" dur="0.8s" repeatCount="indefinite"/></circle>`
          + `<circle cx="${p.x}" cy="${p.y}" r="2.4" fill="#fff6d8"/>`;
     });
     svg.innerHTML = s;
     _aim = { type: 'field', count: pts.length, color,
-      glow: [...svg.querySelectorAll('.aF-glow')], core: [...svg.querySelectorAll('.aF-core')], dash: [...svg.querySelectorAll('.aF-dash')] };
+      core: [...svg.querySelectorAll('.aF-core')], dash: [...svg.querySelectorAll('.aF-dash')] };
   }
   const dash = -angle;
   pts.forEach((p, i) => {
     const bow = Math.min(64, Math.max(20, Math.abs(p.x - fx) * 0.12));
     const midX = (fx + p.x) / 2, midY = Math.max(12, Math.min(fy, p.y) - bow);
     const d = `M ${fx} ${fy} Q ${midX} ${midY} ${p.x} ${p.y}`;
-    if (_aim.glow[i]) _aim.glow[i].setAttribute('d', d);
     if (_aim.core[i]) _aim.core[i].setAttribute('d', d);
     if (_aim.dash[i]) { _aim.dash[i].setAttribute('d', d); _aim.dash[i].setAttribute('stroke-dashoffset', dash); }
   });
@@ -7003,3 +7001,21 @@ fitStage();
 let unlocked = false;
 try { unlocked = localStorage.getItem(UNLOCK_KEY) === '1'; } catch (_) {}
 if (unlocked) showTitle(); else showGate();
+
+// ── PERF HUD (opt-in) — add #fps to the URL to see live frame time.  Turns the
+// "still laggy?" loop into real numbers: rolling fps, avg + WORST frame ms.  A
+// worst-frame spike during a drag pinpoints a paint/layout hitch on-device.
+(function fpsHud() {
+  try { if ((location.hash || '').indexOf('fps') < 0) return; } catch (_) { return; }
+  const el = document.createElement('div');
+  el.style.cssText = 'position:fixed;top:4px;left:4px;z-index:99999;background:rgba(0,0,0,0.72);color:#6f6;font:11px/1.3 monospace;padding:3px 7px;border-radius:5px;pointer-events:none;white-space:pre';
+  const add = () => (document.body || document.documentElement).appendChild(el);
+  if (document.body) add(); else window.addEventListener('DOMContentLoaded', add);
+  let last = 0, frames = 0, acc = 0, worst = 0;
+  function tick(t) {
+    if (last) { const dt = t - last; acc += dt; frames++; if (dt > worst) worst = dt;
+      if (acc >= 500) { const avg = acc / frames; el.textContent = Math.round(1000 / avg) + ' fps   avg ' + avg.toFixed(1) + 'ms   worst ' + worst.toFixed(0) + 'ms'; el.style.color = worst > 32 ? '#f66' : worst > 20 ? '#fd6' : '#6f6'; acc = 0; frames = 0; worst = 0; } }
+    last = t; requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+})();
