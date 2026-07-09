@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 128;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 129;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -75,48 +75,48 @@ function setTreeTaught() { try { localStorage.setItem('kizuna2_1.treeTaught', '1
 // until they get their own constellations.
 // ---------------------------------------------------------------------------
 const EMBER_TREE = [
-  { id: 'ash.sig.front', hero: 'ash', tier: 1, cost: 4, type: 'card', gate: { stance: 'front' }, label: 'Rising Slash', desc: 'FRONT combo — inserts <b>Rising Slash</b>: Cleave → <b>Rising Slash</b> → Crashing Wave.' },
-  { id: 'ash.sig.back',  hero: 'ash', tier: 1, cost: 4, type: 'card', gate: { stance: 'back'  }, label: 'Deeper Cut', desc: 'BACK combo — inserts <b>Deeper Cut</b>: Thrown Edge → <b>Deeper Cut</b> → Follow Cut.' },
-  { id: 'ash.sig.mid',   hero: 'ash', tier: 1, cost: 5, type: 'card', gate: { stance: 'mid'   }, label: 'Parry Step', desc: 'MID combo — inserts <b>Parry Step</b>: Flowing Cut → <b>Parry Step</b> → Riposte.' },
-  { id: 'ash.rider.expose', hero: 'ash', tier: 2, cost: 6, type: 'rider', requires: ['ash.sig.back'], label: 'Hunter’s Instinct', desc: 'Thrown Edge now also inflicts <span class="kw kw-exposed">◎ EXPOSED 2</span> — position becomes a debuff.', rider: { card: 'Thrown Edge', fx: { mark: 2 }, descAdd: ' · <span class="kw kw-exposed">◎ EXPOSED 2</span>' } },
-  { id: 'ash.passive.vanguard', hero: 'ash', tier: 2, cost: 6, type: 'passive', label: 'Vanguard’s Momentum', desc: 'Whenever Ash closes to FRONT, he gains <span class="kw kw-guard">⛨ 3</span> guard — repositioning becomes defense.', passive: 'ash_vanguard' },
-  { id: 'ash.allout.execution', hero: 'ash', tier: 4, cost: 12, type: 'allout', requires: ['ash.sig.front'], label: 'Rite of Endings', desc: 'CAPSTONE · ALT ALL-OUT — every strike of your all-out EXECUTES any foe left under 25% HP.', allout: 'execution' },
+  { id: 'ash.sig.front', hero: 'ash', tier: 1, cost: 4, type: 'card', gate: { stance: 'front' }, label: 'Rising Slash', desc: 'COMBO · FRONT: inserts <b>Rising Slash</b> (8 dmg) · Cleave → <b>Rising Slash</b> → Crashing Wave' },
+  { id: 'ash.sig.back',  hero: 'ash', tier: 1, cost: 4, type: 'card', gate: { stance: 'back'  }, label: 'Deeper Cut', desc: 'COMBO · BACK: inserts <b>Deeper Cut</b> (5 dmg) · Thrown Edge → <b>Deeper Cut</b> → Follow Cut' },
+  { id: 'ash.sig.mid',   hero: 'ash', tier: 1, cost: 5, type: 'card', gate: { stance: 'mid'   }, label: 'Parry Step', desc: 'COMBO · MID: inserts <b>Parry Step</b> (<span class="kw kw-guard">⛨5</span> · <span class="kw kw-counter">↺1</span>) · Flowing Cut → <b>Parry Step</b> → Riposte' },
+  { id: 'ash.rider.expose', hero: 'ash', tier: 2, cost: 6, type: 'rider', requires: ['ash.sig.back'], label: 'Hunter’s Instinct', desc: 'UPGRADE: Thrown Edge also inflicts <span class="kw kw-exposed">◎ EXPOSED 2</span> — position becomes a debuff', rider: { card: 'Thrown Edge', fx: { mark: 2 }, descAdd: ' · <span class="kw kw-exposed">◎ EXPOSED 2</span>' } },
+  { id: 'ash.passive.vanguard', hero: 'ash', tier: 2, cost: 6, type: 'passive', label: 'Vanguard’s Momentum', desc: 'ON MOVE: closing to FRONT grants <span class="kw kw-guard">⛨3</span> — repositioning becomes defense', passive: 'ash_vanguard' },
+  { id: 'ash.allout.execution', hero: 'ash', tier: 4, cost: 12, type: 'allout', requires: ['ash.sig.front'], label: 'Rite of Endings', desc: 'ALL-OUT: every strike EXECUTES a foe under <b>25% HP</b> — no wounded walk away', allout: 'execution' },
   { id: 'ash.emergent.tempo', hero: 'ash', tier: 3, cost: 9, type: 'emergent', requires: ['ash.sig.front'], label: 'Rising Tempo',
-    desc: 'Ash learns the <b>rhythm of the duel</b>. Every <b>3rd strike</b> he lands this fight forges a free <b>Follow Cut</b> — the momentum becomes a card.',
+    desc: 'EVERY 3RD HIT: forge a free <b>Follow Cut</b> (7 dmg) — momentum becomes a card',
     emergent: { on: 'hit', every: 3, stance: 'FORGED · TEMPO', flash: 'Ash finds the rhythm — <b>Follow Cut</b> forged.',
       forge: { name: 'Follow Cut', cost: 0, target: 'enemy', fx: { dmg: 7 }, desc: '<b>Free.</b> The rhythm carries the blade — <b>7 damage</b> to any foe. Landed on the beat.' } } },
 
   // ELIN — the Mender: wards and light
-  { id: 'elin.sig.front', hero: 'elin', tier: 1, cost: 4, type: 'card', gate: { stance: 'front' }, label: 'Searing', desc: 'FRONT combo — inserts <b>Searing</b>: Smite → <b>Searing</b> → Radiant Ward.' },
-  { id: 'elin.sig.mid',   hero: 'elin', tier: 1, cost: 5, type: 'card', gate: { stance: 'mid'   }, label: 'Sanctuary', desc: 'MID combo — inserts <b>Sanctuary</b>: Mend → <b>Sanctuary</b> → Renew.' },
-  { id: 'elin.sig.back',  hero: 'elin', tier: 1, cost: 4, type: 'card', gate: { stance: 'back'  }, label: 'Blessing', desc: 'BACK combo — inserts <b>Blessing</b>: Distant Prayer → <b>Blessing</b> → Benediction.' },
+  { id: 'elin.sig.front', hero: 'elin', tier: 1, cost: 4, type: 'card', gate: { stance: 'front' }, label: 'Searing', desc: 'COMBO · FRONT: inserts <b>Searing</b> (7 holy) · Smite → <b>Searing</b> → Radiant Ward' },
+  { id: 'elin.sig.mid',   hero: 'elin', tier: 1, cost: 5, type: 'card', gate: { stance: 'mid'   }, label: 'Sanctuary', desc: 'COMBO · MID: inserts <b>Sanctuary</b> (<span class="kw kw-heal">✚4</span> · <span class="kw kw-guard">⛨4</span>) · Mend → <b>Sanctuary</b> → Renew' },
+  { id: 'elin.sig.back',  hero: 'elin', tier: 1, cost: 4, type: 'card', gate: { stance: 'back'  }, label: 'Blessing', desc: 'COMBO · BACK: inserts <b>Blessing</b> (<span class="kw kw-heal">✚3</span> · <span class="kw kw-rally">▲+2</span>) · Distant Prayer → <b>Blessing</b> → Benediction' },
 
   // MIRA — the Assassin: exposure and slips
-  { id: 'mira.sig.front', hero: 'mira', tier: 1, cost: 4, type: 'card', gate: { stance: 'front' }, label: 'Twin Cut', desc: 'FRONT combo — inserts <b>Twin Cut</b>: Backstab → <b>Twin Cut</b> → Vanish Strike.' },
-  { id: 'mira.sig.mid',   hero: 'mira', tier: 1, cost: 5, type: 'card', gate: { stance: 'mid'   }, label: 'Serrate', desc: 'MID combo — inserts <b>Serrate</b>: Shadow Knife → <b>Serrate</b> → Twin Daggers.' },
-  { id: 'mira.sig.back',  hero: 'mira', tier: 1, cost: 4, type: 'card', gate: { stance: 'back'  }, label: 'Quick Throw', desc: 'BACK combo — inserts <b>Quick Throw</b>: Thrown Dagger → <b>Quick Throw</b> → Execute.' },
-  { id: 'mira.rider.exploit', hero: 'mira', tier: 2, cost: 6, type: 'rider', requires: ['mira.sig.front'], label: 'Killer’s Eye', desc: 'Backstab now also inflicts <span class="kw kw-exposed">◎ EXPOSED 2</span>.', rider: { card: 'Backstab', fx: { mark: 2 }, descAdd: ' · <span class="kw kw-exposed">◎ EXPOSED 2</span>' } },
+  { id: 'mira.sig.front', hero: 'mira', tier: 1, cost: 4, type: 'card', gate: { stance: 'front' }, label: 'Twin Cut', desc: 'COMBO · FRONT: inserts <b>Twin Cut</b> (6 dmg) · Backstab → <b>Twin Cut</b> → Vanish Strike' },
+  { id: 'mira.sig.mid',   hero: 'mira', tier: 1, cost: 5, type: 'card', gate: { stance: 'mid'   }, label: 'Serrate', desc: 'COMBO · MID: inserts <b>Serrate</b> (4 dmg · <span class="kw kw-exposed">◎+1</span>) · Shadow Knife → <b>Serrate</b> → Twin Daggers' },
+  { id: 'mira.sig.back',  hero: 'mira', tier: 1, cost: 4, type: 'card', gate: { stance: 'back'  }, label: 'Quick Throw', desc: 'COMBO · BACK: inserts <b>Quick Throw</b> (4 dmg) · Thrown Dagger → <b>Quick Throw</b> → Execute' },
+  { id: 'mira.rider.exploit', hero: 'mira', tier: 2, cost: 6, type: 'rider', requires: ['mira.sig.front'], label: 'Killer’s Eye', desc: 'UPGRADE: Backstab also inflicts <span class="kw kw-exposed">◎ EXPOSED 2</span>', rider: { card: 'Backstab', fx: { mark: 2 }, descAdd: ' · <span class="kw kw-exposed">◎ EXPOSED 2</span>' } },
   { id: 'mira.emergent.bloodscent', hero: 'mira', tier: 3, cost: 9, type: 'emergent', requires: ['mira.sig.back'], label: 'Bloodscent',
-    desc: 'Mira <b>smells the opening</b>. Every <b>2nd time she marks a foe</b> <span class="kw kw-exposed">◎ EXPOSED</span> this fight forges a free <b>Execute</b> — the mark becomes a killing card.',
+    desc: 'EVERY 2ND EXPOSE: forge a free <b>Execute</b> (12 dmg) — the mark becomes a kill',
     emergent: { on: 'expose', every: 2, stance: 'FORGED · BLOOD', flash: 'She smells blood — <b>Execute</b> forged.',
       forge: { name: 'Execute', cost: 0, target: 'enemy', fx: { dmg: 12 }, desc: '<b>Free.</b> The opening is hers — <b>12 damage</b> to any foe. An EXPOSED target has nowhere to hide.' } } },
 
   // CASSIA — the Warden: guard and retaliation
-  { id: 'cassia.sig.front', hero: 'cassia', tier: 1, cost: 4, type: 'card', gate: { stance: 'front' }, label: 'Brace', desc: 'FRONT combo — inserts <b>Brace</b>: Shield Bash → <b>Brace</b> → Bulwark.' },
-  { id: 'cassia.sig.mid',   hero: 'cassia', tier: 1, cost: 5, type: 'card', gate: { stance: 'mid'   }, label: 'Reinforce', desc: 'MID combo — inserts <b>Reinforce</b>: Cover → <b>Reinforce</b> → Aegis.' },
-  { id: 'cassia.sig.back',  hero: 'cassia', tier: 1, cost: 4, type: 'card', gate: { stance: 'back'  }, label: 'Weighted Shield', desc: 'BACK combo — inserts <b>Weighted Shield</b>: Thrown Shield → <b>Weighted Shield</b> → Sentinel Throw.' },
+  { id: 'cassia.sig.front', hero: 'cassia', tier: 1, cost: 4, type: 'card', gate: { stance: 'front' }, label: 'Brace', desc: 'COMBO · FRONT: inserts <b>Brace</b> (<span class="kw kw-guard">⛨4</span>) · Shield Bash → <b>Brace</b> → Bulwark' },
+  { id: 'cassia.sig.mid',   hero: 'cassia', tier: 1, cost: 5, type: 'card', gate: { stance: 'mid'   }, label: 'Reinforce', desc: 'COMBO · MID: inserts <b>Reinforce</b> (ally <span class="kw kw-guard">⛨3</span>) · Cover → <b>Reinforce</b> → Aegis' },
+  { id: 'cassia.sig.back',  hero: 'cassia', tier: 1, cost: 4, type: 'card', gate: { stance: 'back'  }, label: 'Weighted Shield', desc: 'COMBO · BACK: inserts <b>Weighted Shield</b> (3 dmg) · Thrown Shield → <b>Weighted Shield</b> → Sentinel Throw' },
   { id: 'cassia.emergent.bulwark', hero: 'cassia', tier: 3, cost: 9, type: 'emergent', requires: ['cassia.sig.front'], label: 'Iron Answer',
-    desc: 'Cassia turns <b>defense into a weapon</b>. Every <b>2nd time she raises guard</b> this fight forges a free <b>Bulwark Break</b> — the wall answers back.',
+    desc: 'EVERY 2ND GUARD: forge a free <b>Bulwark Break</b> (9 dmg) — the wall answers back',
     emergent: { on: 'guard', every: 2, stance: 'FORGED · IRON', flash: 'The wall answers — <b>Bulwark Break</b> forged.',
       forge: { name: 'Bulwark Break', cost: 0, target: 'enemy', fx: { dmg: 9 }, desc: '<b>Free.</b> The shield becomes the blow — <b>9 damage</b> to any foe. Every wall she raises is a blade held back.' } } },
 
   // BRANWEN — the Marksman: marks and repositioning
-  { id: 'branwen.sig.front', hero: 'branwen', tier: 1, cost: 4, type: 'card', gate: { stance: 'front' }, label: 'Snap Shot', desc: 'FRONT combo — inserts <b>Snap Shot</b>: Backstep Shot → <b>Snap Shot</b> → Hail.' },
-  { id: 'branwen.sig.mid',   hero: 'branwen', tier: 1, cost: 5, type: 'card', gate: { stance: 'mid'   }, label: 'Steady Aim', desc: 'MID combo — inserts <b>Steady Aim</b>: Aimed Shot → <b>Steady Aim</b> → Killshot.' },
-  { id: 'branwen.sig.back',  hero: 'branwen', tier: 1, cost: 4, type: 'card', gate: { stance: 'back'  }, label: 'Deeper Mark', desc: 'BACK combo — inserts <b>Deeper Mark</b>: Marking Arrow → <b>Deeper Mark</b> → Killing Arrow.' },
-  { id: 'branwen.rider.deadeye', hero: 'branwen', tier: 2, cost: 6, type: 'rider', requires: ['branwen.sig.front'], label: 'Deadeye', desc: 'Backstep Shot (FRONT core) now also inflicts <span class="kw kw-exposed">◎ EXPOSED 2</span>.', rider: { card: 'Backstep Shot', fx: { mark: 2 }, descAdd: ' · <span class="kw kw-exposed">◎ EXPOSED 2</span>' } },
+  { id: 'branwen.sig.front', hero: 'branwen', tier: 1, cost: 4, type: 'card', gate: { stance: 'front' }, label: 'Snap Shot', desc: 'COMBO · FRONT: inserts <b>Snap Shot</b> (5 dmg) · Backstep Shot → <b>Snap Shot</b> → Hail' },
+  { id: 'branwen.sig.mid',   hero: 'branwen', tier: 1, cost: 5, type: 'card', gate: { stance: 'mid'   }, label: 'Steady Aim', desc: 'COMBO · MID: inserts <b>Steady Aim</b> (<span class="kw kw-rally">▲+3</span> next shot) · Aimed Shot → <b>Steady Aim</b> → Killshot' },
+  { id: 'branwen.sig.back',  hero: 'branwen', tier: 1, cost: 4, type: 'card', gate: { stance: 'back'  }, label: 'Deeper Mark', desc: 'COMBO · BACK: inserts <b>Deeper Mark</b> (<span class="kw kw-exposed">◎+2</span>) · Marking Arrow → <b>Deeper Mark</b> → Killing Arrow' },
+  { id: 'branwen.rider.deadeye', hero: 'branwen', tier: 2, cost: 6, type: 'rider', requires: ['branwen.sig.front'], label: 'Deadeye', desc: 'UPGRADE: Backstep Shot also inflicts <span class="kw kw-exposed">◎ EXPOSED 2</span>', rider: { card: 'Backstep Shot', fx: { mark: 2 }, descAdd: ' · <span class="kw kw-exposed">◎ EXPOSED 2</span>' } },
   { id: 'branwen.emergent.tally', hero: 'branwen', tier: 3, cost: 9, type: 'emergent', requires: ['branwen.sig.back'], label: 'Death’s Tally',
-    desc: 'Branwen <b>counts her marks</b>. Every <b>2nd time she inflicts</b> <span class="kw kw-exposed">◎ EXPOSED</span> this fight forges a free <b>Killing Arrow</b> — the tally comes due.',
+    desc: 'EVERY 2ND EXPOSE: forge a free <b>Killing Arrow</b> (9 dmg · <span class="kw kw-exposed">◎2</span>) — the tally comes due',
     emergent: { on: 'expose', every: 2, stance: 'FORGED · TALLY', flash: 'The tally comes due — <b>Killing Arrow</b> forged.',
       forge: { name: 'Killing Arrow', cost: 0, target: 'enemy', fx: { dmg: 9, mark: 2 }, desc: '<b>Free.</b> The counted shot lands — <b>9 damage</b> and <span class="kw kw-exposed">◎ EXPOSED 2</span> to any foe.' } } },
 
@@ -126,47 +126,47 @@ const EMBER_TREE = [
   // allout), read by the shared hooks above. ═══════════════════════════════════
 
   // ASH — TEMPO: momentum, repositioning, follow-ups
-  { id: 'ash.passive.relentless', hero: 'ash', tier: 4, cost: 12, type: 'passive', requires: ['ash.emergent.tempo'], label: 'Relentless', desc: 'The FIRST <span class="kw kw-rally">FOLLOW-UP</span> Ash lands each turn refunds <b>1 EP</b> — the duel never lets up.', passive: 'ash_relentless' },
+  { id: 'ash.passive.relentless', hero: 'ash', tier: 4, cost: 12, type: 'passive', requires: ['ash.emergent.tempo'], label: 'Relentless', desc: 'PASSIVE: your 1st <span class="kw kw-rally">FOLLOW-UP</span> each turn refunds <b>1 EP</b> — the duel never lets up', passive: 'ash_relentless' },
 
   // ELIN — LIGHT: wards, overheal shields, party sustain
-  { id: 'elin.passive.ward', hero: 'elin', tier: 2, cost: 6, type: 'passive', label: 'Warding Light', desc: 'At the start of your turn, your most wounded ally gains <span class="kw kw-guard">⛨ 2</span> — the light finds the hurt.', passive: 'elin_ward' },
-  { id: 'elin.rider.radiance', hero: 'elin', tier: 3, cost: 7, type: 'rider', requires: ['elin.sig.front'], label: 'Radiance', desc: 'Radiant Ward (FRONT signature) now also heals every ally <span class="kw kw-heal">✚ 2</span>.', rider: { card: 'Radiant Ward', fx: { heal: 2 }, descAdd: ' · <span class="kw kw-heal">✚ 2</span> party' } },
-  { id: 'elin.passive.overflow', hero: 'elin', tier: 4, cost: 11, type: 'passive', requires: ['elin.rider.radiance'], label: 'Radiant Overflow', desc: 'When Elin’s heal overflows a target, the spilled <span class="kw kw-guard">⛨</span> shields the WHOLE party — not just them.', passive: 'elin_overflow' },
+  { id: 'elin.passive.ward', hero: 'elin', tier: 2, cost: 6, type: 'passive', label: 'Warding Light', desc: 'TURN START: your most-wounded ally gains <span class="kw kw-guard">⛨2</span> — the light finds the hurt', passive: 'elin_ward' },
+  { id: 'elin.rider.radiance', hero: 'elin', tier: 3, cost: 7, type: 'rider', requires: ['elin.sig.front'], label: 'Radiance', desc: 'UPGRADE: Radiant Ward also heals EVERY ally <span class="kw kw-heal">✚2</span>', rider: { card: 'Radiant Ward', fx: { heal: 2 }, descAdd: ' · <span class="kw kw-heal">✚ 2</span> party' } },
+  { id: 'elin.passive.overflow', hero: 'elin', tier: 4, cost: 11, type: 'passive', requires: ['elin.rider.radiance'], label: 'Radiant Overflow', desc: 'PASSIVE: heal OVERFLOW spills as <span class="kw kw-guard">⛨ guard</span> to the WHOLE party — not just the target', passive: 'elin_overflow' },
 
   // MIRA — EXPOSED: exploit marks, execute the wounded
-  { id: 'mira.passive.opportunist', hero: 'mira', tier: 2, cost: 6, type: 'passive', requires: ['mira.sig.back'], label: 'Opportunist', desc: 'Mira deals <b>+3</b> to any <span class="kw kw-exposed">◎ EXPOSED</span> foe — she never wastes an opening.', passive: 'mira_opportunist' },
-  { id: 'mira.rider.twin', hero: 'mira', tier: 3, cost: 7, type: 'rider', requires: ['mira.sig.mid'], label: 'Twinned Edge', desc: 'Twin Daggers (MID signature) now also inflicts <span class="kw kw-exposed">◎ EXPOSED 3</span>.', rider: { card: 'Twin Daggers', fx: { mark: 3 }, descAdd: ' · <span class="kw kw-exposed">◎ EXPOSED 3</span>' } },
-  { id: 'mira.passive.deathmark', hero: 'mira', tier: 4, cost: 12, type: 'passive', requires: ['mira.emergent.bloodscent'], label: 'Death Mark', desc: 'When Mira strikes a foe at or below <b>30% HP</b>, she EXECUTES it outright — the wounded do not walk away.', passive: 'mira_execute' },
+  { id: 'mira.passive.opportunist', hero: 'mira', tier: 2, cost: 6, type: 'passive', requires: ['mira.sig.back'], label: 'Opportunist', desc: 'PASSIVE: <b>+3 dmg</b> to any <span class="kw kw-exposed">◎ EXPOSED</span> foe — never waste an opening', passive: 'mira_opportunist' },
+  { id: 'mira.rider.twin', hero: 'mira', tier: 3, cost: 7, type: 'rider', requires: ['mira.sig.mid'], label: 'Twinned Edge', desc: 'UPGRADE: Twin Daggers also inflicts <span class="kw kw-exposed">◎ EXPOSED 3</span>', rider: { card: 'Twin Daggers', fx: { mark: 3 }, descAdd: ' · <span class="kw kw-exposed">◎ EXPOSED 3</span>' } },
+  { id: 'mira.passive.deathmark', hero: 'mira', tier: 4, cost: 12, type: 'passive', requires: ['mira.emergent.bloodscent'], label: 'Death Mark', desc: 'PASSIVE: striking a foe at/under <b>30% HP</b> EXECUTES it — the wounded don’t walk away', passive: 'mira_execute' },
 
   // CASSIA — GUARD: retaliation, an immovable wall
-  { id: 'cassia.passive.vigil', hero: 'cassia', tier: 2, cost: 6, type: 'passive', label: 'Standing Vigil', desc: 'At the start of your turn, Cassia braces for <span class="kw kw-guard">⛨ 2</span> — the wall is never caught flat.', passive: 'cassia_vigil' },
-  { id: 'cassia.rider.aegis', hero: 'cassia', tier: 3, cost: 7, type: 'rider', requires: ['cassia.sig.mid'], label: 'Warded Aegis', desc: 'Aegis (MID signature) also grants the ally <span class="kw kw-counter">↺ 1</span> — the ward bites back.', rider: { card: 'Aegis', fx: { counter: 1 }, descAdd: ' · <span class="kw kw-counter">↺ 1</span>' } },
-  { id: 'cassia.allout.fortress', hero: 'cassia', tier: 3, cost: 9, type: 'allout', requires: ['cassia.emergent.bulwark'], label: 'Fortress', desc: 'ALL-OUT upgrade — before Cassia’s all-out, the whole party gains <span class="kw kw-guard">⛨ 5</span>.', allout: 'fortress' },
-  { id: 'cassia.passive.immovable', hero: 'cassia', tier: 4, cost: 12, type: 'passive', requires: ['cassia.rider.aegis'], label: 'Immovable', desc: 'Cassia’s <span class="kw kw-guard">⛨ guard</span> no longer fades at turn’s end — the wall only grows.', passive: 'cassia_immovable' },
+  { id: 'cassia.passive.vigil', hero: 'cassia', tier: 2, cost: 6, type: 'passive', label: 'Standing Vigil', desc: 'TURN START: Cassia braces for <span class="kw kw-guard">⛨2</span> — never caught flat', passive: 'cassia_vigil' },
+  { id: 'cassia.rider.aegis', hero: 'cassia', tier: 3, cost: 7, type: 'rider', requires: ['cassia.sig.mid'], label: 'Warded Aegis', desc: 'UPGRADE: Aegis also grants the ally <span class="kw kw-counter">↺1</span> — the ward bites back', rider: { card: 'Aegis', fx: { counter: 1 }, descAdd: ' · <span class="kw kw-counter">↺ 1</span>' } },
+  { id: 'cassia.allout.fortress', hero: 'cassia', tier: 3, cost: 9, type: 'allout', requires: ['cassia.emergent.bulwark'], label: 'Fortress', desc: 'ALL-OUT START: the whole party gains <span class="kw kw-guard">⛨5</span> — brace before the storm', allout: 'fortress' },
+  { id: 'cassia.passive.immovable', hero: 'cassia', tier: 4, cost: 12, type: 'passive', requires: ['cassia.rider.aegis'], label: 'Immovable', desc: 'PASSIVE: Cassia’s <span class="kw kw-guard">⛨ guard</span> no longer fades at turn’s end — the wall only grows', passive: 'cassia_immovable' },
 
   // BRANWEN — MARK: marks at range, the tally comes due
-  { id: 'branwen.passive.focus', hero: 'branwen', tier: 2, cost: 6, type: 'passive', requires: ['branwen.sig.back'], label: 'Hunter’s Focus', desc: 'Branwen deals <b>+2</b> to any <span class="kw kw-exposed">◎ EXPOSED</span> foe.', passive: 'branwen_hunter' },
-  { id: 'branwen.passive.opening', hero: 'branwen', tier: 3, cost: 8, type: 'passive', requires: ['branwen.passive.focus'], label: 'Opening Shot', desc: 'At the start of your turn, Branwen EXPOSES the nearest foe <span class="kw kw-exposed">◎ 1</span> — the hunt is always on.', passive: 'branwen_opening' },
-  { id: 'branwen.passive.reckoning', hero: 'branwen', tier: 4, cost: 12, type: 'passive', requires: ['branwen.emergent.tally'], label: 'The Reckoning', desc: 'The first <span class="kw kw-exposed">◎ EXPOSED</span> foe Branwen kills each turn refunds <b>1 EP</b> — the tally always comes due.', passive: 'branwen_reckoning' },
+  { id: 'branwen.passive.focus', hero: 'branwen', tier: 2, cost: 6, type: 'passive', requires: ['branwen.sig.back'], label: 'Hunter’s Focus', desc: 'PASSIVE: <b>+2 dmg</b> to any <span class="kw kw-exposed">◎ EXPOSED</span> foe', passive: 'branwen_hunter' },
+  { id: 'branwen.passive.opening', hero: 'branwen', tier: 3, cost: 8, type: 'passive', requires: ['branwen.passive.focus'], label: 'Opening Shot', desc: 'TURN START: EXPOSE the nearest foe <span class="kw kw-exposed">◎1</span> — the hunt is always on', passive: 'branwen_opening' },
+  { id: 'branwen.passive.reckoning', hero: 'branwen', tier: 4, cost: 12, type: 'passive', requires: ['branwen.emergent.tally'], label: 'The Reckoning', desc: 'ON EXPOSED KILL: your 1st kill each turn refunds <b>1 EP</b> — the tally always comes due', passive: 'branwen_reckoning' },
 
   // ═══ TEAM SYNERGY (Phase 3) — each hero's identity now pays the WHOLE party.
   // These are the cross-hero combos: who you bring changes how everyone plays. ═══
-  { id: 'ash.synergy.warcry', hero: 'ash', tier: 4, cost: 11, type: 'synergy', requires: ['ash.passive.exploit'], label: 'Warcry', desc: 'The hunt feeds the pack — when Ash lands a <span class="kw kw-rally">FOLLOW-UP</span>, the ally he followed gains <span class="kw kw-rally">▲ RALLY +2</span>. His read of the opening becomes theirs.', passive: 'ash_warcry' },
-  { id: 'elin.synergy.blessing', hero: 'elin', tier: 4, cost: 11, type: 'synergy', requires: ['elin.passive.ward'], label: 'Blessed Edge', desc: 'When Elin heals or wards an ally, that ally’s next strike deals <span class="kw kw-rally">▲ +2</span> — her light sharpens their blade.', passive: 'elin_blessing' },
-  { id: 'mira.synergy.marked', hero: 'mira', tier: 4, cost: 11, type: 'synergy', requires: ['mira.passive.opportunist'], label: 'Marked for Death', desc: 'While Mira stands with you, <span class="kw kw-exposed">◎ EXPOSED</span> foes take <b>+2</b> from EVERY ally — her openings are the whole party’s.', passive: 'mira_marked' },
-  { id: 'cassia.synergy.soak', hero: 'cassia', tier: 4, cost: 11, type: 'synergy', requires: ['cassia.passive.vigil'], label: 'Guardian’s Aegis', desc: 'Allies in the rows BEHIND Cassia take <b>−2</b> from every enemy blow — she covers the line.', passive: 'cassia_soak' },
-  { id: 'branwen.synergy.cadence', hero: 'branwen', tier: 4, cost: 11, type: 'synergy', requires: ['branwen.passive.opening'], label: 'Hunter’s Cadence', desc: 'At the start of your turn, if any foe is <span class="kw kw-exposed">◎ EXPOSED</span>, the WHOLE party gains <span class="kw kw-rally">▲ RALLY +1</span>.', passive: 'branwen_cadence' },
+  { id: 'ash.synergy.warcry', hero: 'ash', tier: 4, cost: 11, type: 'synergy', requires: ['ash.passive.exploit'], label: 'Warcry', desc: 'ON FOLLOW-UP: the ally you followed gains <span class="kw kw-rally">▲ RALLY +2</span> — the hunt feeds the pack', passive: 'ash_warcry' },
+  { id: 'elin.synergy.blessing', hero: 'elin', tier: 4, cost: 11, type: 'synergy', requires: ['elin.passive.ward'], label: 'Blessed Edge', desc: 'ON HEAL / WARD: that ally’s next strike deals <span class="kw kw-rally">▲ +2</span> — her light sharpens their blade', passive: 'elin_blessing' },
+  { id: 'mira.synergy.marked', hero: 'mira', tier: 4, cost: 11, type: 'synergy', requires: ['mira.passive.opportunist'], label: 'Marked for Death', desc: 'PASSIVE: <span class="kw kw-exposed">◎ EXPOSED</span> foes take <b>+2</b> from EVERY ally — your openings are the party’s', passive: 'mira_marked' },
+  { id: 'cassia.synergy.soak', hero: 'cassia', tier: 4, cost: 11, type: 'synergy', requires: ['cassia.passive.vigil'], label: 'Guardian’s Aegis', desc: 'PASSIVE: allies in rows BEHIND Cassia take <b>−2</b> from every blow — she covers the line', passive: 'cassia_soak' },
+  { id: 'branwen.synergy.cadence', hero: 'branwen', tier: 4, cost: 11, type: 'synergy', requires: ['branwen.passive.opening'], label: 'Hunter’s Cadence', desc: 'TURN START: if any foe is <span class="kw kw-exposed">◎ EXPOSED</span>, the WHOLE party gains <span class="kw kw-rally">▲ RALLY +1</span>', passive: 'branwen_cadence' },
 
   // ═══ STANCE PATHWAYS — every position now grows its own branch, so all three
   // rows reward investment (not just each hero's one favoured stance). ══════════
   // ASH — the MID (flow) line and a deeper BACK (mark) line
-  { id: 'ash.passive.exploit', hero: 'ash', tier: 3, cost: 8, type: 'passive', requires: ['ash.rider.expose'], label: 'Opening Read', desc: 'Ash deals <b>+3</b> to any <span class="kw kw-exposed">◎ EXPOSED</span> foe — his marks are his to cash.', passive: 'ash_exploit' },
+  { id: 'ash.passive.exploit', hero: 'ash', tier: 3, cost: 8, type: 'passive', requires: ['ash.rider.expose'], label: 'Opening Read', desc: 'PASSIVE: <b>+3 dmg</b> to any <span class="kw kw-exposed">◎ EXPOSED</span> foe — your marks are yours to cash', passive: 'ash_exploit' },
 
   // ELIN — a deeper MID (ward) line
-  { id: 'elin.rider.sanctuary', hero: 'elin', tier: 2, cost: 6, type: 'rider', requires: ['elin.sig.mid'], label: 'Warded Sanctuary', desc: 'Sanctuary (MID signature) also grants the ally <span class="kw kw-counter">↺ 1</span> — the sanctuary strikes back.', rider: { card: 'Sanctuary', fx: { counter: 1 }, descAdd: ' · <span class="kw kw-counter">↺ 1</span>' } },
+  { id: 'elin.rider.sanctuary', hero: 'elin', tier: 2, cost: 6, type: 'rider', requires: ['elin.sig.mid'], label: 'Warded Sanctuary', desc: 'UPGRADE: Sanctuary also grants the ally <span class="kw kw-counter">↺1</span> — the ward bites back', rider: { card: 'Sanctuary', fx: { counter: 1 }, descAdd: ' · <span class="kw kw-counter">↺ 1</span>' } },
 
   // MIRA — a deeper FRONT (vanish) line and a MID (twin) line
-  { id: 'mira.emergent.flurry', hero: 'mira', tier: 3, cost: 8, type: 'emergent', requires: ['mira.rider.twin'], label: 'Bladestorm', desc: 'Mira’s knives multiply. Every <b>3rd strike</b> she lands forges a free <b>Flurry</b> — the daggers keep coming.', emergent: { on: 'hit', every: 3, stance: 'FORGED · STORM', flash: 'The blades multiply — <b>Flurry</b> forged.', forge: { name: 'Flurry', cost: 0, target: 'enemy', fx: { dmg: 6, mark: 1 }, desc: '<b>Free.</b> A whirl of steel — <b>6 damage</b> and <span class="kw kw-exposed">◎ EXPOSED 1</span> to any foe.' } } },
+  { id: 'mira.emergent.flurry', hero: 'mira', tier: 3, cost: 8, type: 'emergent', requires: ['mira.rider.twin'], label: 'Bladestorm', desc: 'EVERY 3RD HIT: forge a free <b>Flurry</b> (6 dmg · <span class="kw kw-exposed">◎1</span>) — the daggers keep coming', emergent: { on: 'hit', every: 3, stance: 'FORGED · STORM', flash: 'The blades multiply — <b>Flurry</b> forged.', forge: { name: 'Flurry', cost: 0, target: 'enemy', fx: { dmg: 6, mark: 1 }, desc: '<b>Free.</b> A whirl of steel — <b>6 damage</b> and <span class="kw kw-exposed">◎ EXPOSED 1</span> to any foe.' } } },
 
   // CASSIA — a BACK (sentinel) line
 
@@ -179,25 +179,25 @@ const EMBER_TREE = [
   // rider fills the hole, and a BACK capstone finally caps the heal line.
 
   // MIRA — the MID (twin) line lacked its early rider; a MID capstone caps it.
-  { id: 'mira.passive.frenzy', hero: 'mira', tier: 4, cost: 12, type: 'passive', requires: ['mira.emergent.flurry'], label: 'Bloodfrenzy', desc: 'Each time Mira strikes an <span class="kw kw-exposed">◎ EXPOSED</span> foe, her NEXT strike deals <span class="kw kw-rally">▲ +2</span> — the kill feeds the next.', passive: 'mira_frenzy' },
+  { id: 'mira.passive.frenzy', hero: 'mira', tier: 4, cost: 12, type: 'passive', requires: ['mira.emergent.flurry'], label: 'Bloodfrenzy', desc: 'ON EXPOSED HIT: your NEXT strike deals <span class="kw kw-rally">▲ +2</span> — the kill feeds the next', passive: 'mira_frenzy' },
 
   // CASSIA — the MID (aegis) line jumped T1→T3; a T2 rider fills it.
 
   // BRANWEN — the MID (Killshot) line was the thinnest in the tree: one lone
   // rider.  Now a full single-target execution arc — steady aim → a piercing
   // cadence that forges free shots → the killing blow that finishes the wounded.
-  { id: 'branwen.emergent.pierce', hero: 'branwen', tier: 3, cost: 8, type: 'emergent', requires: ['branwen.sig.mid'], label: 'Marksman’s Rhythm', desc: 'Branwen finds her cadence. Every <b>3rd shot</b> she lands forges a free <b>Piercing Shot</b> — the aim never wavers.', emergent: { on: 'hit', every: 3, stance: 'FORGED · AIM', flash: 'The cadence holds — <b>Piercing Shot</b> forged.', forge: { name: 'Piercing Shot', cost: 0, target: 'enemy', fx: { dmg: 10 }, desc: '<b>Free.</b> A shaft through the gap — <b>10 damage</b> to any foe.' } } },
-  { id: 'branwen.passive.killingblow', hero: 'branwen', tier: 4, cost: 12, type: 'passive', requires: ['branwen.emergent.pierce'], label: 'The Killing Blow', desc: 'Branwen deals <b>+4</b> to any foe at or below <b>half HP</b> — the wounded do not outrun the arrow.', passive: 'branwen_killingblow' },
+  { id: 'branwen.emergent.pierce', hero: 'branwen', tier: 3, cost: 8, type: 'emergent', requires: ['branwen.sig.mid'], label: 'Marksman’s Rhythm', desc: 'EVERY 3RD HIT: forge a free <b>Piercing Shot</b> (10 dmg) — the aim never wavers', emergent: { on: 'hit', every: 3, stance: 'FORGED · AIM', flash: 'The cadence holds — <b>Piercing Shot</b> forged.', forge: { name: 'Piercing Shot', cost: 0, target: 'enemy', fx: { dmg: 10 }, desc: '<b>Free.</b> A shaft through the gap — <b>10 damage</b> to any foe.' } } },
+  { id: 'branwen.passive.killingblow', hero: 'branwen', tier: 4, cost: 12, type: 'passive', requires: ['branwen.emergent.pierce'], label: 'The Killing Blow', desc: 'PASSIVE: <b>+4 dmg</b> to any foe at/under <b>half HP</b> — the wounded can’t outrun the arrow', passive: 'branwen_killingblow' },
 
   // ═══ SIGNATURE MOMENTS — build-defining capstones that turn a hero's identity
   // INSIDE OUT.  Each is one of several ways to build a hero across playthroughs;
   // pick the fantasy you want this run. ════════════════════════════════════════════
   { id: 'cassia.nova', hero: 'cassia', tier: 4, cost: 11, type: 'emergent', requires: ['cassia.emergent.bulwark'], label: 'Aegis Nova',
-    desc: 'Cassia turns the WALL into a weapon. Every <b>3rd time she raises</b> <span class="kw kw-guard">⛨ guard</span>, she forges a free <b>Aegis Nova</b> — loose ALL her guard as one blow, then it shatters. Turtle up, then end them.',
+    desc: 'EVERY 3RD GUARD: forge a free <b>Aegis Nova</b> — hurl ALL your <span class="kw kw-guard">⛨ guard</span> as one hit, then it shatters',
     emergent: { on: 'guard', every: 3, stance: 'FORGED · NOVA', flash: 'The wall becomes the blow — <b>Aegis Nova</b> forged.',
       forge: { name: 'Aegis Nova', cost: 0, target: 'frontmost', fx: { guardBurst: true }, desc: '<b>Free.</b> Loose the whole wall in one strike — <b>damage equal to your current</b> <span class="kw kw-guard">⛨ guard</span>, then it shatters. Stack it high, then unleash.' } } },
   { id: 'elin.inverse', hero: 'elin', tier: 4, cost: 11, type: 'emergent', requires: ['elin.rider.sanctuary'], label: 'Inverse Light',
-    desc: 'Elin turns mending OUTWARD. Every <b>2nd time she heals</b>, she forges a free <b>Inverse Light</b> — the light that knits a wound now <b>burns a foe</b>. Mercy, weaponised.',
+    desc: 'EVERY 2ND HEAL: forge a free <b>Inverse Light</b> (8 holy dmg) — mending, weaponised',
     emergent: { on: 'heal', every: 2, stance: 'FORGED · UMBRA', flash: 'The light turns outward — <b>Inverse Light</b> forged.',
       forge: { name: 'Inverse Light', cost: 0, target: 'enemy', fx: { dmg: 8 }, desc: '<b>Free.</b> Mercy, reversed — <b>8 holy damage</b> to any foe. The mender bares her light.' } } },
 
@@ -205,21 +205,21 @@ const EMBER_TREE = [
   // finisher signature), a branch node opens a SECOND path off the opener: play
   // the opener and pick which line to run, the other burns away.  This is where
   // the in-combat choice lives, and it's earned. ═══════════════════════════════
-  { id: 'ash.branch.front', hero: 'ash', tier: 2, cost: 6, type: 'branch', requires: ['ash.sig.front'], label: 'Sunder Fork', desc: 'FRONT fork — <b>Cleave</b> also opens <b>Sunder</b> (5 dmg · <span class="kw kw-exposed">◎ EXPOSED 2</span>) → <b>Marked Fate</b> (<span class="kw kw-exposed">◎ EXPOSED 4</span>). Pick the tempo cut or the mark.' },
-  { id: 'ash.branch.mid',   hero: 'ash', tier: 2, cost: 6, type: 'branch', requires: ['ash.sig.mid'],   label: 'Flow Fork',   desc: 'MID fork — <b>Flowing Cut</b> also opens <b>Flow Read</b> (slip FRONT · <span class="kw kw-rally">▲ +3</span>) → <b>Crossguard</b> (<span class="kw kw-guard">⛨ 6</span> ally).' },
-  { id: 'ash.branch.back',  hero: 'ash', tier: 2, cost: 6, type: 'branch', requires: ['ash.sig.back'],  label: 'Mark Fork',   desc: 'BACK fork — <b>Thrown Edge</b> also opens <b>Hunter’s Read</b> (<span class="kw kw-exposed">◎ EXPOSED 2</span>) → <b>Marked Fate</b> (<span class="kw kw-exposed">◎ EXPOSED 4</span>).' },
-  { id: 'elin.branch.front', hero: 'elin', tier: 2, cost: 6, type: 'branch', requires: ['elin.sig.front'], label: 'Radiant Fork', desc: 'FRONT fork — <b>Smite</b> also opens <b>Raise Ward</b> (party <span class="kw kw-guard">⛨ 2</span>) → <b>Consecrate</b> (6 holy). Damage or the ward.' },
-  { id: 'elin.branch.mid',   hero: 'elin', tier: 2, cost: 6, type: 'branch', requires: ['elin.sig.mid'],   label: 'Ward Fork',    desc: 'MID fork — <b>Mend</b> also opens <b>Cleanse</b> (<span class="kw kw-heal">✚</span> · <span class="kw kw-guard">⛨</span>) → <b>Warding Circle</b> (party <span class="kw kw-guard">⛨ 3</span>).' },
-  { id: 'elin.branch.back',  hero: 'elin', tier: 2, cost: 6, type: 'branch', requires: ['elin.sig.back'],  label: 'Mercy Fork',   desc: 'BACK fork — <b>Distant Prayer</b> also opens <b>Deep Mercy</b> (<span class="kw kw-heal">✚ 8</span>) → <b>Dawnlight</b> (party <span class="kw kw-heal">✚ 5</span>).' },
-  { id: 'mira.branch.front', hero: 'mira', tier: 2, cost: 6, type: 'branch', requires: ['mira.sig.front'], label: 'Shadow Fork', desc: 'FRONT fork — <b>Backstab</b> also opens <b>Shadowstep</b> (<span class="kw kw-exposed">◎ EXPOSED 2</span> · slip) → <b>Killing Mark</b> (<span class="kw kw-exposed">◎ EXPOSED 5</span>).' },
-  { id: 'mira.branch.mid',   hero: 'mira', tier: 2, cost: 6, type: 'branch', requires: ['mira.sig.mid'],   label: 'Guile Fork',  desc: 'MID fork — <b>Shadow Knife</b> also opens <b>Feint</b> (<span class="kw kw-rally">▲ +3</span>) → <b>Bloodletting</b> (8 dmg · <span class="kw kw-exposed">◎ EXPOSED 2</span>).' },
-  { id: 'mira.branch.back',  hero: 'mira', tier: 2, cost: 6, type: 'branch', requires: ['mira.sig.back'],  label: 'Hunt Fork',   desc: 'BACK fork — <b>Thrown Dagger</b> also opens <b>Mark</b> (<span class="kw kw-exposed">◎ EXPOSED 3</span>) → <b>Killing Mark</b> (<span class="kw kw-exposed">◎ EXPOSED 5</span>).' },
-  { id: 'cassia.branch.front', hero: 'cassia', tier: 2, cost: 6, type: 'branch', requires: ['cassia.sig.front'], label: 'Iron Fork', desc: 'FRONT fork — <b>Shield Bash</b> also opens <b>Provoke</b> (<span class="kw kw-guard">⛨ 2</span> · <span class="kw kw-counter">↺ 2</span>) → <b>Iron Answer</b> (9 dmg). The wall or the counter.' },
-  { id: 'cassia.branch.mid',   hero: 'cassia', tier: 2, cost: 6, type: 'branch', requires: ['cassia.sig.mid'],   label: 'Sentinel Fork', desc: 'MID fork — <b>Cover</b> also opens <b>Warded</b> (<span class="kw kw-guard">⛨</span> · <span class="kw kw-counter">↺ 1</span>) → <b>Sentinel Volley</b> (8 dmg).' },
-  { id: 'cassia.branch.back',  hero: 'cassia', tier: 2, cost: 6, type: 'branch', requires: ['cassia.sig.back'],  label: 'Rampart Fork', desc: 'BACK fork — <b>Thrown Shield</b> also opens <b>Rampart</b> (<span class="kw kw-guard">⛨ 4</span>) → <b>Sentinel Volley</b> (8 dmg).' },
-  { id: 'branwen.branch.front', hero: 'branwen', tier: 2, cost: 6, type: 'branch', requires: ['branwen.sig.front'], label: 'Mark Fork', desc: 'FRONT fork — <b>Backstep Shot</b> also opens <b>Hunter’s Mark</b> (<span class="kw kw-exposed">◎ EXPOSED 4</span> · slip) → <b>Marked Fate</b> (<span class="kw kw-exposed">◎ EXPOSED 4</span>).' },
-  { id: 'branwen.branch.mid',   hero: 'branwen', tier: 2, cost: 6, type: 'branch', requires: ['branwen.sig.mid'],   label: 'Pierce Fork', desc: 'MID fork — <b>Aimed Shot</b> also opens <b>Called Shot</b> (<span class="kw kw-exposed">◎ EXPOSED 2</span>) → <b>Piercing Shot</b> (10 dmg).' },
-  { id: 'branwen.branch.back',  hero: 'branwen', tier: 2, cost: 6, type: 'branch', requires: ['branwen.sig.back'],  label: 'Rain Fork',  desc: 'BACK fork — <b>Marking Arrow</b> also opens <b>Rapid Nock</b> (4 dmg) → <b>Volley Shot</b> (6 dmg · <span class="kw kw-exposed">◎ EXPOSED 2</span>).' },
+  { id: 'ash.branch.front', hero: 'ash', tier: 2, cost: 6, type: 'branch', requires: ['ash.sig.front'], label: 'Sunder Fork', desc: 'FORK · FRONT: Cleave also opens <b>Sunder</b> (5 dmg · <span class="kw kw-exposed">◎2</span>) → <b>Marked Fate</b> (<span class="kw kw-exposed">◎4</span>) — the cut or the mark' },
+  { id: 'ash.branch.mid',   hero: 'ash', tier: 2, cost: 6, type: 'branch', requires: ['ash.sig.mid'],   label: 'Flow Fork',   desc: 'FORK · MID: Flowing Cut also opens <b>Flow Read</b> (slip FRONT · <span class="kw kw-rally">▲+3</span>) → <b>Crossguard</b> (<span class="kw kw-guard">⛨6</span> ally)' },
+  { id: 'ash.branch.back',  hero: 'ash', tier: 2, cost: 6, type: 'branch', requires: ['ash.sig.back'],  label: 'Mark Fork',   desc: 'FORK · BACK: Thrown Edge also opens <b>Hunter’s Read</b> (<span class="kw kw-exposed">◎2</span>) → <b>Marked Fate</b> (<span class="kw kw-exposed">◎4</span>)' },
+  { id: 'elin.branch.front', hero: 'elin', tier: 2, cost: 6, type: 'branch', requires: ['elin.sig.front'], label: 'Radiant Fork', desc: 'FORK · FRONT: Smite also opens <b>Raise Ward</b> (party <span class="kw kw-guard">⛨2</span>) → <b>Consecrate</b> (6 holy) — damage or the ward' },
+  { id: 'elin.branch.mid',   hero: 'elin', tier: 2, cost: 6, type: 'branch', requires: ['elin.sig.mid'],   label: 'Ward Fork',    desc: 'FORK · MID: Mend also opens <b>Cleanse</b> (<span class="kw kw-heal">✚</span> · <span class="kw kw-guard">⛨</span>) → <b>Warding Circle</b> (party <span class="kw kw-guard">⛨3</span>)' },
+  { id: 'elin.branch.back',  hero: 'elin', tier: 2, cost: 6, type: 'branch', requires: ['elin.sig.back'],  label: 'Mercy Fork',   desc: 'FORK · BACK: Distant Prayer also opens <b>Deep Mercy</b> (<span class="kw kw-heal">✚8</span>) → <b>Dawnlight</b> (party <span class="kw kw-heal">✚5</span>)' },
+  { id: 'mira.branch.front', hero: 'mira', tier: 2, cost: 6, type: 'branch', requires: ['mira.sig.front'], label: 'Shadow Fork', desc: 'FORK · FRONT: Backstab also opens <b>Shadowstep</b> (<span class="kw kw-exposed">◎2</span> · slip) → <b>Killing Mark</b> (<span class="kw kw-exposed">◎5</span>)' },
+  { id: 'mira.branch.mid',   hero: 'mira', tier: 2, cost: 6, type: 'branch', requires: ['mira.sig.mid'],   label: 'Guile Fork',  desc: 'FORK · MID: Shadow Knife also opens <b>Feint</b> (<span class="kw kw-rally">▲+3</span>) → <b>Bloodletting</b> (8 dmg · <span class="kw kw-exposed">◎2</span>)' },
+  { id: 'mira.branch.back',  hero: 'mira', tier: 2, cost: 6, type: 'branch', requires: ['mira.sig.back'],  label: 'Hunt Fork',   desc: 'FORK · BACK: Thrown Dagger also opens <b>Mark</b> (<span class="kw kw-exposed">◎3</span>) → <b>Killing Mark</b> (<span class="kw kw-exposed">◎5</span>)' },
+  { id: 'cassia.branch.front', hero: 'cassia', tier: 2, cost: 6, type: 'branch', requires: ['cassia.sig.front'], label: 'Iron Fork', desc: 'FORK · FRONT: Shield Bash also opens <b>Provoke</b> (<span class="kw kw-guard">⛨2</span> · <span class="kw kw-counter">↺2</span> · TAUNT) → <b>Iron Answer</b> (9 dmg)' },
+  { id: 'cassia.branch.mid',   hero: 'cassia', tier: 2, cost: 6, type: 'branch', requires: ['cassia.sig.mid'],   label: 'Sentinel Fork', desc: 'FORK · MID: Cover also opens <b>Warded</b> (<span class="kw kw-guard">⛨</span> · <span class="kw kw-counter">↺1</span>) → <b>Sentinel Volley</b> (8 dmg)' },
+  { id: 'cassia.branch.back',  hero: 'cassia', tier: 2, cost: 6, type: 'branch', requires: ['cassia.sig.back'],  label: 'Rampart Fork', desc: 'FORK · BACK: Thrown Shield also opens <b>Rampart</b> (<span class="kw kw-guard">⛨4</span>) → <b>Sentinel Volley</b> (8 dmg)' },
+  { id: 'branwen.branch.front', hero: 'branwen', tier: 2, cost: 6, type: 'branch', requires: ['branwen.sig.front'], label: 'Mark Fork', desc: 'FORK · FRONT: Backstep Shot also opens <b>Hunter’s Mark</b> (<span class="kw kw-exposed">◎4</span> · slip) → <b>Marked Fate</b> (<span class="kw kw-exposed">◎4</span>)' },
+  { id: 'branwen.branch.mid',   hero: 'branwen', tier: 2, cost: 6, type: 'branch', requires: ['branwen.sig.mid'],   label: 'Pierce Fork', desc: 'FORK · MID: Aimed Shot also opens <b>Called Shot</b> (<span class="kw kw-exposed">◎2</span>) → <b>Piercing Shot</b> (10 dmg)' },
+  { id: 'branwen.branch.back',  hero: 'branwen', tier: 2, cost: 6, type: 'branch', requires: ['branwen.sig.back'],  label: 'Rain Fork',  desc: 'FORK · BACK: Marking Arrow also opens <b>Rapid Nock</b> (4 dmg) → <b>Volley Shot</b> (6 dmg · <span class="kw kw-exposed">◎2</span>)' },
 
   // ═══ EXECUTIONER — cashing the STAGGER.  Breaking a foe (hitting its weakness
   // twice in a turn) is always worth burst + PRESS-ON EP; but the free
@@ -228,35 +228,35 @@ const EMBER_TREE = [
   // EXECUTIONER — every hero can cash a STAGGER, but each break lands in their OWN
   // voice: a hero-flavoured finisher forged into hand (still doubled vs the
   // staggered foe), plus, for some, an instant reaction that feeds their build.
-  { id: 'ash.exec',     hero: 'ash',     tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'When Ash STAGGERS a foe, he forges a free <b>Coup de Grâce</b> — <b>10 damage</b>, <b>doubled</b> against the staggered. Pure aggression ends the reeling.',
+  { id: 'ash.exec',     hero: 'ash',     tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'ON STAGGER: forge a free <b>Coup de Grâce</b> — 10 dmg, <b>doubled</b> vs staggered',
     stagger: { name: 'Coup de Grâce', target: 'enemy', fx: { dmg: 10 }, desc: '<b>Free.</b> The break leaves them open — <b>10 damage</b>, doubled against a STAGGERED foe.' } },
-  { id: 'elin.exec',    hero: 'elin',    tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'When Elin STAGGERS a foe, she forges a free <b>Mercy’s End</b> — <b>8 holy damage</b> (doubled vs staggered) — and the whole party <b>heals <span class="kw kw-heal">✚ 3</span></b>. Even the mender ends what she breaks — and mends as she does.',
+  { id: 'elin.exec',    hero: 'elin',    tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'ON STAGGER: forge a free <b>Mercy’s End</b> (8 holy, doubled vs staggered) & the party heals <span class="kw kw-heal">✚3</span> — she mends as she ends',
     stagger: { name: 'Mercy’s End', target: 'enemy', fx: { dmg: 8 }, heal: 3, desc: '<b>Free.</b> A ray through the break — <b>8 holy damage</b>, doubled vs a STAGGERED foe.' } },
-  { id: 'mira.exec',    hero: 'mira',    tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'When Mira STAGGERS a foe, she forges a free <b>Death Blossom</b> — <b>7 damage</b> (doubled vs staggered) and <span class="kw kw-exposed">◎ EXPOSED 4</span>. She doesn’t just finish — she paints the kill for her whole mark-flow.',
+  { id: 'mira.exec',    hero: 'mira',    tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'ON STAGGER: forge a free <b>Death Blossom</b> (7 dmg · <span class="kw kw-exposed">◎4</span>, doubled vs staggered) — paints the kill',
     stagger: { name: 'Death Blossom', target: 'enemy', fx: { dmg: 7, mark: 4 }, desc: '<b>Free.</b> A whirl of blades — <b>7 damage</b> (doubled vs STAGGERED) and <span class="kw kw-exposed">◎ EXPOSED 4</span>.' } },
-  { id: 'cassia.exec',  hero: 'cassia',  tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'When Cassia STAGGERS a foe, she forges a free <b>Bulwark Break</b> — <b>8 damage</b> (doubled vs staggered) <b>and Cassia gains <span class="kw kw-guard">⛨ 5</span></b>. The wall punishes the reeling and hardens as it does.',
+  { id: 'cassia.exec',  hero: 'cassia',  tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'ON STAGGER: forge a free <b>Bulwark Break</b> (8 dmg, doubled vs staggered) & Cassia gains <span class="kw kw-guard">⛨5</span> — the wall punishes & hardens',
     stagger: { name: 'Bulwark Break', target: 'frontmost', fx: { dmg: 8, guard: 5 }, desc: '<b>Free.</b> The shield-edge crashes down — <b>8 damage</b> (doubled vs STAGGERED), and Cassia gains <span class="kw kw-guard">⛨ 5</span>.' } },
-  { id: 'branwen.exec', hero: 'branwen', tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'When Branwen STAGGERS a foe, she forges a free <b>Marksman’s Finish</b> — <b>10 damage</b> (doubled vs staggered) — <b>and refunds 1 EP</b>. The tally comes due; the hunt presses on.',
+  { id: 'branwen.exec', hero: 'branwen', tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'ON STAGGER: forge a free <b>Marksman’s Finish</b> (10 dmg, doubled vs staggered) & refund <b>1 EP</b> — the hunt presses on',
     stagger: { name: 'Marksman’s Finish', target: 'enemy', fx: { dmg: 10 }, ep: 1, desc: '<b>Free.</b> A called shot through the break — <b>10 damage</b>, doubled vs a STAGGERED foe.' } },
 
   // ═══ AFTERIMAGE — earning the ECHO on the move.  Repositioning (the 1-EP dodge)
   // is always free; but the fading echo it leaves — the stance you left striking
   // once more, this turn only — is a per-hero unlock.  Turns stance-dancing into
   // an earned tempo tool. ═════════════════════════════════════════════════════════
-  { id: 'ash.afterimage',     hero: 'ash',     tier: 1, cost: 4, type: 'afterimage', label: 'Afterimage', desc: 'Whenever Ash repositions — a move, <b>or any strike that slips him</b> to a new row — the stance he left <b>strikes once more</b> (free fading echo, −2 dmg, this turn). Every reposition is an extra blow.' },
-  { id: 'elin.afterimage',    hero: 'elin',    tier: 1, cost: 4, type: 'afterimage', label: 'Afterimage', desc: 'Whenever Elin repositions — a move <b>or any action that shifts her row</b> — the stance she left <b>strikes once more</b> (free fading echo, −2 dmg, this turn).' },
-  { id: 'mira.afterimage',    hero: 'mira',    tier: 1, cost: 4, type: 'afterimage', label: 'Afterimage', desc: 'Whenever Mira repositions — a move, <b>or the slip / vanish built into her strikes</b> — the stance she left <b>strikes once more</b> (free fading echo, −2 dmg, this turn). Backstab and Vanish Strike now double as echoes — her whole shadow-dance loops.' },
-  { id: 'cassia.afterimage',  hero: 'cassia',  tier: 1, cost: 4, type: 'afterimage', label: 'Afterimage', desc: 'Whenever Cassia repositions — a move <b>or any action that shifts her row</b> — the stance she left <b>strikes once more</b> (free fading echo, −2 dmg, this turn).' },
-  { id: 'branwen.afterimage', hero: 'branwen', tier: 1, cost: 4, type: 'afterimage', label: 'Afterimage', desc: 'Whenever Branwen repositions — a move, <b>or the backstep loosed with her shots</b> — the stance she left <b>strikes once more</b> (free fading echo, −2 dmg, this turn). Her kiting Backstep Shot now leaves a parting arrow.' },
+  { id: 'ash.afterimage',     hero: 'ash',     tier: 1, cost: 4, type: 'afterimage', label: 'Afterimage', desc: 'ON REPOSITION: the stance you left <b>strikes again</b> (free echo, −2 dmg, this turn) — a move OR a slip counts' },
+  { id: 'elin.afterimage',    hero: 'elin',    tier: 1, cost: 4, type: 'afterimage', label: 'Afterimage', desc: 'ON REPOSITION: the stance she left <b>strikes again</b> (free echo, −2 dmg, this turn)' },
+  { id: 'mira.afterimage',    hero: 'mira',    tier: 1, cost: 4, type: 'afterimage', label: 'Afterimage', desc: 'ON REPOSITION: the stance she left <b>strikes again</b> (free echo, −2 dmg, this turn) — her slips & vanishes count' },
+  { id: 'cassia.afterimage',  hero: 'cassia',  tier: 1, cost: 4, type: 'afterimage', label: 'Afterimage', desc: 'ON REPOSITION: the stance she left <b>strikes again</b> (free echo, −2 dmg, this turn)' },
+  { id: 'branwen.afterimage', hero: 'branwen', tier: 1, cost: 4, type: 'afterimage', label: 'Afterimage', desc: 'ON REPOSITION: the stance she left <b>strikes again</b> (free echo, −2 dmg, this turn) — her backstep leaves a parting arrow' },
 
   // ═══ ALL-OUT FINISHERS — an EARNED per-hero flourish on the marquee moment.
   // Ash (Rite of Endings) and Cassia (Fortress) already have theirs; these give
   // the other three an all-out identity too.  Each fires when the all-out ends,
   // in the hero's own voice.  Optional T3 leaves — the all-out still works
   // without them, but investing makes the climax express who you brought.
-  { id: 'elin.allout.dawn',    hero: 'elin',    tier: 3, cost: 9,  type: 'allout', requires: ['elin.sig.mid'],  label: 'Radiant Dawn', desc: 'ALL-OUT finisher — when your all-out ends, dawn breaks: the whole party <b>heals <span class="kw kw-heal">✚ 5</span></b> and gains <span class="kw kw-guard">⛨ 3</span>. The light always rises after the storm.', allout: 'dawn' },
-  { id: 'mira.allout.dance',   hero: 'mira',    tier: 3, cost: 9,  type: 'allout', requires: ['mira.passive.opportunist'], label: 'Death Dance', desc: 'ALL-OUT finisher — when your all-out ends, Mira vanishes through the storm and leaves <b>every surviving foe <span class="kw kw-exposed">◎ EXPOSED 5</span></b>. The whole line is marked for the kill-flow.', allout: 'dance' },
-  { id: 'branwen.allout.ruin', hero: 'branwen', tier: 3, cost: 10, type: 'allout', requires: ['branwen.sig.back'], label: 'Rain of Ruin', desc: 'ALL-OUT finisher — when your all-out ends, Branwen looses a parting <b>volley on the whole enemy line</b> and <b>refunds 2 EP</b>. The sky goes dark with arrows.', allout: 'ruin' },
+  { id: 'elin.allout.dawn',    hero: 'elin',    tier: 3, cost: 9,  type: 'allout', requires: ['elin.sig.mid'],  label: 'Radiant Dawn', desc: 'ALL-OUT END: the whole party heals <span class="kw kw-heal">✚5</span> & gains <span class="kw kw-guard">⛨3</span> — dawn after the storm', allout: 'dawn' },
+  { id: 'mira.allout.dance',   hero: 'mira',    tier: 3, cost: 9,  type: 'allout', requires: ['mira.passive.opportunist'], label: 'Death Dance', desc: 'ALL-OUT END: every surviving foe is left <span class="kw kw-exposed">◎ EXPOSED 5</span> — marked for the kill-flow', allout: 'dance' },
+  { id: 'branwen.allout.ruin', hero: 'branwen', tier: 3, cost: 10, type: 'allout', requires: ['branwen.sig.back'], label: 'Rain of Ruin', desc: 'ALL-OUT END: loose a <b>volley</b> on the whole line & refund <b>2 EP</b> — the sky goes dark with arrows', allout: 'ruin' },
 ];
 const NODE_BY_ID = {};
 EMBER_TREE.forEach(n => { NODE_BY_ID[n.id] = n; });
@@ -5068,7 +5068,7 @@ function kindleBurst(node, onDone) {
       <div class="kf-eyebrow">${heroName} · NEW ${kind}</div>
       <div class="kf-name">${node.label}</div>
       <div class="kf-rule"></div>
-      <div class="kf-desc">${node.desc}</div>
+      <div class="kf-desc">${nodeDescHTML(node.desc)}</div>
     </div>
     <div class="kf-skip">TAP TO CONTINUE</div>`;
   $('#stage').appendChild(el);
@@ -6667,6 +6667,21 @@ function showSettings() {
 // node to read it in the detail bar, then kindle it.
 const TREE_TYPE_LABEL = { card: 'COMBO', rider: 'UPGRADE', passive: 'PASSIVE', allout: 'ALL-OUT', emergent: 'EMERGENT', synergy: 'TEAM SYNERGY', branch: 'FORK', execute: 'EXECUTIONER', afterimage: 'AFTERIMAGE' };
 const TREE_TYPE_GLYPH = { card: '❖', rider: '⊕', passive: '❉', allout: '✷', emergent: '✦', synergy: '☍', branch: '⑂', execute: '☠', afterimage: '⧉' };
+// Node descriptions follow a "TRIGGER: effect — flavor" grammar so they read at a
+// glance: the TRIGGER (when it fires) becomes a chip, the effect stays crisp with
+// symbols, and the trailing flavor dims out.  Split flavor on the FIRST ' — '
+// (effects use ·, →, commas — never a spaced em-dash).
+function nodeDescHTML(desc) {
+  if (!desc) return '';
+  let main = desc, flav = '';
+  const fi = main.indexOf(' — ');
+  if (fi >= 0) { flav = main.slice(fi + 3); main = main.slice(0, fi); }
+  let trig = '';
+  const m = main.match(/^([A-Z][A-Z0-9 ’·×\/&+\-]{1,22}):\s+/);
+  if (m) { trig = m[1].trim(); main = main.slice(m[0].length); }
+  return (trig ? `<span class="et-trig">${trig}</span> ` : '') + main
+    + (flav ? `<span class="et-flav"> — ${flav}</span>` : '');
+}
 const TREE_HEROES = EMBER_TREE.reduce((a, n) => (a.includes(n.hero) ? a : a.concat(n.hero)), []);
 const TREE_PAN = {};   // per-hero pan offset, kept across re-renders (selecting a node re-renders)
 // Drag-to-pan the constellation so outer-ring nodes (the tier-3/4 arms that
@@ -6798,7 +6813,7 @@ function showEmberTree(onBack, heroId, selId) {
       : st === 'needs' ? `<span class="et-d-lock">needs ${reqNames.join(' · ')}</span>`
       : `<button class="et-d-buy${st === 'poor' ? ' et-d-cant' : ''}" id="et-buy" ${st === 'poor' ? 'disabled' : ''}>KINDLE · ✦ ${sel.cost}</button>`;
     detail = `<div class="et-d-head"><span class="et-d-type t-${sel.type}">${TREE_TYPE_LABEL[sel.type]}</span><span class="et-d-name">${sel.label}</span></div>
-      <div class="et-d-desc">${sel.desc}</div>
+      <div class="et-d-desc">${nodeDescHTML(sel.desc)}</div>
       <div class="et-d-foot">${action}</div>`;
   }
   // tabs are ONLY your fielded party's constellations
