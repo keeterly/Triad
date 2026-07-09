@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 131;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 132;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -84,7 +84,7 @@ const EMBER_TREE = [
   { id: 'ash.emergent.tempo', hero: 'ash', tier: 3, cost: 9, type: 'emergent', requires: ['ash.sig.front'], label: 'Rising Tempo',
     desc: 'EVERY 3RD HIT: forge a free <b>Follow Cut</b> (7 dmg) — momentum becomes a card',
     emergent: { on: 'hit', every: 3, stance: 'FORGED · TEMPO', flash: 'Ash finds the rhythm — <b>Follow Cut</b> forged.',
-      forge: { name: 'Follow Cut', cost: 0, target: 'enemy', fx: { dmg: 7 }, desc: '<b>Free.</b> The rhythm carries the blade — <b>7 damage</b> to any foe. Landed on the beat.' } } },
+      forge: { name: 'Follow Cut', cost: 0, target: 'enemy', fx: { dmg: 7 }, desc: '<b>7 damage</b> to any foe.' } } },
 
   // ELIN — the Mender: wards and light
   { id: 'elin.sig.front', hero: 'elin', tier: 1, cost: 4, type: 'card', gate: { stance: 'front' }, label: 'Searing', desc: 'COMBO · FRONT: inserts <b>Searing</b> (7 holy) · Smite → <b>Searing</b> → Radiant Ward' },
@@ -99,7 +99,7 @@ const EMBER_TREE = [
   { id: 'mira.emergent.bloodscent', hero: 'mira', tier: 3, cost: 9, type: 'emergent', requires: ['mira.sig.back'], label: 'Bloodscent',
     desc: 'EVERY 2ND EXPOSE: forge a free <b>Execute</b> (12 dmg) — the mark becomes a kill',
     emergent: { on: 'expose', every: 2, stance: 'FORGED · BLOOD', flash: 'She smells blood — <b>Execute</b> forged.',
-      forge: { name: 'Execute', cost: 0, target: 'enemy', fx: { dmg: 12 }, desc: '<b>Free.</b> The opening is hers — <b>12 damage</b> to any foe. An EXPOSED target has nowhere to hide.' } } },
+      forge: { name: 'Execute', cost: 0, target: 'enemy', fx: { dmg: 12 }, desc: '<b>12 damage</b> to any foe.' } } },
 
   // CASSIA — the Warden: guard and retaliation
   { id: 'cassia.sig.front', hero: 'cassia', tier: 1, cost: 4, type: 'card', gate: { stance: 'front' }, label: 'Brace', desc: 'COMBO · FRONT: inserts <b>Brace</b> (<span class="kw kw-guard">⛨4</span>) · Shield Bash → <b>Brace</b> → Bulwark' },
@@ -108,7 +108,7 @@ const EMBER_TREE = [
   { id: 'cassia.emergent.bulwark', hero: 'cassia', tier: 3, cost: 9, type: 'emergent', requires: ['cassia.sig.front'], label: 'Iron Answer',
     desc: 'EVERY 2ND GUARD: forge a free <b>Bulwark Break</b> (9 dmg) — the wall answers back',
     emergent: { on: 'guard', every: 2, stance: 'FORGED · IRON', flash: 'The wall answers — <b>Bulwark Break</b> forged.',
-      forge: { name: 'Bulwark Break', cost: 0, target: 'enemy', fx: { dmg: 9 }, desc: '<b>Free.</b> The shield becomes the blow — <b>9 damage</b> to any foe. Every wall she raises is a blade held back.' } } },
+      forge: { name: 'Bulwark Break', cost: 0, target: 'enemy', fx: { dmg: 9 }, desc: '<b>9 damage</b> to any foe.' } } },
 
   // BRANWEN — the Marksman: marks and repositioning
   { id: 'branwen.sig.front', hero: 'branwen', tier: 1, cost: 4, type: 'card', gate: { stance: 'front' }, label: 'Snap Shot', desc: 'COMBO · FRONT: inserts <b>Snap Shot</b> (5 dmg) · Backstep Shot → <b>Snap Shot</b> → Hail' },
@@ -118,7 +118,7 @@ const EMBER_TREE = [
   { id: 'branwen.emergent.tally', hero: 'branwen', tier: 3, cost: 9, type: 'emergent', requires: ['branwen.sig.back'], label: 'Death’s Tally',
     desc: 'EVERY 2ND EXPOSE: forge a free <b>Killing Arrow</b> (9 dmg · <span class="kw kw-exposed">◎2</span>) — the tally comes due',
     emergent: { on: 'expose', every: 2, stance: 'FORGED · TALLY', flash: 'The tally comes due — <b>Killing Arrow</b> forged.',
-      forge: { name: 'Killing Arrow', cost: 0, target: 'enemy', fx: { dmg: 9, mark: 2 }, desc: '<b>Free.</b> The counted shot lands — <b>9 damage</b> and <span class="kw kw-exposed">◎ EXPOSED 2</span> to any foe.' } } },
+      forge: { name: 'Killing Arrow', cost: 0, target: 'enemy', fx: { dmg: 9, mark: 2 }, desc: '<b>9 damage</b> · <span class="kw kw-exposed">◎ EXPOSED 2</span> to any foe.' } } },
 
   // ═══ DEEP TREES (Phase 2) — each hero grows a layered keyword identity across
   // four tiers: signatures → keyword riders & passives → emergent procs + an
@@ -166,7 +166,7 @@ const EMBER_TREE = [
   { id: 'elin.rider.sanctuary', hero: 'elin', tier: 2, cost: 6, type: 'rider', requires: ['elin.sig.mid'], label: 'Warded Sanctuary', desc: 'UPGRADE: Sanctuary also grants the ally <span class="kw kw-counter">↺1</span> — the ward bites back', rider: { card: 'Sanctuary', fx: { counter: 1 }, descAdd: ' · <span class="kw kw-counter">↺ 1</span>' } },
 
   // MIRA — a deeper FRONT (vanish) line and a MID (twin) line
-  { id: 'mira.emergent.flurry', hero: 'mira', tier: 3, cost: 8, type: 'emergent', requires: ['mira.rider.twin'], label: 'Bladestorm', desc: 'EVERY 3RD HIT: forge a free <b>Flurry</b> (6 dmg · <span class="kw kw-exposed">◎1</span>) — the daggers keep coming', emergent: { on: 'hit', every: 3, stance: 'FORGED · STORM', flash: 'The blades multiply — <b>Flurry</b> forged.', forge: { name: 'Flurry', cost: 0, target: 'enemy', fx: { dmg: 6, mark: 1 }, desc: '<b>Free.</b> A whirl of steel — <b>6 damage</b> and <span class="kw kw-exposed">◎ EXPOSED 1</span> to any foe.' } } },
+  { id: 'mira.emergent.flurry', hero: 'mira', tier: 3, cost: 8, type: 'emergent', requires: ['mira.rider.twin'], label: 'Bladestorm', desc: 'EVERY 3RD HIT: forge a free <b>Flurry</b> (6 dmg · <span class="kw kw-exposed">◎1</span>) — the daggers keep coming', emergent: { on: 'hit', every: 3, stance: 'FORGED · STORM', flash: 'The blades multiply — <b>Flurry</b> forged.', forge: { name: 'Flurry', cost: 0, target: 'enemy', fx: { dmg: 6, mark: 1 }, desc: '<b>6 damage</b> · <span class="kw kw-exposed">◎ EXPOSED 1</span> to any foe.' } } },
 
   // CASSIA — a BACK (sentinel) line
 
@@ -186,7 +186,7 @@ const EMBER_TREE = [
   // BRANWEN — the MID (Killshot) line was the thinnest in the tree: one lone
   // rider.  Now a full single-target execution arc — steady aim → a piercing
   // cadence that forges free shots → the killing blow that finishes the wounded.
-  { id: 'branwen.emergent.pierce', hero: 'branwen', tier: 3, cost: 8, type: 'emergent', requires: ['branwen.sig.mid'], label: 'Marksman’s Rhythm', desc: 'EVERY 3RD HIT: forge a free <b>Piercing Shot</b> (10 dmg) — the aim never wavers', emergent: { on: 'hit', every: 3, stance: 'FORGED · AIM', flash: 'The cadence holds — <b>Piercing Shot</b> forged.', forge: { name: 'Piercing Shot', cost: 0, target: 'enemy', fx: { dmg: 10 }, desc: '<b>Free.</b> A shaft through the gap — <b>10 damage</b> to any foe.' } } },
+  { id: 'branwen.emergent.pierce', hero: 'branwen', tier: 3, cost: 8, type: 'emergent', requires: ['branwen.sig.mid'], label: 'Marksman’s Rhythm', desc: 'EVERY 3RD HIT: forge a free <b>Piercing Shot</b> (10 dmg) — the aim never wavers', emergent: { on: 'hit', every: 3, stance: 'FORGED · AIM', flash: 'The cadence holds — <b>Piercing Shot</b> forged.', forge: { name: 'Piercing Shot', cost: 0, target: 'enemy', fx: { dmg: 10 }, desc: '<b>10 damage</b> to any foe.' } } },
   { id: 'branwen.passive.killingblow', hero: 'branwen', tier: 4, cost: 12, type: 'passive', requires: ['branwen.emergent.pierce'], label: 'The Killing Blow', desc: 'PASSIVE: <b>+4 dmg</b> to any foe at/under <b>half HP</b> — the wounded can’t outrun the arrow', passive: 'branwen_killingblow' },
 
   // ═══ SIGNATURE MOMENTS — build-defining capstones that turn a hero's identity
@@ -195,11 +195,11 @@ const EMBER_TREE = [
   { id: 'cassia.nova', hero: 'cassia', tier: 4, cost: 11, type: 'emergent', requires: ['cassia.emergent.bulwark'], label: 'Aegis Nova',
     desc: 'EVERY 3RD GUARD: forge a free <b>Aegis Nova</b> — hurl ALL your <span class="kw kw-guard">⛨ guard</span> as one hit, then it shatters',
     emergent: { on: 'guard', every: 3, stance: 'FORGED · NOVA', flash: 'The wall becomes the blow — <b>Aegis Nova</b> forged.',
-      forge: { name: 'Aegis Nova', cost: 0, target: 'frontmost', fx: { guardBurst: true }, desc: '<b>Free.</b> Loose the whole wall in one strike — <b>damage equal to your current</b> <span class="kw kw-guard">⛨ guard</span>, then it shatters. Stack it high, then unleash.' } } },
+      forge: { name: 'Aegis Nova', cost: 0, target: 'frontmost', fx: { guardBurst: true }, desc: 'Unleash <b>ALL your <span class="kw kw-guard">⛨ guard</span></b> as one hit, then it shatters.' } } },
   { id: 'elin.inverse', hero: 'elin', tier: 4, cost: 11, type: 'emergent', requires: ['elin.rider.sanctuary'], label: 'Inverse Light',
     desc: 'EVERY 2ND HEAL: forge a free <b>Inverse Light</b> (8 holy dmg) — mending, weaponised',
     emergent: { on: 'heal', every: 2, stance: 'FORGED · UMBRA', flash: 'The light turns outward — <b>Inverse Light</b> forged.',
-      forge: { name: 'Inverse Light', cost: 0, target: 'enemy', fx: { dmg: 8 }, desc: '<b>Free.</b> Mercy, reversed — <b>8 holy damage</b> to any foe. The mender bares her light.' } } },
+      forge: { name: 'Inverse Light', cost: 0, target: 'enemy', fx: { dmg: 8 }, desc: '<b>8 holy damage</b> to any foe.' } } },
 
   // ═══ ROTATION BRANCHES — the FORK.  Once a stance's line is complete (its
   // finisher signature), a branch node opens a SECOND path off the opener: play
@@ -229,15 +229,15 @@ const EMBER_TREE = [
   // voice: a hero-flavoured finisher forged into hand (still doubled vs the
   // staggered foe), plus, for some, an instant reaction that feeds their build.
   { id: 'ash.exec',     hero: 'ash',     tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'ON STAGGER: forge a free <b>Coup de Grâce</b> — 10 dmg, <b>doubled</b> vs staggered',
-    stagger: { name: 'Coup de Grâce', target: 'enemy', fx: { dmg: 10 }, desc: '<b>Free.</b> The break leaves them open — <b>10 damage</b>, doubled against a STAGGERED foe.' } },
+    stagger: { name: 'Coup de Grâce', target: 'enemy', fx: { dmg: 10 }, desc: '<b>10 damage</b> · <b>×2 vs STAGGERED</b>.' } },
   { id: 'elin.exec',    hero: 'elin',    tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'ON STAGGER: forge a free <b>Mercy’s End</b> (8 holy, doubled vs staggered) & the party heals <span class="kw kw-heal">✚3</span> — she mends as she ends',
-    stagger: { name: 'Mercy’s End', target: 'enemy', fx: { dmg: 8 }, heal: 3, desc: '<b>Free.</b> A ray through the break — <b>8 holy damage</b>, doubled vs a STAGGERED foe.' } },
+    stagger: { name: 'Mercy’s End', target: 'enemy', fx: { dmg: 8 }, heal: 3, desc: '<b>8 holy</b> · <b>×2 vs STAGGERED</b>.' } },
   { id: 'mira.exec',    hero: 'mira',    tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'ON STAGGER: forge a free <b>Death Blossom</b> (7 dmg · <span class="kw kw-exposed">◎4</span>, doubled vs staggered) — paints the kill',
-    stagger: { name: 'Death Blossom', target: 'enemy', fx: { dmg: 7, mark: 4 }, desc: '<b>Free.</b> A whirl of blades — <b>7 damage</b> (doubled vs STAGGERED) and <span class="kw kw-exposed">◎ EXPOSED 4</span>.' } },
+    stagger: { name: 'Death Blossom', target: 'enemy', fx: { dmg: 7, mark: 4 }, desc: '<b>7 damage</b> · <span class="kw kw-exposed">◎ EXPOSED 4</span> · <b>×2 vs STAGGERED</b>.' } },
   { id: 'cassia.exec',  hero: 'cassia',  tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'ON STAGGER: forge a free <b>Bulwark Break</b> (8 dmg, doubled vs staggered) & Cassia gains <span class="kw kw-guard">⛨5</span> — the wall punishes & hardens',
-    stagger: { name: 'Bulwark Break', target: 'frontmost', fx: { dmg: 8, guard: 5 }, desc: '<b>Free.</b> The shield-edge crashes down — <b>8 damage</b> (doubled vs STAGGERED), and Cassia gains <span class="kw kw-guard">⛨ 5</span>.' } },
+    stagger: { name: 'Bulwark Break', target: 'frontmost', fx: { dmg: 8, guard: 5 }, desc: '<b>8 damage</b> · <b>×2 vs STAGGERED</b> · gain <span class="kw kw-guard">⛨5</span>.' } },
   { id: 'branwen.exec', hero: 'branwen', tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'ON STAGGER: forge a free <b>Marksman’s Finish</b> (10 dmg, doubled vs staggered) & refund <b>1 EP</b> — the hunt presses on',
-    stagger: { name: 'Marksman’s Finish', target: 'enemy', fx: { dmg: 10 }, ep: 1, desc: '<b>Free.</b> A called shot through the break — <b>10 damage</b>, doubled vs a STAGGERED foe.' } },
+    stagger: { name: 'Marksman’s Finish', target: 'enemy', fx: { dmg: 10 }, ep: 1, desc: '<b>10 damage</b> · <b>×2 vs STAGGERED</b>.' } },
 
   // ═══ AFTERIMAGE — earning the ECHO on the move.  Repositioning (the 1-EP dodge)
   // is always free; but the fading echo it leaves — the stance you left striking
@@ -2789,7 +2789,7 @@ function leaveAfterimage(owner, fromRow) {
   genTempCard({ kind: 'temp', owner: owner.id, ownerName: owner.def.name, tint: owner.def.tint,
     stance: 'AFTERIMAGE', name: 'Echo: ' + oldCore.name, cost: 0, target: oldCore.target,
     school: owner.def.school, fx: { dmg }, expiresTurn: S.turn,
-    desc: `<b>Free.</b> The stance you left behind strikes once more for ${dmg} — then fades with the turn.` });
+    desc: `<b>${dmg} damage</b> · fading echo, this turn only.` });
 }
 
 async function resolveCard(card, targetId) {
