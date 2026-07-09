@@ -2021,15 +2021,18 @@ const QUICK = process.argv.includes('--quick');
     }));
   check('PERF: a fresh fight frees the party-figure cache (drag closures rebind to the new fight)',
     await J(() => { setupFight(['ash', 'elin'], [], {}); const before = document.querySelector('.figure.party[data-fig="ash"]'); setupFight(['ash', 'elin'], [], {}); const after = document.querySelector('.figure.party[data-fig="ash"]'); return !!before && !!after && before !== after; }));
-  check('PERF: the hand DOM is REUSED when nothing changed, and REBUILT when EP/hand changes',
+  check('PERF: hand DOM is REUSED across renders; an EP change updates affordability IN PLACE (no teardown)',
     await J(() => {
-      setupFight(['ash', 'elin', 'mira'], [], {}); renderAll();
-      const c1 = document.querySelector('#hand .card');
-      renderAll();                                   // identical hand → skip the rebuild
-      const c2 = document.querySelector('#hand .card');
-      S.ep = S.ep - 1; renderAll();                  // EP changed → rebuild (disabled states can shift)
-      const c3 = document.querySelector('#hand .card');
-      return !!c1 && c1 === c2 && !!c3 && c3 !== c1;
+      setupFight(['ash'], [], { ash: 'front' }); S.ep = 9; renderAll();
+      const first = document.querySelector('#hand .card');
+      renderAll();                                   // identical → skip entirely
+      const same2 = document.querySelector('#hand .card') === first;
+      const costly = [...document.querySelectorAll('#hand .card')]
+        .find(el => { const t = (el.querySelector('.c-cost') || {}).textContent || ''; return /^\d+$/.test(t) && +t >= 2; });
+      S.ep = 0; renderAll();                          // now nothing is affordable
+      const reused = document.querySelector('#hand .card') === first;          // element REUSED, not rebuilt
+      const disabledInPlace = !!costly && costly.isConnected && costly.classList.contains('disabled');
+      return !!first && same2 && reused && disabledInPlace;
     }));
 
   // ---------- BRANCHING ROTATIONS (the descent combat system) ----------

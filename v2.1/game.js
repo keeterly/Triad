@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 120;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 121;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -5974,16 +5974,31 @@ function renderActionBar() {
   $('#btn-endturn').classList.toggle('et-nudge', !S.executing && !S.over && !anyPlayable);
 
   const handEl = $('#hand');
-  if (S.over) { handEl.innerHTML = ''; S._handSig = null; return; }
-  // PERF: renderAll fires after every hit / parry / animation beat, but the hand
-  // is USUALLY unchanged.  Rebuilding its DOM (+ re-attaching drag per card) was
-  // the single biggest cost in renderAll.  Skip it unless something that affects a
-  // card face or its playability actually changed.
-  const sig = hand.map(c => `${c.uid || (c.owner + c.name)}:${c.cost}:${c.spent ? 1 : 0}:${c.kind}`).join('|')
-    + '#' + S.ep + '/' + S.maxEp + (S._tempNew || '') + (S._forgeEvent ? 'F' + S._forgeEvent.uids.join(',') : '')
+  if (S.over) { handEl.innerHTML = ''; S._handStructSig = S._handAffSig = null; return; }
+  // PERF: renderAll fires after every hit / parry / animation beat.  Rebuilding the
+  // hand DOM (+ re-attaching drag per card) is the single biggest cost — ~10× a
+  // skipped render.  So split the signature: the STRUCTURAL sig (which cards, their
+  // faces) drives a rebuild; but EP and SPENT only change a card's *affordability
+  // styling*, not its face — so those take a cheap class-toggle pass, no teardown.
+  // This turns "played an opener / EP shifted" (very common in rotation play) from
+  // a full rebuild into a handful of classList toggles.
+  const structSig = hand.map(c => `${c.uid || (c.owner + c.name)}:${c.cost}:${c.kind}`).join('|')
+    + (S._tempNew || '') + (S._forgeEvent ? 'F' + S._forgeEvent.uids.join(',') : '')
     + (S.resonantNew ? 'R' : '') + (S.executing ? 'X' : '') + (targeting ? 'T' : '');
-  if (sig === S._handSig && handEl.childElementCount === hand.length) return;
-  S._handSig = sig;
+  const affSig = S.ep + '/' + S.maxEp + '|' + hand.map(c => (c.spent ? 1 : 0)).join('');
+  if (structSig === S._handStructSig && handEl.childElementCount === hand.length) {
+    if (affSig !== S._handAffSig) {                 // structure unchanged — only affordability shifted
+      S._handAffSig = affSig;
+      const kids = handEl.children;
+      for (let i = 0; i < hand.length && i < kids.length; i++) {
+        const card = hand[i], el = kids[i];
+        el.classList.toggle('card-spent', !!card.spent);
+        el.classList.toggle('disabled', !card.spent && card.cost > S.ep);
+      }
+    }
+    return;
+  }
+  S._handStructSig = structSig; S._handAffSig = affSig;
   handEl.innerHTML = '';
   // Icon-first card face — legibility over prose (mobile).  Full text lives
   // in the card's title attribute for anyone who wants the detail.
