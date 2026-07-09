@@ -1027,7 +1027,7 @@ button.map-node:not(:disabled) { cursor: pointer; }
 .kw-drain   { color: #7ad07a; }   /* the Maw's lifesteal */
 .kw-charge  { color: #b98cff; }   /* Hask's CHARGE (Black Mage) */
 .chip.charge { color: #cdb0ff; text-shadow: 0 0 8px rgba(150,90,224,0.9), 0 1px 3px #000; }
-.kw-astral  { color: #ff9a5a; }   /* Hask's ASTRAL FIRE (elemental weave) */
+.kw-astral  { color: #ff9a5a; }   /* Hask's PYRE (elemental weave) */
 .chip.astral { color: #ffb072; text-shadow: 0 0 8px rgba(255,130,60,0.9), 0 1px 3px #000; }
 .chip.umbral { color: #8fc9ef; text-shadow: 0 0 8px rgba(120,190,235,0.9), 0 1px 3px #000; }
 .kw-hex     { color: #b98cff; }   /* the Maw's curse */

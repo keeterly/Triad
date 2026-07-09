@@ -1922,58 +1922,58 @@ const QUICK = process.argv.includes('--quick');
   check('HASK CAST-TIME: a castDmg card BEGINS a cast (no hit now, pendingCast set)',
     await J(async () => {
       setupFight(['hask'], [], { hask: 'back' }); S.tempCards = []; const e = S.enemies[0]; e.hp = e.maxHp = 100; const hp0 = e.hp;
-      await resolveCard({ owner: 'hask', name: 'Comet', cost: 0, target: 'enemy', fx: { castDmg: 16 } }, e.uid);
+      await resolveCard({ owner: 'hask', name: 'Starfall', cost: 0, target: 'enemy', fx: { castDmg: 16 } }, e.uid);
       const h = S.heroes[0];
       return !!h.pendingCast && h.pendingCast.dmg === 16 && S.enemies[0].hp === hp0; }));   // no damage yet
   check('HASK CAST-TIME: moving BREAKS the cast (rooted)',
     await J(async () => {
       setupFight(['hask'], [], { hask: 'back' }); const h = S.heroes[0];
-      await resolveCard({ owner: 'hask', name: 'Comet', cost: 0, target: 'enemy', fx: { castDmg: 16 } }, S.enemies[0].uid);
+      await resolveCard({ owner: 'hask', name: 'Starfall', cost: 0, target: 'enemy', fx: { castDmg: 16 } }, S.enemies[0].uid);
       onHeroEnterRow(h, 'front', 'back');
       return !h.pendingCast; }));
   check('HASK CAST unleash: the pending cast resolves (16 damage), then clears',
     await J(async () => {
       setupFight(['hask'], [], { hask: 'back' }); const e = S.enemies[0]; e.hp = e.maxHp = 100; e.guard = 0; const hp0 = e.hp;
-      const h = S.heroes[0]; h.pendingCast = { dmg: 16, all: false, targetId: e.uid, name: 'Comet' };
+      const h = S.heroes[0]; h.pendingCast = { dmg: 16, all: false, targetId: e.uid, name: 'Starfall' };
       await unleashCast(h);
       return !h.pendingCast && (hp0 - S.enemies[0].hp) === 16; }));
-  check('HASK METEOR node: a Comet cast becomes AoE (pendingCast.all)',
+  check('HASK CATACLYSM node: a Starfall cast becomes AoE (pendingCast.all)',
     await J(async () => {
       setupFight(['hask'], ['hask.cast.meteor'], { hask: 'back' }); S.tempCards = [];
-      await resolveCard({ owner: 'hask', name: 'Comet', cost: 0, target: 'enemy', fx: { castDmg: 16 } }, S.enemies[0].uid);
+      await resolveCard({ owner: 'hask', name: 'Starfall', cost: 0, target: 'enemy', fx: { castDmg: 16 } }, S.enemies[0].uid);
       return !!S.heroes[0].pendingCast && S.heroes[0].pendingCast.all === true; }));
-  check('HASK WEAVE: with Astral Fire, a FIRE spell swings 🔥 ASTRAL (+1) and ICE swings ❄ UMBRAL (−1)',
+  check('HASK WEAVE: with Emberwake, a FIRE spell swings 🔥 PYRE (+1) and ICE swings ❄ HOAR (−1)',
     await J(async () => {
       setupFight(['hask'], ['hask.weave.astral'], { hask: 'front' }); S._rotations = false; const e = S.enemies[0]; e.hp = e.maxHp = 100; e.guard = 0;
       const h = S.heroes[0]; h.aether = 0;
-      await resolveCard({ owner: 'hask', name: 'Flare', cost: 0, target: 'enemy', fx: { dmg: 5, elem: 'fire' } }, e.uid);
-      const afterFire = h.aether;   // → +1 Astral
+      await resolveCard({ owner: 'hask', name: 'Cinderfall', cost: 0, target: 'enemy', fx: { dmg: 5, elem: 'fire' } }, e.uid);
+      const afterFire = h.aether;   // → +1 Pyre
       await resolveCard({ owner: 'hask', name: 'Frost', cost: 0, target: 'enemy', fx: { dmg: 4, elem: 'ice' } }, e.uid);
-      return afterFire === 1 && h.aether === 0; }));   // ice pulls back toward Umbral
-  check('HASK ASTRAL FIRE: at deep Astral, a fire spell hits +2 per stack',
+      return afterFire === 1 && h.aether === -1; }));   // ice crosses back and chills to Hoar 1
+  check('HASK PYRE: at deep Pyre, a fire spell hits +2 per stack',
     await J(async () => {
       setupFight(['hask'], ['hask.weave.astral'], { hask: 'front' }); S._rotations = false; const e = S.enemies[0]; e.hp = e.maxHp = 100; e.guard = 0; const hp0 = e.hp;
       const h = S.heroes[0]; h.aether = 2;   // one more fire → Astral 3
-      await resolveCard({ owner: 'hask', name: 'Flare', cost: 0, target: 'enemy', fx: { dmg: 5, elem: 'fire' } }, e.uid);
+      await resolveCard({ owner: 'hask', name: 'Cinderfall', cost: 0, target: 'enemy', fx: { dmg: 5, elem: 'fire' } }, e.uid);
       return h.aether === 3 && (hp0 - S.enemies[0].hp) === 11; }));   // 5 base + 2×3 Astral
-  check('HASK UMBRAL ICE: an ice spell going Umbral refills extra ◆ CHARGE',
+  check('HASK HOAR: an ice spell going Hoar refills extra ◆ CHARGE',
     await J(async () => {
       setupFight(['hask'], ['hask.weave.astral'], { hask: 'front' }); S._rotations = false; const e = S.enemies[0]; e.hp = e.maxHp = 100; e.guard = 0;
       const h = S.heroes[0]; h.aether = 0; h.charge = 0;
       await resolveCard({ owner: 'hask', name: 'Frost', cost: 0, target: 'enemy', fx: { dmg: 4, elem: 'ice' } }, e.uid);
       return h.aether === -1 && h.charge === 2; }));   // base +1 charge, +1 Umbral refill
-  check('HASK ENOCHIAN: fire cast AGAINST Umbral snaps to full Astral and DETONATES (+6 resonance)',
+  check('HASK BACKDRAFT: fire cast AGAINST Hoar snaps to full Pyre and DETONATES (+6 burst)',
     await J(async () => {
       setupFight(['hask'], ['hask.weave.astral', 'hask.weave.enochian'], { hask: 'front' }); S._rotations = false; const e = S.enemies[0]; e.hp = e.maxHp = 100; e.guard = 0; const hp0 = e.hp;
       const h = S.heroes[0]; h.aether = -2;   // deep Umbral
-      await resolveCard({ owner: 'hask', name: 'Flare', cost: 0, target: 'enemy', fx: { dmg: 5, elem: 'fire' } }, e.uid);
+      await resolveCard({ owner: 'hask', name: 'Cinderfall', cost: 0, target: 'enemy', fx: { dmg: 5, elem: 'fire' } }, e.uid);
       return h.aether === 3 && (hp0 - S.enemies[0].hp) === 17; }));   // 5 base + 6 resonance + 6 Astral(3)
-  check('HASK ENOCHIAN gated: without the node, fire in Umbral just steps +1 (no snap, no burst)',
+  check('HASK EMBERWAKE (no Backdraft): fire crossing from Hoar IGNITES at Pyre 1 (+2), no far-snap/burst',
     await J(async () => {
       setupFight(['hask'], ['hask.weave.astral'], { hask: 'front' }); S._rotations = false; const e = S.enemies[0]; e.hp = e.maxHp = 100; e.guard = 0; const hp0 = e.hp;
       const h = S.heroes[0]; h.aether = -2;
-      await resolveCard({ owner: 'hask', name: 'Flare', cost: 0, target: 'enemy', fx: { dmg: 5, elem: 'fire' } }, e.uid);
-      return h.aether === -1 && (hp0 - S.enemies[0].hp) === 5; }));   // just steps toward Astral, no bonus
+      await resolveCard({ owner: 'hask', name: 'Cinderfall', cost: 0, target: 'enemy', fx: { dmg: 5, elem: 'fire' } }, e.uid);
+      return h.aether === 1 && (hp0 - S.enemies[0].hp) === 7; }));   // ignites at Pyre 1: 5 base + 2 empower
   check('POSITION MEMORY: a descent fight opens where the party stood at the end of the last one',
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash', 'hask']; RUN.active = RUN.roster.slice();
