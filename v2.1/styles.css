@@ -258,7 +258,10 @@ body {
   cursor: default;
 }
 .figure .fig-art { width: 100%; height: 118px; display: flex; align-items: flex-end; justify-content: center; position: relative; }
-.figure .fig-art svg { height: 100%; width: auto; max-width: 100%; filter: drop-shadow(0 6px 14px rgba(0,0,0,0.7)); }
+/* translateZ(0) caches each figure's drop-shadow on its OWN compositor layer, so
+   the beams / dragged card passing over it composite instead of re-rasterizing the
+   filter every frame.  The figure isn't continuously animated, so this is free. */
+.figure .fig-art svg { height: 100%; width: auto; max-width: 100%; filter: drop-shadow(0 6px 14px rgba(0,0,0,0.7)); transform: translateZ(0); }
 .figure.enemy .fig-art { height: 108px; }
 /* DESKTOP: the board row is taller here (the canvas is enlarged so chrome reads
    smaller), so grow the figures to fill it — the board stays FULL and premium
@@ -672,6 +675,10 @@ body {
   transition: none !important;
   cursor: grabbing;
   filter: brightness(1.08);
+  /* Own compositor layer: the card's shadow+filter rasterize ONCE, then dragging
+     it just re-composites — it no longer repaints the drop-shadowed figures it
+     passes over (the real drag-lag fix, alongside the promoted #aim-layer). */
+  will-change: transform;
 }
 .card { touch-action: none; }   /* pointer events own the gesture */
 
