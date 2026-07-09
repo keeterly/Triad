@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 122;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 123;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -2312,6 +2312,22 @@ function attachDrag(el, card) {
   let ptrX = 0, ptrY = 0, originX = 0, originY = 0;
   let curTX = 0, curTY = 0, curEX = 0, curEY = 0, vel = 0, angle = 0, raf = 0;
   let snapped = null, _aimTech = false, holdT = null, inspecting = false;
+  // PERF: the snapped/tech halos are gradient pseudo-elements over each figure.
+  // Removing + re-adding those classes EVERY frame repainted every foe 60×/s (the
+  // field-card stutter).  Track the current sets and only mutate on a real change;
+  // a field card's targets never change mid-drag, so it settles to zero churn.
+  let _snapEls = [], _techEl = null, _fieldPts = null;
+  const setSnap = (nextEls) => {
+    for (const e of _snapEls) if (nextEls.indexOf(e) < 0) e.classList.remove('fig-snapped');
+    for (const e of nextEls) if (_snapEls.indexOf(e) < 0) e.classList.add('fig-snapped');
+    _snapEls = nextEls;
+  };
+  const setTech = (nextEl) => {
+    if (nextEl === _techEl) return;
+    if (_techEl) _techEl.classList.remove('fig-tech-aim');
+    if (nextEl) nextEl.classList.add('fig-tech-aim');
+    _techEl = nextEl;
+  };
   let canSac = false, canPlay = false, overEp = false, winUp = null;
   const sc = () => _sscale();
   // Is the pointer over the EP dial (the sacrifice drop-target)?  Generous pad.
@@ -2367,6 +2383,7 @@ function attachDrag(el, card) {
       canSac  = !card.spent && !S.channelUsed && card.kind !== 'resonant' && card.kind !== 'move';
       if (!canPlay && !canSac) { if (card.cost > S.ep) denyCard(el, card); pid = null; try { el.releasePointerCapture(e.pointerId); } catch (_) {} return; }
       dragging = true;
+      _snapEls = []; _techEl = null; _fieldPts = null;   // fresh snap/tech/field caches per drag
       el.classList.add('card-dragging');
       el.style.transition = 'none';
       if (canSac) { const cl = $('#ep-cluster'); if (cl) cl.classList.add('ep-armed'); }   // invite the sacrifice
@@ -2428,7 +2445,6 @@ function attachDrag(el, card) {
     }
     // snapped target
     const { mode, els } = dragTargets(card);
-    document.querySelectorAll('.fig-snapped').forEach(f => f.classList.remove('fig-snapped'));
     // SACRIFICE zone — over the EP dial: light it, drop the aim beam, prompt.
     overEp = canSac && epOrbHit(ptrX, ptrY);
     { const cl = $('#ep-cluster'); if (cl) cl.classList.toggle('ep-sac-hot', overEp); }
@@ -2442,21 +2458,22 @@ function attachDrag(el, card) {
     const cr = el.getBoundingClientRect();
     const fromX = (cr.left + cr.width / 2 - sr.left) / s, fromY = (cr.top - sr.top) / s + 2;
     if (mode === 'field') {
-      // A field card touches many figures — thread the beam to each of them
-      // and ring them, rather than a lone arrow pointing at nothing.
+      // A field card touches many figures — thread the beam to each and ring them.
+      // The targets + their positions are STATIC during a drag, so ring them ONCE
+      // and cache the endpoints; per frame only the beam ORIGIN moves.
       snapped = '__field__';
-      const pts = fieldTargets(card).map(t => {
-        t.classList.add('fig-snapped');
-        const r = figHitRect(t);
-        return { x: (r.left + r.width / 2 - sr.left) / s, y: (r.top + r.height * 0.4 - sr.top) / s };
-      });
+      if (!_fieldPts) {
+        const tgs = fieldTargets(card);
+        setSnap(tgs.slice());
+        _fieldPts = tgs.map(t => { const r = figHitRect(t); return { x: (r.left + r.width / 2 - sr.left) / s, y: (r.top + r.height * 0.4 - sr.top) / s }; });
+      }
       angle = (angle + 3) % 360;
-      drawAimField(fromX, fromY, pts, angle, aimColor(card));
+      drawAimField(fromX, fromY, _fieldPts, angle, aimColor(card));
       return;
     } else {
       let best = null, bd = Infinity;
       els.forEach(t => { const r = figHitRect(t); const d = (r.left + r.width / 2 - ptrX) ** 2 + (r.top + r.height / 2 - ptrY) ** 2; if (d < bd) { bd = d; best = t; } });
-      snapped = best; if (best) best.classList.add('fig-snapped');
+      snapped = best; setSnap(best ? [best] : []);   // only mutates when the nearest target changes
       valid = !!best;
       if (best) { const r = figHitRect(best); ex = (r.left + r.width / 2 - sr.left) / s; ey = (r.top + r.height * 0.4 - sr.top) / s; }
       else { ex = (ptrX - sr.left) / s; ey = (ptrY - sr.top) / s; }
@@ -2464,12 +2481,12 @@ function attachDrag(el, card) {
       // weakened, off its weakness line) will detonate.  Rather than a flashing
       // banner, the RETICLE itself goes electric-yellow with a ⚡ — a quiet,
       // in-place cue on the very thing you're aiming at.
-      document.querySelectorAll('.fig-tech-aim').forEach(f => f.classList.remove('fig-tech-aim'));
-      _aimTech = false;
+      let techEl = null;
       if (best && best.dataset.fig && card.fx && (card.fx.dmg || card.fx.hitFrontmost)) {
         const te = S.enemies.find(x => x.uid === best.dataset.fig);
-        if (te && (te.lull || te.weakened) && !(card.school && card.school === te.def.weak)) { _aimTech = true; best.classList.add('fig-tech-aim'); }
+        if (te && (te.lull || te.weakened) && !(card.school && card.school === te.def.weak)) techEl = best;
       }
+      setTech(techEl); _aimTech = !!techEl;
     }
     curEX += (ex - curEX) * 0.34; curEY += (ey - curEY) * 0.34;
     angle = (angle + 3) % 360;
