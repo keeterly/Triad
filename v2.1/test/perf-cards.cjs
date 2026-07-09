@@ -45,6 +45,10 @@ const { boot } = require('./harness.cjs');
     }
     const perDragFrame = (now() - t0) / N;
 
+    // NB: the aim-beam drag win (build-once + no per-frame filter/SMIL) is a
+    // PAINT/COMPOSITE cost, not JS — headless Chromium doesn't paint, so it can't
+    // be timed here.  The flow-suite test asserts the build-once reuse instead.
+
     return {
       handCards: handEl.childElementCount,
       enemies: S.enemies.length,

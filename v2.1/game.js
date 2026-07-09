@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 121;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 122;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -2188,8 +2188,15 @@ function aimLayer() {
   svg.setAttribute('viewBox', '0 0 ' + stageDW() + ' ' + stageDH());
   return svg;
 }
+// Cached aim-beam DOM.  PERF: the drag RAF loop redraws the beam ~60×/s.  Rewriting
+// svg.innerHTML every frame (and recreating the SMIL <animate> rings each time) was
+// the drag stutter — heaviest on a field/DUET beam that fans to every foe.  We now
+// build the SVG structure ONCE per beam-shape and per frame only nudge geometry
+// (path `d`, dash offset, reticle transform) via setAttribute.
+let _aim = null;
 function aimClear() {
   const s = document.getElementById('aim-layer'); if (s) s.innerHTML = '';
+  _aim = null;
   document.querySelectorAll('.fig-valid, .fig-snapped').forEach(f => f.classList.remove('fig-valid', 'fig-snapped'));
 }
 // School-tinted aim colour — the beam carries the card's element (JRPG flair).
@@ -2220,25 +2227,45 @@ function drawAimJRPG(fx, fy, ex, ey, valid, field, angle, color, tech) {
   // holding — not from a detached point.
   const cx = (v) => Math.max(6, Math.min(754, v)), cy = (v) => Math.max(6, Math.min(424, v));
   fx = cx(fx); fy = cy(fy); ex = cx(ex); ey = cy(ey);
+  const c = valid ? color : '#7a7060';
+  const R = 16;
+  const shape = 'single|' + (valid ? 1 : 0) + (field ? 1 : 0) + (tech ? 1 : 0) + c;
+  // Build the beam DOM once per shape; reuse across frames.
+  if (!_aim || _aim.type !== 'single' || _aim.shape !== shape) {
+    let ret = '';
+    if (valid && !field) {
+      // reticle centred at local 0,0; the parent <g> is TRANSLATED to (ex,ey)
+      // each frame, the inner groups ROTATED — no full re-render.
+      ret = `<g class="aimJ-ret">`
+          + `<g class="aimJ-r1"><rect x="${-R}" y="${-R}" width="${2 * R}" height="${2 * R}" rx="2" fill="none" stroke="${c}" stroke-width="1.6" opacity="0.85"/></g>`
+          + `<g class="aimJ-r2"><path d="${_cornerPath(0, 0, R + 5)}" fill="none" stroke="#fff6d8" stroke-width="2.4" stroke-linecap="round" style="filter:drop-shadow(0 0 4px ${c})"/></g>`
+          + `<circle r="3" fill="#fff6d8" style="filter:drop-shadow(0 0 7px ${c})"/>`
+          + (tech ? `<text class="aimJ-tech" x="${R + 8}" y="${-R + 2}" font-size="15" fill="#ffe14a" style="filter:drop-shadow(0 0 5px rgba(255,225,74,0.9))">⚡</text>` : '')
+          + `</g>`;
+    } else if (field) {
+      ret = `<g class="aimJ-ret"><circle r="9" fill="none" stroke="${c}" stroke-width="2"><animate attributeName="r" values="7;12;7" dur="0.8s" repeatCount="indefinite"/></circle></g>`;
+    }
+    // The 3 beam paths update `d` every frame → NO filter on them (a per-frame blur
+    // rasterization is the stutter).  A wide low-opacity underlay fakes the glow.
+    svg.innerHTML =
+        `<path class="aimJ-glow" fill="none" stroke="${c}" stroke-width="10" stroke-linecap="round" opacity="0.2"/>`
+      + `<path class="aimJ-core" fill="none" stroke="${c}" stroke-width="4" stroke-linecap="round" opacity="0.55"/>`
+      + `<path class="aimJ-dash" fill="none" stroke="#fff6d8" stroke-width="1.8" stroke-linecap="round" stroke-dasharray="2 7"/>`
+      + ret;
+    _aim = { type: 'single', shape,
+      glow: svg.querySelector('.aimJ-glow'), core: svg.querySelector('.aimJ-core'), dash: svg.querySelector('.aimJ-dash'),
+      ret: svg.querySelector('.aimJ-ret'), r1: svg.querySelector('.aimJ-r1'), r2: svg.querySelector('.aimJ-r2') };
+  }
   const bow = Math.min(60, Math.max(22, Math.abs(ex - fx) * 0.11));
   const midX = (fx + ex) / 2, midY = Math.max(10, Math.min(fy, ey) - bow);
-  const path = `M ${fx} ${fy} Q ${midX} ${midY} ${ex} ${ey}`;
-  const c = valid ? color : '#7a7060';
-  let ret = '';
-  if (valid && !field) {
-    const R = 16;
-    ret = `<g transform="rotate(${angle} ${ex} ${ey})"><rect x="${ex - R}" y="${ey - R}" width="${2 * R}" height="${2 * R}" rx="2" fill="none" stroke="${c}" stroke-width="1.6" opacity="0.85"/></g>`
-        + `<g transform="rotate(${-angle * 0.7} ${ex} ${ey})"><path d="${_cornerPath(ex, ey, R + 5)}" fill="none" stroke="#fff6d8" stroke-width="2.4" stroke-linecap="round" style="filter:drop-shadow(0 0 4px ${c})"/></g>`
-        + `<circle cx="${ex}" cy="${ey}" r="3" fill="#fff6d8" style="filter:drop-shadow(0 0 7px ${c})"/>`
-        + (tech ? `<text x="${ex + R + 8}" y="${ey - R + 2}" font-size="15" fill="#ffe14a" style="filter:drop-shadow(0 0 5px rgba(255,225,74,0.9))">⚡</text>` : '');
-  } else if (field) {
-    ret = `<circle cx="${ex}" cy="${ey}" r="9" fill="none" stroke="${c}" stroke-width="2"><animate attributeName="r" values="7;12;7" dur="0.8s" repeatCount="indefinite"/></circle>`;
-  }
-  svg.innerHTML =
-      `<path d="${path}" fill="none" stroke="${c}" stroke-width="9" stroke-linecap="round" opacity="0.22" style="filter:blur(3px)"/>`
-    + `<path d="${path}" fill="none" stroke="${c}" stroke-width="4" stroke-linecap="round" opacity="0.5"/>`
-    + `<path d="${path}" fill="none" stroke="#fff6d8" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="2 7" stroke-dashoffset="${-angle}" style="filter:drop-shadow(0 0 4px ${c})"/>`
-    + ret;
+  const d = `M ${fx} ${fy} Q ${midX} ${midY} ${ex} ${ey}`;
+  const dash = -angle;
+  if (_aim.glow) _aim.glow.setAttribute('d', d);
+  if (_aim.core) _aim.core.setAttribute('d', d);
+  if (_aim.dash) { _aim.dash.setAttribute('d', d); _aim.dash.setAttribute('stroke-dashoffset', dash); }
+  if (_aim.ret) _aim.ret.setAttribute('transform', `translate(${ex} ${ey})`);
+  if (_aim.r1) _aim.r1.setAttribute('transform', `rotate(${angle})`);
+  if (_aim.r2) _aim.r2.setAttribute('transform', `rotate(${-angle * 0.7})`);
 }
 // Field-card aim — a vow / bond touches MANY figures at once, so fan a thread
 // out to each affected figure and ring it, rather than beaming into the void.
@@ -2247,18 +2274,34 @@ function drawAimField(fx, fy, pts, angle, color) {
   // origin from the card (clamped to the stage; the card is kept on-screen by
   // the drag clamp) so the fan reads as coming from the card, never off-screen
   fx = Math.max(6, Math.min(754, fx)); fy = Math.max(6, Math.min(424, fy));
-  let s = '';
-  pts.forEach(p => {
+  // Build the fan ONCE (endpoints + pulse rings are static during a drag); per
+  // frame only the ORIGIN moves, so we just nudge each thread's `d` + dash.
+  if (!_aim || _aim.type !== 'field' || _aim.count !== pts.length || _aim.color !== color) {
+    let s = '';
+    pts.forEach((p, i) => {
+      // No filter:blur / drop-shadow on the THREADS — their `d` changes every frame,
+      // so a filter re-rasterizes per frame (the drag stutter).  A wide low-opacity
+      // underlay stroke fakes the glow, filter-free.  The endpoint pips keep their
+      // drop-shadow — they're static, so it rasterizes once and caches.
+      s += `<path class="aF-glow" data-i="${i}" fill="none" stroke="${color}" stroke-width="7" stroke-linecap="round" opacity="0.16"/>`
+         + `<path class="aF-core" data-i="${i}" fill="none" stroke="${color}" stroke-width="2.4" stroke-linecap="round" opacity="0.6"/>`
+         + `<path class="aF-dash" data-i="${i}" fill="none" stroke="#fff6d8" stroke-width="1.4" stroke-linecap="round" stroke-dasharray="2 6"/>`
+         + `<circle cx="${p.x}" cy="${p.y}" r="7" fill="none" stroke="${color}" stroke-width="1.8"><animate attributeName="r" values="6;10;6" dur="0.8s" repeatCount="indefinite"/></circle>`
+         + `<circle cx="${p.x}" cy="${p.y}" r="2.4" fill="#fff6d8" style="filter:drop-shadow(0 0 5px ${color})"/>`;
+    });
+    svg.innerHTML = s;
+    _aim = { type: 'field', count: pts.length, color,
+      glow: [...svg.querySelectorAll('.aF-glow')], core: [...svg.querySelectorAll('.aF-core')], dash: [...svg.querySelectorAll('.aF-dash')] };
+  }
+  const dash = -angle;
+  pts.forEach((p, i) => {
     const bow = Math.min(64, Math.max(20, Math.abs(p.x - fx) * 0.12));
     const midX = (fx + p.x) / 2, midY = Math.max(12, Math.min(fy, p.y) - bow);
-    const path = `M ${fx} ${fy} Q ${midX} ${midY} ${p.x} ${p.y}`;
-    s += `<path d="${path}" fill="none" stroke="${color}" stroke-width="6" stroke-linecap="round" opacity="0.18" style="filter:blur(2.5px)"/>`
-       + `<path d="${path}" fill="none" stroke="${color}" stroke-width="2.4" stroke-linecap="round" opacity="0.55"/>`
-       + `<path d="${path}" fill="none" stroke="#fff6d8" stroke-width="1.2" stroke-linecap="round" stroke-dasharray="2 6" stroke-dashoffset="${-angle}" style="filter:drop-shadow(0 0 3px ${color})"/>`
-       + `<circle cx="${p.x}" cy="${p.y}" r="7" fill="none" stroke="${color}" stroke-width="1.8"><animate attributeName="r" values="6;10;6" dur="0.8s" repeatCount="indefinite"/></circle>`
-       + `<circle cx="${p.x}" cy="${p.y}" r="2.4" fill="#fff6d8" style="filter:drop-shadow(0 0 5px ${color})"/>`;
+    const d = `M ${fx} ${fy} Q ${midX} ${midY} ${p.x} ${p.y}`;
+    if (_aim.glow[i]) _aim.glow[i].setAttribute('d', d);
+    if (_aim.core[i]) _aim.core[i].setAttribute('d', d);
+    if (_aim.dash[i]) { _aim.dash[i].setAttribute('d', d); _aim.dash[i].setAttribute('stroke-dashoffset', dash); }
   });
-  svg.innerHTML = s;
 }
 
 // Damped, finger-following card drag with a JRPG aim ribbon.  A RAF loop
