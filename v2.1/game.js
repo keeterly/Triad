@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 141;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 142;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -85,6 +85,7 @@ const EMBER_TREE = [
   { id: 'ash.sig.mid',   hero: 'ash', tier: 1, cost: 5, type: 'card', gate: { stance: 'mid'   }, label: 'Parry Step', desc: 'COMBO · MID: inserts <b>Parry Step</b> (<span class="kw kw-guard">⛨5</span> · <span class="kw kw-counter">↺1</span>) · Flowing Cut → <b>Parry Step</b> → Riposte' },
   { id: 'ash.rider.expose', hero: 'ash', tier: 2, cost: 6, type: 'rider', requires: ['ash.sig.back'], label: 'Hunter’s Instinct', desc: 'UPGRADE: Thrown Edge also inflicts <span class="kw kw-exposed">◎ EXPOSED 2</span> — position becomes a debuff', rider: { card: 'Thrown Edge', fx: { mark: 2 }, descAdd: ' · <span class="kw kw-exposed">◎ EXPOSED 2</span>' } },
   { id: 'ash.passive.vanguard', hero: 'ash', tier: 2, cost: 6, type: 'passive', label: 'Vanguard’s Momentum', desc: 'ON MOVE: closing to FRONT grants <span class="kw kw-guard">⛨3</span> — repositioning becomes defense', passive: 'ash_vanguard' },
+  { id: 'ash.passive.warstep', hero: 'ash', tier: 2, cost: 6, type: 'passive', requires: ['ash.passive.vanguard'], label: 'Warstep', desc: 'PASSIVE: after Ash lands an ATTACK, his first <b>MOVE</b> that turn is <b>FREE</b> — he repositions as he strikes', passive: 'ash_warstep' },
   { id: 'ash.allout.execution', hero: 'ash', tier: 4, cost: 12, type: 'allout', requires: ['ash.sig.front'], label: 'Rite of Endings', desc: 'ALL-OUT: every strike EXECUTES a foe under <b>25% HP</b> — no wounded walk away', allout: 'execution' },
   { id: 'ash.emergent.tempo', hero: 'ash', tier: 3, cost: 9, type: 'emergent', requires: ['ash.sig.front'], label: 'Rising Tempo',
     desc: 'EVERY 3RD HIT: forge a free <b>Follow Cut</b> (7 dmg) — momentum becomes a card',
@@ -120,6 +121,7 @@ const EMBER_TREE = [
   { id: 'branwen.sig.mid',   hero: 'branwen', tier: 1, cost: 5, type: 'card', gate: { stance: 'mid'   }, label: 'Steady Aim', desc: 'COMBO · MID: inserts <b>Steady Aim</b> (<span class="kw kw-rally">▲+3</span> next shot) · Aimed Shot → <b>Steady Aim</b> → Killshot' },
   { id: 'branwen.sig.back',  hero: 'branwen', tier: 1, cost: 4, type: 'card', gate: { stance: 'back'  }, label: 'Deeper Mark', desc: 'COMBO · BACK: inserts <b>Deeper Mark</b> (<span class="kw kw-exposed">◎+2</span>) · Marking Arrow → <b>Deeper Mark</b> → Killing Arrow' },
   { id: 'branwen.rider.deadeye', hero: 'branwen', tier: 2, cost: 6, type: 'rider', requires: ['branwen.sig.front'], label: 'Deadeye', desc: 'UPGRADE: Backstep Shot also inflicts <span class="kw kw-exposed">◎ EXPOSED 2</span>', rider: { card: 'Backstep Shot', fx: { mark: 2 }, descAdd: ' · <span class="kw kw-exposed">◎ EXPOSED 2</span>' } },
+  { id: 'branwen.passive.longshot', hero: 'branwen', tier: 2, cost: 6, type: 'passive', requires: ['branwen.rider.deadeye'], label: 'Longshot', desc: 'PASSIVE: Branwen’s attacks <b>ignore enemy <span class="kw kw-guard">⛨ GUARD</span></b> — her arrows find the gap from range', passive: 'branwen_longshot' },
   { id: 'branwen.emergent.tally', hero: 'branwen', tier: 3, cost: 9, type: 'emergent', requires: ['branwen.sig.back'], label: 'Death’s Tally',
     desc: 'EVERY 2ND EXPOSE: forge a free <b>Killing Arrow</b> (9 dmg · <span class="kw kw-exposed">◎2</span>) — the tally comes due',
     emergent: { on: 'expose', every: 2, stance: 'FORGED · TALLY', flash: 'The tally comes due — <b>Killing Arrow</b> forged.',
@@ -135,6 +137,7 @@ const EMBER_TREE = [
 
   // ELIN — LIGHT: wards, overheal shields, party sustain
   { id: 'elin.passive.ward', hero: 'elin', tier: 2, cost: 6, type: 'passive', label: 'Warding Light', desc: 'TURN START: your most-wounded ally gains <span class="kw kw-guard">⛨2</span> — the light finds the hurt', passive: 'elin_ward' },
+  { id: 'elin.passive.mercy', hero: 'elin', tier: 2, cost: 6, type: 'passive', requires: ['elin.passive.ward'], label: 'Mercy', desc: 'PASSIVE: when Elin <b>heals</b> an ally she also <b>cleanses</b> <span class="kw kw-chill">❄ CHILL</span> and <span class="kw kw-exposed">◎ EXPOSED</span> — she mends the omen too', passive: 'elin_mercy' },
   { id: 'elin.rider.radiance', hero: 'elin', tier: 3, cost: 7, type: 'rider', requires: ['elin.sig.front'], label: 'Radiance', desc: 'UPGRADE: Radiant Ward also heals EVERY ally <span class="kw kw-heal">✚2</span>', rider: { card: 'Radiant Ward', fx: { heal: 2 }, descAdd: ' · <span class="kw kw-heal">✚ 2</span> party' } },
   { id: 'elin.passive.overflow', hero: 'elin', tier: 4, cost: 11, type: 'passive', requires: ['elin.rider.radiance'], label: 'Radiant Overflow', desc: 'PASSIVE: heal OVERFLOW spills as <span class="kw kw-guard">⛨ guard</span> to the WHOLE party — not just the target', passive: 'elin_overflow' },
 
@@ -145,6 +148,7 @@ const EMBER_TREE = [
 
   // CASSIA — GUARD: retaliation, an immovable wall
   { id: 'cassia.passive.vigil', hero: 'cassia', tier: 2, cost: 6, type: 'passive', label: 'Standing Vigil', desc: 'TURN START: Cassia braces for <span class="kw kw-guard">⛨2</span> — never caught flat', passive: 'cassia_vigil' },
+  { id: 'cassia.passive.bastion', hero: 'cassia', tier: 2, cost: 6, type: 'passive', requires: ['cassia.passive.vigil'], label: 'Bastion', desc: 'PASSIVE: Cassia takes no <span class="kw kw-chill">❄ CHILL</span> — the wall does not slow', passive: 'cassia_bastion' },
   { id: 'cassia.rider.aegis', hero: 'cassia', tier: 3, cost: 7, type: 'rider', requires: ['cassia.sig.mid'], label: 'Warded Aegis', desc: 'UPGRADE: Aegis also grants the ally <span class="kw kw-counter">↺1</span> — the ward bites back', rider: { card: 'Aegis', fx: { counter: 1 }, descAdd: ' · <span class="kw kw-counter">↺ 1</span>' } },
   { id: 'cassia.allout.fortress', hero: 'cassia', tier: 3, cost: 9, type: 'allout', requires: ['cassia.emergent.bulwark'], label: 'Fortress', desc: 'ALL-OUT START: the whole party gains <span class="kw kw-guard">⛨5</span> — brace before the storm', allout: 'fortress' },
   { id: 'cassia.passive.immovable', hero: 'cassia', tier: 4, cost: 12, type: 'passive', requires: ['cassia.rider.aegis'], label: 'Immovable', desc: 'PASSIVE: Cassia’s <span class="kw kw-guard">⛨ guard</span> no longer fades at turn’s end — the wall only grows', passive: 'cassia_immovable' },
@@ -2135,8 +2139,13 @@ function mkCard(h, kind, def) {
 // SWIFTFOOT (Mira) — her FIRST move each turn is free.  Since a hero may move
 // only once per turn, this makes her sole move cost no EP: slip in and out
 // without paying the tempo (and it feeds Afterimage's free echo).
+// BASTION (Cassia) — the immovable wall shrugs off ❄ CHILL entirely.
+function heroResistsChill(h) { return !!(h && h.id === 'cassia' && hasNode('cassia.passive.bastion')); }
 function moveCost(h) {
-  return (h && h.id === 'mira' && hasNode('mira.passive.swiftfoot') && !S.used.has(h.id + ':move')) ? 0 : 1;
+  if (!h || S.used.has(h.id + ':move')) return 1;                                         // only the FIRST move can be free
+  if (h.id === 'mira' && hasNode('mira.passive.swiftfoot')) return 0;                      // Swiftfoot — always free
+  if (h.id === 'ash' && hasNode('ash.passive.warstep') && (S._flags || {}).ashStruck) return 0;   // Warstep — free after an attack
+  return 1;
 }
 function mkMoveAction(h) {
   return { kind: 'move', owner: h.id, ownerName: h.def.name, tint: h.def.tint,
@@ -3030,6 +3039,8 @@ async function resolveCard(card, targetId) {
         if (tgt.dead) { fireEmergent(owner.id, 'kill', card); firePassives('kill', owner.id, { tgt }); }
         // CHARGE (Hask) — every spell that lands builds a stack (a nuke spends them).
         if (owner.id === 'hask' && !fx.spendCharge) { const gain = 1 + (owner._umbral || 0); owner._umbral = 0; owner.charge = Math.min(chargeCap(owner), (owner.charge || 0) + gain); popupAt(figEl(owner.id), '◆ ' + owner.charge, 'info'); }
+        // WARSTEP (Ash) — landing an attack unlocks a free reposition this turn.
+        if (owner.id === 'ash') { S._flags = S._flags || {}; S._flags.ashStruck = true; }
       }
       if (isFollowUp) {
         gainMomentum(12, { combo: true });   // LINK — chaining allies builds burst
@@ -3091,6 +3102,10 @@ async function resolveCard(card, targetId) {
           } else { rc.guard += spill; popupAt(figEl(rc.id), '⛨' + spill, 'guard'); }
         }
         SFX.heal();
+        // MERCY (Elin) — her mending also lifts the omen: cleanse ❄ CHILL / ◎ EXPOSED.
+        if (owner && owner.id === 'elin' && hasNode('elin.passive.mercy') && (rc.chill || rc.exposed)) {
+          rc.chill = 0; rc.exposed = 0; popupAt(figEl(rc.id), '✦ CLEANSED', 'heal');
+        }
       }
       if (fx.guard)  { rc.guard += fx.guard; popupAt(figEl(rc.id), '⛨ ' + fx.guard, 'guard'); SFX.guard(); }
       if (fx.buffDmg){ rc.buffDmg += fx.buffDmg; popupAt(figEl(rc.id), '▲ RALLY +' + fx.buffDmg, 'rally'); }
@@ -3206,7 +3221,10 @@ function dealToEnemy(e, amt, school, byHeroId) {
     gainMomentum(8, { combo: true });
   }
   let left = amt;
-  if (e.guard > 0) { const g = Math.min(e.guard, left); e.guard -= g; left -= g; }
+  // LONGSHOT (Branwen) — her arrows slip past enemy GUARD entirely; everyone else
+  // chips the guard first.
+  const pierce = byHeroId === 'branwen' && hasNode('branwen.passive.longshot');
+  if (e.guard > 0 && !pierce) { const g = Math.min(e.guard, left); e.guard -= g; left -= g; }
   e.hp = Math.max(0, e.hp - left);
   // First blood reveals the hidden weakness.
   if (!e.weakRevealed) {
@@ -4600,7 +4618,10 @@ async function enemyPhase() {
           }
         }
       }
-      if (!perfectParry && intent.chill)  { h.chill = (h.chill || 0) + intent.chill; popupAt(figEl(h.id), '❄ CHILL −' + intent.chill, 'chill'); }
+      if (!perfectParry && intent.chill) {
+        if (heroResistsChill(h)) { popupAt(figEl(h.id), '❄ RESISTED', 'guard'); }   // BASTION — the wall does not slow
+        else { h.chill = (h.chill || 0) + intent.chill; popupAt(figEl(h.id), '❄ CHILL −' + intent.chill, 'chill'); }
+      }
       if (!perfectParry && intent.expose) { h.exposed = (h.exposed || 0) + intent.expose; popupAt(figEl(h.id), '◎ EXPOSED +' + intent.expose, 'info'); }
       // HEX — the Maw's curse.  If you don't DODGE the row (or perfect-parry), the
       // hex clings: while hexed, every card you play burns another from your hand.

@@ -1554,6 +1554,34 @@ const QUICK = process.argv.includes('--quick');
     await J(() => { setupFight(['mira'], ['mira.afterimage', 'mira.passive.swiftfoot'], { mira: 'mid' }); const h = S.heroes[0]; S.used = new Set(); S.ep = 0; S.executing = false; S.over = false; S._staging = false; return canMove(h) === true; }));
   check('TREE swiftfoot is Mira-only: another hero’s move still costs 1 EP',
     await J(() => { setupFight(['ash'], ['mira.passive.swiftfoot'], { ash: 'mid' }); const h = S.heroes[0]; S.used = new Set(); return moveCost(h) === 1; }));
+  check('TREE ash.passive.warstep: Ash’s move is 1 EP until he attacks, then FREE',
+    await J(async () => { setupFight(['ash'], ['ash.passive.vanguard', 'ash.passive.warstep'], { ash: 'mid' }); S._rotations = false; const h = S.heroes[0]; S.used = new Set(); S._flags = {}; const before = moveCost(h);
+      await resolveCard({ owner: 'ash', name: 'Cut', cost: 0, target: 'enemy', fx: { dmg: 5 } }, S.enemies[0].uid);
+      return before === 1 && moveCost(h) === 0; }));   // free only AFTER a strike lands
+  check('TREE ash.passive.warstep: WITHOUT an attack this turn, the move still costs 1',
+    await J(() => { setupFight(['ash'], ['ash.passive.vanguard', 'ash.passive.warstep'], { ash: 'mid' }); const h = S.heroes[0]; S.used = new Set(); S._flags = {}; return moveCost(h) === 1; }));
+  check('TREE elin.passive.mercy: healing an ally CLEANSES ❄ CHILL and ◎ EXPOSED',
+    await J(async () => { setupFight(['elin', 'ash'], ['elin.passive.ward', 'elin.passive.mercy'], { elin: 'back', ash: 'front' }, { ash: 10 }); S._rotations = false; S.ep = 9;
+      const ash = S.heroes.find(x => x.id === 'ash'); ash.chill = 3; ash.exposed = 2;
+      await resolveCard({ owner: 'elin', name: 'Mend', cost: 0, target: 'ally', fx: { heal: 4 } }, 'ash');
+      return ash.chill === 0 && ash.exposed === 0 && ash.hp === 14; }));
+  check('TREE elin.passive.mercy gated: WITHOUT the node, a heal leaves CHILL/EXPOSED alone',
+    await J(async () => { setupFight(['elin', 'ash'], ['elin.passive.ward'], { elin: 'back', ash: 'front' }, { ash: 10 }); S._rotations = false; S.ep = 9;
+      const ash = S.heroes.find(x => x.id === 'ash'); ash.chill = 3; ash.exposed = 2;
+      await resolveCard({ owner: 'elin', name: 'Mend', cost: 0, target: 'ally', fx: { heal: 4 } }, 'ash');
+      return ash.chill === 3 && ash.exposed === 2; }));
+  check('TREE cassia.passive.bastion: Cassia RESISTS ❄ CHILL (heroResistsChill drives the combat hook)',
+    await J(() => { setupFight(['cassia'], ['cassia.passive.vigil', 'cassia.passive.bastion'], { cassia: 'front' }); const h = S.heroes[0];
+      return heroResistsChill(h) === true; }));
+  check('TREE bastion gated / Cassia-only: no node → not resisted; another hero → not resisted',
+    await J(() => { setupFight(['cassia', 'ash'], ['cassia.passive.vigil'], { cassia: 'front', ash: 'mid' }); const c = S.heroes.find(x => x.id === 'cassia'); const a = S.heroes.find(x => x.id === 'ash');
+      return heroResistsChill(c) === false && heroResistsChill(a) === false; }));
+  check('TREE branwen.passive.longshot: her attack IGNORES enemy ⛨ GUARD (full damage through)',
+    await J(() => { setupFight(['branwen'], ['branwen.passive.longshot'], { branwen: 'back' }); const e = S.enemies[0]; e.hp = e.maxHp = 100; e.guard = 6;
+      dealToEnemy(e, 10, 'blade', 'branwen'); return e.guard === 6 && e.hp === 90; }));   // guard untouched, 10 straight to HP
+  check('TREE longshot gated: WITHOUT the node, guard soaks first',
+    await J(() => { setupFight(['branwen'], [], { branwen: 'back' }); const e = S.enemies[0]; e.hp = e.maxHp = 100; e.guard = 6;
+      dealToEnemy(e, 10, 'blade', 'branwen'); return e.guard === 0 && e.hp === 96; }));   // 6 chips guard, 4 to HP
   check('TREE branwen.passive.focus: +2 damage to an EXPOSED foe',
     await J(() => { setupFight(['branwen'], ['branwen.passive.focus'], { branwen: 'back' }); const e = S.enemies[0]; e.mark = 3; return passiveDmg(S.heroes[0], e) === 2; }));
   // postHit execute — Death Mark
@@ -1859,7 +1887,7 @@ const QUICK = process.argv.includes('--quick');
   check('TREE: new stance nodes wire cleanly (valid requires, valid passives, unique ids)',
     await J(() => {
       const ids = new Set(); let ok = true;
-      const special = ['elin_overflow', 'hask_kindling', 'hask_conduit', 'hask_steady', 'hask_meltdown', 'hask_surge', 'hask_meteor', 'hask_enochian', 'mira_swiftfoot'];   // handled inline (heal-spill / charge / cast / weave / move-cost systems), not via PASSIVE_DEFS
+      const special = ['elin_overflow', 'hask_kindling', 'hask_conduit', 'hask_steady', 'hask_meltdown', 'hask_surge', 'hask_meteor', 'hask_enochian', 'mira_swiftfoot', 'ash_warstep', 'elin_mercy', 'cassia_bastion', 'branwen_longshot'];   // handled inline (heal-spill / charge / cast / weave / move-cost / utility systems), not via PASSIVE_DEFS
       EMBER_TREE.forEach(n => { if (ids.has(n.id)) ok = false; ids.add(n.id); });
       EMBER_TREE.forEach(n => { (n.requires || []).forEach(r => { if (!NODE_BY_ID[r]) ok = false; }); if ((n.type === 'passive' || n.type === 'synergy') && !PASSIVE_DEFS[n.passive] && !special.includes(n.passive)) ok = false; });
       return ok;
