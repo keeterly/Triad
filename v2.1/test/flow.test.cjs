@@ -2040,11 +2040,11 @@ const QUICK = process.argv.includes('--quick');
       const pts = [{ x: 100, y: 100 }, { x: 220, y: 120 }, { x: 340, y: 140 }];
       drawAimField(400, 400, pts, 0, '#f0d488');
       const svg = document.getElementById('aim-layer');
-      const first = svg.querySelector('.aF-glow');
+      const first = svg.querySelector('.aF-core');
       drawAimField(412, 400, pts, 6, '#f0d488');                 // next frame — origin moved
-      const reusedFrame = svg.querySelector('.aF-glow') === first && first.getAttribute('d') && first.getAttribute('d').indexOf('412') >= 0;
+      const reusedFrame = svg.querySelector('.aF-core') === first && first.getAttribute('d') && first.getAttribute('d').indexOf('412') >= 0;
       drawAimField(412, 400, pts.slice(0, 2), 6, '#f0d488');     // target count changed → rebuild
-      const rebuiltOnChange = svg.querySelector('.aF-glow') !== first;
+      const rebuiltOnChange = svg.querySelector('.aF-core') !== first;
       aimClear();
       return !!first && reusedFrame && rebuiltOnChange;
     }));

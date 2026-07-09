@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 123;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 124;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------------------------------------------------------------------
@@ -2279,26 +2279,23 @@ function drawAimField(fx, fy, pts, angle, color) {
   if (!_aim || _aim.type !== 'field' || _aim.count !== pts.length || _aim.color !== color) {
     let s = '';
     pts.forEach((p, i) => {
-      // No filter:blur / drop-shadow on the THREADS — their `d` changes every frame,
-      // so a filter re-rasterizes per frame (the drag stutter).  A wide low-opacity
-      // underlay stroke fakes the glow, filter-free.  The endpoint pips keep their
-      // drop-shadow — they're static, so it rasterizes once and caches.
-      s += `<path class="aF-glow" data-i="${i}" fill="none" stroke="${color}" stroke-width="7" stroke-linecap="round" opacity="0.16"/>`
-         + `<path class="aF-core" data-i="${i}" fill="none" stroke="${color}" stroke-width="2.4" stroke-linecap="round" opacity="0.6"/>`
-         + `<path class="aF-dash" data-i="${i}" fill="none" stroke="#fff6d8" stroke-width="1.4" stroke-linecap="round" stroke-dasharray="2 6"/>`
-         + `<circle cx="${p.x}" cy="${p.y}" r="7" fill="none" stroke="${color}" stroke-width="1.8"><animate attributeName="r" values="6;10;6" dur="0.8s" repeatCount="indefinite"/></circle>`
-         + `<circle cx="${p.x}" cy="${p.y}" r="2.4" fill="#fff6d8" style="filter:drop-shadow(0 0 5px ${color})"/>`;
+      // Kept deliberately CHEAP to paint: two thin threads (no blur/drop-shadow,
+      // no round dash-caps, no wide underlay) + a STATIC endpoint ring (no SMIL).
+      // Only these two paths' `d` updates per frame, and only while the card moves.
+      s += `<path class="aF-core" data-i="${i}" fill="none" stroke="${color}" stroke-width="2.6" stroke-linecap="round" opacity="0.5"/>`
+         + `<path class="aF-dash" data-i="${i}" fill="none" stroke="#fff6d8" stroke-width="1.4" stroke-dasharray="2 6"/>`
+         + `<circle cx="${p.x}" cy="${p.y}" r="8" fill="none" stroke="${color}" stroke-width="1.6" opacity="0.85"/>`
+         + `<circle cx="${p.x}" cy="${p.y}" r="2.4" fill="#fff6d8"/>`;
     });
     svg.innerHTML = s;
     _aim = { type: 'field', count: pts.length, color,
-      glow: [...svg.querySelectorAll('.aF-glow')], core: [...svg.querySelectorAll('.aF-core')], dash: [...svg.querySelectorAll('.aF-dash')] };
+      core: [...svg.querySelectorAll('.aF-core')], dash: [...svg.querySelectorAll('.aF-dash')] };
   }
   const dash = -angle;
   pts.forEach((p, i) => {
     const bow = Math.min(64, Math.max(20, Math.abs(p.x - fx) * 0.12));
     const midX = (fx + p.x) / 2, midY = Math.max(12, Math.min(fy, p.y) - bow);
     const d = `M ${fx} ${fy} Q ${midX} ${midY} ${p.x} ${p.y}`;
-    if (_aim.glow[i]) _aim.glow[i].setAttribute('d', d);
     if (_aim.core[i]) _aim.core[i].setAttribute('d', d);
     if (_aim.dash[i]) { _aim.dash[i].setAttribute('d', d); _aim.dash[i].setAttribute('stroke-dashoffset', dash); }
   });
@@ -2316,7 +2313,7 @@ function attachDrag(el, card) {
   // Removing + re-adding those classes EVERY frame repainted every foe 60×/s (the
   // field-card stutter).  Track the current sets and only mutate on a real change;
   // a field card's targets never change mid-drag, so it settles to zero churn.
-  let _snapEls = [], _techEl = null, _fieldPts = null;
+  let _snapEls = [], _techEl = null, _fieldPts = null, _lastFX = -1, _lastFY = -1;
   const setSnap = (nextEls) => {
     for (const e of _snapEls) if (nextEls.indexOf(e) < 0) e.classList.remove('fig-snapped');
     for (const e of nextEls) if (_snapEls.indexOf(e) < 0) e.classList.add('fig-snapped');
@@ -2383,7 +2380,7 @@ function attachDrag(el, card) {
       canSac  = !card.spent && !S.channelUsed && card.kind !== 'resonant' && card.kind !== 'move';
       if (!canPlay && !canSac) { if (card.cost > S.ep) denyCard(el, card); pid = null; try { el.releasePointerCapture(e.pointerId); } catch (_) {} return; }
       dragging = true;
-      _snapEls = []; _techEl = null; _fieldPts = null;   // fresh snap/tech/field caches per drag
+      _snapEls = []; _techEl = null; _fieldPts = null; _lastFX = -1; _lastFY = -1;   // fresh snap/tech/field caches per drag
       el.classList.add('card-dragging');
       el.style.transition = 'none';
       if (canSac) { const cl = $('#ep-cluster'); if (cl) cl.classList.add('ep-armed'); }   // invite the sacrifice
@@ -2467,8 +2464,15 @@ function attachDrag(el, card) {
         setSnap(tgs.slice());
         _fieldPts = tgs.map(t => { const r = figHitRect(t); return { x: (r.left + r.width / 2 - sr.left) / s, y: (r.top + r.height * 0.4 - sr.top) / s }; });
       }
-      angle = (angle + 3) % 360;
-      drawAimField(fromX, fromY, _fieldPts, angle, aimColor(card));
+      // PERF: the beam threads emanate from the card, so their `d` changes as the
+      // card eases toward the finger.  Once the card SETTLES (you're holding it),
+      // the origin stops moving — freeze the redraw so N full-width curved paths
+      // aren't repainting 60×/s for nothing.  This is what actually kills the
+      // field/DUET hold-stutter; a moving drag still animates.
+      if (Math.abs(fromX - _lastFX) + Math.abs(fromY - _lastFY) > 1.5) {   // absorbs finger tremor → truly freezes
+        _lastFX = fromX; _lastFY = fromY; angle = (angle + 3) % 360;
+        drawAimField(fromX, fromY, _fieldPts, angle, aimColor(card));
+      }
       return;
     } else {
       let best = null, bd = Infinity;
