@@ -1850,6 +1850,39 @@ const QUICK = process.argv.includes('--quick');
       const revealed = [...document.querySelectorAll('.bj-entry.bj-owned .bj-name')].some(e => e.textContent.includes('Twin Shadows'));
       hideOverlay();
       return lockedHidesName && lockedKeepsReq && revealed; }));
+  check('JOURNAL: three tabs — BOONS · BESTIARY · HEROES — switchable',
+    await J(() => {
+      showJournal(() => {}, 'boons');
+      const tabs = [...document.querySelectorAll('.bj-tab')].map(t => t.dataset.tab);
+      const onBoons = !!document.querySelector('.bj-tab-on[data-tab="boons"]');
+      showJournal(() => {}, 'heroes');
+      const onHeroes = !!document.querySelector('.bj-tab-on[data-tab="heroes"]');
+      hideOverlay();
+      return tabs.join(',') === 'boons,bestiary,heroes' && onBoons && onHeroes; }));
+  check('JOURNAL BESTIARY: a foe you’ve faced is recorded (name shown); an unmet one is ??? ',
+    await J(() => {
+      try { localStorage.removeItem('kizuna2_1.bestiary'); } catch (_) {}
+      markEnemySeen('wraith');                                   // met the wraith
+      showJournal(() => {}, 'bestiary');
+      const owned = [...document.querySelectorAll('.bj-entry.bj-owned .bj-name')].map(e => e.textContent);
+      const anyLockedQ = [...document.querySelectorAll('.bj-entry.bj-locked .bj-name')].some(e => /\?/.test(e.textContent));
+      hideOverlay();
+      return owned.includes('PALE WRAITH') && anyLockedQ; }));
+  check('JOURNAL BESTIARY: fighting a foe records it (newBattle marks the codex)',
+    await J(() => {
+      try { localStorage.removeItem('kizuna2_1.bestiary'); } catch (_) {}
+      RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash'];
+      startFight({ type: 'fight', chapter: 3, heroes: ['ash'], enemies: ['drone', 'cultist'], narrator: 'x' });
+      const seen = loadBestiary();
+      return seen.includes('drone') && seen.includes('cultist'); }));
+  check('JOURNAL HEROES: unlocked survivors read full; locked ones show the recruit hint',
+    await J(() => {
+      try { localStorage.setItem('kizuna2_1.starters', JSON.stringify(['ash', 'elin'])); } catch (_) {}
+      showJournal(() => {}, 'heroes');
+      const owned = [...document.querySelectorAll('.bj-entry.bj-owned .bj-name')].map(e => e.textContent);
+      const lockedHint = [...document.querySelectorAll('.bj-entry.bj-locked .bj-mystery')].length >= 1;
+      hideOverlay();
+      return owned.includes('ASH') && owned.includes('ELIN') && lockedHint; }));
   check('BOON DRAFT: duo/trio cards show ALL involved characters’ portraits',
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash', 'mira', 'branwen']; RUN.active = ['ash', 'mira', 'branwen']; RUN.boons = [];
@@ -2113,6 +2146,24 @@ const QUICK = process.argv.includes('--quick');
       setupFight(['hask'], ['hask.cast.meteor'], { hask: 'back' }); S.tempCards = [];
       await resolveCard({ owner: 'hask', name: 'Starfall', cost: 0, target: 'enemy', fx: { castDmg: 16 } }, S.enemies[0].uid);
       return !!S.heroes[0].pendingCast && S.heroes[0].pendingCast.all === true; }));
+  check('NEW GAME BUG: a fight abandoned mid-AIM does not leak targeting into the next fight (cards stay draggable)',
+    await J(() => {
+      setupFight(['ash'], [], { ash: 'front' });
+      targeting = { card: { name: 'x' }, validIds: ['ash'] };   // leak an in-progress aim, as if a run ended mid-target
+      startFight({ type: 'fight', chapter: 3, heroes: ['ash'], enemies: ['husk'], narrator: 'x' });
+      return targeting === null; }));   // the new fight cleared it
+  check('GAME OVER: with no live run, the title offers NO Continue — death is final',
+    await J(() => {
+      try { localStorage.removeItem('kizuna2_1.run'); } catch (_) {}   // the run is wiped (as onDefeat does)
+      RUN = null; showTitle();
+      const hasContinue = !!document.getElementById('t-continue');
+      const hasNew = !!document.getElementById('t-new');
+      return !hasContinue && hasNew; }));
+  check('GAME OVER: meta progress (unlocked heroes, boon codex) SURVIVES a wiped run',
+    await J(() => {
+      unlockStarter('hask'); markBoonCollected('duo_ashmira');
+      try { localStorage.removeItem('kizuna2_1.run'); } catch (_) {}   // run gone…
+      return getUnlockedStarters().includes('hask') && loadBoonCodex().includes('duo_ashmira'); }));   // …but progress carries over
   check('HASK WEAVE: with Emberwake, a FIRE spell swings 🔥 PYRE (+1) and ICE swings ❄ FROST (−1)',
     await J(async () => {
       setupFight(['hask'], ['hask.weave.astral'], { hask: 'front' }); S._rotations = false; const e = S.enemies[0]; e.hp = e.maxHp = 100; e.guard = 0;

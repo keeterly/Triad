@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 152;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 153;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -605,6 +605,11 @@ const BOON_BY_ID = {}; BOONS.forEach(b => { BOON_BY_ID[b.id] = b; });
 const BOON_CODEX_KEY = 'kizuna2_1.boonCodex';
 function loadBoonCodex() { try { const a = JSON.parse(localStorage.getItem(BOON_CODEX_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch (_) { return []; } }
 function markBoonCollected(id) { try { const s = new Set(loadBoonCodex()); if (!s.has(id)) { s.add(id); localStorage.setItem(BOON_CODEX_KEY, JSON.stringify([...s])); } } catch (_) {} }
+// BESTIARY CODEX — which foes you've faced, persisted across runs so the Journal's
+// bestiary fills in as you meet the dark.  Marked when an enemy spawns into a fight.
+const BESTIARY_KEY = 'kizuna2_1.bestiary';
+function loadBestiary() { try { const a = JSON.parse(localStorage.getItem(BESTIARY_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch (_) { return []; } }
+function markEnemySeen(id) { if (!id) return; try { const s = new Set(loadBestiary()); if (!s.has(id)) { s.add(id); localStorage.setItem(BESTIARY_KEY, JSON.stringify([...s])); } } catch (_) {} }
 // active boons: OWNED this descent AND their hero is currently fielded
 // A boon is ACTIVE when its hero is fielded — or, for a DUO boon (Hades-style),
 // when BOTH named heroes are fielded together.  So WHO you bring, and which
@@ -2000,6 +2005,7 @@ function newBattle(node) {
       chill: 0, exposed: 0, charge: 0, aether: 0,   // charge: Hask's Black-Mage resource; aether: Pyre(+)/Frost(−) weave meter
     };
   });
+  node.enemies.forEach(id => { if (ENEMY_DEFS[id] && !ENEMY_DEFS[id].foeHero) markEnemySeen(id); });   // bestiary discovery
   const enemies = node.enemies.map((id, i) => ({
     id, def: ENEMY_DEFS[id], uid: id + '#' + i,
     hp: ENEMY_DEFS[id].maxHp, maxHp: ENEMY_DEFS[id].maxHp,
@@ -2302,6 +2308,15 @@ function cancelTargeting() {
   targeting = null;
   $('#target-hint').classList.add('hidden');
   renderAll();
+}
+// Hard-reset all transient interaction state — targeting, the aim veil, any
+// in-flight card-drag layer — so nothing leaks between fights or across a NEW
+// GAME (a run abandoned mid-aim otherwise leaves cards un-draggable).
+function clearAim() {
+  targeting = null;
+  const th = document.getElementById('target-hint'); if (th) { th.classList.add('hidden'); th.classList.remove('th-tech'); }
+  const aim = document.getElementById('aim-layer'); if (aim) aim.innerHTML = '';
+  document.querySelectorAll('.card.card-dragging, .figure.fig-dragging').forEach(el => { el.classList.remove('card-dragging', 'fig-dragging'); el.style.transform = ''; el.style.transition = ''; });
 }
 function onFigureTap(id) {
   if (!targeting || targeting.isRow || targeting.drag) return;
@@ -5050,6 +5065,7 @@ function startFlowNode() {
   else startFight(node);
 }
 function startFight(node) {
+  clearAim();        // a run that ended mid-aim must NOT leak targeting into the next fight (cards would be un-draggable)
   S = newBattle(node);
   _bossFig = null;   // a fresh fight builds its own boss figure (uids can repeat across fights)
   _partyFigs = {};   // and fresh party figures (drag closures capture this fight's hero objects)
@@ -5879,18 +5895,17 @@ function showBoonDraft(onDone, opts) {
     done();
   }; });
 }
-// BOON JOURNAL — a compendium of every companion gift: singles by hero, then the
-// DUO and TRIO gifts that only appear when the named party walks together (so you
-// can plan a composition around them, Hades-style).  Collected gifts are badged.
-function showBoonJournal(onBack) {
+// ── JOURNAL — a tabbed discovery compendium: BOONS (companion gifts), BESTIARY
+//    (foes faced), and HEROES (survivors unlocked).  Each fills in as you play,
+//    with fog-of-war on the undiscovered.  Persisted across runs. ──
+const _heroOrder = ['ash', 'elin', 'mira', 'cassia', 'branwen', 'hask'];
+function journalBoonsHtml() {
   const codex = new Set(loadBoonCodex());
   const got = BOONS.filter(b => codex.has(b.id)).length;
   const entry = (b) => {
     const hs = b.heroes || [b.hero];
     const tier = b.trio ? 'TRIO' : b.duo ? 'DUO' : b.rare ? 'RARE' : (HEROES[b.hero].name);
     const owned = codex.has(b.id);
-    // FOG OF WAR — an undiscovered gift hides its NAME and EFFECT (???), but keeps
-    // its tier and (for combos) WHO must walk together — so it's a hunt you can plan.
     const name = owned ? b.name : '<span class="bj-q">? ? ?</span>';
     const med = owned ? b.icon : '<span class="bj-q">?</span>';
     const desc = owned ? b.desc : '<span class="bj-mystery">an undiscovered gift — take it once to reveal what it does</span>';
@@ -5903,28 +5918,80 @@ function showBoonJournal(onBack) {
       </span>
     </div>`;
   };
-  const singles = BOONS.filter(b => !b.heroes);
-  const duos = BOONS.filter(b => b.duo);
-  const trios = BOONS.filter(b => b.trio);
   const byHero = {};
-  singles.forEach(b => { (byHero[b.hero] = byHero[b.hero] || []).push(b); });
-  const heroOrder = ['ash', 'elin', 'mira', 'cassia', 'branwen', 'hask'];
-  const singleSecs = heroOrder.filter(h => byHero[h]).map(h =>
+  BOONS.filter(b => !b.heroes).forEach(b => { (byHero[b.hero] = byHero[b.hero] || []).push(b); });
+  const singleSecs = _heroOrder.filter(h => byHero[h]).map(h =>
     `<div class="bj-sec-title" style="--tint:${HEROES[h].tint}"><span class="bj-sec-fig">${V2PORTRAITS[h] || ''}</span>${HEROES[h].name}</div><div class="bj-grid">${byHero[h].map(entry).join('')}</div>`).join('');
   const section = (title, list) => list.length ? `<div class="bj-sec-title bj-combo">${title}</div><div class="bj-grid">${list.map(entry).join('')}</div>` : '';
+  return `<div class="bj-count">${got} / ${BOONS.length} gifts discovered</div><div class="bj-scroll">${singleSecs}
+    ${section('⚭ DUO GIFTS — appear only when both walk together', BOONS.filter(b => b.duo))}
+    ${section('✦ TRIO GIFTS — the exact three, the rarest bond', BOONS.filter(b => b.trio))}</div>`;
+}
+// The foes worth a page — the fixed bestiary (no run-synthesised vengeful heroes).
+const BESTIARY_IDS = ['husk', 'wraith', 'cultist', 'mourner', 'drone', 'brood', 'cantor', 'revenant', 'echoknight', 'echodevourer', 'echosunder', 'echochorus'];
+function enemyBlurb(def) {
+  if (def.megaBoss) return 'the gathered voice — three stages, one throat';
+  if (def.floorBoss) return 'a FLOOR BOSS — strikes twice, ends a floor';
+  if (def.boss) return 'a BOSS — a remembered blow, relentless';
+  if (def.attacksPerRound >= 2) return 'a SWARM — strikes ' + def.attacksPerRound + '× a round';
+  if ((def.parrySpeed || 1) <= 0.9) return 'SLOW & HEAVY — big, telegraphed blows';
+  if ((def.parrySpeed || 1) >= 1.3) return 'FAST — a flurry you must keep pace with';
+  return 'a foe of the dark';
+}
+function journalBestiaryHtml() {
+  const seen = new Set(loadBestiary());
+  const defs = BESTIARY_IDS.filter(id => ENEMY_DEFS[id]);
+  const got = defs.filter(id => seen.has(id)).length;
+  const entry = (id) => {
+    const def = ENEMY_DEFS[id]; const met = seen.has(id);
+    const art = V2PORTRAITS[def.art || id] || '';
+    const name = met ? def.name : '<span class="bj-q">? ? ?</span>';
+    return `<div class="bj-entry${met ? ' bj-owned' : ' bj-locked'}${def.boss ? ' bj-trio' : ''}">
+      <span class="bj-figs bj-figs-1"><span class="bj-fig bj-foe">${art}</span></span>
+      <span class="bj-info">
+        <span class="bj-line"><span class="bj-name">${name}</span>${def.boss ? '<span class="bj-tier bt-trio">BOSS</span>' : ''}${met ? `<span class="bj-weak" title="weakness">${SCHOOL_GLYPH[def.weak] || '?'} ${(def.weak || '').toUpperCase()}</span>` : ''}${met ? '<span class="bj-check">✓</span>' : '<span class="bj-lock">🔒</span>'}</span>
+        <span class="bj-desc">${met ? enemyBlurb(def) + ' · <b>' + def.maxHp + ' HP</b> base' : '<span class="bj-mystery">unmet — face it in the dark to record it</span>'}</span>
+      </span>
+    </div>`;
+  };
+  const mobs = defs.filter(id => !ENEMY_DEFS[id].boss);
+  const bosses = defs.filter(id => ENEMY_DEFS[id].boss);
+  return `<div class="bj-count">${got} / ${defs.length} foes recorded</div><div class="bj-scroll">
+    <div class="bj-sec-title bj-combo">THE DARK’S CREATURES</div><div class="bj-grid">${mobs.map(entry).join('')}</div>
+    <div class="bj-sec-title bj-combo">THE ECHOES — floor bosses</div><div class="bj-grid">${bosses.map(entry).join('')}</div></div>`;
+}
+function journalHeroesHtml() {
+  const unlocked = new Set(getUnlockedStarters());
+  const pool = STARTER_POOL.filter(id => HEROES[id]);
+  const got = pool.filter(id => unlocked.has(id)).length;
+  const entry = (id) => {
+    const h = HEROES[id]; const open = unlocked.has(id);
+    return `<div class="bj-entry${open ? ' bj-owned' : ' bj-locked'}" style="--tint:${h.tint}">
+      <span class="bj-figs bj-figs-1"><span class="bj-fig" style="--tint:${h.tint}">${V2PORTRAITS[id] || ''}</span></span>
+      <span class="bj-info">
+        <span class="bj-line"><span class="bj-name">${h.name}</span><span class="bj-tier bt-single">${h.cls} · ${h.archetype || ''}</span>${open ? '<span class="bj-check" title="unlocked">✓</span>' : '<span class="bj-lock" title="locked">🔒</span>'}</span>
+        <span class="bj-desc">${open ? (h.identity || '') : '<span class="bj-mystery">recruit them on the road to unlock as a starter</span>'}</span>
+      </span>
+    </div>`;
+  };
+  return `<div class="bj-count">${got} / ${pool.length} survivors unlocked</div><div class="bj-scroll"><div class="bj-grid">${pool.map(entry).join('')}</div></div>`;
+}
+function showJournal(onBack, tab) {
+  tab = tab || 'boons';
+  const TABS = [['boons', '✦ BOONS'], ['bestiary', '☠ BESTIARY'], ['heroes', '⚔ HEROES']];
+  const body = tab === 'bestiary' ? journalBestiaryHtml() : tab === 'heroes' ? journalHeroesHtml() : journalBoonsHtml();
   showOverlay(`
-    <div class="ov-eyebrow" style="color:var(--gold-bright)">THE COMPANIONS’ GIFTS</div>
-    <div class="ov-title" style="font-size:21px; margin-bottom:2px;">BOON JOURNAL</div>
-    <div class="bj-count">${got} / ${BOONS.length} discovered</div>
-    <div class="bj-scroll">
-      ${singleSecs}
-      ${section('⚭ DUO GIFTS — appear only when both walk together', duos)}
-      ${section('✦ TRIO GIFTS — the exact three, the rarest bond', trios)}
-    </div>
+    <div class="ov-eyebrow" style="color:var(--gold-bright)">DISCOVERY</div>
+    <div class="ov-title" style="font-size:21px; margin-bottom:8px;">JOURNAL</div>
+    <div class="bj-tabs">${TABS.map(([k, l]) => `<button class="bj-tab${k === tab ? ' bj-tab-on' : ''}" data-tab="${k}">${l}</button>`).join('')}</div>
+    ${body}
     <button class="ov-btn et-back-btn" id="bj-back">◂ BACK</button>
   `, 'map-screen bj-screen');
+  document.querySelectorAll('.bj-tab').forEach(el => { el.onclick = () => { if (el.dataset.tab !== tab) showJournal(onBack, el.dataset.tab); }; });
   $('#bj-back').onclick = onBack || showTitle;
 }
+// Back-compat alias — older callers open the Journal on the Boons tab.
+function showBoonJournal(onBack) { showJournal(onBack, 'boons'); }
 function showCamp(n) {
   // The fire closes every wound on the LIVING — but the fallen do not rise on
   // their own.  Raising them is a deliberate camp act (see the RAISE choice).
@@ -6936,7 +7003,7 @@ function showMenu() {
       <button class="menu-item menu-primary" id="m-resume">▸ RESUME</button>
       <button class="menu-item" id="m-sound"><span>SOUND</span>${onOff(SETTINGS.sound)}</button>
       <button class="menu-item" id="m-haptics"><span>HAPTICS</span>${onOff(SETTINGS.haptics)}</button>
-      <button class="menu-item" id="m-journal"><span>BOON JOURNAL</span><span class="menu-val">✦</span></button>
+      <button class="menu-item" id="m-journal"><span>JOURNAL</span><span class="menu-val">✦</span></button>
       <button class="menu-item" id="m-howto"><span>HOW TO PLAY</span><span class="menu-val">?</span></button>
       ${inRun ? `<button class="menu-item menu-warn" id="m-abandon"><span>ABANDON RUN</span><span class="menu-val">✕</span></button>` : ''}
       <button class="menu-item" id="m-title"><span>RETURN TO TITLE</span><span class="menu-val">⌂</span></button>
@@ -7048,12 +7115,16 @@ function showDevPanel(back) {
 
 function showTitle() {
   S = null;
+  clearAim();   // never carry aim/drag state to the title (or into the next new game)
   $('#stage').classList.remove('show-bg');
   $('#timeline').innerHTML = '';
   $('#chapter-chip').textContent = 'KIZUNA';
-  const savedFlow = parseInt(localStorage.getItem(PROGRESS_KEY) || '0', 10) || 0;
   const savedRun = loadRun();
-  const canContinue = savedFlow > 0 || (savedRun && !savedRun.done);
+  // CONTINUE appears ONLY when there's a LIVE run to resume.  After a GAME OVER the
+  // run is gone, so the party's death is final — NEW GAME only.  (Meta progress —
+  // unlocked heroes, the boon codex, the Abyss's memory of the fallen — lives in
+  // its OWN storage and carries over regardless.)
+  const canContinue = !!(savedRun && !savedRun.done);
   // A full-screen JRPG title: a key-art figure fills the frame, the logo sits
   // top-center, and a horizontal menu bar runs across the bottom.  The key art
   // is whoever you LAST descended as (falls back to Ash).
@@ -7073,7 +7144,7 @@ function showTitle() {
     <div class="tt-menu-bar">
       <button class="tt-opt tt-opt-primary" id="t-new">NEW GAME</button>
       ${canContinue ? `<button class="tt-opt" id="t-continue">CONTINUE</button>` : ''}
-      <button class="tt-opt" id="t-journal">BOON JOURNAL</button>
+      <button class="tt-opt" id="t-journal">JOURNAL</button>
       <button class="tt-opt" id="t-settings">SETTINGS</button>
     </div>
     <div class="tt-ver">V2.1 · BUILD ${V2_BUILD}</div>

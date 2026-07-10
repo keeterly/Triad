@@ -599,7 +599,17 @@ body {
 .boon-portrait-multi.bp-3 .bp-fig:nth-child(2) svg { height: 168px; }
 /* ---- BOON JOURNAL (compendium) ---- */
 .bj-screen .ov-title { color: var(--gold-bright); }
+/* JOURNAL tabs */
+.bj-tabs { display: flex; gap: 6px; justify-content: center; margin-bottom: 8px; flex-wrap: wrap; }
+.bj-tab { font-family: inherit; font-size: 10px; letter-spacing: 0.16em; padding: 7px 14px; border-radius: 7px; cursor: pointer;
+  border: 1px solid rgba(232,220,196,0.18); background: rgba(14,11,9,0.8); color: var(--ink-dim); transition: border-color 0.12s, color 0.12s, background 0.12s; }
+.bj-tab:hover { border-color: var(--gold-bright); color: var(--ink); }
+.bj-tab-on { border-color: var(--gold-bright); color: var(--gold-bright); background: rgba(30,22,12,0.9); }
 .bj-count { font-size: 10px; letter-spacing: 0.18em; color: var(--ink-faint); margin-bottom: 8px; }
+.bj-weak { font-size: 8px; letter-spacing: 0.1em; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(232,220,196,0.2); color: var(--ink-dim); margin-left: 4px; }
+.bj-fig.bj-foe { background: rgba(8,6,10,0.95); }
+.bj-fig.bj-foe svg { height: 40px; }
+.bj-entry.bj-locked .bj-fig.bj-foe svg { filter: brightness(0.12) contrast(1.3); }
 .bj-scroll { width: 100%; max-width: 680px; margin: 0 auto; max-height: 62vh; overflow-y: auto; overflow-x: hidden;
   padding: 2px 10px 6px; -webkit-overflow-scrolling: touch; }
 .bj-scroll::-webkit-scrollbar { width: 6px; }
