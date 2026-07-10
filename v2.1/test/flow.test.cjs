@@ -1839,6 +1839,17 @@ const QUICK = process.argv.includes('--quick');
       const owned = [...document.querySelectorAll('.bj-entry.bj-owned .bj-name')].map(e => e.textContent);
       hideOverlay();
       return loadBoonCodex().includes('trio_killwind') && owned.includes('The Killing Wind'); }));
+  check('BOON JOURNAL: FOG OF WAR — an undiscovered gift hides its name (???) but keeps its combo requirement',
+    await J(() => {
+      try { localStorage.removeItem('kizuna2_1.boonCodex'); } catch (_) {}   // nothing discovered
+      markBoonCollected('duo_ashmira');                                       // …except this one
+      showBoonJournal(() => {});
+      const locked = document.querySelector('.bj-entry.bj-locked');
+      const lockedHidesName = !!locked && /\?\s*\?\s*\?/.test(locked.querySelector('.bj-name').textContent);
+      const lockedKeepsReq = !!(locked && locked.classList.contains('bj-duo') ? locked.querySelector('.bj-req') : true);
+      const revealed = [...document.querySelectorAll('.bj-entry.bj-owned .bj-name')].some(e => e.textContent.includes('Twin Shadows'));
+      hideOverlay();
+      return lockedHidesName && lockedKeepsReq && revealed; }));
   check('BOON DRAFT: duo/trio cards show ALL involved characters’ portraits',
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash', 'mira', 'branwen']; RUN.active = ['ash', 'mira', 'branwen']; RUN.boons = [];

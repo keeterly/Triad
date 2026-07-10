@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 150;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 151;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -581,6 +581,23 @@ const BOONS = [
     trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'cassia' || S.turn !== 1 || S._flags.boonPhalanx) return; S._flags.boonPhalanx = true; livingHeroes().forEach(h => { h.guard += 3; h.buffDmg += 2; popupAt(figEl(h.id), '⛨3 ▲2', 'guard'); }); boonProc('cassia', 'trio_phalanx'); } },
   { id: 'trio_killwind', trio: true, hero: 'mira', heroes: ['ash', 'mira', 'branwen'], name: 'The Killing Wind', icon: '☠', desc: '<b>Ash · Mira · Branwen:</b> EVERY ally strikes <b>+4</b> to <span class="kw kw-exposed">◎ EXPOSED</span> foes — three blades, one hunt.',
     trigger: 'dmgMod', mod: (o, t) => (t && t.mark ? 4 : 0) },
+  { id: 'trio_longwinter', trio: true, hero: 'hask', heroes: ['elin', 'cassia', 'hask'], name: 'The Long Winter', icon: '❄', desc: '<b>Elin · Cassia · Hask:</b> <span class="kw kw-chill">❄ CHILLED</span> foes take <b>+3</b> from EVERY ally — the wall, the light, and the deep cold.',
+    trigger: 'dmgMod', mod: (o, t) => (t && t.lull ? 3 : 0) },
+  { id: 'trio_bloodmercy', trio: true, hero: 'elin', heroes: ['elin', 'mira', 'branwen'], name: 'Blood & Mercy', icon: '✚', desc: '<b>Elin · Mira · Branwen:</b> the FIRST <span class="kw kw-exposed">◎ EXPOSED</span> foe felled each turn <b>heals the whole party 3</b>.',
+    trigger: 'kill', apply: (c) => { if (c.tgt && c.tgt.mark && !S._flags.trioBloodMercy) { S._flags.trioBloodMercy = true; livingHeroes().forEach(h => { if (h.hp < h.maxHp) { h.hp = Math.min(h.maxHp, h.hp + 3); popupAt(figEl(h.id), '✚3', 'heal'); } }); boonProc('elin', 'trio_bloodmercy'); } } },
+  // ── MORE DUO GIFTS — filling out the roster's pairings ──
+  { id: 'duo_ashelin', duo: true, hero: 'elin', heroes: ['ash', 'elin'], name: 'Second Breath', icon: '✚', desc: '<b>Ash + Elin:</b> when Elin heals or wards an ally, that ally also gains <span class="kw kw-rally">▲ RALLY 1</span> — the mend feeds the next blow.',
+    trigger: 'support', apply: (c) => { if (c.receiver && !c.receiver.downed) { c.receiver.buffDmg += 1; popupAt(figEl(c.receiver.id), '▲ +1', 'rally'); boonProc('elin', 'duo_ashelin', { quiet: true }); } } },
+  { id: 'duo_mirahask', duo: true, hero: 'hask', heroes: ['mira', 'hask'], name: 'Killing Frost', icon: '❄', desc: '<b>Mira + Hask:</b> both strike <b>+2</b> to any <span class="kw kw-chill">❄ CHILLED</span> foe — the shiver before the knife.',
+    trigger: 'dmgMod', mod: (o, t) => ((o.id === 'mira' || o.id === 'hask') && t && t.lull ? 2 : 0) },
+  { id: 'duo_cassiabranwen', duo: true, hero: 'branwen', heroes: ['cassia', 'branwen'], name: 'Overwatch', icon: '◎', desc: '<b>Cassia + Branwen:</b> while Cassia holds <span class="kw kw-guard">⛨ guard</span>, Branwen strikes for <b>+3</b> — cover fire from behind the wall.',
+    trigger: 'dmgMod', mod: (o) => { if (o.id !== 'branwen') return 0; const cas = livingHeroes().find(h => h.id === 'cassia'); return (cas && cas.guard > 0) ? 3 : 0; } },
+  { id: 'duo_ashcassia', duo: true, hero: 'cassia', heroes: ['ash', 'cassia'], name: 'Vanguard’s Oath', icon: '⛨', desc: '<b>Ash + Cassia:</b> each of Ash’s <span class="kw kw-rally">FOLLOW-UPS</span> braces him for <span class="kw kw-guard">⛨ 2</span> — the wall’s discipline in the skirmish.',
+    trigger: 'followup', apply: () => { const ash = livingHeroes().find(h => h.id === 'ash'); if (ash) { ash.guard += 2; popupAt(figEl('ash'), '⛨ +2', 'guard'); boonProc('cassia', 'duo_ashcassia', { quiet: true }); } } },
+  { id: 'duo_elinhask', duo: true, hero: 'hask', heroes: ['elin', 'hask'], name: 'Warmth in Winter', icon: '◆', desc: '<b>Elin + Hask:</b> when Elin heals or wards an ally, Hask gathers <span class="kw kw-charge">◆ CHARGE 1</span> — her warmth stokes his cold fire.',
+    trigger: 'support', apply: () => { const hask = livingHeroes().find(h => h.id === 'hask'); if (hask) { hask.charge = Math.min(chargeCap(hask), (hask.charge || 0) + 1); popupAt(figEl('hask'), '◆ ' + hask.charge, 'info'); boonProc('hask', 'duo_elinhask', { quiet: true }); } } },
+  { id: 'duo_branwenhask', duo: true, hero: 'branwen', heroes: ['branwen', 'hask'], name: 'Frost & Feather', icon: '❄', desc: '<b>Branwen + Hask:</b> a <span class="kw kw-chill">❄ CHILLED</span> foe is also treated as <span class="kw kw-exposed">◎ EXPOSED</span> — cold marks the target for the arrow.',
+    trigger: 'dmgMod', mod: (o, t) => (t && t.lull && !t.mark ? 2 : 0) },
 ];
 const BOON_BY_ID = {}; BOONS.forEach(b => { BOON_BY_ID[b.id] = b; });
 // BOON CODEX — which gifts you've ever COLLECTED, persisted across runs so the
@@ -5853,11 +5870,16 @@ function showBoonJournal(onBack) {
     const hs = b.heroes || [b.hero];
     const tier = b.trio ? 'TRIO' : b.duo ? 'DUO' : b.rare ? 'RARE' : (HEROES[b.hero].name);
     const owned = codex.has(b.id);
-    return `<div class="bj-entry${owned ? ' bj-owned' : ''}${b.trio ? ' bj-trio' : b.duo ? ' bj-duo' : b.rare ? ' bj-rare' : ''}" style="--tint:${HEROES[b.hero].tint}">
+    // FOG OF WAR — an undiscovered gift hides its NAME and EFFECT (???), but keeps
+    // its tier and (for combos) WHO must walk together — so it's a hunt you can plan.
+    const name = owned ? b.name : '<span class="bj-q">? ? ?</span>';
+    const med = owned ? b.icon : '<span class="bj-q">?</span>';
+    const desc = owned ? b.desc : '<span class="bj-mystery">an undiscovered gift — take it once to reveal what it does</span>';
+    return `<div class="bj-entry${owned ? ' bj-owned' : ' bj-locked'}${b.trio ? ' bj-trio' : b.duo ? ' bj-duo' : b.rare ? ' bj-rare' : ''}" style="--tint:${HEROES[b.hero].tint}">
       <span class="bj-figs bj-figs-${hs.length}">${hs.map(h => `<span class="bj-fig" style="--tint:${HEROES[h].tint}">${V2PORTRAITS[h] || ''}</span>`).join('')}</span>
       <span class="bj-info">
-        <span class="bj-line"><span class="bj-med">${b.icon}</span><span class="bj-name">${b.name}</span><span class="bj-tier bt-${b.trio ? 'trio' : b.duo ? 'duo' : b.rare ? 'rare' : 'single'}">${tier}</span>${owned ? '<span class="bj-check" title="collected">✓</span>' : ''}</span>
-        <span class="bj-desc">${b.desc}</span>
+        <span class="bj-line"><span class="bj-med">${med}</span><span class="bj-name">${name}</span><span class="bj-tier bt-${b.trio ? 'trio' : b.duo ? 'duo' : b.rare ? 'rare' : 'single'}">${tier}</span>${owned ? '<span class="bj-check" title="collected">✓</span>' : '<span class="bj-lock" title="undiscovered">🔒</span>'}</span>
+        <span class="bj-desc">${desc}</span>
         ${b.heroes ? `<span class="bj-req">◈ needs <b>${hs.map(h => HEROES[h].name).join(' + ')}</b> in the party together</span>` : ''}
       </span>
     </div>`;
