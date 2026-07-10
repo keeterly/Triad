@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 156;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 157;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -3804,12 +3804,12 @@ function setParryDifficulty(e) {
   _parrySpeed = base * (1 - 0.24 * d);   // up to 24% faster cascades deep
   _parryWin   = 1 - 0.30 * d;            // up to 30% tighter windows (460→322 / 175→123)
   _parryBonus = Math.round(1.6 * d);     // +0 → +2 extra notes on cascades deep
-  // ROAD BOSSES weaponize DENSITY, not HP: their cascades run LONGER (+2 notes)
-  // and a touch FASTER, so the climax is a real parry gauntlet you must execute
-  // through.  The floor-4 CHORUS (megaBoss) is dialed in already — left untouched.
+  // ROAD BOSSES weaponize DENSITY, not HP: their cascades run a bit LONGER (+1
+  // note) and a touch FASTER — a real parry gauntlet, but not a wall.  The floor-4
+  // CHORUS (megaBoss) is dialed in already — left untouched.
   if (e && e.def && e.def.boss && !e.def.megaBoss) {
-    _parryBonus += 2;        // stack extra notes onto every road-boss cascade
-    _parrySpeed *= 0.9;      // ~10% quicker pacing — keep up or eat it
+    _parryBonus += 1;        // one extra note on every road-boss cascade
+    _parrySpeed *= 0.92;     // ~8% quicker pacing
   }
 }
 function seqRhythm(count) {

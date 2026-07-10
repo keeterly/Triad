@@ -2102,7 +2102,7 @@ const QUICK = process.argv.includes('--quick');
       setParryDifficulty({ def: { parrySpeed: 1 } }); const mobBonus = _parryBonus, mobSpeed = _parrySpeed;
       setParryDifficulty({ def: { boss: true, parrySpeed: 1 } }); const roadBonus = _parryBonus, roadSpeed = _parrySpeed;
       setParryDifficulty({ def: { boss: true, megaBoss: true, parrySpeed: 1 } }); const choBonus = _parryBonus, choSpeed = _parrySpeed;
-      return roadBonus === mobBonus + 2 && roadSpeed < mobSpeed && choBonus === mobBonus && choSpeed === mobSpeed; }));
+      return roadBonus === mobBonus + 1 && roadSpeed < mobSpeed && choBonus === mobBonus && choSpeed === mobSpeed; }));
   check('RHYTHM: the cascade glyph previews the ramped note count (honest telegraph)',
     await J(() => { RUN = newRun('ash'); RUN.completed = [0,1,2,3,4,5,6,7,8,9,10,11];
       const g = parryGlyph({ parry: { kind: 'seq', notes: [{ t: 'tap' }, { t: 'tap' }] } });
