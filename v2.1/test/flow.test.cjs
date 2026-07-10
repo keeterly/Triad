@@ -626,8 +626,8 @@ const QUICK = process.argv.includes('--quick');
     await J(() => !!document.querySelector('#enemy-half.has-floor-boss .figure.floor-boss[data-fig]')));
   check('FLOOR BOSS: its OBLIVION blow is a 5-note parry CASCADE',
     await J(() => { const p = parryPatternFor(ENEMY_DEFS.echoknight2.intents[4]); return p.kind === 'seq' && p.notes.length === 5; }));
-  check('FLOOR BOSS: the cascade previews on the telegraph (✷5)',
-    await J(() => parryGlyph(ENEMY_DEFS.echoknight2.intents[4]) === '✷5'));
+  check('FLOOR BOSS: the cascade previews on the telegraph (✷5, +ramp when deep)',
+    await J(() => { const g = parryGlyph(ENEMY_DEFS.echoknight2.intents[4]); const n = parseInt(g.slice(1), 10); return g[0] === '✷' && n >= 5; }));
   // TWO-ATTACK BOSS — telegraphs and resolves two blows per round
   check('BOSS: strikes twice per round (attacksPerRound 2)',
     await J(() => ENEMY_DEFS.echoknight2.attacksPerRound === 2));
@@ -808,6 +808,7 @@ const QUICK = process.argv.includes('--quick');
   console.log('--- PARRY ---');
   await J(() => {
     hideOverlay();
+    if (typeof RUN !== 'undefined' && RUN) RUN.completed = [];   // drill the BASELINE parry (no depth ramp — timing is deterministic)
     startFight({ type:'fight', chapter:3, heroes:['ash','elin','kiki'], enemies:['husk'], narrator:'parry drill' });
     const a = S.heroes.find(h => h.id === 'ash'); a.row = 'front';
     S.enemies[0].hp = S.enemies[0].maxHp = 40; S.ep = 0; S.momentum = 0; renderAll();
@@ -1978,6 +1979,22 @@ const QUICK = process.argv.includes('--quick');
   check('SHOVE: the bestiary wires it — Drone SLAMS back, Revenant HOOKS forward',
     await J(() => { const drone = (ENEMY_DEFS.drone.intents || []).find(i => i.shove === 'back'); const rev = (ENEMY_DEFS.revenant.intents || []).find(i => i.shove === 'front');
       return !!drone && drone.name === 'Piston Slam' && !!rev && rev.name === 'Chain Hook' && rev.row === 'back'; }));
+  // ── RHYTHM RAMP — parries escalate with run depth (speed / window / notes) ──
+  check('RHYTHM: at the surface, parry difficulty is the gentle baseline (no ramp)',
+    await J(() => { RUN = newRun('ash'); RUN.completed = []; setParryDifficulty({ def: { parrySpeed: 1 } });
+      return _parrySpeed === 1 && _parryWin === 1 && _parryBonus === 0; }));
+  check('RHYTHM: deep in the run, cascades quicken, windows tighten, and notes stack',
+    await J(() => { RUN = newRun('ash'); RUN.completed = [0,1,2,3,4,5,6,7,8,9,10,11]; setParryDifficulty({ def: { parrySpeed: 1 } });
+      return _parrySpeed < 0.8 && _parryWin <= 0.7 && _parryBonus === 2; }));
+  check('RHYTHM: the ramp COMPOSES with a foe’s own tempo (boss stays fastest)',
+    await J(() => { RUN = newRun('ash'); RUN.completed = [0,1,2,3,4,5,6,7,8,9,10,11];
+      setParryDifficulty({ def: { parrySpeed: 0.82 } }); const boss = _parrySpeed;
+      setParryDifficulty({ def: { parrySpeed: 1 } }); const mob = _parrySpeed;
+      return boss < mob && boss < 0.66; }));
+  check('RHYTHM: the cascade glyph previews the ramped note count (honest telegraph)',
+    await J(() => { RUN = newRun('ash'); RUN.completed = [0,1,2,3,4,5,6,7,8,9,10,11];
+      const g = parryGlyph({ parry: { kind: 'seq', notes: [{ t: 'tap' }, { t: 'tap' }] } });
+      return g === '✷4'; }));   // 2 authored + 2 bonus at depth
   check('CRUEL: cruelShovePrey targets a CHARGED Hask over a healthier ally',
     await J(() => { setupFight(['cassia', 'hask'], [], { cassia: 'front', hask: 'back' }); S.heroes.find(x => x.id === 'hask').charge = 3;
       const v = cruelShovePrey({ smart: true }, { shove: 'front' }); return !!v && v.id === 'hask'; }));

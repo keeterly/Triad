@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 145;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 146;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -2064,7 +2064,7 @@ const livingHeroes = () => S.heroes.filter(h => !h.downed);
 const livingEnemies = () => S.enemies.filter(e => !e.dead);
 const heroInRow = (row) => livingHeroes().find(h => h.row === row) || null;
 const frontmostEnemy = () => ['front', 'mid', 'back'].map(r => livingEnemies().find(e => e.row === r)).find(Boolean) || livingEnemies()[0] || null;
-const enemyArt = (e) => V2PORTRAITS[e.def.art || e.id] || '';
+const enemyArt = (e) => V2PORTRAITS[e.def.art || e.id] || V2PORTRAITS.wraith || '';   // never render a blank figure
 
 // ---------------------------------------------------------------------------
 // HAND
@@ -2542,8 +2542,8 @@ function attachDrag(el, card) {
     }
   });
   function loop() {
+    if (!dragging) { raf = null; return; }   // STOP the loop when the drag ends — don't keep the main thread hot forever
     raf = requestAnimationFrame(loop);
-    if (!dragging) return;
     const sr = $('#stage').getBoundingClientRect(), s = sc();
     // ease the card toward the finger
     const tgtTX = (ptrX - originX) / s, tgtTY = (ptrY - originY) / s;
@@ -3537,7 +3537,7 @@ const SWIPE_ARCS = {
 const PARRY_GLYPH = { tap: '⊙', multi: '⊙⊙', hold: '▭', swipe: '➤', mash: '⊙⊙⊙' };
 function parryGlyph(intent) {
   const p = parryPatternFor(intent);
-  if (p.kind === 'seq') return '✷' + p.notes.length;   // a bullet-hell cascade
+  if (p.kind === 'seq') return '✷' + (p.notes.length + Math.min(Math.round(1.6 * parryDepth()), 3));   // a bullet-hell cascade (ramps with depth)
   const g = p.kind === 'swipe' ? (SWIPE_ARCS[p.arc] || SWIPE_ARCS.arcR).glyph : PARRY_GLYPH[p.kind];
   return (p.size === 'big' ? '◉' : p.size === 'wide' ? '⟺' : '') + g;   // size hint
 }
@@ -3629,7 +3629,7 @@ function parryTapNote(ax, ay, dur, idx, total, size) {
     const ui = mkParryUiAt(ax, ay, `<span class="pr-target"></span><span class="pr-close"></span><span class="pr-lbl">${label}</span>`, size === 'big' ? 'pr-big' : '');
     ui.el.querySelector('.pr-close').style.animationDuration = dur + 'ms';
     const lbl = ui.el.querySelector('.pr-lbl');
-    const GOOD = 460, PERF = 175;   // windows measured as ms remaining at the tap
+    const GOOD = Math.round(460 * _parryWin), PERF = Math.round(175 * _parryWin);   // windows (tighten with depth)
     let done = false; const t0 = Date.now();
     // light the note up the moment it becomes tappable — "wait for the glow"
     const liveT = setTimeout(() => { if (!done) { ui.el.classList.add('pr-live'); lbl.textContent = size === 'big' ? 'SLAM!' : 'TAP!'; } }, Math.max(0, dur - GOOD));
@@ -3691,6 +3691,22 @@ const SEQ_LEADIN = 460;   // beat of quiet after the telegraph draws, before not
 // foe's def.parrySpeed each strike (the mega boss's later stages crank it up), so
 // the same cascade reads calmer or more intense without new note data.
 let _parrySpeed = 1;
+// RHYTHM RAMP — parries START gentle (the on-ramp) and escalate like a rhythm
+// game as you DESCEND: cascades quicken, the tap windows tighten, and extra notes
+// stack onto every string.  Set per strike from the foe's base tempo × run depth.
+let _parryWin = 1;      // tap-window multiplier (<1 = tighter/harder)
+let _parryBonus = 0;    // extra notes appended to a cascade
+function parryDepth() {
+  const d = (typeof RUN !== 'undefined' && RUN && Array.isArray(RUN.completed)) ? RUN.completed.length : 0;
+  return Math.max(0, Math.min(1, d / 12));   // 0 at the surface → 1 by ~floor's end
+}
+function setParryDifficulty(e) {
+  const base = (e && e.def && e.def.parrySpeed) || 1;
+  const d = parryDepth();
+  _parrySpeed = base * (1 - 0.24 * d);   // up to 24% faster cascades deep
+  _parryWin   = 1 - 0.30 * d;            // up to 30% tighter windows (460→322 / 175→123)
+  _parryBonus = Math.round(1.6 * d);     // +0 → +2 extra notes on cascades deep
+}
 function seqRhythm(count) {
   const out = [];
   for (let i = 0; i < count; i++) out.push({ d: Math.round((i === 0 ? 660 : 560) * _parrySpeed), g: i === count - 1 ? 0 : Math.round(160 * _parrySpeed) });
@@ -3784,6 +3800,11 @@ function mkSeqPreview(pts) {
 // SEQUENCE — a chain of mixed notes (taps along an arc, a hold, a deflect).
 // Every note must land to fully turn the attack aside; partial → BLOCK.
 async function runParrySeq(notes, anchor, art) {
+  // RHYTHM RAMP — deeper foes stack extra taps onto the string (capped so an
+  // authored cascade stays readable, never a wall).
+  if (_parryBonus > 0) {
+    notes = notes.concat(Array.from({ length: Math.min(_parryBonus, 3) }, () => ({ t: 'tap' })));
+  }
   const pts = arcPoints(notes.length, anchor);
   const preview = mkSeqPreview(pts);
   const rh = seqRhythm(notes.length);   // steady, readable cascade groove
@@ -3824,6 +3845,11 @@ async function runParry(targetEl, pattern, art) {
 }
 async function runParryInner(targetEl, pattern, art) {
   let a = noteAnchor(targetEl);
+  // RHYTHM RAMP — deep foes make multi/mash strings denser (extra beats); a lone
+  // TAP stays a single, clean read.  (Cascades ramp in runParrySeq.)
+  if (_parryBonus > 0 && (pattern.kind === 'multi' || pattern.kind === 'mash')) {
+    pattern = Object.assign({}, pattern, { count: (pattern.count || 2) + _parryBonus });
+  }
   const k = pattern.kind, sz = pattern.size || '';
   // An across-sweep parries a WHOLE-PARTY blow — center it over the party line.
   if (pattern.across) {
@@ -4541,7 +4567,7 @@ async function enemyPhase() {
     // A boss takes MULTIPLE actions per round; each is its own telegraphed,
     // parryable strike drawn from the next intents in its cycle.
     const times = e.def.attacksPerRound || 1;   // bosses AND swarms strike more than once per round
-    _parrySpeed = e.def.parrySpeed || 1;   // later boss stages crank the cascade tempo (see stage defs)
+    setParryDifficulty(e);   // foe tempo × run-depth ramp (speed / window / bonus notes)
     for (let atk = 0; atk < times; atk++) {
     if (S.over || e.dead || S._staging) break;
     // A stored ECHO returns as the round's FIRST strike — it does NOT advance the
