@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 154;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 155;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -2037,16 +2037,17 @@ function newBattle(node) {
         // ramp is GENTLE (+3 effective depth per floor, not +7): a single
         // UNPARRIED blow should be frightening, not an instant execution.
         const bdepth = Math.max(1, (node.depth || 1) + ((node.floor || 1) - 1) * 3);
-        e.dmgMul = 2.3 + (bdepth - 1) * 0.08;
-        // A single-target boss gets FOCUS-FIRED by a full trio (every hero piles
-        // follow-ups onto one body), so it needs real bulk to be a CLIMAX rather
-        // than a 2-turn pushover.  The floor-1 boss leans on HP for that; the
-        // floor-2 boss (life-DRAIN + hunts the weakest) is deadly at less, so it
-        // keeps the leaner multiplier instead of becoming an HP sponge.  The
-        // floor-3 FINALE (the Sundering) faces a full endgame kit focus-firing
-        // one body, so it wants to be the BIGGEST wall — its own fat multiplier.
         const fl = node.floor || 1;
-        const bhpMult = fl >= 3 ? 2.4 : fl >= 2 ? 1.9 : 2.9;
+        // The ROAD bosses (floors 1–3) were pushovers vs a grown trio — they died
+        // before their parry gauntlet could bite.  Give them a real bump: more BULK
+        // so the cascade climax lasts, and a touch more bite on an unparried blow.
+        // The floor-4 CHORUS (the mega-boss) is already dialed in — leave it alone.
+        const roadBoss = fl < 4;
+        e.dmgMul = (2.3 + (bdepth - 1) * 0.08) * (roadBoss ? 1.1 : 1);
+        // A single-target boss gets FOCUS-FIRED by a full trio (every hero piles
+        // follow-ups onto one body), so it needs real bulk to be a CLIMAX.  (fl4 is
+        // the mega-boss — its per-stage HP comes from initMegaBoss, so this is moot.)
+        const bhpMult = fl >= 4 ? 2.4 : fl >= 3 ? 3.0 : fl >= 2 ? 2.3 : 3.5;
         const hp = Math.round(e.maxHp * bhpMult);
         e.maxHp = hp; e.hp = hp;
       } else {
