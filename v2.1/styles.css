@@ -2106,6 +2106,23 @@ button.map-node:not(:disabled) { cursor: pointer; }
   text-shadow: 0 0 10px rgba(255,150,60,0.55);
 }
 .ov-embers b { color: #ffd08a; }
+/* ---- GAME OVER — a true ending screen with the run's arc ---- */
+.go-screen { display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; padding: 4px 8px; animation: go-in 0.9s ease both; }
+@keyframes go-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; } }
+.go-screen .ov-title { color: #d86a6a; text-shadow: 0 0 24px rgba(180,50,50,0.5); margin: 2px 0 2px; }
+.go-figs { display: flex; gap: 10px; justify-content: center; margin-top: 2px; }
+.go-fig { width: 52px; height: 62px; border-radius: 8px; overflow: hidden; border: 1px solid rgba(200,90,90,0.35);
+  background: rgba(12,8,8,0.9); display: inline-flex; align-items: flex-end; justify-content: center; filter: grayscale(0.55) brightness(0.7); }
+.go-fig svg, .go-fig img { height: 66px; width: auto; }
+.go-fell { font-size: 12px; color: var(--ink-dim); max-width: 460px; line-height: 1.5; }
+.go-fell b { color: var(--ink); }
+.go-stats { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin: 4px 0; }
+.go-stat { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 66px; padding: 8px 10px;
+  border: 1px solid rgba(232,220,196,0.14); border-radius: 8px; background: rgba(16,12,10,0.7); }
+.go-stat-v { font-size: 17px; font-weight: 700; color: var(--gold-bright); font-variant-numeric: tabular-nums; }
+.go-stat-l { font-size: 7.5px; letter-spacing: 0.14em; color: var(--ink-faint); text-transform: uppercase; }
+.go-memory { font-size: 10.5px; color: var(--ink-faint); font-style: italic; max-width: 440px; line-height: 1.5; margin-top: 2px; }
+.go-memory b { color: #c8a86a; font-style: normal; }
 /* title-screen ember button carries a warm glow */
 #t-tree { color: #ffcf8a; border-color: rgba(255,170,90,0.4); }
 #t-tree:hover { border-color: rgba(255,180,100,0.75); box-shadow: 0 0 14px rgba(255,150,60,0.28); }
@@ -2199,7 +2216,14 @@ button.map-node:not(:disabled) { cursor: pointer; }
 .et-canvas.et-grid.et-grabbing { cursor: grabbing; }
 /* the constellation sits in a fixed-size layer, centred a touch LEFT so the
    floating detail panel doesn't cover it; drag translates it (JS transform). */
-.et-pan { position: absolute; left: 42%; top: 50%; width: 340px; height: 340px; margin: -170px 0 0 -170px; will-change: transform; }
+.et-pan { position: absolute; left: 42%; top: 50%; width: 340px; height: 340px; margin: -170px 0 0 -170px; will-change: transform; transform-origin: center center; }
+/* ZOOM controls — small +/- stack, lower-left of the tree canvas */
+.et-zoom { position: absolute; left: 8px; bottom: 8px; z-index: 8; display: flex; flex-direction: column; gap: 5px; }
+.et-zoom-btn { width: 30px; height: 30px; border-radius: 7px; border: 1px solid rgba(240,212,136,0.28);
+  background: rgba(14,11,9,0.86); color: var(--ink); font: 600 18px/1 monospace; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; transition: border-color 0.12s, background 0.12s; }
+.et-zoom-btn:hover { border-color: var(--gold-bright); color: var(--gold-bright); background: rgba(30,22,12,0.9); }
+.et-zoom-btn:active { transform: scale(0.92); }
 /* the detail rail floats over the field on the right, on a soft gradient that
    fades in from transparent so nodes behind its left edge stay readable */
 .et-side { position: absolute; top: 0; right: 0; bottom: 0; width: 316px; padding: 18px 24px; z-index: 5;

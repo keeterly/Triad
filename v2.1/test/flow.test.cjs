@@ -2096,16 +2096,32 @@ const QUICK = process.argv.includes('--quick');
       startMapFight(RUN.map.find(x => x.type === 'fight'));
       const ash = S.heroes.find(h => h.id === 'ash'), hk = S.heroes.find(h => h.id === 'hask');
       return ash.row === 'front' && hk.row === 'back'; }));
-  check('DOWNED heroes STAY down between fights (no free revive); a campfire revives them',
+  check('DOWNED heroes STAY down between fights (no free revive)',
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash', 'hask']; RUN.active = RUN.roster.slice();
       RUN.hp = { ash: 20, hask: 0 };   // Hask fell last fight — hp 0
       RUN.completed = [0, 1, 2, 3, 4, 5, 6, 7, 8];
       startMapFight(RUN.map.find(x => x.type === 'fight'));
       const hk = S.heroes.find(h => h.id === 'hask');
-      const downedAtStart = !!hk && hk.downed && hk.hp === 0;   // still down entering the fight
-      _healParty(6);                                            // campfire
-      return downedAtStart && RUN.hp.hask === 6; }));           // revived
+      return !!hk && hk.downed && hk.hp === 0; }));   // still down entering the fight
+  check('CAMP REVIVE is a CHOICE: the fire heals the LIVING to full but the fallen stay down',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash', 'hask']; RUN.active = ['ash', 'hask'];
+      RUN.hp = { ash: 12, hask: 0 };   // Ash wounded, Hask fallen
+      showCamp({ id: 77, label: 'TEST FIRE' });
+      const healedLiving = RUN.hp.ash === HEROES.ash.maxHp;   // the living mend fully
+      const fallenStayDown = RUN.hp.hask === 0;               // the dead do NOT rise on their own
+      const raiseOffered = !!document.getElementById('camp-raise');   // the choice is presented
+      hideOverlay();
+      return healedLiving && fallenStayDown && raiseOffered; }));
+  check('CAMP REVIVE: choosing RAISE returns the fallen at half HP',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash', 'hask']; RUN.active = ['ash', 'hask'];
+      RUN.hp = { ash: 30, hask: 0 };
+      showCamp({ id: 78, label: 'TEST FIRE' });
+      const btn = document.getElementById('camp-raise'); if (btn) btn.click();
+      hideOverlay();
+      return RUN.hp.hask === Math.ceil(HEROES.hask.maxHp / 2); }));
   check('COMBO branwen.passive.killingblow: +4 vs a foe at/below half HP, nothing above',
     await J(() => {
       setupFight(['branwen'], ['branwen.passive.killingblow'], { branwen: 'mid' });

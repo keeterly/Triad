@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 147;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 148;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -58,7 +58,7 @@ function saveMeta() { try { localStorage.setItem(META_KEY, JSON.stringify({ heat
 function runEmbers() { return (RUN && +RUN.embers) || 0; }
 function hasNode(id) { return !!(RUN && RUN.nodes && RUN.nodes.indexOf(id) >= 0); }
 function unlockNode(id) { if (RUN && !hasNode(id)) { (RUN.nodes = RUN.nodes || []).push(id); saveRun(); } }
-function addEmbers(n) { if (!RUN) return; RUN.embers = Math.max(0, (RUN.embers || 0) + n); saveRun(); }
+function addEmbers(n) { if (!RUN) return; RUN.embers = Math.max(0, (RUN.embers || 0) + n); if (n > 0) RUN._embersTotal = (RUN._embersTotal || 0) + n; saveRun(); }
 // A tree TIER opens as you DESCEND: tier 1 from the start, tier 2 once a couple
 // of nodes are behind you, tier 3 deeper still — the kit grows across the run.
 function runDepth() { return RUN ? ((RUN.depthBase || 0) + (RUN.completed ? RUN.completed.length : 0)) : 0; }
@@ -4851,19 +4851,41 @@ function onDefeat() {
       label: S.node.label || (mapNode(S.node.mapId) || {}).label || 'the dark',
     };
     saveAbyss(abyss);
+    // GAME OVER — capture the run's arc BEFORE the run is wiped, so the screen
+    // shows how far this thread reached: floor, depth, bonds held, skills kindled,
+    // embers torn from the dark.  A true ending, not a shrug.
+    const trio = RUN.active.slice();
+    const stats = {
+      floor: RUN.floor || 1,
+      label: abyss[memLevel].label,
+      threads: (S.threads ? S.threads.size : 0),
+      kindled: (RUN.nodes ? RUN.nodes.length : 0),
+      embers: RUN._embersTotal || RUN.embers || 0,
+      cleared: (RUN.depthBase || 0) + memLevel,
+    };
     try { localStorage.removeItem(RUN_KEY); } catch (_) {}
     RUN = null;
-    const names = abyss[memLevel].trio.map(id => HEROES[id].name).join(' · ');
+    const figs = trio.map(id => `<span class="go-fig">${V2PORTRAITS[id] || ''}</span>`).join('');
+    const names = trio.map(id => HEROES[id].name).join(' · ');
+    const stat = (v, l) => `<div class="go-stat"><span class="go-stat-v">${v}</span><span class="go-stat-l">${l}</span></div>`;
     setTimeout(() => {
       showOverlay(`
-        <div class="ov-eyebrow">THE DESCENT ENDS</div>
-        <div class="ov-title" style="font-size:22px">THE THREAD FRAYS</div>
-        <div class="ov-lines" style="text-align:center; min-height:0">
-          <div class="ov-line">${names} fall at <b>${abyss[memLevel].label}</b>.</div>
-          <div class="ov-line">But nothing here is wasted. <b>The Abyss remembers.</b></div>
+        <div class="go-screen">
+          <div class="ov-eyebrow" style="color:#c85a5a">THE DESCENT ENDS</div>
+          <div class="ov-title" style="font-size:30px; letter-spacing:0.16em;">GAME OVER</div>
+          <div class="go-figs">${figs}</div>
+          <div class="go-fell">${names} fall at <b>${stats.label}</b>${stats.floor >= 2 ? ` · <b>Floor ${stats.floor}</b>` : ''}.</div>
+          <div class="go-stats">
+            ${stat('FL ' + stats.floor, 'reached')}
+            ${stat(stats.cleared, 'nodes cleared')}
+            ${stat(stats.threads, 'threads held')}
+            ${stat(stats.kindled, 'skills kindled')}
+            ${stat(stats.embers, 'embers torn')}
+          </div>
+          <div class="go-memory">Nothing here is wasted. <b>The Abyss remembers</b> — the next to descend will find where you fell.</div>
+          <button class="ov-btn primary" id="ov-fallen">RETURN TO THE SURFACE</button>
         </div>
-        <button class="ov-btn primary" id="ov-fallen">RETURN TO THE SURFACE</button>
-      `);
+      `, 'game-over');
       $('#ov-fallen').onclick = () => { hideOverlay(); showTitle(); };
     }, 700);
     return;
@@ -5769,9 +5791,12 @@ function showBoonDraft(onDone, opts) {
   }; });
 }
 function showCamp(n) {
-  RUN.roster.forEach(id => { RUN.hp[id] = HEROES[id].maxHp; });
+  // The fire closes every wound on the LIVING — but the fallen do not rise on
+  // their own.  Raising them is a deliberate camp act (see the RAISE choice).
+  RUN.roster.forEach(id => { const hp = RUN.hp[id] ?? HEROES[id].maxHp; if (hp > 0) RUN.hp[id] = HEROES[id].maxHp; });
   if (!RUN.completed.includes(n.id)) RUN.completed.push(n.id);
   saveRun();
+  const fallen = (RUN.roster || []).filter(id => (RUN.hp[id] ?? 1) <= 0);
   // CINEMATIC CAMPFIRE — the party gathers, lit warm by the fire; the night's
   // one choice is offered as cards over the scene (mirrors the JRPG cutscenes).
   const party = ((RUN.active && RUN.active.length) ? RUN.active : RUN.roster).slice();
@@ -5794,15 +5819,23 @@ function showCamp(n) {
       <div class="camp-top">
         <div class="camp-eyebrow">CAMPFIRE</div>
         <div class="camp-title">${n.label}</div>
-        <div class="camp-flavor">The fire holds back the dark. <b>Every wound closes.</b></div>
+        <div class="camp-flavor">The fire holds back the dark. <b>Every wound on the living closes.</b>${fallen.length ? ` But <b>${fallen.map(id => HEROES[id].name).join(' & ')}</b> ${fallen.length > 1 ? 'lie' : 'lies'} still — the fire alone will not raise them.` : ''}</div>
       </div>
       <div class="camp-choices">
+        ${fallen.length ? choice('camp-raise', '☨', 'RAISE THE FALLEN', `<b>${fallen.map(id => HEROES[id].name).join(' & ')}</b> ${fallen.length > 1 ? 'return' : 'returns'} at <b>half HP</b> — the fire’s only gift tonight.`) : ''}
         ${choice('camp-fire', '♡', 'SHARE THE FIRE', 'Deepen your weakest bond <b>+1</b>.')}
         ${choice('camp-steel', '▲', 'SHARPEN STEEL', 'Open the next fight with <span class="kw kw-rally">▲ RALLY +2</span>.')}
         ${choice('camp-boon', '✦', 'COMMUNE AT THE FIRE', 'A companion shares a gift — <b>draw 1 of 3</b>.')}
       </div>
     </div>
   `, 'camp-cine');
+  const raiseBtn = $('#camp-raise');
+  if (raiseBtn) raiseBtn.onclick = () => {
+    fallen.forEach(id => { RUN.hp[id] = Math.max(1, Math.ceil(HEROES[id].maxHp / 2)); });
+    saveRun();
+    showTravelerOutcome(fallen[0], '☨ RAISED FROM THE DARK', fallen.map(id => HEROES[id].name).join(' & ') + (fallen.length > 1 ? ' RISE' : ' RISES'),
+      `The fire takes what the dark left. <b>${fallen.map(id => HEROES[id].name).join(' & ')}</b> ${fallen.length > 1 ? 'stand' : 'stands'} again — half-alive, wholly here. Tonight the fire had only this to give.`, false, fallen[0]);
+  };
   $('#camp-fire').onclick = () => showCampScene(n);
   $('#camp-steel').onclick = () => {
     RUN.campEdge = true;
@@ -6964,40 +6997,58 @@ function nodeDescHTML(desc) {
     + (flav ? `<span class="et-flav"> — ${flav}</span>` : '');
 }
 const TREE_HEROES = EMBER_TREE.reduce((a, n) => (a.includes(n.hero) ? a : a.concat(n.hero)), []);
-const TREE_PAN = {};   // per-hero pan offset, kept across re-renders (selecting a node re-renders)
-// Drag-to-pan the constellation so outer-ring nodes (the tier-3/4 arms that
-// reach past the canvas) are always tap-able.  Suppresses the orb SELECT click
-// when the gesture was actually a drag.
+const TREE_PAN = {};    // per-hero pan offset, kept across re-renders (selecting a node re-renders)
+const TREE_ZOOM = {};   // per-hero zoom (1 = default, same as before)
+const TREE_ZMIN = 0.6, TREE_ZMAX = 2.0;
+// Drag-to-pan AND pinch/button-ZOOM the constellation, so the tier-3/4 arms that
+// reach past the canvas are always tap-able and you can pull back for the whole
+// map or lean in on one branch.  Suppresses the orb SELECT click on a real drag.
 function attachTreePan(heroId) {
   const canvas = document.getElementById('et-canvas');
   const pan = document.getElementById('et-pan');
   if (!canvas || !pan) return;
-  const CLAMP = 165;
-  const clamp = (v) => Math.max(-CLAMP, Math.min(CLAMP, v));
+  const clamp = (v) => { const c = 165 * (TREE_ZOOM[heroId] || 1); return Math.max(-c, Math.min(c, v)); };
   let ox = (TREE_PAN[heroId] && TREE_PAN[heroId].x) || 0;
   let oy = (TREE_PAN[heroId] && TREE_PAN[heroId].y) || 0;
-  const apply = () => { pan.style.transform = `translate(${ox}px, ${oy}px)`; };
+  let z = TREE_ZOOM[heroId] || 1;
+  const apply = () => { pan.style.transform = `translate(${ox}px, ${oy}px) scale(${z})`; };
   apply();
-  let sx = 0, sy = 0, drag = false, pid = null;
+  const setZoom = (nz) => { z = Math.max(TREE_ZMIN, Math.min(TREE_ZMAX, nz)); TREE_ZOOM[heroId] = z; ox = clamp(ox); oy = clamp(oy); TREE_PAN[heroId] = { x: ox, y: oy }; apply(); };
+  // ---- PINCH (two pointers) + PAN (one) --------------------------------------
+  const pts = new Map();
+  let sx = 0, sy = 0, drag = false, pid = null, pinchStart = 0, zStart = 1;
   canvas.addEventListener('pointerdown', (e) => {
-    pid = e.pointerId; sx = e.clientX; sy = e.clientY; drag = true; canvas._dragMoved = false;
-    canvas.classList.add('et-grabbing');
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pts.size === 2) { const [a, b] = [...pts.values()]; pinchStart = Math.hypot(a.x - b.x, a.y - b.y) || 1; zStart = z; drag = false; }
+    else { pid = e.pointerId; sx = e.clientX; sy = e.clientY; drag = true; canvas._dragMoved = false; canvas.classList.add('et-grabbing'); }
   });
   canvas.addEventListener('pointermove', (e) => {
+    if (pts.has(e.pointerId)) pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pts.size >= 2) {                              // PINCH — scale from the current gap
+      const [a, b] = [...pts.values()]; const gap = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+      canvas._dragMoved = true; setZoom(zStart * (gap / pinchStart)); return;
+    }
     if (!drag || e.pointerId !== pid) return;
     const s = stageScale();                          // the tree pans INSIDE the scaled stage — divide so it tracks the pointer 1:1
     const dx = (e.clientX - sx) / s, dy = (e.clientY - sy) / s;
     if (Math.abs(dx) + Math.abs(dy) > 6) canvas._dragMoved = true;
-    pan.style.transform = `translate(${clamp(ox + dx)}px, ${clamp(oy + dy)}px)`;
+    pan.style.transform = `translate(${clamp(ox + dx)}px, ${clamp(oy + dy)}px) scale(${z})`;
   });
   const end = (e) => {
-    if (!drag) return; drag = false; canvas.classList.remove('et-grabbing');
+    pts.delete(e.pointerId);
+    if (pts.size < 2) pinchStart = 0;
+    if (!drag) { canvas.classList.remove('et-grabbing'); return; }
+    drag = false; canvas.classList.remove('et-grabbing');
     const s = stageScale();
     ox = clamp(ox + (e.clientX - sx) / s); oy = clamp(oy + (e.clientY - sy) / s);
     TREE_PAN[heroId] = { x: ox, y: oy }; apply();
   };
   canvas.addEventListener('pointerup', end);
   canvas.addEventListener('pointercancel', end);
+  // ---- BUTTONS ---------------------------------------------------------------
+  const zin = document.getElementById('et-zoom-in'), zout = document.getElementById('et-zoom-out');
+  if (zin) zin.onclick = (ev) => { ev.stopPropagation(); setZoom(z + 0.25); };
+  if (zout) zout.onclick = (ev) => { ev.stopPropagation(); setZoom(z - 0.25); };
 }
 // node state for the current META: owned / ready(buyable) / poor(can't afford)
 // / needs(prereq) / sealed(tier).
@@ -7111,6 +7162,10 @@ function showEmberTree(onBack, heroId, selId) {
         <div class="et-pan" id="et-pan">
           <svg class="et-links" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${ringSvg}${linkSvg}</svg>
           ${rootOrb}${orbs}
+        </div>
+        <div class="et-zoom">
+          <button class="et-zoom-btn" id="et-zoom-out" title="Zoom out">−</button>
+          <button class="et-zoom-btn" id="et-zoom-in" title="Zoom in">+</button>
         </div>
       </div>
       <div class="et-side">
