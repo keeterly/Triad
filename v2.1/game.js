@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 146;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 147;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -5026,7 +5026,11 @@ function showMap() {
         </button>`;
       }).join('')}
     </div>`).join('');
-  const trio = RUN.active.map(id => `<span class="party-chip-fig">${V2PORTRAITS[id] || ''}</span>`).join('');
+  // Show the active trio AND any BENCHED roster members (dimmed) — a benched hero
+  // must never read as "removed"; the whole chip opens the swap screen.
+  const benched = (RUN.roster || []).filter(id => !RUN.active.includes(id));
+  const trio = RUN.active.map(id => `<span class="party-chip-fig">${V2PORTRAITS[id] || ''}</span>`).join('')
+    + benched.map(id => `<span class="party-chip-fig benched" title="${HEROES[id].name} — benched · tap to swap in">${V2PORTRAITS[id] || ''}</span>`).join('');
   const r = triadEntryFor(RUN.active);
   const mood = partyMood(), moodDef = MOODS[mood];
   // Only nag "kindle a skill" when you can actually AFFORD one — otherwise it
@@ -5050,7 +5054,7 @@ function showMap() {
     <div class="map-footer">
       <button class="party-chip" id="map-party">
         ${trio}
-        <span class="party-chip-meta">PARTY · resonates as <b>✦ ${r.name}</b> <i>(${r.type})</i></span>
+        <span class="party-chip-meta">PARTY · resonates as <b>✦ ${r.name}</b> <i>(${r.type})</i>${benched.length ? ` · <b>${benched.length} benched</b> — tap to swap` : ''}</span>
       </button>
       <button class="map-tree-btn${canKindle ? ' mt-glow mt-teach' : (hasEmbers ? ' mt-glow' : '')}" id="map-tree">✦ EMBER TREE<span class="mt-embers">${runEmbers()}</span></button>
     </div>

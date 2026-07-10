@@ -811,6 +811,7 @@ button.map-node:not(:disabled) { cursor: pointer; }
   border: 1px solid var(--edge); display: inline-flex; align-items: flex-end; justify-content: center;
   background: rgba(10,8,8,0.9); }
 .party-chip-fig svg, .party-chip-fig img { height: 34px; width: auto; }
+.party-chip-fig.benched { opacity: 0.4; filter: grayscale(0.7); border-style: dashed; margin-left: 3px; }
 .party-chip-meta b { color: var(--gold-bright); }
 .party-chip-meta i { color: var(--ink-faint); font-style: normal; }
 

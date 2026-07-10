@@ -2072,6 +2072,22 @@ const QUICK = process.argv.includes('--quick');
       const h = S.heroes[0]; h.aether = -2;
       await resolveCard({ owner: 'hask', name: 'Cinderfall', cost: 0, target: 'enemy', fx: { dmg: 5, elem: 'fire' } }, e.uid);
       return h.aether === 1 && (hp0 - S.enemies[0].hp) === 7; }));   // ignites at Pyre 1: 5 base + 2 empower
+  check('PARTY PERSIST: a recruit (Hask) in the active trio SURVIVES the floor 1→2 descent — incl. downed + reload',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash', 'elin', 'hask']; RUN.active = ['ash', 'elin', 'hask'];
+      RUN.hp = { ash: 32, elin: 24, hask: 0 };   // Hask DOWNED at the floor boss
+      RUN.floor = 1; RUN.completed = [0, 1, 2, 3];
+      onFloorCleared();                          // clear the boss → descend to floor 2
+      const keptActive = RUN.active.includes('hask');
+      const revived = RUN.hp.hask === HEROES.hask.maxHp;   // floor-clear catches your breath
+      saveRun(); const reloaded = loadRun();     // quit + reopen between floors
+      const persisted = reloaded && reloaded.active.includes('hask');
+      return RUN.floor === 2 && keptActive && revived && persisted; }));
+  check('RECRUIT REACH: Hask is NOT floor-locked — floor 2 still offers him if he’s the one you lack',
+    await J(() => {
+      const map = generateDescent(['ash', 'elin', 'mira', 'cassia', 'branwen'], 2);   // only Hask is un-recruited
+      const recruitable = map.filter(n => n.hero).map(n => n.hero);
+      return STARTER_POOL.includes('hask') && recruitable.includes('hask'); }));
   check('POSITION MEMORY: a descent fight opens where the party stood at the end of the last one',
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash', 'hask']; RUN.active = RUN.roster.slice();
