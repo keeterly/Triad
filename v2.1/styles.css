@@ -586,6 +586,53 @@ body {
 .boon-portrait { position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: center; z-index: 0; pointer-events: none; }
 .boon-portrait svg { height: 208px; width: auto; opacity: 0.9;
   filter: drop-shadow(0 10px 20px rgba(0,0,0,0.9)) drop-shadow(0 0 26px color-mix(in srgb, var(--tint) 45%, transparent)); }
+/* DUO / TRIO — show every involved character, overlapped so all read at a glance */
+.boon-portrait-multi { align-items: flex-end; gap: 0; }
+.boon-portrait-multi .bp-fig { display: flex; align-items: flex-end; justify-content: center; flex: 1 1 0; min-width: 0; }
+.boon-portrait-multi .bp-fig svg { width: auto; opacity: 0.86;
+  filter: drop-shadow(0 8px 16px rgba(0,0,0,0.9)) drop-shadow(0 0 18px color-mix(in srgb, var(--tint) 45%, transparent)); }
+.boon-portrait-multi.bp-2 .bp-fig svg { height: 176px; }
+.boon-portrait-multi.bp-2 .bp-fig:first-child { margin-right: -18px; }
+.boon-portrait-multi.bp-3 .bp-fig svg { height: 150px; }
+.boon-portrait-multi.bp-3 .bp-fig { margin: 0 -14px; }
+.boon-portrait-multi.bp-3 .bp-fig:nth-child(2) { z-index: 1; }
+.boon-portrait-multi.bp-3 .bp-fig:nth-child(2) svg { height: 168px; }
+/* ---- BOON JOURNAL (compendium) ---- */
+.bj-screen .ov-title { color: var(--gold-bright); }
+.bj-count { font-size: 10px; letter-spacing: 0.18em; color: var(--ink-faint); margin-bottom: 8px; }
+.bj-scroll { width: 100%; max-width: 680px; margin: 0 auto; max-height: 62vh; overflow-y: auto; overflow-x: hidden;
+  padding: 2px 10px 6px; -webkit-overflow-scrolling: touch; }
+.bj-scroll::-webkit-scrollbar { width: 6px; }
+.bj-scroll::-webkit-scrollbar-thumb { background: rgba(240,212,136,0.28); border-radius: 3px; }
+.bj-sec-title { display: flex; align-items: center; gap: 7px; font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--tint, var(--ink-dim)); margin: 12px 2px 6px; padding-bottom: 4px; border-bottom: 1px solid rgba(232,220,196,0.12); }
+.bj-sec-title.bj-combo { color: var(--gold-bright); }
+.bj-sec-fig { width: 20px; height: 20px; border-radius: 50%; overflow: hidden; display: inline-flex; align-items: flex-end; justify-content: center; background: rgba(10,8,8,0.9); }
+.bj-sec-fig svg { height: 26px; width: auto; }
+.bj-grid { display: flex; flex-direction: column; gap: 6px; }
+.bj-entry { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 9px;
+  border: 1px solid rgba(232,220,196,0.12); background: rgba(16,12,10,0.6); opacity: 0.6; transition: opacity 0.15s, border-color 0.15s; }
+.bj-entry.bj-owned { opacity: 1; border-color: color-mix(in srgb, var(--tint) 40%, rgba(232,220,196,0.16)); background: rgba(22,16,12,0.72); }
+.bj-entry.bj-duo { border-color: rgba(150,120,232,0.32); }
+.bj-entry.bj-trio { border-color: rgba(240,212,136,0.4); }
+.bj-figs { display: flex; flex: 0 0 auto; }
+.bj-fig { width: 30px; height: 34px; border-radius: 6px; overflow: hidden; display: inline-flex; align-items: flex-end; justify-content: center;
+  background: rgba(10,8,8,0.9); border: 1px solid color-mix(in srgb, var(--tint) 40%, transparent); }
+.bj-figs-2 .bj-fig:first-child, .bj-figs-3 .bj-fig { margin-right: -8px; }
+.bj-fig svg { height: 38px; width: auto; }
+.bj-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; text-align: left; }
+.bj-line { display: flex; align-items: center; gap: 7px; }
+.bj-med { font-size: 13px; color: var(--tint, var(--ink)); }
+.bj-name { font-size: 12px; font-weight: 700; color: var(--ink); }
+.bj-tier { font-size: 7px; letter-spacing: 0.14em; padding: 2px 5px; border-radius: 4px; border: 1px solid currentColor; opacity: 0.85; }
+.bj-tier.bt-single { color: var(--ink-faint); }
+.bj-tier.bt-duo { color: #b49ce8; }
+.bj-tier.bt-trio { color: var(--gold-bright); }
+.bj-tier.bt-rare { color: #ec8a5a; }
+.bj-check { color: #7ad07a; font-size: 12px; margin-left: auto; }
+.bj-desc { font-size: 9.5px; line-height: 1.4; color: var(--ink-dim); }
+.bj-req { font-size: 8px; letter-spacing: 0.06em; color: var(--ink-faint); font-style: italic; }
+.bj-req b { color: color-mix(in srgb, var(--tint) 70%, var(--ink)); font-style: normal; }
 .boon-scrim { position: absolute; inset: 0; z-index: 1; pointer-events: none;
   background: linear-gradient(180deg, rgba(6,4,3,0.12) 0%, rgba(6,4,3,0.05) 40%, rgba(6,4,3,0.88) 72%, rgba(6,4,3,0.98) 100%); }
 .boon-medallion { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 2;

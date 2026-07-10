@@ -1823,6 +1823,32 @@ const QUICK = process.argv.includes('--quick');
       const fire = { owner: 'hask', fx: { dmg: 8, elem: 'fire' } }, ice = { owner: 'hask', fx: { dmg: 6, elem: 'ice' } };
       runBoons().filter(b => b.card).forEach(b => { b.card(fire); b.card(ice); });
       return fire.fx.dmg === 11 && ice.fx.dmg === 6; }));
+  check('BOON JOURNAL: renders every gift, grouped, with duo/trio requirements shown',
+    await J(() => {
+      showBoonJournal(() => {});
+      const entries = document.querySelectorAll('.bj-entry');
+      const duoReqs = document.querySelectorAll('.bj-entry.bj-duo .bj-req').length;
+      const trioReqs = document.querySelectorAll('.bj-entry.bj-trio .bj-req').length;
+      const ok = entries.length === BOONS.length && duoReqs >= 1 && trioReqs >= 1;
+      hideOverlay();
+      return ok; }));
+  check('BOON JOURNAL: a taken gift is marked COLLECTED (persists across runs)',
+    await J(() => {
+      markBoonCollected('trio_killwind');
+      showBoonJournal(() => {});
+      const owned = [...document.querySelectorAll('.bj-entry.bj-owned .bj-name')].map(e => e.textContent);
+      hideOverlay();
+      return loadBoonCodex().includes('trio_killwind') && owned.includes('The Killing Wind'); }));
+  check('BOON DRAFT: duo/trio cards show ALL involved characters’ portraits',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash', 'mira', 'branwen']; RUN.active = ['ash', 'mira', 'branwen']; RUN.boons = [];
+      RUN.boons = BOONS.filter(b => !b.duo && !b.trio && ['ash', 'mira', 'branwen'].includes(b.hero)).map(b => b.id);
+      showBoonDraft(() => {}, {});
+      const trio = document.querySelector('.boon-card.boon-trio .boon-portrait-multi.bp-3');
+      const duo = document.querySelector('.boon-card.boon-duo .boon-portrait-multi.bp-2');
+      const trioFigs = trio ? trio.querySelectorAll('.bp-fig').length : 0;
+      hideOverlay();
+      return !!trio && !!duo && trioFigs === 3; }));
   check('CAMP: the fire’s third slot is COMMUNE (draw a boon), not the old Forge',
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash']; RUN.hp = { ash: 32 }; RUN.boons = [];

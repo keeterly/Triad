@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 149;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 150;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -583,6 +583,11 @@ const BOONS = [
     trigger: 'dmgMod', mod: (o, t) => (t && t.mark ? 4 : 0) },
 ];
 const BOON_BY_ID = {}; BOONS.forEach(b => { BOON_BY_ID[b.id] = b; });
+// BOON CODEX — which gifts you've ever COLLECTED, persisted across runs so the
+// Journal fills in as you discover the roster's combos.
+const BOON_CODEX_KEY = 'kizuna2_1.boonCodex';
+function loadBoonCodex() { try { const a = JSON.parse(localStorage.getItem(BOON_CODEX_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch (_) { return []; } }
+function markBoonCollected(id) { try { const s = new Set(loadBoonCodex()); if (!s.has(id)) { s.add(id); localStorage.setItem(BOON_CODEX_KEY, JSON.stringify([...s])); } } catch (_) {} }
 // active boons: OWNED this descent AND their hero is currently fielded
 // A boon is ACTIVE when its hero is fielded — or, for a DUO boon (Hades-style),
 // when BOTH named heroes are fielded together.  So WHO you bring, and which
@@ -5815,7 +5820,9 @@ function showBoonDraft(onDone, opts) {
   shuffled.forEach(b => { if (picks.length < 3 && picks.indexOf(b) < 0) picks.push(b); });
   const cardHtml = (b) => `
     <button class="boon-card${b.trio ? ' boon-trio' : b.duo ? ' boon-duo' : ''}${b.rare ? ' boon-rare' : ''}" id="boon-${b.id}" style="--tint:${HEROES[b.hero].tint}">
-      <span class="boon-portrait">${V2PORTRAITS[b.hero] || ''}</span>
+      ${(() => { const hs = b.heroes || [b.hero]; return hs.length > 1
+        ? `<span class="boon-portrait boon-portrait-multi bp-${hs.length}">${hs.map(h => `<span class="bp-fig" style="--tint:${HEROES[h].tint}">${V2PORTRAITS[h] || ''}</span>`).join('')}</span>`
+        : `<span class="boon-portrait">${V2PORTRAITS[b.hero] || ''}</span>`; })()}
       <span class="boon-scrim"></span>
       <span class="boon-medallion">${b.icon}</span>
       <span class="boon-body">
@@ -5831,10 +5838,51 @@ function showBoonDraft(onDone, opts) {
     <div class="boon-choices">${picks.map(cardHtml).join('')}</div>
   `, 'boon-screen');
   picks.forEach(b => { const el = $('#boon-' + b.id); if (el) el.onclick = () => {
-    RUN.boons.push(b.id); saveRun();
+    RUN.boons.push(b.id); markBoonCollected(b.id); saveRun();
     try { SFX.kindle(); } catch (_) {}
     done();
   }; });
+}
+// BOON JOURNAL — a compendium of every companion gift: singles by hero, then the
+// DUO and TRIO gifts that only appear when the named party walks together (so you
+// can plan a composition around them, Hades-style).  Collected gifts are badged.
+function showBoonJournal(onBack) {
+  const codex = new Set(loadBoonCodex());
+  const got = BOONS.filter(b => codex.has(b.id)).length;
+  const entry = (b) => {
+    const hs = b.heroes || [b.hero];
+    const tier = b.trio ? 'TRIO' : b.duo ? 'DUO' : b.rare ? 'RARE' : (HEROES[b.hero].name);
+    const owned = codex.has(b.id);
+    return `<div class="bj-entry${owned ? ' bj-owned' : ''}${b.trio ? ' bj-trio' : b.duo ? ' bj-duo' : b.rare ? ' bj-rare' : ''}" style="--tint:${HEROES[b.hero].tint}">
+      <span class="bj-figs bj-figs-${hs.length}">${hs.map(h => `<span class="bj-fig" style="--tint:${HEROES[h].tint}">${V2PORTRAITS[h] || ''}</span>`).join('')}</span>
+      <span class="bj-info">
+        <span class="bj-line"><span class="bj-med">${b.icon}</span><span class="bj-name">${b.name}</span><span class="bj-tier bt-${b.trio ? 'trio' : b.duo ? 'duo' : b.rare ? 'rare' : 'single'}">${tier}</span>${owned ? '<span class="bj-check" title="collected">✓</span>' : ''}</span>
+        <span class="bj-desc">${b.desc}</span>
+        ${b.heroes ? `<span class="bj-req">◈ needs <b>${hs.map(h => HEROES[h].name).join(' + ')}</b> in the party together</span>` : ''}
+      </span>
+    </div>`;
+  };
+  const singles = BOONS.filter(b => !b.heroes);
+  const duos = BOONS.filter(b => b.duo);
+  const trios = BOONS.filter(b => b.trio);
+  const byHero = {};
+  singles.forEach(b => { (byHero[b.hero] = byHero[b.hero] || []).push(b); });
+  const heroOrder = ['ash', 'elin', 'mira', 'cassia', 'branwen', 'hask'];
+  const singleSecs = heroOrder.filter(h => byHero[h]).map(h =>
+    `<div class="bj-sec-title" style="--tint:${HEROES[h].tint}"><span class="bj-sec-fig">${V2PORTRAITS[h] || ''}</span>${HEROES[h].name}</div><div class="bj-grid">${byHero[h].map(entry).join('')}</div>`).join('');
+  const section = (title, list) => list.length ? `<div class="bj-sec-title bj-combo">${title}</div><div class="bj-grid">${list.map(entry).join('')}</div>` : '';
+  showOverlay(`
+    <div class="ov-eyebrow" style="color:var(--gold-bright)">THE COMPANIONS’ GIFTS</div>
+    <div class="ov-title" style="font-size:21px; margin-bottom:2px;">BOON JOURNAL</div>
+    <div class="bj-count">${got} / ${BOONS.length} discovered</div>
+    <div class="bj-scroll">
+      ${singleSecs}
+      ${section('⚭ DUO GIFTS — appear only when both walk together', duos)}
+      ${section('✦ TRIO GIFTS — the exact three, the rarest bond', trios)}
+    </div>
+    <button class="ov-btn et-back-btn" id="bj-back">◂ BACK</button>
+  `, 'map-screen bj-screen');
+  $('#bj-back').onclick = onBack || showTitle;
 }
 function showCamp(n) {
   // The fire closes every wound on the LIVING — but the fallen do not rise on
@@ -6847,6 +6895,7 @@ function showMenu() {
       <button class="menu-item menu-primary" id="m-resume">▸ RESUME</button>
       <button class="menu-item" id="m-sound"><span>SOUND</span>${onOff(SETTINGS.sound)}</button>
       <button class="menu-item" id="m-haptics"><span>HAPTICS</span>${onOff(SETTINGS.haptics)}</button>
+      <button class="menu-item" id="m-journal"><span>BOON JOURNAL</span><span class="menu-val">✦</span></button>
       <button class="menu-item" id="m-howto"><span>HOW TO PLAY</span><span class="menu-val">?</span></button>
       ${inRun ? `<button class="menu-item menu-warn" id="m-abandon"><span>ABANDON RUN</span><span class="menu-val">✕</span></button>` : ''}
       <button class="menu-item" id="m-title"><span>RETURN TO TITLE</span><span class="menu-val">⌂</span></button>
@@ -6856,6 +6905,7 @@ function showMenu() {
   $('#m-resume').onclick = resumeFromMenu;
   $('#m-sound').onclick = () => { toggleSetting('sound'); showMenu(); };
   $('#m-haptics').onclick = () => { toggleSetting('haptics'); showMenu(); };
+  $('#m-journal').onclick = () => showBoonJournal(showMenu);
   $('#m-howto').onclick = () => showHowTo();
   $('#m-title').onclick = () => { RUN = null; S = null; try { localStorage.removeItem(RUN_KEY); } catch (_) {} showTitle(); };
   const ab = $('#m-abandon');
@@ -6982,6 +7032,7 @@ function showTitle() {
     <div class="tt-menu-bar">
       <button class="tt-opt tt-opt-primary" id="t-new">NEW GAME</button>
       ${canContinue ? `<button class="tt-opt" id="t-continue">CONTINUE</button>` : ''}
+      <button class="tt-opt" id="t-journal">BOON JOURNAL</button>
       <button class="tt-opt" id="t-settings">SETTINGS</button>
     </div>
     <div class="tt-ver">V2.1 · BUILD ${V2_BUILD}</div>
@@ -6993,6 +7044,7 @@ function showTitle() {
     if (r && !r.done) { RUN = r; showMap(); }
     else showStarterSelect(id => beginRun(id));
   };
+  $('#t-journal').onclick = () => showBoonJournal(showTitle);
   $('#t-settings').onclick = () => showSettings();
 }
 // SETTINGS (from the title) — device prefs, difficulty (Heat), and dev tools.
