@@ -826,19 +826,19 @@ const QUICK = process.argv.includes('--quick');
     await J((o) => (o.a - S.heroes.find(h => h.id === 'ash').hp) < 4 && S.momentum > 0, { a: ashHp0 }),
     await J((o) => 'ashDmg:' + (o.a - S.heroes.find(h => h.id === 'ash').hp) + ' mom:' + S.momentum, { a: ashHp0 }));
   // varied rhythm patterns derive per intent + preview on the telegraph
-  check('RHYTHM: attacks carry varied parry patterns (+ sizes)',
-    await J(() => parryPatternFor({ heavy: true }).kind === 'hold'
-      && parryPatternFor({ row: 'all', dmg: 4 }).size === 'wide'
-      && parryPatternFor({ dmg: 3 }).kind === 'mash'
-      && parryPatternFor({ dmg: 5 }).kind === 'multi'
-      && parryPatternFor({ dmg: 8 }).size === 'big'
-      && parryPatternFor({ dmg: 6 }).kind === 'tap'));
+  check('RHYTHM: blows resolve as STRINGS — a heavy is a braced cascade, mid hits are 2–3-note strings, a jab a single read, a frenzy a mash',
+    await J(() => parryPatternFor({ heavy: true }).kind === 'seq' && parryPatternFor({ heavy: true }).notes.length >= 4
+      && parryPatternFor({ row: 'all', dmg: 4 }).kind === 'seq'
+      && parryPatternFor({ dmg: 2 }).kind === 'mash'
+      && parryPatternFor({ dmg: 4 }).kind === 'tap'
+      && parryPatternFor({ dmg: 6 }).kind === 'seq' && parryPatternFor({ dmg: 6 }).notes.length === 2
+      && parryPatternFor({ dmg: 9 }).kind === 'seq' && parryPatternFor({ dmg: 9 }).notes.length === 3));
   check('INTENT: the telegraph pill is clean — damage + target row, no parry-glyph clutter',
     await J(() => { const p = document.querySelector('.intent'); return !!p && !!p.querySelector('.i-dmg') && !!p.querySelector('.i-row') && !p.querySelector('.i-parry'); }));
-  check('ALL-HIT: a whole-party blow is one across-sweep parry',
-    await J(() => { const p = parryPatternFor({ row: 'all', dmg: 5 }); return p.kind === 'swipe' && p.arc === 'arcAcross' && p.across === true; }));
-  check('PARTIAL: a multi-tap parries per note (mitigation is fractional)',
-    await J(() => { const p = parryPatternFor({ dmg: 4 }); return p.kind === 'multi' && p.count === 2; }));
+  check('ALL-HIT: a whole-party blow opens with an across-sweep, then follows',
+    await J(() => { const p = parryPatternFor({ row: 'all', dmg: 5 }); return p.kind === 'seq' && p.notes[0].t === 'swipe' && p.notes[0].arc === 'arcAcross'; }));
+  check('PARTIAL: a mid-hit string parries per note (mitigation is fractional)',
+    await J(() => { const p = parryPatternFor({ dmg: 6 }); return p.kind === 'seq' && p.notes.length === 2; }));
   // a HOLD parried by bracing through impact negates the blow
   await J(() => {
     startFight({ type:'fight', chapter:3, heroes:['ash','elin','kiki'], enemies:['husk'], narrator:'hold drill' });

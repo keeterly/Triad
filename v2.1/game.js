@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 151;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 152;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -2048,7 +2048,7 @@ function newBattle(node) {
         // HP curve is EARLY-WEIGHTED: base 1.9 (was 1.65) so a party's opening
         // rotations don't 1-turn early fights, with a gentler per-depth ramp so the
         // late game (where your rotations are grown) stays where it was tuned.
-        const hp = Math.round(e.maxHp * (1.9 + (depth - 1) * 0.055) * psHp);
+        const hp = Math.round(e.maxHp * (MOB_HP_BASE + (depth - 1) * 0.055) * psHp);
         e.maxHp = hp; e.hp = hp;
       }
       // ELITE nodes hit harder and last longer — a real spike over a plain fight.
@@ -3569,6 +3569,13 @@ function burstReady() { return S && (S.momentum || 0) >= MOM_MAX && !S.executing
 // ---------------------------------------------------------------------------
 const PARRY_ENABLED = true;
 const PARRY_MISS_MULT = 1.6;   // an UNPARRIED blow lands HARDER (real-run only)
+// ── COMBAT TENSION (the Clair-Obscur dial) ──────────────────────────────────
+// Defense is where the game is HARD: every blow is a string you must read and
+// execute, the timing bands are tight, and even a mob can hurt if you botch it.
+// Three tunable levers — turn them up for more danger, down for more forgiveness.
+const PARRY_GOOD_MS = 400;   // the "good" (half-mitigate) band, ms-remaining (was 460 — less tolerance)
+const PARRY_PERF_MS = 150;   // the "perfect" (full negate + riposte) band (was 175 — tighter)
+const MOB_HP_BASE   = 2.3;   // non-boss HP curve base (was 1.9 — mobs live a beat longer, so defense is tested)
 
 // Each intent carries a rhythm PATTERN — its own way to be turned aside — so
 // defense has Project-Diva variety: a clean tap, a quick double-tap flurry, a
@@ -3576,17 +3583,29 @@ const PARRY_MISS_MULT = 1.6;   // an UNPARRIED blow lands HARDER (real-run only)
 // from the intent so every enemy reads consistently; `intent.parry` can author
 // an override.  A short glyph (⊙ / ⊙⊙ / ▭ / ➤) previews it on the telegraph.
 function parryPatternFor(intent) {
-  if (intent.parry) return normPattern(intent.parry);
   const d = intent.dmg || 0;
-  // The GESTURE and its SIZE read the attack: a heavy blast you BRACE (big
-  // hold), a wide sweeping claw you DEFLECT along a big arc, a huge single
-  // blow you SLAM (big tap), a frenzied flurry you MASH, mid hits a double-tap.
-  if (intent.heavy)         return { kind: 'hold', size: 'big' };
-  if (intent.row === 'all') return { kind: 'swipe', arc: 'arcAcross', size: 'wide', across: true };  // one sweep over the whole party
-  if (d >= 7)               return { kind: 'tap', size: 'big' };
-  if (d <= 3)               return { kind: 'mash', count: 4 };
-  if (d <= 5)               return { kind: 'multi', count: 2 };
-  return { kind: 'tap' };
+  // CLAIR-OBSCUR STRINGS — a blow is rarely one tap: you READ and EXECUTE a short
+  // cascade to turn it aside, so even a mob's swing is a live gauntlet.
+  if (intent.parry) {
+    const p = normPattern(intent.parry);
+    // Honor rich authored patterns (cascades, braces, flurries, sweeps) — but a
+    // plain single TAP or a thin 2-MULTI on a REAL blow (d≥4) is promoted to a
+    // short STRING, so even a basic mob attack reads as a live cascade, not a
+    // one-tap formality.  Tiny jabs (d≤3) stay a single clean read (the primer).
+    if (d >= 5 && ((p.kind === 'tap' && !p.size) || (p.kind === 'multi' && (p.count || 2) <= 2))) {
+      return { kind: 'seq', notes: d >= 7
+        ? [{ t: 'tap' }, { t: 'tap' }, { t: 'swipe', arc: 'arcL' }]
+        : [{ t: 'tap' }, { t: 'swipe', arc: 'arcR' }] };
+    }
+    return p;
+  }
+  // Derived (un-authored) patterns follow the same shape.
+  if (intent.heavy)         return { kind: 'seq', notes: [{ t: 'tap' }, { t: 'hold' }, { t: 'tap' }, { t: 'swipe', arc: 'arcU' }] };
+  if (intent.row === 'all') return { kind: 'seq', notes: [{ t: 'swipe', arc: 'arcAcross' }, { t: 'tap' }, { t: 'tap' }] };
+  if (d <= 2)               return { kind: 'mash', count: 4 };                                            // a frenzied flurry
+  if (d <= 4)               return { kind: 'tap' };                                                       // a single clean read (the primer)
+  if (d <= 6)               return { kind: 'seq', notes: [{ t: 'tap' }, { t: 'swipe', arc: 'arcR' }] };   // a two-hit string
+  return { kind: 'seq', notes: [{ t: 'tap' }, { t: 'tap' }, { t: 'swipe', arc: 'arcL' }] };               // a heavy three-hit string
 }
 // legacy dir -> arc, so authored {kind:'swipe',dir:'up'} still works
 function normPattern(p) {
@@ -3697,7 +3716,7 @@ function parryTapNote(ax, ay, dur, idx, total, size) {
     const ui = mkParryUiAt(ax, ay, `<span class="pr-target"></span><span class="pr-close"></span><span class="pr-lbl">${label}</span>`, size === 'big' ? 'pr-big' : '');
     ui.el.querySelector('.pr-close').style.animationDuration = dur + 'ms';
     const lbl = ui.el.querySelector('.pr-lbl');
-    const GOOD = Math.round(460 * _parryWin), PERF = Math.round(175 * _parryWin);   // windows (tighten with depth)
+    const GOOD = Math.round(PARRY_GOOD_MS * _parryWin), PERF = Math.round(PARRY_PERF_MS * _parryWin);   // windows (tighten with depth)
     let done = false; const t0 = Date.now();
     // light the note up the moment it becomes tappable — "wait for the glow"
     const liveT = setTimeout(() => { if (!done) { ui.el.classList.add('pr-live'); lbl.textContent = size === 'big' ? 'SLAM!' : 'TAP!'; } }, Math.max(0, dur - GOOD));
