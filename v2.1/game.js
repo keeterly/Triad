@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 153;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 154;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -3590,7 +3590,7 @@ const PARRY_MISS_MULT = 1.6;   // an UNPARRIED blow lands HARDER (real-run only)
 // Three tunable levers — turn them up for more danger, down for more forgiveness.
 const PARRY_GOOD_MS = 400;   // the "good" (half-mitigate) band, ms-remaining (was 460 — less tolerance)
 const PARRY_PERF_MS = 150;   // the "perfect" (full negate + riposte) band (was 175 — tighter)
-const MOB_HP_BASE   = 2.3;   // non-boss HP curve base (was 1.9 — mobs live a beat longer, so defense is tested)
+const MOB_HP_BASE   = 1.6;   // non-boss HP curve base — dropped ~30% (from 2.3): the parry STRINGS carry the difficulty now, so foes don't need to be HP sponges
 
 // Each intent carries a rhythm PATTERN — its own way to be turned aside — so
 // defense has Project-Diva variety: a clean tap, a quick double-tap flurry, a
