@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 155;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 156;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -2037,17 +2037,12 @@ function newBattle(node) {
         // ramp is GENTLE (+3 effective depth per floor, not +7): a single
         // UNPARRIED blow should be frightening, not an instant execution.
         const bdepth = Math.max(1, (node.depth || 1) + ((node.floor || 1) - 1) * 3);
+        e.dmgMul = 2.3 + (bdepth - 1) * 0.08;
+        // A single-target boss gets FOCUS-FIRED by a full trio, so it needs real
+        // bulk to be a CLIMAX rather than a 2-turn pushover — but its DIFFICULTY
+        // comes from DENSER parry cascades, not more HP (see setParryDifficulty).
         const fl = node.floor || 1;
-        // The ROAD bosses (floors 1–3) were pushovers vs a grown trio — they died
-        // before their parry gauntlet could bite.  Give them a real bump: more BULK
-        // so the cascade climax lasts, and a touch more bite on an unparried blow.
-        // The floor-4 CHORUS (the mega-boss) is already dialed in — leave it alone.
-        const roadBoss = fl < 4;
-        e.dmgMul = (2.3 + (bdepth - 1) * 0.08) * (roadBoss ? 1.1 : 1);
-        // A single-target boss gets FOCUS-FIRED by a full trio (every hero piles
-        // follow-ups onto one body), so it needs real bulk to be a CLIMAX.  (fl4 is
-        // the mega-boss — its per-stage HP comes from initMegaBoss, so this is moot.)
-        const bhpMult = fl >= 4 ? 2.4 : fl >= 3 ? 3.0 : fl >= 2 ? 2.3 : 3.5;
+        const bhpMult = fl >= 3 ? 2.4 : fl >= 2 ? 1.9 : 2.9;
         const hp = Math.round(e.maxHp * bhpMult);
         e.maxHp = hp; e.hp = hp;
       } else {
@@ -3809,6 +3804,13 @@ function setParryDifficulty(e) {
   _parrySpeed = base * (1 - 0.24 * d);   // up to 24% faster cascades deep
   _parryWin   = 1 - 0.30 * d;            // up to 30% tighter windows (460→322 / 175→123)
   _parryBonus = Math.round(1.6 * d);     // +0 → +2 extra notes on cascades deep
+  // ROAD BOSSES weaponize DENSITY, not HP: their cascades run LONGER (+2 notes)
+  // and a touch FASTER, so the climax is a real parry gauntlet you must execute
+  // through.  The floor-4 CHORUS (megaBoss) is dialed in already — left untouched.
+  if (e && e.def && e.def.boss && !e.def.megaBoss) {
+    _parryBonus += 2;        // stack extra notes onto every road-boss cascade
+    _parrySpeed *= 0.9;      // ~10% quicker pacing — keep up or eat it
+  }
 }
 function seqRhythm(count) {
   const out = [];
@@ -3904,9 +3906,11 @@ function mkSeqPreview(pts) {
 // Every note must land to fully turn the attack aside; partial → BLOCK.
 async function runParrySeq(notes, anchor, art) {
   // RHYTHM RAMP — deeper foes stack extra taps onto the string (capped so an
-  // authored cascade stays readable, never a wall).
+  // authored cascade stays readable).  Mobs never exceed +2 from depth; ROAD
+  // BOSSES reach +4 (via the boss branch of setParryDifficulty), so the cap of 4
+  // only lets a boss's denser gauntlet through.
   if (_parryBonus > 0) {
-    notes = notes.concat(Array.from({ length: Math.min(_parryBonus, 3) }, () => ({ t: 'tap' })));
+    notes = notes.concat(Array.from({ length: Math.min(_parryBonus, 4) }, () => ({ t: 'tap' })));
   }
   const pts = arcPoints(notes.length, anchor);
   const preview = mkSeqPreview(pts);
