@@ -833,9 +833,17 @@ button.map-node:not(:disabled) { cursor: pointer; }
   color: var(--ink);
 }
 /* CHOOSE YOUR SURVIVOR — starter select (mirrors the party picker) */
-.ss-row { display: flex; gap: 10px; justify-content: center; margin: 8px auto 10px; flex-wrap: wrap; max-width: 640px; }
+.ss-row {
+  display: flex; gap: 10px; flex-wrap: nowrap; justify-content: safe center;
+  margin: 8px auto 10px; max-width: 100%; padding: 6px 14px 10px;
+  overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity; overscroll-behavior-x: contain;
+}
+.ss-row::-webkit-scrollbar { height: 5px; }
+.ss-row::-webkit-scrollbar-track { background: transparent; }
+.ss-row::-webkit-scrollbar-thumb { background: rgba(240,212,136,0.28); border-radius: 3px; }
 .ss-fig {
-  font-family: inherit; cursor: pointer; width: 108px; padding: 8px 5px 8px;
+  font-family: inherit; cursor: pointer; width: 108px; flex: 0 0 108px; scroll-snap-align: center; padding: 8px 5px 8px;
   border-radius: 10px; border: 1.5px solid rgba(232,220,196,0.18);
   background: rgba(14,11,9,0.9); color: var(--ink-dim);
   display: flex; flex-direction: column; align-items: center; gap: 3px;
