@@ -1978,6 +1978,28 @@ const QUICK = process.argv.includes('--quick');
   check('SHOVE: the bestiary wires it — Drone SLAMS back, Revenant HOOKS forward',
     await J(() => { const drone = (ENEMY_DEFS.drone.intents || []).find(i => i.shove === 'back'); const rev = (ENEMY_DEFS.revenant.intents || []).find(i => i.shove === 'front');
       return !!drone && drone.name === 'Piston Slam' && !!rev && rev.name === 'Chain Hook' && rev.row === 'back'; }));
+  check('CRUEL: cruelShovePrey targets a CHARGED Hask over a healthier ally',
+    await J(() => { setupFight(['cassia', 'hask'], [], { cassia: 'front', hask: 'back' }); S.heroes.find(x => x.id === 'hask').charge = 3;
+      const v = cruelShovePrey({ smart: true }, { shove: 'front' }); return !!v && v.id === 'hask'; }));
+  check('CRUEL: with no charge, the hook still prefers the squishy back-liner over the front tank',
+    await J(() => { setupFight(['cassia', 'hask'], [], { cassia: 'front', hask: 'back' }); S.heroes.find(x => x.id === 'hask').charge = 0;
+      const v = cruelShovePrey({ smart: true }, { shove: 'front' }); return !!v && v.id === 'hask'; }));
+  check('CRUEL: effIntentRow re-aims a smart hook onto the CHARGED caster’s row (not the generic weakest)',
+    await J(() => { setupFight(['cassia', 'hask', 'branwen'], [], { cassia: 'front', hask: 'mid', branwen: 'back' }); const hk = S.heroes.find(x => x.id === 'hask'); hk.charge = 3; hk.hp = hk.maxHp;
+      const bw = S.heroes.find(x => x.id === 'branwen'); bw.hp = 3;   // branwen is the lowest hitpool, but the CHARGE is the crueler target
+      const e = { smart: true, def: ENEMY_DEFS.revenant }; return effIntentRow(e, { shove: 'front', row: 'back' }) === 'mid'; }));
+  check('CRUEL: a smart foe REACHES for the hook when a charged Hask is exposed (idle otherwise)',
+    await J(() => { setupFight(['cassia', 'hask'], [], { cassia: 'front', hask: 'back' }); const hk = S.heroes.find(x => x.id === 'hask');
+      const e = { smart: true, def: ENEMY_DEFS.revenant }; hk.charge = 0; const idle = smartHookIntent(e); hk.charge = 3; const pounce = smartHookIntent(e);
+      return !idle && !!pounce && pounce.shove === 'front'; }));
+  check('CRUEL: the pounce is smart-only — a non-smart foe never reaches for it',
+    await J(() => { setupFight(['hask'], [], { hask: 'back' }); S.heroes[0].charge = 4; return smartHookIntent({ smart: false, def: ENEMY_DEFS.revenant }) === null; }));
+  check('CRUEL: Steady Cast defuses the pounce — a charged-but-steady Hask is NOT prime',
+    await J(() => { setupFight(['cassia', 'hask'], ['hask.passive.steady'], { cassia: 'front', hask: 'back' }); S.heroes.find(x => x.id === 'hask').charge = 4;
+      return smartHookIntent({ smart: true, def: ENEMY_DEFS.revenant }) === null; }));
+  check('CRUEL: the telegraph is honest — enemyNextIntents surfaces the pounce in the first slot',
+    await J(() => { setupFight(['cassia', 'hask'], [], { cassia: 'front', hask: 'back' }); S.heroes.find(x => x.id === 'hask').charge = 3;
+      const e = { smart: true, def: ENEMY_DEFS.revenant, intentIdx: 0 }; const its = enemyNextIntents(e); return !!its[0] && its[0].shove === 'front'; }));
   check('HASK CAST-TIME: a castDmg card BEGINS a cast (no hit now, pendingCast set)',
     await J(async () => {
       setupFight(['hask'], [], { hask: 'back' }); S.tempCards = []; const e = S.enemies[0]; e.hp = e.maxHp = 100; const hp0 = e.hp;

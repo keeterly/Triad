@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 143;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 144;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -3192,8 +3192,10 @@ function enemyNextIntents(e) {
   const out = [];
   // A stored ECHO returns as the round's FIRST strike (it does not consume a slot
   // in the normal cycle), so the telegraph mirrors exactly what enemyPhase runs.
+  const pounce = smartHookIntent(e);   // a smart foe reaching for its hook this round
   for (let k = 0; k < n; k++) {
     if (k === 0 && e.echoStored) { out.push(echoView(e.echoStored)); continue; }
+    if (k === 0 && !e.echoStored && pounce) { out.push(pounce); continue; }   // the pounce takes the first slot
     const off = e.echoStored ? k - 1 : k;
     out.push(e.def.intents[(e.intentIdx + off) % len]);
   }
@@ -3220,8 +3222,40 @@ function effIntentRow(e, intent) {
   if (!e || !e.smart) return intent.row;
   const live = (typeof S !== 'undefined' && S) ? livingHeroes() : [];
   if (!live.length) return intent.row;
+  // A SHOVE/HOOK hunts the cruelest victim to displace, not just the weakest hitpool.
+  if (intent.shove) { const v = cruelShovePrey(e, intent); if (v) return v.row; }
   const prey = live.slice().sort((a, b) => (a.hp + (a.guard || 0)) - (b.hp + (b.guard || 0)) || (b.exposed || 0) - (a.exposed || 0))[0];
   return prey.row;
+}
+// DELIBERATELY CRUEL — a shove/hook seeks the victim it hurts MOST to move, not
+// merely the lowest hitpool: first a charged Hask (dragging him MISFIRES his ◆),
+// then the squishiest / most-wounded back-liner yanked into the melee.  Returns
+// the victim hero (or null).
+function cruelShovePrey(e, intent) {
+  const live = (typeof S !== 'undefined' && S) ? livingHeroes() : [];
+  if (!live.length) return null;
+  const drag = intent && intent.shove === 'front';   // a hook pulls someone forward, into reach
+  const score = (h) => {
+    let s = 0;
+    if (h.id === 'hask' && (h.charge || 0) > 0 && !hasNode('hask.passive.steady')) s += 200 + (h.charge * 10);  // detonate the caster
+    if (drag && h.row !== 'front') s += 30;                        // only worth hooking someone not already up front
+    s += (40 - (h.maxHp || 30)) * 2;                              // squishier = juicier target for the drag
+    s += Math.round((1 - h.hp / (h.maxHp || 30)) * 20);           // already wounded = finish the cruelty
+    return s;
+  };
+  return live.slice().sort((a, b) => score(b) - score(a))[0] || null;
+}
+// A smart foe REACHES for its hook the instant a PRIME victim is exposed — a
+// charged Hask, or a wounded (≤40% HP) squishy back-liner.  Shared by the
+// telegraph and the resolution so the intent pill always shows the real pounce.
+function smartHookIntent(e) {
+  if (!e || !e.smart) return null;
+  const hook = (e.def.intents || []).find(it => it.shove);
+  if (!hook) return null;
+  const prime = livingHeroes().some(h =>
+    (h.id === 'hask' && (h.charge || 0) >= 2 && !hasNode('hask.passive.steady')) ||
+    (h.row !== 'front' && (h.maxHp || 30) <= 24 && h.hp / (h.maxHp || 30) <= 0.4));
+  return prime ? hook : null;
 }
 function dealToEnemy(e, amt, school, byHeroId) {
   // STAGGER payoff: the next hit on a staggered enemy lands double.
@@ -4513,7 +4547,9 @@ async function enemyPhase() {
     // A stored ECHO returns as the round's FIRST strike — it does NOT advance the
     // normal cycle (so the cadence resumes where it left off after the echo lands).
     let intent;
+    const pounce = atk === 0 ? smartHookIntent(e) : null;   // the same reach the telegraph showed
     if (atk === 0 && e.echoStored) { intent = echoView(e.echoStored); e.echoStored = null; popupAt(figEl(e.uid), '◈ THE ECHO RETURNS', 'info'); }
+    else if (pounce) { intent = pounce; flashNarrator(e.def.name + ' reaches for the vulnerable.'); }   // pounce doesn't consume the cycle
     else { intent = e.def.intents[e.intentIdx % e.def.intents.length]; e.intentIdx++; }
     e.acted = true;
     renderTimeline();
