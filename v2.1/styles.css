@@ -574,6 +574,15 @@ body {
   background: radial-gradient(ellipse 100% 62% at 50% 8%, rgba(255,220,160,0.06), transparent 60%), linear-gradient(180deg, rgba(20,15,10,0.7), rgba(8,5,4,0.96));
   transition: transform 0.14s ease, box-shadow 0.16s ease, border-color 0.15s ease; }
 .boon-card:hover { transform: translateY(-4px); border-color: var(--gold-bright); box-shadow: 0 12px 30px rgba(0,0,0,0.55), 0 0 22px rgba(255,150,60,0.2); }
+/* DUO / TRIO boons — party-composition-gated, so they read as special */
+.boon-card.boon-duo { border-color: rgba(150,120,232,0.6); box-shadow: 0 0 18px rgba(130,100,220,0.22); }
+.boon-card.boon-duo:hover { border-color: #b49ce8; box-shadow: 0 12px 30px rgba(0,0,0,0.55), 0 0 24px rgba(150,120,232,0.4); }
+.boon-card.boon-duo .boon-from { color: #c0a8f0; }
+.boon-card.boon-trio { border-color: rgba(240,212,136,0.75); box-shadow: 0 0 22px rgba(240,200,120,0.3); }
+.boon-card.boon-trio:hover { border-color: #ffe6a0; box-shadow: 0 12px 34px rgba(0,0,0,0.6), 0 0 30px rgba(240,200,120,0.5); }
+.boon-card.boon-trio .boon-from { color: #ffd98a; }
+.boon-card.boon-rare { border-color: rgba(232,120,90,0.55); }
+.boon-card.boon-rare .boon-from { color: #ec8a5a; }
 .boon-portrait { position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: center; z-index: 0; pointer-events: none; }
 .boon-portrait svg { height: 208px; width: auto; opacity: 0.9;
   filter: drop-shadow(0 10px 20px rgba(0,0,0,0.9)) drop-shadow(0 0 26px color-mix(in srgb, var(--tint) 45%, transparent)); }

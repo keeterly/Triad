@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 148;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 149;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -465,8 +465,9 @@ function firePassives(trigger, heroId, ctx) {
   passiveNodesFor(heroId, trigger).forEach(n => {
     try { PASSIVE_DEFS[n.passive].apply(c); } catch (_) {}
   });
-  // BOONS with the same trigger, gated to this hero
-  runBoons().forEach(b => { if (b.hero === heroId && b.trigger === trigger && b.apply) { try { b.apply(c); } catch (_) {} } });
+  // BOONS with the same trigger, gated to this hero (a duo boon fires when EITHER
+  // of its heroes is the one acting).
+  runBoons().forEach(b => { if ((b.hero === heroId || (b.heroes && b.heroes.indexOf(heroId) >= 0)) && b.trigger === trigger && b.apply) { try { b.apply(c); } catch (_) {} } });
 }
 // sum of damage-tuning passives against a target: the ATTACKER's own
 // dmgMod exploiters, PLUS any living ally's party-wide synergy (partyDmgMod).
@@ -549,14 +550,59 @@ const BOONS = [
     trigger: 'dmgMod', mod: (o, t) => (t && t.mark ? 1 : 0) },
   { id: 'branwen_bounty', hero: 'branwen', name: 'Hunter’s Bounty', icon: '☠', desc: 'The first <span class="kw kw-exposed">◎ EXPOSED</span> foe Branwen kills each turn refunds <b>1 EP</b>.',
     trigger: 'kill', apply: (c) => { if (c.tgt && c.tgt.mark && !S._flags.boonBran) { S._flags.boonBran = true; refundEp(1); boonProc('branwen', 'branwen_bounty'); } } },
+  // HASK — frost / charge / weave
+  { id: 'hask_deepcold', hero: 'hask', name: 'Deep Cold', icon: '❄', desc: 'Hask’s <span class="kw kw-chill">❄ CHILL</span> cards chill for <b>+1</b>.',
+    card: (c) => { if (c.owner === 'hask' && c.fx && c.fx.lull) c.fx.lull += 1; } },
+  { id: 'hask_emberheart', hero: 'hask', name: 'Emberheart', icon: '🔥', desc: 'Hask’s <span class="kw kw-astral">🔥 fire</span> spells strike for <b>+3</b>.',
+    card: (c) => { if (c.owner === 'hask' && c.fx && c.fx.elem === 'fire' && c.fx.dmg) c.fx.dmg += 3; } },
+  { id: 'hask_wellspring', hero: 'hask', name: 'Wellspring', icon: '◆', desc: 'At the start of your turn, Hask gains <span class="kw kw-charge">◆ CHARGE 1</span>.',
+    trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'hask') return; c.hero.charge = Math.min(chargeCap(c.hero), (c.hero.charge || 0) + 1); popupAt(figEl('hask'), '◆ ' + c.hero.charge, 'info'); boonProc('hask', 'hask_wellspring', { quiet: true }); } },
+  // ── DUO BOONS (Hades-style) — active only when BOTH heroes are fielded ──
+  { id: 'duo_ashmira', duo: true, hero: 'ash', heroes: ['ash', 'mira'], name: 'Twin Shadows’ Edge', icon: '⚔', desc: '<b>Ash + Mira:</b> both strike <b>+3</b> to any <span class="kw kw-exposed">◎ EXPOSED</span> foe — the hunt and the tempo, as one.',
+    trigger: 'dmgMod', mod: (o, t) => ((o.id === 'ash' || o.id === 'mira') && t && t.mark ? 3 : 0) },
+  { id: 'duo_elincassia', duo: true, hero: 'elin', heroes: ['elin', 'cassia'], name: 'Sanctified Wall', icon: '⛨', desc: '<b>Elin + Cassia:</b> at the start of your turn, the most-wounded ally gains <span class="kw kw-guard">⛨ 2</span> AND heals <span class="kw kw-heal">✚ 2</span>.',
+    trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'cassia') return; const t = lowestHpAlly(); if (t && !t.downed) { t.guard += 2; if (t.hp < t.maxHp) t.hp = Math.min(t.maxHp, t.hp + 2); popupAt(figEl(t.id), '⛨✚', 'guard'); boonProc('elin', 'duo_elincassia', { quiet: true }); } } },
+  { id: 'duo_haskcassia', duo: true, hero: 'hask', heroes: ['hask', 'cassia'], name: 'Frostwall', icon: '❄', desc: '<b>Hask + Cassia:</b> <span class="kw kw-chill">❄ CHILLED</span> foes take <b>+2</b> from EVERY ally — the cold behind the wall.',
+    trigger: 'dmgMod', mod: (o, t) => (t && t.lull ? 2 : 0) },
+  { id: 'duo_branwenmira', duo: true, hero: 'branwen', heroes: ['branwen', 'mira'], name: 'Killer’s Pact', icon: '☠', desc: '<b>Branwen + Mira:</b> the FIRST <span class="kw kw-exposed">◎ EXPOSED</span> foe felled each turn refunds <b>2 EP</b>.',
+    trigger: 'kill', apply: (c) => { if (c.tgt && c.tgt.mark && !S._flags.boonDuoBM) { S._flags.boonDuoBM = true; refundEp(2); boonProc('branwen', 'duo_branwenmira'); } } },
+  // ── SCALING BOON (Hades build-up) — grows across the whole descent ──
+  { id: 'scale_tally', hero: 'mira', name: 'Reaper’s Tally', icon: '☠', desc: 'Each <span class="kw kw-exposed">◎ EXPOSED</span> foe you fell adds <b>+1</b> (max 6) to your <b>signature</b> attacks — <b>for the whole descent</b>.',
+    trigger: 'kill', apply: (c) => { if (c.tgt && c.tgt.mark) { bumpBoonStack('scale_tally', 6); boonProc('mira', 'scale_tally', { quiet: true }); } },
+    card: (c) => { if (c.kind === 'sig' && c.fx && c.fx.dmg) c.fx.dmg += boonStack('scale_tally'); } },
+  // ── RISK / REWARD (Slay-the-Spire relic tension) — power with a real cost ──
+  { id: 'curse_glassedge', hero: 'mira', rare: true, name: 'Glass Edge', icon: '⚡', desc: '<b>The whole party strikes +3</b> — but takes <b>+2</b> from every hit. Live fast.',
+    card: (c) => { if (c.fx && c.fx.dmg) c.fx.dmg += 3; }, trigger: 'incoming', mod: () => 2 },
+  { id: 'curse_bloodrush', hero: 'ash', rare: true, name: 'Blood Rush', icon: '⇄', desc: 'Start each turn with <b>+2 EP</b> — but the most-wounded ally <b>bleeds 3 HP</b>. Spend it or waste it.',
+    trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'ash' || S._flags.boonBlood) return; S._flags.boonBlood = true; S.ep = Math.min(S.maxEp, S.ep + 2); pulseEp(); const t = lowestHpAlly(); if (t && !t.downed) { t.hp = Math.max(1, t.hp - 3); popupAt(figEl(t.id), '−3', 'dmg'); } boonProc('ash', 'curse_bloodrush'); } },
+  // ── TRIO BOONS (Hades "you brought the exact team") — only when a SPECIFIC three
+  //    walk together.  The rarest, most build-defining gifts. ──
+  { id: 'trio_phalanx', trio: true, hero: 'cassia', heroes: ['ash', 'cassia', 'elin'], name: 'The Phalanx Vow', icon: '⛨', desc: '<b>Ash · Cassia · Elin:</b> every fight OPENS with the whole party at <span class="kw kw-guard">⛨ 3</span> and <span class="kw kw-rally">▲ RALLY 2</span> — the shield-wall marches.',
+    trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'cassia' || S.turn !== 1 || S._flags.boonPhalanx) return; S._flags.boonPhalanx = true; livingHeroes().forEach(h => { h.guard += 3; h.buffDmg += 2; popupAt(figEl(h.id), '⛨3 ▲2', 'guard'); }); boonProc('cassia', 'trio_phalanx'); } },
+  { id: 'trio_killwind', trio: true, hero: 'mira', heroes: ['ash', 'mira', 'branwen'], name: 'The Killing Wind', icon: '☠', desc: '<b>Ash · Mira · Branwen:</b> EVERY ally strikes <b>+4</b> to <span class="kw kw-exposed">◎ EXPOSED</span> foes — three blades, one hunt.',
+    trigger: 'dmgMod', mod: (o, t) => (t && t.mark ? 4 : 0) },
 ];
 const BOON_BY_ID = {}; BOONS.forEach(b => { BOON_BY_ID[b.id] = b; });
 // active boons: OWNED this descent AND their hero is currently fielded
+// A boon is ACTIVE when its hero is fielded — or, for a DUO boon (Hades-style),
+// when BOTH named heroes are fielded together.  So WHO you bring, and which
+// PAIRS, shapes the emergent build.
+function boonHeroesOk(b, party) {
+  if (!b) return false;
+  if (b.heroes) return b.heroes.every(h => party.indexOf(h) >= 0);
+  return party.indexOf(b.hero) >= 0;
+}
 function runBoons() {
   if (typeof RUN === 'undefined' || !RUN || !Array.isArray(RUN.boons)) return [];
   const party = (RUN.active && RUN.active.length) ? RUN.active : RUN.roster || [];
-  return RUN.boons.map(id => BOON_BY_ID[id]).filter(b => b && party.indexOf(b.hero) >= 0);
+  return RUN.boons.map(id => BOON_BY_ID[id]).filter(b => boonHeroesOk(b, party));
 }
+// Per-descent SCALING boons (Hades-style build-up): a running tally that grows on
+// a countable event and feeds a card/damage mod.  Stored on RUN so it persists.
+function boonStack(id) { return (typeof RUN !== 'undefined' && RUN && RUN.boonStacks && RUN.boonStacks[id]) || 0; }
+function bumpBoonStack(id, cap) { if (!RUN) return; RUN.boonStacks = RUN.boonStacks || {}; RUN.boonStacks[id] = Math.min(cap || 99, (RUN.boonStacks[id] || 0) + 1); saveRun(); }
+// Incoming-damage tuners (risk/reward boons that make you hit harder but take more).
+function boonIncoming(hero) { let d = 0; runBoons().forEach(b => { if (b.trigger === 'incoming' && b.mod) d += b.mod(hero) || 0; }); return d; }
 // held boons as a compact icon strip in the combat topbar
 function renderCombatBoons() {
   const el = document.getElementById('combat-boons'); if (!el) return;
@@ -4667,7 +4713,7 @@ async function enemyPhase() {
       } else {
         // Enemies fight by the player's grammar: EXPOSED heroes take more,
         // and a second enemy striking the same hero this phase FOLLOWS UP.
-        let hitDmg = dmg + (h.exposed || 0);
+        let hitDmg = dmg + (h.exposed || 0) + boonIncoming(h);   // risk/reward boons raise incoming
         const hby = h._hitByE || (h._hitByE = []);
         const prevE = hby.length ? hby[hby.length - 1] : null;
         if (prevE && prevE !== e.uid) {
@@ -5759,7 +5805,7 @@ function showBoonDraft(onDone, opts) {
   const done = onDone || (() => showMap());
   const party = (RUN.active && RUN.active.length) ? RUN.active : (RUN.roster || []);
   RUN.boons = RUN.boons || [];
-  const pool = BOONS.filter(b => party.indexOf(b.hero) >= 0 && RUN.boons.indexOf(b.id) < 0);
+  const pool = BOONS.filter(b => boonHeroesOk(b, party) && RUN.boons.indexOf(b.id) < 0);
   if (!pool.length) { done(); return; }
   // Prefer VARIETY — gifts from different companions when we can, so a draft
   // reads as "who's offering" rather than three of the same hero.
@@ -5768,12 +5814,12 @@ function showBoonDraft(onDone, opts) {
   shuffled.forEach(b => { if (picks.length < 3 && !usedHeroes.has(b.hero)) { picks.push(b); usedHeroes.add(b.hero); } });
   shuffled.forEach(b => { if (picks.length < 3 && picks.indexOf(b) < 0) picks.push(b); });
   const cardHtml = (b) => `
-    <button class="boon-card" id="boon-${b.id}" style="--tint:${HEROES[b.hero].tint}">
+    <button class="boon-card${b.trio ? ' boon-trio' : b.duo ? ' boon-duo' : ''}${b.rare ? ' boon-rare' : ''}" id="boon-${b.id}" style="--tint:${HEROES[b.hero].tint}">
       <span class="boon-portrait">${V2PORTRAITS[b.hero] || ''}</span>
       <span class="boon-scrim"></span>
       <span class="boon-medallion">${b.icon}</span>
       <span class="boon-body">
-        <span class="boon-from">${HEROES[b.hero].name}’S GIFT</span>
+        <span class="boon-from">${b.trio ? '✦ TRIO · ' + b.heroes.map(h => HEROES[h].name).join(' + ') : b.duo ? '⚭ DUO · ' + b.heroes.map(h => HEROES[h].name).join(' + ') : b.rare ? '✦ RARE · ' + HEROES[b.hero].name : HEROES[b.hero].name + '’S GIFT'}</span>
         <span class="boon-name">${b.name}</span>
         <span class="boon-desc">${b.desc}</span>
       </span>

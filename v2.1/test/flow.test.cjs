@@ -1787,6 +1787,42 @@ const QUICK = process.argv.includes('--quick');
       cards[0].click();
       return cards.length >= 1 && cards.length <= 3 && gated && RUN.boons.length === 1;
     }));
+  check('BOON DUO: Twin Shadows’ Edge is active ONLY when BOTH Ash and Mira are fielded',
+    await J(() => {
+      setupFight(['ash', 'mira'], [], { ash: 'front', mira: 'mid' }); RUN.boons = ['duo_ashmira'];
+      const e = S.enemies[0]; e.mark = 2; const ash = S.heroes.find(h => h.id === 'ash');
+      const withBoth = passiveDmg(ash, e);
+      RUN.active = ['ash'];   // bench Mira
+      const withoutMira = passiveDmg(ash, e);
+      return withBoth === 3 && withoutMira === 0; }));
+  check('BOON TRIO: The Killing Wind needs the EXACT three (Ash · Mira · Branwen)',
+    await J(() => {
+      const ok = boonHeroesOk(BOON_BY_ID['trio_killwind'], ['ash', 'mira', 'branwen']);
+      const missing = boonHeroesOk(BOON_BY_ID['trio_killwind'], ['ash', 'mira', 'elin']);
+      const duoBoth = boonHeroesOk(BOON_BY_ID['duo_ashmira'], ['ash', 'mira', 'elin']);
+      const duoOne = boonHeroesOk(BOON_BY_ID['duo_ashmira'], ['ash', 'elin', 'cassia']);
+      return ok && !missing && duoBoth && !duoOne; }));
+  check('BOON SCALING: Reaper’s Tally grows on each EXPOSED kill and feeds signature damage',
+    await J(() => {
+      setupFight(['mira'], [], { mira: 'mid' }); RUN.boons = ['scale_tally']; RUN.boonStacks = {};
+      firePassives('kill', 'mira', { tgt: { mark: 2 } });
+      firePassives('kill', 'mira', { tgt: { mark: 3 } });
+      const tally = boonStack('scale_tally');
+      const card = { owner: 'mira', kind: 'sig', fx: { dmg: 5 } };
+      runBoons().filter(b => b.card).forEach(b => b.card(card));
+      return tally === 2 && card.fx.dmg === 7; }));
+  check('BOON RISK: Glass Edge lifts the party’s hits +3 AND raises incoming +2',
+    await J(() => {
+      setupFight(['mira'], [], { mira: 'mid' }); RUN.boons = ['curse_glassedge'];
+      const card = { owner: 'mira', fx: { dmg: 5 } };
+      runBoons().filter(b => b.card).forEach(b => b.card(card));
+      return card.fx.dmg === 8 && boonIncoming(S.heroes[0]) === 2; }));
+  check('BOON HASK: Emberheart lifts Hask’s FIRE spells +3, leaves ice alone',
+    await J(() => {
+      setupFight(['hask'], [], { hask: 'front' }); RUN.boons = ['hask_emberheart'];
+      const fire = { owner: 'hask', fx: { dmg: 8, elem: 'fire' } }, ice = { owner: 'hask', fx: { dmg: 6, elem: 'ice' } };
+      runBoons().filter(b => b.card).forEach(b => { b.card(fire); b.card(ice); });
+      return fire.fx.dmg === 11 && ice.fx.dmg === 6; }));
   check('CAMP: the fire’s third slot is COMMUNE (draw a boon), not the old Forge',
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash']; RUN.hp = { ash: 32 }; RUN.boons = [];
