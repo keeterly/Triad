@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 160;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 161;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -34,10 +34,53 @@ const $ = (sel) => document.querySelector(sel);
 // ---------------------------------------------------------------------------
 const SETTINGS_KEY = 'kizuna2_1.settings';
 const SETTINGS = Object.assign(
-  { sound: true, haptics: true, fightBg: true },
+  { sound: true, music: true, haptics: true, fightBg: true },
   (() => { try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') || {}; } catch (_) { return {}; } })()
 );
 function saveSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(SETTINGS)); } catch (_) {} }
+// ── MUSIC — a looping combat theme, ducked low under the SFX.  Browsers block
+// autoplay until a gesture, so we (re)try on the next pointerdown if a start is
+// refused.  Fades in/out so entering and leaving a fight feels intentional. ──
+const MUSIC = (() => {
+  let el = null, want = false, fadeTimer = null, curSrc = null;
+  const make = () => {
+    if (el || typeof Audio === 'undefined') return el;
+    try { el = new Audio(); el.loop = true; el.preload = 'auto'; el.volume = 0; } catch (_) { el = null; }
+    return el;
+  };
+  const fadeTo = (target, ms) => {
+    if (!el) return;
+    clearInterval(fadeTimer);
+    const from = el.volume, steps = Math.max(1, Math.round(ms / 40)); let i = 0;
+    fadeTimer = setInterval(() => {
+      i++; const v = from + (target - from) * (i / steps);
+      try { el.volume = Math.max(0, Math.min(1, v)); } catch (_) {}
+      if (i >= steps) { clearInterval(fadeTimer); if (target === 0) { try { el.pause(); } catch (_) {} } }
+    }, 40);
+  };
+  const tryPlay = () => {
+    if (!want || !SETTINGS.music) return;
+    const a = make(); if (!a) return;
+    const p = a.play();
+    if (p && p.catch) p.catch(() => {});   // blocked → the pointerdown hook retries
+  };
+  // any gesture is a chance to (re)start a wanted-but-blocked track
+  try { document.addEventListener('pointerdown', () => { if (want && SETTINGS.music && el && el.paused) tryPlay(); }, { capture: true }); } catch (_) {}
+  return {
+    play(src, vol) {
+      want = true;
+      const a = make(); if (!a) return;
+      if (curSrc !== src) { curSrc = src; try { a.src = src; } catch (_) {} }
+      if (!SETTINGS.music) return;
+      try { a.currentTime = a.currentTime || 0; } catch (_) {}
+      tryPlay();
+      fadeTo(vol == null ? 0.5 : vol, 900);
+    },
+    stop() { want = false; fadeTo(0, 600); },
+    // reflect a live settings toggle
+    refresh() { if (!el) return; if (SETTINGS.music && want) { tryPlay(); fadeTo(0.5, 400); } else fadeTo(0, 300); },
+  };
+})();
 
 // ---------------------------------------------------------------------------
 // EMBERS — the PER-RUN progression currency.  Defeating foes yields embers,
@@ -699,48 +742,86 @@ function runForges() { return (typeof RUN !== 'undefined' && RUN && Array.isArra
 // SFX — tiny synthesized cues (no assets).  Volumes stay low; every cue is a
 // short envelope so rapid plays never smear.  Context wakes on first gesture.
 // ---------------------------------------------------------------------------
+// ── SFX — a darker, weightier palette to match the ThornCrown / ember-and-frost
+// tone.  Impacts are FILTERED NOISE with a low sine body (not thin beeps); steel
+// and parries ring through a bandpass; bonds and kills bloom into a small synth
+// REVERB.  Every sound is a `voice()` (oscillator OR noise → filter → gain →
+// master, with an optional reverb send). ──
 const SFX = (() => {
-  let ctx = null;
+  let ctx = null, master = null, reverb = null;
   const ac = () => {
-    if (!ctx) { try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (_) {} }
+    if (!ctx) {
+      try {
+        ctx = new (window.AudioContext || window.webkitAudioContext)();
+        master = ctx.createGain(); master.gain.value = 0.85; master.connect(ctx.destination);
+        // a small dark hall (synth impulse) so ethereal sounds have space
+        reverb = ctx.createConvolver();
+        const len = Math.floor(ctx.sampleRate * 1.5), buf = ctx.createBuffer(2, len, ctx.sampleRate);
+        for (let ch = 0; ch < 2; ch++) { const d = buf.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.8); }
+        reverb.buffer = buf;
+        const rg = ctx.createGain(); rg.gain.value = 0.55; reverb.connect(rg).connect(master);
+        reverb._send = rg;
+      } catch (_) { ctx = null; }
+    }
     return ctx;
   };
   document.addEventListener('pointerdown', () => { const c = ac(); if (c && c.state === 'suspended') c.resume(); try { ensureHaptic(); } catch (_) {} }, { capture: true });
-  function tone(freq, dur, type, vol, delay, slideTo) {
+  function voice(o) {
     if (!SETTINGS.sound) return;
     const c = ac(); if (!c || c.state !== 'running') return;
-    const t0 = c.currentTime + (delay || 0);
-    const o = c.createOscillator(), g = c.createGain();
-    o.type = type || 'sine';
-    o.frequency.setValueAtTime(freq, t0);
-    if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t0 + dur);
+    const dur = o.dur || 0.15, vol = o.vol || 0.05, t0 = c.currentTime + (o.delay || 0);
+    let node;
+    if (o.src === 'noise') {
+      const n = Math.max(1, Math.floor(c.sampleRate * (dur + 0.05)));
+      const b = c.createBuffer(1, n, c.sampleRate), d = b.getChannelData(0);
+      for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+      node = c.createBufferSource(); node.buffer = b;
+    } else {
+      node = c.createOscillator(); node.type = o.src || 'sine';
+      node.frequency.setValueAtTime(o.freq || 220, t0);
+      if (o.slideTo) node.frequency.exponentialRampToValueAtTime(Math.max(1, o.slideTo), t0 + dur);
+    }
+    let chain = node;
+    if (o.filter) {
+      const bq = c.createBiquadFilter(); bq.type = o.filter; bq.Q.value = o.q || 1;
+      bq.frequency.setValueAtTime(o.fFreq || 1000, t0);
+      if (o.fSlide) bq.frequency.exponentialRampToValueAtTime(Math.max(20, o.fSlide), t0 + dur);
+      chain.connect(bq); chain = bq;
+    }
+    const g = c.createGain();
     g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(vol || 0.06, t0 + 0.012);
+    g.gain.exponentialRampToValueAtTime(vol, t0 + (o.attack || 0.008));
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-    o.connect(g).connect(c.destination);
-    o.start(t0); o.stop(t0 + dur + 0.05);
+    chain.connect(g); g.connect(master);
+    if (o.rev && reverb && reverb._send) { const rs = c.createGain(); rs.gain.value = o.rev; g.connect(rs); rs.connect(reverb); }
+    node.start(t0); node.stop(t0 + dur + 0.06);
   }
+  const v = (o) => voice(o);
   return {
-    card:    () => tone(620, 0.07, 'triangle', 0.045),
-    move:    () => tone(360, 0.06, 'triangle', 0.04),
-    hit:     (big) => { tone(big ? 95 : 130, big ? 0.2 : 0.12, 'square', big ? 0.075 : 0.055, 0, big ? 55 : 90); },
-    kill:    () => { tone(180, 0.3, 'sawtooth', 0.06, 0, 55); tone(90, 0.35, 'square', 0.05, 0.05, 40); },
-    heal:    () => { tone(520, 0.14, 'sine', 0.05); tone(780, 0.18, 'sine', 0.035, 0.06); },
-    guard:   () => tone(290, 0.09, 'triangle', 0.055),
-    thread:  () => { tone(440, 0.35, 'sine', 0.05); tone(660, 0.4, 'sine', 0.04, 0.09); },
-    // KINDLE — a rising ember-catch: struck spark, swelling chord, bright bloom
-    kindle:  () => { tone(180, 0.1, 'square', 0.05, 0, 90); [392, 523, 659, 784, 1046].forEach((f, i) => tone(f, 0.5, 'triangle', 0.05, 0.12 + i * 0.075)); tone(1568, 0.6, 'sine', 0.035, 0.5); },
-    triad:   () => { [440, 554, 659, 880].forEach((f, i) => tone(f, 0.7, 'sine', 0.05, i * 0.09)); },
-    victory: () => { [523, 659, 784].forEach((f, i) => tone(f, 0.25, 'triangle', 0.05, i * 0.11)); },
-    enemy:   () => tone(220, 0.09, 'square', 0.04, 0, 180),
-    follow:  () => { tone(500, 0.07, 'triangle', 0.05); tone(750, 0.1, 'triangle', 0.05, 0.06); },
-    deny:    () => { tone(150, 0.08, 'square', 0.05, 0, 110); tone(120, 0.1, 'square', 0.045, 0.06, 90); },
-    // parry gesture feedback — pitch RAMPS with the combo streak (rhythm feel)
-    parry:   (perfect, streak) => { const b = 620 + Math.min(8, streak || 0) * 55; tone(b, 0.06, 'triangle', 0.06); if (perfect) tone(b * 1.5, 0.12, 'sine', 0.05, 0.03); },
-    parryMiss: () => tone(140, 0.12, 'sawtooth', 0.05, 0, 90),
-    swoosh:  () => { tone(300, 0.14, 'sine', 0.04, 0, 900); },
-    brace:   () => tone(160, 0.16, 'square', 0.05),
-    hitstop: () => tone(70, 0.05, 'square', 0.05),
+    card:    () => { v({ src: 'noise', dur: 0.09, vol: 0.03, filter: 'lowpass', fFreq: 1500, fSlide: 500 }); v({ src: 'triangle', freq: 190, dur: 0.1, vol: 0.03, slideTo: 130 }); },
+    move:    () => v({ src: 'noise', dur: 0.11, vol: 0.03, filter: 'lowpass', fFreq: 700, fSlide: 280 }),
+    hit:     (big) => { v({ src: 'noise', dur: big ? 0.18 : 0.1, vol: big ? 0.09 : 0.06, filter: 'lowpass', fFreq: big ? 1300 : 1900, fSlide: big ? 200 : 420 }); v({ src: 'sine', freq: big ? 70 : 110, dur: big ? 0.26 : 0.14, vol: big ? 0.09 : 0.06, slideTo: big ? 40 : 60 }); },
+    kill:    () => { v({ src: 'sine', freq: 130, dur: 0.55, vol: 0.07, slideTo: 44, rev: 0.5 }); v({ src: 'noise', dur: 0.32, vol: 0.05, filter: 'lowpass', fFreq: 900, fSlide: 140 }); v({ src: 'sawtooth', freq: 82, dur: 0.4, vol: 0.035, slideTo: 36, delay: 0.03, filter: 'lowpass', fFreq: 600 }); },
+    heal:    () => { v({ src: 'sine', freq: 523, dur: 0.42, vol: 0.04, filter: 'lowpass', fFreq: 2400, rev: 0.35, attack: 0.05 }); v({ src: 'sine', freq: 784, dur: 0.5, vol: 0.028, delay: 0.08, rev: 0.35, attack: 0.05 }); },
+    guard:   () => { v({ src: 'noise', dur: 0.08, vol: 0.05, filter: 'bandpass', fFreq: 2600, q: 3.5 }); v({ src: 'triangle', freq: 230, dur: 0.11, vol: 0.04, slideTo: 175 }); },
+    thread:  () => { v({ src: 'sine', freq: 392, dur: 0.6, vol: 0.04, rev: 0.5, attack: 0.06 }); v({ src: 'sine', freq: 588, dur: 0.7, vol: 0.03, delay: 0.1, rev: 0.5, attack: 0.06 }); },
+    // TRIAD — a bonded chord blooming into the hall
+    triad:   () => { [392, 494, 588, 784].forEach((f, i) => v({ src: 'sine', freq: f, dur: 0.9, vol: 0.038, delay: i * 0.08, rev: 0.6, attack: 0.05 })); },
+    // KINDLE — an ember catches: a noise spark, then a warm rising chord
+    kindle:  () => { v({ src: 'noise', dur: 0.1, vol: 0.04, filter: 'highpass', fFreq: 1400 }); [330, 415, 494, 659].forEach((f, i) => v({ src: 'triangle', freq: f, dur: 0.5, vol: 0.038, delay: 0.1 + i * 0.07, filter: 'lowpass', fFreq: 3000, rev: 0.3 })); v({ src: 'sine', freq: 988, dur: 0.6, vol: 0.03, delay: 0.42, rev: 0.45 }); },
+    victory: () => { [392, 494, 587].forEach((f, i) => v({ src: 'triangle', freq: f, dur: 0.5, vol: 0.045, delay: i * 0.12, filter: 'lowpass', fFreq: 2600, rev: 0.45 })); v({ src: 'sine', freq: 784, dur: 0.8, vol: 0.03, delay: 0.36, rev: 0.5 }); },
+    // ENEMY wind-up — a low menacing growl
+    enemy:   () => { v({ src: 'sawtooth', freq: 115, dur: 0.16, vol: 0.045, slideTo: 68, filter: 'lowpass', fFreq: 780 }); v({ src: 'noise', dur: 0.14, vol: 0.028, filter: 'lowpass', fFreq: 480 }); },
+    follow:  () => { v({ src: 'triangle', freq: 440, dur: 0.07, vol: 0.045, filter: 'lowpass', fFreq: 2400 }); v({ src: 'triangle', freq: 660, dur: 0.09, vol: 0.045, delay: 0.06, filter: 'lowpass', fFreq: 2800 }); },
+    deny:    () => { v({ src: 'square', freq: 130, dur: 0.1, vol: 0.045, slideTo: 88, filter: 'lowpass', fFreq: 620 }); v({ src: 'noise', dur: 0.08, vol: 0.02, filter: 'lowpass', fFreq: 380 }); },
+    // PARRY — a metallic ring that BRIGHTENS with the streak; a perfect blooms an overtone
+    parry:   (perfect, streak) => { const b = 1500 + Math.min(8, streak || 0) * 120; v({ src: 'noise', dur: 0.06, vol: 0.05, filter: 'bandpass', fFreq: b, q: 7 }); v({ src: 'triangle', freq: b / 2, dur: 0.05, vol: 0.03 }); if (perfect) v({ src: 'sine', freq: b * 1.5, dur: 0.28, vol: 0.04, delay: 0.02, rev: 0.55 }); },
+    parryMiss: () => { v({ src: 'sawtooth', freq: 150, dur: 0.14, vol: 0.045, slideTo: 78, filter: 'lowpass', fFreq: 680 }); v({ src: 'noise', dur: 0.1, vol: 0.03, filter: 'lowpass', fFreq: 480 }); },
+    // SWOOSH — a blade cutting air
+    swoosh:  () => v({ src: 'noise', dur: 0.16, vol: 0.04, filter: 'bandpass', fFreq: 1100, q: 1.4, fSlide: 3600 }),
+    // BRACE — a heavy, grounded set
+    brace:   () => { v({ src: 'square', freq: 120, dur: 0.18, vol: 0.05, filter: 'lowpass', fFreq: 480 }); v({ src: 'sine', freq: 58, dur: 0.22, vol: 0.045 }); },
+    hitstop: () => v({ src: 'sine', freq: 52, dur: 0.06, vol: 0.05 }),
   };
 })();
 
@@ -4947,6 +5028,7 @@ function onVictory() {
   }, 700);
 }
 function onDefeat() {
+  MUSIC.stop();   // the theme dies with the party
   // On the Descent, death is contribution: the run ends, and the Abyss
   // stores a memory of who fell here — the next descent will find it.
   if (S.node.mapId != null && RUN) {
@@ -5071,6 +5153,7 @@ function startFlowNode() {
 }
 function startFight(node) {
   clearAim();        // a run that ended mid-aim must NOT leak targeting into the next fight (cards would be un-draggable)
+  MUSIC.play('audio/combat-theme.mp3?v=1', 0.42);   // the ThornCrown duel theme, ducked under the SFX
   S = newBattle(node);
   _bossFig = null;   // a fresh fight builds its own boss figure (uids can repeat across fights)
   _partyFigs = {};   // and fresh party figures (drag closures capture this fight's hero objects)
@@ -5130,6 +5213,7 @@ function nodeReachable(n) {
 }
 function showMap() {
   S = null;
+  MUSIC.stop();   // the combat theme belongs to the fight — the road is quiet
   $('#stage').classList.remove('show-bg');
   $('#chapter-chip').textContent = 'DESCENT';
   $('#timeline').innerHTML = '';
@@ -6991,6 +7075,7 @@ function toggleSetting(key) {
   SETTINGS[key] = !SETTINGS[key]; saveSettings();
   if (key === 'fightBg') applyFightBg();
   if (key === 'sound' && SETTINGS.sound) { try { SFX.card(); } catch (_) {} }
+  if (key === 'music') { try { MUSIC.refresh(); } catch (_) {} }
 }
 function resumeFromMenu() {
   hideOverlay();
@@ -7007,6 +7092,7 @@ function showMenu() {
     <div class="menu-list">
       <button class="menu-item menu-primary" id="m-resume">▸ RESUME</button>
       <button class="menu-item" id="m-sound"><span>SOUND</span>${onOff(SETTINGS.sound)}</button>
+      <button class="menu-item" id="m-music"><span>MUSIC</span>${onOff(SETTINGS.music)}</button>
       <button class="menu-item" id="m-haptics"><span>HAPTICS</span>${onOff(SETTINGS.haptics)}</button>
       <button class="menu-item" id="m-journal"><span>JOURNAL</span><span class="menu-val">✦</span></button>
       <button class="menu-item" id="m-howto"><span>HOW TO PLAY</span><span class="menu-val">?</span></button>
@@ -7017,6 +7103,7 @@ function showMenu() {
   `, 'menu-screen');
   $('#m-resume').onclick = resumeFromMenu;
   $('#m-sound').onclick = () => { toggleSetting('sound'); showMenu(); };
+  $('#m-music').onclick = () => { toggleSetting('music'); showMenu(); };
   $('#m-haptics').onclick = () => { toggleSetting('haptics'); showMenu(); };
   $('#m-journal').onclick = () => showBoonJournal(showMenu);
   $('#m-howto').onclick = () => showHowTo();
@@ -7123,6 +7210,7 @@ function showDevPanel(back) {
 function showTitle() {
   S = null;
   clearAim();   // never carry aim/drag state to the title (or into the next new game)
+  MUSIC.stop();
   $('#stage').classList.remove('show-bg');
   $('#timeline').innerHTML = '';
   $('#chapter-chip').textContent = 'KIZUNA';
@@ -7174,6 +7262,7 @@ function showSettings() {
     <div class="ov-title" style="font-size:22px; margin-bottom:14px;">SETTINGS</div>
     <div class="menu-list">
       <button class="menu-item" id="s-sound"><span>SOUND</span>${onOff(SETTINGS.sound)}</button>
+      <button class="menu-item" id="s-music"><span>MUSIC</span>${onOff(SETTINGS.music)}</button>
       <button class="menu-item" id="s-haptics"><span>HAPTICS</span>${onOff(SETTINGS.haptics)}</button>
       <button class="menu-item" id="s-bg"><span>FIGHT BACKGROUND</span>${onOff(SETTINGS.fightBg)}</button>
       <button class="menu-item" id="s-heat"><span>HEAT <i style="opacity:.6">· foes hit harder, +embers</i></span><span class="menu-heat"><button id="s-heat-dn" aria-label="lower heat">−</button><b>${META.heat || 0}</b><button id="s-heat-up" aria-label="raise heat">+</button></span></button>
@@ -7183,6 +7272,7 @@ function showSettings() {
     </div>
   `, 'menu-screen');
   $('#s-sound').onclick = () => { toggleSetting('sound'); showSettings(); };
+  $('#s-music').onclick = () => { toggleSetting('music'); showSettings(); };
   $('#s-haptics').onclick = () => { toggleSetting('haptics'); showSettings(); };
   $('#s-bg').onclick = () => { toggleSetting('fightBg'); showSettings(); };
   const setHeat = (d) => { META.heat = Math.max(0, Math.min(5, (META.heat || 0) + d)); saveMeta(); showSettings(); };

@@ -1889,6 +1889,19 @@ const QUICK = process.argv.includes('--quick');
       const t = ((document.querySelector('.howto') || {}).textContent || '').toLowerCase();
       hideOverlay();
       return ['play cards', 'ep', 'stance', 'dodge', 'parry', 'ember tree', 'gift', 'bond', 'trio'].every(k => t.includes(k)); }));
+  check('AUDIO: the SFX palette survived the rewrite — every combat event still has a voice',
+    await J(() => ['card', 'move', 'hit', 'kill', 'heal', 'guard', 'thread', 'triad', 'kindle', 'victory', 'enemy', 'follow', 'deny', 'parry', 'parryMiss', 'swoosh', 'brace', 'hitstop'].every(k => typeof SFX[k] === 'function')));
+  check('AUDIO: a combat MUSIC track + toggle exist (music defaults ON)',
+    await J(() => typeof MUSIC === 'object' && typeof MUSIC.play === 'function' && typeof MUSIC.stop === 'function' && SETTINGS.music === true));
+  check('AUDIO: entering a fight starts the theme; leaving to the map stops it',
+    await J(() => {
+      let acts = []; const real = { play: MUSIC.play, stop: MUSIC.stop };
+      MUSIC.play = (src) => acts.push('play:' + src); MUSIC.stop = () => acts.push('stop');
+      RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash'];
+      startFight({ type: 'fight', chapter: 3, heroes: ['ash'], enemies: ['husk'], narrator: 'x' });
+      showMap();
+      MUSIC.play = real.play; MUSIC.stop = real.stop;
+      return acts.some(a => /^play:audio\/combat-theme/.test(a)) && acts.includes('stop'); }));
   check('BOON DRAFT: duo/trio cards show ALL involved characters’ portraits',
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash', 'mira', 'branwen']; RUN.active = ['ash', 'mira', 'branwen']; RUN.boons = [];
