@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 159;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 160;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -7066,7 +7066,7 @@ function showHowTo(back) {
     <div class="ov-lines howto" style="text-align:left; max-width:448px; margin:0 auto; max-height:64vh; overflow-y:auto; padding-right:6px;">
       <div class="ht-head">On your turn</div>
       <div class="ov-line"><b>Play cards to fight.</b> Drag a card onto an enemy to attack, or onto an ally to help. Each card costs <b>EP</b> — your energy, which refills every turn.</div>
-      <div class="ov-line"><b>Move to change stance.</b> Drag a hero between <b>FRONT · MID · BACK</b>. Their row is their stance, so their cards change with it.</div>
+      <div class="ov-line"><b>Reposition your heroes.</b> Drag a hero between the <b>FRONT · MID · BACK</b> rows. Where they stand sets their stance, so their cards change to match.</div>
       <div class="ht-head">When a foe attacks</div>
       <div class="ov-line"><b>Dodge or parry.</b> Each enemy shows the <b>row</b> it will hit. Drag that hero to a safe row to <b>DODGE</b> — or stand and <b>PARRY</b>: tap each note the instant its ring flashes gold. Good timing turns the blow aside.</div>
       <div class="ht-head">Between fights</div>
