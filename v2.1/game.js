@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 157;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 158;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -7063,14 +7063,17 @@ function showHowTo(back) {
   showOverlay(`
     <div class="ov-eyebrow">HOW TO PLAY</div>
     <div class="ov-title" style="font-size:20px; margin-bottom:10px;">THE THREADS</div>
-    <div class="ov-lines howto" style="text-align:left; max-width:440px; margin:0 auto;">
-      <div class="ov-line"><b>Row is stance.</b> Drag a hero between FRONT/MID/BACK — their cards rewrite.</div>
-      <div class="ov-line"><b>Defend.</b> When a blow winds up, dodge to an empty row or PARRY it — tap each note as its ring glows.</div>
-      <div class="ov-line"><b>Bond.</b> Help an ally (heal, guard, follow-up) to form a THREAD. Hold all three and the trio RESONATES a shared vow.</div>
-      <div class="ov-line"><b>Exploit.</b> Hit a foe's weakness twice in a turn to STAGGER it; chain hits to fill BURST, then unleash the ALL-OUT.</div>
-      <div class="ov-line"><b>Grow.</b> Every hero starts with one card per stance. Foes drop <b>✦ embers</b> — on the map, spend them in your party's <b>EMBER TREE</b> to unlock cards and upgrades. It's power for <i>this descent only</i>: fall, and it burns away.</div>
+    <div class="ov-lines howto" style="text-align:left; max-width:448px; margin:0 auto; max-height:64vh; overflow-y:auto; padding-right:6px;">
+      <div class="ov-line"><b>Start alone.</b> Pick a survivor; the rest you <b>RECRUIT</b> on the road. Who you bring is your build — every trio RESONATES differently.</div>
+      <div class="ov-line"><b>Row is stance.</b> Drag a hero between FRONT/MID/BACK — their cards rewrite to match.</div>
+      <div class="ov-line"><b>Defend.</b> A blow telegraphs its damage and the row it hits. <b>DODGE</b> to an empty row, or hold and <b>PARRY</b>: each blow is a short <b>rhythm string</b> — tap every note the instant its ring glows gold. A perfect parry negates the blow and ripostes.</div>
+      <div class="ov-line"><b>Bond.</b> Help an ally (heal, guard, follow-up) to weave a <b>THREAD</b>. Hold all three and the trio <b>RESONATES</b> a shared vow.</div>
+      <div class="ov-line"><b>Exploit.</b> Hit a foe's weakness twice in a turn to <b>STAGGER</b> it; chain hits to fill <b>BURST</b>, then unleash the <b>ALL-OUT</b>.</div>
+      <div class="ov-line"><b>Grow.</b> Foes drop <b>✦ embers</b> — on the map, spend them in your party's <b>EMBER TREE</b> to unlock cards and upgrades. Power for <i>this descent only</i>: fall, and it burns away.</div>
+      <div class="ov-line"><b>Gifts.</b> Companions offer <b>BOONS</b> — draft 1 of 3 at elites, events, and the fire. Some are <b>DUO / TRIO</b> gifts that only appear when the named heroes walk together.</div>
+      <div class="ov-line"><b>Rest.</b> At a <b>CAMPFIRE</b> the living mend fully — then take ONE act: deepen a bond, sharpen for the next fight, draw a gift, or <b>RAISE a fallen</b> ally. The dead don't rise on their own.</div>
       <div class="ov-line"><b>Sacrifice.</b> Drag a card onto your <b>EP dial</b> to feed it for <b>+1 EP</b> — once a turn, so no card is ever dead.</div>
-      <div class="ov-line"><b>Inspect.</b> Press &amp; hold any card to enlarge it.</div>
+      <div class="ov-line"><b>Inspect.</b> Press &amp; hold any card to enlarge it. The <b>JOURNAL</b> (menu) tracks every boon, foe, and hero you've discovered.</div>
     </div>
     <button class="ov-btn primary" id="ht-back">◂ BACK</button>
   `, 'menu-screen');
@@ -7452,7 +7455,8 @@ function beginRun(starterId) {
     lines: [
       { text: 'The first thing you understand is that everyone else is gone.' },
       { spk: h.name, text: '…then I carry it alone. For now.' },
-      { text: `You are <b>${h.name}</b> — ${h.identity || h.cls}. Your <b>row is your stance</b>, and when a blow falls you <b>dodge</b> it or <b>parry</b> it in time. Descend, find the others, and the <b>threads</b> you forge become the real weapon.` },
+      { text: `You are <b>${h.name}</b> — ${h.identity || h.cls}. Your <b>row is your stance</b>; when a blow falls, <b>dodge</b> the row or <b>parry</b> its rhythm, note by note.` },
+      { text: `The dead give up <b>✦ embers</b> to grow your kit, and companions share <b>gifts</b> — but the <b>threads</b> you weave between the living are the real weapon. Descend, and find the others. <i>(Full rules live in the menu’s How to Play.)</i>` },
     ],
     beginDescent: true,
   });

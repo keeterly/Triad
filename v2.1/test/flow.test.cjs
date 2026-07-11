@@ -1883,6 +1883,13 @@ const QUICK = process.argv.includes('--quick');
       const lockedHint = [...document.querySelectorAll('.bj-entry.bj-locked .bj-mystery')].length >= 1;
       hideOverlay();
       return owned.includes('ASH') && owned.includes('ELIN') && lockedHint; }));
+  check('ONBOARDING: How to Play reflects the CURRENT build — parry strings, boons, camp, recruit, journal',
+    await J(() => {
+      showHowTo(() => {});
+      const txt = (document.querySelector('.howto') || {}).textContent || '';
+      const t = txt.toLowerCase();
+      hideOverlay();
+      return ['recruit', 'rhythm string', 'parry', 'boon', 'duo', 'trio', 'campfire', 'raise a fallen', 'ember tree', 'journal', 'all-out', 'stagger'].every(k => t.includes(k)); }));
   check('BOON DRAFT: duo/trio cards show ALL involved characters’ portraits',
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash', 'mira', 'branwen']; RUN.active = ['ash', 'mira', 'branwen']; RUN.boons = [];
