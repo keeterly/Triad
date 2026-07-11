@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 158;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 159;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -7062,18 +7062,17 @@ function devPreviewRotations() {
 function showHowTo(back) {
   showOverlay(`
     <div class="ov-eyebrow">HOW TO PLAY</div>
-    <div class="ov-title" style="font-size:20px; margin-bottom:10px;">THE THREADS</div>
+    <div class="ov-title" style="font-size:20px; margin-bottom:10px;">THE BASICS</div>
     <div class="ov-lines howto" style="text-align:left; max-width:448px; margin:0 auto; max-height:64vh; overflow-y:auto; padding-right:6px;">
-      <div class="ov-line"><b>Start alone.</b> Pick a survivor; the rest you <b>RECRUIT</b> on the road. Who you bring is your build — every trio RESONATES differently.</div>
-      <div class="ov-line"><b>Row is stance.</b> Drag a hero between FRONT/MID/BACK — their cards rewrite to match.</div>
-      <div class="ov-line"><b>Defend.</b> A blow telegraphs its damage and the row it hits. <b>DODGE</b> to an empty row, or hold and <b>PARRY</b>: each blow is a short <b>rhythm string</b> — tap every note the instant its ring glows gold. A perfect parry negates the blow and ripostes.</div>
-      <div class="ov-line"><b>Bond.</b> Help an ally (heal, guard, follow-up) to weave a <b>THREAD</b>. Hold all three and the trio <b>RESONATES</b> a shared vow.</div>
-      <div class="ov-line"><b>Exploit.</b> Hit a foe's weakness twice in a turn to <b>STAGGER</b> it; chain hits to fill <b>BURST</b>, then unleash the <b>ALL-OUT</b>.</div>
-      <div class="ov-line"><b>Grow.</b> Foes drop <b>✦ embers</b> — on the map, spend them in your party's <b>EMBER TREE</b> to unlock cards and upgrades. Power for <i>this descent only</i>: fall, and it burns away.</div>
-      <div class="ov-line"><b>Gifts.</b> Companions offer <b>BOONS</b> — draft 1 of 3 at elites, events, and the fire. Some are <b>DUO / TRIO</b> gifts that only appear when the named heroes walk together.</div>
-      <div class="ov-line"><b>Rest.</b> At a <b>CAMPFIRE</b> the living mend fully — then take ONE act: deepen a bond, sharpen for the next fight, draw a gift, or <b>RAISE a fallen</b> ally. The dead don't rise on their own.</div>
-      <div class="ov-line"><b>Sacrifice.</b> Drag a card onto your <b>EP dial</b> to feed it for <b>+1 EP</b> — once a turn, so no card is ever dead.</div>
-      <div class="ov-line"><b>Inspect.</b> Press &amp; hold any card to enlarge it. The <b>JOURNAL</b> (menu) tracks every boon, foe, and hero you've discovered.</div>
+      <div class="ht-head">On your turn</div>
+      <div class="ov-line"><b>Play cards to fight.</b> Drag a card onto an enemy to attack, or onto an ally to help. Each card costs <b>EP</b> — your energy, which refills every turn.</div>
+      <div class="ov-line"><b>Move to change stance.</b> Drag a hero between <b>FRONT · MID · BACK</b>. Their row is their stance, so their cards change with it.</div>
+      <div class="ht-head">When a foe attacks</div>
+      <div class="ov-line"><b>Dodge or parry.</b> Each enemy shows the <b>row</b> it will hit. Drag that hero to a safe row to <b>DODGE</b> — or stand and <b>PARRY</b>: tap each note the instant its ring flashes gold. Good timing turns the blow aside.</div>
+      <div class="ht-head">Between fights</div>
+      <div class="ov-line"><b>Grow stronger.</b> Winning earns <b>✦ embers</b> — spend them on your <b>Ember Tree</b> to unlock new cards. Take companion <b>gifts</b>, and <b>rest</b> at campfires to heal.</div>
+      <div class="ov-line"><b>Fight as a trio.</b> You gather up to three heroes. Help one another in battle and their <b>bonds</b> deepen — a bonded party unlocks powerful shared moves.</div>
+      <div class="ov-line ht-tip">Tip: press &amp; hold any card to read it up close.</div>
     </div>
     <button class="ov-btn primary" id="ht-back">◂ BACK</button>
   `, 'menu-screen');
