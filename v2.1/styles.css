@@ -1817,6 +1817,20 @@ button.map-node:not(:disabled) { cursor: pointer; }
 #stage.parry-focus #action-bar *,
 #stage.parry-focus #topbar *,
 #stage.parry-focus #narrator * { animation-play-state: paused !important; }
+/* SLOW-MO PARRY WINDOW (Clair Obscur): the instant a note goes live, the world
+   dilates — the scene desaturates harder and a vignette rushes in, so the beat to
+   parry lands with weight.  Cheap: deepens the existing focus filter + one fading
+   overlay (z below the notes at 20), no re-raster of the figures. */
+#stage.parry-slowmo #battlefield,
+#stage.parry-slowmo #topbar,
+#stage.parry-slowmo #narrator,
+#stage.parry-slowmo #action-bar { filter: saturate(0.06) brightness(0.32) contrast(1.06); transition: filter 0.16s ease-out; }
+#stage.parry-slowmo::before {
+  content: ''; position: absolute; inset: 0; z-index: 12; pointer-events: none;
+  background: radial-gradient(ellipse at 50% 46%, transparent 26%, rgba(4,2,2,0.62) 100%);
+  animation: slowmo-vig 0.2s ease-out both;
+}
+@keyframes slowmo-vig { from { opacity: 0; } to { opacity: 1; } }
 /* a full-bleed flash on every landed press (behind the notes, above the world) */
 .parry-flash { position: absolute; inset: 0; z-index: 40; pointer-events: none;
   background: radial-gradient(circle at 50% 42%, rgba(255,255,255,0.16), rgba(255,255,255,0) 60%);
@@ -2248,6 +2262,18 @@ button.map-node:not(:disabled) { cursor: pointer; }
   box-shadow: 0 0 30px rgba(255,80,50,0.5); animation: bb-pulse 0.6s ease-out;
 }
 @keyframes bb-pulse { 0%{opacity:0;transform:translate(-50%,-50%) scale(0.3)} 40%{opacity:0.9} 100%{opacity:0;transform:translate(-50%,-50%) scale(2.4)} }
+/* PARRIED — the blow is turned aside: the strike reads as a STEEL CLASH (cool
+   white-blue) rather than a crimson hit, so a clean parry looks like a deflection. */
+.bb-parried::before {
+  background: linear-gradient(90deg, transparent 6%, rgba(150,200,255,0.9) 34%, #ffffff 50%, rgba(150,200,255,0.9) 66%, transparent 94%);
+  box-shadow: 0 0 14px rgba(150,200,255,0.95), 0 0 34px rgba(120,180,255,0.55);
+}
+.bb-parried::after {
+  background: radial-gradient(circle, #fff 0%, rgba(200,228,255,0.95) 26%, rgba(120,180,255,0.6) 54%, transparent 74%);
+  box-shadow: 0 0 28px 11px rgba(140,190,255,0.6);
+}
+.bb-slam.bb-parried::before { border-color: rgba(160,205,255,0.9); box-shadow: 0 0 24px rgba(140,190,255,0.55); }
+.bb-blast.bb-parried::before { background: radial-gradient(circle, rgba(180,215,255,0.6), rgba(90,140,220,0.25) 55%, transparent 72%); box-shadow: 0 0 30px rgba(140,190,255,0.5); }
 
 /* ===========================================================================
    BUILD 46 — character archetypes surfaced in party-select / recruit

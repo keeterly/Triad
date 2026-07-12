@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 167;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 168;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -3891,9 +3891,10 @@ function parryTapNote(ax, ay, dur, idx, total, size) {
     const lbl = ui.el.querySelector('.pr-lbl');
     const GOOD = Math.round(PARRY_GOOD_MS * _parryWin), PERF = Math.round(PARRY_PERF_MS * _parryWin);   // windows (tighten with depth)
     let done = false; const t0 = Date.now();
-    // light the note up the moment it becomes tappable — "wait for the glow"
-    const liveT = setTimeout(() => { if (!done) { ui.el.classList.add('pr-live'); lbl.textContent = size === 'big' ? 'SLAM!' : 'TAP!'; } }, Math.max(0, dur - GOOD));
-    const finish = (q) => { if (done) return; done = true; clearTimeout(liveT); window.removeEventListener('pointerdown', onTap, true); noteFeedback(ui, ax, ay, q); ui.close(); resolve(q); };
+    // light the note up the moment it becomes tappable — "wait for the glow" — and
+    // DILATE time (Clair Obscur slow-mo) so the instant to parry lands with weight
+    const liveT = setTimeout(() => { if (!done) { ui.el.classList.add('pr-live'); lbl.textContent = size === 'big' ? 'SLAM!' : 'TAP!'; parrySlowmo(true); } }, Math.max(0, dur - GOOD));
+    const finish = (q) => { if (done) return; done = true; clearTimeout(liveT); if (ui.el.classList.contains('pr-live')) parrySlowmo(false); window.removeEventListener('pointerdown', onTap, true); noteFeedback(ui, ax, ay, q); ui.close(); resolve(q); };
     const onTap = () => {
       const rem = dur - (Date.now() - t0);
       if (rem > GOOD) { parryEarlyNudge(ui, ax, ay); return; }   // too soon — forgive, keep listening
@@ -4101,12 +4102,13 @@ async function runParrySeq(notes, anchor, art) {
       dur = Math.max(200, Math.round((land - clock.now()) * 1000));   // close exactly on the beat
     }
     const done = preview.querySelectorAll('.sq-dot')[i]; if (done) done.classList.add('sq-active');
-    if (art) bossAttackBeat(art, p.x, p.y);   // one art streak per note — SYNCED
     let q;
     if (nt.t === 'hold')       q = await parryHoldNote(p.x, p.y, synced ? Math.max(480, dur) : 820);
     else if (nt.t === 'swipe') q = await parrySwipeNote(p.x, p.y, nt.arc || 'arcR', synced ? Math.max(420, dur) : 760);
     else                       q = await parryTapNote(p.x, p.y, synced ? dur : step.d, i + 1, notes.length);
-    if (done) { done.classList.remove('sq-active'); done.classList.add(q === 'perfect' || q === 'good' ? 'sq-hit' : 'sq-miss'); }
+    const okNote = q === 'perfect' || q === 'good';
+    if (art) bossAttackBeat(art, p.x, p.y, okNote);   // the blade STRIKES on the beat — clash if parried, connects if not
+    if (done) { done.classList.remove('sq-active'); done.classList.add(okNote ? 'sq-hit' : 'sq-miss'); }
     if (q === 'perfect' || q === 'good') hits++;
     if (q === 'perfect') perfects++;
     if (synced) land += sub;                 // next note, next grid point
@@ -4130,6 +4132,7 @@ async function runParry(targetEl, pattern, art) {
     return await runParryInner(targetEl, pattern, art);
   } finally {
     stage.classList.remove('parry-focus');
+    _slowmoRef = 0; stage.classList.remove('parry-slowmo');   // never leak the dilation past a parry
   }
 }
 async function runParryInner(targetEl, pattern, art) {
@@ -4150,7 +4153,6 @@ async function runParryInner(targetEl, pattern, art) {
       a = { x: sx / figs.length, y: sy / figs.length };
     }
   }
-  if (art && k !== 'seq') bossAttackBeat(art, a.x, a.y);   // single-note attacks: one beat
   if (k === 'tap' || k === 'multi' || k === 'seq' || !k) parryCoach('Wait for the ring to glow gold — then TAP');
   if (k === 'seq')   return await runParrySeq(pattern.notes, a, art);
   // multi is a mini-cascade — partial mitigation too (miss a tap, take its
@@ -4162,7 +4164,9 @@ async function runParryInner(targetEl, pattern, art) {
     for (let i = 0; i < pattern.count; i++) {
       const step = rh[i] || { d: 480 };
       const q = await parryTapNote(a.x, a.y, step.d, i + 1, pattern.count, sz);
-      if (q === 'perfect' || q === 'good') hits++;
+      const okNote = q === 'perfect' || q === 'good';
+      if (art) bossAttackBeat(art, a.x, a.y, okNote);   // strike on each note's beat
+      if (okNote) hits++;
       if (q === 'perfect') perfects++;
     }
     return { mit: hits / pattern.count, perfect: hits === pattern.count, flawless: perfects === pattern.count && pattern.count > 0, notes: pattern.count };
@@ -4172,6 +4176,8 @@ async function runParryInner(targetEl, pattern, art) {
   else if (k === 'swipe') q = await parrySwipeNote(a.x, a.y, pattern.arc, 860, sz);
   else if (k === 'mash')  q = await parryMashNote(a.x, a.y, pattern.count || 4, 1150);
   else                    q = await parryTapNote(a.x, a.y, 700, 1, 1, sz);
+  const ok1 = q === 'perfect' || q === 'good';
+  if (art) bossAttackBeat(art, a.x, a.y, ok1);   // the single strike lands as the note resolves
   return { mit: q === 'perfect' ? 1 : q === 'good' ? 0.5 : 0, perfect: q === 'perfect', flawless: q === 'perfect', notes: 1 };
 }
 function parryFlash(el) {
@@ -4268,14 +4274,28 @@ function cineLayer() {
 // and rendered BEHIND the notes (dim, z-8) so it sells the giant blade/claw/blast
 // without ever obscuring the gesture you're reading.  A 4-note claw = 4 rakes
 // racing down the arc as you tap.  Purely visual, self-removing.
-function bossAttackBeat(kind, ax, ay) {
+// The enemy strike ART, fired ON the parry beat (see runParrySeq/runParryInner):
+// the blade cut lands exactly when the ring closes.  parried=true recolors it to
+// a STEEL CLASH (the blow turned aside) with a lighter shake; a missed note lets
+// the red hit CONNECT with a heavier shake — so the telegraph and the parry read
+// as one moment.
+function bossAttackBeat(kind, ax, ay, parried) {
   const fx = document.createElement('div');
-  fx.className = 'boss-beat bb-' + kind;
+  fx.className = 'boss-beat bb-' + kind + (parried ? ' bb-parried' : '');
   fx.style.setProperty('--by', (ay / stageDH() * 100) + '%');
   fx.style.setProperty('--bx', (ax / stageDW() * 100) + '%');
   $('#stage').appendChild(fx);
-  stageShake();
+  stageShake(parried ? 'sm' : 'md');
   setTimeout(() => fx.remove(), 640);
+}
+// SLOW-MO PARRY WINDOW (Clair Obscur) — as a note enters its live window the world
+// leans in and time dilates, so the instant to parry lands with weight.  Ref-counted
+// so overlapping notes never clear it early; runParry force-resets it on exit.
+let _slowmoRef = 0;
+function parrySlowmo(on) {
+  const st = document.getElementById('stage'); if (!st) return;
+  if (on) { _slowmoRef++; st.classList.add('parry-slowmo'); }
+  else { _slowmoRef = Math.max(0, _slowmoRef - 1); if (!_slowmoRef) st.classList.remove('parry-slowmo'); }
 }
 // A transient full-screen impact flash + shake — punctuates each vow stage.
 function cineFlash(color) {
