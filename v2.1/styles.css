@@ -988,10 +988,10 @@ button.map-node:not(:disabled) { cursor: pointer; }
 }
 .ps-card:hover { border-color: rgba(240,212,136,0.55); transform: translateY(-2px); }
 .ps-card:active { cursor: grabbing; }
-.ps-card .ps-art { height: 56px; display: flex; align-items: flex-end; pointer-events: none; }
-.ps-card .ps-art svg { height: 56px; width: auto; }
+.ps-card .ps-art { height: 52px; display: flex; align-items: flex-end; pointer-events: none; }
+.ps-card .ps-art svg { height: 52px; width: auto; }
 .ps-card .ps-name { font-size: 9.5px; letter-spacing: 0.15em; color: var(--ink); }
-.ps-card .ps-cls { font-size: 7.5px; letter-spacing: 0.06em; }
+.ps-card .ps-cls { font-size: 7.5px; letter-spacing: 0.06em; white-space: nowrap; }
 .ps-card .ps-cls b { color: var(--gold-bright); font-weight: 700; }
 .ps-lock { color: var(--gold-bright); font-size: 8px; }
 .ps-hp { width: 60px; height: 3px; border-radius: 2px; background: rgba(255,255,255,0.1); overflow: hidden; margin-top: 3px; }
@@ -1006,16 +1006,20 @@ button.map-node:not(:disabled) { cursor: pointer; }
 .ps-card.ps-dragging { opacity: 0.4; }
 .ps-card.ps-pinned { border-color: rgba(240,212,136,0.4); }
 
-.ps-bench-wrap { margin: 3px auto 2px; width: min(92%, 560px); }
-.ps-bench-title { font-size: 7px; letter-spacing: 0.18em; color: var(--ink-faint); text-transform: uppercase; margin-bottom: 4px; }
+.ps-bench-wrap { margin: 2px auto; width: min(88%, 520px); }
+.ps-bench-title { font-size: 7px; letter-spacing: 0.18em; color: var(--ink-faint); text-transform: uppercase; margin-bottom: 3px; }
 .ps-bench {
-  display: flex; gap: 7px; justify-content: center; flex-wrap: wrap;
-  padding: 6px; border-radius: 12px; border: 1px dashed rgba(232,220,196,0.14);
+  display: flex; gap: 6px; justify-content: center; flex-wrap: wrap;
+  padding: 5px 6px; border-radius: 12px; border: 1px dashed rgba(232,220,196,0.14);
   background: rgba(8,6,5,0.5);
 }
-.ps-bench .ps-card { width: 78px; opacity: 0.8; }
-.ps-bench .ps-card .ps-art { height: 42px; }
-.ps-bench .ps-card .ps-art svg { height: 42px; }
+/* BENCH cards are compact CHIPS — just portrait + name (no class/HP), so a resting
+   roster stays short and the whole editor fits the fixed stage without scrolling. */
+.ps-bench .ps-card { width: auto; min-width: 58px; padding: 4px 8px 5px; opacity: 0.82; }
+.ps-bench .ps-card .ps-art { height: 34px; }
+.ps-bench .ps-card .ps-art svg { height: 34px; }
+.ps-bench .ps-card .ps-cls, .ps-bench .ps-card .ps-hp, .ps-bench .ps-card .ps-hp-num { display: none; }
+.ps-bench .ps-card .ps-name { margin-top: 2px; }
 .ps-bench .ps-card:hover, .ps-bench .ps-card.ps-sel, .ps-bench .ps-card.ps-over { opacity: 1; }
 .party-screen .ps-reso { min-height: 0; margin: 4px 0 2px; }
 .party-screen .ps-bonds { margin: 0 0 4px; }
