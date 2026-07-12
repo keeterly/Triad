@@ -98,12 +98,10 @@ const QUICK = process.argv.includes('--quick');
   check('CONCEPT: bond steels both (+2 guard each)', await J(() => S.heroes.every(h => h.guard >= 2)),
     await J(() => S.heroes.map(h => h.id + ':' + h.guard).join(',')));
   check('DECLUTTER: bonds no longer draw a permanent web of lines', await J(() => document.querySelectorAll('#thread-layer .thread-line').length === 0));
-  check('GENERATED: the first bond materialized ECHO BOND', await J(() => !!document.querySelector('#hand .card[data-card-name="Echo Bond"]')));
-  await tapCard('Echo Bond'); await sleep(550);
-  check('ECHO BOND: the pair moves as one (⛨5 · ▲2 each)',
-    await J(() => S.heroes.every(h => h.guard >= 5 && h.buffDmg >= 2)),
-    await J(() => S.heroes.map(h => h.id + ':' + h.guard + '/' + h.buffDmg).join(',')));
-  check('the bond card burned away on use', await J(() => !document.querySelector('#hand .card[data-card-name="Echo Bond"]')));
+  // BONDS REFORGED — a thread no longer spawns an Echo Bond CARD.  An un-kindled
+  // pair just forms the connection + its guard; no card clutters the hand.
+  check('REFORGED: a thread forms NO card (no Echo Bond in hand)', await J(() => !document.querySelector('#hand .card[data-card-name="Echo Bond"]')));
+  check('REFORGED: an UN-kindled pair awakens no weave yet', await J(() => !(S.pairsAwake && S.pairsAwake.size)));
   await shot('ch2-thread');
 
   // ---------- DESCENT: map, recruit, composition, Formation resonant ----------
@@ -318,21 +316,18 @@ const QUICK = process.argv.includes('--quick');
     if (!gotCeremony) { await endTurn(); }
   }
   check('TRIAD ceremony fired for phalanx trio', gotCeremony);
-  check('HIJACK: the resonant card occupies the host’s signature slot',
-    await J(() => !!document.querySelector('#hand .card.kind-resonant')));
-  if (await J(() => S.ep < S.maxEp)) await endTurn();
+  // BONDS REFORGED — the triad no longer hijacks a card slot.  It CROWNS the
+  // all-out: no resonant card in hand, and S.allOutCrowned is set.
+  check('REFORGED: the triad spawns NO resonant card', await J(() => !document.querySelector('#hand .card.kind-resonant')));
+  check('REFORGED: the triad crowns the all-out (S.allOutCrowned)', await J(() => !!S.allOutCrowned));
+  // the FORMATION vow now lands as the all-out CROWN — drive the crown directly
+  // and confirm it still pushes the enemy line + wards the party.
   const rowsBefore = await J(() => S.enemies.filter(x => !x.dead).map(x => x.id + ':' + x.row).join(' '));
-  // tap the hijacked resonant card by class (name carries a curly apostrophe)
-  await J(() => {
-    const c = document.querySelector('#hand .card.kind-resonant');
-    c.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 7 }));
-    c.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 7 }));
-  });
-  // wait out the full two-stage cinematic (push, then heal-ripple + front guard)
-  for (let w = 0; w < 20; w++) { if (await J(() => S.heroes.some(h => h.guard >= 4))) break; await sleep(300); }
+  await J(async () => { await allOutBondVerses(livingHeroes()); });
+  await sleep(400);
   const rowsAfter = await J(() => S.enemies.filter(x => !x.dead).map(x => x.id + ':' + x.row).join(' '));
-  check('FORMATION resonant pushed the enemy line', rowsBefore !== rowsAfter, rowsBefore + ' -> ' + rowsAfter);
-  check('oathkeepers guard granted', await J(() => S.heroes.some(h => h.guard >= 4)),
+  check('CROWN: the FORMATION vow pushes the enemy line in the all-out', rowsBefore !== rowsAfter, rowsBefore + ' -> ' + rowsAfter);
+  check('CROWN: oathkeepers guard granted', await J(() => S.heroes.some(h => h.guard >= 4)),
     await J(() => S.heroes.map(h => h.id + ':' + h.row + ':g' + h.guard).join(' ')));
   await shot('phalanx-pushed');
 
@@ -414,7 +409,7 @@ const QUICK = process.argv.includes('--quick');
   await tapCard('Aegis'); await pickTarget('ash'); await sleep(700);
   const awoke = await dismissCeremony();
   check('LOOP: a single act of help AWAKENED the kindled triad', awoke);
-  check('resonant hijacked the awakener’s signature', await J(() => !!document.querySelector('#hand .card.kind-resonant')));
+  check('REFORGED: the triad crowns the all-out — no resonant card', await J(() => !!S.allOutCrowned && !document.querySelector('#hand .card.kind-resonant')));
   await shot('awakened');
 
   // ---------- THE ABYSS REMEMBERS: death contributes ----------
@@ -1682,39 +1677,62 @@ const QUICK = process.argv.includes('--quick');
     return { pre: [...S.threads] };
   });
   await sleep(200);
-  check('DUET: a kindled pair walks in with its thread PRE-FORMED',
+  check('WEAVE: a kindled pair walks in with its thread PRE-FORMED',
     duetSetup.pre.length === 1 && duetSetup.pre[0] === 'ash|elin', JSON.stringify(duetSetup.pre));
   await J(async () => { await addThread('ash', 'elin'); });   // the shared act this fight
   await sleep(300);
-  check('DUET: the shared act forged the pair vow (Warded Edge · 3 EP)',
-    await J(() => { const d = S.tempCards.find(c => c.fx && c.fx.duet); return !!d && d.name === 'Warded Edge' && d.cost === 3; }),
-    await J(() => JSON.stringify(S.tempCards.map(c => c.name))));
-  check('DUET: it supersedes the generic Echo Bond', await J(() => !S.tempCards.find(c => c.name === 'Echo Bond')));
-  check('DUET: costs 3 EP not the whole turn — playable now',
-    await J(() => { const el = [...document.querySelectorAll('#hand .card')].find(x => x.dataset.cardName === 'Warded Edge'); return !!el && !el.classList.contains('disabled'); }));
-  const dBefore = await J(() => ({ hp: S.enemies[0].hp, ep: S.ep }));
-  await tapCard('Warded Edge'); await sleep(3200);   // the duet now plays a cinematic intro before its stages resolve
-  const dAfter = await J(() => ({ hp: S.enemies[0].hp, guards: S.heroes.map(h => h.guard), ep: S.ep, gone: !S.tempCards.find(c => c.fx && c.fx.duet) }));
-  check('DUET: resolves — both guard +4, foe struck 5, 3 EP spent, card consumed',
-    dAfter.guards.every(g => g >= 6) && dAfter.hp === dBefore.hp - 5 && dAfter.ep === dBefore.ep - 3 && dAfter.gone,
-    JSON.stringify({ dBefore, dAfter }));
-  const noDuet = await J(async () => {
+  // BONDS REFORGED — the shared act WEAVES the pair (a live rider), no card, no EP.
+  check('WEAVE: the shared act wove the pair — no duet/resonant CARD',
+    await J(() => (S.pairsAwake && S.pairsAwake.has('ash|elin')) && !S.tempCards.find(c => c.fx && c.fx.duet) && !document.querySelector('#hand .card.kind-resonant')));
+  check('WEAVE: awakening swelled the BURST to L2 (the old duet reward)', await J(() => (S.burstLevel || 1) >= 2));
+  // the WEAVE RIDER — Warded Edge: Ash's FINISHER mends the most-wounded ally.
+  const wHeal = await J(() => {
+    const elin = S.heroes.find(h => h.id === 'elin'); elin.hp = 10;
+    const before = elin.hp;
+    fireWeave('onFinish', 'ash', { dmg: 9, tgt: livingEnemies()[0] });
+    return { before, after: S.heroes.find(h => h.id === 'elin').hp };
+  });
+  check('WEAVE: Warded Edge rider — Ash’s finisher heals the wounded ally', wHeal.after > wHeal.before, JSON.stringify(wHeal));
+  // the VOW pays off as an ALL-OUT VERSE — the pair's strike lands in the finale.
+  const weaveVerseBefore = await J(() => S.enemies[0].hp);
+  await J(async () => { await allOutBondVerses(livingHeroes()); });
+  await sleep(400);
+  const weaveVerseAfter = await J(() => S.enemies[0].hp);
+  check('VERSE: the woven pair’s vow strikes in the all-out', weaveVerseAfter < weaveVerseBefore,
+    JSON.stringify({ weaveVerseBefore, weaveVerseAfter }));
+  const noWeave = await J(async () => {
     RUN = newRun('ash');
     RUN.roster = ['ash', 'mira']; RUN.active = ['ash', 'mira'];
     RUN.hp = { ash: 32, mira: 22 }; RUN.bonds = {};   // un-kindled
     startMapFight(RUN.map.find(x => x.type === 'fight'));
     await addThread('ash', 'mira');
-    return { duet: !!S.tempCards.find(c => c.fx && c.fx.duet), echo: !!S.tempCards.find(c => c.name === 'Echo Bond') };
+    return { woven: !!(S.pairsAwake && S.pairsAwake.size), card: !!S.tempCards.find(c => c.fx && c.fx.duet) };
   });
-  check('DUET: an UN-kindled pair awakens no vow (falls back to Echo Bond)',
-    !noDuet.duet && noDuet.echo, JSON.stringify(noDuet));
+  check('WEAVE: an UN-kindled pair weaves nothing (and forges no card)',
+    !noWeave.woven && !noWeave.card, JSON.stringify(noWeave));
+  // WEAVE RIDER — the emergent damage layer: Twin Edge (Reaver+Ronin) reads board
+  // state (an EXPOSED foe) and adds +3 THROUGH the normal damage pipe (passiveDmg),
+  // so it composes with boons/skills instead of being a separate card.
+  const twinEdge = await J(() => {
+    setupFight(['ash', 'mira'], [], { ash: 'front', mira: 'mid' });
+    S.pairsAwake = new Set([pairKey('ash', 'mira')]);   // weave active
+    const ash = S.heroes.find(h => h.id === 'ash');
+    const foe = frontmostEnemy();
+    const plain = passiveDmg(ash, foe);            // no exposure → no Twin Edge bonus
+    foe.exposed = 1;
+    const exposed = passiveDmg(ash, foe);          // EXPOSED → +3 via the weave
+    return { plain, exposed };
+  });
+  check('WEAVE RIDER: Twin Edge adds +3 vs an EXPOSED foe through passiveDmg (emergent)',
+    twinEdge.exposed - twinEdge.plain === 3, JSON.stringify(twinEdge));
 
   // ---------- KIZUNA REACH: bonds form through ordinary cooperative play ----------
   console.log('--- KIZUNA REACH ---');
   check('KIZUNA: a party-wide ward threads the caster to EVERY ally it shelters',
     await J(async () => {
       setupFight(['elin', 'ash', 'mira'], ['elin.sig.front'], { elin: 'front', ash: 'mid', mira: 'back' });
-      window.triadCeremony = async () => { S.resonantNew = true; };   // don't block on the cinematic
+      window.__origTC = window.__origTC || triadCeremony;
+      window.triadCeremony = async () => { S.allOutCrowned = true; };   // don't block on the cinematic
       S.ep = 20; const before = S.threads.size;
       await playCard(handCard('Radiant Ward'), null);   // target 'allies' → wards the whole party
       return before === 0 && S.threads.has('ash|elin') && S.threads.has('elin|mira') && S.threads.size === 2;
@@ -1722,7 +1740,8 @@ const QUICK = process.argv.includes('--quick');
   check('KIZUNA: ganging up — a follow-up threads the striker with EVERY prior hitter of that foe',
     await J(async () => {
       setupFight(['ash', 'mira', 'branwen'], ['mira.sig.mid', 'branwen.sig.back'], { ash: 'front', mira: 'mid', branwen: 'back' });
-      window.triadCeremony = async () => { S.resonantNew = true; };
+      window.__origTC = window.__origTC || triadCeremony;
+      window.triadCeremony = async () => { S.allOutCrowned = true; };
       S.ep = 20; S.threads.clear();
       const e = frontmostEnemy(); e.hp = e.maxHp = 99;
       await playCard(buildHand().find(c => c.owner === 'ash' && c.fx && c.fx.dmg), e.uid);           // ash hits
@@ -1730,6 +1749,7 @@ const QUICK = process.argv.includes('--quick');
       await playCard(buildHand().find(c => c.owner === 'branwen' && c.name === 'Killing Arrow'), e.uid); // branwen follows → threads BOTH prior
       return S.threads.has('ash|mira') && S.threads.has('ash|branwen') && S.threads.has('branwen|mira') && S.triadFormed;
     }));
+  await J(() => { if (window.__origTC) triadCeremony = window.__origTC; });   // restore the real ceremony for later source-inspection
 
   // ---------- UI POLISH (Build 47): boss intent · tree pan · event cards ----------
   console.log('--- UI POLISH ---');
@@ -2415,10 +2435,10 @@ const QUICK = process.argv.includes('--quick');
       S.momentum = 180; const two = burstFireLevel() === 2;
       S.momentum = 250; const three = burstFireLevel() === 3;
       return none && one && two && three; }));
-  check('BURST: a DUET expands to L2 and the TRIAD vow to L3 (wired into their resolutions)',
+  check('BURST: a WEAVE expands to L2 and the TRIAD crown to L3 (wired into awaken/ceremony)',
     await J(() => typeof expandBurst === 'function' && typeof allOutEncore === 'function'
-      && resolveDuet.toString().includes('expandBurst(2')
-      && resolveResonant.toString().includes('expandBurst(3')));
+      && awakenDuet.toString().includes('expandBurst(2')
+      && triadCeremony.toString().includes('expandBurst(3')));
   check('BURST: the all-out scales by fire level and adds an L2+ encore (wired into resolveAllOut)',
     await J(() => { const s = resolveAllOut.toString();
       return s.includes('burstFireLevel()') && s.includes('lvlMul') && s.includes('allOutEncore'); }));

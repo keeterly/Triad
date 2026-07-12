@@ -679,6 +679,13 @@ body {
 /* a boon-proc popup floats gold over the hero */
 .popup.boon { color: #ffe6a4; text-shadow: 0 0 8px rgba(255,170,80,0.8), 0 1px 3px #000; font-weight: 700; letter-spacing: 0.06em; }
 .cb-boon, .map-boon { cursor: pointer; }
+/* BOND WEAVE chips — a woven pair glows gold in the topbar (distinct from boons:
+   diamond-ish, brighter ring), so an active bond reads at a glance. */
+.cb-weave { width: 18px; height: 18px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; font-size: 10px;
+  color: var(--gold-bright); border: 1px solid rgba(240,212,136,0.7);
+  background: radial-gradient(circle at 50% 40%, rgba(240,212,136,0.22), rgba(16,11,7,0.92));
+  box-shadow: 0 0 6px rgba(240,212,136,0.35); animation: cb-weave-in 0.5s ease; }
+@keyframes cb-weave-in { 0% { transform: scale(0.4) rotate(-30deg); opacity: 0; } 100% { transform: scale(1) rotate(0); opacity: 1; } }
 /* INSPECT panel — press & hold / hover a held boon to read the full gift */
 #boon-inspect {
   position: fixed; z-index: 120; width: 220px; max-width: 78vw; padding: 12px 14px 13px; border-radius: 11px;
