@@ -281,8 +281,9 @@ const QUICK = process.argv.includes('--quick');
   await clickOverlayBtn('#ps-go'); await sleep(400);
   // Deliberate formation: ash FRONT (attacker), then the two weavers where
   // their ally-cards live — Cassia MID (Cover), Elin BACK (Benediction) — so
-  // all three threads can close.  Pick order IS the formation.
-  await J(() => { RUN.active = ['ash', 'cassia', 'elin']; saveRun(); });
+  // all three threads can close.  The marching order writes RUN.rows, which now
+  // drives combat positions, so set it explicitly for this composition.
+  await J(() => { RUN.active = ['ash', 'cassia', 'elin']; RUN.rows = { ash: 'front', cassia: 'mid', elin: 'back' }; saveRun(); });
 
   // next fight: build the triangle deliberately, then verify the FORMATION resonant
   await J(() => document.querySelector('.map-node.mn-fight.mn-reach, .map-node.mn-reach').click()); await sleep(700);
@@ -1936,7 +1937,16 @@ const QUICK = process.argv.includes('--quick');
       const after = [...document.querySelectorAll('.ps-slot .ps-card')].map(x => x.dataset.id);
       const swapped = after[0] === before[2] && after[2] === before[0];
       document.querySelector('#ps-go').click();                   // WALK ON commits the order
-      return swapped && RUN.active[0] === 'elin' && RUN.active[2] === 'ash'; }));
+      // and it must write RUN.rows so the NEXT fight fields these exact rows
+      return swapped && RUN.active[0] === 'elin' && RUN.active[2] === 'ash'
+        && RUN.rows && RUN.rows[RUN.active[0]] === 'front' && RUN.rows[RUN.active[1]] === 'mid' && RUN.rows[RUN.active[2]] === 'back'; }));
+  check('FORMATION: the marching order drives combat rows — newBattle fields front/mid/back as arranged',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash', 'mira', 'elin']; RUN.active = ['ash', 'mira', 'elin']; RUN.hp = { ash: 32, mira: 26, elin: 28 };
+      RUN.rows = { ash: 'back', mira: 'front', elin: 'mid' };   // an arrangement that is NOT the default order
+      S = newBattle({ type: 'fight', useRunHp: true, heroes: ['ash', 'mira', 'elin'], enemies: ['husk'] });
+      const rowOf = (id) => S.heroes.find(h => h.id === id).row;
+      return rowOf('mira') === 'front' && rowOf('elin') === 'mid' && rowOf('ash') === 'back'; }));
   check('FORMATION: a ◆-pinned recruit can reorder but cannot be sent to the bench',
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash', 'mira', 'elin', 'cassia']; RUN.active = ['ash', 'mira', 'elin']; RUN.hp = { ash: 32, mira: 26, elin: 28, cassia: 30 };

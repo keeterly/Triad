@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 168;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 169;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -6339,6 +6339,9 @@ function showPartySelect(onDone, mustInclude) {
   let line = RUN.active.slice(0, need);
   if (mustInclude && !line.includes(mustInclude)) line = [mustInclude].concat(line).slice(0, need);
   RUN.roster.forEach(id => { if (line.length < need && !line.includes(id)) line.push(id); });   // top up if short
+  // Open on the party's REAL current formation: order the line by the combat rows
+  // it will actually field (front → mid → back), so the editor mirrors the fight.
+  if (RUN.rows) { const rank = { front: 0, mid: 1, back: 2 }; line.sort((a, b) => ((rank[RUN.rows[a]] != null ? rank[RUN.rows[a]] : 9) - (rank[RUN.rows[b]] != null ? rank[RUN.rows[b]] : 9))); }
   let bench = RUN.roster.filter(id => !line.includes(id));
   let sel = null;   // the picked-up hero (tap-to-swap)
 
@@ -6425,7 +6428,16 @@ function showPartySelect(onDone, mustInclude) {
       el.ondragleave = () => el.classList.remove('ps-over');
       el.ondrop = (e) => { e.preventDefault(); el.classList.remove('ps-over'); let src = ''; try { src = e.dataTransfer.getData('text/plain'); } catch (_) {} if (src && src !== id) attempt(src, id); };
     });
-    $('#ps-go').onclick = () => { RUN.active = line.slice(); saveRun(); hideOverlay(); onDone(); };
+    $('#ps-go').onclick = () => {
+      RUN.active = line.slice();
+      // The marching order IS the formation — write it into position memory so the
+      // NEXT fight opens with these exact rows (front → mid → back).  Without this,
+      // newBattle keeps reading the stale RUN.rows and ignores your arrangement.
+      RUN.rows = RUN.rows || {};
+      const rowNames = ['front', 'mid', 'back'];
+      line.forEach((id, i) => { RUN.rows[id] = rowNames[i] || 'back'; });
+      saveRun(); hideOverlay(); onDone();
+    };
   };
   render();
 }
