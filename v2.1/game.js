@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 166;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 167;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -2842,11 +2842,17 @@ function attachDrag(el, card) {
       drawAimField(fromX, fromY, _fieldPts, angle, aimColor(card));
       return;
     } else {
+      // AIM to the figure's ON-SCREEN BOX, not the inner portrait SVG.  A foe's
+      // art svg has transparent padding that can sit off-centre from the visible
+      // body (worst on the slim enemy figures), which used to pull the reticle
+      // toward mid-field even when the foe stood on the right.  The .figure box is
+      // centred on the enemy's actual slot, so the beam lands ON the foe.
+      const aimBox = (t) => (t && t.getBoundingClientRect) ? t.getBoundingClientRect() : figHitRect(t);
       let best = null, bd = Infinity;
-      els.forEach(t => { const r = figHitRect(t); const d = (r.left + r.width / 2 - ptrX) ** 2 + (r.top + r.height / 2 - ptrY) ** 2; if (d < bd) { bd = d; best = t; } });
+      els.forEach(t => { const r = aimBox(t); const d = (r.left + r.width / 2 - ptrX) ** 2 + (r.top + r.height / 2 - ptrY) ** 2; if (d < bd) { bd = d; best = t; } });
       snapped = best; setSnap(best ? [best] : []);   // only mutates when the nearest target changes
       valid = !!best;
-      if (best) { const r = figHitRect(best); ex = (r.left + r.width / 2 - sr.left) / s; ey = (r.top + r.height * 0.4 - sr.top) / s; }
+      if (best) { const r = aimBox(best); ex = (r.left + r.width / 2 - sr.left) / s; ey = (r.top + r.height * 0.42 - sr.top) / s; }
       else { ex = (ptrX - sr.left) / s; ey = (ptrY - sr.top) / s; }
       // TECHNICAL preview — aiming a damaging card at a PRIMED foe (chilled or
       // weakened, off its weakness line) will detonate.  Rather than a flashing
@@ -2859,7 +2865,10 @@ function attachDrag(el, card) {
       }
       setTech(techEl); _aimTech = !!techEl;
     }
-    curEX += (ex - curEX) * 0.34; curEY += (ey - curEY) * 0.34;
+    // Snappier lock when a valid foe is snapped (so the reticle sits ON the target
+    // fast, not drifting through mid-field); looser when free-aiming empty space.
+    const ease = valid ? 0.5 : 0.34;
+    curEX += (ex - curEX) * ease; curEY += (ey - curEY) * ease;
     angle = (angle + 3) % 360;
     drawAimJRPG(fromX, fromY, curEX, curEY, valid, field, angle, _aimTech ? '#ffe14a' : aimColor(card), _aimTech);
   }

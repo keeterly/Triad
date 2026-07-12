@@ -2195,35 +2195,56 @@ button.map-node:not(:disabled) { cursor: pointer; }
 
 /* each attack beat sits BEHIND the figures + notes (z-8), dim + transient */
 .boss-beat { position: absolute; inset: 0; pointer-events: none; z-index: 8; overflow: hidden; }
-/* CLAW / SLASH — a single angled streak rakes through the note's height */
+/* SLASH / CLAW — a fast JRPG katana-cut THROUGH the target: a white-hot blade
+   streak that draws across the hit point, crimson at the edges, with an impact
+   SPARK that pops where it lands.  Localized to (--bx,--by) — no more full-screen
+   diagonal.  Alternating slash/claw lean opposite ways so a cascade reads as
+   cross-cuts. */
 .bb-claw::before, .bb-slash::before {
-  content: ''; position: absolute; left: -25%; width: 150%; top: var(--by); height: 7px;
-  transform: translateY(-50%) rotate(-19deg);
-  background: linear-gradient(90deg, transparent, rgba(255,80,66,0.75) 44%, rgba(255,205,195,0.85) 54%, transparent);
-  box-shadow: 0 0 20px rgba(255,70,60,0.5); animation: bb-streak 0.6s ease-out;
+  content: ''; position: absolute; left: var(--bx); top: var(--by);
+  width: 190px; height: 4px; margin-left: -95px; margin-top: -2px; border-radius: 3px;
+  background: linear-gradient(90deg, transparent 6%, rgba(255,96,72,0.85) 34%, #fff6ef 50%, rgba(255,96,72,0.85) 66%, transparent 94%);
+  box-shadow: 0 0 12px rgba(255,72,52,0.85), 0 0 30px rgba(255,60,40,0.45);
+  transform-origin: 50% 50%;
+  animation: bb-cut 0.4s cubic-bezier(0.16,0.72,0.24,1) forwards;
 }
-.bb-slash::before { transform: translateY(-50%) rotate(24deg); }
-@keyframes bb-streak {
-  0% { opacity: 0; transform: translateY(-50%) rotate(-19deg) translateX(-160px); }
-  30% { opacity: 0.85; }
-  100% { opacity: 0; transform: translateY(-50%) rotate(-19deg) translateX(160px); }
+.bb-slash::before { animation-name: bb-cut-r; }
+/* impact SPARK — a hot flash-burst at the point of contact */
+.bb-claw::after, .bb-slash::after {
+  content: ''; position: absolute; left: var(--bx); top: var(--by);
+  width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%;
+  background: radial-gradient(circle, #fff 0%, rgba(255,196,140,0.95) 26%, rgba(255,86,52,0.55) 54%, transparent 74%);
+  box-shadow: 0 0 26px 10px rgba(255,90,52,0.55);
+  opacity: 0; animation: bb-spark 0.42s ease-out 0.08s forwards;
 }
-.bb-slash::before { animation: bb-streak-r 0.6s ease-out; }
-@keyframes bb-streak-r {
-  0% { opacity: 0; transform: translateY(-50%) rotate(24deg) translateX(-160px); }
-  30% { opacity: 0.85; }
-  100% { opacity: 0; transform: translateY(-50%) rotate(24deg) translateX(160px); }
+@keyframes bb-cut {
+  0%   { opacity: 0; transform: rotate(-26deg) translateX(-46px) scaleX(0.15); }
+  26%  { opacity: 1; }
+  55%  { opacity: 1; transform: rotate(-26deg) translateX(8px) scaleX(1); }
+  100% { opacity: 0; transform: rotate(-26deg) translateX(26px) scaleX(1); }
 }
-/* SLAM — a heavy impact ring at the note */
+@keyframes bb-cut-r {
+  0%   { opacity: 0; transform: rotate(26deg) translateX(-46px) scaleX(0.15); }
+  26%  { opacity: 1; }
+  55%  { opacity: 1; transform: rotate(26deg) translateX(8px) scaleX(1); }
+  100% { opacity: 0; transform: rotate(26deg) translateX(26px) scaleX(1); }
+}
+@keyframes bb-spark { 0%{opacity:0; transform:scale(0.25)} 32%{opacity:1; transform:scale(1)} 100%{opacity:0; transform:scale(2.3)} }
+/* SLAM — a heavy impact ring + white core at the note */
 .bb-slam::before {
   content: ''; position: absolute; left: var(--bx); top: var(--by); transform: translate(-50%,-50%);
-  border-radius: 50%; border: 4px solid rgba(255,100,70,0.7); animation: bb-ring 0.55s ease-out;
+  border-radius: 50%; border: 4px solid rgba(255,120,80,0.85); box-shadow: 0 0 24px rgba(255,90,50,0.5); animation: bb-ring 0.5s ease-out;
 }
-@keyframes bb-ring { 0%{width:16px;height:16px;opacity:0.9} 100%{width:220px;height:220px;opacity:0} }
+.bb-slam::after {
+  content: ''; position: absolute; left: var(--bx); top: var(--by); width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%;
+  background: radial-gradient(circle, #fff, rgba(255,150,100,0.7) 45%, transparent 72%); box-shadow: 0 0 30px 12px rgba(255,100,60,0.5);
+  opacity: 0; animation: bb-spark 0.44s ease-out forwards;
+}
+@keyframes bb-ring { 0%{width:16px;height:16px;opacity:0.95} 100%{width:230px;height:230px;opacity:0} }
 /* BLAST — a swelling crimson pulse at the note */
 .bb-blast::before {
   content: ''; position: absolute; left: var(--bx); top: var(--by); width: 60px; height: 60px; transform: translate(-50%,-50%);
-  border-radius: 50%; background: radial-gradient(circle, rgba(255,120,90,0.55), rgba(200,40,30,0.25) 55%, transparent 72%);
+  border-radius: 50%; background: radial-gradient(circle, rgba(255,150,110,0.6), rgba(200,40,30,0.25) 55%, transparent 72%);
   box-shadow: 0 0 30px rgba(255,80,50,0.5); animation: bb-pulse 0.6s ease-out;
 }
 @keyframes bb-pulse { 0%{opacity:0;transform:translate(-50%,-50%) scale(0.3)} 40%{opacity:0.9} 100%{opacity:0;transform:translate(-50%,-50%) scale(2.4)} }
