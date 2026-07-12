@@ -1474,6 +1474,11 @@ button.map-node:not(:disabled) { cursor: pointer; }
   color: var(--blood-bright); margin-top: 8px; animation: rc-fade 0.6s ease-out 0.35s both;
 }
 @keyframes rc-slam { 0% { transform: scale(2.6); opacity: 0; } 60% { opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
+/* VOW VERSE banner (all-out payoff) — the involved heroes' portraits rise beneath
+   the vow name, so it's unmistakable WHICH bond is crashing down. */
+.vv-figs { position: relative; z-index: 3; display: flex; gap: 14px; justify-content: center; align-items: flex-end; margin-bottom: 6px; animation: rc-fade 0.5s ease-out 0.15s both; }
+.vv-fig { width: 62px; height: 78px; display: flex; align-items: flex-end; justify-content: center; filter: drop-shadow(0 6px 16px rgba(0,0,0,0.8)); }
+.vv-fig svg { height: 78px; width: auto; }
 @keyframes rc-fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 .rc-flash {
   position: absolute; inset: 0; z-index: 46; pointer-events: none;

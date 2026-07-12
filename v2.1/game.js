@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 172;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 173;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -767,7 +767,7 @@ function renderCombatBoons() {
   const weaves = wovenPairKeys();
   html += weaves.map(key => {
     const [a, b] = key.split('|'); const w = BOND_WEAVE[duetClassKey(a, b)]; if (!w) return '';
-    return `<span class="cb-weave" title="✦ WEAVE — ${HEROES[a].name} &amp; ${HEROES[b].name}: ${w.name} — ${w.blurb}">${w.icon || '✦'}</span>`;
+    return `<span class="cb-weave" data-weave="${key}" title="✦ WEAVE — ${HEROES[a].name} &amp; ${HEROES[b].name}: ${w.name} — ${w.blurb}">${w.icon || '✦'}</span>`;
   }).join('');
   el.innerHTML = html;
   el.querySelectorAll('.cb-boon').forEach(c => attachBoonInspect(c, c.dataset.boon));
@@ -1884,9 +1884,22 @@ function weaveDmg(owner, tgt) {
   if (owner._weaveEdge) { d += owner._weaveEdge; }
   return d;
 }
-// fire a weave event hook for a hero (onFinish/onHit/onHeal/onGuard)
+// FEEDBACK when a weave fires — pulse its topbar chip + a labelled gold pop over
+// the acting hero, so a woven bond is FELT the moment it bends the hit (mirrors
+// boonProc).  `anchorId` is who to float the tag over.
+function weaveProc(classKey, name, anchorId) {
+  try {
+    if (anchorId) popupAt(figEl(anchorId), '✦ ' + (name || 'WEAVE').toUpperCase(), 'boon');
+    const el = document.getElementById('combat-boons');
+    if (el && S && S.pairsAwake) { for (const key of S.pairsAwake) { const [a, b] = key.split('|'); if (duetClassKey(a, b) === classKey) { const chip = el.querySelector(`[data-weave="${key}"]`); if (chip) { chip.classList.remove('cb-proc'); void chip.offsetWidth; chip.classList.add('cb-proc'); } } } }
+  } catch (_) {}
+}
+// fire a weave event hook for a hero (onFinish/onHit/onHeal/onGuard).  Any hook that
+// actually does something announces itself (the pair's name) so the effect reads.
 function fireWeave(hookName, heroId, ctx) {
-  wovenWeavesFor(heroId).forEach(({ w }) => { if (w[hookName]) { try { w[hookName](Object.assign({ heroId }, ctx || {})); } catch (_) {} } });
+  wovenWeavesFor(heroId).forEach(({ w, a, b }) => {
+    if (w[hookName]) { try { w[hookName](Object.assign({ heroId }, ctx || {})); weaveProc(duetClassKey(a, b), w.name, heroId); } catch (_) {} }
+  });
 }
 // Does a `save` weave (Sanctified Wall) cover this hero, and is its once-per-fight
 // charge still unspent, with BOTH woven partners still standing?
@@ -2561,7 +2574,22 @@ function clearAim() {
   const th = document.getElementById('target-hint'); if (th) { th.classList.add('hidden'); th.classList.remove('th-tech'); }
   const aim = document.getElementById('aim-layer'); if (aim) aim.innerHTML = '';
   document.querySelectorAll('.card.card-dragging, .figure.fig-dragging').forEach(el => { el.classList.remove('card-dragging', 'fig-dragging'); el.style.transform = ''; el.style.transition = ''; });
+  // KILL any leaked window-level drag listener from a prior fight — this is the
+  // one piece of state that survives an S/RUN reset, and if a drag's pointerup
+  // never fired (a re-render swapped the card, the run ended mid-gesture) its
+  // window listener lingers and can swallow the NEXT game's card gestures, so the
+  // new hand reads as "glitched / un-draggable."  Also drop any frozen/focus/slow
+  // stage classes so nothing from the last fight bleeds into the next.
+  try { if (_dragWinUp) { window.removeEventListener('pointerup', _dragWinUp, true); window.removeEventListener('pointercancel', _dragWinUp, true); _dragWinUp = null; } } catch (_) {}
+  try { _slowmoRef = 0; const st = document.getElementById('stage'); if (st) st.classList.remove('parry-focus', 'parry-slowmo', 'allout-focus', 'frozen'); } catch (_) {}
+  // Force a CLEAN hand rebuild next render: throw away any stale card DOM (and its
+  // drag closure, whose `pid` may be stuck from a gesture the last fight cut short)
+  // so the new fight always wires fresh, draggable cards.
+  try { const hnd = document.getElementById('hand'); if (hnd) hnd.innerHTML = ''; } catch (_) {}
 }
+// The single live window-level drag listener (see attachDrag) — tracked module-wide
+// so clearAim can guarantee it's gone between games.
+let _dragWinUp = null;
 function onFigureTap(id) {
   if (!targeting || targeting.isRow || targeting.drag) return;
   if (!targeting.validIds.includes(id)) { cancelTargeting(); return; }
@@ -2813,7 +2841,9 @@ function attachDrag(el, card) {
     // card's own pointerup never fires and the aim beam/raf would stick.  A
     // window capture listener guarantees finish() ALWAYS runs on release.
     if (winUp) { window.removeEventListener('pointerup', winUp, true); window.removeEventListener('pointercancel', winUp, true); }
+    if (_dragWinUp) { window.removeEventListener('pointerup', _dragWinUp, true); window.removeEventListener('pointercancel', _dragWinUp, true); }   // never let TWO drag listeners coexist
     winUp = (ev) => finish(ev);
+    _dragWinUp = winUp;
     window.addEventListener('pointerup', winUp, true);
     window.addEventListener('pointercancel', winUp, true);
     // PRESS & HOLD to INSPECT — a big MtG-style enlarge of the card (works on
@@ -2969,7 +2999,7 @@ function attachDrag(el, card) {
   }
   const finish = (e) => {
     if (pid === null || (e && e.pointerId !== pid)) return;   // ignore stray / second-pointer releases
-    if (winUp) { window.removeEventListener('pointerup', winUp, true); window.removeEventListener('pointercancel', winUp, true); winUp = null; }
+    if (winUp) { window.removeEventListener('pointerup', winUp, true); window.removeEventListener('pointercancel', winUp, true); if (_dragWinUp === winUp) _dragWinUp = null; winUp = null; }
     clearTimeout(holdT);
     try { el.releasePointerCapture(pid); } catch (_) {}
     pid = null; cancelAnimationFrame(raf);
@@ -3382,6 +3412,8 @@ async function resolveCard(card, targetId) {
       if (owner && owner._weaveEdge) { popupAt(figEl(owner.id), '✦ WEAVE +' + owner._weaveEdge, 'buff'); owner._weaveEdge = 0; }   // consume a granted edge
       // subtle feedback when a damage-tuning BOON is lifting this hit (chip pulse, no popup spam)
       if (owner) runBoons().forEach(b => { if (b.trigger === 'dmgMod' && b.mod && (b.mod(owner, tgt) || 0) > 0) boonProc(owner.id, b.id, { quiet: true }); });
+      // and when a WEAVE dmgMod (Twin Edge vs EXPOSED, Marked Charge vs MARKED) lifts it — announce the bond
+      if (owner) wovenWeavesFor(owner.id).forEach(({ w, a, b }) => { if (w.dmgMod && (w.dmgMod(owner, tgt) || 0) > 0) weaveProc(duetClassKey(a, b), w.name, owner.id); });
       // FOLLOW-UP: striking an enemy an ally already hit this turn is a
       // combo — +2 damage, and fighting together forms a thread between
       // the two attackers (Concept 3: following up strengthens bonds).
@@ -4451,6 +4483,38 @@ async function duetCineIntro(d, a, b, rank) {
   $('#stage').classList.remove('frozen');
   await sleep(180);
 }
+// VOW VERSE cinematic — the bonds' payoff INSIDE the all-out gets a real beat: the
+// pair's portraits + vow name slam in over a bond thread (a triangle for the trio
+// CROWN), the field freezes for a breath, then the vow's stages land.  Snappier
+// than the pre-fight duet intro so the all-out keeps its momentum.
+async function vowVerseIntro(ids, name, isCrown) {
+  const el = cineLayer();
+  $('#stage').classList.add('frozen');
+  el.classList.remove('hidden', 'rc-out');
+  const names = ids.map(id => HEROES[id].name).join(isCrown ? ' · ' : ' & ');
+  const figs = ids.map(id => `<span class="vv-fig">${V2PORTRAITS[id] || ''}</span>`).join('');
+  const glyph = isCrown
+    ? `<svg class="rc-tri" viewBox="0 0 150 130"><path d="M 75 12 L 138 112 L 12 112 Z"/></svg>`
+    : `<svg class="rc-tri rc-bond" viewBox="0 0 150 130"><line x1="30" y1="66" x2="120" y2="66"/><circle cx="30" cy="66" r="10"/><circle cx="120" cy="66" r="10"/></svg>`;
+  el.innerHTML = `
+    <div class="rc-wash ${isCrown ? '' : 'rc-duet'}"></div>
+    <div class="rc-rays"></div>
+    <div class="rc-sweep"></div>
+    ${glyph}
+    <div class="vv-figs">${figs}</div>
+    <div class="rc-host">${names}</div>
+    <div class="rc-name">✦ ${name}</div>
+    <div class="rc-type">${isCrown ? 'THE CROWN' : 'THE VOW'}</div>`;
+  if (SFX.triad) SFX.triad();
+  cineFlash(isCrown ? 'rgba(240,212,136,0.55)' : 'rgba(240,212,136,0.4)');
+  if (isCrown) { for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) sparkThread(ids[i], ids[j]); }
+  else if (ids.length === 2) sparkThread(ids[0], ids[1]);
+  await sleep(isCrown ? 1000 : 680);
+  el.classList.add('rc-out');
+  $('#stage').classList.remove('frozen');
+  await sleep(160);
+  el.classList.add('hidden'); el.classList.remove('rc-out'); el.innerHTML = '';
+}
 
 // STRIKE note — the OFFENSIVE mirror of the parry.  Same closing-ring timing,
 // but placed ON the enemy and tinted red: tap as it lands to land the blow with
@@ -4945,18 +5009,20 @@ async function playVowStages(stages, ids, mul, label) {
 }
 async function allOutBondVerses(heroes) {
   const alive = (id) => { const h = S.heroes.find(x => x.id === id); return h && !h.downed; };
-  // one verse per woven pair (both still standing)
+  // one verse per woven pair (both still standing) — each gets its cinematic beat
   for (const key of wovenPairKeys()) {
     if (S.over || !livingEnemies().length) return;
     const [a, b] = key.split('|');
     if (!alive(a) || !alive(b)) continue;
     const d = duetFor(a, b);
+    await vowVerseIntro([a, b], d.name, false);
     if (await playVowStages(d.stages, [a, b], 1, HEROES[a].name + ' & ' + HEROES[b].name + ' · ' + d.name)) return;
   }
   // the triad CROWN — the trio's vow, bigger, as the finale
   if (S.allOutCrowned && !S.over && livingEnemies().length) {
     const ids = livingHeroes().map(h => h.id);
     const r = triadEntry();
+    await vowVerseIntro(ids, r.name, true);
     await playVowStages(r.stages, ids, 1.6, '✦ ' + r.name + ' — THE CROWN');
   }
 }

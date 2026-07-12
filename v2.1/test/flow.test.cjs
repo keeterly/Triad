@@ -1725,6 +1725,19 @@ const QUICK = process.argv.includes('--quick');
   });
   check('WEAVE RIDER: Twin Edge adds +3 vs an EXPOSED foe through passiveDmg (emergent)',
     twinEdge.exposed - twinEdge.plain === 3, JSON.stringify(twinEdge));
+  // DRAG RESET — the post-game-over "cards un-draggable" fix: clearAim must wipe
+  // the stale hand + any leaked interaction state so the NEXT game wires fresh cards.
+  check('DRAG RESET: clearAim wipes the stale hand + frozen/focus/targeting state',
+    await J(() => {
+      setupFight(['ash', 'elin', 'mira'], [], {});
+      targeting = { card: {}, validIds: [] };
+      const st = document.getElementById('stage'); st.classList.add('allout-focus', 'frozen', 'parry-slowmo');
+      const hadCards = document.querySelectorAll('#hand .card').length > 0;
+      clearAim();
+      const cleared = document.querySelectorAll('#hand .card').length === 0;
+      const noStuck = !targeting && !st.classList.contains('allout-focus') && !st.classList.contains('frozen') && !st.classList.contains('parry-slowmo');
+      return hadCards && cleared && noStuck;
+    }));
 
   // ---------- KIZUNA REACH: bonds form through ordinary cooperative play ----------
   console.log('--- KIZUNA REACH ---');
