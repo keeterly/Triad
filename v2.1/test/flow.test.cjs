@@ -523,13 +523,13 @@ const QUICK = process.argv.includes('--quick');
         && !document.querySelector('#hand .card[data-card-name="Coup de Grâce"]') // but the killing card is gated
         && !S.tempCards.some(c => c.name === 'Coup de Grâce'); }));
   // Per-hero STAGGER reactions — the Executioner cashes a break in each hero's voice
-  check('EXECUTIONER Cassia: stagger forges Bulwark Break (dmg + ⛨5 on the wall)',
+  check('EXECUTIONER Cassia: stagger forges Wallbreaker (dmg + ⛨5 on the wall)',
     await J(() => {
       RUN.nodes = ['cassia.exec'];
       startFight({ type: 'fight', chapter: 3, heroes: ['cassia'], enemies: ['wraith'], narrator: 'exec cassia' });
       const e = S.enemies[0]; e.hp = e.maxHp = 80; S.tempCards = []; renderAll();
       dealToEnemy(e, 4, e.def.weak, 'cassia'); dealToEnemy(e, 4, e.def.weak, 'cassia');   // → STAGGER
-      const c = S.tempCards.find(t => t.name === 'Bulwark Break');
+      const c = S.tempCards.find(t => t.name === 'Wallbreaker');
       return !!c && c.fx.dmg === 8 && c.fx.guard === 5 && c.target === 'frontmost'; }));
   check('EXECUTIONER Mira: stagger forges Death Blossom (dmg + ◎ EXPOSED 4 for the mark-flow)',
     await J(() => {
@@ -1746,6 +1746,44 @@ const QUICK = process.argv.includes('--quick');
   });
   check('FOLLOW-UP: flavored by WHO the partner is (Mira marks + strikes)',
     mira2.struck && mira2.marked, JSON.stringify(mira2));
+  // HASK CAN CHAIN — the Mage weave pairs exist, so a Hask bond is a real weave
+  // that offers a Chain (regression: BOND_WEAVE was missing all 5 Mage pairs, so
+  // Hask could never give or receive one despite having a BOND_ASSIST entry).
+  const haskWeave = await J(() => ({
+    mageRonin: !!weaveFor('hask', 'ash'), mageCleric: !!weaveFor('hask', 'elin'),
+    mageReaver: !!weaveFor('hask', 'mira'), mageGuardian: !!weaveFor('hask', 'cassia'),
+    mageRanger: !!weaveFor('hask', 'branwen'),
+  }));
+  check('WEAVE: all 5 Mage (Hask) pairs are defined — Hask can weave', Object.values(haskWeave).every(Boolean), JSON.stringify(haskWeave));
+  const haskChain = await J(() => {
+    setupFight(['hask', 'ash'], [], { hask: 'back', ash: 'front' });
+    S.pairsAwake = new Set([pairKey('hask', 'ash')]); S._assistedPairs = new Set(); S.tempCards = [];
+    offerBondFollow('ash');   // Ash's finisher → Hask's Chain offered
+    const c = S.tempCards.find(t => t.fx && t.fx.bondFollow);
+    return { has: !!c, owner: c && c.owner };
+  });
+  check('CHAIN: Hask receives a Chain off a woven partner’s finisher', haskChain.has && haskChain.owner === 'hask', JSON.stringify(haskChain));
+  // KIZUNA teamwork branch — the chain nodes deepen the Chain itself.
+  const chainMomentum = await J(async () => {
+    setupFight(['ash', 'mira'], [], { ash: 'front', mira: 'mid' });
+    RUN.nodes = ['ash.chain.link']; S.momentum = 0;
+    await resolveBondFollow({ partnerId: 'mira', attackerId: 'ash', weave: 'Twin Edge' });
+    return S.momentum;
+  });
+  check('KIZUNA: Momentum Weave — a Chain builds burst (+momentum)', chainMomentum >= 8, 'momentum=' + chainMomentum);
+  check('KIZUNA: Empowered Bond raises the all-out bond multiplier (wired into resolveAllOut)',
+    await J(() => { const s = resolveAllOut.toString(); return s.includes('ash.chain.deep') && s.includes('0.25') && s.includes('bondPer'); }));
+  check('KIZUNA: Chain Reaction cascades (resolveBondFollow re-offers on the capstone)',
+    await J(() => resolveBondFollow.toString().includes('ash.chain.react') && resolveBondFollow.toString().includes('offerBondFollow')));
+  // OPENING WEAVES — pre-kindled bonds walk into the fight already woven, so a
+  // deepened bond is felt from turn one (no re-earning the weave every fight).
+  const opening = await J(() => {
+    RUN = newRun('ash'); RUN.roster = ['ash', 'elin']; RUN.active = ['ash', 'elin'];
+    RUN.hp = { ash: 32, elin: 24 }; RUN.bonds = {}; RUN.bonds[pairKey('ash', 'elin')] = BOND_KINDLED;
+    startMapFight(RUN.map.find(x => x.type === 'fight'));
+    return { woven: !!(S.pairsAwake && S.pairsAwake.has(pairKey('ash', 'elin'))) };
+  });
+  check('WEAVE: a pre-KINDLED bond enters the fight already woven (openingWeaves)', opening.woven, JSON.stringify(opening));
   // DRAG RESET — the post-game-over "cards un-draggable" fix: clearAim must wipe
   // the stale hand + any leaked interaction state so the NEXT game wires fresh cards.
   check('DRAG RESET: clearAim wipes the stale hand + frozen/focus/targeting state',

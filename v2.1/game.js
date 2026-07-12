@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 182;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 183;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -387,8 +387,8 @@ const EMBER_TREE = [
     stagger: { name: 'Mercy’s End', target: 'enemy', fx: { dmg: 8 }, heal: 3, desc: '<b>8 holy</b> · <b>×2 vs STAGGERED</b>.' } },
   { id: 'mira.exec',    hero: 'mira',    tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'ON STAGGER: forge a free <b>Death Blossom</b> (7 dmg · <span class="kw kw-exposed">◎4</span>, doubled vs staggered) — paints the kill',
     stagger: { name: 'Death Blossom', target: 'enemy', fx: { dmg: 7, mark: 4 }, desc: '<b>7 damage</b> · <span class="kw kw-exposed">◎ EXPOSED 4</span> · <b>×2 vs STAGGERED</b>.' } },
-  { id: 'cassia.exec',  hero: 'cassia',  tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'ON STAGGER: forge a free <b>Bulwark Break</b> (8 dmg, doubled vs staggered) & Cassia gains <span class="kw kw-guard">⛨5</span> — the wall punishes & hardens',
-    stagger: { name: 'Bulwark Break', target: 'frontmost', fx: { dmg: 8, guard: 5 }, desc: '<b>8 damage</b> · <b>×2 vs STAGGERED</b> · gain <span class="kw kw-guard">⛨5</span>.' } },
+  { id: 'cassia.exec',  hero: 'cassia',  tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'ON STAGGER: forge a free <b>Wallbreaker</b> (8 dmg, doubled vs staggered) & Cassia gains <span class="kw kw-guard">⛨5</span> — the wall punishes & hardens',
+    stagger: { name: 'Wallbreaker', target: 'frontmost', fx: { dmg: 8, guard: 5 }, desc: '<b>8 damage</b> · <b>×2 vs STAGGERED</b> · gain <span class="kw kw-guard">⛨5</span>.' } },
   { id: 'branwen.exec', hero: 'branwen', tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'ON STAGGER: forge a free <b>Marksman’s Finish</b> (10 dmg, doubled vs staggered) & refund <b>1 EP</b> — the hunt presses on',
     stagger: { name: 'Marksman’s Finish', target: 'enemy', fx: { dmg: 10 }, ep: 1, desc: '<b>10 damage</b> · <b>×2 vs STAGGERED</b>.' } },
 
@@ -411,6 +411,16 @@ const EMBER_TREE = [
   { id: 'elin.allout.dawn',    hero: 'elin',    tier: 3, cost: 9,  type: 'allout', requires: ['elin.sig.mid'],  label: 'Radiant Dawn', desc: 'ALL-OUT END: the whole party heals <span class="kw kw-heal">✚5</span> & gains <span class="kw kw-guard">⛨3</span> — dawn after the storm', allout: 'dawn' },
   { id: 'mira.allout.dance',   hero: 'mira',    tier: 3, cost: 9,  type: 'allout', requires: ['mira.passive.opportunist'], label: 'Death Dance', desc: 'ALL-OUT END: every surviving foe is left <span class="kw kw-exposed">◎ EXPOSED 5</span> — marked for the kill-flow', allout: 'dance' },
   { id: 'branwen.allout.ruin', hero: 'branwen', tier: 3, cost: 10, type: 'allout', requires: ['branwen.sig.back'], label: 'Rain of Ruin', desc: 'ALL-OUT END: loose a <b>volley</b> on the whole line & refund <b>2 EP</b> — the sky goes dark with arrows', allout: 'ruin' },
+  { id: 'hask.allout.zero',    hero: 'hask',    tier: 3, cost: 9,  type: 'allout', requires: ['hask.emergent.icicle'], label: 'Absolute Zero', desc: 'ALL-OUT END: the world freezes — <b>frost</b> on every foe, left deeply <span class="kw kw-chill">❄ CHILLED</span>, and Hask gathers <span class="kw kw-charge">◆ CHARGE 3</span> — the deep cold answers', allout: 'zero' },
+
+  // ═══ KIZUNA — the TEAMWORK branch.  These nodes don't upgrade one hero; they
+  // deepen the CHAIN itself — the free answer a woven partner plays off your
+  // FINISHER.  Hosted on Ash (the Skirmisher who fights side-by-side), they modify
+  // the party-wide bond system, so the more you weave, the more the Chain gives. ══
+  { id: 'ash.chain.link',   hero: 'ash', tier: 2, cost: 6,  type: 'chain', requires: ['ash.sig.front'], label: 'Momentum Weave', desc: 'ON CHAIN: a partner’s CHAIN builds <b>+8 MOMENTUM</b> — every woven answer feeds the burst' },
+  { id: 'ash.chain.deep',   hero: 'ash', tier: 3, cost: 9,  type: 'chain', requires: ['ash.chain.link'], label: 'Empowered Bond', desc: 'PASSIVE: each woven bond empowers your <b>ALL-OUT</b> harder (<b>+10%</b> per bond) — deepened bonds strike as one' },
+  { id: 'ash.chain.rising', hero: 'ash', tier: 3, cost: 9,  type: 'chain', requires: ['ash.chain.link'], label: 'Rising Chain',   desc: 'ON CHAIN: every CHAIN this fight <b>swells the burst container</b> (+3) — the bond keeps building' },
+  { id: 'ash.chain.react',  hero: 'ash', tier: 4, cost: 12, type: 'chain', requires: ['ash.chain.deep', 'ash.chain.rising'], label: 'Chain Reaction', desc: 'ON CHAIN: a CHAIN is itself a FINISHER — the partner’s OTHER bond CHAINS in turn, so a full triad <b>cascades</b>' },
 
   // ═══ HASK — the BLACK MAGE.  Builds ◆ CHARGE on every spell; the MID fork is the
   // OVERLOAD line (build charge → dump it in a nuke).  Three job-paths: OVERLOAD
@@ -1758,6 +1768,11 @@ const BOND_WEAVE = {
   'Cleric+Ranger':   { name: 'Covered Advance', icon: '❂' },
   'Ranger+Reaver':   { name: 'Kill Order',     icon: '☠' },
   'Guardian+Ranger': { name: 'Anvil & Arrow',  icon: '➶' },
+  'Mage+Ronin':      { name: 'Rimeblade',      icon: '❄' },   // Hask's frost pairs — the shatter setup
+  'Cleric+Mage':     { name: 'Hallowed Frost', icon: '❉' },
+  'Guardian+Mage':   { name: 'Frostwall',      icon: '❆' },
+  'Mage+Ranger':     { name: 'Frostmark',      icon: '❅' },
+  'Mage+Reaver':     { name: 'Killing Frost',  icon: '✻' },
 };
 // A partner's ASSIST is flavored by WHO they are (their archetype) — so it reads
 // as that character joining the fight.  Returns a short verb for the callout.
@@ -1766,12 +1781,12 @@ const BOND_WEAVE = {
 // assists FALL BACK to a ward, so a bond assist NEVER fires a triumphant callout
 // for +0 effect.  `foe()` returns a hittable enemy or null.
 const BOND_ASSIST = {
-  ash:     (p, tgt) => { const t = (tgt && !tgt.dead) ? tgt : frontmostEnemy(); if (t) { dealToEnemy(t, 6, 'blade', p.id); popupAt(figEl(t.uid), '⚔ 6', 'dmg'); } return 'a cutting follow-up'; },
+  ash:     (p, tgt) => { const t = (tgt && !tgt.dead) ? tgt : frontmostEnemy(); if (t) { dealToEnemy(t, 6, 'blade', p.id); popupAt(figEl(t.uid), '⚔ 6', 'dmg'); } return 'a cutting strike'; },
   mira:    (p, tgt) => { const t = (tgt && !tgt.dead) ? tgt : frontmostEnemy(); if (t) { t.mark = (t.mark || 0) + 2; dealToEnemy(t, 5, 'blade', p.id); popupAt(figEl(t.uid), '◎+2 ✕5', 'dmg'); } return 'a shadow strike'; },
   elin:    (p, tgt, atkId) => { const w = lowestHpAlly(); if (w && !w.downed && w.hp < w.maxHp) { w.hp = Math.min(w.maxHp, w.hp + 5); w.chill = 0; w.exposed = 0; popupAt(figEl(w.id), '♡ ✚5', 'heal'); if (SFX.heal) SFX.heal(); return 'a mending light'; } const a = S.heroes.find(h => h.id === atkId) || p; a.guard += 4; popupAt(figEl(a.id), '⛨ +4', 'guard'); return 'a warding light'; },
   cassia:  (p, tgt, atkId) => { const a = S.heroes.find(h => h.id === atkId) || p; a.guard += 5; popupAt(figEl(a.id), '⛨ +5', 'guard'); return 'a raised shield'; },
   branwen: (p, tgt) => { const t = (tgt && !tgt.dead) ? tgt : frontmostEnemy(); if (t) { t.mark = (t.mark || 0) + 2; dealToEnemy(t, 4, 'blade', p.id); popupAt(figEl(t.uid), '➹ ◎+2', 'dmg'); } return 'a marking arrow'; },
-  hask:    (p, tgt) => { const t = (tgt && !tgt.dead) ? tgt : frontmostEnemy(); if (t) { t.lull = (t.lull || 0) + 1; dealToEnemy(t, 5, 'frost', p.id); popupAt(figEl(t.uid), '❄ 5', 'dmg'); } return 'a frost bolt'; },
+  hask:    (p, tgt) => { const t = (tgt && !tgt.dead) ? tgt : frontmostEnemy(); if (t) { t.lull = (t.lull || 0) + 1; dealToEnemy(t, 5, 'frost', p.id); popupAt(figEl(t.uid), '❄ 5 · CHILL', 'dmg'); } return 'a frost bolt'; },
 };
 function weaveFor(a, b) { return BOND_WEAVE[duetClassKey(a, b)] || null; }
 // The set of woven pair-keys this fight (pairsAwake stores hero pairKeys).
@@ -1802,13 +1817,11 @@ function weaveProc(classKey) {
 const FOLLOW_ICONS = {
   ash:     `<span class="ic ic-dmg">⚔6</span>`,
   mira:    `<span class="ic ic-dmg">✕5</span><span class="ic ic-exposed">◎+2</span>`,
-  elin:    `<span class="ic ic-heal">✚5</span>`,
+  elin:    `<span class="ic ic-heal">✚5</span><span class="ic ic-guard">⛨4</span>`,
   cassia:  `<span class="ic ic-guard">⛨5</span>`,
   branwen: `<span class="ic ic-dmg">➹4</span><span class="ic ic-exposed">◎+2</span>`,
-  hask:    `<span class="ic ic-dmg">❄5</span>`,
+  hask:    `<span class="ic ic-dmg">❄5</span><span class="ic ic-chill">CHILL</span>`,
 };
-// A one-word verb per partner, for the callout/narrator.
-const FOLLOW_HINT = { ash: 'a cutting strike', mira: 'a shadow strike', elin: 'a mending light', cassia: 'a raised shield', branwen: 'a marking arrow', hask: 'a frost bolt' };
 // OFFER A BOND FOLLOW-UP — the legible weave beat.  When a WOVEN hero plays a
 // FINISHER, their partner's follow-up becomes a PLAYABLE option: a free Follow-Up
 // card materializes in the partner's slot (burning in with a thread flourish), so
@@ -1869,11 +1882,16 @@ async function resolveBondFollow(bf) {
   if (!partner || partner.downed) return;
   const tgt = frontmostEnemy();
   await followCutIn(bf.partnerId, bf.attackerId, bf.weave);   // showcase WHO follows up
-  try { if (typeof lungeFig === 'function') lungeFig(figEl(bf.partnerId)); popupAt(figEl(bf.partnerId), '✦ FOLLOW-UP', 'boon'); stageShake('sm'); } catch (_) {}
+  try { if (typeof lungeFig === 'function') lungeFig(figEl(bf.partnerId)); popupAt(figEl(bf.partnerId), '✦ CHAIN', 'boon'); stageShake('sm'); } catch (_) {}
   await sleep(200);
   let verb = ''; try { verb = BOND_ASSIST[bf.partnerId](partner, tgt, bf.attackerId) || ''; } catch (_) {}
   flashNarrator('✦ ' + (bf.weave || 'BOND') + ' — ' + HEROES[bf.partnerId].name + ' chains off ' + HEROES[bf.attackerId].name + (verb ? ' with ' + verb : '') + '.');
+  // KIZUNA branch (Ash) — a woven CHAIN can feed the burst and, at the capstone,
+  // cascade: the answering partner's OTHER bond gets to chain in turn.
+  if (hasNode('ash.chain.link'))   { gainMomentum(8, { combo: true }); popupAt(figEl(bf.partnerId), '⚡ +8', 'info'); }
+  if (hasNode('ash.chain.rising')) expandBurst(3, '✦ RISING', 20);
   renderAll(); checkEnd();
+  if (hasNode('ash.chain.react') && !S.over) { try { offerBondFollow(bf.partnerId); } catch (_) {} }   // the chain is a finisher too → triad cascade
   await sleep(200);
 }
 // Does a `save` weave (Sanctified Wall) cover this hero — once/fight, both standing?
@@ -4480,13 +4498,14 @@ function strikeHoldNote(targetEl, dur) {
     setTimeout(() => finish(holding ? 'perfect' : everHeld ? 'good' : 'miss'), dur);
   });
 }
-// The rising CHAIN counter during the all-out — nailing strikes in a row ramps
+// The rising STREAK counter during the all-out — nailing strikes in a row ramps
 // the damage multiplier, so a clean cascade reads as a building finisher.
+// (Named STREAK, not CHAIN, to keep it distinct from the bond CHAIN follow-up.)
 function allOutCombo(chain, q) {
   let el = document.getElementById('parry-combo');
   if (!el) { el = document.createElement('div'); el.id = 'parry-combo'; $('#stage').appendChild(el); }
   if (chain >= 2) {
-    el.innerHTML = `<span class="pc-num">${chain}</span><span class="pc-lbl">CHAIN</span>`;
+    el.innerHTML = `<span class="pc-num">${chain}</span><span class="pc-lbl">STREAK</span>`;
     el.classList.remove('pc-pop'); void el.offsetWidth; el.classList.add('pc-on', 'pc-pop');
     clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('pc-on'), 1400);
   } else if (q === 'miss' || q === 'early') {
@@ -4548,8 +4567,17 @@ function allOutCoach() {
   el.classList.remove('pc-show'); void el.offsetWidth; el.classList.add('pc-show');
   clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('pc-show'), 2800);
 }
+// When a full triad has CROWNED the all-out, hold the LAST living foe at 1 HP
+// through the cascade / encore / flawless so the TRIAD FINALE reliably lands the
+// killing blow — the marquee "one grand blow only your three can land" always
+// detonates instead of being overkilled by the build-up on normal packs.
+function finaleClamp(e, dmg) {
+  if (S && S.allOutCrowned && livingEnemies().length === 1 && dmg >= e.hp) { S._finaleReserved = true; return Math.max(1, e.hp - 1); }
+  return dmg;
+}
 async function resolveAllOut() {
   S._burstResolving = true;
+  S._finaleReserved = false;   // set true if the cascade held a foe back for the TRIAD FINALE
   // The all-out FIRES at whatever level the container is filled to.  Each level
   // scales every strike and adds an auto ENCORE (no extra input) — the kizuna
   // payoff.  L3 also detonates every hit and lifts the party afterward.
@@ -4558,9 +4586,12 @@ async function resolveAllOut() {
   const heroes = livingHeroes();
   // BONDS EMPOWER THE ASSAULT (FF7R-style synergy) — every woven pair lifts EVERY
   // strike of the all-out, so your deepened relationships make the WHOLE team hit
-  // harder rather than piling on separate moves.  1 bond +15%, capped at 3 (+45%).
+  // harder rather than piling on separate moves.  Each woven bond +25% (a felt
+  // payoff), capped at 3 (+75%); EMPOWERED BOND (Ash's Kizuna branch) adds +10%
+  // per bond on top (up to +105% at a full woven triad).
   const bondCount = Math.min(wovenPairKeys().length, 3);
-  const bondMul = 1 + 0.15 * bondCount;
+  const bondPer = 0.25 + (hasNode('ash.chain.deep') ? 0.10 : 0);
+  const bondMul = 1 + bondPer * bondCount;
   // FORTRESS (Cassia) — the party braces before the storm.
   if (hasNode('cassia.allout.fortress') && heroes.some(h => h.id === 'cassia')) {
     heroes.forEach(h => { h.guard += 5; popupAt(figEl(h.id), '⛨ +5', 'guard'); });
@@ -4600,9 +4631,11 @@ async function resolveAllOut() {
         let dmg = Math.max(1, Math.round(noteBase * qmul * comboMul * lvlMul * bondMul));
         const primed = e.staggered || e.weakened || e.mark || e.lull || aoLevel >= 3;   // L3 detonates everything
         if (primed) { dmg = Math.round(dmg * 1.5); }                 // detonate the setup
-        dealToEnemy(e, dmg, h.def.school, h.id);
+        dealToEnemy(e, finaleClamp(e, dmg), h.def.school, h.id);
         if (primed) popupAt(figEl(e.uid), '⚡ TECHNICAL', 'info');
-        if (allOutExecutes(e)) {                                     // ALT ALL-OUT: Rite of Endings
+        // hold the reserved finale foe: don't execute the last enemy when a triad
+        // has crowned — the FINALE takes the kill.
+        if (allOutExecutes(e) && finaleClamp(e, e.hp) >= e.hp) {     // ALT ALL-OUT: Rite of Endings
           popupAt(figEl(e.uid), '☠ EXECUTED', 'dmg');
           dealToEnemy(e, e.hp, h.def.school, h.id);              // finish the wounded
         }
@@ -4650,6 +4683,16 @@ async function resolveAllOut() {
       renderAll();
       await sleep(360);
     }
+    // HASK — Absolute Zero: the world freezes; frost on every foe, left deeply
+    // CHILLED for the shatter, and Hask gathers charge for the turns to come.
+    if (hasNode('hask.allout.zero') && heroes.some(h => h.id === 'hask') && livingEnemies().length) {
+      await heroCutIn('hask', '✦ ALL-OUT FINISH', 'ABSOLUTE ZERO', 'the world stops breathing', 950);
+      const zd = Math.round(ALLOUT.base * 1.8);
+      for (const e of livingEnemies()) { dealToEnemy(e, zd, 'frost', 'hask'); e.lull = (e.lull || 0) + 3; popupAt(figEl(e.uid), '❄ ' + zd + ' · CHILL', 'chill'); }
+      const hk = livingHeroes().find(h => h.id === 'hask'); if (hk) { hk.charge = Math.min(chargeCap(hk), (hk.charge || 0) + 3); popupAt(figEl('hask'), '◆ +3', 'info'); }
+      renderAll();
+      await sleep(360);
+    }
   }
   S.momentum = 0;
   S.combo = 0;
@@ -4681,7 +4724,7 @@ async function allOutEncore(level, heroes) {
     cineFlash(level >= 3 ? 'rgba(255,120,80,0.6)' : 'rgba(255,170,90,0.5)');
     stageShake('lg'); if (SFX.triad) SFX.triad();
     for (const e of livingEnemies()) {
-      dealToEnemy(e, Math.max(1, per), lead ? lead.def.school : null, lead ? lead.id : null);
+      dealToEnemy(e, finaleClamp(e, Math.max(1, per)), lead ? lead.def.school : null, lead ? lead.id : null);
       popupAt(figEl(e.uid), '✦ ENCORE', 'dmg popup-big');
     }
     renderAll();
@@ -4708,7 +4751,7 @@ async function allOutFinisher(heroes) {
   await sleep(160);
   const dmg = allOutFinisherDmg(heroes.length);
   for (const e of livingEnemies()) {
-    dealToEnemy(e, dmg, lead ? lead.def.school : null, lead ? lead.id : null);
+    dealToEnemy(e, finaleClamp(e, dmg), lead ? lead.def.school : null, lead ? lead.id : null);
     popupAt(figEl(e.uid), '✦ FINISHER ' + dmg, 'dmg popup-big');
   }
   renderAll();
@@ -4730,6 +4773,34 @@ async function triggerAllOut() {
 // AWAKEN A WEAVE — a kindled pair, on a shared act of help this fight, lights its
 // live WEAVE (no card, no EP).  From now on attacking with either hero makes their
 // PARTNER follow up (see bondAssist), and the bond EMPOWERS the all-out.
+// OPENING WEAVES — a kindled bond doesn't need to re-earn its weave every fight.
+// Pairs that walked in already KINDLED (their thread is pre-formed, see newBattle)
+// enter the fight already WOVEN: the Chain is live from turn one and the all-out
+// is empowered.  Only bonds forged DURING a fight still get the awakening beat
+// (see addThread → awakenDuet).  This is what makes deepened bonds actually FELT.
+function openingWeaves() {
+  if (!S || !S.threads || !S.threads.size) return;
+  S.pairsAwake = S.pairsAwake || new Set();
+  const lit = [];
+  for (const key of S.threads) {
+    if (S.pairsAwake.has(key)) continue;
+    const [a, b] = key.split('|');
+    if (bondPts(key) < BOND_KINDLED) continue;                // only KINDLED bonds walk in woven
+    const ha = S.heroes.find(x => x.id === a), hb = S.heroes.find(x => x.id === b);
+    if (!ha || ha.downed || !hb || hb.downed) continue;
+    S.pairsAwake.add(key);
+    try { sparkThread(a, b); } catch (_) {}
+    const w = weaveFor(a, b);
+    lit.push((w && w.name) || 'Woven Bond');
+  }
+  if (lit.length) {
+    expandBurst(2 * lit.length, '✦ WEAVE', 25);                // woven bonds swell the burst gauge
+    renderCombatBoons();                                       // the weaves join the topbar chip strip
+    flashNarrator('✦ WOVEN — your kindled bonds enter already woven: ' + lit.join(' · ')
+      + '. Play a FINISHER and a partner CHAINS; your bonds empower the ALL-OUT.');
+    renderAll();
+  }
+}
 async function awakenDuet(a, b) {
   const key = pairKey(a, b);
   if (bondPts(key) < BOND_KINDLED) return false;            // only KINDLED bonds awaken
@@ -4797,6 +4868,12 @@ async function allOutTriadFinale(heroes) {
   const r = triadEntry();
   await vowVerseIntro(ids, r.name, true);
   await playVowStages(r.stages, ids, 1.9, '✦ ' + r.name + ' — THE TRIAD');
+  // The crowned finale is the KILLING BLOW: if the cascade held a foe back for
+  // this moment, the grand blow always finishes it (even a support-shaped vow).
+  if (S._finaleReserved && !S.over) {
+    for (const e of livingEnemies()) { dealToEnemy(e, e.hp, null, ids[0]); popupAt(figEl(e.uid), '☠', 'dmg popup-big'); }
+    S._finaleReserved = false; renderAll(); checkEnd();
+  }
 }
 
 // A pending CAST unleashes: single-target, or ALL foes with Cataclysm.  A screen-
@@ -5281,6 +5358,7 @@ function startFight(node) {
   hideOverlay();
   flashNarrator(node.narrator || '');
   renderAll();
+  openingWeaves();   // kindled bonds enter already woven (their Chain is live from turn one)
 }
 
 function showStory(node) {
@@ -7455,8 +7533,8 @@ function showSettings() {
 // THE EMBER TREE — a branching constellation.  Each hero's nodes hang from a
 // root along lit paths; a node's PREREQUISITE feeds it down a thread.  Pick a
 // node to read it in the detail bar, then kindle it.
-const TREE_TYPE_LABEL = { card: 'COMBO', rider: 'UPGRADE', passive: 'PASSIVE', allout: 'ALL-OUT', emergent: 'EMERGENT', synergy: 'TEAM SYNERGY', branch: 'FORK', execute: 'EXECUTIONER', afterimage: 'AFTERIMAGE' };
-const TREE_TYPE_GLYPH = { card: '❖', rider: '⊕', passive: '❉', allout: '✷', emergent: '✦', synergy: '☍', branch: '⑂', execute: '☠', afterimage: '⧉' };
+const TREE_TYPE_LABEL = { card: 'COMBO', rider: 'UPGRADE', passive: 'PASSIVE', allout: 'ALL-OUT', emergent: 'EMERGENT', synergy: 'TEAM SYNERGY', branch: 'FORK', execute: 'EXECUTIONER', afterimage: 'AFTERIMAGE', chain: 'KIZUNA' };
+const TREE_TYPE_GLYPH = { card: '❖', rider: '⊕', passive: '❉', allout: '✷', emergent: '✦', synergy: '☍', branch: '⑂', execute: '☠', afterimage: '⧉', chain: '⛓' };
 // Node descriptions follow a "TRIGGER: effect — flavor" grammar so they read at a
 // glance: the TRIGGER (when it fires) becomes a chip, the effect stays crisp with
 // symbols, and the trailing flavor dims out.  Split flavor on the FIRST ' — '
