@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 173;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 174;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -57,7 +57,7 @@ const MUSIC_BPM = 120, MUSIC_OFFSET = 0.14, MUSIC_BEAT = 60 / MUSIC_BPM;
 const MUSIC = (() => {
   const CROSS = 2400;                 // crossfade length (ms) — long + gentle, so state changes DISSOLVE
   const decks = [];                   // [{a}, {a}] — two Audio elements
-  let active = -1, want = false, wantSrc = null, wantVol = 0.5, xf = null, lvl = null;
+  let active = -1, want = false, wantSrc = null, wantVol = 0.5, xf = null, lvl = null, seqT = null, hiddenPaused = false;
   const posBySrc = {};                // remember where each track was, to resume it
   const baseOf = (s) => (s || '').split('?')[0];
   const mk = () => {
@@ -112,10 +112,20 @@ const MUSIC = (() => {
   };
   // any gesture is a chance to (re)start a wanted-but-blocked track
   try { document.addEventListener('pointerdown', () => {
-    if (!want || !SETTINGS.music) return;
+    if (!want || !SETTINGS.music || hiddenPaused) return;
     const d = active >= 0 ? decks[active] : null;
     if (d && d.a.paused) { const p = d.a.play(); if (p && p.catch) p.catch(() => {}); if (d.a.volume < 0.02) crossfade(null, d, wantVol, 500); }
   }, { capture: true }); } catch (_) {}
+  // LOCK / BACKGROUND — pause the music when the tab is hidden (phone locked, app
+  // switched) and resume it on return.  Uses currentTime so it picks up exactly
+  // where it left off.  visibilitychange is the reliable mobile signal; pagehide
+  // covers the hard background/close.
+  const pauseForHide = () => { hiddenPaused = false; decks.forEach(d => { if (d && d.a && !d.a.paused) { hiddenPaused = true; try { d.a.pause(); } catch (_) {} } }); };
+  const resumeFromHide = () => { if (!hiddenPaused) return; hiddenPaused = false; if (!want || !SETTINGS.music) return; const d = active >= 0 ? decks[active] : null; if (d && d.a.paused) { const p = d.a.play(); if (p && p.catch) p.catch(() => {}); } };
+  try {
+    document.addEventListener('visibilitychange', () => { if (document.hidden) pauseForHide(); else resumeFromHide(); });
+    window.addEventListener('pagehide', pauseForHide);
+  } catch (_) {}
   return {
     // Fade FROM the current track TO `src`.  resume=true continues that track from
     // where it paused (world map); resume=false restarts it (combat entrance).
@@ -123,6 +133,7 @@ const MUSIC = (() => {
     // combat→world hand-off uses a longer, front-loaded 'settle' fade.
     play(src, vol, resume, opts) {
       want = true; wantSrc = src; wantVol = (vol == null ? 0.5 : vol);
+      clearTimeout(seqT);
       ensure(); if (!decks.length || !SETTINGS.music) return;
       const cur = active >= 0 ? decks[active] : null;
       if (cur && baseOf(cur.a.src) === baseOf(src)) {   // already foreground — do NOT restart or dip
@@ -132,6 +143,20 @@ const MUSIC = (() => {
       }
       if (cur) { try { posBySrc[baseOf(cur.a.src)] = cur.a.currentTime || 0; } catch (_) {} }   // bookmark the outgoing track
       const next = active === 0 ? 1 : 0;
+      if (opts && opts.sequence) {
+        // SEQUENTIAL hand-off (leaving combat): fade the battle theme fully OUT, a
+        // beat of silence, THEN swell the field theme in — no two-track overlap, so
+        // two very different pieces never clash.  Cleaner than a crossblend.
+        const outMs = opts.outMs || 1100, gap = opts.gap || 300, inMs = opts.inMs || 1900;
+        if (cur) crossfade(cur, null, 0, outMs);
+        active = next;
+        seqT = setTimeout(() => {
+          if (!want || baseOf(wantSrc) !== baseOf(src) || !SETTINGS.music || hiddenPaused) return;   // superseded (re-entered combat) or backgrounded
+          startDeck(decks[next], src, resume);
+          crossfade(null, decks[next], wantVol, inMs);
+        }, outMs + gap);
+        return;
+      }
       startDeck(decks[next], src, resume);
       crossfade(cur, decks[next], wantVol, (opts && opts.ms) || CROSS, opts && opts.shape);
       active = next;
@@ -5561,7 +5586,7 @@ function nodeReachable(n) {
 }
 function showMap() {
   S = null;
-  MUSIC.play('audio/worldmap-theme.mp3?v=1', 0.5, true, { shape: 'settle', ms: 3400 });   // leaving combat: the battle theme recedes, a breath, then the road's song swells up (resumes where the overworld bed left off)
+  MUSIC.play('audio/worldmap-theme.mp3?v=1', 0.5, true, { sequence: true, outMs: 1100, gap: 300, inMs: 1900 });   // leaving combat: the battle theme fades fully out, a breath of quiet, then the road's song swells in — no clashing overlap
   $('#stage').classList.remove('show-bg');
   $('#chapter-chip').textContent = 'DESCENT';
   $('#timeline').innerHTML = '';
