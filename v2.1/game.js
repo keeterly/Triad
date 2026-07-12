@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 165;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 166;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -6302,9 +6302,9 @@ function showCampScene(n) {
 // can't be sent back to the bench.
 function showPartySelect(onDone, mustInclude) {
   const POS = [
-    { row: 'front', label: 'FRONT', role: 'draws fire' },
-    { row: 'mid',   label: 'MID',   role: 'balanced' },
-    { row: 'back',  label: 'BACK',  role: 'shielded' },
+    { row: 'front', label: 'FRONT', role: 'takes the blows' },
+    { row: 'mid',   label: 'MID',   role: 'the middle' },
+    { row: 'back',  label: 'BACK',  role: 'kept safe' },
   ];
   const need = Math.min(3, RUN.roster.length);
   let line = RUN.active.slice(0, need);
@@ -6339,11 +6339,18 @@ function showPartySelect(onDone, mustInclude) {
   };
 
   const render = () => {
-    const slotsHtml = POS.slice(0, need).map((p, i) => `
-      <div class="ps-slot" data-slot="${i}">
+    // MIRROR COMBAT: on the battlefield the party faces RIGHT, so the FRONT hero
+    // sits nearest the foe (rightmost) and the BACK hero is furthest back (left).
+    // Render the slots in that same left→right order — BACK … FRONT — so the
+    // formation editor reads exactly like the fight.
+    const order = POS.slice(0, need).map((_, i) => i).reverse();
+    const slotsHtml = order.map(i => {
+      const p = POS[i];
+      return `<div class="ps-slot" data-slot="${i}">
         <div class="ps-slotlabel"><b>${p.label}</b><span>${p.role}</span></div>
         ${card(line[i], 'slot', i)}
-      </div>`).join('<div class="ps-slot-sep" aria-hidden="true">▸</div>');
+      </div>`;
+    }).join('');
     const benchHtml = bench.length
       ? `<div class="ps-bench-wrap"><div class="ps-bench-title">BENCH · resting — swap anyone in</div>
          <div class="ps-bench">${bench.map(id => card(id, 'bench')).join('')}</div></div>`
@@ -6358,18 +6365,20 @@ function showPartySelect(onDone, mustInclude) {
       }
       return out.join('<span class="ps-bond-sep"> · </span>');
     })();
+    // Full-screen page — same shell as the Ember Tree.
     showOverlay(`
-      <div class="ov-eyebrow">THE PARTY IS THE CHARACTER</div>
-      <div class="ov-title" style="font-size:20px">ARRANGE THE LINE</div>
-      <div class="ps-help">Drag a hero onto another — or tap one, then another — to swap them.</div>
-      <div class="ps-slots">${slotsHtml}</div>
-      ${benchHtml}
-      <div class="ps-reso">${r
-        ? `this trio resonates as <b>✦ ${r.name}</b> — ${r.type}<br><span class="ps-reso-desc">${r.desc}</span>`
-        : ''}</div>
-      <div class="ps-bonds">${bonds}</div>
-      <button class="ov-btn primary" id="ps-go">WALK ON</button>
-    `);
+      <div class="et-head"><span class="et-h-title">THE MARCHING ORDER</span><span class="et-h-boss">drag or tap two heroes to swap · front takes the blows, back stays shielded</span></div>
+      <div class="ps-stage">
+        <div class="ps-orient"><span class="po-rear">◂ REAR</span><span class="po-track"></span><span class="po-foe">THE FOE ▸</span></div>
+        <div class="ps-slots">${slotsHtml}</div>
+        ${benchHtml}
+        <div class="ps-reso">${r
+          ? `this trio resonates as <b>✦ ${r.name}</b> — ${r.type}<br><span class="ps-reso-desc">${r.desc}</span>`
+          : ''}</div>
+        <div class="ps-bonds">${bonds}</div>
+      </div>
+      <button class="ov-btn primary ps-walk" id="ps-go">WALK ON ▸</button>
+    `, 'map-screen party-screen');
     // TAP-TO-SWAP + native DRAG (drag is coordinate-free, so the stage scale never
     // throws it off; tap covers touch, where native DnD often doesn't fire).
     const attempt = (a, b) => { const ok = swap(a, b); try { (ok ? SFX.move : SFX.deny)(); } catch (_) {} sel = null; render(); };
