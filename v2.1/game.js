@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 164;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 165;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -6292,61 +6292,102 @@ function showCampScene(n) {
 }
 // Party composition — pick exactly 3 (or all, if fewer).  The preview line
 // shows WHICH resonant this trio unlocks, so composition reads as a build.
+// THE LINE — a Final-Fantasy-style formation editor.  Three ordered POSITIONS
+// (FRONT / MID / BACK) hold the walking trio; the rest wait on the BENCH.  A
+// hero's slot IS their opening row in the fight (front draws fire, back sits
+// shielded), so arranging the line matters.  Rearrange by DRAGGING a hero onto
+// another (desktop) or TAPPING one then another to swap them (touch) — the two
+// simply trade places, whether slot↔slot (reorder), slot↔bench (swap in/out), or
+// bench↔bench.  A ◆-pinned hero (a fresh recruit you must field) can reorder but
+// can't be sent back to the bench.
 function showPartySelect(onDone, mustInclude) {
-  let picked = RUN.active.slice();
-  if (mustInclude && !picked.includes(mustInclude)) picked = [mustInclude].concat(picked).slice(0, 3);
+  const POS = [
+    { row: 'front', label: 'FRONT', role: 'draws fire' },
+    { row: 'mid',   label: 'MID',   role: 'balanced' },
+    { row: 'back',  label: 'BACK',  role: 'shielded' },
+  ];
   const need = Math.min(3, RUN.roster.length);
-  const render = () => {
-    const figs = RUN.roster.map(id => {
-      const on = picked.includes(id);
-      const h = HEROES[id];
-      return `<button class="ps-fig${on ? ' ps-on' : ''}" data-id="${id}">
+  let line = RUN.active.slice(0, need);
+  if (mustInclude && !line.includes(mustInclude)) line = [mustInclude].concat(line).slice(0, need);
+  RUN.roster.forEach(id => { if (line.length < need && !line.includes(id)) line.push(id); });   // top up if short
+  let bench = RUN.roster.filter(id => !line.includes(id));
+  let sel = null;   // the picked-up hero (tap-to-swap)
+
+  // Trade two heroes wherever they live.  Returns false (and no-ops) if the move
+  // would bench a pinned recruit.
+  const swap = (a, b) => {
+    if (!a || !b || a === b) return false;
+    const la = line.indexOf(a), lb = line.indexOf(b), ba = bench.indexOf(a), bb = bench.indexOf(b);
+    if (la >= 0 && lb >= 0) { line[la] = b; line[lb] = a; return true; }              // reorder the line
+    if (la >= 0 && bb >= 0) { if (a === mustInclude) return false; line[la] = b; bench[bb] = a; return true; }  // swap in from bench
+    if (ba >= 0 && lb >= 0) { if (b === mustInclude) return false; line[lb] = a; bench[ba] = b; return true; }
+    if (ba >= 0 && bb >= 0) { bench[ba] = b; bench[bb] = a; return true; }             // reorder the bench
+    return false;
+  };
+
+  const card = (id, where, slotIdx) => {
+    const h = HEROES[id]; const hp = RUN.hp[id] ?? h.maxHp; const pinned = id === mustInclude;
+    return `<button class="ps-card${sel === id ? ' ps-sel' : ''}${pinned ? ' ps-pinned' : ''}" draggable="true"
+        data-id="${id}" data-where="${where}"${slotIdx != null ? ` data-slot="${slotIdx}"` : ''}
+        title="${h.name} — ${h.identity || h.cls}">
         <span class="ps-art">${V2PORTRAITS[id] || ''}</span>
-        <span class="ps-name">${h.name}</span>
-        <span class="ps-cls">${h.cls} · <b>${h.archetype || ''}</b> · ${RUN.hp[id] ?? h.maxHp}/${h.maxHp}</span>
-        <span class="ps-identity">${h.identity || ''}</span>
+        <span class="ps-name">${h.name}${pinned ? ' <span class="ps-lock" title="a new companion — can’t be benched yet">◆</span>' : ''}</span>
+        <span class="ps-cls">${h.cls} · <b>${h.archetype || ''}</b></span>
+        <span class="ps-hp"><span class="ps-hp-fill" style="width:${(hp / h.maxHp) * 100}%"></span></span>
+        <span class="ps-hp-num">${hp}<i>/${h.maxHp}</i></span>
       </button>`;
-    }).join('');
-    const ready = picked.length === need;
-    const r = ready ? triadEntryFor(picked) : null;
-    const orderHint = picked.length
-      ? picked.map((id, i) => HEROES[id].name + ' → ' + ['FRONT', 'MID', 'BACK'][i]).join(' · ')
-      : 'pick order sets the line: 1st → FRONT · 2nd → MID · 3rd → BACK';
+  };
+
+  const render = () => {
+    const slotsHtml = POS.slice(0, need).map((p, i) => `
+      <div class="ps-slot" data-slot="${i}">
+        <div class="ps-slotlabel"><b>${p.label}</b><span>${p.role}</span></div>
+        ${card(line[i], 'slot', i)}
+      </div>`).join('<div class="ps-slot-sep" aria-hidden="true">▸</div>');
+    const benchHtml = bench.length
+      ? `<div class="ps-bench-wrap"><div class="ps-bench-title">BENCH · resting — swap anyone in</div>
+         <div class="ps-bench">${bench.map(id => card(id, 'bench')).join('')}</div></div>`
+      : '';
+    const r = line.length === 3 ? triadEntryFor(line) : null;
+    const bonds = (() => {
+      const out = [];
+      for (let i = 0; i < line.length; i++) for (let j = i + 1; j < line.length; j++) {
+        const pts = bondPts(pairKey(line[i], line[j]));
+        if (pts >= BOND_KINDLED) out.push(`♡ ${HEROES[line[i]].name} ─ ${HEROES[line[j]].name} · kindled`);
+        else if (pts > 0) out.push(`♡ ${HEROES[line[i]].name} ─ ${HEROES[line[j]].name} · ${pts}/${BOND_KINDLED}`);
+      }
+      return out.join('<span class="ps-bond-sep"> · </span>');
+    })();
     showOverlay(`
       <div class="ov-eyebrow">THE PARTY IS THE CHARACTER</div>
-      <div class="ov-title" style="font-size:20px">WHO WALKS?</div>
-      <div class="ps-order">${orderHint}</div>
-      <div class="ps-row">${figs}</div>
-      <div class="ps-reso">${ready && picked.length === 3
+      <div class="ov-title" style="font-size:20px">ARRANGE THE LINE</div>
+      <div class="ps-help">Drag a hero onto another — or tap one, then another — to swap them.</div>
+      <div class="ps-slots">${slotsHtml}</div>
+      ${benchHtml}
+      <div class="ps-reso">${r
         ? `this trio resonates as <b>✦ ${r.name}</b> — ${r.type}<br><span class="ps-reso-desc">${r.desc}</span>`
-        : `choose ${need}`}</div>
-      <div class="ps-bonds">${(() => {
-        if (picked.length < 2) return '';
-        const out = [];
-        for (let i = 0; i < picked.length; i++) for (let j = i + 1; j < picked.length; j++) {
-          const k = pairKey(picked[i], picked[j]);
-          const pts = bondPts(k);
-          if (pts >= BOND_KINDLED) out.push(`♡ ${HEROES[picked[i]].name} ─ ${HEROES[picked[j]].name} · kindled`);
-          else if (pts > 0) out.push(`♡ ${HEROES[picked[i]].name} ─ ${HEROES[picked[j]].name} · ${pts}/${BOND_KINDLED}`);
-        }
-        return out.join('<span class="ps-bond-sep"> · </span>');
-      })()}</div>
-      <button class="ov-btn primary" id="ps-go" ${ready ? '' : 'disabled'}>WALK ON</button>
+        : ''}</div>
+      <div class="ps-bonds">${bonds}</div>
+      <button class="ov-btn primary" id="ps-go">WALK ON</button>
     `);
-    document.querySelectorAll('.ps-fig').forEach(el => {
+    // TAP-TO-SWAP + native DRAG (drag is coordinate-free, so the stage scale never
+    // throws it off; tap covers touch, where native DnD often doesn't fire).
+    const attempt = (a, b) => { const ok = swap(a, b); try { (ok ? SFX.move : SFX.deny)(); } catch (_) {} sel = null; render(); };
+    document.querySelectorAll('.ps-card').forEach(el => {
+      const id = el.dataset.id;
       el.onclick = () => {
-        const id = el.dataset.id;
-        if (picked.includes(id)) picked = picked.filter(x => x !== id);
-        else if (picked.length < need) picked.push(id);
-        render();
+        if (sel == null) { sel = id; try { SFX.card(); } catch (_) {} render(); return; }
+        if (sel === id) { sel = null; render(); return; }
+        attempt(sel, id);
       };
+      el.ondragstart = (e) => { sel = null; try { e.dataTransfer.setData('text/plain', id); e.dataTransfer.effectAllowed = 'move'; } catch (_) {} el.classList.add('ps-dragging'); };
+      el.ondragend = () => el.classList.remove('ps-dragging');
+      el.ondragenter = (e) => { e.preventDefault(); el.classList.add('ps-over'); };
+      el.ondragover = (e) => { e.preventDefault(); };
+      el.ondragleave = () => el.classList.remove('ps-over');
+      el.ondrop = (e) => { e.preventDefault(); el.classList.remove('ps-over'); let src = ''; try { src = e.dataTransfer.getData('text/plain'); } catch (_) {} if (src && src !== id) attempt(src, id); };
     });
-    $('#ps-go').onclick = () => {
-      RUN.active = picked.slice();
-      saveRun();
-      hideOverlay();
-      onDone();
-    };
+    $('#ps-go').onclick = () => { RUN.active = line.slice(); saveRun(); hideOverlay(); onDone(); };
   };
   render();
 }

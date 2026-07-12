@@ -251,31 +251,30 @@ const QUICK = process.argv.includes('--quick');
     run([0, 0]);
   }); await sleep(400);
   await clickOverlayBtn('#rc-next'); await sleep(500);      // → party select
-  check('party select opens (roster now 4)', await J(() => !!document.querySelector('.ps-row') && document.querySelectorAll('.ps-fig').length === 4));
-  // choose ash + elin + cassia  (Cleric+Guardian+Ronin → Oathkeepers' Advance, Formation)
-  for (const want of ['ash', 'elin', 'cassia']) {
-    await J((id) => {
-      // toggle others off / target on, one effective click per call
-      const on = [...document.querySelectorAll('.ps-fig.ps-on')].map(x => x.dataset.id);
-      if (on.includes(id)) return;
-      const off = on.find(x => !['ash', 'elin', 'cassia'].includes(x));
-      if (on.length >= 3 && off) { [...document.querySelectorAll('.ps-fig.ps-on')].find(x => x.dataset.id === off).click(); return; }
-      [...document.querySelectorAll('.ps-fig')].find(x => x.dataset.id === id)?.click();
-    }, want);
-    await sleep(200);
-    // repeat until this hero is on
-    for (let k = 0; k < 3; k++) {
-      const on = await J((id) => [...document.querySelectorAll('.ps-fig.ps-on')].map(x => x.dataset.id).includes(id), want);
-      if (on) break;
-      await J((id) => {
-        const sel = [...document.querySelectorAll('.ps-fig.ps-on')].map(x => x.dataset.id);
-        const off = sel.find(x => !['ash', 'elin', 'cassia'].includes(x));
-        if (sel.length >= 3 && off) [...document.querySelectorAll('.ps-fig.ps-on')].find(x => x.dataset.id === off)?.click();
-        else [...document.querySelectorAll('.ps-fig')].find(x => x.dataset.id === id)?.click();
-      }, want);
-      await sleep(200);
+  check('party formation opens (roster 4 → 3 slots + bench)', await J(() =>
+    !!document.querySelector('.ps-slots') && document.querySelectorAll('.ps-slot .ps-card').length === 3 && document.querySelectorAll('.ps-card').length === 4));
+  // TAP-TO-SWAP the wanted trio into the line: ash + elin + cassia
+  // (Cleric+Guardian+Ronin → Oathkeepers' Advance, Formation)
+  await J(() => {
+    const want = ['ash', 'elin', 'cassia'];
+    const byId = (id) => [...document.querySelectorAll('.ps-card')].find(x => x.dataset.id === id);
+    const lineIds = () => [...document.querySelectorAll('.ps-slot .ps-card')].map(x => x.dataset.id);
+    let guard = 0;
+    while (guard++ < 12) {
+      const line = lineIds();
+      const missing = want.find(id => !line.includes(id));
+      if (!missing) break;
+      const extra = line.find(id => !want.includes(id));
+      if (!extra) break;
+      byId(missing).click();   // pick up the benched hero
+      byId(extra).click();     // tap the unwanted line hero → they swap
     }
-  }
+  });
+  await sleep(200);
+  check('SWAP: tap-to-swap put the wanted trio in the line, benching the rest', await J(() => {
+    const line = [...document.querySelectorAll('.ps-slot .ps-card')].map(x => x.dataset.id);
+    return line.length === 3 && ['ash', 'elin', 'cassia'].every(id => line.includes(id));
+  }));
   check('CONCEPT: picker previews Oathkeepers\' Advance for this trio',
     await J(() => document.querySelector('.ps-reso')?.textContent.includes('Oathkeepers')));
   await shot('party-select-phalanx');
@@ -1926,6 +1925,29 @@ const QUICK = process.argv.includes('--quick');
       MUSIC.play('audio/combat-theme.mp3?v=1', 0.42, false);   // combat always restarts (resume=false)
       // beat() must read the COMBAT deck, never the world bed (else parry desyncs)
       return typeof MUSIC.beat === 'function'; }));
+  check('FORMATION: reordering the line (tap-swap FRONT↔BACK) rewrites RUN.active order on WALK ON',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash', 'mira', 'elin', 'cassia']; RUN.active = ['ash', 'mira', 'elin']; RUN.hp = { ash: 32, mira: 26, elin: 28, cassia: 30 };
+      showPartySelect(() => {});
+      const slotCards = () => [...document.querySelectorAll('.ps-slot .ps-card')];
+      const before = slotCards().map(x => x.dataset.id);          // [ash, mira, elin]
+      slotCards()[0].click();                                     // pick up FRONT (ash)
+      [...document.querySelectorAll('.ps-slot .ps-card')][2].click();  // tap BACK (elin) → swap
+      const after = [...document.querySelectorAll('.ps-slot .ps-card')].map(x => x.dataset.id);
+      const swapped = after[0] === before[2] && after[2] === before[0];
+      document.querySelector('#ps-go').click();                   // WALK ON commits the order
+      return swapped && RUN.active[0] === 'elin' && RUN.active[2] === 'ash'; }));
+  check('FORMATION: a ◆-pinned recruit can reorder but cannot be sent to the bench',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash', 'mira', 'elin', 'cassia']; RUN.active = ['ash', 'mira', 'elin']; RUN.hp = { ash: 32, mira: 26, elin: 28, cassia: 30 };
+      showPartySelect(() => {}, 'cassia');   // cassia must be fielded (pinned)
+      const lineHas = (id) => [...document.querySelectorAll('.ps-slot .ps-card')].map(x => x.dataset.id).includes(id);
+      if (!lineHas('cassia')) return false;                       // pinned recruit starts in the line
+      const byId = (id) => [...document.querySelectorAll('.ps-card')].find(x => x.dataset.id === id);
+      byId('cassia').click();                                     // pick up the pinned hero
+      const benched = [...document.querySelectorAll('.ps-bench .ps-card')].map(x => x.dataset.id)[0];
+      byId(benched).click();                                      // try to swap them to the bench
+      return lineHas('cassia'); }));                              // the swap is refused — still fielded
   check('BOON DRAFT: duo/trio cards show ALL involved characters’ portraits',
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash', 'mira', 'branwen']; RUN.active = ['ash', 'mira', 'branwen']; RUN.boons = [];

@@ -950,6 +950,56 @@ button.map-node:not(:disabled) { cursor: pointer; }
 
 .ps-order { font-size: 8.5px; letter-spacing: 0.14em; color: var(--ink-faint); margin: 2px 0 0; }
 
+/* ---- party formation editor (FRONT / MID / BACK + BENCH) ---- */
+.ps-help { font-size: 9px; letter-spacing: 0.1em; color: var(--ink-faint); margin: 2px 0 10px; }
+.ps-help b { color: var(--ink-dim); font-weight: 600; }
+.ps-slots { display: flex; align-items: flex-end; justify-content: center; gap: 6px; margin: 0 auto 6px; }
+.ps-slot { display: flex; flex-direction: column; align-items: center; gap: 5px; border-radius: 12px; padding: 4px; transition: background 0.15s ease, box-shadow 0.15s ease; }
+.ps-slot.ps-over { background: rgba(240,212,136,0.06); box-shadow: inset 0 0 0 1px rgba(240,212,136,0.3); }
+.ps-slotlabel { display: flex; flex-direction: column; align-items: center; line-height: 1.25; }
+.ps-slotlabel b { font-size: 9.5px; letter-spacing: 0.22em; color: var(--gold-bright); }
+.ps-slotlabel span { font-size: 7px; letter-spacing: 0.14em; color: var(--ink-faint); text-transform: uppercase; }
+.ps-slot-sep { align-self: center; color: rgba(240,212,136,0.28); font-size: 12px; margin-top: 18px; }
+
+.ps-card {
+  font-family: inherit; cursor: grab; width: 96px; padding: 7px 4px 6px;
+  border-radius: 10px; border: 1.5px solid rgba(232,220,196,0.18);
+  background: rgba(14,11,9,0.9); color: var(--ink-dim);
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease, opacity 0.15s ease;
+}
+.ps-card:hover { border-color: rgba(240,212,136,0.55); transform: translateY(-2px); }
+.ps-card:active { cursor: grabbing; }
+.ps-card .ps-art { height: 60px; display: flex; align-items: flex-end; pointer-events: none; }
+.ps-card .ps-art svg { height: 60px; width: auto; }
+.ps-card .ps-name { font-size: 9.5px; letter-spacing: 0.16em; color: var(--ink); }
+.ps-card .ps-cls { font-size: 7.5px; letter-spacing: 0.08em; }
+.ps-card .ps-cls b { color: var(--gold-bright); font-weight: 700; }
+.ps-lock { color: var(--gold-bright); font-size: 8px; }
+.ps-hp { width: 62px; height: 3px; border-radius: 2px; background: rgba(255,255,255,0.1); overflow: hidden; margin-top: 3px; }
+.ps-hp-fill { display: block; height: 100%; background: linear-gradient(90deg, #c8683a, #f0d488); border-radius: 2px; }
+.ps-hp-num { font-size: 7px; letter-spacing: 0.06em; color: var(--ink-faint); }
+.ps-hp-num i { font-style: normal; opacity: 0.6; }
+.ps-card.ps-sel {
+  border-color: var(--gold-bright); box-shadow: 0 0 16px rgba(240,212,136,0.45);
+  transform: translateY(-4px); color: var(--ink);
+}
+.ps-card.ps-over { border-color: var(--gold-bright); box-shadow: 0 0 12px rgba(240,212,136,0.35); }
+.ps-card.ps-dragging { opacity: 0.4; }
+.ps-card.ps-pinned { border-color: rgba(240,212,136,0.4); }
+
+.ps-bench-wrap { margin: 4px auto 8px; }
+.ps-bench-title { font-size: 7.5px; letter-spacing: 0.18em; color: var(--ink-faint); text-transform: uppercase; margin-bottom: 5px; }
+.ps-bench {
+  display: flex; gap: 6px; justify-content: center; flex-wrap: wrap;
+  padding: 6px; border-radius: 12px; border: 1px dashed rgba(232,220,196,0.14);
+  background: rgba(8,6,5,0.5);
+}
+.ps-bench .ps-card { width: 84px; opacity: 0.82; }
+.ps-bench .ps-card .ps-art { height: 50px; }
+.ps-bench .ps-card .ps-art svg { height: 50px; }
+.ps-bench .ps-card:hover, .ps-bench .ps-card.ps-sel, .ps-bench .ps-card.ps-over { opacity: 1; }
+
 
 /* ===========================================================================
    BUILD 3 — arced hand fan, hero-drag movement, card morphing.
