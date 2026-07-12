@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 163;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 164;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -55,9 +55,9 @@ const MUSIC_BPM = 120, MUSIC_OFFSET = 0.14, MUSIC_BEAT = 60 / MUSIC_BPM;
 // combat restarts from its downbeat (a fresh entrance).  loop=true keeps each
 // track cycling so nothing ever stops dead.
 const MUSIC = (() => {
-  const CROSS = 1500;                 // crossfade length (ms)
+  const CROSS = 2400;                 // crossfade length (ms) — long + gentle, so state changes DISSOLVE
   const decks = [];                   // [{a}, {a}] — two Audio elements
-  let active = -1, want = false, wantSrc = null, wantVol = 0.5, xf = null;
+  let active = -1, want = false, wantSrc = null, wantVol = 0.5, xf = null, lvl = null;
   const posBySrc = {};                // remember where each track was, to resume it
   const baseOf = (s) => (s || '').split('?')[0];
   const mk = () => {
@@ -81,6 +81,20 @@ const MUSIC = (() => {
       if (i >= steps) { clearInterval(xf); if (out) { try { out.a.pause(); } catch (_) {} } }
     }, 40);
   };
+  // Gentle level nudge from the deck's CURRENT volume to target — never dips to 0,
+  // so re-asserting a track that's already playing (map/menu/tree re-entry) is
+  // inaudible.  A no-op when it's already there.
+  const fadeDeck = (d, target, ms) => {
+    if (!d) return;
+    clearInterval(lvl);
+    const from = d.a.volume; if (Math.abs(from - target) < 0.01) return;
+    const steps = Math.max(1, Math.round(ms / 40)); let i = 0;
+    lvl = setInterval(() => {
+      i++; const t = Math.min(1, i / steps);
+      try { d.a.volume = Math.max(0, Math.min(1, from + (target - from) * t)); } catch (_) {}
+      if (i >= steps) clearInterval(lvl);
+    }, 40);
+  };
   const startDeck = (d, src, resume) => {
     if (baseOf(d.a.src) !== baseOf(src)) { try { d.a.src = src; } catch (_) {} }
     const at = resume ? (posBySrc[baseOf(src)] || 0) : 0;
@@ -101,9 +115,10 @@ const MUSIC = (() => {
       want = true; wantSrc = src; wantVol = (vol == null ? 0.5 : vol);
       ensure(); if (!decks.length || !SETTINGS.music) return;
       const cur = active >= 0 ? decks[active] : null;
-      if (cur && baseOf(cur.a.src) === baseOf(src)) {   // already foreground — just settle the level
+      if (cur && baseOf(cur.a.src) === baseOf(src)) {   // already foreground — do NOT restart or dip
         if (cur.a.paused) { const p = cur.a.play(); if (p && p.catch) p.catch(() => {}); }
-        crossfade(null, cur, wantVol, 400); return;
+        fadeDeck(cur, wantVol, 800);   // only nudges if the level actually differs; otherwise a no-op
+        return;
       }
       if (cur) { try { posBySrc[baseOf(cur.a.src)] = cur.a.currentTime || 0; } catch (_) {} }   // bookmark the outgoing track
       const next = active === 0 ? 1 : 0;
@@ -111,15 +126,15 @@ const MUSIC = (() => {
       crossfade(cur, decks[next], wantVol, CROSS);
       active = next;
     },
-    stop() { want = false; wantSrc = null; if (active >= 0 && decks[active]) { try { posBySrc[baseOf(decks[active].a.src)] = decks[active].a.currentTime || 0; } catch (_) {} crossfade(decks[active], null, 0, 600); } },
+    stop() { want = false; wantSrc = null; if (active >= 0 && decks[active]) { try { posBySrc[baseOf(decks[active].a.src)] = decks[active].a.currentTime || 0; } catch (_) {} crossfade(decks[active], null, 0, 1000); } },
     // reflect a live settings toggle
     refresh() {
       ensure(); if (!decks.length) return;
       if (SETTINGS.music && want && wantSrc) {
         const d = active >= 0 ? decks[active] : null;
-        if (d && baseOf(d.a.src) === baseOf(wantSrc)) { const p = d.a.play(); if (p && p.catch) p.catch(() => {}); crossfade(null, d, wantVol, 400); }
+        if (d && baseOf(d.a.src) === baseOf(wantSrc)) { const p = d.a.play(); if (p && p.catch) p.catch(() => {}); crossfade(null, d, wantVol, 700); }
         else this.play(wantSrc, wantVol, true);
-      } else if (active >= 0 && decks[active]) { crossfade(decks[active], null, 0, 300); }
+      } else if (active >= 0 && decks[active]) { crossfade(decks[active], null, 0, 500); }
     },
     // BEAT CLOCK — where is the COMBAT deck, and when's the next grid point?  Parry
     // cascades read this to land their notes ON the beat.  Reads whichever deck is
