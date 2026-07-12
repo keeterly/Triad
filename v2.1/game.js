@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 169;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 170;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -68,14 +68,22 @@ const MUSIC = (() => {
     if (decks.length || typeof Audio === 'undefined') return;
     const d0 = mk(), d1 = mk(); if (d0 && d1) decks.push(d0, d1);
   };
-  // Equal-power crossfade: one timer drives BOTH decks so they stay complementary.
-  const crossfade = (out, inc, vol, ms) => {
+  // Crossfade: one timer drives BOTH decks.  Two shapes:
+  //  • 'equal' (default) — equal-power sin/cos, summed loudness flat (no dip). Good
+  //    for the punchy jump INTO combat.
+  //  • 'settle' — the SCENE-CHANGE curve for leaving combat: the outgoing (battle)
+  //    theme recedes FAST (front-loaded), the incoming (field) theme stays quiet
+  //    then SWELLS in late, with a deliberate hush in the middle — "the fight ends,
+  //    a breath, the road opens."  Not equal-power on purpose (the dip is the point).
+  const crossfade = (out, inc, vol, ms, shape) => {
     clearInterval(xf);
     const outFrom = out ? out.a.volume : 0;
     const steps = Math.max(1, Math.round(ms / 40)); let i = 0;
     xf = setInterval(() => {
       i++; const t = Math.min(1, i / steps);
-      const kin = Math.sin(t * Math.PI / 2), kout = Math.cos(t * Math.PI / 2);
+      let kin, kout;
+      if (shape === 'settle') { kout = Math.pow(1 - t, 1.9); kin = Math.pow(t, 1.8); }
+      else { kin = Math.sin(t * Math.PI / 2); kout = Math.cos(t * Math.PI / 2); }
       if (inc) { try { inc.a.volume = Math.max(0, Math.min(1, vol * kin)); } catch (_) {} }
       if (out) { try { out.a.volume = Math.max(0, Math.min(1, outFrom * kout)); } catch (_) {} }
       if (i >= steps) { clearInterval(xf); if (out) { try { out.a.pause(); } catch (_) {} } }
@@ -111,7 +119,9 @@ const MUSIC = (() => {
   return {
     // Fade FROM the current track TO `src`.  resume=true continues that track from
     // where it paused (world map); resume=false restarts it (combat entrance).
-    play(src, vol, resume) {
+    // opts.shape ('settle') + opts.ms let a caller shape the transition — the
+    // combat→world hand-off uses a longer, front-loaded 'settle' fade.
+    play(src, vol, resume, opts) {
       want = true; wantSrc = src; wantVol = (vol == null ? 0.5 : vol);
       ensure(); if (!decks.length || !SETTINGS.music) return;
       const cur = active >= 0 ? decks[active] : null;
@@ -123,7 +133,7 @@ const MUSIC = (() => {
       if (cur) { try { posBySrc[baseOf(cur.a.src)] = cur.a.currentTime || 0; } catch (_) {} }   // bookmark the outgoing track
       const next = active === 0 ? 1 : 0;
       startDeck(decks[next], src, resume);
-      crossfade(cur, decks[next], wantVol, CROSS);
+      crossfade(cur, decks[next], wantVol, (opts && opts.ms) || CROSS, opts && opts.shape);
       active = next;
     },
     stop() { want = false; wantSrc = null; if (active >= 0 && decks[active]) { try { posBySrc[baseOf(decks[active].a.src)] = decks[active].a.currentTime || 0; } catch (_) {} crossfade(decks[active], null, 0, 1000); } },
@@ -5334,7 +5344,7 @@ function nodeReachable(n) {
 }
 function showMap() {
   S = null;
-  MUSIC.play('audio/worldmap-theme.mp3?v=1', 0.5, true);   // the road's own song — crossfades up from combat, resuming where the overworld bed left off
+  MUSIC.play('audio/worldmap-theme.mp3?v=1', 0.5, true, { shape: 'settle', ms: 3400 });   // leaving combat: the battle theme recedes, a breath, then the road's song swells up (resumes where the overworld bed left off)
   $('#stage').classList.remove('show-bg');
   $('#chapter-chip').textContent = 'DESCENT';
   $('#timeline').innerHTML = '';
