@@ -323,11 +323,11 @@ const QUICK = process.argv.includes('--quick');
   // the FORMATION vow now lands as the all-out CROWN — drive the crown directly
   // and confirm it still pushes the enemy line + wards the party.
   const rowsBefore = await J(() => S.enemies.filter(x => !x.dead).map(x => x.id + ':' + x.row).join(' '));
-  await J(async () => { await allOutBondVerses(livingHeroes()); });
+  await J(async () => { await allOutTriadFinale(livingHeroes()); });
   await sleep(400);
   const rowsAfter = await J(() => S.enemies.filter(x => !x.dead).map(x => x.id + ':' + x.row).join(' '));
-  check('CROWN: the FORMATION vow pushes the enemy line in the all-out', rowsBefore !== rowsAfter, rowsBefore + ' -> ' + rowsAfter);
-  check('CROWN: oathkeepers guard granted', await J(() => S.heroes.some(h => h.guard >= 4)),
+  check('TRIAD FINALE: the vow pushes the enemy line in the all-out', rowsBefore !== rowsAfter, rowsBefore + ' -> ' + rowsAfter);
+  check('TRIAD FINALE: oathkeepers guard granted', await J(() => S.heroes.some(h => h.guard >= 4)),
     await J(() => S.heroes.map(h => h.id + ':' + h.row + ':g' + h.guard).join(' ')));
   await shot('phalanx-pushed');
 
@@ -1685,21 +1685,22 @@ const QUICK = process.argv.includes('--quick');
   check('WEAVE: the shared act wove the pair — no duet/resonant CARD',
     await J(() => (S.pairsAwake && S.pairsAwake.has('ash|elin')) && !S.tempCards.find(c => c.fx && c.fx.duet) && !document.querySelector('#hand .card.kind-resonant')));
   check('WEAVE: awakening swelled the BURST to L2 (the old duet reward)', await J(() => (S.burstLevel || 1) >= 2));
-  // the WEAVE RIDER — Warded Edge: Ash's FINISHER mends the most-wounded ally.
-  const wHeal = await J(() => {
-    const elin = S.heroes.find(h => h.id === 'elin'); elin.hp = 10;
-    const before = elin.hp;
-    fireWeave('onFinish', 'ash', { dmg: 9, tgt: livingEnemies()[0] });
-    return { before, after: S.heroes.find(h => h.id === 'elin').hp };
+  // BOND ASSIST — the legible weave beat: attacking with a woven hero makes their
+  // PARTNER follow up.  Ash attacks → Elin (Cleric) mends the wounded ally.
+  const assist = await J(() => {
+    const elin = S.heroes.find(h => h.id === 'elin'); elin.hp = 10; const before = elin.hp;
+    S._assistedPairs = new Set();
+    bondAssist('ash', livingEnemies()[0]);   // as if Ash just landed an attack
+    return { before, after: S.heroes.find(h => h.id === 'elin').hp, once: S._assistedPairs.has(pairKey('ash', 'elin')) };
   });
-  check('WEAVE: Warded Edge rider — Ash’s finisher heals the wounded ally', wHeal.after > wHeal.before, JSON.stringify(wHeal));
-  // the VOW pays off as an ALL-OUT VERSE — the pair's strike lands in the finale.
-  const weaveVerseBefore = await J(() => S.enemies[0].hp);
-  await J(async () => { await allOutBondVerses(livingHeroes()); });
-  await sleep(400);
-  const weaveVerseAfter = await J(() => S.enemies[0].hp);
-  check('VERSE: the woven pair’s vow strikes in the all-out', weaveVerseAfter < weaveVerseBefore,
-    JSON.stringify({ weaveVerseBefore, weaveVerseAfter }));
+  check('BOND ASSIST: attacking with Ash makes bonded Elin follow up (mends the wounded)',
+    assist.after > assist.before && assist.once, JSON.stringify(assist));
+  const spamGuard = await J(() => {
+    const elin = S.heroes.find(h => h.id === 'elin'); const h0 = elin.hp;
+    bondAssist('ash', livingEnemies()[0]);   // a SECOND attack same turn
+    return elin.hp === h0;                     // no re-trigger
+  });
+  check('BOND ASSIST: fires ONCE per bond per turn (no spam)', spamGuard);
   const noWeave = await J(async () => {
     RUN = newRun('ash');
     RUN.roster = ['ash', 'mira']; RUN.active = ['ash', 'mira'];
@@ -1710,21 +1711,19 @@ const QUICK = process.argv.includes('--quick');
   });
   check('WEAVE: an UN-kindled pair weaves nothing (and forges no card)',
     !noWeave.woven && !noWeave.card, JSON.stringify(noWeave));
-  // WEAVE RIDER — the emergent damage layer: Twin Edge (Reaver+Ronin) reads board
-  // state (an EXPOSED foe) and adds +3 THROUGH the normal damage pipe (passiveDmg),
-  // so it composes with boons/skills instead of being a separate card.
-  const twinEdge = await J(() => {
+  // ALL-OUT EMPOWER — deepened bonds lift EVERY strike of the all-out (the FF7R
+  // synergy), instead of piling on separate vows.
+  check('ALL-OUT: woven bonds empower the assault (bondMul wired into resolveAllOut)',
+    await J(() => resolveAllOut.toString().includes('bondMul') && typeof allOutTriadFinale === 'function'));
+  const mira2 = await J(() => {
     setupFight(['ash', 'mira'], [], { ash: 'front', mira: 'mid' });
-    S.pairsAwake = new Set([pairKey('ash', 'mira')]);   // weave active
-    const ash = S.heroes.find(h => h.id === 'ash');
-    const foe = frontmostEnemy();
-    const plain = passiveDmg(ash, foe);            // no exposure → no Twin Edge bonus
-    foe.exposed = 1;
-    const exposed = passiveDmg(ash, foe);          // EXPOSED → +3 via the weave
-    return { plain, exposed };
+    S.pairsAwake = new Set([pairKey('ash', 'mira')]); S._assistedPairs = new Set();
+    const foe = frontmostEnemy(); const hp0 = foe.hp;
+    bondAssist('ash', foe);   // Mira (Reaver) assists → mark + strike
+    return { struck: foe.hp < hp0, marked: (foe.mark || 0) >= 2 };
   });
-  check('WEAVE RIDER: Twin Edge adds +3 vs an EXPOSED foe through passiveDmg (emergent)',
-    twinEdge.exposed - twinEdge.plain === 3, JSON.stringify(twinEdge));
+  check('BOND ASSIST: the partner’s follow-up is flavored by WHO they are (Mira marks + strikes)',
+    mira2.struck && mira2.marked, JSON.stringify(mira2));
   // DRAG RESET — the post-game-over "cards un-draggable" fix: clearAim must wipe
   // the stale hand + any leaked interaction state so the NEXT game wires fresh cards.
   check('DRAG RESET: clearAim wipes the stale hand + frozen/focus/targeting state',

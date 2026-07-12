@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 174;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 175;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -641,9 +641,6 @@ function passiveDmg(owner, tgt) {
   });
   // BOON damage tuners (each gates itself by owner inside .mod)
   runBoons().forEach(b => { if (b.trigger === 'dmgMod' && b.mod) bonus += b.mod(owner, tgt) || 0; });
-  // BOND WEAVES — a woven pair's rider adds build-aware damage (Twin Edge vs
-  // EXPOSED, Marked Charge vs MARKED, one-shot edges), summed like a boon.
-  bonus += weaveDmg(owner, tgt);
   return bonus;
 }
 // team mitigation: Cassia's Guardian's Aegis soaks for allies in rows behind her
@@ -792,7 +789,7 @@ function renderCombatBoons() {
   const weaves = wovenPairKeys();
   html += weaves.map(key => {
     const [a, b] = key.split('|'); const w = BOND_WEAVE[duetClassKey(a, b)]; if (!w) return '';
-    return `<span class="cb-weave" data-weave="${key}" title="✦ WEAVE — ${HEROES[a].name} &amp; ${HEROES[b].name}: ${w.name} — ${w.blurb}">${w.icon || '✦'}</span>`;
+    return `<span class="cb-weave" data-weave="${key}" title="✦ ${w.name} — ${HEROES[a].name} &amp; ${HEROES[b].name} are bound: attacking with one makes the other follow up (once per turn).">${w.icon || '✦'}</span>`;
   }).join('');
   el.innerHTML = html;
   el.querySelectorAll('.cb-boon').forEach(c => attachBoonInspect(c, c.dataset.boon));
@@ -1851,41 +1848,39 @@ function duetClassKey(a, b) { return [HEROES[a].cls, HEROES[b].cls].sort().join(
 function duetFor(a, b) { return RESONANT_PAIRS[duetClassKey(a, b)] || DUET_FALLBACK; }
 
 // ---------------------------------------------------------------------------
-// BONDS, REFORGED — a woven pair is no longer a card.  It's a live WEAVE (a
-// build-aware rider on the pair's own skills, see passiveDmg/firePassives) that
-// pays off at the ALL-OUT as a VERSE (see resolveAllOut).  BOND_WEAVE is keyed by
-// class-pair; each has one clear rider hook, amplified by the pair's tree/boons.
-// hooks: dmgMod(owner,tgt) — bonus dmg when a WOVEN hero attacks;
-//        onFinish/onHit/onHeal/onGuard(c) — event riders fired from firePassives.
-// `has` below is hasNode (build-aware amplifiers).
+// BONDS, REFORGED — a woven pair is no longer a card, nor a hidden passive.  It's
+// a live WEAVE that plays out as a legible BOND ASSIST: when you ATTACK with a
+// woven hero, their partner STEPS IN with a follow-up (see bondAssist), ONCE per
+// bond per turn — a clear "your relationships have your back" beat.  At the
+// ALL-OUT the bonds EMPOWER the team's assault, and a full triad crowns it with a
+// single team finisher (see resolveAllOut).  BOND_WEAVE names the pair + its save.
 const BOND_WEAVE = {
-  'Cleric+Ronin': { name: 'Warded Edge', icon: '⚔', blurb: 'the blade’s strikes mend the line',
-    onFinish: (c) => { const t = lowestHpAlly(); if (t && !t.downed) { const heal = Math.max(2, Math.ceil((c.dmg || 6) / 3)); t.hp = Math.min(t.maxHp, t.hp + heal); popupAt(figEl(t.id), '♡ ✚' + heal, 'heal'); if (hasNode('elin.passive.mercy')) { t.chill = 0; t.exposed = 0; } } } },
-  'Reaver+Ronin': { name: 'Twin Edge', icon: '✕', blurb: 'they open the same wound',
-    dmgMod: (owner, tgt) => (tgt && tgt.exposed) ? 3 : 0,
-    onHit: (c) => { if (c.tgt && !c.tgt.dead) { c.tgt.exposed = (c.tgt.exposed || 0) + 1; } } },
-  'Cleric+Reaver': { name: 'Silent Mercy', icon: '✚', blurb: 'mercy sharpens the next blade',
-    onHeal: (c) => { const t = c.target && S.heroes.find(h => h.id === c.target); if (t) { t._weaveEdge = 3; popupAt(figEl(t.id), '✦ +3 next', 'buff'); } } },
-  'Guardian+Ronin': { name: 'Shield & Sword', icon: '⛨', blurb: 'the wall lends its edge',
-    onGuard: (c) => { const ally = wovenPartner('Guardian+Ronin', c.heroId); const h = ally && S.heroes.find(x => x.id === ally); if (h && !h.downed) { h._weaveEdge = 2; } } },
-  'Guardian+Cleric': { name: 'Sanctified Wall', icon: '✛', blurb: 'neither falls while both stand',
-    save: true },
-  'Guardian+Reaver': { name: 'Wall & Whisper', icon: '◎', blurb: 'the wall names the mark',
-    onGuard: () => { const e = frontmostEnemy(); if (e) { e.mark = (e.mark || 0) + 2; popupAt(figEl(e.uid), '◎ +2', 'info'); } } },
-  'Ranger+Ronin': { name: 'Marked Charge', icon: '➹', blurb: 'they charge the mark',
-    dmgMod: (owner, tgt) => (tgt && tgt.mark) ? 4 : 0 },
-  'Cleric+Ranger': { name: 'Covered Advance', icon: '❂', blurb: 'the tended blade finds the mark',
-    onHeal: (c) => { const t = c.target && S.heroes.find(h => h.id === c.target); if (t) t._weaveMark = 2; } },
-  'Ranger+Reaver': { name: 'Kill Order', icon: '☠', blurb: 'the wounded do not walk away',
-    onHit: (c) => { if (c.tgt && !c.tgt.dead && c.tgt.hp > 0 && c.tgt.hp <= Math.ceil(c.tgt.maxHp * 0.3)) { popupAt(figEl(c.tgt.uid), '☠ KILL ORDER', 'dmg'); dealToEnemy(c.tgt, c.tgt.hp, 'blade', c.heroId); } } },
-  'Guardian+Ranger': { name: 'Anvil & Arrow', icon: '➶', blurb: 'the anvil looses an arrow',
-    onGuard: (c) => { const e = frontmostEnemy(); if (e) { dealToEnemy(e, 3, 'blade', c.heroId); popupAt(figEl(e.uid), '➶ 3', 'dmg'); } } },
+  'Cleric+Ronin':    { name: 'Warded Edge',    icon: '⚔' },
+  'Reaver+Ronin':    { name: 'Twin Edge',      icon: '✕' },
+  'Cleric+Reaver':   { name: 'Silent Mercy',   icon: '✚' },
+  'Guardian+Ronin':  { name: 'Shield & Sword', icon: '⛨' },
+  'Guardian+Cleric': { name: 'Sanctified Wall', icon: '✛', save: true },   // while both stand, neither falls (once/fight)
+  'Guardian+Reaver': { name: 'Wall & Whisper', icon: '◎' },
+  'Ranger+Ronin':    { name: 'Marked Charge',  icon: '➹' },
+  'Cleric+Ranger':   { name: 'Covered Advance', icon: '❂' },
+  'Ranger+Reaver':   { name: 'Kill Order',     icon: '☠' },
+  'Guardian+Ranger': { name: 'Anvil & Arrow',  icon: '➶' },
 };
-function weaveKey(a, b) { return duetClassKey(a, b); }
-function weaveFor(a, b) { return BOND_WEAVE[weaveKey(a, b)] || null; }
+// A partner's ASSIST is flavored by WHO they are (their archetype) — so it reads
+// as that character joining the fight.  Returns a short verb for the callout.
+// `atk` = the ally who just attacked, `tgt` = the enemy they hit.
+const BOND_ASSIST = {
+  ash:     (p, tgt) => { if (tgt && !tgt.dead) { dealToEnemy(tgt, 6, 'blade', p.id); popupAt(figEl(tgt.uid), '⚔ 6', 'dmg'); } return 'a cutting follow-up'; },
+  mira:    (p, tgt) => { if (tgt && !tgt.dead) { tgt.mark = (tgt.mark || 0) + 2; dealToEnemy(tgt, 5, 'blade', p.id); popupAt(figEl(tgt.uid), '◎+2 ✕5', 'dmg'); } return 'a shadow strike'; },
+  elin:    (p) => { const t = lowestHpAlly(); if (t && !t.downed) { t.hp = Math.min(t.maxHp, t.hp + 5); t.chill = 0; t.exposed = 0; popupAt(figEl(t.id), '♡ ✚5', 'heal'); if (SFX.heal) SFX.heal(); } return 'a mending light'; },
+  cassia:  (p, tgt, atkId) => { const a = S.heroes.find(h => h.id === atkId) || p; a.guard += 5; popupAt(figEl(a.id), '⛨ +5', 'guard'); return 'a raised shield'; },
+  branwen: (p, tgt) => { if (tgt && !tgt.dead) { tgt.mark = (tgt.mark || 0) + 2; dealToEnemy(tgt, 4, 'blade', p.id); popupAt(figEl(tgt.uid), '➹ ◎+2', 'dmg'); } return 'a marking arrow'; },
+  hask:    (p, tgt) => { if (tgt && !tgt.dead) { tgt.lull = (tgt.lull || 0) + 1; dealToEnemy(tgt, 5, 'frost', p.id); popupAt(figEl(tgt.uid), '❄ 5', 'dmg'); } return 'a frost bolt'; },
+};
+function weaveFor(a, b) { return BOND_WEAVE[duetClassKey(a, b)] || null; }
 // The set of woven pair-keys this fight (pairsAwake stores hero pairKeys).
 function wovenPairKeys() { return (S && S.pairsAwake) ? [...S.pairsAwake] : []; }
-// Is `heroId` in any woven pair whose weave has hook `hookName`?  Returns the weave.
+// Every woven pair `heroId` is part of, as { w, a, b }.
 function wovenWeavesFor(heroId) {
   if (!S || !S.pairsAwake) return [];
   const out = [];
@@ -1895,39 +1890,37 @@ function wovenWeavesFor(heroId) {
   }
   return out;
 }
-// The OTHER hero of a woven class-pair that `heroId` belongs to (for guard-lend etc.)
-function wovenPartner(classKey, heroId) {
-  if (!S || !S.pairsAwake) return null;
-  for (const key of S.pairsAwake) { const [a, b] = key.split('|'); if (duetClassKey(a, b) === classKey && (a === heroId || b === heroId)) return a === heroId ? b : a; }
-  return null;
-}
-// dmg bonus from every weave `heroId` is party to (build-aware, summed like boons)
-function weaveDmg(owner, tgt) {
-  if (!owner) return 0; let d = 0;
-  wovenWeavesFor(owner.id).forEach(({ w }) => { if (w.dmgMod) { try { d += w.dmgMod(owner, tgt) || 0; } catch (_) {} } });
-  // a one-shot edge granted by a weave (Silent Mercy / Shield & Sword) is consumed on the next hit
-  if (owner._weaveEdge) { d += owner._weaveEdge; }
-  return d;
-}
-// FEEDBACK when a weave fires — pulse its topbar chip + a labelled gold pop over
-// the acting hero, so a woven bond is FELT the moment it bends the hit (mirrors
-// boonProc).  `anchorId` is who to float the tag over.
-function weaveProc(classKey, name, anchorId) {
+// Pulse a woven pair's topbar chip (feedback that the bond just fired).
+function weaveProc(classKey) {
   try {
-    if (anchorId) popupAt(figEl(anchorId), '✦ ' + (name || 'WEAVE').toUpperCase(), 'boon');
     const el = document.getElementById('combat-boons');
     if (el && S && S.pairsAwake) { for (const key of S.pairsAwake) { const [a, b] = key.split('|'); if (duetClassKey(a, b) === classKey) { const chip = el.querySelector(`[data-weave="${key}"]`); if (chip) { chip.classList.remove('cb-proc'); void chip.offsetWidth; chip.classList.add('cb-proc'); } } } }
   } catch (_) {}
 }
-// fire a weave event hook for a hero (onFinish/onHit/onHeal/onGuard).  Any hook that
-// actually does something announces itself (the pair's name) so the effect reads.
-function fireWeave(hookName, heroId, ctx) {
-  wovenWeavesFor(heroId).forEach(({ w, a, b }) => {
-    if (w[hookName]) { try { w[hookName](Object.assign({ heroId }, ctx || {})); weaveProc(duetClassKey(a, b), w.name, heroId); } catch (_) {} }
+// THE BOND ASSIST — the headline weave beat.  When `attackerId` (a woven hero)
+// lands an attack, each bonded PARTNER steps in with their archetype's follow-up,
+// ONCE per bond per turn.  A thread flicks between them, the partner lunges, and a
+// clear callout fires — so the WHEN (your attack) and WHY (the bond) are legible.
+function bondAssist(attackerId, tgt) {
+  if (!S || !S.pairsAwake || !S.pairsAwake.size) return;
+  S._assistedPairs = S._assistedPairs || new Set();
+  wovenWeavesFor(attackerId).forEach(({ w, a, b }) => {
+    const key = pairKey(a, b);
+    if (S._assistedPairs.has(key)) return;                 // one assist per bond per turn
+    const partnerId = a === attackerId ? b : a;
+    const partner = S.heroes.find(h => h.id === partnerId);
+    if (!partner || partner.downed) return;
+    const act = BOND_ASSIST[partnerId]; if (!act) return;
+    S._assistedPairs.add(key);
+    try { sparkThread(a, b); if (typeof lungeFig === 'function') lungeFig(figEl(partnerId)); } catch (_) {}
+    let verb = ''; try { verb = act(partner, tgt, attackerId) || ''; } catch (_) {}
+    popupAt(figEl(partnerId), '✦ ' + w.name, 'boon');
+    flashNarrator('✦ ' + w.name + ' — ' + HEROES[partnerId].name + ' follows ' + HEROES[attackerId].name + (verb ? ' with ' + verb : '') + '.');
+    weaveProc(duetClassKey(a, b));
+    try { SFX.follow && SFX.follow(); } catch (_) {}
   });
 }
-// Does a `save` weave (Sanctified Wall) cover this hero, and is its once-per-fight
-// charge still unspent, with BOTH woven partners still standing?
+// Does a `save` weave (Sanctified Wall) cover this hero — once/fight, both standing?
 function weaveSaves(heroId) {
   if (!S || S._weaveSaved) return false;
   return wovenWeavesFor(heroId).some(({ w, a, b }) => {
@@ -3433,12 +3426,9 @@ async function resolveCard(card, targetId) {
       if (owner && owner.buffDmg) { popupAt(figEl(owner.id), '▲ RALLY +' + owner.buffDmg, 'rally'); owner.buffDmg = 0; }
       if (owner && owner.chill) { amt = Math.max(0, amt - owner.chill); popupAt(figEl(owner.id), '❄ −' + owner.chill, 'chill'); owner.chill = 0; }
       amt += tgt.mark || 0;
-      amt += passiveDmg(owner, tgt);   // EXPOSED-exploiter passives + BOND WEAVES (Twin Edge / Marked Charge / one-shot edges)
-      if (owner && owner._weaveEdge) { popupAt(figEl(owner.id), '✦ WEAVE +' + owner._weaveEdge, 'buff'); owner._weaveEdge = 0; }   // consume a granted edge
+      amt += passiveDmg(owner, tgt);   // EXPOSED-exploiter passives + damage-tuning boons
       // subtle feedback when a damage-tuning BOON is lifting this hit (chip pulse, no popup spam)
       if (owner) runBoons().forEach(b => { if (b.trigger === 'dmgMod' && b.mod && (b.mod(owner, tgt) || 0) > 0) boonProc(owner.id, b.id, { quiet: true }); });
-      // and when a WEAVE dmgMod (Twin Edge vs EXPOSED, Marked Charge vs MARKED) lifts it — announce the bond
-      if (owner) wovenWeavesFor(owner.id).forEach(({ w, a, b }) => { if (w.dmgMod && (w.dmgMod(owner, tgt) || 0) > 0) weaveProc(duetClassKey(a, b), w.name, owner.id); });
       // FOLLOW-UP: striking an enemy an ally already hit this turn is a
       // combo — +2 damage, and fighting together forms a thread between
       // the two attackers (Concept 3: following up strengthens bonds).
@@ -3447,12 +3437,9 @@ async function resolveCard(card, targetId) {
       const isFollowUp = !!(owner && prev && prev !== owner.id);
       if (isFollowUp) amt += 2;
       dealToEnemy(tgt, amt, owner ? owner.def.school : null, owner ? owner.id : null);
-      if (owner && owner._weaveMark && tgt && !tgt.dead) { tgt.mark = (tgt.mark || 0) + owner._weaveMark; popupAt(figEl(tgt.uid), '◎ +' + owner._weaveMark, 'info'); owner._weaveMark = 0; }   // Covered Advance
       if (owner && !tgt.dead) firePassives('postHit', owner.id, { tgt });   // execute thresholds (Death Mark)
-      if (owner) {   // BOND WEAVE riders — a woven pair's hit/finisher effect
-        fireWeave('onHit', owner.id, { tgt });
-        if (/FINISHER/.test(card.stance || '')) fireWeave('onFinish', owner.id, { tgt, dmg: amt });
-      }
+      // BOND ASSIST — a woven partner steps in on your attack (once per bond per turn)
+      if (owner) bondAssist(owner.id, tgt);
       if (owner) {
         hitters.push(owner.id);
         fireEmergent(owner.id, 'hit', card);
@@ -3532,8 +3519,6 @@ async function resolveCard(card, targetId) {
       if (fx.counter){ rc.counter = Math.max(rc.counter, fx.counter); }
       // TEAM SYNERGY: warding/mending an ally can bless their next strike (Elin's Blessed Edge)
       if (owner && (fx.heal || fx.guard)) firePassives('support', owner.id, { receiver: rc });
-      if (owner && fx.heal) fireWeave('onHeal', owner.id, { target: rc.id });   // Silent Mercy / Covered Advance
-      // one-shot MARK granted by Covered Advance rides the healed ally's next attack (shown quietly)
       // A shared act BONDS: helping an ally forms a thread.  A PARTY-wide ward or
       // heal (target 'allies') weaves the caster to EVERYONE it shelters — so a
       // support hero's whole role knits the triangle, and the triad's marquee
@@ -3543,7 +3528,7 @@ async function resolveCard(card, targetId) {
     // one emergent tick per PLAY (not per receiver): the caster's mending / warding loop
     if (owner && receivers.length) {
       if (fx.heal)  fireEmergent(owner.id, 'heal', card);
-      if (fx.guard) { fireEmergent(owner.id, 'guard', card); fireWeave('onGuard', owner.id, {}); }   // Shield & Sword / Wall & Whisper / Anvil & Arrow (once per play)
+      if (fx.guard) fireEmergent(owner.id, 'guard', card);
     }
   }
   // TAUNT (Cassia's Provoke) — drag every foe's blow onto the taunter's ROW for the
@@ -4698,12 +4683,18 @@ async function resolveAllOut() {
   const aoLevel = burstFireLevel() || 1;
   const lvlMul = [1, 1.5, 2][aoLevel - 1] || 1;
   const heroes = livingHeroes();
+  // BONDS EMPOWER THE ASSAULT (FF7R-style synergy) — every woven pair lifts EVERY
+  // strike of the all-out, so your deepened relationships make the WHOLE team hit
+  // harder rather than piling on separate moves.  1 bond +15%, capped at 3 (+45%).
+  const bondCount = Math.min(wovenPairKeys().length, 3);
+  const bondMul = 1 + 0.15 * bondCount;
   // FORTRESS (Cassia) — the party braces before the storm.
   if (hasNode('cassia.allout.fortress') && heroes.some(h => h.id === 'cassia')) {
     heroes.forEach(h => { h.guard += 5; popupAt(figEl(h.id), '⛨ +5', 'guard'); });
   }
   await allOutCineIntro(heroes);
   $('#stage').classList.add('allout-focus');
+  if (bondCount > 0) { flashNarrator('✦ BONDS ×' + bondCount + ' — the party moves as one, every blow empowered.'); cineFlash('rgba(240,212,136,0.4)'); }
   allOutCoach();
   let chain = 0, goodHits = 0, allStrikes = 0, perfectStrikes = 0;
   for (const h of heroes) {
@@ -4733,7 +4724,7 @@ async function resolveAllOut() {
       cineFlash(q === 'perfect' ? 'rgba(255,120,80,0.5)' : 'rgba(255,240,210,0.4)');
       if (q === 'perfect') stageShake();
       for (const e of livingEnemies()) {
-        let dmg = Math.max(1, Math.round(noteBase * qmul * comboMul * lvlMul));
+        let dmg = Math.max(1, Math.round(noteBase * qmul * comboMul * lvlMul * bondMul));
         const primed = e.staggered || e.weakened || e.mark || e.lull || aoLevel >= 3;   // L3 detonates everything
         if (primed) { dmg = Math.round(dmg * 1.5); }                 // detonate the setup
         dealToEnemy(e, dmg, h.def.school, h.id);
@@ -4757,10 +4748,11 @@ async function resolveAllOut() {
   // independent of the burst LEVEL — so a perfect L1 all-out still earns it.
   const flawlessAllOut = allStrikes >= 3 && perfectStrikes === allStrikes;
   if (!S.over && livingEnemies().length && flawlessAllOut) await allOutFinisher(heroes);
-  // BOND VERSES — every woven pair pays off inside the all-out, and a formed triad
-  // CROWNS it.  This is where the bonds you built become the finale (Layer A).
-  if (!S.over && livingEnemies().length && ((S.pairsAwake && S.pairsAwake.size) || S.allOutCrowned)) {
-    await allOutBondVerses(heroes);
+  // THE TRIAD FINALE — a full triangle crowns the all-out with ONE climactic team
+  // move (the limit break), not a stack of separate vows.  Deepened bonds already
+  // empowered every strike above; this is the single grand payoff.
+  if (!S.over && livingEnemies().length && S.allOutCrowned) {
+    await allOutTriadFinale(heroes);
   }
   // PER-HERO ALL-OUT FINISHERS — each fielded hero who kindled their all-out node
   // ends the storm in their own voice (Ash's execute fires per-strike, above).
@@ -4938,21 +4930,18 @@ async function awakenDuet(a, b) {
   const ha = S.heroes.find(x => x.id === a), hb = S.heroes.find(x => x.id === b);
   if (!ha || ha.downed || !hb || hb.downed) return false;
   S.pairsAwake.add(key);
-  const d = duetFor(a, b);
   const w = weaveFor(a, b);
   // BONDS REFORGED — awakening no longer forges a card.  It lights a live WEAVE:
-  // a build-aware rider on the pair's own skills (see BOND_WEAVE / passiveDmg /
-  // fireWeave) for the rest of the fight, and its VOW is banked as a VERSE that
-  // pays off in the ALL-OUT (see resolveAllOut).  No hand clutter, no EP.
+  // from now on, attacking with either hero makes their PARTNER step in with a
+  // follow-up (see bondAssist), and the bond EMPOWERS the all-out (see resolveAllOut).
   sparkThread(a, b);
   SFX.thread();
   cineFlash('rgba(240,212,136,0.4)');
-  const wname = (w && w.name) || d.name;
-  flashNarrator('✦ WEAVE — ' + HEROES[a].name + ' & ' + HEROES[b].name + ' are bound: ' + wname
-    + (w && w.blurb ? ' · ' + w.blurb : ''));
-  // an immediate taste: both steel and sharpen the moment the weave takes hold
-  [a, b].forEach(id => { const h = S.heroes.find(x => x.id === id); if (h && !h.downed) { h.guard += 2; h._weaveEdge = (h._weaveEdge || 0) + 1; } });
-  expandBurst(2, '✦ WEAVE', 25);   // a woven bond also swells the burst gauge (the old duet's reward)
+  const wname = (w && w.name) || 'Shared Vow';
+  flashNarrator('✦ WEAVE — ' + HEROES[a].name + ' & ' + HEROES[b].name + ' are bound as ' + wname
+    + ': now each follows the other’s attack.');
+  [a, b].forEach(id => { const h = S.heroes.find(x => x.id === id); if (h && !h.downed) h.guard += 2; });   // the bond steels them
+  expandBurst(2, '✦ WEAVE', 25);   // a woven bond also swells the burst gauge
   renderCombatBoons();   // the weave joins the topbar chip strip
   renderAll();
   return true;
@@ -5032,24 +5021,15 @@ async function playVowStages(stages, ids, mul, label) {
   }
   return false;
 }
-async function allOutBondVerses(heroes) {
-  const alive = (id) => { const h = S.heroes.find(x => x.id === id); return h && !h.downed; };
-  // one verse per woven pair (both still standing) — each gets its cinematic beat
-  for (const key of wovenPairKeys()) {
-    if (S.over || !livingEnemies().length) return;
-    const [a, b] = key.split('|');
-    if (!alive(a) || !alive(b)) continue;
-    const d = duetFor(a, b);
-    await vowVerseIntro([a, b], d.name, false);
-    if (await playVowStages(d.stages, [a, b], 1, HEROES[a].name + ' & ' + HEROES[b].name + ' · ' + d.name)) return;
-  }
-  // the triad CROWN — the trio's vow, bigger, as the finale
-  if (S.allOutCrowned && !S.over && livingEnemies().length) {
-    const ids = livingHeroes().map(h => h.id);
-    const r = triadEntry();
-    await vowVerseIntro(ids, r.name, true);
-    await playVowStages(r.stages, ids, 1.6, '✦ ' + r.name + ' — THE CROWN');
-  }
+// THE TRIAD FINALE — one climactic TEAM move that crowns the all-out (the limit
+// break).  The trio's vow lands as a single grand combined blow: a cinematic
+// intro, then its stages, scaled up.  No stack of separate duo verses.
+async function allOutTriadFinale(heroes) {
+  if (!S.allOutCrowned || S.over || !livingEnemies().length) return;
+  const ids = livingHeroes().map(h => h.id);
+  const r = triadEntry();
+  await vowVerseIntro(ids, r.name, true);
+  await playVowStages(r.stages, ids, 1.9, '✦ ' + r.name + ' — THE TRIAD');
 }
 
 // A pending CAST unleashes: single-target, or ALL foes with Cataclysm.  A screen-
@@ -5078,6 +5058,7 @@ async function endTurn() {
     S.ep = S.maxEp;
     S.used = new Set();
     S._flags = {};   // per-turn passive latches (EP refunds) reset
+    S._assistedPairs = new Set();   // each bond may assist once per turn again
     // IMMOVABLE (Cassia) keeps her guard through the enemy turn — everyone else's fades.
     S.heroes.forEach(h => { h.guard = keepsGuard(h.id) ? h.guard : 0; h.counter = 0; h.invuln = false; h.exposed = 0; h._hitByE = []; h.hexed = Math.max(0, (h.hexed || 0) - 1); });
     // EXPOSED (mark) now survives the turn rollover but FADES by 1, so a mark
