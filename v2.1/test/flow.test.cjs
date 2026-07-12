@@ -1695,6 +1695,15 @@ const QUICK = process.argv.includes('--quick');
   });
   check('BOND ASSIST: attacking with Ash makes bonded Elin follow up (mends the wounded)',
     assist.after > assist.before && assist.once, JSON.stringify(assist));
+  // an assist must NEVER whiff for +0 — Elin wards the attacker when nobody's hurt
+  const noWhiff = await J(() => {
+    S.heroes.forEach(h => { h.hp = h.maxHp; h.guard = 0; });   // full party, no wound
+    S._assistedPairs = new Set();
+    const ash = S.heroes.find(h => h.id === 'ash');
+    bondAssist('ash', livingEnemies()[0]);
+    return ash.guard >= 4;   // fell back to a ward
+  });
+  check('BOND ASSIST: never whiffs — Elin wards when no ally is wounded', noWhiff);
   const spamGuard = await J(() => {
     const elin = S.heroes.find(h => h.id === 'elin'); const h0 = elin.hp;
     bondAssist('ash', livingEnemies()[0]);   // a SECOND attack same turn
@@ -1915,12 +1924,12 @@ const QUICK = process.argv.includes('--quick');
       const lockedHint = [...document.querySelectorAll('.bj-entry.bj-locked .bj-mystery')].length >= 1;
       hideOverlay();
       return owned.includes('ASH') && owned.includes('ELIN') && lockedHint; }));
-  check('ONBOARDING: How to Play teaches the core loop in plain terms (cards/EP, stance, dodge/parry, grow, party)',
+  check('ONBOARDING: How to Play teaches the core loop (cards/EP, stance, dodge/parry, BURST→all-out, bonds/weave, grow)',
     await J(() => {
       showHowTo(() => {});
       const t = ((document.querySelector('.howto') || {}).textContent || '').toLowerCase();
       hideOverlay();
-      return ['play cards', 'ep', 'stance', 'dodge', 'parry', 'ember tree', 'gift', 'bond', 'trio'].every(k => t.includes(k)); }));
+      return ['play cards', 'ep', 'stance', 'dodge', 'parry', 'burst', 'all-out', 'ember tree', 'gift', 'bond', 'weave'].every(k => t.includes(k)); }));
   check('AUDIO: the SFX palette survived the rewrite — every combat event still has a voice',
     await J(() => ['card', 'move', 'hit', 'kill', 'heal', 'guard', 'thread', 'triad', 'kindle', 'victory', 'enemy', 'follow', 'deny', 'parry', 'parryMiss', 'swoosh', 'brace', 'hitstop'].every(k => typeof SFX[k] === 'function')));
   check('AUDIO: a combat MUSIC track + toggle exist (music defaults ON)',

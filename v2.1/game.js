@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 175;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 176;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -710,7 +710,7 @@ const BOONS = [
   // ── DUO BOONS (Hades-style) — active only when BOTH heroes are fielded ──
   { id: 'duo_ashmira', duo: true, hero: 'ash', heroes: ['ash', 'mira'], name: 'Twin Shadows’ Edge', icon: '⚔', desc: '<b>Ash + Mira:</b> both strike <b>+3</b> to any <span class="kw kw-exposed">◎ EXPOSED</span> foe — the hunt and the tempo, as one.',
     trigger: 'dmgMod', mod: (o, t) => ((o.id === 'ash' || o.id === 'mira') && t && t.mark ? 3 : 0) },
-  { id: 'duo_elincassia', duo: true, hero: 'elin', heroes: ['elin', 'cassia'], name: 'Sanctified Wall', icon: '⛨', desc: '<b>Elin + Cassia:</b> at the start of your turn, the most-wounded ally gains <span class="kw kw-guard">⛨ 2</span> AND heals <span class="kw kw-heal">✚ 2</span>.',
+  { id: 'duo_elincassia', duo: true, hero: 'elin', heroes: ['elin', 'cassia'], name: 'Blessed Bulwark', icon: '⛨', desc: '<b>Elin + Cassia:</b> at the start of your turn, the most-wounded ally gains <span class="kw kw-guard">⛨ 2</span> AND heals <span class="kw kw-heal">✚ 2</span>.',
     trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'cassia') return; const t = lowestHpAlly(); if (t && !t.downed) { t.guard += 2; if (t.hp < t.maxHp) t.hp = Math.min(t.maxHp, t.hp + 2); popupAt(figEl(t.id), '⛨✚', 'guard'); boonProc('elin', 'duo_elincassia', { quiet: true }); } } },
   { id: 'duo_haskcassia', duo: true, hero: 'hask', heroes: ['hask', 'cassia'], name: 'Frostwall', icon: '❄', desc: '<b>Hask + Cassia:</b> <span class="kw kw-chill">❄ CHILLED</span> foes take <b>+2</b> from EVERY ally — the cold behind the wall.',
     trigger: 'dmgMod', mod: (o, t) => (t && t.lull ? 2 : 0) },
@@ -727,7 +727,7 @@ const BOONS = [
     trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'ash' || S._flags.boonBlood) return; S._flags.boonBlood = true; S.ep = Math.min(S.maxEp, S.ep + 2); pulseEp(); const t = lowestHpAlly(); if (t && !t.downed) { t.hp = Math.max(1, t.hp - 3); popupAt(figEl(t.id), '−3', 'dmg'); } boonProc('ash', 'curse_bloodrush'); } },
   // ── TRIO BOONS (Hades "you brought the exact team") — only when a SPECIFIC three
   //    walk together.  The rarest, most build-defining gifts. ──
-  { id: 'trio_phalanx', trio: true, hero: 'cassia', heroes: ['ash', 'cassia', 'elin'], name: 'The Phalanx Vow', icon: '⛨', desc: '<b>Ash · Cassia · Elin:</b> every fight OPENS with the whole party at <span class="kw kw-guard">⛨ 3</span> and <span class="kw kw-rally">▲ RALLY 2</span> — the shield-wall marches.',
+  { id: 'trio_phalanx', trio: true, hero: 'cassia', heroes: ['ash', 'cassia', 'elin'], name: 'The Phalanx', icon: '⛨', desc: '<b>Ash · Cassia · Elin:</b> every fight OPENS with the whole party at <span class="kw kw-guard">⛨ 3</span> and <span class="kw kw-rally">▲ RALLY 2</span> — the shield-wall marches.',
     trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'cassia' || S.turn !== 1 || S._flags.boonPhalanx) return; S._flags.boonPhalanx = true; livingHeroes().forEach(h => { h.guard += 3; h.buffDmg += 2; popupAt(figEl(h.id), '⛨3 ▲2', 'guard'); }); boonProc('cassia', 'trio_phalanx'); } },
   { id: 'trio_killwind', trio: true, hero: 'mira', heroes: ['ash', 'mira', 'branwen'], name: 'The Killing Wind', icon: '☠', desc: '<b>Ash · Mira · Branwen:</b> EVERY ally strikes <b>+4</b> to <span class="kw kw-exposed">◎ EXPOSED</span> foes — three blades, one hunt.',
     trigger: 'dmgMod', mod: (o, t) => (t && t.mark ? 4 : 0) },
@@ -1869,13 +1869,16 @@ const BOND_WEAVE = {
 // A partner's ASSIST is flavored by WHO they are (their archetype) — so it reads
 // as that character joining the fight.  Returns a short verb for the callout.
 // `atk` = the ally who just attacked, `tgt` = the enemy they hit.
+// Offensive assists RETARGET to any living foe if the original died, and support
+// assists FALL BACK to a ward, so a bond assist NEVER fires a triumphant callout
+// for +0 effect.  `foe()` returns a hittable enemy or null.
 const BOND_ASSIST = {
-  ash:     (p, tgt) => { if (tgt && !tgt.dead) { dealToEnemy(tgt, 6, 'blade', p.id); popupAt(figEl(tgt.uid), '⚔ 6', 'dmg'); } return 'a cutting follow-up'; },
-  mira:    (p, tgt) => { if (tgt && !tgt.dead) { tgt.mark = (tgt.mark || 0) + 2; dealToEnemy(tgt, 5, 'blade', p.id); popupAt(figEl(tgt.uid), '◎+2 ✕5', 'dmg'); } return 'a shadow strike'; },
-  elin:    (p) => { const t = lowestHpAlly(); if (t && !t.downed) { t.hp = Math.min(t.maxHp, t.hp + 5); t.chill = 0; t.exposed = 0; popupAt(figEl(t.id), '♡ ✚5', 'heal'); if (SFX.heal) SFX.heal(); } return 'a mending light'; },
+  ash:     (p, tgt) => { const t = (tgt && !tgt.dead) ? tgt : frontmostEnemy(); if (t) { dealToEnemy(t, 6, 'blade', p.id); popupAt(figEl(t.uid), '⚔ 6', 'dmg'); } return 'a cutting follow-up'; },
+  mira:    (p, tgt) => { const t = (tgt && !tgt.dead) ? tgt : frontmostEnemy(); if (t) { t.mark = (t.mark || 0) + 2; dealToEnemy(t, 5, 'blade', p.id); popupAt(figEl(t.uid), '◎+2 ✕5', 'dmg'); } return 'a shadow strike'; },
+  elin:    (p, tgt, atkId) => { const w = lowestHpAlly(); if (w && !w.downed && w.hp < w.maxHp) { w.hp = Math.min(w.maxHp, w.hp + 5); w.chill = 0; w.exposed = 0; popupAt(figEl(w.id), '♡ ✚5', 'heal'); if (SFX.heal) SFX.heal(); return 'a mending light'; } const a = S.heroes.find(h => h.id === atkId) || p; a.guard += 4; popupAt(figEl(a.id), '⛨ +4', 'guard'); return 'a warding light'; },
   cassia:  (p, tgt, atkId) => { const a = S.heroes.find(h => h.id === atkId) || p; a.guard += 5; popupAt(figEl(a.id), '⛨ +5', 'guard'); return 'a raised shield'; },
-  branwen: (p, tgt) => { if (tgt && !tgt.dead) { tgt.mark = (tgt.mark || 0) + 2; dealToEnemy(tgt, 4, 'blade', p.id); popupAt(figEl(tgt.uid), '➹ ◎+2', 'dmg'); } return 'a marking arrow'; },
-  hask:    (p, tgt) => { if (tgt && !tgt.dead) { tgt.lull = (tgt.lull || 0) + 1; dealToEnemy(tgt, 5, 'frost', p.id); popupAt(figEl(tgt.uid), '❄ 5', 'dmg'); } return 'a frost bolt'; },
+  branwen: (p, tgt) => { const t = (tgt && !tgt.dead) ? tgt : frontmostEnemy(); if (t) { t.mark = (t.mark || 0) + 2; dealToEnemy(t, 4, 'blade', p.id); popupAt(figEl(t.uid), '➹ ◎+2', 'dmg'); } return 'a marking arrow'; },
+  hask:    (p, tgt) => { const t = (tgt && !tgt.dead) ? tgt : frontmostEnemy(); if (t) { t.lull = (t.lull || 0) + 1; dealToEnemy(t, 5, 'frost', p.id); popupAt(figEl(t.uid), '❄ 5', 'dmg'); } return 'a frost bolt'; },
 };
 function weaveFor(a, b) { return BOND_WEAVE[duetClassKey(a, b)] || null; }
 // The set of woven pair-keys this fight (pairsAwake stores hero pairKeys).
@@ -1960,16 +1963,16 @@ const FLOW = [
   { type: 'story', chapter: 3, title: 'MIRA', eyebrow: 'CHAPTER 3 · THREE', lines: [
     { text: 'A blade rests at your throat before you hear a single step. Then, slowly, it lowers.' },
     { spk: 'MIRA', text: 'You came through the dark loud as a funeral. …Lucky I only kill what I mean to. Move.' },
-    { text: 'Three now — a triangle. Hold all three <b>threads</b> at once and the trio <b>RESONATES</b>: a shared vow only your exact three can speak. No one will tell you how. You’ll feel it close.' },
+    { text: 'Three now — a triangle. A kindled pair <b>weaves</b>: attack with one and their partner <b>follows up</b> on their own. Bond all three and your bonds <b>crown your ALL-OUT</b> with a <b>TRIAD FINALE</b> — one grand blow only your exact three can land.' },
   ]},
   { type: 'fight', chapter: 3, heroes: ['ash', 'elin', 'mira'], enemies: ['echoknight', 'cultist'],
-    narrator: 'Help one another until all three threads hold — then the triad answers. Chain hits to fill BURST.' },
+    narrator: 'Help one another until all three threads hold. Chain hits &amp; parries to fill BURST, then unleash your ALL-OUT.' },
   { type: 'story', chapter: 3, title: 'THE ROAD DOWN', eyebrow: 'THE DESCENT', lines: [
     { text: 'The tutorial road ends at a cliff’s edge. Below waits the <b>Descent</b> — and the Abyss beneath it.' },
     { text: 'Down here your steel finds its <b>rhythm</b>. Each hero shows a single <b>opener</b> — play it and it <b>flows into a finisher</b>. That short combo is all you start with; how it <b>grows</b> is up to you.' },
     { spk: 'ASH', text: 'A strike and a killing blow. Everything between them, I earn.' },
     { text: 'The dead give up <b>✦ embers</b>. Between fights, open your party’s <b>Ember Tree</b> and spend them — a <b>combo</b> node <b>inserts a middle strike</b> (opener → combo → finisher), and a <b>fork</b> node opens a <b>second line</b> off the opener (play it, pick one path, the other burns away). Grow each rotation one earned choice at a time. Only for the heroes you field, and only for <b>this descent</b>.' },
-    { text: 'Every trio you form <b>resonates differently</b>, so <b>who walks beside whom is your build</b>. And when a party falls, the Abyss remembers where — your next descent finds their ashes still warm.' },
+    { text: 'Every trio you form <b>fights differently</b> — their bonds, weaves and finale are all their own — so <b>who walks beside whom is your build</b>. And when a party falls, the Abyss remembers where — your next descent finds their ashes still warm.' },
     { spk: 'MIRA', text: 'Down, then. Stay close. …That’s not sentiment. It’s tactics.' },
   ], next: 'descent' },
 ];
@@ -4060,14 +4063,17 @@ function parryEarlyNudge(ui, ax, ay) {
   setTimeout(() => tag.remove(), 400);
   try { haptic(HAP.tap); } catch (_) {}
 }
-// First-few-parries coach — a short caption teaching the tap timing.  Shown at
-// most 3 times ever (persisted), so new players get the "wait for the glow"
-// lesson without it nagging veterans.
+// First-few-parries coach — a short caption teaching each gesture.  Budgeted
+// PER GESTURE (tap / hold / swipe / mash) so meeting a HOLD or SWIPE for the first
+// time still teaches it, even after you've seen the TAP lesson thrice.  Each
+// gesture shows at most twice, then never nags a veteran again.
 function parryCoach(msg) {
+  const kind = /HOLD/.test(msg) ? 'hold' : /SWIPE/.test(msg) ? 'swipe' : /MASH/.test(msg) ? 'mash' : 'tap';
+  const key = 'kizuna2_1.parryLesson_' + kind;
   let n = 0;
-  try { n = parseInt(localStorage.getItem('kizuna2_1.parryLessons') || '0', 10) || 0; } catch (_) {}
-  if (n >= 3) return;
-  try { localStorage.setItem('kizuna2_1.parryLessons', String(n + 1)); } catch (_) {}
+  try { n = parseInt(localStorage.getItem(key) || '0', 10) || 0; } catch (_) {}
+  if (n >= 2) return;
+  try { localStorage.setItem(key, String(n + 1)); } catch (_) {}
   let el = document.getElementById('parry-coach');
   if (!el) { el = document.createElement('div'); el.id = 'parry-coach'; $('#stage').appendChild(el); }
   el.textContent = msg;
@@ -4298,7 +4304,12 @@ async function runParryInner(targetEl, pattern, art) {
       a = { x: sx / figs.length, y: sy / figs.length };
     }
   }
-  if (k === 'tap' || k === 'multi' || k === 'seq' || !k) parryCoach('Wait for the ring to glow gold — then TAP');
+  // first-encounter coaching is gesture-SPECIFIC, so a hold / swipe / mash isn't
+  // met with "then TAP" — each gesture teaches its own read.
+  if (k === 'hold')       parryCoach('When the ring glows gold — HOLD and brace');
+  else if (k === 'swipe') parryCoach('When the ring glows gold — SWIPE the way the arrow points');
+  else if (k === 'mash')  parryCoach('When the ring glows gold — MASH fast to break it');
+  else                    parryCoach('Wait for the ring to glow gold — then TAP');
   if (k === 'seq')   return await runParrySeq(pattern.notes, a, art);
   // multi is a mini-cascade — partial mitigation too (miss a tap, take its
   // share).  Notes vary in SPEED (a slower downbeat, then a snappier one) but
@@ -4391,7 +4402,7 @@ async function triadCeremony() {
     <div class="triad-title">TRIAD FORMED</div>
     <div class="triad-names">${names}</div>
     <div class="triad-cardname">✦ ${r.name}${vowRank(trioClassKey(livingHeroes().map(h => h.id))) > 1 ? ' ' + ROMAN[vowRank(trioClassKey(livingHeroes().map(h => h.id)))] : ''} — ${r.type}</div>
-    <div class="ov-tap">your <b>ALL-OUT</b> is crowned — the vow crashes down as its finale · tap to continue</div>
+    <div class="ov-tap">your <b>ALL-OUT</b> is crowned — it now ends in a <b>TRIAD FINALE</b> · tap to continue</div>
   `, 'triad-ceremony');
   await new Promise(res => { $('#overlay').onclick = () => { $('#overlay').onclick = null; res(); }; });
   hideOverlay();
@@ -4937,7 +4948,7 @@ async function awakenDuet(a, b) {
   sparkThread(a, b);
   SFX.thread();
   cineFlash('rgba(240,212,136,0.4)');
-  const wname = (w && w.name) || 'Shared Vow';
+  const wname = (w && w.name) || 'Woven Bond';
   flashNarrator('✦ WEAVE — ' + HEROES[a].name + ' & ' + HEROES[b].name + ' are bound as ' + wname
     + ': now each follows the other’s attack.');
   [a, b].forEach(id => { const h = S.heroes.find(x => x.id === id); if (h && !h.downed) h.guard += 2; });   // the bond steels them
@@ -7007,9 +7018,9 @@ function renderResonance() {
   }).join('');
   const fill = formed === 3 ? `<polygon points="${C.map(c => c.x + ',' + c.y).join(' ')}" class="rz-fill"/>` : '';
   const dots = ids.map((id, i) => `<circle cx="${C[i].x}" cy="${C[i].y}" r="4.2" class="rz-dot" style="fill:${HEROES[id].tint}"/>`).join('');
-  const ready = S.triadFormed && !S.resonantUsed;
+  const ready = !!S.triadFormed;
   el.classList.toggle('rz-ready', ready);
-  const label = S.resonantUsed ? 'VOW SPENT' : ready ? '✦ TRIAD READY' : 'RESONANCE ' + formed + '/3';
+  const label = ready ? '✦ TRIAD · ALL-OUT CROWNED' : 'RESONANCE ' + formed + '/3';
   el.innerHTML = `<svg viewBox="-3 -3 52 48" class="rz-svg">${fill}${edges}${dots}</svg><span class="rz-lbl">${label}</span>`;
 }
 
@@ -7038,7 +7049,7 @@ function renderBurst() {
   // The label reads the level the all-out will FIRE at right now — so the choice
   // to unleash or hold-and-charge is legible without a percentage.
   const fl = burstFireLevel();
-  $('#burst-lbl').textContent = ready ? (fl >= 2 ? '⚡ ALL-OUT ' + '✦'.repeat(fl) : '⚡ ALL-OUT') : (level > 1 ? 'BURST ✦' + level : 'BURST');
+  $('#burst-lbl').textContent = ready ? (fl >= 2 ? '⚡ TAP · ALL-OUT ' + '✦'.repeat(fl) : '⚡ TAP · ALL-OUT') : (level > 1 ? 'BURST ✦' + level : 'BURST');
   burst.onclick = ready ? () => triggerAllOut() : null;
   burst.style.cursor = ready ? 'pointer' : 'default';
   if (ready && !wasReady) haptic(HAP.good);
@@ -7572,9 +7583,12 @@ function showHowTo(back) {
       <div class="ov-line"><b>Reposition your heroes.</b> Drag a hero between the <b>FRONT · MID · BACK</b> rows. Where they stand sets their stance, so their cards change to match.</div>
       <div class="ht-head">When a foe attacks</div>
       <div class="ov-line"><b>Dodge or parry.</b> Each enemy shows the <b>row</b> it will hit. Drag that hero to a safe row to <b>DODGE</b> — or stand and <b>PARRY</b>: tap each note the instant its ring flashes gold. Good timing turns the blow aside.</div>
+      <div class="ht-head">Build your BURST</div>
+      <div class="ov-line"><b>Fill the gauge, then unleash.</b> Landing hits and clean parries fill your <b>BURST</b>. When it glows ready, <b>tap the gauge</b> to unleash an <b>ALL-OUT</b> — the whole party piles onto the enemy line at once.</div>
+      <div class="ht-head">Bonds</div>
+      <div class="ov-line"><b>Fight as one.</b> You gather up to three heroes. Help one another and their <b>bonds</b> deepen. A bonded pair <b>weaves</b>: attack with one and their partner <b>follows up</b> on their own. Your bonds also <b>empower your ALL-OUT</b> — bond all three and it ends in a <b>TRIAD FINALE</b>.</div>
       <div class="ht-head">Between fights</div>
       <div class="ov-line"><b>Grow stronger.</b> Winning earns <b>✦ embers</b> — spend them on your <b>Ember Tree</b> to unlock new cards. Take companion <b>gifts</b>, and <b>rest</b> at campfires to heal.</div>
-      <div class="ov-line"><b>Fight as a trio.</b> You gather up to three heroes. Help one another in battle and their <b>bonds</b> deepen — a bonded party unlocks powerful shared moves.</div>
       <div class="ov-line ht-tip">Tip: press &amp; hold any card to read it up close.</div>
     </div>
     <button class="ov-btn primary" id="ht-back">◂ BACK</button>
