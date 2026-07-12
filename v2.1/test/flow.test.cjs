@@ -1685,53 +1685,54 @@ const QUICK = process.argv.includes('--quick');
   check('WEAVE: the shared act wove the pair — no duet/resonant CARD',
     await J(() => (S.pairsAwake && S.pairsAwake.has('ash|elin')) && !S.tempCards.find(c => c.fx && c.fx.duet) && !document.querySelector('#hand .card.kind-resonant')));
   check('WEAVE: awakening swelled the BURST to L2 (the old duet reward)', await J(() => (S.burstLevel || 1) >= 2));
-  // BOND ASSIST — the legible weave beat: attacking with a woven hero makes their
-  // PARTNER follow up.  Ash attacks → Elin (Cleric) mends the wounded ally.
-  const assist = await J(() => {
+  // FOLLOW-UP — the legible weave beat: a woven hero's FINISHER OFFERS the partner
+  // a free Follow-Up card (once per bond per turn).
+  const offer = await J(() => {
+    S._assistedPairs = new Set(); S.tempCards = [];
+    offerBondFollow('ash');
+    const c = S.tempCards.find(t => t.fx && t.fx.bondFollow);
+    return { has: !!c, owner: c && c.owner, cost: c && c.cost, key: c && c.fx.bondFollow.key, once: S._assistedPairs.has(pairKey('ash', 'elin')) };
+  });
+  check('FOLLOW-UP: Ash’s finisher offers a free Follow-Up card for bonded Elin',
+    offer.has && offer.owner === 'elin' && offer.cost === 0 && offer.key === 'ash|elin' && offer.once, JSON.stringify(offer));
+  const noSpam = await J(() => { const n0 = S.tempCards.length; offerBondFollow('ash'); return S.tempCards.length === n0; });
+  check('FOLLOW-UP: offered ONCE per bond per turn (no spam)', noSpam);
+  // playing it runs the partner's assist — Elin (Cleric) mends the wounded ally.
+  const played = await J(async () => {
     const elin = S.heroes.find(h => h.id === 'elin'); elin.hp = 10; const before = elin.hp;
-    S._assistedPairs = new Set();
-    bondAssist('ash', livingEnemies()[0]);   // as if Ash just landed an attack
-    return { before, after: S.heroes.find(h => h.id === 'elin').hp, once: S._assistedPairs.has(pairKey('ash', 'elin')) };
+    await resolveBondFollow({ partnerId: 'elin', attackerId: 'ash', key: 'ash|elin', weave: 'Warded Edge' });
+    return { before, after: S.heroes.find(h => h.id === 'elin').hp };
   });
-  check('BOND ASSIST: attacking with Ash makes bonded Elin follow up (mends the wounded)',
-    assist.after > assist.before && assist.once, JSON.stringify(assist));
-  // an assist must NEVER whiff for +0 — Elin wards the attacker when nobody's hurt
-  const noWhiff = await J(() => {
-    S.heroes.forEach(h => { h.hp = h.maxHp; h.guard = 0; });   // full party, no wound
-    S._assistedPairs = new Set();
+  check('FOLLOW-UP: playing it runs the partner’s assist (Elin mends the wounded)', played.after > played.before, JSON.stringify(played));
+  // never whiffs — Elin wards the attacker when nobody's hurt
+  const noWhiff = await J(async () => {
+    S.heroes.forEach(h => { h.hp = h.maxHp; h.guard = 0; });
     const ash = S.heroes.find(h => h.id === 'ash');
-    bondAssist('ash', livingEnemies()[0]);
-    return ash.guard >= 4;   // fell back to a ward
+    await resolveBondFollow({ partnerId: 'elin', attackerId: 'ash', weave: 'Warded Edge' });
+    return ash.guard >= 4;
   });
-  check('BOND ASSIST: never whiffs — Elin wards when no ally is wounded', noWhiff);
-  const spamGuard = await J(() => {
-    const elin = S.heroes.find(h => h.id === 'elin'); const h0 = elin.hp;
-    bondAssist('ash', livingEnemies()[0]);   // a SECOND attack same turn
-    return elin.hp === h0;                     // no re-trigger
-  });
-  check('BOND ASSIST: fires ONCE per bond per turn (no spam)', spamGuard);
+  check('FOLLOW-UP: never whiffs — Elin wards when no ally is wounded', noWhiff);
   const noWeave = await J(async () => {
     RUN = newRun('ash');
     RUN.roster = ['ash', 'mira']; RUN.active = ['ash', 'mira'];
     RUN.hp = { ash: 32, mira: 22 }; RUN.bonds = {};   // un-kindled
     startMapFight(RUN.map.find(x => x.type === 'fight'));
     await addThread('ash', 'mira');
-    return { woven: !!(S.pairsAwake && S.pairsAwake.size), card: !!S.tempCards.find(c => c.fx && c.fx.duet) };
+    return { woven: !!(S.pairsAwake && S.pairsAwake.size), card: !!S.tempCards.find(c => c.fx && c.fx.bondFollow) };
   });
-  check('WEAVE: an UN-kindled pair weaves nothing (and forges no card)',
+  check('WEAVE: an UN-kindled pair weaves nothing (offers no follow-up)',
     !noWeave.woven && !noWeave.card, JSON.stringify(noWeave));
   // ALL-OUT EMPOWER — deepened bonds lift EVERY strike of the all-out (the FF7R
   // synergy), instead of piling on separate vows.
   check('ALL-OUT: woven bonds empower the assault (bondMul wired into resolveAllOut)',
     await J(() => resolveAllOut.toString().includes('bondMul') && typeof allOutTriadFinale === 'function'));
-  const mira2 = await J(() => {
+  const mira2 = await J(async () => {
     setupFight(['ash', 'mira'], [], { ash: 'front', mira: 'mid' });
-    S.pairsAwake = new Set([pairKey('ash', 'mira')]); S._assistedPairs = new Set();
     const foe = frontmostEnemy(); const hp0 = foe.hp;
-    bondAssist('ash', foe);   // Mira (Reaver) assists → mark + strike
+    await resolveBondFollow({ partnerId: 'mira', attackerId: 'ash', weave: 'Twin Edge' });   // Mira (Reaver) → mark + strike
     return { struck: foe.hp < hp0, marked: (foe.mark || 0) >= 2 };
   });
-  check('BOND ASSIST: the partner’s follow-up is flavored by WHO they are (Mira marks + strikes)',
+  check('FOLLOW-UP: flavored by WHO the partner is (Mira marks + strikes)',
     mira2.struck && mira2.marked, JSON.stringify(mira2));
   // DRAG RESET — the post-game-over "cards un-draggable" fix: clearAim must wipe
   // the stale hand + any leaked interaction state so the NEXT game wires fresh cards.

@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 177;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 178;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -783,7 +783,7 @@ function renderCombatBoons() {
   const weaves = wovenPairKeys();
   html += weaves.map(key => {
     const [a, b] = key.split('|'); const w = BOND_WEAVE[duetClassKey(a, b)]; if (!w) return '';
-    return `<span class="cb-weave" data-weave="${key}" title="✦ ${w.name} — ${HEROES[a].name} &amp; ${HEROES[b].name} are bound: attacking with one makes the other follow up (once per turn).">${w.icon || '✦'}</span>`;
+    return `<span class="cb-weave" data-weave="${key}" title="✦ ${w.name} — ${HEROES[a].name} &amp; ${HEROES[b].name} are bound: play a FINISHER with one and the other gets a free FOLLOW-UP card (once per turn).">${w.icon || '✦'}</span>`;
   }).join('');
   el.innerHTML = html;
   el.querySelectorAll('.cb-boon').forEach(c => attachBoonInspect(c, c.dataset.boon));
@@ -1797,24 +1797,60 @@ function weaveProc(classKey) {
 // lands an attack, each bonded PARTNER steps in with their archetype's follow-up,
 // ONCE per bond per turn.  A thread flicks between them, the partner lunges, and a
 // clear callout fires — so the WHEN (your attack) and WHY (the bond) are legible.
-function bondAssist(attackerId, tgt) {
+// A short, legible hint of what a partner's follow-up does (shown on the offered card).
+const FOLLOW_HINT = {
+  ash:     'strike ⚔6',
+  mira:    'shadow strike ✕5 · ◎+2',
+  elin:    'mend ✚5 (or ward ⛨4)',
+  cassia:  'shield the striker ⛨5',
+  branwen: 'marking arrow ✕4 · ◎+2',
+  hask:    'frost bolt ❄5 · CHILL',
+};
+// OFFER A BOND FOLLOW-UP — the legible weave beat.  When a WOVEN hero plays a
+// FINISHER, their partner's follow-up becomes a PLAYABLE option: a free Follow-Up
+// card materializes in the partner's slot (burning in with a thread flourish), so
+// the player SEES the option and chooses to spend it.  Once per bond per turn.
+function offerBondFollow(attackerId) {
   if (!S || !S.pairsAwake || !S.pairsAwake.size) return;
   S._assistedPairs = S._assistedPairs || new Set();
   wovenWeavesFor(attackerId).forEach(({ w, a, b }) => {
     const key = pairKey(a, b);
-    if (S._assistedPairs.has(key)) return;                 // one assist per bond per turn
+    if (S._assistedPairs.has(key)) return;                 // one follow-up OFFER per bond per turn
     const partnerId = a === attackerId ? b : a;
     const partner = S.heroes.find(h => h.id === partnerId);
-    if (!partner || partner.downed) return;
-    const act = BOND_ASSIST[partnerId]; if (!act) return;
+    if (!partner || partner.downed || !BOND_ASSIST[partnerId]) return;
+    if (S.tempCards.some(c => c.fx && c.fx.bondFollow && c.fx.bondFollow.key === key)) return;   // already offered
     S._assistedPairs.add(key);
-    try { sparkThread(a, b); if (typeof lungeFig === 'function') lungeFig(figEl(partnerId)); } catch (_) {}
-    let verb = ''; try { verb = act(partner, tgt, attackerId) || ''; } catch (_) {}
-    popupAt(figEl(partnerId), '✦ ' + w.name, 'boon');
-    flashNarrator('✦ ' + w.name + ' — ' + HEROES[partnerId].name + ' follows ' + HEROES[attackerId].name + (verb ? ' with ' + verb : '') + '.');
+    genTempCard({ kind: 'temp', owner: partnerId, ownerName: HEROES[partnerId].name,
+      tint: 'var(--gold-bright)', stance: '✦ ' + w.name.toUpperCase(),
+      name: 'Follow-Up', cost: 0, target: 'none',
+      fx: { bondFollow: { partnerId, attackerId, key, weave: w.name } },
+      desc: `<b>${HEROES[partnerId].name}</b> answers <b>${HEROES[attackerId].name}</b>’s finisher — ${FOLLOW_HINT[partnerId] || 'a follow-up'}. <i>Free.</i>` });
+    try { sparkThread(a, b); } catch (_) {}
     weaveProc(duetClassKey(a, b));
-    try { SFX.follow && SFX.follow(); } catch (_) {}
+    flashNarrator('✦ ' + w.name + ' — ' + HEROES[partnerId].name + ' can FOLLOW UP ' + HEROES[attackerId].name + '’s finisher!');
   });
+}
+// Resolve a played Follow-Up card: the partner LUNGES in with a cinematic flourish
+// and performs their archetype's assist.
+async function resolveBondFollow(bf) {
+  const partner = S.heroes.find(h => h.id === bf.partnerId);
+  if (!partner || partner.downed) return;
+  const tgt = frontmostEnemy();
+  // the flourish — a taut thread, a lunge, an impact flash
+  try {
+    sparkThread(bf.attackerId, bf.partnerId);
+    cineFlash('rgba(240,212,136,0.42)');
+    if (typeof lungeFig === 'function') lungeFig(figEl(bf.partnerId));
+    popupAt(figEl(bf.partnerId), '✦ FOLLOW-UP', 'boon');
+    stageShake('sm');
+    SFX.follow && SFX.follow();
+  } catch (_) {}
+  await sleep(300);
+  let verb = ''; try { verb = BOND_ASSIST[bf.partnerId](partner, tgt, bf.attackerId) || ''; } catch (_) {}
+  flashNarrator('✦ ' + (bf.weave || 'BOND') + ' — ' + HEROES[bf.partnerId].name + ' follows ' + HEROES[bf.attackerId].name + (verb ? ' with ' + verb : '') + '.');
+  renderAll(); checkEnd();
+  await sleep(200);
 }
 // Does a `save` weave (Sanctified Wall) cover this hero — once/fight, both standing?
 function weaveSaves(heroId) {
@@ -1856,7 +1892,7 @@ const FLOW = [
   { type: 'story', chapter: 3, title: 'MIRA', eyebrow: 'CHAPTER 3 · THREE', lines: [
     { text: 'A blade rests at your throat before you hear a single step. Then, slowly, it lowers.' },
     { spk: 'MIRA', text: 'You came through the dark loud as a funeral. …Lucky I only kill what I mean to. Move.' },
-    { text: 'Three now — a triangle. A kindled pair <b>weaves</b>: attack with one and their partner <b>follows up</b> on their own. Bond all three and your bonds <b>crown your ALL-OUT</b> with a <b>TRIAD FINALE</b> — one grand blow only your exact three can land.' },
+    { text: 'Three now — a triangle. A kindled pair <b>weaves</b>: play a <b>FINISHER</b> with one and their partner gets a free <b>FOLLOW-UP</b> to play. Bond all three and your bonds <b>crown your ALL-OUT</b> with a <b>TRIAD FINALE</b> — one grand blow only your exact three can land.' },
   ]},
   { type: 'fight', chapter: 3, heroes: ['ash', 'elin', 'mira'], enemies: ['echoknight', 'cultist'],
     narrator: 'Help one another until all three threads hold. Chain hits &amp; parries to fill BURST, then unleash your ALL-OUT.' },
@@ -3206,6 +3242,7 @@ async function resolveCard(card, targetId) {
     await sleep(260);
     return;
   }
+  if (fx.bondFollow) { await resolveBondFollow(fx.bondFollow); return; }
   if (fx.notToday) {
     const [prId, wdId] = fx.notToday;
     const pr = S.heroes.find(x => x.id === prId);
@@ -3277,8 +3314,9 @@ async function resolveCard(card, targetId) {
       if (isFollowUp) amt += 2;
       dealToEnemy(tgt, amt, owner ? owner.def.school : null, owner ? owner.id : null);
       if (owner && !tgt.dead) firePassives('postHit', owner.id, { tgt });   // execute thresholds (Death Mark)
-      // BOND ASSIST — a woven partner steps in on your attack (once per bond per turn)
-      if (owner) bondAssist(owner.id, tgt);
+      // BOND FOLLOW-UP — a woven hero's FINISHER (or signature) offers their partner
+      // a free follow-up card to play (once per bond per turn).
+      if (owner && (/FINISHER/.test(card.stance || '') || card.kind === 'sig')) offerBondFollow(owner.id);
       if (owner) {
         hitters.push(owner.id);
         fireEmergent(owner.id, 'hit', card);
@@ -4195,7 +4233,9 @@ async function addThread(a, b) {
   // A KINDLED pair that threads awakens its WEAVE this instant (no card — see
   // awakenDuet).  A non-kindled thread just forms the connection + its guard.
   if (kindledNow) await awakenDuet(a, b);
-  flashNarrator('A thread forms — ' + HEROES[a].name + ' ─ ' + HEROES[b].name);
+  else flashNarrator('◇ THREAD — ' + HEROES[a].name + ' ─ ' + HEROES[b].name + ' · fight together again to KINDLE it (then they follow up each other’s finishers)');
+  // a clear beat on BOTH heroes so the connection reads at a glance
+  [a, b].forEach(id => { const el = figEl(id); if (el) { el.classList.remove('fig-bond'); void el.offsetWidth; el.classList.add('fig-bond'); setTimeout(() => el.classList.remove('fig-bond'), 900); } });
   // The bond itself protects: both linked heroes steel by 2 guard the moment
   // the thread forms.  Kizuna has immediate tactical weight, not just
   // triad-progress bookkeeping.
@@ -4676,7 +4716,7 @@ async function awakenDuet(a, b) {
   cineFlash('rgba(240,212,136,0.4)');
   const wname = (w && w.name) || 'Woven Bond';
   flashNarrator('✦ WEAVE — ' + HEROES[a].name + ' & ' + HEROES[b].name + ' are bound as ' + wname
-    + ': now each follows the other’s attack.');
+    + ': play a FINISHER with one and the other gets a free FOLLOW-UP.');
   [a, b].forEach(id => { const h = S.heroes.find(x => x.id === id); if (h && !h.downed) h.guard += 2; });   // the bond steels them
   expandBurst(2, '✦ WEAVE', 25);   // a woven bond also swells the burst gauge
   renderCombatBoons();   // the weave joins the topbar chip strip
@@ -7253,7 +7293,7 @@ function showHowTo(back) {
       <div class="ht-head">Build your BURST</div>
       <div class="ov-line"><b>Fill the gauge, then unleash.</b> Landing hits and clean parries fill your <b>BURST</b>. When it glows ready, <b>tap the gauge</b> to unleash an <b>ALL-OUT</b> — the whole party piles onto the enemy line at once.</div>
       <div class="ht-head">Bonds</div>
-      <div class="ov-line"><b>Fight as one.</b> You gather up to three heroes. Help one another and their <b>bonds</b> deepen. A bonded pair <b>weaves</b>: attack with one and their partner <b>follows up</b> on their own. Your bonds also <b>empower your ALL-OUT</b> — bond all three and it ends in a <b>TRIAD FINALE</b>.</div>
+      <div class="ov-line"><b>Fight as one.</b> Help one another to form <b>threads</b>; fight together again and a pair <b>kindles</b> into a <b>weave</b>. Then, when you play a <b>FINISHER</b> with one, their partner gets a free <b>FOLLOW-UP</b> card to play. Your bonds also <b>empower your ALL-OUT</b> — bond all three and it ends in a <b>TRIAD FINALE</b>.</div>
       <div class="ht-head">Between fights</div>
       <div class="ov-line"><b>Grow stronger.</b> Winning earns <b>✦ embers</b> — spend them on your <b>Ember Tree</b> to unlock new cards. Take companion <b>gifts</b>, and <b>rest</b> at campfires to heal.</div>
       <div class="ov-line ht-tip">Tip: press &amp; hold any card to read it up close.</div>

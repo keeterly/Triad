@@ -1960,6 +1960,13 @@ button.map-node:not(:disabled) { cursor: pointer; }
   25% { transform: translateX(7px) scale(1.05); }
   100% { transform: translateX(0); filter: none; }
 }
+/* a THREAD forming pulses both linked heroes gold, so the bond reads at a glance */
+.figure.fig-bond { animation: fig-bond 0.9s ease; }
+@keyframes fig-bond {
+  0%   { filter: none; }
+  30%  { filter: drop-shadow(0 0 10px rgba(240,212,136,0.9)) brightness(1.35); }
+  100% { filter: none; }
+}
 
 /* ===========================================================================
    BUILD 30 — combo-setup CLARITY: intent hooks + technical aim preview
