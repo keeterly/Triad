@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 183;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 184;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -1888,7 +1888,7 @@ async function resolveBondFollow(bf) {
   flashNarrator('✦ ' + (bf.weave || 'BOND') + ' — ' + HEROES[bf.partnerId].name + ' chains off ' + HEROES[bf.attackerId].name + (verb ? ' with ' + verb : '') + '.');
   // KIZUNA branch (Ash) — a woven CHAIN can feed the burst and, at the capstone,
   // cascade: the answering partner's OTHER bond gets to chain in turn.
-  if (hasNode('ash.chain.link'))   { gainMomentum(8, { combo: true }); popupAt(figEl(bf.partnerId), '⚡ +8', 'info'); }
+  if (hasNode('ash.chain.link'))   { gainMomentum(8, { combo: true, raw: true }); popupAt(figEl(bf.partnerId), '⚡ +8', 'info'); }
   if (hasNode('ash.chain.rising')) expandBurst(3, '✦ RISING', 20);
   renderAll(); checkEnd();
   if (hasNode('ash.chain.react') && !S.over) { try { offerBondFollow(bf.partnerId); } catch (_) {} }   // the chain is a finisher too → triad cascade
@@ -3752,6 +3752,11 @@ function pulseEp() {
 // scales each gain so chaining pays.  Full gauge → ALL-OUT ATTACK.
 // ---------------------------------------------------------------------------
 const MOM_MAX = 100;                 // L1 threshold — the all-out is available here
+// COMBAT momentum builds ~30% slower now, so the all-out is a turn-3-ish CLIMAX you
+// build toward, not a turn-1 reflex that overkills the pack.  BOND rewards (weave
+// charge, the Kizuna chain node) pass `raw` and are NOT scaled — so bonding, not
+// card-spam, is what accelerates the burst.
+const MOM_SCALE = 0.7;
 // BURST LEVELS — the gauge's CONTAINER grows as you speak kizuna.  Landing a DUET
 // expands it to L2, the TRIAD vow to L3 (see expandBurst); a bigger container
 // holds more charge, and the all-out that fires UPGRADES to whatever level the
@@ -3761,11 +3766,6 @@ const BURST_CAPS = [100, 175, 250];
 function burstCap() { return BURST_CAPS[((S && S.burstLevel) || 1) - 1] || 100; }
 // The level the all-out will fire at RIGHT NOW — how far the container is filled.
 function burstFireLevel() { const m = (S && S.momentum) || 0; return m >= 250 ? 3 : m >= 175 ? 2 : m >= 100 ? 1 : 0; }
-const BURST_TIERS = [
-  { m: 100, t: '✦ BURST READY — unleash the ALL-OUT, then TAP each strike to chain it.' },
-  { m: 175, t: '✦✦ BURST LV2 — your ALL-OUT is now RESONANT. Hold, or unleash.' },
-  { m: 250, t: '✦✦✦ BURST LV3 — your ALL-OUT is TRANSCENDENT. Unleash it.' },
-];
 function gainMomentum(amt, opts) {
   if (!S || S.over || S._burstResolving) return;   // bursts don't feed themselves
   opts = opts || {};
@@ -3774,25 +3774,34 @@ function gainMomentum(amt, opts) {
     if (S.combo > (S.comboBest || 0)) S.comboBest = S.combo;
     amt += Math.min(8, S.combo);                    // longer chains fill faster
   }
+  if (!opts.raw) amt = Math.round(amt * MOM_SCALE); // combat gains build slower; bond rewards (raw) don't
   const before = S.momentum || 0;
   S.momentum = Math.max(0, Math.min(burstCap(), before + amt));
   const fill = $('#burst-fill');
   if (fill) { fill.classList.remove('burst-gain'); void fill.offsetWidth; fill.classList.add('burst-gain'); }
-  // Announce each TIER the charge crosses (momentum can't exceed the cap, so a
-  // crossing implies the container was already expanded to hold it).
-  BURST_TIERS.forEach(tt => { if (S.momentum >= tt.m && before < tt.m) { flashNarrator(tt.t); SFX.triad(); } });
+  // The "READY" beat now fires when the CONTAINER FILLS to its current level — so a
+  // woven L2/L3 container isn't prompted to unleash a weak L1 at 100.  You build
+  // toward your full burst; crossing an interior tier just charges quietly.
+  const cap = burstCap();
+  if (S.momentum >= cap && before < cap) {
+    const lv = S.burstLevel || 1;
+    flashNarrator(lv >= 3 ? '✦✦✦ BURST FULL — your ALL-OUT is TRANSCENDENT. Unleash it, then TAP each strike.'
+                : lv === 2 ? '✦✦ BURST FULL — your ALL-OUT is RESONANT. Unleash it, then TAP each strike.'
+                : '✦ BURST READY — unleash the ALL-OUT, then TAP each strike to chain it.');
+    SFX.triad();
+  }
 }
 // Grow the burst container.  Called when a DUET (L2) or the TRIAD vow (L3) lands —
 // the kizuna also pours in a chunk of charge so the bigger gauge feels reachable.
 // Persists for the rest of the fight (the container stays big; you refill it).
 function expandBurst(level, label, charge) {
-  if (!S || ((S.burstLevel || 1) >= level)) { if (charge) gainMomentum(charge); return false; }
+  if (!S || ((S.burstLevel || 1) >= level)) { if (charge) gainMomentum(charge, { raw: true }); return false; }
   S.burstLevel = level;
   const burst = $('#burst');
   if (burst) { burst.classList.remove('burst-expand'); void burst.offsetWidth; burst.classList.add('burst-expand'); }
   flashNarrator('✦ THE BURST EXPANDS — LEVEL ' + level + (label ? ' · ' + label : '') + '.');
   if (SFX.triad) SFX.triad();
-  if (charge) gainMomentum(charge);
+  if (charge) gainMomentum(charge, { raw: true });
   renderBurst();
   return true;
 }
@@ -4794,7 +4803,7 @@ function openingWeaves() {
     lit.push((w && w.name) || 'Woven Bond');
   }
   if (lit.length) {
-    expandBurst(2 * lit.length, '✦ WEAVE', 25);                // woven bonds swell the burst gauge
+    expandBurst(2, '✦ WEAVE', 12 * Math.min(lit.length, 3));   // woven bonds swell the burst gauge (level 2, charge per weave)
     renderCombatBoons();                                       // the weaves join the topbar chip strip
     flashNarrator('✦ WOVEN — your kindled bonds enter already woven: ' + lit.join(' · ')
       + '. Play a FINISHER and a partner CHAINS; your bonds empower the ALL-OUT.');
@@ -6877,16 +6886,21 @@ function renderBurst() {
     const lv = i + 2;
     return level >= lv ? `<span class="burst-tick bt-${lv}" style="left:${(thr / cap * 100).toFixed(1)}%"></span>` : '';
   }).join('');
-  const ready = burstReady();
-  const wasReady = burst.classList.contains('burst-ready');
-  burst.classList.toggle('burst-ready', ready);
+  const ready = burstReady();                         // the all-out is TAPPABLE (m ≥ 100) — the escape hatch stays
+  const full = (S.momentum || 0) >= cap;              // the container is CHARGED to its level — the real "ready" beat
+  const wasFull = burst.classList.contains('burst-ready');
+  burst.classList.toggle('burst-ready', full);        // the urgent glow only lights when the container fills
   // The label reads the level the all-out will FIRE at right now — so the choice
-  // to unleash or hold-and-charge is legible without a percentage.
+  // to unleash or hold-and-charge is legible without a percentage.  A woven
+  // container that isn't full yet reads "HOLD" (tap still works in a pinch).
   const fl = burstFireLevel();
-  $('#burst-lbl').textContent = ready ? (fl >= 2 ? '⚡ TAP · ALL-OUT ' + '✦'.repeat(fl) : '⚡ TAP · ALL-OUT') : (level > 1 ? 'BURST ✦' + level : 'BURST');
+  $('#burst-lbl').textContent = full
+    ? (fl >= 2 ? '⚡ TAP · ALL-OUT ' + '✦'.repeat(fl) : '⚡ TAP · ALL-OUT')
+    : ready ? 'BURST ✦' + level + ' · HOLD'
+    : (level > 1 ? 'BURST ✦' + level : 'BURST');
   burst.onclick = ready ? () => triggerAllOut() : null;
   burst.style.cursor = ready ? 'pointer' : 'default';
-  if (ready && !wasReady) haptic(HAP.good);
+  if (full && !wasFull) haptic(HAP.good);
 }
 function renderActionBar() {
   $('#ep-num').textContent = S.ep;

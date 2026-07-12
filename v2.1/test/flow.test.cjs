@@ -2514,6 +2514,21 @@ const QUICK = process.argv.includes('--quick');
       S.momentum = 180; const two = burstFireLevel() === 2;
       S.momentum = 250; const three = burstFireLevel() === 3;
       return none && one && two && three; }));
+  // PACING — combat momentum builds ~30% slower (a turn-3 climax, not turn-1), but
+  // BOND rewards pass `raw` and stay full-strength, so bonding accelerates the burst.
+  check('BURST: combat gains build ~30% slower; bond rewards (raw) do not',
+    await J(() => { setupFight(['ash', 'elin', 'mira'], [], {});
+      S.momentum = 0; S.combo = 0; gainMomentum(100); const scaled = S.momentum;      // 100 → ~70
+      S.momentum = 0; S.combo = 0; gainMomentum(100, { raw: true }); const raw = S.momentum;  // 100 → 100
+      return scaled === 70 && raw === 100; }));
+  // READY prompt — a woven L2/L3 container isn't urged to unleash a weak L1 at 100;
+  // the "ready" glow only lights once the container is charged to its level.  The
+  // all-out stays TAPPABLE at 100 (the escape hatch) even when not full.
+  check('BURST: the READY glow waits for the container to FILL, but the tap stays live at 100',
+    await J(() => { setupFight(['ash', 'elin', 'mira'], [], {}); expandBurst(3);   // L3 container (cap 250)
+      S.momentum = 120; renderBurst(); const notFull = !$('#burst').classList.contains('burst-ready') && !!$('#burst').onclick;
+      S.momentum = 250; renderBurst(); const full = $('#burst').classList.contains('burst-ready') && !!$('#burst').onclick;
+      return notFull && full; }));
   check('BURST: a WEAVE expands to L2 and the TRIAD crown to L3 (wired into awaken/ceremony)',
     await J(() => typeof expandBurst === 'function' && typeof allOutEncore === 'function'
       && awakenDuet.toString().includes('expandBurst(2')
