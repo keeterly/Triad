@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 161;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 162;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -41,6 +41,11 @@ function saveSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringif
 // ── MUSIC — a looping combat theme, ducked low under the SFX.  Browsers block
 // autoplay until a gesture, so we (re)try on the next pointerdown if a start is
 // refused.  Fades in/out so entering and leaving a fight feels intentional. ──
+// The combat theme's tempo, measured from the track (autocorrelation): the
+// ThornCrown Duel runs at 120 BPM with the downbeat grid offset ~0.14s.  The
+// parry cascades quantize to THIS grid so the notes fall on the beat.  Tune by
+// ear if a re-export changes the tempo.
+const MUSIC_BPM = 120, MUSIC_OFFSET = 0.14, MUSIC_BEAT = 60 / MUSIC_BPM;
 const MUSIC = (() => {
   let el = null, want = false, fadeTimer = null, curSrc = null;
   const make = () => {
@@ -79,6 +84,17 @@ const MUSIC = (() => {
     stop() { want = false; fadeTo(0, 600); },
     // reflect a live settings toggle
     refresh() { if (!el) return; if (SETTINGS.music && want) { tryPlay(); fadeTo(0.5, 400); } else fadeTo(0, 300); },
+    // BEAT CLOCK — is the theme actually playing, where is it, and when's the next
+    // grid point?  Parry cascades read this to land their notes ON the beat.
+    beat() {
+      const a = el, playing = !!(a && !a.paused && SETTINGS.music && (a.currentTime || 0) > 0.05);
+      return {
+        playing, beatSec: MUSIC_BEAT,
+        now: () => (a ? (a.currentTime || 0) : 0),
+        // the next grid point at least `lead` seconds ahead, on a `sub`-second grid
+        nextGrid: (lead, sub) => { const g = sub || MUSIC_BEAT; const tt = (a ? (a.currentTime || 0) : 0) + (lead || 0); return Math.ceil((tt - MUSIC_OFFSET) / g) * g + MUSIC_OFFSET; },
+      };
+    },
   };
 })();
 
@@ -3995,21 +4011,37 @@ async function runParrySeq(notes, anchor, art) {
   }
   const pts = arcPoints(notes.length, anchor);
   const preview = mkSeqPreview(pts);
-  const rh = seqRhythm(notes.length);   // steady, readable cascade groove
-  await sleep(Math.round(SEQ_LEADIN * _parrySpeed));   // let the whole arc register before note 1 lands
+  const rh = seqRhythm(notes.length);   // fallback groove when no music is playing
+  // BEAT SYNC — if the combat theme is playing, land each note ON the beat grid,
+  // re-anchored to the track's live position (so it stays locked even if the tempo
+  // read is a hair off).  Dense/fast cascades ride HALF-beats; steady ones whole
+  // beats.  With music off, fall back to the free-running groove.
+  const clock = MUSIC.beat();
+  const synced = clock.playing;
+  const sub = synced ? (_parrySpeed < 0.82 ? clock.beatSec / 2 : clock.beatSec) : 0;   // seconds per note
+  let land = synced ? clock.nextGrid(0.6, sub) : 0;   // note 0 lands on the next beat ~0.6s out
+  if (!synced) await sleep(Math.round(SEQ_LEADIN * _parrySpeed));   // free-run lead-in
   let hits = 0, perfects = 0;
   for (let i = 0; i < notes.length; i++) {
     const nt = notes[i], p = pts[i], step = rh[i] || { d: 560, g: 160 };
+    let dur = null;   // ms until this note's ring CLOSES (on the beat, when synced)
+    if (synced) {
+      const spawnAt = land - sub;                                  // this note occupies one sub-interval
+      const waitMs = Math.max(0, (spawnAt - clock.now()) * 1000);  // hold until it should appear
+      if (waitMs > 4) await sleep(waitMs);
+      dur = Math.max(200, Math.round((land - clock.now()) * 1000));   // close exactly on the beat
+    }
     const done = preview.querySelectorAll('.sq-dot')[i]; if (done) done.classList.add('sq-active');
     if (art) bossAttackBeat(art, p.x, p.y);   // one art streak per note — SYNCED
     let q;
-    if (nt.t === 'hold')       q = await parryHoldNote(p.x, p.y, 820);
-    else if (nt.t === 'swipe') q = await parrySwipeNote(p.x, p.y, nt.arc || 'arcR', 760);
-    else                       q = await parryTapNote(p.x, p.y, step.d, i + 1, notes.length);
+    if (nt.t === 'hold')       q = await parryHoldNote(p.x, p.y, synced ? Math.max(480, dur) : 820);
+    else if (nt.t === 'swipe') q = await parrySwipeNote(p.x, p.y, nt.arc || 'arcR', synced ? Math.max(420, dur) : 760);
+    else                       q = await parryTapNote(p.x, p.y, synced ? dur : step.d, i + 1, notes.length);
     if (done) { done.classList.remove('sq-active'); done.classList.add(q === 'perfect' || q === 'good' ? 'sq-hit' : 'sq-miss'); }
     if (q === 'perfect' || q === 'good') hits++;
     if (q === 'perfect') perfects++;
-    if (step.g) await sleep(step.g);   // even gap — a groove you can stay inside
+    if (synced) land += sub;                 // next note, next grid point
+    else if (step.g) await sleep(step.g);    // free-run gap
   }
   preview.remove();
   // PARTIAL: each note you turned aside negates its share; the ones you missed

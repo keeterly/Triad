@@ -1893,6 +1893,20 @@ const QUICK = process.argv.includes('--quick');
     await J(() => ['card', 'move', 'hit', 'kill', 'heal', 'guard', 'thread', 'triad', 'kindle', 'victory', 'enemy', 'follow', 'deny', 'parry', 'parryMiss', 'swoosh', 'brace', 'hitstop'].every(k => typeof SFX[k] === 'function')));
   check('AUDIO: a combat MUSIC track + toggle exist (music defaults ON)',
     await J(() => typeof MUSIC === 'object' && typeof MUSIC.play === 'function' && typeof MUSIC.stop === 'function' && SETTINGS.music === true));
+  check('AUDIO: the beat clock quantizes to the track — nextGrid lands on-grid, ≥lead ahead, at 120 BPM',
+    await J(() => {
+      if (typeof MUSIC.beat !== 'function' || MUSIC_BPM !== 120) return false;
+      const clk = MUSIC.beat();
+      if (Math.abs(clk.beatSec - 60 / MUSIC_BPM) > 1e-9) return false;
+      // whole-beat and half-beat grids both resolve to a point that is
+      // (a) at least `lead` seconds ahead of now and (b) exactly on the grid.
+      for (const sub of [clk.beatSec, clk.beatSec / 2]) {
+        const g = clk.nextGrid(0.6, sub);
+        if (g < clk.now() + 0.6 - 1e-6) return false;
+        const off = ((g - MUSIC_OFFSET) % sub + sub) % sub;
+        if (Math.min(off, sub - off) > 1e-6) return false;
+      }
+      return true; }));
   check('AUDIO: entering a fight starts the theme; leaving to the map stops it',
     await J(() => {
       let acts = []; const real = { play: MUSIC.play, stop: MUSIC.stop };
