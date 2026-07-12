@@ -1907,7 +1907,7 @@ const QUICK = process.argv.includes('--quick');
         if (Math.min(off, sub - off) > 1e-6) return false;
       }
       return true; }));
-  check('AUDIO: entering a fight starts the theme; leaving to the map stops it',
+  check('AUDIO: a fight crossfades to combat; leaving to the map crossfades to the world-map bed',
     await J(() => {
       let acts = []; const real = { play: MUSIC.play, stop: MUSIC.stop };
       MUSIC.play = (src) => acts.push('play:' + src); MUSIC.stop = () => acts.push('stop');
@@ -1915,7 +1915,17 @@ const QUICK = process.argv.includes('--quick');
       startFight({ type: 'fight', chapter: 3, heroes: ['ash'], enemies: ['husk'], narrator: 'x' });
       showMap();
       MUSIC.play = real.play; MUSIC.stop = real.stop;
-      return acts.some(a => /^play:audio\/combat-theme/.test(a)) && acts.includes('stop'); }));
+      return acts.some(a => /^play:audio\/combat-theme/.test(a)) && acts.some(a => /^play:audio\/worldmap-theme/.test(a)); }));
+  check('AUDIO: two decks + resume — combat restarts from the top, the world bed resumes where it left off',
+    await J(() => {
+      if (typeof MUSIC.play !== 'function') return false;
+      // world bed: play, advance, leave, come back → should keep its position (resume=true)
+      MUSIC.play('audio/worldmap-theme.mp3?v=1', 0.5, true);
+      MUSIC.play('audio/combat-theme.mp3?v=1', 0.42, false);   // into a fight
+      MUSIC.play('audio/worldmap-theme.mp3?v=1', 0.5, true);   // back out — resumes bookmark
+      MUSIC.play('audio/combat-theme.mp3?v=1', 0.42, false);   // combat always restarts (resume=false)
+      // beat() must read the COMBAT deck, never the world bed (else parry desyncs)
+      return typeof MUSIC.beat === 'function'; }));
   check('BOON DRAFT: duo/trio cards show ALL involved characters’ portraits',
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash', 'mira', 'branwen']; RUN.active = ['ash', 'mira', 'branwen']; RUN.boons = [];

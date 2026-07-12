@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 162;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 163;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -46,48 +46,89 @@ function saveSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringif
 // parry cascades quantize to THIS grid so the notes fall on the beat.  Tune by
 // ear if a re-export changes the tempo.
 const MUSIC_BPM = 120, MUSIC_OFFSET = 0.14, MUSIC_BEAT = 60 / MUSIC_BPM;
+// TWO-DECK CROSSFADER.  Games like Clair Obscur don't cut between exploration
+// and battle music — they run BOTH stems and equal-power crossfade one into the
+// other (incoming rises on sin, outgoing falls on cos, so summed loudness stays
+// flat — no dip, no bump).  We do the same with two <audio> decks: combat lives
+// on one, the world-map bed on the other, and swapping states dissolves between
+// them.  The world theme RESUMES where it left off (a persistent overworld) while
+// combat restarts from its downbeat (a fresh entrance).  loop=true keeps each
+// track cycling so nothing ever stops dead.
 const MUSIC = (() => {
-  let el = null, want = false, fadeTimer = null, curSrc = null;
-  const make = () => {
-    if (el || typeof Audio === 'undefined') return el;
-    try { el = new Audio(); el.loop = true; el.preload = 'auto'; el.volume = 0; } catch (_) { el = null; }
-    return el;
+  const CROSS = 1500;                 // crossfade length (ms)
+  const decks = [];                   // [{a}, {a}] — two Audio elements
+  let active = -1, want = false, wantSrc = null, wantVol = 0.5, xf = null;
+  const posBySrc = {};                // remember where each track was, to resume it
+  const baseOf = (s) => (s || '').split('?')[0];
+  const mk = () => {
+    try { const a = new Audio(); a.loop = true; a.preload = 'auto'; a.volume = 0; return { a }; }
+    catch (_) { return null; }
   };
-  const fadeTo = (target, ms) => {
-    if (!el) return;
-    clearInterval(fadeTimer);
-    const from = el.volume, steps = Math.max(1, Math.round(ms / 40)); let i = 0;
-    fadeTimer = setInterval(() => {
-      i++; const v = from + (target - from) * (i / steps);
-      try { el.volume = Math.max(0, Math.min(1, v)); } catch (_) {}
-      if (i >= steps) { clearInterval(fadeTimer); if (target === 0) { try { el.pause(); } catch (_) {} } }
+  const ensure = () => {
+    if (decks.length || typeof Audio === 'undefined') return;
+    const d0 = mk(), d1 = mk(); if (d0 && d1) decks.push(d0, d1);
+  };
+  // Equal-power crossfade: one timer drives BOTH decks so they stay complementary.
+  const crossfade = (out, inc, vol, ms) => {
+    clearInterval(xf);
+    const outFrom = out ? out.a.volume : 0;
+    const steps = Math.max(1, Math.round(ms / 40)); let i = 0;
+    xf = setInterval(() => {
+      i++; const t = Math.min(1, i / steps);
+      const kin = Math.sin(t * Math.PI / 2), kout = Math.cos(t * Math.PI / 2);
+      if (inc) { try { inc.a.volume = Math.max(0, Math.min(1, vol * kin)); } catch (_) {} }
+      if (out) { try { out.a.volume = Math.max(0, Math.min(1, outFrom * kout)); } catch (_) {} }
+      if (i >= steps) { clearInterval(xf); if (out) { try { out.a.pause(); } catch (_) {} } }
     }, 40);
   };
-  const tryPlay = () => {
-    if (!want || !SETTINGS.music) return;
-    const a = make(); if (!a) return;
-    const p = a.play();
-    if (p && p.catch) p.catch(() => {});   // blocked → the pointerdown hook retries
+  const startDeck = (d, src, resume) => {
+    if (baseOf(d.a.src) !== baseOf(src)) { try { d.a.src = src; } catch (_) {} }
+    const at = resume ? (posBySrc[baseOf(src)] || 0) : 0;
+    try { d.a.currentTime = at; } catch (_) {}
+    try { d.a.volume = 0; } catch (_) {}
+    const p = d.a.play(); if (p && p.catch) p.catch(() => {});   // blocked → pointerdown retries
   };
   // any gesture is a chance to (re)start a wanted-but-blocked track
-  try { document.addEventListener('pointerdown', () => { if (want && SETTINGS.music && el && el.paused) tryPlay(); }, { capture: true }); } catch (_) {}
+  try { document.addEventListener('pointerdown', () => {
+    if (!want || !SETTINGS.music) return;
+    const d = active >= 0 ? decks[active] : null;
+    if (d && d.a.paused) { const p = d.a.play(); if (p && p.catch) p.catch(() => {}); if (d.a.volume < 0.02) crossfade(null, d, wantVol, 500); }
+  }, { capture: true }); } catch (_) {}
   return {
-    play(src, vol) {
-      want = true;
-      const a = make(); if (!a) return;
-      if (curSrc !== src) { curSrc = src; try { a.src = src; } catch (_) {} }
-      if (!SETTINGS.music) return;
-      try { a.currentTime = a.currentTime || 0; } catch (_) {}
-      tryPlay();
-      fadeTo(vol == null ? 0.5 : vol, 900);
+    // Fade FROM the current track TO `src`.  resume=true continues that track from
+    // where it paused (world map); resume=false restarts it (combat entrance).
+    play(src, vol, resume) {
+      want = true; wantSrc = src; wantVol = (vol == null ? 0.5 : vol);
+      ensure(); if (!decks.length || !SETTINGS.music) return;
+      const cur = active >= 0 ? decks[active] : null;
+      if (cur && baseOf(cur.a.src) === baseOf(src)) {   // already foreground — just settle the level
+        if (cur.a.paused) { const p = cur.a.play(); if (p && p.catch) p.catch(() => {}); }
+        crossfade(null, cur, wantVol, 400); return;
+      }
+      if (cur) { try { posBySrc[baseOf(cur.a.src)] = cur.a.currentTime || 0; } catch (_) {} }   // bookmark the outgoing track
+      const next = active === 0 ? 1 : 0;
+      startDeck(decks[next], src, resume);
+      crossfade(cur, decks[next], wantVol, CROSS);
+      active = next;
     },
-    stop() { want = false; fadeTo(0, 600); },
+    stop() { want = false; wantSrc = null; if (active >= 0 && decks[active]) { try { posBySrc[baseOf(decks[active].a.src)] = decks[active].a.currentTime || 0; } catch (_) {} crossfade(decks[active], null, 0, 600); } },
     // reflect a live settings toggle
-    refresh() { if (!el) return; if (SETTINGS.music && want) { tryPlay(); fadeTo(0.5, 400); } else fadeTo(0, 300); },
-    // BEAT CLOCK — is the theme actually playing, where is it, and when's the next
-    // grid point?  Parry cascades read this to land their notes ON the beat.
+    refresh() {
+      ensure(); if (!decks.length) return;
+      if (SETTINGS.music && want && wantSrc) {
+        const d = active >= 0 ? decks[active] : null;
+        if (d && baseOf(d.a.src) === baseOf(wantSrc)) { const p = d.a.play(); if (p && p.catch) p.catch(() => {}); crossfade(null, d, wantVol, 400); }
+        else this.play(wantSrc, wantVol, true);
+      } else if (active >= 0 && decks[active]) { crossfade(decks[active], null, 0, 300); }
+    },
+    // BEAT CLOCK — where is the COMBAT deck, and when's the next grid point?  Parry
+    // cascades read this to land their notes ON the beat.  Reads whichever deck is
+    // carrying the combat theme (and only while it's actually up), so the world-map
+    // bed never drives the parry timing.
     beat() {
-      const a = el, playing = !!(a && !a.paused && SETTINGS.music && (a.currentTime || 0) > 0.05);
+      let a = null;
+      for (const d of decks) { if (d && d.a && baseOf(d.a.src).indexOf('combat-theme') >= 0) { a = d.a; break; } }
+      const playing = !!(a && !a.paused && SETTINGS.music && (a.currentTime || 0) > 0.05 && a.volume > 0.01);
       return {
         playing, beatSec: MUSIC_BEAT,
         now: () => (a ? (a.currentTime || 0) : 0),
@@ -4018,7 +4059,11 @@ async function runParrySeq(notes, anchor, art) {
   // beats.  With music off, fall back to the free-running groove.
   const clock = MUSIC.beat();
   const synced = clock.playing;
-  const sub = synced ? (_parrySpeed < 0.82 ? clock.beatSec / 2 : clock.beatSec) : 0;   // seconds per note
+  // ONE note per beat is the readable default — a steady march that reads as
+  // "on the music."  Only the genuine CLIMAX (the Hollow Chorus's later stages,
+  // ~0.5–0.6) runs double-time on HALF-beats; road bosses and mobs stay on whole
+  // beats so the first boss never feels frantic.
+  const sub = synced ? (_parrySpeed < 0.66 ? clock.beatSec / 2 : clock.beatSec) : 0;   // seconds per note
   let land = synced ? clock.nextGrid(0.6, sub) : 0;   // note 0 lands on the next beat ~0.6s out
   if (!synced) await sleep(Math.round(SEQ_LEADIN * _parrySpeed));   // free-run lead-in
   let hits = 0, perfects = 0;
@@ -5185,7 +5230,7 @@ function startFlowNode() {
 }
 function startFight(node) {
   clearAim();        // a run that ended mid-aim must NOT leak targeting into the next fight (cards would be un-draggable)
-  MUSIC.play('audio/combat-theme.mp3?v=1', 0.42);   // the ThornCrown duel theme, ducked under the SFX
+  MUSIC.play('audio/combat-theme.mp3?v=1', 0.42, false);   // the ThornCrown duel theme, ducked under the SFX — a fresh entrance from the downbeat (crossfades up from the world bed)
   S = newBattle(node);
   _bossFig = null;   // a fresh fight builds its own boss figure (uids can repeat across fights)
   _partyFigs = {};   // and fresh party figures (drag closures capture this fight's hero objects)
@@ -5245,7 +5290,7 @@ function nodeReachable(n) {
 }
 function showMap() {
   S = null;
-  MUSIC.stop();   // the combat theme belongs to the fight — the road is quiet
+  MUSIC.play('audio/worldmap-theme.mp3?v=1', 0.5, true);   // the road's own song — crossfades up from combat, resuming where the overworld bed left off
   $('#stage').classList.remove('show-bg');
   $('#chapter-chip').textContent = 'DESCENT';
   $('#timeline').innerHTML = '';
@@ -7242,7 +7287,7 @@ function showDevPanel(back) {
 function showTitle() {
   S = null;
   clearAim();   // never carry aim/drag state to the title (or into the next new game)
-  MUSIC.stop();
+  MUSIC.play('audio/worldmap-theme.mp3?v=1', 0.44, true);   // the ambient bed opens on the title and carries seamlessly into the descent (same track — no restart)
   $('#stage').classList.remove('show-bg');
   $('#timeline').innerHTML = '';
   $('#chapter-chip').textContent = 'KIZUNA';
