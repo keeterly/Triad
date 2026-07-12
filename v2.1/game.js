@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 179;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 180;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -783,7 +783,7 @@ function renderCombatBoons() {
   const weaves = wovenPairKeys();
   html += weaves.map(key => {
     const [a, b] = key.split('|'); const w = BOND_WEAVE[duetClassKey(a, b)]; if (!w) return '';
-    return `<span class="cb-weave" data-weave="${key}" title="✦ ${w.name} — ${HEROES[a].name} &amp; ${HEROES[b].name} are bound: play a FINISHER with one and the other gets a free FOLLOW-UP card (once per turn).">${w.icon || '✦'}</span>`;
+    return `<span class="cb-weave" data-weave="${key}" title="✦ ${w.name} — ${HEROES[a].name} &amp; ${HEROES[b].name} are bound: play a FINISHER with one and the other gets a free CHAIN card (once per turn).">${w.icon || '✦'}</span>`;
   }).join('');
   el.innerHTML = html;
   el.querySelectorAll('.cb-boon').forEach(c => attachBoonInspect(c, c.dataset.boon));
@@ -1826,34 +1826,41 @@ function offerBondFollow(attackerId) {
     S._assistedPairs.add(key);
     genTempCard({ kind: 'temp', follow: partnerId, owner: partnerId, ownerName: HEROES[partnerId].name,
       tint: 'var(--gold-bright)', stance: '✦ ' + w.name.toUpperCase(),
-      name: HEROES[partnerId].name + ' Follows', cost: 0, target: 'none',
+      name: 'Chain', cost: 0, target: 'none',
       fx: { bondFollow: { partnerId, attackerId, key, weave: w.name } },
-      desc: `<b>${HEROES[partnerId].name}</b> answers <b>${HEROES[attackerId].name}</b>. <i>Free.</i>` });
+      desc: `<b>${HEROES[partnerId].name}</b> chains off <b>${HEROES[attackerId].name}</b>. <i>Free.</i>` });
     try { sparkThread(a, b); } catch (_) {}
     weaveProc(duetClassKey(a, b));
-    flashNarrator('✦ ' + w.name + ' — ' + HEROES[partnerId].name + ' can FOLLOW UP ' + HEROES[attackerId].name + '’s finisher!');
+    flashNarrator('✦ ' + w.name + ' — ' + HEROES[partnerId].name + ' can CHAIN off ' + HEROES[attackerId].name + '’s finisher!');
   });
 }
-// A JRPG assist CUT-IN — the follow-up hero's PORTRAIT slides in from the side over
-// a thread to the ally they answer, showcasing WHO is stepping up before the blow.
-async function followCutIn(partnerId, attackerId, weave) {
+// A reusable JRPG CUT-IN — a hero's PORTRAIT slides in from the side to announce a
+// MAJOR, impactful action (a CHAIN, an all-out finisher, a big unleash).  kicker =
+// the small gold eyebrow, big = the headline, sub = the detail line.  `hold` (ms)
+// lets a marquee moment linger.  Reused so every special beat reads the same way.
+async function heroCutIn(heroId, kicker, big, sub, hold) {
   let el = document.getElementById('follow-cutin');
   if (!el) { el = document.createElement('div'); el.id = 'follow-cutin'; $('#stage').appendChild(el); }
   el.innerHTML = `
     <div class="fc-panel">
-      <span class="fc-art">${V2PORTRAITS[partnerId] || ''}</span>
+      <span class="fc-art">${V2PORTRAITS[heroId] || ''}</span>
       <div class="fc-txt">
-        <span class="fc-follow">✦ FOLLOW-UP</span>
-        <span class="fc-name">${HEROES[partnerId].name}</span>
-        <span class="fc-sub">${weave || ''} · answers ${HEROES[attackerId].name}</span>
+        <span class="fc-follow">${kicker}</span>
+        <span class="fc-name">${big}</span>
+        <span class="fc-sub">${sub || ''}</span>
       </div>
     </div>`;
   el.classList.remove('fc-out'); void el.offsetWidth; el.classList.add('fc-show');
-  try { sparkThread(attackerId, partnerId); cineFlash('rgba(240,212,136,0.4)'); SFX.follow && SFX.follow(); } catch (_) {}
-  await sleep(680);
+  try { cineFlash('rgba(240,212,136,0.4)'); SFX.triad && SFX.triad(); } catch (_) {}
+  await sleep(hold || 1150);
   el.classList.remove('fc-show'); el.classList.add('fc-out');
-  await sleep(240);
+  await sleep(320);
   el.classList.remove('fc-out'); el.innerHTML = '';
+}
+// The CHAIN cut-in — a woven partner steps in over a thread to the ally they answer.
+async function followCutIn(partnerId, attackerId, weave) {
+  try { sparkThread(attackerId, partnerId); } catch (_) {}
+  await heroCutIn(partnerId, '✦ CHAIN', HEROES[partnerId].name, (weave || '') + ' · answers ' + HEROES[attackerId].name, 1100);
 }
 // Resolve a played Follow-Up card: a portrait cut-in showcases the partner, they
 // LUNGE in, and perform their archetype's assist.
@@ -1865,7 +1872,7 @@ async function resolveBondFollow(bf) {
   try { if (typeof lungeFig === 'function') lungeFig(figEl(bf.partnerId)); popupAt(figEl(bf.partnerId), '✦ FOLLOW-UP', 'boon'); stageShake('sm'); } catch (_) {}
   await sleep(200);
   let verb = ''; try { verb = BOND_ASSIST[bf.partnerId](partner, tgt, bf.attackerId) || ''; } catch (_) {}
-  flashNarrator('✦ ' + (bf.weave || 'BOND') + ' — ' + HEROES[bf.partnerId].name + ' follows ' + HEROES[bf.attackerId].name + (verb ? ' with ' + verb : '') + '.');
+  flashNarrator('✦ ' + (bf.weave || 'BOND') + ' — ' + HEROES[bf.partnerId].name + ' chains off ' + HEROES[bf.attackerId].name + (verb ? ' with ' + verb : '') + '.');
   renderAll(); checkEnd();
   await sleep(200);
 }
@@ -1909,7 +1916,7 @@ const FLOW = [
   { type: 'story', chapter: 3, title: 'MIRA', eyebrow: 'CHAPTER 3 · THREE', lines: [
     { text: 'A blade rests at your throat before you hear a single step. Then, slowly, it lowers.' },
     { spk: 'MIRA', text: 'You came through the dark loud as a funeral. …Lucky I only kill what I mean to. Move.' },
-    { text: 'Three now — a triangle. A kindled pair <b>weaves</b>: play a <b>FINISHER</b> with one and their partner gets a free <b>FOLLOW-UP</b> to play. Bond all three and your bonds <b>crown your ALL-OUT</b> with a <b>TRIAD FINALE</b> — one grand blow only your exact three can land.' },
+    { text: 'Three now — a triangle. A kindled pair <b>weaves</b>: play a <b>FINISHER</b> with one and their partner gets a free <b>CHAIN</b> to play. Bond all three and your bonds <b>crown your ALL-OUT</b> with a <b>TRIAD FINALE</b> — one grand blow only your exact three can land.' },
   ]},
   { type: 'fight', chapter: 3, heroes: ['ash', 'elin', 'mira'], enemies: ['echoknight', 'cultist'],
     narrator: 'Help one another until all three threads hold. Chain hits &amp; parries to fill BURST, then unleash your ALL-OUT.' },
@@ -4250,7 +4257,7 @@ async function addThread(a, b) {
   // A KINDLED pair that threads awakens its WEAVE this instant (no card — see
   // awakenDuet).  A non-kindled thread just forms the connection + its guard.
   if (kindledNow) await awakenDuet(a, b);
-  else flashNarrator('◇ THREAD — ' + HEROES[a].name + ' ─ ' + HEROES[b].name + ' · fight together again to KINDLE it (then they follow up each other’s finishers)');
+  else flashNarrator('◇ THREAD — ' + HEROES[a].name + ' ─ ' + HEROES[b].name + ' · fight together again to KINDLE it (then they CHAIN off each other’s finishers)');
   // a clear beat on BOTH heroes so the connection reads at a glance
   [a, b].forEach(id => { const el = figEl(id); if (el) { el.classList.remove('fig-bond'); void el.offsetWidth; el.classList.add('fig-bond'); setTimeout(() => el.classList.remove('fig-bond'), 900); } });
   // The bond itself protects: both linked heroes steel by 2 guard the moment
@@ -4621,21 +4628,21 @@ async function resolveAllOut() {
   if (!S.over) {
     // ELIN — Radiant Dawn: the light rises after the storm; mend & ward the party.
     if (hasNode('elin.allout.dawn') && heroes.some(h => h.id === 'elin')) {
+      await heroCutIn('elin', '✦ ALL-OUT FINISH', 'RADIANT DAWN', 'the light rises after the storm', 950);
       livingHeroes().forEach(h => { if (!h.downed) { h.hp = Math.min(h.maxHp, h.hp + 5); h.guard += 3; popupAt(figEl(h.id), '✚5 ⛨3', 'heal'); } });
-      flashNarrator('✦ RADIANT DAWN — the light rises after the storm.');
       if (SFX.heal) SFX.heal();
     }
     // MIRA — Death Dance: she vanishes through the storm, marking every survivor.
     if (hasNode('mira.allout.dance') && heroes.some(h => h.id === 'mira') && livingEnemies().length) {
+      await heroCutIn('mira', '✦ ALL-OUT FINISH', 'DEATH DANCE', 'every foe marked for death', 950);
       livingEnemies().forEach(e => { e.mark = (e.mark || 0) + 5; popupAt(figEl(e.uid), '◎ EXPOSED +5', 'info'); });
-      flashNarrator('✦ DEATH DANCE — every foe left marked for death.');
     }
     // BRANWEN — Rain of Ruin: a parting volley on the whole line, and +2 EP.
     if (hasNode('branwen.allout.ruin') && heroes.some(h => h.id === 'branwen') && livingEnemies().length) {
+      await heroCutIn('branwen', '✦ ALL-OUT FINISH', 'RAIN OF RUIN', 'the sky goes dark with arrows', 950);
       const vdmg = Math.round(ALLOUT.base * 2.2 * Math.max(2, heroes.length) / 2);
       for (const e of livingEnemies()) { dealToEnemy(e, vdmg, 'blade', 'branwen'); popupAt(figEl(e.uid), '➹ VOLLEY ' + vdmg, 'dmg'); }
       refundEp(2);
-      flashNarrator('✦ RAIN OF RUIN — the sky goes dark with arrows.');
       renderAll();
       await sleep(360);
     }
@@ -4733,7 +4740,7 @@ async function awakenDuet(a, b) {
   cineFlash('rgba(240,212,136,0.4)');
   const wname = (w && w.name) || 'Woven Bond';
   flashNarrator('✦ WEAVE — ' + HEROES[a].name + ' & ' + HEROES[b].name + ' are bound as ' + wname
-    + ': play a FINISHER with one and the other gets a free FOLLOW-UP.');
+    + ': play a FINISHER with one and the other gets a free CHAIN.');
   [a, b].forEach(id => { const h = S.heroes.find(x => x.id === id); if (h && !h.downed) h.guard += 2; });   // the bond steels them
   expandBurst(2, '✦ WEAVE', 25);   // a woven bond also swells the burst gauge
   renderCombatBoons();   // the weave joins the topbar chip strip
@@ -4793,7 +4800,7 @@ async function allOutTriadFinale(heroes) {
 async function unleashCast(h) {
   const pc = h.pendingCast; h.pendingCast = null;
   if (!pc || h.downed) return;
-  flashNarrator('◈ <b>' + pc.name + '</b> UNLEASHED!');
+  await heroCutIn(h.id, '◈ UNLEASH', pc.name.toUpperCase(), h.def.name + '’s channelled spell breaks', 900);
   try { cineFlash('rgba(150,90,224,0.5)'); stageShake('lg'); } catch (_) {}
   const targets = pc.all ? livingEnemies().slice()
     : [livingEnemies().find(e => e.uid === pc.targetId) || frontmostEnemy()].filter(Boolean);
@@ -7312,7 +7319,7 @@ function showHowTo(back) {
       <div class="ht-head">Build your BURST</div>
       <div class="ov-line"><b>Fill the gauge, then unleash.</b> Landing hits and clean parries fill your <b>BURST</b>. When it glows ready, <b>tap the gauge</b> to unleash an <b>ALL-OUT</b> — the whole party piles onto the enemy line at once.</div>
       <div class="ht-head">Bonds</div>
-      <div class="ov-line"><b>Fight as one.</b> Help one another to form <b>threads</b>; fight together again and a pair <b>kindles</b> into a <b>weave</b>. Then, when you play a <b>FINISHER</b> with one, their partner gets a free <b>FOLLOW-UP</b> card to play. Your bonds also <b>empower your ALL-OUT</b> — bond all three and it ends in a <b>TRIAD FINALE</b>.</div>
+      <div class="ov-line"><b>Fight as one.</b> Help one another to form <b>threads</b>; fight together again and a pair <b>kindles</b> into a <b>weave</b>. Then, when you play a <b>FINISHER</b> with one, their partner gets a free <b>CHAIN</b> card to play. Your bonds also <b>empower your ALL-OUT</b> — bond all three and it ends in a <b>TRIAD FINALE</b>.</div>
       <div class="ht-head">Between fights</div>
       <div class="ov-line"><b>Grow stronger.</b> Winning earns <b>✦ embers</b> — spend them on your <b>Ember Tree</b> to unlock new cards. Take companion <b>gifts</b>, and <b>rest</b> at campfires to heal.</div>
       <div class="ov-line ht-tip">Tip: press &amp; hold any card to read it up close.</div>
