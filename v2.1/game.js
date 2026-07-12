@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 180;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 181;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -3185,6 +3185,13 @@ async function playCard(card, targetId) {
   pulseEp();
   renderAll();
   await resolveCard(card, targetId);
+  // BOND CHAIN — ANY finisher/signature (attack, heal OR guard) offers its owner's
+  // woven partner a free Chain, so every hero chains, not just the attackers.  The
+  // Chain card itself never re-triggers.
+  if (card.owner && !(card.fx && card.fx.bondFollow) && (/FINISHER/.test(card.stance || '') || card.kind === 'sig')) {
+    const o = S.heroes.find(h => h.id === card.owner);
+    if (o && !o.downed) offerBondFollow(o.id);
+  }
   resolveChainPlay(card);                    // forge the rotation's next step(s); purge unpicked siblings
   if (card.kind !== 'move') hexBurn(card);   // a hexed hero's card play eats another card
   S.executing = false;
@@ -3338,9 +3345,6 @@ async function resolveCard(card, targetId) {
       if (isFollowUp) amt += 2;
       dealToEnemy(tgt, amt, owner ? owner.def.school : null, owner ? owner.id : null);
       if (owner && !tgt.dead) firePassives('postHit', owner.id, { tgt });   // execute thresholds (Death Mark)
-      // BOND FOLLOW-UP — a woven hero's FINISHER (or signature) offers their partner
-      // a free follow-up card to play (once per bond per turn).
-      if (owner && (/FINISHER/.test(card.stance || '') || card.kind === 'sig')) offerBondFollow(owner.id);
       if (owner) {
         hitters.push(owner.id);
         fireEmergent(owner.id, 'hit', card);

@@ -1693,10 +1693,22 @@ const QUICK = process.argv.includes('--quick');
     const c = S.tempCards.find(t => t.fx && t.fx.bondFollow);
     return { has: !!c, owner: c && c.owner, cost: c && c.cost, key: c && c.fx.bondFollow.key, once: S._assistedPairs.has(pairKey('ash', 'elin')) };
   });
-  check('FOLLOW-UP: Ash’s finisher offers a free Follow-Up card for bonded Elin',
+  check('CHAIN: Ash’s finisher offers a free Chain card for bonded Elin',
     offer.has && offer.owner === 'elin' && offer.cost === 0 && offer.key === 'ash|elin' && offer.once, JSON.stringify(offer));
   const noSpam = await J(() => { const n0 = S.tempCards.length; offerBondFollow('ash'); return S.tempCards.length === n0; });
-  check('FOLLOW-UP: offered ONCE per bond per turn (no spam)', noSpam);
+  check('CHAIN: offered ONCE per bond per turn (no spam)', noSpam);
+  // SYMMETRIC — the SUPPORT chains too: Elin's finisher offers ASH a chain (any hero
+  // can be the source, so it's not always the same character chaining).
+  const symmetric = await J(() => {
+    S._assistedPairs = new Set(); S.tempCards = [];
+    offerBondFollow('elin');
+    const c = S.tempCards.find(t => t.fx && t.fx.bondFollow);
+    return { has: !!c, owner: c && c.owner };
+  });
+  check('CHAIN: symmetric — Elin’s finisher offers a Chain for bonded ASH', symmetric.has && symmetric.owner === 'ash', JSON.stringify(symmetric));
+  // and the trigger fires for ANY finisher (heal/guard too), not just damage ones
+  check('CHAIN: offered on ANY finisher (playCard, not gated on damage)',
+    await J(() => playCard.toString().includes('offerBondFollow') && !resolveCard.toString().includes('offerBondFollow')));
   // playing it runs the partner's assist — Elin (Cleric) mends the wounded ally.
   const played = await J(async () => {
     const elin = S.heroes.find(h => h.id === 'elin'); elin.hp = 10; const before = elin.hp;
