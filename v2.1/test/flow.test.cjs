@@ -1943,6 +1943,13 @@ const QUICK = process.argv.includes('--quick');
       const t = ((document.querySelector('.howto') || {}).textContent || '').toLowerCase();
       hideOverlay();
       return ['play cards', 'ep', 'stance', 'dodge', 'parry', 'burst', 'all-out', 'ember tree', 'gift', 'bond', 'weave'].every(k => t.includes(k)); }));
+  check('NARRATOR: authored <b> markup renders bold, not as literal “<b>” text',
+    await J(() => {
+      flashNarrator('ELIN forges <b>Radiant Ward</b>.');
+      const n = document.getElementById('narrator');
+      const ok = !!n.querySelector('b') && n.textContent.indexOf('<b>') < 0 && /Radiant Ward/.test(n.textContent);
+      flashNarrator('');
+      return ok; }));
   check('AUDIO: the SFX palette survived the rewrite — every combat event still has a voice',
     await J(() => ['card', 'move', 'hit', 'kill', 'heal', 'guard', 'thread', 'triad', 'kindle', 'victory', 'enemy', 'follow', 'deny', 'parry', 'parryMiss', 'swoosh', 'brace', 'hitstop'].every(k => typeof SFX[k] === 'function')));
   check('AUDIO: a combat MUSIC track + toggle exist (music defaults ON)',

@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 181;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 182;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -7213,9 +7213,11 @@ function techBurst(el) {
 }
 let _narrTimer = null;
 function flashNarrator(text) {
-  $('#narrator').textContent = text || '';
+  // Narrator lines are authored WITH markup (<b>…</b>, keyword spans) and are all
+  // internal strings (hero/card names, numbers — no user input), so render as HTML.
+  $('#narrator').innerHTML = text || '';
   clearTimeout(_narrTimer);
-  if (text) _narrTimer = setTimeout(() => { $('#narrator').textContent = ''; }, 4200);
+  if (text) _narrTimer = setTimeout(() => { $('#narrator').innerHTML = ''; }, 4200);
 }
 
 // ---------------------------------------------------------------------------
