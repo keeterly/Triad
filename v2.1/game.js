@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 178;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 179;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -1797,15 +1797,18 @@ function weaveProc(classKey) {
 // lands an attack, each bonded PARTNER steps in with their archetype's follow-up,
 // ONCE per bond per turn.  A thread flicks between them, the partner lunges, and a
 // clear callout fires — so the WHEN (your attack) and WHY (the bond) are legible.
-// A short, legible hint of what a partner's follow-up does (shown on the offered card).
-const FOLLOW_HINT = {
-  ash:     'strike ⚔6',
-  mira:    'shadow strike ✕5 · ◎+2',
-  elin:    'mend ✚5 (or ward ⛨4)',
-  cassia:  'shield the striker ⛨5',
-  branwen: 'marking arrow ✕4 · ◎+2',
-  hask:    'frost bolt ❄5 · CHILL',
+// Icon-first read of what a partner's follow-up does (shown on the offered card
+// face), matching the normal card icon language so it parses at a glance.
+const FOLLOW_ICONS = {
+  ash:     `<span class="ic ic-dmg">⚔6</span>`,
+  mira:    `<span class="ic ic-dmg">✕5</span><span class="ic ic-exposed">◎+2</span>`,
+  elin:    `<span class="ic ic-heal">✚5</span>`,
+  cassia:  `<span class="ic ic-guard">⛨5</span>`,
+  branwen: `<span class="ic ic-dmg">➹4</span><span class="ic ic-exposed">◎+2</span>`,
+  hask:    `<span class="ic ic-dmg">❄5</span>`,
 };
+// A one-word verb per partner, for the callout/narrator.
+const FOLLOW_HINT = { ash: 'a cutting strike', mira: 'a shadow strike', elin: 'a mending light', cassia: 'a raised shield', branwen: 'a marking arrow', hask: 'a frost bolt' };
 // OFFER A BOND FOLLOW-UP — the legible weave beat.  When a WOVEN hero plays a
 // FINISHER, their partner's follow-up becomes a PLAYABLE option: a free Follow-Up
 // card materializes in the partner's slot (burning in with a thread flourish), so
@@ -1821,32 +1824,46 @@ function offerBondFollow(attackerId) {
     if (!partner || partner.downed || !BOND_ASSIST[partnerId]) return;
     if (S.tempCards.some(c => c.fx && c.fx.bondFollow && c.fx.bondFollow.key === key)) return;   // already offered
     S._assistedPairs.add(key);
-    genTempCard({ kind: 'temp', owner: partnerId, ownerName: HEROES[partnerId].name,
+    genTempCard({ kind: 'temp', follow: partnerId, owner: partnerId, ownerName: HEROES[partnerId].name,
       tint: 'var(--gold-bright)', stance: '✦ ' + w.name.toUpperCase(),
-      name: 'Follow-Up', cost: 0, target: 'none',
+      name: HEROES[partnerId].name + ' Follows', cost: 0, target: 'none',
       fx: { bondFollow: { partnerId, attackerId, key, weave: w.name } },
-      desc: `<b>${HEROES[partnerId].name}</b> answers <b>${HEROES[attackerId].name}</b>’s finisher — ${FOLLOW_HINT[partnerId] || 'a follow-up'}. <i>Free.</i>` });
+      desc: `<b>${HEROES[partnerId].name}</b> answers <b>${HEROES[attackerId].name}</b>. <i>Free.</i>` });
     try { sparkThread(a, b); } catch (_) {}
     weaveProc(duetClassKey(a, b));
     flashNarrator('✦ ' + w.name + ' — ' + HEROES[partnerId].name + ' can FOLLOW UP ' + HEROES[attackerId].name + '’s finisher!');
   });
 }
-// Resolve a played Follow-Up card: the partner LUNGES in with a cinematic flourish
-// and performs their archetype's assist.
+// A JRPG assist CUT-IN — the follow-up hero's PORTRAIT slides in from the side over
+// a thread to the ally they answer, showcasing WHO is stepping up before the blow.
+async function followCutIn(partnerId, attackerId, weave) {
+  let el = document.getElementById('follow-cutin');
+  if (!el) { el = document.createElement('div'); el.id = 'follow-cutin'; $('#stage').appendChild(el); }
+  el.innerHTML = `
+    <div class="fc-panel">
+      <span class="fc-art">${V2PORTRAITS[partnerId] || ''}</span>
+      <div class="fc-txt">
+        <span class="fc-follow">✦ FOLLOW-UP</span>
+        <span class="fc-name">${HEROES[partnerId].name}</span>
+        <span class="fc-sub">${weave || ''} · answers ${HEROES[attackerId].name}</span>
+      </div>
+    </div>`;
+  el.classList.remove('fc-out'); void el.offsetWidth; el.classList.add('fc-show');
+  try { sparkThread(attackerId, partnerId); cineFlash('rgba(240,212,136,0.4)'); SFX.follow && SFX.follow(); } catch (_) {}
+  await sleep(680);
+  el.classList.remove('fc-show'); el.classList.add('fc-out');
+  await sleep(240);
+  el.classList.remove('fc-out'); el.innerHTML = '';
+}
+// Resolve a played Follow-Up card: a portrait cut-in showcases the partner, they
+// LUNGE in, and perform their archetype's assist.
 async function resolveBondFollow(bf) {
   const partner = S.heroes.find(h => h.id === bf.partnerId);
   if (!partner || partner.downed) return;
   const tgt = frontmostEnemy();
-  // the flourish — a taut thread, a lunge, an impact flash
-  try {
-    sparkThread(bf.attackerId, bf.partnerId);
-    cineFlash('rgba(240,212,136,0.42)');
-    if (typeof lungeFig === 'function') lungeFig(figEl(bf.partnerId));
-    popupAt(figEl(bf.partnerId), '✦ FOLLOW-UP', 'boon');
-    stageShake('sm');
-    SFX.follow && SFX.follow();
-  } catch (_) {}
-  await sleep(300);
+  await followCutIn(bf.partnerId, bf.attackerId, bf.weave);   // showcase WHO follows up
+  try { if (typeof lungeFig === 'function') lungeFig(figEl(bf.partnerId)); popupAt(figEl(bf.partnerId), '✦ FOLLOW-UP', 'boon'); stageShake('sm'); } catch (_) {}
+  await sleep(200);
   let verb = ''; try { verb = BOND_ASSIST[bf.partnerId](partner, tgt, bf.attackerId) || ''; } catch (_) {}
   flashNarrator('✦ ' + (bf.weave || 'BOND') + ' — ' + HEROES[bf.partnerId].name + ' follows ' + HEROES[bf.attackerId].name + (verb ? ' with ' + verb : '') + '.');
   renderAll(); checkEnd();
@@ -6851,6 +6868,7 @@ function renderActionBar() {
     const fx = card.fx || {};
     const dg = SCHOOL_GLYPH[card.school] || '⚔';   // element carried on the damage number
     if (fx.notToday) return `<span class="ic ic-move">⇄</span><span class="ic ic-heal">✚4</span><span class="ic ic-guard">⛨4</span><span class="ic ic-counter">↺2</span>`;
+    if (fx.bondFollow) return FOLLOW_ICONS[fx.bondFollow.partnerId] || '';   // a follow-up reads at a glance too
     return fxIconStr(fx, false, dg);
   };
   // Reach: a 3-cell front/mid/back diagram for enemy cards (filled = can hit),
@@ -6887,7 +6905,7 @@ function renderActionBar() {
   hand.forEach(card => {
     const type = cardType(card);
     const el = document.createElement('div');
-    el.className = `card kind-${card.kind}`
+    el.className = `card kind-${card.kind}${card.follow ? ' card-follow' : ''}`
       + (card.spent ? ' card-spent' : (card.cost > S.ep ? ' disabled' : ''));
     if (card.temp && S._tempNew === card.uid) { el.classList.add('card-burn-in'); S._tempNew = null; }
     // FORGED-THIS-PLAY cards burn in together, staggered so a two-path fork reads
@@ -6908,6 +6926,7 @@ function renderActionBar() {
     // Forged/temporary cards need no ✧ badge — their dashed gold frame (and, for
     // rotation steps, the COMBO/FINISHER role line) already reads as temporary.
     el.innerHTML = `
+      ${card.follow ? `<span class="c-follow-avatar">${V2PORTRAITS[card.follow] || ''}</span>` : ''}
       <div class="c-top">
         <span class="c-cost tempo-${card.tempo || 'steady'}${card.cost === 0 ? ' c-free' : ''}"${card.cost === 0 ? ' title="Free — costs no EP"' : ''}>${card.cost === 0 ? '✦' : card.cost}</span>
         <span class="c-name">${card.name}</span>

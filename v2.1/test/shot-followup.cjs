@@ -17,9 +17,13 @@ const path = require('path');
   await t.sleep(500);
   await t.page.screenshot({ path: path.join(__dirname, 'shots', 'bond-followup.png') });
   const info = await t.J(() => {
-    const c = [...document.querySelectorAll('#hand .card')].find(x => x.dataset.cardName === 'Follow-Up');
-    return { present: !!c, owner: c && c.dataset.owner };
+    const c = document.querySelector('#hand .card.card-follow');
+    return { present: !!c, owner: c && c.dataset.owner, hasAvatar: !!(c && c.querySelector('.c-follow-avatar svg')), hasIcon: !!(c && c.querySelector('.c-fx .ic')) };
   });
   console.log('follow-up card:', JSON.stringify(info));
+  // now the portrait CUT-IN (fire without awaiting, grab it mid-slide)
+  await t.J(() => { followCutIn('elin', 'ash', 'Warded Edge'); });
+  await t.sleep(420);
+  await t.page.screenshot({ path: path.join(__dirname, 'shots', 'follow-cutin.png') });
   await t.browser.close(); process.exit(0);
 })();

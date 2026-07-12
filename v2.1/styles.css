@@ -1480,6 +1480,38 @@ button.map-node:not(:disabled) { cursor: pointer; }
 .vv-fig { width: 62px; height: 78px; display: flex; align-items: flex-end; justify-content: center; filter: drop-shadow(0 6px 16px rgba(0,0,0,0.8)); }
 .vv-fig svg { height: 78px; width: auto; }
 @keyframes rc-fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+/* BOND FOLLOW-UP portrait CUT-IN — a JRPG assist card slides in from the right
+   showing WHO is stepping up, over a thread to the ally they answer. */
+#follow-cutin { position: absolute; inset: 0; z-index: 46; pointer-events: none; overflow: hidden; }
+#follow-cutin .fc-panel {
+  position: absolute; right: 0; top: 46%; transform: translate(120%, -50%) skewX(-9deg);
+  display: flex; align-items: flex-end; gap: 12px; padding: 8px 26px 8px 34px;
+  background: linear-gradient(90deg, transparent, rgba(22,15,9,0.97) 24%);
+  border-left: 2px solid rgba(240,212,136,0.85);
+  box-shadow: -14px 0 46px rgba(0,0,0,0.75), inset 30px 0 40px rgba(240,212,136,0.10);
+  opacity: 0;
+}
+#follow-cutin.fc-show .fc-panel { animation: fc-in 0.42s cubic-bezier(0.16,0.9,0.28,1) forwards; }
+#follow-cutin.fc-out .fc-panel  { animation: fc-out 0.24s ease-in forwards; }
+@keyframes fc-in  { from { transform: translate(120%,-50%) skewX(-9deg); opacity: 0; } to { transform: translate(0,-50%) skewX(-9deg); opacity: 1; } }
+@keyframes fc-out { to { transform: translate(120%,-50%) skewX(-9deg); opacity: 0; } }
+.fc-art { width: 104px; height: 128px; display: flex; align-items: flex-end; justify-content: center; transform: skewX(9deg); filter: drop-shadow(0 8px 18px rgba(0,0,0,0.85)); }
+.fc-art svg { height: 128px; width: auto; }
+.fc-txt { display: flex; flex-direction: column; gap: 2px; padding-bottom: 10px; transform: skewX(9deg); }
+.fc-follow { font-size: 9px; letter-spacing: 0.34em; color: var(--gold-bright); }
+.fc-name { font-size: 27px; letter-spacing: 0.14em; color: var(--ink); line-height: 1; text-shadow: 0 0 18px rgba(240,212,136,0.55), 0 2px 6px #000; }
+.fc-sub { font-size: 8.5px; letter-spacing: 0.12em; color: var(--ink-dim); text-transform: uppercase; }
+
+/* the FOLLOW-UP card reads as special: a gold glow + the partner's portrait chip */
+.card.card-follow { border-color: rgba(240,212,136,0.8); box-shadow: 0 0 14px rgba(240,212,136,0.4), inset 0 0 22px rgba(240,212,136,0.09); }
+.c-follow-avatar {
+  position: absolute; top: 5px; right: 5px; width: 28px; height: 28px; border-radius: 50%;
+  overflow: hidden; border: 1px solid rgba(240,212,136,0.8); background: rgba(10,8,6,0.92);
+  display: flex; align-items: flex-end; justify-content: center; z-index: 3;
+}
+.c-follow-avatar svg { height: 36px; width: auto; }
+.card-follow .c-name { padding-right: 28px; }
 .rc-flash {
   position: absolute; inset: 0; z-index: 46; pointer-events: none;
   background: radial-gradient(ellipse at 50% 45%, rgba(255,246,216,0.55) 0%, transparent 70%);
