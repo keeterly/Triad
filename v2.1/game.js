@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 176;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 177;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -68,22 +68,16 @@ const MUSIC = (() => {
     if (decks.length || typeof Audio === 'undefined') return;
     const d0 = mk(), d1 = mk(); if (d0 && d1) decks.push(d0, d1);
   };
-  // Crossfade: one timer drives BOTH decks.  Two shapes:
-  //  • 'equal' (default) — equal-power sin/cos, summed loudness flat (no dip). Good
-  //    for the punchy jump INTO combat.
-  //  • 'settle' — the SCENE-CHANGE curve for leaving combat: the outgoing (battle)
-  //    theme recedes FAST (front-loaded), the incoming (field) theme stays quiet
-  //    then SWELLS in late, with a deliberate hush in the middle — "the fight ends,
-  //    a breath, the road opens."  Not equal-power on purpose (the dip is the point).
-  const crossfade = (out, inc, vol, ms, shape) => {
+  // Equal-power crossfade: one timer drives BOTH decks, incoming rising on sin,
+  // outgoing falling on cos, so summed loudness stays flat (no dip). Used for the
+  // punchy jump INTO combat.  (Leaving combat uses the sequence path in play().)
+  const crossfade = (out, inc, vol, ms) => {
     clearInterval(xf);
     const outFrom = out ? out.a.volume : 0;
     const steps = Math.max(1, Math.round(ms / 40)); let i = 0;
     xf = setInterval(() => {
       i++; const t = Math.min(1, i / steps);
-      let kin, kout;
-      if (shape === 'settle') { kout = Math.pow(1 - t, 1.9); kin = Math.pow(t, 1.8); }
-      else { kin = Math.sin(t * Math.PI / 2); kout = Math.cos(t * Math.PI / 2); }
+      const kin = Math.sin(t * Math.PI / 2), kout = Math.cos(t * Math.PI / 2);
       if (inc) { try { inc.a.volume = Math.max(0, Math.min(1, vol * kin)); } catch (_) {} }
       if (out) { try { out.a.volume = Math.max(0, Math.min(1, outFrom * kout)); } catch (_) {} }
       if (i >= steps) { clearInterval(xf); if (out) { try { out.a.pause(); } catch (_) {} } }
@@ -129,8 +123,8 @@ const MUSIC = (() => {
   return {
     // Fade FROM the current track TO `src`.  resume=true continues that track from
     // where it paused (world map); resume=false restarts it (combat entrance).
-    // opts.shape ('settle') + opts.ms let a caller shape the transition — the
-    // combat→world hand-off uses a longer, front-loaded 'settle' fade.
+    // opts.ms sets the crossfade length; opts.sequence uses the fade-out→silence→
+    // fade-in hand-off (leaving combat) instead of an overlapping crossfade.
     play(src, vol, resume, opts) {
       want = true; wantSrc = src; wantVol = (vol == null ? 0.5 : vol);
       clearTimeout(seqT);
@@ -158,7 +152,7 @@ const MUSIC = (() => {
         return;
       }
       startDeck(decks[next], src, resume);
-      crossfade(cur, decks[next], wantVol, (opts && opts.ms) || CROSS, opts && opts.shape);
+      crossfade(cur, decks[next], wantVol, (opts && opts.ms) || CROSS);
       active = next;
     },
     stop() { want = false; wantSrc = null; if (active >= 0 && decks[active]) { try { posBySrc[baseOf(decks[active].a.src)] = decks[active].a.currentTime || 0; } catch (_) {} crossfade(decks[active], null, 0, 1000); } },
@@ -1744,108 +1738,7 @@ const RESONANT_FALLBACK = {
   stages: [{ text: 'the triad strikes as one', fx: { aoeDmg: 6 } }],
 };
 
-// ---------------------------------------------------------------------------
-// DATA — DUET VOWS.  Where the triad is three threads held at once, a DUET is
-// a single KINDLED bond (2+ points earned across the run) that a SHARED ACT in
-// battle awakens — a pair's smaller, personal resonance.  Keyed by the two
-// classes (sorted, '+').  Stage fx verbs are PAIR-scoped:
-//   aoeDmg hitFrontmost pairHeal pairGuard guardFront pairRally pairCounter
-//   markFront markAll lullAll
-// A duet costs DUET_COST (not your whole turn) and deepens like a vow.
-// ---------------------------------------------------------------------------
-const DUET_COST = 3;
-const RESONANT_PAIRS = {
-  'Cleric+Ronin': {   // Elin + Ash — the healer wards, the blade answers
-    name: 'Warded Edge', type: 'Offense',
-    desc: 'Both gain 4 guard · strike ALL enemies 5.',
-    stages: [
-      { text: 'her light closes around his guard', fx: { pairGuard: 4 } },
-      { text: 'and he answers every line',          fx: { aoeDmg: 5 } },
-    ],
-  },
-  'Reaver+Ronin': {   // Mira + Ash — two blades open the same wound
-    name: 'Twin Edge', type: 'Offense',
-    desc: 'EXPOSE every enemy (+2) · strike ALL enemies 6.',
-    stages: [
-      { text: 'two blades find the same seam', fx: { markAll: 2 } },
-      { text: 'and open it together',          fx: { aoeDmg: 6 } },
-    ],
-  },
-  'Cleric+Reaver': {   // Elin + Mira — mercy, then the killing stroke
-    name: 'Silent Mercy', type: 'Offense',
-    desc: 'Both heal 5 · 9 to the NEAREST enemy.',
-    stages: [
-      { text: 'she mends what the dark spared', fx: { pairHeal: 5 } },
-      { text: 'and the shadow ends the rest',   fx: { hitFrontmost: 9 } },
-    ],
-  },
-  'Guardian+Ronin': {   // Cassia + Ash — she holds the gate, he cuts through it
-    name: 'Shield & Sword', type: 'Offense',
-    desc: 'FRONT hero gains 6 guard · strike ALL enemies 5.',
-    stages: [
-      { text: 'the wall sets its feet',   fx: { guardFront: 6 } },
-      { text: 'and the blade leaps past it', fx: { aoeDmg: 5 } },
-    ],
-  },
-  'Guardian+Cleric': {   // Cassia + Elin — an unbroken line
-    name: 'Sanctified Wall', type: 'Defense',
-    desc: 'Both gain 6 guard · both heal 5.',
-    stages: [
-      { text: 'the wall is blessed', fx: { pairGuard: 6 } },
-      { text: 'and made whole',      fx: { pairHeal: 5 } },
-    ],
-  },
-  'Guardian+Reaver': {   // Cassia + Mira — the wall names the mark
-    name: 'Wall & Whisper', type: 'Defense',
-    desc: 'Both gain 5 guard · EXPOSE every enemy (+3).',
-    stages: [
-      { text: 'the wall holds', fx: { pairGuard: 5 } },
-      { text: 'while the shadow marks them all', fx: { markAll: 3 } },
-    ],
-  },
-  'Ranger+Ronin': {   // Branwen + Ash — she marks, he charges the mark
-    name: 'Marked Charge', type: 'Offense',
-    desc: 'EXPOSE every enemy (+3) · strike ALL enemies 5.',
-    stages: [
-      { text: 'she names the wounds from range', fx: { markAll: 3 } },
-      { text: 'and he charges every one',        fx: { aoeDmg: 5 } },
-    ],
-  },
-  'Cleric+Ranger': {   // Elin + Branwen — covered while she draws
-    name: 'Covered Advance', type: 'Utility',
-    desc: 'Both heal 5 · EXPOSE every enemy (+3).',
-    stages: [
-      { text: 'she tends the line', fx: { pairHeal: 5 } },
-      { text: 'so the volley can mark them all', fx: { markAll: 3 } },
-    ],
-  },
-  'Ranger+Reaver': {   // Branwen + Mira — two hunters, one kill order
-    name: 'Kill Order', type: 'Offense',
-    desc: 'EXPOSE every enemy (+3) · 10 to the NEAREST enemy.',
-    stages: [
-      { text: 'two hunters call the same mark', fx: { markAll: 3 } },
-      { text: 'and the killshot lands',         fx: { hitFrontmost: 10 } },
-    ],
-  },
-  'Guardian+Ranger': {   // Cassia + Branwen — anvil and arrow
-    name: 'Anvil & Arrow', type: 'Offense',
-    desc: 'FRONT hero gains 5 guard · 10 to the NEAREST enemy.',
-    stages: [
-      { text: 'the anvil holds them fast', fx: { guardFront: 5 } },
-      { text: 'and the arrow drives home', fx: { hitFrontmost: 10 } },
-    ],
-  },
-};
-const DUET_FALLBACK = {
-  name: 'Shared Vow', type: 'Offense',
-  desc: 'Both gain 4 guard · strike ALL enemies 5.',
-  stages: [
-    { text: 'the two move as one', fx: { pairGuard: 4 } },
-    { text: 'and strike as one',   fx: { aoeDmg: 5 } },
-  ],
-};
 function duetClassKey(a, b) { return [HEROES[a].cls, HEROES[b].cls].sort().join('+'); }
-function duetFor(a, b) { return RESONANT_PAIRS[duetClassKey(a, b)] || DUET_FALLBACK; }
 
 // ---------------------------------------------------------------------------
 // BONDS, REFORGED — a woven pair is no longer a card, nor a hidden passive.  It's
@@ -2393,7 +2286,7 @@ function newBattle(node) {
               : (RUN && RUN._rotations === true) ? true
               : !!(node && node.useRunHp),
     momentum: 0, combo: 0, comboBest: 0, allOutUsed: 0, burstLevel: 1,   // burst container grows via DUET/TRIAD (see expandBurst)
-    triadFormed: false, resonantUsed: false, resonantNew: false,
+    triadFormed: false, allOutCrowned: false,
     executing: false, over: false, turn: 1,
   };
 }
@@ -2440,43 +2333,30 @@ function buildHand() {
   // (the card evolves).  Played cards LEAVE the fan (they return next turn) — what
   // remains is exactly what you can still do.
   const hand = [];
-  const host = resonantHost();
   const temps = S.tempCards.filter(t => t.expiresTurn == null || t.expiresTurn >= S.turn);
   // A rotation grows IN PLACE: a hero's forged builders/finishers sit right where
   // their opener was, not appended to the far right of the fan — so the card that
   // left the slot visibly becomes its next step(s) there.  Non-chain temps (stance
-  // echoes, emergent forges, duet cards) still trail at the end.
+  // echoes, emergent forges) still trail at the end.
   const chainTemps = {};
   temps.forEach(t => { if (t.chain) (chainTemps[t.owner] = chainTemps[t.owner] || []).push(t); });
   livingHeroes().forEach(h => {
     // CHAIN HEROES show a single OPENER instead of core+sig — their builders and
-    // finishers arrive as forged temp cards as the rotation plays out.  The triad
-    // still hijacks the slot (the vow consumes the whole turn regardless).
+    // finishers arrive as forged temp cards as the rotation plays out.
     const rot = rotationFor(h);
     if (rot) {
-      if (host === h.id) hand.push(mkResonantCard(h));
-      else { const op = mkChainOpener(h, rot); if (!op.spent) hand.push(op); }
+      const op = mkChainOpener(h, rot); if (!op.spent) hand.push(op);
       (chainTemps[h.id] || []).forEach(t => hand.push(t));   // forged steps sit in this hero's slot
       return;
     }
     const set = h.def.cards[h.row];
     const core = mkCard(h, 'core', set.core);
     if (!core.spent) hand.push(core);
-    if (host === h.id) hand.push(mkResonantCard(h));
-    else if (sigUnlocked(h)) { const sig = mkCard(h, 'sig', set.sig); if (!sig.spent) hand.push(sig); }
+    if (sigUnlocked(h)) { const sig = mkCard(h, 'sig', set.sig); if (!sig.spent) hand.push(sig); }
     (chainTemps[h.id] || []).forEach(t => hand.push(t));     // (a non-rotation hero can still hold forged temps)
   });
-  temps.forEach(t => { if (!t.chain) hand.push(t); });       // echoes / emergent forges / duet trail at the end
+  temps.forEach(t => { if (!t.chain) hand.push(t); });       // echoes / emergent forges trail at the end
   return hand;
-}
-// Whose signature is currently transformed?  The hero whose act of help
-// closed the triangle; falls back to any living hero if they went down.
-function resonantHost() {
-  // BONDS REFORGED — the triad no longer hijacks a card slot with a Resonant vow.
-  // Completing the triangle instead CROWNS your ALL-OUT (S.allOutCrowned), so the
-  // resonant never enters the hand.  Kept as a null-returning stub so the rest of
-  // buildHand (which asks "is this hero the host?") simply always answers "no".
-  return null;
 }
 function mkCard(h, kind, def) {
   const tempo = h.def.tempo || 'steady';
@@ -2533,19 +2413,6 @@ function triadEntryFor(ids) {
   return RESONANT_TABLE[classes] || RESONANT_FALLBACK;
 }
 function triadEntry() { return triadEntryFor(livingHeroes().map(h => h.id)); }
-function mkResonantCard(host) {
-  const r = triadEntry();
-  const key = trioClassKey(livingHeroes().map(h => h.id));
-  const rank = vowRank(key);
-  const uses = vowUses(key);
-  const toNext = rank === 1 ? 1 - uses : rank === 2 ? 3 - uses : 0;
-  return { kind: 'resonant', owner: 'triad', ownerName: host ? host.def.name : 'THE TRIAD',
-    tint: 'var(--gold-bright)',
-    stance: 'TEMPORARY', name: r.name + (rank > 1 ? ' ' + ROMAN[rank] : ''), cost: S.maxEp, target: 'none', fx: { resonant: true },
-    desc: r.desc + (rank > 1 ? `  <span class="kw kw-rally">DEEPENED ×${rank - 1}</span> — the vow remembers.` : '')
-      + (toNext > 0 ? `  (${toNext} more vow${toNext > 1 ? 's' : ''} deepens it)` : '')
-      + '  Consumes your entire turn.', spent: false };
-}
 
 // ---------------------------------------------------------------------------
 // PLAY — tap or drag.
@@ -2648,7 +2515,7 @@ function _sscale() { return stageScale(); }
 function enemyFigEls() { return livingEnemies().map(e => figEl(e.uid)).filter(Boolean); }
 function dragTargets(card) {
   const fx = card.fx || {};
-  if (fx.resonant || fx.notToday || fx.bondPair) return { mode: 'field', els: [] };
+  if (fx.notToday) return { mode: 'field', els: [] };
   switch (card.target) {
     case 'enemy':     return { mode: 'enemy', els: enemyFigEls() };
     case 'frontmost': { const f = frontmostEnemy(); return { mode: 'enemy', els: f ? [figEl(f.uid)].filter(Boolean) : [] }; }
@@ -2665,27 +2532,11 @@ function dragTargets(card) {
     default:          return { mode: 'field', els: [] };
   }
 }
-// Which figures a field card (resonant vow / bond pair / Not Today) actually
-// touches — so the aim can light them up instead of pointing at empty air.
+// Which figures a field card (Not Today) actually touches — so the aim can light
+// them up instead of pointing at empty air.
 function fieldTargets(card) {
   const fx = card.fx || {};
   if (fx.notToday)  return fx.notToday.map(id => figEl(id)).filter(Boolean);
-  if (fx.bondPair)  return fx.bondPair.map(id => figEl(id)).filter(Boolean);
-  if (fx.duet) {
-    // The duet lights its OWN pair, plus every foe if a stage strikes.
-    const dfx = {}; (duetFor(fx.pairIds[0], fx.pairIds[1]).stages || []).forEach(st => Object.assign(dfx, st.fx || {}));
-    const els = fx.pairIds.map(id => figEl(id)).filter(Boolean);
-    if (dfx.aoeDmg || dfx.hitFrontmost || dfx.markAll || dfx.markFront || dfx.lullAll) enemyFigEls().forEach(e => els.push(e));
-    return els;
-  }
-  if (fx.resonant) {
-    // The vow sweeps the whole board: rally the party, strike every foe.
-    const rfx = {}; (triadEntry().stages || []).forEach(st => Object.assign(rfx, st.fx || {}));
-    const hits = rfx.aoeDmg || rfx.dmg || rfx.hitFrontmost;
-    const els = livingHeroes().map(h => figEl(h.id)).filter(Boolean);
-    if (hits) enemyFigEls().forEach(e => els.push(e));
-    return els;
-  }
   return [];
 }
 function aimLayer() {
@@ -2721,9 +2572,8 @@ function aimClear() {
 const SCHOOL_AIM = { blade: '#e05a5a', light: '#f0d488', song: '#c8a0e0', iron: '#a8c8e8', frost: '#8ecbe8' };
 function aimColor(card) {
   const fx = card.fx || {};
-  if (fx.resonant) return '#f0d488';
   if (card.school) return SCHOOL_AIM[card.school] || '#f0d488';
-  if (card.target === 'ally' || card.target === 'allies' || fx.heal || fx.guard || fx.bondPair || fx.notToday) return '#98d878';
+  if (card.target === 'ally' || card.target === 'allies' || fx.heal || fx.guard || fx.notToday) return '#98d878';
   return '#f0d488';
 }
 function _cornerPath(cx, cy, r) {
@@ -3343,8 +3193,6 @@ async function resolveCard(card, targetId) {
     return;
   }
 
-  if (card.kind === 'resonant') { if (card.pair) { await resolveDuet(card); return; } await resolveResonant(); return; }
-
   const fx = card.fx || {};
   // CAST-TIME (Hask) — a big spell doesn't hit now; it BEGINS a cast that lands at
   // the START of your next turn.  It telegraphs on the caster, and MOVING before it
@@ -3380,18 +3228,6 @@ async function resolveCard(card, targetId) {
     SFX.guard();
     await addThread(prId, wdId);   // protecting is a bond act
     await sleep(400);
-    return;
-  }
-  if (fx.bondPair) {
-    fx.bondPair.forEach(id => {
-      const h = S.heroes.find(x => x.id === id);
-      if (!h || h.downed) return;
-      h.guard += fx.bondGuard;
-      h.buffDmg += fx.bondRally;
-      popupAt(figEl(id), '⛨ ' + fx.bondGuard + ' · ▲ ' + fx.bondRally, 'guard');
-    });
-    SFX.thread();
-    await sleep(300);
     return;
   }
   if (fx.dmg || fx.guardBurst) {
@@ -3943,13 +3779,15 @@ const SWIPE_ARCS = {
   arcAcross: { d: 'M -58 6 Q 0 -30 58 6', glyph: '⟺', ok: (dx, dy) => Math.abs(dx) > 46 && Math.abs(dx) > Math.abs(dy) },
 };
 const PARRY_GLYPH = { tap: '⊙', multi: '⊙⊙', hold: '▭', swipe: '➤', mash: '⊙⊙⊙' };
+// Derives the telegraph glyph for an enemy intent's parry pattern (seq cascades
+// read as ✷N where N ramps with depth; single gestures use their kind glyph +
+// size hint).  Exercised by the test suite to verify the pattern derivation.
 function parryGlyph(intent) {
   const p = parryPatternFor(intent);
-  if (p.kind === 'seq') return '✷' + (p.notes.length + Math.min(Math.round(1.6 * parryDepth()), 3));   // a bullet-hell cascade (ramps with depth)
+  if (p.kind === 'seq') return '✷' + (p.notes.length + Math.min(Math.round(1.6 * parryDepth()), 3));
   const g = p.kind === 'swipe' ? (SWIPE_ARCS[p.arc] || SWIPE_ARCS.arcR).glyph : PARRY_GLYPH[p.kind];
-  return (p.size === 'big' ? '◉' : p.size === 'wide' ? '⟺' : '') + g;   // size hint
+  return (p.size === 'big' ? '◉' : p.size === 'wide' ? '⟺' : '') + g;
 }
-
 // The VISIBLE-art rect of a figure — its container box can be much larger than
 // the drawn creature (the floor boss's figure spans the whole enemy half), so
 // anchoring overlays / reticles / snaps on the box lands them high-and-centre
@@ -4384,7 +4222,6 @@ async function checkTriad(closer) {
   const [x, y, z] = live.map(h => h.id);
   if (S.threads.has(pairKey(x, y)) && S.threads.has(pairKey(y, z)) && S.threads.has(pairKey(x, z))) {
     S.triadFormed = true;
-    S.resonantHostId = closer;   // the helper whose act closed / awoke the triangle
     await triadCeremony();
   }
 }
@@ -4455,54 +4292,11 @@ function cineFlash(color) {
   stageShake();
   setTimeout(() => f.remove(), 420);
 }
-// JRPG banner: the trio's name slams in, the triangle draws itself, a light
-// sweeps the field.  Holds, then recedes so the stage impacts read clearly.
-async function resonantCineIntro(r, host, rank) {
-  $('#stage').classList.add('frozen');
-  const el = cineLayer();
-  el.classList.remove('hidden', 'rc-out');
-  el.innerHTML = `
-    <div class="rc-wash"></div>
-    <div class="rc-rays"></div>
-    <div class="rc-sweep"></div>
-    <svg class="rc-tri" viewBox="0 0 150 130"><path d="M 75 12 L 138 112 L 12 112 Z"/></svg>
-    <div class="rc-host">${host ? host.name + ' CALLS THE VOW' : 'THE TRIAD SPEAKS'}</div>
-    <div class="rc-name">✦ ${r.name}${rank > 1 ? ' ' + ROMAN[rank] : ''}</div>
-    <div class="rc-type">${r.type}</div>`;
-  SFX.triad();
-  cineFlash('rgba(240,212,136,0.5)');
-  await sleep(1250);
-  el.classList.add('rc-out');          // fade the banner, keep field clear
-  $('#stage').classList.remove('frozen');
-  await sleep(220);
-}
+// Clears the cinematic banner layer (used at the end of the all-out finale).
 function resonantCineEnd() {
   const el = cineLayer();
   el.classList.add('hidden'); el.classList.remove('rc-out'); el.innerHTML = '';
   $('#stage').classList.remove('frozen');
-}
-// A DUET's own cinematic moment — lighter than the triad's, but a real BEAT so a
-// pair vow feels special (not a silent flash): a bond line snaps taut between the
-// two, their names rise, the vow slams in.
-async function duetCineIntro(d, a, b, rank) {
-  $('#stage').classList.add('frozen');
-  const el = cineLayer();
-  el.classList.remove('hidden', 'rc-out');
-  el.innerHTML = `
-    <div class="rc-wash rc-duet"></div>
-    <div class="rc-rays"></div>
-    <div class="rc-sweep"></div>
-    <svg class="rc-tri rc-bond" viewBox="0 0 150 130"><line x1="30" y1="66" x2="120" y2="66"/><circle cx="30" cy="66" r="10"/><circle cx="120" cy="66" r="10"/></svg>
-    <div class="rc-host">${HEROES[a].name} &amp; ${HEROES[b].name}</div>
-    <div class="rc-name">✦ ${d.name}${rank > 1 ? ' ' + ROMAN[rank] : ''}</div>
-    <div class="rc-type">DUET</div>`;
-  if (SFX.triad) SFX.triad();
-  cineFlash('rgba(240,212,136,0.42)');
-  sparkThread(a, b);            // the bond line arcs between the pair on the field
-  await sleep(880);
-  el.classList.add('rc-out');
-  $('#stage').classList.remove('frozen');
-  await sleep(180);
 }
 // VOW VERSE cinematic — the bonds' payoff INSIDE the all-out gets a real beat: the
 // pair's portraits + vow name slam in over a bond thread (a triangle for the trio
@@ -4865,86 +4659,18 @@ async function triggerAllOut() {
   checkEnd();
 }
 
-async function resolveResonant() {
-  const r = triadEntry();
-  S.resonantUsed = true;
-  const key = trioClassKey(livingHeroes().map(h => h.id));
-  const rank = vowRank(key);
-  const rankBonus = (rank - 1) * 2;
-  recordVow(key);
-  const host = HEROES[S.resonantHostId];
-  await resonantCineIntro(r, host, rank);
-  flashNarrator('✦ The vow deepens — spoken ' + vowUses(key) + ' time' + (vowUses(key) > 1 ? 's' : '') + '.');
-  for (const st of (r.stages || [])) {
-    flashNarrator('✦ ' + st.text);
-    const fx = {};
-    Object.assign(fx, st.fx || {});
-    ['aoeDmg', 'hitFrontmost', 'healAll', 'guardAll', 'guardFront', 'buffAllDmg'].forEach(k => {
-      if (fx[k]) fx[k] += rankBonus;
-    });
-    // Each stage lands as its own beat: an impact flash, then the numbers
-    // RIPPLE across the line (small gaps) so every hit stays readable.
-    const offensive = fx.aoeDmg || fx.hitFrontmost;
-    cineFlash(offensive ? 'rgba(212,69,69,0.5)' : 'rgba(240,212,136,0.45)');
-    if (offensive) stageShake('xl');       // the vow's blow rocks the field
-    await sleep(180);
-    if (fx.aoeDmg) { for (const e of livingEnemies()) { dealToEnemy(e, fx.aoeDmg + (e.mark || 0)); await sleep(150); } }
-    if (fx.hitFrontmost) { const t = frontmostEnemy(); if (t) dealToEnemy(t, fx.hitFrontmost + (t.mark || 0)); }
-    if (fx.healAll) { for (const h of livingHeroes()) { h.hp = Math.min(h.maxHp, h.hp + fx.healAll); popupAt(figEl(h.id), '+' + fx.healAll, 'heal'); SFX.heal(); await sleep(110); } }
-    if (fx.guardAll) { for (const h of livingHeroes()) { h.guard += fx.guardAll; popupAt(figEl(h.id), '⛨ ' + fx.guardAll, 'guard'); await sleep(90); } }
-    if (fx.guardFront) { const h = heroInRow('front'); if (h) { h.guard += fx.guardFront; popupAt(figEl(h.id), '⛨ ' + fx.guardFront, 'guard'); } }
-    if (fx.buffAllDmg) { for (const h of livingHeroes()) { h.buffDmg += fx.buffAllDmg; popupAt(figEl(h.id), '▲ +' + fx.buffAllDmg + ' NEXT', 'rally'); await sleep(90); } }
-    if (fx.counterAll) livingHeroes().forEach(h => { h.counter = Math.max(h.counter, fx.counterAll); });
-    if (fx.lullAll) { for (const e of livingEnemies()) { e.lull = (e.lull || 0) + fx.lullAll; popupAt(figEl(e.uid), '❄ CHILL −' + fx.lullAll, 'chill'); await sleep(90); } }
-    if (fx.markAll) { for (const e of livingEnemies()) { e.mark = fx.markAll; popupAt(figEl(e.uid), '◎ EXPOSED +' + fx.markAll, 'info'); await sleep(90); } }
-    if (fx.invulnFront) { const h = heroInRow('front'); if (h) { h.invuln = true; popupAt(figEl(h.id), '✦ INVULNERABLE', 'info'); } }
-    if (fx.pushBack) {
-      // Formation: shove the enemy line one row toward the back.  Processed
-      // back-to-front so a vacated row can receive the next enemy.
-      ['mid', 'front'].forEach(row => {
-        const to = row === 'mid' ? 'back' : 'mid';
-        livingEnemies().filter(e => e.row === row).forEach(e => {
-          if (!livingEnemies().some(o => o !== e && o.row === to)) {
-            e.row = to;
-            popupAt(figEl(e.uid), 'PUSHED', 'info');
-          }
-        });
-      });
-    }
-    renderAll();
-    await sleep(560);
-    if (checkEnd()) { resonantCineEnd(); return; }
-  }
-  // A TRIO move EXPANDS the burst container to Level 3 — the top tier (and pours
-  // in a big surge, so a Transcendent all-out is within reach after the vow).
-  expandBurst(3, 'the triad resonates', 40);
-  resonantCineEnd();
-}
-
-// ---------------------------------------------------------------------------
-// DUET — a kindled pair's shared resonance.  Lighter than the triad: no field
-// freeze, no full-turn cost — a bright beat and a card forged into the hand.
-// ---------------------------------------------------------------------------
-function forgeDuetCard(card) {
-  // A duet is a MAJOR moment — it bypasses the 3-card temp cap so it always lands.
-  card.temp = true;
-  card.uid = ++S._tuid;
-  S.tempCards.push(card);
-  S._tempNew = card.uid;
-  SFX.card();
-}
+// AWAKEN A WEAVE — a kindled pair, on a shared act of help this fight, lights its
+// live WEAVE (no card, no EP).  From now on attacking with either hero makes their
+// PARTNER follow up (see bondAssist), and the bond EMPOWERS the all-out.
 async function awakenDuet(a, b) {
   const key = pairKey(a, b);
-  if (bondPts(key) < BOND_KINDLED) return false;            // only KINDLED bonds can awaken
+  if (bondPts(key) < BOND_KINDLED) return false;            // only KINDLED bonds awaken
   S.pairsAwake = S.pairsAwake || new Set();
   if (S.pairsAwake.has(key)) return false;                  // once per fight
   const ha = S.heroes.find(x => x.id === a), hb = S.heroes.find(x => x.id === b);
   if (!ha || ha.downed || !hb || hb.downed) return false;
   S.pairsAwake.add(key);
   const w = weaveFor(a, b);
-  // BONDS REFORGED — awakening no longer forges a card.  It lights a live WEAVE:
-  // from now on, attacking with either hero makes their PARTNER step in with a
-  // follow-up (see bondAssist), and the bond EMPOWERS the all-out (see resolveAllOut).
   sparkThread(a, b);
   SFX.thread();
   cineFlash('rgba(240,212,136,0.4)');
@@ -4957,46 +4683,8 @@ async function awakenDuet(a, b) {
   renderAll();
   return true;
 }
-async function resolveDuet(card) {
-  const [a, b] = card.pairIds || [];
-  const d = duetFor(a, b);
-  const ck = duetClassKey(a, b);
-  const rank = vowRank(ck);
-  const rankBonus = rank - 1;   // duets deepen a touch each time they're spoken
-  recordVow(ck);
-  const pair = [a, b].map(id => S.heroes.find(h => h.id === id)).filter(h => h && !h.downed);
-  await duetCineIntro(d, a, b, rank);      // the duet gets its own cinematic beat now
-  for (const st of (d.stages || [])) {
-    flashNarrator('✦ ' + st.text);
-    const fx = Object.assign({}, st.fx || {});
-    ['aoeDmg', 'hitFrontmost', 'pairHeal', 'pairGuard', 'guardFront', 'pairRally'].forEach(k => {
-      if (fx[k]) fx[k] += rankBonus;
-    });
-    const offensive = fx.aoeDmg || fx.hitFrontmost;
-    cineFlash(offensive ? 'rgba(212,69,69,0.45)' : 'rgba(240,212,136,0.4)');
-    if (offensive) stageShake('lg');       // the blow LANDS
-    await sleep(160);
-    if (fx.aoeDmg) { for (const e of livingEnemies()) { dealToEnemy(e, fx.aoeDmg + (e.mark || 0)); await sleep(140); } }
-    if (fx.hitFrontmost) { const t = frontmostEnemy(); if (t) dealToEnemy(t, fx.hitFrontmost + (t.mark || 0)); }
-    if (fx.pairHeal) { for (const h of pair) { h.hp = Math.min(h.maxHp, h.hp + fx.pairHeal); popupAt(figEl(h.id), '+' + fx.pairHeal, 'heal'); SFX.heal(); await sleep(100); } }
-    if (fx.pairGuard) { for (const h of pair) { h.guard += fx.pairGuard; popupAt(figEl(h.id), '⛨ ' + fx.pairGuard, 'guard'); await sleep(80); } }
-    if (fx.guardFront) { const h = pair.find(x => x.row === 'front') || heroInRow('front'); if (h) { h.guard += fx.guardFront; popupAt(figEl(h.id), '⛨ ' + fx.guardFront, 'guard'); } }
-    if (fx.pairRally) { for (const h of pair) { h.buffDmg += fx.pairRally; popupAt(figEl(h.id), '▲ +' + fx.pairRally + ' NEXT', 'rally'); await sleep(80); } }
-    if (fx.pairCounter) pair.forEach(h => { h.counter = Math.max(h.counter, fx.pairCounter); });
-    if (fx.markFront) { const t = frontmostEnemy(); if (t) { t.mark = (t.mark || 0) + fx.markFront; popupAt(figEl(t.uid), '◎ EXPOSED +' + fx.markFront, 'info'); } }
-    if (fx.markAll) { for (const e of livingEnemies()) { e.mark = (e.mark || 0) + fx.markAll; popupAt(figEl(e.uid), '◎ EXPOSED +' + fx.markAll, 'info'); await sleep(80); } }
-    if (fx.lullAll) { for (const e of livingEnemies()) { e.lull = (e.lull || 0) + fx.lullAll; popupAt(figEl(e.uid), '❄ CHILL −' + fx.lullAll, 'chill'); await sleep(80); } }
-    renderAll();
-    await sleep(480);
-    if (checkEnd()) return;
-  }
-  // A DUO move EXPANDS the burst container to Level 2 (and pours in charge).
-  expandBurst(2, 'the duet resonates', 25);
-  resonantCineEnd();
-}
-// THE VOW, AS A VERSE — bonds pay off inside the ALL-OUT.  Each woven pair plays
-// its vow as a VERSE (the duet stages), then a formed triad CROWNS the finale
-// (the trio's vow, bigger).  Reuses the duet/triad fx vocabulary; scaled by `mul`.
+// Plays a vow's STAGES as the all-out's TRIAD FINALE — a grand combined blow.
+// Applies the trio vow's fx (dmg/heal/guard/mark/push), scaled by `mul`.
 async function playVowStages(stages, ids, mul, label) {
   flashNarrator('✦ VERSE — ' + label);
   const alive = ids.map(id => S.heroes.find(h => h.id === id)).filter(h => h && !h.downed);
@@ -5331,7 +5019,7 @@ function severThreads(e, count) {
     popupAt(figEl(a), '✂ SEVERED', 'dmg'); popupAt(figEl(b), '✂ SEVERED', 'dmg');
   }
   if (cut) {
-    S.triadFormed = false; S.resonantHostId = null;
+    S.triadFormed = false; S.allOutCrowned = false;   // a severed thread un-crowns the all-out
     flashNarrator((e && e.def ? e.def.name : 'It') + ' SEVERS your bonds — the thread snaps.');
     try { SFX.deny(); } catch (_) {}
     renderResonance();
@@ -7077,7 +6765,7 @@ function renderActionBar() {
   // a full rebuild into a handful of classList toggles.
   const structSig = hand.map(c => `${c.uid || (c.owner + c.name)}:${c.cost}:${c.kind}`).join('|')
     + (S._tempNew || '') + (S._forgeEvent ? 'F' + S._forgeEvent.uids.join(',') : '')
-    + (S.resonantNew ? 'R' : '') + (S.executing ? 'X' : '') + (targeting ? 'T' : '');
+    + (S.executing ? 'X' : '') + (targeting ? 'T' : '');
   const affSig = S.ep + '/' + S.maxEp + '|' + hand.map(c => (c.spent ? 1 : 0)).join('');
   if (structSig === S._handStructSig && handEl.childElementCount === hand.length) {
     if (affSig !== S._handAffSig) {                 // structure unchanged — only affordability shifted
@@ -7122,23 +6810,6 @@ function renderActionBar() {
   const cardIcons = (card) => {
     const fx = card.fx || {};
     const dg = SCHOOL_GLYPH[card.school] || '⚔';   // element carried on the damage number
-    if (fx.duet) {
-      const rfx = {}; (duetFor(fx.pairIds[0], fx.pairIds[1]).stages || []).forEach(st => Object.assign(rfx, st.fx || {}));
-      const nfx = {};   // map PAIR-scoped verbs onto the icons fxIconStr understands
-      if (rfx.aoeDmg) nfx.aoeDmg = rfx.aoeDmg;
-      if (rfx.hitFrontmost) nfx.hitFrontmost = rfx.hitFrontmost;
-      if (rfx.pairHeal) nfx.heal = rfx.pairHeal;
-      if (rfx.pairGuard) nfx.guard = rfx.pairGuard;
-      if (rfx.guardFront) nfx.guardFront = rfx.guardFront;
-      if (rfx.pairRally) nfx.buffDmg = rfx.pairRally;
-      if (rfx.pairCounter) nfx.counter = rfx.pairCounter;
-      if (rfx.markFront) nfx.mark = rfx.markFront;
-      if (rfx.markAll) nfx.markAll = rfx.markAll;
-      if (rfx.lullAll) nfx.lullAll = rfx.lullAll;
-      return fxIconStr(nfx, false, dg);
-    }
-    if (fx.resonant) { const rfx = {}; (triadEntry().stages || []).forEach(st => Object.assign(rfx, st.fx || {})); return fxIconStr(rfx, false, dg); }
-    if (fx.bondPair) return `<span class="ic ic-guard">⛨${fx.bondGuard}</span><span class="ic ic-rally">▲${fx.bondRally}</span>`;
     if (fx.notToday) return `<span class="ic ic-move">⇄</span><span class="ic ic-heal">✚4</span><span class="ic ic-guard">⛨4</span><span class="ic ic-counter">↺2</span>`;
     return fxIconStr(fx, false, dg);
   };
@@ -7147,9 +6818,7 @@ function renderActionBar() {
   const reachPips = (cells) => `<span class="rch-pips" title="enemy reach — front · mid · back">${cells.map(c => `<i class="rp${c ? ' on' : ''}"></i>`).join('')}</span>`;
   const cardReach = (card) => {
     const fx = card.fx || {};
-    if (fx.duet) return `<span class="rch rch-t">◈ DUET</span>`;
-    if (fx.resonant) return `<span class="rch rch-t">◈ ALL</span>`;
-    if (fx.notToday || fx.bondPair) return `<span class="rch rch-t">◇ BOND</span>`;
+    if (fx.notToday) return `<span class="rch rch-t">◇ BOND</span>`;
     switch (card.target) {
       case 'frontmost': return `${reachPips([1, 0, 0])}`;
       case 'enemy':     return `${reachPips([1, 1, 1])}`;
@@ -7180,7 +6849,6 @@ function renderActionBar() {
     const el = document.createElement('div');
     el.className = `card kind-${card.kind}`
       + (card.spent ? ' card-spent' : (card.cost > S.ep ? ' disabled' : ''));
-    if (card.kind === 'resonant' && S.resonantNew) el.classList.add('card-burn-in');
     if (card.temp && S._tempNew === card.uid) { el.classList.add('card-burn-in'); S._tempNew = null; }
     // FORGED-THIS-PLAY cards burn in together, staggered so a two-path fork reads
     // as "one → two" (and the shard flourish below lands on each in turn).
@@ -7213,7 +6881,6 @@ function renderActionBar() {
     attachDrag(el, card);
     handEl.appendChild(el);
   });
-  if (S.resonantNew) S.resonantNew = false;
 
   // Arc the hand like a held fan: slight rotation + parabolic lift around the
   // center card, overlapping only when width demands it.  Hover/drag straightens
