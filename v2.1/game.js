@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 192;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 193;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -692,6 +692,8 @@ const BOONS = [
     card: (c) => { if (c.owner === 'ash' && c.fx && c.fx.dmg && c.cost > 1) c.cost -= 1; } },
   { id: 'ash_relentless', hero: 'ash', name: 'Second Wind', icon: '↻', desc: 'Ash’s first <span class="kw kw-rally">ASSIST</span> each turn refunds <b>1 EP</b>.',
     trigger: 'followup', apply: () => { if (!S._flags.boonAsh) { S._flags.boonAsh = true; refundEp(1); boonProc('ash', 'ash_relentless'); } } },
+  { id: 'ash_deepbond', hero: 'ash', name: 'Deepening Bond', icon: '✦', desc: 'When Ash answers a <b>CHAIN</b>, the whole party gains <span class="kw kw-rally">▲ RALLY 1</span> — the weave sharpens every blade.',
+    trigger: 'chain', apply: () => { livingHeroes().forEach(h => { if (!h.downed) { h.buffDmg += 1; popupAt(figEl(h.id), '▲ +1', 'rally'); } }); boonProc('ash', 'ash_deepbond'); } },
   // ELIN — light
   { id: 'elin_grace', hero: 'elin', name: 'Elin’s Grace', icon: '✚', desc: 'When Elin heals or wards an ally, they also gain <span class="kw kw-guard">⛨ 1</span>.',
     trigger: 'support', apply: (c) => { if (c.receiver && !c.receiver.downed) { c.receiver.guard += 1; popupAt(figEl(c.receiver.id), '⛨ +1', 'guard'); boonProc('elin', 'elin_grace'); } } },
@@ -706,12 +708,14 @@ const BOONS = [
     trigger: 'kill', apply: (c) => { if (c.tgt && c.tgt.mark && !S._flags.boonMira) { S._flags.boonMira = true; refundEp(1); boonProc('mira', 'mira_patience'); } } },
   { id: 'mira_fang', hero: 'mira', name: 'Twin Fang', icon: '⚔', desc: 'Mira’s <b>signature</b> attacks strike for <b>+2</b>.',
     card: (c) => { if (c.owner === 'mira' && c.kind === 'sig' && c.fx && c.fx.dmg) c.fx.dmg += 2; } },
+  { id: 'mira_rhythm', hero: 'mira', name: 'Reaper’s Rhythm', icon: '⚡', desc: 'When Mira fells a foe, gain <b>+8 MOMENTUM</b> — the kills feed the ALL-OUT.',
+    trigger: 'kill', apply: () => { gainMomentum(8, { raw: true }); boonProc('mira', 'mira_rhythm', { quiet: true }); } },
   // CASSIA — guard
   { id: 'cassia_vigil', hero: 'cassia', name: 'Bulwark Heart', icon: '⛨', desc: 'At the start of your turn, Cassia braces for <span class="kw kw-guard">⛨ 2</span>.',
     trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'cassia') return; c.hero.guard += 2; popupAt(figEl(c.hero.id), '⛨ +2', 'guard'); boonProc('cassia', 'cassia_vigil', { quiet: true }); } },
   { id: 'cassia_iron', hero: 'cassia', name: 'Ironclad', icon: '◆', desc: 'Cassia’s guard-granting cards give <span class="kw kw-guard">⛨ +2</span>.',
     card: (c) => { if (c.owner === 'cassia' && c.fx && c.fx.guard) c.fx.guard += 2; } },
-  { id: 'cassia_reprisal', hero: 'cassia', name: 'Reprisal', icon: '↺', desc: 'While Cassia holds <span class="kw kw-guard">⛨ guard</span>, her strikes deal <b>+3</b>.',
+  { id: 'cassia_reprisal', hero: 'cassia', name: 'Iron Vengeance', icon: '◆', desc: 'While Cassia holds <span class="kw kw-guard">⛨ guard</span>, her strikes deal <b>+3</b> — the wall turns its weight outward.',
     trigger: 'dmgMod', mod: (o) => (o.id === 'cassia' && o.guard > 0 ? 3 : 0) },
   // BRANWEN — mark
   { id: 'branwen_deadeye', hero: 'branwen', name: 'Deadeye', icon: '◎', desc: 'Branwen’s marks land <b>+1</b> deeper <span class="kw kw-exposed">◎ EXPOSED</span>.',
@@ -1947,6 +1951,7 @@ async function resolveBondFollow(bf) {
   let verb = ''; try { verb = BOND_ASSIST[bf.partnerId](partner, tgt, bf.attackerId) || ''; } catch (_) {}
   // The cut-in already announced WHO answers WHOM; the narrator just adds the effect.
   flashNarrator('✦ ' + (bf.weave || 'BOND') + (verb ? ' — ' + HEROES[bf.partnerId].name + ' answers with ' + verb + '.' : '.'));
+  firePassives('chain', bf.partnerId, { attackerId: bf.attackerId });   // boons/nodes can react to the CHAIN beat
   // KIZUNA branch (Ash) — a woven CHAIN can feed the burst and, at the capstone,
   // cascade: the answering partner's OTHER bond gets to chain in turn.
   if (hasNode('ash.chain.link'))   { gainMomentum(8, { combo: true, raw: true }); popupAt(figEl(bf.partnerId), '⚡ +8', 'info'); }

@@ -1932,6 +1932,23 @@ const QUICK = process.argv.includes('--quick');
       cards[0].click();
       return cards.length >= 1 && cards.length <= 3 && gated && RUN.boons.length === 1;
     }));
+  // CORE-SYSTEM boons (Build 193): gifts that engage the bond/chain + all-out core.
+  check('BOON: Deepening Bond — when Ash answers a CHAIN the whole party rallies (+1)',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash', 'elin']; RUN.active = ['ash', 'elin'];
+      startFight({ type: 'fight', chapter: 3, heroes: ['ash', 'elin'], enemies: ['husk'], narrator: 'x' });
+      RUN.boons = ['ash_deepbond']; S.heroes.forEach(h => h.buffDmg = 0);
+      firePassives('chain', 'ash', { attackerId: 'elin' });
+      return S.heroes.every(h => h.buffDmg === 1); }));
+  check('BOON: Reaper’s Rhythm — Mira’s kills build MOMENTUM (+8, feeds the all-out)',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['mira']; RUN.active = ['mira'];
+      startFight({ type: 'fight', chapter: 3, heroes: ['mira'], enemies: ['husk'], narrator: 'x' });
+      RUN.boons = ['mira_rhythm']; S.momentum = 0;
+      firePassives('kill', 'mira', { tgt: frontmostEnemy() });
+      return S.momentum === 8; }));
+  check('BOON: resolveBondFollow fires the CHAIN hook (boons/nodes can react to a Chain)',
+    await J(() => resolveBondFollow.toString().includes("firePassives('chain'")));
   check('BOON DUO: Twin Shadows’ Edge is active ONLY when BOTH Ash and Mira are fielded',
     await J(() => {
       setupFight(['ash', 'mira'], [], { ash: 'front', mira: 'mid' }); RUN.boons = ['duo_ashmira'];
