@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 191;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 192;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -282,6 +282,7 @@ const EMBER_TREE = [
   // ELIN — LIGHT: wards, overheal shields, party sustain
   { id: 'elin.passive.ward', hero: 'elin', tier: 2, cost: 6, type: 'passive', label: 'Warding Light', desc: 'TURN START: your most-wounded ally gains <span class="kw kw-guard">⛨2</span> — the light finds the hurt', passive: 'elin_ward' },
   { id: 'elin.passive.mercy', hero: 'elin', tier: 2, cost: 6, type: 'passive', requires: ['elin.passive.ward'], label: 'Mercy', desc: 'PASSIVE: when Elin <b>heals</b> an ally she also <b>cleanses</b> <span class="kw kw-chill">❄ CHILL</span> and <span class="kw kw-exposed">◎ EXPOSED</span> — she mends the omen too', passive: 'elin_mercy' },
+  { id: 'elin.passive.wrath', hero: 'elin', tier: 3, cost: 8, type: 'passive', requires: ['elin.passive.ward'], label: 'Wrathful Light', desc: 'PASSIVE: Elin’s <b>✦ smites</b> (her support cards’ strike) hit <b>+2</b> and <span class="kw kw-exposed">◎ EXPOSE 1</span> — her light marks the wicked for the whole party', passive: 'elin_wrath' },
   { id: 'elin.rider.radiance', hero: 'elin', tier: 3, cost: 7, type: 'rider', requires: ['elin.sig.front'], label: 'Radiance', desc: 'UPGRADE: Radiant Ward also heals EVERY ally <span class="kw kw-heal">✚2</span>', rider: { card: 'Radiant Ward', fx: { heal: 2 }, descAdd: ' · <span class="kw kw-heal">✚ 2</span> party' } },
   { id: 'elin.passive.overflow', hero: 'elin', tier: 4, cost: 11, type: 'passive', requires: ['elin.rider.radiance'], label: 'Radiant Overflow', desc: 'PASSIVE: heal OVERFLOW spills as <span class="kw kw-guard">⛨ guard</span> to the WHOLE party — not just the target', passive: 'elin_overflow' },
 
@@ -293,6 +294,7 @@ const EMBER_TREE = [
   // CASSIA — GUARD: retaliation, an immovable wall
   { id: 'cassia.passive.vigil', hero: 'cassia', tier: 2, cost: 6, type: 'passive', label: 'Standing Vigil', desc: 'TURN START: Cassia braces for <span class="kw kw-guard">⛨2</span> — never caught flat', passive: 'cassia_vigil' },
   { id: 'cassia.passive.bastion', hero: 'cassia', tier: 2, cost: 6, type: 'passive', requires: ['cassia.passive.vigil'], label: 'Bastion', desc: 'PASSIVE: Cassia resists <span class="kw kw-chill">❄ CHILL</span> AND braces <span class="kw kw-counter">↺ 1</span> each turn — the wall does not slow, and it bites back', passive: 'cassia_bastion' },
+  { id: 'cassia.passive.shelter', hero: 'cassia', tier: 3, cost: 8, type: 'passive', requires: ['cassia.passive.vigil'], label: 'Living Bulwark', desc: 'TURN START: if Cassia holds <b>10+ <span class="kw kw-guard">⛨ guard</span></b>, the most-wounded ally <span class="kw kw-heal">✚ 4</span> — bank the wall high and it shelters the line', passive: 'cassia_shelter' },
   { id: 'cassia.rider.aegis', hero: 'cassia', tier: 3, cost: 7, type: 'rider', requires: ['cassia.sig.mid'], label: 'Warded Aegis', desc: 'UPGRADE: Aegis also grants the ally <span class="kw kw-counter">↺1</span> — the ward bites back', rider: { card: 'Aegis', fx: { counter: 1 }, descAdd: ' · <span class="kw kw-counter">↺ 1</span>' } },
   { id: 'cassia.allout.fortress', hero: 'cassia', tier: 3, cost: 9, type: 'allout', requires: ['cassia.emergent.bulwark'], label: 'Fortress', desc: 'ALL-OUT START: the whole party gains <span class="kw kw-guard">⛨5</span> — brace before the storm', allout: 'fortress' },
   { id: 'cassia.passive.immovable', hero: 'cassia', tier: 4, cost: 12, type: 'passive', requires: ['cassia.rider.aegis'], label: 'Immovable', desc: 'PASSIVE: Cassia’s <span class="kw kw-guard">⛨ guard</span> no longer fades at turn’s end — the wall only grows', passive: 'cassia_immovable' },
@@ -332,7 +334,7 @@ const EMBER_TREE = [
   // rider fills the hole, and a BACK capstone finally caps the heal line.
 
   // MIRA — the MID (twin) line lacked its early rider; a MID capstone caps it.
-  { id: 'mira.passive.frenzy', hero: 'mira', tier: 4, cost: 12, type: 'passive', requires: ['mira.emergent.flurry'], label: 'Bloodfrenzy', desc: 'ON EXPOSED HIT: your NEXT strike deals <span class="kw kw-rally">▲ +2</span> — the kill feeds the next', passive: 'mira_frenzy' },
+  { id: 'mira.passive.frenzy', hero: 'mira', tier: 4, cost: 12, type: 'passive', requires: ['mira.emergent.flurry'], label: 'Bloodfrenzy', desc: 'ON HIT vs an <span class="kw kw-exposed">◎ EXPOSED</span> foe: <b>DEVOUR</b> its marks — <b>+3 dmg per stack</b>, <b>DOUBLED</b> vs a foe under <b>½ HP</b>, then clear them. The frenzy feasts on the wounded', passive: 'mira_frenzy' },
 
   // CASSIA — the MID (aegis) line jumped T1→T3; a T2 rider fills it.
 
@@ -587,12 +589,18 @@ const PASSIVE_DEFS = {
   // handled separately by heroResistsChill).  Turns a near-dead node into her
   // retaliation identity, pairing with Warded Aegis / counter builds.
   cassia_bastion: { trigger: 'turnStart', apply: (c) => { if (c.hero.id === 'cassia') { c.hero.counter = Math.max(c.hero.counter || 0, 1); popupAt(figEl('cassia'), '↺ REPRISAL', 'guard'); } } },
+  // LIVING BULWARK — guard→heal: a Cassia sitting on a deep wall shelters the line.
+  // Gives her a sustain-tank build (bank guard high, passively mend) distinct from
+  // Elin's active healing, and rewards the immovable/vigil guard-battery.
+  cassia_shelter: { trigger: 'turnStart', apply: (c) => { if (c.hero.id === 'cassia' && (c.hero.guard || 0) >= 10) { const t = lowestHpAlly(); if (t && t.hp < t.maxHp) { t.hp = Math.min(t.maxHp, t.hp + 4); popupAt(figEl(t.id), '✚4', 'heal'); if (SFX.heal) SFX.heal(); } } } },
   // BRANWEN — MARK: the hunt is always on, the tally comes due
   branwen_hunter: { trigger: 'dmgMod', mod: (owner, tgt) => (tgt && tgt.mark ? Math.min(4, tgt.mark) : 0) },   // scales with mark DEPTH — Branwen deepens the mark (Mira executes it)
   branwen_opening: { trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'branwen') return; const e = frontmostEnemy(); if (e) { e.mark = (e.mark || 0) + 1; popupAt(figEl(e.uid), '◎ +1', 'info'); } } },
   branwen_reckoning: { trigger: 'kill', apply: (c) => { if (c.tgt && c.tgt.mark && !S._flags.brRefund) { S._flags.brRefund = true; refundEp(1); } } },
   // ── COMBO-DEPTH capstones (see EMBER_TREE combo-depth block) ──
-  mira_frenzy: { trigger: 'postHit', apply: (c) => { if (c.hero.id !== 'mira') return; const t = c.tgt; if (t && t.mark) { c.hero.buffDmg += 2; popupAt(figEl(c.hero.id), '▲ FRENZY +2', 'rally'); } } },
+  // BLOODFRENZY — spend the marks for burst (an active mark-economy: hold them for
+  // opportunist/execute, or DEVOUR them here), execute-scaled so it feeds on the wounded.
+  mira_frenzy: { trigger: 'postHit', apply: (c) => { const t = c.tgt; if (c.hero.id === 'mira' && t && !t.dead && t.mark) { const n = t.mark; t.mark = 0; let dmg = n * 3; if (t.hp <= t.maxHp * 0.5) dmg *= 2; dealToEnemy(t, dmg, 'blade', 'mira'); popupAt(figEl(t.uid), '☠ DEVOUR ' + dmg, 'dmg popup-big'); } } },
   branwen_killingblow: { trigger: 'dmgMod', mod: (o, t) => (o.id === 'branwen' && t && t.hp > 0 && t.hp <= t.maxHp * 0.5 ? 4 : 0) },
   // ── TEAM SYNERGY (Phase 3) — a hero's kit pays off for the whole party ──
   ash_warcry:      { trigger: 'followup', apply: (c) => { const a = c.ally && S.heroes.find(h => h.id === c.ally); if (a && !a.downed) { a.buffDmg += 2; popupAt(figEl(a.id), '▲ RALLY +2', 'rally'); } } },
@@ -3527,7 +3535,11 @@ async function resolveCard(card, targetId) {
   if (fx.smite && owner && !owner.downed) {
     const tgt = frontmostEnemy();
     if (tgt) {
-      let amt = fx.smite + passiveDmg(owner, tgt) + (tgt.mark || 0);
+      // WRATHFUL LIGHT (Elin) — her smites hit harder and EXPOSE, so a support hero
+      // sets up the party's mark-exploiters (Mira/Branwen) as she heals.
+      const wrath = owner.id === 'elin' && hasNode('elin.passive.wrath');
+      let amt = fx.smite + (wrath ? 2 : 0) + passiveDmg(owner, tgt) + (tgt.mark || 0);
+      if (wrath) { tgt.mark = (tgt.mark || 0) + 1; popupAt(figEl(tgt.uid), '◎ EXPOSED +1', 'info'); }
       const hitters = tgt._hitBy || (tgt._hitBy = []);
       const prev = hitters.length ? hitters[hitters.length - 1] : null;
       const isFollowUp = !!(prev && prev !== owner.id);

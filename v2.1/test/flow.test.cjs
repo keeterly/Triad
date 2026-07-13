@@ -1645,6 +1645,21 @@ const QUICK = process.argv.includes('--quick');
   check('TREE cassia.passive.bastion now also BRACES a reprisal counter each turn',
     await J(() => { setupFight(['cassia'], ['cassia.passive.bastion'], { cassia: 'front' }); const c = S.heroes[0]; c.counter = 0;
       firePassives('turnStart', 'cassia', {}); return c.counter === 1 && heroResistsChill(c) === true; }));
+  // ── SECOND PASS (Build 192): active mark-spend, guard→heal, smite-amp ──
+  check('TREE mira.passive.frenzy DEVOURS marks for burst (+3/stack, clears them)',
+    await J(() => { setupFight(['mira'], ['mira.passive.frenzy'], { mira: 'mid' }); const f = frontmostEnemy(); f.hp = f.maxHp; f.mark = 3; const hp0 = f.hp;
+      firePassives('postHit', 'mira', { tgt: f }); const f2 = S.enemies.find(e => e.uid === f.uid); return (hp0 - f2.hp) === 9 && f2.mark === 0; }));
+  check('TREE cassia.passive.shelter: a deep wall (10+ guard) heals the most-wounded ally',
+    await J(() => { setupFight(['cassia', 'ash'], ['cassia.passive.shelter'], { cassia: 'front', ash: 'mid' });
+      const ca = S.heroes.find(h => h.id === 'cassia'), al = S.heroes.find(h => h.id === 'ash');
+      ca.guard = 12; al.hp = al.maxHp - 8; const h0 = al.hp; firePassives('turnStart', 'cassia', {}); const healed = al.hp - h0;
+      ca.guard = 5; al.hp = al.maxHp - 8; const h1 = al.hp; firePassives('turnStart', 'cassia', {}); const noHeal = al.hp - h1;
+      return healed === 4 && noHeal === 0; }));
+  check('TREE elin.passive.wrath: her smites hit +2 AND EXPOSE the foe (marks for the party)',
+    await J(async () => { setupFight(['elin', 'ash'], ['elin.passive.wrath'], { elin: 'mid', ash: 'front' });
+      const foe = frontmostEnemy(); const fh0 = foe.hp;
+      await resolveCard({ owner: 'elin', name: 'Mend', cost: 1, target: 'ally', fx: { heal: 5, smite: 3 } }, 'ash');
+      const f2 = S.enemies.find(e => e.uid === foe.uid); return (fh0 - f2.hp) === 5 && f2.mark === 1; }));
   // capstone — Radiant Overflow (real heal; overheal spill reaches the whole party)
   check('TREE elin.passive.overflow: overheal shields the WHOLE party, not just the target',
     await J(async () => {
@@ -2206,7 +2221,7 @@ const QUICK = process.argv.includes('--quick');
   check('TREE: new stance nodes wire cleanly (valid requires, valid passives, unique ids)',
     await J(() => {
       const ids = new Set(); let ok = true;
-      const special = ['elin_overflow', 'hask_kindling', 'hask_conduit', 'hask_steady', 'hask_meltdown', 'hask_surge', 'hask_meteor', 'hask_enochian', 'mira_swiftfoot', 'ash_warstep', 'elin_mercy', 'cassia_bastion', 'branwen_longshot'];   // handled inline (heal-spill / charge / cast / weave / move-cost / utility systems), not via PASSIVE_DEFS
+      const special = ['elin_overflow', 'hask_kindling', 'hask_conduit', 'hask_steady', 'hask_meltdown', 'hask_surge', 'hask_meteor', 'hask_enochian', 'mira_swiftfoot', 'ash_warstep', 'elin_mercy', 'branwen_longshot', 'elin_wrath'];   // handled inline (heal-spill / charge / cast / weave / move-cost / smite-amp systems), not via PASSIVE_DEFS
       EMBER_TREE.forEach(n => { if (ids.has(n.id)) ok = false; ids.add(n.id); });
       EMBER_TREE.forEach(n => { (n.requires || []).forEach(r => { if (!NODE_BY_ID[r]) ok = false; }); if ((n.type === 'passive' || n.type === 'synergy') && !PASSIVE_DEFS[n.passive] && !special.includes(n.passive)) ok = false; });
       return ok;
@@ -2236,8 +2251,8 @@ const QUICK = process.argv.includes('--quick');
     await J(() => ['mira.rider.vanish', 'mira.passive.ambush', 'mira.rider.serrated'].every(id => !NODE_BY_ID[id])));
   check('CAPSTONES mira: three distinct build-paths survive (deathmark/marked/frenzy)',
     await J(() => ['mira.passive.deathmark', 'mira.synergy.marked', 'mira.passive.frenzy'].every(id => !!NODE_BY_ID[id])));
-  check('COMBO mira.passive.frenzy: striking an EXPOSED foe buffs the next strike +2',
-    await J(() => { setupFight(['mira'], ['mira.passive.frenzy'], { mira: 'mid' }); const h = S.heroes[0]; h.buffDmg = 0; const e = S.enemies[0]; e.mark = 2; firePassives('postHit', 'mira', { tgt: e }); return h.buffDmg === 2; }));
+  check('COMBO mira.passive.frenzy: DEVOURS an EXPOSED foe’s marks for burst (+3/stack)',
+    await J(() => { setupFight(['mira'], ['mira.passive.frenzy'], { mira: 'mid' }); const e = frontmostEnemy(); e.hp = e.maxHp; e.mark = 2; const hp0 = e.hp; firePassives('postHit', 'mira', { tgt: e }); const e2 = S.enemies.find(x => x.uid === e.uid); return (hp0 - e2.hp) === 6 && e2.mark === 0; }));
   check('COMBO cassia.rider.aegis: Aegis (MID signature) also grants counter 1',
     await J(() => { setupFight(['cassia'], ['cassia.sig.mid', 'cassia.rider.aegis'], { cassia: 'mid' }); const c = handCard('Aegis'); return !!c && c.fx.counter === 1; }));
   check('PRUNE cassia: redundant flat riders + duplicate guard-forge emergent removed',
