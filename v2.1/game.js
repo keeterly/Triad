@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 184;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 185;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -6869,6 +6869,21 @@ function renderResonance() {
 
 // The MOMENTUM gauge — fills as you exploit weaknesses / chain LINKs; when
 // full it becomes a tappable ALL-OUT button.
+// CARD CHARACTER ART — each card wears the OWNER's portrait behind its face, like
+// a JRPG action card.  The url is parsed once from V2PORTRAITS (the same art as
+// the combat figure), so a card always reads as that character.  A hero with only
+// a drawn SVG portrait (no PNG) simply keeps the classic dark card.
+const CARD_ART = {};
+function cardArtUrl(id) {
+  if (id in CARD_ART) return CARD_ART[id];
+  const p = (typeof V2PORTRAITS !== 'undefined' && V2PORTRAITS[id]) || '';
+  const m = p.match(/href="(\.\.\/art\/[^"]+\.png)"/);
+  return CARD_ART[id] = (m ? m[1] : '');
+}
+function cardArtHTML(card) {
+  const url = card && card.owner ? cardArtUrl(card.owner) : '';
+  return url ? `<div class="c-art" style="background-image:url('${url}')"></div>` : '';
+}
 function renderBurst() {
   const burst = $('#burst'); if (!burst) return;
   const cap = burstCap();
@@ -7029,6 +7044,7 @@ function renderActionBar() {
     // Forged/temporary cards need no ✧ badge — their dashed gold frame (and, for
     // rotation steps, the COMBO/FINISHER role line) already reads as temporary.
     el.innerHTML = `
+      ${cardArtHTML(card)}
       ${card.follow ? `<span class="c-follow-avatar">${V2PORTRAITS[card.follow] || ''}</span>` : ''}
       <div class="c-top">
         <span class="c-cost tempo-${card.tempo || 'steady'}${card.cost === 0 ? ' c-free' : ''}"${card.cost === 0 ? ' title="Free — costs no EP"' : ''}>${card.cost === 0 ? '✦' : card.cost}</span>
