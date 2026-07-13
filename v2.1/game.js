@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 193;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 194;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -1335,9 +1335,14 @@ function rotationFor(h) { return (S && S._rotations && h && ROTATIONS[h.id] && R
 function mkRotCard(h, rowKey, def, kind) {
   const tempo = h.def.tempo || 'steady';
   let cost = def.cost || 0;
-  if (kind === 'opener') {                          // openers obey the tempo economy; forged steps are always free
+  if (kind === 'opener') {                          // openers obey the tempo economy
     if (tempo === 'swift' && cost > 1) cost -= 1;
     if (tempo === 'heavy') cost += 1;
+  } else if (/FINISHER/.test(def.stance || '')) {
+    // THE PAYOFF COSTS EP — the COMBO ramp stays free, but cashing a rotation's
+    // FINISHER is now a real decision: which one do you spend EP on this turn?
+    // Bigger finishers (mostly the empowered branch lines) cost 2 — worthwhile.
+    cost = Math.max(cost, ((def.fx && def.fx.dmg) || 0) >= 9 ? 2 : 1);
   }
   let fx = Object.assign({}, def.fx), desc = def.desc;
   const riders = ridersFor(h.id, def.name);
@@ -2414,21 +2419,22 @@ function newBattle(node) {
       }
     }
   }
+  // BRANCHING ROTATIONS are the combat system for the real DESCENT (useRunHp
+  // fights); the tutorial stays a classic on-ramp.  RUN._rotations can force it.
+  const _rot = _forceClassic ? false
+              : (RUN && RUN._rotations === false) ? false
+              : (RUN && RUN._rotations === true) ? true
+              : !!(node && node.useRunHp);
   return {
     node, heroes, enemies,
-    maxEp: 2 + heroes.length, ep: 2 + heroes.length,
+    // ROTATION combat now charges EP for FINISHERS, so it opens with +1 EP — the
+    // extra energy makes "which rotations do I cash?" an ALLOCATION choice, not a tax.
+    maxEp: 2 + heroes.length + (_rot ? 1 : 0), ep: 2 + heroes.length + (_rot ? 1 : 0),
     used: new Set(),
     threads,
     pairsAwake: new Set(),   // kindled pairs whose DUET has awakened THIS fight
     tempCards: [], _tuid: 0, _chainGroup: 0, channelUsed: false,
-    // BRANCHING ROTATIONS are the combat system for the real DESCENT (useRunHp
-    // fights); the tutorial stays a classic on-ramp.  RUN._rotations (persisted on
-    // the run) can force it either way — true = dev preview / everywhere; false =
-    // classic (used by the flow suite to exercise the shared combat mechanics).
-    _rotations: _forceClassic ? false
-              : (RUN && RUN._rotations === false) ? false
-              : (RUN && RUN._rotations === true) ? true
-              : !!(node && node.useRunHp),
+    _rotations: _rot,
     momentum: 0, combo: 0, comboBest: 0, allOutUsed: 0, burstLevel: 1,   // burst container grows via DUET/TRIAD (see expandBurst)
     triadFormed: false, allOutCrowned: false,
     executing: false, over: false, turn: 1,
@@ -3257,6 +3263,7 @@ async function playCard(card, targetId) {
   S.executing = true;
   $('#stage').classList.add('executing');
   S.ep -= card.cost;
+  if (card.cost > 0) spendEpFx(card.cost);   // animate the cost leaving the EP dial
   if (card.temp) S.tempCards = S.tempCards.filter(t => t.uid !== card.uid);
   else if (card.owner !== 'triad') S.used.add(card.owner + ':' + card.kind);
   if (card.kind !== 'move') {
@@ -3854,6 +3861,27 @@ function pulseEp() {
   const dial = $('#ep-dial');
   if (!dial) return;
   dial.classList.remove('ep-pulse'); void dial.offsetWidth; dial.classList.add('ep-pulse');
+}
+// SPEND FX — when a card costs EP, energy motes lift off the EP dial and a −N cue
+// pops, so the cost visibly LEAVES your reserve (reinforces the finisher economy).
+function spendEpFx(cost) {
+  const dial = $('#ep-dial'); if (!dial || !cost) return;
+  dial.classList.remove('ep-spend'); void dial.offsetWidth; dial.classList.add('ep-spend');
+  popupAt(dial, '−' + cost, 'ep-cost');
+  const layer = $('#popup-layer'); if (!layer) return;
+  const sr = $('#stage').getBoundingClientRect(), s = (sr.width / stageDW()) || 1;
+  const r = dial.getBoundingClientRect();
+  const cx = (r.left + r.width / 2 - sr.left) / s, cy = (r.top + r.height / 2 - sr.top) / s;
+  for (let i = 0; i < Math.min(cost, 4); i++) {                 // one mote per EP, up to 4
+    const o = document.createElement('span');
+    o.className = 'ep-spark';
+    o.style.left = cx + 'px'; o.style.top = cy + 'px';
+    o.style.setProperty('--ex', (16 + i * 11) + 'px');           // drift up-and-right, toward the played card
+    o.style.setProperty('--ey', (-28 - i * 9) + 'px');
+    o.style.animationDelay = (i * 45) + 'ms';
+    layer.appendChild(o);
+    setTimeout(() => o.remove(), 720);
+  }
 }
 
 // ---------------------------------------------------------------------------

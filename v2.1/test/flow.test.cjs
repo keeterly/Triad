@@ -2823,6 +2823,21 @@ const QUICK = process.argv.includes('--quick');
   check('ROTATION preview: every active hero shows exactly one opener (hand is small)',
     await J(() => { const openers = buildHand().filter(c => c.kind === 'opener');
       return openers.length === 3 && openers.every(o => o.cost >= 1); }));
+  // EP ECONOMY (Build 194): the COMBO ramp is free, but the FINISHER payoff costs
+  // EP — so cashing a rotation is a real decision, and rotation combat opens +1 EP.
+  check('EP: rotation combat opens with +1 EP (the allocation budget for finisher costs)',
+    await J(() => { devPreviewRotations(); return S._rotations === true && S.maxEp === 3 + S.heroes.length; }));
+  check('EP: a rotation FINISHER costs EP (big payoff = 2), the COMBO ramp stays FREE',
+    await J(async () => {
+      setupFight(['ash'], ['ash.sig.front'], { ash: 'front' }); S._rotations = true; S.ep = 12; S.tempCards = []; renderAll();
+      const seen = {};
+      for (let i = 0; i < 4; i++) {
+        const c = buildHand().find(x => (x.kind === 'opener' || x.chain) && x.owner === 'ash' && !x.spent && x.cost <= S.ep);
+        if (!c) break;
+        seen[(c.stance || '').split('·')[0].trim()] = c.cost;
+        await playCard(c, c.target === 'enemy' ? (S.enemies.find(e => !e.dead) || {}).uid : null);
+      }
+      return seen.COMBO === 0 && seen.FINISHER === 2; }));   // Crashing Wave (11 dmg) → 2
   const drove = await J(async () => {
     // play each hero's whole rotation via the real playCard path; a throw rejects
     for (const h of S.heroes.slice()) {

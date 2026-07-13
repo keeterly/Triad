@@ -274,6 +274,14 @@ body {
 .ui-desktop .figure { max-width: 122px; }
 .ui-desktop .figure .fig-art { height: 168px; }
 .ui-desktop .figure.enemy .fig-art { height: 156px; }
+/* DESKTOP HAND — the figures scale up on desktop, so the cards get WIDER and more
+   readable (premium), but NOT taller: extra height would ride up over the party's
+   name/HP labels.  (Fan overlap reads card width, so it adapts.) */
+.ui-desktop .card { width: 136px; min-width: 136px; max-width: 136px; height: 160px; }
+.ui-desktop .card .c-name { font-size: 11.5px; }
+.ui-desktop .card .c-desc { font-size: 9.4px; }
+.ui-desktop .card .c-cost { min-width: 17px; height: 17px; font-size: 10.5px; }
+.ui-desktop #hand { gap: 8px; }
 .figure.downed { filter: grayscale(1) brightness(0.5); }
 .figure.fig-hit { animation: fig-hit 0.34s ease; }
 @keyframes fig-hit {
@@ -1169,6 +1177,26 @@ button.map-node:not(:disabled) { cursor: pointer; }
   100% { transform: translateX(0); }
 }
 #ep-dial.ep-pulse { animation: ep-pulse 0.4s ease; }
+/* EP SPEND — the dial flares purple and motes lift off it when a card costs EP. */
+#ep-dial.ep-spend { animation: ep-spend 0.44s ease-out; }
+@keyframes ep-spend {
+  0% { box-shadow: 0 0 12px rgba(154,120,192,0.25), inset 0 0 10px rgba(0,0,0,0.6); }
+  28% { box-shadow: 0 0 18px rgba(170,130,224,0.75), inset 0 0 10px rgba(120,90,180,0.4); border-color: rgba(190,150,230,0.9); }
+  100% { box-shadow: 0 0 12px rgba(154,120,192,0.25), inset 0 0 10px rgba(0,0,0,0.6); }
+}
+.popup.ep-cost { color: #c9a8f2; font-weight: 700; text-shadow: 0 0 8px rgba(150,110,220,0.7), 0 1px 3px #000; }
+.ep-spark {
+  position: absolute; width: 6px; height: 6px; border-radius: 50%;
+  background: radial-gradient(circle, #e0ccff 0%, #8a63d8 55%, transparent 80%);
+  box-shadow: 0 0 7px rgba(160,120,225,0.8);
+  pointer-events: none; z-index: 121;
+  animation: ep-spark 0.62s cubic-bezier(0.3,0,0.4,1) forwards;
+}
+@keyframes ep-spark {
+  0% { opacity: 0; transform: translate(0,0) scale(1.1); }
+  18% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--ex, 20px), var(--ey, -30px)) scale(0.25); }
+}
 /* SACRIFICE drop-target — the EP dial invites a card while one is dragged, and
    flares when the card hovers over it. */
 #ep-cluster { position: relative; transition: transform 0.15s ease; }
