@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 186;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 187;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -1858,10 +1858,29 @@ function offerBondFollow(attackerId) {
 // MAJOR, impactful action (a CHAIN, an all-out finisher, a big unleash).  kicker =
 // the small gold eyebrow, big = the headline, sub = the detail line.  `hold` (ms)
 // lets a marquee moment linger.  Reused so every special beat reads the same way.
+// Full cinematic splash art (wide key-art) for the cut-in, per hero.  Where a hero
+// has one, the cut-in becomes a big cinematic band; otherwise it falls back to the
+// small skewed portrait panel.  Positions frame each character's face in the band.
+const CUTIN_SPLASH = {
+  cassia:  { url: '../art/splash-cassia.png',  pos: '62% 20%' },
+  hask:    { url: '../art/splash-hask.png',     pos: '64% 24%' },
+  branwen: { url: '../art/splash-branwen.png',  pos: '58% 18%' },
+  elin:    { url: '../art/splash-elin.png',     pos: '70% 26%' },
+  mira:    { url: '../art/splash-mira.png',      pos: '68% 26%' },
+};
 async function heroCutIn(heroId, kicker, big, sub, hold) {
   let el = document.getElementById('follow-cutin');
   if (!el) { el = document.createElement('div'); el.id = 'follow-cutin'; $('#stage').appendChild(el); }
-  el.innerHTML = `
+  const sp = CUTIN_SPLASH[heroId];
+  el.innerHTML = sp ? `
+    <div class="fc-panel fc-cine">
+      <div class="fc-splash" style="background-image:url('${sp.url}');background-position:${sp.pos}"></div>
+      <div class="fc-txt">
+        <span class="fc-follow">${kicker}</span>
+        <span class="fc-name">${big}</span>
+        <span class="fc-sub">${sub || ''}</span>
+      </div>
+    </div>` : `
     <div class="fc-panel">
       <span class="fc-art">${V2PORTRAITS[heroId] || ''}</span>
       <div class="fc-txt">
@@ -6890,9 +6909,21 @@ function cardArtUrl(id) {
   const m = p.match(/href="(\.\.\/art\/[^"]+\.png)"/);
   return CARD_ART[id] = (m ? m[1] : '');
 }
+// Per-hero BUST framing — each portrait is composed differently (Elin has a tall
+// staff + headroom above her head), so a single crop can't frame them all.  These
+// override the CSS default (`auto 205% / 50% 2%`) to land each character's face in
+// the card.  `size | position` (CSS background-size | background-position).
+const CARD_ART_FRAME = {
+  elin: 'auto 232% | 50% 15%',   // skip the staff/headroom, center her face
+};
 function cardArtHTML(card) {
-  const url = card && card.owner ? cardArtUrl(card.owner) : '';
-  return url ? `<div class="c-art" style="background-image:url('${url}')"></div>` : '';
+  const id = card && card.owner ? card.owner : '';
+  const url = id ? cardArtUrl(id) : '';
+  if (!url) return '';
+  const f = CARD_ART_FRAME[id];
+  let extra = '';
+  if (f) { const [size, pos] = f.split('|').map(s => s.trim()); extra = `;background-size:${size};background-position:${pos}`; }
+  return `<div class="c-art" style="background-image:url('${url}')${extra}"></div>`;
 }
 function renderBurst() {
   const burst = $('#burst'); if (!burst) return;

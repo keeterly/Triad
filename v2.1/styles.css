@@ -1529,6 +1529,43 @@ button.map-node:not(:disabled) { cursor: pointer; }
 .fc-name { font-size: 27px; letter-spacing: 0.14em; color: var(--ink); line-height: 1; text-shadow: 0 0 18px rgba(240,212,136,0.55), 0 2px 6px #000; }
 .fc-sub { font-size: 8.5px; letter-spacing: 0.12em; color: var(--ink-dim); text-transform: uppercase; }
 
+/* CINEMATIC cut-in — a full-width band showing the hero's key-art splash, text on
+   the dark left.  Used wherever a hero has splash art (Chains, all-out finishers,
+   unleashes); heroes without one keep the small skewed portrait panel above. */
+#follow-cutin .fc-panel.fc-cine {
+  left: 0; right: 0; top: 50%; width: 100%; height: 62%;
+  transform: translate(0, -50%); padding: 0; gap: 0; align-items: center;
+  background: none; border-left: none;
+  border-top: 2px solid rgba(240,212,136,0.45);
+  border-bottom: 2px solid rgba(240,212,136,0.45);
+  box-shadow: 0 0 64px rgba(0,0,0,0.85);
+  overflow: hidden;
+}
+#follow-cutin .fc-splash {
+  position: absolute; inset: 0; z-index: 0;
+  background-size: cover; background-repeat: no-repeat;
+  filter: saturate(1.03) contrast(1.02);
+}
+#follow-cutin .fc-cine::after {
+  content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(9,6,4,0.98) 0%, rgba(11,8,5,0.9) 28%, rgba(11,8,5,0.16) 56%, rgba(11,8,5,0) 76%),
+    linear-gradient(0deg, rgba(9,6,4,0.55), transparent 44%);
+}
+#follow-cutin .fc-cine .fc-txt {
+  position: relative; z-index: 2; transform: none;
+  padding: 0 0 8px 54px; gap: 5px;
+}
+#follow-cutin .fc-cine .fc-follow { font-size: 11px; letter-spacing: 0.4em; }
+#follow-cutin .fc-cine .fc-name { font-size: 42px; letter-spacing: 0.1em; }
+#follow-cutin .fc-cine .fc-sub { font-size: 10px; }
+#follow-cutin.fc-show .fc-panel.fc-cine { animation: fc-cine-in 0.6s cubic-bezier(0.18,0.86,0.24,1) forwards; }
+#follow-cutin.fc-out  .fc-panel.fc-cine { animation: fc-cine-out 0.34s ease-in forwards; }
+#follow-cutin.fc-show .fc-cine .fc-splash { animation: fc-kb 2.6s ease-out forwards; }
+@keyframes fc-cine-in  { from { transform: translate(0,-50%) scale(1.05); opacity: 0; } to { transform: translate(0,-50%) scale(1); opacity: 1; } }
+@keyframes fc-cine-out { to { transform: translate(0,-50%) scale(1.02); opacity: 0; } }
+@keyframes fc-kb { from { transform: scale(1.12); } to { transform: scale(1); } }
+
 /* the FOLLOW-UP card reads as special: a gold glow + the partner's portrait chip */
 .card.card-follow { border-color: rgba(240,212,136,0.8); box-shadow: 0 0 14px rgba(240,212,136,0.4), inset 0 0 22px rgba(240,212,136,0.09); }
 .c-follow-avatar {
