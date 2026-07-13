@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 190;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 191;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -292,13 +292,13 @@ const EMBER_TREE = [
 
   // CASSIA — GUARD: retaliation, an immovable wall
   { id: 'cassia.passive.vigil', hero: 'cassia', tier: 2, cost: 6, type: 'passive', label: 'Standing Vigil', desc: 'TURN START: Cassia braces for <span class="kw kw-guard">⛨2</span> — never caught flat', passive: 'cassia_vigil' },
-  { id: 'cassia.passive.bastion', hero: 'cassia', tier: 2, cost: 6, type: 'passive', requires: ['cassia.passive.vigil'], label: 'Bastion', desc: 'PASSIVE: Cassia takes no <span class="kw kw-chill">❄ CHILL</span> — the wall does not slow', passive: 'cassia_bastion' },
+  { id: 'cassia.passive.bastion', hero: 'cassia', tier: 2, cost: 6, type: 'passive', requires: ['cassia.passive.vigil'], label: 'Bastion', desc: 'PASSIVE: Cassia resists <span class="kw kw-chill">❄ CHILL</span> AND braces <span class="kw kw-counter">↺ 1</span> each turn — the wall does not slow, and it bites back', passive: 'cassia_bastion' },
   { id: 'cassia.rider.aegis', hero: 'cassia', tier: 3, cost: 7, type: 'rider', requires: ['cassia.sig.mid'], label: 'Warded Aegis', desc: 'UPGRADE: Aegis also grants the ally <span class="kw kw-counter">↺1</span> — the ward bites back', rider: { card: 'Aegis', fx: { counter: 1 }, descAdd: ' · <span class="kw kw-counter">↺ 1</span>' } },
   { id: 'cassia.allout.fortress', hero: 'cassia', tier: 3, cost: 9, type: 'allout', requires: ['cassia.emergent.bulwark'], label: 'Fortress', desc: 'ALL-OUT START: the whole party gains <span class="kw kw-guard">⛨5</span> — brace before the storm', allout: 'fortress' },
   { id: 'cassia.passive.immovable', hero: 'cassia', tier: 4, cost: 12, type: 'passive', requires: ['cassia.rider.aegis'], label: 'Immovable', desc: 'PASSIVE: Cassia’s <span class="kw kw-guard">⛨ guard</span> no longer fades at turn’s end — the wall only grows', passive: 'cassia_immovable' },
 
   // BRANWEN — MARK: marks at range, the tally comes due
-  { id: 'branwen.passive.focus', hero: 'branwen', tier: 2, cost: 6, type: 'passive', requires: ['branwen.sig.back'], label: 'Hunter’s Focus', desc: 'PASSIVE: <b>+2 dmg</b> to any <span class="kw kw-exposed">◎ EXPOSED</span> foe', passive: 'branwen_hunter' },
+  { id: 'branwen.passive.focus', hero: 'branwen', tier: 2, cost: 6, type: 'passive', requires: ['branwen.sig.back'], label: 'Hunter’s Focus', desc: 'PASSIVE: <b>+1 dmg per <span class="kw kw-exposed">◎ EXPOSED</span> stack</b> on the target (max <b>+4</b>) — deepen the mark, deepen the wound', passive: 'branwen_hunter' },
   { id: 'branwen.passive.opening', hero: 'branwen', tier: 3, cost: 8, type: 'passive', requires: ['branwen.passive.focus'], label: 'Opening Shot', desc: 'TURN START: EXPOSE the nearest foe <span class="kw kw-exposed">◎1</span> — the hunt is always on', passive: 'branwen_opening' },
   { id: 'branwen.passive.reckoning', hero: 'branwen', tier: 4, cost: 12, type: 'passive', requires: ['branwen.emergent.tally'], label: 'The Reckoning', desc: 'ON EXPOSED KILL: your 1st kill each turn refunds <b>1 EP</b> — the tally always comes due', passive: 'branwen_reckoning' },
 
@@ -313,7 +313,7 @@ const EMBER_TREE = [
   // ═══ STANCE PATHWAYS — every position now grows its own branch, so all three
   // rows reward investment (not just each hero's one favoured stance). ══════════
   // ASH — the MID (flow) line and a deeper BACK (mark) line
-  { id: 'ash.passive.exploit', hero: 'ash', tier: 3, cost: 8, type: 'passive', requires: ['ash.rider.expose'], label: 'Opening Read', desc: 'PASSIVE: <b>+3 dmg</b> to any <span class="kw kw-exposed">◎ EXPOSED</span> foe — your marks are yours to cash', passive: 'ash_exploit' },
+  { id: 'ash.passive.exploit', hero: 'ash', tier: 3, cost: 8, type: 'passive', requires: ['ash.rider.expose'], label: 'Spearpoint', desc: 'PASSIVE: <b>+3 dmg</b> to the <b>FRONTMOST</b> foe — Ash hits hardest at the tip of the line', passive: 'ash_exploit' },
 
   // ELIN — a deeper MID (ward) line
   { id: 'elin.rider.sanctuary', hero: 'elin', tier: 2, cost: 6, type: 'rider', requires: ['elin.sig.mid'], label: 'Warded Sanctuary', desc: 'UPGRADE: Sanctuary also grants the ally <span class="kw kw-counter">↺1</span> — the ward bites back', rider: { card: 'Sanctuary', fx: { counter: 1 }, descAdd: ' · <span class="kw kw-counter">↺ 1</span>' } },
@@ -444,6 +444,7 @@ const EMBER_TREE = [
       forge: { name: 'Icicle', cost: 0, target: 'enemy', fx: { dmg: 6, lull: 1 }, desc: '<b>6 frost</b> · <span class="kw kw-chill">❄ CHILL 1</span> to any foe.' } } },
   { id: 'hask.passive.conduit', hero: 'hask', tier: 3, cost: 8, type: 'passive', requires: ['hask.passive.kindling'], label: 'Conduit', desc: 'PASSIVE: your <span class="kw kw-charge">◆ CHARGE cap rises to 6</span> — hold more power', passive: 'hask_conduit' },
   { id: 'hask.passive.steady', hero: 'hask', tier: 3, cost: 8, type: 'passive', requires: ['hask.passive.frostbite'], label: 'Steady Cast', desc: 'PASSIVE: moving no longer breaks your channel — <span class="kw kw-charge">◆ CHARGE</span> survives and <b>no MISFIRE</b>. Channel on the move', passive: 'hask_steady' },
+  { id: 'hask.passive.shatter', hero: 'hask', tier: 3, cost: 8, type: 'passive', requires: ['hask.passive.frostbite'], label: 'Shatterpoint', desc: 'ON HIT vs a <span class="kw kw-chill">❄ CHILLED</span> foe: <b>SHATTER the frost</b> — spend its <span class="kw kw-chill">❄ CHILL</span> for <b>+2 dmg per stack</b>, then clear it. Spend the cold, or hold it (Permafrost)', passive: 'hask_shatter' },
 
   { id: 'hask.passive.meltdown', hero: 'hask', tier: 4, cost: 12, type: 'passive', requires: ['hask.branch.mid'], label: 'Meltdown', desc: 'PASSIVE: <b>OVERLOAD</b> spends <span class="kw kw-charge">◆ CHARGE</span> for <b>+5</b> each (was +3) — total meltdown', passive: 'hask_meltdown' },
   { id: 'hask.synergy.permafrost', hero: 'hask', tier: 4, cost: 11, type: 'synergy', requires: ['hask.passive.frostbite'], label: 'Permafrost', desc: 'PASSIVE: <span class="kw kw-chill">❄ CHILLED</span> foes take <b>+3</b> from EVERY ally — the deep cold', passive: 'hask_permafrost' },
@@ -567,9 +568,12 @@ function fireEmergent(heroId, event, card) {
 const PASSIVE_DEFS = {
   // ASH — TEMPO: motion is force, the duel never lets up
   ash_vanguard: { trigger: 'enterRow', apply: (c) => { if (c.toRow === 'front') { c.hero.guard += 3; popupAt(figEl(c.hero.id), '⛨ +3', 'guard'); } } },
-  ash_exploit:  { trigger: 'dmgMod', mod: (o, t) => (o.id === 'ash' && t && t.mark ? 3 : 0) },
+  ash_exploit:  { trigger: 'dmgMod', mod: (o, t) => (o.id === 'ash' && t && frontmostEnemy() === t ? 3 : 0) },   // SPEARPOINT — Ash hits hardest at the tip of the line (tempo/position, not marks)
   hask_frostbite:  { trigger: 'dmgMod', mod: (o, t) => (o.id === 'hask' && t && t.lull ? 2 : 0) },   // Hask +2 to CHILLED foes
   hask_permafrost: { trigger: 'partyDmgMod', mod: (owner, tgt) => (tgt && tgt.lull ? 3 : 0) },        // CHILLED foes take +3 from EVERY ally
+  // SHATTERPOINT — spend a foe's CHILL for burst (the mirror of Mira's mark→execute).
+  // Consumes lull, so it competes with Permafrost/control builds → build diversity.
+  hask_shatter: { trigger: 'postHit', apply: (c) => { const t = c.tgt; if (c.hero.id === 'hask' && t && !t.dead && t.lull) { const n = t.lull; t.lull = 0; dealToEnemy(t, n * 2, 'frost', 'hask'); popupAt(figEl(t.uid), '❄ SHATTER ' + (n * 2), 'dmg popup-big'); } } },
   ash_relentless: { trigger: 'followup', apply: (c) => { if (!S._flags.ashRefund) { S._flags.ashRefund = true; refundEp(1); } } },
   // ELIN — LIGHT: the ward finds the hurt
   elin_ward:    { trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'elin') return; const t = lowestHpAlly(); if (t) { t.guard += 2; popupAt(figEl(t.id), '⛨ +2', 'guard'); } } },
@@ -579,8 +583,12 @@ const PASSIVE_DEFS = {
   // CASSIA — GUARD: the wall is never caught flat, and only grows
   cassia_vigil: { trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'cassia') return; c.hero.guard += 2; popupAt(figEl(c.hero.id), '⛨ +2', 'guard'); } },
   cassia_immovable: { trigger: 'keepGuard' },   // read by endTurn's guard-reset
+  // BASTION — the wall bites back: braces a counter each turn (CHILL immunity is
+  // handled separately by heroResistsChill).  Turns a near-dead node into her
+  // retaliation identity, pairing with Warded Aegis / counter builds.
+  cassia_bastion: { trigger: 'turnStart', apply: (c) => { if (c.hero.id === 'cassia') { c.hero.counter = Math.max(c.hero.counter || 0, 1); popupAt(figEl('cassia'), '↺ REPRISAL', 'guard'); } } },
   // BRANWEN — MARK: the hunt is always on, the tally comes due
-  branwen_hunter: { trigger: 'dmgMod', mod: (owner, tgt) => (tgt && tgt.mark ? 2 : 0) },
+  branwen_hunter: { trigger: 'dmgMod', mod: (owner, tgt) => (tgt && tgt.mark ? Math.min(4, tgt.mark) : 0) },   // scales with mark DEPTH — Branwen deepens the mark (Mira executes it)
   branwen_opening: { trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'branwen') return; const e = frontmostEnemy(); if (e) { e.mark = (e.mark || 0) + 1; popupAt(figEl(e.uid), '◎ +1', 'info'); } } },
   branwen_reckoning: { trigger: 'kill', apply: (c) => { if (c.tgt && c.tgt.mark && !S._flags.brRefund) { S._flags.brRefund = true; refundEp(1); } } },
   // ── COMBO-DEPTH capstones (see EMBER_TREE combo-depth block) ──
@@ -3291,10 +3299,16 @@ function leaveAfterimage(owner, fromRow) {
   const oldCore = owner.def.cards[fromRow] && owner.def.cards[fromRow].core;
   if (!oldCore || !oldCore.fx || !oldCore.fx.dmg) return;
   const dmg = Math.max(2, oldCore.fx.dmg - 2);
+  // The echo carries a sliver of WHO left it — so which hero's afterimage you buy
+  // expresses their identity, not just a copy-pasted re-hit.
+  const extra = {}; let tag = '';
+  if (owner.id === 'mira' || owner.id === 'branwen') { extra.mark = 1; tag = ' · <span class="kw kw-exposed">◎1</span>'; }   // the marksman/assassin's echo re-marks
+  else if (owner.id === 'hask') { extra.lull = 1; tag = ' · <span class="kw kw-chill">❄1</span>'; }                         // the frost echo chills (feeds SHATTER)
+  else if (owner.id === 'cassia') { extra.guard = 2; tag = ' · <span class="kw kw-guard">⛨2</span>'; }                     // the wall's echo braces
   genTempCard({ kind: 'temp', owner: owner.id, ownerName: owner.def.name, tint: owner.def.tint,
     stance: 'AFTERIMAGE', name: 'Echo: ' + oldCore.name, cost: 0, target: oldCore.target,
-    school: owner.def.school, fx: { dmg }, expiresTurn: S.turn,
-    desc: `<b>${dmg} damage</b> · fading echo, this turn only.` });
+    school: owner.def.school, fx: Object.assign({ dmg }, extra), expiresTurn: S.turn,
+    desc: `<b>${dmg} damage</b>${tag} · fading echo, this turn only.` });
 }
 
 async function resolveCard(card, targetId) {

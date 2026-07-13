@@ -1601,8 +1601,7 @@ const QUICK = process.argv.includes('--quick');
   check('TREE longshot gated: WITHOUT the node, guard soaks first',
     await J(() => { setupFight(['branwen'], [], { branwen: 'back' }); const e = S.enemies[0]; e.hp = e.maxHp = 100; e.guard = 6;
       dealToEnemy(e, 10, 'blade', 'branwen'); return e.guard === 0 && e.hp === 96; }));   // 6 chips guard, 4 to HP
-  check('TREE branwen.passive.focus: +2 damage to an EXPOSED foe',
-    await J(() => { setupFight(['branwen'], ['branwen.passive.focus'], { branwen: 'back' }); const e = S.enemies[0]; e.mark = 3; return passiveDmg(S.heroes[0], e) === 2; }));
+  // (branwen.passive.focus is now the mark-DEPTH scaling test in the distinctiveness block below)
   // postHit execute — Death Mark
   check('TREE mira.passive.deathmark: EXECUTES a foe at ≤30% HP, spares a healthy one',
     await J(() => {
@@ -1630,6 +1629,22 @@ const QUICK = process.argv.includes('--quick');
   // capstone — Immovable
   check('TREE cassia.passive.immovable: her guard persists through the enemy turn',
     await J(() => { setupFight(['cassia'], ['cassia.passive.immovable'], { cassia: 'front' }); return keepsGuard('cassia') === true && keepsGuard('ash') === false; }));
+  // ── DISTINCTIVENESS PASS (Build 191): the three heroes that shared "+N to EXPOSED"
+  // now express distinct damage identities; Hask gains a CHILL→SHATTER engine.
+  check('TREE ash.passive.exploit is now SPEARPOINT: +3 to the FRONTMOST foe only (not marks)',
+    await J(() => { setupFight(['ash'], ['ash.passive.exploit'], { ash: 'front' }); const ash = S.heroes[0];
+      const front = frontmostEnemy(); const back = livingEnemies().find(e => e !== front) || front;
+      if (back !== front) { back.mark = 5; }   // a marked non-front foe gets NO bonus now
+      return passiveDmg(ash, front) === 3 && (back === front || passiveDmg(ash, back) === 0); }));
+  check('TREE branwen.passive.focus scales with MARK DEPTH (+1/stack, cap +4)',
+    await J(() => { setupFight(['branwen'], ['branwen.passive.focus'], { branwen: 'back' }); const br = S.heroes[0]; const f = frontmostEnemy();
+      f.mark = 2; const a = passiveDmg(br, f); f.mark = 9; const b = passiveDmg(br, f); return a === 2 && b === 4; }));
+  check('TREE hask.passive.shatter: hitting a CHILLED foe SHATTERS the frost (+2/stack, clears it)',
+    await J(() => { setupFight(['hask'], ['hask.passive.shatter'], { hask: 'front' }); const f = frontmostEnemy(); f.lull = 3; const hp0 = f.hp;
+      firePassives('postHit', 'hask', { tgt: f }); const f2 = S.enemies.find(e => e.uid === f.uid); return (hp0 - f2.hp) === 6 && f2.lull === 0; }));
+  check('TREE cassia.passive.bastion now also BRACES a reprisal counter each turn',
+    await J(() => { setupFight(['cassia'], ['cassia.passive.bastion'], { cassia: 'front' }); const c = S.heroes[0]; c.counter = 0;
+      firePassives('turnStart', 'cassia', {}); return c.counter === 1 && heroResistsChill(c) === true; }));
   // capstone — Radiant Overflow (real heal; overheal spill reaches the whole party)
   check('TREE elin.passive.overflow: overheal shields the WHOLE party, not just the target',
     await J(async () => {
