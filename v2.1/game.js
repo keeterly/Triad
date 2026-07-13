@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 188;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 189;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -1892,9 +1892,27 @@ async function heroCutIn(heroId, kicker, big, sub, hold) {
   el.classList.remove('fc-out'); void el.offsetWidth; el.classList.add('fc-show');
   try { cineFlash('rgba(240,212,136,0.4)'); SFX.triad && SFX.triad(); } catch (_) {}
   await sleep(hold || 1150);
-  el.classList.remove('fc-show'); el.classList.add('fc-out');
-  await sleep(320);
+  el.classList.remove('fc-show');
+  // The cinematic band BURNS away (mask sweep + rising embers) for a climactic
+  // exit; the small portrait panel keeps its quick fade.
+  if (sp) { try { spawnCutinEmbers(el); } catch (_) {} }
+  el.classList.add('fc-out');
+  await sleep(sp ? 720 : 320);
   el.classList.remove('fc-out'); el.innerHTML = '';
+}
+// Scatter rising embers across the cinematic band as it burns away.
+function spawnCutinEmbers(el) {
+  const panel = el.querySelector('.fc-panel'); if (!panel) return;
+  const r = panel.getBoundingClientRect(), sr = $('#stage').getBoundingClientRect(), s = sr.width / stageDW();
+  const top = (r.top - sr.top) / s, left = (r.left - sr.left) / s, w = r.width / s, h = r.height / s;
+  for (let i = 0; i < 16; i++) {
+    const e = document.createElement('span');
+    e.className = 'discard-ash fc-ember';
+    e.style.left = (left + w * (0.04 + 0.92 * ((i * 41 % 100) / 100))) + 'px';
+    e.style.top = (top + h * (0.35 + 0.5 * ((i * 27 % 100) / 100))) + 'px';
+    e.style.animationDelay = (i * 26) + 'ms';
+    el.appendChild(e);
+  }
 }
 // The CHAIN cut-in — a woven partner steps in over a thread to the ally they answer.
 async function followCutIn(partnerId, attackerId, weave) {

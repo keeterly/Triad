@@ -1560,11 +1560,19 @@ button.map-node:not(:disabled) { cursor: pointer; }
 #follow-cutin .fc-cine .fc-name { font-size: 42px; letter-spacing: 0.1em; }
 #follow-cutin .fc-cine .fc-sub { font-size: 10px; }
 #follow-cutin.fc-show .fc-panel.fc-cine { animation: fc-cine-in 0.6s cubic-bezier(0.18,0.86,0.24,1) forwards; }
-#follow-cutin.fc-out  .fc-panel.fc-cine { animation: fc-cine-out 0.34s ease-in forwards; }
+/* BURN AWAY — the band catches, flares ember-orange, then disintegrates (with
+   rising embers, spawned in JS) for a climactic exit instead of a flat pop. */
+#follow-cutin.fc-out  .fc-panel.fc-cine { animation: fc-burn 0.72s ease-in forwards; transform-origin: center; }
 #follow-cutin.fc-show .fc-cine .fc-splash { animation: fc-kb 2.6s ease-out forwards; }
 @keyframes fc-cine-in  { from { transform: translate(0,-50%) scale(1.05); opacity: 0; } to { transform: translate(0,-50%) scale(1); opacity: 1; } }
-@keyframes fc-cine-out { to { transform: translate(0,-50%) scale(1.02); opacity: 0; } }
+@keyframes fc-burn {
+  0%   { opacity: 1; filter: brightness(1) saturate(0.96); transform: translate(0,-50%) scale(1); }
+  32%  { opacity: 1; filter: brightness(1.4) contrast(1.15) saturate(1.9) sepia(0.35) hue-rotate(-10deg); }
+  100% { opacity: 0; filter: brightness(1.8) contrast(1.3) saturate(3) sepia(0.72) hue-rotate(-18deg) blur(3.5px); transform: translate(0,-50%) scale(1.035); }
+}
 @keyframes fc-kb { from { transform: scale(1.12); } to { transform: scale(1); } }
+/* the burn-away embers — a touch larger/brighter than the card-discard ash */
+.fc-ember { width: 5px; height: 5px; z-index: 48; box-shadow: 0 0 6px rgba(255,150,60,0.7); }
 
 /* a CHAIN card reads as special: a gold glow (the character art is on the card
    itself now, so no separate portrait chip). */
@@ -2169,9 +2177,17 @@ button.map-node:not(:disabled) { cursor: pointer; }
   transform-origin: 50% 100%; will-change: transform; backface-visibility: hidden;
   animation: floor-boss-sway 4.2s ease-in-out infinite; }
 .figure.floor-boss .fig-art svg { height: 100%; width: auto; filter: drop-shadow(0 14px 30px rgba(0,0,0,0.9)) drop-shadow(0 0 40px rgba(190,44,40,0.45)); }
-/* Intent floats above the colossus, pinned to the TOP of the enemy half (not the
-   swaying art) so it never drifts, clips, or wraps — a stable, readable banner. */
-.figure.floor-boss .intent { position: absolute; top: 4px; left: 50%; transform: translateX(-50%) scale(1.14); transform-origin: top center; z-index: 6; }
+/* Intent sits LOWER, over the colossus's body (not floating at the screen top,
+   detached), and a boss's many blows WRAP into a compact block over the character
+   instead of one long, busy banner. */
+.figure.floor-boss .intent {
+  position: absolute; top: 30%; left: 50%; transform: translateX(-50%);
+  transform-origin: top center; z-index: 6;
+  max-width: 300px; flex-wrap: wrap; justify-content: center; row-gap: 3px;
+  font-size: 9px; padding: 4px 11px;
+  background: rgba(14,7,7,0.9); border-color: rgba(212,69,69,0.34);
+  box-shadow: 0 5px 16px rgba(0,0,0,0.7);
+}
 .figure.floor-boss .fig-name { font-size: 12px; letter-spacing: 0.22em; }
 .figure.floor-boss .hp-bar { width: 78%; height: 11px; }
 .figure.floor-boss .fig-chips { transform: scale(1.12); }
