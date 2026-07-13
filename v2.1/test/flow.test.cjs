@@ -1566,6 +1566,29 @@ const QUICK = process.argv.includes('--quick');
       const ash = S.heroes.find(x => x.id === 'ash'); ash.chill = 3; ash.exposed = 2;
       await resolveCard({ owner: 'elin', name: 'Mend', cost: 0, target: 'ally', fx: { heal: 4 } }, 'ash');
       return ash.chill === 3 && ash.exposed === 2; }));
+  // SMITE — support with teeth: the support classes' heal/guard cards also strike
+  // the frontmost foe, so Elin & Cassia never take a dead turn on a healthy party.
+  check('SMITE: Elin’s Mend heals an ally AND strikes the frontmost foe',
+    await J(async () => {
+      setupFight(['elin', 'ash'], [], { elin: 'mid', ash: 'front' });
+      const ash = S.heroes.find(h => h.id === 'ash'); ash.hp = ash.maxHp - 8;
+      const foe = frontmostEnemy(); const fhp0 = foe.hp, ahp0 = ash.hp;
+      await resolveCard({ owner: 'elin', name: 'Mend', cost: 1, target: 'ally', fx: { heal: 5, smite: 3 } }, 'ash');
+      return S.heroes.find(h => h.id === 'ash').hp > ahp0 && S.enemies.find(e => e.uid === foe.uid).hp < fhp0; }));
+  check('SMITE: Cassia’s Cover guards an ally AND strikes the frontmost foe',
+    await J(async () => {
+      setupFight(['cassia', 'ash'], [], { cassia: 'mid', ash: 'front' });
+      const ally = S.heroes.find(h => h.id === 'ash'); const g0 = ally.guard;
+      const foe = frontmostEnemy(); const fhp0 = foe.hp;
+      await resolveCard({ owner: 'cassia', name: 'Cover', cost: 1, target: 'ally', fx: { guard: 4, smite: 3 } }, 'ash');
+      return S.heroes.find(h => h.id === 'ash').guard > g0 && S.enemies.find(e => e.uid === foe.uid).hp < fhp0; }));
+  check('SMITE: a support smite with NO foe in reach is a safe no-op',
+    await J(async () => {
+      setupFight(['elin', 'ash'], [], { elin: 'mid', ash: 'front' });
+      S.enemies.forEach(e => { e.hp = 0; e.dead = true; });
+      let threw = false;
+      try { await resolveCard({ owner: 'elin', name: 'Mend', cost: 1, target: 'ally', fx: { heal: 5, smite: 3 } }, 'ash'); } catch (_) { threw = true; }
+      return !threw; }));
   check('TREE cassia.passive.bastion: Cassia RESISTS ❄ CHILL (heroResistsChill drives the combat hook)',
     await J(() => { setupFight(['cassia'], ['cassia.passive.vigil', 'cassia.passive.bastion'], { cassia: 'front' }); const h = S.heroes[0];
       return heroResistsChill(h) === true; }));

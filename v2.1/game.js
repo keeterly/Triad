@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 189;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 190;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -1021,16 +1021,16 @@ const HEROES = {
     school: 'light', tempo: 'steady', name: 'ELIN', cls: 'Cleric', archetype: 'Mender', identity: 'Keeps the line standing — wards and heals.', tint: 'var(--elin-tint)', maxHp: 24,
     cards: {
       front: {
-        core: { name: 'Smite',         cost: 1, target: 'frontmost', fx: { dmg: 4 },            desc: '4 holy damage to the nearest enemy.' },
-        sig:  { name: 'Radiant Ward',  cost: 2, target: 'allies',    fx: { guard: 3 },          desc: 'Every ally gains 3 guard.' },
+        core: { name: 'Smite',         cost: 1, target: 'frontmost', fx: { dmg: 5 },            desc: '5 holy damage to the nearest enemy.' },
+        sig:  { name: 'Radiant Ward',  cost: 2, target: 'allies',    fx: { guard: 3, smite: 3 }, desc: 'Every ally gains 3 guard · <b>3 holy</b> to the nearest foe.' },
       },
       mid: {
-        core: { name: 'Mend',          cost: 1, target: 'ally',      fx: { heal: 5 },           desc: 'Heal an ally 5.' },
+        core: { name: 'Mend',          cost: 1, target: 'ally',      fx: { heal: 5, smite: 3 }, desc: 'Heal an ally 5 · <b>3 holy</b> to the nearest foe.' },
         sig:  { name: 'Sanctuary',     cost: 2, target: 'ally',      fx: { heal: 4, guard: 4 }, desc: 'Heal an ally 4 · they gain 4 guard.' },
       },
       back: {
-        core: { name: 'Distant Prayer',cost: 1, target: 'allies',    fx: { heal: 2 },           desc: 'Heal every ally 2.' },
-        sig:  { name: 'Benediction',   cost: 2, target: 'ally',      fx: { heal: 8 },           desc: 'Heal an ally 8.' },
+        core: { name: 'Distant Prayer',cost: 1, target: 'allies',    fx: { heal: 2, smite: 2 }, desc: 'Heal every ally 2 · <b>2 holy</b> to the nearest foe.' },
+        sig:  { name: 'Benediction',   cost: 2, target: 'ally',      fx: { heal: 8, smite: 3 }, desc: 'Heal an ally 8 · <b>3 holy</b> to the nearest foe.' },
       },
     },
   },
@@ -1062,8 +1062,8 @@ const HEROES = {
         sig:  { name: 'Bulwark',     cost: 2, target: 'frontmost', fx: { dmg: 6, guard: 6 }, desc: '6 damage · gain 6 guard.' },
       },
       mid: {
-        core: { name: 'Cover', cost: 1, target: 'ally', fx: { guard: 4 }, desc: 'An ally gains 4 guard.' },
-        sig:  { name: 'Aegis', cost: 2, target: 'ally', fx: { guard: 7 }, desc: 'Guard an ally: <span class="kw kw-guard">⛨ 7</span>.' },
+        core: { name: 'Cover', cost: 1, target: 'ally', fx: { guard: 4, smite: 3 }, desc: 'An ally gains 4 guard · <b>3</b> to the nearest foe.' },
+        sig:  { name: 'Aegis', cost: 2, target: 'ally', fx: { guard: 7, smite: 3 }, desc: 'Guard an ally <span class="kw kw-guard">⛨ 7</span> · <b>3</b> to the nearest foe.' },
       },
       back: {
         core: { name: 'Thrown Shield',  cost: 1, target: 'enemy', fx: { dmg: 4 }, desc: '4 damage to ANY enemy.' },
@@ -3503,6 +3503,35 @@ async function resolveCard(card, targetId) {
     if (owner && receivers.length) {
       if (fx.heal)  fireEmergent(owner.id, 'heal', card);
       if (fx.guard) fireEmergent(owner.id, 'guard', card);
+    }
+  }
+  // SMITE — a SUPPORT card with teeth: it also strikes the frontmost foe, so the
+  // support classes (Elin's radiant light, Cassia's punishing wall) never take a
+  // dead turn when the party doesn't need a heal or ward.  Routed through the real
+  // attack path, so it exploits EXPOSED, builds MOMENTUM, and GANGS UP to weave
+  // bonds — a support hero who also fights knits the triangle.
+  if (fx.smite && owner && !owner.downed) {
+    const tgt = frontmostEnemy();
+    if (tgt) {
+      let amt = fx.smite + passiveDmg(owner, tgt) + (tgt.mark || 0);
+      const hitters = tgt._hitBy || (tgt._hitBy = []);
+      const prev = hitters.length ? hitters[hitters.length - 1] : null;
+      const isFollowUp = !!(prev && prev !== owner.id);
+      if (isFollowUp) amt += 2;
+      dealToEnemy(tgt, amt, owner.def.school, owner.id);
+      popupAt(figEl(tgt.uid), '✦ ' + amt, 'dmg');
+      if (!tgt.dead) firePassives('postHit', owner.id, { tgt });
+      hitters.push(owner.id);
+      fireEmergent(owner.id, 'hit', card);
+      if (tgt.dead) { fireEmergent(owner.id, 'kill', card); firePassives('kill', owner.id, { tgt }); }
+      if (isFollowUp) {
+        gainMomentum(12, { combo: true });
+        popupAt(figEl(owner.id), S.combo >= 2 ? '⚡ ASSIST +2 · ×' + S.combo : '⚡ ASSIST +2', 'info');
+        SFX.follow();
+        firePassives('followup', owner.id, { ally: prev });
+        const priorAllies = hitters.filter((id, i) => id !== owner.id && hitters.indexOf(id) === i);
+        for (const ally of priorAllies) await addThread(owner.id, ally);
+      } else if (amt > 0) gainMomentum(2, { raw: true });
     }
   }
   // TAUNT (Cassia's Provoke) — drag every foe's blow onto the taunter's ROW for the
@@ -7031,6 +7060,7 @@ function renderActionBar() {
     const d = fx.dmg || fx.hitFrontmost;
     if (fx.aoeDmg) b.push(`<span class="ic ic-dmg">${dg}${fx.aoeDmg}<em>·ALL</em></span>`);
     else if (d)    b.push(`<span class="ic ic-dmg">${dg}${d}</span>`);
+    if (fx.smite)  b.push(`<span class="ic ic-dmg">✦${fx.smite}</span>`);   // support-with-teeth strike
     const heal = fx.heal || fx.healAll;
     if (heal) b.push(`<span class="ic ic-heal">✚${heal}${fx.healAll ? '<em>·ALL</em>' : ''}</span>`);
     const g = fx.guard || fx.guardAll || fx.guardFront;
