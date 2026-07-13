@@ -421,7 +421,7 @@ body {
   border-radius: 8px 8px 0 0;
   /* dimmed so the numbers and text stay the focus (bright art like Elin's washed
      the readouts out at full brightness). */
-  filter: brightness(0.64) saturate(0.94);
+  filter: brightness(0.72) saturate(0.96);
 }
 .card .c-art::after {
   content: ''; position: absolute; inset: 0;
@@ -431,7 +431,7 @@ body {
 }
 /* lift the card face above the art layer */
 .card > .c-top, .card > .c-fx, .card > .c-desc, .card > .c-reach,
-.card > .c-owner, .card > .c-step, .card > .c-follow-avatar { position: relative; z-index: 1; }
+.card > .c-owner, .card > .c-step { position: relative; z-index: 1; }
 .card .c-name { text-shadow: 0 1px 3px rgba(0,0,0,0.92); }
 .card .c-desc, .card .c-owner { text-shadow: 0 1px 2px rgba(0,0,0,0.95); }
 .card .c-fx .ic { text-shadow: 0 1px 3px rgba(0,0,0,0.9); }
@@ -1566,15 +1566,9 @@ button.map-node:not(:disabled) { cursor: pointer; }
 @keyframes fc-cine-out { to { transform: translate(0,-50%) scale(1.02); opacity: 0; } }
 @keyframes fc-kb { from { transform: scale(1.12); } to { transform: scale(1); } }
 
-/* the FOLLOW-UP card reads as special: a gold glow + the partner's portrait chip */
+/* a CHAIN card reads as special: a gold glow (the character art is on the card
+   itself now, so no separate portrait chip). */
 .card.card-follow { border-color: rgba(240,212,136,0.8); box-shadow: 0 0 14px rgba(240,212,136,0.4), inset 0 0 22px rgba(240,212,136,0.09); }
-.c-follow-avatar {
-  position: absolute; top: 5px; right: 5px; width: 28px; height: 28px; border-radius: 50%;
-  overflow: hidden; border: 1px solid rgba(240,212,136,0.8); background: rgba(10,8,6,0.92);
-  display: flex; align-items: flex-end; justify-content: center; z-index: 3;
-}
-.c-follow-avatar svg { height: 36px; width: auto; }
-.card-follow .c-name { padding-right: 28px; }
 .rc-flash {
   position: absolute; inset: 0; z-index: 46; pointer-events: none;
   background: radial-gradient(ellipse at 50% 45%, rgba(255,246,216,0.55) 0%, transparent 70%);

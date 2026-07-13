@@ -2524,11 +2524,11 @@ const QUICK = process.argv.includes('--quick');
   // READY prompt — a woven L2/L3 container isn't urged to unleash a weak L1 at 100;
   // the "ready" glow only lights once the container is charged to its level.  The
   // all-out stays TAPPABLE at 100 (the escape hatch) even when not full.
-  check('BURST: the READY glow waits for the container to FILL, but the tap stays live at 100',
+  check('BURST: the all-out fires ONLY when the container is full — no weak L1 that wastes a woven gauge',
     await J(() => { setupFight(['ash', 'elin', 'mira'], [], {}); expandBurst(3);   // L3 container (cap 250)
-      S.momentum = 120; renderBurst(); const notFull = !$('#burst').classList.contains('burst-ready') && !!$('#burst').onclick;
+      S.momentum = 120; renderBurst(); const holding = !$('#burst').classList.contains('burst-ready') && !$('#burst').onclick && /HOLD/.test($('#burst-lbl').textContent);
       S.momentum = 250; renderBurst(); const full = $('#burst').classList.contains('burst-ready') && !!$('#burst').onclick;
-      return notFull && full; }));
+      return holding && full; }));
   check('BURST: a WEAVE expands to L2 and the TRIAD crown to L3 (wired into awaken/ceremony)',
     await J(() => typeof expandBurst === 'function' && typeof allOutEncore === 'function'
       && awakenDuet.toString().includes('expandBurst(2')

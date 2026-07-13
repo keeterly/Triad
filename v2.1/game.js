@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 187;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 188;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -277,7 +277,7 @@ const EMBER_TREE = [
   // allout), read by the shared hooks above. ═══════════════════════════════════
 
   // ASH — TEMPO: momentum, repositioning, follow-ups
-  { id: 'ash.passive.relentless', hero: 'ash', tier: 4, cost: 12, type: 'passive', requires: ['ash.emergent.tempo'], label: 'Relentless', desc: 'PASSIVE: your 1st <span class="kw kw-rally">FOLLOW-UP</span> each turn refunds <b>1 EP</b> — the duel never lets up', passive: 'ash_relentless' },
+  { id: 'ash.passive.relentless', hero: 'ash', tier: 4, cost: 12, type: 'passive', requires: ['ash.emergent.tempo'], label: 'Relentless', desc: 'PASSIVE: your 1st <span class="kw kw-rally">ASSIST</span> each turn refunds <b>1 EP</b> — the duel never lets up', passive: 'ash_relentless' },
 
   // ELIN — LIGHT: wards, overheal shields, party sustain
   { id: 'elin.passive.ward', hero: 'elin', tier: 2, cost: 6, type: 'passive', label: 'Warding Light', desc: 'TURN START: your most-wounded ally gains <span class="kw kw-guard">⛨2</span> — the light finds the hurt', passive: 'elin_ward' },
@@ -304,7 +304,7 @@ const EMBER_TREE = [
 
   // ═══ TEAM SYNERGY (Phase 3) — each hero's identity now pays the WHOLE party.
   // These are the cross-hero combos: who you bring changes how everyone plays. ═══
-  { id: 'ash.synergy.warcry', hero: 'ash', tier: 4, cost: 11, type: 'synergy', requires: ['ash.passive.exploit'], label: 'Warcry', desc: 'ON FOLLOW-UP: the ally you followed gains <span class="kw kw-rally">▲ RALLY +2</span> — the hunt feeds the pack', passive: 'ash_warcry' },
+  { id: 'ash.synergy.warcry', hero: 'ash', tier: 4, cost: 11, type: 'synergy', requires: ['ash.passive.exploit'], label: 'Warcry', desc: 'ON ASSIST: the ally you struck alongside gains <span class="kw kw-rally">▲ RALLY +2</span> — the hunt feeds the pack', passive: 'ash_warcry' },
   { id: 'elin.synergy.blessing', hero: 'elin', tier: 4, cost: 11, type: 'synergy', requires: ['elin.passive.ward'], label: 'Blessed Edge', desc: 'ON HEAL / WARD: that ally’s next strike deals <span class="kw kw-rally">▲ +2</span> — her light sharpens their blade', passive: 'elin_blessing' },
   { id: 'mira.synergy.marked', hero: 'mira', tier: 4, cost: 11, type: 'synergy', requires: ['mira.passive.opportunist'], label: 'Marked for Death', desc: 'PASSIVE: <span class="kw kw-exposed">◎ EXPOSED</span> foes take <b>+2</b> from EVERY ally — your openings are the party’s', passive: 'mira_marked' },
   { id: 'cassia.synergy.soak', hero: 'cassia', tier: 4, cost: 11, type: 'synergy', requires: ['cassia.passive.vigil'], label: 'Guardian’s Aegis', desc: 'PASSIVE: allies in rows BEHIND Cassia take <b>−2</b> from every blow — she covers the line', passive: 'cassia_soak' },
@@ -674,7 +674,7 @@ const BOONS = [
     card: (c) => { if (c.owner === 'ash' && c.kind === 'sig' && c.fx && c.fx.dmg) c.fx.dmg += 3; } },
   { id: 'ash_tide', hero: 'ash', name: 'Rushing Tide', icon: '⇄', desc: 'Ash’s damaging cards cost <b>1 less</b> (min 1).',
     card: (c) => { if (c.owner === 'ash' && c.fx && c.fx.dmg && c.cost > 1) c.cost -= 1; } },
-  { id: 'ash_relentless', hero: 'ash', name: 'Second Wind', icon: '↻', desc: 'Ash’s first <span class="kw kw-rally">FOLLOW-UP</span> each turn refunds <b>1 EP</b>.',
+  { id: 'ash_relentless', hero: 'ash', name: 'Second Wind', icon: '↻', desc: 'Ash’s first <span class="kw kw-rally">ASSIST</span> each turn refunds <b>1 EP</b>.',
     trigger: 'followup', apply: () => { if (!S._flags.boonAsh) { S._flags.boonAsh = true; refundEp(1); boonProc('ash', 'ash_relentless'); } } },
   // ELIN — light
   { id: 'elin_grace', hero: 'elin', name: 'Elin’s Grace', icon: '✚', desc: 'When Elin heals or wards an ally, they also gain <span class="kw kw-guard">⛨ 1</span>.',
@@ -746,7 +746,7 @@ const BOONS = [
     trigger: 'dmgMod', mod: (o, t) => ((o.id === 'mira' || o.id === 'hask') && t && t.lull ? 2 : 0) },
   { id: 'duo_cassiabranwen', duo: true, hero: 'branwen', heroes: ['cassia', 'branwen'], name: 'Overwatch', icon: '◎', desc: '<b>Cassia + Branwen:</b> while Cassia holds <span class="kw kw-guard">⛨ guard</span>, Branwen strikes for <b>+3</b> — cover fire from behind the wall.',
     trigger: 'dmgMod', mod: (o) => { if (o.id !== 'branwen') return 0; const cas = livingHeroes().find(h => h.id === 'cassia'); return (cas && cas.guard > 0) ? 3 : 0; } },
-  { id: 'duo_ashcassia', duo: true, hero: 'cassia', heroes: ['ash', 'cassia'], name: 'Vanguard’s Oath', icon: '⛨', desc: '<b>Ash + Cassia:</b> each of Ash’s <span class="kw kw-rally">FOLLOW-UPS</span> braces him for <span class="kw kw-guard">⛨ 2</span> — the wall’s discipline in the skirmish.',
+  { id: 'duo_ashcassia', duo: true, hero: 'cassia', heroes: ['ash', 'cassia'], name: 'Vanguard’s Oath', icon: '⛨', desc: '<b>Ash + Cassia:</b> each of Ash’s <span class="kw kw-rally">ASSISTS</span> braces him for <span class="kw kw-guard">⛨ 2</span> — the wall’s discipline in the skirmish.',
     trigger: 'followup', apply: () => { const ash = livingHeroes().find(h => h.id === 'ash'); if (ash) { ash.guard += 2; popupAt(figEl('ash'), '⛨ +2', 'guard'); boonProc('cassia', 'duo_ashcassia', { quiet: true }); } } },
   { id: 'duo_elinhask', duo: true, hero: 'hask', heroes: ['elin', 'hask'], name: 'Warmth in Winter', icon: '◆', desc: '<b>Elin + Hask:</b> when Elin heals or wards an ally, Hask gathers <span class="kw kw-charge">◆ CHARGE 1</span> — her warmth stokes his cold fire.',
     trigger: 'support', apply: () => { const hask = livingHeroes().find(h => h.id === 'hask'); if (hask) { hask.charge = Math.min(chargeCap(hask), (hask.charge || 0) + 1); popupAt(figEl('hask'), '◆ ' + hask.charge, 'info'); boonProc('hask', 'duo_elinhask', { quiet: true }); } } },
@@ -1822,8 +1822,8 @@ const FOLLOW_ICONS = {
   branwen: `<span class="ic ic-dmg">➹4</span><span class="ic ic-exposed">◎+2</span>`,
   hask:    `<span class="ic ic-dmg">❄5</span><span class="ic ic-chill">CHILL</span>`,
 };
-// OFFER A BOND FOLLOW-UP — the legible weave beat.  When a WOVEN hero plays a
-// FINISHER, their partner's follow-up becomes a PLAYABLE option: a free Follow-Up
+// OFFER A BOND CHAIN — the legible weave beat.  When a WOVEN hero plays a
+// FINISHER, their partner's answer becomes a PLAYABLE option: a free CHAIN
 // card materializes in the partner's slot (burning in with a thread flourish), so
 // the player SEES the option and chooses to spend it.  Once per bond per turn.
 function offerBondFollow(attackerId) {
@@ -3381,9 +3381,9 @@ async function resolveCard(card, targetId) {
       amt += passiveDmg(owner, tgt);   // EXPOSED-exploiter passives + damage-tuning boons
       // subtle feedback when a damage-tuning BOON is lifting this hit (chip pulse, no popup spam)
       if (owner) runBoons().forEach(b => { if (b.trigger === 'dmgMod' && b.mod && (b.mod(owner, tgt) || 0) > 0) boonProc(owner.id, b.id, { quiet: true }); });
-      // FOLLOW-UP: striking an enemy an ally already hit this turn is a
+      // ASSIST: striking an enemy an ally already hit this turn is a
       // combo — +2 damage, and fighting together forms a thread between
-      // the two attackers (Concept 3: following up strengthens bonds).
+      // the two attackers (Concept 3: assisting strengthens bonds).
       const hitters = tgt._hitBy || (tgt._hitBy = []);
       const prev = hitters.length ? hitters[hitters.length - 1] : null;
       const isFollowUp = !!(owner && prev && prev !== owner.id);
@@ -3400,15 +3400,15 @@ async function resolveCard(card, targetId) {
         if (owner.id === 'ash') { S._flags = S._flags || {}; S._flags.ashStruck = true; }
         // A small MOMENTUM trickle on every ordinary hit — the burst gauge should
         // feel alive and visibly climb through a normal fight, not sit decorative.
-        // (Follow-ups already grant the bigger LINK below; still far slower than the
+        // (Assists already grant the bigger surge below; still far slower than the
         // old turn-1 pace — bonds & parries remain the fast fill.)
         if (!isFollowUp && amt > 0) gainMomentum(2, { raw: true });
       }
       if (isFollowUp) {
-        gainMomentum(12, { combo: true });   // LINK — chaining allies builds burst
+        gainMomentum(12, { combo: true });   // ASSIST — focus-firing a foe builds burst
         // one clean callout (was two stacked ⚡ popups): the +2 bonus and, once a
-        // real chain is running, the LINK count.
-        popupAt(figEl(owner.id), S.combo >= 2 ? '⚡ FOLLOW-UP +2 · ×' + S.combo : '⚡ FOLLOW-UP +2', 'info');
+        // real chain is running, the ASSIST count.
+        popupAt(figEl(owner.id), S.combo >= 2 ? '⚡ ASSIST +2 · ×' + S.combo : '⚡ ASSIST +2', 'info');
         SFX.follow();
         firePassives('followup', owner.id, { ally: prev });   // ally = the hero Ash followed
         // GANGING UP binds the whole party: thread with EVERY ally who has
@@ -3780,8 +3780,8 @@ function pulseEp() {
 
 // ---------------------------------------------------------------------------
 // MOMENTUM — the combat-earned burst gauge (Persona all-out / Clair Obscur
-// gradient).  Exploiting weaknesses, chaining LINKs (follow-ups), staggering,
-// and killing all feed it.  A running LINK combo counter (per player turn)
+// gradient).  Exploiting weaknesses, chaining ASSISTS (focus-firing a foe), staggering,
+// and killing all feed it.  A running ASSIST combo counter (per player turn)
 // scales each gain so chaining pays.  Full gauge → ALL-OUT ATTACK.
 // ---------------------------------------------------------------------------
 const MOM_MAX = 100;                 // L1 threshold — the all-out is available here
@@ -3838,7 +3838,7 @@ function expandBurst(level, label, charge) {
   renderBurst();
   return true;
 }
-function burstReady() { return S && (S.momentum || 0) >= MOM_MAX && !S.executing && !S.over && !S._staging; }
+function burstReady() { return S && (S.momentum || 0) >= burstCap() && !S.executing && !S.over && !S._staging; }
 
 // ---------------------------------------------------------------------------
 // PARRY — a reactive timing window on enemy attacks (Clair Obscur flavor).
@@ -4950,7 +4950,7 @@ async function endTurn() {
     S.tempCards = S.tempCards.filter(t => t.expiresTurn == null || t.expiresTurn >= S.turn);
     S._pressUsed = false;
     S._taunt = null;             // Cassia's TAUNT lasted the enemy round it provoked
-    S.combo = 0;                 // the LINK chain is a within-turn combo
+    S.combo = 0;                 // the ASSIST chain is a within-turn combo
     S.channelUsed = false;
     S.executing = false;
     $('#stage').classList.remove('executing');
@@ -5090,7 +5090,7 @@ async function enemyPhase() {
         const prevE = hby.length ? hby[hby.length - 1] : null;
         if (prevE && prevE !== e.uid) {
           hitDmg += 2;
-          popupAt(figEl(e.uid), '⚡ FOLLOW-UP +2', 'info');
+          popupAt(figEl(e.uid), '⚡ ASSIST +2', 'info');
           SFX.follow();
         }
         hby.push(e.uid);
@@ -6896,7 +6896,7 @@ function renderResonance() {
   el.innerHTML = `<svg viewBox="-3 -3 52 48" class="rz-svg">${fill}${edges}${dots}</svg><span class="rz-lbl">${label}</span>`;
 }
 
-// The MOMENTUM gauge — fills as you exploit weaknesses / chain LINKs; when
+// The MOMENTUM gauge — fills as you exploit weaknesses / chain ASSISTS; when
 // full it becomes a tappable ALL-OUT button.
 // CARD CHARACTER ART — each card wears the OWNER's portrait behind its face, like
 // a JRPG action card.  The url is parsed once from V2PORTRAITS (the same art as
@@ -6913,8 +6913,16 @@ function cardArtUrl(id) {
 // staff + headroom above her head), so a single crop can't frame them all.  These
 // override the CSS default (`auto 205% / 50% 2%`) to land each character's face in
 // the card.  `size | position` (CSS background-size | background-position).
+// Tuned per hero so every character's EYES land at the same card height and heads
+// are a consistent size — the source arts frame each figure differently (Ash sits
+// high in frame, Elin low behind a tall staff), so a single crop can't align them.
 const CARD_ART_FRAME = {
-  elin: 'auto 232% | 50% 15%',   // skip the staff/headroom, center her face
+  ash:     'auto 230% | 50% 0%',
+  elin:    'auto 230% | 50% 23%',
+  cassia:  'auto 230% | 50% 7%',
+  mira:    'auto 230% | 50% 2%',
+  branwen: 'auto 230% | 50% 0%',
+  hask:    'auto 230% | 50% 2%',
 };
 function cardArtHTML(card) {
   const id = card && card.owner ? card.owner : '';
@@ -6942,20 +6950,20 @@ function renderBurst() {
     const lv = i + 2;
     return level >= lv ? `<span class="burst-tick bt-${lv}" style="left:${(thr / cap * 100).toFixed(1)}%"></span>` : '';
   }).join('');
-  const ready = burstReady();                         // the all-out is TAPPABLE (m ≥ 100) — the escape hatch stays
-  const full = (S.momentum || 0) >= cap;              // the container is CHARGED to its level — the real "ready" beat
+  // The all-out fires only when the CONTAINER is FULL — so a woven L2/L3 gauge is
+  // never accidentally spent on a weak L1 (it fires at its full, earned level).
+  // Below full, a widened gauge reads "HOLD" — charging, not tappable.
+  const full = burstReady();                          // burstReady() === momentum ≥ burstCap()
+  const holding = !full && (S.momentum || 0) >= MOM_MAX && level > 1;
   const wasFull = burst.classList.contains('burst-ready');
-  burst.classList.toggle('burst-ready', full);        // the urgent glow only lights when the container fills
-  // The label reads the level the all-out will FIRE at right now — so the choice
-  // to unleash or hold-and-charge is legible without a percentage.  A woven
-  // container that isn't full yet reads "HOLD" (tap still works in a pinch).
+  burst.classList.toggle('burst-ready', full);
   const fl = burstFireLevel();
   $('#burst-lbl').textContent = full
     ? (fl >= 2 ? '⚡ TAP · ALL-OUT ' + '✦'.repeat(fl) : '⚡ TAP · ALL-OUT')
-    : ready ? 'BURST ✦' + level + ' · HOLD'
+    : holding ? 'BURST ✦' + level + ' · HOLD'
     : (level > 1 ? 'BURST ✦' + level : 'BURST');
-  burst.onclick = ready ? () => triggerAllOut() : null;
-  burst.style.cursor = ready ? 'pointer' : 'default';
+  burst.onclick = full ? () => triggerAllOut() : null;
+  burst.style.cursor = full ? 'pointer' : 'default';
   if (full && !wasFull) haptic(HAP.good);
 }
 function renderActionBar() {
@@ -7086,7 +7094,6 @@ function renderActionBar() {
     // rotation steps, the COMBO/FINISHER role line) already reads as temporary.
     el.innerHTML = `
       ${cardArtHTML(card)}
-      ${card.follow ? `<span class="c-follow-avatar">${V2PORTRAITS[card.follow] || ''}</span>` : ''}
       <div class="c-top">
         <span class="c-cost tempo-${card.tempo || 'steady'}${card.cost === 0 ? ' c-free' : ''}"${card.cost === 0 ? ' title="Free — costs no EP"' : ''}>${card.cost === 0 ? '✦' : card.cost}</span>
         <span class="c-name">${card.name}</span>
