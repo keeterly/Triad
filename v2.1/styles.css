@@ -1298,6 +1298,7 @@ button.map-node:not(:disabled) { cursor: pointer; }
 }
 .c-desc .kw { font-size: 8.6px; }
 .c-fx .ic em { font-size: 7px; font-style: normal; letter-spacing: 0.1em; opacity: 0.75; margin-left: 1px; }
+.c-fx .ic-sep { color: var(--ink-faint); opacity: 0.6; margin: 0 -1px; }   /* "either/or" separator on a chain icon */
 .ic-dmg { color: var(--blood-bright); }
 .ic-heal { color: var(--heal); }
 .ic-guard { color: #a8c8e8; }

@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 185;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 186;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -1432,7 +1432,7 @@ const ENEMY_DEFS = {
   cultist: {
     // A ritual caster: it CHANNELS — a braced HOLD you must weather — and its
     // dark verse leaves you EXPOSED.  Punish the chant before it gathers.
-    weak: 'blade', name: 'ASH CULTIST', maxHp: 15, parrySpeed: 1.0,
+    weak: 'blade', name: 'ASHEN CULTIST', maxHp: 15, parrySpeed: 1.0,
     intents: [
       { name: 'Sacrificial Knife', dmg: 5, row: 'front', attackArt: 'slash', parry: { kind: 'multi', count: 2 } },
       { name: 'Dark Channel',      dmg: 6, row: 'mid', expose: 2, attackArt: 'blast', parry: { kind: 'hold', size: 'big' } },
@@ -1817,7 +1817,7 @@ function weaveProc(classKey) {
 const FOLLOW_ICONS = {
   ash:     `<span class="ic ic-dmg">⚔6</span>`,
   mira:    `<span class="ic ic-dmg">✕5</span><span class="ic ic-exposed">◎+2</span>`,
-  elin:    `<span class="ic ic-heal">✚5</span><span class="ic ic-guard">⛨4</span>`,
+  elin:    `<span class="ic ic-heal">✚5</span><span class="ic ic-sep">/</span><span class="ic ic-guard">⛨4</span>`,
   cassia:  `<span class="ic ic-guard">⛨5</span>`,
   branwen: `<span class="ic ic-dmg">➹4</span><span class="ic ic-exposed">◎+2</span>`,
   hask:    `<span class="ic ic-dmg">❄5</span><span class="ic ic-chill">CHILL</span>`,
@@ -1829,6 +1829,7 @@ const FOLLOW_ICONS = {
 function offerBondFollow(attackerId) {
   if (!S || !S.pairsAwake || !S.pairsAwake.size) return;
   S._assistedPairs = S._assistedPairs || new Set();
+  const offered = [];   // collect this call's offers so a triad announces them in ONE line
   wovenWeavesFor(attackerId).forEach(({ w, a, b }) => {
     const key = pairKey(a, b);
     if (S._assistedPairs.has(key)) return;                 // one follow-up OFFER per bond per turn
@@ -1838,14 +1839,20 @@ function offerBondFollow(attackerId) {
     if (S.tempCards.some(c => c.fx && c.fx.bondFollow && c.fx.bondFollow.key === key)) return;   // already offered
     S._assistedPairs.add(key);
     genTempCard({ kind: 'temp', follow: partnerId, owner: partnerId, ownerName: HEROES[partnerId].name,
-      tint: 'var(--gold-bright)', stance: '✦ ' + w.name.toUpperCase(),
-      name: 'Chain', cost: 0, target: 'none',
+      tint: 'var(--gold-bright)', stance: '✦ CHAIN',
+      name: w.name, cost: 0, target: 'none',   // titled by the WEAVE so two offered chains never share a name
       fx: { bondFollow: { partnerId, attackerId, key, weave: w.name } },
       desc: `<b>${HEROES[partnerId].name}</b> chains off <b>${HEROES[attackerId].name}</b>. <i>Free.</i>` });
     try { sparkThread(a, b); } catch (_) {}
     weaveProc(duetClassKey(a, b));
-    flashNarrator('✦ ' + w.name + ' — ' + HEROES[partnerId].name + ' can CHAIN off ' + HEROES[attackerId].name + '’s finisher!');
+    offered.push(HEROES[partnerId].name);
   });
+  // ONE narrator for the whole offer — a full triad offers two chains at once, and
+  // separate flashNarrator calls would overwrite each other (only the last showed).
+  if (offered.length) {
+    const who = offered.length === 1 ? offered[0] : offered.slice(0, -1).join(', ') + ' & ' + offered.slice(-1);
+    flashNarrator('✦ CHAIN — ' + who + ' can answer ' + HEROES[attackerId].name + '’s finisher!');
+  }
 }
 // A reusable JRPG CUT-IN — a hero's PORTRAIT slides in from the side to announce a
 // MAJOR, impactful action (a CHAIN, an all-out finisher, a big unleash).  kicker =
@@ -1885,7 +1892,8 @@ async function resolveBondFollow(bf) {
   try { if (typeof lungeFig === 'function') lungeFig(figEl(bf.partnerId)); popupAt(figEl(bf.partnerId), '✦ CHAIN', 'boon'); stageShake('sm'); } catch (_) {}
   await sleep(200);
   let verb = ''; try { verb = BOND_ASSIST[bf.partnerId](partner, tgt, bf.attackerId) || ''; } catch (_) {}
-  flashNarrator('✦ ' + (bf.weave || 'BOND') + ' — ' + HEROES[bf.partnerId].name + ' chains off ' + HEROES[bf.attackerId].name + (verb ? ' with ' + verb : '') + '.');
+  // The cut-in already announced WHO answers WHOM; the narrator just adds the effect.
+  flashNarrator('✦ ' + (bf.weave || 'BOND') + (verb ? ' — ' + HEROES[bf.partnerId].name + ' answers with ' + verb + '.' : '.'));
   // KIZUNA branch (Ash) — a woven CHAIN can feed the burst and, at the capstone,
   // cascade: the answering partner's OTHER bond gets to chain in turn.
   if (hasNode('ash.chain.link'))   { gainMomentum(8, { combo: true, raw: true }); popupAt(figEl(bf.partnerId), '⚡ +8', 'info'); }
@@ -3371,11 +3379,17 @@ async function resolveCard(card, targetId) {
         if (owner.id === 'hask' && !fx.spendCharge) { const gain = 1 + (owner._umbral || 0); owner._umbral = 0; owner.charge = Math.min(chargeCap(owner), (owner.charge || 0) + gain); popupAt(figEl(owner.id), '◆ ' + owner.charge, 'info'); }
         // WARSTEP (Ash) — landing an attack unlocks a free reposition this turn.
         if (owner.id === 'ash') { S._flags = S._flags || {}; S._flags.ashStruck = true; }
+        // A small MOMENTUM trickle on every ordinary hit — the burst gauge should
+        // feel alive and visibly climb through a normal fight, not sit decorative.
+        // (Follow-ups already grant the bigger LINK below; still far slower than the
+        // old turn-1 pace — bonds & parries remain the fast fill.)
+        if (!isFollowUp && amt > 0) gainMomentum(2, { raw: true });
       }
       if (isFollowUp) {
         gainMomentum(12, { combo: true });   // LINK — chaining allies builds burst
-        linkPopup(owner.id);
-        popupAt(figEl(owner.id), '⚡ FOLLOW-UP +2', 'info');
+        // one clean callout (was two stacked ⚡ popups): the +2 bonus and, once a
+        // real chain is running, the LINK count.
+        popupAt(figEl(owner.id), S.combo >= 2 ? '⚡ FOLLOW-UP +2 · ×' + S.combo : '⚡ FOLLOW-UP +2', 'info');
         SFX.follow();
         firePassives('followup', owner.id, { ally: prev });   // ally = the hero Ash followed
         // GANGING UP binds the whole party: thread with EVERY ally who has
@@ -3804,10 +3818,6 @@ function expandBurst(level, label, charge) {
   if (charge) gainMomentum(charge, { raw: true });
   renderBurst();
   return true;
-}
-// Show a "LINK ×N" combo callout above a hero as the chain grows.
-function linkPopup(heroId) {
-  if (S.combo >= 2) popupAt(figEl(heroId), '⚡ LINK ×' + S.combo, 'rally');
 }
 function burstReady() { return S && (S.momentum || 0) >= MOM_MAX && !S.executing && !S.over && !S._staging; }
 
