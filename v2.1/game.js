@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 195;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 196;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -5519,7 +5519,10 @@ function showStory(node) {
       ${done
         ? `<button class="ov-btn primary" id="ov-go">${(node.next === 'descent' || node.beginDescent) ? 'BEGIN THE DESCENT' : (FLOW[flowIdx + 1] && FLOW[flowIdx + 1].type === 'fight' ? 'TO BATTLE' : 'CONTINUE')}</button>`
         : `<div class="ov-tap">tap to continue ▸</div>`}
-    `);
+    `, 'story-screen');
+    // Keep the newest line (and the button) in view when the passage is long.
+    const box = $('#overlay .ov-lines');
+    if (box) box.scrollTop = box.scrollHeight;
     if (done) {
       $('#ov-go').onclick = (ev) => {
         ev.stopPropagation();

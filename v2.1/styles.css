@@ -573,6 +573,17 @@ body {
 .ov-title { font-size: 30px; letter-spacing: 0.3em; color: var(--ink); margin-bottom: 4px; }
 .ov-sub { font-size: 11px; letter-spacing: 0.32em; color: var(--ink-dim); margin-bottom: 22px; }
 .ov-lines { text-align: left; margin: 0 auto 18px; max-width: 470px; min-height: 120px; }
+/* A long story passage must never push its button off the stage: cap the inner
+   column to the stage and let only the prose scroll, so eyebrow/title/button
+   stay pinned and reachable. */
+#overlay.story-screen #overlay-inner {
+  display: flex; flex-direction: column; align-items: center;
+  max-height: 94%;
+}
+#overlay.story-screen .ov-lines {
+  width: 100%; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  padding-right: 6px;
+}
 .ov-line { font-size: 12.5px; line-height: 1.55; color: var(--ink-dim); margin-bottom: 10px; font-style: italic; }
 .ov-line b { color: var(--ink); font-style: normal; }
 .ov-line .spk { font-style: normal; font-size: 9px; letter-spacing: 0.26em; color: var(--gold-bright); display: block; margin-bottom: 1px; }
