@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 196;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 197;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -3896,7 +3896,7 @@ const MOM_MAX = 100;                 // L1 threshold — the all-out is availabl
 // build toward, not a turn-1 reflex that overkills the pack.  BOND rewards (weave
 // charge, the Kizuna chain node) pass `raw` and are NOT scaled — so bonding, not
 // card-spam, is what accelerates the burst.
-const MOM_SCALE = 0.7;
+const MOM_SCALE = 0.6;   // Build 197 rebalance: combat momentum trimmed ~14% so the ALL-OUT is an earned climax, not a turn-2 formality (bond rewards pass raw and are unaffected)
 // BURST LEVELS — the gauge's CONTAINER grows as you speak kizuna.  Landing a DUET
 // expands it to L2, the TRIAD vow to L3 (see expandBurst); a bigger container
 // holds more charge, and the all-out that fires UPGRADES to whatever level the
@@ -3961,7 +3961,7 @@ const PARRY_MISS_MULT = 1.6;   // an UNPARRIED blow lands HARDER (real-run only)
 // Three tunable levers — turn them up for more danger, down for more forgiveness.
 const PARRY_GOOD_MS = 400;   // the "good" (half-mitigate) band, ms-remaining (was 460 — less tolerance)
 const PARRY_PERF_MS = 150;   // the "perfect" (full negate + riposte) band (was 175 — tighter)
-const MOB_HP_BASE   = 1.6;   // non-boss HP curve base — dropped ~30% (from 2.3): the parry STRINGS carry the difficulty now, so foes don't need to be HP sponges
+const MOB_HP_BASE   = 2.0;   // non-boss HP curve base — raised +25% (Build 197 rebalance): trash was dying turn-1 (offense out-scaled HP ~2.5×), so foes now survive to act and the party has room to bond/build before the kill
 
 // Each intent carries a rhythm PATTERN — its own way to be turned aside — so
 // defense has Project-Diva variety: a clean tap, a quick double-tap flurry, a
@@ -5149,7 +5149,7 @@ async function enemyPhase() {
         flashNarrator(ptHero.def.name + ' turns the blow — the burst swells!');
         parryFlash(figEl(ptHero.id));
         addEmbers(1); if (S) S._embersRun = (S._embersRun || 0) + 1;   // mastery pays embers
-        gainMomentum(24, { combo: true });   // parry FEEDS the burst
+        gainMomentum(18, { combo: true });   // parry FEEDS the burst (Build 197: reined in from 24 — parry still fully NEGATES, but it's no longer also the dominant offense engine, so guard/rows/positioning compete)
         lungeFig(figEl(ptHero.id));
         // FLAWLESS RIPOSTE — a whole cascade read PERFECTLY counters for damage.
         const rip = res.flawless ? parryRiposteDmg(res.notes || 1) : 0;
@@ -5159,7 +5159,7 @@ async function enemyPhase() {
           lungeFig(figEl(ptHero.id));
           dealToEnemy(e, rip, ptHero.def.school, ptHero.id);   // through the hero's school → can exploit weakness
           popupAt(figEl(e.uid), '⚔ RIPOSTE ' + rip, 'dmg popup-big');
-          gainMomentum(10, { combo: true });   // a flawless string surges extra burst
+          gainMomentum(7, { combo: true });   // a flawless string surges extra burst (Build 197: reined in from 10)
         }
         renderAll();
         await sleep(rip > 0 ? 340 : 240);
@@ -5168,7 +5168,7 @@ async function enemyPhase() {
         // PARTIAL — you caught some of the cascade; only the missed share lands
         parryMul = 1 - mit;
         popupAt(figEl(ptHero.id), '⛨ ' + Math.round(mit * 100) + '% PARRIED · +BURST', 'guard');
-        gainMomentum(Math.round(6 + mit * 14), { combo: true });
+        gainMomentum(Math.round(5 + mit * 11), { combo: true });   // Build 197: partial-parry burst reined in (was 6 + mit*14)
       } else {
         parryMul = weightMode ? PARRY_MISS_MULT : 1;    // fully unparried = more weight
         if (weightMode) popupAt(figEl(ptHero.id), 'UNPARRIED!', 'dmg');

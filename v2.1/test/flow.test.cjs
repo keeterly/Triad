@@ -2595,13 +2595,14 @@ const QUICK = process.argv.includes('--quick');
       S.momentum = 180; const two = burstFireLevel() === 2;
       S.momentum = 250; const three = burstFireLevel() === 3;
       return none && one && two && three; }));
-  // PACING — combat momentum builds ~30% slower (a turn-3 climax, not turn-1), but
-  // BOND rewards pass `raw` and stay full-strength, so bonding accelerates the burst.
-  check('BURST: combat gains build ~30% slower; bond rewards (raw) do not',
+  // PACING — combat momentum builds ~40% slower (Build 197 rebalance: MOM_SCALE 0.6,
+  // a turn-3 climax, not turn-1), but BOND rewards pass `raw` and stay full-strength,
+  // so bonding accelerates the burst.
+  check('BURST: combat gains build ~40% slower; bond rewards (raw) do not',
     await J(() => { setupFight(['ash', 'elin', 'mira'], [], {});
-      S.momentum = 0; S.combo = 0; gainMomentum(100); const scaled = S.momentum;      // 100 → ~70
+      S.momentum = 0; S.combo = 0; gainMomentum(100); const scaled = S.momentum;      // 100 → 60
       S.momentum = 0; S.combo = 0; gainMomentum(100, { raw: true }); const raw = S.momentum;  // 100 → 100
-      return scaled === 70 && raw === 100; }));
+      return scaled === 60 && raw === 100; }));
   // READY prompt — a woven L2/L3 container isn't urged to unleash a weak L1 at 100;
   // the "ready" glow only lights once the container is charged to its level.  The
   // all-out stays TAPPABLE at 100 (the escape hatch) even when not full.
