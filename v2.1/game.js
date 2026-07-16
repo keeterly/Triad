@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 194;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 195;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -2246,6 +2246,7 @@ let flowIdx = 0;
 let RUN = null;             // descent run state
 let targeting = null;       // { card, validIds, drag? } while picking a target
 const PROGRESS_KEY = 'kizuna2_1.flow';
+const TUTORIAL_KEY = 'kizuna2_1.tutorialSeen';   // set once the scripted FLOW onboarding has been played
 const RUN_KEY = 'kizuna2_1.run';
 const ABYSS_KEY = 'kizuna2_1.abyss';   // nodeId -> memory of a fallen descent
 function loadAbyss() { try { return JSON.parse(localStorage.getItem(ABYSS_KEY) || '{}'); } catch (_) { return {}; } }
@@ -7676,7 +7677,7 @@ function showTitle() {
     </div>
     <div class="tt-ver">V2.1 · BUILD ${V2_BUILD}</div>
   `, 'title-cine');
-  $('#t-new').onclick = () => showStarterSelect(id => beginRun(id));
+  $('#t-new').onclick = () => { if (!tutorialSeen()) beginTutorial(); else showStarterSelect(id => beginRun(id)); };
   const c = $('#t-continue');
   if (c) c.onclick = () => {
     const r = loadRun();
@@ -7963,6 +7964,22 @@ function showStarterSelect(onPick) {
     el.onclick = () => { hideOverlay(); onPick(el.dataset.id); };
   });
   $('#ss-back').onclick = () => showTitle();
+}
+function tutorialSeen() { try { return !!localStorage.getItem(TUTORIAL_KEY); } catch (_) { return false; } }
+// FIRST-EVER RUN — play the scripted FLOW onboarding (Ash → Elin → Mira) that
+// TEACHES the hook: stances, parry, threads, weave, CHAIN, and the ALL-OUT.  It
+// ends by dropping into the real solo descent (newRun('ash') keeps the roster
+// solo — the tutorial trio were teaching companions), so a new player learns the
+// bond fantasy in the first minutes, THEN plays the recruit loop knowing the
+// payoff they're building toward.  Veterans (tutorialSeen) skip straight to the
+// survivor-select + fast solo start.
+function beginTutorial() {
+  try { localStorage.setItem(TUTORIAL_KEY, '1'); localStorage.removeItem(RUN_KEY); localStorage.setItem(LAST_STARTER_KEY, 'ash'); } catch (_) {}
+  RUN = newRun('ash');
+  flowIdx = 0;
+  try { localStorage.setItem(PROGRESS_KEY, '0'); } catch (_) {}
+  saveRun();
+  startFlowNode();
 }
 // A short, hero-specific opening beat, then into the Descent.
 function beginRun(starterId) {

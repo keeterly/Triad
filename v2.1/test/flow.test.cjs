@@ -27,7 +27,18 @@ const QUICK = process.argv.includes('--quick');
 
   // ---------- ONBOARDING: choose your survivor (v1-style solo start) ----------
   console.log('--- ONBOARDING ---');
-  await clickOverlayBtn('#t-new');
+  // A first-EVER player (no tutorialSeen) gets the scripted FLOW tutorial that
+  // teaches the bond hook; veterans skip straight to survivor-select.
+  check('ONBOARDING: a first-time player gets the TUTORIAL (not the solo start)',
+    await J(() => { try { localStorage.removeItem('kizuna2_1.tutorialSeen'); } catch (_) {}
+      const seenBefore = tutorialSeen(); beginTutorial();
+      return !seenBefore && flowIdx === 0 && FLOW[0].title === 'ONE SURVIVOR' && tutorialSeen() === true; }));
+  // mark the tutorial seen so the rest of onboarding exercises the veteran survivor-select.
+  // (Invoke the button handler directly: the title cinematic intercepts raw taps.)
+  await J(() => { try { localStorage.setItem('kizuna2_1.tutorialSeen', '1'); } catch (_) {} showTitle(); });
+  await sleep(400);
+  await J(() => document.querySelector('#t-new').onclick());
+  await sleep(450);
   check('starter-select: 6 heroes shown, some locked, Ash unlocked',
     await J(() => document.querySelectorAll('.ss-fig').length === 6
       && document.querySelectorAll('.ss-fig.ss-locked').length >= 1
