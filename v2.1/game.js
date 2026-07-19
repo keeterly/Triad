@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 206;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 207;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -3959,12 +3959,12 @@ const PARRY_MISS_MULT = 1.6;   // an UNPARRIED blow lands HARDER (real-run only)
 // Defense is where the game is HARD: every blow is a string you must read and
 // execute, the timing bands are tight, and even a mob can hurt if you botch it.
 // Three tunable levers — turn them up for more danger, down for more forgiveness.
-const PARRY_GOOD_MS = 480;   // the "good" (half-mitigate) band, ms-remaining (Build 206: widened 400→480 — more reaction tolerance)
-const PARRY_PERF_MS = 185;   // the "perfect" (full negate + riposte) band (Build 206: widened 150→185 — easier perfects)
+const PARRY_GOOD_MS = 540;   // the "good" (half-mitigate) band, ms-remaining (Build 207: widened 480→540 — more reaction tolerance)
+const PARRY_PERF_MS = 210;   // the "perfect" (full negate + riposte) band (Build 207: widened 185→210 — easier perfects)
 // Global PACING multiplier on every parry ring's close time.  >1 = the rings
-// close SLOWER, so there's more time to read and react.  Build 206: eased to
-// 1.15 (rings ~15% slower) after playtest — "the parry is a touch too fast."
-const PARRY_PACE = 1.15;
+// close SLOWER, so there's more time to read and react.  Build 207: eased again
+// to 1.30 (rings ~30% slower) after a second "still a touch too fast" playtest.
+const PARRY_PACE = 1.30;
 const MOB_HP_BASE   = 2.0;   // non-boss HP curve base — raised +25% (Build 197 rebalance): trash was dying turn-1 (offense out-scaled HP ~2.5×), so foes now survive to act and the party has room to bond/build before the kill
 
 // Each intent carries a rhythm PATTERN — its own way to be turned aside — so
@@ -4441,7 +4441,7 @@ async function runParryInner(targetEl, pattern, art) {
   if (k === 'hold')       q = await parryHoldNote(a.x, a.y, Math.round(900 * PARRY_PACE), sz);
   else if (k === 'swipe') q = await parrySwipeNote(a.x, a.y, pattern.arc, Math.round(860 * PARRY_PACE), sz);
   else if (k === 'mash')  q = await parryMashNote(a.x, a.y, pattern.count || 4, Math.round(1150 * PARRY_PACE));
-  else                    q = await parryTapNote(a.x, a.y, 700, 1, 1, sz);   // a lone tap is already gentle; the wider GOOD window (480) carries its ease
+  else                    q = await parryTapNote(a.x, a.y, Math.min(Math.round(700 * PARRY_PACE), PARRY_GOOD_MS + 280), 1, 1, sz);   // Build 207: slow the lone tap too (early foes use single taps), capped so the test auto-parry still lands in-window
   const ok1 = q === 'perfect' || q === 'good';
   if (art) bossAttackBeat(art, a.x, a.y, ok1);   // the single strike lands as the note resolves
   return { mit: q === 'perfect' ? 1 : q === 'good' ? 0.5 : 0, perfect: q === 'perfect', flawless: q === 'perfect', notes: 1 };
@@ -8254,6 +8254,12 @@ function tryEnterFullscreen() {
   window.addEventListener('pointerdown', arm, true);
   window.addEventListener('touchend', arm, true);
 })();
+// Register the service worker so the game is INSTALLABLE as a PWA (Android
+// Chrome only surfaces "Install app" with a fetch handler + PNG icons).  The
+// worker is network-first, so it never hides a fresh deploy.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => { try { navigator.serviceWorker.register('sw.js').catch(() => {}); } catch (_) {} });
+}
 document.addEventListener('fullscreenchange', () => setTimeout(fitStage, 60));
 
 // Cancel tap-targeting on stray taps (drag mode manages its own lifecycle).

@@ -92,7 +92,13 @@ async function boot(opts = {}) {
         if (lbl.indexOf('↶') >= 0) { dx = -150; } else if (lbl.indexOf('⤴') >= 0) { dx = 0; dy = -170; }
         setTimeout(() => { P('pointerdown', cx, cy + 40); P('pointermove', cx + dx * 0.5, cy + 40 + dy * 0.5); P('pointermove', cx + dx, cy + 40 + dy); P('pointerup', cx + dx, cy + 40 + dy); }, 200);
       } else {
-        setTimeout(() => { P('pointerdown', cx, cy); P('pointerup', cx, cy); }, 330);
+        // Tap ADAPTIVELY, relative to THIS ring's own close time (read off the
+        // .pr-close animation), so the auto-parry stays inside the hit window no
+        // matter how the game tunes ring speed / window width. ~200ms before close.
+        const cl = ring.querySelector('.pr-close');
+        let dur = 700; try { dur = parseInt((cl && cl.style.animationDuration) || '700', 10) || 700; } catch (_) {}
+        const delay = Math.max(120, dur - 200);
+        setTimeout(() => { P('pointerdown', cx, cy); P('pointerup', cx, cy); }, delay);
       }
     };
     const obs = new MutationObserver((muts) => {
