@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 203;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 204;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -8170,9 +8170,16 @@ function showGate() {
 const DESK_K = 1.3;
 function isDesktop() { try { return !!(window.matchMedia && window.matchMedia('(pointer: fine)').matches); } catch (_) { return false; } }
 function fitStage() {
+  // MEASURE the true full-screen box.  #stage-scale is position:fixed; inset:0,
+  // so with viewport-fit=cover its rect spans the WHOLE screen (under the notch
+  // included) — more reliable on iOS than visualViewport.width, which can
+  // under-report in landscape and leave black bars.  Take the widest/tallest of
+  // every source so the fullest measure wins.
   const vv = window.visualViewport;
-  const w = Math.round((vv && vv.width) || window.innerWidth || document.documentElement.clientWidth || 0);
-  const h = Math.round((vv && vv.height) || window.innerHeight || document.documentElement.clientHeight || 0);
+  const box = document.getElementById('stage-scale');
+  const br = box ? box.getBoundingClientRect() : null;
+  const w = Math.round(Math.max((br && br.width) || 0, (vv && vv.width) || 0, window.innerWidth || 0, document.documentElement.clientWidth || 0));
+  const h = Math.round(Math.max((br && br.height) || 0, (vv && vv.height) || 0, window.innerHeight || 0, document.documentElement.clientHeight || 0));
   if (!w || !h) return;
   const desktop = isDesktop();
   const k = desktop ? DESK_K : 1;

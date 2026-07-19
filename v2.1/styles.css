@@ -45,9 +45,13 @@ body {
 .rotate-text span { font-size: 11px; letter-spacing: 0.2em; }
 
 /* ---- stage scale ---- */
-#stage-scale { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
+#stage-scale { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; }
 #stage {
   width: 760px; height: 430px; position: relative;
+  /* the canvas can be sized WIDER than its flex container (full-bleed on wide
+     phones) and the transform scales it back to fit — so it must NOT flex-shrink,
+     or it would be clamped to the container and under-fill. */
+  flex: 0 0 auto;
   overflow: hidden;
   display: grid; grid-template-rows: 30px 16px 1fr 138px;
   gap: 3px; padding: 4px 8px 6px;
