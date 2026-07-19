@@ -1264,7 +1264,7 @@ const QUICK = process.argv.includes('--quick');
       const jcrun = (picks) => { let g = 0, pi = 0; while (g++ < 40) { const o = document.querySelectorAll('.jc-opt'); if (o.length) { (o[picks[pi++]] || o[0]).click(); continue; } if (document.querySelector('.jc-next')) { document.querySelector('.jc-scene').click(); continue; } break; } };
       jcrun([0, 0]);   // warm, warm
       return RUN.roster.includes('cassia') && (RUN.bonds['ash|cassia'] || 0) >= 1
-        && ((document.querySelector('.tc-eyebrow') || {}).textContent || '').includes('THREAD IS BOUND');
+        && ((document.querySelector('.tc-eyebrow') || {}).textContent || '').includes('BOND IS FORMED');
     }));
   check('TRAVELER: a GUARDED conversation → they walk with you, but no bond yet',
     await J(() => {

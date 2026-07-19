@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 200;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 201;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -419,10 +419,10 @@ const EMBER_TREE = [
   // deepen the CHAIN itself — the free answer a woven partner plays off your
   // FINISHER.  Hosted on Ash (the Skirmisher who fights side-by-side), they modify
   // the party-wide bond system, so the more you weave, the more the Chain gives. ══
-  { id: 'ash.chain.link',   hero: 'ash', tier: 2, cost: 6,  type: 'chain', requires: ['ash.sig.front'], label: 'Momentum Weave', desc: 'ON CHAIN: a partner’s CHAIN builds <b>+8 MOMENTUM</b> — every woven answer feeds the burst' },
+  { id: 'ash.chain.link',   hero: 'ash', tier: 2, cost: 6,  type: 'chain', requires: ['ash.sig.front'], label: 'Momentum Weave', desc: 'ON WEAVE: a partner’s woven strike builds <b>+8 MOMENTUM</b> — every woven answer feeds the burst' },
   { id: 'ash.chain.deep',   hero: 'ash', tier: 3, cost: 9,  type: 'chain', requires: ['ash.chain.link'], label: 'Empowered Bond', desc: 'PASSIVE: each woven bond empowers your <b>ALL-OUT</b> harder (<b>+10%</b> per bond) — deepened bonds strike as one' },
-  { id: 'ash.chain.rising', hero: 'ash', tier: 3, cost: 9,  type: 'chain', requires: ['ash.chain.link'], label: 'Rising Chain',   desc: 'ON CHAIN: every CHAIN this fight <b>swells the burst container</b> (+3) — the bond keeps building' },
-  { id: 'ash.chain.react',  hero: 'ash', tier: 4, cost: 12, type: 'chain', requires: ['ash.chain.deep', 'ash.chain.rising'], label: 'Chain Reaction', desc: 'ON CHAIN: a CHAIN is itself a FINISHER — the partner’s OTHER bond CHAINS in turn, so a full triad <b>cascades</b>' },
+  { id: 'ash.chain.rising', hero: 'ash', tier: 3, cost: 9,  type: 'chain', requires: ['ash.chain.link'], label: 'Rising Weave',   desc: 'ON WEAVE: every woven strike this fight <b>swells the burst container</b> (+3) — the bond keeps building' },
+  { id: 'ash.chain.react',  hero: 'ash', tier: 4, cost: 12, type: 'chain', requires: ['ash.chain.deep', 'ash.chain.rising'], label: 'Weave Cascade', desc: 'ON WEAVE: a woven strike is itself a FINISHER — the partner’s OTHER bond weaves in turn, so a full triad <b>cascades</b>' },
 
   // ═══ HASK — the BLACK MAGE.  Builds ◆ CHARGE on every spell; the MID fork is the
   // OVERLOAD line (build charge → dump it in a nuke).  Three job-paths: OVERLOAD
@@ -692,7 +692,7 @@ const BOONS = [
     card: (c) => { if (c.owner === 'ash' && c.fx && c.fx.dmg && c.cost > 1) c.cost -= 1; } },
   { id: 'ash_relentless', hero: 'ash', name: 'Second Wind', icon: '↻', desc: 'Ash’s first <span class="kw kw-rally">ASSIST</span> each turn refunds <b>1 EP</b>.',
     trigger: 'followup', apply: () => { if (!S._flags.boonAsh) { S._flags.boonAsh = true; refundEp(1); boonProc('ash', 'ash_relentless'); } } },
-  { id: 'ash_deepbond', hero: 'ash', name: 'Deepening Bond', icon: '✦', desc: 'When Ash answers a <b>CHAIN</b>, the whole party gains <span class="kw kw-rally">▲ RALLY 1</span> — the weave sharpens every blade.',
+  { id: 'ash_deepbond', hero: 'ash', name: 'Deepening Bond', icon: '✦', desc: 'When Ash <b>weaves in</b> off a partner, the whole party gains <span class="kw kw-rally">▲ RALLY 1</span> — the weave sharpens every blade.',
     trigger: 'chain', apply: () => { livingHeroes().forEach(h => { if (!h.downed) { h.buffDmg += 1; popupAt(figEl(h.id), '▲ +1', 'rally'); } }); boonProc('ash', 'ash_deepbond'); } },
   // ELIN — light
   { id: 'elin_grace', hero: 'elin', name: 'Elin’s Grace', icon: '✚', desc: 'When Elin heals or wards an ally, they also gain <span class="kw kw-guard">⛨ 1</span>.',
@@ -813,7 +813,7 @@ function renderCombatBoons() {
   const weaves = wovenPairKeys();
   html += weaves.map(key => {
     const [a, b] = key.split('|'); const w = BOND_WEAVE[duetClassKey(a, b)]; if (!w) return '';
-    return `<span class="cb-weave" data-weave="${key}" title="✦ ${w.name} — ${HEROES[a].name} &amp; ${HEROES[b].name} are bound: play a FINISHER with one and the other gets a free CHAIN card (once per turn).">${w.icon || '✦'}</span>`;
+    return `<span class="cb-weave" data-weave="${key}" title="✦ ${w.name} — ${HEROES[a].name} &amp; ${HEROES[b].name} are woven: play a FINISHER with one and the other weaves in a free strike (once per turn).">${w.icon || '✦'}</span>`;
   }).join('');
   el.innerHTML = html;
   el.querySelectorAll('.cb-boon').forEach(c => attachBoonInspect(c, c.dataset.boon));
@@ -1566,7 +1566,7 @@ const ENEMY_DEFS = {
     weak: 'song', name: 'THE SUNDERING', maxHp: 152, boss: true, floorBoss: true, art: 'echoknight', aura: 'sunder',
     attacksPerRound: 2,
     intents: [
-      { name: 'Cut the Thread', dmg: 6, row: 'front', sever: 1, attackArt: 'slash', parry: { kind: 'seq', notes: [{ t: 'swipe', arc: 'arcR' }, { t: 'tap' }] } },
+      { name: 'Cut the Bond', dmg: 6, row: 'front', sever: 1, attackArt: 'slash', parry: { kind: 'seq', notes: [{ t: 'swipe', arc: 'arcR' }, { t: 'tap' }] } },
       { name: 'The Unmaking', kind: 'buff', desc: 'it unravels the world', powerSelf: 3 },
       { name: 'Isolation', dmg: 8, row: 'mid', chill: 1, attackArt: 'claw', parry: { kind: 'seq', notes: [{ t: 'tap' }, { t: 'swipe', arc: 'arcL' }, { t: 'tap' }] } },
       { name: 'Fraying Chord', dmg: 5, row: 'back', sever: 1, attackArt: 'blast', parry: { kind: 'seq', notes: [{ t: 'swipe', arc: 'arcU' }, { t: 'tap' }] } },
@@ -1618,7 +1618,7 @@ const ENEMY_DEFS = {
         attacksPerRound: 5, parrySpeed: 0.68,   // stage 3 — the climax: five fast strikes to read
         quote: 'You came down together. I keep every echo you leave behind.',
         intents: [
-          { name: 'Cut the Thread', dmg: 7, row: 'front', sever: 1, attackArt: 'slash', parry: { kind: 'seq', notes: [{ t: 'swipe', arc: 'arcR' }, { t: 'tap' }] } },
+          { name: 'Cut the Bond', dmg: 7, row: 'front', sever: 1, attackArt: 'slash', parry: { kind: 'seq', notes: [{ t: 'swipe', arc: 'arcR' }, { t: 'tap' }] } },
           { name: 'DISCORD', dmg: 8, row: 'mid', discord: 1, attackArt: 'claw', parry: { kind: 'seq', notes: [{ t: 'swipe', arc: 'arcL' }, { t: 'tap' }, { t: 'swipe', arc: 'arcR' }] } },
           { name: 'The Unmaking', kind: 'buff', desc: 'it unravels the world', powerSelf: 3 },
           { name: 'Fraying Chord', dmg: 6, row: 'back', sever: 1, echo: true, echoBonus: 5, attackArt: 'blast', parry: { kind: 'seq', notes: [{ t: 'swipe', arc: 'arcU' }, { t: 'tap' }] } },
@@ -1864,10 +1864,10 @@ function offerBondFollow(attackerId) {
     if (S.tempCards.some(c => c.fx && c.fx.bondFollow && c.fx.bondFollow.key === key)) return;   // already offered
     S._assistedPairs.add(key);
     genTempCard({ kind: 'temp', follow: partnerId, owner: partnerId, ownerName: HEROES[partnerId].name,
-      tint: 'var(--gold-bright)', stance: '✦ CHAIN',
-      name: w.name, cost: 0, target: 'none',   // titled by the WEAVE so two offered chains never share a name
+      tint: 'var(--gold-bright)', stance: '✦ WEAVE',
+      name: w.name, cost: 0, target: 'none',   // titled by the WEAVE so two offered follow-ups never share a name
       fx: { bondFollow: { partnerId, attackerId, key, weave: w.name } },
-      desc: `<b>${HEROES[partnerId].name}</b> chains off <b>${HEROES[attackerId].name}</b>. <i>Free.</i>` });
+      desc: `<b>${HEROES[partnerId].name}</b> weaves in off <b>${HEROES[attackerId].name}</b>. <i>Free.</i>` });
     try { sparkThread(a, b); } catch (_) {}
     weaveProc(duetClassKey(a, b));
     offered.push(HEROES[partnerId].name);
@@ -1876,7 +1876,7 @@ function offerBondFollow(attackerId) {
   // separate flashNarrator calls would overwrite each other (only the last showed).
   if (offered.length) {
     const who = offered.length === 1 ? offered[0] : offered.slice(0, -1).join(', ') + ' & ' + offered.slice(-1);
-    flashNarrator('✦ CHAIN — ' + who + ' can answer ' + HEROES[attackerId].name + '’s finisher!');
+    flashNarrator('✦ WEAVE — ' + who + ' can weave in off ' + HEROES[attackerId].name + '’s finisher!');
   }
 }
 // A reusable JRPG CUT-IN — a hero's PORTRAIT slides in from the side to announce a
@@ -1942,7 +1942,7 @@ function spawnCutinEmbers(el) {
 // The CHAIN cut-in — a woven partner steps in over a thread to the ally they answer.
 async function followCutIn(partnerId, attackerId, weave) {
   try { sparkThread(attackerId, partnerId); } catch (_) {}
-  await heroCutIn(partnerId, '✦ CHAIN', HEROES[partnerId].name, (weave || '') + ' · answers ' + HEROES[attackerId].name, 1100);
+  await heroCutIn(partnerId, '✦ WEAVE', HEROES[partnerId].name, (weave || '') + ' · answers ' + HEROES[attackerId].name, 1100);
 }
 // Resolve a played Follow-Up card: a portrait cut-in showcases the partner, they
 // LUNGE in, and perform their archetype's assist.
@@ -1951,7 +1951,7 @@ async function resolveBondFollow(bf) {
   if (!partner || partner.downed) return;
   const tgt = frontmostEnemy();
   await followCutIn(bf.partnerId, bf.attackerId, bf.weave);   // showcase WHO follows up
-  try { if (typeof lungeFig === 'function') lungeFig(figEl(bf.partnerId)); popupAt(figEl(bf.partnerId), '✦ CHAIN', 'boon'); stageShake('sm'); } catch (_) {}
+  try { if (typeof lungeFig === 'function') lungeFig(figEl(bf.partnerId)); popupAt(figEl(bf.partnerId), '✦ WEAVE', 'boon'); stageShake('sm'); } catch (_) {}
   await sleep(200);
   let verb = ''; try { verb = BOND_ASSIST[bf.partnerId](partner, tgt, bf.attackerId) || ''; } catch (_) {}
   // The cut-in already announced WHO answers WHOM; the narrator just adds the effect.
@@ -1998,17 +1998,17 @@ const FLOW = [
     { text: 'A light in the ash-fog — a healer, kneeling over what’s left of her order.' },
     { spk: 'ELIN', text: 'You’re bleeding. Stand still.' },
     { spk: 'ASH', text: '…you’re coming with me.' },
-    { text: 'Two now. When one of you <b>helps</b> the other — a heal, a guard, a follow-up on a wounded foe — a <b>thread</b> forms between them. The threads are the whole point. Watch.' },
+    { text: 'Two now. When one of you <b>helps</b> the other — a heal, a guard, a follow-up on a wounded foe — a <b>BOND</b> forms between them. The bonds are the whole point. Watch.' },
   ]},
   { type: 'fight', chapter: 2, heroes: ['ash', 'elin'], enemies: ['cultist', 'husk'],
-    narrator: 'Have Elin heal Ash — a thread kindles between them. Fight side by side and it deepens.' },
+    narrator: 'Have Elin heal Ash — a BOND forms between them. Fight side by side and it deepens into a WEAVE.' },
   { type: 'story', chapter: 3, title: 'MIRA', eyebrow: 'CHAPTER 3 · THREE', lines: [
     { text: 'A blade rests at your throat before you hear a single step. Then, slowly, it lowers.' },
     { spk: 'MIRA', text: 'You came through the dark loud as a funeral. …Lucky I only kill what I mean to. Move.' },
-    { text: 'Three now — a triangle. A kindled pair <b>weaves</b>: play a <b>FINISHER</b> with one and their partner gets a free <b>CHAIN</b> to play. Bond all three and your bonds <b>crown your ALL-OUT</b> with a <b>TRIAD FINALE</b> — one grand blow only your exact three can land.' },
+    { text: 'Three now — a triangle. A deepened bond becomes a <b>WEAVE</b>: play a <b>FINISHER</b> with one and their partner <b>weaves in</b> a free strike. Bond all three and they <b>crown your ALL-OUT</b> with a <b>TRIAD FINALE</b> — one grand blow only your exact three can land.' },
   ]},
   { type: 'fight', chapter: 3, heroes: ['ash', 'elin', 'mira'], enemies: ['echoknight', 'cultist'],
-    narrator: 'Help one another until all three threads hold. Chain hits &amp; parries to fill BURST, then unleash your ALL-OUT.' },
+    narrator: 'Help one another until all three bonds hold. Land hits &amp; parries to fill BURST, then unleash your ALL-OUT.' },
   { type: 'story', chapter: 3, title: 'THE ROAD DOWN', eyebrow: 'THE DESCENT', lines: [
     { text: 'The tutorial road ends at a cliff’s edge. Below waits the <b>Descent</b> — and the Abyss beneath it.' },
     { text: 'Down here your steel finds its <b>rhythm</b>. Each hero shows a single <b>opener</b> — play it and it <b>flows into a finisher</b>. That short combo is all you start with; how it <b>grows</b> is up to you.' },
@@ -2149,7 +2149,7 @@ function generateDescent(roster, floor) {
       else if (type === 'elite')   { node.enemies = _eliteEnemies(level); node.elite = true; node.label = lbl.elite(); }
       else if (type === 'event')   { node.eventId = eventQ[eventI++ % eventQ.length]; node.label = lbl.event(); }
       else if (type === 'camp')    { node.label = lbl.camp(); }
-      else if (type === 'recruit') { node.hero = recruitAtLevel[level]; node.label = RECRUIT_NODE_LABELS[node.hero] || 'A NEW THREAD'; }
+      else if (type === 'recruit') { node.hero = recruitAtLevel[level]; node.label = RECRUIT_NODE_LABELS[node.hero] || 'A NEW BOND'; }
       else if (type === 'boss')    { const bid = floor >= 3 ? 'echosunder' : floor >= 2 ? 'echodevourer' : 'echoknight2'; node.enemies = [bid]; node.isBoss = true; node.floorBoss = true; node.label = floor >= 3 ? 'THE SUNDERING' : floor >= 2 ? 'THE HOLLOW MAW' : lbl.boss(); }
       nodes[idc] = node; ids.push(idc); idc++;
     });
@@ -4462,7 +4462,7 @@ async function addThread(a, b) {
   // A KINDLED pair that threads awakens its WEAVE this instant (no card — see
   // awakenDuet).  A non-kindled thread just forms the connection + its guard.
   if (kindledNow) await awakenDuet(a, b);
-  else flashNarrator('◇ THREAD — ' + HEROES[a].name + ' ─ ' + HEROES[b].name + ' · fight together again to KINDLE it (then they CHAIN off each other’s finishers)');
+  else flashNarrator('◇ BOND — ' + HEROES[a].name + ' ─ ' + HEROES[b].name + ' · fight together again to WEAVE it (then they weave in off each other’s finishers)');
   // a clear beat on BOTH heroes so the connection reads at a glance
   [a, b].forEach(id => { const el = figEl(id); if (el) { el.classList.remove('fig-bond'); void el.offsetWidth; el.classList.add('fig-bond'); setTimeout(() => el.classList.remove('fig-bond'), 900); } });
   // The bond itself protects: both linked heroes steel by 2 guard the moment
@@ -5051,8 +5051,8 @@ function openingWeaves() {
   if (lit.length) {
     expandBurst(2, '✦ WEAVE', 12 * Math.min(lit.length, 3));   // woven bonds swell the burst gauge (level 2, charge per weave)
     renderCombatBoons();                                       // the weaves join the topbar chip strip
-    flashNarrator('✦ WOVEN — your kindled bonds enter already woven: ' + lit.join(' · ')
-      + '. Play a FINISHER and a partner CHAINS; your bonds empower the ALL-OUT.');
+    flashNarrator('✦ WOVEN — your deepened bonds enter already woven: ' + lit.join(' · ')
+      + '. Play a FINISHER and a partner weaves in; your bonds empower the ALL-OUT.');
     renderAll();
   }
 }
@@ -5070,7 +5070,7 @@ async function awakenDuet(a, b) {
   cineFlash('rgba(240,212,136,0.4)');
   const wname = (w && w.name) || 'Woven Bond';
   flashNarrator('✦ WEAVE — ' + HEROES[a].name + ' & ' + HEROES[b].name + ' are bound as ' + wname
-    + ': play a FINISHER with one and the other gets a free CHAIN.');
+    + ': play a FINISHER with one and the other weaves in a free strike.');
   [a, b].forEach(id => { const h = S.heroes.find(x => x.id === id); if (h && !h.downed) h.guard += 2; });   // the bond steels them
   expandBurst(2, '✦ WEAVE', 25);   // a woven bond also swells the burst gauge
   renderCombatBoons();   // the weave joins the topbar chip strip
@@ -5427,7 +5427,7 @@ function severThreads(e, count) {
   }
   if (cut) {
     S.triadFormed = false; S.allOutCrowned = false;   // a severed thread un-crowns the all-out
-    flashNarrator((e && e.def ? e.def.name : 'It') + ' SEVERS your bonds — the thread snaps.');
+    flashNarrator((e && e.def ? e.def.name : 'It') + ' SEVERS your bonds — the bond snaps.');
     try { SFX.deny(); } catch (_) {}
     renderResonance();
   }
@@ -5456,7 +5456,7 @@ function onVictory() {
       RUN.bonds[k] = before + 1;
       const [a, b] = k.split('|');
       const name = HEROES[a].name + ' ─ ' + HEROES[b].name;
-      bondLines.push(before + 1 === BOND_KINDLED ? name + ' · KINDLED' : name + ' +1');
+      bondLines.push(before + 1 === BOND_KINDLED ? name + ' · WOVEN' : name + ' +1');
     });
     saveRun();
   }
@@ -5473,9 +5473,9 @@ function onVictory() {
     showOverlay(`
       <div class="ov-eyebrow" style="color:var(--gold-bright)">VICTORY</div>
       <div class="ov-title" style="font-size:22px">${isBoss ? 'THE ECHO FADES' : 'THE ROAD HOLDS'}</div>
-      ${th ? `<div class="ov-sub">${th} thread${th > 1 ? 's' : ''} held${S.triadFormed ? ' · the triad answered' : ''}</div>` : ''}
+      ${th ? `<div class="ov-sub">${th} bond${th > 1 ? 's' : ''} held${S.triadFormed ? ' · the triad answered' : ''}</div>` : ''}
       ${S._embersRun ? `<div class="ov-embers">✦ ${S._embersRun} embers gathered — spend them on the <b>Ember Tree</b></div>` : ''}
-      ${bondLines.length ? `<div class="bond-growth">${bondLines.map(l => `<span class="bg-line${/KINDLED/.test(l) ? ' bg-kindled' : ''}">♡ ${l}</span>`).join('')}</div>` : ''}
+      ${bondLines.length ? `<div class="bond-growth">${bondLines.map(l => `<span class="bg-line${/WOVEN/.test(l) ? ' bg-kindled' : ''}">♡ ${l}</span>`).join('')}</div>` : ''}
       <button class="ov-btn primary" id="ov-next">CONTINUE</button>
     `);
     const wasElite = !!S.node.elite;   // an elite kill hands you a companion's gift
@@ -5527,7 +5527,7 @@ function onDefeat() {
           <div class="go-stats">
             ${stat('FL ' + stats.floor, 'reached')}
             ${stat(stats.cleared, 'nodes cleared')}
-            ${stat(stats.threads, 'threads held')}
+            ${stat(stats.threads, 'bonds held')}
             ${stat(stats.kindled, 'skills kindled')}
             ${stat(stats.embers, 'embers torn')}
           </div>
@@ -5543,7 +5543,7 @@ function onDefeat() {
   setTimeout(() => {
     showOverlay(`
       <div class="ov-eyebrow">DEFEAT</div>
-      <div class="ov-title" style="font-size:22px">THE THREAD FRAYS</div>
+      <div class="ov-title" style="font-size:22px">THE BOND FRAYS</div>
       <div class="ov-sub">but does not break</div>
       <button class="ov-btn primary" id="ov-retry">TRY AGAIN</button>
     `);
@@ -5589,7 +5589,7 @@ function onRunComplete() {
     <div class="ov-title" style="font-size:26px">THE LAST ECHO FADES</div>
     <div class="ov-lines" style="text-align:center; min-height:0;">
       <div class="ov-line">Three voices in one throat, and every one of them cut. The Chorus comes apart into a hush so complete you can hear your own hearts — <b>all of them, still beating, together</b>.</div>
-      <div class="ov-line"><b>The thread held — all the way to the bottom.</b> Every triangle you never formed still waits in the dark: other trios, other vows, another descent.</div>
+      <div class="ov-line"><b>The bond held — all the way to the bottom.</b> Every triangle you never formed still waits in the dark: other trios, other vows, another descent.</div>
     </div>
     <button class="ov-btn primary" id="ov-title">BACK TO TITLE</button>
   `);
@@ -5799,9 +5799,9 @@ function showMemory(n, mem) {
     <div class="ov-title" style="font-size:20px">SOMEONE FELL HERE</div>
     <div class="ov-lines" style="text-align:center; min-height:0">
       <div class="ov-line"><b>${names}</b> — they made it this far, once.</div>
-      <div class="ov-line">${th ? `Their ${th} thread${th > 1 ? 's' : ''} still hum in the cold air.` : 'The ashes are quiet, but still warm.'}</div>
+      <div class="ov-line">${th ? `Their ${th} bond${th > 1 ? 's' : ''} still hum in the cold air.` : 'The ashes are quiet, but still warm.'}</div>
     </div>
-    <button class="ov-btn primary" id="ov-takeup">TAKE UP THEIR THREAD</button>
+    <button class="ov-btn primary" id="ov-takeup">TAKE UP THEIR BOND</button>
     <div class="ov-hint">${th ? '+1 ♡ TO EACH BOND THEY HELD · ' : ''}THE PARTY HEALS 4 BY THEIR FIRE</div>
   `);
   $('#ov-takeup').onclick = () => {
@@ -5880,7 +5880,7 @@ const BOSS_CINE = {
     quote: 'You buried me once. I have counted every hand that threw the dirt.' },
   echodevourer: { name: 'THE HOLLOW MAW', epithet: 'IT HUNGERS', eye: '#a86bff', roar: 'maw',
     quote: 'Down here, everything is food. Even the little light you carry.' },
-  echosunder:   { name: 'THE SUNDERING', epithet: 'IT CUTS THE THREADS', eye: '#8fe0d0', roar: 'maw',
+  echosunder:   { name: 'THE SUNDERING', epithet: 'IT CUTS THE BONDS', eye: '#8fe0d0', roar: 'maw',
     quote: 'Every bond you tie, I have already cut. You came down together — you will not leave that way.' },
   echochorus:   { name: 'THE HOLLOW CHORUS', epithet: 'ALL ECHOES ARE ITS VOICE', eye: '#e8b84a', roar: 'maw',
     quote: 'Knight. Maw. Sundering — three voices you have already silenced. I am the one that sang them all.' },
@@ -6356,9 +6356,9 @@ function joinTraveler(n, friend) {
   if (!RUN.completed.includes(n.id)) RUN.completed.push(n.id);
   saveRun();
   const beat = friend
-    ? `You climb on together — and the talk carried. <b>${h.name}</b> walks at your side with a thread <b>already bound</b> between you.`
+    ? `You climb on together — and the talk carried. <b>${h.name}</b> walks at your side with a bond <b>already formed</b> between you.`
     : `<b>${h.name}</b> falls in with you — pragmatic, watchful. Two climbers, one dark. The warmth will have to be earned on the way up.`;
-  showTravelerOutcome(rid, friend ? '♡ A THREAD IS BOUND' : 'A WARY ALLIANCE', h.name + ' WALKS WITH YOU', beat, false, rid);
+  showTravelerOutcome(rid, friend ? '♡ A BOND IS FORMED' : 'A WARY ALLIANCE', h.name + ' WALKS WITH YOU', beat, false, rid);
 }
 // FOE — you wrong them, and they mark you for it.  They vanish, then spring an
 // AMBUSH at the next fight (a "vengeful <name>" built from their own kit).
@@ -6657,7 +6657,7 @@ function showCampScene(n) {
       { text: 'The pot is shared. The watch is set. Two of them sit a little apart from the dark.' },
       { spk: HEROES[a].name, text: CAMP_VOICES[a] || '…' },
       { spk: HEROES[b].name, text: CAMP_VOICES[b] || '…' },
-      { text: `The fire holds. <b>♡ ${HEROES[a].name} ─ ${HEROES[b].name}${kindledNow ? ' · KINDLED' : ' +1'}</b>${kindledNow ? ' — they will walk into every battle already connected.' : '.'}` },
+      { text: `The fire holds. <b>♡ ${HEROES[a].name} ─ ${HEROES[b].name}${kindledNow ? ' · WOVEN' : ' +1'}</b>${kindledNow ? ' — they will walk into every battle already connected.' : '.'}` },
     ],
     campDone: true,
   });
@@ -6735,7 +6735,7 @@ function showPartySelect(onDone, mustInclude) {
       const out = [];
       for (let i = 0; i < line.length; i++) for (let j = i + 1; j < line.length; j++) {
         const pts = bondPts(pairKey(line[i], line[j]));
-        if (pts >= BOND_KINDLED) out.push(`♡ ${HEROES[line[i]].name} ─ ${HEROES[line[j]].name} · kindled`);
+        if (pts >= BOND_KINDLED) out.push(`♡ ${HEROES[line[i]].name} ─ ${HEROES[line[j]].name} · woven`);
         else if (pts > 0) out.push(`♡ ${HEROES[line[i]].name} ─ ${HEROES[line[j]].name} · ${pts}/${BOND_KINDLED}`);
       }
       return out.join('<span class="ps-bond-sep"> · </span>');
@@ -7719,7 +7719,9 @@ function showHowTo(back) {
       <div class="ht-head">Build your BURST</div>
       <div class="ov-line"><b>Fill the gauge, then unleash.</b> Landing hits and clean parries fill your <b>BURST</b>. When it glows ready, <b>tap the gauge</b> to unleash an <b>ALL-OUT</b> — the whole party piles onto the enemy line at once.</div>
       <div class="ht-head">Bonds</div>
-      <div class="ov-line"><b>Fight as one.</b> Help one another to form <b>threads</b>; fight together again and a pair <b>kindles</b> into a <b>weave</b>. Then, when you play a <b>FINISHER</b> with one, their partner gets a free <b>CHAIN</b> card to play. Your bonds also <b>empower your ALL-OUT</b> — bond all three and it ends in a <b>TRIAD FINALE</b>.</div>
+      <div class="ov-line"><b>Fight as one.</b> Help an ally — a heal, a guard, a shared kill — to form a <b>BOND</b>.</div>
+      <div class="ov-line">Fight together again and the bond deepens into a <b>WEAVE</b>: play a <b>FINISHER</b> with one and their partner <b>weaves in</b> a free strike.</div>
+      <div class="ov-line">Bond all three and they <b>empower your ALL-OUT</b> — ending it in a <b>TRIAD FINALE</b>.</div>
       <div class="ht-head">Between fights</div>
       <div class="ov-line"><b>Grow stronger.</b> Winning earns <b>✦ embers</b> — spend them on your <b>Ember Tree</b> to unlock new cards. Take companion <b>gifts</b>, and <b>rest</b> at campfires to heal.</div>
       <div class="ov-line ht-tip">Tip: press &amp; hold any card to read it up close.</div>
@@ -8087,7 +8089,7 @@ function showStarterSelect(onPick) {
     <div class="ov-eyebrow">THE ABYSS TAKES EVERYONE · WHO WALKS BACK IN?</div>
     <div class="ov-title" style="font-size:20px; margin-bottom:12px;">CHOOSE YOUR SURVIVOR</div>
     <div class="ss-row">${cards}</div>
-    <div class="ov-hint">You descend ALONE — the rest of your thread is found on the road.</div>
+    <div class="ov-hint">You descend ALONE — the rest of your bonds are found on the road.</div>
     <button class="ov-btn" id="ss-back">◂ BACK</button>
   `, 'map-screen');
   document.querySelectorAll('.ss-fig:not(.ss-locked)').forEach(el => {
@@ -8124,7 +8126,7 @@ function beginRun(starterId) {
       { text: 'The first thing you understand is that everyone else is gone.' },
       { spk: h.name, text: '…then I carry it alone. For now.' },
       { text: `You are <b>${h.name}</b> — ${h.identity || h.cls}. Your <b>row is your stance</b>; when a blow falls, <b>dodge</b> the row or <b>parry</b> its rhythm, note by note.` },
-      { text: `The dead give up <b>✦ embers</b> to grow your kit, and companions share <b>gifts</b> — but the <b>threads</b> you weave between the living are the real weapon. Descend, and find the others. <i>(Full rules live in the menu’s How to Play.)</i>` },
+      { text: `The dead give up <b>✦ embers</b> to grow your kit, and companions share <b>gifts</b> — but the <b>bonds</b> you weave between the living are the real weapon. Descend, and find the others. <i>(Full rules live in the menu’s How to Play.)</i>` },
     ],
     beginDescent: true,
   });
@@ -8133,7 +8135,7 @@ function beginRun(starterId) {
 function showGate() {
   showOverlay(`
     <div class="ov-title" style="font-size:24px">KIZUNA</div>
-    <div class="ov-sub">THREADS</div>
+    <div class="ov-sub">BONDS</div>
     <div class="gate-card">
       <input type="password" id="gate-input" autocomplete="off" placeholder="…" />
       <button class="ov-btn primary" id="gate-go">ENTER</button>
