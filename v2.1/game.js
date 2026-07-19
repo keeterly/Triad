@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 202;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 203;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -8176,12 +8176,24 @@ function fitStage() {
   if (!w || !h) return;
   const desktop = isDesktop();
   const k = desktop ? DESK_K : 1;
-  const dw = 760 * k, dh = 430 * k;
+  const dh = 430 * k;
+  // FULL-BLEED on touch: the design canvas is 760×430, but a phone in landscape
+  // is wider than that (≈2.0–2.17:1), so a fixed-width canvas letterboxes with
+  // black bars left/right.  Widen the canvas to the viewport's OWN aspect ratio
+  // (never below the 760 design width, capped so an ultra-wide screen doesn't
+  // overstretch the layout).  The grid/flex board reflows to fill it — no
+  // distortion, no cropping.  Desktop keeps its fixed, deliberately-framed canvas.
+  let dw = 760 * k;
+  if (!desktop) {
+    const DESIGN_AR = 760 / 430, MAX_AR = 2.35;
+    const ar = Math.min(Math.max(w / h, DESIGN_AR), MAX_AR);
+    dw = Math.round(dh * ar);
+  }
   const st = document.getElementById('stage');
   if (!st) return;
   st.style.width = dw + 'px';
   st.style.height = dh + 'px';
-  st.style.transform = 'scale(' + Math.min(w / dw, h / dh) + ')';   // still fills; content just renders smaller
+  st.style.transform = 'scale(' + Math.min(w / dw, h / dh) + ')';   // fills the screen; content just renders smaller
   // a class the CSS uses to give desktop its OWN tuning (bigger figures that
   // fill the taller board, so the extra room reads premium, not empty).
   if (st.classList.contains('ui-desktop') !== desktop) st.classList.toggle('ui-desktop', desktop);
