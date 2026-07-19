@@ -5,7 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#0d0a08" />
   <title>KIZUNA v2.1 | Ember Branch</title>
-  <link rel="icon" href="data:," />
+  <!-- PWA: install to the home screen and launch FULLSCREEN (chrome-free).
+       Android reads the manifest's display mode; iOS reads the apple- metas. -->
+  <link rel="manifest" href="manifest.json?v=1" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="KIZUNA" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="../art/ash.png" />
   <link rel="stylesheet" href="styles.css?v=383" />
 </head>
 <body>
@@ -31,7 +39,7 @@
         <div id="combat-boons"></div>
         <div id="timeline"></div>
         <button id="menu-btn" aria-label="Menu" title="Menu">☰</button>
-        <div id="build-stamp">V2.1 BUILD 201</div>
+        <div id="build-stamp">V2.1 BUILD 202</div>
       </header>
       <div id="narrator"></div>
 
@@ -71,6 +79,6 @@
   </div>
 
   <script src="portraits.js?v=3"></script>
-  <script src="game.js?v=410"></script>
+  <script src="game.js?v=411"></script>
 </body>
 </html>
