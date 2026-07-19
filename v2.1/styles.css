@@ -2075,6 +2075,25 @@ button.map-node:not(:disabled) { cursor: pointer; }
 .parry-ring.parry-swipe.pr-strike .pr-arc-path { stroke: rgba(255,110,70,0.28); }
 .parry-ring.parry-swipe.pr-strike .pr-arc-draw { stroke: #ff6a48; }
 .parry-ring.parry-swipe.pr-strike .pr-arc-dot  { fill: #ff7a4a; }
+/* TRACE SIGIL — the TRIAD FINALE gesture: drag through the triangle's three
+   points.  Gold, matching the triad crown.  Full-stage SVG so the shape is big
+   and satisfying to draw with a thumb. */
+.trace-note { position: absolute; inset: 0; z-index: 64; pointer-events: none; opacity: 0; }
+.trace-note.tr-show { opacity: 1; transition: opacity 0.22s ease; }
+.trace-note.tr-out { opacity: 0; transition: opacity 0.2s ease; }
+.trace-note .tr-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.tr-ghost { fill: rgba(240,212,136,0.05); stroke: rgba(240,212,136,0.35); stroke-width: 2.2; stroke-dasharray: 7 8; stroke-linejoin: round; animation: tr-ghost-pulse 1.5s ease-in-out infinite; }
+@keyframes tr-ghost-pulse { 50% { stroke: rgba(240,212,136,0.6); } }
+.tr-draw { fill: none; stroke: #ffe14a; stroke-width: 4; stroke-linejoin: round; stroke-linecap: round; filter: drop-shadow(0 0 6px rgba(255,225,74,0.9)); }
+.tr-dot { fill: rgba(30,22,14,0.85); stroke: rgba(240,212,136,0.55); stroke-width: 2.5; transition: none; }
+.tr-dot.tr-hit { fill: #ffe14a; stroke: #fff; filter: drop-shadow(0 0 9px rgba(255,225,74,0.95)); }
+.trace-note .tr-lbl {
+  position: absolute; transform: translate(-50%,0); white-space: nowrap;
+  font-size: 10px; letter-spacing: 0.22em; color: #ffe6a4;
+  text-shadow: 0 0 10px rgba(0,0,0,0.9), 0 2px 4px #000;
+}
+.trace-note.tr-drawing .tr-lbl { opacity: 0.4; }
+.trace-note.tr-perfect .tr-ghost { stroke: rgba(255,240,180,0.9); animation: none; }
 /* OFFENSIVE FOCUS — during the all-out cascade the player side dims + a red
    vignette pulses, so the enemy line you're striking pops.  Cheap: a composite
    overlay + a non-blur filter (no per-frame re-raster storm). */

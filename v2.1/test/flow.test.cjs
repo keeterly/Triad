@@ -334,6 +334,8 @@ const QUICK = process.argv.includes('--quick');
   // the FORMATION vow now lands as the all-out CROWN — drive the crown directly
   // and confirm it still pushes the enemy line + wards the party.
   const rowsBefore = await J(() => S.enemies.filter(x => !x.dead).map(x => x.id + ':' + x.row).join(' '));
+  // (auto-parry is already ON for the whole descent — see line ~138 — so the
+  // TRACE-the-triangle sigil inside the finale auto-completes without extra setup.)
   await J(async () => { await allOutTriadFinale(livingHeroes()); });
   await sleep(400);
   const rowsAfter = await J(() => S.enemies.filter(x => !x.dead).map(x => x.id + ':' + x.row).join(' '));
@@ -1802,6 +1804,17 @@ const QUICK = process.argv.includes('--quick');
   // synergy), instead of piling on separate vows.
   check('ALL-OUT: woven bonds empower the assault (bondMul wired into resolveAllOut)',
     await J(() => resolveAllOut.toString().includes('bondMul') && typeof allOutTriadFinale === 'function'));
+  // TRACE SIGIL — the TRIAD FINALE gates on drawing a triangle; the gesture
+  // auto-resolves under the harness driver and its quality ramps the vow.
+  check('TRACE: the triangle sigil resolves and the finale scales by its quality',
+    await J(async () => {
+      const auto = await (async () => { window.__autoParry = true; const q = await traceNote(1200); window.__autoParry = false; return q; })();
+      return auto === 'perfect'
+        && typeof traceNote === 'function'
+        && allOutTriadFinale.toString().includes('traceNote');
+    }));
+  check('TRACE: it never stalls — with no input it still resolves on its timer',
+    await J(async () => { window.__autoParry = false; const q = await traceNote(220); return q === 'good' || q === 'miss'; }));
   const mira2 = await J(async () => {
     setupFight(['ash', 'mira'], [], { ash: 'front', mira: 'mid' });
     const foe = frontmostEnemy(); const hp0 = foe.hp;

@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 198;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 199;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -4681,6 +4681,78 @@ function strikeHoldNote(targetEl, dur) {
     setTimeout(() => finish(holding ? 'perfect' : everHeld ? 'good' : 'miss'), dur);
   });
 }
+// ── TRACE GESTURE — draw a shape to unleash a signature beat ───────────────
+// The richest input tier: press and DRAG your finger through a shape's points.
+// The TRIAD FINALE asks for a TRIANGLE — three heroes, three sides — so the
+// marquee "one grand blow only your three can land" is a blow you literally
+// draw.  Forgiving (a generous hit radius per vertex), always resolves on its
+// timer (so the finale never stalls), and PURELY ADDITIVE: quality only ramps
+// the payoff up, never below the un-traced baseline.  Detection reads pointer
+// coords against the on-stage vertices, so it works with thumb OR mouse.
+function traceFeedback(el, cx, cy, q) {
+  const good = q === 'perfect' || q === 'good';
+  el.classList.add(q === 'perfect' ? 'tr-perfect' : good ? 'tr-good' : 'tr-miss');
+  const layer = $('#popup-layer');
+  const rate = document.createElement('div');
+  rate.className = 'parry-rate strike-rate ' + (q === 'perfect' ? 'srt-perfect' : good ? 'srt-good' : 'srt-miss');
+  rate.style.left = cx + 'px'; rate.style.top = cy + 'px';
+  rate.textContent = q === 'perfect' ? 'PERFECT SIGIL!' : good ? 'SIGIL DRAWN' : 'BROKEN SIGIL';
+  layer.appendChild(rate); setTimeout(() => rate.remove(), 720);
+  try { if (good) { SFX.triad && SFX.triad(); } else SFX.parryMiss && SFX.parryMiss(); } catch (_) {}
+  haptic(q === 'perfect' ? HAP.perfect : good ? HAP.good : HAP.miss);
+  if (good) { cineFlash('rgba(255,220,140,0.5)'); stageShake(q === 'perfect' ? 'xl' : 'lg'); }
+}
+function traceNote(dur) {
+  dur = dur || 2600;
+  return new Promise(resolve => {
+    const W = stageDW(), H = stageDH();
+    const cx = W * 0.72, cy = H * 0.50, R = Math.min(W * 0.16, H * 0.24);   // a big, satisfying triangle
+    const V = [                                       // point-up triangle
+      { x: cx,             y: cy - R },                // top
+      { x: cx + R * 0.87,  y: cy + R * 0.5 },          // bottom-right
+      { x: cx - R * 0.87,  y: cy + R * 0.5 },          // bottom-left
+    ];
+    const order = [0, 1, 2, 0];                        // three sides — close the loop
+    const el = document.createElement('div');
+    el.className = 'trace-note';
+    const poly = V.map(p => `${p.x},${p.y}`).join(' ');
+    el.innerHTML = `
+      <svg class="tr-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+        <polygon class="tr-ghost" points="${poly}"/>
+        <path class="tr-draw" d=""/>
+        ${V.map((p, i) => `<circle class="tr-dot" data-i="${i}" cx="${p.x}" cy="${p.y}" r="14"/>`).join('')}
+      </svg>
+      <div class="tr-lbl" style="left:${cx}px; top:${cy + R + 22}px;">TRACE THE △ — THREE SIDES</div>`;
+    $('#popup-layer').appendChild(el);
+    requestAnimationFrame(() => el.classList.add('tr-show'));
+    const drawEl = el.querySelector('.tr-draw');
+    const dots = el.querySelectorAll('.tr-dot');
+    let step = 0, started = false, done = false, timer = null;
+    const t0 = Date.now();
+    const cleanup = () => { window.removeEventListener('pointerdown', onDown, true); window.removeEventListener('pointermove', onMove, true); clearTimeout(timer); };
+    const finish = (q) => { if (done) return; done = true; cleanup(); traceFeedback(el, cx, cy, q); el.classList.add('tr-out'); setTimeout(() => el.remove(), 220); resolve(q); };
+    const toLogical = (e) => { const sr = $('#stage').getBoundingClientRect(), s = sr.width / W; return { x: (e.clientX - sr.left) / s, y: (e.clientY - sr.top) / s }; };
+    const advance = (L) => {
+      const tgt = V[order[step]];
+      if (Math.hypot(L.x - tgt.x, L.y - tgt.y) < R * 0.62) {   // reached the next vertex
+        dots.forEach(d => { if (+d.dataset.i === order[step]) d.classList.add('tr-hit'); });
+        try { SFX.follow && SFX.follow(); } catch (_) {} haptic(HAP.tap);
+        step++;
+        if (step >= order.length) { finish((nowMs() - t0) < dur * 0.72 ? 'perfect' : 'good'); return true; }
+      }
+      const segs = order.slice(0, step).map(i => `${V[i].x} ${V[i].y}`);
+      if (segs.length) drawEl.setAttribute('d', 'M ' + [...segs, `${L.x} ${L.y}`].join(' L '));
+      return false;
+    };
+    const onDown = (e) => { started = true; el.classList.add('tr-drawing'); advance(toLogical(e)); };
+    const onMove = (e) => { if (started && !done) advance(toLogical(e)); };
+    window.addEventListener('pointerdown', onDown, true);
+    window.addEventListener('pointermove', onMove, true);
+    // tests auto-complete it (mirrors the strike/parry auto-driver)
+    if (window.__autoParry) { timer = setTimeout(() => finish('perfect'), 140); return; }
+    timer = setTimeout(() => finish(step >= 2 ? 'good' : 'miss'), dur);   // ran out — never stalls the finale
+  });
+}
 // The rising STREAK counter during the all-out — nailing strikes in a row ramps
 // the damage multiplier, so a clean cascade reads as a building finisher.
 // (Named STREAK, not CHAIN, to keep it distinct from the bond CHAIN follow-up.)
@@ -5050,7 +5122,14 @@ async function allOutTriadFinale(heroes) {
   const ids = livingHeroes().map(h => h.id);
   const r = triadEntry();
   await vowVerseIntro(ids, r.name, true);
-  await playVowStages(r.stages, ids, 1.9, '✦ ' + r.name + ' — THE TRIAD');
+  // THE SIGIL — trace the triangle to seal the vow.  Purely additive: a clean
+  // sigil ramps the grand blow up; a broken one still lands the baseline 1.9×
+  // (and the reserved killing blow below fires no matter what).
+  parryCoach('TRACE the triangle — press and drag through all three points');
+  const sigil = await traceNote(2600);
+  const mul = sigil === 'perfect' ? 2.5 : sigil === 'good' ? 2.15 : 1.9;
+  if (sigil === 'perfect') flashNarrator('✦✦✦ THE SIGIL BLAZES — the vow lands unbroken.');
+  await playVowStages(r.stages, ids, mul, '✦ ' + r.name + ' — THE TRIAD');
   // The crowned finale is the KILLING BLOW: if the cascade held a foe back for
   // this moment, the grand blow always finishes it (even a support-shaped vow).
   if (S._finaleReserved && !S.over) {
