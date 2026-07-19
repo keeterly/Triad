@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 197;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 198;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -4032,6 +4032,41 @@ function noteAnchor(targetEl) {
   const r = figHitRect(targetEl) || targetEl.getBoundingClientRect();
   return { x: (r.left + r.width / 2 - sr.left) / scale, y: (r.top + r.height * 0.4 - sr.top) / scale };
 }
+// ── ERGONOMIC INPUT ZONES (touch) ─────────────────────────────────────────
+// On a phone held in landscape, DEFENSE (parry) and OFFENSE (all-out strike)
+// notes used to spawn wherever the acting figure stood — so both thumbs had to
+// chase taps across the ENTIRE screen, and a parry could land under the hand
+// that wasn't ready for it.  We bias the tap targets into thumb-sized zones:
+// parry to the LEFT (the left thumb guards), all-out strikes to the RIGHT (the
+// right thumb attacks).  Detection listens on `window`, so this is purely where
+// the ring is DRAWN — timing and hit-testing are unchanged.  Desktop (a mouse
+// that reaches the whole board) keeps the original figure-anchored placement.
+function ergoZonesOn() { return !isDesktop(); }
+function ergoZone(mode) {
+  const W = stageDW(), H = stageDH();
+  const yc = H * 0.50, yh = H * 0.17;   // a mid band, clear of the top HUD and the hand below
+  return (mode === 'strike')
+    ? { cx: W * 0.78, cy: yc, x0: W * 0.63, x1: W * 0.93, y0: yc - yh, y1: yc + yh }   // offense → RIGHT
+    : { cx: W * 0.20, cy: yc, x0: W * 0.06, x1: W * 0.34, y0: yc - yh, y1: yc + yh };   // defense → LEFT
+}
+// Single note → the zone's fixed comfortable spot (consistent, so it builds
+// muscle memory instead of chasing the figure around).
+function zoneAnchor(pt, mode) {
+  if (!ergoZonesOn()) return pt;
+  const z = ergoZone(mode); return { x: z.cx, y: z.cy };
+}
+// A run of notes (an arc cascade) → the same shape, remapped to fit the band.
+function zonePoints(pts, mode) {
+  if (!ergoZonesOn()) return pts;
+  if (pts.length < 2) return pts.map(p => zoneAnchor(p, mode));
+  const z = ergoZone(mode);
+  const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+  const minX = Math.min.apply(null, xs), maxX = Math.max.apply(null, xs);
+  const minY = Math.min.apply(null, ys), maxY = Math.max.apply(null, ys);
+  const mapX = x => (maxX > minX) ? z.x0 + (x - minX) / (maxX - minX) * (z.x1 - z.x0) : z.cx;
+  const mapY = y => (maxY > minY) ? z.y0 + (y - minY) / (maxY - minY) * (z.y1 - z.y0) : z.cy;
+  return pts.map(p => ({ x: mapX(p.x), y: mapY(p.y) }));
+}
 // --- the parry UI base: a ring at a STAGE coordinate (so boss notes can be
 // placed anywhere along an arc, not just on the target hero) ---
 function mkParryUiAt(ax, ay, innerHtml, cls) {
@@ -4293,7 +4328,7 @@ async function runParrySeq(notes, anchor, art) {
   if (_parryBonus > 0) {
     notes = notes.concat(Array.from({ length: Math.min(_parryBonus, 4) }, () => ({ t: 'tap' })));
   }
-  const pts = arcPoints(notes.length, anchor);
+  const pts = zonePoints(arcPoints(notes.length, anchor), 'parry');   // bias the cascade into the LEFT thumb zone (touch)
   const preview = mkSeqPreview(pts);
   const rh = seqRhythm(notes.length);   // fallback groove when no music is playing
   // BEAT SYNC — if the combat theme is playing, land each note ON the beat grid,
@@ -4377,7 +4412,10 @@ async function runParryInner(targetEl, pattern, art) {
   else if (k === 'swipe') parryCoach('When the ring glows gold — SWIPE the way the arrow points');
   else if (k === 'mash')  parryCoach('When the ring glows gold — MASH fast to break it');
   else                    parryCoach('Wait for the ring to glow gold — then TAP');
-  if (k === 'seq')   return await runParrySeq(pattern.notes, a, art);
+  if (k === 'seq')   return await runParrySeq(pattern.notes, a, art);   // (zonePoints biases the cascade inside)
+  // Single-figure parries snap to the LEFT thumb zone (touch) so a lone tap /
+  // hold / swipe never lands under the wrong hand.
+  a = zoneAnchor(a, 'parry');
   // multi is a mini-cascade — partial mitigation too (miss a tap, take its
   // share).  Notes vary in SPEED (a slower downbeat, then a snappier one) but
   // stay CONTIGUOUS — a quick double-tap, no dead gap between them.
@@ -4568,7 +4606,7 @@ async function vowVerseIntro(ids, name, isCrown) {
 // .parry-ring plumbing (so the auto-tester can drive it) with a .pr-strike skin.
 function strikeNote(targetEl, idx, total, dur) {
   return new Promise(resolve => {
-    const a = targetEl ? noteAnchor(targetEl) : { x: 500, y: 150 };
+    const a = zoneAnchor(targetEl ? noteAnchor(targetEl) : { x: 500, y: 150 }, 'strike');   // all-out → RIGHT thumb zone (touch)
     const label = total > 1 ? `${idx}/${total}` : 'STRIKE';
     const ui = mkParryUiAt(a.x, a.y, `<span class="pr-target"></span><span class="pr-close"></span><span class="pr-lbl">${label}</span>`, 'pr-strike');
     ui.el.querySelector('.pr-close').style.animationDuration = dur + 'ms';
@@ -4603,7 +4641,7 @@ function strikeFeedback(ui, ax, ay, q) {
 // Same forgiving detection as the parry deflect, red-skinned, its own rating.
 function strikeSwipeNote(targetEl, arc, dur) {
   return new Promise(resolve => {
-    const a = targetEl ? noteAnchor(targetEl) : { x: 500, y: 150 };
+    const a = zoneAnchor(targetEl ? noteAnchor(targetEl) : { x: 500, y: 150 }, 'strike');   // all-out → RIGHT thumb zone (touch)
     const spec = SWIPE_ARCS[arc] || SWIPE_ARCS.arcR;
     const ui = mkParryUiAt(a.x, a.y,
       `<svg class="pr-arc-svg" viewBox="-60 -60 120 120">
@@ -4630,7 +4668,7 @@ function strikeSwipeNote(targetEl, arc, dur) {
 // it lands as one heavy SLAM.  A guardian's/mage's signature all-out beat.
 function strikeHoldNote(targetEl, dur) {
   return new Promise(resolve => {
-    const a = targetEl ? noteAnchor(targetEl) : { x: 500, y: 150 };
+    const a = zoneAnchor(targetEl ? noteAnchor(targetEl) : { x: 500, y: 150 }, 'strike');   // all-out → RIGHT thumb zone (touch)
     const ui = mkParryUiAt(a.x, a.y, `<span class="pr-hold-track"><span class="pr-hold-fill"></span></span><span class="pr-lbl">CHARGE</span>`, 'parry-hold pr-strike pr-big');
     ui.el.querySelector('.pr-hold-fill').style.animationDuration = dur + 'ms';
     const lbl = ui.el.querySelector('.pr-lbl');
