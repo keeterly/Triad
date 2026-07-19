@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 199;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 200;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -6862,6 +6862,16 @@ function renderAll() {
   renderResonance();
   renderCombatBoons();
   renderActionBar();
+  renderCriticalHp();
+}
+// CRITICAL HEALTH — a pulsing red frame is the universal "you're in danger"
+// language, so it lives HERE (not on the all-out).  Lights whenever a living
+// hero is at or below a quarter HP, clears when they're mended.  Suppressed
+// during the all-out (the CSS gates it) so the two never fight.
+function renderCriticalHp() {
+  const st = $('#stage'); if (!st) return;
+  const crit = !!(S && !S.over && livingHeroes().some(h => h.hp > 0 && h.hp / h.maxHp <= 0.25));
+  st.classList.toggle('hp-critical', crit);
 }
 // The fight backdrop shows only during battle (S set) and only if the player
 // hasn't switched it off in DEV.  Toggled here + cleared by the map/title.

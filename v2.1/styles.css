@@ -2101,13 +2101,32 @@ button.map-node:not(:disabled) { cursor: pointer; }
 #stage.allout-focus #topbar,
 #stage.allout-focus #action-bar,
 #stage.allout-focus #narrator { filter: saturate(0.6) brightness(0.72); transition: filter 0.2s ease; }
+/* the all-out's frame is GOLD/amber — it's the payoff of the gold BURST gauge,
+   so it reads as YOUR power surging outward, not danger closing in (red now
+   belongs to critical health, below). */
 #stage.allout-focus::after {
   content: ''; position: absolute; inset: 0; z-index: 15; pointer-events: none;
-  background: radial-gradient(ellipse at 50% 46%, transparent 52%, rgba(120,12,10,0.32));
-  box-shadow: inset 0 0 90px 16px rgba(180,30,20,0.3);
-  animation: allout-vig 0.85s ease-in-out infinite alternate;
+  background: radial-gradient(ellipse at 50% 46%, transparent 50%, rgba(150,96,20,0.30));
+  box-shadow: inset 0 0 90px 16px rgba(240,186,74,0.32);
+  animation: allout-vig 0.8s ease-in-out infinite alternate;
 }
-@keyframes allout-vig { to { box-shadow: inset 0 0 140px 28px rgba(210,45,28,0.5); } }
+@keyframes allout-vig { to { box-shadow: inset 0 0 150px 30px rgba(255,206,96,0.55); } }
+/* CRITICAL HEALTH — the red danger frame, pulsing like a heartbeat.  Lives on a
+   ::before so it can coexist with other ::after overlays, and is suppressed
+   during the all-out (:not(.allout-focus)) so the gold surge owns that moment. */
+#stage.hp-critical:not(.allout-focus)::before {
+  content: ''; position: absolute; inset: 0; z-index: 14; pointer-events: none;
+  background: radial-gradient(ellipse at 50% 52%, transparent 56%, rgba(120,12,10,0.34));
+  box-shadow: inset 0 0 80px 14px rgba(190,26,20,0.34);
+  animation: hp-crit-beat 1.35s ease-in-out infinite;
+}
+@keyframes hp-crit-beat {
+  0%, 100% { opacity: 0.5; }
+  14% { opacity: 1; }
+  28% { opacity: 0.62; }
+  42% { opacity: 0.92; }
+  60% { opacity: 0.5; }
+}
 /* the parrying hero flares on a perfect turn-away */
 .figure.fig-parry { animation: fig-parry 0.5s ease; }
 @keyframes fig-parry {
