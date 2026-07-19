@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 204;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 205;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -8192,7 +8192,7 @@ function fitStage() {
   // distortion, no cropping.  Desktop keeps its fixed, deliberately-framed canvas.
   let dw = 760 * k;
   if (!desktop) {
-    const DESIGN_AR = 760 / 430, MAX_AR = 2.35;
+    const DESIGN_AR = 760 / 430, MAX_AR = 2.4;   // covers up to 21.6:9 phones; beyond that a sliver letterboxes
     const ar = Math.min(Math.max(w / h, DESIGN_AR), MAX_AR);
     dw = Math.round(dh * ar);
   }
@@ -8214,6 +8214,42 @@ if (window.visualViewport) {
   window.visualViewport.addEventListener('resize', fitStage);
   window.visualViewport.addEventListener('scroll', fitStage);
 }
+
+// ANDROID in-browser FULLSCREEN.  iOS Safari has no element Fullscreen API, so
+// iPhones go fullscreen by INSTALLING the PWA (see manifest + apple- metas).
+// Android Chrome DOES support it, so on a touch device that isn't already an
+// installed PWA, quietly enter true fullscreen (hiding the address/nav bars) on
+// the player's first tap — the one user gesture the API requires.  Desktop and
+// already-standalone launches are left alone; every call is guarded so an
+// unsupported browser is a silent no-op.
+function isStandalonePWA() {
+  try {
+    if (navigator.standalone) return true;   // iOS installed
+    return !!(window.matchMedia && window.matchMedia('(display-mode: standalone), (display-mode: fullscreen), (display-mode: minimal-ui)').matches);
+  } catch (_) { return false; }
+}
+function tryEnterFullscreen() {
+  try {
+    if (isDesktop() || isStandalonePWA()) return;
+    if (document.fullscreenElement) return;
+    const el = document.documentElement;
+    const req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (!req) return;                         // no support (e.g. iOS Safari) — PWA install covers it
+    const p = req.call(el);
+    if (p && p.then) p.then(() => setTimeout(fitStage, 60)).catch(() => {});
+    else setTimeout(fitStage, 60);
+  } catch (_) {}
+}
+(function armFullscreen() {
+  const arm = () => {
+    window.removeEventListener('pointerdown', arm, true);
+    window.removeEventListener('touchend', arm, true);
+    tryEnterFullscreen();
+  };
+  window.addEventListener('pointerdown', arm, true);
+  window.addEventListener('touchend', arm, true);
+})();
+document.addEventListener('fullscreenchange', () => setTimeout(fitStage, 60));
 
 // Cancel tap-targeting on stray taps (drag mode manages its own lifecycle).
 document.addEventListener('pointerdown', (e) => {
