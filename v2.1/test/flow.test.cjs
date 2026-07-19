@@ -2359,12 +2359,12 @@ const QUICK = process.argv.includes('--quick');
       return _parrySpeed === 1 && _parryWin === 1 && _parryBonus === 0; }));
   check('RHYTHM: deep in the run, cascades quicken, windows tighten, and notes stack',
     await J(() => { RUN = newRun('ash'); RUN.completed = [0,1,2,3,4,5,6,7,8,9,10,11]; setParryDifficulty({ def: { parrySpeed: 1 } });
-      return _parrySpeed < 0.8 && _parryWin <= 0.7 && _parryBonus === 2; }));
+      return _parrySpeed < 0.9 && _parryWin < 0.85 && _parryBonus === 2; }));   // Build 206: gentler ramp (0.84 / 0.80)
   check('RHYTHM: the ramp COMPOSES with a foe’s own tempo (boss stays fastest)',
     await J(() => { RUN = newRun('ash'); RUN.completed = [0,1,2,3,4,5,6,7,8,9,10,11];
       setParryDifficulty({ def: { parrySpeed: 0.82 } }); const boss = _parrySpeed;
       setParryDifficulty({ def: { parrySpeed: 1 } }); const mob = _parrySpeed;
-      return boss < mob && boss < 0.66; }));
+      return boss < mob && boss < 0.72; }));   // Build 206: gentler ramp (boss ≈ 0.69 at depth)
   check('BOSS DENSITY: a ROAD boss stacks EXTRA cascade notes + quicker pacing; the CHORUS is left as-is',
     await J(() => { RUN = newRun('ash'); RUN.completed = [0,1,2,3,4,5,6];
       setParryDifficulty({ def: { parrySpeed: 1 } }); const mobBonus = _parryBonus, mobSpeed = _parrySpeed;

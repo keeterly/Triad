@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 205;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 206;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -3959,8 +3959,12 @@ const PARRY_MISS_MULT = 1.6;   // an UNPARRIED blow lands HARDER (real-run only)
 // Defense is where the game is HARD: every blow is a string you must read and
 // execute, the timing bands are tight, and even a mob can hurt if you botch it.
 // Three tunable levers — turn them up for more danger, down for more forgiveness.
-const PARRY_GOOD_MS = 400;   // the "good" (half-mitigate) band, ms-remaining (was 460 — less tolerance)
-const PARRY_PERF_MS = 150;   // the "perfect" (full negate + riposte) band (was 175 — tighter)
+const PARRY_GOOD_MS = 480;   // the "good" (half-mitigate) band, ms-remaining (Build 206: widened 400→480 — more reaction tolerance)
+const PARRY_PERF_MS = 185;   // the "perfect" (full negate + riposte) band (Build 206: widened 150→185 — easier perfects)
+// Global PACING multiplier on every parry ring's close time.  >1 = the rings
+// close SLOWER, so there's more time to read and react.  Build 206: eased to
+// 1.15 (rings ~15% slower) after playtest — "the parry is a touch too fast."
+const PARRY_PACE = 1.15;
 const MOB_HP_BASE   = 2.0;   // non-boss HP curve base — raised +25% (Build 197 rebalance): trash was dying turn-1 (offense out-scaled HP ~2.5×), so foes now survive to act and the party has room to bond/build before the kill
 
 // Each intent carries a rhythm PATTERN — its own way to be turned aside — so
@@ -4194,7 +4198,8 @@ function parryRhythm(count) {
     4: [{ d: 600, g: 110 }, { d: 440, g: 230 }, { d: 440, g: 90 }, { d: 420, g: 0 }],
     5: [{ d: 600, g: 100 }, { d: 440, g: 80 }, { d: 440, g: 220 }, { d: 460, g: 90 }, { d: 420, g: 0 }],
   };
-  return T[count] || Array.from({ length: count }, (_, i) => ({ d: i === 0 ? 600 : 440, g: i === count - 1 ? 0 : 110 }));
+  const rows = T[count] || Array.from({ length: count }, (_, i) => ({ d: i === 0 ? 600 : 440, g: i === count - 1 ? 0 : 110 }));
+  return rows.map(r => ({ d: Math.round(r.d * PARRY_PACE), g: r.g }));   // Build 206: rings close slower
 }
 // A boss CASCADE reads differently from a mob's quick double-tap: it's a longer
 // chain you have to stay with, so it wants a STEADY, readable groove rather than
@@ -4217,8 +4222,8 @@ function parryDepth() {
 function setParryDifficulty(e) {
   const base = (e && e.def && e.def.parrySpeed) || 1;
   const d = parryDepth();
-  _parrySpeed = base * (1 - 0.24 * d);   // up to 24% faster cascades deep
-  _parryWin   = 1 - 0.30 * d;            // up to 30% tighter windows (460→322 / 175→123)
+  _parrySpeed = base * (1 - 0.16 * d);   // Build 206: up to 16% faster deep (was 24% — gentler ramp)
+  _parryWin   = 1 - 0.20 * d;            // Build 206: up to 20% tighter deep (was 30%)
   _parryBonus = Math.round(1.6 * d);     // +0 → +2 extra notes on cascades deep
   // ROAD BOSSES weaponize DENSITY, not HP: their cascades run a bit LONGER (+1
   // note) and a touch FASTER — a real parry gauntlet, but not a wall.  The floor-4
@@ -4230,7 +4235,7 @@ function setParryDifficulty(e) {
 }
 function seqRhythm(count) {
   const out = [];
-  for (let i = 0; i < count; i++) out.push({ d: Math.round((i === 0 ? 660 : 560) * _parrySpeed), g: i === count - 1 ? 0 : Math.round(160 * _parrySpeed) });
+  for (let i = 0; i < count; i++) out.push({ d: Math.round((i === 0 ? 660 : 560) * _parrySpeed * PARRY_PACE), g: i === count - 1 ? 0 : Math.round(160 * _parrySpeed) });
   return out;
 }
 // MASH note — a frenzied flurry: tap rapidly to fill the meter before it closes.
@@ -4433,10 +4438,10 @@ async function runParryInner(targetEl, pattern, art) {
     return { mit: hits / pattern.count, perfect: hits === pattern.count, flawless: perfects === pattern.count && pattern.count > 0, notes: pattern.count };
   }
   let q;
-  if (k === 'hold')       q = await parryHoldNote(a.x, a.y, 900, sz);
-  else if (k === 'swipe') q = await parrySwipeNote(a.x, a.y, pattern.arc, 860, sz);
-  else if (k === 'mash')  q = await parryMashNote(a.x, a.y, pattern.count || 4, 1150);
-  else                    q = await parryTapNote(a.x, a.y, 700, 1, 1, sz);
+  if (k === 'hold')       q = await parryHoldNote(a.x, a.y, Math.round(900 * PARRY_PACE), sz);
+  else if (k === 'swipe') q = await parrySwipeNote(a.x, a.y, pattern.arc, Math.round(860 * PARRY_PACE), sz);
+  else if (k === 'mash')  q = await parryMashNote(a.x, a.y, pattern.count || 4, Math.round(1150 * PARRY_PACE));
+  else                    q = await parryTapNote(a.x, a.y, 700, 1, 1, sz);   // a lone tap is already gentle; the wider GOOD window (480) carries its ease
   const ok1 = q === 'perfect' || q === 'good';
   if (art) bossAttackBeat(art, a.x, a.y, ok1);   // the single strike lands as the note resolves
   return { mit: q === 'perfect' ? 1 : q === 'good' ? 0.5 : 0, perfect: q === 'perfect', flawless: q === 'perfect', notes: 1 };
