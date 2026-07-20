@@ -2285,6 +2285,12 @@ button.map-node:not(:disabled) { cursor: pointer; }
 .seq-preview .sq-dot.sq-hit { fill: rgba(120,200,120,0.5); stroke: #9ad878; }
 .seq-preview .sq-dot.sq-miss { fill: rgba(200,70,70,0.5); stroke: #e06a6a; }
 .seq-preview .sq-num { fill: #ffe6a4; font-size: 9px; font-family: Georgia, serif; text-anchor: middle; }
+/* OFFENSIVE variant — the all-out's reverse-parry cascade telegraph, red-skinned
+   to mirror the strike notes (the gold above is the DEFENSIVE parry). */
+.seq-preview.seq-strike .sq-line { stroke: rgba(255,110,70,0.32); }
+.seq-preview.seq-strike .sq-dot { stroke: rgba(255,120,70,0.6); }
+.seq-preview.seq-strike .sq-dot.sq-active { fill: rgba(255,90,60,0.4); stroke: #fff; filter: drop-shadow(0 0 8px rgba(255,90,60,0.9)); }
+.seq-preview.seq-strike .sq-num { fill: #ffb47a; }
 
 /* ===========================================================================
    BUILD 34 — JUICE: parry per-gesture feedback + hit flash / hitstop

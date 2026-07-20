@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 207;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 208;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -4609,9 +4609,9 @@ async function vowVerseIntro(ids, name, isCrown) {
 // but placed ON the enemy and tinted red: tap as it lands to land the blow with
 // an ACCENT.  perfect > good > (missed = a weak, glancing hit).  Reuses the
 // .parry-ring plumbing (so the auto-tester can drive it) with a .pr-strike skin.
-function strikeNote(targetEl, idx, total, dur) {
+function strikeNote(targetEl, idx, total, dur, pos) {
   return new Promise(resolve => {
-    const a = zoneAnchor(targetEl ? noteAnchor(targetEl) : { x: 500, y: 150 }, 'strike');   // all-out → RIGHT thumb zone (touch)
+    const a = pos || zoneAnchor(targetEl ? noteAnchor(targetEl) : { x: 500, y: 150 }, 'strike');   // explicit arc point, else the RIGHT thumb zone
     const label = total > 1 ? `${idx}/${total}` : 'STRIKE';
     const ui = mkParryUiAt(a.x, a.y, `<span class="pr-target"></span><span class="pr-close"></span><span class="pr-lbl">${label}</span>`, 'pr-strike');
     ui.el.querySelector('.pr-close').style.animationDuration = dur + 'ms';
@@ -4644,9 +4644,9 @@ function strikeFeedback(ui, ax, ay, q) {
 }
 // STRIKE SWIPE — the offensive slash: flick across the enemy along the arc.
 // Same forgiving detection as the parry deflect, red-skinned, its own rating.
-function strikeSwipeNote(targetEl, arc, dur) {
+function strikeSwipeNote(targetEl, arc, dur, pos) {
   return new Promise(resolve => {
-    const a = zoneAnchor(targetEl ? noteAnchor(targetEl) : { x: 500, y: 150 }, 'strike');   // all-out → RIGHT thumb zone (touch)
+    const a = pos || zoneAnchor(targetEl ? noteAnchor(targetEl) : { x: 500, y: 150 }, 'strike');   // explicit arc point, else the RIGHT thumb zone
     const spec = SWIPE_ARCS[arc] || SWIPE_ARCS.arcR;
     const ui = mkParryUiAt(a.x, a.y,
       `<svg class="pr-arc-svg" viewBox="-60 -60 120 120">
@@ -4671,9 +4671,9 @@ function strikeSwipeNote(targetEl, arc, dur) {
 }
 // STRIKE HOLD — the offensive CHARGE: press and hold through the wind-up, then
 // it lands as one heavy SLAM.  A guardian's/mage's signature all-out beat.
-function strikeHoldNote(targetEl, dur) {
+function strikeHoldNote(targetEl, dur, pos) {
   return new Promise(resolve => {
-    const a = zoneAnchor(targetEl ? noteAnchor(targetEl) : { x: 500, y: 150 }, 'strike');   // all-out → RIGHT thumb zone (touch)
+    const a = pos || zoneAnchor(targetEl ? noteAnchor(targetEl) : { x: 500, y: 150 }, 'strike');   // explicit arc point, else the RIGHT thumb zone
     const ui = mkParryUiAt(a.x, a.y, `<span class="pr-hold-track"><span class="pr-hold-fill"></span></span><span class="pr-lbl">CHARGE</span>`, 'parry-hold pr-strike pr-big');
     ui.el.querySelector('.pr-hold-fill').style.animationDuration = dur + 'ms';
     const lbl = ui.el.querySelector('.pr-lbl');
@@ -4860,52 +4860,67 @@ async function resolveAllOut() {
   $('#stage').classList.add('allout-focus');
   if (bondCount > 0) { flashNarrator('✦ BONDS ×' + bondCount + ' — the party moves as one, every blow empowered.'); cineFlash('rgba(240,212,136,0.4)'); }
   allOutCoach();
+  // ── THE REVERSE-PARRY CASCADE — one flowing, TELEGRAPHED string of strikes that
+  // SWEEPS the enemy line and QUICKENS to a climax (the offensive mirror of a parry
+  // cascade).  Each hero's archetype gesture takes its turn in the run; a higher
+  // BURST level appends a shared FLURRY, so a woven L3 unleash is a longer, faster
+  // gauntlet than a bare L1.  The arc is previewed up front so you READ the string.
   let chain = 0, goodHits = 0, allStrikes = 0, perfectStrikes = 0;
-  for (const h of heroes) {
-    if (S.over || !livingEnemies().length) break;
-    lungeFig(figEl(h.id));
-    await sleep(90);
-    // the hero's cascade is keyed to their ARCHETYPE — the gesture IS the class
+  const notes = [];
+  heroes.forEach((h, hi) => {
     const casc = ALLOUT_CASCADE[h.def.cls] || ALLOUT_CASCADE._default;
-    const noteBase = ALLOUT.base * (2 / casc.length);   // fewer notes → each hits harder
-    for (let i = 0; i < casc.length; i++) {
-      if (S.over || !livingEnemies().length) break;
-      const tgt = frontmostEnemy() || livingEnemies()[0];
-      if (!tgt) break;
-      const nt = casc[i];
-      const step = ALLOUT_RHYTHM[i] || { d: 480, g: 0 };
-      let q;
-      if (nt.t === 'swipe')     q = await strikeSwipeNote(figEl(tgt.uid), nt.arc || 'arcR', step.d + 140);
-      else if (nt.t === 'hold') q = await strikeHoldNote(figEl(tgt.uid), 860);
-      else                      q = await strikeNote(figEl(tgt.uid), i + 1, casc.length, step.d);
-      const good = q === 'perfect' || q === 'good';
-      if (good) goodHits++;
-      allStrikes++; if (q === 'perfect') perfectStrikes++;   // for the FLAWLESS finisher
-      chain = good ? chain + 1 : 0;
-      allOutCombo(chain, q);
-      const comboMul = 1 + Math.min(chain, ALLOUT.comboCap) * ALLOUT.comboStep;
-      const qmul = ALLOUT.qmul[q] ?? 0.4;
-      cineFlash(q === 'perfect' ? 'rgba(255,120,80,0.5)' : 'rgba(255,240,210,0.4)');
-      if (q === 'perfect') stageShake();
-      for (const e of livingEnemies()) {
-        let dmg = Math.max(1, Math.round(noteBase * qmul * comboMul * lvlMul * bondMul));
-        const primed = e.staggered || e.weakened || e.mark || e.lull || aoLevel >= 3;   // L3 detonates everything
-        if (primed) { dmg = Math.round(dmg * 1.5); }                 // detonate the setup
-        dealToEnemy(e, finaleClamp(e, dmg), h.def.school, h.id);
-        if (primed) popupAt(figEl(e.uid), '⚡ TECHNICAL', 'info');
-        // hold the reserved finale foe: don't execute the last enemy when a triad
-        // has crowned — the FINALE takes the kill.
-        if (allOutExecutes(e) && finaleClamp(e, e.hp) >= e.hp) {     // ALT ALL-OUT: Rite of Endings
-          popupAt(figEl(e.uid), '☠ EXECUTED', 'dmg');
-          dealToEnemy(e, e.hp, h.def.school, h.id);              // finish the wounded
-        }
+    casc.forEach(n => notes.push({ t: n.t, arc: n.arc, hero: hi }));
+  });
+  const flurry = aoLevel >= 3 ? 4 : aoLevel >= 2 ? 2 : 0;   // the charged payoff: extra snappy beats
+  for (let f = 0; f < flurry; f++) notes.push({ t: 'tap', hero: f % heroes.length, flurry: true });
+  // per-note damage is NORMALISED to the party's total, so a longer cascade is
+  // richer INPUT (and more STREAK), not free raw power.
+  const noteBase = ALLOUT.base * 2 * heroes.length / Math.max(1, notes.length);
+  // telegraph the whole string as a red arc sweeping the enemy line
+  const anchorFoe = frontmostEnemy() || livingEnemies()[0];
+  const pts = anchorFoe ? zonePoints(arcPoints(notes.length, noteAnchor(figEl(anchorFoe.uid))), 'strike') : [];
+  const preview = pts.length ? mkSeqPreview(pts) : null;
+  if (preview) preview.classList.add('seq-strike');
+  for (let i = 0; i < notes.length; i++) {
+    if (S.over || !livingEnemies().length) break;
+    const nt = notes[i], h = heroes[nt.hero] || heroes[0];
+    const p = pts[i] || pts[pts.length - 1] || null;
+    const prog = i / Math.max(1, notes.length - 1);
+    const dur = Math.round((nt.flurry ? 380 : 520) - 150 * prog);   // rising tempo → climax
+    lungeFig(figEl(h.id));
+    const dot = preview ? preview.querySelectorAll('.sq-dot')[i] : null; if (dot) dot.classList.add('sq-active');
+    let q;
+    if (nt.t === 'swipe')     q = await strikeSwipeNote(null, nt.arc || 'arcR', dur + 140, p);
+    else if (nt.t === 'hold') q = await strikeHoldNote(null, Math.max(560, dur + 240), p);
+    else                      q = await strikeNote(null, i + 1, notes.length, dur, p);
+    if (dot) { dot.classList.remove('sq-active'); dot.classList.add(q === 'perfect' || q === 'good' ? 'sq-hit' : 'sq-miss'); }
+    const good = q === 'perfect' || q === 'good';
+    if (good) goodHits++;
+    allStrikes++; if (q === 'perfect') perfectStrikes++;   // for the FLAWLESS finisher
+    chain = good ? chain + 1 : 0;
+    allOutCombo(chain, q);
+    const comboMul = 1 + Math.min(chain, ALLOUT.comboCap) * ALLOUT.comboStep;
+    const qmul = ALLOUT.qmul[q] ?? 0.4;
+    cineFlash(q === 'perfect' ? 'rgba(255,120,80,0.5)' : 'rgba(255,240,210,0.4)');
+    if (q === 'perfect') stageShake();
+    for (const e of livingEnemies()) {
+      let dmg = Math.max(1, Math.round(noteBase * qmul * comboMul * lvlMul * bondMul));
+      const primed = e.staggered || e.weakened || e.mark || e.lull || aoLevel >= 3;   // L3 detonates everything
+      if (primed) { dmg = Math.round(dmg * 1.5); }                 // detonate the setup
+      dealToEnemy(e, finaleClamp(e, dmg), h.def.school, h.id);
+      if (primed) popupAt(figEl(e.uid), '⚡ TECHNICAL', 'info');
+      // hold the reserved finale foe: don't execute the last enemy when a triad
+      // has crowned — the FINALE takes the kill.
+      if (allOutExecutes(e) && finaleClamp(e, e.hp) >= e.hp) {     // ALT ALL-OUT: Rite of Endings
+        popupAt(figEl(e.uid), '☠ EXECUTED', 'dmg');
+        dealToEnemy(e, e.hp, h.def.school, h.id);              // finish the wounded
       }
-      renderAll();
-      if (checkEnd()) break;
-      if (step.g) await sleep(step.g);
     }
+    renderAll();
     if (checkEnd()) break;
+    if (i < notes.length - 1) await sleep(Math.max(30, Math.round(80 * (1 - prog))));   // tightening gap
   }
+  if (preview) preview.remove();
   // ENCORE — an upgraded all-out (L2+) ends on a resonant finisher: the whole
   // party's charge crashes down on the enemy line at once.  No extra input.
   if (!S.over && livingEnemies().length && aoLevel >= 2) await allOutEncore(aoLevel, heroes);
