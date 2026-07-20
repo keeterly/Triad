@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 208;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 209;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -4616,7 +4616,7 @@ function strikeNote(targetEl, idx, total, dur, pos) {
     const ui = mkParryUiAt(a.x, a.y, `<span class="pr-target"></span><span class="pr-close"></span><span class="pr-lbl">${label}</span>`, 'pr-strike');
     ui.el.querySelector('.pr-close').style.animationDuration = dur + 'ms';
     const lbl = ui.el.querySelector('.pr-lbl');
-    const GOOD = 440, PERF = 165;
+    const GOOD = 580, PERF = 230;   // Build 209: wide, forgiving windows — the all-out is the payoff
     let done = false; const t0 = Date.now();
     const liveT = setTimeout(() => { if (!done) { ui.el.classList.add('pr-live'); lbl.textContent = 'STRIKE!'; } }, Math.max(0, dur - GOOD));
     const finish = (q) => { if (done) return; done = true; clearTimeout(liveT); window.removeEventListener('pointerdown', onTap, true); strikeFeedback(ui, a.x, a.y, q); ui.close(); resolve(q); };
@@ -4799,22 +4799,25 @@ async function allOutCineIntro(heroes) {
 // accent the blow.  A running CHAIN of clean strikes ramps a damage multiplier,
 // so a nailed cascade is a devastating finisher — but fumbling the timing
 // deals a weak, glancing share (skill-gated: miss < a solid hit < perfect).
-const ALLOUT = { base: 4, qmul: { perfect: 1.5, good: 1.0, miss: 0.4, early: 0.4 }, comboStep: 0.05, comboCap: 10 };
+const ALLOUT = { base: 4, qmul: { perfect: 1.5, good: 1.0, miss: 0.6, early: 0.6 }, comboStep: 0.05, comboCap: 10 };   // Build 209: a fumbled strike still lands a solid blow (miss 0.4→0.6)
 const ALLOUT_RHYTHM = [{ d: 560, g: 120 }, { d: 460, g: 80 }, { d: 440, g: 0 }];
 // Each ARCHETYPE unleashes differently — the input you make expresses the class:
 //   Ronin   flurries TAPS · Reaver rakes twin SWIPES · Guardian/Mage CHARGE a
 //   heavy SLAM · Ranger looses an aimed shot then a raking SLASH · supports keep
 //   a steady two-tap.  Fewer notes hit harder each (damage is normalised), so a
 //   Guardian's single charged slam ≈ a Ronin's two quick cuts.
+// ONE signature gesture per hero — the all-out is the PAYOFF, so keep the string
+// short and readable (a trio = ~3 beats), not a mash.  Higher BURST adds a beat
+// or two (see resolveAllOut).
 const ALLOUT_CASCADE = {
-  Ronin:    [{ t: 'tap' }, { t: 'tap' }],
-  Reaver:   [{ t: 'swipe', arc: 'arcR' }, { t: 'swipe', arc: 'arcL' }],
+  Ronin:    [{ t: 'tap' }],
+  Reaver:   [{ t: 'swipe', arc: 'arcR' }],
   Guardian: [{ t: 'hold' }],
-  Mage:     [{ t: 'hold' }, { t: 'tap' }],
-  Ranger:   [{ t: 'tap' }, { t: 'swipe', arc: 'arcU' }],
-  Cleric:   [{ t: 'tap' }, { t: 'tap' }],
-  Bard:     [{ t: 'tap' }, { t: 'tap' }],
-  _default: [{ t: 'tap' }, { t: 'swipe', arc: 'arcR' }],
+  Mage:     [{ t: 'hold' }],
+  Ranger:   [{ t: 'swipe', arc: 'arcU' }],
+  Cleric:   [{ t: 'tap' }],
+  Bard:     [{ t: 'tap' }],
+  _default: [{ t: 'tap' }],
 };
 function allOutCoach() {
   let n = 0;
@@ -4871,7 +4874,10 @@ async function resolveAllOut() {
     const casc = ALLOUT_CASCADE[h.def.cls] || ALLOUT_CASCADE._default;
     casc.forEach(n => notes.push({ t: n.t, arc: n.arc, hero: hi }));
   });
-  const flurry = aoLevel >= 3 ? 4 : aoLevel >= 2 ? 2 : 0;   // the charged payoff: extra snappy beats
+  // keep it satisfying but never a mash: ensure at least 3 beats (pad a solo/duo
+  // opener) and let the BURST level add just a beat or two.
+  while (notes.length < 3) notes.push({ t: 'tap', hero: notes.length % heroes.length });
+  const flurry = aoLevel >= 3 ? 2 : aoLevel >= 2 ? 1 : 0;   // L1 = party beats · L2 +1 · L3 +2
   for (let f = 0; f < flurry; f++) notes.push({ t: 'tap', hero: f % heroes.length, flurry: true });
   // per-note damage is NORMALISED to the party's total, so a longer cascade is
   // richer INPUT (and more STREAK), not free raw power.
@@ -4885,8 +4891,9 @@ async function resolveAllOut() {
     if (S.over || !livingEnemies().length) break;
     const nt = notes[i], h = heroes[nt.hero] || heroes[0];
     const p = pts[i] || pts[pts.length - 1] || null;
-    const prog = i / Math.max(1, notes.length - 1);
-    const dur = Math.round((nt.flurry ? 380 : 520) - 150 * prog);   // rising tempo → climax
+    // STEADY, GENEROUS pacing — the all-out is the reward, not a skill wall, so the
+    // rings DON'T accelerate; each beat gets a comfortable, readable window.
+    const dur = nt.flurry ? 560 : 700;
     lungeFig(figEl(h.id));
     const dot = preview ? preview.querySelectorAll('.sq-dot')[i] : null; if (dot) dot.classList.add('sq-active');
     let q;
@@ -4918,7 +4925,7 @@ async function resolveAllOut() {
     }
     renderAll();
     if (checkEnd()) break;
-    if (i < notes.length - 1) await sleep(Math.max(30, Math.round(80 * (1 - prog))));   // tightening gap
+    if (i < notes.length - 1) await sleep(150);   // a clear, even beat between strikes
   }
   if (preview) preview.remove();
   // ENCORE — an upgraded all-out (L2+) ends on a resonant finisher: the whole
