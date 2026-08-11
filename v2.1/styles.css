@@ -2070,6 +2070,36 @@ button.map-node:not(:disabled) { cursor: pointer; }
 .parry-ring.pr-strike.pr-live .pr-close { border-color: #ff5a3c; box-shadow: 0 0 16px rgba(255,90,60,0.9); }
 .parry-ring.pr-strike.pr-live .pr-lbl { color: #fff; font-weight: 700; text-shadow: 0 0 8px rgba(255,90,60,0.95), 0 1px 3px #000; }
 @keyframes pr-strike-pulse { 50% { box-shadow: 0 0 24px rgba(255,90,60,0.95), inset 0 0 12px rgba(255,90,60,0.45); } }
+/* BOSS TRICK NOTES (Build 211) — FEINT: the ring visibly hesitates (a held
+   breath); BAIT: a crossed red ring you must NOT touch. */
+.parry-ring.pr-feint .pr-target { border-style: dotted; }
+.parry-ring.pr-hesitate .pr-target { border-color: rgba(255,255,255,0.85); animation: pr-hesitate 0.32s ease-in-out; }
+.parry-ring.pr-hesitate .pr-lbl { color: #fff; }
+@keyframes pr-hesitate { 0%,100% { transform: translate(-50%,-50%) scale(1); } 50% { transform: translate(-50%,-50%) scale(0.93); } }
+.parry-ring.pr-bait .pr-target {
+  border-style: solid; border-color: rgba(212,69,69,0.95);
+  box-shadow: 0 0 16px rgba(212,69,69,0.7), inset 0 0 10px rgba(212,69,69,0.4);
+  background:
+    linear-gradient(45deg, transparent 44%, rgba(212,69,69,0.9) 46%, rgba(212,69,69,0.9) 54%, transparent 56%),
+    linear-gradient(-45deg, transparent 44%, rgba(212,69,69,0.9) 46%, rgba(212,69,69,0.9) 54%, transparent 56%);
+  animation: pr-bait-pulse 0.4s ease-in-out infinite;
+}
+.parry-ring.pr-bait .pr-close { border-color: #d44545; box-shadow: 0 0 14px rgba(212,69,69,0.8); }
+.parry-ring.pr-bait .pr-lbl { color: #ff8a7a; font-weight: 700; text-shadow: 0 0 8px rgba(212,69,69,0.9), 0 1px 3px #000; }
+@keyframes pr-bait-pulse { 50% { box-shadow: 0 0 24px rgba(212,69,69,0.95), inset 0 0 14px rgba(212,69,69,0.55); } }
+/* WIND-UP TELLS (Build 211) — the creature poses BEFORE its rings appear. */
+.figure.fig-windup { transition: transform 0.18s ease, filter 0.18s ease; }
+.figure.fig-windup.fw-slash  { transform: translateX(-7px) rotate(-3deg); filter: brightness(1.35) drop-shadow(0 0 10px rgba(255,90,60,0.55)); }
+.figure.fig-windup.fw-brace  { transform: translateY(4px) scale(0.94); filter: brightness(1.3) drop-shadow(0 0 12px rgba(255,180,90,0.6)); }
+.figure.fig-windup.fw-sweep  { transform: translateX(9px) rotate(4deg); filter: brightness(1.35) drop-shadow(0 0 10px rgba(160,120,255,0.55)); }
+.figure.fig-windup.fw-flurry { animation: fw-flurry-shiver 0.14s linear infinite; filter: brightness(1.4) drop-shadow(0 0 9px rgba(255,90,60,0.6)); }
+@keyframes fw-flurry-shiver { 0%,100% { transform: translateX(-2px); } 50% { transform: translateX(3px); } }
+/* CURSED GIFTS (Build 211) — blood-rimmed draft cards. */
+.boon-card.boon-curse { border-color: rgba(212,69,69,0.65); }
+.boon-card.boon-curse .boon-medallion { color: #ff7a6a; text-shadow: 0 0 10px rgba(212,69,69,0.8); }
+.boon-card.boon-curse .boon-from { color: #d47a6a; }
+/* EMBER SPARK (Build 211) — the after-fight draft; the old price crossed out. */
+.et-node.et-spark .et-cost s { opacity: 0.55; margin-right: 4px; }
 .parry-rate.srt-perfect { color: #ff7a4a; font-size: 20px; text-shadow: 0 0 12px rgba(255,120,70,0.9), 0 2px 4px #000; }
 .parry-rate.srt-good    { color: #ffb47a; font-size: 16px; text-shadow: 0 0 10px rgba(255,150,90,0.7), 0 2px 4px #000; }
 .parry-rate.srt-miss    { color: #b06a5a; font-size: 13px; text-shadow: 0 2px 4px #000; }

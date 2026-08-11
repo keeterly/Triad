@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 210;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 211;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -192,10 +192,10 @@ const MUSIC = (() => {
 // NOT permanent — it lives on the RUN.
 const META_KEY = 'kizuna2_1.meta';
 const META = Object.assign(
-  { heat: 0, clears: 0 },
-  (() => { try { const m = JSON.parse(localStorage.getItem(META_KEY) || '{}') || {}; return { heat: +m.heat || 0, clears: +m.clears || 0 }; } catch (_) { return {}; } })()
+  { heat: 0, clears: 0, deaths: 0 },
+  (() => { try { const m = JSON.parse(localStorage.getItem(META_KEY) || '{}') || {}; return { heat: +m.heat || 0, clears: +m.clears || 0, deaths: +m.deaths || 0 }; } catch (_) { return {}; } })()
 );
-function saveMeta() { try { localStorage.setItem(META_KEY, JSON.stringify({ heat: META.heat, clears: META.clears || 0 })); } catch (_) {} }
+function saveMeta() { try { localStorage.setItem(META_KEY, JSON.stringify({ heat: META.heat, clears: META.clears || 0, deaths: META.deaths || 0 })); } catch (_) {} }
 // PER-RUN progression — embers and skill-tree unlocks live on the RUN and reset
 // when it ends (death OR completion).  Between runs nothing is banked; every
 // descent you rebuild your party's kit from scratch.
@@ -745,10 +745,22 @@ const BOONS = [
     trigger: 'kill', apply: (c) => { if (c.tgt && c.tgt.mark) { bumpBoonStack('scale_tally', 6); boonProc('mira', 'scale_tally', { quiet: true }); } },
     card: (c) => { if (c.kind === 'sig' && c.fx && c.fx.dmg) c.fx.dmg += boonStack('scale_tally'); } },
   // ── RISK / REWARD (Slay-the-Spire relic tension) — power with a real cost ──
-  { id: 'curse_glassedge', hero: 'mira', rare: true, name: 'Glass Edge', icon: '⚡', desc: '<b>The whole party strikes +3</b> — but takes <b>+2</b> from every hit. Live fast.',
+  { id: 'curse_glassedge', hero: 'mira', rare: true, curse: true, name: 'Glass Edge', icon: '⚡', desc: '<b>The whole party strikes +3</b> — but takes <b>+2</b> from every hit. Live fast.',
     card: (c) => { if (c.fx && c.fx.dmg) c.fx.dmg += 3; }, trigger: 'incoming', mod: () => 2 },
-  { id: 'curse_bloodrush', hero: 'ash', rare: true, name: 'Blood Rush', icon: '⇄', desc: 'Start each turn with <b>+2 EP</b> — but the most-wounded ally <b>bleeds 3 HP</b>. Spend it or waste it.',
+  { id: 'curse_bloodrush', hero: 'ash', rare: true, curse: true, name: 'Blood Rush', icon: '⇄', desc: 'Start each turn with <b>+2 EP</b> — but the most-wounded ally <b>bleeds 3 HP</b>. Spend it or waste it.',
     trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'ash' || S._flags.boonBlood) return; S._flags.boonBlood = true; S.ep = Math.min(S.maxEp, S.ep + 2); pulseEp(); const t = lowestHpAlly(); if (t && !t.downed) { t.hp = Math.max(1, t.hp - 3); popupAt(figEl(t.id), '−3', 'dmg'); } boonProc('ash', 'curse_bloodrush'); } },
+  // ── CURSED GIFTS (Build 211) — power with a REAL tax.  One is seeded into
+  //    every elite draft, so elites read as relic-tension, not free candy. ──
+  { id: 'curse_hollowbargain', hero: 'hask', rare: true, curse: true, name: 'Hollow Bargain', icon: '✦', desc: 'Every kill pays <b>+2 embers</b> — but the fire refuses you: camps offer <b>no REST</b>. The fire owes the dark.',
+    trigger: 'kill', apply: () => { addEmbers(2); S._embersRun = (S._embersRun || 0) + 2; boonProc('hask', 'curse_hollowbargain', { quiet: true }); } },
+  { id: 'curse_feverblade', hero: 'mira', rare: true, curse: true, name: 'Feverblade', icon: '☠', desc: 'Mira’s blades strike <b>+4</b> — but the fever takes <b>2 HP</b> from her each turn. Burn bright, burn down.',
+    card: (c) => { if (c.owner === 'mira' && c.fx && c.fx.dmg) c.fx.dmg += 4; },
+    trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'mira' || S._flags.boonFever) return; S._flags.boonFever = true; const m = S.heroes.find(h => h.id === 'mira'); if (m && !m.downed) { m.hp = Math.max(1, m.hp - 2); popupAt(figEl('mira'), '−2', 'dmg'); boonProc('mira', 'curse_feverblade', { quiet: true }); } } },
+  { id: 'curse_loudechoes', hero: 'branwen', rare: true, curse: true, name: 'Loud Echoes', icon: '♫', desc: 'Every kill <span class="kw kw-rally">▲ RALLIES</span> the whole party <b>+1</b> — but the song <b>cuts the singer for 2</b>. Every death sings.',
+    trigger: 'kill', apply: (c) => { livingHeroes().forEach(h => { h.buffDmg += 1; }); popupAt(figEl(c.hero.id), '▲ ALL +1 · −2', 'rally'); const k = c.hero; if (k && !k.downed) k.hp = Math.max(1, k.hp - 2); boonProc('branwen', 'curse_loudechoes', { quiet: true }); } },
+  { id: 'curse_mercyleak', hero: 'elin', rare: true, curse: true, name: 'Mercy’s Leak', icon: '✚', desc: 'Elin’s healing is <b>+3 stronger</b> — but mercy leaks: the frontmost foe <b>mends 2</b> each turn. Kindness feeds everything.',
+    card: (c) => { if (c.owner === 'elin' && c.fx && c.fx.heal) c.fx.heal += 3; },
+    trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'elin' || S._flags.boonLeak) return; S._flags.boonLeak = true; const e = frontmostEnemy(); if (e && !e.dead && e.hp < e.maxHp) { e.hp = Math.min(e.maxHp, e.hp + 2); popupAt(figEl(e.uid), '✚2', 'heal'); boonProc('elin', 'curse_mercyleak', { quiet: true }); } } },
   // ── TRIO BOONS (Hades "you brought the exact team") — only when a SPECIFIC three
   //    walk together.  The rarest, most build-defining gifts. ──
   { id: 'trio_phalanx', trio: true, hero: 'cassia', heroes: ['ash', 'cassia', 'elin'], name: 'The Phalanx', icon: '⛨', desc: '<b>Ash · Cassia · Elin:</b> every fight OPENS with the whole party at <span class="kw kw-guard">⛨ 3</span> and <span class="kw kw-rally">▲ RALLY 2</span> — the shield-wall marches.',
@@ -2183,6 +2195,7 @@ function _weakestActiveBondKey() {
   return best;
 }
 function _bumpWeakestBond() { const k = _weakestActiveBondKey(); if (k) { RUN.bonds = RUN.bonds || {}; RUN.bonds[k] = (RUN.bonds[k] || 0) + 1; } return k; }
+function _hurtParty(x) { RUN.roster.forEach(id => { const hp = RUN.hp[id] ?? HEROES[id].maxHp; if (hp > 0) RUN.hp[id] = Math.max(1, hp - x); }); }   // events can COST blood — never kill outright
 // Each choice is { icon, label (the ACT), effect (the CONSEQUENCE, styled) }
 // so every event renders the same two-line choice card — one shared structure.
 const EVENTS_V2 = {
@@ -2210,6 +2223,69 @@ const EVENTS_V2 = {
     lines: ['One of them falls into step beside you, turning something over in their hands.', 'They’ve been meaning to show you how they do a certain thing.'],
     a: { icon: '✦', label: 'HEAR THEM OUT', effect: 'A companion shares how they fight — <b>draw 1 of 3</b>.', boon: true },
     b: { icon: '✚', label: 'KEEP MOVING', effect: 'Press on · the party heals <b>4</b>.', fx: () => _healParty(4) },
+  },
+  // ── Build 211 (Phase 2): events that can GO WRONG — gambles, blood-prices,
+  //    and third options only a specific companion can open. ──
+  bonedice: {
+    title: 'THE BONE DICE', eyebrow: 'A GAMBLE',
+    lines: ['A skeleton sits mid-game at a stone table, its opponent long gone. The dice wait.', 'The house has been dead for centuries. The odds have not improved.'],
+    a: { icon: '⚄', label: 'STAKE 6 EMBERS', effect: '<b>Even odds</b>: ✦ 12 back — or the dark keeps your stake.',
+      fx: () => { addEmbers(-Math.min(6, runEmbers())); if (Math.random() < 0.5) { addEmbers(12); flashNarrator('✦ The bones land kind — twelve embers.'); } else { flashNarrator('The dark rakes the table. The skeleton would laugh, if it could.'); } } },
+    b: { icon: '✦', label: 'POCKET A DIE', effect: 'Walk away <b>+1 ember</b>. The safe play.', fx: () => addEmbers(1) },
+  },
+  thornedidol: {
+    title: 'THE THORNED IDOL', eyebrow: 'A BLOOD PRICE',
+    lines: ['An idol of woven briars, palms open. Old blood blacks the thorns.', 'It gives to those who bleed. It says nothing about how much.'],
+    a: { icon: '☠', label: 'GRASP THE THORNS', effect: 'The party <b>bleeds 4 each</b> — a companion’s gift surfaces: <b>draw 1 of 3</b>.',
+      fx: () => _hurtParty(4), boon: true },
+    b: { icon: '✚', label: 'LEAVE IT HUNGRY', effect: 'The party heals <b>2</b>. It watches you go.', fx: () => _healParty(2) },
+  },
+  tollgate: {
+    title: 'THE TOLL', eyebrow: 'A CROSSROADS',
+    lines: ['A gate of black iron, and a bowl worn smooth by ten thousand payments.', 'Nothing guards it. Somehow that is worse.'],
+    a: { icon: '✦', label: 'PAY THE BOWL', effect: '<b>−8 embers</b> · the road beyond is kind: the party heals <b>8</b>.',
+      fx: () => { addEmbers(-Math.min(8, runEmbers())); _healParty(8); } },
+    b: { icon: '⚔', label: 'FORCE THE GATE', effect: 'The iron fights back — <b>bleed 3 each</b>, but open the next fight with <span class="kw kw-rally">▲ RALLY +2</span>.',
+      fx: () => { _hurtParty(3); RUN.campEdge = true; } },
+  },
+  whisperwell: {
+    title: 'THE WHISPERING WELL', eyebrow: 'A CROSSROADS',
+    lines: ['A well that repeats what is dropped into it — coins, names, promises.', 'Something at the bottom is collecting them.'],
+    a: { icon: '✦', label: 'DROP FOUR EMBERS', effect: '<b>−4 embers</b> · it whispers back what your companions won’t say: weakest bond <b>+2</b>.',
+      fx: () => { addEmbers(-Math.min(4, runEmbers())); const k = _bumpWeakestBond(); if (k) { RUN.bonds[k] = (RUN.bonds[k] || 0) + 1; } } },
+    b: { icon: '▸', label: 'COVER YOUR EARS', effect: 'Take the road · <b>+2 embers</b> found on the lip.', fx: () => addEmbers(2) },
+    c: { needs: 'hask', icon: '❄', label: 'FREEZE THE WATER', effect: '<b>HASK</b> stills the well — the shapes in the ice teach: <b>draw 1 of 3</b>.', boon: true },
+  },
+  oldbanner: {
+    title: 'THE OLD BANNER', eyebrow: 'A CROSSROADS',
+    lines: ['A company banner, half-buried — an order nobody living can name.', 'Whoever carried it planted it facing DOWN the road. They meant to hold.'],
+    a: { icon: '▲', label: 'BURN IT FOR HEAT', effect: 'Open the next fight with <span class="kw kw-rally">▲ RALLY +2</span>.', fx: () => { RUN.campEdge = true; } },
+    b: { icon: '✦', label: 'STRIP THE THREAD-OF-GOLD', effect: '<b>+5 embers</b> · it deserved better.', fx: () => addEmbers(5) },
+    c: { needs: 'cassia', icon: '☨', label: 'BURY IT PROPERLY', effect: '<b>CASSIA</b> gives it the rites she still owes another banner. The party heals <b>10</b> · weakest bond <b>+1</b>.',
+      fx: () => { _healParty(10); _bumpWeakestBond(); } },
+  },
+  hungrydark: {
+    title: 'THE HUNGRY DARK', eyebrow: 'A BLOOD PRICE',
+    lines: ['A patch of dark deeper than the dark around it. It does not move. It is very patient.', 'Things fed to it do not come back. Things traded to it do.'],
+    a: { icon: '✦', label: 'FEED IT EMBERS', effect: '<b>−6 embers</b> · it exhales warmth: the party heals <b>10</b>.',
+      fx: () => { addEmbers(-Math.min(6, runEmbers())); _healParty(10); } },
+    b: { icon: '☠', label: 'FEED IT BLOOD', effect: 'The party <b>bleeds 5 each</b> · it pays in kind: <b>+8 embers</b>.',
+      fx: () => { _hurtParty(5); addEmbers(8); } },
+  },
+  sleepingecho: {
+    title: 'A SLEEPING ECHO', eyebrow: 'A GAMBLE',
+    lines: ['One of the hollow dead, sat against a stone — dormant, ember-light banked in its chest.', 'Rob it, and hope it dreams deep.'],
+    a: { icon: '☠', label: 'ROB THE SLEEPER', effect: '<b>Even odds</b>: <b>+10 embers</b> — or it wakes mid-theft and the party <b>bleeds 6 each</b>.',
+      fx: () => { if (Math.random() < 0.5) { addEmbers(10); flashNarrator('✦ Its dream never breaks. Ten embers, still warm.'); } else { _hurtParty(6); flashNarrator('It wakes with your hand in its chest. The party pays in blood.'); } } },
+    b: { icon: '▸', label: 'STEP QUIETLY', effect: 'Let it sleep · <b>+1 ember</b> from the floor.', fx: () => addEmbers(1) },
+  },
+  mirrorpool: {
+    title: 'THE MIRROR POOL', eyebrow: 'A CROSSROADS',
+    lines: ['Still water that shows the party — but a step out of true. The reflections move a heartbeat late.', 'Or a heartbeat early. Better not to check twice.'],
+    a: { icon: '♡', label: 'FACE IT TOGETHER', effect: 'Hold the gaze — <b>bleed 2 each</b>, weakest bond <b>+1</b>. What it shows, you carry as one.',
+      fx: () => { _hurtParty(2); _bumpWeakestBond(); } },
+    b: { icon: '⚔', label: 'BREAK THE SURFACE', effect: 'Shatter it — open the next fight with <span class="kw kw-rally">▲ RALLY +2</span>.', fx: () => { RUN.campEdge = true; } },
+    c: { needs: 'mira', icon: '◎', label: 'READ THE DARK WATER', effect: '<b>MIRA</b> has seen worse in real water. She maps the road ahead: <b>+6 embers</b>.', fx: () => addEmbers(6) },
   },
 };
 
@@ -4178,6 +4254,48 @@ function parryEarlyNudge(ui, ax, ay) {
   setTimeout(() => tag.remove(), 400);
   try { haptic(HAP.tap); } catch (_) {}
 }
+// ── BOSS TRICK NOTES (Build 211, Phase 2) — the anti-metronome vocabulary.
+// FEINT: the ring HESITATES mid-close (a broken rhythm), then snaps shut —
+// punishes autopilot tapping, rewards actually watching the ring.  BAIT: a
+// crossed red ring you must NOT touch; discipline is the parry.  Boss-only, so
+// mobs stay the readable on-ramp.  Both expose their timing to the auto-driver
+// (data-pause / class) so the harness stays honest.
+function parryFeintNote(ax, ay, dur, idx, total) {
+  return new Promise(resolve => {
+    const pause = 320;                                       // the held breath
+    const label = total > 1 ? `${idx}/${total}` : 'FEINT…';
+    const ui = mkParryUiAt(ax, ay, `<span class="pr-target"></span><span class="pr-close"></span><span class="pr-lbl">${label}</span>`, 'pr-feint');
+    const cl = ui.el.querySelector('.pr-close');
+    cl.style.animationDuration = dur + 'ms';
+    ui.el.dataset.pause = pause;                             // the harness reads the true close time
+    const lbl = ui.el.querySelector('.pr-lbl');
+    const GOOD = Math.round(PARRY_GOOD_MS * _parryWin), PERF = Math.round(PARRY_PERF_MS * _parryWin);
+    const totalMs = dur + pause;
+    let done = false; const t0 = Date.now();
+    const pT = setTimeout(() => { if (done) return; cl.style.animationPlayState = 'paused'; ui.el.classList.add('pr-hesitate'); lbl.textContent = '…'; }, Math.round(dur * 0.62));
+    const rT = setTimeout(() => { if (done) return; cl.style.animationPlayState = 'running'; ui.el.classList.remove('pr-hesitate'); }, Math.round(dur * 0.62) + pause);
+    const liveT = setTimeout(() => { if (!done) { ui.el.classList.add('pr-live'); lbl.textContent = 'NOW!'; parrySlowmo(true); } }, Math.max(0, totalMs - GOOD));
+    const finish = (q) => { if (done) return; done = true; [pT, rT, liveT].forEach(clearTimeout); if (ui.el.classList.contains('pr-live')) parrySlowmo(false); window.removeEventListener('pointerdown', onTap, true); noteFeedback(ui, ax, ay, q); ui.close(); resolve(q); };
+    const onTap = () => {
+      const rem = totalMs - (Date.now() - t0);
+      if (rem > GOOD) { parryEarlyNudge(ui, ax, ay); return; }   // fooled by the hesitation — forgiven, keep listening
+      finish(rem <= PERF ? 'perfect' : 'good');
+    };
+    window.addEventListener('pointerdown', onTap, true);
+    setTimeout(() => finish('miss'), totalMs);
+  });
+}
+function parryBaitNote(ax, ay, dur) {
+  return new Promise(resolve => {
+    const ui = mkParryUiAt(ax, ay, `<span class="pr-target"></span><span class="pr-close"></span><span class="pr-lbl">DON’T!</span>`, 'pr-bait pr-live');
+    ui.el.querySelector('.pr-close').style.animationDuration = dur + 'ms';
+    let done = false;
+    const finish = (q) => { if (done) return; done = true; window.removeEventListener('pointerdown', onTap, true); noteFeedback(ui, ax, ay, q); ui.close(); resolve(q); };
+    const onTap = () => finish('miss');                        // took the bait — that share of the blow lands
+    window.addEventListener('pointerdown', onTap, true);
+    setTimeout(() => finish('perfect'), dur);                  // discipline IS the parry
+  });
+}
 // First-few-parries coach — a short caption teaching each gesture.  Budgeted
 // PER GESTURE (tap / hold / swipe / mash) so meeting a HOLD or SWIPE for the first
 // time still teaches it, even after you've seen the TAP lesson thrice.  Each
@@ -4224,6 +4342,7 @@ let _parrySpeed = 1;
 // stack onto every string.  Set per strike from the foe's base tempo × run depth.
 let _parryWin = 1;      // tap-window multiplier (<1 = tighter/harder)
 let _parryBonus = 0;    // extra notes appended to a cascade
+let _parryBoss = false; // the striker is a BOSS — its cascades may FEINT and BAIT (Build 211)
 function parryDepth() {
   const d = (typeof RUN !== 'undefined' && RUN && Array.isArray(RUN.completed)) ? RUN.completed.length : 0;
   return Math.max(0, Math.min(1, d / 12));   // 0 at the surface → 1 by ~floor's end
@@ -4231,6 +4350,7 @@ function parryDepth() {
 function setParryDifficulty(e) {
   const base = (e && e.def && e.def.parrySpeed) || 1;
   const d = parryDepth();
+  _parryBoss = !!(e && e.def && e.def.boss);   // bosses earn the trick vocabulary (feint/bait)
   _parrySpeed = base * (1 - 0.16 * d);   // Build 206: up to 16% faster deep (was 24% — gentler ramp)
   _parryWin   = 1 - 0.20 * d;            // Build 206: up to 20% tighter deep (was 30%)
   _parryBonus = Math.round(1.6 * d);     // +0 → +2 extra notes on cascades deep
@@ -4342,15 +4462,26 @@ async function runParrySeq(notes, anchor, art) {
   if (_parryBonus > 0) {
     notes = notes.concat(Array.from({ length: Math.min(_parryBonus, 4) }, () => ({ t: 'tap' })));
   }
+  // BOSS TRICKS (Build 211) — the anti-metronome pass: on a boss cascade of 3+,
+  // one middle tap becomes a FEINT (the ring hesitates), and deep in the run a
+  // BAIT slips in before the last note (a ring you must NOT touch).  Mobs never
+  // trick — they stay the honest on-ramp.
+  let tricks = false;
+  if (_parryBoss && notes.length >= 3) {
+    const mid = Math.floor(notes.length / 2);
+    if (notes[mid] && notes[mid].t === 'tap') { notes[mid] = { t: 'feint' }; tricks = true; }
+    if (parryDepth() >= 0.4) { notes.splice(notes.length - 1, 0, { t: 'bait' }); tricks = true; }
+  }
   const pts = zonePoints(arcPoints(notes.length, anchor), 'parry');   // bias the cascade into the LEFT thumb zone (touch)
   const preview = mkSeqPreview(pts);
   const rh = seqRhythm(notes.length);   // fallback groove when no music is playing
   // BEAT SYNC — if the combat theme is playing, land each note ON the beat grid,
   // re-anchored to the track's live position (so it stays locked even if the tempo
   // read is a hair off).  Dense/fast cascades ride HALF-beats; steady ones whole
-  // beats.  With music off, fall back to the free-running groove.
+  // beats.  With music off, fall back to the free-running groove.  A cascade that
+  // TRICKS (feint/bait) leaves the grid — a broken rhythm is the whole point.
   const clock = MUSIC.beat();
-  const synced = clock.playing;
+  const synced = clock.playing && !tricks;
   // ONE note per beat is the readable default — a steady march that reads as
   // "on the music."  Only the genuine CLIMAX (the Hollow Chorus's later stages,
   // ~0.5–0.6) runs double-time on HALF-beats; road bosses and mobs stay on whole
@@ -4372,6 +4503,8 @@ async function runParrySeq(notes, anchor, art) {
     let q;
     if (nt.t === 'hold')       q = await parryHoldNote(p.x, p.y, synced ? Math.max(480, dur) : 820);
     else if (nt.t === 'swipe') q = await parrySwipeNote(p.x, p.y, nt.arc || 'arcR', synced ? Math.max(420, dur) : 760);
+    else if (nt.t === 'feint') q = await parryFeintNote(p.x, p.y, step.d, i + 1, notes.length);
+    else if (nt.t === 'bait')  q = await parryBaitNote(p.x, p.y, Math.round(700 * _parrySpeed));
     else                       q = await parryTapNote(p.x, p.y, synced ? dur : step.d, i + 1, notes.length);
     const okNote = q === 'perfect' || q === 'good';
     if (art) bossAttackBeat(art, p.x, p.y, okNote);   // the blade STRIKES on the beat — clash if parried, connects if not
@@ -4391,6 +4524,21 @@ async function runParrySeq(notes, anchor, art) {
 // While a parry is live the world behind the notes desaturates, blurs and
 // dims (`parry-focus`) so the reactive gesture is the only thing in focus —
 // the notes/ratings live in #popup-layer, above the filter, and stay crisp.
+// WIND-UP TELL (Build 211) — before any cascade's rings appear, the CREATURE
+// itself telegraphs the coming gesture: a 460ms pose keyed to the pattern's
+// first verb (brace / sweep / flurry / slash).  Reading the enemy's body — not
+// just the UI — is the Expedition 33 fantasy, delivered in cheap CSS.
+async function windupTell(e, intent) {
+  try {
+    const fig = figEl(e.uid); if (!fig) return;
+    const p = parryPatternFor(intent);
+    const first = p.kind === 'seq' ? ((p.notes[0] || {}).t || 'tap') : p.kind;
+    const pose = first === 'hold' ? 'fw-brace' : first === 'swipe' ? 'fw-sweep' : first === 'mash' ? 'fw-flurry' : 'fw-slash';
+    fig.classList.add('fig-windup', pose);
+    await sleep(460);
+    fig.classList.remove('fig-windup', pose);
+  } catch (_) {}
+}
 async function runParry(targetEl, pattern, art) {
   if (!PARRY_ENABLED || !targetEl) { await sleep(380); return null; }
   const stage = $('#stage');
@@ -5298,6 +5446,7 @@ async function enemyPhase() {
     const ptRow = rows.find(r => heroInRow(r));
     const ptHero = ptRow ? heroInRow(ptRow) : null;
     if (PARRY_ENABLED && ptHero) {
+      await windupTell(e, intent);   // Build 211: the CREATURE telegraphs the gesture before rings appear
       const res = await runParry(figEl(ptHero.id), parryPatternFor(intent), intent.attackArt);
       const mit = res ? res.mit : 0;                    // fraction of the blow negated
       if (res && res.perfect) {
@@ -5534,13 +5683,14 @@ function onVictory() {
     $('#ov-next').onclick = () => {
       hideOverlay();
       if (S.node.mapId == null) { advanceFlow(); return; }
-      if (wasElite) showBoonDraft(() => showMap(), { eyebrow: 'THE ELITE FALLS', title: 'SPOILS OF THE ROAD', flavor: 'The harder the fight, the more your companions have to teach. Take one — it holds until you fall.' });
-      else showMap();
+      if (wasElite) showBoonDraft(() => showMap(), { curse: true, eyebrow: 'THE ELITE FALLS', title: 'SPOILS OF THE ROAD', flavor: 'The harder the fight, the more your companions have to teach. Take one — it holds until you fall.' });
+      else showEmberSpark(() => showMap());   // Build 211: every ordinary clear offers a SPARK — the after-fight draft
     };
   }, 700);
 }
 function onDefeat() {
   MUSIC.stop();   // the theme dies with the party
+  META.deaths = (META.deaths || 0) + 1; saveMeta();   // the Chorus counts (Build 211: bosses greet a returner differently)
   // On the Descent, death is contribution: the run ends, and the Abyss
   // stores a memory of who fell here — the next descent will find it.
   if (S.node.mapId != null && RUN) {
@@ -5930,25 +6080,29 @@ function showEvent(n) {
         <span class="ev-choice-effect">${c.effect || ''}</span>
       </span>
     </button>`;
+  // Build 211: a third option can hide behind a COMPANION — party composition
+  // pays off outside combat ("only Hask could open this door").
+  const cOpen = ev.c && (!ev.c.needs || ((RUN.active || []).includes(ev.c.needs)));
   showOverlay(`
     <div class="ov-eyebrow">${ev.eyebrow || 'A CROSSROADS'}</div>
     <div class="ov-title" style="font-size:22px">${ev.title}</div>
     <div class="ov-lines" style="text-align:center; min-height:0">${ev.lines.map(t => `<div class="ov-line">${t}</div>`).join('')}</div>
-    <div class="ev-choices">${choice(ev.a, 'ev-a')}${choice(ev.b, 'ev-b')}</div>
+    <div class="ev-choices">${choice(ev.a, 'ev-a')}${choice(ev.b, 'ev-b')}${cOpen ? choice(ev.c, 'ev-c') : ''}</div>
   `, 'event-screen');
   const finish = (choice) => {
     if (!RUN.completed.includes(n.id)) RUN.completed.push(n.id);
+    if (choice.fx) choice.fx();   // a blood-price can PRECEDE the gift (Thorned Idol)
     if (choice.boon) {   // this branch offers a companion's gift — into the draft
       saveRun();
       showBoonDraft(() => showMap(), { eyebrow: ev.title.toUpperCase(), title: 'A COMPANION’S GIFT', flavor: 'They show you a piece of how they fight. Take one — it holds until you fall.' });
       return;
     }
-    if (choice.fx) choice.fx();
     saveRun();
     showMap();
   };
   $('#ev-a').onclick = () => finish(ev.a);
   $('#ev-b').onclick = () => finish(ev.b);
+  const evC = $('#ev-c'); if (evC) evC.onclick = () => finish(ev.c);
 }
 function startMapFight(n) {
   const boss = !!n.isBoss;
@@ -5988,12 +6142,58 @@ const BOSS_CINE = {
   echochorus:   { name: 'THE HOLLOW CHORUS', epithet: 'ALL ECHOES ARE ITS VOICE', eye: '#e8b84a', roar: 'maw',
     quote: 'Knight. Maw. Sundering — three voices you have already silenced. I am the one that sang them all.' },
 };
+// ── THE CHORUS NARRATES YOUR DEATHS (Build 211, Phase 2) — boss greetings key
+// off PERSISTENT history, Hades-style: a fresh meeting gets the authored quote;
+// a returner after a death, a road carrying a fallen trio's ashes, or a trio
+// with a ranked vow each get their own line.  Every death mints dialogue free.
+const BOSS_HISTORY = {
+  echoknight2: {
+    fallen: 'You fell at {WHERE}. I know — I was given the memory. It tasted of you.',
+    deaths: 'Again. I have worn the faces of everyone who kept coming back. Yours is nearly ready.',
+    death:  'Back again. The dirt remembers being thrown, and I remember the throwing.',
+    vow:    'A vow. The last company that swore one swore it to me, at the end. Say yours louder.',
+  },
+  echodevourer: {
+    fallen: 'The ones from {WHERE} passed this way. Do not worry — nothing is wasted in me.',
+    deaths: 'You keep bringing me the same three flavors. I keep making room.',
+    death:  'I remember your taste. Come — the second bite is the honest one.',
+    vow:    'A sworn trio. Marrow and vow together — the rarest meal on the road.',
+  },
+  echosunder: {
+    fallen: 'I cut the bonds of the three who fell at {WHERE}. They held hands anyway, at the end. It changed nothing.',
+    deaths: 'Every time you return, you arrive more tightly woven. Good. Taut threads cut cleanest.',
+    death:  'You again — and still knotted to each other. I unpicked you once. Hold still.',
+    vow:    'That vow again. I have cut it twice in older throats. Say it anyway — I collect the brave ones.',
+  },
+  echochorus: {
+    fallen: 'The three from {WHERE} sing in me now. Listen as we fight — you will know the voices.',
+    deaths: 'Every party you have lost is a verse of mine now. You are not climbing down to silence me. You are climbing down to hear them.',
+    death:  'You died below me once already. I kept it — the note you made. Shall I sing it back?',
+    vow:    'A ranked vow, carried to the bottom. When I take you, it will be the finest thing I hold.',
+  },
+};
+function bossHistoryQuote(bossId) {
+  const alt = BOSS_HISTORY[bossId]; if (!alt) return null;
+  try {
+    const abyss = loadAbyss();
+    const lvls = Object.keys(abyss);
+    const fell = lvls.length ? abyss[lvls[0]] : null;
+    if (fell && alt.fallen) return alt.fallen.replace('{WHERE}', (fell.label || 'the dark').toUpperCase());
+    const deaths = META.deaths || 0;
+    if (deaths >= 3 && alt.deaths) return alt.deaths;
+    const trio = (RUN && RUN.active && RUN.active.length === 3) ? RUN.active : null;
+    if (trio && vowRank(trio.map(id => HEROES[id].cls).sort().join('+')) >= 2 && alt.vow) return alt.vow;
+    if (deaths > 0 && alt.death) return alt.death;
+  } catch (_) {}
+  return null;
+}
 let _bossCineBusy = false;
 function bossIntro(bossId, onDone) {
   const c = BOSS_CINE[bossId] || BOSS_CINE.echoknight2;
   const def = ENEMY_DEFS[bossId] || {};
   const art = V2PORTRAITS[def.art || bossId] || '';
-  bossCine(Object.assign({ art, skip: 'TAP TO FACE IT' }, c), onDone);
+  const hq = bossHistoryQuote(bossId);
+  bossCine(Object.assign({ art, skip: 'TAP TO FACE IT' }, c, hq ? { quote: hq } : {}), onDone);
 }
 // A mid-fight STAGE cutscene for the mega boss: its form shatters and reforms
 // into the next aspect.  Reuses the boss-intro presentation with the stage's own
@@ -6513,6 +6713,54 @@ function ensureFoeDef(heroId) {
 }
 // BOON DRAFT — a companion offers a GIFT: pick 1 of 3 (party-gated), held for
 // this descent.  The mid-run randomness beat, shown at elites, events, the fire.
+// ── EMBER SPARK (Build 211, Phase 2) — the after-every-fight draft.  Three
+// unowned, reachable tree nodes from the FIELDED party surface at −30% cost;
+// take one, or bank the pass for +2 embers.  The static tree becomes a per-run
+// offer without a single new content system — this is the StS after-combat beat.
+function showEmberSpark(onDone) {
+  const done = onDone || (() => showMap());
+  if (!RUN) { done(); return; }
+  const party = (RUN.active && RUN.active.length) ? RUN.active : (RUN.roster || []);
+  RUN.nodes = RUN.nodes || [];
+  const pool = EMBER_TREE.filter(n => party.includes(n.hero) && !hasNode(n.id)
+    && tierOpen(n.tier) && (n.requires || []).every(r => hasNode(r)));
+  if (!pool.length) { done(); return; }
+  // prefer variety — one offer per fielded hero when possible
+  const shuffled = _shuffle(pool.slice());
+  const picks = [], used = new Set();
+  shuffled.forEach(n => { if (picks.length < 3 && !used.has(n.hero)) { picks.push(n); used.add(n.hero); } });
+  shuffled.forEach(n => { if (picks.length < 3 && picks.indexOf(n) < 0) picks.push(n); });
+  const sparkCost = (n) => Math.max(1, Math.round(n.cost * 0.7));
+  const cardHtml = (n) => {
+    const cost = sparkCost(n), afford = runEmbers() >= cost;
+    return `<button class="et-node et-spark et-${afford ? 'ready' : 'poor'}" data-spark="${n.id}" ${afford ? '' : 'disabled'}>
+      <span class="et-type t-${n.type}">${TREE_TYPE_GLYPH[n.type] || '✦'} ${TREE_TYPE_LABEL[n.type] || 'SKILL'}</span>
+      <span class="et-name">${HEROES[n.hero].name} · ${n.label}</span>
+      <span class="et-desc">${n.desc}</span>
+      <span class="et-foot"><span class="et-cost${afford ? '' : ' et-cant'}"><s>✦ ${n.cost}</s> ✦ ${cost}</span></span>
+    </button>`;
+  };
+  showOverlay(`
+    <div class="ov-eyebrow" style="color:var(--gold-bright)">THE EMBERS STILL GLOW</div>
+    <div class="ov-title" style="font-size:20px">A SPARK FROM THE FIGHT</div>
+    <div class="et-wallet">✦ <b>${runEmbers()}</b> <span>embers</span></div>
+    <div class="ov-lines" style="text-align:center; min-height:0"><div class="ov-line">Something learned in the blood, offered <b>cheap</b> — this once, this road.</div></div>
+    <div class="et-tier-row">${picks.map(cardHtml).join('')}</div>
+    <button class="ov-btn" id="spark-skip">BANK THE HEAT · +2 ✦</button>
+  `, 'map-screen et-screen');
+  picks.forEach(n => {
+    const el = document.querySelector(`[data-spark="${n.id}"]`);
+    if (el && runEmbers() >= sparkCost(n)) el.onclick = () => {
+      addEmbers(-sparkCost(n));
+      RUN.nodes.push(n.id);
+      saveRun();
+      try { SFX.kindle(); } catch (_) {}
+      flashNarrator('✦ ' + n.label + ' — kindled from the spark, ' + (n.cost - sparkCost(n)) + ' embers saved.');
+      done();
+    };
+  });
+  $('#spark-skip').onclick = () => { addEmbers(2); saveRun(); done(); };
+}
 function showBoonDraft(onDone, opts) {
   opts = opts || {};
   const done = onDone || (() => showMap());
@@ -6526,8 +6774,14 @@ function showBoonDraft(onDone, opts) {
   const picks = [], usedHeroes = new Set();
   shuffled.forEach(b => { if (picks.length < 3 && !usedHeroes.has(b.hero)) { picks.push(b); usedHeroes.add(b.hero); } });
   shuffled.forEach(b => { if (picks.length < 3 && picks.indexOf(b) < 0) picks.push(b); });
+  // Build 211: an ELITE draft always carries one CURSED gift — power with a tax,
+  // so the elite reward reads as relic-tension, not free candy.
+  if (opts.curse && !picks.some(b => b.curse)) {
+    const curses = _shuffle(pool.filter(b => b.curse));
+    if (curses.length && picks.length) picks[picks.length - 1] = curses[0];
+  }
   const cardHtml = (b) => `
-    <button class="boon-card${b.trio ? ' boon-trio' : b.duo ? ' boon-duo' : ''}${b.rare ? ' boon-rare' : ''}" id="boon-${b.id}" style="--tint:${HEROES[b.hero].tint}">
+    <button class="boon-card${b.trio ? ' boon-trio' : b.duo ? ' boon-duo' : ''}${b.rare ? ' boon-rare' : ''}${b.curse ? ' boon-curse' : ''}" id="boon-${b.id}" style="--tint:${HEROES[b.hero].tint}">
       ${(() => { const hs = b.heroes || [b.hero]; return hs.length > 1
         ? `<span class="boon-portrait boon-portrait-multi bp-${hs.length}">${hs.map(h => `<span class="bp-fig" style="--tint:${HEROES[h].tint}">${V2PORTRAITS[h] || ''}</span>`).join('')}</span>`
         : `<span class="boon-portrait">${V2PORTRAITS[b.hero] || ''}</span>`; })()}
@@ -6655,7 +6909,8 @@ function showCamp(n) {
   if (!RUN.completed.includes(n.id)) RUN.completed.push(n.id);
   saveRun();
   const fallen = (RUN.roster || []).filter(id => (RUN.hp[id] ?? 1) <= 0);
-  const wounded = (RUN.roster || []).some(id => { const hp = RUN.hp[id] ?? HEROES[id].maxHp; return hp > 0 && hp < HEROES[id].maxHp; });
+  const bargained = (RUN.boons || []).includes('curse_hollowbargain');   // the fire refuses the bargainer — no REST
+  const wounded = !bargained && (RUN.roster || []).some(id => { const hp = RUN.hp[id] ?? HEROES[id].maxHp; return hp > 0 && hp < HEROES[id].maxHp; });
   // CINEMATIC CAMPFIRE — the party gathers, lit warm by the fire; the night's
   // one choice is offered as cards over the scene (mirrors the JRPG cutscenes).
   const party = ((RUN.active && RUN.active.length) ? RUN.active : RUN.roster).slice();
@@ -6678,7 +6933,7 @@ function showCamp(n) {
       <div class="camp-top">
         <div class="camp-eyebrow">CAMPFIRE</div>
         <div class="camp-title">${n.label}</div>
-        <div class="camp-flavor">The fire holds back the dark — but the night is long enough for <b>one thing done well</b>.${fallen.length ? ` And <b>${fallen.map(id => HEROES[id].name).join(' & ')}</b> ${fallen.length > 1 ? 'lie' : 'lies'} still…` : ''}</div>
+        <div class="camp-flavor">The fire holds back the dark — but the night is long enough for <b>one thing done well</b>.${bargained ? ' <b>The fire will not warm a bargainer</b> — no rest tonight.' : ''}${fallen.length ? ` And <b>${fallen.map(id => HEROES[id].name).join(' & ')}</b> ${fallen.length > 1 ? 'lie' : 'lies'} still…` : ''}</div>
       </div>
       <div class="camp-choices">
         ${wounded ? choice('camp-rest', '🔥', 'REST BY THE FIRE', 'Every wound on the <b>living</b> closes.') : ''}

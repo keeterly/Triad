@@ -246,6 +246,7 @@ const QUICK = process.argv.includes('--quick');
   }
   check('map fight won', await J(() => S.over && S.enemies.every(x => x.dead)));
   await sleep(900); await clickOverlayBtn('#ov-next'); await sleep(400);
+  if (await J(() => !!document.querySelector('#spark-skip'))) { await clickOverlayBtn('#spark-skip'); await sleep(300); }   // Build 211: bank the after-fight SPARK
 
   // recruit cassia → party select appears → pick the WARSONG PHALANX trio
   check('recruit node reachable', await J(() => !!document.querySelector('.map-node.mn-recruit.mn-reach')));
@@ -368,6 +369,7 @@ const QUICK = process.argv.includes('--quick');
   }
   check('phalanx fight won', await J(() => S.over && S.enemies.every(x => x.dead)));
   await sleep(900); await clickOverlayBtn('#ov-next'); await sleep(400);
+  if (await J(() => !!document.querySelector('#spark-skip'))) { await clickOverlayBtn('#spark-skip'); await sleep(300); }   // Build 211: bank the after-fight SPARK
 
   // camp (Build 210): the fire no longer heals on ARRIVAL — the night is one choice.
   await J(() => document.querySelector('.map-node.mn-camp.mn-reach')?.click()); await sleep(500);
@@ -499,6 +501,7 @@ const QUICK = process.argv.includes('--quick');
     await J((b) => (RUN.embers || 0) >= b + 24 && (RUN.bonds['branwen|cassia'] || 0) >= 1 && RUN._ashes === 'THE WEEPING STAIR', embBefore),
     await J((b) => 'embers:' + RUN.embers + ' (was ' + b + ') bonds:' + JSON.stringify(RUN.bonds) + ' ashes:' + RUN._ashes, embBefore));
   await clickOverlayBtn('#ov-next'); await sleep(400);
+  if (await J(() => !!document.querySelector('#spark-skip'))) { await clickOverlayBtn('#spark-skip'); await sleep(300); }   // Build 211: bank the after-fight SPARK
 
   // ---------- BUILD 210: boss bulk + soft enrage + primed cap + knowing endings ----------
   check('BOSS: bulked ~35-40% (fl-1 mult 3.9) and soft-ENRAGES past turn 8 (telegraph-honest)',
@@ -523,7 +526,104 @@ const QUICK = process.argv.includes('--quick');
       return txt.includes('ASH · ELIN · MIRA') && txt.includes('THE WEEPING STAIR') && txt.includes('No name in the dark');
     }));
 
-  await t.autoParry(false);   // scripted drills below control their own input
+  // ---------- BUILD 211 (Phase 2): spark · curses · events · boss history · trick notes ----------
+  check('SPARK: the after-fight draft offers party tree nodes at −30% and buying kindles',
+    await J(() => {
+      RUN = newRun('ash'); RUN.active = ['ash']; RUN.embers = 50; RUN.completed = [0, 1, 2, 3, 4, 5, 6, 7];
+      let landed = false; showEmberSpark(() => { landed = true; });
+      const cards = document.querySelectorAll('[data-spark]');
+      const first = cards[0]; const id = first && first.dataset.spark;
+      const node = EMBER_TREE.find(n => n.id === id);
+      const disc = node && Math.max(1, Math.round(node.cost * 0.7));
+      const before = RUN.embers;
+      if (first) first.click();
+      return cards.length >= 1 && cards.length <= 3 && !!id && hasNode(id) && RUN.embers === before - disc && disc < node.cost && landed;
+    }));
+  check('SPARK: skipping banks the heat (+2 embers)',
+    await J(() => {
+      RUN = newRun('ash'); RUN.active = ['ash']; RUN.embers = 0; RUN.completed = [0, 1, 2, 3, 4, 5, 6, 7];
+      let landed = false; showEmberSpark(() => { landed = true; });
+      const b = RUN.embers; const btn = document.getElementById('spark-skip'); if (btn) btn.click();
+      return RUN.embers === b + 2 && landed;
+    }));
+  check('CURSE: 6+ cursed gifts exist and an ELITE draft always seeds one',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash', 'elin', 'mira', 'cassia', 'branwen', 'hask']; RUN.active = ['ash', 'mira', 'hask']; RUN.boons = [];
+      showBoonDraft(() => {}, { curse: true });
+      const cursed = document.querySelectorAll('.boon-card.boon-curse').length;
+      hideOverlay();
+      return BOONS.filter(b => b.curse).length >= 6 && cursed >= 1;
+    }));
+  check('CURSE: Hollow Bargain refuses the fire — no REST at camp',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash']; RUN.hp = { ash: 10 }; RUN.boons = ['curse_hollowbargain'];
+      showCamp({ id: 91, label: 'TEST FIRE' });
+      const noRest = !document.getElementById('camp-rest');
+      hideOverlay();
+      return noRest;
+    }));
+  check('EVENTS: the pool is 12 deep and can GO WRONG (gambles + blood prices)',
+    await J(() => Object.keys(EVENTS_V2).length >= 12
+      && !!EVENTS_V2.bonedice && !!EVENTS_V2.hungrydark && !!EVENTS_V2.thornedidol
+      && typeof EVENTS_V2.hungrydark.b.fx === 'function' && typeof _hurtParty === 'function'));
+  check('EVENTS: a third option hides behind a COMPANION (only Hask opens the well)',
+    await J(() => {
+      RUN = newRun('ash'); RUN.active = ['ash', 'elin', 'mira'];
+      showEvent({ id: 92, eventId: 'whisperwell' });
+      const noC = !document.getElementById('ev-c');
+      hideOverlay();
+      RUN.active = ['ash', 'elin', 'hask'];
+      showEvent({ id: 93, eventId: 'whisperwell' });
+      const hasC = !!document.getElementById('ev-c');
+      hideOverlay();
+      return noC && hasC;
+    }));
+  check('HISTORY: bosses greet a returner — fallen-trio, death, deep-death variants (fresh = authored quote)',
+    await J(() => {
+      const mA = META.deaths; const abyssSave = localStorage.getItem('kizuna2_1.abyss');
+      RUN = newRun('ash');
+      localStorage.setItem('kizuna2_1.abyss', JSON.stringify({ 3: { trio: ['ash'], threads: [], label: 'the weeping stair' } }));
+      const fallen = bossHistoryQuote('echoknight2');
+      localStorage.setItem('kizuna2_1.abyss', '{}');
+      META.deaths = 1; const death = bossHistoryQuote('echodevourer');
+      META.deaths = 5; const deep = bossHistoryQuote('echochorus');
+      META.deaths = 0; const fresh = bossHistoryQuote('echoknight2');
+      META.deaths = mA; if (abyssSave != null) localStorage.setItem('kizuna2_1.abyss', abyssSave); else localStorage.removeItem('kizuna2_1.abyss');
+      return /THE WEEPING STAIR/.test(fallen || '') && /taste/i.test(death || '') && /verse/i.test(deep || '') && fresh === null;
+    }));
+  await t.autoParry(false);   // the trick-note drills below assert RAW timing — no auto-driver
+  check('TRICKS: a BAIT parries itself if untouched — and punishes the tap',
+    await J(async () => {
+      const untouched = await parryBaitNote(200, 200, 240);
+      const p = parryBaitNote(200, 200, 500);
+      window.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+      const tapped = await p;
+      return untouched === 'perfect' && tapped === 'miss';
+    }));
+  check('TRICKS: a FEINT hesitates (data-pause) and resolves only after the held breath',
+    await J(async () => {
+      const t0 = Date.now();
+      const p = parryFeintNote(200, 200, 400, 1, 1);
+      const ring = document.querySelector('.parry-ring.pr-feint');
+      const hasPause = !!(ring && ring.dataset.pause);
+      const q = await p;                       // no input → miss, after dur+pause
+      const took = Date.now() - t0;
+      return hasPause && q === 'miss' && took >= 640;
+    }));
+  check('TRICKS: only BOSS cascades trick (wired via _parryBoss; mobs stay the honest on-ramp)',
+    await J(() => runParrySeq.toString().includes('_parryBoss') && setParryDifficulty.toString().includes('_parryBoss = !!(e && e.def && e.def.boss)')));
+  check('WINDUP: the creature poses before its rings, then stands down',
+    await J(async () => {
+      startFight({ type: 'fight', chapter: 3, heroes: ['ash'], enemies: ['husk'], narrator: 'windup' });
+      const e = S.enemies[0];
+      const pr = windupTell(e, { dmg: 5 });
+      const posed = figEl(e.uid).classList.contains('fig-windup');
+      await pr;
+      const cleared = !figEl(e.uid).classList.contains('fig-windup');
+      return posed && cleared;
+    }));
+
+  // (auto-parry already off — the scripted drills below control their own input)
 
   // ---------- SOLO ALLY-TARGET (onboarding regression) ----------
   // Ash alone in the onboarding: an ally-target card (Crossguard) must fall
@@ -1262,7 +1362,12 @@ const QUICK = process.argv.includes('--quick');
   check('INTRO: the Maw gets a dramatic cutscene (silhouette · name · quote)',
     await J(() => {
       window.__began = false;
-      const el = bossIntro('echodevourer', () => { window.__began = true; });
+      // pin a FRESH history — a first meeting gets the authored line; the
+      // returner variants are asserted in the Build 211 HISTORY check.
+      const mA = META.deaths; const abyssSave = localStorage.getItem('kizuna2_1.abyss'); const savedRun = RUN;
+      META.deaths = 0; localStorage.setItem('kizuna2_1.abyss', '{}'); RUN = null;
+      bossIntro('echodevourer', () => { window.__began = true; });
+      META.deaths = mA; if (abyssSave != null) localStorage.setItem('kizuna2_1.abyss', abyssSave); else localStorage.removeItem('kizuna2_1.abyss'); RUN = savedRun;
       const cine = document.getElementById('boss-cine');
       return !!cine && !!cine.querySelector('.bc-art svg') && !!cine.querySelector('.bc-eyes')
         && cine.querySelector('.bc-name').textContent === 'THE HOLLOW MAW'

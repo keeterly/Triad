@@ -91,13 +91,17 @@ async function boot(opts = {}) {
         let dx = 150, dy = -30;
         if (lbl.indexOf('↶') >= 0) { dx = -150; } else if (lbl.indexOf('⤴') >= 0) { dx = 0; dy = -170; }
         setTimeout(() => { P('pointerdown', cx, cy + 40); P('pointermove', cx + dx * 0.5, cy + 40 + dy * 0.5); P('pointermove', cx + dx, cy + 40 + dy); P('pointerup', cx + dx, cy + 40 + dy); }, 200);
+      } else if (ring.classList.contains('pr-bait')) {
+        // a BAIT is parried by NOT touching it — the bot shows discipline too
       } else {
         // Tap ADAPTIVELY, relative to THIS ring's own close time (read off the
-        // .pr-close animation), so the auto-parry stays inside the hit window no
-        // matter how the game tunes ring speed / window width. ~200ms before close.
+        // .pr-close animation, plus any FEINT hesitation via data-pause), so the
+        // auto-parry stays inside the hit window no matter how the game tunes
+        // ring speed / window width / trick notes. ~200ms before close.
         const cl = ring.querySelector('.pr-close');
         let dur = 700; try { dur = parseInt((cl && cl.style.animationDuration) || '700', 10) || 700; } catch (_) {}
-        const delay = Math.max(120, dur - 200);
+        let pause = 0; try { pause = parseInt((ring.dataset && ring.dataset.pause) || '0', 10) || 0; } catch (_) {}
+        const delay = Math.max(120, dur + pause - 200);
         setTimeout(() => { P('pointerdown', cx, cy); P('pointerup', cx, cy); }, delay);
       }
     };
