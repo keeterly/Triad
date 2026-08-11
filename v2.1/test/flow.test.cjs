@@ -369,9 +369,20 @@ const QUICK = process.argv.includes('--quick');
   check('phalanx fight won', await J(() => S.over && S.enemies.every(x => x.dead)));
   await sleep(900); await clickOverlayBtn('#ov-next'); await sleep(400);
 
-  // camp: heal + SHARE THE FIRE scene deepens the weakest bond
+  // camp (Build 210): the fire no longer heals on ARRIVAL — the night is one choice.
   await J(() => document.querySelector('.map-node.mn-camp.mn-reach')?.click()); await sleep(500);
-  check('camp full-heals the roster', await J(() => Object.keys(RUN.hp).every(id => RUN.hp[id] === HEROES[id].maxHp)));
+  check('CAMP: the night offers its choices (rest is no longer free)',
+    await J(() => !!document.querySelector('.camp-choices') && !!document.querySelector('#camp-forge') && !!document.querySelector('#camp-fire')));
+  const campWounded = await J(() => RUN.roster.some(id => (RUN.hp[id] ?? HEROES[id].maxHp) > 0 && (RUN.hp[id] ?? HEROES[id].maxHp) < HEROES[id].maxHp));
+  if (campWounded) {
+    check('CAMP: arrival healed no one — the wound outlasts the walk in', true);
+    await clickOverlayBtn('#camp-rest'); await sleep(400);
+    check('CAMP REST: choosing the fire heals every living hero',
+      await J(() => RUN.roster.every(id => (RUN.hp[id] ?? 0) <= 0 || RUN.hp[id] === HEROES[id].maxHp)));
+    await J(() => { const n = RUN.map.find(x => x.type === 'camp'); showCamp(n); }); await sleep(300);   // re-open for the fire scene
+  } else {
+    check('CAMP REST: nobody wounded — the rest choice stays hidden', await J(() => !document.querySelector('#camp-rest')));
+  }
   const weakPair = await J(() => {
     const ids = RUN.active.slice(); let best = null, low = Infinity;
     for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) {
@@ -466,6 +477,51 @@ const QUICK = process.argv.includes('--quick');
     const a = JSON.parse(localStorage.getItem('kizuna2_1.abyss') || '{}');
     return !a[lvl] && typeof S !== 'undefined' && S && !S.over;
   }, fallenLevel));
+
+  // ---------- THE CORPSE RUN (Build 210): guarded ashes ----------
+  // A memory that banked embers is GUARDED by the fallen trio's echo — face it
+  // to win everything back, or let them rest and take only the blessing.
+  const corpse = await J(() => {
+    const mem = { trio: ['cassia', 'branwen'], threads: ['branwen|cassia'], label: 'THE WEEPING STAIR', embers: 24 };
+    const n = RUN.map.find(x => x.type === 'fight' && !RUN.completed.includes(x.id)) || RUN.map[0];
+    n.mem = mem; n.memLevel = 99;
+    showMemory(n, mem);
+    return { face: !!document.querySelector('#ov-face'), rest: !!document.querySelector('#ov-takeup') };
+  });
+  check('CORPSE RUN: guarded ashes offer FACE THEIR ECHO or LET THEM REST', corpse.face && corpse.rest);
+  await clickOverlayBtn('#ov-face'); await sleep(700);
+  check('CORPSE RUN: the fallen stand as VENGEFUL echoes with the bank attached',
+    await J(() => S && S.node.memEmbers === 24 && S.enemies.length === 2 && S.enemies.every(e => /VENGEFUL/.test(e.def.name))));
+  const embBefore = await J(() => RUN.embers || 0);
+  await J(() => { S.enemies.forEach(e => { e.hp = 0; e.dead = true; }); onVictory(); });
+  await sleep(1100);
+  check('CORPSE RUN: felling the echo reclaims the banked embers + their bonds',
+    await J((b) => (RUN.embers || 0) >= b + 24 && (RUN.bonds['branwen|cassia'] || 0) >= 1 && RUN._ashes === 'THE WEEPING STAIR', embBefore),
+    await J((b) => 'embers:' + RUN.embers + ' (was ' + b + ') bonds:' + JSON.stringify(RUN.bonds) + ' ashes:' + RUN._ashes, embBefore));
+  await clickOverlayBtn('#ov-next'); await sleep(400);
+
+  // ---------- BUILD 210: boss bulk + soft enrage + primed cap + knowing endings ----------
+  check('BOSS: bulked ~35-40% (fl-1 mult 3.9) and soft-ENRAGES past turn 8 (telegraph-honest)',
+    await J(() => {
+      RUN = newRun('ash'); RUN.active = ['ash', 'elin', 'mira'];
+      startFight({ type: 'fight', chapter: 3, depth: 7, floor: 1, useRunHp: true, heroes: ['ash', 'elin', 'mira'], enemies: ['echoknight2'], isBoss: true });
+      const hp = S.enemies[0].maxHp;
+      const it = { dmg: 10 };
+      S.turn = 1; const calm = enemyIntentDmg(S.enemies[0], it);
+      S.turn = 10; const late = enemyIntentDmg(S.enemies[0], it);
+      S.turn = 1;
+      return hp >= Math.round(112 * 3.8) && late > calm;
+    }));
+  check('ALL-OUT: real setup detonates 1.5× — the L3 blanket pays only 1.25×',
+    await J(() => resolveAllOut.toString().includes('setUp ? 1.5 : 1.25')));
+  check('ENDING: the close names the trio, their vow, the carried ashes, and a clean reputation',
+    await J(() => {
+      RUN = newRun('ash'); RUN.active = ['ash', 'elin', 'mira']; RUN._ashes = 'THE WEEPING STAIR'; RUN.foesMade = 0;
+      onRunComplete();
+      const txt = document.body.innerText;
+      hideOverlay();
+      return txt.includes('ASH · ELIN · MIRA') && txt.includes('THE WEEPING STAIR') && txt.includes('No name in the dark');
+    }));
 
   await t.autoParry(false);   // scripted drills below control their own input
 
@@ -2161,11 +2217,14 @@ const QUICK = process.argv.includes('--quick');
       const trioFigs = trio ? trio.querySelectorAll('.bp-fig').length : 0;
       hideOverlay();
       return !!trio && !!duo && trioFigs === 3; }));
-  check('CAMP: the fire’s third slot is COMMUNE (draw a boon), not the old Forge',
+  check('CAMP (Build 210): the night offers COMMUNE and the EMBER FORGE — and no REST when unhurt',
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash']; RUN.hp = { ash: 32 }; RUN.boons = [];
       showCamp({ id: 9, type: 'camp', label: 'EMBER REST' });
-      return !!document.querySelector('#camp-boon') && !document.querySelector('#camp-forge');
+      const ok = !!document.querySelector('#camp-boon') && !!document.querySelector('#camp-forge')
+        && !document.querySelector('#camp-rest');   // full HP → nothing to rest for
+      hideOverlay();
+      return ok;
     }));
   check('BOON: held gifts show in the combat topbar strip, party-gated',
     await J(() => {
@@ -2477,7 +2536,7 @@ const QUICK = process.argv.includes('--quick');
       RUN.floor = 1; RUN.completed = [0, 1, 2, 3];
       onFloorCleared();                          // clear the boss → descend to floor 2
       const keptActive = RUN.active.includes('hask');
-      const revived = RUN.hp.hask === HEROES.hask.maxHp;   // floor-clear catches your breath
+      const revived = RUN.hp.hask === Math.ceil(HEROES.hask.maxHp * 0.5);   // Build 210: the deep grants HALF a breath — the fallen rise at 50%, not full
       saveRun(); const reloaded = loadRun();     // quit + reopen between floors
       const persisted = reloaded && reloaded.active.includes('hask');
       return RUN.floor === 2 && keptActive && revived && persisted; }));
@@ -2502,16 +2561,19 @@ const QUICK = process.argv.includes('--quick');
       startMapFight(RUN.map.find(x => x.type === 'fight'));
       const hk = S.heroes.find(h => h.id === 'hask');
       return !!hk && hk.downed && hk.hp === 0; }));   // still down entering the fight
-  check('CAMP REVIVE is a CHOICE: the fire heals the LIVING to full but the fallen stay down',
+  check('CAMP REVIVE is a CHOICE: REST heals the LIVING to full but the fallen stay down',
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash', 'hask']; RUN.active = ['ash', 'hask'];
       RUN.hp = { ash: 12, hask: 0 };   // Ash wounded, Hask fallen
       showCamp({ id: 77, label: 'TEST FIRE' });
-      const healedLiving = RUN.hp.ash === HEROES.ash.maxHp;   // the living mend fully
-      const fallenStayDown = RUN.hp.hask === 0;               // the dead do NOT rise on their own
       const raiseOffered = !!document.getElementById('camp-raise');   // the choice is presented
+      const restOffered = !!document.getElementById('camp-rest');     // Build 210: healing is a CHOICE too
+      const unhealedOnArrival = RUN.hp.ash === 12;                    // arriving mends nothing
+      const restBtn = document.getElementById('camp-rest'); if (restBtn) restBtn.click();
+      const healedLiving = RUN.hp.ash === HEROES.ash.maxHp;   // choosing REST mends the living fully
+      const fallenStayDown = RUN.hp.hask === 0;               // the dead do NOT rise on their own
       hideOverlay();
-      return healedLiving && fallenStayDown && raiseOffered; }));
+      return raiseOffered && restOffered && unhealedOnArrival && healedLiving && fallenStayDown; }));
   check('CAMP REVIVE: choosing RAISE returns the fallen at half HP',
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash', 'hask']; RUN.active = ['ash', 'hask'];

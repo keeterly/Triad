@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 209;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 210;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -192,10 +192,10 @@ const MUSIC = (() => {
 // NOT permanent — it lives on the RUN.
 const META_KEY = 'kizuna2_1.meta';
 const META = Object.assign(
-  { heat: 0 },
-  (() => { try { const m = JSON.parse(localStorage.getItem(META_KEY) || '{}') || {}; return { heat: +m.heat || 0 }; } catch (_) { return {}; } })()
+  { heat: 0, clears: 0 },
+  (() => { try { const m = JSON.parse(localStorage.getItem(META_KEY) || '{}') || {}; return { heat: +m.heat || 0, clears: +m.clears || 0 }; } catch (_) { return {}; } })()
 );
-function saveMeta() { try { localStorage.setItem(META_KEY, JSON.stringify({ heat: META.heat })); } catch (_) {} }
+function saveMeta() { try { localStorage.setItem(META_KEY, JSON.stringify({ heat: META.heat, clears: META.clears || 0 })); } catch (_) {} }
 // PER-RUN progression — embers and skill-tree unlocks live on the RUN and reset
 // when it ends (death OR completion).  Between runs nothing is banked; every
 // descent you rebuild your party's kit from scratch.
@@ -1616,7 +1616,7 @@ const ENEMY_DEFS = {
       // the climax: a five-note sequence that unmakes the whole line at once.
       { key: 'unmaking', name: 'THE UNMAKING', epithet: 'IT FEEDS ON THE BOND', aura: 'sunder', weak: 'song', maxHp: 190, eye: '#8fe0d0', roar: 'maw',
         attacksPerRound: 5, parrySpeed: 0.68,   // stage 3 — the climax: five fast strikes to read
-        quote: 'You came down together. I keep every echo you leave behind.',
+        quote: 'The fire remembers you to each other. I remember you to me. One of us will keep you forever.',
         intents: [
           { name: 'Cut the Bond', dmg: 7, row: 'front', sever: 1, attackArt: 'slash', parry: { kind: 'seq', notes: [{ t: 'swipe', arc: 'arcR' }, { t: 'tap' }] } },
           { name: 'DISCORD', dmg: 8, row: 'mid', discord: 1, attackArt: 'claw', parry: { kind: 'seq', notes: [{ t: 'swipe', arc: 'arcL' }, { t: 'tap' }, { t: 'swipe', arc: 'arcR' }] } },
@@ -2015,6 +2015,7 @@ const FLOW = [
     { spk: 'ASH', text: 'A strike and a killing blow. Everything between them, I earn.' },
     { text: 'The dead give up <b>✦ embers</b>. Between fights, open your party’s <b>Ember Tree</b> and spend them — a <b>combo</b> node <b>inserts a middle strike</b> (opener → combo → finisher), and a <b>fork</b> node opens a <b>second line</b> off the opener (play it, pick one path, the other burns away). Grow each rotation one earned choice at a time. Only for the heroes you field, and only for <b>this descent</b>.' },
     { text: 'Every trio you form <b>fights differently</b> — their bonds, weaves and finale are all their own — so <b>who walks beside whom is your build</b>. And when a party falls, the Abyss remembers where — your next descent finds their ashes still warm.' },
+    { text: 'Everyone you will meet on this road is walking the <b>other way</b>. Let them. Someone has to walk <b>toward the singing</b>.' },
     { spk: 'MIRA', text: 'Down, then. Stay close. …That’s not sentiment. It’s tactics.' },
   ], next: 'descent' },
 ];
@@ -2366,7 +2367,10 @@ function newBattle(node) {
         // bulk to be a CLIMAX rather than a 2-turn pushover — but its DIFFICULTY
         // comes from DENSER parry cascades, not more HP (see setParryDifficulty).
         const fl = node.floor || 1;
-        const bhpMult = fl >= 3 ? 2.4 : fl >= 2 ? 1.9 : 2.9;
+        // Build 210: bosses bulked ~35-40% (measured: a trio cleared the old
+        // floor-1 boss in 3 turns untouched) — the cinematics promise a climax,
+        // the HP now backs it up.  Difficulty still comes from the parry gauntlet.
+        const bhpMult = fl >= 3 ? 3.3 : fl >= 2 ? 2.6 : 3.9;
         const hp = Math.round(e.maxHp * bhpMult);
         e.maxHp = hp; e.hp = hp;
       } else {
@@ -3608,7 +3612,12 @@ async function resolveCard(card, targetId) {
 // the enemy turn AND both telegraphs (intent bubble + threat forecast) so what
 // you're shown is exactly what lands.
 function enemyIntentDmg(e, intent) {
-  const scaled = Math.round(((intent.dmg || 0) + (e.power || 0)) * (e.dmgMul || 1));
+  let mul = e.dmgMul || 1;
+  // SOFT ENRAGE (Build 210) — from turn 8 a boss's blows swell +12% per turn, so
+  // a stalled fight tightens instead of dragging.  Lives HERE (the single source
+  // of truth) so the telegraph shows exactly what will land.
+  if (e.def && e.def.boss && S && S.turn > 8) mul *= 1 + 0.12 * (S.turn - 8);
+  const scaled = Math.round(((intent.dmg || 0) + (e.power || 0)) * mul);
   return Math.max(0, scaled - (e.lull || 0));
 }
 // The intents an enemy will execute on its COMING turn (one, or two for a boss
@@ -4912,8 +4921,12 @@ async function resolveAllOut() {
     if (q === 'perfect') stageShake();
     for (const e of livingEnemies()) {
       let dmg = Math.max(1, Math.round(noteBase * qmul * comboMul * lvlMul * bondMul));
-      const primed = e.staggered || e.weakened || e.mark || e.lull || aoLevel >= 3;   // L3 detonates everything
-      if (primed) { dmg = Math.round(dmg * 1.5); }                 // detonate the setup
+      // Build 210: real SETUP (statuses you earned) detonates at the full 1.5×;
+      // the L3 detonate-everything blanket pays 1.25× — a transcendent burst is
+      // still crowned, but bosses stop melting to a flat +50% on every strike.
+      const setUp = e.staggered || e.weakened || e.mark || e.lull;
+      const primed = setUp || aoLevel >= 3;
+      if (primed) { dmg = Math.round(dmg * (setUp ? 1.5 : 1.25)); }   // detonate the setup
       dealToEnemy(e, finaleClamp(e, dmg), h.def.school, h.id);
       if (primed) popupAt(figEl(e.uid), '⚡ TECHNICAL', 'info');
       // hold the reserved finale foe: don't execute the last enemy when a triad
@@ -5492,6 +5505,17 @@ function onVictory() {
   // fight advances the tree a little (not just a trickle between boss lumps).
   const clearBonus = isBoss ? 3 : (S.node.elite ? 2 : 1);
   addEmbers(clearBonus); S._embersRun = (S._embersRun || 0) + clearBonus;
+  // THE CORPSE RUN RECLAIMED (Build 210) — beating the fallen trio's echo wins
+  // back everything the Abyss kept: their embers AND their bonds.
+  let memLine = '';
+  if (S.node.memEmbers) {
+    addEmbers(S.node.memEmbers); S._embersRun = (S._embersRun || 0) + S.node.memEmbers;
+    RUN.bonds = RUN.bonds || {};
+    (S.node.memThreads || []).forEach(k => { RUN.bonds[k] = (RUN.bonds[k] || 0) + 1; });
+    RUN._ashes = S.node.memLabel || 'the dark';   // set down gently — the ending remembers them
+    memLine = `<div class="ov-embers">♰ The echo rests. <b>✦ ${S.node.memEmbers} embers reclaimed</b> — and their bonds pass to you.</div>`;
+    saveRun();
+  }
   SFX.victory();
   setTimeout(() => {
     if (!S) return;   // the fight was torn down before this deferred beat fired
@@ -5501,6 +5525,7 @@ function onVictory() {
       <div class="ov-eyebrow" style="color:var(--gold-bright)">VICTORY</div>
       <div class="ov-title" style="font-size:22px">${isBoss ? 'THE ECHO FADES' : 'THE ROAD HOLDS'}</div>
       ${th ? `<div class="ov-sub">${th} bond${th > 1 ? 's' : ''} held${S.triadFormed ? ' · the triad answered' : ''}</div>` : ''}
+      ${memLine}
       ${S._embersRun ? `<div class="ov-embers">✦ ${S._embersRun} embers gathered — spend them on the <b>Ember Tree</b></div>` : ''}
       ${bondLines.length ? `<div class="bond-growth">${bondLines.map(l => `<span class="bg-line${/WOVEN/.test(l) ? ' bg-kindled' : ''}">♡ ${l}</span>`).join('')}</div>` : ''}
       <button class="ov-btn primary" id="ov-next">CONTINUE</button>
@@ -5525,6 +5550,10 @@ function onDefeat() {
       trio: RUN.active.slice(),
       threads: [...S.threads],
       label: S.node.label || (mapNode(S.node.mapId) || {}).label || 'the dark',
+      // Build 210 (the corpse run): the Abyss KEEPS most of what you carried —
+      // 60% of the unspent embers wait at the death-marker, guarded by the
+      // fallen trio's echo.  Death now creates next-run purpose, not just a stat.
+      embers: Math.round((RUN.embers || 0) * 0.6),
     };
     saveAbyss(abyss);
     // GAME OVER — capture the run's arc BEFORE the run is wiped, so the screen
@@ -5585,7 +5614,10 @@ function onFloorCleared() {
   RUN.floor = (RUN.floor || 1) + 1;
   RUN.completed = [];
   RUN.map = generateDescent(RUN.roster, RUN.floor);
-  RUN.roster.forEach(id => { RUN.hp[id] = HEROES[id].maxHp; });   // catch your breath before the deep
+  // Build 210: the deep grants HALF a breath, not a full night's rest — everyone
+  // (the fallen included: clearing a floor boss is the milestone that pulls them
+  // back to their feet) recovers to at least 50%.  Full rest still costs a camp.
+  RUN.roster.forEach(id => { const hp = RUN.hp[id] ?? HEROES[id].maxHp; RUN.hp[id] = Math.max(hp, Math.ceil(HEROES[id].maxHp * 0.5)); });
   saveRun();
   // The step onto the FINAL floor is its own beat: the deepest dark, where the
   // three you broke were only fragments of the one thing still waiting.
@@ -5611,15 +5643,31 @@ function onFloorCleared() {
 }
 function onRunComplete() {
   RUN.done = true; saveRun();
+  // THE ENDING KNOWS WHO YOU WERE (Build 210) — the closing lines read the run's
+  // actual state: the trio and their vow, the ashes they carried, the names they
+  // made (or didn't) against them, and whether this is the first silence or a
+  // return trip.  A eulogy or a coronation, never a form letter.
+  const trio = (RUN.active || []).slice();
+  const names = trio.map(id => (HEROES[id] || {}).name || id).join(' · ');
+  const vow = trio.length === 3 ? triadEntryFor(trio) : null;
+  const firstClear = !(META.clears > 0);
+  META.clears = (META.clears || 0) + 1; saveMeta();
+  const lines = [];
+  lines.push('Three voices in one throat, and every one of them cut. The Chorus comes apart into a hush so complete you can hear your own hearts — <b>all of them, still beating, together</b>.');
+  if (vow) lines.push(`<b>${names}</b> — <i>${vow.name}</i>, sworn and kept. Say the names into the quiet. The dark knows them now.`);
+  if (RUN._ashes) lines.push(`And not only yours: the ones who fell at <b>${RUN._ashes}</b> came down with you — <b>the silence is theirs too</b>.`);
+  if (!(RUN.foesMade > 0)) lines.push('You wronged no one on the road. <b>No name in the dark speaks against you.</b>');
+  lines.push(firstClear
+    ? '<b>The bond held — all the way to the bottom.</b> No one has ever walked back out to tell it. You will be the first.'
+    : '<b>The bond held — again.</b> The Abyss knows this walk now, and still it could not keep you. Every triangle you never formed still waits: other trios, other vows, another descent.');
   showOverlay(`
     <div class="ov-eyebrow" style="color:var(--gold-bright)">THE HOLLOW CHORUS · SILENCED</div>
     <div class="ov-title" style="font-size:26px">THE LAST ECHO FADES</div>
     <div class="ov-lines" style="text-align:center; min-height:0;">
-      <div class="ov-line">Three voices in one throat, and every one of them cut. The Chorus comes apart into a hush so complete you can hear your own hearts — <b>all of them, still beating, together</b>.</div>
-      <div class="ov-line"><b>The bond held — all the way to the bottom.</b> Every triangle you never formed still waits in the dark: other trios, other vows, another descent.</div>
+      ${lines.map(l => `<div class="ov-line">${l}</div>`).join('')}
     </div>
     <button class="ov-btn primary" id="ov-title">BACK TO TITLE</button>
-  `);
+  `, 'story-screen');
   $('#ov-title').onclick = () => { RUN = null; saveRun(); showTitle(); };
 }
 
@@ -5816,30 +5864,58 @@ function enterMapNode(n) {
   if (n.mem) { showMemory(n, n.mem); return; }
   resolveMapNode(n);
 }
-// Discovery of a fallen descent — take up their thread, and their bonds echo
-// into this run.  Consumed once found.
+// Discovery of a fallen descent.  Build 210 (the corpse run): if the fallen
+// carried embers, the Abyss KEEPS them — and what it keeps, it USES.  Their
+// echo guards the ashes: face it to take everything back, or let them rest and
+// carry only the blessing.  This is the twist said out loud — the echoes you
+// fight on this road are previous descents.
 function showMemory(n, mem) {
   const names = mem.trio.map(id => (HEROES[id] || {}).name || id).join(' · ');
   const th = (mem.threads || []).length;
+  const emb = mem.embers || 0;
+  const consume = () => {
+    const abyss = loadAbyss();
+    delete abyss[n.memLevel != null ? n.memLevel : n.level];
+    saveAbyss(abyss);
+    n.mem = null;
+    saveRun();
+  };
+  const bless = () => {
+    RUN.bonds = RUN.bonds || {};
+    (mem.threads || []).forEach(k => { RUN.bonds[k] = (RUN.bonds[k] || 0) + 1; });
+    RUN.roster.forEach(id => { RUN.hp[id] = Math.min(HEROES[id].maxHp, (RUN.hp[id] || HEROES[id].maxHp) + 4); });
+    RUN._ashes = mem.label || 'the dark';   // carried — the ending remembers them (Build 210)
+  };
   showOverlay(`
     <div class="ov-eyebrow">♰ ASHES OF A DESCENT</div>
     <div class="ov-title" style="font-size:20px">SOMEONE FELL HERE</div>
     <div class="ov-lines" style="text-align:center; min-height:0">
       <div class="ov-line"><b>${names}</b> — they made it this far, once.</div>
       <div class="ov-line">${th ? `Their ${th} bond${th > 1 ? 's' : ''} still hum in the cold air.` : 'The ashes are quiet, but still warm.'}</div>
+      ${emb ? `<div class="ov-line">And they did not fall alone. <b>The Abyss kept them</b> — and what it keeps, it <b>uses</b>. Their echo stands over <b>✦ ${emb} embers</b> that were theirs.</div>` : ''}
     </div>
-    <button class="ov-btn primary" id="ov-takeup">TAKE UP THEIR BOND</button>
-    <div class="ov-hint">${th ? '+1 ♡ TO EACH BOND THEY HELD · ' : ''}THE PARTY HEALS 4 BY THEIR FIRE</div>
+    ${emb ? `<button class="ov-btn primary" id="ov-face">FACE THEIR ECHO</button>
+    <button class="ov-btn" id="ov-takeup">LET THEM REST</button>
+    <div class="ov-hint">FACE: WIN BACK ✦ ${emb} + THEIR BONDS · REST: ${th ? '+1 ♡ PER BOND · ' : ''}HEAL 4 — THE EMBERS STAY THEIRS</div>`
+    : `<button class="ov-btn primary" id="ov-takeup">TAKE UP THEIR BOND</button>
+    <div class="ov-hint">${th ? '+1 ♡ TO EACH BOND THEY HELD · ' : ''}THE PARTY HEALS 4 BY THEIR FIRE</div>`}
   `);
+  const faceBtn = $('#ov-face');
+  if (faceBtn) faceBtn.onclick = () => {
+    consume();
+    hideOverlay();
+    flashNarrator('The ashes rise wearing the faces of the fallen — the Abyss spends what it keeps.');
+    startFight({ type: 'fight', chapter: 3, heroes: RUN.active.slice(),
+      enemies: mem.trio.map(id => ensureFoeDef(id)),
+      useRunHp: true, mapId: n.id, depth: n.level || n.col, floor: RUN.floor || 1,
+      nodeType: 'fight', label: 'ECHOES OF THE FALLEN', level: n.level,
+      memEmbers: emb, memThreads: (mem.threads || []).slice(), memLabel: mem.label || 'the dark',
+      narrator: 'ECHOES OF THE FALLEN — they were a descent, once. Set them down gently.' });
+    $('#chapter-chip').textContent = 'ECHOES';
+  };
   $('#ov-takeup').onclick = () => {
-    RUN.bonds = RUN.bonds || {};
-    (mem.threads || []).forEach(k => { RUN.bonds[k] = (RUN.bonds[k] || 0) + 1; });
-    RUN.roster.forEach(id => { RUN.hp[id] = Math.min(HEROES[id].maxHp, (RUN.hp[id] || HEROES[id].maxHp) + 4); });
-    const abyss = loadAbyss();
-    delete abyss[n.memLevel != null ? n.memLevel : n.level];
-    saveAbyss(abyss);
-    n.mem = null;
-    saveRun();
+    bless();
+    consume();
     hideOverlay();
     resolveMapNode(n);
   };
@@ -6573,12 +6649,13 @@ function showJournal(onBack, tab) {
 // Back-compat alias — older callers open the Journal on the Boons tab.
 function showBoonJournal(onBack) { showJournal(onBack, 'boons'); }
 function showCamp(n) {
-  // The fire closes every wound on the LIVING — but the fallen do not rise on
-  // their own.  Raising them is a deliberate camp act (see the RAISE choice).
-  RUN.roster.forEach(id => { const hp = RUN.hp[id] ?? HEROES[id].maxHp; if (hp > 0) RUN.hp[id] = HEROES[id].maxHp; });
+  // Build 210 (Phase 1): the fire no longer heals on arrival.  The night is long
+  // enough for ONE thing done well — resting, raising, bonding, communing, or
+  // forging — so the pre-boss camp becomes a real decision, not a toll booth.
   if (!RUN.completed.includes(n.id)) RUN.completed.push(n.id);
   saveRun();
   const fallen = (RUN.roster || []).filter(id => (RUN.hp[id] ?? 1) <= 0);
+  const wounded = (RUN.roster || []).some(id => { const hp = RUN.hp[id] ?? HEROES[id].maxHp; return hp > 0 && hp < HEROES[id].maxHp; });
   // CINEMATIC CAMPFIRE — the party gathers, lit warm by the fire; the night's
   // one choice is offered as cards over the scene (mirrors the JRPG cutscenes).
   const party = ((RUN.active && RUN.active.length) ? RUN.active : RUN.roster).slice();
@@ -6601,16 +6678,24 @@ function showCamp(n) {
       <div class="camp-top">
         <div class="camp-eyebrow">CAMPFIRE</div>
         <div class="camp-title">${n.label}</div>
-        <div class="camp-flavor">The fire holds back the dark. <b>Every wound on the living closes.</b>${fallen.length ? ` But <b>${fallen.map(id => HEROES[id].name).join(' & ')}</b> ${fallen.length > 1 ? 'lie' : 'lies'} still — the fire alone will not raise them.` : ''}</div>
+        <div class="camp-flavor">The fire holds back the dark — but the night is long enough for <b>one thing done well</b>.${fallen.length ? ` And <b>${fallen.map(id => HEROES[id].name).join(' & ')}</b> ${fallen.length > 1 ? 'lie' : 'lies'} still…` : ''}</div>
       </div>
       <div class="camp-choices">
+        ${wounded ? choice('camp-rest', '🔥', 'REST BY THE FIRE', 'Every wound on the <b>living</b> closes.') : ''}
         ${fallen.length ? choice('camp-raise', '☨', 'RAISE THE FALLEN', `<b>${fallen.map(id => HEROES[id].name).join(' & ')}</b> ${fallen.length > 1 ? 'return' : 'returns'} at <b>half HP</b> — the fire’s only gift tonight.`) : ''}
         ${choice('camp-fire', '♡', 'SHARE THE FIRE', 'Deepen your weakest bond <b>+1</b>.')}
-        ${choice('camp-steel', '▲', 'SHARPEN STEEL', 'Open the next fight with <span class="kw kw-rally">▲ RALLY +2</span>.')}
         ${choice('camp-boon', '✦', 'COMMUNE AT THE FIRE', 'A companion shares a gift — <b>draw 1 of 3</b>.')}
+        ${choice('camp-forge', '⚒', 'THE EMBER FORGE', 'Spend embers on tempers that hold <b>this descent</b>.')}
       </div>
     </div>
   `, 'camp-cine');
+  const restBtn = $('#camp-rest');
+  if (restBtn) restBtn.onclick = () => {
+    RUN.roster.forEach(id => { const hp = RUN.hp[id] ?? HEROES[id].maxHp; if (hp > 0) RUN.hp[id] = HEROES[id].maxHp; });
+    saveRun();
+    flashNarrator('The fire takes the night — and every wound on the living with it.');
+    showMap();
+  };
   const raiseBtn = $('#camp-raise');
   if (raiseBtn) raiseBtn.onclick = () => {
     fallen.forEach(id => { RUN.hp[id] = Math.max(1, Math.ceil(HEROES[id].maxHp / 2)); });
@@ -6619,11 +6704,7 @@ function showCamp(n) {
       `The fire takes what the dark left. <b>${fallen.map(id => HEROES[id].name).join(' & ')}</b> ${fallen.length > 1 ? 'stand' : 'stands'} again — half-alive, wholly here. Tonight the fire had only this to give.`, false, fallen[0]);
   };
   $('#camp-fire').onclick = () => showCampScene(n);
-  $('#camp-steel').onclick = () => {
-    RUN.campEdge = true;
-    saveRun();
-    showPartySelect(() => showMap());
-  };
+  $('#camp-forge').onclick = () => showForge(n);
   $('#camp-boon').onclick = () => showBoonDraft(() => showMap(), { eyebrow: n.label.toUpperCase(), title: 'A COMPANION’S GIFT', flavor: 'By the fire, someone shares a piece of how they fight. Take one — it holds until you fall.' });
 }
 
@@ -6646,9 +6727,9 @@ function showForge(n) {
   showOverlay(`
     <div class="ov-eyebrow" style="color:#ffb469">THE EMBER FORGE</div>
     <div class="et-wallet">✦ <b>${runEmbers()}</b> <span>embers</span></div>
-    <div class="et-forge-note">These tempers hold only for this descent — spend freely, or bank toward the tree.</div>
+    <div class="et-forge-note">These tempers hold only for this descent — spend freely, or bank toward the tree. The forge takes the night.</div>
     <div class="et-tier-row">${offers}</div>
-    <button class="ov-btn" id="forge-back">◂ BACK TO THE FIRE</button>
+    <button class="ov-btn" id="forge-back">◂ TAKE THE ROAD</button>
   `, 'map-screen et-screen');
   document.querySelectorAll('.et-node:not([disabled])').forEach(el => {
     el.onclick = () => {
@@ -6659,7 +6740,7 @@ function showForge(n) {
       showForge(n);
     };
   });
-  $('#forge-back').onclick = () => showCamp(n);
+  $('#forge-back').onclick = () => showMap();   // the forge was the night's one act — morning comes
 }
 // A small scene by the fire between the two LEAST-bonded active companions —
 // where the numbers become people.
