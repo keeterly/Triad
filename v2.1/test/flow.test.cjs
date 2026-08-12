@@ -915,6 +915,67 @@ const QUICK = process.argv.includes('--quick');
     }));
   // ---------- BUILD 228: the stage is a TRUE 3D DIORAMA ----------
   // ---------- BUILD 229: camera FEEL — measured, not eyeballed ----------
+  // ---------- BUILD 230: PARRY CINEMA (the Clair Obscur defensive camera) ----------
+  const camR = () => J(() => parseFloat(document.getElementById('stage').style.getPropertyValue('--cam-r')) || 0);
+  const camDz = () => J(() => parseFloat(document.getElementById('stage').style.getPropertyValue('--cam-dz')) || 0);
+  check('PARRY CINEMA: the shot TIGHTENS through a string — later blows push further than early ones',
+    await J(() => {
+      camRelease();
+      parryCam(0, 5, 'good'); const first = parseFloat(document.getElementById('stage').style.getPropertyValue('--cam-dz'));
+      parryCam(4, 5, 'good'); const last = parseFloat(document.getElementById('stage').style.getPropertyValue('--cam-dz'));
+      camRelease();
+      return last > first + 30;
+    }));
+  check('PARRY CINEMA: the dutch WHIPS side to side — consecutive blows roll opposite ways',
+    await J(() => {
+      const rolls = [];
+      for (let i = 0; i < 5; i++) { camRelease(); parryCam(i, 5, 'good'); rolls.push(parseFloat(document.getElementById('stage').style.getPropertyValue('--cam-r'))); }
+      camRelease();
+      let flips = 0;
+      for (let i = 1; i < rolls.length; i++) if (Math.sign(rolls[i]) !== Math.sign(rolls[i - 1])) flips++;
+      // and the magnitude grows as the string goes on
+      return flips === 4 && Math.abs(rolls[4]) > Math.abs(rolls[0]);
+    }));
+  check('PARRY CINEMA: a PERFECT read snaps harder and faster than a good one',
+    await J(() => {
+      camRelease(); parryCam(2, 5, 'good');
+      const g = { dz: parseFloat(document.getElementById('stage').style.getPropertyValue('--cam-dz')),
+                  ms: document.getElementById('stage').style.getPropertyValue('--cam-ms') };
+      camRelease(); parryCam(2, 5, 'perfect');
+      const p = { dz: parseFloat(document.getElementById('stage').style.getPropertyValue('--cam-dz')),
+                  ms: document.getElementById('stage').style.getPropertyValue('--cam-ms') };
+      camRelease();
+      return p.dz > g.dz && parseFloat(p.ms) < parseFloat(g.ms);
+    }));
+  check('PARRY CINEMA: a MISS lurches the lens the OTHER way — the blow got through',
+    await J(() => {
+      camRelease(); parryCam(0, 5, 'perfect'); const hit = parseFloat(document.getElementById('stage').style.getPropertyValue('--cam-r'));
+      camRelease(); parryCam(0, 5, 'miss');    const miss = parseFloat(document.getElementById('stage').style.getPropertyValue('--cam-r'));
+      camRelease();
+      return Math.sign(miss) !== Math.sign(hit);
+    }));
+  check('PARRY CINEMA: the dutch is CLAMPED — a long string can never roll the scene onto its side',
+    await J(() => {
+      camRelease();
+      cam({ r: 90, ms: 0, force: true });
+      const r = Math.abs(parseFloat(document.getElementById('stage').style.getPropertyValue('--cam-r')));
+      camRelease();
+      return r <= CAM_MAX_ROLL;
+    }));
+  check('PARRY CINEMA: the wind-up frames the CONFRONTATION — attacker and defender in one shot',
+    await J(() => /heroInRow/.test(windupTell.toString()) && /camFocus\(subjects/.test(windupTell.toString())));
+  check('PARRY CINEMA: reduced motion silences the whole defensive camera',
+    await J(() => {
+      const real = window.matchMedia;
+      window.matchMedia = (q) => /reduced-motion/.test(q) ? { matches: true, addListener() {}, removeListener() {} } : real.call(window, q);
+      camRelease();
+      const before = document.getElementById('stage').style.getPropertyValue('--cam-r');
+      parryCam(3, 5, 'perfect');
+      const after = document.getElementById('stage').style.getPropertyValue('--cam-r');
+      window.matchMedia = real;
+      return before === after;
+    }));
+
   check('FEEL: EVERY landed blow moves the lens — a graze too, not just heavy hits',
     await J(async () => {
       camRelease();

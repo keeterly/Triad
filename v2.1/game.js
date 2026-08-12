@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 229;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 230;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -4345,6 +4345,7 @@ function dealToEnemy(e, amt, school, byHeroId) {
 const CAM_HOME = { x: 0, y: 0, z: 1, r: 0, dz: 0, pitch: 0, yaw: 0 };
 const CAM_MAX_PAN = 120;   // px the lens may truck off centre
 const CAM_MAX_DZ = 210;    // px it may dolly in
+const CAM_MAX_ROLL = 5;    // deg of dutch — past this it reads as a broken TV
 const CAM_SNAP = 'cubic-bezier(.16,.84,.28,1)';   // hard out — the punch
 const CAM_SETTLE = 'cubic-bezier(.22,.61,.36,1)'; // soft — the drift home
 let _camHeld = 0;      // >0 while a rhythm window owns the frame
@@ -4366,7 +4367,7 @@ function cam(spec) {
   st.style.setProperty('--cam-x', clamp(s.x, CAM_MAX_PAN) + 'px');
   st.style.setProperty('--cam-y', clamp(s.y, CAM_MAX_PAN * 0.5) + 'px');
   st.style.setProperty('--cam-z', String(z));
-  st.style.setProperty('--cam-r', (s.r || 0) + 'deg');
+  st.style.setProperty('--cam-r', clamp(s.r, CAM_MAX_ROLL) + 'deg');
   // 3D terms — dz is a real dolly through the diorama's perspective, so a
   // push-in widens and parallaxes the rows instead of flatly magnifying them.
   st.style.setProperty('--cam-dz', clamp(s.dz, CAM_MAX_DZ) + 'px');
@@ -4434,6 +4435,31 @@ function camPunch(power, toEl) {
   // as a twitch; letting the heavy hits SIT for a beat is what makes them land.
   // The hold scales with weight and brackets the existing hitstop (95/155ms).
   _camOutT = setTimeout(() => camReset([380, 440, 540, 700][p]), inMs + [60, 90, 160, 250][p]);
+}
+// ══ PARRY CINEMA (Build 230) — the Clair Obscur defensive camera ═════════
+// Their combat sells a block as a piece of film: the lens composes the
+// CONFRONTATION rather than a single figure, the shot tightens and dutches
+// further with every blow in a string, a clean read SNAPS, and a missed one
+// lurches the wrong way.  The tension is in the escalation, not in any one
+// move.
+//
+// Safe to move mid-string, which is not obvious: a cascade's rings are placed
+// at PRE-COMPUTED stage points (zonePoints) in #popup-layer, which sits
+// outside the camera — and the input itself is position-INDEPENDENT (taps,
+// holds and swipes all listen on `window`).  So the camera cannot break a
+// parry; it can only decouple the ring from the figure visually.  That is why
+// the escalation leans on ROLL and dolly (which barely slide a centred
+// defender) and never on a pan.
+function parryCam(i, total, q) {
+  if (camReduced()) return;
+  const t = total > 1 ? Math.min(1, i / (total - 1)) : 1;   // 0..1 through the string
+  const dir = (i % 2) ? -1 : 1;                             // the dutch whips side to side
+  const perfect = q === 'perfect', miss = q === 'miss';
+  const dz = 44 + t * 52 + (perfect ? 24 : 0);
+  const roll = dir * (0.8 + t * 2.0) + (perfect ? dir * 1.0 : 0) - (miss ? dir * 1.8 : 0);
+  cam({ dz, z: 1 + (dz / 1150) * 0.35, r: roll,
+        yaw: dir * (0.5 + t * 1.3), pitch: 0.5 + t * 0.9,
+        ms: perfect ? 70 : miss ? 140 : 95, ease: CAM_SNAP, force: true });
 }
 // THE HELD FRAME — a cinematic that owns the camera (the all-out) still wants
 // to BREATHE. Steps the shot in a notch and keeps it there, fast enough to
@@ -5111,6 +5137,7 @@ async function runParrySeq(notes, anchor, art) {
     if (done) { done.classList.remove('sq-active'); done.classList.add(okNote ? 'sq-hit' : 'sq-miss'); }
     if (q === 'perfect' || q === 'good') hits++;
     if (q === 'perfect') perfects++;
+    parryCam(i, notes.length, q);            // the shot tightens and dutches with the string
     if (synced) land += sub;                 // next note, next grid point
     else if (step.g) await sleep(step.g);    // free-run gap
   }
@@ -5135,12 +5162,13 @@ async function windupTell(e, intent) {
     const first = p.kind === 'seq' ? ((p.notes[0] || {}).t || 'tap') : p.kind;
     const pose = first === 'hold' ? 'fw-brace' : first === 'swipe' ? 'fw-sweep' : first === 'mash' ? 'fw-flurry' : 'fw-slash';
     fig.classList.add('fig-windup', pose);
-    // THE LEAN-IN — the whole enemy phase used to play on a locked-off shot,
-    // because the parry that follows HOLDS the frame. The wind-up happens
-    // BEFORE any note is placed, so it is the one safe window to move: the
-    // lens closes on the creature, and the cascade is then read inside that
-    // tighter framing. (Held still throughout, so the notes stay anchored.)
-    camFocus(fig, { z: 1.055, dz: 58, yaw: -1.8, pitch: 0.9, r: -0.4, pull: 0.30, ms: 300 });
+    // THE TWO-SHOT — compose the CONFRONTATION, not the creature alone: the
+    // attacker winding up AND the hero who has to answer it, framed together
+    // and dutched off true. That composition is the whole reason a Clair
+    // Obscur block reads as cinema instead of a QTE prompt.
+    const def = (typeof heroInRow === 'function' && intent && intent.row) ? heroInRow(intent.row) : null;
+    const subjects = [fig, def && figEl(def.id)].filter(Boolean);
+    camFocus(subjects, { z: 1.06, dz: 62, yaw: -2.0, pitch: 1.0, r: -0.7, pull: 0.36, ms: 300 });
     await sleep(460);
     fig.classList.remove('fig-windup', pose);
   } catch (_) {}
@@ -5149,9 +5177,9 @@ async function runParry(targetEl, pattern, art) {
   if (!PARRY_ENABLED || !targetEl) { await sleep(380); return null; }
   const stage = $('#stage');
   stage.classList.add('parry-focus');
-  // The rhythm window owns the frame: notes are placed ONCE from a live rect
-  // into #popup-layer, which is not under the camera, so a move mid-cascade
-  // would slide the figures out from under their own rings.
+  // The rhythm window owns the frame against INCIDENTAL moves (a stray damage
+  // punch mid-cascade would be chaos). parryCam's deliberate beats pass
+  // force:true, so the string still gets its own escalating camera.
   camHold(true);
   try {
     return await runParryInner(targetEl, pattern, art);
@@ -5202,6 +5230,7 @@ async function runParryInner(targetEl, pattern, art) {
       if (art) bossAttackBeat(art, a.x, a.y, okNote);   // strike on each note's beat
       if (okNote) hits++;
       if (q === 'perfect') perfects++;
+      parryCam(i, pattern.count, q);
     }
     return { mit: hits / pattern.count, perfect: hits === pattern.count, flawless: perfects === pattern.count && pattern.count > 0, notes: pattern.count };
   }
@@ -5212,6 +5241,7 @@ async function runParryInner(targetEl, pattern, art) {
   else                    q = await parryTapNote(a.x, a.y, Math.min(Math.round(700 * PARRY_PACE), PARRY_GOOD_MS + 280), 1, 1, sz);   // Build 207: slow the lone tap too (early foes use single taps), capped so the test auto-parry still lands in-window
   const ok1 = q === 'perfect' || q === 'good';
   if (art) bossAttackBeat(art, a.x, a.y, ok1);   // the single strike lands as the note resolves
+  parryCam(0, 1, q);                             // a lone read still snaps
   return { mit: q === 'perfect' ? 1 : q === 'good' ? 0.5 : 0, perfect: q === 'perfect', flawless: q === 'perfect', notes: 1 };
 }
 function parryFlash(el) {
@@ -6099,14 +6129,23 @@ async function enemyPhase() {
         const rip = res.flawless ? parryRiposteDmg(res.notes || 1) : 0;
         if (rip > 0 && !e.dead) {
           flashNarrator('✦ FLAWLESS — ' + ptHero.def.name + ' RIPOSTES for ' + rip + '!');
+          // THE COUNTER — Clair Obscur's payoff beat, and the one moment in a
+          // fight that earns a full cut. Time DILATES, the lens whips hard onto
+          // the hero who read the entire string, they answer out of that held
+          // frame, and dealToEnemy's own punch then shoves into the impact.
+          // The pause before the blow is the point: a counter that fires
+          // instantly reads as a stat, a counter you SEE coming reads as a
+          // decision the character made.
+          try { parrySlowmo(true); } catch (_) {}
+          camFocus(figEl(ptHero.id), { z: 1.18, dz: 152, r: -1.7, yaw: -5, pitch: 1.4, pull: 0.5, ms: 85 });
+          await sleep(200);
           cineFlash('rgba(255,205,130,0.42)'); stageShake('lg');
-          // A one-two: cut HARD to the hero who read the whole string, then
-          // let dealToEnemy's own punch shove the lens into the impact.
-          camFocus(figEl(ptHero.id), { z: 1.14, r: -0.7, ms: 90 });
           lungeFig(figEl(ptHero.id));
           dealToEnemy(e, rip, ptHero.def.school, ptHero.id);   // through the hero's school → can exploit weakness
           popupAt(figEl(e.uid), '⚔ RIPOSTE ' + rip, 'dmg popup-big');
           gainMomentum(7, { combo: true });   // a flawless string surges extra burst (Build 197: reined in from 10)
+          await sleep(130);
+          try { parrySlowmo(false); } catch (_) {}   // never leak the dilation
         }
         renderAll();
         await sleep(rip > 0 ? 340 : 240);
