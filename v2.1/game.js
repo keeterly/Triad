@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 220;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 221;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -1575,7 +1575,7 @@ const ENEMY_DEFS = {
   // Its blows are cutting strokes you DEFLECT (swipe-heavy parries).  A PERFECT
   // parry holds the thread together; miss it and the bond snaps.
   echosunder: {
-    weak: 'song', name: 'THE SUNDERING', maxHp: 152, boss: true, floorBoss: true, art: 'echoknight', aura: 'sunder',
+    weak: 'frost', name: 'THE SUNDERING', maxHp: 152, boss: true, floorBoss: true, art: 'echoknight', aura: 'sunder',
     attacksPerRound: 2,
     intents: [
       { name: 'Cut the Bond', dmg: 6, row: 'front', sever: 1, attackArt: 'slash', parry: { kind: 'seq', notes: [{ t: 'swipe', arc: 'arcR' }, { t: 'tap' }] } },
@@ -1597,7 +1597,7 @@ const ENEMY_DEFS = {
   //             from the broken bond (the Sundering's cut + the Maw's hunger).
   // Parry sequences run up to FIVE notes in succession — the climax of the game.
   echochorus: {
-    name: 'THE HOLLOW CHORUS', weak: 'song', boss: true, floorBoss: true, megaBoss: true, art: 'echoknight',
+    name: 'THE HOLLOW CHORUS', weak: 'blade', boss: true, floorBoss: true, megaBoss: true, art: 'echoknight',
     attacksPerRound: 2, maxHp: 1,   // placeholder — real HP is per-stage (see enterMegaStage)
     stages: [
       // STAGE 1 — THE REMEMBERED (blade / rhythm).  Fast TAP cascades that GROW
@@ -1626,7 +1626,7 @@ const ENEMY_DEFS = {
       // STAGE 3 — THE UNMAKING (song / bonds).  SWIPE deflects; SEVER cuts threads
       // and the new DISCORD feeds it from every bond it breaks.  THE LAST CHORD is
       // the climax: a five-note sequence that unmakes the whole line at once.
-      { key: 'unmaking', name: 'THE UNMAKING', epithet: 'IT FEEDS ON THE BOND', aura: 'sunder', weak: 'song', maxHp: 190, eye: '#8fe0d0', roar: 'maw',
+      { key: 'unmaking', name: 'THE UNMAKING', epithet: 'IT FEEDS ON THE BOND', aura: 'sunder', weak: 'iron', maxHp: 190, eye: '#8fe0d0', roar: 'maw',
         attacksPerRound: 5, parrySpeed: 0.68,   // stage 3 — the climax: five fast strikes to read
         quote: 'The fire remembers you to each other. I remember you to me. One of us will keep you forever.',
         intents: [

@@ -2744,7 +2744,7 @@ const QUICK = process.argv.includes('--quick');
     await J(() => {
       const map = generateDescent(['ash', 'elin', 'mira'], 3);
       const boss = map.find(n => n.isBoss);
-      return !!boss && boss.enemies[0] === 'echosunder' && !!ENEMY_DEFS.echosunder && !!ENEMY_DEFS.echosunder.floorBoss && ENEMY_DEFS.echosunder.weak === 'song';
+      return !!boss && boss.enemies[0] === 'echosunder' && !!ENEMY_DEFS.echosunder && !!ENEMY_DEFS.echosunder.floorBoss && ENEMY_DEFS.echosunder.weak === 'frost';
     }));
   check('FLOOR 3: the Sundering’s intents carry the SEVER mechanic (unique to it)',
     await J(() => ENEMY_DEFS.echosunder.intents.some(i => i.sever) && !ENEMY_DEFS.echoknight2.intents.some(i => i.sever) && !ENEMY_DEFS.echodevourer.intents.some(i => i.sever)));
@@ -2772,7 +2772,7 @@ const QUICK = process.argv.includes('--quick');
     await J(() => {
       const d = ENEMY_DEFS.echochorus;
       return d && d.megaBoss && Array.isArray(d.stages) && d.stages.length === 3
-        && d.stages.map(s => s.weak).join() === 'blade,light,song';
+        && d.stages.map(s => s.weak).join() === 'blade,light,iron';
     }));
   await J(() => { window.megaBoot = () => {
     RUN = newRun('ash'); RUN.roster = ['ash', 'elin', 'mira']; RUN.active = ['ash', 'elin', 'mira']; RUN.hp = { ash: 32, elin: 24, mira: 22 };
@@ -2785,7 +2785,7 @@ const QUICK = process.argv.includes('--quick');
       && e.hp === e.maxHp && e.maxHp === Math.round(150 * (1 + (META.heat || 0) * 0.12)); }));
   check('MEGA: entering a stage swaps weakness / aura / intents / HP live on e.def',
     await J(() => { const e = megaBoot(); enterMegaStage(e, 1); const two = e.def.weak === 'light' && e.def.aura === 'maw';
-      enterMegaStage(e, 2); const three = e.def.weak === 'song' && e.def.aura === 'sunder' && e.def.intents.some(i => i.discord);
+      enterMegaStage(e, 2); const three = e.def.weak === 'iron' && e.def.aura === 'sunder' && e.def.intents.some(i => i.discord);
       return two && three; }));
   check('MEGA: a stage carries a FIVE-note parry cascade (the climax sequences)',
     await J(() => ENEMY_DEFS.echochorus.stages.some(s => s.intents.some(i => i.parry && i.parry.notes && i.parry.notes.length === 5))));
