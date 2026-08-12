@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 226;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 227;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -1901,28 +1901,37 @@ function duetPerkBoons() {
   return out;
 }
 
-// ══ ECHOES — how a BOND is actually made (Build 226) ═════════════════════
+// ══ PRIMED — how a BOND is actually made (Build 227) ═════════════════════
 // The loop, and every step of it is caused by ordinary play:
 //
-//   finish a rotation → hold an ECHO → two echoes meet → a DUET card is
-//   forged into hand → play it → the bond forms → the duet perk switches on
+//   finish a combo → that hero is PRIMED (standing ready to follow up)
+//   → ANOTHER hero finishes their combo → the PRIMED one's FOLLOW-UP opens
+//   → play it → their bond forms, or deepens if it already stood
 //
-// Nothing is bought.  Build 222-225 let you spend 1 EP on a BOND button, and
+// Nothing is bought.  Builds 222-225 let you spend 1 EP on a BOND button, and
 // buying a friendship with energy read as exactly what it was: a menu, not a
-// moment.  The rotation you already run IS the bond-builder now.
+// moment.  The combo you already run IS the bond-builder now.
 //
-// WHICH echo you get depends on WHICH LINE you ran — rotation cards already
-// carry that in their stance ('FINISHER · TEMPO' vs 'FINISHER · EXPOSE'), so
-// the Ember Tree's fork nodes now change who you can pair with and how, not
-// just your damage.  Three types keeps the pairing table to six rows.
-const ECHO_TYPES = {
-  edge: { glyph: '⚔', name: 'EDGE', desc: 'a blow still ringing' },
-  mark: { glyph: '◎', name: 'MARK', desc: 'a weakness laid open' },
+// THE DIRECTION MATTERS.  This is not "two tokens meet and make a shared
+// move" — it is one hero waiting, and a second hero's combo being the thing
+// that CUES them in.  The card belongs to whoever was primed FIRST; the hero
+// who just finished is the one they answer.  That is why the follow-up reads
+// as teamwork rather than as a co-op button.
+//
+// WHAT they follow up WITH depends on WHICH LINE each ran — combo cards
+// already carry that in their stance ('FINISHER · TEMPO' vs 'FINISHER ·
+// EXPOSE'), so the Ember Tree's fork nodes now change how your heroes answer
+// each other, not just their damage.  The PRIMED hero's type picks the ACTION;
+// the hero they answer contributes a KICKER on top.  Three of each — nine
+// outcomes from six authored pieces, and only three things to learn.
+const PRIME_TYPES = {
+  edge: { glyph: '⚔', name: 'EDGE', desc: 'a blade still moving' },
+  mark: { glyph: '◎', name: 'MARK', desc: 'an opening still held' },
   ward: { glyph: '⛨', name: 'WARD', desc: 'a shield still raised' },
 };
 // Every authored FINISHER theme, mapped by hand.  A test asserts full coverage
-// so a new finisher can never silently fall through to the fallback.
-const ECHO_BY_THEME = {
+// so a new combo line can never silently fall through to the fallback.
+const PRIME_BY_THEME = {
   ARTILLERY: 'edge', BLEED: 'edge', CAST: 'edge', EXECUTION: 'edge', FLOW: 'edge',
   OVERLOAD: 'edge', PYRE: 'edge', RADIANT: 'edge', RAIN: 'edge', RETREAT: 'edge',
   TEMPO: 'edge', VOLLEY: 'edge',
@@ -1932,128 +1941,170 @@ const ECHO_BY_THEME = {
   MERCY: 'ward', SENTINEL: 'ward', WALL: 'ward', WARD: 'ward',
 };
 // Theme first; fall back to what the card actually DOES so an unmapped line
-// still yields a sane echo instead of nothing.
-function echoTypeForCard(card) {
+// still yields a sane stance instead of nothing.
+function primeTypeForCard(card) {
   const m = /·\s*([A-Z]+)\s*$/.exec(card && card.stance || '');
-  const byTheme = m && ECHO_BY_THEME[m[1]];
+  const byTheme = m && PRIME_BY_THEME[m[1]];
   if (byTheme) return byTheme;
   const fx = (card && card.fx) || {};
   if (fx.guard || fx.heal) return 'ward';
   if (fx.mark || fx.lull || fx.exposed || fx.taunt) return 'mark';
   return 'edge';
 }
-// A rotation ENDED — its finisher had no next step.  The hero keeps its echo
-// through the following turn: long enough to be TIMED to meet a partner's,
-// short enough that echoes can't be hoarded.
-function grantEcho(card) {
+// THE ACTION — what the PRIMED hero does when they finally step in.
+const FOLLOW_ACTS = {
+  edge: { verb: 'steps in swinging', desc: '<b>8 damage</b> to the nearest foe',
+    run: (act) => { const t = frontmostEnemy(); if (!t) return 0; dealToEnemy(t, 8, HEROES[act].school, act); return 8; } },
+  mark: { verb: 'reads the opening', desc: '<b>5 damage</b> · <span class="kw kw-exposed">◎ EXPOSED 3</span>',
+    run: (act) => { const t = frontmostEnemy(); if (!t) return 0;
+      t.mark = (t.mark || 0) + 3; popupAt(figEl(t.uid), '◎ 3', 'mark');
+      dealToEnemy(t, 5, HEROES[act].school, act); return 5; } },
+  ward: { verb: 'covers them', desc: '<b>⛨5</b> to your partner · <b>heal 4</b> to the most wounded',
+    run: (act, trg) => { const p = S.heroes.find(h => h.id === trg);
+      if (p && !p.downed) { p.guard += 5; popupAt(figEl(trg), '⛨ +5', 'guard'); }
+      const w = lowestHpAlly(); if (w && w.hp < w.maxHp) { w.hp = Math.min(w.maxHp, w.hp + 4); popupAt(figEl(w.id), '✚4', 'heal'); }
+      return 0; } },
+};
+// THE KICKER — what the hero they ANSWER set up with their own line, riding
+// on top.  This is where the second combo's flavour shows through.
+const FOLLOW_KICKERS = {
+  edge: { desc: '+<b>4 damage</b> off their momentum',
+    run: (act) => { const t = frontmostEnemy(); if (t) dealToEnemy(t, 4, HEROES[act].school, act); } },
+  mark: { desc: '+<span class="kw kw-exposed">◎ EXPOSED 2</span>',
+    run: () => { const t = frontmostEnemy(); if (t) { t.mark = (t.mark || 0) + 2; popupAt(figEl(t.uid), '◎ 2', 'mark'); } } },
+  ward: { desc: '+<b>⛨3</b> to them',
+    run: (act) => { const h = S.heroes.find(x => x.id === act); if (h && !h.downed) { h.guard += 3; popupAt(figEl(act), '⛨ +3', 'guard'); } },
+  },
+};
+function followUpFor(actorId, triggerId) {
+  const ha = S.heroes.find(h => h.id === actorId), hb = S.heroes.find(h => h.id === triggerId);
+  const aT = ha && ha.primed && ha.primed.type, bT = hb && hb.primed && hb.primed.type;
+  const act = FOLLOW_ACTS[aT] || FOLLOW_ACTS.edge;
+  const kick = FOLLOW_KICKERS[bT] || FOLLOW_KICKERS.edge;
+  const w = BOND_WEAVE[duetClassKey(actorId, triggerId)] || {};
+  return { key: (aT || 'edge') + '>' + (bT || 'edge'), act, kick,
+    title: w.name || 'Follow-Up', icon: w.icon || '✦',
+    desc: act.desc + ' · ' + kick.desc };
+}
+// A combo LINE ended — its finisher had nothing left to forge.  That hero is
+// now PRIMED.  If someone else was ALREADY primed, this is the cue they were
+// waiting for: THEIR follow-up opens.
+function grantPrime(card) {
   if (!S || !card || !card.owner) return;
   const h = S.heroes.find(x => x.id === card.owner);
   if (!h || h.downed) return;
-  const type = echoTypeForCard(card);
-  const t = ECHO_TYPES[type];
-  h.echo = { type, name: card.name || '', expires: S.turn + 1 };
-  popupAt(figEl(h.id), t.glyph + ' ' + t.name + ' ECHO', 'boon');
-  flashNarrator(h.def.name + ' completes the line — a <b>' + t.glyph + ' ' + t.name + ' ECHO</b> hangs in the air.');
+  // Who was standing ready BEFORE this combo landed?  Prefer a pair with no
+  // thread yet — the point is to make a new bond — then whoever waited longest.
+  const waiting = livingHeroes().filter(x => x.id !== h.id && x.primed && PRIME_TYPES[x.primed.type]);
+  let former = null;
+  waiting.forEach(x => {
+    const fresh = S.threads.has(pairKey(x.id, h.id)) ? 0 : 1;
+    const score = fresh * 1000 - (x.primed.seq || 0);
+    if (!former || score > former.score) former = { hero: x, score };
+  });
+  const type = primeTypeForCard(card);
+  const t = PRIME_TYPES[type];
+  S._primeSeq = (S._primeSeq || 0) + 1;
+  h.primed = { type, name: card.name || '', expires: S.turn + 1, seq: S._primeSeq };
+  popupAt(figEl(h.id), t.glyph + ' PRIMED', 'boon');
   try { SFX.thread(); } catch (_) {}
-  offerDuetAct();
+  if (former) offerFollowUp(former.hero.id, h.id);
+  else flashNarrator(h.def.name + ' finishes the line and stands <b>' + t.glyph + ' PRIMED</b> — another hero’s combo will cue them in.');
 }
-// Echoes fade at the end of the turn AFTER the one that earned them.
-function expireEchoes() {
+// A primed stance holds through the turn AFTER the one that earned it.
+function expirePrimes() {
   if (!S || !S.heroes) return;
-  S.heroes.forEach(h => { if (h.echo && h.echo.expires < S.turn) h.echo = null; });
+  S.heroes.forEach(h => { if (h.primed && h.primed.expires < S.turn) h.primed = null; });
 }
-const echoPairKey = (x, y) => [x, y].sort().join('+');
-// THE SIX ACTS.  The MECHANIC comes from the pair of echoes; the NAME comes
-// from the pair of HEROES (their BOND_WEAVE title), so it stays a six-row
-// table to learn while still reading as a move between those two characters.
-// Effects use only the existing fx vocabulary — no new engine primitives.
-const DUET_ACTS = {
-  'edge+edge': { act: 'Crossfire', desc: 'both blades fall on the nearest foe — <b>7 damage each</b>',
-    run: (a, b) => { const t = frontmostEnemy(); if (!t) return 'nothing left standing';
-      dealToEnemy(t, 7, HEROES[a].school, a); if (!t.dead) dealToEnemy(t, 7, HEROES[b].school, b);
-      gainMomentum(12, { raw: true }); return 'a crossing of blades'; } },
-  'edge+mark': { act: 'Opening', desc: 'the mark sets, the blade takes it — <b>6 damage</b> · <span class="kw kw-exposed">◎ EXPOSED 3</span>',
-    run: (a, b) => { const t = frontmostEnemy(); if (!t) return 'nothing left standing';
-      t.mark = (t.mark || 0) + 3; dealToEnemy(t, 6, HEROES[a].school, a);
-      popupAt(figEl(t.uid), '◎ 3', 'mark'); return 'an opening, and the answer to it'; } },
-  'edge+ward': { act: 'Vanguard', desc: 'one strikes from behind the other’s shield — <b>8 damage</b> · <b>⛨4</b> to both',
-    run: (a, b) => { const t = frontmostEnemy();
-      if (t) dealToEnemy(t, 8, HEROES[a].school, a);
-      [a, b].forEach(id => { const h = S.heroes.find(x => x.id === id); if (h && !h.downed) { h.guard += 4; popupAt(figEl(id), '⛨ +4', 'guard'); } });
-      return 'a shield, and a spear behind it'; } },
-  'mark+mark': { act: 'Unravel', desc: 'every weakness read at once — <span class="kw kw-exposed">◎ EXPOSED 3</span> to <b>EVERY</b> foe',
-    run: () => { const foes = livingEnemies(); if (!foes.length) return 'nothing left to read';
-      foes.forEach(e => { e.mark = (e.mark || 0) + 3; popupAt(figEl(e.uid), '◎ 3', 'mark'); });
-      const f = frontmostEnemy(); if (f) f.lull = (f.lull || 0) + 1;
-      return 'the whole line come apart'; } },
-  'mark+ward': { act: 'Sanctuary', desc: 'the enemy slowed, the wounded mended — <b>❄ LULL 2</b> · <b>heal 6</b>',
-    run: () => { const f = frontmostEnemy(); if (f) { f.lull = (f.lull || 0) + 2; popupAt(figEl(f.uid), '❄ 2', 'chill'); }
-      const w = lowestHpAlly(); if (w && w.hp < w.maxHp) { w.hp = Math.min(w.maxHp, w.hp + 6); popupAt(figEl(w.id), '✚6', 'heal'); }
-      return 'a held breath, and a mended wound'; } },
-  'ward+ward': { act: 'Bulwark', desc: 'the whole line steels — <b>⛨5</b> and <b>heal 3</b> to the party',
-    run: () => { livingHeroes().forEach(h => { h.guard += 5; h.hp = Math.min(h.maxHp, h.hp + 3); popupAt(figEl(h.id), '⛨ +5', 'guard'); });
-      return 'a wall no one stands alone behind'; } },
-};
-function duetActFor(a, b) {
-  const ha = S.heroes.find(x => x.id === a), hb = S.heroes.find(x => x.id === b);
-  const key = echoPairKey(ha.echo.type, hb.echo.type);
-  const act = DUET_ACTS[key] || DUET_ACTS['edge+edge'];
-  const w = BOND_WEAVE[duetClassKey(a, b)] || {};
-  return { key, act, title: w.name || act.act, icon: w.icon || '✦', desc: act.desc };
+// Both heroes standing ready — a follow-up between them is available.
+function primeReady(a, b) {
+  if (!S || !S.heroes) return false;
+  const ha = S.heroes.find(h => h.id === a), hb = S.heroes.find(h => h.id === b);
+  return !!(ha && hb && !ha.downed && !hb.downed && ha.primed && hb.primed);
 }
-// Two echoes have met — forge the joint action into hand as a FREE card.
-// Prefers a pair with no thread yet: the point is to make a NEW bond.
-function offerDuetAct() {
+// Forge the primed hero's follow-up into hand as a FREE card.  It is THEIR
+// card — owner, tint and cut-in all belong to the one who was waiting.
+function offerFollowUp(actorId, triggerId) {
   if (!S || S.over) return;
-  if (S.tempCards.some(c => c.fx && c.fx.duetAct)) return;         // one on offer at a time
-  const lit = livingHeroes().filter(h => h.echo && ECHO_TYPES[h.echo.type]);
-  if (lit.length < 2) return;
-  let best = null;
-  for (let i = 0; i < lit.length; i++) for (let j = i + 1; j < lit.length; j++) {
-    const a = lit[i].id, b = lit[j].id, key = pairKey(a, b);
-    const fresh = !S.threads.has(key) ? 1 : 0;
-    const score = fresh * 100 + bondPts(key);
-    if (!best || score > best.score) best = { a, b, score };
-  }
-  if (!best) return;
-  const d = duetActFor(best.a, best.b);
-  // NB: rotation steps push into S.tempCards too (via genChainStep, cap 8), so
-  // mid-rotation the array is routinely at genTempCard's cap of 3 and the duet
+  if (S.tempCards.some(c => c.fx && c.fx.followUp)) return;        // one on offer at a time
+  const ha = S.heroes.find(h => h.id === actorId), hb = S.heroes.find(h => h.id === triggerId);
+  if (!ha || !hb || ha.downed || hb.downed || !ha.primed || !hb.primed) return;
+  // NB: combo steps push into S.tempCards too (via genChainStep, cap 8), so
+  // mid-rotation the array is routinely at genTempCard's cap of 3 and this
   // card would be swallowed with "the moment passes".  Count only NON-CHAIN
-  // temps — this offer is the payoff of the rotation, not more of it.
+  // temps — this offer is the PAYOFF of the combo, not more of it.
   if (S.tempCards.filter(c => !c.chain).length >= 3) return;
-  const card = { kind: 'temp', owner: best.a, ownerName: HEROES[best.a].name + ' & ' + HEROES[best.b].name,
-    tint: 'var(--gold-bright)', stance: '✦ DUET', name: d.title, cost: 0, target: 'none',
-    fx: { duetAct: { a: best.a, b: best.b, key: d.key, title: d.title } },
-    desc: `<b>${HEROES[best.a].name}</b> & <b>${HEROES[best.b].name}</b> — ${d.desc}. <i>Free · forms their BOND.</i>` };
+  const f = followUpFor(actorId, triggerId);
+  const card = { kind: 'temp', follow: actorId, owner: actorId, ownerName: HEROES[actorId].name,
+    tint: 'var(--gold-bright)', stance: '✦ FOLLOW-UP', name: f.title, cost: 0, target: 'none',
+    fx: { followUp: { actor: actorId, trigger: triggerId, key: f.key, title: f.title } },
+    desc: `<b>${HEROES[actorId].name}</b> answers <b>${HEROES[triggerId].name}</b>’s combo — ${f.desc}. <i>Free · bonds them.</i>` };
   card.temp = true; card.uid = ++S._tuid; card.expiresTurn = S.turn;
   S.tempCards.push(card);
   S._tempNew = card.uid;
-  try { SFX.card(); sparkThread(best.a, best.b); } catch (_) {}
-  flashNarrator('✦ THE ECHOES ANSWER — <b>' + d.title + '</b> is open to ' + HEROES[best.a].name + ' & ' + HEROES[best.b].name + '.');
+  try { SFX.card(); sparkThread(actorId, triggerId); } catch (_) {}
+  flashNarrator('✦ ' + HEROES[actorId].name.toUpperCase() + ' IS READY — ' + HEROES[triggerId].name
+    + '’s combo cues <b>' + f.title + '</b>.');
   renderAll();
 }
-// Play it: both heroes step in, the act lands, the echoes are spent, and the
-// THREAD forms through the one existing pipeline — which brings the spark, the
-// ⛨2, the narrator, awakenDuet and the triad check with it.
-async function resolveDuetAct(da) {
-  const ha = S.heroes.find(x => x.id === da.a), hb = S.heroes.find(x => x.id === da.b);
+// A cue that went unanswered isn't lost: if two heroes are still standing
+// primed after the rollover, the one who has waited LONGEST is offered again.
+function reofferFollowUp() {
+  if (!S || S.over) return;
+  const lit = livingHeroes().filter(h => h.primed && PRIME_TYPES[h.primed.type]);
+  if (lit.length < 2) return;
+  let best = null;
+  for (let i = 0; i < lit.length; i++) for (let j = 0; j < lit.length; j++) {
+    if (i === j) continue;
+    const act = lit[i], trg = lit[j];
+    if ((act.primed.seq || 0) > (trg.primed.seq || 0)) continue;   // the FORMER acts
+    const fresh = S.threads.has(pairKey(act.id, trg.id)) ? 0 : 1;
+    const score = fresh * 1000 - (act.primed.seq || 0);
+    if (!best || score > best.score) best = { a: act.id, b: trg.id, score };
+  }
+  if (best) offerFollowUp(best.a, best.b);
+}
+// Play it: the waiting hero cuts in, acts, and the act BONDS them.  A pair
+// that already stood bonded is REINFORCED instead — once per fight, so the
+// follow-up is never a dead beat between two heroes who already fight as one.
+async function resolveFollowUp(fu) {
+  const ha = S.heroes.find(x => x.id === fu.actor), hb = S.heroes.find(x => x.id === fu.trigger);
   if (!ha || !hb || ha.downed || hb.downed) return;
-  const d = (ha.echo && hb.echo) ? duetActFor(da.a, da.b) : null;
-  const act = d ? d.act : DUET_ACTS[da.key];
-  const title = d ? d.title : da.title;
-  camFocus([figEl(da.a), figEl(da.b)], { z: 1.16, ms: 320 });
-  await heroCutIn(da.a, '✦ DUET', HEROES[da.a].name + ' & ' + HEROES[da.b].name, title, 1150);
-  try { lungeFig(figEl(da.a)); lungeFig(figEl(da.b)); stageShake('lg'); cineFlash('rgba(240,212,136,0.42)'); } catch (_) {}
-  await sleep(180);
-  let verb = '';
-  try { verb = (act && act.run(da.a, da.b)) || ''; } catch (_) {}
-  ha.echo = null; hb.echo = null;                 // the echoes are spent
-  flashNarrator('✦ ' + title + (verb ? ' — ' + verb + '.' : '.'));
-  await addThread(da.a, da.b);                    // THE BOND
+  const f = (ha.primed && hb.primed) ? followUpFor(fu.actor, fu.trigger) : null;
+  const title = f ? f.title : fu.title;
+  camFocus([figEl(fu.actor), figEl(fu.trigger)], { z: 1.16, ms: 320 });
+  await heroCutIn(fu.actor, '✦ FOLLOW-UP', HEROES[fu.actor].name, title + ' · answers ' + HEROES[fu.trigger].name, 1100);
+  try { lungeFig(figEl(fu.actor)); stageShake('lg'); cineFlash('rgba(240,212,136,0.42)'); } catch (_) {}
+  await sleep(170);
+  const act = f ? f.act : FOLLOW_ACTS.edge, kick = f ? f.kick : FOLLOW_KICKERS.edge;
+  try { act.run(fu.actor, fu.trigger); } catch (_) {}
+  try { kick.run(fu.actor, fu.trigger); } catch (_) {}
+  gainMomentum(10, { raw: true });
+  ha.primed = null;                 // the waiting hero has now acted
+  flashNarrator('✦ ' + title + ' — ' + HEROES[fu.actor].name + ' ' + (act.verb || 'answers') + '.');
+  const key = pairKey(fu.actor, fu.trigger);
+  const already = S.threads.has(key);
+  await addThread(fu.actor, fu.trigger);              // THE BOND
+  if (already) reinforceBond(key);                    // …or a deeper one
   camReset(620);
   renderAll(); checkEnd();
   await sleep(160);
+}
+// Answering each other again DEEPENS the bond toward WOVEN — once per pair per
+// fight, so it stays a milestone rather than a grind.
+function reinforceBond(key) {
+  if (!RUN) return;
+  S._reinforced = S._reinforced || new Set();
+  if (S._reinforced.has(key)) return;
+  S._reinforced.add(key);
+  RUN.bonds = RUN.bonds || {};
+  const before = RUN.bonds[key] || 0;
+  RUN.bonds[key] = before + 1;
+  const [x, y] = key.split('|');
+  flashNarrator(RUN.bonds[key] >= BOND_KINDLED && before < BOND_KINDLED
+    ? '✦ WOVEN — ' + HEROES[x].name + ' & ' + HEROES[y].name + ' now answer each other’s finishers.'
+    : '♡ Their bond deepens.');
+  renderResonance();
 }
 
 // A partner's ASSIST is flavored by WHO they are (their archetype) — so it reads
@@ -3745,10 +3796,10 @@ async function playCard(card, targetId) {
     if (o && !o.downed) offerBondFollow(o.id);
   }
   resolveChainPlay(card);                    // forge the rotation's next step(s); purge unpicked siblings
-  // THE ROTATION ENDED — a chain card with nothing left to forge is the only
+  // THE COMBO ENDED — a chain card with nothing left to forge is the only
   // structural definition of "the line is complete" the engine has (it's the
-  // same condition resolveChainPlay early-returns on).  That earns the ECHO.
-  if (card.chain && !(card.chainNext && card.chainNext.length)) grantEcho(card);
+  // same condition resolveChainPlay early-returns on).  That PRIMES the hero.
+  if (card.chain && !(card.chainNext && card.chainNext.length)) grantPrime(card);
   if (card.kind !== 'move') hexBurn(card);   // a hexed hero's card play eats another card
   S.executing = false;
   $('#stage').classList.remove('executing');
@@ -3836,7 +3887,7 @@ async function resolveCard(card, targetId) {
     return;
   }
   if (fx.bondFollow) { await resolveBondFollow(fx.bondFollow); return; }
-  if (fx.duetAct) { await resolveDuetAct(fx.duetAct); return; }
+  if (fx.followUp) { await resolveFollowUp(fx.followUp); return; }
   if (fx.notToday) {
     const [prId, wdId] = fx.notToday;
     const pr = S.heroes.find(x => x.id === prId);
@@ -5878,7 +5929,7 @@ async function endTurn() {
     // not a same-turn-only tax.
     S.enemies.forEach(e => { e.mark = Math.max(0, (e.mark || 0) - 1); e.acted = false; e._hitBy = []; e.staggered = false; });
     S.tempCards = S.tempCards.filter(t => t.expiresTurn == null || t.expiresTurn >= S.turn);
-    expireEchoes();   // an ECHO lasts through the turn after the one that earned it
+    expirePrimes();   // a PRIMED stance holds through the turn after it was earned
     S._pressUsed = false;
     S._taunt = null;             // Cassia's TAUNT lasted the enemy round it provoked
     S.combo = 0;                 // the ASSIST chain is a within-turn combo
@@ -5890,7 +5941,7 @@ async function endTurn() {
     // CAST-TIME payoff — a spell begun last turn UNLEASHES now (Hask's big casts).
     for (const h of livingHeroes()) { if (h.pendingCast && !S.over) await unleashCast(h); }
     turnBanner('TURN ' + S.turn, 'tb-player');
-    offerDuetAct();   // echoes that survived the rollover can still meet
+    reofferFollowUp();   // a stance that survived the rollover can still be cued
     renderAll();
   }
 }
@@ -7723,7 +7774,7 @@ function partyChipsHtml(who) {
     ${who.aether > 0 ? `<span class="chip astral${chipPop(who,'aether',who.aether)}" title="PYRE — fire spells hit +2 per stack. Cast ice to swing back to FROST.">🔥 ${who.aether}</span>` : ''}
     ${who.aether < 0 ? `<span class="chip umbral${chipPop(who,'aether',-who.aether)}" title="FROST — ice spells refill ◆ CHARGE. Cast fire to swing back to PYRE.">❄ ${-who.aether}</span>` : ''}
     ${who.hexed ? `<span class="chip hex${chipPop(who,'hexed',who.hexed)}" title="HEXED — your card plays burn your hand">☠ HEXED</span>` : ''}
-    ${who.echo && ECHO_TYPES[who.echo.type] ? `<span class="chip echo echo-${who.echo.type}${chipPop(who,'echo',1)}" title="${ECHO_TYPES[who.echo.type].name} ECHO — ${ECHO_TYPES[who.echo.type].desc}. When a SECOND hero holds an echo, their DUET opens in your hand: play it to form their BOND. Fades at the end of next turn.">${ECHO_TYPES[who.echo.type].glyph} ECHO</span>` : ''}`;
+    ${who.primed && PRIME_TYPES[who.primed.type] ? `<span class="chip primed primed-${who.primed.type}${chipPop(who,'primed',1)}" title="PRIMED (${PRIME_TYPES[who.primed.type].name}) — ${PRIME_TYPES[who.primed.type].desc}. They finished their combo and stand ready. When ANOTHER hero finishes a combo, this hero's FOLLOW-UP opens in your hand — playing it bonds the pair. Fades at the end of next turn.">${PRIME_TYPES[who.primed.type].glyph} PRIMED</span>` : ''}`;
 }
 function partyAuraObj(who) { return { guard: who.guard, rally: who.buffDmg, chill: who.chill, exposed: who.exposed, counter: who.counter, invuln: who.invuln }; }
 // Refresh a REUSED party figure in place — swap only what changed.
@@ -7861,7 +7912,7 @@ function renderBattlefield() {
         _partyFigs[who.id] = fig;
       }
       fig.className = 'figure party' + (who.downed ? ' downed' : '') + (targetable ? ' fig-targetable' : '') + (canMove(who) ? ' can-move' : '');
-      snapFx(who, { invuln: who.invuln ? 1 : 0, guard: who.guard, buffDmg: who.buffDmg, counter: who.counter, exposed: who.exposed, chill: who.chill, echo: who.echo ? 1 : 0 });
+      snapFx(who, { invuln: who.invuln ? 1 : 0, guard: who.guard, buffDmg: who.buffDmg, counter: who.counter, exposed: who.exposed, chill: who.chill, primed: who.primed ? 1 : 0 });
       // Click fallback for target-picking (synthetic clicks / accessibility
       // tools).  Safe alongside the pointer path: onFigureTap no-ops once
       // targeting clears, so a double-fire can't double-play.
@@ -8042,8 +8093,8 @@ function renderResonance() {
   const edges = E.map(([i, j]) => {
     const key = pairKey(ids[i], ids[j]);
     const on = S.threads.has(key); if (on) formed++;
-    // an edge whose BOTH heroes hold echoes is one card away from forming
-    if (!on && echoReady(ids[i], ids[j])) ripe = true;
+    // an edge whose BOTH heroes stand primed is one card away from forming
+    if (!on && primeReady(ids[i], ids[j])) ripe = true;
     const woven = bondPts(key) >= BOND_KINDLED;
     return `<line x1="${C[i].x}" y1="${C[i].y}" x2="${C[j].x}" y2="${C[j].y}" class="rz-edge${on ? ' on' : ''}${woven ? ' woven' : ''}"/>`;
   }).join('');
@@ -8053,7 +8104,7 @@ function renderResonance() {
   el.classList.toggle('rz-ready', ready);
   el.classList.toggle('rz-ripe', ripe);
   const label = ready ? '✦ TRIAD · ALL-OUT CROWNED' : duo ? 'KIZUNA ' + formed + '/1' : 'RESONANCE ' + formed + '/3';
-  el.innerHTML = `<svg viewBox="-3 -3 52 48" class="rz-svg">${fill}${edges}${dots}</svg><span class="rz-lbl">${label}</span>${ripe ? '<span class="rz-ripe-pip" title="Two ECHOES have met — their DUET is in your hand">✦</span>' : ''}`;
+  el.innerHTML = `<svg viewBox="-3 -3 52 48" class="rz-svg">${fill}${edges}${dots}</svg><span class="rz-lbl">${label}</span>${ripe ? '<span class="rz-ripe-pip" title="A FOLLOW-UP is open — play it to bond the pair">✦</span>' : ''}`;
   el.onclick = () => { if (_bondPanelEl) hideBondPanel(); else showBondPanel(); };
 }
 // ♡ SIGNPOST — an ally-target card whose play could form a NEW bond wears a
@@ -8065,12 +8116,7 @@ function cardBondHint(card) {
   const would = livingHeroes().some(h => h.id !== o && !S.threads.has(pairKey(o, h.id)));
   return would ? '<span class="c-bond-hint" title="Helping an ally forms a ♡ BOND">♡</span>' : '';
 }
-// Both heroes of this pair are holding echoes — their duet is available.
-function echoReady(a, b) {
-  if (!S || !S.heroes) return false;
-  const ha = S.heroes.find(h => h.id === a), hb = S.heroes.find(h => h.id === b);
-  return !!(ha && hb && !ha.downed && !hb.downed && ha.echo && hb.echo);
-}
+
 let _bondPanelEl = null;
 function hideBondPanel() { if (_bondPanelEl) { _bondPanelEl.remove(); _bondPanelEl = null; } }
 function showBondPanel() {
@@ -8081,12 +8127,12 @@ function showBondPanel() {
   const ids = live.slice(0, 3).map(h => h.id);
   const pairs = (ids.length === 2 ? [[0, 1]] : [[0, 1], [1, 2], [0, 2]]).map(([i, j]) => [ids[i], ids[j]]);
   // A READOUT, not a shop.  Build 226 removed the "BOND · 1 EP" button — the
-  // only way to bond deliberately is now to finish two rotations and play the
-  // DUET card they open.  So the useful thing to show for an unformed pair is
-  // what it still NEEDS, read live off the heroes' echoes.
-  const echoTag = (id) => {
+  // only way to bond deliberately is now to finish two combos and play the
+  // FOLLOW-UP they open.  So the useful thing to show for an unformed pair is
+  // what it still NEEDS, read live off who is standing primed.
+  const primeTag = (id) => {
     const h = S.heroes.find(x => x.id === id);
-    const t = h && h.echo && ECHO_TYPES[h.echo.type];
+    const t = h && h.primed && PRIME_TYPES[h.primed.type];
     return t ? `<b>${t.glyph}</b>` : '<span class="bp-need-miss">◦</span>';
   };
   const row = ([a, b]) => {
@@ -8097,8 +8143,8 @@ function showBondPanel() {
       : woven ? '<span class="bp-state bp-sleep">✦ woven · sleeping</span>'
       : '<span class="bp-state bp-none">—</span>';
     const need = threaded ? ''
-      : echoReady(a, b) ? '<span class="bp-need bp-ready">✦ READY — play their DUET card</span>'
-      : `<span class="bp-need">needs ${echoTag(a)} + ${echoTag(b)} <i>echoes</i></span>`;
+      : primeReady(a, b) ? '<span class="bp-need bp-ready">✦ READY — play their FOLLOW-UP</span>'
+      : `<span class="bp-need">both must be ${primeTag(a)} + ${primeTag(b)} <i>primed</i></span>`;
     const perk = duetPerkFor(a, b);
     return `<div class="bp-row">
       <span class="bp-pair"><i style="background:${HEROES[a].tint}"></i><i style="background:${HEROES[b].tint}"></i> ${HEROES[a].name} ─ ${HEROES[b].name}</span>
@@ -8110,7 +8156,7 @@ function showBondPanel() {
   el.id = 'bond-panel';
   el.innerHTML = `
     <div class="bp-head">♡ KIZUNA</div>
-    <div class="bp-teach">Finish a hero's <b>rotation</b> and they hold an <b>ECHO</b>. When two heroes hold one, their <b>DUET</b> opens in your hand — play it to <b>BOND</b> them. ${pairs.length === 1 ? 'A bonded pair fights as one, its <b>duet perk</b> live while both stand.' : 'Bond all three to <b>crown the ALL-OUT</b>.'}</div>
+    <div class="bp-teach">Finish a hero's <b>combo</b> and they stand <b>PRIMED</b>. When another hero finishes theirs, the primed hero's <b>FOLLOW-UP</b> opens in your hand — play it to <b>BOND</b> them. ${pairs.length === 1 ? 'A bonded pair fights as one, its <b>duet perk</b> live while both stand.' : 'Bond all three to <b>crown the ALL-OUT</b>.'}</div>
     ${pairs.map(row).join('')}`;
   $('#stage').appendChild(el);
   _bondPanelEl = el;
@@ -8703,9 +8749,9 @@ function showHowTo(back) {
       <div class="ht-head">Build your BURST</div>
       <div class="ov-line"><b>Fill the gauge, then unleash.</b> Landing hits and clean parries fill your <b>BURST</b>. When it glows ready, <b>tap the gauge</b> to unleash an <b>ALL-OUT</b> — the whole party piles onto the enemy line at once.</div>
       <div class="ht-head">Bonds — the KIZUNA loop</div>
-      <div class="ov-line"><b>Finish a rotation, leave an ECHO.</b> When a hero plays the last card of their line, they hold an <b>ECHO</b> — and <i>which</i> echo depends on <i>which</i> line you ran: <b>⚔ EDGE</b>, <b>◎ MARK</b> or <b>⛨ WARD</b>.</div>
-      <div class="ov-line"><b>Two echoes answer each other.</b> The moment a second hero holds one, their <b>DUET</b> — a free card naming both of them — opens in your hand. What it does depends on which two echoes met.</div>
-      <div class="ov-line"><b>Playing it forms their BOND</b>, and that pair's <b>duet perk</b> stays live for the rest of the fight while both stand. Helping an ally directly bonds them too.</div>
+      <div class="ov-line"><b>Finish a combo, stand PRIMED.</b> When a hero plays the last card of their line, they hold their stance — ready to follow up. <i>Which</i> stance depends on <i>which</i> line you ran: <b>⚔ EDGE</b>, <b>◎ MARK</b> or <b>⛨ WARD</b>.</div>
+      <div class="ov-line"><b>Another hero's combo cues them in.</b> The moment a second hero finishes theirs, the <b>primed</b> hero's <b>FOLLOW-UP</b> opens in your hand — free. Their stance decides what they do; the hero they answer adds a bonus on top.</div>
+      <div class="ov-line"><b>Playing it BONDS the pair</b>, and that pair's <b>duet perk</b> stays live for the rest of the fight while both stand. Answer each other again and the bond <b>deepens</b>. Helping an ally directly bonds them too.</div>
       <div class="ov-line">Fight together across battles and a bond deepens into a <b>WEAVE</b>: play a <b>FINISHER</b> with one and their partner <b>weaves in</b> a free strike.</div>
       <div class="ov-line">Bond all three and they <b>empower your ALL-OUT</b> — ending it in a <b>TRIAD FINALE</b>.</div>
       <div class="ht-head">Between fights</div>

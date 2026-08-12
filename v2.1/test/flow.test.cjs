@@ -632,88 +632,122 @@ const QUICK = process.argv.includes('--quick');
       return keys.length >= 6 && beats >= 16 && wellFormed;
     }));
 
-  // ---------- BUILD 222/226: the KIZUNA loop — rotations EARN bonds ----------
-  // Build 226 retired the "BOND · 1 EP" purchase. The only deliberate path is
-  // now: finish a rotation -> hold an ECHO -> two echoes forge a free DUET card
-  // -> play it -> the thread forms. This helper drives that real path, so these
-  // tests exercise the shipping mechanism rather than a back door.
+  // ---------- BUILD 222/227: the KIZUNA loop — combos EARN bonds ----------
+  // Build 227 retired the "BOND · 1 EP" purchase AND made the loop DIRECTIONAL:
+  // finish a combo -> stand PRIMED -> ANOTHER hero's combo cues the primed
+  // hero's FOLLOW-UP -> play it -> the pair bonds. The card belongs to whoever
+  // waited, not to the pair. This helper drives that real path.
   await J(() => {
     window.__bond = async (a, b, ta, tb) => {
-      S.heroes.find(h => h.id === a).echo = { type: ta || 'ward', name: 'drill', expires: S.turn + 1 };
-      S.heroes.find(h => h.id === b).echo = { type: tb || 'ward', name: 'drill', expires: S.turn + 1 };
-      S.tempCards = S.tempCards.filter(c => !(c.fx && c.fx.duetAct));
-      offerDuetAct();
-      const card = S.tempCards.find(c => c.fx && c.fx.duetAct);
+      // `a` is the one who WAITS (primed first) and therefore acts.
+      S._primeSeq = (S._primeSeq || 0) + 1;
+      S.heroes.find(h => h.id === a).primed = { type: ta || 'ward', name: 'drill', expires: S.turn + 1, seq: S._primeSeq };
+      S._primeSeq += 1;
+      S.heroes.find(h => h.id === b).primed = { type: tb || 'ward', name: 'drill', expires: S.turn + 1, seq: S._primeSeq };
+      S.tempCards = S.tempCards.filter(c => !(c.fx && c.fx.followUp));
+      offerFollowUp(a, b);
+      const card = S.tempCards.find(c => c.fx && c.fx.followUp);
       if (card) await playCard(card, null);
       return !!card;
     };
   });
-  check('KIZUNA: a finished ROTATION leaves an ECHO — and its type follows the LINE you ran',
+  check('KIZUNA: a finished COMBO leaves the hero PRIMED — the stance follows the LINE they ran',
     await J(() => {
       RUN = newRun('ash'); RUN.active = ['ash', 'elin', 'mira']; RUN.roster = RUN.active.slice(); RUN.bonds = {};
       startFight({ type: 'fight', chapter: 3, heroes: ['ash', 'elin', 'mira'], enemies: ['husk'], useRunHp: true, narrator: 'kz' });
-      S.threads.clear(); S.heroes.forEach(h => h.echo = null); renderAll();
-      grantEcho({ owner: 'mira', stance: 'FINISHER · MARK', name: 'Execute', fx: { dmg: 9, mark: 2 } });
+      S.threads.clear(); S.heroes.forEach(h => h.primed = null); renderAll();
+      grantPrime({ owner: 'mira', stance: 'FINISHER · MARK', name: 'Execute', fx: { dmg: 9, mark: 2 } });
       const mira = S.heroes.find(h => h.id === 'mira');
-      // Ash's front FORK is the whole point: the two lines give DIFFERENT echoes
-      return mira.echo && mira.echo.type === 'mark'
-        && mira.echo.expires === S.turn + 1
-        && echoTypeForCard({ stance: 'FINISHER · TEMPO', fx: { dmg: 11 } }) === 'edge'
-        && echoTypeForCard({ stance: 'FINISHER · EXPOSE', fx: { dmg: 3, mark: 4 } }) === 'mark';
+      // Ash's front FORK is the whole point: the two lines give DIFFERENT stances
+      return mira.primed && mira.primed.type === 'mark'
+        && mira.primed.expires === S.turn + 1
+        && primeTypeForCard({ stance: 'FINISHER · TEMPO', fx: { dmg: 11 } }) === 'edge'
+        && primeTypeForCard({ stance: 'FINISHER · EXPOSE', fx: { dmg: 3, mark: 4 } }) === 'mark';
     }));
-  check('KIZUNA: two echoes forge ONE free DUET card — and playing it forms the thread + its ⛨2',
+  check('KIZUNA: one primed hero alone opens NOTHING — a second combo is the cue',
+    await J(() => {
+      S.tempCards = S.tempCards.filter(c => !(c.fx && c.fx.followUp));
+      const alone = S.tempCards.filter(c => c.fx && c.fx.followUp).length;
+      // elin finishes hers → mira (primed FIRST) is the one cued in
+      grantPrime({ owner: 'elin', stance: 'FINISHER · MEND', name: 'Renew', fx: { heal: 7 } });
+      const offered = S.tempCards.filter(c => c.fx && c.fx.followUp);
+      return alone === 0 && offered.length === 1
+        && offered[0].fx.followUp.actor === 'mira'      // the FORMER acts…
+        && offered[0].fx.followUp.trigger === 'elin'    // …answering the one who just finished
+        && offered[0].owner === 'mira' && offered[0].cost === 0;
+    }));
+  check('KIZUNA: playing the follow-up bonds the pair, spends ONLY the actor’s stance, and lands the ⛨2',
     await J(async () => {
-      S.threads.clear(); S.heroes.forEach(h => h.echo = null);
       const g0 = S.heroes.find(h => h.id === 'mira').guard;
       const ep0 = S.ep;
-      S.heroes.find(h => h.id === 'mira').echo = { type: 'mark', name: 'x', expires: S.turn + 1 };
-      S.heroes.find(h => h.id === 'elin').echo = { type: 'ward', name: 'y', expires: S.turn + 1 };
-      offerDuetAct();
-      const offered = S.tempCards.filter(c => c.fx && c.fx.duetAct);
-      offerDuetAct();   // must not double-offer
-      const still = S.tempCards.filter(c => c.fx && c.fx.duetAct).length;
-      await playCard(offered[0], null);
+      const card = S.tempCards.find(c => c.fx && c.fx.followUp);
+      await playCard(card, null);
       const mira = S.heroes.find(h => h.id === 'mira'), elin = S.heroes.find(h => h.id === 'elin');
-      return offered.length === 1 && offered[0].cost === 0 && still === 1
-        && S.ep === ep0                                   // the duet is FREE
+      return S.ep === ep0                              // the follow-up is FREE
         && S.threads.has(pairKey('elin', 'mira'))
-        && mira.guard >= g0 + 2                           // the bond's own ⛨2
-        && !mira.echo && !elin.echo;                      // both echoes spent
+        && mira.guard >= g0 + 2                        // the bond's own ⛨2
+        && !mira.primed                                // the actor has acted
+        && !!elin.primed;                              // the one who cued them stays ready
     }));
-  check('KIZUNA: echoReady gates the pair, and an ECHO fades the turn after it is earned',
+  check('KIZUNA: the follow-up is DIRECTIONAL — the actor’s stance picks the action, the partner adds the kicker',
     await J(() => {
-      S.heroes.forEach(h => h.echo = null);
-      const none = echoReady('ash', 'elin');
-      S.heroes.find(h => h.id === 'ash').echo = { type: 'edge', name: 'x', expires: S.turn + 1 };
-      const half = echoReady('ash', 'elin');
-      S.heroes.find(h => h.id === 'elin').echo = { type: 'edge', name: 'y', expires: S.turn + 1 };
-      const both = echoReady('ash', 'elin');
-      S.turn += 1; expireEchoes();
-      const survives = !!S.heroes.find(h => h.id === 'ash').echo;
-      S.turn += 1; expireEchoes();
-      const faded = !S.heroes.find(h => h.id === 'ash').echo;
+      const keys = Object.keys(FOLLOW_ACTS), kicks = Object.keys(FOLLOW_KICKERS);
+      S.heroes.forEach(h => h.primed = null);
+      S._primeSeq = 100;
+      S.heroes.find(h => h.id === 'ash').primed = { type: 'ward', name: 'x', expires: S.turn + 1, seq: 101 };
+      S.heroes.find(h => h.id === 'mira').primed = { type: 'edge', name: 'y', expires: S.turn + 1, seq: 102 };
+      const fwd = followUpFor('ash', 'mira');     // ash acts (ward), mira kicks (edge)
+      const rev = followUpFor('mira', 'ash');     // mira acts (edge), ash kicks (ward)
+      return keys.length === 3 && kicks.length === 3
+        && fwd.key === 'ward>edge' && rev.key === 'edge>ward'
+        && fwd.act === FOLLOW_ACTS.ward && rev.act === FOLLOW_ACTS.edge
+        && fwd.kick === FOLLOW_KICKERS.edge && rev.kick === FOLLOW_KICKERS.ward
+        && fwd.desc !== rev.desc;
+    }));
+  check('KIZUNA: primeReady gates the pair, and a PRIMED stance fades the turn after it is earned',
+    await J(() => {
+      S.heroes.forEach(h => h.primed = null);
+      const none = primeReady('ash', 'elin');
+      S.heroes.find(h => h.id === 'ash').primed = { type: 'edge', name: 'x', expires: S.turn + 1, seq: 1 };
+      const half = primeReady('ash', 'elin');
+      S.heroes.find(h => h.id === 'elin').primed = { type: 'edge', name: 'y', expires: S.turn + 1, seq: 2 };
+      const both = primeReady('ash', 'elin');
+      S.turn += 1; expirePrimes();
+      const survives = !!S.heroes.find(h => h.id === 'ash').primed;
+      S.turn += 1; expirePrimes();
+      const faded = !S.heroes.find(h => h.id === 'ash').primed;
       return !none && !half && both && survives && faded;
+    }));
+  check('KIZUNA: answering AGAIN reinforces an existing bond toward WOVEN — once per fight',
+    await J(async () => {
+      const key = pairKey('elin', 'mira');
+      RUN.bonds[key] = 0;
+      S._reinforced = new Set();
+      reinforceBond(key);
+      const first = RUN.bonds[key];
+      reinforceBond(key);                      // same fight → no second helping
+      return first === 1 && RUN.bonds[key] === 1;
     }));
   check('KIZUNA: the panel is a READOUT — no purchase button, and it names what each pair NEEDS',
     await J(() => {
-      S.heroes.forEach(h => h.echo = null);
-      S.heroes.find(h => h.id === 'ash').echo = { type: 'edge', name: 'x', expires: S.turn + 1 };
+      S.heroes.forEach(h => h.primed = null);
+      S.heroes.find(h => h.id === 'ash').primed = { type: 'edge', name: 'x', expires: S.turn + 1, seq: 1 };
       showBondPanel();
       const el = document.querySelector('#bond-panel');
       const rows = el.querySelectorAll('.bp-row').length;
       const bonded = /BONDED/.test(el.textContent);
       const buttons = el.querySelectorAll('button, .bp-bond').length;
       const needs = el.querySelectorAll('.bp-need').length;
-      const teaches = /ECHO/.test(el.textContent) && /DUET/.test(el.textContent) && !/1 EP/.test(el.textContent);
+      const teaches = /PRIMED/.test(el.textContent) && /FOLLOW-UP/.test(el.textContent) && !/1 EP/.test(el.textContent);
       hideBondPanel();
       return rows === 3 && bonded && buttons === 0 && needs === 2 && teaches;
     }));
-  check('KIZUNA: a WOVEN pair\u2019s edge breathes on the chip before its thread forms',
+  check('KIZUNA: a WOVEN pair’s edge breathes on the chip before its thread forms',
     await J(() => {
       RUN.bonds[pairKey('ash', 'elin')] = BOND_KINDLED; renderResonance();
       return !!document.querySelector('.rz-edge.woven');
     }));
-  check('KIZUNA: ally cards signpost the \u2661 bond they would form \u2014 and stop once formed',
+  check('KIZUNA: ally cards signpost the ♡ bond they would form — and stop once formed',
     await J(async () => {
       S._handStructSig = null; renderAll();
       const before = !!document.querySelector('#hand .c-bond-hint');
@@ -728,24 +762,26 @@ const QUICK = process.argv.includes('--quick');
       const ashHint = ashCard.some(c => c.querySelector('.c-bond-hint'));
       return before && !ashHint;
     }));
-  check('KIZUNA: three duets crown the TRIAD',
+  check('KIZUNA: three follow-ups crown the TRIAD',
     await J(() => S.threads.size === 3 && !!S.triadFormed));
-  check('ECHO: every authored FINISHER theme is mapped — a new line can never fall through silently',
+  check('PRIMED: every authored FINISHER theme is mapped — a new line can never fall through silently',
     await J(() => {
       const themes = new Set();
       Object.values(ROTATIONS).forEach(st => Object.values(st).forEach(rot =>
         Object.values(rot.cards).forEach(c => { const m = /FINISHER[^A-Z]+([A-Z]+)/.exec(c.stance || ''); if (m) themes.add(m[1]); })));
-      const missing = [...themes].filter(t => !ECHO_BY_THEME[t]);
-      const types = new Set(Object.values(ECHO_BY_THEME));
+      const missing = [...themes].filter(t => !PRIME_BY_THEME[t]);
+      const types = new Set(Object.values(PRIME_BY_THEME));
       return themes.size >= 30 && missing.length === 0 && types.size === 3
-        && [...types].every(t => !!ECHO_TYPES[t]);
+        && [...types].every(t => !!PRIME_TYPES[t]);
     }));
-  check('ECHO: all six echo pairings carry a real DUET act',
+  check('PRIMED: all nine actor×partner combinations resolve to a real action + kicker',
     await J(() => {
-      const t = ['edge', 'mark', 'ward'], keys = [];
-      for (let i = 0; i < 3; i++) for (let j = i; j < 3; j++) keys.push([t[i], t[j]].sort().join('+'));
-      return keys.every(k => DUET_ACTS[k] && typeof DUET_ACTS[k].run === 'function' && DUET_ACTS[k].act && DUET_ACTS[k].desc)
-        && Object.keys(DUET_ACTS).length === 6;
+      const t = ['edge', 'mark', 'ward'];
+      return t.every(a => t.every(b => {
+        const act = FOLLOW_ACTS[a], k = FOLLOW_KICKERS[b];
+        return act && typeof act.run === 'function' && act.desc && act.verb
+          && k && typeof k.run === 'function' && k.desc;
+      }));
     }));
 
   // ---------- BUILD 223: DUET PERKS — bonding a pair switches on ITS mechanic ----------
