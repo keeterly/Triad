@@ -14,7 +14,7 @@
   <meta name="apple-mobile-web-app-title" content="KIZUNA" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=390" />
+  <link rel="stylesheet" href="styles.css?v=391" />
 </head>
 <body>
 
@@ -30,7 +30,23 @@
     <main id="stage">
 
       <!-- Fight backdrop (shown only during battle; dimmed behind everything) -->
-      <div id="fight-bg" aria-hidden="true"></div>
+      <!-- HD-2D DIORAMA — the backdrop is a stack of parallax PLANES, not one
+           flat image: a blurred far ridge, a sharper mid ridge, drifting fog,
+           dust motes at three depths, and a near silhouette that slides most.
+           Each plane drifts at its own rate, so the scene reads as a lit
+           diorama the camera is breathing inside of. -->
+      <div id="fight-bg" aria-hidden="true">
+        <div class="hd-plane hd-far"></div>
+        <div class="hd-plane hd-mid"></div>
+        <div class="hd-fog"></div>
+        <div class="hd-motes">
+          <span style="--i:0"></span><span style="--i:1"></span><span style="--i:2"></span>
+          <span style="--i:3"></span><span style="--i:4"></span><span style="--i:5"></span>
+          <span style="--i:6"></span><span style="--i:7"></span><span style="--i:8"></span>
+          <span style="--i:9"></span><span style="--i:10"></span><span style="--i:11"></span>
+        </div>
+        <div class="hd-plane hd-near"></div>
+      </div>
 
       <!-- Top strip: chapter chip + turn-order timeline + narrator -->
       <header id="topbar">
@@ -39,7 +55,7 @@
         <div id="combat-boons"></div>
         <div id="timeline"></div>
         <button id="menu-btn" aria-label="Menu" title="Menu">☰</button>
-        <div id="build-stamp">V2.1 BUILD 217</div>
+        <div id="build-stamp">V2.1 BUILD 218</div>
       </header>
       <div id="narrator"></div>
 
