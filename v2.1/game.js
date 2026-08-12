@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 214;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 215;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -2539,7 +2539,31 @@ const livingHeroes = () => S.heroes.filter(h => !h.downed);
 const livingEnemies = () => S.enemies.filter(e => !e.dead);
 const heroInRow = (row) => livingHeroes().find(h => h.row === row) || null;
 const frontmostEnemy = () => ['front', 'mid', 'back'].map(r => livingEnemies().find(e => e.row === r)).find(Boolean) || livingEnemies()[0] || null;
-const enemyArt = (e) => V2PORTRAITS[e.def.art || e.id] || V2PORTRAITS.wraith || '';   // never render a blank figure
+// PAINTED FOE ART (Build 215) — a foe with a commissioned plate renders the
+// PNG; everything else keeps its vector silhouette.  Listing a key here is the
+// ONLY step needed to promote a foe once its plate lands in /art/foe-<key>.png,
+// and a missing file degrades to the vector rather than a blank figure.
+// A key here promotes that foe to its painted plate at /art/foe-<key>.png.
+// KEEP THIS LIST HONEST: a listed foe whose file is missing renders a blank
+// figure and 404s on every repaint, so a key goes in only once the art lands.
+const ENEMY_ART_PNG = {
+  // husk    — the chained beast (Heavy Claw / Lurch)
+  // wraith  — the plumed crouching flurry
+  // cultist — the hooded channeler
+  // mourner — the veiled moon-staff keener
+  // revenant— the skull-masked duellist (elite)
+};
+function enemyArtKey(e) { return (e && e.def && e.def.art) || (e && e.id) || ''; }
+function foeArtHTML(key) {
+  const vec = V2PORTRAITS[key] || V2PORTRAITS.wraith || '';   // never render a blank figure
+  if (!key || !ENEMY_ART_PNG[key]) return vec;
+  // The plate rides OVER the vector and only reveals itself once it has really
+  // loaded; a missing file removes the layer and the silhouette stays.
+  return `<span class="fig-vec">${vec}</span>`
+    + `<img class="fig-png" src="../art/foe-${key}.png" alt="" decoding="async"`
+    + ` onload="this.classList.add('fig-png-on')" onerror="this.remove()">`;
+}
+const enemyArt = (e) => foeArtHTML(enemyArtKey(e));
 
 // ---------------------------------------------------------------------------
 // HAND
@@ -6862,7 +6886,7 @@ function journalBestiaryHtml() {
   const got = defs.filter(id => seen.has(id)).length;
   const entry = (id) => {
     const def = ENEMY_DEFS[id]; const met = seen.has(id);
-    const art = V2PORTRAITS[def.art || id] || '';
+    const art = foeArtHTML(def.art || id);   // painted plate when one exists (Build 215)
     const name = met ? def.name : '<span class="bj-q">? ? ?</span>';
     return `<div class="bj-entry${met ? ' bj-owned' : ' bj-locked'}${def.boss ? ' bj-trio' : ''}">
       <span class="bj-figs bj-figs-1"><span class="bj-fig bj-foe">${art}</span></span>
