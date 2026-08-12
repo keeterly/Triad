@@ -914,6 +914,55 @@ const QUICK = process.argv.includes('--quick');
       return before === after;
     }));
   // ---------- BUILD 228: the stage is a TRUE 3D DIORAMA ----------
+  // ---------- BUILD 229: camera FEEL — measured, not eyeballed ----------
+  check('FEEL: EVERY landed blow moves the lens — a graze too, not just heavy hits',
+    await J(async () => {
+      camRelease();
+      await new Promise(r => setTimeout(r, 260));
+      const before = document.getElementById('stage').style.getPropertyValue('--cam-dz');
+      camPunch(0, figEl(S.enemies[0].uid));      // tier 0 = a 4-6 damage poke, the COMMON case
+      const after = document.getElementById('stage').style.getPropertyValue('--cam-dz');
+      camRelease();
+      return before !== after && parseFloat(after) > 0;
+    }));
+  check('FEEL: the punch curve is STEEP — a massive blow shoves several times a graze',
+    await J(() => {
+      const dz = (p) => { camRelease(); camPunch(p, null); const v = parseFloat(document.getElementById('stage').style.getPropertyValue('--cam-dz')); camRelease(); return v; };
+      const a = dz(0), b = dz(1), c = dz(2), d = dz(3);
+      return a > 0 && b > a && c > b && d > c && d >= a * 5;
+    }));
+  check('FEEL: an AoE fires ONE shove at its strongest, not a stack of competing punches',
+    await J(() => {
+      camRelease();
+      camPunch(3, null);
+      const peak = parseFloat(document.getElementById('stage').style.getPropertyValue('--cam-dz'));
+      camPunch(1, null); camPunch(0, null); camPunch(1, null);   // the rest of an AoE volley
+      const after = parseFloat(document.getElementById('stage').style.getPropertyValue('--cam-dz'));
+      camRelease();
+      return peak === after;                     // the big one survives the volley
+    }));
+  check('FEEL: a deliberate cinematic framing outranks the damage punch that follows it',
+    await J(() => {
+      camRelease();
+      camFocus(figEl('ash'), { z: 1.14, dz: 126 });
+      const framed = parseFloat(document.getElementById('stage').style.getPropertyValue('--cam-dz'));
+      camPunch(1, figEl(S.enemies[0].uid));      // the hit that lands 10ms later
+      const after = parseFloat(document.getElementById('stage').style.getPropertyValue('--cam-dz'));
+      camRelease();
+      return framed > 100 && after === framed;
+    }));
+  check('FEEL: no single beat can throw the cast out of frame (pan/dolly/tilt are clamped)',
+    await J(() => {
+      camRelease();
+      cam({ x: 900, y: -700, dz: 999, yaw: 40, pitch: 40, ms: 0, force: true });
+      const st = document.getElementById('stage');
+      const g = (k) => parseFloat(st.style.getPropertyValue(k));
+      const out = Math.abs(g('--cam-x')) <= CAM_MAX_PAN && Math.abs(g('--cam-y')) <= CAM_MAX_PAN
+        && g('--cam-dz') <= CAM_MAX_DZ && Math.abs(g('--cam-yaw')) <= 9 && Math.abs(g('--cam-pitch')) <= 6;
+      camRelease();
+      return out;
+    }));
+
   check('3D: the preserve-3d chain is unbroken from #diorama down to the slots',
     await J(() => {
       const cs = (q) => getComputedStyle(document.querySelector(q));
@@ -1390,13 +1439,18 @@ const QUICK = process.argv.includes('--quick');
   });
   await sleep(250);
   const ashHp0 = await J(() => S.heroes.find(h => h.id === 'ash').hp);
-  t.page.evaluate(() => { endTurn(); });   // don't await — interact mid-window
-  const ringAppeared = await t.page.waitForSelector('.parry-ring', { state: 'attached', timeout: 6000 })
+  // Drive the tap with the suite's ADAPTIVE auto-parry driver rather than a
+  // hand-timed mouse event. The driver hooks the ring the instant it is ADDED
+  // and reads that ring's own close time, so it lands mid-band every time;
+  // racing it from Node meant waitForSelector caught the ring already part-way
+  // through and each round-trip to read its clock cost more of the window.
+  await t.autoParry(true);
+  const ringAppeared = await Promise.resolve(t.page.evaluate(() => { endTurn(); }))
+    .then(() => t.page.waitForSelector('.parry-ring', { state: 'attached', timeout: 6000 }))
     .then(() => true).catch(() => false);
   check('PARRY: a reactive window opens on the enemy wind-up', ringAppeared);
-  await sleep(430);                 // tap into the closing window (good/perfect band)
-  await t.page.mouse.move(140, 130); await t.page.mouse.down(); await t.page.mouse.up();
-  await sleep(2600);
+  await sleep(3200);
+  await t.autoParry(false);
   check('PARRY: a timed tap blunts the blow and builds momentum',
     await J((o) => (o.a - S.heroes.find(h => h.id === 'ash').hp) < 4 && S.momentum > 0, { a: ashHp0 }),
     await J((o) => 'ashDmg:' + (o.a - S.heroes.find(h => h.id === 'ash').hp) + ' mom:' + S.momentum, { a: ashHp0 }));

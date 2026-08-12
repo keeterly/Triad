@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 228;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 229;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -3795,6 +3795,10 @@ async function playCard(card, targetId) {
     const o = S.heroes.find(h => h.id === card.owner);
     if (o && !o.downed) offerBondFollow(o.id);
   }
+  // A SUPPORT turn should not be silent — a heal or a ward gets a light lean
+  // toward whoever acted. camPunch's burst-collapse means a card that DID deal
+  // damage keeps its own, bigger shove instead of being undercut by this.
+  if (card.kind !== 'move' && !(card.fx && card.fx.dmg)) camPunch(0, figEl(card.owner));
   resolveChainPlay(card);                    // forge the rotation's next step(s); purge unpicked siblings
   // THE COMBO ENDED — a chain card with nothing left to forge is the only
   // structural definition of "the line is complete" the engine has (it's the
@@ -4294,7 +4298,7 @@ function dealToEnemy(e, amt, school, byHeroId) {
   hitFlash(tier);                                 // screen flash (+ hitstop if heavy)
   SFX.hit(big);
   if (tier >= 1) stageShake(['sm', 'sm', 'lg', 'xl'][tier]);
-  if (tier >= 1) camPunch(tier, figEl(e.uid));    // the lens shoves toward the blow
+  camPunch(tier, figEl(e.uid));                   // EVERY blow shoves the lens
   if (technical) {                                // detonation callout
     popupAt(figEl(e.uid), '⚡ TECHNICAL', 'tech');
     techBurst(figEl(e.uid));
@@ -4339,6 +4343,8 @@ function dealToEnemy(e, amt, school, byHeroId) {
 // goes in FAST on a hard-out curve and settles back SLOW.  Symmetric easing
 // reads as a lazy zoom no matter how big the number is.
 const CAM_HOME = { x: 0, y: 0, z: 1, r: 0, dz: 0, pitch: 0, yaw: 0 };
+const CAM_MAX_PAN = 120;   // px the lens may truck off centre
+const CAM_MAX_DZ = 210;    // px it may dolly in
 const CAM_SNAP = 'cubic-bezier(.16,.84,.28,1)';   // hard out — the punch
 const CAM_SETTLE = 'cubic-bezier(.22,.61,.36,1)'; // soft — the drift home
 let _camHeld = 0;      // >0 while a rhythm window owns the frame
@@ -4353,15 +4359,19 @@ function cam(spec) {
   if (_camHeld && !(spec && spec.force)) return;   // a parry owns the frame
   const s = spec || {};
   const z = s.z == null ? CAM_HOME.z : s.z;
-  st.style.setProperty('--cam-x', (s.x || 0) + 'px');
-  st.style.setProperty('--cam-y', (s.y || 0) + 'px');
+  // SAFETY RAILS. A subject near the edge of the field can produce a pan big
+  // enough to swing half the party out of frame (a flawless riposte on a
+  // back-rank hero measured 253px). No single beat may leave the cast.
+  const clamp = (v, lim) => Math.max(-lim, Math.min(lim, v || 0));
+  st.style.setProperty('--cam-x', clamp(s.x, CAM_MAX_PAN) + 'px');
+  st.style.setProperty('--cam-y', clamp(s.y, CAM_MAX_PAN * 0.5) + 'px');
   st.style.setProperty('--cam-z', String(z));
   st.style.setProperty('--cam-r', (s.r || 0) + 'deg');
   // 3D terms — dz is a real dolly through the diorama's perspective, so a
   // push-in widens and parallaxes the rows instead of flatly magnifying them.
-  st.style.setProperty('--cam-dz', (s.dz || 0) + 'px');
-  st.style.setProperty('--cam-pitch', (s.pitch || 0) + 'deg');
-  st.style.setProperty('--cam-yaw', (s.yaw || 0) + 'deg');
+  st.style.setProperty('--cam-dz', clamp(s.dz, CAM_MAX_DZ) + 'px');
+  st.style.setProperty('--cam-pitch', clamp(s.pitch, 6) + 'deg');
+  st.style.setProperty('--cam-yaw', clamp(s.yaw, 9) + 'deg');
   st.style.setProperty('--cam-ms', (s.ms == null ? 420 : s.ms) + 'ms');
   st.style.setProperty('--cam-ease', s.ease || CAM_SNAP);
   if (s.ox != null) st.style.setProperty('--cam-ox', s.ox);
@@ -4393,27 +4403,56 @@ function camOffsetTo(els) {
 // power 1 a solid hit · 2 heavy · 3 massive.  Drifting the lens only a
 // FRACTION of the way to the subject keeps the party on screen; a full pan
 // on every hit would be seasick.
+// Power 0 a graze · 1 solid · 2 heavy · 3 massive.  EVERY landed blow gets a
+// response — a hit that moves nothing reads as a hit that didn't happen, and
+// the common case in this game is a 4-6 damage poke, so tier 0 is most of what
+// a player actually feels.  The curve is steep at the top so a 30-damage crash
+// lands nothing like a poke.
+let _camPunchAt = 0, _camPunchPow = -1;
 function camPunch(power, toEl) {
   if (camReduced() || _camHeld) return;
-  const p = Math.max(1, Math.min(3, power | 0));
-  const dz = [0, 34, 66, 98][p];            // TRUE dolly, not a zoom
-  const r = [0, 0, 0.25, 0.5][p];
-  const yaw = [0, 0.5, 1.1, 1.8][p];        // a hair of orbit sells the depth
-  const inMs = [0, 150, 120, 95][p];
+  const p = Math.max(0, Math.min(3, power | 0));
+  // AoE calls dealToEnemy once PER enemy, which used to fire a stack of
+  // competing punches where the LAST (often weakest) won. Collapse a burst
+  // into one shove at its strongest power.
+  const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  if (now - _camPunchAt < 150 && p <= _camPunchPow) return;
+  _camPunchAt = now; _camPunchPow = p;
+  const dz = [20, 46, 92, 152][p];          // TRUE dolly, not a zoom
+  const r = [0, 0.12, 0.3, 0.62][p];
+  const yaw = [0.2, 0.6, 1.3, 2.4][p];      // a hair of orbit sells the depth
+  const pitch = [0, 0.15, 0.4, 0.9][p];
+  const inMs = [170, 140, 110, 85][p];      // heavier = FASTER in. that IS the punch
   const o = toEl ? camOffsetTo(toEl) : null;
-  const pull = [0, 0.10, 0.16, 0.22][p];
+  const pull = [0.05, 0.10, 0.16, 0.24][p];
   const dir = o && o.dx < 0 ? -1 : 1;
   cam({ x: o ? -o.dx * pull : 0, y: o ? -o.dy * pull * 0.6 : 0,
         z: 1 + (dz / 1150) * 0.35,          // the planes still need a scale cue
-        dz, r: dir * r, yaw: dir * yaw, ms: inMs, ease: CAM_SNAP });
+        dz, r: dir * r, yaw: dir * yaw, pitch, ms: inMs, ease: CAM_SNAP });
   clearTimeout(_camOutT);
-  _camOutT = setTimeout(() => camReset([0, 420, 520, 640][p]), inMs + 60);
+  // HOLD, then drift. A shot that starts leaving the instant it arrives reads
+  // as a twitch; letting the heavy hits SIT for a beat is what makes them land.
+  // The hold scales with weight and brackets the existing hitstop (95/155ms).
+  _camOutT = setTimeout(() => camReset([380, 440, 540, 700][p]), inMs + [60, 90, 160, 250][p]);
+}
+// THE HELD FRAME — a cinematic that owns the camera (the all-out) still wants
+// to BREATHE. Steps the shot in a notch and keeps it there, fast enough to
+// settle inside the beat between two strikes.
+function camStep(dz, opt) {
+  const s = opt || {};
+  cam({ dz, z: 1 + (dz / 1150) * 0.35, r: s.r || 0, yaw: s.yaw || 0, pitch: s.pitch || 0,
+        ms: s.ms == null ? 110 : s.ms, ease: CAM_SNAP, force: true });
 }
 // Frame one or more subjects and HOLD — the cut-in shot.  Caller resets.
 function camFocus(els, opt) {
   if (camReduced() || _camHeld) return;
   const o = camOffsetTo(els);
   const s = opt || {};
+  // A framing chosen by a cinematic (a riposte cut-in, a stage break) must not
+  // be stomped 10ms later by the damage punch that follows it. Claim the
+  // punch-collapse latch at full power so incidental shoves defer to it.
+  _camPunchAt = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  _camPunchPow = 3;
   const pull = s.pull == null ? 0.7 : s.pull;
   const z = s.z == null ? 1.12 : s.z;
   cam({ x: o ? -o.dx * pull : 0, y: o ? -o.dy * pull * 0.5 : 0,
@@ -4429,7 +4468,7 @@ function camHold(on) {
   if (on) { _camHeld++; clearTimeout(_camOutT); _camOutT = null; }
   else if (_camHeld > 0) { _camHeld--; if (!_camHeld) camReset(360); }
 }
-function camRelease() { _camHeld = 0; clearTimeout(_camOutT); _camOutT = null; camReset(0); }
+function camRelease() { _camHeld = 0; _camPunchAt = 0; _camPunchPow = -1; clearTimeout(_camOutT); _camOutT = null; camReset(0); }
 // ESTABLISHING SHOT — open pushed in and tilted, then breathe out to true.
 // The settle timer goes through _camOutT so camRelease() can cancel it: a
 // fight torn down mid-intro must not shove the camera afterwards.
@@ -5096,6 +5135,12 @@ async function windupTell(e, intent) {
     const first = p.kind === 'seq' ? ((p.notes[0] || {}).t || 'tap') : p.kind;
     const pose = first === 'hold' ? 'fw-brace' : first === 'swipe' ? 'fw-sweep' : first === 'mash' ? 'fw-flurry' : 'fw-slash';
     fig.classList.add('fig-windup', pose);
+    // THE LEAN-IN — the whole enemy phase used to play on a locked-off shot,
+    // because the parry that follows HOLDS the frame. The wind-up happens
+    // BEFORE any note is placed, so it is the one safe window to move: the
+    // lens closes on the creature, and the cascade is then read inside that
+    // tighter framing. (Held still throughout, so the notes stay anchored.)
+    camFocus(fig, { z: 1.055, dz: 58, yaw: -1.8, pitch: 0.9, r: -0.4, pull: 0.30, ms: 300 });
     await sleep(460);
     fig.classList.remove('fig-windup', pose);
   } catch (_) {}
@@ -5665,6 +5710,16 @@ async function resolveAllOut() {
     }
     renderAll();
     if (checkEnd()) break;
+    // THE RATCHET — the shot creeps IN across the cascade and kicks harder on a
+    // clean hit, so a long string builds instead of playing on one held frame.
+    // Safe to move here: the all-out's notes sit at PRE-COMPUTED stage points
+    // (mkSeqPreview), not live figure rects, so the camera cannot drift them.
+    // 110ms settles well inside the 150ms beat before the next note appears.
+    camStep(96 + Math.min(i, 7) * 13 + (good ? 16 : 0), {
+      yaw: 2.0 + Math.min(chain, 5) * 0.5,
+      pitch: 1.8 + Math.min(i, 6) * 0.16,
+      r: 0.7 + (good ? 0.25 : 0),
+    });
     if (i < notes.length - 1) await sleep(150);   // a clear, even beat between strikes
   }
   if (preview) preview.remove();
