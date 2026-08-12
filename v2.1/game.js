@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 223;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 224;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -7724,11 +7724,15 @@ function sparkThread(a, b) {
 function renderResonance() {
   const el = $('#resonance'); if (!el) return;
   const live = S ? livingHeroes() : [];
-  if (!S || S.node.chapter < 2 || live.length < 3) { el.classList.add('hidden'); el.classList.remove('rz-ready'); hideBondPanel(); return; }
+  // Build 224: the interface DEGRADES instead of hiding.  A duo still has an
+  // edge, a duet perk and the BOND verb — losing your third hero must not
+  // erase the whole system from the screen mid-boss.
+  if (!S || S.node.chapter < 2 || live.length < 2) { el.classList.add('hidden'); el.classList.remove('rz-ready'); hideBondPanel(); return; }
   el.classList.remove('hidden');
   const ids = live.slice(0, 3).map(h => h.id);
-  const C = [{ x: 23, y: 7 }, { x: 43, y: 39 }, { x: 3, y: 39 }];
-  const E = [[0, 1], [1, 2], [0, 2]];
+  const duo = ids.length === 2;
+  const C = duo ? [{ x: 5, y: 23 }, { x: 41, y: 23 }] : [{ x: 23, y: 7 }, { x: 43, y: 39 }, { x: 3, y: 39 }];
+  const E = duo ? [[0, 1]] : [[0, 1], [1, 2], [0, 2]];
   let formed = 0, canAct = false;
   const edges = E.map(([i, j]) => {
     const key = pairKey(ids[i], ids[j]);
@@ -7737,12 +7741,12 @@ function renderResonance() {
     const woven = bondPts(key) >= BOND_KINDLED;
     return `<line x1="${C[i].x}" y1="${C[i].y}" x2="${C[j].x}" y2="${C[j].y}" class="rz-edge${on ? ' on' : ''}${woven ? ' woven' : ''}"/>`;
   }).join('');
-  const fill = formed === 3 ? `<polygon points="${C.map(c => c.x + ',' + c.y).join(' ')}" class="rz-fill"/>` : '';
+  const fill = !duo && formed === 3 ? `<polygon points="${C.map(c => c.x + ',' + c.y).join(' ')}" class="rz-fill"/>` : '';
   const dots = ids.map((id, i) => `<circle cx="${C[i].x}" cy="${C[i].y}" r="4.2" class="rz-dot" style="fill:${HEROES[id].tint}"/>`).join('');
   const ready = !!S.triadFormed;
   el.classList.toggle('rz-ready', ready);
   el.classList.toggle('rz-can-bond', canAct);
-  const label = ready ? '✦ TRIAD · ALL-OUT CROWNED' : 'RESONANCE ' + formed + '/3';
+  const label = ready ? '✦ TRIAD · ALL-OUT CROWNED' : duo ? 'KIZUNA ' + formed + '/1' : 'RESONANCE ' + formed + '/3';
   el.innerHTML = `<svg viewBox="-3 -3 52 48" class="rz-svg">${fill}${edges}${dots}</svg><span class="rz-lbl">${label}</span>${canAct ? '<span class="rz-plus">♡+</span>' : ''}`;
   el.onclick = () => { if (_bondPanelEl) hideBondPanel(); else showBondPanel(); };
 }
@@ -7778,9 +7782,9 @@ function showBondPanel() {
   hideBondPanel();
   if (!S || S.over) return;
   const live = livingHeroes().slice(0, 3);
-  if (live.length < 3) return;
-  const ids = live.map(h => h.id);
-  const pairs = [[0, 1], [1, 2], [0, 2]].map(([i, j]) => [ids[i], ids[j]]);
+  if (live.length < 2) return;   // Build 224: a duo's single edge still gets its panel
+  const ids = live.slice(0, 3).map(h => h.id);
+  const pairs = (ids.length === 2 ? [[0, 1]] : [[0, 1], [1, 2], [0, 2]]).map(([i, j]) => [ids[i], ids[j]]);
   const row = ([a, b]) => {
     const key = pairKey(a, b);
     const threaded = S.threads.has(key), woven = bondPts(key) >= BOND_KINDLED;
@@ -7800,7 +7804,7 @@ function showBondPanel() {
   el.id = 'bond-panel';
   el.innerHTML = `
     <div class="bp-head">♡ KIZUNA</div>
-    <div class="bp-teach">Help an ally to <b>BOND</b> — or spend <b>1 EP</b> here. Bond all three to <b>crown the ALL-OUT</b>; a <b>WOVEN</b> pair answers finishers.</div>
+    <div class="bp-teach">Help an ally to <b>BOND</b> — or spend <b>1 EP</b> here. ${pairs.length === 1 ? 'A bonded pair fights as one — its <b>duet</b> holds while both stand.' : 'Bond all three to <b>crown the ALL-OUT</b>; a <b>WOVEN</b> pair answers finishers.'}</div>
     ${pairs.map(row).join('')}`;
   $('#stage').appendChild(el);
   el.querySelectorAll('.bp-bond').forEach(b => { b.onclick = (ev) => { ev.stopPropagation(); bondAct(b.dataset.a, b.dataset.b); }; });

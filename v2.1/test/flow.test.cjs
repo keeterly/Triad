@@ -717,6 +717,34 @@ const QUICK = process.argv.includes('--quick');
       && Object.keys(DUET_PERKS).every(k => typeof DUET_PERKS[k].make === 'function' && DUET_PERKS[k].desc)
       && typeof DUET_FALLBACK.make === 'function'));
 
+  // ---------- BUILD 224: the chip DEGRADES to a duo instead of vanishing ----------
+  check('KIZUNA duo: losing the third hero keeps the chip — one edge, KIZUNA n/1, a 1-row panel',
+    await J(() => {
+      const mira = S.heroes.find(h => h.id === 'mira');
+      mira.downed = true; S.threads.clear(); renderResonance();
+      const el = document.getElementById('resonance');
+      const visible = !el.classList.contains('hidden');
+      const oneEdge = el.querySelectorAll('.rz-edge').length === 1;
+      const label = /KIZUNA 0\/1/.test(el.textContent);
+      showBondPanel();
+      const rows = document.querySelectorAll('#bond-panel .bp-row').length === 1;
+      const duoTeach = /fights as one/.test(document.querySelector('#bond-panel').textContent);
+      hideBondPanel();
+      return visible && oneEdge && label && rows && duoTeach;
+    }));
+  check('KIZUNA duo: the pair counts to 1/1 when threaded — and a lone survivor hides the chip',
+    await J(() => {
+      S.threads.add(pairKey('ash', 'elin')); renderResonance();
+      const counted = /KIZUNA 1\/1/.test(document.getElementById('resonance').textContent);
+      const elin = S.heroes.find(h => h.id === 'elin');
+      elin.downed = true; renderResonance();
+      const hidden = document.getElementById('resonance').classList.contains('hidden');
+      elin.downed = false;
+      const mira = S.heroes.find(h => h.id === 'mira');
+      mira.downed = false; S.threads.clear(); renderResonance();
+      return counted && hidden;
+    }));
+
   await t.autoParry(false);   // the trick-note drills below assert RAW timing — no auto-driver
   check('TRICKS: a BAIT parries itself if untouched — and punishes the tap',
     await J(async () => {
