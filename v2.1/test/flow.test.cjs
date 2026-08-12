@@ -632,27 +632,81 @@ const QUICK = process.argv.includes('--quick');
       return keys.length >= 6 && beats >= 16 && wellFormed;
     }));
 
-  // ---------- BUILD 222: the KIZUNA triangle — the meter becomes the interface ----------
-  check('KIZUNA: BOND is a verb — 1 EP forms the thread, guards the pair, closes the panel',
-    await J(async () => {
+  // ---------- BUILD 222/226: the KIZUNA loop — rotations EARN bonds ----------
+  // Build 226 retired the "BOND · 1 EP" purchase. The only deliberate path is
+  // now: finish a rotation -> hold an ECHO -> two echoes forge a free DUET card
+  // -> play it -> the thread forms. This helper drives that real path, so these
+  // tests exercise the shipping mechanism rather than a back door.
+  await J(() => {
+    window.__bond = async (a, b, ta, tb) => {
+      S.heroes.find(h => h.id === a).echo = { type: ta || 'ward', name: 'drill', expires: S.turn + 1 };
+      S.heroes.find(h => h.id === b).echo = { type: tb || 'ward', name: 'drill', expires: S.turn + 1 };
+      S.tempCards = S.tempCards.filter(c => !(c.fx && c.fx.duetAct));
+      offerDuetAct();
+      const card = S.tempCards.find(c => c.fx && c.fx.duetAct);
+      if (card) await playCard(card, null);
+      return !!card;
+    };
+  });
+  check('KIZUNA: a finished ROTATION leaves an ECHO — and its type follows the LINE you ran',
+    await J(() => {
       RUN = newRun('ash'); RUN.active = ['ash', 'elin', 'mira']; RUN.roster = RUN.active.slice(); RUN.bonds = {};
       startFight({ type: 'fight', chapter: 3, heroes: ['ash', 'elin', 'mira'], enemies: ['husk'], useRunHp: true, narrator: 'kz' });
-      S.threads.clear(); S.ep = 3; renderAll();
-      const g0 = S.heroes.find(h => h.id === 'mira').guard;
-      await bondAct('mira', 'elin');
-      return S.ep === 2 && S.threads.has(pairKey('elin', 'mira'))
-        && S.heroes.find(h => h.id === 'mira').guard === g0 + 2;
+      S.threads.clear(); S.heroes.forEach(h => h.echo = null); renderAll();
+      grantEcho({ owner: 'mira', stance: 'FINISHER · MARK', name: 'Execute', fx: { dmg: 9, mark: 2 } });
+      const mira = S.heroes.find(h => h.id === 'mira');
+      // Ash's front FORK is the whole point: the two lines give DIFFERENT echoes
+      return mira.echo && mira.echo.type === 'mark'
+        && mira.echo.expires === S.turn + 1
+        && echoTypeForCard({ stance: 'FINISHER · TEMPO', fx: { dmg: 11 } }) === 'edge'
+        && echoTypeForCard({ stance: 'FINISHER · EXPOSE', fx: { dmg: 3, mark: 4 } }) === 'mark';
     }));
-  check('KIZUNA: a formed edge cannot be re-bought (canBondAct gates it)',
-    await J(() => !canBondAct('mira', 'elin') && canBondAct('ash', 'elin')));
-  check('KIZUNA: the panel shows all three edges with honest states',
+  check('KIZUNA: two echoes forge ONE free DUET card — and playing it forms the thread + its ⛨2',
+    await J(async () => {
+      S.threads.clear(); S.heroes.forEach(h => h.echo = null);
+      const g0 = S.heroes.find(h => h.id === 'mira').guard;
+      const ep0 = S.ep;
+      S.heroes.find(h => h.id === 'mira').echo = { type: 'mark', name: 'x', expires: S.turn + 1 };
+      S.heroes.find(h => h.id === 'elin').echo = { type: 'ward', name: 'y', expires: S.turn + 1 };
+      offerDuetAct();
+      const offered = S.tempCards.filter(c => c.fx && c.fx.duetAct);
+      offerDuetAct();   // must not double-offer
+      const still = S.tempCards.filter(c => c.fx && c.fx.duetAct).length;
+      await playCard(offered[0], null);
+      const mira = S.heroes.find(h => h.id === 'mira'), elin = S.heroes.find(h => h.id === 'elin');
+      return offered.length === 1 && offered[0].cost === 0 && still === 1
+        && S.ep === ep0                                   // the duet is FREE
+        && S.threads.has(pairKey('elin', 'mira'))
+        && mira.guard >= g0 + 2                           // the bond's own ⛨2
+        && !mira.echo && !elin.echo;                      // both echoes spent
+    }));
+  check('KIZUNA: echoReady gates the pair, and an ECHO fades the turn after it is earned',
     await J(() => {
+      S.heroes.forEach(h => h.echo = null);
+      const none = echoReady('ash', 'elin');
+      S.heroes.find(h => h.id === 'ash').echo = { type: 'edge', name: 'x', expires: S.turn + 1 };
+      const half = echoReady('ash', 'elin');
+      S.heroes.find(h => h.id === 'elin').echo = { type: 'edge', name: 'y', expires: S.turn + 1 };
+      const both = echoReady('ash', 'elin');
+      S.turn += 1; expireEchoes();
+      const survives = !!S.heroes.find(h => h.id === 'ash').echo;
+      S.turn += 1; expireEchoes();
+      const faded = !S.heroes.find(h => h.id === 'ash').echo;
+      return !none && !half && both && survives && faded;
+    }));
+  check('KIZUNA: the panel is a READOUT — no purchase button, and it names what each pair NEEDS',
+    await J(() => {
+      S.heroes.forEach(h => h.echo = null);
+      S.heroes.find(h => h.id === 'ash').echo = { type: 'edge', name: 'x', expires: S.turn + 1 };
       showBondPanel();
-      const rows = document.querySelectorAll('#bond-panel .bp-row').length;
-      const bonded = /BONDED/.test(document.querySelector('#bond-panel').textContent);
-      const buttons = document.querySelectorAll('#bond-panel .bp-bond').length;
+      const el = document.querySelector('#bond-panel');
+      const rows = el.querySelectorAll('.bp-row').length;
+      const bonded = /BONDED/.test(el.textContent);
+      const buttons = el.querySelectorAll('button, .bp-bond').length;
+      const needs = el.querySelectorAll('.bp-need').length;
+      const teaches = /ECHO/.test(el.textContent) && /DUET/.test(el.textContent) && !/1 EP/.test(el.textContent);
       hideBondPanel();
-      return rows === 3 && bonded && buttons === 2;
+      return rows === 3 && bonded && buttons === 0 && needs === 2 && teaches;
     }));
   check('KIZUNA: a WOVEN pair\u2019s edge breathes on the chip before its thread forms',
     await J(() => {
@@ -667,12 +721,31 @@ const QUICK = process.argv.includes('--quick');
       // ceremony (suite convention) so the cinematic doesn't block on a tap
       const realCeremony = window.triadCeremony;
       window.triadCeremony = async () => { S.allOutCrowned = true; };
-      await bondAct('ash', 'elin'); await bondAct('ash', 'mira');   // ash fully bonded
+      await window.__bond('ash', 'elin'); await window.__bond('ash', 'mira');   // ash fully bonded
       window.triadCeremony = realCeremony;
       S.ep = 3; S._handStructSig = null; renderAll();
       const ashCard = [...document.querySelectorAll('#hand .card[data-owner="ash"][data-target="ally"]')];
       const ashHint = ashCard.some(c => c.querySelector('.c-bond-hint'));
       return before && !ashHint;
+    }));
+  check('KIZUNA: three duets crown the TRIAD',
+    await J(() => S.threads.size === 3 && !!S.triadFormed));
+  check('ECHO: every authored FINISHER theme is mapped — a new line can never fall through silently',
+    await J(() => {
+      const themes = new Set();
+      Object.values(ROTATIONS).forEach(st => Object.values(st).forEach(rot =>
+        Object.values(rot.cards).forEach(c => { const m = /FINISHER[^A-Z]+([A-Z]+)/.exec(c.stance || ''); if (m) themes.add(m[1]); })));
+      const missing = [...themes].filter(t => !ECHO_BY_THEME[t]);
+      const types = new Set(Object.values(ECHO_BY_THEME));
+      return themes.size >= 30 && missing.length === 0 && types.size === 3
+        && [...types].every(t => !!ECHO_TYPES[t]);
+    }));
+  check('ECHO: all six echo pairings carry a real DUET act',
+    await J(() => {
+      const t = ['edge', 'mark', 'ward'], keys = [];
+      for (let i = 0; i < 3; i++) for (let j = i; j < 3; j++) keys.push([t[i], t[j]].sort().join('+'));
+      return keys.every(k => DUET_ACTS[k] && typeof DUET_ACTS[k].run === 'function' && DUET_ACTS[k].act && DUET_ACTS[k].desc)
+        && Object.keys(DUET_ACTS).length === 6;
     }));
 
   // ---------- BUILD 223: DUET PERKS — bonding a pair switches on ITS mechanic ----------
@@ -681,7 +754,7 @@ const QUICK = process.argv.includes('--quick');
       RUN = newRun('ash'); RUN.active = ['ash', 'elin', 'mira']; RUN.roster = RUN.active.slice(); RUN.bonds = {};
       startFight({ type: 'fight', chapter: 3, heroes: ['ash', 'elin', 'mira'], enemies: ['husk'], useRunHp: true, narrator: 'duet' });
       S.threads.clear(); S.ep = 4; renderAll();
-      await bondAct('ash', 'mira');
+      await window.__bond('ash', 'mira');
       const e = S.enemies[0]; e.hp = e.maxHp = 100; e._hitBy = ['mira'];
       const withPartner = passiveDmg(S.heroes.find(h => h.id === 'ash'), e);
       e._hitBy = [];
@@ -690,7 +763,7 @@ const QUICK = process.argv.includes('--quick');
     }));
   check('DUET: WARDED EDGE (Ash+Elin) — the Ronin takes 1 less from every hit',
     await J(async () => {
-      await bondAct('ash', 'elin');
+      await window.__bond('ash', 'elin');
       return boonIncoming(S.heroes.find(h => h.id === 'ash')) === -1
         && boonIncoming(S.heroes.find(h => h.id === 'elin')) === 0;
     }));
