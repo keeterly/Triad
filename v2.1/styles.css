@@ -45,7 +45,11 @@ body {
 .rotate-text span { font-size: 11px; letter-spacing: 0.2em; }
 
 /* ---- stage scale ---- */
-#stage-scale { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+/* SAFE AREA (Build 213) — viewport-fit=cover means the notch and the home
+   indicator overlap the stage.  Pad the scale box by the device insets;
+   fitStage subtracts that padding so the whole board stays reachable. */
+#stage-scale { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; overflow: hidden;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); }
 #stage {
   width: 760px; height: 430px; position: relative;
   /* the canvas can be sized WIDER than its flex container (full-bleed on wide
@@ -81,9 +85,10 @@ body {
 
 /* ---- topbar + turn-order timeline ---- */
 #topbar { display: flex; align-items: center; gap: 10px; }
+#timeline:empty { display: none; }
 #menu-btn {
   margin-left: auto; font-family: inherit; cursor: pointer;
-  width: 28px; height: 22px; border-radius: 6px; flex: none;
+  width: 40px; height: 34px; border-radius: 7px; flex: none;
   background: rgba(20,16,13,0.82); border: 1px solid var(--edge); color: var(--ink-dim);
   font-size: 13px; line-height: 1; display: flex; align-items: center; justify-content: center;
   transition: border-color 0.14s ease, color 0.14s ease;
@@ -91,11 +96,12 @@ body {
 #menu-btn:hover, #menu-btn:active { border-color: var(--gold-bright); color: var(--ink); }
 /* ---- pause / dev menu ---- */
 #overlay.menu-screen #overlay-inner { max-width: 380px; }
+#overlay.menu-screen.howto-screen #overlay-inner { max-width: 660px; }
 .menu-list { display: flex; flex-direction: column; gap: 7px; margin: 4px auto 0; max-width: 300px; }
 .menu-item {
   font-family: inherit; cursor: pointer; text-align: left;
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  padding: 10px 14px; border-radius: 8px; font-size: 11px; letter-spacing: 0.12em;
+  padding: 12px 14px; border-radius: 8px; font-size: 11px; letter-spacing: 0.12em; min-height: 42px;
   color: var(--ink); background: rgba(20,16,13,0.9); border: 1px solid var(--edge);
   transition: border-color 0.14s ease, background 0.14s ease, transform 0.08s ease;
 }
@@ -108,12 +114,12 @@ body {
 .menu-item.menu-dev { color: var(--arc); border-color: rgba(154,120,192,0.4); }
 .menu-val { font-size: 9.5px; letter-spacing: 0.14em; color: var(--ink-faint); }
 .menu-val.mv-on { color: var(--heal); }
-.howto .ov-line { margin-bottom: 8px; font-size: 10px; line-height: 1.5; }
+.howto .ov-line { margin-bottom: 9px; font-size: 11px; line-height: 1.55; color: var(--gold-soft, #c9bd9f); }
 .howto .ov-line b { color: var(--gold-bright); }
-.howto .ht-head { font-size: 8.5px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--ink-faint);
+.howto .ht-head { font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--gold-bright);
   margin: 12px 0 5px; padding-bottom: 3px; border-bottom: 1px solid rgba(232,220,196,0.14); }
 .howto .ht-head:first-child { margin-top: 0; }
-.howto .ht-tip { font-size: 9px; color: var(--ink-faint); font-style: italic; margin-top: 4px; }
+.howto .ht-tip { font-size: 10px; color: var(--ink-dim); font-style: italic; margin-top: 6px; }
 .howto .ht-tip b { color: var(--ink-dim); }
 #chapter-chip {
   font-size: 10px; letter-spacing: 0.24em; color: var(--gold-bright);
@@ -568,7 +574,7 @@ body {
 #overlay {
   position: absolute; inset: 0; z-index: 40;
   background:
-    radial-gradient(ellipse 100% 90% at 50% 30%, rgba(20,14,10,0.94) 0%, rgba(5,3,2,0.985) 75%);
+    radial-gradient(ellipse 100% 90% at 50% 30%, rgba(16,11,8,0.985) 0%, rgba(3,2,1,0.999) 72%);
   display: flex; align-items: center; justify-content: center;
 }
 #overlay-inner { width: 88%; max-width: 620px; text-align: center; }
@@ -594,7 +600,7 @@ body {
 .ov-btn {
   font-family: inherit; font-size: 11px; letter-spacing: 0.26em; cursor: pointer;
   color: var(--ink); background: rgba(22,17,13,0.9); border: 1px solid rgba(240,212,136,0.4);
-  padding: 10px 34px; border-radius: 4px; margin: 4px;
+  padding: 12px 34px; border-radius: 4px; margin: 4px; min-height: 42px;
 }
 .ov-btn:hover { border-color: var(--gold-bright); color: var(--gold-bright); }
 .ov-btn.primary { color: var(--gold-bright); border-color: var(--gold-bright); }
@@ -665,7 +671,7 @@ body {
 .bj-screen .ov-title { color: var(--gold-bright); }
 /* JOURNAL tabs */
 .bj-tabs { display: flex; gap: 6px; justify-content: center; margin-bottom: 8px; flex-wrap: wrap; }
-.bj-tab { font-family: inherit; font-size: 10px; letter-spacing: 0.16em; padding: 7px 14px; border-radius: 7px; cursor: pointer;
+.bj-tab { font-family: inherit; font-size: 10px; letter-spacing: 0.16em; padding: 11px 16px; min-height: 40px; border-radius: 7px; cursor: pointer;
   border: 1px solid rgba(232,220,196,0.18); background: rgba(14,11,9,0.8); color: var(--ink-dim); transition: border-color 0.12s, color 0.12s, background 0.12s; }
 .bj-tab:hover { border-color: var(--gold-bright); color: var(--ink); }
 .bj-tab-on { border-color: var(--gold-bright); color: var(--gold-bright); background: rgba(30,22,12,0.9); }
@@ -674,8 +680,11 @@ body {
 .bj-fig.bj-foe { background: rgba(8,6,10,0.95); }
 .bj-fig.bj-foe svg { height: 40px; }
 .bj-entry.bj-locked .bj-fig.bj-foe svg { filter: brightness(0.12) contrast(1.3); }
-.bj-scroll { width: 100%; max-width: 680px; margin: 0 auto; max-height: 62vh; overflow-y: auto; overflow-x: hidden;
-  padding: 2px 10px 6px; -webkit-overflow-scrolling: touch; }
+.bj-scroll { width: 100%; max-width: 680px; margin: 0 auto 12px; max-height: 56vh; overflow-y: auto; overflow-x: hidden;
+  padding: 2px 10px 10px; -webkit-overflow-scrolling: touch;
+  /* fade the fold so a sliced last row reads as "more below", not as broken */
+  -webkit-mask-image: linear-gradient(180deg, #000 88%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 88%, transparent 100%); }
 .bj-scroll::-webkit-scrollbar { width: 6px; }
 .bj-scroll::-webkit-scrollbar-thumb { background: rgba(240,212,136,0.28); border-radius: 3px; }
 .bj-sec-title { display: flex; align-items: center; gap: 7px; font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase;
@@ -877,7 +886,7 @@ body {
   box-shadow: 0 0 0 1px rgba(212,200,168,0.10), inset 0 1px 0 rgba(232,220,196,0.06), 0 4px 10px rgba(0,0,0,0.5);
   transition: color 0.18s, transform 0.18s, box-shadow 0.18s;
 }
-.map-node .mn-label { font-size: 6.6px; letter-spacing: 0.13em; line-height: 1.25; color: var(--ink-faint); max-width: 66px; }
+.map-node .mn-label { font-size: 8.4px; letter-spacing: 0.1em; line-height: 1.3; color: var(--ink-dim); max-width: 78px; text-shadow: 0 1px 3px #000; }
 .map-node .mn-pulse {
   position: absolute; top: 0; left: 50%; margin-left: -21px; width: 42px; height: 42px;
   border-radius: 50%; pointer-events: none; opacity: 0; z-index: 2;
@@ -999,9 +1008,9 @@ button.map-node:not(:disabled) { cursor: pointer; }
 .ss-fig .ss-cls b { color: var(--gold-bright); font-weight: 700; }
 .ss-fig .ss-identity { display: block; font-size: 7.5px; line-height: 1.35; color: var(--ink-dim); font-style: italic; margin-top: 2px; max-width: 96px; }
 .ss-fig:not(.ss-locked):hover { border-color: var(--gold-bright); box-shadow: 0 0 14px rgba(240,212,136,0.3); transform: translateY(-2px); color: var(--ink); }
-.ss-fig.ss-locked { cursor: default; opacity: 0.4; filter: grayscale(0.7); }
-.ss-fig.ss-locked .ss-art svg { filter: brightness(0.5); }
-.ss-fig.ss-locked .ss-identity { color: var(--ink-faint); font-style: normal; }
+.ss-fig.ss-locked { cursor: default; opacity: 0.78; filter: grayscale(0.55); }
+.ss-fig.ss-locked .ss-art svg { filter: brightness(0.72); }
+.ss-fig.ss-locked .ss-identity { color: var(--ink-dim); font-style: normal; }
 .ps-reso { font-size: 10.5px; color: var(--ink-dim); min-height: 34px; margin-bottom: 8px; line-height: 1.5; }
 .ps-reso b { color: var(--gold-bright); }
 .ps-reso-desc { font-size: 9px; color: var(--ink-faint); }
@@ -2655,7 +2664,7 @@ button.map-node:not(:disabled) { cursor: pointer; }
 .et-tabs { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin: 0 0 10px; }
 .et-tab {
   font-family: inherit; cursor: pointer; font-size: 9px; letter-spacing: 0.16em;
-  padding: 4px 11px; border-radius: 999px; color: var(--ink-dim);
+  padding: 10px 14px; border-radius: 999px; color: var(--ink-dim); min-height: 38px; display: inline-flex; align-items: center;
   background: rgba(20,16,13,0.7); border: 1px solid var(--edge);
   transition: color 0.14s ease, border-color 0.14s ease, background 0.14s ease;
 }
@@ -2688,7 +2697,7 @@ button.map-node:not(:disabled) { cursor: pointer; }
 .et-pan { position: absolute; left: 42%; top: 50%; width: 340px; height: 340px; margin: -170px 0 0 -170px; will-change: transform; transform-origin: center center; }
 /* ZOOM controls — small +/- stack, lower-left of the tree canvas */
 .et-zoom { position: absolute; left: 8px; bottom: 8px; z-index: 8; display: flex; flex-direction: column; gap: 5px; }
-.et-zoom-btn { width: 30px; height: 30px; border-radius: 7px; border: 1px solid rgba(240,212,136,0.28);
+.et-zoom-btn { width: 40px; height: 40px; border-radius: 7px; border: 1px solid rgba(240,212,136,0.28);
   background: rgba(14,11,9,0.86); color: var(--ink); font: 600 18px/1 monospace; cursor: pointer;
   display: flex; align-items: center; justify-content: center; transition: border-color 0.12s, background 0.12s; }
 .et-zoom-btn:hover { border-color: var(--gold-bright); color: var(--gold-bright); background: rgba(30,22,12,0.9); }
@@ -3212,10 +3221,36 @@ button.map-node:not(:disabled) { cursor: pointer; }
 .tt-ver { position: absolute; bottom: 3%; left: 0; right: 0; text-align: center; font-size: 8.5px; letter-spacing: 0.28em; color: var(--ink-faint); z-index: 6; }
 /* heat stepper in settings */
 .menu-heat { display: inline-flex; align-items: center; gap: 10px; }
-.menu-heat button { width: 22px; height: 22px; border: 1px solid rgba(240,212,136,0.4); background: rgba(20,14,8,0.8); color: var(--gold-bright); border-radius: 4px; font-size: 14px; cursor: pointer; line-height: 1; }
+.menu-heat button { width: 34px; height: 34px; border: 1px solid rgba(240,212,136,0.4); background: rgba(20,14,8,0.8); color: var(--gold-bright); border-radius: 4px; font-size: 14px; cursor: pointer; line-height: 1; }
 .menu-heat button:hover { border-color: var(--gold-bright); }
 .menu-heat b { min-width: 14px; text-align: center; color: var(--ink); }
 
 /* ── PERF DIAGNOSTICS (toggled by the FPS-meter buttons; off in normal play) ── */
 html.diag-noanim *, html.diag-noanim *::before, html.diag-noanim *::after { animation: none !important; }
 html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after { filter: none !important; }
+
+/* ===========================================================================
+   BUILD 213 — POLISH SWEEP (defects found at true 852x393 phone size)
+   =========================================================================== */
+/* MAJOR 14 — the FORGE broke the overlay language: top-anchored with a
+   full-width footer button over a narrow card grid.  Centre it like its
+   siblings and match the footer's width to the content. */
+#overlay.forge-screen #overlay-inner { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; max-width: 660px; }
+#overlay.forge-screen .et-tier-row { width: 100%; justify-content: center; }
+#overlay.forge-screen #forge-back { align-self: center; min-width: 220px; max-width: 320px; }
+/* MAJOR 13 — a FALLEN companion must not stand like the living ones. */
+.camp-hero.camp-hero-down svg { filter: grayscale(1) brightness(0.4) drop-shadow(0 8px 16px rgba(0,0,0,0.9)); }
+.camp-hero.camp-hero-down { opacity: 0.72; transform: translateX(calc(-50% + var(--off) * 156px)) translateY(6px) rotate(-2deg); }
+/* MAJOR 22 — boon/spark card titles aligned across a row regardless of body
+   length, so a 1-line card doesn't sit 24px lower than a 3-line one. */
+.boon-choices .boon-card { justify-content: flex-end; }
+.boon-choices .boon-body { min-height: 104px; justify-content: flex-end; }
+/* MINOR 18 — the journal's status column now lands at one x on every row. */
+.bj-check { margin-left: auto; }
+/* MINOR 21 — game-over stat tiles share a width so the row reads as a table. */
+.go-stat { min-width: 68px; }
+.go-stat-l { color: var(--ink-dim); }
+/* MAJOR 11 — the pause menu ran edge-to-edge with no scroll container, so any
+   added row (or a device inset) pushed items off-screen. */
+#overlay.menu-screen #overlay-inner { max-height: 92%; display: flex; flex-direction: column; }
+#overlay.menu-screen .menu-list { overflow-y: auto; min-height: 0; padding: 2px; -webkit-overflow-scrolling: touch; }

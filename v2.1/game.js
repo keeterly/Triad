@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 212;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 213;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -5675,7 +5675,7 @@ function onVictory() {
       <div class="ov-title" style="font-size:22px">${isBoss ? 'THE ECHO FADES' : 'THE ROAD HOLDS'}</div>
       ${th ? `<div class="ov-sub">${th} bond${th > 1 ? 's' : ''} held${S.triadFormed ? ' · the triad answered' : ''}</div>` : ''}
       ${memLine}
-      ${S._embersRun ? `<div class="ov-embers">✦ ${S._embersRun} embers gathered — spend them on the <b>Ember Tree</b></div>` : ''}
+      ${S._embersRun ? `<div class="ov-embers">✦ ${S._embersRun} ember${S._embersRun === 1 ? '' : 's'} gathered — spend them on the <b>Ember Tree</b></div>` : ''}
       ${bondLines.length ? `<div class="bond-growth">${bondLines.map(l => `<span class="bg-line${/WOVEN/.test(l) ? ' bg-kindled' : ''}">♡ ${l}</span>`).join('')}</div>` : ''}
       <button class="ov-btn primary" id="ov-next">CONTINUE</button>
     `);
@@ -6925,7 +6925,8 @@ function showCamp(n) {
   const mid = (party.length - 1) / 2;
   const heroes = party.map((id, i) => {
     const side = i < mid ? 'l' : i > mid ? 'r' : 'c';   // right side faces the fire (flipped)
-    return `<span class="camp-hero camp-hero-${side}" style="--off:${(i - mid).toFixed(2)}">${V2PORTRAITS[id] || ''}</span>`;
+    const down = (RUN.hp[id] ?? 1) <= 0;   // the fallen must not stand like the living (Build 213)
+    return `<span class="camp-hero camp-hero-${side}${down ? ' camp-hero-down' : ''}" style="--off:${(i - mid).toFixed(2)}">${V2PORTRAITS[id] || ''}</span>`;
   }).join('');
   const embers = Array.from({ length: 9 }, (_, i) => `<span class="cf-ember" style="--i:${i}"></span>`).join('');
   const choice = (id, icon, label, effect) => `
@@ -6944,7 +6945,7 @@ function showCamp(n) {
         <div class="camp-flavor">The fire holds back the dark — but the night is long enough for <b>one thing done well</b>.${bargained ? ' <b>The fire will not warm a bargainer</b> — no rest tonight.' : ''}${fallen.length ? ` And <b>${fallen.map(id => HEROES[id].name).join(' & ')}</b> ${fallen.length > 1 ? 'lie' : 'lies'} still…` : ''}</div>
       </div>
       <div class="camp-choices">
-        ${wounded ? choice('camp-rest', '🔥', 'REST BY THE FIRE', 'Every wound on the <b>living</b> closes.') : ''}
+        ${wounded ? choice('camp-rest', '✺', 'REST BY THE FIRE', 'Every wound on the <b>living</b> closes.') : ''}
         ${fallen.length ? choice('camp-raise', '☨', 'RAISE THE FALLEN', `<b>${fallen.map(id => HEROES[id].name).join(' & ')}</b> ${fallen.length > 1 ? 'return' : 'returns'} at <b>half HP</b> — the fire’s only gift tonight.`) : ''}
         ${choice('camp-fire', '♡', 'SHARE THE FIRE', 'Deepen your weakest bond <b>+1</b>.')}
         ${choice('camp-boon', '✦', 'COMMUNE AT THE FIRE', 'A companion shares a gift — <b>draw 1 of 3</b>.')}
@@ -6993,7 +6994,7 @@ function showForge(n) {
     <div class="et-forge-note">These tempers hold only for this descent — spend freely, or bank toward the tree. The forge takes the night.</div>
     <div class="et-tier-row">${offers}</div>
     <button class="ov-btn" id="forge-back">◂ TAKE THE ROAD</button>
-  `, 'map-screen et-screen');
+  `, 'map-screen et-screen forge-screen');
   document.querySelectorAll('.et-node:not([disabled])').forEach(el => {
     el.onclick = () => {
       const f = FORGE_BY_ID[el.dataset.id];
@@ -8081,7 +8082,7 @@ function showHowTo(back) {
   showOverlay(`
     <div class="ov-eyebrow">HOW TO PLAY</div>
     <div class="ov-title" style="font-size:20px; margin-bottom:10px;">THE BASICS</div>
-    <div class="ov-lines howto" style="text-align:left; max-width:448px; margin:0 auto; max-height:64vh; overflow-y:auto; padding-right:6px;">
+    <div class="ov-lines howto" style="text-align:left; max-width:620px; margin:0 auto; max-height:72vh; overflow-y:auto; padding-right:8px;">
       <div class="ht-head">On your turn</div>
       <div class="ov-line"><b>Play cards to fight.</b> Drag a card onto an enemy to attack, or onto an ally to help. Each card costs <b>EP</b> — your energy, which refills every turn.</div>
       <div class="ov-line"><b>Reposition your heroes.</b> Drag a hero between the <b>FRONT · MID · BACK</b> rows. Where they stand sets their stance, so their cards change to match.</div>
@@ -8098,7 +8099,7 @@ function showHowTo(back) {
       <div class="ov-line ht-tip">Tip: press &amp; hold any card to read it up close.</div>
     </div>
     <button class="ov-btn primary" id="ht-back">◂ BACK</button>
-  `, 'menu-screen');
+  `, 'menu-screen howto-screen');
   $('#ht-back').onclick = () => (back || showMenu)();
 }
 // FULL PROGRESS RESET (dev) — wipe everything that makes the game "not
@@ -8201,7 +8202,7 @@ function showSettings() {
       <button class="menu-item" id="s-music"><span>MUSIC</span>${onOff(SETTINGS.music)}</button>
       <button class="menu-item" id="s-haptics"><span>HAPTICS</span>${onOff(SETTINGS.haptics)}</button>
       <button class="menu-item" id="s-bg"><span>FIGHT BACKGROUND</span>${onOff(SETTINGS.fightBg)}</button>
-      <button class="menu-item" id="s-heat"><span>HEAT <i style="opacity:.6">· foes hit harder, +embers</i></span><span class="menu-heat"><button id="s-heat-dn" aria-label="lower heat">−</button><b>${META.heat || 0}</b><button id="s-heat-up" aria-label="raise heat">+</button></span></button>
+      <button class="menu-item" id="s-heat"><span>HEAT</span><span class="menu-heat"><button id="s-heat-dn" aria-label="lower heat">−</button><b>${META.heat || 0}</b><button id="s-heat-up" aria-label="raise heat">+</button></span></button>
       <button class="menu-item" id="s-howto"><span>HOW TO PLAY</span><span class="menu-val">?</span></button>
       <button class="menu-item menu-dev" id="s-dev"><span>⚙ DEV TOOLS</span><span class="menu-val">›</span></button>
       <button class="menu-item menu-primary" id="s-back">◂ BACK</button>
@@ -8549,8 +8550,18 @@ function fitStage() {
   const vv = window.visualViewport;
   const box = document.getElementById('stage-scale');
   const br = box ? box.getBoundingClientRect() : null;
-  const w = Math.round(Math.max((br && br.width) || 0, (vv && vv.width) || 0, window.innerWidth || 0, document.documentElement.clientWidth || 0));
-  const h = Math.round(Math.max((br && br.height) || 0, (vv && vv.height) || 0, window.innerHeight || 0, document.documentElement.clientHeight || 0));
+  let w = Math.round(Math.max((br && br.width) || 0, (vv && vv.width) || 0, window.innerWidth || 0, document.documentElement.clientWidth || 0));
+  let h = Math.round(Math.max((br && br.height) || 0, (vv && vv.height) || 0, window.innerHeight || 0, document.documentElement.clientHeight || 0));
+  // SAFE AREA (Build 213) — #stage-scale is padded by the device insets, so fit
+  // the board to the CONTENT box.  Without this the notch eats the BURST gauge
+  // and the home indicator sits on the hand cards.
+  if (box) {
+    try {
+      const cs = getComputedStyle(box);
+      w -= (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+      h -= (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+    } catch (_) {}
+  }
   if (!w || !h) return;
   const desktop = isDesktop();
   const k = desktop ? DESK_K : 1;
