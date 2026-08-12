@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 215;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 216;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -2547,11 +2547,11 @@ const frontmostEnemy = () => ['front', 'mid', 'back'].map(r => livingEnemies().f
 // KEEP THIS LIST HONEST: a listed foe whose file is missing renders a blank
 // figure and 404s on every repaint, so a key goes in only once the art lands.
 const ENEMY_ART_PNG = {
-  // husk    — the chained beast (Heavy Claw / Lurch)
-  // wraith  — the plumed crouching flurry
-  // cultist — the hooded channeler
-  // mourner — the veiled moon-staff keener
-  // revenant— the skull-masked duellist (elite)
+  husk: 1,        // the chained beast — Heavy Claw / Lurch
+  wraith: 1,      // the plumed crouching flurry
+  cultist: 1,     // the hooded channeler
+  mourner: 1,     // the veiled moon-staff keener
+  revenant: 1,    // the skull-masked duellist (elite)
 };
 function enemyArtKey(e) { return (e && e.def && e.def.art) || (e && e.id) || ''; }
 function foeArtHTML(key) {
