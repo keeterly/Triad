@@ -745,6 +745,74 @@ const QUICK = process.argv.includes('--quick');
       return counted && hidden;
     }));
 
+  // ---------- BUILD 225: THE CAMERA — it must MEASURABLY move ----------
+  // Build 219's push-in silently did nothing for five builds because nothing
+  // ever read a computed transform back. Everything here measures.
+  const mScale = (m) => { const p = /matrix\(([^)]+)\)/.exec(m || ''); if (!p) return 1; const v = p[1].split(',').map(Number); return Math.hypot(v[0], v[1]); };
+  check('CAMERA: a punch scales the battlefield, then auto-settles home',
+    await J(async () => {
+      const sc = () => { const p = /matrix\(([^)]+)\)/.exec(getComputedStyle(document.querySelector('#battlefield')).transform); if (!p) return 1; const v = p[1].split(',').map(Number); return Math.hypot(v[0], v[1]); };
+      const settle = async () => { for (let i = 0; i < 80 && sc() > 1.001; i++) await new Promise(r => setTimeout(r, 25)); };
+      // A punch only moves a FREE camera — a live parry deliberately holds the
+      // frame so its notes can't drift. The suite's auto-parry driver can start
+      // an enemy cascade at any moment, so retry until we get a clean window
+      // instead of asserting on whichever one we happened to land in.
+      let home = 1, peak = 0, back = 1;
+      for (let attempt = 0; attempt < 6 && peak <= 1.05; attempt++) {
+        camRelease();
+        await settle();
+        home = sc();
+        camRelease(); camPunch(3, figEl(S.enemies[0].uid));
+        const trace = [];
+        for (let i = 0; i < 8; i++) { await new Promise(r => setTimeout(r, 40)); trace.push(sc()); }
+        if (_camHeld) { await new Promise(r => setTimeout(r, 300)); continue; }   // a parry stole the frame
+        peak = Math.max.apply(null, trace);
+      }
+      await settle();
+      back = sc();
+      return { home, peak, back };
+    }).then(r => r.home < 1.01 && r.peak > 1.05 && r.back < 1.01));
+  check('CAMERA: the planes move by DEPTH — near > mid > far (that differential IS the parallax)',
+    await J(async () => {
+      camRelease(); await new Promise(r => setTimeout(r, 60));
+      cam({ z: 1.2, ms: 0, force: true });
+      await new Promise(r => setTimeout(r, 80));
+      const g = s => getComputedStyle(document.querySelector(s)).transform;
+      const o = { far: g('.hd-far'), mid: g('.hd-mid'), near: g('.hd-near') };
+      camRelease();
+      return o;
+    }).then(r => { const d = m => mScale(m) - 1; return d(r.near) > d(r.mid) && d(r.mid) > d(r.far) && d(r.far) > 0; }));
+  check('CAMERA: a rhythm window HOLDS the frame (notes are placed once from a live rect)',
+    await J(async () => {
+      camRelease(); await new Promise(r => setTimeout(r, 60));
+      camHold(true);
+      const before = getComputedStyle(document.querySelector('#battlefield')).transform;
+      cam({ z: 1.4 }); camPunch(3, figEl(S.enemies[0].uid));
+      await new Promise(r => setTimeout(r, 120));
+      const after = getComputedStyle(document.querySelector('#battlefield')).transform;
+      camHold(false);
+      return before === after;
+    }));
+  check('CAMERA: prefers-reduced-motion disables it outright',
+    await J(() => {
+      const real = window.matchMedia;
+      window.matchMedia = (q) => /reduced-motion/.test(q) ? { matches: true, addListener() {}, removeListener() {} } : real.call(window, q);
+      camRelease();
+      const before = document.getElementById('stage').style.getPropertyValue('--cam-z');
+      cam({ z: 1.5 }); camPunch(3, null); camFocus(figEl('ash'), { z: 1.3 });
+      const after = document.getElementById('stage').style.getPropertyValue('--cam-z');
+      window.matchMedia = real;
+      return before === after;
+    }));
+  check('ANCHOR: a PAINTED foe has a real hit-rect — the vector it hides measures 0×0 at the origin',
+    await J(() => {
+      const el = figEl(S.enemies[0].uid);
+      const png = el.querySelector('.fig-png-on');
+      const r = figHitRect(el);
+      // husk is a painted plate; if the art loaded, the vector is display:none
+      return !!png && r.width > 20 && r.height > 20 && r.left > 1;
+    }));
+
   await t.autoParry(false);   // the trick-note drills below assert RAW timing — no auto-driver
   check('TRICKS: a BAIT parries itself if untouched — and punishes the tap',
     await J(async () => {

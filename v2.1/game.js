@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 224;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 225;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -2924,7 +2924,8 @@ function clearAim() {
   // new hand reads as "glitched / un-draggable."  Also drop any frozen/focus/slow
   // stage classes so nothing from the last fight bleeds into the next.
   try { if (_dragWinUp) { window.removeEventListener('pointerup', _dragWinUp, true); window.removeEventListener('pointercancel', _dragWinUp, true); _dragWinUp = null; } } catch (_) {}
-  try { _slowmoRef = 0; const st = document.getElementById('stage'); if (st) st.classList.remove('parry-focus', 'parry-slowmo', 'allout-focus', 'allout-push', 'frozen'); } catch (_) {}
+  try { _slowmoRef = 0; const st = document.getElementById('stage'); if (st) st.classList.remove('parry-focus', 'parry-slowmo', 'allout-focus', 'cam-in', 'frozen'); } catch (_) {}
+  try { camRelease(); } catch (_) {}   // a held camera must never survive a fight
   // Force a CLEAN hand rebuild next render: throw away any stale card DOM (and its
   // drag closure, whose `pid` may be stuck from a gesture the last fight cut short)
   // so the new fight always wires fresh, draggable cards.
@@ -4082,6 +4083,7 @@ function dealToEnemy(e, amt, school, byHeroId) {
   hitFlash(tier);                                 // screen flash (+ hitstop if heavy)
   SFX.hit(big);
   if (tier >= 1) stageShake(['sm', 'sm', 'lg', 'xl'][tier]);
+  if (tier >= 1) camPunch(tier, figEl(e.uid));    // the lens shoves toward the blow
   if (technical) {                                // detonation callout
     popupAt(figEl(e.uid), '⚡ TECHNICAL', 'tech');
     techBurst(figEl(e.uid));
@@ -4111,8 +4113,108 @@ function dealToEnemy(e, amt, school, byHeroId) {
     hitFlash(3);                                    // the kill gets a white flash + slow-mo beat
     const el = figEl(e.uid);
     if (el) { el.classList.add('fig-dying'); deathBurst(el); }
+    camPunch(3, el);                                // and the lens lingers on the kill
     setTimeout(() => { e._justDied = false; if (S && !S.over) renderAll(); }, 750);
   }
+}
+// ══ THE CAMERA (Build 225) ═══════════════════════════════════════════════
+// One camera for the whole fight.  We write four CSS variables on #stage and
+// every world layer (the battlefield and the three HD-2D planes) reads them
+// through its own depth factor — see the CAMERA RIG block in styles.css for
+// the three hard rules this obeys (never touch #stage's transform, never
+// scale #stage, transitions not animations).
+//
+// The FEEL is all in the asymmetry: a camera move that reads as "snappy"
+// goes in FAST on a hard-out curve and settles back SLOW.  Symmetric easing
+// reads as a lazy zoom no matter how big the number is.
+const CAM_HOME = { x: 0, y: 0, z: 1, r: 0 };
+const CAM_SNAP = 'cubic-bezier(.16,.84,.28,1)';   // hard out — the punch
+const CAM_SETTLE = 'cubic-bezier(.22,.61,.36,1)'; // soft — the drift home
+let _camHeld = 0;      // >0 while a rhythm window owns the frame
+let _camOutT = null;   // pending auto-settle
+function camReduced() {
+  try { return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+  catch (_) { return false; }
+}
+// Absolute move.  Everything else in this section is sugar over this.
+function cam(spec) {
+  const st = $('#stage'); if (!st || camReduced()) return;
+  if (_camHeld && !(spec && spec.force)) return;   // a parry owns the frame
+  const s = spec || {};
+  const z = s.z == null ? CAM_HOME.z : s.z;
+  st.style.setProperty('--cam-x', (s.x || 0) + 'px');
+  st.style.setProperty('--cam-y', (s.y || 0) + 'px');
+  st.style.setProperty('--cam-z', String(z));
+  st.style.setProperty('--cam-r', (s.r || 0) + 'deg');
+  st.style.setProperty('--cam-ms', (s.ms == null ? 420 : s.ms) + 'ms');
+  st.style.setProperty('--cam-ease', s.ease || CAM_SNAP);
+  if (s.ox != null) st.style.setProperty('--cam-ox', s.ox);
+  if (s.oy != null) st.style.setProperty('--cam-oy', s.oy);
+  st.classList.toggle('cam-in', z > 1.02);
+}
+// Home, on the slow curve — the shot breathing back out.
+function camReset(ms) {
+  clearTimeout(_camOutT); _camOutT = null;
+  cam({ ms: ms == null ? 520 : ms, ease: CAM_SETTLE, force: true });
+}
+// Where is `el` relative to the stage centre, in LOGICAL stage px?  Same
+// convention popupAt/noteAnchor use, so the camera and the FX agree.
+function camOffsetTo(els) {
+  const list = (Array.isArray(els) ? els : [els]).filter(Boolean);
+  if (!list.length) return null;
+  const st = $('#stage'); if (!st) return null;
+  const sr = st.getBoundingClientRect(), s = (sr.width / stageDW()) || 1;
+  let cx = 0, cy = 0;
+  list.forEach(el => {
+    const r = (typeof figHitRect === 'function' && figHitRect(el)) || el.getBoundingClientRect();
+    cx += (r.left + r.width / 2 - sr.left) / s;
+    cy += (r.top + r.height * 0.45 - sr.top) / s;
+  });
+  cx /= list.length; cy /= list.length;
+  return { dx: cx - stageDW() / 2, dy: cy - stageDH() / 2 };
+}
+// THE WORKHORSE — a fast shove toward what just happened, then a slow settle.
+// power 1 a solid hit · 2 heavy · 3 massive.  Drifting the lens only a
+// FRACTION of the way to the subject keeps the party on screen; a full pan
+// on every hit would be seasick.
+function camPunch(power, toEl) {
+  if (camReduced() || _camHeld) return;
+  const p = Math.max(1, Math.min(3, power | 0));
+  const z = [0, 1.035, 1.065, 1.095][p];
+  const r = [0, 0, 0.25, 0.5][p];
+  const inMs = [0, 150, 120, 95][p];
+  const o = toEl ? camOffsetTo(toEl) : null;
+  const pull = [0, 0.10, 0.16, 0.22][p];
+  cam({ x: o ? -o.dx * pull : 0, y: o ? -o.dy * pull * 0.6 : 0, z, r: o && o.dx < 0 ? -r : r, ms: inMs, ease: CAM_SNAP });
+  clearTimeout(_camOutT);
+  _camOutT = setTimeout(() => camReset([0, 420, 520, 640][p]), inMs + 60);
+}
+// Frame one or more subjects and HOLD — the cut-in shot.  Caller resets.
+function camFocus(els, opt) {
+  if (camReduced() || _camHeld) return;
+  const o = camOffsetTo(els);
+  const s = opt || {};
+  const pull = s.pull == null ? 0.7 : s.pull;
+  cam({ x: o ? -o.dx * pull : 0, y: o ? -o.dy * pull * 0.5 : 0,
+        z: s.z == null ? 1.12 : s.z, r: s.r || 0,
+        ms: s.ms == null ? 380 : s.ms, ease: s.ease || CAM_SNAP });
+}
+// Rhythm windows own the frame.  Strike/parry notes are placed ONCE from a
+// live rect into #popup-layer (which is not under the camera), so a camera
+// move mid-cascade would slide the figures out from under their own notes.
+// Ref-counted like parrySlowmo so overlapping notes can't release it early.
+function camHold(on) {
+  if (on) { _camHeld++; clearTimeout(_camOutT); _camOutT = null; }
+  else if (_camHeld > 0) { _camHeld--; if (!_camHeld) camReset(360); }
+}
+function camRelease() { _camHeld = 0; clearTimeout(_camOutT); _camOutT = null; camReset(0); }
+// ESTABLISHING SHOT — open pushed in and tilted, then breathe out to true.
+// The settle timer goes through _camOutT so camRelease() can cancel it: a
+// fight torn down mid-intro must not shove the camera afterwards.
+function camIntro(z, r, outMs) {
+  cam({ z, r, ms: 0, force: true });
+  clearTimeout(_camOutT);
+  _camOutT = setTimeout(() => camReset(outMs), 60);
 }
 // Screen-shake, scaled to the moment: 'sm' a nudge, 'xl' a wall-rattling slam.
 function stageShake(mag) {
@@ -4334,10 +4436,22 @@ function parryGlyph(intent) {
 // the drawn creature (the floor boss's figure spans the whole enemy half), so
 // anchoring overlays / reticles / snaps on the box lands them high-and-centre
 // instead of ON the creature.  Anchor on the .fig-art svg when there is one.
+// Build 225 — anchor on whatever is ACTUALLY DRAWN.  A foe promoted to a
+// painted plate hides its vector (`:has(.fig-png-on) .fig-vec { display:none }`),
+// and a display:none element measures 0×0 AT THE ORIGIN — so the old
+// `.fig-art svg` lookup silently dragged every anchor built on this helper to
+// the top-left corner of the screen for every painted foe.  Walk the
+// candidates in paint order and take the first with a real box.
 function figHitRect(el) {
   if (!el) return null;
-  const art = el.querySelector && (el.querySelector('.fig-art svg') || el.querySelector('.fig-art'));
-  return (art || el).getBoundingClientRect();
+  if (!el.querySelector) return el.getBoundingClientRect();
+  const cands = [el.querySelector('.fig-png-on'), el.querySelector('.fig-art svg'), el.querySelector('.fig-art')];
+  for (let i = 0; i < cands.length; i++) {
+    if (!cands[i]) continue;
+    const r = cands[i].getBoundingClientRect();
+    if (r.width > 0 && r.height > 0) return r;
+  }
+  return el.getBoundingClientRect();
 }
 // Stage-space anchor (center) of the parry UI for a given target figure.
 function noteAnchor(targetEl) {
@@ -4767,11 +4881,16 @@ async function runParry(targetEl, pattern, art) {
   if (!PARRY_ENABLED || !targetEl) { await sleep(380); return null; }
   const stage = $('#stage');
   stage.classList.add('parry-focus');
+  // The rhythm window owns the frame: notes are placed ONCE from a live rect
+  // into #popup-layer, which is not under the camera, so a move mid-cascade
+  // would slide the figures out from under their own rings.
+  camHold(true);
   try {
     return await runParryInner(targetEl, pattern, art);
   } finally {
     stage.classList.remove('parry-focus');
     _slowmoRef = 0; stage.classList.remove('parry-slowmo');   // never leak the dilation past a parry
+    camHold(false);
   }
 }
 async function runParryInner(targetEl, pattern, art) {
@@ -4884,6 +5003,9 @@ async function checkTriad(closer) {
 async function triadCeremony() {
   $('#stage').classList.add('frozen');
   SFX.triad();
+  // A slow tilt-up onto the three of them.  This is the game's biggest story
+  // beat and until Build 225 it played on a completely locked-off shot.
+  cam({ z: 1.16, r: -1.1, y: 14, ms: 1400, ease: 'cubic-bezier(.28,.62,.32,1)', force: true });
   await sleep(700);
   const r = triadEntry();
   const names = livingHeroes().map(h => h.def.name).join(' · ');
@@ -4899,6 +5021,7 @@ async function triadCeremony() {
   await new Promise(res => { $('#overlay').onclick = () => { $('#overlay').onclick = null; res(); }; });
   hideOverlay();
   $('#stage').classList.remove('frozen');
+  camReset(900);
   S.allOutCrowned = true;   // the triad's vow now crowns the ALL-OUT (see resolveAllOut)
   expandBurst(3, '✦ TRIAD', 40);   // the triangle swells the burst gauge to its fullest (the old resonant's reward)
   renderAll();
@@ -5240,11 +5363,17 @@ async function resolveAllOut() {
   if (hasNode('cassia.allout.fortress') && heroes.some(h => h.id === 'cassia')) {
     heroes.forEach(h => { h.guard += 5; popupAt(figEl(h.id), '⛨ +5', 'guard'); });
   }
+  // CAMERA PUSH-IN — the whole diorama dollies forward as the all-out lands:
+  // the far sky creeps, the battlefield closes, the near lip rushes past the
+  // lens.  That differential is what reads as a camera, not a zoom.
+  // The push runs UNDER the cine intro, which is a full-screen overlay moment
+  // with nothing rect-anchored on the field — so by the time the cascade
+  // starts placing strike notes the lens has already settled.  Then we HOLD,
+  // so per-hit punches can't yank the frame out from under those notes.
+  cam({ z: 1.13, r: 0.8, ms: 900, ease: 'cubic-bezier(.22,.68,.28,1)', force: true });
   await allOutCineIntro(heroes);
-  // CAMERA PUSH-IN (Build 219) — the diorama's planes dolly FORWARD as the
-  // all-out lands: the far sky barely moves, the near foreground rushes past.
-  // That differential is what reads as a camera, not a zoom.
-  $('#stage').classList.add('allout-focus', 'allout-push');
+  $('#stage').classList.add('allout-focus');
+  camHold(true);
   if (bondCount > 0) { flashNarrator('✦ BONDS ×' + bondCount + ' — the party moves as one, every blow empowered.'); cineFlash('rgba(240,212,136,0.4)'); }
   allOutCoach();
   // ── THE REVERSE-PARRY CASCADE — one flowing, TELEGRAPHED string of strikes that
@@ -5376,7 +5505,9 @@ async function resolveAllOut() {
     if (anchor) popupAt(figEl(anchor.uid || anchor.id), '✦ +' + aoBonus, 'ember');
   }
   S._burstResolving = false;
-  $('#stage').classList.remove('allout-focus', 'allout-push');   // the camera pulls back out
+  $('#stage').classList.remove('allout-focus');
+  camHold(false);
+  camReset(760);   // and the camera actually pulls back out — Build 219 never did
   resonantCineEnd();
   renderAll();
 }
@@ -5689,6 +5820,9 @@ async function enemyPhase() {
         if (rip > 0 && !e.dead) {
           flashNarrator('✦ FLAWLESS — ' + ptHero.def.name + ' RIPOSTES for ' + rip + '!');
           cineFlash('rgba(255,205,130,0.42)'); stageShake('lg');
+          // A one-two: cut HARD to the hero who read the whole string, then
+          // let dealToEnemy's own punch shove the lens into the impact.
+          camFocus(figEl(ptHero.id), { z: 1.14, r: -0.7, ms: 90 });
           lungeFig(figEl(ptHero.id));
           dealToEnemy(e, rip, ptHero.def.school, ptHero.id);   // through the hero's school → can exploit weakness
           popupAt(figEl(e.uid), '⚔ RIPOSTE ' + rip, 'dmg popup-big');
@@ -6072,6 +6206,10 @@ function startFight(node) {
   hideOverlay();
   flashNarrator(node.narrator || '');
   renderAll();
+  // ESTABLISHING SHOT — a fight opens pushed in and TILTED, then breathes out
+  // to true over a beat and a half.  Costs nothing and every encounter now
+  // starts on a move instead of a locked-off plate.
+  try { camIntro(node.isBoss ? 1.22 : 1.12, node.isBoss ? -1.2 : -0.5, node.isBoss ? 1600 : 1100); } catch (_) {}
   openingWeaves();   // kindled bonds enter already woven (their Chain is live from turn one)
 }
 
@@ -6514,10 +6652,14 @@ function megaStageBreak(e) {
   if (SFX.kill) SFX.kill();
   stageShake('xl'); hitFlash(3);
   if (el) { el.classList.add('fig-dying'); deathBurst(el); }
+  // A hard whip-pan onto the thing that just came apart, tilted off true —
+  // the biggest single camera move in a normal fight.
+  camFocus(el, { z: 1.2, r: 1.4, ms: 130, pull: 0.85 });
   renderAll();
   // BEAT 2 — after the death lands, the reform cutscene, then rise anew.
   setTimeout(() => {
     e._justDied = false;
+    camReset(700);
     megaStageCine(st, () => {
       enterMegaStage(e, next);
       S._staging = false;
