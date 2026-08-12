@@ -591,6 +591,47 @@ const QUICK = process.argv.includes('--quick');
       META.deaths = mA; if (abyssSave != null) localStorage.setItem('kizuna2_1.abyss', abyssSave); else localStorage.removeItem('kizuna2_1.abyss');
       return /THE WEEPING STAIR/.test(fallen || '') && /taste/i.test(death || '') && /verse/i.test(deep || '') && fresh === null;
     }));
+  // ---------- BUILD 220 (Phase 3): bond arcs — the wounds pay off, and REMEMBER ----------
+  check('ARC: the fire plays the pair\u2019s next unseen beat, and the beat is AUTHORED (not the one-liner)',
+    await J(() => {
+      try { localStorage.removeItem('kizuna2_1.arcs'); } catch (_) {}
+      const st = nextArcStage('ash', 'elin');
+      const beat = arcBeat('ash', 'elin', st);
+      return st === 1 && beat.staged === true && beat.lines.length >= 3
+        && /Hold still/.test(beat.lines[0].text);
+    }));
+  check('ARC: it ADVANCES — stage 3 is the payoff Elin\u2019s recruit scene set up',
+    await J(() => {
+      markArcSeen('ash', 'elin', 1); markArcSeen('ash', 'elin', 2);
+      const st = nextArcStage('ash', 'elin');
+      const beat = arcBeat('ash', 'elin', st);
+      return st === 3 && /only thing I was ever good for/.test(beat.lines[0].text);
+    }));
+  check('ARC: progress PERSISTS past a wipe — the relationship resumes, it does not rewind',
+    await J(() => {
+      markArcSeen('ash', 'elin', 3);           // the fire actually PLAYS the payoff
+      try { localStorage.removeItem('kizuna2_1.run'); } catch (_) {}   // …then the party wipes
+      RUN = newRun('ash');
+      return arcSeen('ash', 'elin') === 3 && nextArcStage('ash', 'elin') === 4;
+    }));
+  check('ARC: past the last authored beat the pair falls back to their voices — never a blank scene',
+    await J(() => {
+      const beat = arcBeat('ash', 'elin', 99);
+      return beat.staged === false && beat.lines.length === 2 && beat.lines[0].text === CAMP_VOICES.ash;
+    }));
+  check('ARC: an unwritten pair is safe (falls back, marks nothing)',
+    await J(() => {
+      const beat = arcBeat('hask', 'mira', 1);
+      return beat.staged === false && beat.lines.length === 2;
+    }));
+  check('ARC: six pairs carry authored arcs, 16 beats of payoff',
+    await J(() => {
+      const keys = Object.keys(BOND_ARCS);
+      const beats = keys.reduce((n, k) => n + BOND_ARCS[k].length, 0);
+      const wellFormed = keys.every(k => BOND_ARCS[k].every(b => b.set && Array.isArray(b.lines) && b.lines.every(l => l.spk && l.text)));
+      return keys.length >= 6 && beats >= 16 && wellFormed;
+    }));
+
   await t.autoParry(false);   // the trick-note drills below assert RAW timing — no auto-driver
   check('TRICKS: a BAIT parries itself if untouched — and punishes the tap',
     await J(async () => {

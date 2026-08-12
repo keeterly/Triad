@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 219;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 220;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -2299,6 +2299,116 @@ const CAMP_VOICES = {
   mira:   'I watch the dark so you don’t have to. …Don’t thank me. I’ll deny it.',
   branwen:'I keep to the treeline so I can see you all. …Habit. Comes from losing people you didn’t.',
 };
+
+// ── BOND ARCS (Build 220) — the campfire is where a wound gets its next line.
+// Every hero's recruit scene planted something (Cassia's buried knight, Elin's
+// "the only thing I've ever been good for", Mira's unanswered "what are you
+// running from", Branwen's habit of counting people).  These are the payoffs,
+// staged: each pair has an ordered run of scenes, and the fire always plays the
+// deepest one you have NEVER seen.  Progress persists across runs and deaths —
+// the relationship resumes where it stopped, Hades-style, instead of resetting
+// with the descent.  A pair with no authored arc falls back to their one-line
+// camp voices, so an unwritten pair is never a blank scene.
+const ARCS_KEY = 'kizuna2_1.arcs';
+function loadArcs() { try { return JSON.parse(localStorage.getItem(ARCS_KEY) || '{}'); } catch (_) { return {}; } }
+function arcSeen(a, b) { return loadArcs()[pairKey(a, b)] || 0; }
+function markArcSeen(a, b, stage) {
+  try { const m = loadArcs(); const k = pairKey(a, b); m[k] = Math.max(m[k] || 0, stage); localStorage.setItem(ARCS_KEY, JSON.stringify(m)); } catch (_) {}
+}
+function nextArcStage(a, b) { return arcSeen(a, b) + 1; }
+// The authored beats.  Keyed by the SORTED pair so order never matters.
+const BOND_ARCS = {
+  'ash|elin': [
+    { set: 'She has his arm turned to the firelight, picking grit from a cut he had already forgotten.',
+      lines: [{ spk: 'ELIN', text: 'Hold still. You let this go all day.' },
+              { spk: 'ASH', text: '…It stopped bleeding. That was enough.' },
+              { spk: 'ELIN', text: 'Enough is what you say when nobody is keeping count. Someone is, now.' }] },
+    { set: 'The pot goes round twice. She takes the second turn of the watch without being asked.',
+      lines: [{ spk: 'ASH', text: 'You could sleep. I don’t mind the dark.' },
+              { spk: 'ELIN', text: 'I know. That’s the part I mind.' },
+              { spk: 'ASH', text: '…Sit, then. It’s a long watch.' }] },
+    { set: 'A quiet stretch, the fire low. She says it to the coals rather than to him.',
+      lines: [{ spk: 'ELIN', text: 'My order is gone. Keeping people standing was the only thing I was ever good for. If I can’t —' },
+              { spk: 'ASH', text: 'You kept me standing. Twice today.' },
+              { spk: 'ELIN', text: '…That isn’t the same as being good for something.' },
+              { spk: 'ASH', text: 'It is from where I’m sitting. Every time.' }] },
+  ],
+  'ash|mira': [
+    { set: 'She sits just outside the light, where the fire won’t ruin her eyes.',
+      lines: [{ spk: 'MIRA', text: 'You breathe loud when you fight. Fix it or don’t, but know it.' },
+              { spk: 'ASH', text: 'Noted.' },
+              { spk: 'MIRA', text: '…That was help. In case that wasn’t clear.' }] },
+    { set: 'He sets a bowl down on her side of the fire and walks away before she can refuse it.',
+      lines: [{ spk: 'MIRA', text: 'I don’t need feeding.' },
+              { spk: 'ASH', text: 'Didn’t say you did.' },
+              { spk: 'MIRA', text: '…' },
+              { spk: 'MIRA', text: 'It’s cold in an hour. Fine. Don’t look at me.' }] },
+    { set: 'The dark is thick tonight. He asks it plainly, the way he asks everything.',
+      lines: [{ spk: 'ASH', text: 'On the road you said you were sick of doing it alone. What are you running from?' },
+              { spk: 'MIRA', text: '…Nothing, anymore. It caught me years back. I’m what’s left of the running.' },
+              { spk: 'MIRA', text: 'Everyone I walked with is down here somewhere. That’s the whole of it.' },
+              { spk: 'ASH', text: 'Then we go down together, and we come back up the same way.' }] },
+  ],
+  'elin|mira': [
+    { set: 'Mira lets her look at the shoulder. It takes a long moment to get there.',
+      lines: [{ spk: 'ELIN', text: 'This is old. You’ve been favouring it since the gate.' },
+              { spk: 'MIRA', text: 'It works.' },
+              { spk: 'ELIN', text: 'That isn’t what I asked.' }] },
+    { set: 'The healer has fallen asleep sitting up. Mira moves the pot off the flame so it won’t boil dry.',
+      lines: [{ spk: 'MIRA', text: '…You patch everyone and nobody patches you.' },
+              { spk: 'MIRA', text: 'I’ll take the rest of the watch. Don’t tell her.' }] },
+    { set: 'Both awake, neither admitting it.',
+      lines: [{ spk: 'MIRA', text: 'You asked once why I keep to the edge of the light.' },
+              { spk: 'ELIN', text: 'I remember.' },
+              { spk: 'MIRA', text: 'So that when it takes someone, it takes me first. …It’s a stupid plan. I’ve never had a better one.' },
+              { spk: 'ELIN', text: 'Then hold still. Even wounds no one can see want tending.' }] },
+  ],
+  'ash|cassia': [
+    { set: 'The knight cleans a sword that is already clean.',
+      lines: [{ spk: 'CASSIA', text: 'Stand behind me tomorrow. I mean it as an order.' },
+              { spk: 'ASH', text: 'I’ve never been good at that.' },
+              { spk: 'CASSIA', text: 'Learn. Walls are cheaper than survivors.' }] },
+    { set: 'He notices she never sets the blade down, even to eat.',
+      lines: [{ spk: 'ASH', text: 'That sword isn’t yours.' },
+              { spk: 'CASSIA', text: '…No.' },
+              { spk: 'CASSIA', text: 'Don’t ask me the rest tonight.' }] },
+    { set: 'She asks for the fire’s last hour, and gives the answer she owes.',
+      lines: [{ spk: 'CASSIA', text: 'Her name was Sera. She carried it before me, and I buried her under a banner nobody will read.' },
+              { spk: 'CASSIA', text: 'I told myself I kept the sword to finish her work. I keep it because putting it down would mean she’s over.' },
+              { spk: 'ASH', text: 'Then hand me the other end of it. …There. Now two of us carry it.' }] },
+  ],
+  'branwen|elin': [
+    { set: 'The archer counts the party under her breath before she settles.',
+      lines: [{ spk: 'ELIN', text: 'You do that every night. Counting.' },
+              { spk: 'BRANWEN', text: 'Habit.' },
+              { spk: 'ELIN', text: 'Habits come from somewhere.' }] },
+    { set: 'She keeps the treeline in view even sitting down.',
+      lines: [{ spk: 'BRANWEN', text: 'I lost people I never counted. Now I count.' },
+              { spk: 'ELIN', text: 'And when the number is right?' },
+              { spk: 'BRANWEN', text: 'Then I sleep. A little.' }] },
+    { set: 'She finishes the count and, for once, says the number out loud.',
+      lines: [{ spk: 'BRANWEN', text: 'Three.' },
+              { spk: 'ELIN', text: 'Three.' },
+              { spk: 'BRANWEN', text: '…Tonight the number was right. Go to sleep, healer. I have the treeline.' }] },
+  ],
+  'cassia|hask': [
+    { set: 'The frost-caller has migrated, without comment, to the warmest stone by the fire.',
+      lines: [{ spk: 'HASK', text: 'You radiate. It’s the only useful thing about a wall.' },
+              { spk: 'CASSIA', text: 'Sit, then. Say nothing.' },
+              { spk: 'HASK', text: 'A hard bargain. …Accepted.' }] },
+    { set: 'He has fallen asleep against her pauldron. She has not moved in an hour.',
+      lines: [{ spk: 'HASK', text: '…You could have shifted me.' },
+              { spk: 'CASSIA', text: 'You were cold.' },
+              { spk: 'HASK', text: 'That’s strategy, not sentiment. I’m told.' }] },
+  ],
+};
+function arcBeat(a, b, stage) {
+  const arc = BOND_ARCS[pairKey(a, b)];
+  if (arc && arc[stage - 1]) return Object.assign({ staged: true }, arc[stage - 1]);
+  // no authored beat left (or none written for this pair) — their standing
+  // voices still carry the night, and nothing is marked as "seen"
+  return { staged: false, lines: [{ spk: HEROES[a].name, text: CAMP_VOICES[a] || '…' }, { spk: HEROES[b].name, text: CAMP_VOICES[b] || '…' }] };
+}
 
 const RECRUIT_LINES = {
   cassia: [
@@ -7050,14 +7160,19 @@ function showCampScene(n) {
   RUN.bonds[key] = before + 1;
   saveRun();
   const kindledNow = before + 1 === BOND_KINDLED;
+  // THE ARC ADVANCES (Build 220) — the fire is where a pair's wound gets its
+  // next line.  Which scene plays is the deepest stage this pair has NEVER been
+  // shown, so a relationship RESUMES across runs instead of rewinding; the fire
+  // never repeats a beat you've already had.
+  const stage = nextArcStage(a, b);
+  const beat = arcBeat(a, b, stage);
+  const lines = [{ text: beat.set || 'The pot is shared. The watch is set. Two of them sit a little apart from the dark.' }];
+  beat.lines.forEach(l => lines.push(l));
+  lines.push({ text: `The fire holds. <b>♡ ${HEROES[a].name} ─ ${HEROES[b].name}${kindledNow ? ' · WOVEN' : ' +1'}</b>${kindledNow ? ' — they will walk into every battle already connected.' : '.'}` });
+  if (beat.staged) markArcSeen(a, b, stage);
   showStory({
     type: 'story', chapter: 3, title: 'BY THE FIRE', eyebrow: n.label.toUpperCase(),
-    lines: [
-      { text: 'The pot is shared. The watch is set. Two of them sit a little apart from the dark.' },
-      { spk: HEROES[a].name, text: CAMP_VOICES[a] || '…' },
-      { spk: HEROES[b].name, text: CAMP_VOICES[b] || '…' },
-      { text: `The fire holds. <b>♡ ${HEROES[a].name} ─ ${HEROES[b].name}${kindledNow ? ' · WOVEN' : ' +1'}</b>${kindledNow ? ' — they will walk into every battle already connected.' : '.'}` },
-    ],
+    lines,
     campDone: true,
   });
 }
@@ -8134,7 +8249,7 @@ function showHowTo(back) {
 // memories and vow ranks, the current run, and Heat.  Device prefs (sound,
 // fight background) and the entry gate are left alone.
 function resetProgress() {
-  [STARTERS_KEY, LAST_STARTER_KEY, PROGRESS_KEY, RUN_KEY, ABYSS_KEY, VOWS_KEY, META_KEY,
+  [STARTERS_KEY, LAST_STARTER_KEY, PROGRESS_KEY, RUN_KEY, ABYSS_KEY, VOWS_KEY, META_KEY, ARCS_KEY,
    'kizuna2_1.treeTaught', 'kizuna2_1.parryLessons', 'kizuna2_1.strikeLessons']
     .forEach(k => { try { localStorage.removeItem(k); } catch (_) {} });
   RUN = null; S = null; flowIdx = 0; META.heat = 0;
