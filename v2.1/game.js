@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 213;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 214;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -8322,7 +8322,10 @@ function showEmberTree(onBack, heroId, selId) {
   // ---- SPHERE GRID: a hub at the centre, rings growing OUTWARD.  A node's ring
   // is its prerequisite DEPTH (0 = spokes off the hub), its angle inherited from
   // the prerequisite so a chain reads as one radial arm. --------------------------
-  const W = 300, H = 300, CX = 150, CY = 150, R0 = 66, RING = 62;
+  const CX = 150, CY = 150, R0 = 66, RING = 62;
+  let W = 300, H = 300;   // Build 214: the real extent is measured below and the
+                          // whole constellation is FIT to it, so a deep arm can
+                          // never be clipped by the canvas edge.
   const depth = {};
   const depthOf = (n) => {
     if (depth[n.id] != null) return depth[n.id];
@@ -8342,7 +8345,10 @@ function showEmberTree(onBack, heroId, selId) {
     byDepth[d].forEach(n => { const k = (n.requires || [])[0] || 'root'; (groups[k] = groups[k] || []).push(n); });
     Object.keys(groups).forEach(k => {
       const base = angle[k] != null ? angle[k] : 0, arr = groups[k];
-      arr.forEach((n, i) => { angle[n.id] = base + (arr.length > 1 ? (i - (arr.length - 1) / 2) * 24 : 0); });
+      // Build 214: siblings fan WIDER (24° → 34°).  At depth 1 a 24° fan put
+      // orbs ~54px apart while their labels ran 78px wide — that was the
+      // "Momentum Weave prints over the node to its right" collision.
+      arr.forEach((n, i) => { angle[n.id] = base + (arr.length > 1 ? (i - (arr.length - 1) / 2) * 34 : 0); });
     });
   });
   const pos = {};
@@ -8351,6 +8357,23 @@ function showEmberTree(onBack, heroId, selId) {
     pos[n.id] = { x: CX + r * Math.cos(a), y: CY + r * Math.sin(a) };
   });
   const root = { x: CX, y: CY };
+  // FIT THE CONSTELLATION (Build 214) — grow the canvas box to the real extent of
+  // the arms (plus a margin for the label under each orb) and re-origin every
+  // point into it.  Previously a depth-3 arm landed outside the fixed 300×300
+  // box and "Relentless" was sliced off by the top edge.
+  {
+    const PAD = 46;   // room for the orb glyph + its label
+    const xs = nodes.map(n => pos[n.id].x).concat([root.x]);
+    const ys = nodes.map(n => pos[n.id].y).concat([root.y]);
+    const minX = Math.min.apply(null, xs) - PAD, maxX = Math.max.apply(null, xs) + PAD;
+    const minY = Math.min.apply(null, ys) - PAD, maxY = Math.max.apply(null, ys) + PAD;
+    // keep it square so the ring guides stay circular under preserveAspectRatio
+    const span = Math.max(maxX - minX, maxY - minY);
+    const ox = minX - (span - (maxX - minX)) / 2, oy = minY - (span - (maxY - minY)) / 2;
+    nodes.forEach(n => { pos[n.id].x -= ox; pos[n.id].y -= oy; });
+    root.x -= ox; root.y -= oy;
+    W = H = span;
+  }
   // ---- LINKS: straight spokes — prereq → node, or hub → a depth-0 node ---------
   const links = [];
   nodes.forEach(n => {
@@ -8365,7 +8388,7 @@ function showEmberTree(onBack, heroId, selId) {
   // faint ring guides behind the spokes, one per depth present
   const maxDepth = Math.max.apply(null, nodes.map(n => depth[n.id]));
   let ringSvg = '';
-  for (let d = 0; d <= maxDepth; d++) ringSvg += `<circle class="et-ring" cx="${CX}" cy="${CY}" r="${R0 + d * RING}" vector-effect="non-scaling-stroke" />`;
+  for (let d = 0; d <= maxDepth; d++) ringSvg += `<circle class="et-ring" cx="${root.x}" cy="${root.y}" r="${R0 + d * RING}" vector-effect="non-scaling-stroke" />`;
   // ---- ORBS -------------------------------------------------------------------
   const orbs = nodes.map(n => {
     const st = nodeState(n);

@@ -2687,14 +2687,14 @@ button.map-node:not(:disabled) { cursor: pointer; }
 
 .et-canvas { position: relative; width: 100%; max-width: 460px; height: var(--et-h, 246px); margin: 2px auto 6px; }
 /* SPHERE GRID — grid on the left, detail rail on the right (use the landscape) */
-.et-body { position: relative; flex: 1 1 auto; width: 100%; min-height: 0; display: block; overflow: hidden; }
+.et-body { position: relative; flex: 1 1 auto; width: 100%; min-height: 0; display: flex; align-items: stretch; overflow: hidden; }
 /* the whole screen is the pannable field — no frame, no clip */
-.et-canvas.et-grid { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; margin: 0;
-  overflow: visible; border: none; border-radius: 0; background: none; touch-action: none; cursor: grab; }
+.et-canvas.et-grid { position: relative; inset: auto; flex: 1 1 auto; width: auto; height: 100%; max-width: none; margin: 0; min-width: 0;
+  overflow: hidden; border: none; border-radius: 0; background: none; touch-action: none; cursor: grab; }
 .et-canvas.et-grid.et-grabbing { cursor: grabbing; }
 /* the constellation sits in a fixed-size layer, centred a touch LEFT so the
    floating detail panel doesn't cover it; drag translates it (JS transform). */
-.et-pan { position: absolute; left: 42%; top: 50%; width: 340px; height: 340px; margin: -170px 0 0 -170px; will-change: transform; transform-origin: center center; }
+.et-pan { position: absolute; left: 50%; top: 50%; width: 560px; height: 560px; margin: -280px 0 0 -280px; will-change: transform; transform-origin: center center; }
 /* ZOOM controls — small +/- stack, lower-left of the tree canvas */
 .et-zoom { position: absolute; left: 8px; bottom: 8px; z-index: 8; display: flex; flex-direction: column; gap: 5px; }
 .et-zoom-btn { width: 40px; height: 40px; border-radius: 7px; border: 1px solid rgba(240,212,136,0.28);
@@ -2704,9 +2704,10 @@ button.map-node:not(:disabled) { cursor: pointer; }
 .et-zoom-btn:active { transform: scale(0.92); }
 /* the detail rail floats over the field on the right, on a soft gradient that
    fades in from transparent so nodes behind its left edge stay readable */
-.et-side { position: absolute; top: 0; right: 0; bottom: 0; width: 316px; padding: 18px 24px; z-index: 5;
-  display: flex; flex-direction: column; justify-content: center; gap: 12px; pointer-events: none;
-  background: linear-gradient(90deg, transparent 0%, rgba(10,6,5,0.34) 22%, rgba(9,5,4,0.82) 56%, rgba(6,4,3,0.96) 100%); }
+.et-side { position: relative; flex: 0 0 274px; width: 274px; padding: 14px 16px; z-index: 5; align-self: stretch;
+  display: flex; flex-direction: column; justify-content: center; gap: 10px; pointer-events: none;
+  border-left: 1px solid rgba(240,212,136,0.14);
+  background: linear-gradient(90deg, rgba(9,6,4,0.55) 0%, rgba(12,8,6,0.92) 18%, rgba(10,7,5,0.96) 100%); }
 .et-side > * { pointer-events: auto; }
 .et-side .et-detail { margin: 0; min-height: 132px; border-color: rgba(240,212,136,0.16); background: linear-gradient(180deg, rgba(26,20,14,0.72), rgba(12,9,7,0.6)); }
 .et-side .et-back-btn { align-self: flex-start; }
@@ -2730,7 +2731,19 @@ button.map-node:not(:disabled) { cursor: pointer; }
   border: 2px solid var(--edge); box-shadow: 0 2px 8px rgba(0,0,0,0.6);
   transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease, color 0.15s ease;
 }
-.et-orb-name { font-size: 8px; letter-spacing: 0.05em; color: var(--ink-dim); text-align: center; line-height: 1.15; max-width: 78px; text-shadow: 0 1px 2px #000; }
+.et-orb-name { font-size: 8px; letter-spacing: 0.04em; color: var(--ink-dim); text-align: center; line-height: 1.15;
+  max-width: 56px; text-wrap: balance; position: relative; z-index: 2;
+  /* a dark pill behind the name: in a radial constellation a label will
+     occasionally graze a neighbouring orb, and it must stay READABLE when it
+     does rather than dissolving into the glyph behind it. */
+  padding: 1px 4px; border-radius: 5px; background: rgba(8,6,4,0.82); }
+/* Build 214 — a SEALED or unmet node is dimmed to near-invisibility anyway, so
+   its label only added collisions.  Show names for what you can act on; tapping
+   any orb still names it in full in the rail. */
+.et-orb.et-sealed .et-orb-name, .et-orb.et-needs .et-orb-name, .et-orb.et-party .et-orb-name { display: none; }
+.et-orb.et-sealed.et-sel .et-orb-name, .et-orb.et-needs.et-sel .et-orb-name, .et-orb.et-party.et-sel .et-orb-name { display: block; color: var(--ink); }
+/* the selected orb's label always wins the stacking order */
+.et-orb.et-sel { z-index: 4; }
 .et-orb-cost { position: absolute; top: -3px; right: 3px; font-size: 9px; font-weight: 800; color: #ffcf8a; background: rgba(12,9,6,0.92); border-radius: 6px; padding: 0 4px; text-shadow: 0 0 6px rgba(255,150,60,0.6); z-index: 3; }
 .et-orb-cost.et-cant { color: #8a7a5c; }
 .et-orb.t-card    .et-orb-glyph { border-color: rgba(232,180,90,0.55); }
