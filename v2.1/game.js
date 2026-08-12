@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 230;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 231;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -3131,7 +3131,7 @@ function clearAim() {
   // stage classes so nothing from the last fight bleeds into the next.
   try { if (_dragWinUp) { window.removeEventListener('pointerup', _dragWinUp, true); window.removeEventListener('pointercancel', _dragWinUp, true); _dragWinUp = null; } } catch (_) {}
   try { _slowmoRef = 0; const st = document.getElementById('stage'); if (st) st.classList.remove('parry-focus', 'parry-slowmo', 'allout-focus', 'cam-in', 'frozen'); } catch (_) {}
-  try { camRelease(); } catch (_) {}   // a held camera must never survive a fight
+  try { _camBase = CAM_POSE_HOME; camRelease(); } catch (_) {}   // a held camera (or a turn pose) must never survive a fight
   // Force a CLEAN hand rebuild next render: throw away any stale card DOM (and its
   // drag closure, whose `pid` may be stuck from a gesture the last fight cut short)
   // so the new fight always wires fresh, draggable cards.
@@ -3780,6 +3780,10 @@ async function playCard(card, targetId) {
   else if (card.owner !== 'triad') S.used.add(card.owner + ':' + card.kind);
   if (card.kind !== 'move') {
     SFX.card();
+    // THE ACTOR BEAT — the lens leans toward the hero as they act; the impact
+    // punch that follows (dealToEnemy) then shoves toward the TARGET. The
+    // two-beat is what makes a turn read as "this character did that."
+    if (card.fx && card.fx.dmg && card.owner && card.owner !== 'triad') camPunch(0, figEl(card.owner));
     // The card HURLS into the target (the strike).  A forging rotation card then
     // BOUNCES back to its slot and splits — see forgeReturnFx, which waits for the
     // hurl to land before the bounce.
@@ -3799,6 +3803,7 @@ async function playCard(card, targetId) {
   // toward whoever acted. camPunch's burst-collapse means a card that DID deal
   // damage keeps its own, bigger shove instead of being undercut by this.
   if (card.kind !== 'move' && !(card.fx && card.fx.dmg)) camPunch(0, figEl(card.owner));
+  S._camActor = null;
   resolveChainPlay(card);                    // forge the rotation's next step(s); purge unpicked siblings
   // THE COMBO ENDED — a chain card with nothing left to forge is the only
   // structural definition of "the line is complete" the engine has (it's the
@@ -4380,9 +4385,22 @@ function cam(spec) {
   st.classList.toggle('cam-in', z > 1.02 || (s.dz || 0) > 20);
 }
 // Home, on the slow curve — the shot breathing back out.
+// ── TURN POSES (Build 231) — the camera's HOME is a composition, never a
+// dead-centered identity.  On the player's turn the lens hangs a few degrees
+// toward the party; on the enemy's turn it swings to feature the other side.
+// Every punch, focus and cinematic settles back into the ACTIVE pose, so the
+// whole fight reads as photographed rather than surveilled.
+const CAM_POSE_HOME   = { x: 0, y: 0, z: 1, r: 0, dz: 0, pitch: 0, yaw: 0 };
+const CAM_POSE_PLAYER = { x: 22, y: 0, z: 1.012, r: -0.3, dz: 26, pitch: 0.7, yaw: 3.6 };
+const CAM_POSE_ENEMY  = { x: -22, y: 0, z: 1.012, r: 0.3, dz: 26, pitch: 0.7, yaw: -3.6 };
+let _camBase = CAM_POSE_HOME;
+function camPose(pose, ms) {
+  _camBase = pose || CAM_POSE_HOME;
+  camReset(ms == null ? 750 : ms);
+}
 function camReset(ms) {
   clearTimeout(_camOutT); _camOutT = null;
-  cam({ ms: ms == null ? 520 : ms, ease: CAM_SETTLE, force: true });
+  cam(Object.assign({}, _camBase, { ms: ms == null ? 520 : ms, ease: CAM_SETTLE, force: true }));
 }
 // Where is `el` relative to the stage centre, in LOGICAL stage px?  Same
 // convention popupAt/noteAnchor use, so the camera and the FX agree.
@@ -6012,6 +6030,7 @@ async function endTurn() {
   S.executing = true;
   $('#stage').classList.add('executing');
   renderAll();
+  camPose(CAM_POSE_ENEMY, 650);   // the lens swings to feature THEIR side of the field
   await enemyPhase();
   if (!S.over) {
     S.turn++;
@@ -6038,6 +6057,7 @@ async function endTurn() {
     // CAST-TIME payoff — a spell begun last turn UNLEASHES now (Hask's big casts).
     for (const h of livingHeroes()) { if (h.pendingCast && !S.over) await unleashCast(h); }
     turnBanner('TURN ' + S.turn, 'tb-player');
+    camPose(CAM_POSE_PLAYER, 750);   // …and back to feature the party
     reofferFollowUp();   // a stance that survived the rollover can still be cued
     renderAll();
   }
@@ -6528,7 +6548,7 @@ function startFight(node) {
   // ESTABLISHING SHOT — a fight opens pushed in and TILTED, then breathes out
   // to true over a beat and a half.  Costs nothing and every encounter now
   // starts on a move instead of a locked-off plate.
-  try { camIntro(node.isBoss ? 1.22 : 1.12, node.isBoss ? -1.2 : -0.5, node.isBoss ? 1600 : 1100); } catch (_) {}
+  try { _camBase = CAM_POSE_PLAYER; camIntro(node.isBoss ? 1.22 : 1.12, node.isBoss ? -1.2 : -0.5, node.isBoss ? 1600 : 1100); } catch (_) {}
   openingWeaves();   // kindled bonds enter already woven (their Chain is live from turn one)
 }
 

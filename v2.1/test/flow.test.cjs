@@ -881,16 +881,19 @@ const QUICK = process.argv.includes('--quick');
       await settle();
       return { base, peak, back: w() };
     }).then(r => r.base > 10 && r.peak > r.base * 1.03 && Math.abs(r.back - r.base) < 1.5));
-  check('CAMERA: the planes move by DEPTH — near > mid > far (that differential IS the parallax)',
+  check('CAMERA: one dolly moves EVERY layer by its depth — near grows more than mid than far (Build 231: one 3D world)',
     await J(async () => {
-      camRelease(); await new Promise(r => setTimeout(r, 60));
-      cam({ z: 1.2, ms: 0, force: true });
-      await new Promise(r => setTimeout(r, 80));
-      const g = s => getComputedStyle(document.querySelector(s)).transform;
-      const o = { far: g('.hd-far'), mid: g('.hd-mid'), near: g('.hd-near') };
+      const w = (sel) => document.querySelector(sel).getBoundingClientRect().width;
+      camRelease(); cam({ ms: 0, force: true });               // explicit NEUTRAL baseline (camRelease settles to a turn POSE now)
+      await new Promise(r => setTimeout(r, 120));
+      const rest = { far: w('.hd-far'), mid: w('.hd-mid'), near: w('.hd-near') };
+      cam({ dz: 150, ms: 0, force: true });
+      await new Promise(r => setTimeout(r, 120));
+      const push = { far: w('.hd-far'), mid: w('.hd-mid'), near: w('.hd-near') };
       camRelease();
-      return o;
-    }).then(r => { const d = m => mScale(m) - 1; return d(r.near) > d(r.mid) && d(r.mid) > d(r.far) && d(r.far) > 0; }));
+      const g = (k) => push[k] / rest[k];
+      return { far: g('far'), mid: g('mid'), near: g('near') };
+    }).then(r => r.near > r.mid && r.mid > r.far && r.far > 1.0));
   check('CAMERA: a rhythm window HOLDS the frame (notes are placed once from a live rect)',
     await J(async () => {
       camRelease(); await new Promise(r => setTimeout(r, 60));
@@ -918,6 +921,60 @@ const QUICK = process.argv.includes('--quick');
   // ---------- BUILD 230: PARRY CINEMA (the Clair Obscur defensive camera) ----------
   const camR = () => J(() => parseFloat(document.getElementById('stage').style.getPropertyValue('--cam-r')) || 0);
   const camDz = () => J(() => parseFloat(document.getElementById('stage').style.getPropertyValue('--cam-dz')) || 0);
+  // ---------- BUILD 231: ONE 3D WORLD + the turn-featuring camera ----------
+  check('WORLD: the backdrop planes live INSIDE the diorama — one camera moves everything',
+    await J(() => {
+      const d = document.getElementById('diorama');
+      return !!d.querySelector('.hd-far') && !!d.querySelector('.hd-mid') && !!d.querySelector('.hd-near')
+        && !document.querySelector('#fight-bg .hd-plane');
+    }));
+  check('WORLD: a lateral truck parallaxes ALL layers by depth — far < mid < figures < near lip',
+    await J(async () => {
+      const cx = (sel) => { const b = document.querySelector(sel).getBoundingClientRect(); return b.left + b.width / 2; };
+      camRelease(); cam({ ms: 0, force: true });
+      await new Promise(r => setTimeout(r, 130));
+      const before = { far: cx('.hd-far'), mid: cx('.hd-mid'), near: cx('.hd-near'), fig: cx('#party-half .slot[data-row="front"] .figure') };
+      cam({ x: 60, ms: 0, force: true });
+      await new Promise(r => setTimeout(r, 130));
+      const d = (k, sel) => Math.abs(cx(sel) - before[k]);
+      const out = { far: d('far', '.hd-far'), mid: d('mid', '.hd-mid'), near: d('near', '.hd-near'), fig: d('fig', '#party-half .slot[data-row="front"] .figure') };
+      camRelease();
+      return out.far < out.mid && out.mid < out.fig && out.fig < out.near && out.far > 5;
+    }));
+  check('WORLD: the billboard counter-rotation GLIDES on the same clock as the scene (the skew-pop fix)',
+    await J(() => {
+      const cs = getComputedStyle(document.querySelector('#party-half .slot[data-row="front"]'));
+      const ds = getComputedStyle(document.getElementById('diorama'));
+      return cs.transitionProperty.includes('transform') && cs.transitionDuration === ds.transitionDuration;
+    }));
+  check('POSE: the camera FEATURES the acting side — player pose leans one way, enemy pose the other',
+    await J(() => {
+      return CAM_POSE_PLAYER.yaw > 0 && CAM_POSE_ENEMY.yaw < 0
+        && CAM_POSE_PLAYER.x > 0 && CAM_POSE_ENEMY.x < 0
+        && CAM_POSE_PLAYER.dz > 0;
+    }));
+  check('POSE: punches settle back into the ACTIVE pose, not dead center',
+    await J(async () => {
+      camPose(CAM_POSE_PLAYER, 0);
+      await new Promise(r => setTimeout(r, 100));
+      camPunch(2, figEl(S.enemies[0].uid));
+      await new Promise(r => setTimeout(r, 900));
+      const st = document.getElementById('stage');
+      const yaw = parseFloat(st.style.getPropertyValue('--cam-yaw'));
+      const out = Math.abs(yaw - CAM_POSE_PLAYER.yaw) < 0.01;
+      camPose(CAM_POSE_HOME, 0);
+      return out;
+    }));
+  check('POSE: endTurn swings the lens to the enemy side and hands it back on the new turn',
+    await J(() => /camPose\(CAM_POSE_ENEMY/.test(endTurn.toString()) && /camPose\(CAM_POSE_PLAYER/.test(endTurn.toString())));
+  check('POSE: a fight teardown clears the pose — menus never inherit a lean',
+    await J(() => /CAM_POSE_HOME/.test(clearAim.toString())));
+  check('ACTOR BEAT: a damage card leans toward its HERO before the impact shoves toward the target',
+    await J(() => {
+      const src = playCard.toString();
+      return /fx\.dmg && card\.owner/.test(src) && /camPunch\(0, figEl\(card\.owner\)\)/.test(src);
+    }));
+
   check('PARRY CINEMA: the shot TIGHTENS through a string — later blows push further than early ones',
     await J(() => {
       camRelease();
@@ -1077,8 +1134,8 @@ const QUICK = process.argv.includes('--quick');
   check('3D: TRUCKING the camera parallaxes the rows — the near rank sweeps further than the far one',
     await J(async () => {
       const cx = (row) => { const r = document.querySelector(`#party-half .slot[data-row="${row}"] .figure`).getBoundingClientRect(); return r.left + r.width / 2; };
-      camRelease();
-      await new Promise(r => setTimeout(r, 260));
+      camRelease(); cam({ ms: 0, force: true });   // NEUTRAL baseline — camRelease settles to a turn POSE now
+      await new Promise(r => setTimeout(r, 140));
       const b0 = cx('back'), f0 = cx('front');
       // A lateral TRUCK is what produces motion parallax. (A pure yaw shifts
       // every depth by the same angle — it skews the scene, it does not

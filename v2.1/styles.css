@@ -71,49 +71,69 @@ body {
   overflow: hidden;
   opacity: 0; transition: opacity 0.6s ease;
 }
-/* ── HD-2D PLANES ────────────────────────────────────────────────────────
-   One backdrop asset, read at three depths.  Every plane is composited on
-   the GPU (transform + opacity only, never an animated filter) so the drift
-   is free on a phone.  Amplitudes rise toward the camera — that difference
-   IS the parallax.
+/* ── HD-2D PLANES — REAL Z (Build 231) ────────────────────────────────────
+   The planes live INSIDE #diorama now, at true translateZ depths in the SAME
+   perspective as the ground and the cast.  Before this they were flat layers
+   that followed the camera through hand-tuned 2D factors — factors that only
+   understood x/z/r and IGNORED dz, yaw and pitch, which is what the camera
+   mostly speaks since Build 228.  Figures answered every move while the world
+   stood still: the exact split-brain that read as "glitchy."  Now one camera
+   move parallaxes backdrop, floor, cast and foreground lip by geometry.
 
-   AMBIENT DRIFT USES THE INDIVIDUAL `translate:` / `scale:` PROPERTIES, NOT
-   `transform:`.  The browser composes them in the fixed order
-   translate → rotate → scale → transform, so the idle drift and the CAMERA
-   (which owns `transform:`, see the CAMERA RIG block below) stack instead of
-   overwriting one another.  Before Build 225 the drift owned `transform:`,
-   which is why the all-out dolly had to be a whole replacement keyframe that
-   held with `forwards` — a static transform simply lost to the running
-   animation.  Keep new plane motion on `translate:`/`scale:`. */
-.hd-plane { position: absolute; inset: -8% -12%; background-image: url('../art/bg-descent.png');
-  background-repeat: no-repeat; will-change: transform, translate; }
-/* FAR — the deep ridge: soft, cool, desaturated, barely moves */
+   Each plane pre-scales by (P + |z|) / P — perspective shrinks a plane pushed
+   to depth, so the pre-scale hands back its authored on-screen size at rest.
+   Ambient drift stays on the individual `translate:` property (it composes
+   under the static `transform:` that carries the Z).
+
+   The planes are positioned against #battlefield now (smaller than the old
+   full-stage shell), so their boxes oversize far past it — #stage's
+   overflow:hidden crops them to the screen. */
+.hd-plane { position: absolute; background-repeat: no-repeat;
+  pointer-events: none; will-change: transform, translate;
+  opacity: 0; transition: opacity 0.6s ease; }
+#stage.show-bg .hd-plane { opacity: 1; }
+/* FAR — the deep ridge AND the color grade.  The scrim gradients that seat
+   the topbar and blend the hand area ride ON this plane (top background
+   layers), because a screen-fixed scrim can no longer sit between planes that
+   all live inside the diorama. */
 .hd-far {
-  background-position: center 40%; background-size: cover;
+  left: -36%; right: -36%; top: -130px; bottom: -170px;
+  background-image:
+    linear-gradient(180deg, rgba(8,5,6,0.5) 0%, rgba(10,6,8,0.24) 34%, rgba(8,5,6,0.5) 70%, rgba(4,3,4,0.92) 100%),
+    radial-gradient(ellipse 92% 70% at 50% 40%, transparent 48%, rgba(6,4,5,0.5) 100%),
+    url('../art/bg-descent.png');
+  background-position: center center, center center, center 40%;
+  background-size: 100% 100%, 100% 100%, cover;
   filter: blur(2.6px) saturate(0.86) brightness(0.98) contrast(1.04);
-  scale: 1.18;
+  transform: translateZ(-620px);
+  scale: 1.62;
   animation: hd-drift-far 26s ease-in-out infinite alternate;
 }
-/* MID — the ruins the fight happens against: sharper, warmer, drifts more.
-   Masked to the lower band so it reads as a nearer ridge rather than a
-   doubled copy of the far plane. */
+/* MID — the ruins the fight happens against: sharper, warmer, nearer.
+   Masked to the lower band so it reads as a ridge, not a doubled sky. */
 .hd-mid {
+  left: -30%; right: -30%; top: -80px; bottom: -120px;
+  background-image: url('../art/bg-descent.png');
   background-position: center 58%; background-size: 118% auto;
   filter: saturate(1.06) brightness(1.04) contrast(1.06);
-  scale: 1.09;
   -webkit-mask-image: linear-gradient(180deg, transparent 14%, #000 34%, #000 92%, transparent 100%);
   mask-image: linear-gradient(180deg, transparent 14%, #000 34%, #000 92%, transparent 100%);
+  transform: translateZ(-330px);
+  scale: 1.32;
   animation: hd-drift-mid 17s ease-in-out infinite alternate;
 }
-/* NEAR — an out-of-focus foreground lip; pure CSS, no asset.  Heaviest drift
-   and heaviest blur: the classic tilt-shift bottom that sells the diorama. */
+/* NEAR — an out-of-focus foreground lip IN FRONT of the cast; pure CSS.
+   Sitting at positive Z, a dolly blows it past the lens — the strongest
+   single depth cue in the scene. */
 .hd-near {
-  inset: auto -14% -6% -14%; height: 34%;
+  left: -42%; right: -42%; bottom: -70px; height: 52%;
   background-image:
     radial-gradient(ellipse 42% 100% at 12% 100%, rgba(6,4,4,0.98) 0%, rgba(6,4,4,0) 72%),
     radial-gradient(ellipse 34% 100% at 47% 100%, rgba(8,5,5,0.92) 0%, rgba(8,5,5,0) 70%),
     radial-gradient(ellipse 46% 100% at 88% 100%, rgba(5,3,3,0.98) 0%, rgba(5,3,3,0) 74%);
   filter: blur(7px);
+  transform: translateZ(150px);
+  scale: 0.9;
   animation: hd-drift-near 12s ease-in-out infinite alternate;
 }
 /* atmospheric depth between the planes — warm haze low, cold void high */
@@ -186,52 +206,28 @@ body {
      is what gives a push-in its widening/parallax instead of a flat zoom. */
   --cam-dz: 0px; --cam-pitch: 0deg; --cam-yaw: 0deg;
 }
-/* The world layers.  Each multiplies the shared camera by its depth:
-   far 0.18 · mid 0.45 · battlefield 1 · near 1.5.  The z term is written as
-   1 + (z − 1) × depth so a depth of 0 is a locked-off plate and 1.5 is the
-   foreground blowing past the lens. */
-/* The battlefield's own camera transform now lives on #diorama (see the 3D
-   DIORAMA block below) so the move happens INSIDE the perspective and reads as
-   a real camera; the backdrop planes stay flat and follow by depth factor. */
-.hd-far, .hd-mid, .hd-near {
-  transform-origin: var(--cam-ox) var(--cam-oy);
-  transition: transform var(--cam-ms) var(--cam-ease);
-  will-change: transform;
-}
-.hd-far {
-  transform: translate3d(calc(var(--cam-x) * 0.18), calc(var(--cam-y) * 0.18), 0)
-             scale(calc(1 + (var(--cam-z) - 1) * 0.25)) rotate(calc(var(--cam-r) * 0.2));
-}
-.hd-mid {
-  transform: translate3d(calc(var(--cam-x) * 0.45), calc(var(--cam-y) * 0.45), 0)
-             scale(calc(1 + (var(--cam-z) - 1) * 0.6)) rotate(calc(var(--cam-r) * 0.5));
-}
-.hd-near {
-  transform: translate3d(calc(var(--cam-x) * 1.5), calc(var(--cam-y) * 1.5), 0)
-             scale(calc(1 + (var(--cam-z) - 1) * 2.2)) rotate(calc(var(--cam-r) * 1.4));
-}
+/* (Build 231: the old 2D depth-factor follower block for the .hd-* planes is
+   GONE — the planes live inside #diorama at real Z and the one camera
+   transform below moves the whole world.) */
 /* the air thickens and warms as the camera closes in */
 #stage.cam-in .hd-fog { opacity: 1; filter: saturate(1.25) brightness(1.15); }
 #stage.cam-in .hd-mid { filter: saturate(1.14) brightness(1.1) contrast(1.08); }
-#stage.cam-in .hd-near { filter: blur(11px); opacity: 0.9; }
+#stage.show-bg.cam-in .hd-near { filter: blur(11px); opacity: 0.9; }
 .hd-fog, #stage .hd-mid, #stage .hd-near { transition: filter 600ms ease, opacity 600ms ease; }
 @media (prefers-reduced-motion: reduce) {
-  #diorama, .hd-far, .hd-mid, .hd-near { transition: none; }
-  .hd-far, .hd-mid, .hd-near { transform: none; }
-  #diorama { transform: none; }
-  #stage.cam-in .hd-fog, #stage.cam-in .hd-mid, #stage.cam-in .hd-near { filter: none; opacity: 1; }
+  #diorama { transition: none; transform: none; }
+  .slot[data-row] { transition: none; }
+  #stage.cam-in .hd-fog, #stage.cam-in .hd-mid { filter: none; }
 }
 #stage.show-bg #fight-bg { opacity: 1; }
-/* the art is already dark-composed (eclipse up top, black floor below), so the
-   scrim stays light — just enough to seat the topbar and blend the hand area */
-#fight-bg::after {
-  content: ''; position: absolute; inset: 0;
-  background:
-    linear-gradient(180deg, rgba(8,5,6,0.5) 0%, rgba(10,6,8,0.24) 34%, rgba(8,5,6,0.5) 70%, rgba(4,3,4,0.92) 100%),
-    radial-gradient(ellipse 92% 70% at 50% 40%, transparent 48%, rgba(6,4,5,0.5) 100%);
-}
-/* lift the actual game layers above the backdrop */
-#topbar, #narrator, #battlefield, #action-bar { position: relative; z-index: 1; }
+/* (Build 231: the scrim moved onto .hd-far's top background layers — the shell
+   only carries fog + motes now, and they need no grade of their own.) */
+/* lift the game layers above the backdrop — and the UI strips above the
+   BATTLEFIELD too, since Build 231 moved the (oversized) backdrop planes
+   inside it: at equal z-index the later-in-DOM battlefield painted its planes
+   straight over the topbar. */
+#battlefield { position: relative; z-index: 1; }
+#topbar, #narrator, #action-bar { position: relative; z-index: 2; }
 
 /* ---- topbar + turn-order timeline ---- */
 #topbar { display: flex; align-items: center; gap: 10px; }
@@ -397,6 +393,13 @@ body {
   transform: translateZ(var(--row-z, 0px))
              rotateY(calc(-1 * var(--cam-yaw, 0deg)))
              rotateX(calc(-1 * var(--cam-pitch, 0deg)));
+  /* THE DESYNC FIX (Build 231).  The billboard counter-rotation reads the
+     camera variables directly, and raw custom properties change INSTANTLY —
+     only #diorama's transform transitions.  Without a matching transition
+     here the slots snapped to the new counter-angle while the scene was still
+     mid-glide: every camera move visibly skew-popped the figures, which was
+     most of what read as "glitchy."  Same duration, same ease, same clock. */
+  transition: transform var(--cam-ms) var(--cam-ease);
 }
 #party-half .slot[data-row="back"],  #enemy-half .slot[data-row="back"]  { --row-z: -150px; }
 /* ── HD-2D DEPTH OF FIELD (Build 218) — the rows already stagger in scale;

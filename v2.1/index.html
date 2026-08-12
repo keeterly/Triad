@@ -14,7 +14,7 @@
   <meta name="apple-mobile-web-app-title" content="KIZUNA" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=401" />
+  <link rel="stylesheet" href="styles.css?v=402" />
 </head>
 <body>
 
@@ -29,15 +29,11 @@
   <div id="stage-scale">
     <main id="stage">
 
-      <!-- Fight backdrop (shown only during battle; dimmed behind everything) -->
-      <!-- HD-2D DIORAMA — the backdrop is a stack of parallax PLANES, not one
-           flat image: a blurred far ridge, a sharper mid ridge, drifting fog,
-           dust motes at three depths, and a near silhouette that slides most.
-           Each plane drifts at its own rate, so the scene reads as a lit
-           diorama the camera is breathing inside of. -->
+      <!-- Ambient AIR only (fog + rising motes + the color-grade scrim).
+           The parallax PLANES themselves moved INTO #diorama (Build 231) so
+           the whole world — backdrop, ground, cast, foreground lip — lives in
+           ONE 3D space and every camera move parallaxes all of it together. -->
       <div id="fight-bg" aria-hidden="true">
-        <div class="hd-plane hd-far"></div>
-        <div class="hd-plane hd-mid"></div>
         <div class="hd-fog"></div>
         <div class="hd-motes">
           <span style="--i:0"></span><span style="--i:1"></span><span style="--i:2"></span>
@@ -45,7 +41,6 @@
           <span style="--i:6"></span><span style="--i:7"></span><span style="--i:8"></span>
           <span style="--i:9"></span><span style="--i:10"></span><span style="--i:11"></span>
         </div>
-        <div class="hd-plane hd-near"></div>
       </div>
 
       <!-- Top strip: chapter chip + turn-order timeline + narrator -->
@@ -55,7 +50,7 @@
         <div id="combat-boons"></div>
         <div id="timeline"></div>
         <button id="menu-btn" aria-label="Menu" title="Menu">☰</button>
-        <div id="build-stamp">V2.1 BUILD 230</div>
+        <div id="build-stamp">V2.1 BUILD 231</div>
       </header>
       <div id="narrator"></div>
 
@@ -69,9 +64,12 @@
            measured screen rects, so it tracks the projected figures for free. -->
       <section id="battlefield">
         <div id="diorama">
+          <div class="hd-plane hd-far" aria-hidden="true"></div>
+          <div class="hd-plane hd-mid" aria-hidden="true"></div>
           <div id="ground" aria-hidden="true"></div>
           <div id="party-half"></div>
           <div id="enemy-half"></div>
+          <div class="hd-plane hd-near" aria-hidden="true"></div>
         </div>
         <svg id="thread-layer" aria-hidden="true"></svg>
       </section>
@@ -104,6 +102,6 @@
   </div>
 
   <script src="portraits.js?v=3"></script>
-  <script src="game.js?v=438"></script>
+  <script src="game.js?v=439"></script>
 </body>
 </html>
