@@ -604,6 +604,17 @@ body {
 /* EVENT choices — one shared two-line card (icon · ACT · consequence) so every
    crossroads reads the same way, matching the overlay's gold-on-dark chrome. */
 .ev-choices { display: flex; gap: 14px; justify-content: center; margin-top: 4px; width: 100%; max-width: 580px; }
+/* THREE-choice crossroads (a companion opened a hidden door) need more room, or
+   every label wraps mid-phrase — widen the row and stack icon-over-text so each
+   card reads as its own little poster.  Build 212. */
+.ev-choices:has(> :nth-child(3)) { max-width: 780px; gap: 11px; }
+.ev-choices:has(> :nth-child(3)) .ev-choice { flex-direction: column; align-items: center; text-align: center; padding: 13px 12px; gap: 7px; }
+.ev-choices:has(> :nth-child(3)) .ev-choice-body { align-items: center; }
+.ev-choices:has(> :nth-child(3)) .ev-choice-label { font-size: 11px; letter-spacing: 0.14em; text-wrap: balance; }
+.ev-choices:has(> :nth-child(3)) .ev-choice-effect { font-size: 10px; text-wrap: pretty; }
+/* the companion-gated option is marked — party composition paid off */
+.ev-choice.ev-locked-in { border-color: rgba(240,212,136,0.5); box-shadow: 0 0 16px rgba(240,212,136,0.16) inset; }
+.ev-choice.ev-locked-in .ev-choice-icon { color: var(--gold-bright); text-shadow: 0 0 10px rgba(240,212,136,0.8); }
 .ev-choice {
   flex: 1 1 0; display: flex; align-items: center; gap: 12px; text-align: left;
   font-family: inherit; cursor: pointer;
@@ -2098,8 +2109,27 @@ button.map-node:not(:disabled) { cursor: pointer; }
 .boon-card.boon-curse { border-color: rgba(212,69,69,0.65); }
 .boon-card.boon-curse .boon-medallion { color: #ff7a6a; text-shadow: 0 0 10px rgba(212,69,69,0.8); }
 .boon-card.boon-curse .boon-from { color: #d47a6a; }
-/* EMBER SPARK (Build 211) — the after-fight draft; the old price crossed out. */
-.et-node.et-spark .et-cost s { opacity: 0.55; margin-right: 4px; }
+/* EMBER SPARK (Build 212) — the after-fight draft now speaks the BOON-CARD
+   language: character art, a medallion, and a price tag you can read at a
+   glance.  It used to be a wall of text nobody could parse mid-run. */
+.spark-screen .ov-title { color: var(--gold-bright); }
+.spark-wallet { color: var(--gold-bright); }
+.spark-card { border-color: rgba(255,170,80,0.42); }
+.spark-card:hover { border-color: #ffb455; box-shadow: 0 12px 30px rgba(0,0,0,0.55), 0 0 24px rgba(255,150,60,0.35); }
+.spark-card .boon-medallion { color: var(--tint, var(--gold-bright)); }
+.spark-card .boon-name { color: #ffca7a; }
+/* the price rides the top-right corner like a shop tag */
+.spark-price {
+  position: absolute; top: 10px; right: 10px; z-index: 3;
+  font-size: 11.5px; letter-spacing: 0.04em; color: var(--gold-bright); font-weight: 700;
+  background: rgba(10,7,4,0.86); border: 1px solid rgba(240,212,136,0.42);
+  border-radius: 99px; padding: 3px 9px; white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.spark-price s { opacity: 0.5; font-weight: 400; margin-right: 4px; color: var(--ink-faint); }
+.spark-price.spark-cant { color: #c4705e; border-color: rgba(196,112,94,0.5); }
+.spark-card.spark-poor { opacity: 0.5; filter: saturate(0.5); cursor: default; }
+.spark-card.spark-poor:hover { transform: none; border-color: rgba(255,170,80,0.42); box-shadow: none; }
 .parry-rate.srt-perfect { color: #ff7a4a; font-size: 20px; text-shadow: 0 0 12px rgba(255,120,70,0.9), 0 2px 4px #000; }
 .parry-rate.srt-good    { color: #ffb47a; font-size: 16px; text-shadow: 0 0 10px rgba(255,150,90,0.7), 0 2px 4px #000; }
 .parry-rate.srt-miss    { color: #b06a5a; font-size: 13px; text-shadow: 0 2px 4px #000; }
@@ -3115,12 +3145,26 @@ button.map-node:not(:disabled) { cursor: pointer; }
 .camp-title { font-size: 23px; letter-spacing: 0.3em; color: var(--ink); margin-bottom: 6px; text-shadow: 0 0 18px rgba(255,150,60,0.25); }
 .camp-flavor { font-size: 11.5px; font-style: italic; color: var(--ink-dim); max-width: 620px; margin: 0 auto; line-height: 1.5; white-space: nowrap; }
 .camp-flavor b { color: var(--ink); font-style: normal; }
-/* the night's choices, over a soft base scrim so they read against the scene */
-.camp-choices { position: absolute; left: 50%; bottom: 4%; transform: translateX(-50%); width: 92%; max-width: 560px; z-index: 6;
-  display: flex; flex-direction: column; gap: 7px; }
-.camp-choice { width: 100%; padding: 9px 15px; background: rgba(16,11,7,0.82); }
-.camp-choice .ev-choice-label { font-size: 11px; }
-.camp-choice .ev-choice-effect { font-size: 10px; }
+/* THE NIGHT'S CHOICES (Build 212) — a RIGHT-HAND RAIL, so the fire and the
+   party you're deciding for stay visible behind them.  They used to stack up
+   the middle and bury the whole scene. */
+.camp-choices { position: absolute; right: 3%; top: 50%; transform: translateY(-50%); width: 42%; max-width: 340px; z-index: 6;
+  display: flex; flex-direction: column; gap: 6px; }
+.camp-choice { width: 100%; padding: 8px 13px; gap: 10px;
+  background: linear-gradient(90deg, rgba(12,8,5,0.62) 0%, rgba(18,12,8,0.9) 38%);
+  border-color: rgba(240,212,136,0.22); backdrop-filter: blur(2px); }
+.camp-choice:hover { border-color: var(--gold-bright); background: linear-gradient(90deg, rgba(26,16,8,0.72) 0%, rgba(34,22,12,0.95) 38%); }
+.camp-choice .ev-choice-icon { font-size: 15px; }
+.camp-choice .ev-choice-label { font-size: 10.5px; }
+.camp-choice .ev-choice-effect { font-size: 9.5px; line-height: 1.4; }
+/* the scene shifts LEFT to make room for the rail — the fire is still the hero.
+   A PX offset (not %) so it resolves the same for the party group, the fire and
+   the glow, whose widths all differ. */
+.camp-scene { --camp-shift: -148px; }
+.camp-party { transform: translateX(var(--camp-shift)); }
+.camp-fire  { transform: translateX(calc(-50% + var(--camp-shift))); }
+.camp-glow  { transform: translateX(calc(-50% + var(--camp-shift))); }
+.camp-top { padding-left: 4%; padding-right: 4%; }
 
 /* ===========================================================================
    V2.1 — CINEMATIC JRPG TITLE (#overlay.title-cine)

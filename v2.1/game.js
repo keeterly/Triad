@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 211;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 212;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -6072,8 +6072,8 @@ function showMemory(n, mem) {
 }
 function showEvent(n) {
   const ev = EVENTS_V2[n.eventId] || EVENTS_V2.shrine;
-  const choice = (c, id) => `
-    <button class="ev-choice" id="${id}">
+  const choice = (c, id, extra) => `
+    <button class="ev-choice${extra ? ' ' + extra : ''}" id="${id}">
       <span class="ev-choice-icon">${c.icon || '◆'}</span>
       <span class="ev-choice-body">
         <span class="ev-choice-label">${c.label}</span>
@@ -6087,7 +6087,7 @@ function showEvent(n) {
     <div class="ov-eyebrow">${ev.eyebrow || 'A CROSSROADS'}</div>
     <div class="ov-title" style="font-size:22px">${ev.title}</div>
     <div class="ov-lines" style="text-align:center; min-height:0">${ev.lines.map(t => `<div class="ov-line">${t}</div>`).join('')}</div>
-    <div class="ev-choices">${choice(ev.a, 'ev-a')}${choice(ev.b, 'ev-b')}${cOpen ? choice(ev.c, 'ev-c') : ''}</div>
+    <div class="ev-choices">${choice(ev.a, 'ev-a')}${choice(ev.b, 'ev-b')}${cOpen ? choice(ev.c, 'ev-c', 'ev-locked-in') : ''}</div>
   `, 'event-screen');
   const finish = (choice) => {
     if (!RUN.completed.includes(n.id)) RUN.completed.push(n.id);
@@ -6731,23 +6731,31 @@ function showEmberSpark(onDone) {
   shuffled.forEach(n => { if (picks.length < 3 && !used.has(n.hero)) { picks.push(n); used.add(n.hero); } });
   shuffled.forEach(n => { if (picks.length < 3 && picks.indexOf(n) < 0) picks.push(n); });
   const sparkCost = (n) => Math.max(1, Math.round(n.cost * 0.7));
+  // Reuse the BOON-DRAFT card language (portrait art · medallion · tinted frame)
+  // so a post-fight reward reads instantly as "a gift from THIS companion",
+  // not as a spreadsheet row.  Build 212.
   const cardHtml = (n) => {
     const cost = sparkCost(n), afford = runEmbers() >= cost;
-    return `<button class="et-node et-spark et-${afford ? 'ready' : 'poor'}" data-spark="${n.id}" ${afford ? '' : 'disabled'}>
-      <span class="et-type t-${n.type}">${TREE_TYPE_GLYPH[n.type] || '✦'} ${TREE_TYPE_LABEL[n.type] || 'SKILL'}</span>
-      <span class="et-name">${HEROES[n.hero].name} · ${n.label}</span>
-      <span class="et-desc">${n.desc}</span>
-      <span class="et-foot"><span class="et-cost${afford ? '' : ' et-cant'}"><s>✦ ${n.cost}</s> ✦ ${cost}</span></span>
+    const h = HEROES[n.hero];
+    return `<button class="boon-card spark-card${afford ? '' : ' spark-poor'}" data-spark="${n.id}" style="--tint:${h.tint}" ${afford ? '' : 'disabled'}>
+      <span class="boon-portrait">${V2PORTRAITS[n.hero] || ''}</span>
+      <span class="boon-scrim"></span>
+      <span class="boon-medallion">${TREE_TYPE_GLYPH[n.type] || '✦'}</span>
+      <span class="spark-price${afford ? '' : ' spark-cant'}"><s>${n.cost}</s> ✦ ${cost}</span>
+      <span class="boon-body">
+        <span class="boon-from">${h.name} · ${TREE_TYPE_LABEL[n.type] || 'SKILL'}</span>
+        <span class="boon-name">${n.label}</span>
+        <span class="boon-desc">${n.desc}</span>
+      </span>
     </button>`;
   };
   showOverlay(`
     <div class="ov-eyebrow" style="color:var(--gold-bright)">THE EMBERS STILL GLOW</div>
-    <div class="ov-title" style="font-size:20px">A SPARK FROM THE FIGHT</div>
-    <div class="et-wallet">✦ <b>${runEmbers()}</b> <span>embers</span></div>
-    <div class="ov-lines" style="text-align:center; min-height:0"><div class="ov-line">Something learned in the blood, offered <b>cheap</b> — this once, this road.</div></div>
-    <div class="et-tier-row">${picks.map(cardHtml).join('')}</div>
-    <button class="ov-btn" id="spark-skip">BANK THE HEAT · +2 ✦</button>
-  `, 'map-screen et-screen');
+    <div class="ov-title" style="font-size:22px">A SPARK FROM THE FIGHT</div>
+    <div class="ov-lines" style="text-align:center; min-height:0"><div class="ov-line">Something learned in the blood — offered at <b>30% off</b>, this once. You hold <b class="spark-wallet">✦ ${runEmbers()}</b>.</div></div>
+    <div class="boon-choices spark-choices">${picks.map(cardHtml).join('')}</div>
+    <button class="ov-btn" id="spark-skip">TAKE NONE · BANK <b>+2 ✦</b></button>
+  `, 'boon-screen spark-screen');
   picks.forEach(n => {
     const el = document.querySelector(`[data-spark="${n.id}"]`);
     if (el && runEmbers() >= sparkCost(n)) el.onclick = () => {
