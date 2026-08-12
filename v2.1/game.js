@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 222;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 223;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -808,7 +808,10 @@ function boonHeroesOk(b, party) {
 function runBoons() {
   if (typeof RUN === 'undefined' || !RUN || !Array.isArray(RUN.boons)) return [];
   const party = (RUN.active && RUN.active.length) ? RUN.active : RUN.roster || [];
-  return RUN.boons.map(id => BOON_BY_ID[id]).filter(b => boonHeroesOk(b, party));
+  const held = RUN.boons.map(id => BOON_BY_ID[id]).filter(b => boonHeroesOk(b, party));
+  // DUET PERKS (Build 223) ride the same dispatch: dmgMod, incoming, kill,
+  // turnStart and card seams all see them with zero extra plumbing.
+  return (typeof S !== 'undefined' && S) ? held.concat(duetPerkBoons()) : held;
 }
 // Per-descent SCALING boons (Hades-style build-up): a running tally that grows on
 // a countable event and feeds a card/damage mod.  Stored on RUN so it persists.
@@ -819,8 +822,13 @@ function boonIncoming(hero) { let d = 0; runBoons().forEach(b => { if (b.trigger
 // held boons as a compact icon strip in the combat topbar
 function renderCombatBoons() {
   const el = document.getElementById('combat-boons'); if (!el) return;
-  const boons = runBoons();
+  const boons = runBoons().filter(b => !b.perk);
   let html = boons.map(b => `<span class="cb-boon" data-boon="${b.id}" style="--tint:${HEROES[b.hero].tint}" title="${HEROES[b.hero].name}’s ${b.name} — ${b.desc.replace(/<[^>]+>/g, '')}">${b.icon}</span>`).join('');
+  // live DUET PERKS — one chip per bonded pair, tinted by the pairing
+  html += duetPerkBoons().map(d => {
+    const [a, b] = d.pairKey.split('|');
+    return `<span class="cb-duet" data-duet="${d.pairKey}" style="--tint:${HEROES[a].tint}" title="♡ ${d.name} — ${HEROES[a].name} &amp; ${HEROES[b].name}: ${d.desc.replace(/<[^>]+>/g, '')}">${d.icon}</span>`;
+  }).join('');
   // active BOND WEAVES this fight — a distinct gold chip per woven pair
   const weaves = wovenPairKeys();
   html += weaves.map(key => {
@@ -1811,6 +1819,88 @@ const BOND_WEAVE = {
   'Mage+Ranger':     { name: 'Frostmark',      icon: '❅' },
   'Mage+Reaver':     { name: 'Killing Frost',  icon: '✻' },
 };
+// ── DUET PERKS (Build 223) — the named weaves finally DO something distinct.
+// The moment a pair BONDS this fight (their thread forms), the pairing's named
+// perk switches on — live while both stand, gone if either falls.  This is
+// where team composition changes what Kizuna IS: a Mira/Branwen line plays
+// kill-chains, a Cassia/Hask line plays a frozen fortress.  Each entry is a
+// make(a, b) factory returning a boon-shaped effect on the proven trigger
+// vocabulary (incoming / dmgMod / kill / turnStart / card), so the existing
+// dispatch carries all of it — no new seams.
+const DUET_PERKS = {
+  'Cleric+Ronin': { desc: 'the Cleric’s ward rides the Ronin’s blade — the <b>Ronin takes 1 less</b> from every hit',
+    make: (a, b) => { const r = HEROES[a].cls === 'Ronin' ? a : b;
+      return { trigger: 'incoming', mod: (h) => (h && h.id === r ? -1 : 0) }; } },
+  'Reaver+Ronin': { desc: 'strike where the other struck — <b>+2 damage</b> on a foe your partner already hit this turn',
+    make: (a, b) => ({ trigger: 'dmgMod', mod: (o, t) => (o && t && (o.id === a || o.id === b)
+      && ((t._hitBy || []).indexOf(o.id === a ? b : a) >= 0) ? 2 : 0) }) },
+  'Cleric+Reaver': { desc: 'mercy follows the knife — every kill <b>mends the most-wounded ally 2</b>',
+    make: (a, b) => ({ trigger: 'kill', apply: () => { const t = lowestHpAlly();
+      if (t && t.hp < t.maxHp) { t.hp = Math.min(t.maxHp, t.hp + 2); popupAt(figEl(t.id), '✚2', 'heal'); } } }) },
+  'Guardian+Ronin': { desc: 'each turn the pair stands <b>+1 guard</b> — shield and sword, one stance',
+    make: (a, b) => ({ trigger: 'turnStart', apply: (c) => { if (!c.hero || c.hero.id !== a) return;
+      [a, b].forEach(id => { const h = S.heroes.find(x => x.id === id); if (h && !h.downed) h.guard += 1; }); } }) },
+  'Guardian+Cleric': { desc: 'faith mortared into stone — <b>both take 1 less</b> from every hit <i>(woven, their vow can once refuse a death)</i>',
+    make: (a, b) => ({ trigger: 'incoming', mod: (h) => (h && (h.id === a || h.id === b) ? -1 : 0) }) },
+  'Guardian+Reaver': { desc: 'the wall holds them, the whisper opens them — the <b>Reaver strikes +2</b> into the FRONT row',
+    make: (a, b) => { const r = HEROES[a].cls === 'Reaver' ? a : b;
+      return { trigger: 'dmgMod', mod: (o, t) => (o && t && o.id === r && t.row === 'front' ? 2 : 0) }; } },
+  'Ranger+Ronin': { desc: 'she marks, he charges — the <b>Ronin strikes marked prey +2</b>',
+    make: (a, b) => { const r = HEROES[a].cls === 'Ronin' ? a : b;
+      return { trigger: 'dmgMod', mod: (o, t) => (o && t && o.id === r && (t.mark || 0) > 0 ? 2 : 0) }; } },
+  'Cleric+Ranger': { desc: 'an arrow watches over the healer — the <b>Cleric takes 1 less</b> from every hit',
+    make: (a, b) => { const c = HEROES[a].cls === 'Cleric' ? a : b;
+      return { trigger: 'incoming', mod: (h) => (h && h.id === c ? -1 : 0) }; } },
+  'Ranger+Reaver': { desc: 'every death is scheduled — kills by either <b>feed the BURST +6</b>',
+    make: (a, b) => ({ trigger: 'kill', apply: (c) => { gainMomentum(6, { raw: true });
+      if (c && c.hero) popupAt(figEl(c.hero.id), '☠ +6', 'tech'); } }) },
+  'Guardian+Ranger': { desc: 'anvil forward, arrow behind — the <b>Ranger strikes +2</b> while she holds BACK and the wall holds FRONT',
+    make: (a, b) => { const rg = HEROES[a].cls === 'Ranger' ? a : b, gd = rg === a ? b : a;
+      return { trigger: 'dmgMod', mod: (o) => { if (!o || o.id !== rg) return 0;
+        const R = S.heroes.find(x => x.id === rg), G = S.heroes.find(x => x.id === gd);
+        return (R && G && R.row === 'back' && G.row === 'front') ? 2 : 0; } }; } },
+  'Mage+Ronin': { desc: 'shatter pays tempo — the <b>Ronin’s kills on CHILLED foes refund 1 EP</b>',
+    make: (a, b) => { const r = HEROES[a].cls === 'Ronin' ? a : b;
+      return { trigger: 'kill', apply: (c) => { if (c && c.hero && c.hero.id === r && c.tgt && (c.tgt.lull || 0) > 0) { refundEp(1); popupAt(figEl(r), '❄ +1 EP', 'tech'); } } }; } },
+  'Cleric+Mage': { desc: 'frost preserves what mercy mends — the <b>Cleric’s heals +1</b>',
+    make: (a, b) => { const c = HEROES[a].cls === 'Cleric' ? a : b;
+      return { card: (cd) => { if (cd.owner === c && cd.fx && cd.fx.heal) cd.fx.heal += 1; } }; } },
+  'Guardian+Mage': { desc: 'the wall breathes winter — each turn the <b>frontmost foe is CHILLED</b>',
+    make: (a, b) => ({ trigger: 'turnStart', apply: (c) => { if (!c.hero || c.hero.id !== a) return;
+      const e = frontmostEnemy(); if (e && !e.dead) { e.lull = (e.lull || 0) + 1; popupAt(figEl(e.uid), '❄', 'chill'); } } }) },
+  'Mage+Ranger': { desc: 'cold makes a steady target — the <b>Ranger strikes CHILLED foes +2</b>',
+    make: (a, b) => { const r = HEROES[a].cls === 'Ranger' ? a : b;
+      return { trigger: 'dmgMod', mod: (o, t) => (o && t && o.id === r && (t.lull || 0) > 0 ? 2 : 0) }; } },
+  'Mage+Reaver': { desc: 'what frost slows, the knife finishes — the <b>Reaver strikes CHILLED foes +3</b>',
+    make: (a, b) => { const r = HEROES[a].cls === 'Reaver' ? a : b;
+      return { trigger: 'dmgMod', mod: (o, t) => (o && t && o.id === r && (t.lull || 0) > 0 ? 3 : 0) }; } },
+};
+// any pairing without an authored duet (e.g. the unfinished Bard) still gets one
+const DUET_FALLBACK = { name: 'Kindred', icon: '♡', desc: 'they steady one another — each turn <b>both stand +1 guard</b>',
+  make: (a, b) => ({ trigger: 'turnStart', apply: (c) => { if (!c.hero || c.hero.id !== a) return;
+    [a, b].forEach(id => { const h = S.heroes.find(x => x.id === id); if (h && !h.downed) h.guard += 1; }); } }) };
+function duetPerkFor(a, b) {
+  const key = duetClassKey(a, b);
+  const w = BOND_WEAVE[key] || {};
+  const p = DUET_PERKS[key] || DUET_FALLBACK;
+  return { key, name: w.name || p.name || 'Kindred', icon: w.icon || p.icon || '♡', desc: p.desc, make: p.make };
+}
+// The live perks, derived STRAIGHT from formed threads (no extra state): a
+// pair's duet is on iff their edge is lit and both stand.
+function duetPerkBoons() {
+  if (!S || !S.threads || !S.threads.size) return [];
+  const out = [];
+  S.threads.forEach(key => {
+    const [a, b] = key.split('|');
+    const ha = S.heroes && S.heroes.find(x => x.id === a), hb = S.heroes && S.heroes.find(x => x.id === b);
+    if (!ha || ha.downed || !hb || hb.downed) return;
+    const p = duetPerkFor(a, b);
+    out.push(Object.assign({ id: 'duet_' + key, perk: true, hero: a, heroes: [a, b],
+      name: p.name, icon: p.icon, desc: p.desc, pairKey: key }, p.make(a, b)));
+  });
+  return out;
+}
+
 // A partner's ASSIST is flavored by WHO they are (their archetype) — so it reads
 // as that character joining the fight.  Returns a short verb for the callout.
 // `atk` = the ally who just attacked, `tgt` = the enemy they hit.
@@ -7699,9 +7789,11 @@ function showBondPanel() {
       : woven ? '<span class="bp-state bp-sleep">✦ woven · sleeping</span>'
       : '<span class="bp-state bp-none">—</span>';
     const btn = !threaded ? `<button class="bp-bond" data-a="${a}" data-b="${b}" ${canBondAct(a, b) ? '' : 'disabled'}>BOND · 1 EP</button>` : '';
+    const perk = duetPerkFor(a, b);
     return `<div class="bp-row">
       <span class="bp-pair"><i style="background:${HEROES[a].tint}"></i><i style="background:${HEROES[b].tint}"></i> ${HEROES[a].name} ─ ${HEROES[b].name}</span>
       ${state}${btn}
+      <span class="bp-perk${threaded ? ' bp-perk-live' : ''}">${perk.icon} <b>${perk.name}</b> — ${perk.desc}</span>
     </div>`;
   };
   const el = document.createElement('div');

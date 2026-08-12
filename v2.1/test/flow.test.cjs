@@ -675,6 +675,48 @@ const QUICK = process.argv.includes('--quick');
       return before && !ashHint;
     }));
 
+  // ---------- BUILD 223: DUET PERKS — bonding a pair switches on ITS mechanic ----------
+  check('DUET: bonding Ash+Mira lights TWIN EDGE — +2 striking a foe the partner already hit',
+    await J(async () => {
+      RUN = newRun('ash'); RUN.active = ['ash', 'elin', 'mira']; RUN.roster = RUN.active.slice(); RUN.bonds = {};
+      startFight({ type: 'fight', chapter: 3, heroes: ['ash', 'elin', 'mira'], enemies: ['husk'], useRunHp: true, narrator: 'duet' });
+      S.threads.clear(); S.ep = 4; renderAll();
+      await bondAct('ash', 'mira');
+      const e = S.enemies[0]; e.hp = e.maxHp = 100; e._hitBy = ['mira'];
+      const withPartner = passiveDmg(S.heroes.find(h => h.id === 'ash'), e);
+      e._hitBy = [];
+      const alone = passiveDmg(S.heroes.find(h => h.id === 'ash'), e);
+      return withPartner - alone === 2 && !!document.querySelector('.cb-duet');
+    }));
+  check('DUET: WARDED EDGE (Ash+Elin) — the Ronin takes 1 less from every hit',
+    await J(async () => {
+      await bondAct('ash', 'elin');
+      return boonIncoming(S.heroes.find(h => h.id === 'ash')) === -1
+        && boonIncoming(S.heroes.find(h => h.id === 'elin')) === 0;
+    }));
+  check('DUET: the perk dies with a partner and returns when they stand',
+    await J(() => {
+      const mira = S.heroes.find(h => h.id === 'mira');
+      mira.downed = true;
+      const off = !duetPerkBoons().some(d => d.pairKey === pairKey('ash', 'mira'));
+      mira.downed = false;
+      const on = duetPerkBoons().some(d => d.pairKey === pairKey('ash', 'mira'));
+      return off && on;
+    }));
+  check('DUET: the bond panel names every pair\u2019s perk — live ones highlighted',
+    await J(() => {
+      showBondPanel();
+      const lines = document.querySelectorAll('#bond-panel .bp-perk').length;
+      const live = document.querySelectorAll('#bond-panel .bp-perk-live').length;
+      const named = /Twin Edge/.test(document.querySelector('#bond-panel').textContent);
+      hideBondPanel();
+      return lines === 3 && live === 2 && named;
+    }));
+  check('DUET: all 15 named pairings carry a real perk (+ a Kindred fallback for the rest)',
+    await J(() => Object.keys(BOND_WEAVE).every(k => !!DUET_PERKS[k])
+      && Object.keys(DUET_PERKS).every(k => typeof DUET_PERKS[k].make === 'function' && DUET_PERKS[k].desc)
+      && typeof DUET_FALLBACK.make === 'function'));
+
   await t.autoParry(false);   // the trick-note drills below assert RAW timing — no auto-driver
   check('TRICKS: a BAIT parries itself if untouched — and punishes the tap',
     await J(async () => {

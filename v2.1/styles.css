@@ -3456,3 +3456,23 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
 .bp-bond:disabled { opacity: 0.4; cursor: default; }
 /* ── the ♡ signpost on ally-target cards ── */
 .c-bond-hint { font-size: 10px; color: #e08a8a; margin-left: auto; text-shadow: 0 0 6px rgba(220,90,90,0.6); animation: rz-plus-pulse 2s ease-in-out infinite; }
+
+/* ── DUET PERKS (Build 223) — a live chip per bonded pair, and the perk line
+   in the bond panel that turns team-building into reading synergies. ── */
+.cb-duet {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 6px; font-size: 11px;
+  color: var(--gold-bright); background: rgba(34,26,14,0.9);
+  border: 1px solid rgba(240,212,136,0.55);
+  box-shadow: 0 0 8px rgba(240,212,136,0.22), inset 0 0 5px rgba(240,212,136,0.12);
+  animation: cb-duet-in 0.4s ease;
+}
+@keyframes cb-duet-in { from { transform: scale(0.4); opacity: 0; } }
+.bp-row { flex-wrap: wrap; }
+.bp-perk {
+  flex: 1 1 100%; font-size: 8.5px; line-height: 1.4; color: var(--ink-faint);
+  padding: 2px 0 0 12px; font-style: italic;
+}
+.bp-perk b { color: var(--ink-dim); font-style: normal; }
+.bp-perk-live { color: var(--ink-dim); }
+.bp-perk-live b { color: var(--gold-bright); }
