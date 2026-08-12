@@ -146,6 +146,31 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .hd-plane, .hd-fog, .hd-motes span { animation: none !important; }
 }
+/* ── CAMERA PUSH-IN (Build 219) — the all-out dollies the diorama forward.
+   Each plane advances by DEPTH: the far sky creeps, the mid ridge moves, the
+   near lip rushes past the lens.  Parallax during the move is what sells a
+   camera; a uniform scale would just read as a zoom.  Transform + opacity
+   only, and the drift animations keep running underneath. */
+/* A running keyframe animation outbids a static transform, and merely PAUSING
+   it keeps the animated value — so the dolly has to be its own animation that
+   takes over the plane and holds (forwards). */
+#stage.allout-push .hd-far  { animation: hd-push-far 800ms cubic-bezier(.22,.68,.28,1) forwards; }
+#stage.allout-push .hd-mid  { animation: hd-push-mid 800ms cubic-bezier(.22,.68,.28,1) forwards; filter: saturate(1.14) brightness(1.1) contrast(1.08); transition: filter 800ms ease; }
+#stage.allout-push .hd-near { animation: hd-push-near 800ms cubic-bezier(.22,.68,.28,1) forwards; filter: blur(11px); opacity: 0.9; transition: filter 800ms ease, opacity 800ms ease; }
+#stage.allout-push .hd-fog  { transition: opacity 800ms ease, filter 800ms ease; }
+@keyframes hd-push-far  { to { transform: scale(1.24) translate3d(0, 1.2%, 0); } }
+@keyframes hd-push-mid  { to { transform: scale(1.34) translate3d(0, 3.4%, 0); } }
+@keyframes hd-push-near { to { transform: scale(1.55) translate3d(0, 11%, 0); } }
+/* the air thickens and warms as the camera closes */
+#stage.allout-push .hd-fog { opacity: 1; filter: saturate(1.25) brightness(1.15); }
+/* The FIGURES deliberately do not scale.  They already carry transform-driven
+   animations (lunge, recoil, parry flare) that a static scale would fight, and
+   the strike-note anchors are measured off their live rects — moving them
+   mid-cascade would drift the notes off the enemies.  The world closing in
+   around held subjects reads as a dolly anyway. */
+@media (prefers-reduced-motion: reduce) {
+  #stage.allout-push .hd-plane, #stage.allout-push .hd-fog { transition: none; transform: none; }
+}
 #stage.show-bg #fight-bg { opacity: 1; }
 /* the art is already dark-composed (eclipse up top, black floor below), so the
    scrim stays light — just enough to seat the topbar and blend the hand area */

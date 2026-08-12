@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 218;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 219;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -2724,7 +2724,7 @@ function clearAim() {
   // new hand reads as "glitched / un-draggable."  Also drop any frozen/focus/slow
   // stage classes so nothing from the last fight bleeds into the next.
   try { if (_dragWinUp) { window.removeEventListener('pointerup', _dragWinUp, true); window.removeEventListener('pointercancel', _dragWinUp, true); _dragWinUp = null; } } catch (_) {}
-  try { _slowmoRef = 0; const st = document.getElementById('stage'); if (st) st.classList.remove('parry-focus', 'parry-slowmo', 'allout-focus', 'frozen'); } catch (_) {}
+  try { _slowmoRef = 0; const st = document.getElementById('stage'); if (st) st.classList.remove('parry-focus', 'parry-slowmo', 'allout-focus', 'allout-push', 'frozen'); } catch (_) {}
   // Force a CLEAN hand rebuild next render: throw away any stale card DOM (and its
   // drag closure, whose `pid` may be stuck from a gesture the last fight cut short)
   // so the new fight always wires fresh, draggable cards.
@@ -5041,7 +5041,10 @@ async function resolveAllOut() {
     heroes.forEach(h => { h.guard += 5; popupAt(figEl(h.id), '⛨ +5', 'guard'); });
   }
   await allOutCineIntro(heroes);
-  $('#stage').classList.add('allout-focus');
+  // CAMERA PUSH-IN (Build 219) — the diorama's planes dolly FORWARD as the
+  // all-out lands: the far sky barely moves, the near foreground rushes past.
+  // That differential is what reads as a camera, not a zoom.
+  $('#stage').classList.add('allout-focus', 'allout-push');
   if (bondCount > 0) { flashNarrator('✦ BONDS ×' + bondCount + ' — the party moves as one, every blow empowered.'); cineFlash('rgba(240,212,136,0.4)'); }
   allOutCoach();
   // ── THE REVERSE-PARRY CASCADE — one flowing, TELEGRAPHED string of strikes that
@@ -5173,7 +5176,7 @@ async function resolveAllOut() {
     if (anchor) popupAt(figEl(anchor.uid || anchor.id), '✦ +' + aoBonus, 'ember');
   }
   S._burstResolving = false;
-  $('#stage').classList.remove('allout-focus');
+  $('#stage').classList.remove('allout-focus', 'allout-push');   // the camera pulls back out
   resonantCineEnd();
   renderAll();
 }
