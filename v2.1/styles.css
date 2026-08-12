@@ -3267,16 +3267,27 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
    added row (or a device inset) pushed items off-screen. */
 #overlay.menu-screen #overlay-inner { max-height: 92%; display: flex; flex-direction: column; }
 #overlay.menu-screen .menu-list { overflow-y: auto; min-height: 0; padding: 2px; -webkit-overflow-scrolling: touch; }
-/* PAINTED FOE PLATES (Build 215) — a commissioned PNG stands in for the vector
-   silhouette.  Bottom-anchored and contained so a foe reads as standing ON the
-   line like the hero figures, with the same drop shadow so the two art styles
-   sit in one world. */
-.figure .fig-art .fig-png {
-  width: 100%; height: 100%;
-  background-repeat: no-repeat; background-position: center bottom; background-size: contain;
+/* PAINTED FOE PLATES (Build 217) — the plate is an <img>, so it needs
+   object-fit: WITHOUT it the browser defaults to `fill` and stretches a
+   1.5:1 painting into a ~0.9:1 slot (the squashed foes).  It also stays
+   hidden until it has really loaded, so a missing file leaves the vector
+   silhouette on screen instead of a hole. */
+.fig-png { display: none; }
+.fig-png.fig-png-on { display: block; }
+.figure .fig-art .fig-png.fig-png-on {
+  /* Fit to HEIGHT at natural aspect: these paintings are ~1.5:1 (long trailing
+     cloaks), and letting `contain` fit the narrow slot would render the foe at
+     ~60% height — small and timid.  The overflow bleeds sideways into the empty
+     air between figures, which is where the cloaks live anyway. */
+  position: absolute; left: 50%; bottom: 0; transform: translateX(-50%);
+  height: 100%; width: auto; max-width: 168%;
+  object-fit: contain; object-position: center bottom;
   filter: drop-shadow(0 6px 14px rgba(0,0,0,0.7));
 }
-.figure.floor-boss .fig-art .fig-png { filter: drop-shadow(0 14px 30px rgba(0,0,0,0.9)) drop-shadow(0 0 40px rgba(190,44,40,0.45)); }
+/* once a plate is up, the vector beneath it stands down */
+.figure .fig-art:has(.fig-png-on) .fig-vec { display: none; }
+.figure.floor-boss .fig-art .fig-png.fig-png-on { filter: drop-shadow(0 14px 30px rgba(0,0,0,0.9)) drop-shadow(0 0 40px rgba(190,44,40,0.45)); }
 /* the bestiary thumbnail uses the same plate at card scale */
-.bj-fig.bj-foe .fig-png { width: 100%; height: 100%; min-height: 40px; background-position: center; }
-.bj-entry.bj-locked .bj-fig.bj-foe .fig-png { filter: brightness(0.12) contrast(1.3); }
+.bj-fig.bj-foe .fig-png.fig-png-on { width: 100%; height: 100%; min-height: 40px; object-fit: contain; }
+.bj-fig.bj-foe:has(.fig-png-on) .fig-vec { display: none; }
+.bj-entry.bj-locked .bj-fig.bj-foe .fig-png.fig-png-on { filter: brightness(0.12) contrast(1.3); }
