@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 227;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 228;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -4338,7 +4338,7 @@ function dealToEnemy(e, amt, school, byHeroId) {
 // The FEEL is all in the asymmetry: a camera move that reads as "snappy"
 // goes in FAST on a hard-out curve and settles back SLOW.  Symmetric easing
 // reads as a lazy zoom no matter how big the number is.
-const CAM_HOME = { x: 0, y: 0, z: 1, r: 0 };
+const CAM_HOME = { x: 0, y: 0, z: 1, r: 0, dz: 0, pitch: 0, yaw: 0 };
 const CAM_SNAP = 'cubic-bezier(.16,.84,.28,1)';   // hard out — the punch
 const CAM_SETTLE = 'cubic-bezier(.22,.61,.36,1)'; // soft — the drift home
 let _camHeld = 0;      // >0 while a rhythm window owns the frame
@@ -4357,11 +4357,16 @@ function cam(spec) {
   st.style.setProperty('--cam-y', (s.y || 0) + 'px');
   st.style.setProperty('--cam-z', String(z));
   st.style.setProperty('--cam-r', (s.r || 0) + 'deg');
+  // 3D terms — dz is a real dolly through the diorama's perspective, so a
+  // push-in widens and parallaxes the rows instead of flatly magnifying them.
+  st.style.setProperty('--cam-dz', (s.dz || 0) + 'px');
+  st.style.setProperty('--cam-pitch', (s.pitch || 0) + 'deg');
+  st.style.setProperty('--cam-yaw', (s.yaw || 0) + 'deg');
   st.style.setProperty('--cam-ms', (s.ms == null ? 420 : s.ms) + 'ms');
   st.style.setProperty('--cam-ease', s.ease || CAM_SNAP);
   if (s.ox != null) st.style.setProperty('--cam-ox', s.ox);
   if (s.oy != null) st.style.setProperty('--cam-oy', s.oy);
-  st.classList.toggle('cam-in', z > 1.02);
+  st.classList.toggle('cam-in', z > 1.02 || (s.dz || 0) > 20);
 }
 // Home, on the slow curve — the shot breathing back out.
 function camReset(ms) {
@@ -4391,12 +4396,16 @@ function camOffsetTo(els) {
 function camPunch(power, toEl) {
   if (camReduced() || _camHeld) return;
   const p = Math.max(1, Math.min(3, power | 0));
-  const z = [0, 1.035, 1.065, 1.095][p];
+  const dz = [0, 34, 66, 98][p];            // TRUE dolly, not a zoom
   const r = [0, 0, 0.25, 0.5][p];
+  const yaw = [0, 0.5, 1.1, 1.8][p];        // a hair of orbit sells the depth
   const inMs = [0, 150, 120, 95][p];
   const o = toEl ? camOffsetTo(toEl) : null;
   const pull = [0, 0.10, 0.16, 0.22][p];
-  cam({ x: o ? -o.dx * pull : 0, y: o ? -o.dy * pull * 0.6 : 0, z, r: o && o.dx < 0 ? -r : r, ms: inMs, ease: CAM_SNAP });
+  const dir = o && o.dx < 0 ? -1 : 1;
+  cam({ x: o ? -o.dx * pull : 0, y: o ? -o.dy * pull * 0.6 : 0,
+        z: 1 + (dz / 1150) * 0.35,          // the planes still need a scale cue
+        dz, r: dir * r, yaw: dir * yaw, ms: inMs, ease: CAM_SNAP });
   clearTimeout(_camOutT);
   _camOutT = setTimeout(() => camReset([0, 420, 520, 640][p]), inMs + 60);
 }
@@ -4406,8 +4415,10 @@ function camFocus(els, opt) {
   const o = camOffsetTo(els);
   const s = opt || {};
   const pull = s.pull == null ? 0.7 : s.pull;
+  const z = s.z == null ? 1.12 : s.z;
   cam({ x: o ? -o.dx * pull : 0, y: o ? -o.dy * pull * 0.5 : 0,
-        z: s.z == null ? 1.12 : s.z, r: s.r || 0,
+        z, dz: s.dz == null ? (z - 1) * 900 : s.dz,
+        r: s.r || 0, pitch: s.pitch || 0, yaw: s.yaw || 0,
         ms: s.ms == null ? 380 : s.ms, ease: s.ease || CAM_SNAP });
 }
 // Rhythm windows own the frame.  Strike/parry notes are placed ONCE from a
@@ -4423,7 +4434,8 @@ function camRelease() { _camHeld = 0; clearTimeout(_camOutT); _camOutT = null; c
 // The settle timer goes through _camOutT so camRelease() can cancel it: a
 // fight torn down mid-intro must not shove the camera afterwards.
 function camIntro(z, r, outMs) {
-  cam({ z, r, ms: 0, force: true });
+  // a REAL push: dz dollies through the perspective, pitch drops the lens.
+  cam({ z, r, dz: (z - 1) * 900, pitch: r * 0.9, yaw: -r * 0.7, ms: 0, force: true });
   clearTimeout(_camOutT);
   _camOutT = setTimeout(() => camReset(outMs), 60);
 }
@@ -5216,7 +5228,7 @@ async function triadCeremony() {
   SFX.triad();
   // A slow tilt-up onto the three of them.  This is the game's biggest story
   // beat and until Build 225 it played on a completely locked-off shot.
-  cam({ z: 1.16, r: -1.1, y: 14, ms: 1400, ease: 'cubic-bezier(.28,.62,.32,1)', force: true });
+  cam({ z: 1.14, dz: 120, r: -1.0, y: 12, pitch: 2.6, yaw: -4, ms: 1400, ease: 'cubic-bezier(.28,.62,.32,1)', force: true });
   await sleep(700);
   const r = triadEntry();
   const names = livingHeroes().map(h => h.def.name).join(' · ');
@@ -5581,7 +5593,7 @@ async function resolveAllOut() {
   // with nothing rect-anchored on the field — so by the time the cascade
   // starts placing strike notes the lens has already settled.  Then we HOLD,
   // so per-hit punches can't yank the frame out from under those notes.
-  cam({ z: 1.13, r: 0.8, ms: 900, ease: 'cubic-bezier(.22,.68,.28,1)', force: true });
+  cam({ z: 1.10, dz: 96, r: 0.7, pitch: 1.8, yaw: 2.0, ms: 900, ease: 'cubic-bezier(.22,.68,.28,1)', force: true });
   await allOutCineIntro(heroes);
   $('#stage').classList.add('allout-focus');
   camHold(true);
@@ -6867,7 +6879,7 @@ function megaStageBreak(e) {
   if (el) { el.classList.add('fig-dying'); deathBurst(el); }
   // A hard whip-pan onto the thing that just came apart, tilted off true —
   // the biggest single camera move in a normal fight.
-  camFocus(el, { z: 1.2, r: 1.4, ms: 130, pull: 0.85 });
+  camFocus(el, { z: 1.18, dz: 140, r: 1.3, yaw: 5, pitch: 1.6, ms: 130, pull: 0.8 });
   renderAll();
   // BEAT 2 — after the death lands, the reform cutscene, then rise anew.
   setTimeout(() => {

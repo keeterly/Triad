@@ -14,7 +14,7 @@
   <meta name="apple-mobile-web-app-title" content="KIZUNA" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=398" />
+  <link rel="stylesheet" href="styles.css?v=399" />
 </head>
 <body>
 
@@ -55,16 +55,25 @@
         <div id="combat-boons"></div>
         <div id="timeline"></div>
         <button id="menu-btn" aria-label="Menu" title="Menu">☰</button>
-        <div id="build-stamp">V2.1 BUILD 227</div>
+        <div id="build-stamp">V2.1 BUILD 228</div>
       </header>
       <div id="narrator"></div>
 
-      <!-- Battlefield: party (left) vs enemies (right).  A thread layer
-           (SVG) draws Kizuna lines between party figures. -->
+      <!-- Battlefield: party (left) vs enemies (right).
+           TRUE 3D DIORAMA — #battlefield supplies the PERSPECTIVE and #diorama
+           is the 3D scene inside it (transform-style: preserve-3d).  The three
+           rows sit at real translateZ depths on a raked ground plane, so the
+           lanes recede because of geometry rather than a hand-faked scale, and
+           the camera can genuinely orbit/dolly through the scene.
+           #thread-layer stays a FLAT overlay on purpose: it is drawn from
+           measured screen rects, so it tracks the projected figures for free. -->
       <section id="battlefield">
+        <div id="diorama">
+          <div id="ground" aria-hidden="true"></div>
+          <div id="party-half"></div>
+          <div id="enemy-half"></div>
+        </div>
         <svg id="thread-layer" aria-hidden="true"></svg>
-        <div id="party-half"></div>
-        <div id="enemy-half"></div>
       </section>
 
       <!-- Action bar: EP (energy) cluster + END TURN -->
@@ -95,6 +104,6 @@
   </div>
 
   <script src="portraits.js?v=3"></script>
-  <script src="game.js?v=435"></script>
+  <script src="game.js?v=436"></script>
 </body>
 </html>

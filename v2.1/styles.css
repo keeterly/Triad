@@ -182,19 +182,21 @@ body {
   --cam-x: 0px; --cam-y: 0px; --cam-z: 1; --cam-r: 0deg;
   --cam-ms: 420ms; --cam-ease: cubic-bezier(.16,.84,.28,1);
   --cam-ox: 50%; --cam-oy: 62%;
+  /* 3D terms (Build 228) — dz is a TRUE dolly through the perspective, which
+     is what gives a push-in its widening/parallax instead of a flat zoom. */
+  --cam-dz: 0px; --cam-pitch: 0deg; --cam-yaw: 0deg;
 }
 /* The world layers.  Each multiplies the shared camera by its depth:
    far 0.18 · mid 0.45 · battlefield 1 · near 1.5.  The z term is written as
    1 + (z − 1) × depth so a depth of 0 is a locked-off plate and 1.5 is the
    foreground blowing past the lens. */
-#battlefield, .hd-far, .hd-mid, .hd-near {
+/* The battlefield's own camera transform now lives on #diorama (see the 3D
+   DIORAMA block below) so the move happens INSIDE the perspective and reads as
+   a real camera; the backdrop planes stay flat and follow by depth factor. */
+.hd-far, .hd-mid, .hd-near {
   transform-origin: var(--cam-ox) var(--cam-oy);
   transition: transform var(--cam-ms) var(--cam-ease);
   will-change: transform;
-}
-#battlefield {
-  transform: translate3d(var(--cam-x), var(--cam-y), 0)
-             scale(var(--cam-z)) rotate(var(--cam-r));
 }
 .hd-far {
   transform: translate3d(calc(var(--cam-x) * 0.18), calc(var(--cam-y) * 0.18), 0)
@@ -214,7 +216,9 @@ body {
 #stage.cam-in .hd-near { filter: blur(11px); opacity: 0.9; }
 .hd-fog, #stage .hd-mid, #stage .hd-near { transition: filter 600ms ease, opacity 600ms ease; }
 @media (prefers-reduced-motion: reduce) {
-  #battlefield, .hd-far, .hd-mid, .hd-near { transition: none; transform: none; }
+  #diorama, .hd-far, .hd-mid, .hd-near { transition: none; }
+  .hd-far, .hd-mid, .hd-near { transform: none; }
+  #diorama { transform: none; }
   #stage.cam-in .hd-fog, #stage.cam-in .hd-mid, #stage.cam-in .hd-near { filter: none; opacity: 1; }
 }
 #stage.show-bg #fight-bg { opacity: 1; }
@@ -296,10 +300,68 @@ body {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
-/* ---- battlefield ---- */
+/* ---- battlefield: a TRUE 3D DIORAMA (Build 228) ----------------------------
+   #battlefield holds the LENS (perspective); #diorama is the SCENE inside it.
+   The rows are no longer faked with translateY/scale — they sit at real Z
+   depths, so perspective does the shrinking, the raising toward the horizon
+   and the parallax on its own, and a camera move is a real camera move.
+
+   TWO RULES THIS DEPENDS ON:
+   1. The preserve-3d chain must be UNBROKEN from #diorama down to .slot.  Any
+      filter / opacity<1 / overflow!=visible / mask on an element in that chain
+      FLATTENS everything below it.  That is why the parry + frozen dims apply
+      to #battlefield (the lens, outside the chain) and the depth-of-field
+      filters apply to .figure (a leaf, below it) — never to #diorama, the
+      halves or the slots.
+   2. Perspective-origin sits ABOVE the figures' feet, so pushing a row back
+      moves it up-and-in toward the horizon. That IS the diorama read, and it
+      replaces the old hand-tuned translateY stagger. */
 #battlefield {
-  position: relative; display: grid; grid-template-columns: 1fr 1fr;
-  gap: 24px; min-height: 0; min-width: 0;
+  position: relative; min-height: 0; min-width: 0;
+  display: grid;                     /* one cell; #diorama and the thread layer stack in it */
+  perspective: 1150px;
+  perspective-origin: 50% 28%;
+}
+#diorama {
+  grid-area: 1 / 1; min-height: 0; min-width: 0;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
+  transform-style: preserve-3d;
+  transform-origin: 50% 72%;
+  transform: translate3d(var(--cam-x), var(--cam-y), var(--cam-dz, 0px))
+             rotateX(var(--cam-pitch, 0deg)) rotateY(var(--cam-yaw, 0deg))
+             rotateZ(var(--cam-r)) scale(var(--cam-z));
+  transition: transform var(--cam-ms) var(--cam-ease);
+  will-change: transform;
+}
+#party-half, #enemy-half, .slot { transform-style: preserve-3d; }
+/* HIT-TESTING IN 3D: every ancestor's own plane sits at Z=0, so a slot pushed
+   to a NEGATIVE z renders and hit-tests BEHIND its half AND behind #diorama —
+   elementFromPoint over a back/mid slot returned the container instead of the
+   slot, and hero drags silently refused to drop. Everything in the preserve-3d
+   chain above the slots is pure layout, so take it out of hit-testing and let
+   the slots and figures receive input. */
+#diorama, #party-half, #enemy-half { pointer-events: none; }
+.slot, .figure { pointer-events: auto; }
+/* THE GROUND — one raked plane the whole cast stands on.  Laid at the figures'
+   feet and pitched away from the lens, it gives the scene a floor that recedes
+   with the rows instead of six sprites floating on a backdrop. */
+/* Hinged AT the feet line and laid away from the lens, so its near edge meets
+   the front rank's boots and it recedes under the back rank. */
+#ground {
+  position: absolute; left: -40%; right: -40%; top: calc(100% - 34px); height: 560px;
+  transform-origin: 50% 0%;
+  /* NEGATIVE X so the plane lays AWAY from the lens: it hinges at the front
+     rank's boots and recedes UP-screen toward the horizon. A positive angle
+     tips it toward the viewer and paints a hard slab over the hand. */
+  transform: rotateX(-80deg);
+  pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(ellipse 34% 60% at 50% 0%, rgba(214,110,52,0.16) 0%, rgba(150,70,40,0.05) 44%, rgba(0,0,0,0) 74%),
+    linear-gradient(0deg, rgba(30,21,19,0.55) 0%, rgba(16,11,11,0.26) 30%, rgba(6,4,5,0) 66%);
+  /* an ELLIPTICAL fade, so the floor never draws a hard horizontal seam across
+     the backdrop — it just pools under the cast and dissolves into the dark */
+  -webkit-mask-image: radial-gradient(ellipse 58% 78% at 50% 0%, #000 0%, #000 34%, transparent 84%);
+  mask-image: radial-gradient(ellipse 58% 78% at 50% 0%, #000 0%, #000 34%, transparent 84%);
 }
 #thread-layer {
   position: absolute; inset: 0; width: 100%; height: 100%;
@@ -325,9 +387,18 @@ body {
      band so a figure's name + HP never sit behind a card */
   padding-bottom: 26px;
 }
-/* Depth stagger (per the combat-overview mock): BACK sits higher and smaller,
-   FRONT lower and larger, so the three lanes read as depth, not columns. */
-#party-half .slot[data-row="back"],  #enemy-half .slot[data-row="back"]  { transform: translateY(-20px) scale(0.88); }
+/* REAL DEPTH (Build 228).  These used to be translateY(-20px) scale(0.88)
+   fakes; they are now honest Z positions. Perspective supplies the shrink AND
+   the lift toward the horizon, and the counter-rotation billboards the sprite
+   so it keeps facing the lens when the camera yaws or pitches — the HD-2D
+   trick of 2D art standing in a 3D world. */
+.slot[data-row] {
+  transform-origin: 50% 92%;
+  transform: translateZ(var(--row-z, 0px))
+             rotateY(calc(-1 * var(--cam-yaw, 0deg)))
+             rotateX(calc(-1 * var(--cam-pitch, 0deg)));
+}
+#party-half .slot[data-row="back"],  #enemy-half .slot[data-row="back"]  { --row-z: -150px; }
 /* ── HD-2D DEPTH OF FIELD (Build 218) — the rows already stagger in scale;
    now they also stagger in FOCUS and AIR.  The back rank sits a touch soft,
    cooler and hazier (atmospheric perspective); the front rank is crisp and
@@ -349,7 +420,8 @@ body {
 }
 #party-half .slot[data-row="back"] .fig-art::before,
 #enemy-half .slot[data-row="back"] .fig-art::before { opacity: 0.55; }
-#party-half .slot[data-row="mid"],   #enemy-half .slot[data-row="mid"]   { transform: translateY(-10px) scale(0.94); }
+#party-half .slot[data-row="mid"],   #enemy-half .slot[data-row="mid"]   { --row-z: -58px; }
+#party-half .slot[data-row="front"], #enemy-half .slot[data-row="front"] { --row-z: 0px; }
 .slot { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 3px; min-height: 0; min-width: 0; height: 100%; position: relative; }
 .slot-label {
   font-size: 8px; letter-spacing: 0.26em; color: var(--ink-faint);

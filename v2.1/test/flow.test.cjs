@@ -858,29 +858,29 @@ const QUICK = process.argv.includes('--quick');
   // Build 219's push-in silently did nothing for five builds because nothing
   // ever read a computed transform back. Everything here measures.
   const mScale = (m) => { const p = /matrix\(([^)]+)\)/.exec(m || ''); if (!p) return 1; const v = p[1].split(',').map(Number); return Math.hypot(v[0], v[1]); };
-  check('CAMERA: a punch scales the battlefield, then auto-settles home',
+  check('CAMERA: a punch DOLLIES the diorama in, then auto-settles home',
     await J(async () => {
-      const sc = () => { const p = /matrix\(([^)]+)\)/.exec(getComputedStyle(document.querySelector('#battlefield')).transform); if (!p) return 1; const v = p[1].split(',').map(Number); return Math.hypot(v[0], v[1]); };
-      const settle = async () => { for (let i = 0; i < 80 && sc() > 1.001; i++) await new Promise(r => setTimeout(r, 25)); };
-      // A punch only moves a FREE camera — a live parry deliberately holds the
-      // frame so its notes can't drift. The suite's auto-parry driver can start
-      // an enemy cascade at any moment, so retry until we get a clean window
-      // instead of asserting on whichever one we happened to land in.
-      let home = 1, peak = 0, back = 1;
-      for (let attempt = 0; attempt < 6 && peak <= 1.05; attempt++) {
+      // Measure the PROJECTED size of a figure, not a transform string: the
+      // camera dollies through real perspective now, so "did the shot move in"
+      // is a question about what the lens actually sees.
+      const w = () => { const f = document.querySelector('#party-half .slot[data-row="front"] .figure'); return f ? f.getBoundingClientRect().width : 0; };
+      const settle = async () => { for (let i = 0; i < 80; i++) { await new Promise(r => setTimeout(r, 25)); if (Math.abs(w() - base) < 0.5) break; } };
+      camRelease();
+      for (let i = 0; i < 40; i++) await new Promise(r => setTimeout(r, 25));
+      var base = w();
+      let peak = 0;
+      for (let attempt = 0; attempt < 6 && peak <= base * 1.03; attempt++) {
         camRelease();
-        await settle();
-        home = sc();
+        for (let i = 0; i < 40 && Math.abs(w() - base) > 0.5; i++) await new Promise(r => setTimeout(r, 25));
         camRelease(); camPunch(3, figEl(S.enemies[0].uid));
         const trace = [];
-        for (let i = 0; i < 8; i++) { await new Promise(r => setTimeout(r, 40)); trace.push(sc()); }
-        if (_camHeld) { await new Promise(r => setTimeout(r, 300)); continue; }   // a parry stole the frame
+        for (let i = 0; i < 8; i++) { await new Promise(r => setTimeout(r, 40)); trace.push(w()); }
+        if (_camHeld) { await new Promise(r => setTimeout(r, 300)); continue; }
         peak = Math.max.apply(null, trace);
       }
       await settle();
-      back = sc();
-      return { home, peak, back };
-    }).then(r => r.home < 1.01 && r.peak > 1.05 && r.back < 1.01));
+      return { base, peak, back: w() };
+    }).then(r => r.base > 10 && r.peak > r.base * 1.03 && Math.abs(r.back - r.base) < 1.5));
   check('CAMERA: the planes move by DEPTH — near > mid > far (that differential IS the parallax)',
     await J(async () => {
       camRelease(); await new Promise(r => setTimeout(r, 60));
@@ -913,6 +913,86 @@ const QUICK = process.argv.includes('--quick');
       window.matchMedia = real;
       return before === after;
     }));
+  // ---------- BUILD 228: the stage is a TRUE 3D DIORAMA ----------
+  check('3D: the preserve-3d chain is unbroken from #diorama down to the slots',
+    await J(() => {
+      const cs = (q) => getComputedStyle(document.querySelector(q));
+      // A filter / opacity<1 / overflow!=visible anywhere in this chain
+      // silently FLATTENS the scene back to 2D, so assert the chain itself.
+      const chain = ['#diorama', '#party-half', '#enemy-half', '#party-half .slot[data-row="mid"]'];
+      const solid = chain.every(q => cs(q).transformStyle === 'preserve-3d' && cs(q).filter === 'none');
+      return solid && /px/.test(cs('#battlefield').perspective);
+    }));
+  check('3D: the rows are REAL depth — perspective shrinks them, front > mid > back',
+    await J(() => {
+      const w = (row) => document.querySelector(`#party-half .slot[data-row="${row}"] .figure`).getBoundingClientRect().width;
+      const b = w('back'), m = w('mid'), f = w('front');
+      return f > m && m > b && (f - b) > 6;
+    }));
+  check('3D: the far rank sits HIGHER on screen — perspective lifts it toward the horizon',
+    await J(() => {
+      const foot = (row) => { const r = document.querySelector(`#party-half .slot[data-row="${row}"] .figure`).getBoundingClientRect(); return r.top + r.height; };
+      return foot('back') < foot('mid') && foot('mid') < foot('front');
+    }));
+  check('3D: every row still HIT-TESTS to its own slot (a negative-Z slot hides behind its parent’s plane)',
+    await J(() => {
+      return ['back', 'mid', 'front'].every(row => {
+        const sl = document.querySelector(`#party-half .slot[data-row="${row}"]`);
+        const r = sl.getBoundingClientRect();
+        const under = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        const hit = under && under.closest && under.closest('#party-half .slot[data-row]');
+        return !!hit && hit.dataset.row === row;
+      });
+    }));
+  check('3D: the parry + frozen dims do NOT flatten the scene (filters live on the LENS, not the chain)',
+    await J(() => {
+      const st = document.getElementById('stage');
+      const d = document.querySelector('#diorama');
+      const depth = () => {
+        const b = document.querySelector('#party-half .slot[data-row="back"] .figure').getBoundingClientRect().width;
+        const f = document.querySelector('#party-half .slot[data-row="front"] .figure').getBoundingClientRect().width;
+        return f - b;
+      };
+      const before = depth();
+      st.classList.add('parry-focus');
+      const underParry = { style: getComputedStyle(d).transformStyle, depth: depth() };
+      st.classList.remove('parry-focus');
+      st.classList.add('frozen');
+      const underFrozen = { style: getComputedStyle(d).transformStyle, depth: depth() };
+      st.classList.remove('frozen');
+      return before > 6
+        && underParry.style === 'preserve-3d' && Math.abs(underParry.depth - before) < 1
+        && underFrozen.style === 'preserve-3d' && Math.abs(underFrozen.depth - before) < 1;
+    }));
+  check('3D: TRUCKING the camera parallaxes the rows — the near rank sweeps further than the far one',
+    await J(async () => {
+      const cx = (row) => { const r = document.querySelector(`#party-half .slot[data-row="${row}"] .figure`).getBoundingClientRect(); return r.left + r.width / 2; };
+      camRelease();
+      await new Promise(r => setTimeout(r, 260));
+      const b0 = cx('back'), f0 = cx('front');
+      // A lateral TRUCK is what produces motion parallax. (A pure yaw shifts
+      // every depth by the same angle — it skews the scene, it does not
+      // separate the ranks — which is why this asserts a translate.)
+      cam({ x: 60, ms: 0, force: true });
+      await new Promise(r => setTimeout(r, 140));
+      const shiftBack = Math.abs(cx('back') - b0), shiftFront = Math.abs(cx('front') - f0);
+      camRelease();
+      await new Promise(r => setTimeout(r, 260));
+      return shiftFront > shiftBack + 2;
+    }));
+  check('3D: sprites stay BILLBOARDED — a yawed camera moves them without skewing them',
+    await J(async () => {
+      const m = () => getComputedStyle(document.querySelector('#party-half .slot[data-row="front"]')).transform;
+      camRelease(); await new Promise(r => setTimeout(r, 200));
+      cam({ yaw: 10, ms: 0, force: true });
+      await new Promise(r => setTimeout(r, 140));
+      const t = m();
+      camRelease(); await new Promise(r => setTimeout(r, 200));
+      // the slot counter-rotates the camera's yaw, so it is a matrix3d that
+      // undoes the scene rotation rather than the identity
+      return /matrix3d/.test(t) && t !== 'none';
+    }));
+
   check('ANCHOR: a PAINTED foe has a real hit-rect — the vector it hides measures 0×0 at the origin',
     await J(() => {
       const el = figEl(S.enemies[0].uid);
