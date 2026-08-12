@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 221;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 222;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -7626,25 +7626,93 @@ function sparkThread(a, b) {
 // The RESONANCE badge — a small triangle of the trio's three bonds.  Each edge
 // lights as its thread forms; a full triangle is TRIAD READY.  Replaces the old
 // web of lines with one legible "how close am I to the vow" read.
+// ── THE KIZUNA TRIANGLE (Build 222) — the meter IS the interface.  Its three
+// edges ARE the three pairs: dim = strangers, gold = bonded this fight,
+// pulsing = a WOVEN pair.  Tap it to open the bond panel, where the whole
+// system is legible in one card — and where BOND is a VERB: spend 1 EP to
+// deepen an edge deliberately instead of hoping your hand cooperates.
 function renderResonance() {
   const el = $('#resonance'); if (!el) return;
   const live = S ? livingHeroes() : [];
-  if (!S || S.node.chapter < 2 || live.length < 3) { el.classList.add('hidden'); el.classList.remove('rz-ready'); return; }
+  if (!S || S.node.chapter < 2 || live.length < 3) { el.classList.add('hidden'); el.classList.remove('rz-ready'); hideBondPanel(); return; }
   el.classList.remove('hidden');
   const ids = live.slice(0, 3).map(h => h.id);
   const C = [{ x: 23, y: 7 }, { x: 43, y: 39 }, { x: 3, y: 39 }];
   const E = [[0, 1], [1, 2], [0, 2]];
-  let formed = 0;
+  let formed = 0, canAct = false;
   const edges = E.map(([i, j]) => {
-    const on = S.threads.has(pairKey(ids[i], ids[j])); if (on) formed++;
-    return `<line x1="${C[i].x}" y1="${C[i].y}" x2="${C[j].x}" y2="${C[j].y}" class="rz-edge${on ? ' on' : ''}"/>`;
+    const key = pairKey(ids[i], ids[j]);
+    const on = S.threads.has(key); if (on) formed++;
+    if (!on && canBondAct(ids[i], ids[j])) canAct = true;
+    const woven = bondPts(key) >= BOND_KINDLED;
+    return `<line x1="${C[i].x}" y1="${C[i].y}" x2="${C[j].x}" y2="${C[j].y}" class="rz-edge${on ? ' on' : ''}${woven ? ' woven' : ''}"/>`;
   }).join('');
   const fill = formed === 3 ? `<polygon points="${C.map(c => c.x + ',' + c.y).join(' ')}" class="rz-fill"/>` : '';
   const dots = ids.map((id, i) => `<circle cx="${C[i].x}" cy="${C[i].y}" r="4.2" class="rz-dot" style="fill:${HEROES[id].tint}"/>`).join('');
   const ready = !!S.triadFormed;
   el.classList.toggle('rz-ready', ready);
+  el.classList.toggle('rz-can-bond', canAct);
   const label = ready ? '✦ TRIAD · ALL-OUT CROWNED' : 'RESONANCE ' + formed + '/3';
-  el.innerHTML = `<svg viewBox="-3 -3 52 48" class="rz-svg">${fill}${edges}${dots}</svg><span class="rz-lbl">${label}</span>`;
+  el.innerHTML = `<svg viewBox="-3 -3 52 48" class="rz-svg">${fill}${edges}${dots}</svg><span class="rz-lbl">${label}</span>${canAct ? '<span class="rz-plus">♡+</span>' : ''}`;
+  el.onclick = () => { if (_bondPanelEl) hideBondPanel(); else showBondPanel(); };
+}
+// The BOND verb — agency over the triangle.  1 EP deepens a chosen edge through
+// addThread, so every existing beat fires: the spark, the ⛨2 bond-guard, the
+// narrator, a sleeping WEAVE waking, the triad check.  No new state, no new rules
+// — just the same act of connection, made deliberately.
+// ♡ SIGNPOST — an ally-target card whose play could form a NEW bond wears a
+// small heart, so cause-and-effect reads BEFORE the card is committed.
+function cardBondHint(card) {
+  if (!S || card.target !== 'ally' || card.spent) return '';
+  const o = card.owner;
+  const would = livingHeroes().some(h => h.id !== o && !S.threads.has(pairKey(o, h.id)));
+  return would ? '<span class="c-bond-hint" title="Helping an ally forms a ♡ BOND">♡</span>' : '';
+}
+function canBondAct(a, b) {
+  if (!S || S.executing || S.over || S._staging) return false;
+  if (S.threads.has(pairKey(a, b))) return false;
+  const ha = S.heroes.find(h => h.id === a), hb = S.heroes.find(h => h.id === b);
+  return !!(ha && hb && !ha.downed && !hb.downed) && S.ep >= 1;
+}
+async function bondAct(a, b) {
+  if (!canBondAct(a, b)) return;
+  S.ep -= 1;
+  try { spendEpFx(1); } catch (_) {}
+  hideBondPanel();
+  await addThread(a, b);
+  renderAll();
+}
+let _bondPanelEl = null;
+function hideBondPanel() { if (_bondPanelEl) { _bondPanelEl.remove(); _bondPanelEl = null; } }
+function showBondPanel() {
+  hideBondPanel();
+  if (!S || S.over) return;
+  const live = livingHeroes().slice(0, 3);
+  if (live.length < 3) return;
+  const ids = live.map(h => h.id);
+  const pairs = [[0, 1], [1, 2], [0, 2]].map(([i, j]) => [ids[i], ids[j]]);
+  const row = ([a, b]) => {
+    const key = pairKey(a, b);
+    const threaded = S.threads.has(key), woven = bondPts(key) >= BOND_KINDLED;
+    const state = threaded && woven ? '<span class="bp-state bp-woven">✦ WOVEN</span>'
+      : threaded ? '<span class="bp-state bp-bonded">♡ BONDED</span>'
+      : woven ? '<span class="bp-state bp-sleep">✦ woven · sleeping</span>'
+      : '<span class="bp-state bp-none">—</span>';
+    const btn = !threaded ? `<button class="bp-bond" data-a="${a}" data-b="${b}" ${canBondAct(a, b) ? '' : 'disabled'}>BOND · 1 EP</button>` : '';
+    return `<div class="bp-row">
+      <span class="bp-pair"><i style="background:${HEROES[a].tint}"></i><i style="background:${HEROES[b].tint}"></i> ${HEROES[a].name} ─ ${HEROES[b].name}</span>
+      ${state}${btn}
+    </div>`;
+  };
+  const el = document.createElement('div');
+  el.id = 'bond-panel';
+  el.innerHTML = `
+    <div class="bp-head">♡ KIZUNA</div>
+    <div class="bp-teach">Help an ally to <b>BOND</b> — or spend <b>1 EP</b> here. Bond all three to <b>crown the ALL-OUT</b>; a <b>WOVEN</b> pair answers finishers.</div>
+    ${pairs.map(row).join('')}`;
+  $('#stage').appendChild(el);
+  el.querySelectorAll('.bp-bond').forEach(b => { b.onclick = (ev) => { ev.stopPropagation(); bondAct(b.dataset.a, b.dataset.b); }; });
+  _bondPanelEl = el;
 }
 
 // The MOMENTUM gauge — fills as you exploit weaknesses / chain ASSISTS; when
@@ -7740,7 +7808,8 @@ function renderActionBar() {
   // a full rebuild into a handful of classList toggles.
   const structSig = hand.map(c => `${c.uid || (c.owner + c.name)}:${c.cost}:${c.kind}`).join('|')
     + (S._tempNew || '') + (S._forgeEvent ? 'F' + S._forgeEvent.uids.join(',') : '')
-    + (S.executing ? 'X' : '') + (targeting ? 'T' : '');
+    + (S.executing ? 'X' : '') + (targeting ? 'T' : '')
+    + '♡' + S.threads.size;   // the ♡ bond-hint on ally cards keys off formed threads (Build 222)
   const affSig = S.ep + '/' + S.maxEp + '|' + hand.map(c => (c.spent ? 1 : 0)).join('');
   if (structSig === S._handStructSig && handEl.childElementCount === hand.length) {
     if (affSig !== S._handAffSig) {                 // structure unchanged — only affordability shifted
@@ -7848,7 +7917,7 @@ function renderActionBar() {
       ${cardArtHTML(card)}
       <div class="c-top">
         <span class="c-cost tempo-${card.tempo || 'steady'}${card.cost === 0 ? ' c-free' : ''}"${card.cost === 0 ? ' title="Free — costs no EP"' : ''}>${card.cost === 0 ? '✦' : card.cost}</span>
-        <span class="c-name">${card.name}</span>
+        <span class="c-name">${card.name}</span>${cardBondHint(card)}
       </div>
       <div class="c-fx">${cardIcons(card)}</div>
       <div class="c-desc">${card.desc}</div>
@@ -8813,6 +8882,10 @@ document.addEventListener('pointerdown', (e) => {
 // Dismiss a boon inspect panel on any tap that isn't on a boon chip.
 document.addEventListener('pointerdown', (e) => {
   if (_boonInspectEl && !e.target.closest('.cb-boon, .map-boon')) hideBoonInspect();
+}, true);
+// Dismiss the KIZUNA bond panel on any tap that isn't on it (or its chip).
+document.addEventListener('pointerdown', (e) => {
+  if (_bondPanelEl && !e.target.closest('#bond-panel, #resonance')) hideBondPanel();
 }, true);
 
 $('#btn-endturn').addEventListener('click', endTurn);

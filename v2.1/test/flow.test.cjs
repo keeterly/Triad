@@ -632,6 +632,49 @@ const QUICK = process.argv.includes('--quick');
       return keys.length >= 6 && beats >= 16 && wellFormed;
     }));
 
+  // ---------- BUILD 222: the KIZUNA triangle — the meter becomes the interface ----------
+  check('KIZUNA: BOND is a verb — 1 EP forms the thread, guards the pair, closes the panel',
+    await J(async () => {
+      RUN = newRun('ash'); RUN.active = ['ash', 'elin', 'mira']; RUN.roster = RUN.active.slice(); RUN.bonds = {};
+      startFight({ type: 'fight', chapter: 3, heroes: ['ash', 'elin', 'mira'], enemies: ['husk'], useRunHp: true, narrator: 'kz' });
+      S.threads.clear(); S.ep = 3; renderAll();
+      const g0 = S.heroes.find(h => h.id === 'mira').guard;
+      await bondAct('mira', 'elin');
+      return S.ep === 2 && S.threads.has(pairKey('elin', 'mira'))
+        && S.heroes.find(h => h.id === 'mira').guard === g0 + 2;
+    }));
+  check('KIZUNA: a formed edge cannot be re-bought (canBondAct gates it)',
+    await J(() => !canBondAct('mira', 'elin') && canBondAct('ash', 'elin')));
+  check('KIZUNA: the panel shows all three edges with honest states',
+    await J(() => {
+      showBondPanel();
+      const rows = document.querySelectorAll('#bond-panel .bp-row').length;
+      const bonded = /BONDED/.test(document.querySelector('#bond-panel').textContent);
+      const buttons = document.querySelectorAll('#bond-panel .bp-bond').length;
+      hideBondPanel();
+      return rows === 3 && bonded && buttons === 2;
+    }));
+  check('KIZUNA: a WOVEN pair\u2019s edge breathes on the chip before its thread forms',
+    await J(() => {
+      RUN.bonds[pairKey('ash', 'elin')] = BOND_KINDLED; renderResonance();
+      return !!document.querySelector('.rz-edge.woven');
+    }));
+  check('KIZUNA: ally cards signpost the \u2661 bond they would form \u2014 and stop once formed',
+    await J(async () => {
+      S._handStructSig = null; renderAll();
+      const before = !!document.querySelector('#hand .c-bond-hint');
+      // bonding ash's last two edges COMPLETES the triangle — stub the triad
+      // ceremony (suite convention) so the cinematic doesn't block on a tap
+      const realCeremony = window.triadCeremony;
+      window.triadCeremony = async () => { S.allOutCrowned = true; };
+      await bondAct('ash', 'elin'); await bondAct('ash', 'mira');   // ash fully bonded
+      window.triadCeremony = realCeremony;
+      S.ep = 3; S._handStructSig = null; renderAll();
+      const ashCard = [...document.querySelectorAll('#hand .card[data-owner="ash"][data-target="ally"]')];
+      const ashHint = ashCard.some(c => c.querySelector('.c-bond-hint'));
+      return before && !ashHint;
+    }));
+
   await t.autoParry(false);   // the trick-note drills below assert RAW timing — no auto-driver
   check('TRICKS: a BAIT parries itself if untouched — and punishes the tap',
     await J(async () => {

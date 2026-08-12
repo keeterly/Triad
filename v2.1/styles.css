@@ -3412,3 +3412,47 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
 .bj-fig.bj-foe .fig-png.fig-png-on { width: 100%; height: 100%; min-height: 40px; object-fit: contain; }
 .bj-fig.bj-foe:has(.fig-png-on) .fig-vec { display: none; }
 .bj-entry.bj-locked .bj-fig.bj-foe .fig-png.fig-png-on { filter: brightness(0.12) contrast(1.3); }
+
+/* ===========================================================================
+   BUILD 222 — THE KIZUNA TRIANGLE: the meter becomes the interface
+   =========================================================================== */
+/* the chip is a BUTTON now — it opens the bond panel */
+#resonance { cursor: pointer; transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+#resonance:hover { border-color: var(--gold-bright); box-shadow: 0 0 10px rgba(240,212,136,0.25); }
+/* a WOVEN pair's edge breathes gold even before its thread forms this fight */
+.rz-edge.woven { stroke: rgba(240,212,136,0.55); stroke-dasharray: none; animation: rz-woven-breathe 1.8s ease-in-out infinite; }
+.rz-edge.woven.on { stroke: var(--gold-bright); }
+@keyframes rz-woven-breathe { 50% { stroke: rgba(255,230,164,0.95); filter: drop-shadow(0 0 3px rgba(240,212,136,0.8)); } }
+/* the "you could BOND right now" pip — only when EP is up and an edge is open */
+.rz-plus { font-size: 8.5px; color: var(--gold-bright); margin-left: 4px; animation: rz-plus-pulse 1.6s ease-in-out infinite; }
+@keyframes rz-plus-pulse { 50% { opacity: 0.45; } }
+/* ── the bond panel — the whole system, legible in one card ── */
+#bond-panel {
+  position: absolute; top: 38px; left: 118px; z-index: 66; width: 292px;
+  background: linear-gradient(180deg, rgba(26,20,14,0.97), rgba(13,10,8,0.98));
+  border: 1px solid rgba(240,212,136,0.35); border-radius: 10px;
+  padding: 10px 12px; box-shadow: 0 12px 34px rgba(0,0,0,0.72);
+  animation: bp-in 0.16s ease;
+}
+@keyframes bp-in { from { opacity: 0; transform: translateY(-4px); } }
+.bp-head { font-size: 10px; letter-spacing: 0.3em; color: var(--gold-bright); margin-bottom: 5px; }
+.bp-teach { font-size: 9.5px; line-height: 1.45; color: var(--ink-dim); margin-bottom: 8px; }
+.bp-teach b { color: var(--ink); }
+.bp-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid rgba(232,220,196,0.1); }
+.bp-pair { display: flex; align-items: center; gap: 5px; font-size: 9.5px; letter-spacing: 0.06em; color: var(--ink); flex: 1 1 auto; }
+.bp-pair i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; box-shadow: 0 0 4px rgba(0,0,0,0.6); }
+.bp-state { font-size: 8.5px; letter-spacing: 0.08em; white-space: nowrap; }
+.bp-state.bp-woven  { color: var(--gold-bright); }
+.bp-state.bp-bonded { color: #d8a0a0; }
+.bp-state.bp-sleep  { color: #b9a678; font-style: italic; }
+.bp-state.bp-none   { color: var(--ink-faint); }
+.bp-bond {
+  font-family: inherit; font-size: 8.5px; letter-spacing: 0.12em; cursor: pointer;
+  color: var(--gold-bright); background: rgba(40,28,14,0.9);
+  border: 1px solid rgba(240,212,136,0.5); border-radius: 6px; padding: 6px 9px;
+  min-height: 30px;
+}
+.bp-bond:hover { border-color: var(--gold-bright); background: rgba(52,38,18,0.95); }
+.bp-bond:disabled { opacity: 0.4; cursor: default; }
+/* ── the ♡ signpost on ally-target cards ── */
+.c-bond-hint { font-size: 10px; color: #e08a8a; margin-left: auto; text-shadow: 0 0 6px rgba(220,90,90,0.6); animation: rz-plus-pulse 2s ease-in-out infinite; }
