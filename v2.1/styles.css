@@ -3818,16 +3818,54 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
   box-shadow: 0 0 18px color-mix(in srgb, var(--tint) 50%, transparent); }
 .et-orb.et-root-here .et-root-name { opacity: 1; }
 
-/* DENSITY (Build 248) — the canvas is ~348px tall and a region carries up to 18
-   orbs across five rings; at 62px an orb simply cannot share that space with its
-   neighbours, which is most of what read as "messy". Smaller orbs on the world
-   view buy the room back, and the detail rail carries the full text anyway. */
-.et-grid .et-orb { width: 50px; }
-.et-grid .et-orb-glyph { width: 34px; height: 34px; font-size: 14px; border-width: 1.5px; }
-.et-grid .et-orb-name { font-size: 7.5px; max-width: 50px; padding: 1px 3px; }
-.et-grid .et-orb-cost { font-size: 8px; top: -2px; right: 1px; }
-.et-grid .et-orb.et-root .et-orb-glyph { width: 28px; height: 28px; font-size: 12px; }
-.et-grid .et-x-from { font-size: 6.5px; letter-spacing: 0.1em; }
-/* the focused region's own labels win any remaining graze */
+/* DENSITY (Build 249) — an orb's BOX has to fit between two rings.  Measured at
+   61-72px tall against a 43px ring step; the glyph shrinks, the label loses its
+   leading, and the cost rides ON the glyph so it costs no height at all.  Two
+   short lines still beat truncating a name the player is trying to compare. */
+.et-grid .et-orb { gap: 0; }
+.et-grid .et-orb-glyph { width: 28px; height: 28px; font-size: 12px; border-width: 1.5px; }
+/* THE LABEL MUST NOT OWN HEIGHT (Build 249).  This is the one that actually
+   matters.  Both the orb and the ring spacing scale with the zoom, so their
+   RATIO is invariant — zooming can never separate them, and the ceiling for
+   three regions in a square world is ~65px of ring step against an orb whose
+   box runs 77px tall once a two-line label is stacked under the glyph.  Lift
+   the label out of the flow: the orb's box becomes the glyph alone (~28px,
+   comfortably inside any ring step) and the words hang over empty space
+   below it, free to overlap nothing but each other. */
+.et-grid .et-orb-name { position: absolute; top: calc(100% + 2px); left: 50%; transform: translateX(-50%);
+  font-size: 7px; line-height: 1.05; width: 62px; max-width: 62px; padding: 1px 3px;
+  letter-spacing: 0.01em; pointer-events: none; }
+.et-grid .et-orb { width: 28px; }
+.et-grid .et-orb-cost { font-size: 7.5px; top: -4px; right: -2px; padding: 0 3px; }
+.et-grid .et-orb.et-root .et-orb-glyph { width: 26px; height: 26px; font-size: 11px; }
+.et-grid .et-x-from { position: absolute; top: calc(100% + 12px); left: 50%; transform: translateX(-50%);
+  font-size: 6.5px; letter-spacing: 0.08em; padding: 0 2px; white-space: nowrap; pointer-events: none; }
+/* LABEL WHAT YOU CAN ACT ON (Build 249).  Even with the rings widened and the
+   spacing solved in the right units, a 21-node region cannot carry 21 always-on
+   labels in a 348px-tall canvas — the arithmetic simply does not close.  So the
+   tree names your CHOICES: anything you could kindle or learn right now, plus
+   whatever is selected.  An owned node already says so with its ✓, and the
+   detail rail carries the full text for whatever you tap.  This is the same
+   answer FFX and PoE reach — glyphs for the map, words for the decision. */
+.et-grid .et-orb .et-orb-name { display: none; }
+.et-grid .et-orb.et-ready .et-orb-name,
+.et-grid .et-orb.et-poor .et-orb-name,
+.et-grid .et-orb.et-cross.et-x-open .et-orb-name,
+.et-grid .et-orb.et-cross.et-x-poor .et-orb-name,
+.et-grid .et-orb.et-sel .et-orb-name,
+.et-grid .et-orb:hover .et-orb-name,
+.et-grid .et-orb.et-root .et-root-name { display: block; }
 .et-grid .et-orb:not(.et-far) .et-orb-name { z-index: 3; }
-.et-grid .et-orb.et-sel .et-orb-name { z-index: 6; }
+.et-grid .et-orb:hover .et-orb-name { z-index: 7; }
+.et-grid .et-orb.et-sel .et-orb-name { z-index: 8; }
+/* an owned node keeps a whisper of identity without a word: its ring stays lit */
+.et-grid .et-orb.et-owned .et-orb-glyph { box-shadow: 0 0 10px rgba(240,212,136,0.45); }
+/* a node above the hub wears its name above the glyph (see et-lbl-up) */
+.et-grid .et-orb.et-lbl-up .et-orb-name { top: auto; bottom: calc(100% + 2px); }
+.et-grid .et-orb.et-lbl-up .et-x-from { top: auto; bottom: calc(100% + 12px); }
+/* text holds a constant SCREEN size regardless of camera distance (--lbl is set
+   by the pan transform); the origin follows whichever side the label sits on */
+.et-grid .et-orb-name { transform: translateX(-50%) scale(var(--lbl, 1)); transform-origin: top center; }
+.et-grid .et-orb.et-lbl-up .et-orb-name { transform-origin: bottom center; }
+.et-grid .et-x-from { transform: translateX(-50%) scale(var(--lbl, 1)); transform-origin: top center; }
+.et-grid .et-orb.et-lbl-up .et-x-from { transform-origin: bottom center; }

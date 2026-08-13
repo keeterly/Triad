@@ -4098,16 +4098,40 @@ const QUICK = process.argv.includes('--quick');
   // a SQUARE (ring guides stay circular under preserveAspectRatio="none") but
   // lands in a LANDSCAPE canvas, so a doorway at 12 o'clock fell outside the
   // visible band. Measured 83px of overflow before the side-arc placement.
-  // The FOCUSED region must fit; the neighbouring regions are meant to run off
-  // the edges once you have flown in to one lobe of the world.
-  const clipped = () => J(() => {
-    const c = document.getElementById('et-canvas').getBoundingClientRect();
-    return [...document.querySelectorAll('.et-orb:not(.et-far):not(.et-root)')].filter(o => { const r = o.getBoundingClientRect();
-      return r.top < c.top - 0.5 || r.bottom > c.bottom + 0.5 || r.left < c.left - 0.5 || r.right > c.right + 0.5;
-    }).map(o => (o.querySelector('.et-orb-name') || {}).textContent || '?');
+  // READABILITY, not fit.  Orbs and ring spacing BOTH scale with the zoom, so
+  // their ratio is fixed and no camera distance can pull two orbs apart — the
+  // test that matters is whether any two glyphs are drawn on top of each other.
+  // (A focused region deliberately overflows the canvas; you pan it.)
+  // Node glyphs are CIRCLES, so the test is centre distance against diameter.
+  // Comparing axis-aligned boxes flagged every DIAGONAL neighbour as a collision
+  // (two 60px discs 74px apart on a 45° line have boxes that overlap by 8px
+  // while the discs themselves never touch) — the metric was wrong, not the
+  // layout. Labels are rectangles and are checked as rectangles, below.
+  const glyphHits = () => J(() => {
+    const g = [...document.querySelectorAll('.et-orb:not(.et-far):not(.et-root) .et-orb-glyph')];
+    const out = [];
+    for (let i = 0; i < g.length; i++) for (let j = i + 1; j < g.length; j++) {
+      const a = g[i].getBoundingClientRect(), b = g[j].getBoundingClientRect();
+      const d = Math.hypot((a.left + a.width / 2) - (b.left + b.width / 2),
+                           (a.top + a.height / 2) - (b.top + b.height / 2));
+      if (d < (a.width + b.width) / 2 - 1)
+        out.push((g[i].parentNode.dataset.id || '?') + '/' + (g[j].parentNode.dataset.id || '?'));
+    }
+    return out;
   });
-  check('LATTICE: the focused hero’s whole region fits the canvas',
-    (await clipped()).length === 0, (await clipped()).join(', '));
+  const labelHits = () => J(() => {
+    const L = [...document.querySelectorAll('.et-orb:not(.et-far) .et-orb-name')]
+      .filter(e => getComputedStyle(e).display !== 'none');
+    const out = [];
+    for (let i = 0; i < L.length; i++) for (let j = i + 1; j < L.length; j++) {
+      const a = L[i].getBoundingClientRect(), b = L[j].getBoundingClientRect();
+      if (a.left < b.right - 2 && b.left < a.right - 2 && a.top < b.bottom - 2 && b.top < a.bottom - 2)
+        out.push(L[i].textContent + '/' + L[j].textContent);
+    }
+    return out;
+  });
+  check('LATTICE: no two nodes in the focused region are drawn on top of each other',
+    (await glyphHits()).length === 0, (await glyphHits()).join(' '));
   check('LATTICE: the weave strip carries one edge per party pair, lit only where the door is open',
     await J(() => document.querySelectorAll('.wv-edge').length === 3
       && document.querySelectorAll('.wv-edge.wv-open').length === 2));   // ash↔mira, ash↔cassia
@@ -4145,8 +4169,10 @@ const QUICK = process.argv.includes('--quick');
     await J(() => { const el = document.querySelector('.et-orb.et-x-unbonded'); if (!el) return false;
       el.click(); return true; }) && (await sleep(320), await J(() =>
       !document.getElementById('et-cross-buy') && /not .*WOVEN/.test(document.querySelector('.et-detail').textContent))));
-  check('LATTICE: the region still fits for a hero whose doors are mostly shut',
-    (await clipped()).length === 0, (await clipped()).join(', '));
+  check('LATTICE: still no overlap for a hero whose doors are mostly shut',
+    (await glyphHits()).length === 0, (await glyphHits()).join(' '));
+  check('DENSITY: no two visible node LABELS print over each other either',
+    (await labelHits()).length === 0, (await labelHits()).join(' '));
   // ---------- ONE WORLD (Build 248) ----------
   console.log('--- ONE WORLD ---');
   await latticeRun('ash'); await sleep(500);
@@ -4192,15 +4218,27 @@ const QUICK = process.argv.includes('--quick');
         return r.top < c.top - 0.5 || r.bottom > c.bottom + 0.5 || r.left < c.left - 0.5 || r.right > c.right + 0.5; });
       return out.length === 0 && TREE_VIEW.z < treeFocusZoom(buildTreeWorld(['ash', 'mira', 'cassia'])); }),
     await J(() => 'fit z=' + TREE_VIEW.z.toFixed(2)));
-  check('WORLD: a dense ring spreads its orbs instead of stacking their labels',
-    await J(() => { const w = buildTreeWorld(['ash', 'mira', 'cassia']);
-      const p = w.per.mira, byD = {};
+  check('WORLD: every ring is spread to the arc its orbs actually occupy',
+    await J(() => ['ash', 'mira', 'cassia', 'hask', 'branwen', 'elin'].every(h => {
+      const w = buildTreeWorld([h]), p = w.per[h], byD = {};
       p.nodes.forEach(n => { (byD[p.depth[n.id]] = byD[p.depth[n.id]] || []).push(n); });
-      return Object.keys(byD).every(d => { const ring = byD[d].map(n => p.angle[n.id]).sort((a, b) => a - b);
+      return Object.keys(byD).every(d => {
+        const ring = byD[d].map(n => p.angle[n.id]).sort((a, b) => a - b);
         const r = p.r0 + Number(d) * TREE_RING;
-        const need = 2 * Math.asin(Math.min(1, 74 / (2 * r))) * 180 / Math.PI;
+        const need = 2 * Math.asin(Math.min(1, treeOrbSpan() / (2 * r))) * 180 / Math.PI;
         for (let i = 1; i < ring.length; i++) if (ring[i] - ring[i - 1] < need - 0.6) return false;
-        return true; }); }));
+        return true; }); })));
+  // The label is what used to make an orb too tall to sit between two rings.
+  check('DENSITY: a node’s box is its GLYPH — the label hangs outside the flow',
+    await J(() => { const o = document.querySelector('.et-orb:not(.et-far):not(.et-root)');
+      const g = o.querySelector('.et-orb-glyph'), nm = o.querySelector('.et-orb-name');
+      return Math.abs(o.getBoundingClientRect().height - g.getBoundingClientRect().height) < 2
+        && getComputedStyle(nm).position === 'absolute'; }));
+  check('DENSITY: the tree names what you can ACT on, not all 21 nodes at once',
+    await J(() => { const shown = [...document.querySelectorAll('.et-orb:not(.et-far) .et-orb-name')]
+        .filter(e => getComputedStyle(e).display !== 'none').length;
+      const total = document.querySelectorAll('.et-orb:not(.et-far) .et-orb-name').length;
+      return shown > 0 && shown < total; }));
   await J(() => hideOverlay());
 
   t.report();

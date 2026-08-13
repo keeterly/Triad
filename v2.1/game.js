@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 248;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 249;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -9595,7 +9595,15 @@ function attachTreePan(heroId, opts) {
   // pinned before it arrives — this clamped a focus target to -450 on both axes.
   const clamp = (v) => { const c = 130 + 330 * z; return Math.max(-c, Math.min(c, v)); };
   let ox = TREE_VIEW.x, oy = TREE_VIEW.y, z = TREE_VIEW.z || treeFitZoom();
-  const apply = () => { pan.style.transform = `translate(${ox}px, ${oy}px) scale(${z})`; };
+  const apply = () => {
+    pan.style.transform = `translate(${ox}px, ${oy}px) scale(${z})`;
+    // Labels live INSIDE the zoomed layer, so a 62px name rendered 132px wide at
+    // zoom 2.1 while node centres were only 74px apart — the words were twice the
+    // width of the gap they had to fit in.  Counter-scale the text so it holds a
+    // constant size on screen no matter how close the camera is (and never grow
+    // it past 1:1 when zoomed out, or the whole-tree view fills up with words).
+    pan.style.setProperty('--lbl', String(Math.min(1, 1 / Math.max(0.01, z))));
+  };
   const store = () => { TREE_VIEW.x = ox; TREE_VIEW.y = oy; TREE_VIEW.z = z; TREE_VIEW._seeded = true; };
   apply();
   // FLY TO THE REGION — apply the OLD transform first, then set the target on
@@ -9675,7 +9683,51 @@ function canKindleNow() {
 // a triangle, which is the shape this game is about), a crossing is an EDGE
 // between two regions rather than a copy of a node, and the tabs move the CAMERA
 // instead of the map.  Zoom 1 is the whole tree; a tab focuses its region.
-const TREE_R0 = 66, TREE_RING = 62, TREE_PAD = 54;
+// RADIAL ROOM (Build 249).  Measured: an orb's box is ~61-72px tall while a ring
+// step rendered only ~43px, so adjacent rings were guaranteed to collide no
+// matter how well the angles were spread — the crowding was never angular, it
+// was radial.  On-screen ring spacing works out to RING·viewport·0.94/(2·regionR),
+// which rises with RING and tops out around 82px, so widening the rings really
+// does buy separation (62 -> 130 takes it from ~43px to ~55px).  The region grows
+// with it, but the focus zoom is derived from the region, so a focused hero
+// still fills the screen; only the zoomed-out world gets denser, and that view
+// is for orientation rather than reading.
+const TREE_R0 = 74, TREE_RING = 130, TREE_PAD = 58;
+// The on-screen gap a tab flies in to.  It has to CLEAR an orb's box (measured
+// 64px tall with a two-line label), not merely equal it — at 66 the adjacent
+// rings had 2px between them and any label that wrapped ate straight through.
+const TREE_RING_PX = 82;
+// How much of a region's RADIUS one orb's footprint eats.  This is the unit
+// conversion the layout was missing: node positions are world units, but an orb
+// is a fixed ~58 CSS px, and the two are related through the focus zoom.  That
+// zoom works out to viewport·0.94/(2·regionR), which cancels the world size
+// entirely and leaves footprint/regionR = 2·58/(0.94·viewport) — so a spacing
+// rule written in raw pixels (the old "66") was wrong by nearly 2x and no amount
+// of angular relaxation could fix it.
+// At the legibility zoom a ring step is pinned to TREE_RING_PX on screen, which
+// fixes the world-units-per-pixel rate at TREE_RING/TREE_RING_PX — so the space
+// one orb occupies is a plain constant, with no dependence on the world size,
+// the region size or the viewport.  That is what the earlier attempts kept
+// getting wrong: a spacing rule in raw px, then one as a fraction of a region
+// that was itself still being solved.
+// 74px is the LABEL's width plus a little air, not the glyph's — the glyph is
+// only 28px, but two names printing over each other is just as unreadable as
+// two orbs doing it.
+function treeOrbSpan() { return 74 * TREE_RING / TREE_RING_PX; }
+// Grow a hub's inner ring until every ring can seat its own nodes.  regionR
+// depends on r0 and r0 depends on regionR, so settle it by iteration — it
+// converges in two or three passes.
+// Grow the hub ring until EVERY ring can seat its own nodes side by side.  No
+// iteration needed now that a node's footprint is a constant.
+function solveHubRadius(byDepth) {
+  const S = treeOrbSpan();
+  let r0 = TREE_R0;
+  Object.keys(byDepth).forEach(d => {
+    const c = byDepth[d].length; if (c < 2) return;
+    r0 = Math.max(r0, (c * S) / (2 * Math.PI) - Number(d) * TREE_RING);
+  });
+  return r0 + 12;   // a little air so a label can hang under the innermost ring
+}
 function buildTreeWorld(party) {
   const per = {};
   party.forEach(hid => {
@@ -9708,12 +9760,13 @@ function buildTreeWorld(party) {
     // the arc the orbs actually need, then recentre so the arm keeps pointing
     // where its prerequisite does.
     const maxD0 = nodes.length ? Math.max.apply(null, nodes.map(n => depth[n.id])) : 0;
-    const r0pre = Math.max(TREE_R0, ((byDepth[0] || []).length > 1 ? ((byDepth[0] || []).length * 66) / (2 * Math.PI) : TREE_R0));
+    const r0pre = solveHubRadius(byDepth);
     for (let d = 0; d <= maxD0; d++) {
       const ring = (byDepth[d] || []).slice().sort((x, y) => angle[x.id] - angle[y.id]);
       if (ring.length < 2) continue;
       const r = r0pre + d * TREE_RING;
-      const need = 2 * Math.asin(Math.min(1, 74 / (2 * r))) * 180 / Math.PI;   // arc one orb needs
+      const S = treeOrbSpan();                                                // world units, not px
+      const need = 2 * Math.asin(Math.min(1, S / (2 * r))) * 180 / Math.PI;    // arc one orb needs
       if (need * ring.length >= 360) {                                          // too many to fan — space them evenly
         ring.forEach((n, i) => { angle[n.id] = -90 + i * (360 / ring.length); });
         continue;
@@ -9723,11 +9776,46 @@ function buildTreeWorld(party) {
         const gap = angle[ring[i].id] - angle[ring[i - 1].id];
         if (gap < need) angle[ring[i].id] = angle[ring[i - 1].id] + need;
       }
-      // and close the wrap-around seam between the last and the first
-      const wrap = (angle[ring[0].id] + 360) - angle[ring[ring.length - 1].id];
-      if (wrap < need) { const push = (need - wrap) / 2; ring.forEach((n, i) => { angle[n.id] -= push * (i / (ring.length - 1)); }); }
-      const after = ring.reduce((a2, n) => a2 + angle[n.id], 0) / ring.length;
-      ring.forEach(n => { angle[n.id] += before - after; });                     // keep the arm aimed where it was
+      // The seam between the last node and the first (across 360°) also has to
+      // clear.  An earlier attempt nudged each node by a DIFFERENT amount to
+      // close it, which quietly re-compressed the gaps the forward pass had just
+      // opened; if the ring has genuinely run out of circle, spread it evenly
+      // instead — that is the only arrangement that can still fit.
+      if ((angle[ring[0].id] + 360) - angle[ring[ring.length - 1].id] < need) {
+        ring.forEach((n2, i) => { angle[n2.id] = -90 + i * (360 / ring.length); });
+        continue;
+      }
+      const after = ring.reduce((a2, n2) => a2 + angle[n2.id], 0) / ring.length;
+      ring.forEach(n2 => { angle[n2.id] += before - after; });                   // keep the arm aimed where it was
+    }
+    // GLOBAL PASS.  Spreading each ring on its own still lets a node graze one on
+    // a NEIGHBOURING ring — the per-ring sweep simply cannot see that pair.  Walk
+    // every pair that is still closer than an orb's footprint and rotate them
+    // apart (radius is fixed by prerequisite depth, so angle is the only thing
+    // free to give). A handful of passes settles it.
+    {
+      const S = treeOrbSpan(), rOf = (n) => r0pre + depth[n.id] * TREE_RING;
+      for (let it = 0; it < 30; it++) {
+        let moved = false;
+        for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) {
+          const A = nodes[i], B = nodes[j], ra = rOf(A), rb = rOf(B);
+          const aa = angle[A.id] * Math.PI / 180, ab = angle[B.id] * Math.PI / 180;
+          const dx = ra * Math.cos(aa) - rb * Math.cos(ab), dy = ra * Math.sin(aa) - rb * Math.sin(ab);
+          const dist = Math.hypot(dx, dy);
+          if (dist >= S) continue;
+          // how far each has to turn to open the gap, scaled by its own radius
+          const push = (S - dist) / 2;
+          const da = (push / Math.max(1, ra)) * 180 / Math.PI;
+          const db = (push / Math.max(1, rb)) * 180 / Math.PI;
+          let diff = angle[A.id] - angle[B.id];
+          while (diff > 180) diff -= 360;
+          while (diff < -180) diff += 360;
+          const sign = diff === 0 ? (i % 2 ? 1 : -1) : (diff > 0 ? 1 : -1);
+          angle[A.id] += sign * da; angle[B.id] -= sign * db;
+          moved = true;
+        }
+        if (!moved) break;
+      }
     }
     const maxD = maxD0;
     // THE INNER RING MUST HOLD ITS SPOKES.  A fixed 66px hub ring is only 415px
@@ -9790,11 +9878,21 @@ function treeViewportPx() {
 function treeFitZoom() {
   return Math.max(TREE_ZMIN, Math.min(TREE_ZMAX, treeViewportPx() / TREE_BOX * 0.98));
 }
-// the zoom at which ONE region fills the viewport
+// FOCUS FOR LEGIBILITY, NOT FOR FIT (Build 249).
+// Making a whole region fit the canvas was the wrong target: a 21-node kit in a
+// 348px-tall viewport cannot be both complete and readable — measured, its ring
+// step lands at ~45px against a ~47px orb, so the rings overlap by construction
+// and no layout tuning closes that gap.  So the tab flies in to a zoom where a
+// ring step CLEARS an orb, and the player pans within the region — which is what
+// a sphere grid does anyway.  The ◎ button is the "see everything" view.
 function treeFocusZoom(world) {
-  if (!world || !world.regionR) return treeFitZoom();
-  const regionPx = (2 * world.regionR / world.W) * TREE_BOX;
-  return Math.max(TREE_ZMIN, Math.min(TREE_ZMAX, treeViewportPx() / regionPx * 0.94));
+  if (!world || !world.W) return treeFitZoom();
+  const ringPerZ = (TREE_RING / world.W) * TREE_BOX;    // px of ring step at zoom 1
+  const legible = TREE_RING_PX / Math.max(1, ringPerZ);
+  // never pull in so far that a SMALL region rattles around: cap at the zoom
+  // that would fill the viewport with this world's biggest region.
+  const fillRegion = treeViewportPx() / ((2 * world.regionR / world.W) * TREE_BOX) * 0.94;
+  return Math.max(TREE_ZMIN, Math.min(TREE_ZMAX, Math.max(legible, fillRegion)));
 }
 function treeFocusOffset(p, W, z) {
   const C = TREE_BOX / 2;
@@ -9872,7 +9970,13 @@ function showEmberTree(onBack, heroId, selId, opts) {
     else if (x) foot = `<span class="et-orb-cost${x.state === 'poor' ? ' et-cant' : ''}">${
       x.state === 'crossed' ? 'LEARNED' : x.state === 'untaught' ? 'unlearned'
       : x.state === 'unbonded' ? '♡ ' + x.bond + '/' + CROSS_BOND + ' WOVEN' : '✦' + x.cost}</span>`;
-    return `<button class="et-orb ${cls} t-${n.type}${id === selId ? ' et-sel' : ''}" data-id="${id}"
+    // Labels radiate AWAY from the hub: a node in the upper half of its region
+    // carries its name above the glyph, one in the lower half below.  That
+    // doubles the vertical room labels have to share and reads better anyway —
+    // the words lean outward instead of all stacking downward into the next ring.
+    const na = (world.per[n.hero].angle[n.id] || 0) * Math.PI / 180;
+    const up = Math.sin(na) < -0.15;
+    return `<button class="et-orb ${cls} t-${n.type}${up ? ' et-lbl-up' : ''}${id === selId ? ' et-sel' : ''}" data-id="${id}"
        style="left:${(p.x / W) * 100}%; top:${(p.y / H) * 100}%${!mine ? `; --tint:${HEROES[n.hero].tint}` : ''}">
        <span class="et-orb-glyph">${glyph}</span>
        <span class="et-orb-name">${n.label}</span>
@@ -9883,7 +9987,7 @@ function showEmberTree(onBack, heroId, selId, opts) {
   // one hub per region, the focused one lit
   const rootOrb = party.map(hid => `<div class="et-orb et-root${hid === heroId ? ' et-root-here' : ''}"
       style="left:${(hubs[hid].x / W) * 100}%; top:${(hubs[hid].y / H) * 100}%; --tint:${HEROES[hid].tint}">
-      <span class="et-orb-glyph">◆</span><span class="et-orb-name et-root-name">${HEROES[hid].name}</span></div>`).join('');
+      <span class="et-orb-glyph">◆</span>${hid === heroId ? '' : `<span class="et-orb-name et-root-name">${HEROES[hid].name}</span>`}</div>`).join('');
   // ---- DETAIL BAR (selected node) ---------------------------------------------
   // a doorway selection carries an "x:<learner>:" prefix — it is a different
   // KIND of thing to own, so it gets its own panel rather than being squeezed
