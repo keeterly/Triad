@@ -3966,7 +3966,10 @@ const QUICK = process.argv.includes('--quick');
     RUN.roster = ['ash', 'mira', 'cassia']; RUN.active = ['ash', 'mira', 'cassia'];
     RUN.hp = { ash: 34, mira: 30, cassia: 36 };
     RUN.nodes = ['mira.passive.opportunist', 'cassia.passive.vigil'];
-    RUN.crossed = {}; RUN.embers = 99;
+    // Build 251: a hero-crossing needs a foothold on that border first, so the
+    // fixture claims one stone on each of Ash's borders.
+    RUN.crossed = { ash: [commonOnBorder('ash', 'mira')[0].id, commonOnBorder('ash', 'cassia')[0].id] };
+    RUN.embers = 99;
     RUN.bonds = { 'ash|mira': b, 'ash|cassia': b, 'cassia|mira': b };
     RUN.floor = 1; RUN.completed = [0, 1, 2];
     RUN.map = generateDescent(RUN.roster, 1);
@@ -3990,7 +3993,7 @@ const QUICK = process.argv.includes('--quick');
     await J(() => CROSS_BOND === BOND_KINDLED));
   await weaveRun(BOND_KINDLED_VALUE);
   check('WEAVE: the moment a pair goes WOVEN, the door opens on what they can teach',
-    await J(() => crossOffersFor('ash').map(n => n.id).sort().join(',')
+    await J(() => crossOffersFor('ash').filter(n => !n.common).map(n => n.id).sort().join(',')
       === 'cassia.passive.vigil,mira.passive.opportunist'));
   check('WEAVE: price scales with kinship — kin cheaper than strangers, both above list',
     await J(() => { const O = EMBER_TREE.find(n => n.id === 'mira.passive.opportunist');
@@ -4000,12 +4003,12 @@ const QUICK = process.argv.includes('--quick');
       + ' · stranger ' + crossCost('ash', EMBER_TREE.find(n => n.id === 'cassia.passive.vigil'))));
   check('WEAVE: the teacher must KNOW the node — a crossing is earned twice',
     await J(() => { RUN.nodes = ['cassia.passive.vigil'];
-      const ids = crossOffersFor('ash').map(n => n.id);
+      const ids = crossOffersFor('ash').filter(n => !n.common).map(n => n.id);
       RUN.nodes = ['mira.passive.opportunist', 'cassia.passive.vigil'];
       return ids.length === 1 && ids[0] === 'cassia.passive.vigil'; }));
   check('WEAVE: a hero never crosses into their own lane, and never twice',
     await J(() => { const own = crossOffersFor('mira').some(n => n.hero === 'mira');
-      RUN.crossed = { ash: ['mira.passive.opportunist'] };
+      RUN.crossed.ash = (RUN.crossed.ash || []).concat(['mira.passive.opportunist']);
       const again = crossOffersFor('ash').some(n => n.id === 'mira.passive.opportunist');
       RUN.crossed = {};
       return own === false && again === false; }));
@@ -4046,7 +4049,9 @@ const QUICK = process.argv.includes('--quick');
     return { ash: passiveDmg(S.heroes.find(h => h.id === 'ash'), f),
              mira: passiveDmg(S.heroes.find(h => h.id === 'mira'), f) }; });
   const wvOppA = await oppDmg();
-  await J(() => { RUN.crossed = { ash: ['mira.passive.opportunist'] }; });
+  // add the crossing to whatever the fixture already holds, so the only thing
+  // that changed between the two readings is Opportunist itself
+  await J(() => { RUN.crossed.ash = (RUN.crossed.ash || []).concat(['mira.passive.opportunist']); });
   const wvOppB = await oppDmg();
   check('WEAVE: a crossed dmgMod fires for its NEW owner (+3 vs EXPOSED)',
     wvOppB.ash - wvOppA.ash === 3, `ash ${wvOppA.ash} → ${wvOppB.ash}`);
@@ -4056,10 +4061,10 @@ const QUICK = process.argv.includes('--quick');
   const vigilGuard = () => J(() => { S.heroes.forEach(h => { h.guard = 0; });
     S.heroes.forEach(h => firePassives('turnStart', h.id));
     return S.heroes.reduce((o, h) => (o[h.id] = h.guard, o), {}); });
-  await weaveRun(BOND_KINDLED_VALUE); await J(() => { RUN.nodes = ['cassia.passive.vigil']; RUN.crossed = {}; });
+  await weaveRun(BOND_KINDLED_VALUE); await J(() => { RUN.nodes = ['cassia.passive.vigil']; RUN.crossed = { ash: [commonOnBorder('ash','cassia')[0].id] }; });
   await weaveFight();
   const wvVigilA = await vigilGuard();
-  await J(() => { RUN.crossed = { ash: ['cassia.passive.vigil'] }; });
+  await J(() => { RUN.crossed.ash = (RUN.crossed.ash || []).concat(['cassia.passive.vigil']); });
   const wvVigilB = await vigilGuard();
   check('WEAVE: a crossed turnStart passive fires for its new owner (⛨+2)',
     wvVigilB.ash - wvVigilA.ash === 2, `ash ⛨${wvVigilA.ash} → ⛨${wvVigilB.ash}`);
@@ -4073,7 +4078,7 @@ const QUICK = process.argv.includes('--quick');
         && heroResistsChill(S.heroes.find(h => h.id === 'mira')) === true
         && heroResistsChill(S.heroes.find(h => h.id === 'ash')) === false; }));
   check('WEAVE: crossings are PER RUN and survive a save/load like nodes do',
-    await J(() => { RUN.crossed = { ash: ['mira.passive.opportunist'] }; saveRun();
+    await J(() => { RUN.crossed = { ash: ['mira.passive.opportunist', commonOnBorder('ash','mira')[0].id] }; saveRun();
       const back = loadRun();
       const fresh = newRun('ash');
       return !!(back && back.crossed && back.crossed.ash
@@ -4088,7 +4093,8 @@ const QUICK = process.argv.includes('--quick');
     RUN.hp = { ash: 34, mira: 30, cassia: 36 };
     RUN.nodes = ['mira.passive.opportunist', 'cassia.passive.vigil', 'cassia.passive.bastion',
                  'ash.sig.front', 'ash.passive.vanguard'];
-    RUN.crossed = { ash: ['cassia.passive.vigil'] };
+    RUN.crossed = { ash: ['cassia.passive.vigil',
+      commonOnBorder('ash', 'mira')[0].id, commonOnBorder('ash', 'cassia')[0].id] };
     RUN.bonds = { 'ash|mira': 4, 'ash|cassia': BOND_KINDLED, 'cassia|mira': BOND_KINDLED - 1 };   // mira↔cassia stays UNWOVEN
     RUN.embers = 14; RUN.floor = 1; RUN.completed = [0, 1, 2, 3];
     RUN.map = generateDescent(RUN.roster, 1);
@@ -4102,14 +4108,15 @@ const QUICK = process.argv.includes('--quick');
 
   await latticeRun('ash'); await sleep(500);
   check('LATTICE: every doorway the party could ever open is drawn, not just the affordable ones',
-    await J(() => document.querySelectorAll('.et-orb.et-cross').length === crossViewFor('ash').length
-      && crossViewFor('ash').length === 4));
+    await J(() => document.querySelectorAll('.et-orb.et-cross').length === crossViewFor('ash').filter(c => !c.common).length
+      && crossViewFor('ash').filter(c => !c.common).length === 4));
   check('LATTICE: a doorway names its TEACHER — the word that makes this a lattice, not a node list',
     await J(() => [...document.querySelectorAll('.et-orb.et-cross .et-x-from')]
       .map(e => e.textContent).sort().join(',') === 'CASSIA,CASSIA,MIRA,MIRA'));
   check('LATTICE: a doorway hangs off a BOND, so it is drawn as a thread, not a prerequisite spoke',
-    await J(() => document.querySelectorAll('.et-thread').length === 4
-      && document.querySelectorAll('.et-thread-full').length === 1));   // the one already crossed
+    await J(() => document.querySelectorAll('.et-thread').length === crossViewFor('ash').length
+      && document.querySelectorAll('.et-thread-full').length
+         === crossViewFor('ash').filter(c => c.state === 'crossed').length));
   // MANY BRIDGES: the threads used to all leave the learner's hub, so a border
   // read as one crossing however many skills spanned it.
   check('LATTICE: bridges set off from different points, not all from one hub',
@@ -4220,10 +4227,14 @@ const QUICK = process.argv.includes('--quick');
   // node, so a skill exists exactly ONCE on screen. It used to be re-drawn as a
   // phantom orb on the rim of whoever was looking.
   check('WORLD: a crossing points at the teacher’s REAL node — no skill is drawn twice',
-    await J(() => { const ids = [...document.querySelectorAll('.et-orb[data-id]')]
+    await J(() => { const ids = [...document.querySelectorAll('.et-orb[data-id]:not(.et-common)')]
         .map(o => o.dataset.id.replace(/^x:[a-z]+:/, ''));
       return new Set(ids).size === ids.length
         && ids.length === ['ash', 'mira', 'cassia'].reduce((a, h) => a + EMBER_TREE.filter(n => n.hero === h).length, 0); }));
+  check('WORLD: the border stones are drawn once each, on the borders themselves',
+    await J(() => { const c = [...document.querySelectorAll('.et-orb.et-common')]
+        .map(o => o.dataset.id.replace(/^x:[a-z]+:/, ''));
+      return new Set(c).size === c.length && c.length === 3 * COMMON_PER_BORDER; }));
   check('WORLD: a neighbour’s node is drawn as ELSEWHERE unless a thread reaches it',
     await J(() => document.querySelectorAll('.et-orb.et-far').length > 0
       && [...document.querySelectorAll('.et-orb.et-far.et-cross')].every(o => o.dataset.id.indexOf('x:') === 0)));
@@ -4271,6 +4282,56 @@ const QUICK = process.argv.includes('--quick');
         .filter(e => getComputedStyle(e).display !== 'none').length;
       const total = document.querySelectorAll('.et-orb:not(.et-far) .et-orb-name').length;
       return shown > 0 && shown < total; }));
+  // ---------- COMMON GROUND (Build 251) ----------
+  console.log('--- COMMON GROUND ---');
+  check('COMMON: a border carries generic nodes that belong to NO hero',
+    await J(() => COMMON_NODES.length === 30 && COMMON_NODES.every(n => n.hero === null && n.common)
+      && commonOnBorder('ash', 'cassia').length === COMMON_PER_BORDER));
+  check('COMMON: they live in the tree proper, so every ownership test sees them',
+    await J(() => COMMON_NODES.every(n => NODE_BY_ID[n.id] === n && EMBER_TREE.indexOf(n) >= 0)));
+  check('COMMON: they are never counted as a hero TECHNIQUE — the two routes stay separate',
+    await J(() => EMBER_TREE.filter(isTeachable).every(n => !n.common)
+      && EMBER_TREE.filter(isTeachable).length === 12));
+  check('COMMON: priced flat — nobody’s ground, so nobody’s kinship applies',
+    await J(() => { const cn = commonOnBorder('ash', 'cassia')[0];
+      return crossCost('ash', cn) === cn.cost && crossCost('cassia', cn) === cn.cost
+        && kinship('ash', 'cassia') === 0; }));   // a stranger border, yet no 1.8x
+  check('COMMON: each stone carries a real rule, none of them hero-shaped',
+    await J(() => COMMON_NODES.every(n => !!PASSIVE_DEFS[n.passive])
+      && new Set(COMMON_NODES.map(n => n.passive)).size >= 3));
+  // THE CROSSOVER POINT: ground first, then the far side.
+  await latticeRun('ash'); await sleep(400);
+  check('COMMON: with a WOVEN bond but no ground held, the far side is UNBRIDGED',
+    await J(() => { RUN.crossed = {};
+      const v = crossViewFor('ash');
+      return v.filter(c => !c.common).every(c => c.state === 'unbridged' || c.state === 'untaught')
+        && v.filter(c => c.common).some(c => c.state === 'open'); }));
+  check('COMMON: claiming a stone opens THAT border and no other',
+    await J(() => { RUN.crossed = { ash: [commonOnBorder('ash', 'cassia')[0].id] };
+      const v = crossViewFor('ash');
+      const cas = v.filter(c => !c.common && c.teacher === 'cassia');
+      const mir = v.filter(c => !c.common && c.teacher === 'mira');
+      return cas.length && mir.length
+        && cas.every(c => c.state !== 'unbridged')
+        && mir.every(c => c.state === 'unbridged' || c.state === 'untaught'); }));
+  check('COMMON: a claimed stone changes the holder’s combat, and only theirs',
+    await J(() => { // the pool is spread deterministically, so don't assume WHICH
+      // border carries Tempered — take any of Ash's that does
+      const temper = COMMON_NODES.find(n => n.passive === 'common_temper'
+        && n.pair.split('|').indexOf('ash') >= 0);
+      if (!temper) return false;
+      setupFight(['ash', 'mira'], [], { ash: 'front', mira: 'mid' });
+      const foe = livingEnemies()[0];
+      const ash = S.heroes.find(h => h.id === 'ash'), mira = S.heroes.find(h => h.id === 'mira');
+      RUN.crossed = {};
+      const a0 = passiveDmg(ash, foe), m0 = passiveDmg(mira, foe);
+      RUN.crossed = { ash: [temper.id] };
+      return passiveDmg(ash, foe) - a0 === 1 && passiveDmg(mira, foe) - m0 === 0; }));
+  check('COMMON: either partner may claim a given stone — it is not one hero’s',
+    await J(() => { const cn = commonOnBorder('ash', 'cassia')[0];
+      RUN.crossed = {}; learnCrossing('cassia', cn);
+      return hasCrossed('cassia', cn.id) && !hasCrossed('ash', cn.id)
+        && borderOpen('cassia', 'ash') && !borderOpen('ash', 'cassia'); }));
   await J(() => hideOverlay());
 
   t.report();

@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 250;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 251;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -589,6 +589,13 @@ const PASSIVE_DEFS = {
   // CASSIA — GUARD: the wall is never caught flat, and only grows
   cassia_vigil: { trigger: 'turnStart', apply: (c) => { c.hero.guard += 2; popupAt(figEl(c.hero.id), '⛨ +2', 'guard'); } },
   cassia_immovable: { trigger: 'keepGuard' },   // read by endTurn's guard-reset
+  // ── COMMON GROUND (Build 251).  Deliberately plain: these belong to nobody,
+  // so they must read the same on every hero and lean on no one's kit.
+  common_temper: { trigger: 'dmgMod', mod: () => 1 },
+  common_keen:   { trigger: 'dmgMod', mod: (o, t) => (t && t.mark ? 2 : 0) },
+  common_brace:  { trigger: 'turnStart', apply: (c) => { c.hero.guard += 2; popupAt(figEl(c.hero.id), '⛨ +2', 'guard'); } },
+  common_wind:   { trigger: 'turnStart', apply: (c) => { const h = c.hero;
+    if (h.hp > 0 && h.hp * 2 <= h.maxHp) { h.hp = Math.min(h.maxHp, h.hp + 2); popupAt(figEl(h.id), '✚2', 'heal'); } } },
   // ── READ-AT-SITE passives (Build 250).  These five have no apply() because
   // their rule lives at one specific seam (a move's cost, a heal's cleanse, a
   // cast's charge).  They were the only tier-2 passives that could not be
@@ -674,7 +681,12 @@ function kinship(a, b) {
   if (!A || !B || a === b) return 0;
   return (A.school === B.school ? 1 : 0) + (A.tempo === B.tempo ? 1 : 0);
 }
-function crossCost(learner, n) { return Math.max(1, Math.round(n.cost * CROSS_MULT[kinship(learner, n.hero)])); }
+// Common ground is priced flat — it is nobody's, so nobody's kinship applies.
+function crossCost(learner, n) {
+  if (!n) return 0;
+  if (n.common) return n.cost;
+  return Math.max(1, Math.round(n.cost * CROSS_MULT[kinship(learner, n.hero)]));
+}
 function crossedNodes(heroId) { return (RUN && RUN.crossed && RUN.crossed[heroId]) || []; }
 function hasCrossed(heroId, nodeId) { return crossedNodes(heroId).indexOf(nodeId) >= 0; }
 // Does THIS hero carry this node's rule — through their own tree, or learned
@@ -694,7 +706,7 @@ function heroOwnsNode(heroId, n) {
 // tier-3/4 soul.  That is the valve against the FFX endgame, where everybody
 // eventually knows everything and nobody is anyone.
 function isTeachable(n) {
-  return !!(n && n.tier === 2 && isPassiveNode(n) && PASSIVE_DEFS[n.passive]);
+  return !!(n && !n.common && n.tier === 2 && isPassiveNode(n) && PASSIVE_DEFS[n.passive]);
 }
 // every crossing this hero could buy right now
 function crossOffersFor(learner) {
@@ -706,7 +718,12 @@ function crossOffersFor(learner) {
     && party.indexOf(n.hero) >= 0                              // they must be HERE to teach it
     && hasNode(n.id)                                           // and must KNOW it — the node is earned twice
     && !hasCrossed(learner, n.id)
-    && bondPts(pairKey(learner, n.hero)) >= CROSS_BOND);
+    && bondPts(pairKey(learner, n.hero)) >= CROSS_BOND
+    && borderOpen(learner, n.hero))                            // cross the ground first
+    .concat(COMMON_NODES.filter(n => n.pair.split('|').indexOf(learner) >= 0
+      && n.pair.split('|').some(h => h !== learner && party.indexOf(h) >= 0)
+      && !hasCrossed(learner, n.id)
+      && bondPts(pairKey(learner, n.pair.split('|').find(h => h !== learner))) >= CROSS_BOND));
 }
 // Every crossing this hero COULD ever hold from the fielded party, with the
 // reason each one is shut.  A lattice you can only see the OPEN doors of is not
@@ -717,6 +734,22 @@ function crossViewFor(learner) {
   const party = (RUN.active && RUN.active.length) ? RUN.active : (RUN.roster || []);
   if (party.indexOf(learner) < 0) return [];
   const out = [];
+  // 1) the COMMON GROUND on each of your borders — nobody's nodes, and the
+  //    crossover point: taking one is what opens the far side of that border.
+  party.forEach(other => {
+    if (other === learner) return;
+    const bond = bondPts(pairKey(learner, other));
+    commonOnBorder(learner, other).forEach(n => {
+      let state;
+      if (hasCrossed(learner, n.id)) state = 'crossed';
+      else if (bond < CROSS_BOND) state = 'unbonded';
+      else if (runEmbers() < n.cost) state = 'poor';
+      else state = 'open';
+      out.push({ node: n, state, cost: n.cost, bond, kin: kinship(learner, other),
+                 teacher: other, common: true });
+    });
+  });
+  // 2) the heroes' own techniques on the far side
   EMBER_TREE.forEach(n => {
     if (!isTeachable(n) || n.hero === learner || party.indexOf(n.hero) < 0) return;
     const bond = bondPts(pairKey(learner, n.hero)), cost = crossCost(learner, n);
@@ -724,6 +757,7 @@ function crossViewFor(learner) {
     if (hasCrossed(learner, n.id)) state = 'crossed';
     else if (!hasNode(n.id)) state = 'untaught';        // they cannot teach what they have not learned
     else if (bond < CROSS_BOND) state = 'unbonded';     // the door is there; the bond is not
+    else if (!borderOpen(learner, n.hero)) state = 'unbridged';   // you have not set foot on the border
     else if (runEmbers() < cost) state = 'poor';
     else state = 'open';
     out.push({ node: n, state, cost, bond, kin: kinship(learner, n.hero), teacher: n.hero });
@@ -1289,6 +1323,63 @@ const HEROES = {
     },
   },
 };
+
+// ═════════════════════════════════════════════════════════════════════════════
+// COMMON GROUND — the generic nodes that make up a border (Build 251)
+//
+// This is the shape FFX's grid actually has: a character's SIGNATURE abilities
+// sit deep in their own lane, and the connective tissue between lanes is plain,
+// unowned ground that anybody can walk.  Crossings until now skipped the middle
+// entirely — you reached from your hub straight to a named ability of someone
+// else's, which is both a strange thing to "learn" and left the space between
+// two regions completely empty.
+//
+// A border now has NODES ON IT.  They belong to no hero, they are the same
+// handful of unglamorous rules for everyone, and either partner can take one
+// once their bond is WOVEN.  They are also the CROSSOVER POINT: holding a piece
+// of common ground on a border is what lets you reach the far side of it, so a
+// crossing is walked to rather than bought at range.
+const COMMON_POOL = [
+  { key: 'temper', label: 'Tempered', glyph: '⚒', passive: 'common_temper',
+    desc: 'COMMON: every attack you make strikes for <b>+1</b>.' },
+  { key: 'brace', label: 'Braced', glyph: '⛨', passive: 'common_brace',
+    desc: 'COMMON · TURN START: you brace for <span class="kw kw-guard">⛨ 2</span>.' },
+  { key: 'keen', label: 'Keen Eye', glyph: '◎', passive: 'common_keen',
+    desc: 'COMMON: <b>+2</b> damage to any <span class="kw kw-exposed">◎ EXPOSED</span> foe.' },
+  { key: 'wind', label: 'Second Wind', glyph: '✚', passive: 'common_wind',
+    desc: 'COMMON · TURN START: if you are under half health, <span class="kw kw-heal">✚ 2</span>.' },
+];
+const COMMON_COST = 4;          // flat — common ground is priced by nobody's kinship
+const COMMON_PER_BORDER = 2;
+// Built once, for every pair of heroes who own a region, so the border is the
+// same every run and the layout never shuffles under the player.
+const COMMON_NODES = (function () {
+  const out = [], ids = Object.keys(HEROES).filter(h => EMBER_TREE.some(n => n.hero === h)).sort();
+  for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) {
+    const pair = ids[i] + '|' + ids[j];
+    for (let k = 0; k < COMMON_PER_BORDER; k++) {
+      // a stable, spread-out pick so a border is not two of the same stone
+      const t = COMMON_POOL[(i + j * 3 + k * 2) % COMMON_POOL.length];
+      out.push({ id: 'common.' + pair + '.' + k, hero: null, pair, common: true, slot: k,
+        tier: 2, cost: COMMON_COST, type: 'passive', passive: t.passive,
+        label: t.label, glyph: t.glyph, desc: t.desc });
+    }
+  }
+  return out;
+})();
+// Common nodes join the tree proper so the passive dispatchers, NODE_BY_ID and
+// every ownership test see them without a second code path.  `hero: null` keeps
+// them out of anything that filters by hero — a hero's own region, the ordinary
+// spark pool — which is exactly right: they are nobody's.
+COMMON_NODES.forEach(n => { EMBER_TREE.push(n); NODE_BY_ID[n.id] = n; });
+function commonOnBorder(a, b) {
+  const pair = [a, b].sort().join('|');
+  return COMMON_NODES.filter(n => n.pair === pair);
+}
+function borderOpen(learner, other) {
+  return commonOnBorder(learner, other).some(n => hasCrossed(learner, n.id));
+}
+
 
 // ---------------------------------------------------------------------------
 // BRANCHING ROTATIONS — a stance can declare a ROTATION instead of the classic
@@ -7983,15 +8074,20 @@ function showEmberSpark(onDone) {
   const cardHtml = (o) => {
     const n = o.node, cost = sparkCost(o), afford = runEmbers() >= cost;
     const h = HEROES[o.hero];                       // the card is always about the LEARNER
-    const from = HEROES[n.hero];
-    const kin = o.cross ? kinship(o.hero, n.hero) : 0;
+    // A COMMON stone belongs to nobody, so there is no `from` hero to name — and
+    // reading HEROES[null] here is what killed the whole post-fight overlay.
+    const other = n.common ? (n.pair.split('|').find(x => x !== o.hero) || null) : n.hero;
+    const from = other ? HEROES[other] : null;
+    const kin = (o.cross && other) ? kinship(o.hero, other) : 0;
     return `<button class="boon-card spark-card${o.cross ? ' cross-card' : ''}${afford ? '' : ' spark-poor'}" data-spark="${(o.cross ? 'x:' + o.hero + ':' : '') + n.id}" style="--tint:${h.tint}" ${afford ? '' : 'disabled'}>
       <span class="boon-portrait">${V2PORTRAITS[o.hero] || ''}</span>
       <span class="boon-scrim"></span>
-      <span class="boon-medallion">${o.cross ? '⟡' : (TREE_TYPE_GLYPH[n.type] || '✦')}</span>
+      <span class="boon-medallion">${n.common ? (n.glyph || '◈') : o.cross ? '⟡' : (TREE_TYPE_GLYPH[n.type] || '✦')}</span>
       <span class="spark-price${afford ? '' : ' spark-cant'}">${o.cross ? '' : `<s>${n.cost}</s> `}✦ ${cost}</span>
       <span class="boon-body">
-        <span class="boon-from">${o.cross ? `${h.name} learns from <b>${from.name}</b> · ${KIN_WORD[kin]}` : `${h.name} · ${TREE_TYPE_LABEL[n.type] || 'SKILL'}`}</span>
+        <span class="boon-from">${n.common ? `${h.name} claims COMMON GROUND${from ? ` · ${h.name}–${from.name} border` : ''}`
+          : o.cross ? `${h.name} learns from <b>${from.name}</b> · ${KIN_WORD[kin]}`
+          : `${h.name} · ${TREE_TYPE_LABEL[n.type] || 'SKILL'}`}</span>
         <span class="boon-name">${n.label}</span>
         <span class="boon-desc">${n.desc}</span>
       </span>
@@ -8012,7 +8108,9 @@ function showEmberSpark(onDone) {
       if (o.cross) learnCrossing(o.hero, n); else RUN.nodes.push(n.id);
       saveRun();
       try { SFX.kindle(); } catch (_) {}
-      flashNarrator(o.cross
+      flashNarrator(n.common
+        ? '◈ ' + HEROES[o.hero].name + ' claims ' + n.label + ' — ground held on the border.'
+        : o.cross
         ? '⟡ ' + HEROES[o.hero].name + ' learns ' + n.label + ' from ' + HEROES[n.hero].name + ' — the bond taught it.'
         : '✦ ' + n.label + ' — kindled from the spark, ' + (n.cost - sparkCost(o)) + ' embers saved.');
       done();
@@ -9858,6 +9956,17 @@ function buildTreeWorld(party) {
       pos[n.id] = { x: hx + r * Math.cos(na), y: hy + r * Math.sin(na) };
     });
   });
+  // COMMON GROUND sits ON the border, strung between the two hubs it joins, so
+  // the space between regions stops being empty and a crossing visibly passes
+  // THROUGH something instead of leaping the gap.
+  for (let i = 0; i < party.length; i++) for (let j = i + 1; j < party.length; j++) {
+    const A = hubs[party[i]], B = hubs[party[j]];
+    const ns = commonOnBorder(party[i], party[j]);
+    ns.forEach((cn, k) => {
+      const t = (k + 1) / (ns.length + 1);                  // evenly spaced along the span
+      pos[cn.id] = { x: A.x + (B.x - A.x) * t, y: A.y + (B.y - A.y) * t };
+    });
+  }
   // Fit the WHOLE world to one square box (square keeps the ring guides circular
   // under preserveAspectRatio="none") and re-origin every point into it.
   const pts = Object.keys(pos).map(k => pos[k]).concat(party.map(h => hubs[h]));
@@ -9988,11 +10097,36 @@ function showEmberTree(onBack, heroId, selId, opts) {
     const p = pos[c.node.id]; if (!p) return '';
     const a = anchorFor(p);
     const open = c.state === 'open' || c.state === 'poor' || c.state === 'crossed';
+    // A crossing to a hero's own technique routes THROUGH the common ground you
+    // hold on that border — the bridgehead is a place on the map, not a rule in
+    // a tooltip, so the path bends to touch it.
+    let via = '';
+    if (!c.common) {
+      const held = commonOnBorder(heroId, c.teacher).find(cn => hasCrossed(heroId, cn.id));
+      if (held && pos[held.id]) via = ` L ${pos[held.id].x} ${pos[held.id].y}`;
+    }
     return `<path class="et-thread${open ? ' et-thread-on' : ''}${c.state === 'crossed' ? ' et-thread-full' : ''}${a.owned ? ' et-thread-rooted' : ''}"
-      vector-effect="non-scaling-stroke" stroke="${HEROES[heroId].tint}"
-      d="M ${a.p.x} ${a.p.y} L ${p.x} ${p.y}" />`;
+      vector-effect="non-scaling-stroke" fill="none" stroke="${HEROES[heroId].tint}"
+      d="M ${a.p.x} ${a.p.y}${via} L ${p.x} ${p.y}" />`;
   }).join('');
   const crossRing = '';
+  // the border stones — nobody's colour, so they read as neutral ground
+  const commonOrbs = party.map((h2, i) => party.slice(i + 1).map(h3 => commonOnBorder(h2, h3).map(cn => {
+    const p = pos[cn.id]; if (!p) return '';
+    const mine = (h2 === heroId || h3 === heroId);
+    const c = mine ? crossings.find(x => x.node.id === cn.id) : null;
+    const held = hasCrossed(h2, cn.id) || hasCrossed(h3, cn.id);
+    const id = mine ? 'x:' + heroId + ':' + cn.id : cn.id;
+    const st = !mine ? 'far' : (c ? c.state : 'unbonded');
+    const foot = !mine ? '' : st === 'crossed' ? 'HELD'
+      : st === 'unbonded' ? '♡ ' + (c ? c.bond : 0) + '/' + CROSS_BOND + ' WOVEN' : '✦' + cn.cost;
+    return `<button class="et-orb et-common et-c-${st}${held ? ' et-c-held' : ''}${id === selId ? ' et-sel' : ''}" data-id="${id}"
+       style="left:${(p.x / W) * 100}%; top:${(p.y / H) * 100}%">
+       <span class="et-orb-glyph">${st === 'crossed' ? '✓' : cn.glyph}</span>
+       <span class="et-orb-name">${cn.label}</span>
+       ${foot ? `<span class="et-orb-cost${st === 'poor' ? ' et-cant' : ''}">${foot}</span>` : ''}
+     </button>`;
+  }).join('')).join('')).join('');
   // ---- ORBS -------------------------------------------------------------------
   const orbs = allNodes.map(n => {
     const p = pos[n.id], mine = n.hero === heroId, x = crossBy[n.id];
@@ -10037,12 +10171,19 @@ function showEmberTree(onBack, heroId, selId, opts) {
   let detail = '<div class="et-detail-empty">Pick a node to inspect it.</div>';
   if (selCross) {
     const c = selCross, T = HEROES[c.teacher], L = HEROES[heroId];
-    const act = c.state === 'crossed' ? '<span class="et-d-owned">⟡ LEARNED</span>'
+    const act = c.state === 'crossed' ? `<span class="et-d-owned">⟡ ${c.common ? 'HELD' : 'LEARNED'}</span>`
       : c.state === 'untaught' ? `<span class="et-d-lock">${T.name} has not kindled it yet</span>`
       : c.state === 'unbonded' ? `<span class="et-d-lock">their bond is not <b>WOVEN</b> yet (♡ ${c.bond}/${CROSS_BOND}) — hold the thread through another fight</span>`
-      : `<button class="et-d-buy${c.state === 'poor' ? ' et-d-cant' : ''}" id="et-cross-buy" ${c.state === 'poor' ? 'disabled' : ''}>LEARN · ✦ ${c.cost}</button>`;
-    detail = `<div class="et-d-head"><span class="et-d-type t-cross">${KIN_WORD[c.kin]}</span><span class="et-d-name">${c.node.label}</span></div>
-      <div class="et-d-cross">${L.name} learns this from <b style="color:${T.tint}">${T.name}</b>${c.kin ? ` — ${c.kin === 2 ? 'the same school AND the same tempo' : 'a shared ' + (T.school === L.school ? 'school' : 'tempo')}, so it comes cheap` : ' — nothing in common, so it comes dear'}.</div>
+      : c.state === 'unbridged' ? `<span class="et-d-lock">you hold no ground on this border — claim a <b>COMMON</b> stone between you and ${T.name} first</span>`
+      : `<button class="et-d-buy${c.state === 'poor' ? ' et-d-cant' : ''}" id="et-cross-buy" ${c.state === 'poor' ? 'disabled' : ''}>${c.common ? 'CLAIM' : 'LEARN'} · ✦ ${c.cost}</button>`;
+    // Common ground belongs to nobody, so it gets neither a teacher nor a
+    // kinship price, and the panel says so rather than dressing it as a gift.
+    const head = c.common
+      ? `<div class="et-d-head"><span class="et-d-type t-common">COMMON GROUND</span><span class="et-d-name">${c.node.label}</span></div>
+         <div class="et-d-cross">Neutral ground on the road between <b style="color:${L.tint}">${L.name}</b> and <b style="color:${T.tint}">${T.name}</b> — it belongs to neither of you, and holding it is what opens the far side of this border.</div>`
+      : `<div class="et-d-head"><span class="et-d-type t-cross">${KIN_WORD[c.kin]}</span><span class="et-d-name">${c.node.label}</span></div>
+         <div class="et-d-cross">${L.name} learns this from <b style="color:${T.tint}">${T.name}</b>${c.kin ? ` — ${c.kin === 2 ? 'the same school AND the same tempo' : 'a shared ' + (T.school === L.school ? 'school' : 'tempo')}, so it comes cheap` : ' — nothing in common, so it comes dear'}.</div>`;
+    detail = `${head}
       <div class="et-d-desc">${nodeDescHTML(c.node.desc)}</div>
       <div class="et-d-foot">${act}</div>`;
   } else if (sel) {
@@ -10064,15 +10205,16 @@ function showEmberTree(onBack, heroId, selId, opts) {
     const edges = [];
     for (let i = 0; i < party.length; i++) for (let j = i + 1; j < party.length; j++) {
       const a = party[i], b = party[j], bond = bondPts(pairKey(a, b)), kin = kinship(a, b);
-      const doors = crossViewFor(a).filter(c => c.teacher === b).length
-                  + crossViewFor(b).filter(c => c.teacher === a).length;
+      const doors = crossViewFor(a).filter(c => c.teacher === b && !c.common).length
+                  + crossViewFor(b).filter(c => c.teacher === a && !c.common).length;
+      const footed = borderOpen(a, b) || borderOpen(b, a);
       const held = crossedNodes(a).length + crossedNodes(b).length;
       const open = bond >= CROSS_BOND;
       edges.push(`<span class="wv-edge${open ? ' wv-open' : ''}${a === heroId || b === heroId ? ' wv-mine' : ''}">
         <b style="color:${HEROES[a].tint}">${HEROES[a].name}</b>
         <i class="wv-link">${open ? '⟡' : '·'}</i>
         <b style="color:${HEROES[b].tint}">${HEROES[b].name}</b>
-        <em>${open ? 'WOVEN' : '♡' + bond + '/' + CROSS_BOND} · ${KIN_WORD[kin]}${open && doors ? ' · ' + doors + ' door' + (doors === 1 ? '' : 's') : ''}</em>
+        <em>${open ? 'WOVEN' : '♡' + bond + '/' + CROSS_BOND} · ${KIN_WORD[kin]}${open ? (footed ? ' · ' + doors + ' door' + (doors === 1 ? '' : 's') : ' · claim the ground') : ''}</em>
       </span>`);
     }
     return `<div class="et-weave">${edges.join('')}</div>`;
@@ -10091,7 +10233,7 @@ function showEmberTree(onBack, heroId, selId, opts) {
       <div class="et-canvas et-grid" id="et-canvas">
         <div class="et-pan" id="et-pan">
           <svg class="et-links" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${ringSvg}${crossRing}${linkSvg}${threadSvg}</svg>
-          ${rootOrb}${orbs}
+          ${rootOrb}${orbs}${commonOrbs}
         </div>
         <div class="et-zoom">
           <button class="et-zoom-btn" id="et-zoom-out" title="Zoom out">−</button>

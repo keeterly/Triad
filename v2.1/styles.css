@@ -3873,3 +3873,28 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
    established ground; one from a node you have not is a possibility, not a road */
 .et-thread-rooted { opacity: 0.78; }
 .et-thread-rooted.et-thread-on { opacity: 0.9; }
+
+/* ══ COMMON GROUND (Build 251) ═════════════════════════════════════════════
+   Border stones belong to nobody, so they wear nobody's tint: cool stone
+   against the heroes' warm gold and their companions' colours. */
+.et-orb.et-common .et-orb-glyph {
+  border-color: rgba(150,158,172,0.5); color: #b9c0cc;
+  background: radial-gradient(circle at 50% 36%, rgba(30,33,38,0.98), rgba(14,15,18,0.98));
+}
+.et-orb.et-common .et-orb-name { color: #a8b0bc; }
+.et-orb.et-c-open .et-orb-glyph { border-color: rgba(190,200,216,0.95); color: #e2e8f2;
+  box-shadow: 0 0 14px rgba(170,185,210,0.4); animation: et-pulse 1.9s ease-in-out infinite; }
+.et-orb.et-c-crossed .et-orb-glyph, .et-orb.et-c-held .et-orb-glyph {
+  border-color: #ffe6a4; color: #ffe6a4;
+  background: radial-gradient(circle at 50% 36%, rgba(60,48,24,0.98), rgba(24,18,10,0.98));
+  box-shadow: 0 0 12px rgba(240,212,136,0.45); }
+.et-orb.et-c-poor { opacity: 0.8; }
+.et-orb.et-c-poor .et-orb-glyph { filter: grayscale(0.4); }
+.et-orb.et-c-unbonded { opacity: 0.5; }
+.et-orb.et-c-far { opacity: 0.34; }
+.et-orb.et-c-far .et-orb-name { display: none; }
+/* the far side of a border you have not set foot on */
+.et-orb.et-x-unbridged { opacity: 0.55; }
+.et-orb.et-x-unbridged .et-orb-glyph { border-style: dashed; }
+.et-d-type.t-common { color: #b9c0cc; border-color: rgba(150,158,172,0.5); }
+@media (prefers-reduced-motion: reduce) { .et-orb.et-c-open .et-orb-glyph { animation: none; } }
