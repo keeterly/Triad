@@ -175,6 +175,17 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .hd-plane, .hd-fog, .hd-motes span { animation: none !important; }
 }
+/* PHONE TIER (Build 241) — blur is the priciest filter on mobile GPUs, and the
+   scene spends it on two oversized planes plus the back-row depth-of-field.
+   On touch devices the radii halve and the far plane loses its blur outright
+   (its atmospheric read survives on saturation + the mask alone). */
+@media (hover: none) {
+  .hd-far  { filter: saturate(0.86) brightness(0.98) contrast(1.04); }
+  .hd-near { filter: blur(3px); }
+  #party-half .slot[data-row="back"] .figure,
+  #enemy-half .slot[data-row="back"] .figure { filter: blur(0.7px) saturate(0.7) brightness(0.74); }
+  .figure.floor-boss .fig-art svg { filter: drop-shadow(0 10px 20px rgba(0,0,0,0.9)) drop-shadow(0 0 18px rgba(190,44,40,0.4)); }
+}
 /* ══ CAMERA RIG (Build 225) ══════════════════════════════════════════════
    ONE camera for the whole fight, replacing Build 219's all-out-only dolly.
    JS writes four variables on #stage and every world layer reads them through
@@ -379,13 +390,15 @@ body {
 #party-half, #enemy-half {
   display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;
   align-items: end; min-height: 0; min-width: 0;
-  /* EDGE SAFETY (Build 239): at wide phone aspects the outermost figure and
-     its nameplate sat flush against the stage crop — give the outer columns
-     air so nothing renders half off-screen. */
-  padding-left: 12px; padding-right: 14px;
-  /* the hand fans up ~24px into the bottom of the battlefield — reserve that
-     band so a figure's name + HP never sit behind a card */
-  padding-bottom: 26px;
+  /* EDGE SAFETY (Build 241): the painted plates overhang their column by up
+     to ~34% a side (fit-to-height, max-width 168%), so the outer columns need
+     REAL air — enough for the art itself, not just the box. */
+  padding-left: 26px; padding-right: 34px;
+  /* and the nameplate+chips stack under each figure needs clearance above the
+     hand fan — the chips row added a line below the name in Build 239 */
+  padding-bottom: 34px;
+  /* (bottom clearance now lives with EDGE SAFETY below — 34px since the
+     nameplate carries the chips row) */
 }
 /* REAL DEPTH (Build 228).  These used to be translateY(-20px) scale(0.88)
    fakes; they are now honest Z positions. Perspective supplies the shrink AND
@@ -552,7 +565,7 @@ body {
   border: 1.5px solid var(--gold-bright); animation: target-pulse 0.9s ease infinite;
 }
 @keyframes target-pulse { 50% { opacity: 0.35; } }
-.fig-name { font-size: 9px; letter-spacing: 0.2em; color: var(--ink); }
+.fig-name { white-space: nowrap; font-size: 9px; letter-spacing: 0.2em; color: var(--ink); }
 .figure.enemy .fig-name { color: var(--ink-dim); }
 .hp-bar { width: 92%; height: 5px; border-radius: 3px; background: rgba(0,0,0,0.6); border: 1px solid rgba(232,220,196,0.16); overflow: hidden; }
 .hp-fill { height: 100%; background: linear-gradient(90deg, #7a5c30, var(--gold)); transition: width 0.3s ease; }

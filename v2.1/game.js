@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 240;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 241;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -3115,7 +3115,7 @@ let _foeAnimT = null;
 function foeAnimAttach(uid, el) {
   _foeAnim[uid] = { el, state: 'idle', frame: 0, at: performance.now() };
   foeAnimPaint(_foeAnim[uid]);
-  if (!_foeAnimT) _foeAnimT = setInterval(foeAnimTick, 50);
+  if (!_foeAnimT) _foeAnimT = setInterval(foeAnimTick, 80);
 }
 function foeAnimState(uid, state) {
   const a = _foeAnim[uid];
@@ -3143,6 +3143,7 @@ function foeAnimPaint(a) {
   a.el.style.backgroundPosition = (-(x * scale)) + 'px ' + (-(y * scale) + (boxH - h * scale)) + 'px';
 }
 function foeAnimTick() {
+  if (document.hidden) return;
   const now = performance.now();
   let live = 0;
   for (const uid in _foeAnim) {
@@ -6833,6 +6834,7 @@ function startFight(node) {
   S = newBattle(node);
   _bossFig = null;   // a fresh fight builds its own boss figure (uids can repeat across fights)
   _partyFigs = {};   // and fresh party figures (drag closures capture this fight's hero objects)
+  _enemyFigs = {};   // and fresh enemy-line figures (same reuse cache as the party)
   hideOverlay();
   flashNarrator(node.narrator || '');
   renderAll();
@@ -8178,6 +8180,7 @@ function snapFx(who, obj) { who._fxPrev = obj; }
 // re-parse — the same optimisation the floor boss uses).  These build the
 // mutable bits so a re-render only swaps chips / hp / aura, never the art.
 let _partyFigs = {};
+let _enemyFigs = {};   // uid -> cached enemy figure element (see renderEnemies)
 function partyChipsHtml(who) {
   return `
     ${who.invuln ? `<span class="chip buff${chipPop(who,'invuln',1)}">✦ INVULN</span>` : ''}
@@ -8367,18 +8370,35 @@ function renderBattlefield() {
     slot.dataset.row = row;
     const e = S.enemies.find(x => x.row === row && (!x.dead || x._justDied));
     if (e) {
-      const fig = document.createElement('div');
-      // PRIMED — this foe is set up for a TECHNICAL detonation (chilled or
-      // weakened).  A pulsing electric ring + ⚡ tag reads "hit me for a combo".
       const primed = !!(e.lull || e.weakened || e.staggered);
-      fig.className = 'figure enemy' + (e._justDied ? ' fig-dying' : '') + (primed && !e._justDied ? ' fig-primed' : '');
-      fig.dataset.fig = e.uid;
+      // REUSE the figure across renders (Build 241) — this was the LAG: every
+      // renderAll rebuilt each enemy from scratch, re-parsing its SVG portrait
+      // and re-rasterizing its drop-shadow filters, several times per action.
+      // The boss and the party were cached builds ago for exactly this reason;
+      // the line never was.  Moving a cached node between slots is free.
+      let fig = _enemyFigs[e.uid];
+      if (fig && !e._justDied && fig.querySelector('.fig-art *')) {
+        const swap = (sel, html) => { const el = fig.querySelector(sel); if (el && html) { const t = document.createElement('div'); t.innerHTML = html; el.replaceWith(t.firstElementChild); } };
+        swap('.intent', enemyIntentHtml(e));
+        swap('.fig-chips', enemyChipsHtml(e));
+        const art = fig.querySelector('.fig-art');
+        if (art) { const oa = art.querySelector('.fig-aura'); if (oa) oa.remove(); const a = enemyAuraHtml(e); if (a) art.insertAdjacentHTML('beforeend', a); }
+        const fill = fig.querySelector('.hp-fill'); if (fill) fill.style.width = (e.hp / e.maxHp * 100) + '%';
+        const hpNum = fig.querySelector('.hp-num'); if (hpNum) hpNum.textContent = e.hp + '/' + e.maxHp;
+      } else {
+        fig = document.createElement('div');
+        fig.dataset.fig = e.uid;
+        fig.innerHTML = enemyFigInner(e);
+        _enemyFigs[e.uid] = fig;
+      }
       const targetable = targeting && !targeting.isRow && targeting.validIds.includes(e.uid);
-      if (targetable) fig.classList.add('fig-targetable');
-      fig.innerHTML = enemyFigInner(e);
+      fig.className = 'figure enemy' + (e._justDied ? ' fig-dying' : '') + (primed && !e._justDied ? ' fig-primed' : '') + (targetable ? ' fig-targetable' : '');
       snapFx(e, { weakened: e.weakened ? 1 : 0, staggered: e.staggered ? 1 : 0, guard: e.guard, power: e.power, mark: e.mark, lull: e.lull });
       fig.onclick = () => onFigureTap(e.uid);
       slot.appendChild(fig);
+    } else {
+      const dead = S.enemies.find(x => x.row === row && x.dead && !x._justDied);
+      if (dead) delete _enemyFigs[dead.uid];
     }
     enemyHalf.appendChild(slot);
   });
