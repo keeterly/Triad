@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 253;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 254;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -2451,11 +2451,11 @@ function offerBondFollow(attackerId) {
 // has one, the cut-in becomes a big cinematic band; otherwise it falls back to the
 // small skewed portrait panel.  Positions frame each character's face in the band.
 const CUTIN_SPLASH = {
-  cassia:  { url: '../art/splash-cassia.png',  pos: '62% 20%' },
-  hask:    { url: '../art/splash-hask.png',     pos: '64% 24%' },
-  branwen: { url: '../art/splash-branwen.png',  pos: '58% 18%' },
-  elin:    { url: '../art/splash-elin.png',     pos: '70% 26%' },
-  mira:    { url: '../art/splash-mira.png',      pos: '68% 26%' },
+  cassia:  { url: '../art/splash-cassia.webp',  pos: '62% 20%' },
+  hask:    { url: '../art/splash-hask.webp',     pos: '64% 24%' },
+  branwen: { url: '../art/splash-branwen.webp',  pos: '58% 18%' },
+  elin:    { url: '../art/splash-elin.webp',     pos: '70% 26%' },
+  mira:    { url: '../art/splash-mira.webp',      pos: '68% 26%' },
 };
 async function heroCutIn(heroId, kicker, big, sub, hold) {
   let el = document.getElementById('follow-cutin');
@@ -3238,7 +3238,7 @@ function foeArtHTML(key, uid, animKey) {
     : '';
   const base = (!key || !ENEMY_ART_PNG[key]) ? vec
     : `<span class="fig-vec">${vec}</span>`
-    + `<img class="fig-png" src="../art/foe-${key}.png" alt="" decoding="async"`
+    + `<img class="fig-png" src="../art/foe-${key}.webp" alt="" decoding="async"`
     + ` onload="this.classList.add('fig-png-on')" onerror="this.remove()">`;
   return base + anim;
 }
@@ -3281,7 +3281,7 @@ const enemyArt = (e) => foeArtHTML(enemyArtKey(e), e && e.uid, e && FOE_ANIM[e.i
 // until its sheet actually loads — the vector/plate stays, no 404 storms, and
 // the sheet lights up the moment the file lands in /art.
 const FOE_ANIM = {
-  echoknight2: 'boss-anim.png',   // THE ECHO KNIGHT, REMEMBERED — the floor-1 boss
+  echoknight2: 'boss-anim.webp',   // THE ECHO KNIGHT, REMEMBERED — the floor-1 boss
 };
 // Frame rects in SHEET PIXELS [x, y, w, h], calibrated against the real
 // art's alpha content (rows segmented by opacity profile; the attack row's
@@ -9045,7 +9045,7 @@ const CARD_ART = {};
 function cardArtUrl(id) {
   if (id in CARD_ART) return CARD_ART[id];
   const p = (typeof V2PORTRAITS !== 'undefined' && V2PORTRAITS[id]) || '';
-  const m = p.match(/href="(\.\.\/art\/[^"]+\.png)"/);
+  const m = p.match(/href="(\.\.\/art\/[^"]+\.(?:webp|png))"/);   // Build 254: art is WebP now
   return CARD_ART[id] = (m ? m[1] : '');
 }
 // Per-hero BUST framing — each portrait is composed differently (Elin has a tall
