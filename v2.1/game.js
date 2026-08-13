@@ -21,10 +21,14 @@
 
 'use strict';
 
-const V2_BUILD = 246;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 247;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
+// A pair at this many points is WOVEN — the game's ONE named bond state. It is
+// what the victory screen celebrates, what the journal prints, what walks a pair
+// into battle already connected, and (Build 247) what opens a crossing.
+const BOND_KINDLED = 2;
 function chargeCap(h) { return (h && h.id === 'hask' && hasNode('hask.passive.conduit')) ? 6 : CHARGE_CAP; }
 function chargeDmg() { return hasNode('hask.passive.meltdown') ? 5 : CHARGE_DMG; }
 const $ = (sel) => document.querySelector(sel);
@@ -641,7 +645,16 @@ function isPassiveNode(n) { return (n.type === 'passive' || n.type === 'synergy'
 //
 // Crossings are PER RUN: RUN.crossed dies with RUN.nodes, so this is a lattice
 // you re-solve each descent, not a hundred-hour grid.
-const CROSS_BOND = 3;                  // ABOVE BOND_KINDLED (2) — a crossing is earned, never automatic
+// THE GATE IS THE THREAD (Build 247).  This was a bare 3 — a threshold that sat
+// BETWEEN the game's named bond states and therefore meant nothing in fiction:
+// nothing happens at three points, so "♡ 2/3" asked the player to care about a
+// number the story never mentions.  A crossing is now gated on the pair being
+// WOVEN, the one state this game already dramatises — the narrator calls it, the
+// victory screen prints it, the pair walks into battle connected because of it.
+// You learn from someone you are BONDED to; that sentence is now literally the
+// rule.  Scarcity comes from the teacher having to own the node and from the
+// kinship price, not from an arbitrary extra point.
+const CROSS_BOND = BOND_KINDLED;
 const CROSS_MULT = [1.8, 1.35, 1.0];   // indexed by shared axes: strangers · kin · twins
 // how many archetype axes two heroes share (school, tempo) — 0, 1 or 2
 function kinship(a, b) {
@@ -2195,7 +2208,7 @@ function reinforceBond(key) {
   RUN.bonds[key] = before + 1;
   const [x, y] = key.split('|');
   flashNarrator(RUN.bonds[key] >= BOND_KINDLED && before < BOND_KINDLED
-    ? '✦ WOVEN — ' + HEROES[x].name + ' & ' + HEROES[y].name + ' now answer each other’s finishers.'
+    ? '✦ WOVEN — ' + HEROES[x].name + ' & ' + HEROES[y].name + ' answer each other’s finishers — and can now learn from each other.'
     : '♡ Their bond deepens.');
   renderResonance();
 }
@@ -2879,7 +2892,6 @@ function newRun(starterId) {
   };
 }
 const FLOORS = 4;         // total floors — floor 4 is the short mega-boss gauntlet
-const BOND_KINDLED = 2;
 const bondPts = (k) => (RUN && RUN.bonds && RUN.bonds[k]) || 0;
 function saveRun() { try { localStorage.setItem(RUN_KEY, RUN ? JSON.stringify(RUN) : ''); } catch (_) {} }
 function loadRun() { try { const r = localStorage.getItem(RUN_KEY); return r ? JSON.parse(r) : null; } catch (_) { return null; } }
@@ -9760,7 +9772,7 @@ function showEmberTree(onBack, heroId, selId) {
     const glyph = c.state === 'crossed' ? '✓' : c.state === 'open' || c.state === 'poor' ? '⟡' : '🔒';
     const foot = c.state === 'crossed' ? 'LEARNED'
       : c.state === 'untaught' ? HEROES[c.teacher].name + ' must learn it'
-      : c.state === 'unbonded' ? '♡ ' + c.bond + '/' + CROSS_BOND
+      : c.state === 'unbonded' ? '♡ ' + c.bond + '/' + CROSS_BOND + ' WOVEN'
       : '✦' + c.cost;
     return `<button class="et-orb et-cross et-x-${c.state}${id === selId ? ' et-sel' : ''}" data-id="${id}"
        style="left:${(p.x / W) * 100}%; top:${(p.y / H) * 100}%; --tint:${HEROES[c.teacher].tint}">
@@ -9794,7 +9806,7 @@ function showEmberTree(onBack, heroId, selId) {
     const c = selCross, T = HEROES[c.teacher], L = HEROES[heroId];
     const act = c.state === 'crossed' ? '<span class="et-d-owned">⟡ LEARNED</span>'
       : c.state === 'untaught' ? `<span class="et-d-lock">${T.name} has not kindled it yet</span>`
-      : c.state === 'unbonded' ? `<span class="et-d-lock">bond ♡ ${c.bond} — needs ♡ ${CROSS_BOND}; fight on together</span>`
+      : c.state === 'unbonded' ? `<span class="et-d-lock">their bond is not <b>WOVEN</b> yet (♡ ${c.bond}/${CROSS_BOND}) — hold the thread through another fight</span>`
       : `<button class="et-d-buy${c.state === 'poor' ? ' et-d-cant' : ''}" id="et-cross-buy" ${c.state === 'poor' ? 'disabled' : ''}>LEARN · ✦ ${c.cost}</button>`;
     detail = `<div class="et-d-head"><span class="et-d-type t-cross">${KIN_WORD[c.kin]}</span><span class="et-d-name">${c.node.label}</span></div>
       <div class="et-d-cross">${L.name} learns this from <b style="color:${T.tint}">${T.name}</b>${c.kin ? ` — ${c.kin === 2 ? 'the same school AND the same tempo' : 'a shared ' + (T.school === L.school ? 'school' : 'tempo')}, so it comes cheap` : ' — nothing in common, so it comes dear'}.</div>
@@ -9827,7 +9839,7 @@ function showEmberTree(onBack, heroId, selId) {
         <b style="color:${HEROES[a].tint}">${HEROES[a].name}</b>
         <i class="wv-link">${open ? '⟡' : '·'}</i>
         <b style="color:${HEROES[b].tint}">${HEROES[b].name}</b>
-        <em>♡${bond}${open ? '' : '/' + CROSS_BOND} · ${KIN_WORD[kin]}${open && doors ? ' · ' + doors + ' door' + (doors === 1 ? '' : 's') : ''}</em>
+        <em>${open ? 'WOVEN' : '♡' + bond + '/' + CROSS_BOND} · ${KIN_WORD[kin]}${open && doors ? ' · ' + doors + ' door' + (doors === 1 ? '' : 's') : ''}</em>
       </span>`);
     }
     return `<div class="et-weave">${edges.join('')}</div>`;

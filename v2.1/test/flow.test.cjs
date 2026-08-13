@@ -3960,6 +3960,7 @@ const QUICK = process.argv.includes('--quick');
   // block exists to catch is a crossing that costs embers and silently does
   // NOTHING, so the behavioural checks read combat outcomes, not stored state.
   console.log('--- THE WEAVE ---');
+  const BOND_KINDLED_VALUE = await J(() => BOND_KINDLED);
   const weaveRun = (bond) => J((b) => {
     RUN = newRun('ash');
     RUN.roster = ['ash', 'mira', 'cassia']; RUN.active = ['ash', 'mira', 'cassia'];
@@ -3979,11 +3980,16 @@ const QUICK = process.argv.includes('--quick');
       && kinship('ash', 'cassia') === 0));
   check('WEAVE: Cassia is nobody’s kin — and is NOT stranded, she pays the stranger’s rate',
     await J(() => ['ash', 'mira', 'hask', 'elin', 'branwen'].every(x => kinship('cassia', x) === 0)));
-  await weaveRun(2);
-  check('WEAVE: a KINDLED bond (2) is not enough — the crossing gate sits above it',
+  await weaveRun(1);
+  check('WEAVE: an unwoven bond opens nothing — you cannot learn from a stranger',
     await J(() => crossOffersFor('ash').length === 0));
-  await weaveRun(3);
-  check('WEAVE: at bond 3 the door opens on what the fielded party can teach',
+  // THE GATE IS THE THREAD: the door opens exactly when the pair goes WOVEN,
+  // the game's one named bond state, rather than at a number invented for this
+  // system. If BOND_KINDLED ever moves, the crossing gate moves with it.
+  check('WEAVE: the crossing gate IS the woven thread, not a separate threshold',
+    await J(() => CROSS_BOND === BOND_KINDLED));
+  await weaveRun(BOND_KINDLED_VALUE);
+  check('WEAVE: the moment a pair goes WOVEN, the door opens on what they can teach',
     await J(() => crossOffersFor('ash').map(n => n.id).sort().join(',')
       === 'cassia.passive.vigil,mira.passive.opportunist'));
   check('WEAVE: price scales with kinship — kin cheaper than strangers, both above list',
@@ -4019,7 +4025,7 @@ const QUICK = process.argv.includes('--quick');
     startFight({ type: 'fight', chapter: 3, heroes: RUN.active.slice(), enemies: ['husk'], useRunHp: true, floor: 1, depth: 3, narrator: 'weave' });
     renderAll(); return true;
   });
-  await weaveRun(3); await weaveFight();
+  await weaveRun(BOND_KINDLED_VALUE); await weaveFight();
   const oppDmg = () => J(() => { const f = livingEnemies()[0]; f.mark = 2;
     return { ash: passiveDmg(S.heroes.find(h => h.id === 'ash'), f),
              mira: passiveDmg(S.heroes.find(h => h.id === 'mira'), f) }; });
@@ -4034,7 +4040,7 @@ const QUICK = process.argv.includes('--quick');
   const vigilGuard = () => J(() => { S.heroes.forEach(h => { h.guard = 0; });
     S.heroes.forEach(h => firePassives('turnStart', h.id));
     return S.heroes.reduce((o, h) => (o[h.id] = h.guard, o), {}); });
-  await weaveRun(3); await J(() => { RUN.nodes = ['cassia.passive.vigil']; RUN.crossed = {}; });
+  await weaveRun(BOND_KINDLED_VALUE); await J(() => { RUN.nodes = ['cassia.passive.vigil']; RUN.crossed = {}; });
   await weaveFight();
   const wvVigilA = await vigilGuard();
   await J(() => { RUN.crossed = { ash: ['cassia.passive.vigil'] }; });
@@ -4067,7 +4073,7 @@ const QUICK = process.argv.includes('--quick');
     RUN.nodes = ['mira.passive.opportunist', 'cassia.passive.vigil', 'cassia.passive.bastion',
                  'ash.sig.front', 'ash.passive.vanguard'];
     RUN.crossed = { ash: ['cassia.passive.vigil'] };
-    RUN.bonds = { 'ash|mira': 4, 'ash|cassia': 3, 'cassia|mira': 1 };   // mira↔cassia stays SHUT
+    RUN.bonds = { 'ash|mira': 4, 'ash|cassia': BOND_KINDLED, 'cassia|mira': BOND_KINDLED - 1 };   // mira↔cassia stays UNWOVEN
     RUN.embers = 14; RUN.floor = 1; RUN.completed = [0, 1, 2, 3];
     RUN.map = generateDescent(RUN.roster, 1);
     // the canvas pans and zooms, and TREE_PAN/TREE_ZOOM persist per hero for the
@@ -4131,12 +4137,12 @@ const QUICK = process.argv.includes('--quick');
     await J(() => { const shut = [...document.querySelectorAll('.et-orb.et-x-unbonded')];
       return shut.length === 2
         && shut.every(o => (o.querySelector('.et-orb-name') || {}).textContent)
-        && shut.every(o => /♡ 1\/3/.test((o.querySelector('.et-orb-cost') || {}).textContent || '')); }),
+        && shut.every(o => /WOVEN/.test((o.querySelector('.et-orb-cost') || {}).textContent || '')); }),
     await J(() => [...document.querySelectorAll('.et-orb.et-x-unbonded .et-orb-cost')].map(e => e.textContent).join(' · ')));
   check('LATTICE: a shut door offers no way to buy it',
     await J(() => { const el = document.querySelector('.et-orb.et-x-unbonded'); if (!el) return false;
       el.click(); return true; }) && (await sleep(320), await J(() =>
-      !document.getElementById('et-cross-buy') && /needs ♡/.test(document.querySelector('.et-detail').textContent))));
+      !document.getElementById('et-cross-buy') && /not .*WOVEN/.test(document.querySelector('.et-detail').textContent))));
   check('LATTICE: still nothing clipped from a hero whose doors are mostly shut',
     (await clipped()).length === 0, (await clipped()).join(', '));
   await J(() => hideOverlay());
