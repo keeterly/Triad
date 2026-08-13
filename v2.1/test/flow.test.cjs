@@ -969,6 +969,33 @@ const QUICK = process.argv.includes('--quick');
     await J(() => /camPose\(CAM_POSE_ENEMY/.test(endTurn.toString()) && /camPose\(CAM_POSE_PLAYER/.test(endTurn.toString())));
   check('POSE: a fight teardown clears the pose — menus never inherit a lean',
     await J(() => /CAM_POSE_HOME/.test(clearAim.toString())));
+  check('DRAMA: a KILL earns a held CUT — hard in, held, then the slow pull home',
+    await J(async () => {
+      // A THROWAWAY fight — really killing a shared enemy mid-suite left later
+      // tests with a corpse whose figure sometimes never re-rendered.
+      startFight({ type: 'fight', chapter: 3, heroes: ['ash', 'elin', 'mira'], enemies: ['husk', 'wraith'], useRunHp: true, narrator: 'kill drill' });
+      await new Promise(r => setTimeout(r, 500));
+      camRelease(); camPose(CAM_POSE_PLAYER, 0);
+      await new Promise(r => setTimeout(r, 120));
+      const e = S.enemies[0]; e.hp = 1;
+      const dzAt = () => parseFloat(document.getElementById('stage').style.getPropertyValue('--cam-dz'));
+      dealToEnemy(e, 10, 'blade', 'ash');
+      await new Promise(r => setTimeout(r, 200));
+      const cut = dzAt();                       // mid-hold: the cut frame
+      await new Promise(r => setTimeout(r, 1500));
+      const back = dzAt();                      // settled into the pose
+      // hand the NEXT tests a pristine fight
+      startFight({ type: 'fight', chapter: 3, heroes: ['ash', 'elin', 'mira'], enemies: ['husk'], useRunHp: true, narrator: 'post drill' });
+      await new Promise(r => setTimeout(r, 600));
+      return cut > 150 && Math.abs(back - CAM_POSE_PLAYER.dz) < 1;
+    }));
+  check('DRAMA: an unparried enemy blow shoves the lens toward the STRUCK HERO (the mirror punch)',
+    await J(() => {
+      const src = enemyPhase.toString();
+      return /camPunch\(dtier, figEl\(h\.id\)\)/.test(src);
+    }));
+  check('DRAMA: the enemy pose looks slightly UP at them — the menace angle',
+    await J(() => CAM_POSE_ENEMY.pitch > CAM_POSE_PLAYER.pitch && CAM_POSE_ENEMY.y > CAM_POSE_PLAYER.y));
   check('ACTOR BEAT: a damage card leans toward its HERO before the impact shoves toward the target',
     await J(() => {
       const src = playCard.toString();

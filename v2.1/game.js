@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 231;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 232;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -4333,7 +4333,13 @@ function dealToEnemy(e, amt, school, byHeroId) {
     hitFlash(3);                                    // the kill gets a white flash + slow-mo beat
     const el = figEl(e.uid);
     if (el) { el.classList.add('fig-dying'); deathBurst(el); }
-    camPunch(3, el);                                // and the lens lingers on the kill
+    // THE KILL CUT — hard in on the dying foe, dutched, and HELD long enough
+    // to watch it come apart before the slow pull home.
+    if (!camReduced() && !_camHeld) {
+      camFocus(el, { z: 1.16, dz: 185, r: 1.2, yaw: 2.6, pitch: 1.0, pull: 0.45, ms: 80 });
+      clearTimeout(_camOutT);
+      _camOutT = setTimeout(() => camReset(820), 560);
+    }
     setTimeout(() => { e._justDied = false; if (S && !S.over) renderAll(); }, 750);
   }
 }
@@ -4349,8 +4355,8 @@ function dealToEnemy(e, amt, school, byHeroId) {
 // reads as a lazy zoom no matter how big the number is.
 const CAM_HOME = { x: 0, y: 0, z: 1, r: 0, dz: 0, pitch: 0, yaw: 0 };
 const CAM_MAX_PAN = 120;   // px the lens may truck off centre
-const CAM_MAX_DZ = 210;    // px it may dolly in
-const CAM_MAX_ROLL = 5;    // deg of dutch — past this it reads as a broken TV
+const CAM_MAX_DZ = 260;    // px it may dolly in
+const CAM_MAX_ROLL = 6.5;  // deg of dutch — past this it reads as a broken TV
 const CAM_SNAP = 'cubic-bezier(.16,.84,.28,1)';   // hard out — the punch
 const CAM_SETTLE = 'cubic-bezier(.22,.61,.36,1)'; // soft — the drift home
 let _camHeld = 0;      // >0 while a rhythm window owns the frame
@@ -4391,8 +4397,10 @@ function cam(spec) {
 // Every punch, focus and cinematic settles back into the ACTIVE pose, so the
 // whole fight reads as photographed rather than surveilled.
 const CAM_POSE_HOME   = { x: 0, y: 0, z: 1, r: 0, dz: 0, pitch: 0, yaw: 0 };
-const CAM_POSE_PLAYER = { x: 22, y: 0, z: 1.012, r: -0.3, dz: 26, pitch: 0.7, yaw: 3.6 };
-const CAM_POSE_ENEMY  = { x: -22, y: 0, z: 1.012, r: 0.3, dz: 26, pitch: 0.7, yaw: -3.6 };
+const CAM_POSE_PLAYER = { x: 34, y: 2, z: 1.02, r: -0.55, dz: 46, pitch: 1.1, yaw: 5.4 };
+// the enemy pose sits a touch LOWER (positive y, higher pitch): the lens looks
+// slightly up at them — the classic menace angle.
+const CAM_POSE_ENEMY  = { x: -34, y: 5, z: 1.02, r: 0.55, dz: 46, pitch: 1.6, yaw: -5.4 };
 let _camBase = CAM_POSE_HOME;
 function camPose(pose, ms) {
   _camBase = pose || CAM_POSE_HOME;
@@ -4437,11 +4445,11 @@ function camPunch(power, toEl) {
   const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
   if (now - _camPunchAt < 150 && p <= _camPunchPow) return;
   _camPunchAt = now; _camPunchPow = p;
-  const dz = [20, 46, 92, 152][p];          // TRUE dolly, not a zoom
-  const r = [0, 0.12, 0.3, 0.62][p];
-  const yaw = [0.2, 0.6, 1.3, 2.4][p];      // a hair of orbit sells the depth
-  const pitch = [0, 0.15, 0.4, 0.9][p];
-  const inMs = [170, 140, 110, 85][p];      // heavier = FASTER in. that IS the punch
+  const dz = [26, 62, 124, 200][p];         // TRUE dolly, not a zoom
+  const r = [0, 0.18, 0.45, 0.9][p];
+  const yaw = [0.3, 0.9, 1.9, 3.4][p];      // a real bite of orbit sells the depth
+  const pitch = [0, 0.2, 0.6, 1.3][p];
+  const inMs = [160, 130, 100, 78][p];      // heavier = FASTER in. that IS the punch
   const o = toEl ? camOffsetTo(toEl) : null;
   const pull = [0.05, 0.10, 0.16, 0.24][p];
   const dir = o && o.dx < 0 ? -1 : 1;
@@ -4452,7 +4460,7 @@ function camPunch(power, toEl) {
   // HOLD, then drift. A shot that starts leaving the instant it arrives reads
   // as a twitch; letting the heavy hits SIT for a beat is what makes them land.
   // The hold scales with weight and brackets the existing hitstop (95/155ms).
-  _camOutT = setTimeout(() => camReset([380, 440, 540, 700][p]), inMs + [60, 90, 160, 250][p]);
+  _camOutT = setTimeout(() => camReset([380, 450, 570, 760][p]), inMs + [60, 100, 190, 310][p]);
 }
 // ══ PARRY CINEMA (Build 230) — the Clair Obscur defensive camera ═════════
 // Their combat sells a block as a piece of film: the lens composes the
@@ -4473,11 +4481,11 @@ function parryCam(i, total, q) {
   const t = total > 1 ? Math.min(1, i / (total - 1)) : 1;   // 0..1 through the string
   const dir = (i % 2) ? -1 : 1;                             // the dutch whips side to side
   const perfect = q === 'perfect', miss = q === 'miss';
-  const dz = 44 + t * 52 + (perfect ? 24 : 0);
-  const roll = dir * (0.8 + t * 2.0) + (perfect ? dir * 1.0 : 0) - (miss ? dir * 1.8 : 0);
+  const dz = 58 + t * 76 + (perfect ? 34 : 0);
+  const roll = dir * (1.1 + t * 2.6) + (perfect ? dir * 1.3 : 0) - (miss ? dir * 2.4 : 0);
   cam({ dz, z: 1 + (dz / 1150) * 0.35, r: roll,
-        yaw: dir * (0.5 + t * 1.3), pitch: 0.5 + t * 0.9,
-        ms: perfect ? 70 : miss ? 140 : 95, ease: CAM_SNAP, force: true });
+        yaw: dir * (0.7 + t * 1.9), pitch: 0.7 + t * 1.3,
+        ms: perfect ? 62 : miss ? 150 : 88, ease: CAM_SNAP, force: true });
 }
 // THE HELD FRAME — a cinematic that owns the camera (the all-out) still wants
 // to BREATHE. Steps the shot in a notch and keeps it there, fast enough to
@@ -5186,7 +5194,7 @@ async function windupTell(e, intent) {
     // Obscur block reads as cinema instead of a QTE prompt.
     const def = (typeof heroInRow === 'function' && intent && intent.row) ? heroInRow(intent.row) : null;
     const subjects = [fig, def && figEl(def.id)].filter(Boolean);
-    camFocus(subjects, { z: 1.06, dz: 62, yaw: -2.0, pitch: 1.0, r: -0.7, pull: 0.36, ms: 300 });
+    camFocus(subjects, { z: 1.085, dz: 88, yaw: -2.8, pitch: 1.4, r: -1.0, pull: 0.4, ms: 280 });
     await sleep(460);
     fig.classList.remove('fig-windup', pose);
   } catch (_) {}
@@ -5321,7 +5329,7 @@ async function triadCeremony() {
   SFX.triad();
   // A slow tilt-up onto the three of them.  This is the game's biggest story
   // beat and until Build 225 it played on a completely locked-off shot.
-  cam({ z: 1.14, dz: 120, r: -1.0, y: 12, pitch: 2.6, yaw: -4, ms: 1400, ease: 'cubic-bezier(.28,.62,.32,1)', force: true });
+  cam({ z: 1.18, dz: 165, r: -1.4, y: 14, pitch: 3.2, yaw: -5.5, ms: 1400, ease: 'cubic-bezier(.28,.62,.32,1)', force: true });
   await sleep(700);
   const r = triadEntry();
   const names = livingHeroes().map(h => h.def.name).join(' · ');
@@ -5686,7 +5694,7 @@ async function resolveAllOut() {
   // with nothing rect-anchored on the field — so by the time the cascade
   // starts placing strike notes the lens has already settled.  Then we HOLD,
   // so per-hit punches can't yank the frame out from under those notes.
-  cam({ z: 1.10, dz: 96, r: 0.7, pitch: 1.8, yaw: 2.0, ms: 900, ease: 'cubic-bezier(.22,.68,.28,1)', force: true });
+  cam({ z: 1.12, dz: 120, r: 0.9, pitch: 2.2, yaw: 2.6, ms: 900, ease: 'cubic-bezier(.22,.68,.28,1)', force: true });
   await allOutCineIntro(heroes);
   $('#stage').classList.add('allout-focus');
   camHold(true);
@@ -5763,10 +5771,10 @@ async function resolveAllOut() {
     // Safe to move here: the all-out's notes sit at PRE-COMPUTED stage points
     // (mkSeqPreview), not live figure rects, so the camera cannot drift them.
     // 110ms settles well inside the 150ms beat before the next note appears.
-    camStep(96 + Math.min(i, 7) * 13 + (good ? 16 : 0), {
-      yaw: 2.0 + Math.min(chain, 5) * 0.5,
-      pitch: 1.8 + Math.min(i, 6) * 0.16,
-      r: 0.7 + (good ? 0.25 : 0),
+    camStep(118 + Math.min(i, 7) * 17 + (good ? 22 : 0), {
+      yaw: 2.6 + Math.min(chain, 5) * 0.7,
+      pitch: 2.2 + Math.min(i, 6) * 0.22,
+      r: 0.9 + (good ? 0.35 : 0),
     });
     if (i < notes.length - 1) await sleep(150);   // a clear, even beat between strikes
   }
@@ -6157,8 +6165,8 @@ async function enemyPhase() {
           // instantly reads as a stat, a counter you SEE coming reads as a
           // decision the character made.
           try { parrySlowmo(true); } catch (_) {}
-          camFocus(figEl(ptHero.id), { z: 1.18, dz: 152, r: -1.7, yaw: -5, pitch: 1.4, pull: 0.5, ms: 85 });
-          await sleep(200);
+          camFocus(figEl(ptHero.id), { z: 1.2, dz: 195, r: -2.2, yaw: -6.5, pitch: 1.8, pull: 0.55, ms: 78 });
+          await sleep(270);
           cineFlash('rgba(255,205,130,0.42)'); stageShake('lg');
           lungeFig(figEl(ptHero.id));
           dealToEnemy(e, rip, ptHero.def.school, ptHero.id);   // through the hero's school → can exploit weakness
@@ -6228,6 +6236,10 @@ async function enemyPhase() {
           hitFlash(dtier);                      // a heavy enemy blow rocks the screen
           SFX.hit(big);
           if (dtier >= 1) stageShake(['sm', 'sm', 'lg', 'xl'][dtier]);
+          // THE BLOW LANDS ON US — the lens shoves toward the struck hero, the
+          // mirror of dealToEnemy's punch. (After a parry the camHold is
+          // already released, so this plays; DURING one, camPunch defers.)
+          camPunch(dtier, figEl(h.id));
           (e._damaged || (e._damaged = [])).push(h.id);   // remembered for AVENGE
           // DRAIN — the Maw feeds: a share of the damage dealt heals it.  Staggered
           // (its wind-up broken) it cannot feed, so STAGGER is the counter.
@@ -6548,7 +6560,7 @@ function startFight(node) {
   // ESTABLISHING SHOT — a fight opens pushed in and TILTED, then breathes out
   // to true over a beat and a half.  Costs nothing and every encounter now
   // starts on a move instead of a locked-off plate.
-  try { _camBase = CAM_POSE_PLAYER; camIntro(node.isBoss ? 1.22 : 1.12, node.isBoss ? -1.2 : -0.5, node.isBoss ? 1600 : 1100); } catch (_) {}
+  try { _camBase = CAM_POSE_PLAYER; camIntro(node.isBoss ? 1.3 : 1.16, node.isBoss ? -1.8 : -0.8, node.isBoss ? 1900 : 1250); } catch (_) {}
   openingWeaves();   // kindled bonds enter already woven (their Chain is live from turn one)
 }
 
@@ -6993,7 +7005,7 @@ function megaStageBreak(e) {
   if (el) { el.classList.add('fig-dying'); deathBurst(el); }
   // A hard whip-pan onto the thing that just came apart, tilted off true —
   // the biggest single camera move in a normal fight.
-  camFocus(el, { z: 1.18, dz: 140, r: 1.3, yaw: 5, pitch: 1.6, ms: 130, pull: 0.8 });
+  camFocus(el, { z: 1.22, dz: 190, r: 1.8, yaw: 6.5, pitch: 2.1, ms: 115, pull: 0.85 });
   renderAll();
   // BEAT 2 — after the death lands, the reform cutscene, then rise anew.
   setTimeout(() => {
