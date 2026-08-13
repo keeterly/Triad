@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 232;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 233;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -3780,10 +3780,18 @@ async function playCard(card, targetId) {
   else if (card.owner !== 'triad') S.used.add(card.owner + ':' + card.kind);
   if (card.kind !== 'move') {
     SFX.card();
-    // THE ACTOR BEAT — the lens leans toward the hero as they act; the impact
-    // punch that follows (dealToEnemy) then shoves toward the TARGET. The
-    // two-beat is what makes a turn read as "this character did that."
-    if (card.fx && card.fx.dmg && card.owner && card.owner !== 'triad') camPunch(0, figEl(card.owner));
+    // THE ACTION SHOT — one glide that frames the ACTOR with their TARGET,
+    // held through everything this card resolves, released at the end of
+    // playCard. This replaced a lean-punch-settle sawtooth per card.
+    if (card.owner && card.owner !== 'triad' && !_camHeld) {
+      const actorEl = figEl(card.owner);
+      const tgtEl = targetId ? figEl(targetId)
+        : (card.target === 'frontmost' && frontmostEnemy() ? figEl(frontmostEnemy().uid) : null);
+      const offensive = !!(card.fx && card.fx.dmg);
+      camShot([actorEl, tgtEl].filter(Boolean),
+        offensive ? { z: 1.085, pull: 0.42, pitch: 1.0, r: 0.35 }
+                  : { z: 1.05, pull: 0.34, pitch: 0.7, r: -0.25, ms: 340 });
+    }
     // The card HURLS into the target (the strike).  A forging rotation card then
     // BOUNCES back to its slot and splits — see forgeReturnFx, which waits for the
     // hurl to land before the bounce.
@@ -3799,11 +3807,7 @@ async function playCard(card, targetId) {
     const o = S.heroes.find(h => h.id === card.owner);
     if (o && !o.downed) offerBondFollow(o.id);
   }
-  // A SUPPORT turn should not be silent — a heal or a ward gets a light lean
-  // toward whoever acted. camPunch's burst-collapse means a card that DID deal
-  // damage keeps its own, bigger shove instead of being undercut by this.
-  if (card.kind !== 'move' && !(card.fx && card.fx.dmg)) camPunch(0, figEl(card.owner));
-  S._camActor = null;
+  if (card.kind !== 'move') camShotEnd();   // the action ended — one glide home
   resolveChainPlay(card);                    // forge the rotation's next step(s); purge unpicked siblings
   // THE COMBO ENDED — a chain card with nothing left to forge is the only
   // structural definition of "the line is complete" the engine has (it's the
@@ -4303,7 +4307,10 @@ function dealToEnemy(e, amt, school, byHeroId) {
   hitFlash(tier);                                 // screen flash (+ hitstop if heavy)
   SFX.hit(big);
   if (tier >= 1) stageShake(['sm', 'sm', 'lg', 'xl'][tier]);
-  camPunch(tier, figEl(e.uid));                   // EVERY blow shoves the lens
+  // Inside a SHOT the lens is already composed on this action — hitstop, the
+  // shake and the flash carry the impact, and the frame HOLDS. Outside one
+  // (ripostes, counters, loose damage) the punch still answers.
+  if (!_camShot) camPunch(tier, figEl(e.uid));
   if (technical) {                                // detonation callout
     popupAt(figEl(e.uid), '⚡ TECHNICAL', 'tech');
     techBurst(figEl(e.uid));
@@ -4336,9 +4343,10 @@ function dealToEnemy(e, amt, school, byHeroId) {
     // THE KILL CUT — hard in on the dying foe, dutched, and HELD long enough
     // to watch it come apart before the slow pull home.
     if (!camReduced() && !_camHeld) {
-      camFocus(el, { z: 1.16, dz: 185, r: 1.2, yaw: 2.6, pitch: 1.0, pull: 0.45, ms: 80 });
+      _camShot = false;                            // the cut outranks the action shot
+      camFocus(el, { z: 1.16, dz: 185, r: 1.2, yaw: 2.6, pitch: 1.0, pull: 0.45, ms: 140 });
       clearTimeout(_camOutT);
-      _camOutT = setTimeout(() => camReset(820), 560);
+      _camOutT = setTimeout(() => { _camOutT = null; camReset(820); }, 560);
     }
     setTimeout(() => { e._justDied = false; if (S && !S.over) renderAll(); }, 750);
   }
@@ -4481,11 +4489,13 @@ function parryCam(i, total, q) {
   const t = total > 1 ? Math.min(1, i / (total - 1)) : 1;   // 0..1 through the string
   const dir = (i % 2) ? -1 : 1;                             // the dutch whips side to side
   const perfect = q === 'perfect', miss = q === 'miss';
-  const dz = 58 + t * 76 + (perfect ? 34 : 0);
-  const roll = dir * (1.1 + t * 2.6) + (perfect ? dir * 1.3 : 0) - (miss ? dir * 2.4 : 0);
+  // A SWAY, not a whip: half the roll, a third the speed. The escalating
+  // dolly still builds the string; the side-to-side is felt, not suffered.
+  const dz = 52 + t * 64 + (perfect ? 22 : 0);
+  const roll = dir * (0.55 + t * 1.2) + (perfect ? dir * 0.6 : 0) - (miss ? dir * 1.2 : 0);
   cam({ dz, z: 1 + (dz / 1150) * 0.35, r: roll,
-        yaw: dir * (0.7 + t * 1.9), pitch: 0.7 + t * 1.3,
-        ms: perfect ? 62 : miss ? 150 : 88, ease: CAM_SNAP, force: true });
+        yaw: dir * (0.4 + t * 1.0), pitch: 0.6 + t * 1.0,
+        ms: perfect ? 150 : miss ? 240 : 190, ease: CAM_SNAP, force: true });
 }
 // THE HELD FRAME — a cinematic that owns the camera (the all-out) still wants
 // to BREATHE. Steps the shot in a notch and keeps it there, fast enough to
@@ -4494,6 +4504,37 @@ function camStep(dz, opt) {
   const s = opt || {};
   cam({ dz, z: 1 + (dz / 1150) * 0.35, r: s.r || 0, yaw: s.yaw || 0, pitch: s.pitch || 0,
         ms: s.ms == null ? 110 : s.ms, ease: CAM_SNAP, force: true });
+}
+// ══ THE SHOT (Build 233) ══════════════════════════════════════════════════
+// The fix for "it jumps around": the camera stopped reacting per EVENT and
+// started thinking per ACTION.  Measured before this change, the framing
+// reversed direction 103 times a minute — every blow yanked the lens in and
+// let it drift out, three times a turn, a sawtooth.  A film camera takes a
+// SHOT: it glides to a composition when a character acts, HOLDS it through
+// everything that action does (the impact feel belongs to hitstop, the shake
+// and the flash — which we already have), and glides back when the action
+// ends.  One move in, one move out, per card.
+let _camShot = false, _camShotEndT = null;
+function camShot(els, opt) {
+  if (camReduced()) return;
+  // SHOT-TO-SHOT: if the last action's release glide is still pending, cancel
+  // it and glide STRAIGHT to the new composition — the camera never goes home
+  // between two quick actions. This is the difference between coverage and
+  // a security feed.
+  if (_camShotEndT) { clearTimeout(_camShotEndT); _camShotEndT = null; }
+  _camShot = true;
+  const o = opt || {};
+  camFocus(els, { z: o.z == null ? 1.075 : o.z, pull: o.pull == null ? 0.4 : o.pull,
+                  yaw: o.yaw || 0, pitch: o.pitch == null ? 0.8 : o.pitch, r: o.r || 0,
+                  ms: o.ms == null ? 300 : o.ms });
+}
+function camShotEnd(ms) {
+  _camShot = false;
+  if (_camOutT) return;   // a KILL CUT mid-shot owns the scene — let it finish
+  // The release waits a beat: if another action starts inside it, camShot
+  // cancels this and the lens glides shot-to-shot instead of home-and-back.
+  if (_camShotEndT) clearTimeout(_camShotEndT);
+  _camShotEndT = setTimeout(() => { _camShotEndT = null; camReset(ms == null ? 680 : ms); }, 260);
 }
 // Frame one or more subjects and HOLD — the cut-in shot.  Caller resets.
 function camFocus(els, opt) {
@@ -4520,7 +4561,7 @@ function camHold(on) {
   if (on) { _camHeld++; clearTimeout(_camOutT); _camOutT = null; }
   else if (_camHeld > 0) { _camHeld--; if (!_camHeld) camReset(360); }
 }
-function camRelease() { _camHeld = 0; _camPunchAt = 0; _camPunchPow = -1; clearTimeout(_camOutT); _camOutT = null; camReset(0); }
+function camRelease() { _camHeld = 0; _camShot = false; _camPunchAt = 0; _camPunchPow = -1; clearTimeout(_camOutT); _camOutT = null; clearTimeout(_camShotEndT); _camShotEndT = null; camReset(0); }
 // ESTABLISHING SHOT — open pushed in and tilted, then breathe out to true.
 // The settle timer goes through _camOutT so camRelease() can cancel it: a
 // fight torn down mid-intro must not shove the camera afterwards.
@@ -5194,7 +5235,7 @@ async function windupTell(e, intent) {
     // Obscur block reads as cinema instead of a QTE prompt.
     const def = (typeof heroInRow === 'function' && intent && intent.row) ? heroInRow(intent.row) : null;
     const subjects = [fig, def && figEl(def.id)].filter(Boolean);
-    camFocus(subjects, { z: 1.085, dz: 88, yaw: -2.8, pitch: 1.4, r: -1.0, pull: 0.4, ms: 280 });
+    camFocus(subjects, { z: 1.085, dz: 88, yaw: -2.8, pitch: 1.4, r: -1.0, pull: 0.4, ms: 400 });
     await sleep(460);
     fig.classList.remove('fig-windup', pose);
   } catch (_) {}
@@ -6038,7 +6079,7 @@ async function endTurn() {
   S.executing = true;
   $('#stage').classList.add('executing');
   renderAll();
-  camPose(CAM_POSE_ENEMY, 650);   // the lens swings to feature THEIR side of the field
+  camPose(CAM_POSE_ENEMY, 950);   // the lens swings to feature THEIR side of the field
   await enemyPhase();
   if (!S.over) {
     S.turn++;
@@ -6065,7 +6106,7 @@ async function endTurn() {
     // CAST-TIME payoff — a spell begun last turn UNLEASHES now (Hask's big casts).
     for (const h of livingHeroes()) { if (h.pendingCast && !S.over) await unleashCast(h); }
     turnBanner('TURN ' + S.turn, 'tb-player');
-    camPose(CAM_POSE_PLAYER, 750);   // …and back to feature the party
+    camPose(CAM_POSE_PLAYER, 1050);   // …and back to feature the party
     reofferFollowUp();   // a stance that survived the rollover can still be cued
     renderAll();
   }
@@ -6239,7 +6280,7 @@ async function enemyPhase() {
           // THE BLOW LANDS ON US — the lens shoves toward the struck hero, the
           // mirror of dealToEnemy's punch. (After a parry the camHold is
           // already released, so this plays; DURING one, camPunch defers.)
-          camPunch(dtier, figEl(h.id));
+          if (dtier >= 1) camPunch(dtier, figEl(h.id));
           (e._damaged || (e._damaged = [])).push(h.id);   // remembered for AVENGE
           // DRAIN — the Maw feeds: a share of the damage dealt heals it.  Staggered
           // (its wind-up broken) it cannot feed, so STAGGER is the counter.

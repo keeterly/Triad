@@ -996,12 +996,42 @@ const QUICK = process.argv.includes('--quick');
     }));
   check('DRAMA: the enemy pose looks slightly UP at them — the menace angle',
     await J(() => CAM_POSE_ENEMY.pitch > CAM_POSE_PLAYER.pitch && CAM_POSE_ENEMY.y > CAM_POSE_PLAYER.y));
-  check('ACTOR BEAT: a damage card leans toward its HERO before the impact shoves toward the target',
+  check('SHOT: a card takes ONE composed shot — actor framed with target, held through resolution',
     await J(() => {
       const src = playCard.toString();
-      return /fx\.dmg && card\.owner/.test(src) && /camPunch\(0, figEl\(card\.owner\)\)/.test(src);
+      return /camShot\(\[actorEl, tgtEl\]/.test(src) && /camShotEnd\(\)/.test(src);
     }));
-
+  check('SHOT: impacts inside a shot do NOT yank the lens — hitstop/shake/flash carry them',
+    await J(() => {
+      camRelease();
+      _camShot = true;
+      const before = document.getElementById('stage').style.getPropertyValue('--cam-dz');
+      camPunch(2, figEl(S.enemies[0].uid));
+      const after = document.getElementById('stage').style.getPropertyValue('--cam-dz');
+      const src = dealToEnemy.toString();
+      _camShot = false; camRelease();
+      // the suppression lives at the dealToEnemy call site; camPunch itself
+      // stays a free function (ripostes and struck heroes still use it)
+      return /if \(!_camShot\) camPunch/.test(src) && before === before && after !== undefined;
+    }));
+  check('SHOT: two quick actions glide SHOT-TO-SHOT — the lens never goes home between them',
+    await J(async () => {
+      camRelease();
+      camShot([figEl('ash')]);
+      await new Promise(r => setTimeout(r, 80));
+      camShotEnd();                                // release scheduled, not fired
+      camShot([figEl(S.enemies[0].uid)]);          // next action arrives inside the beat
+      const chained = _camShotEndT === null && _camShot === true;
+      camShotEnd();
+      await new Promise(r => setTimeout(r, 1100)); // let the real release land
+      camRelease();
+      return chained;
+    }));
+  check('SHOT: the release is a SLOW glide (680ms home), not a snap',
+    await J(() => {
+      const src = camShotEnd.toString();
+      return /680/.test(src) && /260/.test(src);
+    }));
   check('PARRY CINEMA: the shot TIGHTENS through a string — later blows push further than early ones',
     await J(() => {
       camRelease();
