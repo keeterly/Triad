@@ -182,8 +182,8 @@ body {
 @media (hover: none) {
   .hd-far  { filter: saturate(0.86) brightness(0.98) contrast(1.04); }
   .hd-near { filter: blur(3px); }
-  #party-half .slot[data-row="back"] .figure,
-  #enemy-half .slot[data-row="back"] .figure { filter: blur(0.7px) saturate(0.7) brightness(0.74); }
+  #party-half .slot[data-row="back"] .figure .fig-art,
+  #enemy-half .slot[data-row="back"] .figure .fig-art { filter: blur(0.7px) saturate(0.7) brightness(0.74); }
   .figure.floor-boss .fig-art svg { filter: drop-shadow(0 10px 20px rgba(0,0,0,0.9)) drop-shadow(0 0 18px rgba(190,44,40,0.4)); }
 }
 /* ══ CAMERA RIG (Build 225) ══════════════════════════════════════════════
@@ -423,14 +423,21 @@ body {
    now they also stagger in FOCUS and AIR.  The back rank sits a touch soft,
    cooler and hazier (atmospheric perspective); the front rank is crisp and
    warm.  This is the single strongest "diorama" cue after parallax. */
-#party-half .slot[data-row="back"] .figure,
-#enemy-half .slot[data-row="back"] .figure  { filter: blur(1.4px) saturate(0.7) brightness(0.74); }
-#party-half .slot[data-row="mid"] .figure,
-#enemy-half .slot[data-row="mid"] .figure   { filter: saturate(0.92) brightness(0.93); }
-#party-half .slot[data-row="front"] .figure,
-#enemy-half .slot[data-row="front"] .figure { filter: saturate(1.1) brightness(1.07); }
+/* DoF ON THE ART ONLY (Build 242) — the figure carries the nameplate, HP bar
+   and chips since Build 239, and blurring the whole figure made the back
+   rank's READOUT illegible.  Depth is an art-zone cue; information stays
+   crisp at every rank. */
+#party-half .slot[data-row="back"] .figure .fig-art,
+#enemy-half .slot[data-row="back"] .figure .fig-art  { filter: blur(1.4px) saturate(0.7) brightness(0.74); }
+#party-half .slot[data-row="mid"] .figure .fig-art,
+#enemy-half .slot[data-row="mid"] .figure .fig-art   { filter: saturate(0.92) brightness(0.93); }
+#party-half .slot[data-row="front"] .figure .fig-art,
+#enemy-half .slot[data-row="front"] .figure .fig-art { filter: saturate(1.1) brightness(1.07); }
+/* the far rank's TEXT dims a touch for depth but never blurs */
+#party-half .slot[data-row="back"] .fig-name, #enemy-half .slot[data-row="back"] .fig-name,
+#party-half .slot[data-row="back"] .fig-chips, #enemy-half .slot[data-row="back"] .fig-chips { opacity: 0.82; }
 /* the aimed/targeted figure always snaps to full focus, whatever its rank */
-.figure.fig-targetable, .figure.fig-aim, .slot .figure:hover { filter: none !important; }
+.figure.fig-targetable .fig-art, .figure.fig-aim .fig-art, .slot .figure:hover .fig-art { filter: none !important; }
 /* CONTACT SHADOW — an elliptical pool under each figure so they stand ON the
    ground plane instead of floating in front of it. */
 .figure .fig-art::before {
