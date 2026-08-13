@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 233;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 234;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -2819,6 +2819,12 @@ function newBattle(node) {
     row: ['front', 'mid', 'back'][i] || 'mid',
     guard: 0, power: 0, mark: 0, lull: 0, intentIdx: 0, dead: false, acted: false,
     weakRevealed: false, weakened: false, staggered: false,
+    // POISE (Build 234, the Octopath shield) — a VISIBLE break gauge. Every
+    // weakness hit chips one pip; at zero the foe BREAKS: it takes amplified
+    // damage until it recovers, and its next action is LOST. Sturdier foes
+    // carry more pips, so breaking an elite is a plan, not an accident.
+    poiseMax: ENEMY_DEFS[id].poise || (ENEMY_DEFS[id].boss ? 4 : ENEMY_DEFS[id].maxHp >= 30 ? 3 : 2),
+    poise: ENEMY_DEFS[id].poise || (ENEMY_DEFS[id].boss ? 4 : ENEMY_DEFS[id].maxHp >= 30 ? 3 : 2),
     smart: (node.floor || 1) >= 2,   // deeper foes HUNT the weakest of you (see effIntentRow)
   }));
   // DIFFICULTY — the tutorial (no useRunHp) stays a gentle on-ramp, but the
@@ -3931,6 +3937,13 @@ async function resolveCard(card, targetId) {
     else if (card.target === 'enemy') tgt = livingEnemies().find(e => e.uid === targetId) || frontmostEnemy();
     if (tgt) {
       let amt = (fx.dmg || 0) + (owner ? owner.buffDmg : 0);
+  // DESPERATION (Build 234, the Clair Obscur comeback): a hero at a quarter
+  // health strikes +2 harder. The execute-threshold grammar existed only in
+  // the player's favour; this is danger paying the PLAYER something too.
+  if (owner && owner.hp > 0 && owner.hp * 4 <= owner.maxHp && (fx.dmg || 0) > 0) {
+    amt += 2;
+    popupAt(figEl(owner.id), '🔥 DESPERATE +2', 'rally');
+  }
       // AEGIS NOVA (Cassia) — release the accumulated wall as ONE blow: add all her
       // current guard to the strike, then spend it.  Turtle up, then unleash.
       if (fx.guardBurst && owner) { const g = owner.guard || 0; amt += g; if (g) { owner.guard = 0; popupAt(figEl(owner.id), '⛨→⚔ ' + g, 'dmg'); } }
@@ -4017,7 +4030,9 @@ async function resolveCard(card, targetId) {
   }
   if (fx.mark) {
     const tgt = livingEnemies().find(e => e.uid === targetId);
-    if (tgt) { tgt.mark = fx.mark; popupAt(figEl(tgt.uid), '◎ EXPOSED +' + fx.mark, 'info'); if (owner) fireEmergent(owner.id, 'expose', card); }
+    // ADDITIVE, capped — the old assignment meant marking a foe at ◎4 with a
+    // mark:2 card silently LOWERED it to 2 while the popup claimed "+2".
+    if (tgt) { tgt.mark = Math.min(6, (tgt.mark || 0) + fx.mark); popupAt(figEl(tgt.uid), '◎ EXPOSED +' + fx.mark, 'info'); if (owner) fireEmergent(owner.id, 'expose', card); }
   }
   if (fx.lull) {
     const tgt = card.target === 'enemy' ? (livingEnemies().find(e => e.uid === targetId) || frontmostEnemy()) : frontmostEnemy();
@@ -4220,12 +4235,13 @@ function smartHookIntent(e) {
   return prime ? hook : null;
 }
 function dealToEnemy(e, amt, school, byHeroId) {
-  // STAGGER payoff: the next hit on a staggered enemy lands double.
+  // BREAK WINDOW (Build 234): a broken foe takes ×1.5 from EVERY hit until it
+  // recovers — a window the whole party piles into, not a single consumed ×2.
+  // The old one-shot ×2 meant the break and its interrupt were mutually
+  // exclusive by accident; the window makes them compound by design.
   if (e.staggered) {
-    amt *= 2;
-    e.staggered = false;
-    popupAt(figEl(e.uid), '×2!', 'dmg popup-big');
-    stageShake();
+    amt = Math.round(amt * 1.5);
+    popupAt(figEl(e.uid), '×1.5 BREAK', 'dmg');
   }
   // TECHNICAL — striking a PRIMED foe (CHILLED or WEAKENED) off the weakness
   // line detonates the setup for bonus damage + momentum.  This is the combo
@@ -4253,11 +4269,16 @@ function dealToEnemy(e, amt, school, byHeroId) {
   // cascade of forged finishers.)
   if (school && school === e.def.weak && e.hp > 0 && !S._burstResolving) {
     gainMomentum(10, { combo: true });            // exploiting a weakness builds burst
-    if (e.weakened) {
-      e.weakened = false;
+    e.weakened = true;                            // primes TECHNICAL until the enemy phase
+    if (!e.staggered && (e.poise || 0) > 0) {
+      e.poise -= 1;
+      popupAt(figEl(e.uid), '◈ POISE −1', 'info');
+    }
+    if (!e.staggered && (e.poise || 0) <= 0) {
       e.staggered = true;
       gainMomentum(18);                            // the BREAK is a big surge
-      popupAt(figEl(e.uid), '⚡ STAGGERED', 'info');
+      popupAt(figEl(e.uid), '⚡ BROKEN', 'dmg popup-big');
+      flashNarrator(e.def.name + ' is BROKEN — it reels, and every blow lands harder until it recovers.');
       SFX.follow();
       // EMERGENT: a broken-open foe is also left EXPOSED — the stagger feeds the
       // whole mark ecosystem, so any hero's ◎ payoffs (Opportunist, Hunter's
@@ -4287,10 +4308,9 @@ function dealToEnemy(e, amt, school, byHeroId) {
         pulseEp();
         popupAt(figEl(e.uid), '+1 EP · PRESS ON', 'rally');
       }
-    } else {
-      e.weakened = true;
-      popupAt(figEl(e.uid), '⌖ WEAKENED', 'info');
-      if (!S._weakTaught) { S._weakTaught = true; flashNarrator('Weakness! Hit ' + SCHOOL_GLYPH[e.def.weak] + ' again THIS turn to STAGGER.'); }
+    } else if (!S._weakTaught && !e.staggered) {
+      S._weakTaught = true;
+      flashNarrator('Weakness! Each ' + SCHOOL_GLYPH[e.def.weak] + ' hit chips a ◈ POISE pip — at zero it BREAKS.');
     }
   }
   // IMPACT TIER — the weight of the blow drives every feel channel (flash,
@@ -6083,6 +6103,13 @@ async function endTurn() {
   await enemyPhase();
   if (!S.over) {
     S.turn++;
+    // EP RESERVE (Build 234): unspent EP is no longer discarded — it banks
+    // into the burst gauge. "Spend to zero" stops being automatic: dumping a
+    // filler card versus holding the energy for momentum is a real call.
+    if (S.ep > 0) {
+      gainMomentum(S.ep * 6, { raw: true });
+      const bl = document.getElementById('burst'); if (bl) popupAt(bl, '⚡ RESERVE +' + (S.ep * 6), 'rally');
+    }
     S.ep = S.maxEp;
     S.used = new Set();
     S._flags = {};   // per-turn passive latches (EP refunds) reset
@@ -6092,7 +6119,9 @@ async function endTurn() {
     // EXPOSED (mark) now survives the turn rollover but FADES by 1, so a mark
     // laid down this turn still pays off next turn — making it a real setup,
     // not a same-turn-only tax.
-    S.enemies.forEach(e => { e.mark = Math.max(0, (e.mark || 0) - 1); e.acted = false; e._hitBy = []; e.staggered = false; });
+    // NB: e.staggered survives the rollover on purpose — the break is repaid by
+    // the enemy LOSING its next action (see enemyPhase), not by a timer.
+    S.enemies.forEach(e => { e.mark = Math.max(0, (e.mark || 0) - 1); e.acted = false; e._hitBy = []; });
     S.tempCards = S.tempCards.filter(t => t.expiresTurn == null || t.expiresTurn >= S.turn);
     expirePrimes();   // a PRIMED stance holds through the turn after it was earned
     S._pressUsed = false;
@@ -6146,12 +6175,16 @@ async function enemyPhase() {
     else { intent = e.def.intents[e.intentIdx % e.def.intents.length]; e.intentIdx++; }
     e.acted = true;
     renderTimeline();
-    // INTERRUPT: a staggered enemy cannot release a HEAVY intent — the
-    // wind-up breaks (the Bloodborne moment: aggression stops the big hit).
-    if (e.staggered && intent.heavy) {
+    // THE BREAK STEALS THE TURN (Build 234, the Octopath payoff): a BROKEN foe
+    // loses its action outright — heavy or not — then recovers, poise restored.
+    // Turn denial is a payoff that matters against every enemy in the game;
+    // the old heavy-only interrupt could not fire on ANY regular foe (none of
+    // the eight carries a heavy intent).
+    if (e.staggered) {
       e.staggered = false;
-      popupAt(figEl(e.uid), 'INTERRUPTED', 'info');
-      flashNarrator(e.def.name + '’s ' + intent.name + ' is BROKEN by the stagger.');
+      e.poise = e.poiseMax || 2;                  // it finds its feet again
+      popupAt(figEl(e.uid), 'REELING — TURN LOST', 'info');
+      flashNarrator(e.def.name + (intent.heavy ? '’s ' + intent.name + ' collapses — ' : ' staggers, ') + 'the break steals its turn.');
       SFX.kill();
       stageShake();
       renderAll();
@@ -6236,7 +6269,9 @@ async function enemyPhase() {
     // (no un-telegraphed blow lands, no next note fires) and let the cutscene play.
     if (S._staging) break;
     let dmg = Math.round(enemyIntentDmg(e, intent) * parryMul);
-    if (e.lull) e.lull = 0;
+    // CHILL fades a pip per action instead of deleting itself — ❄2 now shaves
+    // two attacks, so chilling is a plan rather than a one-attack shave.
+    if (e.lull) e.lull = Math.max(0, e.lull - 1);
     let hitAny = false;
     for (const row of rows) {
       const h = heroInRow(row);
@@ -8169,9 +8204,9 @@ function enemyIntentHtml(e) {
 }
 function enemyChipsHtml(e) {
   return `<div class="fig-chips">
-      <span class="chip weak${e.weakRevealed ? ' revealed' : ''}" title="weakness — strike this element to WEAKEN, again to STAGGER">${e.weakRevealed ? `<span class="ru-i">${SCHOOL_GLYPH[e.def.weak] || '?'}</span>WEAK: ${(e.def.weak || '?').toUpperCase()}` : `<span class="ru-i">◇</span>? ? ?`}</span>
-      ${e.weakened ? `<span class="chip mark${chipPop(e,'weakened',1)}"><span class="ru-i">⌖</span>WEAKENED</span>` : ''}
-      ${e.staggered ? `<span class="chip stagger${chipPop(e,'staggered',1)}"><span class="ru-i">⚡</span>STAGGERED</span>` : ''}
+      <span class="chip weak${e.weakRevealed ? ' revealed' : ''}" title="weakness — each hit of this element chips a ◈ POISE pip; at zero the foe BREAKS">${e.weakRevealed ? `<span class="ru-i">${SCHOOL_GLYPH[e.def.weak] || '?'}</span>WEAK: ${(e.def.weak || '?').toUpperCase()}` : `<span class="ru-i">◇</span>? ? ?`}</span>
+      ${!e.staggered && e.poiseMax ? `<span class="chip poise${chipPop(e,'poiseInv',(e.poiseMax - e.poise))}" title="POISE — weakness hits chip these pips; at zero the foe BREAKS: ×1.5 damage taken and its next action is LOST">${'◈'.repeat(e.poise)}${'◇'.repeat(Math.max(0, e.poiseMax - e.poise))}</span>` : ''}
+      ${e.staggered ? `<span class="chip stagger${chipPop(e,'staggered',1)}"><span class="ru-i">⚡</span>BROKEN</span>` : ''}
       ${e.guard ? `<span class="chip guard${chipPop(e,'guard',e.guard)}"><span class="ru-i">⛨</span>GUARD ${e.guard}</span>` : ''}
       ${e.power ? `<span class="chip buff${chipPop(e,'power',e.power)}"><span class="ru-i">▲</span>RAGE ${e.power}</span>` : ''}
       ${e.mark ? `<span class="chip mark${chipPop(e,'mark',e.mark)}"><span class="ru-i">◎</span>EXPOSED ${e.mark}</span>` : ''}
@@ -8925,8 +8960,10 @@ function showHowTo(back) {
       <div class="ov-line"><b>Reposition your heroes.</b> Drag a hero between the <b>FRONT · MID · BACK</b> rows. Where they stand sets their stance, so their cards change to match.</div>
       <div class="ht-head">When a foe attacks</div>
       <div class="ov-line"><b>Dodge or parry.</b> Each enemy shows the <b>row</b> it will hit. Drag that hero to a safe row to <b>DODGE</b> — or stand and <b>PARRY</b>: tap each note the instant its ring flashes gold. Good timing turns the blow aside.</div>
+      <div class="ht-head">Break their POISE</div>
+      <div class="ov-line"><b>Chip the pips, steal the turn.</b> Every foe carries <b>◈ POISE</b> pips. Each hit of its weak element chips one — at zero it <b>BREAKS</b>: every blow lands <b>×1.5</b> until it recovers, and its next action is <b>LOST</b>. Sturdier foes carry more pips.</div>
       <div class="ht-head">Build your BURST</div>
-      <div class="ov-line"><b>Fill the gauge, then unleash.</b> Landing hits and clean parries fill your <b>BURST</b>. When it glows ready, <b>tap the gauge</b> to unleash an <b>ALL-OUT</b> — the whole party piles onto the enemy line at once.</div>
+      <div class="ov-line"><b>Fill the gauge, then unleash.</b> Landing hits and clean parries fill your <b>BURST</b> — and <b>unspent EP banks into it</b> at the end of your turn. When it glows ready, <b>tap the gauge</b> to unleash an <b>ALL-OUT</b> — the whole party piles onto the enemy line at once.</div>
       <div class="ht-head">Bonds — the KIZUNA loop</div>
       <div class="ov-line"><b>Finish a combo, stand PRIMED.</b> When a hero plays the last card of their line, they hold their stance — ready to follow up. <i>Which</i> stance depends on <i>which</i> line you ran: <b>⚔ EDGE</b>, <b>◎ MARK</b> or <b>⛨ WARD</b>.</div>
       <div class="ov-line"><b>Another hero's combo cues them in.</b> The moment a second hero finishes theirs, the <b>primed</b> hero's <b>FOLLOW-UP</b> opens in your hand — free. Their stance decides what they do; the hero they answer adds a bonus on top.</div>

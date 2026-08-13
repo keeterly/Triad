@@ -1312,8 +1312,8 @@ const QUICK = process.argv.includes('--quick');
   await shot('staggered');
   const hpMid = await J(() => S.enemies[0].hp);
   await tapCard('Coup de Grâce'); await sleep(250); await pickTarget(); await sleep(650);
-  check('the FREE finisher cashed the ×2 (10 → 20+, plus the stagger’s own EXPOSED bonus)', (hpMid - await J(() => S.enemies[0].hp)) >= 20, 'dealt ' + (hpMid - await J(() => S.enemies[0].hp)));
-  check('stagger consumed by the payoff', await J(() => !S.enemies[0].staggered));
+  check('the FREE finisher cashed the BREAK WINDOW (10 → 19+: ×1.5 plus the break’s own EXPOSED)', (hpMid - await J(() => S.enemies[0].hp)) >= 19, 'dealt ' + (hpMid - await J(() => S.enemies[0].hp)));
+  check('the break is a WINDOW — it holds for MORE hits instead of being consumed by one', await J(() => S.enemies[0].staggered === true));
   check('the forged card burned away on use', await J(() => !document.querySelector('#hand .card[data-card-name="Coup de Grâce"]')));
   check('EXECUTIONER gate: WITHOUT the node the break still lands + pays EP, but NO free Coup de Grâce',
     await J(() => {
@@ -1326,6 +1326,68 @@ const QUICK = process.argv.includes('--quick');
       return e.staggered === true && S.ep === ep0 + 1                             // break + PRESS-ON EP still happen
         && !document.querySelector('#hand .card[data-card-name="Coup de Grâce"]') // but the killing card is gated
         && !S.tempCards.some(c => c.name === 'Coup de Grâce'); }));
+  // ---------- BUILD 234: POISE, the stolen turn, EP reserve, status fixes ----------
+  check('POISE: the break gauge is VISIBLE — pips chip per weakness hit, elites carry more',
+    await J(() => {
+      startFight({ type: 'fight', chapter: 3, heroes: ['ash'], enemies: ['revenant'], narrator: 'poise drill' });
+      S.enemies[0].hp = S.enemies[0].maxHp = 200; renderAll();
+      const e = S.enemies[0];
+      const seq = [e.poise];
+      dealToEnemy(e, 4, 'blade', 'ash'); seq.push(e.poise);
+      dealToEnemy(e, 4, 'blade', 'ash'); seq.push(e.poise);
+      const notYet = !e.staggered;                        // 3-poise elite: two hits are not enough
+      dealToEnemy(e, 4, 'blade', 'ash');
+      renderAll();                                        // raw dealToEnemy doesn't repaint chips
+      const pipsGone = !document.querySelector('.chip.poise');
+      const brokenChip = /BROKEN/.test((document.querySelector('.chip.stagger') || {}).textContent || '');
+      return JSON.stringify(seq) === '[3,2,1]' && notYet && e.staggered
+        && pipsGone && brokenChip;                        // BROKEN replaces the pips while it reels
+    }));
+  check('POISE: the BREAK steals the foe’s next action outright and restores its poise',
+    await J(async () => {
+      while (S.executing) await new Promise(r => setTimeout(r, 100));
+      const e = S.enemies[0];
+      const hp0 = {}; S.heroes.forEach(h => { h.hp = h.maxHp; hp0[h.id] = h.hp; });
+      await endTurn();
+      while (S.executing) await new Promise(r => setTimeout(r, 100));
+      const taken = S.heroes.reduce((n, h) => n + (hp0[h.id] - h.hp), 0);
+      return taken === 0 && !e.staggered && e.poise === e.poiseMax;
+    }));
+  check('EP RESERVE: leftover energy banks into the burst instead of evaporating',
+    await J(async () => {
+      while (S.executing) await new Promise(r => setTimeout(r, 100));
+      S.momentum = 0; S.ep = 3;
+      await endTurn();
+      while (S.executing) await new Promise(r => setTimeout(r, 100));
+      return S.momentum >= 18;   // 3 × 6 raw, parries may add more
+    }));
+  check('MARK: additive with a cap — re-marking a ◎4 foe with mark:2 gives 6, never lowers it',
+    await J(() => {
+      const e = S.enemies[0]; e.dead = false;
+      e.mark = 4;
+      resolveCard({ owner: 'ash', name: 'x', target: 'enemy', fx: { mark: 2 }, kind: 'temp' }, e.uid);
+      const additive = e.mark === 6;
+      e.mark = 5;
+      resolveCard({ owner: 'ash', name: 'x', target: 'enemy', fx: { mark: 4 }, kind: 'temp' }, e.uid);
+      return additive && e.mark === 6;
+    }));
+  check('CHILL: fades one pip per ATTACK instead of deleting itself (a buff turn does not spend it)',
+    await J(() => {
+      const src = (function(){ let f = null; try { f = enemyPhase.toString(); } catch (_) {} return f || ''; })();
+      return /e\.lull = Math\.max\(0, e\.lull - 1\)/.test(src) && !/e\.lull = 0;/.test(src);
+    }));
+  check('DESPERATION: a hero at quarter health strikes +2 harder',
+    await J(() => {
+      const e = S.enemies[0]; e.dead = false; e.staggered = false; e.weakened = false; e.lull = 0; e.mark = 0; e.guard = 0; e.hp = 150;
+      const ash = S.heroes.find(h => h.id === 'ash');
+      ash.hp = Math.floor(ash.maxHp / 4); ash.buffDmg = 0; ash.chill = 0;
+      const hp0 = e.hp;
+      resolveCard({ owner: 'ash', name: 'x', target: 'enemy', school: null, fx: { dmg: 6 }, kind: 'temp' }, e.uid);
+      const dealt = hp0 - e.hp;
+      ash.hp = ash.maxHp;
+      return dealt === 8;
+    }));
+
   // Per-hero STAGGER reactions — the Executioner cashes a break in each hero's voice
   check('EXECUTIONER Cassia: stagger forges Wallbreaker (dmg + ⛨5 on the wall)',
     await J(() => {
