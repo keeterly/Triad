@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 244;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 245;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -571,24 +571,24 @@ const PASSIVE_DEFS = {
   // ASH — TEMPO: motion is force, the duel never lets up
   ash_vanguard: { trigger: 'enterRow', apply: (c) => { if (c.toRow === 'front') { c.hero.guard += 3; popupAt(figEl(c.hero.id), '⛨ +3', 'guard'); } } },
   ash_exploit:  { trigger: 'dmgMod', mod: (o, t) => (o.id === 'ash' && t && frontmostEnemy() === t ? 3 : 0) },   // SPEARPOINT — Ash hits hardest at the tip of the line (tempo/position, not marks)
-  hask_frostbite:  { trigger: 'dmgMod', mod: (o, t) => (o.id === 'hask' && t && t.lull ? 2 : 0) },   // Hask +2 to CHILLED foes
+  hask_frostbite:  { trigger: 'dmgMod', mod: (o, t) => (t && t.lull ? 2 : 0) },   // Hask +2 to CHILLED foes
   hask_permafrost: { trigger: 'partyDmgMod', mod: (owner, tgt) => (tgt && tgt.lull ? 3 : 0) },        // CHILLED foes take +3 from EVERY ally
   // SHATTERPOINT — spend a foe's CHILL for burst (the mirror of Mira's mark→execute).
   // Consumes lull, so it competes with Permafrost/control builds → build diversity.
   hask_shatter: { trigger: 'postHit', apply: (c) => { const t = c.tgt; if (c.hero.id === 'hask' && t && !t.dead && t.lull) { const n = t.lull; t.lull = 0; dealToEnemy(t, n * 2, 'frost', 'hask'); popupAt(figEl(t.uid), '❄ SHATTER ' + (n * 2), 'dmg popup-big'); } } },
   ash_relentless: { trigger: 'followup', apply: (c) => { if (!S._flags.ashRefund) { S._flags.ashRefund = true; refundEp(1); } } },
   // ELIN — LIGHT: the ward finds the hurt
-  elin_ward:    { trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'elin') return; const t = lowestHpAlly(); if (t) { t.guard += 2; popupAt(figEl(t.id), '⛨ +2', 'guard'); } } },
+  elin_ward:    { trigger: 'turnStart', apply: (c) => { const t = lowestHpAlly(); if (t) { t.guard += 2; popupAt(figEl(t.id), '⛨ +2', 'guard'); } } },
   // MIRA — EXPOSED: never waste an opening; mark the dying
   mira_opportunist: { trigger: 'dmgMod', mod: (owner, tgt) => (tgt && tgt.mark ? 3 : 0) },
   mira_execute: { trigger: 'postHit', apply: (c) => { const t = c.tgt; if (t && !t.dead && t.hp > 0 && t.hp <= Math.ceil(t.maxHp * 0.30)) { popupAt(figEl(t.uid), '☠ DEATH MARK', 'dmg'); dealToEnemy(t, t.hp, c.hero.def.school, c.hero.id); } } },
   // CASSIA — GUARD: the wall is never caught flat, and only grows
-  cassia_vigil: { trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'cassia') return; c.hero.guard += 2; popupAt(figEl(c.hero.id), '⛨ +2', 'guard'); } },
+  cassia_vigil: { trigger: 'turnStart', apply: (c) => { c.hero.guard += 2; popupAt(figEl(c.hero.id), '⛨ +2', 'guard'); } },
   cassia_immovable: { trigger: 'keepGuard' },   // read by endTurn's guard-reset
   // BASTION — the wall bites back: braces a counter each turn (CHILL immunity is
   // handled separately by heroResistsChill).  Turns a near-dead node into her
   // retaliation identity, pairing with Warded Aegis / counter builds.
-  cassia_bastion: { trigger: 'turnStart', apply: (c) => { if (c.hero.id === 'cassia') { c.hero.counter = Math.max(c.hero.counter || 0, 1); popupAt(figEl('cassia'), '↺ REPRISAL', 'guard'); } } },
+  cassia_bastion: { trigger: 'turnStart', apply: (c) => { c.hero.counter = Math.max(c.hero.counter || 0, 1); popupAt(figEl(c.hero.id), '↺ REPRISAL', 'guard'); } },
   // LIVING BULWARK — guard→heal: a Cassia sitting on a deep wall shelters the line.
   // Gives her a sustain-tank build (bank guard high, passively mend) distinct from
   // Elin's active healing, and rewards the immovable/vigil guard-battery.
@@ -620,10 +620,80 @@ function lowestHpAlly() {
 }
 // a node whose effect is a PASSIVE_DEFS rule — passives + team-synergy nodes
 function isPassiveNode(n) { return (n.type === 'passive' || n.type === 'synergy') && n.passive; }
-// unlocked passive/synergy nodes for a hero matching a trigger
+
+// ─────────────────────────────────────────────────────────────────────────────
+// THE WEAVE — per-run crossings between skill trees (Build 245)
+//
+// Six separate trees meant six separate corridors: the nodes were "not choices
+// between kits, they are a purchase order for one kit", and every deep run with
+// the same trio converged on the same cards.  A CROSSING lets one hero learn a
+// technique standing in another hero's tree.
+//
+//     BONDS OPEN THE DOOR.  SHARED NATURE MAKES IT CHEAP.
+//
+// The gate is the bond between the two heroes — the thing this game is named
+// after, and until now a reward you could not spend.  The PRICE is archetype
+// kinship, read off the `school` and `tempo` axes already authored in HEROES:
+// Mira and Branwen (both blade, both swift) trade at list price, while Cassia,
+// who shares neither axis with anybody, still learns from a partner she has bled
+// beside — she just pays the stranger's rate.  Nobody is topologically stranded,
+// and the CHEAP crossings are the ones that read as obvious in fiction.
+//
+// Crossings are PER RUN: RUN.crossed dies with RUN.nodes, so this is a lattice
+// you re-solve each descent, not a hundred-hour grid.
+const CROSS_BOND = 3;                  // ABOVE BOND_KINDLED (2) — a crossing is earned, never automatic
+const CROSS_MULT = [1.8, 1.35, 1.0];   // indexed by shared axes: strangers · kin · twins
+// how many archetype axes two heroes share (school, tempo) — 0, 1 or 2
+function kinship(a, b) {
+  const A = HEROES[a], B = HEROES[b];
+  if (!A || !B || a === b) return 0;
+  return (A.school === B.school ? 1 : 0) + (A.tempo === B.tempo ? 1 : 0);
+}
+function crossCost(learner, n) { return Math.max(1, Math.round(n.cost * CROSS_MULT[kinship(learner, n.hero)])); }
+function crossedNodes(heroId) { return (RUN && RUN.crossed && RUN.crossed[heroId]) || []; }
+function hasCrossed(heroId, nodeId) { return crossedNodes(heroId).indexOf(nodeId) >= 0; }
+// Does THIS hero carry this node's rule — through their own tree, or learned
+// across a bond?  Both passive dispatchers ask this instead of `n.hero === id`.
+function heroOwnsNode(heroId, n) {
+  return !!n && ((n.hero === heroId && hasNode(n.id)) || hasCrossed(heroId, n.id));
+}
+// A node is TEACHABLE only if it is a standing rule that can belong to somebody
+// else.  Riders and branches patch a NAMED card in a NAMED rotation, so they
+// cannot travel — Ash has no Backstab to sharpen.  Nodes read through a bare
+// hasNode() flag (Warstep, Swiftfoot, Kindling, Longshot, Mercy) cannot travel
+// either: nothing dispatches them per hero, so the crossing would be a silent
+// no-op, and a node that costs embers and does nothing is worse than no node.
+// TIER 2 ONLY, deliberately — you can learn a colleague's TECHNIQUE, never their
+// tier-3/4 soul.  That is the valve against the FFX endgame, where everybody
+// eventually knows everything and nobody is anyone.
+function isTeachable(n) {
+  return !!(n && n.tier === 2 && isPassiveNode(n) && PASSIVE_DEFS[n.passive]);
+}
+// every crossing this hero could buy right now
+function crossOffersFor(learner) {
+  if (!RUN || !learner) return [];
+  const party = (RUN.active && RUN.active.length) ? RUN.active : (RUN.roster || []);
+  if (party.indexOf(learner) < 0) return [];
+  return EMBER_TREE.filter(n => isTeachable(n)
+    && n.hero !== learner
+    && party.indexOf(n.hero) >= 0                              // they must be HERE to teach it
+    && hasNode(n.id)                                           // and must KNOW it — the node is earned twice
+    && !hasCrossed(learner, n.id)
+    && bondPts(pairKey(learner, n.hero)) >= CROSS_BOND);
+}
+function learnCrossing(learner, n) {
+  if (!RUN || !learner || !n) return false;
+  RUN.crossed = RUN.crossed || {};
+  const list = RUN.crossed[learner] = RUN.crossed[learner] || [];
+  if (list.indexOf(n.id) < 0) list.push(n.id);
+  return true;
+}
+
+// unlocked passive/synergy nodes for a hero matching a trigger — by their own
+// tree OR learned across a bond (Build 245)
 function passiveNodesFor(heroId, trigger) {
-  return EMBER_TREE.filter(n => isPassiveNode(n) && n.hero === heroId
-    && hasNode(n.id) && PASSIVE_DEFS[n.passive] && PASSIVE_DEFS[n.passive].trigger === trigger);
+  return EMBER_TREE.filter(n => isPassiveNode(n) && heroOwnsNode(heroId, n)
+    && PASSIVE_DEFS[n.passive] && PASSIVE_DEFS[n.passive].trigger === trigger);
 }
 // fire all of a hero's owned side-effect passives for a trigger
 function firePassives(trigger, heroId, ctx) {
@@ -645,7 +715,7 @@ function passiveDmg(owner, tgt) {
   if (!owner) return 0;
   let bonus = 0;
   EMBER_TREE.forEach(n => {
-    if (isPassiveNode(n) && n.hero === owner.id && hasNode(n.id)) {
+    if (isPassiveNode(n) && heroOwnsNode(owner.id, n)) {
       const d = PASSIVE_DEFS[n.passive];
       if (d && d.trigger === 'dmgMod' && d.mod) bonus += d.mod(owner, tgt) || 0;
     }
@@ -653,7 +723,7 @@ function passiveDmg(owner, tgt) {
   // team synergy: a nodeholder anywhere in the LIVING party lifts everyone's hits
   livingHeroes().forEach(ph => {
     EMBER_TREE.forEach(n => {
-      if (isPassiveNode(n) && n.hero === ph.id && hasNode(n.id)) {
+      if (isPassiveNode(n) && heroOwnsNode(ph.id, n)) {
         const d = PASSIVE_DEFS[n.passive];
         if (d && d.trigger === 'partyDmgMod' && d.mod) bonus += d.mod(owner, tgt) || 0;
       }
@@ -2776,6 +2846,7 @@ function newRun(starterId) {
     completed: [],
     embers: 0,          // per-run ember wallet — earned and spent THIS descent only
     nodes: [],          // per-run skill-tree unlocks — reset when the run ends; starts EMPTY (everything earned)
+    crossed: {},        // heroId -> [nodeId] learned across a BOND from another hero's tree (Build 245)
     forges: [],         // temporary ember tempers bought at camps — reset each descent
     boons: [],          // companion GIFTS drafted on the road — reset each descent (party-gated)
     foes: [],           // travelers you wronged — they ambush a later fight this run
@@ -3252,7 +3323,11 @@ function mkCard(h, kind, def) {
 // only once per turn, this makes her sole move cost no EP: slip in and out
 // without paying the tempo (and it feeds Afterimage's free echo).
 // BASTION (Cassia) — the immovable wall shrugs off ❄ CHILL entirely.
-function heroResistsChill(h) { return !!(h && h.id === 'cassia' && hasNode('cassia.passive.bastion')); }
+function heroResistsChill(h) {
+  if (!h) return false;
+  const n = EMBER_TREE.find(x => x.id === 'cassia.passive.bastion');
+  return heroOwnsNode(h.id, n);   // Cassia's, or anyone who crossed for it
+}
 function moveCost(h) {
   if (!h || S.used.has(h.id + ':move')) return 1;                                         // only the FIRST move can be free
   if (h.id === 'mira' && hasNode('mira.passive.swiftfoot')) return 0;                      // Swiftfoot — always free
@@ -7833,27 +7908,38 @@ function showEmberSpark(onDone) {
   const party = (RUN.active && RUN.active.length) ? RUN.active : (RUN.roster || []);
   RUN.nodes = RUN.nodes || [];
   const pool = EMBER_TREE.filter(n => party.includes(n.hero) && !hasNode(n.id)
-    && tierOpen(n.tier) && (n.requires || []).every(r => hasNode(r)));
+    && tierOpen(n.tier) && (n.requires || []).every(r => hasNode(r)))
+    .map(n => ({ node: n, hero: n.hero }));
+  // THE WEAVE (Build 245) — every bonded pair in the field also offers what one
+  // can teach the other.  A crossing is a genuinely different pick from a node:
+  // it is the only offer whose availability you CAUSED, by bonding those two.
+  party.forEach(learner => crossOffersFor(learner)
+    .forEach(n => pool.push({ node: n, hero: learner, cross: true })));
   if (!pool.length) { done(); return; }
   // prefer variety — one offer per fielded hero when possible
   const shuffled = _shuffle(pool.slice());
   const picks = [], used = new Set();
-  shuffled.forEach(n => { if (picks.length < 3 && !used.has(n.hero)) { picks.push(n); used.add(n.hero); } });
-  shuffled.forEach(n => { if (picks.length < 3 && picks.indexOf(n) < 0) picks.push(n); });
-  const sparkCost = (n) => Math.max(1, Math.round(n.cost * 0.7));
+  shuffled.forEach(o => { if (picks.length < 3 && !used.has(o.hero)) { picks.push(o); used.add(o.hero); } });
+  shuffled.forEach(o => { if (picks.length < 3 && picks.indexOf(o) < 0) picks.push(o); });
+  // A node is offered at 30% off.  A CROSSING is priced by kinship instead —
+  // it is already a discount on a thing you otherwise could not buy at all.
+  const sparkCost = (o) => o.cross ? crossCost(o.hero, o.node) : Math.max(1, Math.round(o.node.cost * 0.7));
   // Reuse the BOON-DRAFT card language (portrait art · medallion · tinted frame)
   // so a post-fight reward reads instantly as "a gift from THIS companion",
   // not as a spreadsheet row.  Build 212.
-  const cardHtml = (n) => {
-    const cost = sparkCost(n), afford = runEmbers() >= cost;
-    const h = HEROES[n.hero];
-    return `<button class="boon-card spark-card${afford ? '' : ' spark-poor'}" data-spark="${n.id}" style="--tint:${h.tint}" ${afford ? '' : 'disabled'}>
-      <span class="boon-portrait">${V2PORTRAITS[n.hero] || ''}</span>
+  const KIN_WORD = ['DISTANT', 'KINDRED', 'TWINNED'];
+  const cardHtml = (o) => {
+    const n = o.node, cost = sparkCost(o), afford = runEmbers() >= cost;
+    const h = HEROES[o.hero];                       // the card is always about the LEARNER
+    const from = HEROES[n.hero];
+    const kin = o.cross ? kinship(o.hero, n.hero) : 0;
+    return `<button class="boon-card spark-card${o.cross ? ' cross-card' : ''}${afford ? '' : ' spark-poor'}" data-spark="${(o.cross ? 'x:' + o.hero + ':' : '') + n.id}" style="--tint:${h.tint}" ${afford ? '' : 'disabled'}>
+      <span class="boon-portrait">${V2PORTRAITS[o.hero] || ''}</span>
       <span class="boon-scrim"></span>
-      <span class="boon-medallion">${TREE_TYPE_GLYPH[n.type] || '✦'}</span>
-      <span class="spark-price${afford ? '' : ' spark-cant'}"><s>${n.cost}</s> ✦ ${cost}</span>
+      <span class="boon-medallion">${o.cross ? '⟡' : (TREE_TYPE_GLYPH[n.type] || '✦')}</span>
+      <span class="spark-price${afford ? '' : ' spark-cant'}">${o.cross ? '' : `<s>${n.cost}</s> `}✦ ${cost}</span>
       <span class="boon-body">
-        <span class="boon-from">${h.name} · ${TREE_TYPE_LABEL[n.type] || 'SKILL'}</span>
+        <span class="boon-from">${o.cross ? `${h.name} learns from <b>${from.name}</b> · ${KIN_WORD[kin]}` : `${h.name} · ${TREE_TYPE_LABEL[n.type] || 'SKILL'}`}</span>
         <span class="boon-name">${n.label}</span>
         <span class="boon-desc">${n.desc}</span>
       </span>
@@ -7866,14 +7952,17 @@ function showEmberSpark(onDone) {
     <div class="boon-choices spark-choices">${picks.map(cardHtml).join('')}</div>
     <button class="ov-btn" id="spark-skip">TAKE NONE · BANK <b>+2 ✦</b></button>
   `, 'boon-screen spark-screen');
-  picks.forEach(n => {
-    const el = document.querySelector(`[data-spark="${n.id}"]`);
-    if (el && runEmbers() >= sparkCost(n)) el.onclick = () => {
-      addEmbers(-sparkCost(n));
-      RUN.nodes.push(n.id);
+  picks.forEach(o => {
+    const n = o.node, key = (o.cross ? 'x:' + o.hero + ':' : '') + n.id;
+    const el = document.querySelector(`[data-spark="${key}"]`);
+    if (el && runEmbers() >= sparkCost(o)) el.onclick = () => {
+      addEmbers(-sparkCost(o));
+      if (o.cross) learnCrossing(o.hero, n); else RUN.nodes.push(n.id);
       saveRun();
       try { SFX.kindle(); } catch (_) {}
-      flashNarrator('✦ ' + n.label + ' — kindled from the spark, ' + (n.cost - sparkCost(n)) + ' embers saved.');
+      flashNarrator(o.cross
+        ? '⟡ ' + HEROES[o.hero].name + ' learns ' + n.label + ' from ' + HEROES[n.hero].name + ' — the bond taught it.'
+        : '✦ ' + n.label + ' — kindled from the spark, ' + (n.cost - sparkCost(o)) + ' embers saved.');
       done();
     };
   });

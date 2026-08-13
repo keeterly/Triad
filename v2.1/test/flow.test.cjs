@@ -3908,7 +3908,14 @@ const QUICK = process.argv.includes('--quick');
   // that says the right thing and a cascade that delivers it are different
   // claims (Build 240's boss art said 318px and computed 156px).
   console.log('--- RACK FOCUS ---');
-  await J(() => { setupFight(['ash', 'hask', 'cassia'], [], { ash: 'front', hask: 'mid', cassia: 'back' });
+  // Park the cursor off the battlefield and drop any leftover aim FIRST. The
+  // snap-to-focus override (`.fig-targetable`/`.fig-aim`/`:hover` → filter:none
+  // !important) legitimately beats the rack, so a stray pointer left over a
+  // figure by an earlier block reads as "the rack didn't engage" and the check
+  // measures the mouse instead of the feature.
+  await t.page.mouse.move(4, 4);
+  await J(() => { clearAim();
+    setupFight(['ash', 'hask', 'cassia'], [], { ash: 'front', hask: 'mid', cassia: 'back' });
     releaseFocus(); renderAll(); });
   await sleep(260);
   const artFilter = (id) => J((h) => { const f = figEl(h); const a = f && f.querySelector('.fig-art');
@@ -3947,6 +3954,109 @@ const QUICK = process.argv.includes('--quick');
       const rule = [...document.styleSheets].flatMap(s => { try { return [...s.cssRules]; } catch (_) { return []; } })
         .find(r => r.selectorText === '#enemy-half .slot[data-row="back"] .figure .fig-art');
       return !!rule && /blur/.test(rule.style.filter); }));
+
+  // ---------- THE WEAVE — per-run tree crossings (Build 245) ----------
+  // "Bonds open the door, shared nature makes it cheap." The failure mode this
+  // block exists to catch is a crossing that costs embers and silently does
+  // NOTHING, so the behavioural checks read combat outcomes, not stored state.
+  console.log('--- THE WEAVE ---');
+  const weaveRun = (bond) => J((b) => {
+    RUN = newRun('ash');
+    RUN.roster = ['ash', 'mira', 'cassia']; RUN.active = ['ash', 'mira', 'cassia'];
+    RUN.hp = { ash: 34, mira: 30, cassia: 36 };
+    RUN.nodes = ['mira.passive.opportunist', 'cassia.passive.vigil'];
+    RUN.crossed = {}; RUN.embers = 99;
+    RUN.bonds = { 'ash|mira': b, 'ash|cassia': b, 'cassia|mira': b };
+    RUN.floor = 1; RUN.completed = [0, 1, 2];
+    RUN.map = generateDescent(RUN.roster, 1);
+    return true;
+  }, bond);
+
+  check('WEAVE: kinship reads the school + tempo axes already authored in HEROES',
+    await J(() => kinship('mira', 'branwen') === 2      // blade AND swift — twins
+      && kinship('ash', 'mira') === 1                    // blade only
+      && kinship('ash', 'hask') === 1                    // steady only
+      && kinship('ash', 'cassia') === 0));
+  check('WEAVE: Cassia is nobody’s kin — and is NOT stranded, she pays the stranger’s rate',
+    await J(() => ['ash', 'mira', 'hask', 'elin', 'branwen'].every(x => kinship('cassia', x) === 0)));
+  await weaveRun(2);
+  check('WEAVE: a KINDLED bond (2) is not enough — the crossing gate sits above it',
+    await J(() => crossOffersFor('ash').length === 0));
+  await weaveRun(3);
+  check('WEAVE: at bond 3 the door opens on what the fielded party can teach',
+    await J(() => crossOffersFor('ash').map(n => n.id).sort().join(',')
+      === 'cassia.passive.vigil,mira.passive.opportunist'));
+  check('WEAVE: price scales with kinship — kin cheaper than strangers, both above list',
+    await J(() => { const O = EMBER_TREE.find(n => n.id === 'mira.passive.opportunist');
+      const V = EMBER_TREE.find(n => n.id === 'cassia.passive.vigil');
+      return crossCost('ash', O) === 8 && crossCost('ash', V) === 11 && O.cost === 6 && V.cost === 6; }),
+    await J(() => 'kin ' + crossCost('ash', EMBER_TREE.find(n => n.id === 'mira.passive.opportunist'))
+      + ' · stranger ' + crossCost('ash', EMBER_TREE.find(n => n.id === 'cassia.passive.vigil'))));
+  check('WEAVE: the teacher must KNOW the node — a crossing is earned twice',
+    await J(() => { RUN.nodes = ['cassia.passive.vigil'];
+      const ids = crossOffersFor('ash').map(n => n.id);
+      RUN.nodes = ['mira.passive.opportunist', 'cassia.passive.vigil'];
+      return ids.length === 1 && ids[0] === 'cassia.passive.vigil'; }));
+  check('WEAVE: a hero never crosses into their own lane, and never twice',
+    await J(() => { const own = crossOffersFor('mira').some(n => n.hero === 'mira');
+      RUN.crossed = { ash: ['mira.passive.opportunist'] };
+      const again = crossOffersFor('ash').some(n => n.id === 'mira.passive.opportunist');
+      RUN.crossed = {};
+      return own === false && again === false; }));
+  check('WEAVE: TIER 2 ONLY — you learn a colleague’s technique, never their tier-3/4 soul',
+    await J(() => EMBER_TREE.filter(isTeachable).every(n => n.tier === 2)
+      && EMBER_TREE.some(n => n.tier >= 3 && isPassiveNode(n) && PASSIVE_DEFS[n.passive])));
+  check('WEAVE: flag-read nodes are NOT teachable — a crossing must never be a silent no-op',
+    await J(() => ['ash.passive.warstep', 'mira.passive.swiftfoot', 'hask.passive.kindling',
+                   'branwen.passive.longshot', 'elin.passive.mercy']
+      .every(id => !isTeachable(EMBER_TREE.find(n => n.id === id)))));
+  check('WEAVE: every hero has something to teach (the lattice is not lopsided)',
+    await J(() => new Set(EMBER_TREE.filter(isTeachable).map(n => n.hero)).size === 6),
+    await J(() => EMBER_TREE.filter(isTeachable).length + ' teachable nodes'));
+
+  // ── behaviour: does the crossed rule actually FIRE for its new owner? ──
+  const weaveFight = () => J(() => {
+    startFight({ type: 'fight', chapter: 3, heroes: RUN.active.slice(), enemies: ['husk'], useRunHp: true, floor: 1, depth: 3, narrator: 'weave' });
+    renderAll(); return true;
+  });
+  await weaveRun(3); await weaveFight();
+  const oppDmg = () => J(() => { const f = livingEnemies()[0]; f.mark = 2;
+    return { ash: passiveDmg(S.heroes.find(h => h.id === 'ash'), f),
+             mira: passiveDmg(S.heroes.find(h => h.id === 'mira'), f) }; });
+  const wvOppA = await oppDmg();
+  await J(() => { RUN.crossed = { ash: ['mira.passive.opportunist'] }; });
+  const wvOppB = await oppDmg();
+  check('WEAVE: a crossed dmgMod fires for its NEW owner (+3 vs EXPOSED)',
+    wvOppB.ash - wvOppA.ash === 3, `ash ${wvOppA.ash} → ${wvOppB.ash}`);
+  check('WEAVE: the teacher is unchanged — a crossing copies the rule, it never doubles it',
+    wvOppB.mira === wvOppA.mira, `mira ${wvOppA.mira} → ${wvOppB.mira}`);
+
+  const vigilGuard = () => J(() => { S.heroes.forEach(h => { h.guard = 0; });
+    S.heroes.forEach(h => firePassives('turnStart', h.id));
+    return S.heroes.reduce((o, h) => (o[h.id] = h.guard, o), {}); });
+  await weaveRun(3); await J(() => { RUN.nodes = ['cassia.passive.vigil']; RUN.crossed = {}; });
+  await weaveFight();
+  const wvVigilA = await vigilGuard();
+  await J(() => { RUN.crossed = { ash: ['cassia.passive.vigil'] }; });
+  const wvVigilB = await vigilGuard();
+  check('WEAVE: a crossed turnStart passive fires for its new owner (⛨+2)',
+    wvVigilB.ash - wvVigilA.ash === 2, `ash ⛨${wvVigilA.ash} → ⛨${wvVigilB.ash}`);
+  check('WEAVE: it does not leak to an unrelated hero',
+    wvVigilB.mira === wvVigilA.mira && wvVigilB.cassia === wvVigilA.cassia);
+  // BASTION's chill immunity was wired to Cassia BY NAME, so a crosser would
+  // have bought the counter and not the immunity — half a node.
+  check('WEAVE: BASTION’s chill immunity follows the crossing, not the name',
+    await J(() => { RUN.nodes = ['cassia.passive.bastion']; RUN.crossed = { mira: ['cassia.passive.bastion'] };
+      return heroResistsChill(S.heroes.find(h => h.id === 'cassia')) === true
+        && heroResistsChill(S.heroes.find(h => h.id === 'mira')) === true
+        && heroResistsChill(S.heroes.find(h => h.id === 'ash')) === false; }));
+  check('WEAVE: crossings are PER RUN and survive a save/load like nodes do',
+    await J(() => { RUN.crossed = { ash: ['mira.passive.opportunist'] }; saveRun();
+      const back = loadRun();
+      const fresh = newRun('ash');
+      return !!(back && back.crossed && back.crossed.ash
+        && back.crossed.ash[0] === 'mira.passive.opportunist')
+        && JSON.stringify(fresh.crossed) === '{}'; }));
 
   t.report();
   await t.browser.close();
