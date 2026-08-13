@@ -4334,6 +4334,61 @@ const QUICK = process.argv.includes('--quick');
         && borderOpen('cassia', 'ash') && !borderOpen('ash', 'cassia'); }));
   await J(() => hideOverlay());
 
+  // ---------- THE BREAK (Build 252) ----------
+  // Playtest finding: a break only ever fired off a WEAKNESS hit, and a hero has
+  // exactly one school — so of a party of three, usually one hero could touch the
+  // gauge at all, about a pip a turn, in a fight that ends in three or four.
+  // Measured across four real fights: 1 / 1 / 3 / 4 breaks. Every hero can lean
+  // on it now, through their own rotation and through a clean read.
+  console.log('--- THE BREAK ---');
+  const poiseOf = () => J(() => livingEnemies()[0].poise);
+  check('BREAK: a WEAKNESS hit still chips the gauge — it remains the fast route',
+    await J(() => { setupFight(['ash'], [], { ash: 'front' });
+      const e = livingEnemies()[0]; e.poise = 4; S._finisher = false;
+      dealToEnemy(e, 1, e.def.weak, 'ash');
+      return e.poise === 3; }));
+  check('BREAK: a completed ROTATION chips it too, with no school match needed',
+    await J(() => { setupFight(['ash'], [], { ash: 'front' });
+      const e = livingEnemies()[0]; e.poise = 4;
+      const notWeak = ['blade', 'light', 'iron', 'frost', 'song'].find(x => x !== e.def.weak);
+      S._finisher = false; dealToEnemy(e, 1, notWeak, 'ash');
+      const noChip = e.poise;
+      S._finisher = true; e._finTurn = -1; dealToEnemy(e, 1, notWeak, 'ash');
+      S._finisher = false;
+      return noChip === 4 && e.poise === 3; }));
+  check('BREAK: a weakness hit that is ALSO a finisher takes two pips',
+    await J(() => { setupFight(['ash'], [], { ash: 'front' });
+      const e = livingEnemies()[0]; e.poise = 4;
+      S._finisher = true; e._finTurn = -1; dealToEnemy(e, 1, e.def.weak, 'ash');
+      S._finisher = false;
+      return e.poise === 2; }));
+  check('BREAK: finisher chips are capped at ONE per foe per turn, so it stays a plan',
+    await J(() => { setupFight(['ash'], [], { ash: 'front' });
+      const e = livingEnemies()[0]; e.poise = 5; e._finTurn = -1;
+      const notWeak = ['blade', 'light', 'iron', 'frost', 'song'].find(x => x !== e.def.weak);
+      S._finisher = true;
+      dealToEnemy(e, 1, notWeak, 'ash'); dealToEnemy(e, 1, notWeak, 'ash'); dealToEnemy(e, 1, notWeak, 'ash');
+      S._finisher = false;
+      return e.poise === 4; }));   // three finishers, one pip
+  check('BREAK: the weakness route is NOT capped — that is what makes it the fast one',
+    await J(() => { setupFight(['ash'], [], { ash: 'front' });
+      const e = livingEnemies()[0]; e.poise = 5; S._finisher = false;
+      dealToEnemy(e, 1, e.def.weak, 'ash'); dealToEnemy(e, 1, e.def.weak, 'ash');
+      return e.poise === 3; }));
+  check('BREAK: draining the gauge BREAKS the foe and counts the event',
+    await J(() => { setupFight(['ash'], [], { ash: 'front' });
+      const e = livingEnemies()[0]; e.poise = 2; S._breaks = 0; S._finisher = false;
+      dealToEnemy(e, 1, e.def.weak, 'ash'); dealToEnemy(e, 1, e.def.weak, 'ash');
+      return e.staggered === true && S._breaks === 1 && (e.mark || 0) >= 3; }));
+  // The flag is set in resolveCard and read several layers down, so a leak would
+  // silently hand free pips to counters, riposte damage and the enemy phase.
+  check('BREAK: the finisher flag never leaks past the card that set it',
+    await J(async () => { setupFight(['ash'], [], { ash: 'front' });
+      S.ep = 12; S._rotations = true; S.tempCards = [];
+      const c = buildHand().find(x => x.kind === 'opener' && x.owner === 'ash');
+      if (c) await playCard(c, (livingEnemies()[0] || {}).uid);
+      return S._finisher === false; }));
+
   t.report();
   await t.browser.close();
 })().catch(e => { console.error('FATAL', e.message); process.exit(1); });

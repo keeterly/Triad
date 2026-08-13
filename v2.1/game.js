@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 251;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 252;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -4362,6 +4362,10 @@ function leaveAfterimage(owner, fromRow) {
 async function resolveCard(card, targetId) {
   const owner = S.heroes.find(h => h.id === card.owner);
   if (owner && owner.downed) return;
+  // A FINISHER chips POISE (Build 252) — see dealToEnemy. Flagged here because
+  // the damage is dealt several layers down and the card's shape is only known
+  // at this level.
+  S._finisher = !!(card.chain && !card.chainNext);
 
   if (card.kind === 'move') {
     const from = owner.row;
@@ -4644,6 +4648,7 @@ async function resolveCard(card, targetId) {
   // is the beat closest to the player's hands — 100ms here is felt harder than
   // 500ms in the enemy phase (Build 243).
   const loud = !!(fx && (fx.dmg || fx.aoeDmg || fx.castDmg || fx.spendCharge || fx.heal));
+  S._finisher = false;   // never let the finisher chip leak into counters or the enemy phase
   await sleep(loud ? 240 : 150);
 }
 
@@ -4764,18 +4769,37 @@ function dealToEnemy(e, amt, school, byHeroId) {
     e.weakRevealed = true;
     flashNarrator(e.def.name + ' — weak to ' + (SCHOOL_GLYPH[e.def.weak] || '?') + ' ' + (e.def.weak || '').toUpperCase() + '.');
   }
-  // Weakness state machine: WEAKENED, then STAGGERED on the same-turn repeat.
-  // (Suppressed during an ALL-OUT so the burst stays clean damage, not a
-  // cascade of forged finishers.)
-  if (school && school === e.def.weak && e.hp > 0 && !S._burstResolving) {
+  // THREE ROUTES TO A BREAK (Build 252).  Measured: across four real fights a
+  // greedy party broke a foe ZERO times.  Poise only ever chipped on a WEAKNESS
+  // hit, and a hero has exactly one school — so of a party of three, usually one
+  // hero could chip at all, at about a pip a turn, in a fight that ends in three
+  // or four. The payoff the game is built around simply never arrived.
+  //
+  // A weakness hit stays the best route (it alone pays momentum and primes
+  // TECHNICAL). But a completed ROTATION now chips too, so every hero has a way
+  // to lean on the gauge in their own voice, and a PERFECT PARRY chips from the
+  // defensive side (see the parry branch in enemyPhase). A break becomes
+  // something a party plans across three turns instead of an accident.
+  const weakHit = !!(school && school === e.def.weak);
+  // A finisher chips at most ONCE PER FOE PER TURN.  Three heroes each cashing a
+  // rotation would otherwise strip a 2-3 pip gauge every single turn and turn the
+  // break from a plan into a metronome. Weakness stays uncapped: it is the fast
+  // route, and it costs you the school match to use it.
+  const finChip = !!S._finisher && e._finTurn !== S.turn;
+  if (finChip) e._finTurn = S.turn;
+  const chips = (weakHit ? 1 : 0) + (finChip ? 1 : 0);
+  if (weakHit && e.hp > 0 && !S._burstResolving) {
     gainMomentum(10, { combo: true });            // exploiting a weakness builds burst
     e.weakened = true;                            // primes TECHNICAL until the enemy phase
+  }
+  if (chips > 0 && e.hp > 0 && !S._burstResolving) {
     if (!e.staggered && (e.poise || 0) > 0) {
-      e.poise -= 1;
-      popupAt(figEl(e.uid), '◈ POISE −1', 'info');
+      e.poise = Math.max(0, e.poise - chips);
+      popupAt(figEl(e.uid), '◈ POISE −' + chips, 'info');
     }
     if (!e.staggered && (e.poise || 0) <= 0) {
       e.staggered = true;
+      S._breaks = (S._breaks || 0) + 1;            // a fight's break count — read by the playtest drills
       foeAnimState(e.uid, 'broken');               // it reels for the whole window
       if (_foeAnim[e.uid]) { try { const r = figHitRect(figEl(e.uid)); const sr = $('#stage').getBoundingClientRect(), k = sr.width / stageDW();
         burstFxAt((r.left + r.width / 2 - sr.left) / k, (r.top + r.height * 0.4 - sr.top) / k); } catch (_) {} }
@@ -6668,6 +6692,7 @@ function turnBanner(text, cls) {
 }
 
 async function enemyPhase() {
+  S._finisher = false;
   turnBanner('ENEMY TURN', 'tb-enemy');
   _parryStreak = 0;   // a fresh parry combo for the phase
   // WEAKENED expires if you didn't capitalize this turn; STAGGERED holds
@@ -6745,6 +6770,17 @@ async function enemyPhase() {
         flashNarrator(ptHero.def.name + ' turns the blow — the burst swells!');
         parryFlash(figEl(ptHero.id));
         addEmbers(1); if (S) S._embersRun = (S._embersRun || 0) + 1;   // mastery pays embers
+        // A PERFECT read chips the attacker's POISE (Build 252) — the defensive
+        // route to a break, so turtling through a cascade builds toward the same
+        // payoff that pressing the attack does.
+        if (!e.staggered && (e.poise || 0) > 0) {
+          e.poise -= 1;
+          popupAt(figEl(e.uid), '◈ POISE −1', 'info');
+          if (e.poise <= 0) { e.staggered = true; S._breaks = (S._breaks || 0) + 1; foeAnimState(e.uid, 'broken');
+            gainMomentum(18); popupAt(figEl(e.uid), '⚡ BROKEN', 'dmg popup-big');
+            flashNarrator(e.def.name + ' overcommits — the read BREAKS it.');
+            e.mark = (e.mark || 0) + 3; try { SFX.follow(); } catch (_) {} }
+        }
         gainMomentum(18, { combo: true });   // parry FEEDS the burst (Build 197: reined in from 24 — parry still fully NEGATES, but it's no longer also the dominant offense engine, so guard/rows/positioning compete)
         lungeFig(figEl(ptHero.id));
         // FLAWLESS RIPOSTE — a whole cascade read PERFECTLY counters for damage.
