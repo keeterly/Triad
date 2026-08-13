@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 237;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 238;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -2966,13 +2966,13 @@ const ENEMY_ART_PNG = {
   revenant: 1,    // the skull-masked duellist (elite)
 };
 function enemyArtKey(e) { return (e && e.def && e.def.art) || (e && e.id) || ''; }
-function foeArtHTML(key, uid) {
+function foeArtHTML(key, uid, animKey) {
   const vec = V2PORTRAITS[key] || V2PORTRAITS.wraith || '';   // never render a blank figure
-  // ANIMATED SHEET — probes its file with a throwaway Image; only once it
-  // really loads does the frame layer reveal and attach to the engine.  A
-  // missing sheet leaves the plate/vector exactly as it was.
-  const anim = key && FOE_ANIM[key]
-    ? `<span class="fig-anim" data-anim-uid="${uid || key}" style="background-image:url('../art/${FOE_ANIM[key]}')"></span>`
+  // ANIMATED SHEET — revealed only once its file really loads.  A missing
+  // sheet leaves the plate/vector exactly as it was.
+  const ak = animKey || (FOE_ANIM[key] ? key : null);
+  const anim = ak
+    ? `<span class="fig-anim" data-anim-uid="${uid || ak}" style="background-image:url('../art/${FOE_ANIM[ak]}')"></span>`
     : '';
   const base = (!key || !ENEMY_ART_PNG[key]) ? vec
     : `<span class="fig-vec">${vec}</span>`
@@ -3002,7 +3002,9 @@ function foeAnimReveal(scope) {
       .catch(() => { _foeAnimSheets[url] = 'dead'; foeAnimReveal(); });
   });
 }
-const enemyArt = (e) => foeArtHTML(enemyArtKey(e), e && e.uid);
+// animation is keyed by enemy ID (floor bosses share art keys — echoknight2
+// and the Maw both draw 'echoknight'), the plate stays keyed by art.
+const enemyArt = (e) => foeArtHTML(enemyArtKey(e), e && e.uid, e && FOE_ANIM[e.id] ? e.id : null);
 
 // ══ FOE ANIMATION (Build 235) — sprite-sheet frames driven by COMBAT STATE ══
 // One painted sheet per animated foe, cut at runtime by an ATLAS of
@@ -3017,8 +3019,7 @@ const enemyArt = (e) => foeArtHTML(enemyArtKey(e), e && e.uid);
 // until its sheet actually loads — the vector/plate stays, no 404 storms, and
 // the sheet lights up the moment the file lands in /art.
 const FOE_ANIM = {
-  cantor:     'boss-anim.png',
-  echochorus: 'boss-anim.png',
+  echoknight2: 'boss-anim.png',   // THE ECHO KNIGHT, REMEMBERED — the floor-1 boss
 };
 // Frame rects in SHEET PIXELS [x, y, w, h], calibrated against the real
 // art's alpha content (rows segmented by opacity profile; the attack row's
@@ -3134,10 +3135,12 @@ function foeAnimPaint(a) {
   // the creature stays the same size whether its cell is narrow (idle) or
   // wide (the attack sweep) — feet anchored, centered on its cell.
   const scale = boxH / 230;
+  // the element becomes exactly ONE frame wide — a box wider than the cell
+  // (the floor boss's art spans its whole half) would otherwise show the
+  // NEIGHBORING sheet cells on either side.
+  a.el.style.width = (w * scale) + 'px';
   a.el.style.backgroundSize = (FOE_ANIM_SHEET.w * scale) + 'px ' + (FOE_ANIM_SHEET.h * scale) + 'px';
-  a.el.style.backgroundPosition =
-    (-(x * scale) + (boxW - w * scale) / 2) + 'px ' +
-    (-(y * scale) + (boxH - h * scale)) + 'px';
+  a.el.style.backgroundPosition = (-(x * scale)) + 'px ' + (-(y * scale) + (boxH - h * scale)) + 'px';
 }
 function foeAnimTick() {
   const now = performance.now();
@@ -3291,6 +3294,10 @@ function targetSpec(card) {
   return { pick: false };
 }
 function enterTargeting(card, validIds, hint, opts) {
+  // AIMING QUIET (Build 238) — while a card picks its target, every status
+  // chip and intent pill fades to a whisper so the CHARACTERS carry the
+  // choice.  clearAim restores the info the moment the pick resolves.
+  try { $('#stage').classList.add('aiming'); } catch (_) {}
   targeting = Object.assign({ card, validIds }, opts || {});
   if (validIds[0] && validIds[0].startsWith('row:')) targeting.isRow = true;
   $('#target-hint').textContent = hint + (targeting.drag ? '' : ' — tap a figure');
@@ -3318,7 +3325,7 @@ function clearAim() {
   // new hand reads as "glitched / un-draggable."  Also drop any frozen/focus/slow
   // stage classes so nothing from the last fight bleeds into the next.
   try { if (_dragWinUp) { window.removeEventListener('pointerup', _dragWinUp, true); window.removeEventListener('pointercancel', _dragWinUp, true); _dragWinUp = null; } } catch (_) {}
-  try { _slowmoRef = 0; const st = document.getElementById('stage'); if (st) st.classList.remove('parry-focus', 'parry-slowmo', 'allout-focus', 'cam-in', 'frozen'); } catch (_) {}
+  try { _slowmoRef = 0; const st = document.getElementById('stage'); if (st) st.classList.remove('parry-focus', 'parry-slowmo', 'allout-focus', 'cam-in', 'frozen', 'aiming'); } catch (_) {}
   try { _camBase = CAM_POSE_HOME; camRelease(); } catch (_) {}   // a held camera (or a turn pose) must never survive a fight
   // Force a CLEAN hand rebuild next render: throw away any stale card DOM (and its
   // drag closure, whose `pid` may be stuck from a gesture the last fight cut short)
@@ -8184,7 +8191,7 @@ function partyChipsHtml(who) {
     ${who.aether > 0 ? `<span class="chip astral${chipPop(who,'aether',who.aether)}" title="PYRE — fire spells hit +2 per stack. Cast ice to swing back to FROST.">🔥 ${who.aether}</span>` : ''}
     ${who.aether < 0 ? `<span class="chip umbral${chipPop(who,'aether',-who.aether)}" title="FROST — ice spells refill ◆ CHARGE. Cast fire to swing back to PYRE.">❄ ${-who.aether}</span>` : ''}
     ${who.hexed ? `<span class="chip hex${chipPop(who,'hexed',who.hexed)}" title="HEXED — your card plays burn your hand">☠ HEXED</span>` : ''}
-    ${who.primed && PRIME_TYPES[who.primed.type] ? `<span class="chip primed primed-${who.primed.type}${chipPop(who,'primed',1)}" title="PRIMED (${PRIME_TYPES[who.primed.type].name}) — ${PRIME_TYPES[who.primed.type].desc}. They finished their combo and stand ready. When ANOTHER hero finishes a combo, this hero's FOLLOW-UP opens in your hand — playing it bonds the pair. Fades at the end of next turn.">${PRIME_TYPES[who.primed.type].glyph} PRIMED</span>` : ''}`;
+    ${who.primed && PRIME_TYPES[who.primed.type] ? `<span class="chip primed primed-${who.primed.type}${chipPop(who,'primed',1)}" title="PRIMED (${PRIME_TYPES[who.primed.type].name}) — ${PRIME_TYPES[who.primed.type].desc}. They finished their combo and stand ready. When ANOTHER hero finishes a combo, this hero's FOLLOW-UP opens in your hand — playing it bonds the pair. Fades at the end of next turn.">${PRIME_TYPES[who.primed.type].glyph}</span>` : ''}`;
 }
 function partyAuraObj(who) { return { guard: who.guard, rally: who.buffDmg, chill: who.chill, exposed: who.exposed, counter: who.counter, invuln: who.invuln }; }
 // Refresh a REUSED party figure in place — swap only what changed.
@@ -8401,13 +8408,13 @@ function enemyIntentHtml(e) {
 }
 function enemyChipsHtml(e) {
   return `<div class="fig-chips">
-      <span class="chip weak${e.weakRevealed ? ' revealed' : ''}" title="weakness — each hit of this element chips a ◈ POISE pip; at zero the foe BREAKS">${e.weakRevealed ? `<span class="ru-i">${SCHOOL_GLYPH[e.def.weak] || '?'}</span>WEAK: ${(e.def.weak || '?').toUpperCase()}` : `<span class="ru-i">◇</span>? ? ?`}</span>
+      <span class="chip weak${e.weakRevealed ? ' revealed' : ''}" title="weakness — each hit of this element chips a ◈ POISE pip; at zero the foe BREAKS">${e.weakRevealed ? `<span class="ru-i">${SCHOOL_GLYPH[e.def.weak] || '?'}</span>${(e.def.weak || '?').toUpperCase()}` : `<span class="ru-i">◇</span>?`}</span>
       ${!e.staggered && e.poiseMax ? `<span class="chip poise${chipPop(e,'poiseInv',(e.poiseMax - e.poise))}" title="POISE — weakness hits chip these pips; at zero the foe BREAKS: ×1.5 damage taken and its next action is LOST">${'◈'.repeat(e.poise)}${'◇'.repeat(Math.max(0, e.poiseMax - e.poise))}</span>` : ''}
       ${e.staggered ? `<span class="chip stagger${chipPop(e,'staggered',1)}"><span class="ru-i">⚡</span>BROKEN</span>` : ''}
-      ${e.guard ? `<span class="chip guard${chipPop(e,'guard',e.guard)}"><span class="ru-i">⛨</span>GUARD ${e.guard}</span>` : ''}
-      ${e.power ? `<span class="chip buff${chipPop(e,'power',e.power)}"><span class="ru-i">▲</span>RAGE ${e.power}</span>` : ''}
-      ${e.mark ? `<span class="chip mark${chipPop(e,'mark',e.mark)}"><span class="ru-i">◎</span>EXPOSED ${e.mark}</span>` : ''}
-      ${e.lull ? `<span class="chip chill${chipPop(e,'lull',e.lull)}"><span class="ru-i">❄</span>CHILL ${e.lull}</span>` : ''}
+      ${e.guard ? `<span class="chip guard${chipPop(e,'guard',e.guard)}"><span class="ru-i">⛨</span>${e.guard}</span>` : ''}
+      ${e.power ? `<span class="chip buff${chipPop(e,'power',e.power)}"><span class="ru-i">▲</span>${e.power}</span>` : ''}
+      ${e.mark ? `<span class="chip mark${chipPop(e,'mark',e.mark)}"><span class="ru-i">◎</span>${e.mark}</span>` : ''}
+      ${e.lull ? `<span class="chip chill${chipPop(e,'lull',e.lull)}"><span class="ru-i">❄</span>${e.lull}</span>` : ''}
     </div>`;
 }
 function enemyAuraHtml(e) {

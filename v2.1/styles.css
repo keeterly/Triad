@@ -802,6 +802,8 @@ body {
   animation: popup-rise 1s ease-out forwards;
 }
 .popup.dmg { color: var(--blood-bright); }
+.popup.info { font-size: 11px; opacity: 0.92; }
+.popup.rally { font-size: 12px; }
 .popup.heal { color: var(--heal); }
 .popup.guard { color: #a8c8e8; }
 .popup.info { color: var(--gold-bright); font-size: 11px; letter-spacing: 0.1em; }
@@ -1549,6 +1551,27 @@ button.map-node:not(:disabled) { cursor: pointer; }
 
 /* BUILD 13 — weakness/stagger (ported from v1) */
 .chip.weak { color: var(--ink-dim); }
+/* ── READABILITY (Build 238) — the field belongs to the CHARACTERS ──────────
+   Status chips shrank to glyph+number, the boss's chips pinned to a compact
+   row above its hp bar instead of floating mid-art, and while a card is
+   AIMING every chip and intent pill fades to a whisper. */
+.figure .fig-chips { gap: 3px; }
+.figure .chip { font-size: 9px; letter-spacing: 0.02em; }
+/* the floor boss's chips sat mid-art at figure scale — pin them low, small */
+.floor-boss .fig-chips {
+  position: absolute; left: 50%; bottom: 6px; transform: translateX(-50%);
+  top: auto; flex-wrap: nowrap; white-space: nowrap;
+  font-size: 9px; gap: 4px; justify-content: center;
+  background: rgba(10,7,6,0.55); border-radius: 999px; padding: 2px 8px;
+}
+.floor-boss .chip { font-size: 9.5px; }
+/* AIMING QUIET — during a target pick the overlays step back */
+#stage.aiming .fig-chips,
+#stage.aiming .intent,
+#stage.aiming .stance-tag,
+#stage.aiming .slot-label { opacity: 0.14; transition: opacity 0.18s ease; }
+.fig-chips, .intent, .stance-tag, .slot-label { transition: opacity 0.18s ease; }
+
 /* ── CAST FX (Build 237) — the sheet's projectile orb + impact burst, flown
    through #popup-layer (screen space, above the camera, measured endpoints). */
 .fx-orb {

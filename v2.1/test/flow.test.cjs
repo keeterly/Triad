@@ -1365,14 +1365,21 @@ const QUICK = process.argv.includes('--quick');
         && frames.every(f => f.length === 4 && f[0] >= 0 && f[1] >= 0
           && f[0] + f[2] <= FOE_ANIM_SHEET.w && f[1] + f[3] <= FOE_ANIM_SHEET.h);
     })));
-  check('ANIM: the REAL sheet reveals on the cantor and animates in-world',
+  check('ANIM: the REAL sheet animates the FLOOR-1 BOSS (keyed by id — the Maw shares its art key and stays vector)',
     await J(async () => {
-      startFight({ type: 'fight', chapter: 3, heroes: ['ash'], enemies: ['cantor'], useRunHp: true, narrator: 'anim live' });
+      startFight({ type: 'fight', chapter: 3, depth: 7, floor: 1, useRunHp: true,
+                   heroes: ['ash'], enemies: ['echoknight2'], isBoss: true, narrator: 'anim live' });
       renderAll();
       await new Promise(r => setTimeout(r, 900));
       const el = document.querySelector('#enemy-half .fig-anim');
-      return !!el && el.classList.contains('fig-anim-on')
+      const bossOn = !!el && el.classList.contains('fig-anim-on')
         && !!_foeAnim[el.dataset.animUid] && _foeAnim[el.dataset.animUid].state === 'idle';
+      startFight({ type: 'fight', chapter: 3, depth: 7, floor: 2, useRunHp: true,
+                   heroes: ['ash'], enemies: ['echodevourer'], isBoss: true, narrator: 'maw check' });
+      renderAll();
+      await new Promise(r => setTimeout(r, 500));
+      const mawHasAnim = !!document.querySelector('#enemy-half .fig-anim');
+      return bossOn && !mawHasAnim;
     }));
   check('ANIM: a listed foe whose sheet is MISSING degrades exactly like a missing plate (no reveal, art untouched)',
     await J(async () => {
@@ -1402,7 +1409,7 @@ const QUICK = process.argv.includes('--quick');
       && FOE_FX.orb.length >= 3));
   check('FX: a cast flies the orb, detonates the burst at arrival, resolves AT impact, and cleans up',
     await J(async () => {
-      startFight({ type: 'fight', chapter: 3, heroes: ['ash'], enemies: ['cantor'], useRunHp: true, narrator: 'fx drill' });
+      startFight({ type: 'fight', chapter: 3, depth: 7, floor: 1, useRunHp: true, heroes: ['ash'], enemies: ['echoknight2'], isBoss: true, narrator: 'fx drill' });
       renderAll();
       await new Promise(r => setTimeout(r, 400));
       let bursts = 0; const real = window.burstFxAt;
