@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 245;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 246;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -681,6 +681,29 @@ function crossOffersFor(learner) {
     && !hasCrossed(learner, n.id)
     && bondPts(pairKey(learner, n.hero)) >= CROSS_BOND);
 }
+// Every crossing this hero COULD ever hold from the fielded party, with the
+// reason each one is shut.  A lattice you can only see the OPEN doors of is not
+// a lattice, it is a shop — the closed doorways, and what they are waiting on,
+// are what make the screen something you can plan a route through.
+function crossViewFor(learner) {
+  if (!RUN || !learner) return [];
+  const party = (RUN.active && RUN.active.length) ? RUN.active : (RUN.roster || []);
+  if (party.indexOf(learner) < 0) return [];
+  const out = [];
+  EMBER_TREE.forEach(n => {
+    if (!isTeachable(n) || n.hero === learner || party.indexOf(n.hero) < 0) return;
+    const bond = bondPts(pairKey(learner, n.hero)), cost = crossCost(learner, n);
+    let state;
+    if (hasCrossed(learner, n.id)) state = 'crossed';
+    else if (!hasNode(n.id)) state = 'untaught';        // they cannot teach what they have not learned
+    else if (bond < CROSS_BOND) state = 'unbonded';     // the door is there; the bond is not
+    else if (runEmbers() < cost) state = 'poor';
+    else state = 'open';
+    out.push({ node: n, state, cost, bond, kin: kinship(learner, n.hero), teacher: n.hero });
+  });
+  return out.sort((a, b) => (a.teacher + a.node.id) < (b.teacher + b.node.id) ? -1 : 1);
+}
+const KIN_WORD = ['DISTANT', 'KINDRED', 'TWINNED'];
 function learnCrossing(learner, n) {
   if (!RUN || !learner || !n) return false;
   RUN.crossed = RUN.crossed || {};
@@ -7927,7 +7950,6 @@ function showEmberSpark(onDone) {
   // Reuse the BOON-DRAFT card language (portrait art · medallion · tinted frame)
   // so a post-fight reward reads instantly as "a gift from THIS companion",
   // not as a spreadsheet row.  Build 212.
-  const KIN_WORD = ['DISTANT', 'KINDRED', 'TWINNED'];
   const cardHtml = (o) => {
     const n = o.node, cost = sparkCost(o), afford = runEmbers() >= cost;
     const h = HEROES[o.hero];                       // the card is always about the LEARNER
@@ -9659,20 +9681,50 @@ function showEmberTree(onBack, heroId, selId) {
     pos[n.id] = { x: CX + r * Math.cos(a), y: CY + r * Math.sin(a) };
   });
   const root = { x: CX, y: CY };
+  // ---- DOORWAYS (Build 246) — the crossings sit on a ring OUTSIDE every arm,
+  // grouped by teacher and tinted in the teacher's colour, so a hero's own
+  // constellation ends where the doors into their companions' trees begin.
+  // Placing them past the deepest arm means they can never collide with a spoke;
+  // spreading them evenly round the full circle means they never collide with
+  // each other either.
+  const maxD = Math.max.apply(null, nodes.map(x => depth[x.id]));
+  const crossings = crossViewFor(heroId);
+  const crossPos = {};
+  const CR = R0 + (maxD + 1.05) * RING;
+  // ONE SIDE PER TEACHER, and never straight up or down.  The constellation is
+  // fit to a SQUARE (so the ring guides stay circular under
+  // preserveAspectRatio="none") but the canvas it lands in is landscape, so a
+  // doorway placed at 12 o'clock falls outside the visible band and is clipped —
+  // measured at 83px of overflow before this.  Keeping doorways in left/right
+  // arcs grows the box along the axis that HAS room, and groups every door into
+  // a companion's tree on that companion's side, which reads better anyway.
+  const teachers = [];
+  crossings.forEach(c => { if (teachers.indexOf(c.teacher) < 0) teachers.push(c.teacher); });
+  const FAN = 30, MAX_OFF = 58;   // degrees between sibling doors, and off-horizontal cap
+  crossings.forEach(c => {
+    const side = teachers.indexOf(c.teacher) % 2 === 0 ? 0 : 180;   // right, then left
+    const sibs = crossings.filter(x => x.teacher === c.teacher);
+    const k = sibs.indexOf(c);
+    const off = Math.max(-MAX_OFF, Math.min(MAX_OFF, (k - (sibs.length - 1) / 2) * FAN));
+    const a = (side + off) * Math.PI / 180;
+    crossPos[c.node.id] = { x: CX + CR * Math.cos(a), y: CY + CR * Math.sin(a) };
+  });
   // FIT THE CONSTELLATION (Build 214) — grow the canvas box to the real extent of
   // the arms (plus a margin for the label under each orb) and re-origin every
   // point into it.  Previously a depth-3 arm landed outside the fixed 300×300
   // box and "Relentless" was sliced off by the top edge.
   {
     const PAD = 46;   // room for the orb glyph + its label
-    const xs = nodes.map(n => pos[n.id].x).concat([root.x]);
-    const ys = nodes.map(n => pos[n.id].y).concat([root.y]);
+    const cxs = crossings.map(c => crossPos[c.node.id]);
+    const xs = nodes.map(n => pos[n.id].x).concat([root.x], cxs.map(p => p.x));
+    const ys = nodes.map(n => pos[n.id].y).concat([root.y], cxs.map(p => p.y));
     const minX = Math.min.apply(null, xs) - PAD, maxX = Math.max.apply(null, xs) + PAD;
     const minY = Math.min.apply(null, ys) - PAD, maxY = Math.max.apply(null, ys) + PAD;
     // keep it square so the ring guides stay circular under preserveAspectRatio
     const span = Math.max(maxX - minX, maxY - minY);
     const ox = minX - (span - (maxX - minX)) / 2, oy = minY - (span - (maxY - minY)) / 2;
     nodes.forEach(n => { pos[n.id].x -= ox; pos[n.id].y -= oy; });
+    crossings.forEach(c => { crossPos[c.node.id].x -= ox; crossPos[c.node.id].y -= oy; });
     root.x -= ox; root.y -= oy;
     W = H = span;
   }
@@ -9688,9 +9740,36 @@ function showEmberTree(onBack, heroId, selId) {
     return `<path class="et-link ${cls}" vector-effect="non-scaling-stroke" d="M ${l.a.x} ${l.a.y} L ${l.b.x} ${l.b.y}" />`;
   }).join('');
   // faint ring guides behind the spokes, one per depth present
-  const maxDepth = Math.max.apply(null, nodes.map(n => depth[n.id]));
+  const maxDepth = maxD;
   let ringSvg = '';
   for (let d = 0; d <= maxDepth; d++) ringSvg += `<circle class="et-ring" cx="${root.x}" cy="${root.y}" r="${R0 + d * RING}" vector-effect="non-scaling-stroke" />`;
+  // A doorway hangs off a BOND, not a prerequisite, so it is drawn as a thread
+  // rather than a spoke — dashed while the bond is short of CROSS_BOND, drawn
+  // solid once the door is open, in the teaching hero's own colour.
+  const threadSvg = crossings.map(c => {
+    const p = crossPos[c.node.id];
+    const open = c.state === 'open' || c.state === 'poor' || c.state === 'crossed';
+    return `<path class="et-thread${open ? ' et-thread-on' : ''}${c.state === 'crossed' ? ' et-thread-full' : ''}"
+      vector-effect="non-scaling-stroke" stroke="${HEROES[c.teacher].tint}"
+      d="M ${root.x} ${root.y} L ${p.x} ${p.y}" />`;
+  }).join('');
+  const crossRing = crossings.length
+    ? `<circle class="et-ring et-ring-cross" cx="${root.x}" cy="${root.y}" r="${CR}" vector-effect="non-scaling-stroke" />` : '';
+  const crossOrbs = crossings.map(c => {
+    const p = crossPos[c.node.id], id = 'x:' + heroId + ':' + c.node.id;
+    const glyph = c.state === 'crossed' ? '✓' : c.state === 'open' || c.state === 'poor' ? '⟡' : '🔒';
+    const foot = c.state === 'crossed' ? 'LEARNED'
+      : c.state === 'untaught' ? HEROES[c.teacher].name + ' must learn it'
+      : c.state === 'unbonded' ? '♡ ' + c.bond + '/' + CROSS_BOND
+      : '✦' + c.cost;
+    return `<button class="et-orb et-cross et-x-${c.state}${id === selId ? ' et-sel' : ''}" data-id="${id}"
+       style="left:${(p.x / W) * 100}%; top:${(p.y / H) * 100}%; --tint:${HEROES[c.teacher].tint}">
+       <span class="et-orb-glyph">${glyph}</span>
+       <span class="et-orb-name">${c.node.label}</span>
+       <span class="et-x-from">${HEROES[c.teacher].name}</span>
+       <span class="et-orb-cost${c.state === 'poor' ? ' et-cant' : ''}">${foot}</span>
+     </button>`;
+  }).join('');
   // ---- ORBS -------------------------------------------------------------------
   const orbs = nodes.map(n => {
     const st = nodeState(n);
@@ -9704,9 +9783,24 @@ function showEmberTree(onBack, heroId, selId) {
   }).join('');
   const rootOrb = `<div class="et-orb et-root" style="left:${(root.x / W) * 100}%; top:${(root.y / H) * 100}%"><span class="et-orb-glyph">◆</span></div>`;
   // ---- DETAIL BAR (selected node) ---------------------------------------------
-  const sel = selId ? NODE_BY_ID[selId] : nodes.find(n => nodeState(n) === 'ready') || nodes[0];
+  // a doorway selection carries an "x:<learner>:" prefix — it is a different
+  // KIND of thing to own, so it gets its own panel rather than being squeezed
+  // into the node one.
+  const selCross = (selId && String(selId).indexOf('x:') === 0)
+    ? crossings.find(c => 'x:' + heroId + ':' + c.node.id === selId) : null;
+  const sel = selCross ? null : (selId ? NODE_BY_ID[selId] : nodes.find(n => nodeState(n) === 'ready') || nodes[0]);
   let detail = '<div class="et-detail-empty">Pick a node to inspect it.</div>';
-  if (sel) {
+  if (selCross) {
+    const c = selCross, T = HEROES[c.teacher], L = HEROES[heroId];
+    const act = c.state === 'crossed' ? '<span class="et-d-owned">⟡ LEARNED</span>'
+      : c.state === 'untaught' ? `<span class="et-d-lock">${T.name} has not kindled it yet</span>`
+      : c.state === 'unbonded' ? `<span class="et-d-lock">bond ♡ ${c.bond} — needs ♡ ${CROSS_BOND}; fight on together</span>`
+      : `<button class="et-d-buy${c.state === 'poor' ? ' et-d-cant' : ''}" id="et-cross-buy" ${c.state === 'poor' ? 'disabled' : ''}>LEARN · ✦ ${c.cost}</button>`;
+    detail = `<div class="et-d-head"><span class="et-d-type t-cross">${KIN_WORD[c.kin]}</span><span class="et-d-name">${c.node.label}</span></div>
+      <div class="et-d-cross">${L.name} learns this from <b style="color:${T.tint}">${T.name}</b>${c.kin ? ` — ${c.kin === 2 ? 'the same school AND the same tempo' : 'a shared ' + (T.school === L.school ? 'school' : 'tempo')}, so it comes cheap` : ' — nothing in common, so it comes dear'}.</div>
+      <div class="et-d-desc">${nodeDescHTML(c.node.desc)}</div>
+      <div class="et-d-foot">${act}</div>`;
+  } else if (sel) {
     const st = nodeState(sel);
     const reqNames = (sel.requires || []).filter(r => !hasNode(r)).map(r => NODE_BY_ID[r].label);
     const action = st === 'owned' ? '<span class="et-d-owned">✓ KINDLED</span>'
@@ -9717,6 +9811,27 @@ function showEmberTree(onBack, heroId, selId) {
       <div class="et-d-desc">${nodeDescHTML(sel.desc)}</div>
       <div class="et-d-foot">${action}</div>`;
   }
+  // THE WEAVE STRIP — with a party of three the lattice IS a triangle, so the
+  // whole of it fits in one line per edge: who is bonded to whom, how close, and
+  // how many doors that opens.  This is the part you plan a route with.
+  const weaveBar = (() => {
+    if (party.length < 2) return '';
+    const edges = [];
+    for (let i = 0; i < party.length; i++) for (let j = i + 1; j < party.length; j++) {
+      const a = party[i], b = party[j], bond = bondPts(pairKey(a, b)), kin = kinship(a, b);
+      const doors = crossViewFor(a).filter(c => c.teacher === b).length
+                  + crossViewFor(b).filter(c => c.teacher === a).length;
+      const held = crossedNodes(a).length + crossedNodes(b).length;
+      const open = bond >= CROSS_BOND;
+      edges.push(`<span class="wv-edge${open ? ' wv-open' : ''}${a === heroId || b === heroId ? ' wv-mine' : ''}">
+        <b style="color:${HEROES[a].tint}">${HEROES[a].name}</b>
+        <i class="wv-link">${open ? '⟡' : '·'}</i>
+        <b style="color:${HEROES[b].tint}">${HEROES[b].name}</b>
+        <em>♡${bond}${open ? '' : '/' + CROSS_BOND} · ${KIN_WORD[kin]}${open && doors ? ' · ' + doors + ' door' + (doors === 1 ? '' : 's') : ''}</em>
+      </span>`);
+    }
+    return `<div class="et-weave">${edges.join('')}</div>`;
+  })();
   // tabs are ONLY your fielded party's constellations
   const tabHeroes = party.length ? party : [heroId];
   const tabs = tabHeroes.map(hid => {
@@ -9726,11 +9841,12 @@ function showEmberTree(onBack, heroId, selId) {
   showOverlay(`
     <div class="et-head"><span class="et-h-title">THE EMBER TREE</span><span class="et-h-wallet">✦ <b>${runEmbers()}</b></span><span class="et-h-boss">this descent only · resets if you fall</span></div>
     <div class="et-tabs">${tabs}</div>
+    ${weaveBar}
     <div class="et-body">
       <div class="et-canvas et-grid" id="et-canvas">
         <div class="et-pan" id="et-pan">
-          <svg class="et-links" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${ringSvg}${linkSvg}</svg>
-          ${rootOrb}${orbs}
+          <svg class="et-links" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${ringSvg}${crossRing}${linkSvg}${threadSvg}</svg>
+          ${rootOrb}${orbs}${crossOrbs}
         </div>
         <div class="et-zoom">
           <button class="et-zoom-btn" id="et-zoom-out" title="Zoom out">−</button>
@@ -9760,6 +9876,12 @@ function showEmberTree(onBack, heroId, selId) {
     addEmbers(-bought.cost); unlockNode(bought.id); setTreeTaught();   // learning the tree, once
     // the skill CATCHES — a full-screen ember-bloom before dropping back to the tree
     kindleBurst(bought, () => showEmberTree(onBack, heroId, first ? '__kindled:' + bought.id : bought.id));
+  };
+  const xbuy = $('#et-cross-buy');
+  if (xbuy && selCross) xbuy.onclick = () => {
+    if (selCross.state !== 'open') return;
+    addEmbers(-selCross.cost); learnCrossing(heroId, selCross.node); saveRun();
+    kindleBurst(selCross.node, () => showEmberTree(onBack, heroId, selId));
   };
   // celebrate the very first kindle so the loop clicks: node → KINDLE → in hand
   if (justKindled) {

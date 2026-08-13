@@ -3727,3 +3727,67 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
 .bp-perk b { color: var(--ink-dim); font-style: normal; }
 .bp-perk-live { color: var(--ink-dim); }
 .bp-perk-live b { color: var(--gold-bright); }
+
+/* ══ THE WEAVE — doorways into a companion's tree (Build 246) ═══════════════
+   A crossing is a different KIND of thing to own than a node, so it reads in a
+   different visual language: the teacher's own colour instead of the tree's
+   gold, a thread instead of a spoke, and a rim ring that sits outside every
+   arm so a hero's constellation visibly ENDS where the doors begin. */
+.et-ring-cross { stroke: rgba(170,140,200,0.16); stroke-dasharray: 2 9; }
+.et-thread { fill: none; stroke-width: 1.5; stroke-linecap: round; opacity: 0.3; stroke-dasharray: 2 8; }
+.et-thread-on { opacity: 0.62; stroke-dasharray: 5 7; animation: et-flow 20s linear infinite; }
+.et-thread-full { opacity: 0.95; stroke-dasharray: none; stroke-width: 2;
+  filter: drop-shadow(0 0 5px currentColor); }
+
+.et-orb.et-cross { width: 66px; }
+.et-orb.et-cross .et-orb-glyph {
+  border-color: var(--tint, #b28ad3);
+  color: var(--tint, #b28ad3);
+  background: radial-gradient(circle at 50% 36%, rgba(30,22,34,0.98), rgba(16,12,18,0.98));
+}
+/* who is teaching it — the single most important word on the orb, because it is
+   what makes this a LATTICE and not just another node */
+.et-x-from {
+  font-size: 7px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--tint, #b28ad3); opacity: 0.95;
+  padding: 0 3px; border-radius: 4px; background: rgba(8,6,4,0.86);
+}
+.et-orb.et-x-open .et-orb-glyph { box-shadow: 0 0 15px color-mix(in srgb, var(--tint) 45%, transparent);
+  animation: et-pulse 1.9s ease-in-out infinite; }
+.et-orb.et-x-crossed .et-orb-glyph { border-color: #ffe6a4; color: #ffe6a4;
+  background: radial-gradient(circle at 50% 36%, rgba(60,48,24,0.98), rgba(24,18,10,0.98));
+  box-shadow: 0 0 12px rgba(240,212,136,0.45); }
+.et-orb.et-x-poor { opacity: 0.8; }
+.et-orb.et-x-poor .et-orb-glyph { filter: grayscale(0.4); }
+/* a SHUT door still shows its name and what it waits on — a lattice you can
+   only see the open doors of is a shop, not a map you can plan a route through */
+.et-orb.et-x-unbonded, .et-orb.et-x-untaught { opacity: 0.5; }
+.et-orb.et-x-unbonded .et-orb-glyph, .et-orb.et-x-untaught .et-orb-glyph { font-size: 12px; }
+.et-orb.et-cross .et-orb-cost { position: static; margin-top: 1px; font-size: 7.5px; font-weight: 700;
+  letter-spacing: 0.06em; color: #cbb488; text-shadow: none; }
+
+/* THE WEAVE STRIP — with a party of three the lattice IS a triangle, so all of
+   it fits on one row: who is bound to whom, how close, and how many doors it
+   opens.  This is the line you actually plan with. */
+.et-weave { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin: 0 0 8px; }
+.wv-edge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 8.5px; letter-spacing: 0.08em; padding: 3px 9px; border-radius: 999px;
+  border: 1px solid rgba(120,104,84,0.3); background: rgba(14,11,9,0.72);
+  opacity: 0.62; transition: opacity 160ms ease, border-color 160ms ease;
+}
+.wv-edge b { font-weight: 800; }
+.wv-edge em { font-style: normal; color: var(--ink-faint); letter-spacing: 0.1em; }
+.wv-link { font-style: normal; color: var(--ink-faint); }
+.wv-edge.wv-open { opacity: 1; border-color: rgba(178,138,211,0.5); background: rgba(26,18,32,0.8); }
+.wv-edge.wv-open .wv-link { color: #c8a6e6; text-shadow: 0 0 8px rgba(178,138,211,0.7); }
+.wv-edge.wv-open em { color: #b9a3d0; }
+/* the edge you're standing on gets the emphasis */
+.wv-edge.wv-mine { opacity: 1; }
+.wv-edge.wv-mine:not(.wv-open) { border-color: rgba(120,104,84,0.5); }
+
+.et-d-type.t-cross { color: #c8a6e6; border-color: rgba(178,138,211,0.5); }
+.et-d-cross { font-size: 10px; color: var(--ink-dim); margin: 2px 0 4px; line-height: 1.4; }
+@media (prefers-reduced-motion: reduce) {
+  .et-thread-on, .et-orb.et-x-open .et-orb-glyph { animation: none; }
+}

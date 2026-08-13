@@ -4058,6 +4058,89 @@ const QUICK = process.argv.includes('--quick');
         && back.crossed.ash[0] === 'mira.passive.opportunist')
         && JSON.stringify(fresh.crossed) === '{}'; }));
 
+  // ---------- THE LATTICE UI (Build 246) ----------
+  console.log('--- LATTICE ---');
+  const latticeRun = (hero) => J((h) => {
+    RUN = newRun('ash');
+    RUN.roster = ['ash', 'mira', 'cassia']; RUN.active = ['ash', 'mira', 'cassia'];
+    RUN.hp = { ash: 34, mira: 30, cassia: 36 };
+    RUN.nodes = ['mira.passive.opportunist', 'cassia.passive.vigil', 'cassia.passive.bastion',
+                 'ash.sig.front', 'ash.passive.vanguard'];
+    RUN.crossed = { ash: ['cassia.passive.vigil'] };
+    RUN.bonds = { 'ash|mira': 4, 'ash|cassia': 3, 'cassia|mira': 1 };   // mira↔cassia stays SHUT
+    RUN.embers = 14; RUN.floor = 1; RUN.completed = [0, 1, 2, 3];
+    RUN.map = generateDescent(RUN.roster, 1);
+    // the canvas pans and zooms, and TREE_PAN/TREE_ZOOM persist per hero for the
+    // whole session — an earlier tree test leaves Ash's view shoved sideways.
+    // Framing claims are about the DEFAULT view, so reset it first.
+    TREE_PAN[h] = { x: 0, y: 0 }; TREE_ZOOM[h] = 1;
+    showEmberTree(() => {}, h);
+    return true;
+  }, hero);
+
+  await latticeRun('ash'); await sleep(500);
+  check('LATTICE: every doorway the party could ever open is drawn, not just the affordable ones',
+    await J(() => document.querySelectorAll('.et-orb.et-cross').length === crossViewFor('ash').length
+      && crossViewFor('ash').length === 3));
+  check('LATTICE: a doorway names its TEACHER — the word that makes this a lattice, not a node list',
+    await J(() => [...document.querySelectorAll('.et-orb.et-cross .et-x-from')]
+      .map(e => e.textContent).sort().join(',') === 'CASSIA,CASSIA,MIRA'));
+  check('LATTICE: a doorway hangs off a BOND, so it is drawn as a thread, not a prerequisite spoke',
+    await J(() => document.querySelectorAll('.et-thread').length === 3
+      && document.querySelectorAll('.et-thread-full').length === 1));   // the one already crossed
+  // THE framing regression this build exists to fix: the constellation is fit to
+  // a SQUARE (ring guides stay circular under preserveAspectRatio="none") but
+  // lands in a LANDSCAPE canvas, so a doorway at 12 o'clock fell outside the
+  // visible band. Measured 83px of overflow before the side-arc placement.
+  const clipped = () => J(() => {
+    const c = document.getElementById('et-canvas').getBoundingClientRect();
+    return [...document.querySelectorAll('.et-orb')].filter(o => { const r = o.getBoundingClientRect();
+      return r.top < c.top - 0.5 || r.bottom > c.bottom + 0.5 || r.left < c.left - 0.5 || r.right > c.right + 0.5;
+    }).map(o => (o.querySelector('.et-orb-name') || {}).textContent || '?');
+  });
+  check('LATTICE: nothing is clipped by the canvas — doorways grow the box where there is ROOM',
+    (await clipped()).length === 0, (await clipped()).join(', '));
+  check('LATTICE: the weave strip carries one edge per party pair, lit only where the door is open',
+    await J(() => document.querySelectorAll('.wv-edge').length === 3
+      && document.querySelectorAll('.wv-edge.wv-open').length === 2));   // ash↔mira, ash↔cassia
+  check('LATTICE: selecting a doorway opens the CROSSING panel, not the node panel',
+    await J(() => { const el = document.querySelector('.et-orb.et-x-open'); if (!el) return false;
+      el.click(); return true; }) && (await sleep(320), await J(() =>
+      !!document.querySelector('.et-d-cross') && !!document.getElementById('et-cross-buy'))));
+  const wallet0 = await J(() => runEmbers());
+  const learned = await J(() => {
+    const sel = document.querySelector('.et-orb.et-cross.et-sel');
+    const id = sel && sel.dataset.id.replace(/^x:[a-z]+:/, '');
+    const btn = document.getElementById('et-cross-buy');
+    if (!btn || !id) return null;
+    const nodesBefore = RUN.nodes.length;
+    btn.click();
+    return { id, cost: crossCost('ash', NODE_BY_ID[id]), nodesBefore };
+  });
+  await sleep(700);
+  // A crossing is recorded on the LEARNER and must never touch RUN.nodes — the
+  // teacher already owns that node, and pushing it there would hand the rule to
+  // whoever the node belongs to rather than to the hero who paid for it.
+  check('LATTICE: LEARN spends the kinship price and records the crossing on the LEARNER',
+    !!learned && await J((l) => hasCrossed('ash', l.id) && RUN.nodes.length === l.nodesBefore, learned)
+      && (wallet0 - await J(() => runEmbers())) === (learned || {}).cost,
+    learned ? `${learned.id} for ✦${learned.cost}` : 'no doorway was buyable');
+
+  await latticeRun('mira'); await sleep(500);
+  check('LATTICE: a SHUT door is still drawn, named, and says what it waits on',
+    await J(() => { const shut = [...document.querySelectorAll('.et-orb.et-x-unbonded')];
+      return shut.length === 2
+        && shut.every(o => (o.querySelector('.et-orb-name') || {}).textContent)
+        && shut.every(o => /♡ 1\/3/.test((o.querySelector('.et-orb-cost') || {}).textContent || '')); }),
+    await J(() => [...document.querySelectorAll('.et-orb.et-x-unbonded .et-orb-cost')].map(e => e.textContent).join(' · ')));
+  check('LATTICE: a shut door offers no way to buy it',
+    await J(() => { const el = document.querySelector('.et-orb.et-x-unbonded'); if (!el) return false;
+      el.click(); return true; }) && (await sleep(320), await J(() =>
+      !document.getElementById('et-cross-buy') && /needs ♡/.test(document.querySelector('.et-detail').textContent))));
+  check('LATTICE: still nothing clipped from a hero whose doors are mostly shut',
+    (await clipped()).length === 0, (await clipped()).join(', '));
+  await J(() => hideOverlay());
+
   t.report();
   await t.browser.close();
 })().catch(e => { console.error('FATAL', e.message); process.exit(1); });
