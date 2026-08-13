@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 235;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 236;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -3020,16 +3020,22 @@ const FOE_ANIM = {
   cantor:     'boss-anim.png',
   echochorus: 'boss-anim.png',
 };
-// Frame rects as FRACTIONS of the sheet [x, y, w, h].  Estimated off the
-// authored sheet's layout; recalibrate here if a frame crops badly.
+// Frame rects in SHEET PIXELS [x, y, w, h], calibrated against the real
+// art's alpha content (rows segmented by opacity profile; the attack row's
+// trails bleed across cells, so its boundaries come from the caption centers).
+// FOE_ANIM_SHEET is the sheet's natural size — the paint math needs it to
+// keep every frame at ONE consistent scale, feet anchored, regardless of how
+// wide its cell is (ATTACK 4 spans ~350px, IDLE ~190px; stretch-to-fill would
+// balloon the creature on its calm frames).
+const FOE_ANIM_SHEET = { w: 1536, h: 1024 };
 const FOE_ANIM_ATLAS = {
-  idle:     [[0.015,0.00,0.130,0.24],[0.155,0.00,0.130,0.24],[0.295,0.00,0.135,0.24]],
-  prep:     [[0.575,0.00,0.135,0.24],[0.715,0.00,0.130,0.24],[0.855,0.00,0.135,0.24]],
-  attack:   [[0.000,0.26,0.165,0.24],[0.165,0.26,0.150,0.24],[0.315,0.26,0.170,0.24],[0.475,0.26,0.185,0.24]],
-  recovery: [[0.660,0.26,0.160,0.24],[0.825,0.26,0.165,0.24]],
-  hit:      [[0.005,0.52,0.130,0.22],[0.140,0.52,0.130,0.22]],
-  heavy:    [[0.275,0.52,0.145,0.22],[0.425,0.52,0.130,0.22]],
-  death:    [[0.555,0.52,0.145,0.22],[0.700,0.52,0.145,0.22],[0.845,0.52,0.150,0.22]],
+  idle:     [[24,12,195,230],[250,12,178,230],[457,12,189,230]],
+  prep:     [[882,12,208,230],[1108,12,203,230],[1339,12,189,230]],
+  attack:   [[8,276,231,220],[239,276,258,220],[497,276,271,220],[768,276,350,220]],
+  recovery: [[1120,276,186,220],[1329,276,183,220]],
+  hit:      [[9,532,212,196],[219,532,229,196]],
+  heavy:    [[455,532,217,196],[674,532,212,196]],
+  death:    [[890,532,191,196],[1087,532,215,196],[1316,532,209,196]],
 };
 // per-state playback: frame duration, whether it loops, and where it lands
 const FOE_ANIM_PLAY = {
@@ -3061,10 +3067,16 @@ function foeAnimState(uid, state) {
 function foeAnimPaint(a) {
   const play = FOE_ANIM_PLAY[a.state];
   const frames = FOE_ANIM_ATLAS[play.frames || a.state];
-  const f = frames[Math.min(a.frame, frames.length - 1)];
-  const [x, y, w, h] = f;
-  a.el.style.backgroundSize = (100 / w) + '% ' + (100 / h) + '%';
-  a.el.style.backgroundPosition = (x / (1 - w) * 100) + '% ' + (y / (1 - h) * 100) + '%';
+  const [x, y, w, h] = frames[Math.min(a.frame, frames.length - 1)];
+  const boxW = a.el.clientWidth || 1, boxH = a.el.clientHeight || 1;
+  // ONE scale for every frame: the tallest frame row fills the box height, so
+  // the creature stays the same size whether its cell is narrow (idle) or
+  // wide (the attack sweep) — feet anchored, centered on its cell.
+  const scale = boxH / 230;
+  a.el.style.backgroundSize = (FOE_ANIM_SHEET.w * scale) + 'px ' + (FOE_ANIM_SHEET.h * scale) + 'px';
+  a.el.style.backgroundPosition =
+    (-(x * scale) + (boxW - w * scale) / 2) + 'px ' +
+    (-(y * scale) + (boxH - h * scale)) + 'px';
 }
 function foeAnimTick() {
   const now = performance.now();

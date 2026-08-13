@@ -1358,21 +1358,33 @@ const QUICK = process.argv.includes('--quick');
       el.remove(); delete _foeAnim['drill#1'];
       return held && cleared;
     }));
-  check('ANIM: every playback state maps to real atlas frames, and frames are sane fractions',
+  check('ANIM: every playback state maps to real atlas frames, all inside the sheet',
     await J(() => Object.keys(FOE_ANIM_PLAY).every(st => {
       const frames = FOE_ANIM_ATLAS[FOE_ANIM_PLAY[st].frames || st];
       return Array.isArray(frames) && frames.length >= 2
-        && frames.every(f => f.length === 4 && f.every(v => v >= 0 && v <= 1) && f[0] + f[2] <= 1.001 && f[1] + f[3] <= 1.001);
+        && frames.every(f => f.length === 4 && f[0] >= 0 && f[1] >= 0
+          && f[0] + f[2] <= FOE_ANIM_SHEET.w && f[1] + f[3] <= FOE_ANIM_SHEET.h);
     })));
-  check('ANIM: a listed foe with a MISSING sheet degrades exactly like a missing plate (no reveal, art untouched)',
+  check('ANIM: the REAL sheet reveals on the cantor and animates in-world',
     await J(async () => {
-      startFight({ type: 'fight', chapter: 3, heroes: ['ash'], enemies: ['cantor'], useRunHp: true, narrator: 'anim degrade' });
+      startFight({ type: 'fight', chapter: 3, heroes: ['ash'], enemies: ['cantor'], useRunHp: true, narrator: 'anim live' });
+      renderAll();
+      await new Promise(r => setTimeout(r, 900));
+      const el = document.querySelector('#enemy-half .fig-anim');
+      return !!el && el.classList.contains('fig-anim-on')
+        && !!_foeAnim[el.dataset.animUid] && _foeAnim[el.dataset.animUid].state === 'idle';
+    }));
+  check('ANIM: a listed foe whose sheet is MISSING degrades exactly like a missing plate (no reveal, art untouched)',
+    await J(async () => {
+      FOE_ANIM.husk = 'no-such-sheet.png';           // deliberately absent file
+      startFight({ type: 'fight', chapter: 3, heroes: ['ash'], enemies: ['husk'], useRunHp: true, narrator: 'anim degrade' });
       renderAll();
       await new Promise(r => setTimeout(r, 700));
       const el = document.querySelector('#enemy-half .fig-anim');
-      // the layer exists but never turns ON without its file — the vector stays
-      return !!el && !el.classList.contains('fig-anim-on')
-        && !!document.querySelector('#enemy-half .fig-art svg');
+      const out = !!el && !el.classList.contains('fig-anim-on')
+        && !!document.querySelector('#enemy-half .fig-png');   // the plate stays
+      delete FOE_ANIM.husk;
+      return out;
     }));
   check('ANIM: the combat hooks are wired — windup→prep, strike→attack, damage→hit/heavy, break→broken, kill→death',
     await J(() => {
