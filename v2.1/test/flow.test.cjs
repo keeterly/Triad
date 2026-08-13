@@ -3858,6 +3858,50 @@ const QUICK = process.argv.includes('--quick');
   });
   check('ROTATION preview: driving all three rotations end-to-end throws nothing', drove === true);
 
+  // ---------- TEMPO — novelty decay (Build 243) ----------
+  // The pacing audit measured 67–80% of the enemy phase as non-interactive, and
+  // found the cost was not the drama but the drama REPEATED.  These assert the
+  // decay is real, is scoped to the fight, and never touches the parry windows.
+  console.log('--- TEMPO ---');
+  check('TEMPO: the first sighting of a beat holds full, every repeat is tightened',
+    await J(() => { setupFight(['ash'], [], { ash: 'front' });
+      const a = tempo('probe', 1000, 400), b = tempo('probe', 1000, 400), c = tempo('probe', 1000, 400);
+      return a === 1000 && b === 400 && c === 400; }));
+  check('TEMPO: the decay is PER FIGHT — a new battle plays every beat in full again',
+    await J(() => { setupFight(['ash'], [], { ash: 'front' });
+      tempo('probe2', 1000, 400);
+      const repeat = tempo('probe2', 1000, 400);
+      setupFight(['ash'], [], { ash: 'front' });         // a fresh S
+      return repeat === 400 && tempo('probe2', 1000, 400) === 1000; }));
+  check('TEMPO: distinct beats decay independently (one key never shortens another)',
+    await J(() => { setupFight(['ash'], [], { ash: 'front' });
+      tempo('k1', 900, 300);
+      return tempo('k2', 900, 300) === 900; }));
+  check('TEMPO: holdOrTap resolves on its own when nothing is tapped',
+    await J(async () => { const t0 = performance.now(); await holdOrTap(300, 60);
+      const d = performance.now() - t0; return d >= 260 && d < 900; }));
+  check('TEMPO: a tap CUTS a cut-in hold short — the tenth band is skippable',
+    await J(async () => { const t0 = performance.now();
+      const p = holdOrTap(3000, 40);
+      setTimeout(() => window.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })), 140);
+      await p; const d = performance.now() - t0;
+      return d < 900; }));                                // cut far short of 3000
+  check('TEMPO: the grace window ignores the pointerdown that STARTED the beat',
+    await J(async () => { const t0 = performance.now();
+      const p = holdOrTap(700, 300);
+      window.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));   // same tick
+      await p; return performance.now() - t0 >= 600; }));
+  // Build 243 fixed a perverse incentive: reading a whole cascade PERFECTLY used
+  // to buy a LONGER settle (340ms) than muffing it (240ms).
+  check('TEMPO: a flawless riposte hands the turn back FASTER than a missed parry',
+    (() => { const m = src.match(/await sleep\(rip > 0 \? (\d+) : (\d+)\);/);
+      return !!m && Number(m[1]) < Number(m[2]); })(),
+    (src.match(/await sleep\(rip > 0 \? \d+ : \d+\);/) || [])[0]);
+  check('TEMPO: a wind-up tell suppresses the cascade lead-in (one telegraph, not two)',
+    /_justTold/.test(src) && /told \? 170 : SEQ_LEADIN/.test(src));
+  check('TEMPO: a card that reads LOUD still gets its full settle; a quiet one does not',
+    /loud \? 240 : 150/.test(src));
+
   t.report();
   await t.browser.close();
 })().catch(e => { console.error('FATAL', e.message); process.exit(1); });

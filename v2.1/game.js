@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 242;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 243;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -2224,13 +2224,19 @@ async function heroCutIn(heroId, kicker, big, sub, hold) {
     </div>`;
   el.classList.remove('fc-out'); void el.offsetWidth; el.classList.add('fc-show');
   try { cineFlash('rgba(240,212,136,0.4)'); SFX.triad && SFX.triad(); } catch (_) {}
-  await sleep(hold || 1150);
+  // The first time a hero's band slides in this fight it plays in full and you
+  // read the name; after that it is a beat, not a reveal — halve the hold, and
+  // let a tap cut either one short.  The band is the game's most-repeated
+  // cinematic (a woven bond forges one on EVERY finisher), so this is where the
+  // dead time actually lives.
+  const full = hold || 1150;
+  await holdOrTap(tempo('cutin:' + heroId, full, Math.round(full * 0.5)));
   el.classList.remove('fc-show');
   // The cinematic band BURNS away (mask sweep + rising embers) for a climactic
   // exit; the small portrait panel keeps its quick fade.
   if (sp) { try { spawnCutinEmbers(el); } catch (_) {} }
   el.classList.add('fc-out');
-  await sleep(sp ? 720 : 320);
+  await sleep(tempo('cutout:' + heroId, sp ? 720 : 320, sp ? 340 : 190));
   el.classList.remove('fc-out'); el.innerHTML = '';
 }
 // Scatter rising embers across the cinematic band as it burns away.
@@ -4034,6 +4040,48 @@ function hexBurn(playedCard) {
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
+// ─────────────────────────────────────────────────────────────────────────────
+// TEMPO — novelty decay (Build 243)
+//
+// The pacing audit found the fight is 72–82% non-interactive wall-clock, and
+// that almost none of it is the DRAMA — it is the drama REPEATED.  A wind-up
+// pose you have never seen is a telegraph; the ninth identical one is a toll
+// booth.  So every cinematic hold now asks how many times THIS beat has already
+// landed in THIS fight: the first is played in full, the repeats are tightened.
+// Nothing is deleted — the two-shot compose, the burning cut-in band, the
+// riposte dilation all still fire, they just stop charging full price for a
+// moment the player has already read.
+function beatCount(key) {
+  if (!S) return 0;
+  if (!S._beats) S._beats = {};
+  const n = S._beats[key] || 0;
+  S._beats[key] = n + 1;
+  return n;                       // 0 the first time this fight
+}
+// full hold on first sighting, `repeat` every time after.
+function tempo(key, full, repeat) { return beatCount(key) === 0 ? full : repeat; }
+
+// SKIPPABLE HOLD — the same window, except a tap anywhere ends it early.
+// The parry notes already prove this plumbing (window-level capture listeners),
+// and `bossCine` already lets you tap past a cinematic; cut-ins were the one
+// beat that fired ten times a fight with no way out.  A short grace window
+// keeps the pointerdown that STARTED the beat from instantly dismissing it.
+function holdOrTap(ms, grace) {
+  return new Promise(res => {
+    let done = false, armed = false;
+    const fin = () => {
+      if (done) return; done = true;
+      clearTimeout(tm); clearTimeout(arm);
+      window.removeEventListener('pointerdown', tap, true);
+      res();
+    };
+    const tap = () => { if (armed) fin(); };
+    const arm = setTimeout(() => { armed = true; }, grace == null ? 200 : grace);
+    const tm = setTimeout(fin, ms);
+    window.addEventListener('pointerdown', tap, true);
+  });
+}
+
 // AFTERIMAGE — the stance a hero LEAVES strikes once more as a free fading echo
 // (−2 dmg, this turn only).  Fires on ANY reposition, not just a dedicated MOVE:
 // a card that slips/vanishes the caster (fx.step / fx.warp, e.g. Mira's Backstab
@@ -4334,7 +4382,12 @@ async function resolveCard(card, targetId) {
       await sleep(320);
     }
   }
-  await sleep(280);
+  // The tail exists so impactFx and popupAt get read before the hand comes back.
+  // A card that dealt no damage and moved nobody has nothing to read, and this
+  // is the beat closest to the player's hands — 100ms here is felt harder than
+  // 500ms in the enemy phase (Build 243).
+  const loud = !!(fx && (fx.dmg || fx.aoeDmg || fx.castDmg || fx.spendCharge || fx.heal));
+  await sleep(loud ? 240 : 150);
 }
 
 // Single source of truth for how hard an enemy intent hits — base + power,
@@ -5396,7 +5449,11 @@ async function runParrySeq(notes, anchor, art) {
   // beats so the first boss never feels frantic.
   const sub = synced ? (_parrySpeed < 0.66 ? clock.beatSec / 2 : clock.beatSec) : 0;   // seconds per note
   let land = synced ? clock.nextGrid(0.6, sub) : 0;   // note 0 lands on the next beat ~0.6s out
-  if (!synced) await sleep(Math.round(SEQ_LEADIN * _parrySpeed));   // free-run lead-in
+  // Free-run lead-in — but a wind-up tell IS a lead-in, and playing both stacks
+  // two telegraphs of the same blow back to back.  When the creature just posed,
+  // take only the short breath needed to read the ring preview (Build 243).
+  const told = !!(S && S._justTold); if (S) S._justTold = false;
+  if (!synced) await sleep(Math.round((told ? 170 : SEQ_LEADIN) * _parrySpeed));
   let hits = 0, perfects = 0;
   for (let i = 0; i < notes.length; i++) {
     const nt = notes[i], p = pts[i], step = rh[i] || { d: 560, g: 160 };
@@ -5438,6 +5495,7 @@ async function runParrySeq(notes, anchor, art) {
 // first verb (brace / sweep / flurry / slash).  Reading the enemy's body — not
 // just the UI — is the Expedition 33 fantasy, delivered in cheap CSS.
 async function windupTell(e, intent) {
+  if (S) S._justTold = false;   // only a tell that actually PLAYS may eat the lead-in
   try {
     const fig = figEl(e.uid); if (!fig) return;
     const p = parryPatternFor(intent);
@@ -5452,7 +5510,12 @@ async function windupTell(e, intent) {
     const def = (typeof heroInRow === 'function' && intent && intent.row) ? heroInRow(intent.row) : null;
     const subjects = [fig, def && figEl(def.id)].filter(Boolean);
     camFocus(subjects, { z: 1.085, dz: 88, yaw: -2.8, pitch: 1.4, r: -1.0, pull: 0.4, ms: 400 });
-    await sleep(460);
+    // First time this creature shows you this gesture, hold the pose long enough
+    // to LEARN it.  Once you know what a wraith's flurry looks like, the pose is
+    // a cue, not a lesson.  And tell the cascade a telegraph just played so it
+    // doesn't stack a second lead-in on top of this one (Build 243).
+    await sleep(tempo('windup:' + (e.def && e.def.id) + ':' + (intent && intent.name), 460, 270));
+    if (S) S._justTold = true;
     fig.classList.remove('fig-windup', pose);
   } catch (_) {}
 }
@@ -6353,7 +6416,9 @@ async function enemyPhase() {
   // WEAKENED expires if you didn't capitalize this turn; STAGGERED holds
   // through the phase — a staggered enemy can be interrupted below.
   livingEnemies().forEach(e => { e.weakened = false; });
-  await sleep(620);
+  // The ENEMY TURN banner runs 950ms on its own and is not awaited, so this
+  // opener was always overlapping a beat that already reads (Build 243).
+  await sleep(380);
   for (const e of livingEnemies()) {
     if (S.over) break;
     // A boss takes MULTIPLE actions per round; each is its own telegraphed,
@@ -6390,7 +6455,7 @@ async function enemyPhase() {
     }
     const lungeEl = figEl(e.uid);
     if (intent.kind === 'buff') {
-      await sleep(400);
+      await sleep(tempo('buff:' + (e.def && e.def.id) + ':' + intent.name, 400, 230));
       if (intent.guardSelf) { e.guard += intent.guardSelf; popupAt(figEl(e.uid), '⛨ ' + intent.guardSelf, 'guard'); SFX.guard(); }
       if (intent.powerSelf) { e.power += intent.powerSelf; popupAt(figEl(e.uid), '▲ +' + intent.powerSelf, 'rally'); }
       if (intent.powerAll) {
@@ -6448,7 +6513,11 @@ async function enemyPhase() {
           try { parrySlowmo(false); } catch (_) {}   // never leak the dilation
         }
         renderAll();
-        await sleep(rip > 0 ? 340 : 240);
+        // Build 243: this used to read `rip > 0 ? 340 : 240` — reading a whole
+        // cascade PERFECTLY made you sit through a LONGER pause than muffing it.
+        // The riposte already bought its own 400ms of dilation above; playing
+        // well should hand the turn back sooner, not later.
+        await sleep(rip > 0 ? 180 : 240);
         if (e.dead || S.over) continue;
       } else if (mit > 0) {
         // PARTIAL — you caught some of the cascade; only the missed share lands
@@ -6460,7 +6529,7 @@ async function enemyPhase() {
         if (weightMode) popupAt(figEl(ptHero.id), 'UNPARRIED!', 'dmg');
       }
     } else {
-      await sleep(400);
+      await sleep(260);   // nobody stands in the struck row — dead air, keep it short
     }
     // The boss was KO'd MID-ATTACK — a flawless-parry RIPOSTE or a COUNTER dropped
     // its stage during the wind-up.  It's reforming: cancel the rest of the string
@@ -6582,12 +6651,14 @@ async function enemyPhase() {
     // stronger.  A PERFECT parry silences it before it can ring out again.
     if (intent.echo && !intent.echoOf && !perfectParry) { e.echoStored = { intent, dmgBonus: intent.echoBonus || 4 }; popupAt(figEl(e.uid), '◈ ECHO STORED', 'info'); }
     renderAll();
-    await sleep(400);
+    // renderAll() has ALREADY painted the result by the time we get here, so
+    // this settle is pure dead frame past the point the popups read (Build 243).
+    await sleep(240);
     if (checkEnd()) break;
     // A clear BREATHER between the boss's two blows — the second wind-up gets its
     // own telegraph and a beat to read, so the pair lands as call-and-response
     // instead of a single overwhelming wall of notes.
-    if (atk + 1 < times) { flashNarrator(e.def.name + ' winds up again…'); await sleep(Math.round(560 * _parrySpeed)); }
+    if (atk + 1 < times) { flashNarrator(e.def.name + ' winds up again…'); await sleep(Math.round(400 * _parrySpeed)); }
     }
     if (S.over) break;
   }
