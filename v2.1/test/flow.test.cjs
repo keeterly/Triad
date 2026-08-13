@@ -881,6 +881,9 @@ const QUICK = process.argv.includes('--quick');
       await settle();
       return { base, peak, back: w() };
     }).then(r => r.base > 10 && r.peak > r.base * 1.03 && Math.abs(r.back - r.base) < 1.5));
+  // Build 253: pin the tier. The DEPTH tuner steps a slow device down and hides
+  // the mid/near planes, and this check is about what the FULL diorama does.
+  await J(() => { SETTINGS.depth = 'full'; applyFxTier(); });
   check('CAMERA: one dolly moves EVERY layer by its depth — near grows more than mid than far (Build 231: one 3D world)',
     await J(async () => {
       const w = (sel) => document.querySelector(sel).getBoundingClientRect().width;
@@ -928,6 +931,7 @@ const QUICK = process.argv.includes('--quick');
       return !!d.querySelector('.hd-far') && !!d.querySelector('.hd-mid') && !!d.querySelector('.hd-near')
         && !document.querySelector('#fight-bg .hd-plane');
     }));
+  await J(() => { SETTINGS.depth = 'full'; applyFxTier(); });   // full-depth claim (Build 253)
   check('WORLD: a lateral truck parallaxes ALL layers by depth — far < mid < figures < near lip',
     await J(async () => {
       const cx = (sel) => { const b = document.querySelector(sel).getBoundingClientRect(); return b.left + b.width / 2; };
@@ -4388,6 +4392,48 @@ const QUICK = process.argv.includes('--quick');
       const c = buildHand().find(x => x.kind === 'opener' && x.owner === 'ash');
       if (c) await playCard(c, (livingEnemies()[0] || {}).uid);
       return S._finisher === false; }));
+
+  // ---------- DEPTH TIERS (Build 253) ----------
+  // Profiling a real fight: renderAll costs 0.64ms (JS is not the problem), but
+  // the scene ran at 14fps and hiding #diorama alone restored a clean 60. The
+  // cost is the stack of full-screen 3D layers. Build 242 measured the same
+  // 14fps, so this was never a regression — it has been the price of the
+  // diorama since it shipped.
+  console.log('--- DEPTH TIERS ---');
+  const stageCls = () => J(() => document.getElementById('stage').className.split(' ').filter(c => c.indexOf('fx-') === 0).sort().join(' '));
+  check('DEPTH: an explicit tier is honoured and never overridden by the tuner',
+    await J(() => { SETTINGS.depth = 'soft'; applyFxTier(); return true; })
+      && (await stageCls()) === 'fx-soft'
+      && await J(() => { _fxTuned = false; autoTuneFx(); return SETTINGS.depth === 'soft'; }));
+  check('DEPTH: FLAT keeps one backdrop, so the world still parallaxes',
+    await J(() => { SETTINGS.depth = 'flat'; applyFxTier();
+      const far = document.querySelector('.hd-far');
+      return getComputedStyle(far).display !== 'none'
+        && getComputedStyle(document.querySelector('.hd-mid')).display === 'none'; }));
+  check('DEPTH: every tier drops OVERDRAW, never GEOMETRY — the ranks keep their depth',
+    await J(() => ['full', 'soft', 'flat'].every(tier => {
+      SETTINGS.depth = tier; applyFxTier();
+      const back = document.querySelector('#party-half .slot[data-row="back"]');
+      const front = document.querySelector('#party-half .slot[data-row="front"]');
+      if (!back || !front) return false;
+      const z = (el) => getComputedStyle(el).getPropertyValue('--row-z').trim();
+      return z(back) !== z(front) && z(back) !== '';
+    })));
+  check('DEPTH: the tuner only ever steps DOWN — it can never climb back mid-session',
+    await J(() => { SETTINGS.depth = 'auto'; _fxTier = 'flat'; _fxTuned = false;
+      const before = _fxTier;
+      autoTuneFx();
+      return FX_TIERS.indexOf(_fxTier) >= FX_TIERS.indexOf(before); }));
+  // The measured win: filters on the backdrop planes were roughly half the frame
+  // cost, because the camera animates those planes and a filtered layer
+  // re-rasters every time it moves.
+  check('DEPTH: no backdrop plane carries a runtime FILTER any more',
+    await J(() => ['.hd-far', '.hd-mid', '.hd-near'].every(sel => {
+      const el = document.querySelector(sel);
+      return el && getComputedStyle(el).filter === 'none'; })),
+    await J(() => ['.hd-far', '.hd-mid', '.hd-near']
+      .map(sel => sel + ':' + getComputedStyle(document.querySelector(sel)).filter).join(' ')));
+  await J(() => { SETTINGS.depth = 'auto'; _fxTier = 'full'; applyFxTier(); });
 
   t.report();
   await t.browser.close();

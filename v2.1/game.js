@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 252;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 253;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -38,10 +38,55 @@ const $ = (sel) => document.querySelector(sel);
 // ---------------------------------------------------------------------------
 const SETTINGS_KEY = 'kizuna2_1.settings';
 const SETTINGS = Object.assign(
-  { sound: true, music: true, haptics: true, fightBg: true },
+  { sound: true, music: true, haptics: true, fightBg: true, depth: 'auto' },
   (() => { try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') || {}; } catch (_) { return {}; } })()
 );
 function saveSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(SETTINGS)); } catch (_) {} }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DEPTH TIERS (Build 253) — the diorama is the whole frame budget.
+//
+// Measured in a real fight: hiding #diorama takes the scene from 14fps to a
+// clean 60, and nothing else moves the needle by comparison — not the ambient
+// animations, not the figure filters, not the JS (renderAll costs 0.64ms). The
+// cost is the stack of full-screen 3D layers, and every one you drop buys real
+// frames back:
+//
+//   FULL  everything                                          25 fps
+//   SOFT  no foreground lip, no ground plane, no drifting air  50 fps
+//   FLAT  also no mid plane — one backdrop, still parallaxed   60 fps
+//
+// The row depths are untouched at every tier, so the party never collapses into
+// a line; what goes is overdraw, not geometry.
+const FX_TIERS = ['full', 'soft', 'flat'];
+let _fxTier = 'full', _fxTuned = false;
+function applyFxTier() {
+  const st = document.getElementById('stage'); if (!st) return;
+  const want = SETTINGS.depth === 'auto' ? _fxTier : SETTINGS.depth;
+  st.classList.toggle('fx-soft', want === 'soft' || want === 'flat');
+  st.classList.toggle('fx-flat', want === 'flat');
+}
+// Sample real frames once a fight is on screen and step DOWN a tier if the
+// device cannot hold the budget.  Only ever steps down, and only while the
+// player has left DEPTH on `auto` — a chosen tier is never overridden, and it
+// never climbs back up mid-session, which would oscillate on every heavy beat.
+function autoTuneFx() {
+  if (_fxTuned || SETTINGS.depth !== 'auto') return;
+  _fxTuned = true;
+  const times = []; let last = performance.now();
+  const tick = () => {
+    const now = performance.now(); times.push(now - last); last = now;
+    if (times.length < 50) { requestAnimationFrame(tick); return; }
+    times.sort((a, b) => a - b);
+    const med = times[Math.floor(times.length / 2)];
+    // 24ms ≈ 40fps. Two steps available; a genuinely slow device takes both.
+    let step = med > 40 ? 2 : med > 24 ? 1 : 0;
+    if (!step) return;
+    _fxTier = FX_TIERS[Math.min(FX_TIERS.length - 1, FX_TIERS.indexOf(_fxTier) + step)];
+    applyFxTier();
+  };
+  requestAnimationFrame(tick);
+}
 // ── MUSIC — a looping combat theme, ducked low under the SFX.  Browsers block
 // autoplay until a gesture, so we (re)try on the next pointerdown if a start is
 // refused.  Fades in/out so entering and leaving a fight feels intentional. ──
@@ -8641,6 +8686,8 @@ function renderCriticalHp() {
 // The fight backdrop shows only during battle (S set) and only if the player
 // hasn't switched it off in DEV.  Toggled here + cleared by the map/title.
 function applyFightBg() {
+  applyFxTier();
+  setTimeout(autoTuneFx, 700);   // let the scene settle, then measure real frames
   const st = $('#stage');
   if (st) st.classList.toggle('show-bg', !!(S && SETTINGS.fightBg));
 }
@@ -9690,12 +9737,21 @@ function showSettings() {
       <button class="menu-item" id="s-music"><span>MUSIC</span>${onOff(SETTINGS.music)}</button>
       <button class="menu-item" id="s-haptics"><span>HAPTICS</span>${onOff(SETTINGS.haptics)}</button>
       <button class="menu-item" id="s-bg"><span>FIGHT BACKGROUND</span>${onOff(SETTINGS.fightBg)}</button>
+      <button class="menu-item" id="s-depth"><span>DEPTH</span><span class="menu-val">${
+        SETTINGS.depth === 'auto' ? 'AUTO · ' + _fxTier.toUpperCase() : SETTINGS.depth.toUpperCase()}</span></button>
       <button class="menu-item" id="s-heat"><span>HEAT</span><span class="menu-heat"><button id="s-heat-dn" aria-label="lower heat">−</button><b>${META.heat || 0}</b><button id="s-heat-up" aria-label="raise heat">+</button></span></button>
       <button class="menu-item" id="s-howto"><span>HOW TO PLAY</span><span class="menu-val">?</span></button>
       <button class="menu-item menu-dev" id="s-dev"><span>⚙ DEV TOOLS</span><span class="menu-val">›</span></button>
       <button class="menu-item menu-primary" id="s-back">◂ BACK</button>
     </div>
   `, 'menu-screen');
+  // AUTO → FULL → SOFT → FLAT.  Auto measures the device and steps itself down;
+  // the explicit tiers let a player who knows their phone skip the measuring.
+  $('#s-depth').onclick = () => {
+    const order = ['auto', 'full', 'soft', 'flat'];
+    SETTINGS.depth = order[(order.indexOf(SETTINGS.depth) + 1) % order.length];
+    saveSettings(); applyFxTier(); showSettings();
+  };
   $('#s-sound').onclick = () => { toggleSetting('sound'); showSettings(); };
   $('#s-music').onclick = () => { toggleSetting('music'); showSettings(); };
   $('#s-haptics').onclick = () => { toggleSetting('haptics'); showSettings(); };
