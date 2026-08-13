@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 243;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 244;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -3300,7 +3300,37 @@ function targetSpec(card) {
   }
   return { pick: false };
 }
+// ─── RACK FOCUS (Build 244) ──────────────────────────────────────────────
+// The lens follows the CARD, not the rank.  At rest the whole party reads
+// crisp — you are reading the board, and a permanently soft back rank was a
+// depth cue charged against the exact moment you most need to see your own
+// characters.  The instant a card leaves the hand the shot changes: the hero
+// who would ACT pulls focus and the rest of the party falls off it, the way a
+// rack focus tells you who a scene is about.  Enemies are deliberately left
+// alone — you are choosing a target out of that group, so they stay readable.
+// The party figures are cached in _partyFigs and REUSED across renders, so the
+// class survives a re-render; clearAim drops it between fights.
+function pullFocus(heroId) {
+  try {
+    const st = document.getElementById('stage'); if (!st) return;
+    document.querySelectorAll('#party-half .figure.fig-actor').forEach(el => el.classList.remove('fig-actor'));
+    const fig = heroId ? figEl(heroId) : null;
+    if (!fig) { st.classList.remove('focus-pull'); return; }   // no actor → no rack
+    fig.classList.add('fig-actor');
+    st.classList.add('focus-pull');
+  } catch (_) {}
+}
+function releaseFocus() {
+  try {
+    const st = document.getElementById('stage'); if (st) st.classList.remove('focus-pull');
+    document.querySelectorAll('.figure.fig-actor').forEach(el => el.classList.remove('fig-actor'));
+  } catch (_) {}
+}
+
 function enterTargeting(card, validIds, hint, opts) {
+  // The acting hero holds focus for the whole aim, not just the drag — a tapped
+  // card that opens a target pick is the same beat as a lifted one.
+  pullFocus(card && card.owner);
   // AIMING QUIET (Build 238) — while a card picks its target, every status
   // chip and intent pill fades to a whisper so the CHARACTERS carry the
   // choice.  clearAim restores the info the moment the pick resolves.
@@ -3314,6 +3344,7 @@ function enterTargeting(card, validIds, hint, opts) {
 }
 function cancelTargeting() {
   targeting = null;
+  releaseFocus();   // the pick is off — settle back to a party that all reads crisp
   $('#target-hint').classList.add('hidden');
   renderAll();
 }
@@ -3333,6 +3364,7 @@ function clearAim() {
   // stage classes so nothing from the last fight bleeds into the next.
   try { if (_dragWinUp) { window.removeEventListener('pointerup', _dragWinUp, true); window.removeEventListener('pointercancel', _dragWinUp, true); _dragWinUp = null; } } catch (_) {}
   try { _slowmoRef = 0; const st = document.getElementById('stage'); if (st) st.classList.remove('parry-focus', 'parry-slowmo', 'allout-focus', 'cam-in', 'frozen', 'aiming'); } catch (_) {}
+  releaseFocus();   // the party must never be left racked out of focus at rest
   try { _camBase = CAM_POSE_HOME; camRelease(); } catch (_) {}   // a held camera (or a turn pose) must never survive a fight
   // Force a CLEAN hand rebuild next render: throw away any stale card DOM (and its
   // drag closure, whose `pid` may be stuck from a gesture the last fight cut short)
@@ -3347,6 +3379,7 @@ function onFigureTap(id) {
   if (!targeting.validIds.includes(id)) { cancelTargeting(); return; }
   const card = targeting.card;
   targeting = null;
+  releaseFocus();   // the pick resolved — the rack settles before the action plays
   $('#target-hint').classList.add('hidden');
   playCard(card, id);
 }
@@ -3355,6 +3388,7 @@ function onRowTap(row) {
   const card = targeting.card;
   if (!targeting.validIds.includes('row:' + row)) { cancelTargeting(); return; }
   targeting = null;
+  releaseFocus();
   $('#target-hint').classList.add('hidden');
   playCard(Object.assign({}, card, { toRow: row }), null);
 }
@@ -3616,6 +3650,7 @@ function attachDrag(el, card) {
       dragging = true;
       _snapEls = []; _techEl = null; _fieldPts = null; _lastFX = -1; _lastFY = -1;   // fresh snap/tech/field caches per drag
       el.classList.add('card-dragging');
+      pullFocus(card.owner);   // the card is off the table — rack onto whoever throws it
       el.style.transition = 'none';
       if (canSac) { const cl = $('#ep-cluster'); if (cl) cl.classList.add('ep-armed'); }   // invite the sacrifice
       const r = el.getBoundingClientRect();
@@ -3745,7 +3780,10 @@ function attachDrag(el, card) {
     aimClear();
     disarmEp();
     document.querySelectorAll('.fig-tech-aim').forEach(f => f.classList.remove('fig-tech-aim'));
-    if (!targeting) { $('#target-hint').classList.add('hidden'); $('#target-hint').classList.remove('th-tech'); }
+    // A release that hands off to a target PICK keeps the rack — the choice is
+    // still open, so the actor stays the subject.  Anything else settles back to
+    // the rest state, where every hero reads crisp.
+    if (!targeting) { $('#target-hint').classList.add('hidden'); $('#target-hint').classList.remove('th-tech'); releaseFocus(); }
     // SACRIFICE — released over the EP dial → feed the card for +1 EP.
     if (canSac && epOrbHit(e.clientX, e.clientY)) { channelCard(card); return; }
     const handTop = $('#hand').getBoundingClientRect().top;

@@ -182,7 +182,9 @@ body {
 @media (hover: none) {
   .hd-far  { filter: saturate(0.86) brightness(0.98) contrast(1.04); }
   .hd-near { filter: blur(3px); }
-  #party-half .slot[data-row="back"] .figure .fig-art,
+  /* the party's back rank has no blur to halve any more (Build 244) — the
+     phone's rack-focus radius is trimmed further down, AFTER the rule it
+     overrides, since both selectors carry the same specificity. */
   #enemy-half .slot[data-row="back"] .figure .fig-art { filter: blur(0.7px) saturate(0.7) brightness(0.74); }
   .figure.floor-boss .fig-art svg { filter: drop-shadow(0 10px 20px rgba(0,0,0,0.9)) drop-shadow(0 0 18px rgba(190,44,40,0.4)); }
 }
@@ -427,12 +429,44 @@ body {
    and chips since Build 239, and blurring the whole figure made the back
    rank's READOUT illegible.  Depth is an art-zone cue; information stays
    crisp at every rank. */
-#party-half .slot[data-row="back"] .figure .fig-art,
+/* THE PARTY IS NEVER SOFT AT REST (Build 244).  A permanently blurred back
+   rank charged its depth cue against the exact moment you most need to read
+   your own characters — deciding what to play.  Your side keeps the rank
+   grading (air and warmth, which cost nothing to read) and drops the blur;
+   focus becomes something the game SPENDS when a card is in the air, below.
+   The enemy side keeps true DoF: it is the scene you are looking INTO. */
+#party-half .slot[data-row="back"] .figure .fig-art  { filter: saturate(0.8) brightness(0.86); }
 #enemy-half .slot[data-row="back"] .figure .fig-art  { filter: blur(1.4px) saturate(0.7) brightness(0.74); }
 #party-half .slot[data-row="mid"] .figure .fig-art,
 #enemy-half .slot[data-row="mid"] .figure .fig-art   { filter: saturate(0.92) brightness(0.93); }
 #party-half .slot[data-row="front"] .figure .fig-art,
 #enemy-half .slot[data-row="front"] .figure .fig-art { filter: saturate(1.1) brightness(1.07); }
+
+/* ── RACK FOCUS (Build 244) ───────────────────────────────────────────────
+   Lifting a card changes the shot.  The hero who would ACT pulls focus and
+   the rest of the party falls off it — a rack focus, the plainest way a lens
+   says "this one."  Enemies are untouched: you are picking a target out of
+   that group and must still read it.  Text never blurs, same rule as the
+   rank DoF — depth is an art-zone cue, information stays crisp. */
+#stage.focus-pull #party-half .figure .fig-art {
+  filter: blur(1.6px) saturate(0.68) brightness(0.76);
+}
+#stage.focus-pull #party-half .figure.fig-actor .fig-art {
+  filter: saturate(1.16) brightness(1.14) drop-shadow(0 0 11px rgba(240,212,136,0.34));
+}
+/* the rack READS as a rack because you can see it pull — a hard cut would
+   just look like a rendering glitch.  Two or three small elements for ~160ms
+   is well inside budget; reduced-motion takes the cut instead. */
+#party-half .figure .fig-art { transition: filter 160ms cubic-bezier(.3,.7,.3,1); }
+@media (prefers-reduced-motion: reduce) {
+  #party-half .figure .fig-art { transition: none; }
+}
+/* PHONE TIER — blur is the priciest filter on a mobile GPU and this one
+   animates, so the radius comes down.  Must sit AFTER the rule it overrides:
+   the two selectors are the same specificity, so source order decides. */
+@media (hover: none) {
+  #stage.focus-pull #party-half .figure .fig-art { filter: blur(0.9px) saturate(0.68) brightness(0.76); }
+}
 /* the far rank's TEXT dims a touch for depth but never blurs */
 #party-half .slot[data-row="back"] .fig-name, #enemy-half .slot[data-row="back"] .fig-name,
 #party-half .slot[data-row="back"] .fig-chips, #enemy-half .slot[data-row="back"] .fig-chips { opacity: 0.82; }

@@ -3902,6 +3902,52 @@ const QUICK = process.argv.includes('--quick');
   check('TEMPO: a card that reads LOUD still gets its full settle; a quiet one does not',
     /loud \? 240 : 150/.test(src));
 
+  // ---------- RACK FOCUS (Build 244) ----------
+  // Focus is now something the game SPENDS on the acting hero, not a standing
+  // tax on the back rank.  Every check reads the COMPUTED filter — a stylesheet
+  // that says the right thing and a cascade that delivers it are different
+  // claims (Build 240's boss art said 318px and computed 156px).
+  console.log('--- RACK FOCUS ---');
+  await J(() => { setupFight(['ash', 'hask', 'cassia'], [], { ash: 'front', hask: 'mid', cassia: 'back' });
+    releaseFocus(); renderAll(); });
+  await sleep(260);
+  const artFilter = (id) => J((h) => { const f = figEl(h); const a = f && f.querySelector('.fig-art');
+    return a ? getComputedStyle(a).filter : 'NO-ART'; }, id);
+  check('RACK: AT REST no party rank is blurred — the whole party reads crisp',
+    !/blur/.test(await artFilter('ash')) && !/blur/.test(await artFilter('hask')) && !/blur/.test(await artFilter('cassia')),
+    'back rank computed: ' + await artFilter('cassia'));
+  check('RACK: the rest state still GRADES the ranks (air and warmth cost nothing to read)',
+    /saturate/.test(await artFilter('ash')) && (await artFilter('ash')) !== (await artFilter('cassia')));
+  await J(() => pullFocus('cassia')); await sleep(240);
+  check('RACK: lifting a card pulls the ACTOR into focus even from the BACK rank',
+    !/blur/.test(await artFilter('cassia')) && /drop-shadow/.test(await artFilter('cassia')),
+    await artFilter('cassia'));
+  check('RACK: every OTHER hero falls off focus while a card is in the air',
+    /blur/.test(await artFilter('ash')) && /blur/.test(await artFilter('hask')));
+  check('RACK: the stage carries the focus-pull state so nothing else has to poll it',
+    await J(() => document.getElementById('stage').classList.contains('focus-pull')));
+  await J(() => releaseFocus()); await sleep(240);
+  check('RACK: releasing settles the party back to a fully crisp rest state',
+    !/blur/.test(await artFilter('ash')) && !/blur/.test(await artFilter('hask')) && !/blur/.test(await artFilter('cassia')));
+  check('RACK: exactly one hero can hold the rack — a second pull moves it, never doubles it',
+    await J(() => { pullFocus('ash'); pullFocus('hask');
+      const n = document.querySelectorAll('#party-half .figure.fig-actor').length;
+      const onHask = !!(figEl('hask') || {}).classList && figEl('hask').classList.contains('fig-actor');
+      releaseFocus(); return n === 1 && onHask; }));
+  check('RACK: pulling focus onto nobody leaves the rest state alone (no orphan rack)',
+    await J(() => { pullFocus(null);
+      const on = document.getElementById('stage').classList.contains('focus-pull');
+      releaseFocus(); return on === false; }));
+  check('RACK: clearAim can never leave the party racked out of focus between fights',
+    await J(() => { pullFocus('ash'); clearAim();
+      return !document.getElementById('stage').classList.contains('focus-pull')
+        && document.querySelectorAll('.figure.fig-actor').length === 0; }));
+  check('RACK: the ENEMY side keeps true depth of field — it is the scene you look INTO',
+    await J(() => { setupFight(['ash'], [], { ash: 'front' });
+      const rule = [...document.styleSheets].flatMap(s => { try { return [...s.cssRules]; } catch (_) { return []; } })
+        .find(r => r.selectorText === '#enemy-half .slot[data-row="back"] .figure .fig-art');
+      return !!rule && /blur/.test(rule.style.filter); }));
+
   t.report();
   await t.browser.close();
 })().catch(e => { console.error('FATAL', e.message); process.exit(1); });
