@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 234;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 235;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -2966,16 +2966,125 @@ const ENEMY_ART_PNG = {
   revenant: 1,    // the skull-masked duellist (elite)
 };
 function enemyArtKey(e) { return (e && e.def && e.def.art) || (e && e.id) || ''; }
-function foeArtHTML(key) {
+function foeArtHTML(key, uid) {
   const vec = V2PORTRAITS[key] || V2PORTRAITS.wraith || '';   // never render a blank figure
-  if (!key || !ENEMY_ART_PNG[key]) return vec;
-  // The plate rides OVER the vector and only reveals itself once it has really
-  // loaded; a missing file removes the layer and the silhouette stays.
-  return `<span class="fig-vec">${vec}</span>`
+  // ANIMATED SHEET — probes its file with a throwaway Image; only once it
+  // really loads does the frame layer reveal and attach to the engine.  A
+  // missing sheet leaves the plate/vector exactly as it was.
+  const anim = key && FOE_ANIM[key]
+    ? `<span class="fig-anim" data-anim-uid="${uid || key}" style="background-image:url('../art/${FOE_ANIM[key]}')"></span>`
+    : '';
+  const base = (!key || !ENEMY_ART_PNG[key]) ? vec
+    : `<span class="fig-vec">${vec}</span>`
     + `<img class="fig-png" src="../art/foe-${key}.png" alt="" decoding="async"`
     + ` onload="this.classList.add('fig-png-on')" onerror="this.remove()">`;
+  return base + anim;
 }
-const enemyArt = (e) => foeArtHTML(enemyArtKey(e));
+// reveal + attach animated layers whose sheets have really loaded.  The probe
+// result is CACHED per URL — figures rebuild every render, and re-probing a
+// missing sheet would 404 once per repaint (the plates learned this lesson in
+// Build 215's 404 storm).  One probe, one verdict, per sheet per session.
+const _foeAnimSheets = {};   // url -> 'loading' | 'ok' | 'dead'
+function foeAnimReveal(scope) {
+  (scope || document).querySelectorAll('.fig-anim:not(.fig-anim-on):not(.fig-anim-dead)').forEach(el => {
+    const src = /url\(["']?([^"')]+)["']?\)/.exec(el.style.backgroundImage);   // browsers normalize the quoting
+    if (!src) return;
+    const url = src[1];
+    const st = _foeAnimSheets[url];
+    if (st === 'ok') { el.classList.add('fig-anim-on'); foeAnimAttach(el.dataset.animUid, el); return; }
+    if (st === 'dead') { el.classList.add('fig-anim-dead'); return; }
+    if (st === 'loading') return;
+    _foeAnimSheets[url] = 'loading';
+    // fetch, not Image: a missing file answers 404 without a console error, so
+    // an un-uploaded sheet keeps the zero-pageError standard.
+    fetch(url, { method: 'HEAD' })
+      .then(r => { _foeAnimSheets[url] = r.ok ? 'ok' : 'dead'; foeAnimReveal(); })
+      .catch(() => { _foeAnimSheets[url] = 'dead'; foeAnimReveal(); });
+  });
+}
+const enemyArt = (e) => foeArtHTML(enemyArtKey(e), e && e.uid);
+
+// ══ FOE ANIMATION (Build 235) — sprite-sheet frames driven by COMBAT STATE ══
+// One painted sheet per animated foe, cut at runtime by an ATLAS of
+// normalized frame rects (background-size/position math — no slicing step,
+// no extra files). The engine is a per-figure state machine fed by the real
+// fight: the wind-up plays PREP, its strike plays ATTACK 1→4 into RECOVERY,
+// damage plays HIT REACT (heavy hits the heavier pair), a POISE break holds
+// the stagger frames for the whole reeling window, and death runs the
+// three-stage dissolve under the existing fig-dying treatment.
+//
+// Same degradation contract as ENEMY_ART_PNG: listing a foe here does NOTHING
+// until its sheet actually loads — the vector/plate stays, no 404 storms, and
+// the sheet lights up the moment the file lands in /art.
+const FOE_ANIM = {
+  cantor:     'boss-anim.png',
+  echochorus: 'boss-anim.png',
+};
+// Frame rects as FRACTIONS of the sheet [x, y, w, h].  Estimated off the
+// authored sheet's layout; recalibrate here if a frame crops badly.
+const FOE_ANIM_ATLAS = {
+  idle:     [[0.015,0.00,0.130,0.24],[0.155,0.00,0.130,0.24],[0.295,0.00,0.135,0.24]],
+  prep:     [[0.575,0.00,0.135,0.24],[0.715,0.00,0.130,0.24],[0.855,0.00,0.135,0.24]],
+  attack:   [[0.000,0.26,0.165,0.24],[0.165,0.26,0.150,0.24],[0.315,0.26,0.170,0.24],[0.475,0.26,0.185,0.24]],
+  recovery: [[0.660,0.26,0.160,0.24],[0.825,0.26,0.165,0.24]],
+  hit:      [[0.005,0.52,0.130,0.22],[0.140,0.52,0.130,0.22]],
+  heavy:    [[0.275,0.52,0.145,0.22],[0.425,0.52,0.130,0.22]],
+  death:    [[0.555,0.52,0.145,0.22],[0.700,0.52,0.145,0.22],[0.845,0.52,0.150,0.22]],
+};
+// per-state playback: frame duration, whether it loops, and where it lands
+const FOE_ANIM_PLAY = {
+  idle:     { ms: 420, loop: true },
+  prep:     { ms: 170, hold: true },              // holds the coiled last frame
+  attack:   { ms: 110, then: 'recovery' },
+  recovery: { ms: 150, then: 'idle' },
+  hit:      { ms: 100, then: 'idle' },
+  heavy:    { ms: 120, then: 'idle' },
+  broken:   { ms: 420, loop: true, frames: 'heavy' },   // reels for the whole break window
+  death:    { ms: 240, hold: true },
+};
+const _foeAnim = {};   // uid -> { el, state, frame, at }
+let _foeAnimT = null;
+function foeAnimAttach(uid, el) {
+  _foeAnim[uid] = { el, state: 'idle', frame: 0, at: performance.now() };
+  foeAnimPaint(_foeAnim[uid]);
+  if (!_foeAnimT) _foeAnimT = setInterval(foeAnimTick, 50);
+}
+function foeAnimState(uid, state) {
+  const a = _foeAnim[uid];
+  if (!a || !a.el || !a.el.isConnected) return;
+  if (a.state === 'death') return;                       // nothing interrupts the dissolve
+  if (a.state === 'broken' && state !== 'death' && state !== 'idle' && state !== 'attack') return;
+  if (!FOE_ANIM_PLAY[state]) return;
+  a.state = state; a.frame = 0; a.at = performance.now();
+  foeAnimPaint(a);
+}
+function foeAnimPaint(a) {
+  const play = FOE_ANIM_PLAY[a.state];
+  const frames = FOE_ANIM_ATLAS[play.frames || a.state];
+  const f = frames[Math.min(a.frame, frames.length - 1)];
+  const [x, y, w, h] = f;
+  a.el.style.backgroundSize = (100 / w) + '% ' + (100 / h) + '%';
+  a.el.style.backgroundPosition = (x / (1 - w) * 100) + '% ' + (y / (1 - h) * 100) + '%';
+}
+function foeAnimTick() {
+  const now = performance.now();
+  let live = 0;
+  for (const uid in _foeAnim) {
+    const a = _foeAnim[uid];
+    if (!a.el || !a.el.isConnected) { delete _foeAnim[uid]; continue; }
+    live++;
+    if (typeof camReduced === 'function' && camReduced()) continue;   // hold the pose
+    const play = FOE_ANIM_PLAY[a.state];
+    const frames = FOE_ANIM_ATLAS[play.frames || a.state];
+    if (now - a.at < play.ms) continue;
+    a.at = now;
+    if (a.frame + 1 < frames.length) { a.frame++; foeAnimPaint(a); }
+    else if (play.loop) { a.frame = 0; foeAnimPaint(a); }
+    else if (play.then) { a.state = play.then; a.frame = 0; foeAnimPaint(a); }
+    // hold: stay on the last frame
+  }
+  if (!live) { clearInterval(_foeAnimT); _foeAnimT = null; }
+}
 
 // ---------------------------------------------------------------------------
 // HAND
@@ -4276,6 +4385,7 @@ function dealToEnemy(e, amt, school, byHeroId) {
     }
     if (!e.staggered && (e.poise || 0) <= 0) {
       e.staggered = true;
+      foeAnimState(e.uid, 'broken');               // it reels for the whole window
       gainMomentum(18);                            // the BREAK is a big surge
       popupAt(figEl(e.uid), '⚡ BROKEN', 'dmg popup-big');
       flashNarrator(e.def.name + ' is BROKEN — it reels, and every blow lands harder until it recovers.');
@@ -4318,6 +4428,7 @@ function dealToEnemy(e, amt, school, byHeroId) {
   // nothing alike.  0 light · 1 solid · 2 heavy · 3 massive.
   const tier = amt >= 20 ? 3 : amt >= 12 ? 2 : amt >= 7 ? 1 : 0;
   const big = tier >= 2;
+  foeAnimState(e.uid, e.staggered ? 'broken' : big ? 'heavy' : 'hit');
   popupAt(figEl(e.uid), '−' + amt, 'dmg' + (big ? ' popup-big' : ''));
   // (damagedHeroes bookkeeping lives in enemyPhase; kills resolve avenging
   // in resolveCard where the attacker is known)
@@ -4358,6 +4469,7 @@ function dealToEnemy(e, amt, school, byHeroId) {
     SFX.kill();
     stageShake('lg');
     hitFlash(3);                                    // the kill gets a white flash + slow-mo beat
+    foeAnimState(e.uid, 'death');
     const el = figEl(e.uid);
     if (el) { el.classList.add('fig-dying'); deathBurst(el); }
     // THE KILL CUT — hard in on the dying foe, dutched, and HELD long enough
@@ -5249,6 +5361,7 @@ async function windupTell(e, intent) {
     const first = p.kind === 'seq' ? ((p.notes[0] || {}).t || 'tap') : p.kind;
     const pose = first === 'hold' ? 'fw-brace' : first === 'swipe' ? 'fw-sweep' : first === 'mash' ? 'fw-flurry' : 'fw-slash';
     fig.classList.add('fig-windup', pose);
+    foeAnimState(e.uid, 'prep');
     // THE TWO-SHOT — compose the CONFRONTATION, not the creature alone: the
     // attacker winding up AND the hero who has to answer it, framed together
     // and dutched off true. That composition is the whole reason a Clair
@@ -6183,6 +6296,7 @@ async function enemyPhase() {
     if (e.staggered) {
       e.staggered = false;
       e.poise = e.poiseMax || 2;                  // it finds its feet again
+      foeAnimState(e.uid, 'idle');                // it stops reeling
       popupAt(figEl(e.uid), 'REELING — TURN LOST', 'info');
       flashNarrator(e.def.name + (intent.heavy ? '’s ' + intent.name + ' collapses — ' : ' staggers, ') + 'the break steals its turn.');
       SFX.kill();
@@ -6204,6 +6318,7 @@ async function enemyPhase() {
       continue;
     }
     if (lungeEl) { lungeEl.classList.add('fig-lunge'); SFX.enemy(); }
+    foeAnimState(e.uid, 'attack');
     const eRow = effIntentRow(e, intent);                 // smart foes hunt the weakest
     const rows = eRow === 'all' ? ROWS.slice() : [eRow];
     // PARRY — a rhythm window on the wind-up whose PATTERN varies by attack.
@@ -8028,6 +8143,7 @@ function auraHTML(fx) {
 }
 
 function renderAll() {
+  setTimeout(() => { try { foeAnimReveal(); } catch (_) {} }, 0);
   if (!S) return;
   applyFightBg();
   renderTimeline();

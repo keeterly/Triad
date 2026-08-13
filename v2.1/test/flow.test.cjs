@@ -1326,6 +1326,63 @@ const QUICK = process.argv.includes('--quick');
       return e.staggered === true && S.ep === ep0 + 1                             // break + PRESS-ON EP still happen
         && !document.querySelector('#hand .card[data-card-name="Coup de Grâce"]') // but the killing card is gated
         && !S.tempCards.some(c => c.name === 'Coup de Grâce'); }));
+  // ---------- BUILD 235: FOE ANIMATION — sheet frames driven by combat state ----------
+  check('ANIM: the engine is a real state machine — attack flows to recovery to idle, death is final',
+    await J(async () => {
+      const el = document.createElement('span'); el.className = 'fig-anim';
+      document.body.appendChild(el);
+      foeAnimAttach('drill#0', el);
+      const a = _foeAnim['drill#0'];
+      const okIdle = a.state === 'idle';
+      foeAnimState('drill#0', 'attack');
+      const okAtk = a.state === 'attack';
+      await new Promise(r => setTimeout(r, 1500));
+      const okBack = a.state === 'idle';
+      foeAnimState('drill#0', 'death');
+      foeAnimState('drill#0', 'hit');                  // nothing interrupts the dissolve
+      const okDeath = a.state === 'death';
+      el.remove(); delete _foeAnim['drill#0'];
+      return okIdle && okAtk && okBack && okDeath;
+    }));
+  check('ANIM: BROKEN holds the reeling frames and only idle/attack/death may end it',
+    await J(() => {
+      const el = document.createElement('span');
+      document.body.appendChild(el);
+      foeAnimAttach('drill#1', el);
+      foeAnimState('drill#1', 'broken');
+      const a = _foeAnim['drill#1'];
+      foeAnimState('drill#1', 'hit');                  // a stray hit must not clear the reel
+      const held = a.state === 'broken';
+      foeAnimState('drill#1', 'idle');                 // recovery clears it
+      const cleared = a.state === 'idle';
+      el.remove(); delete _foeAnim['drill#1'];
+      return held && cleared;
+    }));
+  check('ANIM: every playback state maps to real atlas frames, and frames are sane fractions',
+    await J(() => Object.keys(FOE_ANIM_PLAY).every(st => {
+      const frames = FOE_ANIM_ATLAS[FOE_ANIM_PLAY[st].frames || st];
+      return Array.isArray(frames) && frames.length >= 2
+        && frames.every(f => f.length === 4 && f.every(v => v >= 0 && v <= 1) && f[0] + f[2] <= 1.001 && f[1] + f[3] <= 1.001);
+    })));
+  check('ANIM: a listed foe with a MISSING sheet degrades exactly like a missing plate (no reveal, art untouched)',
+    await J(async () => {
+      startFight({ type: 'fight', chapter: 3, heroes: ['ash'], enemies: ['cantor'], useRunHp: true, narrator: 'anim degrade' });
+      renderAll();
+      await new Promise(r => setTimeout(r, 700));
+      const el = document.querySelector('#enemy-half .fig-anim');
+      // the layer exists but never turns ON without its file — the vector stays
+      return !!el && !el.classList.contains('fig-anim-on')
+        && !!document.querySelector('#enemy-half .fig-art svg');
+    }));
+  check('ANIM: the combat hooks are wired — windup→prep, strike→attack, damage→hit/heavy, break→broken, kill→death',
+    await J(() => {
+      const w = windupTell.toString(), ep = enemyPhase.toString(), d = dealToEnemy.toString();
+      return /foeAnimState\(e\.uid, 'prep'\)/.test(w)
+        && /foeAnimState\(e\.uid, 'attack'\)/.test(ep)
+        && /'broken' : big \? 'heavy' : 'hit'/.test(d)
+        && /foeAnimState\(e\.uid, 'death'\)/.test(d);
+    }));
+
   // ---------- BUILD 234: POISE, the stolen turn, EP reserve, status fixes ----------
   check('POISE: the break gauge is VISIBLE — pips chip per weakness hit, elites carry more',
     await J(() => {

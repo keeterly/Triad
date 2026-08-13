@@ -1549,6 +1549,19 @@ button.map-node:not(:disabled) { cursor: pointer; }
 
 /* BUILD 13 — weakness/stagger (ported from v1) */
 .chip.weak { color: var(--ink-dim); }
+/* ── ANIMATED FOE (Build 235) — the sprite-sheet frame layer.  Sits exactly
+   where the painted plate sits; hidden until its sheet really loads, and when
+   ON it replaces the static art beneath it. ── */
+.fig-anim {
+  display: none; position: absolute; left: 50%; bottom: 0; transform: translateX(-50%);
+  height: 100%; width: 118%; pointer-events: none;
+  background-repeat: no-repeat;
+}
+.fig-anim.fig-anim-on { display: block; }
+.fig-art:has(.fig-anim-on) .fig-vec,
+.fig-art:has(.fig-anim-on) .fig-png,
+.fig-art:has(.fig-anim-on) > svg { display: none; }
+
 /* POISE pips (Build 234) — the visible break gauge. Filled pips are what's
    LEFT; the hollow ones are the chips you've already knocked out. */
 .chip.poise { color: #ffd98f; letter-spacing: 2px; text-shadow: 0 0 7px rgba(240,200,120,0.8), 0 1px 3px #000; }
