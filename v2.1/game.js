@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 247;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 248;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -9577,23 +9577,42 @@ function nodeDescHTML(desc) {
     + (flav ? `<span class="et-flav"> — ${flav}</span>` : '');
 }
 const TREE_HEROES = EMBER_TREE.reduce((a, n) => (a.includes(n.hero) ? a : a.concat(n.hero)), []);
-const TREE_PAN = {};    // per-hero pan offset, kept across re-renders (selecting a node re-renders)
-const TREE_ZOOM = {};   // per-hero zoom (1 = default, same as before)
-const TREE_ZMIN = 0.6, TREE_ZMAX = 2.0;
+// (Build 248) The per-hero TREE_PAN/TREE_ZOOM maps are gone: there is one world
+// now, so there is one camera over it — see TREE_VIEW.
+const TREE_ZMIN = 0.42, TREE_ZMAX = 3.4;   // ZMIN has to reach the fit-everything zoom (see treeFitZoom)
 // Drag-to-pan AND pinch/button-ZOOM the constellation, so the tier-3/4 arms that
 // reach past the canvas are always tap-able and you can pull back for the whole
 // map or lean in on one branch.  Suppresses the orb SELECT click on a real drag.
-function attachTreePan(heroId) {
+function attachTreePan(heroId, opts) {
   const canvas = document.getElementById('et-canvas');
   const pan = document.getElementById('et-pan');
   if (!canvas || !pan) return;
-  const clamp = (v) => { const c = 165 * (TREE_ZOOM[heroId] || 1); return Math.max(-c, Math.min(c, v)); };
-  let ox = (TREE_PAN[heroId] && TREE_PAN[heroId].x) || 0;
-  let oy = (TREE_PAN[heroId] && TREE_PAN[heroId].y) || 0;
-  let z = TREE_ZOOM[heroId] || 1;
+  const world = opts && opts.world;
+  // ONE camera over ONE world (Build 248).  The pan limit follows the world's
+  // real size instead of a fixed 165px: with six regions on the board a hard
+  // cap meant the far lobes simply could not be reached.
+  // The travel limit has to scale with the zoom, or focusing a far region gets
+  // pinned before it arrives — this clamped a focus target to -450 on both axes.
+  const clamp = (v) => { const c = 130 + 330 * z; return Math.max(-c, Math.min(c, v)); };
+  let ox = TREE_VIEW.x, oy = TREE_VIEW.y, z = TREE_VIEW.z || treeFitZoom();
   const apply = () => { pan.style.transform = `translate(${ox}px, ${oy}px) scale(${z})`; };
+  const store = () => { TREE_VIEW.x = ox; TREE_VIEW.y = oy; TREE_VIEW.z = z; TREE_VIEW._seeded = true; };
   apply();
-  const setZoom = (nz) => { z = Math.max(TREE_ZMIN, Math.min(TREE_ZMAX, nz)); TREE_ZOOM[heroId] = z; ox = clamp(ox); oy = clamp(oy); TREE_PAN[heroId] = { x: ox, y: oy }; apply(); };
+  // FLY TO THE REGION — apply the OLD transform first, then set the target on
+  // the next frame so the CSS transition actually has two states to move
+  // between (the element is rebuilt on every render, so it starts with no
+  // history of its own).
+  if (opts && opts.focus && world && world.hubs[heroId]) {
+    const fz = treeFocusZoom(world);
+    const target = treeFocusOffset(world.hubs[heroId], world.W, fz);
+    requestAnimationFrame(() => {
+      pan.classList.add('et-flying');
+      z = fz;                                 // zoom FIRST — clamp scales with it
+      ox = clamp(target.x); oy = clamp(target.y); store(); apply();
+      setTimeout(() => pan.classList.remove('et-flying'), 640);
+    });
+  }
+  const setZoom = (nz) => { z = Math.max(TREE_ZMIN, Math.min(TREE_ZMAX, nz)); ox = clamp(ox); oy = clamp(oy); store(); apply(); };
   // ---- PINCH (two pointers) + PAN (one) --------------------------------------
   const pts = new Map();
   let sx = 0, sy = 0, drag = false, pid = null, pinchStart = 0, zStart = 1;
@@ -9621,7 +9640,7 @@ function attachTreePan(heroId) {
     drag = false; canvas.classList.remove('et-grabbing');
     const s = stageScale();
     ox = clamp(ox + (e.clientX - sx) / s); oy = clamp(oy + (e.clientY - sy) / s);
-    TREE_PAN[heroId] = { x: ox, y: oy }; apply();
+    store(); apply();
   };
   canvas.addEventListener('pointerup', end);
   canvas.addEventListener('pointercancel', end);
@@ -9645,7 +9664,144 @@ function partyHeroes() { return (RUN && RUN.active && RUN.active.length) ? RUN.a
 function canKindleNow() {
   return partyHeroes().some(hid => EMBER_TREE.some(n => n.hero === hid && nodeState(n) === 'ready'));
 }
-function showEmberTree(onBack, heroId, selId) {
+// ═════════════════════════════════════════════════════════════════════════════
+// THE WORLD (Build 248) — ONE tree, not six.
+//
+// Every fielded hero used to get their own canvas and switching tabs swapped the
+// whole thing out, so a crossing had to be re-drawn as a phantom orb on the rim
+// of whoever was looking — the same skill existed twice on screen and the
+// screen stopped meaning anything.  Now all of the party's regions live in ONE
+// coordinate space: each hero is a lobe on a shared ring (a party of three makes
+// a triangle, which is the shape this game is about), a crossing is an EDGE
+// between two regions rather than a copy of a node, and the tabs move the CAMERA
+// instead of the map.  Zoom 1 is the whole tree; a tab focuses its region.
+const TREE_R0 = 66, TREE_RING = 62, TREE_PAD = 54;
+function buildTreeWorld(party) {
+  const per = {};
+  party.forEach(hid => {
+    const nodes = EMBER_TREE.filter(n => n.hero === hid);
+    const depth = {};
+    const depthOf = (n) => {
+      if (depth[n.id] != null) return depth[n.id];
+      const reqs = (n.requires || []).map(r => NODE_BY_ID[r]).filter(Boolean);
+      return depth[n.id] = reqs.length ? 1 + Math.max.apply(null, reqs.map(depthOf)) : 0;
+    };
+    nodes.forEach(depthOf);
+    const byDepth = {}; nodes.forEach(n => { (byDepth[depth[n.id]] = byDepth[depth[n.id]] || []).push(n); });
+    const angle = {};
+    // inner ring: spokes spread evenly, an even count offset a half-step so the
+    // arms sit DIAGONAL and no two labels stack on a flat horizontal spoke
+    (byDepth[0] || []).forEach((n, i, a) => { const off = a.length % 2 === 0 ? 0.5 : 0; angle[n.id] = -90 + (i + off) * (360 / a.length); });
+    Object.keys(byDepth).map(Number).filter(d => d > 0).sort((a, b) => a - b).forEach(d => {
+      const groups = {};
+      byDepth[d].forEach(n => { const k = (n.requires || [])[0] || 'root'; (groups[k] = groups[k] || []).push(n); });
+      Object.keys(groups).forEach(k => {
+        const base = angle[k] != null ? angle[k] : 0, arr = groups[k];
+        arr.forEach((n, i) => { angle[n.id] = base + (arr.length > 1 ? (i - (arr.length - 1) / 2) * 34 : 0); });
+      });
+    });
+    // SEPARATE THE RING (Build 248).  Siblings were fanned around their own
+    // parent and nothing checked the result globally, so the children of two
+    // parents whose arms happened to converge landed on top of each other —
+    // that is the "Killer's E‸Shadow Fork" overprint, and it long predates the
+    // shared world.  Walk each ring in angle order and push neighbours apart to
+    // the arc the orbs actually need, then recentre so the arm keeps pointing
+    // where its prerequisite does.
+    const maxD0 = nodes.length ? Math.max.apply(null, nodes.map(n => depth[n.id])) : 0;
+    const r0pre = Math.max(TREE_R0, ((byDepth[0] || []).length > 1 ? ((byDepth[0] || []).length * 66) / (2 * Math.PI) : TREE_R0));
+    for (let d = 0; d <= maxD0; d++) {
+      const ring = (byDepth[d] || []).slice().sort((x, y) => angle[x.id] - angle[y.id]);
+      if (ring.length < 2) continue;
+      const r = r0pre + d * TREE_RING;
+      const need = 2 * Math.asin(Math.min(1, 74 / (2 * r))) * 180 / Math.PI;   // arc one orb needs
+      if (need * ring.length >= 360) {                                          // too many to fan — space them evenly
+        ring.forEach((n, i) => { angle[n.id] = -90 + i * (360 / ring.length); });
+        continue;
+      }
+      const before = ring.reduce((a2, n) => a2 + angle[n.id], 0) / ring.length;
+      for (let i = 1; i < ring.length; i++) {
+        const gap = angle[ring[i].id] - angle[ring[i - 1].id];
+        if (gap < need) angle[ring[i].id] = angle[ring[i - 1].id] + need;
+      }
+      // and close the wrap-around seam between the last and the first
+      const wrap = (angle[ring[0].id] + 360) - angle[ring[ring.length - 1].id];
+      if (wrap < need) { const push = (need - wrap) / 2; ring.forEach((n, i) => { angle[n.id] -= push * (i / (ring.length - 1)); }); }
+      const after = ring.reduce((a2, n) => a2 + angle[n.id], 0) / ring.length;
+      ring.forEach(n => { angle[n.id] += before - after; });                     // keep the arm aimed where it was
+    }
+    const maxD = maxD0;
+    // THE INNER RING MUST HOLD ITS SPOKES.  A fixed 66px hub ring is only 415px
+    // around, and a hero with eight depth-0 spokes was trying to seat eight
+    // 62px-wide orbs in 52px each — which is why the dense kits printed
+    // "Killer's E‸Shadow Fork" over themselves. Grow the ring to fit instead.
+    per[hid] = { nodes, depth, angle, maxD, r0: r0pre, radius: r0pre + maxD * TREE_RING };
+  });
+  // Hubs sit on a ring wide enough that no two regions collide: the chord
+  // between neighbouring hubs is 2·R·sin(π/N), and it must clear two region
+  // radii.  A lone hero simply owns the middle.
+  const N = party.length || 1;
+  const regionR = Math.max.apply(null, party.map(h => per[h].radius).concat([TREE_R0])) + TREE_PAD;
+  const HUB_R = N < 2 ? 0 : regionR / Math.sin(Math.PI / N);
+  const hubs = {}, pos = {};
+  party.forEach((hid, i) => {
+    const a = (-90 + i * (360 / N)) * Math.PI / 180;
+    const hx = HUB_R * Math.cos(a), hy = HUB_R * Math.sin(a);
+    hubs[hid] = { x: hx, y: hy };
+    per[hid].nodes.forEach(n => {
+      const na = (per[hid].angle[n.id] || 0) * Math.PI / 180, r = per[hid].r0 + per[hid].depth[n.id] * TREE_RING;
+      pos[n.id] = { x: hx + r * Math.cos(na), y: hy + r * Math.sin(na) };
+    });
+  });
+  // Fit the WHOLE world to one square box (square keeps the ring guides circular
+  // under preserveAspectRatio="none") and re-origin every point into it.
+  const pts = Object.keys(pos).map(k => pos[k]).concat(party.map(h => hubs[h]));
+  const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+  const minX = Math.min.apply(null, xs) - TREE_PAD, maxX = Math.max.apply(null, xs) + TREE_PAD;
+  const minY = Math.min.apply(null, ys) - TREE_PAD, maxY = Math.max.apply(null, ys) + TREE_PAD;
+  const span = Math.max(maxX - minX, maxY - minY);
+  const ox = minX - (span - (maxX - minX)) / 2, oy = minY - (span - (maxY - minY)) / 2;
+  Object.keys(pos).forEach(k => { pos[k].x -= ox; pos[k].y -= oy; });
+  party.forEach(h => { hubs[h].x -= ox; hubs[h].y -= oy; });
+  return { per, pos, hubs, W: span, regionR };
+}
+// The view is ONE camera over the shared world, not a per-hero scroll position —
+// that is what lets a tab switch PAN instead of cutting.
+const TREE_VIEW = { x: 0, y: 0, z: 1 };
+// How close a tab pulls in is DERIVED, not picked: a focused region should just
+// fill the viewport.  A hand-set 2.15 buried the region off every edge and ran
+// its labels into each other — with only three lobes on the board the whole
+// world is barely 1.7x one region, so the honest magnification is small.
+// Where the camera must sit for a WORLD point to land in the middle of the
+// canvas.  Orbs are positioned as a percentage of .et-pan's fixed 560px side,
+// so a world coordinate has to be converted into that box FIRST — passing world
+// units straight in put the focus hundreds of pixels off.  With
+// transform-origin at the box centre the rest reduces to -(p - centre)·z,
+// independent of how big the canvas happens to be.
+const TREE_BOX = 560;
+// The zoom at which the entire world is on screen.  .et-pan is a fixed 560px
+// square but the canvas is landscape and shorter than that, so "scale 1" showed
+// the world with its bottom two regions hanging off the edge.
+function treeViewportPx() {
+  const c = document.getElementById('et-canvas');
+  if (!c) return TREE_BOX;
+  const r = c.getBoundingClientRect(), s = stageScale() || 1;
+  return Math.min(r.width, r.height) / s;
+}
+function treeFitZoom() {
+  return Math.max(TREE_ZMIN, Math.min(TREE_ZMAX, treeViewportPx() / TREE_BOX * 0.98));
+}
+// the zoom at which ONE region fills the viewport
+function treeFocusZoom(world) {
+  if (!world || !world.regionR) return treeFitZoom();
+  const regionPx = (2 * world.regionR / world.W) * TREE_BOX;
+  return Math.max(TREE_ZMIN, Math.min(TREE_ZMAX, treeViewportPx() / regionPx * 0.94));
+}
+function treeFocusOffset(p, W, z) {
+  const C = TREE_BOX / 2;
+  return { x: -((p.x / W) * TREE_BOX - C) * z, y: -((p.y / W) * TREE_BOX - C) * z };
+}
+
+function showEmberTree(onBack, heroId, selId, opts) {
   $('#stage').classList.remove('show-bg');
   // a "__kindled:" prefix on selId means we just bought that node — celebrate it
   let justKindled = false;
@@ -9654,152 +9810,86 @@ function showEmberTree(onBack, heroId, selId) {
   // only your fielded party has constellations here; clamp to a party member
   if (party.length && party.indexOf(heroId) < 0) heroId = party[0];
   heroId = heroId && HEROES[heroId] ? heroId : (party[0] || 'ash');
-  const nodes = EMBER_TREE.filter(n => n.hero === heroId);
-  // ---- SPHERE GRID: a hub at the centre, rings growing OUTWARD.  A node's ring
-  // is its prerequisite DEPTH (0 = spokes off the hub), its angle inherited from
-  // the prerequisite so a chain reads as one radial arm. --------------------------
-  const CX = 150, CY = 150, R0 = 66, RING = 62;
-  let W = 300, H = 300;   // Build 214: the real extent is measured below and the
-                          // whole constellation is FIT to it, so a deep arm can
-                          // never be clipped by the canvas edge.
-  const depth = {};
-  const depthOf = (n) => {
-    if (depth[n.id] != null) return depth[n.id];
-    const reqs = (n.requires || []).map(r => NODE_BY_ID[r]).filter(Boolean);
-    return depth[n.id] = reqs.length ? 1 + Math.max.apply(null, reqs.map(depthOf)) : 0;
-  };
-  nodes.forEach(depthOf);
-  const byDepth = {}; nodes.forEach(n => { (byDepth[depth[n.id]] = byDepth[depth[n.id]] || []).push(n); });
-  const angle = {};
-  // inner ring: spread the hub's spokes evenly; an even count is offset a
-  // half-step so the arms sit DIAGONAL (never axis-aligned) — no two labels
-  // stack on a flat horizontal spoke.
-  (byDepth[0] || []).forEach((n, i, a) => { const off = a.length % 2 === 0 ? 0.5 : 0; angle[n.id] = -90 + (i + off) * (360 / a.length); });
-  // deeper rings: sit at the prerequisite's angle (siblings fan apart a little)
-  Object.keys(byDepth).map(Number).filter(d => d > 0).sort((a, b) => a - b).forEach(d => {
-    const groups = {};
-    byDepth[d].forEach(n => { const k = (n.requires || [])[0] || 'root'; (groups[k] = groups[k] || []).push(n); });
-    Object.keys(groups).forEach(k => {
-      const base = angle[k] != null ? angle[k] : 0, arr = groups[k];
-      // Build 214: siblings fan WIDER (24° → 34°).  At depth 1 a 24° fan put
-      // orbs ~54px apart while their labels ran 78px wide — that was the
-      // "Momentum Weave prints over the node to its right" collision.
-      arr.forEach((n, i) => { angle[n.id] = base + (arr.length > 1 ? (i - (arr.length - 1) / 2) * 34 : 0); });
-    });
-  });
-  const pos = {};
-  nodes.forEach(n => {
-    const a = (angle[n.id] || 0) * Math.PI / 180, r = R0 + depth[n.id] * RING;
-    pos[n.id] = { x: CX + r * Math.cos(a), y: CY + r * Math.sin(a) };
-  });
-  const root = { x: CX, y: CY };
-  // ---- DOORWAYS (Build 246) — the crossings sit on a ring OUTSIDE every arm,
-  // grouped by teacher and tinted in the teacher's colour, so a hero's own
-  // constellation ends where the doors into their companions' trees begin.
-  // Placing them past the deepest arm means they can never collide with a spoke;
-  // spreading them evenly round the full circle means they never collide with
-  // each other either.
-  const maxD = Math.max.apply(null, nodes.map(x => depth[x.id]));
+  // ---- THE WORLD: every fielded region in one space (Build 248) ---------------
+  const world = buildTreeWorld(party);
+  const { pos, hubs } = world;
+  const W = world.W, H = world.W;
+  const nodes = world.per[heroId] ? world.per[heroId].nodes : [];
+  const depth = world.per[heroId] ? world.per[heroId].depth : {};
+  const maxD = world.per[heroId] ? world.per[heroId].maxD : 0;
+  const allNodes = party.reduce((a, h) => a.concat(world.per[h].nodes), []);
+  const root = hubs[heroId] || { x: W / 2, y: H / 2 };
+  // A crossing is now an EDGE from your hub to the teacher's ACTUAL node, so the
+  // skill exists exactly once on screen.  Keyed by node id for the orb badges.
   const crossings = crossViewFor(heroId);
-  const crossPos = {};
-  const CR = R0 + (maxD + 1.05) * RING;
-  // ONE SIDE PER TEACHER, and never straight up or down.  The constellation is
-  // fit to a SQUARE (so the ring guides stay circular under
-  // preserveAspectRatio="none") but the canvas it lands in is landscape, so a
-  // doorway placed at 12 o'clock falls outside the visible band and is clipped —
-  // measured at 83px of overflow before this.  Keeping doorways in left/right
-  // arcs grows the box along the axis that HAS room, and groups every door into
-  // a companion's tree on that companion's side, which reads better anyway.
-  const teachers = [];
-  crossings.forEach(c => { if (teachers.indexOf(c.teacher) < 0) teachers.push(c.teacher); });
-  const FAN = 30, MAX_OFF = 58;   // degrees between sibling doors, and off-horizontal cap
-  crossings.forEach(c => {
-    const side = teachers.indexOf(c.teacher) % 2 === 0 ? 0 : 180;   // right, then left
-    const sibs = crossings.filter(x => x.teacher === c.teacher);
-    const k = sibs.indexOf(c);
-    const off = Math.max(-MAX_OFF, Math.min(MAX_OFF, (k - (sibs.length - 1) / 2) * FAN));
-    const a = (side + off) * Math.PI / 180;
-    crossPos[c.node.id] = { x: CX + CR * Math.cos(a), y: CY + CR * Math.sin(a) };
-  });
-  // FIT THE CONSTELLATION (Build 214) — grow the canvas box to the real extent of
-  // the arms (plus a margin for the label under each orb) and re-origin every
-  // point into it.  Previously a depth-3 arm landed outside the fixed 300×300
-  // box and "Relentless" was sliced off by the top edge.
-  {
-    const PAD = 46;   // room for the orb glyph + its label
-    const cxs = crossings.map(c => crossPos[c.node.id]);
-    const xs = nodes.map(n => pos[n.id].x).concat([root.x], cxs.map(p => p.x));
-    const ys = nodes.map(n => pos[n.id].y).concat([root.y], cxs.map(p => p.y));
-    const minX = Math.min.apply(null, xs) - PAD, maxX = Math.max.apply(null, xs) + PAD;
-    const minY = Math.min.apply(null, ys) - PAD, maxY = Math.max.apply(null, ys) + PAD;
-    // keep it square so the ring guides stay circular under preserveAspectRatio
-    const span = Math.max(maxX - minX, maxY - minY);
-    const ox = minX - (span - (maxX - minX)) / 2, oy = minY - (span - (maxY - minY)) / 2;
-    nodes.forEach(n => { pos[n.id].x -= ox; pos[n.id].y -= oy; });
-    crossings.forEach(c => { crossPos[c.node.id].x -= ox; crossPos[c.node.id].y -= oy; });
-    root.x -= ox; root.y -= oy;
-    W = H = span;
-  }
+  const crossBy = {}; crossings.forEach(c => { crossBy[c.node.id] = c; });
   // ---- LINKS: straight spokes — prereq → node, or hub → a depth-0 node ---------
   const links = [];
-  nodes.forEach(n => {
+  allNodes.forEach(n => {
+    const hub = hubs[n.hero];
     const reqs = (n.requires || []).filter(r => pos[r]);
-    if (reqs.length) reqs.forEach(r => links.push({ a: pos[r], b: pos[n.id], on: hasNode(r), full: hasNode(r) && hasNode(n.id) }));
-    else links.push({ a: root, b: pos[n.id], on: tierOpen(n.tier), full: hasNode(n.id) });
+    const far = n.hero !== heroId;
+    if (reqs.length) reqs.forEach(r => links.push({ a: pos[r], b: pos[n.id], on: hasNode(r), full: hasNode(r) && hasNode(n.id), far }));
+    else links.push({ a: hub, b: pos[n.id], on: tierOpen(n.tier), full: hasNode(n.id), far });
   });
   const linkSvg = links.map(l => {
     const cls = l.full ? 'et-link-full' : l.on ? 'et-link-on' : 'et-link-off';
-    return `<path class="et-link ${cls}" vector-effect="non-scaling-stroke" d="M ${l.a.x} ${l.a.y} L ${l.b.x} ${l.b.y}" />`;
+    return `<path class="et-link ${cls}${l.far ? ' et-far' : ''}" vector-effect="non-scaling-stroke" d="M ${l.a.x} ${l.a.y} L ${l.b.x} ${l.b.y}" />`;
   }).join('');
   // faint ring guides behind the spokes, one per depth present
-  const maxDepth = maxD;
   let ringSvg = '';
-  for (let d = 0; d <= maxDepth; d++) ringSvg += `<circle class="et-ring" cx="${root.x}" cy="${root.y}" r="${R0 + d * RING}" vector-effect="non-scaling-stroke" />`;
+  party.forEach(hid => {
+    const hub = hubs[hid];
+    for (let d = 0; d <= world.per[hid].maxD; d++)
+      ringSvg += `<circle class="et-ring${hid === heroId ? ' et-ring-here' : ''}" cx="${hub.x}" cy="${hub.y}" r="${world.per[hid].r0 + d * TREE_RING}" vector-effect="non-scaling-stroke" />`;
+  });
   // A doorway hangs off a BOND, not a prerequisite, so it is drawn as a thread
   // rather than a spoke — dashed while the bond is short of CROSS_BOND, drawn
   // solid once the door is open, in the teaching hero's own colour.
+  // The thread reaches from YOUR hub across the gap to the teacher's own node —
+  // the doorway is the distance between two regions, which is the whole idea.
   const threadSvg = crossings.map(c => {
-    const p = crossPos[c.node.id];
+    const p = pos[c.node.id]; if (!p) return '';
     const open = c.state === 'open' || c.state === 'poor' || c.state === 'crossed';
     return `<path class="et-thread${open ? ' et-thread-on' : ''}${c.state === 'crossed' ? ' et-thread-full' : ''}"
-      vector-effect="non-scaling-stroke" stroke="${HEROES[c.teacher].tint}"
+      vector-effect="non-scaling-stroke" stroke="${HEROES[heroId].tint}"
       d="M ${root.x} ${root.y} L ${p.x} ${p.y}" />`;
   }).join('');
-  const crossRing = crossings.length
-    ? `<circle class="et-ring et-ring-cross" cx="${root.x}" cy="${root.y}" r="${CR}" vector-effect="non-scaling-stroke" />` : '';
-  const crossOrbs = crossings.map(c => {
-    const p = crossPos[c.node.id], id = 'x:' + heroId + ':' + c.node.id;
-    const glyph = c.state === 'crossed' ? '✓' : c.state === 'open' || c.state === 'poor' ? '⟡' : '🔒';
-    const foot = c.state === 'crossed' ? 'LEARNED'
-      : c.state === 'untaught' ? HEROES[c.teacher].name + ' must learn it'
-      : c.state === 'unbonded' ? '♡ ' + c.bond + '/' + CROSS_BOND + ' WOVEN'
-      : '✦' + c.cost;
-    return `<button class="et-orb et-cross et-x-${c.state}${id === selId ? ' et-sel' : ''}" data-id="${id}"
-       style="left:${(p.x / W) * 100}%; top:${(p.y / H) * 100}%; --tint:${HEROES[c.teacher].tint}">
-       <span class="et-orb-glyph">${glyph}</span>
-       <span class="et-orb-name">${c.node.label}</span>
-       <span class="et-x-from">${HEROES[c.teacher].name}</span>
-       <span class="et-orb-cost${c.state === 'poor' ? ' et-cant' : ''}">${foot}</span>
-     </button>`;
-  }).join('');
+  const crossRing = '';
   // ---- ORBS -------------------------------------------------------------------
-  const orbs = nodes.map(n => {
+  const orbs = allNodes.map(n => {
+    const p = pos[n.id], mine = n.hero === heroId, x = crossBy[n.id];
+    // A neighbour's node you can reach is selected AS A CROSSING, so the id
+    // carries who is learning it; your own nodes keep their plain id.
+    const id = (!mine && x) ? 'x:' + heroId + ':' + n.id : n.id;
     const st = nodeState(n);
-    const p = pos[n.id];
-    return `<button class="et-orb et-${st} t-${n.type}${n.id === selId ? ' et-sel' : ''}" data-id="${n.id}"
-       style="left:${(p.x / W) * 100}%; top:${(p.y / H) * 100}%">
-       <span class="et-orb-glyph">${st === 'owned' ? '✓' : st === 'sealed' ? '🔒' : TREE_TYPE_GLYPH[n.type]}</span>
+    const cls = mine ? 'et-' + st : 'et-far' + (x ? ' et-cross et-x-' + x.state : '');
+    const glyph = (!mine && x)
+      ? (x.state === 'crossed' ? '✓' : x.state === 'open' || x.state === 'poor' ? '⟡' : '🔒')
+      : (st === 'owned' ? '✓' : st === 'sealed' ? '🔒' : TREE_TYPE_GLYPH[n.type]);
+    let foot = '';
+    if (mine && (st === 'ready' || st === 'poor')) foot = `<span class="et-orb-cost${st === 'poor' ? ' et-cant' : ''}">✦${n.cost}</span>`;
+    else if (x) foot = `<span class="et-orb-cost${x.state === 'poor' ? ' et-cant' : ''}">${
+      x.state === 'crossed' ? 'LEARNED' : x.state === 'untaught' ? 'unlearned'
+      : x.state === 'unbonded' ? '♡ ' + x.bond + '/' + CROSS_BOND + ' WOVEN' : '✦' + x.cost}</span>`;
+    return `<button class="et-orb ${cls} t-${n.type}${id === selId ? ' et-sel' : ''}" data-id="${id}"
+       style="left:${(p.x / W) * 100}%; top:${(p.y / H) * 100}%${!mine ? `; --tint:${HEROES[n.hero].tint}` : ''}">
+       <span class="et-orb-glyph">${glyph}</span>
        <span class="et-orb-name">${n.label}</span>
-       ${st === 'ready' || st === 'poor' ? `<span class="et-orb-cost${st === 'poor' ? ' et-cant' : ''}">✦${n.cost}</span>` : ''}
+       ${(!mine && x) ? `<span class="et-x-from">${HEROES[n.hero].name}</span>` : ''}
+       ${foot}
      </button>`;
   }).join('');
-  const rootOrb = `<div class="et-orb et-root" style="left:${(root.x / W) * 100}%; top:${(root.y / H) * 100}%"><span class="et-orb-glyph">◆</span></div>`;
+  // one hub per region, the focused one lit
+  const rootOrb = party.map(hid => `<div class="et-orb et-root${hid === heroId ? ' et-root-here' : ''}"
+      style="left:${(hubs[hid].x / W) * 100}%; top:${(hubs[hid].y / H) * 100}%; --tint:${HEROES[hid].tint}">
+      <span class="et-orb-glyph">◆</span><span class="et-orb-name et-root-name">${HEROES[hid].name}</span></div>`).join('');
   // ---- DETAIL BAR (selected node) ---------------------------------------------
   // a doorway selection carries an "x:<learner>:" prefix — it is a different
   // KIND of thing to own, so it gets its own panel rather than being squeezed
   // into the node one.
   const selCross = (selId && String(selId).indexOf('x:') === 0)
-    ? crossings.find(c => 'x:' + heroId + ':' + c.node.id === selId) : null;
+    ? crossings.find(c => c.node.id === String(selId).replace(/^x:[a-z]+:/, '')) : null;
   const sel = selCross ? null : (selId ? NODE_BY_ID[selId] : nodes.find(n => nodeState(n) === 'ready') || nodes[0]);
   let detail = '<div class="et-detail-empty">Pick a node to inspect it.</div>';
   if (selCross) {
@@ -9858,28 +9948,33 @@ function showEmberTree(onBack, heroId, selId) {
       <div class="et-canvas et-grid" id="et-canvas">
         <div class="et-pan" id="et-pan">
           <svg class="et-links" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${ringSvg}${crossRing}${linkSvg}${threadSvg}</svg>
-          ${rootOrb}${orbs}${crossOrbs}
+          ${rootOrb}${orbs}
         </div>
         <div class="et-zoom">
           <button class="et-zoom-btn" id="et-zoom-out" title="Zoom out">−</button>
           <button class="et-zoom-btn" id="et-zoom-in" title="Zoom in">+</button>
+          <button class="et-zoom-btn et-zoom-all" id="et-zoom-all" title="See the whole tree">◎</button>
         </div>
       </div>
       <div class="et-side">
-        ${!treeTaught() ? `<div class="et-coach">Tap a <b>lit node</b>, then press <b>KINDLE</b> — the skill joins ${HEROES[heroId].name}’s hand for this descent.</div>` : ''}
+        ${!treeTaught() ? `<div class="et-coach">Tap a <b>lit node</b>, then <b>KINDLE</b> it. Tap a <b>tab</b> to fly to that hero’s region — where your threads reach into it, you can <b>LEARN</b> from them.</div>` : ''}
         <div class="et-detail">${detail}</div>
         <button class="ov-btn et-back-btn" id="et-back">◂ BACK</button>
       </div>
     </div>
   `, 'map-screen et-screen');
   document.querySelectorAll('.et-tab').forEach(el => {
-    el.onclick = () => { if (el.dataset.hero !== heroId) showEmberTree(onBack, el.dataset.hero); };
+    // Switching hero no longer swaps the map — it flies the camera to that
+    // region.  Re-render first (so the focused region lights up and its
+    // crossings re-key), then hand attachTreePan the focus target so the
+    // transform animates from wherever the camera already was.
+    el.onclick = () => { if (el.dataset.hero !== heroId) showEmberTree(onBack, el.dataset.hero, null, { focus: true }); };
   });
   const etCanvas = document.getElementById('et-canvas');
   document.querySelectorAll('.et-orb[data-id]').forEach(el => {
     el.onclick = () => { if (etCanvas && etCanvas._dragMoved) return; showEmberTree(onBack, heroId, el.dataset.id); };   // a drag pans; a tap selects
   });
-  attachTreePan(heroId);
+  attachTreePan(heroId, { world, focus: (opts && opts.focus) || !TREE_VIEW._seeded });
   const buy = $('#et-buy');
   if (buy && sel) buy.onclick = () => {
     if (nodeState(sel) !== 'ready') return;
@@ -9900,6 +9995,15 @@ function showEmberTree(onBack, heroId, selId) {
     const c = document.querySelector('.et-side');
     if (c) { const b = document.createElement('div'); b.className = 'et-kindled-note'; b.innerHTML = '✓ <b>Kindled!</b> It’s in your hand now. Spend more embers here between fights — but it all resets if you fall.'; c.insertBefore(b, c.firstChild); }
   }
+  const zAll = document.getElementById('et-zoom-all');
+  if (zAll) zAll.onclick = () => {
+    const pan = document.getElementById('et-pan'); if (!pan) return;
+    pan.classList.add('et-flying');
+    const zf = treeFitZoom();
+    TREE_VIEW.x = 0; TREE_VIEW.y = 0; TREE_VIEW.z = zf; TREE_VIEW._seeded = true;
+    pan.style.transform = `translate(0px, 0px) scale(${zf})`;
+    setTimeout(() => pan.classList.remove('et-flying'), 640);
+  };
   $('#et-back').onclick = () => { hideOverlay(); (onBack || showTitle)(); };
 }
 // CHOOSE YOUR SURVIVOR — pick the hero you begin (solo) with, from the ones

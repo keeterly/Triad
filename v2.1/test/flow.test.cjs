@@ -4079,7 +4079,7 @@ const QUICK = process.argv.includes('--quick');
     // the canvas pans and zooms, and TREE_PAN/TREE_ZOOM persist per hero for the
     // whole session — an earlier tree test leaves Ash's view shoved sideways.
     // Framing claims are about the DEFAULT view, so reset it first.
-    TREE_PAN[h] = { x: 0, y: 0 }; TREE_ZOOM[h] = 1;
+    TREE_VIEW.x = 0; TREE_VIEW.y = 0; TREE_VIEW.z = 0; TREE_VIEW._seeded = false;
     showEmberTree(() => {}, h);
     return true;
   }, hero);
@@ -4098,13 +4098,15 @@ const QUICK = process.argv.includes('--quick');
   // a SQUARE (ring guides stay circular under preserveAspectRatio="none") but
   // lands in a LANDSCAPE canvas, so a doorway at 12 o'clock fell outside the
   // visible band. Measured 83px of overflow before the side-arc placement.
+  // The FOCUSED region must fit; the neighbouring regions are meant to run off
+  // the edges once you have flown in to one lobe of the world.
   const clipped = () => J(() => {
     const c = document.getElementById('et-canvas').getBoundingClientRect();
-    return [...document.querySelectorAll('.et-orb')].filter(o => { const r = o.getBoundingClientRect();
+    return [...document.querySelectorAll('.et-orb:not(.et-far):not(.et-root)')].filter(o => { const r = o.getBoundingClientRect();
       return r.top < c.top - 0.5 || r.bottom > c.bottom + 0.5 || r.left < c.left - 0.5 || r.right > c.right + 0.5;
     }).map(o => (o.querySelector('.et-orb-name') || {}).textContent || '?');
   });
-  check('LATTICE: nothing is clipped by the canvas — doorways grow the box where there is ROOM',
+  check('LATTICE: the focused hero’s whole region fits the canvas',
     (await clipped()).length === 0, (await clipped()).join(', '));
   check('LATTICE: the weave strip carries one edge per party pair, lit only where the door is open',
     await J(() => document.querySelectorAll('.wv-edge').length === 3
@@ -4143,8 +4145,62 @@ const QUICK = process.argv.includes('--quick');
     await J(() => { const el = document.querySelector('.et-orb.et-x-unbonded'); if (!el) return false;
       el.click(); return true; }) && (await sleep(320), await J(() =>
       !document.getElementById('et-cross-buy') && /not .*WOVEN/.test(document.querySelector('.et-detail').textContent))));
-  check('LATTICE: still nothing clipped from a hero whose doors are mostly shut',
+  check('LATTICE: the region still fits for a hero whose doors are mostly shut',
     (await clipped()).length === 0, (await clipped()).join(', '));
+  // ---------- ONE WORLD (Build 248) ----------
+  console.log('--- ONE WORLD ---');
+  await latticeRun('ash'); await sleep(500);
+  check('WORLD: every fielded hero is a REGION in one shared space, each with its own hub',
+    await J(() => document.querySelectorAll('.et-orb.et-root').length === 3
+      && document.querySelectorAll('.et-orb.et-root-here').length === 1));
+  check('WORLD: the regions cannot collide — hubs sit at least two region radii apart',
+    await J(() => { const w = buildTreeWorld(['ash', 'mira', 'cassia']);
+      const d = (a, b) => Math.hypot(w.hubs[a].x - w.hubs[b].x, w.hubs[a].y - w.hubs[b].y);
+      return d('ash', 'mira') >= w.regionR * 1.99 && d('mira', 'cassia') >= w.regionR * 1.99
+        && d('ash', 'cassia') >= w.regionR * 1.99; }));
+  // The whole point of one world: a crossing is an EDGE to the teacher's real
+  // node, so a skill exists exactly ONCE on screen. It used to be re-drawn as a
+  // phantom orb on the rim of whoever was looking.
+  check('WORLD: a crossing points at the teacher’s REAL node — no skill is drawn twice',
+    await J(() => { const ids = [...document.querySelectorAll('.et-orb[data-id]')]
+        .map(o => o.dataset.id.replace(/^x:[a-z]+:/, ''));
+      return new Set(ids).size === ids.length
+        && ids.length === ['ash', 'mira', 'cassia'].reduce((a, h) => a + EMBER_TREE.filter(n => n.hero === h).length, 0); }));
+  check('WORLD: a neighbour’s node is drawn as ELSEWHERE unless a thread reaches it',
+    await J(() => document.querySelectorAll('.et-orb.et-far').length > 0
+      && [...document.querySelectorAll('.et-orb.et-far.et-cross')].every(o => o.dataset.id.indexOf('x:') === 0)));
+  // TABS MOVE THE CAMERA, they do not swap the map.
+  const camBefore = await J(() => ({ x: TREE_VIEW.x, y: TREE_VIEW.y, z: TREE_VIEW.z }));
+  await J(() => document.querySelector('.et-tab[data-hero="mira"]').click());
+  await sleep(950);
+  const camAfter = await J(() => ({ x: TREE_VIEW.x, y: TREE_VIEW.y, z: TREE_VIEW.z }));
+  check('WORLD: switching hero FLIES the camera instead of swapping the map',
+    camAfter.x !== camBefore.x || camAfter.y !== camBefore.y,
+    `(${Math.round(camBefore.x)},${Math.round(camBefore.y)}) → (${Math.round(camAfter.x)},${Math.round(camAfter.y)})`);
+  check('WORLD: the flight lands the region’s hub in the middle of the canvas',
+    await J(() => { const c = document.getElementById('et-canvas').getBoundingClientRect();
+      const hub = document.querySelector('.et-root-here').getBoundingClientRect();
+      return Math.abs(hub.left + hub.width / 2 - (c.left + c.width / 2)) < 6
+        && Math.abs(hub.top + hub.height / 2 - (c.top + c.height / 2)) < 6; }));
+  // "Zoom out and see more of the whole tree" — and zoom 1 is NOT that zoom,
+  // because .et-pan is a fixed 560px square inside a canvas only ~348px tall.
+  await J(() => document.getElementById('et-zoom-all').click());
+  await sleep(800);
+  check('WORLD: the whole-tree view really does hold every region, at a DERIVED zoom',
+    await J(() => { const c = document.getElementById('et-canvas').getBoundingClientRect();
+      const out = [...document.querySelectorAll('.et-orb')].filter(o => { const r = o.getBoundingClientRect();
+        return r.top < c.top - 0.5 || r.bottom > c.bottom + 0.5 || r.left < c.left - 0.5 || r.right > c.right + 0.5; });
+      return out.length === 0 && TREE_VIEW.z < treeFocusZoom(buildTreeWorld(['ash', 'mira', 'cassia'])); }),
+    await J(() => 'fit z=' + TREE_VIEW.z.toFixed(2)));
+  check('WORLD: a dense ring spreads its orbs instead of stacking their labels',
+    await J(() => { const w = buildTreeWorld(['ash', 'mira', 'cassia']);
+      const p = w.per.mira, byD = {};
+      p.nodes.forEach(n => { (byD[p.depth[n.id]] = byD[p.depth[n.id]] || []).push(n); });
+      return Object.keys(byD).every(d => { const ring = byD[d].map(n => p.angle[n.id]).sort((a, b) => a - b);
+        const r = p.r0 + Number(d) * TREE_RING;
+        const need = 2 * Math.asin(Math.min(1, 74 / (2 * r))) * 180 / Math.PI;
+        for (let i = 1; i < ring.length; i++) if (ring[i] - ring[i - 1] < need - 0.6) return false;
+        return true; }); }));
   await J(() => hideOverlay());
 
   t.report();

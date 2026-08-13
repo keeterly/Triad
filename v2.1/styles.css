@@ -3791,3 +3791,43 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
 @media (prefers-reduced-motion: reduce) {
   .et-thread-on, .et-orb.et-x-open .et-orb-glyph { animation: none; }
 }
+
+/* ══ ONE TREE (Build 248) ═══════════════════════════════════════════════════
+   Every fielded hero is a region in one shared world, and the tabs move the
+   CAMERA rather than swapping the map. */
+.et-pan.et-flying { transition: transform 560ms cubic-bezier(.32,.72,.3,1); }
+@media (prefers-reduced-motion: reduce) { .et-pan.et-flying { transition: none; } }
+.et-zoom-all { font-size: 15px; }
+/* the region you are standing in reads forward; the rest of the world stays
+   legible but clearly ELSEWHERE — that contrast is what makes a pan feel like
+   travelling somewhere rather than a redraw */
+.et-ring-here { stroke: rgba(240,212,136,0.2); }
+.et-link.et-far { opacity: 0.3; }
+.et-orb.et-far { opacity: 0.5; }
+.et-orb.et-far .et-orb-glyph { border-color: color-mix(in srgb, var(--tint, #8a7a5c) 45%, transparent);
+  color: color-mix(in srgb, var(--tint, #8a7a5c) 80%, #cbb488); }
+.et-orb.et-far .et-orb-name { display: none; }
+.et-orb.et-far.et-sel .et-orb-name, .et-orb.et-far.et-cross .et-orb-name { display: block; }
+/* a neighbour's node your thread reaches is NOT elsewhere — it is a door */
+.et-orb.et-far.et-cross { opacity: 1; }
+.et-orb.et-far.et-cross.et-x-unbonded, .et-orb.et-far.et-cross.et-x-untaught { opacity: 0.66; }
+/* region hubs carry their hero's name so the world is readable zoomed out */
+.et-orb.et-root .et-root-name { font-size: 8.5px; letter-spacing: 0.16em; font-weight: 800;
+  color: var(--tint, #c9a15a); opacity: 0.75; }
+.et-orb.et-root-here .et-orb-glyph { border-color: var(--tint, #ffe6a4);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--tint) 50%, transparent); }
+.et-orb.et-root-here .et-root-name { opacity: 1; }
+
+/* DENSITY (Build 248) — the canvas is ~348px tall and a region carries up to 18
+   orbs across five rings; at 62px an orb simply cannot share that space with its
+   neighbours, which is most of what read as "messy". Smaller orbs on the world
+   view buy the room back, and the detail rail carries the full text anyway. */
+.et-grid .et-orb { width: 50px; }
+.et-grid .et-orb-glyph { width: 34px; height: 34px; font-size: 14px; border-width: 1.5px; }
+.et-grid .et-orb-name { font-size: 7.5px; max-width: 50px; padding: 1px 3px; }
+.et-grid .et-orb-cost { font-size: 8px; top: -2px; right: 1px; }
+.et-grid .et-orb.et-root .et-orb-glyph { width: 28px; height: 28px; font-size: 12px; }
+.et-grid .et-x-from { font-size: 6.5px; letter-spacing: 0.1em; }
+/* the focused region's own labels win any remaining graze */
+.et-grid .et-orb:not(.et-far) .et-orb-name { z-index: 3; }
+.et-grid .et-orb.et-sel .et-orb-name { z-index: 6; }
