@@ -3869,3 +3869,7 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
 .et-grid .et-orb.et-lbl-up .et-orb-name { transform-origin: bottom center; }
 .et-grid .et-x-from { transform: translateX(-50%) scale(var(--lbl, 1)); transform-origin: top center; }
 .et-grid .et-orb.et-lbl-up .et-x-from { transform-origin: bottom center; }
+/* a bridge that sets off from a node you have actually kindled reads as
+   established ground; one from a node you have not is a possibility, not a road */
+.et-thread-rooted { opacity: 0.78; }
+.et-thread-rooted.et-thread-on { opacity: 0.9; }

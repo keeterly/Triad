@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 249;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 250;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -589,6 +589,18 @@ const PASSIVE_DEFS = {
   // CASSIA — GUARD: the wall is never caught flat, and only grows
   cassia_vigil: { trigger: 'turnStart', apply: (c) => { c.hero.guard += 2; popupAt(figEl(c.hero.id), '⛨ +2', 'guard'); } },
   cassia_immovable: { trigger: 'keepGuard' },   // read by endTurn's guard-reset
+  // ── READ-AT-SITE passives (Build 250).  These five have no apply() because
+  // their rule lives at one specific seam (a move's cost, a heal's cleanse, a
+  // cast's charge).  They were the only tier-2 passives that could not be
+  // taught, purely because isTeachable requires a PASSIVE_DEFS entry — and
+  // every one of their call sites was already `hero id + hasNode`, the exact
+  // shape heroOwnsNode replaces.  Declaring them here lets them cross; the
+  // sites below decide what they do.
+  ash_warstep:      { trigger: 'moveFree' },
+  mira_swiftfoot:   { trigger: 'moveFree' },
+  branwen_longshot: { trigger: 'pierce' },
+  elin_mercy:       { trigger: 'cleanse' },
+  hask_kindling:    { trigger: 'chargeOnCast' },
   // BASTION — the wall bites back: braces a counter each turn (CHILL immunity is
   // handled separately by heroResistsChill).  Turns a near-dead node into her
   // retaliation identity, pairing with Warded Aegis / counter builds.
@@ -667,6 +679,8 @@ function crossedNodes(heroId) { return (RUN && RUN.crossed && RUN.crossed[heroId
 function hasCrossed(heroId, nodeId) { return crossedNodes(heroId).indexOf(nodeId) >= 0; }
 // Does THIS hero carry this node's rule — through their own tree, or learned
 // across a bond?  Both passive dispatchers ask this instead of `n.hero === id`.
+// the same question by node id, for the rules that are read at a single seam
+function heroHas(heroId, nodeId) { return heroOwnsNode(heroId, NODE_BY_ID[nodeId]); }
 function heroOwnsNode(heroId, n) {
   return !!n && ((n.hero === heroId && hasNode(n.id)) || hasCrossed(heroId, n.id));
 }
@@ -3365,8 +3379,10 @@ function heroResistsChill(h) {
 }
 function moveCost(h) {
   if (!h || S.used.has(h.id + ':move')) return 1;                                         // only the FIRST move can be free
-  if (h.id === 'mira' && hasNode('mira.passive.swiftfoot')) return 0;                      // Swiftfoot — always free
-  if (h.id === 'ash' && hasNode('ash.passive.warstep') && (S._flags || {}).ashStruck) return 0;   // Warstep — free after an attack
+  if (heroHas(h.id, 'mira.passive.swiftfoot')) return 0;                      // Swiftfoot — always free
+  // Warstep keys off THIS hero having struck, not off Ash specifically, so a
+  // hero who crossed for it gets the same deal on their own attack.
+  if (heroHas(h.id, 'ash.passive.warstep') && (S._flags || {})[h.id + 'Struck']) return 0;
   return 1;
 }
 function mkMoveAction(h) {
@@ -4377,8 +4393,10 @@ async function resolveCard(card, targetId) {
         if (tgt.dead) { fireEmergent(owner.id, 'kill', card); firePassives('kill', owner.id, { tgt }); }
         // CHARGE (Hask) — every spell that lands builds a stack (a nuke spends them).
         if (owner.id === 'hask' && !fx.spendCharge) { const gain = 1 + (owner._umbral || 0); owner._umbral = 0; owner.charge = Math.min(chargeCap(owner), (owner.charge || 0) + gain); popupAt(figEl(owner.id), '◆ ' + owner.charge, 'info'); }
-        // WARSTEP (Ash) — landing an attack unlocks a free reposition this turn.
-        if (owner.id === 'ash') { S._flags = S._flags || {}; S._flags.ashStruck = true; }
+        // WARSTEP — landing an attack unlocks a free reposition this turn.  The
+        // flag is per-hero now (Build 250): the rule belongs to whoever holds
+        // the node, and since it can be TAUGHT that is no longer only Ash.
+        { S._flags = S._flags || {}; S._flags[owner.id + 'Struck'] = true; }
         // A small MOMENTUM trickle on every ordinary hit — the burst gauge should
         // feel alive and visibly climb through a normal fight, not sit decorative.
         // (Assists already grant the bigger surge below; still far slower than the
@@ -4424,7 +4442,7 @@ async function resolveCard(card, targetId) {
     const tgt = card.target === 'enemy' ? (livingEnemies().find(e => e.uid === targetId) || frontmostEnemy()) : frontmostEnemy();
     if (tgt) { tgt.lull = (tgt.lull || 0) + fx.lull; popupAt(figEl(tgt.uid), '❄ CHILL −' + fx.lull, 'chill'); }
     // KINDLING (Hask) — frost feeds the fire: chilling a foe builds ◆ CHARGE.
-    if (owner && owner.id === 'hask' && hasNode('hask.passive.kindling')) { owner.charge = Math.min(chargeCap(owner), (owner.charge || 0) + 1); popupAt(figEl(owner.id), '◆ ' + owner.charge, 'info'); }
+    if (owner && heroHas(owner.id, 'hask.passive.kindling')) { owner.charge = Math.min(chargeCap(owner), (owner.charge || 0) + 1); popupAt(figEl(owner.id), '◆ ' + owner.charge, 'info'); }
   }
   // OVERCHARGE (Hask) — a self-cast that only builds ◆ CHARGE, no strike.
   if (fx.chargeGain && owner) { owner.charge = Math.min(chargeCap(owner), (owner.charge || 0) + fx.chargeGain); popupAt(figEl(owner.id), '◆ ' + owner.charge, 'info'); }
@@ -4449,7 +4467,7 @@ async function resolveCard(card, targetId) {
         }
         SFX.heal();
         // MERCY (Elin) — her mending also lifts the omen: cleanse ❄ CHILL / ◎ EXPOSED.
-        if (owner && owner.id === 'elin' && hasNode('elin.passive.mercy') && (rc.chill || rc.exposed)) {
+        if (owner && heroHas(owner.id, 'elin.passive.mercy') && (rc.chill || rc.exposed)) {
           rc.chill = 0; rc.exposed = 0; popupAt(figEl(rc.id), '✦ CLEANSED', 'heal');
         }
       }
@@ -4647,7 +4665,7 @@ function dealToEnemy(e, amt, school, byHeroId) {
   let left = amt;
   // LONGSHOT (Branwen) — her arrows slip past enemy GUARD entirely; everyone else
   // chips the guard first.
-  const pierce = byHeroId === 'branwen' && hasNode('branwen.passive.longshot');
+  const pierce = heroHas(byHeroId, 'branwen.passive.longshot');
   if (e.guard > 0 && !pierce) { const g = Math.min(e.guard, left); e.guard -= g; left -= g; }
   e.hp = Math.max(0, e.hp - left);
   // First blood reveals the hidden weakness.
@@ -9944,14 +9962,35 @@ function showEmberTree(onBack, heroId, selId, opts) {
   // A doorway hangs off a BOND, not a prerequisite, so it is drawn as a thread
   // rather than a spoke — dashed while the bond is short of CROSS_BOND, drawn
   // solid once the door is open, in the teaching hero's own colour.
-  // The thread reaches from YOUR hub across the gap to the teacher's own node —
-  // the doorway is the distance between two regions, which is the whole idea.
+  // MANY BRIDGES, NOT ONE (Build 250).  Every thread used to leave the same
+  // point — your hub — so the border between two regions read as a single
+  // crossing no matter how many skills spanned it.  Each one now springs from
+  // the node of YOURS that sits nearest its target, preferring one you have
+  // actually kindled, so the bridges land at different places along the border
+  // and they MIGRATE as you build: grow toward a companion and your crossings
+  // set off from there instead of from the middle of your own tree.
+  // Nearest node wins outright.  Preferring an OWNED anchor sounded better and
+  // measured worse: early on a hero owns two or three nodes clustered by their
+  // hub, so every bridge collapsed back onto the same one and the border read as
+  // a single crossing again — exactly the thing this is meant to fix.  Ownership
+  // is carried in the STYLE instead: a bridge that sets off from a node you have
+  // kindled is drawn established, one from bare ground stays faint.
+  const anchorFor = (target) => {
+    let best = null, bestD = Infinity, bestOwned = false;
+    nodes.forEach(n => {
+      const p = pos[n.id]; if (!p) return;
+      const d = Math.hypot(p.x - target.x, p.y - target.y);
+      if (d < bestD) { best = p; bestD = d; bestOwned = hasNode(n.id); }
+    });
+    return best ? { p: best, owned: bestOwned } : { p: root, owned: true };
+  };
   const threadSvg = crossings.map(c => {
     const p = pos[c.node.id]; if (!p) return '';
+    const a = anchorFor(p);
     const open = c.state === 'open' || c.state === 'poor' || c.state === 'crossed';
-    return `<path class="et-thread${open ? ' et-thread-on' : ''}${c.state === 'crossed' ? ' et-thread-full' : ''}"
+    return `<path class="et-thread${open ? ' et-thread-on' : ''}${c.state === 'crossed' ? ' et-thread-full' : ''}${a.owned ? ' et-thread-rooted' : ''}"
       vector-effect="non-scaling-stroke" stroke="${HEROES[heroId].tint}"
-      d="M ${root.x} ${root.y} L ${p.x} ${p.y}" />`;
+      d="M ${a.p.x} ${a.p.y} L ${p.x} ${p.y}" />`;
   }).join('');
   const crossRing = '';
   // ---- ORBS -------------------------------------------------------------------

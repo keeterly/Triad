@@ -4012,10 +4012,26 @@ const QUICK = process.argv.includes('--quick');
   check('WEAVE: TIER 2 ONLY — you learn a colleague’s technique, never their tier-3/4 soul',
     await J(() => EMBER_TREE.filter(isTeachable).every(n => n.tier === 2)
       && EMBER_TREE.some(n => n.tier >= 3 && isPassiveNode(n) && PASSIVE_DEFS[n.passive])));
-  check('WEAVE: flag-read nodes are NOT teachable — a crossing must never be a silent no-op',
-    await J(() => ['ash.passive.warstep', 'mira.passive.swiftfoot', 'hask.passive.kindling',
-                   'branwen.passive.longshot', 'elin.passive.mercy']
-      .every(id => !isTeachable(EMBER_TREE.find(n => n.id === id)))));
+  // Build 250 unbound these five: their rule is READ at one seam rather than
+  // dispatched, and every seam was already `hero id + hasNode` — the exact shape
+  // heroOwnsNode replaces. They travel now, which is what gives a border more
+  // than one bridge.
+  check('WEAVE: the read-at-site passives now travel too — 12 teachable, 2 per hero',
+    await J(() => EMBER_TREE.filter(isTeachable).length === 12
+      && ['ash', 'elin', 'mira', 'cassia', 'branwen', 'hask']
+        .every(h => EMBER_TREE.filter(n => isTeachable(n) && n.hero === h).length === 2)));
+  check('WEAVE: a crossing still never buys a silent no-op — every teachable node has a rule',
+    await J(() => EMBER_TREE.filter(isTeachable).every(n => !!PASSIVE_DEFS[n.passive])));
+  // A taught rule has to fire for its new owner at the SEAM, not just exist.
+  check('WEAVE: a crossed read-at-site passive changes the seam it is read at',
+    await J(() => { setupFight(['ash', 'mira'], [], { ash: 'front', mira: 'mid' });
+      RUN.nodes = ['mira.passive.swiftfoot']; RUN.crossed = {};
+      const ash = S.heroes.find(h => h.id === 'ash');
+      S.used = new Set();
+      const before = moveCost(ash);
+      RUN.crossed = { ash: ['mira.passive.swiftfoot'] };
+      const after = moveCost(ash);
+      return before === 1 && after === 0; }));
   check('WEAVE: every hero has something to teach (the lattice is not lopsided)',
     await J(() => new Set(EMBER_TREE.filter(isTeachable).map(n => n.hero)).size === 6),
     await J(() => EMBER_TREE.filter(isTeachable).length + ' teachable nodes'));
@@ -4087,13 +4103,29 @@ const QUICK = process.argv.includes('--quick');
   await latticeRun('ash'); await sleep(500);
   check('LATTICE: every doorway the party could ever open is drawn, not just the affordable ones',
     await J(() => document.querySelectorAll('.et-orb.et-cross').length === crossViewFor('ash').length
-      && crossViewFor('ash').length === 3));
+      && crossViewFor('ash').length === 4));
   check('LATTICE: a doorway names its TEACHER — the word that makes this a lattice, not a node list',
     await J(() => [...document.querySelectorAll('.et-orb.et-cross .et-x-from')]
-      .map(e => e.textContent).sort().join(',') === 'CASSIA,CASSIA,MIRA'));
+      .map(e => e.textContent).sort().join(',') === 'CASSIA,CASSIA,MIRA,MIRA'));
   check('LATTICE: a doorway hangs off a BOND, so it is drawn as a thread, not a prerequisite spoke',
-    await J(() => document.querySelectorAll('.et-thread').length === 3
+    await J(() => document.querySelectorAll('.et-thread').length === 4
       && document.querySelectorAll('.et-thread-full').length === 1));   // the one already crossed
+  // MANY BRIDGES: the threads used to all leave the learner's hub, so a border
+  // read as one crossing however many skills spanned it.
+  check('LATTICE: bridges set off from different points, not all from one hub',
+    await J(() => { const st = [...document.querySelectorAll('.et-thread')]
+        .map(p => p.getAttribute('d').match(/M ([\d.]+) ([\d.]+)/).slice(1, 3).join(','));
+      return st.length > 1 && new Set(st).size > 1; }),
+    await J(() => new Set([...document.querySelectorAll('.et-thread')]
+      .map(p => p.getAttribute('d').match(/M ([\d.]+) ([\d.]+)/)[0])).size + ' distinct origins'));
+  check('LATTICE: a bridge springs from the node of YOURS nearest its target',
+    await J(() => { const w = buildTreeWorld(RUN.active);
+      const c = crossViewFor('ash')[0]; const tgt = w.pos[c.node.id];
+      let best = Infinity;
+      w.per.ash.nodes.forEach(nd => { const p = w.pos[nd.id];
+        best = Math.min(best, Math.hypot(p.x - tgt.x, p.y - tgt.y)); });
+      const hubD = Math.hypot(w.hubs.ash.x - tgt.x, w.hubs.ash.y - tgt.y);
+      return best < hubD; }));
   // THE framing regression this build exists to fix: the constellation is fit to
   // a SQUARE (ring guides stay circular under preserveAspectRatio="none") but
   // lands in a LANDSCAPE canvas, so a doorway at 12 o'clock fell outside the
