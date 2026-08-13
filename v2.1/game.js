@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 236;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 237;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -3037,6 +3037,67 @@ const FOE_ANIM_ATLAS = {
   heavy:    [[455,532,217,196],[674,532,212,196]],
   death:    [[890,532,191,196],[1087,532,215,196],[1316,532,209,196]],
 };
+// ── the FX row (Build 237): the sheet's projectile orb stages + impact
+// burst, cut from the same atlas.  The orb glows overlap on the sheet, so
+// these rects are the authored grid rather than alpha clusters.
+const FOE_FX = {
+  orb:   [[92,782,76,82],[17,782,75,82],[17,866,111,108],[128,866,120,108]],   // small → flaring
+  burst: [794,770,180,206],
+};
+// A CAST: the painted orb flies caster → target (screen-space, camera-safe,
+// measured endpoints like every popup), growing through its stages, and
+// detonates the sheet's impact burst on arrival.  Resolves AT impact so the
+// damage lands on the hit, not before it.
+function castProjectileFx(fromEl, toEl, ms) {
+  return new Promise(resolve => {
+    if (!fromEl || !toEl || (typeof camReduced === 'function' && camReduced())) return resolve();
+    const layer = $('#popup-layer'); if (!layer) return resolve();
+    const sr = $('#stage').getBoundingClientRect(), sc = (sr.width / stageDW()) || 1;
+    const pt = (el) => { const r = figHitRect(el) || el.getBoundingClientRect();
+      return { x: (r.left + r.width / 2 - sr.left) / sc, y: (r.top + r.height * 0.42 - sr.top) / sc }; };
+    const a = pt(fromEl), b = pt(toEl);
+    const dur = ms == null ? 480 : ms;
+    const orb = document.createElement('div');
+    orb.className = 'fx-orb';
+    orb.style.left = a.x + 'px'; orb.style.top = a.y + 'px';
+    layer.appendChild(orb);
+    const t0 = performance.now();
+    const paint = (f) => {
+      const [x, y, w, h] = FOE_FX.orb[f];
+      const box = 46; const k = box / Math.max(w, h);
+      orb.style.width = (w * k) + 'px'; orb.style.height = (h * k) + 'px';
+      orb.style.backgroundSize = (FOE_ANIM_SHEET.w * k) + 'px ' + (FOE_ANIM_SHEET.h * k) + 'px';
+      orb.style.backgroundPosition = (-x * k) + 'px ' + (-y * k) + 'px';
+    };
+    paint(0);
+    const step = () => {
+      const t = Math.min(1, (performance.now() - t0) / dur);
+      const e = t * t * (3 - 2 * t);   // smoothstep — the cast leaves slow, arrives fast enough
+      orb.style.transform = 'translate(-50%, -50%) translate(' + ((b.x - a.x) * e) + 'px, ' + ((b.y - a.y) * e - Math.sin(t * Math.PI) * 26) + 'px)';
+      paint(Math.min(FOE_FX.orb.length - 1, Math.floor(t * FOE_FX.orb.length)));
+      if (t < 1) { requestAnimationFrame(step); return; }
+      orb.remove();
+      burstFxAt(b.x, b.y);
+      resolve();
+    };
+    requestAnimationFrame(step);
+  });
+}
+// the sheet's IMPACT BURST, blooming at a stage point then gone
+function burstFxAt(x, y) {
+  const layer = $('#popup-layer'); if (!layer) return;
+  const el = document.createElement('div');
+  el.className = 'fx-burst';
+  const [bx, by, bw, bh] = FOE_FX.burst;
+  const box = 130; const k = box / Math.max(bw, bh);
+  el.style.width = (bw * k) + 'px'; el.style.height = (bh * k) + 'px';
+  el.style.backgroundSize = (FOE_ANIM_SHEET.w * k) + 'px ' + (FOE_ANIM_SHEET.h * k) + 'px';
+  el.style.backgroundPosition = (-bx * k) + 'px ' + (-by * k) + 'px';
+  el.style.left = x + 'px'; el.style.top = y + 'px';
+  layer.appendChild(el);
+  setTimeout(() => el.remove(), 420);
+}
+
 // per-state playback: frame duration, whether it loops, and where it lands
 const FOE_ANIM_PLAY = {
   idle:     { ms: 420, loop: true },
@@ -4398,6 +4459,8 @@ function dealToEnemy(e, amt, school, byHeroId) {
     if (!e.staggered && (e.poise || 0) <= 0) {
       e.staggered = true;
       foeAnimState(e.uid, 'broken');               // it reels for the whole window
+      if (_foeAnim[e.uid]) { try { const r = figHitRect(figEl(e.uid)); const sr = $('#stage').getBoundingClientRect(), k = sr.width / stageDW();
+        burstFxAt((r.left + r.width / 2 - sr.left) / k, (r.top + r.height * 0.4 - sr.top) / k); } catch (_) {} }
       gainMomentum(18);                            // the BREAK is a big surge
       popupAt(figEl(e.uid), '⚡ BROKEN', 'dmg popup-big');
       flashNarrator(e.def.name + ' is BROKEN — it reels, and every blow lands harder until it recovers.');
@@ -6396,6 +6459,12 @@ async function enemyPhase() {
     // (no un-telegraphed blow lands, no next note fires) and let the cutscene play.
     if (S._staging) break;
     let dmg = Math.round(enemyIntentDmg(e, intent) * parryMul);
+    // AN ANIMATED CASTER really CASTS — its painted orb flies to the first
+    // hero it will strike and the blow lands ON the detonation.
+    if (_foeAnim[e.uid] && dmg > 0) {
+      const castH = (eRow === 'all' ? ROWS.slice() : [eRow]).map(r => heroInRow(r)).find(Boolean);
+      if (castH) await castProjectileFx(figEl(e.uid), figEl(castH.id));
+    }
     // CHILL fades a pip per action instead of deleting itself — ❄2 now shaves
     // two attacks, so chilling is a plan rather than a one-attack shave.
     if (e.lull) e.lull = Math.max(0, e.lull - 1);

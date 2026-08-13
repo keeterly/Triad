@@ -1549,6 +1549,26 @@ button.map-node:not(:disabled) { cursor: pointer; }
 
 /* BUILD 13 — weakness/stagger (ported from v1) */
 .chip.weak { color: var(--ink-dim); }
+/* ── CAST FX (Build 237) — the sheet's projectile orb + impact burst, flown
+   through #popup-layer (screen space, above the camera, measured endpoints). */
+.fx-orb {
+  position: absolute; pointer-events: none; z-index: 22;
+  background-image: url('../art/boss-anim.png'); background-repeat: no-repeat;
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(0 0 10px rgba(120,110,255,0.65));
+}
+.fx-burst {
+  position: absolute; pointer-events: none; z-index: 22;
+  background-image: url('../art/boss-anim.png'); background-repeat: no-repeat;
+  transform: translate(-50%, -50%) scale(0.5);
+  animation: fx-burst-bloom 0.42s ease-out forwards;
+}
+@keyframes fx-burst-bloom {
+  20% { transform: translate(-50%, -50%) scale(1.12); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(1.3); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .fx-orb, .fx-burst { display: none; } }
+
 /* ── ANIMATED FOE (Build 235) — the sprite-sheet frame layer.  Sits exactly
    where the painted plate sits; hidden until its sheet really loads, and when
    ON it replaces the static art beneath it. ── */

@@ -1395,6 +1395,38 @@ const QUICK = process.argv.includes('--quick');
         && /foeAnimState\(e\.uid, 'death'\)/.test(d);
     }));
 
+  // ---------- BUILD 237: CAST FX — the sheet's projectile + impact burst ----------
+  check('FX: the atlas rects for orb stages and the burst all sit inside the sheet',
+    await J(() => FOE_FX.orb.every(f => f[0] >= 0 && f[1] >= 0 && f[0] + f[2] <= FOE_ANIM_SHEET.w && f[1] + f[3] <= FOE_ANIM_SHEET.h)
+      && FOE_FX.burst[0] + FOE_FX.burst[2] <= FOE_ANIM_SHEET.w && FOE_FX.burst[1] + FOE_FX.burst[3] <= FOE_ANIM_SHEET.h
+      && FOE_FX.orb.length >= 3));
+  check('FX: a cast flies the orb, detonates the burst at arrival, resolves AT impact, and cleans up',
+    await J(async () => {
+      startFight({ type: 'fight', chapter: 3, heroes: ['ash'], enemies: ['cantor'], useRunHp: true, narrator: 'fx drill' });
+      renderAll();
+      await new Promise(r => setTimeout(r, 400));
+      let bursts = 0; const real = window.burstFxAt;
+      window.burstFxAt = function () { bursts++; return real.apply(this, arguments); };
+      const t0 = performance.now();
+      await castProjectileFx(figEl(S.enemies[0].uid), figEl('ash'), 300);
+      const took = performance.now() - t0;
+      window.burstFxAt = real;
+      await new Promise(r => setTimeout(r, 600));
+      return bursts === 1 && took >= 280
+        && !document.querySelector('.fx-orb') && !document.querySelector('.fx-burst');
+    }));
+  check('FX: only an ANIMATED foe casts — the hook gates on the live animation registry',
+    await J(() => /_foeAnim\[e\.uid\] && dmg > 0/.test(enemyPhase.toString())));
+  check('FX: reduced motion resolves the cast instantly with no visuals',
+    await J(async () => {
+      const realMM = window.matchMedia;
+      window.matchMedia = (q) => /reduced-motion/.test(q) ? { matches: true, addListener() {}, removeListener() {} } : realMM.call(window, q);
+      const t0 = performance.now();
+      await castProjectileFx(figEl(S.enemies[0].uid), figEl('ash'), 400);
+      window.matchMedia = realMM;
+      return performance.now() - t0 < 60 && !document.querySelector('.fx-orb');
+    }));
+
   // ---------- BUILD 234: POISE, the stolen turn, EP reserve, status fixes ----------
   check('POISE: the break gauge is VISIBLE — pips chip per weakness hit, elites carry more',
     await J(() => {
