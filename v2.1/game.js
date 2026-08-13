@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 238;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 239;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -4619,10 +4619,10 @@ function cam(spec) {
 // Every punch, focus and cinematic settles back into the ACTIVE pose, so the
 // whole fight reads as photographed rather than surveilled.
 const CAM_POSE_HOME   = { x: 0, y: 0, z: 1, r: 0, dz: 0, pitch: 0, yaw: 0 };
-const CAM_POSE_PLAYER = { x: 34, y: 2, z: 1.02, r: -0.55, dz: 46, pitch: 1.1, yaw: 5.4 };
+const CAM_POSE_PLAYER = { x: 22, y: 2, z: 1.02, r: -0.55, dz: 46, pitch: 1.1, yaw: 5.4 };
 // the enemy pose sits a touch LOWER (positive y, higher pitch): the lens looks
 // slightly up at them — the classic menace angle.
-const CAM_POSE_ENEMY  = { x: -34, y: 5, z: 1.02, r: 0.55, dz: 46, pitch: 1.6, yaw: -5.4 };
+const CAM_POSE_ENEMY  = { x: -22, y: 5, z: 1.02, r: 0.55, dz: 46, pitch: 1.6, yaw: -5.4 };
 let _camBase = CAM_POSE_HOME;
 function camPose(pose, ms) {
   _camBase = pose || CAM_POSE_HOME;
@@ -8322,9 +8322,10 @@ function renderBattlefield() {
         fig.dataset.fig = who.id;
         fig.innerHTML = `
           ${solo ? `<span class="stance-tag">${STANCE[who.row].name.toUpperCase()}</span>` : ''}
-          <div class="fig-art">${V2PORTRAITS[who.id] || ''}${who.downed ? '' : auraHTML(partyAuraObj(who))}<div class="fig-chips">${partyChipsHtml(who)}</div></div>
+          <div class="fig-art">${V2PORTRAITS[who.id] || ''}${who.downed ? '' : auraHTML(partyAuraObj(who))}</div>
           <div class="hp-bar"><div class="hp-fill" style="width:${(who.hp / who.maxHp) * 100}%"></div></div>
           <div class="fig-name">${who.def.name} <span class="hp-num">${who.hp}/${who.maxHp}</span></div>
+          <div class="fig-chips">${partyChipsHtml(who)}</div>
         `;
         attachHeroDrag(fig, who);
         _partyFigs[who.id] = fig;
@@ -8422,11 +8423,14 @@ function enemyAuraHtml(e) {
 }
 // The inner markup for an enemy figure (shared by the line + the floor boss).
 function enemyFigInner(e) {
+  // THE ART ZONE IS SACRED (Build 239): the telegraph rides above the figure,
+  // the STATUS lives in the nameplate below it.  Nothing covers a character.
   return `
     ${enemyIntentHtml(e)}
-    <div class="fig-art">${enemyArt(e)}${enemyAuraHtml(e)}${enemyChipsHtml(e)}</div>
+    <div class="fig-art">${enemyArt(e)}${enemyAuraHtml(e)}</div>
     <div class="hp-bar"><div class="hp-fill" style="width:${(e.hp / e.maxHp) * 100}%"></div></div>
     <div class="fig-name">${e.def.name} <span class="hp-num">${e.hp}/${e.maxHp}</span></div>
+    ${enemyChipsHtml(e)}
   `;
 }
 // PERF: the floor boss's art is a big, heavily-filtered SVG.  Recreating it on

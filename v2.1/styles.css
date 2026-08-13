@@ -379,6 +379,10 @@ body {
 #party-half, #enemy-half {
   display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;
   align-items: end; min-height: 0; min-width: 0;
+  /* EDGE SAFETY (Build 239): at wide phone aspects the outermost figure and
+     its nameplate sat flush against the stage crop — give the outer columns
+     air so nothing renders half off-screen. */
+  padding-left: 12px; padding-right: 14px;
   /* the hand fans up ~24px into the bottom of the battlefield — reserve that
      band so a figure's name + HP never sit behind a card */
   padding-bottom: 26px;
@@ -557,11 +561,13 @@ body {
 /* Status runes OVERLAY the top of the character art (absolute), so an effect
    appearing never reflows the figure / pushes the artwork up.  They sit ON the
    art (z above the aura + svg), floating just over the top of the creature. */
+/* THE NAMEPLATE ROW (Build 239) — status lives UNDER the name, never over the
+   art.  Off the figure it can afford to be larger and higher-contrast. */
 .fig-chips {
-  position: absolute; top: 3px; left: 50%; transform: translateX(-50%);
-  z-index: 6; width: max-content; max-width: 150px;
-  display: flex; gap: 7px; flex-wrap: wrap; justify-content: center;
-  pointer-events: none;
+  position: relative; z-index: 6; width: 100%; max-width: 160px;
+  margin: 1px auto 0;
+  display: flex; gap: 3px 8px; flex-wrap: wrap; justify-content: center;
+  pointer-events: none; min-height: 0;
 }
 /* DIEGETIC status runes — no mechanical box.  Each status is a glowing sigil
    that burns in its own colour (paired with the aura painted over the creature
@@ -578,16 +584,12 @@ body {
 .chip.mark    { color: #ff988c; text-shadow: 0 0 9px rgba(224,58,48,0.95), 0 1px 3px #000; }
 .chip.counter { color: #d2baff; text-shadow: 0 0 8px rgba(160,124,220,0.95), 0 1px 3px #000; }
 /* the status glyph reads a touch larger than its label */
-.chip .ru-i { font-size: 11px; line-height: 1; }
+.chip .ru-i { font-size: 12px; line-height: 1; }
 /* enemy runes carry a short LABEL now (WEAK: BLADE · ⛨ GUARD 4 · ❄ CHILL 2) so
    the threat reads at a glance — small, spaced, colour-coded, still borderless */
-.figure.enemy .fig-chips { gap: 4px 9px; max-width: 158px; }
-.figure.enemy .chip { font-size: 8.5px; letter-spacing: 0.06em; gap: 2.5px; }
-/* the boss art is huge (78% of the half) and offset right — anchor its runes over
-   the LOWER body (near the hp bar), overlaid so nothing reflows, and keep them
-   NARROW so the row wraps and never spills off the right edge. */
-.figure.floor-boss .fig-chips { max-width: 158px; top: auto; bottom: 12px; row-gap: 3px;
-  left: 0; right: 0; transform: none; margin-left: auto; margin-right: auto; }
+.figure.enemy .fig-chips { gap: 3px 8px; max-width: 170px; }
+.figure.enemy .chip { font-size: 10px; letter-spacing: 0.05em; gap: 2.5px; }
+.figure.floor-boss .fig-chips { max-width: 240px; }
 
 /* intent bubble */
 .intent {
@@ -1555,16 +1557,7 @@ button.map-node:not(:disabled) { cursor: pointer; }
    Status chips shrank to glyph+number, the boss's chips pinned to a compact
    row above its hp bar instead of floating mid-art, and while a card is
    AIMING every chip and intent pill fades to a whisper. */
-.figure .fig-chips { gap: 3px; }
-.figure .chip { font-size: 9px; letter-spacing: 0.02em; }
-/* the floor boss's chips sat mid-art at figure scale — pin them low, small */
-.floor-boss .fig-chips {
-  position: absolute; left: 50%; bottom: 6px; transform: translateX(-50%);
-  top: auto; flex-wrap: nowrap; white-space: nowrap;
-  font-size: 9px; gap: 4px; justify-content: center;
-  background: rgba(10,7,6,0.55); border-radius: 999px; padding: 2px 8px;
-}
-.floor-boss .chip { font-size: 9.5px; }
+.figure .chip { font-size: 10px; }
 /* AIMING QUIET — during a target pick the overlays step back */
 #stage.aiming .fig-chips,
 #stage.aiming .intent,
@@ -2641,7 +2634,7 @@ button.map-node:not(:disabled) { cursor: pointer; }
 }
 .figure.floor-boss .fig-name { font-size: 12px; letter-spacing: 0.22em; }
 .figure.floor-boss .hp-bar { width: 78%; height: 11px; }
-.figure.floor-boss .fig-chips { transform: scale(1.12); }
+/* (Build 239: boss chips share the uniform nameplate row — no scale-up) */
 /* a slow, heavy, menacing breathing sway — translate-only so it composites the
    cached filtered layer (the base scale is baked into the keyframe) */
 @keyframes floor-boss-sway { 0%,100% { transform: scale(1.34) translateY(0); } 50% { transform: scale(1.34) translateY(-7px); } }
