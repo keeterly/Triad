@@ -921,6 +921,53 @@ body {
 .ov-hint { font-size: 9.5px; color: var(--ink-faint); letter-spacing: 0.16em; margin-top: 12px; }
 .ov-tap { font-size: 9.5px; color: var(--ink-faint); letter-spacing: 0.22em; margin-top: 14px; animation: target-pulse 1.4s ease infinite; }
 
+/* THE FORK (Build 269) — a story passage that ends on a question rather than a
+   button. Same two-line card grammar as the campfire and the event crossroads,
+   so "this is a choice with a consequence" reads identically everywhere. It
+   must not be allowed to scroll away with the prose, so it sits outside
+   .ov-lines and holds its own row in the flex column. */
+.ov-fork { width: 100%; max-width: 470px; margin: 2px auto 0; flex: 0 0 auto; }
+.ov-fork-prompt {
+  font-size: 10px; letter-spacing: 0.24em; color: var(--ink-faint);
+  text-transform: uppercase; margin-bottom: 9px; text-align: center;
+}
+.ov-fork-prompt b { color: var(--gold-bright); }
+.ov-forkopt {
+  display: flex; flex-direction: column; gap: 4px; width: 100%; text-align: left;
+  font-family: inherit; cursor: pointer; margin-bottom: 8px; padding: 11px 14px;
+  min-height: 44px; border-radius: 5px;
+  color: var(--ink); background: rgba(22,17,13,0.9);
+  border: 1px solid rgba(240,212,136,0.28);
+  transition: border-color 140ms ease, background 140ms ease;
+}
+.ov-forkopt:hover, .ov-forkopt:focus-visible { border-color: var(--gold-bright); background: rgba(34,26,18,0.95); outline: none; }
+.ovf-label { font-size: 10.5px; letter-spacing: 0.2em; color: var(--gold-bright); }
+.ovf-desc { font-size: 11px; line-height: 1.5; color: var(--ink-dim); font-style: italic; }
+.ovf-desc b { color: var(--ink); font-style: normal; }
+
+/* THE CODEX — what you've pieced together, and the gaps where you haven't. An
+   unfound fragment is shown as a redacted slot on purpose: the shape of what is
+   missing is the reason to go back down. */
+/* The codex is longer than the stage by design — it grows as you fill it. Only
+   the LIST scrolls, so the title and the way back stay pinned and reachable.
+   (Same shape as .ov-lines under .story-screen, which this screen also carries.) */
+.cx-list {
+  display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 470px;
+  margin: 0 auto; text-align: left;
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  padding-right: 6px;
+}
+#overlay.codex-screen .ov-btn { flex: 0 0 auto; }
+.cx-frag { padding: 10px 13px; border-radius: 5px; border: 1px solid rgba(240,212,136,0.22); background: rgba(22,17,13,0.85); }
+.cx-frag.cx-locked { border-color: rgba(180,168,150,0.14); background: rgba(14,12,10,0.7); }
+.cx-ftitle { font-size: 10px; letter-spacing: 0.22em; color: var(--gold-bright); margin-bottom: 5px; }
+.cx-locked .cx-ftitle { color: var(--ink-faint); }
+.cx-ftext { font-size: 11px; line-height: 1.55; color: var(--ink-dim); font-style: italic; }
+.cx-ftext b { color: var(--ink); font-style: normal; }
+.cx-locked .cx-ftext { color: rgba(140,130,116,0.5); letter-spacing: 0.06em; }
+.cx-carry { font-size: 10.5px; letter-spacing: 0.1em; color: var(--ink-dim); margin: 0 auto 14px; max-width: 470px; }
+.cx-carry b { color: var(--gold-bright); }
+
 /* EVENT choices — one shared two-line card (icon · ACT · consequence) so every
    crossroads reads the same way, matching the overlay's gold-on-dark chrome. */
 .ev-choices { display: flex; gap: 14px; justify-content: center; margin-top: 4px; width: 100%; max-width: 580px; }

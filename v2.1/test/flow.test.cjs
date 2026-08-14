@@ -411,6 +411,16 @@ const QUICK = process.argv.includes('--quick');
   check('CAMP SCENE: the fire dialogue deepened the pair it chose, +1',
     await J((k) => bondPts(k), firePair.key) === firePair.pts + 1,
     firePair.key + ' ' + firePair.pts + ' → ' + await J((k) => bondPts(k), firePair.key));
+  // Build 269: the night now ends on a QUESTION — the pair's ability, or what
+  // they remember. Take the memory here so the whole fragment beat is walked.
+  check('CAMP SCENE: the night ends on a fork, not a CONTINUE button',
+    await J(() => document.querySelectorAll('.ov-forkopt').length === 2 && !document.querySelector('#ov-go')));
+  const fragsBefore = await J(() => fragsHeld());
+  await J(() => document.querySelectorAll('.ov-forkopt')[1].click()); await sleep(450);
+  check('CAMP SCENE: asking what they remember banks a piece of the abyss',
+    await J(() => fragsHeld()) === fragsBefore + 1
+      && /WHAT DOESN|LINE UP/.test(await J(() => (document.querySelector('.ov-title') || {}).textContent || '')));
+  for (let i = 0; i < 8; i++) { if (!await J(() => !!document.querySelector('.ov-tap'))) break; await J(() => document.querySelector('#overlay').click()); await sleep(200); }
   await clickOverlayBtn('#ov-go'); await sleep(450);
   await clickOverlayBtn('#ps-go'); await sleep(450);
   check('back on map after camp', await J(() => !!document.querySelector('.map-strip')));
@@ -664,6 +674,109 @@ const QUICK = process.argv.includes('--quick');
       }
       return true;
     }));
+  // ---------- BUILD 269: THE FIRE ASKS A QUESTION ----------
+  // The campfire used to hand you the same thing every night — +1 bond, node
+  // unlocked, exit — so forty-five authored beats of personal history advanced
+  // zero plot and the scene was a cutscene, not a decision. Now the night ends
+  // on a fork whose two answers are the two things the story is about.
+  check('FIRE FORK: the scene ends on TWO answers — the ability, or the memory',
+    await J(`(() => {
+      try { localStorage.removeItem('kizuna2_1.frags'); localStorage.removeItem('kizuna2_1.bondgifts'); localStorage.removeItem('kizuna2_1.arcs'); } catch (_) {}
+      RUN = newRun('ash'); RUN.roster = ['ash','elin','mira']; RUN.active = ['ash','elin','mira'];
+      RUN.bonds = { 'ash|elin': 1 }; RUN.deeds = { 'ash|elin': { help: 5 } };   // pin the fire to this pair
+      showCampScene({ id: 9, type: 'camp', label: 'a fire' });
+      let g = 0; while (g++ < 30 && document.querySelector('.ov-tap')) document.querySelector('#overlay').click();
+      const o = [...document.querySelectorAll('.ov-forkopt')].map(x => x.textContent);
+      return o.length === 2 && /ASK WHAT THEY ARE TOGETHER/.test(o[0]) && /ASK WHAT THEY REMEMBER/.test(o[1]);
+    })()`));
+  check('FIRE FORK: asking what they ARE opens that pair’s node — and only that pair’s',
+    await J(`(() => {
+      try { localStorage.removeItem('kizuna2_1.frags'); localStorage.removeItem('kizuna2_1.bondgifts'); } catch (_) {}
+      RUN = newRun('ash'); RUN.roster = ['ash','elin','mira']; RUN.active = ['ash','elin','mira'];
+      RUN.bonds = { 'ash|elin': 1 }; RUN.deeds = { 'ash|elin': { help: 5 } };   // pin the fire to this pair
+      const locked = bondNodeFor('ash','elin') === null;
+      showCampScene({ id: 9, type: 'camp', label: 'a fire' });
+      let g = 0; while (g++ < 30 && document.querySelector('.ov-tap')) document.querySelector('#overlay').click();
+      const chose = /ASH/.test(document.body.textContent);
+      document.querySelectorAll('.ov-forkopt')[0].click();
+      return locked && chose && !!bondNodeFor('ash','elin') && bondNodeFor('ash','mira') === null && fragsHeld() === 0;
+    })()`));
+  check('FIRE FORK: the two answers are EXCLUSIVE — the memory does not also open the node',
+    await J(`(() => {
+      try { localStorage.removeItem('kizuna2_1.frags'); localStorage.removeItem('kizuna2_1.bondgifts'); } catch (_) {}
+      RUN = newRun('ash'); RUN.roster = ['ash','elin','mira']; RUN.active = ['ash','elin','mira'];
+      RUN.bonds = { 'ash|elin': 1 }; RUN.deeds = { 'ash|elin': { help: 5 } };   // pin the fire to this pair
+      showCampScene({ id: 9, type: 'camp', label: 'a fire' });
+      let g = 0; while (g++ < 30 && document.querySelector('.ov-tap')) document.querySelector('#overlay').click();
+      document.querySelectorAll('.ov-forkopt')[1].click();
+      return fragsHeld() === 1 && bondNodeFor('ash','elin') === null && bondGiftHeld('ash','elin') === false;
+    })()`));
+  check('FRAGMENTS: they come out IN ORDER and never repeat',
+    await J(`(() => {
+      try { localStorage.removeItem('kizuna2_1.frags'); } catch (_) {}
+      const got = [];
+      for (let i = 0; i < ABYSS_FRAGMENTS.length + 2; i++) { const f = nextFragment(); if (!f) break; got.push(f.id); markFrag(f.id); }
+      return got.length === ABYSS_FRAGMENTS.length && got[0] === 'f1'
+        && got.join(',') === ABYSS_FRAGMENTS.map(f => f.id).join(',')
+        && nextFragment() === null && new Set(got).size === got.length;
+    })()`));
+  check('FRAGMENTS: every piece is authored — an id, a title, and real text',
+    await J(() => ABYSS_FRAGMENTS.length >= 8
+      && ABYSS_FRAGMENTS.every(f => f.id && f.title && f.text && f.text.length > 80)
+      && new Set(ABYSS_FRAGMENTS.map(f => f.id)).size === ABYSS_FRAGMENTS.length));
+  check('CARRY: every 3 pieces makes a bond that EXISTS hold one step deeper (capped)',
+    await J(`(() => {
+      try { localStorage.removeItem('kizuna2_1.frags'); } catch (_) {}
+      RUN = newRun('ash'); RUN.bonds = { 'ash|elin': 1, 'ash|mira': 0 };
+      const at0 = [bondCarry(), bondPts('ash|elin'), bondPts('ash|mira')];
+      ABYSS_FRAGMENTS.slice(0, 3).forEach(f => markFrag(f.id));
+      const at3 = [bondCarry(), bondPts('ash|elin'), bondPts('ash|mira')];
+      ABYSS_FRAGMENTS.forEach(f => markFrag(f.id));
+      const atAll = [bondCarry(), bondPts('ash|elin')];
+      return at0.join() === '0,1,0'
+        && at3.join() === '1,2,0'          // a bond that exists deepens; nothing is invented from zero
+        && atAll[0] === CARRY_MAX && atAll[1] === 1 + CARRY_MAX;
+    })()`));
+  check('CARRY: the fire writes RAW — the carry is never banked into storage',
+    await J(`(() => {
+      ABYSS_FRAGMENTS.forEach(f => markFrag(f.id));      // carry at max
+      RUN = newRun('ash'); RUN.roster = ['ash','elin','mira']; RUN.active = ['ash','elin','mira'];
+      RUN.bonds = { 'ash|elin': 1 }; RUN.deeds = { 'ash|elin': { help: 5 } };
+      const raw0 = bondRaw('ash|elin');
+      showCampScene({ id: 9, type: 'camp', label: 'a fire' });
+      let g = 0; while (g++ < 30 && document.querySelector('.ov-tap')) document.querySelector('#overlay').click();
+      document.querySelectorAll('.ov-forkopt')[0].click();
+      return bondRaw('ash|elin') === raw0 + 1;           // +1, not +1+carry
+    })()`));
+  check('CODEX: found pieces read in full, missing ones show only their shape',
+    await J(`(() => {
+      try { localStorage.removeItem('kizuna2_1.frags'); } catch (_) {}
+      markFrag('f1');
+      showCodex(() => {});
+      const rows = [...document.querySelectorAll('.cx-frag')];
+      const locked = rows.filter(r => r.classList.contains('cx-locked'));
+      return rows.length === ABYSS_FRAGMENTS.length && locked.length === ABYSS_FRAGMENTS.length - 1
+        && /NOBODY FELL/.test(rows[0].textContent) && !/THE WAY OUT IS SOMEONE ELSE/.test(document.body.textContent);
+    })()`));
+  check('CODEX: it grows past the stage, so the LIST scrolls and the way back stays reachable',
+    await J(`(() => {
+      ABYSS_FRAGMENTS.forEach(f => markFrag(f.id));
+      showCodex(() => {});
+      const list = document.querySelector('.cx-list'), back = document.querySelector('#cx-back');
+      const stage = document.querySelector('#stage').getBoundingClientRect();
+      const br = back.getBoundingClientRect();
+      return getComputedStyle(list).overflowY === 'auto' && list.scrollHeight > list.clientHeight
+        && br.bottom <= stage.bottom + 1 && br.top >= stage.top;
+    })()`));
+  // Fragments are PERMANENT and lift every bond in the game by up to CARRY_MAX,
+  // so a test that banks them all and walks away silently re-tunes every bond
+  // assertion that runs after it. Hand the store back the way we found it.
+  check('CARRY: the fragment store resets clean (test hygiene — carry is global)',
+    await J(`(() => {
+      try { localStorage.removeItem('kizuna2_1.frags'); localStorage.removeItem('kizuna2_1.bondgifts'); } catch (_) {}
+      hideOverlay();
+      return fragsHeld() === 0 && bondCarry() === 0 && loadGifts().length === 0;
+    })()`));
   check('ARC: the new pairs are written IN VOICE — Mira deflects, Hask calls it strategy',
     await J(() => {
       const mira = BOND_ARCS['branwen|mira'].flatMap(b => b.lines).map(l => l.text).join(' ');
@@ -4825,29 +4938,29 @@ const QUICK = process.argv.includes('--quick');
     await J(() => BOND_NODES.length === 15 && EMBER_TREE.filter(n => n.bond).length === 15
       && BOND_NODES.every(n => { const [a, b] = n.pair.split('|');
         const p = duetPerkFor(a, b); return !!(p.line && p.line.length === 2 && p.make); })));
-  check('BOND NODE: it is not on the border until the pair has shared a fire',
-    await J(() => { try { localStorage.removeItem('kizuna2_1.arcs'); } catch (_) {}
+  check('BOND NODE: it is not on the border until you ASKED for it at the fire',
+    await J(() => { try { localStorage.removeItem('kizuna2_1.bondgifts'); } catch (_) {}
       const locked = bondNodeFor('ash', 'elin') === null;
       const before = commonOnBorder('ash', 'elin').length;
-      markArcSeen('ash', 'elin', 1);
+      markBondGift('ash', 'elin');
       const open = !!bondNodeFor('ash', 'elin');
       return locked && open && commonOnBorder('ash', 'elin').length === before + 1; }));
   check('BOND NODE: the ability runs off the OWNED node, with no in-fight thread at all',
     await J(() => { setupFight(['ash', 'elin'], [], { ash: 'front', elin: 'mid' });
-      markArcSeen('ash', 'elin', 1);
+      markBondGift('ash', 'elin');
       S.threads = new Set(); RUN.crossed = {};
       const none = duetPerkBoons().length;
       RUN.crossed = { ash: [bondNodeFor('ash', 'elin').id] };
       const held = duetPerkBoons();
       return none === 0 && held.length === 1 && held[0].pairKey === 'ash|elin'; }));
   check('BOND NODE: it belongs to the PAIR — either partner holding it counts',
-    await J(() => { markArcSeen('ash', 'elin', 1);
+    await J(() => { markBondGift('ash', 'elin');
       const id = bondNodeFor('ash', 'elin').id;
       RUN.crossed = { elin: [id] };
       return bondNodeHeld('ash', 'elin') && bondNodeHeld('elin', 'ash'); }));
   check('BOND NODE: the ability SPEAKS the first time it lands, and only once',
     await J(() => { setupFight(['ash', 'elin'], [], { ash: 'front', elin: 'mid' });
-      markArcSeen('ash', 'elin', 1);
+      markBondGift('ash', 'elin');
       RUN.crossed = { ash: [bondNodeFor('ash', 'elin').id] };
       S._perkSaid = {};
       const boon = duetPerkBoons()[0];
@@ -4859,7 +4972,7 @@ const QUICK = process.argv.includes('--quick');
       return Object.keys(S._perkSaid).length === 1; }));
   check('BOND NODE: a silent perk stays silent until it actually DOES something',
     await J(() => { setupFight(['ash', 'elin'], [], { ash: 'front', elin: 'mid' });
-      markArcSeen('ash', 'elin', 1);
+      markBondGift('ash', 'elin');
       RUN.crossed = { ash: [bondNodeFor('ash', 'elin').id] };
       S._perkSaid = {};
       const boon = duetPerkBoons()[0];
@@ -4880,7 +4993,7 @@ const QUICK = process.argv.includes('--quick');
     RUN = newRun('ash'); RUN.roster = ['ash', 'elin', 'mira']; RUN.active = RUN.roster.slice();
     RUN.hp = { ash: 34, elin: 24, mira: 22 }; RUN.crossed = {}; RUN.bonds = {};
     RUN.floor = 1; RUN.completed = [0]; RUN.map = generateDescent(RUN.roster, 1);
-    [['ash', 'elin'], ['ash', 'mira'], ['elin', 'mira']].forEach(([a, b]) => markArcSeen(a, b, 1));
+    [['ash', 'elin'], ['ash', 'mira'], ['elin', 'mira']].forEach(([a, b]) => markBondGift(a, b));
     startFight({ type: 'fight', chapter: 3, heroes: RUN.active.slice(), enemies: ['husk'],
       useRunHp: true, floor: 1, depth: 3, narrator: 't' });
     renderAll(); S.threads = new Set(); S.triadFormed = false;

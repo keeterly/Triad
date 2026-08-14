@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 268;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 269;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -2243,8 +2243,11 @@ const BOND_NODES = (function () {
 })();
 BOND_NODES.forEach(n => { EMBER_TREE.push(n); NODE_BY_ID[n.id] = n; });
 // A pair's node appears on their border only once they have shared a fire.
+// Build 269: the gate is no longer "you have sat with them once" — it is "you
+// ASKED, at the fire, what they can do together", and asking cost you the
+// fragment you could have had instead.
 function bondNodeFor(a, b) {
-  if (arcSeen(a, b) < 1) return null;
+  if (!bondGiftHeld(a, b)) return null;
   return NODE_BY_ID['bond.' + [a, b].sort().join('|')] || null;
 }
 // Held by EITHER partner — it is the pair's, not one hero's.
@@ -3109,6 +3112,69 @@ function markArcSeen(a, b, stage) {
   try { const m = loadArcs(); const k = pairKey(a, b); m[k] = Math.max(m[k] || 0, stage); localStorage.setItem(ARCS_KEY, JSON.stringify(m)); } catch (_) {}
 }
 function nextArcStage(a, b) { return arcSeen(a, b) + 1; }
+
+// ═════════════════════════════════════════════════════════════════════════════
+// WHAT THE FIRE IS FOR (Build 269)
+//
+// The premise of this game is that nobody remembers falling in, or how long
+// they've been down here, and that the way out is found TOGETHER. None of that
+// reached the mechanics. The campfire played a beautifully written scene and
+// then handed you the same thing every time: +1 bond, node unlocked, exit. A
+// cutscene, not a decision — and forty-five authored beats of personal history
+// that advanced zero plot.
+//
+// So the night now ends on a fork, and the two answers are the two things this
+// story is actually about:
+//
+//   THE ABILITY — you ask what they can do together. Their bond node opens on
+//                 the lattice, permanently, for this descent and every one after.
+//   THE ANSWER  — you ask what they REMEMBER. Two accounts get compared, and
+//                 what doesn't line up is a FRAGMENT of what this place is.
+//
+// You cannot have both from one night, and a descent holds three or four fires.
+// Power and truth compete for the same scarce hour, which is the most
+// interesting question the game had available and was not asking.
+//
+// A memory you can't reach alone is one another person can corroborate — that
+// is why the fragments come from PAIRS and not from a lore item on the floor.
+const FRAGS_KEY = 'kizuna2_1.frags';     // ordered ids of what you've pieced together
+const GIFTS_KEY = 'kizuna2_1.bondgifts'; // pairKeys whose bond node you asked for
+function loadFrags() { try { const a = JSON.parse(localStorage.getItem(FRAGS_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch (_) { return []; } }
+function fragsHeld() { return loadFrags().length; }
+function hasFrag(id) { return loadFrags().indexOf(id) >= 0; }
+function markFrag(id) { try { const a = loadFrags(); if (a.indexOf(id) < 0) { a.push(id); localStorage.setItem(FRAGS_KEY, JSON.stringify(a)); } } catch (_) {} }
+function nextFragment() { const held = loadFrags(); return ABYSS_FRAGMENTS.find(f => held.indexOf(f.id) < 0) || null; }
+function loadGifts() { try { const a = JSON.parse(localStorage.getItem(GIFTS_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch (_) { return []; } }
+function bondGiftHeld(a, b) { return loadGifts().indexOf(pairKey(a, b)) >= 0; }
+function markBondGift(a, b) { try { const l = loadGifts(), k = pairKey(a, b); if (l.indexOf(k) < 0) { l.push(k); localStorage.setItem(GIFTS_KEY, JSON.stringify(l)); } } catch (_) {} }
+
+// THE CLIMB, IN ORDER.  Each one is the moment two accounts fail to agree, and
+// the disagreement is the evidence.  Read end to end they answer the premise's
+// own question — and the answer is the game's central mechanic, which is the
+// only reason it's worth telling this way.
+const ABYSS_FRAGMENTS = [
+  { id: 'f1', title: 'NOBODY FELL',
+    text: 'They try to place the fall — the ledge, the slip, the drop — and neither of them can. One remembers leaving a room. The other remembers leaving a road. <b>Not one person down here remembers arriving.</b>' },
+  { id: 'f2', title: 'THE WOUND IS OLDER THAN THE DAY',
+    text: 'A dressing gets changed and the flesh under it has long since closed and greyed. It was tied this morning. <b>The wound has been healing for years.</b>' },
+  { id: 'f3', title: 'TWO CITIES, ONE NAME',
+    text: 'They name the same city and describe two different places — the same streets, a century apart, both certain, both right. <b>You did not all fall in at the same time.</b>' },
+  { id: 'f4', title: 'THE DEAD ARE WEARING OUR GEAR',
+    text: 'The bodies on the stair carry the same buckles, the same stitching, the same notch filed into the same blade. One of them is wearing a face somebody at this fire has been shaving for thirty years.' },
+  { id: 'f5', title: 'THE MARKS ABOVE US',
+    text: 'There are tallies scratched high on the wall, well above the deepest either of them has ever climbed. The hand is familiar. <b>Somebody has been up there already, and it was one of you.</b>' },
+  { id: 'f6', title: 'THE STAIR HAS NO TOP',
+    text: 'They count landings on the way up and get a different number each time, and the number is never larger. <b>The abyss is not a depth. It is a loop with a story wrapped around it.</b>' },
+  { id: 'f7', title: 'IT KEEPS WHAT IT TAKES',
+    text: 'It isn’t a place you fell into. It’s a thing that remembers people, and what it remembers it keeps — the name first, then the face, then whatever they were climbing toward. <b>That is what forgetting the fall means.</b>' },
+  { id: 'f8', title: 'THE WAY OUT IS SOMEONE ELSE',
+    text: 'It can overwrite anything one person holds alone. It cannot overwrite a thing two people hold between them — it would have to take both accounts at once, and it has never managed it. <b>You do not climb out. You are carried out, by someone who refuses to forget you.</b>' },
+];
+// EVERY BOND YOU FORM HOLDS HARDER, because you know what this place does to the
+// ones you don't. The reward IS the thesis of the last fragment, which is why it
+// pays into bonds and not into damage.
+const CARRY_PER = 3, CARRY_MAX = 2;
+function bondCarry() { return Math.min(CARRY_MAX, Math.floor(fragsHeld() / CARRY_PER)); }
 // The authored beats.  Keyed by the SORTED pair so order never matters.
 const BOND_ARCS = {
   'ash|elin': [
@@ -3430,7 +3496,13 @@ function newRun(starterId) {
   };
 }
 const FLOORS = 4;         // total floors — floor 4 is the short mega-boss gauntlet
-const bondPts = (k) => (RUN && RUN.bonds && RUN.bonds[k]) || 0;
+const bondRaw = (k) => (RUN && RUN.bonds && RUN.bonds[k]) || 0;   // what this descent actually earned
+// …and what it is WORTH, which is more once you know what this place does to the
+// people you let go of.  The carry only lifts a bond that already exists —
+// fragments make warmth hold faster, they never invent it out of nothing.
+// ALWAYS write through bondRaw; writing `bondPts(k) + 1` back into RUN.bonds
+// would bank the carry into storage and compound it every fire.
+const bondPts = (k) => { const v = bondRaw(k); return v > 0 ? v + bondCarry() : 0; };
 function saveRun() { try { localStorage.setItem(RUN_KEY, RUN ? JSON.stringify(RUN) : ''); } catch (_) {} }
 function loadRun() { try { const r = localStorage.getItem(RUN_KEY); return r ? JSON.parse(r) : null; } catch (_) { return null; } }
 
@@ -7894,18 +7966,33 @@ function showStory(node) {
     const linesHtml = node.lines.slice(0, revealed).map(l =>
       `<div class="ov-line">${l.spk ? `<span class="spk">${l.spk}</span>` : ''}${l.text}</div>`).join('');
     const done = revealed >= node.lines.length;
+    // A passage can end on a FORK instead of a button — the scene asks, and what
+    // you answer is the only thing the night gives you (see showCampScene).
+    const fork = done && node.fork ? node.fork : null;
     showOverlay(`
       <div class="ov-eyebrow">${node.eyebrow || ''}</div>
       <div class="ov-title" style="font-size:24px">${node.title}</div>
       <div class="ov-lines">${linesHtml}</div>
-      ${done
+      ${fork ? `<div class="ov-fork">
+          <div class="ov-fork-prompt">${fork.prompt}</div>
+          ${fork.opts.map((o, i) => `<button class="ov-forkopt" data-fk="${i}">
+            <span class="ovf-label">${o.label}</span><span class="ovf-desc">${o.desc}</span></button>`).join('')}
+        </div>` : ''}
+      ${(done && !fork)
         ? `<button class="ov-btn primary" id="ov-go">${(node.next === 'descent' || node.beginDescent) ? 'BEGIN THE DESCENT' : (FLOW[flowIdx + 1] && FLOW[flowIdx + 1].type === 'fight' ? 'TO BATTLE' : 'CONTINUE')}</button>`
-        : `<div class="ov-tap">tap to continue ▸</div>`}
+        : (done ? '' : `<div class="ov-tap">tap to continue ▸</div>`)}
     `, 'story-screen');
     // Keep the newest line (and the button) in view when the passage is long.
     const box = $('#overlay .ov-lines');
     if (box) box.scrollTop = box.scrollHeight;
-    if (done) {
+    if (fork) {
+      $('#overlay').onclick = null;
+      document.querySelectorAll('#overlay .ov-forkopt').forEach(btn => { btn.onclick = (ev) => {
+        ev.stopPropagation();
+        hideOverlay();
+        fork.onPick(node.fork.opts[+btn.dataset.fk], +btn.dataset.fk);
+      }; });
+    } else if (done) {
       $('#ov-go').onclick = (ev) => {
         ev.stopPropagation();
         hideOverlay();
@@ -9171,11 +9258,13 @@ function showCampScene(n) {
   if (!fireKey) { showPartySelect(() => showMap()); return; }
   const [a, b] = fireKey.split('|');
   const key = pairKey(a, b);
+  // WRITE THROUGH bondRaw. Reading bondPts here would bank the fragment carry
+  // into storage and compound it at every fire.
   const before = bondPts(key);
   RUN.bonds = RUN.bonds || {};
-  RUN.bonds[key] = before + 1;
+  RUN.bonds[key] = bondRaw(key) + 1;
   saveRun();
-  const kindledNow = before + 1 === BOND_KINDLED;
+  const kindledNow = before < BOND_KINDLED && bondPts(key) >= BOND_KINDLED;
   // THE ARC ADVANCES (Build 220) — the fire is where a pair's wound gets its
   // next line.  Which scene plays is the deepest stage this pair has NEVER been
   // shown, so a relationship RESUMES across runs instead of rewinding; the fire
@@ -9193,11 +9282,56 @@ function showCampScene(n) {
   beat.lines.forEach(l => lines.push(l));
   lines.push({ text: `The fire holds. <b>♡ ${HEROES[a].name} ─ ${HEROES[b].name}${kindledNow ? ' · WOVEN' : ' +1'}</b>${kindledNow ? ' — they will walk into every battle already connected.' : '.'}` });
   if (beat.staged) markArcSeen(a, b, stage);
+  // ── THE FORK (Build 269). The night has room for one more question, and the
+  // two you can ask are the two things this game is about: what these people can
+  // do together, or what they remember about where they are. You get one.
+  const A = HEROES[a].name, B = HEROES[b].name;
+  const giftHeld = bondGiftHeld(a, b);
+  const frag = nextFragment();
+  const bondNd = NODE_BY_ID['bond.' + key];
+  const askOpt = giftHeld
+    ? { key: 'more', label: '♡ LET IT LIE', desc: `You already know what <b>${A}</b> and <b>${B}</b> are together. Sit with them instead — the bond deepens <b>+1</b> again.` }
+    : { key: 'gift', label: `${bondNd ? bondNd.glyph : '✦'} ASK WHAT THEY ARE TOGETHER`,
+        desc: `They work it out at the fire. <b>${bondNd ? bondNd.label : 'Their bond'}</b> opens on the lattice — ${bondNd ? bondNd.desc.replace(/^<b>.*?<\/b> — /, '') : 'their own ability'} — theirs to take this descent and <b>every one after</b>.` };
+  const memOpt = frag
+    ? { key: 'frag', label: '◇ ASK WHAT THEY REMEMBER', desc: `Two accounts, compared out loud. What doesn’t line up is <b>a piece of what this place is</b> — and every third piece makes every bond you form <b>hold one step harder, forever</b>.` }
+    : { key: 'more', label: '◇ NOTHING LEFT TO COMPARE', desc: `You have the whole of it. There is nothing either of them can tell you that you don’t already know — so let the night be warm instead. Bond <b>+1</b> again.` };
   showStory({
     type: 'story', chapter: 3, title: 'BY THE FIRE', eyebrow: n.label.toUpperCase(),
     lines,
-    campDone: true,
+    fork: {
+      prompt: 'The night is long enough for <b>one more question</b>.',
+      opts: [askOpt, memOpt],
+      onPick: (o) => {
+        if (o.key === 'gift') {
+          markBondGift(a, b);
+          flashNarrator(`<b>${A}</b> and <b>${B}</b> work out what they are together — it is on the lattice now, and it stays there.`);
+          showPartySelect(() => showMap());
+          return;
+        }
+        if (o.key === 'frag' && frag) { markFrag(frag.id); showFragment(frag, a, b); return; }
+        RUN.bonds[key] = bondRaw(key) + 1;
+        saveRun();
+        flashNarrator(`The fire holds a while longer. <b>♡ ${A} ─ ${B} +1</b>`);
+        showPartySelect(() => showMap());
+      },
+    },
   });
+}
+// THE FRAGMENT LANDS AS ITS OWN BEAT — the pair says the thing, and then you are
+// told plainly where it sits in the whole, because a collectible you can't count
+// is a collectible nobody collects.
+function showFragment(frag, a, b) {
+  const held = fragsHeld(), total = ABYSS_FRAGMENTS.length;
+  const carry = bondCarry(), nextAt = (carry < CARRY_MAX) ? (carry + 1) * CARRY_PER - held : 0;
+  const lines = [
+    { text: `<i>${HEROES[a].name} says it first. ${HEROES[b].name} was going to say the same thing, and that is the whole problem.</i>` },
+    { text: frag.text },
+    { text: `<b>◇ ${frag.title}</b> — <b>${held} of ${total}</b> of the abyss pieced together.` },
+  ];
+  if (carry > 0) lines.push({ text: `What you know holds your people together: <b>every bond you form starts ${carry} step${carry > 1 ? 's' : ''} deeper</b>.` });
+  if (nextAt > 0) lines.push({ text: `<i>${nextAt} more and they will hold harder still.</i>` });
+  showStory({ type: 'story', chapter: 3, title: 'WHAT DOESN’T LINE UP', eyebrow: 'THE ABYSS REMEMBERS', lines, campDone: true });
 }
 // Party composition — pick exactly 3 (or all, if fewer).  The preview line
 // shows WHICH resonant this trio unlocks, so composition reads as a build.
@@ -10300,6 +10434,7 @@ function showMenu() {
       <button class="menu-item" id="m-music"><span>MUSIC</span>${onOff(SETTINGS.music)}</button>
       <button class="menu-item" id="m-haptics"><span>HAPTICS</span>${onOff(SETTINGS.haptics)}</button>
       <button class="menu-item" id="m-journal"><span>JOURNAL</span><span class="menu-val">✦</span></button>
+      <button class="menu-item" id="m-codex"><span>WHAT WE KNOW</span><span class="menu-val">◇ ${fragsHeld()}/${ABYSS_FRAGMENTS.length}</span></button>
       <button class="menu-item" id="m-howto"><span>HOW TO PLAY</span><span class="menu-val">?</span></button>
       ${inRun ? `<button class="menu-item menu-warn" id="m-abandon"><span>ABANDON RUN</span><span class="menu-val">✕</span></button>` : ''}
       <button class="menu-item" id="m-title"><span>RETURN TO TITLE</span><span class="menu-val">⌂</span></button>
@@ -10311,6 +10446,7 @@ function showMenu() {
   $('#m-music').onclick = () => { toggleSetting('music'); showMenu(); };
   $('#m-haptics').onclick = () => { toggleSetting('haptics'); showMenu(); };
   $('#m-journal').onclick = () => showBoonJournal(showMenu);
+  $('#m-codex').onclick = () => showCodex(showMenu);
   $('#m-howto').onclick = () => showHowTo();
   $('#m-title').onclick = () => { RUN = null; S = null; try { localStorage.removeItem(RUN_KEY); } catch (_) {} showTitle(); };
   const ab = $('#m-abandon');
@@ -10383,9 +10519,32 @@ function showHowTo(back) {
 // first-time": unlocked heroes, tutorial flow, one-time coaches, the abyss
 // memories and vow ranks, the current run, and Heat.  Device prefs (sound,
 // fight background) and the entry gate are left alone.
+// WHAT WE KNOW — the fragments you've assembled, in the order they were meant to
+// be read, with the gaps left visible.  A found piece keeps its full text so the
+// story can be re-read end to end; an unfound one shows only its shape, because
+// the reason to go back down is knowing exactly what is missing.
+function showCodex(back) {
+  const held = loadFrags(), carry = bondCarry();
+  const nextAt = (carry < CARRY_MAX) ? (carry + 1) * CARRY_PER - held.length : 0;
+  const rows = ABYSS_FRAGMENTS.map((f, i) => {
+    const got = held.indexOf(f.id) >= 0;
+    return `<div class="cx-frag${got ? '' : ' cx-locked'}">
+      <div class="cx-ftitle">◇ ${String(i + 1).padStart(2, '0')} · ${got ? f.title : '—— ——'}</div>
+      <div class="cx-ftext">${got ? f.text : 'Nobody at your fire has said this out loud yet. <b>Ask a pair what they remember.</b>'}</div>
+    </div>`;
+  }).join('');
+  showOverlay(`
+    <div class="ov-eyebrow">THE ABYSS REMEMBERS</div>
+    <div class="ov-title" style="font-size:24px">WHAT WE KNOW</div>
+    <div class="cx-carry">${held.length} of ${ABYSS_FRAGMENTS.length} pieced together.${carry > 0 ? ` Every bond you form starts <b>${carry} step${carry > 1 ? 's' : ''} deeper</b>.` : ''}${nextAt > 0 ? ` <i>${nextAt} more to hold harder.</i>` : ''}</div>
+    <div class="cx-list">${rows}</div>
+    <button class="ov-btn primary" id="cx-back" style="margin-top:16px">BACK</button>
+  `, 'story-screen codex-screen');
+  $('#cx-back').onclick = () => { hideOverlay(); (back || showMap)(); };
+}
 function resetProgress() {
   [STARTERS_KEY, LAST_STARTER_KEY, PROGRESS_KEY, RUN_KEY, ABYSS_KEY, VOWS_KEY, META_KEY, ARCS_KEY,
-   TUTORIAL_KEY, 'kizuna2_1.treeTaught']
+   FRAGS_KEY, GIFTS_KEY, TUTORIAL_KEY, 'kizuna2_1.treeTaught']
     .forEach(k => { try { localStorage.removeItem(k); } catch (_) {} });
   // …and every per-lesson counter, by prefix. Naming them individually meant
   // naming two keys that never existed while missing the dozen that do.
