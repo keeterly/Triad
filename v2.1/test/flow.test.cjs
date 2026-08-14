@@ -401,19 +401,16 @@ const QUICK = process.argv.includes('--quick');
   } else {
     check('CAMP REST: nobody wounded — the rest choice stays hidden', await J(() => !document.querySelector('#camp-rest')));
   }
-  const weakPair = await J(() => {
-    const ids = RUN.active.slice(); let best = null, low = Infinity;
-    for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) {
-      const k = pairKey(ids[i], ids[j]); const pts = bondPts(k);
-      if (pts < low) { low = pts; best = k; }
-    }
-    return { key: best, pts: low };
-  });
+  // Build 266: the fire follows the DEED ledger — the pair with the most between
+  // them this descent — and only falls back to the weakest bond when nobody has
+  // done anything yet. Ask the game who it picked rather than assuming.
+  const firePair = await J(() => { const k = _fireBondKey(); return { key: k, pts: bondPts(k) }; });
   await clickOverlayBtn('#camp-fire'); await sleep(450);
   for (let i = 0; i < 8; i++) { if (!await J(() => !!document.querySelector('.ov-tap'))) break; await J(() => document.querySelector('#overlay').click()); await sleep(220); }
   await shot('camp-scene');
-  check('CAMP SCENE: the fire dialogue deepened the weakest bond +1',
-    await J((k) => bondPts(k), weakPair.key) === weakPair.pts + 1);
+  check('CAMP SCENE: the fire dialogue deepened the pair it chose, +1',
+    await J((k) => bondPts(k), firePair.key) === firePair.pts + 1,
+    firePair.key + ' ' + firePair.pts + ' → ' + await J((k) => bondPts(k), firePair.key));
   await clickOverlayBtn('#ov-go'); await sleep(450);
   await clickOverlayBtn('#ps-go'); await sleep(450);
   check('back on map after camp', await J(() => !!document.querySelector('.map-strip')));
@@ -4796,6 +4793,49 @@ const QUICK = process.argv.includes('--quick');
   check('TRIAD: a pre-threaded trio does NOT get it handed to them at fight open',
     await J(() => /bondNodeHeld\(x, y\) && bondNodeHeld\(y, z\) && bondNodeHeld\(x, z\)/.test(startFight.toString())));
   await J(() => { RUN.crossed = {}; S.triadFormed = false; });
+
+  // ---------- DEEDS (Build 266) ----------
+  // Build 256 made every bond name its cause — "a hand held out", "they struck as
+  // one", "a death avenged" — because three unlabelled paths were firing
+  // constantly and the player could never build a causal model. That `why` was
+  // spoken aloud and then thrown away. It is kept now, and it decides who gets
+  // the night's one scene.
+  console.log('--- DEEDS ---');
+  const deedRun = () => J(() => {
+    RUN = newRun('ash'); RUN.roster = ['ash', 'elin', 'mira']; RUN.active = RUN.roster.slice();
+    RUN.hp = { ash: 34, elin: 24, mira: 22 }; RUN.bonds = {}; RUN.deeds = {};
+    RUN.floor = 1; RUN.completed = [0]; RUN.map = generateDescent(RUN.roster, 1);
+    startFight({ type: 'fight', chapter: 3, heroes: RUN.active.slice(), enemies: ['husk'],
+      useRunHp: true, floor: 1, depth: 3, narrator: 'd' });
+    renderAll(); S.threads = new Set();
+    return true;
+  });
+  await deedRun();
+  check('DEEDS: every bond path writes its cause into the ledger',
+    await J(async () => { for (const w of ['they struck as one', 'a death avenged', 'they struck as one']) {
+        S.threads = new Set(); await addThread('ash', 'mira', w); }
+      const row = RUN.deeds['ash|mira'] || {};
+      return row.strike === 2 && row.avenge === 1 && deedTotal('ash|mira') === 3; }));
+  check('DEEDS: the fire goes to the pair with the MOST between them, not the weakest bond',
+    await J(async () => { S.threads = new Set(); await addThread('ash', 'elin', 'a hand held out');
+      // ash|elin now has the WEAKER bond and the FEWER deeds
+      return _fireBondKey() === 'ash|mira' && _weakestActiveBondKey() !== 'ash|mira'; }),
+    await J(() => 'fire ' + _fireBondKey() + ' · weakest ' + _weakestActiveBondKey()));
+  check('DEEDS: the scene opens by naming what they actually did',
+    await J(() => { const k = _fireBondKey(), top = deedTop(k);
+      const [a, b] = k.split('|');
+      const line = DEED_KINDS[top] && DEED_KINDS[top].open(HEROES[a].name, HEROES[b].name);
+      return top === 'strike' && typeof line === 'string' && line.length > 20; }));
+  check('DEEDS: every cause a bond can carry maps to a deed with an opener',
+    await J(() => Object.keys(DEED_BY_WHY).every(w => {
+      const k = DEED_BY_WHY[w];
+      return DEED_KINDS[k] && typeof DEED_KINDS[k].open === 'function'; })
+      && Object.keys(DEED_BY_WHY).length === 5));
+  check('DEEDS: an empty ledger falls back to the weakest bond — the fire is never empty',
+    await J(() => { RUN.deeds = {}; return _fireBondKey() === _weakestActiveBondKey() && !!_fireBondKey(); }));
+  check('DEEDS: the ledger is per-descent, like the bonds it records',
+    await J(() => { const fresh = newRun('ash');
+      return JSON.stringify(fresh.deeds) === '{}'; }));
 
   t.report();
   await t.browser.close();

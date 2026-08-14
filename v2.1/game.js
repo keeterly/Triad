@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 265;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 266;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -2912,6 +2912,56 @@ function mapNode(id) { return mapAll()[id]; }
 // resources (party HP, bonds, a one-fight edge).  Kept small and readable; the
 // fx run at click-time so they close over the current RUN.
 function _healParty(x) { RUN.roster.forEach(id => { RUN.hp[id] = Math.min(HEROES[id].maxHp, (RUN.hp[id] ?? HEROES[id].maxHp) + x); }); }
+// ═════════════════════════════════════════════════════════════════════════════
+// DEEDS — the quiet ledger of what a pair has actually DONE together (Build 266)
+//
+// Build 256 already made every bond name its cause — "a hand held out", "they
+// struck as one", "a death avenged" — because three unlabelled paths were firing
+// constantly and the player could never build a causal model. That `why` was
+// only ever spoken aloud and thrown away. It is kept now.
+//
+// The fire used to pick whichever pair had the WEAKEST bond, which is the least
+// interesting answer available: it hands the scene to the two who have done the
+// least together. It goes to the pair with the most between them instead, and
+// the scene opens by naming what that was. The counting stays quiet; the
+// consequence never does.
+const DEED_KINDS = {
+  help:   { open: (a, b) => `${b} has not forgotten whose hands closed the wound.` },
+  strike: { open: (a, b) => `They fought back to back all day and have not said a word about it.` },
+  avenge: { open: (a, b) => `${a} settled a debt today that was never ${a}'s to settle.` },
+  shield: { open: (a, b) => `${a} is still carrying the bruise that was meant for ${b}.` },
+  answer: { open: (a, b) => `Twice today one moved and the other was already moving.` },
+};
+const DEED_BY_WHY = {
+  'a hand held out': 'help',
+  'they struck as one': 'strike',
+  'a death avenged': 'avenge',
+  'they took the blow': 'shield',
+  'the follow-up answered': 'answer',
+};
+function recordDeed(a, b, why) {
+  const kind = DEED_BY_WHY[why]; if (!kind || !RUN) return;
+  RUN.deeds = RUN.deeds || {};
+  const k = pairKey(a, b);
+  const row = RUN.deeds[k] = RUN.deeds[k] || {};
+  row[kind] = (row[kind] || 0) + 1;
+}
+function deedTotal(k) { const r = (RUN && RUN.deeds && RUN.deeds[k]) || {}; return Object.keys(r).reduce((s, x) => s + r[x], 0); }
+function deedTop(k) {
+  const r = (RUN && RUN.deeds && RUN.deeds[k]) || {};
+  return Object.keys(r).sort((x, y) => r[y] - r[x])[0] || null;
+}
+// The pair with the most between them this descent. Falls back to the weakest
+// bond when nobody has done anything yet, so the fire is never empty.
+function _fireBondKey() {
+  const ids = (RUN && RUN.active) ? RUN.active.slice() : [];
+  let best = null, most = 0;
+  for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) {
+    const k = pairKey(ids[i], ids[j]), t = deedTotal(k);
+    if (t > most) { most = t; best = k; }
+  }
+  return best || _weakestActiveBondKey();
+}
 function _weakestActiveBondKey() {
   const ids = RUN.active.slice(); let best = null, low = Infinity;
   for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) {
@@ -3206,6 +3256,7 @@ function newRun(starterId) {
     embers: 0,          // per-run ember wallet — earned and spent THIS descent only
     nodes: [],          // per-run skill-tree unlocks — reset when the run ends; starts EMPTY (everything earned)
     crossed: {},        // heroId -> [nodeId] learned across a BOND from another hero's tree (Build 245)
+    deeds: {},          // pairKey -> { help, strike, avenge, shield, answer } — what they DID together (Build 266)
     forges: [],         // temporary ember tempers bought at camps — reset each descent
     boons: [],          // companion GIFTS drafted on the road — reset each descent (party-gated)
     foes: [],           // travelers you wronged — they ambush a later fight this run
@@ -6284,6 +6335,7 @@ function parryFlash(el) {
 // filled itself in, and the player never built a causal model. Every path now
 // names the act that caused it, in the same words, every time.
 async function addThread(a, b, why) {
+  recordDeed(a, b, why);   // the quiet ledger (Build 266)
   const key = pairKey(a, b);
   // A KINDLED pair (thread pre-formed at fight start) awakens its DUET on the
   // FIRST act of help this fight — the "kindled bond + a shared act" trigger.
@@ -8797,7 +8849,14 @@ function showCamp(n) {
       <div class="camp-choices">
         ${wounded ? choice('camp-rest', '✺', 'REST BY THE FIRE', 'Every wound on the <b>living</b> closes.') : ''}
         ${fallen.length ? choice('camp-raise', '☨', 'RAISE THE FALLEN', `<b>${fallen.map(id => HEROES[id].name).join(' & ')}</b> ${fallen.length > 1 ? 'return' : 'returns'} at <b>half HP</b> — the fire’s only gift tonight.`) : ''}
-        ${choice('camp-fire', '♡', 'SHARE THE FIRE', 'Deepen your weakest bond <b>+1</b>.')}
+        ${choice('camp-fire', '♡', 'SHARE THE FIRE', (() => {
+          const k = _fireBondKey();
+          if (!k) return 'Deepen a bond <b>+1</b>.';
+          const [fa, fb] = k.split('|');
+          return deedTotal(k) > 0
+            ? `<b>${HEROES[fa].name}</b> and <b>${HEROES[fb].name}</b> have something to say. Bond <b>+1</b>.`
+            : 'Deepen your weakest bond <b>+1</b>.';
+        })())}
         ${choice('camp-boon', '✦', 'COMMUNE AT THE FIRE', 'A companion shares a gift — <b>draw 1 of 3</b>.')}
         ${choice('camp-forge', '⚒', 'THE EMBER FORGE', 'Spend embers on tempers that hold <b>this descent</b>.')}
       </div>
@@ -8859,14 +8918,14 @@ function showForge(n) {
 // A small scene by the fire between the two LEAST-bonded active companions —
 // where the numbers become people.
 function showCampScene(n) {
-  const ids = RUN.active.slice();
-  let pair = null, low = Infinity;
-  for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) {
-    const pts = bondPts(pairKey(ids[i], ids[j]));
-    if (pts < low) { low = pts; pair = [ids[i], ids[j]]; }
-  }
-  if (!pair) { showPartySelect(() => showMap()); return; }
-  const [a, b] = pair;
+  // THE FIRE GOES TO THE PAIR WITH THE MOST BETWEEN THEM (Build 266). It used to
+  // pick the WEAKEST bond, which hands the night's one scene to the two who have
+  // done the least together — the least interesting answer available, and one the
+  // player has no way to influence. It follows the deed ledger now, so who gets a
+  // scene is decided by how you actually played the descent.
+  const fireKey = _fireBondKey();
+  if (!fireKey) { showPartySelect(() => showMap()); return; }
+  const [a, b] = fireKey.split('|');
   const key = pairKey(a, b);
   const before = bondPts(key);
   RUN.bonds = RUN.bonds || {};
@@ -8879,7 +8938,14 @@ function showCampScene(n) {
   // never repeats a beat you've already had.
   const stage = nextArcStage(a, b);
   const beat = arcBeat(a, b, stage);
-  const lines = [{ text: beat.set || 'The pot is shared. The watch is set. Two of them sit a little apart from the dark.' }];
+  // …and it opens by naming the thing they did, so the counter's consequence is
+  // never invisible even though the counting is.
+  const top = deedTop(key);
+  const deedLine = (top && DEED_KINDS[top])
+    ? DEED_KINDS[top].open(HEROES[a].name, HEROES[b].name) : null;
+  const lines = [];
+  if (deedLine) lines.push({ text: '<i>' + deedLine + '</i>' });
+  lines.push({ text: beat.set || 'The pot is shared. The watch is set. Two of them sit a little apart from the dark.' });
   beat.lines.forEach(l => lines.push(l));
   lines.push({ text: `The fire holds. <b>♡ ${HEROES[a].name} ─ ${HEROES[b].name}${kindledNow ? ' · WOVEN' : ' +1'}</b>${kindledNow ? ' — they will walk into every battle already connected.' : '.'}` });
   if (beat.staged) markArcSeen(a, b, stage);
