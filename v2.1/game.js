@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 254;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 255;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -1619,6 +1619,10 @@ function mkRotCard(h, rowKey, def, kind) {
     // FINISHER is now a real decision: which one do you spend EP on this turn?
     // Bigger finishers (mostly the empowered branch lines) cost 2 — worthwhile.
     cost = Math.max(cost, ((def.fx && def.fx.dmg) || 0) >= 9 ? 2 : 1);
+    // …and say so. This economy — free ramp, paid cash-out — was written down
+    // nowhere: not the tutorial, not HOW TO PLAY, not the card.
+    if (typeof S !== 'undefined' && S && !S._finLesson) { S._finLesson = 1;
+      setTimeout(() => lesson('fincost', 'COMBO STEPS ARE FREE — the FINISHER is what costs EP. Open with everyone, then choose who cashes out.', 3), 500); }
   }
   let fx = Object.assign({}, def.fx), desc = def.desc;
   const riders = ridersFor(h.id, def.name);
@@ -1694,10 +1698,22 @@ function resolveChainPlay(card) {
   flashNarrator(h.def.name + (many
     ? ' opens two lines — <b>' + forged.join('</b> or <b>') + '</b>.'
     : ' forges <b>' + forged[0] + '</b>.'));
+  // The fork's whole tension is that taking one path BURNS the other, and the
+  // line above says "opens two lines" without ever naming that cost.
+  if (many) lesson('fork', 'TWO PATHS, ONE CHOICE — play either card and the other burns away. Pick the line this fight needs.', 3);
 }
 // stance change abandons an in-progress rotation (forged steps clear; the opener
 // of the NEW stance returns) — repositioning mid-chain is a real cost.
-function purgeChain(heroId) { S.tempCards = S.tempCards.filter(t => !(t.chain && t.owner === heroId)); }
+function purgeChain(heroId) {
+  const had = S.tempCards.some(t => t.chain && t.owner === heroId);
+  S.tempCards = S.tempCards.filter(t => !(t.chain && t.owner === heroId));
+  // Only teach it when it actually COST something — a purge with no open chain
+  // is invisible and teaching it there would be noise.
+  if (had) {
+    const h = S.heroes.find(x => x.id === heroId);
+    lesson('purge', 'MOVING BREAKS THE COMBO — ' + ((h && h.def.name) || 'they') + ' left the line, so the rest of the rotation is gone. Finish a combo before you reposition.', 3);
+  }
+}
 
 // ---------------------------------------------------------------------------
 // DATA — enemies.  Intents telegraph damage + the PARTY ROW they strike.
@@ -2579,9 +2595,21 @@ const FLOW = [
   ]},
   { type: 'fight', chapter: 3, heroes: ['ash', 'elin', 'mira'], enemies: ['echoknight', 'cultist'],
     narrator: 'Help one another until all three bonds hold. Land hits &amp; parries to fill BURST, then unleash your ALL-OUT.' },
+  // THE RHYTHM (Build 255) — the tutorial used to describe rotations in prose
+  // and then hand the player a descent that ran them for real. This beat lets
+  // them PLAY one first, on a single foe, with nothing else to think about.
+  { type: 'story', chapter: 3, title: 'THE RHYTHM', eyebrow: 'CHAPTER 3', lines: [
+    { text: 'Ash stops at the cliff’s edge and turns his wrist twice, testing something.' },
+    { spk: 'ASH', text: 'Up here I swung when I could. Down there I’ll need a <b>rhythm</b>.' },
+    { text: 'Below, each hero holds a single <b>OPENER</b>. Play it and the next strike of the line <b>forges into your hand</b> — opener, then combo, then the <b>FINISHER</b> that ends it.' },
+    { text: 'The ramp is <b>free</b>. The <b>finisher costs EP</b> — so the real question each turn is not <i>what do I play</i>, it is <b>who gets to finish</b>.' },
+    { text: 'Two warnings, and the road will not repeat them. <b>Moving breaks the combo</b> — reposition before you start, not during. And when a line <b>forks</b>, taking one path <b>burns</b> the other.' },
+  ]},
+  { type: 'fight', chapter: 3, heroes: ['ash', 'elin', 'mira'], enemies: ['husk'], rotations: true,
+    narrator: 'Play an OPENER — the next strike forges into your hand. Ramp is free; the FINISHER costs EP. Who cashes out?' },
   { type: 'story', chapter: 3, title: 'THE ROAD DOWN', eyebrow: 'THE DESCENT', lines: [
     { text: 'The tutorial road ends at a cliff’s edge. Below waits the <b>Descent</b> — and the Abyss beneath it.' },
-    { text: 'Down here your steel finds its <b>rhythm</b>. Each hero shows a single <b>opener</b> — play it and it <b>flows into a finisher</b>. That short combo is all you start with; how it <b>grows</b> is up to you.' },
+    { text: 'You have felt the rhythm now. That short combo is all you start with; how it <b>grows</b> is up to you.' },
     { spk: 'ASH', text: 'A strike and a killing blow. Everything between them, I earn.' },
     { text: 'The dead give up <b>✦ embers</b>. Between fights, open your party’s <b>Ember Tree</b> and spend them — a <b>combo</b> node <b>inserts a middle strike</b> (opener → combo → finisher), and a <b>fork</b> node opens a <b>second line</b> off the opener (play it, pick one path, the other burns away). Grow each rotation one earned choice at a time. Only for the heroes you field, and only for <b>this descent</b>.' },
     { text: 'Every trio you form <b>fights differently</b> — their bonds, weaves and finale are all their own — so <b>who walks beside whom is your build</b>. And when a party falls, the Abyss remembers where — your next descent finds their ashes still warm.' },
@@ -3176,7 +3204,10 @@ function newBattle(node) {
   }
   // BRANCHING ROTATIONS are the combat system for the real DESCENT (useRunHp
   // fights); the tutorial stays a classic on-ramp.  RUN._rotations can force it.
+  // A node can now ASK for rotations (node.rotations), so the tutorial can teach
+  // the real engine without also inheriting useRunHp's run-HP and difficulty ramp.
   const _rot = _forceClassic ? false
+              : (node && node.rotations === true) ? true
               : (RUN && RUN._rotations === false) ? false
               : (RUN && RUN._rotations === true) ? true
               : !!(node && node.useRunHp);
@@ -4797,6 +4828,12 @@ function dealToEnemy(e, amt, school, byHeroId) {
   // line detonates the setup for bonus damage + momentum.  This is the combo
   // payoff: prime with a status card, then anyone cashes it.  (Suppressed in an
   // all-out, which runs its own detonation.)
+  // Teach the setup while it EXISTS rather than after it detonates: a +4 damage,
+  // +8 momentum mechanic whose name appeared in exactly one popup, fired after
+  // the fact, for a state that had no chip at all.
+  if (!e.staggered && (e.lull || e.weakened) && !S._burstResolving) {
+    lesson('technical', '⚡ IT IS OPEN — a chilled or weakened foe takes a TECHNICAL: strike it with ANY hero for +4 and a burst surge.', 3);
+  }
   let technical = false;
   if (byHeroId && !S._burstResolving && (e.lull || e.weakened) && !(school && school === e.def.weak)) {
     amt += 4;
@@ -5587,6 +5624,26 @@ function parryBaitNote(ax, ay, dur) {
 // PER GESTURE (tap / hold / swipe / mash) so meeting a HOLD or SWIPE for the first
 // time still teaches it, even after you've seen the TAP lesson thrice.  Each
 // gesture shows at most twice, then never nags a veteran again.
+// ─────────────────────────────────────────────────────────────────────────────
+// LESSONS (Build 255) — teach the game we actually SHIP.
+//
+// The audit's most damning finding: the tutorial runs CLASSIC combat while every
+// descent fight runs BRANCHING ROTATIONS, so a player is taught one card engine
+// and handed another without a word. Three of that engine's rules were written
+// down nowhere at all — not in the tutorial, not in HOW TO PLAY, not on a card:
+// finishers cost EP while combo steps are free; moving mid-chain DESTROYS the
+// chain; taking one fork BURNS the other. A rule you are never told is not
+// depth, it is a trap, and it is most of why the hand felt like something to
+// spam rather than something to solve.
+function lesson(key, msg, times) {
+  const k = 'kizuna2_1.lesson_' + key;
+  let seen = 0;
+  try { seen = parseInt(localStorage.getItem(k) || '0', 10) || 0; } catch (_) {}
+  if (seen >= (times || 2)) return false;
+  try { localStorage.setItem(k, String(seen + 1)); } catch (_) {}
+  parryCoach(msg);
+  return true;
+}
 function parryCoach(msg) {
   const kind = /HOLD/.test(msg) ? 'hold' : /SWIPE/.test(msg) ? 'swipe' : /MASH/.test(msg) ? 'mash' : 'tap';
   const key = 'kizuna2_1.parryLesson_' + kind;
@@ -8863,6 +8920,7 @@ function enemyChipsHtml(e) {
       <span class="chip weak${e.weakRevealed ? ' revealed' : ''}" title="weakness — each hit of this element chips a ◈ POISE pip; at zero the foe BREAKS">${e.weakRevealed ? `<span class="ru-i">${SCHOOL_GLYPH[e.def.weak] || '?'}</span>${(e.def.weak || '?').toUpperCase()}` : `<span class="ru-i">◇</span>?`}</span>
       ${!e.staggered && e.poiseMax ? `<span class="chip poise${chipPop(e,'poiseInv',(e.poiseMax - e.poise))}" title="POISE — weakness hits chip these pips; at zero the foe BREAKS: ×1.5 damage taken and its next action is LOST">${'◈'.repeat(e.poise)}${'◇'.repeat(Math.max(0, e.poiseMax - e.poise))}</span>` : ''}
       ${e.staggered ? `<span class="chip stagger${chipPop(e,'staggered',1)}"><span class="ru-i">⚡</span>BROKEN</span>` : ''}
+      ${!e.staggered && (e.weakened || e.lull) ? `<span class="chip tech${chipPop(e,'weakened',1)}" title="OPENED — it just took a weakness hit or a CHILL. Strike it now with ANY school for a TECHNICAL: +4 damage and a burst surge.">${'<span class="ru-i">⚡</span>'}OPEN</span>` : ''}
       ${e.guard ? `<span class="chip guard${chipPop(e,'guard',e.guard)}"><span class="ru-i">⛨</span>${e.guard}</span>` : ''}
       ${e.power ? `<span class="chip buff${chipPop(e,'power',e.power)}"><span class="ru-i">▲</span>${e.power}</span>` : ''}
       ${e.mark ? `<span class="chip mark${chipPop(e,'mark',e.mark)}"><span class="ru-i">◎</span>${e.mark}</span>` : ''}

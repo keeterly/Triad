@@ -3925,3 +3925,9 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
 #stage.fx-soft .hd-plane { animation: none; }
 /* FLAT keeps one backdrop plane, so the world still parallaxes with the camera */
 #stage.fx-flat .hd-mid { display: none; }
+
+/* the OPEN chip (Build 255) — the state that enables a TECHNICAL had no
+   representation at all, only an aura indistinguishable from EXPOSED */
+.chip.tech { color: #ffe08a; border-color: rgba(255,205,110,0.6);
+  background: linear-gradient(180deg, rgba(70,52,18,0.9), rgba(34,25,10,0.92));
+  text-shadow: 0 0 8px rgba(255,190,80,0.6); }

@@ -4435,6 +4435,61 @@ const QUICK = process.argv.includes('--quick');
       .map(sel => sel + ':' + getComputedStyle(document.querySelector(sel)).filter).join(' ')));
   await J(() => { SETTINGS.depth = 'auto'; _fxTier = 'full'; applyFxTier(); });
 
+  // ---------- TEACHING THE REAL GAME (Build 255) ----------
+  // The audit's worst finding: the tutorial ran CLASSIC combat while every
+  // descent fight ran BRANCHING ROTATIONS. A player was taught one card engine
+  // and handed another without a word — and three of the real engine's rules
+  // (finishers cost EP, moving destroys the chain, a fork burns its sibling)
+  // were written down nowhere at all.
+  console.log('--- TEACHING ---');
+  check('TEACH: the tutorial now PLAYS the engine the descent runs, not just describes it',
+    await J(() => FLOW.filter(f => f.type === 'fight' && f.rotations).length >= 1));
+  check('TEACH: a node can ask for rotations without inheriting run-HP and the difficulty ramp',
+    await J(() => { const n = FLOW.find(f => f.type === 'fight' && f.rotations);
+      return !!n && !n.useRunHp; }));
+  check('TEACH: that fight really deals a ROTATION hand — openers that chain',
+    await J(() => { let f = null;
+      try { f = localStorage.getItem('kizuna2_1.forceClassic'); localStorage.removeItem('kizuna2_1.forceClassic'); } catch (_) {}
+      const node = FLOW.find(x => x.type === 'fight' && x.rotations);
+      RUN = newRun('ash'); RUN.roster = node.heroes.slice(); RUN.active = node.heroes.slice();
+      startFight(node); renderAll();
+      const hand = buildHand(), ok = S._rotations === true
+        && hand.length === node.heroes.length
+        && hand.every(c => c.kind === 'opener')
+        && hand.some(c => (c.chainNext || []).length);
+      try { if (f) localStorage.setItem('kizuna2_1.forceClassic', f); } catch (_) {}
+      return ok; }));
+  // The three unwritten rules now say themselves at the seam where they bite.
+  const lessonSeen = (k) => J((key) => { try { return parseInt(localStorage.getItem('kizuna2_1.lesson_' + key) || '0', 10); } catch (_) { return -1; } }, k);
+  check('TEACH: MOVING BREAKS THE COMBO fires only when it actually cost something',
+    await J(() => { try { localStorage.removeItem('kizuna2_1.lesson_purge'); } catch (_) {}
+      setupFight(['ash'], [], { ash: 'front' }); S._rotations = true; S.tempCards = [];
+      purgeChain('ash');                                    // nothing open — must stay silent
+      const quiet = parseInt(localStorage.getItem('kizuna2_1.lesson_purge') || '0', 10) === 0;
+      S.tempCards = [{ chain: true, owner: 'ash', name: 'x' }];
+      purgeChain('ash');                                    // a real loss — must teach
+      return quiet && parseInt(localStorage.getItem('kizuna2_1.lesson_purge') || '0', 10) === 1; }));
+  check('TEACH: a lesson repeats a few times, then retires for good',
+    await J(() => { try { localStorage.removeItem('kizuna2_1.lesson_probe'); } catch (_) {}
+      const fired = [];
+      for (let i = 0; i < 6; i++) fired.push(lesson('probe', 'x', 3));
+      return fired.filter(Boolean).length === 3 && fired[0] === true && fired[5] === false; }));
+  // The state that ENABLES a technical had no chip — only an aura that reads
+  // identically to EXPOSED.
+  check('TEACH: an OPEN foe (weakened or chilled) now carries a chip, not just an aura',
+    await J(() => { setupFight(['ash'], [], { ash: 'front' });
+      const e = livingEnemies()[0];
+      e.weakened = false; e.lull = 0; e.staggered = false;
+      const before = /chip tech/.test(enemyChipsHtml(e));
+      e.weakened = true;
+      const after = /chip tech/.test(enemyChipsHtml(e));
+      e.weakened = false; e.lull = 2;
+      return !before && after && /chip tech/.test(enemyChipsHtml(e)); }));
+  check('TEACH: a BROKEN foe shows BROKEN, not OPEN — the stronger state wins the chip',
+    await J(() => { setupFight(['ash'], [], { ash: 'front' });
+      const e = livingEnemies()[0]; e.weakened = true; e.staggered = true;
+      return !/chip tech/.test(enemyChipsHtml(e)) && /chip stagger/.test(enemyChipsHtml(e)); }));
+
   t.report();
   await t.browser.close();
 })().catch(e => { console.error('FATAL', e.message); process.exit(1); });
