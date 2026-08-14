@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 263;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 264;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -1441,7 +1441,9 @@ const COMMON_NODES = (function () {
 COMMON_NODES.forEach(n => { EMBER_TREE.push(n); NODE_BY_ID[n.id] = n; });
 function commonOnBorder(a, b) {
   const pair = [a, b].sort().join('|');
-  return COMMON_NODES.filter(n => n.pair === pair);
+  const out = COMMON_NODES.filter(n => n.pair === pair);
+  const bn = bondNodeFor(a, b);            // earned at the fire; absent until then
+  return bn ? out.concat([bn]) : out;
 }
 function borderOpen(learner, other) {
   return commonOnBorder(learner, other).some(n => hasCrossed(learner, n.id));
@@ -2150,75 +2152,157 @@ const BOND_WEAVE = {
 // vocabulary (incoming / dmgMod / kill / turnStart / card), so the existing
 // dispatch carries all of it — no new seams.
 const DUET_PERKS = {
-  'Cleric+Ronin': { desc: 'the Cleric’s ward rides the Ronin’s blade — the <b>Ronin takes 1 less</b> from every hit',
+  'Cleric+Ronin': { line: ['Stay in front. I have you.', 'Then I don\'t have to look back.'], desc: 'the Cleric’s ward rides the Ronin’s blade — the <b>Ronin takes 1 less</b> from every hit',
     make: (a, b) => { const r = HEROES[a].cls === 'Ronin' ? a : b;
       return { trigger: 'incoming', mod: (h) => (h && h.id === r ? -1 : 0) }; } },
-  'Reaver+Ronin': { desc: 'strike where the other struck — <b>+2 damage</b> on a foe your partner already hit this turn',
+  'Reaver+Ronin': { line: ['You opened it — I\'ll finish it.', 'Where you cut, I cut deeper.'], desc: 'strike where the other struck — <b>+2 damage</b> on a foe your partner already hit this turn',
     make: (a, b) => ({ trigger: 'dmgMod', mod: (o, t) => (o && t && (o.id === a || o.id === b)
       && ((t._hitBy || []).indexOf(o.id === a ? b : a) >= 0) ? 2 : 0) }) },
-  'Cleric+Reaver': { desc: 'mercy follows the knife — every kill <b>mends the most-wounded ally 2</b>',
+  'Cleric+Reaver': { line: ['Killing is not the end of it.', 'Then mend what I leave standing.'], desc: 'mercy follows the knife — every kill <b>mends the most-wounded ally 2</b>',
     make: (a, b) => ({ trigger: 'kill', apply: () => { const t = lowestHpAlly();
       if (t && t.hp < t.maxHp) { t.hp = Math.min(t.maxHp, t.hp + 2); popupAt(figEl(t.id), '✚2', 'heal'); } } }) },
-  'Guardian+Ronin': { desc: 'each turn the pair stands <b>+1 guard</b> — shield and sword, one stance',
+  'Guardian+Ronin': { line: ['Behind the shield. Now.', 'One stance. Shield and sword.'], desc: 'each turn the pair stands <b>+1 guard</b> — shield and sword, one stance',
     make: (a, b) => ({ trigger: 'turnStart', apply: (c) => { if (!c.hero || c.hero.id !== a) return;
       [a, b].forEach(id => { const h = S.heroes.find(x => x.id === id); if (h && !h.downed) h.guard += 1; }); } }) },
-  'Guardian+Cleric': { desc: 'faith mortared into stone — <b>both take 1 less</b> from every hit <i>(woven, their vow can once refuse a death)</i>',
+  'Guardian+Cleric': { line: ['Nothing gets past this.', 'And nothing that does, stays.'], desc: 'faith mortared into stone — <b>both take 1 less</b> from every hit <i>(woven, their vow can once refuse a death)</i>',
     make: (a, b) => ({ trigger: 'incoming', mod: (h) => (h && (h.id === a || h.id === b) ? -1 : 0) }) },
-  'Guardian+Reaver': { desc: 'the wall holds them, the whisper opens them — the <b>Reaver strikes +2</b> into the FRONT row',
+  'Guardian+Reaver': { line: ['I\'ll hold it still.', 'That\'s all I ever needed.'], desc: 'the wall holds them, the whisper opens them — the <b>Reaver strikes +2</b> into the FRONT row',
     make: (a, b) => { const r = HEROES[a].cls === 'Reaver' ? a : b;
       return { trigger: 'dmgMod', mod: (o, t) => (o && t && o.id === r && t.row === 'front' ? 2 : 0) }; } },
-  'Ranger+Ronin': { desc: 'she marks, he charges — the <b>Ronin strikes marked prey +2</b>',
+  'Ranger+Ronin': { line: ['Marked. Go.', 'I see it — I\'m already moving.'], desc: 'she marks, he charges — the <b>Ronin strikes marked prey +2</b>',
     make: (a, b) => { const r = HEROES[a].cls === 'Ronin' ? a : b;
       return { trigger: 'dmgMod', mod: (o, t) => (o && t && o.id === r && (t.mark || 0) > 0 ? 2 : 0) }; } },
-  'Cleric+Ranger': { desc: 'an arrow watches over the healer — the <b>Cleric takes 1 less</b> from every hit',
+  'Cleric+Ranger': { line: ['Keep your head down, healer.', 'You\'re watching. I know.'], desc: 'an arrow watches over the healer — the <b>Cleric takes 1 less</b> from every hit',
     make: (a, b) => { const c = HEROES[a].cls === 'Cleric' ? a : b;
       return { trigger: 'incoming', mod: (h) => (h && h.id === c ? -1 : 0) }; } },
-  'Ranger+Reaver': { desc: 'every death is scheduled — kills by either <b>feed the BURST +6</b>',
+  'Ranger+Reaver': { line: ['Every death is scheduled.', 'Then let\'s be early.'], desc: 'every death is scheduled — kills by either <b>feed the BURST +6</b>',
     make: (a, b) => ({ trigger: 'kill', apply: (c) => { gainMomentum(6, { raw: true });
       if (c && c.hero) popupAt(figEl(c.hero.id), '☠ +6', 'tech'); } }) },
-  'Guardian+Ranger': { desc: 'anvil forward, arrow behind — the <b>Ranger strikes +2</b> while she holds BACK and the wall holds FRONT',
+  'Guardian+Ranger': { line: ['Anvil set.', 'Loosing on your mark.'], desc: 'anvil forward, arrow behind — the <b>Ranger strikes +2</b> while she holds BACK and the wall holds FRONT',
     make: (a, b) => { const rg = HEROES[a].cls === 'Ranger' ? a : b, gd = rg === a ? b : a;
       return { trigger: 'dmgMod', mod: (o) => { if (!o || o.id !== rg) return 0;
         const R = S.heroes.find(x => x.id === rg), G = S.heroes.find(x => x.id === gd);
         return (R && G && R.row === 'back' && G.row === 'front') ? 2 : 0; } }; } },
-  'Mage+Ronin': { desc: 'shatter pays tempo — the <b>Ronin’s kills on CHILLED foes refund 1 EP</b>',
+  'Mage+Ronin': { line: ['It\'s slowed — take the tempo.', 'That\'s all the opening I need.'], desc: 'shatter pays tempo — the <b>Ronin’s kills on CHILLED foes refund 1 EP</b>',
     make: (a, b) => { const r = HEROES[a].cls === 'Ronin' ? a : b;
       return { trigger: 'kill', apply: (c) => { if (c && c.hero && c.hero.id === r && c.tgt && (c.tgt.lull || 0) > 0) { refundEp(1); popupAt(figEl(r), '❄ +1 EP', 'tech'); } } }; } },
-  'Cleric+Mage': { desc: 'frost preserves what mercy mends — the <b>Cleric’s heals +1</b>',
+  'Cleric+Mage': { line: ['Frost keeps what mercy mends.', 'Then hold them a moment longer.'], desc: 'frost preserves what mercy mends — the <b>Cleric’s heals +1</b>',
     make: (a, b) => { const c = HEROES[a].cls === 'Cleric' ? a : b;
       return { card: (cd) => { if (cd.owner === c && cd.fx && cd.fx.heal) cd.fx.heal += 1; } }; } },
-  'Guardian+Mage': { desc: 'the wall breathes winter — each turn the <b>frontmost foe is CHILLED</b>',
+  'Guardian+Mage': { line: ['The wall breathes winter.', 'Let them come to it.'], desc: 'the wall breathes winter — each turn the <b>frontmost foe is CHILLED</b>',
     make: (a, b) => ({ trigger: 'turnStart', apply: (c) => { if (!c.hero || c.hero.id !== a) return;
       const e = frontmostEnemy(); if (e && !e.dead) { e.lull = (e.lull || 0) + 1; popupAt(figEl(e.uid), '❄', 'chill'); } } }) },
-  'Mage+Ranger': { desc: 'cold makes a steady target — the <b>Ranger strikes CHILLED foes +2</b>',
+  'Mage+Ranger': { line: ['Cold makes a steady target.', 'Steady is all I ask.'], desc: 'cold makes a steady target — the <b>Ranger strikes CHILLED foes +2</b>',
     make: (a, b) => { const r = HEROES[a].cls === 'Ranger' ? a : b;
       return { trigger: 'dmgMod', mod: (o, t) => (o && t && o.id === r && (t.lull || 0) > 0 ? 2 : 0) }; } },
-  'Mage+Reaver': { desc: 'what frost slows, the knife finishes — the <b>Reaver strikes CHILLED foes +3</b>',
+  'Mage+Reaver': { line: ['What frost slows —', '— the knife finishes.'], desc: 'what frost slows, the knife finishes — the <b>Reaver strikes CHILLED foes +3</b>',
     make: (a, b) => { const r = HEROES[a].cls === 'Reaver' ? a : b;
       return { trigger: 'dmgMod', mod: (o, t) => (o && t && o.id === r && (t.lull || 0) > 0 ? 3 : 0) }; } },
 };
 // any pairing without an authored duet (e.g. the unfinished Bard) still gets one
-const DUET_FALLBACK = { name: 'Kindred', icon: '♡', desc: 'they steady one another — each turn <b>both stand +1 guard</b>',
+const DUET_FALLBACK = { name: 'Kindred', icon: '♡', line: ['Together, then.', 'Together.'], desc: 'they steady one another — each turn <b>both stand +1 guard</b>',
   make: (a, b) => ({ trigger: 'turnStart', apply: (c) => { if (!c.hero || c.hero.id !== a) return;
     [a, b].forEach(id => { const h = S.heroes.find(x => x.id === id); if (h && !h.downed) h.guard += 1; }); } }) };
 function duetPerkFor(a, b) {
   const key = duetClassKey(a, b);
   const w = BOND_WEAVE[key] || {};
   const p = DUET_PERKS[key] || DUET_FALLBACK;
-  return { key, name: w.name || p.name || 'Kindred', icon: w.icon || p.icon || '♡', desc: p.desc, make: p.make };
+  return { key, name: w.name || p.name || 'Kindred', icon: w.icon || p.icon || '♡',
+           desc: p.desc, line: p.line || DUET_FALLBACK.line, make: p.make };
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// BOND NODES — the pair's own ability, earned at the fire (Build 264)
+//
+// Three half-finished things become one loop here, and none of them is new:
+//
+//   BOND_ARCS   6 pairs, 17 authored campfire beats, already persisted across
+//               runs — and they unlocked NOTHING. Good writing paying out none.
+//   DUET_PERKS  15 authored pair abilities with real triggers, firing silently
+//               behind a topbar glyph whose only explanation is a `title`
+//               tooltip, which does nothing at all on touch.
+//   COMMON_NODES  border stones I deliberately made generic in Build 251 —
+//               "nobody's ground". Right for a bridgehead, wrong as a
+//               destination. A border between Ash and Elin should hold
+//               something only Ash and Elin have.
+//
+// So: sharing a fire unlocks that pair's ability as a NODE ON THEIR BORDER, and
+// the ability announces itself the first time it fires each fight. The abilities
+// key on CLASS pair (15 combos, already written) while the unlock is per HERO
+// pair — Ash and Elin earn the Ronin+Cleric bond — so this ships without
+// authoring 21 new abilities.
+const BOND_NODES = (function () {
+  const out = [], ids = Object.keys(HEROES).filter(h => EMBER_TREE.some(n => n.hero === h)).sort();
+  for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) {
+    const a = ids[i], b = ids[j], pair = a + '|' + b, p = duetPerkFor(a, b);
+    out.push({ id: 'bond.' + pair, hero: null, pair, common: true, bond: true, slot: 9,
+      tier: 2, cost: 6, type: 'bond', label: p.name, glyph: p.icon,
+      desc: '<b>' + HEROES[a].name + ' &amp; ' + HEROES[b].name + '</b> — ' + p.desc });
+  }
+  return out;
+})();
+BOND_NODES.forEach(n => { EMBER_TREE.push(n); NODE_BY_ID[n.id] = n; });
+// A pair's node appears on their border only once they have shared a fire.
+function bondNodeFor(a, b) {
+  if (arcSeen(a, b) < 1) return null;
+  return NODE_BY_ID['bond.' + [a, b].sort().join('|')] || null;
+}
+// Held by EITHER partner — it is the pair's, not one hero's.
+function bondNodeHeld(a, b) {
+  const nd = NODE_BY_ID['bond.' + [a, b].sort().join('|')];
+  return !!nd && (hasCrossed(a, nd.id) || hasCrossed(b, nd.id));
 }
 // The live perks, derived STRAIGHT from formed threads (no extra state): a
 // pair's duet is on iff their edge is lit and both stand.
+// ANNOUNCE IT (Build 264). A duet perk used to be a silent number: it fired,
+// something was 1 better, and no one on screen said a word. It speaks now — the
+// pair's cut-in and their own line — ONCE per fight per pair, through the same
+// novelty decay as every other cinematic, because the first is a gift and the
+// eighth is a toll booth.
+function announcePerk(key, a, b, p) {
+  if (!S) return;
+  S._perkSaid = S._perkSaid || {};
+  if (S._perkSaid[key]) return;
+  S._perkSaid[key] = 1;
+  const line = p.line || DUET_FALLBACK.line;
+  try {
+    heroCutIn(a, p.icon + ' ' + p.name.toUpperCase(), HEROES[a].name, '“' + line[0] + '”', 700);
+    setTimeout(() => { try { flashNarrator('<b>' + HEROES[b].name + '</b> — “' + line[1] + '”'); } catch (_) {} }, 520);
+    sparkThread(a, b);
+  } catch (_) {}
+}
+// Wrap the authored effect so the FIRST time it actually does something, the
+// pair says so. A `mod` fires when it returns non-zero; an `apply` fires when it
+// runs at all.
+function announceWrap(made, key, a, b, p) {
+  const out = Object.assign({}, made);
+  if (typeof made.mod === 'function') {
+    out.mod = function (...args) { const v = made.mod.apply(this, args); if (v) announcePerk(key, a, b, p); return v; };
+  }
+  if (typeof made.apply === 'function') {
+    out.apply = function (...args) { announcePerk(key, a, b, p); return made.apply.apply(this, args); };
+  }
+  return out;
+}
 function duetPerkBoons() {
-  if (!S || !S.threads || !S.threads.size) return [];
+  if (!S) return [];
+  // A pair's perk runs when their thread is live THIS fight, or when they hold
+  // their BOND NODE — earned at a campfire, kept for the descent. That second
+  // route is what makes the ability something you own rather than something you
+  // have to re-trigger every fight.
+  const keys = new Set();
+  if (S.threads) S.threads.forEach(k => keys.add(k));
+  (S.heroes || []).forEach(x => (crossedNodes(x.id) || []).forEach(id => {
+    if (String(id).indexOf('bond.') === 0) keys.add(String(id).slice(5));
+  }));
   const out = [];
-  S.threads.forEach(key => {
+  keys.forEach(key => {
     const [a, b] = key.split('|');
     const ha = S.heroes && S.heroes.find(x => x.id === a), hb = S.heroes && S.heroes.find(x => x.id === b);
     if (!ha || ha.downed || !hb || hb.downed) return;
     const p = duetPerkFor(a, b);
     out.push(Object.assign({ id: 'duet_' + key, perk: true, hero: a, heroes: [a, b],
-      name: p.name, icon: p.icon, desc: p.desc, pairKey: key }, p.make(a, b)));
+      name: p.name, icon: p.icon, desc: p.desc, pairKey: key }, announceWrap(p.make(a, b), key, a, b, p)));
   });
   return out;
 }
@@ -10540,7 +10624,7 @@ function showEmberTree(onBack, heroId, selId, opts) {
     const st = !mine ? 'far' : (c ? c.state : 'unbonded');
     const foot = !mine ? '' : st === 'crossed' ? 'HELD'
       : st === 'unbonded' ? '♡ ' + (c ? c.bond : 0) + '/' + CROSS_BOND + ' WOVEN' : '✦' + cn.cost;
-    return `<button class="et-orb et-common et-c-${st}${held ? ' et-c-held' : ''}${id === selId ? ' et-sel' : ''}" data-id="${id}"
+    return `<button class="et-orb et-common${cn.bond ? ' et-bond' : ''} et-c-${st}${held ? ' et-c-held' : ''}${id === selId ? ' et-sel' : ''}" data-id="${id}"
        style="left:${(p.x / W) * 100}%; top:${(p.y / H) * 100}%">
        <span class="et-orb-glyph">${st === 'crossed' ? '✓' : cn.glyph}</span>
        <span class="et-orb-name">${cn.label}</span>
@@ -10598,7 +10682,10 @@ function showEmberTree(onBack, heroId, selId, opts) {
       : `<button class="et-d-buy${c.state === 'poor' ? ' et-d-cant' : ''}" id="et-cross-buy" ${c.state === 'poor' ? 'disabled' : ''}>${c.common ? 'CLAIM' : 'LEARN'} · ✦ ${c.cost}</button>`;
     // Common ground belongs to nobody, so it gets neither a teacher nor a
     // kinship price, and the panel says so rather than dressing it as a gift.
-    const head = c.common
+    const head = c.node.bond
+      ? `<div class="et-d-head"><span class="et-d-type t-bond">${c.node.glyph} BOND</span><span class="et-d-name">${c.node.label}</span></div>
+         <div class="et-d-cross">What <b style="color:${L.tint}">${L.name}</b> and <b style="color:${T.tint}">${T.name}</b> learned at the fire. It holds for the whole descent — no thread to re-earn each fight — and it <b>announces itself</b> the first time it lands.</div>`
+      : c.common
       ? `<div class="et-d-head"><span class="et-d-type t-common">COMMON GROUND</span><span class="et-d-name">${c.node.label}</span></div>
          <div class="et-d-cross">Neutral ground on the road between <b style="color:${L.tint}">${L.name}</b> and <b style="color:${T.tint}">${T.name}</b> — it belongs to neither of you, and holding it is what opens the far side of this border.</div>`
       : `<div class="et-d-head"><span class="et-d-type t-cross">${KIN_WORD[c.kin]}</span><span class="et-d-name">${c.node.label}</span></div>

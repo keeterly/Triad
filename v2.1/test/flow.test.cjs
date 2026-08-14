@@ -4697,6 +4697,59 @@ const QUICK = process.argv.includes('--quick');
       return buildHand().filter(c => c.reach).length === 0; }));
   await restoreFC();
 
+  // ---------- BOND NODES (Build 264) ----------
+  // Three half-finished things wired into one loop, none of them new: BOND_ARCS
+  // (6 pairs, 17 authored campfire beats that unlocked nothing), DUET_PERKS (15
+  // authored pair abilities firing silently behind a touch-invisible tooltip),
+  // and the border stones, which were deliberately generic.
+  console.log('--- BOND NODES ---');
+  check('BOND NODE: one per pair, carrying that pair’s own authored ability',
+    await J(() => BOND_NODES.length === 15 && EMBER_TREE.filter(n => n.bond).length === 15
+      && BOND_NODES.every(n => { const [a, b] = n.pair.split('|');
+        const p = duetPerkFor(a, b); return !!(p.line && p.line.length === 2 && p.make); })));
+  check('BOND NODE: it is not on the border until the pair has shared a fire',
+    await J(() => { try { localStorage.removeItem('kizuna2_1.arcs'); } catch (_) {}
+      const locked = bondNodeFor('ash', 'elin') === null;
+      const before = commonOnBorder('ash', 'elin').length;
+      markArcSeen('ash', 'elin', 1);
+      const open = !!bondNodeFor('ash', 'elin');
+      return locked && open && commonOnBorder('ash', 'elin').length === before + 1; }));
+  check('BOND NODE: the ability runs off the OWNED node, with no in-fight thread at all',
+    await J(() => { setupFight(['ash', 'elin'], [], { ash: 'front', elin: 'mid' });
+      markArcSeen('ash', 'elin', 1);
+      S.threads = new Set(); RUN.crossed = {};
+      const none = duetPerkBoons().length;
+      RUN.crossed = { ash: [bondNodeFor('ash', 'elin').id] };
+      const held = duetPerkBoons();
+      return none === 0 && held.length === 1 && held[0].pairKey === 'ash|elin'; }));
+  check('BOND NODE: it belongs to the PAIR — either partner holding it counts',
+    await J(() => { markArcSeen('ash', 'elin', 1);
+      const id = bondNodeFor('ash', 'elin').id;
+      RUN.crossed = { elin: [id] };
+      return bondNodeHeld('ash', 'elin') && bondNodeHeld('elin', 'ash'); }));
+  check('BOND NODE: the ability SPEAKS the first time it lands, and only once',
+    await J(() => { setupFight(['ash', 'elin'], [], { ash: 'front', elin: 'mid' });
+      markArcSeen('ash', 'elin', 1);
+      RUN.crossed = { ash: [bondNodeFor('ash', 'elin').id] };
+      S._perkSaid = {};
+      const boon = duetPerkBoons()[0];
+      const ash = S.heroes.find(h => h.id === 'ash'), foe = livingEnemies()[0];
+      for (let i = 0; i < 6; i++) {
+        if (boon.mod) boon.mod(ash, foe);
+        if (boon.apply) boon.apply({ hero: ash, heroId: 'ash', tgt: foe });
+      }
+      return Object.keys(S._perkSaid).length === 1; }));
+  check('BOND NODE: a silent perk stays silent until it actually DOES something',
+    await J(() => { setupFight(['ash', 'elin'], [], { ash: 'front', elin: 'mid' });
+      markArcSeen('ash', 'elin', 1);
+      RUN.crossed = { ash: [bondNodeFor('ash', 'elin').id] };
+      S._perkSaid = {};
+      const boon = duetPerkBoons()[0];
+      if (!boon.mod) return true;                       // apply-perks always do something
+      const mira = { id: 'mira', def: HEROES.mira };    // not the pair — mod returns 0
+      boon.mod(mira, livingEnemies()[0]);
+      return Object.keys(S._perkSaid).length === 0; }));
+
   t.report();
   await t.browser.close();
 })().catch(e => { console.error('FATAL', e.message); process.exit(1); });

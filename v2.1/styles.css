@@ -3954,3 +3954,13 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
 #stage.fx-flat.focus-pull #party-half .figure.fig-actor .fig-art { filter: none; opacity: 1; }
 #stage.fx-soft #party-half .figure .fig-art,
 #stage.fx-flat #party-half .figure .fig-art { transition: opacity 140ms ease; }
+
+/* a BOND node is the pair's own — it wears their warmth, not the neutral stone
+   of common ground (Build 264) */
+.et-orb.et-common.et-bond .et-orb-glyph {
+  border-color: rgba(240,180,200,0.72); color: #ffd9e4;
+  background: radial-gradient(circle at 50% 36%, rgba(58,28,40,0.98), rgba(24,12,18,0.98));
+  box-shadow: 0 0 13px rgba(230,140,175,0.34);
+}
+.et-orb.et-common.et-bond .et-orb-name { color: #f0c2d2; }
+.et-d-type.t-bond { color: #ffd9e4; border-color: rgba(240,180,200,0.6); }
