@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 255;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 256;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -2281,7 +2281,15 @@ function grantPrime(card) {
   popupAt(figEl(h.id), t.glyph + ' PRIMED', 'boon');
   try { SFX.thread(); } catch (_) {}
   if (former) offerFollowUp(former.hero.id, h.id);
-  else flashNarrator(h.def.name + ' finishes the line and stands <b>' + t.glyph + ' PRIMED</b> — another hero’s combo will cue them in.');
+  else {
+    // Name the SPECIFIC next action, not the abstract rule: this is the one bond
+    // path a player can aim at, and it was stated only in a tooltip and a hidden
+    // panel. Say who has to do what.
+    const waiting = livingHeroes().filter(x => x.id !== h.id && !(x.primed && x.primed.expires >= S.turn));
+    const who = waiting.length === 1 ? waiting[0].def.name : (waiting.length ? 'another hero' : 'someone');
+    flashNarrator(h.def.name + ' stands <b>' + t.glyph + ' PRIMED</b> — finish <b>' + who + '</b>’s combo and a free FOLLOW-UP opens that <b>bonds them</b>.');
+    lesson('primed', '✦ PRIMED — finishing a combo readies a hero. Finish a SECOND hero’s combo and a free gold card appears: play it to BOND the pair.', 3);
+  }
 }
 // A primed stance holds through the turn AFTER the one that earned it.
 function expirePrimes() {
@@ -2356,7 +2364,7 @@ async function resolveFollowUp(fu) {
   flashNarrator('✦ ' + title + ' — ' + HEROES[fu.actor].name + ' ' + (act.verb || 'answers') + '.');
   const key = pairKey(fu.actor, fu.trigger);
   const already = S.threads.has(key);
-  await addThread(fu.actor, fu.trigger);              // THE BOND
+  await addThread(fu.actor, fu.trigger, 'the follow-up answered');   // THE BOND
   if (already) reinforceBond(key);                    // …or a deeper one
   camReset(620);
   renderAll(); checkEnd();
@@ -4500,7 +4508,7 @@ async function resolveCard(card, targetId) {
     popupAt(figEl(wdId), '+4', 'heal');
     popupAt(figEl(prId), '❄ OVEREXTENDED −2', 'chill');
     SFX.guard();
-    await addThread(prId, wdId);   // protecting is a bond act
+    await addThread(prId, wdId, 'they took the blow');   // protecting is a bond act
     await sleep(400);
     return;
   }
@@ -4578,7 +4586,13 @@ async function resolveCard(card, targetId) {
         gainMomentum(12, { combo: true });   // ASSIST — focus-firing a foe builds burst
         // one clean callout (was two stacked ⚡ popups): the +2 bonus and, once a
         // real chain is running, the ASSIST count.
-        popupAt(figEl(owner.id), S.combo >= 2 ? '⚡ ASSIST +2 · ×' + S.combo : '⚡ ASSIST +2', 'info');
+        // This is also a BOND act (see addThread below) — say so when it is
+        // about to tie a new pair, instead of only naming the momentum.
+        {
+          const ties = livingHeroes().some(h2 => h2.id !== owner.id && hitters.indexOf(h2.id) >= 0 && !S.threads.has(pairKey(owner.id, h2.id)));
+          popupAt(figEl(owner.id), ties ? '♡ TOGETHER · ASSIST +2'
+            : (S.combo >= 2 ? '⚡ ASSIST +2 · ×' + S.combo : '⚡ ASSIST +2'), 'info');
+        }
         SFX.follow();
         firePassives('followup', owner.id, { ally: prev });   // ally = the hero Ash followed
         // GANGING UP binds the whole party: thread with EVERY ally who has
@@ -4586,7 +4600,7 @@ async function resolveCard(card, targetId) {
         // enemy (the natural strong play) weaves the full triangle instead of
         // leaving the triad's marquee moment locked behind fussy pick order.
         const priorAllies = hitters.filter((id, i) => id !== owner.id && hitters.indexOf(id) === i);
-        for (const ally of priorAllies) await addThread(owner.id, ally);
+        for (const ally of priorAllies) await addThread(owner.id, ally, 'they struck as one');
       }
       // AVENGE: cutting down an enemy that hurt an ally this fight forms a
       // thread with the one you avenged — protective aggression bonds too.
@@ -4594,8 +4608,8 @@ async function resolveCard(card, targetId) {
         const wounded = (tgt._damaged || []).filter(id => id !== owner.id && livingHeroes().some(h => h.id === id));
         if (wounded.length) {
           const avenged = wounded[wounded.length - 1];
-          popupAt(figEl(owner.id), '⚔ AVENGED', 'info');
-          await addThread(owner.id, avenged);
+          popupAt(figEl(owner.id), '♡ AVENGED', 'info');   // an undocumented bond path until Build 256
+          await addThread(owner.id, avenged, 'a death avenged');
         }
       }
       if (tgt.dead) await sleep(140);   // hitstop: let the kill land
@@ -4651,7 +4665,7 @@ async function resolveCard(card, targetId) {
       // heal (target 'allies') weaves the caster to EVERYONE it shelters — so a
       // support hero's whole role knits the triangle, and the triad's marquee
       // moment is reachable through ordinary play instead of fussy pick order.
-      if (owner && rc.id !== owner.id && (card.target === 'ally' || card.target === 'allies')) await addThread(owner.id, rc.id);
+      if (owner && rc.id !== owner.id && (card.target === 'ally' || card.target === 'allies')) await addThread(owner.id, rc.id, 'a hand held out');
     }
     // one emergent tick per PLAY (not per receiver): the caster's mending / warding loop
     if (owner && receivers.length) {
@@ -4684,11 +4698,17 @@ async function resolveCard(card, targetId) {
       if (tgt.dead) { fireEmergent(owner.id, 'kill', card); firePassives('kill', owner.id, { tgt }); }
       if (isFollowUp) {
         gainMomentum(12, { combo: true });
-        popupAt(figEl(owner.id), S.combo >= 2 ? '⚡ ASSIST +2 · ×' + S.combo : '⚡ ASSIST +2', 'info');
+        // This is also a BOND act (see addThread below) — say so when it is
+        // about to tie a new pair, instead of only naming the momentum.
+        {
+          const ties = livingHeroes().some(h2 => h2.id !== owner.id && hitters.indexOf(h2.id) >= 0 && !S.threads.has(pairKey(owner.id, h2.id)));
+          popupAt(figEl(owner.id), ties ? '♡ TOGETHER · ASSIST +2'
+            : (S.combo >= 2 ? '⚡ ASSIST +2 · ×' + S.combo : '⚡ ASSIST +2'), 'info');
+        }
         SFX.follow();
         firePassives('followup', owner.id, { ally: prev });
         const priorAllies = hitters.filter((id, i) => id !== owner.id && hitters.indexOf(id) === i);
-        for (const ally of priorAllies) await addThread(owner.id, ally);
+        for (const ally of priorAllies) await addThread(owner.id, ally, 'they struck as one');
       } else if (amt > 0) gainMomentum(2, { raw: true });
     }
   }
@@ -5979,7 +5999,21 @@ function parryFlash(el) {
   setTimeout(() => el && el.classList.remove('fig-parry'), 500);
 }
 
-async function addThread(a, b) {
+// ─────────────────────────────────────────────────────────────────────────────
+// BONDS SAY WHY (Build 256).
+//
+// Six code paths form a bond and every one of them funnels through here, but
+// only one of them ever used the word.  Focus-firing a foe with a second hero
+// announced "⚡ ASSIST +2" — a MOMENTUM callout. Killing something that had hurt
+// an ally announced "⚔ AVENGED" and was documented nowhere at all. A party-wide
+// heal bonded the caster to everyone and said nothing, and the ♡ card hint
+// explicitly refused to mark it.
+//
+// So bonds were not hard to trigger — they were impossible to trigger KNOWINGLY.
+// Three unlabelled paths fired constantly during ordinary play, the triangle
+// filled itself in, and the player never built a causal model. Every path now
+// names the act that caused it, in the same words, every time.
+async function addThread(a, b, why) {
   const key = pairKey(a, b);
   // A KINDLED pair (thread pre-formed at fight start) awakens its DUET on the
   // FIRST act of help this fight — the "kindled bond + a shared act" trigger.
@@ -5994,7 +6028,11 @@ async function addThread(a, b) {
   // A KINDLED pair that threads awakens its WEAVE this instant (no card — see
   // awakenDuet).  A non-kindled thread just forms the connection + its guard.
   if (kindledNow) await awakenDuet(a, b);
-  else flashNarrator('◇ BOND — ' + HEROES[a].name + ' ─ ' + HEROES[b].name + ' · fight together again to WEAVE it (then they weave in off each other’s finishers)');
+  else flashNarrator('♡ BOND — ' + HEROES[a].name + ' ─ ' + HEROES[b].name
+    + (why ? ' · <b>' + why + '</b>' : '') + ' — fight together again to WEAVE it.');
+  // The first bond of a run explains the whole loop once, at the moment the
+  // player has just caused one and can connect the two.
+  lesson('bond', '♡ THAT WAS A BOND — helping an ally, striking a foe together, or avenging one of your own ties two heroes. Three bonds make the TRIAD. Tap the ◮ badge to see who needs what.', 2);
   // a clear beat on BOTH heroes so the connection reads at a glance
   [a, b].forEach(id => { const el = figEl(id); if (el) { el.classList.remove('fig-bond'); void el.offsetWidth; el.classList.add('fig-bond'); setTimeout(() => el.classList.remove('fig-bond'), 900); } });
   // The bond itself protects: both linked heroes steel by 2 guard the moment
@@ -9036,13 +9074,23 @@ function renderResonance() {
   el.classList.toggle('rz-ripe', ripe);
   const label = ready ? '✦ TRIAD · ALL-OUT CROWNED' : duo ? 'KIZUNA ' + formed + '/1' : 'RESONANCE ' + formed + '/3';
   el.innerHTML = `<svg viewBox="-3 -3 52 48" class="rz-svg">${fill}${edges}${dots}</svg><span class="rz-lbl">${label}</span>${ripe ? '<span class="rz-ripe-pip" title="A FOLLOW-UP is open — play it to bond the pair">✦</span>' : ''}`;
+  // The bond panel is the only always-available explanation of the loop, and it
+  // sat behind a tap with no title, no hint and a desktop-only hover glow — on a
+  // touch game with a PWA manifest, effectively undiscoverable.
+  el.title = 'RESONANCE — tap to see each pair: who is bonded, who is close, and what they need.';
+  el.classList.toggle('rz-ripe', !!ripe);
   el.onclick = () => { if (_bondPanelEl) hideBondPanel(); else showBondPanel(); };
+  if (!el._taught && formed === 0 && live.length >= 2) { el._taught = 1;
+    setTimeout(() => lesson('resonance', '◮ TAP THE RESONANCE BADGE — it names every pair, how close they are, and exactly what each one still needs to bond.', 2), 1400); }
 }
 // ♡ SIGNPOST — an ally-target card whose play could form a NEW bond wears a
 // small heart, so cause-and-effect reads BEFORE the card is committed.
 // (Helping an ally still bonds — that path was never the confusing one.)
 function cardBondHint(card) {
-  if (!S || card.target !== 'ally' || card.spent) return '';
+  // `allies` was excluded, which meant a party-wide heal — the biggest bond
+  // source in the game, since it ties the caster to EVERYONE — was the one card
+  // that never wore the mark.
+  if (!S || (card.target !== 'ally' && card.target !== 'allies') || card.spent) return '';
   const o = card.owner;
   const would = livingHeroes().some(h => h.id !== o && !S.threads.has(pairKey(o, h.id)));
   return would ? '<span class="c-bond-hint" title="Helping an ally forms a ♡ BOND">♡</span>' : '';

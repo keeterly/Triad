@@ -3931,3 +3931,15 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
 .chip.tech { color: #ffe08a; border-color: rgba(255,205,110,0.6);
   background: linear-gradient(180deg, rgba(70,52,18,0.9), rgba(34,25,10,0.92));
   text-shadow: 0 0 8px rgba(255,190,80,0.6); }
+
+/* the resonance badge is the door to the only always-on explanation of the bond
+   loop; it had a desktop hover glow and nothing else (Build 256) */
+#resonance { position: relative; }
+#resonance::after {
+  content: ''; position: absolute; right: -2px; top: -2px; width: 6px; height: 6px;
+  border-radius: 50%; background: var(--gold-bright); opacity: 0.75;
+  box-shadow: 0 0 6px rgba(240,212,136,0.8);
+}
+#resonance.rz-ripe::after { animation: rz-knock 1.5s ease-in-out infinite; }
+@keyframes rz-knock { 50% { opacity: 1; transform: scale(1.5); } }
+@media (prefers-reduced-motion: reduce) { #resonance.rz-ripe::after { animation: none; } }

@@ -4490,6 +4490,58 @@ const QUICK = process.argv.includes('--quick');
       const e = livingEnemies()[0]; e.weakened = true; e.staggered = true;
       return !/chip tech/.test(enemyChipsHtml(e)) && /chip stagger/.test(enemyChipsHtml(e)); }));
 
+  // ---------- BONDS SAY WHY (Build 256) ----------
+  // Six paths form a bond and all six funnel through addThread, but only one
+  // ever used the word. Focus-firing announced "⚡ ASSIST +2" (a MOMENTUM
+  // callout), avenging announced "⚔ AVENGED" and was documented nowhere, and a
+  // party-wide heal bonded the caster to everyone in silence — the ♡ card hint
+  // explicitly refused to mark it. Bonds were not hard to trigger; they were
+  // impossible to trigger KNOWINGLY.
+  console.log('--- BONDS SAY WHY ---');
+  check('BOND: every path through addThread can name the act that caused it',
+    await J(() => /async function addThread\(a, b, why\)/.test(addThread.toString())));
+  check('BOND: the narrator states the CAUSE, not just that a bond happened',
+    await J(async () => { setupFight(['ash', 'elin'], [], { ash: 'front', elin: 'mid' });
+      RUN.bonds = {}; S.threads = new Set();
+      document.getElementById('narrator').innerHTML = '';
+      await addThread('ash', 'elin', 'a hand held out');
+      const said = document.getElementById('narrator').textContent || '';
+      return /♡ BOND/.test(said) && /a hand held out/.test(said); }));
+  check('BOND: a party-wide heal finally wears the ♡ mark — it was the one card excluded',
+    await J(() => { setupFight(['ash', 'elin'], [], { ash: 'front', elin: 'mid' });
+      S.threads = new Set();
+      const one = cardBondHint({ owner: 'elin', target: 'ally', spent: false });
+      const all = cardBondHint({ owner: 'elin', target: 'allies', spent: false });
+      const foe = cardBondHint({ owner: 'elin', target: 'enemy', spent: false });
+      return !!one && !!all && !foe; }));
+  check('BOND: avenging reads as a bond act, not an unexplained ⚔',
+    await J(() => /♡ AVENGED/.test(resolveCard.toString())));
+  check('BOND: striking together reads as a bond act when it is about to tie a new pair',
+    await J(() => /♡ TOGETHER/.test(resolveCard.toString())));
+  // The panel behind the resonance badge is the only always-available
+  // explanation of the loop, and it had no title and no touch affordance.
+  check('BOND: the resonance badge announces that it opens something',
+    await J(() => { setupFight(['ash', 'elin', 'mira'], [], { ash: 'front', elin: 'mid', mira: 'back' });
+      renderResonance();
+      const el = document.getElementById('resonance');
+      return !!el.title && /tap/i.test(el.title) && typeof el.onclick === 'function'; }));
+  // Drive a REAL finisher rather than a synthetic card: grantPrime reads the
+  // card through primeTypeForCard, so a hand-built object is not the same test.
+  check('BOND: a PRIMED hero names WHO has to act next, not just that they are primed',
+    await J(() => { setupFight(['ash', 'elin'], [], { ash: 'front', elin: 'mid' });
+      S.heroes.forEach(h => { h.primed = null; });
+      const rot = ROTATIONS.ash.front;
+      const fin = Object.keys(rot.cards).map(k => rot.cards[k]).find(c => /FINISHER/.test(c.stance || ''));
+      // read what the narrator actually PUT ON SCREEN — stubbing the function
+      // proved fragile, and the DOM is the thing the player sees anyway
+      document.getElementById('narrator').innerHTML = '';
+      grantPrime(Object.assign({ owner: 'ash', chain: true }, fin));
+      const said = document.getElementById('narrator').textContent || '';
+      const ash = S.heroes.find(h => h.id === 'ash');
+      return !!(ash.primed && ash.primed.type) && /PRIMED/.test(said)
+        && /elin/i.test(said) && /bonds them/i.test(said); }),
+    await J(() => 'narrator said: ' + (document.getElementById('narrator').textContent || '(nothing)')));
+
   t.report();
   await t.browser.close();
 })().catch(e => { console.error('FATAL', e.message); process.exit(1); });
