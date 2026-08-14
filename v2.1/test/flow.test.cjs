@@ -3836,9 +3836,14 @@ const QUICK = process.argv.includes('--quick');
   await sleep(400);
   check('ROTATION preview boots a party fight with the engine LIVE',
     await J(() => !!S && S._rotations === true && S.heroes.length === 3 && !document.querySelector('#overlay:not(.hidden)')));
-  check('ROTATION preview: every active hero shows exactly one opener (hand is small)',
+  check('ROTATION preview: one opener per hero, plus the single REACH (hand stays small)',
     await J(() => { const openers = buildHand().filter(c => c.kind === 'opener');
-      return openers.length === 3 && openers.every(o => o.cost >= 1); }));
+      const reach = openers.filter(c => c.reach);
+      // every hero is represented exactly once by their STANDING line…
+      const standing = openers.filter(c => !c.reach);
+      return standing.length === 3 && reach.length <= 1
+        && new Set(standing.map(c => c.owner)).size === 3
+        && openers.every(o => o.cost >= 1); }));
   // EP ECONOMY (Build 194): the COMBO ramp is free, but the FINISHER payoff costs
   // EP — so cashing a rotation is a real decision, and rotation combat opens +1 EP.
   check('EP: rotation combat opens with +1 EP (the allocation budget for finisher costs)',
@@ -4464,7 +4469,8 @@ const QUICK = process.argv.includes('--quick');
       RUN = newRun('ash'); RUN.roster = node.heroes.slice(); RUN.active = node.heroes.slice();
       startFight(node); renderAll();
       const hand = buildHand(), ok = S._rotations === true
-        && hand.length === node.heroes.length
+        // one standing opener per hero, and at most one REACH on top (Build 258)
+        && hand.filter(c => !c.reach).length === node.heroes.length
         && hand.every(c => c.kind === 'opener')
         && hand.some(c => (c.chainNext || []).length);
       try { if (f) localStorage.setItem('kizuna2_1.forceClassic', f); } catch (_) {}
@@ -4586,6 +4592,68 @@ const QUICK = process.argv.includes('--quick');
   check('CUT: …and each one still says what it COSTS you or GIVES you',
     await J(() => /BONDS them/.test(offerFollowUp.toString())
       && /WOVEN/.test(offerBondFollow.toString())));
+
+  // ---------- THE REACH (Build 258) ----------
+  // buildHand was a pure function of (party × rows × nodes) with no draw and no
+  // randomness: two players with the same trio in the same stances saw
+  // byte-identical hands every turn of every run, and turn 3 was turn 1. Each
+  // hero already had THREE authored rotations and only ever showed one.
+  console.log('--- THE REACH ---');
+  const reachRun = () => J(() => {
+    let f = null;
+    try { f = localStorage.getItem('kizuna2_1.forceClassic'); localStorage.removeItem('kizuna2_1.forceClassic'); } catch (_) {}
+    RUN = newRun('ash'); RUN.roster = ['ash', 'hask', 'cassia']; RUN.active = RUN.roster.slice();
+    RUN.hp = { ash: 34, hask: 26, cassia: 36 }; RUN.floor = 1; RUN.completed = [0, 1, 2];
+    RUN.map = generateDescent(RUN.roster, 1);
+    startFight({ type: 'fight', chapter: 3, heroes: RUN.active.slice(), enemies: ['husk'],
+      useRunHp: true, floor: 1, depth: 3, narrator: 'reach' });
+    S._rotations = true; renderAll();
+    window.__fc = f; return true;
+  });
+  const restoreFC = () => J(() => { try { if (window.__fc) localStorage.setItem('kizuna2_1.forceClassic', window.__fc); } catch (_) {} return true; });
+
+  await reachRun();
+  check('REACH: exactly ONE hero a turn may open outside their stance',
+    await J(() => { for (let turn = 1; turn <= 9; turn++) {
+        S.turn = turn; S.used = new Set();
+        if (buildHand().filter(c => c.reach).length !== 1) return false; }
+      return true; }));
+  check('REACH: the turn is no longer identical to the last — the hand finally varies',
+    await J(() => { const seen = new Set();
+      for (let turn = 1; turn <= 6; turn++) { S.turn = turn; S.used = new Set();
+        seen.add(buildHand().map(c => c.name).sort().join('|')); }
+      return seen.size >= 4; }),
+    await J(() => { const o = []; for (let turn = 1; turn <= 6; turn++) { S.turn = turn; S.used = new Set();
+      o.push((buildHand().find(c => c.reach) || {}).name); } return o.join(' → '); }));
+  check('REACH: it rotates across HEROES, not just one hero’s stances',
+    await J(() => { const who = new Set();
+      for (let turn = 1; turn <= 6; turn++) { S.turn = turn; S.used = new Set();
+        const r = buildHand().find(c => c.reach); if (r) who.add(r.owner); }
+      return who.size === 3; }));
+  check('REACH: it costs +1 EP over the same card played in its own stance',
+    await J(() => { S.turn = 1; S.used = new Set();
+      const r = buildHand().find(c => c.reach);
+      const h = S.heroes.find(x => x.id === r.owner);
+      const base = mkChainOpener(h, ROTATIONS[r.owner][r.rowKey || 'mid'], r.rowKey || 'mid');
+      return r.cost === base.cost + 1 && /REACH/.test(r.stance); }));
+  check('REACH: it SHARES the opener latch — the same action, with a choice in it',
+    await J(async () => { S.turn = 1; S.used = new Set(); S.ep = 12;
+      const r = buildHand().find(c => c.reach);
+      await playCard(r, (livingEnemies()[0] || {}).uid);
+      return buildHand().filter(c => c.owner === r.owner && c.kind === 'opener').length === 0; }));
+  check('REACH: a reached line forges ITS OWN combo, not the hero’s standing one',
+    await J(async () => { S.turn = 2; S.used = new Set(); S.ep = 12; S.tempCards = [];
+      const r = buildHand().find(c => c.reach);
+      const want = (r.chainNext || []).map(x => x.key || x);
+      await playCard(r, (livingEnemies()[0] || {}).uid);
+      const forged = buildHand().filter(c => c.chain && c.owner === r.owner);
+      return forged.length > 0 && forged.every(c => c.chainStance !== S.heroes.find(x => x.id === r.owner).row)
+        && want.length > 0; }));
+  check('REACH: a lone survivor has nobody to reach past — no reach card',
+    await J(() => { setupFight(['ash'], [], { ash: 'front' }); S._rotations = true;
+      S.turn = 1; S.used = new Set();
+      return buildHand().filter(c => c.reach).length === 0; }));
+  await restoreFC();
 
   t.report();
   await t.browser.close();

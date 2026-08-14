@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 257;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 258;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -1639,10 +1639,38 @@ function mkRotCard(h, rowKey, def, kind) {
   if (card.fx && card.fx.dmg && !card.school) card.school = h.def.school;
   return card;
 }
-function mkChainOpener(h, rot) {
-  const c = mkRotCard(h, h.row, rot.cards[rot.opener], 'opener');
+function mkChainOpener(h, rot, rowKey) {
+  const c = mkRotCard(h, rowKey || h.row, rot.cards[rot.opener], 'opener');
   c.spent = S.used.has(h.id + ':opener');
   return c;
+}
+// ─────────────────────────────────────────────────────────────────────────────
+// THE REACH (Build 258) — make the hand a question instead of a rotation.
+//
+// buildHand was a pure function of (party × rows × nodes), with no draw and no
+// randomness anywhere: two players with the same trio in the same stances saw
+// BYTE-IDENTICAL hands, every turn, every fight, every run. Turn 3 was turn 1.
+// That is most of why the hand felt like something to execute rather than solve.
+//
+// Every hero already has THREE authored rotations — one per stance — and only
+// ever showed the one for the row they stand in. Each turn ONE hero (rotating,
+// so it is predictable rather than random) may also REACH into one of their
+// other two lines, for +1 EP. It shares the opener latch with their stance line,
+// so it is not extra actions — it is the same action with a real choice in it:
+// the cheap line you are standing in, or the dearer one this board wants.
+//
+// resolveChainPlay keys its table off card.chainStance rather than the hero's
+// row, so a reached line forges its own combo and finisher correctly.
+function reachFor(h) {
+  if (!S || !S._rotations || !h) return null;
+  const live = livingHeroes();
+  if (live.length < 2) return null;
+  const idx = live.findIndex(x => x.id === h.id);
+  if (idx < 0 || idx !== ((S.turn || 1) - 1) % live.length) return null;   // one hero's turn to reach
+  const others = ROWS.filter(r => r !== h.row);
+  const row = others[((S.turn || 1) - 1) % others.length];
+  const rot = ROTATIONS[h.id] && ROTATIONS[h.id][row];
+  return rot ? { rot, row } : null;
 }
 // forge one rotation step into the hand as a free, this-turn-only temp card
 function genChainStep(h, rowKey, def, group) {
@@ -3505,6 +3533,16 @@ function buildHand() {
     const rot = rotationFor(h);
     if (rot) {
       const op = mkChainOpener(h, rot); if (!op.spent) hand.push(op);
+      // …and, for one hero a turn, the line they can REACH for (see reachFor)
+      const rr = reachFor(h);
+      if (rr) {
+        const alt = mkChainOpener(h, rr.rot, rr.row);
+        alt.cost = (alt.cost || 0) + 1;                       // reaching outside your stance costs
+        alt.reach = true;
+        alt.stance = 'REACH · ' + STANCE[rr.row].name.toUpperCase().replace(/ STANCE$/, '');
+        alt.desc = (alt.desc || '') + ' <i>Reaching out of stance — <b>+1 EP</b>, and it spends this hero\u2019s opener.</i>';
+        if (!alt.spent) hand.push(alt);
+      }
       (chainTemps[h.id] || []).forEach(t => hand.push(t));   // forged steps sit in this hero's slot
       return;
     }
