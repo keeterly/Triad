@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 267;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 268;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -2859,7 +2859,12 @@ function generateDescent(roster, floor) {
   }
   // Recruits = anyone not already in the party.  You start solo (or short) and
   // build your trio from the road, so an early recruit is guaranteed close.
-  const pending = _shuffle(STARTER_POOL.filter(id => !roster.includes(id)));
+  // Anyone not walking with you is still climbing somewhere, so they can surface
+  // on any floor — INCLUDING someone you turned away once (that is the whole
+  // point of being allowed to turn them away).  Someone you refused a SECOND
+  // time is done with you for this descent and drops out of the pool.
+  const refused = (typeof RUN !== 'undefined' && RUN && RUN.refused) || [];
+  const pending = _shuffle(STARTER_POOL.filter(id => !roster.includes(id) && !refused.includes(id)));
   const numLevels = 7;
   // Scatter recruit encounters at RANDOM depths (not clustered up front) —
   // FFT-style, you cross paths with survivors anywhere on the road.  One lands
@@ -2905,8 +2910,15 @@ function generateDescent(roster, floor) {
   });
   return nodes;
 }
-function mapAll() { return (RUN && RUN.map) || []; }
-function mapNode(id) { return mapAll()[id]; }
+// The map comes back off localStorage, where a truncated or partly-written save
+// leaves HOLES in the array. Every consumer treats an entry as a node and reads
+// `.id` / `.next` off it, so one hole used to take the whole map screen down and
+// strand the run with no way forward. Filter them out at the single seam instead
+// of guarding at a dozen call sites.
+function mapAll() { return ((RUN && RUN.map) || []).filter(Boolean); }
+// by IDENTITY, not by array position — mapAll() now compacts holes out, so the
+// two indices are no longer guaranteed to agree.
+function mapNode(id) { return mapAll().find(n => n.id === id); }
 
 // EVENT nodes — a crossroads with two choices, each trading in the run's real
 // resources (party HP, bonds, a one-fight edge).  Kept small and readable; the
@@ -8388,10 +8400,13 @@ function kindleBurst(node, onDone) {
 // ===========================================================================
 // TRAVELER ENCOUNTERS — you're all clawing out of the same abyss, and you cross
 // paths on the way up.  Recruitment is a short BG3-style CONVERSATION: what you
-// SAY across two beats decides how it lands.  There's only one way to travel
-// together — but the talk sets the TERMS:
+// SAY across two beats decides how it lands.  The talk sets the TERMS:
 //   friend  — you met them warm         → they walk with you, a bond already bound
 //   neutral — pragmatic / wary          → they walk with you, no bond yet (warmth is earned)
+//   decline — "not this time"           → nobody joins, nobody is wronged; they stay
+//                                          in the pool and can surface again, but the
+//                                          WARM opening is spent (Build 268)
+//   refuse  — you decline them TWICE    → they stop offering and leave the descent
 //   foe     — you crossed them          → they leave resentful and AMBUSH you later
 // It all lives on RUN and wipes on death — every descent the conversation can
 // go a different way and hand you a differently-tempered party.
@@ -8565,10 +8580,39 @@ function showReunion(n) {
     jcChoose(st, [
       { text: 'Always. Fall in.', tone: 2 },
       { text: 'We can use the hands. Keep pace.', tone: 0 },
+      Object.assign({}, DECLINE_OPT.guarded),
+    ]);
+  });
+}
+// ── TURNED AWAY (Build 268) — the second meeting, after you climbed on without
+// them.  They are not hostile; they are just no longer offering you the warm
+// version.  This is the price of "not yet": you can still take them, but only on
+// the wary terms, and refusing a second time ends it for the descent.
+const TURNED_AWAY_LINES = {
+  cassia:  'You walked past me once. I didn’t hold it against you — this place makes hard arithmetic of everyone. …The offer stands. It does not stand a third time.',
+  elin:    'You went on without me. I hope nobody in your line paid for that. …I’m still here. I’m still willing. Ask properly this time.',
+  mira:    'Oh, it’s you. You looked right at me and kept walking. …I’m not sulking. I’m just done pretending I don’t remember.',
+  branwen: 'I watched you leave. Counted you out of my number and everything. …Say the word and I’ll count you back in. Say it once.',
+  hask:    'You declined. I filed it, quite calmly, under *reasonable*. …I have since revised the entry twice. Well? Am I useful yet?',
+  ash:     'You left me on that landing. …I’m not asking why. I’m asking whether you’ve changed your mind.',
+};
+function showTurnedAway(n) {
+  const h = HEROES[n.hero];
+  const trav = Object.assign({}, TRAVELERS[n.hero] || TRAVELERS._default, { eyebrow: 'THE ONE YOU PASSED' });
+  const st = { n, trav, tone: 0, hostile: false, ally: null, _beat2: true, _turned: true };
+  const line = TURNED_AWAY_LINES[n.hero] || 'You passed me once already. …Changed your mind, or just lost?';
+  jcPlay(st, [{ side: 'them', speaker: h.name, text: line }], () => {
+    // tone is capped at 0 on purpose — the WARM opening is gone for good, so
+    // whatever you say here they walk in wary and the bond starts from nothing.
+    jcChoose(st, [
+      { text: 'I was wrong to leave you. Walk with us.', tone: 0 },
+      { text: 'Nothing has changed. Climb your own way.', tone: 0, refuse: true },
     ]);
   });
 }
 function showRecruit(n) {
+  // Someone you already turned away this descent gets the colder scene.
+  if (RUN && RUN.declined && RUN.declined[n.hero]) return showTurnedAway(n);
   // A hero you've already met is a lighter beat — no full unlock cutscene.
   if (getUnlockedStarters().includes(n.hero)) return showReunion(n);
   const trav = TRAVELERS[n.hero] || TRAVELERS._default;
@@ -8591,17 +8635,31 @@ function jcAdvance(st) {
   else st._onDone();
 }
 function jcChoose(st, opts) { st._opts = opts; jcRender(st, { choose: opts }); }
+// THE THIRD ANSWER (Build 268).  Every traveler used to end in exactly two
+// places: they walk with you, or you were cruel enough to make an enemy.  "No"
+// was only reachable through malice — so a party you could not field kept
+// growing, and a recruit node deep in a descent read as a reward while behaving
+// as a chore.  This is the honest refusal: no debt, no grudge, no ambush.
+const DECLINE_OPT = {
+  warm:    { text: 'You’d be welcome. …But our line is full, and I won’t promise you a place I can’t give.', tone: 0, decline: true },
+  guarded: { text: 'Not this time. Keep your own pace — the abyss isn’t so wide. We’ll cross again.', tone: 0, decline: true },
+  cold:    { text: 'Then we climb our own ways. No hard words. Good luck with the dark.', tone: 0, decline: true },
+};
 function jcPick(st, o) {
   st.tone += (o.tone || 0);
   if (o.hostile) st.hostile = true;
+  if (o.decline) st.declined = true;
+  if (o.refuse) st.refused = true;
   if (!st._beat2) {
     st._beat2 = true;
     st.bucket = toneBucket(o.tone || 0);
     jcPlay(st, [{ side: 'them', speaker: st.trav.speaker, text: st.trav.react[st.bucket] }],
-      () => jcChoose(st, st.trav.opts2[st.bucket].slice()));
+      () => jcChoose(st, st.trav.opts2[st.bucket].slice().concat([Object.assign({}, DECLINE_OPT[st.bucket] || DECLINE_OPT.guarded)])));
   } else {
     hideOverlay();
     if (st.hostile) return foeTraveler(st.n);
+    if (st.refused) return refuseTraveler(st.n);
+    if (st.declined) return declineTraveler(st.n);
     return joinTraveler(st.n, st.tone >= 2);   // warm total → friend; else a wary join
   }
 }
@@ -8697,6 +8755,32 @@ function joinTraveler(n, friend) {
     : `<b>${h.name}</b> falls in with you — pragmatic, watchful. Two climbers, one dark. The warmth will have to be earned on the way up.`;
   showTravelerOutcome(rid, friend ? '♡ A BOND IS FORMED' : 'A WARY ALLIANCE', h.name + ' WALKS WITH YOU', beat, false, rid);
 }
+// DECLINE — you climb on without them, and nothing is owed either way.  They
+// stay in the abyss, still climbing, so they stay in the recruit pool and can
+// surface again on this floor or a deeper one.  What it costs you is the WARM
+// opening: `showTurnedAway` caps the second meeting's tone, so a hero you passed
+// can only ever join wary, and their bond starts from nothing.
+function declineTraveler(n) {
+  const rid = n.hero, h = HEROES[rid];
+  RUN.declined = RUN.declined || {};
+  RUN.declined[rid] = (RUN.declined[rid] || 0) + 1;
+  if (!RUN.completed.includes(n.id)) RUN.completed.push(n.id);
+  saveRun();
+  showTravelerOutcome(rid, '◇ YOU CLIMB ON WITHOUT THEM', h.name + ' STAYS BEHIND',
+    `You leave <b>${h.name}</b> to their own climb, and neither of you owes the other anything for it. They are still down here, still going up — <b>the abyss is not so wide</b>.<br><br>But you don’t get to be a stranger twice. Cross paths again and <b>the warm terms are gone</b>: they walk in wary, or not at all.`, false, null);
+}
+// REFUSE — the second no.  They stop offering, and drop out of the descent's
+// recruit pool entirely (see `generateDescent`), so this floor and every floor
+// below it is one companion shorter.
+function refuseTraveler(n) {
+  const rid = n.hero, h = HEROES[rid];
+  RUN.refused = RUN.refused || [];
+  if (!RUN.refused.includes(rid)) RUN.refused.push(rid);
+  if (!RUN.completed.includes(n.id)) RUN.completed.push(n.id);
+  saveRun();
+  showTravelerOutcome(rid, '◇ THE OFFER IS WITHDRAWN', h.name + ' IS DONE ASKING',
+    `Twice now. <b>${h.name}</b> doesn’t argue it — they simply stop looking at you, and the dark takes them the way it takes everyone who climbs alone.<br><br>They will <b>not surface again this descent</b>. Whatever they knew goes up the other way.`, false, null);
+}
 // FOE — you wrong them, and they mark you for it.  They vanish, then spring an
 // AMBUSH at the next fight (a "vengeful <name>" built from their own kit).
 function foeTraveler(n) {
@@ -8707,10 +8791,18 @@ function foeTraveler(n) {
   if (!RUN.completed.includes(n.id)) RUN.completed.push(n.id);
   saveRun();
   showTravelerOutcome(rid, '⚔ A NAME AGAINST YOU', h.name + ' TURNS AWAY',
-    `You wrong <b>${h.name}</b>, and they mark you for it. They melt into the dark — but the reach is long, and they are <b>waiting on the road ahead</b>.`, true, rid);
+    `You wrong <b>${h.name}</b>, and they mark you for it. They melt into the dark — but the reach is long, and they are <b>waiting on the road ahead</b>.`, true, null);
+    // mustInclude is null: they did NOT join. It used to pass `rid`, which meant
+    // that wronging someone while you already had four in the roster PINNED your
+    // new enemy into the walking line.
 }
-// Shared cinematic outcome beat for friend / neutral / decline / foe.
+// Shared cinematic outcome beat for friend / neutral / decline / refuse / foe.
+// `mustInclude` is the hero who actually JOINED (null on every outcome where
+// nobody did), and it is also what decides whether the exit re-opens the line —
+// declining is now a way to keep your three and NOT be sent to the formation
+// editor for a party that did not change.
 function showTravelerOutcome(figId, eyebrow, title, beat, foe, mustInclude) {
+  const reline = !!mustInclude && RUN.roster.length > 3;
   showOverlay(`
     <div class="tc-bar tc-bar-t"></div>
     <div class="tc-bar tc-bar-b"></div>
@@ -8720,10 +8812,10 @@ function showTravelerOutcome(figId, eyebrow, title, beat, foe, mustInclude) {
       ${figId ? `<div class="tc-portrait${foe ? ' tc-foe-art' : ''}"><span class="tc-glow"></span><span class="tc-art">${V2PORTRAITS[figId] || ''}</span></div>` : '<div class="tc-portrait tc-portrait-empty"></div>'}
       <div class="tc-name">${title}</div>
       <div class="tc-scene tc-scene-wide">${beat}</div>
-      <div class="tc-choices"><button class="tc-choice tc-friend" id="rc-next"><span class="tc-c-label">${RUN.roster.length > 3 ? 'CHOOSE YOUR LINE' : 'ONWARD'}</span></button></div>
+      <div class="tc-choices"><button class="tc-choice tc-friend" id="rc-next"><span class="tc-c-label">${reline ? 'CHOOSE YOUR LINE' : 'ONWARD'}</span></button></div>
     </div>
   `, 'traveler-cine' + (foe ? ' tc-foe-scene' : ''));
-  $('#rc-next').onclick = () => { hideOverlay(); (RUN.roster.length > 3) ? showPartySelect(() => showMap(), mustInclude) : showMap(); };
+  $('#rc-next').onclick = () => { hideOverlay(); reline ? showPartySelect(() => showMap(), mustInclude) : showMap(); };
 }
 // A "vengeful traveler" enemy synthesized from a wronged hero's own kit — you
 // know how they fight, so they're weak to their own school.  Registered once.

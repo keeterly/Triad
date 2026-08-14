@@ -2421,6 +2421,98 @@ const QUICK = process.argv.includes('--quick');
       return RUN.roster.includes('branwen') && (RUN.bonds['ash|branwen'] || 0) >= 1;
     }));
 
+  // ---------- BUILD 268: THE THIRD ANSWER — you may decline without being cruel
+  // Until now the only "no" ran through `hostile`, so keeping your line of three
+  // meant WRONGING someone and eating an ambush for it. The roster grew past what
+  // you could field and a deep recruit node read as a reward while behaving as a
+  // chore. Decline is the honest refusal; refusing twice ends it.
+  const JCRUN = `(picks) => { let g = 0, pi = 0; while (g++ < 40) { const o = document.querySelectorAll('.jc-opt'); if (o.length) { const p = picks[pi++]; (typeof p === 'string' ? document.querySelector(p) : (o[p] || o[0])).click(); continue; } if (document.querySelector('.jc-next')) { document.querySelector('.jc-scene').click(); continue; } break; } }`;
+  check('DECLINE: the second beat offers a NOT-THIS-TIME that is not the hostile line',
+    await J(`(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash'];
+      const rn = RUN.map.find(n => n.type === 'recruit'); rn.hero = 'mira';
+      try { localStorage.setItem(STARTERS_KEY, JSON.stringify(['ash'])); } catch (_) {}
+      showRecruit(rn);
+      let g = 0;
+      while (g++ < 12 && !document.querySelectorAll('.jc-opt').length) document.querySelector('.jc-scene').click();
+      document.querySelectorAll('.jc-opt')[1].click();          // guarded → beat 2
+      g = 0; while (g++ < 12 && !document.querySelectorAll('.jc-opt').length) document.querySelector('.jc-scene').click();
+      const opts = [...document.querySelectorAll('.jc-opt')].map(o => o.textContent);
+      return opts.length === 3 && /Not this time/i.test(opts[2]);
+    })()`));
+  check('DECLINE: nobody joins, nobody is wronged — no roster growth, no foe queued',
+    await J(`(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash']; RUN.foes = []; RUN.foesMade = 0;
+      const rn = RUN.map.find(n => n.type === 'recruit'); rn.hero = 'mira';
+      try { localStorage.setItem(STARTERS_KEY, JSON.stringify(['ash'])); } catch (_) {}
+      showRecruit(rn);
+      (${JCRUN})([1, 2]);                                        // guarded, then decline
+      return !RUN.roster.includes('mira') && (RUN.declined || {}).mira === 1
+        && !(RUN.foes || []).length && !(RUN.foesMade || 0)
+        && RUN.completed.includes(rn.id)
+        && /STAYS BEHIND/.test((document.querySelector('.tc-name') || {}).textContent || '');
+    })()`));
+  check('DECLINE: they are still climbing — a declined hero stays in the recruit pool',
+    await J(`(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash']; RUN.declined = { mira: 1 }; RUN.refused = [];
+      let seen = false;
+      for (let k = 0; k < 30 && !seen; k++) seen = generateDescent(['ash'], 1).some(n => n && n.type === 'recruit' && n.hero === 'mira');
+      return seen;
+    })()`));
+  check('DECLINE: the second meeting is COLDER — the warm terms are gone, they join wary',
+    await J(`(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash']; RUN.bonds = {}; RUN.declined = { mira: 1 };
+      const rn = { id: 310, type: 'recruit', hero: 'mira', level: 4, col: 4 }; RUN.map[310] = rn;
+      try { localStorage.setItem(STARTERS_KEY, JSON.stringify(['ash'])); } catch (_) {}
+      showRecruit(rn);
+      const eyebrow = (document.querySelector('.jc-eyebrow') || {}).textContent || '';
+      (${JCRUN})([0]);                                           // take them back
+      return /THE ONE YOU PASSED/.test(eyebrow)
+        && RUN.roster.includes('mira') && (RUN.bonds['ash|mira'] || 0) === 0;   // wary only — never the bonded open
+    })()`));
+  check('REFUSE: turning them away twice ends it — they leave the descent’s pool',
+    await J(`(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash']; RUN.declined = { mira: 1 }; RUN.refused = [];
+      const rn = { id: 311, type: 'recruit', hero: 'mira', level: 4, col: 4 }; RUN.map[311] = rn;
+      try { localStorage.setItem(STARTERS_KEY, JSON.stringify(['ash'])); } catch (_) {}
+      showRecruit(rn);
+      (${JCRUN})([1]);                                           // refuse
+      let seen = false;
+      for (let k = 0; k < 30 && !seen; k++) seen = generateDescent(['ash'], 1).some(n => n && n.type === 'recruit' && n.hero === 'mira');
+      return (RUN.refused || []).includes('mira') && !RUN.roster.includes('mira') && !seen;
+    })()`));
+  check('DECLINE: a reunion can be waved off too (an already-met hero is not forced on you)',
+    await J(`(() => {
+      unlockStarter('branwen');
+      RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash']; RUN.declined = {};
+      const rn = { id: 312, type: 'recruit', hero: 'branwen', level: 3, col: 3 }; RUN.map[312] = rn;
+      showRecruit(rn);
+      (${JCRUN})([2]);
+      return !RUN.roster.includes('branwen') && (RUN.declined || {}).branwen === 1;
+    })()`));
+  check('MAP: a save with HOLES in it still renders — one missing node no longer strands the run',
+    await J(`(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash'];
+      const keep = RUN.map[3] && RUN.map[3].id;
+      delete RUN.map[3];                       // a truncated / partly-written save
+      let threw = false;
+      try { showMap(); } catch (_) { threw = true; }
+      return !threw && !!document.querySelector('.map-node')
+        && mapAll().every(Boolean) && keep != null && !mapNode(keep);
+    })()`));
+  check('FOE: wronging someone with a full roster no longer PINS your new enemy into the line',
+    await J(`(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash', 'elin', 'mira', 'hask']; RUN.active = ['ash', 'elin', 'mira'];
+      RUN.foes = []; RUN.foesMade = 0;
+      const rn = RUN.map.find(n => n.type === 'recruit'); rn.hero = 'cassia';
+      foeTraveler(rn);
+      const btn = document.querySelector('#rc-next');
+      const label = (btn.textContent || '');
+      btn.click();
+      return (RUN.foes || []).includes('cassia') && /ONWARD/.test(label)
+        && !RUN.active.includes('cassia') && !document.querySelector('.ps-card[data-id="cassia"]');
+    })()`));
+
   // ---------- EMERGENT GROWTH (tier-3 forge loops) ----------
   console.log('--- EMERGENT ---');
   check('EMERGENT: each party hero has an emergent node (tier 3+) that forges a temp card',
