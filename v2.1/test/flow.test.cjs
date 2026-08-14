@@ -3597,14 +3597,24 @@ const QUICK = process.argv.includes('--quick');
       S.momentum = 0; S.combo = 0; gainMomentum(100); const scaled = S.momentum;      // 100 → 60
       S.momentum = 0; S.combo = 0; gainMomentum(100, { raw: true }); const raw = S.momentum;  // 100 → 100
       return scaled === 60 && raw === 100; }));
-  // READY prompt — a woven L2/L3 container isn't urged to unleash a weak L1 at 100;
-  // the "ready" glow only lights once the container is charged to its level.  The
-  // all-out stays TAPPABLE at 100 (the escape hatch) even when not full.
-  check('BURST: the all-out fires ONLY when the container is full — no weak L1 that wastes a woven gauge',
+  // Build 257 REVERSED this. It used to assert that a woven L2/L3 gauge refuses
+  // to fire below its container — which is how bonding took an all-out away from
+  // a player who already had one. The concern it was protecting (spending a
+  // woven gauge on a weak Level 1) is real; the answer is to SAY so, not to
+  // decide for them.
+  check('BURST: a woven gauge can still fire at 100 — bonding never removes an all-out you had',
     await J(() => { setupFight(['ash', 'elin', 'mira'], [], {}); expandBurst(3);   // L3 container (cap 250)
-      S.momentum = 120; renderBurst(); const holding = !$('#burst').classList.contains('burst-ready') && !$('#burst').onclick && /HOLD/.test($('#burst-lbl').textContent);
-      S.momentum = 250; renderBurst(); const full = $('#burst').classList.contains('burst-ready') && !!$('#burst').onclick;
-      return holding && full; }));
+      S.momentum = 120; renderBurst();
+      const fires = $('#burst').classList.contains('burst-ready') && !!$('#burst').onclick;
+      const noLock = !/HOLD/.test($('#burst-lbl').textContent);
+      S.momentum = 250; renderBurst();
+      const stillFires = $('#burst').classList.contains('burst-ready') && !!$('#burst').onclick;
+      return fires && noLock && stillFires; }));
+  check('BURST: …and the LABEL advertises the tier you are cashing, so holding stays worth it',
+    await J(() => { setupFight(['ash', 'elin', 'mira'], [], {}); expandBurst(3);
+      S.momentum = 120; renderBurst(); const one = $('#burst-lbl').textContent;
+      S.momentum = 250; renderBurst(); const three = $('#burst-lbl').textContent;
+      return /ALL-OUT/.test(one) && /✦✦✦/.test(three) && one !== three; }));
   check('BURST: a WEAVE expands to L2 and the TRIAD crown to L3 (wired into awaken/ceremony)',
     await J(() => typeof expandBurst === 'function' && typeof allOutEncore === 'function'
       && awakenDuet.toString().includes('expandBurst(2')
@@ -4541,6 +4551,41 @@ const QUICK = process.argv.includes('--quick');
       return !!(ash.primed && ash.primed.type) && /PRIMED/.test(said)
         && /elin/i.test(said) && /bonds them/i.test(said); }),
     await J(() => 'narrator said: ' + (document.getElementById('narrator').textContent || '(nothing)')));
+
+  // ---------- PHASE 1 CUTS (Build 257) ----------
+  console.log('--- CUTS ---');
+  // THE BURST TRAP. burstCap() returned the container's level — 100, then 175,
+  // then 250 — so bonding a pair silently RAISED the bar and took away an
+  // all-out the player already had. burstFireLevel() reads MOMENTUM, so the
+  // payoff never depended on the cap at all.
+  // The firing threshold and the storage ceiling are DIFFERENT numbers, and
+  // conflating them is what made bonding feel like a punishment.
+  check('CUT: the ALL-OUT is always available at 100 — bonding can no longer take it away',
+    await J(() => { setupFight(['ash', 'elin', 'mira'], [], { ash: 'front', elin: 'mid', mira: 'back' });
+      S.momentum = 100; S.burstLevel = 1;
+      const atL1 = burstReady();
+      S.burstLevel = 3;                       // a fully woven triad
+      return atL1 === true && burstReady() === true && BURST_MIN === 100; }));
+  check('CUT: the gauge still HOLDS more when woven, or the richer tiers are unreachable',
+    await J(() => { setupFight(['ash'], [], { ash: 'front' });
+      // raw, or MOM_SCALE (0.6) turns 400 into 240 and never reaches the L3 ceiling
+      S.momentum = 0; gainMomentum(999, { raw: true }); const l1 = S.momentum;
+      expandBurst(3); S.momentum = 0; gainMomentum(999, { raw: true }); const l3 = S.momentum;
+      return l1 === 100 && l3 === 250 && burstFireLevel() === 3; }));
+  // VOW RANKS: recordVow was defined and never called, so every consumer was
+  // permanently dead code promising an effect nothing applied.
+  check('CUT: vow ranks are gone rather than pretending — no caller ever existed',
+    await J(() => vowRank('Ronin+Cleric+Reaver') === 1 && vowRank() === 1));
+  // ONE gold card, ONE concept. Two loops used to mint visually identical free
+  // cards under different eyebrows with no way to tell which had fired.
+  check('CUT: both free-card loops speak as one thing — the ANSWER',
+    await J(() => /✦ ANSWER/.test(offerFollowUp.toString())
+      && /✦ ANSWER/.test(offerBondFollow.toString())
+      && !/stance: '✦ FOLLOW-UP'/.test(offerFollowUp.toString())
+      && !/stance: '✦ WEAVE'/.test(offerBondFollow.toString())));
+  check('CUT: …and each one still says what it COSTS you or GIVES you',
+    await J(() => /BONDS them/.test(offerFollowUp.toString())
+      && /WOVEN/.test(offerBondFollow.toString())));
 
   t.report();
   await t.browser.close();

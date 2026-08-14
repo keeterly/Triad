@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 256;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 257;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -2316,15 +2316,15 @@ function offerFollowUp(actorId, triggerId) {
   if (S.tempCards.filter(c => !c.chain).length >= 3) return;
   const f = followUpFor(actorId, triggerId);
   const card = { kind: 'temp', follow: actorId, owner: actorId, ownerName: HEROES[actorId].name,
-    tint: 'var(--gold-bright)', stance: '✦ FOLLOW-UP', name: f.title, cost: 0, target: 'none',
+    tint: 'var(--gold-bright)', stance: '✦ ANSWER', name: f.title, cost: 0, target: 'none',
     fx: { followUp: { actor: actorId, trigger: triggerId, key: f.key, title: f.title } },
-    desc: `<b>${HEROES[actorId].name}</b> answers <b>${HEROES[triggerId].name}</b>’s combo — ${f.desc}. <i>Free · bonds them.</i>` };
+    desc: `<b>${HEROES[actorId].name}</b> answers <b>${HEROES[triggerId].name}</b>’s combo — ${f.desc}. <i>Free · <b>and it BONDS them</b>.</i>` };
   card.temp = true; card.uid = ++S._tuid; card.expiresTurn = S.turn;
   S.tempCards.push(card);
   S._tempNew = card.uid;
   try { SFX.card(); sparkThread(actorId, triggerId); } catch (_) {}
-  flashNarrator('✦ ' + HEROES[actorId].name.toUpperCase() + ' IS READY — ' + HEROES[triggerId].name
-    + '’s combo cues <b>' + f.title + '</b>.');
+  flashNarrator('✦ ANSWER — ' + HEROES[actorId].name + ' can answer ' + HEROES[triggerId].name
+    + '’s combo with <b>' + f.title + '</b>. Play it and it <b>bonds them</b>.');
   renderAll();
 }
 // A cue that went unanswered isn't lost: if two heroes are still standing
@@ -2452,10 +2452,10 @@ function offerBondFollow(attackerId) {
     if (S.tempCards.some(c => c.fx && c.fx.bondFollow && c.fx.bondFollow.key === key)) return;   // already offered
     S._assistedPairs.add(key);
     genTempCard({ kind: 'temp', follow: partnerId, owner: partnerId, ownerName: HEROES[partnerId].name,
-      tint: 'var(--gold-bright)', stance: '✦ WEAVE',
-      name: w.name, cost: 0, target: 'none',   // titled by the WEAVE so two offered follow-ups never share a name
+      tint: 'var(--gold-bright)', stance: '✦ ANSWER',
+      name: w.name, cost: 0, target: 'none',   // titled by the WEAVE so two offers never share a name
       fx: { bondFollow: { partnerId, attackerId, key, weave: w.name } },
-      desc: `<b>${HEROES[partnerId].name}</b> weaves in off <b>${HEROES[attackerId].name}</b>. <i>Free.</i>` });
+      desc: `<b>${HEROES[partnerId].name}</b> answers <b>${HEROES[attackerId].name}</b> — their bond is already <b>WOVEN</b>, so this is free every time. <i>Free.</i>` });
     try { sparkThread(a, b); } catch (_) {}
     weaveProc(duetClassKey(a, b));
     offered.push(HEROES[partnerId].name);
@@ -2464,7 +2464,7 @@ function offerBondFollow(attackerId) {
   // separate flashNarrator calls would overwrite each other (only the last showed).
   if (offered.length) {
     const who = offered.length === 1 ? offered[0] : offered.slice(0, -1).join(', ') + ' & ' + offered.slice(-1);
-    flashNarrator('✦ WEAVE — ' + who + ' can weave in off ' + HEROES[attackerId].name + '’s finisher!');
+    flashNarrator('✦ ANSWER — ' + who + ' answers ' + HEROES[attackerId].name + '’s finisher, free.');
   }
 }
 // A reusable JRPG CUT-IN — a hero's PORTRAIT slides in from the side to announce a
@@ -3038,8 +3038,13 @@ function saveAbyss(a) { try { localStorage.setItem(ABYSS_KEY, JSON.stringify(a))
 // numeric stages per rank above I).
 const VOWS_KEY = 'kizuna2_1.vows';
 function loadVows() { try { return JSON.parse(localStorage.getItem(VOWS_KEY) || '{}'); } catch (_) { return {}; } }
+// VOW RANKS were cut in Build 257: recordVow() was defined and never called
+// anywhere, so vowUses() was always 0, vowRank() always returned 1, and both
+// consumers (the Roman numeral on the vow title, the ranked boss quote) could
+// never fire. The header promised "+2 to the vow's numeric stages per rank" and
+// no code ever applied it. A system that cannot happen is not a system.
 function vowUses(classKey) { return loadVows()[classKey] || 0; }
-function vowRank(classKey) { const u = vowUses(classKey); return u >= 3 ? 3 : u >= 1 ? 2 : 1; }
+function vowRank() { return 1; }
 function recordVow(classKey) {
   const v = loadVows(); v[classKey] = (v[classKey] || 0) + 1;
   try { localStorage.setItem(VOWS_KEY, JSON.stringify(v)); } catch (_) {}
@@ -5320,6 +5325,21 @@ const MOM_SCALE = 0.6;   // Build 197 rebalance: combat momentum trimmed ~14% so
 // gauge has filled to (see burstFireLevel / resolveAllOut).  Additive & opt-in:
 // a fight that never bonds plays exactly like L1 always did.
 const BURST_CAPS = [100, 175, 250];
+// TWO DIFFERENT NUMBERS, conflated until Build 257:
+//
+//   burstCap()  — how much momentum the gauge can HOLD. gainMomentum clamps to
+//                 it, so bonds must keep raising it or 175/250 are unreachable.
+//   BURST_MIN   — the momentum at which the all-out can FIRE.
+//
+// burstReady() used to test against the CAP, so bonding a pair silently raised
+// the firing bar and took away an all-out the player already had: you did the
+// thing the game is named after and were punished with a longer wait. The stated
+// reason was to stop a woven gauge being spent on a weak Level 1 — a real
+// concern, but it was solved by removing the choice instead of surfacing it.
+//
+// Firing is pinned at 100 now and the tiers are advertised as what HOLDING pays.
+// Same information, opposite posture: an invitation to bank rather than a lock.
+const BURST_MIN = 100;
 function burstCap() { return BURST_CAPS[((S && S.burstLevel) || 1) - 1] || 100; }
 // The level the all-out will fire at RIGHT NOW — how far the container is filled.
 function burstFireLevel() { const m = (S && S.momentum) || 0; return m >= 250 ? 3 : m >= 175 ? 2 : m >= 100 ? 1 : 0; }
@@ -5339,30 +5359,35 @@ function gainMomentum(amt, opts) {
   // The "READY" beat now fires when the CONTAINER FILLS to its current level — so a
   // woven L2/L3 container isn't prompted to unleash a weak L1 at 100.  You build
   // toward your full burst; crossing an interior tier just charges quietly.
-  const cap = burstCap();
-  if (S.momentum >= cap && before < cap) {
-    const lv = S.burstLevel || 1;
-    flashNarrator(lv >= 3 ? '✦✦✦ BURST FULL — your ALL-OUT is TRANSCENDENT. Unleash it, then TAP each strike.'
-                : lv === 2 ? '✦✦ BURST FULL — your ALL-OUT is RESONANT. Unleash it, then TAP each strike.'
-                : '✦ BURST READY — unleash the ALL-OUT, then TAP each strike to chain it.');
+  // Announce READY at 100, and each richer tier as it is REACHED — every one of
+  // them is now a choice to fire or hold, never a lock.
+  BURST_CAPS.forEach((thr, i) => {
+    if (S.momentum < thr || before >= thr) return;
+    const top = (S.burstLevel || 1) >= i + 1;
+    if (i === 0) flashNarrator('✦ BURST READY — unleash the ALL-OUT now, or hold it and it hits harder.');
+    else if (top) flashNarrator((i === 2 ? '✦✦✦' : '✦✦') + ' BURST ' + (i === 2 ? 'TRANSCENDENT' : 'RESONANT')
+      + ' — your ALL-OUT is at its strongest. Unleash it, then TAP each strike.');
     SFX.triad();
-  }
+  });
 }
 // Grow the burst container.  Called when a DUET (L2) or the TRIAD vow (L3) lands —
 // the kizuna also pours in a chunk of charge so the bigger gauge feels reachable.
 // Persists for the rest of the fight (the container stays big; you refill it).
+// Bonds no longer grow the CONTAINER (that was the trap above) — they raise the
+// CEILING the all-out can pay if you choose to bank for it.
 function expandBurst(level, label, charge) {
   if (!S || ((S.burstLevel || 1) >= level)) { if (charge) gainMomentum(charge, { raw: true }); return false; }
   S.burstLevel = level;
   const burst = $('#burst');
   if (burst) { burst.classList.remove('burst-expand'); void burst.offsetWidth; burst.classList.add('burst-expand'); }
-  flashNarrator('✦ THE BURST EXPANDS — LEVEL ' + level + (label ? ' · ' + label : '') + '.');
+  flashNarrator('✦ YOUR ALL-OUT DEEPENS — it can now reach LEVEL ' + level + (label ? ' · ' + label : '')
+    + '. Hold the burst past ' + BURST_CAPS[level - 1] + ' to cash it.');
   if (SFX.triad) SFX.triad();
   if (charge) gainMomentum(charge, { raw: true });
   renderBurst();
   return true;
 }
-function burstReady() { return S && (S.momentum || 0) >= burstCap() && !S.executing && !S.over && !S._staging; }
+function burstReady() { return S && (S.momentum || 0) >= BURST_MIN && !S.executing && !S.over && !S._staging; }
 
 // ---------------------------------------------------------------------------
 // PARRY — a reactive timing window on enemy attacks (Clair Obscur flavor).
@@ -9195,11 +9220,12 @@ function renderBurst() {
     const lv = i + 2;
     return level >= lv ? `<span class="burst-tick bt-${lv}" style="left:${(thr / cap * 100).toFixed(1)}%"></span>` : '';
   }).join('');
-  // The all-out fires only when the CONTAINER is FULL — so a woven L2/L3 gauge is
-  // never accidentally spent on a weak L1 (it fires at its full, earned level).
-  // Below full, a widened gauge reads "HOLD" — charging, not tappable.
-  const full = burstReady();                          // burstReady() === momentum ≥ burstCap()
-  const holding = !full && (S.momentum || 0) >= MOM_MAX && level > 1;
+  // Build 257: the all-out is TAPPABLE from BURST_MIN. A widened gauge used to
+  // read "HOLD" and refuse the tap until it was full, which is how bonding took
+  // an all-out away. It still SAYS holding pays more — it just no longer decides
+  // for you.
+  const full = burstReady();                          // momentum ≥ BURST_MIN
+  const holding = false;
   const wasFull = burst.classList.contains('burst-ready');
   burst.classList.toggle('burst-ready', full);
   const fl = burstFireLevel();
