@@ -3732,13 +3732,18 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
 .bp-head { font-size: 10px; letter-spacing: 0.3em; color: var(--gold-bright); margin-bottom: 5px; }
 .bp-teach { font-size: 9.5px; line-height: 1.45; color: var(--ink-dim); margin-bottom: 8px; }
 .bp-teach b { color: var(--ink); }
-.bp-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid rgba(232,220,196,0.1); }
+/* The row carries the pair's WHOLE ladder now (points · state · what it needs ·
+   their move · where that move is), so it wraps: the identity line on top, the
+   move and its status on their own lines beneath. */
+.bp-row { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 8px; padding: 6px 0; border-top: 1px solid rgba(232,220,196,0.1); }
+.bp-pts { font-size: 8.5px; letter-spacing: 0.06em; color: var(--ink-dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.bp-move { flex: 1 1 100%; font-size: 8px; letter-spacing: 0.08em; color: var(--ink-faint); padding-left: 12px; }
+.bp-move b { color: var(--gold-bright); }
 .bp-pair { display: flex; align-items: center; gap: 5px; font-size: 9.5px; letter-spacing: 0.06em; color: var(--ink); flex: 1 1 auto; }
 .bp-pair i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; box-shadow: 0 0 4px rgba(0,0,0,0.6); }
 .bp-state { font-size: 8.5px; letter-spacing: 0.08em; white-space: nowrap; }
 .bp-state.bp-woven  { color: var(--gold-bright); }
-.bp-state.bp-bonded { color: #d8a0a0; }
-.bp-state.bp-sleep  { color: #b9a678; font-style: italic; }
+.bp-state.bp-bonded { color: #d8a0a0; }   /* ♡ LIT — this fight only */
 .bp-state.bp-none   { color: var(--ink-faint); }
 /* what an unformed pair still NEEDS — read live off the heroes' echoes.
    (Build 226 retired the "BOND · 1 EP" button that used to sit here: bonds are

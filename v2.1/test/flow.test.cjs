@@ -887,14 +887,20 @@ const QUICK = process.argv.includes('--quick');
     await J(() => {
       S.heroes.forEach(h => h.primed = null);
       S.heroes.find(h => h.id === 'ash').primed = { type: 'edge', name: 'x', expires: S.turn + 1, seq: 1 };
+      // pin the ladder state this asserts on: one pair LIT, the other two cold —
+      // then hand it straight back, because the TRIAD check below reads the very
+      // same threads and a silent wipe here fails it three tests later.
+      const _bonds = RUN.bonds, _threads = S.threads;
+      RUN.bonds = {}; S.threads = new Set([pairKey('ash', 'elin')]);
       showBondPanel();
       const el = document.querySelector('#bond-panel');
       const rows = el.querySelectorAll('.bp-row').length;
-      const bonded = /BONDED/.test(el.textContent);
+      const bonded = /♡ LIT/.test(el.textContent);
       const buttons = el.querySelectorAll('button, .bp-bond').length;
       const needs = el.querySelectorAll('.bp-need').length;
       const teaches = /PRIMED/.test(el.textContent) && /FOLLOW-UP/.test(el.textContent) && !/1 EP/.test(el.textContent);
       hideBondPanel();
+      RUN.bonds = _bonds; S.threads = _threads;
       return rows === 3 && bonded && buttons === 0 && needs === 2 && teaches;
     }));
   check('KIZUNA: a WOVEN pair’s edge breathes on the chip before its thread forms',
@@ -992,7 +998,7 @@ const QUICK = process.argv.includes('--quick');
       const label = /KIZUNA 0\/1/.test(el.textContent);
       showBondPanel();
       const rows = document.querySelectorAll('#bond-panel .bp-row').length === 1;
-      const duoTeach = /fights as one/.test(document.querySelector('#bond-panel').textContent);
+      const duoTeach = /◈ move/.test(document.querySelector('#bond-panel').textContent);
       hideBondPanel();
       return visible && oneEdge && label && rows && duoTeach;
     }));
@@ -4934,6 +4940,64 @@ const QUICK = process.argv.includes('--quick');
   // authored pair abilities firing silently behind a touch-invisible tooltip),
   // and the border stones, which were deliberately generic.
   console.log('--- BOND NODES ---');
+  // ---------- BUILD 270: ONE LADDER, ONE PLACE ----------
+  // Four numbers all called some flavour of "bond" lived in four screens: the
+  // descent's points, the fight's live thread, the arc stage, and whether the
+  // pair's node was taken. The panel is the one place that holds all of it, in
+  // one grammar, using the same words the rest of the game uses.
+  check('LADDER: a row carries the whole ladder — points, state, their move, and where that move is',
+    await J(`(() => {
+      try { localStorage.removeItem('kizuna2_1.bondgifts'); } catch (_) {}
+      setupFight(['ash','elin','mira'], [], { ash:'front', elin:'mid', mira:'back' });
+      RUN.bonds = { 'ash|elin': 2, 'ash|mira': 1 }; RUN.crossed = {}; S.threads = new Set();
+      showBondPanel();
+      const rows = [...document.querySelectorAll('#bond-panel .bp-row')];
+      const t = rows.map(r => r.textContent);
+      const woven = t.find(x => /ASH ─ ELIN/.test(x));
+      const partial = t.find(x => /ASH ─ MIRA/.test(x));
+      hideBondPanel();
+      return rows.length === 3
+        && /♡ 2\\/2/.test(woven) && /✦ WOVEN/.test(woven) && /RUNNING/.test(woven)
+        && /♡ 1\\/2/.test(partial) && !/✦ WOVEN/.test(partial)
+        && t.every(x => /◈/.test(x))                       // every pair's MOVE is named
+        && t.every(x => /ask for it at a|not taken yet|YOURS/.test(x));
+    })()`));
+  check('LADDER: LIT is this fight, WOVEN is the descent — and they are different words',
+    await J(`(() => {
+      setupFight(['ash','elin','mira'], [], { ash:'front', elin:'mid', mira:'back' });
+      RUN.bonds = {}; RUN.crossed = {}; S.threads = new Set(['ash|elin']);
+      showBondPanel();
+      const row = [...document.querySelectorAll('#bond-panel .bp-row')].find(r => /ASH ─ ELIN/.test(r.textContent));
+      const txt = row.textContent;
+      hideBondPanel();
+      return /♡ LIT/.test(txt) && !/✦ WOVEN/.test(txt) && !/BONDED/.test(txt);
+    })()`));
+  check('LADDER: the MOVE reports its real position — asked for, then taken',
+    await J(`(() => {
+      try { localStorage.removeItem('kizuna2_1.bondgifts'); } catch (_) {}
+      setupFight(['ash','elin','mira'], [], { ash:'front', elin:'mid', mira:'back' });
+      RUN.bonds = {}; RUN.crossed = {}; S.threads = new Set();
+      const read = () => { showBondPanel();
+        const r = [...document.querySelectorAll('#bond-panel .bp-row')].find(x => /ASH ─ ELIN/.test(x.textContent)).textContent;
+        hideBondPanel(); return r; };
+      const unasked = read();
+      markBondGift('ash','elin');
+      const asked = read();
+      RUN.crossed = { ash: [bondNodeFor('ash','elin').id] };
+      const taken = read();
+      return /ask for it at a/.test(unasked) && /not taken yet/.test(asked)
+        && /YOURS/.test(taken) && /RUNNING/.test(taken);
+    })()`));
+  check('VOCAB: one word per thing — no RESONANCE badge, no KINDLED on an owned node',
+    await J(`(() => {
+      setupFight(['ash','elin','mira'], [], { ash:'front', elin:'mid', mira:'back' });
+      RUN.bonds = { 'ash|elin': 2 }; renderResonance();
+      const badge = document.querySelector('#resonance');
+      const label = badge ? badge.textContent : '';
+      return /KIZUNA/.test(label) && !/RESONANCE/.test(label)
+        && !/✓ KINDLED/.test(showEmberTree.toString())    // an OWNED node is TAKEN — "kindled" is a bond word
+        && /✓ TAKEN/.test(showEmberTree.toString());
+    })()`));
   check('BOND NODE: one per pair, carrying that pair’s own authored ability',
     await J(() => BOND_NODES.length === 15 && EMBER_TREE.filter(n => n.bond).length === 15
       && BOND_NODES.every(n => { const [a, b] = n.pair.split('|');

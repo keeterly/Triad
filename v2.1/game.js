@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 269;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 270;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -9841,16 +9841,16 @@ function renderResonance() {
   const ready = !!S.triadFormed;
   el.classList.toggle('rz-ready', ready);
   el.classList.toggle('rz-ripe', ripe);
-  const label = ready ? '✦ TRIAD · ALL-OUT CROWNED' : duo ? 'KIZUNA ' + formed + '/1' : 'RESONANCE ' + formed + '/3';
+  const label = ready ? '✦ TRIAD · ALL-OUT CROWNED' : '♡ KIZUNA ' + formed + '/' + (duo ? 1 : 3);
   el.innerHTML = `<svg viewBox="-3 -3 52 48" class="rz-svg">${fill}${edges}${dots}</svg><span class="rz-lbl">${label}</span>${ripe ? '<span class="rz-ripe-pip" title="A FOLLOW-UP is open — play it to bond the pair">✦</span>' : ''}`;
   // The bond panel is the only always-available explanation of the loop, and it
   // sat behind a tap with no title, no hint and a desktop-only hover glow — on a
   // touch game with a PWA manifest, effectively undiscoverable.
-  el.title = 'RESONANCE — tap to see each pair: who is bonded, who is close, and what they need.';
+  el.title = 'KIZUNA — tap to see each pair: how deep the bond is, whether it is LIT or WOVEN, and what their move is.';
   el.classList.toggle('rz-ripe', !!ripe);
   el.onclick = () => { if (_bondPanelEl) hideBondPanel(); else showBondPanel(); };
   if (!el._taught && formed === 0 && live.length >= 2) { el._taught = 1;
-    setTimeout(() => lesson('resonance', '◮ TAP THE RESONANCE BADGE — it names every pair, how close they are, and exactly what each one still needs to bond.', 2), 1400); }
+    setTimeout(() => lesson('resonance', '◮ TAP THE KIZUNA BADGE — it names every pair, how deep the bond runs, and exactly what each one still needs.', 2), 1400); }
 }
 // ♡ SIGNPOST — an ally-target card whose play could form a NEW bond wears a
 // small heart, so cause-and-effect reads BEFORE the card is committed.
@@ -9883,28 +9883,47 @@ function showBondPanel() {
     const t = h && h.primed && PRIME_TYPES[h.primed.type];
     return t ? `<b>${t.glyph}</b>` : '<span class="bp-need-miss">◦</span>';
   };
+  // ONE LADDER, ONE PLACE (Build 270).  Four different numbers all called some
+  // flavour of "bond" used to live in four different screens: the run's points,
+  // the fight's live thread, the arc stage, and whether the pair's node was
+  // taken.  Nobody could hold that.  The panel now shows the whole ladder for
+  // each pair, in one grammar, with the same words the rest of the game uses:
+  //
+  //   ♡ n/2   what this descent has earned them
+  //   ♡ LIT   their bond is live for THIS fight (a deed lit it)
+  //   ✦ WOVEN they walk in connected, every fight, for the rest of the descent
+  //   ◈ <move> their own ability — asked for at a fire, taken on the lattice
   const row = ([a, b]) => {
     const key = pairKey(a, b);
-    const threaded = S.threads.has(key), woven = bondPts(key) >= BOND_KINDLED;
-    const state = threaded && woven ? '<span class="bp-state bp-woven">✦ WOVEN</span>'
-      : threaded ? '<span class="bp-state bp-bonded">♡ BONDED</span>'
-      : woven ? '<span class="bp-state bp-sleep">✦ woven · sleeping</span>'
+    const lit = S.threads.has(key), woven = bondPts(key) >= BOND_KINDLED;
+    const pts = Math.min(bondPts(key), BOND_KINDLED);
+    const state = woven ? '<span class="bp-state bp-woven">✦ WOVEN</span>'
+      : lit ? '<span class="bp-state bp-bonded">♡ LIT</span>'
       : '<span class="bp-state bp-none">—</span>';
-    const need = threaded ? ''
+    const need = (lit || woven) ? ''
       : primeReady(a, b) ? '<span class="bp-need bp-ready">✦ READY — play their FOLLOW-UP</span>'
       : `<span class="bp-need">both must be ${primeTag(a)} + ${primeTag(b)} <i>primed</i></span>`;
     const perk = duetPerkFor(a, b);
+    // The fourth rung, which the panel never showed at all: their MOVE, and
+    // exactly where it is on the way to being yours.
+    const held = bondNodeHeld(a, b), offered = bondGiftHeld(a, b);
+    const running = held || lit || woven;
+    const moveWhere = held ? '<b>YOURS</b>'
+      : offered ? 'on the lattice — <b>not taken yet</b>'
+      : 'ask for it at a <b>fire</b>';
     return `<div class="bp-row">
       <span class="bp-pair"><i style="background:${HEROES[a].tint}"></i><i style="background:${HEROES[b].tint}"></i> ${HEROES[a].name} ─ ${HEROES[b].name}</span>
+      <span class="bp-pts">♡ ${pts}/${BOND_KINDLED}</span>
       ${state}${need}
-      <span class="bp-perk${threaded ? ' bp-perk-live' : ''}">${perk.icon} <b>${perk.name}</b> — ${perk.desc}</span>
+      <span class="bp-perk${running ? ' bp-perk-live' : ''}">◈ <b>${perk.name}</b> — ${perk.desc}</span>
+      <span class="bp-move">${running ? '<b>RUNNING</b> · ' : ''}${moveWhere}</span>
     </div>`;
   };
   const el = document.createElement('div');
   el.id = 'bond-panel';
   el.innerHTML = `
     <div class="bp-head">♡ KIZUNA</div>
-    <div class="bp-teach">Finish a hero's <b>combo</b> and they stand <b>PRIMED</b>. When another hero finishes theirs, the primed hero's <b>FOLLOW-UP</b> opens in your hand — play it to <b>BOND</b> them. ${pairs.length === 1 ? 'A bonded pair fights as one, its <b>duet perk</b> live while both stand.' : 'Bond all three to <b>crown the ALL-OUT</b>.'}</div>
+    <div class="bp-teach">Finish a hero's <b>combo</b> and they stand <b>PRIMED</b>. When another hero finishes theirs, the primed hero's <b>FOLLOW-UP</b> opens in your hand — play it and their bond goes <b>♡ LIT</b> for this fight. Two of those and the pair is <b>✦ WOVEN</b>: connected from turn one, every fight after. ${pairs.length === 1 ? 'A pair’s <b>◈ move</b> runs while both stand.' : 'Weave all three to <b>crown the ALL-OUT</b>.'}</div>
     ${pairs.map(row).join('')}`;
   $('#stage').appendChild(el);
   _bondPanelEl = el;
@@ -10504,11 +10523,15 @@ function showHowTo(back) {
       <div class="ht-head">Bonds — the KIZUNA loop</div>
       <div class="ov-line"><b>Finish a combo, stand PRIMED.</b> When a hero plays the last card of their line, they hold their stance — ready to follow up. <i>Which</i> stance depends on <i>which</i> line you ran: <b>⚔ EDGE</b>, <b>◎ MARK</b> or <b>⛨ WARD</b>.</div>
       <div class="ov-line"><b>Another hero's combo cues them in.</b> The moment a second hero finishes theirs, the <b>primed</b> hero's <b>FOLLOW-UP</b> opens in your hand — free. Their stance decides what they do; the hero they answer adds a bonus on top.</div>
-      <div class="ov-line"><b>Playing it BONDS the pair</b>, and that pair's <b>duet perk</b> stays live for the rest of the fight while both stand. Answer each other again and the bond <b>deepens</b>. Helping an ally directly bonds them too.</div>
-      <div class="ov-line">Fight together across battles and a bond deepens into a <b>WEAVE</b>: play a <b>FINISHER</b> with one and their partner <b>weaves in</b> a free strike.</div>
-      <div class="ov-line">Bond all three and they <b>empower your ALL-OUT</b> — ending it in a <b>TRIAD FINALE</b>.</div>
+      <div class="ov-line"><b>Playing it lights the bond — ♡ LIT</b> — for the rest of this fight, and that pair's <b>◈ move</b> runs while both stand. Helping an ally directly lights one too.</div>
+      <div class="ov-line">A bond that gets lit again <b>deepens</b>. At <b>♡ 2/2</b> it is <b>✦ WOVEN</b>: from then on they walk into every fight already connected, and a <b>FINISHER</b> from one <b>weaves in</b> a free strike from the other.</div>
+      <div class="ov-line">Weave all three and they <b>empower your ALL-OUT</b> — ending it in a <b>TRIAD FINALE</b>. Tap the <b>♡ KIZUNA</b> badge in a fight to see every pair's whole ladder at once.</div>
       <div class="ht-head">Between fights</div>
       <div class="ov-line"><b>Grow stronger.</b> Winning earns <b>✦ embers</b> — spend them on your <b>Ember Tree</b> to unlock new cards. Take companion <b>gifts</b>, and <b>rest</b> at campfires to heal.</div>
+      <div class="ht-head">The fire asks a question</div>
+      <div class="ov-line">At a campfire, <b>SHARE THE FIRE</b> gives the night to the pair who did the most for each other, and their scene ends on a choice you only get one of:</div>
+      <div class="ov-line"><b>◈ Ask what they are together</b> — their own move opens on the lattice, permanently, for this descent and every one after.</div>
+      <div class="ov-line"><b>◇ Ask what they remember</b> — nobody down here remembers falling in. Two accounts compared is the only way to recover any of it. Every third piece you assemble makes <b>every bond you form hold one step deeper, forever</b>. Read what you have under <b>WHAT WE KNOW</b>.</div>
       <div class="ov-line ht-tip">Tip: press &amp; hold any card to read it up close.</div>
     </div>
     <button class="ov-btn primary" id="ht-back">◂ BACK</button>
@@ -11192,7 +11215,7 @@ function showEmberTree(onBack, heroId, selId, opts) {
   } else if (sel) {
     const st = nodeState(sel);
     const reqNames = (sel.requires || []).filter(r => !hasNode(r)).map(r => NODE_BY_ID[r].label);
-    const action = st === 'owned' ? '<span class="et-d-owned">✓ KINDLED</span>'
+    const action = st === 'owned' ? '<span class="et-d-owned">✓ TAKEN</span>'
       : st === 'sealed' ? `<span class="et-d-lock">descend deeper to unseal tier ${sel.tier}</span>`
       : st === 'needs' ? `<span class="et-d-lock">needs ${reqNames.join(' · ')}</span>`
       : `<button class="et-d-buy${st === 'poor' ? ' et-d-cant' : ''}" id="et-buy" ${st === 'poor' ? 'disabled' : ''}>KINDLE · ✦ ${sel.cost}</button>`;
