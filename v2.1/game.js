@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 261;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 262;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -2646,7 +2646,7 @@ const FLOW = [
     { text: 'Three now — a triangle. A deepened bond becomes a <b>WEAVE</b>: play a <b>FINISHER</b> with one and their partner <b>weaves in</b> a free strike. Bond all three and they <b>crown your ALL-OUT</b> with a <b>TRIAD FINALE</b> — one grand blow only your exact three can land.' },
   ]},
   { type: 'fight', chapter: 3, heroes: ['ash', 'elin', 'mira'], enemies: ['echoknight', 'cultist'],
-    narrator: 'Help one another until all three bonds hold. Land hits &amp; parries to fill BURST, then unleash your ALL-OUT.' },
+    narrator: 'Help one another until all three bonds hold. Land hits and parries to fill BURST, then unleash your ALL-OUT.' },
   // THE RHYTHM (Build 255) — the tutorial used to describe rotations in prose
   // and then hand the player a descent that ran them for real. This beat lets
   // them PLAY one first, on a single foe, with nothing else to think about.
@@ -2662,11 +2662,9 @@ const FLOW = [
   { type: 'story', chapter: 3, title: 'THE ROAD DOWN', eyebrow: 'THE DESCENT', lines: [
     { text: 'The tutorial road ends at a cliff’s edge. Below waits the <b>Descent</b> — and the Abyss beneath it.' },
     { text: 'You have felt the rhythm now. That short combo is all you start with; how it <b>grows</b> is up to you.' },
-    { spk: 'ASH', text: 'A strike and a killing blow. Everything between them, I earn.' },
-    { text: 'The dead give up <b>✦ embers</b>. Between fights, open your party’s <b>Ember Tree</b> and spend them — a <b>combo</b> node <b>inserts a middle strike</b> (opener → combo → finisher), and a <b>fork</b> node opens a <b>second line</b> off the opener (play it, pick one path, the other burns away). Grow each rotation one earned choice at a time. Only for the heroes you field, and only for <b>this descent</b>.' },
-    { text: 'Every trio you form <b>fights differently</b> — their bonds, weaves and finale are all their own — so <b>who walks beside whom is your build</b>. And when a party falls, the Abyss remembers where — your next descent finds their ashes still warm.' },
-    { text: 'Everyone you will meet on this road is walking the <b>other way</b>. Let them. Someone has to walk <b>toward the singing</b>.' },
-    { spk: 'MIRA', text: 'Down, then. Stay close. …That’s not sentiment. It’s tactics.' },
+    { spk: 'ASH', text: 'A strike and a killing blow — and no one beside me yet. Everything between them, I earn.' },
+    { text: 'The dead give up <b>✦ embers</b>. The <b>Ember Tree</b> waits on the road below — it will show you what to do with them.' },
+    { spk: 'MIRA', text: 'Down, then. …And you go alone from here. Find the others before something finds you.' },
   ], next: 'descent' },
 ];
 
@@ -5802,13 +5800,37 @@ function parryBaitNote(ax, ay, dur) {
 // chain; taking one fork BURNS the other. A rule you are never told is not
 // depth, it is a trap, and it is most of why the hand felt like something to
 // spam rather than something to solve.
+// The banner itself. Everything that teaches shares this and nothing else.
+function showCoach(msg) {
+  let el = document.getElementById('parry-coach');
+  if (!el) { el = document.createElement('div'); el.id = 'parry-coach'; $('#stage').appendChild(el); }
+  el.textContent = msg;
+  el.classList.remove('pc-hide'); void el.offsetWidth; el.classList.add('pc-show');
+  clearTimeout(el._t); el._t = setTimeout(() => { el.classList.remove('pc-show'); }, 2800);
+}
+// ── EVERY RULES LESSON WAS SILENTLY DISCARDED (fixed Build 262) ──
+//
+// lesson() delegated to parryCoach, which buckets a message by gesture keyword —
+// HOLD / SWIPE / MASH, else 'tap' — and hard-returns after two uses of that
+// bucket. None of the rules lessons contain those words, so every one of them
+// landed in the 'tap' bucket, which the PARRY coach exhausts in tutorial fights
+// one and two. From fight three onward every rule this game tried to teach was
+// dropped on the floor — while lesson() returned true and recorded itself as
+// taught, so it never retried either.
+//
+// Dead this whole time: fincost, purge, fork (the three rotation rules the
+// comment above calls traps), bond, technical, primed, resonance. Build 255
+// shipped a teaching layer that never once rendered.
+//
+// lesson() owns its own throttle and its own display now; parryCoach stays a
+// gesture-throttled wrapper over the same banner.
 function lesson(key, msg, times) {
   const k = 'kizuna2_1.lesson_' + key;
   let seen = 0;
   try { seen = parseInt(localStorage.getItem(k) || '0', 10) || 0; } catch (_) {}
   if (seen >= (times || 2)) return false;
   try { localStorage.setItem(k, String(seen + 1)); } catch (_) {}
-  parryCoach(msg);
+  showCoach(msg);
   return true;
 }
 function parryCoach(msg) {
@@ -5818,11 +5840,7 @@ function parryCoach(msg) {
   try { n = parseInt(localStorage.getItem(key) || '0', 10) || 0; } catch (_) {}
   if (n >= 2) return;
   try { localStorage.setItem(key, String(n + 1)); } catch (_) {}
-  let el = document.getElementById('parry-coach');
-  if (!el) { el = document.createElement('div'); el.id = 'parry-coach'; $('#stage').appendChild(el); }
-  el.textContent = msg;
-  el.classList.remove('pc-hide'); void el.offsetWidth; el.classList.add('pc-show');
-  clearTimeout(el._t); el._t = setTimeout(() => { el.classList.remove('pc-show'); }, 2800);
+  showCoach(msg);
 }
 // Non-linear rhythm for multi/seq runs: notes carry GROOVE, not an even
 // metronome.  Durations stay in the reactive-friendly band while VARYING, and
@@ -6922,6 +6940,9 @@ async function unleashCast(h) {
 // END TURN → enemy phase → next turn
 // ---------------------------------------------------------------------------
 async function endTurn() {
+  // the held opening brief has done its job once the player has taken a turn
+  if (S && S._narrHeld) { S._narrHeld = false; const nEl = $('#narrator');
+    if (nEl) setTimeout(() => { if (S && !S._narrHeld) nEl.innerHTML = ''; }, 1200); }
   if (S.executing || S.over || S._staging) return;
   S.executing = true;
   $('#stage').classList.add('executing');
@@ -7500,7 +7521,7 @@ function startFight(node) {
   _partyFigs = {};   // and fresh party figures (drag closures capture this fight's hero objects)
   _enemyFigs = {};   // and fresh enemy-line figures (same reuse cache as the party)
   hideOverlay();
-  flashNarrator(node.narrator || '');
+  flashNarrator(node.narrator || '', !!node.narrator);   // hold the brief until they act (Build 262)
   renderAll();
   // ESTABLISHING SHOT — a fight opens pushed in and TILTED, then breathes out
   // to true over a beat and a half.  Costs nothing and every encounter now
@@ -7547,6 +7568,8 @@ function showStory(node) {
 // ---------------------------------------------------------------------------
 function startDescent() {
   if (!RUN || RUN.done) RUN = newRun();
+  // The tutorial is FINISHED here — this is where "seen" becomes true (Build 262).
+  try { localStorage.setItem(TUTORIAL_KEY, '1'); } catch (_) {}
   try { localStorage.setItem(PROGRESS_KEY, String(FLOW.length)); } catch (_) {}
   saveRun();
   showMap();
@@ -9910,8 +9933,15 @@ function showHowTo(back) {
 // fight background) and the entry gate are left alone.
 function resetProgress() {
   [STARTERS_KEY, LAST_STARTER_KEY, PROGRESS_KEY, RUN_KEY, ABYSS_KEY, VOWS_KEY, META_KEY, ARCS_KEY,
-   'kizuna2_1.treeTaught', 'kizuna2_1.parryLessons', 'kizuna2_1.strikeLessons']
+   TUTORIAL_KEY, 'kizuna2_1.treeTaught']
     .forEach(k => { try { localStorage.removeItem(k); } catch (_) {} });
+  // …and every per-lesson counter, by prefix. Naming them individually meant
+  // naming two keys that never existed while missing the dozen that do.
+  try {
+    Object.keys(localStorage)
+      .filter(k => k.indexOf('kizuna2_1.lesson_') === 0 || k.indexOf('kizuna2_1.parryLesson_') === 0)
+      .forEach(k => localStorage.removeItem(k));
+  } catch (_) {}
   RUN = null; S = null; flowIdx = 0; META.heat = 0;
 }
 let _devResetArmed = false;
@@ -10685,7 +10715,12 @@ function tutorialSeen() { try { return !!localStorage.getItem(TUTORIAL_KEY); } c
 // payoff they're building toward.  Veterans (tutorialSeen) skip straight to the
 // survivor-select + fast solo start.
 function beginTutorial() {
-  try { localStorage.setItem(TUTORIAL_KEY, '1'); localStorage.removeItem(RUN_KEY); localStorage.setItem(LAST_STARTER_KEY, 'ash'); } catch (_) {}
+  // NOT tutorialSeen here (Build 262): this fires before the first story line
+  // renders, so quitting anywhere in onboarding used to mark the player taught
+  // forever — CONTINUE then dropped them onto the descent map having been shown
+  // nothing, and NEW GAME went to survivor-select. It is set when the tutorial
+  // is FINISHED, in startDescent.
+  try { localStorage.removeItem(RUN_KEY); localStorage.setItem(LAST_STARTER_KEY, 'ash'); } catch (_) {}
   RUN = newRun('ash');
   flowIdx = 0;
   try { localStorage.setItem(PROGRESS_KEY, '0'); } catch (_) {}

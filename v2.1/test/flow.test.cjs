@@ -32,7 +32,23 @@ const QUICK = process.argv.includes('--quick');
   check('ONBOARDING: a first-time player gets the TUTORIAL (not the solo start)',
     await J(() => { try { localStorage.removeItem('kizuna2_1.tutorialSeen'); } catch (_) {}
       const seenBefore = tutorialSeen(); beginTutorial();
-      return !seenBefore && flowIdx === 0 && FLOW[0].title === 'ONE SURVIVOR' && tutorialSeen() === true; }));
+      return !seenBefore && flowIdx === 0 && FLOW[0].title === 'ONE SURVIVOR'; }));
+  // Build 262 REVERSED the line this used to assert. tutorialSeen was set the
+  // instant NEW GAME was pressed, so quitting anywhere in onboarding marked the
+  // player taught FOREVER: CONTINUE then dropped them on the descent map having
+  // been shown nothing, and NEW GAME went to survivor-select. It is set when the
+  // tutorial is FINISHED now.
+  check('ONBOARDING: starting the tutorial does NOT yet count as having seen it',
+    await J(() => tutorialSeen() === false));
+  check('ONBOARDING: finishing it does — the flag lives at the end of the road',
+    await J(() => { startDescent(); return tutorialSeen() === true; }));
+  check('ONBOARDING: a reset really can reach a first run again (lesson counters included)',
+    await J(() => { try { localStorage.setItem('kizuna2_1.lesson_fork', '9');
+        localStorage.setItem('kizuna2_1.parryLesson_tap', '9'); } catch (_) {}
+      resetProgress();
+      return tutorialSeen() === false
+        && !localStorage.getItem('kizuna2_1.lesson_fork')
+        && !localStorage.getItem('kizuna2_1.parryLesson_tap'); }));
   // mark the tutorial seen so the rest of onboarding exercises the veteran survivor-select.
   // (Invoke the button handler directly: the title cinematic intercepts raw taps.)
   await J(() => { try { localStorage.setItem('kizuna2_1.tutorialSeen', '1'); } catch (_) {} showTitle(); });
