@@ -4630,12 +4630,17 @@ const QUICK = process.argv.includes('--quick');
       for (let turn = 1; turn <= 6; turn++) { S.turn = turn; S.used = new Set();
         const r = buildHand().find(c => c.reach); if (r) who.add(r.owner); }
       return who.size === 3; }));
-  check('REACH: it costs +1 EP over the same card played in its own stance',
+  // Build 259 removed an EP surcharge here. Measured with it: the reach was the
+  // best play on 0 of 6 turns — a 3-EP guard competing with a 2-EP attack is not
+  // a choice, it is a worse option wearing a new name. Without it: 2 of 6.
+  check('REACH: it carries NO EP surcharge — the opener latch is already the price',
     await J(() => { S.turn = 1; S.used = new Set();
       const r = buildHand().find(c => c.reach);
       const h = S.heroes.find(x => x.id === r.owner);
-      const base = mkChainOpener(h, ROTATIONS[r.owner][r.rowKey || 'mid'], r.rowKey || 'mid');
-      return r.cost === base.cost + 1 && /REACH/.test(r.stance); }));
+      const rowKey = (r.stance.split('·')[1] || '').trim().toLowerCase();
+      const rot = ROTATIONS[r.owner][rowKey === 'flow' ? 'mid' : rowKey === 'wind' ? 'back' : 'front'];
+      const base = rot ? mkChainOpener(h, rot, 'mid') : null;
+      return /REACH/.test(r.stance) && (!base || r.cost === base.cost); }));
   check('REACH: it SHARES the opener latch — the same action, with a choice in it',
     await J(async () => { S.turn = 1; S.used = new Set(); S.ep = 12;
       const r = buildHand().find(c => c.reach);

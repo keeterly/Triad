@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 258;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 259;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -3537,10 +3537,15 @@ function buildHand() {
       const rr = reachFor(h);
       if (rr) {
         const alt = mkChainOpener(h, rr.rot, rr.row);
-        alt.cost = (alt.cost || 0) + 1;                       // reaching outside your stance costs
+        // NO EP TAX (Build 259). Measured: with +1 EP the reach was never the
+        // best play on any turn — a 3-EP Cover competing with a 2-EP Cleave is
+        // not a choice, it is a worse option wearing a new name. The cost of
+        // reaching is already real and already paid: it SPENDS this hero's
+        // opener, so taking it means giving up the line you are standing in.
+        // Charging EP on top of that priced the whole feature out of the game.
         alt.reach = true;
         alt.stance = 'REACH · ' + STANCE[rr.row].name.toUpperCase().replace(/ STANCE$/, '');
-        alt.desc = (alt.desc || '') + ' <i>Reaching out of stance — <b>+1 EP</b>, and it spends this hero\u2019s opener.</i>';
+        alt.desc = (alt.desc || '') + ' <i>Reaching out of stance — this spends ' + h.def.name + '\u2019s opener instead of their own line.</i>';
         if (!alt.spent) hand.push(alt);
       }
       (chainTemps[h.id] || []).forEach(t => hand.push(t));   // forged steps sit in this hero's slot
