@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 270;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 271;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -2152,12 +2152,12 @@ const BOND_WEAVE = {
 // vocabulary (incoming / dmgMod / kill / turnStart / card), so the existing
 // dispatch carries all of it — no new seams.
 const DUET_PERKS = {
-  'Cleric+Ronin': { line: ['Stay in front. I have you.', 'Then I don\'t have to look back.'], desc: 'the Cleric’s ward rides the Ronin’s blade — the <b>Ronin takes 1 less</b> from every hit',
-    make: (a, b) => { const r = HEROES[a].cls === 'Ronin' ? a : b;
-      return { trigger: 'incoming', mod: (h) => (h && h.id === r ? -1 : 0) }; } },
-  'Reaver+Ronin': { line: ['You opened it — I\'ll finish it.', 'Where you cut, I cut deeper.'], desc: 'strike where the other struck — <b>+2 damage</b> on a foe your partner already hit this turn',
-    make: (a, b) => ({ trigger: 'dmgMod', mod: (o, t) => (o && t && (o.id === a || o.id === b)
-      && ((t._hitBy || []).indexOf(o.id === a ? b : a) >= 0) ? 2 : 0) }) },
+  'Cleric+Ronin': { line: ['Stay in front. I have you.', 'Then I don\'t have to look back.'],
+    desc: 'the Cleric gets there before the next blow — <b>when any ally falls under half</b>, she mends them <b>8</b> and sets <b>⛨4</b>. Once a fight.',
+    strike: true, make: () => ({}) },
+  'Reaver+Ronin': { line: ['You opened it — I\'ll finish it.', 'Where you cut, I cut deeper.'],
+    desc: 'two blades into one opening — <b>when a foe BREAKS</b>, both of them cut it for <b>7</b>. Once a fight.',
+    strike: true, make: () => ({}) },
   'Cleric+Reaver': { line: ['Killing is not the end of it.', 'Then mend what I leave standing.'], desc: 'mercy follows the knife — every kill <b>mends the most-wounded ally 2</b>',
     make: (a, b) => ({ trigger: 'kill', apply: () => { const t = lowestHpAlly();
       if (t && t.hp < t.maxHp) { t.hp = Math.min(t.maxHp, t.hp + 2); popupAt(figEl(t.id), '✚2', 'heal'); } } }) },
@@ -2169,15 +2169,15 @@ const DUET_PERKS = {
   'Guardian+Reaver': { line: ['I\'ll hold it still.', 'That\'s all I ever needed.'], desc: 'the wall holds them, the whisper opens them — the <b>Reaver strikes +2</b> into the FRONT row',
     make: (a, b) => { const r = HEROES[a].cls === 'Reaver' ? a : b;
       return { trigger: 'dmgMod', mod: (o, t) => (o && t && o.id === r && t.row === 'front' ? 2 : 0) }; } },
-  'Ranger+Ronin': { line: ['Marked. Go.', 'I see it — I\'m already moving.'], desc: 'she marks, he charges — the <b>Ronin strikes marked prey +2</b>',
-    make: (a, b) => { const r = HEROES[a].cls === 'Ronin' ? a : b;
-      return { trigger: 'dmgMod', mod: (o, t) => (o && t && o.id === r && (t.mark || 0) > 0 ? 2 : 0) }; } },
+  'Ranger+Ronin': { line: ['Marked. Go.', 'I see it — I\'m already moving.'],
+    desc: 'she marks, he charges — <b>when a foe is MARKED</b>, the Ronin is already moving: <b>9 damage</b>. Once a fight.',
+    strike: true, make: () => ({}) },
   'Cleric+Ranger': { line: ['Keep your head down, healer.', 'You\'re watching. I know.'], desc: 'an arrow watches over the healer — the <b>Cleric takes 1 less</b> from every hit',
     make: (a, b) => { const c = HEROES[a].cls === 'Cleric' ? a : b;
       return { trigger: 'incoming', mod: (h) => (h && h.id === c ? -1 : 0) }; } },
-  'Ranger+Reaver': { line: ['Every death is scheduled.', 'Then let\'s be early.'], desc: 'every death is scheduled — kills by either <b>feed the BURST +6</b>',
-    make: (a, b) => ({ trigger: 'kill', apply: (c) => { gainMomentum(6, { raw: true });
-      if (c && c.hero) popupAt(figEl(c.hero.id), '☠ +6', 'tech'); } }) },
+  'Ranger+Reaver': { line: ['Every death is scheduled.', 'Then let\'s be early.'],
+    desc: 'every death is scheduled — <b>when a foe drops under a third</b>, the Reaver keeps the appointment: <b>12 damage</b>. Once a fight.',
+    strike: true, make: () => ({}) },
   'Guardian+Ranger': { line: ['Anvil set.', 'Loosing on your mark.'], desc: 'anvil forward, arrow behind — the <b>Ranger strikes +2</b> while she holds BACK and the wall holds FRONT',
     make: (a, b) => { const rg = HEROES[a].cls === 'Ranger' ? a : b, gd = rg === a ? b : a;
       return { trigger: 'dmgMod', mod: (o) => { if (!o || o.id !== rg) return 0;
@@ -2195,9 +2195,9 @@ const DUET_PERKS = {
   'Mage+Ranger': { line: ['Cold makes a steady target.', 'Steady is all I ask.'], desc: 'cold makes a steady target — the <b>Ranger strikes CHILLED foes +2</b>',
     make: (a, b) => { const r = HEROES[a].cls === 'Ranger' ? a : b;
       return { trigger: 'dmgMod', mod: (o, t) => (o && t && o.id === r && (t.lull || 0) > 0 ? 2 : 0) }; } },
-  'Mage+Reaver': { line: ['What frost slows —', '— the knife finishes.'], desc: 'what frost slows, the knife finishes — the <b>Reaver strikes CHILLED foes +3</b>',
-    make: (a, b) => { const r = HEROES[a].cls === 'Reaver' ? a : b;
-      return { trigger: 'dmgMod', mod: (o, t) => (o && t && o.id === r && (t.lull || 0) > 0 ? 3 : 0) }; } },
+  'Mage+Reaver': { line: ['What frost slows —', '— the knife finishes.'],
+    desc: 'what frost slows, the knife finishes — <b>when a foe is CHILLED</b>, the Reaver takes the opening: <b>10 damage</b>. Once a fight.',
+    strike: true, make: () => ({}) },
 };
 // any pairing without an authored duet (e.g. the unfinished Bard) still gets one
 const DUET_FALLBACK = { name: 'Kindred', icon: '♡', line: ['Together, then.', 'Together.'], desc: 'they steady one another — each turn <b>both stand +1 guard</b>',
@@ -2208,7 +2208,7 @@ function duetPerkFor(a, b) {
   const w = BOND_WEAVE[key] || {};
   const p = DUET_PERKS[key] || DUET_FALLBACK;
   return { key, name: w.name || p.name || 'Kindred', icon: w.icon || p.icon || '♡',
-           desc: p.desc, line: p.line || DUET_FALLBACK.line, make: p.make };
+           desc: p.desc, line: p.line || DUET_FALLBACK.line, make: p.make, strike: !!p.strike };
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -2305,9 +2305,115 @@ function duetPerkBoons() {
     if (!ha || ha.downed || !hb || hb.downed) return;
     const p = duetPerkFor(a, b);
     out.push(Object.assign({ id: 'duet_' + key, perk: true, hero: a, heroes: [a, b],
-      name: p.name, icon: p.icon, desc: p.desc, pairKey: key }, announceWrap(p.make(a, b), key, a, b, p)));
+      name: p.name, icon: p.icon, desc: p.desc, strike: p.strike, pairKey: key }, announceWrap(p.make(a, b), key, a, b, p)));
   });
   return out;
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// BOND STRIKES (Build 271) — the pair's ability as a MOVE, not a number
+//
+// A bond node paid out a modifier: +2 damage into a foe your partner already
+// hit, 1 less taken, +1 guard a turn. Build 264 made those announce themselves,
+// which helped, but an announced number is still a number — the most cinematic
+// thing the game has (two specific people acting together, with a cut-in and
+// their own lines) was being delivered as a stat.
+//
+// Five pairs now carry a real conditional strike instead. Each watches for ONE
+// legible board state — the kind of thing you can see without reading a tooltip
+// — and when it appears, they act, once per fight, unprompted and announced:
+//
+//   the foe is MARKED     the Ranger called it; the Ronin is already moving
+//   the foe is CHILLED    frost slowed it; the knife finishes it
+//   the foe is BROKEN     both blades go into the same opening
+//   an ally is under half the Cleric steps in front of the Ronin's charge
+//   a foe is nearly dead  the Reaver was told when. It is now.
+//
+// AUTOMATIC BUT ANNOUNCED, on purpose: a prompt would make it another button in
+// a game that already has enough, and the point is that these two have stopped
+// needing to be told. The other ten pairs keep their modifier — a stance that
+// is always on is the right shape for "the Cleric's ward rides the Ronin's
+// blade", and fifteen interrupts a fight would be noise, not drama.
+const BOND_STRIKES = {
+  'Ranger+Ronin': {
+    // she marks, he charges — the perk said "+2 vs marked" and nobody saw it
+    find: () => livingEnemies().find(e => (e.mark || 0) > 0),
+    lead: (a, b) => (HEROES[a].cls === 'Ranger' ? a : b),
+    call: ['Marked. Go.', 'I saw it before you said it.'],
+    dmg: 9, note: 'MARKED',
+  },
+  'Mage+Reaver': {
+    find: () => livingEnemies().find(e => (e.lull || 0) > 0),
+    lead: (a, b) => (HEROES[a].cls === 'Reaver' ? a : b),
+    call: ['It can’t turn. Finish it.', 'Wasn’t going to ask twice.'],
+    dmg: 10, note: 'CHILLED',
+  },
+  'Reaver+Ronin': {
+    find: () => livingEnemies().find(e => e.staggered),
+    lead: (a, b) => a,
+    call: ['It’s open —', '— then we open it further.'],
+    dmg: 7, both: true, note: 'BROKEN',
+  },
+  'Ranger+Reaver': {
+    // Kill Order: "every death is scheduled" — so schedule one
+    find: () => livingEnemies().find(e => e.hp <= Math.ceil(e.maxHp * 0.3)),
+    lead: (a, b) => (HEROES[a].cls === 'Reaver' ? a : b),
+    call: ['It’s on the list. Now.', 'Then it’s early.'],
+    dmg: 12, note: 'FADING',
+  },
+  'Cleric+Ronin': {
+    // the one that isn't a strike, because this pair isn't one — the Cleric
+    // gets there before the blow lands rather than after
+    ally: true,
+    find: () => livingHeroes().find(h => h.hp > 0 && h.hp <= Math.floor(h.maxHp / 2)),
+    lead: (a, b) => (HEROES[a].cls === 'Cleric' ? a : b),
+    call: ['Stay in front. I have you.', 'Then I don’t have to look back.'],
+    heal: 8, guard: 4, note: 'WOUNDED',
+  },
+};
+// Held pairs whose bond is running THIS fight (thread lit or node taken) — the
+// same source the modifiers derive from, so a strike can never be live for a
+// pair whose perk isn't.
+function bondStrikeFor(key) { const [a, b] = key.split('|'); return BOND_STRIKES[duetClassKey(a, b)] || null; }
+async function checkBondStrikes() {
+  if (typeof S === 'undefined' || !S || S.over || S._inBondStrike) return;
+  S._strikeFired = S._strikeFired || {};
+  for (const p of duetPerkBoons()) {
+    const key = p.pairKey;
+    if (S._strikeFired[key]) continue;                 // once per fight — a moment, not a rotation
+    const st = bondStrikeFor(key); if (!st) continue;
+    let tgt = null; try { tgt = st.find(); } catch (_) {}
+    if (!tgt) continue;
+    const [a, b] = key.split('|');
+    const lead = st.lead(a, b), other = lead === a ? b : a;
+    if (st.ally && tgt.id === lead) continue;          // the healer does not announce herself
+    S._strikeFired[key] = 1;
+    await runBondStrike(lead, other, st, tgt, p);
+    return;                                            // one at a time; the next hook picks up the rest
+  }
+}
+async function runBondStrike(lead, other, st, tgt, perk) {
+  S._inBondStrike = true;
+  try {
+    await heroCutIn(lead, '◈ ' + perk.name.toUpperCase(), HEROES[lead].name, '“' + st.call[0] + '”', 620);
+    try { flashNarrator('<b>' + HEROES[other].name + '</b> — “' + st.call[1] + '”'); } catch (_) {}
+    try { sparkThread(lead, other); } catch (_) {}
+    try { camPunch(2, figEl(st.ally ? tgt.id : tgt.uid)); } catch (_) {}
+    const swing = (who) => { try { lungeFig(figEl(who)); } catch (_) {} };
+    if (st.ally) {
+      swing(lead);
+      tgt.hp = Math.min(tgt.maxHp, tgt.hp + st.heal);
+      tgt.guard = (tgt.guard || 0) + st.guard;
+      popupAt(figEl(tgt.id), '♡ ✚' + st.heal + ' ⛨' + st.guard, 'heal');
+    } else {
+      swing(lead);
+      dealToEnemy(tgt, st.dmg, HEROES[lead].school, lead);
+      if (st.both && !tgt.dead) { swing(other); dealToEnemy(tgt, st.dmg, HEROES[other].school, other); }
+    }
+    try { stageShake(st.both ? 2 : 1); } catch (_) {}
+    renderAll();
+    await new Promise(r => setTimeout(r, 260));
+  } catch (_) {} finally { S._inBondStrike = false; }
 }
 
 // ══ PRIMED — how a BOND is actually made (Build 227) ═════════════════════
@@ -5186,6 +5292,10 @@ async function resolveCard(card, targetId) {
   const loud = !!(fx && (fx.dmg || fx.aoeDmg || fx.castDmg || fx.spendCharge || fx.heal));
   S._finisher = false;   // never let the finisher chip leak into counters or the enemy phase
   await sleep(loud ? 240 : 150);
+  // …and THEN a bonded pair may act on what your card just put on the board — a
+  // mark laid, a foe broken, a chill landed. It reads as an answer to the play
+  // because it happens after the play has been seen. (Build 271)
+  await checkBondStrikes();
 }
 
 // Single source of truth for how hard an enemy intent hits — base + power,
@@ -7402,6 +7512,10 @@ async function endTurn() {
     turnBanner('TURN ' + S.turn, 'tb-player');
     camPose(CAM_POSE_PLAYER, 1050);   // …and back to feature the party
     reofferFollowUp();   // a stance that survived the rollover can still be cued
+    // The other half of the bond-strike window (Build 271). The enemy phase is
+    // where an ally drops under half, and a Cleric who only ever notices on YOUR
+    // turn is not the character the perk describes.
+    await checkBondStrikes();
     renderAll();
   }
 }
@@ -9916,7 +10030,7 @@ function showBondPanel() {
       <span class="bp-pts">♡ ${pts}/${BOND_KINDLED}</span>
       ${state}${need}
       <span class="bp-perk${running ? ' bp-perk-live' : ''}">◈ <b>${perk.name}</b> — ${perk.desc}</span>
-      <span class="bp-move">${running ? '<b>RUNNING</b> · ' : ''}${moveWhere}</span>
+      <span class="bp-move">${running ? (perk.strike ? (S._strikeFired && S._strikeFired[key] ? '<b>SPENT</b> this fight · ' : '<b>WATCHING</b> · ') : '<b>RUNNING</b> · ') : ''}${moveWhere}</span>
     </div>`;
   };
   const el = document.createElement('div');

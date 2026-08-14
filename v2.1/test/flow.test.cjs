@@ -946,23 +946,39 @@ const QUICK = process.argv.includes('--quick');
     }));
 
   // ---------- BUILD 223: DUET PERKS — bonding a pair switches on ITS mechanic ----------
-  check('DUET: bonding Ash+Mira lights TWIN EDGE — +2 striking a foe the partner already hit',
+  // Build 271: Ash+Mira (Reaver+Ronin) and Ash+Elin (Cleric+Ronin) traded their
+  // modifiers for conditional STRIKES, so what a lit bond buys them is a move on
+  // a board state — not a number nobody could see.
+  check('DUET: bonding Ash+Mira arms TWIN EDGE — a BROKEN foe takes both blades',
     await J(async () => {
       RUN = newRun('ash'); RUN.active = ['ash', 'elin', 'mira']; RUN.roster = RUN.active.slice(); RUN.bonds = {};
       startFight({ type: 'fight', chapter: 3, heroes: ['ash', 'elin', 'mira'], enemies: ['husk'], useRunHp: true, narrator: 'duet' });
-      S.threads.clear(); S.ep = 4; renderAll();
-      await window.__bond('ash', 'mira');
-      const e = S.enemies[0]; e.hp = e.maxHp = 100; e._hitBy = ['mira'];
-      const withPartner = passiveDmg(S.heroes.find(h => h.id === 'ash'), e);
-      e._hitBy = [];
-      const alone = passiveDmg(S.heroes.find(h => h.id === 'ash'), e);
-      return withPartner - alone === 2 && !!document.querySelector('.cb-duet');
+      S.threads.clear(); S.threads.add(pairKey('ash', 'mira'));   // only this pair is live
+      S.heroes.forEach(h => h.hp = h.maxHp);                      // …and nobody else's condition is met
+      S._strikeFired = {}; S.ep = 4; renderAll();
+      const e = S.enemies[0]; e.hp = e.maxHp = 100; e.staggered = false;
+      await checkBondStrikes();
+      const quiet = e.hp === 100 && !Object.keys(S._strikeFired).length;   // not broken → they wait
+      e.staggered = true;
+      await checkBondStrikes();
+      return quiet && e.hp < 100 && S._strikeFired[pairKey('ash', 'mira')] === 1
+        && !!document.querySelector('.cb-duet');
     }));
-  check('DUET: WARDED EDGE (Ash+Elin) — the Ronin takes 1 less from every hit',
+  check('DUET: WARDED EDGE (Ash+Elin) — the Cleric reaches a half-dead ally, and never a foe',
     await J(async () => {
-      await window.__bond('ash', 'elin');
-      return boonIncoming(S.heroes.find(h => h.id === 'ash')) === -1
-        && boonIncoming(S.heroes.find(h => h.id === 'elin')) === 0;
+      S.threads.clear(); S.threads.add(pairKey('ash', 'elin'));
+      S.heroes.forEach(h => { h.hp = h.maxHp; h.guard = 0; });
+      S._strikeFired = {};
+      const ash = S.heroes.find(h => h.id === 'ash');
+      ash.hp = Math.floor(ash.maxHp / 2);
+      const foesHp = livingEnemies().map(e => e.hp).join();
+      await checkBondStrikes();
+      const ok = ash.hp === Math.floor(ash.maxHp / 2) + 8 && ash.guard === 4
+        && livingEnemies().map(e => e.hp).join() === foesHp;
+      // these two isolated one pair at a time; hand BOTH threads back, because the
+      // checks below read the same set and a narrowed one fails them silently
+      S.threads.add(pairKey('ash', 'mira')); renderAll();
+      return ok;
     }));
   check('DUET: the perk dies with a partner and returns when they stand',
     await J(() => {
@@ -2800,6 +2816,8 @@ const QUICK = process.argv.includes('--quick');
   check('TREE elin.passive.mercy: healing an ally CLEANSES ❄ CHILL and ◎ EXPOSED',
     await J(async () => { setupFight(['elin', 'ash'], ['elin.passive.ward', 'elin.passive.mercy'], { elin: 'back', ash: 'front' }, { ash: 10 }); S._rotations = false; S.ep = 9;
       const ash = S.heroes.find(x => x.id === 'ash'); ash.chill = 3; ash.exposed = 2;
+      S._strikeFired = { 'ash|elin': 1 };   // Elin+Ash are a BOND STRIKE pair (Build 271): the heal
+      // lights their bond and the strike would mend Ash again. Correct, but not what this measures.
       await resolveCard({ owner: 'elin', name: 'Mend', cost: 0, target: 'ally', fx: { heal: 4 } }, 'ash');
       return ash.chill === 0 && ash.exposed === 0 && ash.hp === 14; }));
   check('TREE elin.passive.mercy gated: WITHOUT the node, a heal leaves CHILL/EXPOSED alone',
@@ -4940,6 +4958,78 @@ const QUICK = process.argv.includes('--quick');
   // authored pair abilities firing silently behind a touch-invisible tooltip),
   // and the border stones, which were deliberately generic.
   console.log('--- BOND NODES ---');
+  // ---------- BUILD 271: BOND STRIKES — the pair's ability as a MOVE ----------
+  // Five pairs traded their modifier for a real conditional strike: they watch
+  // one legible board state, and when it appears they act, once per fight, with
+  // the cut-in. The other ten keep their stance, which is the right shape for
+  // "the Cleric's ward rides the Ronin's blade" and keeps a fight from turning
+  // into fifteen interrupts.
+  check('STRIKE: every strike pair is wired both ways — table, flag, and no leftover modifier',
+    await J(() => {
+      const keys = Object.keys(BOND_STRIKES);
+      const flagged = Object.keys(DUET_PERKS).filter(k => DUET_PERKS[k].strike);
+      const sameSet = keys.length === flagged.length && keys.every(k => flagged.indexOf(k) >= 0);
+      const noMod = flagged.every(k => { const m = DUET_PERKS[k].make('ash', 'elin'); return !m.trigger && !m.mod && !m.apply; });
+      const shaped = keys.every(k => { const s = BOND_STRIKES[k];
+        return typeof s.find === 'function' && typeof s.lead === 'function'
+          && s.call && s.call.length === 2 && (s.dmg > 0 || s.heal > 0); });
+      return keys.length === 5 && sameSet && noMod && shaped;
+    }));
+  check('STRIKE: a MARKED foe brings the Ranger’s pair in — announced, and it lands',
+    await J(async () => {
+      setupFight(['ash', 'branwen', 'elin'], [], { ash: 'front', branwen: 'back', elin: 'mid' });
+      markBondGift('ash', 'branwen');
+      RUN.crossed = { ash: [bondNodeFor('ash', 'branwen').id] };
+      S.threads = new Set(); S._strikeFired = {};
+      const foe = livingEnemies()[0]; foe.mark = 2;
+      const hp0 = foe.hp;
+      await checkBondStrikes();
+      return foe.hp === hp0 - 9 && S._strikeFired['ash|branwen'] === 1;
+    }));
+  check('STRIKE: it is ONCE a fight — the condition holding does not make it a rotation',
+    await J(async () => {
+      const foe = livingEnemies()[0]; foe.hp = foe.maxHp; foe.mark = 2;
+      const hp0 = foe.hp;
+      await checkBondStrikes(); await checkBondStrikes();
+      return foe.hp === hp0;                       // already spent above
+    }));
+  check('STRIKE: it needs the bond RUNNING — an unasked pair watches nothing',
+    await J(async () => {
+      try { localStorage.removeItem('kizuna2_1.bondgifts'); } catch (_) {}
+      setupFight(['ash', 'branwen', 'elin'], [], { ash: 'front', branwen: 'back', elin: 'mid' });
+      RUN.crossed = {}; S.threads = new Set(); S._strikeFired = {};
+      const foe = livingEnemies()[0]; foe.mark = 2;
+      const hp0 = foe.hp;
+      await checkBondStrikes();
+      return foe.hp === hp0 && !Object.keys(S._strikeFired).length;
+    }));
+  check('STRIKE: the Cleric’s is not a strike — a wounded ally is mended and warded',
+    await J(async () => {
+      setupFight(['ash', 'elin', 'mira'], [], { ash: 'front', elin: 'mid', mira: 'back' });
+      markBondGift('ash', 'elin');
+      RUN.crossed = { elin: [bondNodeFor('ash', 'elin').id] };
+      S.threads = new Set(); S._strikeFired = {};
+      const mira = S.heroes.find(h => h.id === 'mira');
+      mira.hp = Math.floor(mira.maxHp / 2); mira.guard = 0;
+      const foesHp = livingEnemies().map(e => e.hp).join();
+      await checkBondStrikes();
+      return mira.hp === Math.floor(mira.maxHp / 2) + 8 && mira.guard === 4
+        && livingEnemies().map(e => e.hp).join() === foesHp;   // nobody was hit
+    }));
+  check('STRIKE: the panel says where it stands — WATCHING before, SPENT after',
+    await J(() => {
+      setupFight(['ash', 'branwen', 'elin'], [], { ash: 'front', branwen: 'back', elin: 'mid' });
+      markBondGift('ash', 'branwen');
+      RUN.crossed = { ash: [bondNodeFor('ash', 'branwen').id] };
+      S.threads = new Set(); S._strikeFired = {};
+      const read = () => { showBondPanel();
+        const r = [...document.querySelectorAll('#bond-panel .bp-row')].find(x => /ASH ─ BRANWEN/.test(x.textContent)).textContent;
+        hideBondPanel(); return r; };
+      const before = read();
+      S._strikeFired = { 'ash|branwen': 1 };
+      const after = read();
+      return /WATCHING/.test(before) && !/RUNNING/.test(before) && /SPENT/.test(after);
+    }));
   // ---------- BUILD 270: ONE LADDER, ONE PLACE ----------
   // Four numbers all called some flavour of "bond" lived in four screens: the
   // descent's points, the fight's live thread, the arc stage, and whether the
@@ -4957,7 +5047,7 @@ const QUICK = process.argv.includes('--quick');
       const partial = t.find(x => /ASH ─ MIRA/.test(x));
       hideBondPanel();
       return rows.length === 3
-        && /♡ 2\\/2/.test(woven) && /✦ WOVEN/.test(woven) && /RUNNING/.test(woven)
+        && /♡ 2\\/2/.test(woven) && /✦ WOVEN/.test(woven) && /RUNNING|WATCHING/.test(woven)
         && /♡ 1\\/2/.test(partial) && !/✦ WOVEN/.test(partial)
         && t.every(x => /◈/.test(x))                       // every pair's MOVE is named
         && t.every(x => /ask for it at a|not taken yet|YOURS/.test(x));
@@ -4986,7 +5076,7 @@ const QUICK = process.argv.includes('--quick');
       RUN.crossed = { ash: [bondNodeFor('ash','elin').id] };
       const taken = read();
       return /ask for it at a/.test(unasked) && /not taken yet/.test(asked)
-        && /YOURS/.test(taken) && /RUNNING/.test(taken);
+        && /YOURS/.test(taken) && /RUNNING|WATCHING/.test(taken);
     })()`));
   check('VOCAB: one word per thing — no RESONANCE badge, no KINDLED on an owned node',
     await J(`(() => {
@@ -5022,10 +5112,13 @@ const QUICK = process.argv.includes('--quick');
       const id = bondNodeFor('ash', 'elin').id;
       RUN.crossed = { elin: [id] };
       return bondNodeHeld('ash', 'elin') && bondNodeHeld('elin', 'ash'); }));
+  // ash+cassia (Guardian+Ronin) keeps its MODIFIER — the announce path only
+  // exists for pairs that pay out a number. The five strike pairs announce
+  // themselves by acting (see runBondStrike).
   check('BOND NODE: the ability SPEAKS the first time it lands, and only once',
-    await J(() => { setupFight(['ash', 'elin'], [], { ash: 'front', elin: 'mid' });
-      markBondGift('ash', 'elin');
-      RUN.crossed = { ash: [bondNodeFor('ash', 'elin').id] };
+    await J(() => { setupFight(['ash', 'cassia'], [], { ash: 'front', cassia: 'mid' });
+      markBondGift('ash', 'cassia');
+      RUN.crossed = { ash: [bondNodeFor('ash', 'cassia').id] };
       S._perkSaid = {};
       const boon = duetPerkBoons()[0];
       const ash = S.heroes.find(h => h.id === 'ash'), foe = livingEnemies()[0];
@@ -5035,9 +5128,9 @@ const QUICK = process.argv.includes('--quick');
       }
       return Object.keys(S._perkSaid).length === 1; }));
   check('BOND NODE: a silent perk stays silent until it actually DOES something',
-    await J(() => { setupFight(['ash', 'elin'], [], { ash: 'front', elin: 'mid' });
-      markBondGift('ash', 'elin');
-      RUN.crossed = { ash: [bondNodeFor('ash', 'elin').id] };
+    await J(() => { setupFight(['ash', 'cassia'], [], { ash: 'front', cassia: 'mid' });
+      markBondGift('ash', 'cassia');
+      RUN.crossed = { ash: [bondNodeFor('ash', 'cassia').id] };
       S._perkSaid = {};
       const boon = duetPerkBoons()[0];
       if (!boon.mod) return true;                       // apply-perks always do something
