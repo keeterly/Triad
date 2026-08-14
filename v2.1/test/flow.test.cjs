@@ -4750,6 +4750,53 @@ const QUICK = process.argv.includes('--quick');
       boon.mod(mira, livingEnemies()[0]);
       return Object.keys(S._perkSaid).length === 0; }));
 
+  // ---------- THE TRIAD, REACHABLE (Build 265) ----------
+  // It required all three pairs threaded INSIDE one fight. A fight yields one or
+  // two threads, so instrumented across eight of them it fired ZERO times — the
+  // ceremony, the vow stages and the whole FINALE resolver were code no player
+  // had ever run. Owned bond nodes count now, which is the point of owning them.
+  console.log('--- THE TRIAD ---');
+  const triadRun = () => J(() => {
+    window.__ceremony = 0;
+    window.triadCeremony = async () => { window.__ceremony++; };
+    RUN = newRun('ash'); RUN.roster = ['ash', 'elin', 'mira']; RUN.active = RUN.roster.slice();
+    RUN.hp = { ash: 34, elin: 24, mira: 22 }; RUN.crossed = {}; RUN.bonds = {};
+    RUN.floor = 1; RUN.completed = [0]; RUN.map = generateDescent(RUN.roster, 1);
+    [['ash', 'elin'], ['ash', 'mira'], ['elin', 'mira']].forEach(([a, b]) => markArcSeen(a, b, 1));
+    startFight({ type: 'fight', chapter: 3, heroes: RUN.active.slice(), enemies: ['husk'],
+      useRunHp: true, floor: 1, depth: 3, narrator: 't' });
+    renderAll(); S.threads = new Set(); S.triadFormed = false;
+    return true;
+  });
+  await triadRun();
+  check('TRIAD: a live thread OR an owned bond node counts as a bonded pair',
+    await J(() => { const none = pairBonded('ash', 'elin');
+      RUN.crossed = { ash: [bondNodeFor('ash', 'elin').id] };
+      const owned = pairBonded('ash', 'elin');
+      RUN.crossed = {}; S.threads = new Set([pairKey('ash', 'elin')]);
+      const threaded = pairBonded('ash', 'elin');
+      S.threads = new Set();
+      return none === false && owned === true && threaded === true; }));
+  check('TRIAD: three OWNED bonds form the triad — the first time it has been reachable',
+    await J(async () => { const ids = [['ash', 'elin'], ['ash', 'mira'], ['elin', 'mira']]
+        .map(([a, b]) => bondNodeFor(a, b).id);
+      RUN.crossed = { ash: [ids[0], ids[1]], elin: [ids[2]] };   // spread across partners
+      S.triadFormed = false; window.__ceremony = 0;
+      await checkTriad();
+      return S.triadFormed === true && window.__ceremony === 1; }));
+  check('TRIAD: two bonds is not three — it does not fire early',
+    await J(async () => { const ids = [['ash', 'elin'], ['ash', 'mira']].map(([a, b]) => bondNodeFor(a, b).id);
+      RUN.crossed = { ash: ids }; S.triadFormed = false; window.__ceremony = 0;
+      await checkTriad();
+      return S.triadFormed === false && window.__ceremony === 0; }));
+  check('TRIAD: an OWNED triad is checked at fight open, or it would never fire at all',
+    await J(() => /bondNodeHeld/.test(startFight.toString()) && /checkTriad/.test(startFight.toString())));
+  // …but a KINDLED trio walks in already threaded, and auto-firing there would
+  // open every single fight with the ceremony. They still owe one act of help.
+  check('TRIAD: a pre-threaded trio does NOT get it handed to them at fight open',
+    await J(() => /bondNodeHeld\(x, y\) && bondNodeHeld\(y, z\) && bondNodeHeld\(x, z\)/.test(startFight.toString())));
+  await J(() => { RUN.crossed = {}; S.triadFormed = false; });
+
   t.report();
   await t.browser.close();
 })().catch(e => { console.error('FATAL', e.message); process.exit(1); });

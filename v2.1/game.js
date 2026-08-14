@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 264;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 265;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -6325,11 +6325,24 @@ async function addThread(a, b, why) {
   }
   await checkTriad(a);
 }
+// A pair counts as bonded if their thread is live THIS fight, or if they hold
+// the BOND NODE they earned at a fire (Build 265).
+function pairBonded(a, b) {
+  return !!(S && ((S.threads && S.threads.has(pairKey(a, b))) || bondNodeHeld(a, b)));
+}
+// THE TRIAD WAS UNREACHABLE. It required all three pairs to be threaded INSIDE a
+// single fight — and a fight yields one or two threads, so instrumented across
+// eight of them it fired ZERO times. The ceremony, the vow stages and the whole
+// TRIAD FINALE resolver were code no player had ever run.
+//
+// Owned bond nodes count now, which is the point of owning them: three pairs who
+// have each sat at a fire together walk in as a triad. Nothing was added to reach
+// it — the requirement stopped being something you must re-earn every fight.
 async function checkTriad(closer) {
   const live = livingHeroes();
   if (live.length < 3 || S.triadFormed) return;
   const [x, y, z] = live.map(h => h.id);
-  if (S.threads.has(pairKey(x, y)) && S.threads.has(pairKey(y, z)) && S.threads.has(pairKey(x, z))) {
+  if (pairBonded(x, y) && pairBonded(y, z) && pairBonded(x, z)) {
     S.triadFormed = true;
     await triadCeremony();
   }
@@ -7643,6 +7656,20 @@ function startFight(node) {
   // starts on a move instead of a locked-off plate.
   try { _camBase = CAM_POSE_PLAYER; camIntro(node.isBoss ? 1.3 : 1.16, node.isBoss ? -1.8 : -0.8, node.isBoss ? 1900 : 1250); } catch (_) {}
   openingWeaves();   // kindled bonds enter already woven (their Chain is live from turn one)
+  // A trio who EARNED all three bond nodes walks in as a triad — checkTriad only
+  // ever ran off addThread, so an owned triad would otherwise never fire at all.
+  //
+  // Deliberately gated on OWNED nodes, not on pre-formed threads: a kindled trio
+  // walks in already threaded, and firing the ceremony there would open every
+  // single fight with it. The original rule — a woven trio still owes one act of
+  // help this fight — is right, and it stays. What changes is that a pair who sat
+  // at a fire together has already paid that price, permanently.
+  setTimeout(() => { try {
+    if (!S || S.over || S.triadFormed) return;
+    const live = livingHeroes(); if (live.length < 3) return;
+    const [x, y, z] = live.map(h => h.id);
+    if (bondNodeHeld(x, y) && bondNodeHeld(y, z) && bondNodeHeld(x, z)) checkTriad();
+  } catch (_) {} }, 900);
 }
 
 function showStory(node) {
