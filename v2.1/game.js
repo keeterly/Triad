@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 262;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 263;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -735,7 +735,13 @@ function isPassiveNode(n) { return (n.type === 'passive' || n.type === 'synergy'
 // rule.  Scarcity comes from the teacher having to own the node and from the
 // kinship price, not from an arbitrary extra point.
 const CROSS_BOND = BOND_KINDLED;
-const CROSS_MULT = [1.8, 1.35, 1.0];   // indexed by shared axes: strangers · kin · twins
+// Measured: a crossing cost 18-21 embers ALL-IN (teacher's node + border stone +
+// the crossing) against a run that earns ~136 total, and a greedy bot took ZERO
+// across a whole floor. The same 21 embers bought FIVE rotation gates worth +8
+// chain damage each, so the multiplier was not pricing a luxury — it was pricing
+// the feature out of the game. Kinship still matters; it just no longer costs
+// more than the thing it is competing with.
+const CROSS_MULT = [1.0, 0.8, 0.6];   // indexed by shared axes: strangers · kin · twins
 // how many archetype axes two heroes share (school, tempo) — 0, 1 or 2
 function kinship(a, b) {
   const A = HEROES[a], B = HEROES[b];
@@ -5527,7 +5533,22 @@ const PARRY_PERF_MS = 210;   // the "perfect" (full negate + riposte) band (Buil
 // close SLOWER, so there's more time to read and react.  Build 207: eased again
 // to 1.30 (rings ~30% slower) after a second "still a touch too fast" playtest.
 const PARRY_PACE = 1.30;
-const MOB_HP_BASE   = 2.0;   // non-boss HP curve base — raised +25% (Build 197 rebalance): trash was dying turn-1 (offense out-scaled HP ~2.5×), so foes now survive to act and the party has room to bond/build before the kill
+// ③ FIGHTS ENDED BEFORE THEY COULD HAPPEN (Build 263).
+//
+// Measured, two ways, independently: a common pack died in TWO turns, took ZERO
+// damage off a parrying party, and filled the burst gauge to exactly 100 on the
+// turn it ended. Every system this game has spent builds on needs three or four
+// turns to breathe — the REACH rotates one hero a turn, a bond needs an act to
+// answer, checkTriad needs THREE in-fight threads and a 2-turn fight yields one.
+// Instrumented across 8 fights: TRIAD FORMED fired ZERO times, which makes the
+// ceremony, the vow stages and the whole TRIAD FINALE resolver dead code in a
+// normal run.
+//
+// The cause is drift I introduced: the party got the x1.5 break window,
+// TECHNICAL, finisher poise chips, three routes to a break and the REACH, and
+// mob HP never moved. This puts it back — measured at x1.35 a common pack runs 3
+// turns, at x1.9 it runs 4. Splitting the difference at 2.0 -> 2.9 (x1.45).
+const MOB_HP_BASE   = 2.9;   // non-boss HP curve base — see the note above; the party's damage grew across ~10 builds and this did not
 
 // Each intent carries a rhythm PATTERN — its own way to be turned aside — so
 // defense has Project-Diva variety: a clean tap, a quick double-tap flurry, a
@@ -7345,7 +7366,10 @@ function onVictory() {
   SFX.victory();
   setTimeout(() => {
     if (!S) return;   // the fight was torn down before this deferred beat fired
-    if (isBoss && S.node.mapId != null) { onFloorCleared(); return; }   // floor boss → deeper, or the run's end
+    // A floor boss pays 16 embers and used to jump straight to the next floor,
+    // so four climaxes a run ended with no build beat at all. It draws its spark
+    // first now, then descends.
+    if (isBoss && S.node.mapId != null) { showEmberSpark(() => onFloorCleared()); return; }
     const th = S.threads.size;
     showOverlay(`
       <div class="ov-eyebrow" style="color:var(--gold-bright)">VICTORY</div>
@@ -7360,7 +7384,14 @@ function onVictory() {
     $('#ov-next').onclick = () => {
       hideOverlay();
       if (S.node.mapId == null) { advanceFlow(); return; }
-      if (wasElite) showBoonDraft(() => showMap(), { curse: true, eyebrow: 'THE ELITE FALLS', title: 'SPOILS OF THE ROAD', flavor: 'The harder the fight, the more your companions have to teach. Take one — it holds until you fall.' });
+      // An ELITE used to hand you a boon INSTEAD of a spark, and a BOSS handed
+      // you neither — it short-circuited into onFloorCleared before the draft
+      // block ran. So the two hardest fights on a floor, worth 14 and 16 embers,
+      // were the only ones that could not buy you anything: the game gave you
+      // the money and closed the shop. Measured, that is 6 of ~14 combat nodes
+      // a run whose entire output was a number going up.  Now the elite pays
+      // BOTH — its gift, and then the spark every other clear already offered.
+      if (wasElite) showBoonDraft(() => showEmberSpark(() => showMap()), { curse: true, eyebrow: 'THE ELITE FALLS', title: 'SPOILS OF THE ROAD', flavor: 'The harder the fight, the more your companions have to teach. Take one — it holds until you fall.' });
       else showEmberSpark(() => showMap());   // Build 211: every ordinary clear offers a SPARK — the after-fight draft
     };
   }, 700);

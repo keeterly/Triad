@@ -4030,10 +4030,15 @@ const QUICK = process.argv.includes('--quick');
   check('WEAVE: the moment a pair goes WOVEN, the door opens on what they can teach',
     await J(() => crossOffersFor('ash').filter(n => !n.common).map(n => n.id).sort().join(',')
       === 'cassia.passive.vigil,mira.passive.opportunist'));
-  check('WEAVE: price scales with kinship — kin cheaper than strangers, both above list',
+  // Build 263 dropped the surcharge. Measured at the old price a crossing cost
+  // 18-21 embers all-in against a ~136-ember run, and a greedy bot took ZERO
+  // across a whole floor — the same embers bought five rotation gates. Kinship
+  // still ORDERS the price; it no longer prices the feature out of the game.
+  check('WEAVE: kinship still orders the price — kin cheaper than strangers, none above list',
     await J(() => { const O = EMBER_TREE.find(n => n.id === 'mira.passive.opportunist');
       const V = EMBER_TREE.find(n => n.id === 'cassia.passive.vigil');
-      return crossCost('ash', O) === 8 && crossCost('ash', V) === 11 && O.cost === 6 && V.cost === 6; }),
+      const kin = crossCost('ash', O), stranger = crossCost('ash', V);
+      return kin < stranger && stranger <= V.cost && kinship('ash', 'mira') > kinship('ash', 'cassia'); }),
     await J(() => 'kin ' + crossCost('ash', EMBER_TREE.find(n => n.id === 'mira.passive.opportunist'))
       + ' · stranger ' + crossCost('ash', EMBER_TREE.find(n => n.id === 'cassia.passive.vigil'))));
   check('WEAVE: the teacher must KNOW the node — a crossing is earned twice',
