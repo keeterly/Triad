@@ -3943,3 +3943,14 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
 #resonance.rz-ripe::after { animation: rz-knock 1.5s ease-in-out infinite; }
 @keyframes rz-knock { 50% { opacity: 1; transform: scale(1.5); } }
 @media (prefers-reduced-motion: reduce) { #resonance.rz-ripe::after { animation: none; } }
+
+/* RACK FOCUS IS A LUXURY (Build 261) — it animates a blur across three figures,
+   and a drag is already the most expensive frame in the game: the aim layer, the
+   valid-target brackets, the reticle and the snap points all light at once.
+   Measured on a real device mid-drag: 5fps, avg 186ms. On a struggling device
+   the rack drops to a dim/brighten, which composites instead of re-rastering. */
+#stage.fx-soft.focus-pull #party-half .figure .fig-art { filter: saturate(0.6) brightness(0.62); }
+#stage.fx-flat.focus-pull #party-half .figure .fig-art { filter: none; opacity: 0.5; }
+#stage.fx-flat.focus-pull #party-half .figure.fig-actor .fig-art { filter: none; opacity: 1; }
+#stage.fx-soft #party-half .figure .fig-art,
+#stage.fx-flat #party-half .figure .fig-art { transition: opacity 140ms ease; }

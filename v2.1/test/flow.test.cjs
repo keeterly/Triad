@@ -4419,7 +4419,7 @@ const QUICK = process.argv.includes('--quick');
   check('DEPTH: an explicit tier is honoured and never overridden by the tuner',
     await J(() => { SETTINGS.depth = 'soft'; applyFxTier(); return true; })
       && (await stageCls()) === 'fx-soft'
-      && await J(() => { _fxTuned = false; autoTuneFx(); return SETTINGS.depth === 'soft'; }));
+      && await J(() => { _fxNextTune = 0; _fxTuning = false; autoTuneFx(true); return SETTINGS.depth === 'soft'; }));
   check('DEPTH: FLAT keeps one backdrop, so the world still parallaxes',
     await J(() => { SETTINGS.depth = 'flat'; applyFxTier();
       const far = document.querySelector('.hd-far');
@@ -4435,7 +4435,7 @@ const QUICK = process.argv.includes('--quick');
       return z(back) !== z(front) && z(back) !== '';
     })));
   check('DEPTH: the tuner only ever steps DOWN — it can never climb back mid-session',
-    await J(() => { SETTINGS.depth = 'auto'; _fxTier = 'flat'; _fxTuned = false;
+    await J(() => { SETTINGS.depth = 'auto'; _fxTier = 'flat'; _fxNextTune = 0; _fxTuning = false;
       const before = _fxTier;
       autoTuneFx();
       return FX_TIERS.indexOf(_fxTier) >= FX_TIERS.indexOf(before); }));
@@ -4448,7 +4448,23 @@ const QUICK = process.argv.includes('--quick');
       return el && getComputedStyle(el).filter === 'none'; })),
     await J(() => ['.hd-far', '.hd-mid', '.hd-near']
       .map(sel => sel + ':' + getComputedStyle(document.querySelector(sel)).filter).join(' ')));
-  await J(() => { SETTINGS.depth = 'auto'; _fxTier = 'full'; applyFxTier(); });
+  // Build 261: it used to latch after ONE sample ~700ms into the first fight of
+  // the session — the easiest moment there is — and never look again. Reported
+  // from a real device at 5fps with the full backdrop still drawn.
+  check('DEPTH: the tuner keeps WATCHING — it never latches after a single look',
+    await J(() => !/_fxTuned/.test(autoTuneFx.toString())
+      && /_fxNextTune/.test(autoTuneFx.toString())
+      && /autoTuneFx\(\)/.test(enemyPhase.toString())));
+  check('DEPTH: …but it holds a cooldown, so a turn boundary cannot spam samples',
+    await J(() => { SETTINGS.depth = 'auto'; _fxTier = 'full';
+      _fxNextTune = performance.now() + 9000; _fxTuning = false;
+      autoTuneFx();                       // inside the cooldown
+      const quiet = _fxTuning === false;
+      _fxNextTune = 0; autoTuneFx();      // cooldown elapsed
+      const woke = _fxTuning === true;
+      _fxTuning = false;
+      return quiet && woke; }));
+  await J(() => { SETTINGS.depth = 'auto'; _fxTier = 'full'; _fxNextTune = 0; _fxTuning = false; applyFxTier(); });
 
   // ---------- TEACHING THE REAL GAME (Build 255) ----------
   // The audit's worst finding: the tutorial ran CLASSIC combat while every

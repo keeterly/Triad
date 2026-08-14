@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 260;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 261;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -59,31 +59,47 @@ function saveSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringif
 // The row depths are untouched at every tier, so the party never collapses into
 // a line; what goes is overdraw, not geometry.
 const FX_TIERS = ['full', 'soft', 'flat'];
-let _fxTier = 'full', _fxTuned = false;
+let _fxTier = 'full', _fxTuning = false, _fxNextTune = 0;
 function applyFxTier() {
   const st = document.getElementById('stage'); if (!st) return;
   const want = SETTINGS.depth === 'auto' ? _fxTier : SETTINGS.depth;
   st.classList.toggle('fx-soft', want === 'soft' || want === 'flat');
   st.classList.toggle('fx-flat', want === 'flat');
 }
-// Sample real frames once a fight is on screen and step DOWN a tier if the
-// device cannot hold the budget.  Only ever steps down, and only while the
-// player has left DEPTH on `auto` — a chosen tier is never overridden, and it
-// never climbs back up mid-session, which would oscillate on every heavy beat.
-function autoTuneFx() {
-  if (_fxTuned || SETTINGS.depth !== 'auto') return;
-  _fxTuned = true;
+// A WATCHDOG, NOT A ONE-SHOT (Build 261).
+//
+// This used to latch `_fxTuned = true` on its first run, which meant it sampled
+// about 700ms into the FIRST fight of the session — an empty board, no status
+// chips, no cut-in textures decoded yet, nothing dragging — decided FULL was
+// affordable, and then never looked again for the rest of the session. Reported
+// from a real device: 5fps, avg 186ms, with the whole backdrop still being
+// drawn. The tuner had measured the easiest moment in the run and trusted it
+// forever.
+//
+// It re-samples on a cooldown now, so a fight that gets heavier as it goes gets
+// answered as it goes. It still only ever steps DOWN, still only while DEPTH is
+// on `auto`, and still never climbs back within a session — a tier that keeps
+// re-earning itself would oscillate on every heavy beat.
+function autoTuneFx(force) {
+  if (SETTINGS.depth !== 'auto' || _fxTuning) return;
+  if (_fxTier === FX_TIERS[FX_TIERS.length - 1]) return;      // already as light as it goes
+  const now = performance.now();
+  if (!force && now < _fxNextTune) return;
+  _fxTuning = true;
+  _fxNextTune = now + 6000;
   const times = []; let last = performance.now();
   const tick = () => {
-    const now = performance.now(); times.push(now - last); last = now;
-    if (times.length < 50) { requestAnimationFrame(tick); return; }
+    const t = performance.now(); times.push(t - last); last = t;
+    if (times.length < 40) { requestAnimationFrame(tick); return; }
+    _fxTuning = false;
     times.sort((a, b) => a - b);
     const med = times[Math.floor(times.length / 2)];
-    // 24ms ≈ 40fps. Two steps available; a genuinely slow device takes both.
-    let step = med > 40 ? 2 : med > 24 ? 1 : 0;
+    // 24ms ≈ 40fps. A genuinely struggling device takes both steps at once.
+    const step = med > 40 ? 2 : med > 24 ? 1 : 0;
     if (!step) return;
+    const was = _fxTier;
     _fxTier = FX_TIERS[Math.min(FX_TIERS.length - 1, FX_TIERS.indexOf(_fxTier) + step)];
-    applyFxTier();
+    if (_fxTier !== was) applyFxTier();
   };
   requestAnimationFrame(tick);
 }
@@ -3999,6 +4015,7 @@ function attachDrag(el, card) {
       dragging = true;
       _snapEls = []; _techEl = null; _fieldPts = null; _lastFX = -1; _lastFY = -1;   // fresh snap/tech/field caches per drag
       el.classList.add('card-dragging');
+      autoTuneFx();            // a drag lights the aim layer, the brackets, the reticle AND the rack at once
       pullFocus(card.owner);   // the card is off the table — rack onto whoever throws it
       el.style.transition = 'none';
       if (canSac) { const cl = $('#ep-cluster'); if (cl) cl.classList.add('ep-armed'); }   // invite the sacrifice
@@ -6974,6 +6991,7 @@ function turnBanner(text, cls) {
 
 async function enemyPhase() {
   S._finisher = false;
+  autoTuneFx();   // the board is heavier than it was at fight open — re-measure (Build 261)
   turnBanner('ENEMY TURN', 'tb-enemy');
   _parryStreak = 0;   // a fresh parry combo for the phase
   // WEAKENED expires if you didn't capitalize this turn; STAGGERED holds
@@ -8924,7 +8942,7 @@ function renderCriticalHp() {
 // hasn't switched it off in DEV.  Toggled here + cleared by the map/title.
 function applyFightBg() {
   applyFxTier();
-  setTimeout(autoTuneFx, 700);   // let the scene settle, then measure real frames
+  setTimeout(() => autoTuneFx(true), 700);   // let the scene settle, then measure real frames
   const st = $('#stage');
   if (st) st.classList.toggle('show-bg', !!(S && SETTINGS.fightBg));
 }
