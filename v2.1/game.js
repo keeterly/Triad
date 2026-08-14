@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 259;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 260;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -4812,6 +4812,61 @@ function enemyIntentDmg(e, intent) {
 // The intents an enemy will execute on its COMING turn (one, or two for a boss
 // that strikes twice).  Drives both the telegraph and the resolution so what is
 // shown is exactly what lands.
+// ─────────────────────────────────────────────────────────────────────────────
+// THE FIGHT ANSWERS BACK (Build 260) — no new mechanics, no new UI.
+//
+// Every mob has three authored intents on a fixed loop, so turn 4 WAS turn 1
+// with a smaller HP bar. Measured from two directions: the arc drill found
+// threat falling monotonically, and the decision drill found the same best play
+// on 5 of 6 turns because the board never changed.
+//
+// Nothing new is added here. The foe simply REACHES for a different one of the
+// intents it already has, by two rules a player can read off the telegraph they
+// already watch:
+//
+//   CORNERED  under 40% HP it goes for its most dangerous intent — hurt it and
+//             it lashes out
+//   STEADYING right after a BREAK it takes its most defensive one — break it
+//             and it turtles
+//
+// And because parryPatternFor() derives the RHYTHM from the intent, a cornered
+// foe automatically drums a different pattern. The party twist and the rhythm
+// twist reinforce each other for free.
+//
+// This is the ONE source of truth for "what comes next": the telegraph and the
+// enemy phase both call it, so the board can never promise one blow and land
+// another.
+function intentDanger(it) {
+  if (!it) return -1;
+  if (it.kind === 'buff') return -1;                       // steadying, not striking
+  return (it.dmg || 0) + (it.heavy ? 100 : 0) + (it.times || 1) * 2;
+}
+function chooseIntent(e, offset) {
+  const list = e.def.intents, len = list.length;
+  const cycle = list[(e.intentIdx + (offset || 0)) % len];
+  if (!e || e.dead) return cycle;
+  // THE TUTORIAL KEEPS ITS SCRIPT. Its fights are hand-authored beats — the husk
+  // casts Wither on turn 3 precisely so the player learns that guard blunts their
+  // hits — and a cornered foe reaching for its heaviest intent overrides exactly
+  // that. The teaching road stays deterministic; the descent is where the board
+  // starts answering back.
+  if (!S || !S.node || !S.node.useRunHp) return cycle;
+  // STEADYING — it just lost a turn to a break; it braces rather than swinging.
+  if (e._steadied) {
+    const calm = list.find(it => it.kind === 'buff' || it.guardSelf);
+    if (calm) return calm;
+  }
+  // CORNERED — crossing 40% it lashes out ONCE with the worst thing it has, then
+  // resumes its cycle. Measured as a standing state instead, a wounded boss
+  // repeated REMEMBERED END every turn: monotony of a different kind, and
+  // unreadable besides. A moment lands; a permanent mode just grinds.
+  if (e._corner) {
+    let worst = cycle;
+    list.forEach(it => { if (intentDanger(it) > intentDanger(worst)) worst = it; });
+    return worst;
+  }
+  return cycle;
+}
 function enemyNextIntents(e) {
   const len = e.def.intents.length;
   const n = e.def.attacksPerRound || 1;   // bosses AND swarms (Gnawing Brood) strike more than once
@@ -4823,7 +4878,7 @@ function enemyNextIntents(e) {
     if (k === 0 && e.echoStored) { out.push(echoView(e.echoStored)); continue; }
     if (k === 0 && !e.echoStored && pounce) { out.push(pounce); continue; }   // the pounce takes the first slot
     const off = e.echoStored ? k - 1 : k;
-    out.push(e.def.intents[(e.intentIdx + off) % len]);
+    out.push(chooseIntent(e, off));   // same chooser the enemy phase runs — the telegraph cannot lie
   }
   return out;
 }
@@ -4913,7 +4968,14 @@ function dealToEnemy(e, amt, school, byHeroId) {
   // chips the guard first.
   const pierce = heroHas(byHeroId, 'branwen.passive.longshot');
   if (e.guard > 0 && !pierce) { const g = Math.min(e.guard, left); e.guard -= g; left -= g; }
+  const _wasAbove = e.hp / Math.max(1, e.maxHp) > 0.4;
   e.hp = Math.max(0, e.hp - left);
+  // the wound that takes it past 40% arms ONE desperate answer (see chooseIntent)
+  if (_wasAbove && e.hp > 0 && e.hp / Math.max(1, e.maxHp) <= 0.4 && !e._corneredOnce) {
+    e._corneredOnce = true; e._corner = true;
+    popupAt(figEl(e.uid), '⚠ CORNERED', 'dmg');
+    flashNarrator(e.def.name + ' is cornered — it reaches for something worse.');
+  }
   // First blood reveals the hidden weakness.
   if (!e.weakRevealed) {
     e.weakRevealed = true;
@@ -6864,6 +6926,17 @@ async function endTurn() {
     S._assistedPairs = new Set();   // each bond may assist once per turn again
     // IMMOVABLE (Cassia) keeps her guard through the enemy turn — everyone else's fades.
     S.heroes.forEach(h => { h.guard = keepsGuard(h.id) ? h.guard : 0; h.counter = 0; h.invuln = false; h.exposed = 0; h._hitByE = []; h.hexed = Math.max(0, (h.hexed || 0) - 1); });
+    // A RALLY IS A WINDOW, NOT A RATCHET (Build 260). Enemy `power` never decayed,
+    // so a foe with a self-buff intent climbed forever — the floor-1 boss gathers
+    // +3 every third turn, which is +9 to +12 flat on every blow across a long
+    // fight, and nothing on screen ever says so. It ebbs by 1 a turn now, so a
+    // rally is worth ANSWERING rather than simply enduring.
+    //
+    // Enemy GUARD is deliberately left alone. It looked like the same problem and
+    // is not: guard is spent by taking damage, so it self-limits, and decaying it
+    // killed the tutorial husk a turn early — the beat that teaches "guard blunts
+    // your hits" needs the guard to still be there on the turn after it is cast.
+    livingEnemies().forEach(e => { if (e.power) e.power = Math.max(0, e.power - 1); });
     // EXPOSED (mark) now survives the turn rollover but FADES by 1, so a mark
     // laid down this turn still pays off next turn — making it a real setup,
     // not a same-turn-only tax.
@@ -6923,7 +6996,7 @@ async function enemyPhase() {
     const pounce = atk === 0 ? smartHookIntent(e) : null;   // the same reach the telegraph showed
     if (atk === 0 && e.echoStored) { intent = echoView(e.echoStored); e.echoStored = null; popupAt(figEl(e.uid), '◈ THE ECHO RETURNS', 'info'); }
     else if (pounce) { intent = pounce; flashNarrator(e.def.name + ' reaches for the vulnerable.'); }   // pounce doesn't consume the cycle
-    else { intent = e.def.intents[e.intentIdx % e.def.intents.length]; e.intentIdx++; }
+    else { intent = chooseIntent(e, 0); e.intentIdx++; e._steadied = false; e._corner = false; }
     e.acted = true;
     renderTimeline();
     // THE BREAK STEALS THE TURN (Build 234, the Octopath payoff): a BROKEN foe
@@ -6933,6 +7006,7 @@ async function enemyPhase() {
     // the eight carries a heavy intent).
     if (e.staggered) {
       e.staggered = false;
+      e._steadied = true;                         // its next intent braces, not swings (see chooseIntent)
       e.poise = e.poiseMax || 2;                  // it finds its feet again
       foeAnimState(e.uid, 'idle');                // it stops reeling
       popupAt(figEl(e.uid), 'REELING — TURN LOST', 'info');
