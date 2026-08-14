@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 266;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 267;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -2216,7 +2216,7 @@ function duetPerkFor(a, b) {
 //
 // Three half-finished things become one loop here, and none of them is new:
 //
-//   BOND_ARCS   6 pairs, 17 authored campfire beats, already persisted across
+//   BOND_ARCS   authored campfire beats, already persisted across
 //               runs — and they unlocked NOTHING. Good writing paying out none.
 //   DUET_PERKS  15 authored pair abilities with real triggers, firing silently
 //               behind a topbar glyph whose only explanation is a `title`
@@ -3085,6 +3085,11 @@ const CAMP_VOICES = {
 // the relationship resumes where it stopped, Hades-style, instead of resetting
 // with the descent.  A pair with no authored arc falls back to their one-line
 // camp voices, so an unwritten pair is never a blank scene.
+// Build 267: all 15 pairs among the six lattice heroes are now authored, three
+// beats each.  Before this, nine of them ran the whole loop — arc night, bond
+// node, pair ability — on two standing one-liners, which read as filler for
+// most party compositions.  The fallback survives for heroes outside the
+// lattice (kiki), where it is the correct behaviour rather than a gap.
 const ARCS_KEY = 'kizuna2_1.arcs';
 function loadArcs() { try { return JSON.parse(localStorage.getItem(ARCS_KEY) || '{}'); } catch (_) { return {}; } }
 function arcSeen(a, b) { return loadArcs()[pairKey(a, b)] || 0; }
@@ -3176,6 +3181,153 @@ const BOND_ARCS = {
       lines: [{ spk: 'HASK', text: '…You could have shifted me.' },
               { spk: 'CASSIA', text: 'You were cold.' },
               { spk: 'HASK', text: 'That’s strategy, not sentiment. I’m told.' }] },
+    { set: 'The fire is down to embers. He does not move to the warm stone tonight.',
+      lines: [{ spk: 'HASK', text: 'It isn’t the heat. I should say that once, and then never again.' },
+              { spk: 'CASSIA', text: 'Say it, then.' },
+              { spk: 'HASK', text: 'Nothing has stood between me and the dark since I was small enough to need it to. …That’s all. Sentiment. Log it as an error.' },
+              { spk: 'CASSIA', text: 'Logged. Sit down, Hask.' }] },
+  ],
+  'ash|branwen': [
+    { set: 'He comes back from the dark without a sound and finds her arrow already lowered.',
+      lines: [{ spk: 'BRANWEN', text: 'You went out past the stones without telling anyone.' },
+              { spk: 'ASH', text: 'I went out quiet. That’s the point of it.' },
+              { spk: 'BRANWEN', text: 'It’s the point of my arrow, too. Tell me next time.' }] },
+    { set: 'She is counting again. He watches her get to the end and start over.',
+      lines: [{ spk: 'ASH', text: 'You always land on me last.' },
+              { spk: 'BRANWEN', text: 'Because you’re the one who moves. …It’s not an insult. It’s just where the hard number is.' },
+              { spk: 'ASH', text: 'Then I’ll stop moving.' },
+              { spk: 'BRANWEN', text: 'Don’t. Just be somewhere I can find you.' }] },
+    { set: 'She takes his hand, turns it over, and taps two beats into his palm.',
+      lines: [{ spk: 'BRANWEN', text: 'Two short — I see you. Three — go, I have the lane.' },
+              { spk: 'ASH', text: 'And one?' },
+              { spk: 'BRANWEN', text: 'One means come back to the fire. …You’ve never once heard me give that one. Learn it anyway.' },
+              { spk: 'ASH', text: 'Noted.' }] },
+  ],
+  'ash|hask': [
+    { set: 'The mage watches him drill the same cut, over and over, without comment for a long while.',
+      lines: [{ spk: 'HASK', text: 'You’ve done that ninety times. The ninetieth was worse than the tenth.' },
+              { spk: 'ASH', text: 'I know.' },
+              { spk: 'HASK', text: 'Then stop. …I dislike watching a good instrument dull itself out of habit.' }] },
+    { set: 'Ash notices the frost never fully leaves the mage’s fingers, even here, even by the coals.',
+      lines: [{ spk: 'ASH', text: 'Your hands. Is that you, or is that it?' },
+              { spk: 'HASK', text: '…There’s no clean line between those two anymore. That’s the honest answer, and I’d thank you not to ask for a second one.' },
+              { spk: 'ASH', text: 'I won’t.' }] },
+    { set: 'Later. Hask has moved to the far stone, out of the light, and Ash follows without being invited.',
+      lines: [{ spk: 'HASK', text: 'You’re standing very close to a man who is slowly becoming winter.' },
+              { spk: 'ASH', text: 'Yes.' },
+              { spk: 'HASK', text: 'That is not a rebuttal, Ronin. That is barely a sentence.' },
+              { spk: 'ASH', text: 'It’s the whole answer. If it takes you, it goes through me first. Sit.' }] },
+  ],
+  'branwen|cassia': [
+    { set: 'They have been arguing about tomorrow’s formation for some time. Neither has raised their voice.',
+      lines: [{ spk: 'CASSIA', text: 'Behind the shield. That is where the archer stands.' },
+              { spk: 'BRANWEN', text: 'Behind the shield I can see a shield. That’s all I can see.' },
+              { spk: 'CASSIA', text: '…Then we have a problem, and it is not one either of us will win tonight.' }] },
+    { set: 'Cassia sets the shield down flat and steps aside — a concession made without saying so.',
+      lines: [{ spk: 'BRANWEN', text: 'I count them. Every night, all of them. If the number comes up right, I sleep.' },
+              { spk: 'CASSIA', text: 'And if it doesn’t?' },
+              { spk: 'BRANWEN', text: 'Then I sit up and watch the gap until morning fills it. Standing behind you, I can’t count.' },
+              { spk: 'CASSIA', text: '…Take the high stone tomorrow. I’ll hold the line where you can see it.' }] },
+    { set: 'The knight asks it quietly, as though it were a matter of logistics.',
+      lines: [{ spk: 'CASSIA', text: 'When you count. Am I in the number?' },
+              { spk: 'BRANWEN', text: 'You’re the first one I look for. You’re the biggest thing on the field.' },
+              { spk: 'CASSIA', text: 'That isn’t what I asked.' },
+              { spk: 'BRANWEN', text: '…You’re in the number, Cassia. Walls get counted too.' }] },
+  ],
+  'branwen|hask': [
+    { set: 'Both have ended up at the cold edge of the camp, for entirely different reasons.',
+      lines: [{ spk: 'HASK', text: 'You chose the coldest seat available and you are not even enjoying it.' },
+              { spk: 'BRANWEN', text: 'It has the sightline.' },
+              { spk: 'HASK', text: 'Ah. A professional. …Move over.' }] },
+    { set: 'They fall into planning without either of them proposing it.',
+      lines: [{ spk: 'BRANWEN', text: 'The ground by the left arch is loose. They’ll come through there.' },
+              { spk: 'HASK', text: 'Then I will make it glass and you will make it a shooting gallery.' },
+              { spk: 'BRANWEN', text: '…That’s the first time anyone’s answered a sightline with a plan instead of a shrug.' },
+              { spk: 'HASK', text: 'I am told I have very few virtues. Enjoy this one.' }] },
+    { set: 'The talk runs out. Hask keeps looking at the treeline instead of the fire.',
+      lines: [{ spk: 'HASK', text: 'Range is a lonely trade. You and I die at a distance, out where no one’s reaching.' },
+              { spk: 'BRANWEN', text: 'That’s why I count.' },
+              { spk: 'HASK', text: 'Then do me the courtesy of a low number, Ranger. I have no interest in being an interesting statistic.' },
+              { spk: 'BRANWEN', text: 'Sit where I can see you and you won’t be.' }] },
+  ],
+  'branwen|mira': [
+    { set: 'The fire has two people at its edge tonight and neither will take the last step in.',
+      lines: [{ spk: 'MIRA', text: 'You’re in my dark.' },
+              { spk: 'BRANWEN', text: 'It’s a big dark.' },
+              { spk: 'MIRA', text: '…Fine. Don’t talk to me and we’ll get on beautifully.' }] },
+    { set: 'Branwen’s lips move. Mira watches her do it, and works out what it is.',
+      lines: [{ spk: 'MIRA', text: 'You’re counting us.' },
+              { spk: 'BRANWEN', text: 'Yes.' },
+              { spk: 'MIRA', text: 'Leave me out of it. I’m not a number anyone should get attached to.' },
+              { spk: 'BRANWEN', text: 'Too late. You were four before you sat down.' }] },
+    { set: 'A long silence, and then the thing neither of them planned to say.',
+      lines: [{ spk: 'MIRA', text: 'I sit out here so it takes me before it gets to the rest of you. That’s the whole shape of it.' },
+              { spk: 'BRANWEN', text: 'I know. I sit out here so I can see all of you at once. We’ve been doing the same thing back to back for weeks.' },
+              { spk: 'MIRA', text: '…That’s grim.' },
+              { spk: 'BRANWEN', text: 'That’s a formation. Turn around, Mira. I’ll watch the dark. You watch them.' }] },
+  ],
+  'cassia|elin': [
+    { set: 'Elin has found the split under the pauldron that the knight has been pretending is not there.',
+      lines: [{ spk: 'ELIN', text: 'Off. All of it. I’m not asking.' },
+              { spk: 'CASSIA', text: 'It doesn’t signify.' },
+              { spk: 'ELIN', text: 'It signifies to me, and I am the one holding the needle.' }] },
+    { set: 'The armour is off. The knight sits very upright, as if that were still armour.',
+      lines: [{ spk: 'CASSIA', text: 'A wall isn’t tended. A wall is stood behind. That is the arrangement.' },
+              { spk: 'ELIN', text: 'Who told you that?' },
+              { spk: 'CASSIA', text: 'The last person who stood behind me. …And I buried her, so perhaps she was wrong.' }] },
+    { set: 'Elin ties off the stitch and does not let go of her arm.',
+      lines: [{ spk: 'ELIN', text: 'I buried an order. You buried a knight. Between us we have a great deal of practice at being the one still standing.' },
+              { spk: 'CASSIA', text: 'That is not a comfort, Cleric.' },
+              { spk: 'ELIN', text: 'It isn’t meant to be. It’s an agreement. While I’m standing you don’t fall — and while you’re standing, neither do I.' },
+              { spk: 'CASSIA', text: '…Then hold the line, Elin. I’ll hold mine.' }] },
+  ],
+  'cassia|mira': [
+    { set: 'The knight plants the shield in the dirt at the edge of the light, deliberately, in Mira’s way.',
+      lines: [{ spk: 'CASSIA', text: 'Tomorrow. Behind me.' },
+              { spk: 'MIRA', text: 'No.' },
+              { spk: 'CASSIA', text: 'That was not a request.' },
+              { spk: 'MIRA', text: 'It wasn’t a refusal either. It was a fact. Learn the difference.' }] },
+    { set: 'Cassia does not leave. After a while Mira gives her the reason, because it is faster than arguing.',
+      lines: [{ spk: 'MIRA', text: 'I go first so it takes me first. Then it’s slower reaching everyone else. It works.' },
+              { spk: 'CASSIA', text: 'That is not a strategy. That is a funeral with steps.' },
+              { spk: 'MIRA', text: '…Have you got a better one, wall?' }] },
+    { set: 'The knight moves the shield one pace and taps the ground beside it.',
+      lines: [{ spk: 'CASSIA', text: 'Here. My shoulder. It is a half-step ahead of the shield — you will meet it before I do, which is what you want.' },
+              { spk: 'MIRA', text: 'And what do you get out of that.' },
+              { spk: 'CASSIA', text: 'I get to be standing next to it when it happens. Which is what I want.' },
+              { spk: 'MIRA', text: '…Fine. Don’t make it a thing.' }] },
+  ],
+  'elin|hask': [
+    { set: 'She takes his hands before he can invent a reason not to give them.',
+      lines: [{ spk: 'ELIN', text: 'These are like river stones. How long have they been like this?' },
+              { spk: 'HASK', text: 'Longer than you’ve known me. It isn’t an ailment, healer. It’s a bill.' },
+              { spk: 'ELIN', text: 'Then I’ll sit with the debt a while.' }] },
+    { set: 'She has not let go. He watches her not let go with visible discomfort.',
+      lines: [{ spk: 'HASK', text: 'You cannot mend this. There is nothing torn. There is simply less of me each season.' },
+              { spk: 'ELIN', text: 'I know.' },
+              { spk: 'HASK', text: 'Then why are you still holding them.' },
+              { spk: 'ELIN', text: 'Because you’re cold and I’m warm. That’s the whole of the medicine.' }] },
+    { set: 'The frost on his knuckles has gone to water. Neither of them mentions it.',
+      lines: [{ spk: 'HASK', text: '…Tomorrow night. Same hour.' },
+              { spk: 'ELIN', text: 'Say it properly.' },
+              { spk: 'HASK', text: 'Tomorrow night, would you sit with me. …That is strategy. I am reliably informed it is strategy.' },
+              { spk: 'ELIN', text: 'Of course it is. Hold still.' }] },
+  ],
+  'hask|mira': [
+    { set: 'He has been studying her the way he studies weather that is about to become a problem.',
+      lines: [{ spk: 'HASK', text: 'You never sit in the light. I’ve been keeping a record.' },
+              { spk: 'MIRA', text: 'Stop keeping it.' },
+              { spk: 'HASK', text: 'I’ve stopped. …The record was very short and extremely consistent, if you ever want it.' }] },
+    { set: 'She turns it around on him, which he was not expecting and does not enjoy.',
+      lines: [{ spk: 'MIRA', text: 'You talk so no one asks. I stay quiet so no one asks. Same coward, two methods.' },
+              { spk: 'HASK', text: '…That is an unkind reading.' },
+              { spk: 'MIRA', text: 'Is it wrong?' },
+              { spk: 'HASK', text: 'It is not wrong. It is unkind. Those are permitted to be the same thing.' }] },
+    { set: 'Before the fire dies he draws a small ring of frost into the dirt where she will land tomorrow.',
+      lines: [{ spk: 'HASK', text: 'The left flank. I’ll take the footing out from under them a half-beat before you arrive.' },
+              { spk: 'MIRA', text: 'I didn’t ask.' },
+              { spk: 'HASK', text: 'No. You never do. It’s becoming my favourite thing about you.' },
+              { spk: 'MIRA', text: '…Half a beat. Don’t be late.' }] },
   ],
 };
 function arcBeat(a, b, stage) {

@@ -634,15 +634,44 @@ const QUICK = process.argv.includes('--quick');
     }));
   check('ARC: an unwritten pair is safe (falls back, marks nothing)',
     await J(() => {
-      const beat = arcBeat('hask', 'mira', 1);
+      const beat = arcBeat('kiki', 'hask', 1);      // kiki has no lattice region, so no arc
       return beat.staged === false && beat.lines.length === 2;
     }));
-  check('ARC: six pairs carry authored arcs, 16 beats of payoff',
+  // Build 267 — EVERY pair the lattice can bond now has authored beats. Before
+  // this, 9 of the 15 pairs got the loop (arc -> bond node -> pair ability) but
+  // fell back to two standing one-liners, so the payoff scene read as filler for
+  // most parties. This asserts the gap is closed and can never silently reopen.
+  check('ARC: all 15 lattice pairs carry authored arcs, 3 beats each',
     await J(() => {
+      const roster = ['ash', 'branwen', 'cassia', 'elin', 'hask', 'mira'];
+      const want = [];
+      for (let i = 0; i < roster.length; i++) for (let j = i + 1; j < roster.length; j++) want.push(pairKey(roster[i], roster[j]));
+      const missing = want.filter(k => !BOND_ARCS[k] || BOND_ARCS[k].length < 3);
       const keys = Object.keys(BOND_ARCS);
       const beats = keys.reduce((n, k) => n + BOND_ARCS[k].length, 0);
-      const wellFormed = keys.every(k => BOND_ARCS[k].every(b => b.set && Array.isArray(b.lines) && b.lines.every(l => l.spk && l.text)));
-      return keys.length >= 6 && beats >= 16 && wellFormed;
+      const wellFormed = keys.every(k => BOND_ARCS[k].every(b => b.set && Array.isArray(b.lines)
+        && b.lines.length >= 2 && b.lines.every(l => l.spk && l.text)));
+      return want.length === 15 && missing.length === 0 && beats >= 45 && wellFormed;
+    }));
+  check('ARC: every lattice pair reaches a STAGED beat at stage 1 and 3 — no filler nights',
+    await J(() => {
+      const roster = ['ash', 'branwen', 'cassia', 'elin', 'hask', 'mira'];
+      for (let i = 0; i < roster.length; i++) for (let j = i + 1; j < roster.length; j++) {
+        for (const st of [1, 2, 3]) {
+          const b = arcBeat(roster[i], roster[j], st);
+          if (!b.staged || !b.set || b.lines.length < 2) return false;
+        }
+      }
+      return true;
+    }));
+  check('ARC: the new pairs are written IN VOICE — Mira deflects, Hask calls it strategy',
+    await J(() => {
+      const mira = BOND_ARCS['branwen|mira'].flatMap(b => b.lines).map(l => l.text).join(' ');
+      const hask = BOND_ARCS['elin|hask'].flatMap(b => b.lines).map(l => l.text).join(' ');
+      const cass = BOND_ARCS['cassia|elin'].flatMap(b => b.lines).map(l => l.text).join(' ');
+      return /not a number anyone should get attached to/.test(mira)
+        && /strategy/i.test(hask)
+        && /buried an order/.test(cass);
     }));
 
   // ---------- BUILD 222/227: the KIZUNA loop — combos EARN bonds ----------
