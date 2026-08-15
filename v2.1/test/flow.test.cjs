@@ -2658,6 +2658,76 @@ const QUICK = process.argv.includes('--quick');
       }
       return earlyAlways && [...seen].some(l => l >= 4) && seen.size >= 3;   // reaches deeper than the old 2–4 cluster
     }));
+  // ---------- BUILD 281: enemies stop swinging at empty rows ----------
+  // effIntentRow returned intent.row for any non-smart foe, occupied or not.
+  // Against a lone hero — one row of three — that is most of its attacks hitting
+  // furniture: no damage, and no PARRY WINDOW either, because enemyPhase only
+  // opens one when a hero stands in the struck row. The beat was deleted
+  // silently, which is a large part of why a fight offered so few parries.
+  const aimSetup = `(party, rows) => {
+    RUN = newRun(party[0]); RUN.roster = party.slice(); RUN.active = party.slice();
+    RUN.hp = {}; party.forEach(id => RUN.hp[id] = HEROES[id].maxHp);
+    startFight({ type:'fight', chapter:3, heroes:party.slice(), enemies:['husk'], useRunHp:true, floor:1, depth:2, narrator:'aim' });
+    if (rows) S.heroes.forEach(h => { if (rows[h.id]) h.row = rows[h.id]; });
+    S._taunt = null;
+    const e = S.enemies[0]; e._aim = null; return e;
+  }`;
+  check('AIM: a dumb foe no longer swings at a row nobody is standing in',
+    await J(`(() => {
+      const e = (${aimSetup})(['ash'], { ash: 'front' }); e.smart = false;
+      const back = effIntentRow(e, { row: 'back', dmg: 5 });
+      const mid = effIntentRow(e, { row: 'mid', dmg: 5 });
+      const front = effIntentRow(e, { row: 'front', dmg: 5 });
+      return back === 'front' && mid === 'front' && front === 'front';
+    })()`));
+  check('AIM: it takes the NEAREST occupied row, so the blow keeps its character',
+    await J(`(() => {
+      const e = (${aimSetup})(['ash','elin'], { ash: 'front', elin: 'mid' }); e.smart = false;
+      return effIntentRow(e, { row: 'back', dmg: 5 }) === 'mid';   // mid, not front
+    })()`));
+  check('AIM: the row LOCKS at telegraph time — stepping out of it still dodges',
+    await J(`(() => {
+      const e = (${aimSetup})(['ash'], { ash: 'front' }); e.smart = false;
+      const told = effIntentRow(e, { row: 'front', dmg: 5 });
+      S.heroes[0].row = 'back';                                    // the player dodges
+      const resolved = effIntentRow(e, { row: 'front', dmg: 5 });  // must not follow
+      return told === 'front' && resolved === 'front';
+    })()`));
+  check('AIM: a SMART foe cannot chase a dodge either — its hunt locks too',
+    await J(`(() => {
+      const e = (${aimSetup})(['ash','elin'], { ash: 'front', elin: 'back' }); e.smart = true;
+      S.heroes.find(h => h.id === 'elin').hp = 3;                  // elin is the prey
+      const hunted = effIntentRow(e, { row: 'front', dmg: 5 });
+      S.heroes.find(h => h.id === 'elin').row = 'mid';
+      return hunted === 'back' && effIntentRow(e, { row: 'front', dmg: 5 }) === 'back';
+    })()`));
+  check('AIM: every damaging intent in the game now opens a PARRY WINDOW on a solo hero',
+    await J(`(() => {
+      // enemyPhase only opens a window when a hero stands in the struck row
+      // (\`ptRow\`), so an intent aimed at an empty row deleted the beat. Sweep
+      // every authored intent against a LONE hero — the worst case, one occupied
+      // row of three — and count how many would find him.
+      const e = (${aimSetup})(['ash'], { ash: 'front' });
+      let total = 0, land = 0;
+      Object.keys(ENEMY_DEFS).forEach(k => (ENEMY_DEFS[k].intents || []).forEach(it => {
+        if (!it || it.kind === 'buff' || !(it.dmg > 0)) return;
+        total++;
+        e._aim = null; e.smart = false;
+        const r = effIntentRow(e, it);
+        if (r === 'all' || heroInRow(r)) land++;
+      }));
+      return total >= 20 && land === total;
+    })()`));
+  check('AIM: TAUNT still overrides live — the wall makes itself the target',
+    await J(`(() => {
+      const e = (${aimSetup})(['ash','cassia'], { ash: 'front', cassia: 'back' }); e.smart = false;
+      e._aim = { turn: S.turn, m: { '|front': 'front' } };          // already locked elsewhere
+      S._taunt = 'cassia';
+      const r = effIntentRow(e, { row: 'front', dmg: 5 });
+      S._taunt = null;
+      return r === 'back';
+    })()`));
+
   // ---------- BUILD 277: RELICS ----------
   // BOONS were already this game's Slay the Spire relics — 41, hero-gated,
   // drafted mid-run, stacking, several of them curses. A second per-run passive

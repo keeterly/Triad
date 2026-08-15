@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 280;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 281;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -5528,13 +5528,39 @@ function effIntentRow(e, intent) {
     const tn = livingHeroes().find(h => h.id === S._taunt);
     if (tn) return tn.row;
   }
-  if (!e || !e.smart) return intent.row;
   const live = (typeof S !== 'undefined' && S) ? livingHeroes() : [];
   if (!live.length) return intent.row;
+  // THE ROW IS DECIDED WHEN THE TELEGRAPH GOES UP, AND DOES NOT FOLLOW YOU
+  // (Build 281). This is called for BOTH the telegraph and the resolution, so
+  // anything computed fresh would re-aim after you moved — and stepping out of
+  // the named row is the whole dodge. Lock it for the turn.
+  // Keyed PER INTENT, not per enemy: a boss telegraphs two blows a round, and a
+  // single lock collapsed both onto one row.
+  const aimKey = (intent.name || '') + '|' + intent.row;
+  if (S && e) {
+    if (!e._aim || e._aim.turn !== S.turn) e._aim = { turn: S.turn, m: {} };
+    if (e._aim.m[aimKey]) return e._aim.m[aimKey];
+  }
+  const lock = (row) => { if (S && e && e._aim) e._aim.m[aimKey] = row; return row; };
+  if (!e || !e.smart) {
+    // A dumb foe used to swing at the row its intent names even when nobody was
+    // standing in it. Against a lone hero — one occupied row of three — that is
+    // most of its attacks hitting furniture: no damage, and NO PARRY WINDOW
+    // either, because enemyPhase only opens one when a hero is in the struck row
+    // (see `ptRow`). The beat was silently deleted, which is a large part of why
+    // a fight offers so few chances to parry.
+    if (heroInRow(intent.row)) return lock(intent.row);
+    // aim at the nearest row somebody is actually standing in, so a blow meant
+    // for the back line still reads as one
+    const order = ROWS.indexOf(intent.row);
+    const occupied = ROWS.filter(r => heroInRow(r))
+      .sort((a, b) => Math.abs(ROWS.indexOf(a) - order) - Math.abs(ROWS.indexOf(b) - order));
+    return lock(occupied[0] || intent.row);
+  }
   // A SHOVE/HOOK hunts the cruelest victim to displace, not just the weakest hitpool.
-  if (intent.shove) { const v = cruelShovePrey(e, intent); if (v) return v.row; }
+  if (intent.shove) { const v = cruelShovePrey(e, intent); if (v) return lock(v.row); }
   const prey = live.slice().sort((a, b) => (a.hp + (a.guard || 0)) - (b.hp + (b.guard || 0)) || (b.exposed || 0) - (a.exposed || 0))[0];
-  return prey.row;
+  return lock(prey.row);
 }
 // DELIBERATELY CRUEL — a shove/hook seeks the victim it hurts MOST to move, not
 // merely the lowest hitpool: first a charged Hask (dragging him MISFIRES his ◆),

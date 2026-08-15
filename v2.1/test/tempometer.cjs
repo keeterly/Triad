@@ -33,9 +33,15 @@ const { boot } = require('./harness.cjs');
       RUN = newRun(party[0]); RUN.roster = party.slice(); RUN.active = party.slice();
       RUN.hp = {}; party.forEach(id => RUN.hp[id] = HEROES[id].maxHp);
       RUN.nodes = EMBER_TREE.filter(n => n.type === 'card').map(n => n.id);
-      const node = generateDescent(party, 1).filter(n => n.type === 'fight' && n.level === 3)[0];
-      startFight({ type:'fight', chapter:3, heroes:party.slice(), enemies:node.enemies.slice(),
+      // a level-3 room is not guaranteed on every generated map (Build 274 can
+      // make a whole level a single recruit), so fall back rather than throw
+      const maps = generateDescent(party, 1);
+      const node = maps.filter(n => n.type === 'fight' && n.level === 3)[0]
+                || maps.filter(n => n.type === 'fight')[0];
+      startFight({ type:'fight', chapter:3, heroes:party.slice(),
+        enemies:(node && node.enemies ? node.enemies.slice() : ['husk','wraith','cultist']),
         useRunHp:true, floor:1, depth:3, narrator:'r' });
+      if (!S) return { turns:0, cards:0, acts:0, foes:0, notes:0, hp:0 };
       renderAll();
       const nap = (ms) => new Promise(r => setTimeout(r, ms));
       let turns = 0, cards = 0, acts = 0, foes = S.enemies.length;
