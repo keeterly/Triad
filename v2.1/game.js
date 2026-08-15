@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 283;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 284;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -6273,18 +6273,56 @@ function parryPatternFor(intent) {
     // plain single TAP or a thin 2-MULTI on a REAL blow (d≥4) is promoted to a
     // short STRING, so even a basic mob attack reads as a live cascade, not a
     // one-tap formality.  Tiny jabs (d≤3) stay a single clean read (the primer).
-    if (d >= 5 && ((p.kind === 'tap' && !p.size) || (p.kind === 'multi' && (p.count || 2) <= 2))) {
+    // A SINGLE GESTURE IS NOT A READ (Build 284). Trash mobs author one flick or
+    // one brace per blow — a lone swipe, a lone hold, a thin 2-multi — so an
+    // ordinary attack was over before it began while the revenant's three-note
+    // cascade made a set-piece feel like a different game. Any thin pattern on a
+    // blow worth reading (d>=3) grows a lead-in beat, and the AUTHORED gesture is
+    // kept as the final note so the attack still reads as itself: the mourner's
+    // Sorrowing Arc is still a sweep, it just takes a breath first.
+    //
+    // Two things stay alone on purpose. A MASH is already a flurry of inputs, and
+    // an ACROSS sweep is the signature wide-attack read — one big committed arc,
+    // which is the whole point of it.
+    // An AUTHORED wide sweep was ONE note while the derived one (below) is three
+    // — so writing a sweep down made it thinner than leaving it to the default,
+    // which is backwards. A blow that reaches the whole line should be the
+    // biggest read on the board, not the smallest.
+    if (p.kind === 'swipe' && p.across && d >= 2) {
+      return { kind: 'seq', notes: [{ t: 'swipe', arc: p.arc || 'arcAcross', across: true }, { t: 'tap' }, { t: 'tap' }] };
+    }
+    const thin = (p.kind === 'tap' && !p.size)
+              || (p.kind === 'multi' && (p.count || 2) <= 2)
+              || (p.kind === 'swipe' && !p.across)
+              || (p.kind === 'hold' && !p.size);
+    if (d >= 3 && thin) {
+      const cap = p.kind === 'swipe' ? { t: 'swipe', arc: p.arc || 'arcR' }
+                : p.kind === 'hold'  ? { t: 'hold' }
+                : { t: 'swipe', arc: 'arcR' };
       return { kind: 'seq', notes: d >= 7
-        ? [{ t: 'tap' }, { t: 'tap' }, { t: 'swipe', arc: 'arcL' }]
-        : [{ t: 'tap' }, { t: 'swipe', arc: 'arcR' }] };
+        ? [{ t: 'tap' }, { t: 'tap' }, cap]
+        : [{ t: 'tap' }, cap] };
     }
     return p;
   }
   // Derived (un-authored) patterns follow the same shape.
   if (intent.heavy)         return { kind: 'seq', notes: [{ t: 'tap' }, { t: 'hold' }, { t: 'tap' }, { t: 'swipe', arc: 'arcU' }] };
   if (intent.row === 'all') return { kind: 'seq', notes: [{ t: 'swipe', arc: 'arcAcross' }, { t: 'tap' }, { t: 'tap' }] };
+  // NOTE COUNT WAS TIED TO DAMAGE (fixed Build 284), and trash mobs correctly
+  // hit for 3-5, so nearly every ordinary blow landed in the one-note bucket
+  // while an elite's 8-11 bought three. Measured across the roster: ~1.2 notes
+  // an attack for a mob against 3.0 for the revenant and up to 3.5 for a boss —
+  // a 4x gap, which is why a trash room offered 3 parries and a set-piece
+  // offered 11, and why the rhythm this game is named for only really exists in
+  // big fights.
+  //
+  // How MANY beats a blow takes to read and how much it HURTS are different
+  // questions. A small swing can still be a two-beat read; it just should not
+  // cost much when you fluff it. So the floor comes up to two, and only the
+  // smallest jabs stay a single clean gesture — those are the primer that
+  // teaches the gesture in the first place.
   if (d <= 2)               return { kind: 'mash', count: 4 };                                            // a frenzied flurry
-  if (d <= 4)               return { kind: 'tap' };                                                       // a single clean read (the primer)
+  if (d <= 4)               return { kind: 'seq', notes: [{ t: 'tap' }, { t: 'tap' }] };                  // a two-beat read
   if (d <= 6)               return { kind: 'seq', notes: [{ t: 'tap' }, { t: 'swipe', arc: 'arcR' }] };   // a two-hit string
   return { kind: 'seq', notes: [{ t: 'tap' }, { t: 'tap' }, { t: 'swipe', arc: 'arcL' }] };               // a heavy three-hit string
 }

@@ -1853,7 +1853,11 @@ const QUICK = process.argv.includes('--quick');
       const wr = ENEMY_DEFS.wraith.intents.find(i => i.name === 'Grasping Flurry');
       const hk = ENEMY_DEFS.husk.intents.find(i => i.name === 'Heavy Claw');
       const pw = parryPatternFor(wr), ph = parryPatternFor(hk);
-      return wr.dmg === hk.dmg && pw.kind === 'mash' && ph.kind === 'tap';   // identical damage, distinct gesture
+      // Build 284 raised the floor to a two-beat read, so the Husk's claw is a
+      // string now. What this check is really about survives: identical damage,
+      // distinct GESTURE.
+      const shape = (p) => p.kind === 'seq' ? p.notes.map(n => n.t).join('+') : p.kind;
+      return wr.dmg === hk.dmg && pw.kind === 'mash' && shape(ph) !== shape(pw);
     }));
   check('ENEMY IDENTITY: speed axis reads the foe — Wraith fast (>1), Husk/Drone slow (<1)',
     await J(() => ENEMY_DEFS.wraith.parrySpeed > 1 && ENEMY_DEFS.husk.parrySpeed < 1 && ENEMY_DEFS.drone.parrySpeed < 1));
@@ -2114,13 +2118,18 @@ const QUICK = process.argv.includes('--quick');
     await J((o) => (o.a - S.heroes.find(h => h.id === 'ash').hp) < 4 && S.momentum > 0, { a: ashHp0 }),
     await J((o) => 'ashDmg:' + (o.a - S.heroes.find(h => h.id === 'ash').hp) + ' mom:' + S.momentum, { a: ashHp0 }));
   // varied rhythm patterns derive per intent + preview on the telegraph
-  check('RHYTHM: blows resolve as STRINGS — a heavy is a braced cascade, mid hits are 2–3-note strings, a jab a single read, a frenzy a mash',
-    await J(() => parryPatternFor({ heavy: true }).kind === 'seq' && parryPatternFor({ heavy: true }).notes.length >= 4
-      && parryPatternFor({ row: 'all', dmg: 4 }).kind === 'seq'
-      && parryPatternFor({ dmg: 2 }).kind === 'mash'
-      && parryPatternFor({ dmg: 4 }).kind === 'tap'
-      && parryPatternFor({ dmg: 6 }).kind === 'seq' && parryPatternFor({ dmg: 6 }).notes.length === 2
-      && parryPatternFor({ dmg: 9 }).kind === 'seq' && parryPatternFor({ dmg: 9 }).notes.length === 3));
+  check('RHYTHM: blows resolve as STRINGS, and the ladder still ESCALATES with weight',
+    await J(() => {
+      const n = (p) => p.kind === 'seq' ? p.notes.length : p.kind === 'mash' ? 1 : 1;
+      // Build 284: the FLOOR is a two-beat read (a jab stays a mash flurry), so
+      // an ordinary blow is no longer a formality — but a heavy still buys more.
+      return parryPatternFor({ heavy: true }).kind === 'seq' && parryPatternFor({ heavy: true }).notes.length >= 4
+        && parryPatternFor({ row: 'all', dmg: 4 }).kind === 'seq'
+        && parryPatternFor({ dmg: 2 }).kind === 'mash'
+        && n(parryPatternFor({ dmg: 4 })) === 2
+        && n(parryPatternFor({ dmg: 6 })) === 2
+        && n(parryPatternFor({ dmg: 9 })) === 3;
+    }));
   check('INTENT: the telegraph pill is clean — damage + target row, no parry-glyph clutter',
     await J(() => { const p = document.querySelector('.intent'); return !!p && !!p.querySelector('.i-dmg') && !!p.querySelector('.i-row') && !p.querySelector('.i-parry'); }));
   check('ALL-HIT: a whole-party blow opens with an across-sweep, then follows',
@@ -2133,7 +2142,9 @@ const QUICK = process.argv.includes('--quick');
     const a = S.heroes.find(h => h.id === 'ash'); a.row = 'front';
     S.enemies[0].hp = S.enemies[0].maxHp = 40; S.ep = 0; S.momentum = 0;
     const it = S.enemies[0].def.intents[S.enemies[0].intentIdx % S.enemies[0].def.intents.length];
-    it.parry = { kind: 'hold' }; renderAll();
+    // `size` keeps it a single committed brace — Build 284 grows a lead-in beat
+    // onto THIN holds, and this drill is about the brace itself.
+    it.parry = { kind: 'hold', size: 'big' }; renderAll();
   });
   await sleep(250);
   const ashHold0 = await J(() => S.heroes.find(h => h.id === 'ash').hp);
@@ -2668,6 +2679,58 @@ const QUICK = process.argv.includes('--quick');
       }
       return earlyAlways && [...seen].some(l => l >= 4) && seen.size >= 3;   // reaches deeper than the old 2–4 cluster
     }));
+  // ---------- BUILD 284: a trash room is a read, not a formality ----------
+  // Note count was tied to DAMAGE, and mobs correctly hit for 3-5, so nearly
+  // every ordinary blow fell in the one-note bucket while an elite's 8-11 bought
+  // three. Measured: ~1.2 notes an attack for a mob against 3.0 for the revenant
+  // — which is why a trash room offered 3 parries and a set-piece offered 11.
+  const noteCount = `(p) => p.kind === 'seq' ? (p.notes||[]).length : p.kind === 'mash' ? 1 : p.kind === 'multi' ? (p.count||2) : 1`;
+  check('PARRY: an ordinary blow is at least a two-beat read',
+    await J(`(() => {
+      const n = ${noteCount};
+      // every mob attack worth reading (d>=3) that is not a deliberate single
+      // committed gesture (a BIG tap/hold, or a MASH flurry)
+      const mobs = ['husk','wraith','cultist','mourner','drone','brood','cantor'];
+      const thin = [];
+      mobs.forEach(k => (ENEMY_DEFS[k].intents || []).forEach(it => {
+        if (!it || it.kind === 'buff' || !(it.dmg >= 3)) return;
+        const auth = it.parry || {};
+        if (auth.kind === 'mash' || auth.size) return;      // deliberately one gesture
+        if (n(parryPatternFor(it)) < 2) thin.push(k + ':' + it.name);
+      }));
+      return thin.length === 0;
+    })()`));
+  check('PARRY: the authored gesture SURVIVES the promotion — a sweep is still a sweep',
+    await J(`(() => {
+      const p = parryPatternFor({ name: 'Sorrowing Arc', dmg: 5, row: 'mid', parry: { kind: 'swipe', arc: 'arcR' } });
+      return p.kind === 'seq' && p.notes.length === 2 && p.notes[p.notes.length - 1].t === 'swipe'
+        && p.notes[p.notes.length - 1].arc === 'arcR';
+    })()`));
+  check('PARRY: an AUTHORED wide sweep is no thinner than the derived one',
+    await J(`(() => {
+      const n = ${noteCount};
+      // writing a sweep down used to make it ONE note while leaving it to the
+      // default made it three — backwards for the blow that reaches everybody
+      const authored = parryPatternFor({ name: 'Dirge', dmg: 3, row: 'all', parry: { kind: 'swipe', arc: 'arcAcross', across: true } });
+      const derived  = parryPatternFor({ name: 'x', dmg: 3, row: 'all' });
+      return n(authored) === n(derived) && n(authored) === 3;
+    })()`));
+  check('PARRY: the gap to a set-piece NARROWS but does not close — elites stay denser',
+    await J(`(() => {
+      const n = ${noteCount};
+      const avg = (k) => { const d = (ENEMY_DEFS[k].intents||[]).filter(i => i && i.kind !== 'buff' && i.dmg > 0);
+        return d.reduce((a,i) => a + n(parryPatternFor(i)), 0) / d.length; };
+      const mobs = ['husk','wraith','cultist','mourner','drone','brood','cantor'].map(avg);
+      const mob = mobs.reduce((a,b)=>a+b,0) / mobs.length;
+      const elite = avg('revenant');
+      return mob >= 1.8 && elite > mob && elite / mob < 2;
+    })()`));
+  check('PARRY: the smallest jabs stay a single clean gesture — the primer survives',
+    await J(() => {
+      const p = parryPatternFor({ name: 'jab', dmg: 2, row: 'front' });
+      return p.kind === 'mash';
+    }));
+
   // ---------- BUILD 283: a floor has somewhere to recover ----------
   check('CAMP: a floor carries a MID-FLOOR fire, not just the one at the boss door',
     await J(() => {
