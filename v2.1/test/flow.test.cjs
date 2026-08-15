@@ -2668,6 +2668,44 @@ const QUICK = process.argv.includes('--quick');
       }
       return earlyAlways && [...seen].some(l => l >= 4) && seen.size >= 3;   // reaches deeper than the old 2–4 cluster
     }));
+  // ---------- BUILD 283: a floor has somewhere to recover ----------
+  check('CAMP: a floor carries a MID-FLOOR fire, not just the one at the boss door',
+    await J(() => {
+      for (let k = 0; k < 40; k++) {
+        RUN = newRun('ash'); RUN.roster = ['ash'];
+        const map = generateDescent(['ash'], 1);
+        const camps = map.filter(n => n.type === 'camp').map(n => n.level).sort((a, b) => a - b);
+        const preBoss = Math.max(...map.map(n => n.level)) - 1;
+        if (camps.length < 2) return false;                 // one mid, one at the door
+        if (!camps.includes(preBoss)) return false;
+        if (!camps.some(l => l > 1 && l < preBoss)) return false;
+      }
+      return true;
+    }));
+  check('CAMP: the mid-floor fire is a ROAD, not a toll — its level still branches',
+    await J(() => {
+      let branched = 0;
+      for (let k = 0; k < 40; k++) {
+        RUN = newRun('ash'); RUN.roster = ['ash'];
+        const map = generateDescent(['ash'], 1);
+        const preBoss = Math.max(...map.map(n => n.level)) - 1;
+        const mid = map.filter(n => n.type === 'camp' && n.level < preBoss)[0];
+        if (mid && map.filter(n => n.level === mid.level).length > 1) branched++;
+      }
+      return branched === 40;
+    }));
+  check('SCALE: a lone hero takes far less than a full line — the aim fix tripled what lands',
+    await J(() => {
+      const read = (party) => {
+        RUN = newRun(party[0]); RUN.roster = party.slice(); RUN.active = party.slice();
+        RUN.hp = {}; party.forEach(id => RUN.hp[id] = HEROES[id].maxHp);
+        startFight({ type:'fight', chapter:3, heroes:party.slice(), enemies:['husk'], useRunHp:true, floor:1, depth:3, narrator:'sc' });
+        return S.enemies[0].dmgMul;
+      };
+      const solo = read(['ash']), duo = read(['ash','elin']), trio = read(['ash','elin','mira']);
+      return solo < duo && duo < trio && solo < trio * 0.4;
+    }));
+
   // ---------- BUILD 282: every road in starts at the bottom ----------
   // NEW GAME dropped a veteran straight onto a character grid — the one entry
   // into the game that skipped the place every other run begins and ends at,

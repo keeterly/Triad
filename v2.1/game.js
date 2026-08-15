@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 282;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 283;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -3032,6 +3032,12 @@ function generateDescent(roster, floor) {
     if (level === 1) types = (typeof RUN !== 'undefined' && RUN && RUN.relic === 'compass') ? ['elite'] : ['fight'];
     else if (level === numLevels) types = ['boss'];
     else if (level === numLevels - 1) types = ['camp'];
+    // A MID-FLOOR FIRE (Build 283). The only camp sat at level 6 of 7, which did
+    // not matter while nothing could hurt you. Now that damage lands, a floor was
+    // a one-way attrition slide — 100 -> 92 -> 74 -> dead with no point at which
+    // the party could recover, so you lost to arithmetic settled three rooms
+    // earlier rather than to a decision. It is one of the level's two or three
+    // roads, not the only one, so taking it still costs you the other.
     else types = _stretchTypes(level);
     if (recruitAtLevel[level]) {
       // THE FIRST COMPANION IS NOT A DICE ROLL (Build 274).
@@ -3051,6 +3057,15 @@ function generateDescent(roster, floor) {
       const forced = roster.length < 3 && level === recruitLevels[0];
       if (forced) types = ['recruit'];
       else { types = types.slice(0, 2); types.splice(_rand(types.length + 1), 0, 'recruit'); }   // random row, not always the bottom
+    }
+    // …and the mid-floor fire is placed LAST, because the recruit branch above
+    // trims the row to two and would otherwise cut it. A forced recruit level is
+    // left alone — meeting somebody is the more important beat.
+    if (level === Math.ceil(numLevels / 2) && types.length > 1 && types.indexOf('camp') < 0) {
+      // take over the last NON-recruit road, so a crossing on the same level
+      // survives — meeting somebody and being able to recover are both beats
+      // this floor needs, and they are not in competition.
+      for (let i = types.length - 1; i >= 0; i--) { if (types[i] !== 'recruit') { types[i] = 'camp'; break; } }
     }
     const ids = [];
     types.forEach(type => {
@@ -3796,8 +3811,15 @@ function newBattle(node) {
     // exactly where it is (already a real fight: 88% -> 36% of the party bar
     // across the skill range, wiping half its runs at 0.4), and the trio's
     // anchor comes up to meet it.
-    const psDmg = ps >= 3 ? 1.25 : ps === 2 ? 0.86 : 0.64;
-    const psHp = ps >= 3 ? 1.12 : ps === 2 ? 0.9 : 0.72;
+    // Build 283. These were last set when a lone hero DODGED most incoming blows
+    // for free — he stands in one row of three, and a dumb foe swung at whatever
+    // row its intent named, occupied or not. Build 281 fixed that aiming, which
+    // quietly tripled the damage a solo or duo actually takes while changing
+    // nothing at all for a trio (a full line already occupies every row). Runs
+    // measured after it: 2 of 4 floors ended on the FIRST fight.
+    // So the small-party multipliers come down to match what now lands.
+    const psDmg = ps >= 3 ? 1.25 : ps === 2 ? 0.62 : 0.38;
+    const psHp = ps >= 3 ? 1.12 : ps === 2 ? 0.82 : 0.62;
     enemies.forEach(e => {
       if (e.def.boss) {
         // Bosses already hit hard and strike TWICE a round, so their per-floor
