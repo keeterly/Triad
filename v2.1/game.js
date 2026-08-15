@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 276;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 277;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -572,7 +572,7 @@ function onHeroEnterRow(hero, toRow, fromRow) {
         popupAt(figEl(hero.id), '◆ MISFIRE −' + left, 'dmg' + (big ? ' popup-big' : ''));
         impactFx(figEl(hero.id), 'foe', big); struck(figEl(hero.id), 'l'); SFX.hit(big);
         if (big) stageShake('lg');
-        if (hero.hp === 0) { hero.downed = true; popupAt(figEl(hero.id), 'DOWN', 'dmg'); }
+        if (hero.hp === 0 && !wardFall(hero)) { hero.downed = true; popupAt(figEl(hero.id), 'DOWN', 'dmg'); }
       } else {
         popupAt(figEl(hero.id), '◆ INTERRUPTED', 'chill');
       }
@@ -2997,7 +2997,10 @@ function generateDescent(roster, floor) {
   // point of being allowed to turn them away).  Someone you refused a SECOND
   // time is done with you for this descent and drops out of the pool.
   const refused = (typeof RUN !== 'undefined' && RUN && RUN.refused) || [];
-  const pending = _shuffle(STARTER_POOL.filter(id => !roster.includes(id) && !refused.includes(id)));
+  // SOMEONE'S LEFT GLOVE gave you your second hero up front, and the stair now
+  // considers your line settled — there is nobody else on this road.
+  const sealed = typeof RUN !== 'undefined' && RUN && RUN.relic === 'glove';
+  const pending = sealed ? [] : _shuffle(STARTER_POOL.filter(id => !roster.includes(id) && !refused.includes(id)));
   const numLevels = 7;
   // Scatter recruit encounters at RANDOM depths (not clustered up front) —
   // FFT-style, you cross paths with survivors anywhere on the road.  One lands
@@ -3014,7 +3017,8 @@ function generateDescent(roster, floor) {
   let eventI = 0, idc = 0;
   for (let level = 1; level <= numLevels; level++) {
     let types;
-    if (level === 1) types = ['fight'];
+    // A CHILD'S COMPASS shows you the whole stair, and the stair opens its jaws.
+    if (level === 1) types = (typeof RUN !== 'undefined' && RUN && RUN.relic === 'compass') ? ['elite'] : ['fight'];
     else if (level === numLevels) types = ['boss'];
     else if (level === numLevels - 1) types = ['camp'];
     else types = _stretchTypes(level);
@@ -3613,6 +3617,70 @@ const ROMAN = ['', 'I', 'II', 'III'];
 function trioClassKey(ids) { return ids.map(id => HEROES[id].cls).sort().join('+'); }
 const UNLOCK_KEY = 'kizuna2_1.unlocked';
 
+// ═════════════════════════════════════════════════════════════════════════════
+// RELICS (Build 277) — objects the abyss did not intend you to have
+//
+// BOONS are already this game's Slay the Spire relics: forty-one of them, hero-
+// gated, drafted mid-run, stacking, several of them curses with real drawbacks.
+// A second per-run passive item would have been the same system wearing a hat.
+//
+// So the line is: A BOON TUNES COMBAT. A RELIC CHANGES THE SHAPE OF THE RUN.
+// That is also the Made in Abyss reading of the word — a relic is not a sharper
+// sword, it is a compass, a bell, a box that wards a curse. Objects whose
+// function is half-understood, recovered from a depth that did not want to give
+// them up, and every one of them costs you something on the way back.
+//
+// One is carried per descent, chosen at the Landing before you climb. That
+// makes it a statement of intent rather than a mid-run draft, which is the
+// whole reason it is a different thing from a boon.
+const RELICS_KEY = 'kizuna2_1.relics';
+const RELICS = [
+  { id: 'compass', name: 'A CHILD’S COMPASS', icon: '✧',
+    found: 'you wake holding it the second time — somebody left it on the landing',
+    rule: 'The whole stair is legible from the first step: <b>every node shows what it is</b>, however far ahead.',
+    cost: 'The abyss notices you looking. <b>Each floor opens on an ELITE.</b>',
+    // Relics arrive when the LANDING does — after a descent has ended. A first
+    // run has none, so the picker falls straight through and a new player is
+    // never asked to weigh four costs they have no way to read yet.
+    at: (m) => ((m.deaths || 0) + (m.clears || 0)) >= 1 },
+  { id: 'box', name: 'THE CURSE-WARDING BOX', icon: '⬢',
+    found: 'recovered after your first fall',
+    rule: 'The first of you who would fall this descent <b>stands instead, at 1 HP</b>.',
+    cost: 'The curse goes somewhere. <b>Everyone else takes 4</b>, and the box is empty after.',
+    at: (m) => (m.deaths || 0) >= 2 },
+  { id: 'glove', name: 'SOMEONE’S LEFT GLOVE', icon: '❖',
+    found: 'found once three have walked with you',
+    rule: 'You do not wake alone. <b>A second hero walks in with you</b>, wary, from the first step.',
+    cost: 'The stair considers your line settled. <b>Nobody else will join you.</b>',
+    at: () => getUnlockedStarters().length >= 3 },
+  { id: 'ash', name: 'A HANDFUL OF ASH', icon: '◈',
+    found: 'it weighs exactly as much as you remember',
+    rule: 'You begin with <b>4 embers for every piece</b> of the abyss you have pieced together.',
+    cost: 'You arrive already spent. <b>The first camp offers nothing but the fire.</b>',
+    at: () => fragsHeld() >= 1 },
+];
+const RELIC_BY_ID = {}; RELICS.forEach(r => { RELIC_BY_ID[r.id] = r; });
+function loadRelics() { try { const a = JSON.parse(localStorage.getItem(RELICS_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch (_) { return []; } }
+function relicFound(id) { return RELICS.some(r => r.id === id && r.at(META)); }
+function relicsFound() { return RELICS.filter(r => r.at(META)); }
+// The one you are carrying THIS descent (null if you took nothing, which is a
+// legitimate choice — every relic has a cost).
+function heldRelic() { return (RUN && RUN.relic && RELIC_BY_ID[RUN.relic]) || null; }
+function hasRelic(id) { return !!(RUN && RUN.relic === id); }
+
+function wardFall(h) {
+  // THE CURSE-WARDING BOX (Build 277). The curse does not vanish; it is moved.
+  // Once per descent, and the whole rest of the line pays for it.
+  if (!hasRelic('box') || !S || S._boxSpent) return false;
+  S._boxSpent = true;
+  h.hp = 1; h.downed = false;
+  popupAt(figEl(h.id), '⬢ WARDED', 'boon');
+  flashNarrator('<b>⬢ THE CURSE-WARDING BOX</b> opens, takes what was coming for <b>' + h.def.name + '</b>, and hands the rest of it around.');
+  livingHeroes().forEach(o => { if (o.id === h.id) return;
+    o.hp = Math.max(1, o.hp - 4); popupAt(figEl(o.id), '−4', 'dmg'); });
+  try { cineFlash('rgba(150,190,240,0.42)'); stageShake('md'); } catch (_) {}
+  return true;
+}
 function newRun(starterId) {
   // Begin SOLO with the chosen (unlocked) starter; recruit the rest on the road.
   starterId = (starterId && HEROES[starterId]) ? starterId : (getUnlockedStarters()[0] || 'ash');
@@ -3631,7 +3699,7 @@ function newRun(starterId) {
     depthBase: 0,       // depth carried from cleared floors, so the ramp keeps rising
     map: generateDescent(roster, 1),   // a fresh branching descent every run
     completed: [],
-    embers: 0,          // per-run ember wallet — earned and spent THIS descent only
+    embers: 0,          // per-run ember wallet — earned and spent THIS descent only (A HANDFUL OF ASH tops it up in beginRun)
     nodes: [],          // per-run skill-tree unlocks — reset when the run ends; starts EMPTY (everything earned)
     crossed: {},        // heroId -> [nodeId] learned across a BOND from another hero's tree (Build 245)
     deeds: {},          // pairKey -> { help, strike, avenge, shield, answer } — what they DID together (Build 266)
@@ -7864,7 +7932,7 @@ async function enemyPhase() {
         }
       }
       if (h.counter > 0 && !e.dead) { dealToEnemy(e, h.counter); flashNarrator(h.def.name + ' counters!'); }
-      if (h.hp === 0) { h.downed = true; popupAt(figEl(h.id), 'DOWN', 'dmg'); }
+      if (h.hp === 0 && !wardFall(h)) { h.downed = true; popupAt(figEl(h.id), 'DOWN', 'dmg'); }
     }
     if (!hitAny) {
       popupAt(figEl(e.uid), 'MISS', 'info');
@@ -8270,8 +8338,11 @@ function showMap() {
         const done = RUN.completed.includes(n.id);
         const reach = nodeReachable(n);
         const cur = curNode && n.id === curNode.id;
-        return `<button class="map-node mn-${n.type}${done ? ' mn-done' : ''}${reach ? ' mn-reach' : ''}${cur ? ' mn-current' : ''}${(!done && !reach) ? ' mn-locked' : ''}"
-          data-node="${n.id}" ${reach ? '' : 'disabled'} title="${n.label}">
+        // A CHILD'S COMPASS reads the whole stair — a locked node still says
+        // what it is, so you can plan a route instead of discovering one.
+        const seen = done || reach || hasRelic('compass');
+        return `<button class="map-node mn-${n.type}${done ? ' mn-done' : ''}${reach ? ' mn-reach' : ''}${cur ? ' mn-current' : ''}${(!done && !reach) ? ' mn-locked' : ''}${(!done && !reach && seen) ? ' mn-scried' : ''}"
+          data-node="${n.id}" ${reach ? '' : 'disabled'} title="${seen ? n.label : '?'}">
           <span class="mn-pulse" aria-hidden="true"></span>
           <span class="mn-icon">${glyph[n.type]}</span>
           ${cur ? '<span class="mn-here" aria-hidden="true">▾</span>' : ''}
@@ -9375,6 +9446,9 @@ function showCamp(n) {
   const fallen = (RUN.roster || []).filter(id => (RUN.hp[id] ?? 1) <= 0);
   const bargained = (RUN.boons || []).includes('curse_hollowbargain');   // the fire refuses the bargainer — no REST
   const wounded = !bargained && (RUN.roster || []).some(id => { const hp = RUN.hp[id] ?? HEROES[id].maxHp; return hp > 0 && hp < HEROES[id].maxHp; });
+  // A HANDFUL OF ASH bought you the run's opening; the first fire pays for it.
+  const ashSpent = hasRelic('ash') && !RUN._ashCampUsed;
+  if (ashSpent) { RUN._ashCampUsed = true; saveRun(); }
   // CINEMATIC CAMPFIRE — the party gathers, lit warm by the fire; the night's
   // one choice is offered as cards over the scene (mirrors the JRPG cutscenes).
   const party = ((RUN.active && RUN.active.length) ? RUN.active : RUN.roster).slice();
@@ -9401,7 +9475,7 @@ function showCamp(n) {
         <div class="camp-flavor">The fire holds back the dark — but the night is long enough for <b>one thing done well</b>.${bargained ? ' <b>The fire will not warm a bargainer</b> — no rest tonight.' : ''}${fallen.length ? ` And <b>${fallen.map(id => HEROES[id].name).join(' & ')}</b> ${fallen.length > 1 ? 'lie' : 'lies'} still…` : ''}</div>
       </div>
       <div class="camp-choices">
-        ${wounded ? choice('camp-rest', '✺', 'REST BY THE FIRE', 'Every wound on the <b>living</b> closes.') : ''}
+        ${(wounded && !ashSpent) ? choice('camp-rest', '✺', 'REST BY THE FIRE', 'Every wound on the <b>living</b> closes.') : ''}
         ${fallen.length ? choice('camp-raise', '☨', 'RAISE THE FALLEN', `<b>${fallen.map(id => HEROES[id].name).join(' & ')}</b> ${fallen.length > 1 ? 'return' : 'returns'} at <b>half HP</b> — the fire’s only gift tonight.`) : ''}
         ${choice('camp-fire', '♡', 'SHARE THE FIRE', (() => {
           const k = _fireBondKey();
@@ -9411,8 +9485,9 @@ function showCamp(n) {
             ? `<b>${HEROES[fa].name}</b> and <b>${HEROES[fb].name}</b> have something to say. Bond <b>+1</b>.`
             : 'Deepen your weakest bond <b>+1</b>.';
         })())}
-        ${choice('camp-boon', '✦', 'COMMUNE AT THE FIRE', 'A companion shares a gift — <b>draw 1 of 3</b>.')}
-        ${choice('camp-forge', '⚒', 'THE EMBER FORGE', 'Spend embers on tempers that hold <b>this descent</b>.')}
+        ${ashSpent ? '' : choice('camp-boon', '✦', 'COMMUNE AT THE FIRE', 'A companion shares a gift — <b>draw 1 of 3</b>.')}
+        ${ashSpent ? '' : choice('camp-forge', '⚒', 'THE EMBER FORGE', 'Spend embers on tempers that hold <b>this descent</b>.')}
+        ${ashSpent ? '<div class="camp-spent">◈ <b>A HANDFUL OF ASH</b> — you arrived already spent. This fire offers nothing but itself.</div>' : ''}
       </div>
     </div>
   `, 'camp-cine');
@@ -9431,8 +9506,9 @@ function showCamp(n) {
       `The fire takes what the dark left. <b>${fallen.map(id => HEROES[id].name).join(' & ')}</b> ${fallen.length > 1 ? 'stand' : 'stands'} again — half-alive, wholly here. Tonight the fire had only this to give.`, false, fallen[0]);
   };
   $('#camp-fire').onclick = () => showCampScene(n);
-  $('#camp-forge').onclick = () => showForge(n);
-  $('#camp-boon').onclick = () => showBoonDraft(() => showMap(), { eyebrow: n.label.toUpperCase(), title: 'A COMPANION’S GIFT', flavor: 'By the fire, someone shares a piece of how they fight. Take one — it holds until you fall.' });
+  // these two rows can be absent (A HANDFUL OF ASH shuts them), so bind defensively
+  const forgeBtn = $('#camp-forge'); if (forgeBtn) forgeBtn.onclick = () => showForge(n);
+  const boonBtn = $('#camp-boon'); if (boonBtn) boonBtn.onclick = () => showBoonDraft(() => showMap(), { eyebrow: n.label.toUpperCase(), title: 'A COMPANION’S GIFT', flavor: 'By the fire, someone shares a piece of how they fight. Take one — it holds until you fall.' });
 }
 
 // IN-RUN FORGE — spend embers on a TEMPORARY temper that lasts this descent.
@@ -10870,12 +10946,12 @@ function showTitle() {
     </div>
     <div class="tt-ver">V2.1 · BUILD ${V2_BUILD}</div>
   `, 'title-cine');
-  $('#t-new').onclick = () => { if (!tutorialSeen()) beginTutorial(); else showStarterSelect(id => beginRun(id)); };
+  $('#t-new').onclick = () => { if (!tutorialSeen()) beginTutorial(); else showStarterSelect(id => showRelicSelect(id)); };
   const c = $('#t-continue');
   if (c) c.onclick = () => {
     const r = loadRun();
     if (r && !r.done) { RUN = r; showMap(); }
-    else showStarterSelect(id => beginRun(id));
+    else showStarterSelect(id => showRelicSelect(id));
   };
   $('#t-journal').onclick = () => showBoonJournal(showTitle);
   $('#t-settings').onclick = () => showSettings();
@@ -11663,6 +11739,34 @@ function landingBeat(ctx) {
 }
 // The hub itself. Everything that used to be a menu row is a place here: the
 // codex is the wall you read, the starter select is who you wake next to.
+// WHAT DO YOU TAKE DOWN WITH YOU — the last thing before the stair. One relic
+// or none, and "none" is a real answer, because every one of them costs.
+function showRelicSelect(starterId) {
+  const found = relicsFound();
+  if (!found.length) { beginRun(starterId); return; }
+  const rows = found.map(r => `
+    <button class="rl-card" data-id="${r.id}">
+      <span class="rl-icon">${r.icon}</span>
+      <span class="rl-body">
+        <span class="rl-name">${r.name}</span>
+        <span class="rl-found">${r.found}</span>
+        <span class="rl-rule">${r.rule}</span>
+        <span class="rl-cost">✕ ${r.cost}</span>
+      </span>
+    </button>`).join('');
+  showOverlay(`
+    <div class="ov-eyebrow">THE ABYSS DID NOT INTEND YOU TO HAVE THESE</div>
+    <div class="ov-title" style="font-size:22px">WHAT DO YOU CARRY DOWN?</div>
+    <div class="rl-list">${rows}
+      <button class="rl-card rl-none" data-id=""><span class="rl-icon">—</span>
+        <span class="rl-body"><span class="rl-name">NOTHING</span>
+        <span class="rl-rule">Go down clean. Every one of them takes something back.</span></span></button>
+    </div>
+  `, 'story-screen relic-screen');
+  document.querySelectorAll('.rl-card').forEach(el => {
+    el.onclick = () => { hideOverlay(); beginRun(starterId, el.dataset.id || null); };
+  });
+}
 function showLanding(ctx) {
   const c = ctx || {};
   const stage = landingStage();
@@ -11693,7 +11797,7 @@ function showLanding(ctx) {
       </div>
     </div>
   `, 'landing-screen');
-  $('#ld-go').onclick = () => { hideOverlay(); showStarterSelect(id => beginRun(id)); };
+  $('#ld-go').onclick = () => { hideOverlay(); showStarterSelect(id => showRelicSelect(id)); };
   $('#ld-codex').onclick = () => showCodex(() => showLanding(c));
   $('#ld-title').onclick = () => { hideOverlay(); showTitle(); };
 }
@@ -11703,8 +11807,20 @@ function ordinal(n) {
   return n + ({ 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] || 'th');
 }
 // A short, hero-specific opening beat, then into the Descent.
-function beginRun(starterId) {
+function beginRun(starterId, relicId) {
   RUN = newRun(starterId);
+  // THE RELIC IS CARRIED IN, not found on the road — so it has to land before
+  // the map is read, and the map is generated inside newRun. Re-roll it here so
+  // SOMEONE'S LEFT GLOVE and A CHILD'S COMPASS can actually shape the descent.
+  if (relicId && RELIC_BY_ID[relicId]) {
+    RUN.relic = relicId;
+    if (relicId === 'glove') {
+      const mate = getUnlockedStarters().filter(id => id !== starterId)[0];
+      if (mate) { RUN.roster.push(mate); RUN.active.push(mate); RUN.hp[mate] = HEROES[mate].maxHp; }
+    }
+    if (relicId === 'ash') RUN.embers = fragsHeld() * 4;
+    RUN.map = generateDescent(RUN.roster, 1);   // now that the relic is on the run
+  }
   flowIdx = FLOW.length;
   try { localStorage.setItem(PROGRESS_KEY, String(FLOW.length)); localStorage.removeItem(RUN_KEY); localStorage.setItem(LAST_STARTER_KEY, starterId); } catch (_) {}
   saveRun();

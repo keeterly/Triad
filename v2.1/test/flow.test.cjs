@@ -526,7 +526,14 @@ const QUICK = process.argv.includes('--quick');
   check('ABYSS: falling wakes you at the Landing, with the cast standing in it',
     await J(() => !!document.querySelector('.ld-scene') && !!document.querySelector('.ld-hero')));
   await clickOverlayBtn('#ld-go'); await sleep(400);                      // → CHOOSE YOUR SURVIVOR
-  await J(() => document.querySelector('.ss-fig[data-id="ash"]').click());    // pick Ash → new run
+  await J(() => document.querySelector('.ss-fig[data-id="ash"]').click());
+  // Build 277: …then WHAT DO YOU CARRY DOWN. Take nothing — this block is about
+  // the Abyss memory, and every relic reshapes the map it is trying to read.
+  await sleep(350);
+  check('RELIC: the road into a run passes the relic table',
+    await J(() => !!document.querySelector('.rl-list')));
+  await J(() => { const n = document.querySelector('.rl-card.rl-none'); if (n) n.click(); });
+  await sleep(400);
   for (let i = 0; i < 6; i++) { if (!await J(() => !!document.querySelector('.ov-tap'))) break; await J(() => document.querySelector('#overlay').click()); await sleep(200); }
   await clickOverlayBtn('#ov-go'); await sleep(300);
   // pin a fresh deterministic map and hang the recovered memory on the entry
@@ -2651,6 +2658,96 @@ const QUICK = process.argv.includes('--quick');
       }
       return earlyAlways && [...seen].some(l => l >= 4) && seen.size >= 3;   // reaches deeper than the old 2–4 cluster
     }));
+  // ---------- BUILD 277: RELICS ----------
+  // BOONS were already this game's Slay the Spire relics — 41, hero-gated,
+  // drafted mid-run, stacking, several of them curses. A second per-run passive
+  // would have been the same system in a hat. The line drawn instead: a BOON
+  // tunes combat, a RELIC changes the SHAPE of the run. One is carried, chosen
+  // at the Landing, and every one of them costs something.
+  check('RELIC: each one states what it is, what it does, and what it takes',
+    await J(() => RELICS.length >= 4
+      && RELICS.every(r => r.id && r.name && r.icon && r.found && r.rule && r.cost && typeof r.at === 'function')
+      && new Set(RELICS.map(r => r.id)).size === RELICS.length));
+  check('RELIC: a FIRST run carries nothing — the table grows as you descend',
+    await J(() => {
+      const m = { deaths: 0, clears: 0 };
+      try { localStorage.setItem('kizuna2_1.starters', JSON.stringify(['ash'])); localStorage.removeItem('kizuna2_1.frags'); } catch (_) {}
+      const dm = META.deaths, cm = META.clears;
+      META.deaths = 0; META.clears = 0;
+      const bare = RELICS.filter(r => r.at(META)).length;   // a FIRST run carries nothing
+      META.deaths = 3;
+      try { localStorage.setItem('kizuna2_1.starters', JSON.stringify(['ash','elin','mira','cassia'])); } catch (_) {}
+      ABYSS_FRAGMENTS.slice(0, 3).forEach(f => markFrag(f.id));
+      const deep = RELICS.filter(r => r.at(META)).length;
+      META.deaths = dm; META.clears = cm;
+      return bare === 0 && deep === RELICS.length;
+    }));
+  check('RELIC: SOMEONE’S LEFT GLOVE brings a second hero — and seals the road behind them',
+    await J(() => {
+      beginRun('ash', 'glove');
+      return RUN.roster.length === 2 && RUN.active.length === 2
+        && RUN.map.filter(n => n.type === 'recruit').length === 0;
+    }));
+  check('RELIC: A CHILD’S COMPASS makes locked nodes legible, and the stair opens its jaws',
+    await J(() => {
+      beginRun('ash', 'compass'); showMap();
+      const locked = [...document.querySelectorAll('.map-node.mn-locked')];
+      const opensElite = RUN.map.filter(n => n.level === 1).every(n => n.type === 'elite');
+      return opensElite && locked.length > 0
+        && locked.every(e => e.classList.contains('mn-scried') && e.title && e.title !== '?');
+    }));
+  check('RELIC: without the compass a locked node keeps its secret',
+    await J(() => {
+      beginRun('ash', null); showMap();
+      const locked = [...document.querySelectorAll('.map-node.mn-locked')];
+      return locked.length > 0 && locked.every(e => e.title === '?' && !e.classList.contains('mn-scried'));
+    }));
+  check('RELIC: A HANDFUL OF ASH pays 4 an ember per piece — and the first fire pays it back',
+    await J(() => {
+      try { localStorage.removeItem('kizuna2_1.frags'); } catch (_) {}
+      ABYSS_FRAGMENTS.slice(0, 3).forEach(f => markFrag(f.id));
+      beginRun('ash', 'ash');
+      const emb = RUN.embers;
+      RUN.hp = { ash: 10 };
+      showCamp({ id: 99, type: 'camp', label: 'a fire' });
+      const rows = [...document.querySelectorAll('.camp-choice')].map(e => e.id);
+      const bare = rows.length === 1 && rows[0] === 'camp-fire' && !!document.querySelector('.camp-spent');
+      hideOverlay();
+      // …and only the FIRST fire is bare
+      showCamp({ id: 98, type: 'camp', label: 'a second fire' });
+      const later = [...document.querySelectorAll('.camp-choice')].map(e => e.id);
+      hideOverlay();
+      return emb === 12 && bare && later.length > 1;
+    }));
+  check('RELIC: THE CURSE-WARDING BOX moves the curse — it does not cancel it',
+    await J(() => {
+      beginRun('ash', 'box');
+      RUN.roster = ['ash', 'elin', 'mira']; RUN.active = RUN.roster.slice();
+      RUN.hp = { ash: 32, elin: 24, mira: 26 };
+      startFight({ type: 'fight', chapter: 3, heroes: RUN.active.slice(), enemies: ['husk'], useRunHp: true, narrator: 'box' });
+      const ash = S.heroes.find(h => h.id === 'ash');
+      const before = S.heroes.filter(h => h.id !== 'ash').map(h => h.hp);
+      ash.hp = 0;
+      const warded = wardFall(ash);
+      const paid = S.heroes.filter(h => h.id !== 'ash').every((h, i) => before[i] - h.hp === 4);
+      const elin = S.heroes.find(h => h.id === 'elin'); elin.hp = 0;
+      const twice = wardFall(elin);
+      return warded && ash.hp === 1 && !ash.downed && paid && !twice;   // once per descent
+    }));
+  check('RELIC: taking NOTHING is a real answer, and the run carries none',
+    await J(() => { beginRun('ash', null); return !RUN.relic && !heldRelic() && !hasRelic('compass'); }));
+  check('RELIC: the picker offers every found relic plus the empty hand',
+    await J(() => {
+      META.deaths = 3;
+      showRelicSelect('ash');
+      const cards = [...document.querySelectorAll('.rl-card')];
+      const ids = cards.map(c => c.dataset.id);
+      const shaped = cards.every(c => c.querySelector('.rl-name') && c.querySelector('.rl-rule'));
+      const costed = cards.filter(c => c.dataset.id).every(c => !!c.querySelector('.rl-cost'));
+      hideOverlay();
+      return ids.length === relicsFound().length + 1 && ids.includes('') && shaped && costed;
+    }));
+
   // ---------- BUILD 276: THE LANDING ----------
   // Death was a scoreboard and a menu — a stats card, then "RETURN TO THE
   // SURFACE", then the title. At the moment a player is most receptive, none of

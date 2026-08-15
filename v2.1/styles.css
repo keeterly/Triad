@@ -4086,3 +4086,37 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
 .ld-go .lda-l { color: var(--gold-bright); }
 .lda-d { font-size: 10px; line-height: 1.45; color: var(--ink-dim); font-style: italic; }
 @media (prefers-reduced-motion: reduce) { .ld-hero { transition: none; } }
+
+/* ══ RELICS (Build 277) — carried down, never found on the road ═════════════
+   Each card states three things in a fixed order, because a relic you have to
+   re-read is a relic nobody takes: what it IS, what it DOES, and what it costs.
+   The cost line is deliberately the loudest thing after the name. */
+.rl-list {
+  display: flex; flex-direction: column; gap: 7px; width: 100%; max-width: 500px;
+  margin: 0 auto; text-align: left; flex: 1 1 auto; min-height: 0;
+  overflow-y: auto; -webkit-overflow-scrolling: touch; padding-right: 6px;
+}
+.rl-card {
+  display: flex; align-items: flex-start; gap: 11px; width: 100%;
+  font-family: inherit; cursor: pointer; padding: 10px 13px; min-height: 44px;
+  border-radius: 6px; text-align: left; color: var(--ink);
+  background: rgba(18,15,12,0.9); border: 1px solid rgba(240,212,136,0.26);
+  transition: border-color 150ms ease, background 150ms ease;
+}
+.rl-card:hover, .rl-card:focus-visible { border-color: var(--gold-bright); background: rgba(30,24,17,0.95); outline: none; }
+.rl-icon { font-size: 17px; line-height: 1.25; color: var(--gold-bright); flex: 0 0 auto; }
+.rl-body { display: flex; flex-direction: column; gap: 3px; }
+.rl-name { font-size: 10.5px; letter-spacing: 0.2em; color: var(--gold-bright); }
+.rl-found { font-size: 9.5px; letter-spacing: 0.05em; color: var(--ink-faint); font-style: italic; }
+.rl-rule { font-size: 11px; line-height: 1.5; color: var(--ink-dim); }
+.rl-rule b { color: var(--ink); }
+.rl-cost { font-size: 10.5px; line-height: 1.45; color: #d08a7a; }
+.rl-cost b { color: #f0a893; }
+.rl-none { border-color: rgba(180,168,150,0.2); }
+.rl-none .rl-name, .rl-none .rl-icon { color: var(--ink-dim); }
+#overlay.relic-screen #overlay-inner { display: flex; flex-direction: column; align-items: center; max-height: 94%; }
+/* a node the COMPASS has read but you cannot reach yet — legible, still locked */
+.map-node.mn-scried { opacity: 0.62; border-style: dashed; }
+/* the camp row A HANDFUL OF ASH leaves behind */
+.camp-spent { font-size: 10.5px; line-height: 1.5; color: #d08a7a; font-style: italic; padding: 6px 2px; }
+.camp-spent b { color: var(--gold-bright); font-style: normal; }
