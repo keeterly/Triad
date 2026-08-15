@@ -11,6 +11,7 @@ const { boot } = require('./harness.cjs');
 const LEVELS = process.env.LEVELS ? process.env.LEVELS.split(',').map(Number) : [1.0, 0.8, 0.6, 0.4];
 const RUNS = +(process.env.RUNS || 3);
 const PARTY = (process.env.PARTY || 'ash,elin,mira').split(',');
+const RELIC = process.env.RELIC || null;   // read a relic's COST honestly, not by eye
 
 (async () => {
   const t = await boot({ sm: 0 });
@@ -51,14 +52,16 @@ const PARTY = (process.env.PARTY || 'ash,elin,mira').split(',');
     });
   };
 
-  console.log(`\nparty ${PARTY.join('+')} · ${RUNS} descents per level · HP carried between fights`);
+  console.log(`\nparty ${PARTY.join('+')}${RELIC ? ' · relic ' + RELIC : ''} · ${RUNS} descents per level · HP carried between fights`);
   console.log('skill   fights  cleared   HP at the boss door   downs   wiped   turns/fight   parry clean');
   for (const skill of LEVELS) {
     const A = { f:0, won:0, downs:0, wipes:0, turns:0, clean:0, botched:0, endHp:[] };
     for (let r = 0; r < RUNS; r++) {
       await t.parrySkill(skill, 4242 + r * 7919);
-      const packs = await t.J((p) => {
+      const packs = await t.J((a) => {
+        const p = a.party;
         RUN = newRun(p[0]);
+        if (a.relic) RUN.relic = a.relic;
         RUN.roster = p.slice(); RUN.active = p.slice();
         RUN.hp = {}; p.forEach(id => RUN.hp[id] = HEROES[id].maxHp);
         RUN.nodes = EMBER_TREE.filter(n => n.type === 'card').map(n => n.id);
@@ -73,7 +76,7 @@ const PARTY = (process.env.PARTY || 'ash,elin,mira').split(',');
           cur = nx[Math.floor(Math.random()*nx.length)];
         }
         return out;
-      }, PARTY);
+      }, { party: PARTY, relic: RELIC });
       let wiped = false;
       for (const p of packs) {
         const f = await fight(p, 1);

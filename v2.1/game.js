@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 277;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 279;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -2936,18 +2936,29 @@ function _rand(n) { return Math.floor(Math.random() * n); }
 function _pick(a) { return a[_rand(a.length)]; }
 function _shuffle(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = _rand(i + 1); const t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
 function _labeler(type) { const q = _shuffle(NODE_LABELS[type] || ['THE ROAD']); let i = 0; return () => q[i++ % q.length]; }
-function _combatEnemies(level) {
+// A BODY FOR A BODY (Build 279). Pack size keyed off LEVEL alone, so a trio
+// walked into rooms built for a solo hero: three heroes and six EP against two
+// foes' two actions. Measured, a trio finished every fight at FULL HP at any
+// parry skill, in 2.8 turns — which is not "easy", it is the enemy phase never
+// happening, and the parry system, the telegraphs and the whole defensive half
+// of the design going with it.
+function _combatEnemies(level, party) {
+  const ps = Math.max(1, party || 1);
   const pool = level <= 2 ? COMBAT_POOL.early : level <= 4 ? COMBAT_POOL.mid : COMBAT_POOL.deep;
   // The level-1 funnel is a single foe — a gentle opener for a solo starter.
-  const count = level <= 1 ? 1 : level <= 2 ? 2 : (Math.random() < 0.45 ? 3 : 2);
+  let count = level <= 1 ? 1 : level <= 2 ? 2 : (Math.random() < 0.45 ? 3 : 2);
+  // one more body per companion, so the ramp is GRADED — the first version gave
+  // a duo and a trio the same room, which is the bug it was written to fix.
+  if (level >= 2) count = Math.min(4, count + Math.max(0, ps - 1));
   const out = []; for (let i = 0; i < count; i++) out.push(_pick(pool)); return out;
 }
-function _eliteEnemies(level) {
+function _eliteEnemies(level, party) {
   // The elite fight is anchored by a mini-boss — the ECHO REVENANT with its
   // boss-style cascades — flanked by a support caster / adds so it plays like a
   // real set-piece, not just a bigger mob.
   const anchor = 'revenant';
-  const rest = _shuffle(['cantor', 'cultist', 'wraith', 'drone']).slice(0, level >= 5 ? 2 : 1);
+  const adds = (level >= 5 ? 2 : 1) + ((party || 1) >= 3 ? 1 : 0);
+  const rest = _shuffle(['cantor', 'cultist', 'wraith', 'drone']).slice(0, adds);
   return [anchor, ...rest];
 }
 // One branching stretch's node TYPES (2-3), always with at least one fight and
@@ -3044,8 +3055,8 @@ function generateDescent(roster, floor) {
     const ids = [];
     types.forEach(type => {
       const node = { id: idc, level, col: level, type, next: [] };
-      if (type === 'fight')        { node.enemies = _combatEnemies(level); node.label = lbl.fight(); }
-      else if (type === 'elite')   { node.enemies = _eliteEnemies(level); node.elite = true; node.label = lbl.elite(); }
+      if (type === 'fight')        { node.enemies = _combatEnemies(level, roster.length); node.label = lbl.fight(); }
+      else if (type === 'elite')   { node.enemies = _eliteEnemies(level, roster.length); node.elite = true; node.label = lbl.elite(); }
       else if (type === 'event')   { node.eventId = eventQ[eventI++ % eventQ.length]; node.label = lbl.event(); }
       else if (type === 'camp')    { node.label = lbl.camp(); }
       else if (type === 'recruit') { node.hero = recruitAtLevel[level]; node.label = RECRUIT_NODE_LABELS[node.hero] || 'A NEW BOND'; }
@@ -3780,8 +3791,13 @@ function newBattle(node) {
     // survivable until the road fills your line.  Bosses ignore this — by the
     // final gate you should be a full trio, and the boss is meant to hurt.
     const ps = heroes.length;
-    const psDmg = ps >= 3 ? 1 : ps === 2 ? 0.82 : 0.64;
-    const psHp = ps >= 3 ? 1 : ps === 2 ? 0.86 : 0.72;
+    // Build 279: these only ever softened, capping at 1.0 — so the number the
+    // whole game is balanced around was the one nobody had measured. Solo stays
+    // exactly where it is (already a real fight: 88% -> 36% of the party bar
+    // across the skill range, wiping half its runs at 0.4), and the trio's
+    // anchor comes up to meet it.
+    const psDmg = ps >= 3 ? 1.25 : ps === 2 ? 0.86 : 0.64;
+    const psHp = ps >= 3 ? 1.12 : ps === 2 ? 0.9 : 0.72;
     enemies.forEach(e => {
       if (e.def.boss) {
         // Bosses already hit hard and strike TWICE a round, so their per-floor
