@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 281;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 282;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -2846,7 +2846,7 @@ function weaveSaves(heroId) {
 // WEAVE/TRIAD are gone from here entirely: they are a promise at the cliff, not
 // a drill. The descent's own coaches introduce them when they become reachable.
 const FLOW = [
-  { type: 'story', chapter: 1, title: 'ONE SURVIVOR', eyebrow: 'CHAPTER 1', lines: [
+  { type: 'story', chapter: 1, title: 'ONE SURVIVOR', eyebrow: 'THE BOTTOM OF IT', scene: 'landing', lines: [
     { text: 'The first thing you understand is that everyone else is gone.' },
     { text: 'The second is that you do not remember arriving. Not the fall, not the road before it. Only that you are at the bottom of something, and it goes up.' },
     { spk: 'ASH', text: '…then I climb it alone.' },
@@ -8314,7 +8314,7 @@ function showStory(node) {
       ${(done && !fork)
         ? `<button class="ov-btn primary" id="ov-go">${(node.next === 'descent' || node.beginDescent) ? 'BEGIN THE DESCENT' : (FLOW[flowIdx + 1] && FLOW[flowIdx + 1].type === 'fight' ? 'TO BATTLE' : 'CONTINUE')}</button>`
         : (done ? '' : `<div class="ov-tap">tap to continue ▸</div>`)}
-    `, 'story-screen');
+    `, 'story-screen' + (node.scene ? ' scene-' + node.scene : ''));
     // Keep the newest line (and the button) in view when the passage is long.
     const box = $('#overlay .ov-lines');
     if (box) box.scrollTop = box.scrollHeight;
@@ -10988,7 +10988,12 @@ function showTitle() {
     </div>
     <div class="tt-ver">V2.1 · BUILD ${V2_BUILD}</div>
   `, 'title-cine');
-  $('#t-new').onclick = () => { if (!tutorialSeen()) beginTutorial(); else showStarterSelect(id => showRelicSelect(id)); };
+  // Build 282: NEW GAME wakes you at THE LANDING, the same as dying does.
+  // It used to drop a veteran straight onto a character grid — the one entry
+  // into the game that skipped the place every other run begins and ends at,
+  // which made the hub read as a death screen rather than the bottom of the
+  // stair. A first-EVER player still gets the tutorial.
+  $('#t-new').onclick = () => { if (!tutorialSeen()) beginTutorial(); else showLanding({ cold: true }); };
   const c = $('#t-continue');
   if (c) c.onclick = () => {
     const r = loadRun();
@@ -11759,6 +11764,9 @@ const LANDING_DEATH = {
   bonded: { need: 2, say: (h, c) => `${h}: "We held ${c.threads} of them, at the end. I keep thinking that should have been enough. I keep being wrong about that in a way that feels practised."` },
   early:  { need: 1, say: (h, c) => `${h}: "That was quick. …I'm not judging. I have a very strong feeling I have been quicker."` },
   clear:  { need: 1, say: (h, c) => `${h}: "You came back up. People do not come back up. …Sit down. Tell me it twice, I want to see if it survives being said."` },
+  // the COLD open — you did not arrive here from a death this session, you just
+  // opened your eyes, which is the one thing everybody down here has in common
+  wake:   { need: 1, say: (h, c) => `${h}: "You’re awake. …Don’t bother with the part where you ask how long. Nobody has ever had an answer, and the asking is how it starts."` },
 };
 function landingBeat(ctx) {
   const cast = getUnlockedStarters().filter(id => HEROES[id]);
@@ -11770,7 +11778,8 @@ function landingBeat(ctx) {
   const pool = spoke.length ? spoke : cast;
   const who = pool[(META.deaths || 0) % pool.length] || 'ash';
   const name = HEROES[who] ? HEROES[who].name : 'A VOICE';
-  const key = ctx.cleared ? 'clear'
+  const key = ctx.cold ? 'wake'
+    : ctx.cleared ? 'clear'
     : ctx.wasBoss ? 'boss'
     : (ctx.trio || []).length <= 1 ? 'alone'
     : (ctx.threads || 0) >= 2 ? 'bonded'
@@ -11826,6 +11835,7 @@ function showLanding(ctx) {
         <div class="ld-eyebrow">${stage.eyebrow}</div>
         <div class="ld-title">THE LANDING</div>
         <div class="ld-sub">${c.cleared ? 'you came back — and the stair put you right back at the bottom of itself'
+          : c.cold ? 'the stair is exactly where you left it'
           : 'you woke at the bottom again' + ((META.deaths || 0) > 1 ? ` · the ${ordinal(META.deaths)} time` : '')}</div>
       </div>
       <div class="ld-body">

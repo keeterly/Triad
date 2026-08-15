@@ -101,6 +101,12 @@ const QUICK = process.argv.includes('--quick');
   await sleep(400);
   await J(() => document.querySelector('#t-new').onclick());
   await sleep(450);
+  // Build 282: NEW GAME wakes a veteran at THE LANDING first — the line-up is a
+  // step further in, behind CLIMB AGAIN.
+  check('ONBOARDING: a veteran wakes at the Landing before choosing anybody',
+    await J(() => !!document.querySelector('.ld-scene')));
+  await J(() => document.querySelector('#ld-go').click());
+  await sleep(400);
   check('starter-select: 6 heroes shown, some locked, Ash unlocked',
     await J(() => document.querySelectorAll('.ss-fig').length === 6
       && document.querySelectorAll('.ss-fig.ss-locked').length >= 1
@@ -181,8 +187,12 @@ const QUICK = process.argv.includes('--quick');
   console.log('--- THE DESCENT ---');
   await J(() => { localStorage.setItem('kizuna2_1.flow', '99'); localStorage.removeItem('kizuna2_1.run'); });
   await t.page.reload({ waitUntil: 'networkidle' }); await sleep(500);
-  await clickOverlayBtn('#t-new'); await sleep(400);                      // → CHOOSE YOUR SURVIVOR
+  await clickOverlayBtn('#t-new'); await sleep(400);                      // → THE LANDING (Build 282)
+  await J(() => document.querySelector('#ld-go').click()); await sleep(400);  // → CHOOSE YOUR SURVIVOR
   await J(() => document.querySelector('.ss-fig[data-id="ash"]').click());    // pick Ash
+  await sleep(350);
+  await J(() => { const n = document.querySelector('.rl-card.rl-none'); if (n) n.click(); });   // carry nothing
+  await sleep(350);
   for (let i = 0; i < 6; i++) { if (!await J(() => !!document.querySelector('.ov-tap'))) break; await J(() => document.querySelector('#overlay').click()); await sleep(200); }
   await clickOverlayBtn('#ov-go'); await sleep(300);                          // → solo map
   // promote to the default trio so the resonance / formation checks below have
@@ -2658,6 +2668,56 @@ const QUICK = process.argv.includes('--quick');
       }
       return earlyAlways && [...seen].some(l => l >= 4) && seen.size >= 3;   // reaches deeper than the old 2–4 cluster
     }));
+  // ---------- BUILD 282: every road in starts at the bottom ----------
+  // NEW GAME dropped a veteran straight onto a character grid — the one entry
+  // into the game that skipped the place every other run begins and ends at,
+  // which made the Landing read as a death screen rather than the bottom of the
+  // stair. And the tutorial opened on a text card, which is a poor first look at
+  // a game whose whole premise is where you are standing.
+  check('OPEN: NEW GAME wakes a veteran at the Landing, not on a character grid',
+    await J(() => {
+      try { localStorage.setItem('kizuna2_1.tutorialSeen', '1');
+            localStorage.setItem('kizuna2_1.starters', JSON.stringify(['ash','elin','mira'])); } catch (_) {}
+      META.deaths = 3; showTitle();
+      document.querySelector('#t-new').onclick();
+      return !!document.querySelector('.ld-scene') && !document.querySelector('.ss-fig');
+    }));
+  check('OPEN: the cold open has its own beat — nobody died to get you here',
+    await J(() => {
+      showLanding({ cold: true });
+      const said = (document.querySelector('.ld-said') || {}).textContent || '';
+      const sub = (document.querySelector('.ld-sub') || {}).textContent || '';
+      showLanding({ trio: ['ash'], floor: 1, threads: 0 });
+      const died = (document.querySelector('.ld-said') || {}).textContent || '';
+      return /You’re awake/.test(said) && /exactly where you left it/.test(sub) && said !== died;
+    }));
+  check('OPEN: CLIMB AGAIN still reaches the line-up and then the relic table',
+    await J(() => {
+      showLanding({ cold: true });
+      document.querySelector('#ld-go').click();
+      return !!document.querySelector('.ss-fig');
+    }));
+  check('OPEN: a FIRST-ever player still gets the tutorial, staged at the bottom',
+    await J(() => {
+      try { localStorage.removeItem('kizuna2_1.tutorialSeen'); } catch (_) {}
+      showTitle();
+      document.querySelector('#t-new').onclick();
+      const ov = document.querySelector('#overlay.scene-landing');
+      const lit = ov && getComputedStyle(ov).backgroundImage;
+      return !!ov && FLOW[0].scene === 'landing'
+        && /THE BOTTOM OF IT/.test((document.querySelector('.ov-eyebrow')||{}).textContent || '')
+        && /gradient/.test(lit || '');       // the shaft is painted, not just classed
+    }));
+  check('OPEN: the staged scene sits BEHIND the prose, not over it',
+    await J(() => {
+      const inner = document.querySelector('#overlay.scene-landing #overlay-inner');
+      // the first attempt injected scenery INTO overlay-inner, where it covered
+      // the passage it was meant to sit behind
+      return !!inner && !inner.querySelector('.ld-dark') && !inner.querySelector('.ld-shaft')
+        && !!document.querySelector('#overlay.scene-landing .ov-title');
+    }));
+  try { } catch (_) {}
+
   // ---------- BUILD 281: enemies stop swinging at empty rows ----------
   // effIntentRow returned intent.row for any non-smart foe, occupied or not.
   // Against a lone hero — one row of three — that is most of its attacks hitting

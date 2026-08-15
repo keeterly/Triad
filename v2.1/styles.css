@@ -4120,3 +4120,21 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
 /* the camp row A HANDFUL OF ASH leaves behind */
 .camp-spent { font-size: 10.5px; line-height: 1.5; color: #d08a7a; font-style: italic; padding: 6px 2px; }
 .camp-spent b { color: var(--gold-bright); font-style: normal; }
+
+/* A STAGED story passage (Build 282) — the tutorial's first beat is the bottom
+   of the abyss, not a text card on black, so it borrows the Landing's ground and
+   its one cold shaft from impossibly far up. #overlay-inner is a centred column
+   inside #overlay, so the scenery has to escape it to fill the stage. */
+/* Painted as BACKGROUND LAYERS on #overlay rather than injected elements: the
+   first version put the scenery inside #overlay-inner, where it covered the
+   prose it was supposed to sit behind. The shaft is the top layer — one cold
+   column from impossibly far up, which is the only reason anyone down here
+   knows which way is out. */
+#overlay.scene-landing {
+  background:
+    radial-gradient(ellipse 30% 86% at 50% -6%, rgba(186,204,240,0.34), rgba(150,170,214,0.11) 42%, transparent 74%),
+    radial-gradient(120% 80% at 50% 118%, rgba(38,30,44,0.9), transparent 62%),
+    linear-gradient(180deg, #05040a 0%, #0a0810 44%, #131019 100%);
+}
+#overlay.scene-landing .ov-line { text-shadow: 0 2px 12px rgba(0,0,0,0.95); }
+#overlay.scene-landing .ov-eyebrow { color: #8fa4cc; }
