@@ -79,29 +79,59 @@ async function boot(opts = {}) {
   // Watches for parry notes and performs the right gesture at a good time.
   await page.addInitScript(() => {
     window.__autoParry = false;
+    // SKILL (Build 278 harness) — the bot used to hit every note perfectly, which
+    // made every difficulty reading useless: a party that never drops below full
+    // HP tells you nothing about whether the game is too easy, only that a robot
+    // with frame-perfect timing finds it easy. __parrySkill is the probability of
+    // a CLEAN read on any given note; the rest are botched the way people botch
+    // them — early, late, short on the mash, wrong way on the swipe, and biting
+    // on the bait, which is the discipline failure rather than a timing one.
+    window.__parrySkill = 1;
+    window.__parryLog = { clean: 0, botched: 0, byKind: {} };
+    // deterministic, so two runs at the same skill are comparable
+    window.__parrySeed = 0x9e3779b9;
+    const rnd = () => { let x = window.__parrySeed |= 0; x ^= x << 13; x ^= x >>> 17; x ^= x << 5;
+      window.__parrySeed = x | 0; return ((x >>> 0) % 100000) / 100000; };
+    const note = (kind, ok) => { const L = window.__parryLog;
+      L[ok ? 'clean' : 'botched']++; const b = L.byKind[kind] = L.byKind[kind] || { clean: 0, botched: 0 };
+      b[ok ? 'clean' : 'botched']++; };
     const fire = (ring) => {
       const cx = Math.round(innerWidth / 2), cy = Math.round(innerHeight / 2);
       const P = (type, x, y) => window.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, pointerId: 31, pointerType: 'touch' }));
+      const skill = Math.max(0, Math.min(1, window.__parrySkill == null ? 1 : window.__parrySkill));
+      const clean = rnd() < skill;
       if (ring.classList.contains('parry-mash')) {
-        let n = 0; const iv = setInterval(() => { P('pointerdown', cx, cy); P('pointerup', cx, cy); if (++n >= 6) clearInterval(iv); }, 70);
+        note('mash', clean);
+        const target = clean ? 6 : 2;                       // not enough hands
+        let n = 0; const iv = setInterval(() => { P('pointerdown', cx, cy); P('pointerup', cx, cy); if (++n >= target) clearInterval(iv); }, 70);
       } else if (ring.classList.contains('parry-hold')) {
-        P('pointerdown', cx, cy); setTimeout(() => P('pointerup', cx, cy), 1200);
+        note('hold', clean);
+        P('pointerdown', cx, cy);
+        setTimeout(() => P('pointerup', cx, cy), clean ? 1200 : 260);   // let go too soon
       } else if (ring.classList.contains('parry-swipe')) {
+        note('swipe', clean);
         const lbl = (ring.querySelector('.pr-lbl') || {}).textContent || '';
         let dx = 150, dy = -30;
         if (lbl.indexOf('↶') >= 0) { dx = -150; } else if (lbl.indexOf('⤴') >= 0) { dx = 0; dy = -170; }
+        if (!clean) { dx = -dx; dy = -dy; }                  // wrong way
         setTimeout(() => { P('pointerdown', cx, cy + 40); P('pointermove', cx + dx * 0.5, cy + 40 + dy * 0.5); P('pointermove', cx + dx, cy + 40 + dy); P('pointerup', cx + dx, cy + 40 + dy); }, 200);
       } else if (ring.classList.contains('pr-bait')) {
-        // a BAIT is parried by NOT touching it — the bot shows discipline too
+        // a BAIT is parried by NOT touching it. Discipline is a skill too, so a
+        // sloppy bot bites — the one failure mode that is not about timing.
+        note('bait', clean);
+        if (!clean) setTimeout(() => { P('pointerdown', cx, cy); P('pointerup', cx, cy); }, 180);
       } else {
         // Tap ADAPTIVELY, relative to THIS ring's own close time (read off the
         // .pr-close animation, plus any FEINT hesitation via data-pause), so the
         // auto-parry stays inside the hit window no matter how the game tunes
         // ring speed / window width / trick notes. ~200ms before close.
+        note('tap', clean);
         const cl = ring.querySelector('.pr-close');
         let dur = 700; try { dur = parseInt((cl && cl.style.animationDuration) || '700', 10) || 700; } catch (_) {}
         let pause = 0; try { pause = parseInt((ring.dataset && ring.dataset.pause) || '0', 10) || 0; } catch (_) {}
-        const delay = Math.max(120, dur + pause - 200);
+        let delay = Math.max(120, dur + pause - 200);
+        if (!clean) delay = (rnd() < 0.5) ? Math.round(delay * 0.3)      // twitchy: too early
+                                          : Math.round(delay + dur * 0.5); // asleep: too late
         setTimeout(() => { P('pointerdown', cx, cy); P('pointerup', cx, cy); }, delay);
       }
     };
@@ -123,6 +153,12 @@ async function boot(opts = {}) {
   let shotN = 0;
   const api = {
     autoParry: (on) => page.evaluate((v) => { window.__autoParry = v; }, on !== false),
+    // 1 = frame-perfect (the old behaviour, and what the suite runs on).
+    // Anything lower botches that share of notes the way people botch them.
+    parrySkill: (v, seed) => page.evaluate((o) => { window.__parrySkill = o.v;
+      window.__parrySeed = o.seed || 0x9e3779b9;
+      window.__parryLog = { clean: 0, botched: 0, byKind: {} }; }, { v, seed }),
+    parryLog: () => page.evaluate(() => window.__parryLog),
     browser, ctx, page, errs, results,
     J: (fn, ...a) => page.evaluate(fn, ...a),
     sleep: ms => page.waitForTimeout(ms),
