@@ -521,7 +521,11 @@ const QUICK = process.argv.includes('--quick');
   }, fallenLevel));
   await shot('abyss-fallen');
   await clickOverlayBtn('#ov-fallen'); await sleep(500);
-  await clickOverlayBtn('#t-new'); await sleep(400);                      // → CHOOSE YOUR SURVIVOR
+  // Build 276: death wakes you at THE LANDING, not on the title — so the road
+  // back into a run is one step shorter and starts from a scene.
+  check('ABYSS: falling wakes you at the Landing, with the cast standing in it',
+    await J(() => !!document.querySelector('.ld-scene') && !!document.querySelector('.ld-hero')));
+  await clickOverlayBtn('#ld-go'); await sleep(400);                      // → CHOOSE YOUR SURVIVOR
   await J(() => document.querySelector('.ss-fig[data-id="ash"]').click());    // pick Ash → new run
   for (let i = 0; i < 6; i++) { if (!await J(() => !!document.querySelector('.ov-tap'))) break; await J(() => document.querySelector('#overlay').click()); await sleep(200); }
   await clickOverlayBtn('#ov-go'); await sleep(300);
@@ -2647,6 +2651,75 @@ const QUICK = process.argv.includes('--quick');
       }
       return earlyAlways && [...seen].some(l => l >= 4) && seen.size >= 3;   // reaches deeper than the old 2–4 cluster
     }));
+  // ---------- BUILD 276: THE LANDING ----------
+  // Death was a scoreboard and a menu — a stats card, then "RETURN TO THE
+  // SURFACE", then the title. At the moment a player is most receptive, none of
+  // the 45 authored campfire beats, 8 fragments or six hero voices was on
+  // screen. And there is no surface: the fragments are explicit that the stair
+  // is a loop, so waking at the bottom is what this place DOES.
+  check('LANDING: death wakes you at the bottom — not on the title screen',
+    await J(() => { const src = onDefeat.toString();
+      return /showLanding\(/.test(src) && /WAKE AT THE BOTTOM/.test(src)
+        && !/RETURN TO THE SURFACE/.test(src); }));
+  check('LANDING: clearing the run lands there too — the stair is a loop either way',
+    await J(() => /showLanding\(\{ trio: t/.test(onRunComplete.toString())));
+  check('LANDING: it is a PLACE — the cast you have unlocked is standing in it',
+    await J(() => {
+      try { localStorage.setItem('kizuna2_1.starters', JSON.stringify(['ash','elin','mira','cassia'])); } catch (_) {}
+      showLanding({ trio: ['ash','elin','mira'], floor: 2, threads: 2 });
+      const heroes = [...document.querySelectorAll('.ld-hero')].map(e => e.dataset.id);
+      const lit = [...document.querySelectorAll('.ld-hero.ld-speaking')].map(e => e.dataset.id);
+      return heroes.length === 4 && lit.length === 1 && heroes.includes(lit[0]);
+    }));
+  // THE HOOK: they do not remember you, you remember them — so the hub's own
+  // state is gated on how much of yourself the abyss has not taken yet.
+  check('LANDING: what they remember advances with your FRAGMENTS, not your deaths',
+    await J(() => {
+      const at = (n) => { try { localStorage.removeItem('kizuna2_1.frags'); } catch (_) {}
+        ABYSS_FRAGMENTS.slice(0, n).forEach(f => markFrag(f.id));
+        showLanding({ trio: ['ash'], floor: 1 });
+        return (document.querySelector('.ld-eyebrow') || {}).textContent; };
+      const a = at(0), b = at(3), c = at(8);
+      try { localStorage.removeItem('kizuna2_1.frags'); } catch (_) {}
+      return a !== b && b !== c && /BOTTOM/.test(a) && /REMEMBER/.test(c);
+    }));
+  check('LANDING: somebody reacts to the run you actually just lost',
+    await J(() => {
+      const say = (ctx) => { showLanding(ctx); return (document.querySelector('.ld-said') || {}).textContent || ''; };
+      const alone = say({ trio: ['ash'], floor: 1, threads: 0 });
+      const bonded = say({ trio: ['ash','elin','mira'], floor: 2, threads: 2 });
+      const cleared = say({ trio: ['ash','elin','mira'], floor: 3, threads: 3, cleared: true });
+      return /on your own/.test(alone) && /We held 2/.test(bonded) && /came back up/.test(cleared)
+        && alone !== bonded && bonded !== cleared;
+    }));
+  check('LANDING: the seat ROTATES — a hub with six voices must not always use one',
+    await J(() => {
+      const who = [];
+      for (let d = 0; d < 6; d++) { META.deaths = d;
+        showLanding({ trio: ['ash','elin','mira'], floor: 2, threads: 2 });
+        who.push([...document.querySelectorAll('.ld-hero.ld-speaking')].map(e => e.dataset.id)[0]); }
+      return new Set(who).size === 3;
+    }));
+  check('LANDING: the codex is a wall you read here, and it hands you back',
+    await J(() => {
+      showLanding({ trio: ['ash'], floor: 1 });
+      document.querySelector('#ld-codex').click();
+      const inCodex = !!document.querySelector('.cx-list');
+      document.querySelector('#cx-back').click();
+      return inCodex && !!document.querySelector('.ld-scene');
+    }));
+  check('LANDING: it composes — cast, prose and the three roads never collide',
+    await J(() => {
+      showLanding({ trio: ['ash','elin','mira'], floor: 2, threads: 2 });
+      const st = document.querySelector('#stage').getBoundingClientRect();
+      const r = (q) => document.querySelector(q).getBoundingClientRect();
+      const body = r('.ld-body'), acts = r('.ld-acts'), top = r('.ld-top');
+      const hs = [...document.querySelectorAll('.ld-hero')].map(e => e.getBoundingClientRect());
+      const castTop = Math.min(...hs.map(h => h.top)), castBot = Math.max(...hs.map(h => h.bottom));
+      return body.bottom <= acts.top && castBot <= body.top + 2 && top.bottom <= castTop
+        && acts.bottom <= st.bottom + 1 && top.top >= st.top - 1;
+    }));
+
   // ---------- BUILD 274: the first companion is not a dice roll ----------
   // A recruit was inserted as ONE of two or three nodes on its level, so a route
   // could walk straight past it. Measured over 400 generated maps, 34% of runs

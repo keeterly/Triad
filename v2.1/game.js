@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 275;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 276;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -8043,10 +8043,17 @@ function onDefeat() {
             ${stat(stats.embers, 'embers torn')}
           </div>
           <div class="go-memory">Nothing here is wasted. <b>The Abyss remembers</b> — the next to descend will find where you fell.</div>
-          <button class="ov-btn primary" id="ov-fallen">RETURN TO THE SURFACE</button>
+          <button class="ov-btn primary" id="ov-fallen">WAKE AT THE BOTTOM</button>
         </div>
       `, 'game-over');
-      $('#ov-fallen').onclick = () => { hideOverlay(); showTitle(); };
+      // Build 276: not "return to the surface" — there is no surface, which is
+      // the one thing the fragments are most insistent about. You wake at THE
+      // LANDING, where the people you have climbed with are standing around not
+      // remembering you, and the loop starts from a scene instead of a menu.
+      $('#ov-fallen').onclick = () => { hideOverlay(); showLanding({
+        trio, floor: stats.floor, threads: stats.threads, cleared_nodes: stats.cleared,
+        wasBoss: !!(S && S.node && S.node.isBoss), cleared: false,
+      }); };
     }, 700);
     return;
   }
@@ -8121,9 +8128,13 @@ function onRunComplete() {
     <div class="ov-lines" style="text-align:center; min-height:0;">
       ${lines.map(l => `<div class="ov-line">${l}</div>`).join('')}
     </div>
-    <button class="ov-btn primary" id="ov-title">BACK TO TITLE</button>
+    <button class="ov-btn primary" id="ov-title">DOWN, THEN</button>
   `, 'story-screen');
-  $('#ov-title').onclick = () => { RUN = null; saveRun(); showTitle(); };
+  // Build 276: a clear returns you to THE LANDING too. The stair is a loop —
+  // walking out of it is the thing nobody has managed, so "you cleared it, back
+  // to the menu" was quietly contradicting the ending it had just given you.
+  $('#ov-title').onclick = () => { const t = trio.slice(); RUN = null; saveRun(); hideOverlay();
+    showLanding({ trio: t, floor: 3, threads: t.length >= 3 ? 3 : 1, cleared: true }); };
 }
 
 // ---------------------------------------------------------------------------
@@ -11575,6 +11586,121 @@ function beginTutorial() {
   try { localStorage.setItem(PROGRESS_KEY, '0'); } catch (_) {}
   saveRun();
   startFlowNode();
+}
+// ═════════════════════════════════════════════════════════════════════════════
+// THE LANDING (Build 276) — where the loop actually happens
+//
+// Death used to be a scoreboard and a menu: a stats card, then "RETURN TO THE
+// SURFACE", then the title screen. At the one moment a player is most
+// receptive — having just lost a party they spent forty minutes bonding — not
+// one of the 45 authored campfire beats, 8 fragments or six hero voices was
+// anywhere on screen. A number card and a main menu.
+//
+// And that button was wrong in a way that gave the fix away. There IS no
+// surface. The fragments already say so:
+//
+//   f6  "the number is never larger. The abyss is not a depth. It is a loop
+//        with a story wrapped around it."
+//   f5  "somebody has been up there already, and it was one of you"
+//   f7  "what it remembers it keeps — the name first, then the face"
+//
+// So the canon is already written: you have died here many times, and the
+// abyss takes the memory each time. Waking at the bottom is not a game over.
+// It is what this place DOES. The Landing is that bottom — the hub every run
+// begins and ends at, with the heroes you have unlocked standing in it,
+// because they are looping too.
+//
+// THE HOOK, and it is the thing that makes this a story rather than a menu:
+// they do not remember you. You remember them. Every FRAGMENT you hold is a
+// piece the abyss has not taken yet — so as the codex fills, the people here
+// remember more, and what they say to you changes. The meta-progression, the
+// story and bondCarry become one thing instead of three.
+const LANDING_STAGES = [
+  { at: 0, eyebrow: 'THE BOTTOM OF IT',
+    line: 'They look up when you come back down, and there is nothing behind their eyes at all. No one here has met you before. No one here has met anyone before.' },
+  { at: 1, eyebrow: 'SOMETHING IS OFF',
+    line: 'One of them almost says your name and stops, the way you stop at the top of a stair that is not there. It passes. But it happened.' },
+  { at: 3, eyebrow: 'THEY ARE STARTING TO KEEP THINGS',
+    line: 'Two of them are already arguing about a fight neither of them can place. They get the details right. They cannot say why.' },
+  { at: 5, eyebrow: 'THEY REMEMBER THE SHAPE OF YOU',
+    line: 'Nobody has your name yet. But they leave a space at the fire that is exactly your size, and none of them can explain who taught them to.' },
+  { at: 8, eyebrow: 'THEY REMEMBER',
+    line: 'Somebody says your name before you say it. The stair has been holding that back for a very long time, and it has just lost its grip.' },
+];
+function landingStage() {
+  const n = fragsHeld();
+  return LANDING_STAGES.slice().reverse().find(s => n >= s.at) || LANDING_STAGES[0];
+}
+// WHAT THEY SAY ABOUT WHAT JUST HAPPENED — the Hypnos seat. Keyed to the shape
+// of the run that ended, spoken by somebody who was actually in it where
+// possible, so the line is never generic when it could be personal.
+const LANDING_DEATH = {
+  boss:   { need: 1, say: (h, c) => `${h}: "It was bigger than us. That is not the same as it being impossible. …Ask me again at the bottom of the next one."` },
+  deep:   { need: 1, say: (h, c) => `${h}: "Floor ${c.floor}. Further than last time, if last time happened, which nobody here will confirm."` },
+  alone:  { need: 1, say: (h, c) => `${h}: "You went down that stair on your own. …Don't. There is a reason the ones who come back come back in threes."` },
+  bonded: { need: 2, say: (h, c) => `${h}: "We held ${c.threads} of them, at the end. I keep thinking that should have been enough. I keep being wrong about that in a way that feels practised."` },
+  early:  { need: 1, say: (h, c) => `${h}: "That was quick. …I'm not judging. I have a very strong feeling I have been quicker."` },
+  clear:  { need: 1, say: (h, c) => `${h}: "You came back up. People do not come back up. …Sit down. Tell me it twice, I want to see if it survives being said."` },
+};
+function landingBeat(ctx) {
+  const cast = getUnlockedStarters().filter(id => HEROES[id]);
+  const spoke = (ctx.trio || []).filter(id => cast.includes(id));
+  // ROTATE the seat. Taking [0] meant the run's lead always talked, and the run's
+  // lead is nearly always Ash — so a hub built to show off six voices only ever
+  // used one. Prefer somebody who was actually there, and move down the line
+  // each time you wake, so the cast takes turns across runs.
+  const pool = spoke.length ? spoke : cast;
+  const who = pool[(META.deaths || 0) % pool.length] || 'ash';
+  const name = HEROES[who] ? HEROES[who].name : 'A VOICE';
+  const key = ctx.cleared ? 'clear'
+    : ctx.wasBoss ? 'boss'
+    : (ctx.trio || []).length <= 1 ? 'alone'
+    : (ctx.threads || 0) >= 2 ? 'bonded'
+    : (ctx.floor || 1) >= 2 ? 'deep'
+    : (ctx.cleared_nodes || 0) <= 2 ? 'early' : 'deep';
+  const d = LANDING_DEATH[key] || LANDING_DEATH.deep;
+  return { who, text: d.say(name, ctx) };
+}
+// The hub itself. Everything that used to be a menu row is a place here: the
+// codex is the wall you read, the starter select is who you wake next to.
+function showLanding(ctx) {
+  const c = ctx || {};
+  const stage = landingStage();
+  const beat = landingBeat(c);
+  const cast = getUnlockedStarters().filter(id => HEROES[id]);
+  const mid = (cast.length - 1) / 2;
+  const figs = cast.map((id, i) => `<span class="ld-hero${id === beat.who ? ' ld-speaking' : ''}" style="--off:${(i - mid).toFixed(2)}" data-id="${id}">${V2PORTRAITS[id] || ''}</span>`).join('');
+  const frags = fragsHeld(), total = ABYSS_FRAGMENTS.length;
+  showOverlay(`
+    <div class="ld-scene">
+      <div class="ld-dark"></div>
+      <div class="ld-shaft"></div>
+      <div class="ld-cast">${figs}</div>
+      <div class="ld-top">
+        <div class="ld-eyebrow">${stage.eyebrow}</div>
+        <div class="ld-title">THE LANDING</div>
+        <div class="ld-sub">${c.cleared ? 'you came back — and the stair put you right back at the bottom of itself'
+          : 'you woke at the bottom again' + ((META.deaths || 0) > 1 ? ` · the ${ordinal(META.deaths)} time` : '')}</div>
+      </div>
+      <div class="ld-body">
+        <div class="ld-state">${stage.line}</div>
+        <div class="ld-said">${beat.text}</div>
+      </div>
+      <div class="ld-acts">
+        <button class="ld-act ld-go" id="ld-go"><span class="lda-l">CLIMB AGAIN</span><span class="lda-d">choose who you wake beside</span></button>
+        <button class="ld-act" id="ld-codex"><span class="lda-l">◇ WHAT WE KNOW</span><span class="lda-d">${frags} of ${total} pieced together${frags ? ' — every third makes a bond hold deeper' : ''}</span></button>
+        <button class="ld-act" id="ld-title"><span class="lda-l">⌂ REST A WHILE</span><span class="lda-d">back to the title</span></button>
+      </div>
+    </div>
+  `, 'landing-screen');
+  $('#ld-go').onclick = () => { hideOverlay(); showStarterSelect(id => beginRun(id)); };
+  $('#ld-codex').onclick = () => showCodex(() => showLanding(c));
+  $('#ld-title').onclick = () => { hideOverlay(); showTitle(); };
+}
+function ordinal(n) {
+  const v = n % 100;
+  if (v >= 11 && v <= 13) return n + 'th';
+  return n + ({ 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] || 'th');
 }
 // A short, hero-specific opening beat, then into the Descent.
 function beginRun(starterId) {
