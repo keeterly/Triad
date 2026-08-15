@@ -40,6 +40,52 @@ const QUICK = process.argv.includes('--quick');
   // tutorial is FINISHED now.
   check('ONBOARDING: starting the tutorial does NOT yet count as having seen it',
     await J(() => tutorialSeen() === false));
+  // ---------- BUILD 273: the tutorial teaches the engine the DESCENT uses ----
+  // `_rot` is true for every useRunHp fight, so rotations ARE descent combat.
+  // The old road ran four classic fights and mentioned rotations once, in the
+  // last beat before the cliff — 80% of onboarding rehearsing an engine the
+  // player never touches again, and the thing they do every turn for the rest
+  // of the game getting a single practice fight.
+  check('TUTORIAL: every fight on the road runs the REAL engine',
+    await J(() => { const f = FLOW.filter(n => n.type === 'fight');
+      return f.length >= 3 && f.every(n => n.rotations === true); }));
+  check('TUTORIAL: a tutorial fight really gets rotations (not just a flag on the node)',
+    await J(() => {
+      let fc = null;
+      try { fc = localStorage.getItem('kizuna2_1.forceClassic'); localStorage.removeItem('kizuna2_1.forceClassic'); } catch (_) {}
+      const node = FLOW.find(n => n.type === 'fight');
+      startFight(node);
+      const got = !!(S && S._rotations);
+      const solo = S.maxEp;                       // 2 + heroes + 1 for rotations
+      try { if (fc) localStorage.setItem('kizuna2_1.forceClassic', fc); } catch (_) {}
+      return got && solo === 2 + node.heroes.length + 1;
+    }));
+  // It also taught the PAYOFFS before the mechanisms: WEAVE and the TRIAD
+  // FINALE were explained two chapters before the player had formed one bond,
+  // while the deliberate way to MAKE one was never mentioned at all.
+  check('TUTORIAL: it teaches PRIMED → FOLLOW-UP — the way a bond is actually made',
+    await J(() => {
+      const txt = FLOW.filter(n => n.type === 'story').flatMap(n => n.lines).map(l => l.text).join(' ');
+      return /PRIMED/.test(txt) && /FOLLOW-UP/.test(txt);
+    }));
+  check('TUTORIAL: no payoff is drilled before its mechanism — WEAVE/TRIAD are not taught here',
+    await J(() => {
+      const stories = FLOW.filter(n => n.type === 'story');
+      const beforeCliff = stories.slice(0, -1).flatMap(n => n.lines).map(l => l.text).join(' ');
+      const narrators = FLOW.filter(n => n.type === 'fight').map(n => n.narrator).join(' ');
+      return !/WEAVE/.test(beforeCliff) && !/TRIAD/.test(beforeCliff)
+        && !/WEAVE/.test(narrators) && !/TRIAD/.test(narrators);
+    }));
+  check('TUTORIAL: the rhythm is taught FIRST, not last — fight 1 is the rotation drill',
+    await J(() => {
+      const first = FLOW.find(n => n.type === 'fight');
+      const opening = FLOW[0].lines.map(l => l.text).join(' ');
+      return /OPENER/.test(first.narrator) && /FINISHER/.test(first.narrator)
+        && /OPENER/.test(opening) && /who gets to finish/i.test(opening);
+    }));
+  check('VOCAB: the runtime bond lines speak the Build 270 ladder (LIT / WOVEN, never WEAVE)',
+    await J(() => !/to WEAVE it/.test(addThread.toString())
+      && /♡ LIT/.test(addThread.toString()) && /WOVEN/.test(addThread.toString())));
   check('ONBOARDING: finishing it does — the flag lives at the end of the road',
     await J(() => { startDescent(); return tutorialSeen() === true; }));
   check('ONBOARDING: a reset really can reach a first run again (lesson counters included)',
@@ -4825,7 +4871,7 @@ const QUICK = process.argv.includes('--quick');
       document.getElementById('narrator').innerHTML = '';
       await addThread('ash', 'elin', 'a hand held out');
       const said = document.getElementById('narrator').textContent || '';
-      return /♡ BOND/.test(said) && /a hand held out/.test(said); }));
+      return /♡ LIT/.test(said) && /a hand held out/.test(said); }));   // Build 273: the ladder's word
   check('BOND: a party-wide heal finally wears the ♡ mark — it was the one card excluded',
     await J(() => { setupFight(['ash', 'elin'], [], { ash: 'front', elin: 'mid' });
       S.threads = new Set();

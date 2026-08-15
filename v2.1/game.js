@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 272;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 273;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -2818,54 +2818,75 @@ function weaveSaves(heroId) {
 // ---------------------------------------------------------------------------
 // DATA — the tutorial chapters (unchanged), then THE DESCENT map.
 // ---------------------------------------------------------------------------
+// THE ROAD IN (re-cut, Build 273)
+//
+// The old tutorial taught four fights of CLASSIC combat and then, in its last
+// beat before the cliff, mentioned that the descent runs on ROTATIONS. Since
+// `_rot` is true for every useRunHp fight, that meant 80% of onboarding
+// rehearsed an engine the player would never touch again — and the one thing
+// they'd do every turn for the rest of the game got a single practice fight.
+//
+// It also taught the payoffs before the mechanisms: WEAVE and the TRIAD FINALE
+// were explained in chapter 3, two chapters before the player had formed a
+// single bond, while the deliberate way to MAKE one (finish two combos, play
+// the FOLLOW-UP that opens) was never mentioned at all — it lived in a coach
+// that first fires somewhere down in the descent, long after the game has told
+// them bonds come from healing people.
+//
+// So: every fight runs the real engine, and each one teaches exactly one new
+// thing, in the order the things depend on each other.
+//
+//   1  the ROTATION      opener -> combo -> finisher, and who cashes out
+//   2  the TELEGRAPH     dodge the row they name, or stand and parry it
+//                        …and learn it costs you the combo, which is the game
+//   3  PRIMED            finishing leaves a hero standing ready
+//   4  the FOLLOW-UP     a second hero's finish cues them in — THAT is a bond
+//   5  the ALL-OUT       burst, and what three bonds are for
+//
+// WEAVE/TRIAD are gone from here entirely: they are a promise at the cliff, not
+// a drill. The descent's own coaches introduce them when they become reachable.
 const FLOW = [
   { type: 'story', chapter: 1, title: 'ONE SURVIVOR', eyebrow: 'CHAPTER 1', lines: [
     { text: 'The first thing you understand is that everyone else is gone.' },
-    { spk: 'ASH', text: '…then I carry it alone.' },
-    { text: 'You are <b>Ash</b>. One blade, three ways to hold it — your <b>row is your stance</b>: Front cuts, Mid flows, Back strikes from the wind. <b>Drag Ash himself</b> between rows and his cards rewrite to match.' },
-    { text: 'You begin lean: a <b>basic strike</b> in each stance, and <b>one opening signature</b> already lit. Everything deeper — new arts, upgrades, ruinous finishers — you’ll <b>earn on the way down</b>.' },
+    { text: 'The second is that you do not remember arriving. Not the fall, not the road before it. Only that you are at the bottom of something, and it goes up.' },
+    { spk: 'ASH', text: '…then I climb it alone.' },
+    { text: 'You are <b>Ash</b>. One blade, three ways to hold it — your <b>row is your stance</b>: Front cuts, Mid flows, Back strikes from the wind.' },
+    { text: 'Down here nobody swings once and wins. You fight in a <b>rhythm</b>: play an <b>OPENER</b>, and the next strike of that line <b>forges into your hand</b> — opener, then combo, then the <b>FINISHER</b> that ends it.' },
+    { text: 'The ramp is <b>free</b>. The <b>finisher costs EP</b>. That is the whole question, every turn, for the rest of the climb: <b>who gets to finish?</b>' },
   ]},
-  { type: 'fight', chapter: 1, heroes: ['ash'], enemies: ['husk'],
-    narrator: 'Tap or drag a card to strike. DRAG ASH to change stance (1 EP). When the husk winds up, TAP in time to turn the blow.' },
+  { type: 'fight', chapter: 1, heroes: ['ash'], enemies: ['husk'], rotations: true,
+    narrator: 'Play your OPENER — the next strike forges into your hand. Ramp is free; the FINISHER costs EP.' },
   { type: 'story', chapter: 1, title: 'THE STANCES', eyebrow: 'CHAPTER 1', lines: [
     { text: 'Every foe <b>telegraphs</b> before it strikes: the damage it will deal, and the <b>row</b> it will hit.' },
     { spk: 'ASH', text: 'So I answer one of two ways — not be there, or meet it.' },
-    { text: '<b>Drag to an empty row</b> to dodge the blow, or hold your ground and <b>PARRY</b> it — tap each note the instant its ring glows gold. A clean parry blunts the strike and feeds your <b>momentum</b>.' },
+    { text: '<b>Drag Ash to an empty row</b> to dodge the blow, or hold your ground and <b>PARRY</b> — tap each note the instant its ring glows gold. A clean parry blunts the strike and feeds your <b>momentum</b>.' },
+    { text: 'One warning, and the road will not repeat it. <b>Moving breaks your combo.</b> Dodging is never free — it costs you the line you were building. Choose which you can afford to lose.' },
   ]},
-  { type: 'fight', chapter: 1, heroes: ['ash'], enemies: ['husk', 'wraith'],
-    narrator: 'Dodge the row they call — or stand and PARRY it. The row they name is the row they strike.' },
+  { type: 'fight', chapter: 1, heroes: ['ash'], enemies: ['husk', 'wraith'], rotations: true,
+    narrator: 'Dodge the row they name — or stand and PARRY it. Moving breaks your combo: pick your moment.' },
   { type: 'story', chapter: 2, title: 'ELIN', eyebrow: 'CHAPTER 2 · TWO', lines: [
     { text: 'A light in the ash-fog — a healer, kneeling over what’s left of her order.' },
     { spk: 'ELIN', text: 'You’re bleeding. Stand still.' },
     { spk: 'ASH', text: '…you’re coming with me.' },
-    { text: 'Two now. When one of you <b>helps</b> the other — a heal, a guard, a follow-up on a wounded foe — a <b>BOND</b> forms between them. The bonds are the whole point. Watch.' },
+    { text: 'Two now, and two changes everything. When a hero <b>finishes their line</b> they don’t simply stop — they hold the ending, standing <b>PRIMED</b>.' },
+    { text: 'Finish a <b>second</b> hero’s line while the first still stands primed, and that first hero’s <b>FOLLOW-UP</b> forges into your hand, <b>free</b>. Play it and the two of them are <b>♡ BONDED</b>.' },
+    { spk: 'ELIN', text: 'You cover me. I’ll cover you. That is all a bond is — it just has to actually happen.' },
   ]},
-  { type: 'fight', chapter: 2, heroes: ['ash', 'elin'], enemies: ['cultist', 'husk'],
-    narrator: 'Have Elin heal Ash — a BOND forms between them. Fight side by side and it deepens into a WEAVE.' },
+  { type: 'fight', chapter: 2, heroes: ['ash', 'elin'], enemies: ['cultist', 'husk'], rotations: true,
+    narrator: 'Finish BOTH their lines — the primed hero’s free FOLLOW-UP opens. Play it to BOND them. (Helping an ally bonds them too.)' },
   { type: 'story', chapter: 3, title: 'MIRA', eyebrow: 'CHAPTER 3 · THREE', lines: [
     { text: 'A blade rests at your throat before you hear a single step. Then, slowly, it lowers.' },
     { spk: 'MIRA', text: 'You came through the dark loud as a funeral. …Lucky I only kill what I mean to. Move.' },
-    { text: 'Three now — a triangle. A deepened bond becomes a <b>WEAVE</b>: play a <b>FINISHER</b> with one and their partner <b>weaves in</b> a free strike. Bond all three and they <b>crown your ALL-OUT</b> with a <b>TRIAD FINALE</b> — one grand blow only your exact three can land.' },
+    { text: 'Three now — a triangle. Landing hits and clean parries fills your <b>BURST</b>; when it is full, unleash the <b>ALL-OUT</b> and the whole line strikes at once.' },
+    { text: 'And the bonds you hold <b>empower it</b>. That is what they are for. Everything else they become, the road will show you.' },
   ]},
-  { type: 'fight', chapter: 3, heroes: ['ash', 'elin', 'mira'], enemies: ['echoknight', 'cultist'],
-    narrator: 'Help one another until all three bonds hold. Land hits and parries to fill BURST, then unleash your ALL-OUT.' },
-  // THE RHYTHM (Build 255) — the tutorial used to describe rotations in prose
-  // and then hand the player a descent that ran them for real. This beat lets
-  // them PLAY one first, on a single foe, with nothing else to think about.
-  { type: 'story', chapter: 3, title: 'THE RHYTHM', eyebrow: 'CHAPTER 3', lines: [
-    { text: 'Ash stops at the cliff’s edge and turns his wrist twice, testing something.' },
-    { spk: 'ASH', text: 'Up here I swung when I could. Down there I’ll need a <b>rhythm</b>.' },
-    { text: 'Below, each hero holds a single <b>OPENER</b>. Play it and the next strike of the line <b>forges into your hand</b> — opener, then combo, then the <b>FINISHER</b> that ends it.' },
-    { text: 'The ramp is <b>free</b>. The <b>finisher costs EP</b> — so the real question each turn is not <i>what do I play</i>, it is <b>who gets to finish</b>.' },
-    { text: 'Two warnings, and the road will not repeat them. <b>Moving breaks the combo</b> — reposition before you start, not during. And when a line <b>forks</b>, taking one path <b>burns</b> the other.' },
-  ]},
-  { type: 'fight', chapter: 3, heroes: ['ash', 'elin', 'mira'], enemies: ['husk'], rotations: true,
-    narrator: 'Play an OPENER — the next strike forges into your hand. Ramp is free; the FINISHER costs EP. Who cashes out?' },
+  { type: 'fight', chapter: 3, heroes: ['ash', 'elin', 'mira'], enemies: ['echoknight', 'cultist'], rotations: true,
+    narrator: 'Land hits and parries to fill BURST, then unleash your ALL-OUT. Bond who you can along the way.' },
   { type: 'story', chapter: 3, title: 'THE ROAD DOWN', eyebrow: 'THE DESCENT', lines: [
     { text: 'The tutorial road ends at a cliff’s edge. Below waits the <b>Descent</b> — and the Abyss beneath it.' },
-    { text: 'You have felt the rhythm now. That short combo is all you start with; how it <b>grows</b> is up to you.' },
-    { spk: 'ASH', text: 'A strike and a killing blow — and no one beside me yet. Everything between them, I earn.' },
-    { text: 'The dead give up <b>✦ embers</b>. The <b>Ember Tree</b> waits on the road below — it will show you what to do with them.' },
+    { text: 'You have felt the rhythm now. That short combo is all you start with; how it <b>grows</b> is up to you. The dead give up <b>✦ embers</b>, and the <b>Ember Tree</b> waits below to show you what to do with them.' },
+    { text: 'A bond that is lit again and again goes <b>✦ WOVEN</b> — permanent, and worth more than any blade you will find down there. Weave all three and you will learn what a <b>TRIAD</b> is.' },
+    { spk: 'ASH', text: 'A strike and a killing blow. Everything between them, I earn.' },
     { spk: 'MIRA', text: 'Down, then. …And you go alone from here. Find the others before something finds you.' },
   ], next: 'descent' },
 ];
@@ -6705,11 +6726,11 @@ async function addThread(a, b, why) {
   // A KINDLED pair that threads awakens its WEAVE this instant (no card — see
   // awakenDuet).  A non-kindled thread just forms the connection + its guard.
   if (kindledNow) await awakenDuet(a, b);
-  else flashNarrator('♡ BOND — ' + HEROES[a].name + ' ─ ' + HEROES[b].name
-    + (why ? ' · <b>' + why + '</b>' : '') + ' — fight together again to WEAVE it.');
+  else flashNarrator('♡ LIT — ' + HEROES[a].name + ' ─ ' + HEROES[b].name
+    + (why ? ' · <b>' + why + '</b>' : '') + ' — light it again and the pair goes <b>✦ WOVEN</b>.');
   // The first bond of a run explains the whole loop once, at the moment the
   // player has just caused one and can connect the two.
-  lesson('bond', '♡ THAT WAS A BOND — helping an ally, striking a foe together, or avenging one of your own ties two heroes. Three bonds make the TRIAD. Tap the ◮ badge to see who needs what.', 2);
+  lesson('bond', '♡ THAT WAS A BOND — helping an ally, striking a foe together, or avenging one of your own lights two heroes for this fight. Light it again and they go ✦ WOVEN, for good. Tap the ◮ badge to see every pair.', 2);
   // a clear beat on BOTH heroes so the connection reads at a glance
   [a, b].forEach(id => { const el = figEl(id); if (el) { el.classList.remove('fig-bond'); void el.offsetWidth; el.classList.add('fig-bond'); setTimeout(() => el.classList.remove('fig-bond'), 900); } });
   // The bond itself protects: both linked heroes steel by 2 guard the moment
