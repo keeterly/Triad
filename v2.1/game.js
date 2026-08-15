@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 285;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 286;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -274,7 +274,15 @@ function addEmbers(n) { if (!RUN) return; RUN.embers = Math.max(0, (RUN.embers |
 // A tree TIER opens as you DESCEND: tier 1 from the start, tier 2 once a couple
 // of nodes are behind you, tier 3 deeper still — the kit grows across the run.
 function runDepth() { return RUN ? ((RUN.depthBase || 0) + (RUN.completed ? RUN.completed.length : 0)) : 0; }
-function tierOpen(tier) { return runDepth() >= (tier - 1) * 2; }
+// TRICKLE (Build 286). The gate opened a tier every 2 depth, so with 7 levels a
+// floor the WHOLE tree — 156 nodes — was unsealed before the first boss. Every
+// tier ships across the descent now, which is also why sealed nodes stopped
+// being drawn: a first-time player met 156 orbs, most of them padlocks, and
+// read that as the size of the thing they had to learn.
+function tierOpen(tier) { return runDepth() >= (tier - 1) * 4; }
+// The deepest tier the road has unsealed, and what is still to come.
+function tierMax() { let t = 1; while (t < 5 && tierOpen(t + 1)) t++; return t; }
+function sealedAhead(nodes) { return (nodes || []).filter(n => !tierOpen(n.tier)).length; }
 // one-time hand-hold: the first time you have embers to spend, the game walks
 // you through opening the Ember Tree and kindling a skill.
 function treeTaught() { try { return localStorage.getItem('kizuna2_1.treeTaught') === '1'; } catch (_) { return false; } }
@@ -9401,7 +9409,15 @@ function showEmberSpark(onDone) {
         : o.cross
         ? '⟡ ' + HEROES[o.hero].name + ' learns ' + n.label + ' from ' + HEROES[n.hero].name + ' — the bond taught it.'
         : '✦ ' + n.label + ' — kindled from the spark, ' + (n.cost - sparkCost(o)) + ' embers saved.');
-      done();
+      // SHOW IT LAND (Build 286). The spark granted a node from a floating card
+      // and went straight back to the map, so the tree was where the thing lived
+      // and never where the player was standing when they got it — which is most
+      // of why the tree felt like a separate, optional screen. The burst plays
+      // and then the tree opens ON the new node, so the reward and the place it
+      // belongs are the same moment.
+      hideOverlay();
+      const focus = o.cross ? 'x:' + o.hero + ':' + n.id : ('__kindled:' + n.id);
+      kindleBurst(n, () => showEmberTree(() => done(), o.hero, focus));
     };
   });
   $('#spark-skip').onclick = () => { addEmbers(2); saveRun(); done(); };
@@ -11112,7 +11128,29 @@ function showSettings() {
 // THE EMBER TREE — a branching constellation.  Each hero's nodes hang from a
 // root along lit paths; a node's PREREQUISITE feeds it down a thread.  Pick a
 // node to read it in the detail bar, then kindle it.
-const TREE_TYPE_LABEL = { card: 'COMBO', rider: 'UPGRADE', passive: 'PASSIVE', allout: 'ALL-OUT', emergent: 'EMERGENT', synergy: 'TEAM SYNERGY', branch: 'FORK', execute: 'EXECUTIONER', afterimage: 'AFTERIMAGE', chain: 'KIZUNA' };
+// FOUR KINDS, NOT ELEVEN (Build 286).
+//
+// The tree has 156 nodes under ELEVEN type labels — but `passive` (60),
+// `branch` (19), `card` (18) and `bond` (15) are 112 of them. The other seven
+// names split 44 nodes between them: `chain` is four nodes and Ash-only,
+// `synergy` is six and tier-4-only, `afterimage` is six. Seven separate words
+// for near-singletons is most of why the tree reads as overwhelming — it is not
+// that there is a lot to learn, it is that there appear to be eleven CATEGORIES
+// of thing to learn, and nine of them turn out to mean roughly "a passive".
+//
+// Nothing is removed and no node changes what it does. They simply stop being
+// separately NAMED, so the player is reading four kinds instead of eleven:
+//
+//   COMBO    a card enters a stance's rotation
+//   FORK     a rotation splits, and taking one path burns the other
+//   PASSIVE  a standing rule — most of the tree, and now honestly labelled
+//   BOND     a pair's own ability, on the border between them
+const TREE_KIND = {
+  card: 'COMBO', branch: 'FORK', bond: 'BOND',
+  rider: 'PASSIVE', passive: 'PASSIVE', allout: 'PASSIVE', emergent: 'PASSIVE',
+  synergy: 'PASSIVE', execute: 'PASSIVE', afterimage: 'PASSIVE', chain: 'PASSIVE',
+};
+const TREE_TYPE_LABEL = TREE_KIND;
 const TREE_TYPE_GLYPH = { card: '❖', rider: '⊕', passive: '❉', allout: '✷', emergent: '✦', synergy: '☍', branch: '⑂', execute: '☠', afterimage: '⧉', chain: '⛓' };
 // Node descriptions follow a "TRIGGER: effect — flavor" grammar so they read at a
 // glance: the TRIGGER (when it fires) becomes a chip, the effect stays crisp with
@@ -11565,7 +11603,11 @@ function showEmberTree(onBack, heroId, selId, opts) {
      </button>`;
   }).join('')).join('')).join('');
   // ---- ORBS -------------------------------------------------------------------
-  const orbs = allNodes.map(n => {
+  // A SEALED TIER IS NOT DRAWN. It was a padlocked orb, so the first tree a new
+  // player opened was 156 circles they mostly could not touch — which reads as
+  // the size of the thing they have to learn rather than as the size of what
+  // they have. What is still coming is one honest line under the tree instead.
+  const orbs = allNodes.filter(n => tierOpen(n.tier) || hasNode(n.id)).map(n => {
     const p = pos[n.id], mine = n.hero === heroId, x = crossBy[n.id];
     // A neighbour's node you can reach is selected AS A CROSSING, so the id
     // carries who is learning it; your own nodes keep their plain id.
@@ -11666,7 +11708,12 @@ function showEmberTree(onBack, heroId, selId, opts) {
     return `<button class="et-tab${hid === heroId ? ' et-tab-on' : ''}${done ? ' et-tab-done' : ''}" data-hero="${hid}">${HEROES[hid].name}</button>`;
   }).join('');
   showOverlay(`
-    <div class="et-head"><span class="et-h-title">THE EMBER TREE</span><span class="et-h-wallet">✦ <b>${runEmbers()}</b></span><span class="et-h-boss">this descent only · resets if you fall</span></div>
+    <div class="et-head"><span class="et-h-title">THE EMBER TREE</span><span class="et-h-wallet">✦ <b>${runEmbers()}</b></span><span class="et-h-boss">this descent only · resets if you fall</span>${(() => {
+      // What the road has not shown you yet, said once and plainly — instead of
+      // as a field of padlocks you have to look past.
+      const ahead = sealedAhead(allNodes);
+      return ahead ? `<span class="et-h-ahead" title="deeper tiers unseal as you descend">${ahead} more wait deeper</span>` : '';
+    })()}</div>
     <div class="et-tabs">${tabs}</div>
     ${weaveBar}
     <div class="et-body">

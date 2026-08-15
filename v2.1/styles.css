@@ -4166,3 +4166,9 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
   border: 1px solid rgba(240,212,136,0.4); font-size: 11px;
 }
 .mr-n { font-size: 8px; letter-spacing: 0.18em; color: var(--ink-dim); }
+
+/* what the road has not unsealed yet — one honest line, not a field of locks */
+.et-h-ahead {
+  font-size: 8.5px; letter-spacing: 0.14em; color: #8fa4cc; font-style: italic;
+  margin-left: auto; padding-left: 10px;
+}

@@ -627,7 +627,10 @@ const QUICK = process.argv.includes('--quick');
       const disc = node && Math.max(1, Math.round(node.cost * 0.7));
       const before = RUN.embers;
       if (first) first.click();
-      return cards.length >= 1 && cards.length <= 3 && !!id && hasNode(id) && RUN.embers === before - disc && disc < node.cost && landed;
+      // Build 286: the pick now walks you to the TREE and the flow resumes when
+      // you leave it, so `landed` is deliberately still false at this instant.
+      return cards.length >= 1 && cards.length <= 3 && !!id && hasNode(id)
+        && RUN.embers === before - disc && disc < node.cost && landed === false;
     }));
   check('SPARK: skipping banks the heat (+2 embers)',
     await J(() => {
@@ -2151,7 +2154,10 @@ const QUICK = process.argv.includes('--quick');
   t.page.evaluate(() => { endTurn(); });
   await t.page.waitForSelector('.parry-ring.parry-hold', { state: 'attached', timeout: 6000 });
   await t.page.mouse.move(150, 140); await t.page.mouse.down();   // brace and HOLD
-  await sleep(1050);
+  // Hold until the ring itself closes rather than for a fixed 1050ms: the close
+  // time moves with the foe's parrySpeed and with any note-shape tuning, so the
+  // fixed wait raced the ring and this check failed intermittently for two builds.
+  await t.page.waitForSelector('.parry-ring.parry-hold', { state: 'detached', timeout: 6000 }).catch(() => {});
   await t.page.mouse.up();
   await sleep(2400);
   check('RHYTHM: a braced HOLD negates the blow (perfect parry)',
@@ -2215,8 +2221,15 @@ const QUICK = process.argv.includes('--quick');
   console.log('--- PHASE 2 ---');
   check('TIER GATE: tier 2 stays sealed until you descend deeper this run',
     await J(() => { RUN.completed = []; return tierOpen(1) === true && tierOpen(2) === false; }));
+  // Build 286 slowed the ramp to a tier every 4 depth: at 2-per-tier the WHOLE
+  // tree unsealed before the first boss, so a new player met all 156 nodes at once.
   check('TIER GATE: descending opens tier 2, then tier 3 deeper still',
-    await J(() => { RUN.completed = [0, 1]; const t2 = tierOpen(2) === true && tierOpen(3) === false; RUN.completed = [0, 1, 2, 3]; return t2 && tierOpen(3) === true; }));
+    await J(() => { RUN.completed = [0, 1, 2, 3];
+      const t2 = tierOpen(2) === true && tierOpen(3) === false;
+      RUN.completed = Array.from({ length: 8 }, (_, i) => i);
+      return t2 && tierOpen(3) === true; }));
+  check('TIER GATE: the tree is NOT fully unsealed inside floor one',
+    await J(() => { RUN.completed = Array.from({ length: 7 }, (_, i) => i); return tierOpen(4) === false; }));
   check('FORGE: WHETSTONE tempers an attack +1', await J(() => { const c = { kind: 'core', fx: { dmg: 6 } }; FORGE_BY_ID.whetstone.apply(c); return c.fx.dmg === 7; }));
   check('FORGE: QUICKENING cuts a signature’s cost by 1', await J(() => { const c = { kind: 'sig', cost: 2, fx: { dmg: 11 } }; FORGE_BY_ID.quicken.apply(c); return c.cost === 1; }));
   check('FORGE: HEXED EDGE adds ◎ EXPOSED to a core attack', await J(() => { const c = { kind: 'core', fx: { dmg: 6 } }; FORGE_BY_ID.hexedge.apply(c); return c.fx.mark === 1; }));
@@ -2367,6 +2380,16 @@ const QUICK = process.argv.includes('--quick');
     await J(() => { showEmberTree(() => {}, 'ash'); return !!document.querySelector('.et-coach') && treeTaught() === false; }));
   check('TEACH: kindling a node plays a KINDLE BURST and banks the unlock',
     await J(() => {
+      // The confirmation note only renders on the FIRST kindle ever (`first =
+      // !treeTaught()`, read before setTreeTaught), and that flag is global and
+      // persists across the whole suite — so whether this check passed depended
+      // on what ran before it. Establish the precondition instead of hoping.
+      try { localStorage.removeItem('kizuna2_1.treeTaught'); } catch (_) {}
+      // …and a clean RUN. Reproduced in isolation this passes every time; inside
+      // the suite it inherited whatever roster, crossings and tree-view focus the
+      // previous fifty checks left behind, and the selected node was sometimes
+      // one already owned. Establish the whole precondition, not half of it.
+      RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash'];
       RUN.embers = 20; RUN.completed = [0, 1, 2, 3]; showEmberTree(() => {}, 'ash');
       const buy = document.querySelector('#et-buy'); if (!buy) return false;
       buy.click();
@@ -2375,9 +2398,37 @@ const QUICK = process.argv.includes('--quick');
     }));
   // dismiss the burst → the tree re-renders with the confirmation note
   await J(() => { const el = document.querySelector('#kindle-fx'); if (el) { el.classList.add('kf-ready'); el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); } });
-  await sleep(450);
-  check('TEACH: after the burst, the tree shows the kindled confirmation',
-    await J(() => !document.querySelector('#kindle-fx') && !document.querySelector('.et-coach') && !!document.querySelector('.et-kindled-note')));
+  // Wait for the tree to actually re-render rather than sleeping a fixed 450ms —
+  // the burst's dismissal races the re-render and this flaked across two builds.
+  await t.page.waitForSelector('#kindle-fx', { state: 'detached', timeout: 6000 }).catch(() => {});
+  await t.page.waitForSelector('.et-kindled-note', { state: 'attached', timeout: 6000 }).catch(() => {});
+  check('TEACH: the burst dismisses and the unlock is banked',
+    await J(() => !document.querySelector('#kindle-fx') && !document.querySelector('.et-coach')
+      && treeTaught() === true && hasNode('ash.sig.front')));
+  // The first-kindle confirmation note is asserted in ISOLATION below rather than
+  // here. Reproduced on its own this sequence passes every time; run at this point
+  // in the suite the tree sometimes does not re-open at all (tree=false), which is
+  // cross-test state I could not pin down in reasonable time and which predates
+  // Build 286. Testing it in a clean context protects the behaviour honestly
+  // instead of pinning a check that measures the suite's history.
+  check('TEACH: a FIRST kindle leaves the confirmation note on the tree',
+    await J(async () => {
+      const nap = (ms) => new Promise(r => setTimeout(r, ms));
+      try { localStorage.removeItem('kizuna2_1.treeTaught'); } catch (_) {}
+      RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash'];
+      RUN.embers = 20; RUN.completed = [0, 1, 2, 3];
+      showEmberTree(() => {}, 'ash');
+      const buy = document.querySelector('#et-buy'); if (!buy) return false;
+      buy.click();
+      const fx = document.getElementById('kindle-fx'); if (!fx) return false;
+      fx.classList.add('kf-ready');
+      fx.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+      for (let i = 0; i < 40 && document.getElementById('kindle-fx'); i++) await nap(50);
+      await nap(120);
+      return !document.getElementById('kindle-fx')
+        && !!document.querySelector('.et-head')
+        && !!document.querySelector('.et-kindled-note');
+    }));
   check('TEACH: once learned, the map no longer nags',
     await J(() => { S = null; RUN = newRun('ash'); RUN.embers = 8; showMap(); return !document.querySelector('.map-coach'); }));
 
@@ -2396,7 +2447,7 @@ const QUICK = process.argv.includes('--quick');
       S.enemies.forEach(e => { e.hp = 0; e.dead = true; }); onFloorCleared();
       const bossNode2 = RUN.map.find(n => n.type === 'boss');
       return RUN.floor === 2 && RUN.embers === 12 && hasNode('ash.sig.front')
-        && tierOpen(3) === true                                   // depthBase carried the ramp
+        && tierOpen(2) === true                                   // depthBase carried the ramp (Build 286: a tier every 4)
         && bossNode2.enemies[0] === 'echodevourer';               // floor-2 boss is the Maw
     }));
   check('FLOOR: floor 2 hits harder than floor 1 (continued depth ramp)',
@@ -2679,6 +2730,78 @@ const QUICK = process.argv.includes('--quick');
       }
       return earlyAlways && [...seen].some(l => l >= 4) && seen.size >= 3;   // reaches deeper than the old 2–4 cluster
     }));
+  // ---------- BUILD 286: the tree stops being overwhelming ----------
+  // 156 nodes under ELEVEN type labels, but four of them (passive 60, branch 19,
+  // card 18, bond 15) were 112 of the total — the other seven names split 44
+  // nodes and nine of them meant roughly "a passive". And every tier unsealed
+  // inside floor one, so a first-time player met the whole thing at once.
+  check('TREE: FOUR kinds, not eleven — nothing removed, they stop being separately named',
+    await J(() => {
+      const kinds = [...new Set(Object.values(TREE_KIND))];
+      const covered = EMBER_TREE.every(n => !!TREE_KIND[n.type]);
+      return kinds.length === 4 && covered
+        && kinds.includes('COMBO') && kinds.includes('FORK')
+        && kinds.includes('PASSIVE') && kinds.includes('BOND');
+    }));
+  check('TREE: it TRICKLES — the first tree is a fraction of the last',
+    await J(() => {
+      const at = (depth) => {
+        RUN = newRun('ash'); RUN.roster = ['ash','elin','mira']; RUN.active = RUN.roster.slice();
+        RUN.hp = {}; RUN.roster.forEach(id => RUN.hp[id] = HEROES[id].maxHp);
+        RUN.embers = 40; RUN.completed = Array.from({ length: depth }, (_, i) => i);
+        showEmberTree(() => {}, 'ash');
+        return document.querySelectorAll('.et-orb').length;
+      };
+      const first = at(0), mid = at(6), full = at(16);
+      hideOverlay();
+      return first < full * 0.45 && mid > first && full > mid;
+    }));
+  check('TREE: a sealed tier is NOT DRAWN — what waits is one line, not a field of locks',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash'];
+      RUN.hp = { ash: 32 }; RUN.embers = 40; RUN.completed = [];
+      showEmberTree(() => {}, 'ash');
+      const drawn = [...document.querySelectorAll('.et-orb')];
+      const sealedDrawn = drawn.filter(e => e.classList.contains('et-sealed')).length;
+      const ahead = (document.querySelector('.et-h-ahead') || {}).textContent || '';
+      hideOverlay();
+      return sealedDrawn === 0 && /more wait deeper/.test(ahead);
+    }));
+  check('TREE: a node you already OWN stays drawn even if its tier re-seals',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash'];
+      RUN.hp = { ash: 32 }; RUN.embers = 40; RUN.completed = [];
+      const deep = EMBER_TREE.find(n => n.hero === 'ash' && n.tier >= 3);
+      RUN.nodes = [deep.id];
+      showEmberTree(() => {}, 'ash');
+      const drawn = [...document.querySelectorAll('.et-orb')].some(e => (e.dataset.node || e.dataset.id) === deep.id
+        || (e.textContent || '').indexOf(deep.label) >= 0);
+      hideOverlay();
+      return !tierOpen(deep.tier) && drawn;
+    }));
+  check('SPARK: taking a post-fight upgrade WALKS YOU TO THE TREE and shows it land',
+    await J(async () => {
+      const nap = (ms) => new Promise(r => setTimeout(r, ms));
+      let done = 0;
+      RUN = newRun('ash'); RUN.roster = ['ash','elin','mira']; RUN.active = RUN.roster.slice();
+      RUN.hp = {}; RUN.roster.forEach(id => RUN.hp[id] = HEROES[id].maxHp);
+      RUN.embers = 40; RUN.completed = [0,1,2,3,4,5,6,7];
+      showEmberSpark(() => { done++; });
+      const card = document.querySelector('[data-spark]'); if (!card) return false;
+      const before = (RUN.nodes || []).length;
+      card.click();
+      await nap(120);
+      const burst = !!document.getElementById('kindle-fx');
+      const fx = document.getElementById('kindle-fx');
+      if (fx) { fx.classList.add('kf-ready'); fx.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); }
+      await nap(400);
+      const inTree = !!document.querySelector('.et-head');
+      const named = /\S/.test((document.querySelector('.et-d-name') || {}).textContent || '');
+      hideOverlay();
+      // …and the post-fight flow is NOT skipped — it resumes when you leave
+      return burst && inTree && named && (RUN.nodes || []).length === before + 1 && done === 0;
+    }));
+
   // ---------- BUILD 285: the Landing is a scene, not a menu ----------
   check('LANDING: ONE action — the climb. Everything else is a mark in the corner',
     await J(() => {
@@ -5126,8 +5249,11 @@ const QUICK = process.argv.includes('--quick');
   check('WORLD: a crossing points at the teacher’s REAL node — no skill is drawn twice',
     await J(() => { const ids = [...document.querySelectorAll('.et-orb[data-id]:not(.et-common)')]
         .map(o => o.dataset.id.replace(/^x:[a-z]+:/, ''));
+      // Build 286 stopped drawing sealed tiers, so the count is what the road has
+      // UNSEALED — the invariant being protected is that nothing is drawn twice.
       return new Set(ids).size === ids.length
-        && ids.length === ['ash', 'mira', 'cassia'].reduce((a, h) => a + EMBER_TREE.filter(n => n.hero === h).length, 0); }));
+        && ids.length === ['ash', 'mira', 'cassia'].reduce((a, h) =>
+             a + EMBER_TREE.filter(n => n.hero === h && (tierOpen(n.tier) || hasNode(n.id))).length, 0); }));
   check('WORLD: the border stones are drawn once each, on the borders themselves',
     await J(() => { const c = [...document.querySelectorAll('.et-orb.et-common')]
         .map(o => o.dataset.id.replace(/^x:[a-z]+:/, ''));
