@@ -2592,6 +2592,44 @@ const QUICK = process.argv.includes('--quick');
       }
       return earlyAlways && [...seen].some(l => l >= 4) && seen.size >= 3;   // reaches deeper than the old 2–4 cluster
     }));
+  // ---------- BUILD 274: the first companion is not a dice roll ----------
+  // A recruit was inserted as ONE of two or three nodes on its level, so a route
+  // could walk straight past it. Measured over 400 generated maps, 34% of runs
+  // met NO recruit at all — and in those runs the whole Kizuna system does not
+  // exist: no bonds, no campfire arc, no fragments, no bond strikes, no triad.
+  const walkMeetsRecruit = `(roster, runs) => {
+    let zero = 0;
+    for (let k = 0; k < runs; k++) {
+      RUN = newRun('ash'); RUN.roster = roster.slice();
+      const map = generateDescent(roster, 1);
+      let cur = map.find(n => n.col === 1), met = 0, g = 0;
+      while (cur && g++ < 40) {
+        if (cur.type === 'recruit') met++;
+        const nx = (cur.next || []).map(id => map.find(m => m.id === id)).filter(Boolean);
+        if (!nx.length) break;
+        cur = nx[Math.floor(Math.random() * nx.length)];
+      }
+      if (!met) zero++;
+    }
+    return zero;
+  }`;
+  check('MAP: short-handed, the earliest crossing is the ONLY road on its level',
+    await J(() => {
+      for (let k = 0; k < 40; k++) {
+        RUN = newRun('ash'); RUN.roster = ['ash'];
+        const map = generateDescent(['ash'], 1);
+        const lv = Math.min(...map.filter(n => n.type === 'recruit').map(n => n.level));
+        const row = map.filter(n => n.level === lv);
+        if (row.length !== 1 || row[0].type !== 'recruit') return false;
+      }
+      return true;
+    }));
+  check('MAP: a solo descent can never reach the boss alone (0 of 200 walks)',
+    await J(`(${walkMeetsRecruit})(['ash'], 200)`) === 0);
+  check('MAP: a duo is still guaranteed a third — the line fills before the depths',
+    await J(`(${walkMeetsRecruit})(['ash','elin'], 200)`) === 0);
+  check('MAP: with a FULL line, recruits go back to being optional — declining stays a choice',
+    await J(`(${walkMeetsRecruit})(['ash','elin','mira'], 200)`) > 20);
   // REUNION: an already-met hero is a LIGHT re-encounter, not the full cutscene
   check('REUNION: an already-met hero gets a lighter re-encounter (A FAMILIAR FACE)',
     await J(() => {

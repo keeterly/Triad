@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 273;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 274;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -3018,7 +3018,25 @@ function generateDescent(roster, floor) {
     else if (level === numLevels) types = ['boss'];
     else if (level === numLevels - 1) types = ['camp'];
     else types = _stretchTypes(level);
-    if (recruitAtLevel[level]) { types = types.slice(0, 2); types.splice(_rand(types.length + 1), 0, 'recruit'); }   // random row, not always the bottom
+    if (recruitAtLevel[level]) {
+      // THE FIRST COMPANION IS NOT A DICE ROLL (Build 274).
+      //
+      // A recruit used to be inserted as ONE of two or three nodes on its level,
+      // so a route could walk straight past it — and measured over 400 generated
+      // maps, 34% of runs met NO recruit at all. In those runs the entire Kizuna
+      // system simply does not exist: no bonds, no campfire arc, no fragments,
+      // no bond strikes, no triad, no duet perks. The game's whole thesis was a
+      // coin flip on map generation, which is most of what "bonds are unclear"
+      // actually meant.
+      //
+      // So while you are still short of a full line, the earliest crossing is
+      // the ONLY road on its level — you will meet somebody. Every later
+      // recruit stays optional and walk-past-able, because by then declining is
+      // a real choice rather than an accidental one.
+      const forced = roster.length < 3 && level === recruitLevels[0];
+      if (forced) types = ['recruit'];
+      else { types = types.slice(0, 2); types.splice(_rand(types.length + 1), 0, 'recruit'); }   // random row, not always the bottom
+    }
     const ids = [];
     types.forEach(type => {
       const node = { id: idc, level, col: level, type, next: [] };
