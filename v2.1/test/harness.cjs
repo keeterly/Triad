@@ -77,6 +77,21 @@ async function boot(opts = {}) {
   // AUTO-PARRY — lets the test bot play like a real (parrying) player, so we can
   // tune difficulty for a skilled human instead of a bot that eats every blow.
   // Watches for parry notes and performs the right gesture at a good time.
+  // TIME SCALE (Build 280 harness) — the measurement rigs were spending ten
+  // minutes on a handful of rooms, so the questions that mattered (does a healer
+  // out-sustain a pack? is an elite-per-floor a tradeoff or a run-ender?) were
+  // simply unaffordable. Every wait in combat is a setTimeout: the game's own
+  // `sleep`, the parry note close timers, the banners, the camera settles — AND
+  // the auto-parry's own gesture delays. Scaling setTimeout itself collapses all
+  // of them PROPORTIONALLY, so the bot's timing relationship to the notes it is
+  // reading survives intact. Nothing here touches game code.
+  await page.addInitScript(() => {
+    window.__timeScale = 1;
+    const _st = window.setTimeout.bind(window);
+    window.setTimeout = (fn, ms, ...a) => _st(fn, Math.max(0, Math.round((+ms || 0) * (window.__timeScale || 1))), ...a);
+    const _si = window.setInterval.bind(window);
+    window.setInterval = (fn, ms, ...a) => _si(fn, Math.max(1, Math.round((+ms || 0) * (window.__timeScale || 1))), ...a);
+  });
   await page.addInitScript(() => {
     window.__autoParry = false;
     // SKILL (Build 278 harness) — the bot used to hit every note perfectly, which
@@ -159,6 +174,9 @@ async function boot(opts = {}) {
       window.__parrySeed = o.seed || 0x9e3779b9;
       window.__parryLog = { clean: 0, botched: 0, byKind: {} }; }, { v, seed }),
     parryLog: () => page.evaluate(() => window.__parryLog),
+    // 1 = real time. 0.06 runs a room in seconds. Combat MATHS is untouched —
+    // only how long the game waits between the same steps.
+    fastCombat: (scale) => page.evaluate((v) => { window.__timeScale = v == null ? 0.06 : v; }, scale),
     browser, ctx, page, errs, results,
     J: (fn, ...a) => page.evaluate(fn, ...a),
     sleep: ms => page.waitForTimeout(ms),
