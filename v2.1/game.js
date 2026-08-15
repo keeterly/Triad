@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 274;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 275;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -5616,7 +5616,11 @@ function dealToEnemy(e, amt, school, byHeroId) {
   struck(figEl(e.uid), 'r');                 // recoil + flash + brief stun
   hitFlash(tier);                                 // screen flash (+ hitstop if heavy)
   SFX.hit(big);
-  if (tier >= 1) stageShake(['sm', 'sm', 'lg', 'xl'][tier]);
+  // Build 275: a smooth ladder, and XL leaves ordinary combat entirely — it is
+  // reserved for the authored moments (all-out, triad, stage break) that ask
+  // for it by name. A heavy hit landing as hard as a triad finale is why the
+  // big beats stopped reading as big.
+  if (tier >= 1) stageShake(['sm', 'sm', 'md', 'lg'][tier]);
   // Inside a SHOT the lens is already composed on this action — hitstop, the
   // shake and the flash carry the impact, and the frame HOLDS. Outside one
   // (ripostes, counters, loose damage) the punch still answers.
@@ -5624,7 +5628,10 @@ function dealToEnemy(e, amt, school, byHeroId) {
   if (technical) {                                // detonation callout
     popupAt(figEl(e.uid), '⚡ TECHNICAL', 'tech');
     techBurst(figEl(e.uid));
-    stageShake('lg');
+    // Build 275: no second shake. The tier shake already fired on this very
+    // frame, so a technical used to stack two of them plus a flash plus the
+    // burst — the single most violent thing that could happen on screen, for a
+    // damage bonus. The burst and the callout carry it.
   }
   if (e.hp === 0 && !e.dead) {
     // MEGA BOSS — dropping a stage is not death: it sheds the aspect and reforms
@@ -5655,9 +5662,13 @@ function dealToEnemy(e, amt, school, byHeroId) {
     // to watch it come apart before the slow pull home.
     if (!camReduced() && !_camHeld) {
       _camShot = false;                            // the cut outranks the action shot
-      camFocus(el, { z: 1.16, dz: 185, r: 1.2, yaw: 2.6, pitch: 1.0, pull: 0.45, ms: 140 });
+      // Build 275: a PUSH, not a cut. It was a 140ms snap dutched 1.2° and
+      // yawed 2.6° — which is a stunt. A death is worth a slow move in and a
+      // long look, so the roll is nearly gone and the hold is longer than the
+      // move that made it.
+      camFocus(el, { z: 1.13, dz: 150, r: 0.28, yaw: 1.3, pitch: 0.3, pull: 0.36, ms: 380, ease: CAM_PUSH });
       clearTimeout(_camOutT);
-      _camOutT = setTimeout(() => { _camOutT = null; camReset(820); }, 560);
+      _camOutT = setTimeout(() => { _camOutT = null; camReset(980); }, 700);
     }
     setTimeout(() => { e._justDied = false; if (S && !S.over) renderAll(); }, 750);
   }
@@ -5676,7 +5687,12 @@ const CAM_HOME = { x: 0, y: 0, z: 1, r: 0, dz: 0, pitch: 0, yaw: 0 };
 const CAM_MAX_PAN = 120;   // px the lens may truck off centre
 const CAM_MAX_DZ = 260;    // px it may dolly in
 const CAM_MAX_ROLL = 6.5;  // deg of dutch — past this it reads as a broken TV
-const CAM_SNAP = 'cubic-bezier(.16,.84,.28,1)';   // hard out — the punch
+const CAM_SNAP = 'cubic-bezier(.16,.84,.28,1)';   // hard out — the READ (a parry lands or it doesn't)
+// …and the other half of the vocabulary (Build 275): a PUSH. It leaves gently
+// and arrives gently, which is what separates a camera move an operator made
+// from one an impact caused. Everything that is drama rather than feedback —
+// the heavy hit, the kill cut, the riposte — moves on this.
+const CAM_PUSH = 'cubic-bezier(.33,.02,.24,1)';
 const CAM_SETTLE = 'cubic-bezier(.22,.61,.36,1)'; // soft — the drift home
 let _camHeld = 0;      // >0 while a rhythm window owns the frame
 let _camOutT = null;   // pending auto-settle
@@ -5754,32 +5770,63 @@ function camOffsetTo(els) {
 // the common case in this game is a 4-6 damage poke, so tier 0 is most of what
 // a player actually feels.  The curve is steep at the top so a 30-damage crash
 // lands nothing like a poke.
+// CINEMATIC, NOT PERCUSSIVE (Build 275)
+//
+// This ladder was tuned as a fighting-game impact frame and it read as one:
+// every damaging hit moved the lens, and heavier hits snapped in FASTER — a
+// 30-damage crash arrived in 78ms while rolling 0.9°, yawing 3.4°, pitching
+// 1.3° and dollying 200 all at once, on top of an 11px shake, a flash and a
+// hitstop. Six channels firing together, four times a turn.
+//
+// Film does the opposite. A big moment PUSHES — slower in than a small one,
+// then holds, then leaves reluctantly — and it commits to one axis instead of
+// tumbling through four. So:
+//
+//   · light and solid hits no longer move the camera at all. The shake, the
+//     flash and the hitstop already carry them; the frame HOLDS, which is what
+//     makes the heavy hit worth a move.
+//   · heavier is SLOWER in (the curve is inverted), with a longer hold and a
+//     longer drift home.
+//   · roll and pitch are most of what read as "intense" — a dutched, tumbling
+//     frame is a stunt. Yaw keeps a little, because that is the parallax that
+//     sells the diorama's depth, and depth was never the complaint.
+//
+// The PANS are untouched. camPose and camShot were the good half.
+const CAM_PUNCH_MIN_TIER = 2;                       // below this, the frame holds
+const CAM_PUNCH_DZ    = [0, 0, 96, 155];
+const CAM_PUNCH_ROLL  = [0, 0, 0.14, 0.28];
+const CAM_PUNCH_YAW   = [0, 0, 0.85, 1.5];
+const CAM_PUNCH_PITCH = [0, 0, 0.18, 0.38];
+const CAM_PUNCH_IN    = [0, 0, 210, 280];           // heavier = SLOWER in: a push
+const CAM_PUNCH_HOLD  = [0, 0, 260, 380];
+const CAM_PUNCH_OUT   = [0, 0, 780, 980];
+const CAM_PUNCH_PULL  = [0, 0, 0.11, 0.16];
 let _camPunchAt = 0, _camPunchPow = -1;
 function camPunch(power, toEl) {
   if (camReduced() || _camHeld) return;
   const p = Math.max(0, Math.min(3, power | 0));
+  if (p < CAM_PUNCH_MIN_TIER) return;               // the frame holds for chip damage
   // AoE calls dealToEnemy once PER enemy, which used to fire a stack of
   // competing punches where the LAST (often weakest) won. Collapse a burst
   // into one shove at its strongest power.
   const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
   if (now - _camPunchAt < 150 && p <= _camPunchPow) return;
   _camPunchAt = now; _camPunchPow = p;
-  const dz = [26, 62, 124, 200][p];         // TRUE dolly, not a zoom
-  const r = [0, 0.18, 0.45, 0.9][p];
-  const yaw = [0.3, 0.9, 1.9, 3.4][p];      // a real bite of orbit sells the depth
-  const pitch = [0, 0.2, 0.6, 1.3][p];
-  const inMs = [160, 130, 100, 78][p];      // heavier = FASTER in. that IS the punch
+  const dz = CAM_PUNCH_DZ[p];               // TRUE dolly, not a zoom
+  const r = CAM_PUNCH_ROLL[p];
+  const yaw = CAM_PUNCH_YAW[p];             // enough orbit to sell depth, no more
+  const pitch = CAM_PUNCH_PITCH[p];
+  const inMs = CAM_PUNCH_IN[p];
   const o = toEl ? camOffsetTo(toEl) : null;
-  const pull = [0.05, 0.10, 0.16, 0.24][p];
+  const pull = CAM_PUNCH_PULL[p];
   const dir = o && o.dx < 0 ? -1 : 1;
   cam({ x: o ? -o.dx * pull : 0, y: o ? -o.dy * pull * 0.6 : 0,
         z: 1 + (dz / 1150) * 0.35,          // the planes still need a scale cue
-        dz, r: dir * r, yaw: dir * yaw, pitch, ms: inMs, ease: CAM_SNAP });
+        dz, r: dir * r, yaw: dir * yaw, pitch, ms: inMs, ease: CAM_PUSH });
   clearTimeout(_camOutT);
-  // HOLD, then drift. A shot that starts leaving the instant it arrives reads
-  // as a twitch; letting the heavy hits SIT for a beat is what makes them land.
-  // The hold scales with weight and brackets the existing hitstop (95/155ms).
-  _camOutT = setTimeout(() => camReset([380, 450, 570, 760][p]), inMs + [60, 100, 190, 310][p]);
+  // HOLD, then leave reluctantly. A shot that starts going home the instant it
+  // arrives reads as a twitch; the hold is what makes the move feel authored.
+  _camOutT = setTimeout(() => camReset(CAM_PUNCH_OUT[p]), inMs + CAM_PUNCH_HOLD[p]);
 }
 // ══ PARRY CINEMA (Build 230) — the Clair Obscur defensive camera ═════════
 // Their combat sells a block as a piece of film: the lens composes the
@@ -5862,7 +5909,7 @@ function camFocus(els, opt) {
   cam({ x: o ? -o.dx * pull : 0, y: o ? -o.dy * pull * 0.5 : 0,
         z, dz: s.dz == null ? (z - 1) * 900 : s.dz,
         r: s.r || 0, pitch: s.pitch || 0, yaw: s.yaw || 0,
-        ms: s.ms == null ? 380 : s.ms, ease: s.ease || CAM_SNAP });
+        ms: s.ms == null ? 380 : s.ms, ease: s.ease || CAM_PUSH });   // Build 275: a composed frame PUSHES; only a parry READ snaps
 }
 // Rhythm windows own the frame.  Strike/parry notes are placed ONCE from a
 // live rect into #popup-layer (which is not under the camera), so a camera
@@ -7684,7 +7731,10 @@ async function enemyPhase() {
           // instantly reads as a stat, a counter you SEE coming reads as a
           // decision the character made.
           try { parrySlowmo(true); } catch (_) {}
-          camFocus(figEl(ptHero.id), { z: 1.2, dz: 195, r: -2.2, yaw: -6.5, pitch: 1.8, pull: 0.55, ms: 78 });
+          // Build 275: this was the most violent move in the game — a 78ms snap
+          // at 6.5° yaw and 2.2° roll. The BEAT is the point (see above), and a
+          // beat needs a move slow enough to read as deliberate.
+          camFocus(figEl(ptHero.id), { z: 1.14, dz: 150, r: -0.5, yaw: -2.4, pitch: 0.5, pull: 0.44, ms: 240, ease: CAM_PUSH });
           await sleep(270);
           cineFlash('rgba(255,205,130,0.42)'); stageShake('lg');
           lungeFig(figEl(ptHero.id));

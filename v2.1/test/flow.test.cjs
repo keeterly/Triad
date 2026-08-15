@@ -1180,6 +1180,51 @@ const QUICK = process.argv.includes('--quick');
         && CAM_POSE_PLAYER.x > 0 && CAM_POSE_ENEMY.x < 0
         && CAM_POSE_PLAYER.dz > 0;
     }));
+  // ---------- BUILD 275: cinematic, not percussive ----------
+  // The punch ladder was authored as a fighting-game impact frame — every
+  // damaging hit moved the lens, and heavier hits snapped in FASTER, tumbling
+  // through roll + yaw + pitch + dolly at once on top of an 11px shake, a flash
+  // and a hitstop. Film pushes SLOWER on the bigger moment and holds it.
+  check('CAMERA: chip damage no longer moves the lens — the frame HOLDS below the heavy tier',
+    await J(async () => {
+      camRelease(); camPose(CAM_POSE_HOME, 0);
+      await new Promise(r => setTimeout(r, 60));
+      const st = document.getElementById('stage');
+      const read = () => st.style.getPropertyValue('--cam-dz');
+      const home = read();
+      camPunch(0, figEl(S.enemies[0].uid)); camPunch(1, figEl(S.enemies[0].uid));
+      const quiet = read() === home;
+      camPunch(2, figEl(S.enemies[0].uid));
+      const moved = read() !== home;
+      camRelease();
+      return CAM_PUNCH_MIN_TIER === 2 && quiet && moved;
+    }));
+  check('CAMERA: the curve is INVERTED — a heavier hit pushes in slower, holds longer, leaves slower',
+    await J(() => CAM_PUNCH_IN[3] > CAM_PUNCH_IN[2]
+      && CAM_PUNCH_HOLD[3] > CAM_PUNCH_HOLD[2]
+      && CAM_PUNCH_OUT[3] > CAM_PUNCH_OUT[2]
+      && CAM_PUNCH_IN[2] >= 180));
+  check('CAMERA: a punch commits to the depth axis — roll and pitch stay under half a degree',
+    await J(() => CAM_PUNCH_ROLL.every(v => v < 0.5) && CAM_PUNCH_PITCH.every(v => v < 0.5)
+      && CAM_PUNCH_YAW[3] < 2 && CAM_PUNCH_DZ[3] > 0));
+  check('CAMERA: composed frames PUSH; only the parry read still snaps',
+    await J(() => CAM_PUSH !== CAM_SNAP
+      && /ease: s\.ease \|\| CAM_PUSH/.test(camFocus.toString())
+      && /ease: CAM_PUSH/.test(camPunch.toString())
+      && /ease: CAM_SNAP/.test(parryCam.toString())));
+  check('CAMERA: the kill cut and the riposte stopped being stunts',
+    await J(() => {
+      const kill = dealToEnemy.toString(), rip = enemyPhase.toString();
+      const killShot = /camFocus\(el, \{[^}]*r: 0\.28[^}]*ms: 380/.test(kill);
+      const ripShot = /r: -0\.5, yaw: -2\.4[^}]*ms: 240/.test(rip);
+      return killShot && ripShot;
+    }));
+  check('FEEL: a TECHNICAL no longer double-shakes the frame it already shook',
+    await J(() => { const src = dealToEnemy.toString();
+      const tech = src.slice(src.indexOf('TECHNICAL'), src.indexOf('TECHNICAL') + 600);
+      return !/stageShake/.test(tech); }));
+  check('FEEL: XL shake leaves ordinary combat — it is reserved for the authored beats',
+    await J(() => /\['sm', 'sm', 'md', 'lg'\]\[tier\]/.test(dealToEnemy.toString())));
   check('POSE: punches settle back into the ACTIVE pose, not dead center',
     await J(async () => {
       camPose(CAM_POSE_PLAYER, 0);
@@ -1196,7 +1241,7 @@ const QUICK = process.argv.includes('--quick');
     await J(() => /camPose\(CAM_POSE_ENEMY/.test(endTurn.toString()) && /camPose\(CAM_POSE_PLAYER/.test(endTurn.toString())));
   check('POSE: a fight teardown clears the pose — menus never inherit a lean',
     await J(() => /CAM_POSE_HOME/.test(clearAim.toString())));
-  check('DRAMA: a KILL earns a held CUT — hard in, held, then the slow pull home',
+  check('DRAMA: a KILL earns a held PUSH — in slowly, held long, then the slow pull home',
     await J(async () => {
       // A THROWAWAY fight — really killing a shared enemy mid-suite left later
       // tests with a corpse whose figure sometimes never re-rendered.
@@ -1207,14 +1252,14 @@ const QUICK = process.argv.includes('--quick');
       const e = S.enemies[0]; e.hp = 1;
       const dzAt = () => parseFloat(document.getElementById('stage').style.getPropertyValue('--cam-dz'));
       dealToEnemy(e, 10, 'blade', 'ash');
-      await new Promise(r => setTimeout(r, 200));
-      const cut = dzAt();                       // mid-hold: the cut frame
+      await new Promise(r => setTimeout(r, 460));   // Build 275: the move is 380ms now, not 140
+      const cut = dzAt();                       // mid-hold: the composed frame
       await new Promise(r => setTimeout(r, 1500));
       const back = dzAt();                      // settled into the pose
       // hand the NEXT tests a pristine fight
       startFight({ type: 'fight', chapter: 3, heroes: ['ash', 'elin', 'mira'], enemies: ['husk'], useRunHp: true, narrator: 'post drill' });
       await new Promise(r => setTimeout(r, 600));
-      return cut > 150 && Math.abs(back - CAM_POSE_PLAYER.dz) < 1;
+      return cut > 120 && Math.abs(back - CAM_POSE_PLAYER.dz) < 1;
     }));
   check('DRAMA: an unparried enemy blow shoves the lens toward the STRUCK HERO (the mirror punch)',
     await J(() => {
@@ -1317,21 +1362,31 @@ const QUICK = process.argv.includes('--quick');
       return before === after;
     }));
 
-  check('FEEL: EVERY landed blow moves the lens — a graze too, not just heavy hits',
+  // Build 275 REVERSES the two checks that used to live here. They asserted that
+  // every graze moved the lens and that the curve was steep — which is a
+  // fighting game's impact frame, and is exactly what read as "too intense".
+  // A film camera holds through the small stuff so the big move means something.
+  check('FEEL: a graze does NOT move the lens — the frame holds, the shake carries it',
     await J(async () => {
       camRelease();
       await new Promise(r => setTimeout(r, 260));
-      const before = document.getElementById('stage').style.getPropertyValue('--cam-dz');
-      camPunch(0, figEl(S.enemies[0].uid));      // tier 0 = a 4-6 damage poke, the COMMON case
-      const after = document.getElementById('stage').style.getPropertyValue('--cam-dz');
+      const dz = () => document.getElementById('stage').style.getPropertyValue('--cam-dz');
+      const before = dz();
+      camPunch(0, figEl(S.enemies[0].uid));      // a 4-6 damage poke, the COMMON case
+      const graze = dz();
+      camPunch(1, figEl(S.enemies[0].uid));      // a solid hit — still no move
+      const solid = dz();
       camRelease();
-      return before !== after && parseFloat(after) > 0;
+      return graze === before && solid === before;
     }));
-  check('FEEL: the punch curve is STEEP — a massive blow shoves several times a graze',
+  check('FEEL: only the heavy tiers move it, and the massive one moves it further',
     await J(() => {
-      const dz = (p) => { camRelease(); camPunch(p, null); const v = parseFloat(document.getElementById('stage').style.getPropertyValue('--cam-dz')); camRelease(); return v; };
+      // camRelease settles to the ACTIVE POSE, whose dz is not zero — so the
+      // baseline is "wherever the lens rests", not 0.
+      const at = () => parseFloat(document.getElementById('stage').style.getPropertyValue('--cam-dz')) || 0;
+      const dz = (p) => { camRelease(); const base = at(); camPunch(p, null); const v = at(); camRelease(); return v - base; };
       const a = dz(0), b = dz(1), c = dz(2), d = dz(3);
-      return a > 0 && b > a && c > b && d > c && d >= a * 5;
+      return a === 0 && b === 0 && c > 0 && d > c;
     }));
   check('FEEL: an AoE fires ONE shove at its strongest, not a stack of competing punches',
     await J(() => {

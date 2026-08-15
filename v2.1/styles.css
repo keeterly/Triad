@@ -1515,19 +1515,23 @@ button.map-node:not(:disabled) { cursor: pointer; }
   100% { transform: translateY(20px) scale(0.82) rotate(-4deg); opacity: 0; filter: brightness(0.2) saturate(0) blur(1px); }
 }
 /* SCREEN SHAKE — amplitude + duration scale with the blow. */
-.stage-shake-sm { animation: shake-sm 0.2s ease; }
-.stage-shake-md { animation: shake-md 0.26s ease; }
-.stage-shake-lg { animation: shake-lg 0.34s cubic-bezier(.36,.07,.19,.97); }
-.stage-shake-xl { animation: shake-xl 0.44s cubic-bezier(.36,.07,.19,.97); }
-@keyframes shake-sm { 0%,100% { translate: 0 0; } 30% { translate: 2px 1px; } 70% { translate: -2px 0; } }
-@keyframes shake-md { 0%,100% { translate: 0 0; } 20% { translate: 3px 1px; } 45% { translate: -4px -1px; } 70% { translate: 3px 1px; } 88% { translate: -2px 0; } }
+/* Build 275 — a KICK, not a vibration. These were up to 11px of travel with
+   eight direction reversals in 440ms, on a 760px-wide stage: that is a rumble
+   pack, and a rumble under every heavy hit is what made the frame feel
+   permanently unsettled. Roughly half the amplitude, half the reversals, and a
+   sharp decay — the first displacement is the one anybody actually perceives,
+   so it keeps its weight and the ringing afterwards goes away. */
+.stage-shake-sm { animation: shake-sm 0.16s ease-out; }
+.stage-shake-md { animation: shake-md 0.22s ease-out; }
+.stage-shake-lg { animation: shake-lg 0.30s cubic-bezier(.22,.9,.3,1); }
+.stage-shake-xl { animation: shake-xl 0.38s cubic-bezier(.22,.9,.3,1); }
+@keyframes shake-sm { 0%,100% { translate: 0 0; } 35% { translate: 1px 0; } }
+@keyframes shake-md { 0%,100% { translate: 0 0; } 25% { translate: 2px 1px; } 60% { translate: -2px 0; } }
 @keyframes shake-lg {
-  0%,100% { translate: 0 0; } 12% { translate: -6px 2px; } 26% { translate: 7px -2px; } 40% { translate: -6px 3px; }
-  55% { translate: 5px -2px; } 70% { translate: -4px 1px; } 85% { translate: 3px -1px; }
+  0%,100% { translate: 0 0; } 16% { translate: -4px 1px; } 38% { translate: 3px -1px; } 64% { translate: -2px 1px; }
 }
 @keyframes shake-xl {
-  0%,100% { translate: 0 0; } 8% { translate: -10px 3px; } 20% { translate: 11px -4px; } 32% { translate: -10px 5px; }
-  46% { translate: 9px -3px; } 60% { translate: -8px 3px; } 74% { translate: 6px -2px; } 88% { translate: -3px 1px; }
+  0%,100% { translate: 0 0; } 12% { translate: -6px 2px; } 30% { translate: 5px -2px; } 52% { translate: -3px 1px; } 76% { translate: 2px 0; }
 }
 /* KILL BURST — a bright core, an expanding shockwave ring, and shards flung out */
 .death-burst { position: absolute; transform: translate(-50%,-50%); pointer-events: none; z-index: 58; width: 0; height: 0; }
