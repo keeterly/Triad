@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 271;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 272;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -29,6 +29,9 @@ const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-
 // what the victory screen celebrates, what the journal prints, what walks a pair
 // into battle already connected, and (Build 247) what opens a crossing.
 const BOND_KINDLED = 2;
+// TECHNICAL — detonating an OPENED foe (chilled or weakened) off its weakness
+// line. Multiplicative on purpose (Build 272): see dealToEnemy.
+const TECHNICAL_MULT = 1.6;
 function chargeCap(h) { return (h && h.id === 'hask' && hasNode('hask.passive.conduit')) ? 6 : CHARGE_CAP; }
 function chargeDmg() { return hasNode('hask.passive.meltdown') ? 5 : CHARGE_DMG; }
 const $ = (sel) => document.querySelector(sel);
@@ -5457,11 +5460,17 @@ function dealToEnemy(e, amt, school, byHeroId) {
   // +8 momentum mechanic whose name appeared in exactly one popup, fired after
   // the fact, for a state that had no chip at all.
   if (!e.staggered && (e.lull || e.weakened) && !S._burstResolving) {
-    lesson('technical', '⚡ IT IS OPEN — a chilled or weakened foe takes a TECHNICAL: strike it with ANY hero for +4 and a burst surge.', 3);
+    lesson('technical', '⚡ IT IS OPEN — a chilled or weakened foe takes a TECHNICAL: strike it with ANY hero for HALF AGAIN the damage and a burst surge. Cash your biggest hit here.', 3);
   }
   let technical = false;
   if (byHeroId && !S._burstResolving && (e.lull || e.weakened) && !(school && school === e.def.weak)) {
-    amt += 4;
+    // Build 272: a MULTIPLIER, not a flat +4. Reading the board has to pay in
+    // proportion to the play you spend on it — a flat bonus was worth +67% on a
+    // 6-damage chip and +33% on the 12-damage finisher you actually had to
+    // choose to cash, so the game rewarded noticing the opening LEAST on the
+    // turn that noticing it mattered most. That inversion is most of why
+    // playing well only beat playing carelessly by a third.
+    amt = Math.round(amt * TECHNICAL_MULT);
     technical = true;
     gainMomentum(8, { combo: true });
   }
@@ -9841,7 +9850,7 @@ function enemyChipsHtml(e) {
       <span class="chip weak${e.weakRevealed ? ' revealed' : ''}" title="weakness — each hit of this element chips a ◈ POISE pip; at zero the foe BREAKS">${e.weakRevealed ? `<span class="ru-i">${SCHOOL_GLYPH[e.def.weak] || '?'}</span>${(e.def.weak || '?').toUpperCase()}` : `<span class="ru-i">◇</span>?`}</span>
       ${!e.staggered && e.poiseMax ? `<span class="chip poise${chipPop(e,'poiseInv',(e.poiseMax - e.poise))}" title="POISE — weakness hits chip these pips; at zero the foe BREAKS: ×1.5 damage taken and its next action is LOST">${'◈'.repeat(e.poise)}${'◇'.repeat(Math.max(0, e.poiseMax - e.poise))}</span>` : ''}
       ${e.staggered ? `<span class="chip stagger${chipPop(e,'staggered',1)}"><span class="ru-i">⚡</span>BROKEN</span>` : ''}
-      ${!e.staggered && (e.weakened || e.lull) ? `<span class="chip tech${chipPop(e,'weakened',1)}" title="OPENED — it just took a weakness hit or a CHILL. Strike it now with ANY school for a TECHNICAL: +4 damage and a burst surge.">${'<span class="ru-i">⚡</span>'}OPEN</span>` : ''}
+      ${!e.staggered && (e.weakened || e.lull) ? `<span class="chip tech${chipPop(e,'weakened',1)}" title="OPENED — it just took a weakness hit or a CHILL. Strike it now with ANY school for a TECHNICAL: half again the damage and a burst surge — so spend your BIGGEST hit on it.">${'<span class="ru-i">⚡</span>'}OPEN</span>` : ''}
       ${e.guard ? `<span class="chip guard${chipPop(e,'guard',e.guard)}"><span class="ru-i">⛨</span>${e.guard}</span>` : ''}
       ${e.power ? `<span class="chip buff${chipPop(e,'power',e.power)}"><span class="ru-i">▲</span>${e.power}</span>` : ''}
       ${e.mark ? `<span class="chip mark${chipPop(e,'mark',e.mark)}"><span class="ru-i">◎</span>${e.mark}</span>` : ''}

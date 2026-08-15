@@ -1928,7 +1928,18 @@ const QUICK = process.argv.includes('--quick');
     dealToEnemy(S.enemies[0], 6, 'blade', 'ash');   // off-weakness hit on a chilled foe
     return { dealt: before - S.enemies[0].hp, momGain: S.momentum - mom0 };
   });
-  check('TECHNICAL: off-weakness hit on a primed foe detonates (+4 bonus)', tech.dealt === 10, 'dealt ' + tech.dealt);
+  // Build 272: a MULTIPLIER, not a flat +4 — a flat bonus was worth +67% on a
+  // chip and +33% on the finisher you actually had to choose to spend, so it
+  // rewarded reading the board least on the play where reading it mattered most.
+  check('TECHNICAL: off-weakness hit on a primed foe detonates (×1.6, not a flat bonus)',
+    tech.dealt === Math.round(6 * 1.6), 'dealt ' + tech.dealt);
+  check('TECHNICAL: the bonus SCALES with the hit — a big finisher gains more than a chip',
+    await J(() => {
+      const e = S.enemies[0]; e.hp = e.maxHp = 200; e.lull = 5;
+      const chip = (() => { const b = e.hp; dealToEnemy(e, 4, 'blade', 'ash'); const d = b - e.hp; e.hp = b; e.lull = 5; return d; })();
+      const big  = (() => { const b = e.hp; dealToEnemy(e, 12, 'blade', 'ash'); const d = b - e.hp; e.hp = b; e.lull = 5; return d; })();
+      return (chip - 4) < (big - 12) && big === Math.round(12 * 1.6);
+    }));
   check('TECHNICAL builds momentum', tech.momGain > 0, '+' + tech.momGain);
   // fill and unleash the all-out — now INTERACTIVE (reverse-parry strike notes).
   // auto-tap drives the offensive cascade; nailed strikes ramp the CHAIN.
