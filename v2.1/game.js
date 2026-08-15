@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 284;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 285;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -8471,11 +8471,19 @@ function showMap() {
     : (hasEmbers && !treeTaught()
       ? `<div class="map-coach map-coach-soft">✦ <b>${runEmbers()} embers</b> gathered. Fell a few more foes and you’ll have enough to kindle a skill in the <b>EMBER TREE</b>.</div>`
       : '');
+  // WHAT YOU CARRIED DOWN (Build 285) — the relic was chosen on a screen you
+  // passed through once and then never saw again, so a decision made before the
+  // first step spent the whole run invisible. It rides the descent header now,
+  // named, with its cost, because a cost you have forgotten is not a cost.
+  const rl = heldRelic();
+  const relicStrip = rl
+    ? `<span class="map-relic" title="${rl.name} — ${rl.rule.replace(/<[^>]+>/g, '')} ✕ ${rl.cost.replace(/<[^>]+>/g, '')}">${rl.icon}<span class="mr-n">${rl.name}</span></span>`
+    : '';
   const boonStrip = (RUN.boons && RUN.boons.length)
     ? `<span class="map-boons">${RUN.boons.map(id => { const b = BOON_BY_ID[id]; return b ? `<span class="map-boon" data-boon="${id}" style="--tint:${HEROES[b.hero].tint}" title="${HEROES[b.hero].name}’s ${b.name} — ${b.desc.replace(/<[^>]+>/g, '')}">${b.icon}</span>` : ''; }).join('')}</span>`
     : '';
   showOverlay(`
-    <div class="ov-eyebrow">THE DESCENT${(RUN.floor || 1) >= 2 ? ` · FLOOR ${RUN.floor}` : ''}${moodDef && moodDef.label ? ` <span class="map-mood" style="color:${moodDef.tint}; border-color:${moodDef.tint}66">♦ ${moodDef.label}</span>` : ''}${boonStrip}</div>
+    <div class="ov-eyebrow">THE DESCENT${(RUN.floor || 1) >= 2 ? ` · FLOOR ${RUN.floor}` : ''}${moodDef && moodDef.label ? ` <span class="map-mood" style="color:${moodDef.tint}; border-color:${moodDef.tint}66">♦ ${moodDef.label}</span>` : ''}${relicStrip}${boonStrip}</div>
     <div class="ov-title" style="font-size:20px; margin-bottom:14px;">${(RUN.floor || 1) >= 2 ? 'THE DEEPER DARK' : 'CHOOSE THE ROAD'}</div>
     <div class="map-strip"><svg class="map-edges" aria-hidden="true"></svg>${colHtml}</div>
     ${coach}
@@ -11818,15 +11826,15 @@ function landingStage() {
 // of the run that ended, spoken by somebody who was actually in it where
 // possible, so the line is never generic when it could be personal.
 const LANDING_DEATH = {
-  boss:   { need: 1, say: (h, c) => `${h}: "It was bigger than us. That is not the same as it being impossible. …Ask me again at the bottom of the next one."` },
-  deep:   { need: 1, say: (h, c) => `${h}: "Floor ${c.floor}. Further than last time, if last time happened, which nobody here will confirm."` },
-  alone:  { need: 1, say: (h, c) => `${h}: "You went down that stair on your own. …Don't. There is a reason the ones who come back come back in threes."` },
-  bonded: { need: 2, say: (h, c) => `${h}: "We held ${c.threads} of them, at the end. I keep thinking that should have been enough. I keep being wrong about that in a way that feels practised."` },
-  early:  { need: 1, say: (h, c) => `${h}: "That was quick. …I'm not judging. I have a very strong feeling I have been quicker."` },
-  clear:  { need: 1, say: (h, c) => `${h}: "You came back up. People do not come back up. …Sit down. Tell me it twice, I want to see if it survives being said."` },
+  boss:   { need: 1, say: (h, c) => `It was bigger than us. That is not the same as it being impossible. …Ask me again at the bottom of the next one.` },
+  deep:   { need: 1, say: (h, c) => `Floor ${c.floor}. Further than last time, if last time happened, which nobody here will confirm.` },
+  alone:  { need: 1, say: (h, c) => `You went down that stair on your own. …Don't. There is a reason the ones who come back come back in threes.` },
+  bonded: { need: 2, say: (h, c) => `We held ${c.threads} of them, at the end. I keep thinking that should have been enough. I keep being wrong about that in a way that feels practised.` },
+  early:  { need: 1, say: (h, c) => `That was quick. …I'm not judging. I have a very strong feeling I have been quicker.` },
+  clear:  { need: 1, say: (h, c) => `You came back up. People do not come back up. …Sit down. Tell me it twice, I want to see if it survives being said.` },
   // the COLD open — you did not arrive here from a death this session, you just
   // opened your eyes, which is the one thing everybody down here has in common
-  wake:   { need: 1, say: (h, c) => `${h}: "You’re awake. …Don’t bother with the part where you ask how long. Nobody has ever had an answer, and the asking is how it starts."` },
+  wake:   { need: 1, say: (h, c) => `You’re awake. …Don’t bother with the part where you ask how long. Nobody has ever had an answer, and the asking is how it starts.` },
 };
 function landingBeat(ctx) {
   const cast = getUnlockedStarters().filter(id => HEROES[id]);
@@ -11846,7 +11854,7 @@ function landingBeat(ctx) {
     : (ctx.floor || 1) >= 2 ? 'deep'
     : (ctx.cleared_nodes || 0) <= 2 ? 'early' : 'deep';
   const d = LANDING_DEATH[key] || LANDING_DEATH.deep;
-  return { who, text: d.say(name, ctx) };
+  return { who, name, text: d.say(name, ctx) };
 }
 // The hub itself. Everything that used to be a menu row is a place here: the
 // codex is the wall you read, the starter select is who you wake next to.
@@ -11900,13 +11908,19 @@ function showLanding(ctx) {
       </div>
       <div class="ld-body">
         <div class="ld-state">${stage.line}</div>
-        <div class="ld-said">${beat.text}</div>
+        <div class="ld-plate">${HEROES[beat.who] ? HEROES[beat.who].name : ''}</div>
+        <div class="ld-said">“${beat.text}”</div>
       </div>
-      <div class="ld-acts">
-        <button class="ld-act ld-go" id="ld-go"><span class="lda-l">CLIMB AGAIN</span><span class="lda-d">choose who you wake beside</span></button>
-        <button class="ld-act" id="ld-codex"><span class="lda-l">◇ WHAT WE KNOW</span><span class="lda-d">${frags} of ${total} pieced together${frags ? ' — every third makes a bond hold deeper' : ''}</span></button>
-        <button class="ld-act" id="ld-title"><span class="lda-l">⌂ REST A WHILE</span><span class="lda-d">back to the title</span></button>
+      <!-- ONE ACTION (Build 285). Three stacked cards ate a third of the frame
+           and made the bottom of the abyss look like a settings menu; the scene
+           was competing with its own navigation. The climb is the only thing
+           worth a button. What you know and the way out are quiet marks in the
+           corner — reachable, unobtrusive, and they do not ask to be read. -->
+      <div class="ld-marks">
+        <button class="ld-mark" id="ld-codex" title="WHAT WE KNOW — ${frags} of ${total} pieced together">◇<span class="ldm-n">${frags}/${total}</span></button>
+        <button class="ld-mark" id="ld-title" title="rest a while — back to the title">⌂</button>
       </div>
+      <button class="ld-climb" id="ld-go"><span class="ldc-l">CLIMB</span><span class="ldc-d">${cast.length > 1 ? 'choose who you wake beside' : 'there is only one way out of here'}</span></button>
     </div>
   `, 'landing-screen');
   $('#ld-go').onclick = () => { hideOverlay(); showStarterSelect(id => showRelicSelect(id)); };

@@ -2679,6 +2679,55 @@ const QUICK = process.argv.includes('--quick');
       }
       return earlyAlways && [...seen].some(l => l >= 4) && seen.size >= 3;   // reaches deeper than the old 2–4 cluster
     }));
+  // ---------- BUILD 285: the Landing is a scene, not a menu ----------
+  check('LANDING: ONE action — the climb. Everything else is a mark in the corner',
+    await J(() => {
+      try { localStorage.setItem('kizuna2_1.starters', JSON.stringify(['ash','elin','mira','cassia'])); } catch (_) {}
+      showLanding({ trio: ['ash','elin','mira'], floor: 2, threads: 2 });
+      const acts = document.querySelectorAll('.ld-scene .ld-climb').length;
+      const marks = document.querySelectorAll('.ld-scene .ld-mark').length;
+      const old = document.querySelectorAll('.ld-act').length;      // the three stacked cards
+      return acts === 1 && marks === 2 && old === 0;
+    }));
+  check('LANDING: the scene takes the frame — chrome is a fraction of it',
+    await J(() => {
+      try { localStorage.setItem('kizuna2_1.starters', JSON.stringify(['ash','elin','mira','cassia'])); } catch (_) {}
+      showLanding({ trio: ['ash','elin','mira'], floor: 2, threads: 2 });
+      const st = document.querySelector('#stage').getBoundingClientRect();
+      const climb = document.querySelector('.ld-climb').getBoundingClientRect();
+      const marks = document.querySelector('.ld-marks').getBoundingClientRect();
+      const hero = document.querySelector('.ld-hero').getBoundingClientRect();
+      return (climb.height + marks.height) / st.height < 0.22 && hero.height / st.height > 0.18;
+    }));
+  check('LANDING: the line is SPOKEN — a name plate, not a typed prefix',
+    await J(() => {
+      try { localStorage.setItem('kizuna2_1.starters', JSON.stringify(['ash','elin','mira','cassia'])); } catch (_) {}
+      showLanding({ trio: ['ash','elin','mira'], floor: 2, threads: 2 });
+      const plate = (document.querySelector('.ld-plate') || {}).textContent || '';
+      const said = (document.querySelector('.ld-said') || {}).textContent || '';
+      const cast = [...document.querySelectorAll('.ld-hero')].map(e => e.dataset.id);
+      return cast.some(id => HEROES[id].name === plate) && !/:/.test(said) && /^“/.test(said);
+    }));
+  check('LANDING: the corner marks still reach the codex and the way out',
+    await J(() => {
+      try { localStorage.setItem('kizuna2_1.starters', JSON.stringify(['ash','elin','mira','cassia'])); } catch (_) {}
+      showLanding({ trio: ['ash'], floor: 1 });
+      document.querySelector('#ld-codex').click();
+      const inCodex = !!document.querySelector('.cx-list');
+      document.querySelector('#cx-back').click();
+      return inCodex && !!document.querySelector('.ld-scene') && !!document.querySelector('#ld-title');
+    }));
+  check('RELIC: what you carried down rides the descent header all run',
+    await J(() => {
+      RUN = newRun('ash'); RUN.relic = 'compass'; RUN.roster = ['ash']; RUN.active = ['ash'];
+      RUN.hp = { ash: 32 }; RUN.completed = []; RUN.map = generateDescent(['ash'], 1);
+      showMap();
+      const el = document.querySelector('.map-relic');
+      const named = !!el && /COMPASS/.test(el.textContent) && /ELITE/i.test(el.title);
+      RUN.relic = null; showMap();
+      return named && !document.querySelector('.map-relic');   // and nothing when you carried nothing
+    }));
+
   // ---------- BUILD 284: a trash room is a read, not a formality ----------
   // Note count was tied to DAMAGE, and mobs correctly hit for 3-5, so nearly
   // every ordinary blow fell in the one-note bucket while an elite's 8-11 bought
@@ -3036,16 +3085,18 @@ const QUICK = process.argv.includes('--quick');
       document.querySelector('#cx-back').click();
       return inCodex && !!document.querySelector('.ld-scene');
     }));
-  check('LANDING: it composes — cast, prose and the three roads never collide',
+  check('LANDING: it composes — cast, prose and the climb never collide',
     await J(() => {
+      try { localStorage.setItem('kizuna2_1.starters', JSON.stringify(['ash','elin','mira','cassia'])); } catch (_) {}
       showLanding({ trio: ['ash','elin','mira'], floor: 2, threads: 2 });
       const st = document.querySelector('#stage').getBoundingClientRect();
       const r = (q) => document.querySelector(q).getBoundingClientRect();
-      const body = r('.ld-body'), acts = r('.ld-acts'), top = r('.ld-top');
+      // Build 285 replaced the three stacked cards with a single CLIMB
+      const body = r('.ld-body'), climb = r('.ld-climb'), top = r('.ld-top');
       const hs = [...document.querySelectorAll('.ld-hero')].map(e => e.getBoundingClientRect());
       const castTop = Math.min(...hs.map(h => h.top)), castBot = Math.max(...hs.map(h => h.bottom));
-      return body.bottom <= acts.top && castBot <= body.top + 2 && top.bottom <= castTop
-        && acts.bottom <= st.bottom + 1 && top.top >= st.top - 1;
+      return body.bottom <= climb.top && castBot <= body.top + 2 && top.bottom <= castTop
+        && climb.bottom <= st.bottom + 1 && top.top >= st.top - 1;
     }));
 
   // ---------- BUILD 274: the first companion is not a dice roll ----------
