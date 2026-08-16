@@ -1,6 +1,82 @@
 # The Relay Chain — a plan for a fresh session
 
-**Status:** designed, not built. Written at Build 291 (782/782 checks, `main` clean).
+**Status:** Step 1 BUILT, MEASURED, and left OFF by default at Build 292
+(784/784 checks). The plan below is unchanged from Build 291 — read it first, then
+read *Step 1 — what the measurement said*, which is the reason the switch is off.
+
+---
+
+## Step 1 — what the measurement said
+
+The hand-off is implemented exactly as specified below, behind `RUN._relay`. It
+works: an opener forges nothing for its own owner and instead hands each other
+hero a step out of **their** rotation, the last hero the line reaches is handed
+the FINISHER, and a stance change abandons the line for the whole party.
+
+**It does not move `plays`.** That was the number this redesign exists to move,
+and the plan says in advance what to do if it doesn't. `test/relaymeter.cjs`
+A/Bs the relay against the private chains it replaces, in the same fight, with
+the tree fully granted and the enemy pack pinned:
+
+| party | MID plays (off → ON) | end HP (off → ON) |
+|---|---|---|
+| ash+elin | 2.23 → **1.85** | 95% → 84% |
+| ash+elin+mira | 2.65 → **3.00** | 100% → 96% |
+| cassia+branwen+hask | 3.14 → **2.94** | 29% → **0% (wipe)** |
+
+Only the canonical trio improves, by ~13%. A duo gets clearly worse — a two-hero
+relay is two beats where two private chains were six — and the second trio gets
+worse *and* dies. Throughput falls ~30% across the board, which is what killed
+cassia+branwen+hask. Averaged over every row the number is flat.
+
+So: **reconsidered, not tuned.** `RUN._relay` defaults to `false`; `main` plays
+exactly as Build 291 did. Flipping it on is one line in `newBattle`.
+
+### Three things worth knowing before touching it again
+
+1. **Turn length is the whole balance lever, and the strict reading breaks it.**
+   Read literally ("the openers return next turn as they do today"), the relay
+   *is* the turn: three cards, then end. Measured, that cut a turn from ~9 cards
+   to 3, halved damage, and took the standard trio from finishing a room at 98%
+   HP to 33%. `_relay: 'once'` still runs that reading if anyone wants to re-read
+   the number. The default reading lets a spent relay end and the unspent openers
+   return, so EP governs turn length exactly as it does today — that is the only
+   version that keeps the economy intact.
+2. **The REACH loses its rationale.** Build 258's reach exists because
+   `resolveChainPlay` keys off `card.chainStance`, so a reached line forges *its
+   own* combo. Under the relay an opener forges nothing for its owner, so that
+   property has nowhere to land. The reach still works as a differently-priced
+   opener, but the reason it was built is gone, and its check had to be rewritten
+   to assert what survives (reaching never drags an ALLY out of their stance).
+3. **Bonds and triads fire far more often.** The relay lands every hero's action
+   in the same line, so `they struck as one` fires constantly and trios form in
+   one fight instead of never. That is the plan's "bonds get a mechanical seat"
+   arriving — and it is also why `triadCeremony()`'s tap-to-continue overlay now
+   deadlocks any rig that drives a whole fight inside one `page.evaluate`. Both
+   meters auto-tap it from inside the page now.
+
+### Two bugs this found, both fixed
+
+- **A relay cleared mid-play never ended.** `playCard` pulls the played temp out
+  of `S.tempCards` before it resolves, so during the last step of a line there is
+  momentarily no card behind `S.relay`. The self-healing check cleared the flag
+  there, wiping the record of who the line had reached — and the next pass handed
+  it straight back to them. Two heroes traded free cards forever at 0 EP. The
+  meter had a per-turn card cap and reported this as "12 cards a turn"; hand-playing
+  one turn (`test/probe-relay.cjs`) is what actually showed it. **The repo lesson
+  held: the surprising number was a bug, not a finding.**
+- **The meters count a turn only if it finishes.** `turns++` sat after
+  `endTurn()`, so a fight won inside the card loop divided by 1 — flattering
+  exactly the rows that win fastest. Fixed in `relaymeter`; `tempometer.cjs` has
+  the same shape and the same flaw.
+
+### Rig notes
+
+`generateDescent()` rolls a fresh pack per fight, and across two runs of the same
+configuration that swing was **larger than the relay-vs-baseline gap** it was
+meant to reveal (cards/turn 5.6 → 9.5, P:E 4.7:1 → 11.9:1, nothing changed but
+the seed). `relaymeter` pins the pack; anything measured against a generated one
+should be treated as noise until it is re-run pinned.
 
 ---
 

@@ -4995,13 +4995,33 @@ const QUICK = process.argv.includes('--quick');
       && devPreviewRotations.toString().includes('_rotations = true')
       && devPreviewRotations.toString().includes('ROTATION_GATES')
       && Array.isArray(ROTATION_GATES) && ROTATION_GATES.length === 37));
-  check('ROTATION forged steps sit in the HERO’s slot, not appended to the far right of the hand',
-    await J(() => { setupFight(['ash', 'elin'], ['ash.sig.front', 'ash.branch.front'], { ash: 'front', elin: 'mid' }); S._rotations = true; renderAll();
+  // THE RELAY (Build 292): an opener no longer forges for the hero who played it
+  // — it hands the next step to everyone ELSE, out of THEIR rotation. Ash opening
+  // must therefore put a card in Elin's slot and leave Ash holding nothing, and
+  // Elin's own opener must be off the table while the line is in flight.
+  check('RELAY: an opener hands the next step to the OTHER heroes, not back to its own owner',
+    await J(() => { setupFight(['ash', 'elin'], ['ash.sig.front', 'ash.branch.front'], { ash: 'front', elin: 'mid' }); S._rotations = true; S._relay = true; renderAll();
       const op = buildHand().find(c => c.kind === 'opener' && c.owner === 'ash'); S.tempCards = []; resolveChainPlay(op);
-      const names = buildHand().map(c => c.name);
-      const iRs = names.indexOf('Rising Slash'), iSu = names.indexOf('Sunder'), iMend = names.indexOf('Mend');
-      // Ash (first hero) forged cards precede Elin's opener — grouped in Ash's slot
-      return iRs >= 0 && iSu >= 0 && iMend >= 0 && iRs < iMend && iSu < iMend; }));
+      const hand = buildHand();
+      const ash = hand.filter(c => c.owner === 'ash'), elin = hand.filter(c => c.owner === 'elin');
+      return ash.length === 0                                   // Ash passed the line on; nothing came back
+        && elin.length > 0 && elin.every(c => c.relayStep)       // Elin holds what she was handed…
+        && !elin.some(c => c.name === 'Mend')                    // …in place of her own opener
+        && elin.every(c => Object.values(ROTATIONS.elin.mid.cards).some(d => d.name === c.name)); }));   // HER vocabulary
+  check('RELAY: with only one hero left to reach, the step handed over is the FINISHER',
+    await J(() => { const handed = buildHand().filter(c => c.owner === 'elin');
+      // ash+elin is a two-beat relay: the last recipient closes the line rather
+      // than being handed a builder nobody is left to answer.
+      return handed.length > 0 && handed.every(c => c.relayStep === 'finish' && /FINISHER/.test(c.stance)); }));
+  check('RELAY: a line in flight withholds every opener — and a stale flag cannot lock the hand',
+    await J(() => { const duringRelay = buildHand().filter(c => c.kind === 'opener').length === 0;
+      // The cards a relay handed out can leave by routes that never touch S.relay
+      // (a HEX eating one, its holder going down). The flag must not survive them:
+      // if it did, the party would hold nothing at all until the turn rolled over.
+      S.tempCards = [];
+      const back = buildHand().filter(c => c.kind === 'opener' && !c.reach);   // the REACH is an opener too
+      const recovered = back.length === 2 && new Set(back.map(c => c.owner)).size === 2 && S.relay === null;
+      return duringRelay && recovered; }));
   check('ROTATION bounce-back: origin = the HOME slot (drag-start), start = the struck ENEMY (hurl impact)',
     await J(() => { setupFight(['ash'], ['ash.sig.front'], { ash: 'front' }); S._rotations = true; renderAll();
       const op = buildHand().find(c => c.kind === 'opener'); const en = S.enemies.find(e => !e.dead);
@@ -5861,14 +5881,20 @@ const QUICK = process.argv.includes('--quick');
       const r = buildHand().find(c => c.reach);
       await playCard(r, (livingEnemies()[0] || {}).uid);
       return buildHand().filter(c => c.owner === r.owner && c.kind === 'opener').length === 0; }));
-  check('REACH: a reached line forges ITS OWN combo, not the hero’s standing one',
-    await J(async () => { S.turn = 2; S.used = new Set(); S.ep = 12; S.tempCards = [];
+  // Before the relay this asserted that a REACHED line forged its own combo back
+  // into the reacher's hand. Under the relay an opener forges nothing for its
+  // owner, so the property that survives — and the one worth protecting — is that
+  // reaching out of stance never drags an ALLY out of theirs: what each hero is
+  // handed comes from their own row's rotation, whichever line opened.
+  check('REACH: reaching out of stance still hands every ally THEIR OWN row’s step',
+    await J(async () => { S.turn = 2; S.used = new Set(); S.ep = 12; S.tempCards = []; S.relay = null; S._relay = true;
       const r = buildHand().find(c => c.reach);
-      const want = (r.chainNext || []).map(x => x.key || x);
+      const reachedRow = (r.chainNext || []).length > 0 && r.chainStance !== S.heroes.find(x => x.id === r.owner).row;
       await playCard(r, (livingEnemies()[0] || {}).uid);
-      const forged = buildHand().filter(c => c.chain && c.owner === r.owner);
-      return forged.length > 0 && forged.every(c => c.chainStance !== S.heroes.find(x => x.id === r.owner).row)
-        && want.length > 0; }));
+      const handed = buildHand().filter(c => c.chain && c.relayStep);
+      return reachedRow && handed.length > 0 && handed.every(c => {
+        const h = S.heroes.find(x => x.id === c.owner);
+        return c.owner !== r.owner && c.chainStance === h.row; }); }));
   check('REACH: a lone survivor has nobody to reach past — no reach card',
     await J(() => { setupFight(['ash'], [], { ash: 'front' }); S._rotations = true;
       S.turn = 1; S.used = new Set();

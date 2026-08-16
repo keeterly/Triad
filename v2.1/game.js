@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 291;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 292;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -1753,26 +1753,190 @@ function burnUnpickedSiblings(card) {
   doomed.forEach(sib => { const el = document.querySelector(`#hand .card[data-uid="${sib.uid}"]`); if (el) dissolveCardEl(el); });
   S.tempCards = S.tempCards.filter(t => !(t.branchGroup === card.branchGroup && t.uid !== card.uid));
 }
-function resolveChainPlay(card) {
-  if (!card || !card.chain) return;
-  if (!card.chainNext || !card.chainNext.length) return;
-  const h = S.heroes.find(x => x.id === card.owner);
-  if (!h || h.downed) return;
-  const rot = ROTATIONS[card.owner] && ROTATIONS[card.owner][card.chainStance];
-  if (!rot) return;
-  const group = ++S._chainGroup;
-  const forged = [], uids = [];
-  // a next entry may be gated: {key, gate} forges only when the node is OWNED;
-  // {key, gateNot} forges only when it's NOT owned.  This is how the tree reshapes
-  // the chain: base = opener→finisher (gateNot the builder node); the builder node
-  // inserts a step (gate the builder, gateNot-hides the direct finisher); the fork
-  // node adds the alt line (gate the branch node).  A bare string always forges.
-  card.chainNext.forEach(n => {
+// Resolve one `next` list through its gates into rotation DEFS.  A bare string
+// always forges; {key, gate} forges only when the node is OWNED; {key, gateNot}
+// only when it is NOT.  This is how the tree reshapes a chain: base =
+// opener→finisher (gateNot the builder node); the builder node inserts a step
+// (gate the builder, gateNot-hides the direct finisher); the fork node adds the
+// alt line (gate the branch node).
+function gatedSteps(rot, list) {
+  const out = [];
+  (list || []).forEach(n => {
     const key = (typeof n === 'string') ? n : n.key;
     if (n && n.gate && !hasNode(n.gate)) return;
     if (n && n.gateNot && hasNode(n.gateNot)) return;
     const def = rot.cards[key];
-    const c = def && genChainStep(h, card.chainStance, def, group);
+    if (def) out.push(def);
+  });
+  return out;
+}
+// ─────────────────────────────────────────────────────────────────────────────
+// THE RELAY (Build 292) — the chain passes BETWEEN heroes instead of inside one.
+//
+// Three heroes used to run three private chains side by side: an opener forged
+// its own owner's next step, so a turn was three independent solitaire games at
+// one target. Nothing about the core loop was co-operative, which is why the
+// skill tree read as a stat page (a node could only deepen YOUR line) and the
+// bonds never appeared on screen as something you DO.
+//
+//   A plays their opener  →  every other hero DISCARDS their opener and is
+//                            handed a step out of THEIR OWN rotation
+//   B plays what they were handed  →  the last hero left is handed the FINISHER
+//   that hero plays it    →  the relay is spent
+//
+// Hand size stays at three. What grows is the ordering: who opens × who answers
+// × who finishes. A hero is always handed a step from `ROTATIONS[them][their
+// row]`, so nobody ever plays out of their own vocabulary — Elin never swings a
+// sword.
+//
+// THE LAST-RECIPIENT RULE. Everyone the chain reaches gets the FOLLOW-UP, unless
+// they are the only eligible hero left, in which case they get the FINISHER.
+// That one rule covers every party size without a special case: a trio runs
+// open→answer→finish, a duo runs open→finish, and a lone survivor falls back to
+// the old private chain (there is nobody to pass to).
+// ─────────────────────────────────────────────────────────────────────────────
+function relayOn() { return !!(S && S._rotations && S._relay); }
+// ONE RELAY A TURN, OR AS MANY AS EP BUYS?  Measured, because the strict reading
+// of the design ends the turn when the relay does, and that turned out to be the
+// whole cost of the change: a turn fell from ~18 cards to 3, throughput fell with
+// it, and a trio that used to finish a room at full HP finished at a third of it
+// (test/relaymeter.cjs, TREE=full). `_relay: 'once'` is that strict reading, kept
+// so the number can be re-read; the default lets a spent relay end and the
+// unspent openers return, so EP governs turn length exactly as it does today.
+function relayOnce() { return S && S._relay === 'once'; }
+// A relay is LIVE only while somebody still standing is actually holding a step
+// it handed out.  Derived from the cards rather than trusted from the flag,
+// because a handed card can leave by routes that never touch S.relay — a HEX
+// eating it, its holder going down — and buildHand withholds every opener while
+// a line is in flight. A stale flag would therefore leave the party holding
+// NOTHING for the rest of the turn. Self-heals: a flag with no cards behind it
+// is cleared on sight.
+function relayLive() {
+  if (!relayOn() || !S.relay) return false;
+  const held = S.tempCards.some(t => t.chain && t.relayStep
+    && (t.expiresTurn == null || t.expiresTurn >= S.turn)
+    && livingHeroes().some(h => h.id === t.owner));
+  // NEVER heal MID-PLAY. playCard pulls the played temp out of S.tempCards before
+  // it resolves, and resolveCard renders — so during the last step of a relay
+  // there is momentarily no card behind the flag. Clearing it there wiped the
+  // record of who the line had already reached, and resolveChainPlay then passed
+  // it straight back to them: two heroes traded free cards forever at 0 EP, a
+  // turn that never ended. Caught by hand-playing a turn (test/probe-relay.cjs);
+  // the meter had a per-turn card cap and reported it as "12 cards a turn".
+  if (!held && !S.executing) S.relay = null;
+  return held || S.executing;
+}
+// The heroes a chain in flight can still be passed to: alive, on a rotation, and
+// not already holding this line.  A hero is barred for the REST OF THE TURN only
+// under the strict reading; otherwise the bar lasts as long as the relay does, so
+// the party can open a second line the way they can start a second combo today.
+function relayPool(fromId) {
+  const used = relayOnce() ? S._relayActed : (S.relay && S.relay.used);
+  return livingHeroes().filter(x => x.id !== fromId
+    && !(used && (used.has ? used.has(x.id) : used.indexOf(x.id) >= 0))
+    && rotationFor(x));
+}
+// What a hero is handed when the chain reaches them, out of their OWN stance's
+// rotation.  'follow' is the step after their opener — exactly what their own
+// opener would have forged, gates and forks and all.  'finish' walks that line
+// on to its terminal FINISHER.  An untreed hero's line is only two long, so for
+// them both answers are the same card; nodes are what make the relay deeper.
+function relayDefsFor(h, kind) {
+  const rot = rotationFor(h);
+  const opener = rot && rot.cards[rot.opener];
+  if (!opener) return null;
+  let defs = gatedSteps(rot, opener.next);
+  if (kind === 'finish') {
+    const seen = new Set(), out = [];
+    defs.forEach(d => {
+      let cur = d;
+      for (let hops = 0; cur && !/FINISHER/.test(cur.stance || '') && hops < 4; hops++) {
+        cur = gatedSteps(rot, cur.next)[0];   // past the fork every line is linear
+      }
+      if (cur && !seen.has(cur.name)) { seen.add(cur.name); out.push(cur); }
+    });
+    defs = out;
+  }
+  return defs.length ? { rot, defs } : null;
+}
+// Pass the chain from `from` to everyone still eligible.  Any step they were
+// already holding is dropped first — a follow-up being upgraded to the finisher
+// is the SAME beat arriving again, not a second card.
+function relayPass(from) {
+  const pool = relayPool(from.id);
+  if (!pool.length) return null;
+  const kind = pool.length === 1 ? 'finish' : 'follow';
+  const uids = [], names = [], to = [];
+  pool.forEach(x => {
+    const step = relayDefsFor(x, kind);
+    if (!step) return;
+    // Their pending step dissolves where it sat, exactly as an unpicked fork
+    // sibling does — the upgrade to the finisher must be SEEN as a replacement,
+    // not silently swapped under the player's cursor.
+    S.tempCards.filter(t => t.chain && t.owner === x.id).forEach(old => {
+      const el = document.querySelector(`#hand .card[data-uid="${old.uid}"]`); if (el) dissolveCardEl(el);
+    });
+    S.tempCards = S.tempCards.filter(t => !(t.chain && t.owner === x.id));
+    const group = ++S._chainGroup;
+    const before = uids.length;
+    step.defs.forEach(def => {
+      const c = genChainStep(x, x.row, def, group);
+      if (!c) return;
+      c.relayStep = kind;
+      // Mark it as HANDED without touching the words: half the engine reads
+      // `/FINISHER/` off this string (the finisher's EP cost, the bond chain's
+      // trigger, the meters), so the label is prefixed, never rewritten.
+      c.stance = '✦ ' + def.stance;
+      c.desc = c.desc + ' <i>' + x.def.name + ' answers ' + from.def.name + '.</i>';
+      uids.push(c.uid); names.push(def.name);
+    });
+    if (uids.length > before) to.push(x);
+  });
+  if (!uids.length) return null;
+  S._forgeEvent = { heroId: from.id, uids, pick: uids.length > 1 };
+  S._tempNew = S._tuid;
+  return { kind, uids, names, to };
+}
+function resolveChainPlay(card) {
+  if (!card || !card.chain) return;
+  const h = S.heroes.find(x => x.id === card.owner);
+  if (!h || h.downed) return;
+
+  // THE RELAY.  An opener starts a line; a handed step continues it.  Either
+  // way the hero who just played is done with this line, and the chain looks for
+  // somebody else to land on.
+  if (relayOn() && (card.kind === 'opener' || card.relayStep)) {
+    S._relayActed = S._relayActed || new Set();
+    S._relayActed.add(h.id);
+    // Under the strict reading, answering also SPENDS your opener, so the relay
+    // is the whole turn. Otherwise the latch is left alone and the openers come
+    // back when the line is spent — EP, not the relay, ends the turn.
+    if (relayOnce()) S.used.add(h.id + ':opener');
+    if (card.kind === 'opener') S.relay = { opener: h.id, stance: card.chainStance, used: [h.id] };
+    else if (S.relay) S.relay.used.push(h.id);
+    const pass = relayPass(h);
+    if (pass) {
+      if (S.relay) S.relay.step = pass.kind;
+      SFX.card();
+      const who = pass.to.map(x => x.def.name);
+      popupAt(figEl(h.id), pass.kind === 'finish' ? '✦ FINISH IT' : '✦ OVER TO ' + who[0].toUpperCase(), 'rally');
+      flashNarrator(h.def.name + ' passes the line to <b>' + who.join('</b> and <b>')
+        + '</b> — <b>' + pass.names.join('</b> / <b>') + '</b>.');
+      lesson('relay', '✦ THE RELAY — a combo is not yours, it is the party’s. Open with one hero and the NEXT step lands in someone else’s hand. Who answers, and who finishes, is the turn.', 3);
+      return;
+    }
+    // Nobody left to pass to.  A lone hero keeps their own line rather than
+    // being handed nothing — the relay degrades to the old private chain.
+    S.relay = null;
+    if (!(card.chainNext && card.chainNext.length)) return;
+  } else if (!(card.chainNext && card.chainNext.length)) return;
+
+  const rot = ROTATIONS[card.owner] && ROTATIONS[card.owner][card.chainStance];
+  if (!rot) return;
+  const group = ++S._chainGroup;
+  const forged = [], uids = [];
+  gatedSteps(rot, card.chainNext).forEach(def => {
+    const c = genChainStep(h, card.chainStance, def, group);
     if (c) { forged.push(def.name); uids.push(c.uid); }
   });
   if (!forged.length) return;
@@ -1793,14 +1957,28 @@ function resolveChainPlay(card) {
 }
 // stance change abandons an in-progress rotation (forged steps clear; the opener
 // of the NEW stance returns) — repositioning mid-chain is a real cost.
+//
+// A RELAY IS ABANDONED WHOLE.  The line in flight belongs to the party, not to
+// the hero standing in it, so one hero stepping out of formation drops it for
+// everyone — the same cost the solo chain always paid, priced at the scale the
+// thing now lives at. Deliberate: purging only the mover's own handed step would
+// leave a chain mid-flight with nobody holding it, and the heroes who never
+// moved would silently lose their turn with no card and no explanation. Heroes
+// who had not yet acted get their openers back (S.used is untouched for them),
+// so the party can re-open — but S._relayActed still bars anyone who already
+// played, which is what stops an abandon-and-reopen loop buying extra actions.
 function purgeChain(heroId) {
-  const had = S.tempCards.some(t => t.chain && t.owner === heroId);
-  S.tempCards = S.tempCards.filter(t => !(t.chain && t.owner === heroId));
+  const inFlight = relayLive();
+  const had = S.tempCards.some(t => t.chain && (inFlight || t.owner === heroId));
+  S.tempCards = S.tempCards.filter(t => !(t.chain && (inFlight || t.owner === heroId)));
+  if (inFlight) S.relay = null;
   // Only teach it when it actually COST something — a purge with no open chain
   // is invisible and teaching it there would be noise.
   if (had) {
     const h = S.heroes.find(x => x.id === heroId);
-    lesson('purge', 'MOVING BREAKS THE COMBO — ' + ((h && h.def.name) || 'they') + ' left the line, so the rest of the rotation is gone. Finish a combo before you reposition.', 3);
+    lesson('purge', inFlight
+      ? 'MOVING DROPS THE RELAY — ' + ((h && h.def.name) || 'they') + ' left the line, so the whole party’s combo is gone, not just theirs. Finish the relay before anyone repositions.'
+      : 'MOVING BREAKS THE COMBO — ' + ((h && h.def.name) || 'they') + ' left the line, so the rest of the rotation is gone. Finish a combo before you reposition.', 3);
   }
 }
 
@@ -3998,6 +4176,20 @@ function newBattle(node) {
     pairsAwake: new Set(),   // kindled pairs whose DUET has awakened THIS fight
     tempCards: [], _tuid: 0, _chainGroup: 0, channelUsed: false,
     _rotations: _rot,
+    // THE RELAY IS BUILT AND OFF.  It is implemented, tested and measured, and
+    // the measurement is why it does not default on: `plays` mid-rotation — the
+    // one number the redesign exists to move — came back FLAT (test/relaymeter.cjs,
+    // TREE=full, pinned pack: 2.65→3.00 for ash+elin+mira, but 2.23→1.85 for a duo
+    // and 3.14→2.94 for cassia+branwen+hask, which also went from surviving at 29%
+    // to a wipe). The plan that specified this said, in advance, that a relay which
+    // does not raise `plays` has not delivered and should be reconsidered rather
+    // than tuned — so the machinery stays, the default does not move, and the
+    // evidence is in docs/PLAN-relay-chain.md. `RUN._relay = true` runs it;
+    // `'once'` runs the stricter reading where the relay is the whole turn.
+    _relay: (RUN && RUN._relay !== undefined) ? RUN._relay : false,
+    relay: null,                 // the line in flight: { opener, stance, step, used[] }
+    _relayActed: new Set(),      // one action per hero per turn — the relay's invariant
+
     momentum: 0, combo: 0, comboBest: 0, allOutUsed: 0, burstLevel: 1,   // burst container grows via DUET/TRIAD (see expandBurst)
     triadFormed: false, allOutCrowned: false,
     executing: false, over: false, turn: 1,
@@ -4263,11 +4455,19 @@ function buildHand() {
   // echoes, emergent forges) still trail at the end.
   const chainTemps = {};
   temps.forEach(t => { if (t.chain) (chainTemps[t.owner] = chainTemps[t.owner] || []).push(t); });
+  const relayIsLive = relayLive();   // once per build — it is stable within the call
   livingHeroes().forEach(h => {
     // CHAIN HEROES show a single OPENER instead of core+sig — their builders and
     // finishers arrive as forged temp cards as the rotation plays out.
     const rot = rotationFor(h);
     if (rot) {
+      // A LINE IN FLIGHT OWNS THE TURN.  While a relay is live, nobody opens a
+      // second one: the heroes it has reached hold what they were handed (in the
+      // slot their opener sat in), and everyone else waits. Finish it — or break
+      // it by moving — and the openers come back for whoever has EP left. That is
+      // what keeps the relay a line the party passes rather than three lines
+      // running at once with a hand-off bolted on the side.
+      if (relayIsLive) { (chainTemps[h.id] || []).forEach(t => hand.push(t)); return; }
       const op = mkChainOpener(h, rot); if (!op.spent) hand.push(op);
       // …and, for one hero a turn, the line they can REACH for (see reachFor)
       const rr = reachFor(h);
@@ -7883,6 +8083,8 @@ async function endTurn() {
     }
     S.ep = S.maxEp;
     S.used = new Set();
+    S.relay = null;                // a line that did not finish does not carry over
+    S._relayActed = new Set();     // everyone may open or answer again
     S._flags = {};   // per-turn passive latches (EP refunds) reset
     S._assistedPairs = new Set();   // each bond may assist once per turn again
     // IMMOVABLE (Cassia) keeps her guard through the enemy turn — everyone else's fades.
