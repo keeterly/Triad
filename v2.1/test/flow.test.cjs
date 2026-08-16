@@ -5048,15 +5048,36 @@ const QUICK = process.argv.includes('--quick');
       // drove resolveChainPlay directly rather than through playCard.
       return S.line === null && S.tempCards.filter(t => t.chain).length === 0
         && back.length === 2 && new Set(back.map(c => c.owner)).size === 2; }));
-  check('LINE: an untreed party SKIPS the combo stage — the base line is opener → finisher',
+  check('LINE: an untreed line is opener → finisher — a shorter chain, not a skipped beat',
     await J(() => { setupFight(['ash', 'elin'], [], { ash: 'front', elin: 'mid' }); S._rotations = true; S._line = true; renderAll();
       const op = buildHand().find(c => c.kind === 'opener' && c.owner === 'ash'); S.tempCards = []; resolveChainPlay(op);
       const hand = buildHand();
-      // Nobody owns a CARD node, so nobody has a middle beat to offer. The stage is
-      // skipped rather than stalling the party on an empty table.
-      return hand.length > 0 && hand.every(c => c.lineStage === 'finisher'); }));
+      // Nobody owns a CARD node, so nobody has a middle beat. They are not skipped
+      // and they are not left empty-handed — each is simply already standing on
+      // their own finisher at depth 1.
+      return hand.length > 0 && hand.every(c => c.lineStage === 'finisher')
+        && new Set(hand.map(c => c.owner)).size === 2; }));
+  check('LINE: a SHORT chain and a LONG one run side by side — nobody is left holding nothing',
+    await J(() => { setupFight(['ash', 'elin'], ['ash.sig.front'], { ash: 'front', elin: 'mid' }); S._rotations = true; S._line = true;
+      S.turn = 2; S.used = new Set(); renderAll();   // turn 2 → ELIN holds the reach, so Ash opens his STANDING front line
+      const op = buildHand().find(c => c.kind === 'opener' && c.owner === 'ash'); S.tempCards = []; resolveChainPlay(op);
+      const hand = buildHand();
+      const ash = hand.filter(c => c.owner === 'ash'), elin = hand.filter(c => c.owner === 'elin');
+      // Ash bought the CARD node, so at depth 1 he is on a COMBO. Elin did not, so
+      // at the same depth she is already on her FINISHER. Both hold a card. The
+      // party-wide-stage version of this left Elin with nothing at all.
+      return ash.length > 0 && ash.every(c => c.lineStage === 'combo')
+        && elin.length > 0 && elin.every(c => c.lineStage === 'finisher'); }));
+  check('LINE: playing a FINISHER ends the line whenever in it that lands',
+    await J(() => { const fin = buildHand().find(c => c.owner === 'elin' && c.lineStage === 'finisher');
+      S.tempCards = S.tempCards.filter(t => t.uid !== fin.uid); resolveChainPlay(fin);
+      // Elin closed on the party's SECOND beat, because her line is only two long.
+      return S.line === null && S.tempCards.filter(t => t.chain).length === 0; }));
   check('LINE: a stale flag cannot lock the hand — the openers come back',
-    await J(() => { const duringLine = buildHand().filter(c => c.kind === 'opener').length === 0;
+    await J(() => { setupFight(['ash', 'elin'], ROTATION_GATES, { ash: 'front', elin: 'mid' }); S._rotations = true; S._line = true;
+      S.turn = 2; S.used = new Set(); renderAll();
+      const op = buildHand().find(c => c.kind === 'opener' && c.owner === 'ash'); S.tempCards = []; resolveChainPlay(op);
+      const duringLine = buildHand().filter(c => c.kind === 'opener').length === 0;
       // A dealt card can leave by routes that never touch S.line (a HEX eating it,
       // its owner going down). If the flag survived that, the party would hold
       // nothing at all until the turn rolled over.

@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 295;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 296;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -1829,31 +1829,36 @@ function lineLive() {
   if (!held && !S.executing) S.line = null;
   return held || S.executing;
 }
-// What a hero can contribute at `stage`, out of their own rotation. `stance` lets
-// the hero who REACHED open out of the line they reached into and keep answering
-// from it; everyone else answers from the row they are standing in, so nobody is
-// ever dragged out of their own vocabulary.
-function stageDefsFor(h, stage, stance) {
+// Where a hero's OWN chain stands after `depth` beats of the line. Depth 1 is the
+// step after their opener, 2 the step after that, and so on.
+//
+// A branch that has reached its FINISHER stays on it rather than running out —
+// which is the whole reason this counts depth per hero instead of holding one
+// party-wide stage. Lines are not all the same length: a hero with no CARD node
+// runs opener → finisher, so at depth 1 they are ALREADY at their finisher while
+// a treed ally is still on a combo. Both hold a card; they are just different
+// distances along their own line. The party-wide-stage version of this left the
+// untreed hero holding NOTHING while somebody else's line ran, which is the
+// opposite of a combo the party builds together.
+//
+// `stance` lets the hero who REACHED stay in the line they reached into; everyone
+// else answers from the row they stand in, so nobody plays out of their own kit.
+function chainAtDepth(h, depth, stance) {
   const rot = ROTATIONS[h.id] && ROTATIONS[h.id][stance || h.row];
   const opener = rot && rot.cards[rot.opener];
   if (!opener) return null;
-  const first = gatedSteps(rot, opener.next);
-  if (stage === 'combo') {
-    // Without the CARD node the opener forges the finisher directly — that hero
-    // simply has no middle beat to offer, which is what the tree not being bought
-    // is supposed to mean.
-    const defs = first.filter(d => !/FINISHER/.test(d.stance || ''));
-    return defs.length ? { rot, defs } : null;
+  let cur = gatedSteps(rot, opener.next);
+  for (let d = 1; d < depth && cur.length; d++) {
+    const nxt = [];
+    cur.forEach(c => {
+      // a terminal branch WAITS at its finisher; only unfinished ones advance
+      const step = /FINISHER/.test(c.stance || '') ? [c] : gatedSteps(rot, c.next);
+      step.forEach(n => { if (!nxt.some(x => x.name === n.name)) nxt.push(n); });
+    });
+    if (!nxt.length) break;
+    cur = nxt;
   }
-  const seen = new Set(), defs = [];
-  first.forEach(d => {
-    let cur = d;
-    for (let hops = 0; cur && !/FINISHER/.test(cur.stance || '') && hops < 4; hops++) {
-      cur = gatedSteps(rot, cur.next)[0];   // past the fork every line is linear
-    }
-    if (cur && !seen.has(cur.name)) { seen.add(cur.name); defs.push(cur); }
-  });
-  return defs.length ? { rot, defs } : null;
+  return cur.length ? { rot, defs: cur } : null;
 }
 // The finisher of a line you have been carrying hits harder. Applied at DEAL time,
 // not at resolve time, so the empowerment is on the card's face before the player
@@ -1888,20 +1893,23 @@ function bankLineCharge(h, card) {
   h._pendCharge = (h._pendCharge || 0) + gain;
   popupAt(figEl(h.id), '◆ ' + h._pendCharge + ' HELD', 'info');
 }
-// Deal a stage: DISCARD every chain card on the table, then lay out what every
-// living hero can contribute. Returns null when nobody can, so the caller can skip
-// the stage or close the line rather than stalling on an empty table.
-function dealStage(stage, from) {
+// Deal the line's next beat: DISCARD every chain card on the table, then lay out
+// where each living hero's own chain now stands. `ownNext` is the played card's
+// own continuation — the hero who just played follows THAT branch, because they
+// chose it; everyone else is walked to the same depth along theirs.
+function dealBeat(from, ownNext) {
   const line = S.line;
   const laid = [];
   livingHeroes().forEach(x => {
-    const stance = (line && line.stanceOf && line.stanceOf[x.id]) || x.row;
-    const step = stageDefsFor(x, stage, stance);
+    const stance = (line.stanceOf && line.stanceOf[x.id]) || x.row;
+    const step = (x.id === from.id && ownNext && ownNext.length)
+      ? { defs: ownNext }                          // you picked this branch; you stay on it
+      : chainAtDepth(x, line.depth, stance);
     if (step) laid.push({ x, stance, defs: step.defs });
   });
   if (!laid.length) return null;
   // The table clears where it sits, the way an unpicked fork sibling does — the
-  // openers you did not play are GONE, and that has to be seen, not inferred.
+  // cards you did not play are GONE, and that has to be seen, not inferred.
   S.tempCards.filter(t => t.chain).forEach(old => {
     const el = document.querySelector(`#hand .card[data-uid="${old.uid}"]`); if (el) dissolveCardEl(el);
   });
@@ -1913,15 +1921,12 @@ function dealStage(stage, from) {
     defs.forEach(def => {
       const c = genChainStep(x, stance, def, group);
       if (!c) return;
-      c.lineStage = stage;
-      // The stance label is left ALONE. The relay prefixed it with ✦ to mark a
-      // card as handed to you rather than forged by you — under the line every
-      // non-opener card is dealt, so the mark distinguishes nothing and only
-      // breaks the `^COMBO` / `^FINISHER` anchors the engine reads off this
-      // string for the finisher's EP cost, the bond chain's trigger and the
-      // meters. What is worth saying on the card face is the FOCUS bonus, and
-      // applyLineFocus says it.
-      if (stage === 'finisher') applyLineFocus(c, x);
+      c.lineStage = /FINISHER/.test(def.stance || '') ? 'finisher' : 'combo';
+      // The stance label is left ALONE — half the engine reads `^COMBO` /
+      // `^FINISHER` off this string for the finisher's EP cost, the bond chain's
+      // trigger and the meters. What is worth saying on the card face is the
+      // FOCUS bonus, and applyLineFocus says it.
+      if (c.lineStage === 'finisher') applyLineFocus(c, x);
       uids.push(c.uid); names.push(def.name);
     });
     if (uids.length > before) who.push(x);
@@ -1929,29 +1934,33 @@ function dealStage(stage, from) {
   if (!uids.length) return null;
   S._forgeEvent = { heroId: from.id, uids, pick: uids.length > 1 };
   S._tempNew = S._tuid;
-  return { stage, uids, names, who };
+  return { uids, names, who, finishing: laid.every(l => l.defs.every(d => /FINISHER/.test(d.stance || ''))) };
 }
 // Everything a line does when one of its beats is played.
+//
+// ONE RULE, NOT A STAGE TABLE: playing any card advances the line one beat, and a
+// FINISHER ends it. There is no party-wide stage to keep in step and no "skip the
+// combo stage when nobody has one" special case — a hero whose line is shorter is
+// simply already holding their finisher while a treed ally is still on a combo.
 function resolveLinePlay(card, h) {
-  const line = S.line || { beats: [], opener: h.id, stanceOf: {} };
-  if (card.kind === 'opener') { line.opener = h.id; line.stanceOf = {}; line.stanceOf[h.id] = card.chainStance; }
+  const line = S.line || { beats: [], depth: 0, opener: h.id, stanceOf: {} };
+  if (card.kind === 'opener') { line.opener = h.id; line.depth = 0; line.stanceOf = {}; line.stanceOf[h.id] = card.chainStance; }
   line.beats.push(h.id);
+  line.depth++;
   S.line = line;
   bankLineCharge(h, card);
-  const next = !card.lineStage ? 'combo' : (card.lineStage === 'combo' ? 'finisher' : null);
-  if (!next) return closeLine(h);
-  // Nobody holding a middle beat is not a stall — it is the base line the tree
-  // describes, opener straight into finisher.
-  const dealt = dealStage(next, h) || (next === 'combo' ? dealStage('finisher', h) : null);
+  // The card that ENDS a line is the finisher, whenever in the line it lands.
+  if (card.lineStage === 'finisher') return closeLine(h);
+  const rot = ROTATIONS[h.id] && ROTATIONS[h.id][card.chainStance];
+  const ownNext = rot ? gatedSteps(rot, card.chainNext) : null;
+  const dealt = dealBeat(h, ownNext);
   if (!dealt) return closeLine(h);
-  line.stage = dealt.stage;
   SFX.card();
-  const finishing = dealt.stage === 'finisher';
-  popupAt(figEl(h.id), finishing ? '✦ WHO FINISHES?' : '✦ WHO ANSWERS?', 'rally');
+  popupAt(figEl(h.id), dealt.finishing ? '✦ WHO FINISHES?' : '✦ WHO ANSWERS?', 'rally');
   flashNarrator(h.def.name + (card.kind === 'opener' ? ' opens the line' : ' carries the line')
-    + ' — <b>' + (finishing ? 'every finisher' : 'every answer') + '</b> is on the table: <b>'
+    + ' — <b>' + (dealt.finishing ? 'every finisher' : 'every answer') + '</b> is on the table: <b>'
     + dealt.names.join('</b> · <b>') + '</b>.');
-  lesson('line', '✦ ONE LINE, THREE BEATS — the combo belongs to the PARTY, not to a hero. Whoever answers answers for everyone, and the openers you did not play are gone. Carry it yourself for a bigger FINISHER, or spread it and light a bond.', 3);
+  lesson('line', '✦ ONE LINE, THE PARTY\u2019S — the combo does not belong to a hero. Whoever answers answers for everyone, and the cards you did not play are gone. Carry it yourself for a bigger FINISHER, or spread it and light a bond.', 3);
 }
 // The line is spent: commit or forfeit what was banked on it, clear the table, and
 // give the openers back to whoever has not opened yet. EP decides what happens next.
@@ -4234,7 +4243,7 @@ function newBattle(node) {
     // and it has not been pulled yet. `RUN._line = false` runs the private
     // per-hero chains, which is the A/B baseline test/linemeter.cjs measures.
     _line: (RUN && RUN._line !== undefined) ? RUN._line : true,
-    line: null,                  // the line in flight: { stage, beats[], opener, stanceOf }
+    line: null,                  // the line in flight: { depth, beats[], opener, stanceOf }
 
     momentum: 0, combo: 0, comboBest: 0, allOutUsed: 0, burstLevel: 1,   // burst container grows via DUET/TRIAD (see expandBurst)
     triadFormed: false, allOutCrowned: false,

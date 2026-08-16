@@ -10,13 +10,18 @@ Supersedes the relay of Build 292, which is kept in the tree behind
 
 ```
 somebody plays an OPENER    →  every opener is DISCARDED, and every living hero
-                               lays out what they can answer with
-somebody plays a COMBO      →  every combo is discarded, and every living hero
-                               lays out their FINISHER
-somebody plays a FINISHER   →  the line is spent. The openers come back for
-                               whoever has not opened yet, and EP decides whether
-                               the turn holds another line
+                               lays out where their OWN chain now stands
+somebody plays that card    →  the table clears again; the hero who played walks
+                               on down the branch THEY chose, everyone else walks
+                               one step further along theirs
+somebody plays a FINISHER   →  the line is spent, whenever in it that lands. The
+                               openers come back for whoever has not opened yet,
+                               and EP decides whether the turn holds another line
 ```
+
+**One rule, not a stage table.** Playing any card advances the line one beat and a
+FINISHER ends it. There is no party-wide stage to hold everyone in step, because
+lines are not all the same length — see *chains of different lengths* below.
 
 **Every hero shows exactly one card.** A hero always contributes out of **their
 own** row's rotation, so nobody is ever dragged into someone else's vocabulary —
@@ -100,10 +105,18 @@ design, and it is where the skill tree gets something to say.
 
 ## Consequences worth knowing
 
-- **A hero with no CARD node has no combo at all.** Their line is opener →
-  finisher, which is exactly what the tree not being bought is supposed to mean.
-  If *nobody* can answer, the combo stage is **skipped** rather than stalling the
-  party on an empty table.
+- **Chains of different lengths run side by side.** A hero with no CARD node runs
+  opener → finisher, so one beat in they are *already holding their finisher*
+  while a treed ally is still on a combo. Both hold a card. This is counted as a
+  DEPTH per hero rather than one stage for the party, and Build 296 is where that
+  changed: the party-wide-stage version left the untreed hero holding **nothing**
+  at all while somebody else's line ran, which is the opposite of a combo the
+  party builds together. It also deleted two special cases — "skip the combo stage
+  when nobody has one" and the stage table itself.
+- **The hero who plays commits to the branch they picked.** Their next card comes
+  from that card's own continuation, not from a fresh walk of their chain, so a
+  fork collapses to the line you chose the moment you choose it. That is where the
+  hand got smaller: a trio's second beat went from six cards to five.
 - **Moving drops the line for everyone**, bank included. The line in flight
   belongs to the party, so one hero leaving formation costs every beat spent on
   it. Deliberate, and the reason it is priced that way is in `purgeChain`.

@@ -50,7 +50,7 @@ const path = require('path');
   }));
   const state = () => t.J(() => ({
     ep: S.ep + '/' + S.maxEp,
-    stage: S.line ? S.line.stage : '—',
+    depth: S.line ? S.line.depth : '—',
     beats: S.line ? S.line.beats.join('>') : '—',
     charge: (S.heroes.find(h => h.id === 'hask') || {}).charge,
     foes: S.enemies.filter(e => !e.dead).map(e => e.def.name + ' ' + e.hp + '/' + e.maxHp).join(', '),
@@ -80,7 +80,7 @@ const path = require('path');
   const log = [];
   const beat = async (label, tag) => {
     const st = await state();
-    log.push(`${label}\n     ep ${st.ep}  stage ${st.stage}  beats ${st.beats}`
+    log.push(`${label}\n     ep ${st.ep}  depth ${st.depth}  beats ${st.beats}`
       + `\n     table: ${(await table()).join('  |  ')}`);
     if (tag) await t.shot(tag);
   };
