@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 298;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 299;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -1724,6 +1724,12 @@ function mkChainOpener(h, rot, rowKey) {
 // row, so a reached line forges its own combo and finisher correctly.
 function reachFor(h) {
   if (!S || !S._rotations || !h) return null;
+  // NOT IN THE TUTORIAL (Build 299). Playtested: chapter 2 dealt Ash a REACH — an
+  // opener out of a stance he is not standing in — as his ONLY card, in the first
+  // fight where a second hero exists, with nothing anywhere teaching what it is.
+  // A card the player never chose and cannot be told about yet is the exact thing
+  // the hand is supposed to stop doing. The descent is where lines start varying.
+  if (!(S.node && S.node.useRunHp)) return null;
   const live = livingHeroes();
   if (live.length < 2) return null;
   const idx = live.findIndex(x => x.id === h.id);
@@ -3192,11 +3198,12 @@ const FLOW = [
     { text: 'The second is that you do not remember arriving. Not the fall, not the road before it. Only that you are at the bottom of something, and it goes up.' },
     { spk: 'ASH', text: '…then I climb it alone.' },
     { text: 'You are <b>Ash</b>. One blade, three ways to hold it — your <b>row is your stance</b>: Front cuts, Mid flows, Back strikes from the wind.' },
-    { text: 'Down here nobody swings once and wins. You fight in a <b>rhythm</b>: play an <b>OPENER</b>, and the next strike of that line <b>forges into your hand</b> — opener, then combo, then the <b>FINISHER</b> that ends it.' },
+    { text: 'Down here nobody swings once and wins. You fight in a <b>line</b>: play an <b>OPENER</b>, and the next strike <b>forges into your hand</b>. Right now your line is short — an opener, then the <b>FINISHER</b> that ends it.' },
+    { text: 'Short because you have not grown it yet. The <b>Ember Tree</b> is what puts a <b>COMBO</b> between them, and later a second path to choose from. Every line in this place starts as two strikes and becomes what you make it.' },
     { text: 'The ramp is <b>free</b>. The <b>finisher costs EP</b>. That is the whole question, every turn, for the rest of the climb: <b>who gets to finish?</b>' },
   ]},
   { type: 'fight', chapter: 1, heroes: ['ash'], enemies: ['husk'], rotations: true,
-    narrator: 'Play your OPENER — the next strike forges into your hand. Ramp is free; the FINISHER costs EP.' },
+    narrator: 'Play your OPENER — the FINISHER forges into your hand. The Ember Tree is what puts a COMBO between them.' },
   { type: 'story', chapter: 1, title: 'THE STANCES', eyebrow: 'CHAPTER 1', lines: [
     { text: 'Every foe <b>telegraphs</b> before it strikes: the damage it will deal, and the <b>row</b> it will hit.' },
     { spk: 'ASH', text: 'So I answer one of two ways — not be there, or meet it.' },
@@ -3209,12 +3216,12 @@ const FLOW = [
     { text: 'A light in the ash-fog — a healer, kneeling over what’s left of her order.' },
     { spk: 'ELIN', text: 'You’re bleeding. Stand still.' },
     { spk: 'ASH', text: '…you’re coming with me.' },
-    { text: 'Two now, and two changes everything. When a hero <b>finishes their line</b> they don’t simply stop — they hold the ending, standing <b>PRIMED</b>.' },
-    { text: 'Finish a <b>second</b> hero’s line while the first still stands primed, and that first hero’s <b>FOLLOW-UP</b> forges into your hand, <b>free</b>. Play it and the two of them are <b>♡ BONDED</b>.' },
+    { text: 'Two now, and two changes everything. <b>A line is not yours — it is the party’s.</b> Play an opener and <b>every</b> opener is discarded: what lands in your hand is what <b>each of them</b> can answer with.' },
+    { text: 'So the question stops being "what do I play" and becomes <b>who answers, and who finishes</b>. Carry a line yourself and your finisher hits harder. Share it, and the two of them are <b>♡ BONDED</b> for having fought as one.' },
     { spk: 'ELIN', text: 'You cover me. I’ll cover you. That is all a bond is — it just has to actually happen.' },
   ]},
   { type: 'fight', chapter: 2, heroes: ['ash', 'elin'], enemies: ['cultist', 'husk'], rotations: true,
-    narrator: 'Finish BOTH their lines — the primed hero’s free FOLLOW-UP opens. Play it to BOND them. (Helping an ally bonds them too.)' },
+    narrator: 'One line, between the two of you — open with either, then ANSWER with the other. Fighting as one BONDS them.' },
   { type: 'story', chapter: 3, title: 'MIRA', eyebrow: 'CHAPTER 3 · THREE', lines: [
     { text: 'A blade rests at your throat before you hear a single step. Then, slowly, it lowers.' },
     { spk: 'MIRA', text: 'You came through the dark loud as a funeral. …Lucky I only kill what I mean to. Move.' },

@@ -63,11 +63,26 @@ const QUICK = process.argv.includes('--quick');
   // It also taught the PAYOFFS before the mechanisms: WEAVE and the TRIAD
   // FINALE were explained two chapters before the player had formed one bond,
   // while the deliberate way to MAKE one was never mentioned at all.
-  check('TUTORIAL: it teaches PRIMED → FOLLOW-UP — the way a bond is actually made',
+  // Was: "it teaches PRIMED → FOLLOW-UP". PRIMED is absorbed into the line (298)
+  // and no longer fires, so teaching it would be teaching a mechanic that cannot
+  // happen. What chapter 2 must now teach is the thing that DOES happen the first
+  // time a second hero exists: the line belongs to the party, and answering
+  // somebody else's opener is what bonds them.
+  check('TUTORIAL: it teaches THE LINE — the party’s combo, and that answering it bonds',
     await J(() => {
       const txt = FLOW.filter(n => n.type === 'story').flatMap(n => n.lines).map(l => l.text).join(' ');
-      return /PRIMED/.test(txt) && /FOLLOW-UP/.test(txt);
+      const narr = FLOW.filter(n => n.type === 'fight').map(n => n.narrator).join(' ');
+      return /every.{0,3}<\/b> opener is discarded/i.test(txt)     // the discard is the rule to state
+        && /who answers/i.test(txt) && /BONDED/.test(txt)
+        && /ANSWER/.test(narr)
+        && !/PRIMED/.test(txt) && !/FOLLOW-UP/.test(txt);          // and the dead path is not taught
     }));
+  check('TUTORIAL: it names the TREE as the thing that grows a line, not a mechanic you already have',
+    await J(() => {
+      const txt = FLOW.filter(n => n.type === 'story').flatMap(n => n.lines).map(l => l.text).join(' ');
+      // With no nodes a line is two beats. Chapter 1 used to promise "opener, then
+      // combo, then the FINISHER" — a three-beat combo the player cannot have yet.
+      return /Ember Tree<\/b> is what puts a <b>COMBO<\/b> between them/.test(txt); }));
   check('TUTORIAL: no payoff is drilled before its mechanism — WEAVE/TRIAD are not taught here',
     await J(() => {
       const stories = FLOW.filter(n => n.type === 'story');

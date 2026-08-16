@@ -156,3 +156,34 @@ design, and it is where the skill tree gets something to say.
 - **Pin the pack.** `generateDescent()` rolls a fresh pack per fight, and across
   two runs of one configuration that swing was *larger than the effect being
   measured* (cards/turn 5.6 → 9.5 with nothing changed but the seed).
+
+## The onboarding curve (Build 299)
+
+Playtested through the real FLOW chapters with the nodes a new player actually
+owns, which is none:
+
+| chapter | party | turn opens | after the opener |
+|---|---|---|---|
+| 1 | ash | `Cleave` | `Crashing Wave` |
+| 2 | ash+elin | `Cleave` · `Mend` | `Crashing Wave` · `Renew` |
+| 3 | +mira | 3 openers | 3 finishers |
+
+**Hand size equals party size, and never exceeds it.** With no tree, every line is
+two beats — opener straight into finisher — so a new player meets exactly one
+idea at a time: chapter 1 is "a line has a next step", chapter 2 is "the line is
+the party's", chapter 3 is "burst". No fork, no reach, no PRIMED.
+
+Growth is then entirely the tree's job, and each tier adds exactly one dimension:
+
+- **tier 1 `card`** — inserts the COMBO. Your line goes from two beats to three.
+  This is the most consequential purchase in the game and it is the first one.
+- **tier 2 `branch`** — adds the fork. Each beat becomes a choice, so a hero
+  contributes two cards to the table instead of one.
+- **tier 3–4** — emergent / all-out / synergy / passives: identity, not structure.
+
+Two things were cut from onboarding to get here, both because they arrived
+unlearned. **PRIMED** is absorbed into the line (298). **The REACH** — an opener
+out of a stance you are not standing in — used to be dealt to Ash in chapter 2 as
+his ONLY card, in the first fight where a second hero exists, with nothing
+teaching what it was. It is descent-only now (`useRunHp`), which is also where
+varying the opening board actually matters.
