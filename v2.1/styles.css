@@ -2480,15 +2480,15 @@ button.map-node:not(:disabled) { cursor: pointer; }
 /* the fixed sweet-spot ring the closing ring shrinks to meet — DIM until the
    note is tappable, so the glow-on (.pr-live) is an unmistakable "now" cue */
 .pr-target {
-  position: absolute; left: 0; top: 0; width: 42px; height: 42px; border-radius: 50%;
+  position: absolute; left: 0; top: 0; width: 60px; height: 60px; border-radius: 50%;
   transform: translate(-50%,-50%);
   border: 2px dashed rgba(255,225,74,0.4); box-shadow: inset 0 0 8px rgba(255,225,74,0.12);
   transition: border-color 0.12s ease, box-shadow 0.12s ease;
 }
 /* the closing ring — dim white while approaching, tap when it lands */
 .pr-close {
-  position: absolute; left: 0; top: 0; width: 42px; height: 42px; border-radius: 50%;
-  border: 2.5px solid rgba(255,255,255,0.55); box-shadow: 0 0 8px rgba(255,255,255,0.4);
+  position: absolute; left: 0; top: 0; width: 60px; height: 60px; border-radius: 50%;
+  border: 3px solid rgba(255,255,255,0.6); box-shadow: 0 0 10px rgba(255,255,255,0.45);
   animation: pr-close linear forwards;
 }
 @keyframes pr-close {
@@ -4171,8 +4171,13 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
 .rl-none { border-color: rgba(180,168,150,0.2); }
 .rl-none .rl-name, .rl-none .rl-icon { color: var(--ink-dim); }
 #overlay.relic-screen #overlay-inner { display: flex; flex-direction: column; align-items: center; max-height: 94%; }
-/* a node the COMPASS has read but you cannot reach yet — legible, still locked */
-.map-node.mn-scried { opacity: 0.62; border-style: dashed; }
+/* A node the COMPASS has read but you cannot reach yet — legible, still locked.
+   This used to add a dashed border, which the map drew as a hard rectangle around
+   every scried node: a marquee box round most of the road, reading as selection
+   rather than as "seen but out of reach". The dimming already says locked and the
+   icon ring below says scried, so the box is gone. */
+.map-node.mn-scried { opacity: 0.62; }
+.map-node.mn-scried .mn-icon { border: 1px dashed rgba(212,200,168,0.28); }
 /* the camp row A HANDFUL OF ASH leaves behind */
 .camp-spent { font-size: 10.5px; line-height: 1.5; color: #d08a7a; font-style: italic; padding: 6px 2px; }
 .camp-spent b { color: var(--gold-bright); font-style: normal; }
