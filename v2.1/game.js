@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 299;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 300;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -459,6 +459,24 @@ const EMBER_TREE = [
   // finisher signature), a branch node opens a SECOND path off the opener: play
   // the opener and pick which line to run, the other burns away.  This is where
   // the in-combat choice lives, and it's earned. ═══════════════════════════════
+  // ── THE ANSWERS (Build 300) ─────────────────────────────────────────────────
+  // The line put more cards on the table and they were all "your own next step",
+  // so measured (choicemeter) the gap between the best card and the average one
+  // FELL — 59% to 34% for a trio. More cards, flatter choice. Nothing on the
+  // table existed BECAUSE two heroes were working together.
+  //
+  // An ANSWER does. It is offered only to a hero an ALLY just played into, only
+  // when the beat it reacts to actually happened, and only once learned. It reads
+  // its trigger off the card that opened the beat, so it is a response rather than
+  // a step: react to a strike, shield the one who struck, or power up whoever
+  // finishes. Tier 2, behind that hero's own COMBO card — you lengthen your line
+  // first, then learn to answer someone else's.
+  { id: 'ash.answer',     hero: 'ash',     tier: 2, cost: 6, type: 'card', requires: ['ash.sig.front'],     label: 'Answer the Blade', desc: 'ANSWER · when an ALLY opens with a STRIKE, Ash may cut in instead of taking his own step — 6 damage · <span class="kw kw-counter">↺ 1</span>' },
+  { id: 'elin.answer',    hero: 'elin',    tier: 2, cost: 6, type: 'card', requires: ['elin.sig.mid'],      label: 'Answer the Wound',  desc: 'ANSWER · when an ALLY opens, Elin may cover them instead of taking her own step — <span class="kw kw-heal">✚ 4</span> · <span class="kw kw-guard">⛨ 3</span> to the one who opened' },
+  { id: 'mira.answer',    hero: 'mira',    tier: 2, cost: 6, type: 'card', requires: ['mira.sig.mid'],      label: 'Answer the Opening', desc: 'ANSWER · when an ALLY opens with a STRIKE, Mira may open the wound instead — 3 damage · <span class="kw kw-exposed">◎ EXPOSED 4</span>' },
+  { id: 'cassia.answer',  hero: 'cassia',  tier: 2, cost: 6, type: 'card', requires: ['cassia.sig.front'],  label: 'Answer the Call',   desc: 'ANSWER · when an ALLY opens, Cassia may step in front instead of taking her own step — <span class="kw kw-guard">⛨ 6</span> to the one who opened · <span class="kw kw-counter">↺ 1</span>' },
+  { id: 'branwen.answer', hero: 'branwen', tier: 2, cost: 6, type: 'card', requires: ['branwen.sig.mid'],   label: 'Answer the Mark',   desc: 'ANSWER · when an ALLY opens, Branwen may steady the shot instead — the next FINISHER this line deals <span class="kw kw-rally">▲ +4</span>' },
+  { id: 'hask.answer',    hero: 'hask',    tier: 2, cost: 6, type: 'card', requires: ['hask.sig.mid'],      label: 'Answer the Ley',    desc: 'ANSWER · when an ALLY opens, Hask may draw on the line instead — gain <b>◆ CHARGE 2</b> · the next FINISHER deals <span class="kw kw-rally">▲ +2</span>' },
   { id: 'ash.branch.front', hero: 'ash', tier: 2, cost: 6, type: 'branch', requires: ['ash.sig.front'], label: 'Sunder Fork', desc: 'FORK · FRONT: Cleave also opens <b>Sunder</b> (5 dmg · <span class="kw kw-exposed">◎2</span>) → <b>Marked Fate</b> (<span class="kw kw-exposed">◎4</span>) — the cut or the mark' },
   { id: 'ash.branch.mid',   hero: 'ash', tier: 2, cost: 6, type: 'branch', requires: ['ash.sig.mid'],   label: 'Flow Fork',   desc: 'FORK · MID: Flowing Cut also opens <b>Flow Read</b> (slip FRONT · <span class="kw kw-rally">▲+3</span>) → <b>Crossguard</b> (<span class="kw kw-guard">⛨6</span> ally)' },
   { id: 'ash.branch.back',  hero: 'ash', tier: 2, cost: 6, type: 'branch', requires: ['ash.sig.back'],  label: 'Mark Fork',   desc: 'FORK · BACK: Thrown Edge also opens <b>Hunter’s Read</b> (<span class="kw kw-exposed">◎2</span>) → <b>Marked Fate</b> (<span class="kw kw-exposed">◎4</span>)' },
@@ -1811,6 +1829,33 @@ function gatedSteps(rot, list) {
 // is SKIPPED rather than stalling the party with an empty table.
 // ─────────────────────────────────────────────────────────────────────────────
 function lineOn() { return !!(S && S._rotations && S._line); }
+// What each hero LEARNED to answer with. `needs` is the trigger read off the card
+// that opened the beat — 'strike' only offers the answer when the beat it reacts
+// to actually dealt damage, so a react is a reaction and not a free extra card.
+const ANSWERS = {
+  ash:     { node: 'ash.answer',     name: 'Answer the Blade',   needs: 'strike', target: 'frontmost', fx: { dmg: 6, counter: 1 },        desc: 'Ash cuts in — 6 damage · <span class="kw kw-counter">↺ 1</span>.' },
+  elin:    { node: 'elin.answer',    name: 'Answer the Wound',   needs: 'any',    target: 'opener',    fx: { heal: 4, guard: 3 },         desc: 'Elin covers the one who opened — <span class="kw kw-heal">✚ 4</span> · <span class="kw kw-guard">⛨ 3</span>.' },
+  mira:    { node: 'mira.answer',    name: 'Answer the Opening', needs: 'strike', target: 'enemy',     fx: { dmg: 3, mark: 4 },           desc: 'Mira opens the wound — 3 damage · <span class="kw kw-exposed">◎ EXPOSED 4</span>.' },
+  cassia:  { node: 'cassia.answer',  name: 'Answer the Call',    needs: 'any',    target: 'opener',    fx: { guard: 6, counter: 1 },      desc: 'Cassia steps in front — <span class="kw kw-guard">⛨ 6</span> · <span class="kw kw-counter">↺ 1</span>.' },
+  branwen: { node: 'branwen.answer', name: 'Answer the Mark',    needs: 'any',    target: 'self',      fx: { lineRally: 4 },              desc: 'Branwen steadies the shot — this line’s next FINISHER deals <span class="kw kw-rally">▲ +4</span>.' },
+  hask:    { node: 'hask.answer',    name: 'Answer the Ley',     needs: 'any',    target: 'self',      fx: { chargeGain: 2, lineRally: 2 }, desc: 'Hask draws on the line — <b>◆ CHARGE 2</b> · the next FINISHER deals <span class="kw kw-rally">▲ +2</span>.' },
+};
+// The answer a hero may cut in with, INSTEAD of their own step, on a beat an ally
+// opened. Three gates, all of them the point: they must have learned it, it must
+// be somebody else's beat, and the trigger must have actually happened.
+function answerFor(x, from, opened) {
+  if (!lineOn() || !x || !from || x.id === from.id) return null;
+  // ONCE PER HERO PER LINE. An answer is free and CONTINUES the line, so without
+  // this the party ping-pongs free answers and the turn never ends — measured at
+  // 134 decisions a fight against 11, which is the Build 292 endless turn wearing
+  // a new hat. Answering is a cut-in, not a rotation.
+  if (S.line && S.line.answered && S.line.answered.indexOf(x.id) >= 0) return null;
+  const a = ANSWERS[x.id];
+  if (!a || !hasNode(a.node)) return null;
+  if (a.needs === 'strike' && !(opened && opened.fx && (opened.fx.dmg || opened.fx.smite || opened.fx.aoeDmg))) return null;
+  return a;
+}
+
 // What closing a line you already carried is worth, indexed by how many of this
 // line's EARLIER beats the finisher's owner played (0, 1 or 2). This is the whole
 // counterweight to spreading a line around, so it is one tunable array.
@@ -1912,6 +1957,11 @@ function dealBeat(from, ownNext) {
       ? { defs: ownNext }                          // you picked this branch; you stay on it
       : chainAtDepth(x, line.depth, stance);
     if (step) laid.push({ x, stance, defs: step.defs });
+    // …and, once LEARNED, the thing they can do INSTEAD because an ally just
+    // played into them. This is the only card on the table that exists because
+    // two heroes are in the same line.
+    const ans = answerFor(x, from, line.opened);
+    if (ans) laid.push({ x, stance, answer: ans });
   });
   if (!laid.length) return null;
   // The table clears where it sits, the way an unpicked fork sibling does — the
@@ -1921,9 +1971,21 @@ function dealBeat(from, ownNext) {
   });
   S.tempCards = S.tempCards.filter(t => !t.chain);
   const uids = [], names = [], who = [];
-  laid.forEach(({ x, stance, defs }) => {
+  laid.forEach(({ x, stance, defs, answer }) => {
     const group = ++S._chainGroup;
     const before = uids.length;
+    if (answer) {
+      const c = mkRotCard(x, stance, { name: answer.name, cost: 0, target: answer.target === 'opener' ? 'ally' : answer.target,
+        fx: Object.assign({}, answer.fx), stance: 'ANSWER · ' + x.def.name.toUpperCase(), desc: answer.desc }, 'temp');
+      c.temp = true; c.chain = true; c.branchGroup = group; c.uid = ++S._tuid; c.expiresTurn = S.turn;
+      c.lineStage = 'combo';                    // an answer CONTINUES the line; it never ends it
+      c.answer = true;
+      c.desc = c.desc + ' <i>Answering ' + (from.def ? from.def.name : 'them') + '.</i>';
+      S.tempCards.push(c);
+      uids.push(c.uid); names.push(answer.name);
+      if (uids.length > before) who.push(x);
+      return;
+    }
     defs.forEach(def => {
       const c = genChainStep(x, stance, def, group);
       if (!c) return;
@@ -1932,7 +1994,13 @@ function dealBeat(from, ownNext) {
       // `^FINISHER` off this string for the finisher's EP cost, the bond chain's
       // trigger and the meters. What is worth saying on the card face is the
       // FOCUS bonus, and applyLineFocus says it.
-      if (c.lineStage === 'finisher') applyLineFocus(c, x);
+      if (c.lineStage === 'finisher') {
+        applyLineFocus(c, x);
+        // A POWER-UP answer earlier in the line pays out HERE, on whoever closes.
+        const rally = (S.line && S.line.rally) || 0;
+        if (rally) { const k = ['dmg', 'heal', 'guard'].find(key => c.fx && c.fx[key]);
+          if (k) { c.fx[k] += rally; c.desc = c.desc + ' <b>▲ +' + rally + '</b>'; } }
+      }
       uids.push(c.uid); names.push(def.name);
     });
     if (uids.length > before) who.push(x);
@@ -1953,6 +2021,8 @@ function resolveLinePlay(card, h) {
   if (card.kind === 'opener') { line.opener = h.id; line.depth = 0; line.stanceOf = {}; line.stanceOf[h.id] = card.chainStance; }
   line.beats.push(h.id);
   line.depth++;
+  line.opened = card;          // what an ANSWER reads its trigger off
+  if (card.answer) { line.answered = line.answered || []; line.answered.push(h.id); }
   S.line = line;
   bankLineCharge(h, card);
   // The card that ENDS a line is the finisher, whenever in the line it lands.
@@ -5744,6 +5814,10 @@ async function resolveCard(card, targetId) {
     if (owner && heroHas(owner.id, 'hask.passive.kindling')) { owner.charge = Math.min(chargeCap(owner), (owner.charge || 0) + 1); popupAt(figEl(owner.id), '◆ ' + owner.charge, 'info'); }
   }
   // OVERCHARGE (Hask) — a self-cast that only builds ◆ CHARGE, no strike.
+  // A POWER-UP answer banks onto the LINE, not onto a hero — it empowers whoever
+  // closes, which is the point of answering somebody else's beat.
+  if (fx.lineRally && S.line) { S.line.rally = (S.line.rally || 0) + fx.lineRally;
+    popupAt(figEl(owner && owner.id), '▲ LINE +' + S.line.rally, 'rally'); }
   if (fx.chargeGain && owner) { owner.charge = Math.min(chargeCap(owner), (owner.charge || 0) + fx.chargeGain); popupAt(figEl(owner.id), '◆ ' + owner.charge, 'info'); }
   if (fx.heal || fx.guard || fx.buffDmg || fx.counter) {
     let receivers = [];

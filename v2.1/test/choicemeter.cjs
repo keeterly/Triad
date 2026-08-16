@@ -17,6 +17,9 @@ const { boot } = require('./harness.cjs');
 const REPS = +(process.env.REPS || 4);
 const LINE = process.env.LINE !== '0';
 const PACK = (process.env.PACK || 'husk,wraith,cultist').split(',');
+// ANS=0 measures the line WITHOUT the learned cross-character answers, so the
+// thing they add can be attributed rather than assumed.
+const ANS = process.env.ANS !== '0';
 
 (async () => {
   const t = await boot({ c: 0 });
@@ -35,10 +38,10 @@ const PACK = (process.env.PACK || 'husk,wraith,cultist').split(',');
       if (f.heal) return 'mend'; if (f.guard || f.counter) return 'shield';
       if (f.mark || f.buffDmg || f.chargeGain || f.lull) return 'setup';
       if (f.dmg || f.aoeDmg || f.castDmg || f.smite) return 'hurt'; return 'other'; };
-    window.__room = async (party, line, pack) => {
+    window.__room = async (party, line, pack, ans) => {
       RUN = newRun(party[0]); RUN.roster = party.slice(); RUN.active = party.slice();
       RUN.hp = {}; party.forEach(id => RUN.hp[id] = HEROES[id].maxHp);
-      RUN.nodes = ROTATION_GATES.slice(); RUN._rotations = true; RUN._line = line;
+      RUN.nodes = ROTATION_GATES.concat(ans ? ['ash.answer','elin.answer','mira.answer','cassia.answer','branwen.answer','hask.answer'] : []); RUN._rotations = true; RUN._line = line;
       startFight({ type:'fight', chapter:3, heroes:party.slice(), enemies:pack.slice(),
         useRunHp:true, floor:1, depth:3, narrator:'c' });
       if (!S) return null;
@@ -71,11 +74,11 @@ const PACK = (process.env.PACK || 'husk,wraith,cultist').split(',');
     };
   });
   const PARTIES = [['ash','elin'], ['ash','elin','mira'], ['cassia','branwen','hask']];
-  console.log(`\npack ${PACK.join('+')} · ${REPS} fights a row · LINE ${LINE ? 'ON' : 'off'}`);
+  console.log(`\npack ${PACK.join('+')} · ${REPS} fights a row · LINE ${LINE ? 'ON' : 'off'} · ANSWERS ${ANS ? 'learned' : 'not learned'}`);
   console.log('party                      SPREAD   ROLES on offer   decisions');
   for (const p of PARTIES) {
     const rs = [];
-    for (let i = 0; i < REPS; i++) { const r = await t.J(a => window.__room(a.p, a.line, a.pack), { p, line: LINE, pack: PACK }); if (r) rs.push(r); }
+    for (let i = 0; i < REPS; i++) { const r = await t.J(a => window.__room(a.p, a.line, a.pack, a.ans), { p, line: LINE, pack: PACK, ans: ANS }); if (r) rs.push(r); }
     if (!rs.length) { console.log(p.join('+').padEnd(26) + '  — no fight —'); continue; }
     const m = k => rs.reduce((a,r)=>a+r[k],0)/rs.length;
     console.log(`${p.join('+').padEnd(26)}  ${(m('spread')*100).toFixed(0).padStart(4)}%   ${m('roles').toFixed(2).padStart(13)}   ${m('n').toFixed(0).padStart(9)}`);
