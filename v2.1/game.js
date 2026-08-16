@@ -6238,7 +6238,24 @@ function burstReady() { return S && (S.momentum || 0) >= BURST_MIN && !S.executi
 // false to remove the whole layer cleanly (enemy attacks then resolve as before).
 // ---------------------------------------------------------------------------
 const PARRY_ENABLED = true;
-const PARRY_MISS_MULT = 1.6;   // an UNPARRIED blow lands HARDER (real-run only)
+// THE SWING (Build 288). A single read moved damage from 0x to 1.6x: a perfect
+// parry negated the blow OUTRIGHT and a missed one landed 60% HARDER. That is
+// why the game reads as all-or-nothing — block everything and nothing touches
+// you, block nothing and you die — and it is the opposite of what makes Clair
+// Obscur's defence work, which is that reads are FREQUENT and individually
+// survivable. Builds 281 and 284 bought the frequency; this is the other half.
+//
+//   perfect  0     -> 0.12   clean play still takes a graze, so a long fight
+//                            accumulates and you cannot stand at full HP. The
+//                            reward moves to BURST and the riposte, which is a
+//                            better prize than "nothing happened".
+//   missed   1.6   -> 1.0    fluffing a read means the blow lands. It does not
+//                            mean a bigger blow. A trash mob hits for 3-5, so
+//                            botching one is now genuinely survivable — which is
+//                            what lets a player learn the gesture on cheap
+//                            enemies instead of only on the ones that kill them.
+const PARRY_PERFECT_MULT = 0.12;
+const PARRY_MISS_MULT = 1.0;
 // ── COMBAT TENSION (the Clair-Obscur dial) ──────────────────────────────────
 // Defense is where the game is HARD: every blow is a string you must read and
 // execute, the timing bands are tight, and even a mob can hurt if you botch it.
@@ -7879,7 +7896,7 @@ async function enemyPhase() {
       const res = await runParry(figEl(ptHero.id), parryPatternFor(intent), intent.attackArt);
       const mit = res ? res.mit : 0;                    // fraction of the blow negated
       if (res && res.perfect) {
-        perfectParry = true; parryMul = 0;
+        perfectParry = true; parryMul = PARRY_PERFECT_MULT;
         popupAt(figEl(ptHero.id), '⚔ PERFECT — +BURST ✦', 'tech');
         flashNarrator(ptHero.def.name + ' turns the blow — the burst swells!');
         parryFlash(figEl(ptHero.id));
