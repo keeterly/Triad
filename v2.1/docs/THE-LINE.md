@@ -187,3 +187,49 @@ out of a stance you are not standing in — used to be dealt to Ash in chapter 2
 his ONLY card, in the first fight where a second hero exists, with nothing
 teaching what it was. It is descent-only now (`useRunHp`), which is also where
 varying the opening board actually matters.
+
+## Playtested for fun and balance (Build 299)
+
+**Balance — the real road.** `runmeter`, trio, parry skill 0.70, 3 floors:
+
+```
+seed 0: DIED at L7 boss · 5 fights · HP 100→83/17w→78/23w→36/37w→0/41w
+seed 1: survived        · 4 fights · HP 100→94/4w→94/9w→79/24w
+seed 2: survived        · 4 fights · HP 100→100→61/17w→88/17w
+1/3 floors ended in a wipe · median 4 fights survived
+```
+
+**1 in 3 wipes against a 2-in-4 target — slightly easy, but in the zone.** The HP
+curve is the shape a descent wants: a decline you can feel, with a camp that
+claws some back (seed 2), and wounds ratcheting the floor under you (41% wounded
+by the time seed 0 died). The EP lever named above is still unpulled and, on this
+evidence, **should stay unpulled** — the run is not short of throughput.
+
+Every seed reported `1 node(s) the walker fluffed`. Consistent across seeds, so it
+is rig cost rather than a balance signal — but read that column before trusting
+any floor number, which is the lesson that bought it.
+
+**Fun — do the options actually differ?** `linemeter` counts how many legal plays
+a decision has, and breadth is not fun: six cards that all do 8 damage is one
+choice wearing six hats. `choicemeter` reads the gap between the best card on the
+table and the average one (SPREAD), and how many different KINDS of thing are on
+offer at once (ROLES: hurt / mend / shield / setup).
+
+| party | SPREAD off → ON | ROLES off → ON |
+|---|---|---|
+| ash+elin | 32% → 24% | 2.15 → 2.58 |
+| ash+elin+mira | 59% → **34%** | 2.67 → **3.18** |
+| cassia+branwen+hask | 41% → 30% | 2.20 → 2.36 |
+
+The line put **more kinds of thing** on the table and made them **closer in
+value**. Read generously that is the trade the design wanted: the turn stops being
+"which number is biggest" and becomes "do I hurt, mend, shield or set up" — a
+judgement about the board rather than arithmetic.
+
+**Read sceptically it could also mean the choice matters less.** `__worth` is
+deliberately crude and cannot see the board — who is hurt, what is telegraphed,
+which foe is exposed. A narrower spread by a blind metric is exactly what you
+would see EITHER if the choice became board-dependent (the goal) OR if it went
+flat (the failure). This rig cannot tell those apart. Distinguishing them needs a
+bot that plays best-vs-random with the board in view, which is the honest next
+measurement and does not exist yet.

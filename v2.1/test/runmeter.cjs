@@ -17,6 +17,15 @@ const PARTY = (process.env.PARTY || 'ash').split(',');
   const errs = []; t.page.on('pageerror', e => errs.push(e.message));
   await t.page.emulateMedia({ reducedMotion: 'reduce' });
   await t.autoParry(true); await t.fastCombat(0.08);
+  // A CEREMONY BLOCKS THE FIGHT. triadCeremony() awaits a tap, and __room plays a
+  // whole fight inside ONE page evaluate — so clear(), which only runs BETWEEN
+  // nodes, can never reach one that fires mid-turn. Under the line (293) a shared
+  // combo lands allies' actions together, so bonds and triads fire constantly and
+  // this rig deadlocks on the first trio it forms. Auto-tap from inside the page.
+  await t.J(() => setInterval(() => {
+    const ov = document.querySelector('#overlay');
+    if (ov && !ov.classList.contains('hidden') && ov.querySelector('.ov-tap')) ov.click();
+  }, 50));
   await t.J(() => { try { localStorage.clear(); localStorage.setItem('kizuna2_1.tutorialSeen','1');
     localStorage.setItem('kizuna2_1.starters', JSON.stringify(['ash','elin','mira','cassia'])); } catch(_){}
     META.deaths = 2;
