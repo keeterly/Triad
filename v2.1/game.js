@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 289;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 290;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -281,7 +281,7 @@ function runDepth() { return RUN ? ((RUN.depthBase || 0) + (RUN.completed ? RUN.
 // read that as the size of the thing they had to learn.
 function tierOpen(tier) { return runDepth() >= (tier - 1) * 4; }
 // The deepest tier the road has unsealed, and what is still to come.
-function tierMax() { let t = 1; while (t < 5 && tierOpen(t + 1)) t++; return t; }
+function tierMax() { let t = 1; while (t < TREE_TIERS && tierOpen(t + 1)) t++; return t; }
 function sealedAhead(nodes) { return (nodes || []).filter(n => !tierOpen(n.tier)).length; }
 // one-time hand-hold: the first time you have embers to spend, the game walks
 // you through opening the Ember Tree and kindling a skill.
@@ -784,7 +784,10 @@ function heroOwnsNode(heroId, n) {
 // tier-3/4 soul.  That is the valve against the FFX endgame, where everybody
 // eventually knows everything and nobody is anyone.
 function isTeachable(n) {
-  return !!(n && !n.common && n.tier === 2 && isPassiveNode(n) && PASSIVE_DEFS[n.passive]);
+  // baseTier, not tier: Build 290 ASSIGNS `tier` for pacing, so the literal that
+  // used to pick out "a hero's mid-tree passives" now moves around. `baseTier` is
+  // the authored intent and never changes — which is the whole reason it is kept.
+  return !!(n && !n.common && n.baseTier === 2 && isPassiveNode(n) && PASSIVE_DEFS[n.passive]);
 }
 // every crossing this hero could buy right now
 function crossOffersFor(learner) {
@@ -2253,6 +2256,61 @@ const BOND_NODES = (function () {
   return out;
 })();
 BOND_NODES.forEach(n => { EMBER_TREE.push(n); NODE_BY_ID[n.id] = n; });
+
+// ═════════════════════════════════════════════════════════════════════════════
+// RE-TIER (Build 290) — the tree had four tiers and one of them was the tree
+//
+// Measured across a fielded trio's 100 nodes: tier 1 held 12, tier 2 held 67,
+// tiers 3 and 4 held 11 and 10. The tiers were not pacing anything — there was
+// a starter set and then EVERYTHING — so Build 286's trickle had a cliff rather
+// than a ramp: what you could see went 12 -> 64 the moment tier 2 opened, and
+// the tree became overwhelming in one step.
+//
+// Nothing is deleted and no node changes what it does. Tiers are ASSIGNED here
+// instead of authored, by ranking each hero's own nodes on (prerequisite depth,
+// cost, id) and cutting into five even bands. Prerequisite depth is the primary
+// key, so a node can never outrank the thing it requires — a property a test
+// asserts across the whole tree rather than trusting.
+//
+// Border stones ladder the same way. BOND stones stay at 2, because their real
+// gate is the campfire (bondNodeFor hides them until you have asked for that
+// pair's ability) and depth has nothing to do with it.
+//
+//   seen at depth   0    4    8   12   16
+//   before         12   64   75   85   85
+//   after          18   35   52   69   85
+const TREE_TIERS = 5;
+(function retierEmberTree() {
+  const chainMemo = {};
+  const chainOf = (n, seen) => {
+    if (!n) return 0;
+    if (chainMemo[n.id] != null) return chainMemo[n.id];
+    seen = seen || new Set();
+    if (seen.has(n.id)) return 0;                       // authored cycles cannot hang the boot
+    seen.add(n.id);
+    const rq = (n.requires || []).map(id => NODE_BY_ID[id]).filter(Boolean);
+    const d = rq.length ? 1 + Math.max(...rq.map(x => chainOf(x, seen))) : 0;
+    return (chainMemo[n.id] = d);
+  };
+  const band = (list) => list.forEach((n, i) => { n.tier = Math.min(TREE_TIERS, 1 + Math.floor(i * TREE_TIERS / list.length)); });
+  // The AUTHORED tier leads the sort. That is deliberate: it is what carries the
+  // designer's intent about where a thing belongs — a hero's capstones were
+  // written at tier 4 and must stay last, an opening card at tier 1 must stay
+  // first. Ranking on (chain, cost) alone scattered capstones into the early
+  // bands and basic cards into the late ones, which is a worse tree than the one
+  // it replaced. The banding only SPREADS what was already an ordering; it does
+  // not invent one.
+  const rank = (a, b) => (a.baseTier - b.baseTier) || (chainOf(a) - chainOf(b)) || (a.cost - b.cost) || (a.id < b.id ? -1 : 1);
+  // baseTier PERSISTS. `tier` becomes a pacing number the ramp owns; baseTier
+  // stays the authored statement of what a node IS, and anything that means
+  // "a mid-tree passive" or "a capstone" reads that instead (see isTeachable).
+  EMBER_TREE.forEach(n => { n.baseTier = n.tier; });
+  [...new Set(EMBER_TREE.filter(n => n.hero).map(n => n.hero))].forEach(h => {
+    band(EMBER_TREE.filter(n => n.hero === h && n.type !== 'bond').sort(rank));
+  });
+  band(EMBER_TREE.filter(n => n.common && n.type !== 'bond').sort(rank));
+  EMBER_TREE.forEach(n => { if (n.type === 'bond') n.tier = 2; });
+})();
 // A pair's node appears on their border only once they have shared a fire.
 // Build 269: the gate is no longer "you have sat with them once" — it is "you
 // ASKED, at the fire, what they can do together", and asking cost you the

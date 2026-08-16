@@ -2261,8 +2261,10 @@ const QUICK = process.argv.includes('--quick');
       return !!document.querySelector('#hand .card[data-card-name="Bulwark"]')
         && !!document.querySelector('#hand .card[data-card-name="Shield Bash"]');   // heavy now holds BOTH
     }));
-  check('ALT ALL-OUT: Rite of Endings is a tier-4 capstone allout node (needs the front sig)',
-    await J(() => { const n = NODE_BY_ID['ash.allout.execution']; return !!n && n.type === 'allout' && n.tier === 4 && n.requires.includes('ash.sig.front'); }));
+  // Build 290 spread the tiers to five and assigns them from the authored order,
+  // so a capstone is "at the top of the ladder" rather than literally tier 4.
+  check('ALT ALL-OUT: Rite of Endings is a capstone allout node (needs the front sig)',
+    await J(() => { const n = NODE_BY_ID['ash.allout.execution']; return !!n && n.type === 'allout' && n.baseTier === 4 && n.tier >= 4 && n.requires.includes('ash.sig.front'); }));
   check('ALT ALL-OUT: it EXECUTES a foe under 25% HP only once owned',
     await J(() => {
       RUN.nodes = [];
@@ -2730,6 +2732,46 @@ const QUICK = process.argv.includes('--quick');
       }
       return earlyAlways && [...seen].some(l => l >= 4) && seen.size >= 3;   // reaches deeper than the old 2–4 cluster
     }));
+  // ---------- BUILD 290: four tiers, one of which was the tree ----------
+  // Measured across a fielded trio's 100 nodes: tier 1 held 12 and tier 2 held
+  // 67. The tiers were not pacing anything — a starter set and then EVERYTHING —
+  // so Build 286's trickle had a cliff, not a ramp: 12 -> 64 visible the moment
+  // tier 2 opened.
+  check('RE-TIER: no tier is more than half the tree — the bands are even',
+    await J(() => {
+      const party = ['ash','elin','mira'];
+      const mine = EMBER_TREE.filter(n => party.includes(n.hero) || n.common);
+      const tiers = {}; mine.forEach(n => tiers[n.tier] = (tiers[n.tier] || 0) + 1);
+      const counts = Object.keys(tiers).map(k => tiers[k]);
+      const biggest = Math.max(...counts);
+      return TREE_TIERS === 5 && Object.keys(tiers).length === 5
+        && biggest < mine.length * 0.4 && Math.min(...counts) >= 10;
+    }));
+  check('RE-TIER: no node ever outranks the thing it requires',
+    await J(() => EMBER_TREE.every(n => (n.requires || [])
+      .every(id => !NODE_BY_ID[id] || NODE_BY_ID[id].tier <= n.tier))));
+  check('RE-TIER: the trickle is a RAMP now — each unlock adds a readable step',
+    await J(() => {
+      const party = ['ash','elin','mira'];
+      const drawn = (d) => {
+        RUN = newRun('ash'); RUN.roster = party.slice(); RUN.active = party.slice();
+        RUN.hp = {}; party.forEach(id => RUN.hp[id] = HEROES[id].maxHp);
+        RUN.embers = 60; RUN.completed = Array.from({ length: d }, (_, i) => i);
+        showEmberTree(() => {}, 'ash');
+        const n = document.querySelectorAll('.et-orb').length; hideOverlay(); return n;
+      };
+      const steps = [drawn(0), drawn(4), drawn(8), drawn(12), drawn(16)];
+      const gaps = steps.slice(1).map((v, i) => v - steps[i]);
+      // strictly growing, and no single unlock more than doubles what you can see
+      return steps.every((v, i) => i === 0 || v > steps[i - 1])
+        && gaps.every(g => g > 0 && g < steps[0] * 1.2)
+        && steps[steps.length - 1] > steps[0] * 2.5;
+    }));
+  check('RE-TIER: a BOND stone is paced by the fire, not by depth',
+    await J(() => EMBER_TREE.filter(n => n.type === 'bond').every(n => n.tier === 2)));
+  check('RE-TIER: every node still belongs to exactly one tier in range',
+    await J(() => EMBER_TREE.every(n => Number.isInteger(n.tier) && n.tier >= 1 && n.tier <= TREE_TIERS)));
+
   // ---------- BUILD 289: the enemy line racks too ----------
   // Build 244 pulled focus onto the acting HERO and deliberately left the foes
   // alone — you are choosing out of that group, so it should stay readable. True
@@ -3489,7 +3531,10 @@ const QUICK = process.argv.includes('--quick');
     }));
   check('EMERGENT: kindling an emergent node plays the KINDLE BURST cinematic',
     await J(() => {
-      RUN = newRun('mira'); RUN.active = ['mira']; RUN.embers = 30; RUN.completed = [0, 1, 2, 3, 4, 5, 6, 7];
+      // Build 290 spread the tree to five tiers, so an emergent node sits deeper
+      // than depth 8 now — this drill is about the BURST, not about the gate.
+      RUN = newRun('mira'); RUN.active = ['mira']; RUN.embers = 30;
+      RUN.completed = Array.from({ length: 17 }, (_, i) => i);
       RUN.nodes = ['mira.sig.back'];
       showEmberTree(() => {}, 'mira', 'mira.emergent.bloodscent');
       const buy = document.querySelector('#et-buy'); if (!buy) return false;
@@ -4342,9 +4387,10 @@ const QUICK = process.argv.includes('--quick');
     await J(() => ['branwen.emergent.hail', 'branwen.rider.hunt', 'branwen.rider.volley', 'branwen.rider.steady'].every(id => !NODE_BY_ID[id])));
   check('CAPSTONES branwen: three distinct build-paths survive (reckoning/cadence/killingblow)',
     await J(() => ['branwen.passive.reckoning', 'branwen.synergy.cadence', 'branwen.passive.killingblow'].every(id => !!NODE_BY_ID[id])));
-  check('CAPSTONE PARITY: every hero has 3 tier-4 capstones, each on its OWN feeder (no convergence)',
+  check('CAPSTONE PARITY: every hero has 3 capstones at the top, each on its OWN feeder',
     await J(() => ['ash', 'cassia', 'elin', 'mira', 'branwen', 'hask'].every(h => {
-      const caps = EMBER_TREE.filter(n => n.hero === h && n.tier === 4);
+      // capstones are an authored KIND, not a pacing number (Build 290)
+      const caps = EMBER_TREE.filter(n => n.hero === h && n.baseTier === 4);
       if (caps.length < 3) return false;
       const feeders = caps.map(c => (c.requires || []).join(','));   // each capstone's prerequisite chain
       return new Set(feeders).size === feeders.length;               // all distinct → divergent arcs
@@ -5053,7 +5099,9 @@ const QUICK = process.argv.includes('--quick');
     RUN.crossed = { ash: [commonOnBorder('ash', 'mira')[0].id, commonOnBorder('ash', 'cassia')[0].id] };
     RUN.embers = 99;
     RUN.bonds = { 'ash|mira': b, 'ash|cassia': b, 'cassia|mira': b };
-    RUN.floor = 1; RUN.completed = [0, 1, 2];
+    // unsealed to the top: Build 290 spread the tree over five tiers, and what
+    // this fixture is about is the WEAVE, not what a shallow depth reveals
+    RUN.floor = 1; RUN.completed = Array.from({ length: 17 }, (_, i) => i);
     RUN.map = generateDescent(RUN.roster, 1);
     return true;
   }, bond);
@@ -5099,9 +5147,9 @@ const QUICK = process.argv.includes('--quick');
       const again = crossOffersFor('ash').some(n => n.id === 'mira.passive.opportunist');
       RUN.crossed = {};
       return own === false && again === false; }));
-  check('WEAVE: TIER 2 ONLY — you learn a colleague’s technique, never their tier-3/4 soul',
-    await J(() => EMBER_TREE.filter(isTeachable).every(n => n.tier === 2)
-      && EMBER_TREE.some(n => n.tier >= 3 && isPassiveNode(n) && PASSIVE_DEFS[n.passive])));
+  check('WEAVE: a TECHNIQUE only — you learn a colleague’s craft, never their soul',
+    await J(() => EMBER_TREE.filter(isTeachable).every(n => n.baseTier === 2)
+      && EMBER_TREE.some(n => n.baseTier >= 3 && isPassiveNode(n) && PASSIVE_DEFS[n.passive])));
   // Build 250 unbound these five: their rule is READ at one seam rather than
   // dispatched, and every seam was already `hero id + hasNode` — the exact shape
   // heroOwnsNode replaces. They travel now, which is what gives a border more
@@ -5183,7 +5231,9 @@ const QUICK = process.argv.includes('--quick');
     RUN.crossed = { ash: ['cassia.passive.vigil',
       commonOnBorder('ash', 'mira')[0].id, commonOnBorder('ash', 'cassia')[0].id] };
     RUN.bonds = { 'ash|mira': 4, 'ash|cassia': BOND_KINDLED, 'cassia|mira': BOND_KINDLED - 1 };   // mira↔cassia stays UNWOVEN
-    RUN.embers = 14; RUN.floor = 1; RUN.completed = [0, 1, 2, 3];
+    // deep enough that every tier is unsealed — Build 290 spread the tree across
+    // five tiers, and this drill is about crossings, not about what depth reveals
+    RUN.embers = 14; RUN.floor = 1; RUN.completed = Array.from({ length: 17 }, (_, i) => i);
     RUN.map = generateDescent(RUN.roster, 1);
     // the canvas pans and zooms, and TREE_PAN/TREE_ZOOM persist per hero for the
     // whole session — an earlier tree test leaves Ash's view shoved sideways.
