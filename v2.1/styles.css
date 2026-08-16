@@ -1269,7 +1269,22 @@ body {
   box-shadow: 0 0 0 1px rgba(212,200,168,0.10), inset 0 1px 0 rgba(232,220,196,0.06), 0 4px 10px rgba(0,0,0,0.5);
   transition: color 0.18s, transform 0.18s, box-shadow 0.18s;
 }
-.map-node .mn-label { font-size: 8.4px; letter-spacing: 0.1em; line-height: 1.3; color: var(--ink-dim); max-width: 78px; text-shadow: 0 1px 3px #000; }
+/* A LABEL MUST NOT LEAVE ITS NODE. This was max-width:78px on a 62px node with no
+   height at all, so a long name did two things at once: it spilled sideways past
+   the dashed frame that is supposed to contain it, and a three-line name ("WHERE
+   THE STRONG FELL", "THE WATCHER'S STONE") grew the node taller than its
+   neighbours and shoved them down the column into each other. Reserve exactly
+   three lines for every node so the columns stay aligned whatever the name, and
+   never let the text run wider than the thing it names. */
+.map-node .mn-label {
+  font-size: 8.4px; letter-spacing: 0.1em; line-height: 1.3; color: var(--ink-dim);
+  max-width: 100%; height: 33px; text-shadow: 0 1px 3px #000;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3;
+  overflow: hidden;
+  /* NOT overflow-wrap:anywhere — that hyphenless mid-word break turned THE
+     REMEMBERED into "THE REMEMBER / ED". A long single word may overhang the node
+     by a few px; the 26px column gap absorbs it, and a broken word does not. */
+}
 .map-node .mn-pulse {
   position: absolute; top: 0; left: 50%; margin-left: -21px; width: 42px; height: 42px;
   border-radius: 50%; pointer-events: none; opacity: 0; z-index: 2;
