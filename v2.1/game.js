@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 297;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 298;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -2832,6 +2832,16 @@ function followUpFor(actorId, triggerId) {
 // waiting for: THEIR follow-up opens.
 function grantPrime(card) {
   if (!S || !card || !card.owner) return;
+  // ABSORBED BY THE LINE (Build 298). PRIMED existed to notice that two heroes had
+  // each finished a combo and hand one of them a free ANSWER that bonded the pair.
+  // The line does that natively and better: its beats are ALREADY shared between
+  // heroes, so `they struck as one` and `a hand held out` fire on the line itself
+  // — measured, a trio goes from no bonds to two inside a single line. Leaving
+  // PRIMED running alongside meant two systems teaching the same lesson at once:
+  // playtested at 295, closing a line stacked the PRIMED narrator ON TOP of the
+  // PRIMED lesson toast, one of them clipped off the left edge, with two dismiss
+  // buttons. The bond survives; the parallel bookkeeping does not.
+  if (lineOn()) return;
   const h = S.heroes.find(x => x.id === card.owner);
   if (!h || h.downed) return;
   // Who was standing ready BEFORE this combo landed?  Prefer a pair with no
@@ -3018,6 +3028,14 @@ function offerBondFollow(attackerId) {
     const partnerId = a === attackerId ? b : a;
     const partner = S.heroes.find(h => h.id === partnerId);
     if (!partner || partner.downed || !BOND_ASSIST[partnerId]) return;
+    // LEARNED, NOT GRANTED (Build 298). The free ANSWER used to appear for any
+    // woven pair, so a card the player never chose turned up in their hand with
+    // no account of where it came from. It is now gated on the pair's BOND NODE —
+    // the thing two heroes earn by sitting at a fire together (Build 264), which
+    // is already a deliberate, named, spent-embers decision. Under the line the
+    // gate is the whole point: everything in the hand is either a beat of the
+    // line or something you went and learned.
+    if (lineOn() && !bondNodeHeld(a, b)) return;
     if (S.tempCards.some(c => c.fx && c.fx.bondFollow && c.fx.bondFollow.key === key)) return;   // already offered
     S._assistedPairs.add(key);
     genTempCard({ kind: 'temp', follow: partnerId, owner: partnerId, ownerName: HEROES[partnerId].name,

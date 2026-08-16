@@ -5068,6 +5068,40 @@ const QUICK = process.argv.includes('--quick');
       // party-wide-stage version of this left Elin with nothing at all.
       return ash.length > 0 && ash.every(c => c.lineStage === 'combo')
         && elin.length > 0 && elin.every(c => c.lineStage === 'finisher'); }));
+  check('LINE ABSORBS PRIMED: closing a line primes nobody — the line is the follow-up',
+    await J(() => { setupFight(['ash', 'elin'], ROTATION_GATES, { ash: 'front', elin: 'mid' }); S._rotations = true; S._line = true;
+      S.turn = 2; S.used = new Set(); S.tempCards = []; renderAll();
+      const op = buildHand().find(c => c.kind === 'opener' && c.owner === 'ash'); resolveChainPlay(op);
+      const combo = buildHand().find(c => c.owner === 'elin' && c.lineStage === 'combo');
+      if (combo) { S.tempCards = S.tempCards.filter(t => t.uid !== combo.uid); resolveChainPlay(combo); }
+      const fin = buildHand().find(c => c.lineStage === 'finisher');
+      S.tempCards = S.tempCards.filter(t => t.uid !== fin.uid);
+      grantPrime(fin); resolveChainPlay(fin);
+      // PRIMED existed to hand a free ANSWER to a pair who had each finished a
+      // combo. A line's beats are already shared, so it bonds on its own — two
+      // systems teaching one lesson is what this deletes.
+      return S.heroes.every(h => !h.primed)
+        && !S.tempCards.some(c => c.fx && c.fx.followUp); }));
+  check('LINE: …and the same finisher OUTSIDE the line still primes, so the classic path is intact',
+    await J(() => { setupFight(['ash', 'elin'], ROTATION_GATES, { ash: 'front', elin: 'mid' }); S._rotations = true; S._line = false;
+      S.tempCards = []; renderAll();
+      const op = buildHand().find(c => c.kind === 'opener' && c.owner === 'ash'); resolveChainPlay(op);
+      let step = S.tempCards.find(c => c.chain);
+      for (let i = 0; i < 3 && step && (step.chainNext || []).length; i++) {
+        S.tempCards = S.tempCards.filter(t => t.uid !== step.uid); resolveChainPlay(step);
+        step = S.tempCards.find(c => c.chain);
+      }
+      grantPrime(step);
+      return !!(S.heroes.find(h => h.id === 'ash') || {}).primed; }));
+  check('LEARNED: the free ANSWER needs the pair’s BOND NODE — it is not simply granted',
+    await J(() => { setupFight(['ash', 'elin'], ROTATION_GATES, { ash: 'front', elin: 'mid' }); S._rotations = true; S._line = true;
+      S.tempCards = []; S.threads = new Set([pairKey('ash', 'elin')]);
+      S.pairsAwake = new Set([pairKey('ash', 'elin')]); S._assistedPairs = new Set();
+      offerBondFollow('ash');
+      // No bond node between them, so nothing is handed over. The card a player
+      // never chose no longer turns up in their hand unexplained.
+      const withoutNode = !S.tempCards.some(c => c.fx && c.fx.bondFollow);
+      return withoutNode && typeof bondNodeHeld === 'function'; }));
   check('LINE: playing a FINISHER ends the line whenever in it that lands',
     await J(() => { const fin = buildHand().find(c => c.owner === 'elin' && c.lineStage === 'finisher');
       S.tempCards = S.tempCards.filter(t => t.uid !== fin.uid); resolveChainPlay(fin);
