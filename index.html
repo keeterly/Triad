@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#0d0a08" />
   <title>KIZUNA | Resonance</title>
-  <link rel="stylesheet" href="styles.css?v=288" />
+  <link rel="stylesheet" href="styles.css?v=289" />
 </head>
 <body class="on-title">
 
@@ -182,7 +182,7 @@
           if (!v || !(v.v1 > cur) || document.getElementById('update-chip-v1')) return;
           var c = document.createElement('button');
           c.id = 'update-chip-v1';
-          c.textContent = '\u2726 UPDATE READY \u00b7 BUILD ' + v.v1 + ' \u2014 TAP';
+          c.textContent = '✦ UPDATE READY · BUILD ' + v.v1 + ' — TAP';
           c.style.cssText = 'position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:99999;cursor:pointer;font-family:Georgia,serif;font-size:12px;letter-spacing:0.2em;padding:9px 24px;border-radius:999px;color:#1a1206;background:linear-gradient(180deg,#f0d488,#b09154);border:1px solid rgba(240,212,136,0.8);box-shadow:0 4px 18px rgba(0,0,0,0.6)';
           c.onclick = function () { location.replace(location.pathname + '?u=' + v.v1); };
           document.body.appendChild(c);
