@@ -481,6 +481,28 @@ body {
 @media (hover: none) {
   #stage.focus-pull #party-half .figure .fig-art { filter: blur(0.9px) saturate(0.68) brightness(0.76); }
 }
+/* THE ENEMY LINE RACKS TOO (Build 289). At rest nothing here is soft — you are
+   reading the whole board and a permanently hazy foe is a depth cue charged
+   against the moment you most need to count them. The instant your aim SNAPS to
+   one, or a blow is landing on one, that foe pulls focus and the rest of the
+   line falls off it. Same grammar as the party rack, same 160ms pull, and text
+   never blurs. */
+#stage.focus-mark #enemy-half .figure .fig-art {
+  filter: blur(1.6px) saturate(0.68) brightness(0.74);
+}
+#stage.focus-mark #enemy-half .figure.fig-mark .fig-art {
+  filter: saturate(1.14) brightness(1.1) drop-shadow(0 0 11px rgba(210,90,90,0.34));
+}
+#enemy-half .figure .fig-art { transition: filter 160ms cubic-bezier(.3,.7,.3,1); }
+@media (prefers-reduced-motion: reduce) { #enemy-half .figure .fig-art { transition: none; } }
+@media (hover: none) {
+  #stage.focus-mark #enemy-half .figure .fig-art { filter: blur(0.9px) saturate(0.68) brightness(0.74); }
+}
+/* the DEPTH tiers apply to the foe rack the same way they do to the party */
+#stage.fx-soft.focus-mark #enemy-half .figure .fig-art { filter: saturate(0.6) brightness(0.62); }
+#stage.fx-flat.focus-mark #enemy-half .figure .fig-art { filter: none; opacity: 0.5; }
+#stage.fx-flat.focus-mark #enemy-half .figure.fig-mark .fig-art { filter: none; opacity: 1; }
+
 /* the far rank's TEXT dims a touch for depth but never blurs */
 #party-half .slot[data-row="back"] .fig-name, #enemy-half .slot[data-row="back"] .fig-name,
 #party-half .slot[data-row="back"] .fig-chips, #enemy-half .slot[data-row="back"] .fig-chips { opacity: 0.82; }

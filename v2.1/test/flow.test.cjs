@@ -2730,6 +2730,67 @@ const QUICK = process.argv.includes('--quick');
       }
       return earlyAlways && [...seen].some(l => l >= 4) && seen.size >= 3;   // reaches deeper than the old 2–4 cluster
     }));
+  // ---------- BUILD 289: the enemy line racks too ----------
+  // Build 244 pulled focus onto the acting HERO and deliberately left the foes
+  // alone — you are choosing out of that group, so it should stay readable. True
+  // while you are still choosing; the moment the aim SNAPS you have chosen, and
+  // the rest of the line is no longer a menu.
+  const focusFight = `() => {
+    RUN = newRun('ash'); RUN.roster = ['ash','elin','mira']; RUN.active = RUN.roster.slice();
+    RUN.hp = {}; RUN.roster.forEach(id => RUN.hp[id] = HEROES[id].maxHp);
+    startFight({ type:'fight', chapter:3, heroes:RUN.active.slice(), enemies:['husk','wraith','cultist'],
+      useRunHp:true, floor:1, depth:3, narrator:'focus' });
+    renderAll(); releaseFocus();
+    return document.getElementById('stage');
+  }`;
+  check('FOCUS: at REST nothing is soft — no foe is marked and the board reads whole',
+    await J(`(() => {
+      const st = (${focusFight})();
+      return !st.classList.contains('focus-mark') && !st.classList.contains('focus-pull')
+        && document.querySelectorAll('.figure.fig-mark').length === 0
+        && document.querySelectorAll('#enemy-half .figure').length >= 3;
+    })()`));
+  check('FOCUS: aiming at one foe pulls it forward and drops the rest of the line',
+    await J(`(() => {
+      const st = (${focusFight})();
+      const foe = livingEnemies()[1];
+      markEnemyFocus([figEl(foe.uid)]);
+      const marked = [...document.querySelectorAll('#enemy-half .figure.fig-mark')].map(e => e.dataset.fig);
+      const others = document.querySelectorAll('#enemy-half .figure:not(.fig-mark)').length;
+      return st.classList.contains('focus-mark') && marked.length === 1
+        && marked[0] === foe.uid && others >= 2;
+    })()`));
+  check('FOCUS: the action beat lights the STRIKER and the one receiving it, nobody else',
+    await J(`(() => {
+      const st = (${focusFight})();
+      const foe = livingEnemies()[1];
+      focusPair('ash', figEl(foe.uid));
+      const actor = [...document.querySelectorAll('#party-half .figure.fig-actor')].map(e => e.dataset.fig);
+      const marked = [...document.querySelectorAll('#enemy-half .figure.fig-mark')].map(e => e.dataset.fig);
+      return st.classList.contains('focus-pull') && st.classList.contains('focus-mark')
+        && actor.length === 1 && actor[0] === 'ash'
+        && marked.length === 1 && marked[0] === foe.uid;
+    })()`));
+  check('FOCUS: it always lets go — releaseFocus leaves the board crisp',
+    await J(`(() => {
+      const st = (${focusFight})();
+      focusPair('ash', figEl(livingEnemies()[0].uid));
+      releaseFocus();
+      return !st.classList.contains('focus-pull') && !st.classList.contains('focus-mark')
+        && document.querySelectorAll('.figure.fig-mark').length === 0
+        && document.querySelectorAll('.figure.fig-actor').length === 0;
+    })()`));
+  check('FOCUS: the striking card composes the pair — camShot and the rack agree',
+    await J(() => /focusPair\(card\.owner/.test(playCard.toString())
+      && /camShot\(\[actorEl, tgtEl\]/.test(playCard.toString())));
+  check('FOCUS: text never blurs, and the foe rack honours the DEPTH tiers',
+    await J(() => {
+      const css = [...document.styleSheets].flatMap(s => { try { return [...s.cssRules].map(r => r.cssText); } catch (_) { return []; } }).join(' ');
+      return /focus-mark #enemy-half .figure .fig-art/.test(css)
+        && /fx-flat.focus-mark/.test(css) && /fx-soft.focus-mark/.test(css)
+        && !/focus-mark[^{]*fig-name[^{]*\{[^}]*blur/.test(css);
+    }));
+
   // ---------- BUILD 286: the tree stops being overwhelming ----------
   // 156 nodes under ELEVEN type labels, but four of them (passive 60, branch 19,
   // card 18, bond 15) were 112 of the total — the other seven names split 44

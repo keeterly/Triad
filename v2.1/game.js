@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 287;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 289;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -4322,10 +4322,35 @@ function pullFocus(heroId) {
     st.classList.add('focus-pull');
   } catch (_) {}
 }
+// Mark the foe (or foes) a shot is ABOUT. `#stage.focus-mark` softens every
+// other enemy; an empty list clears it, which is what keeps the idle board
+// completely crisp — at rest nobody is marked, so nobody is soft.
+function markEnemyFocus(els) {
+  try {
+    const st = document.getElementById('stage'); if (!st) return;
+    const want = (els || []).filter(Boolean);
+    document.querySelectorAll('#enemy-half .figure.fig-mark').forEach(el => {
+      if (want.indexOf(el) < 0) el.classList.remove('fig-mark');
+    });
+    want.forEach(el => el.classList.add('fig-mark'));
+    st.classList.toggle('focus-mark', want.length > 0);
+  } catch (_) {}
+}
+// THE ACTION BEAT: the striker and whoever is receiving it, both lit, everyone
+// else off the lens — including the rest of the enemy line, which the old rack
+// left untouched.
+function focusPair(heroId, enemyEl) {
+  try {
+    const st = document.getElementById('stage'); if (!st) return;
+    pullFocus(heroId);
+    markEnemyFocus(enemyEl ? [enemyEl] : []);
+  } catch (_) {}
+}
 function releaseFocus() {
   try {
-    const st = document.getElementById('stage'); if (st) st.classList.remove('focus-pull');
+    const st = document.getElementById('stage'); if (st) { st.classList.remove('focus-pull'); st.classList.remove('focus-mark'); }
     document.querySelectorAll('.figure.fig-actor').forEach(el => el.classList.remove('fig-actor'));
+    document.querySelectorAll('.figure.fig-mark').forEach(el => el.classList.remove('fig-mark'));
   } catch (_) {}
 }
 
@@ -4586,6 +4611,13 @@ function attachDrag(el, card) {
     for (const e of _snapEls) if (nextEls.indexOf(e) < 0) e.classList.remove('fig-snapped');
     for (const e of nextEls) if (_snapEls.indexOf(e) < 0) e.classList.add('fig-snapped');
     _snapEls = nextEls;
+    // THE OTHER HALF OF THE RACK (Build 289). Build 244 pulled focus onto the
+    // acting HERO and deliberately left the enemy line alone, on the reasoning
+    // that you are choosing out of that group so it should stay readable. That
+    // holds while you are still choosing — but the moment the aim SNAPS to one
+    // foe you have chosen, and the rest of the line is no longer a menu. The
+    // enemy you are pointing at pulls focus the same way your own actor does.
+    markEnemyFocus(nextEls.filter(e => e && e.dataset && e.dataset.fig));
   };
   const setTech = (nextEl) => {
     if (nextEl === _techEl) return;
@@ -5034,6 +5066,8 @@ async function playCard(card, targetId) {
       camShot([actorEl, tgtEl].filter(Boolean),
         offensive ? { z: 1.085, pull: 0.42, pitch: 1.0, r: 0.35 }
                   : { z: 1.05, pull: 0.34, pitch: 0.7, r: -0.25, ms: 340 });
+      // the lens and the focus agree: this shot is about these two
+      focusPair(card.owner, (tgtEl && tgtEl.dataset && tgtEl.dataset.fig) ? tgtEl : null);
     }
     // The card HURLS into the target (the strike).  A forging rotation card then
     // BOUNCES back to its slot and splits — see forgeReturnFx, which waits for the
