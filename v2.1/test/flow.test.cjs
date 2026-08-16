@@ -3649,9 +3649,12 @@ const QUICK = process.argv.includes('--quick');
     await J(async () => {
       setupFight(['elin', 'ash'], ['elin.passive.overflow', 'elin.sig.back'], { elin: 'back', ash: 'front' });
       S.heroes.forEach(h => { h.hp = h.maxHp; h.guard = 0; });
-      await playCard(handCard('Benediction'), 'ash');   // heal 8, all overflow → +8 guard to both (+2 bond each)
+      // Build 287 halved Benediction's heal (4, not 8) — this check is about the
+      // SPILL reaching the non-target, not about the size of it.
+      const heal = (HEROES.elin.cards.back.sig.fx || {}).heal;
+      await playCard(handCard('Benediction'), 'ash');   // at full HP the whole heal overflows to guard
       const ash = S.heroes.find(h => h.id === 'ash'), elin = S.heroes.find(h => h.id === 'elin');
-      return elin.guard >= 8 && ash.guard >= 8;   // elin (non-target) got the spill ⇒ overflow works
+      return heal > 0 && elin.guard >= heal && ash.guard >= heal;   // elin (non-target) got the spill ⇒ overflow works
     }));
   // ALL-OUT upgrades — resolve a full burst (untimed strikes still complete)
   check('TREE cassia.allout.fortress: party braces before the all-out',
@@ -4770,7 +4773,10 @@ const QUICK = process.argv.includes('--quick');
         return finOk && bldOk && altOk;
       }))));
   check('ROTATION every rotation fx uses only supported effect keys (no dead effects)',
-    await J(() => { const ok = new Set(['dmg', 'mark', 'guard', 'heal', 'buffDmg', 'counter', 'step', 'warp', 'lull', 'taunt', 'chargeGain', 'spendCharge', 'castDmg', 'elem']);
+    await J(() => { // `smite` joined the list in Build 287 when Elin's rotation lines
+      // gained teeth; it resolves in the shared card path (see resolveCard), so it
+      // is a real effect and not a dead key — which is what this check exists for.
+      const ok = new Set(['dmg', 'mark', 'guard', 'heal', 'buffDmg', 'counter', 'step', 'warp', 'lull', 'taunt', 'chargeGain', 'spendCharge', 'castDmg', 'elem', 'smite']);
       return Object.values(ROTATIONS).every(st => Object.values(st).every(rot =>
         Object.values(rot.cards).every(c => Object.keys(c.fx || {}).every(k => ok.has(k))))); }));
   check('PROVOKE / TAUNT: a smart foe that would hunt the weakest instead strikes the TAUNTER’s row',

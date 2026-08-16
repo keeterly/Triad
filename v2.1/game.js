@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 286;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 287;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -1290,19 +1290,19 @@ const HEROES = {
     },
   },
   elin: {
-    school: 'light', tempo: 'steady', name: 'ELIN', cls: 'Cleric', archetype: 'Mender', identity: 'Keeps the line standing — wards and heals.', tint: 'var(--elin-tint)', maxHp: 24,
+    school: 'light', tempo: 'steady', name: 'ELIN', cls: 'Cleric', archetype: 'Warden of the Light', identity: 'Holds the line with light — wards and smites, and mends on the way.', tint: 'var(--elin-tint)', maxHp: 24,
     cards: {
       front: {
         core: { name: 'Smite',         cost: 1, target: 'frontmost', fx: { dmg: 5 },            desc: '5 holy damage to the nearest enemy.' },
         sig:  { name: 'Radiant Ward',  cost: 2, target: 'allies',    fx: { guard: 3, smite: 3 }, desc: 'Every ally gains 3 guard · <b>3 holy</b> to the nearest foe.' },
       },
       mid: {
-        core: { name: 'Mend',          cost: 1, target: 'ally',      fx: { heal: 5, smite: 3 }, desc: 'Heal an ally 5 · <b>3 holy</b> to the nearest foe.' },
-        sig:  { name: 'Sanctuary',     cost: 2, target: 'ally',      fx: { heal: 4, guard: 4 }, desc: 'Heal an ally 4 · they gain 4 guard.' },
+        core: { name: 'Mend',          cost: 1, target: 'ally',      fx: { heal: 3, smite: 4 }, desc: 'Heal an ally 3 · <b>4 holy</b> to the nearest foe.' },
+        sig:  { name: 'Sanctuary',     cost: 2, target: 'ally',      fx: { heal: 2, guard: 6 }, desc: 'Heal an ally 2 · they gain 6 guard.' },
       },
       back: {
-        core: { name: 'Distant Prayer',cost: 1, target: 'allies',    fx: { heal: 2, smite: 2 }, desc: 'Heal every ally 2 · <b>2 holy</b> to the nearest foe.' },
-        sig:  { name: 'Benediction',   cost: 2, target: 'ally',      fx: { heal: 8, smite: 3 }, desc: 'Heal an ally 8 · <b>3 holy</b> to the nearest foe.' },
+        core: { name: 'Distant Prayer',cost: 1, target: 'allies',    fx: { heal: 1, smite: 3 }, desc: 'Heal every ally 1 · <b>3 holy</b> to the nearest foe.' },
+        sig:  { name: 'Benediction',   cost: 2, target: 'ally',      fx: { heal: 4, smite: 5 }, desc: 'Heal an ally 4 · <b>5 holy</b> to the nearest foe.' },
       },
     },
   },
@@ -1514,18 +1514,18 @@ const ROTATIONS = {
       consecrate: { name: 'Consecrate',   cost: 0, target: 'frontmost', fx: { dmg: 6 },            stance: 'FINISHER · RADIANT',desc: '6 holy damage.' },
     } },
     mid: { opener: 'mend', cards: {
-      mend:      { name: 'Mend',           cost: 1, target: 'ally', fx: { heal: 5 },            stance: 'OPENER · MEND',    desc: 'Heal an ally 5.', next: [{ key: 'renew', gateNot: 'elin.sig.mid' }, { key: 'sanctuary', gate: 'elin.sig.mid' }, { key: 'cleanse', gate: 'elin.branch.mid' }] },
-      sanctuary: { name: 'Sanctuary',      cost: 0, target: 'ally', fx: { heal: 4, guard: 4 },  stance: 'COMBO · MEND',   desc: 'Heal an ally 4 · <span class="kw kw-guard">⛨ 4</span>.', next: ['renew'] },
-      renew:     { name: 'Renew',          cost: 0, target: 'ally', fx: { heal: 8 },            stance: 'FINISHER · MEND',  desc: 'Heal an ally 8.' },
-      cleanse:   { name: 'Cleanse',        cost: 0, target: 'ally', fx: { heal: 3, guard: 3 },  stance: 'COMBO · WARD',   desc: 'Heal an ally 3 · <span class="kw kw-guard">⛨ 3</span>.', next: ['wardingcircle'] },
+      mend:      { name: 'Mend',           cost: 1, target: 'ally', fx: { heal: 3, smite: 3 },  stance: 'OPENER · MEND',    desc: 'Heal an ally 3 · <b>3 holy</b> to the nearest foe.', next: [{ key: 'renew', gateNot: 'elin.sig.mid' }, { key: 'sanctuary', gate: 'elin.sig.mid' }, { key: 'cleanse', gate: 'elin.branch.mid' }] },
+      sanctuary: { name: 'Sanctuary',      cost: 0, target: 'ally', fx: { heal: 2, guard: 3 },  stance: 'COMBO · MEND',   desc: 'Heal an ally 2 · <span class="kw kw-guard">⛨ 4</span>.', next: ['renew'] },
+      renew:     { name: 'Renew',          cost: 0, target: 'ally', fx: { heal: 4, smite: 5 },  stance: 'FINISHER · MEND',  desc: 'Heal an ally 4 · <b>5 holy</b> to the nearest foe.' },
+      cleanse:   { name: 'Cleanse',        cost: 0, target: 'ally', fx: { heal: 2, guard: 4 },  stance: 'COMBO · WARD',   desc: 'Heal an ally 2 · <span class="kw kw-guard">⛨ 3</span>.', next: ['wardingcircle'] },
       wardingcircle:{ name: 'Warding Circle',cost: 0, target: 'allies', fx: { guard: 3 },       stance: 'FINISHER · WARD',  desc: 'A ring of light — every ally gains <span class="kw kw-guard">⛨ 3</span>.' },
     } },
     back: { opener: 'distantprayer', cards: {
-      distantprayer:{ name: 'Distant Prayer', cost: 1, target: 'allies', fx: { heal: 2 },        stance: 'OPENER · BLESS',   desc: 'Heal every ally 2.', next: [{ key: 'benediction', gateNot: 'elin.sig.back' }, { key: 'blessing', gate: 'elin.sig.back' }, { key: 'deepmercy', gate: 'elin.branch.back' }] },
-      blessing:  { name: 'Blessing',        cost: 0, target: 'ally',   fx: { heal: 3, buffDmg: 2 }, stance: 'COMBO · BLESS',  desc: 'Heal an ally <span class="kw kw-heal">✚ 3</span> · their next strike deals <span class="kw kw-rally">▲ +2</span>.', next: ['benediction'] },
-      benediction:{ name: 'Benediction',    cost: 0, target: 'ally',   fx: { heal: 8 },          stance: 'FINISHER · BLESS', desc: 'Heal an ally 8.' },
-      deepmercy: { name: 'Deep Mercy',      cost: 0, target: 'ally',   fx: { heal: 8 },          stance: 'COMBO · MERCY',  desc: 'Heal an ally 8.', next: ['dawnlight'] },
-      dawnlight: { name: 'Dawnlight',       cost: 0, target: 'allies', fx: { heal: 5 },          stance: 'FINISHER · MERCY', desc: 'Dawn breaks — heal every ally 5.' },
+      distantprayer:{ name: 'Distant Prayer', cost: 1, target: 'allies', fx: { heal: 1, smite: 3 }, stance: 'OPENER · BLESS',   desc: 'Heal every ally 1 · <b>3 holy</b> to the nearest foe.', next: [{ key: 'benediction', gateNot: 'elin.sig.back' }, { key: 'blessing', gate: 'elin.sig.back' }, { key: 'deepmercy', gate: 'elin.branch.back' }] },
+      blessing:  { name: 'Blessing',        cost: 0, target: 'ally',   fx: { heal: 2, buffDmg: 3 }, stance: 'COMBO · BLESS',  desc: 'Heal an ally <span class="kw kw-heal">✚ 3</span> · their next strike deals <span class="kw kw-rally">▲ +2</span>.', next: ['benediction'] },
+      benediction:{ name: 'Benediction',    cost: 0, target: 'ally',   fx: { heal: 3, buffDmg: 5 }, stance: 'FINISHER · BLESS', desc: 'Heal an ally 3 · <span class="kw kw-rally">▲ RALLY +5</span>.' },
+      deepmercy: { name: 'Deep Mercy',      cost: 0, target: 'ally',   fx: { heal: 4 },          stance: 'COMBO · MERCY',  desc: 'Heal an ally 4.', next: ['dawnlight'] },
+      dawnlight: { name: 'Dawnlight',       cost: 0, target: 'allies', fx: { heal: 2, smite: 6 }, stance: 'FINISHER · MERCY', desc: 'Dawn breaks — every ally heals 2 · <b>6 holy</b> to the nearest foe.' },
     } },
   },
 
