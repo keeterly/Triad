@@ -12,12 +12,25 @@ const LEVELS = process.env.LEVELS ? process.env.LEVELS.split(',').map(Number) : 
 const RUNS = +(process.env.RUNS || 3);
 const PARTY = (process.env.PARTY || 'ash,elin,mira').split(',');
 const RELIC = process.env.RELIC || null;   // read a relic's COST honestly, not by eye
+// LINE=0 runs the private per-hero chains the LINE replaced, so a floor-scale
+// number can be attributed to the card engine instead of guessed at.
+const LINE = process.env.LINE !== '0';
 
 (async () => {
   const t = await boot({ sm: 0 });
   const errs = []; t.page.on('pageerror', e => errs.push(e.message));
   await t.J(() => { try { localStorage.clear(); localStorage.setItem('kizuna2_1.tutorialSeen','1'); } catch(_){} });
   await t.autoParry(true);
+  // A CEREMONY BLOCKS THE FIGHT. triadCeremony() awaits a tap on the overlay, and
+  // this rig plays a whole turn inside ONE page evaluate — so dismissCeremony(),
+  // which only runs BETWEEN turns, can never reach one that fires mid-turn. That
+  // used to be rare. Under the line (Build 293) a shared combo lands allies'
+  // actions together, so bonds and triads fire constantly and this rig deadlocked
+  // on the first trio it formed. Auto-tap from inside the page, as a player does.
+  await t.J(() => setInterval(() => {
+    const ov = document.querySelector('#overlay');
+    if (ov && !ov.classList.contains('hidden') && ov.querySelector('.ov-tap')) ov.click();
+  }, 50));
 
   const fight = async (pack, floor) => {
     await t.J((a) => {
@@ -52,7 +65,7 @@ const RELIC = process.env.RELIC || null;   // read a relic's COST honestly, not 
     });
   };
 
-  console.log(`\nparty ${PARTY.join('+')}${RELIC ? ' · relic ' + RELIC : ''} · ${RUNS} descents per level · HP carried between fights`);
+  console.log(`\nparty ${PARTY.join('+')}${RELIC ? ' · relic ' + RELIC : ''} · ${RUNS} descents per level · HP carried between fights · LINE ${LINE ? 'ON' : 'off'}`);
   console.log('skill   fights  cleared   HP at the boss door   downs   wiped   turns/fight   parry clean');
   for (const skill of LEVELS) {
     const A = { f:0, won:0, downs:0, wipes:0, turns:0, clean:0, botched:0, endHp:[] };
@@ -66,6 +79,7 @@ const RELIC = process.env.RELIC || null;   // read a relic's COST honestly, not 
         RUN.hp = {}; p.forEach(id => RUN.hp[id] = HEROES[id].maxHp);
         RUN.nodes = EMBER_TREE.filter(n => n.type === 'card').map(n => n.id);
         RUN.floor = 1; RUN.completed = [];
+        RUN._line = a.line;                  // the A/B: false runs the private chains
         RUN.map = generateDescent(RUN.roster, 1);
         // the ordered combat spine of one real descent
         const out = []; let cur = RUN.map.find(n => n.col === 1), g = 0;
@@ -76,7 +90,7 @@ const RELIC = process.env.RELIC || null;   // read a relic's COST honestly, not 
           cur = nx[Math.floor(Math.random()*nx.length)];
         }
         return out;
-      }, { party: PARTY, relic: RELIC });
+      }, { party: PARTY, relic: RELIC, line: LINE });
       let wiped = false;
       for (const p of packs) {
         const f = await fight(p, 1);

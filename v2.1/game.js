@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 294;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 295;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -1868,7 +1868,12 @@ function applyLineFocus(c, x) {
   if (!k) return;
   c.fx[k] += bonus;
   c.focus = bonus;
-  c.desc = c.desc + ' <i>✦ FOCUS +' + bonus + ' — ' + x.def.name + ' has carried this line.</i>';
+  // TERSE ON PURPOSE. This first read '✦ FOCUS +N — <name> has carried this line',
+  // and on a card that already carries a two-line description (Crossguard, Renew)
+  // it pushed the text past the card's visible area — playtested at Build 294 and
+  // the descriptions were truncated mid-word. The boosted number is already on the
+  // icon row; this only has to say WHY it is bigger.
+  c.desc = c.desc + ' <b>✦ FOCUS +' + bonus + '</b>';
 }
 // THE CASTER'S BANK. Hask's ◆ CHARGE already builds on every spell he lands and
 // already cashes only through OVERLOAD. What a line adds is the part the design
@@ -10931,7 +10936,13 @@ function renderActionBar() {
     const head = String(card.stance || '').split('·')[0].trim().toUpperCase();
     const A = '<span class="c-arrow">→</span>';
     let inner = '';
-    if (head === 'OPENER') inner = `<span class="c-role">OPENER</span>${A}`;
+    // A REACHED opener reads 'REACH · MID', not 'OPENER · …', so it used to fall
+    // through this table and render NO role line at all — the one card on the
+    // table that did not say what it was. Harmless while the reach sat beside the
+    // hero's real opener; since Build 294 it IS that hero's whole hand, so on a
+    // reach turn one hero's card silently stopped announcing itself. Trust the
+    // card's KIND over its label.
+    if (head === 'OPENER' || card.kind === 'opener') inner = `<span class="c-role">OPENER</span>${A}`;
     else if (head === 'COMBO') inner = `${A}<span class="c-role">COMBO</span>${A}`;
     else if (head === 'FINISHER') inner = `${A}<span class="c-role">FINISHER</span>`;
     else return '';
