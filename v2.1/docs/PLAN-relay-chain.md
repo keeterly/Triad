@@ -1,8 +1,16 @@
 # The Relay Chain — a plan for a fresh session
 
-**Status:** Step 1 BUILT, MEASURED, and left OFF by default at Build 292
-(784/784 checks). The plan below is unchanged from Build 291 — read it first, then
-read *Step 1 — what the measurement said*, which is the reason the switch is off.
+**Status: SUPERSEDED at Build 293 by [THE LINE](THE-LINE.md).** Read that first.
+
+Step 1 of this plan was built and measured at Build 292 and did not deliver: the
+forced hand-off narrowed the fan on every beat and `plays` came back flat. The
+line keeps this plan's insight — a combo belongs to the party, not to a hero —
+and drops the part that failed, which was *forcing* the pass instead of offering
+it. Dealing every stage party-wide roughly doubled `plays` for a trio.
+
+This document is kept because the measurement below is the reason the design
+changed, and because its three warnings all held. The relay itself survives in the
+tree only as `RUN._line = false`, the A/B baseline the meter measures against.
 
 ---
 
@@ -14,7 +22,7 @@ hero a step out of **their** rotation, the last hero the line reaches is handed
 the FINISHER, and a stance change abandons the line for the whole party.
 
 **It does not move `plays`.** That was the number this redesign exists to move,
-and the plan says in advance what to do if it doesn't. `test/relaymeter.cjs`
+and the plan says in advance what to do if it doesn't. `test/linemeter.cjs`
 A/Bs the relay against the private chains it replaces, in the same fight, with
 the tree fully granted and the enemy pack pinned:
 
@@ -63,7 +71,7 @@ exactly as Build 291 did. Flipping it on is one line in `newBattle`.
   there, wiping the record of who the line had reached — and the next pass handed
   it straight back to them. Two heroes traded free cards forever at 0 EP. The
   meter had a per-turn card cap and reported this as "12 cards a turn"; hand-playing
-  one turn (`test/probe-relay.cjs`) is what actually showed it. **The repo lesson
+  one turn (`test/probe-line.cjs`) is what actually showed it. **The repo lesson
   held: the surprising number was a bug, not a finding.**
 - **The meters count a turn only if it finishes.** `turns++` sat after
   `endTurn()`, so a fight won inside the card loop divided by 1 — flattering

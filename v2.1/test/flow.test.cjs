@@ -4892,7 +4892,11 @@ const QUICK = process.argv.includes('--quick');
       const builder = S.tempCards.length === 1 && S.tempCards[0].name === 'Rising Slash';
       const rs = S.tempCards[0]; S.tempCards = S.tempCards.filter(t => t.uid !== rs.uid); resolveChainPlay(rs);
       const cw = S.tempCards.find(c => c.name === 'Crashing Wave');
-      return builder && !!cw && cw.fx.dmg === 11; }));   // builder → finisher (base Crashing Wave 11)
+      // Base Crashing Wave is 11. Ash took BOTH earlier beats of this line here
+      // (he is alone), so his finisher also carries the full LINE_FOCUS — the
+      // empowerment for carrying a line yourself, on the card face before it is
+      // chosen. The structural claim is unchanged: builder node → middle step.
+      return builder && !!cw && cw.fx.dmg === 11 + LINE_FOCUS[2] && cw.focus === LINE_FOCUS[2]; }));
   check('ROTATION COMBO label: opener/combo/finisher chain cards carry the renamed COMBO tag + chain flag',
     await J(() => { setupFight(['ash'], ['ash.sig.front'], { ash: 'front' }); S._rotations = true; renderAll();
       const op = buildHand().find(c => c.kind === 'opener'); const openerOk = /^OPENER/.test(op.stance) && op.chain === true;
@@ -4995,33 +4999,86 @@ const QUICK = process.argv.includes('--quick');
       && devPreviewRotations.toString().includes('_rotations = true')
       && devPreviewRotations.toString().includes('ROTATION_GATES')
       && Array.isArray(ROTATION_GATES) && ROTATION_GATES.length === 37));
-  // THE RELAY (Build 292): an opener no longer forges for the hero who played it
-  // — it hands the next step to everyone ELSE, out of THEIR rotation. Ash opening
-  // must therefore put a card in Elin's slot and leave Ash holding nothing, and
-  // Elin's own opener must be off the table while the line is in flight.
-  check('RELAY: an opener hands the next step to the OTHER heroes, not back to its own owner',
-    await J(() => { setupFight(['ash', 'elin'], ['ash.sig.front', 'ash.branch.front'], { ash: 'front', elin: 'mid' }); S._rotations = true; S._relay = true; renderAll();
+  // THE LINE (Build 293): a combo is one thing the PARTY builds, in three beats.
+  // Playing any opener discards every opener and lays out what EVERY living hero
+  // can answer with — the fan stays party-wide instead of collapsing onto one
+  // hero, which is the whole difference from the relay this replaced.
+  check('LINE: an opener discards every opener and deals EVERY hero their answer',
+    await J(() => { setupFight(['ash', 'elin'], ['ash.sig.front', 'ash.branch.front', 'elin.sig.mid'], { ash: 'front', elin: 'mid' }); S._rotations = true; S._line = true; renderAll();
       const op = buildHand().find(c => c.kind === 'opener' && c.owner === 'ash'); S.tempCards = []; resolveChainPlay(op);
       const hand = buildHand();
-      const ash = hand.filter(c => c.owner === 'ash'), elin = hand.filter(c => c.owner === 'elin');
-      return ash.length === 0                                   // Ash passed the line on; nothing came back
-        && elin.length > 0 && elin.every(c => c.relayStep)       // Elin holds what she was handed…
-        && !elin.some(c => c.name === 'Mend')                    // …in place of her own opener
-        && elin.every(c => Object.values(ROTATIONS.elin.mid.cards).some(d => d.name === c.name)); }));   // HER vocabulary
-  check('RELAY: with only one hero left to reach, the step handed over is the FINISHER',
-    await J(() => { const handed = buildHand().filter(c => c.owner === 'elin');
-      // ash+elin is a two-beat relay: the last recipient closes the line rather
-      // than being handed a builder nobody is left to answer.
-      return handed.length > 0 && handed.every(c => c.relayStep === 'finish' && /FINISHER/.test(c.stance)); }));
-  check('RELAY: a line in flight withholds every opener — and a stale flag cannot lock the hand',
-    await J(() => { const duringRelay = buildHand().filter(c => c.kind === 'opener').length === 0;
-      // The cards a relay handed out can leave by routes that never touch S.relay
-      // (a HEX eating one, its holder going down). The flag must not survive them:
-      // if it did, the party would hold nothing at all until the turn rolled over.
+      return hand.length > 0
+        && hand.every(c => c.lineStage === 'combo')                    // one stage, party-wide
+        && new Set(hand.map(c => c.owner)).size === 2                  // BOTH heroes answer, opener included
+        && !hand.some(c => c.kind === 'opener')                        // every opener discarded
+        && hand.filter(c => c.owner === 'ash').length > 0; }));        // the opener's owner is still in it
+  check('LINE: each hero answers out of THEIR OWN row, never the opener’s',
+    await J(() => buildHand().every(c => {
+      const h = S.heroes.find(x => x.id === c.owner);
+      return Object.values(ROTATIONS[c.owner][h.row].cards).some(d => d.name === c.name); })));
+  check('LINE: playing any combo deals the FINISHER stage, party-wide',
+    await J(() => { const combo = buildHand().find(c => c.owner === 'elin');
+      S.tempCards = S.tempCards.filter(t => t.uid !== combo.uid); resolveChainPlay(combo);
+      const hand = buildHand();
+      return hand.length > 0 && hand.every(c => c.lineStage === 'finisher' && /FINISHER/.test(c.stance))
+        && new Set(hand.map(c => c.owner)).size === 2; }));
+  check('LINE: FOCUS empowers the finisher of whoever CARRIED the line',
+    await J(() => { const hand = buildHand();
+      // Elin took the combo, so her finisher carries LINE_FOCUS[1]; Ash opened, so
+      // his does too. A hero with no beats in this line gets no bonus — which is
+      // what makes carrying it yourself worth something.
+      const elin = hand.filter(c => c.owner === 'elin');
+      return elin.length > 0 && elin.every(c => c.focus === LINE_FOCUS[1]) && LINE_FOCUS[1] > 0; }));
+  check('LINE: closing it clears the table and gives the openers back',
+    await J(() => { const fin = buildHand().find(c => c.owner === 'elin');
+      S.tempCards = S.tempCards.filter(t => t.uid !== fin.uid); resolveChainPlay(fin);
+      const back = buildHand().filter(c => c.kind === 'opener' && !c.reach);
+      // Ash opened this line, so his latch is unspent here only because the check
+      // drove resolveChainPlay directly rather than through playCard.
+      return S.line === null && S.tempCards.filter(t => t.chain).length === 0 && back.length === 2; }));
+  check('LINE: an untreed party SKIPS the combo stage — the base line is opener → finisher',
+    await J(() => { setupFight(['ash', 'elin'], [], { ash: 'front', elin: 'mid' }); S._rotations = true; S._line = true; renderAll();
+      const op = buildHand().find(c => c.kind === 'opener' && c.owner === 'ash'); S.tempCards = []; resolveChainPlay(op);
+      const hand = buildHand();
+      // Nobody owns a CARD node, so nobody has a middle beat to offer. The stage is
+      // skipped rather than stalling the party on an empty table.
+      return hand.length > 0 && hand.every(c => c.lineStage === 'finisher'); }));
+  check('LINE: a stale flag cannot lock the hand — the openers come back',
+    await J(() => { const duringLine = buildHand().filter(c => c.kind === 'opener').length === 0;
+      // A dealt card can leave by routes that never touch S.line (a HEX eating it,
+      // its owner going down). If the flag survived that, the party would hold
+      // nothing at all until the turn rolled over.
       S.tempCards = [];
-      const back = buildHand().filter(c => c.kind === 'opener' && !c.reach);   // the REACH is an opener too
-      const recovered = back.length === 2 && new Set(back.map(c => c.owner)).size === 2 && S.relay === null;
-      return duringRelay && recovered; }));
+      const back = buildHand().filter(c => c.kind === 'opener' && !c.reach);
+      return duringLine && S.line === null && back.length === 2 && new Set(back.map(c => c.owner)).size === 2; }));
+  check('LINE: HASK banks ◆ CHARGE per beat he takes — and forfeits it if he does not close',
+    await J(() => { setupFight(['hask', 'ash'], ROTATION_GATES, { hask: 'mid', ash: 'front' }); S._rotations = true; S._line = true; renderAll();
+      const hask = S.heroes.find(h => h.id === 'hask'); hask.charge = 0; hask._pendCharge = 0;
+      const op = buildHand().find(c => c.kind === 'opener' && c.owner === 'hask'); S.tempCards = []; resolveChainPlay(op);
+      const bankedOnOpen = hask._pendCharge === 2;                    // opening banks the stack
+      const ashCombo = buildHand().find(c => c.owner === 'ash');
+      S.tempCards = S.tempCards.filter(t => t.uid !== ashCombo.uid); resolveChainPlay(ashCombo);
+      const ashFin = buildHand().find(c => c.owner === 'ash');
+      S.tempCards = S.tempCards.filter(t => t.uid !== ashFin.uid); resolveChainPlay(ashFin);
+      // Ash closed it, so the stack Hask opened on never arrives.
+      return bankedOnOpen && hask._pendCharge === 0 && (hask.charge || 0) === 0; }));
+  check('LINE: HASK closing the line he opened CASHES the bank into ◆ CHARGE',
+    await J(() => { setupFight(['hask', 'ash'], ROTATION_GATES, { hask: 'mid', ash: 'front' }); S._rotations = true; S._line = true; renderAll();
+      const hask = S.heroes.find(h => h.id === 'hask'); hask.charge = 0; hask._pendCharge = 0;
+      const op = buildHand().find(c => c.kind === 'opener' && c.owner === 'hask'); S.tempCards = []; resolveChainPlay(op);
+      const hc = buildHand().find(c => c.owner === 'hask');
+      S.tempCards = S.tempCards.filter(t => t.uid !== hc.uid); resolveChainPlay(hc);      // he answers too: +1
+      const hf = buildHand().find(c => c.owner === 'hask');
+      S.tempCards = S.tempCards.filter(t => t.uid !== hf.uid); resolveChainPlay(hf);      // …and closes
+      return (hask.charge || 0) === 3 && hask._pendCharge === 0 && S.line === null; }));
+  check('LINE: moving DROPS it for the whole party, bank included',
+    await J(() => { setupFight(['hask', 'ash'], ROTATION_GATES, { hask: 'mid', ash: 'front' }); S._rotations = true; S._line = true; renderAll();
+      const hask = S.heroes.find(h => h.id === 'hask'); hask.charge = 0; hask._pendCharge = 0;
+      const op = buildHand().find(c => c.kind === 'opener' && c.owner === 'hask'); S.tempCards = []; resolveChainPlay(op);
+      const dealt = S.tempCards.filter(t => t.chain).length > 0;
+      purgeChain('ash');                                              // one hero steps out of formation
+      return dealt && S.tempCards.filter(t => t.chain).length === 0 && S.line === null
+        && hask._pendCharge === 0 && (hask.charge || 0) === 0; }));
   check('ROTATION bounce-back: origin = the HOME slot (drag-start), start = the struck ENEMY (hurl impact)',
     await J(() => { setupFight(['ash'], ['ash.sig.front'], { ash: 'front' }); S._rotations = true; renderAll();
       const op = buildHand().find(c => c.kind === 'opener'); const en = S.enemies.find(e => !e.dead);
@@ -5886,15 +5943,20 @@ const QUICK = process.argv.includes('--quick');
   // owner, so the property that survives — and the one worth protecting — is that
   // reaching out of stance never drags an ALLY out of theirs: what each hero is
   // handed comes from their own row's rotation, whichever line opened.
-  check('REACH: reaching out of stance still hands every ally THEIR OWN row’s step',
-    await J(async () => { S.turn = 2; S.used = new Set(); S.ep = 12; S.tempCards = []; S.relay = null; S._relay = true;
+  // Before the line this asserted that a REACHED line forged its own combo back
+  // into the reacher's hand. Under the line an opener deals a stage to everyone,
+  // so the property that matters is that reaching keeps the REACHER in the line
+  // they reached into while never dragging an ALLY out of the row they stand in.
+  check('REACH: the reacher keeps answering from the line they reached into; allies keep their own row',
+    await J(async () => { S.turn = 2; S.used = new Set(); S.ep = 12; S.tempCards = []; S.line = null; S._line = true;
       const r = buildHand().find(c => c.reach);
-      const reachedRow = (r.chainNext || []).length > 0 && r.chainStance !== S.heroes.find(x => x.id === r.owner).row;
+      const own = S.heroes.find(x => x.id === r.owner).row;
+      const reachedRow = (r.chainNext || []).length > 0 && r.chainStance !== own;
       await playCard(r, (livingEnemies()[0] || {}).uid);
-      const handed = buildHand().filter(c => c.chain && c.relayStep);
-      return reachedRow && handed.length > 0 && handed.every(c => {
+      const dealt = buildHand().filter(c => c.chain && c.lineStage);
+      return reachedRow && dealt.length > 0 && dealt.every(c => {
         const h = S.heroes.find(x => x.id === c.owner);
-        return c.owner !== r.owner && c.chainStance === h.row; }); }));
+        return c.chainStance === (c.owner === r.owner ? r.chainStance : h.row); }); }));
   check('REACH: a lone survivor has nobody to reach past — no reach card',
     await J(() => { setupFight(['ash'], [], { ash: 'front' }); S._rotations = true;
       S.turn = 1; S.used = new Set();

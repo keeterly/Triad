@@ -1,21 +1,22 @@
-// RELAYMETER — decision density, measured, with the relay A/B'd against the
-// private chains it replaces.
+// LINEMETER — decision density, measured, with the party-wide LINE A/B'd against
+// the private per-hero chains it replaces.
 //
-// The relay (Build 292) exists to raise ONE number: how many real choices a turn
-// contains. The old system gave each hero their own chain, so a turn was three
-// independent picks at one target and `plays` — the count of legal cards at a
-// decision point — sat flat at 3. The relay passes the line BETWEEN heroes, so
-// what a hero holds depends on who opened and who answered.
+// One number decides this: how many real choices a turn contains. The old system
+// gave each hero their own chain, so a turn was three independent picks at one
+// target. The RELAY of Build 292 tried passing the chain between heroes and made
+// it worse — forcing the hand-off narrowed the fan every beat. The LINE deals
+// every stage party-wide instead, so the question is whether keeping all three
+// heroes in the fan at all three beats actually shows up here.
 //
-//   node test/relaymeter.cjs
+//   node test/linemeter.cjs
 //
-// Reports, per party size, with the relay OFF (today) and ON (the change):
+// Reports, per party size, with the line OFF (today) and ON (the change):
 //   plays      mean legal plays at every decision point in the fight
 //   mid        mean legal plays at decisions AFTER the turn's first card —
 //              this is the number the plan named, and the one to beat
 //   cards/turn how much the party actually gets to do
-//   dmg/turn   throughput, because the relay reaching finishers every turn
-//              moves difficulty whether or not it moves decisions
+//   dmg/turn   throughput, because reaching finishers more often moves difficulty
+//              whether or not it moves decisions
 //   P:E        player cards per enemy action
 //
 // Runs the whole fight inside the page — thousands of CDP polls per fight were
@@ -27,13 +28,13 @@ const REPS = +(process.env.REPS || 3);
 // builder that inserts a middle step) and nothing else — the fork nodes are
 // type:'branch' and stay unowned, so every rotation is a single line. 'full'
 // grants all 37 ROTATION_GATES, the dev-preview build, where every opener forks.
-// This matters more to the relay than to the chains it replaces: forks are
-// exactly where a handed step becomes a CHOICE rather than a card, so measuring
-// only the un-forked build would understate the relay by construction.
+// This matters more to the line than to the chains it replaces: forks are exactly
+// where a dealt stage becomes a CHOICE rather than a card, so measuring only the
+// un-forked build would understate it by construction.
 const TREE = process.env.TREE || 'full';
 // A FIXED ENEMY PACK. generateDescent() rolls a different pack per fight, and
 // measured across two runs of the SAME configuration that swing was larger than
-// the relay-vs-baseline gap it was supposed to reveal — cards/turn moved 5.6 to
+// the effect it was supposed to reveal — cards/turn moved 5.6 to
 // 9.5 and P:E 4.7:1 to 11.9:1 with nothing changed but the seed. Pin the pack so
 // the A/B compares the card engine and not the encounter.
 const PACK = (process.env.PACK || 'husk,wraith,cultist').split(',');
@@ -46,8 +47,8 @@ const PACK = (process.env.PACK || 'husk,wraith,cultist').split(',');
     // A CEREMONY BLOCKS THE FIGHT. triadCeremony() awaits a tap on the overlay,
     // and this rig runs a whole fight inside ONE page evaluate — so nothing on
     // the Node side can tap it and the run deadlocks. The relay makes this the
-    // common case rather than a rarity: it lands every hero's action every turn,
-    // so "they struck as one" fires constantly and trios form fast. Auto-tap the
+    // common case rather than a rarity: a shared line lands allies' actions
+    // together, so "they struck as one" fires constantly. Auto-tap the
     // ceremony overlays from inside the page, which is what a player does.
     window.__triads = 0;
     setInterval(() => {
@@ -60,7 +61,7 @@ const PACK = (process.env.PACK || 'husk,wraith,cultist').split(',');
       RUN.nodes = tree === 'full' ? ROTATION_GATES.slice()
                                   : EMBER_TREE.filter(n => n.type === 'card').map(n => n.id);
       RUN._rotations = true;
-      RUN._relay = relay;               // the A/B: false runs the old private chains
+      RUN._line = relay;               // the A/B: false runs the old private chains
       startFight({ type:'fight', chapter:3, heroes:party.slice(), enemies:pack.slice(),
         useRunHp:true, floor:1, depth:3, narrator:'r' });
       if (!S) return null;
@@ -105,7 +106,7 @@ const PACK = (process.env.PACK || 'husk,wraith,cultist').split(',');
 
   const PARTIES = [['ash','elin'], ['ash','elin','mira'], ['cassia','branwen','hask']];
   console.log('\ntree: ' + TREE + '   pack: ' + PACK.join('+') + '   reps: ' + REPS);
-  console.log('party                      relay   plays    MID   cards/turn   dmg/turn    P:E    HP  ceremonies');
+  console.log('party                       line   plays    MID   cards/turn   dmg/turn    P:E    HP  ceremonies');
   for (const p of PARTIES) {
     for (const relay of [false, true]) {
       const rs = [];
