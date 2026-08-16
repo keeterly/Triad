@@ -17,8 +17,8 @@ const { boot } = require('./harness.cjs');
 const REPS = +(process.env.REPS || 4);
 const LINE = process.env.LINE !== '0';
 const PACK = (process.env.PACK || 'husk,wraith,cultist').split(',');
-// ANS=0 measures the line WITHOUT the learned cross-character answers, so the
-// thing they add can be attributed rather than assumed.
+// ANS=0 measures the line with NO bonds held, so what the bond-unlocked follow-ups
+// add can be attributed rather than assumed.
 const ANS = process.env.ANS !== '0';
 
 (async () => {
@@ -41,7 +41,19 @@ const ANS = process.env.ANS !== '0';
     window.__room = async (party, line, pack, ans) => {
       RUN = newRun(party[0]); RUN.roster = party.slice(); RUN.active = party.slice();
       RUN.hp = {}; party.forEach(id => RUN.hp[id] = HEROES[id].maxHp);
-      RUN.nodes = ROTATION_GATES.concat(ans ? ['ash.answer','elin.answer','mira.answer','cassia.answer','branwen.answer','hask.answer'] : []); RUN._rotations = true; RUN._line = line;
+      RUN.nodes = ROTATION_GATES.slice();
+      // A follow-up is unlocked by the PAIR's bond node, not a hero's tree.
+      // A bond node is CROSSED (RUN.crossed[hero]), not owned like a tree node —
+      // that is the whole difference between learning your own line and earning
+      // something with somebody else.
+      RUN.crossed = {};
+      if (ans) for (let i = 0; i < party.length; i++) for (let j = i + 1; j < party.length; j++) {
+        const nd = NODE_BY_ID['bond.' + [party[i], party[j]].sort().join('|')];
+        if (!nd) continue;
+        (RUN.crossed[party[i]] = RUN.crossed[party[i]] || []).push(nd.id);
+        (RUN.crossed[party[j]] = RUN.crossed[party[j]] || []).push(nd.id);
+      }
+      RUN._rotations = true; RUN._line = line;
       startFight({ type:'fight', chapter:3, heroes:party.slice(), enemies:pack.slice(),
         useRunHp:true, floor:1, depth:3, narrator:'c' });
       if (!S) return null;
@@ -74,7 +86,7 @@ const ANS = process.env.ANS !== '0';
     };
   });
   const PARTIES = [['ash','elin'], ['ash','elin','mira'], ['cassia','branwen','hask']];
-  console.log(`\npack ${PACK.join('+')} · ${REPS} fights a row · LINE ${LINE ? 'ON' : 'off'} · ANSWERS ${ANS ? 'learned' : 'not learned'}`);
+  console.log(`\npack ${PACK.join('+')} · ${REPS} fights a row · LINE ${LINE ? 'ON' : 'off'} · BONDS ${ANS ? 'held' : 'none'}`);
   console.log('party                      SPREAD   ROLES on offer   decisions');
   for (const p of PARTIES) {
     const rs = [];
