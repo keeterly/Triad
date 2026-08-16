@@ -4194,3 +4194,15 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
   font-size: 8.5px; letter-spacing: 0.14em; color: #8fa4cc; font-style: italic;
   margin-left: auto; padding-left: 10px;
 }
+
+/* WOUNDS (Build 291) — the part of the bar healing cannot reach, drawn as a
+   dead band pinned to the TOP of it. It reads as a ceiling coming down rather
+   than as damage, which is the point: your bar still fills, it just fills to
+   less as the floor wears on. */
+.hp-wound {
+  position: absolute; right: 0; top: 0; bottom: 0;
+  background: repeating-linear-gradient(115deg, rgba(120,36,40,0.92) 0 3px, rgba(58,18,22,0.92) 3px 6px);
+  border-left: 1px solid rgba(232,120,120,0.5);
+  pointer-events: none;
+}
+.hp-bar { position: relative; }

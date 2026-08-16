@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 290;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 291;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -279,6 +279,29 @@ function runDepth() { return RUN ? ((RUN.depthBase || 0) + (RUN.completed ? RUN.
 // tier ships across the descent now, which is also why sealed nodes stopped
 // being drawn: a first-time player met 156 orbs, most of them padlocks, and
 // read that as the size of the thing they had to learn.
+// ═════════════════════════════════════════════════════════════════════════════
+// WOUNDS (Build 291) — what the abyss keeps
+//
+// Measured twice: a duo with a healer finishes a room at 93-96% of the party bar
+// while the same-size pair without one lands at 38-47%, and two rounds of
+// shaving Elin's numbers moved that by three points. The cliff is not a value,
+// it is a SHAPE: any reactive healing sufficient to cover one enemy action a
+// turn erases a three-turn fight, so trimming the numbers only moves where
+// "sufficient" sits. A rule has to cap it.
+//
+// A share of every blow that gets through becomes a WOUND — HP that in-fight
+// healing cannot reach. Your bar still fills, it just fills to a lower ceiling
+// as the floor wears on, and only a REST at a fire clears it. Healing stays
+// valuable (it is the difference between standing and not) and stops being
+// absolute. It also hands the mid-floor fire from Build 283 a real job.
+//
+// The fiction wrote this before the balance needed it — fragment f7: "what it
+// remembers it keeps: the name first, then the face."
+const WOUND_SHARE = 0.4;                       // of damage that actually lands
+function woundOf(h) { return (h && h.wound) || 0; }
+// The ceiling healing can reach. Every heal in the game clamps to this instead
+// of maxHp — one seam, so no call site can forget.
+function healCap(h) { return Math.max(1, (h ? h.maxHp : 1) - woundOf(h)); }
 function tierOpen(tier) { return runDepth() >= (tier - 1) * 4; }
 // The deepest tier the road has unsealed, and what is still to come.
 function tierMax() { let t = 1; while (t < TREE_TIERS && tierOpen(t + 1)) t++; return t; }
@@ -667,7 +690,7 @@ const PASSIVE_DEFS = {
   common_keen:   { trigger: 'dmgMod', mod: (o, t) => (t && t.mark ? 2 : 0) },
   common_brace:  { trigger: 'turnStart', apply: (c) => { c.hero.guard += 2; popupAt(figEl(c.hero.id), '⛨ +2', 'guard'); } },
   common_wind:   { trigger: 'turnStart', apply: (c) => { const h = c.hero;
-    if (h.hp > 0 && h.hp * 2 <= h.maxHp) { h.hp = Math.min(h.maxHp, h.hp + 2); popupAt(figEl(h.id), '✚2', 'heal'); } } },
+    if (h.hp > 0 && h.hp * 2 <= h.maxHp) { h.hp = Math.min(healCap(h), h.hp + 2); popupAt(figEl(h.id), '✚2', 'heal'); } } },
   // ── READ-AT-SITE passives (Build 250).  These five have no apply() because
   // their rule lives at one specific seam (a move's cost, a heal's cleanse, a
   // cast's charge).  They were the only tier-2 passives that could not be
@@ -687,7 +710,7 @@ const PASSIVE_DEFS = {
   // LIVING BULWARK — guard→heal: a Cassia sitting on a deep wall shelters the line.
   // Gives her a sustain-tank build (bank guard high, passively mend) distinct from
   // Elin's active healing, and rewards the immovable/vigil guard-battery.
-  cassia_shelter: { trigger: 'turnStart', apply: (c) => { if (c.hero.id === 'cassia' && (c.hero.guard || 0) >= 10) { const t = lowestHpAlly(); if (t && t.hp < t.maxHp) { t.hp = Math.min(t.maxHp, t.hp + 4); popupAt(figEl(t.id), '✚4', 'heal'); if (SFX.heal) SFX.heal(); } } } },
+  cassia_shelter: { trigger: 'turnStart', apply: (c) => { if (c.hero.id === 'cassia' && (c.hero.guard || 0) >= 10) { const t = lowestHpAlly(); if (t && t.hp < t.maxHp) { t.hp = Math.min(healCap(t), t.hp + 4); popupAt(figEl(t.id), '✚4', 'heal'); if (SFX.heal) SFX.heal(); } } } },
   // BRANWEN — MARK: the hunt is always on, the tally comes due
   branwen_hunter: { trigger: 'dmgMod', mod: (owner, tgt) => (tgt && tgt.mark ? Math.min(4, tgt.mark) : 0) },   // scales with mark DEPTH — Branwen deepens the mark (Mira executes it)
   branwen_opening: { trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'branwen') return; const e = frontmostEnemy(); if (e) { e.mark = (e.mark || 0) + 1; popupAt(figEl(e.uid), '◎ +1', 'info'); } } },
@@ -935,7 +958,7 @@ const BOONS = [
   { id: 'elin_warm', hero: 'elin', name: 'Warm Hands', icon: '❂', desc: 'Elin’s healing cards restore <b>+2</b>.',
     card: (c) => { if (c.owner === 'elin' && c.fx && c.fx.heal) c.fx.heal += 2; } },
   { id: 'elin_dawn', hero: 'elin', name: 'Dawnward', icon: '☀', desc: 'At the start of your turn, your most-wounded ally heals <span class="kw kw-heal">✚ 2</span>.',
-    trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'elin') return; const t = lowestHpAlly(); if (t && t.hp < t.maxHp) { t.hp = Math.min(t.maxHp, t.hp + 2); popupAt(figEl(t.id), '✚2', 'heal'); boonProc('elin', 'elin_dawn'); } } },
+    trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'elin') return; const t = lowestHpAlly(); if (t && t.hp < t.maxHp) { t.hp = Math.min(healCap(t), t.hp + 2); popupAt(figEl(t.id), '✚2', 'heal'); boonProc('elin', 'elin_dawn'); } } },
   // MIRA — exposed / execute
   { id: 'mira_scent', hero: 'mira', name: 'Bloodscent', icon: '◎', desc: 'Mira deals <b>+2</b> to any <span class="kw kw-exposed">◎ EXPOSED</span> foe.',
     trigger: 'dmgMod', mod: (o, t) => (o.id === 'mira' && t && t.mark ? 2 : 0) },
@@ -970,7 +993,7 @@ const BOONS = [
   { id: 'duo_ashmira', duo: true, hero: 'ash', heroes: ['ash', 'mira'], name: 'Twin Shadows’ Edge', icon: '⚔', desc: '<b>Ash + Mira:</b> both strike <b>+3</b> to any <span class="kw kw-exposed">◎ EXPOSED</span> foe — the hunt and the tempo, as one.',
     trigger: 'dmgMod', mod: (o, t) => ((o.id === 'ash' || o.id === 'mira') && t && t.mark ? 3 : 0) },
   { id: 'duo_elincassia', duo: true, hero: 'elin', heroes: ['elin', 'cassia'], name: 'Blessed Bulwark', icon: '⛨', desc: '<b>Elin + Cassia:</b> at the start of your turn, the most-wounded ally gains <span class="kw kw-guard">⛨ 2</span> AND heals <span class="kw kw-heal">✚ 2</span>.',
-    trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'cassia') return; const t = lowestHpAlly(); if (t && !t.downed) { t.guard += 2; if (t.hp < t.maxHp) t.hp = Math.min(t.maxHp, t.hp + 2); popupAt(figEl(t.id), '⛨✚', 'guard'); boonProc('elin', 'duo_elincassia', { quiet: true }); } } },
+    trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'cassia') return; const t = lowestHpAlly(); if (t && !t.downed) { t.guard += 2; if (t.hp < t.maxHp) t.hp = Math.min(healCap(t), t.hp + 2); popupAt(figEl(t.id), '⛨✚', 'guard'); boonProc('elin', 'duo_elincassia', { quiet: true }); } } },
   { id: 'duo_haskcassia', duo: true, hero: 'hask', heroes: ['hask', 'cassia'], name: 'Frostwall', icon: '❄', desc: '<b>Hask + Cassia:</b> <span class="kw kw-chill">❄ CHILLED</span> foes take <b>+2</b> from EVERY ally — the cold behind the wall.',
     trigger: 'dmgMod', mod: (o, t) => (t && t.lull ? 2 : 0) },
   { id: 'duo_branwenmira', duo: true, hero: 'branwen', heroes: ['branwen', 'mira'], name: 'Killer’s Pact', icon: '☠', desc: '<b>Branwen + Mira:</b> the FIRST <span class="kw kw-exposed">◎ EXPOSED</span> foe felled each turn refunds <b>2 EP</b>.',
@@ -995,7 +1018,7 @@ const BOONS = [
     trigger: 'kill', apply: (c) => { livingHeroes().forEach(h => { h.buffDmg += 1; }); popupAt(figEl(c.hero.id), '▲ ALL +1 · −2', 'rally'); const k = c.hero; if (k && !k.downed) k.hp = Math.max(1, k.hp - 2); boonProc('branwen', 'curse_loudechoes', { quiet: true }); } },
   { id: 'curse_mercyleak', hero: 'elin', rare: true, curse: true, name: 'Mercy’s Leak', icon: '✚', desc: 'Elin’s healing is <b>+3 stronger</b> — but mercy leaks: the frontmost foe <b>mends 2</b> each turn. Kindness feeds everything.',
     card: (c) => { if (c.owner === 'elin' && c.fx && c.fx.heal) c.fx.heal += 3; },
-    trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'elin' || S._flags.boonLeak) return; S._flags.boonLeak = true; const e = frontmostEnemy(); if (e && !e.dead && e.hp < e.maxHp) { e.hp = Math.min(e.maxHp, e.hp + 2); popupAt(figEl(e.uid), '✚2', 'heal'); boonProc('elin', 'curse_mercyleak', { quiet: true }); } } },
+    trigger: 'turnStart', apply: (c) => { if (c.hero.id !== 'elin' || S._flags.boonLeak) return; S._flags.boonLeak = true; const e = frontmostEnemy(); if (e && !e.dead && e.hp < e.maxHp) { e.hp = Math.min(healCap(e), e.hp + 2); popupAt(figEl(e.uid), '✚2', 'heal'); boonProc('elin', 'curse_mercyleak', { quiet: true }); } } },
   // ── TRIO BOONS (Hades "you brought the exact team") — only when a SPECIFIC three
   //    walk together.  The rarest, most build-defining gifts. ──
   { id: 'trio_phalanx', trio: true, hero: 'cassia', heroes: ['ash', 'cassia', 'elin'], name: 'The Phalanx', icon: '⛨', desc: '<b>Ash · Cassia · Elin:</b> every fight OPENS with the whole party at <span class="kw kw-guard">⛨ 3</span> and <span class="kw kw-rally">▲ RALLY 2</span> — the shield-wall marches.',
@@ -1005,7 +1028,7 @@ const BOONS = [
   { id: 'trio_longwinter', trio: true, hero: 'hask', heroes: ['elin', 'cassia', 'hask'], name: 'The Long Winter', icon: '❄', desc: '<b>Elin · Cassia · Hask:</b> <span class="kw kw-chill">❄ CHILLED</span> foes take <b>+3</b> from EVERY ally — the wall, the light, and the deep cold.',
     trigger: 'dmgMod', mod: (o, t) => (t && t.lull ? 3 : 0) },
   { id: 'trio_bloodmercy', trio: true, hero: 'elin', heroes: ['elin', 'mira', 'branwen'], name: 'Blood & Mercy', icon: '✚', desc: '<b>Elin · Mira · Branwen:</b> the FIRST <span class="kw kw-exposed">◎ EXPOSED</span> foe felled each turn <b>heals the whole party 3</b>.',
-    trigger: 'kill', apply: (c) => { if (c.tgt && c.tgt.mark && !S._flags.trioBloodMercy) { S._flags.trioBloodMercy = true; livingHeroes().forEach(h => { if (h.hp < h.maxHp) { h.hp = Math.min(h.maxHp, h.hp + 3); popupAt(figEl(h.id), '✚3', 'heal'); } }); boonProc('elin', 'trio_bloodmercy'); } } },
+    trigger: 'kill', apply: (c) => { if (c.tgt && c.tgt.mark && !S._flags.trioBloodMercy) { S._flags.trioBloodMercy = true; livingHeroes().forEach(h => { if (h.hp < h.maxHp) { h.hp = Math.min(healCap(h), h.hp + 3); popupAt(figEl(h.id), '✚3', 'heal'); } }); boonProc('elin', 'trio_bloodmercy'); } } },
   // ── MORE DUO GIFTS — filling out the roster's pairings ──
   { id: 'duo_ashelin', duo: true, hero: 'elin', heroes: ['ash', 'elin'], name: 'Second Breath', icon: '✚', desc: '<b>Ash + Elin:</b> when Elin heals or wards an ally, that ally also gains <span class="kw kw-rally">▲ RALLY 1</span> — the mend feeds the next blow.',
     trigger: 'support', apply: (c) => { if (c.receiver && !c.receiver.downed) { c.receiver.buffDmg += 1; popupAt(figEl(c.receiver.id), '▲ +1', 'rally'); boonProc('elin', 'duo_ashelin', { quiet: true }); } } },
@@ -2174,7 +2197,7 @@ const DUET_PERKS = {
     strike: true, make: () => ({}) },
   'Cleric+Reaver': { line: ['Killing is not the end of it.', 'Then mend what I leave standing.'], desc: 'mercy follows the knife — every kill <b>mends the most-wounded ally 2</b>',
     make: (a, b) => ({ trigger: 'kill', apply: () => { const t = lowestHpAlly();
-      if (t && t.hp < t.maxHp) { t.hp = Math.min(t.maxHp, t.hp + 2); popupAt(figEl(t.id), '✚2', 'heal'); } } }) },
+      if (t && t.hp < t.maxHp) { t.hp = Math.min(healCap(t), t.hp + 2); popupAt(figEl(t.id), '✚2', 'heal'); } } }) },
   'Guardian+Ronin': { line: ['Behind the shield. Now.', 'One stance. Shield and sword.'], desc: 'each turn the pair stands <b>+1 guard</b> — shield and sword, one stance',
     make: (a, b) => ({ trigger: 'turnStart', apply: (c) => { if (!c.hero || c.hero.id !== a) return;
       [a, b].forEach(id => { const h = S.heroes.find(x => x.id === id); if (h && !h.downed) h.guard += 1; }); } }) },
@@ -2471,7 +2494,7 @@ async function runBondStrike(lead, other, st, tgt, perk) {
     const swing = (who) => { try { lungeFig(figEl(who)); } catch (_) {} };
     if (st.ally) {
       swing(lead);
-      tgt.hp = Math.min(tgt.maxHp, tgt.hp + st.heal);
+      tgt.hp = Math.min(healCap(tgt), tgt.hp + st.heal);
       tgt.guard = (tgt.guard || 0) + st.guard;
       popupAt(figEl(tgt.id), '♡ ✚' + st.heal + ' ⛨' + st.guard, 'heal');
     } else {
@@ -2546,7 +2569,7 @@ const FOLLOW_ACTS = {
   ward: { verb: 'covers them', desc: '<b>⛨5</b> to your partner · <b>heal 4</b> to the most wounded',
     run: (act, trg) => { const p = S.heroes.find(h => h.id === trg);
       if (p && !p.downed) { p.guard += 5; popupAt(figEl(trg), '⛨ +5', 'guard'); }
-      const w = lowestHpAlly(); if (w && w.hp < w.maxHp) { w.hp = Math.min(w.maxHp, w.hp + 4); popupAt(figEl(w.id), '✚4', 'heal'); }
+      const w = lowestHpAlly(); if (w && w.hp < w.maxHp) { w.hp = Math.min(healCap(w), w.hp + 4); popupAt(figEl(w.id), '✚4', 'heal'); }
       return 0; } },
 };
 // THE KICKER — what the hero they ANSWER set up with their own line, riding
@@ -2708,7 +2731,7 @@ function reinforceBond(key) {
 const BOND_ASSIST = {
   ash:     (p, tgt) => { const t = (tgt && !tgt.dead) ? tgt : frontmostEnemy(); if (t) { dealToEnemy(t, 6, 'blade', p.id); popupAt(figEl(t.uid), '⚔ 6', 'dmg'); } return 'a cutting strike'; },
   mira:    (p, tgt) => { const t = (tgt && !tgt.dead) ? tgt : frontmostEnemy(); if (t) { t.mark = (t.mark || 0) + 2; dealToEnemy(t, 5, 'blade', p.id); popupAt(figEl(t.uid), '◎+2 ✕5', 'dmg'); } return 'a shadow strike'; },
-  elin:    (p, tgt, atkId) => { const w = lowestHpAlly(); if (w && !w.downed && w.hp < w.maxHp) { w.hp = Math.min(w.maxHp, w.hp + 5); w.chill = 0; w.exposed = 0; popupAt(figEl(w.id), '♡ ✚5', 'heal'); if (SFX.heal) SFX.heal(); return 'a mending light'; } const a = S.heroes.find(h => h.id === atkId) || p; a.guard += 4; popupAt(figEl(a.id), '⛨ +4', 'guard'); return 'a warding light'; },
+  elin:    (p, tgt, atkId) => { const w = lowestHpAlly(); if (w && !w.downed && w.hp < w.maxHp) { w.hp = Math.min(healCap(w), w.hp + 5); w.chill = 0; w.exposed = 0; popupAt(figEl(w.id), '♡ ✚5', 'heal'); if (SFX.heal) SFX.heal(); return 'a mending light'; } const a = S.heroes.find(h => h.id === atkId) || p; a.guard += 4; popupAt(figEl(a.id), '⛨ +4', 'guard'); return 'a warding light'; },
   cassia:  (p, tgt, atkId) => { const a = S.heroes.find(h => h.id === atkId) || p; a.guard += 5; popupAt(figEl(a.id), '⛨ +5', 'guard'); return 'a raised shield'; },
   branwen: (p, tgt) => { const t = (tgt && !tgt.dead) ? tgt : frontmostEnemy(); if (t) { t.mark = (t.mark || 0) + 2; dealToEnemy(t, 4, 'blade', p.id); popupAt(figEl(t.uid), '➹ ◎+2', 'dmg'); } return 'a marking arrow'; },
   hask:    (p, tgt) => { const t = (tgt && !tgt.dead) ? tgt : frontmostEnemy(); if (t) { t.lull = (t.lull || 0) + 1; dealToEnemy(t, 5, 'frost', p.id); popupAt(figEl(t.uid), '❄ 5 · CHILL', 'dmg'); } return 'a frost bolt'; },
@@ -3794,6 +3817,7 @@ function newRun(starterId) {
     embers: 0,          // per-run ember wallet — earned and spent THIS descent only (A HANDFUL OF ASH tops it up in beginRun)
     nodes: [],          // per-run skill-tree unlocks — reset when the run ends; starts EMPTY (everything earned)
     crossed: {},        // heroId -> [nodeId] learned across a BOND from another hero's tree (Build 245)
+    wounds: {},         // heroId -> HP that in-fight healing cannot reach; only a REST clears it (Build 291)
     deeds: {},          // pairKey -> { help, strike, avenge, shield, answer } — what they DID together (Build 266)
     forges: [],         // temporary ember tempers bought at camps — reset each descent
     boons: [],          // companion GIFTS drafted on the road — reset each descent (party-gated)
@@ -3838,6 +3862,7 @@ function newBattle(node) {
       hp: startDowned ? 0 : ((node.useRunHp && RUN) ? Math.max(1, runHp ?? HEROES[id].maxHp) : HEROES[id].maxHp),
       maxHp: HEROES[id].maxHp,
       row,
+      wound: (node.useRunHp && RUN && RUN.wounds) ? (RUN.wounds[id] || 0) : 0,
       guard: 0, buffDmg: 0, counter: 0, invuln: false, downed: startDowned,
       chill: 0, exposed: 0, charge: 0, aether: 0,   // charge: Hask's Black-Mage resource; aether: Pyre(+)/Frost(−) weave meter
     };
@@ -5293,7 +5318,7 @@ async function resolveCard(card, targetId) {
     wd.row = prRow;
     S._morphHeroId = prId;
     S._morphHeroId2 = wdId;
-    wd.hp = Math.min(wd.maxHp, wd.hp + 4);
+    wd.hp = Math.min(healCap(wd), wd.hp + 4);
     pr.guard += 4;
     pr.counter = Math.max(pr.counter, 2);
     pr.chill = (pr.chill || 0) + 2;   // the cost: the next strike comes slower
@@ -5820,7 +5845,7 @@ function dealToEnemy(e, amt, school, byHeroId) {
             stance: 'FORGED · FINISHER', name: st.name, cost: 0, target: st.target || 'enemy',
             school: fh.def.school, fx: Object.assign({}, st.fx), desc: st.desc });
           if (st.ep) refundEp(st.ep);                                       // Branwen — the tally comes due
-          if (st.heal) livingHeroes().forEach(h => { if (!h.downed && h.hp < h.maxHp) { h.hp = Math.min(h.maxHp, h.hp + st.heal); popupAt(figEl(h.id), '✚' + st.heal, 'heal'); } });   // Elin — mends as she ends
+          if (st.heal) livingHeroes().forEach(h => { if (!h.downed && h.hp < h.maxHp) { h.hp = Math.min(healCap(h), h.hp + st.heal); popupAt(figEl(h.id), '✚' + st.heal, 'heal'); } });   // Elin — mends as she ends
         }
       }
       if (!S._pressUsed) {
@@ -7603,7 +7628,7 @@ async function resolveAllOut() {
     // ELIN — Radiant Dawn: the light rises after the storm; mend & ward the party.
     if (hasNode('elin.allout.dawn') && heroes.some(h => h.id === 'elin')) {
       await heroCutIn('elin', '✦ ALL-OUT FINISH', 'RADIANT DAWN', 'the light rises after the storm', 950);
-      livingHeroes().forEach(h => { if (!h.downed) { h.hp = Math.min(h.maxHp, h.hp + 5); h.guard += 3; popupAt(figEl(h.id), '✚5 ⛨3', 'heal'); } });
+      livingHeroes().forEach(h => { if (!h.downed) { h.hp = Math.min(healCap(h), h.hp + 5); h.guard += 3; popupAt(figEl(h.id), '✚5 ⛨3', 'heal'); } });
       if (SFX.heal) SFX.heal();
     }
     // MIRA — Death Dance: she vanishes through the storm, marking every survivor.
@@ -7671,7 +7696,7 @@ async function allOutEncore(level, heroes) {
     await sleep(380);
   }
   if (level >= 3 && !S.over) {   // the Transcendent resonance lifts the whole party
-    livingHeroes().forEach(h => { h.hp = Math.min(h.maxHp, h.hp + 5); h.guard += 5; popupAt(figEl(h.id), '✚5 ⛨5', 'heal'); });
+    livingHeroes().forEach(h => { h.hp = Math.min(healCap(h), h.hp + 5); h.guard += 5; popupAt(figEl(h.id), '✚5 ⛨5', 'heal'); });
     if (SFX.heal) SFX.heal();
     renderAll();
   }
@@ -7777,7 +7802,7 @@ async function playVowStages(stages, ids, mul, label) {
     await sleep(120);
     if (fx.aoeDmg)      { for (const e of livingEnemies()) { dealToEnemy(e, scaled(fx.aoeDmg) + (e.mark || 0), null, ids[0]); await sleep(110); } }
     if (fx.hitFrontmost){ const t = frontmostEnemy(); if (t) dealToEnemy(t, scaled(fx.hitFrontmost) + (t.mark || 0), null, ids[0]); }
-    if (fx.pairHeal || fx.healAll) { const who = fx.healAll ? livingHeroes() : alive; const amt = scaled(fx.pairHeal || fx.healAll); who.forEach(h => { h.hp = Math.min(h.maxHp, h.hp + amt); popupAt(figEl(h.id), '✚' + amt, 'heal'); }); if (SFX.heal) SFX.heal(); }
+    if (fx.pairHeal || fx.healAll) { const who = fx.healAll ? livingHeroes() : alive; const amt = scaled(fx.pairHeal || fx.healAll); who.forEach(h => { h.hp = Math.min(healCap(h), h.hp + amt); popupAt(figEl(h.id), '✚' + amt, 'heal'); }); if (SFX.heal) SFX.heal(); }
     if (fx.pairGuard || fx.guardAll) { const who = fx.guardAll ? livingHeroes() : alive; const amt = fx.pairGuard || fx.guardAll; who.forEach(h => { h.guard += amt; popupAt(figEl(h.id), '⛨' + amt, 'guard'); }); }
     if (fx.guardFront) { const h = heroInRow('front'); if (h) { h.guard += fx.guardFront; popupAt(figEl(h.id), '⛨' + fx.guardFront, 'guard'); } }
     if (fx.pairRally || fx.buffAllDmg) { const who = fx.buffAllDmg ? livingHeroes() : alive; const amt = fx.pairRally || fx.buffAllDmg; who.forEach(h => { h.buffDmg += amt; popupAt(figEl(h.id), '▲ +' + amt, 'rally'); }); }
@@ -8096,6 +8121,14 @@ async function enemyPhase() {
         }
         if (left > 0) {
           h.hp = Math.max(0, h.hp - left);
+          // …and a share of it is kept. Never enough to floor the ceiling: a hero
+          // can always be mended back to a third of their bar.
+          const w = Math.round(left * WOUND_SHARE);
+          if (w > 0) {
+            h.wound = Math.min(Math.floor(h.maxHp * 0.66), woundOf(h) + w);
+            if (RUN) { RUN.wounds = RUN.wounds || {}; RUN.wounds[h.id] = h.wound; }
+            popupAt(figEl(h.id), '✖ ' + h.wound, 'dmg');
+          }
           const dtier = left >= 20 ? 3 : left >= 12 ? 2 : left >= 7 ? 1 : 0;
           const big = dtier >= 2;
           popupAt(figEl(h.id), '−' + left, 'dmg' + (big ? ' popup-big' : ''));
@@ -8113,7 +8146,7 @@ async function enemyPhase() {
           // (its wind-up broken) it cannot feed, so STAGGER is the counter.
           if (intent.drain && !e.staggered) {
             const fed = Math.max(1, Math.round(left * intent.drain));
-            e.hp = Math.min(e.maxHp, e.hp + fed);
+            e.hp = Math.min(healCap(e), e.hp + fed);
             popupAt(figEl(e.uid), '♥ +' + fed, 'heal');
           }
         }
@@ -8164,7 +8197,7 @@ async function enemyPhase() {
     // for each one cut.  A PERFECT parry denies both.  (Fusion of sever + drain.)
     if (intent.discord && !perfectParry) {
       const cut = severThreads(e, intent.discord);
-      if (cut > 0 && !e.staggered) { const fed = cut * 9; e.hp = Math.min(e.maxHp, e.hp + fed); popupAt(figEl(e.uid), '♥ +' + fed, 'heal'); flashNarrator(e.def.name + ' feeds on the broken bond.'); }
+      if (cut > 0 && !e.staggered) { const fed = cut * 9; e.hp = Math.min(healCap(e), e.hp + fed); popupAt(figEl(e.uid), '♥ +' + fed, 'heal'); flashNarrator(e.def.name + ' feeds on the broken bond.'); }
     }
     // ECHO — an unparried echo strike is REMEMBERED and returns next round,
     // stronger.  A PERFECT parry silences it before it can ring out again.
@@ -8218,7 +8251,8 @@ function onVictory() {
   let bondLines = [];
   if (S.node.useRunHp && RUN) {
     RUN.rows = RUN.rows || {};
-    S.heroes.forEach(h => { RUN.hp[h.id] = h.downed ? 0 : h.hp; RUN.rows[h.id] = h.row; });
+    RUN.wounds = RUN.wounds || {};
+    S.heroes.forEach(h => { RUN.hp[h.id] = h.downed ? 0 : h.hp; RUN.rows[h.id] = h.row; RUN.wounds[h.id] = woundOf(h); });
     if (S.node.mapId != null && !RUN.completed.includes(S.node.mapId)) RUN.completed.push(S.node.mapId);
     // Fighting together with a thread held IS the reward: the pair grows.
     RUN.bonds = RUN.bonds || {};
@@ -9729,8 +9763,9 @@ function showCamp(n) {
   const restBtn = $('#camp-rest');
   if (restBtn) restBtn.onclick = () => {
     RUN.roster.forEach(id => { const hp = RUN.hp[id] ?? HEROES[id].maxHp; if (hp > 0) RUN.hp[id] = HEROES[id].maxHp; });
+    RUN.wounds = {};   // the ONLY thing that closes a wound — see WOUND_SHARE
     saveRun();
-    flashNarrator('The fire takes the night — and every wound on the living with it.');
+    flashNarrator('The fire takes the night — and every wound on the living with it, even the ones that would not close on the road.');
     showMap();
   };
   const raiseBtn = $('#camp-raise');
@@ -10028,6 +10063,8 @@ function partyAuraObj(who) { return { guard: who.guard, rally: who.buffDmg, chil
 function refreshPartyFig(fig, who, solo) {
   const chips = fig.querySelector('.fig-chips'); if (chips) chips.innerHTML = partyChipsHtml(who);
   const fill = fig.querySelector('.hp-fill'); if (fill) fill.style.width = ((who.hp / who.maxHp) * 100) + '%';
+  const wd = fig.querySelector('.hp-wound');
+  if (wd) { wd.style.width = ((woundOf(who) / who.maxHp) * 100) + '%'; wd.classList.toggle('hidden', !woundOf(who)); }
   const num = fig.querySelector('.hp-num'); if (num) num.textContent = who.hp + '/' + who.maxHp;
   const art = fig.querySelector('.fig-art');
   if (art) { const oa = art.querySelector('.fig-aura'); if (oa) oa.remove(); if (!who.downed) { const a = auraHTML(partyAuraObj(who)); if (a) art.insertAdjacentHTML('beforeend', a); } }
@@ -10155,7 +10192,8 @@ function renderBattlefield() {
         fig.innerHTML = `
           ${solo ? `<span class="stance-tag">${STANCE[who.row].name.toUpperCase()}</span>` : ''}
           <div class="fig-art">${V2PORTRAITS[who.id] || ''}${who.downed ? '' : auraHTML(partyAuraObj(who))}</div>
-          <div class="hp-bar"><div class="hp-fill" style="width:${(who.hp / who.maxHp) * 100}%"></div></div>
+          <div class="hp-bar"><div class="hp-fill" style="width:${(who.hp / who.maxHp) * 100}%"></div>${
+            woundOf(who) ? `<div class="hp-wound" style="width:${(woundOf(who) / who.maxHp) * 100}%" title="✖ WOUNDED ${woundOf(who)} — healing cannot reach this. Only a REST at a fire closes it."></div>` : ''}</div>
           <div class="fig-name">${who.def.name} <span class="hp-num">${who.hp}/${who.maxHp}</span></div>
           <div class="fig-chips">${partyChipsHtml(who)}</div>
         `;

@@ -11,6 +11,7 @@ const { boot } = require('./harness.cjs');
 const SEEDS = +(process.env.SEEDS || 4);
 const SKILL = +(process.env.SKILL || 0.7);
 const RELIC = process.env.RELIC || null;
+const PARTY = (process.env.PARTY || 'ash').split(',');
 (async () => {
   const t = await boot({ p: 0 });
   const errs = []; t.page.on('pageerror', e => errs.push(e.message));
@@ -45,6 +46,7 @@ const RELIC = process.env.RELIC || null;
       // let the victory handler run — it is what marks the node completed
       for (let i = 0; i < 120 && S && !S.over && !livingEnemies().length; i++) await nap(25);
       return { turns, cards, acts, notes: window.__notes - n0,
+        wound: S ? Math.round(S.heroes.reduce((a,h)=>a+(h.wound||0),0)/S.heroes.reduce((a,h)=>a+h.maxHp,0)*100) : 0,
         // `ran` distinguishes a LOSS from a fight that never started. Without it
         // a click the walker fluffed was recorded as a wipe, and twice that has
         // been reported as a balance finding it was not.
@@ -61,15 +63,17 @@ const RELIC = process.env.RELIC || null;
       if (!hit) return; await t.sleep(180);
     }
   };
-  console.log(`\n${SEEDS} floors · parry skill ${SKILL}${RELIC ? ' · carrying ' + RELIC : ' · carrying nothing'}`);
+  console.log(`\n${SEEDS} floors · ${PARTY.join('+')} · parry skill ${SKILL}${RELIC ? ' · carrying ' + RELIC : ''}`);
   const ends = [];
   for (let sd = 0; sd < SEEDS; sd++) {
     await t.parrySkill(SKILL, 1000 + sd * 7919);
-    await t.J((r) => { try { hideOverlay(); } catch(_){} S = null;
-      RUN = newRun('ash'); if (r) RUN.relic = r;
-      RUN.roster = ['ash']; RUN.active = ['ash']; RUN.hp = { ash: 32 };
+    await t.J((a) => { try { hideOverlay(); } catch(_){} S = null;
+      RUN = newRun(a.party[0]); if (a.relic) RUN.relic = a.relic;
+      RUN.roster = a.party.slice(); RUN.active = a.party.slice();
+      RUN.hp = {}; a.party.forEach(id => RUN.hp[id] = HEROES[id].maxHp);
+      RUN.wounds = {};
       RUN.floor = 1; RUN.completed = []; RUN.map = generateDescent(RUN.roster, 1);
-      saveRun(); showMap(); }, RELIC);
+      saveRun(); showMap(); }, { relic: RELIC, party: PARTY });
     const curve = []; let guard = 0, last = null, stuck = 0, died = null, camps = 0, skipped = 0;
     while (guard++ < 24) {
       await clear();
@@ -85,7 +89,7 @@ const RELIC = process.env.RELIC || null;
       if (['fight','elite','boss'].includes(next.type)) {
         const f = await t.J(() => window.__fight());
         if (!f.ran) { skipped++; continue; }          // the walker fluffed it — not a death
-        curve.push(f.hp);
+        curve.push(f.hp + (f.wound ? '/' + f.wound + 'w' : ''));
         if (!f.win) { died = 'L' + next.level + ' ' + next.type; break; }
       } else { await clear(); }
     }

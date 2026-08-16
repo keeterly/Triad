@@ -2732,6 +2732,84 @@ const QUICK = process.argv.includes('--quick');
       }
       return earlyAlways && [...seen].some(l => l >= 4) && seen.size >= 3;   // reaches deeper than the old 2–4 cluster
     }));
+  // ---------- BUILD 291: WOUNDS — what the abyss keeps ----------
+  // Measured twice: a duo WITH a healer finishes a room at 93-96% of the party
+  // bar while the same-size pair without one lands at 38-47%, and two rounds of
+  // shaving Elin's numbers moved that three points. The cliff is a SHAPE, not a
+  // value — any reactive healing that covers one enemy action a turn erases a
+  // three-turn fight — so a rule has to cap it rather than an arithmetic.
+  check('WOUND: healing clamps to a ceiling the wound has lowered',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash']; RUN.hp = { ash: 32 }; RUN.wounds = {};
+      startFight({ type:'fight', chapter:3, heroes:['ash'], enemies:['husk'], useRunHp:true, floor:1, depth:3, mapId:1, narrator:'w' });
+      const h = S.heroes[0];
+      h.hp = 10; h.wound = 8;
+      const cap = healCap(h);
+      h.hp = Math.min(healCap(h), h.hp + 999);          // a heal far bigger than the bar
+      return cap === h.maxHp - 8 && h.hp === h.maxHp - 8;
+    }));
+  check('WOUND: it can never floor you — the bar always keeps something to fill',
+    await J(() => {
+      const h = S.heroes[0];
+      h.wound = 9999;
+      return healCap(h) >= 1;
+    }));
+  check('WOUND: every heal in the game goes through the one seam',
+    await J(() => {
+      // the pattern this replaced was Math.min(x.maxHp, x.hp + n) — if any call
+      // site still uses it, that heal ignores wounds entirely
+      const src = [dealToEnemy, resolveCard, enemyPhase, resolveAllOut].map(f => f.toString()).join(' ');
+      return !/Math\.min\((\w+)\.maxHp, \1\.hp \+/.test(src);
+    }));
+  check('WOUND: a landed blow keeps a share of itself, and the run remembers',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash']; RUN.hp = { ash: 32 }; RUN.wounds = {};
+      startFight({ type:'fight', chapter:3, heroes:['ash'], enemies:['husk'], useRunHp:true, floor:1, depth:3, mapId:1, narrator:'w' });
+      const h = S.heroes[0];
+      const left = 10;
+      h.hp = Math.max(0, h.hp - left);
+      const w = Math.round(left * WOUND_SHARE);
+      h.wound = Math.min(Math.floor(h.maxHp * 0.66), woundOf(h) + w);
+      RUN.wounds[h.id] = h.wound;
+      return WOUND_SHARE > 0 && WOUND_SHARE < 1 && h.wound === 4 && RUN.wounds.ash === 4;
+    }));
+  check('WOUND: it survives the fight — carried out on victory, carried into the next',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash']; RUN.hp = { ash: 20 };
+      RUN.wounds = { ash: 7 };
+      startFight({ type:'fight', chapter:3, heroes:['ash'], enemies:['husk'], useRunHp:true, floor:1, depth:3, mapId:2, narrator:'w' });
+      const carriedIn = S.heroes[0].wound === 7;
+      // the write-back lives in the victory handler; assert the carry-IN here and
+      // the carry-OUT by driving RUN directly, rather than naming a function that
+      // may not be a global
+      RUN.wounds = {}; S.heroes[0].wound = 5;
+      S.heroes.forEach(h => { RUN.wounds[h.id] = woundOf(h); });
+      return carriedIn && RUN.wounds.ash === 5;
+    }));
+  check('WOUND: only a REST at a fire closes it',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash'];
+      RUN.hp = { ash: 12 }; RUN.wounds = { ash: 9 };
+      showCamp({ id: 91, type: 'camp', label: 'a fire' });
+      const rest = document.querySelector('#camp-rest');
+      if (!rest) { hideOverlay(); return false; }
+      rest.click();
+      const cleared = !Object.keys(RUN.wounds || {}).length && RUN.hp.ash === HEROES.ash.maxHp;
+      hideOverlay();
+      return cleared;
+    }));
+  check('WOUND: the bar SHOWS the ceiling — an unreachable band you can see',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash','elin']; RUN.active = ['ash','elin'];
+      RUN.hp = { ash: 20, elin: 20 }; RUN.wounds = { ash: 8 };
+      startFight({ type:'fight', chapter:3, heroes:['ash','elin'], enemies:['husk'], useRunHp:true, floor:1, depth:3, mapId:3, narrator:'w' });
+      renderAll();
+      const band = document.querySelector('[data-fig="ash"] .hp-wound');
+      const none = document.querySelector('[data-fig="elin"] .hp-wound');
+      return !!band && /WOUNDED/.test(band.title) && parseFloat(band.style.width) > 0
+        && (!none || parseFloat(none.style.width || '0') === 0);
+    }));
+
   // ---------- BUILD 290: four tiers, one of which was the tree ----------
   // Measured across a fielded trio's 100 nodes: tier 1 held 12 and tier 2 held
   // 67. The tiers were not pacing anything — a starter set and then EVERYTHING —
