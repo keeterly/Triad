@@ -1,7 +1,8 @@
 # The Line — one combo, three beats, and the party picks who takes each one
 
-**Status:** built and ON at Build 293. Supersedes the relay of Build 292, which is
-kept in the tree behind `RUN._line = false` only as the A/B baseline.
+**Status:** built and ON at Build 293; one card per hero since Build 294.
+Supersedes the relay of Build 292, which is kept in the tree behind
+`RUN._line = false` only as the A/B baseline.
 
 ---
 
@@ -17,9 +18,10 @@ somebody plays a FINISHER   →  the line is spent. The openers come back for
                                the turn holds another line
 ```
 
-A hero always contributes out of **their own** row's rotation, so nobody is ever
-dragged into someone else's vocabulary — Elin never swings a sword. The hero who
-**reached** keeps answering from the line they reached into.
+**Every hero shows exactly one card.** A hero always contributes out of **their
+own** row's rotation, so nobody is ever dragged into someone else's vocabulary —
+Elin never swings a sword. The hero who **reached** opens out of the line they
+reached into *instead* of their own, and keeps answering from it.
 
 The turn's question is *whose line do I finish, and whose beats do I borrow?*
 
@@ -38,28 +40,36 @@ The line deals every stage party-wide instead. Same board, same tree:
 `test/linemeter.cjs`, tree fully granted, enemy pack pinned, 5 fights a row.
 `MID` is mean legal plays at every decision after a turn's first card.
 
-| party | MID (off → ON) | easy pack | hard pack |
-|---|---|---|---|
-| ash+elin | | 2.00 → **3.30** | 2.23 → **3.39** |
-| ash+elin+mira | | 2.65 → **5.30** | 2.65 → **5.14** |
-| cassia+branwen+hask | | 3.15 → **5.06** | 3.14 → **3.68** |
+| party | easy pack | hard pack |
+|---|---|---|
+| ash+elin | 1.79 → **3.30** | 1.91 → **3.33** |
+| ash+elin+mira | 2.10 → **4.64** | 2.26 → **4.93** |
+| cassia+branwen+hask | 2.68 → **4.95** | 2.88 → **4.64** |
 
-Roughly **double** for a trio, up for every party on both packs, no exceptions.
-That is the number the whole redesign existed to move.
+Roughly **double** for every party on both packs, no exceptions. That is the
+number the whole redesign existed to move.
 
 ## What it cost, and the lever that is still unpulled
 
-A line cashes **one** finisher where three private chains cashed three. So:
+A line cashes **one** finisher where three private chains cashed three. On the
+hard pack, at Build 294:
 
 | | off → ON (hard pack) |
 |---|---|
-| cards a turn, trio | 9.5 → 5.8 |
-| damage a turn, trio | 229 → 114 |
-| end HP, ash+elin+mira | 100% → 53% |
-| end HP, cassia+branwen+hask | 29% → **8%** |
+| cards a turn, ash+elin+mira | 10.5 → 5.3 |
+| damage a turn, ash+elin+mira | 229 → 153 |
+| end HP, ash+elin+mira | 100% → 91% |
+| end HP, ash+elin | 96% → **55%** |
+| end HP, cassia+branwen+hask | 24% → 43% *(up)* |
 
-On the easy pack this costs nothing (the room dies either way, 100% HP both ways).
-On a hard room it bites hard, and cassia+branwen+hask is close to a wipe.
+At Build 293 this was far worse — the trio ended at 53% and cassia+branwen+hask
+at 8%. Making the reach SUBSTITUTE rather than add (294) fixed most of it without
+anyone tuning a number: the reached opener is often the cheaper one, so a turn
+buys more lines. cassia+branwen+hask now ends **better** with the line than
+without it. **The duo is the weak case that remains** — a two-hero line is two
+beats where two private chains were six.
+
+On the easy pack the line costs nothing (the room dies either way).
 
 **This is an EP problem, and EP has not been touched.** Rotation combat opens on
 `2 + heroes + 1` EP; a line costs an opener (1–3) plus a finisher (1–2), so a trio
@@ -97,10 +107,19 @@ design, and it is where the skill tree gets something to say.
 - **Moving drops the line for everyone**, bank included. The line in flight
   belongs to the party, so one hero leaving formation costs every beat spent on
   it. Deliberate, and the reason it is priced that way is in `purgeChain`.
-- **The REACH lost its original rationale.** It exists because a reached line
-  forged *its own* combo back into the reacher's hand. Under the line an opener
-  deals a stage to everyone, so what survives is narrower: the reacher keeps
-  answering from the line they reached into. Worth revisiting on its own terms.
+- **The REACH substitutes now, it does not add (Build 294).** It used to sit
+  BESIDE the standing opener, so one hero a turn opened holding two cards while
+  everyone else held one. On a party-wide opener stage that is two votes on which
+  line the party builds. It replaces instead, so the hand is one card per hero.
+  The cost is real and named: reaching is no longer a *choice* between the cheap
+  line you stand in and the dearer one the board wants — it IS that turn's hand.
+  That choice mattered when a turn had almost none; the line supplies plenty now.
+  What the reach still buys is the thing Build 258 was actually for: without it,
+  two players with the same trio in the same rows see byte-identical opening hands
+  every turn.
+- **Its original rationale is gone either way.** The reach existed because a
+  reached line forged *its own* combo back into the reacher's hand. Under the line
+  an opener forges nothing for its owner. Worth revisiting on its own terms.
 - **Bonds and triads fire far more often**, which is the point — and it is why
   `triadCeremony()`'s tap-to-continue deadlocks any rig driving a whole fight
   inside one `page.evaluate`. Both rigs auto-tap it now.

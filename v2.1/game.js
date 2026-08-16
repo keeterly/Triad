@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 293;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 294;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -4508,22 +4508,38 @@ function buildHand() {
       // closed. That is what makes discarding them a real cost and what keeps the
       // combo one thing the party is building rather than three running at once.
       if (lineIsLive) { (chainTemps[h.id] || []).forEach(t => hand.push(t)); return; }
-      const op = mkChainOpener(h, rot); if (!op.spent) hand.push(op);
-      // …and, for one hero a turn, the line they can REACH for (see reachFor)
+      // ONE CARD PER HERO (Build 294). The reach used to sit BESIDE the standing
+      // opener, so one hero a turn opened holding two cards while everybody else
+      // held one. Under the line that asymmetry is worse than it looks: the opener
+      // stage is the whole party's board, and a hero with two cards on it gets two
+      // votes on which line the party builds.
+      //
+      // So the reach SUBSTITUTES now instead of adding. One hero a turn opens out
+      // of a different stance INSTEAD of their own, and every hero shows exactly
+      // one opener. That keeps what Build 258 was actually for — before it, two
+      // players with the same trio in the same rows saw byte-identical hands every
+      // turn, and turn 3 was turn 1 — while costing the hand nothing.
+      //
+      // The trade, named because it is a real one: reaching is no longer a CHOICE
+      // between the cheap line you stand in and the dearer one the board wants —
+      // it IS this turn's hand. That choice mattered when a turn had almost none.
+      // The line now supplies plenty (who opens x who answers x who finishes), so
+      // the variety is worth more than the option was.
       const rr = reachFor(h);
+      let op;
       if (rr) {
-        const alt = mkChainOpener(h, rr.rot, rr.row);
-        // NO EP TAX (Build 259). Measured: with +1 EP the reach was never the
-        // best play on any turn — a 3-EP Cover competing with a 2-EP Cleave is
-        // not a choice, it is a worse option wearing a new name. The cost of
-        // reaching is already real and already paid: it SPENDS this hero's
-        // opener, so taking it means giving up the line you are standing in.
-        // Charging EP on top of that priced the whole feature out of the game.
-        alt.reach = true;
-        alt.stance = 'REACH · ' + STANCE[rr.row].name.toUpperCase().replace(/ STANCE$/, '');
-        alt.desc = (alt.desc || '') + ' <i>Reaching out of stance — this spends ' + h.def.name + '\u2019s opener instead of their own line.</i>';
-        if (!alt.spent) hand.push(alt);
+        op = mkChainOpener(h, rr.rot, rr.row);
+        // NO EP TAX (Build 259). Measured: with +1 EP the reach was never the best
+        // play on any turn — a 3-EP Cover competing with a 2-EP Cleave is not a
+        // choice, it is a worse option wearing a new name. It already costs this
+        // hero the line they are standing in, which is price enough.
+        op.reach = true;
+        op.stance = 'REACH · ' + STANCE[rr.row].name.toUpperCase().replace(/ STANCE$/, '');
+        op.desc = (op.desc || '') + ' <i>' + h.def.name + '\u2019s hand this turn is the line they reached for, not the one they stand in.</i>';
+      } else {
+        op = mkChainOpener(h, rot);
       }
+      if (!op.spent) hand.push(op);
       (chainTemps[h.id] || []).forEach(t => hand.push(t));   // forged steps sit in this hero's slot
       return;
     }

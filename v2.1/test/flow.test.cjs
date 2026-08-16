@@ -5003,8 +5003,12 @@ const QUICK = process.argv.includes('--quick');
   // Playing any opener discards every opener and lays out what EVERY living hero
   // can answer with — the fan stays party-wide instead of collapsing onto one
   // hero, which is the whole difference from the relay this replaced.
+  // ROTATION_GATES (the full build) so every line has a middle beat to offer —
+  // otherwise which hero can answer depends on which line the REACH happened to
+  // hand them this turn, and the check would assert the reach rotation, not the
+  // stage deal.
   check('LINE: an opener discards every opener and deals EVERY hero their answer',
-    await J(() => { setupFight(['ash', 'elin'], ['ash.sig.front', 'ash.branch.front', 'elin.sig.mid'], { ash: 'front', elin: 'mid' }); S._rotations = true; S._line = true; renderAll();
+    await J(() => { setupFight(['ash', 'elin'], ROTATION_GATES, { ash: 'front', elin: 'mid' }); S._rotations = true; S._line = true; renderAll();
       const op = buildHand().find(c => c.kind === 'opener' && c.owner === 'ash'); S.tempCards = []; resolveChainPlay(op);
       const hand = buildHand();
       return hand.length > 0
@@ -5012,10 +5016,15 @@ const QUICK = process.argv.includes('--quick');
         && new Set(hand.map(c => c.owner)).size === 2                  // BOTH heroes answer, opener included
         && !hand.some(c => c.kind === 'opener')                        // every opener discarded
         && hand.filter(c => c.owner === 'ash').length > 0; }));        // the opener's owner is still in it
-  check('LINE: each hero answers out of THEIR OWN row, never the opener’s',
+  check('LINE: each hero answers out of the line THEY are in — reacher included',
     await J(() => buildHand().every(c => {
+      // Everyone answers from the row they stand in; the hero who REACHED answers
+      // from the line they reached into, which is the one they opened with. Either
+      // way nobody is ever dragged into another hero's vocabulary.
       const h = S.heroes.find(x => x.id === c.owner);
-      return Object.values(ROTATIONS[c.owner][h.row].cards).some(d => d.name === c.name); })));
+      const stance = (S.line.stanceOf && S.line.stanceOf[c.owner]) || h.row;
+      return c.chainStance === stance
+        && Object.values(ROTATIONS[c.owner][stance].cards).some(d => d.name === c.name); })));
   check('LINE: playing any combo deals the FINISHER stage, party-wide',
     await J(() => { const combo = buildHand().find(c => c.owner === 'elin');
       S.tempCards = S.tempCards.filter(t => t.uid !== combo.uid); resolveChainPlay(combo);
@@ -5032,10 +5041,13 @@ const QUICK = process.argv.includes('--quick');
   check('LINE: closing it clears the table and gives the openers back',
     await J(() => { const fin = buildHand().find(c => c.owner === 'elin');
       S.tempCards = S.tempCards.filter(t => t.uid !== fin.uid); resolveChainPlay(fin);
-      const back = buildHand().filter(c => c.kind === 'opener' && !c.reach);
+      // Exactly one opener per hero comes back — the reach SUBSTITUTES for a
+      // standing opener now (294), so there is no extra card to filter out.
+      const back = buildHand().filter(c => c.kind === 'opener');
       // Ash opened this line, so his latch is unspent here only because the check
       // drove resolveChainPlay directly rather than through playCard.
-      return S.line === null && S.tempCards.filter(t => t.chain).length === 0 && back.length === 2; }));
+      return S.line === null && S.tempCards.filter(t => t.chain).length === 0
+        && back.length === 2 && new Set(back.map(c => c.owner)).size === 2; }));
   check('LINE: an untreed party SKIPS the combo stage — the base line is opener → finisher',
     await J(() => { setupFight(['ash', 'elin'], [], { ash: 'front', elin: 'mid' }); S._rotations = true; S._line = true; renderAll();
       const op = buildHand().find(c => c.kind === 'opener' && c.owner === 'ash'); S.tempCards = []; resolveChainPlay(op);
@@ -5049,7 +5061,7 @@ const QUICK = process.argv.includes('--quick');
       // its owner going down). If the flag survived that, the party would hold
       // nothing at all until the turn rolled over.
       S.tempCards = [];
-      const back = buildHand().filter(c => c.kind === 'opener' && !c.reach);
+      const back = buildHand().filter(c => c.kind === 'opener');
       return duringLine && S.line === null && back.length === 2 && new Set(back.map(c => c.owner)).size === 2; }));
   check('LINE: HASK banks ◆ CHARGE per beat he takes — and forfeits it if he does not close',
     await J(() => { setupFight(['hask', 'ash'], ROTATION_GATES, { hask: 'mid', ash: 'front' }); S._rotations = true; S._line = true; renderAll();
@@ -5100,13 +5112,14 @@ const QUICK = process.argv.includes('--quick');
   await sleep(400);
   check('ROTATION preview boots a party fight with the engine LIVE',
     await J(() => !!S && S._rotations === true && S.heroes.length === 3 && !document.querySelector('#overlay:not(.hidden)')));
-  check('ROTATION preview: one opener per hero, plus the single REACH (hand stays small)',
+  check('ROTATION preview: EXACTLY one opener per hero — the reach substitutes, it does not add',
     await J(() => { const openers = buildHand().filter(c => c.kind === 'opener');
-      const reach = openers.filter(c => c.reach);
-      // every hero is represented exactly once by their STANDING line…
-      const standing = openers.filter(c => !c.reach);
-      return standing.length === 3 && reach.length <= 1
-        && new Set(standing.map(c => c.owner)).size === 3
+      // Build 294: the reach used to sit BESIDE the standing opener, so one hero a
+      // turn opened holding two cards. On a party-wide opener stage that is two
+      // votes on which line the party builds, so it replaces instead.
+      return openers.length === 3
+        && new Set(openers.map(c => c.owner)).size === 3
+        && openers.filter(c => c.reach).length <= 1
         && openers.every(o => o.cost >= 1); }));
   // EP ECONOMY (Build 194): the COMBO ramp is free, but the FINISHER payoff costs
   // EP — so cashing a rotation is a real decision, and rotation combat opens +1 EP.
@@ -5761,8 +5774,8 @@ const QUICK = process.argv.includes('--quick');
       RUN = newRun('ash'); RUN.roster = node.heroes.slice(); RUN.active = node.heroes.slice();
       startFight(node); renderAll();
       const hand = buildHand(), ok = S._rotations === true
-        // one standing opener per hero, and at most one REACH on top (Build 258)
-        && hand.filter(c => !c.reach).length === node.heroes.length
+        // exactly one opener per hero — the reach replaces one, never adds (294)
+        && hand.length === node.heroes.length
         && hand.every(c => c.kind === 'opener')
         && hand.some(c => (c.chainNext || []).length);
       try { if (f) localStorage.setItem('kizuna2_1.forceClassic', f); } catch (_) {}
@@ -5933,11 +5946,13 @@ const QUICK = process.argv.includes('--quick');
       const rot = ROTATIONS[r.owner][rowKey === 'flow' ? 'mid' : rowKey === 'wind' ? 'back' : 'front'];
       const base = rot ? mkChainOpener(h, rot, 'mid') : null;
       return /REACH/.test(r.stance) && (!base || r.cost === base.cost); }));
-  check('REACH: it SHARES the opener latch — the same action, with a choice in it',
+  check('REACH: it IS that hero’s hand this turn — not a second card beside their own',
     await J(async () => { S.turn = 1; S.used = new Set(); S.ep = 12;
       const r = buildHand().find(c => c.reach);
+      const mine = buildHand().filter(c => c.owner === r.owner && c.kind === 'opener');
+      const only = mine.length === 1 && mine[0].reach === true;   // the standing line is not also on the table
       await playCard(r, (livingEnemies()[0] || {}).uid);
-      return buildHand().filter(c => c.owner === r.owner && c.kind === 'opener').length === 0; }));
+      return only && buildHand().filter(c => c.owner === r.owner && c.kind === 'opener').length === 0; }));
   // Before the relay this asserted that a REACHED line forged its own combo back
   // into the reacher's hand. Under the relay an opener forges nothing for its
   // owner, so the property that survives — and the one worth protecting — is that
