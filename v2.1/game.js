@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 313;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 314;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -11904,7 +11904,11 @@ const TREE_R0 = 74, TREE_RING = 130, TREE_PAD = 58;
 // The on-screen gap a tab flies in to.  It has to CLEAR an orb's box (measured
 // 64px tall with a two-line label), not merely equal it — at 66 the adjacent
 // rings had 2px between them and any label that wrapped ate straight through.
-const TREE_RING_PX = 82;
+// BREATHING ROOM (Build 314). 82px of ring step against ~62px orbs plus label
+// chips left ~20px of air between depth rings — everything touched. The focus
+// zoom pins a ring step to THIS many on-screen px, so raising it spreads the
+// whole constellation at the zoom people actually read it at.
+const TREE_RING_PX = 108;
 // How much of a region's RADIUS one orb's footprint eats.  This is the unit
 // conversion the layout was missing: node positions are world units, but an orb
 // is a fixed ~58 CSS px, and the two are related through the focus zoom.  That
@@ -12048,6 +12052,27 @@ function buildTreeWorld(party) {
         }
         if (!moved) break;
       }
+    }
+    // STRAIGHT ARMS (Build 314). Within a pathway, each depth's members sit
+    // EVENLY about the rail rather than wherever relaxation shoved them — a lone
+    // child sits ON the rail, so single chains line up dead straight, and the
+    // sector clamp can no longer pile two siblings onto the same wedge edge
+    // (the chain.deep/chain.rising overlap the LATTICE check caught: relaxation
+    // pushed them apart, the clamp snapped both onto the boundary).
+    {
+      const S2 = treeOrbSpan();
+      const groups = {};
+      nodes.forEach(n => { const k = rootOf(n) + '|' + depth[n.id]; (groups[k] = groups[k] || []).push(n); });
+      Object.keys(groups).forEach(k => {
+        const arr = groups[k].slice().sort((a, b) => angle[a.id] - angle[b.id]);
+        const rid = k.split('|')[0], d = +k.split('|')[1];
+        const sc = sector[rid]; if (!sc || d === 0) return;
+        const r = r0pre + d * TREE_RING;
+        const needDeg = 2 * Math.asin(Math.min(1, S2 / (2 * r))) * 180 / Math.PI + 2;
+        // spilling past the wedge slightly beats overlapping inside it
+        const step = arr.length > 1 ? Math.max(needDeg, Math.min(36, (2 * sc.w - 6) / (arr.length - 1))) : 0;
+        arr.forEach((n2, i) => { angle[n2.id] = sc.c + (i - (arr.length - 1) / 2) * step; });
+      });
     }
     const maxD = maxD0;
     // THE INNER RING MUST HOLD ITS SPOKES.  A fixed 66px hub ring is only 415px
@@ -12284,12 +12309,23 @@ function showEmberTree(onBack, heroId, selId, opts) {
       });
     }
   }
-  // faint ring guides behind the spokes, one per depth present
+  // BRANCH RAILS, NOT ORBIT RINGS (Build 314). The concentric depth circles made
+  // the region read as a spiral — nodes seemed to orbit rather than to GROW, and
+  // with the three-pathway layout in (312/313) the circles cut across all three
+  // wedges as if they connected them. Each branch now gets one faint straight
+  // rail from the hub out through its anchor's angle: the eye follows a rail out
+  // a pathway, which is the read the whole tree is built around.
   let ringSvg = '';
   party.forEach(hid => {
-    const hub = hubs[hid];
-    for (let d = 0; d <= world.per[hid].maxD; d++)
-      ringSvg += `<circle class="et-ring${hid === heroId ? ' et-ring-here' : ''}" cx="${hub.x}" cy="${hub.y}" r="${world.per[hid].r0 + d * TREE_RING}" vector-effect="non-scaling-stroke" />`;
+    const hub = hubs[hid], P = world.per[hid];
+    (P.nodes || []).filter(n => n.tier === 1).forEach(n => {
+      const a = (P.angle[n.id] || 0) * Math.PI / 180;
+      const rIn = P.r0 * 0.45, rOut = P.r0 + (P.maxD + 0.35) * TREE_RING;
+      ringSvg += `<line class="et-rail${hid === heroId ? ' et-rail-here' : ''}"
+        x1="${(hub.x + rIn * Math.cos(a)).toFixed(1)}" y1="${(hub.y + rIn * Math.sin(a)).toFixed(1)}"
+        x2="${(hub.x + rOut * Math.cos(a)).toFixed(1)}" y2="${(hub.y + rOut * Math.sin(a)).toFixed(1)}"
+        vector-effect="non-scaling-stroke" />`;
+    });
   });
   // A doorway hangs off a BOND, not a prerequisite, so it is drawn as a thread
   // rather than a spoke — dashed while the bond is short of CROSS_BOND, drawn
