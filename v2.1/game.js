@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 302;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 303;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -6735,14 +6735,34 @@ const PARRY_ENABLED = true;
 //                            botching one is now genuinely survivable — which is
 //                            what lets a player learn the gesture on cheap
 //                            enemies instead of only on the ones that kill them.
-const PARRY_PERFECT_MULT = 0.12;
+// A PERFECT NEGATES AGAIN (Build 303), and the window it costs got tighter.
+//
+// 288 set this to 0.12 to kill all-or-nothing defence, and the reasoning held —
+// but it broke the promise the screen makes. The parry lands GREEN and the hero
+// still bleeds, so the best outcome the game shows you is not the outcome you
+// get. A player reads that as the parry not working, not as nuance.
+//
+// So the honesty comes back to the top tier and the DIFFICULTY moves into the
+// window instead of into the damage: a perfect turns the blow completely, and a
+// perfect is harder to hit (PARRY_PERF_MS 210 → 130). What stops this from being
+// 288's all-or-nothing again is the GREAT band underneath it — a read you caught
+// well but not perfectly still mostly holds, so missing perfect is a graze rather
+// than a cliff. Three tiers, each with a different answer:
+//
+//   perfect  ≤130ms   0      turned completely — the green means what it says
+//   great    ≤340ms   0.12   caught it well; a sliver gets through
+//   good     ≤540ms   0.28   read it late; a quarter lands
+//   miss              1.0    it lands. Not harder than it would have.
+const PARRY_PERFECT_MULT = 0;
+const PARRY_GREAT_MULT = 0.22;
 const PARRY_MISS_MULT = 1.0;
 // ── COMBAT TENSION (the Clair-Obscur dial) ──────────────────────────────────
 // Defense is where the game is HARD: every blow is a string you must read and
 // execute, the timing bands are tight, and even a mob can hurt if you botch it.
 // Three tunable levers — turn them up for more danger, down for more forgiveness.
 const PARRY_GOOD_MS = 540;   // the "good" (half-mitigate) band, ms-remaining (Build 207: widened 480→540 — more reaction tolerance)
-const PARRY_PERF_MS = 210;   // the "perfect" (full negate + riposte) band (Build 207: widened 185→210 — easier perfects)
+const PARRY_GREAT_MS = 340;  // the "great" band — caught it, most of the blow held (Build 303)
+const PARRY_PERF_MS = 170;   // the "perfect" (full negate + riposte) band — tightened 210→170 (Build 303 — 130 was measured and wiped 3 of 3 floors), because a perfect now costs the blow entirely
 // Global PACING multiplier on every parry ring's close time.  >1 = the rings
 // close SLOWER, so there's more time to read and react.  Build 207: eased again
 // to 1.30 (rings ~30% slower) after a second "still a touch too fast" playtest.
@@ -6939,19 +6959,19 @@ let _parryStreak = 0;
 const RIPOSTE_PER_NOTE = 4;
 function parryRiposteDmg(noteCount) { return (noteCount >= 2) ? noteCount * RIPOSTE_PER_NOTE : 0; }
 function noteFeedback(ui, ax, ay, q) {
-  const good = q === 'perfect' || q === 'good';
+  const good = q === 'perfect' || q === 'great' || q === 'good';
   if (good) _parryStreak++; else _parryStreak = 0;
-  ui.el.classList.add(q === 'perfect' ? 'pr-land-perfect' : good ? 'pr-land-good' : 'pr-land-miss');
+  ui.el.classList.add(q === 'perfect' ? 'pr-land-perfect' : q === 'great' ? 'pr-land-great' : good ? 'pr-land-good' : 'pr-land-miss');
   const layer = $('#popup-layer');
   const rate = document.createElement('div');
-  rate.className = 'parry-rate ' + (q === 'perfect' ? 'prt-perfect' : good ? 'prt-good' : 'prt-miss');
+  rate.className = 'parry-rate ' + (q === 'perfect' ? 'prt-perfect' : q === 'great' ? 'prt-great' : good ? 'prt-good' : 'prt-miss');
   rate.style.left = ax + 'px'; rate.style.top = (ay - 4) + 'px';
-  const word = q === 'perfect' ? 'PERFECT' : q === 'good' ? 'GOOD' : q === 'early' ? 'EARLY' : 'MISS';
+  const word = q === 'perfect' ? 'PERFECT' : q === 'great' ? 'GREAT' : q === 'good' ? 'GOOD' : q === 'early' ? 'EARLY' : 'MISS';
   rate.innerHTML = word + (good && _parryStreak > 1 ? ` <em>×${_parryStreak}</em>` : '');
   layer.appendChild(rate);
   setTimeout(() => rate.remove(), 620);
   const burst = document.createElement('div');
-  burst.className = 'parry-burst ' + (q === 'perfect' ? 'pb-perfect' : good ? 'pb-good' : 'pb-miss');
+  burst.className = 'parry-burst ' + (q === 'perfect' ? 'pb-perfect' : q === 'great' ? 'pb-great' : good ? 'pb-good' : 'pb-miss');
   burst.style.left = ax + 'px'; burst.style.top = ay + 'px';
   layer.appendChild(burst);
   setTimeout(() => burst.remove(), 440);
@@ -6959,7 +6979,7 @@ function noteFeedback(ui, ax, ay, q) {
   // impact.  (Cheap — it's a separate fading overlay, so it never forces the
   // paused/blurred battlefield behind it to re-rasterize.)
   const flash = document.createElement('div');
-  flash.className = 'parry-flash ' + (q === 'perfect' ? 'pf-perfect' : good ? 'pf-good' : 'pf-miss');
+  flash.className = 'parry-flash ' + (q === 'perfect' ? 'pf-perfect' : q === 'great' ? 'pf-great' : good ? 'pf-good' : 'pf-miss');
   layer.appendChild(flash);
   setTimeout(() => flash.remove(), 220);
   try { if (good) SFX.parry(q === 'perfect', _parryStreak); else SFX.parryMiss(); } catch (_) {}
@@ -6990,7 +7010,7 @@ function parryTapNote(ax, ay, dur, idx, total, size) {
     const ui = mkParryUiAt(ax, ay, `<span class="pr-target"></span><span class="pr-close"></span><span class="pr-lbl">${label}</span>`, size === 'big' ? 'pr-big' : '');
     ui.el.querySelector('.pr-close').style.animationDuration = dur + 'ms';
     const lbl = ui.el.querySelector('.pr-lbl');
-    const GOOD = Math.round(PARRY_GOOD_MS * _parryWin), PERF = Math.round(PARRY_PERF_MS * _parryWin);   // windows (tighten with depth)
+    const GOOD = Math.round(PARRY_GOOD_MS * _parryWin), GREAT = Math.round(PARRY_GREAT_MS * _parryWin), PERF = Math.round(PARRY_PERF_MS * _parryWin);   // windows (tighten with depth)
     let done = false; const t0 = Date.now();
     // light the note up the moment it becomes tappable — "wait for the glow" — and
     // DILATE time (Clair Obscur slow-mo) so the instant to parry lands with weight
@@ -6999,7 +7019,7 @@ function parryTapNote(ax, ay, dur, idx, total, size) {
     const onTap = () => {
       const rem = dur - (Date.now() - t0);
       if (rem > GOOD) { parryEarlyNudge(ui, ax, ay); return; }   // too soon — forgive, keep listening
-      finish(rem <= PERF ? 'perfect' : 'good');
+      finish(rem <= PERF ? 'perfect' : rem <= GREAT ? 'great' : 'good');
     };
     window.addEventListener('pointerdown', onTap, true);
     setTimeout(() => finish('miss'), dur);
@@ -7031,7 +7051,7 @@ function parryFeintNote(ax, ay, dur, idx, total) {
     cl.style.animationDuration = dur + 'ms';
     ui.el.dataset.pause = pause;                             // the harness reads the true close time
     const lbl = ui.el.querySelector('.pr-lbl');
-    const GOOD = Math.round(PARRY_GOOD_MS * _parryWin), PERF = Math.round(PARRY_PERF_MS * _parryWin);
+    const GOOD = Math.round(PARRY_GOOD_MS * _parryWin), GREAT = Math.round(PARRY_GREAT_MS * _parryWin), PERF = Math.round(PARRY_PERF_MS * _parryWin);
     const totalMs = dur + pause;
     let done = false; const t0 = Date.now();
     const pT = setTimeout(() => { if (done) return; cl.style.animationPlayState = 'paused'; ui.el.classList.add('pr-hesitate'); lbl.textContent = '…'; }, Math.round(dur * 0.62));
@@ -7041,7 +7061,7 @@ function parryFeintNote(ax, ay, dur, idx, total) {
     const onTap = () => {
       const rem = totalMs - (Date.now() - t0);
       if (rem > GOOD) { parryEarlyNudge(ui, ax, ay); return; }   // fooled by the hesitation — forgiven, keep listening
-      finish(rem <= PERF ? 'perfect' : 'good');
+      finish(rem <= PERF ? 'perfect' : rem <= GREAT ? 'great' : 'good');
     };
     window.addEventListener('pointerdown', onTap, true);
     setTimeout(() => finish('miss'), totalMs);
@@ -7315,7 +7335,11 @@ async function runParrySeq(notes, anchor, art) {
     const okNote = q === 'perfect' || q === 'good';
     if (art) bossAttackBeat(art, p.x, p.y, okNote);   // the blade STRIKES on the beat — clash if parried, connects if not
     if (done) { done.classList.remove('sq-active'); done.classList.add(okNote ? 'sq-hit' : 'sq-miss'); }
-    if (q === 'perfect' || q === 'good') hits++;
+    // WEIGHTED, not counted. A note is not caught-or-not: a perfect turns its
+    // whole share, a great turns most of it, a late-but-read one turns half.
+    // Counting hits equally is what made "all caught" and "all perfect" the same
+    // outcome, which cannot stand now that a perfect negates the blow entirely.
+    hits += q === 'perfect' ? 1 : q === 'great' ? 0.88 : q === 'good' ? 0.72 : 0;
     if (q === 'perfect') perfects++;
     parryCam(i, notes.length, q);            // the shot tightens and dutches with the string
     if (synced) land += sub;                 // next note, next grid point
@@ -7325,7 +7349,10 @@ async function runParrySeq(notes, anchor, art) {
   // PARTIAL: each note you turned aside negates its share; the ones you missed
   // still land.  mit = fraction parried; perfect = caught them all; FLAWLESS =
   // every note read PERFECTLY (the Clair Obscur counter — ripostes, see enemyPhase).
-  return { mit: hits / notes.length, perfect: hits === notes.length, flawless: perfects === notes.length && notes.length > 0, notes: notes.length };
+  // `perfect` gates the FULL negate, so it means every note read perfectly — not
+  // every note simply caught. Before Build 303 those were the same thing.
+  return { mit: hits / notes.length, perfect: perfects === notes.length && notes.length > 0,
+    flawless: perfects === notes.length && notes.length > 0, notes: notes.length };
 }
 // Run a pattern; returns { mit (0..1 damage negated), perfect } | null if off.
 // While a parry is live the world behind the notes desaturates, blurs and
@@ -7429,7 +7456,7 @@ async function runParryInner(targetEl, pattern, art) {
   const ok1 = q === 'perfect' || q === 'good';
   if (art) bossAttackBeat(art, a.x, a.y, ok1);   // the single strike lands as the note resolves
   parryCam(0, 1, q);                             // a lone read still snaps
-  return { mit: q === 'perfect' ? 1 : q === 'good' ? 0.5 : 0, perfect: q === 'perfect', flawless: q === 'perfect', notes: 1 };
+  return { mit: q === 'perfect' ? 1 : q === 'great' ? 0.88 : q === 'good' ? 0.72 : 0, perfect: q === 'perfect', flawless: q === 'perfect', notes: 1 };
 }
 function parryFlash(el) {
   if (!el) return;
@@ -7648,8 +7675,8 @@ function strikeNote(targetEl, idx, total, dur, pos) {
 }
 // Per-strike RESPONSE — red rating word + burst; a perfect connects hard.
 function strikeFeedback(ui, ax, ay, q) {
-  const good = q === 'perfect' || q === 'good';
-  ui.el.classList.add(q === 'perfect' ? 'pr-land-perfect' : good ? 'pr-land-good' : 'pr-land-miss');
+  const good = q === 'perfect' || q === 'great' || q === 'good';
+  ui.el.classList.add(q === 'perfect' ? 'pr-land-perfect' : q === 'great' ? 'pr-land-great' : good ? 'pr-land-good' : 'pr-land-miss');
   const layer = $('#popup-layer');
   const rate = document.createElement('div');
   rate.className = 'parry-rate strike-rate ' + (q === 'perfect' ? 'srt-perfect' : good ? 'srt-good' : 'srt-miss');
@@ -7716,7 +7743,7 @@ function strikeHoldNote(targetEl, dur, pos) {
 // the payoff up, never below the un-traced baseline.  Detection reads pointer
 // coords against the on-stage vertices, so it works with thumb OR mouse.
 function traceFeedback(el, cx, cy, q) {
-  const good = q === 'perfect' || q === 'good';
+  const good = q === 'perfect' || q === 'great' || q === 'good';
   el.classList.add(q === 'perfect' ? 'tr-perfect' : good ? 'tr-good' : 'tr-miss');
   const layer = $('#popup-layer');
   const rate = document.createElement('div');
@@ -7931,7 +7958,7 @@ async function resolveAllOut() {
     else if (nt.t === 'hold') q = await strikeHoldNote(null, Math.max(560, dur + 240), p);
     else                      q = await strikeNote(null, i + 1, notes.length, dur, p);
     if (dot) { dot.classList.remove('sq-active'); dot.classList.add(q === 'perfect' || q === 'good' ? 'sq-hit' : 'sq-miss'); }
-    const good = q === 'perfect' || q === 'good';
+    const good = q === 'perfect' || q === 'great' || q === 'good';
     if (good) goodHits++;
     allStrikes++; if (q === 'perfect') perfectStrikes++;   // for the FLAWLESS finisher
     chain = good ? chain + 1 : 0;
