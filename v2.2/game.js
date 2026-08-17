@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 1;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 2;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -5701,12 +5701,21 @@ async function resolveCard(card, targetId) {
     leaveAfterimage(owner, from);
     S._morphHeroId = owner.id;
     if (occupant) S._morphHeroId2 = occupant.id;
+    owner._held = false;                     // repositioning breaks the held pose
+    if (occupant) occupant._held = false;
     renderAll();
     popupAt(figEl(owner.id), STANCE[card.toRow].name.toUpperCase(), 'info');
     if (occupant) popupAt(figEl(occupant.id), 'SWAP', 'info');
     await sleep(340);
     return;
   }
+
+  // THE BEAT HOLDS (v2.2 Build 2). A hero who acts advances into the strike
+  // and STAYS there — sword down, pose held — until the next card lands its
+  // beat or END TURN sends everyone back to idle. The line reads as a combo
+  // being built move by move instead of three people flickering in place:
+  // strike → hold → next hero strikes → hold → finisher → END TURN releases.
+  if (owner && !owner.downed) owner._held = true;
 
   const fx = card.fx || {};
   // CAST-TIME (Hask) — a big spell doesn't hit now; it BEGINS a cast that lands at
@@ -8322,6 +8331,9 @@ async function endTurn() {
   if (S.executing || S.over || S._staging) return;
   S.executing = true;
   $('#stage').classList.add('executing');
+  // the party breaks pose FIRST — held strikes spring back to idle as their
+  // own visible beat, then the lens swings to the enemy side
+  if (S.heroes.some(h => h._held)) { releaseHeldPoses(); await sleep(360); }
   renderAll();
   camPose(CAM_POSE_ENEMY, 950);   // the lens swings to feature THEIR side of the field
   await enemyPhase();
@@ -10672,7 +10684,7 @@ function renderBattlefield() {
         attachHeroDrag(fig, who);
         _partyFigs[who.id] = fig;
       }
-      fig.className = 'figure party' + (who.downed ? ' downed' : '') + (targetable ? ' fig-targetable' : '') + (canMove(who) ? ' can-move' : '');
+      fig.className = 'figure party' + (who.downed ? ' downed' : '') + (who._held && !who.downed ? ' fig-held' : '') + (targetable ? ' fig-targetable' : '') + (canMove(who) ? ' can-move' : '');
       snapFx(who, { invuln: who.invuln ? 1 : 0, guard: who.guard, buffDmg: who.buffDmg, counter: who.counter, exposed: who.exposed, chill: who.chill, primed: who.primed ? 1 : 0 });
       // Click fallback for target-picking (synthetic clicks / accessibility
       // tools).  Safe alongside the pointer path: onFigureTap no-ops once
@@ -11417,6 +11429,23 @@ function lungeFig(el) {
   const cls = el.classList.contains('enemy') ? 'fig-lunge' : 'fig-lunge-hero';
   el.classList.remove('fig-lunge', 'fig-lunge-hero'); void el.offsetWidth; el.classList.add(cls);
   setTimeout(() => el.classList.remove(cls), 420);
+}
+// END TURN breaks the pose (v2.2 Build 2) — every hero who has been holding a
+// strike springs back to idle in one beat, so the hand-over to the enemy phase
+// reads as the party resetting its feet. The return is a keyframe rather than
+// a transition because the next renderAll rebuilds className and would eat a
+// transition mid-flight; the keyframe survives long enough to land.
+function releaseHeldPoses() {
+  ((S && S.heroes) || []).forEach(h => {
+    if (!h._held) return;
+    h._held = false;
+    const el = figEl(h.id);
+    if (el) {
+      el.classList.remove('fig-held');
+      el.classList.add('fig-return');
+      setTimeout(() => el.classList.remove('fig-return'), 400);
+    }
+  });
 }
 
 // ATTACK-TYPE IMPACT VFX — each school reads differently when it lands, so the
@@ -12271,6 +12300,10 @@ function showEmberTree(onBack, heroId, selId, opts) {
   // ---- LINKS: straight spokes — prereq → node, or hub → a depth-0 node ---------
   const links = [];
   allNodes.forEach(n => {
+    // A SEALED TIER IS NOT DRAWN (see the orb filter below) — so its links must
+    // not be either. Dashed spokes running to empty space were most of what made
+    // the early tree read as noise: ink for nodes that do not exist yet.
+    if (!(tierOpen(n.tier) || hasNode(n.id))) return;
     const hub = hubs[n.hero];
     const reqs = (n.requires || []).filter(r => pos[r]);
     const far = n.hero !== heroId;
@@ -12339,9 +12372,19 @@ function showEmberTree(onBack, heroId, selId, opts) {
   let ringSvg = '';
   party.forEach(hid => {
     const hub = hubs[hid], P = world.per[hid];
+    // A rail runs only as deep as the deepest node actually DRAWN on ITS OWN
+    // branch — sealed tiers are hidden, so a rail pointing past the last
+    // visible orb was a guide to nothing, and one branch's depth must not
+    // stretch its siblings' rails. Each grows as the descent unseals tiers.
     (P.nodes || []).filter(n => n.tier === 1).forEach(n => {
-      const a = (P.angle[n.id] || 0) * Math.PI / 180;
-      const rIn = P.r0 * 0.45, rOut = P.r0 + (P.maxD + 0.35) * TREE_RING;
+      const aDeg = P.angle[n.id] || 0;
+      const secD = (P.nodes || []).reduce((m, n2) => {
+        if (!(tierOpen(n2.tier) || hasNode(n2.id))) return m;
+        const d = ((P.angle[n2.id] || 0) - aDeg + 540) % 360 - 180;
+        return Math.abs(d) <= 61 ? Math.max(m, P.depth[n2.id] || 0) : m;
+      }, 0);
+      const a = aDeg * Math.PI / 180;
+      const rIn = P.r0 * 0.45, rOut = P.r0 + (secD + 0.35) * TREE_RING;
       ringSvg += `<line class="et-rail${hid === heroId ? ' et-rail-here' : ''}"
         x1="${(hub.x + rIn * Math.cos(a)).toFixed(1)}" y1="${(hub.y + rIn * Math.sin(a)).toFixed(1)}"
         x2="${(hub.x + rOut * Math.cos(a)).toFixed(1)}" y2="${(hub.y + rOut * Math.sin(a)).toFixed(1)}"
@@ -12591,9 +12634,24 @@ function showEmberTree(onBack, heroId, selId, opts) {
   if (zAll) zAll.onclick = () => {
     const pan = document.getElementById('et-pan'); if (!pan) return;
     pan.classList.add('et-flying');
-    const zf = treeFitZoom();
-    TREE_VIEW.x = 0; TREE_VIEW.y = 0; TREE_VIEW.z = zf; TREE_VIEW._seeded = true;
-    pan.style.transform = `translate(0px, 0px) scale(${zf})`;
+    // Fit WHAT IS DRAWN, not the world's full square. A solo starter's tree is
+    // one small cluster; fitting the whole world put a thumbnail in an empty
+    // field. Frame the drawn orbs (hubs included) with a ring of margin.
+    const drawnPts = allNodes.filter(n => tierOpen(n.tier) || hasNode(n.id))
+      .map(n => pos[n.id]).filter(Boolean)
+      .concat(party.map(h => hubs[h]).filter(Boolean));
+    let zf = treeFitZoom(), cx = W / 2, cy = W / 2;
+    if (drawnPts.length) {
+      let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+      drawnPts.forEach(p => { x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x); y1 = Math.max(y1, p.y); });
+      const span = Math.max(x1 - x0, y1 - y0) + 2.4 * TREE_RING;
+      cx = (x0 + x1) / 2; cy = (y0 + y1) / 2;
+      zf = Math.max(TREE_ZMIN, Math.min(TREE_ZMAX, treeViewportPx() / ((span / W) * TREE_BOX) * 0.94));
+    }
+    const o = treeFocusOffset({ x: cx, y: cy }, W, zf);
+    TREE_VIEW.x = o.x; TREE_VIEW.y = o.y; TREE_VIEW.z = zf; TREE_VIEW._seeded = true;
+    pan.style.transform = `translate(${o.x}px, ${o.y}px) scale(${zf})`;
+    pan.style.setProperty('--lbl', String(Math.min(1, 1 / Math.max(0.01, zf))));
     setTimeout(() => pan.classList.remove('et-flying'), 640);
   };
   $('#et-back').onclick = () => { hideOverlay(); (onBack || showTitle)(); };

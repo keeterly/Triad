@@ -1033,7 +1033,10 @@ body {
    their own colour, a medallion above, the effect on a scrimmed lower panel. */
 #overlay.boon-screen #overlay-inner { max-width: 760px; }
 .boon-choices { display: flex; gap: 14px; justify-content: center; margin-top: 10px; width: 100%; }
-.boon-card { position: relative; flex: 1 1 0; max-width: 232px; min-height: 296px; overflow: hidden;
+/* The card height breathes with the viewport: 296px cards on a 430px-tall
+   phone put their bottom third and the skip button below the fold with the
+   scrollbar hidden — a clipped screen with no cue. Everything must FIT. */
+.boon-card { position: relative; flex: 1 1 0; max-width: 232px; min-height: clamp(206px, 52vh, 296px); overflow: hidden;
   display: flex; flex-direction: column; cursor: pointer; font-family: inherit; color: var(--ink); text-align: center;
   border: 1px solid rgba(240,212,136,0.28); border-radius: 13px; padding: 0;
   background: radial-gradient(ellipse 100% 62% at 50% 8%, rgba(255,220,160,0.06), transparent 60%), linear-gradient(180deg, rgba(20,15,10,0.7), rgba(8,5,4,0.96));
@@ -1049,7 +1052,7 @@ body {
 .boon-card.boon-rare { border-color: rgba(232,120,90,0.55); }
 .boon-card.boon-rare .boon-from { color: #ec8a5a; }
 .boon-portrait { position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: center; z-index: 0; pointer-events: none; }
-.boon-portrait svg { height: 208px; width: auto; opacity: 0.9;
+.boon-portrait svg { height: clamp(132px, 37vh, 208px); width: auto; opacity: 0.9;
   filter: drop-shadow(0 10px 20px rgba(0,0,0,0.9)) drop-shadow(0 0 26px color-mix(in srgb, var(--tint) 45%, transparent)); }
 /* DUO / TRIO — show every involved character, overlapped so all read at a glance */
 .boon-portrait-multi { align-items: flex-end; gap: 0; }
@@ -1251,7 +1254,10 @@ body {
 .map-strip {
   position: relative;
   display: flex; align-items: center; justify-content: center; gap: 26px;
-  margin: 4px auto 14px; max-width: 720px; flex-wrap: nowrap;
+  /* side padding: the last column's label ("THE REMEMBERED") may overhang its
+     node by design — at the strip's edge that overhang used to fall off the
+     screen instead of into a column gap */
+  margin: 4px auto 14px; max-width: 720px; flex-wrap: nowrap; padding: 0 18px;
   /* A fixed vertical extent so a SHORT map (the final floor's camp → boss) reads
      at the same height as the tall branching floors, instead of a thin strip. */
   min-height: 210px;
@@ -3076,7 +3082,7 @@ button.map-node:not(:disabled) { cursor: pointer; }
    frame); the detail rail floats over it on the right behind a soft dark
    gradient so the nodes underneath stay legible. */
 #overlay.et-screen #overlay-inner { max-width: none; width: 100%; height: 100%; display: flex; flex-direction: column; }
-#overlay.et-screen .et-head { margin: 12px 0 6px; }
+#overlay.et-screen .et-head { margin: 12px 0 6px; padding: 0 16px; }
 #overlay.et-screen .et-tabs { margin: 0 0 4px; position: relative; z-index: 6; }
 .et-wallet {
   font-size: 14px; letter-spacing: 0.08em; color: #ffb469; margin: 0 0 8px;
@@ -3172,10 +3178,18 @@ button.map-node:not(:disabled) { cursor: pointer; }
 /* the detail rail floats over the field on the right, on a soft gradient that
    fades in from transparent so nodes behind its left edge stay readable */
 .et-side { position: relative; flex: 0 0 274px; width: 274px; padding: 14px 16px; z-index: 5; align-self: stretch;
-  display: flex; flex-direction: column; justify-content: center; gap: 10px; pointer-events: none;
+  display: flex; flex-direction: column; gap: 10px; pointer-events: none;
+  /* NOT justify-content:center — when the stack (kindled note + coach + detail
+     + BACK) outgrows the rail, centring clips BOTH ends and the BACK button
+     dies half off-screen. Auto margins on the ends centre a short stack and
+     degrade to a scrollable top-aligned one when tall. */
+  overflow-y: auto; scrollbar-width: none;
   border-left: 1px solid rgba(240,212,136,0.14);
   background: linear-gradient(90deg, rgba(9,6,4,0.55) 0%, rgba(12,8,6,0.92) 18%, rgba(10,7,5,0.96) 100%); }
-.et-side > * { pointer-events: auto; }
+.et-side::-webkit-scrollbar { width: 0; }
+.et-side > * { pointer-events: auto; flex: none; }
+.et-side > :first-child { margin-top: auto; }
+.et-side > :last-child { margin-bottom: auto; }
 .et-side .et-detail { margin: 0; min-height: 132px; border-color: rgba(240,212,136,0.16); background: linear-gradient(180deg, rgba(26,20,14,0.72), rgba(12,9,7,0.6)); }
 .et-side .et-back-btn { align-self: flex-start; }
 .et-links { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
@@ -4428,13 +4442,15 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
 @keyframes nvEcho { 0% { opacity: 0.9; filter: contrast(1.3) brightness(0.8); }
   50% { opacity: 0.35; filter: contrast(1.6) brightness(1.35); } 100% { opacity: 0.75; filter: none; } }
 
-/* the objective: a shaft of stacked floors, going up */
-.nv-shaft-up { position: absolute; left: 50%; top: -4%; bottom: 22%; width: 26%;
-  transform: translateX(-50%);
-  background: repeating-linear-gradient(to top, rgba(200,176,130,0.10) 0 2px, transparent 2px 34px),
-    linear-gradient(to top, transparent 0%, rgba(240,212,136,0.10) 90%);
-  mask-image: linear-gradient(to top, transparent 4%, #000 30%);
-  -webkit-mask-image: linear-gradient(to top, transparent 4%, #000 30%); }
+/* the objective: a shaft of stacked floors, going up — masked on BOTH axes so
+   it reads as light falling through a stairwell, not a pasted panel (the
+   unmasked version had hard vertical edges and visible seam lines) */
+.nv-shaft-up { position: absolute; left: 50%; top: -4%; bottom: 10%; width: 34%;
+  transform: translateX(-50%); filter: blur(1.5px);
+  background: repeating-linear-gradient(to top, rgba(200,176,130,0.09) 0 2px, transparent 2px 34px),
+    linear-gradient(to top, transparent 0%, rgba(240,212,136,0.08) 90%);
+  mask-image: radial-gradient(70% 92% at 50% 40%, #000 30%, transparent 78%);
+  -webkit-mask-image: radial-gradient(70% 92% at 50% 40%, #000 30%, transparent 78%); }
 
 /* the Journal's ECHOES tab — the archive */
 .nv-arc-list { display: flex; flex-direction: column; gap: 8px; margin: 8px 0 4px; }
@@ -4461,3 +4477,44 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
   border: 1px solid rgba(200,176,130,0.2); opacity: 0.4; }
 .nvi-flag.on { opacity: 1; border-color: var(--gold-bright); color: var(--gold-bright); }
 .nvi-btns { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; }
+
+/* ── SHORT-VIEWPORT FIT (v2.2 Build 2) ───────────────────────────────────────
+   A landscape phone gives ~430 logical px of height, and both the descent map
+   and the post-fight draft were authored taller than that: the map's coach
+   line and its footer (the EMBER TREE button the coach POINTS AT) sat below
+   the fold, and the hidden scrollbar meant nothing said so. Every screen must
+   FIT — scrolling is for prose, never for a screen's own controls. */
+@media (max-height: 520px) {
+  .map-screen #overlay-inner { width: 96%; max-width: none; }
+  .map-screen .ov-title { font-size: 17px !important; margin-bottom: 4px !important; }
+  .map-strip { min-height: 156px; gap: 16px; margin: 2px auto 6px; }
+  .map-node .mn-icon { width: 34px; height: 34px; font-size: 14px; }
+  .map-node .mn-label { font-size: 7.6px; height: 30px; }
+  .map-col { gap: 8px; }
+  .map-coach { font-size: 9.5px; padding: 5px 12px; margin: 4px auto 2px; }
+  .map-footer { margin-top: 2px; }
+  .map-footer .party-chip { padding: 4px 10px; }
+  .spark-screen .ov-lines { margin-bottom: 8px; }
+  .spark-screen .ov-title { font-size: 19px !important; }
+  .boon-choices { gap: 10px; margin-top: 6px; }
+}
+
+/* ── THE BEAT HOLDS (v2.2 Build 2) — combo rhythm as body language ──────────
+   A hero who acts ADVANCES into the strike and stays there, weight forward,
+   until the next beat of the line or END TURN. The transition on the class
+   itself makes the advance ease in when the pose lands; the restrike variant
+   drives a held hero further forward for their next beat (a combo continuing
+   from where it left off); fig-return is the spring back to idle. */
+#party-half .figure.fig-held { transform: translateX(20px); transition: transform 0.26s ease-out; }
+#party-half .figure.fig-held .fig-art { filter: brightness(1.08) drop-shadow(0 6px 14px rgba(0,0,0,0.65)); }
+#party-half .figure.fig-held.fig-lunge-hero { animation: fig-restrike 0.4s ease; }
+@keyframes fig-restrike {
+  0% { transform: translateX(16px); }
+  38% { transform: translateX(35px) scale(1.06); filter: brightness(1.35); }
+  100% { transform: translateX(20px); }
+}
+#party-half .figure.fig-return { animation: fig-return 0.34s cubic-bezier(0.3, 1.35, 0.6, 1); }
+@keyframes fig-return {
+  0% { transform: translateX(20px); }
+  100% { transform: translateX(0); }
+}

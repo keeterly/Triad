@@ -110,6 +110,18 @@ playing it leaves behind). Pass `freshNarrative: true` for the fresh-soul
 path. `resetProgress()` wipes narrative too; suite checks that re-enter the
 veteran title path after a reset re-seed via `narrSeedPrologueComplete()`.
 
+## Known continuity clash — ASCEND vs THE DESCENT (open, needs a decision)
+
+The bible LOCKS ascent: souls climb the Abyss from the Landing at the bottom;
+the prologue ends on the objective **ASCEND**. One screen later, v2.1's combat
+game says **"THE DESCENT · THE ROAD DOWN"** — the map is branded THE DESCENT,
+floors "give way" downward, tree tiers "unseal as you descend," Game Over says
+the descent ends. The Landing's own copy (stair, climb, bottom, "CLIMB AGAIN")
+already matches the bible — it is specifically the DESCENT branding that
+contradicts it. Fixing it is a dedicated rename pass (dozens of strings, test
+assertions among them), not a patch; until then the seam sits between PRO_008
+and the tutorial's closing screen. The bible wins when the pass happens.
+
 ## What's next (in handoff order, not invented)
 
 - **N3 — Act I skeleton**: `A1_010`–`A1_060` scenes. The sockets already

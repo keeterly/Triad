@@ -1,0 +1,632 @@
+{
+  "ash": {
+    "name": "ASH",
+    "cls": "Ronin",
+    "arch": "Skirmisher",
+    "rows": {
+      "front": [
+        {
+          "k": "cleave",
+          "tag": "OPN",
+          "name": "Cleave",
+          "opener": true
+        },
+        {
+          "k": "risingslash",
+          "tag": "CMB",
+          "name": "Rising Slash",
+          "opener": false
+        },
+        {
+          "k": "crashingwave",
+          "tag": "FIN",
+          "name": "Crashing Wave",
+          "opener": false
+        },
+        {
+          "k": "sunder",
+          "tag": "CMB",
+          "name": "Sunder",
+          "opener": false
+        },
+        {
+          "k": "markedfate",
+          "tag": "FIN",
+          "name": "Marked Fate",
+          "opener": false
+        }
+      ],
+      "mid": [
+        {
+          "k": "flowingcut",
+          "tag": "OPN",
+          "name": "Flowing Cut",
+          "opener": true
+        },
+        {
+          "k": "parrystep",
+          "tag": "CMB",
+          "name": "Parry Step",
+          "opener": false
+        },
+        {
+          "k": "riposte",
+          "tag": "FIN",
+          "name": "Riposte",
+          "opener": false
+        },
+        {
+          "k": "flowread",
+          "tag": "CMB",
+          "name": "Flow Read",
+          "opener": false
+        },
+        {
+          "k": "crossguard",
+          "tag": "FIN",
+          "name": "Crossguard",
+          "opener": false
+        }
+      ],
+      "back": [
+        {
+          "k": "thrownedge",
+          "tag": "OPN",
+          "name": "Thrown Edge",
+          "opener": true
+        },
+        {
+          "k": "deepercut",
+          "tag": "CMB",
+          "name": "Deeper Cut",
+          "opener": false
+        },
+        {
+          "k": "followcut",
+          "tag": "FIN",
+          "name": "Follow Cut",
+          "opener": false
+        },
+        {
+          "k": "huntersread",
+          "tag": "CMB",
+          "name": "Hunter’s Read",
+          "opener": false
+        },
+        {
+          "k": "backmarked",
+          "tag": "FIN",
+          "name": "Marked Fate",
+          "opener": false
+        }
+      ]
+    }
+  },
+  "elin": {
+    "name": "ELIN",
+    "cls": "Cleric",
+    "arch": "Warden of the Light",
+    "rows": {
+      "front": [
+        {
+          "k": "smite",
+          "tag": "OPN",
+          "name": "Smite",
+          "opener": true
+        },
+        {
+          "k": "searing",
+          "tag": "CMB",
+          "name": "Searing",
+          "opener": false
+        },
+        {
+          "k": "radiantward",
+          "tag": "FIN",
+          "name": "Radiant Ward",
+          "opener": false
+        },
+        {
+          "k": "raiseward",
+          "tag": "CMB",
+          "name": "Raise Ward",
+          "opener": false
+        },
+        {
+          "k": "consecrate",
+          "tag": "FIN",
+          "name": "Consecrate",
+          "opener": false
+        }
+      ],
+      "mid": [
+        {
+          "k": "mend",
+          "tag": "OPN",
+          "name": "Mend",
+          "opener": true
+        },
+        {
+          "k": "sanctuary",
+          "tag": "CMB",
+          "name": "Sanctuary",
+          "opener": false
+        },
+        {
+          "k": "renew",
+          "tag": "FIN",
+          "name": "Renew",
+          "opener": false
+        },
+        {
+          "k": "cleanse",
+          "tag": "CMB",
+          "name": "Cleanse",
+          "opener": false
+        },
+        {
+          "k": "wardingcircle",
+          "tag": "FIN",
+          "name": "Warding Circle",
+          "opener": false
+        }
+      ],
+      "back": [
+        {
+          "k": "distantprayer",
+          "tag": "OPN",
+          "name": "Distant Prayer",
+          "opener": true
+        },
+        {
+          "k": "blessing",
+          "tag": "CMB",
+          "name": "Blessing",
+          "opener": false
+        },
+        {
+          "k": "benediction",
+          "tag": "FIN",
+          "name": "Benediction",
+          "opener": false
+        },
+        {
+          "k": "deepmercy",
+          "tag": "CMB",
+          "name": "Deep Mercy",
+          "opener": false
+        },
+        {
+          "k": "dawnlight",
+          "tag": "FIN",
+          "name": "Dawnlight",
+          "opener": false
+        }
+      ]
+    }
+  },
+  "mira": {
+    "name": "MIRA",
+    "cls": "Reaver",
+    "arch": "Assassin",
+    "rows": {
+      "front": [
+        {
+          "k": "backstab",
+          "tag": "OPN",
+          "name": "Backstab",
+          "opener": true
+        },
+        {
+          "k": "twincut",
+          "tag": "CMB",
+          "name": "Twin Cut",
+          "opener": false
+        },
+        {
+          "k": "vanishstrike",
+          "tag": "FIN",
+          "name": "Vanish Strike",
+          "opener": false
+        },
+        {
+          "k": "shadowstep",
+          "tag": "CMB",
+          "name": "Shadowstep",
+          "opener": false
+        },
+        {
+          "k": "killingmark",
+          "tag": "FIN",
+          "name": "Killing Mark",
+          "opener": false
+        }
+      ],
+      "mid": [
+        {
+          "k": "shadowknife",
+          "tag": "OPN",
+          "name": "Shadow Knife",
+          "opener": true
+        },
+        {
+          "k": "serrate",
+          "tag": "CMB",
+          "name": "Serrate",
+          "opener": false
+        },
+        {
+          "k": "twindaggers",
+          "tag": "FIN",
+          "name": "Twin Daggers",
+          "opener": false
+        },
+        {
+          "k": "feint",
+          "tag": "CMB",
+          "name": "Feint",
+          "opener": false
+        },
+        {
+          "k": "bloodletting",
+          "tag": "FIN",
+          "name": "Bloodletting",
+          "opener": false
+        }
+      ],
+      "back": [
+        {
+          "k": "throwndagger",
+          "tag": "OPN",
+          "name": "Thrown Dagger",
+          "opener": true
+        },
+        {
+          "k": "quickthrow",
+          "tag": "CMB",
+          "name": "Quick Throw",
+          "opener": false
+        },
+        {
+          "k": "execute",
+          "tag": "FIN",
+          "name": "Execute",
+          "opener": false
+        },
+        {
+          "k": "markblade",
+          "tag": "CMB",
+          "name": "Mark",
+          "opener": false
+        },
+        {
+          "k": "backkillingmark",
+          "tag": "FIN",
+          "name": "Killing Mark",
+          "opener": false
+        }
+      ]
+    }
+  },
+  "cassia": {
+    "name": "CASSIA",
+    "cls": "Guardian",
+    "arch": "Warden",
+    "rows": {
+      "front": [
+        {
+          "k": "shieldbash",
+          "tag": "OPN",
+          "name": "Shield Bash",
+          "opener": true
+        },
+        {
+          "k": "brace",
+          "tag": "CMB",
+          "name": "Brace",
+          "opener": false
+        },
+        {
+          "k": "bulwark",
+          "tag": "FIN",
+          "name": "Bulwark",
+          "opener": false
+        },
+        {
+          "k": "provoke",
+          "tag": "CMB",
+          "name": "Provoke",
+          "opener": false
+        },
+        {
+          "k": "ironanswer",
+          "tag": "FIN",
+          "name": "Iron Answer",
+          "opener": false
+        }
+      ],
+      "mid": [
+        {
+          "k": "cover",
+          "tag": "OPN",
+          "name": "Cover",
+          "opener": true
+        },
+        {
+          "k": "reinforce",
+          "tag": "CMB",
+          "name": "Reinforce",
+          "opener": false
+        },
+        {
+          "k": "aegis",
+          "tag": "FIN",
+          "name": "Aegis",
+          "opener": false
+        },
+        {
+          "k": "warded",
+          "tag": "CMB",
+          "name": "Warded",
+          "opener": false
+        },
+        {
+          "k": "sentinelvolley",
+          "tag": "FIN",
+          "name": "Sentinel Volley",
+          "opener": false
+        }
+      ],
+      "back": [
+        {
+          "k": "thrownshield",
+          "tag": "OPN",
+          "name": "Thrown Shield",
+          "opener": true
+        },
+        {
+          "k": "weighted",
+          "tag": "CMB",
+          "name": "Weighted Shield",
+          "opener": false
+        },
+        {
+          "k": "sentinelthrow",
+          "tag": "FIN",
+          "name": "Sentinel Throw",
+          "opener": false
+        },
+        {
+          "k": "rampart",
+          "tag": "CMB",
+          "name": "Rampart",
+          "opener": false
+        },
+        {
+          "k": "backvolley",
+          "tag": "FIN",
+          "name": "Sentinel Volley",
+          "opener": false
+        }
+      ]
+    }
+  },
+  "branwen": {
+    "name": "BRANWEN",
+    "cls": "Ranger",
+    "arch": "Marksman",
+    "rows": {
+      "front": [
+        {
+          "k": "backstepshot",
+          "tag": "OPN",
+          "name": "Backstep Shot",
+          "opener": true
+        },
+        {
+          "k": "snapshot",
+          "tag": "CMB",
+          "name": "Snap Shot",
+          "opener": false
+        },
+        {
+          "k": "hail",
+          "tag": "FIN",
+          "name": "Hail",
+          "opener": false
+        },
+        {
+          "k": "huntmark",
+          "tag": "CMB",
+          "name": "Hunter’s Mark",
+          "opener": false
+        },
+        {
+          "k": "frontmarked",
+          "tag": "FIN",
+          "name": "Marked Fate",
+          "opener": false
+        }
+      ],
+      "mid": [
+        {
+          "k": "aimedshot",
+          "tag": "OPN",
+          "name": "Aimed Shot",
+          "opener": true
+        },
+        {
+          "k": "steadyaim",
+          "tag": "CMB",
+          "name": "Steady Aim",
+          "opener": false
+        },
+        {
+          "k": "killshot",
+          "tag": "FIN",
+          "name": "Killshot",
+          "opener": false
+        },
+        {
+          "k": "calledshot",
+          "tag": "CMB",
+          "name": "Called Shot",
+          "opener": false
+        },
+        {
+          "k": "piercingshot",
+          "tag": "FIN",
+          "name": "Piercing Shot",
+          "opener": false
+        }
+      ],
+      "back": [
+        {
+          "k": "markingarrow",
+          "tag": "OPN",
+          "name": "Marking Arrow",
+          "opener": true
+        },
+        {
+          "k": "deepermark",
+          "tag": "CMB",
+          "name": "Deeper Mark",
+          "opener": false
+        },
+        {
+          "k": "killingarrow",
+          "tag": "FIN",
+          "name": "Killing Arrow",
+          "opener": false
+        },
+        {
+          "k": "rapidnock",
+          "tag": "CMB",
+          "name": "Rapid Nock",
+          "opener": false
+        },
+        {
+          "k": "volleyshot",
+          "tag": "FIN",
+          "name": "Volley Shot",
+          "opener": false
+        }
+      ]
+    }
+  },
+  "hask": {
+    "name": "HASK",
+    "cls": "Mage",
+    "arch": "Frostcaller",
+    "rows": {
+      "front": [
+        {
+          "k": "frosttouch",
+          "tag": "OPN",
+          "name": "Frost Touch",
+          "opener": true
+        },
+        {
+          "k": "icespike",
+          "tag": "CMB",
+          "name": "Ice Spike",
+          "opener": false
+        },
+        {
+          "k": "shatter",
+          "tag": "FIN",
+          "name": "Shatter",
+          "opener": false
+        },
+        {
+          "k": "rimeblast",
+          "tag": "CMB",
+          "name": "Rime Blast",
+          "opener": false
+        },
+        {
+          "k": "glacier",
+          "tag": "FIN",
+          "name": "Glacier",
+          "opener": false
+        },
+        {
+          "k": "emberveil",
+          "tag": "CMB",
+          "name": "Ember Veil",
+          "opener": false
+        },
+        {
+          "k": "flare",
+          "tag": "FIN",
+          "name": "Cinderfall",
+          "opener": false
+        }
+      ],
+      "mid": [
+        {
+          "k": "icebolt",
+          "tag": "OPN",
+          "name": "Ice Bolt",
+          "opener": true
+        },
+        {
+          "k": "kindle",
+          "tag": "CMB",
+          "name": "Kindle",
+          "opener": false
+        },
+        {
+          "k": "frostfire",
+          "tag": "FIN",
+          "name": "Frostfire",
+          "opener": false
+        },
+        {
+          "k": "overcharge",
+          "tag": "CMB",
+          "name": "Overcharge",
+          "opener": false
+        },
+        {
+          "k": "overload",
+          "tag": "FIN",
+          "name": "Overload",
+          "opener": false
+        }
+      ],
+      "back": [
+        {
+          "k": "deepfreeze",
+          "tag": "OPN",
+          "name": "Deep Freeze",
+          "opener": true
+        },
+        {
+          "k": "frostlance",
+          "tag": "CMB",
+          "name": "Frost Lance",
+          "opener": false
+        },
+        {
+          "k": "iceshard",
+          "tag": "FIN",
+          "name": "Ice Shard",
+          "opener": false
+        },
+        {
+          "k": "leyfocus",
+          "tag": "CMB",
+          "name": "Waystone",
+          "opener": false
+        },
+        {
+          "k": "comet",
+          "tag": "FIN",
+          "name": "Starfall",
+          "opener": false
+        }
+      ]
+    }
+  }
+}
