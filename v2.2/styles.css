@@ -4499,22 +4499,32 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
   .boon-choices { gap: 10px; margin-top: 6px; }
 }
 
-/* ── THE BEAT HOLDS (v2.2 Build 2) — combo rhythm as body language ──────────
-   A hero who acts ADVANCES into the strike and stays there, weight forward,
-   until the next beat of the line or END TURN. The transition on the class
-   itself makes the advance ease in when the pose lands; the restrike variant
-   drives a held hero further forward for their next beat (a combo continuing
-   from where it left off); fig-return is the spring back to idle. */
-#party-half .figure.fig-held { transform: translateX(20px); transition: transform 0.26s ease-out; }
-#party-half .figure.fig-held .fig-art { filter: brightness(1.08) drop-shadow(0 6px 14px rgba(0,0,0,0.65)); }
-#party-half .figure.fig-held.fig-lunge-hero { animation: fig-restrike 0.4s ease; }
-@keyframes fig-restrike {
-  0% { transform: translateX(16px); }
-  38% { transform: translateX(35px) scale(1.06); filter: brightness(1.35); }
-  100% { transform: translateX(20px); }
+/* ── THE BEAT HOLDS (v2.2 Build 3) — the Golden Sun dash ────────────────────
+   A hero who acts doesn't nudge — their ART crosses the field toward the
+   enemy line (the hp bar and nameplate stay home, so the sprite reads as the
+   one that moved), the blade arrives at ~32% of the travel where dealToEnemy
+   lands the whole impact bundle — and the HITSTOP freezes the dash at full
+   extension, the contact-frame pause that sells the blow. The travel then
+   settles into a held forward stance and STAYS there, end-frame held, until
+   the finisher resolves (or END TURN). fig-strike carries no 0% keyframe on
+   purpose: a fresh strike departs from idle, a combo's next beat departs
+   from the held position — one animation, both reads. */
+#party-half .figure.fig-held { z-index: 7; }
+#party-half .figure.fig-held .fig-art {
+  transform: translateX(112px);
+  transition: transform 0.3s ease-out;
+  filter: brightness(1.08) drop-shadow(0 8px 16px rgba(0,0,0,0.7));
 }
-#party-half .figure.fig-return { animation: fig-return 0.34s cubic-bezier(0.3, 1.35, 0.6, 1); }
-@keyframes fig-return {
-  0% { transform: translateX(20px); }
+#party-half .figure.fig-strike { z-index: 8; }
+#party-half .figure.fig-strike .fig-art { animation: fig-strike 0.56s cubic-bezier(0.2, 0.7, 0.3, 1) both; }
+@keyframes fig-strike {
+  32% { transform: translateX(150px) scale(1.07); filter: brightness(1.45); }
+  48% { transform: translateX(140px) scale(1.03); }
+  100% { transform: translateX(112px); }
+}
+#party-half .figure.fig-return .fig-art { animation: fig-hold-return 0.38s cubic-bezier(0.3, 1.3, 0.55, 1) both; }
+@keyframes fig-hold-return {
+  0% { transform: translateX(112px); }
+  60% { transform: translateX(-8px); }
   100% { transform: translateX(0); }
 }

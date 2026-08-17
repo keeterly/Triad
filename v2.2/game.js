@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 2;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 3;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -5589,6 +5589,15 @@ async function playCard(card, targetId) {
   // same condition resolveChainPlay early-returns on).  That PRIMES the hero.
   if (card.chain && !(card.chainNext && card.chainNext.length)) grantPrime(card);
   if (card.kind !== 'move') hexBurn(card);   // a hexed hero's card play eats another card
+  // THE LINE'S LAST FRAME (v2.2 Build 3). The party holds their forward poses
+  // through the whole combo, and the FINISHER resolving is what releases them:
+  // the tableau is SEEN for a beat, then everyone springs home together. END
+  // TURN stays as the fallback release for a line that never closed.
+  if (card.chain && !(card.chainNext && card.chainNext.length) && S.heroes.some(h => h._held)) {
+    await sleep(520);
+    releaseHeldPoses();
+    await sleep(320);
+  }
   S.executing = false;
   $('#stage').classList.remove('executing');
   renderAll();
@@ -6299,32 +6308,45 @@ function dealToEnemy(e, amt, school, byHeroId) {
   // nothing alike.  0 light · 1 solid · 2 heavy · 3 massive.
   const tier = amt >= 20 ? 3 : amt >= 12 ? 2 : amt >= 7 ? 1 : 0;
   const big = tier >= 2;
-  foeAnimState(e.uid, e.staggered ? 'broken' : big ? 'heavy' : 'hit');
-  popupAt(figEl(e.uid), '−' + amt, 'dmg' + (big ? ' popup-big' : ''));
-  // (damagedHeroes bookkeeping lives in enemyPhase; kills resolve avenging
-  // in resolveCard where the attacker is known)
-  if (byHeroId) lungeFig(figEl(byHeroId));       // the striker drives forward
-  impactFx(figEl(e.uid), school || 'phys', big); // school-typed blow lands
-  struck(figEl(e.uid), 'r');                 // recoil + flash + brief stun
-  hitFlash(tier);                                 // screen flash (+ hitstop if heavy)
-  SFX.hit(big);
-  // Build 275: a smooth ladder, and XL leaves ordinary combat entirely — it is
-  // reserved for the authored moments (all-out, triad, stage break) that ask
-  // for it by name. A heavy hit landing as hard as a triad finale is why the
-  // big beats stopped reading as big.
-  if (tier >= 1) stageShake(['sm', 'sm', 'md', 'lg'][tier]);
-  // Inside a SHOT the lens is already composed on this action — hitstop, the
-  // shake and the flash carry the impact, and the frame HOLDS. Outside one
-  // (ripostes, counters, loose damage) the punch still answers.
-  if (!_camShot) camPunch(tier, figEl(e.uid));
-  if (technical) {                                // detonation callout
-    popupAt(figEl(e.uid), '⚡ TECHNICAL', 'tech');
-    techBurst(figEl(e.uid));
-    // Build 275: no second shake. The tier shake already fired on this very
-    // frame, so a technical used to stack two of them plus a flash plus the
-    // burst — the single most violent thing that could happen on screen, for a
-    // damage bonus. The burst and the callout carry it.
-  }
+  // THE DASH LANDS WHEN THE BLADE DOES (v2.2 Build 3, the Golden Sun read).
+  // A card-acting hero DASHES across the field (see lungeFig) and their blade
+  // arrives ~DASH_CONTACT into the travel — so the whole impact bundle (popup,
+  // flash, HITSTOP, shake, recoil, even the death burst) is deferred to that
+  // frame. The hitstop then freezes the dash at its fullest extension, which
+  // is the exact contact-frame pause that sells the blow. State (hp, embers,
+  // death flags) stays synchronous — only the LIGHT is late.
+  const _atkH = byHeroId && S && S.heroes ? S.heroes.find(x => x.id === byHeroId) : null;
+  const _dash = !!(_atkH && _atkH._held && !_atkH.downed);
+  const DASH_CONTACT = 190;
+  const _land = (fx) => { if (_dash) setTimeout(fx, DASH_CONTACT); else fx(); };
+  if (byHeroId) lungeFig(figEl(byHeroId));       // the striker sets off NOW
+  _land(() => {
+    foeAnimState(e.uid, e.staggered ? 'broken' : big ? 'heavy' : 'hit');
+    popupAt(figEl(e.uid), '−' + amt, 'dmg' + (big ? ' popup-big' : ''));
+    // (damagedHeroes bookkeeping lives in enemyPhase; kills resolve avenging
+    // in resolveCard where the attacker is known)
+    impactFx(figEl(e.uid), school || 'phys', big); // school-typed blow lands
+    struck(figEl(e.uid), 'r');                 // recoil + flash + brief stun
+    hitFlash(tier);                                 // screen flash (+ hitstop if heavy)
+    SFX.hit(big);
+    // Build 275: a smooth ladder, and XL leaves ordinary combat entirely — it is
+    // reserved for the authored moments (all-out, triad, stage break) that ask
+    // for it by name. A heavy hit landing as hard as a triad finale is why the
+    // big beats stopped reading as big.
+    if (tier >= 1) stageShake(['sm', 'sm', 'md', 'lg'][tier]);
+    // Inside a SHOT the lens is already composed on this action — hitstop, the
+    // shake and the flash carry the impact, and the frame HOLDS. Outside one
+    // (ripostes, counters, loose damage) the punch still answers.
+    if (!_camShot) camPunch(tier, figEl(e.uid));
+    if (technical) {                                // detonation callout
+      popupAt(figEl(e.uid), '⚡ TECHNICAL', 'tech');
+      techBurst(figEl(e.uid));
+      // Build 275: no second shake. The tier shake already fired on this very
+      // frame, so a technical used to stack two of them plus a flash plus the
+      // burst — the single most violent thing that could happen on screen, for a
+      // damage bonus. The burst and the callout carry it.
+    }
+  });
   if (e.hp === 0 && !e.dead) {
     // MEGA BOSS — dropping a stage is not death: it sheds the aspect and reforms
     // into the next.  (During an ALL-OUT we clamp to 1 HP instead of breaking
@@ -6342,26 +6364,29 @@ function dealToEnemy(e, amt, school, byHeroId) {
     const reward = emberReward(e);                  // felling a foe yields embers
     addEmbers(reward);
     if (S) S._embersRun = (S._embersRun || 0) + reward;
-    const rel = figEl(e.uid); if (rel) popupAt(rel, '✦ +' + reward, 'ember');
     gainMomentum(8);                                // a kill feeds the burst
-    SFX.kill();
-    stageShake('lg');
-    hitFlash(3);                                    // the kill gets a white flash + slow-mo beat
-    foeAnimState(e.uid, 'death');
-    const el = figEl(e.uid);
-    if (el) { el.classList.add('fig-dying'); deathBurst(el); }
-    // THE KILL CUT — hard in on the dying foe, dutched, and HELD long enough
-    // to watch it come apart before the slow pull home.
-    if (!camReduced() && !_camHeld) {
-      _camShot = false;                            // the cut outranks the action shot
-      // Build 275: a PUSH, not a cut. It was a 140ms snap dutched 1.2° and
-      // yawed 2.6° — which is a stunt. A death is worth a slow move in and a
-      // long look, so the roll is nearly gone and the hold is longer than the
-      // move that made it.
-      camFocus(el, { z: 1.13, dz: 150, r: 0.28, yaw: 1.3, pitch: 0.3, pull: 0.36, ms: 380, ease: CAM_PUSH });
-      clearTimeout(_camOutT);
-      _camOutT = setTimeout(() => { _camOutT = null; camReset(980); }, 700);
-    }
+    // the kill's LIGHT waits for the dash's contact frame like every other hit
+    _land(() => {
+      const rel = figEl(e.uid); if (rel) popupAt(rel, '✦ +' + reward, 'ember');
+      SFX.kill();
+      stageShake('lg');
+      hitFlash(3);                                    // the kill gets a white flash + slow-mo beat
+      foeAnimState(e.uid, 'death');
+      const el = figEl(e.uid);
+      if (el) { el.classList.add('fig-dying'); deathBurst(el); }
+      // THE KILL CUT — hard in on the dying foe, dutched, and HELD long enough
+      // to watch it come apart before the slow pull home.
+      if (!camReduced() && !_camHeld) {
+        _camShot = false;                            // the cut outranks the action shot
+        // Build 275: a PUSH, not a cut. It was a 140ms snap dutched 1.2° and
+        // yawed 2.6° — which is a stunt. A death is worth a slow move in and a
+        // long look, so the roll is nearly gone and the hold is longer than the
+        // move that made it.
+        camFocus(el, { z: 1.13, dz: 150, r: 0.28, yaw: 1.3, pitch: 0.3, pull: 0.36, ms: 380, ease: CAM_PUSH });
+        clearTimeout(_camOutT);
+        _camOutT = setTimeout(() => { _camOutT = null; camReset(980); }, 700);
+      }
+    });
     setTimeout(() => { e._justDied = false; if (S && !S.over) renderAll(); }, 750);
   }
 }
@@ -11426,9 +11451,27 @@ function shake(el, dir) {
 // line, enemies drive left toward the party (direction from the .party class).
 function lungeFig(el) {
   if (!el) return;
-  const cls = el.classList.contains('enemy') ? 'fig-lunge' : 'fig-lunge-hero';
-  el.classList.remove('fig-lunge', 'fig-lunge-hero'); void el.offsetWidth; el.classList.add(cls);
-  setTimeout(() => el.classList.remove(cls), 420);
+  if (el.classList.contains('enemy')) {
+    el.classList.remove('fig-lunge'); void el.offsetWidth; el.classList.add('fig-lunge');
+    setTimeout(() => el.classList.remove('fig-lunge'), 420);
+    return;
+  }
+  // THE DASH (v2.2 Build 3). A hero acting in the line doesn't nudge — they
+  // CROSS the field: art dashes toward the enemy half, the blade arrives at
+  // ~DASH_CONTACT (dealToEnemy holds the impact light for that frame, and the
+  // hitstop freezes the dash at full extension), then the travel settles into
+  // the held forward stance instead of walking home. The keyframes carry no
+  // 0% frame on purpose: a FRESH strike departs from idle, a combo's next
+  // beat departs from the held forward position — same animation, both reads.
+  const hid = el.dataset && el.dataset.fig;
+  const h = (typeof S !== 'undefined' && S && S.heroes) ? S.heroes.find(x => x.id === hid) : null;
+  if (h && h._held && !h.downed) {
+    el.classList.remove('fig-strike'); void el.offsetWidth; el.classList.add('fig-strike');
+    setTimeout(() => el.classList.remove('fig-strike'), 600);
+    return;
+  }
+  el.classList.remove('fig-lunge-hero'); void el.offsetWidth; el.classList.add('fig-lunge-hero');
+  setTimeout(() => el.classList.remove('fig-lunge-hero'), 420);
 }
 // END TURN breaks the pose (v2.2 Build 2) — every hero who has been holding a
 // strike springs back to idle in one beat, so the hand-over to the enemy phase
