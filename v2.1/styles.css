@@ -3186,12 +3186,18 @@ button.map-node:not(:disabled) { cursor: pointer; }
   border: 2px solid var(--edge); box-shadow: 0 2px 8px rgba(0,0,0,0.6);
   transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease, color 0.15s ease;
 }
-.et-orb-name { font-size: 8px; letter-spacing: 0.04em; color: var(--ink-dim); text-align: center; line-height: 1.15;
-  max-width: 56px; text-wrap: balance; position: relative; z-index: 2;
+/* READABLE AT ARM'S LENGTH. 8px on a dark constellation, at z-index 2, meant the
+   node names sat half-behind the orbs they name — screenshotted, "Afterimage" and
+   "Searing" were both partly eaten by the glyph in front of them. The tree is the
+   screen the whole progression points at; its labels cannot be the smallest text
+   in the game. Bigger, brighter, and painted OVER the orbs rather than under. */
+.et-orb-name { font-size: 10px; letter-spacing: 0.04em; color: var(--ink); text-align: center; line-height: 1.2;
+  max-width: 72px; text-wrap: balance; position: relative; z-index: 6;
   /* a dark pill behind the name: in a radial constellation a label will
      occasionally graze a neighbouring orb, and it must stay READABLE when it
      does rather than dissolving into the glyph behind it. */
-  padding: 1px 4px; border-radius: 5px; background: rgba(8,6,4,0.82); }
+  padding: 2px 6px; border-radius: 6px; background: rgba(6,5,4,0.94);
+  border: 1px solid rgba(212,200,168,0.14); }
 /* Build 214 — a SEALED or unmet node is dimmed to near-invisibility anyway, so
    its label only added collisions.  Show names for what you can act on; tapping
    any orb still names it in full in the rail. */

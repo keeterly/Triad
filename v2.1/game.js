@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 303;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 304;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -2027,11 +2027,15 @@ function resolveLinePlay(card, h) {
   const dealt = dealBeat(h, ownNext);
   if (!dealt) return closeLine(h);
   SFX.card();
-  popupAt(figEl(h.id), dealt.finishing ? '✦ WHO FINISHES?' : '✦ WHO ANSWERS?', 'rally');
-  flashNarrator(h.def.name + (card.kind === 'opener' ? ' opens the line' : ' carries the line')
-    + ' — <b>' + (dealt.finishing ? 'every finisher' : 'every answer') + '</b> is on the table: <b>'
-    + dealt.names.join('</b> · <b>') + '</b>.');
-  lesson('line', '✦ ONE LINE, THE PARTY\u2019S — the combo does not belong to a hero. Whoever answers answers for everyone, and the cards you did not play are gone. Carry it yourself for a bigger FINISHER, or spread it and light a bond.', 3);
+  // NO QUIZ. This used to shout "✦ WHO ANSWERS?" / "✦ WHO FINISHES?" over the
+  // hero every beat — the game asking the player a rhetorical question in the
+  // middle of its own combat, which reads as tutorial copy rather than as a
+  // fight. The line's state is already legible from the table: the cards say
+  // COMBO or FINISHER on their faces. Name the beat and get out of the way.
+  popupAt(figEl(h.id), dealt.finishing ? '✦ FINISH' : '✦ THE LINE', 'rally');
+  flashNarrator('<b>' + h.def.name + '</b> ' + (card.kind === 'opener' ? 'opens' : 'carries') + ' — '
+    + dealt.names.join(' · ') + '.');
+  lesson('line', 'THE LINE IS THE PARTY\u2019S — a combo does not belong to one hero. Playing any card discards the rest and deals the next beat to everyone. Carry it yourself for a bigger FINISHER, or pass it and light a bond.', 3);
 }
 // The line is spent: commit or forfeit what was banked on it, clear the table, and
 // give the openers back to whoever has not opened yet. EP decides what happens next.
