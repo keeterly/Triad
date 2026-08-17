@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 311;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 312;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -11944,9 +11944,31 @@ function buildTreeWorld(party) {
     nodes.forEach(depthOf);
     const byDepth = {}; nodes.forEach(n => { (byDepth[depth[n.id]] = byDepth[depth[n.id]] || []).push(n); });
     const angle = {};
+    // ── THREE BRANCHES, ONE PER STANCE (Build 312) ─────────────────────────────
+    // The anchor rule (311) made every chain root at a tier-1 anchor, but the
+    // layout still let relaxation shove a FRONT-line node into the BACK line's
+    // arc — logically three branches, visually a cloud. Each anchor now OWNS an
+    // angular SECTOR of the region and its entire chain stays inside it, so a
+    // hero's tree reads as three big pathways (front / mid / back) with the odd
+    // pieces — Executioner, Afterimage — visibly hanging off the branch they
+    // grow from. Pick a pathway, not a node.
+    const rootOf = (n) => {
+      let cur = n, hops = 0;
+      while (cur && (cur.requires || []).length && hops++ < 12) cur = NODE_BY_ID[cur.requires[0]] || cur;
+      return cur ? cur.id : n.id;
+    };
+    const roots = (byDepth[0] || []);
+    const sector = {};   // root id -> { c: centre angle, w: half-width }
     // inner ring: spokes spread evenly, an even count offset a half-step so the
     // arms sit DIAGONAL and no two labels stack on a flat horizontal spoke
-    (byDepth[0] || []).forEach((n, i, a) => { const off = a.length % 2 === 0 ? 0.5 : 0; angle[n.id] = -90 + (i + off) * (360 / a.length); });
+    roots.forEach((n, i, a) => { const off = a.length % 2 === 0 ? 0.5 : 0; angle[n.id] = -90 + (i + off) * (360 / a.length); });
+    roots.forEach(n => { sector[n.id] = { c: angle[n.id], w: Math.max(24, 360 / Math.max(1, roots.length) / 2 - 6) }; });
+    const sectorOf = {}; nodes.forEach(n => { sectorOf[n.id] = sector[rootOf(n)] || null; });
+    const clampSector = (id, a) => {
+      const sc = sectorOf[id]; if (!sc) return a;
+      let d2 = a - sc.c; while (d2 > 180) d2 -= 360; while (d2 < -180) d2 += 360;
+      return sc.c + Math.max(-sc.w, Math.min(sc.w, d2));
+    };
     Object.keys(byDepth).map(Number).filter(d => d > 0).sort((a, b) => a - b).forEach(d => {
       const groups = {};
       byDepth[d].forEach(n => { const k = (n.requires || [])[0] || 'root'; (groups[k] = groups[k] || []).push(n); });
@@ -11990,6 +12012,7 @@ function buildTreeWorld(party) {
       }
       const after = ring.reduce((a2, n2) => a2 + angle[n2.id], 0) / ring.length;
       ring.forEach(n2 => { angle[n2.id] += before - after; });                   // keep the arm aimed where it was
+      ring.forEach(n2 => { angle[n2.id] = clampSector(n2.id, angle[n2.id]); }); // …but never out of its branch
     }
     // GLOBAL PASS.  Spreading each ring on its own still lets a node graze one on
     // a NEIGHBOURING ring — the per-ring sweep simply cannot see that pair.  Walk
@@ -12014,7 +12037,8 @@ function buildTreeWorld(party) {
           while (diff > 180) diff -= 360;
           while (diff < -180) diff += 360;
           const sign = diff === 0 ? (i % 2 ? 1 : -1) : (diff > 0 ? 1 : -1);
-          angle[A.id] += sign * da; angle[B.id] -= sign * db;
+          angle[A.id] = clampSector(A.id, angle[A.id] + sign * da);
+          angle[B.id] = clampSector(B.id, angle[B.id] - sign * db);
           moved = true;
         }
         if (!moved) break;
