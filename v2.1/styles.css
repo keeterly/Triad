@@ -3973,6 +3973,11 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
    detail rail carries the full text for whatever you tap.  This is the same
    answer FFX and PoE reach — glyphs for the map, words for the decision. */
 .et-grid .et-orb .et-orb-name { display: none; }
+/* OWNED NODES KEEP THEIR NAMES (Build 309). The grid hid every label except the
+   actionable ones and hover — and a phone has no hover, so everything a player
+   had already bought collapsed to an anonymous ✓. What you own is your build;
+   it has to be readable at a glance, not one tap-inspection at a time. */
+.et-grid .et-orb.et-owned .et-orb-name,
 .et-grid .et-orb.et-ready .et-orb-name,
 .et-grid .et-orb.et-poor .et-orb-name,
 .et-grid .et-orb.et-cross.et-x-open .et-orb-name,
@@ -3980,7 +3985,9 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
 .et-grid .et-orb.et-sel .et-orb-name,
 .et-grid .et-orb:hover .et-orb-name,
 .et-grid .et-orb.et-root .et-root-name { display: block; }
-.et-grid .et-orb:not(.et-far) .et-orb-name { z-index: 3; }
+/* labels paint OVER neighbouring orbs (the 304 principle) — at the inner ring's
+   density a name at z3 slid BEHIND the next orb and read as "…eper Cut". */
+.et-grid .et-orb:not(.et-far) .et-orb-name { z-index: 6; }
 .et-grid .et-orb:hover .et-orb-name { z-index: 7; }
 .et-grid .et-orb.et-sel .et-orb-name { z-index: 8; }
 /* an owned node keeps a whisper of identity without a word: its ring stays lit */
