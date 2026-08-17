@@ -3180,9 +3180,15 @@ button.map-node:not(:disabled) { cursor: pointer; }
 .et-side .et-back-btn { align-self: flex-start; }
 .et-links { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
 .et-ring { fill: none; stroke: rgba(120,104,84,0.14); stroke-width: 1; }
+/* EMBER TRAILS, NOT DASHES (Build 310). Heavy 3-6px dashes at 2px width read as
+   hazard tape; with round caps a near-zero dash renders as a DOT, so an unlit
+   path is a faint trail of ember-motes, a lit one is brighter motes drifting
+   along it (the existing et-flow animation), and only what you have KINDLED is
+   drawn as a solid golden filament. The hierarchy is the brightness ladder the
+   rest of the game already uses: faint → glowing → aflame. */
 .et-link { fill: none; stroke-width: 2; stroke-linecap: round; }
-.et-link-off  { stroke: rgba(120,104,84,0.28); stroke-dasharray: 3 6; }
-.et-link-on   { stroke: rgba(255,170,90,0.55); stroke-dasharray: 5 6; animation: et-flow 24s linear infinite; }
+.et-link-off  { stroke: rgba(150,132,104,0.30); stroke-width: 1.4; stroke-dasharray: 0.5 6; }
+.et-link-on   { stroke: rgba(255,178,102,0.55); stroke-width: 1.8; stroke-dasharray: 0.5 6; animation: et-flow 24s linear infinite; }
 .et-link-full { stroke: rgba(240,212,136,0.9); filter: drop-shadow(0 0 4px rgba(240,212,136,0.5)); }
 @keyframes et-flow { to { stroke-dashoffset: -90; } }
 
@@ -3859,8 +3865,8 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
    gold, a thread instead of a spoke, and a rim ring that sits outside every
    arm so a hero's constellation visibly ENDS where the doors begin. */
 .et-ring-cross { stroke: rgba(170,140,200,0.16); stroke-dasharray: 2 9; }
-.et-thread { fill: none; stroke-width: 1.5; stroke-linecap: round; opacity: 0.3; stroke-dasharray: 2 8; }
-.et-thread-on { opacity: 0.62; stroke-dasharray: 5 7; animation: et-flow 20s linear infinite; }
+.et-thread { fill: none; stroke-width: 1.2; stroke-linecap: round; opacity: 0.26; stroke-dasharray: 0.5 8; }
+.et-thread-on { opacity: 0.58; stroke-width: 1.5; stroke-dasharray: 0.5 7; animation: et-flow 20s linear infinite; }
 .et-thread-full { opacity: 0.95; stroke-dasharray: none; stroke-width: 2;
   filter: drop-shadow(0 0 5px currentColor); }
 
@@ -3927,7 +3933,7 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
    legible but clearly ELSEWHERE — that contrast is what makes a pan feel like
    travelling somewhere rather than a redraw */
 .et-ring-here { stroke: rgba(240,212,136,0.2); }
-.et-link.et-far { opacity: 0.3; }
+.et-link.et-far { opacity: 0.18; }   /* a neighbour's lattice is context, not content */
 .et-orb.et-far { opacity: 0.5; }
 .et-orb.et-far .et-orb-glyph { border-color: color-mix(in srgb, var(--tint, #8a7a5c) 45%, transparent);
   color: color-mix(in srgb, var(--tint, #8a7a5c) 80%, #cbb488); }

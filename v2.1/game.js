@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 309;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 310;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -12131,12 +12131,30 @@ function showEmberTree(onBack, heroId, selId, opts) {
     const hub = hubs[n.hero];
     const reqs = (n.requires || []).filter(r => pos[r]);
     const far = n.hero !== heroId;
-    if (reqs.length) reqs.forEach(r => links.push({ a: pos[r], b: pos[n.id], on: hasNode(r), full: hasNode(r) && hasNode(n.id), far }));
-    else links.push({ a: hub, b: pos[n.id], on: tierOpen(n.tier), full: hasNode(n.id), far });
+    if (reqs.length) reqs.forEach(r => links.push({ h: hub, a: pos[r], b: pos[n.id], on: hasNode(r), full: hasNode(r) && hasNode(n.id), far }));
+    else links.push({ h: hub, a: hub, b: pos[n.id], on: tierOpen(n.tier), full: hasNode(n.id), far });
   });
+  // A LINK FOLLOWS THE CONSTELLATION (Build 310). Straight prereq chords cut
+  // across the ring guides at arbitrary angles, which is what made the lattice
+  // read as sharp and random — the lines fought the radial geometry everything
+  // else obeys. Each link now bends through the polar midpoint of its region:
+  // a radial spoke stays effectively straight (its polar midpoint IS on the
+  // chord), while a link that hops between angles arcs gently along the rings.
+  // One rule, no per-link tuning, and the ring guides become what the lines
+  // agree with instead of what they slice through.
+  const curveIn = (H, A, B) => {
+    const rA = Math.hypot(A.x - H.x, A.y - H.y), rB = Math.hypot(B.x - H.x, B.y - H.y);
+    if (rA < 6 || rB < 6) return `M ${A.x} ${A.y} L ${B.x} ${B.y}`;   // hub spokes stay straight
+    const aA = Math.atan2(A.y - H.y, A.x - H.x); let d = Math.atan2(B.y - H.y, B.x - H.x) - aA;
+    while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
+    const am = aA + d / 2, rm = (rA + rB) / 2;
+    const cx = 2 * (H.x + Math.cos(am) * rm) - (A.x + B.x) / 2;
+    const cy = 2 * (H.y + Math.sin(am) * rm) - (A.y + B.y) / 2;
+    return `M ${A.x} ${A.y} Q ${cx.toFixed(1)} ${cy.toFixed(1)} ${B.x} ${B.y}`;
+  };
   const linkSvg = links.map(l => {
     const cls = l.full ? 'et-link-full' : l.on ? 'et-link-on' : 'et-link-off';
-    return `<path class="et-link ${cls}${l.far ? ' et-far' : ''}" vector-effect="non-scaling-stroke" d="M ${l.a.x} ${l.a.y} L ${l.b.x} ${l.b.y}" />`;
+    return `<path class="et-link ${cls}${l.far ? ' et-far' : ''}" vector-effect="non-scaling-stroke" d="${curveIn(l.h, l.a, l.b)}" />`;
   }).join('');
   // faint ring guides behind the spokes, one per depth present
   let ringSvg = '';
@@ -12182,9 +12200,18 @@ function showEmberTree(onBack, heroId, selId, opts) {
       const held = commonOnBorder(heroId, c.teacher).find(cn => hasCrossed(heroId, cn.id));
       if (held && pos[held.id]) via = ` L ${pos[held.id].x} ${pos[held.id].y}`;
     }
+    // a thread HANGS — a soft bow, not a spear. A via-path (through a border
+    // stone) keeps its stations and bows each leg would be over-engineering;
+    // those stay straight and read as routed on purpose.
+    let d;
+    if (via) d = `M ${a.p.x} ${a.p.y}${via} L ${p.x} ${p.y}`;
+    else {
+      const mx = (a.p.x + p.x) / 2 - (p.y - a.p.y) * 0.12, my = (a.p.y + p.y) / 2 + (p.x - a.p.x) * 0.12;
+      d = `M ${a.p.x} ${a.p.y} Q ${mx.toFixed(1)} ${my.toFixed(1)} ${p.x} ${p.y}`;
+    }
     return `<path class="et-thread${open ? ' et-thread-on' : ''}${c.state === 'crossed' ? ' et-thread-full' : ''}${a.owned ? ' et-thread-rooted' : ''}"
       vector-effect="non-scaling-stroke" fill="none" stroke="${HEROES[heroId].tint}"
-      d="M ${a.p.x} ${a.p.y}${via} L ${p.x} ${p.y}" />`;
+      d="${d}" />`;
   }).join('');
   const crossRing = '';
   // the border stones — nobody's colour, so they read as neutral ground
