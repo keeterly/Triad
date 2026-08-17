@@ -40,7 +40,14 @@ const { boot } = require('./harness.cjs');
       const BLEED = /^(#fight-bg|#diorama|#battlefield|#ground|#stage-scale|#popup-layer|#overlay|#party-half|#enemy-half|#thread-layer|#action-bar|#topbar|\.hd-|\.pr-|\.bg-|\.fx-)/;
       const ctl = CONTROLS.map(s => { const e = document.querySelector(s);
         return e && e.offsetParent !== null ? { s, r: e.getBoundingClientRect() } : null; }).filter(Boolean);
-      document.querySelectorAll('#stage *').forEach(el => {
+      // AUDIT WHAT IS ON TOP. An overlay screen paints over a live fight, and the
+      // fight's DOM stays mounted underneath — so scanning #stage reported the
+      // battle's geometry for the menu, the journal, party select and the camp,
+      // four screens that therefore never got audited at all. When an overlay is
+      // up, IT is the screen; everything under it is not being looked at.
+      const ov = document.querySelector('#overlay');
+      const root = (ov && !ov.classList.contains('hidden') && ov.offsetParent !== null) ? ov : document.querySelector('#stage');
+      root.querySelectorAll('*').forEach(el => {
         const cs = getComputedStyle(el);
         if (cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity < 0.05) return;
         const r = el.getBoundingClientRect();
@@ -58,6 +65,7 @@ const { boot } = require('./harness.cjs');
         // the control — not merely that the two share coordinates.
         for (const c of ctl) {
           if (el.closest(c.s)) continue;
+          if (root.id === 'overlay') continue;   // an overlay covering the fight is the POINT, not a bug
           const cx = c.r.left + c.r.width / 2, cy = c.r.top + c.r.height / 2;
           if (cx < r.left || cx > r.right || cy < r.top || cy > r.bottom) continue;
           const hit = document.elementFromPoint(cx, cy);
