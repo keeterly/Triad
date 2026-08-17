@@ -23,7 +23,9 @@ const { boot } = require('./harness.cjs');
 (async () => {
   const t = await boot({ ux: 0 });
   const errs = []; t.page.on('pageerror', e => errs.push(e.message));
-  await t.page.setViewportSize({ width: 1600, height: 720 });
+  // A MOBILE GAME AUDITED AT A PHONE. The reporting screenshots are ~2.26:1
+  // landscape, which is where the hand is tightest and text has least room.
+  await t.page.setViewportSize({ width: 880, height: 390 });
   await t.page.emulateMedia({ reducedMotion: 'reduce' });
   await t.J(() => { try { localStorage.clear(); localStorage.setItem('kizuna2_1.tutorialSeen','1'); } catch(_){} });
 
@@ -33,6 +35,9 @@ const { boot } = require('./harness.cjs');
       const out = [];
       const seen = new Set();
       const CONTROLS = ['#btn-endturn', '#menu-btn', '#ep-cluster'];
+      // MEANT TO BLEED. Backgrounds, ground planes and full-screen layers overflow
+      // the stage by design; flagging them buried the one real finding last time.
+      const BLEED = /^(#fight-bg|#diorama|#battlefield|#ground|#stage-scale|#popup-layer|#overlay|#party-half|#enemy-half|#thread-layer|#action-bar|#topbar|\.hd-|\.pr-|\.bg-|\.fx-)/;
       const ctl = CONTROLS.map(s => { const e = document.querySelector(s);
         return e && e.offsetParent !== null ? { s, r: e.getBoundingClientRect() } : null; }).filter(Boolean);
       document.querySelectorAll('#stage *').forEach(el => {
@@ -41,7 +46,7 @@ const { boot } = require('./harness.cjs');
         const r = el.getBoundingClientRect();
         if (r.width < 8 || r.height < 8) return;
         const id = (el.id ? '#' + el.id : '') + (typeof el.className === 'string' && el.className ? '.' + el.className.trim().split(/\s+/)[0] : '');
-        if (!id || seen.has(id)) return;
+        if (!id || seen.has(id) || BLEED.test(id)) return;
         // 1. escapes the stage
         const over = Math.max(st.left - r.left, r.right - st.right, st.top - r.top, r.bottom - st.bottom);
         if (over > 2) { seen.add(id); out.push(`OFFSTAGE ${Math.round(over)}px  ${id}`); return; }
@@ -49,11 +54,15 @@ const { boot } = require('./harness.cjs');
         if (el.scrollWidth > el.clientWidth + 4 && el.clientWidth > 0 && cs.overflow !== 'auto' && cs.overflowX !== 'auto') {
           seen.add(id); out.push(`TEXT OVERFLOWS by ${el.scrollWidth - el.clientWidth}px  ${id}`); return; }
         // 3. sits on top of a primary control
+        // COVERS means the browser would hand the TAP to this element instead of
+        // the control — not merely that the two share coordinates.
         for (const c of ctl) {
           if (el.closest(c.s)) continue;
-          const ox = Math.min(r.right, c.r.right) - Math.max(r.left, c.r.left);
-          const oy = Math.min(r.bottom, c.r.bottom) - Math.max(r.top, c.r.top);
-          if (ox > 8 && oy > 8 && +cs.zIndex >= 0) { seen.add(id); out.push(`COVERS ${c.s} (${Math.round(ox)}x${Math.round(oy)}px)  ${id}`); return; }
+          const cx = c.r.left + c.r.width / 2, cy = c.r.top + c.r.height / 2;
+          if (cx < r.left || cx > r.right || cy < r.top || cy > r.bottom) continue;
+          const hit = document.elementFromPoint(cx, cy);
+          if (hit && (hit === el || el.contains(hit)) && !hit.closest(c.s)) {
+            seen.add(id); out.push(`STEALS THE TAP on ${c.s}  ${id}`); return; }
         }
       });
       return out;
@@ -67,7 +76,7 @@ const { boot } = require('./harness.cjs');
 
   const screens = [
     ['MAP',        () => { window.__run(); showMap(); }],
-    ['EMBER TREE', () => { window.__run(); showTree(); }],
+    ['EMBER TREE', () => { window.__run(); showEmberTree(showMap, 'ash'); }],
     ['FIGHT · turn open', () => { window.__run();
         startFight({ type:'fight', chapter:3, heroes:RUN.active.slice(), enemies:['husk','wraith','cultist'],
           useRunHp:true, floor:1, depth:3, narrator:'ux' }); renderAll(); }],
@@ -75,9 +84,12 @@ const { boot } = require('./harness.cjs');
         S.tempCards = []; resolveChainPlay(op); renderAll(); }],
     ['FIGHT · lesson toast', () => { lesson('uxprobe',
         'ONE LINE, THE PARTY’S — the combo does not belong to a hero. Whoever answers answers for everyone, and the cards you did not play are gone.', 3); }],
-    ['MENU',       () => { showGameMenu ? showGameMenu() : showMenu(); }],
+    ['MENU',       () => { showMenu(); }],
+    ['JOURNAL',    () => { showJournal(showMap); }],
+    ['PARTY SELECT', () => { window.__run(); showPartySelect(showMap); }],
+    ['CAMP',       () => { window.__run(); showCamp(RUN.map.find(n => n.type === 'camp') || { type:'camp' }); }],
   ];
-  console.log('\n=== UX AUDIT · 1600x720 ===');
+  console.log('\n=== UX AUDIT · 880x390 (phone landscape) ===');
   for (const [name, fn] of screens) {
     try { await t.J(fn); } catch (e) { console.log(`\n${name}\n  (could not open: ${String(e).split('\n')[0]})`); continue; }
     await t.sleep(600);

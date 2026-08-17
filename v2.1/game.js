@@ -11132,7 +11132,14 @@ function renderActionBar() {
     const avail = handEl.clientWidth || handEl.offsetWidth;
     let total = 0;
     kids.forEach(k => { total += k.offsetWidth + 6; });
-    const overlap = total > avail ? Math.min(86, (total - avail) / Math.max(1, kids.length - 1)) : 0;
+    // THE FAN MUST FIT THE PHONE. This capped overlap at 86px, so once the line
+    // deals six cards on an 880-wide screen the fan ran 12px off the stage —
+    // audited, and the cards, their art and their role pills all bled past the
+    // edge. The cap now yields to whatever it takes to fit, floored only by
+    // keeping a readable sliver (44%) of each card visible.
+    const need = total > avail ? (total - avail) / Math.max(1, kids.length - 1) : 0;
+    const maxOverlap = Math.max(86, (kids[0].offsetWidth || 150) * 0.56);
+    const overlap = Math.min(need, maxOverlap);
     const mid = (kids.length - 1) / 2;
     kids.forEach((k, i) => {
       k.style.transition = 'none';
