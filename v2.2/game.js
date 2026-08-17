@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 5;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 6;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -2055,7 +2055,7 @@ function resolveLinePlay(card, h) {
   popupAt(figEl(h.id), dealt.finishing ? '✦ FINISH' : '✦ THE LINE', 'rally');
   flashNarrator('<b>' + h.def.name + '</b> ' + (card.kind === 'opener' ? 'opens' : 'carries') + ' — '
     + dealt.names.join(' · ') + '.');
-  lesson('line', 'THE LINE IS THE PARTY\u2019S — a combo does not belong to one hero. Playing any card discards the rest and deals the next beat to everyone. Carry it yourself for a bigger FINISHER, or pass it and light a bond.', 3);
+  lesson('line', 'THE LINE IS THE PARTY\u2019S — any card deals the next beat to everyone. Carry it for a bigger FINISHER, or pass it and light a bond.', 3);
 }
 // The line is spent: commit or forfeit what was banked on it, clear the table, and
 // give the openers back to whoever has not opened yet. EP decides what happens next.
@@ -8250,8 +8250,8 @@ function openingWeaves() {
   if (lit.length) {
     expandBurst(2, '✦ WEAVE', 12 * Math.min(lit.length, 3));   // woven bonds swell the burst gauge (level 2, charge per weave)
     renderCombatBoons();                                       // the weaves join the topbar chip strip
-    flashNarrator('✦ WOVEN — your deepened bonds enter already woven: ' + lit.join(' · ')
-      + '. Play a FINISHER and a partner weaves in; your bonds empower the ALL-OUT.');
+    // v2.2 Build 6: toasts are HEADLINES, not paragraphs — a fight is on.
+    flashNarrator('✦ WOVEN · ' + lit.join(' · ') + ' — a FINISHER weaves your partner in.');
     renderAll();
   }
 }
@@ -10816,7 +10816,12 @@ function renderTelegraphArcs() {
     const r = el.getBoundingClientRect();
     return { x: (r.left + r.width / 2 - bf.left) / scale, y: (r.bottom - 26 - bf.top) / scale };
   };
-  let html = '';
+  // Gather every arc first, then draw only the few that matter (v2.2 Build 6):
+  // four foes all aiming at one row drew four crossing dashes — spaghetti that
+  // said less than the slot's summed damage chip already says. The heaviest
+  // three threats (lethal first) keep their arcs; the rest speak through the
+  // ground ring and the total.
+  const cand = [];
   livingEnemies().forEach(e => {
     const el = figEl(e.uid); if (!el) return;
     const r = el.getBoundingClientRect();
@@ -10830,14 +10835,17 @@ function renderTelegraphArcs() {
         const to = groundOf(rw); if (!to) return;
         const h = S.heroes.find(x => x.row === rw && !x.downed);
         const lethal = h && !h.invuln && dmg >= h.hp + h.guard;
-        const cls = 'tg-arc' + (lethal ? ' tg-lethal' : (it.heavy || dmg >= 12) ? ' tg-heavy' : '');
-        const mx = (from.x + to.x) / 2;
-        const my = Math.min(from.y, to.y) - 30 - Math.abs(from.x - to.x) * 0.05;
-        html += `<path class="${cls}" d="M ${from.x.toFixed(1)} ${from.y.toFixed(1)} Q ${mx.toFixed(1)} ${my.toFixed(1)} ${to.x.toFixed(1)} ${to.y.toFixed(1)}"/>`;
+        cand.push({ from, to, dmg, lethal, heavy: !!(it.heavy || dmg >= 12) });
       });
     });
   });
-  svg.innerHTML = html;
+  cand.sort((a, b) => (b.lethal - a.lethal) || (b.heavy - a.heavy) || (b.dmg - a.dmg));
+  svg.innerHTML = cand.slice(0, 3).map(c => {
+    const cls = 'tg-arc' + (c.lethal ? ' tg-lethal' : c.heavy ? ' tg-heavy' : '');
+    const mx = (c.from.x + c.to.x) / 2;
+    const my = Math.min(c.from.y, c.to.y) - 30 - Math.abs(c.from.x - c.to.x) * 0.05;
+    return `<path class="${cls}" d="M ${c.from.x.toFixed(1)} ${c.from.y.toFixed(1)} Q ${mx.toFixed(1)} ${my.toFixed(1)} ${c.to.x.toFixed(1)} ${c.to.y.toFixed(1)}"/>`;
+  }).join('');
 }
 // one intent rendered as an inline segment (glyph · dmg → row · riders)
 function intentSeg(e, it) {
@@ -10851,9 +10859,12 @@ function intentSeg(e, it) {
     return `<span class="i-seg" title="${it.desc || ''}"><span class="i-glyph">◈</span><span class="i-row">${eff}</span></span>`;
   }
   const row = effIntentRow(e, it);   // smart foes point at the hero they're hunting
-  // The pill stays clean: damage + target row + status.  The parry GESTURE is NOT
-  // previewed — you read the foe's type & the attack and react at the ring.
-  return `<span class="i-seg"><span class="i-glyph">⚔</span><span class="i-dmg">${enemyIntentDmg(e, it)}</span><span class="i-arrow">→</span><span class="i-row">${row === 'all' ? 'ALL' : ROW_LABEL[row]}</span>${it.hex ? '<span class="i-st kw-hex" title="HEX — if it lands, your card plays burn your hand; dodge it">☠</span>' : ''}${it.drain ? '<span class="i-st kw-drain" title="drains life — heals the Maw">♥</span>' : ''}${it.chill ? '<span class="i-st kw-chill" title="chills you">❄</span>' : ''}${it.expose ? '<span class="i-st kw-exposed" title="exposes you">◎</span>' : ''}${it.shove === 'front' ? '<span class="i-st kw-shove" title="DRAGS the struck hero one row forward — parry to hold your ground">⇱</span>' : ''}${it.shove === 'back' ? '<span class="i-st kw-shove" title="SHOVES the struck hero one row back — parry to hold your ground">⇲</span>' : ''}</span>`;
+  // v2.2 Build 6: the pill carries only WHO hits HOW HARD (+ status riders).
+  // WHERE lives on the ground now — the slot's impact ring, its summed damage
+  // chip, and the telegraph arc — so four packed foes stop colliding into a
+  // wall of "→ BACK → BACK → BACK". The one exception is ALL: a blow no
+  // reposition dodges is information the ground of one slot cannot carry.
+  return `<span class="i-seg"><span class="i-glyph">⚔</span><span class="i-dmg">${enemyIntentDmg(e, it)}</span>${row === 'all' ? '<span class="i-row">ALL</span>' : ''}${it.hex ? '<span class="i-st kw-hex" title="HEX — if it lands, your card plays burn your hand; dodge it">☠</span>' : ''}${it.drain ? '<span class="i-st kw-drain" title="drains life — heals the Maw">♥</span>' : ''}${it.chill ? '<span class="i-st kw-chill" title="chills you">❄</span>' : ''}${it.expose ? '<span class="i-st kw-exposed" title="exposes you">◎</span>' : ''}${it.shove === 'front' ? '<span class="i-st kw-shove" title="DRAGS the struck hero one row forward — parry to hold your ground">⇱</span>' : ''}${it.shove === 'back' ? '<span class="i-st kw-shove" title="SHOVES the struck hero one row back — parry to hold your ground">⇲</span>' : ''}</span>`;
 }
 // the intent telegraph markup for an enemy (one or a boss's chained two)
 function enemyIntentHtml(e) {
@@ -10991,7 +11002,7 @@ function renderResonance() {
   el.classList.toggle('rz-ripe', !!ripe);
   el.onclick = () => { if (_bondPanelEl) hideBondPanel(); else showBondPanel(); };
   if (!el._taught && formed === 0 && live.length >= 2) { el._taught = 1;
-    setTimeout(() => lesson('resonance', '◮ TAP THE KIZUNA BADGE — it names every pair, how deep the bond runs, and exactly what each one still needs.', 2), 1400); }
+    setTimeout(() => lesson('resonance', '◮ TAP THE KIZUNA BADGE — every pair, and what each one still needs.', 2), 1400); }
 }
 // ♡ SIGNPOST — an ally-target card whose play could form a NEW bond wears a
 // small heart, so cause-and-effect reads BEFORE the card is committed.
@@ -12460,7 +12471,9 @@ function showEmberTree(onBack, heroId, selId, opts) {
         // FONT IN WORLD UNITS. This SVG's viewBox is the world (W wide, ~3x the
         // 560px pan layer), so CSS pixel sizes shrink by 560/W and an 11px
         // caption rendered at ~3px — present, invisible. Scale with the world.
-        const fs = (11 * W / TREE_BOX).toFixed(1), fs2 = (7.5 * W / TREE_BOX).toFixed(1);
+        // Sized for the FOCUS zoom (~2.5x), where a pathway is actually read —
+        // 11px-equivalent here rendered as ~29px shouting across the canvas.
+        const fs = (5 * W / TREE_BOX).toFixed(1), fs2 = (3.6 * W / TREE_BOX).toFixed(1);
         pathSvg += `<text class="et-path-cap" style="font-size:${fs}px" x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle">${style}</text>`
                  + `<text class="et-path-sub" style="font-size:${fs2}px" x="${x.toFixed(1)}" y="${(y + 1.3 * fs).toFixed(1)}" text-anchor="middle">from ${row.toUpperCase()}</text>`;
       });
@@ -12639,28 +12652,11 @@ function showEmberTree(onBack, heroId, selId, opts) {
       <div class="et-d-desc">${nodeDescHTML(sel.desc)}</div>
       <div class="et-d-foot">${action}</div>`;
   }
-  // THE WEAVE STRIP — with a party of three the lattice IS a triangle, so the
-  // whole of it fits in one line per edge: who is bonded to whom, how close, and
-  // how many doors that opens.  This is the part you plan a route with.
-  const weaveBar = (() => {
-    if (party.length < 2) return '';
-    const edges = [];
-    for (let i = 0; i < party.length; i++) for (let j = i + 1; j < party.length; j++) {
-      const a = party[i], b = party[j], bond = bondPts(pairKey(a, b)), kin = kinship(a, b);
-      const doors = crossViewFor(a).filter(c => c.teacher === b && !c.common).length
-                  + crossViewFor(b).filter(c => c.teacher === a && !c.common).length;
-      const footed = borderOpen(a, b) || borderOpen(b, a);
-      const held = crossedNodes(a).length + crossedNodes(b).length;
-      const open = bond >= CROSS_BOND;
-      edges.push(`<span class="wv-edge${open ? ' wv-open' : ''}${a === heroId || b === heroId ? ' wv-mine' : ''}">
-        <b style="color:${HEROES[a].tint}">${HEROES[a].name}</b>
-        <i class="wv-link">${open ? '⟡' : '·'}</i>
-        <b style="color:${HEROES[b].tint}">${HEROES[b].name}</b>
-        <em>${open ? 'WOVEN' : '♡' + bond + '/' + CROSS_BOND} · ${KIN_WORD[kin]}${open ? (footed ? ' · ' + doors + ' door' + (doors === 1 ? '' : 's') : ' · claim the ground') : ''}</em>
-      </span>`);
-    }
-    return `<div class="et-weave">${edges.join('')}</div>`;
-  })();
+  // THE WEAVE STRIP IS GONE (v2.2 Build 6). Three wide pills restated what the
+  // field already draws — the dashed doorway threads between regions ARE the
+  // bonds, and the combat KIZUNA badge is where pair progress gets read. A
+  // header row of "WOVEN · KINDRED · claim the ground" was jargon spent on
+  // information the picture carries better.
   // tabs are ONLY your fielded party's constellations
   const tabHeroes = party.length ? party : [heroId];
   const tabs = tabHeroes.map(hid => {
@@ -12675,7 +12671,6 @@ function showEmberTree(onBack, heroId, selId, opts) {
       return ahead ? `<span class="et-h-ahead" title="deeper tiers unseal as you descend">${ahead} more wait deeper</span>` : '';
     })()}</div>
     <div class="et-tabs">${tabs}</div>
-    ${weaveBar}
     <div class="et-body">
       <div class="et-canvas et-grid" id="et-canvas">
         <div class="et-pan" id="et-pan">

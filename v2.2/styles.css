@@ -592,10 +592,11 @@ body {
   0%   { opacity: 0.85; transform: translate(-50%,0) scale(0.4); border-color: rgba(255,90,70,0.85); }
   100% { opacity: 0;    transform: translate(-50%,0) scale(1.5); border-color: rgba(255,90,70,0); }
 }
-/* the incoming number rides just above the lock-on brackets (fixed y, so it
-   sits by the threatened hero on every row), small and blood-red */
+/* the incoming number rides ON the ground ring (v2.2 Build 6) — the ring is
+   the telegraph's anchor now, so the sum sits where the blow lands instead of
+   floating at the slot's top far above the threatened hero */
 .slot-dmg {
-  position: absolute; top: 42px; left: 50%; transform: translateX(-50%); z-index: 4;
+  position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); z-index: 4;
   font-size: 9px; font-weight: 700; letter-spacing: 0.06em; color: #ff6a54;
   text-shadow: 0 0 6px rgba(220,40,30,0.8), 0 1px 2px #000; pointer-events: none;
 }
@@ -3229,8 +3230,8 @@ button.map-node:not(:disabled) { cursor: pointer; }
 /* branch rails — one per pathway, quieter than any lattice line */
 .et-rail { stroke: rgba(150,132,104,0.14); stroke-width: 1; }
 .et-rail-here { stroke: rgba(240,212,136,0.22); }
-.et-path-cap { font-size: 11px; letter-spacing: 0.34em; fill: rgba(240,224,182,0.75); text-transform: uppercase; }
-.et-path-sub { font-size: 7.5px; letter-spacing: 0.22em; fill: rgba(212,200,168,0.4); text-transform: uppercase; }
+.et-path-cap { font-size: 11px; letter-spacing: 0.34em; fill: rgba(240,224,182,0.5); text-transform: uppercase; }
+.et-path-sub { font-size: 7.5px; letter-spacing: 0.22em; fill: rgba(212,200,168,0.3); text-transform: uppercase; }
 .et-ring { fill: none; stroke: rgba(120,104,84,0.14); stroke-width: 1; }
 /* EMBER TRAILS, NOT DASHES (Build 310). Heavy 3-6px dashes at 2px width read as
    hazard tape; with round caps a near-zero dash renders as a DOT, so an unlit
@@ -4544,7 +4545,7 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
   pointer-events: none; z-index: 1; overflow: visible;
 }
 .tg-arc {
-  fill: none; stroke: rgba(240,80,60,0.28); stroke-width: 1.4; stroke-linecap: round;
+  fill: none; stroke: rgba(240,80,60,0.22); stroke-width: 1.3; stroke-linecap: round;
   stroke-dasharray: 4 8;
   animation: tg-crawl 1.15s linear infinite;
   filter: drop-shadow(0 0 3px rgba(226,44,34,0.3));

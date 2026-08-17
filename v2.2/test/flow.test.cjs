@@ -2163,8 +2163,12 @@ const QUICK = process.argv.includes('--quick');
         && n(parryPatternFor({ dmg: 6 })) === 2
         && n(parryPatternFor({ dmg: 9 })) === 3;
     }));
-  check('INTENT: the telegraph pill is clean — damage + target row, no parry-glyph clutter',
-    await J(() => { const p = document.querySelector('.intent'); return !!p && !!p.querySelector('.i-dmg') && !!p.querySelector('.i-row') && !p.querySelector('.i-parry'); }));
+  // v2.2 Build 6: the pill carries WHO hits HOW HARD; WHERE lives on the
+  // ground (impact ring + summed slot chip + arc). Row text appears in a pill
+  // only for ALL — the one blow a reposition cannot dodge.
+  check('INTENT: the telegraph pill is damage + riders only — the ground carries the row',
+    await J(() => { const p = document.querySelector('.intent');
+      return !!p && !!p.querySelector('.i-dmg') && !p.querySelector('.i-row') && !p.querySelector('.i-parry'); }));
   check('ALL-HIT: a whole-party blow opens with an across-sweep, then follows',
     await J(() => { const p = parryPatternFor({ row: 'all', dmg: 5 }); return p.kind === 'seq' && p.notes[0].t === 'swipe' && p.notes[0].arc === 'arcAcross'; }));
   check('PARTIAL: a mid-hit string parries per note (mitigation is fractional)',
@@ -5636,9 +5640,12 @@ const QUICK = process.argv.includes('--quick');
   });
   check('LATTICE: no two nodes in the focused region are drawn on top of each other',
     (await glyphHits()).length === 0, (await glyphHits()).join(' '));
-  check('LATTICE: the weave strip carries one edge per party pair, lit only where the door is open',
-    await J(() => document.querySelectorAll('.wv-edge').length === 3
-      && document.querySelectorAll('.wv-edge.wv-open').length === 2));   // ash↔mira, ash↔cassia
+  // v2.2 Build 6: the weave strip is GONE — the doorway threads on the field
+  // ARE the bonds, and pair progress reads in combat's KIZUNA badge. The tree
+  // header must not restate the picture in jargon.
+  check('LATTICE: no weave strip — the header carries tabs only, the field carries the bonds',
+    await J(() => !document.querySelector('.et-weave')
+      && document.querySelectorAll('.et-tab').length === 3));
   check('LATTICE: selecting a doorway opens the CROSSING panel, not the node panel',
     await J(() => { const el = document.querySelector('.et-orb.et-x-open'); if (!el) return false;
       el.click(); return true; }) && (await sleep(320), await J(() =>
