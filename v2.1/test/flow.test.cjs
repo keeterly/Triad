@@ -5083,6 +5083,35 @@ const QUICK = process.argv.includes('--quick');
       // party-wide-stage version of this left Elin with nothing at all.
       return ash.length > 0 && ash.every(c => c.lineStage === 'combo')
         && elin.length > 0 && elin.every(c => c.lineStage === 'finisher'); }));
+  // Driven on a SINGLE-enemy fight, not setupFight: that helper walks the map and
+  // can seed several foes, and a 'frontmost' card then hits a different enemy
+  // than the one flagged as boss — the first version of these checks failed on
+  // exactly that, while the probe against one foe showed the mechanic working.
+  const echoRun = (boss) => J(async (mk) => {
+    RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash'];
+    RUN.hp = { ash: HEROES.ash.maxHp }; RUN.nodes = []; RUN.completed = [0, 1, 2];
+    startFight({ type:'fight', chapter:3, heroes:['ash'], enemies:['husk'], useRunHp:true, floor:1, depth:3, narrator:'ec' });
+    S._rotations = true; S._line = true; S.tempCards = []; S.ep = 20; renderAll();
+    const e = S.enemies[0];
+    if (mk) e.def = Object.assign({}, e.def, { boss: true });
+    e.hp = e.maxHp = 300; e.guard = 0;
+    const dealt = [];
+    for (let round = 0; round < 2; round++) {
+      const hp0 = e.hp;
+      for (let g = 0; g < 4; g++) {
+        const c = buildHand().find(x => (x.kind === 'opener' || x.chain) && x.owner === 'ash' && !x.spent && x.cost <= S.ep);
+        if (!c) break; await playCard(c, e.uid);
+      }
+      dealt.push(hp0 - e.hp); S.used = new Set();
+    }
+    return { first: dealt[0], second: dealt[1], mem: !!(e._echoMem && e._echoMem.has('Crashing Wave')) };
+  }, boss);
+  check('ECHO: a boss REMEMBERS the finisher that closed a line against it — the repeat lands blunted',
+    await (async () => { const r = await echoRun(true);
+      return r.mem && r.first > r.second && r.second > 0; })());
+  check('ECHO: a MOB never learns — the same line lands the same twice',
+    await (async () => { const r = await echoRun(false);
+      return !r.mem && r.first === r.second && r.first > 0; })());
   check('LINE ABSORBS PRIMED: closing a line primes nobody — the line is the follow-up',
     await J(() => { setupFight(['ash', 'elin'], ROTATION_GATES, { ash: 'front', elin: 'mid' }); S._rotations = true; S._line = true;
       S.turn = 2; S.used = new Set(); S.tempCards = []; renderAll();

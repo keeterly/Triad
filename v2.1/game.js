@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 306;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 307;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -2026,7 +2026,7 @@ function resolveLinePlay(card, h) {
   S.line = line;
   bankLineCharge(h, card);
   // The card that ENDS a line is the finisher, whenever in the line it lands.
-  if (card.lineStage === 'finisher') return closeLine(h);
+  if (card.lineStage === 'finisher') return closeLine(h, card);
   const rot = ROTATIONS[h.id] && ROTATIONS[h.id][card.chainStance];
   const ownNext = rot ? gatedSteps(rot, card.chainNext) : null;
   const dealt = dealBeat(h, ownNext);
@@ -2044,7 +2044,28 @@ function resolveLinePlay(card, h) {
 }
 // The line is spent: commit or forfeit what was banked on it, clear the table, and
 // give the openers back to whoever has not opened yet. EP decides what happens next.
-function closeLine(closer) {
+function closeLine(closer, finisher) {
+  // ── THE ECHO REMEMBERS (Build 307) ────────────────────────────────────────
+  // Measured at 306: from mid-run on, every boss fight ends untouched at 100%
+  // HP in ~3 turns — the engine grows all game and the opposition stops
+  // mattering, so the late fights are the least interesting ones. The fix is
+  // not bigger numbers; it is a boss that ANSWERS the system the player built.
+  // A floor boss is an ECHO, and an echo has heard your ending before: each
+  // finisher that closes a line against it is REMEMBERED, and a remembered
+  // finisher lands blunted (half) ever after. Repeating your best line stops
+  // working; the question the whole design runs on — who closes, with what —
+  // comes back on the boss fight, where it was most absent. Mobs never learn;
+  // this is a boss's answer, not a global tax.
+  if (closer && finisher && finisher.name) {
+    livingEnemies().filter(e => e.def.boss).forEach(e => {
+      e._echoMem = e._echoMem || new Set();
+      if (!e._echoMem.has(finisher.name)) {
+        e._echoMem.add(finisher.name);
+        popupAt(figEl(e.uid), '◈ IT REMEMBERS ' + finisher.name.toUpperCase(), 'info');
+        flashNarrator('<b>' + e.def.name + '</b> has heard that ending — <b>' + finisher.name + '</b> will not land so hard again.');
+      }
+    });
+  }
   livingHeroes().forEach(x => {
     if (!x._pendCharge) return;
     if (closer && x.id === closer.id) {
@@ -5638,6 +5659,7 @@ async function resolveCard(card, targetId) {
   // the damage is dealt several layers down and the card's shape is only known
   // at this level.
   S._finisher = !!(card.chain && !card.chainNext);
+  S._finisherName = card.chain ? card.name : null;   // what the Echo remembers by
 
   if (card.kind === 'move') {
     const from = owner.row;
@@ -6113,6 +6135,12 @@ function smartHookIntent(e) {
   return prime ? hook : null;
 }
 function dealToEnemy(e, amt, school, byHeroId) {
+  // A REMEMBERED finisher is half-heard (see closeLine). Read off the resolving
+  // card so only the finisher itself is blunted, never riders or bond strikes.
+  if (S._finisher && S._finisherName && e._echoMem && e._echoMem.has(S._finisherName)) {
+    amt = Math.round(amt * 0.5);
+    popupAt(figEl(e.uid), '◈ ECHOED — ×0.5', 'info');
+  }
   // BREAK WINDOW (Build 234): a broken foe takes ×1.5 from EVERY hit until it
   // recovers — a window the whole party piles into, not a single consumed ×2.
   // The old one-shot ×2 meant the break and its interrupt were mutually
