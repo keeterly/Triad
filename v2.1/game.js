@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 307;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 308;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -3385,9 +3385,19 @@ function _labeler(type) { const q = _shuffle(NODE_LABELS[type] || ['THE ROAD']);
 // parry skill, in 2.8 turns — which is not "easy", it is the enemy phase never
 // happening, and the parry system, the telegraphs and the whole defensive half
 // of the design going with it.
-function _combatEnemies(level, party) {
+function _combatEnemies(level, party, floor) {
   const ps = Math.max(1, party || 1);
-  const pool = level <= 2 ? COMBAT_POOL.early : level <= 4 ? COMBAT_POOL.mid : COMBAT_POOL.deep;
+  // THE ROAD DOWN CHANGES WHO WALKS IT (Build 308). The pools graded by level
+  // WITHIN a floor but never by floor — so floor 3's opening trash was still
+  // husk/wraith/cultist, the same three bodies as the tutorial, and a whole
+  // run's worth of mob progression sat unused in the mid/deep pools. Each
+  // floor now promotes the tier: what floor 1 calls deep, floor 2 meets at
+  // mid-level rooms, and by floor 3 every room draws from the deep roster —
+  // the swarming brood, the empowering cantor, the turtling drone — whose
+  // parry strings and behaviours the player has NOT already solved. This is
+  // mob progression by BEHAVIOUR, not by number: no HP or damage changes.
+  const tier = level + ((floor || 1) - 1) * 2;
+  const pool = tier <= 2 ? COMBAT_POOL.early : tier <= 4 ? COMBAT_POOL.mid : COMBAT_POOL.deep;
   // The level-1 funnel is a single foe — a gentle opener for a solo starter.
   let count = level <= 1 ? 1 : level <= 2 ? 2 : (Math.random() < 0.45 ? 3 : 2);
   // one more body per companion, so the ramp is GRADED — the first version gave
@@ -3513,7 +3523,7 @@ function generateDescent(roster, floor) {
     const ids = [];
     types.forEach(type => {
       const node = { id: idc, level, col: level, type, next: [] };
-      if (type === 'fight')        { node.enemies = _combatEnemies(level, roster.length); node.label = lbl.fight(); }
+      if (type === 'fight')        { node.enemies = _combatEnemies(level, roster.length, floor); node.label = lbl.fight(); }
       else if (type === 'elite')   { node.enemies = _eliteEnemies(level, roster.length); node.elite = true; node.label = lbl.elite(); }
       else if (type === 'event')   { node.eventId = eventQ[eventI++ % eventQ.length]; node.label = lbl.event(); }
       else if (type === 'camp')    { node.label = lbl.camp(); }
