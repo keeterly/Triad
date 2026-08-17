@@ -913,7 +913,19 @@ body {
     radial-gradient(ellipse 100% 90% at 50% 30%, rgba(16,11,8,0.985) 0%, rgba(3,2,1,0.999) 72%);
   display: flex; align-items: center; justify-content: center;
 }
-#overlay-inner { width: 88%; max-width: 620px; text-align: center; }
+/* NOTHING ON AN OVERLAY MAY FALL OFF THE STAGE. Every overlay screen sizes to
+   its content with no ceiling, so a screen that runs tall simply overflowed and
+   took its own confirm button with it — screenshotted on the reward screen,
+   where TAKE NONE · BANK +2 was cut in half by the bottom edge, and the button
+   is the only way off the screen. The story screen already solved this for
+   itself by capping and scrolling only its prose; this is that guarantee made
+   general. `auto` means a screen that fits still shows no scrollbar and looks
+   exactly as it did. */
+#overlay-inner { width: 88%; max-width: 620px; text-align: center;
+  max-height: 94%; overflow-y: auto; overscroll-behavior: contain; }
+/* the bar itself stays invisible — a premium screen does not grow furniture */
+#overlay-inner::-webkit-scrollbar { width: 0; height: 0; }
+#overlay-inner { scrollbar-width: none; }
 
 .ov-eyebrow { font-size: 10px; letter-spacing: 0.42em; color: var(--blood-bright); margin-bottom: 8px; }
 .ov-title { font-size: 30px; letter-spacing: 0.3em; color: var(--ink); margin-bottom: 4px; }
