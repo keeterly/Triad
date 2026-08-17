@@ -196,7 +196,7 @@ body {
   /* the party's back rank has no blur to halve any more (Build 244) — the
      phone's rack-focus radius is trimmed further down, AFTER the rule it
      overrides, since both selectors carry the same specificity. */
-  #enemy-half .slot[data-row="back"] .figure .fig-art { filter: blur(0.7px) saturate(0.7) brightness(0.74); }
+  #enemy-half .slot[data-row="back"] .figure .fig-art { filter: saturate(0.7) brightness(0.74); }
   .figure.floor-boss .fig-art svg { filter: drop-shadow(0 10px 20px rgba(0,0,0,0.9)) drop-shadow(0 0 18px rgba(190,44,40,0.4)); }
 }
 /* ══ CAMERA RIG (Build 225) ══════════════════════════════════════════════
@@ -449,8 +449,11 @@ body {
    grading (air and warmth, which cost nothing to read) and drops the blur;
    focus becomes something the game SPENDS when a card is in the air, below.
    The enemy side keeps true DoF: it is the scene you are looking INTO. */
+/* v2.2 Build 5: the enemy back rank's permanent blur is GONE — at rest the
+   whole board is crisp (the rule the rack lives by), and a foe you must
+   count cannot be hazy by default. Depth stays a color grade, not a blur. */
 #party-half .slot[data-row="back"] .figure .fig-art  { filter: saturate(0.8) brightness(0.86); }
-#enemy-half .slot[data-row="back"] .figure .fig-art  { filter: blur(1.4px) saturate(0.7) brightness(0.74); }
+#enemy-half .slot[data-row="back"] .figure .fig-art  { filter: saturate(0.7) brightness(0.74); }
 #party-half .slot[data-row="mid"] .figure .fig-art,
 #enemy-half .slot[data-row="mid"] .figure .fig-art   { filter: saturate(0.92) brightness(0.93); }
 #party-half .slot[data-row="front"] .figure .fig-art,
@@ -462,46 +465,34 @@ body {
    says "this one."  Enemies are untouched: you are picking a target out of
    that group and must still read it.  Text never blurs, same rule as the
    rank DoF — depth is an art-zone cue, information stays crisp. */
-#stage.focus-pull #party-half .figure .fig-art {
-  filter: blur(1.6px) saturate(0.68) brightness(0.76);
-}
-#stage.focus-pull #party-half .figure.fig-actor .fig-art {
+/* ── THE RACK (v2.2 Build 5) — one rule, strictly kept ──────────────────────
+   AT REST everyone is crisp, both sides. AIMING blurs nothing — the actor
+   just LIGHTS (fig-actor) and a hovered candidate lights (fig-mark), because
+   picking a target is exactly when every figure must stay readable. The
+   moment an action RESOLVES (#stage.rack), exactly two figures hold focus —
+   .fig-focus: the actor and the receiver — and everyone else on BOTH sides
+   falls off the lens together. Release returns the whole board. Text never
+   blurs — depth is an art-zone cue, information stays crisp. */
+#battlefield .figure .fig-art { transition: filter 160ms cubic-bezier(.3,.7,.3,1); }
+@media (prefers-reduced-motion: reduce) { #battlefield .figure .fig-art { transition: none; } }
+/* #stage-prefixed so the aim highlights OUTRANK the per-row depth grade —
+   without it a back-rank actor's glow lost to the row rule on specificity */
+#stage #party-half .figure.fig-actor .fig-art {
   filter: saturate(1.16) brightness(1.14) drop-shadow(0 0 11px rgba(240,212,136,0.34));
 }
-/* the rack READS as a rack because you can see it pull — a hard cut would
-   just look like a rendering glitch.  Two or three small elements for ~160ms
-   is well inside budget; reduced-motion takes the cut instead. */
-#party-half .figure .fig-art { transition: filter 160ms cubic-bezier(.3,.7,.3,1); }
-@media (prefers-reduced-motion: reduce) {
-  #party-half .figure .fig-art { transition: none; }
+#stage #enemy-half .figure.fig-mark .fig-art {
+  filter: saturate(1.14) brightness(1.1) drop-shadow(0 0 11px rgba(210,90,90,0.34));
+}
+#stage.rack #battlefield .figure .fig-art { filter: blur(1.6px) saturate(0.66) brightness(0.72); }
+#stage.rack #battlefield .figure.fig-focus .fig-art {
+  filter: saturate(1.14) brightness(1.12) drop-shadow(0 0 11px rgba(240,212,136,0.3));
 }
 /* PHONE TIER — blur is the priciest filter on a mobile GPU and this one
    animates, so the radius comes down.  Must sit AFTER the rule it overrides:
    the two selectors are the same specificity, so source order decides. */
 @media (hover: none) {
-  #stage.focus-pull #party-half .figure .fig-art { filter: blur(0.9px) saturate(0.68) brightness(0.76); }
+  #stage.rack #battlefield .figure .fig-art { filter: blur(0.9px) saturate(0.66) brightness(0.72); }
 }
-/* THE ENEMY LINE RACKS TOO (Build 289). At rest nothing here is soft — you are
-   reading the whole board and a permanently hazy foe is a depth cue charged
-   against the moment you most need to count them. The instant your aim SNAPS to
-   one, or a blow is landing on one, that foe pulls focus and the rest of the
-   line falls off it. Same grammar as the party rack, same 160ms pull, and text
-   never blurs. */
-#stage.focus-mark #enemy-half .figure .fig-art {
-  filter: blur(1.6px) saturate(0.68) brightness(0.74);
-}
-#stage.focus-mark #enemy-half .figure.fig-mark .fig-art {
-  filter: saturate(1.14) brightness(1.1) drop-shadow(0 0 11px rgba(210,90,90,0.34));
-}
-#enemy-half .figure .fig-art { transition: filter 160ms cubic-bezier(.3,.7,.3,1); }
-@media (prefers-reduced-motion: reduce) { #enemy-half .figure .fig-art { transition: none; } }
-@media (hover: none) {
-  #stage.focus-mark #enemy-half .figure .fig-art { filter: blur(0.9px) saturate(0.68) brightness(0.74); }
-}
-/* the DEPTH tiers apply to the foe rack the same way they do to the party */
-#stage.fx-soft.focus-mark #enemy-half .figure .fig-art { filter: saturate(0.6) brightness(0.62); }
-#stage.fx-flat.focus-mark #enemy-half .figure .fig-art { filter: none; opacity: 0.5; }
-#stage.fx-flat.focus-mark #enemy-half .figure.fig-mark .fig-art { filter: none; opacity: 1; }
 
 /* the far rank's TEXT dims a touch for depth but never blurs */
 #party-half .slot[data-row="back"] .fig-name, #enemy-half .slot[data-row="back"] .fig-name,
@@ -4140,9 +4131,9 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
    valid-target brackets, the reticle and the snap points all light at once.
    Measured on a real device mid-drag: 5fps, avg 186ms. On a struggling device
    the rack drops to a dim/brighten, which composites instead of re-rastering. */
-#stage.fx-soft.focus-pull #party-half .figure .fig-art { filter: saturate(0.6) brightness(0.62); }
-#stage.fx-flat.focus-pull #party-half .figure .fig-art { filter: none; opacity: 0.5; }
-#stage.fx-flat.focus-pull #party-half .figure.fig-actor .fig-art { filter: none; opacity: 1; }
+#stage.fx-soft.rack #battlefield .figure .fig-art { filter: saturate(0.6) brightness(0.62); }
+#stage.fx-flat.rack #battlefield .figure .fig-art { filter: none; opacity: 0.5; }
+#stage.fx-flat.rack #battlefield .figure.fig-focus .fig-art { filter: none; opacity: 1; }
 #stage.fx-soft #party-half .figure .fig-art,
 #stage.fx-flat #party-half .figure .fig-art { transition: opacity 140ms ease; }
 

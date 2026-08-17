@@ -2131,8 +2131,18 @@ const QUICK = process.argv.includes('--quick');
   // racing it from Node meant waitForSelector caught the ring already part-way
   // through and each round-trip to read its clock cost more of the window.
   await t.autoParry(true);
-  const ringAppeared = await Promise.resolve(t.page.evaluate(() => { endTurn(); }))
-    .then(() => t.page.waitForSelector('.parry-ring', { state: 'attached', timeout: 6000 }))
+  // The observer is armed INSIDE the page, synchronously, BEFORE endTurn
+  // fires — waitForSelector from Node lost a race at test timescale: the
+  // auto-parry taps the ring away fast enough that the round-trip to install
+  // the wait could miss the ring's whole lifetime.
+  await t.page.evaluate(() => {
+    window.__ringSeen = !!document.querySelector('.parry-ring');
+    const mo = new MutationObserver(() => {
+      if (document.querySelector('.parry-ring')) { window.__ringSeen = true; mo.disconnect(); } });
+    mo.observe(document.body, { childList: true, subtree: true });
+    endTurn();
+  });
+  const ringAppeared = await t.page.waitForFunction('window.__ringSeen === true', { timeout: 6000 })
     .then(() => true).catch(() => false);
   check('PARRY: a reactive window opens on the enemy wind-up', ringAppeared);
   await sleep(3200);
@@ -2883,52 +2893,70 @@ const QUICK = process.argv.includes('--quick');
     renderAll(); releaseFocus();
     return document.getElementById('stage');
   }`;
-  check('FOCUS: at REST nothing is soft — no foe is marked and the board reads whole',
+  // v2.2 Build 5: ONE rule, strictly kept. Rest = everyone crisp (the enemy
+  // back rank's permanent depth blur is gone). Aiming = still crisp, only
+  // highlights. Action = exactly actor + receiver in focus, both sides of
+  // everyone else off the lens together. Release = whole board back.
+  const anyBlurred = `[...document.querySelectorAll('#battlefield .fig-art')].filter(el => getComputedStyle(el).filter.includes('blur')).length`;
+  check('FOCUS: at REST every figure on BOTH sides is crisp — even the enemy back rank',
     await J(`(() => {
       const st = (${focusFight})();
-      return !st.classList.contains('focus-mark') && !st.classList.contains('focus-pull')
-        && document.querySelectorAll('.figure.fig-mark').length === 0
-        && document.querySelectorAll('#enemy-half .figure').length >= 3;
+      return !st.classList.contains('rack')
+        && document.querySelectorAll('.figure.fig-focus').length === 0
+        && document.querySelectorAll('#enemy-half .figure').length >= 3
+        && ${anyBlurred} === 0;
     })()`));
-  check('FOCUS: aiming at one foe pulls it forward and drops the rest of the line',
+  check('FOCUS: AIMING blurs nothing — the hovered candidate only LIGHTS, the board stays readable',
     await J(`(() => {
       const st = (${focusFight})();
       const foe = livingEnemies()[1];
       markEnemyFocus([figEl(foe.uid)]);
       const marked = [...document.querySelectorAll('#enemy-half .figure.fig-mark')].map(e => e.dataset.fig);
-      const others = document.querySelectorAll('#enemy-half .figure:not(.fig-mark)').length;
-      return st.classList.contains('focus-mark') && marked.length === 1
-        && marked[0] === foe.uid && others >= 2;
+      const ok = !st.classList.contains('rack') && marked.length === 1
+        && marked[0] === foe.uid && ${anyBlurred} === 0;
+      releaseFocus(); return ok;
     })()`));
-  check('FOCUS: the action beat lights the STRIKER and the one receiving it, nobody else',
+  check('FOCUS: the action beat holds EXACTLY actor + receiver — everyone else, both sides, falls off',
     await J(`(() => {
       const st = (${focusFight})();
       const foe = livingEnemies()[1];
-      focusPair('ash', figEl(foe.uid));
-      const actor = [...document.querySelectorAll('#party-half .figure.fig-actor')].map(e => e.dataset.fig);
-      const marked = [...document.querySelectorAll('#enemy-half .figure.fig-mark')].map(e => e.dataset.fig);
-      return st.classList.contains('focus-pull') && st.classList.contains('focus-mark')
-        && actor.length === 1 && actor[0] === 'ash'
-        && marked.length === 1 && marked[0] === foe.uid;
+      focusPair('ash', foe.uid);
+      const inFocus = [...document.querySelectorAll('.figure.fig-focus')].map(e => e.dataset.fig).sort();
+      const ok = st.classList.contains('rack')
+        && inFocus.length === 2 && inFocus.includes('ash') && inFocus.includes(foe.uid)
+        && ${anyBlurred} === 4;   // the other two heroes + the other two foes
+      releaseFocus(); return ok;
     })()`));
-  check('FOCUS: it always lets go — releaseFocus leaves the board crisp',
+  check('FOCUS: it always lets go — release returns the WHOLE board to focus',
     await J(`(() => {
       const st = (${focusFight})();
-      focusPair('ash', figEl(livingEnemies()[0].uid));
+      focusPair('ash', livingEnemies()[0].uid);
       releaseFocus();
-      return !st.classList.contains('focus-pull') && !st.classList.contains('focus-mark')
-        && document.querySelectorAll('.figure.fig-mark').length === 0
-        && document.querySelectorAll('.figure.fig-actor').length === 0;
+      return !st.classList.contains('rack')
+        && document.querySelectorAll('.figure.fig-focus').length === 0
+        && ${anyBlurred} === 0;
     })()`));
-  check('FOCUS: the striking card composes the pair — camShot and the rack agree',
+  check('FOCUS: the rack survives a mid-action re-render — it is STATE, not a class a render can wipe',
+    await J(`(() => {
+      const st = (${focusFight})();
+      const foe = livingEnemies()[1];
+      focusPair('ash', foe.uid);
+      renderAll();   // the old system lost its marks exactly here
+      const inFocus = [...document.querySelectorAll('.figure.fig-focus')].map(e => e.dataset.fig).sort();
+      const ok = st.classList.contains('rack') && inFocus.length === 2
+        && inFocus.includes('ash') && inFocus.includes(foe.uid);
+      releaseFocus(); return ok;
+    })()`));
+  check('FOCUS: the striking card composes the pair and playCard always releases it',
     await J(() => /focusPair\(card\.owner/.test(playCard.toString())
+      && /releaseFocus\(\)/.test(playCard.toString())
       && /camShot\(\[actorEl, tgtEl\]/.test(playCard.toString())));
-  check('FOCUS: text never blurs, and the foe rack honours the DEPTH tiers',
+  check('FOCUS: text never blurs, and the unified rack honours the DEPTH tiers',
     await J(() => {
       const css = [...document.styleSheets].flatMap(s => { try { return [...s.cssRules].map(r => r.cssText); } catch (_) { return []; } }).join(' ');
-      return /focus-mark #enemy-half .figure .fig-art/.test(css)
-        && /fx-flat.focus-mark/.test(css) && /fx-soft.focus-mark/.test(css)
-        && !/focus-mark[^{]*fig-name[^{]*\{[^}]*blur/.test(css);
+      return /stage\.rack #battlefield \.figure \.fig-art/.test(css)
+        && /fx-flat\.rack/.test(css) && /fx-soft\.rack/.test(css)
+        && !/rack[^{]*fig-name[^{]*\{[^}]*blur/.test(css);
     }));
 
   // ---------- BUILD 286: the tree stops being overwhelming ----------
@@ -5349,35 +5377,39 @@ const QUICK = process.argv.includes('--quick');
     'back rank computed: ' + await artFilter('cassia'));
   check('RACK: the rest state still GRADES the ranks (air and warmth cost nothing to read)',
     /saturate/.test(await artFilter('ash')) && (await artFilter('ash')) !== (await artFilter('cassia')));
+  // v2.2 Build 5: aiming is not an action. Lifting a card LIGHTS the actor —
+  // it no longer blurs the rest of the party; the blur belongs exclusively to
+  // the action beat (the unified #stage.rack, drilled in the FOCUS block).
   await J(() => pullFocus('cassia')); await sleep(240);
-  check('RACK: lifting a card pulls the ACTOR into focus even from the BACK rank',
+  check('RACK: lifting a card LIGHTS the actor — even from the BACK rank, over the row grade',
     !/blur/.test(await artFilter('cassia')) && /drop-shadow/.test(await artFilter('cassia')),
     await artFilter('cassia'));
-  check('RACK: every OTHER hero falls off focus while a card is in the air',
-    /blur/.test(await artFilter('ash')) && /blur/.test(await artFilter('hask')));
-  check('RACK: the stage carries the focus-pull state so nothing else has to poll it',
-    await J(() => document.getElementById('stage').classList.contains('focus-pull')));
+  check('RACK: aiming blurs NOBODY — the other heroes stay crisp while the card is in the air',
+    !/blur/.test(await artFilter('ash')) && !/blur/.test(await artFilter('hask')));
+  check('RACK: aiming is not an action — the stage is NOT racked until a play resolves',
+    await J(() => !document.getElementById('stage').classList.contains('rack')));
   await J(() => releaseFocus()); await sleep(240);
   check('RACK: releasing settles the party back to a fully crisp rest state',
     !/blur/.test(await artFilter('ash')) && !/blur/.test(await artFilter('hask')) && !/blur/.test(await artFilter('cassia')));
-  check('RACK: exactly one hero can hold the rack — a second pull moves it, never doubles it',
+  check('RACK: exactly one hero can hold the light — a second pull moves it, never doubles it',
     await J(() => { pullFocus('ash'); pullFocus('hask');
       const n = document.querySelectorAll('#party-half .figure.fig-actor').length;
       const onHask = !!(figEl('hask') || {}).classList && figEl('hask').classList.contains('fig-actor');
       releaseFocus(); return n === 1 && onHask; }));
   check('RACK: pulling focus onto nobody leaves the rest state alone (no orphan rack)',
     await J(() => { pullFocus(null);
-      const on = document.getElementById('stage').classList.contains('focus-pull');
+      const on = document.getElementById('stage').classList.contains('rack');
       releaseFocus(); return on === false; }));
-  check('RACK: clearAim can never leave the party racked out of focus between fights',
-    await J(() => { pullFocus('ash'); clearAim();
-      return !document.getElementById('stage').classList.contains('focus-pull')
-        && document.querySelectorAll('.figure.fig-actor').length === 0; }));
-  check('RACK: the ENEMY side keeps true depth of field — it is the scene you look INTO',
+  check('RACK: clearAim can never leave the board racked between fights',
+    await J(() => { pullFocus('ash'); focusPair('ash', null); clearAim();
+      return !document.getElementById('stage').classList.contains('rack')
+        && document.querySelectorAll('.figure.fig-actor').length === 0
+        && document.querySelectorAll('.figure.fig-focus').length === 0; }));
+  check('RACK: the enemy back rank is GRADED, never blurred — at rest you can count every foe',
     await J(() => { setupFight(['ash'], [], { ash: 'front' });
       const rule = [...document.styleSheets].flatMap(s => { try { return [...s.cssRules]; } catch (_) { return []; } })
         .find(r => r.selectorText === '#enemy-half .slot[data-row="back"] .figure .fig-art');
-      return !!rule && /blur/.test(rule.style.filter); }));
+      return !!rule && /saturate/.test(rule.style.filter) && !/blur/.test(rule.style.filter); }));
 
   // ---------- THE WEAVE — per-run tree crossings (Build 245) ----------
   // "Bonds open the door, shared nature makes it cheap." The failure mode this

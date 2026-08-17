@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 4;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 5;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -4800,55 +4800,56 @@ function targetSpec(card) {
   }
   return { pick: false };
 }
-// ─── RACK FOCUS (Build 244) ──────────────────────────────────────────────
-// The lens follows the CARD, not the rank.  At rest the whole party reads
-// crisp — you are reading the board, and a permanently soft back rank was a
-// depth cue charged against the exact moment you most need to see your own
-// characters.  The instant a card leaves the hand the shot changes: the hero
-// who would ACT pulls focus and the rest of the party falls off it, the way a
-// rack focus tells you who a scene is about.  Enemies are deliberately left
-// alone — you are choosing a target out of that group, so they stay readable.
-// The party figures are cached in _partyFigs and REUSED across renders, so the
-// class survives a re-render; clearAim drops it between fights.
-function pullFocus(heroId) {
+// ─── THE RACK (v2.2 Build 5) — one rule, strictly kept ──────────────────────
+// AT REST everyone is crisp, both sides — no depth blur, no half-racks.
+// AIMING is not an action: nothing blurs while a card picks its target (you
+// must read every candidate); the actor just LIGHTS, and a hovered candidate
+// lights. The moment an action RESOLVES, exactly two figures hold focus —
+// the actor and the receiver — and everyone else on BOTH sides falls off
+// the lens; when the action finishes, everyone returns.
+//
+// The focus set lives in _rackIds (STATE, not DOM classes) because
+// renderBattlefield rebuilds every figure's className mid-action — the old
+// class-only marks were silently wiped by the first re-render, leaving the
+// stage racked with nobody in focus. That was the inconsistency.
+let _rackIds = null;   // Set of hero ids / enemy uids in focus, or null at rest
+function _applyRack() {
+  const st = document.getElementById('stage'); if (!st) return;
+  st.classList.toggle('rack', !!_rackIds);
+  document.querySelectorAll('#battlefield .figure').forEach(el => {
+    const id = el.dataset && el.dataset.fig;
+    el.classList.toggle('fig-focus', !!(_rackIds && id && _rackIds.has(id)));
+  });
+}
+// THE ACTION BEAT: actor + receiver (either side — a heal's receiver is an
+// ally), everyone else off the lens.
+function focusPair(actorId, receiverId) {
+  try { _rackIds = new Set([actorId, receiverId].filter(Boolean)); _applyRack(); } catch (_) {}
+}
+function releaseFocus() {
   try {
-    const st = document.getElementById('stage'); if (!st) return;
-    document.querySelectorAll('#party-half .figure.fig-actor').forEach(el => el.classList.remove('fig-actor'));
-    const fig = heroId ? figEl(heroId) : null;
-    if (!fig) { st.classList.remove('focus-pull'); return; }   // no actor → no rack
-    fig.classList.add('fig-actor');
-    st.classList.add('focus-pull');
+    _rackIds = null; _applyRack();
+    document.querySelectorAll('.figure.fig-actor, .figure.fig-mark').forEach(el => el.classList.remove('fig-actor', 'fig-mark'));
   } catch (_) {}
 }
-// Mark the foe (or foes) a shot is ABOUT. `#stage.focus-mark` softens every
-// other enemy; an empty list clears it, which is what keeps the idle board
-// completely crisp — at rest nobody is marked, so nobody is soft.
+// Aim-time highlight: the acting hero lights while their card aims. The
+// renderer re-applies this from `targeting` state, so re-renders keep it.
+function pullFocus(heroId) {
+  try {
+    document.querySelectorAll('#party-half .figure.fig-actor').forEach(el => el.classList.remove('fig-actor'));
+    const fig = heroId ? figEl(heroId) : null;
+    if (fig) fig.classList.add('fig-actor');
+  } catch (_) {}
+}
+// Aim-time hover: the candidate the drag is snapped to lights. A highlight,
+// never a blur — an empty list simply clears it.
 function markEnemyFocus(els) {
   try {
-    const st = document.getElementById('stage'); if (!st) return;
     const want = (els || []).filter(Boolean);
     document.querySelectorAll('#enemy-half .figure.fig-mark').forEach(el => {
       if (want.indexOf(el) < 0) el.classList.remove('fig-mark');
     });
     want.forEach(el => el.classList.add('fig-mark'));
-    st.classList.toggle('focus-mark', want.length > 0);
-  } catch (_) {}
-}
-// THE ACTION BEAT: the striker and whoever is receiving it, both lit, everyone
-// else off the lens — including the rest of the enemy line, which the old rack
-// left untouched.
-function focusPair(heroId, enemyEl) {
-  try {
-    const st = document.getElementById('stage'); if (!st) return;
-    pullFocus(heroId);
-    markEnemyFocus(enemyEl ? [enemyEl] : []);
-  } catch (_) {}
-}
-function releaseFocus() {
-  try {
-    const st = document.getElementById('stage'); if (st) { st.classList.remove('focus-pull'); st.classList.remove('focus-mark'); }
-    document.querySelectorAll('.figure.fig-actor').forEach(el => el.classList.remove('fig-actor'));
-    document.querySelectorAll('.figure.fig-mark').forEach(el => el.classList.remove('fig-mark'));
   } catch (_) {}
 }
 
@@ -5565,7 +5566,7 @@ async function playCard(card, targetId) {
         offensive ? { z: 1.085, pull: 0.42, pitch: 1.0, r: 0.35 }
                   : { z: 1.05, pull: 0.34, pitch: 0.7, r: -0.25, ms: 340 });
       // the lens and the focus agree: this shot is about these two
-      focusPair(card.owner, (tgtEl && tgtEl.dataset && tgtEl.dataset.fig) ? tgtEl : null);
+      focusPair(card.owner, tgtEl && tgtEl.dataset ? tgtEl.dataset.fig : null);
     }
     // The card HURLS into the target (the strike).  A forging rotation card then
     // BOUNCES back to its slot and splits — see forgeReturnFx, which waits for the
@@ -5575,6 +5576,8 @@ async function playCard(card, targetId) {
   pulseEp();
   renderAll();
   await resolveCard(card, targetId);
+  // the action is resolved — EVERYONE returns to focus before the next beat
+  releaseFocus();
   // BOND CHAIN — ANY finisher/signature (attack, heal OR guard) offers its owner's
   // woven partner a free Chain, so every hero chains, not just the attackers.  The
   // Chain card itself never re-triggers.
@@ -10709,7 +10712,10 @@ function renderBattlefield() {
         attachHeroDrag(fig, who);
         _partyFigs[who.id] = fig;
       }
-      fig.className = 'figure party' + (who.downed ? ' downed' : '') + (who._held && !who.downed ? ' fig-held' : '') + (targetable ? ' fig-targetable' : '') + (canMove(who) ? ' can-move' : '');
+      fig.className = 'figure party' + (who.downed ? ' downed' : '') + (who._held && !who.downed ? ' fig-held' : '')
+        + (_rackIds && _rackIds.has(who.id) ? ' fig-focus' : '')
+        + (targeting && targeting.card && targeting.card.owner === who.id ? ' fig-actor' : '')
+        + (targetable ? ' fig-targetable' : '') + (canMove(who) ? ' can-move' : '');
       snapFx(who, { invuln: who.invuln ? 1 : 0, guard: who.guard, buffDmg: who.buffDmg, counter: who.counter, exposed: who.exposed, chill: who.chill, primed: who.primed ? 1 : 0 });
       // Click fallback for target-picking (synthetic clicks / accessibility
       // tools).  Safe alongside the pointer path: onFigureTap no-ops once
@@ -10768,7 +10774,8 @@ function renderBattlefield() {
         _enemyFigs[e.uid] = fig;
       }
       const targetable = targeting && !targeting.isRow && targeting.validIds.includes(e.uid);
-      fig.className = 'figure enemy' + (e._justDied ? ' fig-dying' : '') + (primed && !e._justDied ? ' fig-primed' : '') + (targetable ? ' fig-targetable' : '');
+      fig.className = 'figure enemy' + (e._justDied ? ' fig-dying' : '') + (primed && !e._justDied ? ' fig-primed' : '')
+        + (_rackIds && _rackIds.has(e.uid) ? ' fig-focus' : '') + (targetable ? ' fig-targetable' : '');
       snapFx(e, { weakened: e.weakened ? 1 : 0, staggered: e.staggered ? 1 : 0, guard: e.guard, power: e.power, mark: e.mark, lull: e.lull });
       fig.onclick = () => onFigureTap(e.uid);
       slot.appendChild(fig);
