@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="42%" r="72%">
+      <stop offset="0%" stop-color="#1c110b"/>
+      <stop offset="62%" stop-color="#0d0a08"/>
+      <stop offset="100%" stop-color="#050302"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffe6a4"/>
+      <stop offset="55%" stop-color="#f0d488"/>
+      <stop offset="100%" stop-color="#c79a44"/>
+    </linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="7" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <!-- full-bleed ground (safe for maskable: content stays within the center 80%) -->
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <!-- the RESONANCE triad: an upward triangle with a kindled vertex at each corner -->
+  <g filter="url(#glow)">
+    <polygon points="256,150 350,318 162,318" fill="none" stroke="url(#gold)" stroke-width="12" stroke-linejoin="round"/>
+    <circle cx="256" cy="150" r="17" fill="url(#gold)"/>
+    <circle cx="350" cy="318" r="17" fill="url(#gold)"/>
+    <circle cx="162" cy="318" r="17" fill="url(#gold)"/>
+  </g>
+</svg>

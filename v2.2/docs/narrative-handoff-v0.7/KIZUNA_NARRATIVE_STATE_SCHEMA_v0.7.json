@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "KIZUNA Narrative State v0.7",
+  "type": "object",
+  "required": ["version", "campaign", "events", "reveals", "resonance", "kizuna", "roles"],
+  "properties": {
+    "version": { "type": "integer", "const": 7 },
+    "campaign": {
+      "type": "object",
+      "required": ["act", "chapter"],
+      "properties": {
+        "act": { "type": "string" },
+        "chapter": { "type": "string" },
+        "highestDomainReached": { "type": ["string", "null"] },
+        "rebirthCount": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": true
+    },
+    "events": {
+      "type": "object",
+      "properties": {
+        "completed": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "seenCount": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 0 } }
+      },
+      "additionalProperties": true
+    },
+    "reveals": {
+      "type": "object",
+      "properties": {
+        "PRIESTESS_EXISTS": { "type": "boolean", "default": false },
+        "REVEAL_PRIESTESS_IS_CREATOR": { "type": "boolean", "default": false },
+        "REVEAL_PRIESTESS_IS_VOICE": { "type": "boolean", "default": false },
+        "REVEAL_FALLEN_ARE_TRAVELERS": { "type": "boolean", "default": false },
+        "REVEAL_PLAYABLES_HAVE_FALLEN_FORMS": { "type": "boolean", "default": false },
+        "REVEAL_PROLOGUE_WAS_REAL": { "type": "boolean", "default": false },
+        "REVEAL_PROLOGUE_FALLEN_IDENTITY": { "type": "boolean", "default": false },
+        "REVEAL_TRIO_PRIOR_KIZUNA": { "type": "boolean", "default": false },
+        "REVEAL_ABYSS_ORIGINAL_PURPOSE": { "type": "boolean", "default": false }
+      },
+      "additionalProperties": true
+    },
+    "resonance": {
+      "type": "object",
+      "properties": {
+        "unlocked": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "characterStage": { "type": "object", "additionalProperties": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "kizuna": {
+      "type": "object",
+      "properties": {
+        "pairs": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "stage": { "type": "string" },
+              "value": { "type": "number" },
+              "persistentMemory": { "type": "boolean" }
+            },
+            "additionalProperties": true
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "roles": {
+      "type": "object",
+      "properties": {
+        "PROTAGONIST": { "type": ["string", "null"] },
+        "PREV_TRIO_A": { "type": ["string", "null"] },
+        "PREV_TRIO_B": { "type": ["string", "null"] },
+        "PREV_TRIO_C": { "type": ["string", "null"] },
+        "PREV_TRIO_STRONGEST_BOND": { "type": ["string", "null"] },
+        "FIRST_PRESENT_FALLEN": { "type": ["string", "null"] }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,312 @@
+{
+  "version": 7,
+  "principles": {
+    "combatBoundary": "OBSERVE_EXISTING_COMBAT_DO_NOT_REWRITE",
+    "speakerSpoilerPolicy": "CANONICAL_ID_WITH_REVEAL_SAFE_ALIAS",
+    "protagonistRole": "PROTAGONIST",
+    "runCanon": true,
+    "memoryRule": "THE_MIND_FORGETS_THE_SOUL_REMEMBERS"
+  },
+  "beats": [
+    {
+      "id": "PRO_000_LAST_MEMORY",
+      "status": "LOCKED",
+      "act": "PROLOGUE",
+      "type": "cinematic",
+      "trigger": "NEW_GAME",
+      "participants": ["PREV_TRIO_A", "PREV_TRIO_B", "PREV_TRIO_C", "OPENING_FALLEN"],
+      "summary": "In a post-apocalyptic memory-city, three heroes battle a gigantic Fallen. No context is given.",
+      "playerBelief": "Dream, prophecy, or unrelated past battle.",
+      "hiddenTruth": "OPENING_FALLEN is the prior-cycle PROTAGONIST.",
+      "effects": ["SET_EVENT_COMPLETE:PRO_000_LAST_MEMORY"],
+      "repeatPolicy": "once"
+    },
+    {
+      "id": "PRO_001_TRIO_ENGAGEMENT",
+      "status": "LOCKED",
+      "act": "PROLOGUE",
+      "type": "major",
+      "trigger": "CHAIN:PRO_000_LAST_MEMORY",
+      "summary": "Brief playable or semi-interactive battle segment establishes the trio and the Fallen's overwhelming scale.",
+      "implementationNote": "Use existing combat only if a scripted outcome can be supported without refactoring. Otherwise use cinematic/semi-interactive presentation.",
+      "effects": ["SET_EVENT_COMPLETE:PRO_001_TRIO_ENGAGEMENT"],
+      "repeatPolicy": "once"
+    },
+    {
+      "id": "PRO_002_FALLEN_HESITATES",
+      "status": "LOCKED",
+      "act": "PROLOGUE",
+      "type": "short",
+      "trigger": "CHAIN:PRO_001_TRIO_ENGAGEMENT",
+      "summary": "The Fallen briefly hesitates when confronted by one trio member.",
+      "hiddenTruth": "That hero holds the strongest prior-cycle Kizuna bond with PROTAGONIST.",
+      "effects": ["SET_EVENT_COMPLETE:PRO_002_FALLEN_HESITATES"],
+      "repeatPolicy": "once"
+    },
+    {
+      "id": "PRO_003_LIBERATION_STRIKE",
+      "status": "LOCKED",
+      "act": "PROLOGUE",
+      "type": "major",
+      "trigger": "CHAIN:PRO_002_FALLEN_HESITATES",
+      "summary": "The trio lands the decisive strike. The Fallen collapses. Do not reveal the monster's identity.",
+      "effects": ["SET_EVENT_COMPLETE:PRO_003_LIBERATION_STRIKE"],
+      "repeatPolicy": "once"
+    },
+    {
+      "id": "PRO_004_REBIRTH",
+      "status": "LOCKED",
+      "act": "PROLOGUE",
+      "type": "short",
+      "trigger": "CHAIN:PRO_003_LIBERATION_STRIKE",
+      "participants": ["PROTAGONIST"],
+      "summary": "Blackness, water, breath. PROTAGONIST awakens at the Landing with faint impressions of the battle.",
+      "effects": ["SET_EVENT_COMPLETE:PRO_004_REBIRTH", "SET_CAMPAIGN_ACT:ACT_I"],
+      "repeatPolicy": "once"
+    },
+    {
+      "id": "PRO_005_RISE",
+      "status": "LOCKED",
+      "act": "PROLOGUE",
+      "type": "micro",
+      "trigger": "CHAIN:PRO_004_REBIRTH",
+      "participants": ["CREATOR_PRIESTESS", "PROTAGONIST"],
+      "summary": "The unknown voice says: Rise.",
+      "speakerPresentation": {"canonical": "CREATOR_PRIESTESS", "preRevealAlias": "UNKNOWN_VOICE"},
+      "effects": ["SET_EVENT_COMPLETE:PRO_005_RISE"],
+      "repeatPolicy": "once"
+    },
+    {
+      "id": "PRO_006_TITLE",
+      "status": "LOCKED",
+      "act": "PROLOGUE",
+      "type": "system",
+      "trigger": "CHAIN:PRO_005_RISE",
+      "summary": "Display KIZUNA | RESONANCE title.",
+      "effects": ["SET_EVENT_COMPLETE:PRO_006_TITLE"],
+      "repeatPolicy": "once"
+    },
+    {
+      "id": "PRO_007_FIRST_ECHO",
+      "status": "PROVISIONAL",
+      "act": "PROLOGUE",
+      "type": "short",
+      "trigger": "AFTER:PRO_006_TITLE",
+      "participants": ["PROTAGONIST"],
+      "summary": "A 5-15 second fragmented echo of the opening battle: silhouettes, a strike, the monster, no context.",
+      "effects": ["UNLOCK_RESONANCE:PROLOGUE_ECHO_01", "SET_EVENT_COMPLETE:PRO_007_FIRST_ECHO"],
+      "repeatPolicy": "once"
+    },
+    {
+      "id": "PRO_008_ASCENT_BEGINS",
+      "status": "LOCKED",
+      "act": "ACT_I",
+      "type": "system",
+      "trigger": "CHAIN:PRO_007_FIRST_ECHO",
+      "summary": "Give the player control at the Landing and present the simple objective ASCEND.",
+      "effects": ["SET_EVENT_COMPLETE:PRO_008_ASCENT_BEGINS", "SET_CHAPTER:ACT1_FIRST_ASCENT"],
+      "repeatPolicy": "once"
+    },
+    {
+      "id": "A1_010_FIRST_COMPANION",
+      "status": "PROVISIONAL",
+      "act": "ACT_I",
+      "type": "short",
+      "trigger": "FIRST_ELIGIBLE_TRAVELER_ENCOUNTER",
+      "summary": "PROTAGONIST encounters the first companion while climbing. Identity/order should map to current roster design rather than be hard-coded by narrative framework.",
+      "effects": ["SET_EVENT_COMPLETE:A1_010_FIRST_COMPANION"],
+      "repeatPolicy": "once"
+    },
+    {
+      "id": "A1_020_RESONANCE_TUTORIAL",
+      "status": "LOCKED",
+      "act": "ACT_I",
+      "type": "short",
+      "trigger": "FIRST_RESONANCE_RELIC",
+      "summary": "Introduce a fragmentary memory that answers almost nothing but establishes the Resonance language.",
+      "effects": ["UNLOCK_SYSTEM:RESONANCE", "SET_EVENT_COMPLETE:A1_020_RESONANCE_TUTORIAL"],
+      "repeatPolicy": "once"
+    },
+    {
+      "id": "A1_030_FIRST_CAMP",
+      "status": "LOCKED",
+      "act": "ACT_I",
+      "type": "short",
+      "trigger": "FIRST_SAFE_REST_WITH_COMPANION",
+      "summary": "A quiet human scene establishes that ordinary conversation and companionship are the emotional counterweight to the Abyss.",
+      "effects": ["UNLOCK_SYSTEM:KIZUNA", "SET_EVENT_COMPLETE:A1_030_FIRST_CAMP"],
+      "repeatPolicy": "once"
+    },
+    {
+      "id": "A1_040_FIRST_PRESENT_FALLEN",
+      "status": "LOCKED",
+      "act": "ACT_I",
+      "type": "major",
+      "trigger": "FIRST_DOMAIN_BOSS_REACHED",
+      "participants": ["FIRST_PRESENT_FALLEN"],
+      "summary": "Party confronts a major Fallen. Dialogue is broken and seemingly monstrous.",
+      "effects": ["SET_EVENT_COMPLETE:A1_040_FIRST_PRESENT_FALLEN"],
+      "repeatPolicy": "once"
+    },
+    {
+      "id": "A1_041_FIRST_PRESENT_FALLEN_THANKS",
+      "status": "LOCKED",
+      "act": "ACT_I",
+      "type": "micro",
+      "trigger": "COMBAT_VICTORY:A1_040_FIRST_PRESENT_FALLEN",
+      "summary": "As the Fallen dies, a faint human voice says: Thank you.",
+      "effects": ["SET_EVENT_COMPLETE:A1_041_FIRST_PRESENT_FALLEN_THANKS"],
+      "repeatPolicy": "once"
+    },
+    {
+      "id": "A1_050_FIRST_CANON_REBIRTH",
+      "status": "LOCKED",
+      "act": "ACT_I",
+      "type": "major",
+      "trigger": "FIRST_PLAYER_DEATH_AFTER:A1_041_FIRST_PRESENT_FALLEN_THANKS",
+      "summary": "Player rebirth at Landing establishes death as diegetic and memory as unstable.",
+      "effects": ["INCREMENT:rebirthCount", "SET_EVENT_COMPLETE:A1_050_FIRST_CANON_REBIRTH"],
+      "repeatPolicy": "once"
+    },
+    {
+      "id": "A1_060_FALLEN_REBORN_HUMAN",
+      "status": "LOCKED",
+      "act": "ACT_I",
+      "type": "major",
+      "trigger": "LANDING_AFTER:A1_050_FIRST_CANON_REBIRTH",
+      "participants": ["FIRST_PRESENT_FALLEN"],
+      "summary": "The defeated boss appears at the Landing in human form, confused and without clear memory of being Fallen.",
+      "effects": ["SET_REVEAL:REVEAL_FALLEN_ARE_TRAVELERS", "SET_EVENT_COMPLETE:A1_060_FALLEN_REBORN_HUMAN"],
+      "repeatPolicy": "once"
+    },
+    {
+      "id": "A2_100_FIRST_SIN_REVEAL",
+      "status": "PROVISIONAL",
+      "act": "ACT_II",
+      "type": "major",
+      "trigger": "CHARACTER_MEMORY_STAGE:SIN",
+      "summary": "First major character transgression is revealed, breaking the assumption that the cast are innocent souls unjustly trapped.",
+      "repeatPolicy": "once"
+    },
+    {
+      "id": "A2_120_TRIO_SURVIVOR_A",
+      "status": "PROVISIONAL",
+      "act": "ACT_II",
+      "type": "major",
+      "trigger": "STORY_GATE:TRIO_SURVIVOR_A",
+      "participants": ["PROTAGONIST", "PREV_TRIO_A"],
+      "summary": "One opening hero is encountered alive as a traveler. Neither party has enough memory to explain the familiarity.",
+      "repeatPolicy": "once"
+    },
+    {
+      "id": "A2_130_TRIO_SURVIVOR_B",
+      "status": "PROVISIONAL",
+      "act": "ACT_II",
+      "type": "major",
+      "trigger": "STORY_GATE:TRIO_SURVIVOR_B",
+      "participants": ["PROTAGONIST", "PREV_TRIO_B"],
+      "summary": "Second opening hero reappears. Their memory of previous cycles may be stronger or differently fragmented.",
+      "repeatPolicy": "once"
+    },
+    {
+      "id": "A3_200_PLAYABLE_FALLEN_REVEAL",
+      "status": "LOCKED",
+      "act": "ACT_III",
+      "type": "major",
+      "trigger": "STORY_GATE:PLAYABLE_FALLEN_TRUTH",
+      "summary": "Party discovers playable travelers have also become Fallen in prior cycles.",
+      "effects": ["SET_REVEAL:REVEAL_PLAYABLES_HAVE_FALLEN_FORMS"],
+      "repeatPolicy": "once"
+    },
+    {
+      "id": "A3_220_TRIO_C_FALLEN",
+      "status": "LOCKED",
+      "act": "ACT_III",
+      "type": "major",
+      "trigger": "STORY_GATE:TRIO_C_FALLEN",
+      "participants": ["PROTAGONIST", "PREV_TRIO_C"],
+      "summary": "The third opening hero has fallen and is now a major boss. Recognition fragments begin surfacing during/after the encounter.",
+      "repeatPolicy": "once"
+    },
+    {
+      "id": "A3_230_PROLOGUE_POV_REPLAY",
+      "status": "LOCKED",
+      "act": "ACT_III",
+      "type": "cinematic",
+      "trigger": "AFTER:A3_220_TRIO_C_FALLEN",
+      "summary": "Replay key moments of the prologue from inside the opening Fallen's perception.",
+      "effects": ["SET_REVEAL:REVEAL_PROLOGUE_WAS_REAL"],
+      "repeatPolicy": "once"
+    },
+    {
+      "id": "A3_240_PROTAGONIST_WAS_FALLEN",
+      "status": "LOCKED",
+      "act": "ACT_III",
+      "type": "major",
+      "trigger": "CHAIN:A3_230_PROLOGUE_POV_REPLAY",
+      "summary": "Reveal that the opening Fallen was PROTAGONIST in the prior cycle and that the trio liberated them.",
+      "effects": ["SET_REVEAL:REVEAL_PROLOGUE_FALLEN_IDENTITY"],
+      "repeatPolicy": "once"
+    },
+    {
+      "id": "A4_300_PRIOR_KIZUNA_REVEAL",
+      "status": "LOCKED",
+      "act": "ACT_IV",
+      "type": "major",
+      "trigger": "STORY_GATE:TRIO_PRIOR_KIZUNA",
+      "summary": "Reveal which opening hero shared the strongest prior-cycle bond with PROTAGONIST, explaining the Fallen's hesitation.",
+      "effects": ["SET_REVEAL:REVEAL_TRIO_PRIOR_KIZUNA"],
+      "repeatPolicy": "once"
+    },
+    {
+      "id": "A4_330_ABYSS_CREATOR_TRUTH",
+      "status": "LOCKED",
+      "act": "ACT_IV",
+      "type": "major",
+      "trigger": "STORY_GATE:CREATOR_TRUTH",
+      "summary": "Reveal the Priestess's betrayal, execution, vengeance, creation of the refuge, and endless waiting for betrayers who never came.",
+      "effects": ["SET_REVEAL:REVEAL_PRIESTESS_IS_CREATOR", "SET_REVEAL:REVEAL_ABYSS_ORIGINAL_PURPOSE"],
+      "repeatPolicy": "once"
+    },
+    {
+      "id": "A5_400_PRIESTESS_VOICE_REVEAL",
+      "status": "LOCKED",
+      "act": "ACT_V",
+      "type": "major",
+      "trigger": "FIRST_DIRECT_PRIESTESS_ENCOUNTER",
+      "summary": "Recognition through voice/cadence reveals that the unknown narrator who said Rise was the Priestess all along.",
+      "effects": ["SET_REVEAL:REVEAL_PRIESTESS_IS_VOICE"],
+      "repeatPolicy": "once"
+    },
+    {
+      "id": "A5_420_FINAL_LIBERATION",
+      "status": "LOCKED",
+      "act": "ACT_V",
+      "type": "cinematic",
+      "trigger": "FINAL_BOSS_VICTORY",
+      "summary": "The party frees the Priestess from accumulated grief. Victory is liberation, not execution.",
+      "effects": ["SET_WORLD_STATE:ABYSS_COLLAPSE", "SET_EVENT_COMPLETE:A5_420_FINAL_LIBERATION"],
+      "repeatPolicy": "once"
+    },
+    {
+      "id": "A5_430_STEWARD_CHOICE",
+      "status": "LOCKED",
+      "act": "ACT_V",
+      "type": "major",
+      "trigger": "CHAIN:A5_420_FINAL_LIBERATION",
+      "summary": "Freed to leave, the Priestess chooses to return as steward of lost souls rather than remain as punisher or wait for her betrayers.",
+      "effects": ["SET_WORLD_STATE:STEWARD_REALM", "SET_EVENT_COMPLETE:A5_430_STEWARD_CHOICE"],
+      "repeatPolicy": "once"
+    },
+    {
+      "id": "EPI_500_RISE_AGAIN",
+      "status": "LOCKED",
+      "act": "EPILOGUE",
+      "type": "cinematic",
+      "trigger": "CHAIN:A5_430_STEWARD_CHOICE",
+      "participants": ["CREATOR_PRIESTESS", "NEW_LOST_SOUL"],
+      "summary": "A new soul awakens in the renewed refuge. The Priestess is present and says Rise, transforming the opening command into an act of welcome and guidance.",
+      "repeatPolicy": "once"
+    }
+  ]
+}
