@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 312;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 313;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -507,12 +507,12 @@ const EMBER_TREE = [
   // is always free; but the fading echo it leaves — the stance you left striking
   // once more, this turn only — is a per-hero unlock.  Turns stance-dancing into
   // an earned tempo tool. ═════════════════════════════════════════════════════════
-  { id: 'ash.afterimage',     hero: 'ash',     tier: 1, cost: 4, type: 'afterimage', label: 'Afterimage', desc: 'ON REPOSITION: the stance you left <b>strikes again</b> (free echo, −2 dmg, this turn) — a move OR a slip counts' },
-  { id: 'elin.afterimage',    hero: 'elin',    tier: 1, cost: 4, type: 'afterimage', label: 'Afterimage', desc: 'ON REPOSITION: the stance she left <b>strikes again</b> (free echo, −2 dmg, this turn)' },
-  { id: 'mira.afterimage',    hero: 'mira',    tier: 1, cost: 4, type: 'afterimage', label: 'Afterimage', desc: 'ON REPOSITION: the stance she left <b>strikes again</b> (free echo, −2 dmg, this turn) — her slips & vanishes count' },
+  { id: 'ash.afterimage',     hero: 'ash',     tier: 2, cost: 4, type: 'afterimage', requires: ['ash.sig.mid'], label: 'Afterimage', desc: 'ON REPOSITION: the stance you left <b>strikes again</b> (free echo, −2 dmg, this turn) — a move OR a slip counts' },
+  { id: 'elin.afterimage',    hero: 'elin',    tier: 2, cost: 4, type: 'afterimage', requires: ['elin.sig.mid'], label: 'Afterimage', desc: 'ON REPOSITION: the stance she left <b>strikes again</b> (free echo, −2 dmg, this turn)' },
+  { id: 'mira.afterimage',    hero: 'mira',    tier: 2, cost: 4, type: 'afterimage', requires: ['mira.sig.front'], label: 'Afterimage', desc: 'ON REPOSITION: the stance she left <b>strikes again</b> (free echo, −2 dmg, this turn) — her slips & vanishes count' },
   { id: 'mira.passive.swiftfoot', hero: 'mira', tier: 2, cost: 6, type: 'passive', requires: ['mira.afterimage'], label: 'Swiftfoot', desc: 'PASSIVE: your <b>first MOVE each turn is FREE</b> (no EP) — slip in and out without paying the tempo, and feed the <b>echo</b>', passive: 'mira_swiftfoot' },
-  { id: 'cassia.afterimage',  hero: 'cassia',  tier: 1, cost: 4, type: 'afterimage', label: 'Afterimage', desc: 'ON REPOSITION: the stance she left <b>strikes again</b> (free echo, −2 dmg, this turn)' },
-  { id: 'branwen.afterimage', hero: 'branwen', tier: 1, cost: 4, type: 'afterimage', label: 'Afterimage', desc: 'ON REPOSITION: the stance she left <b>strikes again</b> (free echo, −2 dmg, this turn) — her backstep leaves a parting arrow' },
+  { id: 'cassia.afterimage',  hero: 'cassia',  tier: 2, cost: 4, type: 'afterimage', requires: ['cassia.sig.mid'], label: 'Afterimage', desc: 'ON REPOSITION: the stance she left <b>strikes again</b> (free echo, −2 dmg, this turn)' },
+  { id: 'branwen.afterimage', hero: 'branwen', tier: 2, cost: 4, type: 'afterimage', requires: ['branwen.sig.front'], label: 'Afterimage', desc: 'ON REPOSITION: the stance she left <b>strikes again</b> (free echo, −2 dmg, this turn) — her backstep leaves a parting arrow' },
 
   // ═══ ALL-OUT FINISHERS — an EARNED per-hero flourish on the marquee moment.
   // Ash (Rite of Endings) and Cassia (Fortress) already have theirs; these give
@@ -539,7 +539,7 @@ const EMBER_TREE = [
   { id: 'hask.sig.front', hero: 'hask', tier: 1, cost: 4, type: 'card', gate: { stance: 'front' }, label: 'Ice Spike',   desc: 'COMBO · FRONT: inserts <b>Ice Spike</b> (6 frost · <span class="kw kw-chill">❄</span>) · Frost Touch → <b>Ice Spike</b> → Shatter' },
   { id: 'hask.sig.mid',   hero: 'hask', tier: 1, cost: 5, type: 'card', gate: { stance: 'mid'   }, label: 'Kindle',      desc: 'COMBO · MID: inserts <b>Kindle</b> (5 frost) · Ice Bolt → <b>Kindle</b> → Frostfire' },
   { id: 'hask.sig.back',  hero: 'hask', tier: 1, cost: 4, type: 'card', gate: { stance: 'back'  }, label: 'Frost Lance', desc: 'COMBO · BACK: inserts <b>Frost Lance</b> (6 frost) · Deep Freeze → <b>Frost Lance</b> → Ice Shard' },
-  { id: 'hask.afterimage', hero: 'hask', tier: 1, cost: 4, type: 'afterimage', label: 'Afterimage', desc: 'ON REPOSITION: the stance he left <b>strikes again</b> (free echo, −2 dmg, this turn)' },
+  { id: 'hask.afterimage', hero: 'hask', tier: 2, cost: 4, type: 'afterimage', requires: ['hask.sig.mid'], label: 'Afterimage', desc: 'ON REPOSITION: the stance he left <b>strikes again</b> (free echo, −2 dmg, this turn)' },
 
   { id: 'hask.branch.front', hero: 'hask', tier: 2, cost: 6, type: 'branch', requires: ['hask.sig.front'], label: 'Rime Fork',    desc: 'FORK · FRONT: Frost Touch also opens <b>Rime Blast</b> (4 · <span class="kw kw-chill">❄2</span>) → <b>Glacier</b> (8 · <span class="kw kw-chill">❄1</span>)' },
   { id: 'hask.branch.mid',   hero: 'hask', tier: 2, cost: 6, type: 'branch', requires: ['hask.sig.mid'],   label: 'Overload Fork', desc: 'FORK · MID: Ice Bolt also opens <b>Overcharge</b> (<span class="kw kw-charge">◆ CHARGE 2</span>) → <b>Overload</b> (SPEND <span class="kw kw-charge">◆ CHARGE</span>) — build, then unleash' },
@@ -1301,10 +1301,15 @@ const ROWS = ['front', 'mid', 'back'];
 // enemy whose turn comes up on a HEAVY intent is INTERRUPTED.
 const SCHOOL_GLYPH = { blade: '⚔', light: '✦', song: '♫', iron: '◆', frost: '❅' };
 const ROW_LABEL = { front: 'FRONT', mid: 'MID', back: 'BACK' };
+// POSITION, plainly (Build 313). Where a hero stands had THREE naming layers:
+// FRONT/MID/BACK, a fantasy coat ('Blade Stance' / 'Flow Stance' / 'Wind
+// Stance'), and each hero's per-line flavour words on top — and 'Flow Stance'
+// even collided with Ash's FLOW line. The location is now just its name; the
+// flavour words stay where they belong, on the PLAYSTYLE each line expresses.
 const STANCE = {
-  front: { name: 'Blade Stance', tag: 'AGGRESSIVE' },
-  mid:   { name: 'Flow Stance',  tag: 'BALANCED' },
-  back:  { name: 'Wind Stance',  tag: 'RANGED' },
+  front: { name: 'Front', tag: 'AGGRESSIVE' },
+  mid:   { name: 'Mid',   tag: 'BALANCED' },
+  back:  { name: 'Back',  tag: 'RANGED' },
 };
 
 const HEROES = {
@@ -3302,14 +3307,14 @@ const FLOW = [
     { text: 'The first thing you understand is that everyone else is gone.' },
     { text: 'The second is that you do not remember arriving. Not the fall, not the road before it. Only that you are at the bottom of something, and it goes up.' },
     { spk: 'ASH', text: '…then I climb it alone.' },
-    { text: 'You are <b>Ash</b>. One blade, three ways to hold it — your <b>row is your stance</b>: Front cuts, Mid flows, Back strikes from the wind.' },
+    { text: 'You are <b>Ash</b>. One blade, three ways to hold it — <b>where you stand is how you fight</b>. Each POSITION carries its own line: Front cuts, Mid flows, Back strikes from the wind.' },
     { text: 'Down here nobody swings once and wins. You fight in a <b>line</b>: play an <b>OPENER</b>, and the next strike <b>forges into your hand</b>. Right now your line is short — an opener, then the <b>FINISHER</b> that ends it.' },
     { text: 'Short because you have not grown it yet. The <b>Ember Tree</b> is what puts a <b>COMBO</b> between them, and later a second path to choose from. Every line in this place starts as two strikes and becomes what you make it.' },
     { text: 'The ramp is <b>free</b>. The <b>finisher costs EP</b>. That is the whole question, every turn, for the rest of the climb: <b>who gets to finish?</b>' },
   ]},
   { type: 'fight', chapter: 1, heroes: ['ash'], enemies: ['husk'], rotations: true,
     narrator: 'Play your OPENER — the FINISHER forges into your hand. The Ember Tree is what puts a COMBO between them.' },
-  { type: 'story', chapter: 1, title: 'THE STANCES', eyebrow: 'CHAPTER 1', lines: [
+  { type: 'story', chapter: 1, title: 'THE POSITIONS', eyebrow: 'CHAPTER 1', lines: [
     { text: 'Every foe <b>telegraphs</b> before it strikes: the damage it will deal, and the <b>row</b> it will hit.' },
     { spk: 'ASH', text: 'So I answer one of two ways — not be there, or meet it.' },
     { text: '<b>Drag Ash to an empty row</b> to dodge the blow, or hold your ground and <b>PARRY</b> — tap each note the instant its ring glows gold. A clean parry blunts the strike and feeds your <b>momentum</b>.' },
@@ -12248,6 +12253,37 @@ function showEmberTree(onBack, heroId, selId, opts) {
     const cls = l.full ? 'et-link-full' : l.on ? 'et-link-on' : 'et-link-off';
     return `<path class="et-link ${cls}${l.far ? ' et-far' : ''}" vector-effect="non-scaling-stroke" d="${curveIn(l.h, l.a, l.b)}" />`;
   }).join('');
+  // ── PATHWAY CAPTIONS (Build 313) — the three branches, named by PLAYSTYLE ──
+  // Each tier-1 anchor's wedge is captioned with the flavour word its line
+  // already carries in the rotation data ('OPENER · AGGRESSION' → AGGRESSION),
+  // plus the POSITION it is played from — so the tree answers "what does this
+  // branch DO" before a single node is read, and the flavour words finally have
+  // one consistent job: naming a playstyle, never a place.
+  let pathSvg = '';
+  {
+    const P = world.per[heroId];
+    if (P) {
+      const hub = hubs[heroId];
+      (P.nodes || []).filter(n => n.tier === 1).forEach(n => {
+        const m = /^(\w+)\.sig\.(\w+)$/.exec(n.id); if (!m) return;
+        const row = m[2], rot = ROTATIONS[heroId] && ROTATIONS[heroId][row];
+        const op = rot && rot.cards[rot.opener]; if (!op) return;
+        const style = (String(op.stance || '').split('\u00b7')[1] || '').trim();
+        if (!style) return;
+        const a = (P.angle[n.id] || 0) * Math.PI / 180;
+        // just past the SECOND ring, not the region's outermost — deep chains
+        // pushed maxD past the focus zoom and the captions rendered off-view
+        const r = P.r0 + 2.45 * TREE_RING;
+        const x = hub.x + r * Math.cos(a), y = hub.y + r * Math.sin(a);
+        // FONT IN WORLD UNITS. This SVG's viewBox is the world (W wide, ~3x the
+        // 560px pan layer), so CSS pixel sizes shrink by 560/W and an 11px
+        // caption rendered at ~3px — present, invisible. Scale with the world.
+        const fs = (11 * W / TREE_BOX).toFixed(1), fs2 = (7.5 * W / TREE_BOX).toFixed(1);
+        pathSvg += `<text class="et-path-cap" style="font-size:${fs}px" x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle">${style}</text>`
+                 + `<text class="et-path-sub" style="font-size:${fs2}px" x="${x.toFixed(1)}" y="${(y + 1.3 * fs).toFixed(1)}" text-anchor="middle">from ${row.toUpperCase()}</text>`;
+      });
+    }
+  }
   // faint ring guides behind the spokes, one per depth present
   let ringSvg = '';
   party.forEach(hid => {
@@ -12440,7 +12476,7 @@ function showEmberTree(onBack, heroId, selId, opts) {
     <div class="et-body">
       <div class="et-canvas et-grid" id="et-canvas">
         <div class="et-pan" id="et-pan">
-          <svg class="et-links" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${ringSvg}${crossRing}${linkSvg}${threadSvg}</svg>
+          <svg class="et-links" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${ringSvg}${pathSvg}${crossRing}${linkSvg}${threadSvg}</svg>
           ${rootOrb}${orbs}${commonOrbs}
         </div>
         <div class="et-zoom">

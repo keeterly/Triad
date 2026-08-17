@@ -178,7 +178,7 @@ const QUICK = process.argv.includes('--quick');
   await tapCard('Flowing Cut'); await sleep(900);
   check('fight 1 won', await J(() => S.over));
   await sleep(800); await clickOverlayBtn('#ov-next');
-  check('flow advances to THE STANCES', await J(() => document.body.innerText.includes('THE STANCES')));
+  check('flow advances to THE POSITIONS', await J(() => document.body.innerText.includes('THE POSITIONS')));
   await shot('L1-done');
 
   if (QUICK) { t.report(); await t.browser.close(); return; }
@@ -6063,8 +6063,10 @@ const QUICK = process.argv.includes('--quick');
     await J(() => { S.turn = 1; S.used = new Set();
       const r = buildHand().find(c => c.reach);
       const h = S.heroes.find(x => x.id === r.owner);
+      // Build 313: the REACH label names the POSITION itself ('REACH · MID'),
+      // not a fantasy coat ('REACH · FLOW') that needed translating back.
       const rowKey = (r.stance.split('·')[1] || '').trim().toLowerCase();
-      const rot = ROTATIONS[r.owner][rowKey === 'flow' ? 'mid' : rowKey === 'wind' ? 'back' : 'front'];
+      const rot = ROTATIONS[r.owner][rowKey] || ROTATIONS[r.owner].front;
       const base = rot ? mkChainOpener(h, rot, 'mid') : null;
       return /REACH/.test(r.stance) && (!base || r.cost === base.cost); }));
   check('REACH: it IS that hero’s hand this turn — not a second card beside their own',
