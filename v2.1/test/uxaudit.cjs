@@ -54,9 +54,22 @@ const { boot } = require('./harness.cjs');
         if (r.width < 8 || r.height < 8) return;
         const id = (el.id ? '#' + el.id : '') + (typeof el.className === 'string' && el.className ? '.' + el.className.trim().split(/\s+/)[0] : '');
         if (!id || seen.has(id) || BLEED.test(id)) return;
-        // 1. escapes the stage
+        // 1. escapes the stage — UNLESS an ancestor scrolls. The journal's grid
+        // was reported 167px offstage; the screenshot showed a perfectly healthy
+        // screen, because the grid lives inside .bj-scroll and the "overflow" is
+        // just the part you scroll to. Content below the fold of a scroller is
+        // reachable, not lost. Only flag what nothing can bring on screen.
+        let scrollable = false;
+        for (let a = el.parentElement; a && a !== root; a = a.parentElement) {
+          const acs = getComputedStyle(a);
+          if (/(auto|scroll)/.test(acs.overflowY + acs.overflowX)) { scrollable = true; break; }
+        }
         const over = Math.max(st.left - r.left, r.right - st.right, st.top - r.top, r.bottom - st.bottom);
-        if (over > 2) { seen.add(id); out.push(`OFFSTAGE ${Math.round(over)}px  ${id}`); return; }
+        if (over > 2 && !scrollable) {
+          // say WHICH edge — "bottom" and "right" are different bugs
+          const edge = over === r.right - st.right ? 'right' : over === st.left - r.left ? 'left'
+                     : over === r.bottom - st.bottom ? 'bottom' : 'top';
+          seen.add(id); out.push(`OFFSTAGE ${Math.round(over)}px ${edge}  ${id}`); return; }
         // 2. its text overflows its own box (the clipped-toast class of bug)
         if (el.scrollWidth > el.clientWidth + 4 && el.clientWidth > 0 && cs.overflow !== 'auto' && cs.overflowX !== 'auto') {
           seen.add(id); out.push(`TEXT OVERFLOWS by ${el.scrollWidth - el.clientWidth}px  ${id}`); return; }
@@ -101,6 +114,10 @@ const { boot } = require('./harness.cjs');
   for (const [name, fn] of screens) {
     try { await t.J(fn); } catch (e) { console.log(`\n${name}\n  (could not open: ${String(e).split('\n')[0]})`); continue; }
     await t.sleep(600);
+    // A SHOT PER SCREEN. The numbers say what escapes its box; the pictures say
+    // whether the screen reads as premium — spacing, hierarchy, dead space —
+    // which no geometry check can. Shots land as ux-<screen>.png for review.
+    await t.shot('ux-' + name.toLowerCase().replace(/[^a-z]+/g, '-'));
     const found = await t.J(() => window.__audit());
     console.log(`\n${name}`);
     if (!found.length) console.log('  clean');
