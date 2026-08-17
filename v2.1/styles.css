@@ -3181,6 +3181,31 @@ button.map-node:not(:disabled) { cursor: pointer; }
 .et-links { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
 /* the pathway captions — a wedge's playstyle, set wide and quiet like the
    region captions, in the hero's own ink rather than a UI chrome colour */
+/* ── TYPE COLOUR (Build 315) — the mockup's strongest legibility device ──────
+   A glance should say WHAT KIND of thing a node is before its name is read:
+   combat actives burn ember-red, passives sit cool blue, emergent turns are
+   violet, the weave is bond-green. OWNED nodes stay gold — flame is the colour
+   of what you have, type is the colour of what you could take. */
+/* .et-grid-prefixed so type colour OUTRANKS the state rules that follow it in
+   the file — without it, a READY node's gold override ate every tint and the
+   colours existed only in the legend. */
+.et-grid .et-orb.t-card .et-orb-glyph, .et-grid .et-orb.t-branch .et-orb-glyph,
+.et-grid .et-orb.t-execute .et-orb-glyph, .et-grid .et-orb.t-allout .et-orb-glyph { color: #f0967a; border-color: rgba(240,150,122,0.55); }
+.et-grid .et-orb.t-passive .et-orb-glyph, .et-grid .et-orb.t-rider .et-orb-glyph,
+.et-grid .et-orb.t-afterimage .et-orb-glyph { color: #9fc2dd; border-color: rgba(159,194,221,0.5); }
+.et-grid .et-orb.t-emergent .et-orb-glyph, .et-grid .et-orb.t-synergy .et-orb-glyph { color: #c3a5e8; border-color: rgba(195,165,232,0.5); }
+.et-grid .et-orb.t-chain .et-orb-glyph { color: #a4d8ab; border-color: rgba(164,216,171,0.5); }
+.et-grid .et-orb.et-owned .et-orb-glyph { color: #ffe6a4 !important; border-color: rgba(240,212,136,0.9) !important; }
+
+/* the legend — the colours, named once, quietly, above the zoom stack */
+.et-legend { position: absolute; left: 8px; bottom: 148px; z-index: 8;
+  display: flex; flex-direction: column; gap: 5px; pointer-events: none; }
+.et-lg { font-size: 7.5px; letter-spacing: 0.16em; color: var(--ink-dim);
+  display: flex; align-items: center; gap: 5px; }
+.et-lg i { font-style: normal; font-size: 10px; width: 14px; text-align: center; }
+.et-lg.t-card i { color: #f0967a; } .et-lg.t-passive i { color: #9fc2dd; }
+.et-lg.t-emergent i { color: #c3a5e8; } .et-lg.t-chain i { color: #a4d8ab; }
+
 /* branch rails — one per pathway, quieter than any lattice line */
 .et-rail { stroke: rgba(150,132,104,0.14); stroke-width: 1; }
 .et-rail-here { stroke: rgba(240,212,136,0.22); }

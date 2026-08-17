@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 314;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 315;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -12514,6 +12514,12 @@ function showEmberTree(onBack, heroId, selId, opts) {
         <div class="et-pan" id="et-pan">
           <svg class="et-links" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${ringSvg}${pathSvg}${crossRing}${linkSvg}${threadSvg}</svg>
           ${rootOrb}${orbs}${commonOrbs}
+        </div>
+        <div class="et-legend">
+          <span class="et-lg t-card"><i>\u2756</i>COMBO</span>
+          <span class="et-lg t-passive"><i>\u2749</i>PASSIVE</span>
+          <span class="et-lg t-emergent"><i>\u2726</i>EMERGENT</span>
+          <span class="et-lg t-chain"><i>\u26d3</i>WEAVE</span>
         </div>
         <div class="et-zoom">
           <button class="et-zoom-btn" id="et-zoom-out" title="Zoom out">−</button>
