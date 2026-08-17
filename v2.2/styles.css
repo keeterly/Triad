@@ -547,11 +547,26 @@ body {
   transform: translateX(-50%);
   background: radial-gradient(ellipse 62% 100% at 50% 100%, rgba(226,44,34,0.5), rgba(150,20,16,0.14) 56%, transparent 76%);
 }
-/* LOCK-ON — four red corner brackets clamp around the threatened hero, so the
-   blow reads as AIMED at them, not a vague glow */
-.sd-brackets { position: absolute; left: 50%; top: 48%; width: 78%; height: 78%; transform: translate(-50%,-50%); }
+/* THE TELEGRAPH MARKS GROUND, NOT PEOPLE (v2.2 Build 4). A blow is aimed at a
+   ROW — a hero can dodge out of it, and since the dash the hero standing there
+   may be holding a pose halfway across the field, which left the old
+   torso-height lock-on brackets clamped around empty air. The whole read
+   drops to the floor: an impact-zone ring on the ground of the slot (fully
+   legible in a vacated slot — "the blow lands HERE, where you stand"), low
+   corner ticks framing the zone, and the shockwave rising off the ground. */
+.slot-danger .sd-ground {
+  position: absolute; left: 50%; bottom: 8px; width: 80%; height: 30px;
+  transform: translateX(-50%); border-radius: 50%;
+  border: 1.6px solid rgba(244,74,58,0.75);
+  box-shadow: 0 0 12px rgba(226,44,34,0.45), inset 0 0 16px rgba(226,44,34,0.25);
+}
+.slot-danger .sd-ground::after {
+  content: ''; position: absolute; inset: 5px 12%; border-radius: 50%;
+  border: 1px solid rgba(244,74,58,0.35);
+}
+.sd-brackets { position: absolute; left: 50%; bottom: 0; width: 94%; height: 46px; transform: translateX(-50%); }
 .sd-brackets i {
-  position: absolute; width: 15px; height: 15px;
+  position: absolute; width: 13px; height: 13px;
   border: 2.5px solid rgba(244,74,58,0.95);
   filter: drop-shadow(0 0 5px rgba(226,44,34,0.85));
 }
@@ -560,8 +575,8 @@ body {
 .sd-brackets i:nth-child(3) { bottom: 0; left: 0; border-right: 0; border-top: 0; }
 .sd-brackets i:nth-child(4) { bottom: 0; right: 0; border-left: 0; border-top: 0; }
 .slot-danger .sd-wave {
-  position: absolute; left: 50%; bottom: 26%; width: 70%; height: 70%;
-  transform: translate(-50%, 50%) scale(0.4); border-radius: 50%;
+  position: absolute; left: 50%; bottom: 6px; width: 76%; height: 34px;
+  transform: translate(-50%, 0) scale(0.4); border-radius: 50%;
   border: 2px solid rgba(240,70,54,0.0); pointer-events: none;
 }
 .slot-telegraphed .slot-danger { opacity: 1; }
@@ -583,8 +598,8 @@ body {
 .slot-telegraphed.sd-lethal .slot-danger .sd-wave { animation: sd-wave 0.95s ease-out infinite; }
 .slot-telegraphed.sd-lethal .slot-danger .sd-wave { animation-duration: 0.7s; }
 @keyframes sd-wave {
-  0%   { opacity: 0.85; transform: translate(-50%,50%) scale(0.4); border-color: rgba(255,90,70,0.85); }
-  100% { opacity: 0;    transform: translate(-50%,50%) scale(1.5); border-color: rgba(255,90,70,0); }
+  0%   { opacity: 0.85; transform: translate(-50%,0) scale(0.4); border-color: rgba(255,90,70,0.85); }
+  100% { opacity: 0;    transform: translate(-50%,0) scale(1.5); border-color: rgba(255,90,70,0); }
 }
 /* the incoming number rides just above the lock-on brackets (fixed y, so it
    sits by the threatened hero on every row), small and blood-red */
@@ -4528,3 +4543,23 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
   60% { transform: translateX(-8px); }
   100% { transform: translateX(0); }
 }
+
+/* ── TELEGRAPH ARCS (v2.2 Build 4) — who → where ────────────────────────────
+   Each attacking foe is tied to the ground it will strike by a low dashed
+   arc crawling toward the target. Weight matches threat: a poke whispers, a
+   heavy blow draws bolder, a lethal one burns bright and crawls fast. */
+#telegraph-layer {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  pointer-events: none; z-index: 1; overflow: visible;
+}
+.tg-arc {
+  fill: none; stroke: rgba(240,80,60,0.28); stroke-width: 1.4; stroke-linecap: round;
+  stroke-dasharray: 4 8;
+  animation: tg-crawl 1.15s linear infinite;
+  filter: drop-shadow(0 0 3px rgba(226,44,34,0.3));
+}
+.tg-arc.tg-heavy { stroke: rgba(248,92,66,0.48); stroke-width: 1.9; }
+.tg-arc.tg-lethal { stroke: rgba(255,64,44,0.7); stroke-width: 2.2; animation-duration: 0.7s;
+  filter: drop-shadow(0 0 5px rgba(255,44,26,0.55)); }
+@keyframes tg-crawl { to { stroke-dashoffset: -24; } }
+@media (prefers-reduced-motion: reduce) { .tg-arc { animation: none; } }

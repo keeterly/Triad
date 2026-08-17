@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 3;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 4;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -10685,7 +10685,7 @@ function renderBattlefield() {
     const dRow = rowDmg[row];
     const hRow = S.heroes.find(x => x.row === row && !x.downed);
     const lethalRow = hRow && !hRow.invuln && dRow >= hRow.hp + hRow.guard;
-    slot.innerHTML = `<span class="slot-ring"></span><span class="slot-danger" aria-hidden="true"><span class="sd-brackets"><i></i><i></i><i></i><i></i></span><span class="sd-wave"></span></span>${dRow > 0 ? `<span class="slot-dmg${lethalRow ? ' sd-dmg-lethal' : ''}">${lethalRow ? '☠' : '✕'} ${dRow}</span>` : ''}`;
+    slot.innerHTML = `<span class="slot-ring"></span><span class="slot-danger" aria-hidden="true"><span class="sd-ground"></span><span class="sd-brackets"><i></i><i></i><i></i><i></i></span><span class="sd-wave"></span></span>${dRow > 0 ? `<span class="slot-dmg${lethalRow ? ' sd-dmg-lethal' : ''}">${lethalRow ? '☠' : '✕'} ${dRow}</span>` : ''}`;
     const who = h || downedHere;
     if (who) {
       const solo = livingHeroes().length === 1;
@@ -10778,6 +10778,59 @@ function renderBattlefield() {
     }
     enemyHalf.appendChild(slot);
   });
+  // arcs measure real rects, so they draw after this layout settles
+  requestAnimationFrame(() => renderTelegraphArcs());
+}
+// ── TELEGRAPH ARCS (v2.2 Build 4) ───────────────────────────────────────────
+// The telegraph marks GROUND, not people. A blow is aimed at a ROW — a hero
+// can dodge out of it by moving, and since the dash a hero may be holding a
+// pose halfway across the field while their home slot is the thing actually
+// threatened. So the slot carries a ground decal (.sd-ground) and each
+// attacker is CONNECTED to the ground it will strike by a low dashed arc:
+// who → where, still readable with three intents in the air, and honest when
+// a smart foe re-aims. Measured from real rects like every thread is.
+function renderTelegraphArcs() {
+  const bfEl = $('#battlefield'); if (!bfEl) return;
+  let svg = document.getElementById('telegraph-layer');
+  if (!svg) {
+    svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.id = 'telegraph-layer';
+    svg.setAttribute('aria-hidden', 'true');
+    bfEl.appendChild(svg);
+  }
+  if (!S || S.over) { svg.innerHTML = ''; return; }
+  const scale = stageScale() || 1;
+  const bf = bfEl.getBoundingClientRect();
+  if (!bf.width) return;
+  svg.setAttribute('viewBox', `0 0 ${Math.round(bf.width / scale)} ${Math.round(bf.height / scale)}`);
+  const groundOf = (row) => {
+    const el = document.querySelector('#party-half .slot[data-row="' + row + '"]');
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return { x: (r.left + r.width / 2 - bf.left) / scale, y: (r.bottom - 26 - bf.top) / scale };
+  };
+  let html = '';
+  livingEnemies().forEach(e => {
+    const el = figEl(e.uid); if (!el) return;
+    const r = el.getBoundingClientRect();
+    if (!r.width) return;
+    const from = { x: (r.left + r.width * 0.3 - bf.left) / scale, y: (r.top + r.height * 0.78 - bf.top) / scale };
+    enemyNextIntents(e).forEach(it => {
+      if (!it || it.kind === 'buff') return;
+      const dmg = enemyIntentDmg(e, it);
+      const row = effIntentRow(e, it);
+      (row === 'all' ? ROWS.slice() : (row ? [row] : [])).forEach(rw => {
+        const to = groundOf(rw); if (!to) return;
+        const h = S.heroes.find(x => x.row === rw && !x.downed);
+        const lethal = h && !h.invuln && dmg >= h.hp + h.guard;
+        const cls = 'tg-arc' + (lethal ? ' tg-lethal' : (it.heavy || dmg >= 12) ? ' tg-heavy' : '');
+        const mx = (from.x + to.x) / 2;
+        const my = Math.min(from.y, to.y) - 30 - Math.abs(from.x - to.x) * 0.05;
+        html += `<path class="${cls}" d="M ${from.x.toFixed(1)} ${from.y.toFixed(1)} Q ${mx.toFixed(1)} ${my.toFixed(1)} ${to.x.toFixed(1)} ${to.y.toFixed(1)}"/>`;
+      });
+    });
+  });
+  svg.innerHTML = html;
 }
 // one intent rendered as an inline segment (glyph · dmg → row · riders)
 function intentSeg(e, it) {
