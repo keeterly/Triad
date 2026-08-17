@@ -3218,10 +3218,10 @@ button.map-node:not(:disabled) { cursor: pointer; }
    along it (the existing et-flow animation), and only what you have KINDLED is
    drawn as a solid golden filament. The hierarchy is the brightness ladder the
    rest of the game already uses: faint → glowing → aflame. */
-.et-link { fill: none; stroke-width: 2; stroke-linecap: round; }
-.et-link-off  { stroke: rgba(150,132,104,0.30); stroke-width: 1.4; stroke-dasharray: 0.5 6; }
-.et-link-on   { stroke: rgba(255,178,102,0.55); stroke-width: 1.8; stroke-dasharray: 0.5 6; animation: et-flow 24s linear infinite; }
-.et-link-full { stroke: rgba(240,212,136,0.9); filter: drop-shadow(0 0 4px rgba(240,212,136,0.5)); }
+.et-link { fill: none; stroke-width: 1.5; stroke-linecap: round; }
+.et-link-off  { stroke: rgba(150,132,104,0.28); stroke-width: 1; stroke-dasharray: 0.5 6; }
+.et-link-on   { stroke: rgba(255,178,102,0.5); stroke-width: 1.2; stroke-dasharray: 0.5 6; animation: et-flow 24s linear infinite; }
+.et-link-full { stroke: rgba(240,212,136,0.8); stroke-width: 1.5; filter: drop-shadow(0 0 3px rgba(240,212,136,0.4)); }
 @keyframes et-flow { to { stroke-dashoffset: -90; } }
 
 .et-orb {
@@ -3986,7 +3986,13 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
    leading, and the cost rides ON the glyph so it costs no height at all.  Two
    short lines still beat truncating a name the player is trying to compare. */
 .et-grid .et-orb { gap: 0; }
-.et-grid .et-orb-glyph { width: 28px; height: 28px; font-size: 12px; border-width: 1.5px; }
+/* MINIMAL NODES (Build 316). Smaller discs, hairline borders — the breathing
+   room between nodes comes as much from the nodes shrinking as from the rings
+   spreading, and a thin ring reads as drawn where a thick one reads as filled. */
+.et-grid .et-orb-glyph { width: 24px; height: 24px; font-size: 10.5px; border-width: 1px; box-shadow: 0 1px 5px rgba(0,0,0,0.5); }
+/* the ORIGIN disc smaller still — it is a waypoint, not a node you weigh */
+.et-grid .et-orb.et-root .et-orb-glyph { width: 19px; height: 19px; font-size: 8.5px; }
+.et-grid .et-orb.et-owned .et-orb-glyph { box-shadow: 0 0 7px rgba(240,212,136,0.35); }
 /* THE LABEL MUST NOT OWN HEIGHT (Build 249).  This is the one that actually
    matters.  Both the orb and the ring spacing scale with the zoom, so their
    RATIO is invariant — zooming can never separate them, and the ceiling for
