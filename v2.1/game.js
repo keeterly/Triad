@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 305;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 306;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -2003,7 +2003,12 @@ function dealBeat(from, ownNext) {
   if (!uids.length) return null;
   S._forgeEvent = { heroId: from.id, uids, pick: uids.length > 1 };
   S._tempNew = S._tuid;
-  return { uids, names, who, finishing: laid.every(l => l.defs.every(d => /FINISHER/.test(d.stance || ''))) };
+  // A follow-up entry carries `answer`, not `defs` — reading defs off it crashed
+  // combat the moment a bonded party opened a line (caught by hand-playing the
+  // funmeter's stalled LATE row; the meter's try/catch had swallowed the throw
+  // every turn and reported it as a 16-turn fight nobody won). A follow-up on
+  // the table also means the beat is NOT all finishers.
+  return { uids, names, who, finishing: laid.every(l => l.defs && l.defs.every(d => /FINISHER/.test(d.stance || ''))) };
 }
 // Everything a line does when one of its beats is played.
 //
