@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 310;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 311;   // MUST match version.json's "v2.1" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -322,12 +322,22 @@ function setTreeTaught() { try { localStorage.setItem('kizuna2_1.treeTaught', '1
 // Phase 1 ships Ash's opening constellation; other heroes keep their full kit
 // until they get their own constellations.
 // ---------------------------------------------------------------------------
+// THE ANCHOR RULE (Build 311, Darkest-Dungeon-shaped). A hero's tree GROWS from
+// their archetype: tier 1 is the anchor ring — the signature combos of the kit
+// they arrived with — and every deeper node must chain back to it through
+// `requires`. Nothing above tier 1 floats free, so a build is always a connected
+// line of growth out of who the character IS, never a grab-bag of whatever the
+// open tier happens to sell. The five nodes that used to float (each hero's
+// archetype passive/execute) now hang off the stance line they express: the
+// Ronin's vanguard off his FRONT line, the Cleric's ward off her MEND line, the
+// Sentinel's vigil off her wall, the two Executioners off the EXECUTION and
+// OVERLOAD lines they cash. Enforced by a structural check in the suite.
 const EMBER_TREE = [
   { id: 'ash.sig.front', hero: 'ash', tier: 1, cost: 4, type: 'card', gate: { stance: 'front' }, label: 'Rising Slash', desc: 'COMBO · FRONT: inserts <b>Rising Slash</b> (8 dmg) · Cleave → <b>Rising Slash</b> → Crashing Wave' },
   { id: 'ash.sig.back',  hero: 'ash', tier: 1, cost: 4, type: 'card', gate: { stance: 'back'  }, label: 'Deeper Cut', desc: 'COMBO · BACK: inserts <b>Deeper Cut</b> (5 dmg) · Thrown Edge → <b>Deeper Cut</b> → Follow Cut' },
   { id: 'ash.sig.mid',   hero: 'ash', tier: 1, cost: 5, type: 'card', gate: { stance: 'mid'   }, label: 'Parry Step', desc: 'COMBO · MID: inserts <b>Parry Step</b> (<span class="kw kw-guard">⛨5</span> · <span class="kw kw-counter">↺1</span>) · Flowing Cut → <b>Parry Step</b> → Riposte' },
   { id: 'ash.rider.expose', hero: 'ash', tier: 2, cost: 6, type: 'rider', requires: ['ash.sig.back'], label: 'Hunter’s Instinct', desc: 'UPGRADE: Thrown Edge also inflicts <span class="kw kw-exposed">◎ EXPOSED 2</span> — position becomes a debuff', rider: { card: 'Thrown Edge', fx: { mark: 2 }, descAdd: ' · <span class="kw kw-exposed">◎ EXPOSED 2</span>' } },
-  { id: 'ash.passive.vanguard', hero: 'ash', tier: 2, cost: 6, type: 'passive', label: 'Vanguard’s Momentum', desc: 'ON MOVE: closing to FRONT grants <span class="kw kw-guard">⛨3</span> — repositioning becomes defense', passive: 'ash_vanguard' },
+  { id: 'ash.passive.vanguard', hero: 'ash', tier: 2, cost: 6, type: 'passive', requires: ['ash.sig.mid'], label: 'Vanguard’s Momentum', desc: 'ON MOVE: closing to FRONT grants <span class="kw kw-guard">⛨3</span> — repositioning becomes defense', passive: 'ash_vanguard' },
   { id: 'ash.passive.warstep', hero: 'ash', tier: 2, cost: 6, type: 'passive', requires: ['ash.passive.vanguard'], label: 'Warstep', desc: 'PASSIVE: after Ash lands an ATTACK, his first <b>MOVE</b> that turn is <b>FREE</b> — he repositions as he strikes', passive: 'ash_warstep' },
   { id: 'ash.allout.execution', hero: 'ash', tier: 4, cost: 12, type: 'allout', requires: ['ash.sig.front'], label: 'Rite of Endings', desc: 'ALL-OUT: every strike EXECUTES a foe under <b>25% HP</b> — no wounded walk away', allout: 'execution' },
   { id: 'ash.emergent.tempo', hero: 'ash', tier: 3, cost: 9, type: 'emergent', requires: ['ash.sig.front'], label: 'Rising Tempo',
@@ -379,7 +389,7 @@ const EMBER_TREE = [
   { id: 'ash.passive.relentless', hero: 'ash', tier: 4, cost: 12, type: 'passive', requires: ['ash.emergent.tempo'], label: 'Relentless', desc: 'PASSIVE: your 1st <span class="kw kw-rally">ASSIST</span> each turn refunds <b>1 EP</b> — the duel never lets up', passive: 'ash_relentless' },
 
   // ELIN — LIGHT: wards, overheal shields, party sustain
-  { id: 'elin.passive.ward', hero: 'elin', tier: 2, cost: 6, type: 'passive', label: 'Warding Light', desc: 'TURN START: your most-wounded ally gains <span class="kw kw-guard">⛨2</span> — the light finds the hurt', passive: 'elin_ward' },
+  { id: 'elin.passive.ward', hero: 'elin', tier: 2, cost: 6, type: 'passive', requires: ['elin.sig.mid'], label: 'Warding Light', desc: 'TURN START: your most-wounded ally gains <span class="kw kw-guard">⛨2</span> — the light finds the hurt', passive: 'elin_ward' },
   { id: 'elin.passive.mercy', hero: 'elin', tier: 2, cost: 6, type: 'passive', requires: ['elin.passive.ward'], label: 'Mercy', desc: 'PASSIVE: when Elin <b>heals</b> an ally she also <b>cleanses</b> <span class="kw kw-chill">❄ CHILL</span> and <span class="kw kw-exposed">◎ EXPOSED</span> — she mends the omen too', passive: 'elin_mercy' },
   { id: 'elin.passive.wrath', hero: 'elin', tier: 3, cost: 8, type: 'passive', requires: ['elin.passive.ward'], label: 'Wrathful Light', desc: 'PASSIVE: Elin’s <b>✦ smites</b> (her support cards’ strike) hit <b>+2</b> and <span class="kw kw-exposed">◎ EXPOSE 1</span> — her light marks the wicked for the whole party', passive: 'elin_wrath' },
   { id: 'elin.rider.radiance', hero: 'elin', tier: 3, cost: 7, type: 'rider', requires: ['elin.sig.front'], label: 'Radiance', desc: 'UPGRADE: Radiant Ward also heals EVERY ally <span class="kw kw-heal">✚2</span>', rider: { card: 'Radiant Ward', fx: { heal: 2 }, descAdd: ' · <span class="kw kw-heal">✚ 2</span> party' } },
@@ -391,7 +401,7 @@ const EMBER_TREE = [
   { id: 'mira.passive.deathmark', hero: 'mira', tier: 4, cost: 12, type: 'passive', requires: ['mira.emergent.bloodscent'], label: 'Death Mark', desc: 'PASSIVE: striking a foe at/under <b>30% HP</b> EXECUTES it — the wounded don’t walk away', passive: 'mira_execute' },
 
   // CASSIA — GUARD: retaliation, an immovable wall
-  { id: 'cassia.passive.vigil', hero: 'cassia', tier: 2, cost: 6, type: 'passive', label: 'Standing Vigil', desc: 'TURN START: Cassia braces for <span class="kw kw-guard">⛨2</span> — never caught flat', passive: 'cassia_vigil' },
+  { id: 'cassia.passive.vigil', hero: 'cassia', tier: 2, cost: 6, type: 'passive', requires: ['cassia.sig.front'], label: 'Standing Vigil', desc: 'TURN START: Cassia braces for <span class="kw kw-guard">⛨2</span> — never caught flat', passive: 'cassia_vigil' },
   { id: 'cassia.passive.bastion', hero: 'cassia', tier: 2, cost: 6, type: 'passive', requires: ['cassia.passive.vigil'], label: 'Bastion', desc: 'PASSIVE: Cassia resists <span class="kw kw-chill">❄ CHILL</span> AND braces <span class="kw kw-counter">↺ 1</span> each turn — the wall does not slow, and it bites back', passive: 'cassia_bastion' },
   { id: 'cassia.passive.shelter', hero: 'cassia', tier: 3, cost: 8, type: 'passive', requires: ['cassia.passive.vigil'], label: 'Living Bulwark', desc: 'TURN START: if Cassia holds <b>10+ <span class="kw kw-guard">⛨ guard</span></b>, the most-wounded ally <span class="kw kw-heal">✚ 4</span> — bank the wall high and it shelters the line', passive: 'cassia_shelter' },
   { id: 'cassia.rider.aegis', hero: 'cassia', tier: 3, cost: 7, type: 'rider', requires: ['cassia.sig.mid'], label: 'Warded Aegis', desc: 'UPGRADE: Aegis also grants the ally <span class="kw kw-counter">↺1</span> — the ward bites back', rider: { card: 'Aegis', fx: { counter: 1 }, descAdd: ' · <span class="kw kw-counter">↺ 1</span>' } },
@@ -482,15 +492,15 @@ const EMBER_TREE = [
   // EXECUTIONER — every hero can cash a STAGGER, but each break lands in their OWN
   // voice: a hero-flavoured finisher forged into hand (still doubled vs the
   // staggered foe), plus, for some, an instant reaction that feeds their build.
-  { id: 'ash.exec',     hero: 'ash',     tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'ON STAGGER: forge a free <b>Coup de Grâce</b> — 10 dmg, <b>doubled</b> vs staggered',
+  { id: 'ash.exec',     hero: 'ash',     tier: 2, cost: 7, type: 'execute', requires: ['ash.sig.front'], label: 'Executioner', desc: 'ON STAGGER: forge a free <b>Coup de Grâce</b> — 10 dmg, <b>doubled</b> vs staggered',
     stagger: { name: 'Coup de Grâce', target: 'enemy', fx: { dmg: 10 }, desc: '<b>10 damage</b> · <b>×2 vs STAGGERED</b>.' } },
-  { id: 'elin.exec',    hero: 'elin',    tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'ON STAGGER: forge a free <b>Mercy’s End</b> (8 holy, doubled vs staggered) & the party heals <span class="kw kw-heal">✚3</span> — she mends as she ends',
+  { id: 'elin.exec',    hero: 'elin',    tier: 2, cost: 7, type: 'execute', requires: ['elin.sig.front'], label: 'Executioner', desc: 'ON STAGGER: forge a free <b>Mercy’s End</b> (8 holy, doubled vs staggered) & the party heals <span class="kw kw-heal">✚3</span> — she mends as she ends',
     stagger: { name: 'Mercy’s End', target: 'enemy', fx: { dmg: 8 }, heal: 3, desc: '<b>8 holy</b> · <b>×2 vs STAGGERED</b>.' } },
-  { id: 'mira.exec',    hero: 'mira',    tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'ON STAGGER: forge a free <b>Death Blossom</b> (7 dmg · <span class="kw kw-exposed">◎4</span>, doubled vs staggered) — paints the kill',
+  { id: 'mira.exec',    hero: 'mira',    tier: 2, cost: 7, type: 'execute', requires: ['mira.sig.back'], label: 'Executioner', desc: 'ON STAGGER: forge a free <b>Death Blossom</b> (7 dmg · <span class="kw kw-exposed">◎4</span>, doubled vs staggered) — paints the kill',
     stagger: { name: 'Death Blossom', target: 'enemy', fx: { dmg: 7, mark: 4 }, desc: '<b>7 damage</b> · <span class="kw kw-exposed">◎ EXPOSED 4</span> · <b>×2 vs STAGGERED</b>.' } },
-  { id: 'cassia.exec',  hero: 'cassia',  tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'ON STAGGER: forge a free <b>Wallbreaker</b> (8 dmg, doubled vs staggered) & Cassia gains <span class="kw kw-guard">⛨5</span> — the wall punishes & hardens',
+  { id: 'cassia.exec',  hero: 'cassia',  tier: 2, cost: 7, type: 'execute', requires: ['cassia.sig.front'], label: 'Executioner', desc: 'ON STAGGER: forge a free <b>Wallbreaker</b> (8 dmg, doubled vs staggered) & Cassia gains <span class="kw kw-guard">⛨5</span> — the wall punishes & hardens',
     stagger: { name: 'Wallbreaker', target: 'frontmost', fx: { dmg: 8, guard: 5 }, desc: '<b>8 damage</b> · <b>×2 vs STAGGERED</b> · gain <span class="kw kw-guard">⛨5</span>.' } },
-  { id: 'branwen.exec', hero: 'branwen', tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'ON STAGGER: forge a free <b>Marksman’s Finish</b> (10 dmg, doubled vs staggered) & refund <b>1 EP</b> — the hunt presses on',
+  { id: 'branwen.exec', hero: 'branwen', tier: 2, cost: 7, type: 'execute', requires: ['branwen.sig.mid'], label: 'Executioner', desc: 'ON STAGGER: forge a free <b>Marksman’s Finish</b> (10 dmg, doubled vs staggered) & refund <b>1 EP</b> — the hunt presses on',
     stagger: { name: 'Marksman’s Finish', target: 'enemy', fx: { dmg: 10 }, ep: 1, desc: '<b>10 damage</b> · <b>×2 vs STAGGERED</b>.' } },
 
   // ═══ AFTERIMAGE — earning the ECHO on the move.  Repositioning (the 1-EP dodge)
@@ -534,7 +544,7 @@ const EMBER_TREE = [
   { id: 'hask.branch.front', hero: 'hask', tier: 2, cost: 6, type: 'branch', requires: ['hask.sig.front'], label: 'Rime Fork',    desc: 'FORK · FRONT: Frost Touch also opens <b>Rime Blast</b> (4 · <span class="kw kw-chill">❄2</span>) → <b>Glacier</b> (8 · <span class="kw kw-chill">❄1</span>)' },
   { id: 'hask.branch.mid',   hero: 'hask', tier: 2, cost: 6, type: 'branch', requires: ['hask.sig.mid'],   label: 'Overload Fork', desc: 'FORK · MID: Ice Bolt also opens <b>Overcharge</b> (<span class="kw kw-charge">◆ CHARGE 2</span>) → <b>Overload</b> (SPEND <span class="kw kw-charge">◆ CHARGE</span>) — build, then unleash' },
   { id: 'hask.branch.back',  hero: 'hask', tier: 2, cost: 6, type: 'branch', requires: ['hask.sig.back'],  label: 'Cast Fork',     desc: 'FORK · BACK: Deep Freeze also opens <b>Waystone</b> → <b>Starfall</b> — BEGIN a cast that lands <b>◈ 16 frost NEXT turn</b> (moving breaks it)' },
-  { id: 'hask.exec', hero: 'hask', tier: 2, cost: 7, type: 'execute', label: 'Executioner', desc: 'ON STAGGER: forge a free <b>Killing Frost</b> — 8 frost · <span class="kw kw-chill">❄2</span> · <b>×2 vs STAGGERED</b>',
+  { id: 'hask.exec', hero: 'hask', tier: 2, cost: 7, type: 'execute', requires: ['hask.sig.mid'], label: 'Executioner', desc: 'ON STAGGER: forge a free <b>Killing Frost</b> — 8 frost · <span class="kw kw-chill">❄2</span> · <b>×2 vs STAGGERED</b>',
     stagger: { name: 'Killing Frost', target: 'enemy', fx: { dmg: 8, lull: 2 }, desc: '<b>8 frost</b> · <span class="kw kw-chill">❄ CHILL 2</span> · <b>×2 vs STAGGERED</b>.' } },
   { id: 'hask.passive.frostbite', hero: 'hask', tier: 2, cost: 6, type: 'passive', requires: ['hask.sig.front'], label: 'Frostbite', desc: 'PASSIVE: <b>+2 dmg</b> to any <span class="kw kw-chill">❄ CHILLED</span> foe — cash the frost', passive: 'hask_frostbite' },
   { id: 'hask.passive.kindling', hero: 'hask', tier: 2, cost: 6, type: 'passive', requires: ['hask.sig.mid'], label: 'Kindling', desc: 'ON CHILL: gain <span class="kw kw-charge">◆ CHARGE 1</span> — frost feeds the fire', passive: 'hask_kindling' },
@@ -12042,6 +12052,64 @@ function buildTreeWorld(party) {
     ns.forEach((cn, k) => {
       const t = (k + 1) / (ns.length + 1);                  // evenly spaced along the span
       pos[cn.id] = { x: A.x + (B.x - A.x) * t, y: A.y + (B.y - A.y) * t };
+    });
+  }
+  // BORDER STONES ARE OBSTACLES (Build 311). The per-hero relaxation above can
+  // only see a hero's own nodes, so a ring node could land exactly on a common
+  // stone strung between two hubs — re-anchoring the tree (the anchor rule)
+  // shifted ring populations and the LATTICE check caught two such collisions
+  // in a row. Chasing them by hand-picking prerequisites is angle roulette;
+  // instead the stones now push intruders off deterministically. The stone
+  // stays put (it marks a real place on a border); the NODE gives way along
+  // its own ring, where angle is the only free dimension.
+  {
+    const span = treeOrbSpan();
+    const stones = Object.keys(pos).filter(k => k.indexOf('common.') === 0 || k.indexOf('bond.') === 0);
+    party.forEach(hid => {
+      const P = per[hid], hub = hubs[hid];
+      for (let it = 0; it < 20; it++) {
+        let moved = false;
+        P.nodes.forEach(n => {
+          const q = pos[n.id];
+          stones.forEach(k => {
+            const st = pos[k], d = Math.hypot(q.x - st.x, q.y - st.y);
+            if (d >= span) return;
+            const r = P.r0 + P.depth[n.id] * TREE_RING;
+            const na = Math.atan2(q.y - hub.y, q.x - hub.x);
+            const push = ((span - d) / Math.max(1, r)) * 1.15;
+            const sa = Math.atan2(st.y - hub.y, st.x - hub.x);
+            let diff = na - sa; while (diff > Math.PI) diff -= 2 * Math.PI; while (diff < -Math.PI) diff += 2 * Math.PI;
+            const nn = na + (diff >= 0 ? push : -push);
+            q.x = hub.x + r * Math.cos(nn); q.y = hub.y + r * Math.sin(nn);
+            P.angle[n.id] = nn * 180 / Math.PI;
+            moved = true;
+          });
+        });
+        // …and giving way must not create a NEW collision: re-relax node pairs
+        // on the same final coordinates in the same loop, or the stone push just
+        // hands the overlap to a neighbour (it did — exploit/chain.rising).
+        for (let i = 0; i < P.nodes.length; i++) for (let j = i + 1; j < P.nodes.length; j++) {
+          const A = P.nodes[i], B = P.nodes[j];
+          const qa = pos[A.id], qb = pos[B.id];
+          const d = Math.hypot(qa.x - qb.x, qa.y - qb.y);
+          if (d >= span) continue;
+          const turn = (id) => {
+            const q = pos[id], r = P.r0 + P.depth[id] * TREE_RING;
+            return { q, r, a: Math.atan2(q.y - hub.y, q.x - hub.x) };
+          };
+          const ta = turn(A.id), tb = turn(B.id);
+          let diff = ta.a - tb.a; while (diff > Math.PI) diff -= 2 * Math.PI; while (diff < -Math.PI) diff += 2 * Math.PI;
+          const sign = diff === 0 ? 1 : (diff > 0 ? 1 : -1);
+          const push = ((span - d) / 2 + 0.5);
+          [[ta, sign, A.id], [tb, -sign, B.id]].forEach(([t2, sg, id]) => {
+            const nn = t2.a + sg * (push / Math.max(1, t2.r));
+            t2.q.x = hub.x + t2.r * Math.cos(nn); t2.q.y = hub.y + t2.r * Math.sin(nn);
+            P.angle[id] = nn * 180 / Math.PI;
+          });
+          moved = true;
+        }
+        if (!moved) break;
+      }
     });
   }
   // Fit the WHOLE world to one square box (square keeps the ring guides circular

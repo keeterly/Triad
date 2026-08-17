@@ -5106,6 +5106,28 @@ const QUICK = process.argv.includes('--quick');
     }
     return { first: dealt[0], second: dealt[1], mem: !!(e._echoMem && e._echoMem.has('Crashing Wave')) };
   }, boss);
+  check('ANCHOR RULE: every node above tier 1 chains back to its hero’s anchor ring — nothing floats',
+    await J(() => {
+      // A build must be a connected line of growth out of the character's
+      // archetype, never a grab-bag of whatever the open tier sells. Walk each
+      // node's requires-chain: it must terminate at a tier-1 node of the SAME
+      // hero, and never cross into another hero's region (crossings are the
+      // bond system's door, not the tree's).
+      const byId = {}; EMBER_TREE.forEach(n => { byId[n.id] = n; });
+      const anchored = (n, seen) => {
+        if (n.tier === 1) return true;
+        if (seen.has(n.id)) return false;
+        const reqs = (n.requires || []).map(r => byId[r]).filter(Boolean);
+        // seen COPIES per branch: it detects cycles on a path, and a shared set
+        // falsely failed diamonds — two requires routing through the same
+        // ancestor is convergence, not a cycle. That misread flagged
+        // ash.chain.react, whose chain is perfectly anchored.
+        return reqs.length > 0 && reqs.every(r => r.hero === n.hero && anchored(r, new Set([...seen, n.id])));
+      };
+      const bad = EMBER_TREE.filter(n => n.hero && TREE_HEROES.indexOf(n.hero) >= 0
+        && n.tier > 1 && !anchored(n, new Set()));
+      return bad.length === 0 || (console.log('    floating: ' + bad.map(n => n.id).join(', ')), false);
+    }));
   check('ECHO: a boss REMEMBERS the finisher that closed a line against it — the repeat lands blunted',
     await (async () => { const r = await echoRun(true);
       return r.mem && r.first > r.second && r.second > 0; })());
