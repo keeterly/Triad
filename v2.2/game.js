@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 7;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 8;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -11858,6 +11858,7 @@ function showDevPanel(back) {
       <button class="menu-item menu-primary" id="d-rotations"><span>🔥 PREVIEW ROTATIONS (FULL)</span><span class="menu-val">›</span></button>
       <button class="menu-item menu-primary" id="d-megaboss"><span>⚔ CHALLENGE FINAL BOSS</span><span class="menu-val">›</span></button>
       <button class="menu-item" id="d-narrative"><span>📖 NARRATIVE INSPECTOR</span><span class="menu-val">›</span></button>
+      <button class="menu-item" id="d-unlockall"><span>🔓 UNLOCK ALL CHARACTERS</span><span class="menu-val">${getUnlockedStarters().length}/${STARTER_POOL.length}</span></button>
       <button class="menu-item" id="d-bg"><span>FIGHT BACKGROUND</span>${onOff(SETTINGS.fightBg)}</button>
       <button class="menu-item${armed ? ' mi-danger' : ''}" id="d-reset">
         <span>${armed ? '⚠ TAP AGAIN TO WIPE' : 'RESET PROGRESS'}</span>
@@ -11870,6 +11871,10 @@ function showDevPanel(back) {
   $('#d-rotations').onclick = () => { _devResetArmed = false; hideOverlay(); devPreviewRotations(); };
   $('#d-megaboss').onclick = () => { _devResetArmed = false; hideOverlay(); devChallengeFinalBoss(); };
   $('#d-narrative').onclick = () => { _devResetArmed = false; showNarrativeInspector(() => showDevPanel(back)); };
+  $('#d-unlockall').onclick = () => { _devResetArmed = false;
+    STARTER_POOL.forEach(unlockStarter);
+    flashNarrator('🔓 All ' + STARTER_POOL.length + ' characters unlocked — pick anyone at the Landing.');
+    showDevPanel(back); };
   $('#d-bg').onclick = () => { toggleSetting('fightBg'); showDevPanel(); };
   $('#d-reset').onclick = () => {
     if (!_devResetArmed) { _devResetArmed = true; showDevPanel(); return; }   // two-tap confirm
