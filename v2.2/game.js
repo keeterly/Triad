@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 12;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 13;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -11550,7 +11550,10 @@ function lungeFig(el) {
 // ground the portrait stood on.
 const HERO_CASTS = {
   mira: {
-    'Marked Knife': { src: 'art/mira/marked-knife.webp', cols: 4, rows: 2, cw: 225, ch: 300, u: 0.42 },
+    'Thrown Dagger': { src: 'art/mira/thrown-dagger.webp', cols: 4, rows: 2, cw: 225, ch: 300, u: 0.45 },
+    'Quick Throw':   { src: 'art/mira/quick-throw.webp',   cols: 4, rows: 2, cw: 225, ch: 300, u: 0.43 },
+    'Execute':       { src: 'art/mira/execute.webp',       cols: 4, rows: 2, cw: 225, ch: 300, u: 0.43 },
+    'Marked Knife':  { src: 'art/mira/marked-knife.webp',  cols: 4, rows: 2, cw: 225, ch: 300, u: 0.42 },
   },
   hask: {
     'Ice Spike':   { src: 'art/hask/ice-spike.webp',   cols: 4, rows: 2, cw: 300, ch: 300, u: 0.30 },
