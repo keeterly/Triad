@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 16;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 17;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -10695,6 +10695,11 @@ function renderBattlefield() {
   // resolves to "the newest action on top"
   const actOrder = S.heroes.filter(x => x._held || x._castAnim)
     .sort((a, b) => (a._actSeq || 0) - (b._actSeq || 0)).map(x => x.id);
+  // THE TELEGRAPH WHISPERS WHILE YOU ACT (v2.2 Build 17): the moment a combo
+  // is in flight the enemy threat display decays to a murmur — rings stop
+  // pulsing, the arc hides, pills dim — and returns full-voice when the party
+  // resets. Two alarm systems shouting at once was most of the clutter.
+  const stEl = $('#stage'); if (stEl) stEl.classList.toggle('combo-live', actOrder.length > 0);
   ['back', 'mid', 'front'].forEach(row => {
     const slot = document.createElement('div');
     slot.className = 'slot' + dangerClass(row);
@@ -10898,10 +10903,15 @@ function renderTelegraphArcs() {
     });
   });
   cand.sort((a, b) => (b.lethal - a.lethal) || (b.heavy - a.heavy) || (b.dmg - a.dmg));
-  svg.innerHTML = cand.slice(0, 3).map(c => {
+  // ONE arc only (v2.2 Build 17, down from three): the arc marks the single
+  // heaviest blow — the one to answer — and it SKIMS THE GROUND (control
+  // point below the chord, not above), so it reads as a line painted on the
+  // floor instead of a dash crossing the cast's faces. Every other threat
+  // still speaks through its ground ring, rim sum, and attacker pill.
+  svg.innerHTML = cand.slice(0, 1).map(c => {
     const cls = 'tg-arc' + (c.lethal ? ' tg-lethal' : c.heavy ? ' tg-heavy' : '');
     const mx = (c.from.x + c.to.x) / 2;
-    const my = Math.min(c.from.y, c.to.y) - 30 - Math.abs(c.from.x - c.to.x) * 0.05;
+    const my = Math.max(c.from.y, c.to.y) + 14;
     return `<path class="${cls}" d="M ${c.from.x.toFixed(1)} ${c.from.y.toFixed(1)} Q ${mx.toFixed(1)} ${my.toFixed(1)} ${c.to.x.toFixed(1)} ${c.to.y.toFixed(1)}"/>`;
   }).join('');
 }
@@ -11657,24 +11667,52 @@ function beginCastAnim(h, card) {
   art.appendChild(el);
   h._castAnim = el;
   fig.classList.add('fig-casting');
-  // walk the cells; STOP on the last (the held end frame). setInterval is
+  // walk the cells and STOP ON THE RELEASE FRAME (v2.2 Build 17) — the PEAK
+  // of the attack, biggest fx of the sheet — and hold it there. The linger
+  // and wind-down frames don't play now: the character does not recover
+  // until the finisher resolves (endCastAnim with recover). setInterval is
   // time-scaled by the harness, so the rigs see the same rhythm a player does.
   let f = 0;
   const total = a.cols * a.rows;
+  const peak = Math.min(5, total - 1);           // frame 6 of 8 — the RELEASE
   const step = () => {
     el.style.backgroundPosition = `${(f % a.cols) / (a.cols - 1) * 100}% ${Math.floor(f / a.cols) / (a.rows - 1) * 100}%`;
+    el._f = f;
   };
   step();
-  el._t = setInterval(() => { if (f < total - 1) { f++; step(); } else clearInterval(el._t); }, CAST_FRAME_MS);
+  el._grid = { cols: a.cols, rows: a.rows, total };
+  el._t = setInterval(() => { if (f < peak) { f++; step(); } else clearInterval(el._t); }, CAST_FRAME_MS);
   return true;
 }
-function endCastAnim(h) {
-  if (h._castAnim) { try { clearInterval(h._castAnim._t); h._castAnim.remove(); } catch (_) {} h._castAnim = null; }
+function endCastAnim(h, recover) {
+  // a still-recovering earlier cast is superseded outright — its cleanup must
+  // not race a new cast (restoring the portrait under fresh frames)
+  if (h._castRecover) { try { clearInterval(h._castRecover._t); h._castRecover.remove(); } catch (_) {} h._castRecover = null; }
+  const el = h._castAnim;
+  h._castAnim = null;
   const fig = figEl(h.id);
-  if (fig) {
-    fig.classList.remove('fig-casting');
-    const svg = fig.querySelector('.fig-art svg'); if (svg) svg.style.visibility = '';
-  }
+  const finish = () => {
+    h._castRecover = null;
+    if (el) { try { clearInterval(el._t); el.remove(); } catch (_) {} }
+    if (fig) {
+      fig.classList.remove('fig-casting');
+      const svg = fig.querySelector('.fig-art svg'); if (svg) svg.style.visibility = '';
+    }
+  };
+  if (!el) { if (fig && !fig.querySelector('.cast-anim')) finish(); return; }
+  try { clearInterval(el._t); } catch (_) {}
+  if (!recover || !el._grid || !el.isConnected) { finish(); return; }
+  // the RECOVERY (v2.2 Build 17): the finisher has resolved, so the deferred
+  // linger + wind-down frames finally play, then the portrait returns
+  let f = el._f || 0;
+  const g = el._grid;
+  h._castRecover = el;
+  el._t = setInterval(() => {
+    if (f < g.total - 1) {
+      f++;
+      el.style.backgroundPosition = `${(f % g.cols) / (g.cols - 1) * 100}% ${Math.floor(f / g.cols) / (g.rows - 1) * 100}%`;
+    } else { finish(); }
+  }, CAST_FRAME_MS);
 }
 // END TURN breaks the pose (v2.2 Build 2) — every hero who has been holding a
 // strike springs back to idle in one beat, so the hand-over to the enemy phase
@@ -11684,13 +11722,18 @@ function endCastAnim(h) {
 function releaseHeldPoses() {
   ((S && S.heroes) || []).forEach(h => {
     if (!h._held && !h._castAnim) return;
+    const wasCasting = !!h._castAnim;
     h._held = false;
-    endCastAnim(h);
+    endCastAnim(h, true);   // a caster RECOVERS: the deferred linger + wind-down frames play now
     const el = figEl(h.id);
     if (el) {
       el.classList.remove('fig-held');
-      el.classList.add('fig-return');
-      setTimeout(() => el.classList.remove('fig-return'), 400);
+      // the dash's spring-back is a translate from the held advance — a caster
+      // never advanced, so their recovery is the sheet's own frames instead
+      if (!wasCasting) {
+        el.classList.add('fig-return');
+        setTimeout(() => el.classList.remove('fig-return'), 400);
+      }
     }
   });
 }

@@ -4537,22 +4537,29 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
 #party-half .slot[data-row="mid"]   .figure { --adv: 62px; }
 #party-half .slot[data-row="back"]  .figure { --adv: 34px; }
 #party-half .figure { --adv: 64px; }   /* fallback for slot-less layouts */
+/* THE HOLD IS THE PEAK (v2.2 Build 17). The held stance used to settle back
+   to a flat idle parked at --adv — a hero standing calmly in the wrong place,
+   which read as "why are they up here?" rather than "they are mid-attack".
+   Now the strike FREEZES at its full extension — deepest reach, slight rise,
+   a forward lean, the impact brightness still on the blade — and the
+   character does not recover until the finisher resolves (or END TURN).
+   fig-strike ends ON the held pose, so the hitstop, the hold and any combo
+   restrike all share one frame of truth. */
 #party-half .figure.fig-held { z-index: 7; }
 #party-half .figure.fig-held .fig-art {
-  transform: translateX(var(--adv));
+  transform: translateX(calc(var(--adv) + 34px)) translateY(-3px) scale(1.06) rotate(2deg);
   transition: transform 0.3s ease-out;
-  filter: brightness(1.08) drop-shadow(0 8px 16px rgba(0,0,0,0.7));
+  filter: brightness(1.14) drop-shadow(0 8px 16px rgba(0,0,0,0.7));
 }
 #party-half .figure.fig-strike { z-index: 8; }
 #party-half .figure.fig-strike .fig-art { animation: fig-strike 0.56s cubic-bezier(0.2, 0.7, 0.3, 1) both; }
 @keyframes fig-strike {
-  32% { transform: translateX(calc(var(--adv) + 38px)) scale(1.07); filter: brightness(1.45); }
-  48% { transform: translateX(calc(var(--adv) + 28px)) scale(1.03); }
-  100% { transform: translateX(var(--adv)); }
+  32% { transform: translateX(calc(var(--adv) + 46px)) translateY(-5px) scale(1.09) rotate(2.5deg); filter: brightness(1.45); }
+  100% { transform: translateX(calc(var(--adv) + 34px)) translateY(-3px) scale(1.06) rotate(2deg); filter: brightness(1.14); }
 }
 #party-half .figure.fig-return .fig-art { animation: fig-hold-return 0.38s cubic-bezier(0.3, 1.3, 0.55, 1) both; }
 @keyframes fig-hold-return {
-  0% { transform: translateX(var(--adv)); }
+  0% { transform: translateX(calc(var(--adv) + 34px)) translateY(-3px) scale(1.06) rotate(2deg); }
   60% { transform: translateX(-8px); }
   100% { transform: translateX(0); }
 }
@@ -4600,5 +4607,18 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
 .slot-telegraphed.sd-empty .sd-brackets,
 .slot-telegraphed.sd-empty .sd-wave { display: none; }
 .slot-telegraphed.sd-empty .slot-danger { animation: none; opacity: 0.45; }
+
+/* ── THE TELEGRAPH WHISPERS WHILE YOU ACT (v2.2 Build 17) ───────────────────
+   A combo in flight owns the stage. While any hero holds their peak, the
+   enemy threat display decays to a murmur — rings freeze and dim, the arc
+   hides, the intent pills and rim sums fall back — then returns full-voice
+   when the party resets its feet. The information never leaves; only the
+   alarm does. */
+.slot-danger, .slot-dmg, .intent, #telegraph-layer { transition: opacity 0.3s ease; }
+#stage.combo-live .slot-danger { animation: none; opacity: 0.28; }
+#stage.combo-live .sd-wave { display: none; }
+#stage.combo-live .slot-dmg { opacity: 0.35; }
+#stage.combo-live #telegraph-layer { opacity: 0; }
+#stage.combo-live .intent { opacity: 0.4; }
 .slot-telegraphed.sd-empty .slot-danger .sd-ground { border-color: rgba(244,74,58,0.4); box-shadow: none; }
 .slot-telegraphed.sd-empty .slot-dmg { opacity: 0.55; font-size: 8px; }

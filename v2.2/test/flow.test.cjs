@@ -6227,6 +6227,43 @@ const QUICK = process.argv.includes('--quick');
       const collides = !(dr.right < nr.left || dr.left > nr.right || dr.bottom < nr.top || dr.top > nr.bottom);
       return !collides;
     }));
+  // ── Build 17: the hold is the PEAK, and the telegraph whispers while you act ──
+  check('TELEGRAPH: one arc only — the single heaviest blow draws; the rest speak through their rings',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash', 'hask']; RUN.active = RUN.roster.slice();
+      RUN.hp = {}; RUN.active.forEach(h => RUN.hp[h] = HEROES[h].maxHp);
+      RUN.nodes = []; RUN.completed = [0, 1, 2];
+      startFight({ type: 'fight', chapter: 3, heroes: RUN.active.slice(), enemies: ['husk', 'wraith', 'cultist'],
+        useRunHp: true, floor: 1, depth: 4, narrator: 't17' });
+      S.heroes.forEach(h => { h.row = { ash: 'front', hask: 'mid' }[h.id]; });
+      renderAll(); renderTelegraphArcs();
+      const threats = S.enemies.reduce((n, e) => n + enemyNextIntents(e).filter(it => it && it.kind !== 'buff' && effIntentRow(e, it) !== 'all').length, 0);
+      return threats >= 2 && document.querySelectorAll('#telegraph-layer .tg-arc').length === 1;
+    }));
+  check('WHISPER: a combo in flight quiets the telegraph — #stage.combo-live while a hero holds, gone on release',
+    await J(() => {
+      const h = S.heroes.find(x => x.id === 'ash');
+      h._held = true; h._actSeq = S._actSeq = 1; renderAll();
+      const during = document.querySelector('#stage').classList.contains('combo-live');
+      h._held = false; renderAll();
+      const after = document.querySelector('#stage').classList.contains('combo-live');
+      return during && !after;
+    }));
+  check('PEAK: a cast walks to its RELEASE frame and holds there — the wind-down does not play early',
+    await J(async () => {
+      const mira = { id: 'mira', downed: false };   // a bare rig hero — beginCastAnim only needs id + a figure
+      const fig = document.createElement('div'); fig.dataset.fig = 'mira';
+      fig.innerHTML = '<div class="fig-art"><svg></svg></div>';
+      document.querySelector('#party-half').appendChild(fig);
+      beginCastAnim(mira, { name: 'Backstab' });
+      await new Promise(r => setTimeout(r, 8 * 85 + 120));   // long past a full walk
+      const held = mira._castAnim && mira._castAnim._f === 5;
+      endCastAnim(mira, true);   // the finisher resolves — recovery frames play now
+      await new Promise(r => setTimeout(r, 3 * 85 + 120));
+      const recovered = !fig.querySelector('.cast-anim') && !fig.classList.contains('fig-casting');
+      fig.remove();
+      return !!held && recovered;
+    }));
 
   // ---------- CAST SHEETS (v2.2 Build 16) ----------
   // Sheets map to cards BY NAME — a rename or typo on either side silently
