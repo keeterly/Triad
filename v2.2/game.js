@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 6;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 7;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -5714,7 +5714,8 @@ async function resolveCard(card, targetId) {
     S._morphHeroId = owner.id;
     if (occupant) S._morphHeroId2 = occupant.id;
     owner._held = false;                     // repositioning breaks the held pose
-    if (occupant) occupant._held = false;
+    endCastAnim(owner);
+    if (occupant) { occupant._held = false; endCastAnim(occupant); }
     renderAll();
     popupAt(figEl(owner.id), STANCE[card.toRow].name.toUpperCase(), 'info');
     if (occupant) popupAt(figEl(occupant.id), 'SWAP', 'info');
@@ -5727,7 +5728,9 @@ async function resolveCard(card, targetId) {
   // beat or END TURN sends everyone back to idle. The line reads as a combo
   // being built move by move instead of three people flickering in place:
   // strike → hold → next hero strikes → hold → finisher → END TURN releases.
-  if (owner && !owner.downed) owner._held = true;
+  // A card with a CAST SHEET (Build 7) plays its real frames instead of the
+  // dash and holds its own end frame the same way.
+  if (owner && !owner.downed) { owner._held = true; beginCastAnim(owner, card); }
 
   const fx = card.fx || {};
   // CAST-TIME (Hask) — a big spell doesn't hit now; it BEGINS a cast that lands at
@@ -6320,7 +6323,8 @@ function dealToEnemy(e, amt, school, byHeroId) {
   // death flags) stays synchronous — only the LIGHT is late.
   const _atkH = byHeroId && S && S.heroes ? S.heroes.find(x => x.id === byHeroId) : null;
   const _dash = !!(_atkH && _atkH._held && !_atkH.downed);
-  const DASH_CONTACT = 190;
+  // a CAST's blade is the release frame, deeper into its walk than a dash's
+  const DASH_CONTACT = (_atkH && _atkH._castAnim) ? CAST_CONTACT_MS : 190;
   const _land = (fx) => { if (_dash) setTimeout(fx, DASH_CONTACT); else fx(); };
   if (byHeroId) lungeFig(figEl(byHeroId));       // the striker sets off NOW
   _land(() => {
@@ -8993,6 +8997,7 @@ function startFight(node) {
   // starts on a move instead of a locked-off plate.
   try { _camBase = CAM_POSE_PLAYER; camIntro(node.isBoss ? 1.3 : 1.16, node.isBoss ? -1.8 : -0.8, node.isBoss ? 1900 : 1250); } catch (_) {}
   openingWeaves();   // kindled bonds enter already woven (their Chain is live from turn one)
+  warmCastArt(S.heroes.map(h => h.id));   // sheets decode now, not on the first cast
   // A trio who EARNED all three bond nodes walks in as a triad — checkTriad only
   // ever ran off addThread, so an owned triad would otherwise never fire at all.
   //
@@ -10713,6 +10718,7 @@ function renderBattlefield() {
         _partyFigs[who.id] = fig;
       }
       fig.className = 'figure party' + (who.downed ? ' downed' : '') + (who._held && !who.downed ? ' fig-held' : '')
+        + (who._castAnim ? ' fig-casting' : '')
         + (_rackIds && _rackIds.has(who.id) ? ' fig-focus' : '')
         + (targeting && targeting.card && targeting.card.owner === who.id ? ' fig-actor' : '')
         + (targetable ? ' fig-targetable' : '') + (canMove(who) ? ' can-move' : '');
@@ -11536,6 +11542,7 @@ function lungeFig(el) {
   // beat departs from the held forward position — same animation, both reads.
   const hid = el.dataset && el.dataset.fig;
   const h = (typeof S !== 'undefined' && S && S.heroes) ? S.heroes.find(x => x.id === hid) : null;
+  if (h && h._castAnim) return;   // a caster casts IN PLACE — the sheet is the action
   if (h && h._held && !h.downed) {
     el.classList.remove('fig-strike'); void el.offsetWidth; el.classList.add('fig-strike');
     setTimeout(() => el.classList.remove('fig-strike'), 600);
@@ -11544,6 +11551,66 @@ function lungeFig(el) {
   el.classList.remove('fig-lunge-hero'); void el.offsetWidth; el.classList.add('fig-lunge-hero');
   setTimeout(() => el.classList.remove('fig-lunge-hero'), 420);
 }
+// ── CAST SHEETS (v2.2 Build 7) — real skill animation, per card ─────────────
+// Eight-frame sheets (4×2): idle → charge → build → swirl → aim → release →
+// linger → wind-down. A mapped card hides the hero's static portrait and
+// walks the frames, then HOLDS the last one — the wind-down stance with its
+// residual magic — exactly like the dash holds its end frame, until the line's
+// finisher (or END TURN) releases everyone. A caster casts IN PLACE: the fx
+// already project across the field, so the dash translate is suppressed while
+// a sheet is playing. `u` is where the BODY's centreline sits within a cell
+// (the fx canvas extends toward the enemies), so the sprite lands on the same
+// ground the portrait stood on.
+const HERO_CASTS = {
+  hask: {
+    'Ice Spike':   { src: 'art/hask/ice-spike.webp',   cols: 4, rows: 2, cw: 300, ch: 300, u: 0.30 },
+    'Frost Touch': { src: 'art/hask/frost-touch.webp', cols: 4, rows: 2, cw: 266, ch: 300, u: 0.33 },
+    'Rime Blast':  { src: 'art/hask/rime-blast.webp',  cols: 4, rows: 2, cw: 200, ch: 300, u: 0.42 },
+    'Ember Veil':  { src: 'art/hask/ember-veil.webp',  cols: 4, rows: 2, cw: 200, ch: 300, u: 0.42 },
+  },
+};
+const CAST_FRAME_MS = 85;          // 8 frames ≈ 600ms of cast; release lands mid-walk
+const CAST_CONTACT_MS = 5 * 85;    // the blow's LIGHT waits for the release frame
+function castAnimFor(heroId, cardName) {
+  const t = HERO_CASTS[heroId]; return (t && t[cardName]) || null;
+}
+// warm the party's sheets at fight start so the first cast never flickers
+function warmCastArt(heroIds) {
+  try { (heroIds || []).forEach(id => Object.values(HERO_CASTS[id] || {}).forEach(a => { const i = new Image(); i.src = a.src; })); } catch (_) {}
+}
+function beginCastAnim(h, card) {
+  const a = castAnimFor(h.id, card && card.name); if (!a) return false;
+  const fig = figEl(h.id); const art = fig && fig.querySelector('.fig-art'); if (!art) return false;
+  endCastAnim(h);
+  const svg = art.querySelector('svg'); if (svg) svg.style.visibility = 'hidden';
+  const el = document.createElement('div');
+  el.className = 'cast-anim';
+  el.style.aspectRatio = String(a.cw / a.ch);
+  el.style.backgroundImage = `url(${a.src})`;
+  el.style.backgroundSize = `${a.cols * 100}% ${a.rows * 100}%`;
+  el.style.transform = `translateX(-${(a.u * 100).toFixed(1)}%)`;
+  art.appendChild(el);
+  h._castAnim = el;
+  fig.classList.add('fig-casting');
+  // walk the cells; STOP on the last (the held end frame). setInterval is
+  // time-scaled by the harness, so the rigs see the same rhythm a player does.
+  let f = 0;
+  const total = a.cols * a.rows;
+  const step = () => {
+    el.style.backgroundPosition = `${(f % a.cols) / (a.cols - 1) * 100}% ${Math.floor(f / a.cols) / (a.rows - 1) * 100}%`;
+  };
+  step();
+  el._t = setInterval(() => { if (f < total - 1) { f++; step(); } else clearInterval(el._t); }, CAST_FRAME_MS);
+  return true;
+}
+function endCastAnim(h) {
+  if (h._castAnim) { try { clearInterval(h._castAnim._t); h._castAnim.remove(); } catch (_) {} h._castAnim = null; }
+  const fig = figEl(h.id);
+  if (fig) {
+    fig.classList.remove('fig-casting');
+    const svg = fig.querySelector('.fig-art svg'); if (svg) svg.style.visibility = '';
+  }
+}
 // END TURN breaks the pose (v2.2 Build 2) — every hero who has been holding a
 // strike springs back to idle in one beat, so the hand-over to the enemy phase
 // reads as the party resetting its feet. The return is a keyframe rather than
@@ -11551,8 +11618,9 @@ function lungeFig(el) {
 // transition mid-flight; the keyframe survives long enough to land.
 function releaseHeldPoses() {
   ((S && S.heroes) || []).forEach(h => {
-    if (!h._held) return;
+    if (!h._held && !h._castAnim) return;
     h._held = false;
+    endCastAnim(h);
     const el = figEl(h.id);
     if (el) {
       el.classList.remove('fig-held');

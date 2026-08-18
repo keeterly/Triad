@@ -4555,3 +4555,18 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
   filter: drop-shadow(0 0 5px rgba(255,44,26,0.55)); }
 @keyframes tg-crawl { to { stroke-dashoffset: -24; } }
 @media (prefers-reduced-motion: reduce) { .tg-arc { animation: none; } }
+
+/* ── CAST SHEETS (v2.2 Build 7) — the skill IS the sprite ───────────────────
+   The animated cell replaces the portrait for the cast's duration and hold.
+   Height rides the art box so body scale matches the portrait exactly; the
+   cell's own aspect-ratio supplies the width (the fx canvas extends toward
+   the enemy half); translateX centres the BODY, not the canvas, over the
+   ground the portrait stood on. A caster casts in place — the held-pose
+   translate is suppressed while a sheet plays. */
+.figure .fig-art { position: relative; }
+.cast-anim {
+  position: absolute; bottom: -2%; left: 50%; height: 106%;
+  background-repeat: no-repeat; pointer-events: none; z-index: 2;
+  filter: drop-shadow(0 8px 14px rgba(0,0,0,0.55));
+}
+#party-half .figure.fig-held.fig-casting .fig-art { transform: none; }
