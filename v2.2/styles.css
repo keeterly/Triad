@@ -427,12 +427,19 @@ body {
      layered by RECENCY — the last hero to act stands nearest the lens, so
      whenever art overlaps (wide cast canvases, deep advances) the newest
      action paints on top, even across rows. Under preserve-3d, z-index
-     cannot order across slots; only depth can. The renderer pairs the lift
-     with --act-x/--act-y, computed from the lens's own projection, so the
-     slot's feet line (and nameplate) stays planted while the actor steps
-     toward the camera. */
+     cannot order across slots; only depth can.
+     THE LIFT IS INVISIBLE (v2.2 Build 18). Left raw, the lift also GREW the
+     figure to front-row scale while its feet stayed on the rear ground line
+     — and in a perspective scene size and height are coupled, so a
+     front-sized sprite on the back line's high ground read as LEVITATING
+     ("why is Hask elevated?"). The renderer now pairs the lift with a
+     counter-scale (--act-s = s1/s2) and the --act-x/--act-y counter-shift,
+     all derived from the lens's own projection, so the slot's projected
+     geometry is IDENTICAL to unlifted. Depth buys paint order; nothing
+     else changes. */
   transform: translateZ(calc(var(--row-z, 0px) + var(--act-z, 0px)))
              translate(var(--act-x, 0px), var(--act-y, 0px))
+             scale(var(--act-s, 1))
              rotateY(calc(-1 * var(--cam-yaw, 0deg)))
              rotateX(calc(-1 * var(--cam-pitch, 0deg)));
   /* THE DESYNC FIX (Build 231).  The billboard counter-rotation reads the
@@ -607,7 +614,11 @@ body {
    RIGHT rim (v2.2 Build 15): the slot's centreline at ground height is where
    the nameplate + HP readout live, and the number was printing over the name. */
 .slot-dmg {
-  position: absolute; bottom: 26px; right: 3%; transform: none; z-index: 4;
+  /* seated on the ring's NEAR RIM beside the row label — measured at phone
+     height, the only band the sum clears everything: the corner ticks
+     (upper band), the hp bar and nameplate (middle bands), and the centered
+     row label (it sits to the label's right) */
+  position: absolute; bottom: 1px; right: 4%; transform: none; z-index: 4;
   font-size: 9px; font-weight: 700; letter-spacing: 0.06em; color: #ff6a54;
   text-shadow: 0 0 6px rgba(220,40,30,0.8), 0 1px 2px #000; pointer-events: none;
 }

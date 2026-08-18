@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 17;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 18;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -10781,6 +10781,7 @@ function renderBattlefield() {
         slot.style.setProperty('--act-z', '0px');
         slot.style.setProperty('--act-x', '0px');
         slot.style.setProperty('--act-y', '0px');
+        slot.style.setProperty('--act-s', '1');
         return;
       }
       const rz = ROWZ[row] || 0;
@@ -10792,6 +10793,10 @@ function renderBattlefield() {
       slot.style.setProperty('--act-z', zAct + 'px');
       slot.style.setProperty('--act-x', (-dx * (s2 - s1) / s2).toFixed(1) + 'px');
       slot.style.setProperty('--act-y', (-dy * (s2 - s1) / s2).toFixed(1) + 'px');
+      // counter-scale so the lifted slot's projected size stays its row's own —
+      // without it a rear actor grew to front-row scale on the rear ground
+      // line and read as levitating (see the transform's comment block)
+      slot.style.setProperty('--act-s', (s1 / s2).toFixed(4));
     });
   }
 

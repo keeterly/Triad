@@ -6249,6 +6249,18 @@ const QUICK = process.argv.includes('--quick');
       const after = document.querySelector('#stage').classList.contains('combo-live');
       return during && !after;
     }));
+  // ── Build 18: the lift is INVISIBLE — depth buys paint order, nothing else ──
+  check('RECENCY: the lift is counter-scaled — a lifted rear slot keeps its row’s projected size, no levitating giant',
+    await J(() => {
+      setupFight(['ash', 'hask'], [], { ash: 'front', hask: 'mid' });
+      const hask = S.heroes.find(h => h.id === 'hask');
+      hask._held = true; hask._actSeq = S._actSeq = 1; renderAll();
+      const slot = document.querySelector('#party-half .slot[data-row="mid"]');
+      const s = parseFloat(slot.style.getPropertyValue('--act-s'));
+      hask._held = false; renderAll();
+      const cleared = parseFloat(document.querySelector('#party-half .slot[data-row="mid"]').style.getPropertyValue('--act-s'));
+      return s > 0.9 && s < 1 && cleared === 1;
+    }));
   check('PEAK: a cast walks to its RELEASE frame and holds there — the wind-down does not play early',
     await J(async () => {
       const mira = { id: 'mira', downed: false };   // a bare rig hero — beginCastAnim only needs id + a figure
