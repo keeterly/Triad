@@ -6228,6 +6228,19 @@ const QUICK = process.argv.includes('--quick');
       return !collides;
     }));
 
+  // ---------- CAST SHEETS (v2.2 Build 16) ----------
+  // Sheets map to cards BY NAME — a rename or typo on either side silently
+  // orphans the art (the card falls back to the dash). Hold the mapping.
+  console.log('--- CAST SHEETS ---');
+  check('CAST SHEETS: every mapped sheet names a real card of its hero — no orphaned art',
+    await J(() => Object.entries(HERO_CASTS).every(([hid, m]) =>
+      Object.keys(m).every(name => {
+        const rot = ROTATIONS[hid];
+        return rot && Object.values(rot).some(r => Object.values(r.cards).some(c => c.name === name));
+      }))));
+  check('CAST SHEETS: Mira’s full mid and front lines carry sheets — Serrate, Backstab, Twin Cut, Twin Daggers',
+    await J(() => ['Serrate', 'Backstab', 'Twin Cut', 'Twin Daggers'].every(n => !!castAnimFor('mira', n))));
+
   // ---------- BOND NODES (Build 264) ----------
   // Three half-finished things wired into one loop, none of them new: BOND_ARCS
   // (6 pairs, 17 authored campfire beats that unlocked nothing), DUET_PERKS (15

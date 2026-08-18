@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 15;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 16;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -11619,6 +11619,13 @@ const HERO_CASTS = {
     'Quick Throw':   { src: 'art/mira/quick-throw.webp',   cols: 4, rows: 2, cw: 225, ch: 300, u: 0.43 },
     'Execute':       { src: 'art/mira/execute.webp',       cols: 4, rows: 2, cw: 225, ch: 300, u: 0.43 },
     'Marked Knife':  { src: 'art/mira/marked-knife.webp',  cols: 4, rows: 2, cw: 225, ch: 300, u: 0.42 },
+    'Serrate':       { src: 'art/mira/serrate.webp',       cols: 4, rows: 2, cw: 225, ch: 300, u: 0.45 },
+    'Backstab':      { src: 'art/mira/backstab.webp',      cols: 4, rows: 2, cw: 225, ch: 300, u: 0.46 },
+    // the "Twin Fang" sheet serves BOTH twin-blade skills until each gets its
+    // own — the leaping cross-slash reads right for the front combo and the
+    // mid finisher alike
+    'Twin Cut':      { src: 'art/mira/twin-fang.webp',     cols: 4, rows: 2, cw: 225, ch: 300, u: 0.45 },
+    'Twin Daggers':  { src: 'art/mira/twin-fang.webp',     cols: 4, rows: 2, cw: 225, ch: 300, u: 0.45 },
   },
   hask: {
     'Ice Spike':   { src: 'art/hask/ice-spike.webp',   cols: 4, rows: 2, cw: 300, ch: 300, u: 0.30 },
