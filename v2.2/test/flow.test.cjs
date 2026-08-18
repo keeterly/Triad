@@ -6157,6 +6157,77 @@ const QUICK = process.argv.includes('--quick');
       return ops.length === 1 && ops[0].name === 'Ice Bolt'; }));
   await restoreFC();
 
+  // ---------- COMBAT POLISH (v2.2 Build 15) ----------
+  // Three fixes from one playtest note. RECENCY: the last hero to act stands
+  // nearest the lens — an acting slot lifts ABOVE the front plane (under
+  // preserve-3d only depth can order across slots), position-compensated so
+  // the nameplate stays home. KEEP-ANIM: a mid-flight render preserves running
+  // strike/return classes instead of ripping them (the frame-long teleport
+  // that read as "characters disappear glitchily"). TELEGRAPH: an ALL attack
+  // draws no arcs, an empty threatened row whispers, and the damage sum rides
+  // the ring rim clear of the nameplate.
+  console.log('--- COMBAT POLISH (BUILD 15) ---');
+  check('RECENCY: acting slots lift above the front plane, the later actor nearest the lens',
+    await J(() => {
+      setupFight(['ash', 'hask', 'mira'], [], { ash: 'front', hask: 'mid', mira: 'back' });
+      const [ash, hask] = ['ash', 'hask'].map(id => S.heroes.find(h => h.id === id));
+      ash._held = true; ash._actSeq = 1;
+      hask._held = true; hask._actSeq = 2;
+      S._actSeq = 2; renderAll();
+      const z = row => parseFloat(document.querySelector(`#party-half .slot[data-row="${row}"]`).style.getPropertyValue('--act-z')) || 0;
+      const net = { front: 0 + z('front'), mid: -58 + z('mid'), back: -150 + z('back') };
+      // both actors above the idle front plane (0); hask (later) above ash; idle mira untouched
+      return net.front > 0 && net.mid > net.front && z('back') === 0;
+    }));
+  check('RECENCY: the lift is position-compensated — the lifted slot counter-shifts so its feet stay planted, idle slots do not',
+    await J(() => {
+      const gp = (row, p) => document.querySelector(`#party-half .slot[data-row="${row}"]`).style.getPropertyValue(p);
+      return Math.abs(parseFloat(gp('mid', '--act-x'))) > 0.5 && Math.abs(parseFloat(gp('mid', '--act-y'))) > 0.5
+        && parseFloat(gp('back', '--act-x')) === 0 && parseFloat(gp('back', '--act-y')) === 0;
+    }));
+  check('KEEP-ANIM: a render mid-flight preserves a running strike class instead of ripping the figure home for a frame',
+    await J(() => {
+      const fig = document.querySelector('[data-fig="ash"]');
+      fig.classList.add('fig-strike');
+      renderAll();
+      const after = document.querySelector('[data-fig="ash"]');
+      const kept = after.className.indexOf('fig-strike') !== -1;
+      after.classList.remove('fig-strike');
+      S.heroes.forEach(h => { h._held = false; h._actSeq = 0; }); renderAll();
+      return kept;
+    }));
+  check('TELEGRAPH: an ALL attack telegraphs on the rows alone — no attacker arcs join the clutter',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash', 'hask']; RUN.active = RUN.roster.slice();
+      RUN.hp = {}; RUN.active.forEach(h => RUN.hp[h] = HEROES[h].maxHp);
+      RUN.nodes = []; RUN.completed = [0, 1, 2];
+      startFight({ type: 'fight', chapter: 3, heroes: RUN.active.slice(), enemies: ['cantor'],
+        useRunHp: true, floor: 1, depth: 4, narrator: 't15' });
+      S.heroes.forEach(h => { h.row = { ash: 'front', hask: 'mid' }[h.id]; });
+      S.enemies[0].intentIdx = 1;   // Dirge of Ruin — row:'all'
+      renderAll(); renderTelegraphArcs();
+      return document.querySelectorAll('#party-half .slot-telegraphed').length === 3
+        && document.querySelectorAll('#telegraph-layer .tg-arc').length === 0;
+    }));
+  check('TELEGRAPH: an EMPTY threatened row whispers — faint ring only, brackets and wave stay dark',
+    await J(() => {
+      const back = document.querySelector('#party-half .slot[data-row="back"]');
+      const front = document.querySelector('#party-half .slot[data-row="front"]');
+      return back.className.indexOf('sd-empty') !== -1
+        && getComputedStyle(back.querySelector('.sd-brackets')).display === 'none'
+        && front.className.indexOf('sd-empty') === -1
+        && getComputedStyle(front.querySelector('.sd-brackets')).display !== 'none';
+    }));
+  check('TELEGRAPH: the incoming sum rides the ring rim, clear of the nameplate',
+    await J(() => {
+      const slot = document.querySelector('#party-half .slot[data-row="front"]');
+      const d = slot.querySelector('.slot-dmg'); if (!d) return false;
+      const name = slot.querySelector('.fig-name'); if (!name) return false;
+      const dr = d.getBoundingClientRect(), nr = name.getBoundingClientRect();
+      const collides = !(dr.right < nr.left || dr.left > nr.right || dr.bottom < nr.top || dr.top > nr.bottom);
+      return !collides;
+    }));
+
   // ---------- BOND NODES (Build 264) ----------
   // Three half-finished things wired into one loop, none of them new: BOND_ARCS
   // (6 pairs, 17 authored campfire beats that unlocked nothing), DUET_PERKS (15

@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 14;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 15;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -5717,7 +5717,11 @@ async function resolveCard(card, targetId) {
   // strike → hold → next hero strikes → hold → finisher → END TURN releases.
   // A card with a CAST SHEET (Build 7) plays its real frames instead of the
   // dash and holds its own end frame the same way.
-  if (owner && !owner.downed) { owner._held = true; beginCastAnim(owner, card); }
+  if (owner && !owner.downed) {
+    owner._held = true;
+    owner._actSeq = S._actSeq = (S._actSeq || 0) + 1;   // recency — the last actor paints on top
+    beginCastAnim(owner, card);
+  }
 
   const fx = card.fx || {};
   // CAST-TIME (Hask) — a big spell doesn't hit now; it BEGINS a cast that lands at
@@ -10564,6 +10568,19 @@ function partyChipsHtml(who) {
 }
 function partyAuraObj(who) { return { guard: who.guard, rally: who.buffDmg, chill: who.chill, exposed: who.exposed, counter: who.counter, invuln: who.invuln }; }
 // Refresh a REUSED party figure in place — swap only what changed.
+// TRANSIENT ANIMATION CLASSES SURVIVE A RE-RENDER (v2.2 Build 15). renderAll
+// fires several times inside one card's resolution, and rebuilding className
+// mid-flight ripped a running dash/recoil/return animation off the element —
+// the art TELEPORTED to its end state for a frame, which is exactly the
+// "characters blink out glitchily" report. The classes are re-carried here;
+// their own setTimeout owners still remove them on schedule.
+const KEEP_ANIM = ['fig-strike', 'fig-return', 'fig-lunge-hero', 'fig-lunge', 'fig-hit', 'fig-hit-l', 'fig-hit-r'];
+function _keepAnim(el) {
+  if (!el || !el.classList) return '';
+  let s = '';
+  for (const c of KEEP_ANIM) if (el.classList.contains(c)) s += ' ' + c;
+  return s;
+}
 function refreshPartyFig(fig, who, solo) {
   const chips = fig.querySelector('.fig-chips'); if (chips) chips.innerHTML = partyChipsHtml(who);
   const fill = fig.querySelector('.hp-fill'); if (fill) fill.style.width = ((who.hp / who.maxHp) * 100) + '%';
@@ -10666,15 +10683,23 @@ function renderBattlefield() {
     const h = S.heroes.find(x => x.row === row && !x.downed);
     const lethal = h && !h.invuln && d >= h.hp + h.guard;
     const tier = lethal ? 'sd-lethal' : (d >= 16 || anyHeavy) ? 'sd-lg' : d >= 9 ? 'sd-md' : 'sd-sm';
-    return ' slot-telegraphed ' + tier;
+    // an EMPTY threatened row whispers — a faint ring saying "don't move here",
+    // not the full alarm nobody is standing in (v2.2 Build 15)
+    return ' slot-telegraphed ' + tier + (h ? '' : ' sd-empty');
   };
 
   const party = $('#party-half');
   party.innerHTML = '';
+  // recency ladder for the acting slots' camera-step (--act-z): the later a
+  // hero acted, the nearer the lens they stand, so overlapping art always
+  // resolves to "the newest action on top"
+  const actOrder = S.heroes.filter(x => x._held || x._castAnim)
+    .sort((a, b) => (a._actSeq || 0) - (b._actSeq || 0)).map(x => x.id);
   ['back', 'mid', 'front'].forEach(row => {
     const slot = document.createElement('div');
     slot.className = 'slot' + dangerClass(row);
     slot.dataset.row = row;
+    const actH = S.heroes.find(x => x.row === row && (x._held || x._castAnim) && !x.downed);
     const h = S.heroes.find(x => x.row === row && !x.downed);
     const downedHere = S.heroes.find(x => x.row === row && x.downed);
     const dRow = rowDmg[row];
@@ -10708,7 +10733,8 @@ function renderBattlefield() {
         + (who._castAnim ? ' fig-casting' : '')
         + (_rackIds && _rackIds.has(who.id) ? ' fig-focus' : '')
         + (targeting && targeting.card && targeting.card.owner === who.id ? ' fig-actor' : '')
-        + (targetable ? ' fig-targetable' : '') + (canMove(who) ? ' can-move' : '');
+        + (targetable ? ' fig-targetable' : '') + (canMove(who) ? ' can-move' : '')
+        + _keepAnim(fig);
       snapFx(who, { invuln: who.invuln ? 1 : 0, guard: who.guard, buffDmg: who.buffDmg, counter: who.counter, exposed: who.exposed, chill: who.chill, primed: who.primed ? 1 : 0 });
       // Click fallback for target-picking (synthetic clicks / accessibility
       // tools).  Safe alongside the pointer path: onFigureTap no-ops once
@@ -10727,6 +10753,42 @@ function renderBattlefield() {
     }
     party.appendChild(slot);
   });
+  // THE RECENCY STEP (v2.2 Build 15) — an acting slot lifts ABOVE the front
+  // plane (--act-z), layered by act order, so the newest action always paints
+  // on top even across rows (under preserve-3d, z-index cannot order across
+  // slots; only depth can). A raw Z lift would also slide the slot's projected
+  // position toward the screen edge — dragging the nameplate, which is decreed
+  // to stay home — so the renderer sets compensating --act-x/--act-y from the
+  // same projection math the lens runs (perspective 1150px @ 50%/28% of
+  // #battlefield), anchored at the feet line (transform-origin 50% 92%). Net
+  // read: the actor grows a touch toward the lens, feet planted. Runs as a
+  // post-pass because offsetLeft/offsetTop need the slots in the DOM.
+  {
+    const bf = $('#battlefield');
+    const P = 1150, vpX = bf.offsetWidth * 0.5, vpY = bf.offsetHeight * 0.28;
+    const ROWZ = { back: -150, mid: -58, front: 0 };
+    const layOff = (el) => { let x = 0, y = 0; while (el) { x += el.offsetLeft; y += el.offsetTop; el = el.offsetParent; } return [x, y]; };
+    const [bfX, bfY] = layOff(bf);
+    party.querySelectorAll('.slot').forEach(slot => {
+      const row = slot.dataset.row;
+      const actH = S.heroes.find(x => x.row === row && (x._held || x._castAnim) && !x.downed);
+      if (!actH) {
+        slot.style.setProperty('--act-z', '0px');
+        slot.style.setProperty('--act-x', '0px');
+        slot.style.setProperty('--act-y', '0px');
+        return;
+      }
+      const rz = ROWZ[row] || 0;
+      const zAct = -rz + 12 + 12 * actOrder.indexOf(actH.id);
+      const s1 = P / (P - rz), s2 = P / (P - (rz + zAct));
+      const [sx, sy] = layOff(slot);
+      const dx = sx - bfX + slot.offsetWidth / 2 - vpX;
+      const dy = sy - bfY + slot.offsetHeight * 0.92 - vpY;
+      slot.style.setProperty('--act-z', zAct + 'px');
+      slot.style.setProperty('--act-x', (-dx * (s2 - s1) / s2).toFixed(1) + 'px');
+      slot.style.setProperty('--act-y', (-dy * (s2 - s1) / s2).toFixed(1) + 'px');
+    });
+  }
 
   const enemyHalf = $('#enemy-half');
   // FLOOR BOSS — one colossal foe that fills the enemy half, rendered as a
@@ -10768,7 +10830,8 @@ function renderBattlefield() {
       }
       const targetable = targeting && !targeting.isRow && targeting.validIds.includes(e.uid);
       fig.className = 'figure enemy' + (e._justDied ? ' fig-dying' : '') + (primed && !e._justDied ? ' fig-primed' : '')
-        + (_rackIds && _rackIds.has(e.uid) ? ' fig-focus' : '') + (targetable ? ' fig-targetable' : '');
+        + (_rackIds && _rackIds.has(e.uid) ? ' fig-focus' : '') + (targetable ? ' fig-targetable' : '')
+        + _keepAnim(fig);
       snapFx(e, { weakened: e.weakened ? 1 : 0, staggered: e.staggered ? 1 : 0, guard: e.guard, power: e.power, mark: e.mark, lull: e.lull });
       fig.onclick = () => onFigureTap(e.uid);
       slot.appendChild(fig);
@@ -10824,12 +10887,14 @@ function renderTelegraphArcs() {
       if (!it || it.kind === 'buff') return;
       const dmg = enemyIntentDmg(e, it);
       const row = effIntentRow(e, it);
-      (row === 'all' ? ROWS.slice() : (row ? [row] : [])).forEach(rw => {
-        const to = groundOf(rw); if (!to) return;
-        const h = S.heroes.find(x => x.row === rw && !x.downed);
-        const lethal = h && !h.invuln && dmg >= h.hp + h.guard;
-        cand.push({ from, to, dmg, lethal, heavy: !!(it.heavy || dmg >= 12) });
-      });
+      // an ALL blow draws NO arcs (v2.2 Build 15): arcs are AIM, and a blow
+      // that hits everywhere has none — its pill says ALL and every ground
+      // ring lights; three dashes fanning across the field said less, louder.
+      if (row === 'all' || !row) return;
+      const to = groundOf(row); if (!to) return;
+      const h = S.heroes.find(x => x.row === row && !x.downed);
+      const lethal = h && !h.invuln && dmg >= h.hp + h.guard;
+      cand.push({ from, to, dmg, lethal, heavy: !!(it.heavy || dmg >= 12) });
     });
   });
   cand.sort((a, b) => (b.lethal - a.lethal) || (b.heavy - a.heavy) || (b.dmg - a.dmg));

@@ -423,7 +423,16 @@ body {
    trick of 2D art standing in a 3D world. */
 .slot[data-row] {
   transform-origin: 50% 92%;
-  transform: translateZ(var(--row-z, 0px))
+  /* --act-z (v2.2 Build 15): an acting slot lifts ABOVE the front plane,
+     layered by RECENCY — the last hero to act stands nearest the lens, so
+     whenever art overlaps (wide cast canvases, deep advances) the newest
+     action paints on top, even across rows. Under preserve-3d, z-index
+     cannot order across slots; only depth can. The renderer pairs the lift
+     with --act-x/--act-y, computed from the lens's own projection, so the
+     slot's feet line (and nameplate) stays planted while the actor steps
+     toward the camera. */
+  transform: translateZ(calc(var(--row-z, 0px) + var(--act-z, 0px)))
+             translate(var(--act-x, 0px), var(--act-y, 0px))
              rotateY(calc(-1 * var(--cam-yaw, 0deg)))
              rotateX(calc(-1 * var(--cam-pitch, 0deg)));
   /* THE DESYNC FIX (Build 231).  The billboard counter-rotation reads the
@@ -594,9 +603,11 @@ body {
 }
 /* the incoming number rides ON the ground ring (v2.2 Build 6) — the ring is
    the telegraph's anchor now, so the sum sits where the blow lands instead of
-   floating at the slot's top far above the threatened hero */
+   floating at the slot's top far above the threatened hero. It hugs the ring's
+   RIGHT rim (v2.2 Build 15): the slot's centreline at ground height is where
+   the nameplate + HP readout live, and the number was printing over the name. */
 .slot-dmg {
-  position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); z-index: 4;
+  position: absolute; bottom: 26px; right: 3%; transform: none; z-index: 4;
   font-size: 9px; font-weight: 700; letter-spacing: 0.06em; color: #ff6a54;
   text-shadow: 0 0 6px rgba(220,40,30,0.8), 0 1px 2px #000; pointer-events: none;
 }
@@ -4580,3 +4591,14 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
   filter: drop-shadow(0 8px 14px rgba(0,0,0,0.55));
 }
 #party-half .figure.fig-held.fig-casting .fig-art { transform: none; }
+
+/* ── TELEGRAPH, QUIETED (v2.2 Build 15) ─────────────────────────────────────
+   An EMPTY threatened row whispers: a faint ground ring only — real "don't
+   move here" information, none of the alarm that belongs to a hero actually
+   standing in the blow. And the damage sum sits INSIDE the ring, painted on
+   the ground where the blow lands, instead of floating at body height. */
+.slot-telegraphed.sd-empty .sd-brackets,
+.slot-telegraphed.sd-empty .sd-wave { display: none; }
+.slot-telegraphed.sd-empty .slot-danger { animation: none; opacity: 0.45; }
+.slot-telegraphed.sd-empty .slot-danger .sd-ground { border-color: rgba(244,74,58,0.4); box-shadow: none; }
+.slot-telegraphed.sd-empty .slot-dmg { opacity: 0.55; font-size: 8px; }
