@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 11;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 12;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -11549,6 +11549,9 @@ function lungeFig(el) {
 // (the fx canvas extends toward the enemies), so the sprite lands on the same
 // ground the portrait stood on.
 const HERO_CASTS = {
+  mira: {
+    'Marked Knife': { src: 'art/mira/marked-knife.webp', cols: 4, rows: 2, cw: 225, ch: 300, u: 0.42 },
+  },
   hask: {
     'Ice Spike':   { src: 'art/hask/ice-spike.webp',   cols: 4, rows: 2, cw: 300, ch: 300, u: 0.30 },
     'Frost Touch': { src: 'art/hask/frost-touch.webp', cols: 4, rows: 2, cw: 266, ch: 300, u: 0.33 },
