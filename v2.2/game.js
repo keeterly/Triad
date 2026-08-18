@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 8;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 9;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -4667,38 +4667,29 @@ function buildHand() {
       // closed. That is what makes discarding them a real cost and what keeps the
       // combo one thing the party is building rather than three running at once.
       if (lineIsLive) { (chainTemps[h.id] || []).forEach(t => hand.push(t)); return; }
-      // ONE CARD PER HERO (Build 294). The reach used to sit BESIDE the standing
-      // opener, so one hero a turn opened holding two cards while everybody else
-      // held one. Under the line that asymmetry is worse than it looks: the opener
-      // stage is the whole party's board, and a hero with two cards on it gets two
-      // votes on which line the party builds.
-      //
-      // So the reach SUBSTITUTES now instead of adding. One hero a turn opens out
-      // of a different stance INSTEAD of their own, and every hero shows exactly
-      // one opener. That keeps what Build 258 was actually for — before it, two
-      // players with the same trio in the same rows saw byte-identical hands every
-      // turn, and turn 3 was turn 1 — while costing the hand nothing.
-      //
-      // The trade, named because it is a real one: reaching is no longer a CHOICE
-      // between the cheap line you stand in and the dearer one the board wants —
-      // it IS this turn's hand. That choice mattered when a turn had almost none.
-      // The line now supplies plenty (who opens x who answers x who finishes), so
-      // the variety is worth more than the option was.
+      // THE REACH OFFERS, IT DOES NOT REPLACE (v2.2 Build 9, by decree). Build
+      // 294 made the reach SUBSTITUTE for the standing opener so every hero
+      // held exactly one card — and playtested on a real device, that read as
+      // a bug: the same hero showing a different opener in the same position,
+      // with the option they actually stand in gone from the table. If a hero
+      // has two lines they can open, both belong in the hand: the cheap one
+      // they stand in and the dearer one the board wants. Playing either
+      // starts the line and clears every opener, exactly as before — the
+      // asymmetry is one extra card, one turn, for one hero, and it is a
+      // CHOICE, which is what this game trades in.
+      const op = mkChainOpener(h, rot);
+      if (!op.spent) hand.push(op);
       const rr = reachFor(h);
-      let op;
       if (rr) {
-        op = mkChainOpener(h, rr.rot, rr.row);
+        const ro = mkChainOpener(h, rr.rot, rr.row);
         // NO EP TAX (Build 259). Measured: with +1 EP the reach was never the best
         // play on any turn — a 3-EP Cover competing with a 2-EP Cleave is not a
-        // choice, it is a worse option wearing a new name. It already costs this
-        // hero the line they are standing in, which is price enough.
-        op.reach = true;
-        op.stance = 'REACH · ' + STANCE[rr.row].name.toUpperCase().replace(/ STANCE$/, '');
-        op.desc = (op.desc || '') + ' <i>' + h.def.name + '\u2019s hand this turn is the line they reached for, not the one they stand in.</i>';
-      } else {
-        op = mkChainOpener(h, rot);
+        // choice, it is a worse option wearing a new name.
+        ro.reach = true;
+        ro.stance = 'REACH \u00b7 ' + STANCE[rr.row].name.toUpperCase().replace(/ STANCE$/, '');
+        ro.desc = (ro.desc || '') + ' <i>' + h.def.name + ' reaches into a line they do not stand in.</i>';
+        if (!ro.spent) hand.push(ro);
       }
-      if (!op.spent) hand.push(op);
       (chainTemps[h.id] || []).forEach(t => hand.push(t));   // forged steps sit in this hero's slot
       return;
     }

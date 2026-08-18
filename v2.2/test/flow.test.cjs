@@ -5095,13 +5095,14 @@ const QUICK = process.argv.includes('--quick');
   check('LINE: closing it clears the table and gives the openers back',
     await J(() => { const fin = buildHand().find(c => c.owner === 'elin');
       S.tempCards = S.tempCards.filter(t => t.uid !== fin.uid); resolveChainPlay(fin);
-      // Exactly one opener per hero comes back — the reach SUBSTITUTES for a
-      // standing opener now (294), so there is no extra card to filter out.
+      // Every hero's STANDING opener comes back — a reach (Build 9: an OFFER
+      // beside the standing opener, no longer a substitute) may add one more
+      // card for one hero, so count the standing set, not the raw hand.
       const back = buildHand().filter(c => c.kind === 'opener');
       // Ash opened this line, so his latch is unspent here only because the check
       // drove resolveChainPlay directly rather than through playCard.
       return S.line === null && S.tempCards.filter(t => t.chain).length === 0
-        && back.length === 2 && new Set(back.map(c => c.owner)).size === 2; }));
+        && back.filter(c => !c.reach).length === 2 && new Set(back.map(c => c.owner)).size === 2; }));
   check('LINE: an untreed line is opener → finisher — a shorter chain, not a skipped beat',
     await J(() => { setupFight(['ash', 'elin'], [], { ash: 'front', elin: 'mid' }); S._rotations = true; S._line = true; renderAll();
       const op = buildHand().find(c => c.kind === 'opener' && c.owner === 'ash'); S.tempCards = []; resolveChainPlay(op);
@@ -5222,7 +5223,10 @@ const QUICK = process.argv.includes('--quick');
       // nothing at all until the turn rolled over.
       S.tempCards = [];
       const back = buildHand().filter(c => c.kind === 'opener');
-      return duringLine && S.line === null && back.length === 2 && new Set(back.map(c => c.owner)).size === 2; }));
+      // Build 9: a reach may sit beside one hero's standing opener — count the
+      // STANDING set to prove the flag released the hand.
+      return duringLine && S.line === null && back.filter(c => !c.reach).length === 2
+        && new Set(back.map(c => c.owner)).size === 2; }));
   check('LINE: HASK banks ◆ CHARGE per beat he takes — and forfeits it if he does not close',
     await J(() => { setupFight(['hask', 'ash'], ROTATION_GATES, { hask: 'mid', ash: 'front' }); S._rotations = true; S._line = true; renderAll();
       const hask = S.heroes.find(h => h.id === 'hask'); hask.charge = 0; hask._pendCharge = 0;
@@ -5272,13 +5276,14 @@ const QUICK = process.argv.includes('--quick');
   await sleep(400);
   check('ROTATION preview boots a party fight with the engine LIVE',
     await J(() => !!S && S._rotations === true && S.heroes.length === 3 && !document.querySelector('#overlay:not(.hidden)')));
-  check('ROTATION preview: EXACTLY one opener per hero — the reach substitutes, it does not add',
+  check('ROTATION preview: one STANDING opener per hero, and a reach may sit beside one of them (Build 9)',
     await J(() => { const openers = buildHand().filter(c => c.kind === 'opener');
-      // Build 294: the reach used to sit BESIDE the standing opener, so one hero a
-      // turn opened holding two cards. On a party-wide opener stage that is two
-      // votes on which line the party builds, so it replaces instead.
-      return openers.length === 3
-        && new Set(openers.map(c => c.owner)).size === 3
+      // Build 9 reversed 294 by decree: the reach is an OFFER next to the
+      // standing opener, never a replacement — every hero always shows the
+      // line they stand in, and at most one hero a turn shows a second.
+      const standing = openers.filter(c => !c.reach);
+      return standing.length === 3
+        && new Set(standing.map(c => c.owner)).size === 3
         && openers.filter(c => c.reach).length <= 1
         && openers.every(o => o.cost >= 1); }));
   // EP ECONOMY (Build 194): the COMBO ramp is free, but the FINISHER payoff costs
@@ -6115,13 +6120,17 @@ const QUICK = process.argv.includes('--quick');
       const rot = ROTATIONS[r.owner][rowKey] || ROTATIONS[r.owner].front;
       const base = rot ? mkChainOpener(h, rot, 'mid') : null;
       return /REACH/.test(r.stance) && (!base || r.cost === base.cost); }));
-  check('REACH: it IS that hero’s hand this turn — not a second card beside their own',
+  // v2.2 Build 9 (by decree, from device playtest): a hero with two lines to
+  // open shows BOTH — the standing opener and the reach, side by side. The
+  // substitute read as a bug: the same hero holding a different opener in the
+  // same position, with the line they stand in gone from the table.
+  check('REACH: it sits BESIDE the standing opener — two lines, one choice, and playing either clears both',
     await J(async () => { S.turn = 1; S.used = new Set(); S.ep = 12;
       const r = buildHand().find(c => c.reach);
       const mine = buildHand().filter(c => c.owner === r.owner && c.kind === 'opener');
-      const only = mine.length === 1 && mine[0].reach === true;   // the standing line is not also on the table
+      const both = mine.length === 2 && mine.some(c => c.reach) && mine.some(c => !c.reach);
       await playCard(r, (livingEnemies()[0] || {}).uid);
-      return only && buildHand().filter(c => c.owner === r.owner && c.kind === 'opener').length === 0; }));
+      return both && buildHand().filter(c => c.owner === r.owner && c.kind === 'opener').length === 0; }));
   // Before the relay this asserted that a REACHED line forged its own combo back
   // into the reacher's hand. Under the relay an opener forges nothing for its
   // owner, so the property that survives — and the one worth protecting — is that

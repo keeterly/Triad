@@ -120,16 +120,13 @@ design, and it is where the skill tree gets something to say.
 - **Moving drops the line for everyone**, bank included. The line in flight
   belongs to the party, so one hero leaving formation costs every beat spent on
   it. Deliberate, and the reason it is priced that way is in `purgeChain`.
-- **The REACH substitutes now, it does not add (Build 294).** It used to sit
-  BESIDE the standing opener, so one hero a turn opened holding two cards while
-  everyone else held one. On a party-wide opener stage that is two votes on which
-  line the party builds. It replaces instead, so the hand is one card per hero.
-  The cost is real and named: reaching is no longer a *choice* between the cheap
-  line you stand in and the dearer one the board wants — it IS that turn's hand.
-  That choice mattered when a turn had almost none; the line supplies plenty now.
-  What the reach still buys is the thing Build 258 was actually for: without it,
-  two players with the same trio in the same rows see byte-identical opening hands
-  every turn.
+- **The REACH offers again — it does not replace (v2.2 Build 9, reversing 294).**
+  The substitute was measured-clean but PLAYED wrong: on a real device it read
+  as a bug — the same hero showing a different opener in the same position,
+  with the line they actually stand in missing from the table. By decree both
+  now sit side by side: the cheap line you stand in and the dearer one the
+  board wants. One extra card, one turn, one hero — and it is a *choice*,
+  which is what the game trades in. Build 258's variety survives either way.
 - **Its original rationale is gone either way.** The reach existed because a
   reached line forged *its own* combo back into the reacher's hand. Under the line
   an opener forges nothing for its owner. Worth revisiting on its own terms.
