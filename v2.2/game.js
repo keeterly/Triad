@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 10;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 11;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -469,6 +469,15 @@ const EMBER_TREE = [
   // finisher signature), a branch node opens a SECOND path off the opener: play
   // the opener and pick which line to run, the other burns away.  This is where
   // the in-combat choice lives, and it's earned. ═══════════════════════════════
+  // ALTERNATE OPENERS (Build 11) \u2014 a SECOND way to open the archetype row.
+  // The pool of a position grows by LEARNING: these enter the same line as
+  // the row's own opener (forks included) and share its once-per-line latch.
+  { id: 'ash.open.front',    hero: 'ash',     tier: 2, cost: 5, type: 'card', requires: ['ash.sig.front'],    label: 'Feint Cut',    desc: 'OPENER \u00b7 FRONT: a second opener \u2014 <b>Feint Cut</b> (3 dmg \u00b7 <span class="kw kw-exposed">\u25ce2</span> ANY foe), entering the same line as Cleave' },
+  { id: 'elin.open.mid',     hero: 'elin',    tier: 2, cost: 5, type: 'card', requires: ['elin.sig.mid'],     label: 'Stillness',    desc: 'OPENER \u00b7 MID: a second opener \u2014 <b>Stillness</b> (<span class="kw kw-guard">\u26e85</span> an ally), entering the same line as Mend' },
+  { id: 'mira.open.back',    hero: 'mira',    tier: 2, cost: 5, type: 'card', requires: ['mira.sig.back'],    label: 'Marked Knife', desc: 'OPENER \u00b7 BACK: a second opener \u2014 <b>Marked Knife</b> (2 dmg \u00b7 <span class="kw kw-exposed">\u25ce2</span>), entering the same line as Thrown Dagger' },
+  { id: 'cassia.open.front', hero: 'cassia',  tier: 2, cost: 5, type: 'card', requires: ['cassia.sig.front'], label: 'Iron Stand',   desc: 'OPENER \u00b7 FRONT: a second opener \u2014 <b>Iron Stand</b> (<span class="kw kw-guard">\u26e84</span> \u00b7 <span class="kw kw-counter">\u21ba1</span>), entering the same line as Shield Bash' },
+  { id: 'branwen.open.mid',  hero: 'branwen', tier: 2, cost: 5, type: 'card', requires: ['branwen.sig.mid'],  label: 'Pinning Shot', desc: 'OPENER \u00b7 MID: a second opener \u2014 <b>Pinning Shot</b> (4 dmg \u00b7 <span class="kw kw-exposed">\u25ce1</span> ANY foe), entering the same line as Aimed Shot' },
+  { id: 'hask.open.front',   hero: 'hask',    tier: 2, cost: 5, type: 'card', requires: ['hask.sig.front'],   label: 'Cinder Snap',  desc: 'OPENER \u00b7 FRONT: a second opener \u2014 <b>Cinder Snap</b> (5 fire), entering the same line as Frost Touch' },
   { id: 'ash.branch.front', hero: 'ash', tier: 2, cost: 6, type: 'branch', requires: ['ash.sig.front'], label: 'Sunder Fork', desc: 'FORK · FRONT: Cleave also opens <b>Sunder</b> (5 dmg · <span class="kw kw-exposed">◎2</span>) → <b>Marked Fate</b> (<span class="kw kw-exposed">◎4</span>) — the cut or the mark' },
   { id: 'ash.branch.mid',   hero: 'ash', tier: 2, cost: 6, type: 'branch', requires: ['ash.sig.mid'],   label: 'Flow Fork',   desc: 'FORK · MID: Flowing Cut also opens <b>Flow Read</b> (slip FRONT · <span class="kw kw-rally">▲+3</span>) → <b>Crossguard</b> (<span class="kw kw-guard">⛨6</span> ally)' },
   { id: 'ash.branch.back',  hero: 'ash', tier: 2, cost: 6, type: 'branch', requires: ['ash.sig.back'],  label: 'Mark Fork',   desc: 'FORK · BACK: Thrown Edge also opens <b>Hunter’s Read</b> (<span class="kw kw-exposed">◎2</span>) → <b>Marked Fate</b> (<span class="kw kw-exposed">◎4</span>)' },
@@ -1525,6 +1534,7 @@ const ROTATIONS = {
   ash: {
     front: { opener: 'cleave', cards: {
       cleave:       { name: 'Cleave',        cost: 2, target: 'frontmost', fx: { dmg: 6 },          stance: 'OPENER · AGGRESSION', desc: '6 damage to the nearest foe.', next: [{ key: 'crashingwave', gateNot: 'ash.sig.front' }, { key: 'risingslash', gate: 'ash.sig.front' }, { key: 'sunder', gate: 'ash.branch.front' }] },
+      feintcut:     { name: 'Feint Cut',     cost: 1, target: 'enemy',     fx: { dmg: 3, mark: 2 }, stance: 'OPENER \u00b7 EXPOSE', desc: '3 damage \u00b7 <span class="kw kw-exposed">\u25ce EXPOSED 2</span> to ANY foe.', next: [{ key: 'crashingwave', gateNot: 'ash.sig.front' }, { key: 'risingslash', gate: 'ash.sig.front' }, { key: 'sunder', gate: 'ash.branch.front' }] },
       risingslash:  { name: 'Rising Slash',  cost: 0, target: 'frontmost', fx: { dmg: 8 },          stance: 'COMBO · TEMPO',     desc: '8 damage.', next: ['crashingwave'] },
       crashingwave: { name: 'Crashing Wave', cost: 0, target: 'frontmost', fx: { dmg: 11 },         stance: 'FINISHER · TEMPO',    desc: '11 damage cleaves through the nearest foe.' },
       sunder:       { name: 'Sunder',        cost: 0, target: 'enemy',     fx: { dmg: 5, mark: 2 }, stance: 'COMBO · EXPOSE',    desc: '5 damage · <span class="kw kw-exposed">◎ EXPOSED 2</span> to ANY foe.', next: ['markedfate'] },
@@ -1556,6 +1566,7 @@ const ROTATIONS = {
     } },
     mid: { opener: 'mend', cards: {
       mend:      { name: 'Mend',           cost: 1, target: 'ally', fx: { heal: 3, smite: 3 },  stance: 'OPENER · MEND',    desc: 'Heal an ally 3 · <b>3 holy</b> to the nearest foe.', next: [{ key: 'renew', gateNot: 'elin.sig.mid' }, { key: 'sanctuary', gate: 'elin.sig.mid' }, { key: 'cleanse', gate: 'elin.branch.mid' }] },
+      stillness: { name: 'Stillness',      cost: 1, target: 'ally', fx: { guard: 5 },           stance: 'OPENER \u00b7 GUARD',   desc: '<span class="kw kw-guard">\u26e8 5</span> onto an ally \u2014 a ward instead of a mend.', next: [{ key: 'renew', gateNot: 'elin.sig.mid' }, { key: 'sanctuary', gate: 'elin.sig.mid' }, { key: 'cleanse', gate: 'elin.branch.mid' }] },
       sanctuary: { name: 'Sanctuary',      cost: 0, target: 'ally', fx: { heal: 2, guard: 3 },  stance: 'COMBO · MEND',   desc: 'Heal an ally 2 · <span class="kw kw-guard">⛨ 4</span>.', next: ['renew'] },
       renew:     { name: 'Renew',          cost: 0, target: 'ally', fx: { heal: 4, smite: 5 },  stance: 'FINISHER · MEND',  desc: 'Heal an ally 4 · <b>5 holy</b> to the nearest foe.' },
       cleanse:   { name: 'Cleanse',        cost: 0, target: 'ally', fx: { heal: 2, guard: 4 },  stance: 'COMBO · WARD',   desc: 'Heal an ally 2 · <span class="kw kw-guard">⛨ 3</span>.', next: ['wardingcircle'] },
@@ -1587,6 +1598,7 @@ const ROTATIONS = {
     } },
     back: { opener: 'throwndagger', cards: {
       throwndagger:{ name: 'Thrown Dagger',cost: 1, target: 'enemy', fx: { dmg: 4 },          stance: 'OPENER · MARK', desc: '4 damage to ANY foe.', next: [{ key: 'execute', gateNot: 'mira.sig.back' }, { key: 'quickthrow', gate: 'mira.sig.back' }, { key: 'markblade', gate: 'mira.branch.back' }] },
+      markedknife:{ name: 'Marked Knife', cost: 1, target: 'enemy', fx: { dmg: 2, mark: 2 }, stance: 'OPENER \u00b7 EXPOSE', desc: '2 damage \u00b7 <span class="kw kw-exposed">\u25ce EXPOSED 2</span> to ANY foe.', next: [{ key: 'execute', gateNot: 'mira.sig.back' }, { key: 'quickthrow', gate: 'mira.sig.back' }, { key: 'markblade', gate: 'mira.branch.back' }] },
       quickthrow: { name: 'Quick Throw',   cost: 0, target: 'enemy', fx: { dmg: 4 },          stance: 'COMBO · MARK',desc: '4 damage.', next: ['execute'] },
       execute:    { name: 'Execute',       cost: 0, target: 'enemy', fx: { dmg: 10 },         stance: 'FINISHER · MARK',desc: '10 damage.' },
       markblade:  { name: 'Mark',          cost: 0, target: 'enemy', fx: { dmg: 2, mark: 3 }, stance: 'COMBO · HUNT',desc: '2 damage · <span class="kw kw-exposed">◎ EXPOSED 3</span>.', next: ['backkillingmark'] },
@@ -1597,6 +1609,7 @@ const ROTATIONS = {
   cassia: {
     front: { opener: 'shieldbash', cards: {
       shieldbash: { name: 'Shield Bash', cost: 1, target: 'frontmost', fx: { dmg: 4, guard: 2 }, stance: 'OPENER · WALL', desc: '4 damage · <span class="kw kw-guard">⛨ 2</span>.', next: [{ key: 'bulwark', gateNot: 'cassia.sig.front' }, { key: 'brace', gate: 'cassia.sig.front' }, { key: 'provoke', gate: 'cassia.branch.front' }] },
+      ironstand:  { name: 'Iron Stand',  cost: 1, target: 'self',      fx: { guard: 4, counter: 1 }, stance: 'OPENER \u00b7 WALL', desc: 'Gain <span class="kw kw-guard">\u26e8 4</span> \u00b7 <span class="kw kw-counter">\u21ba 1</span>.', next: [{ key: 'bulwark', gateNot: 'cassia.sig.front' }, { key: 'brace', gate: 'cassia.sig.front' }, { key: 'provoke', gate: 'cassia.branch.front' }] },
       brace:      { name: 'Brace',       cost: 0, target: 'self',      fx: { guard: 4 },          stance: 'COMBO · WALL',desc: 'Gain <span class="kw kw-guard">⛨ 4</span>.', next: ['bulwark'] },
       bulwark:    { name: 'Bulwark',     cost: 0, target: 'frontmost', fx: { dmg: 8, guard: 6 },  stance: 'FINISHER · WALL',desc: '8 damage · gain <span class="kw kw-guard">⛨ 6</span>.' },
       provoke:    { name: 'Provoke',     cost: 0, target: 'self',      fx: { guard: 2, counter: 2, taunt: true }, stance: 'COMBO · IRON', desc: '<span class="kw kw-guard">⛨ 2</span> · <span class="kw kw-counter">↺ 2</span> · <b>TAUNT</b> — every foe strikes CASSIA’s row next round.', next: ['ironanswer'] },
@@ -1628,6 +1641,7 @@ const ROTATIONS = {
     } },
     mid: { opener: 'aimedshot', cards: {
       aimedshot:  { name: 'Aimed Shot',   cost: 3, target: 'enemy', fx: { dmg: 6 },  stance: 'OPENER · EXECUTION', desc: '6 damage to ANY foe.', next: [{ key: 'killshot', gateNot: 'branwen.sig.mid' }, { key: 'steadyaim', gate: 'branwen.sig.mid' }, { key: 'calledshot', gate: 'branwen.branch.mid' }] },
+      pinningshot:{ name: 'Pinning Shot', cost: 2, target: 'enemy', fx: { dmg: 4, mark: 1 },  stance: 'OPENER \u00b7 MARK', desc: '4 damage \u00b7 <span class="kw kw-exposed">\u25ce EXPOSED 1</span> to ANY foe.', next: [{ key: 'killshot', gateNot: 'branwen.sig.mid' }, { key: 'steadyaim', gate: 'branwen.sig.mid' }, { key: 'calledshot', gate: 'branwen.branch.mid' }] },
       steadyaim:  { name: 'Steady Aim',   cost: 0, target: 'self',  fx: { buffDmg: 3 }, stance: 'COMBO · EXECUTION',desc: 'Your next shot deals <span class="kw kw-rally">▲ +3</span>.', next: ['killshot'] },
       killshot:   { name: 'Killshot',     cost: 0, target: 'enemy', fx: { dmg: 11 }, stance: 'FINISHER · EXECUTION',desc: '11 damage.' },
       calledshot: { name: 'Called Shot',  cost: 0, target: 'enemy', fx: { dmg: 3, mark: 2 }, stance: 'COMBO · HUNT', desc: '3 damage · <span class="kw kw-exposed">◎ EXPOSED 2</span>.', next: ['piercingshot'] },
@@ -1646,6 +1660,7 @@ const ROTATIONS = {
   hask: {
     front: { opener: 'frosttouch', cards: {
       frosttouch: { name: 'Frost Touch', cost: 2, target: 'frontmost', fx: { dmg: 4, lull: 1, elem: 'ice' }, stance: 'OPENER · RIME', desc: '4 frost · <span class="kw kw-chill">❄ CHILL 1</span>.', next: [{ key: 'shatter', gateNot: 'hask.sig.front' }, { key: 'icespike', gate: 'hask.sig.front' }, { key: 'rimeblast', gate: 'hask.branch.front' }, { key: 'emberveil', gate: 'hask.weave.astral' }] },
+      cindersnap: { name: 'Cinder Snap', cost: 2, target: 'frontmost', fx: { dmg: 5, elem: 'fire' }, stance: 'OPENER \u00b7 PYRE', desc: '5 fire to the nearest foe.', next: [{ key: 'shatter', gateNot: 'hask.sig.front' }, { key: 'icespike', gate: 'hask.sig.front' }, { key: 'rimeblast', gate: 'hask.branch.front' }, { key: 'emberveil', gate: 'hask.weave.astral' }] },
       icespike:   { name: 'Ice Spike',   cost: 0, target: 'frontmost', fx: { dmg: 6, lull: 1, elem: 'ice' }, stance: 'COMBO · RIME', desc: '6 frost · <span class="kw kw-chill">❄ CHILL 1</span>.', next: ['shatter'] },
       shatter:    { name: 'Shatter',     cost: 0, target: 'frontmost', fx: { dmg: 10, elem: 'ice' }, stance: 'FINISHER · RIME', desc: '10 frost — shatters the frozen.' },
       rimeblast:  { name: 'Rime Blast',  cost: 0, target: 'enemy', fx: { dmg: 4, lull: 2, elem: 'ice' }, stance: 'COMBO · FROST', desc: '4 frost · <span class="kw kw-chill">❄ CHILL 2</span> to ANY foe.', next: ['glacier'] },
@@ -1715,11 +1730,26 @@ function mkRotCard(h, rowKey, def, kind) {
   if (card.fx && card.fx.dmg && !card.school) card.school = h.def.school;
   return card;
 }
-function mkChainOpener(h, rot, rowKey) {
-  const c = mkRotCard(h, rowKey || h.row, rot.cards[rot.opener], 'opener');
+function mkChainOpener(h, rot, rowKey, cardKey) {
+  const c = mkRotCard(h, rowKey || h.row, rot.cards[cardKey || rot.opener], 'opener');
   c.spent = S.used.has(h.id + ':opener');
   return c;
 }
+// ALTERNATE OPENERS (v2.2 Build 11) \u2014 the position's pool, widened by the
+// tree. Each hero can LEARN a second way to open their archetype row: a
+// tier-2 node puts a second opener card beside the row's own, entering the
+// SAME line (same next, forks included). Both share the one opener latch \u2014
+// playing either starts the line and the other leaves the table. This is
+// the position-purity model paying out: more unlocks, more options, all of
+// them the row's own.
+const ALT_OPENERS = {
+  ash:     { row: 'front', key: 'feintcut',    node: 'ash.open.front' },
+  elin:    { row: 'mid',   key: 'stillness',   node: 'elin.open.mid' },
+  mira:    { row: 'back',  key: 'markedknife', node: 'mira.open.back' },
+  cassia:  { row: 'front', key: 'ironstand',   node: 'cassia.open.front' },
+  branwen: { row: 'mid',   key: 'pinningshot', node: 'branwen.open.mid' },
+  hask:    { row: 'front', key: 'cindersnap',  node: 'hask.open.front' },
+};
 // ─────────────────────────────────────────────────────────────────────────────
 // THE REACH (Build 258) — make the hand a question instead of a rotation.
 // THE REACH IS GONE (v2.2 Build 10, by decree). Builds 258-309 dealt one
@@ -4650,6 +4680,12 @@ function buildHand() {
       // the removed reach above genChainStep for why nothing else is dealt.
       const op = mkChainOpener(h, rot);
       if (!op.spent) hand.push(op);
+      // \u2026and the LEARNED second opener for this row, if the node is kindled
+      const alt = ALT_OPENERS[h.id];
+      if (alt && h.row === alt.row && hasNode(alt.node) && rot.cards[alt.key]) {
+        const ao = mkChainOpener(h, rot, null, alt.key);
+        if (!ao.spent) hand.push(ao);
+      }
       (chainTemps[h.id] || []).forEach(t => hand.push(t));   // forged steps sit in this hero's slot
       return;
     }

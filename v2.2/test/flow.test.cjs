@@ -5273,13 +5273,17 @@ const QUICK = process.argv.includes('--quick');
   await sleep(400);
   check('ROTATION preview boots a party fight with the engine LIVE',
     await J(() => !!S && S._rotations === true && S.heroes.length === 3 && !document.querySelector('#overlay:not(.hidden)')));
-  check('ROTATION preview: exactly one opener per hero, each the row\u2019s own (the hand is the position)',
+  check('ROTATION preview: every opener is the standing row\u2019s own \u2014 base, or a LEARNED alt beside it (Build 11)',
     await J(() => { const openers = buildHand().filter(c => c.kind === 'opener');
-      return openers.length === 3
-        && new Set(openers.map(c => c.owner)).size === 3
+      const byOwner = {};
+      openers.forEach(o => { byOwner[o.owner] = (byOwner[o.owner] || 0) + 1; });
+      return new Set(openers.map(c => c.owner)).size === 3
+        && Object.values(byOwner).every(n => n >= 1 && n <= 2)   // base + at most the learned alt
         && openers.every(o => { const h = S.heroes.find(x => x.id === o.owner);
             const rot = ROTATIONS[o.owner] && ROTATIONS[o.owner][h.row];
-            return rot && o.name === rot.cards[rot.opener].name; })
+            const alt = ALT_OPENERS[o.owner];
+            const altName = (alt && alt.row === h.row && rot.cards[alt.key]) ? rot.cards[alt.key].name : null;
+            return rot && (o.name === rot.cards[rot.opener].name || o.name === altName); })
         && openers.every(o => o.cost >= 1); }));
   // EP ECONOMY (Build 194): the COMBO ramp is free, but the FINISHER payoff costs
   // EP — so cashing a rotation is a real decision, and rotation combat opens +1 EP.
@@ -6093,7 +6097,9 @@ const QUICK = process.argv.includes('--quick');
         const ok = buildHand().filter(c => c.kind === 'opener').every(c => {
           const h = S.heroes.find(x => x.id === c.owner);
           const rot = ROTATIONS[c.owner] && ROTATIONS[c.owner][h.row];
-          return !c.reach && rot && c.name === rot.cards[rot.opener].name;
+          const alt = ALT_OPENERS[c.owner];
+          const altName = (alt && alt.row === h.row && hasNode(alt.node) && rot.cards[alt.key]) ? rot.cards[alt.key].name : null;
+          return !c.reach && rot && (c.name === rot.cards[rot.opener].name || c.name === altName);
         });
         if (!ok) return false; }
       return true; }));
@@ -6130,6 +6136,25 @@ const QUICK = process.argv.includes('--quick');
       const ops = buildHand().filter(c => c.kind === 'opener');
       return ops.length === 1 && ops[0].owner === 'ash'
         && ops[0].name === ROTATIONS.ash.front.cards[ROTATIONS.ash.front.opener].name; }));
+  // ALTERNATE OPENERS (Build 11) \u2014 the pool of a position grows by LEARNING.
+  check('ALT: kindling the opener node puts a SECOND opener in that row \u2014 the row\u2019s own, beside the base',
+    await J(() => { setupFight(['hask', 'ash'], ['hask.sig.front', 'hask.open.front'], { hask: 'front', ash: 'mid' });
+      S._rotations = true; S._line = true; S.tempCards = []; renderAll();
+      const ops = buildHand().filter(c => c.kind === 'opener' && c.owner === 'hask').map(c => c.name).sort();
+      return ops.join('|') === 'Cinder Snap|Frost Touch'; }));
+  check('ALT: both openers share the one latch \u2014 playing either starts the line and the other leaves the table',
+    await J(async () => { S.ep = 12;
+      const snap = buildHand().find(c => c.name === 'Cinder Snap');
+      await playCard(snap, (frontmostEnemy() || livingEnemies()[0] || {}).uid);
+      return !!S.line && buildHand().filter(c => c.kind === 'opener').length === 0; }));
+  check('ALT: it enters the SAME line \u2014 the alt opener deals the row\u2019s learned combo, forks included',
+    await J(() => { const dealt = buildHand().filter(c => c.owner === 'hask');
+      return dealt.length > 0 && dealt.some(c => c.name === 'Ice Spike' && c.lineStage === 'combo'); }));
+  check('ALT: it is POSITION-locked \u2014 the same node offers nothing in another row',
+    await J(() => { setupFight(['hask', 'ash'], ['hask.sig.front', 'hask.open.front'], { hask: 'mid', ash: 'front' });
+      S._rotations = true; renderAll();
+      const ops = buildHand().filter(c => c.kind === 'opener' && c.owner === 'hask');
+      return ops.length === 1 && ops[0].name === 'Ice Bolt'; }));
   await restoreFC();
 
   // ---------- BOND NODES (Build 264) ----------
