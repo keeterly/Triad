@@ -120,13 +120,15 @@ design, and it is where the skill tree gets something to say.
 - **Moving drops the line for everyone**, bank included. The line in flight
   belongs to the party, so one hero leaving formation costs every beat spent on
   it. Deliberate, and the reason it is priced that way is in `purgeChain`.
-- **The REACH offers again — it does not replace (v2.2 Build 9, reversing 294).**
-  The substitute was measured-clean but PLAYED wrong: on a real device it read
-  as a bug — the same hero showing a different opener in the same position,
-  with the line they actually stand in missing from the table. By decree both
-  now sit side by side: the cheap line you stand in and the dearer one the
-  board wants. One extra card, one turn, one hero — and it is a *choice*,
-  which is what the game trades in. Build 258's variety survives either way.
+- **THE HAND IS THE POSITION (v2.2 Build 10) — the REACH is gone entirely.**
+  Builds 258–309 dealt one hero a turn an opener from a row they did not
+  stand in, to vary the hand. It measured fine and played wrong twice: the
+  substitute (294) read as a bug, and the side-by-side offer (Build 9) still
+  broke the model the player builds with. The decree: every card a hero is
+  offered comes from what they have LEARNED in the row they stand in; unlocks
+  widen that row's pool; the nuance is how the party's lines COMBINE; moving
+  swaps the kit to the new row. Deterministic openers are the accepted cost —
+  sameness is the tree's problem and the party's, not the dealer's.
 - **Its original rationale is gone either way.** The reach existed because a
   reached line forged *its own* combo back into the reacher's hand. Under the line
   an opener forges nothing for its owner. Worth revisiting on its own terms.

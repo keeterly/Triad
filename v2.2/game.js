@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 9;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 10;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -1722,38 +1722,16 @@ function mkChainOpener(h, rot, rowKey) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 // THE REACH (Build 258) — make the hand a question instead of a rotation.
-//
-// buildHand was a pure function of (party × rows × nodes), with no draw and no
-// randomness anywhere: two players with the same trio in the same stances saw
-// BYTE-IDENTICAL hands, every turn, every fight, every run. Turn 3 was turn 1.
-// That is most of why the hand felt like something to execute rather than solve.
-//
-// Every hero already has THREE authored rotations — one per stance — and only
-// ever showed the one for the row they stand in. Each turn ONE hero (rotating,
-// so it is predictable rather than random) may also REACH into one of their
-// other two lines, for +1 EP. It shares the opener latch with their stance line,
-// so it is not extra actions — it is the same action with a real choice in it:
-// the cheap line you are standing in, or the dearer one this board wants.
-//
-// resolveChainPlay keys its table off card.chainStance rather than the hero's
-// row, so a reached line forges its own combo and finisher correctly.
-function reachFor(h) {
-  if (!S || !S._rotations || !h) return null;
-  // NOT IN THE TUTORIAL (Build 299). Playtested: chapter 2 dealt Ash a REACH — an
-  // opener out of a stance he is not standing in — as his ONLY card, in the first
-  // fight where a second hero exists, with nothing anywhere teaching what it is.
-  // A card the player never chose and cannot be told about yet is the exact thing
-  // the hand is supposed to stop doing. The descent is where lines start varying.
-  if (!(S.node && S.node.useRunHp)) return null;
-  const live = livingHeroes();
-  if (live.length < 2) return null;
-  const idx = live.findIndex(x => x.id === h.id);
-  if (idx < 0 || idx !== ((S.turn || 1) - 1) % live.length) return null;   // one hero's turn to reach
-  const others = ROWS.filter(r => r !== h.row);
-  const row = others[((S.turn || 1) - 1) % others.length];
-  const rot = ROTATIONS[h.id] && ROTATIONS[h.id][row];
-  return rot ? { rot, row } : null;
-}
+// THE REACH IS GONE (v2.2 Build 10, by decree). Builds 258-309 dealt one
+// hero a turn an opener from a row they do NOT stand in, to vary the hand.
+// The variety measured fine and PLAYED wrong twice over: first the substitute
+// read as a bug (294), then the side-by-side offer (Build 9) still broke the
+// model the player actually builds with — THE HAND IS THE POSITION. Every
+// card a hero is offered comes from what they have learned in the row they
+// stand in; unlocks widen that row's pool; the nuance is how the party's
+// lines COMBINE; and moving swaps the kit to the new row. Deterministic
+// openers are the cost, accepted: sameness is solved by the tree and the
+// party, not by dealing off-position cards.
 // forge one rotation step into the hand as a free, this-turn-only temp card
 function genChainStep(h, rowKey, def, group) {
   if (S.tempCards.length >= 8) return null;
@@ -4667,29 +4645,11 @@ function buildHand() {
       // closed. That is what makes discarding them a real cost and what keeps the
       // combo one thing the party is building rather than three running at once.
       if (lineIsLive) { (chainTemps[h.id] || []).forEach(t => hand.push(t)); return; }
-      // THE REACH OFFERS, IT DOES NOT REPLACE (v2.2 Build 9, by decree). Build
-      // 294 made the reach SUBSTITUTE for the standing opener so every hero
-      // held exactly one card — and playtested on a real device, that read as
-      // a bug: the same hero showing a different opener in the same position,
-      // with the option they actually stand in gone from the table. If a hero
-      // has two lines they can open, both belong in the hand: the cheap one
-      // they stand in and the dearer one the board wants. Playing either
-      // starts the line and clears every opener, exactly as before — the
-      // asymmetry is one extra card, one turn, for one hero, and it is a
-      // CHOICE, which is what this game trades in.
+      // THE HAND IS THE POSITION (v2.2 Build 10). One opener, and it is the
+      // row's own — what this hero has learned to open HERE. See the note on
+      // the removed reach above genChainStep for why nothing else is dealt.
       const op = mkChainOpener(h, rot);
       if (!op.spent) hand.push(op);
-      const rr = reachFor(h);
-      if (rr) {
-        const ro = mkChainOpener(h, rr.rot, rr.row);
-        // NO EP TAX (Build 259). Measured: with +1 EP the reach was never the best
-        // play on any turn — a 3-EP Cover competing with a 2-EP Cleave is not a
-        // choice, it is a worse option wearing a new name.
-        ro.reach = true;
-        ro.stance = 'REACH \u00b7 ' + STANCE[rr.row].name.toUpperCase().replace(/ STANCE$/, '');
-        ro.desc = (ro.desc || '') + ' <i>' + h.def.name + ' reaches into a line they do not stand in.</i>';
-        if (!ro.spent) hand.push(ro);
-      }
       (chainTemps[h.id] || []).forEach(t => hand.push(t));   // forged steps sit in this hero's slot
       return;
     }
