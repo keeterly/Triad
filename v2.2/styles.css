@@ -5235,3 +5235,7 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
               0 0 18px rgba(255,190,100,0.4), 0 3px 8px rgba(0,0,0,0.6);
 }
 .et-lines .et-orb.et-sel { opacity: 1; }
+/* kindling updates the tree WHERE IT STANDS (v2.2 Build 33) — a node that has
+   just become reachable starts drawing its name, so the spacing re-solves; it
+   glides the few pixels instead of cutting, and the camera never moves. */
+.et-star.et-settling .et-orb { transition: left 300ms cubic-bezier(.25,.9,.3,1), top 300ms cubic-bezier(.25,.9,.3,1); }

@@ -5772,6 +5772,50 @@ const QUICK = process.argv.includes('--quick');
         });
       });
     }));
+  check('STAR: NO TWO PATHS CROSS — every hero\u2019s tree draws planar, in every state',
+    await J(async () => {
+      // A branch is a tree, and a tree drawn as layers ordered by one
+      // left-to-right walk cannot cross itself. This is the property the whole
+      // layout is built to hold, so it is measured directly: real segment
+      // intersection, on every hero, ignoring shared endpoints.
+      const hit = (p, q) => {
+        const side = (a, b, c) => (c.x - a.x) * (b.y - a.y) - (c.y - a.y) * (b.x - a.x);
+        const A = { x: p.x1, y: p.y1 }, B = { x: p.x2, y: p.y2 };
+        const C = { x: q.x1, y: q.y1 }, D = { x: q.x2, y: q.y2 };
+        const same = (u, v) => Math.hypot(u.x - v.x, u.y - v.y) < 1.5;
+        if (same(A, C) || same(A, D) || same(B, C) || same(B, D)) return false;
+        const d1 = side(C, D, A), d2 = side(C, D, B), d3 = side(A, B, C), d4 = side(A, B, D);
+        return ((d1 > 0) !== (d2 > 0)) && ((d3 > 0) !== (d4 > 0));
+      };
+      for (const h of ['ash', 'mira', 'cassia']) {
+        showEmberTree(() => {}, h);
+        await new Promise(r => setTimeout(r, 90));
+        const star = document.querySelector('#et-star');
+        const segs = [...star.querySelectorAll('.et-link, .et-thread')].map(e => ({
+          x1: +e.getAttribute('x1'), y1: +e.getAttribute('y1'),
+          x2: +e.getAttribute('x2'), y2: +e.getAttribute('y2') }));
+        if (segs.length < 8) return false;
+        for (let i = 0; i < segs.length; i++)
+          for (let j = i + 1; j < segs.length; j++)
+            if (hit(segs[i], segs[j])) return false;
+      }
+      showEmberTree(() => {}, 'ash');
+      await new Promise(r => setTimeout(r, 90));
+      return true;
+    }));
+  check('STAR: a node is joined to ONE parent — the branch that shapes it; the rest are named in words',
+    await J(() => {
+      const star = document.querySelector('#et-star');
+      const own = star.querySelectorAll('.et-orb[data-id]:not([data-rim])').length;
+      const links = star.querySelectorAll('.et-link').length;
+      // exactly one link per node (its parent, or the character at the root).
+      // Drawing a line per REQUIREMENT is what made the picture non-planar:
+      // a node with two prerequisites reached back to both, and one of the
+      // two nearly always crossed something on its way.
+      const multi = [...star.querySelectorAll('.et-orb[data-id]:not([data-rim])')]
+        .filter(e => (((NODE_BY_ID[e.dataset.id] || {}).requires) || []).length > 1);
+      return links === own && multi.length > 0;
+    }));
   check('STAR: no two nodes are drawn on top of each other, and none sits on the character',
     await J(() => {
       const core = document.querySelector('.et-core').getBoundingClientRect();
@@ -5789,6 +5833,42 @@ const QUICK = process.argv.includes('--quick');
         if (Math.hypot(dx, dy) < (a.width + b.width) / 2 - 1) return false;
       }
       return true;
+    }));
+  check('KINDLE: buying a node updates the tree WHERE IT STANDS — same screen, same camera, one node lit',
+    await J(async () => {
+      RUN = newRun('ash');
+      RUN.roster = ['ash', 'mira', 'cassia']; RUN.active = ['ash', 'mira', 'cassia'];
+      RUN.hp = { ash: 34, mira: 30, cassia: 36 };
+      RUN.nodes = ['ash.sig.front']; RUN.embers = 66; RUN.floor = 1;
+      RUN.completed = Array.from({ length: 17 }, (_, i) => i);
+      RUN.map = generateDescent(RUN.roster, 1); setTreeTaught();
+      showEmberTree(() => {}, 'ash');
+      await new Promise(r => setTimeout(r, 200));
+      const star = document.getElementById('et-star');
+      const core = star.querySelector('.et-core');
+      const el = [...star.querySelectorAll('.et-orb[data-id]')].find(e => e.className.indexOf('et-ready') !== -1);
+      if (!el) return false;
+      const id = el.dataset.id;
+      el.click();                                    // fly to it, so the camera is somewhere specific
+      await new Promise(r => setTimeout(r, 700));
+      const cam = { k: ET_VIEW.k, x: ET_VIEW.x, y: ET_VIEW.y };
+      const before = runEmbers();
+      const buy = document.getElementById('et-buy'); if (!buy) return false;
+      buy.click();
+      await new Promise(r => setTimeout(r, 900));
+      const fx = document.getElementById('kindle-fx');
+      if (fx) fx.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+      await new Promise(r => setTimeout(r, 1500));
+      const star2 = document.getElementById('et-star');
+      const now = star2 && star2.querySelector('.et-orb[data-id="' + id + '"]');
+      // rebuilding the whole overlay threw the camera back to the opening
+      // frame and replayed the entrance, so the node you had just leaned in
+      // on jumped away the instant you bought it
+      return star2 === star && star2.querySelector('.et-core') === core
+        && ET_VIEW.k === cam.k && Math.abs(ET_VIEW.x - cam.x) < 1 && Math.abs(ET_VIEW.y - cam.y) < 1
+        && !!now && now.className.indexOf('et-owned') >= 0
+        && runEmbers() < before
+        && +(document.querySelector('.et-h-wallet b') || {}).textContent === runEmbers();
     }));
   check('CAMERA: a fresh render opens FRAMED — the WHOLE star inside the box, whatever it grew to',
     await J(() => {

@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 32;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 33;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -10759,6 +10759,60 @@ function etRenderDetail(onBack, heroId, selId) {
   box.innerHTML = etDetailHTML(heroId, selId);
   etBindDetail(onBack, heroId, selId);
 }
+// ── KINDLING DOES NOT REBUILD THE SCREEN (v2.2 Build 33) ────────────────────
+// Buying a node used to call showEmberTree() again: the whole overlay was
+// thrown away and rebuilt, which reset the camera to the opening frame and
+// replayed the entrance animation — so the node you had just leaned in on
+// jumped somewhere else the instant you bought it, and you had to find your
+// place again. Nothing about one node changing state justifies that.
+// This updates the tree WHERE IT STANDS. Every orb re-reads its own state,
+// the links re-read theirs, the wallet ticks down, the panel re-renders — and
+// the camera is never touched, so the view after kindling is the view before
+// it with one node lit. The layout still re-solves (a node that becomes
+// reachable starts drawing its name, and the spacing has to keep up), but it
+// glides the few pixels rather than cutting.
+function etRefreshTree(onBack, heroId, selId) {
+  const star = document.getElementById('et-star');
+  if (!star) { showEmberTree(onBack, heroId, selId); return; }
+  const wallet = document.querySelector('.et-h-wallet b');
+  if (wallet) wallet.textContent = String(runEmbers());
+  const STATES = ['et-owned', 'et-ready', 'et-poor', 'et-needs', 'et-sealed'];
+  star.querySelectorAll('.et-orb[data-id]:not([data-rim])').forEach(el => {
+    const n = NODE_BY_ID[el.dataset.id]; if (!n) return;
+    const st = nodeState(n);
+    STATES.forEach(c => el.classList.remove(c));
+    el.classList.add('et-' + st);
+    const g = el.querySelector('.et-orb-glyph');
+    if (g) g.textContent = st === 'owned' ? '✓' : st === 'sealed' ? '🔒' : TREE_TYPE_GLYPH[n.type];
+    let cost = el.querySelector('.et-orb-cost');
+    if (st === 'ready' || st === 'poor') {
+      if (!cost) { cost = document.createElement('span'); cost.className = 'et-orb-cost'; el.appendChild(cost); }
+      cost.className = 'et-orb-cost' + (st === 'poor' ? ' et-cant' : '');
+      cost.textContent = '✦' + n.cost;
+    } else if (cost) cost.remove();
+  });
+  // the weave's doors move too — a node just learned can be the ground a
+  // crossing was waiting on
+  const xs = {};
+  crossViewFor(heroId).forEach(c => { xs['x:' + heroId + ':' + c.node.id] = c; });
+  star.querySelectorAll('.et-orb[data-rim]').forEach(el => {
+    const c = xs[el.dataset.id]; if (!c) return;
+    el.className = el.className.replace(/\bet-x-[a-z]+\b/g, '').replace(/\s+/g, ' ').trim() + ' et-x-' + c.state;
+    const g = el.querySelector('.et-orb-glyph');
+    if (g) g.textContent = c.state === 'crossed' ? '✓' : c.node.bond ? '♡' : c.common ? '◈' : '⟡';
+    const cost = el.querySelector('.et-orb-cost');
+    if (cost) cost.textContent = c.state === 'crossed' ? '⟡ HELD' : c.state === 'untaught' ? 'unlearned'
+      : c.state === 'unbonded' ? '♡ ' + c.bond + '/' + CROSS_BOND
+      : c.state === 'unbridged' ? 'no ground' : '✦' + c.cost;
+  });
+  star.querySelectorAll('.et-orb').forEach(el => {
+    el.classList.toggle('et-sel', el.dataset.id === selId);
+  });
+  star.classList.add('et-settling');                  // glide, do not cut
+  etLayoutStar();                                     // camera untouched: auto is false
+  setTimeout(() => star.classList.remove('et-settling'), 420);
+  etRenderDetail(onBack, heroId, selId);
+}
 function etBindDetail(onBack, heroId, selId) {
   const { sel, selCross } = etResolveSel(heroId, selId);
   const buy = document.getElementById('et-buy');
@@ -10766,13 +10820,17 @@ function etBindDetail(onBack, heroId, selId) {
     if (nodeState(sel) !== 'ready') return;
     const first = !treeTaught();
     addEmbers(-sel.cost); unlockNode(sel.id); setTreeTaught();
-    kindleBurst(sel, () => showEmberTree(onBack, heroId, first ? '__kindled:' + sel.id : sel.id));
+    // the FIRST kindle still opens the full screen, because that is where the
+    // "it's in your hand now" note lives; every one after updates in place
+    kindleBurst(sel, () => first
+      ? showEmberTree(onBack, heroId, '__kindled:' + sel.id)
+      : etRefreshTree(onBack, heroId, sel.id));
   };
   const xbuy = document.getElementById('et-cross-buy');
   if (xbuy && selCross) xbuy.onclick = () => {
     if (selCross.state !== 'open') return;
     addEmbers(-selCross.cost); learnCrossing(heroId, selCross.node); saveRun();
-    kindleBurst(selCross.node, () => showEmberTree(onBack, heroId, selId));
+    kindleBurst(selCross.node, () => etRefreshTree(onBack, heroId, selId));
   };
 }
 function renderLaneEchoes(party) {
@@ -13290,58 +13348,138 @@ function etLayoutStar() {
       return;
     }
     if (lane === 'rim') return;                       // placed last, past the arms
+    // ── A BRANCH IS A TREE, AND A TREE DRAWN THIS WAY CANNOT CROSS ITSELF ──
+    // (v2.2 Build 33.) Nodes used to be laid rank-by-rank and ordered by tier,
+    // with a relaxation nudging them apart afterwards — so the angular order
+    // inside a rank had nothing to do with the order of their prerequisites,
+    // and every mismatch drew as a link crossing another link.
+    // The fix is the classic layered-tree result: if every layer is ordered by
+    // the SAME left-to-right walk of the tree, and each layer maps that order
+    // onto angles with a monotone function, then two edges can only cross if
+    // their endpoints' orders are inverted — and they never are. So there are
+    // no crossings by construction, and no relaxation is needed to get there.
     const ids = {};
     list.forEach(el => { ids[el.dataset.id] = 1; });
+    const byId = {};
+    list.forEach(el => { byId[el.dataset.id] = el; });
+    // ONE PARENT PER NODE. A node may list several requirements; the branch's
+    // SHAPE follows the deepest in-lane one (its immediate prerequisite), and
+    // the rest are named in words on the panel, where they cannot tangle
+    // anything. A second drawn line to a far-off cousin is precisely what
+    // makes a tidy tree stop being planar.
+    const depthMemo = {};
     const depthOf = (id, seen) => {
+      if (depthMemo[id] != null) return depthMemo[id];
       const n = NODE_BY_ID[id];
       let d = 0;
       ((n && n.requires) || []).forEach(r => {
-        if (ids[r] && !seen[r]) { seen[r] = 1; d = Math.max(d, depthOf(r, seen) + 1); }
+        if (ids[r] && !seen[r]) { seen[r] = 1; d = Math.max(d, depthOf(r, seen) + 1); delete seen[r]; }
       });
+      depthMemo[id] = d;
       return d;
     };
-    const spine = ET_SPOKE[lane] * Math.PI / 180;
-    const ranks = {};
-    list.forEach(el => { const d = depthOf(el.dataset.id, {}); (ranks[d] = ranks[d] || []).push(el); });
-    const ds = Object.keys(ranks).map(Number).sort((a, b) => a - b);
-    // RADIUS COMES FROM DEPTH, FULL STOP (Build 31). Letting the relaxation
-    // move nodes radially meant a strong enough shove could push a dependent
-    // INSIDE its own prerequisite, and the branch would read as growing
-    // backwards. Depth owns the radius; crowding is answered by rotating
-    // within the wedge, which cannot disturb the ordering. A rank too wide for
-    // its arc splits into sub-rings that stay inside their own depth's band.
-    // RADIUS IS ALLOCATED BY NEED, and NOT clawed back (Build 31). Each depth
-    // takes as much radial room as its sub-rings actually require and the arm
-    // grows as long as it grows; nothing is compressed afterwards, because the
-    // compression is exactly what used to eat the spacing. A rank too wide for
-    // its arc splits into sub-rings inside its own depth's band, so ordering
-    // is preserved by construction.
-    const crm = (arr) => arr.reduce((m, el) => Math.max(m, crOf(el)), BARE_R);
-    let prevR = 0, cursor = CORE_R;
-    ds.forEach(d => {
-      const rank = ranks[d].sort((a, b) => (+a.dataset.tier) - (+b.dataset.tier));
-      const rr = crm(rank);
-      cursor += prevR + rr;                           // clear whatever came before
-      const pitch = 2 * rr;
-      const cap = Math.max(1, 1 + Math.floor((2 * LIM * cursor) / pitch));
-      const rings = Math.ceil(rank.length / cap);
-      rank.forEach((el, i) => {
-        const ring = Math.floor(i / cap);
-        const inRing = Math.min(cap, rank.length - ring * cap);
-        const idx = i % cap;
-        const rad = cursor + ring * pitch;
-        // AN ARM IS A SPOKE, NOT A FAN. Spreading every ring across the whole
-        // wedge put two nodes at the extreme edges of a 112-degree sweep, so
-        // the three branches blurred into one cloud around the character and
-        // the star stopped reading as a star. A ring now opens only as wide as
-        // its members need — one node sits ON the spine, and each extra one
-        // costs a node's width of arc, up to the wedge as a hard ceiling.
-        const half = inRing === 1 ? 0 : Math.min(LIM, ((inRing - 1) * pitch) / (2 * rad));
-        const t = inRing === 1 ? 0 : (idx / (inRing - 1)) * 2 - 1;
-        P[el.dataset.id] = { a: spine + t * half, rad, el, lane, spine, cr: crOf(el) };
+    const parentOf = {};
+    list.forEach(el => {
+      const id = el.dataset.id, n = NODE_BY_ID[id];
+      let best = null, bd = -1;
+      ((n && n.requires) || []).forEach(r => {
+        if (!ids[r]) return;
+        const d = depthOf(r, {});
+        if (d > bd) { bd = d; best = r; }
       });
-      cursor += (rings - 1) * pitch;
-      prevR = rr;
+      parentOf[id] = best;
+    });
+    const kids = {};
+    list.forEach(el => { kids[el.dataset.id] = []; });
+    const roots = [];
+    list.forEach(el => {
+      const id = el.dataset.id, p = parentOf[id];
+      if (p && kids[p]) kids[p].push(id); else roots.push(id);
+    });
+    const ord = (a, b) => (+byId[a].dataset.tier) - (+byId[b].dataset.tier) || (a < b ? -1 : 1);
+    roots.sort(ord);
+    Object.keys(kids).forEach(k => kids[k].sort(ord));
+    // the left-to-right walk: leaves take the next slot, a parent sits over
+    // the middle of its own children — the tidy-tree placement
+    const U = {};
+    let nextU = 0;
+    const walk = (id) => {
+      const ch = kids[id] || [];
+      if (!ch.length) { U[id] = nextU++; return; }
+      ch.forEach(walk);
+      U[id] = (U[ch[0]] + U[ch[ch.length - 1]]) / 2;
+    };
+    roots.forEach(walk);
+    const spineOf = ET_SPOKE[lane] * Math.PI / 180;
+    const uMin = Math.min.apply(null, list.map(el => U[el.dataset.id]));
+    const uMax = Math.max.apply(null, list.map(el => U[el.dataset.id]));
+    // CENTRE ON THE ARM'S WEIGHT, NOT ITS EXTENT. Centring on the midpoint of
+    // the u RANGE leans a lopsided branch off its own spoke — the arm still
+    // fits its wedge, but its mass sits to one side and it stops pointing
+    // where the row says it points. The mean puts the average bearing on the
+    // spine by construction.
+    const uMid = list.reduce((t, el) => t + U[el.dataset.id], 0) / list.length;
+    const K = uMax > uMin ? (2 * LIM) / (uMax - uMin) : 0;   // radians per slot
+    const uHalf = Math.max(uMax - uMid, uMid - uMin) || 0;
+    const layers = {};
+    list.forEach(el => { const d = depthOf(el.dataset.id, {}); (layers[d] = layers[d] || []).push(el); });
+    const ds = Object.keys(layers).map(Number).sort((a, b) => a - b);
+    let prevR = CORE_R, prevMaxCr = 0;      // the first layer clears the character
+    ds.forEach(d => {
+      const layer = layers[d].sort((a, b) => U[a.dataset.id] - U[b.dataset.id]);
+      const maxCr = layer.reduce((m, el) => Math.max(m, crOf(el)), BARE_R);
+      // A LAYER'S RADIUS BUYS ITS SPACING — three ways at once:
+      //   · it clears the layer inside it (the radial step);
+      //   · the arc between angular neighbours clears both their footprints;
+      //   · and the arm stays narrow enough not to reach into the NEXT ARM.
+      // The last one is why nodes were still colliding after the tree went
+      // planar: three arms 120 degrees apart, each opening 56 degrees either
+      // side, leaves 8 degrees between neighbouring wedges — about 20px of
+      // air close to the character, where a node is 90px across. So the wedge
+      // a layer may use is capped by what actually fits at ITS radius, and
+      // widening the arm and pushing it outward feed each other until both
+      // hold. Scaling a whole layer about its spine keeps the left-to-right
+      // order, so the no-crossing guarantee above is untouched.
+      // A WIDE LAYER STAGGERS INSTEAD OF RUNNING AWAY. Every node in a layer
+      // needs its own arc, so a layer of N wants a radius of roughly N x its
+      // own width divided by the wedge — six leaves alone push an arm past
+      // 400px and the whole star shrinks to fit. Staggering the layer into
+      // two rings hands each node its neighbour-but-one's arc instead of its
+      // neighbour's, which halves the radius the layer demands. Angular ORDER
+      // is untouched, so the tree stays planar; the two rings are set far
+      // enough apart that immediate neighbours clear radially whatever their
+      // angle does.
+      const base0 = prevR + prevMaxCr + maxCr;
+      const solve = (stagger) => {
+        const hop = stagger ? 2 : 1;
+        let rad = base0, kd = K;
+        for (let iter = 0; iter < 30; iter++) {
+          const outer = rad + (stagger ? 2 * maxCr : 0);
+          const allowed = Math.min(LIM, Math.max(0.12, (2 * Math.PI / 3 - (2 * NAMED_R) / outer) / 2));
+          kd = uHalf > 0 ? Math.min(K, allowed / uHalf) : 0;
+          let need = rad;
+          for (let i = hop; i < layer.length; i++) {
+            const du = U[layer[i].dataset.id] - U[layer[i - hop].dataset.id];
+            const want = crOf(layer[i]) + crOf(layer[i - hop]);
+            if (du > 0 && kd > 0) need = Math.max(need, want / (du * kd));
+          }
+          if (need <= rad + 0.5) break;
+          rad = need;
+        }
+        return { rad, kd, span: rad + (stagger ? 2 * maxCr : 0) };
+      };
+      let sol = solve(false), stagger = false;
+      if (layer.length > 2) {
+        const alt = solve(true);
+        if (alt.span < sol.span - 8) { sol = alt; stagger = true; }
+      }
+      layer.forEach((el, i) => {
+        P[el.dataset.id] = { a: spineOf + (U[el.dataset.id] - uMid) * sol.kd,
+                             rad: sol.rad + (stagger && (i % 2) ? 2 * maxCr : 0),
+                             el, lane, spine: spineOf, cr: crOf(el),
+                             parent: parentOf[el.dataset.id] };
+      });
+      prevR = sol.span; prevMaxCr = maxCr;
     });
   });
   // THE WEAVE RINGS WHATEVER THE BRANCHES GREW TO — the doors sit one clear
@@ -13358,43 +13496,11 @@ function etLayoutStar() {
 
   const pt = (p) => ({ x: cx + p.rad * Math.cos(p.a), y: cy + p.rad * Math.sin(p.a) });
   const keys = Object.keys(P);
-  // ANGLE-ONLY RELAXATION — nodes rotate around the character to stop
-  // crowding; nothing moves in or out, so depth ordering is guaranteed by
-  // construction rather than repaired afterwards.
-  for (let pass = 0; pass < 140; pass++) {
-    let moved = false;
-    for (let i = 0; i < keys.length; i++) {
-      for (let j = i + 1; j < keys.length; j++) {
-        const A = P[keys[i]], B = P[keys[j]];
-        const a = pt(A), b = pt(B);
-        const gap = Math.hypot(b.x - a.x, b.y - a.y);
-        const need = A.cr + B.cr;
-        const ox = need - gap;
-        if (ox <= 0) continue;
-        moved = true;
-        // separate by ANGULAR ORDER, never by screen direction: on a ring, the
-        // cartesian sign of a gap says nothing about which way is "apart", and
-        // reading it that way shoved half the pairs together — which is what
-        // collapsed the weave's doors into a single pile.
-        let da = B.a - A.a;
-        while (da > Math.PI) da -= 2 * Math.PI;
-        while (da < -Math.PI) da += 2 * Math.PI;
-        const dir = da >= 0 ? 1 : -1;
-        const step = 0.02 + 0.02 * Math.min(1, ox / need);
-        [[A, -dir], [B, dir]].forEach(pair => {
-          const N = pair[0], s = pair[1];
-          if (N.spine == null) {                    // rim doors circle freely
-            N.a += s * step; return;
-          }
-          let d = N.a + s * step - N.spine;
-          while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
-          N.a = N.spine + Math.max(-LIM, Math.min(LIM, d));
-        });
-      }
-    }
-    if (!moved) break;
-  }
-
+  // NO RELAXATION (v2.2 Build 33). Shoving nodes apart after the fact is what
+  // broke the one property the tree most needs — the angular order the links
+  // were drawn to follow. The layout above buys its spacing with RADIUS, so
+  // every node already clears its neighbours and every order is the tidy
+  // tree's own. Nothing is repaired, so nothing can be un-repaired.
   const xy = {};
   const order = keys.slice().sort((a, b) => P[a].rad - P[b].rad);
   order.forEach((k, i) => { P[k].el.style.setProperty('--i', String(i)); });
@@ -13472,47 +13578,41 @@ function etLayoutStar() {
   // they are derived from the layout rather than decoration laid over it.
   // quantised into a few BANDS — one ring per radius would draw a cobweb (the
   // relaxation leaves every node at its own slightly different radius)
-  const bands = {};
-  keys.forEach(k => {
-    const N = P[k];
-    if (N.lane === 'self' || N.rim) return;
-    const b = Math.round(N.rad / CLR) * CLR;
-    bands[b.toFixed(0)] = b;
-  });
-  let ink = Object.values(bands).sort((a, b) => a - b).slice(-4).map(rr => {
-    if (rr < 52) return '';
-    return '<circle class="et-guide" cx="' + cx + '" cy="' + cy + '" r="' + rr.toFixed(1) + '" />';
-  }).join('');
+  // LINES THAT DO NOT CROSS (v2.2 Build 33). Four things used to draw over
+  // each other here, and only one of them was the tree:
+  //   · concentric depth rings, which cross every branch by definition;
+  //   · a RAIL from the core out to each branch title, straight through that
+  //     branch's own nodes and links;
+  //   · a THREAD from the core to every rim door — eight lines radiating from
+  //     the middle across the whole star, the long diagonals that cut the
+  //     picture into pieces;
+  //   · a link per REQUIREMENT, so a node with two prerequisites reached back
+  //     to both and one of the two nearly always crossed something.
+  // What is left is the tree and the ring: one link per node to the parent
+  // that shapes it (the extra requirements are named on the panel, in words),
+  // and the weave's doors tied to the ring they sit on by a short inward tick
+  // rather than a line through everything between.
+  let ink = '';
   if (hasRim) ink += '<circle class="et-guide et-guide-rim" cx="' + cx + '" cy="' + cy + '" r="' + RIM_R.toFixed(1) + '" />';
-  ink += ['front', 'mid', 'back'].map(lane => {
-    const spine = ET_SPOKE[lane] * Math.PI / 180;
-    return '<line class="et-rail" x1="' + (cx + CORE_R * 0.5 * Math.cos(spine)).toFixed(1) +
-      '" y1="' + (cy + CORE_R * 0.5 * Math.sin(spine)).toFixed(1) +
-      '" x2="' + ((tipAt[lane] || { x: cx }).x).toFixed(1) +
-      '" y2="' + ((tipAt[lane] || { y: cy }).y).toFixed(1) + '" />';
-  }).join('');
   keys.forEach(k => {
-    const b = xy[k];
-    if (P[k].rim) {                                   // a thread, not a prerequisite
-      const crossed = P[k].el.className.indexOf('et-x-crossed') !== -1;
-      ink += '<line class="et-thread' + (crossed ? ' et-thread-full' : '') + '" x1="' + cx + '" y1="' + cy +
+    const b = xy[k], N = P[k];
+    if (N.rim) {                                      // a door on the ring, not a prerequisite
+      const crossed = N.el.className.indexOf('et-x-crossed') !== -1;
+      const ax = cx + (N.rad - 15) * Math.cos(N.a), ay = cy + (N.rad - 15) * Math.sin(N.a);
+      ink += '<line class="et-thread' + (crossed ? ' et-thread-full' : '') +
+             '" x1="' + ax.toFixed(1) + '" y1="' + ay.toFixed(1) +
              '" x2="' + b.x.toFixed(1) + '" y2="' + b.y.toFixed(1) + '" />';
       return;
     }
     const n = NODE_BY_ID[k];
     if (!n) return;
-    const reqs = (n.requires || []).filter(r => xy[r]);
-    if (!reqs.length) {
-      ink += '<line class="et-link' + (hasNode(k) ? ' et-link-full' : '') + '" x1="' + cx + '" y1="' + cy +
-             '" x2="' + b.x.toFixed(1) + '" y2="' + b.y.toFixed(1) + '" />';
-      return;
-    }
-    reqs.forEach(r => {
-      const a = xy[r], on = hasNode(r), full = on && hasNode(k);
-      ink += '<line class="et-link' + (full ? ' et-link-full' : on ? ' et-link-on' : '') +
-        '" x1="' + a.x.toFixed(1) + '" y1="' + a.y.toFixed(1) +
-        '" x2="' + b.x.toFixed(1) + '" y2="' + b.y.toFixed(1) + '" />';
-    });
+    const par = N.parent && xy[N.parent] ? N.parent : null;
+    const on = par ? hasNode(par) : true;
+    const full = on && hasNode(k);
+    const a = par ? xy[par] : { x: cx, y: cy };
+    ink += '<line class="et-link' + (full ? ' et-link-full' : on ? ' et-link-on' : '') +
+      '" x1="' + a.x.toFixed(1) + '" y1="' + a.y.toFixed(1) +
+      '" x2="' + b.x.toFixed(1) + '" y2="' + b.y.toFixed(1) + '" />';
   });
   svg.innerHTML = ink;
 }
