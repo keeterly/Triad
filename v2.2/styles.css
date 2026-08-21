@@ -540,76 +540,31 @@ body {
   border-radius: 10px;
   border: 1px dashed transparent; pointer-events: none;
 }
-/* THE LANE BAR (v2.2 Build 32) — ONE MARK, NOT SIX.
-   What was here had a plate, a second outline inside the plate, four glowing
-   corner brackets, a floor pool, an expanding shockwave, a floating sum, and
-   a pulse that SCALED all of it. Six red objects saying one thing, and the
-   scale was fatal: at peak the plate grew ~27px wider than the lane it names,
-   so three lit lanes merged into one smear and the pulse swept down across
-   the nameplate and HP bar underneath. Measured, not guessed: lane 109px,
-   plate 119px, peak 138px.
-   It is now a single BAR that holds its lane. It never changes size — it
-   BREATHES in light — so neighbouring lanes can never touch, and the readout
-   below it is never crossed. The bar carries its own text: the lane's rank at
-   the left cap, the incoming sum at the right. One object, one promise.
-   (Into the Breach's rule still holds: it draws OVER the cast, never under —
-   a hero holding a pose across the lane cannot erase the mark on its ground.) */
-/* Positioned by LEFT/RIGHT, never by a centring translate: a keyframe that
-   touches `transform` (primed-blink sets scale) replaces the whole transform,
-   and a bar centred that way jumps half its width sideways every blink. */
-.slot-danger {
-  position: absolute; left: 7%; right: 7%; bottom: calc(var(--feet, 6px) + 5px); height: 17px;
-  opacity: 0; pointer-events: none; z-index: 9;
-}
-/* a breath of blood-light UNDER the bar, so it reads as light on the floor
-   rather than a sticker laid over it — contained, never its own blob */
-.slot-danger::before {
-  content: ''; position: absolute; left: 50%; bottom: -6px; width: 88%; height: 20px;
-  transform: translateX(-50%); border-radius: 50%;
-  background: radial-gradient(ellipse 60% 100% at 50% 60%, rgba(226,44,34,0.34), transparent 72%);
-}
-.slot-danger .sd-ground {
-  position: absolute; inset: 0; border-radius: 9px;
-  border: 1.2px solid rgba(244,74,58,0.72);
-  background: linear-gradient(180deg, rgba(226,44,34,0.05), rgba(226,44,34,0.2));
-  box-shadow: 0 0 10px rgba(226,44,34,0.32), inset 0 0 12px rgba(226,44,34,0.16);
-}
-.slot-telegraphed .slot-danger { opacity: 1; }
-/* MAGNITUDE IS WEIGHT, NOT SIZE. A heavier blow burns brighter and breathes
-   faster; it does not grow, because growing is what made lanes collide. */
-.slot-telegraphed.sd-sm     .slot-danger { animation: sd-breathe 1.9s ease-in-out infinite; }
-.slot-telegraphed.sd-md     .slot-danger { animation: sd-breathe 1.4s ease-in-out infinite; }
-.slot-telegraphed.sd-lg     .slot-danger { animation: sd-breathe 1s ease-in-out infinite; }
-.slot-telegraphed.sd-lethal .slot-danger { animation: sd-breathe 0.68s ease-in-out infinite; }
-.slot-telegraphed.sd-sm  .slot-danger .sd-ground { border-color: rgba(244,74,58,0.5); box-shadow: 0 0 7px rgba(226,44,34,0.2), inset 0 0 10px rgba(226,44,34,0.1); }
-.slot-telegraphed.sd-lg  .slot-danger .sd-ground { border-width: 1.6px; border-color: rgba(255,96,74,0.9); box-shadow: 0 0 16px rgba(226,44,34,0.5), inset 0 0 16px rgba(226,44,34,0.26); }
-.slot-telegraphed.sd-lethal .slot-danger .sd-ground {
-  border-width: 1.8px; border-color: #ff5038;
-  background: linear-gradient(180deg, rgba(255,60,40,0.1), rgba(226,30,20,0.3));
-  box-shadow: 0 0 20px rgba(255,50,34,0.62), inset 0 0 18px rgba(255,60,40,0.3);
-}
-@keyframes sd-breathe {
-  0%, 100% { opacity: 0.6; }
-  50%      { opacity: 1; }
-}
-/* THE BAR CARRIES ITS OWN TEXT. The sum used to float above the plate on its
-   own coordinates, which is how it ended up printing over the sprite’s boots
-   in one row and the nameplate in another. Both readings now sit INSIDE the
-   bar, on the bar’s line: rank at the left cap, incoming sum at the right. */
+/* THE TELEGRAPH IS THE NAME (v2.2 Build 34) ─────────────────────────────────
+   Build 32 collapsed six red objects per lane into one bar. One is still one
+   too many: the bar is a piece of furniture laid over the diorama, and three
+   of them across the party is a row of red widgets in front of the art.
+   The threatened hero's NAME flashes red instead — the nameplate is the one
+   thing on the board that never moves (it stays home while its owner is out
+   at full extension), it is already the label you read to find that hero, and
+   a name going red needs no legend. The incoming sum rides just above it, as
+   text; that is the whole telegraph now. */
 .slot-dmg {
-  position: absolute; left: 7%; right: 7%; bottom: calc(var(--feet, 6px) + 5px); z-index: 11;
-  height: 17px; box-sizing: border-box; padding-right: 8px;
-  display: flex; align-items: center; justify-content: flex-end;
-  font-size: 9px; font-weight: 700; letter-spacing: 0.06em; color: #ff8064;
-  text-shadow: 0 1px 2px #000; pointer-events: none;
+  position: absolute; left: 7%; right: 7%; bottom: calc(var(--feet, 6px) + 3px); z-index: 11;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 9px; font-weight: 700; letter-spacing: 0.08em; color: #ff7a5e;
+  text-shadow: 0 1px 3px #000, 0 0 8px rgba(200,40,26,0.55); pointer-events: none;
 }
-.slot-telegraphed.sd-lg .slot-dmg, .slot-telegraphed.sd-lethal .slot-dmg { font-size: 10px; color: #ff6a4e; }
+.slot-telegraphed.sd-lg .slot-dmg, .slot-telegraphed.sd-lethal .slot-dmg { font-size: 10.5px; color: #ff5038; }
 .slot-dmg.sd-dmg-lethal {
-  font-size: 11px; color: #ff3a2a; letter-spacing: 0.08em;
+  font-size: 11px; color: #ff3a2a; letter-spacing: 0.1em;
   text-shadow: 0 0 9px rgba(255,40,26,0.95), 0 1px 2px #000;
   animation: sd-lethal-blink 0.68s ease-in-out infinite;
 }
 @keyframes sd-lethal-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.42; } }
+/* an EMPTY threatened lane whispers — real "don't move here" information,
+   none of the alarm that belongs to a hero actually standing in the blow */
+.slot-telegraphed.sd-empty .slot-dmg { opacity: 0.5; font-size: 8px; animation: none; }
 
 /* figures */
 .figure {
@@ -5089,31 +5044,37 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
 
 /* THE THREAT RIDES THE NAMEPLATE — the one part of a hero that is decreed
    never to move. Whatever the body is doing, the row's readout is true. */
+/* THE NAME IS THE ALARM (v2.2 Build 34). It used to go red and sit there
+   while a bar, a glow and a rank numeral did the shouting beside it. It does
+   the shouting now: the threatened hero's name FLASHES, faster and hotter the
+   worse the blow, and nothing else on the board moves. The HP bar keeps its
+   own colours — it answers "how much is left", not "who is about to be hit",
+   and lighting it red for both made the two questions one smear.
+   (primed-blink is deliberately NOT reused here: it writes `transform`, which
+   would replace the nameplate's own centring translate.) */
 .slot.slot-telegraphed .fig-name {
   color: var(--blood-bright);
-  text-shadow: 0 0 8px rgba(226,44,34,0.45), 0 1px 3px #000;
+  text-shadow: 0 0 9px rgba(226,44,34,0.5), 0 1px 3px #000;
+  animation: name-alarm 1.5s ease-in-out infinite;
 }
-.slot.slot-telegraphed .hp-bar {
-  border-color: rgba(226,44,34,0.5);
-  box-shadow: 0 0 9px rgba(226,44,34,0.32);
+.slot.slot-telegraphed.sd-md .fig-name { animation-duration: 1.15s; }
+.slot.slot-telegraphed.sd-lg .fig-name { animation-duration: 0.85s; color: #ff6a4e; }
+.slot.slot-telegraphed.sd-lethal .fig-name {
+  animation-duration: 0.6s; color: #ff3a2a; font-weight: 700;
+  text-shadow: 0 0 12px rgba(255,44,26,0.9), 0 1px 3px #000;
 }
-.slot.slot-telegraphed.sd-lethal .hp-bar {
-  border-color: rgba(255,64,44,0.85);
-  box-shadow: 0 0 13px rgba(255,44,26,0.55);
-  animation: primed-blink 0.6s ease-in-out infinite;
-}
+/* an empty threatened lane has no name to flash — and nothing to alarm about */
+.slot.slot-telegraphed.sd-empty .fig-name { animation: none; }
+@keyframes name-alarm { 0%, 100% { opacity: 1; } 50% { opacity: 0.38; } }
+@media (prefers-reduced-motion: reduce) { .slot.slot-telegraphed .fig-name { animation: none; } }
 /* the rank numeral — Darkest Dungeon's lesson said plainly: a lane keeps its
    name even when the field is chaos */
-/* the lane's RANK rides the bar's LEFT CAP — the same line the sum sits on,
-   so a threatened lane reads left-to-right as one sentence: III … ☠ 28. It
-   keeps that place when the lane is safe and the bar is dark, so the position
-   ladder never moves. (It used to float 3px above the plate, where the plate's
-   own pulse swept over it.) */
+/* the lane's MARK — F / M / B, one letter at the lane's own left edge. It is
+   what the attacker's pill points at ("⚔ 16 → B"), so the two readings name
+   each other, and it keeps its place whether or not the lane is threatened. */
 .slot-rank {
-  position: absolute; left: 7%; right: 7%; bottom: calc(var(--feet, 6px) + 5px); z-index: 11;
-  height: 17px; box-sizing: border-box; padding-left: 8px;
-  display: flex; align-items: center;
-  font-size: 7px; letter-spacing: 0.2em; color: var(--ink-faint);
+  position: absolute; left: 7%; bottom: calc(var(--feet, 6px) + 3px); z-index: 11;
+  font-size: 8px; letter-spacing: 0.18em; color: var(--ink-faint);
   text-shadow: 0 1px 3px #000; pointer-events: none;
 }
 .slot.slot-telegraphed .slot-rank { color: rgba(255,168,148,0.9); }

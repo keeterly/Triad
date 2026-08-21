@@ -196,7 +196,10 @@ const QUICK = process.argv.includes('--quick');
   check('thread formed on heal', await J(() => S.threads.size === 1));
   check('CONCEPT: bond steels both (+2 guard each)', await J(() => S.heroes.every(h => h.guard >= 2)),
     await J(() => S.heroes.map(h => h.id + ':' + h.guard).join(',')));
-  check('DECLUTTER: bonds no longer draw a permanent web of lines', await J(() => document.querySelectorAll('#thread-layer .thread-line').length === 0));
+  check('DECLUTTER: bonds draw NO lines on the field at all — not a web, not a spark',
+    await J(() => !document.getElementById('thread-layer')
+      && !document.querySelector('.thread-spark')
+      && /^\s*return;/m.test(sparkThread.toString().split('\n')[1] || '')));
   // BONDS REFORGED — a thread no longer spawns an Echo Bond CARD.  An un-kindled
   // pair just forms the connection + its guard; no card clutters the hand.
   check('REFORGED: a thread forms NO card (no Echo Bond in hand)', await J(() => !document.querySelector('#hand .card[data-card-name="Echo Bond"]')));
@@ -353,7 +356,7 @@ const QUICK = process.argv.includes('--quick');
       await sleep(250);
       if (await J(() => !!document.querySelector('.fig-targetable'))) await pickTarget();
       await sleep(300);
-      if (await J(() => !!document.querySelector('.triad-title'))) await dismissCeremony();
+      if (await J(() => !!(S && S.triadFormed))) await dismissCeremony();
     }
     if (!await J(() => S.over)) await endTurn();
   }
@@ -432,15 +435,17 @@ const QUICK = process.argv.includes('--quick');
         card.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 7 }));
         return tgt;
       });
-      if (!plan) break;
+      // the planner returns null once the triad HAS closed, so the transition
+      // has to be caught on this branch too or the loop walks straight past it
+      if (!plan) { if (await J(() => !!(S && S.triadFormed))) gotCeremony = await dismissCeremony(); break; }
       await sleep(250);
       await pickTarget(plan);
       await sleep(500);
-      if (await J(() => !!document.querySelector('.triad-title'))) { gotCeremony = await dismissCeremony(); break; }
+      if (await J(() => !!(S && S.triadFormed))) { gotCeremony = await dismissCeremony(); break; }
     }
     if (!gotCeremony) { await endTurn(); }
   }
-  check('TRIAD ceremony fired for phalanx trio', gotCeremony);
+  check('TRIAD crowned the phalanx trio — in place, with no splash to tap through', gotCeremony);
   // BONDS REFORGED — the triad no longer hijacks a card slot.  It CROWNS the
   // all-out: no resonant card in hand, and S.allOutCrowned is set.
   check('REFORGED: the triad spawns NO resonant card', await J(() => !document.querySelector('#hand .card.kind-resonant')));
@@ -2196,7 +2201,7 @@ const QUICK = process.argv.includes('--quick');
       // word that made four packed foes a wall of "→ BACK → BACK → BACK".
       const aim = p && p.querySelector('.i-row');
       return !!p && !!p.querySelector('.i-dmg') && !p.querySelector('.i-parry')
-        && !!aim && /^(→ (I|II|III)|ALL)$/.test(aim.textContent.trim()); }));
+        && !!aim && /^(→ (F|M|B)|ALL)$/.test(aim.textContent.trim()); }));
   check('ALL-HIT: a whole-party blow opens with an across-sweep, then follows',
     await J(() => { const p = parryPatternFor({ row: 'all', dmg: 5 }); return p.kind === 'seq' && p.notes[0].t === 'swipe' && p.notes[0].arc === 'arcAcross'; }));
   check('PARTIAL: a mid-hit string parries per note (mitigation is fractional)',
@@ -6368,27 +6373,31 @@ const QUICK = process.argv.includes('--quick');
   // So the board stops depending on where bodies are: the plate draws over the
   // cast, the threat rides the nameplate, and the hero leaves an afterimage in
   // the lane they belong to.
-  check('BOARD: the lane plate is drawn OVER the cast — a held body cannot erase the mark on its ground',
+  check('BOARD: NOTHING IS DRAWN OVER THE CAST — no plate, no bar, no thread across the art',
     await J(() => {
       setupFight(['ash', 'hask'], [], { ash: 'front', hask: 'mid' });
       S.enemies.forEach(e => { e.intentIdx = 0; }); renderAll();
-      const plate = document.querySelector('#party-half .slot-danger');
-      const fig = document.querySelector('#party-half .figure');
-      const z = el => parseInt(getComputedStyle(el).zIndex, 10) || 0;
-      return z(plate) > 0 && z(plate) > z(fig);
+      // The board used to solve "a held body erases the mark on its ground" by
+      // drawing the mark OVER the body. The real answer is not to need a mark
+      // on the ground at all: the alarm lives on the nameplate, which stays
+      // home while its owner is out at full extension. So the diorama is clear.
+      return !document.querySelector('#party-half .slot-danger')
+        && !document.querySelector('#party-half .sd-ground')
+        && !document.getElementById('thread-layer')
+        && !document.querySelector('.thread-spark')
+        && !document.getElementById('telegraph-layer');
     }));
-  check('BOARD: the plate sits on the FEET LINE, not at the bottom of the slot where the readout lives',
+  check('BOARD: the incoming sum sits on the FEET LINE, above the readout stack it used to cross',
     await J(() => {
       const slot = document.querySelector('#party-half .slot[data-row="front"]');
-      const plate = slot.querySelector('.sd-ground').getBoundingClientRect();
+      const d = slot.querySelector('.slot-dmg'); if (!d) return false;
+      const dr = d.getBoundingClientRect();
       const bar = slot.querySelector('.hp-bar').getBoundingClientRect();
-      // the ground is where the boots are: the plate straddles the top of the
-      // readout stack rather than sitting below it
-      return Math.abs((plate.top + plate.height / 2) - bar.top) < 34;
+      return dr.bottom <= bar.top + 1 && bar.top - dr.bottom < 20;
     }));
-  check('BOARD: every lane names its RANK, so position survives any amount of visual noise',
+  check('BOARD: every lane names its MARK — F / M / B, the initial of the row itself',
     await J(() => [...document.querySelectorAll('#party-half .slot-rank')]
-      .map(e => e.textContent.trim()).join('|') === 'III|II|I'));
+      .map(e => e.textContent.trim()).join('|') === 'B|M|F'));
   check('THREAT: a threatened row wears its alarm on the NAMEPLATE — the one thing that never moves',
     await J(() => {
       const lit = document.querySelector('#party-half .slot.slot-telegraphed .fig-name');
@@ -6416,20 +6425,17 @@ const QUICK = process.argv.includes('--quick');
   // once heroes lunge, nobody is on their footprint when the telegraph is
   // read. The plate marks territory, the lane keeps an ANCHOR while its
   // holder is out striking, and the striker steps downstage into the apron.
-  check('LANE: the telegraph marks a wide lane BAR — it holds most of its lane, and all of it stays inside',
+  check('LANE: the telegraph is the hero\u2019s NAME — it flashes, and its urgency tracks the blow',
     await J(() => {
       setupFight(['ash', 'hask'], [], { ash: 'front', hask: 'mid' });
       S.enemies.forEach(e => { e.intentIdx = 0; });
       renderAll();
-      const slot = document.querySelector('#party-half .slot[data-row="front"]');
-      const plate = slot.querySelector('.sd-ground');
-      const pr = plate.getBoundingClientRect(), sr = slot.getBoundingClientRect();
-      // A bar holds the lane: most of its width, far wider than it is tall —
-      // and INSIDE it. The old plate met the first two and failed the third
-      // (110% wide, scaling to ~127% at its pulse peak), which is how lit
-      // neighbours merged into one smear.
-      return pr.width / sr.width >= 0.8 && pr.width / pr.height > 4
-        && pr.left >= sr.left - 1 && pr.right <= sr.right + 1;
+      const slot = document.querySelector('#party-half .slot.slot-telegraphed');
+      if (!slot) return false;
+      const nm = getComputedStyle(slot.querySelector('.fig-name'));
+      // the plate, then the bar, were furniture laid over the diorama; the
+      // nameplate is the one label already on the board that never moves
+      return nm.animationName === 'name-alarm' && parseFloat(nm.animationDuration) > 0;
     }));
   check('LANE: a hero who steps out leaves an ANCHOR — the lane keeps their mark on its own ground',
     await J(() => {
@@ -6509,42 +6515,40 @@ const QUICK = process.argv.includes('--quick');
         && /ALL/.test(pill) && !/→/.test(pill)
         && !document.getElementById('telegraph-layer');
     }));
-  check('TELEGRAPH: an EMPTY threatened row whispers — the bar stops breathing and dims to a hairline',
+  check('TELEGRAPH: an EMPTY threatened row whispers — its sum dims, and nobody\u2019s name is flashing',
     await J(() => {
       const back = document.querySelector('#party-half .slot[data-row="back"]');
       const front = document.querySelector('#party-half .slot[data-row="front"]');
-      const bs = getComputedStyle(back.querySelector('.slot-danger'));
-      const fs = getComputedStyle(front.querySelector('.slot-danger'));
+      const bd = back.querySelector('.slot-dmg'), fd = front.querySelector('.slot-dmg');
       return back.className.indexOf('sd-empty') !== -1
         && front.className.indexOf('sd-empty') === -1
-        && bs.animationName === 'none' && fs.animationName !== 'none'
-        && parseFloat(bs.opacity) < parseFloat(fs.opacity);
+        && !back.querySelector('.fig-name')
+        && !!bd && !!fd
+        && parseFloat(getComputedStyle(bd).opacity) < parseFloat(getComputedStyle(fd).opacity);
     }));
-  check('TELEGRAPH: the lane bar HOLDS ITS LANE — lit neighbours never touch, and none crosses the readout',
+  check('TELEGRAPH: three lit lanes stay THREE — every mark inside its own lane, none touching a neighbour',
     await J(() => {
       setupFight(['ash', 'hask', 'mira'], [], { ash: 'front', hask: 'mid', mira: 'back' });
       S.enemies.forEach(e => { e.intentIdx = 0; }); renderAll();
-      const bars = ['back', 'mid', 'front'].map(r => {
+      const marks = ['back', 'mid', 'front'].map(r => {
         const slot = document.querySelector('#party-half .slot[data-row="' + r + '"]');
-        const g = slot.querySelector('.sd-ground');
-        const hp = slot.querySelector('.hp-bar');
-        return { g: g && g.getBoundingClientRect(), hp: hp && hp.getBoundingClientRect(),
-                 slot: slot.getBoundingClientRect() };
-      });
-      // inside its own lane, never wider than it — the old plate ran 10px past
-      // its slot and the pulse scaled it 27px wider still, so lit lanes merged
-      const contained = bars.every(b => !b.g || (b.g.left >= b.slot.left - 1 && b.g.right <= b.slot.right + 1));
-      // and clear of the nameplate stack it used to sweep across
-      const clear = bars.every(b => !b.g || !b.hp || b.g.bottom <= b.hp.top + 1);
-      // no two lit bars overlap
+        const sr = slot.getBoundingClientRect();
+        return [...slot.querySelectorAll('.slot-dmg, .slot-rank')]
+          .map(e => ({ row: r, b: e.getBoundingClientRect(), slot: sr }));
+      }).flat();
+      if (marks.length < 3) return false;
+      // the plate ran 10px past its slot and its pulse scaled it 27px wider
+      // still, so lit lanes merged into one red smear across the party
+      const contained = marks.every(m => m.b.left >= m.slot.left - 1 && m.b.right <= m.slot.right + 1);
       let apart = true;
-      for (let i = 0; i < bars.length; i++) for (let j = i + 1; j < bars.length; j++) {
-        const a = bars[i].g, b = bars[j].g;
-        if (a && b && a.left < b.right && b.left < a.right) apart = false;
+      for (let i = 0; i < marks.length; i++) for (let j = i + 1; j < marks.length; j++) {
+        const a = marks[i], b = marks[j];
+        if (a.row === b.row) continue;
+        if (a.b.left < b.b.right && b.b.left < a.b.right && a.b.top < b.b.bottom && b.b.top < a.b.bottom) apart = false;
       }
-      return contained && clear && apart;
+      return contained && apart;
     }));
-  check('TELEGRAPH: the incoming sum rides the bar, clear of the nameplate',
+  check('TELEGRAPH: the incoming sum rides above the readout, clear of the nameplate',
     await J(() => {
       const slot = document.querySelector('#party-half .slot[data-row="front"]');
       const d = slot.querySelector('.slot-dmg'); if (!d) return false;
@@ -6567,7 +6571,7 @@ const QUICK = process.argv.includes('--quick');
       // the same height, so it drew as a rule through every nameplate. The
       // mapping is one character on the pill instead, and it agrees with the
       // rank the target lane wears on its own bar.
-      const RANKN = { front: 'I', mid: 'II', back: 'III' };
+      const RANKN = ROW_MARK;
       const aimed = S.enemies.filter(e => enemyNextIntents(e)
         .some(it => it && it.kind !== 'buff' && effIntentRow(e, it) !== 'all' && effIntentRow(e, it)));
       if (aimed.length < 2) return false;

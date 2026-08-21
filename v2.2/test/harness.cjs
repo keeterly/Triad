@@ -244,10 +244,19 @@ async function boot(opts = {}) {
       }
       await page.waitForTimeout(200);
     },
+    // THE TRIAD LANDS WITHOUT A SPLASH (v2.2 Build 34). It used to freeze the
+    // field and hold a full-screen TRIAD FORMED card until you tapped it, so
+    // this waited for that card and clicked it. There is nothing to dismiss
+    // now — the badge flips to crowned, the burst swells, the narrator names
+    // the vow — so this waits for the triad to LAND. (Kept under the old name
+    // because every call site means "get past the triad".)
     dismissCeremony: async () => {
-      for (let i = 0; i < 12; i++) {
-        const up = await page.evaluate(() => !!document.querySelector('.triad-title'));
-        if (up) { await page.evaluate(() => document.querySelector('#overlay').click()); await page.waitForTimeout(350); return true; }
+      for (let i = 0; i < 16; i++) {
+        // `S` is a lexical global, not a property of window — reading it as
+        // window.S is silently undefined and this poll never fires
+        if (await page.evaluate(() => typeof S !== 'undefined' && !!S && !!S.triadFormed && !!S.allOutCrowned)) return true;
+        const splash = await page.evaluate(() => !!document.querySelector('.triad-title'));
+        if (splash) { await page.evaluate(() => document.querySelector('#overlay').click()); await page.waitForTimeout(350); }
         await page.waitForTimeout(250);
       }
       return false;

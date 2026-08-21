@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 33;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 34;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -1303,6 +1303,11 @@ function haptic(p) {
 // DATA — heroes.
 // ---------------------------------------------------------------------------
 const ROWS = ['front', 'mid', 'back'];
+// THE LANE'S MARK — F / M / B (v2.2 Build 34). It was I / II / III, which asks
+// the player to remember that the THIRD rank is the one at the BACK; the
+// initial of the row's own name asks nothing. Used on the lane itself and on
+// the attacker's pill, so "⚔ 16 → B" and the lane it names read as one thing.
+const ROW_MARK = { front: 'F', mid: 'M', back: 'B' };
 // Schools — every hero's attacks carry their element; every enemy hides a
 // weakness (revealed the first time it takes damage).  Weakness hit ->
 // WEAKENED ⌖; second weakness hit the SAME TURN -> STAGGERED ⚡ (+1 EP,
@@ -7695,30 +7700,21 @@ async function checkTriad(closer) {
   }
 }
 
+// THE TRIAD LANDS WITHOUT A SPLASH (v2.2 Build 34). Forming the triangle used
+// to freeze the field, tilt the camera onto the three of them, and hold a
+// full-screen TRIAD FORMED card until you tapped it — a hard stop in the
+// middle of your own turn, for a thing you can already see happen. Everything
+// it told you is still told: the KIZUNA badge flips to "TRIAD · ALL-OUT
+// CROWNED" and stays flipped, the burst gauge visibly swells, the narrator
+// names the vow, and the crown itself is on the ALL-OUT button. What is gone
+// is the interruption.
 async function triadCeremony() {
-  $('#stage').classList.add('frozen');
-  SFX.triad();
-  // A slow tilt-up onto the three of them.  This is the game's biggest story
-  // beat and until Build 225 it played on a completely locked-off shot.
-  cam({ z: 1.18, dz: 165, r: -1.4, y: 14, pitch: 3.2, yaw: -5.5, ms: 1400, ease: 'cubic-bezier(.28,.62,.32,1)', force: true });
-  await sleep(700);
   const r = triadEntry();
-  const names = livingHeroes().map(h => h.def.name).join(' · ');
-  showOverlay(`
-    <svg class="triad-svg" viewBox="0 0 150 130">
-      <path d="M 75 12 L 138 112 L 12 112 Z"/>
-    </svg>
-    <div class="triad-title">TRIAD FORMED</div>
-    <div class="triad-names">${names}</div>
-    <div class="triad-cardname">✦ ${r.name}${vowRank(trioClassKey(livingHeroes().map(h => h.id))) > 1 ? ' ' + ROMAN[vowRank(trioClassKey(livingHeroes().map(h => h.id)))] : ''} — ${r.type}</div>
-    <div class="ov-tap">your <b>ALL-OUT</b> is crowned — it now ends in a <b>TRIAD FINALE</b> · tap to continue</div>
-  `, 'triad-ceremony');
-  await new Promise(res => { $('#overlay').onclick = () => { $('#overlay').onclick = null; res(); }; });
-  hideOverlay();
-  $('#stage').classList.remove('frozen');
-  camReset(900);
-  S.allOutCrowned = true;   // the triad's vow now crowns the ALL-OUT (see resolveAllOut)
-  expandBurst(3, '✦ TRIAD', 40);   // the triangle swells the burst gauge to its fullest (the old resonant's reward)
+  const rank = vowRank(trioClassKey(livingHeroes().map(h => h.id)));
+  SFX.triad();
+  S.allOutCrowned = true;                 // the triad's vow crowns the ALL-OUT
+  expandBurst(3, '✦ TRIAD', 40);          // and swells the burst gauge to its fullest
+  flashNarrator(`✦ TRIAD — ${r.name}${rank > 1 ? ' ' + ROMAN[rank] : ''} · your ALL-OUT is crowned`);
   renderAll();
 }
 
@@ -10987,8 +10983,8 @@ function renderBattlefield() {
     const dRow = rowDmg[row];
     const hRow = S.heroes.find(x => x.row === row && !x.downed);
     const lethalRow = hRow && !hRow.invuln && dRow >= hRow.hp + hRow.guard;
-    const RANKN = { front: 'I', mid: 'II', back: 'III' };
-    slot.innerHTML = `<span class="slot-ring"></span><span class="slot-danger" aria-hidden="true"><span class="sd-ground"></span></span><span class="slot-rank" aria-hidden="true">${RANKN[row]}</span>${dRow > 0 ? `<span class="slot-dmg${lethalRow ? ' sd-dmg-lethal' : ''}">${lethalRow ? '☠' : '✕'} ${dRow}</span>` : ''}`;
+    const RANKN = ROW_MARK;
+    slot.innerHTML = `<span class="slot-ring"></span><span class="slot-rank" aria-hidden="true">${RANKN[row]}</span>${dRow > 0 ? `<span class="slot-dmg${lethalRow ? ' sd-dmg-lethal' : ''}">${lethalRow ? '☠' : '✕'} ${dRow}</span>` : ''}`;
     const who = h || downedHere;
     if (who) {
       const solo = livingHeroes().length === 1;
@@ -11204,7 +11200,7 @@ function intentSeg(e, it) {
   // chip, and the telegraph arc — so four packed foes stop colliding into a
   // wall of "→ BACK → BACK → BACK". The one exception is ALL: a blow no
   // reposition dodges is information the ground of one slot cannot carry.
-  const RANKN = { front: 'I', mid: 'II', back: 'III' };
+  const RANKN = ROW_MARK;
   return `<span class="i-seg"><span class="i-glyph">⚔</span><span class="i-dmg">${enemyIntentDmg(e, it)}</span>${row === 'all' ? '<span class="i-row">ALL</span>' : (row && RANKN[row] ? `<span class="i-row i-aim" title="aimed at lane ${RANKN[row]}">→ ${RANKN[row]}</span>` : '')}${it.hex ? '<span class="i-st kw-hex" title="HEX — if it lands, your card plays burn your hand; dodge it">☠</span>' : ''}${it.drain ? '<span class="i-st kw-drain" title="drains life — heals the Maw">♥</span>' : ''}${it.chill ? '<span class="i-st kw-chill" title="chills you">❄</span>' : ''}${it.expose ? '<span class="i-st kw-exposed" title="exposes you">◎</span>' : ''}${it.shove === 'front' ? '<span class="i-st kw-shove" title="DRAGS the struck hero one row forward — parry to hold your ground">⇱</span>' : ''}${it.shove === 'back' ? '<span class="i-st kw-shove" title="SHOVES the struck hero one row back — parry to hold your ground">⇲</span>' : ''}</span>`;
 }
 // the intent telegraph markup for an enemy (one or a boss's chained two)
@@ -11283,11 +11279,17 @@ function renderFloorBoss(enemyHalf, fboss, tgt) {
 // state lives in the compact RESONANCE badge (see renderResonance).
 function renderThreads() {
   const svg = $('#thread-layer');
-  if (svg) svg.innerHTML = '';
+  if (svg) svg.remove();
 }
-// A one-shot spark that arcs between two bonded heroes, then fades — the moment
-// of connection, not a persistent tether.
+// NO THREADS ON THE FIELD (v2.2 Build 34). A bond used to announce itself with
+// an arc drawn between the two heroes — briefly, but drawn straight across the
+// cast at chest height, over the art, several times a turn once a party is
+// bonding freely. The bond is not lost: it is on the KIZUNA badge, whose three
+// edges ARE the three pairs, it flashes in the narrator, and it is audible.
+// The one place it does not belong is on top of the characters.
 function sparkThread(a, b) {
+  return;                                  // eslint-disable-line no-unreachable
+  /* eslint-disable no-unreachable */
   const ea = figEl(a), eb = figEl(b); if (!ea || !eb) return;
   const bf = $('#battlefield').getBoundingClientRect(), scale = stageScale();
   const ra = ea.getBoundingClientRect(), rb = eb.getBoundingClientRect();
@@ -11299,6 +11301,7 @@ function sparkThread(a, b) {
   svg.innerHTML = `<path d="M ${x1} ${y1} Q ${(x1 + x2) / 2} ${Math.min(y1, y2) - 26} ${x2} ${y2}" class="ts-line"/>`;
   $('#battlefield').appendChild(svg);
   setTimeout(() => svg.remove(), 850);
+  /* eslint-enable no-unreachable */
 }
 // The RESONANCE badge — a small triangle of the trio's three bonds.  Each edge
 // lights as its thread forms; a full triangle is TRIAD READY.  Replaces the old
