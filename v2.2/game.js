@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 22;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 23;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -10882,6 +10882,9 @@ function renderBattlefield() {
     party.querySelectorAll('.slot').forEach(slot => {
       const row = slot.dataset.row;
       const actH = S.heroes.find(x => x.row === row && (x._held || x._castAnim) && !x.downed);
+      // the lane knows its holder has stepped out of it (Build 23) — it keeps
+      // their ANCHOR lit on its own ground while the body is away striking
+      slot.classList.toggle('slot-acting', !!actH);
       if (!actH) {
         slot.style.setProperty('--act-z', '0px');
         slot.style.setProperty('--act-x', '0px');

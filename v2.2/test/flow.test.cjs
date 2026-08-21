@@ -6230,6 +6230,53 @@ const QUICK = process.argv.includes('--quick');
   // that read as "characters disappear glitchily"). TELEGRAPH: an ALL attack
   // draws no arcs, an empty threatened row whispers, and the damage sum rides
   // the ring rim clear of the nameplate.
+  console.log('--- THE LANE & THE APRON (BUILD 23) ---');
+  // A row is a LANE the hero holds, not a footprint they stand on — because
+  // once heroes lunge, nobody is on their footprint when the telegraph is
+  // read. The plate marks territory, the lane keeps an ANCHOR while its
+  // holder is out striking, and the striker steps downstage into the apron.
+  check('LANE: the telegraph marks a wide lane PLATE, not a small footprint ring',
+    await J(() => {
+      setupFight(['ash', 'hask'], [], { ash: 'front', hask: 'mid' });
+      S.enemies.forEach(e => { e.intentIdx = 0; });
+      renderAll();
+      const slot = document.querySelector('#party-half .slot[data-row="front"]');
+      const plate = slot.querySelector('.sd-ground');
+      const pw = plate.getBoundingClientRect().width, sw = slot.getBoundingClientRect().width;
+      // a plate holds the lane: most of its width, and far wider than it is tall
+      return pw / sw > 0.85 && pw / plate.getBoundingClientRect().height > 4;
+    }));
+  check('LANE: a hero who steps out leaves an ANCHOR — the lane keeps their mark on its own ground',
+    await J(() => {
+      const hask = S.heroes.find(h => h.id === 'hask');
+      hask._held = true; hask._actSeq = S._actSeq = 1; renderAll();
+      const mid = document.querySelector('#party-half .slot[data-row="mid"]');
+      const back = document.querySelector('#party-half .slot[data-row="back"]');
+      const lit = mid.className.indexOf('slot-acting') !== -1
+        && parseFloat(getComputedStyle(mid, '::after').width) > 20;
+      const quiet = back.className.indexOf('slot-acting') === -1;
+      return lit && quiet;
+    }));
+  check('APRON: the striker steps DOWNSTAGE — the held pose carries a drop and a swell, not just an advance',
+    await J(() => {
+      const fig = document.querySelector('[data-fig="hask"]');
+      const art = fig.querySelector('.fig-art');
+      const m = new DOMMatrixReadOnly(getComputedStyle(art).transform);
+      const drop = m.f, grow = m.a;
+      const travelled = m.e > 40;
+      S.heroes.forEach(h => { h._held = false; h._actSeq = 0; }); renderAll();
+      return travelled && drop > 2 && grow > 1.02;   // forward, down toward the lens, and larger
+    }));
+  check('APRON: the striker sheds their travelling shadow — one anchor on the lane, never two shadows',
+    await J(() => {
+      const hask = S.heroes.find(h => h.id === 'hask');
+      hask._held = true; renderAll();
+      const art = document.querySelector('[data-fig="hask"] .fig-art');
+      const shed = getComputedStyle(art, '::before').opacity === '0';
+      hask._held = false; renderAll();
+      return shed;
+    }));
+
   console.log('--- COMBAT POLISH (BUILD 15) ---');
   check('RECENCY: acting slots lift above the front plane, the later actor nearest the lens',
     await J(() => {
