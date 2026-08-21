@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 35;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 36;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -83,9 +83,23 @@ function applyFxTier() {
 // answered as it goes. It still only ever steps DOWN, still only while DEPTH is
 // on `auto`, and still never climbs back within a session — a tier that keeps
 // re-earning itself would oscillate on every heavy beat.
+// NEVER MEASURE A BEAT THE GAME IS DELIBERATELY MAKING EXPENSIVE (v2.2 Build
+// 36). The parry cascade, the all-out and the hit-stop re-raster the whole
+// battlefield ON PURPOSE — that is the drama. The watchdog was sampling
+// straight through them and reading authored spectacle as a dying device:
+// measured medians in one session were 56ms idle, 59ms in parry-slowmo, 78ms
+// (p90 187ms) in allout-focus, against thresholds of 24ms and 40ms. It stepped
+// two tiers down inside the first second of a fight and never climbs back, so
+// the floor the party stands on vanished for the rest of the session. Sample
+// only when the frame is honestly idle.
+function fxBusy() {
+  const st = document.getElementById('stage');
+  return !!(_camHeld || (st && /parry-focus|parry-slowmo|allout-focus|frozen/.test(st.className)));
+}
 function autoTuneFx(force) {
   if (SETTINGS.depth !== 'auto' || _fxTuning) return;
   if (_fxTier === FX_TIERS[FX_TIERS.length - 1]) return;      // already as light as it goes
+  if (fxBusy()) return;
   const now = performance.now();
   if (!force && now < _fxNextTune) return;
   _fxTuning = true;
@@ -93,6 +107,7 @@ function autoTuneFx(force) {
   const times = []; let last = performance.now();
   const tick = () => {
     const t = performance.now(); times.push(t - last); last = t;
+    if (fxBusy()) { _fxTuning = false; return; }   // a cinematic started mid-sample — throw it away
     if (times.length < 40) { requestAnimationFrame(tick); return; }
     _fxTuning = false;
     times.sort((a, b) => a - b);
@@ -4757,7 +4772,17 @@ function buildHand() {
     if (sigUnlocked(h)) { const sig = mkCard(h, 'sig', set.sig); if (!sig.spent) hand.push(sig); }
     (chainTemps[h.id] || []).forEach(t => hand.push(t));     // (a non-rotation hero can still hold forged temps)
   });
-  temps.forEach(t => { if (!t.chain) hand.push(t); });       // echoes / emergent forges trail at the end
+  // A CARD IS ONLY REAL IF ITS OWNER CAN SWING IT (v2.2 Build 36). Per-hero
+  // cards are built from livingHeroes(), but temps were appended whatever
+  // happened to their owner — so a forged card held by a hero who then fell
+  // stayed in the hand, opened targeting, took the EP, and resolveCard() threw
+  // it away in silence at `if (owner && owner.downed) return`.
+  temps.forEach(t => {
+    if (t.chain) return;                                     // chain temps were placed above
+    const o = t.owner && S.heroes.find(h => h.id === t.owner);
+    if (o && o.downed) return;
+    hand.push(t);                                            // echoes / emergent forges trail at the end
+  });
   return hand;
 }
 function mkCard(h, kind, def) {
@@ -4917,10 +4942,21 @@ function enterTargeting(card, validIds, hint, opts) {
   renderBattlefield();
   renderThreads();
 }
-function cancelTargeting() {
+// THE VEIL LIFTS WITH THE PICK (v2.2 Build 36). `aiming` drops every intent
+// pill, status chip and stance tag to 14% opacity so the CHARACTERS carry the
+// choice — and it was only ever removed by clearAim(), which runs between
+// FIGHTS. Every other exit from targeting (a resolved tap, a cancelled aim, a
+// row pick) cleared `targeting` and left the class on, so one targeted card in
+// turn one washed the enemy's whole telegraph out for the rest of the battle.
+// Measured: turn 1 aiming, turns 2 and 3 still aiming, intent pills at 0.14.
+function endAim() {
   targeting = null;
-  releaseFocus();   // the pick is off — settle back to a party that all reads crisp
+  releaseFocus();
+  try { $('#stage').classList.remove('aiming'); } catch (_) {}
   $('#target-hint').classList.add('hidden');
+}
+function cancelTargeting() {
+  endAim();   // the pick is off — settle back to a party that all reads crisp
   renderAll();
 }
 // Hard-reset all transient interaction state — targeting, the aim veil, any
@@ -4938,7 +4974,7 @@ function clearAim() {
   // new hand reads as "glitched / un-draggable."  Also drop any frozen/focus/slow
   // stage classes so nothing from the last fight bleeds into the next.
   try { if (_dragWinUp) { window.removeEventListener('pointerup', _dragWinUp, true); window.removeEventListener('pointercancel', _dragWinUp, true); _dragWinUp = null; } } catch (_) {}
-  try { _slowmoRef = 0; const st = document.getElementById('stage'); if (st) st.classList.remove('parry-focus', 'parry-slowmo', 'allout-focus', 'cam-in', 'frozen', 'aiming'); } catch (_) {}
+  try { _slowmoRef = 0; const st = document.getElementById('stage'); if (st) st.classList.remove('parry-focus', 'parry-slowmo', 'allout-focus', 'cam-in', 'frozen', 'aiming', 'executing'); } catch (_) {}
   releaseFocus();   // the party must never be left racked out of focus at rest
   try { _camBase = CAM_POSE_HOME; camRelease(); } catch (_) {}   // a held camera (or a turn pose) must never survive a fight
   // Force a CLEAN hand rebuild next render: throw away any stale card DOM (and its
@@ -4953,18 +4989,14 @@ function onFigureTap(id) {
   if (!targeting || targeting.isRow || targeting.drag) return;
   if (!targeting.validIds.includes(id)) { cancelTargeting(); return; }
   const card = targeting.card;
-  targeting = null;
-  releaseFocus();   // the pick resolved — the rack settles before the action plays
-  $('#target-hint').classList.add('hidden');
+  endAim();        // the pick resolved — the rack settles before the action plays
   playCard(card, id);
 }
 function onRowTap(row) {
   if (!targeting || !targeting.isRow || targeting.drag) return;
   const card = targeting.card;
   if (!targeting.validIds.includes('row:' + row)) { cancelTargeting(); return; }
-  targeting = null;
-  releaseFocus();
-  $('#target-hint').classList.add('hidden');
+  endAim();
   playCard(Object.assign({}, card, { toRow: row }), null);
 }
 
@@ -8405,6 +8437,8 @@ async function endTurn() {
   if (S && S._narrHeld) { S._narrHeld = false; const nEl = $('#narrator');
     if (nEl) setTimeout(() => { if (S && !S._narrHeld) nEl.innerHTML = ''; }, 1200); }
   if (S.executing || S.over || S._staging) return;
+  // a card still asking for a target belongs to the turn that is ending
+  if (targeting) endAim();
   S.executing = true;
   $('#stage').classList.add('executing');
   // the party breaks pose FIRST — held strikes spring back to idle as their
@@ -8413,6 +8447,22 @@ async function endTurn() {
   renderAll();
   camPose(CAM_POSE_ENEMY, 950);   // the lens swings to feature THEIR side of the field
   await enemyPhase();
+  // AND A NET UNDER THE WHOLE PHASE. enemyPhase's nested loops have several
+  // early exits — `continue` on a dead foe, `break` when the snapshot goes
+  // stale — and every one of them steps around the checkEnd() that sits at the
+  // tail of the attack loop. One missed check is a fight that never ends, so
+  // the phase is checked as a whole as well. checkEnd() returns early once
+  // S.over, so this costs nothing when the loop already did its job.
+  checkEnd();
+  // THE BAR COMES BACK EVEN IF THE FIGHT DID NOT (v2.2 Build 36). The reset of
+  // `S.executing` and `#stage.executing` lived inside the `if (!S.over)` below,
+  // so a fight that ENDED during the enemy phase — every defeat, and any
+  // victory off a counter or a riposte — left the flag and the class set.
+  // `#stage.executing #action-bar { pointer-events: none }` then carried into
+  // the NEXT fight, whose hand and END TURN were dead to every click while the
+  // state claimed the turn was playable. Measured across 8 of 8 defeats.
+  S.executing = false;
+  try { $('#stage').classList.remove('executing'); } catch (_) {}
   if (!S.over) {
     S.turn++;
     // EP RESERVE (Build 234): unspent EP is no longer discarded — it banks
@@ -8455,8 +8505,8 @@ async function endTurn() {
     S._taunt = null;             // Cassia's TAUNT lasted the enemy round it provoked
     S.combo = 0;                 // the ASSIST chain is a within-turn combo
     S.channelUsed = false;
-    S.executing = false;
-    $('#stage').classList.remove('executing');
+    // (S.executing / #stage.executing were cleared above, before this branch —
+    //  a fight that ended in the enemy phase never reaches here)
     // TURN-START passives — the wall braces, the light finds the hurt, the hunt resumes.
     livingHeroes().forEach(h => firePassives('turnStart', h.id, {}));
     // CAST-TIME payoff — a spell begun last turn UNLEASHES now (Hask's big casts).
@@ -8485,6 +8535,7 @@ function turnBanner(text, cls) {
 async function enemyPhase() {
   S._finisher = false;
   autoTuneFx();   // the board is heavier than it was at fight open — re-measure (Build 261)
+                  // (fxBusy() aborts it once the cascade starts — see Build 36)
   turnBanner('ENEMY TURN', 'tb-enemy');
   _parryStreak = 0;   // a fresh parry combo for the phase
   // WEAKENED expires if you didn't capitalize this turn; STAGGERED holds
@@ -8607,7 +8658,14 @@ async function enemyPhase() {
         // The riposte already bought its own 400ms of dilation above; playing
         // well should hand the turn back sooner, not later.
         await sleep(rip > 0 ? 180 : 240);
-        if (e.dead || S.over) continue;
+        // THE RIPOSTE CAN LAND THE KILLING BLOW (v2.2 Build 36). This
+        // `continue` skips the rest of the attack-loop body — and the body's
+        // LAST statement is the `checkEnd()` that ends the fight. So a
+        // perfectly parried cascade that killed the final enemy stepped
+        // straight over the victory check, the outer loop (iterating a
+        // snapshot of livingEnemies) ran out, and play resumed against an
+        // empty enemy side. Check before skipping.
+        if (e.dead || S.over) { checkEnd(); continue; }
       } else if (mit > 0) {
         // PARTIAL — you caught some of the cascade; only the missed share lands
         parryMul = 1 - mit;
@@ -10979,14 +11037,26 @@ function renderBattlefield() {
     slot.dataset.row = row;
     const actH = S.heroes.find(x => x.row === row && (x._held || x._castAnim) && !x.downed);
     const h = S.heroes.find(x => x.row === row && !x.downed);
-    const downedHere = S.heroes.find(x => x.row === row && x.downed);
+    // A LANE CAN HOLD MORE THAN ONE HERO (v2.2 Build 36). Every mover — the
+    // MOVE card, an enemy's shove, fx.step/fx.warp — swaps only with the LIVING
+    // occupant, so a downed body stays underfoot and the next hero walks in on
+    // top of it. This used to draw `h || downedHere`: ONE figure per lane, and
+    // whoever lost that coin toss vanished from the battlefield entirely — no
+    // sprite, no nameplate, and (since figEl() then returns null) no damage
+    // numbers and no DOWN popup either. Which of the two disappeared flipped
+    // with array order, which is why one fight showed a downed hero drawn and
+    // another showed one gone. Draw EVERY hero standing here.
+    const hereAll = S.heroes.filter(x => x.row === row)
+      .sort((a, b) => (b.downed ? 1 : 0) - (a.downed ? 1 : 0));   // bodies first, living in front
     const dRow = rowDmg[row];
     const hRow = S.heroes.find(x => x.row === row && !x.downed);
     const lethalRow = hRow && !hRow.invuln && dRow >= hRow.hp + hRow.guard;
     const RANKN = ROW_MARK;
     slot.innerHTML = `<span class="slot-ring"></span><span class="slot-rank" aria-hidden="true">${RANKN[row]}</span>${dRow > 0 ? `<span class="slot-dmg${lethalRow ? ' sd-dmg-lethal' : ''}">${lethalRow ? '☠' : '✕'} ${dRow}</span>` : ''}`;
-    const who = h || downedHere;
-    if (who) {
+    hereAll.forEach((who, hi) => {
+      // the lane's own holder paints last and full size; anyone sharing it is
+      // set down beside them so both read
+      const underfoot = hereAll.length > 1 && hi < hereAll.length - 1;
       const solo = livingHeroes().length === 1;
       const targetable = targeting && !targeting.isRow && targeting.validIds.includes(who.id);
       // REUSE the hero's figure across renders (its SVG portrait is expensive) —
@@ -11019,12 +11089,18 @@ function renderBattlefield() {
       // tools).  Safe alongside the pointer path: onFigureTap no-ops once
       // targeting clears, so a double-fire can't double-play.
       fig.onclick = () => { if (targeting) onFigureTap(who.id); };
+      // figures are cached and reused across renders, so BOTH branches must be
+      // written every time — a stale inline offset would otherwise stick to a
+      // hero long after they had the lane to themselves
+      fig.classList.toggle('fig-underfoot', underfoot);
       slot.appendChild(fig);
-    }
+    });
+    // the lane is named ONCE, by its letter on the feet line (.slot-rank) — the
+    // word used to sit here too, under the figure, where a hand card sliced it
     const lbl = document.createElement('span');
     lbl.className = 'slot-label';
     lbl.textContent = ROW_LABEL[row];
-    slot.appendChild(lbl);
+    slot.appendChild(lbl);              // kept in the DOM for a11y / row lookups; CSS hides it
     if (targeting && targeting.isRow && targeting.validIds.includes('row:' + row)) {
       slot.style.cursor = 'pointer';
       slot.querySelector('.slot-ring').style.borderColor = 'var(--gold-bright)';

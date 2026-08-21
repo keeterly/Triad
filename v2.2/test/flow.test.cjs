@@ -6428,11 +6428,16 @@ const QUICK = process.argv.includes('--quick');
     }));
   check('BOARD: the incoming sum sits on the FEET LINE, above the readout stack it used to cross',
     await J(() => {
-      const slot = document.querySelector('#party-half .slot[data-row="front"]');
-      const d = slot.querySelector('.slot-dmg'); if (!d) return false;
-      const dr = d.getBoundingClientRect();
+      // whichever lane is lit — which foes are on the board, and so which rows
+      // they aim at, varies with the run's own map roll
+      const slot = document.querySelector('#party-half .slot.slot-telegraphed .slot-dmg')
+        && [...document.querySelectorAll('#party-half .slot.slot-telegraphed')].find(s => s.querySelector('.slot-dmg') && s.querySelector('.hp-bar'));
+      if (!slot) return true;                       // nothing incoming: not this check's business
+      const dr = slot.querySelector('.slot-dmg').getBoundingClientRect();
       const bar = slot.querySelector('.hp-bar').getBoundingClientRect();
-      return dr.bottom <= bar.top + 1 && bar.top - dr.bottom < 20;
+      // above the readout stack, with real air between — it used to sit 2px off
+      // the bar, which on a painted floor read as one smeared line of marks
+      return dr.bottom <= bar.top + 1 && bar.top - dr.bottom < 30;
     }));
   check('BOARD: every lane names its MARK — F / M / B, the initial of the row itself',
     await J(() => [...document.querySelectorAll('#party-half .slot-rank')]
@@ -6457,6 +6462,244 @@ const QUICK = process.argv.includes('--quick');
       })();
       hask._held = false; renderAll();
       return !!mine && !idle && inLane && !document.querySelector('.lane-echo');
+    }));
+
+  // ── COMBAT HOLDS (Build 36) ────────────────────────────────────────────────
+  // Four bugs a player hit while this suite reported 845/845 green: the fight
+  // did not end when the last foe died, heroes vanished from the field, the
+  // ground disappeared for the rest of the session, and the readout printed
+  // over itself. Every one of them is a property of a fight IN MOTION, and the
+  // suite only ever checked pieces at rest. These are the invariants.
+  console.log('--- COMBAT HOLDS (BUILD 36) ---');
+  const combatSetup = (enemies, rows) => J(([es, rw]) => {
+    RUN = newRun('ash'); RUN.roster = ['ash', 'hask', 'mira']; RUN.active = RUN.roster.slice();
+    RUN.hp = {}; RUN.active.forEach(h => RUN.hp[h] = HEROES[h].maxHp);
+    RUN.nodes = ROTATION_GATES.slice(); RUN.completed = [0, 1, 2];
+    startFight({ type: 'fight', chapter: 3, heroes: RUN.active.slice(), enemies: es,
+                 useRunHp: true, floor: 3, depth: 4, narrator: 'x' });
+    S.heroes.forEach(h => { h.row = rw[h.id] || h.row; });
+    SETTINGS.fightBg = true; SETTINGS.depth = 'full'; applyFxTier();
+    S.ep = 14; renderAll();
+    document.querySelector('#stage').classList.add('show-bg');
+    return true;
+  }, [enemies, rows]);
+
+  await combatSetup(['husk'], { ash: 'front', mira: 'mid', hask: 'back' }); await sleep(300);
+  check('HOLDS: a card that kills the last foe ENDS the fight',
+    await J(async () => {
+      S.enemies.forEach(e => { e.hp = 1; });
+      const c = buildHand().find(x => !x.spent && x.cost <= S.ep && x.kind !== 'move'
+        && x.target !== 'ally' && x.target !== 'allies' && x.target !== 'self');
+      if (!c) return true;                                   // nothing to swing with; not this check's business
+      await playCard(c, ((frontmostEnemy() || livingEnemies()[0]) || {}).uid);
+      for (let i = 0; i < 60; i++) { if (S && S.over) break; await new Promise(r => setTimeout(r, 100)); }
+      return !!(S && S.over);
+    }));
+  await combatSetup(['husk'], { ash: 'front', mira: 'mid', hask: 'back' }); await sleep(300);
+  check('HOLDS: a FLAWLESS RIPOSTE that kills the last foe ends the fight',
+    await J(async () => {
+      // the riposte lands inside enemyPhase's attack loop, and the `continue`
+      // that skipped a dead foe jumped clean over the checkEnd() at the loop's
+      // tail — so a perfectly parried killing blow left the fight running
+      // against an empty enemy side
+      window.runParry = async () => ({ perfect: true, flawless: true, notes: 3, mit: 1 });
+      S.enemies.forEach(e => { e.hp = 1; });
+      await endTurn();
+      for (let i = 0; i < 60; i++) { if (S && S.over) break; await new Promise(r => setTimeout(r, 100)); }
+      return !!(S && S.over);
+    }));
+  await combatSetup(['husk', 'wraith'], { ash: 'front', mira: 'mid', hask: 'back' }); await sleep(300);
+  check('HOLDS: no living foe left is ALWAYS a finished fight',
+    await J(async () => {
+      livingEnemies().forEach(e => { e.hp = 0; e.dead = true; });
+      checkEnd();
+      for (let i = 0; i < 40; i++) { if (S && S.over) break; await new Promise(r => setTimeout(r, 100)); }
+      return !!(S && S.over);
+    }));
+
+  await combatSetup(['husk', 'wraith'], { ash: 'front', mira: 'mid', hask: 'back' }); await sleep(300);
+  check('HOLDS: every hero standing in a lane is DRAWN — a shared lane hides nobody',
+    await J(() => {
+      const drawn = () => document.querySelectorAll('#party-half [data-fig]').length;
+      const living = () => S.heroes.filter(h => !h.downed).length;
+      const steps = [];
+      steps.push(drawn() >= living());
+      // a downed body stays where it fell and the next hero is shoved in on top
+      const k = S.heroes.find(h => h.id === 'hask'); k.hp = 0; k.downed = true;
+      S.heroes.find(h => h.id === 'mira').row = 'back'; renderAll();
+      steps.push(drawn() === 3);                              // both bodies AND the living hero
+      // two downed in one lane — which one survived the render used to flip
+      // with array order, which is how one fight showed both behaviours
+      const m = S.heroes.find(h => h.id === 'mira'); m.hp = 0; m.downed = true; renderAll();
+      steps.push(drawn() === 3);
+      m.hp = 8; m.downed = false; m.row = 'mid'; k.hp = 8; k.downed = false; renderAll();
+      steps.push(drawn() === 3 && drawn() >= living());
+      return steps.every(Boolean);
+    }));
+
+  check('HOLDS: nothing in a hero\u2019s readout is printed over anything else in it',
+    await J(() => {
+      const ink = (el) => {
+        if (!el.firstChild || el.firstChild.nodeType !== 3) return el.getBoundingClientRect();
+        const rg = document.createRange(); rg.selectNodeContents(el);
+        const r = rg.getBoundingClientRect();
+        return r.width ? r : el.getBoundingClientRect();
+      };
+      return ['front', 'mid', 'back'].every(row => {
+        const slot = document.querySelector('#party-half .slot[data-row="' + row + '"]');
+        if (!slot) return true;
+        const parts = ['.slot-dmg', '.slot-rank', '.fig-name', '.hp-bar', '.slot-label']
+          .map(sel => slot.querySelector(sel)).filter(Boolean).map(ink);
+        for (let i = 0; i < parts.length; i++) for (let j = i + 1; j < parts.length; j++) {
+          const a = parts[i], b = parts[j];
+          if (a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom) return false;
+        }
+        return true;
+      });
+    }));
+
+  check('HOLDS: the GROUND survives every dramatic beat — and every quality tier',
+    await J(async () => {
+      const bf = () => document.querySelector('#battlefield').getBoundingClientRect();
+      const cover = (sel) => {
+        const e = document.querySelector(sel); if (!e) return 0;
+        const cs = getComputedStyle(e);
+        if (cs.display === 'none' || +cs.opacity < 0.05) return 0;
+        const r = e.getBoundingClientRect(), b = bf();
+        return Math.max(0, Math.min(r.right, b.right) - Math.max(r.left, b.left))
+             * Math.max(0, Math.min(r.bottom, b.bottom) - Math.max(r.top, b.top)) / (b.width * b.height) * 100;
+      };
+      const stage = document.querySelector('#stage');
+      SETTINGS.depth = 'full'; applyFxTier();
+      for (const st of ['cam-in', 'parry-focus', 'parry-slowmo', 'allout-focus', 'frozen']) {
+        stage.classList.add(st);
+        await new Promise(r => setTimeout(r, 260));
+        const held = cover('.hd-floor') > 12;
+        stage.classList.remove(st);
+        if (!held) return false;
+      }
+      // and no quality tier may take away the ground the party stands on —
+      // the flat fallback painting's plaza projects below the frame entirely
+      for (const tier of ['full', 'soft', 'flat']) {
+        SETTINGS.depth = tier; applyFxTier();
+        await new Promise(r => setTimeout(r, 200));
+        if (cover('.hd-floor') < 12 && cover('.hd-far') < 12) return false;
+      }
+      SETTINGS.depth = 'full'; applyFxTier();
+      return true;
+    }));
+  check('HOLDS: a fight that ends in the ENEMY PHASE leaves the NEXT fight playable',
+    await J(async () => {
+      // `S.executing` and `#stage.executing` were reset inside the `if (!S.over)`
+      // branch at the end of endTurn, so a fight that ended DURING the enemy
+      // phase — every defeat, and any victory off a counter or a riposte — kept
+      // both set. `#stage.executing #action-bar { pointer-events: none }` then
+      // carried into the next fight: the hand and END TURN were dead to every
+      // click while the state insisted the turn was playable.
+      RUN = newRun('ash'); RUN.roster = ['ash', 'elin', 'mira']; RUN.active = RUN.roster.slice();
+      RUN.hp = {}; RUN.active.forEach(x => RUN.hp[x] = HEROES[x].maxHp);
+      RUN.nodes = ROTATION_GATES.slice(); RUN.completed = [0, 1, 2];
+      startFight({ type: 'fight', chapter: 3, heroes: RUN.active.slice(), enemies: ['husk', 'wraith'],
+                   useRunHp: true, floor: 3, depth: 4, narrator: 'x' });
+      S.heroes.forEach(x => { x.hp = 1; });          // the party falls in the enemy phase
+      S.ep = 14; renderAll();
+      let guard = 0;
+      while (!S.over && guard++ < 12) { await endTurn(); await new Promise(r => setTimeout(r, 60)); }
+      if (!S.over) return false;
+      startFight({ type: 'fight', chapter: 3, heroes: ['ash', 'elin', 'mira'], enemies: ['husk'],
+                   useRunHp: false, floor: 3, depth: 4, narrator: 'y' });
+      renderAll();
+      await new Promise(r => setTimeout(r, 300));
+      return !S.executing
+        && !document.getElementById('stage').classList.contains('executing')
+        && getComputedStyle(document.getElementById('action-bar')).pointerEvents !== 'none';
+    }));
+  check('HOLDS: the AIM VEIL lifts with the pick — the enemy telegraph comes back',
+    await J(async () => {
+      // `aiming` drops every intent pill and status chip to 14% so the cast
+      // carries the choice. Only clearAim() removed it, and that runs between
+      // FIGHTS — so one targeted card in turn one washed the telegraph out for
+      // the rest of the battle.
+      setupFight(['ash', 'elin', 'mira'], [], { ash: 'front', elin: 'mid', mira: 'back' });
+      const stage = document.getElementById('stage');
+      const card = buildHand().find(c => !c.spent && c.cost <= S.ep && (c.target === 'ally' || c.target === 'enemy'));
+      if (!card) return true;
+      const ids = card.target === 'ally' ? livingHeroes().map(h => h.id) : livingEnemies().map(e => e.uid);
+      enterTargeting(card, ids, 'pick');
+      const veiled = stage.classList.contains('aiming');
+      onFigureTap(ids[0]);
+      await new Promise(r => setTimeout(r, 800));
+      return veiled && !stage.classList.contains('aiming');
+    }));
+  check('HOLDS: a card whose owner has FALLEN leaves the hand with them',
+    await J(() => {
+      // per-hero cards are built from livingHeroes(), but forged temps were
+      // appended whatever happened to their owner: the card stayed, opened
+      // targeting, took the EP, and resolveCard() dropped it in silence
+      setupFight(['ash', 'elin', 'mira'], [], {});
+      S.tempCards = S.tempCards || [];
+      S.tempCards.push({ id: 'ghost#1', name: 'Ghost Shot', owner: 'mira', cost: 1,
+                         target: 'enemy', kind: 'temp', fx: { dmg: 5 } });
+      const before = buildHand().some(c => c.name === 'Ghost Shot');
+      const m = S.heroes.find(h => h.id === 'mira'); m.hp = 0; m.downed = true; renderAll();
+      const after = buildHand().some(c => c.name === 'Ghost Shot');
+      m.hp = 8; m.downed = false; S.tempCards = S.tempCards.filter(t => t.id !== 'ghost#1'); renderAll();
+      return before && !after;
+    }));
+  check('HOLDS: no backdrop plane is COPLANAR with a rank — a tie in a 3D scene is a coin toss',
+    await J(() => {
+      // The floor plane sat at translateZ(-150px), which is exactly `--row-z`
+      // for the back row. Inside preserve-3d, coplanar layers are not ordered
+      // by DOM order: the floor won, and the back hero's nameplate was
+      // hit-testable, fully opaque, correctly coloured — and never painted.
+      const zOf = (el) => {
+        const m = /matrix3d\(([^)]+)\)/.exec(getComputedStyle(el).transform);
+        if (m) return parseFloat(m[1].split(',')[14]);
+        const t = el.style.transform || '';
+        const n = /translateZ\((-?[\d.]+)px\)/.exec(t);
+        return n ? parseFloat(n[1]) : 0;
+      };
+      const planes = [...document.querySelectorAll('#diorama .hd-plane')].map(e => ({
+        who: e.className.replace('hd-plane ', ''), z: zOf(e) }));
+      const ranks = ['front', 'mid', 'back'].map(r => {
+        const el = document.querySelector('#party-half .slot[data-row="' + r + '"]');
+        return { who: r, z: parseFloat(getComputedStyle(el).getPropertyValue('--row-z')) || 0 };
+      });
+      if (planes.length < 3 || ranks.length !== 3) return false;
+      return planes.every(p => ranks.every(r => Math.abs(p.z - r.z) > 25));
+    }));
+  check('HOLDS: every hero\u2019s NAME is present, sized and opaque — including the one about to die',
+    await J(() => {
+      // Deliberately paired with the coplanarity check above, which is the one
+      // that catches a paint failure: elementFromPoint is a 2D hit test and
+      // happily reports a nameplate as "on top" while a coplanar 3D layer is
+      // drawing over it. This check covers the ordinary ways a plate goes
+      // missing — never rendered, collapsed to nothing, or faded out by an
+      // alarm that dips too far.
+      return ['front', 'mid', 'back'].every(row => {
+        const slot = document.querySelector('#party-half .slot[data-row="' + row + '"]');
+        const n = slot && slot.querySelector('.fig-name');
+        if (!n) return true;                          // an empty lane has no name to draw
+        const r = n.getBoundingClientRect();
+        const cs = getComputedStyle(n);
+        return r.width > 4 && r.height > 4
+          && cs.visibility === 'visible' && cs.display !== 'none'
+          && parseFloat(cs.opacity) > 0.6
+          && (n.textContent || '').trim().length > 1;
+      });
+    }));
+  check('HOLDS: a CINEMATIC never decides the quality tier — the drama is not a dying device',
+    await J(async () => {
+      const stage = document.querySelector('#stage');
+      SETTINGS.depth = 'auto'; _fxTier = 'full'; applyFxTier();
+      const before = /fx-(soft|flat)/.test(stage.className);
+      stage.classList.add('parry-slowmo');
+      autoTuneFx(true);
+      await new Promise(r => setTimeout(r, 900));
+      const during = /fx-(soft|flat)/.test(stage.className);
+      stage.classList.remove('parry-slowmo');
+      SETTINGS.depth = 'full'; applyFxTier();
+      return !before && !during;
     }));
 
   console.log('--- THE LANE & THE APRON (BUILD 23) ---');
@@ -6589,12 +6832,14 @@ const QUICK = process.argv.includes('--quick');
     }));
   check('TELEGRAPH: the incoming sum rides above the readout, clear of the nameplate',
     await J(() => {
-      const slot = document.querySelector('#party-half .slot[data-row="front"]');
-      const d = slot.querySelector('.slot-dmg'); if (!d) return false;
-      const name = slot.querySelector('.fig-name'); if (!name) return false;
-      const dr = d.getBoundingClientRect(), nr = name.getBoundingClientRect();
-      const collides = !(dr.right < nr.left || dr.left > nr.right || dr.bottom < nr.top || dr.top > nr.bottom);
-      return !collides;
+      const lit = [...document.querySelectorAll('#party-half .slot.slot-telegraphed')]
+        .filter(s => s.querySelector('.slot-dmg') && s.querySelector('.fig-name'));
+      if (!lit.length) return true;
+      return lit.every(slot => {
+        const dr = slot.querySelector('.slot-dmg').getBoundingClientRect();
+        const nr = slot.querySelector('.fig-name').getBoundingClientRect();
+        return dr.right < nr.left || dr.left > nr.right || dr.bottom < nr.top || dr.top > nr.bottom;
+      });
     }));
   // ── Build 17: the hold is the PEAK, and the telegraph whispers while you act ──
   check('TELEGRAPH: AIM rides the attacker — each foe names the lane it is swinging at, by rank',

@@ -155,8 +155,15 @@ body {
   background-repeat: no-repeat;
   -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 22%, #000 88%, transparent 100%);
   mask-image: linear-gradient(180deg, transparent 0%, #000 22%, #000 88%, transparent 100%);
-  transform: translateZ(-150px);
-  scale: 1.14;
+  /* CLEAR OF THE BACK RANK, NOT ON IT (v2.2 Build 36). This sat at -150px —
+     the exact Z of `--row-z` for the back row (styles.css: slot[data-row=back]).
+     Inside a preserve-3d scene, coplanar layers are not ordered by DOM order,
+     so the floor and the far rank z-fought: the back hero's nameplate was
+     hit-testable, styled and fully opaque, and simply never painted. The plane
+     steps behind the deepest rank, and its scale is compensated for the extra
+     depth so it covers the same ground. */
+  transform: translateZ(-210px);
+  scale: 1.196;
   animation: hd-drift-mid 21s ease-in-out infinite alternate;
 }
 /* NEAR — an out-of-focus foreground lip IN FRONT of the cast; pure CSS.
@@ -535,10 +542,27 @@ body {
 }
 
 /* the far rank's TEXT dims a touch for depth but never blurs */
+/* depth, not disappearance: 0.82 on top of a 1.0:1 contrast is nothing at all,
+   and the back rank is exactly where the lethal blow usually lands */
 #party-half .slot[data-row="back"] .fig-name, #enemy-half .slot[data-row="back"] .fig-name,
-#party-half .slot[data-row="back"] .fig-chips, #enemy-half .slot[data-row="back"] .fig-chips { opacity: 0.82; }
+#party-half .slot[data-row="back"] .fig-chips, #enemy-half .slot[data-row="back"] .fig-chips { opacity: 0.94; }
 /* the aimed/targeted figure always snaps to full focus, whatever its rank */
 .figure.fig-targetable .fig-art, .figure.fig-aim .fig-art, .slot .figure:hover .fig-art { filter: none !important; }
+/* THE READOUT STANDS ON ITS OWN GROUND (v2.2 Build 36). Every nameplate, bar
+   and chip on the board used to be read against near-black. The painted plaza
+   that replaced it is mid-grey and busy, and the party's names measured
+   1.0-1.9:1 against it — 1.0 is invisible, not dim. A text shadow alone cannot
+   answer a bright, high-frequency texture; the readout needs actual ground
+   under it. This is an elliptical pool at the foot of each lane, in the same
+   language as the contact shadow below, so it reads as the dark gathering
+   under the cast rather than as a panel laid on the art. */
+#party-half .slot::before, #enemy-half .slot::before {
+  content: ''; position: absolute; left: -10%; right: -10%;
+  bottom: -8px; height: calc(var(--feet, 6px) + 34px);
+  pointer-events: none; z-index: 0;
+  background: radial-gradient(ellipse 50% 84% at 50% 58%,
+    rgba(4,3,3,0.96) 0%, rgba(4,3,3,0.84) 34%, rgba(4,3,3,0.34) 68%, rgba(4,3,3,0) 100%);
+}
 /* CONTACT SHADOW — an elliptical pool under each figure so they stand ON the
    ground plane instead of floating in front of it. */
 .figure .fig-art::before {
@@ -551,11 +575,14 @@ body {
 #party-half .slot[data-row="mid"],   #enemy-half .slot[data-row="mid"]   { --row-z: -58px; }
 #party-half .slot[data-row="front"], #enemy-half .slot[data-row="front"] { --row-z: 0px; }
 .slot { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 3px; min-height: 0; min-width: 0; height: 100%; position: relative; }
-.slot-label {
-  font-size: 8px; letter-spacing: 0.26em; color: var(--ink-faint);
-}
-.slot.slot-telegraphed .slot-label { color: var(--blood-bright); }
-.slot.slot-telegraphed.sd-lethal .slot-label { animation: primed-blink 0.55s ease-in-out infinite; font-weight: 700; }
+/* THE LANE IS NAMED ONCE (v2.2 Build 36). The row was encoded three times at
+   once — the word BACK at the slot's foot, the letter B on the feet line 28px
+   above it, and "→ B" on every enemy intent pill. The word is the one that
+   goes: it sat lowest, so a hand card (158px tall in a 138px #hand, on a layer
+   above the battlefield) sliced 46% off its glyph height on the front row, and
+   it was the only readout in the stack carrying no text-shadow — measured 1.49:1
+   against the painted floor, which is why "BACK" reached the player as a lone K. */
+.slot-label { display: none; }
 .slot-ring {
   /* Fixed-size box anchored where the figure stands — every row's indicator
      reads identically (the old full-column inset stretched with the slot,
@@ -574,14 +601,14 @@ body {
    a name going red needs no legend. The incoming sum rides just above it, as
    text; that is the whole telegraph now. */
 .slot-dmg {
-  position: absolute; left: 7%; right: 7%; bottom: calc(var(--feet, 6px) + 3px); z-index: 11;
+  position: absolute; left: 26%; right: 7%; bottom: calc(var(--feet, 6px) + 10px); z-index: 11;
   display: flex; align-items: center; justify-content: center;
   font-size: 9px; font-weight: 700; letter-spacing: 0.08em; color: #ff7a5e;
   text-shadow: 0 1px 3px #000, 0 0 8px rgba(200,40,26,0.55); pointer-events: none;
 }
-.slot-telegraphed.sd-lg .slot-dmg, .slot-telegraphed.sd-lethal .slot-dmg { font-size: 10.5px; color: #ff5038; }
+.slot-telegraphed.sd-lg .slot-dmg, .slot-telegraphed.sd-lethal .slot-dmg { font-size: 10.5px; color: #ff8e74; }
 .slot-dmg.sd-dmg-lethal {
-  font-size: 11px; color: #ff3a2a; letter-spacing: 0.1em;
+  font-size: 11px; color: #ffa08c; letter-spacing: 0.1em;
   text-shadow: 0 0 9px rgba(255,40,26,0.95), 0 1px 2px #000;
   animation: sd-lethal-blink 0.68s ease-in-out infinite;
 }
@@ -631,12 +658,27 @@ body {
   border: 1.5px solid var(--gold-bright); animation: target-pulse 0.9s ease infinite;
 }
 @keyframes target-pulse { 50% { opacity: 0.35; } }
-.fig-name { white-space: nowrap; font-size: 9px; letter-spacing: 0.2em; color: var(--ink); }
-.figure.enemy .fig-name { color: var(--ink-dim); }
+/* A NAMEPLATE HAS TO SURVIVE THE PAINTING BEHIND IT (v2.2 Build 36). These
+   were tuned against a near-black backdrop; the painted plaza that replaced it
+   is mid-grey, and the party's own names measured 1.00-1.89:1 against it —
+   1.00 is invisible, not dim. Every readout now carries its own dark, so the
+   floor can be as bright as the art wants without eating the board. */
+.fig-name {
+  white-space: nowrap; font-size: 9px; letter-spacing: 0.2em; color: var(--ink);
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+  text-shadow: 0 1px 3px #000, 0 0 7px rgba(0,0,0,0.92);
+}
+.hp-num { text-shadow: 0 1px 3px #000; }
+/* three foes recede toward a vanishing point set for the WHOLE field, so the
+   far columns are dragged left onto their neighbours; at 9px their plates ran
+   together into one line of text. Smaller and tighter on that side buys the
+   clearance back without truncating a single name. */
+.figure.enemy .fig-name { color: var(--ink); font-size: 8px; letter-spacing: 0.1em; }
+#enemy-half .fig-chips { max-width: 84%; margin-left: auto; margin-right: auto; }
 .hp-bar { width: 92%; height: 5px; border-radius: 3px; background: rgba(0,0,0,0.6); border: 1px solid rgba(232,220,196,0.16); overflow: hidden; }
-.hp-fill { height: 100%; background: linear-gradient(90deg, #7a5c30, var(--gold)); transition: width 0.3s ease; }
+.hp-fill { height: 100%; background: linear-gradient(90deg, #b08a44, var(--gold)); transition: width 0.3s ease; }
 .figure.enemy .hp-fill { background: linear-gradient(90deg, #6a2424, var(--blood-bright)); }
-.hp-num { font-size: 8.5px; color: var(--ink-dim); }
+.hp-num { font-size: 8.5px; color: #bdb298; }
 /* Status runes OVERLAY the top of the character art (absolute), so an effect
    appearing never reflows the figure / pushes the artwork up.  They sit ON the
    art (z above the aura + svg), floating just over the top of the creature. */
@@ -4093,9 +4135,16 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
    would leave only an empty sky, so the far plane swaps to the FULL painting —
    the same scene in one image, at one draw. The scrims on .hd-far are written
    against a var, so this is the whole change. */
+/* FLAT DROPS THE CITY, NEVER THE GROUND (v2.2 Build 36). Dropping the floor is
+   the one loss a player reads as a bug rather than as a quality setting — and
+   the combined fallback painting cannot stand in for it: its plaza band
+   projects to y=326..679 on the far plane's geometry against a battlefield
+   that ends at 341, so four percent of it is in frame and that sliver sits
+   under the far plane's own bottom scrim. The party would be standing on
+   nothing. Flat drops the mid rank only; --bg-far above already carries the
+   city, so the scene stays whole at one draw. */
 #stage.fx-flat { --bg-far: url('art/bg-abyss.webp'); }
-#stage.fx-flat .hd-mid,
-#stage.fx-flat .hd-floor { display: none; }
+#stage.fx-flat .hd-mid { display: none; }
 #stage.fx-soft .hd-floor { animation: none; }
 
 /* the OPEN chip (Build 255) — the state that enables a TECHNICAL had no
@@ -5084,19 +5133,32 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
    (primed-blink is deliberately NOT reused here: it writes `transform`, which
    would replace the nameplate's own centring translate.) */
 .slot.slot-telegraphed .fig-name {
-  color: var(--blood-bright);
+  color: #ff8a72;
   text-shadow: 0 0 9px rgba(226,44,34,0.5), 0 1px 3px #000;
   animation: name-alarm 1.5s ease-in-out infinite;
 }
 .slot.slot-telegraphed.sd-md .fig-name { animation-duration: 1.15s; }
-.slot.slot-telegraphed.sd-lg .fig-name { animation-duration: 0.85s; color: #ff6a4e; }
+/* URGENCY IS BRIGHTNESS, NOT SATURATION (v2.2 Build 36). The lethal name — the
+   single most important word on the board — was #ff3a2a: vivid in hue and
+   almost identical in LUMINANCE to the painted floor behind it, so the hero
+   about to die had the least readable nameplate of the three. Hot colours are
+   kept, but lifted until they carry light of their own. */
+.slot.slot-telegraphed.sd-lg .fig-name { animation-duration: 0.85s; color: #ff9b80; }
 .slot.slot-telegraphed.sd-lethal .fig-name {
-  animation-duration: 0.6s; color: #ff3a2a; font-weight: 700;
-  text-shadow: 0 0 12px rgba(255,44,26,0.9), 0 1px 3px #000;
+  animation-duration: 0.6s; color: #ffb3a2; font-weight: 700;
+  text-shadow: 0 0 12px rgba(255,60,34,0.95), 0 1px 3px #000;
 }
 /* an empty threatened lane has no name to flash — and nothing to alarm about */
 .slot.slot-telegraphed.sd-empty .fig-name { animation: none; }
-@keyframes name-alarm { 0%, 100% { opacity: 1; } 50% { opacity: 0.38; } }
+/* THE ALARM MUST NEVER PUT THE NAME BELOW LEGIBLE (v2.2 Build 36). It dipped
+   to 0.38, which on the old near-black backdrop read as a flash — against the
+   painted plaza it read as the nameplate simply not being there, which is what
+   a player reported as "the word BACK is missing". The pulse keeps its urgency
+   in the GLOW and gives up only a quarter of the ink. */
+@keyframes name-alarm {
+  0%, 100% { opacity: 1;    text-shadow: 0 0 10px rgba(226,44,34,0.7), 0 1px 3px #000; }
+  50%      { opacity: 0.76; text-shadow: 0 0 3px rgba(226,44,34,0.15), 0 1px 3px #000; }
+}
 @media (prefers-reduced-motion: reduce) { .slot.slot-telegraphed .fig-name { animation: none; } }
 /* the rank numeral — Darkest Dungeon's lesson said plainly: a lane keeps its
    name even when the field is chaos */
@@ -5104,8 +5166,9 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
    what the attacker's pill points at ("⚔ 16 → B"), so the two readings name
    each other, and it keeps its place whether or not the lane is threatened. */
 .slot-rank {
-  position: absolute; left: 7%; bottom: calc(var(--feet, 6px) + 3px); z-index: 11;
-  font-size: 8px; letter-spacing: 0.18em; color: var(--ink-faint);
+  position: absolute; left: 7%; bottom: calc(var(--feet, 6px) + 10px); z-index: 11;
+  font-size: 8px; letter-spacing: 0.18em; color: var(--ink-dim);
+  padding: 1px 3.5px; border-radius: 3px; background: rgba(6,4,3,0.72);
   text-shadow: 0 1px 3px #000; pointer-events: none;
 }
 .slot.slot-telegraphed .slot-rank { color: rgba(255,168,148,0.9); }
@@ -5231,3 +5294,12 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
    just become reachable starts drawing its name, so the spacing re-solves; it
    glides the few pixels instead of cutting, and the camera never moves. */
 .et-star.et-settling .et-orb { transition: left 300ms cubic-bezier(.25,.9,.3,1), top 300ms cubic-bezier(.25,.9,.3,1); }
+/* SHARING A LANE (v2.2 Build 36) — a downed body stays where it fell, and the
+   hero shoved in on top of it stands beside them rather than replacing them on
+   the board. The one underfoot is set down and back: smaller, dimmer, behind. */
+#party-half .slot .figure.fig-underfoot {
+  position: absolute; left: 2%; bottom: 13%; width: 46%; z-index: 0;
+  opacity: 0.9; pointer-events: none;
+}
+#party-half .slot .figure.fig-underfoot .fig-name,
+#party-half .slot .figure.fig-underfoot .fig-chips { font-size: 6.5px; opacity: 0.75; }
