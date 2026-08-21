@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 27;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 28;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -12813,8 +12813,9 @@ function showEmberTree(onBack, heroId, selId, opts) {
       <svg class="et-star-links" aria-hidden="true"></svg>
       ${tips}
       <div class="et-core" style="--tint:${HH.tint || 'var(--gold)'}">
-        <span class="et-core-art">${V2PORTRAITS[focusHero] || ''}</span>
-        <span class="et-core-name">${HH.name || ''}</span>
+        <span class="et-core-ward" aria-hidden="true"><svg viewBox="0 0 100 100"><polygon points="26,7 74,7 96,50 74,93 26,93 4,50" /></svg></span>
+        <span class="et-core-sigil">${jobSigil(focusHero)}</span>
+        <span class="et-core-cls">${(HH.cls || '').toUpperCase()}</span>
       </div>
       ${chips}${weaveOrbs()}
     </div>`;
@@ -12910,7 +12911,18 @@ function showEmberTree(onBack, heroId, selId, opts) {
   `, 'map-screen et-screen et-lines et-star-screen');
 
   document.querySelectorAll('.et-tab').forEach(el => {
-    el.onclick = () => { if (el.dataset.hero !== heroId) showEmberTree(onBack, el.dataset.hero, null, opts); };
+    el.onclick = () => {
+      if (el.dataset.hero === heroId || window.__etSwapping) return;
+      // the old tree goes out before the new one comes in — swapping hero is a
+      // change of subject, and a hard cut made it read as a glitch
+      const star = document.getElementById('et-star');
+      const go = () => { window.__etSwapping = false; showEmberTree(onBack, el.dataset.hero, null, opts); };
+      if (!star) { go(); return; }
+      window.__etSwapping = true;
+      star.classList.add('et-out');
+      el.classList.add('et-tab-on');
+      setTimeout(go, 170);
+    };
   });
   document.querySelectorAll('.et-orb[data-id]').forEach(el => {
     el.onclick = () => showEmberTree(onBack, heroId, el.dataset.id, opts);
@@ -12955,6 +12967,49 @@ function etChip(n, selId, heroId, lane) {
     ${foot}
   </button>`;
 }
+
+// ── JOB SIGILS (v2.2 Build 28) ──────────────────────────────────────────────
+// At the middle of a hero's star sits their SIGIL, not their face: a job
+// emblem in the FFXIV manner — one bold silhouette in a hexagonal ward, read
+// at a glance and legible at 60px. The portrait still names them on the rail;
+// the middle of the tree wants a mark, not a picture, because everything
+// around it is a mark too. Each sigil is drawn from what the hero actually
+// does, not from their weapon alone.
+const JOB_SIGIL = {
+  // RONIN — the cut and the slip: a drawn blade with the step behind it
+  ash: `<svg viewBox="0 0 100 100" class="jb"><g class="jb-mark">
+    <path d="M30 74 L72 30" /><path d="M66 24 L76 34 L72 30 Z" class="jb-fill" />
+    <circle cx="36" cy="68" r="5" /><path d="M22 58 A26 26 0 0 0 44 80" class="jb-dash" />
+  </g></svg>`,
+  // CLERIC — the warding light: a four-point star held inside an open ward
+  elin: `<svg viewBox="0 0 100 100" class="jb"><g class="jb-mark">
+    <path d="M50 24 L57 43 L76 50 L57 57 L50 76 L43 57 L24 50 L43 43 Z" class="jb-fill" />
+    <path d="M26 34 A28 28 0 0 0 26 66" class="jb-dash" /><path d="M74 34 A28 28 0 0 1 74 66" class="jb-dash" />
+  </g></svg>`,
+  // REAVER — twin fangs crossed under a vanishing crescent
+  mira: `<svg viewBox="0 0 100 100" class="jb"><g class="jb-mark">
+    <path d="M32 76 L62 34" /><path d="M68 76 L38 34" />
+    <path d="M58 28 A22 22 0 0 1 42 28" class="jb-dash" />
+    <circle cx="50" cy="58" r="3.5" class="jb-fill" />
+  </g></svg>`,
+  // GUARDIAN — the tower shield, with the line held across it
+  cassia: `<svg viewBox="0 0 100 100" class="jb"><g class="jb-mark">
+    <path d="M50 22 L74 32 V54 C74 68 62 76 50 80 C38 76 26 68 26 54 V32 Z" />
+    <path d="M32 50 H68" /><circle cx="50" cy="50" r="6" class="jb-fill" />
+  </g></svg>`,
+  // RANGER — the drawn bow and the shot that reaches any row
+  branwen: `<svg viewBox="0 0 100 100" class="jb"><g class="jb-mark">
+    <path d="M34 22 A34 34 0 0 1 34 78" /><path d="M34 22 L34 78" class="jb-dash" />
+    <path d="M30 50 H74" /><path d="M66 42 L76 50 L66 58" />
+  </g></svg>`,
+  // FROSTCALLER — the six-spoke rime sigil
+  hask: `<svg viewBox="0 0 100 100" class="jb"><g class="jb-mark">
+    <path d="M50 22 V78" /><path d="M26 36 L74 64" /><path d="M74 36 L26 64" />
+    <path d="M44 30 L50 36 L56 30" /><path d="M44 70 L50 64 L56 70" />
+    <circle cx="50" cy="50" r="4.5" class="jb-fill" />
+  </g></svg>`,
+};
+function jobSigil(id) { return JOB_SIGIL[id] || JOB_SIGIL.ash; }
 
 // ── LAYING OUT THE STAR ─────────────────────────────────────────────────────
 // Measured, not guessed. Each branch fans its nodes across its own wedge with
@@ -13083,6 +13138,8 @@ function etLayoutStar() {
   }
 
   const xy = {};
+  const order = keys.slice().sort((a, b) => P[a].rho - P[b].rho);
+  order.forEach((k, i) => { P[k].el.style.setProperty('--i', String(i)); });
   keys.forEach(k => {
     const p = pt(P[k]);
     xy[k] = p;
