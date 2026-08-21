@@ -2388,10 +2388,10 @@ const QUICK = process.argv.includes('--quick');
       RUN.embers = 20; RUN.nodes = []; RUN.completed = [0, 1, 2, 3];
       showEmberTree(() => {}, 'ash');
       const tabs = [...document.querySelectorAll('.et-tab')].map(t => t.dataset.hero);
-      // the party's own lines, plus the WEAVE — what a thread can teach you is
-      // a different KIND of thing to own, so it gets its own tab (Build 24)
-      return tabs.length === 3 && tabs.indexOf('ash') >= 0 && tabs.indexOf('mira') >= 0
-        && tabs.indexOf('__weave') >= 0 && tabs.indexOf('elin') < 0;
+      // the rail is the fielded party, one portrait each — nothing else
+      return tabs.length === 2 && tabs.indexOf('ash') >= 0 && tabs.indexOf('mira') >= 0
+        && tabs.indexOf('elin') < 0
+        && [...document.querySelectorAll('.et-tab .et-tab-art svg')].length === 2;
     }));
   check('PARTY-ONLY: a party hero CAN be kindled (KINDLE offered)',
     await J(() => { showEmberTree(() => {}, 'ash'); return !!document.querySelector('#et-buy'); }));
@@ -2938,7 +2938,8 @@ const QUICK = process.argv.includes('--quick');
         RUN.hp = {}; party.forEach(id => RUN.hp[id] = HEROES[id].maxHp);
         RUN.embers = 60; RUN.completed = Array.from({ length: d }, (_, i) => i);
         showEmberTree(() => {}, 'ash');
-        const n = document.querySelectorAll('.et-orb').length; hideOverlay(); return n;
+        // the hero's OWN nodes — the weave's doors on the rim do not deepen
+        const n = document.querySelectorAll('.et-orb[data-id]:not([data-rim])').length; hideOverlay(); return n;
       };
       const steps = [drawn(0), drawn(4), drawn(8), drawn(12), drawn(16)];
       const gaps = steps.slice(1).map((v, i) => v - steps[i]);
@@ -5659,11 +5660,21 @@ const QUICK = process.argv.includes('--quick');
     await J(() => { const from = [...document.querySelectorAll('.et-orb.et-cross .et-x-from')]
         .map(e => e.textContent).filter(x => x !== 'COMMON' && x !== 'BOND').sort().join(',');
       return from === 'CASSIA,CASSIA,MIRA,MIRA'; }));
-  check('WEAVE: it is its OWN tab — a hero\u2019s own star carries no crossings',
-    await J(() => { showEmberTree(() => {}, 'ash');
-      const onLines = document.querySelectorAll('#et-star .et-orb.et-cross').length;
-      showEmberTree(() => {}, '__weave');
-      return onLines === 0 && document.querySelectorAll('.et-orb.et-cross').length > 0; }));
+  check('WEAVE: it is FOLDED INTO the hero\u2019s own star — doors on the rim, past their own branches',
+    await J(() => {
+      showEmberTree(() => {}, 'ash');
+      const star = document.querySelector('#et-star');
+      const core = star.querySelector('.et-core').getBoundingClientRect();
+      const cx = core.left + core.width / 2, cy = core.top + core.height / 2;
+      const rad = el => { const r = el.getBoundingClientRect();
+        return Math.hypot((r.left + r.width / 2) - cx, (r.top + r.height / 2) - cy); };
+      const rim = [...star.querySelectorAll('.et-orb[data-rim]')];
+      const own = [...star.querySelectorAll('.et-orb[data-id]:not([data-rim])')];
+      return rim.length > 0 && own.length > 0
+        && !document.querySelector('.et-tab[data-hero="__weave"]')     // no drawer beside the tree
+        && rim.every(r => own.every(o => rad(r) > rad(o) - 8))          // every door past the branches
+        && star.querySelectorAll('.et-thread').length === rim.length;   // each tied back to you
+    }));
   check('WEAVE: selecting a door opens the CROSSING panel, not the node panel',
     await J(() => { const open = [...document.querySelectorAll('.et-orb.et-cross')]
         .find(e => e.className.indexOf('et-x-open') !== -1);
@@ -5702,21 +5713,32 @@ const QUICK = process.argv.includes('--quick');
       // the character sits at the centre of their own tree
       if (Math.abs(cx - (b.left + b.width / 2)) > 4 || Math.abs(cy - (b.top + b.height / 2)) > 4) return false;
       // and each branch leaves it on its own bearing, 120 degrees from the next
-      const arms = ['front', 'mid', 'back'].map(row => {
-        const t = star.querySelector('.et-tip[data-lane="' + row + '"]');
-        const r = t.getBoundingClientRect();
-        return (Math.atan2((r.top + r.height / 2) - cy, (r.left + r.width / 2) - cx) * 180 / Math.PI + 360) % 360;
+      // measure where each branch's NODES actually lie, not where its title
+      // label found room — the bearing is the branch, the label just sits near it
+      const bearing = (row) => {
+        const els = [...star.querySelectorAll('.et-orb[data-lane="' + row + '"]')];
+        if (!els.length) return null;
+        let sx = 0, sy = 0;
+        els.forEach(e => { const r = e.getBoundingClientRect();
+          const a = Math.atan2((r.top + r.height / 2) - cy, (r.left + r.width / 2) - cx);
+          sx += Math.cos(a); sy += Math.sin(a); });
+        return Math.atan2(sy, sx) * 180 / Math.PI;
+      };
+      // each arm points down its own spoke, and the spokes are 120 apart
+      return ['front', 'mid', 'back'].every(row => {
+        const b = bearing(row);
+        if (b === null) return false;
+        let d = b - ET_SPOKE[row];
+        while (d > 180) d -= 360; while (d < -180) d += 360;
+        return Math.abs(d) < 14;
       });
-      const gap = (a, b2) => { const d = Math.abs(a - b2) % 360; return Math.min(d, 360 - d); };
-      return Math.abs(gap(arms[0], arms[1]) - 120) < 6 && Math.abs(gap(arms[1], arms[2]) - 120) < 6
-        && Math.abs(gap(arms[0], arms[2]) - 120) < 6;
     }));
   check('STAR: a node sits on the branch it CHANGES — and inside that branch\u2019s own wedge',
     await J(() => {
       const star = document.querySelector('#et-star');
       const core = star.querySelector('.et-core').getBoundingClientRect();
       const cx = core.left + core.width / 2, cy = core.top + core.height / 2;
-      return [...star.querySelectorAll('.et-orb[data-id]')].every(el => {
+      return [...star.querySelectorAll('.et-orb[data-id]:not([data-rim])')].every(el => {
         const n = NODE_BY_ID[el.dataset.id];
         const lane = etLaneOf(n) || '';
         if (lane !== (el.dataset.lane || '')) return false;
@@ -5735,9 +5757,9 @@ const QUICK = process.argv.includes('--quick');
       const cx = core.left + core.width / 2, cy = core.top + core.height / 2;
       const rad = el => { const r = el.getBoundingClientRect();
         return Math.hypot((r.left + r.width / 2) - cx, (r.top + r.height / 2) - cy); };
-      return [...star.querySelectorAll('.et-orb[data-id]')].every(el => {
+      return [...star.querySelectorAll('.et-orb[data-id]:not([data-rim])')].every(el => {
         const n = NODE_BY_ID[el.dataset.id];
-        return (n.requires || []).every(r => {
+        return ((n && n.requires) || []).every(r => {
           const pe = star.querySelector('.et-orb[data-id="' + r + '"]');
           return !pe || rad(pe) < rad(el) - 2;
         });

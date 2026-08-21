@@ -4920,3 +4920,76 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
 /* a line keeps its own height — the column scrolls, it never squeezes the
    lanes (flex-shrink was cutting chips off at the lane's bottom edge) */
 
+
+/* the weave rides the star's outer rim (Build 26): a door in its teacher's
+   colour, tied back to you by a thread rather than hung off a prerequisite */
+.et-star-links .et-thread {
+  stroke: rgba(232,220,196,0.13); stroke-width: 1.1; stroke-dasharray: 3 6;
+}
+.et-star-links .et-thread-full { stroke: rgba(240,212,136,0.45); stroke-dasharray: none; }
+.et-lines .et-orb[data-rim] { width: 84px; }
+.et-lines .et-orb[data-rim] .et-orb-glyph { box-shadow: 0 0 0 1.3px color-mix(in srgb, var(--tint, #d4b478) 62%, transparent), 0 3px 8px rgba(0,0,0,0.6); }
+/* A DOOR SPEAKS WHEN IT IS OPEN. A rim door you cannot act on yet — the ally
+   has not kindled it, the bond is not woven, no ground is held — keeps its
+   glyph and its colour but drops its three lines of text, which is what
+   crowded the rim. Tap or hover and it names itself; the panel always does. */
+.et-lines .et-orb[data-rim].et-x-untaught .et-orb-name,
+.et-lines .et-orb[data-rim].et-x-untaught .et-x-from,
+.et-lines .et-orb[data-rim].et-x-untaught .et-orb-cost,
+.et-lines .et-orb[data-rim].et-x-unbonded .et-orb-name,
+.et-lines .et-orb[data-rim].et-x-unbonded .et-x-from,
+.et-lines .et-orb[data-rim].et-x-unbonded .et-orb-cost,
+.et-lines .et-orb[data-rim].et-x-unbridged .et-orb-name,
+.et-lines .et-orb[data-rim].et-x-unbridged .et-x-from,
+.et-lines .et-orb[data-rim].et-x-unbridged .et-orb-cost { display: none; }
+.et-lines .et-orb[data-rim]:hover .et-orb-name,
+.et-lines .et-orb[data-rim]:hover .et-x-from,
+.et-lines .et-orb[data-rim]:hover .et-orb-cost,
+.et-lines .et-orb[data-rim].et-sel .et-orb-name,
+.et-lines .et-orb[data-rim].et-sel .et-x-from,
+.et-lines .et-orb[data-rim].et-sel .et-orb-cost { display: block; }
+/* An OWNED node has a ✓ and you are the one who bought it — its name is the
+   least useful text on the star, and it was the last thing still landing on a
+   neighbour's glyph. It names itself on hover or when selected, like the
+   locked ones do; the panel names it in full either way. */
+.et-lines .et-orb.et-owned .et-orb-name { display: none; }
+.et-lines .et-orb.et-owned:hover .et-orb-name,
+.et-lines .et-orb.et-owned.et-sel .et-orb-name { display: -webkit-box; color: var(--gold-bright); }
+
+/* ── THE PARTY RAIL (v2.2 Build 26) — faces, not name pills ─────────────────
+   The tree belongs to a character, so you choose the character by looking at
+   them. The fielded party runs down the left of the frame; tapping a face
+   opens their star. */
+.et-rail {
+  flex: 0 0 auto; display: flex; flex-direction: column; gap: 8px;
+  align-items: center; padding-right: 2px;
+}
+.et-lines .et-rail .et-tab {
+  position: relative; width: 62px; height: 62px; padding: 0; border: none;
+  border-radius: 50%; overflow: hidden; cursor: pointer; background: transparent;
+  display: flex; align-items: flex-end; justify-content: center;
+  filter: grayscale(0.55) brightness(0.7);
+  box-shadow: 0 0 0 1px rgba(212,200,168,0.18), 0 4px 10px rgba(0,0,0,0.6);
+  transition: filter 0.18s, box-shadow 0.18s, transform 0.18s;
+}
+.et-tab-art { position: absolute; inset: -14% -6% -2%; }
+.et-tab-art svg { width: 100%; height: 100%; }
+.et-tab-name {
+  position: relative; z-index: 2; width: 100%; padding: 2px 0 3px;
+  font-size: 6.6px; letter-spacing: 0.18em; color: var(--ink);
+  background: linear-gradient(180deg, rgba(6,5,4,0), rgba(6,5,4,0.9) 45%);
+  text-shadow: 0 1px 3px #000;
+}
+.et-lines .et-rail .et-tab:hover { filter: grayscale(0.2) brightness(0.92); transform: translateY(-1px); }
+.et-lines .et-rail .et-tab.et-tab-on {
+  filter: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--tint, #d4b478) 78%, transparent),
+              0 0 18px rgba(240,212,136,0.28), 0 4px 10px rgba(0,0,0,0.6);
+}
+.et-lines .et-rail .et-tab.et-tab-done::after {
+  content: '✓'; position: absolute; top: 3px; right: 5px; z-index: 3;
+  font-size: 9px; color: var(--gold-bright); text-shadow: 0 1px 3px #000;
+}
+@media (max-height: 500px) {
+  .et-lines .et-rail .et-tab { width: 52px; height: 52px; }
+}

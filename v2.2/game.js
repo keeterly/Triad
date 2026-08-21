@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 25;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 26;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -12727,6 +12727,7 @@ function treeFocusOffset(p, W, z) {
 // Nodes that root in nothing row-shaped change how the hero fights
 // everywhere, and ring the character themself.
 function etLaneOf(n) {
+  if (!n) return null;
   const seen = {};
   const walk = (id, hops) => {
     if (!id || seen[id] || hops > 8) return null;
@@ -12770,12 +12771,9 @@ function showEmberTree(onBack, heroId, selId, opts) {
   let justKindled = false;
   if (selId && String(selId).indexOf('__kindled:') === 0) { justKindled = true; selId = selId.slice(10); }
   const party = partyHeroes();
-  const weaveTab = heroId === '__weave';
-  if (!weaveTab) {
-    if (party.length && party.indexOf(heroId) < 0) heroId = party[0];
-    heroId = heroId && HEROES[heroId] ? heroId : (party[0] || 'ash');
-  }
-  const focusHero = weaveTab ? (party[0] || 'ash') : heroId;
+  if (party.length && party.indexOf(heroId) < 0) heroId = party[0];
+  heroId = heroId && HEROES[heroId] ? heroId : (party[0] || 'ash');
+  const focusHero = heroId;
   const allNodes = EMBER_TREE.filter(n => n.hero && party.indexOf(n.hero) >= 0);
   const crossings = crossViewFor(focusHero);
 
@@ -12818,38 +12816,37 @@ function showEmberTree(onBack, heroId, selId, opts) {
         <span class="et-core-art">${V2PORTRAITS[focusHero] || ''}</span>
         <span class="et-core-name">${HH.name || ''}</span>
       </div>
-      ${chips}
+      ${chips}${weaveOrbs()}
     </div>`;
   };
 
-  // ---- the WEAVE tab: bonds, common ground, and learning across a thread ----
-  const weaveHtml = () => {
-    const cards = crossings.map(c => {
-      const T = HEROES[c.teacher] || {};
-      const id = 'x:' + focusHero + ':' + c.node.id;
-      const lock = c.state === 'crossed' ? '⟡ HELD' : c.state === 'untaught' ? 'unlearned'
-        : c.state === 'unbonded' ? '♡ ' + c.bond + '/' + CROSS_BOND + ' WOVEN'
-        : c.state === 'unbridged' ? 'no ground yet' : '✦' + c.cost;
-      return `<button class="et-orb et-cross et-x-${c.state}${id === selId ? ' et-sel' : ''}" data-id="${id}"
-        style="--tint:${T.tint || 'var(--gold)'}">
-        <span class="et-orb-glyph">${c.state === 'crossed' ? '✓' : c.node.bond ? '♡' : c.common ? '◈' : '⟡'}</span>
-        <span class="et-orb-name">${c.node.label}</span>
-        <span class="et-x-from">${c.node.bond ? 'BOND' : c.common ? 'COMMON' : T.name}</span>
-        <span class="et-orb-cost${c.state === 'poor' ? ' et-cant' : ''}">${lock}</span>
-      </button>`;
-    }).join('');
-    return `<section class="et-lane et-lane-weave">
-      <header class="et-lane-head"><span class="et-lane-row">THE WEAVE</span>
-        <span class="et-lane-chain">What the fire taught you together — and what an ally can teach you across a woven thread. Held for the whole descent.</span>
-      </header>
-      <div class="et-weave-grid">${cards || '<span class="et-lane-empty">weave a bond on the road and their line opens to you</span>'}</div>
-    </section>`;
-  };
+  // ---- THE WEAVE, ON THE RIM ----------------------------------------------
+  // What a thread can teach you belongs in YOUR tree, not in a drawer beside
+  // it — you spend the same embers on it and it changes the same turn. The
+  // doors ring the star on its outer rim, each in its teacher's colour and
+  // tied inward to you by a thread: plainly from outside, plainly yours to
+  // take. What is NOT drawn is the teacher's own tree — that shared world of
+  // regions and arcing crossings is exactly what made the old lattice a thing
+  // to navigate.
+  const weaveOrbs = () => crossings.map(c => {
+    const T = HEROES[c.teacher] || {};
+    const id = 'x:' + focusHero + ':' + c.node.id;
+    const lock = c.state === 'crossed' ? '⟡ HELD' : c.state === 'untaught' ? 'unlearned'
+      : c.state === 'unbonded' ? '♡ ' + c.bond + '/' + CROSS_BOND
+      : c.state === 'unbridged' ? 'no ground' : '✦' + c.cost;
+    return `<button class="et-orb et-cross et-x-${c.state}${id === selId ? ' et-sel' : ''}"
+      data-id="${id}" data-rim="1" data-lane="" style="--tint:${T.tint || 'var(--gold)'}">
+      <span class="et-orb-glyph">${c.state === 'crossed' ? '✓' : c.node.bond ? '♡' : c.common ? '◈' : '⟡'}</span>
+      <span class="et-orb-name">${c.node.label}</span>
+      <span class="et-x-from">${c.node.bond ? 'BOND' : c.common ? 'COMMON' : T.name}</span>
+      <span class="et-orb-cost${c.state === 'poor' ? ' et-cant' : ''}">${lock}</span>
+    </button>`;
+  }).join('');
 
   // ---- DETAIL ---------------------------------------------------------------
   const selCross = (selId && String(selId).indexOf('x:') === 0)
     ? crossings.find(c => c.node.id === String(selId).replace(/^x:[a-z]+:/, '')) : null;
-  const ownList = weaveTab ? [] : mine.filter(n => tierOpen(n.tier) || hasNode(n.id));
+  const ownList = mine.filter(n => tierOpen(n.tier) || hasNode(n.id));
   const sel = selCross ? null
     : (selId && NODE_BY_ID[selId]) || ownList.find(n => nodeState(n) === 'ready') || ownList[0];
   let detail = '<div class="et-detail-empty">Pick a node to inspect it.</div>';
@@ -12886,21 +12883,26 @@ function showEmberTree(onBack, heroId, selId, opts) {
   const tabHeroes = party.length ? party : [focusHero];
   const tabs = tabHeroes.map(hid => {
     const done = EMBER_TREE.filter(n => n.hero === hid).every(n => hasNode(n.id));
-    return `<button class="et-tab${(!weaveTab && hid === heroId) ? ' et-tab-on' : ''}${done ? ' et-tab-done' : ''}" data-hero="${hid}">${HEROES[hid].name}</button>`;
-  }).join('') + `<button class="et-tab et-tab-weave${weaveTab ? ' et-tab-on' : ''}" data-hero="__weave">⛓ WEAVE</button>`;
+    const H2 = HEROES[hid];
+    return `<button class="et-tab${hid === heroId ? ' et-tab-on' : ''}${done ? ' et-tab-done' : ''}"
+      data-hero="${hid}" style="--tint:${H2.tint || 'var(--gold)'}" title="${H2.name}">
+      <span class="et-tab-art">${V2PORTRAITS[hid] || ''}</span>
+      <span class="et-tab-name">${H2.name}</span>
+    </button>`;
+  }).join('');
 
   showOverlay(`
     <div class="et-head"><span class="et-h-title">THE EMBER TREE</span><span class="et-h-wallet">✦ <b>${runEmbers()}</b></span><span class="et-h-boss">this descent only · resets if you fall</span>${(() => {
       const ahead = sealedAhead(allNodes);
       return ahead ? `<span class="et-h-ahead" title="deeper tiers unseal as you descend">${ahead} more wait deeper</span>` : '';
     })()}</div>
-    <div class="et-tabs">${tabs}</div>
     <div class="et-body">
+      <div class="et-rail" aria-label="party">${tabs}</div>
       <div class="et-lanes" id="et-lanes">
-        ${weaveTab ? weaveHtml() : starHtml()}
+        ${starHtml()}
       </div>
       <div class="et-side">
-        ${!treeTaught() ? `<div class="et-coach">Three branches, one for each of your <b>rows</b>. Tap a <b>lit node</b> to read it, then <b>KINDLE</b>.</div>` : ''}
+        ${!treeTaught() ? `<div class="et-coach">Three branches, one for each of your <b>rows</b>. Tap a <b>lit node</b> to read it, then <b>KINDLE</b>. The ring around the edge is what your <b>bonds</b> can teach you.</div>` : ''}
         <div class="et-detail">${detail}</div>
         <button class="ov-btn et-back-btn" id="et-back">◂ BACK</button>
       </div>
@@ -12974,15 +12976,26 @@ function etLayoutStar() {
   const chipsN = star.querySelectorAll('.et-orb[data-id]').length;
   const dense = chipsN > 15;
   star.style.setProperty('--orb', dense ? '26px' : '30px');
-  const MIN = dense ? 34 : 42;                        // clearance between centres
+  // CLEARANCE IS A BOX, NOT A CIRCLE. A node is a glyph with a two-line name
+  // under it, so keeping the GLYPHS apart still let the NAMES run through each
+  // other. Pairs are separated on whichever axis they overlap least, using the
+  // footprint the label actually occupies.
+  const BW = dense ? 68 : 80, BH = dense ? 46 : 56;
   const R = Math.max(60, Math.min(W / 2 - 54, H / 2 - 40));
   const Rx = R, Ry = R;
   const CORE_RHO = (dense ? 54 : 62) / R;             // stay clear of the character
+  // the outer band belongs to the WEAVE — the doors an ally's thread opens —
+  // so the branches stop short of it and the two never fight for the same ring
+  const hasRim = !!star.querySelector('.et-orb[data-rim]');
+  const RIM_IN = hasRim ? 0.82 : 1.0;
   const chips = Array.prototype.slice.call(star.querySelectorAll('.et-orb[data-id]'));
   if (!chips.length) return;
 
-  const byLane = { front: [], mid: [], back: [], self: [] };
-  chips.forEach(el => { (byLane[el.dataset.lane] || byLane.self).push(el); });
+  const byLane = { front: [], mid: [], back: [], self: [], rim: [] };
+  chips.forEach(el => {
+    if (el.dataset.rim) byLane.rim.push(el);
+    else (byLane[el.dataset.lane] || byLane.self).push(el);
+  });
   const P = {};
   Object.keys(byLane).forEach(lane => {
     const list = byLane[lane];
@@ -12991,6 +13004,13 @@ function etLayoutStar() {
       list.forEach((el, i) => {
         const a = (-40 + (i / list.length) * 360) * Math.PI / 180;
         P[el.dataset.id] = { a, rho: CORE_RHO * 0.62, el, lane, spine: null };
+      });
+      return;
+    }
+    if (lane === 'rim') {                             // the weave, on the outer ring
+      list.forEach((el, i) => {
+        const a = (-90 + ((i + 0.5) / list.length) * 360) * Math.PI / 180;
+        P[el.dataset.id] = { a, rho: 0.96, el, lane, spine: null, rim: true };
       });
       return;
     }
@@ -13011,7 +13031,7 @@ function etLayoutStar() {
     const maxD = Math.max(1, ds[ds.length - 1]);
     ds.forEach(d => {
       const rank = ranks[d].sort((a, b) => (+a.dataset.tier) - (+b.dataset.tier));
-      const rho = CORE_RHO + (0.98 - CORE_RHO) * (d / (maxD + 0.3));
+      const rho = CORE_RHO + (RIM_IN - 0.04 - CORE_RHO) * (d / (maxD + 0.3));
       rank.forEach((el, i) => {
         const t = rank.length === 1 ? 0 : (i / (rank.length - 1)) * 2 - 1;
         const spread = Math.min(50, 14 + rank.length * 9) * Math.PI / 180;
@@ -13030,11 +13050,13 @@ function etLayoutStar() {
         const A = P[keys[i]], B = P[keys[j]];
         const a = pt(A), b = pt(B);
         const dx = b.x - a.x, dy = b.y - a.y;
-        const dist = Math.hypot(dx, dy) || 0.01;
-        if (dist >= MIN) continue;
+        const ox = BW - Math.abs(dx), oy = BH - Math.abs(dy);
+        if (ox <= 0 || oy <= 0) continue;
         moved = true;
-        const push = (MIN - dist) / 2 + 0.6;
-        const ux = dx / dist, uy = dy / dist;
+        // shove along the axis they overlap least — the shortest way apart
+        let ux, uy, push;
+        if (ox / BW < oy / BH) { ux = dx >= 0 ? 1 : -1; uy = 0; push = ox / 2 + 0.6; }
+        else { ux = 0; uy = dy >= 0 ? 1 : -1; push = oy / 2 + 0.6; }
         [[A, -1], [B, 1]].forEach(pair => {
           const N = pair[0], s = pair[1], p = pt(N);
           const nx = p.x + s * ux * push, ny = p.y + s * uy * push;
@@ -13051,6 +13073,8 @@ function etLayoutStar() {
         while (d < -Math.PI) d += 2 * Math.PI;
         N.a = N.spine + Math.max(-LIM, Math.min(LIM, d));
         N.rho = Math.max(CORE_RHO, Math.min(1, N.rho));
+      } else if (N.rim) {
+        N.rho = Math.max(0.9, Math.min(1, N.rho));     // slides around the rim, never off it
       } else {
         N.rho = Math.max(CORE_RHO * 0.5, Math.min(CORE_RHO * 0.72, N.rho));
       }
@@ -13068,14 +13092,45 @@ function etLayoutStar() {
   });
   const far = { front: 0.4, mid: 0.4, back: 0.4 };
   keys.forEach(k => { const N = P[k]; if (N.lane !== 'self') far[N.lane] = Math.max(far[N.lane], N.rho); });
+  // THE BRANCH'S NAME GOES WHERE THERE IS ROOM. It sits past the arm's last
+  // node, but a title dropped on a fixed radius lands on whatever happens to
+  // be out there — so each one searches outward, then a little to either side,
+  // and takes the first clear spot. (It was the last thing still overlapping.)
+  const tipAt = { front: null, mid: null, back: null };
   ['front', 'mid', 'back'].forEach(lane => {
     const tip = star.querySelector('.et-tip[data-lane="' + lane + '"]');
     if (!tip) return;
     const spine = ET_SPOKE[lane] * Math.PI / 180;
-    const t = { x: cx + Math.min(1.1, far[lane] + 0.19) * Math.cos(spine) * Rx,
-                y: cy + Math.min(1.1, far[lane] + 0.19) * Math.sin(spine) * Ry };
-    tip.style.left = Math.max(34, Math.min(W - 34, t.x)).toFixed(1) + 'px';
-    tip.style.top = Math.max(14, Math.min(H - 14, t.y)).toFixed(1) + 'px';
+    const TW = 78, TH = 30;
+    let bestAlt = null;
+    const clear = (p) => keys.every(k => {
+      const q = xy[k];
+      return Math.abs(q.x - p.x) >= (BW + TW) / 2 - 12 || Math.abs(q.y - p.y) >= (BH + TH) / 2 - 4;
+    }) && ['front', 'mid', 'back'].every(o => !tipAt[o] ||
+      Math.abs(tipAt[o].x - p.x) >= TW || Math.abs(tipAt[o].y - p.y) >= TH);
+    // score every candidate and take the first clear one; if the arm is packed
+    // right to the rim, take the roomiest spot rather than dropping the title
+    // on top of a node (which is what the old blind fallback did)
+    let best = null, bestScore = -1;
+    for (let step = 0; step <= 10 && !best; step++) {
+      const rr = Math.min(1.02, far[lane] + 0.11 + step * 0.03);
+      for (const off of [0, -12, 12, -22, 22, -32, 32, -42, 42]) {
+        const a = spine + off * Math.PI / 180;
+        const p = { x: cx + rr * Math.cos(a) * Rx, y: cy + rr * Math.sin(a) * Ry };
+        if (p.x < 44 || p.x > W - 44 || p.y < 18 || p.y > H - 18) continue;
+        if (clear(p)) { best = p; break; }
+        let room = Infinity;
+        keys.forEach(k => {
+          const q = xy[k];
+          room = Math.min(room, Math.max(Math.abs(q.x - p.x) / (BW + TW), Math.abs(q.y - p.y) / (BH + TH)));
+        });
+        if (room > bestScore) { bestScore = room; best = best || null; if (!best) bestAlt = p; }
+      }
+    }
+    if (!best) best = bestAlt || { x: cx + far[lane] * Math.cos(spine) * Rx, y: cy + far[lane] * Math.sin(spine) * Ry };
+    tipAt[lane] = best;
+    tip.style.left = Math.max(40, Math.min(W - 40, best.x)).toFixed(1) + 'px';
+    tip.style.top = Math.max(16, Math.min(H - 16, best.y)).toFixed(1) + 'px';
   });
   const svg = star.querySelector('.et-star-links');
   if (!svg) return;
@@ -13084,11 +13139,18 @@ function etLayoutStar() {
     const spine = ET_SPOKE[lane] * Math.PI / 180;
     return '<line class="et-rail" x1="' + (cx + 0.16 * Math.cos(spine) * Rx).toFixed(1) +
       '" y1="' + (cy + 0.16 * Math.sin(spine) * Ry).toFixed(1) +
-      '" x2="' + (cx + (far[lane] + 0.09) * Math.cos(spine) * Rx).toFixed(1) +
-      '" y2="' + (cy + (far[lane] + 0.09) * Math.sin(spine) * Ry).toFixed(1) + '" />';
+      '" x2="' + ((tipAt[lane] || { x: cx }).x).toFixed(1) +
+      '" y2="' + ((tipAt[lane] || { y: cy }).y).toFixed(1) + '" />';
   }).join('');
   keys.forEach(k => {
-    const n = NODE_BY_ID[k], b = xy[k];
+    const b = xy[k];
+    if (P[k].rim) {                                   // a thread, not a prerequisite
+      const crossed = P[k].el.className.indexOf('et-x-crossed') !== -1;
+      ink += '<line class="et-thread' + (crossed ? ' et-thread-full' : '') + '" x1="' + cx + '" y1="' + cy +
+             '" x2="' + b.x.toFixed(1) + '" y2="' + b.y.toFixed(1) + '" />';
+      return;
+    }
+    const n = NODE_BY_ID[k];
     if (!n) return;
     const reqs = (n.requires || []).filter(r => xy[r]);
     if (!reqs.length) {
