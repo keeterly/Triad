@@ -6195,6 +6195,56 @@ const QUICK = process.argv.includes('--quick');
   // that read as "characters disappear glitchily"). TELEGRAPH: an ALL attack
   // draws no arcs, an empty threatened row whispers, and the damage sum rides
   // the ring rim clear of the nameplate.
+  console.log('--- THE BOARD HOLDS (BUILD 29) ---');
+  // A sprite is 85% as wide as a lane and the front row's held travel is a
+  // whole lane pitch, so a hero mid-combo CANNOT stand on the ground they own
+  // — no tuning of the lunge fixes that (docs/TELEGRAPH.md has the numbers).
+  // So the board stops depending on where bodies are: the plate draws over the
+  // cast, the threat rides the nameplate, and the hero leaves an afterimage in
+  // the lane they belong to.
+  check('BOARD: the lane plate is drawn OVER the cast — a held body cannot erase the mark on its ground',
+    await J(() => {
+      setupFight(['ash', 'hask'], [], { ash: 'front', hask: 'mid' });
+      S.enemies.forEach(e => { e.intentIdx = 0; }); renderAll();
+      const plate = document.querySelector('#party-half .slot-danger');
+      const fig = document.querySelector('#party-half .figure');
+      const z = el => parseInt(getComputedStyle(el).zIndex, 10) || 0;
+      return z(plate) > 0 && z(plate) > z(fig);
+    }));
+  check('BOARD: the plate sits on the FEET LINE, not at the bottom of the slot where the readout lives',
+    await J(() => {
+      const slot = document.querySelector('#party-half .slot[data-row="front"]');
+      const plate = slot.querySelector('.sd-ground').getBoundingClientRect();
+      const bar = slot.querySelector('.hp-bar').getBoundingClientRect();
+      // the ground is where the boots are: the plate straddles the top of the
+      // readout stack rather than sitting below it
+      return Math.abs((plate.top + plate.height / 2) - bar.top) < 34;
+    }));
+  check('BOARD: every lane names its RANK, so position survives any amount of visual noise',
+    await J(() => [...document.querySelectorAll('#party-half .slot-rank')]
+      .map(e => e.textContent.trim()).join('|') === 'III|II|I'));
+  check('THREAT: a threatened row wears its alarm on the NAMEPLATE — the one thing that never moves',
+    await J(() => {
+      const lit = document.querySelector('#party-half .slot.slot-telegraphed .fig-name');
+      const safe = document.querySelector('#party-half .slot:not(.slot-telegraphed) .fig-name');
+      if (!lit) return false;
+      return !safe || getComputedStyle(lit).color !== getComputedStyle(safe).color;
+    }));
+  check('ECHO: a hero who steps out leaves an AFTERIMAGE in their lane — and an idle hero leaves none',
+    await J(() => {
+      const hask = S.heroes.find(h => h.id === 'hask');
+      hask._held = true; hask._actSeq = S._actSeq = 1; renderAll();
+      const mine = document.querySelector('#party-half .slot[data-row="mid"] .lane-echo');
+      const idle = document.querySelector('#party-half .slot[data-row="front"] .lane-echo');
+      const inLane = mine && (() => {
+        const slot = document.querySelector('#party-half .slot[data-row="mid"]').getBoundingClientRect();
+        const e = mine.getBoundingClientRect();
+        return e.left >= slot.left - 8 && e.right <= slot.right + 8;   // it stands where they belong
+      })();
+      hask._held = false; renderAll();
+      return !!mine && !idle && inLane && !document.querySelector('.lane-echo');
+    }));
+
   console.log('--- THE LANE & THE APRON (BUILD 23) ---');
   // A row is a LANE the hero holds, not a footprint they stand on — because
   // once heroes lunge, nobody is on their footprint when the telegraph is

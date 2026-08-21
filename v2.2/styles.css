@@ -543,10 +543,16 @@ body {
 /* DANGER TELEGRAPH — the row an enemy is about to hit no longer reads as a
    dry dashed box.  A red glow SWELLS behind the threatened hero, and it pulses
    BIGGER + FASTER the harder the incoming blow (a boss's OBLIVION looms). */
+/* THE BOARD OUTRANKS THE THEATRE (v2.2 Build 29). This drew at z-index 0,
+   behind the cast, so a hero holding a pose across a lane simply erased the
+   mark on it — and the mark is the promise. Into the Breach's rule: the truth
+   is drawn over the actors, never under them. It also sits on the FEET LINE
+   now (--feet, measured per slot) rather than at the bottom of the slot,
+   which is where the nameplate stack lives. */
 .slot-danger {
-  position: absolute; left: 50%; bottom: 6px; width: 112%; height: 178px;
+  position: absolute; left: 50%; bottom: var(--feet, 6px); width: 112%; height: 178px;
   transform: translateX(-50%) scale(0.9); transform-origin: 50% 84%;
-  opacity: 0; pointer-events: none; z-index: 0;
+  opacity: 0; pointer-events: none; z-index: 9;
 }
 /* a low pool of blood-light at the target's feet (ambience, not the whole blob) */
 .slot-danger::before {
@@ -621,11 +627,10 @@ body {
    RIGHT rim (v2.2 Build 15): the slot's centreline at ground height is where
    the nameplate + HP readout live, and the number was printing over the name. */
 .slot-dmg {
-  /* seated on the ring's NEAR RIM beside the row label — measured at phone
-     height, the only band the sum clears everything: the corner ticks
-     (upper band), the hp bar and nameplate (middle bands), and the centered
-     row label (it sits to the label's right) */
-  position: absolute; bottom: 1px; right: 4%; transform: none; z-index: 4;
+  /* on the plate itself now that the plate sits on the feet line — the sum
+     and the ground it names are one object again */
+  position: absolute; bottom: calc(var(--feet, 6px) + 24px); left: 50%;
+  transform: translateX(-50%); z-index: 10;
   font-size: 9px; font-weight: 700; letter-spacing: 0.06em; color: #ff6a54;
   text-shadow: 0 0 6px rgba(220,40,30,0.8), 0 1px 2px #000; pointer-events: none;
 }
@@ -5059,3 +5064,53 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
   .et-star .et-orb, .et-star .et-tip, .et-star .et-core, .et-star .et-star-links,
   .et-star.et-out .et-orb, .et-star.et-out .et-tip, .et-star.et-out .et-core { animation: none; }
 }
+
+/* ── THE LANE HOLDS ITS OWN (v2.2 Build 29) ─────────────────────────────────
+   A sprite is 85% as wide as a lane and the front row's held travel is a whole
+   lane pitch, so a hero mid-combo cannot stand on the ground they own. Three
+   answers, none of which ask the lunge to get smaller:
+     · the THREAT rides the nameplate, which never moves;
+     · the PLATE draws over the cast (above), so a body cannot erase it;
+     · an AFTERIMAGE keeps the hero's shape in their lane while they are out. */
+
+/* the hero's echo, left standing where they belong */
+.lane-echo {
+  position: absolute; pointer-events: none; z-index: 1;
+  opacity: 0.26; filter: grayscale(0.3) brightness(0.85)
+    drop-shadow(0 0 7px rgba(240,212,136,0.28));
+  animation: lane-echo-in 260ms ease both;
+}
+.lane-echo svg { width: 100%; height: 100%; display: block; }
+.lane-echo::after {
+  content: ''; position: absolute; left: 50%; bottom: -2px; transform: translateX(-50%);
+  width: 54%; height: 9px; border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 50%, rgba(0,0,0,0.6), rgba(0,0,0,0) 74%);
+}
+@keyframes lane-echo-in { from { opacity: 0; } to { opacity: 0.26; } }
+.slot-telegraphed .lane-echo { opacity: 0.34; }
+@media (prefers-reduced-motion: reduce) { .lane-echo { animation: none; } }
+
+/* THE THREAT RIDES THE NAMEPLATE — the one part of a hero that is decreed
+   never to move. Whatever the body is doing, the row's readout is true. */
+.slot.slot-telegraphed .fig-name {
+  color: var(--blood-bright);
+  text-shadow: 0 0 8px rgba(226,44,34,0.45), 0 1px 3px #000;
+}
+.slot.slot-telegraphed .hp-bar {
+  border-color: rgba(226,44,34,0.5);
+  box-shadow: 0 0 9px rgba(226,44,34,0.32);
+}
+.slot.slot-telegraphed.sd-lethal .hp-bar {
+  border-color: rgba(255,64,44,0.85);
+  box-shadow: 0 0 13px rgba(255,44,26,0.55);
+  animation: primed-blink 0.6s ease-in-out infinite;
+}
+/* the rank numeral — Darkest Dungeon's lesson said plainly: a lane keeps its
+   name even when the field is chaos */
+.slot-rank {
+  position: absolute; bottom: calc(var(--feet, 6px) + 3px); left: 50%;
+  transform: translateX(-50%); z-index: 10;
+  font-size: 7px; letter-spacing: 0.2em; color: var(--ink-faint);
+  text-shadow: 0 1px 3px #000; pointer-events: none;
+}
+.slot.slot-telegraphed .slot-rank { color: rgba(255,150,130,0.85); }

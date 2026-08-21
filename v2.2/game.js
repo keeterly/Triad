@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 28;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 29;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -10686,6 +10686,31 @@ function _keepAnim(el) {
   for (const c of KEEP_ANIM) if (el.classList.contains(c)) s += ' ' + c;
   return s;
 }
+function renderLaneEchoes(party) {
+  party.querySelectorAll('.slot').forEach(slot => {
+    const fig = slot.querySelector('.figure');
+    const id = fig && fig.dataset.fig;
+    const h = id && S && S.heroes && S.heroes.find(x => x.id === id);
+    const out = !!(h && (h._held || h._castAnim) && !h.downed);
+    let echo = slot.querySelector('.lane-echo');
+    if (!out) { if (echo) echo.remove(); return; }
+    const art = fig.querySelector('.fig-art');
+    if (!art) return;
+    if (!echo) {
+      echo = document.createElement('div');
+      echo.className = 'lane-echo';
+      echo.setAttribute('aria-hidden', 'true');
+      echo.innerHTML = V2PORTRAITS[id] || '';
+      slot.insertBefore(echo, fig);
+    }
+    // the ART's layout box is untouched by its transform, so it still marks
+    // the ground the hero owns — the echo stands exactly there
+    echo.style.left = art.offsetLeft + 'px';
+    echo.style.top = art.offsetTop + 'px';
+    echo.style.width = art.offsetWidth + 'px';
+    echo.style.height = art.offsetHeight + 'px';
+  });
+}
 function refreshPartyFig(fig, who, solo) {
   const chips = fig.querySelector('.fig-chips'); if (chips) chips.innerHTML = partyChipsHtml(who);
   const fill = fig.querySelector('.hp-fill'); if (fill) fill.style.width = ((who.hp / who.maxHp) * 100) + '%';
@@ -10815,7 +10840,8 @@ function renderBattlefield() {
     const dRow = rowDmg[row];
     const hRow = S.heroes.find(x => x.row === row && !x.downed);
     const lethalRow = hRow && !hRow.invuln && dRow >= hRow.hp + hRow.guard;
-    slot.innerHTML = `<span class="slot-ring"></span><span class="slot-danger" aria-hidden="true"><span class="sd-ground"></span><span class="sd-brackets"><i></i><i></i><i></i><i></i></span><span class="sd-wave"></span></span>${dRow > 0 ? `<span class="slot-dmg${lethalRow ? ' sd-dmg-lethal' : ''}">${lethalRow ? '☠' : '✕'} ${dRow}</span>` : ''}`;
+    const RANKN = { front: 'I', mid: 'II', back: 'III' };
+    slot.innerHTML = `<span class="slot-ring"></span><span class="slot-danger" aria-hidden="true"><span class="sd-ground"></span><span class="sd-brackets"><i></i><i></i><i></i><i></i></span><span class="sd-wave"></span></span><span class="slot-rank" aria-hidden="true">${RANKN[row]}</span>${dRow > 0 ? `<span class="slot-dmg${lethalRow ? ' sd-dmg-lethal' : ''}">${lethalRow ? '☠' : '✕'} ${dRow}</span>` : ''}`;
     const who = h || downedHere;
     if (who) {
       const solo = livingHeroes().length === 1;
@@ -10906,7 +10932,35 @@ function renderBattlefield() {
       // line and read as levitating (see the transform's comment block)
       slot.style.setProperty('--act-s', (s1 / s2).toFixed(4));
     });
+    // ── THE BOARD SITS ON THE FEET LINE (v2.2 Build 29) ───────────────────
+    // The lane plate was pinned to the bottom of the slot, which is where the
+    // nameplate stack lives — so it drew UNDER the readout instead of on the
+    // ground, and its damage sum spent four builds hunting for somewhere it
+    // did not collide. The figure's ART is the only thing that moves (its
+    // transform), so its LAYOUT box still marks where the hero stands: the
+    // renderer reads that box and seats the plate, the rank and the incoming
+    // sum on it. Measured, like everything else that used to be guessed.
+    party.querySelectorAll('.slot').forEach(slot => {
+      // measured from the HP BAR, not the art: the portrait SVG overflows its
+      // own box, so the art's layout height is not where the boots are. The
+      // readout stack starts exactly at the feet line — that is the ground.
+      const fig = slot.querySelector('.figure');
+      const bar = fig && fig.querySelector('.hp-bar');
+      let top = 0;
+      for (let el = bar; el && el !== slot; el = el.offsetParent) top += el.offsetTop;
+      const feet = bar ? (slot.offsetHeight - top) : 34;
+      slot.style.setProperty('--feet', Math.max(6, Math.min(slot.offsetHeight - 20, feet)) + 'px');
+    });
   }
+  // ── THE AFTERIMAGE (v2.2 Build 29) ────────────────────────────────────────
+  // A hero who acts holds their peak pose a full lane forward — the sprite is
+  // 85% as wide as a lane and the front row's travel is a whole lane pitch, so
+  // a held body simply cannot stand on its own ground. Rather than shrink the
+  // lunge (tried; the arithmetic forbids it) the hero LEAVES SOMETHING BEHIND:
+  // their own shape, dim, standing where they belong. It answers "whose lane is
+  // this" with the strongest signal available, and it is already the fiction —
+  // this is a game about echoes, and Ash kindles a node called Afterimage.
+  renderLaneEchoes(party);
 
   const enemyHalf = $('#enemy-half');
   // FLOOR BOSS — one colossal foe that fills the enemy half, rendered as a
