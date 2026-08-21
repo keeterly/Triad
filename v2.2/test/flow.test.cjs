@@ -2187,9 +2187,16 @@ const QUICK = process.argv.includes('--quick');
   // v2.2 Build 6: the pill carries WHO hits HOW HARD; WHERE lives on the
   // ground (impact ring + summed slot chip + arc). Row text appears in a pill
   // only for ALL — the one blow a reposition cannot dodge.
-  check('INTENT: the telegraph pill is damage + riders only — the ground carries the row',
+  check('INTENT: the pill carries damage, riders, and the RANK of the lane it is swung at',
     await J(() => { const p = document.querySelector('.intent');
-      return !!p && !!p.querySelector('.i-dmg') && !p.querySelector('.i-row') && !p.querySelector('.i-parry'); }));
+      // The ground was supposed to carry the row, via a dashed arc from the
+      // foe to the lane it aimed at. It could not: both ends sit at the same
+      // height, so the arc drew as a rule straight through every nameplate.
+      // The aim is one character on the pill instead — a numeral, not the
+      // word that made four packed foes a wall of "→ BACK → BACK → BACK".
+      const aim = p && p.querySelector('.i-row');
+      return !!p && !!p.querySelector('.i-dmg') && !p.querySelector('.i-parry')
+        && !!aim && /^(→ (I|II|III)|ALL)$/.test(aim.textContent.trim()); }));
   check('ALL-HIT: a whole-party blow opens with an across-sweep, then follows',
     await J(() => { const p = parryPatternFor({ row: 'all', dmg: 5 }); return p.kind === 'seq' && p.notes[0].t === 'swipe' && p.notes[0].arc === 'arcAcross'; }));
   check('PARTIAL: a mid-hit string parries per note (mitigation is fractional)',
@@ -6329,16 +6336,20 @@ const QUICK = process.argv.includes('--quick');
   // once heroes lunge, nobody is on their footprint when the telegraph is
   // read. The plate marks territory, the lane keeps an ANCHOR while its
   // holder is out striking, and the striker steps downstage into the apron.
-  check('LANE: the telegraph marks a wide lane PLATE, not a small footprint ring',
+  check('LANE: the telegraph marks a wide lane BAR — it holds most of its lane, and all of it stays inside',
     await J(() => {
       setupFight(['ash', 'hask'], [], { ash: 'front', hask: 'mid' });
       S.enemies.forEach(e => { e.intentIdx = 0; });
       renderAll();
       const slot = document.querySelector('#party-half .slot[data-row="front"]');
       const plate = slot.querySelector('.sd-ground');
-      const pw = plate.getBoundingClientRect().width, sw = slot.getBoundingClientRect().width;
-      // a plate holds the lane: most of its width, and far wider than it is tall
-      return pw / sw > 0.85 && pw / plate.getBoundingClientRect().height > 4;
+      const pr = plate.getBoundingClientRect(), sr = slot.getBoundingClientRect();
+      // A bar holds the lane: most of its width, far wider than it is tall —
+      // and INSIDE it. The old plate met the first two and failed the third
+      // (110% wide, scaling to ~127% at its pulse peak), which is how lit
+      // neighbours merged into one smear.
+      return pr.width / sr.width >= 0.8 && pr.width / pr.height > 4
+        && pr.left >= sr.left - 1 && pr.right <= sr.right + 1;
     }));
   check('LANE: a hero who steps out leaves an ANCHOR — the lane keeps their mark on its own ground',
     await J(() => {
@@ -6410,20 +6421,50 @@ const QUICK = process.argv.includes('--quick');
         useRunHp: true, floor: 1, depth: 4, narrator: 't15' });
       S.heroes.forEach(h => { h.row = { ash: 'front', hask: 'mid' }[h.id]; });
       S.enemies[0].intentIdx = 1;   // Dirge of Ruin — row:'all'
-      renderAll(); renderTelegraphArcs();
+      renderAll();
+      // a blow no reposition dodges says ALL and lights every lane; it names
+      // no single rank, because there is no single lane to point at
+      const pill = document.querySelector('#enemy-half .intent').textContent;
       return document.querySelectorAll('#party-half .slot-telegraphed').length === 3
-        && document.querySelectorAll('#telegraph-layer .tg-arc').length === 0;
+        && /ALL/.test(pill) && !/→/.test(pill)
+        && !document.getElementById('telegraph-layer');
     }));
-  check('TELEGRAPH: an EMPTY threatened row whispers — faint ring only, brackets and wave stay dark',
+  check('TELEGRAPH: an EMPTY threatened row whispers — the bar stops breathing and dims to a hairline',
     await J(() => {
       const back = document.querySelector('#party-half .slot[data-row="back"]');
       const front = document.querySelector('#party-half .slot[data-row="front"]');
+      const bs = getComputedStyle(back.querySelector('.slot-danger'));
+      const fs = getComputedStyle(front.querySelector('.slot-danger'));
       return back.className.indexOf('sd-empty') !== -1
-        && getComputedStyle(back.querySelector('.sd-brackets')).display === 'none'
         && front.className.indexOf('sd-empty') === -1
-        && getComputedStyle(front.querySelector('.sd-brackets')).display !== 'none';
+        && bs.animationName === 'none' && fs.animationName !== 'none'
+        && parseFloat(bs.opacity) < parseFloat(fs.opacity);
     }));
-  check('TELEGRAPH: the incoming sum rides the ring rim, clear of the nameplate',
+  check('TELEGRAPH: the lane bar HOLDS ITS LANE — lit neighbours never touch, and none crosses the readout',
+    await J(() => {
+      setupFight(['ash', 'hask', 'mira'], [], { ash: 'front', hask: 'mid', mira: 'back' });
+      S.enemies.forEach(e => { e.intentIdx = 0; }); renderAll();
+      const bars = ['back', 'mid', 'front'].map(r => {
+        const slot = document.querySelector('#party-half .slot[data-row="' + r + '"]');
+        const g = slot.querySelector('.sd-ground');
+        const hp = slot.querySelector('.hp-bar');
+        return { g: g && g.getBoundingClientRect(), hp: hp && hp.getBoundingClientRect(),
+                 slot: slot.getBoundingClientRect() };
+      });
+      // inside its own lane, never wider than it — the old plate ran 10px past
+      // its slot and the pulse scaled it 27px wider still, so lit lanes merged
+      const contained = bars.every(b => !b.g || (b.g.left >= b.slot.left - 1 && b.g.right <= b.slot.right + 1));
+      // and clear of the nameplate stack it used to sweep across
+      const clear = bars.every(b => !b.g || !b.hp || b.g.bottom <= b.hp.top + 1);
+      // no two lit bars overlap
+      let apart = true;
+      for (let i = 0; i < bars.length; i++) for (let j = i + 1; j < bars.length; j++) {
+        const a = bars[i].g, b = bars[j].g;
+        if (a && b && a.left < b.right && b.left < a.right) apart = false;
+      }
+      return contained && clear && apart;
+    }));
+  check('TELEGRAPH: the incoming sum rides the bar, clear of the nameplate',
     await J(() => {
       const slot = document.querySelector('#party-half .slot[data-row="front"]');
       const d = slot.querySelector('.slot-dmg'); if (!d) return false;
@@ -6433,7 +6474,7 @@ const QUICK = process.argv.includes('--quick');
       return !collides;
     }));
   // ── Build 17: the hold is the PEAK, and the telegraph whispers while you act ──
-  check('TELEGRAPH: one arc only — the single heaviest blow draws; the rest speak through their rings',
+  check('TELEGRAPH: AIM rides the attacker — each foe names the lane it is swinging at, by rank',
     await J(() => {
       RUN = newRun('ash'); RUN.roster = ['ash', 'hask']; RUN.active = RUN.roster.slice();
       RUN.hp = {}; RUN.active.forEach(h => RUN.hp[h] = HEROES[h].maxHp);
@@ -6441,9 +6482,23 @@ const QUICK = process.argv.includes('--quick');
       startFight({ type: 'fight', chapter: 3, heroes: RUN.active.slice(), enemies: ['husk', 'wraith', 'cultist'],
         useRunHp: true, floor: 1, depth: 4, narrator: 't17' });
       S.heroes.forEach(h => { h.row = { ash: 'front', hask: 'mid' }[h.id]; });
-      renderAll(); renderTelegraphArcs();
-      const threats = S.enemies.reduce((n, e) => n + enemyNextIntents(e).filter(it => it && it.kind !== 'buff' && effIntentRow(e, it) !== 'all').length, 0);
-      return threats >= 2 && document.querySelectorAll('#telegraph-layer .tg-arc').length === 1;
+      renderAll();
+      // a dashed line from foe to ground could never read: both ends sit at
+      // the same height, so it drew as a rule through every nameplate. The
+      // mapping is one character on the pill instead, and it agrees with the
+      // rank the target lane wears on its own bar.
+      const RANKN = { front: 'I', mid: 'II', back: 'III' };
+      const aimed = S.enemies.filter(e => enemyNextIntents(e)
+        .some(it => it && it.kind !== 'buff' && effIntentRow(e, it) !== 'all' && effIntentRow(e, it)));
+      if (aimed.length < 2) return false;
+      return !document.getElementById('telegraph-layer') && aimed.every(e => {
+        const el = figEl(e.uid); if (!el) return false;
+        const pill = (el.closest('.slot') || el).querySelector('.intent');
+        return enemyNextIntents(e).every(it => {
+          const row = it && it.kind !== 'buff' ? effIntentRow(e, it) : null;
+          return !row || row === 'all' || (pill && pill.textContent.indexOf('→ ' + RANKN[row]) >= 0);
+        });
+      });
     }));
   check('WHISPER: a combo in flight quiets the telegraph — #stage.combo-live while a hero holds, gone on release',
     await J(() => {

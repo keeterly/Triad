@@ -540,107 +540,76 @@ body {
   border-radius: 10px;
   border: 1px dashed transparent; pointer-events: none;
 }
-/* DANGER TELEGRAPH — the row an enemy is about to hit no longer reads as a
-   dry dashed box.  A red glow SWELLS behind the threatened hero, and it pulses
-   BIGGER + FASTER the harder the incoming blow (a boss's OBLIVION looms). */
-/* THE BOARD OUTRANKS THE THEATRE (v2.2 Build 29). This drew at z-index 0,
-   behind the cast, so a hero holding a pose across a lane simply erased the
-   mark on it — and the mark is the promise. Into the Breach's rule: the truth
-   is drawn over the actors, never under them. It also sits on the FEET LINE
-   now (--feet, measured per slot) rather than at the bottom of the slot,
-   which is where the nameplate stack lives. */
+/* THE LANE BAR (v2.2 Build 32) — ONE MARK, NOT SIX.
+   What was here had a plate, a second outline inside the plate, four glowing
+   corner brackets, a floor pool, an expanding shockwave, a floating sum, and
+   a pulse that SCALED all of it. Six red objects saying one thing, and the
+   scale was fatal: at peak the plate grew ~27px wider than the lane it names,
+   so three lit lanes merged into one smear and the pulse swept down across
+   the nameplate and HP bar underneath. Measured, not guessed: lane 109px,
+   plate 119px, peak 138px.
+   It is now a single BAR that holds its lane. It never changes size — it
+   BREATHES in light — so neighbouring lanes can never touch, and the readout
+   below it is never crossed. The bar carries its own text: the lane's rank at
+   the left cap, the incoming sum at the right. One object, one promise.
+   (Into the Breach's rule still holds: it draws OVER the cast, never under —
+   a hero holding a pose across the lane cannot erase the mark on its ground.) */
+/* Positioned by LEFT/RIGHT, never by a centring translate: a keyframe that
+   touches `transform` (primed-blink sets scale) replaces the whole transform,
+   and a bar centred that way jumps half its width sideways every blink. */
 .slot-danger {
-  position: absolute; left: 50%; bottom: var(--feet, 6px); width: 112%; height: 178px;
-  transform: translateX(-50%) scale(0.9); transform-origin: 50% 84%;
+  position: absolute; left: 7%; right: 7%; bottom: calc(var(--feet, 6px) + 5px); height: 17px;
   opacity: 0; pointer-events: none; z-index: 9;
 }
-/* a low pool of blood-light at the target's feet (ambience, not the whole blob) */
+/* a breath of blood-light UNDER the bar, so it reads as light on the floor
+   rather than a sticker laid over it — contained, never its own blob */
 .slot-danger::before {
-  content: ''; position: absolute; left: 50%; bottom: 2px; width: 74%; height: 46px;
-  transform: translateX(-50%);
-  background: radial-gradient(ellipse 62% 100% at 50% 100%, rgba(226,44,34,0.5), rgba(150,20,16,0.14) 56%, transparent 76%);
+  content: ''; position: absolute; left: 50%; bottom: -6px; width: 88%; height: 20px;
+  transform: translateX(-50%); border-radius: 50%;
+  background: radial-gradient(ellipse 60% 100% at 50% 60%, rgba(226,44,34,0.34), transparent 72%);
 }
-/* THE TELEGRAPH MARKS GROUND, NOT PEOPLE (v2.2 Build 4). A blow is aimed at a
-   ROW — a hero can dodge out of it, and since the dash the hero standing there
-   may be holding a pose halfway across the field, which left the old
-   torso-height lock-on brackets clamped around empty air. The whole read
-   drops to the floor: an impact-zone ring on the ground of the slot (fully
-   legible in a vacated slot — "the blow lands HERE, where you stand"), low
-   corner ticks framing the zone, and the shockwave rising off the ground. */
-/* THE LANE PLATE (v2.2 Build 23). The ring was a FOOTPRINT — it said "the
-   blow lands on this spot" — and once heroes lunge, no hero is on their spot
-   when the telegraph is read. A row is not a spot; it is a LANE the hero
-   holds in the formation. So the mark is now a wide, shallow plate filling
-   the lane's own ground: territory that stays true whether its holder is
-   standing in it or three strides out with a blade at full extension. */
 .slot-danger .sd-ground {
-  position: absolute; left: 50%; bottom: 7px; width: 96%; height: 22px;
-  transform: translateX(-50%); border-radius: 11px / 50%;
-  border: 1.5px solid rgba(244,74,58,0.7);
-  background: linear-gradient(180deg, rgba(226,44,34,0.06), rgba(226,44,34,0.19));
-  box-shadow: 0 0 14px rgba(226,44,34,0.4), inset 0 0 18px rgba(226,44,34,0.22);
-}
-.slot-danger .sd-ground::after {
-  content: ''; position: absolute; inset: 4px 6%; border-radius: 8px / 50%;
-  border: 1px solid rgba(244,74,58,0.3);
-}
-.sd-brackets { position: absolute; left: 50%; bottom: 0; width: 94%; height: 46px; transform: translateX(-50%); }
-.sd-brackets i {
-  position: absolute; width: 13px; height: 13px;
-  border: 2.5px solid rgba(244,74,58,0.95);
-  filter: drop-shadow(0 0 5px rgba(226,44,34,0.85));
-}
-.sd-brackets i:nth-child(1) { top: 0; left: 0; border-right: 0; border-bottom: 0; }
-.sd-brackets i:nth-child(2) { top: 0; right: 0; border-left: 0; border-bottom: 0; }
-.sd-brackets i:nth-child(3) { bottom: 0; left: 0; border-right: 0; border-top: 0; }
-.sd-brackets i:nth-child(4) { bottom: 0; right: 0; border-left: 0; border-top: 0; }
-.slot-danger .sd-wave {
-  position: absolute; left: 50%; bottom: 6px; width: 76%; height: 34px;
-  transform: translate(-50%, 0) scale(0.4); border-radius: 50%;
-  border: 2px solid rgba(240,70,54,0.0); pointer-events: none;
+  position: absolute; inset: 0; border-radius: 9px;
+  border: 1.2px solid rgba(244,74,58,0.72);
+  background: linear-gradient(180deg, rgba(226,44,34,0.05), rgba(226,44,34,0.2));
+  box-shadow: 0 0 10px rgba(226,44,34,0.32), inset 0 0 12px rgba(226,44,34,0.16);
 }
 .slot-telegraphed .slot-danger { opacity: 1; }
-/* magnitude: small poke → subtle & slow; heavy/lethal → large, bright, urgent */
-.slot-telegraphed.sd-sm     .slot-danger { animation: sd-pulse 1.7s ease-in-out infinite; filter: saturate(0.9) brightness(0.85); }
-.slot-telegraphed.sd-md     .slot-danger { animation: sd-pulse 1.3s ease-in-out infinite; }
-.slot-telegraphed.sd-lg     .slot-danger { animation: sd-pulse-lg 0.95s ease-in-out infinite; }
-.slot-telegraphed.sd-lethal .slot-danger { animation: sd-pulse-lg 0.7s ease-in-out infinite; filter: brightness(1.15) saturate(1.2); }
-@keyframes sd-pulse {
-  0%,100% { opacity: 0.42; transform: translateX(-50%) scale(0.9); }
-  50%     { opacity: 0.85; transform: translateX(-50%) scale(1.04); }
+/* MAGNITUDE IS WEIGHT, NOT SIZE. A heavier blow burns brighter and breathes
+   faster; it does not grow, because growing is what made lanes collide. */
+.slot-telegraphed.sd-sm     .slot-danger { animation: sd-breathe 1.9s ease-in-out infinite; }
+.slot-telegraphed.sd-md     .slot-danger { animation: sd-breathe 1.4s ease-in-out infinite; }
+.slot-telegraphed.sd-lg     .slot-danger { animation: sd-breathe 1s ease-in-out infinite; }
+.slot-telegraphed.sd-lethal .slot-danger { animation: sd-breathe 0.68s ease-in-out infinite; }
+.slot-telegraphed.sd-sm  .slot-danger .sd-ground { border-color: rgba(244,74,58,0.5); box-shadow: 0 0 7px rgba(226,44,34,0.2), inset 0 0 10px rgba(226,44,34,0.1); }
+.slot-telegraphed.sd-lg  .slot-danger .sd-ground { border-width: 1.6px; border-color: rgba(255,96,74,0.9); box-shadow: 0 0 16px rgba(226,44,34,0.5), inset 0 0 16px rgba(226,44,34,0.26); }
+.slot-telegraphed.sd-lethal .slot-danger .sd-ground {
+  border-width: 1.8px; border-color: #ff5038;
+  background: linear-gradient(180deg, rgba(255,60,40,0.1), rgba(226,30,20,0.3));
+  box-shadow: 0 0 20px rgba(255,50,34,0.62), inset 0 0 18px rgba(255,60,40,0.3);
 }
-@keyframes sd-pulse-lg {
-  0%,100% { opacity: 0.55; transform: translateX(-50%) scale(0.94); }
-  50%     { opacity: 1;    transform: translateX(-50%) scale(1.16); }
+@keyframes sd-breathe {
+  0%, 100% { opacity: 0.6; }
+  50%      { opacity: 1; }
 }
-/* the shockwave ring only rides the big / lethal blows — a growing menace */
-.slot-telegraphed.sd-lg .slot-danger .sd-wave,
-.slot-telegraphed.sd-lethal .slot-danger .sd-wave { animation: sd-wave 0.95s ease-out infinite; }
-.slot-telegraphed.sd-lethal .slot-danger .sd-wave { animation-duration: 0.7s; }
-@keyframes sd-wave {
-  0%   { opacity: 0.85; transform: translate(-50%,0) scale(0.4); border-color: rgba(255,90,70,0.85); }
-  100% { opacity: 0;    transform: translate(-50%,0) scale(1.5); border-color: rgba(255,90,70,0); }
-}
-/* the incoming number rides ON the ground ring (v2.2 Build 6) — the ring is
-   the telegraph's anchor now, so the sum sits where the blow lands instead of
-   floating at the slot's top far above the threatened hero. It hugs the ring's
-   RIGHT rim (v2.2 Build 15): the slot's centreline at ground height is where
-   the nameplate + HP readout live, and the number was printing over the name. */
+/* THE BAR CARRIES ITS OWN TEXT. The sum used to float above the plate on its
+   own coordinates, which is how it ended up printing over the sprite’s boots
+   in one row and the nameplate in another. Both readings now sit INSIDE the
+   bar, on the bar’s line: rank at the left cap, incoming sum at the right. */
 .slot-dmg {
-  /* on the plate itself now that the plate sits on the feet line — the sum
-     and the ground it names are one object again */
-  position: absolute; bottom: calc(var(--feet, 6px) + 24px); left: 50%;
-  transform: translateX(-50%); z-index: 10;
-  font-size: 9px; font-weight: 700; letter-spacing: 0.06em; color: #ff6a54;
-  text-shadow: 0 0 6px rgba(220,40,30,0.8), 0 1px 2px #000; pointer-events: none;
+  position: absolute; left: 7%; right: 7%; bottom: calc(var(--feet, 6px) + 5px); z-index: 11;
+  height: 17px; box-sizing: border-box; padding-right: 8px;
+  display: flex; align-items: center; justify-content: flex-end;
+  font-size: 9px; font-weight: 700; letter-spacing: 0.06em; color: #ff8064;
+  text-shadow: 0 1px 2px #000; pointer-events: none;
 }
-.slot-telegraphed.sd-lg .slot-dmg, .slot-telegraphed.sd-lethal .slot-dmg { font-size: 11px; color: #ff5038; }
-/* lethal — the blow would drop this hero: a skull rides the number, blinking */
+.slot-telegraphed.sd-lg .slot-dmg, .slot-telegraphed.sd-lethal .slot-dmg { font-size: 10px; color: #ff6a4e; }
 .slot-dmg.sd-dmg-lethal {
-  font-size: 12px; color: #ff3a2a; letter-spacing: 0.1em;
+  font-size: 11px; color: #ff3a2a; letter-spacing: 0.08em;
   text-shadow: 0 0 9px rgba(255,40,26,0.95), 0 1px 2px #000;
-  animation: primed-blink 0.6s ease-in-out infinite;
+  animation: sd-lethal-blink 0.68s ease-in-out infinite;
 }
+@keyframes sd-lethal-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.42; } }
 
 /* figures */
 .figure {
@@ -4603,21 +4572,10 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
    Each attacking foe is tied to the ground it will strike by a low dashed
    arc crawling toward the target. Weight matches threat: a poke whispers, a
    heavy blow draws bolder, a lethal one burns bright and crawls fast. */
-#telegraph-layer {
-  position: absolute; inset: 0; width: 100%; height: 100%;
-  pointer-events: none; z-index: 1; overflow: visible;
-}
-.tg-arc {
-  fill: none; stroke: rgba(240,80,60,0.22); stroke-width: 1.3; stroke-linecap: round;
-  stroke-dasharray: 4 8;
-  animation: tg-crawl 1.15s linear infinite;
-  filter: drop-shadow(0 0 3px rgba(226,44,34,0.3));
-}
-.tg-arc.tg-heavy { stroke: rgba(248,92,66,0.48); stroke-width: 1.9; }
-.tg-arc.tg-lethal { stroke: rgba(255,64,44,0.7); stroke-width: 2.2; animation-duration: 0.7s;
-  filter: drop-shadow(0 0 5px rgba(255,44,26,0.55)); }
-@keyframes tg-crawl { to { stroke-dashoffset: -24; } }
-@media (prefers-reduced-motion: reduce) { .tg-arc { animation: none; } }
+/* the attacker's pill names the LANE it is aimed at, by rank — the numeral
+   the lane itself wears on its bar. One character instead of a line across
+   the board (v2.2 Build 32). */
+.i-row.i-aim { color: rgba(255,150,130,0.9); letter-spacing: 0.06em; }
 
 /* ── CAST SHEETS (v2.2 Build 7) — the skill IS the sprite ───────────────────
    The animated cell replaces the portrait for the cast's duration and hold.
@@ -4635,13 +4593,10 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
 #party-half .figure.fig-held.fig-casting .fig-art { transform: none; }
 
 /* ── TELEGRAPH, QUIETED (v2.2 Build 15) ─────────────────────────────────────
-   An EMPTY threatened row whispers: a faint ground ring only — real "don't
-   move here" information, none of the alarm that belongs to a hero actually
-   standing in the blow. And the damage sum sits INSIDE the ring, painted on
-   the ground where the blow lands, instead of floating at body height. */
-.slot-telegraphed.sd-empty .sd-brackets,
-.slot-telegraphed.sd-empty .sd-wave { display: none; }
-.slot-telegraphed.sd-empty .slot-danger { animation: none; opacity: 0.45; }
+   An EMPTY threatened row whispers: the bar stops breathing and dims to a
+   hairline — real "don't move here" information, none of the alarm that
+   belongs to a hero actually standing in the blow. */
+.slot-telegraphed.sd-empty .slot-danger { animation: none; opacity: 0.4; }
 
 /* ── THE TELEGRAPH WHISPERS WHILE YOU ACT (v2.2 Build 17) ───────────────────
    A combo in flight owns the stage. While any hero holds their peak, the
@@ -4649,13 +4604,12 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
    hides, the intent pills and rim sums fall back — then returns full-voice
    when the party resets its feet. The information never leaves; only the
    alarm does. */
-.slot-danger, .slot-dmg, .intent, #telegraph-layer { transition: opacity 0.3s ease; }
+.slot-danger, .slot-dmg, .intent { transition: opacity 0.3s ease; }
 #stage.combo-live .slot-danger { animation: none; opacity: 0.28; }
-#stage.combo-live .sd-wave { display: none; }
 #stage.combo-live .slot-dmg { opacity: 0.35; }
-#stage.combo-live #telegraph-layer { opacity: 0; }
 #stage.combo-live .intent { opacity: 0.4; }
-.slot-telegraphed.sd-empty .slot-danger .sd-ground { border-color: rgba(244,74,58,0.4); box-shadow: none; }
+.slot-telegraphed.sd-empty .slot-danger .sd-ground { border-width: 1px; border-color: rgba(244,74,58,0.42); background: none; box-shadow: none; }
+.slot-telegraphed.sd-empty .slot-danger::before { display: none; }
 .slot-telegraphed.sd-empty .slot-dmg { opacity: 0.55; font-size: 8px; }
 
 /* ── WORLD MAP (v2.2 Build 19) — the Domain as a painted chart ──────────────
@@ -4707,6 +4661,9 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
 .wl-lb { font-size: 8px; letter-spacing: 0.26em; color: var(--ink-dim); }
 /* the chart itself breathes wider than the old 720px sheet */
 #overlay.wm-screen .map-strip { max-width: none; min-height: 252px; margin: 30px auto 4px; padding: 0 26px 0 44px; }
+/* the column gap has to clear twice the vertical jitter, or the scatter that
+   makes the chart feel hand-drawn walks nodes into their neighbours' names */
+#overlay.wm-screen .map-col { gap: 18px; }
 /* nodes: dark coins on the land, jittered off the grid so the road wanders */
 .wm-screen .map-node { transform: translate(var(--jx, 0px), var(--jy, 0px)); }
 .wm-screen .map-node .mn-icon {
@@ -4724,17 +4681,46 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
 .wm-screen .map-node.mn-reach .mn-icon {
   box-shadow: 0 0 0 1.5px rgba(242,216,150,0.9), 0 0 18px rgba(236,196,120,0.42), 0 0 42px rgba(236,196,120,0.16), 0 6px 14px rgba(0,0,0,0.7);
 }
-.wm-screen .map-node.mn-done { opacity: 1; }
-.wm-screen .map-node.mn-done .mn-icon { color: rgba(200,186,158,0.4); box-shadow: 0 0 0 1.5px rgba(216,196,158,0.14), 0 6px 14px rgba(0,0,0,0.7); }
-.wm-screen .map-node.mn-locked { opacity: 1; }
-.wm-screen .map-node.mn-locked .mn-icon { color: rgba(216,200,170,0.5); box-shadow: 0 0 0 1.5px rgba(216,196,158,0.16), 0 6px 14px rgba(0,0,0,0.7); }
+/* THE CHART HAS TO HAVE A FOREGROUND (v2.2 Build 32). These two rules used to
+   set opacity:1, cancelling the base map's dimming — so sixteen coins sat on
+   the painting at identical weight and the three that were actually a CHOICE
+   had to win on rim colour alone. They lost: the road ahead is always the
+   bigger crowd. Depth is restored, and it runs one way — where you stand,
+   then where you may go, then where you have been, then the rest. */
+.wm-screen .map-node.mn-done { opacity: 0.62; }
+.wm-screen .map-node.mn-done .mn-icon {
+  color: rgba(200,186,158,0.38); width: 42px; height: 42px; font-size: 16px;
+  box-shadow: 0 0 0 1.2px rgba(216,196,158,0.14), 0 5px 12px rgba(0,0,0,0.65);
+}
+.wm-screen .map-node.mn-locked { opacity: 0.5; }
+.wm-screen .map-node.mn-locked .mn-icon {
+  color: rgba(216,200,170,0.42); width: 40px; height: 40px; font-size: 15px;
+  background: radial-gradient(circle at 50% 38%, rgba(26,21,17,0.86) 0%, rgba(7,6,5,0.9) 78%);
+  box-shadow: 0 0 0 1.1px rgba(216,196,158,0.13), 0 4px 10px rgba(0,0,0,0.6);
+}
+/* WHERE YOU STAND is the brightest thing on the chart — it was a 8px caret
+   over a coin that looked like all the others */
+.wm-screen .map-node.mn-current { opacity: 1; }
+.wm-screen .map-node.mn-current .mn-icon {
+  color: var(--gold-bright); width: 48px; height: 48px;
+  background: radial-gradient(circle at 50% 36%, #2b2117 0%, #0a0806 78%);
+  box-shadow: 0 0 0 1.8px rgba(244,220,156,0.75), 0 0 22px rgba(238,200,120,0.3), 0 6px 14px rgba(0,0,0,0.7);
+}
+.wm-screen .map-node.mn-current .mn-label { color: var(--gold-bright); opacity: 1; }
 .mn-start {
   position: absolute; top: -17px; left: 50%; transform: translateX(-50%);
   font-size: 8.4px; letter-spacing: 0.34em; color: var(--ink);
   text-shadow: 0 1px 5px #000; z-index: 6; white-space: nowrap;
 }
-/* THE FLOOR BOSS — bigger coin, its red breathe kept from the base styling */
+/* THE FLOOR BOSS — bigger coin, its red breathe kept from the base styling.
+   The boss and the gates are LANDMARKS: you should always be able to see
+   where the floor ends, so they are exempt from the road-ahead dimming (they
+   still read quieter than the choices actually open to you). */
 .wm-screen .map-node.mn-boss .mn-icon { width: 50px; height: 50px; font-size: 18px; }
+.wm-screen .map-node.mn-boss.mn-locked,
+.wm-screen .map-node.mn-gate.mn-locked { opacity: 0.86; }
+.wm-screen .map-node.mn-boss.mn-locked .mn-icon { width: 50px; height: 50px; font-size: 18px; color: rgba(255,150,130,0.8); }
+.wm-screen .map-node.mn-boss .mn-label, .wm-screen .map-node.mn-gate .mn-label { opacity: 1; }
 /* THE GATES (Build 20) — the domains' doors beyond the boss, after the mock's
    compass rosettes: a gold star coin inside a raying compass ring, and the
    destination's name always readable (a door is information, not a secret) */
@@ -4761,9 +4747,17 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
   stroke: rgba(242,226,190,0.78); stroke-width: 1.8; stroke-dasharray: none; animation: none;
   filter: drop-shadow(0 0 4px rgba(240,212,136,0.35));
 }
-.wm-screen .map-edges .me.me-future { stroke: rgba(236,224,198,0.38); stroke-width: 1.5; stroke-dasharray: 3 6;
+/* the road ahead recedes with the coins it joins — at 0.38 the dashes were
+   the loudest thing left on the chart once the future nodes stepped back */
+.wm-screen .map-edges .me.me-future { stroke: rgba(236,224,198,0.2); stroke-width: 1.3; stroke-dasharray: 3 7;
   filter: drop-shadow(0 1px 2px rgba(0,0,0,0.8)); }
 /* phone tier — the chart keeps its air on a short stage */
+/* the nudge to spend embers is a FOOTNOTE, not a banner across the chart —
+   it used to run 520px wide and two lines deep in the middle of the painting */
+#overlay.wm-screen .map-coach {
+  max-width: 400px; margin: 2px auto; padding: 5px 12px;
+  font-size: 9.4px; line-height: 1.35;
+}
 @media (max-height: 500px) {
   .wm-title { font-size: 17px; }
   .wm-head { top: 0; }
@@ -5110,13 +5104,19 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
 }
 /* the rank numeral — Darkest Dungeon's lesson said plainly: a lane keeps its
    name even when the field is chaos */
+/* the lane's RANK rides the bar's LEFT CAP — the same line the sum sits on,
+   so a threatened lane reads left-to-right as one sentence: III … ☠ 28. It
+   keeps that place when the lane is safe and the bar is dark, so the position
+   ladder never moves. (It used to float 3px above the plate, where the plate's
+   own pulse swept over it.) */
 .slot-rank {
-  position: absolute; bottom: calc(var(--feet, 6px) + 3px); left: 50%;
-  transform: translateX(-50%); z-index: 10;
+  position: absolute; left: 7%; right: 7%; bottom: calc(var(--feet, 6px) + 5px); z-index: 11;
+  height: 17px; box-sizing: border-box; padding-left: 8px;
+  display: flex; align-items: center;
   font-size: 7px; letter-spacing: 0.2em; color: var(--ink-faint);
   text-shadow: 0 1px 3px #000; pointer-events: none;
 }
-.slot.slot-telegraphed .slot-rank { color: rgba(255,150,130,0.85); }
+.slot.slot-telegraphed .slot-rank { color: rgba(255,168,148,0.9); }
 
 /* ── THE CAMERA (v2.2 Build 30) ─────────────────────────────────────────────
    Layout and camera are separate: the relaxation solves positions once in the

@@ -115,3 +115,72 @@ than as the load-bearing signal:
   it cannot work: the sprite is 85% of a lane.
 - **Snapping heroes home to read the board.** It would solve everything and
   destroy the beat system.
+
+---
+
+## 6. Build 32 — what the board actually looked like, and what it cost
+
+Everything in §4 shipped. It read badly anyway, for reasons the design notes
+could not have caught: the failure was not in the *ideas* but in the number of
+them drawn at once, and in two pieces of geometry nobody had measured.
+
+### 6.1 Six marks per lane
+
+A threatened lane was carrying, simultaneously: a lane plate; a second
+outline drawn *inside* the plate; four glowing corner brackets; a floor pool;
+an expanding shockwave ring; and a floating sum above the plate. Plus a red
+nameplate, a red HP bar, a rank numeral tinted red, an afterimage, and — the
+loudest of all — a dashed arc from the striking foe. Ten red things, one
+message.
+
+Reduced to **one lane bar** per threatened lane, carrying its own text: the
+lane's rank at the left cap, the incoming sum at the right.
+
+    III ·············· ☠ 28
+
+### 6.2 The pulse was scaling the mark past its own lane
+
+Measured, at a 999×461 stage, three lanes lit:
+
+| | width |
+|---|---|
+| lane (BACK slot) | 109 px |
+| plate at rest | 119 px |
+| plate at pulse peak (`scale(1.16)`) | ~138 px |
+
+A mark that names a lane was 27 px wider than the lane. With neighbouring
+lanes lit, the plates merged into one red smear — which is precisely what the
+lane plate was introduced to prevent. The pulse also swept the plate *down*
+across the nameplate and HP bar beneath it.
+
+**Rule: the telegraph never changes size.** Magnitude is carried by weight —
+rim brightness, glow, and breath rate — never by growth. A mark that grows
+cannot stay inside the thing it names.
+
+### 6.3 The arc could never have worked
+
+The one honest arc — heaviest blow, foe to target lane — was drawn with a
+control point 14 px below the chord. Across ~700 px of field that is a
+straight line, and it landed at `slot.bottom - 26`, which is exactly where the
+HP bar sits. So it drew as a **dashed rule straight through every nameplate on
+the board**.
+
+Sagging it properly does not help: a readable sag over that span is ~110 px,
+and the battlefield has ~30 px below the feet line before the hand of cards.
+Arcing it *upward* was already rejected for crossing the cast's faces. There
+is no room for this line. It is not a tuning problem.
+
+**The aim moved onto the attacker's own pill: `⚔ 16 → III`.** Build 6 removed
+`→ BACK` from the pill because four packed foes became a wall of words. A
+numeral is not a word — and every lane now wears that numeral on its own bar,
+so the two readings name each other. Four foes cost four characters instead of
+four crossing dashes.
+
+### 6.4 A keyframe that touches `transform` destroys a centring translate
+
+The lethal sum blinked with `primed-blink`, which sets `transform: scale(.86)`
+at 50%. That replaces the whole transform — including the `translateX(-50%)`
+that centres the element — so the lethal number jumped half its width sideways
+on every blink. Anything centred by transform must not be animated by a
+keyframe that writes `transform`. The bar line is positioned by `left`/`right`
+instead, and the lethal blink animates opacity.

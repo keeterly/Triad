@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 31;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 32;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -9182,7 +9182,14 @@ function showMap() {
         // ORGANIC SCATTER (v2.2 Build 19) — deterministic per-node jitter so the
         // chart reads as places on a painted land, not a diagram. The edges are
         // drawn from measured positions afterward, so they follow for free.
-        const jx = ((n.id * 73) % 17) - 8, jy = ((n.id * 131) % 29) - 14;
+        // THE SCATTER MUST FIT THE GAP (v2.2 Build 32). Vertical jitter was
+        // ±14px inside a 12px column gap, so two neighbours could close 28px
+        // of a 12px space — nodes and their names landed on top of each other
+        // every time, measured on a plain three-column floor. Sideways there
+        // is a whole column gap to play in; downward there is almost none, so
+        // the wander is wide and shallow, and the column gap now clears twice
+        // the remaining jitter.
+        const jx = ((n.id * 73) % 21) - 10, jy = ((n.id * 131) % 13) - 6;
         return `<button class="map-node mn-${n.type}${done ? ' mn-done' : ''}${reach ? ' mn-reach' : ''}${cur ? ' mn-current' : ''}${(!done && !reach) ? ' mn-locked' : ''}${(!done && !reach && seen) ? ' mn-scried' : ''}"
           data-node="${n.id}" ${reach ? '' : 'disabled'} title="${seen ? n.label : '?'}" style="--jx:${jx}px; --jy:${jy}px">
           <span class="mn-pulse" aria-hidden="true"></span>
@@ -10923,7 +10930,7 @@ function renderBattlefield() {
     const hRow = S.heroes.find(x => x.row === row && !x.downed);
     const lethalRow = hRow && !hRow.invuln && dRow >= hRow.hp + hRow.guard;
     const RANKN = { front: 'I', mid: 'II', back: 'III' };
-    slot.innerHTML = `<span class="slot-ring"></span><span class="slot-danger" aria-hidden="true"><span class="sd-ground"></span><span class="sd-brackets"><i></i><i></i><i></i><i></i></span><span class="sd-wave"></span></span><span class="slot-rank" aria-hidden="true">${RANKN[row]}</span>${dRow > 0 ? `<span class="slot-dmg${lethalRow ? ' sd-dmg-lethal' : ''}">${lethalRow ? '☠' : '✕'} ${dRow}</span>` : ''}`;
+    slot.innerHTML = `<span class="slot-ring"></span><span class="slot-danger" aria-hidden="true"><span class="sd-ground"></span></span><span class="slot-rank" aria-hidden="true">${RANKN[row]}</span>${dRow > 0 ? `<span class="slot-dmg${lethalRow ? ' sd-dmg-lethal' : ''}">${lethalRow ? '☠' : '✕'} ${dRow}</span>` : ''}`;
     const who = h || downedHere;
     if (who) {
       const solo = livingHeroes().length === 1;
@@ -11106,63 +11113,21 @@ function renderBattlefield() {
 // attacker is CONNECTED to the ground it will strike by a low dashed arc:
 // who → where, still readable with three intents in the air, and honest when
 // a smart foe re-aims. Measured from real rects like every thread is.
+// THE AIM RIDES THE ATTACKER, NOT A LINE ACROSS THE BOARD (v2.2 Build 32).
+// There used to be a dashed arc from the striking foe to the ground of the
+// lane it was aiming at. It could never look right: both ends sit within a
+// few pixels of the same height, so any readable sag has to travel further
+// down than the battlefield has room for — sag it enough to read as a throw
+// and it dives under the hand; leave it flat and it is a dashed RULE drawn
+// straight through every nameplate on the board. Measured both ways.
+// The mapping it carried is cheaper on the attacker's own pill: every lane
+// now wears its RANK (I / II / III) on its bar, so the intent can name its
+// target in one character — "⚔ 16 → I" — with no geometry at all, and four
+// packed foes cost four characters instead of four crossing dashes. (The
+// word form was what Build 6 removed; a numeral is not a word.)
 function renderTelegraphArcs() {
-  const bfEl = $('#battlefield'); if (!bfEl) return;
-  let svg = document.getElementById('telegraph-layer');
-  if (!svg) {
-    svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.id = 'telegraph-layer';
-    svg.setAttribute('aria-hidden', 'true');
-    bfEl.appendChild(svg);
-  }
-  if (!S || S.over) { svg.innerHTML = ''; return; }
-  const scale = stageScale() || 1;
-  const bf = bfEl.getBoundingClientRect();
-  if (!bf.width) return;
-  svg.setAttribute('viewBox', `0 0 ${Math.round(bf.width / scale)} ${Math.round(bf.height / scale)}`);
-  const groundOf = (row) => {
-    const el = document.querySelector('#party-half .slot[data-row="' + row + '"]');
-    if (!el) return null;
-    const r = el.getBoundingClientRect();
-    return { x: (r.left + r.width / 2 - bf.left) / scale, y: (r.bottom - 26 - bf.top) / scale };
-  };
-  // Gather every arc first, then draw only the few that matter (v2.2 Build 6):
-  // four foes all aiming at one row drew four crossing dashes — spaghetti that
-  // said less than the slot's summed damage chip already says. The heaviest
-  // three threats (lethal first) keep their arcs; the rest speak through the
-  // ground ring and the total.
-  const cand = [];
-  livingEnemies().forEach(e => {
-    const el = figEl(e.uid); if (!el) return;
-    const r = el.getBoundingClientRect();
-    if (!r.width) return;
-    const from = { x: (r.left + r.width * 0.3 - bf.left) / scale, y: (r.top + r.height * 0.78 - bf.top) / scale };
-    enemyNextIntents(e).forEach(it => {
-      if (!it || it.kind === 'buff') return;
-      const dmg = enemyIntentDmg(e, it);
-      const row = effIntentRow(e, it);
-      // an ALL blow draws NO arcs (v2.2 Build 15): arcs are AIM, and a blow
-      // that hits everywhere has none — its pill says ALL and every ground
-      // ring lights; three dashes fanning across the field said less, louder.
-      if (row === 'all' || !row) return;
-      const to = groundOf(row); if (!to) return;
-      const h = S.heroes.find(x => x.row === row && !x.downed);
-      const lethal = h && !h.invuln && dmg >= h.hp + h.guard;
-      cand.push({ from, to, dmg, lethal, heavy: !!(it.heavy || dmg >= 12) });
-    });
-  });
-  cand.sort((a, b) => (b.lethal - a.lethal) || (b.heavy - a.heavy) || (b.dmg - a.dmg));
-  // ONE arc only (v2.2 Build 17, down from three): the arc marks the single
-  // heaviest blow — the one to answer — and it SKIMS THE GROUND (control
-  // point below the chord, not above), so it reads as a line painted on the
-  // floor instead of a dash crossing the cast's faces. Every other threat
-  // still speaks through its ground ring, rim sum, and attacker pill.
-  svg.innerHTML = cand.slice(0, 1).map(c => {
-    const cls = 'tg-arc' + (c.lethal ? ' tg-lethal' : c.heavy ? ' tg-heavy' : '');
-    const mx = (c.from.x + c.to.x) / 2;
-    const my = Math.max(c.from.y, c.to.y) + 14;
-    return `<path class="${cls}" d="M ${c.from.x.toFixed(1)} ${c.from.y.toFixed(1)} Q ${mx.toFixed(1)} ${my.toFixed(1)} ${c.to.x.toFixed(1)} ${c.to.y.toFixed(1)}"/>`;
-  }).join('');
+  const svg = document.getElementById('telegraph-layer');
+  if (svg) svg.remove();
 }
 // one intent rendered as an inline segment (glyph · dmg → row · riders)
 function intentSeg(e, it) {
@@ -11181,7 +11146,8 @@ function intentSeg(e, it) {
   // chip, and the telegraph arc — so four packed foes stop colliding into a
   // wall of "→ BACK → BACK → BACK". The one exception is ALL: a blow no
   // reposition dodges is information the ground of one slot cannot carry.
-  return `<span class="i-seg"><span class="i-glyph">⚔</span><span class="i-dmg">${enemyIntentDmg(e, it)}</span>${row === 'all' ? '<span class="i-row">ALL</span>' : ''}${it.hex ? '<span class="i-st kw-hex" title="HEX — if it lands, your card plays burn your hand; dodge it">☠</span>' : ''}${it.drain ? '<span class="i-st kw-drain" title="drains life — heals the Maw">♥</span>' : ''}${it.chill ? '<span class="i-st kw-chill" title="chills you">❄</span>' : ''}${it.expose ? '<span class="i-st kw-exposed" title="exposes you">◎</span>' : ''}${it.shove === 'front' ? '<span class="i-st kw-shove" title="DRAGS the struck hero one row forward — parry to hold your ground">⇱</span>' : ''}${it.shove === 'back' ? '<span class="i-st kw-shove" title="SHOVES the struck hero one row back — parry to hold your ground">⇲</span>' : ''}</span>`;
+  const RANKN = { front: 'I', mid: 'II', back: 'III' };
+  return `<span class="i-seg"><span class="i-glyph">⚔</span><span class="i-dmg">${enemyIntentDmg(e, it)}</span>${row === 'all' ? '<span class="i-row">ALL</span>' : (row && RANKN[row] ? `<span class="i-row i-aim" title="aimed at lane ${RANKN[row]}">→ ${RANKN[row]}</span>` : '')}${it.hex ? '<span class="i-st kw-hex" title="HEX — if it lands, your card plays burn your hand; dodge it">☠</span>' : ''}${it.drain ? '<span class="i-st kw-drain" title="drains life — heals the Maw">♥</span>' : ''}${it.chill ? '<span class="i-st kw-chill" title="chills you">❄</span>' : ''}${it.expose ? '<span class="i-st kw-exposed" title="exposes you">◎</span>' : ''}${it.shove === 'front' ? '<span class="i-st kw-shove" title="DRAGS the struck hero one row forward — parry to hold your ground">⇱</span>' : ''}${it.shove === 'back' ? '<span class="i-st kw-shove" title="SHOVES the struck hero one row back — parry to hold your ground">⇲</span>' : ''}</span>`;
 }
 // the intent telegraph markup for an enemy (one or a boss's chained two)
 function enemyIntentHtml(e) {
