@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 24;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 25;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -12709,15 +12709,23 @@ function treeFocusOffset(p, W, z) {
 // the screen. The rows sit side by side instead — one COLUMN per row, depth
 // running downward, forks spreading across — which is the axis the stage has
 // room on and reads the same way: a prereq is always above what it unlocks.
-const ET_STEP = 64;    // vertical pitch: one step deeper down a line
-// Forks spread by FRACTION of the line's width rather than a fixed pitch, so a
-// three- or four-way fork stays inside its column instead of overflowing into
-// a scroller — a node you have to scroll to find is a node you do not know you
-// have, which is most of what made the old lattice unmanageable.
+// ── THE STAR (v2.2 Build 25) ──────────────────────────────────────────────
+// One tree per character, and the character is the middle of it. Their three
+// POSITIONS branch out from them 120 degrees apart — front, mid, back — and
+// each branch grows outward by depth. That is the shape the player asked for
+// and it is the shape the data already has: every node's requires-chain walks
+// back to a `<hero>.sig.<row>` anchor, so a branch IS a row.
+//
+// What the old constellation got wrong was never the radial idea — it was
+// drawing all six heroes as regions of ONE world with crossings arcing
+// between them, which is what made it a lattice to navigate instead of a
+// character sheet to read. One hero, one star, no camera. The weave keeps
+// its own tab.
 
-// Which ROW does this node serve? Walk requires back to the sig anchor that
-// roots it. Nodes that root in nothing row-shaped are the hero's own (they
-// change how they fight everywhere), and get the hero band.
+// Which ROW does this node serve? Walk its requires-chain back to the sig
+// anchor that roots it — that anchor's row IS the branch it belongs on.
+// Nodes that root in nothing row-shaped change how the hero fights
+// everywhere, and ring the character themself.
 function etLaneOf(n) {
   const seen = {};
   const walk = (id, hops) => {
@@ -12735,9 +12743,8 @@ function etLaneOf(n) {
   if (n.gate && n.gate.stance) return n.gate.stance;
   return walk(n.id, 0);
 }
-// The row's chain AS IT STANDS — the words the tree is actually editing.
-// Owned inserts appear in it; the rest of the line is what combat already
-// deals, so the player reads the consequence before the purchase.
+// The row's chain AS IT STANDS — owned inserts appear in it, so the panel can
+// show a purchase as a change to a sentence the player already reads in combat.
 function etChainText(heroId, row) {
   const rot = ROTATIONS[heroId] && ROTATIONS[heroId][row];
   if (!rot) return '';
@@ -12750,12 +12757,12 @@ function etChainText(heroId, row) {
       .filter(s => (!s.gate || hasNode(s.gate)) && (!s.gateNot || !hasNode(s.gateNot)));
     key = nx.length ? nx[0].key : null;
   }
-  return out.join(' <i>▸</i> ');
+  return out.join(' <i>\u25b8</i> ');
 }
 function etStyleWord(heroId, row) {
   const rot = ROTATIONS[heroId] && ROTATIONS[heroId][row];
   const op = rot && rot.cards[rot.opener];
-  return op ? (String(op.stance || '').split('·')[1] || '').trim() : '';
+  return op ? (String(op.stance || '').split('\u00b7')[1] || '').trim() : '';
 }
 
 function showEmberTree(onBack, heroId, selId, opts) {
@@ -12783,56 +12790,36 @@ function showEmberTree(onBack, heroId, selId, opts) {
     (n.requires || []).forEach(r => { if (laneIds[r]) d = Math.max(d, depthOf(NODE_BY_ID[r], laneIds) + 1); });
     return d;
   };
-  const laneHtml = (row) => {
-    const list = (lanes[row] || []).filter(n => tierOpen(n.tier) || hasNode(n.id));
-    const ids = {}; (lanes[row] || []).forEach(n => { ids[n.id] = 1; });
-    const cols = {};
-    list.forEach(n => { const d = depthOf(n, ids); (cols[d] = cols[d] || []).push(n); });
-    // TWO TO A ROW (Build 24). Ranked purely by depth, a line put every node
-    // that hangs straight off its anchor on ONE row — five of them once the
-    // deep tiers unseal — and their names ran through each other. The line
-    // flows instead: ordered by depth, then laid two to a row down the
-    // column. A prereq still always sits above what it unlocks (depth orders
-    // the flow), every name has room, and a long line simply runs longer.
-    const PER = 2;
-    const at = {};
-    let rowN = 0;
-    Object.keys(cols).map(Number).sort((a, b) => a - b).forEach(d => {
-      // a DEPTH always starts a fresh row, so a prereq is never level with the
-      // thing it unlocks — the line keeps reading strictly downward even when
-      // a rank has to wrap
-      const c = cols[d].sort((a, b) => a.tier - b.tier || a.cost - b.cost);
-      c.forEach((n, i) => {
-        const inRow = Math.min(PER, c.length - Math.floor(i / PER) * PER);
-        at[n.id] = { x: ((i % PER + 1) / (inRow + 1)) * 100, y: 34 + (rowN + Math.floor(i / PER)) * ET_STEP };
-      });
-      rowN += Math.ceil(c.length / PER);
+  // ---- THE STAR: the hero at the middle, three branches at 120 degrees -----
+  // ---- THE STAR: the hero in the middle, three branches 120 degrees apart ---
+  // The markup only says WHAT sits on which branch; WHERE each node lands is
+  // measured after layout by etLayoutStar(), against the real size of the
+  // frame. Positions guessed in percentages cannot know how much room a branch
+  // actually has, which is how the busiest arm kept ending up a pile.
+  const starHtml = () => {
+    const live = [];
+    ['front', 'mid', 'back', 'self'].forEach(row => {
+      (lanes[row] || []).filter(n => tierOpen(n.tier) || hasNode(n.id))
+        .forEach(n => live.push({ n, row: row === 'self' ? '' : row }));
     });
-    const H = 34 + rowN * ET_STEP;
-    // links: prereq → node, elbowed so a fork reads as a branch off the spine
-    const links = list.map(n => (n.requires || []).filter(r => at[r]).map(r => {
-      const a = at[r], b = at[n.id];
-      const on = hasNode(r), full = on && hasNode(n.id);
-      const my = (a.y + b.y) / 2;
-      return `<path class="et-line${full ? ' et-line-full' : on ? ' et-line-on' : ''}"
-        vector-effect="non-scaling-stroke"
-        d="M ${a.x} ${a.y + 18} C ${a.x} ${my}, ${b.x} ${my}, ${b.x} ${b.y - 18}" />`;
-    }).join('')).join('');
-    const chips = list.map(n => etChip(n, at[n.id], selId, focusHero)).join('');
-    const style = etStyleWord(focusHero, row);
-    const chain = etChainText(focusHero, row);
-    const stood = S && S.heroes && (S.heroes.find(h => h.id === focusHero) || {}).row === row;
-    return `<section class="et-lane${stood ? ' et-lane-here' : ''}" data-lane="${row}">
-      <header class="et-lane-head">
-        <span class="et-lane-row">${row.toUpperCase()}</span>
-        ${style ? `<span class="et-lane-style">${style}</span>` : ''}
-        <span class="et-lane-chain">${chain}</span>
-      </header>
-      <div class="et-lane-field" style="min-height:${H}px">
-        <svg class="et-lane-links" viewBox="0 0 100 ${H}" preserveAspectRatio="none" aria-hidden="true">${links}</svg>
-        ${chips || '<span class="et-lane-empty">nothing kindled on this line yet</span>'}
+    const chips = live.map(o => etChip(o.n, selId, focusHero, o.row)).join('');
+    const tips = ['front', 'mid', 'back'].map(row => {
+      const style = etStyleWord(focusHero, row);
+      const stood = S && S.heroes && (S.heroes.find(h => h.id === focusHero) || {}).row === row;
+      return `<div class="et-tip${stood ? ' et-tip-here' : ''}" data-lane="${row}">
+        <span class="et-tip-row">${row.toUpperCase()}</span>${style ? `<span class="et-tip-style">${style}</span>` : ''}
+      </div>`;
+    }).join('');
+    const HH = HEROES[focusHero] || {};
+    return `<div class="et-star" id="et-star" data-hero="${focusHero}">
+      <svg class="et-star-links" aria-hidden="true"></svg>
+      ${tips}
+      <div class="et-core" style="--tint:${HH.tint || 'var(--gold)'}">
+        <span class="et-core-art">${V2PORTRAITS[focusHero] || ''}</span>
+        <span class="et-core-name">${HH.name || ''}</span>
       </div>
-    </section>`;
+      ${chips}
+    </div>`;
   };
 
   // ---- the WEAVE tab: bonds, common ground, and learning across a thread ----
@@ -12910,16 +12897,15 @@ function showEmberTree(onBack, heroId, selId, opts) {
     <div class="et-tabs">${tabs}</div>
     <div class="et-body">
       <div class="et-lanes" id="et-lanes">
-        ${weaveTab ? weaveHtml() : ['front', 'mid', 'back'].map(laneHtml).join('')
-          + (lanes.self.filter(n => tierOpen(n.tier) || hasNode(n.id)).length ? etSelfBand(lanes.self, selId, focusHero) : '')}
+        ${weaveTab ? weaveHtml() : starHtml()}
       </div>
       <div class="et-side">
-        ${!treeTaught() ? `<div class="et-coach">Each line is one of your <b>rows</b>, drawn as the combo it deals. Tap a <b>lit node</b> to read it, then <b>KINDLE</b>.</div>` : ''}
+        ${!treeTaught() ? `<div class="et-coach">Three branches, one for each of your <b>rows</b>. Tap a <b>lit node</b> to read it, then <b>KINDLE</b>.</div>` : ''}
         <div class="et-detail">${detail}</div>
         <button class="ov-btn et-back-btn" id="et-back">◂ BACK</button>
       </div>
     </div>
-  `, 'map-screen et-screen et-lines');
+  `, 'map-screen et-screen et-lines et-star-screen');
 
   document.querySelectorAll('.et-tab').forEach(el => {
     el.onclick = () => { if (el.dataset.hero !== heroId) showEmberTree(onBack, el.dataset.hero, null, opts); };
@@ -12945,35 +12931,180 @@ function showEmberTree(onBack, heroId, selId, opts) {
     const c = document.querySelector('.et-side');
     if (c) { const b = document.createElement('div'); b.className = 'et-kindled-note'; b.innerHTML = '✓ <b>Kindled!</b> It’s in your hand now. Spend more embers here between fights — but it all resets if you fall.'; c.insertBefore(b, c.firstChild); }
   }
-  // keep the chosen node in view on a long line
-  const selEl = document.querySelector('.et-orb.et-sel');
-  if (selEl && selEl.scrollIntoView) { try { selEl.scrollIntoView({ block: 'nearest', inline: 'center' }); } catch (_) {} }
+  // the star is placed against the frame it actually got
+  etLayoutStar();
+  requestAnimationFrame(etLayoutStar);
+  if (!window.__etResize) {
+    window.__etResize = true;
+    window.addEventListener('resize', () => { if (document.getElementById('et-star')) etLayoutStar(); });
+  }
   $('#et-back').onclick = () => { hideOverlay(); (onBack || showTitle)(); };
 }
 // one node on a line
-function etChip(n, p, selId, heroId) {
+function etChip(n, selId, heroId, lane) {
   const st = nodeState(n);
   const glyph = st === 'owned' ? '✓' : st === 'sealed' ? '🔒' : TREE_TYPE_GLYPH[n.type];
   const foot = (st === 'ready' || st === 'poor')
     ? `<span class="et-orb-cost${st === 'poor' ? ' et-cant' : ''}">✦${n.cost}</span>` : '';
   return `<button class="et-orb et-${st} t-${n.type}${n.id === selId ? ' et-sel' : ''}"
-    data-id="${n.id}" data-tier="${n.tier}" style="left:${p.x.toFixed(2)}%; top:${p.y}px">
+    data-id="${n.id}" data-tier="${n.tier}" data-lane="${lane || ''}">
     <span class="et-orb-glyph">${glyph}</span>
     <span class="et-orb-name">${n.label}</span>
     ${foot}
   </button>`;
 }
-// nodes that serve no single row — they change how the hero fights everywhere
-function etSelfBand(list, selId, heroId) {
-  const live = list.filter(n => tierOpen(n.tier) || hasNode(n.id));
-  const chips = live.map((n, i) => etChip(n, { x: ((i + 1) / (live.length + 1)) * 100, y: 40 }, selId, heroId)).join('');
-  return `<section class="et-lane et-lane-self">
-    <header class="et-lane-head"><span class="et-lane-row">${(HEROES[heroId] || {}).name || 'THEMSELF'}</span>
-      <span class="et-lane-chain">carried into every row</span></header>
-    <div class="et-lane-field" style="min-height:84px">${chips}</div>
-  </section>`;
-}
 
+// ── LAYING OUT THE STAR ─────────────────────────────────────────────────────
+// Measured, not guessed. Each branch fans its nodes across its own wedge with
+// deeper rings further out; then a short relaxation pushes apart any pair that
+// still crowds, holding every node inside its own wedge and inside the frame.
+// Deterministic: same tree, same picture, every time.
+const ET_SPOKE = { front: -90, mid: 30, back: 150 };   // 120 apart, front on top
+function etLayoutStar() {
+  const star = document.getElementById('et-star');
+  if (!star) return;
+  const W = star.clientWidth, H = star.clientHeight;
+  if (!W || !H) return;
+  const cx = W / 2, cy = H / 2;
+  // A TRUE STAR, NOT A SMEAR. The frame is usually wider than it is tall, and
+  // laying the arms out against an ellipse gave the one pointing at the short
+  // axis almost no reach — the busiest branch piled up while the wide axis sat
+  // empty. The star is a CIRCLE centred in whatever box it gets, so all three
+  // arms have the same room and the 120 degrees between them read true.
+  const chipsN = star.querySelectorAll('.et-orb[data-id]').length;
+  const dense = chipsN > 15;
+  star.style.setProperty('--orb', dense ? '26px' : '30px');
+  const MIN = dense ? 34 : 42;                        // clearance between centres
+  const R = Math.max(60, Math.min(W / 2 - 54, H / 2 - 40));
+  const Rx = R, Ry = R;
+  const CORE_RHO = (dense ? 54 : 62) / R;             // stay clear of the character
+  const chips = Array.prototype.slice.call(star.querySelectorAll('.et-orb[data-id]'));
+  if (!chips.length) return;
+
+  const byLane = { front: [], mid: [], back: [], self: [] };
+  chips.forEach(el => { (byLane[el.dataset.lane] || byLane.self).push(el); });
+  const P = {};
+  Object.keys(byLane).forEach(lane => {
+    const list = byLane[lane];
+    if (!list.length) return;
+    if (lane === 'self') {                            // hero-wide nodes ring the core
+      list.forEach((el, i) => {
+        const a = (-40 + (i / list.length) * 360) * Math.PI / 180;
+        P[el.dataset.id] = { a, rho: CORE_RHO * 0.62, el, lane, spine: null };
+      });
+      return;
+    }
+    const ids = {};
+    list.forEach(el => { ids[el.dataset.id] = 1; });
+    const depthOf = (id, seen) => {
+      const n = NODE_BY_ID[id];
+      let d = 0;
+      ((n && n.requires) || []).forEach(r => {
+        if (ids[r] && !seen[r]) { seen[r] = 1; d = Math.max(d, depthOf(r, seen) + 1); }
+      });
+      return d;
+    };
+    const spine = ET_SPOKE[lane] * Math.PI / 180;
+    const ranks = {};
+    list.forEach(el => { const d = depthOf(el.dataset.id, {}); (ranks[d] = ranks[d] || []).push(el); });
+    const ds = Object.keys(ranks).map(Number).sort((a, b) => a - b);
+    const maxD = Math.max(1, ds[ds.length - 1]);
+    ds.forEach(d => {
+      const rank = ranks[d].sort((a, b) => (+a.dataset.tier) - (+b.dataset.tier));
+      const rho = CORE_RHO + (0.98 - CORE_RHO) * (d / (maxD + 0.3));
+      rank.forEach((el, i) => {
+        const t = rank.length === 1 ? 0 : (i / (rank.length - 1)) * 2 - 1;
+        const spread = Math.min(50, 14 + rank.length * 9) * Math.PI / 180;
+        P[el.dataset.id] = { a: spine + t * spread, rho: rho + (i % 2 ? 0.05 : 0), el, lane, spine };
+      });
+    });
+  });
+
+  const pt = (p) => ({ x: cx + p.rho * Math.cos(p.a) * Rx, y: cy + p.rho * Math.sin(p.a) * Ry });
+  const keys = Object.keys(P);
+  const LIM = 56 * Math.PI / 180;
+  for (let pass = 0; pass < 120; pass++) {
+    let moved = false;
+    for (let i = 0; i < keys.length; i++) {
+      for (let j = i + 1; j < keys.length; j++) {
+        const A = P[keys[i]], B = P[keys[j]];
+        const a = pt(A), b = pt(B);
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const dist = Math.hypot(dx, dy) || 0.01;
+        if (dist >= MIN) continue;
+        moved = true;
+        const push = (MIN - dist) / 2 + 0.6;
+        const ux = dx / dist, uy = dy / dist;
+        [[A, -1], [B, 1]].forEach(pair => {
+          const N = pair[0], s = pair[1], p = pt(N);
+          const nx = p.x + s * ux * push, ny = p.y + s * uy * push;
+          N.a = Math.atan2((ny - cy) / Ry, (nx - cx) / Rx);
+          N.rho = Math.hypot((nx - cx) / Rx, (ny - cy) / Ry);
+        });
+      }
+    }
+    keys.forEach(k => {
+      const N = P[k];
+      if (N.spine != null) {
+        let d = N.a - N.spine;
+        while (d > Math.PI) d -= 2 * Math.PI;
+        while (d < -Math.PI) d += 2 * Math.PI;
+        N.a = N.spine + Math.max(-LIM, Math.min(LIM, d));
+        N.rho = Math.max(CORE_RHO, Math.min(1, N.rho));
+      } else {
+        N.rho = Math.max(CORE_RHO * 0.5, Math.min(CORE_RHO * 0.72, N.rho));
+      }
+    });
+    if (!moved) break;
+  }
+
+  const xy = {};
+  keys.forEach(k => {
+    const p = pt(P[k]);
+    xy[k] = p;
+    P[k].el.style.left = p.x.toFixed(1) + 'px';
+    P[k].el.style.top = p.y.toFixed(1) + 'px';
+    P[k].el.classList.toggle('et-lbl-up', p.y < cy - 8);
+  });
+  const far = { front: 0.4, mid: 0.4, back: 0.4 };
+  keys.forEach(k => { const N = P[k]; if (N.lane !== 'self') far[N.lane] = Math.max(far[N.lane], N.rho); });
+  ['front', 'mid', 'back'].forEach(lane => {
+    const tip = star.querySelector('.et-tip[data-lane="' + lane + '"]');
+    if (!tip) return;
+    const spine = ET_SPOKE[lane] * Math.PI / 180;
+    const t = { x: cx + Math.min(1.1, far[lane] + 0.19) * Math.cos(spine) * Rx,
+                y: cy + Math.min(1.1, far[lane] + 0.19) * Math.sin(spine) * Ry };
+    tip.style.left = Math.max(34, Math.min(W - 34, t.x)).toFixed(1) + 'px';
+    tip.style.top = Math.max(14, Math.min(H - 14, t.y)).toFixed(1) + 'px';
+  });
+  const svg = star.querySelector('.et-star-links');
+  if (!svg) return;
+  svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+  let ink = ['front', 'mid', 'back'].map(lane => {
+    const spine = ET_SPOKE[lane] * Math.PI / 180;
+    return '<line class="et-rail" x1="' + (cx + 0.16 * Math.cos(spine) * Rx).toFixed(1) +
+      '" y1="' + (cy + 0.16 * Math.sin(spine) * Ry).toFixed(1) +
+      '" x2="' + (cx + (far[lane] + 0.09) * Math.cos(spine) * Rx).toFixed(1) +
+      '" y2="' + (cy + (far[lane] + 0.09) * Math.sin(spine) * Ry).toFixed(1) + '" />';
+  }).join('');
+  keys.forEach(k => {
+    const n = NODE_BY_ID[k], b = xy[k];
+    if (!n) return;
+    const reqs = (n.requires || []).filter(r => xy[r]);
+    if (!reqs.length) {
+      ink += '<line class="et-link' + (hasNode(k) ? ' et-link-full' : '') + '" x1="' + cx + '" y1="' + cy +
+             '" x2="' + b.x.toFixed(1) + '" y2="' + b.y.toFixed(1) + '" />';
+      return;
+    }
+    reqs.forEach(r => {
+      const a = xy[r], on = hasNode(r), full = on && hasNode(k);
+      ink += '<line class="et-link' + (full ? ' et-link-full' : on ? ' et-link-on' : '') +
+        '" x1="' + a.x.toFixed(1) + '" y1="' + a.y.toFixed(1) +
+        '" x2="' + b.x.toFixed(1) + '" y2="' + b.y.toFixed(1) + '" />';
+    });
+  });
+  svg.innerHTML = ink;
+}
 // CHOOSE YOUR SURVIVOR — pick the hero you begin (solo) with, from the ones
 // you've UNLOCKED.  Locked heroes are shown dimmed: recruit them on the road to
 // unlock them as a future starter.

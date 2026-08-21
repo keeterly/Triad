@@ -2361,14 +2361,15 @@ const QUICK = process.argv.includes('--quick');
 
   // ---------- MID-RUN upgrading: reach the tree without leaving the run --------
   console.log('--- MID-RUN TREE ---');
-  check('MID-RUN: the map exposes an ember-tree button that opens THE THREE LINES',
+  check('MID-RUN: the map exposes an ember-tree button that opens the hero\u2019s STAR',
     await J(() => {
       S = null; RUN = newRun('ash'); showMap();
       const btn = document.querySelector('#map-tree');
       if (!btn) return false;
       btn.click();
-      const lanes = [...document.querySelectorAll('.et-lane[data-lane]')].map(l => l.dataset.lane);
-      return lanes.join('|') === 'front|mid|back' && !!document.querySelector('.et-orb[data-id]');
+      const arms = [...document.querySelectorAll('.et-tip[data-lane]')].map(l => l.dataset.lane);
+      return arms.join('|') === 'front|mid|back' && !!document.querySelector('#et-star')
+        && !!document.querySelector('.et-core') && !!document.querySelector('.et-orb[data-id]');
     }));
   check('MID-RUN: BACK from the tree returns to the descent map',
     await J(() => { const b = document.querySelector('#et-back'); if (!b) return false; b.click(); return !!document.querySelector('#map-tree'); }));
@@ -4194,18 +4195,15 @@ const QUICK = process.argv.includes('--quick');
   // The pan/zoom rig is retired with the constellation (Build 24): the whole
   // tree is on screen at once, so there is nothing to navigate TO. What
   // replaces that guarantee is this — every line is visible without panning.
-  check('UI: the ember tree needs no panning — all three lines are on screen at once',
+  check('UI: the ember tree needs no panning — the whole star is inside its frame',
     await J(() => {
       RUN = newRun('ash'); RUN.active = ['ash']; RUN.nodes = []; RUN.embers = 30; RUN.completed = [0, 1, 2, 3, 4, 5];
       showEmberTree(() => {}, 'ash');
-      const wrap = document.querySelector('.et-lanes');
-      const lanes = [...document.querySelectorAll('.et-lane[data-lane]')];
-      if (lanes.length !== 3 || !wrap) return false;
-      const wr = wrap.getBoundingClientRect();
-      // each line sits inside the frame, and no line hides behind a scroller
-      return lanes.every(l => { const r = l.getBoundingClientRect();
-        return r.width > 40 && r.left >= wr.left - 2 && r.right <= wr.right + 2; })
-        && wrap.scrollWidth <= wrap.clientWidth + 2;
+      const star = document.querySelector('#et-star'); if (!star) return false;
+      const b = star.getBoundingClientRect();
+      const parts = [...star.querySelectorAll('.et-orb'), ...star.querySelectorAll('.et-tip')];
+      return parts.length > 3 && parts.every(el => { const r = el.getBoundingClientRect();
+        return r.left >= b.left - 2 && r.right <= b.right + 2 && r.top >= b.top - 2 && r.bottom <= b.bottom + 2; });
     }));
   check('UI: event choices are unified cards (icon · ACT · consequence)',
     await J(() => {
@@ -5661,9 +5659,9 @@ const QUICK = process.argv.includes('--quick');
     await J(() => { const from = [...document.querySelectorAll('.et-orb.et-cross .et-x-from')]
         .map(e => e.textContent).filter(x => x !== 'COMMON' && x !== 'BOND').sort().join(',');
       return from === 'CASSIA,CASSIA,MIRA,MIRA'; }));
-  check('WEAVE: it is its OWN tab — a hero\u2019s three lines carry no crossings',
+  check('WEAVE: it is its OWN tab — a hero\u2019s own star carries no crossings',
     await J(() => { showEmberTree(() => {}, 'ash');
-      const onLines = document.querySelectorAll('.et-lane[data-lane] .et-orb.et-cross').length;
+      const onLines = document.querySelectorAll('#et-star .et-orb.et-cross').length;
       showEmberTree(() => {}, '__weave');
       return onLines === 0 && document.querySelectorAll('.et-orb.et-cross').length > 0; }));
   check('WEAVE: selecting a door opens the CROSSING panel, not the node panel',
@@ -5692,38 +5690,69 @@ const QUICK = process.argv.includes('--quick');
   check('WEAVE: a shut door offers no way to buy it',
     await J(() => !document.querySelector('#et-cross-buy')));
 
-  // ---------- THE THREE LINES: the layout's own guarantees (Build 24) --------
-  console.log('--- THE THREE LINES ---');
+  // ---------- THE STAR: the layout's own guarantees (Build 25) --------------
+  console.log('--- THE STAR ---');
   await latticeRun('ash'); await sleep(400);
-  check('LINES: a hero is drawn as their three ROWS — each line headed by the combo it actually deals',
+  check('STAR: one tree per character — the hero in the middle, three branches 120 degrees apart',
     await J(() => {
-      const lanes = [...document.querySelectorAll('.et-lane[data-lane]')];
-      if (lanes.map(l => l.dataset.lane).join('|') !== 'front|mid|back') return false;
-      return lanes.every(l => {
-        const chain = (l.querySelector('.et-lane-chain') || {}).textContent || '';
-        const rot = ROTATIONS.ash[l.dataset.lane];
-        // the head names the row's real opener, and the line it prints is live
-        return chain.indexOf(rot.cards[rot.opener].name) === 0 && chain.split('\u25b8').length >= 2;
+      const star = document.querySelector('#et-star'); if (!star) return false;
+      const core = star.querySelector('.et-core'); if (!core) return false;
+      const b = star.getBoundingClientRect(), cr = core.getBoundingClientRect();
+      const cx = cr.left + cr.width / 2, cy = cr.top + cr.height / 2;
+      // the character sits at the centre of their own tree
+      if (Math.abs(cx - (b.left + b.width / 2)) > 4 || Math.abs(cy - (b.top + b.height / 2)) > 4) return false;
+      // and each branch leaves it on its own bearing, 120 degrees from the next
+      const arms = ['front', 'mid', 'back'].map(row => {
+        const t = star.querySelector('.et-tip[data-lane="' + row + '"]');
+        const r = t.getBoundingClientRect();
+        return (Math.atan2((r.top + r.height / 2) - cy, (r.left + r.width / 2) - cx) * 180 / Math.PI + 360) % 360;
+      });
+      const gap = (a, b2) => { const d = Math.abs(a - b2) % 360; return Math.min(d, 360 - d); };
+      return Math.abs(gap(arms[0], arms[1]) - 120) < 6 && Math.abs(gap(arms[1], arms[2]) - 120) < 6
+        && Math.abs(gap(arms[0], arms[2]) - 120) < 6;
+    }));
+  check('STAR: a node sits on the branch it CHANGES — and inside that branch\u2019s own wedge',
+    await J(() => {
+      const star = document.querySelector('#et-star');
+      const core = star.querySelector('.et-core').getBoundingClientRect();
+      const cx = core.left + core.width / 2, cy = core.top + core.height / 2;
+      return [...star.querySelectorAll('.et-orb[data-id]')].every(el => {
+        const n = NODE_BY_ID[el.dataset.id];
+        const lane = etLaneOf(n) || '';
+        if (lane !== (el.dataset.lane || '')) return false;
+        if (!lane) return true;                       // hero-wide nodes ring the core
+        const r = el.getBoundingClientRect();
+        const a = Math.atan2((r.top + r.height / 2) - cy, (r.left + r.width / 2) - cx) * 180 / Math.PI;
+        let d = a - ET_SPOKE[lane];
+        while (d > 180) d -= 360; while (d < -180) d += 360;
+        return Math.abs(d) <= 60;                     // never wanders into a neighbour's arm
       });
     }));
-  check('LINES: a node is drawn on the line it CHANGES — nothing floats between rows',
-    await J(() => [...document.querySelectorAll('.et-lane[data-lane] .et-orb[data-id]')].every(el => {
-      const n = NODE_BY_ID[el.dataset.id];
-      return !!n && etLaneOf(n) === el.closest('.et-lane').dataset.lane;
-    })));
-  check('LINES: a prereq is drawn ABOVE what it unlocks — the line always reads downward',
-    await J(() => [...document.querySelectorAll('.et-lane[data-lane] .et-orb[data-id]')].every(el => {
-      const n = NODE_BY_ID[el.dataset.id];
-      const mine = el.getBoundingClientRect();
-      return (n.requires || []).every(r => {
-        const pe = document.querySelector('.et-orb[data-id="' + r + '"]');
-        if (!pe) return true;                      // sealed or on another line
-        return pe.getBoundingClientRect().top < mine.top - 4;
-      });
-    })));
-  check('LINES: no two nodes are drawn on top of each other',
+  check('STAR: a prereq is drawn CLOSER TO THE CHARACTER than what it unlocks — a branch always grows outward',
     await J(() => {
-      const g = [...document.querySelectorAll('.et-lane .et-orb .et-orb-glyph')];
+      const star = document.querySelector('#et-star');
+      const core = star.querySelector('.et-core').getBoundingClientRect();
+      const cx = core.left + core.width / 2, cy = core.top + core.height / 2;
+      const rad = el => { const r = el.getBoundingClientRect();
+        return Math.hypot((r.left + r.width / 2) - cx, (r.top + r.height / 2) - cy); };
+      return [...star.querySelectorAll('.et-orb[data-id]')].every(el => {
+        const n = NODE_BY_ID[el.dataset.id];
+        return (n.requires || []).every(r => {
+          const pe = star.querySelector('.et-orb[data-id="' + r + '"]');
+          return !pe || rad(pe) < rad(el) - 2;
+        });
+      });
+    }));
+  check('STAR: no two nodes are drawn on top of each other, and none sits on the character',
+    await J(() => {
+      const core = document.querySelector('.et-core').getBoundingClientRect();
+      const onCore = [...document.querySelectorAll('.et-star .et-orb .et-orb-glyph')].some(e => {
+        const r = e.getBoundingClientRect();
+        return Math.hypot((r.left + r.width / 2) - (core.left + core.width / 2),
+                          (r.top + r.height / 2) - (core.top + core.height / 2)) < (core.width + r.width) / 2 - 4;
+      });
+      if (onCore) return false;
+      const g = [...document.querySelectorAll('.et-star .et-orb .et-orb-glyph')];
       for (let i = 0; i < g.length; i++) for (let j = i + 1; j < g.length; j++) {
         const a = g[i].getBoundingClientRect(), b = g[j].getBoundingClientRect();
         const dx = (a.left + a.width / 2) - (b.left + b.width / 2);
@@ -5732,8 +5761,8 @@ const QUICK = process.argv.includes('--quick');
       }
       return true;
     }));
-  check('LINES: the panel names which line a node changes, so the purchase reads as a consequence',
-    await J(() => { const el = document.querySelector('.et-lane[data-lane] .et-orb[data-id]');
+  check('STAR: the panel names which line a node changes, so the purchase reads as a consequence',
+    await J(() => { const el = document.querySelector('.et-star .et-orb[data-lane="front"], .et-star .et-orb[data-lane="mid"], .et-star .et-orb[data-lane="back"]');
       el.click();
       const lane = document.querySelector('.et-d-lane');
       return !!lane && /FRONT|MID|BACK/.test(lane.textContent); }));
