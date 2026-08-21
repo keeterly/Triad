@@ -2529,17 +2529,19 @@ const QUICK = process.argv.includes('--quick');
         && count('silence', 'event') > count('rust', 'event')
         && count('stillness', 'camp') > count('cinders', 'camp');
     }));
-  check('GATES: each domain paints its own chart — the map backdrop swaps with the region, art-less domains borrow Lament’s',
+  check('GATES: each domain paints its own chart — all six carry art, the backdrop swaps with the region, an unknown id borrows Lament’s',
     await J(() => {
       const _f = RUN.floor, _r = RUN.region, _m = RUN.map, _c = RUN.completed;
+      const allPainted = Object.keys(REGIONS).every(rid => (REGIONS[rid].art || '').indexOf('art/map-') === 0);
       RUN.floor = 3; RUN.region = 'cinders'; RUN.map = generateDescent(RUN.roster, 3, 'cinders'); RUN.completed = [];
       showMap();
       const cinders = getComputedStyle(document.querySelector('#overlay')).backgroundImage.includes('map-cinders');
       RUN.floor = 2; RUN.region = 'rust'; RUN.map = generateDescent(RUN.roster, 2, 'rust'); RUN.completed = [];
       showMap();
-      const borrowed = getComputedStyle(document.querySelector('#overlay')).backgroundImage.includes('map-lament');
+      const rust = getComputedStyle(document.querySelector('#overlay')).backgroundImage.includes('map-rust');
+      const borrowed = regionArt('nowhere') === 'art/map-lament.webp';
       RUN.floor = _f; RUN.region = _r; RUN.map = _m; RUN.completed = _c; showMap();
-      return cinders && borrowed;
+      return allPainted && cinders && rust && borrowed;
     }));
   check('GATES: the deepest dark has no fork — floor 3 offers ONE gate, floor 4 none at all',
     await J(() => {

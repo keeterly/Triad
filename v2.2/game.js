@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 21;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 22;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -4254,7 +4254,7 @@ const FLOORS = 4;         // total floors — floor 4 is the short mega-boss gau
 // LAMENT is the player's own; the rest follow its register (see NARRATIVE.md).
 const REGIONS = {
   lament:    { name: 'DOMAIN OF LAMENT',    depth: 1, sub: 'where the grief pooled first', art: 'art/map-lament.webp' },
-  rust:      { name: 'DOMAIN OF RUST',      depth: 2, gate: 'NORTH GATE', bias: 'elite',
+  rust:      { name: 'DOMAIN OF RUST',      depth: 2, gate: 'NORTH GATE', bias: 'elite', art: 'art/map-rust.webp',
                promise: 'The armories of the fallen, still creaking. The dead run thicker here — <b>more elites, more embers</b>.' },
   silence:   { name: 'DOMAIN OF SILENCE',   depth: 2, gate: 'SOUTH GATE', bias: 'event', art: 'art/map-silence.webp',
                promise: 'Streets that swallowed their own bells. A stranger road — <b>more mysteries</b> on the way down.' },
@@ -4262,7 +4262,7 @@ const REGIONS = {
                promise: 'What the pyres could not finish. The strong gather here — <b>more elites, more embers</b>.' },
   stillness: { name: 'DOMAIN OF STILLNESS', depth: 3, gate: 'SOUTH GATE', bias: 'camp', art: 'art/map-stillness.webp',
                promise: 'A hush deep enough to rest in. The road is patient — <b>an extra fire</b> burns on it.' },
-  deep:      { name: 'THE DEEPEST DARK',    depth: 4, gate: 'THE LAST GATE' },
+  deep:      { name: 'THE DEEPEST DARK',    depth: 4, gate: 'THE LAST GATE', art: 'art/map-deep.webp' },
 };
 // a domain without its own painting borrows Lament's until its art lands
 function regionArt(rid) { const R = REGIONS[rid]; return (R && R.art) || 'art/map-lament.webp'; }
