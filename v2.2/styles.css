@@ -4789,3 +4789,113 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
    the next beat or get out of the way */
 #party-half .slot.slot-acting.slot-telegraphed .slot-danger { opacity: 1; }
 @media (prefers-reduced-motion: reduce) { #party-half .slot.slot-acting::after { animation: none; } }
+
+/* ── THE EMBER TREE · THREE LINES (v2.2 Build 24) ───────────────────────────
+   The constellation is retired. A hero fights out of three rows and every
+   node they own hangs off one of them, so the tree is drawn as three LINES:
+   the row's real combat chain in words, and beneath it the nodes that change
+   that chain, depth running left to right. A prereq is always to the left of
+   what it unlocks and no line ever crosses another — the page is read, not
+   navigated. */
+#overlay.et-lines #overlay-inner { max-width: 1080px; width: 97%; }
+.et-lines .et-body { display: flex; gap: 14px; align-items: stretch; }
+.et-lanes {
+  flex: 1 1 auto; min-width: 0; display: flex; flex-direction: row; gap: 9px;
+  align-items: stretch; max-height: 72vh;
+}
+.et-lanes > .et-lane { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; }
+.et-lane-field { flex: 1 1 auto; }
+.et-lanes::-webkit-scrollbar { width: 0; }
+.et-lane {
+  border: 1px solid rgba(212,200,168,0.13); border-radius: 4px;
+  background: linear-gradient(180deg, rgba(22,17,13,0.62), rgba(10,8,7,0.62));
+  overflow: hidden; text-align: left;
+}
+.et-lane-here { border-color: rgba(240,212,136,0.34); box-shadow: inset 0 0 22px rgba(240,212,136,0.06); }
+.et-lane-head {
+  display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap; padding: 6px 9px 5px;
+  border-bottom: 1px solid rgba(212,200,168,0.09); background: rgba(0,0,0,0.28);
+}
+.et-lane-row { font-size: 9px; letter-spacing: 0.26em; color: var(--gold-bright); flex: 0 0 auto; }
+.et-lane-style {
+  font-size: 7.5px; letter-spacing: 0.2em; color: var(--ink-faint);
+  border: 1px solid rgba(212,200,168,0.2); border-radius: 9px; padding: 1px 7px; flex: 0 0 auto;
+}
+.et-lane-chain {
+  font-size: 8.6px; letter-spacing: 0.03em; line-height: 1.35; color: var(--ink-dim);
+  flex: 1 0 100%; min-width: 0;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+}
+.et-lane-chain i { color: var(--gold); font-style: normal; opacity: 0.7; padding: 0 2px; }
+.et-lane-field { position: relative; overflow-x: hidden; overflow-y: auto; }
+.et-lane-field::-webkit-scrollbar { width: 0; }
+.et-lane-field::-webkit-scrollbar { height: 0; }
+.et-lane-links { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.et-line { fill: none; stroke: rgba(232,220,196,0.13); stroke-width: 1.3; }
+.et-line-on { stroke: rgba(240,212,136,0.4); }
+.et-line-full { stroke: rgba(240,212,136,0.72); stroke-width: 1.8; }
+.et-lane-empty {
+  position: absolute; left: 26px; top: 50%; transform: translateY(-50%);
+  font-size: 8.5px; letter-spacing: 0.14em; color: var(--ink-faint); font-style: italic;
+}
+/* a node on a line */
+.et-lines .et-orb {
+  position: absolute; transform: translate(-50%, -50%);
+  width: 76px; padding: 0; border: none; background: transparent; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  font-family: inherit; color: var(--ink-dim); z-index: 2;
+}
+.et-lines .et-orb-glyph {
+  width: 30px; height: 30px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center; font-size: 13px;
+  background: radial-gradient(circle at 50% 38%, #211a14 0%, #080706 78%);
+  box-shadow: 0 0 0 1px rgba(212,200,168,0.16), 0 3px 8px rgba(0,0,0,0.6);
+  transition: box-shadow 0.16s, color 0.16s, transform 0.16s;
+}
+.et-lines .et-orb-name {
+  font-size: 7.4px; letter-spacing: 0.07em; line-height: 1.24; text-align: center;
+  max-width: 76px; color: var(--ink-dim);
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+}
+.et-lines .et-orb-cost { font-size: 7.4px; letter-spacing: 0.06em; color: var(--gold-bright); }
+.et-lines .et-orb-cost.et-cant { color: var(--blood-bright); }
+.et-lines .et-ready .et-orb-glyph { color: var(--gold-bright); box-shadow: 0 0 0 1.4px rgba(240,212,136,0.6), 0 0 14px rgba(240,212,136,0.28); }
+.et-lines .et-ready .et-orb-name { color: var(--ink); }
+.et-lines .et-owned .et-orb-glyph { color: var(--gold); box-shadow: 0 0 0 1.4px rgba(240,212,136,0.4); }
+.et-lines .et-poor { opacity: 0.72; }
+.et-lines .et-needs, .et-lines .et-sealed { opacity: 0.5; }
+.et-lines .et-orb:hover .et-orb-glyph { transform: scale(1.1); }
+.et-lines .et-orb.et-sel .et-orb-glyph {
+  box-shadow: 0 0 0 2px rgba(255,232,160,0.95), 0 0 18px rgba(240,212,136,0.5);
+}
+.et-lines .et-orb.et-sel .et-orb-name { color: var(--gold-bright); }
+/* the weave tab reads as a shelf of what a thread can teach you */
+.et-weave-grid { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px; }
+.et-lines .et-weave-grid .et-orb { position: static; transform: none; width: 92px; }
+.et-lines .et-x-from { font-size: 6.8px; letter-spacing: 0.18em; color: var(--ink-faint); }
+.et-lines .et-cross .et-orb-glyph { color: var(--tint, var(--gold)); box-shadow: 0 0 0 1.3px color-mix(in srgb, var(--tint, #d4b478) 55%, transparent); }
+.et-lines .et-x-crossed .et-orb-glyph { box-shadow: 0 0 0 1.6px rgba(240,212,136,0.7); }
+.et-lines .et-x-unbonded, .et-lines .et-x-untaught, .et-lines .et-x-unbridged { opacity: 0.55; }
+.et-tab-weave { letter-spacing: 0.16em; }
+.et-d-lane { font-size: 8px; letter-spacing: 0.2em; color: var(--ink-faint); margin: 3px 0 6px; }
+.et-lines .et-side { flex: 0 0 292px; display: flex; flex-direction: column; gap: 9px; }
+@media (max-height: 500px) {
+  .et-lanes { max-height: 62vh; gap: 6px; }
+  .et-lane-head { padding: 4px 9px 3px; }
+  .et-lines .et-side { flex-basis: 250px; }
+}
+
+/* THREE LINES — resets over the retired constellation's orb styling. Those
+   rules still dress the KINDLE burst and the boon medallions, so they stay;
+   they simply must not reach into a node standing on a line. */
+.et-lines .et-orb-cost {
+  position: static; top: auto; right: auto; background: none; padding: 0;
+  font-weight: 700; text-shadow: 0 1px 3px #000; z-index: auto;
+}
+.et-lines .et-orb.et-sealed .et-orb-name,
+.et-lines .et-orb.et-needs .et-orb-name,
+.et-lines .et-orb.et-party .et-orb-name { display: -webkit-box; }
+.et-lines .et-orb-name { position: static; }
+/* a line keeps its own height — the column scrolls, it never squeezes the
+   lanes (flex-shrink was cutting chips off at the lane's bottom edge) */
+

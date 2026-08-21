@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 23;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 24;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -12683,247 +12683,196 @@ function treeFocusOffset(p, W, z) {
   return { x: -((p.x / W) * TREE_BOX - C) * z, y: -((p.y / W) * TREE_BOX - C) * z };
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// THE EMBER TREE — THREE LINES (v2.2 Build 24)
+//
+// The constellation is gone. It drew every hero as a radial region of orbs
+// wired to each other by curved spokes, and measured against the thing it is
+// FOR — "what will this do to my turn?" — it answered badly: the geometry was
+// about the graph, not about combat, so a player read a pretty lattice and
+// still could not say which of their three stances got better.
+//
+// A hero fights out of THREE ROWS, and every node they own hangs off one of
+// them: each node's requires-chain walks back to a `<hero>.sig.<row>` anchor.
+// So the tree is drawn as what it actually is — three LINES, one per row,
+// each showing that row's real combat chain in words above the nodes that
+// change it. Depth runs left to right (a prereq is always left of what it
+// unlocks), forks stack inside their own lane, and no line ever crosses
+// another. What used to be a constellation to navigate is now a page to read.
+//
+// The WEAVE — bonds, common ground and learning across a thread from an ally
+// — was the other half tangled into that lattice, and it is a different KIND
+// of thing to own, so it moved to its own tab.
+// ═══════════════════════════════════════════════════════════════════════════
+// A LINE RUNS DOWN (Build 24). Laid as three stacked horizontal bands, the
+// lanes needed more height than a landscape phone has and the third fell off
+// the screen. The rows sit side by side instead — one COLUMN per row, depth
+// running downward, forks spreading across — which is the axis the stage has
+// room on and reads the same way: a prereq is always above what it unlocks.
+const ET_STEP = 64;    // vertical pitch: one step deeper down a line
+// Forks spread by FRACTION of the line's width rather than a fixed pitch, so a
+// three- or four-way fork stays inside its column instead of overflowing into
+// a scroller — a node you have to scroll to find is a node you do not know you
+// have, which is most of what made the old lattice unmanageable.
+
+// Which ROW does this node serve? Walk requires back to the sig anchor that
+// roots it. Nodes that root in nothing row-shaped are the hero's own (they
+// change how they fight everywhere), and get the hero band.
+function etLaneOf(n) {
+  const seen = {};
+  const walk = (id, hops) => {
+    if (!id || seen[id] || hops > 8) return null;
+    seen[id] = 1;
+    const m = /^[a-z]+\.sig\.(front|mid|back)$/.exec(id);
+    if (m) return m[1];
+    const byId = /^[a-z]+\.(?:open|branch)\.(front|mid|back)$/.exec(id);
+    if (byId) return byId[1];
+    const node = NODE_BY_ID[id];
+    if (!node) return null;
+    for (const r of (node.requires || [])) { const got = walk(r, hops + 1); if (got) return got; }
+    return null;
+  };
+  if (n.gate && n.gate.stance) return n.gate.stance;
+  return walk(n.id, 0);
+}
+// The row's chain AS IT STANDS — the words the tree is actually editing.
+// Owned inserts appear in it; the rest of the line is what combat already
+// deals, so the player reads the consequence before the purchase.
+function etChainText(heroId, row) {
+  const rot = ROTATIONS[heroId] && ROTATIONS[heroId][row];
+  if (!rot) return '';
+  const out = [];
+  let key = rot.opener, guard = 0;
+  while (key && rot.cards[key] && guard++ < 8) {
+    const c = rot.cards[key];
+    out.push(c.name);
+    const nx = (c.next || []).map(s => (typeof s === 'string' ? { key: s } : s))
+      .filter(s => (!s.gate || hasNode(s.gate)) && (!s.gateNot || !hasNode(s.gateNot)));
+    key = nx.length ? nx[0].key : null;
+  }
+  return out.join(' <i>▸</i> ');
+}
+function etStyleWord(heroId, row) {
+  const rot = ROTATIONS[heroId] && ROTATIONS[heroId][row];
+  const op = rot && rot.cards[rot.opener];
+  return op ? (String(op.stance || '').split('·')[1] || '').trim() : '';
+}
+
 function showEmberTree(onBack, heroId, selId, opts) {
   $('#stage').classList.remove('show-bg');
-  // a "__kindled:" prefix on selId means we just bought that node — celebrate it
   let justKindled = false;
   if (selId && String(selId).indexOf('__kindled:') === 0) { justKindled = true; selId = selId.slice(10); }
   const party = partyHeroes();
-  // only your fielded party has constellations here; clamp to a party member
-  if (party.length && party.indexOf(heroId) < 0) heroId = party[0];
-  heroId = heroId && HEROES[heroId] ? heroId : (party[0] || 'ash');
-  // ---- THE WORLD: every fielded region in one space (Build 248) ---------------
-  const world = buildTreeWorld(party);
-  const { pos, hubs } = world;
-  const W = world.W, H = world.W;
-  const nodes = world.per[heroId] ? world.per[heroId].nodes : [];
-  const depth = world.per[heroId] ? world.per[heroId].depth : {};
-  const maxD = world.per[heroId] ? world.per[heroId].maxD : 0;
-  const allNodes = party.reduce((a, h) => a.concat(world.per[h].nodes), []);
-  const root = hubs[heroId] || { x: W / 2, y: H / 2 };
-  // A crossing is now an EDGE from your hub to the teacher's ACTUAL node, so the
-  // skill exists exactly once on screen.  Keyed by node id for the orb badges.
-  const crossings = crossViewFor(heroId);
-  const crossBy = {}; crossings.forEach(c => { crossBy[c.node.id] = c; });
-  // ---- LINKS: straight spokes — prereq → node, or hub → a depth-0 node ---------
-  const links = [];
-  allNodes.forEach(n => {
-    // A SEALED TIER IS NOT DRAWN (see the orb filter below) — so its links must
-    // not be either. Dashed spokes running to empty space were most of what made
-    // the early tree read as noise: ink for nodes that do not exist yet.
-    if (!(tierOpen(n.tier) || hasNode(n.id))) return;
-    const hub = hubs[n.hero];
-    const reqs = (n.requires || []).filter(r => pos[r]);
-    const far = n.hero !== heroId;
-    if (reqs.length) reqs.forEach(r => links.push({ h: hub, a: pos[r], b: pos[n.id], on: hasNode(r), full: hasNode(r) && hasNode(n.id), far }));
-    else links.push({ h: hub, a: hub, b: pos[n.id], on: tierOpen(n.tier), full: hasNode(n.id), far });
-  });
-  // A LINK FOLLOWS THE CONSTELLATION (Build 310). Straight prereq chords cut
-  // across the ring guides at arbitrary angles, which is what made the lattice
-  // read as sharp and random — the lines fought the radial geometry everything
-  // else obeys. Each link now bends through the polar midpoint of its region:
-  // a radial spoke stays effectively straight (its polar midpoint IS on the
-  // chord), while a link that hops between angles arcs gently along the rings.
-  // One rule, no per-link tuning, and the ring guides become what the lines
-  // agree with instead of what they slice through.
-  const curveIn = (H, A, B) => {
-    const rA = Math.hypot(A.x - H.x, A.y - H.y), rB = Math.hypot(B.x - H.x, B.y - H.y);
-    if (rA < 6 || rB < 6) return `M ${A.x} ${A.y} L ${B.x} ${B.y}`;   // hub spokes stay straight
-    const aA = Math.atan2(A.y - H.y, A.x - H.x); let d = Math.atan2(B.y - H.y, B.x - H.x) - aA;
-    while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
-    const am = aA + d / 2, rm = (rA + rB) / 2;
-    const cx = 2 * (H.x + Math.cos(am) * rm) - (A.x + B.x) / 2;
-    const cy = 2 * (H.y + Math.sin(am) * rm) - (A.y + B.y) / 2;
-    return `M ${A.x} ${A.y} Q ${cx.toFixed(1)} ${cy.toFixed(1)} ${B.x} ${B.y}`;
-  };
-  const linkSvg = links.map(l => {
-    const cls = l.full ? 'et-link-full' : l.on ? 'et-link-on' : 'et-link-off';
-    return `<path class="et-link ${cls}${l.far ? ' et-far' : ''}" vector-effect="non-scaling-stroke" d="${curveIn(l.h, l.a, l.b)}" />`;
-  }).join('');
-  // ── PATHWAY CAPTIONS (Build 313) — the three branches, named by PLAYSTYLE ──
-  // Each tier-1 anchor's wedge is captioned with the flavour word its line
-  // already carries in the rotation data ('OPENER · AGGRESSION' → AGGRESSION),
-  // plus the POSITION it is played from — so the tree answers "what does this
-  // branch DO" before a single node is read, and the flavour words finally have
-  // one consistent job: naming a playstyle, never a place.
-  let pathSvg = '';
-  {
-    const P = world.per[heroId];
-    if (P) {
-      const hub = hubs[heroId];
-      (P.nodes || []).filter(n => n.tier === 1).forEach(n => {
-        const m = /^(\w+)\.sig\.(\w+)$/.exec(n.id); if (!m) return;
-        const row = m[2], rot = ROTATIONS[heroId] && ROTATIONS[heroId][row];
-        const op = rot && rot.cards[rot.opener]; if (!op) return;
-        const style = (String(op.stance || '').split('\u00b7')[1] || '').trim();
-        if (!style) return;
-        const a = (P.angle[n.id] || 0) * Math.PI / 180;
-        // just past the SECOND ring, not the region's outermost — deep chains
-        // pushed maxD past the focus zoom and the captions rendered off-view
-        const r = P.r0 + 2.45 * TREE_RING;
-        const x = hub.x + r * Math.cos(a), y = hub.y + r * Math.sin(a);
-        // FONT IN WORLD UNITS. This SVG's viewBox is the world (W wide, ~3x the
-        // 560px pan layer), so CSS pixel sizes shrink by 560/W and an 11px
-        // caption rendered at ~3px — present, invisible. Scale with the world.
-        // Sized for the FOCUS zoom (~2.5x), where a pathway is actually read —
-        // 11px-equivalent here rendered as ~29px shouting across the canvas.
-        const fs = (5 * W / TREE_BOX).toFixed(1), fs2 = (3.6 * W / TREE_BOX).toFixed(1);
-        pathSvg += `<text class="et-path-cap" style="font-size:${fs}px" x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle">${style}</text>`
-                 + `<text class="et-path-sub" style="font-size:${fs2}px" x="${x.toFixed(1)}" y="${(y + 1.3 * fs).toFixed(1)}" text-anchor="middle">from ${row.toUpperCase()}</text>`;
-      });
-    }
+  const weaveTab = heroId === '__weave';
+  if (!weaveTab) {
+    if (party.length && party.indexOf(heroId) < 0) heroId = party[0];
+    heroId = heroId && HEROES[heroId] ? heroId : (party[0] || 'ash');
   }
-  // BRANCH RAILS, NOT ORBIT RINGS (Build 314). The concentric depth circles made
-  // the region read as a spiral — nodes seemed to orbit rather than to GROW, and
-  // with the three-pathway layout in (312/313) the circles cut across all three
-  // wedges as if they connected them. Each branch now gets one faint straight
-  // rail from the hub out through its anchor's angle: the eye follows a rail out
-  // a pathway, which is the read the whole tree is built around.
-  let ringSvg = '';
-  party.forEach(hid => {
-    const hub = hubs[hid], P = world.per[hid];
-    // A rail runs only as deep as the deepest node actually DRAWN on ITS OWN
-    // branch — sealed tiers are hidden, so a rail pointing past the last
-    // visible orb was a guide to nothing, and one branch's depth must not
-    // stretch its siblings' rails. Each grows as the descent unseals tiers.
-    (P.nodes || []).filter(n => n.tier === 1).forEach(n => {
-      const aDeg = P.angle[n.id] || 0;
-      const secD = (P.nodes || []).reduce((m, n2) => {
-        if (!(tierOpen(n2.tier) || hasNode(n2.id))) return m;
-        const d = ((P.angle[n2.id] || 0) - aDeg + 540) % 360 - 180;
-        return Math.abs(d) <= 61 ? Math.max(m, P.depth[n2.id] || 0) : m;
-      }, 0);
-      const a = aDeg * Math.PI / 180;
-      const rIn = P.r0 * 0.45, rOut = P.r0 + (secD + 0.35) * TREE_RING;
-      ringSvg += `<line class="et-rail${hid === heroId ? ' et-rail-here' : ''}"
-        x1="${(hub.x + rIn * Math.cos(a)).toFixed(1)}" y1="${(hub.y + rIn * Math.sin(a)).toFixed(1)}"
-        x2="${(hub.x + rOut * Math.cos(a)).toFixed(1)}" y2="${(hub.y + rOut * Math.sin(a)).toFixed(1)}"
-        vector-effect="non-scaling-stroke" />`;
-    });
-  });
-  // A doorway hangs off a BOND, not a prerequisite, so it is drawn as a thread
-  // rather than a spoke — dashed while the bond is short of CROSS_BOND, drawn
-  // solid once the door is open, in the teaching hero's own colour.
-  // MANY BRIDGES, NOT ONE (Build 250).  Every thread used to leave the same
-  // point — your hub — so the border between two regions read as a single
-  // crossing no matter how many skills spanned it.  Each one now springs from
-  // the node of YOURS that sits nearest its target, preferring one you have
-  // actually kindled, so the bridges land at different places along the border
-  // and they MIGRATE as you build: grow toward a companion and your crossings
-  // set off from there instead of from the middle of your own tree.
-  // Nearest node wins outright.  Preferring an OWNED anchor sounded better and
-  // measured worse: early on a hero owns two or three nodes clustered by their
-  // hub, so every bridge collapsed back onto the same one and the border read as
-  // a single crossing again — exactly the thing this is meant to fix.  Ownership
-  // is carried in the STYLE instead: a bridge that sets off from a node you have
-  // kindled is drawn established, one from bare ground stays faint.
-  const anchorFor = (target) => {
-    let best = null, bestD = Infinity, bestOwned = false;
-    nodes.forEach(n => {
-      const p = pos[n.id]; if (!p) return;
-      const d = Math.hypot(p.x - target.x, p.y - target.y);
-      if (d < bestD) { best = p; bestD = d; bestOwned = hasNode(n.id); }
-    });
-    return best ? { p: best, owned: bestOwned } : { p: root, owned: true };
+  const focusHero = weaveTab ? (party[0] || 'ash') : heroId;
+  const allNodes = EMBER_TREE.filter(n => n.hero && party.indexOf(n.hero) >= 0);
+  const crossings = crossViewFor(focusHero);
+
+  // ---- LANES: the hero's own nodes, sorted into their three rows ------------
+  const mine = EMBER_TREE.filter(n => n.hero === focusHero);
+  const lanes = { front: [], mid: [], back: [], self: [] };
+  mine.forEach(n => { const row = etLaneOf(n); (lanes[row] || lanes.self).push(n); });
+
+  // depth within a lane = longest requires-chain up to the lane's own root
+  const depthOf = (n, laneIds) => {
+    let d = 0;
+    (n.requires || []).forEach(r => { if (laneIds[r]) d = Math.max(d, depthOf(NODE_BY_ID[r], laneIds) + 1); });
+    return d;
   };
-  const threadSvg = crossings.map(c => {
-    const p = pos[c.node.id]; if (!p) return '';
-    const a = anchorFor(p);
-    const open = c.state === 'open' || c.state === 'poor' || c.state === 'crossed';
-    // A crossing to a hero's own technique routes THROUGH the common ground you
-    // hold on that border — the bridgehead is a place on the map, not a rule in
-    // a tooltip, so the path bends to touch it.
-    let via = '';
-    if (!c.common) {
-      const held = commonOnBorder(heroId, c.teacher).find(cn => hasCrossed(heroId, cn.id));
-      if (held && pos[held.id]) via = ` L ${pos[held.id].x} ${pos[held.id].y}`;
-    }
-    // a thread HANGS — a soft bow, not a spear. A via-path (through a border
-    // stone) keeps its stations and bows each leg would be over-engineering;
-    // those stay straight and read as routed on purpose.
-    let d;
-    if (via) d = `M ${a.p.x} ${a.p.y}${via} L ${p.x} ${p.y}`;
-    else {
-      const mx = (a.p.x + p.x) / 2 - (p.y - a.p.y) * 0.12, my = (a.p.y + p.y) / 2 + (p.x - a.p.x) * 0.12;
-      d = `M ${a.p.x} ${a.p.y} Q ${mx.toFixed(1)} ${my.toFixed(1)} ${p.x} ${p.y}`;
-    }
-    return `<path class="et-thread${open ? ' et-thread-on' : ''}${c.state === 'crossed' ? ' et-thread-full' : ''}${a.owned ? ' et-thread-rooted' : ''}"
-      vector-effect="non-scaling-stroke" fill="none" stroke="${HEROES[heroId].tint}"
-      d="${d}" />`;
-  }).join('');
-  const crossRing = '';
-  // the border stones — nobody's colour, so they read as neutral ground
-  const commonOrbs = party.map((h2, i) => party.slice(i + 1).map(h3 => commonOnBorder(h2, h3).map(cn => {
-    const p = pos[cn.id]; if (!p) return '';
-    const mine = (h2 === heroId || h3 === heroId);
-    const c = mine ? crossings.find(x => x.node.id === cn.id) : null;
-    const held = hasCrossed(h2, cn.id) || hasCrossed(h3, cn.id);
-    const id = mine ? 'x:' + heroId + ':' + cn.id : cn.id;
-    const st = !mine ? 'far' : (c ? c.state : 'unbonded');
-    const foot = !mine ? '' : st === 'crossed' ? 'HELD'
-      : st === 'unbonded' ? '♡ ' + (c ? c.bond : 0) + '/' + CROSS_BOND + ' WOVEN' : '✦' + cn.cost;
-    return `<button class="et-orb et-common${cn.bond ? ' et-bond' : ''} et-c-${st}${held ? ' et-c-held' : ''}${id === selId ? ' et-sel' : ''}" data-id="${id}"
-       style="left:${(p.x / W) * 100}%; top:${(p.y / H) * 100}%">
-       <span class="et-orb-glyph">${st === 'crossed' ? '✓' : cn.glyph}</span>
-       <span class="et-orb-name">${cn.label}</span>
-       ${foot ? `<span class="et-orb-cost${st === 'poor' ? ' et-cant' : ''}">${foot}</span>` : ''}
-     </button>`;
-  }).join('')).join('')).join('');
-  // ---- ORBS -------------------------------------------------------------------
-  // A SEALED TIER IS NOT DRAWN. It was a padlocked orb, so the first tree a new
-  // player opened was 156 circles they mostly could not touch — which reads as
-  // the size of the thing they have to learn rather than as the size of what
-  // they have. What is still coming is one honest line under the tree instead.
-  const orbs = allNodes.filter(n => tierOpen(n.tier) || hasNode(n.id)).map(n => {
-    const p = pos[n.id], mine = n.hero === heroId, x = crossBy[n.id];
-    // A neighbour's node you can reach is selected AS A CROSSING, so the id
-    // carries who is learning it; your own nodes keep their plain id.
-    const id = (!mine && x) ? 'x:' + heroId + ':' + n.id : n.id;
-    const st = nodeState(n);
-    const cls = mine ? 'et-' + st : 'et-far' + (x ? ' et-cross et-x-' + x.state : '');
-    const glyph = (!mine && x)
-      ? (x.state === 'crossed' ? '✓' : x.state === 'open' || x.state === 'poor' ? '⟡' : '🔒')
-      : (st === 'owned' ? '✓' : st === 'sealed' ? '🔒' : TREE_TYPE_GLYPH[n.type]);
-    let foot = '';
-    if (mine && (st === 'ready' || st === 'poor')) foot = `<span class="et-orb-cost${st === 'poor' ? ' et-cant' : ''}">✦${n.cost}</span>`;
-    else if (x) foot = `<span class="et-orb-cost${x.state === 'poor' ? ' et-cant' : ''}">${
-      x.state === 'crossed' ? 'LEARNED' : x.state === 'untaught' ? 'unlearned'
-      : x.state === 'unbonded' ? '♡ ' + x.bond + '/' + CROSS_BOND + ' WOVEN' : '✦' + x.cost}</span>`;
-    // Labels radiate AWAY from the hub: a node in the upper half of its region
-    // carries its name above the glyph, one in the lower half below.  That
-    // doubles the vertical room labels have to share and reads better anyway —
-    // the words lean outward instead of all stacking downward into the next ring.
-    const na = (world.per[n.hero].angle[n.id] || 0) * Math.PI / 180;
-    const up = Math.sin(na) < -0.15;
-    return `<button class="et-orb ${cls} t-${n.type}${up ? ' et-lbl-up' : ''}${id === selId ? ' et-sel' : ''}" data-id="${id}"
-       style="left:${(p.x / W) * 100}%; top:${(p.y / H) * 100}%${!mine ? `; --tint:${HEROES[n.hero].tint}` : ''}">
-       <span class="et-orb-glyph">${glyph}</span>
-       <span class="et-orb-name">${n.label}</span>
-       ${(!mine && x) ? `<span class="et-x-from">${HEROES[n.hero].name}</span>` : ''}
-       ${foot}
-     </button>`;
-  }).join('');
-  // one hub per region, the focused one lit
-  const rootOrb = party.map(hid => `<div class="et-orb et-root${hid === heroId ? ' et-root-here' : ''}"
-      style="left:${(hubs[hid].x / W) * 100}%; top:${(hubs[hid].y / H) * 100}%; --tint:${HEROES[hid].tint}">
-      <span class="et-orb-glyph">◆</span>${hid === heroId ? '' : `<span class="et-orb-name et-root-name">${HEROES[hid].name}</span>`}</div>`).join('');
-  // ---- DETAIL BAR (selected node) ---------------------------------------------
-  // a doorway selection carries an "x:<learner>:" prefix — it is a different
-  // KIND of thing to own, so it gets its own panel rather than being squeezed
-  // into the node one.
+  const laneHtml = (row) => {
+    const list = (lanes[row] || []).filter(n => tierOpen(n.tier) || hasNode(n.id));
+    const ids = {}; (lanes[row] || []).forEach(n => { ids[n.id] = 1; });
+    const cols = {};
+    list.forEach(n => { const d = depthOf(n, ids); (cols[d] = cols[d] || []).push(n); });
+    // TWO TO A ROW (Build 24). Ranked purely by depth, a line put every node
+    // that hangs straight off its anchor on ONE row — five of them once the
+    // deep tiers unseal — and their names ran through each other. The line
+    // flows instead: ordered by depth, then laid two to a row down the
+    // column. A prereq still always sits above what it unlocks (depth orders
+    // the flow), every name has room, and a long line simply runs longer.
+    const PER = 2;
+    const at = {};
+    let rowN = 0;
+    Object.keys(cols).map(Number).sort((a, b) => a - b).forEach(d => {
+      // a DEPTH always starts a fresh row, so a prereq is never level with the
+      // thing it unlocks — the line keeps reading strictly downward even when
+      // a rank has to wrap
+      const c = cols[d].sort((a, b) => a.tier - b.tier || a.cost - b.cost);
+      c.forEach((n, i) => {
+        const inRow = Math.min(PER, c.length - Math.floor(i / PER) * PER);
+        at[n.id] = { x: ((i % PER + 1) / (inRow + 1)) * 100, y: 34 + (rowN + Math.floor(i / PER)) * ET_STEP };
+      });
+      rowN += Math.ceil(c.length / PER);
+    });
+    const H = 34 + rowN * ET_STEP;
+    // links: prereq → node, elbowed so a fork reads as a branch off the spine
+    const links = list.map(n => (n.requires || []).filter(r => at[r]).map(r => {
+      const a = at[r], b = at[n.id];
+      const on = hasNode(r), full = on && hasNode(n.id);
+      const my = (a.y + b.y) / 2;
+      return `<path class="et-line${full ? ' et-line-full' : on ? ' et-line-on' : ''}"
+        vector-effect="non-scaling-stroke"
+        d="M ${a.x} ${a.y + 18} C ${a.x} ${my}, ${b.x} ${my}, ${b.x} ${b.y - 18}" />`;
+    }).join('')).join('');
+    const chips = list.map(n => etChip(n, at[n.id], selId, focusHero)).join('');
+    const style = etStyleWord(focusHero, row);
+    const chain = etChainText(focusHero, row);
+    const stood = S && S.heroes && (S.heroes.find(h => h.id === focusHero) || {}).row === row;
+    return `<section class="et-lane${stood ? ' et-lane-here' : ''}" data-lane="${row}">
+      <header class="et-lane-head">
+        <span class="et-lane-row">${row.toUpperCase()}</span>
+        ${style ? `<span class="et-lane-style">${style}</span>` : ''}
+        <span class="et-lane-chain">${chain}</span>
+      </header>
+      <div class="et-lane-field" style="min-height:${H}px">
+        <svg class="et-lane-links" viewBox="0 0 100 ${H}" preserveAspectRatio="none" aria-hidden="true">${links}</svg>
+        ${chips || '<span class="et-lane-empty">nothing kindled on this line yet</span>'}
+      </div>
+    </section>`;
+  };
+
+  // ---- the WEAVE tab: bonds, common ground, and learning across a thread ----
+  const weaveHtml = () => {
+    const cards = crossings.map(c => {
+      const T = HEROES[c.teacher] || {};
+      const id = 'x:' + focusHero + ':' + c.node.id;
+      const lock = c.state === 'crossed' ? '⟡ HELD' : c.state === 'untaught' ? 'unlearned'
+        : c.state === 'unbonded' ? '♡ ' + c.bond + '/' + CROSS_BOND + ' WOVEN'
+        : c.state === 'unbridged' ? 'no ground yet' : '✦' + c.cost;
+      return `<button class="et-orb et-cross et-x-${c.state}${id === selId ? ' et-sel' : ''}" data-id="${id}"
+        style="--tint:${T.tint || 'var(--gold)'}">
+        <span class="et-orb-glyph">${c.state === 'crossed' ? '✓' : c.node.bond ? '♡' : c.common ? '◈' : '⟡'}</span>
+        <span class="et-orb-name">${c.node.label}</span>
+        <span class="et-x-from">${c.node.bond ? 'BOND' : c.common ? 'COMMON' : T.name}</span>
+        <span class="et-orb-cost${c.state === 'poor' ? ' et-cant' : ''}">${lock}</span>
+      </button>`;
+    }).join('');
+    return `<section class="et-lane et-lane-weave">
+      <header class="et-lane-head"><span class="et-lane-row">THE WEAVE</span>
+        <span class="et-lane-chain">What the fire taught you together — and what an ally can teach you across a woven thread. Held for the whole descent.</span>
+      </header>
+      <div class="et-weave-grid">${cards || '<span class="et-lane-empty">weave a bond on the road and their line opens to you</span>'}</div>
+    </section>`;
+  };
+
+  // ---- DETAIL ---------------------------------------------------------------
   const selCross = (selId && String(selId).indexOf('x:') === 0)
     ? crossings.find(c => c.node.id === String(selId).replace(/^x:[a-z]+:/, '')) : null;
-  const sel = selCross ? null : (selId ? NODE_BY_ID[selId] : nodes.find(n => nodeState(n) === 'ready') || nodes[0]);
+  const ownList = weaveTab ? [] : mine.filter(n => tierOpen(n.tier) || hasNode(n.id));
+  const sel = selCross ? null
+    : (selId && NODE_BY_ID[selId]) || ownList.find(n => nodeState(n) === 'ready') || ownList[0];
   let detail = '<div class="et-detail-empty">Pick a node to inspect it.</div>';
   if (selCross) {
-    const c = selCross, T = HEROES[c.teacher], L = HEROES[heroId];
+    const c = selCross, T = HEROES[c.teacher], L = HEROES[focusHero];
     const act = c.state === 'crossed' ? `<span class="et-d-owned">⟡ ${c.common ? 'HELD' : 'LEARNED'}</span>`
       : c.state === 'untaught' ? `<span class="et-d-lock">${T.name} has not kindled it yet</span>`
       : c.state === 'unbonded' ? `<span class="et-d-lock">their bond is not <b>WOVEN</b> yet (♡ ${c.bond}/${CROSS_BOND}) — hold the thread through another fight</span>`
       : c.state === 'unbridged' ? `<span class="et-d-lock">you hold no ground on this border — claim a <b>COMMON</b> stone between you and ${T.name} first</span>`
       : `<button class="et-d-buy${c.state === 'poor' ? ' et-d-cant' : ''}" id="et-cross-buy" ${c.state === 'poor' ? 'disabled' : ''}>${c.common ? 'CLAIM' : 'LEARN'} · ✦ ${c.cost}</button>`;
-    // Common ground belongs to nobody, so it gets neither a teacher nor a
-    // kinship price, and the panel says so rather than dressing it as a gift.
     const head = c.node.bond
       ? `<div class="et-d-head"><span class="et-d-type t-bond">${c.node.glyph} BOND</span><span class="et-d-name">${c.node.label}</span></div>
          <div class="et-d-cross">What <b style="color:${L.tint}">${L.name}</b> and <b style="color:${T.tint}">${T.name}</b> learned at the fire. It holds for the whole descent — no thread to re-earn each fight — and it <b>announces itself</b> the first time it lands.</div>`
@@ -12932,122 +12881,99 @@ function showEmberTree(onBack, heroId, selId, opts) {
          <div class="et-d-cross">Neutral ground on the road between <b style="color:${L.tint}">${L.name}</b> and <b style="color:${T.tint}">${T.name}</b> — it belongs to neither of you, and holding it is what opens the far side of this border.</div>`
       : `<div class="et-d-head"><span class="et-d-type t-cross">${KIN_WORD[c.kin]}</span><span class="et-d-name">${c.node.label}</span></div>
          <div class="et-d-cross">${L.name} learns this from <b style="color:${T.tint}">${T.name}</b>${c.kin ? ` — ${c.kin === 2 ? 'the same school AND the same tempo' : 'a shared ' + (T.school === L.school ? 'school' : 'tempo')}, so it comes cheap` : ' — nothing in common, so it comes dear'}.</div>`;
-    detail = `${head}
-      <div class="et-d-desc">${nodeDescHTML(c.node.desc)}</div>
-      <div class="et-d-foot">${act}</div>`;
+    detail = `${head}<div class="et-d-desc">${nodeDescHTML(c.node.desc)}</div><div class="et-d-foot">${act}</div>`;
   } else if (sel) {
     const st = nodeState(sel);
-    const reqNames = (sel.requires || []).filter(r => !hasNode(r)).map(r => NODE_BY_ID[r].label);
+    const reqNames = (sel.requires || []).filter(r => !hasNode(r)).map(r => (NODE_BY_ID[r] || {}).label);
+    const lane = etLaneOf(sel);
     const action = st === 'owned' ? '<span class="et-d-owned">✓ TAKEN</span>'
-      : st === 'sealed' ? `<span class="et-d-lock">descend deeper to unseal tier ${sel.tier}</span>`
+      : st === 'sealed' ? `<span class="et-d-lock et-sealed">descend deeper to unseal tier ${sel.tier}</span>`
       : st === 'needs' ? `<span class="et-d-lock">needs ${reqNames.join(' · ')}</span>`
       : `<button class="et-d-buy${st === 'poor' ? ' et-d-cant' : ''}" id="et-buy" ${st === 'poor' ? 'disabled' : ''}>KINDLE · ✦ ${sel.cost}</button>`;
     detail = `<div class="et-d-head"><span class="et-d-type t-${sel.type}">${TREE_TYPE_LABEL[sel.type]}</span><span class="et-d-name">${sel.label}</span></div>
+      ${lane ? `<div class="et-d-lane">changes the <b>${lane.toUpperCase()}</b> line</div>` : ''}
       <div class="et-d-desc">${nodeDescHTML(sel.desc)}</div>
       <div class="et-d-foot">${action}</div>`;
   }
-  // THE WEAVE STRIP IS GONE (v2.2 Build 6). Three wide pills restated what the
-  // field already draws — the dashed doorway threads between regions ARE the
-  // bonds, and the combat KIZUNA badge is where pair progress gets read. A
-  // header row of "WOVEN · KINDRED · claim the ground" was jargon spent on
-  // information the picture carries better.
-  // tabs are ONLY your fielded party's constellations
-  const tabHeroes = party.length ? party : [heroId];
+
+  const tabHeroes = party.length ? party : [focusHero];
   const tabs = tabHeroes.map(hid => {
     const done = EMBER_TREE.filter(n => n.hero === hid).every(n => hasNode(n.id));
-    return `<button class="et-tab${hid === heroId ? ' et-tab-on' : ''}${done ? ' et-tab-done' : ''}" data-hero="${hid}">${HEROES[hid].name}</button>`;
-  }).join('');
+    return `<button class="et-tab${(!weaveTab && hid === heroId) ? ' et-tab-on' : ''}${done ? ' et-tab-done' : ''}" data-hero="${hid}">${HEROES[hid].name}</button>`;
+  }).join('') + `<button class="et-tab et-tab-weave${weaveTab ? ' et-tab-on' : ''}" data-hero="__weave">⛓ WEAVE</button>`;
+
   showOverlay(`
     <div class="et-head"><span class="et-h-title">THE EMBER TREE</span><span class="et-h-wallet">✦ <b>${runEmbers()}</b></span><span class="et-h-boss">this descent only · resets if you fall</span>${(() => {
-      // What the road has not shown you yet, said once and plainly — instead of
-      // as a field of padlocks you have to look past.
       const ahead = sealedAhead(allNodes);
       return ahead ? `<span class="et-h-ahead" title="deeper tiers unseal as you descend">${ahead} more wait deeper</span>` : '';
     })()}</div>
     <div class="et-tabs">${tabs}</div>
     <div class="et-body">
-      <div class="et-canvas et-grid" id="et-canvas">
-        <div class="et-pan" id="et-pan">
-          <svg class="et-links" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${ringSvg}${pathSvg}${crossRing}${linkSvg}${threadSvg}</svg>
-          ${rootOrb}${orbs}${commonOrbs}
-        </div>
-        <div class="et-legend">
-          <span class="et-lg t-card"><i>\u2756</i>COMBO</span>
-          <span class="et-lg t-passive"><i>\u2749</i>PASSIVE</span>
-          <span class="et-lg t-emergent"><i>\u2726</i>EMERGENT</span>
-          <span class="et-lg t-chain"><i>\u26d3</i>WEAVE</span>
-        </div>
-        <div class="et-zoom">
-          <button class="et-zoom-btn" id="et-zoom-out" title="Zoom out">−</button>
-          <button class="et-zoom-btn" id="et-zoom-in" title="Zoom in">+</button>
-          <button class="et-zoom-btn et-zoom-all" id="et-zoom-all" title="See the whole tree">◎</button>
-        </div>
+      <div class="et-lanes" id="et-lanes">
+        ${weaveTab ? weaveHtml() : ['front', 'mid', 'back'].map(laneHtml).join('')
+          + (lanes.self.filter(n => tierOpen(n.tier) || hasNode(n.id)).length ? etSelfBand(lanes.self, selId, focusHero) : '')}
       </div>
       <div class="et-side">
-        ${!treeTaught() ? `<div class="et-coach">Tap a <b>lit node</b>, then <b>KINDLE</b> it. Tap a <b>tab</b> to fly to that hero’s region — where your threads reach into it, you can <b>LEARN</b> from them.</div>` : ''}
+        ${!treeTaught() ? `<div class="et-coach">Each line is one of your <b>rows</b>, drawn as the combo it deals. Tap a <b>lit node</b> to read it, then <b>KINDLE</b>.</div>` : ''}
         <div class="et-detail">${detail}</div>
         <button class="ov-btn et-back-btn" id="et-back">◂ BACK</button>
       </div>
     </div>
-  `, 'map-screen et-screen');
+  `, 'map-screen et-screen et-lines');
+
   document.querySelectorAll('.et-tab').forEach(el => {
-    // Switching hero no longer swaps the map — it flies the camera to that
-    // region.  Re-render first (so the focused region lights up and its
-    // crossings re-key), then hand attachTreePan the focus target so the
-    // transform animates from wherever the camera already was.
-    el.onclick = () => { if (el.dataset.hero !== heroId) showEmberTree(onBack, el.dataset.hero, null, { focus: true }); };
+    el.onclick = () => { if (el.dataset.hero !== heroId) showEmberTree(onBack, el.dataset.hero, null, opts); };
   });
-  const etCanvas = document.getElementById('et-canvas');
   document.querySelectorAll('.et-orb[data-id]').forEach(el => {
-    el.onclick = () => { if (etCanvas && etCanvas._dragMoved) return; showEmberTree(onBack, heroId, el.dataset.id); };   // a drag pans; a tap selects
+    el.onclick = () => showEmberTree(onBack, heroId, el.dataset.id, opts);
   });
-  attachTreePan(heroId, { world, focus: (opts && opts.focus) || !TREE_VIEW._seeded });
   const buy = $('#et-buy');
   if (buy && sel) buy.onclick = () => {
     if (nodeState(sel) !== 'ready') return;
     const first = !treeTaught();
     const bought = sel;
-    addEmbers(-bought.cost); unlockNode(bought.id); setTreeTaught();   // learning the tree, once
-    // the skill CATCHES — a full-screen ember-bloom before dropping back to the tree
+    addEmbers(-bought.cost); unlockNode(bought.id); setTreeTaught();
     kindleBurst(bought, () => showEmberTree(onBack, heroId, first ? '__kindled:' + bought.id : bought.id));
   };
   const xbuy = $('#et-cross-buy');
   if (xbuy && selCross) xbuy.onclick = () => {
     if (selCross.state !== 'open') return;
-    addEmbers(-selCross.cost); learnCrossing(heroId, selCross.node); saveRun();
+    addEmbers(-selCross.cost); learnCrossing(focusHero, selCross.node); saveRun();
     kindleBurst(selCross.node, () => showEmberTree(onBack, heroId, selId));
   };
-  // celebrate the very first kindle so the loop clicks: node → KINDLE → in hand
   if (justKindled) {
     const c = document.querySelector('.et-side');
     if (c) { const b = document.createElement('div'); b.className = 'et-kindled-note'; b.innerHTML = '✓ <b>Kindled!</b> It’s in your hand now. Spend more embers here between fights — but it all resets if you fall.'; c.insertBefore(b, c.firstChild); }
   }
-  const zAll = document.getElementById('et-zoom-all');
-  if (zAll) zAll.onclick = () => {
-    const pan = document.getElementById('et-pan'); if (!pan) return;
-    pan.classList.add('et-flying');
-    // Fit WHAT IS DRAWN, not the world's full square. A solo starter's tree is
-    // one small cluster; fitting the whole world put a thumbnail in an empty
-    // field. Frame the drawn orbs (hubs included) with a ring of margin.
-    const drawnPts = allNodes.filter(n => tierOpen(n.tier) || hasNode(n.id))
-      .map(n => pos[n.id]).filter(Boolean)
-      .concat(party.map(h => hubs[h]).filter(Boolean));
-    let zf = treeFitZoom(), cx = W / 2, cy = W / 2;
-    if (drawnPts.length) {
-      let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
-      drawnPts.forEach(p => { x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x); y1 = Math.max(y1, p.y); });
-      const span = Math.max(x1 - x0, y1 - y0) + 2.4 * TREE_RING;
-      cx = (x0 + x1) / 2; cy = (y0 + y1) / 2;
-      zf = Math.max(TREE_ZMIN, Math.min(TREE_ZMAX, treeViewportPx() / ((span / W) * TREE_BOX) * 0.94));
-    }
-    const o = treeFocusOffset({ x: cx, y: cy }, W, zf);
-    TREE_VIEW.x = o.x; TREE_VIEW.y = o.y; TREE_VIEW.z = zf; TREE_VIEW._seeded = true;
-    pan.style.transform = `translate(${o.x}px, ${o.y}px) scale(${zf})`;
-    pan.style.setProperty('--lbl', String(Math.min(1, 1 / Math.max(0.01, zf))));
-    setTimeout(() => pan.classList.remove('et-flying'), 640);
-  };
+  // keep the chosen node in view on a long line
+  const selEl = document.querySelector('.et-orb.et-sel');
+  if (selEl && selEl.scrollIntoView) { try { selEl.scrollIntoView({ block: 'nearest', inline: 'center' }); } catch (_) {} }
   $('#et-back').onclick = () => { hideOverlay(); (onBack || showTitle)(); };
 }
+// one node on a line
+function etChip(n, p, selId, heroId) {
+  const st = nodeState(n);
+  const glyph = st === 'owned' ? '✓' : st === 'sealed' ? '🔒' : TREE_TYPE_GLYPH[n.type];
+  const foot = (st === 'ready' || st === 'poor')
+    ? `<span class="et-orb-cost${st === 'poor' ? ' et-cant' : ''}">✦${n.cost}</span>` : '';
+  return `<button class="et-orb et-${st} t-${n.type}${n.id === selId ? ' et-sel' : ''}"
+    data-id="${n.id}" data-tier="${n.tier}" style="left:${p.x.toFixed(2)}%; top:${p.y}px">
+    <span class="et-orb-glyph">${glyph}</span>
+    <span class="et-orb-name">${n.label}</span>
+    ${foot}
+  </button>`;
+}
+// nodes that serve no single row — they change how the hero fights everywhere
+function etSelfBand(list, selId, heroId) {
+  const live = list.filter(n => tierOpen(n.tier) || hasNode(n.id));
+  const chips = live.map((n, i) => etChip(n, { x: ((i + 1) / (live.length + 1)) * 100, y: 40 }, selId, heroId)).join('');
+  return `<section class="et-lane et-lane-self">
+    <header class="et-lane-head"><span class="et-lane-row">${(HEROES[heroId] || {}).name || 'THEMSELF'}</span>
+      <span class="et-lane-chain">carried into every row</span></header>
+    <div class="et-lane-field" style="min-height:84px">${chips}</div>
+  </section>`;
+}
+
 // CHOOSE YOUR SURVIVOR — pick the hero you begin (solo) with, from the ones
 // you've UNLOCKED.  Locked heroes are shown dimmed: recruit them on the road to
 // unlock them as a future starter.

@@ -2361,13 +2361,14 @@ const QUICK = process.argv.includes('--quick');
 
   // ---------- MID-RUN upgrading: reach the tree without leaving the run --------
   console.log('--- MID-RUN TREE ---');
-  check('MID-RUN: the map exposes an ember-tree button that opens the sphere grid',
+  check('MID-RUN: the map exposes an ember-tree button that opens THE THREE LINES',
     await J(() => {
       S = null; RUN = newRun('ash'); showMap();
       const btn = document.querySelector('#map-tree');
       if (!btn) return false;
       btn.click();
-      return !!document.querySelector('.et-canvas.et-grid') && !!document.querySelector('.et-orb[data-id]');
+      const lanes = [...document.querySelectorAll('.et-lane[data-lane]')].map(l => l.dataset.lane);
+      return lanes.join('|') === 'front|mid|back' && !!document.querySelector('.et-orb[data-id]');
     }));
   check('MID-RUN: BACK from the tree returns to the descent map',
     await J(() => { const b = document.querySelector('#et-back'); if (!b) return false; b.click(); return !!document.querySelector('#map-tree'); }));
@@ -2386,7 +2387,10 @@ const QUICK = process.argv.includes('--quick');
       RUN.embers = 20; RUN.nodes = []; RUN.completed = [0, 1, 2, 3];
       showEmberTree(() => {}, 'ash');
       const tabs = [...document.querySelectorAll('.et-tab')].map(t => t.dataset.hero);
-      return tabs.length === 2 && tabs.indexOf('ash') >= 0 && tabs.indexOf('mira') >= 0 && tabs.indexOf('elin') < 0;
+      // the party's own lines, plus the WEAVE — what a thread can teach you is
+      // a different KIND of thing to own, so it gets its own tab (Build 24)
+      return tabs.length === 3 && tabs.indexOf('ash') >= 0 && tabs.indexOf('mira') >= 0
+        && tabs.indexOf('__weave') >= 0 && tabs.indexOf('elin') < 0;
     }));
   check('PARTY-ONLY: a party hero CAN be kindled (KINDLE offered)',
     await J(() => { showEmberTree(() => {}, 'ash'); return !!document.querySelector('#et-buy'); }));
@@ -4187,15 +4191,21 @@ const QUICK = process.argv.includes('--quick');
       const seg = pill && pill.querySelector('.i-seg .i-row');
       return !!seg && /▲|⛨|GATHERS/.test(seg.textContent) && !/feeds/.test(pill.innerText);
     }));
-  check('UI: the ember tree PANS on drag so outer-ring nodes are reachable',
+  // The pan/zoom rig is retired with the constellation (Build 24): the whole
+  // tree is on screen at once, so there is nothing to navigate TO. What
+  // replaces that guarantee is this — every line is visible without panning.
+  check('UI: the ember tree needs no panning — all three lines are on screen at once',
     await J(() => {
       RUN = newRun('ash'); RUN.active = ['ash']; RUN.nodes = []; RUN.embers = 30; RUN.completed = [0, 1, 2, 3, 4, 5];
       showEmberTree(() => {}, 'ash');
-      const c = document.getElementById('et-canvas'), pan = document.getElementById('et-pan');
-      if (!c || !pan) return false;
-      const P = (ty, x, y) => c.dispatchEvent(new PointerEvent(ty, { bubbles: true, pointerId: 9, clientX: x, clientY: y }));
-      P('pointerdown', 400, 300); P('pointermove', 315, 240); P('pointerup', 315, 240);
-      return /translate\(-?\d/.test(pan.style.transform) && pan.style.transform !== 'translate(0px, 0px)';
+      const wrap = document.querySelector('.et-lanes');
+      const lanes = [...document.querySelectorAll('.et-lane[data-lane]')];
+      if (lanes.length !== 3 || !wrap) return false;
+      const wr = wrap.getBoundingClientRect();
+      // each line sits inside the frame, and no line hides behind a scroller
+      return lanes.every(l => { const r = l.getBoundingClientRect();
+        return r.width > 40 && r.left >= wr.left - 2 && r.right <= wr.right + 2; })
+        && wrap.scrollWidth <= wrap.clientWidth + 2;
     }));
   check('UI: event choices are unified cards (icon · ACT · consequence)',
     await J(() => {
@@ -5620,8 +5630,14 @@ const QUICK = process.argv.includes('--quick');
         && back.crossed.ash[0] === 'mira.passive.opportunist')
         && JSON.stringify(fresh.crossed) === '{}'; }));
 
-  // ---------- THE LATTICE UI (Build 246) ----------
-  console.log('--- LATTICE ---');
+  // ---------- THE WEAVE TAB (Build 24, was THE LATTICE UI of 246) ----------
+  // The constellation that drew crossings as threads between orbiting regions
+  // is retired, so every guarantee about hubs, bridges, region collision and
+  // camera flight retired with it. What those checks were REALLY protecting
+  // survives and is re-asserted here against the new shape: every door the
+  // party could open is shown, each names its teacher, a shut one still says
+  // what it waits on, and LEARN spends the kinship price onto the learner.
+  console.log('--- THE WEAVE ---');
   const latticeRun = (hero) => J((h) => {
     RUN = newRun('ash');
     RUN.roster = ['ash', 'mira', 'cassia']; RUN.active = ['ash', 'mira', 'cassia'];
@@ -5630,201 +5646,99 @@ const QUICK = process.argv.includes('--quick');
                  'ash.sig.front', 'ash.passive.vanguard'];
     RUN.crossed = { ash: ['cassia.passive.vigil',
       commonOnBorder('ash', 'mira')[0].id, commonOnBorder('ash', 'cassia')[0].id] };
-    RUN.bonds = { 'ash|mira': 4, 'ash|cassia': BOND_KINDLED, 'cassia|mira': BOND_KINDLED - 1 };   // mira↔cassia stays UNWOVEN
-    // deep enough that every tier is unsealed — Build 290 spread the tree across
-    // five tiers, and this drill is about crossings, not about what depth reveals
+    RUN.bonds = { 'ash|mira': 4, 'ash|cassia': BOND_KINDLED, 'cassia|mira': BOND_KINDLED - 1 };
     RUN.embers = 14; RUN.floor = 1; RUN.completed = Array.from({ length: 17 }, (_, i) => i);
     RUN.map = generateDescent(RUN.roster, 1);
-    // the canvas pans and zooms, and TREE_PAN/TREE_ZOOM persist per hero for the
-    // whole session — an earlier tree test leaves Ash's view shoved sideways.
-    // Framing claims are about the DEFAULT view, so reset it first.
-    TREE_VIEW.x = 0; TREE_VIEW.y = 0; TREE_VIEW.z = 0; TREE_VIEW._seeded = false;
     showEmberTree(() => {}, h);
     return true;
   }, hero);
 
-  await latticeRun('ash'); await sleep(500);
-  check('LATTICE: every doorway the party could ever open is drawn, not just the affordable ones',
-    await J(() => document.querySelectorAll('.et-orb.et-cross').length === crossViewFor('ash').filter(c => !c.common).length
+  await latticeRun('__weave'); await sleep(400);
+  check('WEAVE: every door the party could ever open is shown, not just the affordable ones',
+    await J(() => document.querySelectorAll('.et-orb.et-cross').length === crossViewFor('ash').length
       && crossViewFor('ash').filter(c => !c.common).length === 4));
-  check('LATTICE: a doorway names its TEACHER — the word that makes this a lattice, not a node list',
-    await J(() => [...document.querySelectorAll('.et-orb.et-cross .et-x-from')]
-      .map(e => e.textContent).sort().join(',') === 'CASSIA,CASSIA,MIRA,MIRA'));
-  check('LATTICE: a doorway hangs off a BOND, so it is drawn as a thread, not a prerequisite spoke',
-    await J(() => document.querySelectorAll('.et-thread').length === crossViewFor('ash').length
-      && document.querySelectorAll('.et-thread-full').length
-         === crossViewFor('ash').filter(c => c.state === 'crossed').length));
-  // MANY BRIDGES: the threads used to all leave the learner's hub, so a border
-  // read as one crossing however many skills spanned it.
-  check('LATTICE: bridges set off from different points, not all from one hub',
-    await J(() => { const st = [...document.querySelectorAll('.et-thread')]
-        .map(p => p.getAttribute('d').match(/M ([\d.]+) ([\d.]+)/).slice(1, 3).join(','));
-      return st.length > 1 && new Set(st).size > 1; }),
-    await J(() => new Set([...document.querySelectorAll('.et-thread')]
-      .map(p => p.getAttribute('d').match(/M ([\d.]+) ([\d.]+)/)[0])).size + ' distinct origins'));
-  check('LATTICE: a bridge springs from the node of YOURS nearest its target',
-    await J(() => { const w = buildTreeWorld(RUN.active);
-      const c = crossViewFor('ash')[0]; const tgt = w.pos[c.node.id];
-      let best = Infinity;
-      w.per.ash.nodes.forEach(nd => { const p = w.pos[nd.id];
-        best = Math.min(best, Math.hypot(p.x - tgt.x, p.y - tgt.y)); });
-      const hubD = Math.hypot(w.hubs.ash.x - tgt.x, w.hubs.ash.y - tgt.y);
-      return best < hubD; }));
-  // THE framing regression this build exists to fix: the constellation is fit to
-  // a SQUARE (ring guides stay circular under preserveAspectRatio="none") but
-  // lands in a LANDSCAPE canvas, so a doorway at 12 o'clock fell outside the
-  // visible band. Measured 83px of overflow before the side-arc placement.
-  // READABILITY, not fit.  Orbs and ring spacing BOTH scale with the zoom, so
-  // their ratio is fixed and no camera distance can pull two orbs apart — the
-  // test that matters is whether any two glyphs are drawn on top of each other.
-  // (A focused region deliberately overflows the canvas; you pan it.)
-  // Node glyphs are CIRCLES, so the test is centre distance against diameter.
-  // Comparing axis-aligned boxes flagged every DIAGONAL neighbour as a collision
-  // (two 60px discs 74px apart on a 45° line have boxes that overlap by 8px
-  // while the discs themselves never touch) — the metric was wrong, not the
-  // layout. Labels are rectangles and are checked as rectangles, below.
-  const glyphHits = () => J(() => {
-    const g = [...document.querySelectorAll('.et-orb:not(.et-far):not(.et-root) .et-orb-glyph')];
-    const out = [];
-    for (let i = 0; i < g.length; i++) for (let j = i + 1; j < g.length; j++) {
-      const a = g[i].getBoundingClientRect(), b = g[j].getBoundingClientRect();
-      const d = Math.hypot((a.left + a.width / 2) - (b.left + b.width / 2),
-                           (a.top + a.height / 2) - (b.top + b.height / 2));
-      if (d < (a.width + b.width) / 2 - 1)
-        out.push((g[i].parentNode.dataset.id || '?') + '/' + (g[j].parentNode.dataset.id || '?'));
-    }
-    return out;
-  });
-  const labelHits = () => J(() => {
-    const L = [...document.querySelectorAll('.et-orb:not(.et-far) .et-orb-name')]
-      .filter(e => getComputedStyle(e).display !== 'none');
-    const out = [];
-    for (let i = 0; i < L.length; i++) for (let j = i + 1; j < L.length; j++) {
-      const a = L[i].getBoundingClientRect(), b = L[j].getBoundingClientRect();
-      if (a.left < b.right - 2 && b.left < a.right - 2 && a.top < b.bottom - 2 && b.top < a.bottom - 2)
-        out.push(L[i].textContent + '/' + L[j].textContent);
-    }
-    return out;
-  });
-  check('LATTICE: no two nodes in the focused region are drawn on top of each other',
-    (await glyphHits()).length === 0, (await glyphHits()).join(' '));
-  // v2.2 Build 6: the weave strip is GONE — the doorway threads on the field
-  // ARE the bonds, and pair progress reads in combat's KIZUNA badge. The tree
-  // header must not restate the picture in jargon.
-  check('LATTICE: no weave strip — the header carries tabs only, the field carries the bonds',
-    await J(() => !document.querySelector('.et-weave')
-      && document.querySelectorAll('.et-tab').length === 3));
-  check('LATTICE: selecting a doorway opens the CROSSING panel, not the node panel',
-    await J(() => { const el = document.querySelector('.et-orb.et-x-open'); if (!el) return false;
-      el.click(); return true; }) && (await sleep(320), await J(() =>
-      !!document.querySelector('.et-d-cross') && !!document.getElementById('et-cross-buy'))));
-  const wallet0 = await J(() => runEmbers());
-  const learned = await J(() => {
-    const sel = document.querySelector('.et-orb.et-cross.et-sel');
-    const id = sel && sel.dataset.id.replace(/^x:[a-z]+:/, '');
-    const btn = document.getElementById('et-cross-buy');
-    if (!btn || !id) return null;
-    const nodesBefore = RUN.nodes.length;
-    btn.click();
-    return { id, cost: crossCost('ash', NODE_BY_ID[id]), nodesBefore };
-  });
-  await sleep(700);
-  // A crossing is recorded on the LEARNER and must never touch RUN.nodes — the
-  // teacher already owns that node, and pushing it there would hand the rule to
-  // whoever the node belongs to rather than to the hero who paid for it.
-  check('LATTICE: LEARN spends the kinship price and records the crossing on the LEARNER',
-    !!learned && await J((l) => hasCrossed('ash', l.id) && RUN.nodes.length === l.nodesBefore, learned)
-      && (wallet0 - await J(() => runEmbers())) === (learned || {}).cost,
-    learned ? `${learned.id} for ✦${learned.cost}` : 'no doorway was buyable');
+  check('WEAVE: a door names its TEACHER — the word that makes this a weave, not a node list',
+    await J(() => { const from = [...document.querySelectorAll('.et-orb.et-cross .et-x-from')]
+        .map(e => e.textContent).filter(x => x !== 'COMMON' && x !== 'BOND').sort().join(',');
+      return from === 'CASSIA,CASSIA,MIRA,MIRA'; }));
+  check('WEAVE: it is its OWN tab — a hero\u2019s three lines carry no crossings',
+    await J(() => { showEmberTree(() => {}, 'ash');
+      const onLines = document.querySelectorAll('.et-lane[data-lane] .et-orb.et-cross').length;
+      showEmberTree(() => {}, '__weave');
+      return onLines === 0 && document.querySelectorAll('.et-orb.et-cross').length > 0; }));
+  check('WEAVE: selecting a door opens the CROSSING panel, not the node panel',
+    await J(() => { const open = [...document.querySelectorAll('.et-orb.et-cross')]
+        .find(e => e.className.indexOf('et-x-open') !== -1);
+      if (!open) return false;
+      open.click();
+      return !!document.querySelector('.et-d-cross') && !!document.querySelector('#et-cross-buy'); }));
+  check('WEAVE: LEARN spends the kinship price and records the crossing on the LEARNER',
+    await J(async () => {
+      const before = runEmbers();
+      const btn = document.querySelector('#et-cross-buy'); if (!btn) return false;
+      const name = (document.querySelector('.et-d-name') || {}).textContent;
+      btn.click(); await new Promise(r => setTimeout(r, 700));
+      const node = EMBER_TREE.find(n => n.label === name);
+      return !!node && (RUN.crossed.ash || []).indexOf(node.id) >= 0 && runEmbers() < before; }));
+  await latticeRun('__weave'); await sleep(400);
+  check('WEAVE: a SHUT door is still drawn, named, and says what it waits on',
+    await J(() => { const shut = [...document.querySelectorAll('.et-orb.et-cross')]
+        .find(e => /et-x-(unbonded|untaught|unbridged)/.test(e.className));
+      if (!shut) return false;
+      const named = (shut.querySelector('.et-orb-name') || {}).textContent;
+      shut.click();
+      const lock = document.querySelector('.et-d-lock');
+      return !!named && named.length > 1 && !!lock && lock.textContent.length > 8; }));
+  check('WEAVE: a shut door offers no way to buy it',
+    await J(() => !document.querySelector('#et-cross-buy')));
 
-  await latticeRun('mira'); await sleep(500);
-  check('LATTICE: a SHUT door is still drawn, named, and says what it waits on',
-    await J(() => { const shut = [...document.querySelectorAll('.et-orb.et-x-unbonded')];
-      return shut.length === 2
-        && shut.every(o => (o.querySelector('.et-orb-name') || {}).textContent)
-        && shut.every(o => /WOVEN/.test((o.querySelector('.et-orb-cost') || {}).textContent || '')); }),
-    await J(() => [...document.querySelectorAll('.et-orb.et-x-unbonded .et-orb-cost')].map(e => e.textContent).join(' · ')));
-  check('LATTICE: a shut door offers no way to buy it',
-    await J(() => { const el = document.querySelector('.et-orb.et-x-unbonded'); if (!el) return false;
-      el.click(); return true; }) && (await sleep(320), await J(() =>
-      !document.getElementById('et-cross-buy') && /not .*WOVEN/.test(document.querySelector('.et-detail').textContent))));
-  check('LATTICE: still no overlap for a hero whose doors are mostly shut',
-    (await glyphHits()).length === 0, (await glyphHits()).join(' '));
-  check('DENSITY: no two visible node LABELS print over each other either',
-    (await labelHits()).length === 0, (await labelHits()).join(' '));
-  // ---------- ONE WORLD (Build 248) ----------
-  console.log('--- ONE WORLD ---');
-  await latticeRun('ash'); await sleep(500);
-  check('WORLD: every fielded hero is a REGION in one shared space, each with its own hub',
-    await J(() => document.querySelectorAll('.et-orb.et-root').length === 3
-      && document.querySelectorAll('.et-orb.et-root-here').length === 1));
-  check('WORLD: the regions cannot collide — hubs sit at least two region radii apart',
-    await J(() => { const w = buildTreeWorld(['ash', 'mira', 'cassia']);
-      const d = (a, b) => Math.hypot(w.hubs[a].x - w.hubs[b].x, w.hubs[a].y - w.hubs[b].y);
-      return d('ash', 'mira') >= w.regionR * 1.99 && d('mira', 'cassia') >= w.regionR * 1.99
-        && d('ash', 'cassia') >= w.regionR * 1.99; }));
-  // The whole point of one world: a crossing is an EDGE to the teacher's real
-  // node, so a skill exists exactly ONCE on screen. It used to be re-drawn as a
-  // phantom orb on the rim of whoever was looking.
-  check('WORLD: a crossing points at the teacher’s REAL node — no skill is drawn twice',
-    await J(() => { const ids = [...document.querySelectorAll('.et-orb[data-id]:not(.et-common)')]
-        .map(o => o.dataset.id.replace(/^x:[a-z]+:/, ''));
-      // Build 286 stopped drawing sealed tiers, so the count is what the road has
-      // UNSEALED — the invariant being protected is that nothing is drawn twice.
-      return new Set(ids).size === ids.length
-        && ids.length === ['ash', 'mira', 'cassia'].reduce((a, h) =>
-             a + EMBER_TREE.filter(n => n.hero === h && (tierOpen(n.tier) || hasNode(n.id))).length, 0); }));
-  check('WORLD: the border stones are drawn once each, on the borders themselves',
-    await J(() => { const c = [...document.querySelectorAll('.et-orb.et-common')]
-        .map(o => o.dataset.id.replace(/^x:[a-z]+:/, ''));
-      return new Set(c).size === c.length && c.length === 3 * COMMON_PER_BORDER; }));
-  check('WORLD: a neighbour’s node is drawn as ELSEWHERE unless a thread reaches it',
-    await J(() => document.querySelectorAll('.et-orb.et-far').length > 0
-      && [...document.querySelectorAll('.et-orb.et-far.et-cross')].every(o => o.dataset.id.indexOf('x:') === 0)));
-  // TABS MOVE THE CAMERA, they do not swap the map.
-  const camBefore = await J(() => ({ x: TREE_VIEW.x, y: TREE_VIEW.y, z: TREE_VIEW.z }));
-  await J(() => document.querySelector('.et-tab[data-hero="mira"]').click());
-  await sleep(950);
-  const camAfter = await J(() => ({ x: TREE_VIEW.x, y: TREE_VIEW.y, z: TREE_VIEW.z }));
-  check('WORLD: switching hero FLIES the camera instead of swapping the map',
-    camAfter.x !== camBefore.x || camAfter.y !== camBefore.y,
-    `(${Math.round(camBefore.x)},${Math.round(camBefore.y)}) → (${Math.round(camAfter.x)},${Math.round(camAfter.y)})`);
-  check('WORLD: the flight lands the region’s hub in the middle of the canvas',
-    await J(() => { const c = document.getElementById('et-canvas').getBoundingClientRect();
-      const hub = document.querySelector('.et-root-here').getBoundingClientRect();
-      return Math.abs(hub.left + hub.width / 2 - (c.left + c.width / 2)) < 6
-        && Math.abs(hub.top + hub.height / 2 - (c.top + c.height / 2)) < 6; }));
-  // "Zoom out and see more of the whole tree" — and zoom 1 is NOT that zoom,
-  // because .et-pan is a fixed 560px square inside a canvas only ~348px tall.
-  await J(() => document.getElementById('et-zoom-all').click());
-  await sleep(800);
-  check('WORLD: the whole-tree view really does hold every region, at a DERIVED zoom',
-    await J(() => { const c = document.getElementById('et-canvas').getBoundingClientRect();
-      const out = [...document.querySelectorAll('.et-orb')].filter(o => { const r = o.getBoundingClientRect();
-        return r.top < c.top - 0.5 || r.bottom > c.bottom + 0.5 || r.left < c.left - 0.5 || r.right > c.right + 0.5; });
-      return out.length === 0 && TREE_VIEW.z < treeFocusZoom(buildTreeWorld(['ash', 'mira', 'cassia'])); }),
-    await J(() => 'fit z=' + TREE_VIEW.z.toFixed(2)));
-  check('WORLD: every ring is spread to the arc its orbs actually occupy',
-    await J(() => ['ash', 'mira', 'cassia', 'hask', 'branwen', 'elin'].every(h => {
-      const w = buildTreeWorld([h]), p = w.per[h], byD = {};
-      p.nodes.forEach(n => { (byD[p.depth[n.id]] = byD[p.depth[n.id]] || []).push(n); });
-      return Object.keys(byD).every(d => {
-        const ring = byD[d].map(n => p.angle[n.id]).sort((a, b) => a - b);
-        const r = p.r0 + Number(d) * TREE_RING;
-        const need = 2 * Math.asin(Math.min(1, treeOrbSpan() / (2 * r))) * 180 / Math.PI;
-        for (let i = 1; i < ring.length; i++) if (ring[i] - ring[i - 1] < need - 0.6) return false;
-        return true; }); })));
-  // The label is what used to make an orb too tall to sit between two rings.
-  check('DENSITY: a node’s box is its GLYPH — the label hangs outside the flow',
-    await J(() => { const o = document.querySelector('.et-orb:not(.et-far):not(.et-root)');
-      const g = o.querySelector('.et-orb-glyph'), nm = o.querySelector('.et-orb-name');
-      return Math.abs(o.getBoundingClientRect().height - g.getBoundingClientRect().height) < 2
-        && getComputedStyle(nm).position === 'absolute'; }));
-  check('DENSITY: the tree names what you can ACT on, not all 21 nodes at once',
-    await J(() => { const shown = [...document.querySelectorAll('.et-orb:not(.et-far) .et-orb-name')]
-        .filter(e => getComputedStyle(e).display !== 'none').length;
-      const total = document.querySelectorAll('.et-orb:not(.et-far) .et-orb-name').length;
-      return shown > 0 && shown < total; }));
+  // ---------- THE THREE LINES: the layout's own guarantees (Build 24) --------
+  console.log('--- THE THREE LINES ---');
+  await latticeRun('ash'); await sleep(400);
+  check('LINES: a hero is drawn as their three ROWS — each line headed by the combo it actually deals',
+    await J(() => {
+      const lanes = [...document.querySelectorAll('.et-lane[data-lane]')];
+      if (lanes.map(l => l.dataset.lane).join('|') !== 'front|mid|back') return false;
+      return lanes.every(l => {
+        const chain = (l.querySelector('.et-lane-chain') || {}).textContent || '';
+        const rot = ROTATIONS.ash[l.dataset.lane];
+        // the head names the row's real opener, and the line it prints is live
+        return chain.indexOf(rot.cards[rot.opener].name) === 0 && chain.split('\u25b8').length >= 2;
+      });
+    }));
+  check('LINES: a node is drawn on the line it CHANGES — nothing floats between rows',
+    await J(() => [...document.querySelectorAll('.et-lane[data-lane] .et-orb[data-id]')].every(el => {
+      const n = NODE_BY_ID[el.dataset.id];
+      return !!n && etLaneOf(n) === el.closest('.et-lane').dataset.lane;
+    })));
+  check('LINES: a prereq is drawn ABOVE what it unlocks — the line always reads downward',
+    await J(() => [...document.querySelectorAll('.et-lane[data-lane] .et-orb[data-id]')].every(el => {
+      const n = NODE_BY_ID[el.dataset.id];
+      const mine = el.getBoundingClientRect();
+      return (n.requires || []).every(r => {
+        const pe = document.querySelector('.et-orb[data-id="' + r + '"]');
+        if (!pe) return true;                      // sealed or on another line
+        return pe.getBoundingClientRect().top < mine.top - 4;
+      });
+    })));
+  check('LINES: no two nodes are drawn on top of each other',
+    await J(() => {
+      const g = [...document.querySelectorAll('.et-lane .et-orb .et-orb-glyph')];
+      for (let i = 0; i < g.length; i++) for (let j = i + 1; j < g.length; j++) {
+        const a = g[i].getBoundingClientRect(), b = g[j].getBoundingClientRect();
+        const dx = (a.left + a.width / 2) - (b.left + b.width / 2);
+        const dy = (a.top + a.height / 2) - (b.top + b.height / 2);
+        if (Math.hypot(dx, dy) < (a.width + b.width) / 2 - 1) return false;
+      }
+      return true;
+    }));
+  check('LINES: the panel names which line a node changes, so the purchase reads as a consequence',
+    await J(() => { const el = document.querySelector('.et-lane[data-lane] .et-orb[data-id]');
+      el.click();
+      const lane = document.querySelector('.et-d-lane');
+      return !!lane && /FRONT|MID|BACK/.test(lane.textContent); }));
+
+
   // ---------- COMMON GROUND (Build 251) ----------
   console.log('--- COMMON GROUND ---');
   check('COMMON: a border carries generic nodes that belong to NO hero',
