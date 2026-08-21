@@ -238,11 +238,13 @@ const QUICK = process.argv.includes('--quick');
       && /DOMAIN OF LAMENT/.test((document.querySelector('.wm-sub') || {}).textContent || '')
       && !!document.querySelector('.wm-embers')
       && document.querySelectorAll('.wl-row').length === 6));
-  check('WORLD MAP: names surface only where a choice lives — reachable labels read, locked labels stay dark',
+  check('WORLD MAP: names surface only where a choice lives — reachable labels read, locked labels stay dark (gates always read: a door is information)',
     await J(() => { const reach = document.querySelector('.map-node.mn-reach .mn-label');
-      const locked = document.querySelector('.map-node.mn-locked .mn-label');
+      const locked = document.querySelector('.map-node.mn-locked:not(.mn-gate) .mn-label');
+      const gate = document.querySelector('.map-node.mn-gate .mn-label');
       return reach && getComputedStyle(reach).opacity === '1'
-        && (!locked || getComputedStyle(locked).opacity === '0'); }));
+        && (!locked || getComputedStyle(locked).opacity === '0')
+        && (!gate || getComputedStyle(gate).opacity === '1'); }));
   check('MAP: forward-only — from a branch both children are reachable; pick one and the sibling LOCKS',
     await J(() => { const _save = RUN;
       RUN = { map: newRun('ash').map, completed: [] };
@@ -265,14 +267,19 @@ const QUICK = process.argv.includes('--quick');
       const m = generateDescent(['ash', 'elin', 'mira']);
       const l1 = m.filter(n => n.level === 1);
       const boss = m.filter(n => n.type === 'boss');
+      const gates = m.filter(n => n.type === 'gate');
       const maxL = Math.max(...m.map(n => n.level));
       if (l1.length !== 1 || l1[0].type !== 'fight') fails++;
-      if (boss.length !== 1 || boss[0].level !== maxL) fails++;
-      for (const n of m) { if (n.type !== 'boss' && (!n.next || !n.next.length)) { fails++; break; } }
+      // Build 20: the GATES stand beyond the boss — the boss caps the walked
+      // levels, the gate level caps the map, and only gates terminate
+      if (boss.length !== 1 || boss[0].level !== Math.max(...m.filter(n => n.type !== 'gate').map(n => n.level))) fails++;
+      if (gates.length !== 2 || gates.some(g => g.level !== maxL)) fails++;
+      for (const n of m) { if (n.type !== 'gate' && (!n.next || !n.next.length)) { fails++; break; } }
       for (const n of m) { if (n.level !== 1 && !m.some(p => p.next.includes(n.id))) { fails++; break; } }
       const seen = new Set([l1[0].id]), q = [l1[0].id];
       while (q.length) { const c = q.shift(); for (const nx of (m[c].next || [])) if (!seen.has(nx)) { seen.add(nx); q.push(nx); } }
       if (!seen.has(boss[0].id)) fails++;
+      if (gates.some(g => !seen.has(g.id))) fails++;   // both doors lie on the walkable road
       if (!m.some(n => n.type === 'recruit' && n.hero === 'cassia')) fails++;
       if (m.some(n => n.type === 'elite')) sawElite = true;
       if (m.some(n => n.type === 'event')) sawEvent = true;
@@ -2490,15 +2497,43 @@ const QUICK = process.argv.includes('--quick');
       const bossNode = RUN.map.find(n => n.type === 'boss');
       return RUN.floor === 1 && !!bossNode && bossNode.enemies[0] === 'echoknight2';
     }));
-  check('FLOOR: clearing the floor-1 boss drops you to floor 2 (kit + embers kept, tiers stay open)',
+  check('GATES: clearing the floor-1 boss OPENS THE GATES — two domain doors reachable, the floor not yet left',
     await J(() => {
-      RUN = newRun('ash'); RUN.active = ['ash']; RUN.nodes = ['ash.sig.front']; RUN.embers = 12; RUN.completed = [0, 1, 2, 3, 4, 5];
-      startFight({ type: 'fight', chapter: 3, heroes: ['ash'], enemies: ['echoknight2'], isBoss: true, useRunHp: true, mapId: 6, depth: 7, floor: 1 });
-      S.enemies.forEach(e => { e.hp = 0; e.dead = true; }); onFloorCleared();
+      RUN = newRun('ash'); RUN.active = ['ash']; RUN.nodes = ['ash.sig.front']; RUN.embers = 12;
+      RUN.completed = RUN.map.filter(n => n.type !== 'gate').map(n => n.id);   // walked to and through the boss
+      onFloorCleared(); hideOverlay();
+      const gates = RUN.map.filter(n => n.type === 'gate');
+      return RUN.floor === 1 && gates.length === 2
+        && gates.every(g => nodeReachable(g))
+        && gates.map(g => g.region).sort().join('|') === 'rust|silence';
+    }));
+  check('GATES: walking a gate descends INTO THAT DOMAIN (kit + embers kept, tiers stay open, region set)',
+    await J(() => {
+      const gate = RUN.map.find(n => n.type === 'gate' && n.region === 'silence');
+      descendInto(gate.region);
       const bossNode2 = RUN.map.find(n => n.type === 'boss');
-      return RUN.floor === 2 && RUN.embers === 12 && hasNode('ash.sig.front')
+      return RUN.floor === 2 && RUN.region === 'silence' && RUN.embers === 12 && hasNode('ash.sig.front')
         && tierOpen(2) === true                                   // depthBase carried the ramp (Build 286: a tier every 4)
-        && bossNode2.enemies[0] === 'echodevourer';               // floor-2 boss is the Maw
+        && bossNode2.enemies[0] === 'echodevourer';               // floor-2 boss is the Maw, whichever domain you walk
+    }));
+  check('GATES: a domain leans its road — Rust adds an elite to the stretch, Silence a mystery, Stillness a fire',
+    await J(() => {
+      const count = (rid, type) => { let c = 0;
+        for (let i = 0; i < 14; i++) c += generateDescent(['ash', 'elin', 'mira'], REGIONS[rid].depth, rid)
+          .filter(n => n.type === type && n.level >= 2 && n.level <= 5).length;
+        return c; };
+      // fourteen maps a side — the bias converts one mid-stretch fight every
+      // map, so the summed signature count must sit clearly above the rival's
+      // (a ~14-map gap dwarfs the stretch's natural roll)
+      return count('rust', 'elite') > count('silence', 'elite')
+        && count('silence', 'event') > count('rust', 'event')
+        && count('stillness', 'camp') > count('cinders', 'camp');
+    }));
+  check('GATES: the deepest dark has no fork — floor 3 offers ONE gate, floor 4 none at all',
+    await J(() => {
+      const f3 = generateDescent(['ash'], 3, 'cinders'), f4 = generateDescent(['ash'], 4, 'deep');
+      const g3 = f3.filter(n => n.type === 'gate');
+      return g3.length === 1 && g3[0].region === 'deep' && f4.filter(n => n.type === 'gate').length === 0;
     }));
   check('FLOOR: floor 2 hits harder than floor 1 (continued depth ramp)',
     await J(() => {
@@ -3157,7 +3192,8 @@ const QUICK = process.argv.includes('--quick');
         RUN = newRun('ash'); RUN.roster = ['ash'];
         const map = generateDescent(['ash'], 1);
         const camps = map.filter(n => n.type === 'camp').map(n => n.level).sort((a, b) => a - b);
-        const preBoss = Math.max(...map.map(n => n.level)) - 1;
+        // Build 20: gates cap the map now — the door camp sits before the BOSS
+        const preBoss = map.find(n => n.type === 'boss').level - 1;
         if (camps.length < 2) return false;                 // one mid, one at the door
         if (!camps.includes(preBoss)) return false;
         if (!camps.some(l => l > 1 && l < preBoss)) return false;
@@ -4705,7 +4741,7 @@ const QUICK = process.argv.includes('--quick');
       RUN = newRun('ash'); RUN.roster = ['ash', 'elin', 'hask']; RUN.active = ['ash', 'elin', 'hask'];
       RUN.hp = { ash: 32, elin: 24, hask: 0 };   // Hask DOWNED at the floor boss
       RUN.floor = 1; RUN.completed = [0, 1, 2, 3];
-      onFloorCleared();                          // clear the boss → descend to floor 2
+      descendInto('rust');                       // walk a gate → descend to floor 2 (Build 20)
       const keptActive = RUN.active.includes('hask');
       const revived = RUN.hp.hask === Math.ceil(HEROES.hask.maxHp * 0.5);   // Build 210: the deep grants HALF a breath — the fallen rise at 50%, not full
       saveRun(); const reloaded = loadRun();     // quit + reopen between floors

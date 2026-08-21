@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 19;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 20;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -3464,9 +3464,11 @@ function _connect(prev, next, nodes) {
     }
   });
 }
-function generateDescent(roster, floor) {
+function generateDescent(roster, floor, regionId) {
   roster = roster || ['ash'];
   floor = floor || 1;
+  // which DOMAIN this floor walks (Build 20) — biases the stretch and names the map
+  const region = regionOf(regionId || (typeof RUN !== 'undefined' && RUN && RUN.region), floor);
   // FLOOR 4 — THE DEEPEST DARK: a deliberate TWO-NODE approach.  A LAST FIRE to
   // steady the line, then the multi-stage MEGA BOSS.  No detours — the mega boss
   // is itself the gauntlet (three stages).  (The map strip keeps a fixed height,
@@ -3557,6 +3559,32 @@ function generateDescent(roster, floor) {
     levels.push(ids);
   }
   for (let l = 0; l < levels.length - 1; l++) _connect(levels[l], levels[l + 1], nodes);
+  // THE DOMAIN LEANS THE ROAD (Build 20) — one mid-stretch fight converts to the
+  // region's signature, so Rust genuinely runs harder and richer, Silence
+  // stranger, Stillness kinder. Never the forced first-recruit level, never the
+  // mouth, never the pre-boss camp row.
+  if (region.bias) {
+    const cand = nodes.filter(n => n && n.type === 'fight' && n.level >= 2 && n.level <= numLevels - 2);
+    if (cand.length) {
+      const n = cand[_rand(cand.length)];
+      if (region.bias === 'elite') { n.type = 'elite'; n.enemies = _eliteEnemies(n.level, roster.length); n.elite = true; n.label = lbl.elite(); }
+      else if (region.bias === 'event') { n.type = 'event'; delete n.enemies; n.eventId = eventQ[eventI++ % eventQ.length]; n.label = lbl.event(); }
+      else if (region.bias === 'camp') { n.type = 'camp'; delete n.enemies; n.label = lbl.camp(); }
+    }
+  }
+  // THE GATES (Build 20) — beyond the floor boss, the exits. Each names the
+  // domain it descends into, so the between-floors step is a REGION choice made
+  // on the map, standing at the boss's corpse, not an automatic drop.
+  const forks = REGION_FORKS[floor] || [];
+  if (forks.length) {
+    const bossNode = nodes.find(n => n && n.type === 'boss');
+    forks.forEach(rid => {
+      const R = REGIONS[rid];
+      const g = { id: idc, level: numLevels + 1, col: numLevels + 1, type: 'gate', region: rid,
+        label: rid === 'deep' ? R.gate : `${R.gate} · ${R.name.replace('DOMAIN OF ', '')}`, next: [] };
+      nodes[idc] = g; if (bossNode) bossNode.next.push(idc); idc++;
+    });
+  }
   // A previous descent's ashes surface once — attach any Abyss memory to a node
   // at the same depth (level) in this fresh map so the ♰ still marks the road.
   const abyss = loadAbyss();
@@ -4198,8 +4226,9 @@ function newRun(starterId) {
     hp,
     bonds: {},          // pairKey -> points; a pair at 2+ is KINDLED
     floor: 1,           // the descent has FLOORS; clearing a floor boss drops you deeper
+    region: 'lament',   // which DOMAIN this floor walks — chosen at the gates (Build 20)
     depthBase: 0,       // depth carried from cleared floors, so the ramp keeps rising
-    map: generateDescent(roster, 1),   // a fresh branching descent every run
+    map: generateDescent(roster, 1, 'lament'),   // a fresh branching descent every run
     completed: [],
     embers: 0,          // per-run ember wallet — earned and spent THIS descent only (A HANDFUL OF ASH tops it up in beginRun)
     nodes: [],          // per-run skill-tree unlocks — reset when the run ends; starts EMPTY (everything earned)
@@ -4215,6 +4244,32 @@ function newRun(starterId) {
   };
 }
 const FLOORS = 4;         // total floors — floor 4 is the short mega-boss gauntlet
+// ── THE DOMAINS (v2.2 Build 20) — region-based traversal over the node maps ──
+// The descent is a chain of DOMAINS. Within a domain you walk nodes as ever;
+// at the domain's end stands its FLOOR BOSS, and beyond the boss the GATES:
+// each gate names the domain it descends into, so the between-floors choice is
+// a region choice, not a dice roll. A domain leans the road its own way (its
+// `bias` converts one mid-stretch fight into its signature: elites in Rust,
+// mysteries in Silence, fires in Stillness). Names are provisional canon —
+// LAMENT is the player's own; the rest follow its register (see NARRATIVE.md).
+const REGIONS = {
+  lament:    { name: 'DOMAIN OF LAMENT',    depth: 1, sub: 'where the grief pooled first' },
+  rust:      { name: 'DOMAIN OF RUST',      depth: 2, gate: 'NORTH GATE', bias: 'elite',
+               promise: 'The armories of the fallen, still creaking. The dead run thicker here — <b>more elites, more embers</b>.' },
+  silence:   { name: 'DOMAIN OF SILENCE',   depth: 2, gate: 'SOUTH GATE', bias: 'event',
+               promise: 'Streets that swallowed their own bells. A stranger road — <b>more mysteries</b> on the way down.' },
+  cinders:   { name: 'DOMAIN OF CINDERS',   depth: 3, gate: 'NORTH GATE', bias: 'elite',
+               promise: 'What the pyres could not finish. The strong gather here — <b>more elites, more embers</b>.' },
+  stillness: { name: 'DOMAIN OF STILLNESS', depth: 3, gate: 'SOUTH GATE', bias: 'camp',
+               promise: 'A hush deep enough to rest in. The road is patient — <b>an extra fire</b> burns on it.' },
+  deep:      { name: 'THE DEEPEST DARK',    depth: 4, gate: 'THE LAST GATE' },
+};
+// which domains each floor's gates open onto (floor 3's single gate: the deep)
+const REGION_FORKS = { 1: ['rust', 'silence'], 2: ['cinders', 'stillness'], 3: ['deep'] };
+function regionOf(id, floor) {
+  if (REGIONS[id] && REGIONS[id].depth === (floor || REGIONS[id].depth)) return REGIONS[id];
+  return REGIONS[{ 1: 'lament', 2: 'rust', 3: 'cinders', 4: 'deep' }[Math.min(floor || 1, 4)]] || REGIONS.lament;
+}
 const bondRaw = (k) => (RUN && RUN.bonds && RUN.bonds[k]) || 0;   // what this descent actually earned
 // …and what it is WORTH, which is more once you know what this place does to the
 // people you let go of.  The carry only lifts a bond that already exists —
@@ -8889,40 +8944,65 @@ function onDefeat() {
     $('#ov-retry').onclick = () => { hideOverlay(); startFlowNode(); };
   }, 700);
 }
-// A floor boss falls — either you drop into the next, deeper floor (keeping your
-// whole in-run build), or, on the final floor, the descent is truly cleared.
+// A floor boss falls — on the final floor the descent is truly cleared;
+// otherwise THE GATES beyond the corpse stand open (Build 20): the player
+// returns to the map and chooses WHICH DOMAIN the descent continues into.
 function onFloorCleared() {
   if ((RUN.floor || 1) >= FLOORS) { onRunComplete(); return; }
-  RUN.depthBase = (RUN.depthBase || 0) + (RUN.completed ? RUN.completed.length : 0);   // the ramp keeps rising
-  RUN.floor = (RUN.floor || 1) + 1;
-  RUN.completed = [];
-  RUN.map = generateDescent(RUN.roster, RUN.floor);
-  // Build 210: the deep grants HALF a breath, not a full night's rest — everyone
-  // (the fallen included: clearing a floor boss is the milestone that pulls them
-  // back to their feet) recovers to at least 50%.  Full rest still costs a camp.
-  RUN.roster.forEach(id => { const hp = RUN.hp[id] ?? HEROES[id].maxHp; RUN.hp[id] = Math.max(hp, Math.ceil(HEROES[id].maxHp * 0.5)); });
   saveRun();
-  // The step onto the FINAL floor is its own beat: the deepest dark, where the
-  // three you broke were only fragments of the one thing still waiting.
-  const finalFloor = RUN.floor >= FLOORS;
+  const forkIds = REGION_FORKS[RUN.floor || 1] || [];
+  const two = forkIds.length >= 2;
+  showOverlay(`
+    <div class="ov-eyebrow" style="color:var(--gold-bright)">FLOOR ${RUN.floor || 1} · CLEARED</div>
+    <div class="ov-title" style="font-size:24px">THE GATES STAND OPEN</div>
+    <div class="ov-lines" style="text-align:center; min-height:0;">
+      <div class="ov-line">The colossus shatters — and beyond it, ${two ? 'the <b>gates</b> answer: two roads down, into two different darks' : 'the <b>last gate</b> answers'}.</div>
+      ${two ? `<div class="ov-line">${forkIds.map(rid => `<b>${REGIONS[rid].name}</b>`).join(' — or ')}. Stand at each gate before you choose; a gate walked cannot be unwalked.</div>` : ''}
+    </div>
+    <button class="ov-btn primary" id="ov-deeper">TO THE GATES</button>
+  `);
+  $('#ov-deeper').onclick = () => { hideOverlay(); showMap(); };
+}
+// Standing at a gate — the domain names itself and makes its promise; walking
+// through commits the descent to it. NOT YET returns to the map so the other
+// gate can be read first: a region choice you can compare is a real choice.
+function showDomainGate(n) {
+  const R = REGIONS[n.region] || regionOf(n.region, (RUN.floor || 1) + 1);
+  const finalFloor = (RUN.floor || 1) + 1 >= FLOORS;
   showOverlay(finalFloor ? `
-    <div class="ov-eyebrow" style="color:var(--gold-bright)">THE DESCENT · THE LAST FLOOR</div>
+    <div class="ov-eyebrow" style="color:var(--gold-bright)">THE LAST GATE</div>
     <div class="ov-title" style="font-size:24px">THE DEEPEST DARK</div>
     <div class="ov-lines" style="text-align:center; min-height:0;">
       <div class="ov-line">The Sundering’s pieces do not scatter — they are <b>drawn downward</b>, gathered, remembered.</div>
       <div class="ov-line">Knight, Maw, Sundering: three voices of <b>one throat</b>. It has been singing the whole way down. A threshold, a last fire — then the <b>Hollow Chorus</b>.</div>
     </div>
     <button class="ov-btn primary" id="ov-deeper">INTO THE DEEP</button>
+    <button class="ov-btn" id="ov-gate-back">NOT YET</button>
   ` : `
-    <div class="ov-eyebrow" style="color:var(--gold-bright)">FLOOR ${RUN.floor - 1} · CLEARED</div>
-    <div class="ov-title" style="font-size:24px">THE FLOOR GIVES WAY</div>
+    <div class="ov-eyebrow" style="color:var(--gold-bright)">${R.gate || 'THE GATE'}</div>
+    <div class="ov-title" style="font-size:24px">${R.name}</div>
     <div class="ov-lines" style="text-align:center; min-height:0;">
-      <div class="ov-line">The colossus shatters — and the ground beneath it opens onto a <b>deeper dark</b>.</div>
+      <div class="ov-line">${R.promise || ''}</div>
       <div class="ov-line">Down here the dead are <b>older, hungrier — and they learn</b>. Your kindled skills descend with you… but so does the price of falling.</div>
     </div>
-    <button class="ov-btn primary" id="ov-deeper">DESCEND · FLOOR ${RUN.floor}</button>
+    <button class="ov-btn primary" id="ov-deeper">DESCEND · ${R.name}</button>
+    <button class="ov-btn" id="ov-gate-back">NOT YET</button>
   `);
-  $('#ov-deeper').onclick = () => { hideOverlay(); showMap(); };
+  $('#ov-deeper').onclick = () => { hideOverlay(); descendInto(n.region); };
+  const back = $('#ov-gate-back'); if (back) back.onclick = () => { hideOverlay(); showMap(); };
+}
+// The walk-through: the next floor generates AS the chosen domain. Build 210's
+// half-breath still applies — everyone (the fallen included) rises to at least
+// 50% on the way down; a full rest still costs a camp.
+function descendInto(regionId) {
+  RUN.region = regionId;
+  RUN.depthBase = (RUN.depthBase || 0) + (RUN.completed ? RUN.completed.length : 0);   // the ramp keeps rising
+  RUN.floor = (RUN.floor || 1) + 1;
+  RUN.completed = [];
+  RUN.map = generateDescent(RUN.roster, RUN.floor, regionId);
+  RUN.roster.forEach(id => { const hp = RUN.hp[id] ?? HEROES[id].maxHp; RUN.hp[id] = Math.max(hp, Math.ceil(HEROES[id].maxHp * 0.5)); });
+  saveRun();
+  showMap();
 }
 function onRunComplete() {
   RUN.done = true; saveRun();
@@ -9082,7 +9162,7 @@ function showMap() {
   $('#timeline').innerHTML = '';
   const cols = {};
   mapAll().forEach(n => { (cols[n.col] = cols[n.col] || []).push(n); });
-  const glyph = { fight: '⚔', elite: '✸', event: '?', recruit: '☉', camp: '⌂', boss: '☠' };
+  const glyph = { fight: '⚔', elite: '✸', event: '?', recruit: '☉', camp: '⌂', boss: '☠', gate: '✦' };
   // Your CURRENT position = the deepest completed node (where the trail ends).
   const doneNodes = mapAll().filter(n => RUN.completed.includes(n.id));
   const curNode = doneNodes.length ? doneNodes.reduce((a, b) => (b.col >= a.col ? b : a)) : null;
@@ -9145,13 +9225,13 @@ function showMap() {
   showOverlay(`
     <div class="wm-head">
       <div class="wm-title">WORLD MAP</div>
-      <div class="wm-sub">DOMAIN OF LAMENT${(RUN.floor || 1) >= 2 ? ` · DEPTH ${RUN.floor}` : ''}</div>
+      <div class="wm-sub">${regionOf(RUN.region, RUN.floor || 1).name}${(RUN.floor || 1) >= 2 ? ` · DEPTH ${RUN.floor}` : ''}</div>
       <div class="wm-meta">${moodDef && moodDef.label ? `<span class="map-mood" style="color:${moodDef.tint}; border-color:${moodDef.tint}66">♦ ${moodDef.label}</span>` : ''}${relicStrip}${boonStrip}</div>
     </div>
     <div class="wm-embers" title="Embers gathered this descent — spend them in the EMBER TREE">✦ <b>${runEmbers()}</b></div>
     <div class="map-strip"><svg class="map-edges" aria-hidden="true"></svg>${colHtml}</div>
     <div class="wm-legend" aria-hidden="true">
-      ${[['⚔', 'COMBAT'], ['✸', 'ELITE'], ['?', 'MYSTERY'], ['⌂', 'REST'], ['☉', 'KINDRED'], ['☠', 'THE GATE']]
+      ${[['⚔', 'COMBAT'], ['✸', 'ELITE'], ['?', 'MYSTERY'], ['⌂', 'REST'], ['☉', 'KINDRED'], ['✦', 'THE GATES']]
         .map(([g, l]) => `<div class="wl-row"><span class="wl-ic">${g}</span><span class="wl-lb">${l}</span></div>`).join('')}
     </div>
     ${coach}
@@ -9209,6 +9289,7 @@ function resolveMapNode(n) {
   else if (n.type === 'recruit') showRecruit(n);
   else if (n.type === 'camp') showCamp(n);
   else if (n.type === 'event') showEvent(n);
+  else if (n.type === 'gate') showDomainGate(n);   // a domain names itself before you walk it (Build 20)
 }
 function enterMapNode(n) {
   hideOverlay();

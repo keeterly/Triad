@@ -134,3 +134,23 @@ and the tutorial's closing screen. The bible wins when the pass happens.
   the beats before the bible locks them.
 - TBD lore stays TBD: no protagonist mapping, no trio identities, no
   Priestess name, no Domain names as keys. All of it is data when it lands.
+
+## The Domains (v2.2 Build 20 — provisional canon)
+
+Traversal is a mix of NODE-based and REGION-based movement: within a domain
+you walk the node map; the domain ends at its FLOOR BOSS, and beyond the boss
+stand THE GATES — each names the domain it descends into, so the
+between-floors step is a region choice made standing at the corpse.
+
+| depth | domains | lean |
+|---|---|---|
+| 1 | DOMAIN OF LAMENT | the mouth — no lean |
+| 2 | DOMAIN OF RUST (north) / DOMAIN OF SILENCE (south) | +1 elite / +1 mystery |
+| 3 | DOMAIN OF CINDERS (north) / DOMAIN OF STILLNESS (south) | +1 elite / +1 fire |
+| 4 | THE DEEPEST DARK | single gate, the gauntlet |
+
+LAMENT is the player's own name (from their world-map mock). RUST, SILENCE,
+CINDERS and STILLNESS follow its register and are PROVISIONAL — rename freely;
+they live in one table (`REGIONS`, game.js) and nothing else hard-codes them.
+Floor bosses are per-depth, not per-domain (Knight / Maw / Sundering / Chorus).
+`highestDomainReached` in the narrative schema can now point at these ids.

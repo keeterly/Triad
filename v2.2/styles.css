@@ -4699,14 +4699,26 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
   font-size: 8.4px; letter-spacing: 0.34em; color: var(--ink);
   text-shadow: 0 1px 5px #000; z-index: 6; white-space: nowrap;
 }
-/* THE GATE — the floor's warded exit wears a compass ring, after the mock's
-   gate rosettes; the skull still says what stands in front of it */
+/* THE FLOOR BOSS — bigger coin, its red breathe kept from the base styling */
 .wm-screen .map-node.mn-boss .mn-icon { width: 50px; height: 50px; font-size: 18px; }
-.wm-screen .map-node.mn-boss::after {
-  content: ''; position: absolute; top: -7px; left: 50%; margin-left: -32px;
-  width: 64px; height: 64px; border-radius: 50%; pointer-events: none;
-  border: 1px solid rgba(224,190,120,0.65);
-  box-shadow: 0 0 0 4px rgba(216,180,110,0.12), 0 0 22px rgba(216,180,110,0.3), inset 0 0 12px rgba(216,180,110,0.16);
+/* THE GATES (Build 20) — the domains' doors beyond the boss, after the mock's
+   compass rosettes: a gold star coin inside a raying compass ring, and the
+   destination's name always readable (a door is information, not a secret) */
+.wm-screen .map-node.mn-gate .mn-icon {
+  color: var(--gold-bright); width: 44px; height: 44px;
+  text-shadow: 0 0 10px rgba(240,212,136,0.55);
+  box-shadow: 0 0 0 1.5px rgba(224,190,120,0.5), 0 6px 14px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,232,160,0.1);
+}
+.wm-screen .map-node.mn-gate::after {
+  content: ''; position: absolute; top: -8px; left: 50%; margin-left: -30px;
+  width: 60px; height: 60px; border-radius: 50%; pointer-events: none;
+  border: 1px solid rgba(224,190,120,0.6);
+  box-shadow: 0 0 0 4px rgba(216,180,110,0.1), 0 0 20px rgba(216,180,110,0.26), inset 0 0 12px rgba(216,180,110,0.14);
+}
+.wm-screen .map-node.mn-gate .mn-label { opacity: 1; color: var(--ink); }
+.wm-screen .map-node.mn-gate.mn-locked .mn-icon { color: rgba(224,196,140,0.55); text-shadow: none; }
+.wm-screen .map-node.mn-gate.mn-reach .mn-icon {
+  box-shadow: 0 0 0 2px rgba(244,220,156,0.95), 0 0 24px rgba(238,200,120,0.5), 0 0 52px rgba(238,200,120,0.2), 0 6px 14px rgba(0,0,0,0.7);
 }
 /* the road: walked = solid gold · open choices = solid pale light · the road
    ahead = faint dashes (the mock's dotted not-yet paths) */
