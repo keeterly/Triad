@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 26;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 27;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -13135,7 +13135,26 @@ function etLayoutStar() {
   const svg = star.querySelector('.et-star-links');
   if (!svg) return;
   svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
-  let ink = ['front', 'mid', 'back'].map(lane => {
+  // THE RINGS THE TREE ACTUALLY USES (Build 27) — faint circles at each depth
+  // the branches reached, and a dashed one where the weave's doors ring the
+  // star. They give the dark some structure now that the panel is gone, and
+  // they are derived from the layout rather than decoration laid over it.
+  // quantised into a few BANDS — one ring per radius would draw a cobweb (the
+  // relaxation leaves every node at its own slightly different radius)
+  const bands = {};
+  keys.forEach(k => {
+    const N = P[k];
+    if (N.lane === 'self' || N.rim) return;
+    const b = Math.round(N.rho / 0.11) * 0.11;
+    bands[b.toFixed(2)] = b;
+  });
+  let ink = Object.values(bands).sort((a, b) => a - b).slice(-4).map(rho => {
+    const rr = rho * R;
+    if (rr < 52) return '';
+    return '<circle class="et-guide" cx="' + cx + '" cy="' + cy + '" r="' + rr.toFixed(1) + '" />';
+  }).join('');
+  if (hasRim) ink += '<circle class="et-guide et-guide-rim" cx="' + cx + '" cy="' + cy + '" r="' + (0.96 * R).toFixed(1) + '" />';
+  ink += ['front', 'mid', 'back'].map(lane => {
     const spine = ET_SPOKE[lane] * Math.PI / 180;
     return '<line class="et-rail" x1="' + (cx + 0.16 * Math.cos(spine) * Rx).toFixed(1) +
       '" y1="' + (cy + 0.16 * Math.sin(spine) * Ry).toFixed(1) +
