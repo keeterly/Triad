@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 30;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 31;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -13142,40 +13142,56 @@ function jobSigil(id) { return JOB_SIGIL[id] || JOB_SIGIL.ash; }
 // flies it to the middle and leans in. Layout and camera stay separate on
 // purpose: every position the relaxation solved keeps its meaning at any zoom,
 // and nothing has to be re-solved when the camera moves.
-const ET_VIEW = { x: 0, y: 0, k: 1, ax: 0, ay: 0, ak: 1 };
-const ET_KMIN = 0.7, ET_KMAX = 2.6;
+const ET_VIEW = { x: 0, y: 0, k: 1, fit: 1, auto: true };
+const ET_KMIN = 0.42, ET_KMAX = 2.6;
 function etApplyView(animate) {
   const view = document.getElementById('et-view');
   if (!view) return;
   view.style.transition = animate ? 'transform 420ms cubic-bezier(.25,.9,.3,1)' : 'none';
   view.style.transform = `translate(${ET_VIEW.x.toFixed(1)}px, ${ET_VIEW.y.toFixed(1)}px) scale(${ET_VIEW.k.toFixed(3)})`;
   const star = document.getElementById('et-star');
-  if (star) star.classList.toggle('et-zoomed', ET_VIEW.k > 1.04);
+  if (star) star.classList.toggle('et-zoomed', ET_VIEW.k > (ET_VIEW.fit || 1) * 1.04);
 }
+// FIT, not 1:1 — the star is laid out at its own pitch and may be larger than
+// the frame, so “framed” means the scale that shows all of it.
 function etResetView(animate) {
-  ET_VIEW.x = 0; ET_VIEW.y = 0; ET_VIEW.k = 1;
+  ET_VIEW.x = 0; ET_VIEW.y = 0; ET_VIEW.auto = true; ET_VIEW.k = ET_VIEW.fit || 1;
   etApplyView(!!animate);
 }
 // centre a node and lean in — the focus the player asked for by tapping it
 function etFocusNode(el, k) {
   const star = document.getElementById('et-star');
   if (!star || !el) return;
-  const sr = star.getBoundingClientRect();
-  // the GLYPH is the node; the chip's box also contains its name, and
-  // centring on that put every focused node a label's height off-centre
-  const er = (el.querySelector('.et-orb-glyph') || el).getBoundingClientRect();
-  const cx = sr.left + sr.width / 2, cy = sr.top + sr.height / 2;
-  const ex = er.left + er.width / 2, ey = er.top + er.height / 2;
-  // where the node sits in LAYOUT space, undoing the camera we already have
-  const lx = (ex - cx - ET_VIEW.x) / ET_VIEW.k, ly = (ey - cy - ET_VIEW.y) / ET_VIEW.k;
-  ET_VIEW.k = Math.max(ET_KMIN, Math.min(ET_KMAX, k || Math.max(1.55, ET_VIEW.k)));
+  // MEASURE ON THE NEXT FRAME. Tapping a node also rewrites the detail panel
+  // beside the tree, and reading rects in the same tick caught the row
+  // mid-reflow — the flight then landed a few pixels short every time.
+  requestAnimationFrame(() => etFlyTo(star, el, k));
+}
+function etFlyTo(star, el, k) {
+  if (!document.body.contains(el)) return;
+  const g = el.querySelector('.et-orb-glyph');
+  // LAYOUT, NOT RECTS. A chip can still be animating in when it is tapped, and
+  // a measured rect carries that entrance offset — which then gets baked into
+  // the camera, landing every early tap a few pixels short of the middle.
+  // (Rects are viewport pixels besides, while the camera is layout pixels.)
+  // The layout cannot lie about where the node is, so read it from there: the
+  // chip is centred on its own left/top, and the GLYPH is the node — its
+  // name sits above or below it and must not drag the middle off.
+  let lx = parseFloat(el.style.left || '0') - star.clientWidth / 2;
+  let ly = parseFloat(el.style.top || '0') - star.clientHeight / 2;
+  if (g) {
+    lx += g.offsetLeft + g.offsetWidth / 2 - el.offsetWidth / 2;
+    ly += g.offsetTop + g.offsetHeight / 2 - el.offsetHeight / 2;
+  }
+  ET_VIEW.auto = false;
+  ET_VIEW.k = Math.max(ET_KMIN, Math.min(ET_KMAX, k || Math.max(1.35, (ET_VIEW.fit || 1) * 1.9, ET_VIEW.k)));
   ET_VIEW.x = -lx * ET_VIEW.k;
   ET_VIEW.y = -ly * ET_VIEW.k;
   etApplyView(true);
 }
 function etZoomBy(f) {
+  ET_VIEW.auto = false;
   ET_VIEW.k = Math.max(ET_KMIN, Math.min(ET_KMAX, ET_VIEW.k * f));
-  ET_VIEW.x *= f > 1 ? 1 : 1;   // zoom about the middle; panning re-centres
   etApplyView(true);
 }
 function attachStarView() {
@@ -13203,14 +13219,17 @@ function attachStarView() {
       const f = m.d / pinch;
       if (Math.abs(f - 1) > 0.008) {
         ET_VIEW.k = Math.max(ET_KMIN, Math.min(ET_KMAX, ET_VIEW.k * f));
-        pinch = m.d; moved = 99; etApplyView(false);
+        pinch = m.d; moved = 99; ET_VIEW.auto = false; etApplyView(false);
       }
       return;
     }
     if (pts.size === 1 && last) {
       const dx = e.clientX - last.x, dy = e.clientY - last.y;
       moved += Math.abs(dx) + Math.abs(dy);
-      ET_VIEW.x += dx; ET_VIEW.y += dy;
+      // pointer deltas are viewport pixels; the camera lives in layout pixels
+      const sr = star.getBoundingClientRect();
+      const S = sr.width / (star.offsetWidth || sr.width) || 1;
+      ET_VIEW.x += dx / S; ET_VIEW.y += dy / S; ET_VIEW.auto = false;
       last = { x: e.clientX, y: e.clientY };
       etApplyView(false);
     }
@@ -13224,6 +13243,7 @@ function attachStarView() {
   star.addEventListener('pointercancel', up);
   star.addEventListener('wheel', e => {
     e.preventDefault();
+    ET_VIEW.auto = false;
     ET_VIEW.k = Math.max(ET_KMIN, Math.min(ET_KMAX, ET_VIEW.k * (e.deltaY < 0 ? 1.12 : 1 / 1.12)));
     etApplyView(false);
   }, { passive: false });
@@ -13257,14 +13277,33 @@ function etLayoutStar() {
   // under it, so keeping the GLYPHS apart still let the NAMES run through each
   // other. Pairs are separated on whichever axis they overlap least, using the
   // footprint the label actually occupies.
-  const BW = dense ? 68 : 80, BH = dense ? 46 : 56;
-  const R = Math.max(60, Math.min(W / 2 - 54, H / 2 - 40));
-  const Rx = R, Ry = R;
-  const CORE_RHO = (dense ? 54 : 62) / R;             // stay clear of the character
-  // the outer band belongs to the WEAVE — the doors an ally's thread opens —
-  // so the branches stop short of it and the two never fight for the same ring
+  const BW = dense ? 76 : 88, BH = dense ? 48 : 56;
+  const ORB = dense ? 26 : 30;
+  // ONE CLEARANCE, IN EVERY DIRECTION — AND ONLY AS MUCH AS THE NODE NEEDS.
+  // Two axis-aligned labels clear each other when they are BW apart across or
+  // BH apart down, but an arm pointing at 30 degrees satisfies neither until
+  // it has travelled the box's DIAGONAL — which is why the relaxation kept
+  // shoving diagonal arms sideways into a 112-degree fan until the three
+  // branches blurred into one cloud. So clearance is a RADIUS, safe from any
+  // bearing. And it is measured per node: most of a tree is sealed or
+  // unreachable and shows no name at all, so charging every node for a label
+  // it isn't drawing was what pushed the arms out past the frame.
+  const NAMED_R = Math.hypot(BW, BH) / 2;
+  const BARE_R = (ORB + 16) / 2;
+  const crOf = (el) => {
+    const nm = el.querySelector('.et-orb-name');
+    return (nm && nm.offsetHeight > 0) ? NAMED_R : BARE_R;
+  };
+  const CLR = NAMED_R * 2;
+  // THE TREE IS NOT FOLDED INTO THE FRAME (Build 31). Every earlier attempt
+  // squeezed a thirty-node star into whatever radius the box allowed, and the
+  // spacing that survived was whatever was left over — glyphs ended up 25px
+  // apart with 26px of glyph, which is to say touching. The star is now laid
+  // out at a HONEST PITCH in its own pixels, however far out that runs, and
+  // the CAMERA we already built frames it. Spacing stops being a leftover.
+  const CORE_R = dense ? 60 : 68;                     // stay clear of the character
   const hasRim = !!star.querySelector('.et-orb[data-rim]');
-  const RIM_IN = hasRim ? 0.82 : 1.0;
+  const LIM = 56 * Math.PI / 180;                     // how far a node may swing off its spine
   const chips = Array.prototype.slice.call(star.querySelectorAll('.et-orb[data-id]'));
   if (!chips.length) return;
 
@@ -13280,17 +13319,11 @@ function etLayoutStar() {
     if (lane === 'self') {                            // hero-wide nodes ring the core
       list.forEach((el, i) => {
         const a = (-40 + (i / list.length) * 360) * Math.PI / 180;
-        P[el.dataset.id] = { a, rho: CORE_RHO * 0.62, el, lane, spine: null };
+        P[el.dataset.id] = { a, rad: CORE_R * 0.66, el, lane, spine: null, cr: crOf(el) };
       });
       return;
     }
-    if (lane === 'rim') {                             // the weave, on the outer ring
-      list.forEach((el, i) => {
-        const a = (-90 + ((i + 0.5) / list.length) * 360) * Math.PI / 180;
-        P[el.dataset.id] = { a, rho: 0.96, el, lane, spine: null, rim: true };
-      });
-      return;
-    }
+    if (lane === 'rim') return;                       // placed last, past the arms
     const ids = {};
     list.forEach(el => { ids[el.dataset.id] = 1; });
     const depthOf = (id, seen) => {
@@ -13305,62 +13338,99 @@ function etLayoutStar() {
     const ranks = {};
     list.forEach(el => { const d = depthOf(el.dataset.id, {}); (ranks[d] = ranks[d] || []).push(el); });
     const ds = Object.keys(ranks).map(Number).sort((a, b) => a - b);
-    const maxD = Math.max(1, ds[ds.length - 1]);
+    // RADIUS COMES FROM DEPTH, FULL STOP (Build 31). Letting the relaxation
+    // move nodes radially meant a strong enough shove could push a dependent
+    // INSIDE its own prerequisite, and the branch would read as growing
+    // backwards. Depth owns the radius; crowding is answered by rotating
+    // within the wedge, which cannot disturb the ordering. A rank too wide for
+    // its arc splits into sub-rings that stay inside their own depth's band.
+    // RADIUS IS ALLOCATED BY NEED, and NOT clawed back (Build 31). Each depth
+    // takes as much radial room as its sub-rings actually require and the arm
+    // grows as long as it grows; nothing is compressed afterwards, because the
+    // compression is exactly what used to eat the spacing. A rank too wide for
+    // its arc splits into sub-rings inside its own depth's band, so ordering
+    // is preserved by construction.
+    const crm = (arr) => arr.reduce((m, el) => Math.max(m, crOf(el)), BARE_R);
+    let prevR = 0, cursor = CORE_R;
     ds.forEach(d => {
       const rank = ranks[d].sort((a, b) => (+a.dataset.tier) - (+b.dataset.tier));
-      const rho = CORE_RHO + (RIM_IN - 0.04 - CORE_RHO) * (d / (maxD + 0.3));
+      const rr = crm(rank);
+      cursor += prevR + rr;                           // clear whatever came before
+      const pitch = 2 * rr;
+      const cap = Math.max(1, 1 + Math.floor((2 * LIM * cursor) / pitch));
+      const rings = Math.ceil(rank.length / cap);
       rank.forEach((el, i) => {
-        const t = rank.length === 1 ? 0 : (i / (rank.length - 1)) * 2 - 1;
-        const spread = Math.min(50, 14 + rank.length * 9) * Math.PI / 180;
-        P[el.dataset.id] = { a: spine + t * spread, rho: rho + (i % 2 ? 0.05 : 0), el, lane, spine };
+        const ring = Math.floor(i / cap);
+        const inRing = Math.min(cap, rank.length - ring * cap);
+        const idx = i % cap;
+        const rad = cursor + ring * pitch;
+        // AN ARM IS A SPOKE, NOT A FAN. Spreading every ring across the whole
+        // wedge put two nodes at the extreme edges of a 112-degree sweep, so
+        // the three branches blurred into one cloud around the character and
+        // the star stopped reading as a star. A ring now opens only as wide as
+        // its members need — one node sits ON the spine, and each extra one
+        // costs a node's width of arc, up to the wedge as a hard ceiling.
+        const half = inRing === 1 ? 0 : Math.min(LIM, ((inRing - 1) * pitch) / (2 * rad));
+        const t = inRing === 1 ? 0 : (idx / (inRing - 1)) * 2 - 1;
+        P[el.dataset.id] = { a: spine + t * half, rad, el, lane, spine, cr: crOf(el) };
       });
+      cursor += (rings - 1) * pitch;
+      prevR = rr;
     });
   });
+  // THE WEAVE RINGS WHATEVER THE BRANCHES GREW TO — the doors sit one clear
+  // rank past the outermost node of any arm, so the two never share a ring no
+  // matter how long a branch runs.
+  let armFar = CORE_R;
+  Object.keys(P).forEach(k => { if (P[k].lane !== 'self') armFar = Math.max(armFar, P[k].rad + P[k].cr); });
+  const rimCr = byLane.rim.reduce((m, el) => Math.max(m, crOf(el)), BARE_R);
+  const RIM_R = armFar + rimCr;
+  byLane.rim.forEach((el, i) => {
+    const a = (-90 + ((i + 0.5) / byLane.rim.length) * 360) * Math.PI / 180;
+    P[el.dataset.id] = { a, rad: RIM_R, el, lane: 'rim', spine: null, rim: true, cr: crOf(el) };
+  });
 
-  const pt = (p) => ({ x: cx + p.rho * Math.cos(p.a) * Rx, y: cy + p.rho * Math.sin(p.a) * Ry });
+  const pt = (p) => ({ x: cx + p.rad * Math.cos(p.a), y: cy + p.rad * Math.sin(p.a) });
   const keys = Object.keys(P);
-  const LIM = 56 * Math.PI / 180;
-  for (let pass = 0; pass < 120; pass++) {
+  // ANGLE-ONLY RELAXATION — nodes rotate around the character to stop
+  // crowding; nothing moves in or out, so depth ordering is guaranteed by
+  // construction rather than repaired afterwards.
+  for (let pass = 0; pass < 140; pass++) {
     let moved = false;
     for (let i = 0; i < keys.length; i++) {
       for (let j = i + 1; j < keys.length; j++) {
         const A = P[keys[i]], B = P[keys[j]];
         const a = pt(A), b = pt(B);
-        const dx = b.x - a.x, dy = b.y - a.y;
-        const ox = BW - Math.abs(dx), oy = BH - Math.abs(dy);
-        if (ox <= 0 || oy <= 0) continue;
+        const gap = Math.hypot(b.x - a.x, b.y - a.y);
+        const need = A.cr + B.cr;
+        const ox = need - gap;
+        if (ox <= 0) continue;
         moved = true;
-        // shove along the axis they overlap least — the shortest way apart
-        let ux, uy, push;
-        if (ox / BW < oy / BH) { ux = dx >= 0 ? 1 : -1; uy = 0; push = ox / 2 + 0.6; }
-        else { ux = 0; uy = dy >= 0 ? 1 : -1; push = oy / 2 + 0.6; }
-        [[A, -1], [B, 1]].forEach(pair => {
-          const N = pair[0], s = pair[1], p = pt(N);
-          const nx = p.x + s * ux * push, ny = p.y + s * uy * push;
-          N.a = Math.atan2((ny - cy) / Ry, (nx - cx) / Rx);
-          N.rho = Math.hypot((nx - cx) / Rx, (ny - cy) / Ry);
+        // separate by ANGULAR ORDER, never by screen direction: on a ring, the
+        // cartesian sign of a gap says nothing about which way is "apart", and
+        // reading it that way shoved half the pairs together — which is what
+        // collapsed the weave's doors into a single pile.
+        let da = B.a - A.a;
+        while (da > Math.PI) da -= 2 * Math.PI;
+        while (da < -Math.PI) da += 2 * Math.PI;
+        const dir = da >= 0 ? 1 : -1;
+        const step = 0.02 + 0.02 * Math.min(1, ox / need);
+        [[A, -dir], [B, dir]].forEach(pair => {
+          const N = pair[0], s = pair[1];
+          if (N.spine == null) {                    // rim doors circle freely
+            N.a += s * step; return;
+          }
+          let d = N.a + s * step - N.spine;
+          while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
+          N.a = N.spine + Math.max(-LIM, Math.min(LIM, d));
         });
       }
     }
-    keys.forEach(k => {
-      const N = P[k];
-      if (N.spine != null) {
-        let d = N.a - N.spine;
-        while (d > Math.PI) d -= 2 * Math.PI;
-        while (d < -Math.PI) d += 2 * Math.PI;
-        N.a = N.spine + Math.max(-LIM, Math.min(LIM, d));
-        N.rho = Math.max(CORE_RHO, Math.min(1, N.rho));
-      } else if (N.rim) {
-        N.rho = Math.max(0.9, Math.min(1, N.rho));     // slides around the rim, never off it
-      } else {
-        N.rho = Math.max(CORE_RHO * 0.5, Math.min(CORE_RHO * 0.72, N.rho));
-      }
-    });
     if (!moved) break;
   }
 
   const xy = {};
-  const order = keys.slice().sort((a, b) => P[a].rho - P[b].rho);
+  const order = keys.slice().sort((a, b) => P[a].rad - P[b].rad);
   order.forEach((k, i) => { P[k].el.style.setProperty('--i', String(i)); });
   keys.forEach(k => {
     const p = pt(P[k]);
@@ -13369,8 +13439,8 @@ function etLayoutStar() {
     P[k].el.style.top = p.y.toFixed(1) + 'px';
     P[k].el.classList.toggle('et-lbl-up', p.y < cy - 8);
   });
-  const far = { front: 0.4, mid: 0.4, back: 0.4 };
-  keys.forEach(k => { const N = P[k]; if (N.lane !== 'self') far[N.lane] = Math.max(far[N.lane], N.rho); });
+  const far = { front: CORE_R, mid: CORE_R, back: CORE_R };
+  keys.forEach(k => { const N = P[k]; if (N.lane !== 'self' && N.lane !== 'rim') far[N.lane] = Math.max(far[N.lane], N.rad + N.cr); });
   // THE BRANCH'S NAME GOES WHERE THERE IS ROOM. It sits past the arm's last
   // node, but a title dropped on a fixed radius lands on whatever happens to
   // be out there — so each one searches outward, then a little to either side,
@@ -13384,7 +13454,7 @@ function etLayoutStar() {
     let bestAlt = null;
     const clear = (p) => keys.every(k => {
       const q = xy[k];
-      return Math.abs(q.x - p.x) >= (BW + TW) / 2 - 12 || Math.abs(q.y - p.y) >= (BH + TH) / 2 - 4;
+      return Math.abs(q.x - p.x) >= (BW + TW) / 2 - 10 || Math.abs(q.y - p.y) >= (BH + TH) / 2 - 2;
     }) && ['front', 'mid', 'back'].every(o => !tipAt[o] ||
       Math.abs(tipAt[o].x - p.x) >= TW || Math.abs(tipAt[o].y - p.y) >= TH);
     // score every candidate and take the first clear one; if the arm is packed
@@ -13392,11 +13462,10 @@ function etLayoutStar() {
     // on top of a node (which is what the old blind fallback did)
     let best = null, bestScore = -1;
     for (let step = 0; step <= 10 && !best; step++) {
-      const rr = Math.min(1.02, far[lane] + 0.11 + step * 0.03);
+      const rr = far[lane] + 26 + step * 20;
       for (const off of [0, -12, 12, -22, 22, -32, 32, -42, 42]) {
         const a = spine + off * Math.PI / 180;
-        const p = { x: cx + rr * Math.cos(a) * Rx, y: cy + rr * Math.sin(a) * Ry };
-        if (p.x < 44 || p.x > W - 44 || p.y < 18 || p.y > H - 18) continue;
+        const p = { x: cx + rr * Math.cos(a), y: cy + rr * Math.sin(a) };
         if (clear(p)) { best = p; break; }
         let room = Infinity;
         keys.forEach(k => {
@@ -13406,11 +13475,27 @@ function etLayoutStar() {
         if (room > bestScore) { bestScore = room; best = best || null; if (!best) bestAlt = p; }
       }
     }
-    if (!best) best = bestAlt || { x: cx + far[lane] * Math.cos(spine) * Rx, y: cy + far[lane] * Math.sin(spine) * Ry };
+    if (!best) best = bestAlt || { x: cx + (far[lane] + 26) * Math.cos(spine),
+                                   y: cy + (far[lane] + 26) * Math.sin(spine) };
     tipAt[lane] = best;
-    tip.style.left = Math.max(40, Math.min(W - 40, best.x)).toFixed(1) + 'px';
-    tip.style.top = Math.max(16, Math.min(H - 16, best.y)).toFixed(1) + 'px';
+    tip.style.left = best.x.toFixed(1) + 'px';
+    tip.style.top = best.y.toFixed(1) + 'px';
   });
+  // ── FRAMING ────────────────────────────────────────────────────────────────
+  // The layout owns its own pixels; the camera decides how much of the frame
+  // they fill. Measure what was actually drawn and hand the opening zoom the
+  // scale that shows all of it — so growing a branch costs reach, not spacing.
+  let exX = CORE_R, exY = CORE_R;
+  keys.forEach(k => { const q = xy[k], el = P[k].el;   // the box each chip really occupies
+    exX = Math.max(exX, Math.abs(q.x - cx) + el.offsetWidth / 2);
+    exY = Math.max(exY, Math.abs(q.y - cy) + el.offsetHeight / 2); });
+  ['front', 'mid', 'back'].forEach(l => {
+    const t = tipAt[l], el = star.querySelector('.et-tip[data-lane="' + l + '"]');
+    if (!t || !el) return;
+    exX = Math.max(exX, Math.abs(t.x - cx) + el.offsetWidth / 2);
+    exY = Math.max(exY, Math.abs(t.y - cy) + el.offsetHeight / 2); });
+  ET_VIEW.fit = Math.max(ET_KMIN, Math.min(1, (W / 2 - 6) / exX, (H / 2 - 6) / exY));
+  if (ET_VIEW.auto) { ET_VIEW.x = 0; ET_VIEW.y = 0; ET_VIEW.k = ET_VIEW.fit; etApplyView(false); }
   star.classList.add('et-laid');
   const svg = star.querySelector('.et-star-links');
   if (!svg) return;
@@ -13425,19 +13510,18 @@ function etLayoutStar() {
   keys.forEach(k => {
     const N = P[k];
     if (N.lane === 'self' || N.rim) return;
-    const b = Math.round(N.rho / 0.11) * 0.11;
-    bands[b.toFixed(2)] = b;
+    const b = Math.round(N.rad / CLR) * CLR;
+    bands[b.toFixed(0)] = b;
   });
-  let ink = Object.values(bands).sort((a, b) => a - b).slice(-4).map(rho => {
-    const rr = rho * R;
+  let ink = Object.values(bands).sort((a, b) => a - b).slice(-4).map(rr => {
     if (rr < 52) return '';
     return '<circle class="et-guide" cx="' + cx + '" cy="' + cy + '" r="' + rr.toFixed(1) + '" />';
   }).join('');
-  if (hasRim) ink += '<circle class="et-guide et-guide-rim" cx="' + cx + '" cy="' + cy + '" r="' + (0.96 * R).toFixed(1) + '" />';
+  if (hasRim) ink += '<circle class="et-guide et-guide-rim" cx="' + cx + '" cy="' + cy + '" r="' + RIM_R.toFixed(1) + '" />';
   ink += ['front', 'mid', 'back'].map(lane => {
     const spine = ET_SPOKE[lane] * Math.PI / 180;
-    return '<line class="et-rail" x1="' + (cx + 0.16 * Math.cos(spine) * Rx).toFixed(1) +
-      '" y1="' + (cy + 0.16 * Math.sin(spine) * Ry).toFixed(1) +
+    return '<line class="et-rail" x1="' + (cx + CORE_R * 0.5 * Math.cos(spine)).toFixed(1) +
+      '" y1="' + (cy + CORE_R * 0.5 * Math.sin(spine)).toFixed(1) +
       '" x2="' + ((tipAt[lane] || { x: cx }).x).toFixed(1) +
       '" y2="' + ((tipAt[lane] || { y: cy }).y).toFixed(1) + '" />';
   }).join('');

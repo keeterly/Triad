@@ -5783,13 +5783,31 @@ const QUICK = process.argv.includes('--quick');
       }
       return true;
     }));
-  check('CAMERA: the tree pans and zooms, and a fresh render opens framed',
+  check('CAMERA: a fresh render opens FRAMED — the WHOLE star inside the box, whatever it grew to',
     await J(() => {
       showEmberTree(() => {}, 'ash');
       const view = document.getElementById('et-view');
       const star = document.getElementById('et-star');
       if (!view || !star) return false;
-      const opened = /scale\(1\)/.test(view.style.transform) || !view.style.transform;
+      const r = star.getBoundingClientRect();
+      // FRAMED IS NOT scale(1). The star is laid out at an honest pitch in its
+      // own pixels and may be larger than the box it gets; opening framed means
+      // the camera chose the scale that shows all of it, not that it shows it
+      // 1:1 and crops whatever did not fit.
+      const inside = [...star.querySelectorAll('.et-orb, .et-tip')].every(e => {
+        const b = e.getBoundingClientRect();
+        return b.left >= r.left - 1 && b.right <= r.right + 1
+            && b.top >= r.top - 1 && b.bottom <= r.bottom + 1;
+      });
+      return inside && ET_VIEW.k === ET_VIEW.fit && ET_VIEW.x === 0 && ET_VIEW.y === 0;
+    }));
+  check('CAMERA: the tree pans and zooms, and FIT comes back to the opening frame',
+    await J(() => {
+      showEmberTree(() => {}, 'ash');
+      const view = document.getElementById('et-view');
+      const star = document.getElementById('et-star');
+      if (!view || !star) return false;
+      const open = ET_VIEW.k;
       const P = (ty, x, y) => star.dispatchEvent(new PointerEvent(ty, { bubbles: true, pointerId: 4, clientX: x, clientY: y }));
       const r = star.getBoundingClientRect();
       P('pointerdown', r.left + 60, r.top + 60);
@@ -5797,23 +5815,34 @@ const QUICK = process.argv.includes('--quick');
       P('pointerup', r.left + 130, r.top + 96);
       const panned = /translate\((?!0px, 0px)/.test(view.style.transform);
       document.getElementById('et-zin').click();
-      const zoomed = ET_VIEW.k > 1.05;
+      const zoomed = ET_VIEW.k > open * 1.05;
       document.getElementById('et-zfit').click();
-      return opened && panned && zoomed && ET_VIEW.k === 1;
+      return panned && zoomed && ET_VIEW.k === ET_VIEW.fit && ET_VIEW.x === 0 && ET_VIEW.y === 0;
     }));
   check('CAMERA: tapping a node FLIES to it — centred and leaned in, without re-rendering the screen',
-    await J(() => {
+    await J(async () => {
       showEmberTree(() => {}, 'ash');
+      await new Promise(r => setTimeout(r, 160));      // the tree settles, then it is tapped
       const star = document.getElementById('et-star');
       const el = [...star.querySelectorAll('.et-orb[data-id]')].find(e => e.className.indexOf('et-ready') !== -1);
       if (!el) return false;
       const before = star.querySelector('.et-core');
+      const open = ET_VIEW.k;
       el.click();
       const named = ((document.querySelector('.et-d-name') || {}).textContent || '')
         === (NODE_BY_ID[el.dataset.id] || {}).label;
+      await new Promise(r => setTimeout(r, 620));      // let the flight land
       // the same star is still on screen (no re-render) and the camera leaned in
       const same = star.querySelector('.et-core') === before;
-      return named && same && ET_VIEW.k > 1.2 && el.className.indexOf('et-sel') !== -1;
+      // CENTRED MEANS CENTRED. Measured rects are viewport pixels and the
+      // camera is layout pixels; when those were mixed every focused node
+      // landed short of the middle by the stage's own scale factor.
+      const sr = star.getBoundingClientRect();
+      const gr = el.querySelector('.et-orb-glyph').getBoundingClientRect();
+      const off = Math.hypot((gr.left + gr.width / 2) - (sr.left + sr.width / 2),
+                             (gr.top + gr.height / 2) - (sr.top + sr.height / 2));
+      return named && same && off <= 2 && ET_VIEW.k > open * 1.4
+        && el.className.indexOf('et-sel') !== -1;
     }));
   check('PANEL: a node is stated ONCE — glyph, name, and one meta row; the desc no longer repeats its own kind and line',
     await J(() => {

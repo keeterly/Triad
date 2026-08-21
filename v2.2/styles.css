@@ -5180,3 +5180,58 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
    held dark until it has been laid out. */
 .et-star:not(.et-laid) .et-view { opacity: 0; }
 .et-star.et-laid .et-view { transition: opacity 180ms ease; }
+
+/* ── ONE NODE, ONE TREATMENT (v2.2 Build 31) ────────────────────────────────
+   Owned nodes looked finished and everything else looked like debris, because
+   two systems were colouring the same ring: the retired constellation tinted
+   the BORDER by node type (amber, blue, violet, green, red), while state
+   styling painted a box-shadow ring over the top of it. Whichever won, the
+   node's state and its kind were arguing in the same stroke.
+   Split the jobs: the RING says STATE (can I take this?) and the GLYPH says
+   KIND (what is it?). Every node is then the same object in five conditions
+   instead of five objects. */
+.et-lines .et-orb .et-orb-glyph {
+  border: 0;
+  background: radial-gradient(circle at 50% 34%, #241d16 0%, #0a0807 78%);
+  box-shadow: 0 0 0 1.2px rgba(212,200,168,0.16), 0 3px 8px rgba(0,0,0,0.6);
+  color: var(--nt, var(--ink-dim));
+}
+/* KIND — carried by the mark itself */
+.et-lines .et-orb.t-card, .et-lines .et-orb.t-branch,
+.et-lines .et-orb.t-execute, .et-lines .et-orb.t-allout { --nt: #f0b878; }
+.et-lines .et-orb.t-passive, .et-lines .et-orb.t-rider,
+.et-lines .et-orb.t-afterimage { --nt: #9fc2dd; }
+.et-lines .et-orb.t-emergent, .et-lines .et-orb.t-synergy { --nt: #c3a5e8; }
+.et-lines .et-orb.t-chain { --nt: #a4d8ab; }
+.et-lines .et-orb.t-bond { --nt: #e8a0b8; }
+/* STATE — carried by the ring, in one language for every kind */
+.et-lines .et-orb.et-sealed { opacity: 0.42; }
+.et-lines .et-orb.et-sealed .et-orb-glyph { box-shadow: 0 0 0 1px rgba(212,200,168,0.1); }
+.et-lines .et-orb.et-needs { opacity: 0.62; }
+.et-lines .et-orb.et-needs .et-orb-glyph { box-shadow: 0 0 0 1.1px rgba(212,200,168,0.18), 0 3px 8px rgba(0,0,0,0.6); }
+.et-lines .et-orb.et-poor { opacity: 0.85; }
+.et-lines .et-orb.et-poor .et-orb-glyph { box-shadow: 0 0 0 1.3px rgba(240,212,136,0.34), 0 3px 8px rgba(0,0,0,0.6); }
+.et-lines .et-orb.et-ready .et-orb-glyph {
+  box-shadow: 0 0 0 1.6px rgba(244,220,158,0.92), 0 0 15px rgba(240,212,136,0.3), 0 3px 8px rgba(0,0,0,0.6);
+}
+.et-lines .et-orb.et-owned .et-orb-glyph {
+  color: rgba(244,224,168,0.92);
+  background: radial-gradient(circle at 50% 34%, #2c2416 0%, #0d0a07 80%);
+  box-shadow: 0 0 0 1.5px rgba(240,212,136,0.6), inset 0 0 10px rgba(240,212,136,0.12), 0 3px 8px rgba(0,0,0,0.6);
+}
+/* the rim's doors keep their teacher's colour, but wear the same state ring */
+.et-lines .et-orb[data-rim] .et-orb-glyph { color: var(--tint, var(--gold)); }
+.et-lines .et-orb.et-x-open .et-orb-glyph {
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--tint, #d4b478) 80%, transparent), 0 0 14px rgba(240,212,136,0.2), 0 3px 8px rgba(0,0,0,0.6);
+}
+.et-lines .et-orb.et-x-crossed .et-orb-glyph {
+  box-shadow: 0 0 0 1.5px rgba(240,212,136,0.6), inset 0 0 10px rgba(240,212,136,0.12), 0 3px 8px rgba(0,0,0,0.6);
+}
+/* SELECTED — whichever state a node is in, the one the panel is describing
+   wears a brighter ring and a halo, so “what am I reading?” is never a guess.
+   It is last in the sheet on purpose: it must win over every state above. */
+.et-lines .et-orb.et-sel .et-orb-glyph {
+  box-shadow: 0 0 0 1.7px #ffeec4, 0 0 0 4.5px rgba(255,225,160,0.16),
+              0 0 18px rgba(255,190,100,0.4), 0 3px 8px rgba(0,0,0,0.6);
+}
+.et-lines .et-orb.et-sel { opacity: 1; }
