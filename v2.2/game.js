@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 20;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 21;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -4253,17 +4253,19 @@ const FLOORS = 4;         // total floors — floor 4 is the short mega-boss gau
 // mysteries in Silence, fires in Stillness). Names are provisional canon —
 // LAMENT is the player's own; the rest follow its register (see NARRATIVE.md).
 const REGIONS = {
-  lament:    { name: 'DOMAIN OF LAMENT',    depth: 1, sub: 'where the grief pooled first' },
+  lament:    { name: 'DOMAIN OF LAMENT',    depth: 1, sub: 'where the grief pooled first', art: 'art/map-lament.webp' },
   rust:      { name: 'DOMAIN OF RUST',      depth: 2, gate: 'NORTH GATE', bias: 'elite',
                promise: 'The armories of the fallen, still creaking. The dead run thicker here — <b>more elites, more embers</b>.' },
-  silence:   { name: 'DOMAIN OF SILENCE',   depth: 2, gate: 'SOUTH GATE', bias: 'event',
+  silence:   { name: 'DOMAIN OF SILENCE',   depth: 2, gate: 'SOUTH GATE', bias: 'event', art: 'art/map-silence.webp',
                promise: 'Streets that swallowed their own bells. A stranger road — <b>more mysteries</b> on the way down.' },
-  cinders:   { name: 'DOMAIN OF CINDERS',   depth: 3, gate: 'NORTH GATE', bias: 'elite',
+  cinders:   { name: 'DOMAIN OF CINDERS',   depth: 3, gate: 'NORTH GATE', bias: 'elite', art: 'art/map-cinders.webp',
                promise: 'What the pyres could not finish. The strong gather here — <b>more elites, more embers</b>.' },
-  stillness: { name: 'DOMAIN OF STILLNESS', depth: 3, gate: 'SOUTH GATE', bias: 'camp',
+  stillness: { name: 'DOMAIN OF STILLNESS', depth: 3, gate: 'SOUTH GATE', bias: 'camp', art: 'art/map-stillness.webp',
                promise: 'A hush deep enough to rest in. The road is patient — <b>an extra fire</b> burns on it.' },
   deep:      { name: 'THE DEEPEST DARK',    depth: 4, gate: 'THE LAST GATE' },
 };
+// a domain without its own painting borrows Lament's until its art lands
+function regionArt(rid) { const R = REGIONS[rid]; return (R && R.art) || 'art/map-lament.webp'; }
 // which domains each floor's gates open onto (floor 3's single gate: the deep)
 const REGION_FORKS = { 1: ['rust', 'silence'], 2: ['cinders', 'stillness'], 3: ['deep'] };
 function regionOf(id, floor) {
@@ -8969,6 +8971,7 @@ function onFloorCleared() {
 function showDomainGate(n) {
   const R = REGIONS[n.region] || regionOf(n.region, (RUN.floor || 1) + 1);
   const finalFloor = (RUN.floor || 1) + 1 >= FLOORS;
+  const paint = () => $('#overlay').style.setProperty('--wm-art', `url('${regionArt(n.region)}')`);
   showOverlay(finalFloor ? `
     <div class="ov-eyebrow" style="color:var(--gold-bright)">THE LAST GATE</div>
     <div class="ov-title" style="font-size:24px">THE DEEPEST DARK</div>
@@ -8987,9 +8990,10 @@ function showDomainGate(n) {
     </div>
     <button class="ov-btn primary" id="ov-deeper">DESCEND · ${R.name}</button>
     <button class="ov-btn" id="ov-gate-back">NOT YET</button>
-  `);
+  `, 'wm-screen gate-screen');
   $('#ov-deeper').onclick = () => { hideOverlay(); descendInto(n.region); };
   const back = $('#ov-gate-back'); if (back) back.onclick = () => { hideOverlay(); showMap(); };
+  paint();
 }
 // The walk-through: the next floor generates AS the chosen domain. Build 210's
 // half-breath still applies — everyone (the fallen included) rises to at least
@@ -9243,6 +9247,10 @@ function showMap() {
       <button class="map-tree-btn${canKindle ? ' mt-glow mt-teach' : (hasEmbers ? ' mt-glow' : '')}" id="map-tree">✦ EMBER TREE<span class="mt-embers">${runEmbers()}</span></button>
     </div>
   `, 'map-screen wm-screen');
+  // the chart is painted AS the current domain; the gates' destinations warm
+  // in the background so walking through never opens on a blank sky
+  $('#overlay').style.setProperty('--wm-art', `url('${regionArt(RUN.region)}')`);
+  mapAll().filter(n => n.type === 'gate').forEach(n => { const i = new Image(); i.src = regionArt(n.region); });
   document.querySelectorAll('.map-boon').forEach(el => attachBoonInspect(el, el.dataset.boon));
   document.querySelectorAll('.map-node.mn-reach').forEach(el => {
     el.onclick = () => enterMapNode(mapNode(+el.dataset.node));

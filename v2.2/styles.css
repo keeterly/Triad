@@ -4642,7 +4642,17 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
    graph, reachability, and every test hook (.map-node, .mn-reach,
    .map-strip, #map-tree) are untouched — this is entirely presentation. */
 #overlay.wm-screen {
-  background: url('art/map-lament.webp') center / cover no-repeat #0a0807;
+  background-color: #0a0807;
+  background-image: var(--wm-art, url('art/map-lament.webp'));
+  background-position: center; background-size: cover; background-repeat: no-repeat;
+}
+/* standing AT a gate: the overlay is a window into the destination domain —
+   its own painting behind the promise, scrims keeping the words readable */
+#overlay.gate-screen #overlay-inner { max-width: 640px; }
+#overlay.gate-screen::before {
+  background:
+    radial-gradient(ellipse 62% 52% at 50% 47%, rgba(8,6,5,0.78) 0%, rgba(8,6,5,0.5) 55%, rgba(8,6,5,0.2) 100%),
+    linear-gradient(180deg, rgba(8,6,5,0.72) 0%, rgba(8,6,5,0.3) 30%, rgba(8,6,5,0.3) 70%, rgba(8,6,5,0.8) 100%);
 }
 #overlay.wm-screen::before {
   /* the air over the chart: top/bottom scrims + edge vignette so the title,

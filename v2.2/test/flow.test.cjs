@@ -2529,6 +2529,18 @@ const QUICK = process.argv.includes('--quick');
         && count('silence', 'event') > count('rust', 'event')
         && count('stillness', 'camp') > count('cinders', 'camp');
     }));
+  check('GATES: each domain paints its own chart — the map backdrop swaps with the region, art-less domains borrow Lament’s',
+    await J(() => {
+      const _f = RUN.floor, _r = RUN.region, _m = RUN.map, _c = RUN.completed;
+      RUN.floor = 3; RUN.region = 'cinders'; RUN.map = generateDescent(RUN.roster, 3, 'cinders'); RUN.completed = [];
+      showMap();
+      const cinders = getComputedStyle(document.querySelector('#overlay')).backgroundImage.includes('map-cinders');
+      RUN.floor = 2; RUN.region = 'rust'; RUN.map = generateDescent(RUN.roster, 2, 'rust'); RUN.completed = [];
+      showMap();
+      const borrowed = getComputedStyle(document.querySelector('#overlay')).backgroundImage.includes('map-lament');
+      RUN.floor = _f; RUN.region = _r; RUN.map = _m; RUN.completed = _c; showMap();
+      return cinders && borrowed;
+    }));
   check('GATES: the deepest dark has no fork — floor 3 offers ONE gate, floor 4 none at all',
     await J(() => {
       const f3 = generateDescent(['ash'], 3, 'cinders'), f4 = generateDescent(['ash'], 4, 'deep');
