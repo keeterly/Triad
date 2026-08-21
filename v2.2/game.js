@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 36;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 37;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -10428,6 +10428,8 @@ function showCamp(n) {
             ? `<b>${HEROES[fa].name}</b> and <b>${HEROES[fb].name}</b> have something to say. Bond <b>+1</b>.`
             : 'Deepen your weakest bond <b>+1</b>.';
         })())}
+        ${(!ashSpent && _fireCanTeach()) ? choice('camp-teach', '☙', 'TRAIN BY THE FIRE',
+          'One of you shows another how it is done — <b>kindle any skill, free</b>.') : ''}
         ${ashSpent ? '' : choice('camp-boon', '✦', 'COMMUNE AT THE FIRE', 'A companion shares a gift — <b>draw 1 of 3</b>.')}
         ${ashSpent ? '' : choice('camp-forge', '⚒', 'THE EMBER FORGE', 'Spend embers on tempers that hold <b>this descent</b>.')}
         ${ashSpent ? '<div class="camp-spent">◈ <b>A HANDFUL OF ASH</b> — you arrived already spent. This fire offers nothing but itself.</div>' : ''}
@@ -10450,11 +10452,26 @@ function showCamp(n) {
       `The fire takes what the dark left. <b>${fallen.map(id => HEROES[id].name).join(' & ')}</b> ${fallen.length > 1 ? 'stand' : 'stands'} again — half-alive, wholly here. Tonight the fire had only this to give.`, false, fallen[0]);
   };
   $('#camp-fire').onclick = () => showCampScene(n);
+  const teachBtn = $('#camp-teach');
+  if (teachBtn) teachBtn.onclick = () => {
+    RUN._teach = (RUN._teach || 0) + 1; saveRun();
+    // open on the hero who has something to learn, so the offer is never a
+    // blank tree the player has to go hunting through
+    const who = partyHeroes().find(hid => EMBER_TREE.some(x => x.hero === hid && nodeState(x) === 'ready'))
+      || (RUN.active && RUN.active[0]) || 'ash';
+    showEmberTree(() => showMap(), who);
+  };
   // these two rows can be absent (A HANDFUL OF ASH shuts them), so bind defensively
   const forgeBtn = $('#camp-forge'); if (forgeBtn) forgeBtn.onclick = () => showForge(n);
   const boonBtn = $('#camp-boon'); if (boonBtn) boonBtn.onclick = () => showBoonDraft(() => showMap(), { eyebrow: n.label.toUpperCase(), title: 'A COMPANION’S GIFT', flavor: 'By the fire, someone shares a piece of how they fight. Take one — it holds until you fall.' });
 }
 
+// Is there anything the fire could actually teach tonight? A choice that opens
+// an empty tree is worse than no choice at all.
+function _fireCanTeach() {
+  return partyHeroes().some(hid => EMBER_TREE.some(n => n.hero === hid
+    && !hasNode(n.id) && tierOpen(n.tier) && (n.requires || []).every(r => hasNode(r))));
+}
 // IN-RUN FORGE — spend embers on a TEMPORARY temper that lasts this descent.
 // A different sink from the permanent tree: depth for this run, not breadth.
 function showForge(n) {
@@ -10789,7 +10806,9 @@ function etDetailHTML(focusHero, selId) {
     const action = st === 'owned' ? '<span class="et-d-owned">✓ TAKEN</span>'
       : st === 'sealed' ? `<span class="et-d-lock et-sealed">descend deeper to unseal tier ${sel.tier}</span>`
       : st === 'needs' ? `<span class="et-d-lock">needs ${reqNames.join(' · ')}</span>`
-      : `<button class="et-d-buy${st === 'poor' ? ' et-d-cant' : ''}" id="et-buy" ${st === 'poor' ? 'disabled' : ''}>KINDLE · ✦ ${sel.cost}</button>`;
+      : fireTeachings() > 0
+        ? `<button class="et-d-buy et-d-taught" id="et-buy">TAKE THE TEACHING · <b>FREE</b></button>`
+        : `<button class="et-d-buy${st === 'poor' ? ' et-d-cant' : ''}" id="et-buy" ${st === 'poor' ? 'disabled' : ''}>KINDLE · ✦ ${sel.cost}</button>`;
     detail = `<div class="et-d-top">
         <span class="et-d-icon t-${sel.type}">${TREE_TYPE_GLYPH[sel.type] || '✦'}</span>
         <span class="et-d-titles">
@@ -10873,12 +10892,17 @@ function etBindDetail(onBack, heroId, selId) {
   if (buy && sel) buy.onclick = () => {
     if (nodeState(sel) !== 'ready') return;
     const first = !treeTaught();
-    addEmbers(-sel.cost); unlockNode(sel.id); setTreeTaught();
+    const taught = fireTeachings() > 0;
+    if (taught) { RUN._teach = Math.max(0, (RUN._teach || 0) - 1); saveRun(); }
+    else addEmbers(-sel.cost);
+    unlockNode(sel.id); setTreeTaught();
     // the FIRST kindle still opens the full screen, because that is where the
     // "it's in your hand now" note lives; every one after updates in place
-    kindleBurst(sel, () => first
-      ? showEmberTree(onBack, heroId, '__kindled:' + sel.id)
-      : etRefreshTree(onBack, heroId, sel.id));
+    kindleBurst(sel, () => {
+      if (taught && !fireTeachings()) { flashNarrator('The fire gave what it had. The road waits.'); (onBack || showMap)(); return; }
+      if (first) showEmberTree(onBack, heroId, '__kindled:' + sel.id);
+      else etRefreshTree(onBack, heroId, sel.id);
+    });
   };
   const xbuy = document.getElementById('et-cross-buy');
   if (xbuy && selCross) xbuy.onclick = () => {
@@ -12581,11 +12605,19 @@ function attachTreePan(heroId, opts) {
 }
 // node state for the current META: owned / ready(buyable) / poor(can't afford)
 // / needs(prereq) / sealed(tier).
+// THE FIRE TEACHES (v2.2 Build 37). A campfire could close wounds, raise the
+// dead, deepen a bond, hand you a boon or forge a temper — everything except
+// the one thing a night around a fire is FOR in this genre: someone shows
+// someone else how they do it. A run's growth all had to be bought with embers
+// torn off corpses. The fire now carries a TEACHING: one node, free, chosen by
+// the player at the tree — the JRPG answer to the smith at the Spire's fire.
+function fireTeachings() { return (RUN && RUN._teach) || 0; }
 function nodeState(n) {
   if (hasNode(n.id)) return 'owned';
   if (!tierOpen(n.tier)) return 'sealed';
   if (!(n.requires || []).every(r => hasNode(r))) return 'needs';
-  return runEmbers() >= n.cost ? 'ready' : 'poor';
+  // a teaching pays for whatever it is pointed at — cost stops being the gate
+  return (fireTeachings() > 0 || runEmbers() >= n.cost) ? 'ready' : 'poor';
 }
 // You can only build the heroes you're FIELDING — the tree shows your party.
 function partyHeroes() { return (RUN && RUN.active && RUN.active.length) ? RUN.active.filter(id => TREE_HEROES.indexOf(id) >= 0) : []; }
@@ -13121,7 +13153,7 @@ function showEmberTree(onBack, heroId, selId, opts) {
   }).join('');
 
   showOverlay(`
-    <div class="et-head"><span class="et-h-title">THE EMBER TREE</span><span class="et-h-wallet">✦ <b>${runEmbers()}</b></span><span class="et-h-boss">this descent only · resets if you fall</span>${(() => {
+    <div class="et-head"><span class="et-h-title">${fireTeachings() > 0 ? 'THE FIRE TEACHES' : 'THE EMBER TREE'}</span><span class="et-h-wallet${fireTeachings() > 0 ? ' et-h-taught' : ''}">${fireTeachings() > 0 ? '☙ <b>' + fireTeachings() + '</b> free' : '✦ <b>' + runEmbers() + '</b>'}</span><span class="et-h-boss">this descent only · resets if you fall</span>${(() => {
       const ahead = sealedAhead(allNodes);
       return ahead ? `<span class="et-h-ahead" title="deeper tiers unseal as you descend">${ahead} more wait deeper</span>` : '';
     })()}</div>

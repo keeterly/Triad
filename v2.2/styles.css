@@ -5303,3 +5303,11 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
 }
 #party-half .slot .figure.fig-underfoot .fig-name,
 #party-half .slot .figure.fig-underfoot .fig-chips { font-size: 6.5px; opacity: 0.75; }
+/* THE FIRE'S TEACHING (v2.2 Build 37) — a free kindle reads as a gift, not a
+   purchase: the wallet becomes a count of what the night is offering, and the
+   button stops naming a price it is not going to charge. */
+.et-h-wallet.et-h-taught { color: #ffd9a0; text-shadow: 0 0 10px rgba(255,180,90,0.45); }
+.et-d-buy.et-d-taught {
+  background: linear-gradient(180deg, #f6d79a, #d9a25c);
+  border-color: rgba(255,214,150,0.9); color: #241706;
+}
