@@ -1505,6 +1505,45 @@ const QUICK = process.argv.includes('--quick');
       const b = w('back'), m = w('mid'), f = w('front');
       return f > m && m > b && (f - b) > 6;
     }));
+  check('DIORAMA: the backdrop is FOUR painted ranks — sky, floating city, the plaza, the lip',
+    await J(async () => {
+      const st = document.getElementById('stage');
+      st.classList.add('show-bg');
+      const d = document.getElementById('diorama');
+      const z = sel => { const e = d.querySelector(sel); if (!e) return null;
+        const m = /translateZ\((-?[\d.]+)px\)/.exec(getComputedStyle(e).transform ? e.style.transform || getComputedStyle(e).getPropertyValue('transform') : '');
+        return e; };
+      const far = d.querySelector('.hd-far'), mid = d.querySelector('.hd-mid');
+      const floor = d.querySelector('.hd-floor'), near = d.querySelector('.hd-near');
+      if (!far || !mid || !floor || !near) return false;
+      // the ranks are separate PAINTINGS now, not one picture at three crops —
+      // so the mid rank carries its own alpha instead of being cut out of a sky
+      const url = e => (getComputedStyle(e).backgroundImage.match(/[\w-]+\.webp/g) || [])[0] || '';
+      const arts = [url(far), url(mid), url(floor)];
+      if (new Set(arts).size !== 3 || arts.some(a => !a)) return false;
+      // and the plaza is BEHIND the cast: at positive Z it covered the
+      // nameplates, which is where the readout lives
+      const fr = floor.getBoundingClientRect();
+      const fig = d.querySelector('#party-half .slot[data-row="front"] .fig-art');
+      const gr = fig && fig.getBoundingClientRect();
+      const idx = el => [...d.children].indexOf(el);
+      return idx(floor) < idx(d.querySelector('#party-half'))
+        && idx(near) > idx(d.querySelector('#party-half'))
+        && !!gr && fr.bottom > gr.bottom - 4;
+    }));
+  check('DIORAMA: every painted rank actually LOADS — no missing backdrop behind the fight',
+    await J(async () => {
+      const urls = ['.hd-far', '.hd-mid', '.hd-floor'].map(sel => {
+        const e = document.querySelector(sel);
+        const m = /url\("([^"]+)"\)/.exec(getComputedStyle(e).backgroundImage);
+        return m && m[1];
+      }).filter(Boolean);
+      if (urls.length !== 3) return false;
+      const ok = await Promise.all(urls.map(u => new Promise(res => {
+        const i = new Image(); i.onload = () => res(i.naturalWidth > 0); i.onerror = () => res(false); i.src = u;
+      })));
+      return ok.every(Boolean);
+    }));
   check('3D: the far rank sits HIGHER on screen — perspective lifts it toward the horizon',
     await J(() => {
       const foot = (row) => { const r = document.querySelector(`#party-half .slot[data-row="${row}"] .figure`).getBoundingClientRect(); return r.top + r.height; };

@@ -98,20 +98,23 @@ body {
    all live inside the diorama. */
 .hd-far {
   left: -36%; right: -36%; top: -130px; bottom: -170px;
+  /* THE BACKDROP IS SET DRESSING, NOT THE SUBJECT (v2.2 Build 35). The painted
+     layers arrive at full mid-grey — beautiful, and loud enough that the cast
+     and the foes read as decals on top of it. Each plane is multiplied down to
+     a fraction of its own luminance, hardest at the far rank, so depth reads
+     as light falling off rather than as three pictures at one exposure. */
   background-image:
-    linear-gradient(180deg, rgba(8,5,6,0.5) 0%, rgba(10,6,8,0.24) 34%, rgba(8,5,6,0.5) 70%, rgba(4,3,4,0.92) 100%),
-    radial-gradient(ellipse 92% 70% at 50% 40%, transparent 48%, rgba(6,4,5,0.5) 100%),
-    linear-gradient(rgba(126,120,116,0.55), rgba(126,120,116,0.55)),
-    url('../art/bg-descent.webp');
-  background-position: center center, center center, center center, center 40%;
-  background-size: 100% 100%, 100% 100%, 100% 100%, cover;
+    linear-gradient(180deg, rgba(8,5,6,0.5) 0%, rgba(10,6,8,0.2) 34%, rgba(8,5,6,0.42) 70%, rgba(4,3,4,0.92) 100%),
+    radial-gradient(ellipse 92% 70% at 50% 40%, transparent 40%, rgba(6,4,5,0.6) 100%),
+    var(--bg-far, url('art/bg-abyss-far.webp'));
+  background-position: center center, center center, center 46%;
+  background-size: 100% 100%, 100% 100%, cover;
   /* was blur(2.6px) saturate(.86) brightness(.98) contrast(1.04).  Measured: the
      plane filters alone were roughly half the frame cost, because the camera
      animates these planes and a filtered layer re-rasters when it moves.  The
      desaturation is baked with a blended grey layer (a paint-time operation on
      the background stack, not a per-frame pass) and the softness comes from the
      plane sitting 620px deep behind everything. */
-  background-blend-mode: normal, normal, saturation, normal;
   transform: translateZ(-620px);
   scale: 1.62;
   animation: hd-drift-far 26s ease-in-out infinite alternate;
@@ -120,16 +123,41 @@ body {
    Masked to the lower band so it reads as a ridge, not a doubled sky. */
 .hd-mid {
   left: -30%; right: -30%; top: -80px; bottom: -120px;
-  background-image: linear-gradient(rgba(150,140,132,0.16), rgba(150,140,132,0.16)), url('../art/bg-descent.webp');
-  background-position: center 58%, center 58%; background-size: 118% auto, 118% auto;
-  /* was saturate(1.06) brightness(1.04) contrast(1.06) — a per-frame filter pass
-     on an animated plane, for a lift a blended highlight layer gives at paint. */
-  background-blend-mode: overlay, normal;
-  -webkit-mask-image: linear-gradient(180deg, transparent 14%, #000 34%, #000 92%, transparent 100%);
-  mask-image: linear-gradient(180deg, transparent 14%, #000 34%, #000 92%, transparent 100%);
+  /* THE ART CARRIES ITS OWN MASK (v2.2 Build 35). All three planes used to be
+     the SAME painting at three crops, so the mid rank had to be cut out of a
+     full sky with a CSS gradient mask — which is why it read as a doubled
+     horizon rather than a separate rank of ruins. The layers are painted apart
+     now: this one is the floating city on transparency, so its alpha IS the
+     mask and the sky behind it is genuinely a different plane. */
+  background-image: var(--bg-mid, url('art/bg-abyss-mid.webp'));
+  background-position: center 40%; background-size: 112% auto;
+  -webkit-mask-image: linear-gradient(180deg, #000 62%, rgba(0,0,0,0.35) 86%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 62%, rgba(0,0,0,0.35) 86%, transparent 100%);
   transform: translateZ(-330px);
   scale: 1.32;
   animation: hd-drift-mid 17s ease-in-out infinite alternate;
+}
+/* NEAR — an out-of-focus foreground lip IN FRONT of the cast; pure CSS.
+   Sitting at positive Z, a dolly blows it past the lens — the strongest
+   single depth cue in the scene. */
+/* FLOOR — the painted plaza the fight happens ON (v2.2 Build 35): cracked
+   flags, fallen pillars, the banners at either edge. It sits BEHIND every
+   rank, not in front: the perspective is already in the painting, so a plane
+   at positive Z put the floor over the cast and buried the nameplates under
+   it. At -150 it is behind the back rank and the whole party stands on it.
+   Its own alpha is the mask; there is no box-wide scrim, because a full-box
+   gradient on a plane paints a rectangle across everything the plane covers,
+   and these planes are far bigger than the picture inside them. */
+.hd-floor {
+  left: -26%; right: -26%; bottom: -34px; height: 62%;
+  background-image: var(--bg-near, url('art/bg-abyss-near.webp'));
+  background-position: center bottom; background-size: 100% auto;
+  background-repeat: no-repeat;
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 22%, #000 88%, transparent 100%);
+  mask-image: linear-gradient(180deg, transparent 0%, #000 22%, #000 88%, transparent 100%);
+  transform: translateZ(-150px);
+  scale: 1.14;
+  animation: hd-drift-mid 21s ease-in-out infinite alternate;
 }
 /* NEAR — an out-of-focus foreground lip IN FRONT of the cast; pure CSS.
    Sitting at positive Z, a dolly blows it past the lens — the strongest
@@ -140,10 +168,6 @@ body {
     radial-gradient(ellipse 46% 100% at 12% 100%, rgba(6,4,4,0.98) 0%, rgba(6,4,4,0.5) 38%, rgba(6,4,4,0) 78%),
     radial-gradient(ellipse 38% 100% at 47% 100%, rgba(8,5,5,0.92) 0%, rgba(8,5,5,0.44) 36%, rgba(8,5,5,0) 76%),
     radial-gradient(ellipse 50% 100% at 88% 100%, rgba(5,3,3,0.98) 0%, rgba(5,3,3,0.5) 40%, rgba(5,3,3,0) 80%);
-  /* was blur(7px).  These are RADIAL GRADIENTS — blurring them produced a
-     softer gradient, which the stops can simply BE.  The plane spans 184% of
-     the stage and the camera animates it every frame, so that blur was a
-     full-screen re-raster per frame for a look the stops give away free. */
   transform: translateZ(150px);
   scale: 0.9;
   animation: hd-drift-near 12s ease-in-out infinite alternate;
@@ -4064,8 +4088,15 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
 #stage.fx-soft .hd-fog,
 #stage.fx-soft .hd-motes { display: none; }
 #stage.fx-soft .hd-plane { animation: none; }
-/* FLAT keeps one backdrop plane, so the world still parallaxes with the camera */
-#stage.fx-flat .hd-mid { display: none; }
+/* FLAT keeps ONE backdrop plane, so the world still parallaxes with the camera.
+   With the layers painted apart (v2.2 Build 35) dropping the mid and the floor
+   would leave only an empty sky, so the far plane swaps to the FULL painting —
+   the same scene in one image, at one draw. The scrims on .hd-far are written
+   against a var, so this is the whole change. */
+#stage.fx-flat { --bg-far: url('art/bg-abyss.webp'); }
+#stage.fx-flat .hd-mid,
+#stage.fx-flat .hd-floor { display: none; }
+#stage.fx-soft .hd-floor { animation: none; }
 
 /* the OPEN chip (Build 255) — the state that enables a TECHNICAL had no
    representation at all, only an aura indistinguishable from EXPOSED */
