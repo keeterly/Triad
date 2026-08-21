@@ -229,6 +229,20 @@ const QUICK = process.argv.includes('--quick');
   await sleep(200);
   await t.autoParry(true);   // the bot parries the harder descent like a real player
   check('map renders with reachable node', await J(() => !!document.querySelector('.map-node.mn-reach')));
+  // WORLD MAP presentation (v2.2 Build 19) — the painted chart after the
+  // player's mock: full-bleed backdrop screen, title block, ember badge,
+  // six-row legend, and names surfacing only where a choice lives.
+  check('WORLD MAP: the chart wears its dress — wm-screen backdrop, title block, ember badge, six-row legend',
+    await J(() => document.querySelector('#overlay').className.includes('wm-screen')
+      && (document.querySelector('.wm-title') || {}).textContent === 'WORLD MAP'
+      && /DOMAIN OF LAMENT/.test((document.querySelector('.wm-sub') || {}).textContent || '')
+      && !!document.querySelector('.wm-embers')
+      && document.querySelectorAll('.wl-row').length === 6));
+  check('WORLD MAP: names surface only where a choice lives — reachable labels read, locked labels stay dark',
+    await J(() => { const reach = document.querySelector('.map-node.mn-reach .mn-label');
+      const locked = document.querySelector('.map-node.mn-locked .mn-label');
+      return reach && getComputedStyle(reach).opacity === '1'
+        && (!locked || getComputedStyle(locked).opacity === '0'); }));
   check('MAP: forward-only — from a branch both children are reachable; pick one and the sibling LOCKS',
     await J(() => { const _save = RUN;
       RUN = { map: newRun('ash').map, completed: [] };

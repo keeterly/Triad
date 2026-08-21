@@ -4633,3 +4633,95 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
 #stage.combo-live .intent { opacity: 0.4; }
 .slot-telegraphed.sd-empty .slot-danger .sd-ground { border-color: rgba(244,74,58,0.4); box-shadow: none; }
 .slot-telegraphed.sd-empty .slot-dmg { opacity: 0.55; font-size: 8px; }
+
+/* ── WORLD MAP (v2.2 Build 19) — the Domain as a painted chart ──────────────
+   After the player's own mock: the descent map stops being a diagram on a
+   dark sheet and becomes a place — full-bleed painted ruinscape, a left-set
+   title block floating over the land, the ember count worn top-right, a
+   legend panel naming the marks, and the road drawn across the chart. The
+   graph, reachability, and every test hook (.map-node, .mn-reach,
+   .map-strip, #map-tree) are untouched — this is entirely presentation. */
+#overlay.wm-screen {
+  background: url('art/map-lament.webp') center / cover no-repeat #0a0807;
+}
+#overlay.wm-screen::before {
+  /* the air over the chart: top/bottom scrims + edge vignette so the title,
+     legend and footer read against the painting */
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(8,6,5,0.84) 0%, rgba(8,6,5,0.3) 15%, rgba(8,6,5,0) 32%, rgba(8,6,5,0) 60%, rgba(8,6,5,0.5) 82%, rgba(8,6,5,0.9) 100%),
+    radial-gradient(ellipse 125% 105% at 50% 42%, rgba(8,6,5,0) 55%, rgba(8,6,5,0.6) 100%);
+}
+#overlay.wm-screen #overlay-inner { max-width: 1080px; width: 97%; position: relative; }
+.wm-head { position: absolute; top: 2px; left: 8px; text-align: left; z-index: 5; pointer-events: none; }
+.wm-title { font-size: 23px; letter-spacing: 0.34em; color: var(--ink); text-shadow: 0 2px 12px #000, 0 0 30px rgba(0,0,0,0.8); }
+.wm-sub { font-size: 9px; letter-spacing: 0.44em; color: var(--gold-bright); margin-top: 5px; opacity: 0.92; text-shadow: 0 1px 6px #000; }
+.wm-meta { margin-top: 7px; display: flex; gap: 6px; align-items: center; pointer-events: auto; }
+.wm-embers {
+  position: absolute; top: 4px; right: 8px; z-index: 5;
+  font-size: 11px; letter-spacing: 0.12em; color: var(--gold-bright);
+  border: 1px solid rgba(212,180,120,0.35); border-radius: 20px; padding: 5px 13px;
+  background: rgba(10,8,6,0.6); text-shadow: 0 1px 4px #000;
+}
+.wm-legend {
+  position: absolute; left: 8px; bottom: 78px; z-index: 5;
+  background: rgba(10,8,6,0.74); border: 1px solid rgba(212,200,168,0.16);
+  border-radius: 3px; padding: 8px 13px 7px; text-align: left;
+}
+.wl-row { display: flex; gap: 10px; align-items: center; padding: 2.5px 0; }
+.wl-ic { width: 15px; color: var(--gold-bright); font-size: 10px; text-align: center; opacity: 0.9; }
+.wl-lb { font-size: 8px; letter-spacing: 0.26em; color: var(--ink-dim); }
+/* the chart itself breathes wider than the old 720px sheet */
+#overlay.wm-screen .map-strip { max-width: none; min-height: 252px; margin: 30px auto 4px; padding: 0 26px 0 44px; }
+/* nodes: dark coins on the land, jittered off the grid so the road wanders */
+.wm-screen .map-node { transform: translate(var(--jx, 0px), var(--jy, 0px)); }
+.wm-screen .map-node .mn-icon {
+  width: 46px; height: 46px; font-size: 18px;
+  background: radial-gradient(circle at 50% 38%, #1d1712 0%, #070605 78%);
+  box-shadow: 0 0 0 1.5px rgba(216,196,158,0.26), 0 6px 14px rgba(0,0,0,0.7), inset 0 1px 0 rgba(232,220,196,0.08);
+}
+.wm-screen .map-node .mn-pulse { width: 46px; height: 46px; margin-left: -23px; }
+/* the painting carries the mood — names surface only where a choice lives
+   (reachable, your position, the gate); everything else speaks by its mark */
+.wm-screen .map-node .mn-label { opacity: 0; transition: opacity 0.25s; }
+.wm-screen .map-node.mn-reach .mn-label,
+.wm-screen .map-node.mn-current .mn-label,
+.wm-screen .map-node.mn-boss .mn-label { opacity: 1; }
+.wm-screen .map-node.mn-reach .mn-icon {
+  box-shadow: 0 0 0 1.5px rgba(242,216,150,0.9), 0 0 18px rgba(236,196,120,0.42), 0 0 42px rgba(236,196,120,0.16), 0 6px 14px rgba(0,0,0,0.7);
+}
+.wm-screen .map-node.mn-done { opacity: 1; }
+.wm-screen .map-node.mn-done .mn-icon { color: rgba(200,186,158,0.4); box-shadow: 0 0 0 1.5px rgba(216,196,158,0.14), 0 6px 14px rgba(0,0,0,0.7); }
+.wm-screen .map-node.mn-locked { opacity: 1; }
+.wm-screen .map-node.mn-locked .mn-icon { color: rgba(216,200,170,0.5); box-shadow: 0 0 0 1.5px rgba(216,196,158,0.16), 0 6px 14px rgba(0,0,0,0.7); }
+.mn-start {
+  position: absolute; top: -17px; left: 50%; transform: translateX(-50%);
+  font-size: 8.4px; letter-spacing: 0.34em; color: var(--ink);
+  text-shadow: 0 1px 5px #000; z-index: 6; white-space: nowrap;
+}
+/* THE GATE — the floor's warded exit wears a compass ring, after the mock's
+   gate rosettes; the skull still says what stands in front of it */
+.wm-screen .map-node.mn-boss .mn-icon { width: 50px; height: 50px; font-size: 18px; }
+.wm-screen .map-node.mn-boss::after {
+  content: ''; position: absolute; top: -7px; left: 50%; margin-left: -32px;
+  width: 64px; height: 64px; border-radius: 50%; pointer-events: none;
+  border: 1px solid rgba(224,190,120,0.65);
+  box-shadow: 0 0 0 4px rgba(216,180,110,0.12), 0 0 22px rgba(216,180,110,0.3), inset 0 0 12px rgba(216,180,110,0.16);
+}
+/* the road: walked = solid gold · open choices = solid pale light · the road
+   ahead = faint dashes (the mock's dotted not-yet paths) */
+.wm-screen .map-edges .me.me-taken { stroke: rgba(240,212,136,0.85); stroke-width: 2.3; }
+.wm-screen .map-edges .me.me-open {
+  stroke: rgba(242,226,190,0.78); stroke-width: 1.8; stroke-dasharray: none; animation: none;
+  filter: drop-shadow(0 0 4px rgba(240,212,136,0.35));
+}
+.wm-screen .map-edges .me.me-future { stroke: rgba(236,224,198,0.38); stroke-width: 1.5; stroke-dasharray: 3 6;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.8)); }
+/* phone tier — the chart keeps its air on a short stage */
+@media (max-height: 500px) {
+  .wm-title { font-size: 17px; }
+  .wm-head { top: 0; }
+  .wm-legend { bottom: 64px; padding: 6px 10px 5px; }
+  .wl-row { padding: 1.5px 0; }
+  #overlay.wm-screen .map-strip { min-height: 210px; margin-top: 24px; }
+}

@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 18;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 19;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -9095,9 +9095,14 @@ function showMap() {
         // A CHILD'S COMPASS reads the whole stair — a locked node still says
         // what it is, so you can plan a route instead of discovering one.
         const seen = done || reach || hasRelic('compass');
+        // ORGANIC SCATTER (v2.2 Build 19) — deterministic per-node jitter so the
+        // chart reads as places on a painted land, not a diagram. The edges are
+        // drawn from measured positions afterward, so they follow for free.
+        const jx = ((n.id * 73) % 17) - 8, jy = ((n.id * 131) % 29) - 14;
         return `<button class="map-node mn-${n.type}${done ? ' mn-done' : ''}${reach ? ' mn-reach' : ''}${cur ? ' mn-current' : ''}${(!done && !reach) ? ' mn-locked' : ''}${(!done && !reach && seen) ? ' mn-scried' : ''}"
-          data-node="${n.id}" ${reach ? '' : 'disabled'} title="${seen ? n.label : '?'}">
+          data-node="${n.id}" ${reach ? '' : 'disabled'} title="${seen ? n.label : '?'}" style="--jx:${jx}px; --jy:${jy}px">
           <span class="mn-pulse" aria-hidden="true"></span>
+          ${(!doneNodes.length && n.col === 1) ? '<span class="mn-start" aria-hidden="true">START</span>' : ''}
           <span class="mn-icon">${glyph[n.type]}</span>
           ${cur ? '<span class="mn-here" aria-hidden="true">▾</span>' : ''}
           ${done && !cur ? '<span class="mn-check" aria-hidden="true">✓</span>' : ''}
@@ -9134,10 +9139,21 @@ function showMap() {
   const boonStrip = (RUN.boons && RUN.boons.length)
     ? `<span class="map-boons">${RUN.boons.map(id => { const b = BOON_BY_ID[id]; return b ? `<span class="map-boon" data-boon="${id}" style="--tint:${HEROES[b.hero].tint}" title="${HEROES[b.hero].name}’s ${b.name} — ${b.desc.replace(/<[^>]+>/g, '')}">${b.icon}</span>` : ''; }).join('')}</span>`
     : '';
+  // THE WORLD MAP (v2.2 Build 19) — a painted chart of the Domain, after the
+  // player's own mock: full-bleed backdrop, a left-set title block, the ember
+  // count top-right, a legend panel, and the road drawn across the land.
   showOverlay(`
-    <div class="ov-eyebrow">THE DESCENT${(RUN.floor || 1) >= 2 ? ` · FLOOR ${RUN.floor}` : ''}${moodDef && moodDef.label ? ` <span class="map-mood" style="color:${moodDef.tint}; border-color:${moodDef.tint}66">♦ ${moodDef.label}</span>` : ''}${relicStrip}${boonStrip}</div>
-    <div class="ov-title" style="font-size:20px; margin-bottom:14px;">${(RUN.floor || 1) >= 2 ? 'THE DEEPER DARK' : 'CHOOSE THE ROAD'}</div>
+    <div class="wm-head">
+      <div class="wm-title">WORLD MAP</div>
+      <div class="wm-sub">DOMAIN OF LAMENT${(RUN.floor || 1) >= 2 ? ` · DEPTH ${RUN.floor}` : ''}</div>
+      <div class="wm-meta">${moodDef && moodDef.label ? `<span class="map-mood" style="color:${moodDef.tint}; border-color:${moodDef.tint}66">♦ ${moodDef.label}</span>` : ''}${relicStrip}${boonStrip}</div>
+    </div>
+    <div class="wm-embers" title="Embers gathered this descent — spend them in the EMBER TREE">✦ <b>${runEmbers()}</b></div>
     <div class="map-strip"><svg class="map-edges" aria-hidden="true"></svg>${colHtml}</div>
+    <div class="wm-legend" aria-hidden="true">
+      ${[['⚔', 'COMBAT'], ['✸', 'ELITE'], ['?', 'MYSTERY'], ['⌂', 'REST'], ['☉', 'KINDRED'], ['☠', 'THE GATE']]
+        .map(([g, l]) => `<div class="wl-row"><span class="wl-ic">${g}</span><span class="wl-lb">${l}</span></div>`).join('')}
+    </div>
     ${coach}
     <div class="map-footer">
       <button class="party-chip" id="map-party">
@@ -9146,7 +9162,7 @@ function showMap() {
       </button>
       <button class="map-tree-btn${canKindle ? ' mt-glow mt-teach' : (hasEmbers ? ' mt-glow' : '')}" id="map-tree">✦ EMBER TREE<span class="mt-embers">${runEmbers()}</span></button>
     </div>
-  `, 'map-screen');
+  `, 'map-screen wm-screen');
   document.querySelectorAll('.map-boon').forEach(el => attachBoonInspect(el, el.dataset.boon));
   document.querySelectorAll('.map-node.mn-reach').forEach(el => {
     el.onclick = () => enterMapNode(mapNode(+el.dataset.node));
