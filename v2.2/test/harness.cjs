@@ -107,6 +107,18 @@ async function boot(opts = {}) {
     window.setTimeout = (fn, ms, ...a) => _st(fn, Math.max(0, Math.round((+ms || 0) * (window.__timeScale || 1))), ...a);
     const _si = window.setInterval.bind(window);
     window.setInterval = (fn, ms, ...a) => _si(fn, Math.max(1, Math.round((+ms || 0) * (window.__timeScale || 1))), ...a);
+    // AND THE CLOCK THE GAME READS MUST SCALE WITH THEM (v2.2 Build 38).
+    //
+    // Scaling only the timers left Date.now() running at real speed, so under
+    // fastCombat a note scheduled for 700 game-ms closed after 42 real ms while
+    // the parry grader — which measures `Date.now() - t0` — still saw 42ms
+    // elapsed against a 700ms beat. EVERY bot tap read as wildly early. Every
+    // difficulty number the rig has ever produced about parries was measuring
+    // that skew, not the game. A monotonic virtual clock, rebased on each scale
+    // change, makes game-time and timer-time the same time again.
+    const _now = Date.now.bind(Date);
+    let _lastReal = _now(), _game = _lastReal;
+    Date.now = () => { const r = _now(); _game += (r - _lastReal) / (window.__timeScale || 1); _lastReal = r; return Math.round(_game); };
   });
   await page.addInitScript(() => {
     window.__autoParry = false;
@@ -118,6 +130,10 @@ async function boot(opts = {}) {
     // them — early, late, short on the mash, wrong way on the swipe, and biting
     // on the bait, which is the discipline failure rather than a timing one.
     window.__parrySkill = 1;
+    // Deliberate aim BIAS in game-ms (+ = late, − = early). The suite leaves it
+    // at 0; the parry probe sweeps it to measure where the grade bands actually
+    // sit rather than trusting the constants.
+    window.__parryOffset = 0;
     window.__parryLog = { clean: 0, botched: 0, byKind: {} };
     // deterministic, so two runs at the same skill are comparable
     window.__parrySeed = 0x9e3779b9;
@@ -131,21 +147,25 @@ async function boot(opts = {}) {
       const P = (type, x, y) => window.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, pointerId: 31, pointerType: 'touch' }));
       const skill = Math.max(0, Math.min(1, window.__parrySkill == null ? 1 : window.__parrySkill));
       const clean = rnd() < skill;
-      if (ring.classList.contains('parry-mash')) {
-        note('mash', clean);
-        const target = clean ? 6 : 2;                       // not enough hands
-        let n = 0; const iv = setInterval(() => { P('pointerdown', cx, cy); P('pointerup', cx, cy); if (++n >= target) clearInterval(iv); }, 70);
-      } else if (ring.classList.contains('parry-hold')) {
+      // every note publishes the instant it wants to be answered
+      const beat = () => { const v = ring.dataset && ring.dataset.impact ? parseInt(ring.dataset.impact, 10) : NaN;
+        return (v && !isNaN(v)) ? Math.max(0, v - Date.now() + (window.__parryOffset || 0)) : null; };
+      if (ring.classList.contains('parry-hold')) {
         note('hold', clean);
-        P('pointerdown', cx, cy);
-        setTimeout(() => P('pointerup', cx, cy), clean ? 1200 : 260);   // let go too soon
+        // a brace is two beats now — take it on the marked one, let go on the close
+        const pv = ring.dataset && ring.dataset.press ? parseInt(ring.dataset.press, 10) : NaN;
+        const pd = (pv && !isNaN(pv)) ? Math.max(0, pv - Date.now() + (window.__parryOffset || 0)) : 0;
+        const b = beat();
+        setTimeout(() => P('pointerdown', cx, cy), pd);
+        setTimeout(() => P('pointerup', cx, cy), clean ? (b == null ? 1200 : b) : Math.round(pd + 120));   // let go too soon
       } else if (ring.classList.contains('parry-swipe')) {
         note('swipe', clean);
         const lbl = (ring.querySelector('.pr-lbl') || {}).textContent || '';
         let dx = 150, dy = -30;
         if (lbl.indexOf('↶') >= 0) { dx = -150; } else if (lbl.indexOf('⤴') >= 0) { dx = 0; dy = -170; }
         if (!clean) { dx = -dx; dy = -dy; }                  // wrong way
-        setTimeout(() => { P('pointerdown', cx, cy + 40); P('pointermove', cx + dx * 0.5, cy + 40 + dy * 0.5); P('pointermove', cx + dx, cy + 40 + dy); P('pointerup', cx + dx, cy + 40 + dy); }, 200);
+        const b = beat();
+        setTimeout(() => { P('pointerdown', cx, cy + 40); P('pointermove', cx + dx * 0.5, cy + 40 + dy * 0.5); P('pointermove', cx + dx, cy + 40 + dy); P('pointerup', cx + dx, cy + 40 + dy); }, b == null ? 200 : b);
       } else if (ring.classList.contains('pr-bait')) {
         // a BAIT is parried by NOT touching it. Discipline is a skill too, so a
         // sloppy bot bites — the one failure mode that is not about timing.
@@ -157,10 +177,24 @@ async function boot(opts = {}) {
         // auto-parry stays inside the hit window no matter how the game tunes
         // ring speed / window width / trick notes. ~200ms before close.
         note('tap', clean);
+        // AIM AT THE BEAT (v2.2 Build 38). Windows are centred on the impact
+        // instant now, so "close minus 200ms" is not a clean read — it is a
+        // 200ms-early read, which is exactly the band the grader downgrades.
+        // Notes publish `data-impact` (game-clock epoch ms of the beat); a
+        // frame-perfect bot lands on it.
         const cl = ring.querySelector('.pr-close');
+        let delay;
+        const imp = ring.dataset && ring.dataset.impact ? parseInt(ring.dataset.impact, 10) : NaN;
         let dur = 700; try { dur = parseInt((cl && cl.style.animationDuration) || '700', 10) || 700; } catch (_) {}
-        let pause = 0; try { pause = parseInt((ring.dataset && ring.dataset.pause) || '0', 10) || 0; } catch (_) {}
-        let delay = Math.max(120, dur + pause - 200);
+        if (imp && !isNaN(imp)) delay = Math.max(0, imp - Date.now() + (window.__parryOffset || 0));
+        else {
+          // A note with no published beat is an OFFENSIVE strike note, which
+          // still resolves the old way: it grades on time REMAINING and kills
+          // itself at the close, so a tap scheduled exactly on the close loses
+          // the race and reads as a miss. Aim inside the window, as before.
+          let pause = 0; try { pause = parseInt((ring.dataset && ring.dataset.pause) || '0', 10) || 0; } catch (_) {}
+          delay = Math.max(120, dur + pause - 200);
+        }
         if (!clean) delay = (rnd() < 0.5) ? Math.round(delay * 0.3)      // twitchy: too early
                                           : Math.round(delay + dur * 0.5); // asleep: too late
         setTimeout(() => { P('pointerdown', cx, cy); P('pointerup', cx, cy); }, delay);
@@ -190,6 +224,8 @@ async function boot(opts = {}) {
       window.__parrySeed = o.seed || 0x9e3779b9;
       window.__parryLog = { clean: 0, botched: 0, byKind: {} }; }, { v, seed }),
     parryLog: () => page.evaluate(() => window.__parryLog),
+    // Bias every clean tap by N game-ms off the beat (+ late, − early).
+    parryAim: (ms) => page.evaluate((v) => { window.__parryOffset = v | 0; }, ms | 0),
     // 1 = real time. 0.06 runs a room in seconds. Combat MATHS is untouched —
     // only how long the game waits between the same steps.
     fastCombat: (scale) => page.evaluate((v) => { window.__timeScale = v == null ? 0.06 : v; }, scale),

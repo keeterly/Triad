@@ -1936,7 +1936,7 @@ const QUICK = process.argv.includes('--quick');
       const dmgIntents = def.intents.filter(i => i.dmg);
       return dmgIntents.length > 0 && dmgIntents.every(i => i.parry && i.attackArt);
     })));
-  check('ENEMY IDENTITY: same-damage hits now PLAY differently — Wraith flurry (mash) vs Husk claw (tap)',
+  check('ENEMY IDENTITY: same-damage hits still PLAY differently — Wraith flurry vs Husk claw',
     await J(() => {
       const wr = ENEMY_DEFS.wraith.intents.find(i => i.name === 'Grasping Flurry');
       const hk = ENEMY_DEFS.husk.intents.find(i => i.name === 'Heavy Claw');
@@ -1945,16 +1945,25 @@ const QUICK = process.argv.includes('--quick');
       // string now. What this check is really about survives: identical damage,
       // distinct GESTURE.
       const shape = (p) => p.kind === 'seq' ? p.notes.map(n => n.t).join('+') : p.kind;
-      return wr.dmg === hk.dmg && pw.kind === 'mash' && shape(ph) !== shape(pw);
+      // Build 38 deleted MASH — the flurry is a real string of taps now, so this
+      // check asks what it always meant: same number, different GESTURE.
+      return wr.dmg === hk.dmg && pw.kind === 'multi' && shape(ph) !== shape(pw);
     }));
   check('ENEMY IDENTITY: speed axis reads the foe — Wraith fast (>1), Husk/Drone slow (<1)',
     await J(() => ENEMY_DEFS.wraith.parrySpeed > 1 && ENEMY_DEFS.husk.parrySpeed < 1 && ENEMY_DEFS.drone.parrySpeed < 1));
-  check('TELEGRAPH: the pill stays clean — NO parry-gesture glyph (react at the ring instead)',
+  // THE PILL NAMES THE READ (v2.2 Build 38). This check used to assert the
+  // OPPOSITE — that the gesture glyph must not appear, on the theory that you
+  // should react at the ring. Two builds of measurement say otherwise: the plan
+  // → execute link is the whole reason a JRPG telegraphs at all, `parryGlyph()`
+  // was written for it and never called, and `.i-parry` sat in the stylesheet
+  // as dead CSS. Reading the intent row now tells you what you will PLAY.
+  check('TELEGRAPH: the pill names the READ — damage, lane, and the gesture coming',
     await J(() => {
       startFight({ type: 'fight', chapter: 2, heroes: ['ash'], enemies: ['wraith'], narrator: 'telegraph' });
       S.enemies[0].intentIdx = 0; renderAll();
       const p = document.querySelector('.figure.enemy .intent');
-      return !!p && !!p.querySelector('.i-dmg') && !p.querySelector('.i-parry'); }));
+      const g = p && p.querySelector('.i-parry');
+      return !!p && !!p.querySelector('.i-dmg') && !!g && g.textContent.trim().length > 0; }));
   // EXPANDED BESTIARY — three foes on new axes
   check('BESTIARY brood: a SWARM strikes TWICE a round (frequency axis works for a non-boss)',
     await J(() => {
@@ -2218,12 +2227,13 @@ const QUICK = process.argv.includes('--quick');
   // varied rhythm patterns derive per intent + preview on the telegraph
   check('RHYTHM: blows resolve as STRINGS, and the ladder still ESCALATES with weight',
     await J(() => {
-      const n = (p) => p.kind === 'seq' ? p.notes.length : p.kind === 'mash' ? 1 : 1;
-      // Build 284: the FLOOR is a two-beat read (a jab stays a mash flurry), so
-      // an ordinary blow is no longer a formality — but a heavy still buys more.
+      const n = (p) => p.kind === 'seq' ? p.notes.length : p.kind === 'multi' ? (p.count || 1) : 1;
+      // Build 38: the FLOOR is a two-beat read all the way down — the jab that
+      // used to be a MASH is a double-tap now, so even the smallest blow is a
+      // rhythm lesson rather than a shake of the thumb.
       return parryPatternFor({ heavy: true }).kind === 'seq' && parryPatternFor({ heavy: true }).notes.length >= 4
         && parryPatternFor({ row: 'all', dmg: 4 }).kind === 'seq'
-        && parryPatternFor({ dmg: 2 }).kind === 'mash'
+        && n(parryPatternFor({ dmg: 2 })) === 2
         && n(parryPatternFor({ dmg: 4 })) === 2
         && n(parryPatternFor({ dmg: 6 })) === 2
         && n(parryPatternFor({ dmg: 9 })) === 3;
@@ -2239,7 +2249,7 @@ const QUICK = process.argv.includes('--quick');
       // The aim is one character on the pill instead — a numeral, not the
       // word that made four packed foes a wall of "→ BACK → BACK → BACK".
       const aim = p && p.querySelector('.i-row');
-      return !!p && !!p.querySelector('.i-dmg') && !p.querySelector('.i-parry')
+      return !!p && !!p.querySelector('.i-dmg') && !!p.querySelector('.i-parry')
         && !!aim && /^(→ (F|M|B)|ALL)$/.test(aim.textContent.trim()); }));
   check('ALL-HIT: a whole-party blow opens with an across-sweep, then follows',
     await J(() => { const p = parryPatternFor({ row: 'all', dmg: 5 }); return p.kind === 'seq' && p.notes[0].t === 'swipe' && p.notes[0].arc === 'arcAcross'; }));
@@ -2259,12 +2269,18 @@ const QUICK = process.argv.includes('--quick');
   const ashHold0 = await J(() => S.heroes.find(h => h.id === 'ash').hp);
   t.page.evaluate(() => { endTurn(); });
   await t.page.waitForSelector('.parry-ring.parry-hold', { state: 'attached', timeout: 6000 });
-  await t.page.mouse.move(150, 140); await t.page.mouse.down();   // brace and HOLD
-  // Hold until the ring itself closes rather than for a fixed 1050ms: the close
-  // time moves with the foe's parrySpeed and with any note-shape tuning, so the
-  // fixed wait raced the ring and this check failed intermittently for two builds.
-  await t.page.waitForSelector('.parry-ring.parry-hold', { state: 'detached', timeout: 6000 }).catch(() => {});
-  await t.page.mouse.up();
+  // A BRACE IS TWO BEATS NOW (v2.2 Build 38) — press on the marked beat, let go
+  // on the close. Pressing at the first sight of the ring is a full third of a
+  // beat early and grades as such, which is the whole point: a hold you can
+  // answer by mashing the screen down and never lifting is not a read.
+  await t.page.mouse.move(150, 140);
+  const holdBeats = await J(() => { const r = document.querySelector('.parry-ring.parry-hold');
+    return r ? { press: +r.dataset.press - Date.now(), release: +r.dataset.impact - Date.now() } : null; });
+  if (holdBeats) await sleep(Math.max(0, holdBeats.press));
+  await t.page.mouse.down();                                   // brace ON the marked beat
+  if (holdBeats) await sleep(Math.max(0, holdBeats.release - holdBeats.press));
+  else await t.page.waitForSelector('.parry-ring.parry-hold', { state: 'detached', timeout: 6000 }).catch(() => {});
+  await t.page.mouse.up();                                     // …and let go on the close
   await sleep(2400);
   check('RHYTHM: a braced HOLD negates the blow (perfect parry)',
     await J((o) => S.heroes.find(h => h.id === 'ash').hp === o.a && S.momentum > 0, { a: ashHold0 }),
@@ -3250,10 +3266,14 @@ const QUICK = process.argv.includes('--quick');
       const elite = avg('revenant');
       return mob >= 1.8 && elite > mob && elite / mob < 2;
     })()`));
-  check('PARRY: the smallest jabs stay a single clean gesture — the primer survives',
+  // THE PRIMER TEACHES THE LANGUAGE (v2.2 Build 38). The smallest jab used to
+  // be a MASH — the one gesture that taught nothing, because "hit the screen a
+  // lot" transfers to none of the notes around it. It is a two-tap read now:
+  // the shortest possible lesson in the thing every other note is built from.
+  check('PARRY: the smallest jabs are the PRIMER — a two-beat tap lesson, not a flurry',
     await J(() => {
       const p = parryPatternFor({ name: 'jab', dmg: 2, row: 'front' });
-      return p.kind === 'mash';
+      return p.kind === 'multi' && p.count === 2;
     }));
 
   // ---------- BUILD 283: a floor has somewhere to recover ----------
@@ -4694,23 +4714,84 @@ const QUICK = process.argv.includes('--quick');
     await J(() => { const drone = (ENEMY_DEFS.drone.intents || []).find(i => i.shove === 'back'); const rev = (ENEMY_DEFS.revenant.intents || []).find(i => i.shove === 'front');
       return !!drone && drone.name === 'Piston Slam' && !!rev && rev.name === 'Chain Hook' && rev.row === 'back'; }));
   // ── RHYTHM RAMP — parries escalate with run depth (speed / window / notes) ──
+  // DEPTH BUYS DENSITY, NEVER LATENCY (v2.2 Build 38). These three checks used to
+  // assert the OPPOSITE — that a deep run shrinks the tap window and speeds the
+  // clock. That is not difficulty, it is a latency tax, and it is exactly what
+  // made the top grade unreachable: measured, a frame-perfect bot cleared 61
+  // notes and fully negated nothing. The ask scales; the physics do not.
   check('RHYTHM: at the surface, parry difficulty is the gentle baseline (no ramp)',
     await J(() => { RUN = newRun('ash'); RUN.completed = []; setParryDifficulty({ def: { parrySpeed: 1 } });
       return _parrySpeed === 1 && _parryWin === 1 && _parryBonus === 0; }));
-  check('RHYTHM: deep in the run, cascades quicken, windows tighten, and notes stack',
+  check('RHYTHM: deep in the run the cascade grows — and the tap stays exactly as catchable',
     await J(() => { RUN = newRun('ash'); RUN.completed = [0,1,2,3,4,5,6,7,8,9,10,11]; setParryDifficulty({ def: { parrySpeed: 1 } });
-      return _parrySpeed < 0.9 && _parryWin < 0.85 && _parryBonus === 2; }));   // Build 206: gentler ramp (0.84 / 0.80)
-  check('RHYTHM: the ramp COMPOSES with a foe’s own tempo (boss stays fastest)',
+      return _parryBonus === 2 && _parrySpeed === 1 && _parryWin === 1; }));
+  check('RHYTHM: a foe’s own tempo never shrinks the window either (the clock is not a screw)',
     await J(() => { RUN = newRun('ash'); RUN.completed = [0,1,2,3,4,5,6,7,8,9,10,11];
-      setParryDifficulty({ def: { parrySpeed: 0.82 } }); const boss = _parrySpeed;
-      setParryDifficulty({ def: { parrySpeed: 1 } }); const mob = _parrySpeed;
-      return boss < mob && boss < 0.72; }));   // Build 206: gentler ramp (boss ≈ 0.69 at depth)
-  check('BOSS DENSITY: a ROAD boss stacks EXTRA cascade notes + quicker pacing; the CHORUS is left as-is',
+      setParryDifficulty({ def: { parrySpeed: 0.82 } });
+      return _parrySpeed === 1 && _parryWin === 1; }));
+  check('BOSS DENSITY: a ROAD boss stacks EXTRA cascade notes; the CHORUS is left as-is',
     await J(() => { RUN = newRun('ash'); RUN.completed = [0,1,2,3,4,5,6];
-      setParryDifficulty({ def: { parrySpeed: 1 } }); const mobBonus = _parryBonus, mobSpeed = _parrySpeed;
-      setParryDifficulty({ def: { boss: true, parrySpeed: 1 } }); const roadBonus = _parryBonus, roadSpeed = _parrySpeed;
-      setParryDifficulty({ def: { boss: true, megaBoss: true, parrySpeed: 1 } }); const choBonus = _parryBonus, choSpeed = _parrySpeed;
-      return roadBonus === mobBonus + 1 && roadSpeed < mobSpeed && choBonus === mobBonus && choSpeed === mobSpeed; }));
+      setParryDifficulty({ def: { parrySpeed: 1 } }); const mobBonus = _parryBonus;
+      setParryDifficulty({ def: { boss: true, parrySpeed: 1 } }); const roadBonus = _parryBonus;
+      setParryDifficulty({ def: { boss: true, megaBoss: true, parrySpeed: 1 } }); const choBonus = _parryBonus;
+      return roadBonus === mobBonus + 1 && choBonus === mobBonus; }));
+
+  // ── THE PARRY, REBUILT (Build 38) ────────────────────────────────────────
+  // The defence is the thing this game is named for, and until now nothing in
+  // the suite asserted the one property that decides whether it is fun: that
+  // reading a blow correctly actually pays out the outcome it promises.
+  check('PARRY: the grade bands are SYMMETRIC around the beat — early and late read alike',
+    await J(() => parryGrade(-70) === 'perfect' && parryGrade(70) === 'perfect'
+                && parryGrade(-130) === 'great' && parryGrade(130) === 'great'
+                && parryGrade(-200) === 'good' && parryGrade(200) === 'good'));
+  check('PARRY: a tap far too EARLY is forgiven (null → WAIT…), never spent',
+    await J(() => parryGrade(-400) === null));
+  check('PARRY: a tap past the window says LATE, not MISS — the read is named, not just refused',
+    await J(() => parryGrade(300) === 'late'));
+  check('PARRY: TURNED (all GREAT) fully negates; only FLAWLESS (all PERFECT) ripostes',
+    await J(() => {
+      // the aggregation runParrySeq performs, stated plainly
+      const agg = (qs) => { let hits = 0, perfects = 0, greats = 0;
+        qs.forEach(q => { hits += q === 'perfect' ? 1 : q === 'great' ? 0.9 : q === 'good' ? 0.6 : 0;
+          if (q === 'perfect') perfects++; if (q === 'perfect' || q === 'great') greats++; });
+        const turned = greats === qs.length, flawless = perfects === qs.length;
+        return { mit: turned ? 1 : hits / qs.length, perfect: turned, flawless }; };
+      const great = agg(['great', 'great', 'great']), perf = agg(['perfect', 'perfect', 'perfect']);
+      const part = agg(['perfect', 'good', 'miss']);
+      return great.mit === 1 && !great.flawless && perf.mit === 1 && perf.flawless && part.mit < 0.6; }));
+  check('PARRY: the grades SPREAD the mitigation — a perfect read is worth more than a scraped one',
+    await J(() => {
+      const w = (q) => q === 'perfect' ? 1 : q === 'great' ? 0.9 : q === 'good' ? 0.6 : 0;
+      return w('perfect') > w('great') && w('great') > w('good') && w('good') > w('miss'); }));
+  check('PARRY: MASH is gone — every gesture in the vocabulary now has timing content',
+    await J(() => typeof parryMashNote === 'undefined'
+                && !PARRY_GLYPH.mash
+                && ![1,2,3,4,5,6,7,8,9,10,11,12].some(d => parryPatternFor({ dmg: d }).kind === 'mash')));
+  check('PARRY: the telegraph names the READ — every intent pill carries its gesture glyph',
+    await J(() => { setupFight(['ash', 'hask'], [], { ash: 'front', hask: 'back' });
+      const html = enemyIntentHtml(S.enemies[0]);
+      return html.indexOf('i-parry') >= 0 && /class="i-parry"[^>]*>[^<]+</.test(html); }));
+  check('PARRY STYLE: STEADY widens every band without removing a single reward',
+    await J(() => { const was = SETTINGS.parry;
+      SETTINGS.parry = 'full'; const fullPerf = parryGrade(120);
+      SETTINGS.parry = 'steady'; const steadyPerf = parryGrade(120), steadyStillGrades = parryGrade(300);
+      SETTINGS.parry = was;
+      return fullPerf === 'great' && steadyPerf === 'perfect' && steadyStillGrades === 'good'; }));
+  check('PARRY: a BRACE is two graded beats — the phrase is only as good as its weaker one',
+    await J(() => {
+      const src = parryHoldNote.toString();
+      // press and release are each put through parryGrade, and the worse wins
+      return /dataset\.press/.test(src) && (src.match(/parryGrade\(/g) || []).length >= 2 && /rank\[/.test(src); }));
+  check('PARRY: the chain is FIGHT-long and pays — milestones surge the gauge',
+    await J(() => Array.isArray(COMBO_MILESTONES) && COMBO_MILESTONES[0] === 10
+                && /gainMomentum/.test(comboMilestone.toString())));
+  check('PARRY: a trick note never leaves the beat grid — a feint spends a whole beat',
+    await J(() => /land \+= sub;\s*\/\/ the held breath/.test(runParrySeq.toString())));
+  check('PARRY: the EMBER belongs to FLAWLESS, not to the reachable tier below it',
+    await J(() => /if \(res\.flawless\) \{ addEmbers\(1\)/.test(enemyPhase.toString())));
+  check('PARRY STYLE: GUARD trades the rhythm for standing armour, not for a worse game',
+    await J(() => PARRY_GUARD_MIT > 0 && PARRY_GUARD_MIT < 1 && PARRY_GUARD_PER_TURN >= 2
+                && PARRY_STYLE_LABEL.guard === 'GUARD'));
   check('RHYTHM: the cascade glyph previews the ramped note count (honest telegraph)',
     await J(() => { RUN = newRun('ash'); RUN.completed = [0,1,2,3,4,5,6,7,8,9,10,11];
       const g = parryGlyph({ parry: { kind: 'seq', notes: [{ t: 'tap' }, { t: 'tap' }] } });

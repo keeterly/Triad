@@ -5311,3 +5311,45 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
   background: linear-gradient(180deg, #f6d79a, #d9a25c);
   border-color: rgba(255,214,150,0.9); color: #241706;
 }
+
+/* ── THE PARRY'S MISSING TIER (v2.2 Build 38) ───────────────────────────────
+   GREAT is the MODAL outcome — roughly seven notes in ten — and it had no CSS
+   at all: `prt-great`, `pb-great`, `pf-great` and `pr-land-great` were written
+   into the markup and never styled, so the most common thing a player does got
+   weaker feedback than GOOD, the worse grade below it. It reads between the
+   two now: silver-gold, nearer PERFECT's weight than GOOD's. */
+.parry-rate.prt-great { color: #ffdca0; font-size: 18px;
+  text-shadow: 0 0 11px rgba(255,210,130,0.85), 0 2px 4px #000; }
+.parry-burst.pb-great { border-color: #ffdca0; box-shadow: 0 0 14px rgba(255,210,130,0.7); }
+.parry-flash.pf-great { background: radial-gradient(circle at 50% 42%, rgba(255,210,130,0.17), rgba(255,210,130,0) 62%); }
+.parry-ring.pr-land-great .pr-close { animation: pr-land 0.2s ease-out forwards !important; }
+/* LATE — a miss that says which side of the beat you were on. Cool, not hot:
+   it is information, not an alarm. */
+.parry-rate.prt-late { color: #9fb6d8; font-size: 15px; letter-spacing: 0.14em;
+  text-shadow: 0 0 9px rgba(140,175,220,0.7), 0 2px 4px #000; }
+/* THE RECEIPT — the line that ties the grades you just read to the number that
+   just left your health. Nothing connected them before. */
+.parry-receipt {
+  position: absolute; transform: translate(-50%, -50%); pointer-events: none; z-index: 60;
+  text-align: center; animation: pcr-in 1.15s ease-out forwards;
+}
+.parry-receipt b { display: block; font-size: 13px; letter-spacing: 0.2em; color: #e8dcc0;
+  text-shadow: 0 0 10px rgba(0,0,0,0.9), 0 2px 4px #000; }
+.parry-receipt span { display: block; margin-top: 2px; font-size: 8.5px; letter-spacing: 0.16em;
+  color: rgba(200,190,168,0.75); text-shadow: 0 2px 4px #000; }
+.parry-receipt.pcr-crown b { color: #ffe14a; text-shadow: 0 0 14px rgba(255,225,74,0.95), 0 2px 4px #000; }
+@keyframes pcr-in {
+  0%   { opacity: 0; transform: translate(-50%, -40%) scale(0.9); }
+  18%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  74%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -62%) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) { .parry-receipt { animation: none; opacity: 1; } }
+
+/* THE BRACE'S SECOND BEAT (v2.2 Build 38) — a hold is a phrase now: press on
+   the marked beat, release on the close. The mark is where the press belongs;
+   .pr-release lights the moment the release window opens. */
+.pr-hold-mark { position: absolute; top: -2px; bottom: -2px; width: 2px; margin-left: -1px;
+  background: rgba(255,225,74,0.85); box-shadow: 0 0 6px rgba(255,225,74,0.6); border-radius: 1px; }
+.parry-hold.pr-release .pr-hold-track { box-shadow: 0 0 14px rgba(255,225,74,0.55); }
+.parry-hold.pr-release .pr-lbl { color: #ffe14a; text-shadow: 0 0 8px rgba(255,225,74,0.7); }

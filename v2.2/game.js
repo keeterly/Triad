@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 37;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 38;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -41,7 +41,7 @@ const $ = (sel) => document.querySelector(sel);
 // ---------------------------------------------------------------------------
 const SETTINGS_KEY = 'kizuna2_2.settings';
 const SETTINGS = Object.assign(
-  { sound: true, music: true, haptics: true, fightBg: true, depth: 'auto' },
+  { sound: true, music: true, haptics: true, fightBg: true, depth: 'auto', parry: 'full' },
   (() => { try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') || {}; } catch (_) { return {}; } })()
 );
 function saveSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(SETTINGS)); } catch (_) {} }
@@ -2208,7 +2208,7 @@ const ENEMY_DEFS = {
     // that sweeps the whole line.  Low damage per touch, but relentless.
     weak: 'blade', name: 'PALE WRAITH', maxHp: 16, parrySpeed: 1.35,
     intents: [
-      { name: 'Grasping Flurry', dmg: 4, row: 'back', attackArt: 'claw',  parry: { kind: 'mash', count: 3 } },
+      { name: 'Grasping Flurry', dmg: 4, row: 'back', attackArt: 'claw',  parry: { kind: 'multi', count: 3 } },
       { name: 'Chill Wail',      dmg: 2, row: 'all',  chill: 1, attackArt: 'blast', parry: { kind: 'swipe', arc: 'arcAcross', across: true } },
       { name: 'Phantom Rush',    dmg: 3, row: 'mid',  attackArt: 'slash', parry: { kind: 'multi', count: 2 } },
     ],
@@ -2250,7 +2250,7 @@ const ENEMY_DEFS = {
   brood: {
     weak: 'blade', name: 'GNAWING BROOD', maxHp: 22, parrySpeed: 1.4, attacksPerRound: 2,
     intents: [
-      { name: 'Gnaw',       dmg: 3, row: 'front', attackArt: 'claw',  parry: { kind: 'mash', count: 3 } },
+      { name: 'Gnaw',       dmg: 3, row: 'front', attackArt: 'claw',  parry: { kind: 'multi', count: 3 } },
       { name: 'Skitter',    dmg: 2, row: 'mid',   attackArt: 'slash', parry: { kind: 'multi', count: 2 } },
       { name: 'Swarm Over', dmg: 2, row: 'all',   attackArt: 'claw',  parry: { kind: 'swipe', arc: 'arcAcross', across: true } },
     ],
@@ -6948,9 +6948,61 @@ const PARRY_MISS_MULT = 1.0;
 // Defense is where the game is HARD: every blow is a string you must read and
 // execute, the timing bands are tight, and even a mob can hurt if you botch it.
 // Three tunable levers — turn them up for more danger, down for more forgiveness.
-const PARRY_GOOD_MS = 540;   // the "good" (half-mitigate) band, ms-remaining (Build 207: widened 480→540 — more reaction tolerance)
-const PARRY_GREAT_MS = 340;  // the "great" band — caught it, most of the blow held (Build 303)
-const PARRY_PERF_MS = 170;   // the "perfect" (full negate + riposte) band — tightened 210→170 (Build 303 — 130 was measured and wiped 3 of 3 floors), because a perfect now costs the blow entirely
+// THE WINDOW IS CENTRED ON THE BEAT, NOT ENDED BY IT (v2.2 Build 38).
+//
+// Measured on the shipped build: the bands were ONE-SIDED ms-remaining — a tap
+// 1ms after the ring closed was a full MISS, with no late grace at all. Stack
+// that against a five-note boss cascade and the top tier is unreachable: a
+// frame-perfect bot played 61 notes across four fights and NEVER ONCE fully
+// negated a cascade. FLAWLESS, the riposte, the counter cinematic — the whole
+// promised fantasy — was dead content, and every attack resolved in a mushy
+// 72–88% band that no play could escape.
+//
+// The impact instant is now the CENTRE of the window. A late catch is a catch.
+// The bands are wide because grades are made to MEAN different things (see the
+// TURNED/FLAWLESS split in runParrySeq) rather than made unreachable.
+//
+//   perfect  ±80ms   — touch latency (56–78ms measured) + human jitter on a beat
+//   great    ±140ms  — the modal outcome; it must feel good, not like a near-miss
+//   good     ±220ms  — genuinely sloppy, and still worth something
+//   late     +200ms past good — labelled, so a miss always says WHY
+const PARRY_PERF_MS = 80;
+const PARRY_GREAT_MS = 140;
+const PARRY_GOOD_MS = 220;
+const PARRY_LATE_MS = 200;   // label-only tail; must stay under (beat - GOOD) so notes never overlap
+// Grade a tap by its SIGNED distance from the beat. `off` is ms after impact
+// (negative = early). Returns null for "too early to count — nudge and keep
+// listening", which is the forgiving behaviour the old build already had.
+// PARRY STYLE (v2.2 Build 38) — three ways to play the defence, none of them a
+// difficulty setting that says you are worse at the game.
+//
+//   FULL    the windows above. The rhythm game, as designed.
+//   STEADY  the same windows, 1.7× wider. Every grade still reachable, every
+//           reward still available — the ask is a groove rather than a frame.
+//   GUARD   no timing at all. Blows are half-blocked automatically and the party
+//           gains +2 GUARD at the top of every turn. You trade the ripostes and
+//           the full negates for standing armour — a different economy, not a
+//           penalty box.
+const PARRY_STYLE_WIN = { full: 1, steady: 1.7, guard: 1 };
+const PARRY_STYLE_LABEL = { full: 'FULL', steady: 'STEADY', guard: 'GUARD' };
+const PARRY_STYLE_BLURB = {
+  full: 'FULL — every blow is a read. The rhythm game, as written.',
+  steady: 'STEADY — the same reads, a wider groove. Nothing is taken away.',
+  guard: 'GUARD — no timing. Blows half-land, and the party stands +2 GUARD a turn.',
+};
+function parryWin() { return PARRY_STYLE_WIN[SETTINGS.parry] || 1; }
+function parryGrade(off) {
+  const w = parryWin(), a = Math.abs(off);
+  if (off < -PARRY_GOOD_MS * w) return null;          // way early: WAIT…, note stays live
+  if (a <= PARRY_PERF_MS * w) return 'perfect';
+  if (a <= PARRY_GREAT_MS * w) return 'great';
+  if (a <= PARRY_GOOD_MS * w) return 'good';
+  return 'late';                                       // inside the tail: a miss that says why
+}
+// GUARD style resolves a blow without asking for a gesture: half of it is turned
+// aside, nothing is riposted, and the note layer never appears.
+const PARRY_GUARD_MIT = 0.5;
+const PARRY_GUARD_PER_TURN = 2;
 // Global PACING multiplier on every parry ring's close time.  >1 = the rings
 // close SLOWER, so there's more time to read and react.  Build 207: eased again
 // to 1.30 (rings ~30% slower) after a second "still a touch too fast" playtest.
@@ -7035,7 +7087,12 @@ function parryPatternFor(intent) {
   // cost much when you fluff it. So the floor comes up to two, and only the
   // smallest jabs stay a single clean gesture — those are the primer that
   // teaches the gesture in the first place.
-  if (d <= 2)               return { kind: 'mash', count: 4 };                                            // a frenzied flurry
+  // MASH IS GONE (v2.2 Build 38). It was the one gesture in the vocabulary with
+  // no timing content at all — the answer was "hit the screen a lot", which is
+  // not a read, cannot be graded, and taught nothing that transfers to the notes
+  // around it. The smallest jabs now teach the TAP instead: a quick double, the
+  // primer the rest of the language is built on.
+  if (d <= 2)               return { kind: 'multi', count: 2 };                                           // the primer: a quick double-tap
   if (d <= 4)               return { kind: 'seq', notes: [{ t: 'tap' }, { t: 'tap' }] };                  // a two-beat read
   if (d <= 6)               return { kind: 'seq', notes: [{ t: 'tap' }, { t: 'swipe', arc: 'arcR' }] };   // a two-hit string
   return { kind: 'seq', notes: [{ t: 'tap' }, { t: 'tap' }, { t: 'swipe', arc: 'arcL' }] };               // a heavy three-hit string
@@ -7054,7 +7111,7 @@ const SWIPE_ARCS = {
   // a wide, shallow sweep ACROSS the party — one flick over all three heroes
   arcAcross: { d: 'M -58 6 Q 0 -30 58 6', glyph: '⟺', ok: (dx, dy) => Math.abs(dx) > 46 && Math.abs(dx) > Math.abs(dy) },
 };
-const PARRY_GLYPH = { tap: '⊙', multi: '⊙⊙', hold: '▭', swipe: '➤', mash: '⊙⊙⊙' };
+const PARRY_GLYPH = { tap: '⊙', multi: '⊙⊙', hold: '▭', swipe: '➤' };
 // Derives the telegraph glyph for an enemy intent's parry pattern (seq cascades
 // read as ✷N where N ramps with depth; single gestures use their kind glyph +
 // size hint).  Exercised by the test suite to verify the pattern derivation.
@@ -7152,9 +7209,14 @@ function noteFeedback(ui, ax, ay, q) {
   ui.el.classList.add(q === 'perfect' ? 'pr-land-perfect' : q === 'great' ? 'pr-land-great' : good ? 'pr-land-good' : 'pr-land-miss');
   const layer = $('#popup-layer');
   const rate = document.createElement('div');
-  rate.className = 'parry-rate ' + (q === 'perfect' ? 'prt-perfect' : q === 'great' ? 'prt-great' : good ? 'prt-good' : 'prt-miss');
+  rate.className = 'parry-rate ' + (q === 'perfect' ? 'prt-perfect' : q === 'great' ? 'prt-great'
+    : good ? 'prt-good' : q === 'late' ? 'prt-late' : 'prt-miss');
   rate.style.left = ax + 'px'; rate.style.top = (ay - 4) + 'px';
-  const word = q === 'perfect' ? 'PERFECT' : q === 'great' ? 'GREAT' : q === 'good' ? 'GOOD' : q === 'early' ? 'EARLY' : 'MISS';
+  // A MISS ALWAYS SAYS WHY (v2.2 Build 38). LATE, wrong-way and baited all
+  // printed the same bare "MISS", so the one thing a player needed in order to
+  // correct — which side of the beat they were on — was the one thing withheld.
+  const word = q === 'perfect' ? 'PERFECT' : q === 'great' ? 'GREAT' : q === 'good' ? 'GOOD'
+    : q === 'late' ? 'LATE' : 'MISS';
   rate.innerHTML = word + (good && _parryStreak > 1 ? ` <em>×${_parryStreak}</em>` : '');
   layer.appendChild(rate);
   setTimeout(() => rate.remove(), 620);
@@ -7176,9 +7238,24 @@ function noteFeedback(ui, ax, ay, q) {
 }
 // A prominent Project-Diva-style COMBO counter — a big number that grows and
 // pops with each linked gesture, and clears when the chain breaks.
+// LINKED NOTES ARE WORTH SOMETHING ACROSS A WHOLE FIGHT (v2.2 Build 38). The
+// counter climbed and popped and meant nothing — it bought no momentum, and it
+// was the only mastery signal in the game with no payout attached. Milestones
+// now surge the gauge, so a player who reads well feels it in how often the
+// ALL-OUT comes up, not only in a mitigation number that flickers past.
+const COMBO_MILESTONES = [10, 20, 30, 45, 60];
+function comboMilestone() {
+  if (COMBO_MILESTONES.indexOf(_parryStreak) < 0) return;
+  try {
+    gainMomentum(6, { raw: true });
+    flashNarrator(`<b>${_parryStreak} LINKED</b> — the line reads the blows as one. <b>⚡ +6</b>`);
+    const bl = document.getElementById('burst'); if (bl) popupAt(bl, '⚡ CHAIN +6', 'rally');
+  } catch (_) {}
+}
 function comboCounter(good) {
   let el = document.getElementById('parry-combo');
   if (!el) { el = document.createElement('div'); el.id = 'parry-combo'; $('#stage').appendChild(el); }
+  if (good) comboMilestone();
   if (good && _parryStreak >= 2) {
     el.innerHTML = `<span class="pc-num">${_parryStreak}</span><span class="pc-lbl">COMBO</span>`;
     el.classList.remove('pc-pop'); void el.offsetWidth; el.classList.add('pc-on', 'pc-pop');
@@ -7198,19 +7275,22 @@ function parryTapNote(ax, ay, dur, idx, total, size) {
     const ui = mkParryUiAt(ax, ay, `<span class="pr-target"></span><span class="pr-close"></span><span class="pr-lbl">${label}</span>`, size === 'big' ? 'pr-big' : '');
     ui.el.querySelector('.pr-close').style.animationDuration = dur + 'ms';
     const lbl = ui.el.querySelector('.pr-lbl');
-    const GOOD = Math.round(PARRY_GOOD_MS * _parryWin), GREAT = Math.round(PARRY_GREAT_MS * _parryWin), PERF = Math.round(PARRY_PERF_MS * _parryWin);   // windows (tighten with depth)
     let done = false; const t0 = Date.now();
-    // light the note up the moment it becomes tappable — "wait for the glow" — and
-    // DILATE time (Clair Obscur slow-mo) so the instant to parry lands with weight
-    const liveT = setTimeout(() => { if (!done) { ui.el.classList.add('pr-live'); lbl.textContent = size === 'big' ? 'SLAM!' : 'TAP!'; parrySlowmo(true); } }, Math.max(0, dur - GOOD));
+    // THE BOTS AIM AT THE BEAT, NOT AT THE CLOSE. Publishing the impact instant
+    // keeps the harness honest now that a note is gradeable on both sides of it.
+    ui.el.dataset.impact = String(t0 + dur);
+    // light the note up the moment it becomes tappable — and DILATE time (Clair
+    // Obscur slow-mo) so the instant to parry lands with weight
+    const liveT = setTimeout(() => { if (!done) { ui.el.classList.add('pr-live'); lbl.textContent = size === 'big' ? 'SLAM!' : 'TAP!'; parrySlowmo(true); } }, Math.max(0, dur - PARRY_GOOD_MS));
     const finish = (q) => { if (done) return; done = true; clearTimeout(liveT); if (ui.el.classList.contains('pr-live')) parrySlowmo(false); window.removeEventListener('pointerdown', onTap, true); noteFeedback(ui, ax, ay, q); ui.close(); resolve(q); };
     const onTap = () => {
-      const rem = dur - (Date.now() - t0);
-      if (rem > GOOD) { parryEarlyNudge(ui, ax, ay); return; }   // too soon — forgive, keep listening
-      finish(rem <= PERF ? 'perfect' : rem <= GREAT ? 'great' : 'good');
+      const g = parryGrade(Date.now() - t0 - dur);
+      if (g === null) { parryEarlyNudge(ui, ax, ay); return; }   // too soon — forgive, keep listening
+      finish(g);
     };
     window.addEventListener('pointerdown', onTap, true);
-    setTimeout(() => finish('miss'), dur);
+    // the note outlives its own beat, so a late catch is still a catch
+    setTimeout(() => finish('miss'), dur + PARRY_GOOD_MS + PARRY_LATE_MS);
   });
 }
 // Premature press: a quick "WAIT…" nudge on the note that does NOT consume it.
@@ -7230,29 +7310,29 @@ function parryEarlyNudge(ui, ax, ay) {
 // crossed red ring you must NOT touch; discipline is the parry.  Boss-only, so
 // mobs stay the readable on-ramp.  Both expose their timing to the auto-driver
 // (data-pause / class) so the harness stays honest.
-function parryFeintNote(ax, ay, dur, idx, total) {
+function parryFeintNote(ax, ay, dur, idx, total, pauseMs) {
   return new Promise(resolve => {
-    const pause = 320;                                       // the held breath
+    const pause = pauseMs || 320;                            // the held breath (one whole beat, when the music is playing)
     const label = total > 1 ? `${idx}/${total}` : 'FEINT…';
     const ui = mkParryUiAt(ax, ay, `<span class="pr-target"></span><span class="pr-close"></span><span class="pr-lbl">${label}</span>`, 'pr-feint');
     const cl = ui.el.querySelector('.pr-close');
     cl.style.animationDuration = dur + 'ms';
     ui.el.dataset.pause = pause;                             // the harness reads the true close time
     const lbl = ui.el.querySelector('.pr-lbl');
-    const GOOD = Math.round(PARRY_GOOD_MS * _parryWin), GREAT = Math.round(PARRY_GREAT_MS * _parryWin), PERF = Math.round(PARRY_PERF_MS * _parryWin);
     const totalMs = dur + pause;
     let done = false; const t0 = Date.now();
+    ui.el.dataset.impact = String(t0 + totalMs);
     const pT = setTimeout(() => { if (done) return; cl.style.animationPlayState = 'paused'; ui.el.classList.add('pr-hesitate'); lbl.textContent = '…'; }, Math.round(dur * 0.62));
     const rT = setTimeout(() => { if (done) return; cl.style.animationPlayState = 'running'; ui.el.classList.remove('pr-hesitate'); }, Math.round(dur * 0.62) + pause);
-    const liveT = setTimeout(() => { if (!done) { ui.el.classList.add('pr-live'); lbl.textContent = 'NOW!'; parrySlowmo(true); } }, Math.max(0, totalMs - GOOD));
+    const liveT = setTimeout(() => { if (!done) { ui.el.classList.add('pr-live'); lbl.textContent = 'NOW!'; parrySlowmo(true); } }, Math.max(0, totalMs - PARRY_GOOD_MS));
     const finish = (q) => { if (done) return; done = true; [pT, rT, liveT].forEach(clearTimeout); if (ui.el.classList.contains('pr-live')) parrySlowmo(false); window.removeEventListener('pointerdown', onTap, true); noteFeedback(ui, ax, ay, q); ui.close(); resolve(q); };
     const onTap = () => {
-      const rem = totalMs - (Date.now() - t0);
-      if (rem > GOOD) { parryEarlyNudge(ui, ax, ay); return; }   // fooled by the hesitation — forgiven, keep listening
-      finish(rem <= PERF ? 'perfect' : rem <= GREAT ? 'great' : 'good');
+      const g = parryGrade(Date.now() - t0 - totalMs);
+      if (g === null) { parryEarlyNudge(ui, ax, ay); return; }   // fooled by the hesitation — forgiven, keep listening
+      finish(g);
     };
     window.addEventListener('pointerdown', onTap, true);
-    setTimeout(() => finish('miss'), totalMs);
+    setTimeout(() => finish('miss'), totalMs + PARRY_GOOD_MS + PARRY_LATE_MS);
   });
 }
 function parryBaitNote(ax, ay, dur) {
@@ -7315,7 +7395,7 @@ function lesson(key, msg, times) {
   return true;
 }
 function parryCoach(msg) {
-  const kind = /HOLD/.test(msg) ? 'hold' : /SWIPE/.test(msg) ? 'swipe' : /MASH/.test(msg) ? 'mash' : 'tap';
+  const kind = /HOLD/.test(msg) ? 'hold' : /SWIPE/.test(msg) ? 'swipe' : 'tap';
   const key = 'kizuna2_2.parryLesson_' + kind;
   let n = 0;
   try { n = parseInt(localStorage.getItem(key) || '0', 10) || 0; } catch (_) {}
@@ -7361,15 +7441,19 @@ function setParryDifficulty(e) {
   const base = (e && e.def && e.def.parrySpeed) || 1;
   const d = parryDepth();
   _parryBoss = !!(e && e.def && e.def.boss);   // bosses earn the trick vocabulary (feint/bait)
-  _parrySpeed = base * (1 - 0.16 * d);   // Build 206: up to 16% faster deep (was 24% — gentler ramp)
-  _parryWin   = 1 - 0.20 * d;            // Build 206: up to 20% tighter deep (was 30%)
+  // SCALE THE ASK, NEVER THE PHYSICS (v2.2 Build 38). Two of Build 206's screws
+  // made deep runs harder by shrinking the physical target and speeding the
+  // clock — which is not difficulty, it is latency tax, and it is exactly what
+  // made the top grade unreachable. Depth buys DENSER cascades; the tap itself
+  // is the same size on floor 1 and floor 4, and the grid stays musical.
+  _parrySpeed = 1;                       // kept as a field for the note art; never a tempo screw
+  _parryWin   = 1;                       // windows are constant — see parryGrade()
   _parryBonus = Math.round(1.6 * d);     // +0 → +2 extra notes on cascades deep
   // ROAD BOSSES weaponize DENSITY, not HP: their cascades run a bit LONGER (+1
   // note) and a touch FASTER — a real parry gauntlet, but not a wall.  The floor-4
   // CHORUS (megaBoss) is dialed in already — left untouched.
   if (e && e.def && e.def.boss && !e.def.megaBoss) {
-    _parryBonus += 1;        // one extra note on every road-boss cascade
-    _parrySpeed *= 0.92;     // ~8% quicker pacing
+    _parryBonus += 1;        // one extra note on every road-boss cascade — density, not speed
   }
 }
 function seqRhythm(count) {
@@ -7377,35 +7461,49 @@ function seqRhythm(count) {
   for (let i = 0; i < count; i++) out.push({ d: Math.round((i === 0 ? 660 : 560) * _parrySpeed * PARRY_PACE), g: i === count - 1 ? 0 : Math.round(160 * _parrySpeed) });
   return out;
 }
-// MASH note — a frenzied flurry: tap rapidly to fill the meter before it closes.
-function parryMashNote(ax, ay, count, dur) {
-  return new Promise(resolve => {
-    const ui = mkParryUiAt(ax, ay, `<span class="pr-target"></span><span class="pr-close"></span><span class="pr-mash"><span class="pr-mash-fill"></span></span><span class="pr-lbl">MASH!</span>`, 'parry-mash pr-big');
-    ui.el.querySelector('.pr-close').style.animationDuration = dur + 'ms';
-    const fill = ui.el.querySelector('.pr-mash-fill');
-    let done = false, taps = 0;
-    const finish = (q) => { if (done) return; done = true; window.removeEventListener('pointerdown', onTap, true); noteFeedback(ui, ax, ay, q); ui.close(); resolve(q); };
-    const onTap = () => {
-      taps++; if (fill) fill.style.width = Math.min(100, (taps / count) * 100) + '%';
-      haptic(HAP.tap);
-      if (taps >= count) finish('perfect');
-    };
-    window.addEventListener('pointerdown', onTap, true);
-    setTimeout(() => finish(taps >= Math.ceil(count / 2) ? 'good' : 'miss'), dur);
-  });
-}
 // HOLD note — press and BRACE; keep held until the bar fills (through impact).
+// A BRACE IS TWO BEATS, NOT A SWITCH (v2.2 Build 38). It used to grade on one
+// question asked once — "is a finger down at the close?" — which is binary, has
+// no early or late side, and can be answered by pressing at the very start and
+// simply never letting go. That is not a read; it is a held thumb. The note now
+// asks for a PRESS on its opening beat and a RELEASE on the marked one, grades
+// both against the same symmetric windows as everything else, and takes the
+// WORSE of the two — so a brace is a phrase you play, with a beginning and an
+// end you can be early or late on.
 function parryHoldNote(ax, ay, dur, size) {
   return new Promise(resolve => {
-    const ui = mkParryUiAt(ax, ay, `<span class="pr-hold-track"><span class="pr-hold-fill"></span></span><span class="pr-lbl">BRACE</span>`, 'parry-hold' + (size === 'big' ? ' pr-big' : ''));
+    const t0 = Date.now();
+    const pressAt = Math.round(dur * 0.34);            // the beat to take the brace
+    const ui = mkParryUiAt(ax, ay, `<span class="pr-hold-track"><span class="pr-hold-mark"></span><span class="pr-hold-fill"></span></span><span class="pr-lbl">BRACE</span>`, 'parry-hold' + (size === 'big' ? ' pr-big' : ''));
     ui.el.querySelector('.pr-hold-fill').style.animationDuration = dur + 'ms';
-    let done = false, holding = false, everHeld = false;
-    const finish = (q) => { if (done) return; done = true; window.removeEventListener('pointerdown', onDown, true); window.removeEventListener('pointerup', onUp, true); noteFeedback(ui, ax, ay, q); ui.close(); resolve(q); };
-    const onDown = () => { if (!everHeld) { try { SFX.brace(); } catch (_) {} haptic(HAP.press); } holding = true; everHeld = true; ui.el.classList.add('pr-pressed'); };
-    const onUp = () => { holding = false; ui.el.classList.remove('pr-pressed'); };
+    const mk = ui.el.querySelector('.pr-hold-mark'); if (mk) mk.style.left = Math.round((pressAt / dur) * 100) + '%';
+    ui.el.dataset.press  = String(t0 + pressAt);       // the beat to press on
+    ui.el.dataset.impact = String(t0 + dur);           // the beat to let go on
+    const lbl = ui.el.querySelector('.pr-lbl');
+    let done = false, pressQ = null, holding = false;
+    const finish = (q) => { if (done) return; done = true; [pT, rT, endT].forEach(clearTimeout); window.removeEventListener('pointerdown', onDown, true); window.removeEventListener('pointerup', onUp, true); noteFeedback(ui, ax, ay, q); ui.close(); resolve(q); };
+    const pT = setTimeout(() => { if (!done && !pressQ) { ui.el.classList.add('pr-live'); lbl.textContent = 'BRACE!'; } }, Math.max(0, pressAt - PARRY_GOOD_MS));
+    const rT = setTimeout(() => { if (!done) { ui.el.classList.add('pr-release'); lbl.textContent = 'LET GO!'; } }, Math.max(0, dur - PARRY_GOOD_MS));
+    const onDown = () => {
+      if (holding) return;
+      if (!pressQ) {
+        const g = parryGrade(Date.now() - t0 - pressAt);
+        if (g === null) { parryEarlyNudge(ui, ax, ay); return; }   // grabbed it far too soon — forgiven
+        pressQ = g; try { SFX.brace(); } catch (_) {} haptic(HAP.press);
+      }
+      holding = true; ui.el.classList.add('pr-pressed'); lbl.textContent = 'HOLD…';
+    };
+    const onUp = () => {
+      if (!pressQ || !holding) return;                             // never took the brace
+      const g = parryGrade(Date.now() - t0 - dur);
+      // let go far too soon — the brace is not spent, take it back up again
+      if (g === null) { holding = false; ui.el.classList.remove('pr-pressed'); lbl.textContent = 'BRACE!'; parryEarlyNudge(ui, ax, ay); return; }
+      const rank = { perfect: 3, great: 2, good: 1, late: 0, miss: 0 };
+      finish(rank[g] < rank[pressQ] ? g : pressQ);                 // the phrase is only as good as its weaker beat
+    };
     window.addEventListener('pointerdown', onDown, true);
     window.addEventListener('pointerup', onUp, true);
-    setTimeout(() => finish(holding ? 'perfect' : everHeld ? 'good' : 'miss'), dur);
+    const endT = setTimeout(() => finish(pressQ ? 'late' : 'miss'), dur + PARRY_GOOD_MS + PARRY_LATE_MS);
   });
 }
 // DEFLECT note — trace the curved arc to sweep the blow aside (a real parry
@@ -7423,17 +7521,30 @@ function parrySwipeNote(ax, ay, arc, dur, size) {
        </svg><span class="pr-lbl">${wide ? 'SWEEP' : 'DEFLECT'} ${spec.glyph}</span>`, 'parry-swipe' + (wide ? ' pr-wide' : ''));
     ui.el.querySelector('.pr-arc-draw').style.animationDuration = dur + 'ms';
     let done = false, sx = null, sy = null, maxHit = null; const t0 = Date.now();
+    // A DEFLECT IS A BEAT TOO (v2.2 Build 38). Its grade used to be `rem <= 250`
+    // — one-sided, measured from the ring's close, and generous by a quarter
+    // second on the early side while a swipe one frame late was a full MISS.
+    // Measured: the bot's clean sweep graded GOOD on 100% of deflects, which
+    // capped every cascade containing one below TURNED no matter how well it
+    // was read. The arc now lands on the beat like everything else.
+    ui.el.dataset.impact = String(t0 + dur);
     const finish = (q) => { if (done) return; done = true; window.removeEventListener('pointerdown', onDown, true); window.removeEventListener('pointermove', onMove, true); window.removeEventListener('pointerup', onUp, true); noteFeedback(ui, ax, ay, q); ui.close(); resolve(q); };
     const onDown = (e) => { sx = e.clientX; sy = e.clientY; };
     const onMove = (e) => {
       if (sx == null || maxHit) return;
-      if (spec.ok(e.clientX - sx, e.clientY - sy)) { maxHit = true; try { SFX.swoosh(); } catch (_) {} haptic(HAP.swipe); const rem = dur - (Date.now() - t0); finish(rem <= 250 ? 'perfect' : 'good'); }
+      if (spec.ok(e.clientX - sx, e.clientY - sy)) {
+        const g = parryGrade(Date.now() - t0 - dur);
+        // swept far too soon — forgiven. Re-anchor on the finger where it is now
+        // so a continuing sweep can still land the arc without lifting first.
+        if (g === null) { parryEarlyNudge(ui, ax, ay); sx = e.clientX; sy = e.clientY; return; }
+        maxHit = true; try { SFX.swoosh(); } catch (_) {} haptic(HAP.swipe); finish(g);
+      }
     };
     const onUp = () => { sx = null; };
     window.addEventListener('pointerdown', onDown, true);
     window.addEventListener('pointermove', onMove, true);
     window.addEventListener('pointerup', onUp, true);
-    setTimeout(() => finish('miss'), dur);
+    setTimeout(() => finish('miss'), dur + PARRY_GOOD_MS + PARRY_LATE_MS);
   });
 }
 // Place N notes along a bowed arc sweeping from the boss toward the target —
@@ -7491,7 +7602,13 @@ async function runParrySeq(notes, anchor, art) {
   // beats.  With music off, fall back to the free-running groove.  A cascade that
   // TRICKS (feint/bait) leaves the grid — a broken rhythm is the whole point.
   const clock = MUSIC.beat();
-  const synced = clock.playing && !tricks;
+  // THE GRID IS THE CONTRACT (v2.2 Build 38). A cascade carrying a feint or a
+  // bait used to drop OFF the beat grid entirely — the one moment the player
+  // most needs the music to lean on, the music stopped being the reference.
+  // A trick is not an escape from rhythm; it is a rest inside it. A feint now
+  // spends TWO beats (the hesitation is a whole beat), a bait spends one, and
+  // everything stays locked to the track.
+  const synced = clock.playing;
   // ONE note per beat is the readable default — a steady march that reads as
   // "on the music."  Only the genuine CLIMAX (the Hollow Chorus's later stages,
   // ~0.5–0.6) runs double-time on HALF-beats; road bosses and mobs stay on whole
@@ -7503,7 +7620,7 @@ async function runParrySeq(notes, anchor, art) {
   // take only the short breath needed to read the ring preview (Build 243).
   const told = !!(S && S._justTold); if (S) S._justTold = false;
   if (!synced) await sleep(Math.round((told ? 170 : SEQ_LEADIN) * _parrySpeed));
-  let hits = 0, perfects = 0;
+  let hits = 0, perfects = 0, greats = 0;
   for (let i = 0; i < notes.length; i++) {
     const nt = notes[i], p = pts[i], step = rh[i] || { d: 560, g: 160 };
     let dur = null;   // ms until this note's ring CLOSES (on the beat, when synced)
@@ -7517,18 +7634,22 @@ async function runParrySeq(notes, anchor, art) {
     let q;
     if (nt.t === 'hold')       q = await parryHoldNote(p.x, p.y, synced ? Math.max(480, dur) : 820);
     else if (nt.t === 'swipe') q = await parrySwipeNote(p.x, p.y, nt.arc || 'arcR', synced ? Math.max(420, dur) : 760);
-    else if (nt.t === 'feint') q = await parryFeintNote(p.x, p.y, step.d, i + 1, notes.length);
-    else if (nt.t === 'bait')  q = await parryBaitNote(p.x, p.y, Math.round(700 * _parrySpeed));
+    else if (nt.t === 'feint') {
+      q = await parryFeintNote(p.x, p.y, synced ? dur : step.d, i + 1, notes.length, synced ? Math.round(sub * 1000) : 0);
+      if (synced) land += sub;                               // the held breath cost a whole beat
+    }
+    else if (nt.t === 'bait')  q = await parryBaitNote(p.x, p.y, synced ? Math.max(300, dur) : Math.round(700 * _parrySpeed));
     else                       q = await parryTapNote(p.x, p.y, synced ? dur : step.d, i + 1, notes.length);
-    const okNote = q === 'perfect' || q === 'good';
+    const okNote = q === 'perfect' || q === 'great' || q === 'good';
     if (art) bossAttackBeat(art, p.x, p.y, okNote);   // the blade STRIKES on the beat — clash if parried, connects if not
     if (done) { done.classList.remove('sq-active'); done.classList.add(okNote ? 'sq-hit' : 'sq-miss'); }
     // WEIGHTED, not counted. A note is not caught-or-not: a perfect turns its
     // whole share, a great turns most of it, a late-but-read one turns half.
     // Counting hits equally is what made "all caught" and "all perfect" the same
     // outcome, which cannot stand now that a perfect negates the blow entirely.
-    hits += q === 'perfect' ? 1 : q === 'great' ? 0.88 : q === 'good' ? 0.72 : 0;
+    hits += q === 'perfect' ? 1 : q === 'great' ? 0.9 : q === 'good' ? 0.6 : 0;
     if (q === 'perfect') perfects++;
+    if (q === 'perfect' || q === 'great') greats++;
     parryCam(i, notes.length, q);            // the shot tightens and dutches with the string
     if (synced) land += sub;                 // next note, next grid point
     else if (step.g) await sleep(step.g);    // free-run gap
@@ -7539,8 +7660,42 @@ async function runParrySeq(notes, anchor, art) {
   // every note read PERFECTLY (the Clair Obscur counter — ripostes, see enemyPhase).
   // `perfect` gates the FULL negate, so it means every note read perfectly — not
   // every note simply caught. Before Build 303 those were the same thing.
-  return { mit: hits / notes.length, perfect: perfects === notes.length && notes.length > 0,
-    flawless: perfects === notes.length && notes.length > 0, notes: notes.length };
+  // A REACHABLE TOP, AND A REAL SUMMIT ABOVE IT (v2.2 Build 38).
+  //
+  // `perfect` and `flawless` used to be the SAME expression — every note read
+  // perfectly — which made the game's whole defensive fantasy a single cliff at
+  // the far end of five one-sided 170ms windows. Measured: a frame-perfect bot
+  // cleared it zero times in 61 notes. Two tiers now:
+  //
+  //   TURNED    every note GREAT or better  → the blow is negated entirely.
+  //             This is mastery a good human reaches most attempts.
+  //   FLAWLESS  every note PERFECT          → TURNED, plus the riposte, the
+  //             ember and the counter cinematic. The summit, still rare.
+  //
+  // Everything else is PARTIAL, and its weight now spreads properly across the
+  // grades (1 / 0.9 / 0.6) instead of bunching in a mushy 72–88% band nothing
+  // the player did could escape.
+  const turned = greats === notes.length && notes.length > 0;
+  const flawless = perfects === notes.length && notes.length > 0;
+  parryReceipt(anchor, greats, notes.length, flawless ? 'FLAWLESS' : turned ? 'TURNED' : null);
+  return { mit: turned ? 1 : hits / notes.length, perfect: turned, flawless, notes: notes.length };
+}
+// THE LINE THAT CONNECTS THE GRADES TO THE HP BAR. Nothing did, before: you
+// read five ratings fly past and then watched a number leave your health with
+// no stated relationship between the two.
+function parryReceipt(anchor, kept, total, crown) {
+  if (!total) return;
+  try {
+    const a = anchor || { x: Math.round(innerWidth / 2), y: Math.round(innerHeight * 0.44) };
+    const tag = document.createElement('div');
+    tag.className = 'parry-receipt' + (crown ? ' pcr-crown' : '');
+    tag.style.left = a.x + 'px'; tag.style.top = (a.y - 46) + 'px';
+    tag.innerHTML = crown
+      ? `<b>${crown}</b><span>the blow is turned aside</span>`
+      : `<b>${kept}/${total} turned</b><span>the rest gets through</span>`;
+    $('#popup-layer').appendChild(tag);
+    setTimeout(() => tag.remove(), 1150);
+  } catch (_) {}
 }
 // Run a pattern; returns { mit (0..1 damage negated), perfect } | null if off.
 // While a parry is live the world behind the notes desaturates, blurs and
@@ -7556,7 +7711,7 @@ async function windupTell(e, intent) {
     const fig = figEl(e.uid); if (!fig) return;
     const p = parryPatternFor(intent);
     const first = p.kind === 'seq' ? ((p.notes[0] || {}).t || 'tap') : p.kind;
-    const pose = first === 'hold' ? 'fw-brace' : first === 'swipe' ? 'fw-sweep' : first === 'mash' ? 'fw-flurry' : 'fw-slash';
+    const pose = first === 'hold' ? 'fw-brace' : first === 'swipe' ? 'fw-sweep' : 'fw-slash';
     fig.classList.add('fig-windup', pose);
     foeAnimState(e.uid, 'prep');
     // THE TWO-SHOT — compose the CONFRONTATION, not the creature alone: the
@@ -7577,6 +7732,13 @@ async function windupTell(e, intent) {
 }
 async function runParry(targetEl, pattern, art) {
   if (!PARRY_ENABLED || !targetEl) { await sleep(380); return null; }
+  if (SETTINGS.parry === 'guard') {
+    // no notes, no gesture, no waiting on a player who has opted out of the
+    // rhythm — the blow is simply half-turned and the beat moves on
+    parryFlash(targetEl);
+    await sleep(240);
+    return { mit: PARRY_GUARD_MIT, perfect: false, flawless: false, notes: 0 };
+  }
   const stage = $('#stage');
   stage.classList.add('parry-focus');
   // The rhythm window owns the frame against INCIDENTAL moves (a stray damage
@@ -7595,7 +7757,7 @@ async function runParryInner(targetEl, pattern, art) {
   let a = noteAnchor(targetEl);
   // RHYTHM RAMP — deep foes make multi/mash strings denser (extra beats); a lone
   // TAP stays a single, clean read.  (Cascades ramp in runParrySeq.)
-  if (_parryBonus > 0 && (pattern.kind === 'multi' || pattern.kind === 'mash')) {
+  if (_parryBonus > 0 && pattern.kind === 'multi') {
     pattern = Object.assign({}, pattern, { count: (pattern.count || 2) + _parryBonus });
   }
   const k = pattern.kind, sz = pattern.size || '';
@@ -7611,10 +7773,13 @@ async function runParryInner(targetEl, pattern, art) {
   }
   // first-encounter coaching is gesture-SPECIFIC, so a hold / swipe / mash isn't
   // met with "then TAP" — each gesture teaches its own read.
-  if (k === 'hold')       parryCoach('When the ring glows gold — HOLD and brace');
-  else if (k === 'swipe') parryCoach('When the ring glows gold — SWIPE the way the arrow points');
-  else if (k === 'mash')  parryCoach('When the ring glows gold — MASH fast to break it');
-  else                    parryCoach('Wait for the ring to glow gold — then TAP');
+  // THE CUE HAS TO BE TRUE (v2.2 Build 38). "Wait for the gold, THEN tap" taught
+  // the worst possible read: gold lit at the good window and the beat is at its
+  // CENTRE, so a player who waited for the glow and then reacted was already
+  // past perfect. Gold now means the beat is arriving — tap onto it, not after it.
+  if (k === 'hold')       parryCoach('Press as the ring lands — and hold the brace');
+  else if (k === 'swipe') parryCoach('Sweep the way the arrow points — land it on the beat');
+  else                    parryCoach('Feel the beat — tap as the ring lands, not after');
   if (k === 'seq')   return await runParrySeq(pattern.notes, a, art);   // (zonePoints biases the cascade inside)
   // Single-figure parries snap to the LEFT thumb zone (touch) so a lone tap /
   // hold / swipe never lands under the wrong hand.
@@ -7624,27 +7789,34 @@ async function runParryInner(targetEl, pattern, art) {
   // stay CONTIGUOUS — a quick double-tap, no dead gap between them.
   if (k === 'multi') {
     const rh = parryRhythm(pattern.count);
-    let hits = 0, perfects = 0;
+    let hits = 0, perfects = 0, greats = 0;
     for (let i = 0; i < pattern.count; i++) {
       const step = rh[i] || { d: 480 };
       const q = await parryTapNote(a.x, a.y, step.d, i + 1, pattern.count, sz);
-      const okNote = q === 'perfect' || q === 'good';
+      const okNote = q === 'perfect' || q === 'great' || q === 'good';
       if (art) bossAttackBeat(art, a.x, a.y, okNote);   // strike on each note's beat
-      if (okNote) hits++;
+      // the same weighting the cascade uses — a multi IS a cascade, and grading
+      // it on a different scale is how "all caught" stopped meaning anything
+      hits += q === 'perfect' ? 1 : q === 'great' ? 0.9 : q === 'good' ? 0.6 : 0;
       if (q === 'perfect') perfects++;
+      if (q === 'perfect' || q === 'great') greats++;
       parryCam(i, pattern.count, q);
     }
-    return { mit: hits / pattern.count, perfect: hits === pattern.count, flawless: perfects === pattern.count && pattern.count > 0, notes: pattern.count };
+    const mTurned = greats === pattern.count && pattern.count > 0;
+    const mFlawless = perfects === pattern.count && pattern.count > 0;
+    parryReceipt(a, greats, pattern.count, mFlawless ? 'FLAWLESS' : mTurned ? 'TURNED' : null);
+    return { mit: mTurned ? 1 : hits / pattern.count, perfect: mTurned, flawless: mFlawless, notes: pattern.count };
   }
   let q;
   if (k === 'hold')       q = await parryHoldNote(a.x, a.y, Math.round(900 * PARRY_PACE), sz);
   else if (k === 'swipe') q = await parrySwipeNote(a.x, a.y, pattern.arc, Math.round(860 * PARRY_PACE), sz);
-  else if (k === 'mash')  q = await parryMashNote(a.x, a.y, pattern.count || 4, Math.round(1150 * PARRY_PACE));
   else                    q = await parryTapNote(a.x, a.y, Math.min(Math.round(700 * PARRY_PACE), PARRY_GOOD_MS + 280), 1, 1, sz);   // Build 207: slow the lone tap too (early foes use single taps), capped so the test auto-parry still lands in-window
   const ok1 = q === 'perfect' || q === 'good';
   if (art) bossAttackBeat(art, a.x, a.y, ok1);   // the single strike lands as the note resolves
   parryCam(0, 1, q);                             // a lone read still snaps
-  return { mit: q === 'perfect' ? 1 : q === 'great' ? 0.88 : q === 'good' ? 0.72 : 0, perfect: q === 'perfect', flawless: q === 'perfect', notes: 1 };
+  // one note: GREAT already turns it (the reachable tier), PERFECT ripostes
+  return { mit: (q === 'perfect' || q === 'great') ? 1 : q === 'good' ? 0.6 : 0,
+           perfect: q === 'perfect' || q === 'great', flawless: q === 'perfect', notes: 1 };
 }
 function parryFlash(el) {
   if (!el) return;
@@ -8478,6 +8650,9 @@ async function endTurn() {
     // survives either, which is the whole reason the bank is provisional.
     if (S.line) closeLine(null); else S.line = null;
     S.heroes.forEach(h => { h._pendCharge = 0; });
+    // the GUARD style's side of the bargain: armour every turn, in place of the
+    // ripostes and full negates a timed parry buys
+    if (SETTINGS.parry === 'guard') livingHeroes().forEach(h => { h.guard = (h.guard || 0) + PARRY_GUARD_PER_TURN; });
     S._flags = {};   // per-turn passive latches (EP refunds) reset
     S._assistedPairs = new Set();   // each bond may assist once per turn again
     // IMMOVABLE (Cassia) keeps her guard through the enemy turn — everyone else's fades.
@@ -8537,7 +8712,6 @@ async function enemyPhase() {
   autoTuneFx();   // the board is heavier than it was at fight open — re-measure (Build 261)
                   // (fxBusy() aborts it once the cascade starts — see Build 36)
   turnBanner('ENEMY TURN', 'tb-enemy');
-  _parryStreak = 0;   // a fresh parry combo for the phase
   // WEAKENED expires if you didn't capitalize this turn; STAGGERED holds
   // through the phase — a staggered enemy can be interrupted below.
   livingEnemies().forEach(e => { e.weakened = false; });
@@ -8610,10 +8784,16 @@ async function enemyPhase() {
       const mit = res ? res.mit : 0;                    // fraction of the blow negated
       if (res && res.perfect) {
         perfectParry = true; parryMul = PARRY_PERFECT_MULT;
-        popupAt(figEl(ptHero.id), '⚔ PERFECT — +BURST ✦', 'tech');
-        flashNarrator(ptHero.def.name + ' turns the blow — the burst swells!');
+        // TURNED and FLAWLESS are two different achievements now, so the board
+        // has to say which one just happened — both used to print "PERFECT".
+        popupAt(figEl(ptHero.id), res.flawless ? '✦ FLAWLESS — +BURST ✦' : '⚔ TURNED — +BURST', 'tech');
+        flashNarrator(ptHero.def.name + (res.flawless ? ' reads the whole string — flawless!' : ' turns the blow aside.'));
         parryFlash(figEl(ptHero.id));
-        addEmbers(1); if (S) S._embersRun = (S._embersRun || 0) + 1;   // mastery pays embers
+        // THE EMBER FOLLOWS THE SUMMIT, NOT THE TIER BELOW IT (v2.2 Build 38).
+        // TURNED is reachable now — most attempts, for a player who has the
+        // groove — so paying an ember for every turned blow would quietly double
+        // the run's whole growth budget. The ember belongs to FLAWLESS.
+        if (res.flawless) { addEmbers(1); if (S) S._embersRun = (S._embersRun || 0) + 1; }
         // A PERFECT read chips the attacker's POISE (Build 252) — the defensive
         // route to a break, so turtling through a cascade builds toward the same
         // payoff that pressing the attack does.
@@ -9115,6 +9295,7 @@ function startFight(node) {
   clearAim();        // a run that ended mid-aim must NOT leak targeting into the next fight (cards would be un-draggable)
   MUSIC.play('audio/combat-theme.mp3?v=1', 0.42, false);   // the ThornCrown duel theme, ducked under the SFX — a fresh entrance from the downbeat (crossfades up from the world bed)
   S = newBattle(node);
+  _parryStreak = 0;   // the chain is a FIGHT-long thing now — a new fight starts it fresh
   _bossFig = null;   // a fresh fight builds its own boss figure (uids can repeat across fights)
   _partyFigs = {};   // and fresh party figures (drag closures capture this fight's hero objects)
   _enemyFigs = {};   // and fresh enemy-line figures (same reuse cache as the party)
@@ -11301,7 +11482,7 @@ function intentSeg(e, it) {
   // wall of "→ BACK → BACK → BACK". The one exception is ALL: a blow no
   // reposition dodges is information the ground of one slot cannot carry.
   const RANKN = ROW_MARK;
-  return `<span class="i-seg"><span class="i-glyph">⚔</span><span class="i-dmg">${enemyIntentDmg(e, it)}</span>${row === 'all' ? '<span class="i-row">ALL</span>' : (row && RANKN[row] ? `<span class="i-row i-aim" title="aimed at lane ${RANKN[row]}">→ ${RANKN[row]}</span>` : '')}${it.hex ? '<span class="i-st kw-hex" title="HEX — if it lands, your card plays burn your hand; dodge it">☠</span>' : ''}${it.drain ? '<span class="i-st kw-drain" title="drains life — heals the Maw">♥</span>' : ''}${it.chill ? '<span class="i-st kw-chill" title="chills you">❄</span>' : ''}${it.expose ? '<span class="i-st kw-exposed" title="exposes you">◎</span>' : ''}${it.shove === 'front' ? '<span class="i-st kw-shove" title="DRAGS the struck hero one row forward — parry to hold your ground">⇱</span>' : ''}${it.shove === 'back' ? '<span class="i-st kw-shove" title="SHOVES the struck hero one row back — parry to hold your ground">⇲</span>' : ''}</span>`;
+  return `<span class="i-seg"><span class="i-glyph">⚔</span><span class="i-dmg">${enemyIntentDmg(e, it)}</span>${row === 'all' ? '<span class="i-row">ALL</span>' : (row && RANKN[row] ? `<span class="i-row i-aim" title="aimed at lane ${RANKN[row]}">→ ${RANKN[row]}</span>` : '')}${it.hex ? '<span class="i-st kw-hex" title="HEX — if it lands, your card plays burn your hand; dodge it">☠</span>' : ''}${it.drain ? '<span class="i-st kw-drain" title="drains life — heals the Maw">♥</span>' : ''}${it.chill ? '<span class="i-st kw-chill" title="chills you">❄</span>' : ''}${it.expose ? '<span class="i-st kw-exposed" title="exposes you">◎</span>' : ''}${it.shove === 'front' ? '<span class="i-st kw-shove" title="DRAGS the struck hero one row forward — parry to hold your ground">⇱</span>' : ''}${it.shove === 'back' ? '<span class="i-st kw-shove" title="SHOVES the struck hero one row back — parry to hold your ground">⇲</span>' : ''}<span class="i-parry" title="the read this blow asks for — ⊙ tap · ⊙⊙ double · ▭ brace · ↷ deflect · ✷N a cascade of N">${parryGlyph(it)}</span></span>`;
 }
 // the intent telegraph markup for an enemy (one or a boss's chained two)
 function enemyIntentHtml(e) {
@@ -12436,6 +12617,7 @@ function showSettings() {
       <button class="menu-item" id="s-music"><span>MUSIC</span>${onOff(SETTINGS.music)}</button>
       <button class="menu-item" id="s-haptics"><span>HAPTICS</span>${onOff(SETTINGS.haptics)}</button>
       <button class="menu-item" id="s-bg"><span>FIGHT BACKGROUND</span>${onOff(SETTINGS.fightBg)}</button>
+      <button class="menu-item" id="s-parry" title="${PARRY_STYLE_BLURB[SETTINGS.parry] || ''}"><span>PARRY STYLE</span><span class="menu-val">${PARRY_STYLE_LABEL[SETTINGS.parry] || 'FULL'}</span></button>
       <button class="menu-item" id="s-depth"><span>DEPTH</span><span class="menu-val">${
         SETTINGS.depth === 'auto' ? 'AUTO · ' + _fxTier.toUpperCase() : SETTINGS.depth.toUpperCase()}</span></button>
       <button class="menu-item" id="s-heat"><span>HEAT</span><span class="menu-heat"><button id="s-heat-dn" aria-label="lower heat">−</button><b>${META.heat || 0}</b><button id="s-heat-up" aria-label="raise heat">+</button></span></button>
@@ -12450,6 +12632,12 @@ function showSettings() {
     const order = ['auto', 'full', 'soft', 'flat'];
     SETTINGS.depth = order[(order.indexOf(SETTINGS.depth) + 1) % order.length];
     saveSettings(); applyFxTier(); showSettings();
+  };
+  $('#s-parry').onclick = () => {
+    const order = ['full', 'steady', 'guard'];
+    SETTINGS.parry = order[(order.indexOf(SETTINGS.parry) + 1) % order.length];
+    saveSettings(); showSettings();
+    try { flashNarrator(PARRY_STYLE_BLURB[SETTINGS.parry]); } catch (_) {}
   };
   $('#s-sound').onclick = () => { toggleSetting('sound'); showSettings(); };
   $('#s-music').onclick = () => { toggleSetting('music'); showSettings(); };
