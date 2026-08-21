@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 29;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 30;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -10686,6 +10686,88 @@ function _keepAnim(el) {
   for (const c of KEEP_ANIM) if (el.classList.contains(c)) s += ' ' + c;
   return s;
 }
+function etResolveSel(focusHero, selId) {
+  const crossings = crossViewFor(focusHero);
+  const selCross = (selId && String(selId).indexOf('x:') === 0)
+    ? crossings.find(c => c.node.id === String(selId).replace(/^x:[a-z]+:/, '')) : null;
+  const mine = EMBER_TREE.filter(n => n.hero === focusHero);
+  const ownList = mine.filter(n => tierOpen(n.tier) || hasNode(n.id));
+  const sel = selCross ? null
+    : (selId && NODE_BY_ID[selId]) || ownList.find(n => nodeState(n) === 'ready') || ownList[0];
+  return { sel, selCross, crossings };
+}
+function etDetailHTML(focusHero, selId) {
+  const crossings = crossViewFor(focusHero);
+  const mine = EMBER_TREE.filter(n => n.hero === focusHero);
+  const selCross = (selId && String(selId).indexOf('x:') === 0)
+    ? crossings.find(c => c.node.id === String(selId).replace(/^x:[a-z]+:/, '')) : null;
+  const ownList = mine.filter(n => tierOpen(n.tier) || hasNode(n.id));
+  const sel = selCross ? null
+    : (selId && NODE_BY_ID[selId]) || ownList.find(n => nodeState(n) === 'ready') || ownList[0];
+  let detail = '<div class="et-detail-empty">Pick a node to inspect it.</div>';
+  if (selCross) {
+    const c = selCross, T = HEROES[c.teacher], L = HEROES[focusHero];
+    const act = c.state === 'crossed' ? `<span class="et-d-owned">⟡ ${c.common ? 'HELD' : 'LEARNED'}</span>`
+      : c.state === 'untaught' ? `<span class="et-d-lock">${T.name} has not kindled it yet</span>`
+      : c.state === 'unbonded' ? `<span class="et-d-lock">their bond is not <b>WOVEN</b> yet (♡ ${c.bond}/${CROSS_BOND}) — hold the thread through another fight</span>`
+      : c.state === 'unbridged' ? `<span class="et-d-lock">you hold no ground on this border — claim a <b>COMMON</b> stone between you and ${T.name} first</span>`
+      : `<button class="et-d-buy${c.state === 'poor' ? ' et-d-cant' : ''}" id="et-cross-buy" ${c.state === 'poor' ? 'disabled' : ''}>${c.common ? 'CLAIM' : 'LEARN'} · ✦ ${c.cost}</button>`;
+    const head = c.node.bond
+      ? `<div class="et-d-head"><span class="et-d-type t-bond">${c.node.glyph} BOND</span><span class="et-d-name">${c.node.label}</span></div>
+         <div class="et-d-cross">What <b style="color:${L.tint}">${L.name}</b> and <b style="color:${T.tint}">${T.name}</b> learned at the fire. It holds for the whole descent — no thread to re-earn each fight — and it <b>announces itself</b> the first time it lands.</div>`
+      : c.common
+      ? `<div class="et-d-head"><span class="et-d-type t-common">COMMON GROUND</span><span class="et-d-name">${c.node.label}</span></div>
+         <div class="et-d-cross">Neutral ground on the road between <b style="color:${L.tint}">${L.name}</b> and <b style="color:${T.tint}">${T.name}</b> — it belongs to neither of you, and holding it is what opens the far side of this border.</div>`
+      : `<div class="et-d-head"><span class="et-d-type t-cross">${KIN_WORD[c.kin]}</span><span class="et-d-name">${c.node.label}</span></div>
+         <div class="et-d-cross">${L.name} learns this from <b style="color:${T.tint}">${T.name}</b>${c.kin ? ` — ${c.kin === 2 ? 'the same school AND the same tempo' : 'a shared ' + (T.school === L.school ? 'school' : 'tempo')}, so it comes cheap` : ' — nothing in common, so it comes dear'}.</div>`;
+    detail = `${head}<div class="et-d-desc">${nodeDescHTML(c.node.desc)}</div><div class="et-d-foot">${act}</div>`;
+  } else if (sel) {
+    const st = nodeState(sel);
+    const reqNames = (sel.requires || []).filter(r => !hasNode(r)).map(r => (NODE_BY_ID[r] || {}).label);
+    const lane = etLaneOf(sel);
+    const action = st === 'owned' ? '<span class="et-d-owned">✓ TAKEN</span>'
+      : st === 'sealed' ? `<span class="et-d-lock et-sealed">descend deeper to unseal tier ${sel.tier}</span>`
+      : st === 'needs' ? `<span class="et-d-lock">needs ${reqNames.join(' · ')}</span>`
+      : `<button class="et-d-buy${st === 'poor' ? ' et-d-cant' : ''}" id="et-buy" ${st === 'poor' ? 'disabled' : ''}>KINDLE · ✦ ${sel.cost}</button>`;
+    detail = `<div class="et-d-top">
+        <span class="et-d-icon t-${sel.type}">${TREE_TYPE_GLYPH[sel.type] || '✦'}</span>
+        <span class="et-d-titles">
+          <span class="et-d-name">${sel.label}</span>
+          <span class="et-d-meta"><span class="et-d-type t-${sel.type}">${TREE_TYPE_LABEL[sel.type]}</span>${lane ? `<span class="et-d-lane">${lane.toUpperCase()} LINE</span>` : ''}</span>
+        </span>
+      </div>
+      <div class="et-d-desc">${etDescHTML(sel, lane)}</div>
+      <div class="et-d-foot">${action}</div>`;
+  }
+
+  return detail;
+}
+
+// THE PANEL RENDERS ON ITS OWN (Build 30) — selecting a node used to re-run
+// the whole screen, which threw the camera away and made every tap a hard cut.
+// The panel is rebuilt in place instead, and re-binds its own buttons.
+function etRenderDetail(onBack, heroId, selId) {
+  const box = document.querySelector('.et-detail');
+  if (!box) return;
+  box.innerHTML = etDetailHTML(heroId, selId);
+  etBindDetail(onBack, heroId, selId);
+}
+function etBindDetail(onBack, heroId, selId) {
+  const { sel, selCross } = etResolveSel(heroId, selId);
+  const buy = document.getElementById('et-buy');
+  if (buy && sel) buy.onclick = () => {
+    if (nodeState(sel) !== 'ready') return;
+    const first = !treeTaught();
+    addEmbers(-sel.cost); unlockNode(sel.id); setTreeTaught();
+    kindleBurst(sel, () => showEmberTree(onBack, heroId, first ? '__kindled:' + sel.id : sel.id));
+  };
+  const xbuy = document.getElementById('et-cross-buy');
+  if (xbuy && selCross) xbuy.onclick = () => {
+    if (selCross.state !== 'open') return;
+    addEmbers(-selCross.cost); learnCrossing(heroId, selCross.node); saveRun();
+    kindleBurst(selCross.node, () => showEmberTree(onBack, heroId, selId));
+  };
+}
 function renderLaneEchoes(party) {
   party.querySelectorAll('.slot').forEach(slot => {
     const fig = slot.querySelector('.figure');
@@ -12285,6 +12367,23 @@ const TREE_TYPE_GLYPH = { card: '❖', rider: '⊕', passive: '❉', allout: '�
 // glance: the TRIGGER (when it fires) becomes a chip, the effect stays crisp with
 // symbols, and the trailing flavor dims out.  Split flavor on the FIRST ' — '
 // (effects use ·, →, commas — never a spaced em-dash).
+// A node's desc opens with its own "COMBO · BACK:" stamp, which the panel
+// header now states in full — printed together they said the same thing three
+// times (badge, line, and the stamp). Drop the stamp when it only restates the
+// header; keep it when it carries a real trigger ("ON BREAK:", "WHEN WOVEN:").
+function etDescHTML(node, lane) {
+  let d = node.desc || '';
+  const kind = (TREE_TYPE_LABEL[node.type] || '').toUpperCase();
+  const row = (lane || '').toUpperCase();
+  const m = d.match(/^([A-Z][A-Z0-9 \u2019\u00b7\u00d7\/&+\-]{1,22}):\s+/);
+  if (m) {
+    const stamp = m[1].trim().replace(/\s+/g, ' ');
+    const parts = stamp.split('\u00b7').map(s => s.trim()).filter(Boolean);
+    const echoesHeader = parts.every(p => p === kind || p === row);
+    if (echoesHeader) d = d.slice(m[0].length);
+  }
+  return nodeDescHTML(d);
+}
 function nodeDescHTML(desc) {
   if (!desc) return '';
   let main = desc, flav = '';
@@ -12864,6 +12963,7 @@ function showEmberTree(onBack, heroId, selId, opts) {
     }).join('');
     const HH = HEROES[focusHero] || {};
     return `<div class="et-star" id="et-star" data-hero="${focusHero}">
+      <div class="et-view" id="et-view">
       <svg class="et-star-links" aria-hidden="true"></svg>
       ${tips}
       <div class="et-core" style="--tint:${HH.tint || 'var(--gold)'}">
@@ -12872,6 +12972,12 @@ function showEmberTree(onBack, heroId, selId, opts) {
         <span class="et-core-cls">${(HH.cls || '').toUpperCase()}</span>
       </div>
       ${chips}${weaveOrbs()}
+      </div>
+      <div class="et-zoom" aria-hidden="true">
+        <button class="et-zbtn" id="et-zin" title="Zoom in">+</button>
+        <button class="et-zbtn" id="et-zout" title="Zoom out">−</button>
+        <button class="et-zbtn" id="et-zfit" title="Fit the whole tree">◎</button>
+      </div>
     </div>`;
   };
 
@@ -12898,42 +13004,7 @@ function showEmberTree(onBack, heroId, selId, opts) {
     </button>`;
   }).join('');
 
-  // ---- DETAIL ---------------------------------------------------------------
-  const selCross = (selId && String(selId).indexOf('x:') === 0)
-    ? crossings.find(c => c.node.id === String(selId).replace(/^x:[a-z]+:/, '')) : null;
-  const ownList = mine.filter(n => tierOpen(n.tier) || hasNode(n.id));
-  const sel = selCross ? null
-    : (selId && NODE_BY_ID[selId]) || ownList.find(n => nodeState(n) === 'ready') || ownList[0];
-  let detail = '<div class="et-detail-empty">Pick a node to inspect it.</div>';
-  if (selCross) {
-    const c = selCross, T = HEROES[c.teacher], L = HEROES[focusHero];
-    const act = c.state === 'crossed' ? `<span class="et-d-owned">⟡ ${c.common ? 'HELD' : 'LEARNED'}</span>`
-      : c.state === 'untaught' ? `<span class="et-d-lock">${T.name} has not kindled it yet</span>`
-      : c.state === 'unbonded' ? `<span class="et-d-lock">their bond is not <b>WOVEN</b> yet (♡ ${c.bond}/${CROSS_BOND}) — hold the thread through another fight</span>`
-      : c.state === 'unbridged' ? `<span class="et-d-lock">you hold no ground on this border — claim a <b>COMMON</b> stone between you and ${T.name} first</span>`
-      : `<button class="et-d-buy${c.state === 'poor' ? ' et-d-cant' : ''}" id="et-cross-buy" ${c.state === 'poor' ? 'disabled' : ''}>${c.common ? 'CLAIM' : 'LEARN'} · ✦ ${c.cost}</button>`;
-    const head = c.node.bond
-      ? `<div class="et-d-head"><span class="et-d-type t-bond">${c.node.glyph} BOND</span><span class="et-d-name">${c.node.label}</span></div>
-         <div class="et-d-cross">What <b style="color:${L.tint}">${L.name}</b> and <b style="color:${T.tint}">${T.name}</b> learned at the fire. It holds for the whole descent — no thread to re-earn each fight — and it <b>announces itself</b> the first time it lands.</div>`
-      : c.common
-      ? `<div class="et-d-head"><span class="et-d-type t-common">COMMON GROUND</span><span class="et-d-name">${c.node.label}</span></div>
-         <div class="et-d-cross">Neutral ground on the road between <b style="color:${L.tint}">${L.name}</b> and <b style="color:${T.tint}">${T.name}</b> — it belongs to neither of you, and holding it is what opens the far side of this border.</div>`
-      : `<div class="et-d-head"><span class="et-d-type t-cross">${KIN_WORD[c.kin]}</span><span class="et-d-name">${c.node.label}</span></div>
-         <div class="et-d-cross">${L.name} learns this from <b style="color:${T.tint}">${T.name}</b>${c.kin ? ` — ${c.kin === 2 ? 'the same school AND the same tempo' : 'a shared ' + (T.school === L.school ? 'school' : 'tempo')}, so it comes cheap` : ' — nothing in common, so it comes dear'}.</div>`;
-    detail = `${head}<div class="et-d-desc">${nodeDescHTML(c.node.desc)}</div><div class="et-d-foot">${act}</div>`;
-  } else if (sel) {
-    const st = nodeState(sel);
-    const reqNames = (sel.requires || []).filter(r => !hasNode(r)).map(r => (NODE_BY_ID[r] || {}).label);
-    const lane = etLaneOf(sel);
-    const action = st === 'owned' ? '<span class="et-d-owned">✓ TAKEN</span>'
-      : st === 'sealed' ? `<span class="et-d-lock et-sealed">descend deeper to unseal tier ${sel.tier}</span>`
-      : st === 'needs' ? `<span class="et-d-lock">needs ${reqNames.join(' · ')}</span>`
-      : `<button class="et-d-buy${st === 'poor' ? ' et-d-cant' : ''}" id="et-buy" ${st === 'poor' ? 'disabled' : ''}>KINDLE · ✦ ${sel.cost}</button>`;
-    detail = `<div class="et-d-head"><span class="et-d-type t-${sel.type}">${TREE_TYPE_LABEL[sel.type]}</span><span class="et-d-name">${sel.label}</span></div>
-      ${lane ? `<div class="et-d-lane">changes the <b>${lane.toUpperCase()}</b> line</div>` : ''}
-      <div class="et-d-desc">${nodeDescHTML(sel.desc)}</div>
-      <div class="et-d-foot">${action}</div>`;
-  }
+  const detail = etDetailHTML(focusHero, selId);
 
   const tabHeroes = party.length ? party : [focusHero];
   const tabs = tabHeroes.map(hid => {
@@ -12979,22 +13050,22 @@ function showEmberTree(onBack, heroId, selId, opts) {
     };
   });
   document.querySelectorAll('.et-orb[data-id]').forEach(el => {
-    el.onclick = () => showEmberTree(onBack, heroId, el.dataset.id, opts);
+    el.onclick = () => {
+      const star = document.getElementById('et-star');
+      if (star && star._dragMoved) return;          // a drag pans; a tap selects
+      // selecting used to re-render the whole screen, which threw the camera
+      // away and made every tap a hard cut. Update in place, then fly to it.
+      document.querySelectorAll('.et-orb.et-sel').forEach(o => o.classList.remove('et-sel'));
+      el.classList.add('et-sel');
+      etRenderDetail(onBack, heroId, el.dataset.id);
+      etFocusNode(el);
+    };
   });
-  const buy = $('#et-buy');
-  if (buy && sel) buy.onclick = () => {
-    if (nodeState(sel) !== 'ready') return;
-    const first = !treeTaught();
-    const bought = sel;
-    addEmbers(-bought.cost); unlockNode(bought.id); setTreeTaught();
-    kindleBurst(bought, () => showEmberTree(onBack, heroId, first ? '__kindled:' + bought.id : bought.id));
-  };
-  const xbuy = $('#et-cross-buy');
-  if (xbuy && selCross) xbuy.onclick = () => {
-    if (selCross.state !== 'open') return;
-    addEmbers(-selCross.cost); learnCrossing(focusHero, selCross.node); saveRun();
-    kindleBurst(selCross.node, () => showEmberTree(onBack, heroId, selId));
-  };
+  attachStarView();
+  // a full render is a new screen — it opens framed, not wherever the camera
+  // was left by the last node you looked at
+  etResetView(false);
+  etBindDetail(onBack, heroId, selId);
   if (justKindled) {
     const c = document.querySelector('.et-side');
     if (c) { const b = document.createElement('div'); b.className = 'et-kindled-note'; b.innerHTML = '✓ <b>Kindled!</b> It’s in your hand now. Spend more embers here between fights — but it all resets if you fall.'; c.insertBefore(b, c.firstChild); }
@@ -13064,6 +13135,103 @@ const JOB_SIGIL = {
   </g></svg>`,
 };
 function jobSigil(id) { return JOB_SIGIL[id] || JOB_SIGIL.ash; }
+
+// ── THE VIEW (v2.2 Build 30) ────────────────────────────────────────────────
+// The star is laid out once, in the frame's own pixels; the VIEW is a camera
+// over that layout — drag to pan, pinch or wheel to zoom, and tapping a node
+// flies it to the middle and leans in. Layout and camera stay separate on
+// purpose: every position the relaxation solved keeps its meaning at any zoom,
+// and nothing has to be re-solved when the camera moves.
+const ET_VIEW = { x: 0, y: 0, k: 1, ax: 0, ay: 0, ak: 1 };
+const ET_KMIN = 0.7, ET_KMAX = 2.6;
+function etApplyView(animate) {
+  const view = document.getElementById('et-view');
+  if (!view) return;
+  view.style.transition = animate ? 'transform 420ms cubic-bezier(.25,.9,.3,1)' : 'none';
+  view.style.transform = `translate(${ET_VIEW.x.toFixed(1)}px, ${ET_VIEW.y.toFixed(1)}px) scale(${ET_VIEW.k.toFixed(3)})`;
+  const star = document.getElementById('et-star');
+  if (star) star.classList.toggle('et-zoomed', ET_VIEW.k > 1.04);
+}
+function etResetView(animate) {
+  ET_VIEW.x = 0; ET_VIEW.y = 0; ET_VIEW.k = 1;
+  etApplyView(!!animate);
+}
+// centre a node and lean in — the focus the player asked for by tapping it
+function etFocusNode(el, k) {
+  const star = document.getElementById('et-star');
+  if (!star || !el) return;
+  const sr = star.getBoundingClientRect();
+  // the GLYPH is the node; the chip's box also contains its name, and
+  // centring on that put every focused node a label's height off-centre
+  const er = (el.querySelector('.et-orb-glyph') || el).getBoundingClientRect();
+  const cx = sr.left + sr.width / 2, cy = sr.top + sr.height / 2;
+  const ex = er.left + er.width / 2, ey = er.top + er.height / 2;
+  // where the node sits in LAYOUT space, undoing the camera we already have
+  const lx = (ex - cx - ET_VIEW.x) / ET_VIEW.k, ly = (ey - cy - ET_VIEW.y) / ET_VIEW.k;
+  ET_VIEW.k = Math.max(ET_KMIN, Math.min(ET_KMAX, k || Math.max(1.55, ET_VIEW.k)));
+  ET_VIEW.x = -lx * ET_VIEW.k;
+  ET_VIEW.y = -ly * ET_VIEW.k;
+  etApplyView(true);
+}
+function etZoomBy(f) {
+  ET_VIEW.k = Math.max(ET_KMIN, Math.min(ET_KMAX, ET_VIEW.k * f));
+  ET_VIEW.x *= f > 1 ? 1 : 1;   // zoom about the middle; panning re-centres
+  etApplyView(true);
+}
+function attachStarView() {
+  const star = document.getElementById('et-star');
+  if (!star || star._viewBound) return;
+  star._viewBound = true;
+  const pts = new Map();
+  let last = null, pinch = 0, moved = 0;
+  const mid = () => {
+    const a = [...pts.values()];
+    return { x: (a[0].x + a[1].x) / 2, y: (a[0].y + a[1].y) / 2,
+             d: Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y) };
+  };
+  star.addEventListener('pointerdown', e => {
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pts.size === 1) { last = { x: e.clientX, y: e.clientY }; moved = 0; }
+    if (pts.size === 2) pinch = mid().d;
+    try { star.setPointerCapture(e.pointerId); } catch (_) {}
+  });
+  star.addEventListener('pointermove', e => {
+    if (!pts.has(e.pointerId)) return;
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pts.size === 2 && pinch > 0) {
+      const m = mid();
+      const f = m.d / pinch;
+      if (Math.abs(f - 1) > 0.008) {
+        ET_VIEW.k = Math.max(ET_KMIN, Math.min(ET_KMAX, ET_VIEW.k * f));
+        pinch = m.d; moved = 99; etApplyView(false);
+      }
+      return;
+    }
+    if (pts.size === 1 && last) {
+      const dx = e.clientX - last.x, dy = e.clientY - last.y;
+      moved += Math.abs(dx) + Math.abs(dy);
+      ET_VIEW.x += dx; ET_VIEW.y += dy;
+      last = { x: e.clientX, y: e.clientY };
+      etApplyView(false);
+    }
+  });
+  const up = e => {
+    pts.delete(e.pointerId);
+    if (pts.size < 2) pinch = 0;
+    if (pts.size === 0) { last = null; star._dragMoved = moved > 7; setTimeout(() => { star._dragMoved = false; }, 60); }
+  };
+  star.addEventListener('pointerup', up);
+  star.addEventListener('pointercancel', up);
+  star.addEventListener('wheel', e => {
+    e.preventDefault();
+    ET_VIEW.k = Math.max(ET_KMIN, Math.min(ET_KMAX, ET_VIEW.k * (e.deltaY < 0 ? 1.12 : 1 / 1.12)));
+    etApplyView(false);
+  }, { passive: false });
+  const bind = (id, fn) => { const b = document.getElementById(id); if (b) b.onclick = (ev) => { ev.stopPropagation(); fn(); }; };
+  bind('et-zin', () => etZoomBy(1.28));
+  bind('et-zout', () => etZoomBy(1 / 1.28));
+  bind('et-zfit', () => etResetView(true));
+}
 
 // ── LAYING OUT THE STAR ─────────────────────────────────────────────────────
 // Measured, not guessed. Each branch fans its nodes across its own wedge with
@@ -13243,6 +13411,7 @@ function etLayoutStar() {
     tip.style.left = Math.max(40, Math.min(W - 40, best.x)).toFixed(1) + 'px';
     tip.style.top = Math.max(16, Math.min(H - 16, best.y)).toFixed(1) + 'px';
   });
+  star.classList.add('et-laid');
   const svg = star.querySelector('.et-star-links');
   if (!svg) return;
   svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);

@@ -5783,6 +5783,56 @@ const QUICK = process.argv.includes('--quick');
       }
       return true;
     }));
+  check('CAMERA: the tree pans and zooms, and a fresh render opens framed',
+    await J(() => {
+      showEmberTree(() => {}, 'ash');
+      const view = document.getElementById('et-view');
+      const star = document.getElementById('et-star');
+      if (!view || !star) return false;
+      const opened = /scale\(1\)/.test(view.style.transform) || !view.style.transform;
+      const P = (ty, x, y) => star.dispatchEvent(new PointerEvent(ty, { bubbles: true, pointerId: 4, clientX: x, clientY: y }));
+      const r = star.getBoundingClientRect();
+      P('pointerdown', r.left + 60, r.top + 60);
+      P('pointermove', r.left + 130, r.top + 96);
+      P('pointerup', r.left + 130, r.top + 96);
+      const panned = /translate\((?!0px, 0px)/.test(view.style.transform);
+      document.getElementById('et-zin').click();
+      const zoomed = ET_VIEW.k > 1.05;
+      document.getElementById('et-zfit').click();
+      return opened && panned && zoomed && ET_VIEW.k === 1;
+    }));
+  check('CAMERA: tapping a node FLIES to it — centred and leaned in, without re-rendering the screen',
+    await J(() => {
+      showEmberTree(() => {}, 'ash');
+      const star = document.getElementById('et-star');
+      const el = [...star.querySelectorAll('.et-orb[data-id]')].find(e => e.className.indexOf('et-ready') !== -1);
+      if (!el) return false;
+      const before = star.querySelector('.et-core');
+      el.click();
+      const named = ((document.querySelector('.et-d-name') || {}).textContent || '')
+        === (NODE_BY_ID[el.dataset.id] || {}).label;
+      // the same star is still on screen (no re-render) and the camera leaned in
+      const same = star.querySelector('.et-core') === before;
+      return named && same && ET_VIEW.k > 1.2 && el.className.indexOf('et-sel') !== -1;
+    }));
+  check('PANEL: a node is stated ONCE — glyph, name, and one meta row; the desc no longer repeats its own kind and line',
+    await J(() => {
+      showEmberTree(() => {}, 'ash', 'ash.sig.back');
+      const icon = document.querySelector('.et-d-icon');
+      const meta = (document.querySelector('.et-d-meta') || {}).textContent || '';
+      const desc = (document.querySelector('.et-d-desc') || {}).textContent || '';
+      return !!icon && /COMBO/.test(meta) && /BACK/.test(meta)
+        && desc.indexOf('COMBO') !== 0 && !/COMBO · BACK/.test(desc);
+    }));
+  check('PANEL: a real trigger SURVIVES the strip — only a stamp that echoes the header is dropped',
+    await J(() => {
+      const trig = EMBER_TREE.find(n => n.hero === 'ash' && /^[A-Z][A-Z0-9 ’·×\/&+\-]{1,22}:/.test(n.desc || '')
+        && !/^(COMBO|FORK|PASSIVE|BOND)( · (FRONT|MID|BACK))?:/.test(n.desc || ''));
+      if (!trig) return true;                      // nothing to prove on this hero
+      showEmberTree(() => {}, 'ash', trig.id);
+      return !!document.querySelector('.et-d-desc .et-trig');
+    }));
+
   check('STAR: the panel names which line a node changes, so the purchase reads as a consequence',
     await J(() => { const el = document.querySelector('.et-star .et-orb[data-lane="front"], .et-star .et-orb[data-lane="mid"], .et-star .et-orb[data-lane="back"]');
       el.click();
@@ -6548,9 +6598,14 @@ const QUICK = process.argv.includes('--quick');
       RUN.bonds = { 'ash|elin': 2 }; renderResonance();
       const badge = document.querySelector('#resonance');
       const label = badge ? badge.textContent : '';
+      // read the PANEL, not the source: the detail builder moved out of
+      // showEmberTree at Build 30, and scraping a function body was always a
+      // proxy for the thing this check actually cares about — the words shown
+      RUN.nodes = ['ash.sig.front'];
+      showEmberTree(() => {}, 'ash', 'ash.sig.front');
+      const panel = (document.querySelector('.et-detail') || {}).textContent || '';
       return /KIZUNA/.test(label) && !/RESONANCE/.test(label)
-        && !/✓ KINDLED/.test(showEmberTree.toString())    // an OWNED node is TAKEN — "kindled" is a bond word
-        && /✓ TAKEN/.test(showEmberTree.toString());
+        && /TAKEN/.test(panel) && !/KINDLED/.test(panel);
     })()`));
   check('BOND NODE: one per pair, carrying that pair’s own authored ability',
     await J(() => BOND_NODES.length === 15 && EMBER_TREE.filter(n => n.bond).length === 15

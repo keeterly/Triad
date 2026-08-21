@@ -4826,6 +4826,9 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
   transform: translate(-50%, -50%); border-radius: 50%; pointer-events: none;
   background: radial-gradient(circle, rgba(255,196,110,0.13), rgba(255,170,80,0.05) 42%, rgba(0,0,0,0) 70%);
 }
+.et-view { position: absolute; inset: 0; transform-origin: 50% 50%; will-change: transform; }
+.et-star { touch-action: none; cursor: grab; overflow: hidden; }
+.et-star:active { cursor: grabbing; }
 .et-star-links { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .et-rail { stroke: rgba(232,220,196,0.09); stroke-width: 1.2; }
 .et-star-links .et-link { stroke: rgba(232,220,196,0.14); stroke-width: 1.2; }
@@ -5114,3 +5117,66 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
   text-shadow: 0 1px 3px #000; pointer-events: none;
 }
 .slot.slot-telegraphed .slot-rank { color: rgba(255,150,130,0.85); }
+
+/* ── THE CAMERA (v2.2 Build 30) ─────────────────────────────────────────────
+   Layout and camera are separate: the relaxation solves positions once in the
+   frame's own pixels, and this pans/zooms over that solution, so nothing has
+   to be re-solved when the view moves. */
+.et-star .et-zoom {
+  position: absolute; left: auto; right: 8px; bottom: 8px; z-index: 12;
+  display: flex; flex-direction: column; gap: 4px; pointer-events: auto;
+}
+.et-star .et-zbtn {
+  width: 24px; height: 24px; border-radius: 50%; cursor: pointer;
+  border: 1px solid rgba(212,200,168,0.2); background: rgba(12,9,7,0.8);
+  color: var(--ink-dim); font-family: inherit; font-size: 12px; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.et-star .et-zbtn:hover { color: var(--gold-bright); border-color: rgba(240,212,136,0.5); background: rgba(24,18,12,0.9); }
+/* zoomed in, the guide rings and the far branches recede so the node you
+   asked to look at is the thing you are looking at */
+.et-star.et-zoomed .et-guide { opacity: 0.4; }
+
+/* ── THE NODE PANEL (v2.2 Build 30) ─────────────────────────────────────────
+   It said the same thing three times — a COMBO badge, a "changes the FRONT
+   line" line, and the desc's own "COMBO · FRONT:" stamp. One identity block
+   now: the node's own glyph, its name, and a single meta row carrying kind and
+   line. The stamp is stripped from the desc when it only echoes that. */
+.et-d-top { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 9px; }
+.et-d-icon {
+  flex: 0 0 auto; width: 34px; height: 34px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; font-size: 15px;
+  background: radial-gradient(circle at 50% 36%, #211a14 0%, #080706 78%);
+  box-shadow: 0 0 0 1.4px rgba(240,212,136,0.4), 0 3px 9px rgba(0,0,0,0.6);
+  color: var(--gold-bright);
+}
+.et-d-titles { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.et-lines .et-d-name { font-size: 15px; letter-spacing: 0.02em; color: var(--ink); line-height: 1.15; }
+.et-d-meta { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.et-lines .et-d-type {
+  font-size: 7px; letter-spacing: 0.22em; padding: 2px 7px; border-radius: 9px;
+  border: 1px solid rgba(240,212,136,0.32); color: var(--gold-bright); background: rgba(240,212,136,0.07);
+}
+.et-lines .et-d-lane {
+  font-size: 7px; letter-spacing: 0.22em; color: var(--ink-faint); margin: 0;
+}
+.et-lines .et-d-desc {
+  font-size: 10.5px; line-height: 1.55; color: var(--ink-dim);
+  padding: 9px 0 4px; border-top: 1px solid rgba(212,200,168,0.09);
+}
+.et-lines .et-d-foot { margin-top: 11px; }
+.et-lines .et-d-buy { width: 100%; }
+/* BACK is a way out, not the loudest thing on the screen */
+.et-lines .et-back-btn {
+  align-self: flex-start; width: auto; min-width: 0;
+  padding: 6px 16px; font-size: 9px; letter-spacing: 0.24em;
+  border-radius: 20px; margin-top: auto;
+}
+/* NOTHING SHOWS BEFORE IT IS PLACED (Build 30). Chips are positioned by a
+   layout pass that runs after the markup lands, so for one frame every node
+   sat stacked in the corner and then jumped to its place — which is what made
+   swapping heroes feel like a stutter rather than a transition. The star is
+   held dark until it has been laid out. */
+.et-star:not(.et-laid) .et-view { opacity: 0; }
+.et-star.et-laid .et-view { transition: opacity 180ms ease; }
