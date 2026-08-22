@@ -2923,13 +2923,20 @@ button.map-node:not(:disabled) { cursor: pointer; }
 @keyframes pr-land { 0% { filter: brightness(2.6); } 100% { transform: translate(-50%,-50%) scale(1.6); opacity: 0; } }
 
 /* HIT FLASH + HITSTOP */
+/* THE VEIL, TIGHTENED (v2.2 Build 42). What is left of the flash belongs only to
+   authored moments — a kill, an all-out, a triad finale, a stage break — and even
+   there it was drawn as a near-opaque ellipse across most of the frame: 0.5 alpha
+   at `big`, 0.7 at `huge`, falling off at 66–72%. Measured, that took the action
+   area from 33 mean luminance to 84. It is a bloom on the point of impact now,
+   not a sheet over the screen: brighter at the centre, gone by the edges, and
+   half the reach. A big beat should make you blink, not blind you. */
 .hit-flash {
   position: absolute; inset: 0; z-index: 47; pointer-events: none;
-  background: radial-gradient(ellipse at 50% 46%, rgba(255,255,255,0.22) 0%, transparent 60%);
+  background: radial-gradient(ellipse at 50% 46%, rgba(255,255,255,0.16) 0%, transparent 42%);
   animation: hit-flash 0.12s ease-out forwards;
 }
-.hit-flash.hit-flash-big { background: radial-gradient(ellipse at 50% 46%, rgba(255,242,224,0.5) 0%, transparent 66%); animation-duration: 0.19s; }
-.hit-flash.hit-flash-huge { background: radial-gradient(ellipse at 50% 46%, rgba(255,248,236,0.7) 0%, rgba(255,200,170,0.24) 34%, transparent 72%); animation-duration: 0.24s; }
+.hit-flash.hit-flash-big { background: radial-gradient(ellipse at 50% 46%, rgba(255,242,224,0.34) 0%, transparent 40%); animation-duration: 0.17s; }
+.hit-flash.hit-flash-huge { background: radial-gradient(ellipse at 50% 46%, rgba(255,248,236,0.52) 0%, rgba(255,200,170,0.16) 24%, transparent 48%); animation-duration: 0.22s; }
 @keyframes hit-flash { 0% { opacity: 1; } 100% { opacity: 0; } }
 /* the meaty freeze on a heavy blow — every animation holds for ~85ms */
 #stage.hitstop, #stage.hitstop *, #stage.hitstop *::before, #stage.hitstop *::after { animation-play-state: paused !important; }

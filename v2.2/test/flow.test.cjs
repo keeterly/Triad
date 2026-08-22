@@ -1353,8 +1353,10 @@ const QUICK = process.argv.includes('--quick');
       const src = dealToEnemy.toString();
       _camShot = false; camRelease();
       // the suppression lives at the dealToEnemy call site; camPunch itself
-      // stays a free function (ripostes and struck heroes still use it)
-      return /if \(!_camShot\) camPunch/.test(src) && before === before && after !== undefined;
+      // stays a free function (ripostes and struck heroes still use it). Build 42
+      // added a second guard on the same line — a blow riding another blow's beat
+      // does not shove the lens either — so match the call, not the exact clause.
+      return /if \(!_camShot[^)]*\) camPunch/.test(src) && after !== undefined;
     }));
   check('SHOT: two quick actions glide SHOT-TO-SHOT — the lens never goes home between them',
     await J(async () => {
@@ -4777,6 +4779,92 @@ const QUICK = process.argv.includes('--quick');
       SETTINGS.parry = 'steady'; const steadyPerf = parryGrade(120), steadyStillGrades = parryGrade(300);
       SETTINGS.parry = was;
       return fullPerf === 'great' && steadyPerf === 'perfect' && steadyStillGrades === 'good'; }));
+  // ── THE ON-HIT BUNDLE, CUT DOWN (Build 42) ───────────────────────────────
+  // Measured with an ablation rig that fires one controlled blow per weight and
+  // photographs it: the action area sits at 33 mean luminance at rest, an
+  // ordinary heavy hit took it to 60, and a massive hit or any TECHNICAL took it
+  // to 84 — the foe, the ground and the damage number all bleached out at the
+  // instant they most need reading. Removing any other element changed the frame
+  // by nothing visible; removing the flash put it back at 34.
+  check('ON HIT: an ordinary blow does not wash the screen — the freeze does the work',
+    await J(async () => {
+      startFight({ type: 'fight', chapter: 2, heroes: ['ash'], enemies: ['husk'], narrator: 'hit' });
+      const e = S.enemies[0]; e.hp = e.maxHp = 4000; e.poise = e.poiseMax = 99;
+      dealToEnemy(e, 24, 'blade', 'ash');
+      await new Promise(r => setTimeout(r, 40));
+      const washed = document.querySelectorAll('.hit-flash').length;
+      const froze = document.getElementById('stage').classList.contains('hitstop');
+      return washed === 0 && froze;   // no veil, but the blow still lands with weight
+    }));
+  check('ON HIT: a chip does not freeze the game — weight is reserved for weight',
+    await J(async () => {
+      startFight({ type: 'fight', chapter: 2, heroes: ['ash'], enemies: ['husk'], narrator: 'chip' });
+      const st = document.getElementById('stage');
+      st.classList.remove('hitstop');           // a previous drill's freeze is not this one's
+      await new Promise(r => setTimeout(r, 220));
+      const e = S.enemies[0]; e.hp = e.maxHp = 4000; e.poise = e.poiseMax = 99;
+      e._lastHitAt = 0;                          // …and this blow opens its own beat
+      dealToEnemy(e, 4, 'blade', 'ash');
+      await new Promise(r => setTimeout(r, 40));
+      return !st.classList.contains('hitstop');
+    }));
+  // One card play lands the card and then, when a bond is lit, two automatic
+  // partner strikes — three blows inside 300ms, each of which used to run the
+  // entire bundle. BREAK and TECHNICAL are facts about the TARGET, not the blow.
+  check('ON HIT: a status is said ONCE per foe per turn, not once per blow',
+    await J(async () => {
+      startFight({ type: 'fight', chapter: 2, heroes: ['ash'], enemies: ['husk'], narrator: 'say once' });
+      const e = S.enemies[0]; e.hp = e.maxHp = 4000; e.poise = e.poiseMax = 99; e.staggered = true; e.lull = 2;
+      document.querySelectorAll('#popup-layer > *').forEach(n => n.remove());
+      dealToEnemy(e, 10, 'blade', 'ash');
+      dealToEnemy(e, 10, 'blade', 'ash');
+      dealToEnemy(e, 10, 'blade', 'ash');
+      await new Promise(r => setTimeout(r, 40));
+      const txt = [...document.querySelectorAll('#popup-layer .popup')].map(p => p.textContent);
+      const breaks = txt.filter(x => /BREAK/.test(x)).length;
+      const techs = txt.filter(x => /TECHNICAL/.test(x)).length;
+      return breaks <= 1 && techs <= 1 && txt.filter(x => /^−/.test(x)).length === 3;
+    }));
+  check('ON HIT: a follow-on blow keeps its number and gives up the shake and the shove',
+    await J(async () => {
+      startFight({ type: 'fight', chapter: 2, heroes: ['ash'], enemies: ['husk'], narrator: 'echo hit' });
+      const e = S.enemies[0]; e.hp = e.maxHp = 4000; e.poise = e.poiseMax = 99;
+      const st = document.getElementById('stage');
+      dealToEnemy(e, 24, 'blade', 'ash');
+      await new Promise(r => setTimeout(r, 30));
+      const shookFirst = /stage-shake/.test(st.className);
+      st.className = st.className.replace(/stage-shake-\w+/g, '');
+      dealToEnemy(e, 24, 'blade', 'ash');     // the partner strike, riding the same beat
+      await new Promise(r => setTimeout(r, 30));
+      const shookAgain = /stage-shake/.test(st.className);
+      return shookFirst && !shookAgain;
+    }));
+  check('ON HIT: POISE has a gauge, so it does not also print a number over the damage',
+    await J(async () => {
+      startFight({ type: 'fight', chapter: 2, heroes: ['ash'], enemies: ['husk'], narrator: 'poise' });
+      const e = S.enemies[0]; e.hp = e.maxHp = 4000; e.poise = e.poiseMax = 4;
+      document.querySelectorAll('#popup-layer > *').forEach(n => n.remove());
+      dealToEnemy(e, 6, e.def.weak, 'ash');    // a weakness hit — the chipping route
+      await new Promise(r => setTimeout(r, 40));
+      const txt = [...document.querySelectorAll('#popup-layer .popup')].map(p => p.textContent);
+      return e.poise === 3 && !txt.some(x => /POISE/.test(x));
+    }));
+  check('ON HIT: a foe’s damage number is not drawn behind its own intent pill',
+    await J(async () => {
+      startFight({ type: 'fight', chapter: 2, heroes: ['ash'], enemies: ['husk'], narrator: 'pill' });
+      renderAll();
+      const e = S.enemies[0]; e.hp = e.maxHp = 4000; e.poise = e.poiseMax = 99;
+      document.querySelectorAll('#popup-layer > *').forEach(n => n.remove());
+      dealToEnemy(e, 24, 'blade', 'ash');
+      await new Promise(r => setTimeout(r, 40));
+      const pop = document.querySelector('#popup-layer .popup.dmg');
+      const pill = document.querySelector('.figure.enemy .intent');
+      if (!pop || !pill) return false;
+      const a = pop.getBoundingClientRect(), b = pill.getBoundingClientRect();
+      const overlap = !(a.right < b.left || a.left > b.right || a.bottom < b.top || a.top > b.bottom);
+      return !overlap;
+    }));
+
   // ── THE BOARD HOLDS STILL (Build 41) ─────────────────────────────────────
   // The telegraph is a nameplate flashing red and a pill naming the blow, and
   // both live inside the `.figure` they describe. Every combat animation used to

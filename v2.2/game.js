@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 41;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 42;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -6419,10 +6419,16 @@ function dealToEnemy(e, amt, school, byHeroId) {
   const H = hitScale(e, school, byHeroId,
     { finisher: !!S._finisher, finisherName: S._finisherName });
   const mulOf = (k) => H.steps.some(x => x.k === k);
+  // SAY IT ONCE (v2.2 Build 42). Measured: a single card play deals THREE blows
+  // — the card, then two automatic bond strikes — and each one ran the whole
+  // on-hit bundle, so "×1.5 BREAK" and "⚡ TECHNICAL" each printed three times in
+  // 300ms on the same foe. Neither is a fact about the BLOW; both are facts
+  // about the target's state. They are said once per foe per turn now.
+  const saidThisTurn = (k) => { const key = '_said' + k; if (e[key] === S.turn) return true; e[key] = S.turn; return false; };
   if (mulOf('echo')) popupAt(figEl(e.uid), '◈ ECHOED — ×0.5', 'info');
   // BREAK WINDOW (Build 234): a broken foe takes ×1.5 from EVERY hit until it
   // recovers — a window the whole party piles into, not a single consumed ×2.
-  if (mulOf('break')) popupAt(figEl(e.uid), '×1.5 BREAK', 'dmg');
+  if (mulOf('break') && !saidThisTurn('Break')) popupAt(figEl(e.uid), '×1.5 BREAK', 'dmg');
   // TECHNICAL — striking a PRIMED foe (CHILLED or WEAKENED) off the weakness
   // line detonates the setup for bonus damage + momentum.  Teach the setup while
   // it EXISTS rather than after it detonates.
@@ -6475,8 +6481,13 @@ function dealToEnemy(e, amt, school, byHeroId) {
   }
   if (chips > 0 && e.hp > 0 && !S._burstResolving) {
     if (!e.staggered && (e.poise || 0) > 0) {
+      // THE GAUGE IS THE FEEDBACK (v2.2 Build 42). POISE already has a drawn
+      // gauge on the foe — ◈ pips that darken and pop as they go — and a popup
+      // saying the same thing stacked ABOVE the damage number on very nearly
+      // every blow, pushing the one number the player actually needs up under
+      // the intent pill. A stat with a visible meter does not also need a
+      // floating number; the meter is what a meter is for.
       e.poise = Math.max(0, e.poise - chips);
-      popupAt(figEl(e.uid), '◈ POISE −' + chips, 'info');
     }
     if (!e.staggered && (e.poise || 0) <= 0) {
       e.staggered = true;
@@ -6485,7 +6496,11 @@ function dealToEnemy(e, amt, school, byHeroId) {
       if (_foeAnim[e.uid]) { try { const r = figHitRect(figEl(e.uid)); const sr = $('#stage').getBoundingClientRect(), k = sr.width / stageDW();
         burstFxAt((r.left + r.width / 2 - sr.left) / k, (r.top + r.height * 0.4 - sr.top) / k); } catch (_) {} }
       gainMomentum(18);                            // the BREAK is a big surge
-      popupAt(figEl(e.uid), '⚡ BROKEN', 'dmg popup-big');
+      // ONE CALLOUT FOR ONE EVENT. The break used to print ⚡ BROKEN and then
+      // ◎ EXPOSED 3 as a second popup on the same anchor in the same frame, on
+      // top of the damage number and the poise number — four stacked messages at
+      // the single busiest instant in a fight. The break says both things itself.
+      popupAt(figEl(e.uid), '⚡ BROKEN · ◎3', 'dmg popup-big');
       flashNarrator(e.def.name + ' is BROKEN — it reels, and every blow lands harder until it recovers.');
       SFX.follow();
       // EMERGENT: a broken-open foe is also left EXPOSED — the stagger feeds the
@@ -6493,7 +6508,6 @@ function dealToEnemy(e, amt, school, byHeroId) {
       // Focus, Death Mark, Bloodscent, Marked-for-Death…) light up on the reeling
       // target.  Staggering and marking now compound instead of living apart.
       e.mark = (e.mark || 0) + 3;
-      popupAt(figEl(e.uid), '◎ EXPOSED 3', 'info');
       // The break itself is baseline (burst + PRESS-ON EP below).  CASHING it is an
       // earned per-hero skill (the EXECUTIONER node) — and each hero cashes it in
       // their OWN voice: a hero-flavoured finisher forged into hand, plus, for
@@ -6533,6 +6547,16 @@ function dealToEnemy(e, amt, school, byHeroId) {
   // frame. The hitstop then freezes the pose at its fullest extension, which
   // is the exact contact-frame pause that sells the blow. State (hp, embers,
   // death flags) stays synchronous — only the LIGHT is late.
+  // A FOLLOW-ON BLOW IS A LIGHTER BEAT (v2.2 Build 42). One card play lands the
+  // card and then, when a bond is lit, two automatic partner strikes — three
+  // blows inside 300ms, each firing a full impact burst, a shake and a camera
+  // punch of its own. The first blow of a beat gets the whole bundle; the ones
+  // riding on its coat-tails keep their number and their impact and give up the
+  // shake and the shove, so a combo reads as one event with three numbers rather
+  // than as three events.
+  const _hitNow = Date.now();
+  const _echoHit = !!(e._lastHitAt && _hitNow - e._lastHitAt < 700);
+  e._lastHitAt = _hitNow;
   const _atkH = byHeroId && S && S.heroes ? S.heroes.find(x => x.id === byHeroId) : null;
   const _dash = !!(_atkH && _atkH._held && !_atkH.downed);
   // a CAST's blade is the release frame, deeper into its walk than a dash's
@@ -6546,18 +6570,18 @@ function dealToEnemy(e, amt, school, byHeroId) {
     // in resolveCard where the attacker is known)
     impactFx(figEl(e.uid), school || 'phys', big); // school-typed blow lands
     struck(figEl(e.uid), 'r');                 // recoil + flash + brief stun
-    hitFlash(tier);                                 // screen flash (+ hitstop if heavy)
+    if (!_echoHit) hitStop(tier);                   // the freeze, without the wash (see hitStop)
     SFX.hit(big);
     // Build 275: a smooth ladder, and XL leaves ordinary combat entirely — it is
     // reserved for the authored moments (all-out, triad, stage break) that ask
     // for it by name. A heavy hit landing as hard as a triad finale is why the
     // big beats stopped reading as big.
-    if (tier >= 1) stageShake(['sm', 'sm', 'md', 'lg'][tier]);
+    if (tier >= 1 && !_echoHit) stageShake(['sm', 'sm', 'md', 'lg'][tier]);
     // Inside a SHOT the lens is already composed on this action — hitstop, the
     // shake and the flash carry the impact, and the frame HOLDS. Outside one
     // (ripostes, counters, loose damage) the punch still answers.
-    if (!_camShot) camPunch(tier, figEl(e.uid));
-    if (technical) {                                // detonation callout
+    if (!_camShot && !_echoHit) camPunch(tier, figEl(e.uid));
+    if (technical && !saidThisTurn('Tech')) {       // detonation callout, once
       popupAt(figEl(e.uid), '⚡ TECHNICAL', 'tech');
       techBurst(figEl(e.uid));
       // Build 275: no second shake. The tier shake already fired on this very
@@ -6880,10 +6904,35 @@ function struck(el, dir) {
   const cls = dir === 'r' ? 'fig-hit-r' : dir === 'l' ? 'fig-hit-l' : 'fig-hit';
   el.classList.remove('fig-hit', 'fig-hit-l', 'fig-hit-r'); void el.offsetWidth;
   el.classList.add(cls);
+  // …and take it off again. It was never removed, so a struck figure carried the
+  // class for the rest of the fight and every re-render (KEEP_ANIM preserves it)
+  // re-armed a recoil nothing had caused.
+  clearTimeout(el._struckT);
+  el._struckT = setTimeout(() => el.classList.remove(cls), 380);
 }
-// Full-screen impact flash, scaled by tier (0 light → 3 kill/massive).  Tier ≥ 2
-// also HITSTOPs — a freeze of every animation, longer the bigger the blow, for
-// that meaty "the blow connects" beat.
+// THE FREEZE WITHOUT THE WASH (v2.2 Build 42).
+//
+// Measured, with an ablation rig that fires one controlled blow per weight and
+// photographs it: the mean luminance of the action area is 33 at rest. An
+// ordinary heavy hit took it to 60. A massive hit, and every TECHNICAL, took it
+// to 84 — the whole frame two and a half times brighter, the foe, the ground and
+// the damage number all bleached out at exactly the instant the player needs to
+// read them. Removing any other element of the on-hit bundle changed the frame
+// by nothing you could see; removing the flash put it back at 34.
+//
+// The HITSTOP is the half of this that was doing the work — a freeze costs no
+// legibility at all — so it splits out and stays on every heavy blow. The white
+// veil is now reserved for the authored moments that are SUPPOSED to blow the
+// frame out: a kill, an all-out, a triad finale, a stage break.
+function hitStop(tier) {
+  tier = tier | 0;
+  if (tier < 2) return;
+  const st = $('#stage');
+  st.classList.add('hitstop');
+  const dur = tier >= 3 ? 155 : 95;
+  clearTimeout(st._hsT); st._hsT = setTimeout(() => st.classList.remove('hitstop'), dur);
+  try { SFX.hitstop(); } catch (_) {}
+}
 function hitFlash(tier) {
   tier = tier | 0;
   const st = $('#stage');
@@ -12411,7 +12460,15 @@ function popupAt(el, text, cls) {
   // and ZIGZAGS left/right so consecutive numbers never sit on top of each other.
   const dx = idx === 0 ? 0 : ((idx % 2) ? 1 : -1) * (16 + Math.floor((idx - 1) / 2) * 7);
   p.style.left = ((r.left + r.width / 2 - stageR.left) / scale + dx) + 'px';
-  p.style.top = ((r.top - stageR.top) / scale + 4 - idx * 24) + 'px';
+  // A NUMBER YOU CANNOT SEE IS NOT FEEDBACK (v2.2 Build 42). Popups anchored
+  // just above the figure's art — which on a FOE is exactly where its intent
+  // pill already sits, so the damage number, the one thing a player is looking
+  // for at that instant, was drawn behind the telegraph. Photographed and
+  // confirmed: the popup was present, opaque and invisible. A foe's numbers
+  // ride ON the creature instead; there is nothing else drawn there.
+  const onFoe = !!(el.classList && el.classList.contains('enemy'));
+  const anchorY = r.top + (onFoe ? r.height * 0.26 : 0);
+  p.style.top = ((anchorY - stageR.top) / scale + 4 - idx * 24) + 'px';
   if (idx) { p.style.animationDelay = (idx * 110) + 'ms'; p.style.animationFillMode = 'both'; }
   layer.appendChild(p);
   setTimeout(() => p.remove(), 1050 + idx * 110);
