@@ -15,6 +15,11 @@ narrow idle cell and a wide attack sweep alike.
 
 States are emitted in the order first seen; frames within a state in the order
 given.  Sources may be local paths or http(s) URLs.
+
+A frame may carry a height factor -- `death:kneel.png@0.78` -- which is what it
+measures against the FIRST frame's standing height.  Without it every pose is
+stretched to the same height, so a kneeling figure stands as tall as a walking
+one and a raised sword shrinks the body holding it.
 """
 import sys, os, json, io, urllib.request
 from collections import OrderedDict
@@ -64,31 +69,39 @@ def main(argv):
 
     states = OrderedDict()
     for spec in specs:
-        state, _, src = spec.partition(":")
+        head, _, src = spec.partition(":")
         if not src:
-            print("bad spec (want state:source): " + spec, file=sys.stderr)
+            print("bad spec (want state:source[@factor]): " + spec, file=sys.stderr)
             return 2
+        src, _, fac = src.partition("@")
+        factor = float(fac) if fac else 1.0
         fig = trim(key_out(load(src)))
-        # ONE scale for every frame: normalise on height so a wide attack
-        # sweep and a narrow idle read at the same character size.
-        k = REF_H / fig.height
-        fig = fig.resize((max(1, round(fig.width * k)), REF_H), Image.LANCZOS)
-        states.setdefault(state, []).append(fig)
+        # Each frame is normalised against the reference height it is DECLARED
+        # to occupy, not stretched to fill one cell. That keeps the character
+        # one size across the set while a kneel stays low and a raised blade
+        # reaches above the standing silhouette.
+        h = max(1, round(REF_H * factor))
+        k = h / fig.height
+        fig = fig.resize((max(1, round(fig.width * k)), h), Image.LANCZOS)
+        states.setdefault(head, []).append(fig)
 
     frames = [(s, f) for s, fs in states.items() for f in fs]
     rows = [frames[i:i + COLS] for i in range(0, len(frames), COLS)]
+    row_h = [max(f.height for _, f in r) for r in rows]
     sheet_w = max(sum(f.width + PAD for _, f in r) + PAD for r in rows)
-    sheet_h = len(rows) * (REF_H + PAD) + PAD
+    sheet_h = sum(rh + PAD for rh in row_h) + PAD
     sheet = Image.new("RGBA", (sheet_w, sheet_h), (0, 0, 0, 0))
 
     atlas, y = OrderedDict(), PAD
-    for row in rows:
+    for row, rh in zip(rows, row_h):
         x = PAD
         for state, f in row:
-            sheet.paste(f, (x, y))
-            atlas.setdefault(state, []).append([x, y, f.width, f.height])
+            # sit every frame on the row's baseline so feet line up
+            fy = y + rh - f.height
+            sheet.paste(f, (x, fy))
+            atlas.setdefault(state, []).append([x, fy, f.width, f.height])
             x += f.width + PAD
-        y += REF_H + PAD
+        y += rh + PAD
 
     sheet.save(out_path, "WEBP", quality=88, method=6, lossless=False)
     print("wrote %s  %dx%d  %d bytes" % (out_path, sheet_w, sheet_h, os.path.getsize(out_path)))

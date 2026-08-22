@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 45;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 46;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -637,7 +637,7 @@ function onHeroEnterRow(hero, toRow, fromRow) {
         popupAt(figEl(hero.id), '◆ MISFIRE −' + left, 'dmg' + (big ? ' popup-big' : ''));
         impactFx(figEl(hero.id), 'foe', big); struck(figEl(hero.id), 'l'); SFX.hit(big);
         if (big) stageShake('lg');
-        if (hero.hp === 0 && !wardFall(hero)) { hero.downed = true; popupAt(figEl(hero.id), 'DOWN', 'dmg'); }
+        if (hero.hp === 0 && !wardFall(hero)) { hero.downed = true; popupAt(figEl(hero.id), 'DOWN', 'dmg');  foeAnimState(hero.id, 'death'); }
       } else {
         popupAt(figEl(hero.id), '◆ INTERRUPTED', 'chill');
       }
@@ -4530,6 +4530,15 @@ function foeArtHTML(key, uid, animKey) {
     + ` onload="this.classList.add('fig-png-on')" onerror="this.remove()">`;
   return base + anim;
 }
+// A HERO's figure, painted the same way a foe's is: the portrait stays as the
+// floor, and the animated sheet lays over it only once the file really loads.
+// data-anim-kit is what tells the shared state machine which rects to cut.
+function heroArtHTML(id) {
+  const vec = V2PORTRAITS[id] || '';
+  if (!HERO_ANIM[id]) return vec;
+  return vec + `<span class="fig-anim" data-anim-uid="${id}" data-anim-kit="hero"`
+    + ` style="background-image:url('../art/${HERO_ANIM[id]}')"></span>`;
+}
 // reveal + attach animated layers whose sheets have really loaded.  The probe
 // result is CACHED per URL — figures rebuild every render, and re-probing a
 // missing sheet would 404 once per repaint (the plates learned this lesson in
@@ -4541,7 +4550,7 @@ function foeAnimReveal(scope) {
     if (!src) return;
     const url = src[1];
     const st = _foeAnimSheets[url];
-    if (st === 'ok') { el.classList.add('fig-anim-on'); foeAnimAttach(el.dataset.animUid, el); return; }
+    if (st === 'ok') { el.classList.add('fig-anim-on'); foeAnimAttach(el.dataset.animUid, el, el.dataset.animKit); return; }
     if (st === 'dead') { el.classList.add('fig-anim-dead'); return; }
     if (st === 'loading') return;
     _foeAnimSheets[url] = 'loading';
@@ -4660,10 +4669,54 @@ const FOE_ANIM_PLAY = {
   broken:   { ms: 420, loop: true, frames: 'heavy' },   // reels for the whole break window
   death:    { ms: 240, hold: true },
 };
+// ══ HERO ANIMATION (v2.2 Build 46) — the party gets the same treatment ═════
+// Ash's sheet is eleven painted frames on ONE image, cut by the same atlas
+// machinery the foes use.  Same degradation contract as FOE_ANIM: a hero
+// listed here keeps their portrait until the sheet actually loads.
+//
+// The rects come out of the real alpha content (tools/build-anim-sheet.py),
+// so nothing here is hand-calibrated.  Frame 0 of `idle` IS the portrait
+// plate, which is why a hero at rest looks exactly as they always have.
+const HERO_ANIM = {
+  ash: 'hero-ash-anim.webp',
+};
+const HERO_ANIM_SHEET = { w: 992, h: 736 };
+const HERO_ANIM_ATLAS = {
+  idle:     [[8, 36, 190, 230]],
+  prep:     [[206, 36, 192, 230],[406, 13, 185, 253]],
+  // ATTACK carries its OWN wind-up: draw-back, raise, down, extension,
+  // follow-through.  One trigger tells the whole swing, so the caller stays
+  // the single `lungeFig` beat it always was.
+  attack:   [[206, 36, 192, 230],[406, 13, 185, 253],[599, 8, 193, 258],[800, 84, 184, 182],[8, 320, 192, 200]],
+  recovery: [[208, 288, 188, 232]],
+  hit:      [[404, 274, 166, 246]],
+  heavy:    [[578, 331, 188, 189]],
+  // DEATH opens on the heavy-hit stagger, then sinks through both kneels.
+  death:    [[578, 331, 188, 189],[774, 338, 187, 182],[8, 528, 191, 200]],
+};
+const HERO_ANIM_PLAY = {
+  idle:     { ms: 900, loop: true },
+  prep:     { ms: 170, hold: true },
+  attack:   { ms: 92, then: 'recovery' },     // 5 frames ~= the 420ms strike beat
+  recovery: { ms: 200, then: 'idle' },
+  hit:      { ms: 260, then: 'idle' },
+  heavy:    { ms: 300, then: 'idle' },
+  broken:   { ms: 420, loop: true, frames: 'heavy' },
+  death:    { ms: 300, hold: true },
+};
+// A KIT is one sheet's three tables. Every figure carries the kit it was
+// attached with, so foes and heroes share one state machine and one ticker
+// without either side knowing the other's rects exist.
+const ANIM_KITS = {
+  foe:  { sheet: FOE_ANIM_SHEET,  atlas: FOE_ANIM_ATLAS,  play: FOE_ANIM_PLAY  },
+  hero: { sheet: HERO_ANIM_SHEET, atlas: HERO_ANIM_ATLAS, play: HERO_ANIM_PLAY },
+};
+
 const _foeAnim = {};   // uid -> { el, state, frame, at }
 let _foeAnimT = null;
-function foeAnimAttach(uid, el) {
-  _foeAnim[uid] = { el, state: 'idle', frame: 0, at: performance.now() };
+function foeAnimAttach(uid, el, kitName) {
+  const kit = ANIM_KITS[kitName] || ANIM_KITS.foe;
+  _foeAnim[uid] = { el, kit, state: 'idle', frame: 0, at: performance.now() };
   foeAnimPaint(_foeAnim[uid]);
   if (!_foeAnimT) _foeAnimT = setInterval(foeAnimTick, 80);
 }
@@ -4672,13 +4725,13 @@ function foeAnimState(uid, state) {
   if (!a || !a.el || !a.el.isConnected) return;
   if (a.state === 'death') return;                       // nothing interrupts the dissolve
   if (a.state === 'broken' && state !== 'death' && state !== 'idle' && state !== 'attack') return;
-  if (!FOE_ANIM_PLAY[state]) return;
+  if (!a.kit.play[state]) return;
   a.state = state; a.frame = 0; a.at = performance.now();
   foeAnimPaint(a);
 }
 function foeAnimPaint(a) {
-  const play = FOE_ANIM_PLAY[a.state];
-  const frames = FOE_ANIM_ATLAS[play.frames || a.state];
+  const play = a.kit.play[a.state];
+  const frames = a.kit.atlas[play.frames || a.state];
   const [x, y, w, h] = frames[Math.min(a.frame, frames.length - 1)];
   const boxW = a.el.clientWidth || 1, boxH = a.el.clientHeight || 1;
   // ONE scale for every frame: the tallest frame row fills the box height, so
@@ -4689,7 +4742,7 @@ function foeAnimPaint(a) {
   // (the floor boss's art spans its whole half) would otherwise show the
   // NEIGHBORING sheet cells on either side.
   a.el.style.width = (w * scale) + 'px';
-  a.el.style.backgroundSize = (FOE_ANIM_SHEET.w * scale) + 'px ' + (FOE_ANIM_SHEET.h * scale) + 'px';
+  a.el.style.backgroundSize = (a.kit.sheet.w * scale) + 'px ' + (a.kit.sheet.h * scale) + 'px';
   a.el.style.backgroundPosition = (-(x * scale)) + 'px ' + (-(y * scale) + (boxH - h * scale)) + 'px';
 }
 function foeAnimTick() {
@@ -4701,8 +4754,8 @@ function foeAnimTick() {
     if (!a.el || !a.el.isConnected) { delete _foeAnim[uid]; continue; }
     live++;
     if (typeof camReduced === 'function' && camReduced()) continue;   // hold the pose
-    const play = FOE_ANIM_PLAY[a.state];
-    const frames = FOE_ANIM_ATLAS[play.frames || a.state];
+    const play = a.kit.play[a.state];
+    const frames = a.kit.atlas[play.frames || a.state];
     if (now - a.at < play.ms) continue;
     a.at = now;
     if (a.frame + 1 < frames.length) { a.frame++; foeAnimPaint(a); }
@@ -6895,6 +6948,10 @@ function stageShake(mag) {
 function struck(el, dir) {
   if (!el) return;
   const cls = dir === 'r' ? 'fig-hit-r' : dir === 'l' ? 'fig-hit-l' : 'fig-hit';
+  // an animated hero also plays the painted recoil; foes are driven from the
+  // resolver, which knows the blow's weight, so they are left alone here
+  const sid = el.dataset && el.dataset.fig;
+  if (sid && HERO_ANIM[sid]) foeAnimState(sid, 'hit');
   el.classList.remove('fig-hit', 'fig-hit-l', 'fig-hit-r'); void el.offsetWidth;
   el.classList.add(cls);
   // …and take it off again. It was never removed, so a struck figure carried the
@@ -9166,7 +9223,7 @@ async function enemyPhase() {
         }
       }
       if (h.counter > 0 && !e.dead) { dealToEnemy(e, h.counter); flashNarrator(h.def.name + ' counters!'); }
-      if (h.hp === 0 && !wardFall(h)) { h.downed = true; popupAt(figEl(h.id), 'DOWN', 'dmg'); }
+      if (h.hp === 0 && !wardFall(h)) { h.downed = true; popupAt(figEl(h.id), 'DOWN', 'dmg');  foeAnimState(h.id, 'death'); }
     }
     if (!hitAny) {
       popupAt(figEl(e.uid), 'MISS', 'info');
@@ -11456,7 +11513,7 @@ function renderBattlefield() {
         fig.dataset.fig = who.id;
         fig.innerHTML = `
           ${solo ? `<span class="stance-tag">${STANCE[who.row].name.toUpperCase()}</span>` : ''}
-          <div class="fig-art">${V2PORTRAITS[who.id] || ''}${who.downed ? '' : auraHTML(partyAuraObj(who))}</div>
+          <div class="fig-art">${heroArtHTML(who.id)}${who.downed ? '' : auraHTML(partyAuraObj(who))}</div>
           <div class="hp-bar"><div class="hp-fill" style="width:${(who.hp / who.maxHp) * 100}%"></div>${
             woundOf(who) ? `<div class="hp-wound" style="width:${(woundOf(who) / who.maxHp) * 100}%" title="✖ WOUNDED ${woundOf(who)} — healing cannot reach this. Only a REST at a fire closes it."></div>` : ''}</div>
           <div class="fig-name"><span class="fn-txt">${who.def.name}</span><span class="hp-num">${who.hp}/${who.maxHp}</span></div>
@@ -12524,10 +12581,12 @@ function lungeFig(el) {
   const h = (typeof S !== 'undefined' && S && S.heroes) ? S.heroes.find(x => x.id === hid) : null;
   if (h && h._castAnim) return;   // a caster casts IN PLACE — the sheet is the action
   if (h && h._held && !h.downed) {
+    foeAnimState(hid, 'attack');
     el.classList.remove('fig-strike'); void el.offsetWidth; el.classList.add('fig-strike');
     setTimeout(() => el.classList.remove('fig-strike'), 600);
     return;
   }
+  if (hid) foeAnimState(hid, 'attack');
   el.classList.remove('fig-lunge-hero'); void el.offsetWidth; el.classList.add('fig-lunge-hero');
   setTimeout(() => el.classList.remove('fig-lunge-hero'), 420);
 }

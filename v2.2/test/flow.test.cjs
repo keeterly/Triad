@@ -1795,6 +1795,56 @@ const QUICK = process.argv.includes('--quick');
         && /foeAnimState\(e\.uid, 'death'\)/.test(d);
     }));
 
+  // ---------- BUILD 46: HERO ANIMATION — the party runs the same machine ----------
+  check('HERO ANIM: every hero playback state maps to real atlas frames, all inside the sheet',
+    await J(() => Object.keys(HERO_ANIM_PLAY).every(st => {
+      const frames = HERO_ANIM_ATLAS[HERO_ANIM_PLAY[st].frames || st];
+      return Array.isArray(frames) && frames.length >= 1
+        && frames.every(f => f.length === 4 && f[0] >= 0 && f[1] >= 0
+          && f[0] + f[2] <= HERO_ANIM_SHEET.w && f[1] + f[3] <= HERO_ANIM_SHEET.h);
+    })));
+  check("HERO ANIM: ATTACK carries its own wind-up — the swing is longer than the draw-back alone",
+    await J(() => HERO_ANIM_ATLAS.attack.length > HERO_ANIM_ATLAS.prep.length
+      && HERO_ANIM_ATLAS.attack.length >= 5
+      && HERO_ANIM_PLAY.attack.then === 'recovery'));
+  check("HERO ANIM: a kneeling frame is SHORTER than a standing one — poses are not stretched to one height",
+    await J(() => {
+      const stand = HERO_ANIM_ATLAS.idle[0][3];
+      return HERO_ANIM_ATLAS.death[HERO_ANIM_ATLAS.death.length - 1][3] < stand
+        && HERO_ANIM_ATLAS.heavy[0][3] < stand;
+    }));
+  check("HERO ANIM: Ash's real sheet reveals on a live battlefield and attaches with the HERO kit",
+    await J(async () => {
+      startFight({ type: 'fight', chapter: 1, heroes: ['ash', 'mira'], enemies: ['husk'], narrator: 'hero anim live' });
+      renderAll();
+      await new Promise(r => setTimeout(r, 900));
+      const el = document.querySelector('#party-half .figure[data-fig="ash"] .fig-anim');
+      const a = el && _foeAnim[el.dataset.animUid];
+      return !!el && el.classList.contains('fig-anim-on') && el.dataset.animKit === 'hero'
+        && !!a && a.kit === ANIM_KITS.hero && a.state === 'idle';
+    }));
+  check('HERO ANIM: the two kits stay independent — a hero and a foe cut from different rect tables at once',
+    await J(async () => {
+      startFight({ type: 'fight', chapter: 3, depth: 7, floor: 1, useRunHp: true,
+                   heroes: ['ash'], enemies: ['echoknight2'], isBoss: true, narrator: 'two kits' });
+      renderAll();
+      await new Promise(r => setTimeout(r, 900));
+      const h = document.querySelector('#party-half .figure[data-fig="ash"] .fig-anim');
+      const f = document.querySelector('#enemy-half .fig-anim');
+      const ha = h && _foeAnim[h.dataset.animUid], fa = f && _foeAnim[f.dataset.animUid];
+      return !!ha && !!fa && ha.kit !== fa.kit
+        && ha.kit.sheet === HERO_ANIM_SHEET && fa.kit.sheet === FOE_ANIM_SHEET;
+    }));
+  check('HERO ANIM: an unlisted hero keeps their portrait and grows no animation layer',
+    await J(() => !HERO_ANIM.mira && !/fig-anim/.test(heroArtHTML('mira')) && /fig-anim/.test(heroArtHTML('ash'))));
+  check('HERO ANIM: the combat hooks are wired — a swing plays ATTACK, a blow plays HIT, going down plays DEATH',
+    await J(() => {
+      const l = lungeFig.toString(), sh = struck.toString(), ep = enemyPhase.toString();
+      return /foeAnimState\(hid, 'attack'\)/.test(l)
+        && /foeAnimState\(sid, 'hit'\)/.test(sh)
+        && /foeAnimState\(h\.id, 'death'\)/.test(ep);
+    }));
+
   // ---------- BUILD 237: CAST FX — the sheet's projectile + impact burst ----------
   check('FX: the atlas rects for orb stages and the burst all sit inside the sheet',
     await J(() => FOE_FX.orb.every(f => f[0] >= 0 && f[1] >= 0 && f[0] + f[2] <= FOE_ANIM_SHEET.w && f[1] + f[3] <= FOE_ANIM_SHEET.h)
