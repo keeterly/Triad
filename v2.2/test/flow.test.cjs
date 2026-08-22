@@ -4781,6 +4781,42 @@ const QUICK = process.argv.includes('--quick');
       SETTINGS.parry = 'steady'; const steadyPerf = parryGrade(120), steadyStillGrades = parryGrade(300);
       SETTINGS.parry = was;
       return fullPerf === 'great' && steadyPerf === 'perfect' && steadyStillGrades === 'good'; }));
+  // ── ONE COLUMN, ONE FRAME (Build 45) ─────────────────────────────────────
+  check('READOUT: rapid popups stack in ONE column, not a scatter of indents',
+    await J(async () => {
+      startFight({ type: 'fight', chapter: 1, heroes: ['ash', 'mira'], enemies: ['husk'], narrator: 'col' });
+      renderAll();
+      const fig = figEl('ash');
+      document.querySelectorAll('#popup-layer > *').forEach(n => n.remove());
+      popupAt(fig, '−12', 'dmg'); popupAt(fig, '⛨ 3', 'guard'); popupAt(fig, '▲ +2', 'rally');
+      await new Promise(r => setTimeout(r, 30));
+      const ps = [...document.querySelectorAll('#popup-layer .popup')].map(p => {
+        const b = p.getBoundingClientRect(); return { cx: b.left + b.width / 2, top: b.top }; });
+      if (ps.length < 3) return false;
+      const sameAxis = ps.every(p => Math.abs(p.cx - ps[0].cx) < 1.5);
+      const climbs = ps[1].top < ps[0].top && ps[2].top < ps[1].top;
+      return sameAxis && climbs;
+    }));
+  // A partial parry used to print three separate things in the same frame, in
+  // three sizes, at three places above the hero: a receipt, "N% PARRIED · +BURST"
+  // and "BRACED +2". All three describe one event.
+  check('PARRY: one statement for one parry — the receipt, and nothing beside it',
+    await J(() => {
+      // match the CALL, not the words — the comment above braceFloor explains
+      // what was removed and would otherwise match itself
+      const src = enemyPhase.toString();
+      return !/popupAt\([^)]*PARRIED · \+BURST/.test(src)
+          && !/popupAt\([^)]*BRACED \+/.test(src)
+          && /braceFloor\(ptHero\)/.test(src);   // the guard still lands; the ⛨ chip carries it
+    }));
+  check('BOSS: the frame is anchored on the CREATURE, not on the edge of its box',
+    await J(() => {
+      // renderFloorBoss measures the art and publishes its centre; the whole
+      // readout column — name, health, chips, telegraph — hangs off that
+      const src = renderFloorBoss.toString();
+      return /--boss-cx/.test(src) && /getBoundingClientRect/.test(src);
+    }));
+
   // ── THE POPUP VOCABULARY, CUT DOWN (Build 44) ────────────────────────────
   // There are ~160 places in game.js that can raise a floating label. Nothing
   // counted them and nothing bounded them. Measured over a real nine-turn fight

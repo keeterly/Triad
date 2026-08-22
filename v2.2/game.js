@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 44;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 45;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -8961,10 +8961,18 @@ async function enemyPhase() {
     // trying, which is the exact shape of a difficulty that breaks instead of
     // bending. Answering a cascade at all now earns the same armour opting out
     // does. It costs a good player nothing and gives a struggling one a floor.
+    // ONE STATEMENT FOR ONE PARRY (v2.2 Build 45). A partial parry printed three
+    // separate things in the same frame, in three different sizes, at three
+    // different places above the hero: a RECEIPT ("4/8 turned · the rest gets
+    // through"), a popup ("63% PARRIED · +BURST") and another popup ("BRACED
+    // +2"). All three describe the same event. The receipt is the one that says
+    // it best — it names the count, not a percentage of a number the player never
+    // saw — so the receipt carries the guard too, and the popups are gone.
     const braceFloor = (h) => {
       if (!h || h.downed) return;
+      // the guard lands on the hero's own ⛨ chip, which is drawn — same rule as
+      // every other gauged stat on the board
       h.guard = (h.guard || 0) + PARRY_GUARD_PER_TURN;
-      popupAt(figEl(h.id), '⛨ BRACED +' + PARRY_GUARD_PER_TURN, 'guard');
     };
     const weightMode = PARRY_ENABLED && S.node && S.node.useRunHp;   // real run hits harder
     const ptRow = rows.find(r => heroInRow(r));
@@ -9041,7 +9049,6 @@ async function enemyPhase() {
       } else if (mit > 0) {
         // PARTIAL — you caught some of the cascade; only the missed share lands
         parryMul = 1 - mit;
-        popupAt(figEl(ptHero.id), '⛨ ' + Math.round(mit * 100) + '% PARRIED · +BURST', 'guard');
         gainMomentum(Math.round(5 + mit * 11), { combo: true });   // Build 197: partial-parry burst reined in (was 6 + mit*14)
         braceFloor(ptHero);
       } else {
@@ -11740,6 +11747,24 @@ function renderFloorBoss(enemyHalf, fboss, tgt) {
   fig.className = 'figure enemy floor-boss' + (justDied ? ' fig-dying' : '') + (primed && !justDied ? ' fig-primed' : '')
     + ((tgt && !tgt.isRow && tgt.validIds.includes(fboss.uid)) ? ' fig-targetable' : '');
   fig.onclick = () => onFigureTap(fboss.uid);
+  // THE FRAME BELONGS TO THE CREATURE (v2.2 Build 45). A boss's name, health,
+  // status and telegraph were four separate absolutely-positioned things: the
+  // name pinned to the LEFT EDGE of the figure box, the telegraph floating at
+  // whatever height the art happened to start. Measured on the Hollow Maw, the
+  // figure box spans x 527-928 while the creature is actually drawn at 607-825 —
+  // so "left edge of the figure" put its name 117px away from it, under the
+  // narrator line, reading as a caption for nothing. The art's own centre is the
+  // only honest anchor, and it has to be measured because a boss's art is sized
+  // and offset by its own sheet. One column, on the creature, below the narrator.
+  requestAnimationFrame(() => {
+    try {
+      const art = fig.querySelector('.fig-png-on') || fig.querySelector('.fig-art svg') || fig.querySelector('.fig-art');
+      const fr = fig.getBoundingClientRect(), ar = art && art.getBoundingClientRect();
+      if (!ar || !fr.width || !ar.width) return;
+      const pct = ((ar.left + ar.width / 2) - fr.left) / fr.width * 100;
+      fig.style.setProperty('--boss-cx', Math.max(18, Math.min(82, pct)) + '%');
+    } catch (_) {}
+  });
   if (enemyHalf.firstElementChild !== fig || enemyHalf.childElementCount !== 1) {
     while (enemyHalf.firstChild) enemyHalf.removeChild(enemyHalf.firstChild);
     enemyHalf.appendChild(fig);
@@ -12450,9 +12475,13 @@ function popupAt(el, text, cls) {
   const p = document.createElement('div');
   p.className = 'popup ' + (cls || '');
   p.textContent = text;
-  // Stack readably: each rapid follow-up rides HIGHER (a clear gap, not a pile)
-  // and ZIGZAGS left/right so consecutive numbers never sit on top of each other.
-  const dx = idx === 0 ? 0 : ((idx % 2) ? 1 : -1) * (16 + Math.floor((idx - 1) / 2) * 7);
+  // ONE COLUMN, NOT A SCATTER (v2.2 Build 45). Rapid popups used to ZIGZAG left
+  // and right — 16px, then 23, then 30 — so that consecutive numbers would not
+  // sit on each other. What it actually produced was a spray of text above a
+  // hero at five different indents, which reads as disorder rather than as a
+  // list. They stack straight up now, centred on the same axis, evenly spaced:
+  // the eye follows one column and the newest is always on top.
+  const dx = 0;
   p.style.left = ((r.left + r.width / 2 - stageR.left) / scale + dx) + 'px';
   // A NUMBER YOU CANNOT SEE IS NOT FEEDBACK (v2.2 Build 42). Popups anchored
   // just above the figure's art — which on a FOE is exactly where its intent
@@ -12462,7 +12491,7 @@ function popupAt(el, text, cls) {
   // ride ON the creature instead; there is nothing else drawn there.
   const onFoe = !!(el.classList && el.classList.contains('enemy'));
   const anchorY = r.top + (onFoe ? r.height * 0.34 : 0);
-  p.style.top = ((anchorY - stageR.top) / scale + 4 - idx * 24) + 'px';
+  p.style.top = ((anchorY - stageR.top) / scale + 4 - idx * 19) + 'px';
   if (idx) { p.style.animationDelay = (idx * 110) + 'ms'; p.style.animationFillMode = 'both'; }
   layer.appendChild(p);
   setTimeout(() => p.remove(), 1050 + idx * 110);

@@ -5505,16 +5505,26 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
 .figure.floor-boss .fig-chips {
   position: absolute; left: 2%; transform: none; z-index: 9;
 }
-/* Measured on the same frame, by column: the top-left of the enemy half — the
-   first third, x 510-657 — is 0-2% bright pixels, empty ruins. The bottom-left
-   looked empty too until the card fan was accounted for, which reaches into it.
-   So the readout is a HEADER, top-left: name and health on one line, a short bar
-   under it, the status chips under that. Nothing over the creature, nothing under
-   the hand. */
+/* ONE FRAME, ON THE CREATURE (v2.2 Build 45). Build 43 pinned this to the LEFT
+   EDGE of the figure box, which on the Hollow Maw is 117px from where the
+   creature is actually drawn — a caption for empty ruins, sitting under the
+   narrator line. `--boss-cx` is the art's measured centre (set in
+   renderFloorBoss, because a boss's art is sized and offset by its own sheet),
+   and everything the player must read about the boss stacks in one column on it,
+   in reading order: who it is and how much is left, then what it is about to do.
+   The telegraph is part of the frame now instead of floating at whatever height
+   the art happened to begin. */
+.figure.floor-boss .fig-name,
+.figure.floor-boss .hp-bar,
+.figure.floor-boss .fig-chips,
+.figure.floor-boss .intent {
+  left: var(--boss-cx, 50%); transform: translateX(-50%);
+}
 .figure.floor-boss .fig-name {
-  top: 2px; font-size: 8.5px; letter-spacing: 0.16em;
-  justify-content: flex-start; max-width: 46%; color: var(--ink-dim);
+  top: 8px; font-size: 8.5px; letter-spacing: 0.16em;
+  justify-content: center; max-width: 46%; color: var(--ink-dim);
 }
 .figure.floor-boss .fig-name .hp-num { font-size: 13px; color: #ffd9c8; margin-left: 4px; }
-.figure.floor-boss .hp-bar { width: 36%; top: 19px; height: 7px; }
-.figure.floor-boss .fig-chips { top: 30px; max-width: 46%; justify-content: flex-start; }
+.figure.floor-boss .hp-bar { width: 32%; top: 25px; height: 7px; }
+.figure.floor-boss .fig-chips { top: 36px; max-width: 46%; justify-content: center; }
+.figure.floor-boss .intent { position: absolute; top: 56px; margin-bottom: 0; }
