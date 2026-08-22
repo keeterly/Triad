@@ -4777,6 +4777,76 @@ const QUICK = process.argv.includes('--quick');
       SETTINGS.parry = 'steady'; const steadyPerf = parryGrade(120), steadyStillGrades = parryGrade(300);
       SETTINGS.parry = was;
       return fullPerf === 'great' && steadyPerf === 'perfect' && steadyStillGrades === 'good'; }));
+  // ── THE LINE TRACK (Build 40) ────────────────────────────────────────────
+  // The design doc says a turn is ONE QUESTION — how deep is the line, who can
+  // close it, for how much. Every part of that answer lived only in memory: the
+  // depth in S.line.depth drawn nowhere, the FOCUS bonus applied silently at
+  // deal time so a card's face changed with no stated reason, the rally banked
+  // on the line a number with no pixel. What the screen said was a floating
+  // "✦ THE LINE", which conveys that a line exists and nothing else.
+  // These four run the ROTATION engine, so the suite's force-classic flag has to
+  // come off around them (it is restored below).
+  await J(() => { try { window.__ltfc = localStorage.getItem('kizuna2_2.forceClassic'); localStorage.removeItem('kizuna2_2.forceClassic'); } catch (_) {} });
+  check('LINE TRACK: no line, no strip — it exists only while the question is open',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash', 'hask', 'mira']; RUN.active = RUN.roster.slice();
+      RUN._rotations = true; RUN._line = true;
+      startFight({ type: 'fight', chapter: 1, heroes: ['ash', 'hask', 'mira'], enemies: ['husk'], narrator: 'line track' });
+      renderAll();
+      const el = document.getElementById('line-track');
+      return !!el && el.classList.contains('hidden');
+    }));
+  check('LINE TRACK: it states the depth, every carrier, and what each one would close for',
+    await J(async () => {
+      RUN = newRun('ash'); RUN.roster = ['ash', 'hask', 'mira']; RUN.active = RUN.roster.slice();
+      RUN._rotations = true; RUN._line = true;
+      startFight({ type: 'fight', chapter: 1, heroes: ['ash', 'hask', 'mira'], enemies: ['husk'], narrator: 'line track' });
+      S.ep = 9; renderAll();
+      const op = buildHand().find(c => c.kind === 'opener');
+      if (!op) return false;
+      await playCard(op, (frontmostEnemy() || {}).uid);
+      S.ep = 9; renderAll();
+      const el = document.getElementById('line-track');
+      if (!el || el.classList.contains('hidden')) return false;
+      const t = el.textContent;
+      // the depth, a pip lit for it, and an EP price on at least one hero
+      return /BEAT 1/.test(t) && el.querySelectorAll('.lt-pip.on').length === 1
+          && el.querySelectorAll('.lt-hero').length === 3
+          && el.querySelectorAll('.lt-cost').length >= 1;
+    }));
+  check('LINE TRACK: the FOCUS a carried beat buys is STATED, not sprung on the card face',
+    await J(async () => {
+      RUN = newRun('ash'); RUN.roster = ['ash', 'hask', 'mira']; RUN.active = RUN.roster.slice();
+      RUN._rotations = true; RUN._line = true;
+      startFight({ type: 'fight', chapter: 1, heroes: ['ash', 'hask', 'mira'], enemies: ['husk'], narrator: 'line focus' });
+      S.ep = 9; renderAll();
+      const op = buildHand().find(c => c.kind === 'opener');
+      if (!op) return false;
+      await playCard(op, (frontmostEnemy() || {}).uid);
+      S.ep = 9; renderAll();
+      const cell = [...document.querySelectorAll('#line-track .lt-hero')]
+        .find(x => x.textContent.indexOf('+') >= 0);
+      return !!cell && /\+\d/.test(cell.querySelector('.lt-focus').textContent);
+    }));
+  check('LINE TRACK: what is banked on the line is drawn, and END TURN wears the forfeit',
+    await J(async () => {
+      RUN = newRun('ash'); RUN.roster = ['ash', 'hask', 'mira']; RUN.active = RUN.roster.slice();
+      RUN._rotations = true; RUN._line = true;
+      startFight({ type: 'fight', chapter: 1, heroes: ['ash', 'hask', 'mira'], enemies: ['husk'], narrator: 'line bank' });
+      S.ep = 9; renderAll();
+      const op = buildHand().find(c => c.kind === 'opener');
+      if (!op || !S.line && false) return false;
+      await playCard(op, (frontmostEnemy() || {}).uid);
+      if (!S.line) return false;
+      S.line.rally = 4; S.ep = 9; renderAll();
+      const rally = document.querySelector('#line-track .lt-rally');
+      const et = document.getElementById('btn-endturn');
+      return !!rally && /4/.test(rally.textContent) && et.classList.contains('et-forfeit')
+          && /forfeit/.test(et.title || '');
+    }));
+
+  await J(() => { try { if (window.__ltfc) localStorage.setItem('kizuna2_2.forceClassic', window.__ltfc); } catch (_) {} });
+
   // ── THE FACE IS THE NUMBER THAT LANDS (Build 39) ─────────────────────────
   // Measured before the fix: on a clean board every face was honest, and under
   // any live modifier 530 of 989 readings lied — every damage face wrong against

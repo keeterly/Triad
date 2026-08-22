@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 39;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 40;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -2080,7 +2080,11 @@ function resolveLinePlay(card, h) {
   // middle of its own combat, which reads as tutorial copy rather than as a
   // fight. The line's state is already legible from the table: the cards say
   // COMBO or FINISHER on their faces. Name the beat and get out of the way.
-  popupAt(figEl(h.id), dealt.finishing ? '✦ FINISH' : '✦ THE LINE', 'rally');
+  // THE STRIP SAYS WHAT THE LABEL SAID, AND THE REST OF IT (Build 40). A
+  // floating "✦ THE LINE" conveyed that a line existed and nothing else; the
+  // track above the hand carries the depth, the carriers, the FOCUS and the
+  // bank. Only the CLOSE still deserves a shout of its own.
+  if (dealt.finishing) popupAt(figEl(h.id), '✦ FINISH', 'rally');
   flashNarrator('<b>' + h.def.name + '</b> ' + (card.kind === 'opener' ? 'opens' : 'carries') + ' — '
     + dealt.names.join(' · ') + '.');
   lesson('line', 'THE LINE IS THE PARTY\u2019S — any card deals the next beat to everyone. Carry it for a bigger FINISHER, or pass it and light a bond.', 3);
@@ -11938,6 +11942,60 @@ function renderBurst() {
   burst.style.cursor = full ? 'pointer' : 'default';
   if (full && !wasFull) haptic(HAP.good);
 }
+// ─────────────────────────────────────────────────────────────────────────────
+// THE LINE TRACK (v2.2 Build 40)
+//
+// The design doc says a turn is ONE QUESTION: how deep is the line, who can
+// close it, and for how much. Every part of that answer existed only in memory.
+// The depth lived in S.line.depth and was drawn nowhere. The FOCUS bonus for
+// carrying beats was applied silently at deal time, so a card's face changed
+// and the reason never appeared. The rally banked ON the line — which is
+// forfeited if the line does not close — was a number with no pixel. What the
+// screen actually said was a floating "✦ THE LINE", which conveys that a line
+// exists and nothing else.
+//
+// The strip states the question directly above the hand that answers it, and by
+// existing it teaches the whole mechanic: open → carry → close.
+function renderLineTrack() {
+  const el = document.getElementById('line-track');
+  if (!el) return;
+  if (!S || S.over || !lineOn() || !lineLive() || !S.line) { el.classList.add('hidden'); el.innerHTML = ''; return; }
+  const line = S.line;
+  const beats = line.beats || [];
+  // the finisher a hero is holding RIGHT NOW, if any — that is what "can close"
+  // means, and its cost is the price of the answer
+  const finisherOf = (h) => S.tempCards.find(t => t.chain && t.owner === h.id && /FINISHER/.test(t.stance || ''));
+  const heroes = livingHeroes().map(h => {
+    const carried = beats.filter(id => id === h.id).length;
+    const fin = finisherOf(h);
+    return { h, carried,
+      // the FOCUS a NEXT finisher of theirs would carry — the surprise, stated
+      focus: LINE_FOCUS[Math.min(carried, LINE_FOCUS.length - 1)] || 0,
+      cost: fin ? fin.cost : null };
+  });
+  const rally = line.rally || 0;
+  const held = livingHeroes().reduce((a, h) => a + (h._pendCharge || 0), 0);
+  const depth = line.depth || 0;
+  const pips = [0, 1, 2].map(i => `<span class="lt-pip${i < depth ? ' on' : ''}"></span>`).join('');
+  const heroCells = heroes.map(x => {
+    const can = x.cost != null;
+    return `<span class="lt-hero${can ? ' lt-can' : ''}">`
+      + `<b>${x.h.def.name.toUpperCase()}</b>`
+      + (x.carried ? `<span class="lt-carry" title="beats carried this line">${'●'.repeat(Math.min(x.carried, 3))}</span>` : '')
+      + (x.focus ? `<span class="lt-focus" title="FOCUS — their finisher lands +${x.focus} for the beats they carried">+${x.focus}</span>` : '')
+      + (can ? `<span class="lt-cost" title="can CLOSE the line for ${x.cost} EP">${x.cost}EP</span>` : '')
+      + `</span>`;
+  }).join('');
+  const risk = (rally || held) ? ' lt-risk' : '';
+  const bank = `<span class="lt-bank">`
+    + (rally ? `<span class="lt-rally${risk}" title="banked on the LINE — lost if it does not close">▲ +${rally}</span>` : '')
+    + (held ? `<span class="lt-held${risk}" title="◆ CHARGE held provisionally — lost if the line does not close">◆ ${held} held</span>` : '')
+    + `</span>`;
+  el.innerHTML = `<span class="lt-pips" title="beats played into this line">${pips}</span>`
+    + `<span class="lt-beat">BEAT ${Math.min(depth, 3)}</span>`
+    + `<span class="lt-heroes">${heroCells}</span>` + bank;
+  el.classList.remove('hidden');
+}
 function renderActionBar() {
   $('#ep-num').textContent = S.ep;
   $('#ep-max').textContent = '/' + S.maxEp;
@@ -11949,6 +12007,15 @@ function renderActionBar() {
   const anyPlayable = hand.some(c => !c.spent && c.cost <= S.ep)
     || livingHeroes().some(h => canMove(h));
   $('#btn-endturn').classList.toggle('et-nudge', !S.executing && !S.over && !anyPlayable);
+  // ENDING THE TURN ON A LIVE LINE FORFEITS WHAT IS BANKED ON IT — silently,
+  // until now. The button says so, on itself, before it is pressed.
+  renderLineTrack();
+  const lineOpen = !S.over && lineOn() && lineLive() && !!S.line;
+  const banked = lineOpen ? ((S.line.rally || 0) + livingHeroes().reduce((a, h) => a + (h._pendCharge || 0), 0)) : 0;
+  $('#btn-endturn').classList.toggle('et-forfeit', !!banked);
+  $('#btn-endturn').title = banked
+    ? 'the line is still open — ending the turn forfeits what is banked on it'
+    : '';
 
   const handEl = $('#hand');
   if (S.over) { handEl.innerHTML = ''; S._handStructSig = S._handAffSig = null; return; }

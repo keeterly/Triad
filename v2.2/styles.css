@@ -5385,3 +5385,54 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
 /* the card's sentence carries the same live number its icon row does */
 .c-desc .d-mod-up { color: #8dffb0; }
 .c-desc .d-mod-down { color: #ff9b80; }
+
+/* ── THE LINE TRACK (v2.2 Build 40) ────────────────────────────────────────
+   The design doc says a turn is one question: how deep is the line, who can
+   close it, and for how much. All three lived in memory — the depth in
+   S.line.depth, the carried-beat FOCUS bonus applied silently at deal time,
+   the banked rally in a number nothing drew. A floating "✦ THE LINE" label
+   said only that a line existed. The strip states the question above the hand
+   that answers it, and by existing it teaches open → carry → close. */
+/* WHERE IT ACTUALLY FITS. The spec asked for the strip docked directly above
+   the hand. Measured on the 760×430 design canvas there is no band there to
+   dock into: the card fan is 158px tall in a 114px bar, so it overflows 44px
+   upward and its titles land exactly where the FRONT hero's nameplate already
+   sits. A strip in that gap covers one or the other. The band under the
+   narrator is genuinely empty, always on screen, and reads as what this is —
+   the turn's question, stated once at the top of the turn. */
+#action-bar { position: relative; }
+#line-track {
+  position: absolute; top: 52px; left: 50%; transform: translateX(-50%);
+  max-width: 92%; height: 19px; display: flex; align-items: center; gap: 10px;
+  padding: 0 9px; border-radius: 10px; pointer-events: none; z-index: 6;
+  background: linear-gradient(180deg, rgba(24,17,30,0.92), rgba(12,9,16,0.94));
+  border: 1px solid rgba(154,120,192,0.42);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+  font-size: 9px; letter-spacing: 0.08em; color: var(--ink-dim);
+  white-space: nowrap; overflow: hidden;
+}
+#line-track.hidden { display: none; }
+.lt-pips { display: flex; align-items: center; gap: 3px; flex: none; }
+.lt-pip { width: 7px; height: 7px; border-radius: 50%; border: 1px solid rgba(154,120,192,0.55); }
+.lt-pip.on { background: #c9a9ff; border-color: #c9a9ff; box-shadow: 0 0 6px rgba(201,169,255,0.55); }
+.lt-beat { color: var(--ink-dim); flex: none; }
+.lt-heroes { display: flex; align-items: center; gap: 9px; flex: 1; min-width: 0; overflow: hidden; }
+.lt-hero { display: flex; align-items: center; gap: 3px; flex: none; color: var(--ink-dim); }
+.lt-hero b { color: var(--ink); font-weight: 700; letter-spacing: 0.1em; }
+.lt-hero .lt-carry { color: #c9a9ff; }
+.lt-hero .lt-focus { color: #8dffb0; }
+.lt-hero.lt-can b { color: #ffe14a; }
+.lt-hero .lt-cost {
+  color: #ffe14a; border: 1px solid rgba(255,225,74,0.45); border-radius: 6px;
+  padding: 0 4px; line-height: 12px;
+}
+.lt-bank { flex: none; display: flex; align-items: center; gap: 7px; }
+.lt-bank .lt-rally { color: #ffb35c; }
+.lt-bank .lt-held { color: #7fd4ff; }
+.lt-bank .lt-risk { color: #ff9b80; }
+/* END TURN wears the forfeit it is about to cause */
+#btn-endturn.et-forfeit {
+  border-color: rgba(255,140,110,0.7);
+  color: #ff9b80;
+  box-shadow: 0 0 12px rgba(255,120,90,0.28);
+}
