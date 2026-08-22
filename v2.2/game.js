@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 46;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 47;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -4680,25 +4680,34 @@ const FOE_ANIM_PLAY = {
 const HERO_ANIM = {
   ash: 'hero-ash-anim.webp',
 };
-const HERO_ANIM_SHEET = { w: 992, h: 736 };
+const HERO_ANIM_SHEET = { w: 912, h: 672 };
+// ASH IS A RONIN, AND A SKIRMISHER — "strikes and slips, repositions as he
+// attacks".  The first pass gave him a berserker's overhead chop, which is the
+// wrong character: these frames are a low coiled draw, a rising cut out of it,
+// a lateral pass at full extension, and the landing past with his head turned
+// back over his shoulder.  GUARD and THROW exist because his kit asks for them
+// — Crossguard and Flowing Cut are blocks, and Thrown Edge throws before it
+// closes — so the pose follows the CARD, not just "he did damage".
 const HERO_ANIM_ATLAS = {
-  idle:     [[8, 36, 190, 230]],
-  prep:     [[206, 36, 192, 230],[406, 13, 185, 253]],
-  // ATTACK carries its OWN wind-up: draw-back, raise, down, extension,
-  // follow-through.  One trigger tells the whole swing, so the caller stays
-  // the single `lungeFig` beat it always was.
-  attack:   [[206, 36, 192, 230],[406, 13, 185, 253],[599, 8, 193, 258],[800, 84, 184, 182],[8, 320, 192, 200]],
-  recovery: [[208, 288, 188, 232]],
-  hit:      [[404, 274, 166, 246]],
-  heavy:    [[578, 331, 188, 189]],
+  idle:     [[8, 8, 190, 230]],
+  prep:     [[206, 49, 163, 189]],
+  // ATTACK carries its own wind-up: the coil, then the three cut frames.
+  attack:   [[206, 49, 163, 189],[377, 8, 172, 230],[557, 79, 167, 159],[732, 52, 172, 186]],
+  recovery: [[8, 246, 172, 230]],
+  guard:    [[188, 251, 133, 225]],
+  throw:    [[329, 246, 172, 230]],
+  hit:      [[509, 255, 149, 221]],
+  heavy:    [[666, 307, 168, 169]],
   // DEATH opens on the heavy-hit stagger, then sinks through both kneels.
-  death:    [[578, 331, 188, 189],[774, 338, 187, 182],[8, 528, 191, 200]],
+  death:    [[666, 307, 168, 169],[8, 501, 168, 163],[184, 484, 172, 180]],
 };
 const HERO_ANIM_PLAY = {
   idle:     { ms: 900, loop: true },
   prep:     { ms: 170, hold: true },
-  attack:   { ms: 92, then: 'recovery' },     // 5 frames ~= the 420ms strike beat
+  attack:   { ms: 105, then: 'recovery' },    // 4 frames ~= the 420ms strike beat
   recovery: { ms: 200, then: 'idle' },
+  guard:    { ms: 520, then: 'idle' },        // the brace holds, then settles
+  throw:    { ms: 300, then: 'recovery' },    // released, then back to guard
   hit:      { ms: 260, then: 'idle' },
   heavy:    { ms: 300, then: 'idle' },
   broken:   { ms: 420, loop: true, frames: 'heavy' },
@@ -4769,6 +4778,16 @@ function foeAnimTick() {
 // ---------------------------------------------------------------------------
 // HAND
 // ---------------------------------------------------------------------------
+// WHICH POSE A CARD ASKS FOR.  An attacking card is deliberately absent: its
+// swing is fired by `lungeFig` at the moment the blow LANDS, so the cut stays
+// married to the impact instead of playing early. What is left is the shape of
+// the act — a block is a block, and a throw is a throw.
+function heroPoseForCard(card) {
+  const fx = (card && card.fx) || {};
+  if (fx.step) return 'throw';                     // thrown, then he closes
+  if (!fx.dmg && (fx.guard || fx.counter)) return 'guard';
+  return null;
+}
 function cardType(card) {
   if (card.kind === 'resonant') return 'resonant';
   if (card.kind === 'temp') return 'temp';
@@ -6024,6 +6043,8 @@ async function resolveCard(card, targetId) {
     owner._held = true;
     owner._actSeq = S._actSeq = (S._actSeq || 0) + 1;   // recency — the last actor paints on top
     beginCastAnim(owner, card);
+    const pose = heroPoseForCard(card);
+    if (pose) foeAnimState(owner.id, pose);
   }
 
   const fx = card.fx || {};
@@ -13892,6 +13913,12 @@ function etApplyView(animate) {
   if (!view) return;
   view.style.transition = animate ? 'transform 420ms cubic-bezier(.25,.9,.3,1)' : 'none';
   view.style.transform = `translate(${ET_VIEW.x.toFixed(1)}px, ${ET_VIEW.y.toFixed(1)}px) scale(${ET_VIEW.k.toFixed(3)})`;
+  // Publish the camera scale so a node's TOUCH TARGET can be counter-scaled and
+  // hold a constant size on screen. Measured at the framed zoom, an orb's glyph
+  // renders 22px — half of any platform's minimum, which is most of why the
+  // tree felt unpressable. The drawing may shrink with the camera; the thing
+  // you aim at must not.
+  view.style.setProperty('--etk', ET_VIEW.k.toFixed(3));
   const star = document.getElementById('et-star');
   if (star) star.classList.toggle('et-zoomed', ET_VIEW.k > (ET_VIEW.fit || 1) * 1.04);
 }
@@ -13937,12 +13964,16 @@ function etZoomBy(f) {
   ET_VIEW.k = Math.max(ET_KMIN, Math.min(ET_KMAX, ET_VIEW.k * f));
   etApplyView(true);
 }
+// How far a finger may wander and still be a TAP. Platform tap slop is ~10px;
+// this is measured on the raw pointer, so it is honest screen distance whatever
+// the stage scale or the camera zoom happen to be.
+const TREE_TAP_SLOP = 12;
 function attachStarView() {
   const star = document.getElementById('et-star');
   if (!star || star._viewBound) return;
   star._viewBound = true;
   const pts = new Map();
-  let last = null, pinch = 0, moved = 0;
+  let last = null, pinch = 0, origin = null, maxOff = 0, captured = false;
   const mid = () => {
     const a = [...pts.values()];
     return { x: (a[0].x + a[1].x) / 2, y: (a[0].y + a[1].y) / 2,
@@ -13950,9 +13981,14 @@ function attachStarView() {
   };
   star.addEventListener('pointerdown', e => {
     pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (pts.size === 1) { last = { x: e.clientX, y: e.clientY }; moved = 0; }
-    if (pts.size === 2) pinch = mid().d;
-    try { star.setPointerCapture(e.pointerId); } catch (_) {}
+    if (pts.size === 1) { last = { x: e.clientX, y: e.clientY }; origin = { x: e.clientX, y: e.clientY }; maxOff = 0; captured = false; }
+    // CAPTURE ONLY ONCE A DRAG IS REAL.  Capturing on pointerdown retargets
+    // every following event to #et-star, so the browser fires the CLICK on the
+    // star and never on the orb underneath the finger — which made pressing a
+    // node impossible rather than merely fiddly.  A pinch is unambiguous, so
+    // the second pointer may capture straight away; a single pointer waits
+    // until it has travelled past the tap slop.
+    if (pts.size === 2) { pinch = mid().d; try { star.setPointerCapture(e.pointerId); } catch (_) {} captured = true; }
   });
   star.addEventListener('pointermove', e => {
     if (!pts.has(e.pointerId)) return;
@@ -13962,25 +13998,38 @@ function attachStarView() {
       const f = m.d / pinch;
       if (Math.abs(f - 1) > 0.008) {
         ET_VIEW.k = Math.max(ET_KMIN, Math.min(ET_KMAX, ET_VIEW.k * f));
-        pinch = m.d; moved = 99; ET_VIEW.auto = false; etApplyView(false);
+        pinch = m.d; maxOff = 999; ET_VIEW.auto = false; etApplyView(false);
       }
       return;
     }
     if (pts.size === 1 && last) {
       const dx = e.clientX - last.x, dy = e.clientY - last.y;
-      moved += Math.abs(dx) + Math.abs(dy);
+      // WHAT COUNTS AS A DRAG is how far the finger got FROM WHERE IT LANDED,
+      // not how far it travelled getting there. Summing |dx|+|dy| per move event
+      // accumulated: a finger resting on a node jitters a pixel at a time, a
+      // dozen events cross any small threshold, and the tap was thrown away as a
+      // pan. Nodes were genuinely hard to press. Track the furthest offset from
+      // the touch-down point instead, against a real tap slop.
+      if (origin) maxOff = Math.max(maxOff, Math.hypot(e.clientX - origin.x, e.clientY - origin.y));
+      last = { x: e.clientX, y: e.clientY };
+      if (!captured) {
+        if (maxOff <= TREE_TAP_SLOP) return;      // still a tap — leave the orb its click
+        try { star.setPointerCapture(e.pointerId); } catch (_) {}
+        captured = true;
+      }
       // pointer deltas are viewport pixels; the camera lives in layout pixels
       const sr = star.getBoundingClientRect();
       const S = sr.width / (star.offsetWidth || sr.width) || 1;
       ET_VIEW.x += dx / S; ET_VIEW.y += dy / S; ET_VIEW.auto = false;
-      last = { x: e.clientX, y: e.clientY };
       etApplyView(false);
     }
   });
   const up = e => {
     pts.delete(e.pointerId);
     if (pts.size < 2) pinch = 0;
-    if (pts.size === 0) { last = null; star._dragMoved = moved > 7; setTimeout(() => { star._dragMoved = false; }, 60); }
+    try { star.releasePointerCapture(e.pointerId); } catch (_) {}
+    if (pts.size === 0) { last = null; origin = null; captured = false;
+      star._dragMoved = maxOff > TREE_TAP_SLOP; setTimeout(() => { star._dragMoved = false; }, 60); }
   };
   star.addEventListener('pointerup', up);
   star.addEventListener('pointercancel', up);

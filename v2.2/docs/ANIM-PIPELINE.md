@@ -26,8 +26,28 @@ pairs each sheet with its rects so one state machine and one ticker serve both
 sides without either knowing the other's rects exist. A figure carries the kit
 it was attached with, chosen by `data-anim-kit` on the layer.
 
-A hero's `attack` carries its own wind-up -- draw-back, raise, down, extension,
-follow-through -- so the caller stays the single `lungeFig` beat it always was.
+A hero's `attack` carries its own wind-up, so the caller stays the single
+`lungeFig` beat it always was.
+
+## 1b. Poses belong to the archetype, not to the weapon
+
+`HEROES[id]` carries `cls`, `archetype` and `identity`, and the poses have to
+answer them. Ash is a **Ronin / Skirmisher** who "strikes and slips,
+repositions as he attacks" -- the first pass gave him a generic greatsword
+raised overhead and chopped down, which reads as a berserker and is simply the
+wrong character. His frames are now a low coiled draw, a rising cut out of it,
+a lateral pass at full extension, and a landing past with his head turned back
+over his shoulder.
+
+Read the hero's CARDS too, and give the states they ask for. Ash blocks
+(Crossguard, Flowing Cut) and throws before he closes (Thrown Edge), so he has
+`guard` and `throw` frames, and `heroPoseForCard` picks between them:
+
+- `fx.step` -> `throw`
+- `fx.guard` or `fx.counter` with no `fx.dmg` -> `guard`
+- anything that deals damage -> nothing here, because `lungeFig` fires the
+  swing at the moment the blow LANDS and the cut must stay married to the
+  impact rather than playing early.
 
 ## 2. Composing a sheet
 
@@ -100,6 +120,15 @@ back `nsfw` and cost a retry. Reword toward posture rather than harm --
 **Cut out with the real remover.** A border flood-fill handles most frames but
 cannot reach background enclosed by an arm and a blade, and it leaves the soft
 ground shadow behind. `remove_background` on every frame is cheap and uniform.
+It still keeps a drawn ground line as its own island, which is what the
+compositor's despeckle pass is for -- though a line actually TOUCHING a boot is
+one component with the figure and survives both.
+
+**Measure the body, not the bounding box.** A blade is a few pixels wide and
+will happily count as "head": a guarding figure holding his sword upright
+measured TALLER than the same figure standing, so the factor shrank him. Take
+the first row that is torso-wide instead. With that, factor is simply the
+source's trimmed height over the shared canvas height.
 
 ### Egress
 

@@ -3326,6 +3326,24 @@ button.map-node:not(:disabled) { cursor: pointer; }
   position: absolute; transform: translate(-50%,-50%); z-index: 2;
   width: 62px; display: flex; flex-direction: column; align-items: center; gap: 3px;
   background: none; border: none; cursor: pointer; font-family: inherit; padding: 0;
+  -webkit-tap-highlight-color: transparent; touch-action: none;
+}
+/* A REAL TOUCH TARGET.  The glyph is 42px, and a sealed or unreachable node
+   hides its name — which shrinks the button to exactly that 42px circle, under
+   every platform's 44px minimum and smaller again once the stage scale lands on
+   a phone.  A transparent pad centred on the GLYPH (not on the button, whose
+   height changes with the label) gives every orb the same generous circle to
+   aim at without changing a pixel of what is drawn.  54px keeps it clear of
+   the ~108px on-screen ring step, so no two pads can overlap. */
+.et-orb::before {
+  content: ''; position: absolute; left: 50%; top: 21px;
+  transform: translate(-50%, -50%);
+  /* counter-scaled by the camera (--etk), so this stays ~46 REAL px however
+     far out the tree is zoomed.  Capped at 74 layout px so that at the framed
+     zoom, where orbs sit closest together, two pads still cannot overlap. */
+  width: min(74px, calc(46px / var(--etk, 1)));
+  height: min(74px, calc(46px / var(--etk, 1)));
+  border-radius: 50%; z-index: 0;
 }
 .et-orb-glyph {
   width: 42px; height: 42px; border-radius: 50%; display: flex; align-items: center; justify-content: center;

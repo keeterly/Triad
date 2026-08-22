@@ -61,6 +61,58 @@ def trim(im):
     return im.crop(box) if box else im
 
 
+def despeckle(im, keep=0.02):
+    """Drop opaque islands the figure is not attached to.
+
+    A background remover reliably leaves the drawn ground line under the feet
+    as its own little component -- a grey smear that reads as dirt once the
+    frame is 230px tall. Keep the largest connected region and anything within
+    `keep` of it (so a flung cloak wisp survives), drop the rest.
+    """
+    a = im.getchannel("A")
+    w, h = a.size
+    px = a.load()
+    lab = [0] * (w * h)
+    sizes = [0]
+    cur = 0
+    for sy in range(h):
+        for sx in range(w):
+            i = sy * w + sx
+            if lab[i] or px[sx, sy] <= 128:
+                continue
+            cur += 1
+            n = 0
+            stack = [i]
+            lab[i] = cur
+            while stack:
+                j = stack.pop()
+                n += 1
+                jy, jx = divmod(j, w)
+                for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                    nx, ny = jx + dx, jy + dy
+                    if 0 <= nx < w and 0 <= ny < h:
+                        k = ny * w + nx
+                        if not lab[k] and px[nx, ny] > 128:
+                            lab[k] = cur
+                            stack.append(k)
+            sizes.append(n)
+    if cur <= 1:
+        return im
+    big = max(sizes)
+    doomed = {c for c in range(1, cur + 1) if sizes[c] < keep * big}
+    if not doomed:
+        return im
+    out = im.copy()
+    oa = out.getchannel("A")
+    op = oa.load()
+    for y in range(h):
+        for x in range(w):
+            if lab[y * w + x] in doomed:
+                op[x, y] = 0
+    out.putalpha(oa)
+    return out
+
+
 def main(argv):
     if len(argv) < 3:
         print(__doc__)
@@ -75,7 +127,7 @@ def main(argv):
             return 2
         src, _, fac = src.partition("@")
         factor = float(fac) if fac else 1.0
-        fig = trim(key_out(load(src)))
+        fig = trim(despeckle(key_out(load(src))))
         # Each frame is normalised against the reference height it is DECLARED
         # to occupy, not stretched to fill one cell. That keeps the character
         # one size across the set while a kneel stays low and a raised blade

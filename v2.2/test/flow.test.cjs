@@ -1795,6 +1795,66 @@ const QUICK = process.argv.includes('--quick');
         && /foeAnimState\(e\.uid, 'death'\)/.test(d);
     }));
 
+  // ---------- BUILD 47: THE TREE IS PRESSABLE ----------
+  check('TREE: a node is a real touch target — at least 44 REAL px across, at the framed zoom',
+    await J(async () => {
+      RUN = newRun('mira'); RUN.roster = ['mira','ash','elin']; RUN.active = RUN.roster.slice();
+      showEmberTree(() => {}, 'mira');
+      await new Promise(r => setTimeout(r, 700));
+      const k = parseFloat(getComputedStyle(document.getElementById('et-view')).getPropertyValue('--etk')) || 1;
+      const orbs = [...document.querySelectorAll('.et-orb[data-id]')];
+      if (!orbs.length) return false;
+      return orbs.every(o => parseFloat(getComputedStyle(o, '::before').width) * k >= 44);
+    }));
+  check('TREE: no two touch targets overlap — a generous pad must not steal its neighbour’s taps',
+    await J(() => {
+      const k = parseFloat(getComputedStyle(document.getElementById('et-view')).getPropertyValue('--etk')) || 1;
+      const o = [...document.querySelectorAll('.et-orb[data-id]')].map(el => {
+        const g = el.querySelector('.et-orb-glyph').getBoundingClientRect();
+        return { x: g.left + g.width / 2, y: g.top + g.height / 2,
+                 r: parseFloat(getComputedStyle(el, '::before').width) * k / 2 };
+      });
+      for (let i = 0; i < o.length; i++) for (let j = i + 1; j < o.length; j++)
+        if (Math.hypot(o[i].x - o[j].x, o[i].y - o[j].y) < o[i].r + o[j].r) return false;
+      return true;
+    }));
+  check('TREE: a wobbling finger is still a TAP — within the slop, the node selects',
+    await J(async () => {
+      const el = document.querySelector('.et-orb[data-id]');
+      const star = document.getElementById('et-star');
+      const r = el.getBoundingClientRect();
+      const x = r.left + r.width / 2, y = r.top + r.height / 2;
+      const ev = (t, cx, cy) => star.dispatchEvent(new PointerEvent(t, {
+        pointerId: 1, clientX: cx, clientY: cy, bubbles: true, cancelable: true }));
+      ev('pointerdown', x, y);
+      for (let i = 0; i < 10; i++) ev('pointermove', x + (i % 2 ? 3 : -3), y + (i % 3 ? 3 : -2));
+      ev('pointerup', x, y);
+      return star._dragMoved === false;
+    }));
+  check('TREE: a real drag is NOT a tap — past the slop, the press pans instead of selecting',
+    await J(() => {
+      const el = document.querySelector('.et-orb[data-id]');
+      const star = document.getElementById('et-star');
+      const r = el.getBoundingClientRect();
+      const x = r.left + r.width / 2, y = r.top + r.height / 2;
+      const ev = (t, cx, cy) => star.dispatchEvent(new PointerEvent(t, {
+        pointerId: 2, clientX: cx, clientY: cy, bubbles: true, cancelable: true }));
+      ev('pointerdown', x, y);
+      for (let i = 1; i <= 10; i++) ev('pointermove', x + i * 9, y + i * 5);
+      ev('pointerup', x + 90, y + 50);
+      return star._dragMoved === true;
+    }));
+  check('TREE: the press is not stolen — pointerdown does NOT capture, so the CLICK reaches the orb',
+    await J(() => {
+      const src = attachStarView.toString();
+      // capture belongs to the drag, and to a pinch; never to a bare pointerdown
+      const down = src.slice(src.indexOf("addEventListener('pointerdown'"), src.indexOf("addEventListener('pointermove'"));
+      return /pts\.size === 2\).*setPointerCapture/s.test(down)
+        && !/pts\.size === 1[^]*?setPointerCapture/.test(down.replace(/pts\.size === 2[^]*/, ''))
+        && /maxOff <= TREE_TAP_SLOP/.test(src)
+        && typeof TREE_TAP_SLOP === 'number';
+    }));
+
   // ---------- BUILD 46: HERO ANIMATION — the party runs the same machine ----------
   check('HERO ANIM: every hero playback state maps to real atlas frames, all inside the sheet',
     await J(() => Object.keys(HERO_ANIM_PLAY).every(st => {
@@ -1803,10 +1863,29 @@ const QUICK = process.argv.includes('--quick');
         && frames.every(f => f.length === 4 && f[0] >= 0 && f[1] >= 0
           && f[0] + f[2] <= HERO_ANIM_SHEET.w && f[1] + f[3] <= HERO_ANIM_SHEET.h);
     })));
-  check("HERO ANIM: ATTACK carries its own wind-up — the swing is longer than the draw-back alone",
+  check("HERO ANIM: ATTACK carries its own wind-up — the swing opens on the coil and runs the cut out",
     await J(() => HERO_ANIM_ATLAS.attack.length > HERO_ANIM_ATLAS.prep.length
-      && HERO_ANIM_ATLAS.attack.length >= 5
+      && HERO_ANIM_ATLAS.attack.length >= 4
+      && String(HERO_ANIM_ATLAS.attack[0]) === String(HERO_ANIM_ATLAS.prep[0])   // opens ON the coil
       && HERO_ANIM_PLAY.attack.then === 'recovery'));
+  check("HERO ANIM: Ash is a SKIRMISHER, not a berserker — the cut frames sit LOW, under the standing silhouette",
+    await J(() => {
+      const stand = HERO_ANIM_ATLAS.idle[0][3];
+      // the coil and the lateral pass are both crouched; a chop would tower over the stand
+      return HERO_ANIM_ATLAS.prep[0][3] < stand
+        && Math.min(...HERO_ANIM_ATLAS.attack.map(f => f[3])) < stand * 0.8
+        && HERO_ANIM_ATLAS.attack.every(f => f[3] <= stand);
+    }));
+  check('HERO ANIM: his kit has poses of its own — a BLOCK braces and a THROW releases',
+    await J(() => ['guard', 'throw'].every(st => Array.isArray(HERO_ANIM_ATLAS[st])
+      && HERO_ANIM_ATLAS[st].length >= 1 && HERO_ANIM_PLAY[st]
+      && HERO_ANIM_ATLAS[st].every(f => f[0] + f[2] <= HERO_ANIM_SHEET.w && f[1] + f[3] <= HERO_ANIM_SHEET.h))));
+  check('HERO ANIM: the POSE FOLLOWS THE CARD — Crossguard braces, Thrown Edge throws, a cut waits for its impact',
+    await J(() => heroPoseForCard({ fx: { guard: 6 } }) === 'guard'
+      && heroPoseForCard({ fx: { dmg: 4, step: 'front' } }) === 'throw'
+      && heroPoseForCard({ fx: { dmg: 4, guard: 3 } }) === null    // a cut is a cut
+      && heroPoseForCard({ fx: { dmg: 6 } }) === null
+      && /heroPoseForCard\(card\)/.test(resolveCard.toString())));
   check("HERO ANIM: a kneeling frame is SHORTER than a standing one — poses are not stretched to one height",
     await J(() => {
       const stand = HERO_ANIM_ATLAS.idle[0][3];
