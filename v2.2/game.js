@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 43;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 44;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -1980,7 +1980,7 @@ function bankLineCharge(h, card) {
   const gain = (card.kind === 'opener') ? 2 : (card.lineStage === 'combo' ? 1 : 0);
   if (!gain) return;
   h._pendCharge = (h._pendCharge || 0) + gain;
-  popupAt(figEl(h.id), '◆ ' + h._pendCharge + ' HELD', 'info');
+  // ◆ pips are drawn on the hero; a running commentary on them is not needed
 }
 // Deal the line's next beat: DISCARD every chain card on the table, then lay out
 // where each living hero's own chain now stands. `ownNext` is the played card's
@@ -2084,7 +2084,7 @@ function resolveLinePlay(card, h) {
   // floating "✦ THE LINE" conveyed that a line existed and nothing else; the
   // track above the hand carries the depth, the carriers, the FOCUS and the
   // bank. Only the CLOSE still deserves a shout of its own.
-  if (dealt.finishing) popupAt(figEl(h.id), '✦ FINISH', 'rally');
+  // the card that closes a line is stamped FINISHER on its own face
   flashNarrator('<b>' + h.def.name + '</b> ' + (card.kind === 'opener' ? 'opens' : 'carries') + ' — '
     + dealt.names.join(' · ') + '.');
   lesson('line', 'THE LINE IS THE PARTY\u2019S — any card deals the next beat to everyone. Carry it for a bigger FINISHER, or pass it and light a bond.', 3);
@@ -2117,10 +2117,9 @@ function closeLine(closer, finisher) {
     if (!x._pendCharge) return;
     if (closer && x.id === closer.id) {
       x.charge = Math.min(chargeCap(x), (x.charge || 0) + x._pendCharge);
-      popupAt(figEl(x.id), '◆ +' + x._pendCharge, 'info');
     } else {
       // He opened, somebody else closed: the stack never arrives.
-      popupAt(figEl(x.id), '◆ ' + x._pendCharge + ' LOST', 'dmg');
+      /* the pips simply do not arrive */
     }
     x._pendCharge = 0;
   });
@@ -6053,7 +6052,7 @@ async function resolveCard(card, targetId) {
         fireEmergent(owner.id, 'hit', card);
         if (tgt.dead) { fireEmergent(owner.id, 'kill', card); firePassives('kill', owner.id, { tgt }); }
         // CHARGE (Hask) — every spell that lands builds a stack (a nuke spends them).
-        if (owner.id === 'hask' && !fx.spendCharge) { const gain = 1 + (owner._umbral || 0); owner._umbral = 0; owner.charge = Math.min(chargeCap(owner), (owner.charge || 0) + gain); popupAt(figEl(owner.id), '◆ ' + owner.charge, 'info'); }
+        if (owner.id === 'hask' && !fx.spendCharge) { const gain = 1 + (owner._umbral || 0); owner._umbral = 0; owner.charge = Math.min(chargeCap(owner), (owner.charge || 0) + gain); /* ◆ pips are drawn */ }
         // WARSTEP — landing an attack unlocks a free reposition this turn.  The
         // flag is per-hero now (Build 250): the rule belongs to whoever holds
         // the node, and since it can be TAUGHT that is no longer only Ash.
@@ -6066,15 +6065,11 @@ async function resolveCard(card, targetId) {
       }
       if (isFollowUp) {
         gainMomentum(12, { combo: true });   // ASSIST — focus-firing a foe builds burst
-        // one clean callout (was two stacked ⚡ popups): the +2 bonus and, once a
-        // real chain is running, the ASSIST count.
-        // This is also a BOND act (see addThread below) — say so when it is
-        // about to tie a new pair, instead of only naming the momentum.
-        {
-          const ties = livingHeroes().some(h2 => h2.id !== owner.id && hitters.indexOf(h2.id) >= 0 && !S.threads.has(pairKey(owner.id, h2.id)));
-          popupAt(figEl(owner.id), ties ? '♡ TOGETHER · ASSIST +2'
-            : (S.combo >= 2 ? '⚡ ASSIST +2 · ×' + S.combo : '⚡ ASSIST +2'), 'info');
-        }
+        // ASSIST SAYS ITSELF (v2.2 Build 44). The +2 is already inside the damage
+        // number the player is watching land, so a second floating label reading
+        // "+2" was the same fact twice — and it fired on the HERO, at the other
+        // end of the board from the number describing it. The bond it ties is the
+        // part that matters, and that has its own beat below.
         SFX.follow();
         firePassives('followup', owner.id, { ally: prev });   // ally = the hero Ash followed
         // GANGING UP binds the whole party: thread with EVERY ally who has
@@ -6090,7 +6085,6 @@ async function resolveCard(card, targetId) {
         const wounded = (tgt._damaged || []).filter(id => id !== owner.id && livingHeroes().some(h => h.id === id));
         if (wounded.length) {
           const avenged = wounded[wounded.length - 1];
-          popupAt(figEl(owner.id), '♡ AVENGED', 'info');   // an undocumented bond path until Build 256
           await addThread(owner.id, avenged, 'a death avenged');
         }
       }
@@ -6109,14 +6103,14 @@ async function resolveCard(card, targetId) {
     const tgt = card.target === 'enemy' ? (livingEnemies().find(e => e.uid === targetId) || frontmostEnemy()) : frontmostEnemy();
     if (tgt) { tgt.lull = (tgt.lull || 0) + fx.lull; popupAt(figEl(tgt.uid), '❄ CHILL −' + fx.lull, 'chill'); }
     // KINDLING (Hask) — frost feeds the fire: chilling a foe builds ◆ CHARGE.
-    if (owner && heroHas(owner.id, 'hask.passive.kindling')) { owner.charge = Math.min(chargeCap(owner), (owner.charge || 0) + 1); popupAt(figEl(owner.id), '◆ ' + owner.charge, 'info'); }
+    if (owner && heroHas(owner.id, 'hask.passive.kindling')) { owner.charge = Math.min(chargeCap(owner), (owner.charge || 0) + 1); /* ◆ pips are drawn */ }
   }
   // OVERCHARGE (Hask) — a self-cast that only builds ◆ CHARGE, no strike.
   // A POWER-UP answer banks onto the LINE, not onto a hero — it empowers whoever
   // closes, which is the point of answering somebody else's beat.
   if (fx.lineRally && S.line) { S.line.rally = (S.line.rally || 0) + fx.lineRally;
     popupAt(figEl(owner && owner.id), '▲ LINE +' + S.line.rally, 'rally'); }
-  if (fx.chargeGain && owner) { owner.charge = Math.min(chargeCap(owner), (owner.charge || 0) + fx.chargeGain); popupAt(figEl(owner.id), '◆ ' + owner.charge, 'info'); }
+  if (fx.chargeGain && owner) { owner.charge = Math.min(chargeCap(owner), (owner.charge || 0) + fx.chargeGain); /* ◆ pips are drawn */ }
   if (fx.heal || fx.guard || fx.buffDmg || fx.counter) {
     let receivers = [];
     if (card.target === 'ally')   receivers = [S.heroes.find(h => h.id === targetId)].filter(Boolean);
@@ -6189,13 +6183,6 @@ async function resolveCard(card, targetId) {
       if (tgt.dead) { fireEmergent(owner.id, 'kill', card); firePassives('kill', owner.id, { tgt }); }
       if (isFollowUp) {
         gainMomentum(12, { combo: true });
-        // This is also a BOND act (see addThread below) — say so when it is
-        // about to tie a new pair, instead of only naming the momentum.
-        {
-          const ties = livingHeroes().some(h2 => h2.id !== owner.id && hitters.indexOf(h2.id) >= 0 && !S.threads.has(pairKey(owner.id, h2.id)));
-          popupAt(figEl(owner.id), ties ? '♡ TOGETHER · ASSIST +2'
-            : (S.combo >= 2 ? '⚡ ASSIST +2 · ×' + S.combo : '⚡ ASSIST +2'), 'info');
-        }
         SFX.follow();
         firePassives('followup', owner.id, { ally: prev });
         const priorAllies = hitters.filter((id, i) => id !== owner.id && hitters.indexOf(id) === i);
@@ -6428,7 +6415,12 @@ function dealToEnemy(e, amt, school, byHeroId) {
   if (mulOf('echo')) popupAt(figEl(e.uid), '◈ ECHOED — ×0.5', 'info');
   // BREAK WINDOW (Build 234): a broken foe takes ×1.5 from EVERY hit until it
   // recovers — a window the whole party piles into, not a single consumed ×2.
-  if (mulOf('break') && !saidThisTurn('Break')) popupAt(figEl(e.uid), '×1.5 BREAK', 'dmg');
+  // ONE WORD FOR ONE STATE (v2.2 Build 44). "×1.5 BREAK" and "⚡ BROKEN" were the
+  // same mechanic under two names — one for entering it, one for every blow that
+  // benefited from it — and the multiplier no longer needs saying at all: since
+  // Build 39 the damage number already IS the multiplied number. The state is
+  // BROKEN, announced once when it happens, and the foe wears a BROKEN chip for
+  // as long as it lasts.
   // TECHNICAL — striking a PRIMED foe (CHILLED or WEAKENED) off the weakness
   // line detonates the setup for bonus damage + momentum.  Teach the setup while
   // it EXISTS rather than after it detonates.
@@ -6448,7 +6440,8 @@ function dealToEnemy(e, amt, school, byHeroId) {
   // the wound that takes it past 40% arms ONE desperate answer (see chooseIntent)
   if (_wasAbove && e.hp > 0 && e.hp / Math.max(1, e.maxHp) <= 0.4 && !e._corneredOnce) {
     e._corneredOnce = true; e._corner = true;
-    popupAt(figEl(e.uid), '⚠ CORNERED', 'dmg');
+    // the narrator already says this in a whole sentence; a floating tag over the
+    // foe repeated the same word at the same instant in half of them
     flashNarrator(e.def.name + ' is cornered — it reaches for something worse.');
   }
   // First blood reveals the hidden weakness.
@@ -6500,7 +6493,8 @@ function dealToEnemy(e, amt, school, byHeroId) {
       // ◎ EXPOSED 3 as a second popup on the same anchor in the same frame, on
       // top of the damage number and the poise number — four stacked messages at
       // the single busiest instant in a fight. The break says both things itself.
-      popupAt(figEl(e.uid), '⚡ BROKEN · ◎3', 'dmg popup-big');
+      // one word, and the ◎ it grants shows up on the foe's own chip row
+      popupAt(figEl(e.uid), '⚡ BROKEN', 'dmg popup-big');
       flashNarrator(e.def.name + ' is BROKEN — it reels, and every blow lands harder until it recovers.');
       SFX.follow();
       // EMERGENT: a broken-open foe is also left EXPOSED — the stagger feeds the
@@ -6527,8 +6521,7 @@ function dealToEnemy(e, amt, school, byHeroId) {
       if (!S._pressUsed) {
         S._pressUsed = true;
         S.ep += 1;
-        pulseEp();
-        popupAt(figEl(e.uid), '+1 EP · PRESS ON', 'rally');
+        pulseEp();   // the dial flares — it does not also need naming over the foe
       }
     } else if (!S._weakTaught && !e.staggered) {
       S._weakTaught = true;
@@ -7425,7 +7418,7 @@ function comboMilestone() {
   try {
     gainMomentum(6, { raw: true });
     flashNarrator(`<b>${_parryStreak} LINKED</b> — the line reads the blows as one. <b>⚡ +6</b>`);
-    const bl = document.getElementById('burst'); if (bl) popupAt(bl, '⚡ CHAIN +6', 'rally');
+    // the narrator line above names the chain; the gauge shows the surge
   } catch (_) {}
 }
 function comboCounter(good) {
@@ -8826,7 +8819,7 @@ async function endTurn() {
     // filler card versus holding the energy for momentum is a real call.
     if (S.ep > 0) {
       gainMomentum(S.ep * 6, { raw: true });
-      const bl = document.getElementById('burst'); if (bl) popupAt(bl, '⚡ RESERVE +' + (S.ep * 6), 'rally');
+      // the gauge fills where the player can already see it fill
     }
     S.ep = S.maxEp;
     S.used = new Set();
@@ -8930,7 +8923,7 @@ async function enemyPhase() {
       e._steadied = true;                         // its next intent braces, not swings (see chooseIntent)
       e.poise = e.poiseMax || 2;                  // it finds its feet again
       foeAnimState(e.uid, 'idle');                // it stops reeling
-      popupAt(figEl(e.uid), 'REELING — TURN LOST', 'info');
+      popupAt(figEl(e.uid), 'TURN LOST', 'info');
       flashNarrator(e.def.name + (intent.heavy ? '’s ' + intent.name + ' collapses — ' : ' staggers, ') + 'the break steals its turn.');
       SFX.kill();
       stageShake();
@@ -8985,7 +8978,8 @@ async function enemyPhase() {
         S._press = (S._press || 0) + 1;   // the foe presses harder for the rest of the phase
         // TURNED and FLAWLESS are two different achievements now, so the board
         // has to say which one just happened — both used to print "PERFECT".
-        popupAt(figEl(ptHero.id), res.flawless ? '✦ FLAWLESS — +BURST ✦' : '⚔ TURNED — +BURST', 'tech');
+        // the parry RECEIPT already says FLAWLESS / TURNED, at the cascade, in
+        // its own crowned element — this said it a second time on the hero
         flashNarrator(ptHero.def.name + (res.flawless ? ' reads the whole string — flawless!' : ' turns the blow aside.'));
         parryFlash(figEl(ptHero.id));
         // THE EMBER FOLLOWS THE SUMMIT, NOT THE TIER BELOW IT (v2.2 Build 38).
@@ -8997,8 +8991,7 @@ async function enemyPhase() {
         // route to a break, so turtling through a cascade builds toward the same
         // payoff that pressing the attack does.
         if (!e.staggered && (e.poise || 0) > 0) {
-          e.poise -= 1;
-          popupAt(figEl(e.uid), '◈ POISE −1', 'info');
+          e.poise -= 1;   // the ◈ gauge on the foe is the feedback
           if (e.poise <= 0) { e.staggered = true; S._breaks = (S._breaks || 0) + 1; foeAnimState(e.uid, 'broken');
             gainMomentum(18); popupAt(figEl(e.uid), '⚡ BROKEN', 'dmg popup-big');
             flashNarrator(e.def.name + ' overcommits — the read BREAKS it.');
@@ -9087,7 +9080,6 @@ async function enemyPhase() {
         const prevE = hby.length ? hby[hby.length - 1] : null;
         if (prevE && prevE !== e.uid) {
           hitDmg += 2;
-          popupAt(figEl(e.uid), '⚡ ASSIST +2', 'info');
           SFX.follow();
         }
         hby.push(e.uid);
@@ -12435,7 +12427,24 @@ function popupAt(el, text, cls) {
   const key = el.dataset.fig || 'x';
   const now = Date.now();
   let st = _popupStacks.get(key);
-  if (!st || now - st.last > 850) st = { n: 0, last: now };
+  if (!st || now - st.last > 850) st = { n: 0, labels: 0, last: now };
+  // A BEAT MAY SAY TWO THINGS (v2.2 Build 44). There are 160-odd places in this
+  // file that can raise a popup, and nothing stopped six of them landing on one
+  // creature in one frame — the stack just kept climbing, 24px at a time, until
+  // the numbers ran off the top of the art. Two is the budget per anchor per
+  // beat. The NUMBER always wins the first slot; a label is what gets dropped,
+  // because a label is a thing the board is usually already showing.
+  // THE BUDGET IS ON LABELS, NOT ON NUMBERS (v2.2 Build 44). A number is the
+  // feedback — three blows on one foe should print three numbers, and an early
+  // version of this cap ate the third one. Labels are what pile up and what the
+  // board is usually already showing, so they are the ones rationed: two per
+  // anchor per beat, four across the whole board.
+  const primary = /\bdmg\b|\bheal\b|\bember\b/.test(cls || '');
+  if (!primary) {
+    if (st.labels >= 2) { st.last = now; _popupStacks.set(key, st); return; }
+    if (layer.querySelectorAll('.popup').length >= 4) { st.last = now; _popupStacks.set(key, st); return; }
+    st.labels = (st.labels || 0) + 1;
+  }
   st.n++; st.last = now; _popupStacks.set(key, st);
   const idx = st.n - 1;
   const p = document.createElement('div');
@@ -12452,7 +12461,7 @@ function popupAt(el, text, cls) {
   // confirmed: the popup was present, opaque and invisible. A foe's numbers
   // ride ON the creature instead; there is nothing else drawn there.
   const onFoe = !!(el.classList && el.classList.contains('enemy'));
-  const anchorY = r.top + (onFoe ? r.height * 0.26 : 0);
+  const anchorY = r.top + (onFoe ? r.height * 0.34 : 0);
   p.style.top = ((anchorY - stageR.top) / scale + 4 - idx * 24) + 'px';
   if (idx) { p.style.animationDelay = (idx * 110) + 'ms'; p.style.animationFillMode = 'both'; }
   layer.appendChild(p);

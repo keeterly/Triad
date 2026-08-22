@@ -4781,6 +4781,63 @@ const QUICK = process.argv.includes('--quick');
       SETTINGS.parry = 'steady'; const steadyPerf = parryGrade(120), steadyStillGrades = parryGrade(300);
       SETTINGS.parry = was;
       return fullPerf === 'great' && steadyPerf === 'perfect' && steadyStillGrades === 'good'; }));
+  // ── THE POPUP VOCABULARY, CUT DOWN (Build 44) ────────────────────────────
+  // There are ~160 places in game.js that can raise a floating label. Nothing
+  // counted them and nothing bounded them. Measured over a real nine-turn fight
+  // (test/noisemeter.cjs): 119 popups, 13.2 a turn, seven alive at once, and a
+  // vocabulary of fourteen different labels — ASSIST, AVENGED, CORNERED, FINISH,
+  // PRESS ON, RESERVE, CHAIN, HELD, LOST — most of them naming something the
+  // board was already drawing, or a bonus already inside the number beside them.
+  check('NOISE: the labels that named a thing the board already shows are gone',
+    await J(() => {
+      const src = [resolveCard, dealToEnemy, enemyPhase, endTurn].map(f => f.toString()).join('\n');
+      const gone = ['ASSIST +2', '♡ AVENGED', '⚠ CORNERED', 'PRESS ON', '✦ FINISH', 'RESERVE +'];
+      return !gone.some(g => src.indexOf(g) >= 0);
+    }));
+  check('NOISE: a stat with a gauge does not also float a number — ◆ CHARGE, ◈ POISE',
+    await J(() => {
+      const src = [resolveCard, dealToEnemy, enemyPhase].map(f => f.toString()).join('\n');
+      return src.indexOf("'◈ POISE") < 0 && !/popupAt\([^)]*'◆ ' \+/.test(src);
+    }));
+  // ONE WORD FOR ONE STATE. "×1.5 BREAK" labelled every blow that benefited from
+  // the state, while "⚡ BROKEN" labelled entering it — two names for one
+  // mechanic, and the multiplier no longer needs saying at all because the
+  // damage number has been the multiplied number since Build 39.
+  check('NOISE: BREAK is the verb and BROKEN is the state — no label says both',
+    await J(async () => {
+      startFight({ type: 'fight', chapter: 2, heroes: ['ash'], enemies: ['husk'], narrator: 'one word' });
+      const e = S.enemies[0]; e.hp = e.maxHp = 4000; e.poise = e.poiseMax = 99; e.staggered = true;
+      document.querySelectorAll('#popup-layer > *').forEach(n => n.remove());
+      dealToEnemy(e, 12, 'blade', 'ash');
+      await new Promise(r => setTimeout(r, 40));
+      const txt = [...document.querySelectorAll('#popup-layer .popup')].map(p => p.textContent);
+      renderAll();
+      const chip = document.querySelector('.figure.enemy .chip.stagger');
+      return !txt.some(x => /BREAK\b/.test(x)) && !!chip && /BROKEN/.test(chip.textContent);
+    }));
+  check('NOISE: a beat may say two things about one foe, and four across the board',
+    await J(async () => {
+      startFight({ type: 'fight', chapter: 2, heroes: ['ash'], enemies: ['husk'], narrator: 'budget' });
+      const e = S.enemies[0]; e.hp = e.maxHp = 4000; e.poise = e.poiseMax = 99;
+      document.querySelectorAll('#popup-layer > *').forEach(n => n.remove());
+      const fig = figEl(e.uid);
+      for (let i = 0; i < 9; i++) popupAt(fig, 'LABEL ' + i, 'info');
+      await new Promise(r => setTimeout(r, 20));
+      const labels = document.querySelectorAll('#popup-layer .popup').length;
+      // a NUMBER is never rationed — three blows print three numbers
+      document.querySelectorAll('#popup-layer > *').forEach(n => n.remove());
+      for (let i = 0; i < 4; i++) popupAt(fig, '−' + (i + 1), 'dmg');
+      await new Promise(r => setTimeout(r, 20));
+      const nums = document.querySelectorAll('#popup-layer .popup').length;
+      // …and a NUMBER is never the thing that gets dropped
+      document.querySelectorAll('#popup-layer > *').forEach(n => n.remove());
+      for (let i = 0; i < 6; i++) popupAt(fig, 'LABEL ' + i, 'info');
+      popupAt(fig, '−99', 'dmg');
+      await new Promise(r => setTimeout(r, 20));
+      const withNum = [...document.querySelectorAll('#popup-layer .popup')].some(p => p.textContent === '−99');
+      return labels <= 2 && withNum && nums === 4;
+    }));
+
   // ── THE ON-HIT BUNDLE, CUT DOWN (Build 42) ───────────────────────────────
   // Measured with an ablation rig that fires one controlled blow per weight and
   // photographs it: the action area sits at 33 mean luminance at rest, an
@@ -6647,10 +6704,23 @@ const QUICK = process.argv.includes('--quick');
       const all = cardBondHint({ owner: 'elin', target: 'allies', spent: false });
       const foe = cardBondHint({ owner: 'elin', target: 'enemy', spent: false });
       return !!one && !!all && !foe; }));
-  check('BOND: avenging reads as a bond act, not an unexplained ⚔',
-    await J(() => /♡ AVENGED/.test(resolveCard.toString())));
-  check('BOND: striking together reads as a bond act when it is about to tie a new pair',
-    await J(() => /♡ TOGETHER/.test(resolveCard.toString())));
+  // A BOND ANNOUNCES ITSELF AS A BOND (Build 44). These two used to require a
+  // floating "♡ AVENGED" / "♡ TOGETHER" tag on the striker. The intent was that a
+  // bond act must not pass silently — and it does not: addThread is what forms
+  // the bond and it narrates, pulses both heroes and moves the KIZUNA badge. The
+  // tag was a third telling of it, on the hero, at the far end of the board from
+  // the number it was describing.
+  check('BOND: forming a thread announces itself — through the bond, not a floating tag',
+    await J(() => {
+      const src = addThread.toString();
+      return /flashNarrator|figBond|fig-bond|renderResonance/.test(src)
+          && !/♡ AVENGED/.test(resolveCard.toString());
+    }));
+  check('BOND: avenging and striking together still FORM the thread they always did',
+    await J(() => {
+      const src = resolveCard.toString();
+      return /a death avenged/.test(src) && /they struck as one/.test(src);
+    }));
   // The panel behind the resonance badge is the only always-available
   // explanation of the loop, and it had no title and no touch affordance.
   check('BOND: the resonance badge announces that it opens something',
