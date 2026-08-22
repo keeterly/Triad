@@ -242,3 +242,60 @@ exists it graduates from a measurement into a promise.
 
 Step 1 is the whole battle. Steps 2–4 are rendering; they cannot drift because
 after step 1 there is nothing left to drift from.
+
+---
+
+## 7. What shipped — Build 39, and what it measures
+
+`attackAmount(card, owner, tgt, opts)` and `hitScale(e, school, byHeroId, opts)`
+are pure and return itemized breakdowns. `resolveCard` and `dealToEnemy` call
+them and then perform their side effects *from* the breakdown — every popup that
+used to be interleaved with the arithmetic is now driven by a `steps` lookup, so
+the narration cannot disagree with the math it narrates. `previewFx(card, tgt)`
+composes both for the UI and is the only place the renderer takes a number from.
+
+The smite branch is gone as a second ladder. It was the one path the rally step
+had already been forgotten in, which is the whole argument for not writing the
+preview beside the resolver: it runs `attackAmount(..., {smite:true})` now, and
+its two genuine exceptions — no rally, no desperation — are written down once as
+a rule instead of surviving as an omission in a copy.
+
+Three things the face does that it could not before. It shows the number that
+will land, tinted green when the board raised it and red when the board lowered
+it, with the itemization in the tooltip (`11 base · +4 rally · +3 exposed ·
+×1.6 technical = 29`). It re-renders when those numbers move — the hand's
+fast-path signature now carries a preview signature, so a rally landing, a mark
+laid, a foe breaking, or a reposition that changes who is frontmost all refresh
+the faces instead of leaving yesterday's number on them. And while a strike is
+being aimed, every legal target wears what *this* card would do to *it*, which
+is what finally makes TECHNICAL legible: the ×1.6 on a primed foe is a number
+you can see before you commit rather than a lesson popup afterwards.
+
+Two smaller honesty fixes came with it. A cast renders `◈16 ·NEXT` — the biggest
+number in Hask's kit had no face at all. And where a card's sentence opens with
+its own base damage ("6 damage to the nearest foe") that leading figure is
+replaced by the one that will land and tinted to match the icon beside it; two
+numbers on one card disagreeing is worse than either being wrong alone. Only a
+leading whole-number match is touched, so nothing else in the prose is guessed
+at. Sanctuary, Cleanse and Blessing had their guard and rally figures swapped
+between prose and `fx`; those are corrected, and a suite check now walks every
+rotation card asserting that any ⛨ / ✚ / ▲ printed in its words equals the
+number in its `fx`.
+
+`test/facemeter.cjs` is the gate. It drives every damaging card in the opening
+pool against a dummy under randomized boards — rally, chill, exposure, break,
+primed, desperation, an ally who already struck — and compares three things that
+must agree: what `previewFx` promises, what the rendered DOM face says, and what
+actually leaves the enemy.
+
+```
+300 resolutions measured under randomized boards
+  preview vs landed:        300/300 agree
+  rendered face vs preview: 300/300 agree
+```
+
+The heal channel's invariant is in place but currently draws no samples: the
+opening hand of all six heroes is damage and support-with-teeth, and every heal
+in the game arrives on a rotation step. The check will bite the moment one is
+dealt into an opening hand; the flow suite covers the logic directly in the
+meantime.

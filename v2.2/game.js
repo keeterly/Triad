@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 38;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 39;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -1587,14 +1587,14 @@ const ROTATIONS = {
     mid: { opener: 'mend', cards: {
       mend:      { name: 'Mend',           cost: 1, target: 'ally', fx: { heal: 3, smite: 3 },  stance: 'OPENER · MEND',    desc: 'Heal an ally 3 · <b>3 holy</b> to the nearest foe.', next: [{ key: 'renew', gateNot: 'elin.sig.mid' }, { key: 'sanctuary', gate: 'elin.sig.mid' }, { key: 'cleanse', gate: 'elin.branch.mid' }] },
       stillness: { name: 'Stillness',      cost: 1, target: 'ally', fx: { guard: 5 },           stance: 'OPENER \u00b7 GUARD',   desc: '<span class="kw kw-guard">\u26e8 5</span> onto an ally \u2014 a ward instead of a mend.', next: [{ key: 'renew', gateNot: 'elin.sig.mid' }, { key: 'sanctuary', gate: 'elin.sig.mid' }, { key: 'cleanse', gate: 'elin.branch.mid' }] },
-      sanctuary: { name: 'Sanctuary',      cost: 0, target: 'ally', fx: { heal: 2, guard: 3 },  stance: 'COMBO · MEND',   desc: 'Heal an ally 2 · <span class="kw kw-guard">⛨ 4</span>.', next: ['renew'] },
+      sanctuary: { name: 'Sanctuary',      cost: 0, target: 'ally', fx: { heal: 2, guard: 3 },  stance: 'COMBO · MEND',   desc: 'Heal an ally <span class="kw kw-heal">✚ 2</span> · <span class="kw kw-guard">⛨ 3</span>.', next: ['renew'] },
       renew:     { name: 'Renew',          cost: 0, target: 'ally', fx: { heal: 4, smite: 5 },  stance: 'FINISHER · MEND',  desc: 'Heal an ally 4 · <b>5 holy</b> to the nearest foe.' },
-      cleanse:   { name: 'Cleanse',        cost: 0, target: 'ally', fx: { heal: 2, guard: 4 },  stance: 'COMBO · WARD',   desc: 'Heal an ally 2 · <span class="kw kw-guard">⛨ 3</span>.', next: ['wardingcircle'] },
+      cleanse:   { name: 'Cleanse',        cost: 0, target: 'ally', fx: { heal: 2, guard: 4 },  stance: 'COMBO · WARD',   desc: 'Heal an ally <span class="kw kw-heal">✚ 2</span> · <span class="kw kw-guard">⛨ 4</span>.', next: ['wardingcircle'] },
       wardingcircle:{ name: 'Warding Circle',cost: 0, target: 'allies', fx: { guard: 3 },       stance: 'FINISHER · WARD',  desc: 'A ring of light — every ally gains <span class="kw kw-guard">⛨ 3</span>.' },
     } },
     back: { opener: 'distantprayer', cards: {
       distantprayer:{ name: 'Distant Prayer', cost: 1, target: 'allies', fx: { heal: 1, smite: 3 }, stance: 'OPENER · BLESS',   desc: 'Heal every ally 1 · <b>3 holy</b> to the nearest foe.', next: [{ key: 'benediction', gateNot: 'elin.sig.back' }, { key: 'blessing', gate: 'elin.sig.back' }, { key: 'deepmercy', gate: 'elin.branch.back' }] },
-      blessing:  { name: 'Blessing',        cost: 0, target: 'ally',   fx: { heal: 2, buffDmg: 3 }, stance: 'COMBO · BLESS',  desc: 'Heal an ally <span class="kw kw-heal">✚ 3</span> · their next strike deals <span class="kw kw-rally">▲ +2</span>.', next: ['benediction'] },
+      blessing:  { name: 'Blessing',        cost: 0, target: 'ally',   fx: { heal: 2, buffDmg: 3 }, stance: 'COMBO · BLESS',  desc: 'Heal an ally <span class="kw kw-heal">✚ 2</span> · their next strike deals <span class="kw kw-rally">▲ +3</span>.', next: ['benediction'] },
       benediction:{ name: 'Benediction',    cost: 0, target: 'ally',   fx: { heal: 3, buffDmg: 5 }, stance: 'FINISHER · BLESS', desc: 'Heal an ally 3 · <span class="kw kw-rally">▲ RALLY +5</span>.' },
       deepmercy: { name: 'Deep Mercy',      cost: 0, target: 'ally',   fx: { heal: 4 },          stance: 'COMBO · MERCY',  desc: 'Heal an ally 4.', next: ['dawnlight'] },
       dawnlight: { name: 'Dawnlight',       cost: 0, target: 'allies', fx: { heal: 2, smite: 6 }, stance: 'FINISHER · MERCY', desc: 'Dawn breaks — every ally heals 2 · <b>6 holy</b> to the nearest foe.' },
@@ -5770,6 +5770,159 @@ function leaveAfterimage(owner, fromRow) {
     desc: `<b>${dmg} damage</b>${tag} · fading echo, this turn only.` });
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ONE ARITHMETIC, TWO READERS (v2.2 Build 39)
+//
+// Measured across the whole card pool: on a clean board every face is honest —
+// 0 of 198 readings diverge, because riders, forges and boons all mutate `fx` at
+// build time. Under any live modifier 530 of 989 readings lie. Every damage face
+// is wrong against a marked, primed or broken foe. Stacked the way a late fight
+// actually stacks, Crashing Wave reads 11 and lands 48; Overload on three charges
+// reads 6 and lands 53; Elin's Mend reads a heal and deals 18.
+//
+// The enemy side of this game already got this right — `enemyIntentDmg` is one
+// source of truth read by the enemy turn AND both telegraphs, so what a foe
+// shows you is exactly what it does. Our own numbers were the only dishonest
+// ones on the screen.
+//
+// The fix is NOT a preview function written beside the resolver: a second copy
+// of the ladder is how the smite path drifted out of sync in the first place
+// (it is the only branch the rally step forgot). Instead the resolver's own
+// arithmetic moves into pure functions that return an ITEMIZED breakdown, the
+// resolver drives its side effects off that breakdown, and the card face reads
+// the same numbers the resolver is about to use.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// The additive ladder, lifted out of resolveCard. Pure: touches no state, fires
+// no popups. Returns the amount, the itemization, and the aether/umbral state
+// the weave WOULD move to, so the resolver can apply it without recomputing.
+function attackAmount(card, owner, tgt, opts) {
+  const fx = (card && card.fx) || {};
+  const o = opts || {};
+  const steps = [];
+  const add = (k, v) => { if (v) { steps.push({ k, v }); } return v || 0; };
+  let amt = fx.dmg || 0;
+  if (amt) steps.push({ k: 'base', v: amt });
+  // SMITE runs its own ladder — no rally, no desperation. That exception is real
+  // and stays, but it is written here ONCE instead of living as an omission in a
+  // second copy of the arithmetic.
+  const full = !o.smite;
+  if (full && owner) amt += add('rally', owner.buffDmg || 0);
+  // DESPERATION — a hero at a quarter health strikes +2 harder.
+  if (full && owner && owner.hp > 0 && owner.hp * 4 <= owner.maxHp && (fx.dmg || 0) > 0) amt += add('desperate', 2);
+  // AEGIS NOVA (Cassia) — release the accumulated wall as ONE blow.
+  if (fx.guardBurst && owner) amt += add('guardBurst', owner.guard || 0);
+  // OVERLOAD (Hask) — a nuke SPENDS all CHARGE, adding damage per stack.
+  if (fx.spendCharge && owner && owner.id === 'hask') amt += add('charge', (owner.charge || 0) * chargeDmg());
+  // PYRE / FROST (Hask, Elemental Weave) — casting against your element crosses
+  // the meter and IGNITES the opposite pole. Predicted here, applied by the caller.
+  let aether = null;
+  if (owner && owner.id === 'hask' && hasNode('hask.weave.astral')) {
+    const elem = fx.elem || 'ice';
+    const a = owner.aether || 0;
+    const back = hasNode('hask.weave.enochian');
+    if (elem === 'fire') {
+      let next;
+      if (a < 0) { next = back ? 3 : 1; if (back) amt += add('backdraft', 6); }
+      else next = Math.min(3, a + 1);
+      if (next > 0) amt += add('pyre', 2 * next);
+      aether = { next, umbral: 0 };
+    } else {
+      let next;
+      if (a > 0) { next = back ? -3 : -1; if (back) amt += add('backdraft', 4); }
+      else next = Math.max(-3, a - 1);
+      aether = { next, umbral: next < 0 ? -next : 0 };
+    }
+  }
+  // CHILL blunts your own swing, and the clamp at zero happens HERE — before the
+  // target-side additions, exactly as the resolver has always done it.
+  if (owner && owner.chill) { const before = amt; amt = Math.max(0, amt - owner.chill); if (before !== amt) steps.push({ k: 'chill', v: amt - before }); }
+  if (tgt) amt += add('mark', tgt.mark || 0);
+  amt += add('passive', passiveDmg(owner, tgt));
+  // ASSIST — striking a foe an ally already hit this turn is a combo.
+  if (tgt && owner) {
+    const hitters = tgt._hitBy || [];
+    const prev = hitters.length ? hitters[hitters.length - 1] : null;
+    if (prev && prev !== owner.id) amt += add('assist', 2);
+  }
+  return { amt, steps, aether };
+}
+
+// The multiplier head of dealToEnemy. Pure. `opts.finisher` says whether the
+// blow is a line's closing card (only a finisher can be echoed).
+function hitScale(e, school, byHeroId, opts) {
+  const o = opts || {};
+  const steps = [];
+  let mul = 1;
+  if (e && o.finisher && o.finisherName && e._echoMem && e._echoMem.has(o.finisherName)) { mul *= 0.5; steps.push({ k: 'echo', v: 0.5 }); }
+  if (e && e.staggered) { mul *= 1.5; steps.push({ k: 'break', v: 1.5 }); }
+  if (e && byHeroId && !(typeof S !== 'undefined' && S && S._burstResolving) && (e.lull || e.weakened) && !(school && school === e.def.weak)) {
+    mul *= TECHNICAL_MULT; steps.push({ k: 'technical', v: TECHNICAL_MULT });
+  }
+  return { mul, steps };
+}
+
+// THE ONE FUNCTION THE UI MAY TAKE NUMBERS FROM. Composes the two above per
+// channel and reports what will actually land on the board as it stands.
+function previewFx(card, tgt) {
+  const fx = (card && card.fx) || {};
+  const owner = (typeof S !== 'undefined' && S && card) ? S.heroes.find(h => h.id === card.owner) : null;
+  const out = { steps: [] };
+  if (fx.dmg || fx.guardBurst || fx.spendCharge) {
+    const target = tgt || defaultCardTarget(card);
+    const A = attackAmount(card, owner, target);
+    // the resolver rounds ONCE, at the end of the multiplier head
+    const H = hitScale(target, owner ? owner.def.school : null, owner ? owner.id : null,
+      { finisher: !!(card.chain && !card.chainNext), finisherName: card.chain ? card.name : null });
+    out.dmg = Math.round(A.amt * H.mul);
+    out.steps = A.steps.concat(H.steps);
+  }
+  if (fx.smite) {
+    // A SMITE ALWAYS FINDS THE FRONT, whatever the card's stated target is —
+    // these are support cards with teeth, and previewing their bite against the
+    // ally they heal (i.e. against nothing) is how they under-read by the whole
+    // exposed-and-technical ladder.
+    const target = (tgt && tgt.uid) ? tgt : (frontmostEnemy() || null);
+    const wrath = owner && owner.id === 'elin' && hasNode('elin.passive.wrath');
+    const A = attackAmount(Object.assign({}, card, { fx: Object.assign({}, fx, { dmg: fx.smite + (wrath ? 2 : 0) }) }), owner, target, { smite: true });
+    const H = hitScale(target, owner ? owner.def.school : null, owner ? owner.id : null, {});
+    out.smite = Math.round(A.amt * H.mul);
+  }
+  // HEAL shows what will actually be RESTORED — a heal on a hero at full health
+  // restores nothing, and the game turns the overflow into guard.
+  if (fx.heal) {
+    const rcs = previewReceivers(card);
+    const rc = rcs[0];
+    out.heal = rc ? Math.max(0, Math.min(fx.heal, rc.maxHp - rc.hp)) : fx.heal;
+    out.healSpill = rc ? Math.max(0, fx.heal - (rc.maxHp - rc.hp)) : 0;
+  }
+  if (fx.guard) out.guard = fx.guard;
+  if (fx.buffDmg) out.buffDmg = fx.buffDmg;
+  if (fx.counter) out.counter = fx.counter;
+  // EXPOSED is capped at 6 — a card that says +3 on a foe at ◎5 lays exactly 1.
+  if (fx.mark) { const t2 = tgt || defaultCardTarget(card); out.mark = t2 ? Math.min(6, (t2.mark || 0) + fx.mark) - (t2.mark || 0) : fx.mark; }
+  if (fx.lull) out.lull = fx.lull;
+  if (fx.castDmg) out.castDmg = fx.castDmg;
+  if (fx.chargeGain) out.chargeGain = fx.chargeGain;
+  if (fx.lineRally) out.lineRally = fx.lineRally;
+  return out;
+}
+// Who a card resolves against when nothing is aimed yet — the board as it stands,
+// which is the same answer Slay the Spire gives.
+function defaultCardTarget(card) {
+  if (typeof S === 'undefined' || !S || !card) return null;
+  if (card.target === 'frontmost' || card.target === 'enemy') return frontmostEnemy() || livingEnemies()[0] || null;
+  return null;
+}
+function previewReceivers(card) {
+  if (typeof S === 'undefined' || !S || !card) return [];
+  const owner = S.heroes.find(h => h.id === card.owner);
+  if (card.target === 'self') return [owner].filter(Boolean);
+  if (card.target === 'allies') return livingHeroes();
+  if (card.target === 'ally') return [lowestHpAlly() || owner].filter(Boolean);
+  return [owner].filter(Boolean);
+}
+
 async function resolveCard(card, targetId) {
   const owner = S.heroes.find(h => h.id === card.owner);
   if (owner && owner.downed) return;
@@ -5861,53 +6014,34 @@ async function resolveCard(card, targetId) {
     if (card.target === 'frontmost') tgt = frontmostEnemy();
     else if (card.target === 'enemy') tgt = livingEnemies().find(e => e.uid === targetId) || frontmostEnemy();
     if (tgt) {
-      let amt = (fx.dmg || 0) + (owner ? owner.buffDmg : 0);
-  // DESPERATION (Build 234, the Clair Obscur comeback): a hero at a quarter
-  // health strikes +2 harder. The execute-threshold grammar existed only in
-  // the player's favour; this is danger paying the PLAYER something too.
-  if (owner && owner.hp > 0 && owner.hp * 4 <= owner.maxHp && (fx.dmg || 0) > 0) {
-    amt += 2;
-    popupAt(figEl(owner.id), '🔥 DESPERATE +2', 'rally');
-  }
-      // AEGIS NOVA (Cassia) — release the accumulated wall as ONE blow: add all her
-      // current guard to the strike, then spend it.  Turtle up, then unleash.
-      if (fx.guardBurst && owner) { const g = owner.guard || 0; amt += g; if (g) { owner.guard = 0; popupAt(figEl(owner.id), '⛨→⚔ ' + g, 'dmg'); } }
-      // OVERLOAD (Hask) — a nuke SPENDS all CHARGE, adding damage per stack; the
-      // Meltdown capstone raises that, and Elemental Surge refunds EP on the dump.
-      if (fx.spendCharge && owner && owner.id === 'hask') { const ch = owner.charge || 0; if (ch) { const d = chargeDmg(); amt += ch * d; owner.charge = 0; popupAt(figEl(owner.id), '◆→⚔ +' + (ch * d), 'dmg'); if (hasNode('hask.passive.surge')) refundEp(2); } }
-      // PYRE / FROST (Hask, Elemental Weave) — his spells swing an aether meter
-      // between fire (+ PYRE) and ice (− FROST).  PYRE empowers fire (+2/stack);
-      // FROST refills ◆ CHARGE.  Casting AGAINST your element crosses the meter and
-      // IGNITES the opposite pole — the reward for weaving, not camping.  Base
-      // Emberwake ignites at ±1; the BACKDRAFT capstone snaps to the FAR pole (±3)
-      // and DETONATES a burst.  Casting WITH your element just climbs a step.
-      if (owner && owner.id === 'hask' && hasNode('hask.weave.astral')) {
-        const elem = fx.elem || 'ice';
-        const a = owner.aether || 0;
-        const back = hasNode('hask.weave.enochian');
-        if (elem === 'fire') {
-          if (a < 0) { owner.aether = back ? 3 : 1; if (back) { amt += 6; popupAt(figEl(owner.id), '🔥 BACKDRAFT +6', 'dmg'); } }   // cross Frost→Pyre: ignite
-          else owner.aether = Math.min(3, a + 1);                                                                                    // climb Pyre
-          if (owner.aether > 0) { amt += 2 * owner.aether; popupAt(figEl(owner.id), '🔥 PYRE +' + (2 * owner.aether), 'dmg'); }
-        } else {
-          if (a > 0) { owner.aether = back ? -3 : -1; if (back) { amt += 4; popupAt(figEl(owner.id), '❄ BACKDRAFT +4', 'dmg'); } }   // cross Pyre→Frost: chill
-          else owner.aether = Math.max(-3, a - 1);                                                                                   // deepen Frost
-          owner._umbral = owner.aether < 0 ? -owner.aether : 0;   // Umbral refill, cashed at the CHARGE step
-        }
+      // THE RESOLVER READS THE SAME ARITHMETIC THE CARD FACE DOES (Build 39).
+      // This ladder used to be written out here, inline, tangled through the
+      // popups and mutations it triggers — which is exactly why no renderer
+      // could ever reproduce it and every face lied. The math now lives in
+      // attackAmount(); what remains here is the NARRATION and the state
+      // changes, driven off the itemized breakdown rather than forked from it.
+      const A = attackAmount(card, owner, tgt);
+      let amt = A.amt;
+      const step = (k) => { const f = A.steps.find(x => x.k === k); return f ? f.v : 0; };
+      if (step('desperate')) popupAt(figEl(owner.id), '🔥 DESPERATE +2', 'rally');
+      if (fx.guardBurst && owner) { const g = step('guardBurst'); if (g) { owner.guard = 0; popupAt(figEl(owner.id), '⛨→⚔ ' + g, 'dmg'); } }
+      if (fx.spendCharge && owner && owner.id === 'hask') { const c = step('charge');
+        if (c) { owner.charge = 0; popupAt(figEl(owner.id), '◆→⚔ +' + c, 'dmg'); if (hasNode('hask.passive.surge')) refundEp(2); } }
+      if (A.aether && owner) {
+        const fire = (fx.elem || 'ice') === 'fire';
+        const bd = step('backdraft');
+        if (bd) popupAt(figEl(owner.id), (fire ? '🔥' : '❄') + ' BACKDRAFT +' + bd, 'dmg');
+        if (step('pyre')) popupAt(figEl(owner.id), '🔥 PYRE +' + step('pyre'), 'dmg');
+        owner.aether = A.aether.next;
+        if (!fire) owner._umbral = A.aether.umbral;
       }
       if (owner && owner.buffDmg) { popupAt(figEl(owner.id), '▲ RALLY +' + owner.buffDmg, 'rally'); owner.buffDmg = 0; }
-      if (owner && owner.chill) { amt = Math.max(0, amt - owner.chill); popupAt(figEl(owner.id), '❄ −' + owner.chill, 'chill'); owner.chill = 0; }
-      amt += tgt.mark || 0;
-      amt += passiveDmg(owner, tgt);   // EXPOSED-exploiter passives + damage-tuning boons
+      if (owner && owner.chill) { popupAt(figEl(owner.id), '❄ −' + owner.chill, 'chill'); owner.chill = 0; }
       // subtle feedback when a damage-tuning BOON is lifting this hit (chip pulse, no popup spam)
       if (owner) runBoons().forEach(b => { if (b.trigger === 'dmgMod' && b.mod && (b.mod(owner, tgt) || 0) > 0) boonProc(owner.id, b.id, { quiet: true }); });
-      // ASSIST: striking an enemy an ally already hit this turn is a
-      // combo — +2 damage, and fighting together forms a thread between
-      // the two attackers (Concept 3: assisting strengthens bonds).
       const hitters = tgt._hitBy || (tgt._hitBy = []);
       const prev = hitters.length ? hitters[hitters.length - 1] : null;
       const isFollowUp = !!(owner && prev && prev !== owner.id);
-      if (isFollowUp) amt += 2;
       dealToEnemy(tgt, amt, owner ? owner.def.school : null, owner ? owner.id : null);
       if (owner && !tgt.dead) firePassives('postHit', owner.id, { tgt });   // execute thresholds (Death Mark)
       if (owner) {
@@ -6032,12 +6166,17 @@ async function resolveCard(card, targetId) {
       // WRATHFUL LIGHT (Elin) — her smites hit harder and EXPOSE, so a support hero
       // sets up the party's mark-exploiters (Mira/Branwen) as she heals.
       const wrath = owner.id === 'elin' && hasNode('elin.passive.wrath');
-      let amt = fx.smite + (wrath ? 2 : 0) + passiveDmg(owner, tgt) + (tgt.mark || 0);
+      // THE SECOND LADDER IS GONE (Build 39). This branch hand-copied the
+      // attack arithmetic and, measured, was the ONLY path the rally step ever
+      // forgot — ten cards whose faces were right for the wrong reason. It runs
+      // the same function every other strike runs now; `smite: true` is where
+      // its genuine exceptions (no rally, no desperation) are written down.
+      const SA = attackAmount(Object.assign({}, card, { fx: Object.assign({}, fx, { dmg: fx.smite + (wrath ? 2 : 0) }) }), owner, tgt, { smite: true });
+      let amt = SA.amt;
       if (wrath) { tgt.mark = (tgt.mark || 0) + 1; popupAt(figEl(tgt.uid), '◎ EXPOSED +1', 'info'); }
       const hitters = tgt._hitBy || (tgt._hitBy = []);
       const prev = hitters.length ? hitters[hitters.length - 1] : null;
       const isFollowUp = !!(prev && prev !== owner.id);
-      if (isFollowUp) amt += 2;
       dealToEnemy(tgt, amt, owner.def.school, owner.id);
       popupAt(figEl(tgt.uid), '✦ ' + amt, 'dmg');
       if (!tgt.dead) firePassives('postHit', owner.id, { tgt });
@@ -6269,42 +6408,26 @@ function smartHookIntent(e) {
   return prime ? hook : null;
 }
 function dealToEnemy(e, amt, school, byHeroId) {
-  // A REMEMBERED finisher is half-heard (see closeLine). Read off the resolving
-  // card so only the finisher itself is blunted, never riders or bond strikes.
-  if (S._finisher && S._finisherName && e._echoMem && e._echoMem.has(S._finisherName)) {
-    amt = Math.round(amt * 0.5);
-    popupAt(figEl(e.uid), '◈ ECHOED — ×0.5', 'info');
-  }
+  // THE MULTIPLIER HEAD IS ONE FUNCTION NOW (Build 39) — hitScale() — so the
+  // card face can show the ×1.5 and the ×1.6 before you commit instead of
+  // learning about them from a popup after the fact. What stays here is the
+  // narration and the state the scaling implies.
+  const H = hitScale(e, school, byHeroId,
+    { finisher: !!S._finisher, finisherName: S._finisherName });
+  const mulOf = (k) => H.steps.some(x => x.k === k);
+  if (mulOf('echo')) popupAt(figEl(e.uid), '◈ ECHOED — ×0.5', 'info');
   // BREAK WINDOW (Build 234): a broken foe takes ×1.5 from EVERY hit until it
   // recovers — a window the whole party piles into, not a single consumed ×2.
-  // The old one-shot ×2 meant the break and its interrupt were mutually
-  // exclusive by accident; the window makes them compound by design.
-  if (e.staggered) {
-    amt = Math.round(amt * 1.5);
-    popupAt(figEl(e.uid), '×1.5 BREAK', 'dmg');
-  }
+  if (mulOf('break')) popupAt(figEl(e.uid), '×1.5 BREAK', 'dmg');
   // TECHNICAL — striking a PRIMED foe (CHILLED or WEAKENED) off the weakness
-  // line detonates the setup for bonus damage + momentum.  This is the combo
-  // payoff: prime with a status card, then anyone cashes it.  (Suppressed in an
-  // all-out, which runs its own detonation.)
-  // Teach the setup while it EXISTS rather than after it detonates: a +4 damage,
-  // +8 momentum mechanic whose name appeared in exactly one popup, fired after
-  // the fact, for a state that had no chip at all.
+  // line detonates the setup for bonus damage + momentum.  Teach the setup while
+  // it EXISTS rather than after it detonates.
   if (!e.staggered && (e.lull || e.weakened) && !S._burstResolving) {
     lesson('technical', '⚡ IT IS OPEN — a chilled or weakened foe takes a TECHNICAL: strike it with ANY hero for HALF AGAIN the damage and a burst surge. Cash your biggest hit here.', 3);
   }
-  let technical = false;
-  if (byHeroId && !S._burstResolving && (e.lull || e.weakened) && !(school && school === e.def.weak)) {
-    // Build 272: a MULTIPLIER, not a flat +4. Reading the board has to pay in
-    // proportion to the play you spend on it — a flat bonus was worth +67% on a
-    // 6-damage chip and +33% on the 12-damage finisher you actually had to
-    // choose to cash, so the game rewarded noticing the opening LEAST on the
-    // turn that noticing it mattered most. That inversion is most of why
-    // playing well only beat playing carelessly by a third.
-    amt = Math.round(amt * TECHNICAL_MULT);
-    technical = true;
-    gainMomentum(8, { combo: true });
-  }
+  const technical = mulOf('technical');
+  if (technical) gainMomentum(8, { combo: true });
+  amt = Math.round(amt * H.mul);
   let left = amt;
   // LONGSHOT (Branwen) — her arrows slip past enemy GUARD entirely; everyone else
   // chips the guard first.
@@ -7583,6 +7706,14 @@ async function runParrySeq(notes, anchor, art) {
   if (_parryBonus > 0) {
     notes = notes.concat(Array.from({ length: Math.min(_parryBonus, 4) }, () => ({ t: 'tap' })));
   }
+  // PRESS (v2.2 Build 39) — a line that turns a blow aside completely gets a
+  // HARDER question next, not a free one. Each fully turned blow inside an enemy
+  // phase stacks one more note onto the following cascade, up to three. Mastery
+  // is answered by the fight leaning in, which is what a boss should do, rather
+  // than by the fight becoming a formality once you have the timing.
+  if (typeof S !== 'undefined' && S && S._press > 0) {
+    notes = notes.concat(Array.from({ length: Math.min(S._press, 3) }, () => ({ t: 'tap' })));
+  }
   // BOSS TRICKS (Build 211) — the anti-metronome pass: on a boss cascade of 3+,
   // one middle tap becomes a FEINT (the ring hesitates), and deep in the run a
   // BAIT slips in before the last note (a ring you must NOT touch).  Mobs never
@@ -8709,6 +8840,7 @@ function turnBanner(text, cls) {
 
 async function enemyPhase() {
   S._finisher = false;
+  S._press = 0;   // PRESS resets each phase — see runParrySeq
   autoTuneFx();   // the board is heavier than it was at fight open — re-measure (Build 261)
                   // (fxBusy() aborts it once the cascade starts — see Build 36)
   turnBanner('ENEMY TURN', 'tb-enemy');
@@ -8775,6 +8907,19 @@ async function enemyPhase() {
     // BLOCKs half + a smaller surge; MISS lets the (heavier) blow land.
     // Reposition beforehand to dodge the row entirely instead.
     let parryMul = 1, perfectParry = false;
+    // BRACE FLOOR (v2.2 Build 39). Measured across the whole difficulty curve:
+    // a defender at 60% accuracy loses 100% of the party's health to the floor
+    // boss and wins none of them, while a player who turns the parry OFF
+    // entirely — the GUARD style — takes the same half-blocked blow AND stands
+    // +2 guard a turn for it. Trying and failing was strictly worse than not
+    // trying, which is the exact shape of a difficulty that breaks instead of
+    // bending. Answering a cascade at all now earns the same armour opting out
+    // does. It costs a good player nothing and gives a struggling one a floor.
+    const braceFloor = (h) => {
+      if (!h || h.downed) return;
+      h.guard = (h.guard || 0) + PARRY_GUARD_PER_TURN;
+      popupAt(figEl(h.id), '⛨ BRACED +' + PARRY_GUARD_PER_TURN, 'guard');
+    };
     const weightMode = PARRY_ENABLED && S.node && S.node.useRunHp;   // real run hits harder
     const ptRow = rows.find(r => heroInRow(r));
     const ptHero = ptRow ? heroInRow(ptRow) : null;
@@ -8784,6 +8929,7 @@ async function enemyPhase() {
       const mit = res ? res.mit : 0;                    // fraction of the blow negated
       if (res && res.perfect) {
         perfectParry = true; parryMul = PARRY_PERFECT_MULT;
+        S._press = (S._press || 0) + 1;   // the foe presses harder for the rest of the phase
         // TURNED and FLAWLESS are two different achievements now, so the board
         // has to say which one just happened — both used to print "PERFECT".
         popupAt(figEl(ptHero.id), res.flawless ? '✦ FLAWLESS — +BURST ✦' : '⚔ TURNED — +BURST', 'tech');
@@ -8851,6 +8997,7 @@ async function enemyPhase() {
         parryMul = 1 - mit;
         popupAt(figEl(ptHero.id), '⛨ ' + Math.round(mit * 100) + '% PARRIED · +BURST', 'guard');
         gainMomentum(Math.round(5 + mit * 11), { combo: true });   // Build 197: partial-parry burst reined in (was 6 + mit*14)
+        braceFloor(ptHero);
       } else {
         parryMul = weightMode ? PARRY_MISS_MULT : 1;    // fully unparried = more weight
         if (weightMode) popupAt(figEl(ptHero.id), 'UNPARRIED!', 'dmg');
@@ -11428,6 +11575,20 @@ function renderBattlefield() {
       fig.className = 'figure enemy' + (e._justDied ? ' fig-dying' : '') + (primed && !e._justDied ? ' fig-primed' : '')
         + (_rackIds && _rackIds.has(e.uid) ? ' fig-focus' : '') + (targetable ? ' fig-targetable' : '')
         + _keepAnim(fig);
+      // THE NUMBER FOLLOWS YOUR AIM (Build 39). While a strike is being pointed,
+      // every legal target wears what THIS card would actually do to IT — so the
+      // ×1.6 on a primed foe and the ×1.5 on a broken one are a choice you can
+      // see before you commit, instead of a lesson popup after the fact.
+      { let chip = fig.querySelector('.fig-aimdmg');
+        let n = null;
+        if (targetable && targeting.card) { try { const pv = previewFx(targeting.card, e); n = (pv.dmg != null ? pv.dmg : pv.smite); } catch (_) {} }
+        if (n != null) {
+          if (!chip) { chip = document.createElement('div'); chip.className = 'fig-aimdmg'; fig.appendChild(chip); }
+          const base = (targeting.card.fx && (targeting.card.fx.dmg || targeting.card.fx.smite)) || 0;
+          chip.className = 'fig-aimdmg' + (n > base ? ' aim-up' : n < base ? ' aim-down' : '');
+          chip.textContent = '⚔ ' + n;
+        } else if (chip) chip.remove();
+      }
       snapFx(e, { weakened: e.weakened ? 1 : 0, staggered: e.staggered ? 1 : 0, guard: e.guard, power: e.power, mark: e.mark, lull: e.lull });
       fig.onclick = () => onFigureTap(e.uid);
       slot.appendChild(fig);
@@ -11798,10 +11959,17 @@ function renderActionBar() {
   // styling*, not its face — so those take a cheap class-toggle pass, no teardown.
   // This turns "played an opener / EP shifted" (very common in rotation play) from
   // a full rebuild into a handful of classList toggles.
+  // FACES MUST RE-RENDER WHEN THE NUMBERS MOVE (Build 39). This fast path keyed
+  // only on card IDENTITY, so a rally landing, a mark laid, a foe breaking or a
+  // reposition that changes who is frontmost left every face showing the number
+  // from before the board moved — which is most of how an honest face goes stale.
+  const previewSig = hand.map(c => { try { const p = previewFx(c, null);
+    return [p.dmg, p.smite, p.heal, p.mark].join(','); } catch (_) { return ''; } }).join('|');
   const structSig = hand.map(c => `${c.uid || (c.owner + c.name)}:${c.cost}:${c.kind}`).join('|')
     + (S._tempNew || '') + (S._forgeEvent ? 'F' + S._forgeEvent.uids.join(',') : '')
     + (S.executing ? 'X' : '') + (targeting ? 'T' : '')
-    + '♡' + S.threads.size;   // the ♡ bond-hint on ally cards keys off formed threads (Build 222)
+    + '♡' + S.threads.size    // the ♡ bond-hint on ally cards keys off formed threads (Build 222)
+    + '#' + previewSig;      // …and the faces rebuild whenever the numbers on them move
   const affSig = S.ep + '/' + S.maxEp + '|' + hand.map(c => (c.spent ? 1 : 0)).join('');
   if (structSig === S._handStructSig && handEl.childElementCount === hand.length) {
     if (affSig !== S._handAffSig) {                 // structure unchanged — only affordability shifted
@@ -11819,15 +11987,52 @@ function renderActionBar() {
   handEl.innerHTML = '';
   // Icon-first card face — legibility over prose (mobile).  Full text lives
   // in the card's title attribute for anyone who wants the detail.
-  const fxIconStr = (fx, hasAll, dg) => {
+  // THE FACE SHOWS WHAT WILL LAND (Build 39). Every number that has a preview
+  // is drawn from previewFx() — the same arithmetic the resolver runs — and a
+  // number the board has moved is MARKED as moved, with the itemization in its
+  // tooltip. A face that quietly reads its authored base is how "✚4" came to
+  // mean 43 damage.
+  const STEP_WORD = { base: 'base', rally: 'rally', desperate: 'desperate', guardBurst: 'guard spent',
+    charge: 'charge spent', backdraft: 'backdraft', pyre: 'pyre', chill: 'chilled', mark: 'exposed',
+    passive: 'passives', assist: 'assist', echo: 'echoed', break: 'broken', technical: 'technical' };
+  const stepTitle = (pv, landed) => {
+    if (!pv || !pv.steps || !pv.steps.length) return '';
+    const parts = pv.steps.map(st => (st.k === 'base' ? st.v + ' base'
+      : st.k === 'echo' || st.k === 'break' || st.k === 'technical' ? '×' + st.v + ' ' + STEP_WORD[st.k]
+      : (st.v > 0 ? '+' : '') + st.v + ' ' + (STEP_WORD[st.k] || st.k)));
+    return parts.join(' · ') + ' = ' + landed;
+  };
+  const modIc = (cls, base, shown, pv) => {
+    const c = shown > base ? ' ic-mod-up' : shown < base ? ' ic-mod-down' : '';
+    const t = c ? ` title="${stepTitle(pv, shown)}"` : '';
+    return { c, t };
+  };
+  const fxIconStr = (fx, hasAll, dg, pv) => {
     dg = dg || '⚔';   // the damage glyph carries the card's ELEMENT (blade/light/…)
     const b = [];
     const d = fx.dmg || fx.hitFrontmost;
     if (fx.aoeDmg) b.push(`<span class="ic ic-dmg">${dg}${fx.aoeDmg}<em>·ALL</em></span>`);
-    else if (d)    b.push(`<span class="ic ic-dmg">${dg}${d}</span>`);
-    if (fx.smite)  b.push(`<span class="ic ic-dmg">✦${fx.smite}</span>`);   // support-with-teeth strike
+    else if (d) {
+      const shown = (pv && pv.dmg != null) ? pv.dmg : d;
+      const m = modIc('dmg', d, shown, pv);
+      b.push(`<span class="ic ic-dmg${m.c}"${m.t}>${dg}${shown}</span>`);
+    }
+    if (fx.smite) {
+      const shown = (pv && pv.smite != null) ? pv.smite : fx.smite;
+      const m = modIc('dmg', fx.smite, shown, pv);
+      b.push(`<span class="ic ic-dmg${m.c}"${m.t}>✦${shown}</span>`);   // support-with-teeth strike
+    }
+    // A CAST IS THE BIGGEST NUMBER IN HASK'S KIT AND HAD NO FACE AT ALL — it
+    // renders as a number and WHEN it lands, never an empty row.
+    if (fx.castDmg) b.push(`<span class="ic ic-dmg" title="lands at the start of your next turn — moving breaks the cast">◈${fx.castDmg}<em>·NEXT</em></span>`);
     const heal = fx.heal || fx.healAll;
-    if (heal) b.push(`<span class="ic ic-heal">✚${heal}${fx.healAll ? '<em>·ALL</em>' : ''}</span>`);
+    if (heal) {
+      const shown = (pv && pv.heal != null && !fx.healAll) ? pv.heal : heal;
+      const spill = (pv && pv.healSpill) || 0;
+      const m = shown < heal ? ' ic-mod-down' : '';
+      const t = m ? ` title="${shown} restored${spill ? ' · ' + spill + ' spills into ⛨ guard' : ' — already at full health'}"` : '';
+      b.push(`<span class="ic ic-heal${m}"${t}>✚${shown}${fx.healAll ? '<em>·ALL</em>' : ''}</span>`);
+    }
     const g = fx.guard || fx.guardAll || fx.guardFront;
     if (g) b.push(`<span class="ic ic-guard">⛨${g}</span>`);
     const r = fx.buffDmg || fx.buffAllDmg;
@@ -11837,19 +12042,42 @@ function renderActionBar() {
     const l = fx.lull || fx.lullAll;
     if (l) b.push(`<span class="ic ic-chill">❄${l}</span>`);
     const m = fx.mark || fx.markAll;
-    if (m) b.push(`<span class="ic ic-exposed">◎${m}</span>`);
+    if (m) {
+      const shown = (pv && pv.mark != null && !fx.markAll) ? pv.mark : m;
+      const cls = shown < m ? ' ic-mod-down' : '';
+      const t = cls ? ' title="EXPOSED caps at ◎6 — this lays what is left"' : '';
+      b.push(`<span class="ic ic-exposed${cls}"${t}>◎${shown}</span>`);
+    }
     if (fx.invulnFront) b.push(`<span class="ic ic-guard">✦INV</span>`);
     if (fx.pushBack) b.push(`<span class="ic ic-move">⇄PUSH</span>`);
     if (fx.step) b.push(`<span class="ic ic-move">⇄${fx.step === 'front' ? 'F' : 'B'}</span>`);
     if (fx.warp) b.push(`<span class="ic ic-move">✦${(fx.warp[0] || '').toUpperCase()}</span>`);
     return b.join('');
   };
+  // THE PROSE MUST NOT CONTRADICT THE FACE (Build 39). Card text is authored as
+  // "6 damage to the nearest foe" — a base number written in words, one layer
+  // under an icon row that now correctly reads 12. Two numbers on one card
+  // disagreeing is worse than either being wrong alone. Where the sentence
+  // OPENS with the card's own base damage, that leading figure is replaced by
+  // the one that will land, tinted like the icon beside it. Only a leading,
+  // whole-number match is touched — nothing else in the sentence is guessed at.
+  const liveDesc = (card) => {
+    const fx = card.fx || {}; const base = fx.dmg || 0;
+    if (!base) return card.desc || '';
+    let pv = null; try { pv = previewFx(card, null); } catch (_) {}
+    if (!pv || pv.dmg == null || pv.dmg === base) return card.desc || '';
+    const re = new RegExp('^(\\s*)' + base + '\\b');
+    if (!re.test(card.desc || '')) return card.desc || '';
+    const cls = pv.dmg > base ? 'd-mod-up' : 'd-mod-down';
+    return (card.desc || '').replace(re, '$1<b class="' + cls + '">' + pv.dmg + '</b>');
+  };
   const cardIcons = (card) => {
     const fx = card.fx || {};
     const dg = SCHOOL_GLYPH[card.school] || '⚔';   // element carried on the damage number
     if (fx.notToday) return `<span class="ic ic-move">⇄</span><span class="ic ic-heal">✚4</span><span class="ic ic-guard">⛨4</span><span class="ic ic-counter">↺2</span>`;
     if (fx.bondFollow) return FOLLOW_ICONS[fx.bondFollow.partnerId] || '';   // a follow-up reads at a glance too
-    return fxIconStr(fx, false, dg);
+    let pv = null; try { pv = previewFx(card, null); } catch (_) {}
+    return fxIconStr(fx, false, dg, pv);
   };
   // Reach: a 3-cell front/mid/back diagram for enemy cards (filled = can hit),
   // so 'nearest' vs 'any' reads without words; support targets stay labelled.
@@ -11907,7 +12135,7 @@ function renderActionBar() {
     el.dataset.cardName = card.name;
     el.dataset.target = card.target || 'none';
     el.dataset.kind = card.kind;
-    el.title = card.name + ' — ' + card.desc.replace(/<[^>]+>/g, '');
+    el.title = card.name + (card.desc ? ' — ' + card.desc.replace(/<[^>]+>/g, '') : '');
     // SACRIFICE is a gesture now (drag the card onto the EP dial) — no button.
     // Forged/temporary cards need no ✧ badge — their dashed gold frame (and, for
     // rotation steps, the COMBO/FINISHER role line) already reads as temporary.
@@ -11918,7 +12146,7 @@ function renderActionBar() {
         <span class="c-name">${card.name}</span>${cardBondHint(card)}
       </div>
       <div class="c-fx">${cardIcons(card)}</div>
-      <div class="c-desc">${card.desc}</div>
+      <div class="c-desc">${liveDesc(card)}</div>
       <div class="c-reach">${cardReach(card)}</div>
       <div class="c-owner"><span>${card.ownerName}</span>${card.chain ? '' : `<span class="c-stance">· ${card.stance}</span>`}</div>
       ${chainStep(card)}

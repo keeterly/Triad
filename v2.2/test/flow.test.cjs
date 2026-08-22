@@ -4777,6 +4777,105 @@ const QUICK = process.argv.includes('--quick');
       SETTINGS.parry = 'steady'; const steadyPerf = parryGrade(120), steadyStillGrades = parryGrade(300);
       SETTINGS.parry = was;
       return fullPerf === 'great' && steadyPerf === 'perfect' && steadyStillGrades === 'good'; }));
+  // ── THE FACE IS THE NUMBER THAT LANDS (Build 39) ─────────────────────────
+  // Measured before the fix: on a clean board every face was honest, and under
+  // any live modifier 530 of 989 readings lied — every damage face wrong against
+  // a marked, primed or broken foe. Crashing Wave read 11 and landed 48. The
+  // face and the resolver were two hand-written copies of one ladder, and the
+  // smite path proves they had already drifted: it is the only branch the rally
+  // step ever forgot. There is one arithmetic now, and two readers of it.
+  check('FACE: the preview IS the resolver — a scrambled board cannot pull them apart',
+    await J(async () => {
+      const bad = [];
+      for (let i = 0; i < 24; i++) {
+        RUN = newRun('ash'); RUN.roster = ['ash', 'kiki']; RUN.active = ['ash', 'kiki'];
+        startFight({ type: 'fight', chapter: 1, heroes: ['ash', 'kiki'], enemies: ['husk'], narrator: 'face' });
+        const e = S.enemies[0]; e.hp = e.maxHp = 4000; e.guard = 0; e.poise = e.poiseMax = 99;
+        const h = S.heroes.find(x => x.id === 'ash');
+        if (i & 1) h.buffDmg = 3;
+        if (i & 2) e.mark = 4;
+        if (i & 4) e.staggered = true;
+        if (i & 8) e.lull = 2;
+        if (i & 16) h.hp = Math.max(1, Math.round(h.maxHp * 0.2));
+        S.ep = 99; renderAll();
+        const card = buildHand().find(c => c.owner === 'ash' && c.fx && c.fx.dmg);
+        if (!card) continue;
+        const pv = previewFx(card, e);
+        const before = e.hp + (e.guard || 0);
+        await resolveCard(card, e.uid);
+        const landed = before - (e.hp + (e.guard || 0));
+        if (landed !== pv.dmg) bad.push(card.name + ' promised ' + pv.dmg + ' landed ' + landed);
+      }
+      return bad.length === 0;
+    }));
+  check('FACE: a modified number is DRAWN as modified — the tint says the board moved it',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash'];
+      startFight({ type: 'fight', chapter: 1, heroes: ['ash'], enemies: ['husk'], narrator: 'face tint' });
+      const e = S.enemies[0]; e.hp = e.maxHp = 400; e.mark = 3; S.ep = 99; renderAll();
+      const ic = document.querySelector('#hand .card .ic-dmg');
+      return !!ic && ic.className.indexOf('ic-mod-up') >= 0 && (ic.getAttribute('title') || '').indexOf('exposed') >= 0;
+    }));
+  check('FACE: it re-reads the board — laying EXPOSED moves the number on the card that is still in hand',
+    await J(() => {
+      RUN = newRun('ash'); RUN.roster = ['ash']; RUN.active = ['ash'];
+      startFight({ type: 'fight', chapter: 1, heroes: ['ash'], enemies: ['husk'], narrator: 'face live' });
+      const e = S.enemies[0]; e.hp = e.maxHp = 400; e.mark = 0; S.ep = 99; renderAll();
+      const read = () => parseInt((document.querySelector('#hand .card .ic-dmg').textContent || '').replace(/[^0-9]/g, ''), 10);
+      const before = read();
+      e.mark = 4; renderAll();
+      return read() === before + 4;
+    }));
+  check('FACE: a heal promises what it can actually restore, never the authored number',
+    await J(() => {
+      RUN = newRun('elin'); RUN.roster = ['elin']; RUN.active = ['elin'];
+      startFight({ type: 'fight', chapter: 1, heroes: ['elin'], enemies: ['husk'], narrator: 'heal face' });
+      const h = S.heroes[0]; h.hp = h.maxHp;
+      const full = previewFx({ owner: 'elin', target: 'self', fx: { heal: 5 } }, null);
+      h.hp = h.maxHp - 2;
+      const hurt = previewFx({ owner: 'elin', target: 'self', fx: { heal: 5 } }, null);
+      return full.heal === 0 && full.healSpill === 5 && hurt.heal === 2;
+    }));
+  check('FACE: EXPOSED caps at ◎6, and the face lays only what is left',
+    await J(() => {
+      RUN = newRun('branwen'); RUN.roster = ['branwen']; RUN.active = ['branwen'];
+      startFight({ type: 'fight', chapter: 1, heroes: ['branwen'], enemies: ['husk'], narrator: 'mark cap' });
+      const e = S.enemies[0]; e.mark = 5;
+      return previewFx({ owner: 'branwen', target: 'enemy', fx: { mark: 3 } }, e).mark === 1;
+    }));
+  check('FACE: a CAST renders a number and when it lands — not an empty icon row',
+    await J(() => {
+      RUN = newRun('hask'); RUN.roster = ['hask']; RUN.active = ['hask'];
+      startFight({ type: 'fight', chapter: 1, heroes: ['hask'], enemies: ['husk'], narrator: 'cast face' });
+      S.tempCards = [{ uid: 'castprobe', owner: 'hask', name: 'Starfall probe', cost: 1, target: 'enemy', kind: 'temp', desc: '16 aether, at the start of your next turn.', fx: { castDmg: 16 } }];
+      renderAll();
+      const el = document.querySelector('#hand .card[data-card-name="Starfall probe"] .ic-dmg');
+      return !!el && /16/.test(el.textContent) && /NEXT/.test(el.textContent);
+    }));
+  check('FACE: the SMITE path runs the shared ladder — its exceptions are written once, not omitted twice',
+    await J(() => {
+      RUN = newRun('elin'); RUN.roster = ['elin']; RUN.active = ['elin'];
+      startFight({ type: 'fight', chapter: 1, heroes: ['elin'], enemies: ['husk'], narrator: 'smite' });
+      const h = S.heroes[0], e = S.enemies[0];
+      h.buffDmg = 4; e.mark = 2;
+      const c = { owner: 'elin', target: 'ally', fx: { smite: 5 } };
+      const pv = previewFx(c, null);
+      // rally is the exception (a smite never takes it); EXPOSED is not
+      return pv.smite >= 7 && pv.smite < 11;
+    }));
+  check('CARD PROSE: every ⛨ / ✚ / ▲ printed in a card’s words equals the number in its fx',
+    await J(() => {
+      const bad = [];
+      const scan = (c) => {
+        const d = c.desc || ''; const fx = c.fx || {};
+        const g = /kw-guard">⛨\s*(\d+)/.exec(d), hl = /kw-heal">✚\s*(\d+)/.exec(d), r = /kw-rally">▲\s*\+?(\d+)/.exec(d);
+        if (g && (fx.guard || fx.guardAll || 0) !== +g[1]) bad.push(c.name + ' ⛨' + g[1]);
+        if (hl && (fx.heal || fx.healAll || 0) !== +hl[1]) bad.push(c.name + ' ✚' + hl[1]);
+        if (r && (fx.buffDmg || fx.buffAllDmg || 0) !== +r[1]) bad.push(c.name + ' ▲' + r[1]);
+      };
+      Object.values(ROTATIONS).forEach(st => Object.values(st).forEach(rot => Object.values(rot.cards || {}).forEach(scan)));
+      return bad.length === 0;
+    }));
   check('PARRY: a BRACE is two graded beats — the phrase is only as good as its weaker one',
     await J(() => {
       const src = parryHoldNote.toString();

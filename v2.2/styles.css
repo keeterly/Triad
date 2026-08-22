@@ -5353,3 +5353,35 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
   background: rgba(255,225,74,0.85); box-shadow: 0 0 6px rgba(255,225,74,0.6); border-radius: 1px; }
 .parry-hold.pr-release .pr-hold-track { box-shadow: 0 0 14px rgba(255,225,74,0.55); }
 .parry-hold.pr-release .pr-lbl { color: #ffe14a; text-shadow: 0 0 8px rgba(255,225,74,0.7); }
+
+/* ── THE NUMBER THAT WILL ACTUALLY LAND (v2.2 Build 39) ────────────────────
+   A face number the board has moved is drawn as MOVED — Slay the Spire's green
+   for "bigger than the card says", red for smaller. The tint carries the whole
+   pill, not just the glyph: at icon-row size a recoloured character alone does
+   not read. The itemization lives in the title. */
+.ic.ic-mod-up {
+  color: #8dffb0;
+  background: rgba(60, 200, 120, 0.16);
+  border-color: rgba(120, 255, 175, 0.42);
+  text-shadow: 0 0 6px rgba(120, 255, 175, 0.45);
+}
+.ic.ic-mod-down {
+  color: #ff9b80;
+  background: rgba(210, 80, 60, 0.16);
+  border-color: rgba(255, 140, 110, 0.4);
+}
+/* the aim readout that rides each legal target while a strike is pointed */
+.fig-aimdmg {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  top: -6px; z-index: 7; pointer-events: none;
+  font-family: var(--ui-font, inherit); font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
+  padding: 2px 7px; border-radius: 9px; white-space: nowrap;
+  color: #ffe9d8; background: rgba(18, 10, 12, 0.86);
+  border: 1px solid rgba(255, 190, 150, 0.5);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.55);
+}
+.fig-aimdmg.aim-up { color: #8dffb0; border-color: rgba(120, 255, 175, 0.62); box-shadow: 0 0 12px rgba(90, 230, 150, 0.32); }
+.fig-aimdmg.aim-down { color: #ff9b80; border-color: rgba(255, 140, 110, 0.55); }
+/* the card's sentence carries the same live number its icon row does */
+.c-desc .d-mod-up { color: #8dffb0; }
+.c-desc .d-mod-down { color: #ff9b80; }
