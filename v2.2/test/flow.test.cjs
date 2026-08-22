@@ -4777,6 +4777,97 @@ const QUICK = process.argv.includes('--quick');
       SETTINGS.parry = 'steady'; const steadyPerf = parryGrade(120), steadyStillGrades = parryGrade(300);
       SETTINGS.parry = was;
       return fullPerf === 'great' && steadyPerf === 'perfect' && steadyStillGrades === 'good'; }));
+  // ── THE BOARD HOLDS STILL (Build 41) ─────────────────────────────────────
+  // The telegraph is a nameplate flashing red and a pill naming the blow, and
+  // both live inside the `.figure` they describe. Every combat animation used to
+  // transform that figure, so at the exact frame a player reads the warning, the
+  // warning moved: the wind-up tell slid a foe seven to nine pixels sideways,
+  // the lunge sixteen, and a striking hero stood up to 126px from their own
+  // plate. Plates and pills belong to the board; only the drawn body may move.
+  check('ANCHOR: no combat animation moves a nameplate or an intent pill off its ground',
+    await J(async () => {
+      startFight({ type: 'fight', chapter: 2, heroes: ['ash', 'hask'], enemies: ['wraith', 'husk'], narrator: 'anchor' });
+      renderAll();
+      // re-query every sample: renderBattlefield can replace a figure node
+      // mid-animation, and a detached node measures 0×0 at the origin
+      const sample = (side) => { const fig = document.querySelector(side + ' .figure[data-fig]');
+        if (!fig) return { n: null, p: null };
+        const r = (q) => { const e = fig.querySelector(q); if (!e) return null;
+          const b = e.getBoundingClientRect(); return (b.width < 1 && b.height < 1) ? null : [b.left, b.top]; };
+        return { n: r('.fig-name'), p: r('.intent') }; };
+      // let the fight's own entrance settle first — figures slide in on open, and
+      // a board still moving under its own power is not what this measures
+      let still = 0, tries = 0;
+      while (still < 3 && tries++ < 40) {
+        const a1 = sample('#party-half');
+        await new Promise(r => setTimeout(r, 90));
+        const b1 = sample('#party-half');
+        const d = (a1.n && b1.n) ? Math.max(Math.abs(a1.n[0] - b1.n[0]), Math.abs(a1.n[1] - b1.n[1])) : 99;
+        still = d < 0.5 ? still + 1 : 0;
+      }
+      const drift = [];
+      const CLS = ['fig-lunge', 'fig-hit', 'fig-parry', 'fig-held', 'fig-strike',
+                   'fig-windup fw-slash', 'fig-windup fw-sweep', 'fig-windup fw-brace'];
+      for (const side of ['#party-half', '#enemy-half']) {
+        const fig = document.querySelector(side + ' .figure[data-fig]');
+        if (!fig) continue;
+        for (const cls of CLS) {
+          const before = sample(side);
+          cls.split(' ').forEach(c => fig.classList.add(c));
+          for (let i = 0; i < 5; i++) {
+            await new Promise(r => setTimeout(r, 40));
+            const now = sample(side);
+            for (const k of ['n', 'p']) {
+              if (!before[k] || !now[k]) continue;
+              const d = Math.max(Math.abs(before[k][0] - now[k][0]), Math.abs(before[k][1] - now[k][1]));
+              if (d > 1.5) drift.push(side + ' ' + cls + ' ' + k + ' ' + d.toFixed(1));
+            }
+          }
+          cls.split(' ').forEach(c => fig.classList.remove(c));
+          await new Promise(r => setTimeout(r, 60));
+        }
+      }
+      window.__anchorDrift = drift;
+      return drift.length === 0;
+    }),
+    await J(() => (window.__anchorDrift || []).slice(0, 4).join(' | ')));
+  check('GROUND: the set holds still — no painted plane moves while nothing is happening',
+    await J(async () => {
+      startFight({ type: 'fight', chapter: 2, heroes: ['ash', 'hask'], enemies: ['husk'], narrator: 'ground' });
+      SETTINGS.fightBg = true; applyFightBg(); renderAll();
+      const P = ['.hd-far', '.hd-mid', '.hd-floor', '.hd-near', '#ground'];
+      const read = () => P.map(q => { const e = document.querySelector(q); if (!e) return null;
+        const r = e.getBoundingClientRect(); return [r.left, r.top]; });
+      // the fight's own opening move has to finish first — the lens eases in on
+      // every fight open, and that is a camera, not the set drifting
+      for (let i = 0; i < 14; i++) {
+        const a1 = read(); await new Promise(r => setTimeout(r, 180)); const b1 = read();
+        let d = 0; a1.forEach((v, k) => { if (v && b1[k]) d = Math.max(d, Math.abs(v[0] - b1[k][0]), Math.abs(v[1] - b1[k][1])); });
+        if (d < 0.4) break;
+      }
+      const base = read();
+      let worst = 0;
+      for (let i = 0; i < 9; i++) {
+        await new Promise(r => setTimeout(r, 220));
+        const now = read();
+        base.forEach((b2, k) => { if (!b2 || !now[k]) return;
+          worst = Math.max(worst, Math.abs(b2[0] - now[k][0]), Math.abs(b2[1] - now[k][1])); });
+      }
+      return worst < 1;
+    }));
+  check('ANCHOR: the striking pose is a POSE — the advance that carried it downfield is gone',
+    await J(() => {
+      // the variable the row-scaled advance was written in no longer exists
+      const probe = document.createElement('div');
+      probe.className = 'figure';
+      const slot = document.querySelector('#party-half .slot');
+      if (!slot) return false;
+      slot.appendChild(probe);
+      const adv = getComputedStyle(probe).getPropertyValue('--adv').trim();
+      probe.remove();
+      return adv === '';
+    }));
+
   // ── THE LINE TRACK (Build 40) ────────────────────────────────────────────
   // The design doc says a turn is ONE QUESTION — how deep is the line, who can
   // close it, for how much. Every part of that answer lived only in memory: the
@@ -6699,19 +6790,17 @@ const QUICK = process.argv.includes('--quick');
       if (!lit) return false;
       return !safe || getComputedStyle(lit).color !== getComputedStyle(safe).color;
     }));
-  check('ECHO: a hero who steps out leaves an AFTERIMAGE in their lane — and an idle hero leaves none',
+  // THE ECHO IS RETIRED (Build 41). It was a ghost standing in the lane while
+  // the hero's body was downfield mid-strike — the answer to "who owns this
+  // ground while nobody is on it". Nobody leaves their ground any more, so the
+  // echo would stand on top of the hero it was standing in for.
+  check('ECHO: nobody leaves their lane, so nobody leaves a ghost in it',
     await J(() => {
       const hask = S.heroes.find(h => h.id === 'hask');
       hask._held = true; hask._actSeq = S._actSeq = 1; renderAll();
-      const mine = document.querySelector('#party-half .slot[data-row="mid"] .lane-echo');
-      const idle = document.querySelector('#party-half .slot[data-row="front"] .lane-echo');
-      const inLane = mine && (() => {
-        const slot = document.querySelector('#party-half .slot[data-row="mid"]').getBoundingClientRect();
-        const e = mine.getBoundingClientRect();
-        return e.left >= slot.left - 8 && e.right <= slot.right + 8;   // it stands where they belong
-      })();
+      const any = document.querySelectorAll('.lane-echo').length;
       hask._held = false; renderAll();
-      return !!mine && !idle && inLane && !document.querySelector('.lane-echo');
+      return any === 0 && !document.querySelector('.lane-echo');
     }));
 
   // ── COMBAT HOLDS (Build 36) ────────────────────────────────────────────────
@@ -6980,24 +7069,31 @@ const QUICK = process.argv.includes('--quick');
       const quiet = back.className.indexOf('slot-acting') === -1;
       return lit && quiet;
     }));
-  check('APRON: the striker steps DOWNSTAGE — the held pose carries a drop and a swell, not just an advance',
+  // THE APRON IS A CHANGE OF DEPTH, NOT OF LANE (Build 41). This check used to
+  // require that the striker had TRAVELLED more than 40px downfield. That travel
+  // is exactly what left a hero standing away from the plate carrying their name
+  // at the moment the telegraph flashes it. The apron does the whole job on its
+  // own: down toward the lens, larger, leaning — and still on their own ground.
+  check('APRON: the striker steps DOWNSTAGE, not downfield — a drop and a swell, no travel',
     await J(() => {
       const fig = document.querySelector('[data-fig="hask"]');
       const art = fig.querySelector('.fig-art');
       const m = new DOMMatrixReadOnly(getComputedStyle(art).transform);
-      const drop = m.f, grow = m.a;
-      const travelled = m.e > 40;
+      const drop = m.f, grow = m.a, travelled = Math.abs(m.e);
       S.heroes.forEach(h => { h._held = false; h._actSeq = 0; }); renderAll();
-      return travelled && drop > 2 && grow > 1.02;   // forward, down toward the lens, and larger
+      return travelled < 2 && drop > 2 && grow > 1.02;
     }));
-  check('APRON: the striker sheds their travelling shadow — one anchor on the lane, never two shadows',
+  // AND THEIR SHADOW STAYS WITH THEM (Build 41). The contact shadow used to be
+  // hidden on a held actor because the body had left the ground it was cast on
+  // and a lane anchor held the spot instead. The body no longer leaves.
+  check('APRON: the striker keeps their contact shadow — they never left the ground that casts it',
     await J(() => {
       const hask = S.heroes.find(h => h.id === 'hask');
       hask._held = true; renderAll();
       const art = document.querySelector('[data-fig="hask"] .fig-art');
-      const shed = getComputedStyle(art, '::before').opacity === '0';
+      const kept = getComputedStyle(art, '::before').opacity !== '0';
       hask._held = false; renderAll();
-      return shed;
+      return kept;
     }));
 
   console.log('--- COMBAT POLISH (BUILD 15) ---');

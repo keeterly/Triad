@@ -117,7 +117,6 @@ body {
      plane sitting 620px deep behind everything. */
   transform: translateZ(-620px);
   scale: 1.62;
-  animation: hd-drift-far 26s ease-in-out infinite alternate;
 }
 /* MID — the ruins the fight happens against: sharper, warmer, nearer.
    Masked to the lower band so it reads as a ridge, not a doubled sky. */
@@ -135,7 +134,6 @@ body {
   mask-image: linear-gradient(180deg, #000 62%, rgba(0,0,0,0.35) 86%, transparent 100%);
   transform: translateZ(-330px);
   scale: 1.32;
-  animation: hd-drift-mid 17s ease-in-out infinite alternate;
 }
 /* NEAR — an out-of-focus foreground lip IN FRONT of the cast; pure CSS.
    Sitting at positive Z, a dolly blows it past the lens — the strongest
@@ -164,7 +162,6 @@ body {
      depth so it covers the same ground. */
   transform: translateZ(-210px);
   scale: 1.196;
-  animation: hd-drift-mid 21s ease-in-out infinite alternate;
 }
 /* NEAR — an out-of-focus foreground lip IN FRONT of the cast; pure CSS.
    Sitting at positive Z, a dolly blows it past the lens — the strongest
@@ -177,7 +174,6 @@ body {
     radial-gradient(ellipse 50% 100% at 88% 100%, rgba(5,3,3,0.98) 0%, rgba(5,3,3,0.5) 40%, rgba(5,3,3,0) 80%);
   transform: translateZ(150px);
   scale: 0.9;
-  animation: hd-drift-near 12s ease-in-out infinite alternate;
 }
 /* atmospheric depth between the planes — warm haze low, cold void high */
 .hd-fog {
@@ -211,9 +207,14 @@ body {
   78%  { opacity: 0.5; }
   100% { opacity: 0; transform: translateY(-118vh) translateX(14px) scale(var(--s, 1)); }
 }
-@keyframes hd-drift-far  { from { translate: -1.8% 0.5%; }  to { translate: 1.8% -0.5%; } }
-@keyframes hd-drift-mid  { from { translate: 3.4% 1%; }     to { translate: -3.4% -1%; } }
-@keyframes hd-drift-near { from { translate: -7% 0; }       to { translate: 7% 0; } }
+/* THE SET HOLDS STILL (v2.2 Build 41). The four painted planes each carried a
+   slow alternating drift — the far ridge ±1.8%, the ruins ±3.4%, the plaza the
+   party stands on ±3.4%, the foreground lip ±7%. Measured on an idle combat
+   turn with no input whatsoever: the painted floor slid 30px and the near lip
+   146px in twelve seconds. It was meant as atmosphere and it reads as the
+   ground moving under the fight — the board is the one thing in a tactics game
+   that must be still, because every read the player makes is positional. The
+   scene keeps its depth, its haze and its motes; the painting stops sliding. */
 @keyframes hd-fog-breathe { from { opacity: 0.55; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
   .hd-plane, .hd-fog, .hd-motes span { animation: none !important; }
@@ -645,7 +646,7 @@ body {
 .ui-desktop .card .c-cost { min-width: 17px; height: 17px; font-size: 10.5px; }
 .ui-desktop #hand { gap: 8px; }
 .figure.downed { filter: grayscale(1) brightness(0.5); }
-.figure.fig-hit { animation: fig-hit 0.34s ease; }
+.figure.fig-hit .fig-art { animation: fig-hit 0.34s ease; }
 @keyframes fig-hit {
   0% { transform: translateX(0); filter: brightness(2); }
   30% { transform: translateX(-5px); }
@@ -1655,12 +1656,28 @@ button.map-node:not(:disabled) { cursor: pointer; }
   78%  { opacity: 1; }
   100% { opacity: 0; transform: translate(-50%, -50%) translateY(-8px); }
 }
-.figure.fig-lunge { animation: fig-lunge 0.4s ease; }
-#enemy-half .figure.fig-lunge { animation: fig-lunge-enemy 0.4s ease; }
+/* THE BODY MOVES, THE BOARD DOES NOT (v2.2 Build 41).
+   Every combat animation used to transform the whole `.figure`, and a
+   `.figure` carries its NAMEPLATE and its INTENT PILL. So the moment a foe
+   wound up, the telegraph wound up with it: the name that flashes red to
+   announce the blow, and the pill that says what the blow is, both slid
+   sixteen pixels off the ground they describe — at exactly the frame the
+   player is reading them. Plates and pills belong to the board; only the drawn
+   body may move. These animate `.fig-art` now, and the attack beat is a swell
+   and a lean rather than a stride, so nothing displaces at all.
+   (`fig-lunge` also had no keyframes of its own — the party-side rule has been
+   referencing an animation that does not exist. It has one now.) */
+.figure.fig-lunge .fig-art { animation: fig-lunge 0.4s ease; }
+#enemy-half .figure.fig-lunge .fig-art { animation: fig-lunge-enemy 0.4s ease; }
+@keyframes fig-lunge {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.07) rotate(1.6deg); filter: brightness(1.28); }
+  100% { transform: scale(1); }
+}
 @keyframes fig-lunge-enemy {
-  0% { transform: translateX(0); }
-  35% { transform: translateX(-16px) scale(1.04); filter: brightness(1.25); }
-  100% { transform: translateX(0); }
+  0% { transform: scale(1); }
+  35% { transform: scale(1.075) rotate(-2deg); filter: brightness(1.3); }
+  100% { transform: scale(1); }
 }
 #ep-dial.ep-pulse { animation: ep-pulse 0.4s ease; }
 /* EP SPEND — the dial flares purple and motes lift off it when a card costs EP. */
@@ -2251,15 +2268,16 @@ button.map-node:not(:disabled) { cursor: pointer; }
    BUILD 25 — attack-type impact VFX + directional hit/lunge feedback
    =========================================================================== */
 /* attacker drives forward; heroes lunge right (toward foes), enemies left */
-#party-half .figure.fig-lunge-hero { animation: fig-lunge-hero 0.4s ease; }
+#party-half .figure.fig-lunge-hero .fig-art { animation: fig-lunge-hero 0.4s ease; }
 @keyframes fig-lunge-hero {
-  0% { transform: translateX(0); }
-  34% { transform: translateX(18px) scale(1.05); filter: brightness(1.3); }
-  100% { transform: translateX(0); }
+  0% { transform: scale(1); }
+  34% { transform: scale(1.085) rotate(2deg); filter: brightness(1.3); }
+  100% { transform: scale(1); }
 }
 /* target recoils AWAY from the blow + a bright flash on impact */
-.figure.fig-hit-l { animation: fig-hit-l 0.36s ease; }
-.figure.fig-hit-r { animation: fig-hit-r 0.36s ease; }
+/* a recoil is the body being knocked back, not its nameplate */
+.figure.fig-hit-l .fig-art { animation: fig-hit-l 0.36s ease; }
+.figure.fig-hit-r .fig-art { animation: fig-hit-r 0.36s ease; }
 @keyframes fig-hit-l {
   0% { transform: translateX(0); filter: brightness(2.2); }
   22% { transform: translateX(-9px); }
@@ -2607,11 +2625,18 @@ button.map-node:not(:disabled) { cursor: pointer; }
 .parry-ring.pr-bait .pr-lbl { color: #ff8a7a; font-weight: 700; text-shadow: 0 0 8px rgba(212,69,69,0.9), 0 1px 3px #000; }
 @keyframes pr-bait-pulse { 50% { box-shadow: 0 0 24px rgba(212,69,69,0.95), inset 0 0 14px rgba(212,69,69,0.55); } }
 /* WIND-UP TELLS (Build 211) — the creature poses BEFORE its rings appear. */
-.figure.fig-windup { transition: transform 0.18s ease, filter 0.18s ease; }
-.figure.fig-windup.fw-slash  { transform: translateX(-7px) rotate(-3deg); filter: brightness(1.35) drop-shadow(0 0 10px rgba(255,90,60,0.55)); }
-.figure.fig-windup.fw-brace  { transform: translateY(4px) scale(0.94); filter: brightness(1.3) drop-shadow(0 0 12px rgba(255,180,90,0.6)); }
-.figure.fig-windup.fw-sweep  { transform: translateX(9px) rotate(4deg); filter: brightness(1.35) drop-shadow(0 0 10px rgba(160,120,255,0.55)); }
-.figure.fig-windup.fw-flurry { animation: fw-flurry-shiver 0.14s linear infinite; filter: brightness(1.4) drop-shadow(0 0 9px rgba(255,90,60,0.6)); }
+/* THE WIND-UP TELL IS THE WORST PLACE TO MOVE A NAMEPLATE (v2.2 Build 41).
+   This pose plays in the half-second before a parry cascade — the exact frame
+   the player is reading the foe's name flashing red and the pill saying what
+   is coming. It transformed the whole `.figure`, so both slid seven to nine
+   pixels sideways while being read. The pose now lives on the body: the same
+   lean, the same brace, the same crackle, told by rotation and scale instead
+   of by displacement. */
+.figure.fig-windup .fig-art { transition: transform 0.18s ease, filter 0.18s ease; }
+.figure.fig-windup.fw-slash .fig-art  { transform: rotate(-5deg) scale(1.05); filter: brightness(1.35) drop-shadow(0 0 10px rgba(255,90,60,0.55)); }
+.figure.fig-windup.fw-brace .fig-art  { transform: translateY(4px) scale(0.94); filter: brightness(1.3) drop-shadow(0 0 12px rgba(255,180,90,0.6)); }
+.figure.fig-windup.fw-sweep .fig-art  { transform: rotate(6deg) scale(1.05); filter: brightness(1.35) drop-shadow(0 0 10px rgba(160,120,255,0.55)); }
+.figure.fig-windup.fw-flurry .fig-art { animation: fw-flurry-shiver 0.14s linear infinite; filter: brightness(1.4) drop-shadow(0 0 9px rgba(255,90,60,0.6)); }
 @keyframes fw-flurry-shiver { 0%,100% { transform: translateX(-2px); } 50% { transform: translateX(3px); } }
 /* CURSED GIFTS (Build 211) — blood-rimmed draft cards. */
 .boon-card.boon-curse { border-color: rgba(212,69,69,0.65); }
@@ -2700,14 +2725,14 @@ button.map-node:not(:disabled) { cursor: pointer; }
   60% { opacity: 0.5; }
 }
 /* the parrying hero flares on a perfect turn-away */
-.figure.fig-parry { animation: fig-parry 0.5s ease; }
+.figure.fig-parry .fig-art { animation: fig-parry 0.5s ease; }
 @keyframes fig-parry {
   0% { filter: brightness(2.6) saturate(1.3); }
-  25% { transform: translateX(7px) scale(1.05); }
-  100% { transform: translateX(0); filter: none; }
+  25% { transform: scale(1.07) rotate(-2deg); }
+  100% { transform: none; filter: none; }
 }
 /* a THREAD forming pulses both linked heroes gold, so the bond reads at a glance */
-.figure.fig-bond { animation: fig-bond 0.9s ease; }
+.figure.fig-bond .fig-art { animation: fig-bond 0.9s ease; }
 @keyframes fig-bond {
   0%   { filter: none; }
   30%  { filter: drop-shadow(0 0 10px rgba(240,212,136,0.9)) brightness(1.35); }
@@ -4554,27 +4579,22 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
    the finisher resolves (or END TURN). fig-strike carries no 0% keyframe on
    purpose: a fresh strike departs from idle, a combo's next beat departs
    from the held position — one animation, both reads. */
-/* THE ADVANCE IS ROW-SCALED (v2.2 Build 14). A fixed 112px hold was almost
-   exactly the party's slot spacing, so when two heroes held at once the rear
-   one parked ON the front one's ground and they read as a single stacked
-   figure. Each rank now advances by its own depth — front strides furthest,
-   mid half-steps, back barely leaves its mark — so every held actor keeps a
-   distinct lane and "who took an action" stays legible at a glance. */
-#party-half .slot[data-row="front"] .figure { --adv: 96px; }
-#party-half .slot[data-row="mid"]   .figure { --adv: 54px; }
-#party-half .slot[data-row="back"]  .figure { --adv: 30px; }
-#party-half .figure { --adv: 56px; }   /* fallback for slot-less layouts */
-/* THE APRON (v2.2 Build 23) — a hero who acts does not just slide toward the
-   enemy along the formation line; they step OUT of the line, downstage toward
-   the lens. Closer reads as lower and larger, so the held pose carries a drop
-   and a swell as well as the advance: the striker is plainly IN FRONT OF the
-   formation rather than standing in the next lane's ground. This is what
-   reconciles the lunge with a ground telegraph — the plates keep the board,
-   the bodies play in the apron above it. */
+/* THE ADVANCE IS GONE (v2.2 Build 41). It was row-scaled — front 96px, mid 54,
+   back 30, plus a flat 30 on top — because a fixed hold used to park the rear
+   hero on the front hero's ground. The row scaling fixed that collision and
+   left the real one: a hero standing up to 126px from the plate that carries
+   their name, at the exact moment the telegraph flashes that name red to say a
+   blow is coming for them. No amount of tuning reconciles "the plate marks the
+   ground" with "the body is not on it". The advance is deleted; the apron does
+   the whole job on its own.
+   THE APRON (v2.2 Build 23) — a hero who acts steps OUT of the line, downstage
+   toward the lens. Closer reads as lower and larger, so the held pose carries a
+   drop and a swell. That is a change of DEPTH, not of lane: the actor is
+   plainly in front of the formation, and still standing on their own ground. */
 #party-half .figure { --apron: 9px; --swell: 1.07; }
 #party-half .slot[data-row="back"] .figure { --apron: 13px; }
 /* THE HOLD IS THE PEAK (v2.2 Build 17). The held stance used to settle back
-   to a flat idle parked at --adv — a hero standing calmly in the wrong place,
+   to a flat idle parked downfield — a hero standing calmly in the wrong place,
    which read as "why are they up here?" rather than "they are mid-attack".
    Now the strike FREEZES at its full extension — deepest reach, slight rise,
    a forward lean, the impact brightness still on the blade — and the
@@ -4582,25 +4602,31 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
    fig-strike ends ON the held pose, so the hitstop, the hold and any combo
    restrike all share one frame of truth. */
 #party-half .figure.fig-held { z-index: 7; }
+/* THE HOLD IS A POSE, NOT A POSITION (v2.2 Build 41). A striking hero used to
+   stride up to 126px downfield and freeze there. The plates stayed on the
+   board — deliberately, so the ground telegraph kept its meaning — which left
+   the red name-flash that announces an incoming blow firing on a nameplate
+   with nobody standing at it. The advance is gone. Everything it was for
+   survives without it: the actor still drops into the apron, still swells,
+   still leans, still lifts above the formation on z-index, and two heroes
+   holding at once can no longer collide because neither one travels.
+   The contact shadow stays with them now, for the same reason. */
 #party-half .figure.fig-held .fig-art {
-  transform: translateX(calc(var(--adv) + 30px)) translateY(var(--apron)) scale(var(--swell)) rotate(2deg);
+  transform: translateY(var(--apron)) scale(var(--swell)) rotate(2deg);
   transition: transform 0.3s ease-out;
-  filter: brightness(1.14) drop-shadow(0 10px 18px rgba(0,0,0,0.78));
+  filter: brightness(1.14) drop-shadow(0 12px 20px rgba(0,0,0,0.8));
 }
-/* the striker's own contact shadow leaves with them; their ANCHOR (below)
-   holds the lane instead, so there is never a second shadow in the apron */
-#party-half .figure.fig-held .fig-art::before { opacity: 0; }
 #party-half .figure.fig-strike { z-index: 8; }
 #party-half .figure.fig-strike .fig-art { animation: fig-strike 0.56s cubic-bezier(0.2, 0.7, 0.3, 1) both; }
 @keyframes fig-strike {
-  32% { transform: translateX(calc(var(--adv) + 42px)) translateY(calc(var(--apron) + 3px)) scale(calc(var(--swell) + 0.03)) rotate(2.5deg); filter: brightness(1.45); }
-  100% { transform: translateX(calc(var(--adv) + 30px)) translateY(var(--apron)) scale(var(--swell)) rotate(2deg); filter: brightness(1.14); }
+  32% { transform: translateY(calc(var(--apron) + 5px)) scale(calc(var(--swell) + 0.07)) rotate(3.2deg); filter: brightness(1.5); }
+  100% { transform: translateY(var(--apron)) scale(var(--swell)) rotate(2deg); filter: brightness(1.14); }
 }
 #party-half .figure.fig-return .fig-art { animation: fig-hold-return 0.38s cubic-bezier(0.3, 1.3, 0.55, 1) both; }
 @keyframes fig-hold-return {
-  0% { transform: translateX(calc(var(--adv) + 30px)) translateY(var(--apron)) scale(var(--swell)) rotate(2deg); }
-  60% { transform: translateX(-8px); }
-  100% { transform: translateX(0); }
+  0% { transform: translateY(var(--apron)) scale(var(--swell)) rotate(2deg); }
+  60% { transform: translateY(1px) scale(0.985) rotate(-0.6deg); }
+  100% { transform: none; }
 }
 
 /* ── TELEGRAPH ARCS (v2.2 Build 4) — who → where ────────────────────────────

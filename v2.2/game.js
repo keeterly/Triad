@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 40;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 41;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -6526,11 +6526,11 @@ function dealToEnemy(e, amt, school, byHeroId) {
   // nothing alike.  0 light · 1 solid · 2 heavy · 3 massive.
   const tier = amt >= 20 ? 3 : amt >= 12 ? 2 : amt >= 7 ? 1 : 0;
   const big = tier >= 2;
-  // THE DASH LANDS WHEN THE BLADE DOES (v2.2 Build 3, the Golden Sun read).
-  // A card-acting hero DASHES across the field (see lungeFig) and their blade
-  // arrives ~DASH_CONTACT into the travel — so the whole impact bundle (popup,
+  // THE BLADE LANDS ON THE PEAK, NOT ON THE PLAY (v2.2 Build 3, the Golden Sun
+  // read). A card-acting hero winds through a strike beat (see lungeFig) whose
+  // contact frame is ~DASH_CONTACT in — so the whole impact bundle (popup,
   // flash, HITSTOP, shake, recoil, even the death burst) is deferred to that
-  // frame. The hitstop then freezes the dash at its fullest extension, which
+  // frame. The hitstop then freezes the pose at its fullest extension, which
   // is the exact contact-frame pause that sells the blow. State (hp, embers,
   // death flags) stays synchronous — only the LIGHT is late.
   const _atkH = byHeroId && S && S.heroes ? S.heroes.find(x => x.id === byHeroId) : null;
@@ -11243,30 +11243,13 @@ function etBindDetail(onBack, heroId, selId) {
     kindleBurst(selCross.node, () => etRefreshTree(onBack, heroId, selId));
   };
 }
+// THE LANE ECHO IS RETIRED (v2.2 Build 41). It was a faint ghost of the hero
+// left standing in the lane while their body was downfield mid-strike — the
+// answer to "who owns this ground while nobody is on it". Nobody leaves their
+// ground any more, so the echo would stand exactly on top of the hero it was
+// standing in for. Kept as a no-op so any stale echo in the DOM is swept.
 function renderLaneEchoes(party) {
-  party.querySelectorAll('.slot').forEach(slot => {
-    const fig = slot.querySelector('.figure');
-    const id = fig && fig.dataset.fig;
-    const h = id && S && S.heroes && S.heroes.find(x => x.id === id);
-    const out = !!(h && (h._held || h._castAnim) && !h.downed);
-    let echo = slot.querySelector('.lane-echo');
-    if (!out) { if (echo) echo.remove(); return; }
-    const art = fig.querySelector('.fig-art');
-    if (!art) return;
-    if (!echo) {
-      echo = document.createElement('div');
-      echo.className = 'lane-echo';
-      echo.setAttribute('aria-hidden', 'true');
-      echo.innerHTML = V2PORTRAITS[id] || '';
-      slot.insertBefore(echo, fig);
-    }
-    // the ART's layout box is untouched by its transform, so it still marks
-    // the ground the hero owns — the echo stands exactly there
-    echo.style.left = art.offsetLeft + 'px';
-    echo.style.top = art.offsetTop + 'px';
-    echo.style.width = art.offsetWidth + 'px';
-    echo.style.height = art.offsetHeight + 'px';
-  });
+  party.querySelectorAll('.lane-echo').forEach(e => e.remove());
 }
 function refreshPartyFig(fig, who, solo) {
   const chips = fig.querySelector('.fig-chips'); if (chips) chips.innerHTML = partyChipsHtml(who);
@@ -12447,13 +12430,16 @@ function lungeFig(el) {
     setTimeout(() => el.classList.remove('fig-lunge'), 420);
     return;
   }
-  // THE DASH (v2.2 Build 3). A hero acting in the line doesn't nudge — they
-  // CROSS the field: art dashes toward the enemy half, the blade arrives at
-  // ~DASH_CONTACT (dealToEnemy holds the impact light for that frame, and the
-  // hitstop freezes the dash at full extension), then the travel settles into
-  // the held forward stance instead of walking home. The keyframes carry no
-  // 0% frame on purpose: a FRESH strike departs from idle, a combo's next
-  // beat departs from the held forward position — same animation, both reads.
+  // THE STRIKE (v2.2 Build 3, rebuilt Build 41). A hero acting in the line
+  // used to CROSS the field — the art dashed up to 126px toward the enemy half
+  // and froze there. That travel is gone: it left the striker standing far from
+  // the nameplate that carries their name, at the moment the telegraph flashes
+  // that name to say a blow is coming for them. The beat is now told in place —
+  // a drop into the apron, a swell, a lean — and the timing is untouched, so
+  // the blade still arrives at ~DASH_CONTACT and the hitstop still freezes the
+  // pose at full extension. The keyframes carry no 0% frame on purpose: a FRESH
+  // strike departs from idle, a combo's next beat departs from the held pose —
+  // same animation, both reads.
   const hid = el.dataset && el.dataset.fig;
   const h = (typeof S !== 'undefined' && S && S.heroes) ? S.heroes.find(x => x.id === hid) : null;
   if (h && h._castAnim) return;   // a caster casts IN PLACE — the sheet is the action
