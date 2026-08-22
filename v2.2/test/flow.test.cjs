@@ -1953,19 +1953,19 @@ const QUICK = process.argv.includes('--quick');
     }));
   check('ENEMY IDENTITY: speed axis reads the foe — Wraith fast (>1), Husk/Drone slow (<1)',
     await J(() => ENEMY_DEFS.wraith.parrySpeed > 1 && ENEMY_DEFS.husk.parrySpeed < 1 && ENEMY_DEFS.drone.parrySpeed < 1));
-  // THE PILL NAMES THE READ (v2.2 Build 38). This check used to assert the
-  // OPPOSITE — that the gesture glyph must not appear, on the theory that you
-  // should react at the ring. Two builds of measurement say otherwise: the plan
-  // → execute link is the whole reason a JRPG telegraphs at all, `parryGlyph()`
-  // was written for it and never called, and `.i-parry` sat in the stylesheet
-  // as dead CSS. Reading the intent row now tells you what you will PLAY.
-  check('TELEGRAPH: the pill names the READ — damage, lane, and the gesture coming',
+  // THE PILL CARRIES THE BLOW, NOT THE GESTURE (v2.2 Build 43). Build 38 added
+  // the parry-gesture glyph here on the argument that plan → execute is why a
+  // JRPG telegraphs at all. Played, the pill became the densest object on the
+  // board — a damage number, a lane letter, a divider, every status rider and a
+  // cascade glyph, at 9.5px, over the art. The gesture is answered at the ring,
+  // where it is unmissable; the pill is for the decision you make BEFORE it, and
+  // that decision is how hard, at whom.
+  check('TELEGRAPH: the pill carries the blow — how hard, at which lane, and nothing else',
     await J(() => {
       startFight({ type: 'fight', chapter: 2, heroes: ['ash'], enemies: ['wraith'], narrator: 'telegraph' });
       S.enemies[0].intentIdx = 0; renderAll();
       const p = document.querySelector('.figure.enemy .intent');
-      const g = p && p.querySelector('.i-parry');
-      return !!p && !!p.querySelector('.i-dmg') && !!g && g.textContent.trim().length > 0; }));
+      return !!p && !!p.querySelector('.i-dmg') && !p.querySelector('.i-parry'); }));
   // EXPANDED BESTIARY — three foes on new axes
   check('BESTIARY brood: a SWARM strikes TWICE a round (frequency axis works for a non-boss)',
     await J(() => {
@@ -2251,7 +2251,7 @@ const QUICK = process.argv.includes('--quick');
       // The aim is one character on the pill instead — a numeral, not the
       // word that made four packed foes a wall of "→ BACK → BACK → BACK".
       const aim = p && p.querySelector('.i-row');
-      return !!p && !!p.querySelector('.i-dmg') && !!p.querySelector('.i-parry')
+      return !!p && !!p.querySelector('.i-dmg') && !p.querySelector('.i-parry')
         && !!aim && /^(→ (F|M|B)|ALL)$/.test(aim.textContent.trim()); }));
   check('ALL-HIT: a whole-party blow opens with an across-sweep, then follows',
     await J(() => { const p = parryPatternFor({ row: 'all', dmg: 5 }); return p.kind === 'seq' && p.notes[0].t === 'swipe' && p.notes[0].arc === 'arcAcross'; }));
@@ -4769,10 +4769,12 @@ const QUICK = process.argv.includes('--quick');
     await J(() => typeof parryMashNote === 'undefined'
                 && !PARRY_GLYPH.mash
                 && ![1,2,3,4,5,6,7,8,9,10,11,12].some(d => parryPatternFor({ dmg: d }).kind === 'mash')));
-  check('PARRY: the telegraph names the READ — every intent pill carries its gesture glyph',
+  check('PARRY: the gesture is answered at the ring, not previewed in the pill',
     await J(() => { setupFight(['ash', 'hask'], [], { ash: 'front', hask: 'back' });
       const html = enemyIntentHtml(S.enemies[0]);
-      return html.indexOf('i-parry') >= 0 && /class="i-parry"[^>]*>[^<]+</.test(html); }));
+      // parryGlyph still derives the pattern (the suite asserts that below); it
+      // simply is not printed on the telegraph any more
+      return html.indexOf('i-parry') < 0 && typeof parryGlyph === 'function'; }));
   check('PARRY STYLE: STEADY widens every band without removing a single reward',
     await J(() => { const was = SETTINGS.parry;
       SETTINGS.parry = 'full'; const fullPerf = parryGrade(120);
@@ -4927,11 +4929,14 @@ const QUICK = process.argv.includes('--quick');
       const read = () => P.map(q => { const e = document.querySelector(q); if (!e) return null;
         const r = e.getBoundingClientRect(); return [r.left, r.top]; });
       // the fight's own opening move has to finish first — the lens eases in on
-      // every fight open, and that is a camera, not the set drifting
-      for (let i = 0; i < 14; i++) {
-        const a1 = read(); await new Promise(r => setTimeout(r, 180)); const b1 = read();
+      // every fight open, and that is a camera, not the set drifting. Require the
+      // board to be still across THREE consecutive samples: a single quiet frame
+      // can be the slow part of an ease that is still travelling.
+      let still = 0;
+      for (let i = 0; i < 40 && still < 3; i++) {
+        const a1 = read(); await new Promise(r => setTimeout(r, 150)); const b1 = read();
         let d = 0; a1.forEach((v, k) => { if (v && b1[k]) d = Math.max(d, Math.abs(v[0] - b1[k][0]), Math.abs(v[1] - b1[k][1])); });
-        if (d < 0.4) break;
+        still = d < 0.4 ? still + 1 : 0;
       }
       const base = read();
       let worst = 0;
@@ -4956,74 +4961,42 @@ const QUICK = process.argv.includes('--quick');
       return adv === '';
     }));
 
-  // ── THE LINE TRACK (Build 40) ────────────────────────────────────────────
-  // The design doc says a turn is ONE QUESTION — how deep is the line, who can
-  // close it, for how much. Every part of that answer lived only in memory: the
-  // depth in S.line.depth drawn nowhere, the FOCUS bonus applied silently at
-  // deal time so a card's face changed with no stated reason, the rally banked
-  // on the line a number with no pixel. What the screen said was a floating
-  // "✦ THE LINE", which conveys that a line exists and nothing else.
-  // These four run the ROTATION engine, so the suite's force-classic flag has to
-  // come off around them (it is restored below).
+  // ── THE LINE TRACK IS GONE (Build 43) ────────────────────────────────────
+  // Build 40 put the turn's question in a strip above the board: depth pips, who
+  // carried which beat, the FOCUS their finisher would land with, an EP price on
+  // everyone holding one. Played, it read as a row of numbers with no verb — the
+  // pips name nothing a player can act on, the EP price is already printed on the
+  // card, and the FOCUS is already in the card's face, which is what actually
+  // solved that problem. What it added was a second place to look. The one new
+  // thing it carried stays, on the button where that decision is made.
   await J(() => { try { window.__ltfc = localStorage.getItem('kizuna2_2.forceClassic'); localStorage.removeItem('kizuna2_2.forceClassic'); } catch (_) {} });
-  check('LINE TRACK: no line, no strip — it exists only while the question is open',
-    await J(() => {
-      RUN = newRun('ash'); RUN.roster = ['ash', 'hask', 'mira']; RUN.active = RUN.roster.slice();
-      RUN._rotations = true; RUN._line = true;
-      startFight({ type: 'fight', chapter: 1, heroes: ['ash', 'hask', 'mira'], enemies: ['husk'], narrator: 'line track' });
-      renderAll();
-      const el = document.getElementById('line-track');
-      return !!el && el.classList.contains('hidden');
-    }));
-  check('LINE TRACK: it states the depth, every carrier, and what each one would close for',
+  check('LINE: there is no strip above the board — the cards carry the question',
     await J(async () => {
       RUN = newRun('ash'); RUN.roster = ['ash', 'hask', 'mira']; RUN.active = RUN.roster.slice();
       RUN._rotations = true; RUN._line = true;
-      startFight({ type: 'fight', chapter: 1, heroes: ['ash', 'hask', 'mira'], enemies: ['husk'], narrator: 'line track' });
+      startFight({ type: 'fight', chapter: 1, heroes: ['ash', 'hask', 'mira'], enemies: ['husk'], narrator: 'no strip' });
       S.ep = 9; renderAll();
       const op = buildHand().find(c => c.kind === 'opener');
       if (!op) return false;
       await playCard(op, (frontmostEnemy() || {}).uid);
       S.ep = 9; renderAll();
       const el = document.getElementById('line-track');
-      if (!el || el.classList.contains('hidden')) return false;
-      const t = el.textContent;
-      // the depth, a pip lit for it, and an EP price on at least one hero
-      return /BEAT 1/.test(t) && el.querySelectorAll('.lt-pip.on').length === 1
-          && el.querySelectorAll('.lt-hero').length === 3
-          && el.querySelectorAll('.lt-cost').length >= 1;
+      return !!S.line && !!el && el.classList.contains('hidden') && el.innerHTML === '';
     }));
-  check('LINE TRACK: the FOCUS a carried beat buys is STATED, not sprung on the card face',
+  check('LINE: END TURN still wears the forfeit — the one thing the strip alone said',
     await J(async () => {
       RUN = newRun('ash'); RUN.roster = ['ash', 'hask', 'mira']; RUN.active = RUN.roster.slice();
       RUN._rotations = true; RUN._line = true;
-      startFight({ type: 'fight', chapter: 1, heroes: ['ash', 'hask', 'mira'], enemies: ['husk'], narrator: 'line focus' });
+      startFight({ type: 'fight', chapter: 1, heroes: ['ash', 'hask', 'mira'], enemies: ['husk'], narrator: 'forfeit' });
       S.ep = 9; renderAll();
       const op = buildHand().find(c => c.kind === 'opener');
       if (!op) return false;
-      await playCard(op, (frontmostEnemy() || {}).uid);
-      S.ep = 9; renderAll();
-      const cell = [...document.querySelectorAll('#line-track .lt-hero')]
-        .find(x => x.textContent.indexOf('+') >= 0);
-      return !!cell && /\+\d/.test(cell.querySelector('.lt-focus').textContent);
-    }));
-  check('LINE TRACK: what is banked on the line is drawn, and END TURN wears the forfeit',
-    await J(async () => {
-      RUN = newRun('ash'); RUN.roster = ['ash', 'hask', 'mira']; RUN.active = RUN.roster.slice();
-      RUN._rotations = true; RUN._line = true;
-      startFight({ type: 'fight', chapter: 1, heroes: ['ash', 'hask', 'mira'], enemies: ['husk'], narrator: 'line bank' });
-      S.ep = 9; renderAll();
-      const op = buildHand().find(c => c.kind === 'opener');
-      if (!op || !S.line && false) return false;
       await playCard(op, (frontmostEnemy() || {}).uid);
       if (!S.line) return false;
       S.line.rally = 4; S.ep = 9; renderAll();
-      const rally = document.querySelector('#line-track .lt-rally');
       const et = document.getElementById('btn-endturn');
-      return !!rally && /4/.test(rally.textContent) && et.classList.contains('et-forfeit')
-          && /forfeit/.test(et.title || '');
+      return et.classList.contains('et-forfeit') && /forfeit/.test(et.title || '');
     }));
-
   await J(() => { try { if (window.__ltfc) localStorage.setItem('kizuna2_2.forceClassic', window.__ltfc); } catch (_) {} });
 
   // ── THE FACE IS THE NUMBER THAT LANDS (Build 39) ─────────────────────────

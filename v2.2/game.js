@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V2_BUILD = 42;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
+const V2_BUILD = 43;   // MUST match version.json's "v2.2" — the update-check compares them. Bump BOTH every build.
 const CHARGE_CAP = 4;   // Hask (Black Mage) — max CHARGE stacks
 const CHARGE_DMG = 3;   // damage per CHARGE spent by an OVERLOAD nuke
 const MISFIRE_PER_CHARGE = 2;   // self-damage per ◆ CHARGE if Hask MOVES mid-channel (no Steady Cast)
@@ -11460,7 +11460,7 @@ function renderBattlefield() {
           <div class="fig-art">${V2PORTRAITS[who.id] || ''}${who.downed ? '' : auraHTML(partyAuraObj(who))}</div>
           <div class="hp-bar"><div class="hp-fill" style="width:${(who.hp / who.maxHp) * 100}%"></div>${
             woundOf(who) ? `<div class="hp-wound" style="width:${(woundOf(who) / who.maxHp) * 100}%" title="✖ WOUNDED ${woundOf(who)} — healing cannot reach this. Only a REST at a fire closes it."></div>` : ''}</div>
-          <div class="fig-name">${who.def.name} <span class="hp-num">${who.hp}/${who.maxHp}</span></div>
+          <div class="fig-name"><span class="fn-txt">${who.def.name}</span><span class="hp-num">${who.hp}/${who.maxHp}</span></div>
           <div class="fig-chips">${partyChipsHtml(who)}</div>
         `;
         attachHeroDrag(fig, who);
@@ -11679,14 +11679,18 @@ function intentSeg(e, it) {
   // wall of "→ BACK → BACK → BACK". The one exception is ALL: a blow no
   // reposition dodges is information the ground of one slot cannot carry.
   const RANKN = ROW_MARK;
-  return `<span class="i-seg"><span class="i-glyph">⚔</span><span class="i-dmg">${enemyIntentDmg(e, it)}</span>${row === 'all' ? '<span class="i-row">ALL</span>' : (row && RANKN[row] ? `<span class="i-row i-aim" title="aimed at lane ${RANKN[row]}">→ ${RANKN[row]}</span>` : '')}${it.hex ? '<span class="i-st kw-hex" title="HEX — if it lands, your card plays burn your hand; dodge it">☠</span>' : ''}${it.drain ? '<span class="i-st kw-drain" title="drains life — heals the Maw">♥</span>' : ''}${it.chill ? '<span class="i-st kw-chill" title="chills you">❄</span>' : ''}${it.expose ? '<span class="i-st kw-exposed" title="exposes you">◎</span>' : ''}${it.shove === 'front' ? '<span class="i-st kw-shove" title="DRAGS the struck hero one row forward — parry to hold your ground">⇱</span>' : ''}${it.shove === 'back' ? '<span class="i-st kw-shove" title="SHOVES the struck hero one row back — parry to hold your ground">⇲</span>' : ''}<span class="i-parry" title="the read this blow asks for — ⊙ tap · ⊙⊙ double · ▭ brace · ↷ deflect · ✷N a cascade of N">${parryGlyph(it)}</span></span>`;
+  return `<span class="i-seg"><span class="i-glyph">⚔</span><span class="i-dmg">${enemyIntentDmg(e, it)}</span>${row === 'all' ? '<span class="i-row">ALL</span>' : (row && RANKN[row] ? `<span class="i-row i-aim" title="aimed at lane ${RANKN[row]}">→ ${RANKN[row]}</span>` : '')}${it.hex ? '<span class="i-st kw-hex" title="HEX — if it lands, your card plays burn your hand; dodge it">☠</span>' : ''}${it.drain ? '<span class="i-st kw-drain" title="drains life — heals the Maw">♥</span>' : ''}${it.chill ? '<span class="i-st kw-chill" title="chills you">❄</span>' : ''}${it.expose ? '<span class="i-st kw-exposed" title="exposes you">◎</span>' : ''}${it.shove === 'front' ? '<span class="i-st kw-shove" title="DRAGS the struck hero one row forward — parry to hold your ground">⇱</span>' : ''}${it.shove === 'back' ? '<span class="i-st kw-shove" title="SHOVES the struck hero one row back — parry to hold your ground">⇲</span>' : ''}</span>`;
 }
 // the intent telegraph markup for an enemy (one or a boss's chained two)
 function enemyIntentHtml(e) {
   const its = enemyNextIntents(e);
   const heavy = its.some(x => x.heavy);
+  // A CHAINED PAIR STACKS (v2.2 Build 43). A boss that acts twice printed both
+  // blows on ONE line — "⚔44 → B ⊗ + ⚔58 ALL" — which ran the pill nearly the
+  // width of the creature and, at 9.5px, past the point anyone reads it. Two
+  // lines is the same information at half the width and twice the size.
   return its.length > 1
-    ? `<div class="intent intent-multi${heavy ? ' intent-heavy' : ''}">${its.map(x => intentSeg(e, x)).join('<span class="i-div">+</span>')}</div>`
+    ? `<div class="intent intent-multi${heavy ? ' intent-heavy' : ''}">${its.map(x => intentSeg(e, x)).join('')}</div>`
     : `<div class="intent${its[0].kind === 'buff' ? ' intent-buff' : ''}${heavy ? ' intent-heavy' : ''}">${intentSeg(e, its[0])}</div>`;
 }
 function enemyChipsHtml(e) {
@@ -11712,7 +11716,7 @@ function enemyFigInner(e) {
     ${enemyIntentHtml(e)}
     <div class="fig-art">${enemyArt(e)}${enemyAuraHtml(e)}</div>
     <div class="hp-bar"><div class="hp-fill" style="width:${(e.hp / e.maxHp) * 100}%"></div></div>
-    <div class="fig-name">${e.def.name} <span class="hp-num">${e.hp}/${e.maxHp}</span></div>
+    <div class="fig-name"><span class="fn-txt">${e.def.name}</span><span class="hp-num">${e.hp}/${e.maxHp}</span></div>
     ${enemyChipsHtml(e)}
   `;
 }
@@ -11988,45 +11992,20 @@ function renderBurst() {
 //
 // The strip states the question directly above the hand that answers it, and by
 // existing it teaches the whole mechanic: open → carry → close.
+// THE LINE TRACK IS GONE (v2.2 Build 43). Build 40 put the turn's question in a
+// strip above the board — depth pips, who had carried which beat, the FOCUS their
+// finisher would land with, an EP price on everyone holding one. Played, it read
+// as a row of numbers with no verb: the pips say nothing a player can act on, the
+// EP price is already printed on the card, and the FOCUS bonus is already in the
+// card's face (Build 39 made the face honest, which is what actually solved that
+// problem). What the strip added was a second place to look. The one genuinely new
+// thing it carried — that ending the turn forfeits what is banked on the line —
+// stays, on the END TURN button itself, where that decision is made.
 function renderLineTrack() {
   const el = document.getElementById('line-track');
   if (!el) return;
-  if (!S || S.over || !lineOn() || !lineLive() || !S.line) { el.classList.add('hidden'); el.innerHTML = ''; return; }
-  const line = S.line;
-  const beats = line.beats || [];
-  // the finisher a hero is holding RIGHT NOW, if any — that is what "can close"
-  // means, and its cost is the price of the answer
-  const finisherOf = (h) => S.tempCards.find(t => t.chain && t.owner === h.id && /FINISHER/.test(t.stance || ''));
-  const heroes = livingHeroes().map(h => {
-    const carried = beats.filter(id => id === h.id).length;
-    const fin = finisherOf(h);
-    return { h, carried,
-      // the FOCUS a NEXT finisher of theirs would carry — the surprise, stated
-      focus: LINE_FOCUS[Math.min(carried, LINE_FOCUS.length - 1)] || 0,
-      cost: fin ? fin.cost : null };
-  });
-  const rally = line.rally || 0;
-  const held = livingHeroes().reduce((a, h) => a + (h._pendCharge || 0), 0);
-  const depth = line.depth || 0;
-  const pips = [0, 1, 2].map(i => `<span class="lt-pip${i < depth ? ' on' : ''}"></span>`).join('');
-  const heroCells = heroes.map(x => {
-    const can = x.cost != null;
-    return `<span class="lt-hero${can ? ' lt-can' : ''}">`
-      + `<b>${x.h.def.name.toUpperCase()}</b>`
-      + (x.carried ? `<span class="lt-carry" title="beats carried this line">${'●'.repeat(Math.min(x.carried, 3))}</span>` : '')
-      + (x.focus ? `<span class="lt-focus" title="FOCUS — their finisher lands +${x.focus} for the beats they carried">+${x.focus}</span>` : '')
-      + (can ? `<span class="lt-cost" title="can CLOSE the line for ${x.cost} EP">${x.cost}EP</span>` : '')
-      + `</span>`;
-  }).join('');
-  const risk = (rally || held) ? ' lt-risk' : '';
-  const bank = `<span class="lt-bank">`
-    + (rally ? `<span class="lt-rally${risk}" title="banked on the LINE — lost if it does not close">▲ +${rally}</span>` : '')
-    + (held ? `<span class="lt-held${risk}" title="◆ CHARGE held provisionally — lost if the line does not close">◆ ${held} held</span>` : '')
-    + `</span>`;
-  el.innerHTML = `<span class="lt-pips" title="beats played into this line">${pips}</span>`
-    + `<span class="lt-beat">BEAT ${Math.min(depth, 3)}</span>`
-    + `<span class="lt-heroes">${heroCells}</span>` + bank;
-  el.classList.remove('hidden');
+  el.classList.add('hidden');
+  if (el.innerHTML) el.innerHTML = '';
 }
 function renderActionBar() {
   $('#ep-num').textContent = S.ep;
@@ -12101,10 +12080,16 @@ function renderActionBar() {
       : (st.v > 0 ? '+' : '') + st.v + ' ' + (STEP_WORD[st.k] || st.k)));
     return parts.join(' · ') + ' = ' + landed;
   };
+  // A COLOUR IS NOT A LABEL (v2.2 Build 43). A green number meant "the board
+  // raised this" and nothing on screen said so, so it read as decoration. It
+  // carries a caret now — ▲ up, ▼ down — which is the one mark everyone already
+  // knows, and the breakdown stays in the tooltip.
   const modIc = (cls, base, shown, pv) => {
-    const c = shown > base ? ' ic-mod-up' : shown < base ? ' ic-mod-down' : '';
+    const up = shown > base, down = shown < base;
+    const c = up ? ' ic-mod-up' : down ? ' ic-mod-down' : '';
     const t = c ? ` title="${stepTitle(pv, shown)}"` : '';
-    return { c, t };
+    const caret = up ? '<i class="ic-caret">▲</i>' : down ? '<i class="ic-caret">▼</i>' : '';
+    return { c, t, caret };
   };
   const fxIconStr = (fx, hasAll, dg, pv) => {
     dg = dg || '⚔';   // the damage glyph carries the card's ELEMENT (blade/light/…)
@@ -12114,12 +12099,12 @@ function renderActionBar() {
     else if (d) {
       const shown = (pv && pv.dmg != null) ? pv.dmg : d;
       const m = modIc('dmg', d, shown, pv);
-      b.push(`<span class="ic ic-dmg${m.c}"${m.t}>${dg}${shown}</span>`);
+      b.push(`<span class="ic ic-dmg${m.c}"${m.t}>${dg}${shown}${m.caret}</span>`);
     }
     if (fx.smite) {
       const shown = (pv && pv.smite != null) ? pv.smite : fx.smite;
       const m = modIc('dmg', fx.smite, shown, pv);
-      b.push(`<span class="ic ic-dmg${m.c}"${m.t}>✦${shown}</span>`);   // support-with-teeth strike
+      b.push(`<span class="ic ic-dmg${m.c}"${m.t}>✦${shown}${m.caret}</span>`);   // support-with-teeth strike
     }
     // A CAST IS THE BIGGEST NUMBER IN HASK'S KIT AND HAD NO FACE AT ALL — it
     // renders as a number and WHEN it lands, never an empty row.
@@ -12167,8 +12152,8 @@ function renderActionBar() {
     if (!pv || pv.dmg == null || pv.dmg === base) return card.desc || '';
     const re = new RegExp('^(\\s*)' + base + '\\b');
     if (!re.test(card.desc || '')) return card.desc || '';
-    const cls = pv.dmg > base ? 'd-mod-up' : 'd-mod-down';
-    return (card.desc || '').replace(re, '$1<b class="' + cls + '">' + pv.dmg + '</b>');
+    // the icon row is where the colour lives; the sentence just agrees with it
+    return (card.desc || '').replace(re, '$1<b>' + pv.dmg + '</b>');
   };
   const cardIcons = (card) => {
     const fx = card.fx || {};

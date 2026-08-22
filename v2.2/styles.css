@@ -664,11 +664,20 @@ body {
    is mid-grey, and the party's own names measured 1.00-1.89:1 against it —
    1.00 is invisible, not dim. Every readout now carries its own dark, so the
    floor can be as bright as the art wants without eating the board. */
+/* NAME QUIET, HEALTH LOUD (v2.2 Build 43). A foe's name is read once and then
+   never again; its remaining health is read every single turn. They were the
+   same size and the same brightness, and the name had the letter-spacing. */
 .fig-name {
-  white-space: nowrap; font-size: 9px; letter-spacing: 0.2em; color: var(--ink);
-  max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+  display: flex; align-items: baseline; justify-content: center; gap: 5px;
+  white-space: nowrap; font-size: 8px; letter-spacing: 0.16em; color: var(--ink-dim);
+  max-width: 100%;
   text-shadow: 0 1px 3px #000, 0 0 7px rgba(0,0,0,0.92);
 }
+/* THE NAME MAY BE CUT; THE NUMBER MAY NOT (v2.2 Build 43). One clipped string
+   held both, so a long foe name ate its own health — the boss read "43…" where
+   it meant 437/437. The name shrinks, the health never does. */
+.fig-name .fn-txt { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.fig-name .hp-num { flex: none; }
 .hp-num { text-shadow: 0 1px 3px #000; }
 /* three foes recede toward a vanishing point set for the WHOLE field, so the
    far columns are dragged left onto their neighbours; at 9px their plates ran
@@ -676,10 +685,10 @@ body {
    clearance back without truncating a single name. */
 .figure.enemy .fig-name { color: var(--ink); font-size: 8px; letter-spacing: 0.1em; }
 #enemy-half .fig-chips { max-width: 84%; margin-left: auto; margin-right: auto; }
-.hp-bar { width: 92%; height: 5px; border-radius: 3px; background: rgba(0,0,0,0.6); border: 1px solid rgba(232,220,196,0.16); overflow: hidden; }
+.hp-bar { width: 92%; height: 6px; border-radius: 3px; background: rgba(0,0,0,0.72); border: 1px solid rgba(232,220,196,0.22); overflow: hidden; }
 .hp-fill { height: 100%; background: linear-gradient(90deg, #b08a44, var(--gold)); transition: width 0.3s ease; }
 .figure.enemy .hp-fill { background: linear-gradient(90deg, #6a2424, var(--blood-bright)); }
-.hp-num { font-size: 8.5px; color: #bdb298; }
+.hp-num { font-size: 11px; font-weight: 700; color: #e8dcc4; letter-spacing: 0; }
 /* Status runes OVERLAY the top of the character art (absolute), so an effect
    appearing never reflows the figure / pushes the artwork up.  They sit ON the
    art (z above the aura + svg), floating just over the top of the creature. */
@@ -713,17 +722,26 @@ body {
 .figure.enemy .chip { font-size: 10px; letter-spacing: 0.05em; gap: 2.5px; }
 .figure.floor-boss .fig-chips { max-width: 240px; }
 
-/* intent bubble */
+/* THE TELEGRAPH, ENLARGED (v2.2 Build 43). This is the single most important
+   thing on the board — what is about to happen to you — and it was drawn at
+   9.5px in a pill crowded with a damage number, a lane letter, a divider, every
+   status rider, and (since Build 38) a parry-gesture glyph. The gesture glyph is
+   gone; the divider is gone; what is left is bigger and darker-backed so it
+   reads against the art it sits over. */
 .intent {
-  display: flex; align-items: center; gap: 4px;
-  font-size: 9.5px; padding: 1px 8px; border-radius: 999px;
-  border: 1px solid rgba(212,69,69,0.4); background: rgba(24,10,10,0.9);
-  color: var(--ink); margin-bottom: 2px;
-  white-space: nowrap;   /* the telegraph is always ONE crisp line — never wraps */
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  font-size: 12px; padding: 2px 9px; border-radius: 10px;
+  border: 1px solid rgba(212,69,69,0.55); background: rgba(16,7,8,0.94);
+  color: var(--ink); margin-bottom: 3px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.6);
+  white-space: nowrap;
 }
 .intent .i-seg, .intent .i-row { white-space: nowrap; }
 .intent .i-glyph { color: var(--blood-bright); }
-.intent .i-dmg { color: var(--blood-bright); font-weight: bold; }
+.intent .i-dmg { color: var(--blood-bright); font-weight: bold; font-size: 15px; letter-spacing: 0.02em; }
+.intent .i-seg { display: flex; align-items: center; gap: 5px; }
+.intent .i-glyph { font-size: 11px; opacity: 0.85; }
+.intent .i-row { font-size: 11px; }
 .intent .i-arrow { color: var(--ink-faint); margin: 0 1px; }
 .intent .i-row { color: var(--ink-dim); letter-spacing: 0.08em; }
 .intent.intent-buff { border-color: rgba(154,120,192,0.45); }
@@ -5415,9 +5433,8 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
 }
 .fig-aimdmg.aim-up { color: #8dffb0; border-color: rgba(120, 255, 175, 0.62); box-shadow: 0 0 12px rgba(90, 230, 150, 0.32); }
 .fig-aimdmg.aim-down { color: #ff9b80; border-color: rgba(255, 140, 110, 0.55); }
-/* the card's sentence carries the same live number its icon row does */
-.c-desc .d-mod-up { color: #8dffb0; }
-.c-desc .d-mod-down { color: #ff9b80; }
+/* the caret is the label the colour never was */
+.ic .ic-caret { font-style: normal; font-size: 7px; margin-left: 2px; vertical-align: 2px; opacity: 0.9; }
 
 /* ── THE LINE TRACK (v2.2 Build 40) ────────────────────────────────────────
    The design doc says a turn is one question: how deep is the line, who can
@@ -5469,3 +5486,32 @@ html.diag-nofilter *, html.diag-nofilter *::before, html.diag-nofilter *::after 
   color: #ff9b80;
   box-shadow: 0 0 12px rgba(255,120,90,0.28);
 }
+
+
+/* ── THE BOSS READOUT COMES OFF THE BOSS (v2.2 Build 43) ────────────────────
+   The floor boss's health was a 309px rule drawn straight across the middle of
+   the frame, with its name and chips stacked under it — the widest, most graphic
+   thing on screen, laid over the one piece of art the fight is built around.
+   Measured on a live boss frame, the creature's mass sits between 43% and 68% of
+   the enemy half and thins to under 5% below 68%, and it is centred to the RIGHT.
+   So the readout moves to the lower LEFT and stops being a rule: a short bar, the
+   health large, the name small and quiet beneath it. Same information, a quarter
+   of the width, none of it over the creature. */
+.figure.floor-boss .hp-bar,
+.figure.floor-boss .fig-name,
+.figure.floor-boss .fig-chips {
+  position: absolute; left: 2%; transform: none; z-index: 9;
+}
+/* Measured on the same frame, by column: the top-left of the enemy half — the
+   first third, x 510-657 — is 0-2% bright pixels, empty ruins. The bottom-left
+   looked empty too until the card fan was accounted for, which reaches into it.
+   So the readout is a HEADER, top-left: name and health on one line, a short bar
+   under it, the status chips under that. Nothing over the creature, nothing under
+   the hand. */
+.figure.floor-boss .fig-name {
+  top: 2px; font-size: 8.5px; letter-spacing: 0.16em;
+  justify-content: flex-start; max-width: 46%; color: var(--ink-dim);
+}
+.figure.floor-boss .fig-name .hp-num { font-size: 13px; color: #ffd9c8; margin-left: 4px; }
+.figure.floor-boss .hp-bar { width: 36%; top: 19px; height: 7px; }
+.figure.floor-boss .fig-chips { top: 30px; max-width: 46%; justify-content: flex-start; }
