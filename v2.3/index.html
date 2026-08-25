@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#131116" />
+  <title>KIZUNA v2.3 | The Shared Deck</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="styles.css?v=1" />
+</head>
+<body>
+  <div id="k-scale">
+    <main id="k-stage">
+
+      <!-- backdrop: standalone layer, no baked characters -->
+      <div id="k-backdrop" aria-hidden="true">
+        <div class="k-ruin k-ruin-a"></div>
+        <div class="k-ruin k-ruin-b"></div>
+        <div class="k-flood"></div>
+        <div class="k-horizon"></div>
+      </div>
+
+      <!-- actors: independent transparent plates on one ground line -->
+      <div id="k-boss-art"><img src="../art/foe-mourner.webp" alt="The Mourning Regent"><span class="k-shadow"></span></div>
+      <div class="k-hero" data-hero="elin">
+        <img src="../art/elin.webp" alt="Elin">
+        <span class="k-hero-row">BACK</span>
+        <button class="k-hero-move" title="Move — 1 AP">⇄</button>
+        <span class="k-shadow"></span>
+      </div>
+      <div class="k-hero" data-hero="ash">
+        <img src="../art/kai.webp" alt="Ash">
+        <span class="k-hero-row">FRONT</span>
+        <button class="k-hero-move" title="Move — 1 AP">⇄</button>
+        <span class="k-shadow"></span>
+      </div>
+      <div class="k-hero" data-hero="mira">
+        <img src="../art/mira.webp" alt="Mira">
+        <span class="k-hero-row">FRONT</span>
+        <button class="k-hero-move" title="Move — 1 AP">⇄</button>
+        <span class="k-shadow"></span>
+      </div>
+
+      <!-- party HUD — upper-left -->
+      <div id="k-party-hud">
+        <div class="k-pt-row">
+          <img src="../art/kai.webp" alt=""><img src="../art/elin.webp" alt=""><img src="../art/mira.webp" alt="">
+          <span class="k-pt-names">ASH · ELIN · MIRA</span>
+        </div>
+        <div class="k-bar"><div id="k-php-fill" class="k-bar-fill k-bar-party"></div></div>
+        <div class="k-pt-meta">
+          <span class="k-hpnum"><b id="k-php">42</b> / <span id="k-pmax">42</span></span>
+          <span id="k-guard-wrap">⛨ <b id="k-guard">0</b></span>
+          <span id="k-burn" style="display:none">🔥 BURN</span>
+        </div>
+      </div>
+
+      <!-- boss HUD — upper-right -->
+      <div id="k-boss-hud">
+        <div class="k-bname">THE MOURNING REGENT <span id="k-ward" class="k-ward"></span></div>
+        <div class="k-bar k-bar-w"><div id="k-bhp-fill" class="k-bar-fill k-bar-boss"></div></div>
+        <div class="k-b-meta">
+          <span class="k-hpnum"><b id="k-bhp">90</b> / <span id="k-bmax">90</span></span>
+          <span class="k-break-wrap">BREAK <span id="k-break"></span></span>
+          <span id="k-affinity" class="k-aff"></span>
+          <span id="k-bleed"></span>
+        </div>
+        <div id="k-intent">
+          <div class="k-int-top"><span id="k-int-name">—</span><span><b id="k-int-val">0</b> <span id="k-int-tgt"></span></span></div>
+          <div id="k-int-notes"></div>
+          <div id="k-int-hint"></div>
+        </div>
+      </div>
+
+      <!-- AP dial + narrator line — lower-left -->
+      <div id="k-ap">
+        <svg width="62" height="62" viewBox="0 0 62 62">
+          <circle cx="31" cy="31" r="28" fill="rgba(14,12,15,0.9)" stroke="rgba(150,138,114,0.4)" stroke-width="1"></circle>
+          <circle id="k-ap-ring" cx="31" cy="31" r="28" fill="none" stroke="#c9a45c" stroke-width="2.4"
+                  stroke-dasharray="175.9 175.9" stroke-linecap="round" transform="rotate(-90 31 31)"></circle>
+        </svg>
+        <div class="k-ap-txt"><span id="k-ap-num">3</span><i>/3</i><em>AP</em></div>
+      </div>
+      <div id="k-log"></div>
+
+      <!-- the hand + resonance -->
+      <div id="k-hand"></div>
+      <div id="k-res-card" class="k-res">
+        <div class="k-res-pair"><img src="../art/kai.webp" alt=""><span>∞</span><img src="../art/elin.webp" alt=""></div>
+        <div class="k-res-name">LIGHT THROUGH STEEL</div>
+        <div id="k-res-pips"></div>
+        <div id="k-res-state">1 AP · once</div>
+      </div>
+
+      <!-- piles + end turn — lower-right -->
+      <div id="k-piles">
+        <span>DECK <b id="k-deck-n">10</b></span>
+        <span>DISCARD <b id="k-disc-n">0</b></span>
+      </div>
+      <button id="k-endturn">END TURN</button>
+
+      <!-- overlays -->
+      <div id="k-target-ring" class="k-hidden"></div>
+      <div id="k-focus" class="k-hidden"></div>
+      <div id="k-overlay" class="k-ov k-hidden"></div>
+
+    </main>
+  </div>
+  <script src="game.js?v=1"></script>
+  <script>
+    // fit the 932×430 design space to the viewport, v2.2-style
+    (function () {
+      const fit = () => {
+        const s = Math.min(innerWidth / 932, innerHeight / 430);
+        document.getElementById('k-scale').style.transform = 'scale(' + s + ')';
+      };
+      addEventListener('resize', fit); fit();
+    })();
+  </script>
+</body>
+</html>
