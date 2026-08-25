@@ -757,3 +757,24 @@ Primary tuning questions:
 4. Does good defense change the outcome without making Guard irrelevant?
 5. Do different hero card orders create meaningfully different solutions?
 6. Does Resonance feel like a relationship moment rather than a meter payout?
+
+---
+
+## Addendum — accepted deviations (Build 2, at the designer's direction)
+
+1. **Per-hero HP, not one shared pool.** The party HUD stacks portraits with
+   individual HP bars, JRPG-style, so each hero carries their own pool:
+   Ash 16 · Elin 12 · Mira 14 (the spec's normalized 42, preserved in sum).
+   A hero at 0 falls; their cards are dead in the shared hand; the boss
+   retargets the first hero still standing; defeat is the whole line down.
+   Heals reach the most wounded living hero. Guard and Burn remain
+   party-shared per §7.1/§7.5. The no-parry win-rate target in §10.3 needs
+   re-simulation against focused damage.
+2. **The intent banner sits top-center**, in the open sky, and never covers
+   the Regent's art.
+3. **The hand fans** — a low-pivot arc; a card straightens and lifts on
+   hover/selection, and while dragging.
+4. **No Move button.** Movement is drag: pull a hero sideways past a
+   threshold to step them to the other row (still 1 AP). Cards drag to their
+   target (the Regent, or the party side) and release to play; tap-select →
+   tap-target and press-and-hold Focus remain.

@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V23_BUILD = 1;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 2;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // ── deterministic RNG (mulberry32) — the whole fight is replayable from a seed
 let _seed = (Date.now() >>> 0);
@@ -41,10 +41,14 @@ function shuffle(a) {
 // ═════════════════════════════════════════════════════════════════════════════
 // THE PARTY AND THE 15-CARD DECK (spec §6) — normalized prototype values.
 // ═════════════════════════════════════════════════════════════════════════════
+// Per-hero HP (Build 2, at the designer's direction): the party reads as a
+// stacked JRPG roster, so each hero carries their own pool. The pools sum to
+// the spec's normalized 42, keeping aggregate boss pressure intact; the
+// deviation from §7.1's single shared pool is recorded in the spec addendum.
 const HEROES23 = {
-  ash:  { name: 'ASH',  cls: 'Vanguard', art: '../art/kai.webp',  row0: 'front' },
-  elin: { name: 'ELIN', cls: 'Oracle',   art: '../art/elin.webp', row0: 'back'  },
-  mira: { name: 'MIRA', cls: 'Shade',    art: '../art/mira.webp', row0: 'front' },
+  ash:  { name: 'ASH',  cls: 'Vanguard', art: '../art/kai.webp',  row0: 'front', maxHp: 16 },
+  elin: { name: 'ELIN', cls: 'Oracle',   art: '../art/elin.webp', row0: 'back',  maxHp: 12 },
+  mira: { name: 'MIRA', cls: 'Shade',    art: '../art/mira.webp', row0: 'front', maxHp: 14 },
 };
 
 // Effects are tiny data atoms; resolveEffects() is the only interpreter.
@@ -131,11 +135,11 @@ function startCombat(opts) {
   C = {
     phase: 'INTRO',
     turn: 1,
-    party: { hp: 42, max: 42, guard: 0, burn: 0 },
+    party: { guard: 0, burn: 0 },   // Guard and Burn stay party-shared (spec §7.1)
     heroes: {
-      ash:  { row: HEROES23.ash.row0 },
-      elin: { row: HEROES23.elin.row0 },
-      mira: { row: HEROES23.mira.row0 },
+      ash:  { row: HEROES23.ash.row0,  hp: HEROES23.ash.maxHp,  max: HEROES23.ash.maxHp,  downed: false },
+      elin: { row: HEROES23.elin.row0, hp: HEROES23.elin.maxHp, max: HEROES23.elin.maxHp, downed: false },
+      mira: { row: HEROES23.mira.row0, hp: HEROES23.mira.maxHp, max: HEROES23.mira.maxHp, downed: false },
     },
     boss: {
       name: 'The Mourning Regent', hp: 90, max: 90, phase: 1, ward: 0,
@@ -162,12 +166,22 @@ function currentIntent() {
            phaseBackDmg: it.backDmg ? it.backDmg[p] : null, phaseBurn: it.burn ? it.burn[p] : 0,
            noteSeq: notes };
 }
+function livingHeroes() { return Object.keys(C.heroes).filter(id => !C.heroes[id].downed); }
+// Who the blow actually falls on: the scripted target while they stand,
+// otherwise the first hero still on their feet.
+function intentTargetId() {
+  const it = REGENT_INTENTS[C.boss.intentIx % REGENT_INTENTS.length];
+  if (it.target === 'self') return null;
+  if (C.heroes[it.target] && !C.heroes[it.target].downed) return it.target;
+  return livingHeroes()[0] || null;
+}
 // The number the telegraph shows RIGHT NOW — positional counterplay previews
 // live (move the Scything target Back and the plate re-reads 7, not 26).
 function intentPreviewDmg() {
   const it = currentIntent();
   if (it.kind !== 'attack') return 0;
-  if (it.phaseBackDmg != null && C.heroes[it.target] && C.heroes[it.target].row === 'back') return it.phaseBackDmg;
+  const tgt = intentTargetId();
+  if (it.phaseBackDmg != null && tgt && C.heroes[tgt].row === 'back') return it.phaseBackDmg;
   return it.phaseDmg;
 }
 
@@ -231,7 +245,9 @@ function resolveEffects(effects) {
     if (fx.strikeAgain) dealToBoss(fx.strikeAgain, 'again');
     if (fx.brk)        { C.boss.brk = Math.max(0, C.boss.brk - fx.brk); fxBreak(); }
     if (fx.guard)      C.party.guard += fx.guard;
-    if (fx.healParty)  C.party.hp = Math.min(C.party.max, C.party.hp + fx.healParty);
+    if (fx.healParty)  { const m = livingHeroes().sort((a, b) =>
+        (C.heroes[b].max - C.heroes[b].hp) - (C.heroes[a].max - C.heroes[a].hp))[0];
+      if (m) C.heroes[m].hp = Math.min(C.heroes[m].max, C.heroes[m].hp + fx.healParty); }
     if (fx.bleed)      { C.boss.bleed = fx.bleed; C.boss.bleedTurns = fx.turns || 2; }
     if (fx.consumeBleed) { C.boss.bleed = 0; C.boss.bleedTurns = 0; }
     if (fx.setAffinity) C.boss.affinity = fx.setAffinity;
@@ -245,6 +261,7 @@ function playCard(cardId) {
   if (!C || C.phase !== 'PLAYER_READY') return false;
   if (!C.hand.includes(cardId)) return false;
   const ev = evaluateCard(cardId);                    // cost updates BEFORE affordability
+  if (C.heroes[ev.card.owner].downed) return false;   // the fallen play nothing
   if (C.ap < ev.currentCost) return false;
   setPhase('PLAYER_ACTION_RESOLVING');
   C.ap -= ev.currentCost;
@@ -277,6 +294,7 @@ function playCard(cardId) {
 
 function moveHero(heroId) {
   if (!C || C.phase !== 'PLAYER_READY' || C.ap < 1) return false;
+  if (C.heroes[heroId].downed) return false;
   C.ap -= 1;
   const h = C.heroes[heroId];
   h.row = h.row === 'front' ? 'back' : 'front';
@@ -288,6 +306,7 @@ function moveHero(heroId) {
 function playResonance() {
   if (!C || C.phase !== 'PLAYER_READY') return false;
   if (C.resonance.used || C.resonance.charges < 2 || C.ap < RESONANCE.cost) return false;
+  if (C.heroes.ash.downed || C.heroes.elin.downed) return false;   // both voices, or neither
   setPhase('PLAYER_ACTION_RESOLVING');
   C.ap -= RESONANCE.cost;
   C.resonance.used = true;
@@ -343,11 +362,13 @@ async function endTurn(opts) {
   } else {
     // A damaging intent LAUNCHES and is answered note by note.
     setPhase('ENEMY_ATTACK_LAUNCH');
+    const tgtId = intentTargetId();
+    result.targetId = tgtId;
     const total = intentPreviewDmg();
     const notes = it.noteSeq;
     setPhase('RHYTHM_DEFENSE');
     const grades = opts.grades ? opts.grades.slice(0, notes.length)
-                               : await runRhythmUI(it, notes);
+                               : await runRhythmUI(it, notes, tgtId);
     while (grades.length < notes.length) grades.push('miss');
     result.grades = grades;
     C.telemetry.parry.push({ t: C.turn, intent: it.id, grades: grades.slice() });
@@ -372,7 +393,11 @@ async function endTurn(opts) {
     // Guard applies only AFTER rhythm mitigation.
     let afterGuard = incoming;
     if (C.party.guard > 0) { const g = Math.min(C.party.guard, afterGuard); C.party.guard -= g; afterGuard -= g; }
-    C.party.hp = Math.max(0, C.party.hp - afterGuard);
+    const struck = tgtId ? C.heroes[tgtId] : null;
+    if (struck && afterGuard > 0) {
+      struck.hp = Math.max(0, struck.hp - afterGuard);
+      if (struck.hp === 0) { struck.downed = true; logLine(HEROES23[tgtId].name + ' falls.'); }
+    }
     result.taken = afterGuard;
     if (afterGuard > 0 && it.phaseBurn) C.party.burn = it.phaseBurn;   // Ashen Rain scorches what it touches
 
@@ -387,7 +412,7 @@ async function endTurn(opts) {
       logLine('RIPOSTE — ' + result.riposte + ' returned.');
     }
     await fxAttackResolved(result);
-    if (C.party.hp <= 0) { setPhase('DEFEAT'); renderAll(); return report('defeat', result); }
+    if (!livingHeroes().length) { setPhase('DEFEAT'); renderAll(); return report('defeat', result); }
     if (C.phase === 'VICTORY') { renderAll(); return report('victory', result); }
   }
 
@@ -425,12 +450,12 @@ function logLine(t) { C.log.push(t); const el = document.getElementById('k-log')
 // ═════════════════════════════════════════════════════════════════════════════
 const NOTE_TRAVEL = 1100;   // ms from launch to impact
 const NOTE_GAP = 620;       // ms between notes
-function runRhythmUI(intent, notes) {
+function runRhythmUI(intent, notes, tgtId) {
   return new Promise(resolve => {
     if (!notes.length) return resolve([]);
     const stage = document.getElementById('k-stage');
     const bossEl = document.getElementById('k-boss-art');
-    const heroEl = document.querySelector('.k-hero[data-hero="' + intent.target + '"]') ||
+    const heroEl = document.querySelector('.k-hero[data-hero="' + (tgtId || intent.target) + '"]') ||
                    document.querySelector('.k-hero');
     if (!stage || !bossEl || !heroEl) {
       return resolve(notes.map(() => 'miss'));      // headless / torn-down DOM: all packets land
@@ -565,7 +590,8 @@ async function fxInterrupt() { const b = document.getElementById('k-boss-art'); 
 async function fxBossHeal() { popupOver(document.getElementById('k-boss-art'), '+heal', 'k-pop-heal'); await sleep(500); }
 async function fxAttackResolved(result) {
   if (result.taken > 0) {
-    popupOver(document.getElementById('k-party-hud'), '−' + result.taken, 'k-pop-dmg');
+    const at = result.targetId && document.querySelector('.k-hero[data-hero="' + result.targetId + '"]');
+    popupOver(at || document.getElementById('k-party-hud'), '−' + result.taken, 'k-pop-dmg');
     const s = document.getElementById('k-stage'); if (s) { s.classList.remove('k-shake'); void s.offsetWidth; s.classList.add('k-shake'); }
   }
   await sleep(420);
@@ -586,9 +612,14 @@ function renderAll() {
   renderApDial(); renderPiles(); renderResonance(); renderHeroes(); renderOutcome();
 }
 function renderPartyHud() {
-  el('k-php').textContent = C.party.hp;
-  el('k-pmax').textContent = C.party.max;
-  el('k-php-fill').style.width = (C.party.hp / C.party.max * 100) + '%';
+  for (const id of Object.keys(C.heroes)) {
+    const h = C.heroes[id];
+    const row = document.querySelector('.k-pt-hero[data-hero="' + id + '"]');
+    if (!row) continue;
+    row.classList.toggle('k-downed', !!h.downed);
+    row.querySelector('.k-bar-fill').style.width = (h.hp / h.max * 100) + '%';
+    row.querySelector('.k-pt-hp').innerHTML = '<b>' + h.hp + '</b> / ' + h.max;
+  }
   el('k-guard').textContent = C.party.guard;
   el('k-guard-wrap').style.visibility = C.party.guard > 0 ? 'visible' : 'hidden';
   el('k-burn').style.display = C.party.burn > 0 ? '' : 'none';
@@ -609,25 +640,32 @@ function renderBossHud() {
 function renderIntent() {
   const it = currentIntent();
   el('k-int-name').textContent = it.name;
-  const tgt = it.target === 'self' ? 'Self' : HEROES23[it.target].name;
+  const eff = intentTargetId();
+  const tgt = it.target === 'self' ? 'Self' : eff ? HEROES23[eff].name : '—';
   el('k-int-val').textContent = it.kind === 'heal' ? ('+' + it.phaseHeal) : intentPreviewDmg();
   el('k-int-tgt').textContent = '→ ' + tgt;
   el('k-int-notes').innerHTML = it.noteSeq.map(t =>
     t === 'tap' ? '<span class="k-nglyph">●</span>' : t === 'slide' ? '<span class="k-nglyph">➤</span>' : '<span class="k-nglyph k-nglyph-hold">▬</span>'
   ).join('') || '<span class="k-nglyph-none">no parry — Break it</span>';
   el('k-int-hint').textContent =
-    it.id === 'scythe' ? (C.heroes[it.target].row === 'back' ? 'Target is Back — mostly spent' : 'Move ' + HEROES23[it.target].name + ' Back to blunt it')
+    it.id === 'scythe' ? (eff && C.heroes[eff].row === 'back' ? 'Target is Back — mostly spent' : 'Move ' + (eff ? HEROES23[eff].name : 'the target') + ' Back to blunt it')
     : it.id === 'benediction' ? 'Interrupt by Breaking the Regent'
     : it.id === 'rain' ? 'Unguarded damage Burns' : 'Parry to turn it · perfect string ripostes';
 }
 function renderHand() {
   const hand = el('k-hand'); if (!hand) return;
-  hand.innerHTML = C.hand.map(id => {
+  const n = C.hand.length, mid = (n - 1) / 2;
+  hand.innerHTML = C.hand.map((id, i) => {
     const ev = evaluateCard(id);
     const c = ev.card;
     const afford = C.ap >= ev.currentCost;
-    return '<button class="k-card' + (ev.modifierActive ? ' k-card-active' : '') + (afford ? '' : ' k-card-poor')
-      + (_sel === id ? ' k-card-sel' : '') + '" data-card="' + id + '">'
+    const dead = C.heroes[c.owner].downed;
+    // the FAN: a gentle arc, rotation from a low pivot plus a parabolic dip
+    const rot = ((i - mid) * 4).toFixed(1), dy = ((i - mid) * (i - mid) * 4.5).toFixed(1);
+    return '<button class="k-card' + (ev.modifierActive && !dead ? ' k-card-active' : '') + (afford ? '' : ' k-card-poor')
+      + (dead ? ' k-card-dead' : '')
+      + (_sel === id ? ' k-card-sel' : '') + '" data-card="' + id + '"'
+      + ' style="--rot:' + rot + 'deg;--dy:' + dy + 'px">'
       + '<span class="k-ap-med' + (ev.modifierActive && ev.currentCost !== c.cost ? ' k-ap-gold' : '') + '">' + ev.currentCost + '</span>'
       + '<img class="k-owner" src="' + HEROES23[c.owner].art + '" alt="">'
       + '<span class="k-eyebrow">' + (c.memory ? 'MEMORY ◈' : 'ACTION') + '</span>'
@@ -639,7 +677,7 @@ function renderHand() {
         : '<span class="k-ccore">— CORE —</span>')
       + '</button>';
   }).join('');
-  hand.querySelectorAll('.k-card').forEach(b => attachCardInput(b));
+  hand.querySelectorAll('.k-card:not(.k-card-dead)').forEach(b => attachCardInput(b));
 }
 function effectText(effects) {
   return effects.map(fx =>
@@ -681,20 +719,63 @@ function renderOutcome() {
 }
 
 // ── input: tap-select → tap target; press-and-hold → Character Focus ──
+function stageScale() {
+  const st = el('k-stage');
+  return (st.getBoundingClientRect().width / st.offsetWidth) || 1;
+}
+// What lies under a released card: the Regent, or the party's side (a hero
+// figure or the roster). Enemy cards want the Regent; party cards want ours.
+function dropTargetAt(x, y) {
+  const inside = (r) => x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+  if (inside(el('k-boss-art').getBoundingClientRect())) return 'enemy';
+  if (inside(el('k-party-hud').getBoundingClientRect())) return 'party';
+  for (const h of document.querySelectorAll('.k-hero')) if (inside(h.getBoundingClientRect())) return 'party';
+  return null;
+}
 function attachCardInput(btn) {
-  let holdT = null, held = false;
-  btn.addEventListener('pointerdown', () => {
-    held = false;
+  // `armed` gates everything on a REAL press. Without it a bare hover's
+  // pointermove measured its delta from (0,0), decided it was a drag, and
+  // flung the card 375px off the hand before the button ever went down.
+  let holdT = null, held = false, dragging = false, armed = false, sx = 0, sy = 0;
+  btn.addEventListener('pointerdown', (e) => {
+    held = false; dragging = false; armed = true; sx = e.clientX; sy = e.clientY;
     holdT = setTimeout(() => { held = true; openFocus(btn.dataset.card); }, 480);
+    try { btn.setPointerCapture(e.pointerId); } catch (_) {}
   });
-  btn.addEventListener('pointerup', () => {
+  btn.addEventListener('pointermove', (e) => {
+    if (!armed || held) return;
+    const dx = e.clientX - sx, dy = e.clientY - sy;
+    if (!dragging && Math.hypot(dx, dy) > 14) { clearTimeout(holdT); dragging = true; btn.classList.add('k-dragging'); }
+    if (dragging) {
+      const k = stageScale();
+      btn.style.setProperty('--dragx', (dx / k) + 'px');
+      btn.style.setProperty('--dragy', (dy / k) + 'px');
+      const over = dropTargetAt(e.clientX, e.clientY);
+      const want = CARD_DEFS[btn.dataset.card].target === 'enemy' ? 'enemy' : 'party';
+      btn.classList.toggle('k-drop-ok', over === want);
+    }
+  });
+  btn.addEventListener('pointerup', (e) => {
     clearTimeout(holdT);
+    if (!armed) return;
+    armed = false;
     if (held) return;
     const id = btn.dataset.card;
+    if (dragging) {
+      btn.classList.remove('k-dragging', 'k-drop-ok');
+      btn.style.removeProperty('--dragx'); btn.style.removeProperty('--dragy');
+      const over = dropTargetAt(e.clientX, e.clientY);
+      const want = CARD_DEFS[id].target === 'enemy' ? 'enemy' : 'party';
+      if (over === want) { _sel = null; el('k-target-ring').classList.add('k-hidden'); playCard(id); }
+      else renderHand();
+      return;
+    }
     if (_sel === id) { commitCard(id); }
     else { _sel = id; renderHand(); showTargetRing(id); }
   });
-  btn.addEventListener('pointercancel', () => clearTimeout(holdT));
+  btn.addEventListener('pointercancel', () => { clearTimeout(holdT); armed = false; dragging = false;
+    btn.classList.remove('k-dragging', 'k-drop-ok');
+    btn.style.removeProperty('--dragx'); btn.style.removeProperty('--dragy'); });
 }
 function showTargetRing(cardId) {
   const c = CARD_DEFS[cardId];
@@ -744,8 +825,31 @@ function closeFocus() {
 function bindChrome() {
   el('k-endturn').onclick = () => { _sel = null; el('k-target-ring').classList.add('k-hidden'); endTurn(); };
   el('k-res-card').onclick = () => playResonance();
+  // MOVE IS DRAG. Pull a hero sideways past the threshold and release —
+  // rows are a toggle, so either direction reads as "step to the other row".
   document.querySelectorAll('.k-hero').forEach(h => {
-    h.querySelector('.k-hero-move').onclick = (e) => { e.stopPropagation(); moveHero(h.dataset.hero); };
+    let sx = 0, live = false;
+    h.addEventListener('pointerdown', (e) => {
+      if (!C || C.phase !== 'PLAYER_READY') return;
+      sx = e.clientX; live = true;
+      try { h.setPointerCapture(e.pointerId); } catch (_) {}
+    });
+    h.addEventListener('pointermove', (e) => {
+      if (!live) return;
+      const dx = (e.clientX - sx) / stageScale();
+      h.classList.add('k-hero-drag');
+      h.style.setProperty('--hdx', Math.max(-70, Math.min(70, dx)) + 'px');
+    });
+    const up = (e) => {
+      if (!live) return;
+      live = false;
+      const dx = (e.clientX - sx) / stageScale();
+      h.classList.remove('k-hero-drag');
+      h.style.removeProperty('--hdx');
+      if (Math.abs(dx) > 44) moveHero(h.dataset.hero);
+    };
+    h.addEventListener('pointerup', up);
+    h.addEventListener('pointercancel', up);
   });
   el('k-stage').addEventListener('pointerdown', (e) => {
     if (_sel && !e.target.closest('.k-card') && !e.target.closest('#k-target-ring')) {
@@ -778,5 +882,5 @@ window.K = {
     const ix = REGENT_INTENTS.findIndex(i => i.id === id);
     if (ix >= 0) { C.boss.intentIx = ix; renderAll(); }
   },
-  gradeOffset, currentIntent, intentPreviewDmg,
+  gradeOffset, currentIntent, intentPreviewDmg, intentTargetId,
 };

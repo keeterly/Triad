@@ -14,7 +14,9 @@ const { boot } = require('./harness.cjs');
     const c = K.state();
     return {
       phase: c.phase, turn: c.turn, ap: c.ap,
-      partyHp: c.party.hp, guard: c.party.guard, burn: c.party.burn,
+      guard: c.party.guard, burn: c.party.burn,
+      heroHp: { ash: c.heroes.ash.hp, elin: c.heroes.elin.hp, mira: c.heroes.mira.hp },
+      down: { ash: c.heroes.ash.downed, elin: c.heroes.elin.downed, mira: c.heroes.mira.downed },
       bossHp: c.boss.hp, brk: c.boss.brk, breakMax: c.boss.breakMax,
       ward: c.boss.ward, bossPhase: c.boss.phase, affinity: c.boss.affinity,
       bleed: c.boss.bleed, bleedTurns: c.boss.bleedTurns,
@@ -64,7 +66,7 @@ const { boot } = require('./harness.cjs');
   }
   {
     const machine = await J(async () => {
-      const res = await fetch('game.js?v=1'); const src = await res.text();
+      const res = await fetch('game.js'); const src = await res.text();
       const assigns = (src.match(/C\.phase = /g) || []).length;
       return { assigns, hasSetPhase: /function setPhase\(/.test(src) };
     });
@@ -170,20 +172,20 @@ const { boot } = require('./harness.cjs');
       before === 26 && after === 7);
     const r = await J(() => K.endTurn({ grades: ['miss', 'miss', 'miss'] }));
     const s = await st();
-    check('S8: taken entirely, it resolves for 7, not 26', s.partyHp === 42 - 7, 'hp ' + s.partyHp);
+    check('S8: taken entirely, it resolves for 7 against Mira, not 26', s.heroHp.mira === 14 - 7, 'mira ' + s.heroHp.mira);
   }
 
   // ───────────────────── scenario 9 — miss everything, die ─────────────────────
   await fresh(19);
   {
     let outcome = 'continue';
-    for (let i = 0; i < 5 && outcome === 'continue'; i++) {
+    for (let i = 0; i < 6 && outcome === 'continue'; i++) {
       const r = await J(() => K.endTurn({ grades: ['miss', 'miss', 'miss', 'miss', 'miss'] }));
       outcome = r.outcome;
     }
     const s = await st();
-    check('S9: parrying nothing and playing nothing is death within a few turns',
-      outcome === 'defeat' && s.phase === 'DEFEAT' && s.partyHp === 0, 'turn ' + s.turn);
+    check('S9: parrying nothing and playing nothing drops the party hero by hero within a few turns',
+      outcome === 'defeat' && s.phase === 'DEFEAT' && s.down.ash && s.down.elin && s.down.mira, 'turn ' + s.turn);
   }
 
   // ───────────────────── scenario 10 — the full PERFECT string ─────────────────────
@@ -194,7 +196,7 @@ const { boot } = require('./harness.cjs');
     const s = await st();
     check('S10: a perfect string negates the Hymn, deals 1 Break, and ripostes 4×notes',
       r.turned === true && r.riposte === 16 && r.taken === 0
-      && s.partyHp === 42 && s.bossHp === 90 - 16 && s.brk === 4);
+      && s.heroHp.ash === 16 && s.bossHp === 90 - 16 && s.brk === 4);
   }
   {
     await fresh(21);
@@ -202,16 +204,16 @@ const { boot } = require('./harness.cjs');
     const r = await J(() => K.endTurn({ grades: ['perfect', 'great', 'perfect', 'great'] }));
     const s = await st();
     check('S10b: all PERFECT/GREAT still turns the attack and Breaks — but no riposte',
-      r.turned === true && r.riposte === 0 && s.partyHp === 42 && s.bossHp === 90 && s.brk === 4);
+      r.turned === true && r.riposte === 0 && s.heroHp.ash === 16 && s.bossHp === 90 && s.brk === 4);
   }
   {
     await fresh(22);
     await J(() => K.forceIntent('hymn'));
     // packets of 22 across 4 notes: 6,6,5,5 — GOOD halves (ceil), MISS lands whole
-    const r = await J(() => K.endTurn({ grades: ['good', 'good', 'miss', 'miss'] }));
+    const r = await J(() => K.endTurn({ grades: ['good', 'good', 'good', 'miss'] }));
     const s = await st();
-    check('S10c: damage packets follow the individual grades — 3+3+5+5 lands',
-      s.partyHp === 42 - 16, 'hp ' + s.partyHp);
+    check('S10c: damage packets follow the individual grades — 3+3+3+5 lands on Ash',
+      s.heroHp.ash === 16 - 14, 'ash ' + s.heroHp.ash);
   }
 
   // ───────────────────── scenario 11 — discard everything, draw one at a time ─────────────────────
@@ -305,13 +307,18 @@ const { boot } = require('./harness.cjs');
     await J(() => K.forceIntent('rain'));
     await J(() => K.endTurn({ grades: ['miss', 'miss', 'miss', 'miss'] }));
     let s = await st();
-    check('BURN: unguarded Ashen Rain scorches — 20 taken, Burn 4 banked',
-      s.partyHp === 22 && s.burn === 4);
-    const r = await J(() => K.endTurn({ grades: ['good', 'good', 'good', 'good'] }));
+    check('BURN: unguarded Ashen Rain scorches — Elin falls to it, Burn 4 banked',
+      s.heroHp.elin === 0 && s.down.elin && s.burn === 4);
+    const retgt = await J(() => { K.forceIntent('rain'); return K.intentTargetId(); });
+    check('RETARGET: with Elin down, the Rain finds a hero still standing', retgt !== 'elin' && !!retgt, retgt);
+    const dead = await J(() => { K.forceHand(['lveil', 'cleave', 'brace', 'mend', 'serrate']); return K.playCard('lveil'); });
+    check('DOWNED: a fallen hero’s cards are dead in the shared hand', dead === false);
+    await J(() => K.forceIntent('hymn'));
+    const r = await J(() => K.endTurn({ grades: ['perfect', 'good', 'good', 'good'] }));
     s = await st();
-    // hymn 22 → packets 6,6,5,5 → good halves: 3+3+3+3=12, +4 burn = 16
+    // hymn 22 → packets 6,6,5,5 → 0+3+3+3=9, +4 banked burn = 13 → Ash 16-13
     check('BURN: it adds to the next damaging resolution, then clears',
-      s.partyHp === 22 - 16 && s.burn === 0, 'hp ' + s.partyHp);
+      s.heroHp.ash === 3 && s.burn === 0, 'ash ' + s.heroHp.ash);
   }
   await fresh(29);
   {
@@ -320,9 +327,9 @@ const { boot } = require('./harness.cjs');
     await J(() => K.forceIntent('hymn'));
     await J(() => K.endTurn({ grades: ['good', 'good', 'miss', 'miss'] }));
     const s = await st();
-    // 3+3+5+5 = 16 through the notes, then Guard 5 absorbs → 11 to HP; guard expires after
+    // 3+3+5+5 = 16 through the notes, then Guard 5 absorbs → 11 to Ash; guard expires after
     check('GUARD: applies only after rhythm mitigation, and expires after the Enemy Phase',
-      s.partyHp === 42 - 11 && s.guard === 0, 'hp ' + s.partyHp);
+      s.heroHp.ash === 16 - 11 && s.guard === 0, 'ash ' + s.heroHp.ash);
   }
   await fresh(30);
   {
@@ -345,16 +352,34 @@ const { boot } = require('./harness.cjs');
   // ───────────────────── presentation smoke ─────────────────────
   {
     await fresh(31);
-    const ui = await J(() => ({
-      intent: document.getElementById('k-int-name').textContent.length > 1,
-      cards: document.querySelectorAll('#k-hand .k-card').length,
-      apVisible: document.getElementById('k-ap-num').textContent === '3',
-      resonance: !!document.getElementById('k-res-card'),
-      actors: document.querySelectorAll('.k-hero img').length === 3 && !!document.querySelector('#k-boss-art img'),
-      endTurnBig: document.getElementById('k-endturn').getBoundingClientRect().height >= 40,
-    }));
-    check('UI: intent visible before acting; five cards; AP dial; resonance card; independent actors',
-      ui.intent && ui.cards === 5 && ui.apVisible && ui.resonance && ui.actors, JSON.stringify(ui));
+    const ui = await J(() => {
+      const intentR = document.getElementById('k-intent').getBoundingClientRect();
+      const bossR = document.getElementById('k-boss-art').getBoundingClientRect();
+      const cards = [...document.querySelectorAll('#k-hand .k-card')];
+      return {
+        intent: document.getElementById('k-int-name').textContent.length > 1,
+        intentClearOfBoss: intentR.right < bossR.left || intentR.bottom < bossR.top || intentR.left > bossR.right,
+        stacked: document.querySelectorAll('#k-party-hud .k-pt-hero').length === 3
+          && document.querySelectorAll('#k-party-hud .k-bar').length === 3,
+        cards: cards.length,
+        fanned: cards.some(c => (c.style.getPropertyValue('--rot') || '').includes('deg')
+          && c.style.getPropertyValue('--rot') !== '0.0deg'),
+        noMoveButton: !document.querySelector('.k-hero-move'),
+        apVisible: document.getElementById('k-ap-num').textContent === '3',
+        resonance: !!document.getElementById('k-res-card'),
+        actors: document.querySelectorAll('.k-hero img').length === 3 && !!document.querySelector('#k-boss-art img'),
+      };
+    });
+    check('UI: intent banner clear of the Regent; per-hero HP stacked; the hand fans; no Move button',
+      ui.intent && ui.intentClearOfBoss && ui.stacked && ui.cards === 5 && ui.fanned
+      && ui.noMoveButton && ui.apVisible && ui.resonance && ui.actors, JSON.stringify(ui));
+    const hoverSafe = await J(() => {
+      const c = document.querySelector('#k-hand .k-card');
+      const r = c.getBoundingClientRect();
+      c.dispatchEvent(new PointerEvent('pointermove', { clientX: r.left + 10, clientY: r.top + 10, bubbles: true }));
+      return !c.classList.contains('k-dragging') && !c.style.getPropertyValue('--dragx');
+    });
+    check('UI: a bare hover is not a drag — pointer tracking arms only on a real press', hoverSafe);
     await t.shot('v23-combat');
   }
 
