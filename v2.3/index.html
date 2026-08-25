@@ -6,18 +6,19 @@
   <meta name="theme-color" content="#131116" />
   <title>KIZUNA v2.3 | The Shared Deck</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="styles.css?v=3" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=4" />
 </head>
 <body>
   <div id="k-scale">
     <main id="k-stage">
 
-      <!-- backdrop: standalone layer, no baked characters -->
+      <!-- backdrop: one painted plate, no baked characters, plus a legibility scrim -->
       <div id="k-backdrop" aria-hidden="true">
-        <div class="k-ruin k-ruin-a"></div>
-        <div class="k-ruin k-ruin-b"></div>
-        <div class="k-flood"></div>
-        <div class="k-horizon"></div>
+        <img id="k-bg" src="../art/bg23-plaza.webp" alt="">
+        <div class="k-scrim"></div>
       </div>
 
       <!-- actors: independent transparent plates on one ground line -->
@@ -44,24 +45,24 @@
           <img src="../art/kai.webp" alt="">
           <div class="k-pt-info">
             <span class="k-pt-name">Ash</span>
-            <div class="k-bar"><div class="k-bar-fill k-bar-party"></div></div>
             <span class="k-pt-hp"><b>16</b> / 16</span>
+            <div class="k-bar"><div class="k-bar-fill k-bar-party"></div></div>
           </div>
         </div>
         <div class="k-pt-hero" data-hero="elin">
           <img src="../art/elin.webp" alt="">
           <div class="k-pt-info">
             <span class="k-pt-name">Elin</span>
-            <div class="k-bar"><div class="k-bar-fill k-bar-party"></div></div>
             <span class="k-pt-hp"><b>12</b> / 12</span>
+            <div class="k-bar"><div class="k-bar-fill k-bar-party"></div></div>
           </div>
         </div>
         <div class="k-pt-hero" data-hero="mira">
           <img src="../art/mira.webp" alt="">
           <div class="k-pt-info">
             <span class="k-pt-name">Mira</span>
-            <div class="k-bar"><div class="k-bar-fill k-bar-party"></div></div>
             <span class="k-pt-hp"><b>14</b> / 14</span>
+            <div class="k-bar"><div class="k-bar-fill k-bar-party"></div></div>
           </div>
         </div>
         <div class="k-pt-shared">
@@ -72,13 +73,26 @@
 
       <!-- boss HUD — upper-right -->
       <div id="k-boss-hud">
-        <div class="k-bname">THE MOURNING REGENT <span id="k-ward" class="k-ward"></span></div>
-        <div class="k-bar k-bar-w"><div id="k-bhp-fill" class="k-bar-fill k-bar-boss"></div></div>
+        <div class="k-turn-emblem" title="Turn">
+          <svg width="15" height="15" viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" transform="rotate(45 8 8)" fill="none" stroke="#c9a45c" stroke-width="1.1"></rect><circle cx="8" cy="8" r="2" fill="#c9a45c"></circle></svg>
+          <b id="k-turn-n">1</b>
+        </div>
+        <div class="k-bname">The Mourning Regent <span id="k-ward" class="k-ward"></span></div>
+        <div class="k-bhp-row">
+          <div class="k-bar k-bar-w"><div id="k-bhp-fill" class="k-bar-fill k-bar-boss"></div></div>
+          <span class="k-hpnum"><b id="k-bhp">13,500</b> / <span id="k-bmax">13,500</span></span>
+        </div>
         <div class="k-b-meta">
-          <span class="k-hpnum"><b id="k-bhp">90</b> / <span id="k-bmax">90</span></span>
-          <span class="k-break-wrap">BREAK <span id="k-break"></span></span>
+          <span class="k-break-wrap">Break <span id="k-break"></span></span>
           <span id="k-affinity" class="k-aff"></span>
           <span id="k-bleed"></span>
+        </div>
+        <div class="k-bond-row">
+          <span class="k-bond-lbl">Bond</span>
+          <img src="../art/kai.webp" alt="">
+          <span id="k-bond-link">∞</span>
+          <img src="../art/elin.webp" alt="">
+          <span id="k-bond-n" class="k-bond-n">0/2</span>
         </div>
       </div>
 
@@ -89,14 +103,11 @@
         <div id="k-int-hint"></div>
       </div>
 
-      <!-- AP dial + narrator line — lower-left -->
+      <!-- AP — a parchment chip on a worn stack, lower-left -->
       <div id="k-ap">
-        <svg width="62" height="62" viewBox="0 0 62 62">
-          <circle cx="31" cy="31" r="28" fill="rgba(14,12,15,0.9)" stroke="rgba(150,138,114,0.4)" stroke-width="1"></circle>
-          <circle id="k-ap-ring" cx="31" cy="31" r="28" fill="none" stroke="#c9a45c" stroke-width="2.4"
-                  stroke-dasharray="175.9 175.9" stroke-linecap="round" transform="rotate(-90 31 31)"></circle>
-        </svg>
-        <div class="k-ap-txt"><span id="k-ap-num">3</span><i>/3</i><em>AP</em></div>
+        <div class="k-ap-chip">
+          <span id="k-ap-num">3</span><em>AP</em>
+        </div>
       </div>
       <div id="k-log"></div>
 
@@ -123,7 +134,7 @@
 
     </main>
   </div>
-  <script src="game.js?v=3"></script>
+  <script src="game.js?v=4"></script>
   <script>
     // fit the 932×430 design space to the viewport, v2.2-style
     (function () {

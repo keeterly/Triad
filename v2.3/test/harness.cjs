@@ -53,7 +53,14 @@ async function boot(opts = {}) {
   const page = await ctx.newPage();
   const errs = [];
   page.on('pageerror', e => errs.push(String(e.message)));
-  page.on('console', m => { if (m.type() === 'error') errs.push('console: ' + m.text()); });
+  page.on('console', m => {
+    if (m.type() !== 'error') return;
+    // the sandboxed test browser cannot reach Google Fonts — the game falls
+    // back to Georgia there; that reset is environment noise, not a bug
+    const src = (m.location() && m.location().url) || '';
+    if (/fonts\.(googleapis|gstatic)\.com/.test(src)) return;
+    errs.push('console: ' + m.text());
+  });
   await page.goto(`http://127.0.0.1:${port}/v2.3/index.html?test=1`, { waitUntil: 'networkidle' });
   await page.waitForFunction(() => window.__ready === true, null, { timeout: 8000 });
 

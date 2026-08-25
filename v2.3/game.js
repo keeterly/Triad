@@ -21,7 +21,15 @@
 
 'use strict';
 
-const V23_BUILD = 3;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 4;   // MUST match version.json's "v2.3" — bump BOTH every build.
+
+// PRESENTATION SCALE (spec §6): the engine runs the normalized prototype
+// values; the SCREEN multiplies every HP and damage number by one uniform
+// factor so the game reads like the concept's big JRPG numbers. Because the
+// factor is uniform, all visible arithmetic still checks out. Set to 1 to
+// read raw values.
+const DISPLAY_SCALE = 150;
+const fmtN = (n) => (n * DISPLAY_SCALE).toLocaleString('en-US');
 
 // ── deterministic RNG (mulberry32) — the whole fight is replayable from a seed
 let _seed = (Date.now() >>> 0);
@@ -556,7 +564,7 @@ function popupOver(el, text, cls) {
 }
 function fxDamageBoss(n, why) {
   const b = document.getElementById('k-boss-art');
-  popupOver(b, '−' + n, why === 'riposte' ? 'k-pop-gold' : 'k-pop-dmg');
+  popupOver(b, '−' + fmtN(n), why === 'riposte' ? 'k-pop-gold' : 'k-pop-dmg');
   if (b) { b.classList.remove('k-recoil'); void b.offsetWidth; b.classList.add('k-recoil'); }
   hitstop(n >= 9 ? 96 : 70);
 }
@@ -591,7 +599,7 @@ async function fxBossHeal() { popupOver(document.getElementById('k-boss-art'), '
 async function fxAttackResolved(result) {
   if (result.taken > 0) {
     const at = result.targetId && document.querySelector('.k-hero[data-hero="' + result.targetId + '"]');
-    popupOver(at || document.getElementById('k-party-hud'), '−' + result.taken, 'k-pop-dmg');
+    popupOver(at || document.getElementById('k-party-hud'), '−' + fmtN(result.taken), 'k-pop-dmg');
     const s = document.getElementById('k-stage'); if (s) { s.classList.remove('k-shake'); void s.offsetWidth; s.classList.add('k-shake'); }
   }
   await sleep(420);
@@ -618,31 +626,38 @@ function renderPartyHud() {
     if (!row) continue;
     row.classList.toggle('k-downed', !!h.downed);
     row.querySelector('.k-bar-fill').style.width = (h.hp / h.max * 100) + '%';
-    row.querySelector('.k-pt-hp').innerHTML = '<b>' + h.hp + '</b> / ' + h.max;
+    row.querySelector('.k-pt-hp').innerHTML = '<b>' + fmtN(h.hp) + '</b> / ' + fmtN(h.max);
   }
-  el('k-guard').textContent = C.party.guard;
+  el('k-guard').textContent = fmtN(C.party.guard);
   el('k-guard-wrap').style.visibility = C.party.guard > 0 ? 'visible' : 'hidden';
   el('k-burn').style.display = C.party.burn > 0 ? '' : 'none';
 }
 function renderBossHud() {
-  el('k-bhp').textContent = C.boss.hp;
-  el('k-bmax').textContent = C.boss.max;
+  el('k-bhp').textContent = fmtN(C.boss.hp);
+  el('k-bmax').textContent = fmtN(C.boss.max);
   el('k-bhp-fill').style.width = (C.boss.hp / C.boss.max * 100) + '%';
-  el('k-ward').textContent = C.boss.ward > 0 ? '⛨' + C.boss.ward : '';
+  el('k-ward').textContent = C.boss.ward > 0 ? '⛨' + fmtN(C.boss.ward) : '';
+  el('k-turn-n').textContent = C.turn;
+  const bondRow = document.querySelector('.k-bond-row');
+  if (bondRow) {
+    const ready = C.resonance.charges >= 2 && !C.resonance.used;
+    bondRow.classList.toggle('k-bond-ready', ready);
+    el('k-bond-n').textContent = C.resonance.used ? '—' : C.resonance.charges + '/2';
+  }
   const pips = [];
   for (let i = 0; i < C.boss.breakMax; i++) pips.push('<span class="k-pip' + (i < C.boss.brk ? ' on' : '') + '"></span>');
   el('k-break').innerHTML = pips.join('');
   const aff = C.boss.affinity;
   el('k-affinity').textContent = aff === 'frost' ? '❄ FROST' : aff === 'pyre' ? '🔥 PYRE' : '';
   el('k-affinity').className = 'k-aff' + (aff ? ' k-aff-' + aff : '');
-  el('k-bleed').textContent = C.boss.bleedTurns > 0 ? '🩸 ' + C.boss.bleed : '';
+  el('k-bleed').textContent = C.boss.bleedTurns > 0 ? '🩸 ' + fmtN(C.boss.bleed) : '';
 }
 function renderIntent() {
   const it = currentIntent();
   el('k-int-name').textContent = it.name;
   const eff = intentTargetId();
   const tgt = it.target === 'self' ? 'Self' : eff ? HEROES23[eff].name : '—';
-  el('k-int-val').textContent = it.kind === 'heal' ? ('+' + it.phaseHeal) : intentPreviewDmg();
+  el('k-int-val').textContent = it.kind === 'heal' ? ('+' + fmtN(it.phaseHeal)) : fmtN(intentPreviewDmg());
   el('k-int-tgt').textContent = '→ ' + tgt;
   el('k-int-notes').innerHTML = it.noteSeq.map(t =>
     t === 'tap' ? '<span class="k-nglyph">●</span>' : t === 'slide' ? '<span class="k-nglyph">➤</span>' : '<span class="k-nglyph k-nglyph-hold">▬</span>'
@@ -662,27 +677,47 @@ function renderHand() {
     const dead = C.heroes[c.owner].downed;
     // the FAN: a gentle arc, rotation from a low pivot plus a parabolic dip
     const rot = ((i - mid) * 4).toFixed(1), dy = ((i - mid) * (i - mid) * 3).toFixed(1);
+    const costLine = ev.modifierActive && ev.currentCost !== c.cost
+      ? ev.currentCost + ' AP <s>' + c.cost + '</s>' : ev.currentCost + ' AP';
+    // the reference's face: name, cost, effect, then the ink figure filling
+    // the card. A Modifier card carries its strip; an active one lights the
+    // strip dark-and-gold with the RESOLVED bonus. CORE cards run clean.
     return '<button class="k-card' + (ev.modifierActive && !dead ? ' k-card-active' : '') + (afford ? '' : ' k-card-poor')
       + (dead ? ' k-card-dead' : '')
       + (_sel === id ? ' k-card-sel' : '') + '" data-card="' + id + '"'
       + ' style="--rot:' + rot + 'deg;--dy:' + dy + 'px">'
-      + '<span class="k-ap-med' + (ev.modifierActive && ev.currentCost !== c.cost ? ' k-ap-gold' : '') + '">' + ev.currentCost + '</span>'
       + '<img class="k-owner" src="' + HEROES23[c.owner].art + '" alt="">'
-      + '<span class="k-eyebrow">' + (c.memory ? 'MEMORY ◈' : 'ACTION') + '</span>'
-      + '<span class="k-cname">' + c.name + '</span>'
+      + '<span class="k-cname">' + c.name + (c.memory ? ' ◈' : '') + '</span>'
+      + '<span class="k-ccost' + (ev.modifierActive && ev.currentCost !== c.cost ? ' on' : '') + '">' + costLine + '</span>'
       + '<span class="k-ceffect">' + effectText(c.base) + '</span>'
       + '<span class="k-cart"><img src="' + HEROES23[c.owner].art + '" alt=""></span>'
-      + (c.mod
-        ? '<span class="k-cmod' + (ev.modifierActive ? ' on' : '') + '">' + c.mod.text + '</span>'
-        : '<span class="k-ccore">— CORE —</span>')
+      + (c.mod ? '<span class="k-cmod' + (ev.modifierActive ? ' on' : '') + '">' + modText(c) + '</span>' : '')
       + '</button>';
   }).join('');
   hand.querySelectorAll('.k-card:not(.k-card-dead)').forEach(b => attachCardInput(b));
 }
+const COND_LABEL = {
+  AFTER_MOVING: 'After moving', AFTER_OTHER_HERO: 'After another hero',
+  SECOND_ACTION: 'Second action', TARGET_HAS_PYRE: 'Target has Pyre',
+  TARGET_HAS_FROST: 'Target has Frost', TARGET_IS_BLEEDING: 'Target bleeding',
+  TARGET_HP_BELOW_35: 'Target ≤35% HP',
+};
+// The strip's copy is BUILT from the data, never hand-authored — so its
+// numbers ride the same display scale as everything else on the card.
+function modText(card) {
+  if (!card.mod) return '';
+  const bits = [COND_LABEL[card.mod.cond] || card.mod.cond];
+  if (card.mod.costOverride !== undefined) bits.push(card.mod.costOverride + ' AP');
+  const fx = effectText(card.mod.bonus);
+  if (fx) bits.push(fx);
+  return bits.join(' · ');
+}
 function effectText(effects) {
   return effects.map(fx =>
-    fx.dmg ? fx.dmg + ' damage' : fx.guard ? '+' + fx.guard + ' Guard' : fx.healParty ? 'Heal ' + fx.healParty :
-    fx.bleed ? 'Bleed ' + fx.bleed : fx.setAffinity ? 'set ' + fx.setAffinity : fx.switchRow ? 'switch row' : ''
+    fx.dmg ? fmtN(fx.dmg) + ' damage' : fx.guard ? '+' + fmtN(fx.guard) + ' Guard' :
+    fx.healParty ? 'Heal ' + fmtN(fx.healParty) : fx.strikeAgain ? 'again for ' + fmtN(fx.strikeAgain) :
+    fx.bleed ? 'Bleed ' + fmtN(fx.bleed) : fx.consumeBleed ? 'consume Bleed' :
+    fx.setAffinity ? 'set ' + fx.setAffinity : fx.switchRow ? 'switch row' : ''
   ).filter(Boolean).join(' · ');
 }
 function renderApDial() {
@@ -805,7 +840,7 @@ function openFocus(cardId) {
     + '<div class="k-focus-name">' + c.name + (c.memory ? ' ◈' : '') + '<span class="k-focus-cost">' + ev.currentCost
       + (ev.modifierActive && ev.currentCost !== c.cost ? ' <s>' + c.cost + '</s>' : '') + ' AP</span></div>'
     + '<div class="k-focus-base">Base · ' + effectText(c.base) + '</div>'
-    + (c.mod ? '<div class="k-focus-mod' + (ev.modifierActive ? ' on' : '') + '">' + c.mod.text
+    + (c.mod ? '<div class="k-focus-mod' + (ev.modifierActive ? ' on' : '') + '">' + modText(c)
       + ' — ' + (ev.modifierActive ? 'ACTIVE' : 'not yet') + '</div>' : '<div class="k-focus-mod">CORE</div>')
     + '<div class="k-focus-now">Resolves now · ' + effectText(ev.resolvedEffects) + '</div>'
     + '<button class="k-focus-commit" id="k-focus-commit">COMMIT</button>'
