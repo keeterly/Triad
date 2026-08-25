@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=4" />
+  <link rel="stylesheet" href="styles.css?v=5" />
 </head>
 <body>
   <div id="k-scale">
@@ -45,7 +45,7 @@
           <img src="../art/kai.webp" alt="">
           <div class="k-pt-info">
             <span class="k-pt-name">Ash</span>
-            <span class="k-pt-hp"><b>16</b> / 16</span>
+            <span class="k-pt-hp"><b>6,300</b> / 6,300</span>
             <div class="k-bar"><div class="k-bar-fill k-bar-party"></div></div>
           </div>
         </div>
@@ -53,7 +53,7 @@
           <img src="../art/elin.webp" alt="">
           <div class="k-pt-info">
             <span class="k-pt-name">Elin</span>
-            <span class="k-pt-hp"><b>12</b> / 12</span>
+            <span class="k-pt-hp"><b>5,400</b> / 5,400</span>
             <div class="k-bar"><div class="k-bar-fill k-bar-party"></div></div>
           </div>
         </div>
@@ -61,13 +61,12 @@
           <img src="../art/mira.webp" alt="">
           <div class="k-pt-info">
             <span class="k-pt-name">Mira</span>
-            <span class="k-pt-hp"><b>14</b> / 14</span>
+            <span class="k-pt-hp"><b>5,100</b> / 5,100</span>
             <div class="k-bar"><div class="k-bar-fill k-bar-party"></div></div>
           </div>
         </div>
         <div class="k-pt-shared">
-          <span id="k-guard-wrap">⛨ <b id="k-guard">0</b></span>
-          <span id="k-burn" style="display:none">🔥 BURN</span>
+          <span id="k-intercede"></span>
         </div>
       </div>
 
@@ -77,14 +76,14 @@
           <svg width="15" height="15" viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" transform="rotate(45 8 8)" fill="none" stroke="#c9a45c" stroke-width="1.1"></rect><circle cx="8" cy="8" r="2" fill="#c9a45c"></circle></svg>
           <b id="k-turn-n">1</b>
         </div>
-        <div class="k-bname">The Mourning Regent <span id="k-ward" class="k-ward"></span></div>
+        <div class="k-bname">The Mourning Regent <span id="k-bflag" class="k-bflag"></span></div>
         <div class="k-bhp-row">
           <div class="k-bar k-bar-w"><div id="k-bhp-fill" class="k-bar-fill k-bar-boss"></div></div>
-          <span class="k-hpnum"><b id="k-bhp">13,500</b> / <span id="k-bmax">13,500</span></span>
+          <span class="k-hpnum"><b id="k-bhp">18,000</b> / <span id="k-bmax">18,000</span></span>
         </div>
         <div class="k-b-meta">
           <span class="k-break-wrap">Break <span id="k-break"></span></span>
-          <span id="k-affinity" class="k-aff"></span>
+          <span id="k-chill" class="k-chill"></span>
           <span id="k-bleed"></span>
         </div>
         <div class="k-bond-row">
@@ -101,6 +100,7 @@
         <div class="k-int-top"><span id="k-int-name">—</span><span><b id="k-int-val">0</b> <span id="k-int-tgt"></span></span></div>
         <div id="k-int-notes"></div>
         <div id="k-int-hint"></div>
+        <div id="k-int-dirge"></div>
       </div>
 
       <!-- AP — a parchment chip on a worn stack, lower-left -->
@@ -111,19 +111,14 @@
       </div>
       <div id="k-log"></div>
 
-      <!-- the hand + resonance -->
+      <!-- the hand -->
       <div id="k-hand"></div>
-      <div id="k-res-card" class="k-res">
-        <div class="k-res-pair"><img src="../art/kai.webp" alt=""><span>∞</span><img src="../art/elin.webp" alt=""></div>
-        <div class="k-res-name">LIGHT THROUGH STEEL</div>
-        <div id="k-res-pips"></div>
-        <div id="k-res-state">1 AP · once</div>
-      </div>
 
-      <!-- piles + end turn — lower-right -->
+      <!-- piles + free cycle (drop a card here) + end turn — lower-right -->
       <div id="k-piles">
         <span>DECK <b id="k-deck-n">10</b></span>
         <span>DISCARD <b id="k-disc-n">0</b></span>
+        <span>CYCLE <b id="k-cycle-n">1</b></span>
       </div>
       <button id="k-endturn">END TURN</button>
 
@@ -134,7 +129,7 @@
 
     </main>
   </div>
-  <script src="game.js?v=4"></script>
+  <script src="game.js?v=5"></script>
   <script>
     // fit the 932×430 design space to the viewport, v2.2-style
     (function () {

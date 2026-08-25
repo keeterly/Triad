@@ -1,389 +1,427 @@
-// KIZUNA v2.3 — the rebuild acceptance suite.
-// Spec §17.4's twelve scenarios, plus the §17.1 rules invariants, run against
-// the real engine in a real page. Deterministic: seeds are fixed, hands are
-// forced, and rhythm grades are passed straight to the resolver.
+// KIZUNA v2.3 — Build 5 acceptance suite: the RESONANCE core mechanics pass
+// (docs/RESONANCE-DECK.md). Covers the deck's must-have tests — opening hero
+// coverage, immediate Follow-Up, Finale gating, no dual conditional bonus,
+// Guard expiry, Bleed decay, Break cancellation, one Resonance per phase —
+// plus economy, parry outcomes, Intercession, and the UI presentation gates.
 'use strict';
 const { boot } = require('./harness.cjs');
 
 (async () => {
-  const t = await boot();
-  const { J, check } = t;
+  const H = await boot();
+  const { J, check, report } = H;
 
-  const fresh = (seed) => J((s) => { K.startCombat({ seed: s }); return true; }, seed || 7);
-  const st = () => J(() => {
-    const c = K.state();
+  const fresh = (seed) => J((s) => { window.K.startCombat({ seed: s }); return true; }, seed);
+  // a flat grade list for the whole barrage: 'clean' answers every string
+  const grades = (kind) => J((k) => (window.K.currentIntent().hits || [])
+    .flatMap(h => h.notes.map(() => k)), kind);
+  // what the barrage is about to do, straight from the engine
+  const volley = () => J(() => {
+    const it = window.K.currentIntent();
+    return { total: window.K.intentPreviewDmg(), hits: (it.hits || []).length,
+             dirge: window.K.dirgeAmount() };
+  });
+  const S = () => J(() => {
+    const c = window.K.state();
     return {
       phase: c.phase, turn: c.turn, ap: c.ap,
-      guard: c.party.guard, burn: c.party.burn,
-      heroHp: { ash: c.heroes.ash.hp, elin: c.heroes.elin.hp, mira: c.heroes.mira.hp },
-      down: { ash: c.heroes.ash.downed, elin: c.heroes.elin.downed, mira: c.heroes.mira.downed },
-      bossHp: c.boss.hp, brk: c.boss.brk, breakMax: c.boss.breakMax,
-      ward: c.boss.ward, bossPhase: c.boss.phase, affinity: c.boss.affinity,
-      bleed: c.boss.bleed, bleedTurns: c.boss.bleedTurns,
-      hand: c.hand.slice(), deck: c.deck.length, discard: c.discard.length,
-      rows: { ash: c.heroes.ash.row, elin: c.heroes.elin.row, mira: c.heroes.mira.row },
-      res: { charges: c.resonance.charges, used: c.resonance.used },
-      played: c.turnState.actionsPlayed.length,
+      heroes: JSON.parse(JSON.stringify(c.heroes)),
+      boss: JSON.parse(JSON.stringify(c.boss)),
+      hand: c.hand.slice(), deck: c.deck.length, discard: c.discard.slice(),
+      exhausted: c.exhausted.slice(),
+      bond: JSON.parse(JSON.stringify(c.bond)),
+      counterstance: c.counterstance, intercession: c.intercession,
+      pendingDiscard: c.pendingDiscard,
+      moved: c.turnState.moved, cycled: c.turnState.cycled,
+      actions: c.turnState.actionsPlayed.length,
     };
   });
 
-  // ───────────────────────── §17.1 — rules invariants ─────────────────────────
-  await fresh(7);
+  // ═══ A · DECK INTEGRITY + THE EVALUATOR ═══
+  console.log('\n── invariants ──');
   {
-    const deck = await J(() => {
-      const defs = Object.entries(K.state() ? window.CARD_DEFS || {} : {});
-      return null;
-    });
-    const counts = await J(() => {
-      const c = K.state();
+    const d = await J(() => {
+      const c = window.K.state();
       const all = [...c.hand, ...c.deck, ...c.discard];
-      const perHero = { ash: 0, elin: 0, mira: 0 };
-      all.forEach(id => { perHero[K.evaluateCard(id).card.owner]++; });
-      return { total: all.length, unique: new Set(all).size, perHero, hand: c.hand.length,
-               handUnique: new Set(c.hand).size };
+      const owners = {};
+      all.forEach(id => { const o = window.K.evaluateCard(id).card.owner; owners[o] = (owners[o] || 0) + 1; });
+      return { n: all.length, uniq: new Set(all).size, owners, hasBond: all.includes('lightsteel') };
     });
-    check('DECK: 15 cards, all unique, exactly five per hero', counts.total === 15 && counts.unique === 15
-      && counts.perHero.ash === 5 && counts.perHero.elin === 5 && counts.perHero.mira === 5,
-      JSON.stringify(counts.perHero));
-    check('DECK: the opening hand is five unique physical instances', counts.hand === 5 && counts.handUnique === 5);
+    check('DECK: 15 unique cards, 5 per hero, Resonance never in the deck',
+      d.n === 15 && d.uniq === 15 && d.owners.ash === 5 && d.owners.elin === 5 && d.owners.mira === 5 && !d.hasBond,
+      JSON.stringify(d.owners));
   }
   {
-    const shared = await J(() => {
-      const src = K.playCard.toString();
-      return /evaluateCard\(/.test(src);   // resolution reads the SAME evaluator the UI renders from
-    });
-    check('EVALUATOR: resolution and rendering share evaluateCard — no duplicate modifier logic', shared);
-    const discounts = await J(() => {
-      const withOverride = [];
-      for (const id of K.state().hand.concat(K.state().deck, K.state().discard)) {
-        const ev = K.evaluateCard(id);
-        if (ev.card.mod && ev.card.mod.costOverride !== undefined) withOverride.push(ev.card.owner);
-      }
-      return withOverride.sort();
-    });
-    check('COSTS: exactly three self-discount cards, one per hero', discounts.length === 3
-      && discounts.join(',') === 'ash,elin,mira', discounts.join(','));
+    let ok = true, detail = '';
+    for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
+      await fresh(seed);
+      const cov = await J(() => {
+        const c = window.K.state();
+        const o = new Set(c.hand.map(id => window.K.evaluateCard(id).card.owner));
+        return { n: c.hand.length, cov: o.size };
+      });
+      if (cov.n !== 5 || cov.cov !== 3) { ok = false; detail = 'seed ' + seed + ': ' + JSON.stringify(cov); break; }
+    }
+    check('OPENING COVERAGE: 5 cards, at least one per hero, across 8 seeds', ok, detail);
   }
   {
-    const machine = await J(async () => {
-      const res = await fetch('game.js'); const src = await res.text();
-      const assigns = (src.match(/C\.phase = /g) || []).length;
-      return { assigns, hasSetPhase: /function setPhase\(/.test(src) };
-    });
-    check('STATE MACHINE: setPhase is the only phase mutator', machine.hasSetPhase && machine.assigns === 1,
-      machine.assigns + ' direct assignments');
-    const noGhosts = await J(() => {
-      const txt = document.body.textContent.toUpperCase();
-      return !txt.includes('ACTION TRAIL') && !/\bFLOW\b/.test(txt);
-    });
-    check('NO GHOSTS: neither Flow nor an Action Trail appears anywhere in the UI', noGhosts);
+    const src = await J(async () => (await (await fetch('game.js?v=5')).text()));
+    const phaseWrites = (src.match(/C\.phase = /g) || []).length;
+    check('ONE TRANSITION OWNER: setPhase is the only C.phase mutator', phaseWrites === 1, phaseWrites + ' assignments');
+    check('NO FLOW METER, NO ACTION TRAIL: nothing renders a meter or a trail', await J(() =>
+      !document.querySelector('#k-flow, .k-flow, .k-trail, .k-action-trail')), '');
+    check('COST FLOOR: every printed cost ≥ 1 and Follow-Up floors at 1', await J(() => {
+      const defs = ['cleave','guardcut','cstance','crosssever','lastlight','lcascade','mend','frostbind','sgrace','intercession','serrate','qthrow','twinfang','backstab','execute','lightsteel'];
+      return defs.every(id => window.K.evaluateCard(id).card.cost >= 1);
+    }), '');
   }
 
-  // ───────────────────── §17.4 scenario 1 — Cross Sever first ─────────────────────
+  // ═══ B · SEQUENCING: FOLLOW-UP + FINALE ═══
+  console.log('\n── sequencing ──');
   await fresh(11);
   {
-    await J(() => { K.forceHand(['crosssever', 'cleave', 'brace', 'mend', 'serrate']); });
-    const ev = await J(() => K.evaluateCard('crosssever'));
-    check('S1: Cross Sever first previews base — 2 AP, no modifier', ev.currentCost === 2 && !ev.modifierActive);
-    await J(() => K.playCard('crosssever'));
-    const s = await st();
-    check('S1: it resolves at full base strength — 2 AP spent, 9 dealt', s.ap === 1 && s.bossHp === 81 && s.brk === 5);
+    await J(() => window.K.state() && window.K.forceHand(['lcascade', 'crosssever', 'cleave', 'mend', 'serrate']));
+    const before = await J(() => window.K.evaluateCard('crosssever').currentCost);
+    await J(() => window.K.playCard('lcascade'));
+    const after = await J(() => {
+      const ev = window.K.evaluateCard('crosssever');
+      return { cost: ev.currentCost, active: ev.condActive };
+    });
+    check('FOLLOW-UP: Cross Sever reads 2 AP cold, 1 AP right after another hero',
+      before === 2 && after.cost === 1 && after.active, before + '→' + after.cost);
+    await J(() => window.K.playCard('crosssever'));
+    const s = await S();
+    check('FOLLOW-UP: the discount actually charges 1 AP', s.ap === 1, 'ap=' + s.ap);
   }
-
-  // ───────────────────── scenario 2 — Cleave, then Cross Sever ─────────────────────
   await fresh(12);
   {
-    await J(() => { K.forceHand(['cleave', 'crosssever', 'brace', 'mend', 'serrate']); });
-    await J(() => K.playCard('cleave'));
-    const ev = await J(() => K.evaluateCard('crosssever'));
-    check('S2: as the second action the AP badge updates to 1 before affordability', ev.currentCost === 1 && ev.modifierActive);
-    await J(() => K.playCard('crosssever'));
-    const s = await st();
-    check('S2: 1+1 AP spent; Cross Sever lands 12 and 1 Break', s.ap === 1 && s.bossHp === 90 - 6 - 12 && s.brk === 4);
+    await J(() => window.K.forceHand(['cleave', 'lcascade', 'serrate', 'lastlight', 'mend']));
+    const cold = await J(() => window.K.evaluateCard('lastlight'));
+    await J(() => { window.K.playCard('cleave'); window.K.playCard('lcascade'); });
+    const two = await J(() => window.K.evaluateCard('lastlight').condActive);
+    await J(() => window.K.playCard('serrate'));
+    const fin = await J(() => {
+      const ev = window.K.evaluateCard('lastlight');
+      return { active: ev.condActive, cost: ev.currentCost,
+               dmg: ev.resolvedEffects.reduce((n, fx) => n + (fx.dmg || 0), 0) };
+    });
+    check('FINALE: gated until ALL THREE heroes have played this phase',
+      !cold.condActive && !two && fin.active, 'after 2 heroes: ' + two);
+    check('NO DUAL BONUS: Finale grants +5 output, cost stays 2',
+      fin.cost === 2 && fin.dmg === 15 && cold.currentCost === 2, JSON.stringify(fin));
+    const cs = await J(() => {
+      const ev = window.K.evaluateCard('crosssever');   // follow-up is live after serrate
+      return { cost: ev.currentCost, dmg: ev.resolvedEffects.reduce((n, fx) => n + (fx.dmg || 0), 0) };
+    });
+    check('NO DUAL BONUS: Follow-Up Cross Sever costs 1, output stays 9',
+      cs.cost === 1 && cs.dmg === 9, JSON.stringify(cs));
   }
 
-  // ───────────────────── scenario 3 — Lumen Cascade first ─────────────────────
+  // ═══ C · ECONOMY: cycle, hand persistence, move, Quick Throw ═══
+  console.log('\n── economy ──');
   await fresh(13);
   {
-    await J(() => { K.forceHand(['lcascade', 'cleave', 'brace', 'mend', 'serrate']); });
-    await J(() => K.playCard('lcascade'));
-    const s = await st();
-    check('S3: played first it costs 1, deals 4, grants no bonus Guard',
-      s.ap === 2 && s.bossHp === 86 && s.guard === 0);
+    const before = await S();
+    const ok1 = await J(() => window.K.cycleCard(window.K.state().hand[0]));
+    const mid = await S();
+    const ok2 = await J(() => window.K.cycleCard(window.K.state().hand[0]));
+    check('FREE CYCLE: discard 1 draw 1, no AP, once per phase',
+      ok1 && !ok2 && mid.hand.length === 5 && mid.ap === 3 && mid.discard.length === 1 && mid.cycled,
+      'second cycle: ' + ok2);
   }
-
-  // ───────────────────── scenario 4 — another hero, then Lumen Cascade ─────────────────────
   await fresh(14);
   {
-    await J(() => { K.forceHand(['cleave', 'lcascade', 'brace', 'mend', 'serrate']); });
-    await J(() => K.playCard('cleave'));
-    const ev = await J(() => K.evaluateCard('lcascade'));
-    check('S4: after another hero the badge reads 0 AP', ev.currentCost === 0 && ev.modifierActive);
-    await J(() => K.playCard('lcascade'));
-    const s = await st();
-    check('S4: it deals 4 and grants 3 Guard for free', s.ap === 2 && s.bossHp === 90 - 6 - 4 && s.guard === 3);
+    await J(() => window.K.forceHand(['cleave', 'mend', 'serrate', 'frostbind', 'twinfang']));
+    await J(() => window.K.playCard('cleave'));
+    const keep = (await S()).hand;
+    const r = await J(() => window.K.endTurn({ grades: ['miss', 'miss', 'miss', 'miss', 'miss'] }));
+    const s = await S();
+    check('UNPLAYED CARDS REMAIN: the hand survives the enemy phase and tops to 5',
+      keep.every(id => s.hand.includes(id)) && s.hand.length === 5,
+      'kept ' + keep.length + ' → hand ' + s.hand.length);
   }
-
-  // ───────────────────── scenario 5 — Execution Thread at ≤35% ─────────────────────
   await fresh(15);
   {
-    await J(() => { K.state().boss.hp = 31; K.forceHand(['execthread', 'cleave', 'brace', 'mend', 'serrate']); });
-    const ev = await J(() => K.evaluateCard('execthread'));
-    check('S5: at 35% HP Execution Thread updates to 1 AP', ev.currentCost === 1 && ev.modifierActive);
-    await J(() => K.playCard('execthread'));
-    const s = await st();
-    check('S5: it resolves for 15', s.bossHp === 16 && s.ap === 2);
+    const a = await J(() => window.K.moveHero('ash'));
+    const b = await J(() => window.K.moveHero('mira'));
+    const s = await S();
+    check('MOVE: 1 AP and once per phase', a && !b && s.ap === 2 && s.moved === 1, 'second move: ' + b);
   }
-
-  // ───────────────────── scenario 6 — Bleed, then Twin Fang ─────────────────────
   await fresh(16);
   {
-    await J(() => { K.forceHand(['serrate', 'twinfang', 'brace', 'mend', 'cleave']); });
-    await J(() => K.playCard('serrate'));
-    const mid = await st();
-    check('S6: Serrate applies Bleed 3 for two turns', mid.bossHp === 87 && mid.bleed === 3 && mid.bleedTurns === 2);
-    await J(() => K.playCard('twinfang'));
-    const s = await st();
-    check('S6: Twin Fang deals 10 total and consumes the Bleed',
-      s.bossHp === 87 - 10 && s.bleed === 0 && s.bleedTurns === 0);
+    await J(() => window.K.forceHand(['backstab', 'cleave', 'mend', 'serrate', 'frostbind']));
+    const row0 = await J(() => window.K.state().heroes.mira.row);
+    await J(() => window.K.playCard('backstab'));
+    const s = await S();
+    const canStillMove = await J(() => window.K.moveHero('ash'));
+    check('PRINTED MOVEMENT: Backstab switches Mira\'s row without spending the phase Move',
+      s.heroes.mira.row !== row0 && s.moved === 0 && canStillMove,
+      row0 + '→' + s.heroes.mira.row);
   }
-
-  // ───────────────────── scenario 7 — move Ash, then Vanguard Thrust ─────────────────────
   await fresh(17);
   {
-    await J(() => { K.forceHand(['vthrust', 'cleave', 'brace', 'mend', 'serrate']); });
-    await J(() => K.moveHero('ash'));
-    const ev = await J(() => K.evaluateCard('vthrust'));
-    check('S7: after moving, the modifier arms', ev.modifierActive);
-    await J(() => K.playCard('vthrust'));
-    const s = await st();
-    check('S7: 1 AP moved + 1 AP attack, for 9 damage and 1 Break',
-      s.ap === 1 && s.bossHp === 81 && s.brk === 4 && s.rows.ash === 'back');
+    await J(() => window.K.forceHand(['qthrow', 'cleave', 'mend', 'serrate', 'frostbind']));
+    await J(() => window.K.playCard('qthrow'));
+    const mid = await S();
+    const blockedPlay = await J(() => window.K.playCard('cleave'));
+    const blockedEnd = await J(() => window.K.endTurn());
+    await J(() => window.K.pickDiscard(window.K.state().hand[0]));
+    const s = await S();
+    check('QUICK THROW: draw 1 then the player discards 1 — everything else waits',
+      mid.pendingDiscard && mid.hand.length === 5 && !blockedPlay && blockedEnd === null
+      && !s.pendingDiscard && s.hand.length === 4,
+      JSON.stringify({ mid: mid.hand.length, blockedPlay, after: s.hand.length }));
   }
 
-  // ───────────────────── scenario 8 — Scything Advance vs a Back target ─────────────────────
-  await fresh(18);
+  // ═══ D · STATUSES: Guard, Bleed, Chill, Break/Broken ═══
+  console.log('\n── statuses ──');
+  await fresh(21);
   {
-    await J(() => K.forceIntent('scythe'));
-    const before = await J(() => K.intentPreviewDmg());
-    await J(() => K.moveHero('mira'));
-    const after = await J(() => K.intentPreviewDmg());
-    check('S8: the telegraph previews the positional counterplay live — 26 becomes 7',
-      before === 26 && after === 7);
-    const r = await J(() => K.endTurn({ grades: ['miss', 'miss', 'miss'] }));
-    const s = await st();
-    check('S8: taken entirely, it resolves for 7 against Mira, not 26', s.heroHp.mira === 14 - 7, 'mira ' + s.heroHp.mira);
+    await J(() => { window.K.forceHand(['guardcut', 'cleave', 'mend', 'serrate', 'frostbind']); window.K.forceIntent('hymn'); });
+    await J(() => window.K.playCard('guardcut'));
+    const g = await J(() => window.K.state().heroes.ash.guard);
+    const v = await volley();
+    const r = await J(() => window.K.endTurn({ grades: [] }));   // no input: every string misses
+    const s = await S();
+    // the whole party loses HP+Guard equal to the volley plus the dirge
+    const lost = (42 - s.heroes.ash.hp) + (36 - s.heroes.elin.hp) + (34 - s.heroes.mira.hp);
+    check('GUARD ABSORBS FIRST: an unanswered volley spends Guard before flesh',
+      g === 4 && lost === v.total + v.dirge * 3 - 4,
+      JSON.stringify({ guard: g, volley: v, lost }));
   }
-
-  // ───────────────────── scenario 9 — miss everything, die ─────────────────────
-  await fresh(19);
+  await fresh(22);
   {
-    let outcome = 'continue';
-    for (let i = 0; i < 6 && outcome === 'continue'; i++) {
-      const r = await J(() => K.endTurn({ grades: ['miss', 'miss', 'miss', 'miss', 'miss'] }));
-      outcome = r.outcome;
-    }
-    const s = await st();
-    check('S9: parrying nothing and playing nothing drops the party hero by hero within a few turns',
-      outcome === 'defeat' && s.phase === 'DEFEAT' && s.down.ash && s.down.elin && s.down.mira, 'turn ' + s.turn);
+    await J(() => { window.K.forceHand(['sgrace', 'cleave', 'mend', 'serrate', 'frostbind']); window.K.forceIntent('benediction'); });
+    await J(() => window.K.playCard('sgrace'));
+    const g0 = await J(() => { const h = window.K.state().heroes; return [h.ash.guard, h.elin.guard, h.mira.guard]; });
+    await J(() => window.K.endTurn({ grades: [] }));
+    await J(() => window.K.render());
+    const g1 = await J(() => { const h = window.K.state().heroes; return [h.ash.guard, h.elin.guard, h.mira.guard]; });
+    check('GUARD EXPIRY: survives the enemy phase, gone at the next player phase',
+      g0.every(g => g === 3) && g1.every(g => g === 0), g0 + ' → ' + g1);
   }
-
-  // ───────────────────── scenario 10 — the full PERFECT string ─────────────────────
-  await fresh(20);
-  {
-    await J(() => K.forceIntent('hymn'));
-    const r = await J(() => K.endTurn({ grades: ['perfect', 'perfect', 'perfect', 'perfect'] }));
-    const s = await st();
-    check('S10: a perfect string negates the Hymn, deals 1 Break, and ripostes 4×notes',
-      r.turned === true && r.riposte === 16 && r.taken === 0
-      && s.heroHp.ash === 16 && s.bossHp === 90 - 16 && s.brk === 4);
-  }
-  {
-    await fresh(21);
-    await J(() => K.forceIntent('hymn'));
-    const r = await J(() => K.endTurn({ grades: ['perfect', 'great', 'perfect', 'great'] }));
-    const s = await st();
-    check('S10b: all PERFECT/GREAT still turns the attack and Breaks — but no riposte',
-      r.turned === true && r.riposte === 0 && s.heroHp.ash === 16 && s.bossHp === 90 && s.brk === 4);
-  }
-  {
-    await fresh(22);
-    await J(() => K.forceIntent('hymn'));
-    // packets of 22 across 4 notes: 6,6,5,5 — GOOD halves (ceil), MISS lands whole
-    const r = await J(() => K.endTurn({ grades: ['good', 'good', 'good', 'miss'] }));
-    const s = await st();
-    check('S10c: damage packets follow the individual grades — 3+3+3+5 lands on Ash',
-      s.heroHp.ash === 16 - 14, 'ash ' + s.heroHp.ash);
-  }
-
-  // ───────────────────── scenario 11 — discard everything, draw one at a time ─────────────────────
   await fresh(23);
   {
-    const before = await st();
-    await J(() => K.endTurn({ grades: ['perfect', 'perfect', 'perfect', 'perfect', 'perfect'] }));
-    const s = await st();
-    check('S11: End Turn discards the whole hand and draws back to five',
-      before.hand.length === 5 && s.hand.length === 5 && s.discard === 5 && s.deck === 5);
-    const conserve = await J(() => {
-      const c = K.state();
-      return new Set([...c.hand, ...c.deck, ...c.discard]).size;
-    });
-    check('S11: no card is duplicated or lost across the cycle', conserve === 15);
-    // two more empty turns: the reshuffle happens only when the pile runs dry
-    await J(() => K.endTurn({ grades: ['perfect', 'perfect', 'perfect', 'perfect', 'perfect'] }));
-    const s2 = await st();
-    check('S11: second cycle — deck 0, discard 10, hand 5, no early reshuffle',
-      s2.deck === 0 && s2.discard === 10 && s2.hand.length === 5);
-    await J(() => K.endTurn({ grades: ['perfect', 'perfect', 'perfect', 'perfect', 'perfect'] }));
-    const s3 = await st();
-    check('S11: third cycle reshuffles the discard and keeps drawing',
-      s3.hand.length === 5 && s3.deck + s3.discard === 10);
+    await J(() => { window.K.forceHand(['serrate', 'cleave', 'mend', 'frostbind', 'twinfang']); window.K.forceIntent('hymn'); });
+    await J(() => window.K.playCard('serrate'));
+    const hp0 = await J(() => window.K.state().boss.hp);
+    await J(() => window.K.endTurn({ grades: [] }));
+    const t1 = await J(() => ({ hp: window.K.state().boss.hp, bleed: window.K.state().boss.bleed }));
+    await J(() => window.K.endTurn({ grades: [] }));
+    const t2 = await J(() => ({ hp: window.K.state().boss.hp, bleed: window.K.state().boss.bleed }));
+    check('BLEED DECAY: ticks 3 then 2 at enemy-phase start, decreasing by 1',
+      t1.hp === hp0 - 3 && t1.bleed === 2 && t2.hp === t1.hp - 2 && t2.bleed === 1,
+      JSON.stringify({ hp0, t1, t2 }));
   }
-
-  // ───────────────────── scenario 12 — Resonance across two turns ─────────────────────
   await fresh(24);
   {
-    // Turn 1: Rising Edge (Ash, a Modifier Action) → Lumen Cascade (Elin, modifier ACTIVE)
-    await J(() => { K.forceHand(['redge', 'lcascade', 'vthrust', 'wecho', 'brace']); });
-    await J(() => K.playCard('redge'));
-    await J(() => K.playCard('lcascade'));
-    let s = await st();
-    check('S12: the pair charges once — Ash then Elin, second modifier active', s.res.charges === 1);
-    // a second qualifying pair the SAME turn must not double-charge
-    await J(() => { K.state().boss.affinity = 'frost'; });
-    await J(() => K.playCard('vthrust'));
-    await J(() => K.playCard('wecho'));
-    s = await st();
-    check('S12: at most one charge per turn', s.res.charges === 1);
-    // GREAT string: turned (survives clean) but no riposte — the boss must not
-    // cross the phase-II line mid-scenario, or the arriving Ward and gauge
-    // adjustment muddy the Bond Art's arithmetic below.
-    await J(() => K.endTurn({ grades: ['great', 'great', 'great', 'great', 'great'] }));
-    // Turn 2: charge again → ready
-    await J(() => { K.forceHand(['redge', 'lcascade', 'cleave', 'brace', 'mend']); });
-    await J(() => K.playCard('redge'));
-    await J(() => K.playCard('lcascade'));
-    s = await st();
-    check('S12: two charges across two turns ready the Bond Art', s.res.charges === 2 && !s.res.used);
-    const apBefore = s.ap, hpBefore = s.bossHp, brkBefore = s.brk;
-    await J(() => K.playResonance());
-    s = await st();
-    check('S12: Light Through Steel — 1 AP, 10 damage, 2 Break, 7 Guard, Ash to Front',
-      s.ap === apBefore - 1 && s.bossHp === hpBefore - 10
-      && s.brk === Math.max(0, brkBefore - 2) && s.guard >= 7 && s.rows.ash === 'front' && s.res.used);
-    const again = await J(() => K.playResonance());
-    check('S12: once per encounter — a second invocation refuses', again === false);
+    await J(() => { window.K.forceHand(['frostbind', 'cleave', 'mend', 'serrate', 'twinfang']); window.K.forceIntent('hymn'); });
+    const raw = await J(() => window.K.intentPreviewDmg());
+    await J(() => window.K.playCard('frostbind'));
+    const chilled = await J(() => window.K.intentPreviewDmg());
+    const r = await J(() => window.K.endTurn({ grades: [] }));
+    const after = await J(() => window.K.state().boss.chill);
+    check('CHILL: blunts the volley\'s first hit by 4 (previewed live), then clears',
+      raw - chilled === 4 && r.taken === chilled && after === 0,
+      raw + '→' + chilled + ' taken=' + r.taken);
   }
-
-  // ───────────────────── break interrupt + benediction + phase II + burn ─────────────────────
   await fresh(25);
   {
-    await J(() => { K.state().boss.brk = 0; K.forceIntent('benediction'); K.state().boss.hp = 60; });
-    const r = await J(() => K.endTurn({ grades: [] }));
-    const s = await st();
-    check('BREAK: a Broken Regent loses its action — the Benediction never lands — and the gauge hardens +2',
-      r.interrupted === true && s.bossHp === 60 && s.breakMax === 7 && s.brk === 7);
-  }
-  await fresh(26);
-  {
-    await J(() => { K.forceIntent('benediction'); K.state().boss.hp = 60; });
-    await J(() => K.endTurn({ grades: [] }));
-    const s = await st();
-    check('BENEDICTION: un-Broken, the Regent heals 8 with no parry sequence', s.bossHp === 68);
-  }
-  await fresh(27);
-  {
-    await J(() => { K.state().boss.hp = 46; K.forceHand(['cleave', 'brace', 'mend', 'serrate', 'twinfang']); });
-    await J(() => K.playCard('cleave'));
-    const s = await st();
-    check('PHASE II: crossing 45 grants 10 Ward and a 7-slot Break gauge',
-      s.bossPhase === 2 && s.ward === 10 && s.breakMax === 7);
-    await J(() => K.playCard('serrate'));
-    const s2 = await st();
-    check('PHASE II: the Ward absorbs before HP', s2.bossHp === 40 && s2.ward === 7);
-  }
-  await fresh(28);
-  {
-    await J(() => K.forceIntent('rain'));
-    await J(() => K.endTurn({ grades: ['miss', 'miss', 'miss', 'miss'] }));
-    let s = await st();
-    check('BURN: unguarded Ashen Rain scorches — Elin falls to it, Burn 4 banked',
-      s.heroHp.elin === 0 && s.down.elin && s.burn === 4);
-    const retgt = await J(() => { K.forceIntent('rain'); return K.intentTargetId(); });
-    check('RETARGET: with Elin down, the Rain finds a hero still standing', retgt !== 'elin' && !!retgt, retgt);
-    const dead = await J(() => { K.forceHand(['lveil', 'cleave', 'brace', 'mend', 'serrate']); return K.playCard('lveil'); });
-    check('DOWNED: a fallen hero’s cards are dead in the shared hand', dead === false);
-    await J(() => K.forceIntent('hymn'));
-    const r = await J(() => K.endTurn({ grades: ['perfect', 'good', 'good', 'good'] }));
-    s = await st();
-    // hymn 22 → packets 6,6,5,5 → 0+3+3+3=9, +4 banked burn = 13 → Ash 16-13
-    check('BURN: it adds to the next damaging resolution, then clears',
-      s.heroHp.ash === 3 && s.burn === 0, 'ash ' + s.heroHp.ash);
-  }
-  await fresh(29);
-  {
-    await J(() => { K.forceHand(['brace', 'cleave', 'mend', 'serrate', 'twinfang']); });
-    await J(() => K.playCard('brace'));
-    await J(() => K.forceIntent('hymn'));
-    await J(() => K.endTurn({ grades: ['good', 'good', 'miss', 'miss'] }));
-    const s = await st();
-    // 3+3+5+5 = 16 through the notes, then Guard 5 absorbs → 11 to Ash; guard expires after
-    check('GUARD: applies only after rhythm mitigation, and expires after the Enemy Phase',
-      s.heroHp.ash === 16 - 11 && s.guard === 0, 'ash ' + s.heroHp.ash);
-  }
-  await fresh(30);
-  {
-    await J(() => { K.forceHand(['tshift', 'frostbind', 'cleave', 'brace', 'mend']); });
-    await J(() => K.playCard('tshift'));      // sets Pyre
-    const ev = await J(() => K.evaluateCard('frostbind'));
-    await J(() => K.playCard('frostbind'));   // Pyre → +5, 2 Break, becomes Frost
-    const s = await st();
-    check('AFFINITY: one state, replaced on set — Pyre feeds Frost Bind then flips',
-      ev.modifierActive && s.affinity === 'frost' && s.bossHp === 90 - 4 - 9 && s.brk === 3);
-  }
-  {
-    const history = await J(() => K.state().turnState.actionsPlayed.length);
-    await J(() => K.endTurn({ grades: ['perfect', 'perfect', 'perfect', 'perfect', 'perfect'] }));
-    const s = await st();
-    check('TURN SCOPE: the internal action history resets each Player Phase — and never renders as a trail',
-      history === 2 && s.played === 0 && s.ap === 3);
+    await J(() => { window.K.forceHand(['crosssever', 'cleave', 'backstab', 'execute', 'mend']); window.K.forceIntent('hymn');
+      window.K.state().boss.brk = 2; window.K.render(); });
+    await J(() => window.K.playCard('crosssever'));
+    const b = await J(() => { const s = window.K.state().boss; return { brk: s.brk, broken: s.broken, cancel: s.cancelNext }; });
+    const conds = await J(() => ({ backstab: window.K.evaluateCard('backstab').condActive,
+                                   execute: window.K.evaluateCard('execute').condActive }));
+    const hp0 = await J(() => window.K.state().boss.hp);
+    await J(() => window.K.playCard('cleave'));
+    const hp1 = await J(() => window.K.state().boss.hp);
+    const r = await J(() => window.K.endTurn({ grades: [] }));
+    const s = await S();
+    check('BREAK → BROKEN: meter to zero staggers the Regent and arms the cancel',
+      b.brk === 0 && b.broken && b.cancel && conds.backstab && conds.execute, JSON.stringify(b));
+    check('BROKEN: +25% damage taken during the player phase (6 → 8)',
+      hp0 - hp1 === 8, 'took ' + (hp0 - hp1));
+    check('BREAK CANCELLATION: the next enemy action dies; the meter refills to 12',
+      r.canceled === true && s.boss.brk === 12 && !s.boss.broken && !s.boss.cancelNext,
+      JSON.stringify({ canceled: r.canceled, brk: s.boss.brk }));
   }
 
-  // ───────────────────── presentation smoke ─────────────────────
+  // ═══ E · PARRY OUTCOMES (deck §5 on the rhythm strings) ═══
+  console.log('\n── defense ──');
+  await fresh(31);
   {
-    await fresh(31);
+    await J(() => { window.K.forceHand(['cleave', 'mend', 'serrate', 'frostbind', 'twinfang']); window.K.forceIntent('hymn'); });
+    const v = await volley();
+    const r = await J(() => window.K.endTurn({ grades: [] }));
+    check('FAILED PARRY: every hit of the volley lands in full',
+      r.taken === v.total && r.negated === 0, 'taken=' + r.taken + ' of ' + v.total);
+  }
+  await fresh(32);
+  {
+    await J(() => { window.K.forceHand(['cleave', 'mend', 'serrate', 'frostbind', 'twinfang']); window.K.forceIntent('hymn'); });
+    const hp0 = await J(() => window.K.state().boss.hp);
+    const v = await volley();
+    const expect = await J(() => (window.K.currentIntent().hits || [])
+      .reduce((n, h, i) => n + Math.ceil(Math.max(0, h.dmg[0]) * 0.3), 0));
+    const r = await J(async () => window.K.endTurn({ grades:
+      (window.K.currentIntent().hits || []).flatMap(h => h.notes.map(() => 'great')) }));
+    const hp1 = await J(() => window.K.state().boss.hp);
+    check('SUCCESS (no Guard): every clean string blunts its hit by 70%',
+      r.taken === expect && r.negated === 0, 'taken=' + r.taken + ' expected ' + expect + ' of ' + v.total);
+    check('NO REWARD LOOP: a clean parry deals no damage back', hp1 === hp0, hp0 + '→' + hp1);
+  }
+  await fresh(33);
+  {
+    await J(() => { window.K.forceHand(['guardcut', 'cleave', 'mend', 'serrate', 'frostbind']); window.K.forceIntent('hymn'); });
+    await J(() => window.K.playCard('guardcut'));
+    const brk0 = await J(() => window.K.state().boss.brk);
+    const r = await J(async () => window.K.endTurn({ grades:
+      (window.K.currentIntent().hits || []).flatMap(h => h.notes.map(() => 'great')) }));
+    const brk1 = await J(() => window.K.state().boss.brk);
+    // Ash answers two hits of the Hymn but may only NEGATE one of them
+    const negs = r.hits.filter(h => h.negated).length;
+    const ashHits = r.hits.filter(h => h.targetId === 'ash');
+    check('SUCCESS + 2 GUARD: negate one hit, deal 1 Break',
+      r.negated === 1 && brk0 - brk1 === 1 && r.hits.some(h => h.negated && h.taken === 0),
+      JSON.stringify({ negated: r.negated, brkDelta: brk0 - brk1 }));
+    check('RESPONSE LIMIT: a hero fully negates only ONE hit per enemy action',
+      negs === 1 && ashHits.length === 2 && ashHits.filter(h => h.negated).length === 1,
+      JSON.stringify(ashHits.map(h => ({ neg: h.negated, taken: h.taken }))));
+  }
+  await fresh(34);
+  {
+    await J(() => { window.K.forceHand(['cstance', 'cleave', 'mend', 'serrate', 'frostbind']); window.K.forceIntent('hymn'); });
+    await J(() => window.K.playCard('cstance'));
+    const brk0 = await J(() => window.K.state().boss.brk);
+    const r = await J(async () => window.K.endTurn({ grades:
+      (window.K.currentIntent().hits || []).flatMap(h => h.notes.map(() => 'great')) }));
+    const brk1 = await J(() => window.K.state().boss.brk);
+    // 1 Break for the negate +2 from the stance, then the stance is spent
+    check('COUNTERSTANCE: the next successful parry deals +2 Break, once',
+      r.negated >= 1 && brk0 - brk1 === 3 + (r.negated - 1), 'delta=' + (brk0 - brk1) + ' negates=' + r.negated);
+  }
+  await fresh(35);
+  {
+    await J(() => { window.K.forceHand(['intercession', 'cleave', 'mend', 'serrate', 'frostbind']); window.K.forceIntent('scythe'); });
+    await J(() => window.K.playCard('intercession', 'mira'));
+    const g = await J(() => ({ elin: window.K.state().heroes.elin.guard, mira: window.K.state().heroes.mira.guard,
+                               who: window.K.state().intercession }));
+    const r = await J(async () => window.K.endTurn({ grades:
+      (window.K.currentIntent().hits || []).flatMap(h => h.notes.map(() => 'great')) }));
+    const s = await S();
+    const miraHit = r.hits.find(h => h.targetId === 'mira');
+    check('INTERCESSION: both gain 3 Guard and Elin steps into Mira\'s window',
+      g.elin === 3 && g.mira === 3 && g.who === 'mira' && miraHit && miraHit.parrierId === 'elin',
+      JSON.stringify(g));
+    check('INTERCESSION NEGATE: Elin\'s Guard pays and the blow aimed at Mira is erased',
+      miraHit && miraHit.negated && miraHit.taken === 0 && s.intercession === null,
+      JSON.stringify(miraHit));
+  }
+
+  // ═══ F · BOND AND RESONANCE ═══
+  console.log('\n── resonance ──');
+  await fresh(41);
+  {
+    await J(() => { window.K.forceHand(['lcascade', 'cleave', 'mend', 'guardcut', 'serrate']); window.K.forceIntent('benediction'); });
+    await J(() => { window.K.playCard('lcascade'); window.K.playCard('cleave'); });   // elin → ash: stitch
+    const s1 = await J(() => window.K.state().bond.stitches);
+    await J(() => { window.K.playCard('mend'); });                                     // ash → elin adjacency again
+    const s2 = await J(() => window.K.state().bond.stitches);
+    check('BOND STITCH: an Ash↔Elin Follow-Up stitches the pair — max 1 per phase',
+      s1 === 1 && s2 === 1, s1 + ',' + s2);
+    await J(() => window.K.endTurn({ grades: [] }));
+    await J(() => { window.K.forceHand(['lcascade', 'cleave', 'mend', 'guardcut', 'serrate']); window.K.forceIntent('benediction'); });
+    await J(() => { window.K.playCard('lcascade'); window.K.playCard('cleave'); });
+    const gen = await S();
+    check('RESONANCE GENERATED: two stitches put Light Through Steel in the hand',
+      gen.bond.stitches === 2 && gen.bond.generated && gen.hand.includes('lightsteel'),
+      JSON.stringify(gen.bond) + ' hand=' + gen.hand.join(','));
+    const hp0 = await J(() => window.K.state().boss.hp);
+    await J(() => window.K.playCard('lightsteel'));
+    const s = await S();
+    check('LIGHT THROUGH STEEL: 1 AP, 10 damage, all heroes +4 Guard, EXHAUSTS',
+      hp0 - s.boss.hp === 10 && s.heroes.ash.guard >= 4 && s.heroes.elin.guard >= 4 && s.heroes.mira.guard >= 4
+      && s.exhausted.includes('lightsteel') && !s.discard.includes('lightsteel'),
+      JSON.stringify({ dmg: hp0 - s.boss.hp, ex: s.exhausted }));
+    await J(() => window.K.endTurn({ grades: [] }));
+    await J(() => { window.K.forceHand(['lcascade', 'cleave', 'mend', 'guardcut', 'serrate']); window.K.forceIntent('benediction'); });
+    await J(() => { window.K.playCard('lcascade'); window.K.playCard('cleave'); });
+    const again = await S();
+    check('ONE AUTHORED CLIMAX: the Resonance never regenerates this encounter',
+      !again.hand.includes('lightsteel') && again.bond.generated, 'hand=' + again.hand.join(','));
+  }
+
+  // ═══ G · THE REGENT ═══
+  console.log('\n── the regent ──');
+  await fresh(51);
+  {
+    await J(() => { window.K.forceIntent('benediction'); window.K.state().boss.hp = 100; window.K.render(); });
+    await J(() => window.K.endTurn({ grades: [] }));
+    const hp = await J(() => window.K.state().boss.hp);
+    check('BENEDICTION: the Regent sings itself whole (+7)', hp === 107, 'hp=' + hp);
+  }
+  await fresh(52);
+  {
+    await J(() => { window.K.state().boss.hp = 61; window.K.render(); });
+    await J(() => { window.K.forceHand(['cleave', 'mend', 'serrate', 'frostbind', 'twinfang']); });
+    await J(() => window.K.playCard('cleave'));
+    const p = await J(() => window.K.state().boss.phase);
+    check('PHASE II: the dirge sharpens at half health', p === 2, 'phase=' + p);
+  }
+  await fresh(53);
+  {
+    await J(() => { window.K.state().heroes.ash.hp = 0; window.K.state().heroes.ash.downed = true;
+      window.K.forceIntent('hymn'); window.K.render(); });
+    const tgt = await J(() => window.K.intentTargetId());
+    const dead = await J(() => {
+      window.K.forceHand(['cleave', 'mend', 'serrate', 'frostbind', 'twinfang']);
+      return { play: window.K.playCard('cleave'),
+               deadInHand: !!document.querySelector('.k-card[data-card="cleave"].k-card-dead') };
+    });
+    check('DOWNED: the Hymn finds a hero still standing; the fallen\'s cards are dead',
+      tgt !== 'ash' && tgt != null && !dead.play && dead.deadInHand, 'tgt=' + tgt);
+  }
+
+  // ═══ H · PRESENTATION ═══
+  console.log('\n── presentation ──');
+  await fresh(7);
+  {
     const ui = await J(() => {
-      const intentR = document.getElementById('k-intent').getBoundingClientRect();
-      const bossR = document.getElementById('k-boss-art').getBoundingClientRect();
-      const cards = [...document.querySelectorAll('#k-hand .k-card')];
-      return {
-        intent: document.getElementById('k-int-name').textContent.length > 1,
-        intentClearOfBoss: intentR.right < bossR.left || intentR.bottom < bossR.top || intentR.left > bossR.right,
-        stacked: document.querySelectorAll('#k-party-hud .k-pt-hero').length === 3
-          && document.querySelectorAll('#k-party-hud .k-bar').length === 3,
-        cards: cards.length,
-        fanned: cards.some(c => (c.style.getPropertyValue('--rot') || '').includes('deg')
-          && c.style.getPropertyValue('--rot') !== '0.0deg'),
-        noMoveButton: !document.querySelector('.k-hero-move'),
-        apVisible: document.getElementById('k-ap-num').textContent === '3',
-        resonance: !!document.getElementById('k-res-card'),
-        actors: document.querySelectorAll('.k-hero img').length === 3 && !!document.querySelector('#k-boss-art img'),
-      };
+      const ir = document.getElementById('k-intent').getBoundingClientRect();
+      const br = document.getElementById('k-boss-art').getBoundingClientRect();
+      const clearOf = (r) => ir.right < r.left || ir.left > r.right || ir.bottom < r.top || ir.top > r.bottom;
+      const disjoint = clearOf(br) && clearOf(document.getElementById('k-boss-hud').getBoundingClientRect())
+        && clearOf(document.getElementById('k-party-hud').getBoundingClientRect());
+      const rows = document.querySelectorAll('.k-pt-hero').length;
+      const bars = document.querySelectorAll('.k-pt-hero .k-bar-fill').length;
+      const cards = document.querySelectorAll('#k-hand .k-card');
+      const fanned = [...cards].some(c => (c.style.getPropertyValue('--rot') || '0deg') !== '0deg');
+      const pips = document.querySelectorAll('#k-break .k-pip').length;
+      const groups = document.querySelectorAll('#k-int-notes .k-hitgrp').length;
+      const dirge = document.getElementById('k-int-dirge').textContent;
+      return { disjoint, rows, bars, cards: cards.length,
+        fanned, pips,
+        noMove: !document.querySelector('.k-hero-move'),
+        ap: document.getElementById('k-ap-num').textContent,
+        cycle: document.getElementById('k-cycle-n').textContent,
+        bond: document.getElementById('k-bond-n').textContent, groups, dirge: !!dirge };
     });
-    check('UI: intent banner clear of the Regent; per-hero HP stacked; the hand fans; no Move button',
-      ui.intent && ui.intentClearOfBoss && ui.stacked && ui.cards === 5 && ui.fanned
-      && ui.noMoveButton && ui.apVisible && ui.resonance && ui.actors, JSON.stringify(ui));
-    const hoverSafe = await J(() => {
-      const c = document.querySelector('#k-hand .k-card');
-      const r = c.getBoundingClientRect();
-      c.dispatchEvent(new PointerEvent('pointermove', { clientX: r.left + 10, clientY: r.top + 10, bubbles: true }));
-      return !c.classList.contains('k-dragging') && !c.style.getPropertyValue('--dragx');
+    check('UI: intent clear of the Regent AND both HUDs; stacked rows; fanned hand; 12 Break pips; per-hit volley groups; dirge named',
+      ui.disjoint && ui.rows === 3 && ui.bars === 3 && ui.cards === 5 && ui.fanned
+      && ui.pips === 12 && ui.noMove && ui.ap === '3' && ui.cycle === '1' && ui.bond === '0/2'
+      && ui.groups >= 2 && ui.dirge,
+      JSON.stringify(ui));
+    const hover = await J(async () => {
+      const card = document.querySelector('#k-hand .k-card');
+      const r = card.getBoundingClientRect();
+      card.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: r.left + 200, clientY: r.top - 100 }));
+      await new Promise(res => setTimeout(res, 60));
+      return !card.classList.contains('k-dragging');
     });
-    check('UI: a bare hover is not a drag — pointer tracking arms only on a real press', hoverSafe);
-    await t.shot('v23-combat');
+    check('UI: a bare hover is not a drag — pointer tracking arms only on a real press', hover, '');
   }
 
-  const r = t.report();
-  await t.browser.close();
-  process.exit(r.passed === r.total ? 0 : 1);
-})().catch(e => { console.error(e); process.exit(1); });
+  const summary = report();
+  await H.browser.close();
+  process.exit(summary.passed === summary.total && summary.errs === 0 ? 0 : 1);
+})().catch(e => { console.error('SUITE CRASH:', e); process.exit(2); });
