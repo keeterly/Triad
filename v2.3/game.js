@@ -21,7 +21,7 @@
 
 'use strict';
 
-const V23_BUILD = 2;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 3;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // ── deterministic RNG (mulberry32) — the whole fight is replayable from a seed
 let _seed = (Date.now() >>> 0);
@@ -661,7 +661,7 @@ function renderHand() {
     const afford = C.ap >= ev.currentCost;
     const dead = C.heroes[c.owner].downed;
     // the FAN: a gentle arc, rotation from a low pivot plus a parabolic dip
-    const rot = ((i - mid) * 4).toFixed(1), dy = ((i - mid) * (i - mid) * 4.5).toFixed(1);
+    const rot = ((i - mid) * 4).toFixed(1), dy = ((i - mid) * (i - mid) * 3).toFixed(1);
     return '<button class="k-card' + (ev.modifierActive && !dead ? ' k-card-active' : '') + (afford ? '' : ' k-card-poor')
       + (dead ? ' k-card-dead' : '')
       + (_sel === id ? ' k-card-sel' : '') + '" data-card="' + id + '"'
