@@ -27,7 +27,7 @@
 
 'use strict';
 
-const V23_BUILD = 30;   // MUST match version.json's "v2.3" — bump BOTH every build.
+const V23_BUILD = 31;   // MUST match version.json's "v2.3" — bump BOTH every build.
 
 // PRESENTATION SCALE: 1 means the screen shows the engine's own numbers —
 // Slay-the-Spire scale, where a hero has 42 HP and a Cleave hits for 6. Big
@@ -920,7 +920,8 @@ async function endTurn(opts) {
         // RESPONSE LIMIT (deck §5): a hero fully negates only ONE hit per enemy
         // action. A second turned string in the same volley still holds most of
         // it, but the last quarter gets through.
-        if (turned && negatedThisAction[parrierId]) { mit = 0.75; turned = false; }
+        let spent = false;   // read the whole string, but this hero's negate was already used
+        if (turned && negatedThisAction[parrierId]) { mit = 0.75; turned = false; spent = true; }
         else if (turned) { negatedThisAction[parrierId] = true; negated = true; }
         dmg = Math.max(0, Math.round(dmg * (1 - mit)));
         if (turned) {
@@ -946,7 +947,12 @@ async function endTurn(opts) {
           // it had won.
           if (C.phase === 'VICTORY') { renderAll(); return report('victory', result); }
         }
-        fxParryReceipt(parrierId, read);
+        // THE RECEIPT MUST NOT LIE. It was handed the raw read, so on a second
+        // clean string in one action it printed "TURNED — the blow is turned
+        // aside" while a quarter of the damage went through. The Hymn strikes
+        // Ash twice, so this was the routine case on the intent players meet
+        // first, and nothing anywhere on screen teaches the response limit.
+        fxParryReceipt(parrierId, spent ? { ...read, turned: false, flawless: false, spent: true } : read);
       }
       // Guard absorbs first, on the hero actually struck; then flesh.
       const struck = C.heroes[tgtId];
@@ -1097,6 +1103,15 @@ function beatClose() {
 //   bait       a crossed red ring you must NOT touch; discipline is the parry
 const BURST_TAPS = 3;
 const NOTE_WORD = { tap: 'TAP', slide: 'SLIDE', hold: 'HOLD', burst: 'MASH', feint: 'WAIT', bait: 'DON\u2019T' };
+// What a note says at the GRADEABLE INSTANT, which for two of the six kinds is
+// not the verb it arrived with. A burst returns null — its label is a live
+// tally and overwriting it blinded the first tap.
+function liveLabel(kind, verb) {
+  if (kind === 'burst') return null;
+  if (kind === 'hold') return 'RELEASE!';     // graded on the release, not the press
+  if (kind === 'feint') return 'NOW!';        // WAIT was the read; this is the answer
+  return verb + (kind === 'bait' ? '' : '!');
+}
 const DIR_ARROW = { L: '\u2190', R: '\u2192', U: '\u2191', D: '\u2193' };
 // A crossed circle has to be learned. A skull does not.
 const SKULL_SVG =
@@ -1141,6 +1156,37 @@ const BURST_REST = 1;
 // it is an impossible one. The scheduler enforces this so no future string can
 // re-create it, whatever the data says.
 const MIN_GAP_AFTER = { tap: 0.5, feint: 1, bait: 1, slide: 1.5, hold: 1.5, burst: 2 };
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ONE PRESS ANSWERS ONE NOTE.
+// ═════════════════════════════════════════════════════════════════════════════
+// Every live note used to attach its OWN pointerdown to the stage. A note is
+// gradeable from land−260ms to land+290ms, so any authored gap under ~550ms
+// left two notes listening at once — and a single finger fired both handlers.
+//
+// The Hymn opens `['tap','tap']` half a beat apart: 250ms. So one press on the
+// first tap graded it PERFECT and silently ate the second as an early GOOD the
+// player never played. The Regent's signature intent could not be played
+// FLAWLESS at all, and the only way to TURN that hit was to deliberately
+// mistime the first tap. The same overlap let a press aimed at the tap AFTER a
+// bait count as touching the skull the player had correctly waited out —
+// punishing discipline for being eager about a different note.
+//
+// A press now belongs to exactly one note: the live note whose beat it is
+// nearest to. Everything else ignores it. This is what MIN_GAP_AFTER was
+// reaching for and could not express — it was calibrated to how long a gesture
+// takes to TRAVEL, and said nothing about how long a note stays gradeable.
+const _live = [];
+function liveOpen(rec) { _live.push(rec); }
+function liveClose(rec) { const i = _live.indexOf(rec); if (i >= 0) _live.splice(i, 1); }
+function claimsPress(rec, at) {
+  let best = null, bestD = Infinity;
+  for (const r of _live) {
+    const d = Math.abs(at - r.landAt);
+    if (d < bestD) { bestD = d; best = r; }
+  }
+  return best === rec;
+}
 // Sideways room between the notes of one hit, so a string reads as a run of
 // positions rather than one point being shouted at repeatedly.
 const NOTE_SPREAD = 58;
@@ -1177,12 +1223,33 @@ function runParryNote(spec, ax, ay, idx, total, dur, whoId, ox, oy) {
     ring.dataset.kind = kind;
     ring.dataset.n = idx - 1; ring.dataset.total = total;
     if (dir) ring.dataset.dir = dir;
-    let done = false, downAt = null, taps = 0, wrongAt = null;
+    let done = false, downAt = null, taps = 0, wrongAt = null, owned = false;
+    // This note's claim on the finger: the arbiter hands each press to whichever
+    // live note its timestamp is nearest to, and a note only listens while it
+    // is registered. `finish` deregisters it.
+    const me = { landAt: t0 + dur, kind };
+    liveOpen(me);
 
     const liveT = setTimeout(function () {
       if (done) return;
       ring.classList.add('k-pr-live');
-      lbl.textContent = verb + (kind === 'bait' ? '' : '!');
+      // …except a burst, whose label is a live tally. Overwriting it with
+      // "MASH!" destroyed the count at the instant the hand needed it, and it
+      // only came back after the first tap — so the first tap was blind.
+      // THE LABEL AT THE GRADEABLE INSTANT SAYS WHAT TO DO *NOW*, which for
+      // two of the six kinds is not the same as the verb they arrived with.
+      //
+      // A HOLD is graded on the RELEASE, and "HOLD!" told the hand to keep
+      // holding — the one word on screen was advice for the wrong action.
+      //
+      // A FEINT arrives saying WAIT, and is then graded exactly like a tap:
+      // press on the beat. Doing nothing scores a MISS. Two independent
+      // reviewers of this game read "WAIT" as "do nothing" — which is the
+      // bait's rule, not the feint's — and that is the whole difficulty of the
+      // note being taught backwards. WAIT is right while the ring is closing;
+      // the moment it opens, the answer is NOW.
+      const live = liveLabel(kind, verb);
+      if (live != null) lbl.textContent = live;
       parrySlowmo(true);
     }, Math.max(0, dur - PARRY_GOOD_MS));
     // a burst must read as "start now", so it opens the moment it spawns
@@ -1192,6 +1259,7 @@ function runParryNote(spec, ax, ay, idx, total, dur, whoId, ox, oy) {
     const finish = function (q) {
       if (done) return;
       done = true;
+      liveClose(me);
       clearTimeout(liveT); clearTimeout(missT);
       parrySlowmo(false);
       stage.removeEventListener('pointerdown', onDown, true);
@@ -1206,7 +1274,10 @@ function runParryNote(spec, ax, ay, idx, total, dur, whoId, ox, oy) {
       finish(g); return true;
     };
     const onDown = function (e) {
-      downAt = performance.now();
+      const at = performance.now();
+      if (!claimsPress(me, at)) return;      // a nearer note owns this finger
+      owned = true;
+      downAt = at;
       ring._dx = e.clientX; ring._dy = e.clientY;
       if (kind === 'bait') { finish('miss'); return; }        // touched the bait
       if (kind === 'burst') {
@@ -1222,7 +1293,7 @@ function runParryNote(spec, ax, ay, idx, total, dur, whoId, ox, oy) {
       if (kind === 'tap' || kind === 'feint') tryGrade();
     };
     const onMove = function (e) {
-      if (downAt == null || kind !== 'slide') return;
+      if (!owned || downAt == null || kind !== 'slide') return;
       const dx = e.clientX - ring._dx, dy = e.clientY - ring._dy;
       const at = Math.max(downAt, performance.now() - SLIDE_LEAD_MS);
       if (dirOK(dir, dx, dy)) { tryGrade(at); return; }
@@ -1235,8 +1306,9 @@ function runParryNote(spec, ax, ay, idx, total, dur, whoId, ox, oy) {
       }
     };
     const onUp = function () {
-      if (kind === 'hold' && downAt != null) tryGrade();
-      downAt = null;
+      // a hold is graded on RELEASE, so it may only grade a press it owned
+      if (kind === 'hold' && owned && downAt != null) tryGrade();
+      downAt = null; owned = false;
     };
     stage.addEventListener('pointerdown', onDown, true);
     stage.addEventListener('pointermove', onMove, true);
@@ -1310,13 +1382,29 @@ async function runVolleyRhythm(hits, answerers, sub) {
   // camera move would slide them off the heroes they belong to. Re-anchoring
   // every frame costs three rect reads and buys a camera that can move during
   // a bar at all — which is what the escalating parry shot needs.
+  let thread = null, threadHero = null;
   let anchorRaf = requestAnimationFrame(function reanchor() {
+    let soonest = null, soonestT = Infinity;
     document.querySelectorAll('.k-pring[data-hero]').forEach(r => {
       const a = anchorFor(r.dataset.hero);
       if (!a) return;
       r.style.left = (a.x + (+r.dataset.ox || 0)) + 'px';
       r.style.top = (a.y + (+r.dataset.oy || 0)) + 'px';
+      // whichever note lands next is the one the blow is currently aimed at
+      const t = +r.dataset.impact || 0;
+      if (t < soonestT) { soonestT = t; soonest = r.dataset.hero; }
     });
+    // THE THREAD FOLLOWS THE BLOW. It used to be drawn once to the first
+    // answerer and held for the whole bar, so during the Rain it still ended
+    // on Ash while Elin's and Mira's notes were flying — the one cue that says
+    // "this comes at HER" pointed at the wrong hero for every hit but the
+    // first. It is redrawn only when the hero changes, not every frame.
+    if (soonest && soonest !== threadHero) {
+      threadHero = soonest;
+      if (thread) thread.remove();
+      const a = anchorFor(soonest);
+      thread = parryThread(el('k-boss-art'), a ? a.x : 466, a ? a.y : 200);
+    }
     anchorRaf = requestAnimationFrame(reanchor);
   });
   // EVERY PRESS REGISTERS. A press that lands between notes, or a fourth tap in
@@ -1344,7 +1432,13 @@ async function runVolleyRhythm(hits, answerers, sub) {
       const asked = want[ni] == null ? ni : want[ni];
       if (ni === 0) { beats.push(asked); continue; }
       const prev = parseNote(hits[hi].notes[ni - 1]).kind;
-      const floor = beats[ni - 1] + (MIN_GAP_AFTER[prev] == null ? 1 : MIN_GAP_AFTER[prev]);
+      // THE FLOOR IS A DURATION, NOT A BEAT COUNT. Phase 2's `sub` shortens
+      // the beat, so a floor expressed in beats quietly shortened the hand's
+      // time with it — the Rain's tap→slide dropped from 750ms to 562ms while
+      // the grading windows stayed absolute. Dividing by `sub` keeps the
+      // wall-clock gap the table is actually promising.
+      const gapBeats = (MIN_GAP_AFTER[prev] == null ? 1 : MIN_GAP_AFTER[prev]) / (sub || 1);
+      const floor = beats[ni - 1] + gapBeats;
       beats.push(Math.max(asked, floor));
     }
     for (let ni = 0; ni < inHit; ni++) {
@@ -1375,8 +1469,6 @@ async function runVolleyRhythm(hits, answerers, sub) {
     // and the taps meant for the flurry rained on whatever came next.
     if (hits[hi].notes.some(n => parseNote(n).kind === 'burst')) slot += BURST_REST;
   }
-  const thread = parryThread(el('k-boss-art'), anchorFor(answerers[0]) ? anchorFor(answerers[0]).x : 466,
-                             anchorFor(answerers[0]) ? anchorFor(answerers[0]).y : 200);
   const grades = await Promise.all(jobs);
   stage.removeEventListener('pointerdown', onPress, true);
   cancelAnimationFrame(anchorRaf);
@@ -1582,9 +1674,14 @@ function popupOver(el, text, cls) {
   const p = document.createElement('div');
   p.className = 'k-pop ' + (cls || '');
   p.textContent = text;
-  // fan successive numbers apart so a three-hit volley reads as three numbers
+  // FAN AND STAGGER. A 26px spread was narrower than the digits themselves at
+  // the md/lg tiers, so a volley resolving in one frame printed two 9s that
+  // read as "99" — the exact smear Build 22 set out to kill, recreated by
+  // resolving several hits simultaneously. Wider, and lifted as well as
+  // spread, so two numbers can never share a baseline.
   const i = _popSeq++ % 3;
-  p.style.setProperty('--pop-dx', (i === 0 ? 0 : i === 1 ? -26 : 26) + 'px');
+  p.style.setProperty('--pop-dx', (i === 0 ? 0 : i === 1 ? -52 : 52) + 'px');
+  p.style.setProperty('--pop-dy', (i === 0 ? 0 : i === 1 ? -14 : 12) + 'px');
   p.style.left = ((r.left + r.width / 2 - sr.left) / scale) + 'px';
   p.style.top = ((r.top + r.height * 0.26 - sr.top) / scale) + 'px';
   stage.appendChild(p);
@@ -1685,16 +1782,20 @@ function fxDeflect(node, flawless) {
   hitstop(flawless ? 175 : 140);
 }
 function fxParryReceipt(heroId, read) {
+  // `spent` means the string was read clean but this hero had already spent
+  // their one full negate this action — the deck's response limit.
   const at = document.querySelector('.k-hero[data-hero="' + heroId + '"]');
   if (!at || !read.notes) return;
   const stage = document.getElementById('k-stage'); if (!stage) return;
   const sr = stage.getBoundingClientRect(), r = at.getBoundingClientRect();
   const scale = sr.width / stage.offsetWidth || 1;
   const tag = document.createElement('div');
-  const crown = read.flawless ? 'FLAWLESS' : read.turned ? 'TURNED' : null;
+  const crown = read.flawless ? 'FLAWLESS' : read.turned ? 'TURNED' : read.spent ? 'SPENT' : null;
   tag.className = 'k-receipt' + (crown ? ' k-receipt-crown' : '');
   tag.innerHTML = crown
-    ? '<b>' + crown + '</b><span>the blow is turned aside</span>'
+    ? '<b>' + crown + '</b><span>' + (read.spent
+        ? 'read clean — but this hero already spent their negate'
+        : 'the blow is turned aside') + '</span>'
     : '<b>' + read.kept + '/' + read.notes + ' turned</b><span>the rest gets through</span>';
   tag.style.left = ((r.left + r.width / 2 - sr.left) / scale) + 'px';
   tag.style.top = ((r.top - sr.top) / scale - 26) + 'px';
@@ -2773,5 +2874,26 @@ window.K = {
   parryGrade, readString, dirOK, dropTargetAt, openPile, currentIntent, intentPreviewDmg, intentTargetId, dirgeAmount,
   FOES, foeHp, combatSummary, CARD_UPS, CARD_DEFS, cardDef, effectText,
   _setPhase: setPhase,          // test-only: end a fight without playing it out
+  // test-only: the words a note wears on arrival vs at the gradeable instant,
+  // read from the function the note itself calls rather than restated here
+  _noteWords: () => ({ feint: NOTE_WORD.feint, bait: NOTE_WORD.bait,
+                       feintLive: liveLabel('feint', NOTE_WORD.feint),
+                       holdLive: liveLabel('hold', NOTE_WORD.hold),
+                       tapLive: liveLabel('tap', NOTE_WORD.tap),
+                       burstLive: liveLabel('burst', NOTE_WORD.burst) }),
+  // test-only: drive the press arbiter directly. Two notes and a list of press
+  // timestamps in, the letter of the note that claims each press out.
+  _liveTest(notes, presses) {
+    const saved = _live.splice(0, _live.length);
+    notes.forEach(n => liveOpen(n));
+    const letter = (n) => String.fromCharCode(65 + notes.indexOf(n));
+    const out = presses.map(p => {
+      const owner = notes.find(n => claimsPress(n, p.at));
+      return { at: p.at, want: p.want, got: owner ? letter(owner) : null };
+    });
+    _live.splice(0, _live.length);
+    saved.forEach(n => _live.push(n));
+    return out;
+  },
   tune(t) { Object.assign(TUNE, t || {}); return TUNE; },
 };

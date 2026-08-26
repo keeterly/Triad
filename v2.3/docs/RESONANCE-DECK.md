@@ -1218,3 +1218,103 @@ four intents — so every number the balance sim has ever printed still describe
 the fight it describes. The bot that prints them moved to `test/bot.cjs` and is
 now shared with the run simulator; the full three-tier balance run was re-run
 after the extraction to prove the move changed nothing.
+
+---
+
+## Build 31 — one press answers one note
+
+A parry audit drove real bars with scripted input and found that the system's
+foundation was wrong in a way no amount of tuning could have reached.
+
+### One finger was answering two notes
+
+Every live note attached its **own** `pointerdown` to the stage. A note is
+gradeable from `land − 260ms` to `land + 290ms` — a 550ms window. So any
+authored gap under ~550ms left two notes listening at once, and a single press
+fired **both** handlers.
+
+The Ruinous Hymn opens `['tap', 'tap']` half a beat apart. **250ms.**
+
+One press on the first tap therefore graded it PERFECT *and* silently consumed
+the second as an early GOOD the player never played. Which means:
+
+- **the Regent's signature intent could not be played FLAWLESS at all**;
+- the only way to TURN that hit was to *deliberately mistime* the first tap by
+  10–95ms early;
+- and Build 24's playtest claim of "not a single MISS" was partly cross-fire —
+  the bot's second tap was landing on a note that was already dead.
+
+The same overlap let a press aimed at the tap **after** a bait count as
+touching the skull the player had correctly waited out. Discipline punished for
+being eager about a different note.
+
+**A press now belongs to exactly one note: the live note whose beat it is
+nearest to.** Everything else ignores it.
+
+This is what `MIN_GAP_AFTER` was reaching for and could not express. That table
+is calibrated to how long a gesture takes to *travel* — a swipe needs more room
+than a tap — and says nothing whatever about how long a note stays *gradeable*.
+Both constraints are real; only one of them was implemented.
+
+> The suite could not have caught this, and did not: nothing in 106 checks had
+> ever pressed a real button. There are two checks now that drive the arbiter
+> directly with two notes a half-beat apart and a list of press timestamps.
+
+### The feint was teaching its own answer backwards
+
+A `feint` arrives labelled **WAIT** and is then graded exactly like a tap:
+press on the beat. Doing nothing scores a **MISS**.
+
+Two independent reviewers of this game — one auditing the parry, one auditing
+comprehension — both read "WAIT" as *"do nothing"*. That is the **bait's** rule,
+not the feint's. When two careful readers of the source both get a note
+backwards, a player at 120 BPM has no chance.
+
+WAIT is correct while the ring is closing. The moment it opens, the answer is
+**NOW!**. Same fix for the hold, which is graded on the *release* and was
+saying **HOLD!** at exactly the instant that advice would cost you the note —
+it says **RELEASE!** now. Both go through one `liveLabel()` the note itself
+calls, so the test asserts the real function rather than restating a constant.
+
+### The receipt was lying about the response limit
+
+The deck's rule is that a hero fully negates only **one** hit per enemy action;
+a second clean string still holds three quarters. But `fxParryReceipt` was
+handed the *raw* read, so it printed **"TURNED — the blow is turned aside"**
+while a quarter of the damage went through.
+
+The Hymn strikes Ash twice. This was the routine case, on the intent players
+meet first, and nothing anywhere on screen teaches the limit. The receipt now
+reads **SPENT — read clean, but this hero already spent their negate.**
+
+### And the rest
+
+| | was | now |
+|---|---|---|
+| Burst tally | "MASH 0/3" overwritten with "MASH!" the instant mashing began — the first tap was blind | keeps its tally |
+| Phase-2 gaps | `MIN_GAP_AFTER` is in beats and phase 2 shortens the beat, so the Rain's tap→slide fell from 750ms to 562ms while grading windows stayed absolute | floors divided by `sub`, so the promised wall-clock gap holds |
+| The attack thread | drawn once to the first answerer and held all bar — during the Rain it still pointed at Ash while Elin's and Mira's notes flew | follows whichever note lands next |
+| Grades | 13px, smaller than the card text and smaller than the damage numbers Build 22 condemned; `good` and `miss` near-invisible | 19px, and the two outcomes you most need to learn from are the brightest |
+| Two numbers in one frame | a ±26px fan, narrower than the digits themselves — two 9s read as "99" | ±52px and staggered vertically |
+| Hold vs tap | the same gold double ring; only a 12px word differed, and mid-string players read shape | the hold carries a draining core |
+
+### What the audit said to protect, and I did not touch
+
+- **The slide, end to end** — arrow in the ring, verb from spawn, a longer
+  runway, a wrong-way shake that *keeps listening* and demotes one grade
+  instead of zeroing, and `SLIDE_LEAD_MS` crediting the finger's commit rather
+  than taxing its travel. The best-engineered note in the game.
+- **Weighted partial mitigation and `DEMOTE`.** A good still pays 0.6; a
+  misread answered on the beat still pays something. This is the honest floor
+  under the all-or-nothing TURNED tier, and the fairness problem was never the
+  maths — it was the feedback, which is what this build fixed.
+- The focus desaturation, the slow-mo at the gradeable instant, the fixed beat
+  grid a missed ring cannot drag, and the skull.
+
+### Measured
+
+A frame-precision hand now scores **zero misses on every note kind**, and the
+Hymn turns 2 of its 3 hits — which is not a shortfall but the response limit
+working exactly as written: Ash is struck twice and may only fully negate once.
+Before this build the same hand could not turn that first hit at all without
+mistiming it on purpose.

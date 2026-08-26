@@ -44,6 +44,48 @@ const { boot } = require('./harness.cjs');
     };
   });
 
+  // ═══ A00 · ONE PRESS ANSWERS ONE NOTE ═══
+  // The Hymn opens with two taps half a beat apart — 250ms — inside a grading
+  // window that runs land−260ms to land+290ms. Both notes were listening, both
+  // had their own stage-level pointerdown, and one finger fired both: the
+  // first graded PERFECT and the second was silently eaten as an early GOOD
+  // the player never played. The Regent's signature intent could not be played
+  // FLAWLESS at all. Nothing in the suite noticed, because nothing in the
+  // suite had ever pressed a real button.
+  console.log('\n── one press, one note ──');
+  {
+    const arb = await J(() => {
+      // two notes 250ms apart, a press dead on the first
+      const now = 1000;
+      const A = { landAt: now, kind: 'tap' }, B = { landAt: now + 250, kind: 'tap' };
+      const K = window.K;
+      if (!K._liveTest) return null;
+      return K._liveTest([A, B], [
+        { at: now,       want: 'A' },   // dead on A
+        { at: now + 250, want: 'B' },   // dead on B
+        { at: now + 100, want: 'A' },   // nearer A
+        { at: now + 160, want: 'B' },   // nearer B
+      ]);
+    });
+    check('PRESS: two notes a half-beat apart never both answer one finger',
+      arb && arb.every(r => r.got === r.want), JSON.stringify(arb));
+
+    // and the same rule is what stops a bait being "touched" by a press aimed
+    // at the note after it
+    const bait = await J(() => {
+      const K = window.K;
+      const now = 2000;
+      const skull = { landAt: now, kind: 'bait' }, tap = { landAt: now + 500, kind: 'tap' };
+      return K._liveTest([skull, tap], [
+        { at: now,       want: 'A' },   // touching the skull is touching the skull
+        { at: now + 260, want: 'B' },   // eager about the TAP, not the skull
+        { at: now + 500, want: 'B' },
+      ]);
+    });
+    check('PRESS: a press aimed at the note after a bait never counts as touching the skull',
+      bait && bait.every(r => r.got === r.want), JSON.stringify(bait));
+  }
+
   // ═══ A0 · WHAT THE SCREEN ACTUALLY SAYS OUT LOUD ═══
   // A comprehension pass found five things a first-time player is never told.
   // Each fix is one line of text or one icon; each is worth a gate, because
@@ -83,6 +125,20 @@ const { boot } = require('./harness.cjs');
     });
     check('SAYS: the free swap is written on the pile, not hidden in a hover tooltip on a touchscreen',
       !!swap.text && /swap/i.test(swap.text) && swap.titles === 0, JSON.stringify(swap));
+
+    // A FEINT IS GRADED LIKE A TAP — press on the beat; doing nothing MISSES.
+    // Its arrival label is WAIT, which two independent reviewers of this game
+    // read as "do nothing" (the bait's rule). The note has to say NOW when the
+    // window opens or the label is teaching the wrong answer.
+    const feint = await J(() => {
+      const words = window.K._noteWords ? window.K._noteWords() : null;
+      return words;
+    });
+    check('SAYS: a feint says WAIT while it closes and NOW when it opens — doing nothing misses it',
+      feint && feint.feint === 'WAIT' && feint.feintLive === 'NOW!'
+      && feint.holdLive === 'RELEASE!' && feint.tapLive === 'TAP!'
+      && feint.burstLive === null,          // a burst keeps its live tally
+      JSON.stringify(feint));
 
     const early = await J(() => window.K.parryGrade(-400));
     check('SAYS: a rushed input is EARLY, not WAIT — WAIT is a feint’s own correct answer',
